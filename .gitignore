@@ -1,0 +1,7 @@
+node_modules/
+.expo/
+.cache/
+.pnpm/
+dist/
+build/
+.env
