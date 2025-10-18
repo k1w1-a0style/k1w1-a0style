@@ -1,18 +1,24 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native'; // Alert hinzugefügt
 import { DrawerHeaderProps } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTerminal } from '../contexts/TerminalContext';
+// KEIN WebSocket Import mehr
 import { theme } from '../theme';
 
 const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
-  const { addLog } = useTerminal();
+  // KEIN useWebSocket mehr
 
   const handlePlayPress = () => {
-    console.log('>>> Play Button Pressed!'); // Debug-Meldung
-    addLog('Test: Expo Go Button gedrückt!');
+    // Vorläufige Meldung, da Funktion deaktiviert
+    Alert.alert("Info", "Expo Go Start über App aktuell nicht unterstützt.");
+    // console.log('>>> Play Button Pressed! (Funktion deaktiviert)');
   };
+
+  const handleStopPress = () => {
+     Alert.alert("Info", "Expo Stop über App aktuell nicht unterstützt.");
+     // console.log('>>> Stop Button Pressed! (Funktion deaktiviert)');
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -25,11 +31,13 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
           <TouchableOpacity style={styles.iconButton}>
             <Ionicons name="cloud-upload-outline" size={24} color={theme.palette.text.primary} />
           </TouchableOpacity>
+          {/* Knopf ohne WebSocket Funktion */}
           <TouchableOpacity style={styles.iconButton} onPress={handlePlayPress}>
             <Ionicons name="play-outline" size={24} color={theme.palette.text.primary} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton}>
-            <Ionicons name="archive-outline" size={24} color={theme.palette.text.primary} />
+          {/* Stop Button ohne WebSocket Funktion */}
+           <TouchableOpacity style={styles.iconButton} onPress={handleStopPress}>
+            <Ionicons name="stop-circle-outline" size={24} color={theme.palette.text.primary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -37,33 +45,14 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
   );
 };
 
+// Styles bleiben gleich
 const styles = StyleSheet.create({
-  safeArea: {
-    backgroundColor: theme.palette.card, // Header-Hintergrund
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: theme.palette.card, // Header-Hintergrund
-    paddingHorizontal: 15,
-    height: 60,
-  },
-  title: {
-    color: theme.palette.text.primary,
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  iconsContainer: {
-    flexDirection: 'row',
-  },
-  menuButton: {
-    paddingRight: 15,
-  },
-  iconButton: {
-    marginLeft: 16,
-    padding: 5,
-  },
+  safeArea: { backgroundColor: theme.palette.card },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: theme.palette.card, paddingHorizontal: 15, height: 60 },
+  title: { color: theme.palette.text.primary, fontSize: 18, fontWeight: 'bold' },
+  iconsContainer: { flexDirection: 'row' },
+  menuButton: { paddingRight: 15 },
+  iconButton: { marginLeft: 16, padding: 5 },
 });
 
 export default CustomHeader;

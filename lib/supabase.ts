@@ -1,76 +1,114 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createClient } from '@supabase/supabase-js';
-import { Alert } from 'react-native'; // Import Alert
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { Alert } from 'react-native';
 
-// Schlüsselnamen für AsyncStorage (verwende die gleichen wie im SettingsScreen)
 const supabaseUrlKey = 'supabase_url';
 const supabaseAnonKeyKey = 'supabase_key';
 
-// Variablen für die geladenen Credentials
-let supabaseUrl: string | null = null;
-let supabaseAnonKey: string | null = null;
-let supabaseClient: any = null; // Variable für den initialisierten Client
+let supabaseInstance: SupabaseClient | null = null;
+let initializationPromise: Promise<SupabaseClient> | null = null; // Promise für Initialisierung
 
-// Funktion zum Laden der Credentials aus AsyncStorage
-const loadSupabaseCredentials = async (): Promise<boolean> => {
+const createDummyClient = (): SupabaseClient => { /* ... (wie vorher) ... */
+    console.warn("Erstelle Dummy Supabase Client.");
+    const dummyError = { message: 'Supabase client not initialized. Please check settings.', code: 'DUMMY_CLIENT' };
+    return {
+        from: (table: string) => ({
+             select: async (select?: string, options?: any) => ({ data: null, error: dummyError }),
+             insert: async (values: any | any[], options?: any) => ({ data: null, error: dummyError }),
+             update: async (values: any, options?: any) => ({ data: null, error: dummyError }),
+             delete: async (options?: any) => ({ data: null, error: dummyError }),
+             eq: () => createDummyClient().from(table),
+        }),
+        functions: {
+            invoke: async (functionName: string, options?: any) => ({ data: null, error: dummyError }),
+        },
+        auth: {
+            signInWithPassword: async (credentials: any) => ({ data: null, error: dummyError }),
+            signUp: async (credentials: any) => ({ data: null, error: dummyError }),
+            signOut: async () => ({ error: null }),
+        },
+        storage: {
+             from: (bucketId: string) => ({
+                 upload: async (path: string, file: any, options?: any) => ({ data: null, error: dummyError }),
+                 download: async (path: string, options?: any) => ({ data: null, error: dummyError }),
+             }),
+        },
+    } as unknown as SupabaseClient;
+};
+
+// --- Initialisierungsfunktion gibt jetzt den Client zurück oder wirft Fehler ---
+const initializeSupabase = async (): Promise<SupabaseClient> => {
+  console.log("Starte Supabase Initialisierung...");
   try {
-    supabaseUrl = await AsyncStorage.getItem(supabaseUrlKey);
-    supabaseAnonKey = await AsyncStorage.getItem(supabaseAnonKeyKey);
+    const supabaseUrl = await AsyncStorage.getItem(supabaseUrlKey);
+    const supabaseAnonKey = await AsyncStorage.getItem(supabaseAnonKeyKey);
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      console.warn("Supabase URL oder Anon Key nicht im AsyncStorage gefunden.");
-      // Optional: Zeige eine Warnung in der App
-      // Alert.alert("Konfiguration fehlt", "Bitte Supabase URL und Key in den Einstellungen eintragen.");
-      return false; // Laden fehlgeschlagen
+      console.warn("Supabase URL/Key fehlt im Storage.");
+      // Erstelle Dummy nur, wenn noch kein Client existiert
+      if (!supabaseInstance) supabaseInstance = createDummyClient();
+      return supabaseInstance; // Gib Dummy zurück
     }
-    return true; // Laden erfolgreich
+
+    // Erstelle/Aktualisiere echten Client nur wenn nötig
+    if (!supabaseInstance || supabaseInstance.supabaseUrl !== supabaseUrl || supabaseInstance.supabaseKey !== supabaseAnonKey) {
+        console.log("Erstelle/Aktualisiere echten Supabase Client.");
+        supabaseInstance = createClient(supabaseUrl, supabaseAnonKey);
+    } else {
+        console.log("Echter Supabase Client ist bereits aktuell.");
+    }
+    return supabaseInstance; // Gib echten Client zurück
+
   } catch (error) {
-    console.error("Fehler beim Laden der Supabase Credentials:", error);
-    Alert.alert("Fehler", "Supabase Credentials konnten nicht geladen werden.");
-    return false; // Laden fehlgeschlagen
+    console.error("Fehler bei Supabase Initialisierung:", error);
+    Alert.alert("Fehler", "Supabase Credentials konnten nicht geladen/verarbeitet werden.");
+    // Erstelle Dummy nur, wenn noch kein Client existiert
+    if (!supabaseInstance) supabaseInstance = createDummyClient();
+    return supabaseInstance; // Gib Dummy im Fehlerfall zurück
   }
 };
 
-// Funktion zum Initialisieren des Supabase Clients
-const initializeSupabase = async () => {
-  const loaded = await loadSupabaseCredentials();
-  if (loaded && supabaseUrl && supabaseAnonKey) {
-    supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
-    console.log("Supabase Client initialisiert.");
-  } else {
-    // Erstelle einen Dummy-Client oder behandle den Fehler,
-    // damit die App nicht crasht, wenn `supabase` importiert wird.
-    console.warn("Supabase Client konnte nicht initialisiert werden, da Credentials fehlen.");
-    supabaseClient = {
-      // Dummy-Methoden, um Abstürze zu vermeiden
-      from: () => ({ select: async () => ({ error: { message: 'Supabase not initialized' } }), insert: async () => ({ error: { message: 'Supabase not initialized' } }) }),
-      functions: { invoke: async () => ({ error: { message: 'Supabase not initialized' } }) },
-      // Füge hier weitere benötigte Dummy-Methoden hinzu
-    };
-     // Optional: Zeige eine Warnung, aber nur einmal oder an geeigneter Stelle
-     // Alert.alert("Supabase Fehler", "Client konnte nicht initialisiert werden. Bitte Einstellungen prüfen.");
+// --- Funktion, die sicherstellt, dass der Client initialisiert ist ---
+// Gibt eine Promise zurück, die mit dem Client (echt oder Dummy) resolved.
+export const ensureSupabaseClient = (): Promise<SupabaseClient> => {
+  if (supabaseInstance) {
+    // Wenn schon initialisiert (oder Dummy erstellt), sofort zurückgeben
+    return Promise.resolve(supabaseInstance);
   }
+  if (!initializationPromise) {
+    // Wenn Initialisierung noch nicht gestartet wurde, starte sie
+    initializationPromise = initializeSupabase();
+  }
+  // Gib die laufende oder abgeschlossene Initialisierungs-Promise zurück
+  return initializationPromise;
 };
 
-// Initialisiere den Client beim Laden des Moduls
-initializeSupabase();
 
-// Exportiere den Client (kann initial der Dummy sein)
-// WICHTIG: Exportiere den Client selbst, nicht eine Funktion, die ihn zurückgibt,
-// damit der Import in anderen Dateien einfach bleibt.
-export const supabase = supabaseClient;
-
-// Optionale Funktion, um Credentials neu zu laden und Client neu zu initialisieren
-// (z.B. nach dem Speichern in den Settings)
-export const refreshSupabaseClient = async () => {
-  console.log("Versuche Supabase Client neu zu initialisieren...");
-  await initializeSupabase();
-  // Da 'supabase' direkt exportiert wird und supabaseClient eine globale Variable ist,
-  // müssen wir den Export nicht ändern. Zukünftige Zugriffe auf 'supabase'
-  // greifen auf den (potenziell neu initialisierten) supabaseClient zu.
-  // Es ist jedoch wichtig zu verstehen, dass Module nur einmal geladen werden.
-  // Eine robustere Lösung wäre, eine Funktion zu exportieren, die den Client zurückgibt,
-  // oder einen State-Management-Ansatz zu verwenden. Für dieses Setup ist es okay.
-  console.log("Aktualisierter Supabase Client:", supabase === supabaseClient); // Sollte true sein
+// --- Funktion zum Neu-Initialisieren (z.B. nach Settings-Änderung) ---
+export const refreshSupabaseCredentialsAndClient = async (): Promise<SupabaseClient> => {
+  console.log("Erzwinge Neuladen von Supabase Credentials & Client...");
+  // Setze Promise zurück, um Neuladen zu erzwingen
+  initializationPromise = null;
+  supabaseInstance = null; // Alte Instanz entfernen
+  // Starte Initialisierung neu und gib das Ergebnis zurück
+  return await ensureSupabaseClient();
 };
 
+// --- Veralteter direkter Export (vermeiden!) ---
+// export const supabase = getSupabaseClient(); // Dies verursacht Race Condition!
+
+// --- Verwendung in Komponenten: ---
+// import { ensureSupabaseClient } from '../lib/supabase';
+//
+// const MyComponent = () => {
+//   const [client, setClient] = useState<SupabaseClient | null>(null);
+//   useEffect(() => {
+//     ensureSupabaseClient().then(setClient);
+//   }, []);
+//
+//   if (!client) return <Text>Loading Supabase...</Text>;
+//
+//   const fetchData = async () => {
+//     const { data, error } = await client.from('...')...
+//   }
+// }
