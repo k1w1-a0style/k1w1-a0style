@@ -6,13 +6,15 @@ import { createDrawerNavigator } from '@react-navigation/drawer';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from './theme';
-import { TerminalProvider } from './contexts/TerminalContext'; // Nur noch TerminalProvider
+import { TerminalProvider } from './contexts/TerminalContext';
+import { AIProvider } from './contexts/AIContext';
 
-// Screens importieren
+// Importiere ALLE Screens
 import ChatScreen from './screens/ChatScreen';
 import CodeScreen from './screens/CodeScreen';
 import TerminalScreen from './screens/TerminalScreen';
 import SettingsScreen from './screens/SettingsScreen';
+import ConnectionsScreen from './screens/ConnectionsScreen'; // NEU
 import CustomHeader from './components/CustomHeader';
 
 const Tab = createBottomTabNavigator();
@@ -43,25 +45,27 @@ const TabNavigator = () => {
   );
 };
 
-// App rendert nur noch TerminalProvider und Navigation
 export default function App() {
   return (
     <TerminalProvider>
-      <NavigationContainer>
-        <StatusBar style="light" backgroundColor={theme.palette.card} />
-        <Drawer.Navigator
-          screenOptions={{
-            // Header: MUSS angepasst werden, da WebSocket wegfällt
-            header: (props) => <CustomHeader {...props} />, // Vorläufig, muss angepasst werden
-            drawerStyle: { backgroundColor: theme.palette.background },
-            drawerActiveTintColor: theme.palette.primary,
-            drawerInactiveTintColor: theme.palette.text.primary,
-          }}
-        >
-          <Drawer.Screen name="Home" component={TabNavigator} options={{ title: 'k1w1-a0style' }} />
-          <Drawer.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
-        </Drawer.Navigator>
-      </NavigationContainer>
+      <AIProvider>
+        <NavigationContainer>
+          <StatusBar style="light" backgroundColor={theme.palette.card} />
+          <Drawer.Navigator
+            screenOptions={{
+              header: (props) => <CustomHeader {...props} />,
+              drawerStyle: { backgroundColor: theme.palette.background },
+              drawerActiveTintColor: theme.palette.primary,
+              drawerInactiveTintColor: theme.palette.text.primary,
+            }}
+          >
+            <Drawer.Screen name="Home" component={TabNavigator} options={{ title: 'k1w1-a0style' }} />
+            <Drawer.Screen name="Settings" component={SettingsScreen} options={{ title: 'KI-Einstellungen' }} />
+            <Drawer.Screen name="Connections" component={ConnectionsScreen} options={{ title: 'Verbindungen' }} />
+          </Drawer.Navigator>
+        </NavigationContainer>
+      </AIProvider>
     </TerminalProvider>
   );
 }
+

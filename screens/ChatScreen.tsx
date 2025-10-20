@@ -5,20 +5,13 @@ import {
 } from 'react-native';
 import { ensureSupabaseClient, refreshSupabaseCredentialsAndClient } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { theme } from '../theme';
+import { theme, HEADER_HEIGHT } from '../theme'; // Importiere HEADER_HEIGHT
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { useAI } from '../contexts/AIContext';
 
-interface ChatMessage {
-  _id: string;
-  text: string;
-  createdAt: Date;
-  user: {
-    _id: number;
-    name: string;
-  };
-}
+interface ChatMessage { _id: string; text: string; createdAt: Date; user: { _id: number; name: string; }; }
 
 const ChatScreen = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -26,6 +19,7 @@ const ChatScreen = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
+  const { selectedProvider, selectedMode } = useAI();
 
   const loadClient = useCallback(async () => {
     setError(null);
@@ -60,8 +54,12 @@ const ChatScreen = () => {
     if (supabase.functions.invoke.toString().includes('DUMMY_CLIENT')) {
       Alert.alert('Fehler', 'Supabase nicht konfiguriert...'); return;
     }
-    const groqApiKey = await AsyncStorage.getItem('groq_key');
-    if (!groqApiKey) { Alert.alert('Key fehlt', 'Groq Key...'); return; }
+
+    const apiKeyStorageKey = `api_key_${selectedProvider}`;
+    const apiKey = await AsyncStorage.getItem(apiKeyStorageKey);
+    if (!apiKey) {
+      Alert.alert('API Key fehlt', `${selectedProvider.toUpperCase()} Key in Settings setzen.`); return;
+    }
 
     const userMessage: ChatMessage = { _id: Math.random().toString(36).substring(7), text: prompt, createdAt: new Date(), user: { _id: 1, name: 'User' } };
     setMessages((prev) => [userMessage, ...prev]);
@@ -70,9 +68,16 @@ const ChatScreen = () => {
 
     try {
       const anonKey = await AsyncStorage.getItem('supabase_key') || '';
+      console.log(`Sende an 'k1w1-handler': Provider=${selectedProvider}, Model=${selectedMode}`);
+
       const { data, error: functionError } = await supabase.functions.invoke('k1w1-handler', {
         headers: { 'apikey': anonKey, 'Authorization': `Bearer ${anonKey}` },
-        body: JSON.stringify({ prompt: prompt, apiKey: groqApiKey }),
+        body: JSON.stringify({
+            prompt: prompt,
+            apiKey: apiKey,
+            provider: selectedProvider,
+            model: selectedMode
+         }),
       });
       if (functionError) throw functionError;
 
@@ -89,7 +94,6 @@ const ChatScreen = () => {
       let detailMessage = e.message || 'Unbekannter Fehler';
       if (e.name === 'FunctionsHttpError' || (e instanceof Error && e.message.includes('non-2xx'))) {
         detailMessage = `Edge Function Fehler (Status: ${e.context?.status || '?'}). Grund: ${e.context?.details || e.message}`;
-        console.error("EDGE FUNCTION FEHLER DETAILS:", JSON.stringify(e, null, 2));
         if (!detailMessage.includes('DUMMY_CLIENT')) {
           Alert.alert('Sende-Fehler', `${detailMessage}. Bitte Supabase Logs prüfen!`);
         }
@@ -100,18 +104,23 @@ const ChatScreen = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [textInput, supabase]);
+  }, [textInput, supabase, selectedProvider, selectedMode]);
 
   const isSupabaseReady = supabase && !supabase.functions.invoke.toString().includes('DUMMY_CLIENT');
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        // === KORREKTUR FÜR ANDROID ===
+        // 1. Behavior zurück auf "padding" (wie in deinem Original)
+        behavior={Platform.OS === "ios" ? "padding" : "padding"} 
         style={styles.keyboardAvoidingContainer}
-        // === HÖHERER WERT FÜR ANDROID ===
-        keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 130} // Erhöht auf 130 für Android
-        // ================================
+        
+        // === KORREKTUR FÜR ANDROID ===
+        // 2. Den Offset für Android (der "padding" nutzt) ERHÖHEN.
+        // Wir addieren 40px Puffer, um das 1/4 auszugleichen.
+        keyboardVerticalOffset={Platform.OS === "ios" ? HEADER_HEIGHT + 20 : HEADER_HEIGHT + 40}
+        // ============================
       >
         {!supabase ? (
           <ActivityIndicator style={styles.loadingIndicator} color={theme.palette.primary} size="large" />
@@ -119,31 +128,26 @@ const ChatScreen = () => {
           <View style={styles.errorBanner}><Text style={styles.errorBannerText}>{error}</Text></View>
         ) : null}
 
-        {/* Container für die Liste */}
-        <View style={styles.listContainer}>
-          <FlatList
-            data={messages}
-            renderItem={({ item }) => (
-              <View style={[styles.messageBubble, item.user._id === 1 ? styles.userMessage : styles.aiMessage]}>
-                <Text style={item.user._id === 1 ? styles.userMessageText : styles.aiMessageText}> {item.text} </Text>
-              </View>
-            )}
-            keyExtractor={(item) => item._id}
-            inverted={true}
-            style={styles.list}
-            contentContainerStyle={styles.listContent}
-            keyboardShouldPersistTaps="handled"
-          />
-        </View>
+        <FlatList
+          data={messages}
+          renderItem={({ item }) => (
+            <View style={[ styles.messageBubble, item.user._id === 1 ? styles.userMessage : styles.aiMessage ]}>
+              <Text style={item.user._id === 1 ? styles.userMessageText : styles.aiMessageText}> {item.text} </Text>
+            </View>
+          )}
+          keyExtractor={(item) => item._id}
+          inverted={true}
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          keyboardShouldPersistTaps="handled"
+        />
 
-        {/* Fehleranzeige für Sende-Fehler */}
         {isSupabaseReady && error && (
           <View style={styles.errorContainer}>
             <Text style={styles.error}>{error}</Text>
           </View>
         )}
 
-        {/* Input Container */}
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
@@ -170,10 +174,9 @@ const ChatScreen = () => {
 // --- Styles ---
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: theme.palette.background },
-  keyboardAvoidingContainer: { flex: 1 },
-  listContainer: { flex: 1 },
-  list: { paddingHorizontal: 10 },
-  listContent: { paddingVertical: 10 },
+  keyboardAvoidingContainer: { flex: 1 }, 
+  list: { flex: 1 }, 
+  listContent: { paddingVertical: 10, paddingHorizontal: 10 },
   messageBubble: { borderRadius: 15, paddingVertical: 10, paddingHorizontal: 14, marginBottom: 8, maxWidth: '80%' },
   userMessage: { backgroundColor: theme.palette.primary, alignSelf: 'flex-end', borderBottomRightRadius: 0 },
   aiMessage: { backgroundColor: theme.palette.card, alignSelf: 'flex-start', borderBottomLeftRadius: 0 },
@@ -191,3 +194,4 @@ const styles = StyleSheet.create({
 });
 
 export default ChatScreen;
+
