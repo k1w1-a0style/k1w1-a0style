@@ -3,14 +3,13 @@ import {
   View, StyleSheet, FlatList, TextInput, Text, ActivityIndicator,
   Alert, TouchableOpacity, SafeAreaView, KeyboardAvoidingView, Platform
 } from 'react-native';
-import { ensureSupabaseClient } from '../lib/supabase';
+import { ensureSupabaseClient, refreshSupabaseCredentialsAndClient } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { theme, HEADER_HEIGHT } from '../theme';
+import { theme, HEADER_HEIGHT } from '../theme'; // Importiere HEADER_HEIGHT
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { useAI } from '../contexts/AIContext';
-import { useTerminal } from '../contexts/TerminalContext';
 
 interface ChatMessage { _id: string; text: string; createdAt: Date; user: { _id: number; name: string; }; }
 
@@ -20,9 +19,7 @@ const ChatScreen = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
-  const { config, getCurrentApiKey, rotateApiKey } = useAI();
-  const { selectedProvider, selectedMode } = config;
-  const { addLog } = useTerminal();
+  const { selectedProvider, selectedMode } = useAI();
 
   const loadClient = useCallback(async () => {
     setError(null);
@@ -35,58 +32,57 @@ const ChatScreen = () => {
       } else {
         console.log("ChatScreen: Supabase Client ist bereit.");
       }
-    } catch (e: any) { setError("Supabase konnte nicht geladen werden."); }
+    } catch (e: any) {
+      console.error("Fehler beim Holen des Supabase Clients:", e);
+      setError("Supabase konnte nicht geladen werden.");
+    }
   }, []);
 
-  useFocusEffect(useCallback(() => { loadClient(); }, [loadClient]));
+  useFocusEffect(
+    useCallback(() => {
+      async function checkSupabase() { await loadClient(); }
+      checkSupabase();
+    }, [loadClient])
+  );
 
-  const handleSend = useCallback(async (isRetry = false) => {
+  const handleSend = useCallback(async () => {
     const prompt = textInput.trim();
     if (!prompt || !supabase) return;
-    if (!isRetry) setError(null); 
+    setError(null);
 
     // @ts-ignore
     if (supabase.functions.invoke.toString().includes('DUMMY_CLIENT')) {
       Alert.alert('Fehler', 'Supabase nicht konfiguriert...'); return;
     }
 
-    const apiKey = getCurrentApiKey(selectedProvider);
+    const apiKeyStorageKey = `api_key_${selectedProvider}`;
+    const apiKey = await AsyncStorage.getItem(apiKeyStorageKey);
+    console.log("🔑 DEBUG API-Key Check:", { provider: selectedProvider, model: selectedMode, hasKey: !!apiKey, keyLength: apiKey?.length || 0, keyPreview: apiKey ? apiKey.substring(0, 4) + "..." : "KEIN KEY!" });
     if (!apiKey) {
       Alert.alert('API Key fehlt', `${selectedProvider.toUpperCase()} Key in Settings setzen.`); return;
     }
-    
-    if (!isRetry) {
-        const userMessage: ChatMessage = { _id: Math.random().toString(36).substring(7), text: prompt, createdAt: new Date(), user: { _id: 1, name: 'User' } };
-        setMessages((prev) => [userMessage, ...prev]);
-        setTextInput('');
-    }
+
+    const userMessage: ChatMessage = { _id: Math.random().toString(36).substring(7), text: prompt, createdAt: new Date(), user: { _id: 1, name: 'User' } };
+    setMessages((prev) => [userMessage, ...prev]);
+    setTextInput('');
     setIsLoading(true);
 
-    let effectiveModel = selectedMode;
-    if (selectedProvider === 'groq' && selectedMode === 'auto-groq') {
-      effectiveModel = 'llama-3.1-8b-instant'; 
-      console.log(`'auto-groq' erkannt. Sende stattdessen: ${effectiveModel}`);
-    }
-
     try {
-      console.log(`Sende an 'k1w1-handler': Provider=${selectedProvider}, Model=${effectiveModel}, Key-Index=${config.keyIndexes[selectedProvider]}`);
-      
+      const anonKey = await AsyncStorage.getItem('supabase_key') || '';
+      console.log(`Sende an 'k1w1-handler': Provider=${selectedProvider}, Model=${selectedMode}`);
+
       const { data, error: functionError } = await supabase.functions.invoke('k1w1-handler', {
-        body: {
+        headers: { 'apikey': anonKey, 'Authorization': `Bearer ${anonKey}` },
+        body: JSON.stringify({
             message: prompt,
             apiKey: apiKey,
             provider: selectedProvider,
-            model: effectiveModel
-         },
+            model: selectedMode
+         }),
       });
+      if (functionError) throw functionError;
 
-      if (functionError) {
-          const status = functionError.context?.status || 500;
-          const detail = functionError.context?.details || functionError.message;
-          throw { name: 'FunctionsHttpError', status: status, message: detail };
-      }
-
-      const aiText = data?.response; 
+      const aiText = data?.data?.choices?.[0]?.message?.content;
       if (aiText) {
         const aiMessage: ChatMessage = { _id: Math.random().toString(36).substring(7), text: aiText.trim(), createdAt: new Date(), user: { _id: 2, name: 'AI' } };
         setMessages((prev) => [aiMessage, ...prev]);
@@ -97,45 +93,35 @@ const ChatScreen = () => {
     } catch (e: any) {
       console.error('Fehler:', e);
       let detailMessage = e.message || 'Unbekannter Fehler';
-      let status = e.status || 500; 
-
-      // === KORRIGIERTE ROTATIONSLOGIK ===
-      if (status === 400 || status === 401 || status === 404 || status === 429) {
-          console.log(`Key-Problem erkannt (Status ${status}), versuche Rotation...`);
-          addLog(`Key-Problem (Status ${status}) bei ${selectedProvider}. Wechsle Key...`);
-          
-          const nextKey = await rotateApiKey(selectedProvider); 
-          
-          if (nextKey && nextKey !== apiKey) { 
-            console.log("Versuche es erneut mit neuem Key...");
-            handleSend(true); 
-            return; 
-          } else {
-             detailMessage = `Alle Keys für ${selectedProvider} sind verbraucht oder ungültig.`;
-             Alert.alert("Alle Keys verbraucht", detailMessage);
-             addLog(`Alle Keys für ${selectedProvider} durchrotiert und fehlgeschlagen.`);
-          }
+      if (e.name === 'FunctionsHttpError' || (e instanceof Error && e.message.includes('non-2xx'))) {
+        detailMessage = `Edge Function Fehler (Status: ${e.context?.status || '?'}). Grund: ${e.context?.details || e.message}`;
+        if (!detailMessage.includes('DUMMY_CLIENT')) {
+          Alert.alert('Sende-Fehler', `${detailMessage}. Bitte Supabase Logs prüfen!`);
+        }
       } else {
-          Alert.alert('Sende-Fehler', `Nachricht nicht gesendet: ${detailMessage}`);
+        Alert.alert('Sende-Fehler', `Nachricht nicht gesendet: ${detailMessage}`);
       }
-      
       setError(detailMessage);
-      if (!isRetry) {
-          setMessages(prev => prev.slice(1)); 
-      }
     } finally {
       setIsLoading(false);
     }
-  }, [textInput, supabase, selectedProvider, selectedMode, getCurrentApiKey, rotateApiKey, addLog, config]);
+  }, [textInput, supabase, selectedProvider, selectedMode]);
 
   const isSupabaseReady = supabase && !supabase.functions.invoke.toString().includes('DUMMY_CLIENT');
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "padding"}
+        // === KORREKTUR FÜR ANDROID ===
+        // 1. Behavior zurück auf "padding" (wie in deinem Original)
+        behavior={Platform.OS === "ios" ? "padding" : "padding"} 
         style={styles.keyboardAvoidingContainer}
+        
+        // === KORREKTUR FÜR ANDROID ===
+        // 2. Den Offset für Android (der "padding" nutzt) ERHÖHEN.
+        // Wir addieren 40px Puffer, um das 1/4 auszugleichen.
         keyboardVerticalOffset={Platform.OS === "ios" ? HEADER_HEIGHT + 20 : HEADER_HEIGHT + 40}
+        // ============================
       >
         {!supabase ? (
           <ActivityIndicator style={styles.loadingIndicator} color={theme.palette.primary} size="large" />
@@ -174,7 +160,7 @@ const ChatScreen = () => {
             multiline
           />
           <TouchableOpacity
-            onPress={() => handleSend(false)}
+            onPress={handleSend}
             disabled={isLoading || !isSupabaseReady}
             style={[styles.sendButton, (!isSupabaseReady || isLoading) && styles.sendButtonDisabled]}
           >
@@ -186,6 +172,7 @@ const ChatScreen = () => {
   );
 };
 
+// --- Styles ---
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: theme.palette.background },
   keyboardAvoidingContainer: { flex: 1 }, 
@@ -208,3 +195,4 @@ const styles = StyleSheet.create({
 });
 
 export default ChatScreen;
+

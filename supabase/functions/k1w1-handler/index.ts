@@ -1,183 +1,138 @@
-import { serve } from "https://deno.land/std@0.203.0/http/server.ts";
+// WICHTIG: Du musst diese Abhängigkeiten in deinem Supabase-Projekt installieren!
+// Führe im Verzeichnis `supabase/functions/k1w1-handler` aus:
+// npm install groq-sdk openai @google/generative-ai @anthropic-ai/sdk
+// (Deno/Supabase importiert diese meist automatisch, aber sicher ist sicher)
 
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import Groq from 'npm:groq-sdk'
+import OpenAI from 'npm:openai'
+import { GoogleGenerativeAI } from 'npm:@google/generative-ai'
+import Anthropic from 'npm:@anthropic-ai/sdk'
+
+// Helper-Typ für die erwartete Anfrage
+interface RequestBody {
+  provider: 'groq' | 'openai' | 'gemini' | 'anthropic' | 'perplexity'
+  model: string
+  apiKey: string
+  message: string
+}
+
+// CORS-Header, wichtig für die App
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-// --- Hilfsfunktion für Groq ---
-async function handleGroqRequest(prompt: string, model: string, apiKey: string) {
-  console.log(`Starte Groq-Anfrage mit Modell: ${model}`);
-  
-  let effectiveModel = model;
-  if (model === 'auto-groq') {
-    // Einfache Auto-Logik (basierend auf deiner DOCX)
-    if (prompt.toLowerCase().includes('code') || prompt.toLowerCase().includes('ui')) {
-      effectiveModel = 'llama-3.3-70b-versatile';
-    } else if (prompt.length > 500 || prompt.toLowerCase().includes('debug')) {
-      effectiveModel = 'openai/gpt-oss-120b';
-    } else if (prompt.length < 150) {
-      effectiveModel = 'llama-3.1-8b-instant';
-    } else {
-      effectiveModel = 'openai/gpt-oss-20b';
-    }
-    console.log(`Auto-Groq hat gewählt: ${effectiveModel}`);
-  }
-  
-  const groqApiUrl = "https://api.groq.com/openai/v1/chat/completions";
-  
-  const groqResponse = await fetch(groqApiUrl, {
-    method: "POST",
-    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: effectiveModel,
-      messages: [{ role: "user", content: prompt }],
-      max_tokens: 2048,
-      temperature: 0.7,
-    }),
-  });
-
-  if (!groqResponse.ok) {
-    const errorBody = await groqResponse.text();
-    console.error(`Groq API Fehler: Status ${groqResponse.status}, Body: ${errorBody}`);
-    let detail = errorBody;
-    try { detail = JSON.parse(errorBody).error?.message || errorBody; } catch(e){}
-    throw new Error(`Groq API Error (${groqResponse.status}): ${detail}`);
-  }
-  
-  return await groqResponse.json();
+  'Access-Control-Allow-Origin': '*', // Erlaube Anfragen von überall
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS', // Erlaube POST und OPTIONS
 }
 
-// --- Platzhalter für OpenAI ---
-async function handleOpenAIRequest(prompt: string, model: string, apiKey: string) {
-  console.log(`Starte OpenAI-Anfrage mit Modell: ${model}`);
-  // const openaiApiUrl = "https://api.openai.com/v1/chat/completions";
-  // const response = await fetch(openaiApiUrl, { ... });
-  
-  // Vorerst nur ein Dummy-Response
-  return {
-    choices: [{
-      message: {
-        role: "assistant",
-        content: `(OpenAI-Platzhalter: Hätte jetzt mit ${model} geantwortet.)`
-      }
-    }]
-  };
-}
+console.log('k1w1-handler Function gestartet.');
 
-// --- Platzhalter für Gemini ---
-async function handleGeminiRequest(prompt: string, model: string, apiKey: string) {
-  console.log(`Starte Gemini-Anfrage mit Modell: ${model}`);
-  // const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  // const response = await fetch(geminiApiUrl, { ... });
-  return {
-    choices: [{
-      message: {
-        role: "assistant",
-        content: `(Gemini-Platzhalter: Hätte jetzt mit ${model} geantwortet.)`
-      }
-    }]
-  };
-}
-
-// --- Platzhalter für Anthropic (Claude) ---
-async function handleAnthropicRequest(prompt: string, model: string, apiKey: string) {
-  console.log(`Starte Anthropic-Anfrage mit Modell: ${model}`);
-  // const anthropicApiUrl = "https://api.anthropic.com/v1/messages";
-  // const response = await fetch(anthropicApiUrl, { ... });
-  return {
-    choices: [{
-      message: {
-        role: "assistant",
-        content: `(Anthropic-Platzhalter: Hätte jetzt mit ${model} geantwortet.)`
-      }
-    }]
-  };
-}
-
-// --- Platzhalter für Perplexity ---
-async function handlePerplexityRequest(prompt: string, model: string, apiKey: string) {
-  console.log(`Starte Perplexity-Anfrage mit Modell: ${model}`);
-  // const perplexityApiUrl = "https://api.perplexity.ai/chat/completions";
-  // const response = await fetch(perplexityApiUrl, { ... });
-  return {
-    choices: [{
-      message: {
-        role: "assistant",
-        content: `(Perplexity-Platzhalter: Hätte jetzt mit ${model} geantwortet.)`
-      }
-    }]
-  };
-}
-
-
-// --- Haupt-Handler (Router) ---
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+  // Handle Preflight-Requests (OPTIONS) für CORS
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    let prompt, apiKey, provider, model;
-    try {
-        const body = await req.json();
-        prompt = body.prompt;
-        apiKey = body.apiKey;
-        provider = body.provider;
-        model = body.model;
-    } catch (e) {
-        console.error("Fehler beim Parsen des Request Body:", e.message);
-        return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
-            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+    // 1. Lese und parse den Request Body
+    const body: RequestBody = await req.json()
+    const { provider, model, apiKey, message } = body
+
+    if (!provider || !model || !apiKey || !message) {
+      throw new Error('Fehlende Parameter: provider, model, apiKey, oder message')
     }
 
-    if (!prompt || !apiKey || !provider || !model) {
-      const missing = [!prompt && "prompt", !apiKey && "apiKey", !provider && "provider", !model && "model"].filter(Boolean).join(', ');
-      console.warn(`Aufruf fehlgeschlagen. Es fehlt: ${missing}`);
-      return new Response(JSON.stringify({ error: `Die Parameter ${missing} sind erforderlich.` }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    let aiResponseText: string | null = ''
 
-    let responseData;
+    // 2. Wähle den Anbieter basierend auf dem 'provider'-Feld
+    switch (provider) {
+      
+      // --- GROQ --- (Funktioniert bei dir schon)
+      case 'groq': {
+        console.log(`Verarbeite Groq: Model=${model}`)
+        const groq = new Groq({ apiKey: apiKey })
+        const chatCompletion = await groq.chat.completions.create({
+          messages: [{ role: 'user', content: message }],
+          model: model,
+        })
+        aiResponseText = chatCompletion.choices[0]?.message?.content
+        break
+      }
 
-    // --- API-Router ---
-    console.log(`Routing an Provider: ${provider}`);
-    switch(provider) {
-      case 'groq':
-        responseData = await handleGroqRequest(prompt, model, apiKey);
-        break;
-      case 'openai':
-        responseData = await handleOpenAIRequest(prompt, model, apiKey);
-        break;
-      case 'gemini':
-        responseData = await handleGeminiRequest(prompt, model, apiKey);
-        break;
-      case 'anthropic':
-         responseData = await handleAnthropicRequest(prompt, model, apiKey);
-        break;
-      case 'perplexity':
-         responseData = await handlePerplexityRequest(prompt, model, apiKey);
-        break;
+      // --- OPENAI ---
+      case 'openai': {
+        console.log(`Verarbeite OpenAI: Model=${model}`)
+        const openai = new OpenAI({ apiKey: apiKey })
+        const chatCompletion = await openai.chat.completions.create({
+          messages: [{ role: 'user', content: message }],
+          model: model,
+        })
+        aiResponseText = chatCompletion.choices[0]?.message?.content
+        break
+      }
+
+      // --- GEMINI ---
+      case 'gemini': {
+        console.log(`Verarbeite Gemini: Model=${model}`)
+        const genAI = new GoogleGenerativeAI(apiKey)
+        const geminiModel = genAI.getGenerativeModel({ model: model })
+        const result = await geminiModel.generateContent(message)
+        aiResponseText = result.response.text()
+        break
+      }
+
+      // --- ANTHROPIC ---
+      case 'anthropic': {
+        console.log(`Verarbeite Anthropic: Model=${model}`)
+        const anthropic = new Anthropic({ apiKey: apiKey })
+        const msg = await anthropic.messages.create({
+          model: model,
+          max_tokens: 1024,
+          messages: [{ role: 'user', content: message }],
+        })
+        // @ts-ignore (Typ-Sicherheit für Content-Block)
+        aiResponseText = msg.content[0]?.text
+        break
+      }
+
+      // --- PERPLEXITY --- (Verwendet OpenAI-kompatible API)
+      case 'perplexity': {
+        console.log(`Verarbeite Perplexity: Model=${model}`)
+        const perplexity = new OpenAI({
+          apiKey: apiKey,
+          baseURL: 'https://api.perplexity.ai', // WICHTIG: Benutzerdefinierte URL
+        })
+        const chatCompletion = await perplexity.chat.completions.create({
+          messages: [{ role: 'user', content: message }],
+          model: model,
+        })
+        aiResponseText = chatCompletion.choices[0]?.message?.content
+        break
+      }
+
       default:
-        console.warn(`Nicht unterstützter Provider: ${provider}`);
-        throw new Error(`Provider '${provider}' wird nicht unterstützt.`);
+        throw new Error(`Unbekannter Anbieter: ${provider}`)
     }
 
-    return new Response(JSON.stringify({ data: responseData }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // 3. Sende die erfolgreiche Antwort zurück
+    return new Response(JSON.stringify({ response: aiResponseText || 'Keine Antwort erhalten.' }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    })
 
   } catch (error) {
-    console.error("Unerwarteter Fehler in Edge Function:", error.message);
-    return new Response(JSON.stringify({ 
-        error: "Internal Server Error", 
-        detail: error.message 
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // 4. Handle Fehler (z.B. falscher API-Key, Quota-Limit)
+    console.error('Fehler in k1w1-handler:', error.message)
+    
+    // Versuche, den Statuscode aus dem API-Fehler zu extrahieren
+    let statusCode = 500
+    if (error.status) statusCode = error.status // Für OpenAI/Groq-Fehler
+    if (error.code && error.code === 'insufficient_quota') statusCode = 429 // Gemini
+    if (error.type === 'authentication_error') statusCode = 401 // Anthropic
+
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: statusCode, // Sende 429/401, wenn wir es wissen, sonst 500
+    })
   }
-});
+})
 
