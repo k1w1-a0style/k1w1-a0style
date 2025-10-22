@@ -8,13 +8,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from './theme';
 import { TerminalProvider } from './contexts/TerminalContext';
 import { AIProvider } from './contexts/AIContext';
+import { ProjectProvider } from './contexts/ProjectContext';
 
 // Importiere ALLE Screens
 import ChatScreen from './screens/ChatScreen';
 import CodeScreen from './screens/CodeScreen';
 import TerminalScreen from './screens/TerminalScreen';
 import SettingsScreen from './screens/SettingsScreen';
-import ConnectionsScreen from './screens/ConnectionsScreen'; // NEU
+import ConnectionsScreen from './screens/ConnectionsScreen';
 import CustomHeader from './components/CustomHeader';
 
 const Tab = createBottomTabNavigator();
@@ -49,21 +50,23 @@ export default function App() {
   return (
     <TerminalProvider>
       <AIProvider>
-        <NavigationContainer>
-          <StatusBar style="light" backgroundColor={theme.palette.card} />
-          <Drawer.Navigator
-            screenOptions={{
-              header: (props) => <CustomHeader {...props} />,
-              drawerStyle: { backgroundColor: theme.palette.background },
-              drawerActiveTintColor: theme.palette.primary,
-              drawerInactiveTintColor: theme.palette.text.primary,
-            }}
-          >
-            <Drawer.Screen name="Home" component={TabNavigator} options={{ title: 'k1w1-a0style' }} />
-            <Drawer.Screen name="Settings" component={SettingsScreen} options={{ title: 'KI-Einstellungen' }} />
-            <Drawer.Screen name="Connections" component={ConnectionsScreen} options={{ title: 'Verbindungen' }} />
-          </Drawer.Navigator>
-        </NavigationContainer>
+        <ProjectProvider>{/* Öffnender Provider */}
+          <NavigationContainer>{/* NavigationContainer DIREKT danach */}
+            <StatusBar style="light" backgroundColor={theme.palette.card} />
+            <Drawer.Navigator
+              screenOptions={{
+                header: (props) => <CustomHeader {...props} />,
+                drawerStyle: { backgroundColor: theme.palette.background },
+                drawerActiveTintColor: theme.palette.primary,
+                drawerInactiveTintColor: theme.palette.text.primary,
+              }}
+            >
+              <Drawer.Screen name="Home" component={TabNavigator} options={{ title: 'k1w1-a0style' }} />
+              <Drawer.Screen name="Settings" component={SettingsScreen} options={{ title: 'KI-Einstellungen' }} />
+              <Drawer.Screen name="Connections" component={ConnectionsScreen} options={{ title: 'Verbindungen' }} />
+            </Drawer.Navigator>
+          </NavigationContainer>
+        </ProjectProvider>{/* Schließender Provider */}
       </AIProvider>
     </TerminalProvider>
   );
