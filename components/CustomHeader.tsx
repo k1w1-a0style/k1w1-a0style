@@ -4,109 +4,40 @@ import { useNavigation, DrawerActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme, HEADER_HEIGHT } from '../theme';
 import { DrawerHeaderProps } from '@react-navigation/drawer';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // Import AsyncStorage
-import { ensureSupabaseClient } from '../lib/supabase'; // Import Supabase Client getter
-import { SafeAreaView } from 'react-native-safe-area-context'; // Ensure this is imported
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ensureSupabaseClient } from '../lib/supabase';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-const EAS_TOKEN_KEY = 'eas_token'; // Key to retrieve the token
+const EAS_TOKEN_KEY = 'eas_token';
 
 const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
-  // State to show loading while triggering the build
   const [isTriggeringBuild, setIsTriggeringBuild] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
-  // --- Function to trigger the EAS build via Supabase ---
-  const handleTriggerEasBuild = async () => {
-    console.log("EAS Build Button pressed (CustomHeader)");
-    setIsTriggeringBuild(true); // Start loading indicator
-
-    try {
-      // 1. Get Supabase client
-      const supabase = await ensureSupabaseClient();
-       // @ts-ignore Check for dummy client
-       if (!supabase || supabase.functions.invoke.toString().includes('DUMMY_CLIENT')) {
-           throw new Error("Supabase Client ist nicht bereit.");
-       }
-
-      // 2. Get EAS Token from AsyncStorage
-      const easToken = await AsyncStorage.getItem(EAS_TOKEN_KEY);
-      if (!easToken) {
-        Alert.alert(
-          "Fehler: Expo Token fehlt",
-          "Bitte füge deinen Expo Access Token im 'Verbindungen'-Bildschirm hinzu."
-        );
-        // setIsTriggeringBuild(false); // Done in finally
-        return; // Stop execution
-      }
-
-      console.log("Rufe Supabase Function 'trigger-eas-build' auf...");
-
-      // 3. Call the Supabase Edge Function
-      const { data, error } = await supabase.functions.invoke('trigger-eas-build', {
-        // Make sure the body is stringified JSON
-        body: JSON.stringify({ easToken: easToken }), // Send the token in the body
-      });
-
-      // 4. Handle the response
-      if (error) {
-        console.error("Fehler von Supabase Function:", error);
-        // Try to parse error details if possible
-        let detail = error.message || 'Unbekannter Supabase-Fehler';
-        if (error.context?.details) {
-            try {
-                const parsedDetails = JSON.parse(error.context.details);
-                detail = parsedDetails.error || detail;
-            } catch(e) { /* Ignore if details are not JSON */ }
-        }
-        throw new Error(`Fehler beim Starten des Builds: ${detail}`);
-      }
-
-      // Success
-      console.log("Supabase Function erfolgreich aufgerufen:", data);
-      Alert.alert(
-        "Build Gestartet",
-        data?.message || "Der EAS Build wurde erfolgreich ausgelöst."
-      );
-      // Future: Navigate to terminal or show build info from data.buildInfo
-
-    } catch (err: any) {
-      console.error("Fehler in handleTriggerEasBuild:", err);
-      Alert.alert("Build Fehlgeschlagen", err.message || "Ein unbekannter Fehler ist aufgetreten.");
-    } finally {
-      setIsTriggeringBuild(false); // Stop loading indicator
-    }
-  };
-
-  // --- Placeholder functions ---
+  const handleTriggerEasBuild = async () => { /* ... (unverändert) ... */ console.log("EAS Build Button gedrückt"); setIsTriggeringBuild(true); try { const supabase = await ensureSupabaseClient(); /* @ts-ignore */ if (!supabase || supabase.functions.invoke.toString().includes('DUMMY_CLIENT')) { throw new Error("Supabase Client nicht bereit."); } const easToken = await AsyncStorage.getItem(EAS_TOKEN_KEY); if (!easToken) { Alert.alert( "Fehler: Expo Token fehlt", "Bitte füge deinen Expo Access Token hinzu." ); return; } console.log("Rufe Supabase Function 'trigger-eas-build' auf..."); const { data, error } = await supabase.functions.invoke('trigger-eas-build', { body: JSON.stringify({ easToken: easToken }), }); if (error) { console.error("Fehler von Supabase Function:", error); let detail = error.message || '?'; if (error.context?.details) { try { const p = JSON.parse(error.context.details); detail = p.error || detail; } catch(e) {} } throw new Error(`Fehler beim Starten des Builds: ${detail}`); } console.log("Supabase Function erfolgreich:", data); Alert.alert( "Build Gestartet", data?.message || "Build ausgelöst." ); } catch (err: any) { console.error("Fehler in handleTriggerEasBuild:", err); Alert.alert("Build Fehlgeschlagen", err.message || "?"); } finally { setIsTriggeringBuild(false); } };
   const handleStartExpoGo = () => { Alert.alert("Expo Go", "Deaktiviert."); };
-  const handleExportZip = () => { Alert.alert("Export ZIP", "Nicht implementiert."); };
-
+  const handleExportZip = async () => { /* ... (unverändert) ... */ console.log("Export ZIP Button gedrückt"); setIsExporting(true); try { const lastCode = await AsyncStorage.getItem(LAST_AI_RESPONSE_KEY); if (!lastCode) { throw new Error("Kein Code zum Exportieren gefunden."); } const fileName = 'letzter_code.txt'; const fileUri = FileSystem.cacheDirectory + fileName; console.log(`Schreibe Code nach: ${fileUri}`); await FileSystem.writeAsStringAsync(fileUri, lastCode, { encoding: FileSystem.EncodingType.UTF8 }); console.log("Datei geschrieben."); if (!(await Sharing.isAvailableAsync())) { throw new Error("Teilen nicht verfügbar."); } console.log(`Teile Datei: ${fileUri}`); await Sharing.shareAsync(fileUri, { mimeType: 'text/plain', dialogTitle: 'Code exportieren', UTI: 'public.plain-text', }); console.log("Dialog geöffnet."); } catch (error: any) { console.error("Fehler Export:", error); Alert.alert("Export Fehlgeschlagen", error.message || "?"); } finally { setIsExporting(false); } };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
-        {/* Menu Button */}
-        <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.menuButton} disabled={isTriggeringBuild}>
+        <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.menuButton} disabled={isTriggeringBuild || isExporting}>
           <Ionicons name="menu-outline" size={30} color={theme.palette.text.primary} />
         </TouchableOpacity>
-        {/* Title */}
         <Text style={styles.title}>{options.title || 'k1w1-a0style'}</Text>
-        {/* Right Icons */}
         <View style={styles.iconsContainer}>
-          {/* EAS Build Button - Shows loading indicator */}
-          <TouchableOpacity onPress={handleTriggerEasBuild} style={styles.iconButton} disabled={isTriggeringBuild}>
-            {isTriggeringBuild ? (
-              <ActivityIndicator size="small" color={theme.palette.primary} />
-            ) : (
-              <Ionicons name="cloud-upload-outline" size={24} color={theme.palette.primary} />
-            )}
+          {/* EAS Build Button */}
+          <TouchableOpacity onPress={handleTriggerEasBuild} style={styles.iconButton} disabled={isTriggeringBuild || isExporting}>
+            {isTriggeringBuild ? ( <ActivityIndicator size="small" color={theme.palette.primary} /> ) : ( <Ionicons name="cloud-upload-outline" size={24} color={theme.palette.primary} /> )}
           </TouchableOpacity>
           {/* Play Button */}
-          <TouchableOpacity style={styles.iconButton} onPress={handleStartExpoGo} disabled={isTriggeringBuild}>
-            <Ionicons name="play-outline" size={24} color={theme.palette.text.disabled} />
+          <TouchableOpacity style={styles.iconButton} onPress={handleStartExpoGo} disabled={isTriggeringBuild || isExporting}>
+             {/* === FARBKORREKTUR HIER === */}
+            <Ionicons name="play-outline" size={24} color={theme.palette.text.secondary} />
           </TouchableOpacity>
-           {/* Archive/Export Button */}
-           <TouchableOpacity style={styles.iconButton} onPress={handleExportZip} disabled={isTriggeringBuild}>
-            <Ionicons name="archive-outline" size={22} color={theme.palette.text.disabled} />
+           {/* Export ZIP Button */}
+           <TouchableOpacity style={styles.iconButton} onPress={handleExportZip} disabled={isTriggeringBuild || isExporting}>
+             {isExporting ? ( <ActivityIndicator size="small" color={theme.palette.primary} /> ) : ( <Ionicons name="archive-outline" size={22} color={theme.palette.primary} /> )}
           </TouchableOpacity>
         </View>
       </View>
@@ -114,14 +45,13 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
   );
 };
 
-// Styles
 const styles = StyleSheet.create({
   safeArea: { backgroundColor: theme.palette.card },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: theme.palette.card, paddingHorizontal: 15, height: HEADER_HEIGHT },
   title: { position: 'absolute', left: 60, right: 150, textAlign: 'center', color: theme.palette.text.primary, fontSize: 18, fontWeight: 'bold' },
   iconsContainer: { flexDirection: 'row', alignItems: 'center' },
   menuButton: { padding: 8 },
-  iconButton: { marginLeft: 12, padding: 8, width: 40, height: 40, justifyContent: 'center', alignItems: 'center' }, // Fixed size for indicator alignment
+  iconButton: { marginLeft: 12, padding: 8, width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
 });
 
 export default CustomHeader;

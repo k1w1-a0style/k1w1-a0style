@@ -1,7 +1,6 @@
 {
   "cli": {
-    "version": ">= 5.9.3",
-    "appVersionSource": "local"
+    "version": ">= 5.9.3" // Oder deine gewünschte Mindestversion
   },
   "build": {
     "development": {
@@ -10,10 +9,15 @@
     },
     "preview": {
       "distribution": "internal"
+      // KEINE concurrency hier
     },
-    "production": {}
+    "production": {
+      "autoIncrement": true
+      // KEINE concurrency hier
+    }
   },
   "submit": {
     "production": {}
   }
 }
+
