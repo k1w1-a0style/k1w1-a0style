@@ -1,0 +1,49 @@
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { DrawerContentScrollView, DrawerContentComponentProps } from '@react-navigation/drawer'; // DrawerItemList nicht mehr importiert
+import { useProject } from '../contexts/ProjectContext';
+import { Ionicons } from '@expo/vector-icons';
+import { theme } from '../theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+// *** NOCH WEITER VEREINFACHT - OHNE STANDARD-LINKS ***
+
+export function CustomDrawerContent(props: DrawerContentComponentProps) {
+  const { createNewProject, isLoading } = useProject();
+  const handleNewProject = () => { Alert.alert( "Neues Projekt", "Möchtest du wirklich ein neues, leeres Projekt starten?", [{ text: "Abbrechen", style: "cancel" }, { text: "Ja, neu starten", style: "destructive", onPress: () => { createNewProject(); props.navigation.closeDrawer(); props.navigation.navigate('Home', { screen: 'Chat' }); }, }] ); };
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['right', 'bottom', 'left']}>
+      <DrawerContentScrollView {...props}>
+        
+        {/* <DrawerItemList {...props} /> AUSKOMMENTIERT! */}
+        <Text style={{padding: 20, color: theme.palette.text.disabled}}>(Standard-Links ausgeblendet)</Text>
+
+        <View style={styles.divider} />
+        {/* Nur "Neues Projekt"-Button */}
+        <TouchableOpacity onPress={handleNewProject} style={styles.customItem}>
+          <Ionicons name="add-circle-outline" size={24} color={theme.palette.primary} />
+          <Text style={styles.customItemText}>Neues Projekt</Text>
+        </TouchableOpacity>
+        <View style={styles.divider} />
+
+        <Text style={styles.projectListTitle}>Meine Projekte (DEBUG)</Text>
+         {isLoading && <ActivityIndicator color={theme.palette.primary} style={{marginTop: 10, alignSelf: 'center'}} /> }
+        {!isLoading && <Text style={styles.noProjectsText}>(Liste temporär entfernt)</Text>}
+
+      </DrawerContentScrollView>
+    </SafeAreaView>
+  );
+}
+
+// Minimal nötige Styles
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: theme.palette.card },
+  divider: { height: 1, backgroundColor: theme.palette.border, marginVertical: 10, marginHorizontal: 16 },
+  customItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 20 },
+  customItemText: { marginLeft: 15, fontSize: 14, fontWeight: 'bold', color: theme.palette.primary },
+  projectListTitle: { fontSize: 12, fontWeight: 'bold', color: theme.palette.text.secondary, paddingHorizontal: 20, marginTop: 10, marginBottom: 10, textTransform: 'uppercase' },
+  noProjectsText: { textAlign: 'center', color: theme.palette.text.disabled, marginTop: 20, fontStyle: 'italic', paddingHorizontal: 20 }
+});
+
+export default CustomDrawerContent;
