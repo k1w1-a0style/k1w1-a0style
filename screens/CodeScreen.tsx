@@ -15,26 +15,22 @@ const CodeScreen = () => {
   const navigation = useNavigation();
 
   // --- KORRIGIERTER useFocusEffect ---
-  // (Der Lade-Code wird jetzt aus dem ProjectContext geholt, daher ist kein async/await mehr nötig)
   useFocusEffect(
     useCallback(() => {
+      // Diese Funktion wird jedes Mal ausgeführt, wenn der Screen den Fokus bekommt
       console.log("CodeScreen: Fokus erhalten.");
-      // Setze Ladezustand zurück, wenn wir zur Liste zurückkehren
-      // (und stelle sicher, dass die Liste angezeigt wird, falls sie leer ist)
-      if (projectFiles.length === 0) {
-          setIsLoading(true); // Zeige Lade-Spinner/Platzhalter
-      } else {
+      
+      // Wir müssen hier nichts mehr 'laden', da die Daten aus dem Context (`projectFiles`) kommen.
+      // Wir setzen isLoading nur zurück, falls es beim ersten Mal noch nicht gesetzt war.
+      if (isLoading) {
           setIsLoading(false);
       }
       
-      // Wenn eine Datei ausgewählt war und wir zurückkommen, Auswahl aufheben
-      // setSelectedFile(null); // Optional: Zurück zur Liste, wenn man Tab wechselt? Vorerst nicht.
-      
-      // Cleanup-Funktion
+      // Cleanup-Funktion (optional, aber gute Praxis)
       return () => {
         // console.log("CodeScreen: Fokus verloren.");
       };
-    }, [projectFiles]) // Abhängig von projectFiles
+    }, [isLoading]) // Abhängigkeit von isLoading
   );
   // --- ENDE KORREKTUR ---
 
@@ -61,7 +57,8 @@ const CodeScreen = () => {
     <View style={styles.container}>
       <View style={styles.header}>
           <Text style={styles.title}>Projektübersicht</Text>
-           {isLoading && <ActivityIndicator size="small" color={theme.palette.primary} />}
+           {/* Ladeindikator (falls wir später Laden hinzufügen) */}
+          {isLoading && <ActivityIndicator size="small" color={theme.palette.primary} />}
       </View>
       <FlatList
         data={projectFiles}
@@ -120,6 +117,7 @@ const CodeScreen = () => {
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
       <StatusBar style="light" />
+      {/* Bedingtes Rendern: Zeige Liste ODER Inhalt */}
       {selectedFile ? renderFileContent() : renderFileTree()}
     </SafeAreaView>
   );
@@ -140,7 +138,8 @@ const styles = StyleSheet.create({
   filePath: { color: theme.palette.text.primary, fontSize: 16, marginLeft: 15 },
   scrollContent: { padding: 15 },
   codeText: { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 13, color: theme.palette.text.primary, lineHeight: 18 },
-  placeholderContainer: { // Container für Placeholder
+  // Hinzugefügte Container für Placeholder
+  placeholderContainer: {
       flex: 1,
       justifyContent: 'center',
       alignItems: 'center',

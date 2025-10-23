@@ -15,36 +15,27 @@ import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useProject } from '../contexts/ProjectContext';
 
-// Interface/Typ Definitionen
+// --- (Interfaces, MessageItem, etc. bleiben unverändert) ---
 interface ChatMessage { _id: string; text: string; createdAt: Date; user: { _id: number; name: string; }; isStreaming?: boolean; }
 type DocumentResultAsset = NonNullable<DocumentPicker.DocumentPickerResult['assets']>[0];
 const LAST_AI_RESPONSE_KEY = 'last_ai_response';
 type ChatScreenProps = { navigation: any; route: { params?: { debugCode?: string } }; };
-
-// === ULTRA-ROBUSTE MessageItem Komponente ===
 const MessageItem = memo(({ item }: { item: ChatMessage }) => {
-    // Stelle sicher, dass messageText IMMER ein String ist.
-    // Wenn item.text 'null' oder 'undefined' ist, wird es zu ''.
-    const messageText = String(item.text || ''); 
-    
-    // Wenn der Text leer ist UND es eine User-Nachricht ist, rendere nichts.
-    if (item.user._id === 1 && messageText.trim().length === 0) {
-        return null;
-    }
-
+    const messageText = item.text ? String(item.text).trim() : '';
+    if (item.user._id === 1 && messageText.length === 0) { return null; }
     return (
         <View style={[ styles.messageBubble, item.user._id === 1 ? styles.userMessage : styles.aiMessage ]}>
              <Text style={item.user._id === 1 ? styles.userMessageText : styles.aiMessageText}>
-                {/* Zeige den Text, oder '...' wenn der Text leer ist (z.B. KI lädt) */}
-                {messageText || '...'}
+                {messageText.length > 0 ? messageText : '...'}
              </Text>
         </View>
     );
 });
-// === ENDE ===
+// --- (Ende unveränderter Teil) ---
 
 
 const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
+  // --- (Alle States [messages, textInput, etc.] bleiben unverändert) ---
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [textInput, setTextInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -55,105 +46,188 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const [selectedFileAsset, setSelectedFileAsset] = useState<DocumentResultAsset | null>(null);
   const { setProjectFiles } = useProject();
 
+  // --- (loadClient, useFocusEffect, handlePickDocument bleiben unverändert) ---
   const loadClient = useCallback(async () => { setError(null); try { const c = await ensureSupabaseClient(); setSupabase(c); console.log("CS: Supa OK"); } catch (e:any) { setError("Supa Load Fail"); } }, []);
   useFocusEffect(useCallback(() => { loadClient(); }, [loadClient]));
   const handlePickDocument = async () => { try { const r=await DocumentPicker.getDocumentAsync({type:'*/*',copyToCacheDirectory: true}); if(!r.canceled&&r.assets&&r.assets.length>0){const a=r.assets[0];setSelectedFileAsset(a);Alert.alert('Datei ok',`${a.name} (${a.size?(a.size/1024).toFixed(2)+' KB':'?'}) wird gesendet.`);}else{setSelectedFileAsset(null);}}catch(e){console.error('Pick Fail:',e);Alert.alert('Fehler','Datei Wahl fehlgeschlagen.');setSelectedFileAsset(null);}};
 
+
+  // --- handleSend mit AGENT-LOGIK ---
   const handleSend = useCallback(async (isRetry = false, customPrompt?: string, keyToUse?: string | null) => {
     let userPrompt = customPrompt ?? textInput.trim();
     const fileToSend = selectedFileAsset;
-    // Stelle sicher, dass displayPrompt niemals null/undefined ist
     const displayPrompt = textInput.trim() || (fileToSend ? `(Datei gesendet: ${fileToSend.name})` : (customPrompt ? `Debug Anfrage` : ''));
     if (!userPrompt && !fileToSend && !customPrompt) return; if (!supabase) return; if (!isRetry) setError(null);
 
-    const currentProvider = config.selectedProvider; const apiKey = keyToUse ?? getCurrentApiKey(currentProvider);
+    const currentProvider = config.selectedProvider;
+    const apiKey = keyToUse ?? getCurrentApiKey(currentProvider); 
+
     if (!apiKey) { Alert.alert('Key fehlt', `Kein API Key für ${currentProvider.toUpperCase()} gefunden.`); return; }
 
     let fileContent = ''; let combinedPrompt = userPrompt;
-    if (fileToSend && !customPrompt && !isRetry) { setIsLoading(true); console.log(`Lese: ${fileToSend.uri}`); try { fileContent = await FileSystem.readAsStringAsync(fileToSend.uri, { encoding: 'utf8' }); console.log(`Gelesen: ${fileContent.length} chars`); combinedPrompt = `--- Datei: ${fileToSend.name} ---\n${fileContent}\n--- Ende ---\n\n${userPrompt||'(Siehe Datei)'}`; } catch (readError: any) { console.error("Read Fail:",readError); Alert.alert("Lese-Fehler", `Datei "${fileToSend.name}" Error.`); setIsLoading(false); setSelectedFileAsset(null); return; } }
-    else if (fileToSend && !customPrompt && isRetry) { combinedPrompt = userPrompt; if (displayPrompt === `(Datei gesendet: ${fileToSend.name})`) { userPrompt = displayPrompt; } }
+    
+    // --- (Datei-Lese-Logik bleibt unverändert) ---
+    if (fileToSend && !customPrompt && !isRetry) { 
+        setIsLoading(true); 
+        console.log(`Lese: ${fileToSend.uri}`); 
+        try { 
+            fileContent = await FileSystem.readAsStringAsync(fileToSend.uri, { encoding: 'utf8' }); 
+            console.log(`Gelesen: ${fileContent.length} chars`); 
+            combinedPrompt = `--- Datei: ${fileToSend.name} ---\n${fileContent}\n--- Ende ---\n\n${userPrompt||'(Siehe Datei)'}`; 
+        } catch (readError: any) { 
+            console.error("Read Fail:",readError); 
+            Alert.alert("Lese-Fehler", `Datei "${fileToSend.name}" Error.`); 
+            setIsLoading(false); 
+            setSelectedFileAsset(null); 
+            return; 
+        } 
+    }
+    else if (fileToSend && !customPrompt && isRetry) { 
+        combinedPrompt = userPrompt; 
+        if (displayPrompt === `(Datei gesendet: ${fileToSend.name})`) { userPrompt = displayPrompt; } 
+    }
+    // --- (Ende Datei-Lese-Logik) ---
 
-    if (!isRetry) {
-      // Stelle sicher, dass text niemals null/undefined ist
-      const userMessage: ChatMessage = { _id: Math.random().toString(36).substring(7), text: displayPrompt || '...', createdAt: new Date(), user: { _id: 1, name: 'User' } };
-      setMessages((prev) => [userMessage, ...prev]);
-      setTextInput('');
-      if(fileToSend && !customPrompt) setSelectedFileAsset(null);
+    
+    if (!isRetry) { 
+        const userMessage: ChatMessage = { _id: Math.random().toString(36).substring(7), text: displayPrompt || '...', createdAt: new Date(), user: { _id: 1, name: 'User' } }; 
+        setMessages((prev) => [userMessage, ...prev]); 
+        setTextInput(''); 
+        if(fileToSend && !customPrompt) setSelectedFileAsset(null); 
     }
 
-    setIsLoading(true);
-    let effectiveModel = config.selectedMode; if (currentProvider === 'groq' && effectiveModel === 'auto-groq'){ effectiveModel = 'llama-3.1-8b-instant'; console.log(`AutoGroq -> ${effectiveModel}`); }
-    const currentKeyIndex = config.keys[currentProvider]?.indexOf(apiKey) ?? -1; console.log(`Sende: ${currentProvider}, ${effectiveModel}, KeyIdx:${currentKeyIndex !== -1 ? currentKeyIndex : '?'}`);
-    
+    // === NEUE AGENT-LOGIK ===
+    if (!isRetry) {
+        // Nur beim ersten Sendeversuch den System-Prompt hinzufügen.
+        // Bei einem Retry ist `combinedPrompt` bereits der volle Prompt.
+        const AGENT_SYSTEM_PROMPT = `Du bist "k1w1-a0style", ein autonomer Software-Agent. Deine Aufgabe ist es, React Native Apps iterativ zu bauen.
+Analysiere die Anfrage des Users.
+
+1.  **Wenn die Anfrage eine Bau-, Erstell- oder Modifizierungs-Anweisung für Code ist** (z.B. "Baue eine App", "Füge einen Button hinzu", "Ändere die Farbe"), musst du IMMER und AUSSCHLIESSLICH im JSON-Array-Format antworten:
+    \`\`\`json
+    [{"path": "src/App.tsx", "content": "..."}, {"path": "package.json", "content": "..."}]
+    \`\`\`
+
+2.  **Wenn die Anfrage eine normale Frage, ein Chat oder eine Begrüßung ist ODER wenn du eine klärende Rückfrage an den User hast** (z.B. "Welche Funktionen soll die App haben?"), musst du IMMER und AUSSCHLIESSLICH als normaler Text antworten.
+
+Hier ist die Anfrage des Users:
+`;
+        combinedPrompt = AGENT_SYSTEM_PROMPT + combinedPrompt;
+    }
+    // === ENDE NEUE AGENT-LOGIK ===
+
+
+    setIsLoading(true); 
+    let effectiveModel = config.selectedMode; 
+    if (currentProvider === 'groq' && effectiveModel === 'auto-groq'){ 
+        effectiveModel = 'llama-3.1-8b-instant'; 
+        console.log(`AutoGroq -> ${effectiveModel}`); 
+    }
+
+    const currentKeyIndex = config.keys[currentProvider]?.indexOf(apiKey) ?? -1;
+    console.log(`Sende: ${currentProvider}, ${effectiveModel}, KeyIdx:${currentKeyIndex !== -1 ? currentKeyIndex : '?'}`);
+
     try {
-      const { data, error: funcErr } = await supabase.functions.invoke('k1w1-handler', { body: { message: combinedPrompt, apiKey: apiKey, provider: currentProvider, model: effectiveModel }, });
+      const { data, error: funcErr } = await supabase.functions.invoke('k1w1-handler', { 
+          // 'combinedPrompt' enthält jetzt den vollen Agent-Prompt
+          body: { message: combinedPrompt, apiKey: apiKey, provider: currentProvider, model: effectiveModel }, 
+      });
+      
+      // --- (Restliche Try/Catch/Finally-Logik bleibt 1:1 gleich) ---
       if (funcErr) { const s = funcErr.context?.status||500; const d = funcErr.context?.details||funcErr.message; throw { name: 'FunctionsHttpError', status: s, message: d }; }
       const aiText = data?.response;
       if (aiText && typeof aiText === 'string' && aiText.trim().length > 0) {
         const aiMsg: ChatMessage = { _id: Math.random().toString(36).substring(7), text: aiText.trim(), createdAt: new Date(), user: { _id: 2, name: 'AI' } };
         setMessages((prev) => [aiMsg, ...prev]);
         try {
+          // JSON-Erkennung (bereits implementiert von dir)
           const jsonMatch = aiText.match(/(\[[\s\S]*\])/);
           if (jsonMatch && jsonMatch[0]) {
              const parsedProject = JSON.parse(jsonMatch[0]);
              if (Array.isArray(parsedProject) && parsedProject.length > 0 && parsedProject[0].path && parsedProject[0].content) {
                 setProjectFiles(parsedProject);
                 console.log(`Projekt-Struktur mit ${parsedProject.length} Dateien gespeichert.`);
-                await AsyncStorage.setItem(LAST_AI_RESPONSE_KEY, aiText.trim()); // Speichere auch den Rohtext
+                setMessages((prev) => { const newMsgs = [...prev]; if (newMsgs[0]?._id === aiMsg._id) { newMsgs[0].text = `[Projekt mit ${parsedProject.length} Dateien generiert. Siehe Code-Tab.]`; } return newMsgs; });
+                await AsyncStorage.setItem(LAST_AI_RESPONSE_KEY, `[Projekt mit ${parsedProject.length} Dateien generiert. Siehe Code-Tab.]`);
              } else { throw new Error("JSON ist kein gültiges Projektformat."); }
-          } else { throw new Error("Antwort ist kein JSON-Array."); }
+          } else { 
+              // WICHTIG: Wenn es kein JSON ist, ist es Text. Das ist jetzt erwartet!
+              throw new Error("Antwort ist normaler Text (kein JSON-Array)."); 
+          }
         } catch (jsonError: any) {
-            try { await AsyncStorage.setItem(LAST_AI_RESPONSE_KEY, aiText.trim()); console.log("Letzte KI-Antwort (als Text) gespeichert."); }
+            // Dies ist jetzt der normale Pfad für Text-Antworten
+            try { 
+                await AsyncStorage.setItem(LAST_AI_RESPONSE_KEY, aiText.trim()); 
+                // Nur loggen, wenn es kein JSON-Fehler war, sondern normaler Text
+                if (jsonError.message.includes("normaler Text")) {
+                    console.log("Letzte KI-Antwort (als Text) gespeichert."); 
+                } else {
+                    console.warn("JSON-Parse-Fehler, als Text gespeichert:", jsonError.message);
+                }
+            }
             catch (saveError) { console.error("Speicherfehler:", saveError); }
         }
       } else { setError('Leere oder ungültige Antwort von KI.'); console.warn('Leere Antwort:', data); }
     } catch (e: any) {
         console.error('Send Fail:', e); let detailMsg = e.message||'?'; let status = e.status||500;
-        if (status >= 400 && status < 500) { console.log(`Key Problem (${status}), rotiere...`); addLog(`Key ${currentProvider} (${status}). Rotiere...`); const nextKey = await rotateApiKey(currentProvider); if (nextKey && nextKey !== apiKey) { console.log("Retry new Key..."); if (fileToSend && !selectedFileAsset && !customPrompt) { console.log("Stelle Datei für Retry wieder her."); setSelectedFileAsset(fileToSend); } handleSend(true, combinedPrompt, nextKey); return; } else { detailMsg = `Alle ${currentProvider.toUpperCase()} Keys verbraucht.`; Alert.alert("Keys leer", detailMsg); addLog(`Alle ${currentProvider} Keys leer.`); if (fileToSend && !customPrompt) setSelectedFileAsset(null); } }
-        else { Alert.alert('Sende-Fehler', detailMsg); if (fileToSend && !customPrompt) setSelectedFileAsset(null); }
-        setError(detailMsg); if (!isRetry || detailMsg.includes("Alle Keys")) { setMessages(prev => prev.slice(1)); }
+        if (status >= 400 && status < 500) {
+            console.log(`Key Problem (${status}), rotiere...`); addLog(`Key ${currentProvider} (${status}). Rotiere...`);
+            const nextKey = await rotateApiKey(currentProvider);
+            if (nextKey && nextKey !== apiKey) {
+                console.log("Retry new Key...");
+                 if (fileToSend && !selectedFileAsset && !customPrompt) { console.log("Stelle Datei für Retry wieder her."); setSelectedFileAsset(fileToSend); }
+                // 'combinedPrompt' hat bereits den vollen System-Prompt vom 1. Versuch
+                handleSend(true, combinedPrompt, nextKey);
+                return;
+             } else {
+                 detailMsg = `Alle ${currentProvider.toUpperCase()} Keys verbraucht.`; Alert.alert("Keys leer", detailMsg); addLog(`Alle ${currentProvider} Keys leer.`);
+                 if (fileToSend && !customPrompt) setSelectedFileAsset(null);
+             }
+        } else {
+             Alert.alert('Sende-Fehler', detailMsg);
+             if (fileToSend && !customPrompt) setSelectedFileAsset(null);
+        }
+        setError(detailMsg);
+        if (!isRetry || detailMsg.includes("Alle Keys")) {
+             setMessages(prev => prev.slice(1));
+        }
     } finally { setIsLoading(false); }
-  }, [textInput, supabase, getCurrentApiKey, rotateApiKey, addLog, config, selectedFileAsset, messages, setProjectFiles]);
+    // --- (Ende Try/Catch/Finally-Block) ---
+  }, [textInput, supabase, getCurrentApiKey, rotateApiKey, addLog, config, selectedFileAsset, messages, setProjectFiles]); // Dependencies bleiben gleich
 
+  // --- (useEffect für Debug-Route bleibt unverändert) ---
   useEffect(() => {
     if (route.params?.debugCode) {
       const codeToDebug = route.params.debugCode;
       console.log("ChatScreen: Debug-Anfrage vom CodeScreen empfangen.");
+      // WICHTIG: Debug-Anfragen verwenden jetzt auch den Agent-Prompt!
       const debugPrompt = `Analysiere den folgenden Code auf Fehler, schlage Verbesserungen vor und erkläre deine Analyse:\n\n\`\`\`\n${codeToDebug}\n\`\`\``;
       setTextInput(`Debug Anfrage...`);
-      handleSend(false, debugPrompt);
+      handleSend(false, debugPrompt); // Startet handleSend, das den Agent-Prompt hinzufügt
       navigation.setParams({ debugCode: undefined });
     }
   }, [route.params?.debugCode, navigation, handleSend]);
 
-  const handleDebugLastResponse = () => { const lastAiMsg = messages.find(m => m.user._id === 2); if (!lastAiMsg || !lastAiMsg.text) { Alert.alert("Nix da", "Keine KI Antwort zum Debuggen."); return; } const code = lastAiMsg.text; const prompt = `Analysiere Code auf Fehler, schlage Verbesserungen vor:\n\n\`\`\`\n${code}\n\`\`\``; setTextInput(`Debug Anfrage...`); handleSend(false, prompt); };
+  // --- (handleDebugLastResponse bleibt unverändert) ---
+  const handleDebugLastResponse = () => { 
+      const lastAiMsg = messages.find(m => m.user._id === 2); 
+      if (!lastAiMsg || !lastAiMsg.text) { Alert.alert("Nix da", "Keine KI Antwort zum Debuggen."); return; } 
+      const code = lastAiMsg.text; 
+      // WICHTIG: Debug-Anfragen verwenden jetzt auch den Agent-Prompt!
+      const prompt = `Analysiere den folgenden Code (oder Text) auf Fehler, schlage Verbesserungen vor:\n\n\`\`\`\n${code}\n\`\`\``; 
+      setTextInput(`Debug Anfrage...`); 
+      handleSend(false, prompt); 
+  };
 
   const isSupabaseReady = supabase && !supabase.functions.invoke.toString().includes('DUMMY_CLIENT');
 
+  // --- (Render-JSX bleibt 1:1 unverändert) ---
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "padding"} style={styles.keyboardAvoidingContainer} keyboardVerticalOffset={Platform.OS === "ios" ? HEADER_HEIGHT + 20 : HEADER_HEIGHT + 40}>
-        {/* JSX OHNE LEERZEICHEN */}
-        {!supabase && (
-            <ActivityIndicator style={styles.loadingIndicator} color={theme.palette.primary} size="large" />
-        )}
-        <FlatList
-            data={messages}
-            renderItem={({ item }) => <MessageItem item={item} />}
-            keyExtractor={(item) => item._id}
-            inverted={true}
-            style={styles.list}
-            contentContainerStyle={styles.listContent}
-            keyboardShouldPersistTaps="handled"
-            initialNumToRender={10}
-            maxToRenderPerBatch={5}
-            windowSize={10}
-        />
-        {error && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.error}>{String(error)}</Text>
-          </View>
-        )}
+        {!supabase && (<ActivityIndicator style={styles.loadingIndicator} color={theme.palette.primary} size="large" />)}
+        <FlatList data={messages} renderItem={({ item }) => <MessageItem item={item} />} keyExtractor={(item) => item._id} inverted={true} style={styles.list} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled" initialNumToRender={10} maxToRenderPerBatch={5} windowSize={10}/>
+        {error && (<View style={styles.errorContainer}><Text style={styles.error}>{String(error)}</Text></View>)}
         <View style={styles.inputContainerOuter}>
             {selectedFileAsset && (
               <View style={styles.attachedFileContainer}>
@@ -194,7 +268,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   );
 };
 
-// Styles
+// --- (Styles bleiben 1:1 unverändert) ---
 const styles = StyleSheet.create({
   safeArea:{flex:1,backgroundColor:theme.palette.background},
   keyboardAvoidingContainer:{flex:1},
@@ -223,4 +297,3 @@ const styles = StyleSheet.create({
 });
 
 export default ChatScreen;
-

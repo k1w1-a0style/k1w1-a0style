@@ -50,8 +50,8 @@ export default function App() {
   return (
     <TerminalProvider>
       <AIProvider>
-        <ProjectProvider>{/* Öffnender Provider */}
-          <NavigationContainer>{/* NavigationContainer DIREKT danach */}
+        {/* KORREKTUR: Kein Zeilenumbruch zwischen den Providern/Containern */}
+        <ProjectProvider><NavigationContainer>
             <StatusBar style="light" backgroundColor={theme.palette.card} />
             <Drawer.Navigator
               screenOptions={{
@@ -65,8 +65,7 @@ export default function App() {
               <Drawer.Screen name="Settings" component={SettingsScreen} options={{ title: 'KI-Einstellungen' }} />
               <Drawer.Screen name="Connections" component={ConnectionsScreen} options={{ title: 'Verbindungen' }} />
             </Drawer.Navigator>
-          </NavigationContainer>
-        </ProjectProvider>{/* Schließender Provider */}
+        </NavigationContainer></ProjectProvider>
       </AIProvider>
     </TerminalProvider>
   );
