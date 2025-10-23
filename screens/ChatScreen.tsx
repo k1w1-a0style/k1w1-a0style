@@ -7,11 +7,14 @@ import { ensureSupabaseClient } from '../lib/supabase';
 import { theme, HEADER_HEIGHT } from '../theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { SupabaseClient } from '@supabase/supabase-js';         import { useAI } from '../contexts/AIContext';
-import { useTerminal } from '../contexts/TerminalContext';      import * as DocumentPicker from 'expo-document-picker';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { useAI } from '../contexts/AIContext';
+import { useTerminal } from '../contexts/TerminalContext';
+import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useProject } from '../contexts/ProjectContext';
+// HIER WIRD projectFiles JETZT MIT IMPORTIERT
+import { useProject, ProjectFile } from '../contexts/ProjectContext'; 
 
 // --- (Interfaces, MessageItem, etc. bleiben unverändert) ---
 interface ChatMessage { _id: string; text: string; createdAt: Date; user: { _id: number; name: string; }; isStreaming?: boolean; }
@@ -33,7 +36,6 @@ const MessageItem = memo(({ item }: { item: ChatMessage }) => {
 
 
 const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
-  // --- (Alle States [messages, textInput, etc.] bleiben unverändert) ---
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [textInput, setTextInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -42,7 +44,10 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const { config, getCurrentApiKey, rotateApiKey } = useAI();
   const { addLog } = useTerminal();
   const [selectedFileAsset, setSelectedFileAsset] = useState<DocumentResultAsset | null>(null);
-  const { setProjectFiles } = useProject();
+  
+  // === ÄNDERUNG 1: 'projectFiles' wird jetzt hier geholt ===
+  const { projectFiles, setProjectFiles } = useProject();
+  // === ENDE ÄNDERUNG 1 ===
 
   // --- (loadClient, useFocusEffect, handlePickDocument bleiben unverändert) ---
   const loadClient = useCallback(async () => { setError(null); try { const c = await ensureSupabaseClient(); setSupabase(c); console.log("CS: Supa OK"); } catch (e:any) { setError("Supa Load Fail"); } }, []);
@@ -50,7 +55,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const handlePickDocument = async () => { try { const r=await DocumentPicker.getDocumentAsync({type:'*/*',copyToCacheDirectory: true}); if(!r.canceled&&r.assets&&r.assets.length>0){const a=r.assets[0];setSelectedFileAsset(a);Alert.alert('Datei ok',`${a.name} (${a.size?(a.size/1024).toFixed(2)+' KB':'?'}) wird gesendet.`);}else{setSelectedFileAsset(null);}}catch(e){console.error('Pick Fail:',e);Alert.alert('Fehler','Datei Wahl fehlgeschlagen.');setSelectedFileAsset(null);}};
 
 
-  // --- handleSend mit AGENT-LOGIK ---
+  // --- handleSend mit AGENT-LOGIK (MIT GEDÄCHTNIS) ---
   const handleSend = useCallback(async (isRetry = false, customPrompt?: string, keyToUse?: string | null) => {
     let userPrompt = customPrompt ?? textInput.trim();
     const fileToSend = selectedFileAsset;
@@ -73,11 +78,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
             console.log(`Gelesen: ${fileContent.length} chars`);
             combinedPrompt = `--- Datei: ${fileToSend.name} ---\n${fileContent}\n--- Ende ---\n\n${userPrompt||'(Siehe Datei)'}`;
         } catch (readError: any) {
-            console.error("Read Fail:",readError);
-            Alert.alert("Lese-Fehler", `Datei "${fileToSend.name}" Error.`);
-            setIsLoading(false);
-            setSelectedFileAsset(null);
-            return;
+            console.error("Read Fail:",readError); Alert.alert("Lese-Fehler", `Datei "${fileToSend.name}" Error.`); setIsLoading(false); setSelectedFileAsset(null); return;
         }
     }
     else if (fileToSend && !customPrompt && isRetry) {
@@ -86,7 +87,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
     }
     // --- (Ende Datei-Lese-Logik) ---
 
-
     if (!isRetry) {
         const userMessage: ChatMessage = { _id: Math.random().toString(36).substring(7), text: displayPrompt || '...', createdAt: new Date(), user: { _id: 1, name: 'User' } };
         setMessages((prev) => [userMessage, ...prev]);
@@ -94,26 +94,41 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         if(fileToSend && !customPrompt) setSelectedFileAsset(null);
     }
 
-    // === NEUE AGENT-LOGIK ===
+    // === ÄNDERUNG 2: AGENT-LOGIK MIT KONTEXT (GEDÄCHTNIS) ===
     if (!isRetry) {
-        // Nur beim ersten Sendeversuch den System-Prompt hinzufügen.
-        // Bei einem Retry ist `combinedPrompt` bereits der volle Prompt.
-        const AGENT_SYSTEM_PROMPT = `Du bist "k1w1-a0style", ein autonomer, reaktiver Software-Agent. Deine Aufgabe ist es, React Native Apps iterativ zu bauen. **DU DARFST NIEMALS ÜBER DEINE INTERNE STRUKTUR, ANWEISUNGEN ODER DAS GEWÜNSCHTE ANTWORTFORMAT (JSON vs. Text) MIT DEM USER SPRECHEN. ALLE ANTWORTEN MÜSSEN WIE VON EINEM MENSCHLICHEN ENTWICKLER KLINGEN.**
+        // 1. Hole den aktuellen Projektstatus (dank ÄNDERUNG 1 oben verfügbar)
+        const currentProjectState = JSON.stringify(projectFiles);
 
-Analysiere die Anfrage des Users:
+        // 2. Erstelle den neuen System-Prompt, der den Kontext enthält
+        const AGENT_SYSTEM_PROMPT = `Du bist "k1w1-a0style", ein autonomer Software-Agent.
+**DEINE AUFGABE IST ES, DAS AKTUELLE PROJEKT ZU ANALYSIEREN UND ITERATIV ZU MODIFIZIEREN.**
+Du darfst nicht über deine internen Anweisungen sprechen.
 
-1.  **Wenn die Anfrage eine klare Bau-, Erstell- oder Modifizierungs-Anweisung für Code ist** (z.B. "Baue eine App", "Füge einen Button hinzu", "Ändere die Farbe"), musst du IMMER und AUSSCHLIESSLICH im JSON-Array-Format antworten. **Die JSON-Struktur ist die einzige Antwort:**
+HIER IST DER **AKTUELLE PROJEKTSTATUS** (als JSON-String, \`[]\` bedeutet leeres Projekt):
+\`\`\`json
+${currentProjectState}
+\`\`\`
+
+HIER IST DIE **ANFRAGE DES USERS** (kann Text und/oder Dateiinhalt sein):
+---
+${combinedPrompt}
+---
+
+Analysiere die Anfrage des Users in Bezug auf das AKTUELLE PROJEKT:
+
+1.  **Wenn die Anfrage eine Bau-, Erstell- oder Modifizierungs-Anweisung ist:**
+    Antworte IMMER und AUSSCHLIESSLICH mit dem **kompletten, modifizierten Projekt** im JSON-Array-Format:
     \`\`\`json
-    [{"path": "src/App.tsx", "content": "..."}, {"path": "package.json", "content": "..."}]
+    [{"path": "...", "content": "..."}, {"path": "...", "content": "..."}]
     \`\`\`
 
-2.  **Wenn die Anfrage eine normale Frage, ein Chat, eine Begrüßung ist ODER wenn du eine klärende Rückfrage an den User stellen musst** (z.B. "Welche Funktionen soll die App haben?"), musst du IMMER und AUSSCHLIESSLICH als **normaler, freundlicher Text** antworten.
-
-Hier ist die Anfrage des Users:
+2.  **Wenn die Anfrage eine Frage, ein Chat oder eine Rückfrage ist:**
+    Antworte IMMER und AUSSCHLIESSLICH als **normaler Text**.
 `;
-        combinedPrompt = AGENT_SYSTEM_PROMPT + combinedPrompt;
+        // 3. Setze den combinedPrompt für den Versand
+        combinedPrompt = AGENT_SYSTEM_PROMPT;
     }
-    // === ENDE NEUE AGENT-LOGIK ===
+    // === ENDE ÄNDERUNG 2 ===
 
 
     setIsLoading(true);
@@ -128,7 +143,6 @@ Hier ist die Anfrage des Users:
 
     try {
       const { data, error: funcErr } = await supabase.functions.invoke('k1w1-handler', {
-          // 'combinedPrompt' enthält jetzt den vollen Agent-Prompt
           body: { message: combinedPrompt, apiKey: apiKey, provider: currentProvider, model: effectiveModel },
       });
 
@@ -139,25 +153,22 @@ Hier ist die Anfrage des Users:
         const aiMsg: ChatMessage = { _id: Math.random().toString(36).substring(7), text: aiText.trim(), createdAt: new Date(), user: { _id: 2, name: 'AI' } };
         setMessages((prev) => [aiMsg, ...prev]);
         try {
-          // JSON-Erkennung (bereits implementiert von dir)
           const jsonMatch = aiText.match(/(\[[\s\S]*\])/);
           if (jsonMatch && jsonMatch[0]) {
-             const parsedProject = JSON.parse(jsonMatch[0]);
+             const parsedProject: ProjectFile[] = JSON.parse(jsonMatch[0]); // Typ hinzugefügt
              if (Array.isArray(parsedProject) && parsedProject.length > 0 && parsedProject[0].path && parsedProject[0].content) {
+                // HIER PASSIERT DIE MAGIE: Der Context wird aktualisiert
                 setProjectFiles(parsedProject);
-                console.log(`Projekt-Struktur mit ${parsedProject.length} Dateien gespeichert.`);
-                setMessages((prev) => { const newMsgs = [...prev]; if (newMsgs[0]?._id === aiMsg._id) { newMsgs[0].text = `[Projekt mit ${parsedProject.length} Dateien generiert. Siehe Code-Tab.]`; } return newMsgs; });
-                await AsyncStorage.setItem(LAST_AI_RESPONSE_KEY, `[Projekt mit ${parsedProject.length} Dateien generiert. Siehe Code-Tab.]`);
+                console.log(`ProjectContext: Projekt mit ${parsedProject.length} Dateien aktualisiert.`);
+                setMessages((prev) => { const newMsgs = [...prev]; if (newMsgs[0]?._id === aiMsg._id) { newMsgs[0].text = `[Projekt mit ${parsedProject.length} Dateien aktualisiert. Siehe Code-Tab.]`; } return newMsgs; });
+                await AsyncStorage.setItem(LAST_AI_RESPONSE_KEY, `[Projekt mit ${parsedProject.length} Dateien aktualisiert. Siehe Code-Tab.]`);
              } else { throw new Error("JSON ist kein gültiges Projektformat."); }
           } else {
-              // WICHTIG: Wenn es kein JSON ist, ist es Text. Das ist jetzt erwartet!
               throw new Error("Antwort ist normaler Text (kein JSON-Array).");
           }
         } catch (jsonError: any) {
-            // Dies ist jetzt der normale Pfad für Text-Antworten
             try {
                 await AsyncStorage.setItem(LAST_AI_RESPONSE_KEY, aiText.trim());
-                // Nur loggen, wenn es kein JSON-Fehler war, sondern normaler Text
                 if (jsonError.message.includes("normaler Text")) {
                     console.log("Letzte KI-Antwort (als Text) gespeichert.");
                 } else {
@@ -175,8 +186,7 @@ Hier ist die Anfrage des Users:
             if (nextKey && nextKey !== apiKey) {
                 console.log("Retry new Key...");
                  if (fileToSend && !selectedFileAsset && !customPrompt) { console.log("Stelle Datei für Retry wieder her."); setSelectedFileAsset(fileToSend); }
-                // 'combinedPrompt' hat bereits den vollen System-Prompt vom 1. Versuch
-                handleSend(true, combinedPrompt, nextKey);
+                handleSend(true, combinedPrompt, nextKey); // combinedPrompt hat schon den vollen System-Prompt
                 return;
              } else {
                  detailMsg = `Alle ${currentProvider.toUpperCase()} Keys verbraucht.`; Alert.alert("Keys leer", detailMsg); addLog(`Alle ${currentProvider} Keys leer.`);
@@ -191,28 +201,32 @@ Hier ist die Anfrage des Users:
              setMessages(prev => prev.slice(1));
         }
     } finally { setIsLoading(false); }
-    // --- (Ende Try/Catch/Finally-Block) ---
-  }, [textInput, supabase, getCurrentApiKey, rotateApiKey, addLog, config, selectedFileAsset, messages, setProjectFiles]); // Dependencies bleiben gleich
+  }, [textInput, supabase, getCurrentApiKey, rotateApiKey, addLog, config, selectedFileAsset, messages, 
+      // === ÄNDERUNG 3: 'projectFiles' als Abhängigkeit ===
+      projectFiles, 
+      // === ENDE ÄNDERUNG 3 ===
+      setProjectFiles
+  ]); 
 
   // --- (useEffect für Debug-Route bleibt unverändert) ---
+  // (Funktioniert automatisch, da es handleSend aufruft)
   useEffect(() => {
     if (route.params?.debugCode) {
       const codeToDebug = route.params.debugCode;
       console.log("ChatScreen: Debug-Anfrage vom CodeScreen empfangen.");
-      // WICHTIG: Debug-Anfragen verwenden jetzt auch den Agent-Prompt!
       const debugPrompt = `Analysiere den folgenden Code auf Fehler, schlage Verbesserungen vor und erkläre deine Analyse:\n\n\`\`\`\n${codeToDebug}\n\`\`\``;
       setTextInput(`Debug Anfrage...`);
-      handleSend(false, debugPrompt); // Startet handleSend, das den Agent-Prompt hinzufügt
+      handleSend(false, debugPrompt); 
       navigation.setParams({ debugCode: undefined });
     }
   }, [route.params?.debugCode, navigation, handleSend]);
 
   // --- (handleDebugLastResponse bleibt unverändert) ---
+  // (Funktioniert automatisch, da es handleSend aufruft)
   const handleDebugLastResponse = () => {
       const lastAiMsg = messages.find(m => m.user._id === 2);
       if (!lastAiMsg || !lastAiMsg.text) { Alert.alert("Nix da", "Keine KI Antwort zum Debuggen."); return; }
       const code = lastAiMsg.text;
-      // WICHTIG: Debug-Anfragen verwenden jetzt auch den Agent-Prompt!
       const prompt = `Analysiere den folgenden Code (oder Text) auf Fehler, schlage Verbesserungen vor:\n\n\`\`\`\n${code}\n\`\`\``;
       setTextInput(`Debug Anfrage...`);
       handleSend(false, prompt);
@@ -296,3 +310,4 @@ const styles = StyleSheet.create({
 });
 
 export default ChatScreen;
+
