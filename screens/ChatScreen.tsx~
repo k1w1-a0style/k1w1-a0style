@@ -16,26 +16,81 @@ import * as Clipboard from 'expo-clipboard';
 type DocumentResultAsset = NonNullable<DocumentPicker.DocumentPickerResult['assets']>[0];
 type ChatScreenProps = { navigation: any; route: { params?: { debugCode?: string } }; };
 
-// ✅ FIX: Verbessertes Sanitize mit Backtick-Support für Groq
-const sanitizeJsonString = (str: string): string => {
+// 🔧 ULTIMATE FIX: Robustes JSON-Repair für alle KI-Modelle
+const repairAndSanitizeJson = (str: string): string => {
   let clean = str;
   
   // 1. Control Characters entfernen
   clean = clean.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
   
-  // 2. ✅ FIX: Backticks → Double Quotes (Groq nutzt Template Strings!)
+  // 2. Backticks → Double Quotes (Groq nutzt Template Strings!)
   clean = clean.replace(/`/g, '"');
   
-  // 3. Trailing Commas entfernen
+  // 3. ✅ NEUER FIX: Unescapte Newlines in Strings escapen
+  // Findet Strings und escaped Newlines darin
+  clean = clean.replace(/"content"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/g, (match, content) => {
+    // Escape unescapte newlines
+    let fixed = content
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '\\r')
+      .replace(/\t/g, '\\t');
+    // Doppelte Backslashes korrigieren
+    fixed = fixed.replace(/\\\\n/g, '\\n');
+    return `"content": "${fixed}"`;
+  });
+  
+  // 4. ✅ NEUER FIX: Unvollständige Strings abschließen
+  // Wenn ein String nicht geschlossen wird
+  let inString = false;
+  let lastQuoteIndex = -1;
+  let result = '';
+  
+  for (let i = 0; i < clean.length; i++) {
+    const char = clean[i];
+    
+    if (char === '"' && (i === 0 || clean[i-1] !== '\\')) {
+      if (!inString) {
+        inString = true;
+        lastQuoteIndex = i;
+      } else {
+        inString = false;
+      }
+    }
+    result += char;
+  }
+  
+  // Wenn noch ein String offen ist, schließe ihn
+  if (inString && lastQuoteIndex > -1) {
+    // Finde das Ende des aktuellen Objects/Arrays
+    const remainingText = result.substring(lastQuoteIndex);
+    const nextBracket = Math.min(
+      remainingText.indexOf('}') > -1 ? remainingText.indexOf('}') : Infinity,
+      remainingText.indexOf(']') > -1 ? remainingText.indexOf(']') : Infinity,
+      remainingText.indexOf(',') > -1 ? remainingText.indexOf(',') : Infinity
+    );
+    
+    if (nextBracket !== Infinity) {
+      result = result.substring(0, lastQuoteIndex + nextBracket) + '"' + result.substring(lastQuoteIndex + nextBracket);
+    } else {
+      result += '"';
+    }
+  }
+  
+  clean = result;
+  
+  // 5. Trailing Commas entfernen
   clean = clean.replace(/,(\s*[}\]])/g, '$1');
   
-  // 4. Unquoted Keys fixen
+  // 6. Unquoted Keys fixen
   clean = clean.replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)(\s*):/g, '$1"$2"$3:');
+  
+  // 7. ✅ NEUER FIX: export default → module.exports
+  clean = clean.replace(/export default/g, 'module.exports =');
   
   return clean;
 };
 
-// ✅ FIX: Robuste JSON Extraktion mit Bracket-Matching
+// 🔧 VERBESSERTE JSON Extraktion
 const extractJSON = (text: string): string | null => {
   // 1. Entferne Markdown
   let cleaned = text
@@ -82,14 +137,93 @@ const extractJSON = (text: string): string | null => {
   }
 
   if (arrayEnd === -1) {
-    console.warn('⚠️ Kein schließendes ] gefunden!');
-    return null;
+    // ✅ NEUER FIX: Wenn kein schließendes ] gefunden, füge es hinzu
+    console.warn('⚠️ Kein schließendes ] gefunden! Versuche zu reparieren...');
+    // Füge fehlendes ] hinzu
+    return cleaned.substring(arrayStart) + ']';
   }
 
   const extracted = cleaned.substring(arrayStart, arrayEnd + 1);
   console.log(`🔍 Extrahiert ${extracted.length} Zeichen (Depth-Check OK)`);
 
   return extracted;
+};
+
+// 🔧 FALLBACK: Basis-Template wenn Parsing fehlschlägt
+const getBasicHelloWorldTemplate = (): ProjectFile[] => {
+  return [
+    {
+      path: 'package.json',
+      content: JSON.stringify({
+        name: 'hello-world-app',
+        version: '1.0.0',
+        main: 'node_modules/expo/AppEntry.js',
+        scripts: {
+          start: 'expo start',
+          android: 'expo start --android',
+          ios: 'expo start --ios',
+          web: 'expo start --web'
+        },
+        dependencies: {
+          'expo': '~54.0.18',
+          'expo-status-bar': 'latest',
+          'react': '19.1.0',
+          'react-native': '0.81.4'
+        }
+      }, null, 2)
+    },
+    {
+      path: 'app.config.js',
+      content: `module.exports = {
+  name: 'Hello World App',
+  slug: 'hello-world-app',
+  version: '1.0.0',
+  orientation: 'portrait',
+  splash: {
+    backgroundColor: '#000000'
+  },
+  android: {
+    adaptiveIcon: {
+      backgroundColor: '#000000'
+    }
+  }
+};`
+    },
+    {
+      path: 'App.tsx',
+      content: `import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+
+export default function App() {
+  return (
+    <View style={styles.container}>
+      <Text style={styles.text}>Hello World! 🥝</Text>
+      <Text style={styles.subtext}>k1w1-a0style läuft!</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0a0a0a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  text: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#00FF00',
+    marginBottom: 10,
+  },
+  subtext: {
+    fontSize: 16,
+    color: '#00FF00',
+    opacity: 0.7,
+  }
+});`
+    }
+  ];
 };
 
 const MessageItem = memo(({ item }: { item: ChatMessage }) => {
@@ -199,37 +333,45 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
 
     if (!isRetry) {
       const currentProjectState = JSON.stringify(projectData?.files || [], null, 2);
-      
-      // ✅ VERBESSERTER PROMPT - Klarer und mit Kontext
-      const AGENT_SYSTEM_PROMPT = `Du bist "k1w1-a0style", ein Experte für **React Native mit Expo**. 
+      const AGENT_SYSTEM_PROMPT = `Du bist "k1w1-a0style", ein Experte für **React Native mit Expo SDK 54**. Deine Aufgabe ist es, mobile Apps für Android und iOS zu bauen.
+**FOKUS: NUR React Native & Expo.** KEIN HTML, KEIN CSS, KEIN reines JavaScript für den Browser.
 
-**WICHTIGE REGEL:** 
-- Wenn der User über die App redet, Fragen stellt oder chattet → Antworte normal mit Text
-- Wenn der User sagt "baue", "erstelle", "ändere", "füge hinzu" → Generiere/Update Code
+**WICHTIG:** Du musst **IMMER** entscheiden, ob die User-Anfrage **Code-Generierung** oder **normalen Chat** erfordert.
 
-**AKTUELLES PROJEKT:**
-${currentProjectState.length > 10 ? currentProjectState : "Noch kein Projekt vorhanden"}
+**AKTUELLES PROJEKT (React Native / Expo):**
+\`\`\`json
+${currentProjectState}
+\`\`\`
+(\`[]\` bedeutet leeres Projekt)
 
-**USER SAGT:**
-"${userPrompt}"
+**USER-ANFRAGE:**
+---
+${combinedPrompt}
+---
 
-**ENTSCHEIDE:**
+**DEINE AKTION:**
 
-1. **FALLS CODE-AKTION** (baue, erstelle, ändere, füge hinzu, etc.):
-   Antworte NUR mit einem JSON-Array der KOMPLETTEN App-Dateien:
-   \`\`\`json
-   [
-     {"path": "package.json", "content": "{...als String...}"},
-     {"path": "app.config.js", "content": "module.exports = {...}"},
-     {"path": "App.tsx", "content": "import React..."}
-   ]
-   \`\`\`
-   
-   WICHTIG BEI ÄNDERUNGEN: Übernimm die existierenden Dateien und ändere nur was gefordert ist!
+1. **FALL: CODE-GENERIERUNG / MODIFIKATION (React Native / Expo)**
+ * Wenn der User explizit sagt "Baue", "Erstelle", "Füge hinzu", "Ändere", "Implementiere" etc. **bezogen auf die React Native App**.
+ * **ANTWORT-FORMAT:** NUR das **komplette, aktualisierte React Native / Expo Projekt** als JSON-Array:
+ \`\`\`json
+ [
+   {"path": "package.json", "content": "{...JSON als String...}" },
+   {"path": "app.config.js", "content": "module.exports = {...};"},
+   {"path": "App.tsx", "content": "import React from 'react';\\n..."}
+ ]
+ \`\`\`
+ * **PFLICHTDATEIEN:** Füge **IMMER** mindestens 'package.json' (als JSON-String!), 'app.config.js' (oder 'app.json') und 'App.tsx' hinzu.
+ * **WICHTIG:** Der 'content' muss IMMER ein String sein! Auch package.json muss als String übergeben werden!
+ * **ESCAPING:** Newlines als \\n, Tabs als \\t, Quotes als \\" escapen!
+ * **KEIN ZUSATZTEXT!** Nur das JSON.
 
-2. **FALLS NORMALE KONVERSATION** (Fragen, Chat):
-   Antworte einfach mit normalem Text. Kein JSON.`;
-      
+2. **FALL: CHAT / FRAGE / RÜCKFRAGE / ANDERE ANFRAGEN**
+ * Wenn der User chattet, Fragen stellt, **oder wenn DU eine Rückfrage hast**, oder wenn der User **etwas anderes als React Native Code** verlangt (z.B. HTML).
+ * **ANTWORT-FORMAT:** Normaler, freundlicher **Text**. Erkläre ggf., warum du die Anfrage nicht (als Code) erfüllen kannst.
+
+**BEISPIEL:** User: "Baue eine Hello World App". 
+Antwort: \`[{"path": "package.json", "content": "{\\"name\\": \\"hello-world\\", ...}"}, {"path": "App.tsx", "content": "import React..."}]\``;
       combinedPrompt = AGENT_SYSTEM_PROMPT;
     }
 
@@ -266,9 +408,10 @@ ${currentProjectState.length > 10 ? currentProjectState : "Noch kein Projekt vor
 
             let parsedProject: any[] | null = null;
             try {
-              const sanitized = sanitizeJsonString(potentialJson);
+              const sanitized = repairAndSanitizeJson(potentialJson);
               parsedProject = JSON.parse(sanitized);
 
+              // Konvertiere package.json content zu String falls nötig
               if (Array.isArray(parsedProject)) {
                 parsedProject = parsedProject.map((file) => ({
                   ...file,
@@ -280,7 +423,20 @@ ${currentProjectState.length > 10 ? currentProjectState : "Noch kein Projekt vor
             } catch (parseError: any) {
               console.warn("❌ JSON-Parse-Fehler:", parseError.message);
               console.warn("Extrahierter Text (erste 500 Zeichen):", potentialJson.substring(0, 500));
-              throw new Error(`Antwort enthält JSON, aber Parsing fehlgeschlagen: ${parseError.message}`);
+              
+              // 🔧 FALLBACK: Verwende Basis-Template wenn Parsing fehlschlägt
+              const isHelloWorldRequest = userPrompt.toLowerCase().includes('hello') || 
+                                          userPrompt.toLowerCase().includes('hallo') ||
+                                          userPrompt.toLowerCase().includes('baue') ||
+                                          userPrompt.toLowerCase().includes('erstelle');
+              
+              if (isHelloWorldRequest && (!projectData?.files || projectData.files.length === 0)) {
+                console.log('🔧 FALLBACK: Verwende Basis-Template da JSON-Parsing fehlgeschlagen ist.');
+                parsedProject = getBasicHelloWorldTemplate();
+                addLog('📦 Basis-Template geladen (JSON-Repair fehlgeschlagen)');
+              } else {
+                throw new Error(`Antwort enthält JSON, aber Parsing fehlgeschlagen: ${parseError.message}`);
+              }
             }
 
             const validatedProject = parsedProject as ProjectFile[];
@@ -301,8 +457,7 @@ ${currentProjectState.length > 10 ? currentProjectState : "Noch kein Projekt vor
               throw new Error("Geparstes/Konvertiertes JSON ist kein gültiges Projektformat.");
             }
           } else {
-            // Kein JSON = normale Chat-Antwort
-            console.log("💬 Normale Chat-Antwort (kein JSON gefunden).");
+            throw new Error("Antwort ist normaler Text (kein JSON gefunden).");
           }
         } catch (jsonError: any) {
           if (jsonError.message.includes("normaler Text")) {

@@ -1,85 +1,66 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 
-const supabaseUrlKey = 'supabase_url';
-const supabaseAnonKeyKey = 'supabase_key';
+let supabaseClient: SupabaseClient | null = null;
+let initPromise: Promise<SupabaseClient> | null = null;
 
-let supabaseInstance: SupabaseClient | null = null;
-let initializationPromise: Promise<SupabaseClient> | null = null;
+export const ensureSupabaseClient = async (): Promise<SupabaseClient> => {
+  // Falls bereits initialisiert → zurückgeben
+  if (supabaseClient) {
+    return supabaseClient;
+  }
 
-const createDummyClient = (): SupabaseClient => {
-    console.warn("Erstelle Dummy Supabase Client.");
-    const dummyError = { message: 'Supabase client not initialized. Please check settings.', code: 'DUMMY_CLIENT' };
-    return {
-        from: (table: string) => ({
-             select: async (select?: string, options?: any) => ({ data: null, error: dummyError }),
-             insert: async (values: any | any[], options?: any) => ({ data: null, error: dummyError }),
-             update: async (values: any, options?: any) => ({ data: null, error: dummyError }),
-             delete: async (options?: any) => ({ data: null, error: dummyError }),
-             // @ts-ignore
-             eq: () => createDummyClient().from(table),
-        }),
-        functions: {
-            // @ts-ignore
-            invoke: async (functionName: string, options?: any) => ({ data: null, error: { ...dummyError, context: { status: 500 } } }),
-        },
-        auth: {
-            // @ts-ignore
-            signInWithPassword: async (credentials: any) => ({ data: null, error: dummyError }),
-            signUp: async (credentials: any) => ({ data: null, error: dummyError }),
-            signOut: async () => ({ error: null }),
-        },
-        storage: {
-            // @ts-ignore
-             from: (bucketId: string) => ({
-                 upload: async (path: string, file: any, options?: any) => ({ data: null, error: dummyError }),
-                 download: async (path: string, options?: any) => ({ data: null, error: dummyError }),
-             }),
-        },
-    } as unknown as SupabaseClient;
-};
+  // ✅ FIX: Falls gerade initialisiert wird → auf bestehendes Promise warten
+  if (initPromise) {
+    console.log('⏳ Warte auf laufende Supabase Initialisierung...');
+    return initPromise;
+  }
 
-const initializeSupabase = async (): Promise<SupabaseClient> => {
-  console.log("Starte Supabase Initialisierung...");
-  try {
-    const supabaseUrl = await AsyncStorage.getItem(supabaseUrlKey);
-    const supabaseAnonKey = await AsyncStorage.getItem(supabaseAnonKeyKey);
+  console.log('Starte Supabase Initialisierung...');
+
+  // Initialisierung kapseln
+  initPromise = (async () => {
+    let supabaseUrl = await AsyncStorage.getItem('supabase_url');
+    let supabaseAnonKey = await AsyncStorage.getItem('supabase_key');
+
+    // Fallback zu EXPO_PUBLIC env vars (falls nicht im Storage)
+    if (!supabaseUrl) {
+      supabaseUrl = Constants.expoConfig?.extra?.supabaseUrl || process.env.EXPO_PUBLIC_SUPABASE_URL;
+    }
+    if (!supabaseAnonKey) {
+      supabaseAnonKey = Constants.expoConfig?.extra?.supabaseAnonKey || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    }
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      console.warn("Supabase URL/Key fehlt im Storage.");
-      if (!supabaseInstance) supabaseInstance = createDummyClient();
-      return supabaseInstance;
+      console.error('❌ Supabase URL oder Anon Key fehlt!');
+      console.log('AsyncStorage URL:', supabaseUrl ? 'OK' : 'FEHLT');
+      console.log('AsyncStorage Key:', supabaseAnonKey ? 'OK' : 'FEHLT');
+      initPromise = null; // Reset bei Fehler
+      throw new Error('Supabase Credentials fehlen. Bitte in Verbindungen eintragen.');
     }
 
-    if (!supabaseInstance || supabaseInstance.supabaseUrl !== supabaseUrl || supabaseInstance.supabaseKey !== supabaseAnonKey) {
-        console.log("Erstelle/Aktualisiere echten Supabase Client.");
-        supabaseInstance = createClient(supabaseUrl, supabaseAnonKey);
-    } else {
-        console.log("Echter Supabase Client ist bereits aktuell.");
-    }
-    return supabaseInstance;
+    console.log('✅ Erstelle Supabase Client mit URL:', supabaseUrl.substring(0, 30) + '...');
 
-  } catch (error) {
-    console.error("Fehler bei Supabase Initialisierung:", error);
-    if (!supabaseInstance) supabaseInstance = createDummyClient();
-    return supabaseInstance;
-  }
+    supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        storage: AsyncStorage,
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false,
+      },
+    });
+
+    initPromise = null; // Initialisierung abgeschlossen
+    return supabaseClient;
+  })();
+
+  return initPromise;
 };
 
-export const ensureSupabaseClient = (): Promise<SupabaseClient> => {
-  if (supabaseInstance) {
-    return Promise.resolve(supabaseInstance);
-  }
-  if (!initializationPromise) {
-    initializationPromise = initializeSupabase();
-  }
-  return initializationPromise;
-};
-
-export const refreshSupabaseCredentialsAndClient = async (): Promise<SupabaseClient> => {
-  console.log("Erzwinge Neuladen von Supabase Credentials & Client...");
-  initializationPromise = null;
-  supabaseInstance = null;
-  return await ensureSupabaseClient();
+// Optional: Export für manuelles Reset (falls nötig)
+export const resetSupabaseClient = () => {
+  supabaseClient = null;
+  initPromise = null;
+  console.log('Supabase Client wurde zurückgesetzt.');
 };

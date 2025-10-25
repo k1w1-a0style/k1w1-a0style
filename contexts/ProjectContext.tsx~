@@ -101,6 +101,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       console.log("SingleProjectContext: Initiales Projekt gespeichert.");
     }
 
+    // ✅ FIX: setTimeout(50) entfernt - unnötig!
     setIsLoading(false);
     console.log("SingleProjectContext: Ladevorgang abgeschlossen.");
   }, []);
@@ -151,57 +152,53 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     return extractedName;
   };
 
-  // ✅ FIX: AsyncStorage AUSSERHALB von setState
   const updateProjectFiles = async (files: ProjectFile[], newName?: string) => {
-    let dataToSave: ProjectData | null = null;
+    return new Promise<void>((resolve) => {
+      setProjectData(prevData => {
+        if (!prevData) return prevData;
 
-    // 1. State synchron aktualisieren
-    setProjectData(prevData => {
-      if (!prevData) return prevData;
+        const nameToSet = newName || extractProjectName(files) || prevData.name;
+        const newData: ProjectData = {
+          ...prevData,
+          name: nameToSet,
+          files: files,
+          lastModified: Date.now()
+        };
 
-      const nameToSet = newName || extractProjectName(files) || prevData.name;
-      dataToSave = {
-        ...prevData,
-        name: nameToSet,
-        files: files,
-        lastModified: Date.now()
-      };
+        console.log(`ProjectContext: Dateien aktualisiert - ${files.length} Dateien, Name: "${nameToSet}"`);
 
-      console.log(`ProjectContext: Dateien aktualisiert - ${files.length} Dateien, Name: "${nameToSet}"`);
-      
-      return dataToSave;
+        // Speichere asynchron
+        saveProjectToStorage(newData).then(() => {
+          console.log(`ProjectContext: Speicherung abgeschlossen.`);
+          resolve();
+        });
+
+        return newData;
+      });
     });
-
-    // 2. Dann async speichern (außerhalb setState)
-    if (dataToSave) {
-      await saveProjectToStorage(dataToSave);
-      console.log(`ProjectContext: Speicherung abgeschlossen.`);
-    }
   };
 
-  // ✅ FIX: AsyncStorage AUSSERHALB von setState
   const updateMessages = async (newMessages: ChatMessage[]) => {
-    let dataToSave: ProjectData | null = null;
+    return new Promise<void>((resolve) => {
+      setProjectData(prevData => {
+        if (!prevData) return prevData;
 
-    // 1. State synchron aktualisieren
-    setProjectData(prevData => {
-      if (!prevData) return prevData;
+        const newData: ProjectData = {
+          ...prevData,
+          messages: newMessages,
+          lastModified: Date.now()
+        };
 
-      dataToSave = {
-        ...prevData,
-        messages: newMessages,
-        lastModified: Date.now()
-      };
+        console.log(`ProjectContext: Messages aktualisiert - ${newMessages.length} Nachrichten`);
 
-      console.log(`ProjectContext: Messages aktualisiert - ${newMessages.length} Nachrichten`);
-      
-      return dataToSave;
+        // Speichere asynchron
+        saveProjectToStorage(newData).then(() => {
+          resolve();
+        });
+
+        return newData;
+      });
     });
-
-    // 2. Dann async speichern (außerhalb setState)
-    if (dataToSave) {
-      await saveProjectToStorage(dataToSave);
-    }
   };
 
   const clearProject = async () => {

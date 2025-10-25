@@ -1,40 +1,37 @@
-import { LogBox } from 'react-native'; 
-LogBox.ignoreAllLogs(); // Deaktiviert ALLE Logs und Fehler-Overlays!
+import { LogBox, StyleSheet, StatusBar as RNStatusBar, View, Text, ActivityIndicator } from 'react-native';
+LogBox.ignoreAllLogs(true);
 
-import 'react-native-get-random-values'; 
+import 'react-native-get-random-values';
 import 'react-native-reanimated';
+
 import React from 'react';
-import { StyleSheet } from 'react-native'; 
 import { NavigationContainer } from '@react-navigation/native';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from './theme';
+
 import { TerminalProvider } from './contexts/TerminalContext';
 import { AIProvider } from './contexts/AIContext';
-// Single-Project Provider
-import { ProjectProvider } from './contexts/ProjectContext'; 
+import { ProjectProvider, useProject } from './contexts/ProjectContext';
 
-// Screens
 import ChatScreen from './screens/ChatScreen';
 import CodeScreen from './screens/CodeScreen';
 import TerminalScreen from './screens/TerminalScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import ConnectionsScreen from './screens/ConnectionsScreen';
 
-// Komponenten
 import CustomHeader from './components/CustomHeader';
 import { CustomDrawerContent } from './components/CustomDrawer';
-import { StatusBar } from 'expo-status-bar'; 
+import { StatusBar } from 'expo-status-bar';
 
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
 
-// Voller TabNavigator
 const TabNavigator = () => {
   return (
     <Tab.Navigator
-       screenOptions={({ route }) => ({
+      screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
           let iconName: keyof typeof Ionicons.glyphMap = 'help-circle';
           if (route.name === 'Chat') iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
@@ -44,7 +41,10 @@ const TabNavigator = () => {
         },
         tabBarActiveTintColor: theme.palette.primary,
         tabBarInactiveTintColor: theme.palette.text.secondary,
-        tabBarStyle: { backgroundColor: theme.palette.card, borderTopWidth: 0 },
+        tabBarStyle: {
+          backgroundColor: theme.palette.card,
+          borderTopWidth: 0
+        },
         headerShown: false,
         tabBarShowLabel: true,
       })}
@@ -56,37 +56,80 @@ const TabNavigator = () => {
   );
 };
 
-// Volle App-Struktur
+const AppNavigation = () => {
+  const { isLoading } = useProject();
+
+  if (isLoading) {
+    console.log("--- AppNavigation wartet, isLoading: true ---");
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={theme.palette.primary} />
+        <Text style={styles.loadingText}>Projekt-Manager wird geladen...</Text>
+      </View>
+    );
+  }
+
+  console.log("--- AppNavigation rendert, isLoading: false ---");
+
+  return (
+    <NavigationContainer>
+      <StatusBar style="light" backgroundColor={theme.palette.card} />
+      <Drawer.Navigator
+        drawerContent={(props) => <CustomDrawerContent {...props} />}
+        screenOptions={{
+          header: (props) => <CustomHeader {...props} />,
+          drawerStyle: {
+            backgroundColor: theme.palette.card
+          },
+          drawerActiveTintColor: theme.palette.primary,
+          drawerInactiveTintColor: theme.palette.text.primary,
+        }}
+      >
+        <Drawer.Screen
+          name="Home"
+          component={TabNavigator}
+          options={{ title: 'k1w1-a0style', drawerLabel: 'Home' }}
+        />
+        <Drawer.Screen
+          name="Settings"
+          component={SettingsScreen}
+          options={{ title: 'KI-Einstellungen', drawerLabel: 'KI-Einstellungen' }}
+        />
+        <Drawer.Screen
+          name="Connections"
+          component={ConnectionsScreen}
+          options={{ title: 'Verbindungen', drawerLabel: 'Verbindungen' }}
+        />
+      </Drawer.Navigator>
+    </NavigationContainer>
+  );
+}
+
 export default function App() {
-  console.log("=== APP START - PLAN B (Alle Fixes + LogBox Ignore) ===");
+  console.log("=== APP START - ALLE FIXES IMPLEMENTIERT ===");
+
   return (
     <TerminalProvider>
       <AIProvider>
-        {/* ProjectProvider umschließt Navigation */}
-        <ProjectProvider> 
-          <NavigationContainer>
-            <StatusBar style="light" backgroundColor={theme.palette.card} />
-            <Drawer.Navigator
-              // Voller Custom Drawer (Single-Project Version)
-              drawerContent={(props) => <CustomDrawerContent {...props} />} 
-              screenOptions={{
-                // Voller Custom Header (Single-Project Version)
-                header: (props) => <CustomHeader {...props} />, 
-                drawerStyle: { backgroundColor: theme.palette.card }, 
-                drawerActiveTintColor: theme.palette.primary,
-                drawerInactiveTintColor: theme.palette.text.primary, 
-              }}
-            >
-              <Drawer.Screen name="Home" component={TabNavigator} options={{ title: 'k1w1-a0style' }} />
-              <Drawer.Screen name="Settings" component={SettingsScreen} options={{ title: 'KI-Einstellungen' }} />
-              <Drawer.Screen name="Connections" component={ConnectionsScreen} options={{ title: 'Verbindungen' }} />
-            </Drawer.Navigator>
-          </NavigationContainer>
+        <ProjectProvider>
+          <AppNavigation />
         </ProjectProvider>
       </AIProvider>
     </TerminalProvider>
   );
 }
 
-// Keine Styles hier nötig
-
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.palette.background,
+    paddingTop: RNStatusBar.currentHeight || 0,
+  },
+  loadingText: {
+    marginTop: 15,
+    color: theme.palette.text.secondary,
+    fontSize: 16,
+  }
+});
