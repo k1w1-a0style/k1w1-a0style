@@ -1,0 +1,22 @@
+[
+  {
+    "path": "package.json",
+    "content": "{\n  \"name\": \"meine-app\",\n  \"version\": \"1.0.0\",\n  \"main\": \"node_modules/expo/AppEntry.js\",\n  \"scripts\": {\n    \"start\": \"expo start\",\n    \"android\": \"expo start --android\",\n    \"ios\": \"expo start --ios\",\n    \"web\": \"expo start --web\"\n  },\n  \"dependencies\": {\n    \"expo\": \"^54.0.18\",\n    \"expo-status-bar\": \"~3.0.8\",\n    \"react\": \"19.1.0\",\n    \"react-native\": \"0.81.4\",\n    \"react-native-safe-area-context\": \"~5.6.0\"\n  },\n  \"devDependencies\": {\n    \"@babel/core\": \"^7.28.4\",\n    \"typescript\": \"~5.9.3\"\n  },\n  \"private\": true\n}"
+  },
+  {
+    "path": "app.config.js",
+    "content": "module.exports = {\n  expo: {\n    name: \"Meine App\",\n    slug: \"meine-app\",\n    version: \"1.0.0\",\n    orientation: \"portrait\",\n    icon: \"./assets/icon.png\",\n    userInterfaceStyle: \"dark\",\n    splash: {\n      image: \"./assets/icon.png\",\n      resizeMode: \"contain\",\n      backgroundColor: \"#0a0a0a\"\n    },\n    android: {\n      package: \"com.meineapp\",\n      adaptiveIcon: {\n        foregroundImage: \"./assets/adaptive-icon.png\",\n        backgroundColor: \"#000000\"\n      }\n    },\n    ios: {\n      supportsTablet: true,\n      bundleIdentifier: \"com.meineapp\"\n    },\n    web: {\n      favicon: \"./assets/favicon.png\"\n    }\n  }\n};"
+  },
+  {
+    "path": "App.tsx",
+    "content": "import React from 'react';\nimport { StyleSheet, Text, View } from 'react-native';\nimport { StatusBar } from 'expo-status-bar';\n\nexport default function App() {\n  return (\n    <View style={styles.container}>\n      <StatusBar style=\"light\" />\n      <Text style={styles.title}>🥝 Willkommen</Text>\n      <Text style={styles.subtitle}>Deine App ist bereit!</Text>\n      <Text style={styles.info}>Expo SDK 54 • React Native 0.81.4</Text>\n    </View>\n  );\n}\n\nconst styles = StyleSheet.create({\n  container: {\n    flex: 1,\n    backgroundColor: '#0a0a0a',\n    alignItems: 'center',\n    justifyContent: 'center',\n    padding: 20,\n  },\n  title: {\n    fontSize: 32,\n    fontWeight: 'bold',\n    color: '#00FF00',\n    marginBottom: 10,\n  },\n  subtitle: {\n    fontSize: 18,\n    color: '#e0e0e0',\n    marginBottom: 20,\n  },\n  info: {\n    fontSize: 12,\n    color: '#888',\n  },\n});"
+  },
+  {
+    "path": "theme.ts",
+    "content": "export const theme = {\n  palette: {\n    primary: '#00FF00',\n    background: '#0a0a0a',\n    card: '#121212',\n    border: '#2a2a2a',\n    text: {\n      primary: '#e0e0e0',\n      secondary: '#a0a0a0',\n      disabled: '#555',\n    },\n    error: '#ff4444',\n    warning: '#ffaa00',\n  },\n};\n\nexport const HEADER_HEIGHT = 56;"
+  },
+  {
+    "path": "README.md",
+    "content": "# 🥝 Meine App\n\n**Erstellt mit k1w1-a0style**\n\n## 🚀 Start\n\n```bash\nnpm install\nnpm start\n```\n\n## 📱 Plattformen\n\n- **Android:** `npm run android`\n- **iOS:** `npm run ios`\n- **Web:** `npm run web`\n\n## 🛠️ Tech Stack\n\n- Expo SDK 54\n- React Native 0.81.4\n- TypeScript\n\n---\n\n**Powered by k1w1-a0style** 🥝"
+  }
+]

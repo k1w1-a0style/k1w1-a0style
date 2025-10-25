@@ -78,7 +78,7 @@ const SettingsScreen = () => {
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-        
+
         <Text style={styles.sectionTitle}>AI Provider</Text>
         <View style={styles.providerContainer}>
           {SUPPORTED_PROVIDERS.map((provider) => (
@@ -126,7 +126,7 @@ const SettingsScreen = () => {
         </View>
 
         <Text style={styles.sectionTitle}>{`${config.selectedProvider.toUpperCase()} API Keys`}</Text>
-        
+
         {currentKeys.length > 0 && activeKey && (
           <View style={styles.activeKeyBanner}>
             <Ionicons name="checkmark-circle" size={18} color={theme.palette.success} />
@@ -135,7 +135,7 @@ const SettingsScreen = () => {
             </Text>
           </View>
         )}
-        
+
         <View style={styles.addKeyContainer}>
           <TextInput
             style={styles.keyInput}

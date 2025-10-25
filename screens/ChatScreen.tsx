@@ -16,39 +16,36 @@ import * as Clipboard from 'expo-clipboard';
 type DocumentResultAsset = NonNullable<DocumentPicker.DocumentPickerResult['assets']>[0];
 type ChatScreenProps = { navigation: any; route: { params?: { debugCode?: string } }; };
 
-// ✅ FIX: Verbessertes Sanitize mit Backtick-Support für Groq
+// ✅ ORIGINAL Sanitize (NICHT aggressiv!)
 const sanitizeJsonString = (str: string): string => {
   let clean = str;
   
   // 1. Control Characters entfernen
   clean = clean.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
-  
-  // 2. ✅ FIX: Backticks → Double Quotes (Groq nutzt Template Strings!)
+
+  // 2. Backticks → Double Quotes (Groq nutzt Template Strings)
   clean = clean.replace(/`/g, '"');
-  
+
   // 3. Trailing Commas entfernen
   clean = clean.replace(/,(\s*[}\]])/g, '$1');
-  
+
   // 4. Unquoted Keys fixen
   clean = clean.replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)(\s*):/g, '$1"$2"$3:');
-  
+
   return clean;
 };
 
-// ✅ FIX: Robuste JSON Extraktion mit Bracket-Matching
+// ✅ ORIGINAL JSON Extraktion
 const extractJSON = (text: string): string | null => {
-  // 1. Entferne Markdown
   let cleaned = text
     .replace(/```[jJ][sS][oO][nN]?\s*/g, '')
     .replace(/```[a-zA-Z]*\s*/g, '')
     .replace(/```/g, '')
     .trim();
 
-  // 2. Finde Array-Start
   const arrayStart = cleaned.indexOf('[');
   if (arrayStart === -1) return null;
 
-  // 3. Bracket-Matching (zähle [ und ] korrekt)
   let depth = 0;
   let arrayEnd = -1;
   let inString = false;
@@ -57,7 +54,6 @@ const extractJSON = (text: string): string | null => {
   for (let i = arrayStart; i < cleaned.length; i++) {
     const char = cleaned[i];
 
-    // String-Handling (ignore brackets in strings)
     if (char === '"' && !escapeNext) {
       inString = !inString;
     }
@@ -70,11 +66,9 @@ const extractJSON = (text: string): string | null => {
 
     if (inString) continue;
 
-    // Bracket Counting
     if (char === '[' || char === '{') depth++;
     if (char === ']' || char === '}') depth--;
 
-    // Gefunden: Depth ist 0 nach erstem ]
     if (depth === 0 && i > arrayStart) {
       arrayEnd = i;
       break;
@@ -197,18 +191,22 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       if (fileToSend && !customPrompt) setSelectedFileAsset(null);
     }
 
-    if (!isRetry) {
+    // ✅ NUR MINIMALER FIX: Zeige Template NUR bei Änderungen
+    if (!isRetry && !customPrompt) {
       const currentProjectState = JSON.stringify(projectData?.files || [], null, 2);
-      
-      // ✅ VERBESSERTER PROMPT - Klarer und mit Kontext
-      const AGENT_SYSTEM_PROMPT = `Du bist "k1w1-a0style", ein Experte für **React Native mit Expo**. 
+      const hasNonTemplateFiles = projectData?.files && projectData.files.length > 0 && 
+        projectData.files.some(f => !['package.json', 'app.config.js', 'App.tsx', 'theme.ts', 'README.md'].includes(f.path));
 
-**WICHTIGE REGEL:** 
+      const AGENT_SYSTEM_PROMPT = `Du bist "k1w1-a0style", ein Experte für **React Native mit Expo SDK 54**.
+
+**WICHTIGE REGEL:**
 - Wenn der User über die App redet, Fragen stellt oder chattet → Antworte normal mit Text
 - Wenn der User sagt "baue", "erstelle", "ändere", "füge hinzu" → Generiere/Update Code
 
-**AKTUELLES PROJEKT:**
-${currentProjectState.length > 10 ? currentProjectState : "Noch kein Projekt vorhanden"}
+${hasNonTemplateFiles ? `**AKTUELLES PROJEKT (nicht leer):**
+${currentProjectState}
+
+**WICHTIG BEI ÄNDERUNGEN:** Übernimm die existierenden Dateien und ändere nur was gefordert ist!` : `**NEUES PROJEKT:** Erstelle von Grund auf neu (keine Dateien vorhanden).`}
 
 **USER SAGT:**
 "${userPrompt}"
@@ -224,12 +222,10 @@ ${currentProjectState.length > 10 ? currentProjectState : "Noch kein Projekt vor
      {"path": "App.tsx", "content": "import React..."}
    ]
    \`\`\`
-   
-   WICHTIG BEI ÄNDERUNGEN: Übernimm die existierenden Dateien und ändere nur was gefordert ist!
 
 2. **FALLS NORMALE KONVERSATION** (Fragen, Chat):
    Antworte einfach mit normalem Text. Kein JSON.`;
-      
+
       combinedPrompt = AGENT_SYSTEM_PROMPT;
     }
 

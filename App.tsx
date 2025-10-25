@@ -20,6 +20,7 @@ import CodeScreen from './screens/CodeScreen';
 import TerminalScreen from './screens/TerminalScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import ConnectionsScreen from './screens/ConnectionsScreen';
+import AppInfoScreen from './screens/AppInfoScreen'; // ✅ NEU
 
 import CustomHeader from './components/CustomHeader';
 import { CustomDrawerContent } from './components/CustomDrawer';
@@ -100,13 +101,19 @@ const AppNavigation = () => {
           component={ConnectionsScreen}
           options={{ title: 'Verbindungen', drawerLabel: 'Verbindungen' }}
         />
+        {/* ✅ NEU: App Info Screen */}
+        <Drawer.Screen
+          name="AppInfo"
+          component={AppInfoScreen}
+          options={{ title: 'App Info', drawerLabel: 'App Info' }}
+        />
       </Drawer.Navigator>
     </NavigationContainer>
   );
 }
 
 export default function App() {
-  console.log("=== APP START - ALLE FIXES IMPLEMENTIERT ===");
+  console.log("=== APP START - REPARIERT & UMSTRUKTURIERT ===");
 
   return (
     <TerminalProvider>

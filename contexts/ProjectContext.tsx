@@ -57,6 +57,33 @@ const createNewProjectInternal = (name = "Neues Projekt"): ProjectData => ({
   lastModified: Date.now()
 });
 
+// ✅ NEU: Template aus JSON laden
+const loadTemplateFromFile = async (): Promise<ProjectFile[]> => {
+  try {
+    console.log("📦 ProjectContext: Lade Template aus templates/expo-sdk54-base.json...");
+    
+    // Template aus Asset laden (Bundle-Zeit)
+    const templateModule = require('../templates/expo-sdk54-base.json');
+    
+    if (!Array.isArray(templateModule) || templateModule.length === 0) {
+      throw new Error("Template ist leer oder ungültig.");
+    }
+
+    console.log(`✅ Template geladen: ${templateModule.length} Dateien`);
+    return templateModule as ProjectFile[];
+    
+  } catch (error: any) {
+    console.error("❌ Template konnte nicht geladen werden:", error);
+    // Fallback: Minimales Template
+    return [
+      {
+        path: "README.md",
+        content: "# Neues Projekt\n\nTemplate konnte nicht geladen werden.\nBitte manuell erstellen oder ZIP importieren."
+      }
+    ];
+  }
+};
+
 export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
@@ -84,13 +111,24 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         if (!loadedData.id) loadedData.id = uuidv4();
         console.log(`SingleProjectContext: Projekt "${loadedData.name}" geladen.`);
       } else {
-        console.log("SingleProjectContext: Kein Projekt. Erstelle 'Neues Projekt'.");
+        // ✅ NEU: Template laden bei leerem Storage
+        console.log("SingleProjectContext: Kein Projekt. Erstelle mit Template.");
+        const templateFiles = await loadTemplateFromFile();
+        
         loadedData = createNewProjectInternal();
+        loadedData.files = templateFiles;
+        
         needsSave = true;
       }
     } catch (e) {
       console.error("SingleProjectContext: Fehler beim Laden/Parsen", e);
+      
+      // ✅ NEU: Auch bei Fehler Template nutzen
+      const templateFiles = await loadTemplateFromFile();
+      
       loadedData = createNewProjectInternal("Fehler-Projekt");
+      loadedData.files = templateFiles;
+      
       needsSave = true;
     }
 
@@ -168,7 +206,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       };
 
       console.log(`ProjectContext: Dateien aktualisiert - ${files.length} Dateien, Name: "${nameToSet}"`);
-      
+
       return dataToSave;
     });
 
@@ -194,7 +232,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       };
 
       console.log(`ProjectContext: Messages aktualisiert - ${newMessages.length} Nachrichten`);
-      
+
       return dataToSave;
     });
 
@@ -204,11 +242,19 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   };
 
+  // ✅ NEU: Template laden beim Projekt leeren
   const clearProject = async () => {
-    console.log("SingleProjectContext: Projekt wird geleert.");
+    console.log("SingleProjectContext: Projekt wird geleert & Template geladen.");
+    
+    const templateFiles = await loadTemplateFromFile();
+    
     const newProject = createNewProjectInternal();
+    newProject.files = templateFiles;
+    
     setProjectData(newProject);
     await saveProjectToStorage(newProject);
+    
+    console.log(`✅ Neues Projekt mit ${templateFiles.length} Template-Dateien erstellt.`);
   };
 
   const deleteCurrentProject = async () => {
@@ -224,11 +270,17 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
           style: "destructive",
           onPress: async () => {
             console.log(`ProjectContext: Lösche Projekt ${projectData.id} ("${projectData.name}")`);
-            console.log("ProjectContext: Erstelle 'Neues Projekt'.");
+            console.log("ProjectContext: Erstelle 'Neues Projekt' mit Template.");
+            
+            // ✅ NEU: Template auch beim Löschen laden
+            const templateFiles = await loadTemplateFromFile();
+            
             const newProject = createNewProjectInternal();
+            newProject.files = templateFiles;
+            
             setProjectData(newProject);
             await saveProjectToStorage(newProject);
-            console.log(`ProjectContext: Altes Projekt gelöscht. Neues Projekt ${newProject.id} aktiv.`);
+            console.log(`ProjectContext: Altes Projekt gelöscht. Neues Projekt ${newProject.id} mit Template aktiv.`);
           }
         }
       ]
