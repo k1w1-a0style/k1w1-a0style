@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ensureSupabaseClient } from '../lib/supabase';
 import { theme, HEADER_HEIGHT } from '../theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { useAI } from '../contexts/AIContext';
 import { useTerminal } from '../contexts/TerminalContext';
@@ -12,79 +12,69 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useProject, ProjectFile, ChatMessage } from '../contexts/ProjectContext';
 import * as Clipboard from 'expo-clipboard';
+import { buildPrompt, ConversationHistory, PromptMessage } from '../lib/prompts'; // Nutzt das Gehirn
 
 type DocumentResultAsset = NonNullable<DocumentPicker.DocumentPickerResult['assets']>[0];
 type ChatScreenProps = { navigation: any; route: { params?: { debugCode?: string } }; };
 
-// ✅ ORIGINAL Sanitize (NICHT aggressiv!)
-const sanitizeJsonString = (str: string): string => {
-  let clean = str;
-  
-  // 1. Control Characters entfernen
-  clean = clean.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
-
-  // 2. Backticks → Double Quotes (Groq nutzt Template Strings)
-  clean = clean.replace(/`/g, '"');
-
-  // 3. Trailing Commas entfernen
-  clean = clean.replace(/,(\s*[}\]])/g, '$1');
-
-  // 4. Unquoted Keys fixen
-  clean = clean.replace(/([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)(\s*):/g, '$1"$2"$3:');
-
-  return clean;
+// ✅ Robuster JSON Array Extraktor (bleibt gleich)
+const extractJsonArray = (text: string): string | null => {
+  const match = text.match(/```json\s*(\[[\s\S]*\])\s*```|(\[[\s\S]*\])/);
+  if (!match) return null;
+  const jsonString = match[1] || match[2];
+  if (jsonString) {
+    console.log(`🔍 JSON-Array gefunden (${jsonString.length} Zeichen)`);
+    return jsonString;
+  }
+  return null;
 };
 
-// ✅ ORIGINAL JSON Extraktion
-const extractJSON = (text: string): string | null => {
-  let cleaned = text
-    .replace(/```[jJ][sS][oO][nN]?\s*/g, '')
-    .replace(/```[a-zA-Z]*\s*/g, '')
-    .replace(/```/g, '')
-    .trim();
-
-  const arrayStart = cleaned.indexOf('[');
-  if (arrayStart === -1) return null;
-
-  let depth = 0;
-  let arrayEnd = -1;
-  let inString = false;
-  let escapeNext = false;
-
-  for (let i = arrayStart; i < cleaned.length; i++) {
-    const char = cleaned[i];
-
-    if (char === '"' && !escapeNext) {
-      inString = !inString;
+// ✅ NEU: "Dirty" JSON Parser - Versucht Fehler zu beheben!
+const dirtyJsonParse = (jsonString: string): ProjectFile[] | null => {
+  try {
+    // 1. Erster Versuch: Standard JSON.parse
+    const standardParse = JSON.parse(jsonString);
+    if (Array.isArray(standardParse) && standardParse[0]?.path) {
+       // Konvertiere content sicher zu String
+       return standardParse.map(file => ({
+         ...file,
+         content: typeof file.content === 'string' ? file.content : JSON.stringify(file.content ?? '', null, 2)
+       }));
     }
-
-    if (char === '\\') {
-      escapeNext = !escapeNext;
-    } else {
-      escapeNext = false;
-    }
-
-    if (inString) continue;
-
-    if (char === '[' || char === '{') depth++;
-    if (char === ']' || char === '}') depth--;
-
-    if (depth === 0 && i > arrayStart) {
-      arrayEnd = i;
-      break;
-    }
+  } catch (e) {
+     console.warn(`DirtyParse: Standard parse failed - ${e.message}`);
   }
 
-  if (arrayEnd === -1) {
-    console.warn('⚠️ Kein schließendes ] gefunden!');
-    return null;
+  try {
+    // 2. Zweiter Versuch: Ersetze häufige Fehler und versuche es erneut
+    let cleanedString = jsonString
+      .replace(/\\'/g, "'") // Ersetze escaped single quotes
+      .replace(/\\`/g, "`") // Ersetze escaped backticks
+      .replace(/([,{]\s*)'/g, '$1"') // Single quotes für Keys -> Double quotes
+      .replace(/'\s*:/g, '":')
+      .replace(/:\s*'/g, ':"') // Single quotes für Values -> Double quotes
+      .replace(/'\s*([,}])/g, '"$1')
+      .replace(/,\s*([}\]])/g, '$1'); // Trailing commas
+
+    // Entferne Kommentare (manche Modelle fügen sie hinzu)
+    cleanedString = cleanedString.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
+
+    const repairedParse = JSON.parse(cleanedString);
+     if (Array.isArray(repairedParse) && repairedParse[0]?.path) {
+        console.log("✅ DirtyParse: Reparatur erfolgreich!");
+        return repairedParse.map(file => ({
+          ...file,
+          content: typeof file.content === 'string' ? file.content : JSON.stringify(file.content ?? '', null, 2)
+       }));
+     }
+  } catch (e) {
+    console.error(`❌ DirtyParse: Auch Reparatur fehlgeschlagen - ${e.message}`);
+    console.error("Fehlerhafter String (Ausschnitt):", jsonString.substring(0, 500));
   }
 
-  const extracted = cleaned.substring(arrayStart, arrayEnd + 1);
-  console.log(`🔍 Extrahiert ${extracted.length} Zeichen (Depth-Check OK)`);
-
-  return extracted;
+  return null; // Konnte nicht geparst werden
 };
+
 
 const MessageItem = memo(({ item }: { item: ChatMessage }) => {
   const messageText = (item && typeof item.text === 'string') ? item.text.trim() : '';
@@ -123,10 +113,18 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const { addLog } = useTerminal();
   const [selectedFileAsset, setSelectedFileAsset] = useState<DocumentResultAsset | null>(null);
   const rotationCountRef = useRef(0);
+  const historyRef = useRef(new ConversationHistory()); // History Speicher
 
+  // Lade Supabase Client
   const loadClient = useCallback(async () => { setError(null); try { const c = await ensureSupabaseClient(); setSupabase(c); console.log("CS: Supa OK"); } catch (e: any) { setError("Supa Load Fail"); } }, []);
   useFocusEffect(useCallback(() => { loadClient(); }, [loadClient]));
 
+  // Lade History aus Context
+  useEffect(() => {
+    historyRef.current.loadFromMessages(messages);
+  }, [messages]);
+
+  // Datei-Picker
   const handlePickDocument = async () => {
     try {
       const r = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
@@ -134,16 +132,11 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         const a = r.assets[0];
         setSelectedFileAsset(a);
         Alert.alert('Datei ok', `${a.name} (${a.size ? (a.size / 1024).toFixed(2) + ' KB' : '?'}) wird gesendet.`);
-      } else {
-        setSelectedFileAsset(null);
-      }
-    } catch (e) {
-      console.error('Pick Fail:', e);
-      Alert.alert('Fehler', 'Datei Wahl fehlgeschlagen.');
-      setSelectedFileAsset(null);
-    }
+      } else { setSelectedFileAsset(null); }
+    } catch (e) { console.error('Pick Fail:', e); Alert.alert('Fehler', 'Datei Wahl fehlgeschlagen.'); setSelectedFileAsset(null); }
   };
 
+  // Haupt-Sende-Logik
   const handleSend = useCallback(async (isRetry = false, customPrompt?: string, keyToUse?: string | null) => {
     let userPrompt = customPrompt ?? textInput.trim();
     const fileToSend = selectedFileAsset;
@@ -157,87 +150,55 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
     const apiKey = keyToUse ?? getCurrentApiKey(currentProvider);
     if (!apiKey) { Alert.alert('Key fehlt', `Kein API Key für ${currentProvider.toUpperCase()} gefunden.`); return; }
 
-    if (!isRetry) {
-      rotationCountRef.current = 0;
-    }
+    if (!isRetry) rotationCountRef.current = 0;
 
+    // Datei-Inhalt lesen
     let fileContent = '';
-    let combinedPrompt = userPrompt;
+    let messageForHistory = userPrompt; // Das, was in die History kommt
     if (fileToSend && !customPrompt && !isRetry) {
       setIsAiLoading(true);
       console.log(`Lese: ${fileToSend.uri}`);
       try {
         fileContent = await FileSystem.readAsStringAsync(fileToSend.uri, { encoding: 'utf8' });
         console.log(`Gelesen: ${fileContent.length} chars`);
-        combinedPrompt = `--- Datei: ${fileToSend.name} ---\n${fileContent}\n--- Ende ---\n\n${userPrompt || '(Siehe Datei)'}`;
+        // Die Nachricht für die KI UND die History enthält den Datei-Kontext
+        messageForHistory = `--- Datei: ${fileToSend.name} ---\n${fileContent}\n--- Ende ---\n\n${userPrompt || '(Siehe Datei)'}`;
       } catch (readError: any) {
-        console.error("Read Fail:", readError);
-        Alert.alert("Lese-Fehler", `Datei "${fileToSend.name}" Error.`);
-        setIsAiLoading(false);
-        setSelectedFileAsset(null);
-        return;
+        console.error("Read Fail:", readError); Alert.alert("Lese-Fehler", `Datei "${fileToSend.name}" Error.`); setIsAiLoading(false); setSelectedFileAsset(null); return;
       }
     } else if (fileToSend && !customPrompt && isRetry) {
-      combinedPrompt = userPrompt;
-      if (displayPrompt === `(Datei gesendet: ${fileToSend.name})`) { userPrompt = displayPrompt; }
+       messageForHistory = userPrompt; // Beim Retry haben wir den kombinierten Prompt schon
+       if (displayPrompt === `(Datei gesendet: ${fileToSend.name})`) { userPrompt = displayPrompt; } // Korrektur für Anzeige
     }
 
+    // UI-Nachricht erstellen & History aktualisieren (nur beim ersten Senden)
     let userMessage: ChatMessage | null = null;
     let originalMessages = messages;
-
     if (!isRetry) {
       userMessage = { _id: Math.random().toString(36).substring(7), text: displayPrompt || '...', createdAt: new Date(), user: { _id: 1, name: 'User' } };
       setTextInput('');
       if (fileToSend && !customPrompt) setSelectedFileAsset(null);
+      historyRef.current.addUser(messageForHistory); // Wichtig: messageForHistory verwenden!
     }
 
-    // ✅ NUR MINIMALER FIX: Zeige Template NUR bei Änderungen
-    if (!isRetry && !customPrompt) {
-      const currentProjectState = JSON.stringify(projectData?.files || [], null, 2);
-      const hasNonTemplateFiles = projectData?.files && projectData.files.length > 0 && 
-        projectData.files.some(f => !['package.json', 'app.config.js', 'App.tsx', 'theme.ts', 'README.md'].includes(f.path));
-
-      const AGENT_SYSTEM_PROMPT = `Du bist "k1w1-a0style", ein Experte für **React Native mit Expo SDK 54**.
-
-**WICHTIGE REGEL:**
-- Wenn der User über die App redet, Fragen stellt oder chattet → Antworte normal mit Text
-- Wenn der User sagt "baue", "erstelle", "ändere", "füge hinzu" → Generiere/Update Code
-
-${hasNonTemplateFiles ? `**AKTUELLES PROJEKT (nicht leer):**
-${currentProjectState}
-
-**WICHTIG BEI ÄNDERUNGEN:** Übernimm die existierenden Dateien und ändere nur was gefordert ist!` : `**NEUES PROJEKT:** Erstelle von Grund auf neu (keine Dateien vorhanden).`}
-
-**USER SAGT:**
-"${userPrompt}"
-
-**ENTSCHEIDE:**
-
-1. **FALLS CODE-AKTION** (baue, erstelle, ändere, füge hinzu, etc.):
-   Antworte NUR mit einem JSON-Array der KOMPLETTEN App-Dateien:
-   \`\`\`json
-   [
-     {"path": "package.json", "content": "{...als String...}"},
-     {"path": "app.config.js", "content": "module.exports = {...}"},
-     {"path": "App.tsx", "content": "import React..."}
-   ]
-   \`\`\`
-
-2. **FALLS NORMALE KONVERSATION** (Fragen, Chat):
-   Antworte einfach mit normalem Text. Kein JSON.`;
-
-      combinedPrompt = AGENT_SYSTEM_PROMPT;
-    }
+    // Prompt mit History und Kontext bauen
+    const promptMessages = buildPrompt(
+      currentProvider,
+      messageForHistory, // Wichtig: Immer die volle Info (ggf. mit Datei) an buildPrompt geben
+      projectData.files,
+      historyRef.current.getHistory()
+    );
 
     setIsAiLoading(true);
     let effectiveModel = config.selectedMode;
-    if (currentProvider === 'groq' && effectiveModel === 'auto-groq') { effectiveModel = 'llama-3.1-8b-instant'; console.log(`AutoGroq -> ${effectiveModel}`); }
+    if (currentProvider === 'groq' && effectiveModel === 'auto-groq') { effectiveModel = 'llama-3.1-8b-instant'; } // Oder ein anderes Standardmodell
     const currentKeyIndex = config.keys[currentProvider]?.indexOf(apiKey) ?? -1;
-    console.log(`Sende: ${currentProvider}, ${effectiveModel}, KeyIdx:${currentKeyIndex !== -1 ? currentKeyIndex : '?'}`);
+    console.log(`Sende an ${currentProvider} (${effectiveModel}), KeyIdx: ${currentKeyIndex !== -1 ? currentKeyIndex : '?'}`);
 
     try {
+      // API-Call an Supabase Function
       const { data, error: funcErr } = await supabase.functions.invoke('k1w1-handler', {
-        body: { message: combinedPrompt, apiKey: apiKey, provider: currentProvider, model: effectiveModel }
+        body: { messages: promptMessages, apiKey: apiKey, provider: currentProvider, model: effectiveModel }
       });
       if (funcErr) {
         console.error('Supabase Function Error:', funcErr);
@@ -246,117 +207,107 @@ ${currentProjectState}
         throw { name: 'FunctionsHttpError', status: s, message: d };
       }
 
-      let aiText = data?.response;
-      if (aiText && typeof aiText === 'string') { aiText = aiText.trim(); } else { aiText = ""; }
+      let aiText = data?.response?.trim() || "";
 
       if (aiText.length > 0) {
+        // KI-Antwort zur History hinzufügen (macht History-Manager intelligent)
+        historyRef.current.addAssistant(aiText);
+
+        // KI-Antwort im UI anzeigen
         const aiMsg: ChatMessage = { _id: Math.random().toString(36).substring(7), text: aiText, createdAt: new Date(), user: { _id: 2, name: 'AI' } };
         const newMessages = [aiMsg, ...(userMessage ? [userMessage] : []), ...originalMessages];
         await updateMessages(newMessages);
 
-        try {
-          const potentialJson = extractJSON(aiText);
+        // JSON-Verarbeitung mit robustem Parser
+        const potentialJsonString = extractJsonArray(aiText);
+        if (potentialJsonString) {
+            const parsedProject = dirtyJsonParse(potentialJsonString); // ✅ NEU: Nutze dirty parser
 
-          if (potentialJson) {
-            console.log(`🔍 JSON gefunden (${potentialJson.length} Zeichen), versuche zu parsen...`);
+            if (parsedProject) { // ✅ Prüfe ob Parsing erfolgreich war
+                 // Validierung (bleibt einfach, da dirtyParse schon auf path prüft)
+                if (parsedProject.length > 0) {
+                    await updateProjectFiles(parsedProject);
+                    console.log(`✅ Projekt mit ${parsedProject.length} Dateien via DirtyParse gespeichert.`);
 
-            let parsedProject: any[] | null = null;
-            try {
-              const sanitized = sanitizeJsonString(potentialJson);
-              parsedProject = JSON.parse(sanitized);
+                    // Chat-Nachricht aktualisieren
+                    const confirmationText = `[Projekt mit ${parsedProject.length} Dateien aktualisiert. Siehe Code-Tab.]`;
+                    const finalMessages = messages.map(m => m._id === aiMsg._id ? { ...m, text: confirmationText } : m);
+                    // Füge die neue User-Nachricht hinzu, falls noch nicht geschehen
+                    if (userMessage && !finalMessages.some(m => m._id === userMessage._id)) {
+                         finalMessages.unshift(userMessage);
+                    }
+                    await updateMessages(finalMessages);
 
-              if (Array.isArray(parsedProject)) {
-                parsedProject = parsedProject.map((file) => ({
-                  ...file,
-                  content: typeof file.content === 'string'
-                    ? file.content
-                    : JSON.stringify(file.content, null, 2)
-                }));
-              }
-            } catch (parseError: any) {
-              console.warn("❌ JSON-Parse-Fehler:", parseError.message);
-              console.warn("Extrahierter Text (erste 500 Zeichen):", potentialJson.substring(0, 500));
-              throw new Error(`Antwort enthält JSON, aber Parsing fehlgeschlagen: ${parseError.message}`);
-            }
+                    // Auch History korrigieren
+                    const currentHist = historyRef.current.getHistory();
+                    if(currentHist.length > 0 && currentHist[currentHist.length-1].role === 'assistant') {
+                         currentHist[currentHist.length-1].content = confirmationText;
+                    }
 
-            const validatedProject = parsedProject as ProjectFile[];
-            if (Array.isArray(validatedProject) && validatedProject.length > 0 && validatedProject[0]?.path && validatedProject[0]?.content !== undefined && typeof validatedProject[0].content === 'string') {
-              await updateProjectFiles(validatedProject);
-              console.log(`✅ Projekt-Struktur mit ${validatedProject.length} Dateien gespeichert.`);
-
-              const finalMessages = [...newMessages];
-              const idx = finalMessages.findIndex(m => m._id === aiMsg._id);
-              if (idx !== -1) {
-                finalMessages[idx] = { ...aiMsg, text: `[Projekt mit ${validatedProject.length} Dateien aktualisiert. Siehe Code-Tab.]` };
-                await updateMessages(finalMessages);
-              }
+                } else {
+                    console.warn("⚠️ DirtyParse lieferte leeres Array.");
+                }
             } else {
-              if (Array.isArray(validatedProject) && validatedProject.length === 0) {
-                throw new Error("Antwort ist normaler Text (leeres JSON-Array).");
-              }
-              throw new Error("Geparstes/Konvertiertes JSON ist kein gültiges Projektformat.");
+                // Parsing fehlgeschlagen, wird als normaler Text behandelt
+                console.warn("⚠️ JSON-Array extrahiert, aber Parsing fehlgeschlagen (auch mit DirtyParse). Behandle als Text.");
             }
-          } else {
-            // Kein JSON = normale Chat-Antwort
-            console.log("💬 Normale Chat-Antwort (kein JSON gefunden).");
-          }
-        } catch (jsonError: any) {
-          if (jsonError.message.includes("normaler Text")) {
-            console.log("💬 Letzte KI-Antwort (als Text) gespeichert.");
-          } else {
-            console.warn("⚠️ Fehler bei JSON-Verarbeitung:", jsonError.message);
-          }
+        } else {
+          console.log("💬 Normale Chat-Antwort (kein JSON-Array gefunden).");
         }
       } else {
-        setError('Leere oder ungültige Antwort von KI.');
+        setError('Leere Antwort von KI.');
         console.warn('Leere Antwort erhalten.');
+        // Füge leere Antwort zur History hinzu, damit der Turn nicht fehlt
+        historyRef.current.addAssistant("");
       }
     } catch (e: any) {
       console.error('Send Fail:', e);
       let detailMsg = e.message || '?';
       let status = e.status || 500;
 
+       // Füge Fehler zur History hinzu? Optional.
+       // historyRef.current.addAssistant(`Fehler: ${detailMsg}`);
+
+      // Key Rotation (bleibt gleich)
       if (status === 401 || status === 429) {
         const keyListLength = config.keys[currentProvider]?.length || 0;
-
         if (rotationCountRef.current >= keyListLength) {
           detailMsg = `Alle ${currentProvider.toUpperCase()} Keys verbraucht/ungültig.`;
-          Alert.alert("Keys leer", detailMsg);
-          addLog(`Alle ${currentProvider} Keys leer.`);
-          setError(detailMsg);
+          Alert.alert("Keys leer", detailMsg); addLog(`Alle ${currentProvider} Keys leer.`); setError(detailMsg);
           if (fileToSend && !customPrompt) setSelectedFileAsset(null);
-          if (userMessage) {
-            await updateMessages([userMessage, ...originalMessages]);
-          }
+          if (userMessage) await updateMessages([userMessage, ...originalMessages]); // User-Nachricht anzeigen
         } else {
-          console.log(`Key Problem (${status}), rotiere...`);
-          addLog(`Key ${currentProvider} (${status}). Rotiere...`);
+          console.log(`Key Problem (${status}), rotiere...`); addLog(`Key ${currentProvider} (${status}). Rotiere...`);
           rotationCountRef.current++;
-
           const nextKey = await rotateApiKey(currentProvider);
           if (nextKey && nextKey !== apiKey) {
             console.log("Retry new Key...");
             if (fileToSend && !selectedFileAsset && !customPrompt) {
-              console.log("Stelle Datei für Retry wieder her.");
-              setSelectedFileAsset(fileToSend);
+               console.log("Stelle Datei für Retry wieder her.");
+               setSelectedFileAsset(fileToSend); // Stelle Asset wieder her
             }
-            handleSend(true, combinedPrompt, nextKey);
-            return;
+             // Sende die *ursprüngliche* User-Nachricht für den Retry
+            handleSend(true, userPrompt, nextKey);
+            return; // Wichtig: Beende die aktuelle fehlerhafte Ausführung
+          } else {
+             // Rotation fehlgeschlagen oder kein anderer Key da
+             detailMsg = `Key-Rotation fehlgeschlagen (${status}).`;
+             Alert.alert('Sende-Fehler', `${currentProvider.toUpperCase()} (${status}): ${detailMsg}`); setError(detailMsg);
+             if (fileToSend && !customPrompt) setSelectedFileAsset(null);
+             if (userMessage) await updateMessages([userMessage, ...originalMessages]);
           }
         }
       } else {
-        Alert.alert('Sende-Fehler', `${currentProvider.toUpperCase()} (${status}): ${detailMsg}`);
-        setError(detailMsg);
+        Alert.alert('Sende-Fehler', `${currentProvider.toUpperCase()} (${status}): ${detailMsg}`); setError(detailMsg);
         if (fileToSend && !customPrompt) setSelectedFileAsset(null);
-        if (userMessage) {
-          await updateMessages([userMessage, ...originalMessages]);
-        }
+        if (userMessage) await updateMessages([userMessage, ...originalMessages]);
       }
     } finally {
       setIsAiLoading(false);
     }
   }, [textInput, supabase, getCurrentApiKey, rotateApiKey, addLog, config, selectedFileAsset, messages, projectData, updateProjectFiles, updateMessages, isProjectLoading]);
 
+  // Debug-Anfragen vom CodeScreen (bleibt gleich)
   useEffect(() => {
     if (route.params?.debugCode) {
       const codeToDebug = route.params.debugCode;
@@ -368,6 +319,7 @@ ${currentProjectState}
     }
   }, [route.params?.debugCode, navigation, handleSend]);
 
+  // Debug-Button für letzte KI-Antwort (bleibt gleich)
   const handleDebugLastResponse = () => {
     const lastAiMsg = messages.find(m => m.user._id === 2);
     if (!lastAiMsg || !lastAiMsg.text) { Alert.alert("Nix da", "Keine KI Antwort zum Debuggen."); return; }
@@ -380,6 +332,7 @@ ${currentProjectState}
   const isSupabaseReady = supabase && !supabase.functions.invoke.toString().includes('DUMMY_CLIENT');
   const combinedIsLoading = isAiLoading || isProjectLoading;
 
+  // JSX (bleibt unverändert)
   return (
     <SafeAreaView style={styles.safeArea} edges={[]}>
       <KeyboardAvoidingView
@@ -447,40 +400,18 @@ ${currentProjectState}
   );
 };
 
+// Styles (bleiben unverändert)
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: theme.palette.background },
   keyboardAvoidingContainer: { flex: 1 },
   list: { flex: 1 },
   listContent: { paddingVertical: 10, paddingHorizontal: 10 },
-  messageBubble: {
-    borderRadius: 15,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginBottom: 8,
-    maxWidth: '80%',
-    borderWidth: 2,
-  },
-  userMessage: {
-    backgroundColor: 'transparent',
-    borderColor: theme.palette.primary,
-    alignSelf: 'flex-end',
-    borderBottomRightRadius: 0
-  },
-  aiMessage: {
-    backgroundColor: 'transparent',
-    borderColor: theme.palette.card,
-    alignSelf: 'flex-start',
-    borderBottomLeftRadius: 0
-  },
+  messageBubble: { borderRadius: 15, paddingVertical: 10, paddingHorizontal: 14, marginBottom: 8, maxWidth: '80%', borderWidth: 2, },
+  userMessage: { backgroundColor: 'transparent', borderColor: theme.palette.primary, alignSelf: 'flex-end', borderBottomRightRadius: 0 },
+  aiMessage: { backgroundColor: 'transparent', borderColor: theme.palette.card, alignSelf: 'flex-start', borderBottomLeftRadius: 0 },
   messagePressed: { opacity: 0.7 },
-  userMessageText: {
-    fontSize: 16,
-    color: theme.palette.primary
-  },
-  aiMessageText: {
-    fontSize: 16,
-    color: theme.palette.text.primary
-  },
+  userMessageText: { fontSize: 16, color: theme.palette.primary },
+  aiMessageText: { fontSize: 16, color: theme.palette.text.primary },
   inputContainerOuter: { borderTopWidth: 1, borderTopColor: theme.palette.card, backgroundColor: theme.palette.background },
   attachedFileContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.palette.input.background, paddingVertical: 6, paddingHorizontal: 12, marginHorizontal: 10, marginTop: 8, borderRadius: 15, borderWidth: 1, borderColor: theme.palette.card },
   attachedFileText: { flex: 1, marginLeft: 8, marginRight: 8, fontSize: 13, color: theme.palette.text.secondary },
