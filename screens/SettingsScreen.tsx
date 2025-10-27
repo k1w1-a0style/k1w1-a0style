@@ -1,34 +1,34 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-  Alert, Platform, Switch
+  Alert, Platform, Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
 import {
   useAI, AVAILABLE_MODELS, CHAT_PROVIDER, AGENT_PROVIDER,
-  QualityMode, AllAIProviders
+  QualityMode, AllAIProviders,
 } from '../contexts/AIContext';
 
 // Helper, um Modell-Label zu bekommen
 const getModelLabel = (provider: AllAIProviders, id: string): string => {
     const models = AVAILABLE_MODELS[provider] || [];
     const model = models.find(m => m.id === id);
-    return model?.label || id.split('/').pop()?.replace(/_/g, ' ') || id;
+    // Erzeuge einen lesbaren Label, falls nicht vorhanden
+    return model?.label || id.split('/').pop()?.replace(/[-_]/g, ' ') || id;
 };
 
 const SettingsScreen = () => {
   const { config, setSelectedChatMode, setSelectedAgentMode, setQualityMode,
           addApiKey, removeApiKey, getCurrentApiKey } = useAI();
 
-  // State für die Key-Eingabe
+  // State für die Key-Eingabe (getrennt)
   const [newGroqKey, setNewGroqKey] = useState('');
   const [newGeminiKey, setNewGeminiKey] = useState('');
-  // Optional: States für Fallback-Keys
-  const [newOpenAIKey, setNewOpenAIKey] = useState('');
-  const [newAnthropicKey, setNewAnthropicKey] = useState('');
-
+  // Optional: States für Fallback-Keys (kann später hinzugefügt werden)
+  // const [newOpenAIKey, setNewOpenAIKey] = useState('');
+  // const [newAnthropicKey, setNewAnthropicKey] = useState('');
 
   // Handler für Modellauswahl
   const handleChatModeChange = (mode: string) => setSelectedChatMode(mode);
@@ -39,11 +39,15 @@ const SettingsScreen = () => {
     setQualityMode(value ? 'quality' : 'speed');
   };
 
-  // Handler für Key hinzufügen (Provider wird explizit übergeben)
-  const handleAddKey = async ( provider: AllAIProviders, key: string, setKeyState: React.Dispatch<React.SetStateAction<string>> ) => {
+  // Handler für Key hinzufügen
+  const handleAddKey = async (
+    provider: AllAIProviders,
+    key: string,
+    setKeyState: React.Dispatch<React.SetStateAction<string>>
+  ) => {
     const trimmedKey = key.trim();
     if (!trimmedKey) {
-      Alert.alert('Fehler', 'Bitte gib einen gültigen API Key ein.');
+      Alert.alert('Fehler', 'Bitte gib einen gültigen API Key ein');
       return;
     }
     await addApiKey(provider, trimmedKey);
@@ -52,7 +56,7 @@ const SettingsScreen = () => {
 
   // Handler für Key entfernen
   const handleRemoveKey = (provider: AllAIProviders, key: string) => {
-    Alert.alert('Key löschen?', `Diesen ${provider.toUpperCase()} Key entfernen?`, [
+    Alert.alert('Key löschen?', `${provider.toUpperCase()} Key entfernen?`, [
       { text: 'Abbrechen', style: 'cancel' },
       { text: 'Löschen', style: 'destructive', onPress: () => removeApiKey(provider, key) },
     ]);
@@ -72,14 +76,12 @@ const SettingsScreen = () => {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled">
 
         {/* === Qualitätsmodus === */}
         <Text style={styles.sectionTitle}>⚙️ Modus</Text>
         <View style={styles.switchContainer}>
-          <Text style={styles.switchLabel}>
-            🚀 Schnell (1 Call)
-          </Text>
+          <Text style={styles.switchLabel}>🚀 Schnell (1 Call)</Text>
           <Switch
             trackColor={{ false: theme.palette.text.disabled, true: theme.palette.primary }}
             thumbColor={Platform.OS === 'android' ? theme.palette.primary : ''}
@@ -87,9 +89,7 @@ const SettingsScreen = () => {
             onValueChange={handleQualityModeChange}
             value={config.qualityMode === 'quality'}
           />
-          <Text style={styles.switchLabel}>
-            💎 Qualität (2 Calls)
-          </Text>
+          <Text style={styles.switchLabel}>💎 Qualität (2 Calls)</Text>
         </View>
         <Text style={styles.infoText}>
            Im Qualitätsmodus prüft Gemini die Antwort von Groq (langsamer, aber besser)
@@ -99,13 +99,19 @@ const SettingsScreen = () => {
         <Text style={styles.sectionTitle}>💬 Generator (Groq)</Text>
         <Text style={styles.subTitle}>Modell:</Text>
         <View style={styles.modelContainer}>
-          {availableChatModels.map((model) => (
+          {availableChatModels.map(model => (
             <TouchableOpacity
               key={model.id}
-              style={[ styles.modelButton, config.selectedChatMode === model.id && styles.modelButtonActive ]}
+              style={[
+                styles.modelButton,
+                config.selectedChatMode === model.id && styles.modelButtonActive,
+              ]}
               onPress={() => handleChatModeChange(model.id)}
             >
-              <Text style={[ styles.modelButtonText, config.selectedChatMode === model.id && styles.modelButtonTextActive ]}>
+              <Text style={[
+                styles.modelButtonText,
+                config.selectedChatMode === model.id && styles.modelButtonTextActive,
+              ]}>
                 {getModelLabel(CHAT_PROVIDER, model.id)}
               </Text>
             </TouchableOpacity>
@@ -122,26 +128,47 @@ const SettingsScreen = () => {
           </View>
         )}
         <View style={styles.addKeyContainer}>
-          <TextInput style={styles.keyInput} placeholder="Neuer Groq Key..."
-                     placeholderTextColor={theme.palette.text.secondary} value={newGroqKey}
-                     onChangeText={setNewGroqKey} secureTextEntry autoCapitalize="none" autoCorrect={false} />
-          <TouchableOpacity style={styles.addButton} onPress={() => handleAddKey(CHAT_PROVIDER, newGroqKey, setNewGroqKey)}>
+          <TextInput
+            style={styles.keyInput}
+            placeholder="Neuer Groq Key..."
+            placeholderTextColor={theme.palette.text.secondary}
+            value={newGroqKey}
+            onChangeText={setNewGroqKey}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => handleAddKey(CHAT_PROVIDER, newGroqKey, setNewGroqKey)}
+          >
             <Ionicons name="add-circle" size={28} color={theme.palette.primary} />
           </TouchableOpacity>
         </View>
-        <KeyList keys={currentGroqKeys} provider={CHAT_PROVIDER} activeIndex={activeGroqKeyIndex} onRemove={handleRemoveKey} />
+        <KeyList
+          keys={currentGroqKeys}
+          provider={CHAT_PROVIDER}
+          activeIndex={activeGroqKeyIndex}
+          onRemove={handleRemoveKey}
+        />
 
         {/* === Agent / Manager (Gemini) === */}
         <Text style={styles.sectionTitle}>🤖 Agent (Gemini)</Text>
         <Text style={styles.subTitle}>Modell (für Qualitätsmodus):</Text>
          <View style={styles.modelContainer}>
-          {availableAgentModels.map((model) => (
+          {availableAgentModels.map(model => (
             <TouchableOpacity
               key={model.id}
-              style={[ styles.modelButton, config.selectedAgentMode === model.id && styles.modelButtonActive ]}
+              style={[
+                styles.modelButton,
+                config.selectedAgentMode === model.id && styles.modelButtonActive,
+              ]}
               onPress={() => handleAgentModeChange(model.id)}
             >
-              <Text style={[ styles.modelButtonText, config.selectedAgentMode === model.id && styles.modelButtonTextActive ]}>
+              <Text style={[
+                styles.modelButtonText,
+                config.selectedAgentMode === model.id && styles.modelButtonTextActive,
+              ]}>
                 {getModelLabel(AGENT_PROVIDER, model.id)}
               </Text>
             </TouchableOpacity>
@@ -158,14 +185,29 @@ const SettingsScreen = () => {
           </View>
         )}
         <View style={styles.addKeyContainer}>
-          <TextInput style={styles.keyInput} placeholder="Neuer Gemini Key..."
-                     placeholderTextColor={theme.palette.text.secondary} value={newGeminiKey}
-                     onChangeText={setNewGeminiKey} secureTextEntry autoCapitalize="none" autoCorrect={false} />
-          <TouchableOpacity style={styles.addButton} onPress={() => handleAddKey(AGENT_PROVIDER, newGeminiKey, setNewGeminiKey)}>
+          <TextInput
+            style={styles.keyInput}
+            placeholder="Neuer Gemini Key..."
+            placeholderTextColor={theme.palette.text.secondary}
+            value={newGeminiKey}
+            onChangeText={setNewGeminiKey}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => handleAddKey(AGENT_PROVIDER, newGeminiKey, setNewGeminiKey)}
+          >
             <Ionicons name="add-circle" size={28} color={theme.palette.primary} />
           </TouchableOpacity>
         </View>
-        <KeyList keys={currentGeminiKeys} provider={AGENT_PROVIDER} activeIndex={activeGeminiKeyIndex} onRemove={handleRemoveKey} />
+        <KeyList
+          keys={currentGeminiKeys}
+          provider={AGENT_PROVIDER}
+          activeIndex={activeGeminiKeyIndex}
+          onRemove={handleRemoveKey}
+        />
 
          {/* === Info Box === */}
          <View style={styles.infoBox}>
@@ -174,45 +216,55 @@ const SettingsScreen = () => {
             Groq generiert Code. Gemini prüft Qualität (optional). Keys rotieren bei Fehlern automatisch.
           </Text>
         </View>
-        
-        {/* Optional: Fallback Keys (ausgeblendet/deaktiviert) */}
-        {/* Hier könnte man später UI hinzufügen, um OpenAI/Anthropic Keys zu verwalten */}
 
       </ScrollView>
     </SafeAreaView>
   );
 };
 
-// KeyList Komponente (bleibt gleich)
-const KeyList: React.FC<{ keys: string[], provider: AllAIProviders, activeIndex: number, onRemove: (provider: AllAIProviders, key: string) => void }> =
-({ keys, provider, activeIndex, onRemove }) => {
-    if (keys.length === 0) {
-        return ( <View style={styles.emptyKeysContainer}>
-             <Text style={styles.emptyKeysText}>Keine {provider.toUpperCase()} Keys gespeichert</Text>
-           </View> );
-    }
+// KeyList Komponente
+const KeyList: React.FC<{
+  keys: string[];
+  provider: AllAIProviders;
+  activeIndex: number;
+  onRemove: (provider: AllAIProviders, key: string) => void;
+}> = ({ keys, provider, activeIndex, onRemove }) => {
+  if (keys.length === 0) {
     return (
-        <View style={styles.keysList}>
-            {keys.map((key, index) => {
-              const isActive = index === activeIndex;
-              return (
-                <View key={`${provider}-${index}`} style={[styles.keyItem, isActive && styles.keyItemActive]}>
-                  {isActive && <Ionicons name="star" size={16} color={theme.palette.success} style={styles.starIcon} />}
-                  <Text style={[styles.keyText, isActive && styles.keyTextActive]} numberOfLines={1}>
-                    #{index + 1}: {`${key.substring(0, 8)}...${key.substring(key.length - 4)}`}
-                  </Text>
-                  <TouchableOpacity onPress={() => onRemove(provider, key)} style={styles.deleteButton}>
-                    <Ionicons name="trash-outline" size={20} color={theme.palette.error} />
-                  </TouchableOpacity>
-                </View>
-              );
-            })}
-        </View>
+      <View style={styles.emptyKeysContainer}>
+        <Text style={styles.emptyKeysText}>Keine {provider.toUpperCase()} Keys gespeichert</Text>
+      </View>
     );
+  }
+  return (
+    <View style={styles.keysList}>
+      {keys.map((key, index) => {
+        const isActive = index === activeIndex;
+        return (
+          <View
+            key={`${provider}-${index}`}
+            style={[styles.keyItem, isActive && styles.keyItemActive]}
+          >
+            {isActive && (
+              <Ionicons name="star" size={16} color={theme.palette.success} style={styles.starIcon} />
+            )}
+            <Text style={[styles.keyText, isActive && styles.keyTextActive]} numberOfLines={1}>
+              #{index + 1}: {`${key.substring(0, 8)}...${key.substring(key.length - 4)}`}
+            </Text>
+            <TouchableOpacity
+              onPress={() => onRemove(provider, key)}
+              style={styles.deleteButton}
+            >
+              <Ionicons name="trash-outline" size={20} color={theme.palette.error} />
+            </TouchableOpacity>
+          </View>
+        );
+      })}
+    </View>
+  );
 };
 
-
-// Styles (bleiben gleich)
+// Styles
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: theme.palette.background },
   container: { flex: 1 },

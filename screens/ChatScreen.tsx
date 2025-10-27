@@ -17,7 +17,7 @@ import { useProject, ProjectFile, ChatMessage } from '../contexts/ProjectContext
 import * as Clipboard from 'expo-clipboard';
 import { buildPrompt, ConversationHistory } from '../lib/prompts';
 import { jsonrepair } from 'jsonrepair';
-import { v4 as uuidv4 } from 'uuid'; // Import uuid
+import { v4 as uuidv4 } from 'uuid';
 
 type DocumentResultAsset = NonNullable<DocumentPicker.DocumentPickerResult['assets']>[0];
 type ChatScreenProps = { navigation: any; route: { params?: { debugCode?: string } } };
@@ -26,12 +26,11 @@ type ChatScreenProps = { navigation: any; route: { params?: { debugCode?: string
 // HELPERS
 // ============================================================================
 const extractJsonArray = (text: string): string | null => {
-  // Findet JSON-Blöcke, optional von Markdown umschlossen
   const match = text.match(/```json\s*(\[[\s\S]*\])\s*```|(\[[\s\S]*\])/);
   if (!match) return null;
-  const jsonString = match[1] || match[2]; // Nimm die erste oder zweite Capture Group
+  const jsonString = match[1] || match[2];
   if (jsonString) {
-    console.log(`🔍 JSON-Array gefunden (${jsonString.length} chars)`);
+    console.log(`🔍 JSON gefunden (${jsonString.length} chars)`);
     return jsonString;
   }
   return null;
@@ -46,13 +45,11 @@ const tryParseJsonWithRepair = (jsonString: string): ProjectFile[] | null => {
     try {
       const repaired = jsonrepair(jsonString);
       const result = JSON.parse(repaired);
-      // Validierung, ob das Ergebnis unserem Format entspricht
       if (
         Array.isArray(result) &&
-        (result.length === 0 || // Leeres Array ist ok
-          (result[0]?.path && typeof result[0].content !== 'undefined')) // Array von ProjectFile
+        (result.length === 0 || (result[0]?.path && typeof result[0].content !== 'undefined'))
       ) {
-        console.log('✅ JSON erfolgreich repariert mit jsonrepair');
+        console.log('✅ JSON repariert');
         // Sicherstellen, dass content string ist
         return result.map((file) => ({
           ...file,
@@ -62,12 +59,11 @@ const tryParseJsonWithRepair = (jsonString: string): ProjectFile[] | null => {
               : JSON.stringify(file.content ?? '', null, 2),
         }));
       } else {
-        console.warn('⚠️ JSON repariert, aber Format ungültig.');
+        console.warn('⚠️ JSON repariert, aber Format ungültig');
         return null;
       }
     } catch (error) {
-      console.error('❌ JSON Parse/Reparatur fehlgeschlagen:', error);
-      // Logge den fehlerhaften String (gekürzt)
+      console.error('❌ JSON Parse fehlgeschlagen:', error);
       console.error("   -> Fehlerhafter String (Anfang):", jsonString.substring(0, 200));
       return null;
     }
@@ -79,12 +75,11 @@ const tryParseJsonWithRepair = (jsonString: string): ProjectFile[] | null => {
 // ============================================================================
 const MessageItem = memo(({ item }: { item: ChatMessage }) => {
   const messageText = item?.text?.trim() ?? '';
-  // Verstecke leere User-Nachrichten (z.B. bei Dateiupload ohne Text)
   if (item?.user?._id === 1 && messageText.length === 0) return null;
   const handleLongPress = () => {
     if (messageText) {
       Clipboard.setStringAsync(messageText);
-      Alert.alert('Kopiert', 'Nachricht in Zwischenablage kopiert.');
+      Alert.alert('Kopiert');
     }
   };
   return (
@@ -118,32 +113,26 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const [selectedFileAsset, setSelectedFileAsset] = useState<DocumentResultAsset | null>(null);
   
   const historyRef = useRef(new ConversationHistory());
-  const rotationCounters = useRef<Record<string, number>>({ groq: 0, gemini: 0, openai: 0, anthropic: 0 }); // Zähler für alle Provider
+  const rotationCounters = useRef<Record<string, number>>({ groq: 0, gemini: 0, openai: 0, anthropic: 0 });
 
-  // Lade Supabase Client
+  // Load Supabase
   const loadClient = useCallback(async () => {
     setError(null);
     try {
       setSupabase(await ensureSupabaseClient());
       console.log('CS: Supabase OK');
     } catch (e: any) {
-      setError('Supabase Ladefehler');
-      console.error('CS: Supabase Load Fail:', e);
+      setError('Supabase Fehler');
     }
   }, []);
   useFocusEffect(useCallback(() => { loadClient(); }, [loadClient]));
 
-  // Lade History aus Context
+  // Load history
   useEffect(() => {
-    // Nur laden, wenn messages tatsächlich vorhanden sind
-    if (messages.length > 0) {
-      historyRef.current.loadFromMessages(messages);
-    } else {
-      historyRef.current.clear(); // Leeren, falls Projekt zurückgesetzt wurde
-    }
-  }, [messages]); // Abhängig von messages-Objekt
+    historyRef.current.loadFromMessages(messages);
+  }, [messages]);
 
-  // Datei-Picker
+  // File picker
   const handlePickDocument = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -191,7 +180,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       }
 
       setError(null);
-      rotationCounters.current = { groq: 0, gemini: 0, openai: 0, anthropic: 0 }; // Reset Zähler
+      rotationCounters.current = { groq: 0, gemini: 0, openai: 0, anthropic: 0 };
       setIsAiLoading(true);
 
       // --- 2. Datei-Inhalt lesen ---
@@ -223,14 +212,15 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       };
       setTextInput('');
       if (fileToSend && !customPrompt) setSelectedFileAsset(null);
-      
-      historyRef.current.addUser(messageForHistory); // Füge *volle* Nachricht zur History hinzu
+
+      historyRef.current.addUser(messageForHistory);
       const originalMessages = messages; // Merke dir den Stand vor dem Senden
-      await updateMessages([userMessage, ...originalMessages]); // Zeige User-Nachricht sofort an
+      await updateMessages([userMessage, ...originalMessages]);
 
       let finalProjectFiles: ProjectFile[] | null = null;
       let finalAiTextMessage: string | null = null;
-      let currentProvider: AllAIProviders = CHAT_PROVIDER; // Für Fehler-Logging
+      let currentProvider: AllAIProviders = CHAT_PROVIDER;
+      let aiMessageId = uuidv4();
 
       try {
         // ========================================================================
@@ -261,19 +251,20 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
           }
         );
 
-        if (groqFuncErr) throw groqFuncErr; // Wird im catch-Block behandelt
+        if (groqFuncErr) throw groqFuncErr;
         const groqRawResponse = groqData?.response?.trim() || '';
         if (!groqRawResponse) {
           console.warn('⚠️ Groq: Leere Antwort');
           throw new Error('Groq lieferte keine Antwort');
         }
         console.log(`💬 Groq Antwort: ${groqRawResponse.length} chars`);
+        historyRef.current.addAssistant(groqRawResponse);
 
         // ========================================================================
         // QUALITY MODE DECISION
         // ========================================================================
         const potentialJsonString = extractJsonArray(groqRawResponse);
-        let agentUsed = false; // Flag für History
+        let agentUsed = false;
 
         if (config.qualityMode === 'speed') {
           // --- GESCHWINDIGKEITSMODUS ---
@@ -282,17 +273,11 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
             finalProjectFiles = tryParseJsonWithRepair(potentialJsonString);
             if (!finalProjectFiles) {
               console.warn('⚠️ Speed: JSON Parse fehlgeschlagen');
-              finalAiTextMessage = groqRawResponse; // Zeige Roh-Antwort
+              finalAiTextMessage = groqRawResponse;
             }
           } else {
-            finalAiTextMessage = groqRawResponse; // Normale Textantwort
+            finalAiTextMessage = groqRawResponse;
           }
-          // Füge Groq-Antwort zur History hinzu
-          historyRef.current.addAssistant(
-            finalProjectFiles
-              ? `[Code mit ${finalProjectFiles.length} Dateien generiert]`
-              : groqRawResponse
-          );
 
         } else {
           // --- QUALITÄTSMODUS ---
@@ -305,10 +290,10 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
           const agentPromptMessages = buildPrompt(
             'agent',
             AGENT_PROVIDER,
-            groqRawResponse, // Übergib Roh-Antwort
+            groqRawResponse,
             projectData.files,
             historyRef.current.getHistory(),
-            messageForHistory // Übergib ursprüngliche User-Anfrage
+            messageForHistory
           );
 
           const { data: agentData, error: agentFuncErr } = await supabase.functions.invoke(
@@ -330,24 +315,25 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
             throw new Error('Agent lieferte keine Antwort');
           }
           console.log(`🤖 Agent Antwort: ${agentResponse.length} chars`);
-          
+
+          // Überschreibe letzte History-Nachricht
+          const currentHist = historyRef.current.getHistory();
+          if (currentHist.length > 0 && currentHist[currentHist.length-1].role === 'assistant') {
+              currentHist[currentHist.length-1].content = agentResponse;
+          } else {
+              historyRef.current.addAssistant(agentResponse);
+          }
+
           const agentJsonString = extractJsonArray(agentResponse);
           if (agentJsonString) {
             finalProjectFiles = tryParseJsonWithRepair(agentJsonString);
             if (!finalProjectFiles) {
               console.warn('⚠️ Quality: Agent JSON Parse fehlgeschlagen');
-              finalAiTextMessage = agentResponse; // Zeige Agenten-Roh-Antwort
+              finalAiTextMessage = agentResponse;
             }
           } else {
-            console.warn('⚠️ Quality: Agent lieferte kein JSON');
-            finalAiTextMessage = agentResponse; // Normale Textantwort vom Agenten
+            finalAiTextMessage = agentResponse;
           }
-          // Füge Agenten-Antwort zur History hinzu
-          historyRef.current.addAssistant(
-             finalProjectFiles
-              ? `[Code mit ${finalProjectFiles.length} Dateien generiert]`
-              : agentResponse
-          );
         }
 
         // ========================================================================
@@ -357,28 +343,33 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
 
         if (finalProjectFiles) {
           // CODE UPDATE
-          await updateProjectFiles(finalProjectFiles); // Nutzt die korrekte Merge-Logik
-          aiMessageTextToShow = `✅ Projekt aktualisiert (${finalProjectFiles.length} Dateien${agentUsed ? ' - Agent geprüft' : ''})`;
+          await updateProjectFiles(finalProjectFiles);
+          aiMessageTextToShow = `✅ Projekt aktualisiert (${finalProjectFiles.length} Dateien${config.qualityMode === 'quality' ? ' - Agent geprüft' : ''})`;
+
+          // Aktualisiere History-Eintrag auf sauberen Text
+          const currentHist = historyRef.current.getHistory();
+          if (currentHist.length > 0 && currentHist[currentHist.length - 1].role === 'assistant') {
+              currentHist[currentHist.length - 1].content = `[Code mit ${finalProjectFiles.length} Dateien generiert]`;
+          }
         } else if (finalAiTextMessage) {
           // TEXTANTWORT
           aiMessageTextToShow = finalAiTextMessage;
           console.log('💬 Normale Textantwort wird angezeigt.');
         } else {
           // UNERWARTETER FALL
-          aiMessageTextToShow = 'Fehler: Weder Code noch Text erhalten.';
+          aiMessageTextToShow = 'Fehler: Keine gültige Antwort erhalten.';
           setError(aiMessageTextToShow);
         }
 
         // Erstelle finale AI-Nachricht
         const aiMessage: ChatMessage = {
-          _id: uuidv4(),
+          _id: aiMessageId,
           text: aiMessageTextToShow,
           createdAt: new Date(),
           user: { _id: 2, name: 'AI' },
         };
-        // Aktualisiere den Chat-State mit der finalen AI-Antwort
+        // Aktualisiere den Chat-State
         await updateMessages([aiMessage, userMessage, ...originalMessages]);
-
 
       } catch (e: any) {
         // ========================================================================
@@ -390,36 +381,32 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
 
         // Key Rotation
         if (status === 401 || status === 429) {
-          const provider = currentProvider; // Provider, der den Fehler verursacht hat
+          const provider = currentProvider;
           const keyListLength = config.keys[provider]?.length || 0;
           const currentRotationCount = rotationCounters.current[provider] || 0;
 
           if (currentRotationCount >= keyListLength) {
             detailMsg = `Alle ${provider.toUpperCase()} Keys verbraucht (${status})`;
-            Alert.alert('Keys erschöpft', detailMsg);
-            addLog(detailMsg);
-            setError(detailMsg);
+            Alert.alert('Keys erschöpft', detailMsg); addLog(detailMsg); setError(detailMsg);
           } else {
             console.log(`🔑 Key Problem (${status}) bei ${provider}, rotiere...`);
             addLog(`Key ${provider} (${status}). Rotiere...`);
             rotationCounters.current[provider] = currentRotationCount + 1;
             const nextKey = await rotateApiKey(provider);
-            
+
             if (nextKey) {
               detailMsg = `Key rotiert für ${provider.toUpperCase()}. Bitte erneut senden.`;
               setError(detailMsg);
             } else {
               detailMsg = `Key-Rotation fehlgeschlagen (${status})`;
-              Alert.alert('Fehler', detailMsg);
-              setError(detailMsg);
+              Alert.alert('Fehler', detailMsg); setError(detailMsg);
             }
           }
         } else {
-          // Andere Fehler
           Alert.alert('Fehler', `${currentProvider.toUpperCase()} (${status}): ${detailMsg}`);
           setError(detailMsg);
         }
-        
+
         // Setze Chat-State zurück (entferne optimistische User-Nachricht)
         await updateMessages(originalMessages);
         historyRef.current.loadFromMessages(originalMessages); // Setze History zurück
@@ -429,8 +416,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       }
     },
     [
-      textInput, selectedFileAsset, supabase, config, projectData, messages, 
-      isProjectLoading, getCurrentApiKey, rotateApiKey, addLog, 
+      textInput, selectedFileAsset, supabase, config, projectData, messages,
+      isProjectLoading, getCurrentApiKey, rotateApiKey, addLog,
       updateProjectFiles, updateMessages
     ]
   );
@@ -441,30 +428,28 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       const code = route.params.debugCode;
       console.log('CS: Debug vom CodeScreen');
       const debugPrompt = `Analysiere:\n\n\`\`\`\n${code}\n\`\`\``;
-      setTextInput('Debug Anfrage...'); // Setze Text, damit displayPrompt funktioniert
-      handleSend(debugPrompt); // Übergib als customPrompt
+      setTextInput('Debug Anfrage...');
+      handleSend(debugPrompt);
       navigation.setParams({ debugCode: undefined });
     }
   }, [route.params?.debugCode, navigation, handleSend]);
 
   const handleDebugLastResponse = () => {
     const lastAiMessage = messages.find(m => m.user._id === 2);
-    if (!lastAiMessage?.text || lastAiMessage.text.startsWith('[')) {
+    if (!lastAiMessage?.text || lastAiMessage.text.startsWith('✅ Projekt')) {
       Alert.alert('Nichts zu debuggen', 'Keine gültige Textantwort von der KI gefunden.');
       return;
     }
     const prompt = `Analysiere:\n\n\`\`\`\n${lastAiMessage.text}\n\`\`\``;
-    setTextInput('Debug Anfrage...'); // Setze Text
-    handleSend(prompt); // Übergib als customPrompt
+    setTextInput('Debug Anfrage...');
+    handleSend(prompt);
   };
 
   // --- Expo Go Handler ---
   const handleExpoGo = () => {
     if (!projectData) { Alert.alert('Fehler', 'Kein Projekt geladen'); return; }
-    // Vereinfachte URL-Erzeugung. Dies funktioniert nur, wenn Metro
-    // auf dieser IP/Port läuft und vom Gerät erreichbar ist.
-    // In echten Deployments bräuchte man einen Tunnel (z.B. ngrok oder Expo Tunnel)
-    const metroHost = "192.168.43.1:8081"; // Beispiel-IP aus deinen Logs! Passe dies ggf. an.
+    // Ersetze 'localhost' durch eine IP, die dein Gerät erreichen kann
+    const metroHost = "192.168.43.1:8081";
     const expUrl = `exp://${metroHost}`; 
     
     Alert.alert(
@@ -503,7 +488,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
           data={messages}
           renderItem={({ item }) => <MessageItem item={item} />}
           keyExtractor={item => item._id}
-          inverted={true} // Wichtig!
+          inverted={true}
           style={styles.list}
           contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="handled"
@@ -538,7 +523,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
               <Ionicons name="logo-react" size={24} color={ !projectData || combinedIsLoading ? theme.palette.text.disabled : theme.palette.success } />
             </TouchableOpacity>
             {/* Input */}
-            <TextInput style={styles.input} placeholder={ !isSupabaseReady ? 'Verbinde...' : selectedFileAsset ? 'Zusatz...' : 'Nachricht...' } placeholderTextColor={theme.palette.text.secondary} value={textInput} onChangeText={setTextInput} editable={!combinedIsLoading && isSupabaseReady} multiline blurOnSubmit={false} />
+            <TextInput style={styles.input} placeholder={ !isSupabaseReady ? 'Verbinde...' : selectedFileAsset ? 'Zusatz...' : 'Nachricht...'} placeholderTextColor={theme.palette.text.secondary} value={textInput} onChangeText={setTextInput} editable={!combinedIsLoading && isSupabaseReady} multiline blurOnSubmit={false} />
             {/* Send */}
             <TouchableOpacity onPress={() => handleSend()} disabled={ combinedIsLoading || !isSupabaseReady || (!textInput.trim() && !selectedFileAsset) } style={[ styles.sendButton, (!isSupabaseReady || combinedIsLoading || (!textInput.trim() && !selectedFileAsset)) && styles.sendButtonDisabled, ]} >
               {isAiLoading ? ( <ActivityIndicator size="small" color={theme.palette.background} /> ) : ( <Ionicons name="send" size={24} color={theme.palette.background} /> )}
