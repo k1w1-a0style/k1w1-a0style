@@ -1,401 +1,520 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  ReactNode,
+  useEffect,
+  useCallback,
+  useRef,
+} from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import 'react-native-get-random-values';
+import 'react-native-get-random-values'; // Für uuid
 import { v4 as uuidv4 } from 'uuid';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { unzip } from 'react-native-zip-archive';
+import { jsonrepair } from 'jsonrepair'; // ✅ NEU: Robuster JSON-Reparatur-Parser
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
 
 export type ProjectFile = {
-  path: string;
-  content: string | object; // Behalten wir bei, aber intern arbeiten wir meist mit string
+  path: string; // Relativer Pfad, z.B. "src/components/Button.tsx"
+  content: string; // Dateiinhalt IMMER als String speichern/verarbeiten
 };
 
 export interface ChatMessage {
-  _id: string;
-  text: string;
-  createdAt: Date;
+  _id: string; // Eindeutige ID der Nachricht
+  text: string; // Inhalt der Nachricht
+  createdAt: Date; // Zeitstempel
   user: {
-    _id: number;
-    name: string;
+    _id: number; // 1 for user, 2 for AI
+    name: string; // 'User' or 'AI'
   };
-  isStreaming?: boolean;
+  isStreaming?: boolean; // Optional für spätere Streaming-Anzeige
 }
 
 export type ProjectData = {
-  id: string;
-  name: string;
-  files: ProjectFile[];
-  messages: ChatMessage[];
-  lastModified: number;
+  id: string; // Eindeutige ID des Projekts
+  name: string; // Anzeigename des Projekts
+  files: ProjectFile[]; // Array aller Dateien im Projekt
+  messages: ChatMessage[]; // Chatverlauf für dieses Projekt
+  lastModified: number; // Zeitstempel der letzten Änderung (Date.now())
 };
 
+// Definition der Werte und Funktionen, die der Context bereitstellt
 interface ProjectContextProps {
-  projectData: ProjectData | null;
-  isLoading: boolean;
-  updateProjectFiles: (files: ProjectFile[], newName?: string) => Promise<void>;
-  updateProject: (files: ProjectFile[], newName?: string) => Promise<void>; // Alias behalten
-  updateMessages: (messages: ChatMessage[]) => Promise<void>;
-  clearProject: () => Promise<void>;
-  loadProjectFromZip: () => Promise<void>;
-  setProjectName: (newName: string) => Promise<void>;
-  deleteCurrentProject: () => Promise<void>;
-  deleteProject: () => Promise<void>; // Alias behalten
-  messages: ChatMessage[];
+  projectData: ProjectData | null; // Aktuell geladenes Projekt oder null
+  isLoading: boolean; // Zeigt an, ob gerade geladen/gespeichert wird
+  updateProjectFiles: (
+    files: ProjectFile[],
+    newName?: string
+  ) => Promise<void>; // Aktualisiert Dateien (mit Merge!)
+  updateProject: (files: ProjectFile[], newName?: string) => Promise<void>; // Alias
+  updateMessages: (messages: ChatMessage[]) => Promise<void>; // Aktualisiert nur Chat
+  clearProject: () => Promise<void>; // Setzt auf leeres Template zurück
+  loadProjectFromZip: () => Promise<void>; // Importiert aus ZIP
+  setProjectName: (newName: string) => Promise<void>; // Ändert nur den Namen
+  deleteCurrentProject: () => Promise<void>; // Löscht (setzt zurück) mit Bestätigung
+  deleteProject: () => Promise<void>; // Alias
+  messages: ChatMessage[]; // Bequemer Zugriff auf aktuelle Nachrichten
 }
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const PROJECT_STORAGE_KEY = 'k1w1_current_project_v4'; // Key für AsyncStorage
+const CACHE_DIR = FileSystem.cacheDirectory + 'unzipped_p/'; // Temp-Ordner für ZIP-Import
+const SAVE_DEBOUNCE_MS = 500; // Verzögerung für Auto-Save in Millisekunden
+
+// ============================================================================
+// CONTEXT
+// ============================================================================
 
 const ProjectContext = createContext<ProjectContextProps | undefined>(undefined);
 
-const PROJECT_STORAGE_KEY = 'k1w1_current_project_v4';
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
 
-// Erstellt ein neues, leeres Projekt-Objekt
-const createNewProjectInternal = (name = "Neues Projekt"): ProjectData => ({
+/**
+ * Erstellt ein neues leeres Projekt-Objekt.
+ */
+const createNewProject = (name = 'Neues Projekt'): ProjectData => ({
   id: uuidv4(),
-  name: name,
+  name,
   files: [],
   messages: [],
-  lastModified: Date.now()
+  lastModified: Date.now(),
 });
 
-// Lädt das Basis-Template aus der JSON-Datei
+/**
+ * Lädt das Basis-Template aus der eingebetteten JSON-Datei.
+ */
 const loadTemplateFromFile = async (): Promise<ProjectFile[]> => {
   try {
-    console.log("📦 ProjectContext: Lade Template aus templates/expo-sdk54-base.json...");
-    const templateModule = require('../templates/expo-sdk54-base.json');
-    if (!Array.isArray(templateModule) || templateModule.length === 0) {
-      throw new Error("Template ist leer oder ungültig.");
+    const template = require('../templates/expo-sdk54-base.json');
+    if (!Array.isArray(template) || template.length === 0) {
+      throw new Error('Template ist ungültig');
     }
-    // Stelle sicher, dass content immer string ist
-    const stringifiedTemplate = templateModule.map(file => ({
-        ...file,
-        content: typeof file.content === 'string' ? file.content : JSON.stringify(file.content ?? '', null, 2)
+    const sanitized = template.map((file) => ({
+      ...file,
+      content:
+        typeof file.content === 'string'
+          ? file.content
+          : JSON.stringify(file.content ?? '', null, 2),
     }));
-    console.log(`✅ Template geladen: ${stringifiedTemplate.length} Dateien`);
-    return stringifiedTemplate as ProjectFile[];
-  } catch (error: any) {
-    console.error("❌ Template konnte nicht geladen werden:", error);
-    return [ { path: "README.md", content: "# Neues Projekt\n\nTemplate Error." } ];
+    console.log(`✅ Template: ${sanitized.length} Dateien`);
+    return sanitized as ProjectFile[];
+  } catch (error) {
+    console.error('❌ Template Fehler:', error);
+    return [{ path: 'README.md', content: '# Template Fehler\n\nApp neu starten.' }];
   }
 };
 
-// ✅ NEU: Robuster JSON-Parser-Helfer speziell für Datei-Inhalte
+/**
+ * Versucht robust, einen String als JSON zu parsen. Nutzt jsonrepair.
+ */
 const tryParseJsonContent = (content: string | object): any | null => {
-    if (typeof content !== 'string') {
-        // Wenn es bereits ein Objekt ist, geben wir es zurück (sollte nicht passieren, aber sicher ist sicher)
-        return content;
-    }
-    if (!content.trim().startsWith('{') && !content.trim().startsWith('[')) {
-        // Wenn es nicht wie JSON aussieht, ist es wahrscheinlich normaler Code/Text
-        return null;
-    }
+  if (typeof content !== 'string') return content;
+  const jsonString = content.trim();
+  if (!jsonString.startsWith('{') && !jsonString.startsWith('[')) return null;
 
+  try { // Standard-Parse
+    return JSON.parse(jsonString);
+  } catch (e) { // Fallback mit jsonrepair
     try {
-        // 1. Standard-Versuch
-        return JSON.parse(content);
-    } catch (e1) {
-        // console.warn(`TryParseJson: Standard parse failed - ${e1.message}`); // Optional: Weniger Logging
-        try {
-            // 2. Versuch mit Bereinigung (ähnlich dirtyJsonParse, aber einfacher)
-            let cleaned = content
-                .replace(/,\s*([}\]])/g, '$1') // Trailing commas
-                .replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, ''); // Kommentare entfernen
-            return JSON.parse(cleaned);
-        } catch (e2) {
-            // console.error(`❌ TryParseJson: Auch Bereinigung fehlgeschlagen - ${e2.message}`); // Optional: Weniger Logging
-            return null; // Konnte nicht als JSON geparst werden
-        }
+      const repaired = jsonrepair(jsonString);
+      const result = JSON.parse(repaired);
+      console.log('✅ JSON mit jsonrepair repariert');
+      return result;
+    } catch (error) {
+      console.error('❌ JSON Parse fehlgeschlagen (auch mit jsonrepair):', error);
+      return null;
     }
+  }
 };
 
+/**
+ * Extrahiert den Projektnamen aus package.json oder app.config.
+ */
+const extractProjectName = (files: ProjectFile[]): string => {
+  const fallback = 'Unbenanntes Projekt';
+  try {
+    // package.json
+    const pkgFile = files.find((f) => f.path === 'package.json');
+    if (pkgFile?.content) {
+      const pkg = tryParseJsonContent(pkgFile.content);
+      if (pkg?.name && typeof pkg.name === 'string' && pkg.name.trim()) {
+        return pkg.name.trim();
+      }
+    }
+    // app.config.js/json
+    const appCfgFile = files.find((f) => f.path === 'app.config.js' || f.path === 'app.json');
+    if (appCfgFile?.content && typeof appCfgFile.content === 'string') {
+      const nameMatch = appCfgFile.content.match(/name:\s*["'](.*?)["']/);
+      if (nameMatch?.[1]?.trim()) return nameMatch[1].trim();
+      const slugMatch = appCfgFile.content.match(/slug:\s*["'](.*?)["']/);
+      if (slugMatch?.[1]?.trim()) return slugMatch[1].trim();
+      const cfg = tryParseJsonContent(appCfgFile.content);
+      if (cfg?.expo?.name && typeof cfg.expo.name === 'string' && cfg.expo.name.trim()) {
+        return cfg.expo.name.trim();
+      }
+      if (cfg?.expo?.slug && typeof cfg.expo.slug === 'string' && cfg.expo.slug.trim()) {
+        return cfg.expo.slug.trim();
+      }
+    }
+  } catch (error) {
+    console.error('❌ extractProjectName Fehler:', error);
+  }
+  return fallback;
+};
 
+/**
+ * Stellt sicher, dass der Dateiinhalt immer ein String ist.
+ */
+const normalizeFileContent = (content: any): string => {
+  return typeof content === 'string'
+    ? content
+    : JSON.stringify(content ?? '', null, 2);
+};
+
+/**
+ * Liest rekursiv alle Dateien aus einem lokalen Verzeichnis.
+ */
+const readDirectoryRecursive = async (
+  dirUri: string,
+  basePath = ''
+): Promise<ProjectFile[]> => {
+  let files: ProjectFile[] = [];
+  try {
+    const items = await FileSystem.readDirectoryAsync(dirUri);
+    for (const item of items) {
+      const itemUri = `${dirUri}${item}`;
+      const info = await FileSystem.getInfoAsync(itemUri);
+      const relativePath = basePath ? `${basePath}/${item}` : item;
+      if (info.isDirectory) {
+        files = files.concat(await readDirectoryRecursive(itemUri + '/', relativePath));
+      } else {
+        try {
+          const content = await FileSystem.readAsStringAsync(itemUri, {
+            encoding: FileSystem.EncodingType.UTF8,
+          });
+          files.push({ path: relativePath, content });
+        } catch (error) {
+          console.warn(`⚠️ Konnte nicht lesen: ${relativePath}`, error);
+        }
+      }
+    }
+  } catch (error) {
+    console.error(`❌ Verzeichnis-Fehler ${dirUri}:`, error);
+  }
+  return files;
+};
+
+// ============================================================================
+// PROVIDER COMPONENT
+// ============================================================================
 export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
+  const isInitialMount = useRef(true);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null); // Für Debounce Cleanup
 
-  // Speichert das Projekt-Objekt in AsyncStorage
-  const saveProjectToStorage = async (dataToSave: ProjectData | null) => {
-    try {
-      // Stelle sicher, dass file.content immer ein String ist vor dem Speichern
-      const dataWithStringContent = dataToSave ? {
-          ...dataToSave,
-          files: dataToSave.files.map(f => ({
-              ...f,
-              content: typeof f.content === 'string' ? f.content : JSON.stringify(f.content ?? '', null, 2)
-          }))
-      } : null;
-      const jsonValue = JSON.stringify(dataWithStringContent);
-      await AsyncStorage.setItem(PROJECT_STORAGE_KEY, jsonValue);
-      console.log(`Storage gespeichert: ${dataWithStringContent?.name}, ${dataWithStringContent?.files?.length || 0} Dateien`);
-    } catch (e) {
-      console.error("ProjectContext: Fehler beim Speichern", e);
-    }
-  };
-
-  // Lädt das Projekt aus AsyncStorage oder erstellt ein neues mit Template
+  // --------------------------------------------------------------------------
+  // LOAD FROM STORAGE
+  // --------------------------------------------------------------------------
   const loadProjectFromStorage = useCallback(async () => {
-    console.log("ProjectContext: Ladevorgang gestartet...");
+    console.log('📂 Lade Projekt...');
+    setIsLoading(true);
+    isInitialMount.current = true;
     let loadedData: ProjectData | null = null;
-    let needsSave = false;
-
     try {
       const jsonValue = await AsyncStorage.getItem(PROJECT_STORAGE_KEY);
       if (jsonValue) {
-        loadedData = JSON.parse(jsonValue);
-        // Migration/Validierung alter Daten
-        if (!loadedData) throw new Error("Geparste Daten sind null");
-        if (!loadedData.messages) loadedData.messages = [];
-        if (!loadedData.id) loadedData.id = uuidv4();
-        // Stelle sicher, dass content immer string ist nach dem Laden
-        loadedData.files = (loadedData.files || []).map(f => ({
-            ...f,
-            content: typeof f.content === 'string' ? f.content : JSON.stringify(f.content ?? '', null, 2)
+        // Use tryParseJsonContent for loading as well, in case stored data is slightly corrupt
+        const parsed = tryParseJsonContent(jsonValue);
+        if (!parsed || typeof parsed !== 'object' || !parsed.id) { // Basic validation
+             throw new Error('Gespeichertes Projekt ist ungültig');
+        }
+        loadedData = parsed as ProjectData;
+        // Normalize loaded data
+        loadedData.messages = loadedData.messages || [];
+        loadedData.id = loadedData.id || uuidv4(); // Should exist from parse check
+        loadedData.files = (loadedData.files || []).map((file) => ({
+          path: file.path || 'unbekannte_datei',
+          content: normalizeFileContent(file.content),
         }));
-        console.log(`ProjectContext: Projekt "${loadedData.name}" geladen.`);
+        console.log(`✅ Projekt "${loadedData.name}" geladen (${loadedData.files.length} Dateien)`);
       } else {
-        console.log("ProjectContext: Kein Projekt. Erstelle mit Template.");
+        console.log('ℹ️ Kein Projekt, lade Template...');
         const templateFiles = await loadTemplateFromFile();
-        loadedData = createNewProjectInternal();
+        loadedData = createNewProject('Expo Template');
         loadedData.files = templateFiles;
-        needsSave = true;
       }
-    } catch (e) {
-      console.error("ProjectContext: Fehler beim Laden/Parsen, erstelle neues Projekt.", e);
-      const templateFiles = await loadTemplateFromFile();
-      loadedData = createNewProjectInternal("Fehler-Projekt");
-      loadedData.files = templateFiles;
-      needsSave = true;
-      // Optional: Alten, fehlerhaften Eintrag löschen
+    } catch (error) {
+      console.error('❌ Ladefehler:', error);
       await AsyncStorage.removeItem(PROJECT_STORAGE_KEY);
+      const templateFiles = await loadTemplateFromFile();
+      loadedData = createNewProject('Wiederhergestellt');
+      loadedData.files = templateFiles;
+    } finally {
+        setProjectData(loadedData);
+        setIsLoading(false);
+        console.log('✅ Laden abgeschlossen');
+        requestAnimationFrame(() => { isInitialMount.current = false; });
     }
-
-    setProjectData(loadedData);
-
-    if (needsSave) {
-      await saveProjectToStorage(loadedData); // Speichere das (neu erstellte) Projekt
-    }
-
-    setIsLoading(false);
-    console.log("ProjectContext: Ladevorgang abgeschlossen.");
   }, []);
 
+  useEffect(() => { loadProjectFromStorage(); }, [loadProjectFromStorage]);
+
+  // --------------------------------------------------------------------------
+  // AUTO-SAVE (mit Debounce)
+  // --------------------------------------------------------------------------
   useEffect(() => {
-    loadProjectFromStorage();
-  }, [loadProjectFromStorage]);
+    if (isInitialMount.current || !projectData || isLoading) return;
 
-  // Extrahiert den Projektnamen aus package.json oder app.config.js/app.json
-  const extractProjectName = (files: ProjectFile[]): string => {
-    let extractedName = "Unbenanntes Projekt";
-    try {
-      // Versuch aus package.json
-      const pkgJsonFile = files.find(f => f.path === 'package.json');
-      if (pkgJsonFile?.content) {
-        // ✅ NEU: Nutze robusten Parser für den Inhalt
-        const pkg = tryParseJsonContent(pkgJsonFile.content);
-        if (pkg && pkg.name && typeof pkg.name === 'string' && pkg.name.trim()) {
-            console.log(`extractProjectName: Name "${pkg.name.trim()}" aus package.json extrahiert.`);
-            return pkg.name.trim();
-        } else if (pkg) {
-             console.warn("ProjectContext: package.json geparst, aber 'name' fehlt oder ist ungültig.");
-        } else {
-             // Nur loggen wenn TryParseJson fehlgeschlagen ist
-             console.warn("ProjectContext: package.json konnte NICHT geparst werden (selbst mit tryParseJsonContent).");
-        }
-      }
+    console.log(`💾 Speichere "${projectData.name}"... (Debounced)`);
 
-      // Fallback: Versuch aus app.config.js/app.json
-      const appConfigFile = files.find(f => f.path === 'app.config.js' || f.path === 'app.json');
-      if (appConfigFile?.content && typeof appConfigFile.content === 'string') {
-        // Versuch via Regex (für .js)
-        const nameMatchJS = appConfigFile.content.match(/name:\s*["'](.*?)["']/);
-        if (nameMatchJS?.[1]?.trim()) {
-             console.log(`extractProjectName: Name "${nameMatchJS[1].trim()}" aus app.config.js (Regex) extrahiert.`);
-             return nameMatchJS[1].trim();
-        }
-        const slugMatchJS = appConfigFile.content.match(/slug:\s*["'](.*?)["']/);
-        if (slugMatchJS?.[1]?.trim()) {
-             console.log(`extractProjectName: Slug "${slugMatchJS[1].trim()}" aus app.config.js (Regex) extrahiert.`);
-             return slugMatchJS[1].trim();
-        }
-
-        // Versuch via JSON Parse (für .json oder .js-Objekt)
-        const appJson = tryParseJsonContent(appConfigFile.content);
-        if (appJson?.expo?.name && typeof appJson.expo.name === 'string' && appJson.expo.name.trim()){
-            console.log(`extractProjectName: Name "${appJson.expo.name.trim()}" aus app.json/config (Parse) extrahiert.`);
-            return appJson.expo.name.trim();
-        }
-        if (appJson?.expo?.slug && typeof appJson.expo.slug === 'string' && appJson.expo.slug.trim()){
-            console.log(`extractProjectName: Slug "${appJson.expo.slug.trim()}" aus app.json/config (Parse) extrahiert.`);
-            return appJson.expo.slug.trim();
-        }
-      }
-    } catch (e) {
-      // Sollte selten passieren, da die inneren Parsings schon try-catch haben
-      console.error("ProjectContext: Unerwarteter Fehler bei extractProjectName.", e);
+    // Clear previous timer if exists
+    if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
     }
-    console.log(`extractProjectName: Konnte keinen Namen extrahieren, verwende "${extractedName}".`);
-    return extractedName;
-  };
 
-  // Aktualisiert die Projektdateien und optional den Namen
-  const updateProjectFiles = async (newFiles: ProjectFile[], newName?: string) => {
-    let dataToSave: ProjectData | null = null;
+    // Set new timer
+    debounceTimerRef.current = setTimeout(async () => {
+      try {
+        const dataToSave = {
+          ...projectData,
+          files: projectData.files.map((file) => ({
+            ...file,
+            content: normalizeFileContent(file.content), // Ensure content is string
+          })),
+        };
+        await AsyncStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(dataToSave));
+        console.log(`✅ Gespeichert (${dataToSave.files.length} Dateien)`);
+      } catch (error) {
+        console.error('❌ Speicherfehler:', error);
+      }
+    }, SAVE_DEBOUNCE_MS);
 
-    // Stelle sicher, dass newFiles valides Format hat und content string ist
-    const validFiles = (newFiles || [])
-      .filter(f => f && typeof f.path === 'string')
-      .map(f => ({
+    // Cleanup timer on unmount or before next save
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [projectData, isLoading]); // Depend on projectData and isLoading
+
+  // --------------------------------------------------------------------------
+  // UPDATE FILES (Merge Logic v3 + Change Detection)
+  // --------------------------------------------------------------------------
+  const updateProjectFiles = useCallback(
+    async (newOrUpdatedFiles: ProjectFile[], newName?: string) => {
+      // 1. Validate input
+      const validFiles = (newOrUpdatedFiles || [])
+        .filter(f => f?.path && typeof f.path === 'string') // Ensure path exists and is string
+        .map(f => ({
           path: f.path,
-          content: typeof f.content === 'string' ? f.content : JSON.stringify(f.content ?? '', null, 2)
-      }));
+          content: normalizeFileContent(f.content), // Ensure content is string
+        }));
 
-    setProjectData(prevData => {
-      if (!prevData) return null; // Sollte nicht passieren, wenn isLoading false ist
+      if (!validFiles.length) {
+        console.warn('⚠️ updateProjectFiles: Keine validen Dateien zum Mergen.');
+        return;
+      }
 
-      const nameToSet = newName || extractProjectName(validFiles) || prevData.name;
-      dataToSave = {
-        ...prevData,
-        name: nameToSet,
-        files: validFiles, // Benutze die validierten Dateien
-        lastModified: Date.now()
-      };
-      console.log(`ProjectContext: updateProjectFiles - ${validFiles.length} Dateien, Name: "${nameToSet}"`);
-      return dataToSave;
-    });
+      // 2. Update state using functional update
+      setProjectData(prevData => {
+        if (!prevData) {
+          console.error('❌ updateProjectFiles: Kein Projekt geladen (prevData is null).');
+          return null;
+        }
 
-    if (dataToSave) {
-      await saveProjectToStorage(dataToSave);
-      console.log(`ProjectContext: Speicherung nach updateProjectFiles abgeschlossen.`);
-    } else {
-      console.warn("ProjectContext: updateProjectFiles - dataToSave war null, Speicherung übersprungen.");
-    }
-  };
+        console.log(`🔄 Merge v3: ${validFiles.length} Updates mit ${prevData.files.length} Dateien.`);
 
-  // Aktualisiert nur die Chat-Nachrichten
-  const updateMessages = async (newMessages: ChatMessage[]) => {
-    let dataToSave: ProjectData | null = null;
+        // 3. Create map of existing files
+        const fileMap = new Map<string, ProjectFile>(
+          prevData.files.map(file => [file.path, file])
+        );
+
+        // 4. Merge updates into the map
+        let hasChanges = false;
+        validFiles.forEach(updatedFile => {
+          const existingFile = fileMap.get(updatedFile.path);
+          const isNew = !existingFile;
+          // Check content difference carefully
+          const isChanged = existingFile && existingFile.content !== updatedFile.content;
+
+          if (isNew || isChanged) {
+            fileMap.set(updatedFile.path, updatedFile); // Add or overwrite
+            console.log(`${isNew ? '✨ Neu' : '📝 Update'}: ${updatedFile.path}`);
+            hasChanges = true;
+          }
+        });
+
+        // 5. Determine final name
+        const finalFiles = Array.from(fileMap.values());
+        const finalName = newName || extractProjectName(finalFiles) || prevData.name;
+        const nameChanged = finalName !== prevData.name;
+        if (nameChanged) hasChanges = true;
+
+        // 6. Performance Optimization: Only return new object if changes occurred
+        if (!hasChanges) {
+          console.log('ℹ️ Merge v3: Keine Änderungen erkannt.');
+          return prevData; // Return previous state reference
+        }
+
+        console.log(`✅ Merge v3 abgeschlossen: ${finalFiles.length} Dateien, Name: "${finalName}"`);
+
+        // 7. Return updated state object
+        return {
+          ...prevData,
+          name: finalName,
+          files: finalFiles,
+          lastModified: Date.now(),
+        };
+      });
+      // Saving is handled by the useEffect hook
+    },
+    [] // No dependencies needed for useCallback with functional state updates
+  );
+
+  // --------------------------------------------------------------------------
+  // UPDATE MESSAGES
+  // --------------------------------------------------------------------------
+  const updateMessages = useCallback(async (newMessages: ChatMessage[]) => {
     setProjectData(prevData => {
       if (!prevData) return null;
-      dataToSave = { ...prevData, messages: newMessages, lastModified: Date.now() };
-      console.log(`ProjectContext: updateMessages - ${newMessages.length} Nachrichten`);
-      return dataToSave;
+      console.log(`💬 updateMessages: ${newMessages.length} Nachrichten`);
+      return { ...prevData, messages: newMessages, lastModified: Date.now() };
     });
-    if (dataToSave) { await saveProjectToStorage(dataToSave); }
-  };
+  }, []);
 
-  // Setzt das Projekt auf das Template zurück
-  const clearProject = async () => {
-    console.log("ProjectContext: Projekt wird geleert & Template geladen.");
-    const templateFiles = await loadTemplateFromFile();
-    const newProject = createNewProjectInternal("Neues Projekt"); // Konsistenter Name
-    newProject.files = templateFiles;
-    newProject.messages = []; // Auch Nachrichten leeren
-    setProjectData(newProject);
-    await saveProjectToStorage(newProject);
-    console.log(`✅ Neues Projekt mit ${templateFiles.length} Template-Dateien erstellt.`);
-  };
+  // --------------------------------------------------------------------------
+  // CLEAR PROJECT (Reset to Template)
+  // --------------------------------------------------------------------------
+  const clearProject = useCallback(async () => {
+    console.log('🗑️ Lösche aktuelles Projekt, lade Template...');
+    setIsLoading(true); // Show loading
+    try {
+      const templateFiles = await loadTemplateFromFile();
+      const newProject = createNewProject('Neues Projekt'); // Consistent naming
+      newProject.files = templateFiles;
+      setProjectData(newProject); // Update state -> triggers save via useEffect
+      console.log('✅ Neues Projekt nach Clear erstellt');
+    } catch (error) {
+      console.error('❌ Clear-Fehler:', error);
+      Alert.alert('Fehler', 'Konnte Projekt nicht zurücksetzen.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-  // Löscht das aktuelle Projekt (setzt auf Template zurück)
-  const deleteCurrentProject = async () => {
+  // --------------------------------------------------------------------------
+  // DELETE (mit Bestätigung)
+  // --------------------------------------------------------------------------
+  const deleteCurrentProject = useCallback(async () => {
     if (!projectData) return;
     Alert.alert(
       `Projekt "${projectData.name}" löschen?`,
-      "Alle Dateien und der Chatverlauf gehen verloren. Das Projekt wird auf das leere Template zurückgesetzt.",
+      'Ein neues Template-Projekt wird erstellt.',
       [
-        { text: "Abbrechen", style: "cancel" },
-        { text: "Löschen", style: "destructive", onPress: clearProject } // Nutzt direkt clearProject
+        { text: 'Abbrechen', style: 'cancel' },
+        { text: 'Löschen', style: 'destructive', onPress: clearProject },
       ]
     );
-  };
+  }, [projectData, clearProject]);
 
-  // Ändert nur den Projektnamen
-  const setProjectName = async (newName: string) => {
-    if (!newName?.trim() || !projectData) return;
-    const finalName = newName.trim();
-    if (projectData.name === finalName) return;
+  // --------------------------------------------------------------------------
+  // SET NAME
+  // --------------------------------------------------------------------------
+  const setProjectName = useCallback(async (newName: string) => {
+    const trimmedName = newName?.trim();
+    if (!trimmedName) {
+      console.warn('⚠️ setProjectName: Ungültiger Name.');
+      return;
+    }
+    setProjectData(prevData => {
+      if (!prevData || prevData.name === trimmedName) return prevData; // No change
+      console.log(`📝 Name: "${prevData.name}" → "${trimmedName}"`);
+      return { ...prevData, name: trimmedName, lastModified: Date.now() };
+    });
+  }, []);
 
-    console.log(`ProjectContext: Projekt umbenannt zu "${finalName}".`);
-    const newData = { ...projectData, name: finalName, lastModified: Date.now() };
-    setProjectData(newData);
-    await saveProjectToStorage(newData);
-  };
-
-  // Lädt ein Projekt aus einer ZIP-Datei
-  const loadProjectFromZip = async () => {
-    console.log("ProjectContext: Starte ZIP-Import...");
+  // --------------------------------------------------------------------------
+  // ZIP IMPORT
+  // --------------------------------------------------------------------------
+  const loadProjectFromZip = useCallback(async () => {
+    console.log('📦 ZIP-Import...');
     setIsLoading(true);
     try {
-      const result = await DocumentPicker.getDocumentAsync({ type: 'application/zip', copyToCacheDirectory: true });
-      if (result.canceled || !result.assets?.[0]?.uri) { setIsLoading(false); return; }
-
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/zip',
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.[0]?.uri) {
+        console.log('ℹ️ Import abgebrochen'); return; // Exit early
+      }
       const zipAsset = result.assets[0];
-      const sourcePath = zipAsset.uri;
-      const targetPath = FileSystem.cacheDirectory + 'unzipped_project/';
 
-      await FileSystem.deleteAsync(targetPath, { idempotent: true });
-      await FileSystem.makeDirectoryAsync(targetPath, { intermediates: true });
-      await unzip(sourcePath, targetPath);
+      await FileSystem.deleteAsync(CACHE_DIR, { idempotent: true });
+      await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
 
-      // Rekursive Funktion zum Lesen des Verzeichnisses
-      const readDirectory = async (dirUri: string, basePath = ''): Promise<ProjectFile[]> => {
-        const items = await FileSystem.readDirectoryAsync(dirUri);
-        let files: ProjectFile[] = [];
-        for (const item of items) {
-          const itemUri = `${dirUri}${item}`;
-          const info = await FileSystem.getInfoAsync(itemUri);
-          const relativePath = basePath ? `${basePath}/${item}` : item;
-          if (info.isDirectory) {
-            files = files.concat(await readDirectory(itemUri + '/', relativePath));
-          } else {
-            try {
-              const content = await FileSystem.readAsStringAsync(itemUri, { encoding: FileSystem.EncodingType.UTF8 });
-              files.push({ path: relativePath, content }); // Content ist hier immer string
-            } catch (readError) { console.warn(`Konnte Datei ${relativePath} nicht lesen:`, readError); }
-          }
-        }
-        return files;
+      console.log('📂 Entpacke...');
+      await unzip(zipAsset.uri, CACHE_DIR);
+
+      const newFiles = await readDirectoryRecursive(CACHE_DIR); // Use helper
+      if (newFiles.length === 0) throw new Error('ZIP enthält keine Dateien');
+
+      const newName = extractProjectName(newFiles) || zipAsset.name.replace(/\.zip$/i, '') || 'Import';
+
+      const newProject: ProjectData = {
+        id: uuidv4(), name: newName, files: newFiles, messages: [], lastModified: Date.now(),
       };
-
-      const newFiles = await readDirectory(targetPath);
-      if (newFiles.length === 0) throw new Error("ZIP enthielt keine lesbaren Dateien.");
-
-      const newName = extractProjectName(newFiles) || zipAsset.name.replace('.zip', '') || "Importiertes Projekt";
-      const newData: ProjectData = {
-        id: uuidv4(), name: newName, files: newFiles, messages: [], lastModified: Date.now()
-      };
-
-      setProjectData(newData);
-      await saveProjectToStorage(newData);
-      Alert.alert("Import erfolgreich", `Projekt "${newName}" (${newFiles.length} Dateien) geladen. Chat zurückgesetzt.`);
-
+      setProjectData(newProject); // Update state -> triggers save
+      Alert.alert('Import erfolgreich', `Projekt "${newName}" (${newFiles.length} Dateien)`);
+      console.log(`✅ Import: ${newFiles.length} Dateien`);
     } catch (error: any) {
-      console.error("Fehler beim ZIP-Import:", error);
-      Alert.alert("Import fehlgeschlagen", error.message || "Unbekannter Fehler.");
+      console.error('❌ Import-Fehler:', error);
+      Alert.alert('Import fehlgeschlagen', error.message || 'Fehler');
     } finally {
       setIsLoading(false);
-      await FileSystem.deleteAsync(FileSystem.cacheDirectory + 'unzipped_project/', { idempotent: true });
+      try { await FileSystem.deleteAsync(CACHE_DIR, { idempotent: true }); }
+      catch (cleanupError) { console.warn('⚠️ Cleanup-Fehler:', cleanupError); }
     }
-  };
+  }, []); // extractProjectName is stable, no need to list as dependency
 
-  // Context-Wert
+  // --------------------------------------------------------------------------
+  // CONTEXT VALUE
+  // --------------------------------------------------------------------------
   const value: ProjectContextProps = {
     projectData,
     isLoading,
     updateProjectFiles,
-    updateProject: updateProjectFiles, // Alias
+    updateProject: updateProjectFiles,
     updateMessages,
     clearProject,
     loadProjectFromZip,
     setProjectName,
     deleteCurrentProject,
-    deleteProject: deleteCurrentProject, // Alias
+    deleteProject: deleteCurrentProject,
     messages: projectData?.messages || [],
   };
 
-  return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;
+  return (
+    <ProjectContext.Provider value={value}>
+        {children}
+    </ProjectContext.Provider>
+  );
 };
 
-// Hook zum Nutzen des Contexts
+// ============================================================================
+// HOOK
+// ============================================================================
 export const useProject = (): ProjectContextProps => {
   const context = useContext(ProjectContext);
   if (!context) {
@@ -403,4 +522,3 @@ export const useProject = (): ProjectContextProps => {
   }
   return context;
 };
-
