@@ -22,9 +22,6 @@ import { v4 as uuidv4 } from 'uuid';
 type DocumentResultAsset = NonNullable<DocumentPicker.DocumentPickerResult['assets']>[0];
 type ChatScreenProps = { navigation: any; route: { params?: { debugCode?: string } } };
 
-// ============================================================================
-// HELPERS
-// ============================================================================
 const extractJsonArray = (text: string): string | null => {
   const match = text.match(/```json\s*(\[[\s\S]*\])\s*```|(\[[\s\S]*\])/);
   if (!match) return null;
@@ -66,9 +63,6 @@ const tryParseJsonWithRepair = (jsonString: string): ProjectFile[] | null => {
   }
 };
 
-// ============================================================================
-// MESSAGE COMPONENT
-// ============================================================================
 const MessageItem = memo(({ item }: { item: ChatMessage }) => {
   const messageText = item?.text?.trim() ?? '';
   if (item?.user?._id === 1 && messageText.length === 0) return null;
@@ -94,9 +88,6 @@ const MessageItem = memo(({ item }: { item: ChatMessage }) => {
   );
 });
 
-// ============================================================================
-// CHAT SCREEN
-// ============================================================================
 const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const { projectData, updateProjectFiles, messages, updateMessages, isLoading: isProjectLoading } = useProject();
   const { config, getCurrentApiKey, rotateApiKey } = useAI();
@@ -120,7 +111,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       setError('Supabase Fehler');
     }
   }, []);
-  
+
   useFocusEffect(useCallback(() => { loadClient(); }, [loadClient]));
 
   useEffect(() => {
@@ -209,12 +200,79 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       let currentProvider: AllAIProviders = CHAT_PROVIDER;
       let aiMessageId = uuidv4();
 
-      try {
-        console.log(`🚀 Stage 1: Groq (${config.selectedChatMode})`);
-        currentProvider = CHAT_PROVIDER;
+      // RETRY LOGIC MIT KEY ROTATION
+      const callProviderWithRetry = async (
+        provider: AllAIProviders,
+        promptMessages: any[],
+        model: string,
+        maxRetries: number = 3
+      ): Promise<any> => {
+        let lastError: any = null;
+        
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+          const apiKey = getCurrentApiKey(provider);
+          
+          console.log(`🔄 Versuch ${attempt + 1}/${maxRetries} für ${provider}`);
+          console.log(`🔑 Verwende Key Index: ${config.keyIndexes[provider]} von ${config.keys[provider]?.length || 0}`);
+          console.log(`🔑 Key: ${apiKey?.substring(0, 10)}...`);
+          
+          if (!apiKey) {
+            throw new Error(`Keine API Keys für ${provider} verfügbar`);
+          }
 
-        const groqApiKey = getCurrentApiKey(CHAT_PROVIDER);
-        if (!groqApiKey) throw new Error(`Kein API Key für ${CHAT_PROVIDER.toUpperCase()}`);
+          try {
+            const { data, error } = await supabase.functions.invoke('k1w1-handler', {
+              body: {
+                messages: promptMessages,
+                apiKey: apiKey,
+                provider: provider,
+                model: model,
+              },
+            });
+
+            if (error) throw error;
+            return data;
+            
+          } catch (error: any) {
+            lastError = error;
+            console.error(`❌ Fehler bei ${provider} (Versuch ${attempt + 1}):`, error.message);
+            
+            // Prüfe ob wir rotieren sollten
+            const errorMsg = error.message?.toLowerCase() || '';
+            const shouldRotate = 
+              errorMsg.includes('invalid') ||
+              errorMsg.includes('unauthorized') ||
+              errorMsg.includes('restricted') ||
+              errorMsg.includes('rate') ||
+              error.status === 401 ||
+              error.status === 429;
+            
+            if (shouldRotate && attempt < maxRetries - 1) {
+              console.log(`🔑 Rotiere Key für ${provider}...`);
+              const newKey = await rotateApiKey(provider);
+              if (newKey) {
+                console.log(`✅ Neuer Key aktiv: ${newKey.substring(0, 10)}...`);
+                addLog(`Key rotiert für ${provider}`);
+                continue; // Nächster Versuch
+              } else {
+                console.log(`❌ Keine weiteren Keys für ${provider}`);
+                break;
+              }
+            }
+            
+            // Bei organization_restricted sofort abbrechen
+            if (errorMsg.includes('organization_restricted') || errorMsg.includes('account gesperrt')) {
+              throw new Error(`${provider.toUpperCase()} Account ist GESPERRT! Verwende einen anderen Provider oder erstelle einen neuen Account.`);
+            }
+          }
+        }
+        
+        throw lastError || new Error(`Alle Versuche für ${provider} fehlgeschlagen`);
+      };
+
+      try {
+        console.log(`🚀 Stage 1: ${CHAT_PROVIDER} (${config.selectedChatMode})`);
+        currentProvider = CHAT_PROVIDER;
 
         const groqPromptMessages = buildPrompt(
           'generator',
@@ -224,26 +282,20 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
           historyRef.current.getHistory()
         );
 
-        const { data: groqData, error: groqFuncErr } = await supabase.functions.invoke(
-          'k1w1-handler',
-          {
-            body: {
-              messages: groqPromptMessages,
-              apiKey: groqApiKey,
-              provider: CHAT_PROVIDER,
-              model: config.selectedChatMode,
-            },
-          }
+        console.log(`📝 Sende ${groqPromptMessages.length} Messages an ${CHAT_PROVIDER}`);
+        
+        const groqData = await callProviderWithRetry(
+          CHAT_PROVIDER,
+          groqPromptMessages,
+          config.selectedChatMode
         );
-
-        if (groqFuncErr) throw groqFuncErr;
 
         const groqRawResponse = groqData?.response?.trim() || '';
         if (!groqRawResponse) {
-          console.warn('⚠️ Groq: Leere Antwort');
-          throw new Error('Groq lieferte keine Antwort');
+          console.warn(`⚠️ ${CHAT_PROVIDER}: Leere Antwort`);
+          throw new Error(`${CHAT_PROVIDER} lieferte keine Antwort`);
         }
-        console.log(`💬 Groq Antwort: ${groqRawResponse.length} chars`);
+        console.log(`💬 ${CHAT_PROVIDER} Antwort: ${groqRawResponse.length} chars`);
         historyRef.current.addAssistant(groqRawResponse);
 
         const potentialJsonString = extractJsonArray(groqRawResponse);
@@ -260,11 +312,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
             finalAiTextMessage = groqRawResponse;
           }
         } else {
-          console.log(`⚙️ Modus: Qualität - Stage 2: Gemini (${config.selectedAgentMode})`);
+          console.log(`⚙️ Modus: Qualität - Stage 2: ${AGENT_PROVIDER} (${config.selectedAgentMode})`);
           currentProvider = AGENT_PROVIDER;
-
-          const geminiApiKey = getCurrentApiKey(AGENT_PROVIDER);
-          if (!geminiApiKey) throw new Error(`Kein API Key für ${AGENT_PROVIDER.toUpperCase()}`);
 
           const agentPromptMessages = buildPrompt(
             'agent',
@@ -275,22 +324,15 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
             messageForHistory
           );
 
-          const { data: agentData, error: agentFuncErr } = await supabase.functions.invoke(
-            'k1w1-handler',
-            {
-              body: {
-                messages: agentPromptMessages,
-                apiKey: geminiApiKey,
-                provider: AGENT_PROVIDER,
-                model: config.selectedAgentMode,
-              },
-            }
+          const agentData = await callProviderWithRetry(
+            AGENT_PROVIDER,
+            agentPromptMessages,
+            config.selectedAgentMode
           );
-
-          if (agentFuncErr) throw agentFuncErr;
+          
           const agentResponse = agentData?.response?.trim() || '';
           if (!agentResponse) {
-            console.warn('⚠️ Gemini Agent: Leere Antwort');
+            console.warn(`⚠️ ${AGENT_PROVIDER} Agent: Leere Antwort`);
             throw new Error('Agent lieferte keine Antwort');
           }
           console.log(`🤖 Agent Antwort: ${agentResponse.length} chars`);
@@ -326,7 +368,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
           }
         } else if (finalAiTextMessage) {
           aiMessageTextToShow = finalAiTextMessage;
-          console.log('💬 Normale Textantwort wird angezeigt.');
         } else {
           aiMessageTextToShow = 'Fehler: Keine gültige Antwort erhalten.';
           setError(aiMessageTextToShow);
@@ -343,38 +384,10 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       } catch (e: any) {
         console.error(`❌ Send Fail (${currentProvider}):`, e);
         let detailMsg = e.message || 'Unbekannter Fehler';
-        const status = e.status || 500;
-
-        if (status === 401 || status === 429) {
-          const provider = currentProvider;
-          const keyListLength = config.keys[provider]?.length || 0;
-          const currentRotationCount = rotationCounters.current[provider] || 0;
-
-          if (currentRotationCount >= keyListLength) {
-            detailMsg = `Alle ${provider.toUpperCase()} Keys verbraucht (${status})`;
-            Alert.alert('Keys erschöpft', detailMsg); 
-            addLog(detailMsg); 
-            setError(detailMsg);
-          } else {
-            console.log(`🔑 Key Problem (${status}) bei ${provider}, rotiere...`);
-            addLog(`Key ${provider} (${status}). Rotiere...`);
-            rotationCounters.current[provider] = currentRotationCount + 1;
-            const nextKey = await rotateApiKey(provider);
-
-            if (nextKey) {
-              detailMsg = `Key rotiert für ${provider.toUpperCase()}. Bitte erneut senden.`;
-              setError(detailMsg);
-            } else {
-              detailMsg = `Key-Rotation fehlgeschlagen (${status})`;
-              Alert.alert('Fehler', detailMsg); 
-              setError(detailMsg);
-            }
-          }
-        } else {
-          Alert.alert('Fehler', `${currentProvider.toUpperCase()} (${status}): ${detailMsg}`);
-          setError(detailMsg);
-        }
-
+        
+        Alert.alert('Fehler', detailMsg);
+        setError(detailMsg);
+        
         await updateMessages(originalMessages);
         historyRef.current.loadFromMessages(originalMessages);
 
@@ -412,11 +425,11 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   };
 
   const handleExpoGo = () => {
-    if (!projectData) { 
-      Alert.alert('Fehler', 'Kein Projekt geladen'); 
-      return; 
+    if (!projectData) {
+      Alert.alert('Fehler', 'Kein Projekt geladen');
+      return;
     }
-    const metroHost = "10.166.37.50:8081"; // Aus deinen Logs
+    const metroHost = "10.166.37.50:8081";
     const expUrl = `exp://${metroHost}`;
 
     Alert.alert(
@@ -435,79 +448,81 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const combinedIsLoading = isAiLoading || isProjectLoading;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardAvoidingContainer}
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={HEADER_HEIGHT}
       >
-        {(!supabase || (isProjectLoading && messages.length === 0)) && (
-          <ActivityIndicator style={styles.loadingIndicator} color={theme.palette.primary} size="large" />
-        )}
-
-        <FlatList
-          data={messages}
-          renderItem={({ item }) => <MessageItem item={item} />}
-          keyExtractor={item => item._id}
-          inverted={true}
-          style={styles.list}
-          contentContainerStyle={styles.listContent}
-          keyboardShouldPersistTaps="handled"
-          initialNumToRender={15}
-          maxToRenderPerBatch={10}
-          windowSize={11}
-        />
-
-        {error && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{String(error)}</Text>
-          </View>
-        )}
-
-        <View style={styles.inputContainerOuter}>
-          {selectedFileAsset && (
-             <View style={styles.attachedFileContainer}>
-               <Ionicons name="document-attach-outline" size={16} color={theme.palette.text.secondary} />
-               <Text style={styles.attachedFileText} numberOfLines={1}>{selectedFileAsset.name}</Text>
-               <TouchableOpacity onPress={()=>setSelectedFileAsset(null)} style={styles.removeFileButton}>
-                 <Ionicons name="close-circle" size={18} color={theme.palette.text.secondary} />
-               </TouchableOpacity>
-             </View>
+        <View style={styles.container}>
+          {(!supabase || (isProjectLoading && messages.length === 0)) && (
+            <ActivityIndicator style={styles.loadingIndicator} color={theme.palette.primary} size="large" />
           )}
-          <View style={styles.inputContainerInner}>
-            <TouchableOpacity onPress={handlePickDocument} style={styles.iconButton} disabled={combinedIsLoading} >
-              <Ionicons name="add-circle-outline" size={28} color={combinedIsLoading ? theme.palette.text.disabled : theme.palette.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleDebugLastResponse} style={styles.iconButton} disabled={combinedIsLoading || messages.filter(m=>m.user._id===2).length===0} >
-              <Ionicons name="bug-outline" size={24} color={ combinedIsLoading || messages.filter(m=>m.user._id===2).length===0 ? theme.palette.text.disabled : theme.palette.primary } />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleExpoGo} style={styles.iconButton} disabled={!projectData || combinedIsLoading} >
-              <Ionicons name="logo-react" size={24} color={ !projectData || combinedIsLoading ? theme.palette.text.disabled : theme.palette.success } />
-            </TouchableOpacity>
-            <TextInput 
-              style={styles.input} 
-              placeholder={!isSupabaseReady ? 'Verbinde...' : selectedFileAsset ? 'Zusatz...' : 'Nachricht...'} 
-              placeholderTextColor={theme.palette.text.secondary} 
-              value={textInput} 
-              onChangeText={setTextInput} 
-              editable={!combinedIsLoading && isSupabaseReady} 
-              multiline 
-              blurOnSubmit={false} 
-            />
-            <TouchableOpacity 
-              onPress={() => handleSend()} 
-              disabled={combinedIsLoading || !isSupabaseReady || (!textInput.trim() && !selectedFileAsset)} 
-              style={[
-                styles.sendButton, 
-                (!isSupabaseReady || combinedIsLoading || (!textInput.trim() && !selectedFileAsset)) && styles.sendButtonDisabled
-              ]} 
-            >
-              {isAiLoading ? (
-                <ActivityIndicator size="small" color={theme.palette.background} />
-              ) : (
-                <Ionicons name="send" size={24} color={theme.palette.background} />
-              )}
-            </TouchableOpacity>
+
+          <FlatList
+            data={messages}
+            renderItem={({ item }) => <MessageItem item={item} />}
+            keyExtractor={item => item._id}
+            inverted={true}
+            style={styles.list}
+            contentContainerStyle={styles.listContent}
+            keyboardShouldPersistTaps="handled"
+            initialNumToRender={15}
+            maxToRenderPerBatch={10}
+            windowSize={11}
+          />
+
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{String(error)}</Text>
+            </View>
+          )}
+
+          <View style={styles.inputContainerOuter}>
+            {selectedFileAsset && (
+               <View style={styles.attachedFileContainer}>
+                 <Ionicons name="document-attach-outline" size={16} color={theme.palette.text.secondary} />
+                 <Text style={styles.attachedFileText} numberOfLines={1}>{selectedFileAsset.name}</Text>
+                 <TouchableOpacity onPress={()=>setSelectedFileAsset(null)} style={styles.removeFileButton}>
+                   <Ionicons name="close-circle" size={18} color={theme.palette.text.secondary} />
+                 </TouchableOpacity>
+               </View>
+            )}
+            <View style={styles.inputContainerInner}>
+              <TouchableOpacity onPress={handlePickDocument} style={styles.iconButton} disabled={combinedIsLoading} >
+                <Ionicons name="add-circle-outline" size={28} color={combinedIsLoading ? theme.palette.text.disabled : theme.palette.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleDebugLastResponse} style={styles.iconButton} disabled={combinedIsLoading || messages.filter(m=>m.user._id===2).length===0} >
+                <Ionicons name="bug-outline" size={24} color={ combinedIsLoading || messages.filter(m=>m.user._id===2).length===0 ? theme.palette.text.disabled : theme.palette.primary } />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleExpoGo} style={styles.iconButton} disabled={!projectData || combinedIsLoading} >
+                <Ionicons name="logo-react" size={24} color={ !projectData || combinedIsLoading ? theme.palette.text.disabled : theme.palette.success } />
+              </TouchableOpacity>
+              <TextInput
+                style={styles.input}
+                placeholder={!isSupabaseReady ? 'Verbinde...' : selectedFileAsset ? 'Zusatz...' : 'Nachricht...'}
+                placeholderTextColor={theme.palette.text.secondary}
+                value={textInput}
+                onChangeText={setTextInput}
+                editable={!combinedIsLoading && isSupabaseReady}
+                multiline
+                blurOnSubmit={false}
+              />
+              <TouchableOpacity
+                onPress={() => handleSend()}
+                disabled={combinedIsLoading || !isSupabaseReady || (!textInput.trim() && !selectedFileAsset)}
+                style={[
+                  styles.sendButton,
+                  (!isSupabaseReady || combinedIsLoading || (!textInput.trim() && !selectedFileAsset)) && styles.sendButtonDisabled
+                ]}
+              >
+                {isAiLoading ? (
+                  <ActivityIndicator size="small" color={theme.palette.background} />
+                ) : (
+                  <Ionicons name="send" size={24} color={theme.palette.background} />
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -516,8 +531,16 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: theme.palette.background },
-  keyboardAvoidingContainer: { flex: 1 },
+  safeArea: { 
+    flex: 1, 
+    backgroundColor: theme.palette.background 
+  },
+  keyboardAvoidingContainer: { 
+    flex: 1 
+  },
+  container: {
+    flex: 1
+  },
   loadingIndicator: {
     position: 'absolute',
     top: '50%',
@@ -525,8 +548,13 @@ const styles = StyleSheet.create({
     transform: [{ translateX: -15 }, { translateY: -15 }],
     zIndex: 10,
   },
-  list: { flex: 1 },
-  listContent: { paddingVertical: 10, paddingHorizontal: 10 },
+  list: { 
+    flex: 1 
+  },
+  listContent: { 
+    paddingVertical: 10, 
+    paddingHorizontal: 10 
+  },
   messageBubble: {
     borderRadius: 15,
     paddingVertical: 10,
@@ -547,9 +575,17 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     borderBottomLeftRadius: 3,
   },
-  messagePressed: { opacity: 0.7 },
-  userMessageText: { fontSize: 15, color: theme.palette.text.primary },
-  aiMessageText: { fontSize: 15, color: theme.palette.text.primary },
+  messagePressed: { 
+    opacity: 0.7 
+  },
+  userMessageText: { 
+    fontSize: 15, 
+    color: theme.palette.text.primary 
+  },
+  aiMessageText: { 
+    fontSize: 15, 
+    color: theme.palette.text.primary 
+  },
   inputContainerOuter: {
     borderTopWidth: 1,
     borderTopColor: theme.palette.border,
@@ -574,14 +610,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.palette.text.secondary,
   },
-  removeFileButton: { padding: 2 },
+  removeFileButton: { 
+    padding: 2 
+  },
   inputContainerInner: {
     flexDirection: 'row',
     paddingHorizontal: 8,
     paddingVertical: 8,
     alignItems: 'flex-end',
   },
-  iconButton: { padding: 8, marginBottom: 5 },
+  iconButton: { 
+    padding: 8, 
+    marginBottom: 5 
+  },
   input: {
     flex: 1,
     backgroundColor: theme.palette.input.background,
@@ -605,13 +646,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 5,
   },
-  sendButtonDisabled: { backgroundColor: theme.palette.text.disabled },
+  sendButtonDisabled: { 
+    backgroundColor: theme.palette.text.disabled 
+  },
   errorContainer: {
     paddingHorizontal: 15,
     paddingVertical: 5,
     backgroundColor: theme.palette.error + '20',
   },
-  errorText: { color: theme.palette.error, textAlign: 'center', fontSize: 13 },
+  errorText: { 
+    color: theme.palette.error, 
+    textAlign: 'center', 
+    fontSize: 13 
+  },
 });
 
 export default ChatScreen;

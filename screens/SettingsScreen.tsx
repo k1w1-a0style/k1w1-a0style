@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-  Alert, Platform, Switch,
+  Alert, Platform, Switch, KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,11 +11,9 @@ import {
   QualityMode, AllAIProviders,
 } from '../contexts/AIContext';
 
-// Helper, um Modell-Label zu bekommen
 const getModelLabel = (provider: AllAIProviders, id: string): string => {
     const models = AVAILABLE_MODELS[provider] || [];
     const model = models.find(m => m.id === id);
-    // Erzeuge einen lesbaren Label, falls nicht vorhanden
     return model?.label || id.split('/').pop()?.replace(/[-_]/g, ' ') || id;
 };
 
@@ -23,23 +21,16 @@ const SettingsScreen = () => {
   const { config, setSelectedChatMode, setSelectedAgentMode, setQualityMode,
           addApiKey, removeApiKey, getCurrentApiKey } = useAI();
 
-  // State für die Key-Eingabe (getrennt)
   const [newGroqKey, setNewGroqKey] = useState('');
   const [newGeminiKey, setNewGeminiKey] = useState('');
-  // Optional: States für Fallback-Keys (kann später hinzugefügt werden)
-  // const [newOpenAIKey, setNewOpenAIKey] = useState('');
-  // const [newAnthropicKey, setNewAnthropicKey] = useState('');
 
-  // Handler für Modellauswahl
   const handleChatModeChange = (mode: string) => setSelectedChatMode(mode);
   const handleAgentModeChange = (mode: string) => setSelectedAgentMode(mode);
 
-  // Handler für Qualitätsmodus-Schalter
   const handleQualityModeChange = (value: boolean) => {
     setQualityMode(value ? 'quality' : 'speed');
   };
 
-  // Handler für Key hinzufügen
   const handleAddKey = async (
     provider: AllAIProviders,
     key: string,
@@ -51,10 +42,9 @@ const SettingsScreen = () => {
       return;
     }
     await addApiKey(provider, trimmedKey);
-    setKeyState(''); // Eingabefeld leeren
+    setKeyState('');
   };
 
-  // Handler für Key entfernen
   const handleRemoveKey = (provider: AllAIProviders, key: string) => {
     Alert.alert('Key löschen?', `${provider.toUpperCase()} Key entfernen?`, [
       { text: 'Abbrechen', style: 'cancel' },
@@ -62,7 +52,6 @@ const SettingsScreen = () => {
     ]);
   };
 
-  // Aktuelle Keys und Infos holen
   const currentGroqKeys = config.keys[CHAT_PROVIDER] || [];
   const currentGeminiKeys = config.keys[AGENT_PROVIDER] || [];
   const activeGroqKeyIndex = config.keyIndexes[CHAT_PROVIDER] || 0;
@@ -70,159 +59,159 @@ const SettingsScreen = () => {
   const activeGroqKey = getCurrentApiKey(CHAT_PROVIDER);
   const activeGeminiKey = getCurrentApiKey(AGENT_PROVIDER);
 
-  // Verfügbare Modelle für die Auswahl
   const availableChatModels = AVAILABLE_MODELS[CHAT_PROVIDER] || [];
   const availableAgentModels = AVAILABLE_MODELS[AGENT_PROVIDER] || [];
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 70}
+      >
+        <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled">
 
-        {/* === Qualitätsmodus === */}
-        <Text style={styles.sectionTitle}>⚙️ Modus</Text>
-        <View style={styles.switchContainer}>
-          <Text style={styles.switchLabel}>🚀 Schnell (1 Call)</Text>
-          <Switch
-            trackColor={{ false: theme.palette.text.disabled, true: theme.palette.primary }}
-            thumbColor={Platform.OS === 'android' ? theme.palette.primary : ''}
-            ios_backgroundColor={theme.palette.text.disabled}
-            onValueChange={handleQualityModeChange}
-            value={config.qualityMode === 'quality'}
-          />
-          <Text style={styles.switchLabel}>💎 Qualität (2 Calls)</Text>
-        </View>
-        <Text style={styles.infoText}>
-           Im Qualitätsmodus prüft Gemini die Antwort von Groq (langsamer, aber besser)
-        </Text>
-
-        {/* === Chat / Generator (Groq) === */}
-        <Text style={styles.sectionTitle}>💬 Generator (Groq)</Text>
-        <Text style={styles.subTitle}>Modell:</Text>
-        <View style={styles.modelContainer}>
-          {availableChatModels.map(model => (
-            <TouchableOpacity
-              key={model.id}
-              style={[
-                styles.modelButton,
-                config.selectedChatMode === model.id && styles.modelButtonActive,
-              ]}
-              onPress={() => handleChatModeChange(model.id)}
-            >
-              <Text style={[
-                styles.modelButtonText,
-                config.selectedChatMode === model.id && styles.modelButtonTextActive,
-              ]}>
-                {getModelLabel(CHAT_PROVIDER, model.id)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <Text style={styles.subTitle}>API Keys:</Text>
-        {currentGroqKeys.length > 0 && activeGroqKey && (
-          <View style={styles.activeKeyBanner}>
-            <Ionicons name="checkmark-circle" size={18} color={theme.palette.success} />
-            <Text style={styles.activeKeyText}>
-              Aktiv: Key #{activeGroqKeyIndex + 1} ({activeGroqKey.substring(0, 5)}...)
-            </Text>
+          <Text style={styles.sectionTitle}>⚙️ Modus</Text>
+          <View style={styles.switchContainer}>
+            <Text style={styles.switchLabel}>🚀 Schnell (1 Call)</Text>
+            <Switch
+              trackColor={{ false: theme.palette.text.disabled, true: theme.palette.primary }}
+              thumbColor={Platform.OS === 'android' ? theme.palette.primary : ''}
+              ios_backgroundColor={theme.palette.text.disabled}
+              onValueChange={handleQualityModeChange}
+              value={config.qualityMode === 'quality'}
+            />
+            <Text style={styles.switchLabel}>💎 Qualität (2 Calls)</Text>
           </View>
-        )}
-        <View style={styles.addKeyContainer}>
-          <TextInput
-            style={styles.keyInput}
-            placeholder="Neuer Groq Key..."
-            placeholderTextColor={theme.palette.text.secondary}
-            value={newGroqKey}
-            onChangeText={setNewGroqKey}
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => handleAddKey(CHAT_PROVIDER, newGroqKey, setNewGroqKey)}
-          >
-            <Ionicons name="add-circle" size={28} color={theme.palette.primary} />
-          </TouchableOpacity>
-        </View>
-        <KeyList
-          keys={currentGroqKeys}
-          provider={CHAT_PROVIDER}
-          activeIndex={activeGroqKeyIndex}
-          onRemove={handleRemoveKey}
-        />
-
-        {/* === Agent / Manager (Gemini) === */}
-        <Text style={styles.sectionTitle}>🤖 Agent (Gemini)</Text>
-        <Text style={styles.subTitle}>Modell (für Qualitätsmodus):</Text>
-         <View style={styles.modelContainer}>
-          {availableAgentModels.map(model => (
-            <TouchableOpacity
-              key={model.id}
-              style={[
-                styles.modelButton,
-                config.selectedAgentMode === model.id && styles.modelButtonActive,
-              ]}
-              onPress={() => handleAgentModeChange(model.id)}
-            >
-              <Text style={[
-                styles.modelButtonText,
-                config.selectedAgentMode === model.id && styles.modelButtonTextActive,
-              ]}>
-                {getModelLabel(AGENT_PROVIDER, model.id)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <Text style={styles.subTitle}>API Keys:</Text>
-         {currentGeminiKeys.length > 0 && activeGeminiKey && (
-          <View style={styles.activeKeyBanner}>
-            <Ionicons name="checkmark-circle" size={18} color={theme.palette.success} />
-            <Text style={styles.activeKeyText}>
-              Aktiv: Key #{activeGeminiKeyIndex + 1} ({activeGeminiKey.substring(0, 5)}...)
-            </Text>
-          </View>
-        )}
-        <View style={styles.addKeyContainer}>
-          <TextInput
-            style={styles.keyInput}
-            placeholder="Neuer Gemini Key..."
-            placeholderTextColor={theme.palette.text.secondary}
-            value={newGeminiKey}
-            onChangeText={setNewGeminiKey}
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => handleAddKey(AGENT_PROVIDER, newGeminiKey, setNewGeminiKey)}
-          >
-            <Ionicons name="add-circle" size={28} color={theme.palette.primary} />
-          </TouchableOpacity>
-        </View>
-        <KeyList
-          keys={currentGeminiKeys}
-          provider={AGENT_PROVIDER}
-          activeIndex={activeGeminiKeyIndex}
-          onRemove={handleRemoveKey}
-        />
-
-         {/* === Info Box === */}
-         <View style={styles.infoBox}>
-          <Ionicons name="information-circle-outline" size={20} color={theme.palette.primary} />
           <Text style={styles.infoText}>
-            Groq generiert Code. Gemini prüft Qualität (optional). Keys rotieren bei Fehlern automatisch.
+             Im Qualitätsmodus prüft Gemini die Antwort von Groq (langsamer, aber besser)
           </Text>
-        </View>
 
-      </ScrollView>
+          <Text style={styles.sectionTitle}>💬 Generator (Groq)</Text>
+          <Text style={styles.subTitle}>Modell:</Text>
+          <View style={styles.modelContainer}>
+            {availableChatModels.map(model => (
+              <TouchableOpacity
+                key={model.id}
+                style={[
+                  styles.modelButton,
+                  config.selectedChatMode === model.id && styles.modelButtonActive,
+                ]}
+                onPress={() => handleChatModeChange(model.id)}
+              >
+                <Text style={[
+                  styles.modelButtonText,
+                  config.selectedChatMode === model.id && styles.modelButtonTextActive,
+                ]}>
+                  {getModelLabel(CHAT_PROVIDER, model.id)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.subTitle}>API Keys:</Text>
+          {currentGroqKeys.length > 0 && activeGroqKey && (
+            <View style={styles.activeKeyBanner}>
+              <Ionicons name="checkmark-circle" size={18} color={theme.palette.success} />
+              <Text style={styles.activeKeyText}>
+                Aktiv: Key #{activeGroqKeyIndex + 1} ({activeGroqKey.substring(0, 5)}...)
+              </Text>
+            </View>
+          )}
+          <View style={styles.addKeyContainer}>
+            <TextInput
+              style={styles.keyInput}
+              placeholder="Neuer Groq Key..."
+              placeholderTextColor={theme.palette.text.secondary}
+              value={newGroqKey}
+              onChangeText={setNewGroqKey}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => handleAddKey(CHAT_PROVIDER, newGroqKey, setNewGroqKey)}
+            >
+              <Ionicons name="add-circle" size={28} color={theme.palette.primary} />
+            </TouchableOpacity>
+          </View>
+          <KeyList
+            keys={currentGroqKeys}
+            provider={CHAT_PROVIDER}
+            activeIndex={activeGroqKeyIndex}
+            onRemove={handleRemoveKey}
+          />
+
+          <Text style={styles.sectionTitle}>🤖 Agent (Gemini)</Text>
+          <Text style={styles.subTitle}>Modell (für Qualitätsmodus):</Text>
+           <View style={styles.modelContainer}>
+            {availableAgentModels.map(model => (
+              <TouchableOpacity
+                key={model.id}
+                style={[
+                  styles.modelButton,
+                  config.selectedAgentMode === model.id && styles.modelButtonActive,
+                ]}
+                onPress={() => handleAgentModeChange(model.id)}
+              >
+                <Text style={[
+                  styles.modelButtonText,
+                  config.selectedAgentMode === model.id && styles.modelButtonTextActive,
+                ]}>
+                  {getModelLabel(AGENT_PROVIDER, model.id)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.subTitle}>API Keys:</Text>
+           {currentGeminiKeys.length > 0 && activeGeminiKey && (
+            <View style={styles.activeKeyBanner}>
+              <Ionicons name="checkmark-circle" size={18} color={theme.palette.success} />
+              <Text style={styles.activeKeyText}>
+                Aktiv: Key #{activeGeminiKeyIndex + 1} ({activeGeminiKey.substring(0, 5)}...)
+              </Text>
+            </View>
+          )}
+          <View style={styles.addKeyContainer}>
+            <TextInput
+              style={styles.keyInput}
+              placeholder="Neuer Gemini Key..."
+              placeholderTextColor={theme.palette.text.secondary}
+              value={newGeminiKey}
+              onChangeText={setNewGeminiKey}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => handleAddKey(AGENT_PROVIDER, newGeminiKey, setNewGeminiKey)}
+            >
+              <Ionicons name="add-circle" size={28} color={theme.palette.primary} />
+            </TouchableOpacity>
+          </View>
+          <KeyList
+            keys={currentGeminiKeys}
+            provider={AGENT_PROVIDER}
+            activeIndex={activeGeminiKeyIndex}
+            onRemove={handleRemoveKey}
+          />
+
+           <View style={styles.infoBox}>
+            <Ionicons name="information-circle-outline" size={20} color={theme.palette.primary} />
+            <Text style={styles.infoText}>
+              Groq generiert Code. Gemini prüft Qualität (optional). Keys rotieren bei Fehlern automatisch.
+            </Text>
+          </View>
+
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
 
-// KeyList Komponente
 const KeyList: React.FC<{
   keys: string[];
   provider: AllAIProviders;
@@ -264,7 +253,6 @@ const KeyList: React.FC<{
   );
 };
 
-// Styles
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: theme.palette.background },
   container: { flex: 1 },
@@ -297,4 +285,3 @@ const styles = StyleSheet.create({
 });
 
 export default SettingsScreen;
-
