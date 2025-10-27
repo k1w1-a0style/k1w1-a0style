@@ -1,115 +1,146 @@
-import { AIProvider } from '../contexts/AIContext';
-import { ProjectFile, ChatMessage as AppChatMessage } from '../contexts/ProjectContext';
+import { AllAIProviders } from '../contexts/AIContext';
+import { ProjectFile } from '../contexts/ProjectContext';
 
-// Das Format, das die Supabase Function erwartet
 export interface PromptMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
 }
 
-// ✅ STRIKTES JSON FORMAT - Wird mehrfach im Prompt erwähnt
-const JSON_RESPONSE_FORMAT = `RESPONSE-FORMAT (NUR bei Code-Aktionen):
-Antworte NUR mit einem JSON-Array (KEINE zusätzlichen Texte, KEIN Markdown \`\`\`json):
+// ============================================================================
+// JSON FORMAT
+// ============================================================================
+
+const JSON_RESPONSE_FORMAT = `
+RESPONSE-FORMAT (nur bei Code-Aktionen):
+Antworte NUR mit validem JSON-Array (KEIN Markdown, KEIN Text davor/danach):
 [
-  {"path": "package.json", "content": "{\\"name\\": \\"app\\", \\"version\\": \\"1.0.0\\"}"},
+  {"path": "package.json", "content": "{\\"name\\": \\"app\\"}"},
   {"path": "App.tsx", "content": "import React from 'react';..."}
 ]
 
-REGELN FÜR DAS JSON:
-1. "content" MUSS ein valider, escaped STRING sein (auch bei JSON-Inhalt!).
-2. Gib IMMER ALLE Dateien des Projekts zurück, auch die unveränderten!
-3. KEIN Text vor oder nach dem JSON-Array.`;
+REGELN:
+1. "content" MUSS escaped String sein
+2. Gib ALLE relevanten Dateien zurück (basierend auf Anfrage)
+3. Nur JSON-Array, sonst nichts
+`;
 
-// 1. MODELLSPEZIFISCHE SYSTEM-PROMPTS (Verschärft!)
-const SYSTEM_PROMPTS: Record<AIProvider, string> = {
-  groq: `Du bist k1w1-a0style, Experte für React Native & Expo SDK 54. Antworte IMMER auf DEUTSCH.
-Aufgabe: Generiere/Modifiziere App-Code basierend auf User-Anweisungen.
+// ============================================================================
+// SYSTEM PROMPTS
+// ============================================================================
 
-VERHALTEN:
-- Chat/Fragen ("wie gehts", "erkläre"): Antworte normal als Text.
-- Code-Anweisungen ("baue", "ändere", "fixe"): Generiere Code und befolge EXAKT das ${JSON_RESPONSE_FORMAT}`, // ✅ Format explizit eingefügt
-
-  gemini: `Du bist k1w1-a0style, Experte für React Native & Expo SDK 54. Antworte IMMER auf DEUTSCH.
-Aufgabe: Generiere/Modifiziere App-Code.
+const GENERATOR_SYSTEM_PROMPT = `Du bist k1w1-a0style, Experte für React Native & Expo SDK 54. Antworte auf DEUTSCH.
 
 VERHALTEN:
-- Chat/Fragen: Antworte normal als Text.
-- Code-Anweisungen ("baue", "ändere"): Befolge EXAKT das ${JSON_RESPONSE_FORMAT}`, // ✅ Format explizit eingefügt
+- Chat/Fragen: Antworte normal als Text
+- Code-Anfragen: Generiere Code im folgenden Format
+${JSON_RESPONSE_FORMAT}`;
 
-  openai: `Du bist k1w1-a0style, Experte für React Native & Expo SDK 54. Antworte auf Deutsch.
-Aufgabe: Generiere/Modifiziere App-Code.
+const AGENT_SYSTEM_PROMPT = `Du bist ein Code-Qualitäts-Agent. Analysiere die Roh-Antwort einer KI und formatiere sie korrekt.
 
-VERHALTEN:
-- Chat/Fragen: Antworte normal als Text.
-- Code-Anweisungen ("baue", "ändere"): Befolge EXAKT das ${JSON_RESPONSE_FORMAT}`, // ✅ Format explizit eingefügt
+AUFGABE:
+1. Analysiere Generator-Antwort im Kontext
+2. Extrahiere Code-Änderungen
+3. Formatiere als valides JSON (siehe Format)
+4. Validiere Syntax
+5. WICHTIG: Behalte ALLE existierenden Projekt-Dateien bei!
 
-  anthropic: `Du bist k1w1-a0style, Experte für React Native & Expo SDK 54. Antworte auf Deutsch.
-Aufgabe: Generiere/Modifiziere App-Code.
+${JSON_RESPONSE_FORMAT}
 
-VERHALTEN:
-- Chat/Fragen: Antworte normal als Text.
-- Code-Anweisungen ("baue", "ändere"): Befolge EXAKT das ${JSON_RESPONSE_FORMAT}` // ✅ Format explizit eingefügt
-};
+Output: NUR das finale JSON-Array.`;
 
-// 2. DER PROMPT-BUILDER (Angepasst für besseren Template-Hinweis)
+// ============================================================================
+// PROMPT BUILDER
+// ============================================================================
+
 export const buildPrompt = (
-  provider: AIProvider,
-  userMessage: string,
+  role: 'generator' | 'agent',
+  provider: AllAIProviders,
+  userOrGeneratorMessage: string,
   projectFiles: ProjectFile[],
-  conversationHistory: PromptMessage[]
+  conversationHistory: PromptMessage[],
+  originalUserPrompt?: string
 ): PromptMessage[] => {
+  let systemPromptContent = '';
+  let currentMessageContent = '';
 
-  const systemPrompt = SYSTEM_PROMPTS[provider];
-
-  // ✅ Verbesserter Kontext für leere Projekte
-  let projectContext = "";
-  if (projectFiles.length === 0) {
-      projectContext = `\n\nPROJEKT IST AKTUELL LEER. Beginne mit diesen 5 Standard-Dateien als Basis:\n- package.json\n- app.config.js\n- App.tsx\n- theme.ts\n- README.md\n(Du musst diese Basis-Dateien im ersten Schritt generieren!)`;
+  if (role === 'generator') {
+    systemPromptContent = GENERATOR_SYSTEM_PROMPT;
+    currentMessageContent = userOrGeneratorMessage;
   } else {
-      // Sende nur Pfade, um Token zu sparen, aber erwähne, dass der Inhalt existiert.
-      const filePaths = projectFiles.map(f => f.path);
-      projectContext = `\n\nAKTUELLER PROJEKT-STATUS (${projectFiles.length} Dateien):\n${JSON.stringify(filePaths)}\nBEHALTE ALLE EXISTIERENDEN DATEIEN bei und modifiziere sie nur, wenn nötig.`;
+    systemPromptContent = AGENT_SYSTEM_PROMPT;
+    currentMessageContent = `User-Anfrage: "${originalUserPrompt || 'Unbekannt'}"\n\nGenerator-Antwort:\n---\n${userOrGeneratorMessage}\n---`;
   }
 
-  const fullSystemPrompt = `${systemPrompt}${projectContext}`;
+  let projectContext = '';
+  if (projectFiles.length === 0) {
+    projectContext = `\n\nPROJEKT IST LEER. Beginne mit Standard-Dateien (package.json, app.config.js, App.tsx, theme.ts, README.md).`;
+  } else {
+    const filePaths = projectFiles.map(f => f.path);
+    const instruction =
+      role === 'agent'
+        ? '\nBEHALTE ALLE Dateien (außer bei explizitem Löschbefehl)!'
+        : '\nÄndere nur nötige Dateien.';
+    projectContext = `\n\nPROJEKT (${projectFiles.length} Dateien):\n${JSON.stringify(filePaths)}${instruction}`;
+  }
 
-  const messages: PromptMessage[] = [ { role: 'system', content: fullSystemPrompt } ];
-  messages.push(...conversationHistory.slice(-6)); // Letzte 6 Nachrichten
-  messages.push({ role: 'user', content: userMessage });
+  const fullSystemPrompt = `${systemPromptContent}${projectContext}`;
 
-  console.log(`📝 Prompt-Builder: ${provider}, History: ${conversationHistory.length}, Messages total: ${messages.length}`);
-  // console.log("System Prompt:", fullSystemPrompt); // Zum Debuggen einkommentieren
+  const messages: PromptMessage[] = [{ role: 'system', content: fullSystemPrompt }];
+
+  if (role === 'generator') {
+    messages.push(...conversationHistory.slice(-6));
+  }
+
+  messages.push({ role: 'user', content: currentMessageContent });
+
+  console.log(`📝 Prompt (${role}/${provider}): ${messages.length} messages`);
   return messages;
 };
 
+// ============================================================================
+// HISTORY MANAGER
+// ============================================================================
 
-// 3. DER ERINNERUNGSSPEICHER (HISTORY-MANAGER) - Unverändert
 export class ConversationHistory {
   private history: PromptMessage[] = [];
 
-  loadFromMessages(messages: AppChatMessage[]) {
+  loadFromMessages(messages: any[]) {
     this.history = messages
-      .map(msg => ({ role: msg.user._id === 1 ? 'user' : 'assistant', content: msg.text }))
+      .map(msg => ({
+        role: msg.user._id === 1 ? 'user' as const : 'assistant' as const,
+        content: msg.text,
+      }))
       .reverse();
-    console.log(`🧠 History geladen (${this.history.length} Einträge)`);
+    console.log(`🧠 History: ${this.history.length} Einträge`);
   }
 
-  addUser(message: string) { this.history.push({ role: 'user', content: message }); }
+  addUser(message: string) {
+    this.history.push({ role: 'user', content: message });
+  }
 
   addAssistant(message: string) {
-    // Kurze Bestätigung statt langem JSON in History speichern
     if (message.startsWith('[') && message.includes('"path":')) {
       try {
-        const parsed = JSON.parse(message); // Hier ist Standard-Parse OK
+        const parsed = JSON.parse(message);
         if (Array.isArray(parsed) && parsed[0]?.path) {
-          this.history.push({ role: 'assistant', content: `[Code mit ${parsed.length} Dateien generiert/aktualisiert]` });
+          this.history.push({
+            role: 'assistant',
+            content: `[Code mit ${parsed.length} Dateien generiert]`,
+          });
           return;
         }
-      } catch (e) { /* Fällt durch */ }
+      } catch (e) {
+        // Fallthrough
+      }
     }
     this.history.push({ role: 'assistant', content: message });
   }
-  getHistory(): PromptMessage[] { return this.history; }
-  clear() { this.history = []; }
-}
 
+  getHistory(): PromptMessage[] {
+    return this.history;
+  }
+
+  clear() {
+    this.history = [];
+  }
+}
