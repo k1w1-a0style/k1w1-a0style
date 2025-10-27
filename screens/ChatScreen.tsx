@@ -1,22 +1,13 @@
 import React, { useState, useCallback, useEffect, memo, useRef } from 'react';
 import {
-  View,
-  StyleSheet,
-  FlatList,
-  TextInput,
-  Text,
-  ActivityIndicator,
-  Alert,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
+  View, StyleSheet, FlatList, TextInput, Text, ActivityIndicator,
+  Alert, TouchableOpacity, KeyboardAvoidingView, Platform, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ensureSupabaseClient } from '../lib/supabase';
 import { theme, HEADER_HEIGHT } from '../theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { useAI, CHAT_PROVIDER, AGENT_PROVIDER, AllAIProviders } from '../contexts/AIContext';
 import { useTerminal } from '../contexts/TerminalContext';
@@ -26,20 +17,21 @@ import { useProject, ProjectFile, ChatMessage } from '../contexts/ProjectContext
 import * as Clipboard from 'expo-clipboard';
 import { buildPrompt, ConversationHistory } from '../lib/prompts';
 import { jsonrepair } from 'jsonrepair';
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from 'uuid'; // Import uuid
 
 type DocumentResultAsset = NonNullable<DocumentPicker.DocumentPickerResult['assets']>[0];
+type ChatScreenProps = { navigation: any; route: { params?: { debugCode?: string } } };
 
 // ============================================================================
 // HELPERS
 // ============================================================================
-
 const extractJsonArray = (text: string): string | null => {
+  // Findet JSON-Blöcke, optional von Markdown umschlossen
   const match = text.match(/```json\s*(\[[\s\S]*\])\s*```|(\[[\s\S]*\])/);
   if (!match) return null;
-  const jsonString = match[1] || match[2];
+  const jsonString = match[1] || match[2]; // Nimm die erste oder zweite Capture Group
   if (jsonString) {
-    console.log(`🔍 JSON gefunden (${jsonString.length} chars)`);
+    console.log(`🔍 JSON-Array gefunden (${jsonString.length} chars)`);
     return jsonString;
   }
   return null;
@@ -47,19 +39,22 @@ const extractJsonArray = (text: string): string | null => {
 
 const tryParseJsonWithRepair = (jsonString: string): ProjectFile[] | null => {
   try {
+    // 1. Standard-Parse
     return JSON.parse(jsonString) as ProjectFile[];
   } catch (e) {
+    // 2. Fallback mit jsonrepair
     try {
       const repaired = jsonrepair(jsonString);
       const result = JSON.parse(repaired);
-      
+      // Validierung, ob das Ergebnis unserem Format entspricht
       if (
         Array.isArray(result) &&
-        (result.length === 0 ||
-          (result[0]?.path && typeof result[0].content !== 'undefined'))
+        (result.length === 0 || // Leeres Array ist ok
+          (result[0]?.path && typeof result[0].content !== 'undefined')) // Array von ProjectFile
       ) {
-        console.log('✅ JSON repariert');
-        return result.map(file => ({
+        console.log('✅ JSON erfolgreich repariert mit jsonrepair');
+        // Sicherstellen, dass content string ist
+        return result.map((file) => ({
           ...file,
           content:
             typeof file.content === 'string'
@@ -67,11 +62,13 @@ const tryParseJsonWithRepair = (jsonString: string): ProjectFile[] | null => {
               : JSON.stringify(file.content ?? '', null, 2),
         }));
       } else {
-        console.warn('⚠️ JSON repariert, aber Format ungültig');
+        console.warn('⚠️ JSON repariert, aber Format ungültig.');
         return null;
       }
     } catch (error) {
-      console.error('❌ JSON Parse fehlgeschlagen:', error);
+      console.error('❌ JSON Parse/Reparatur fehlgeschlagen:', error);
+      // Logge den fehlerhaften String (gekürzt)
+      console.error("   -> Fehlerhafter String (Anfang):", jsonString.substring(0, 200));
       return null;
     }
   }
@@ -80,18 +77,16 @@ const tryParseJsonWithRepair = (jsonString: string): ProjectFile[] | null => {
 // ============================================================================
 // MESSAGE COMPONENT
 // ============================================================================
-
 const MessageItem = memo(({ item }: { item: ChatMessage }) => {
   const messageText = item?.text?.trim() ?? '';
+  // Verstecke leere User-Nachrichten (z.B. bei Dateiupload ohne Text)
   if (item?.user?._id === 1 && messageText.length === 0) return null;
-
   const handleLongPress = () => {
     if (messageText) {
       Clipboard.setStringAsync(messageText);
-      Alert.alert('Kopiert');
+      Alert.alert('Kopiert', 'Nachricht in Zwischenablage kopiert.');
     }
   };
-
   return (
     <Pressable
       style={({ pressed }) => [
@@ -111,13 +106,8 @@ const MessageItem = memo(({ item }: { item: ChatMessage }) => {
 // ============================================================================
 // CHAT SCREEN
 // ============================================================================
-
-const ChatScreen: React.FC<{ navigation: any; route: { params?: { debugCode?: string } } }> = ({
-  navigation,
-  route,
-}) => {
-  const { projectData, updateProjectFiles, messages, updateMessages, isLoading: isProjectLoading } =
-    useProject();
+const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
+  const { projectData, updateProjectFiles, messages, updateMessages, isLoading: isProjectLoading } = useProject();
   const { config, getCurrentApiKey, rotateApiKey } = useAI();
   const { addLog } = useTerminal();
 
@@ -128,33 +118,32 @@ const ChatScreen: React.FC<{ navigation: any; route: { params?: { debugCode?: st
   const [selectedFileAsset, setSelectedFileAsset] = useState<DocumentResultAsset | null>(null);
   
   const historyRef = useRef(new ConversationHistory());
-  const rotationCounters = useRef<Record<string, number>>({ groq: 0, gemini: 0 });
+  const rotationCounters = useRef<Record<string, number>>({ groq: 0, gemini: 0, openai: 0, anthropic: 0 }); // Zähler für alle Provider
 
-  // Load Supabase
+  // Lade Supabase Client
   const loadClient = useCallback(async () => {
     setError(null);
     try {
       setSupabase(await ensureSupabaseClient());
       console.log('CS: Supabase OK');
     } catch (e: any) {
-      setError('Supabase Fehler');
+      setError('Supabase Ladefehler');
+      console.error('CS: Supabase Load Fail:', e);
     }
   }, []);
+  useFocusEffect(useCallback(() => { loadClient(); }, [loadClient]));
 
-  useFocusEffect(
-    useCallback(() => {
-      loadClient();
-    }, [loadClient])
-  );
-
-  // Load history
+  // Lade History aus Context
   useEffect(() => {
+    // Nur laden, wenn messages tatsächlich vorhanden sind
     if (messages.length > 0) {
       historyRef.current.loadFromMessages(messages);
+    } else {
+      historyRef.current.clear(); // Leeren, falls Projekt zurückgesetzt wurde
     }
-  }, [messages.length]); // Only on length change
+  }, [messages]); // Abhängig von messages-Objekt
 
-  // File picker
+  // Datei-Picker
   const handlePickDocument = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -181,67 +170,74 @@ const ChatScreen: React.FC<{ navigation: any; route: { params?: { debugCode?: st
   // ============================================================================
   // MAIN SEND LOGIC
   // ============================================================================
-
   const handleSend = useCallback(
     async (customPrompt?: string) => {
+      // --- 1. Validierung & Vorbereitung ---
       let userPrompt = customPrompt ?? textInput.trim();
       const fileToSend = selectedFileAsset;
       const displayPrompt =
-        textInput.trim() || (fileToSend ? `(Datei: ${fileToSend.name})` : customPrompt ? 'Debug' : '');
+        textInput.trim() ||
+        (fileToSend ? `(Datei: ${fileToSend.name})` : customPrompt ? 'Debug Anfrage' : '');
 
-      if ((!userPrompt && !fileToSend && !customPrompt) || !supabase || isProjectLoading || !projectData) {
+      if (
+        (!userPrompt && !fileToSend && !customPrompt) ||
+        !supabase ||
+        isProjectLoading ||
+        !projectData
+      ) {
         if (!supabase) Alert.alert('Fehler', 'Supabase nicht verbunden');
         if (isProjectLoading || !projectData) Alert.alert('Fehler', 'Projekt lädt noch');
         return;
       }
 
       setError(null);
-      rotationCounters.current = { groq: 0, gemini: 0 };
+      rotationCounters.current = { groq: 0, gemini: 0, openai: 0, anthropic: 0 }; // Reset Zähler
       setIsAiLoading(true);
 
-      // Prepare message
+      // --- 2. Datei-Inhalt lesen ---
       let messageForHistory = userPrompt;
       if (fileToSend && !customPrompt) {
         try {
           const fileContent = await FileSystem.readAsStringAsync(fileToSend.uri, {
             encoding: 'utf8',
           });
-          messageForHistory = `--- Datei: ${fileToSend.name} ---\n${fileContent}\n--- Ende ---\n\n${userPrompt || '(Siehe Datei)'}`;
+          messageForHistory = `--- Datei: ${fileToSend.name} ---\n${fileContent}\n--- Ende ---\n\n${
+            userPrompt || '(Siehe Datei)'
+          }`;
+          console.log(`Datei gelesen: ${fileToSend.name} (${fileContent.length} chars)`);
         } catch (readError: any) {
-          console.error('Read Error:', readError);
-          Alert.alert('Lese-Fehler', `Datei "${fileToSend.name}" konnte nicht gelesen werden`);
+          console.error('Read Fail:', readError);
+          Alert.alert('Lese-Fehler', `Datei "${fileToSend.name}" konnte nicht gelesen werden.`);
           setIsAiLoading(false);
           setSelectedFileAsset(null);
           return;
         }
       }
 
-      // Add user message
+      // --- 3. UI-Update (Optimistisch) ---
       const userMessage: ChatMessage = {
         _id: uuidv4(),
         text: displayPrompt || '...',
         createdAt: new Date(),
         user: { _id: 1, name: 'User' },
       };
-
       setTextInput('');
       if (fileToSend && !customPrompt) setSelectedFileAsset(null);
       
-      historyRef.current.addUser(messageForHistory);
-      await updateMessages([userMessage, ...messages]);
+      historyRef.current.addUser(messageForHistory); // Füge *volle* Nachricht zur History hinzu
+      const originalMessages = messages; // Merke dir den Stand vor dem Senden
+      await updateMessages([userMessage, ...originalMessages]); // Zeige User-Nachricht sofort an
 
       let finalProjectFiles: ProjectFile[] | null = null;
       let finalAiTextMessage: string | null = null;
-      let currentProvider: AllAIProviders = CHAT_PROVIDER;
+      let currentProvider: AllAIProviders = CHAT_PROVIDER; // Für Fehler-Logging
 
       try {
         // ========================================================================
-        // STAGE 1: GROQ
+        // STAGE 1: GROQ (Generator)
         // ========================================================================
-        
         console.log(`🚀 Stage 1: Groq (${config.selectedChatMode})`);
         currentProvider = CHAT_PROVIDER;
-
         const groqApiKey = getCurrentApiKey(CHAT_PROVIDER);
         if (!groqApiKey) throw new Error(`Kein API Key für ${CHAT_PROVIDER.toUpperCase()}`);
 
@@ -265,58 +261,54 @@ const ChatScreen: React.FC<{ navigation: any; route: { params?: { debugCode?: st
           }
         );
 
-        if (groqFuncErr) throw groqFuncErr;
-
+        if (groqFuncErr) throw groqFuncErr; // Wird im catch-Block behandelt
         const groqRawResponse = groqData?.response?.trim() || '';
         if (!groqRawResponse) {
           console.warn('⚠️ Groq: Leere Antwort');
           throw new Error('Groq lieferte keine Antwort');
         }
-
         console.log(`💬 Groq Antwort: ${groqRawResponse.length} chars`);
 
         // ========================================================================
         // QUALITY MODE DECISION
         // ========================================================================
-
         const potentialJsonString = extractJsonArray(groqRawResponse);
+        let agentUsed = false; // Flag für History
 
         if (config.qualityMode === 'speed') {
-          // SPEED MODE
+          // --- GESCHWINDIGKEITSMODUS ---
           console.log('⚙️ Modus: Geschwindigkeit');
-          
           if (potentialJsonString) {
             finalProjectFiles = tryParseJsonWithRepair(potentialJsonString);
             if (!finalProjectFiles) {
               console.warn('⚠️ Speed: JSON Parse fehlgeschlagen');
-              finalAiTextMessage = groqRawResponse;
+              finalAiTextMessage = groqRawResponse; // Zeige Roh-Antwort
             }
           } else {
-            finalAiTextMessage = groqRawResponse;
+            finalAiTextMessage = groqRawResponse; // Normale Textantwort
           }
-
-          // Add to history
+          // Füge Groq-Antwort zur History hinzu
           historyRef.current.addAssistant(
             finalProjectFiles
               ? `[Code mit ${finalProjectFiles.length} Dateien generiert]`
               : groqRawResponse
           );
-          
+
         } else {
-          // QUALITY MODE
+          // --- QUALITÄTSMODUS ---
+          agentUsed = true;
           console.log(`⚙️ Modus: Qualität - Stage 2: Gemini (${config.selectedAgentMode})`);
           currentProvider = AGENT_PROVIDER;
-
           const geminiApiKey = getCurrentApiKey(AGENT_PROVIDER);
           if (!geminiApiKey) throw new Error(`Kein API Key für ${AGENT_PROVIDER.toUpperCase()}`);
 
           const agentPromptMessages = buildPrompt(
             'agent',
             AGENT_PROVIDER,
-            groqRawResponse,
+            groqRawResponse, // Übergib Roh-Antwort
             projectData.files,
             historyRef.current.getHistory(),
-            messageForHistory
+            messageForHistory // Übergib ursprüngliche User-Anfrage
           );
 
           const { data: agentData, error: agentFuncErr } = await supabase.functions.invoke(
@@ -332,97 +324,89 @@ const ChatScreen: React.FC<{ navigation: any; route: { params?: { debugCode?: st
           );
 
           if (agentFuncErr) throw agentFuncErr;
-
           const agentResponse = agentData?.response?.trim() || '';
           if (!agentResponse) {
             console.warn('⚠️ Gemini Agent: Leere Antwort');
-            throw new Error('Gemini Agent lieferte keine Antwort');
+            throw new Error('Agent lieferte keine Antwort');
           }
-
           console.log(`🤖 Agent Antwort: ${agentResponse.length} chars`);
-
+          
           const agentJsonString = extractJsonArray(agentResponse);
           if (agentJsonString) {
             finalProjectFiles = tryParseJsonWithRepair(agentJsonString);
             if (!finalProjectFiles) {
               console.warn('⚠️ Quality: Agent JSON Parse fehlgeschlagen');
-              finalAiTextMessage = agentResponse;
+              finalAiTextMessage = agentResponse; // Zeige Agenten-Roh-Antwort
             }
           } else {
             console.warn('⚠️ Quality: Agent lieferte kein JSON');
-            finalAiTextMessage = agentResponse;
+            finalAiTextMessage = agentResponse; // Normale Textantwort vom Agenten
           }
-
-          // Add ONLY agent response to history
+          // Füge Agenten-Antwort zur History hinzu
           historyRef.current.addAssistant(
-            finalProjectFiles
+             finalProjectFiles
               ? `[Code mit ${finalProjectFiles.length} Dateien generiert]`
               : agentResponse
           );
         }
 
         // ========================================================================
-        // PROCESS RESULT
+        // 4. VERARBEITUNG & UI-UPDATE (Erfolg)
         // ========================================================================
+        let aiMessageTextToShow: string;
 
         if (finalProjectFiles) {
-          // Code update
-          await updateProjectFiles(finalProjectFiles);
-          
-          const confirmationText = `✅ Projekt aktualisiert (${finalProjectFiles.length} Dateien)`;
-          
-          const aiMessage: ChatMessage = {
-            _id: uuidv4(),
-            text: confirmationText,
-            createdAt: new Date(),
-            user: { _id: 2, name: 'AI' },
-          };
-          
-          await updateMessages([aiMessage, userMessage, ...messages]);
-          
+          // CODE UPDATE
+          await updateProjectFiles(finalProjectFiles); // Nutzt die korrekte Merge-Logik
+          aiMessageTextToShow = `✅ Projekt aktualisiert (${finalProjectFiles.length} Dateien${agentUsed ? ' - Agent geprüft' : ''})`;
         } else if (finalAiTextMessage) {
-          // Text response
-          const aiMessage: ChatMessage = {
-            _id: uuidv4(),
-            text: finalAiTextMessage,
-            createdAt: new Date(),
-            user: { _id: 2, name: 'AI' },
-          };
-          
-          await updateMessages([aiMessage, userMessage, ...messages]);
-          
+          // TEXTANTWORT
+          aiMessageTextToShow = finalAiTextMessage;
+          console.log('💬 Normale Textantwort wird angezeigt.');
         } else {
-          throw new Error('Weder Code noch Text erhalten');
+          // UNERWARTETER FALL
+          aiMessageTextToShow = 'Fehler: Weder Code noch Text erhalten.';
+          setError(aiMessageTextToShow);
         }
-        
+
+        // Erstelle finale AI-Nachricht
+        const aiMessage: ChatMessage = {
+          _id: uuidv4(),
+          text: aiMessageTextToShow,
+          createdAt: new Date(),
+          user: { _id: 2, name: 'AI' },
+        };
+        // Aktualisiere den Chat-State mit der finalen AI-Antwort
+        await updateMessages([aiMessage, userMessage, ...originalMessages]);
+
+
       } catch (e: any) {
         // ========================================================================
-        // ERROR HANDLING
+        // 5. FEHLERBEHANDLUNG
         // ========================================================================
-        
-        console.error('Send Error:', e);
-        
+        console.error(`❌ Send Fail (${currentProvider}):`, e);
         let detailMsg = e.message || 'Unbekannter Fehler';
         const status = e.status || 500;
 
-        // Key rotation on 401/429
+        // Key Rotation
         if (status === 401 || status === 429) {
-          const keyListLength = config.keys[currentProvider]?.length || 0;
-          const currentRotationCount = rotationCounters.current[currentProvider] || 0;
+          const provider = currentProvider; // Provider, der den Fehler verursacht hat
+          const keyListLength = config.keys[provider]?.length || 0;
+          const currentRotationCount = rotationCounters.current[provider] || 0;
 
           if (currentRotationCount >= keyListLength) {
-            detailMsg = `Alle ${currentProvider.toUpperCase()} Keys verbraucht (${status})`;
+            detailMsg = `Alle ${provider.toUpperCase()} Keys verbraucht (${status})`;
             Alert.alert('Keys erschöpft', detailMsg);
             addLog(detailMsg);
             setError(detailMsg);
           } else {
-            console.log(`🔑 Key Problem (${status}) bei ${currentProvider}, rotiere...`);
-            addLog(`Key ${currentProvider} (${status}). Rotiere...`);
-            rotationCounters.current[currentProvider] = currentRotationCount + 1;
+            console.log(`🔑 Key Problem (${status}) bei ${provider}, rotiere...`);
+            addLog(`Key ${provider} (${status}). Rotiere...`);
+            rotationCounters.current[provider] = currentRotationCount + 1;
+            const nextKey = await rotateApiKey(provider);
             
-            const nextKey = await rotateApiKey(currentProvider);
             if (nextKey) {
-              detailMsg = `Key rotiert für ${currentProvider.toUpperCase()}. Bitte erneut senden.`;
+              detailMsg = `Key rotiert für ${provider.toUpperCase()}. Bitte erneut senden.`;
               setError(detailMsg);
             } else {
               detailMsg = `Key-Rotation fehlgeschlagen (${status})`;
@@ -431,72 +415,68 @@ const ChatScreen: React.FC<{ navigation: any; route: { params?: { debugCode?: st
             }
           }
         } else {
+          // Andere Fehler
           Alert.alert('Fehler', `${currentProvider.toUpperCase()} (${status}): ${detailMsg}`);
           setError(detailMsg);
         }
         
+        // Setze Chat-State zurück (entferne optimistische User-Nachricht)
+        await updateMessages(originalMessages);
+        historyRef.current.loadFromMessages(originalMessages); // Setze History zurück
+
       } finally {
         setIsAiLoading(false);
       }
     },
     [
-      textInput,
-      selectedFileAsset,
-      supabase,
-      config,
-      projectData,
-      messages,
-      isProjectLoading,
-      getCurrentApiKey,
-      rotateApiKey,
-      addLog,
-      updateProjectFiles,
-      updateMessages,
+      textInput, selectedFileAsset, supabase, config, projectData, messages, 
+      isProjectLoading, getCurrentApiKey, rotateApiKey, addLog, 
+      updateProjectFiles, updateMessages
     ]
   );
 
-  // Debug handler
+  // --- Debug Handlers ---
   useEffect(() => {
     if (route.params?.debugCode) {
       const code = route.params.debugCode;
       console.log('CS: Debug vom CodeScreen');
       const debugPrompt = `Analysiere:\n\n\`\`\`\n${code}\n\`\`\``;
-      setTextInput('Debug...');
-      handleSend(debugPrompt);
+      setTextInput('Debug Anfrage...'); // Setze Text, damit displayPrompt funktioniert
+      handleSend(debugPrompt); // Übergib als customPrompt
       navigation.setParams({ debugCode: undefined });
     }
   }, [route.params?.debugCode, navigation, handleSend]);
 
   const handleDebugLastResponse = () => {
     const lastAiMessage = messages.find(m => m.user._id === 2);
-    if (!lastAiMessage?.text) {
-      Alert.alert('Nichts zu debuggen');
+    if (!lastAiMessage?.text || lastAiMessage.text.startsWith('[')) {
+      Alert.alert('Nichts zu debuggen', 'Keine gültige Textantwort von der KI gefunden.');
       return;
     }
     const prompt = `Analysiere:\n\n\`\`\`\n${lastAiMessage.text}\n\`\`\``;
-    setTextInput('Debug...');
-    handleSend(prompt);
+    setTextInput('Debug Anfrage...'); // Setze Text
+    handleSend(prompt); // Übergib als customPrompt
   };
 
-  // Expo Go button handler
+  // --- Expo Go Handler ---
   const handleExpoGo = () => {
-    if (!projectData) {
-      Alert.alert('Fehler', 'Kein Projekt geladen');
-      return;
-    }
-
-    // Generate exp:// URL (simplified - actual implementation would need server)
-    const projectName = projectData.name.replace(/[^a-z0-9]/gi, '-').toLowerCase();
-    const expUrl = `exp://localhost:8081`;
-
+    if (!projectData) { Alert.alert('Fehler', 'Kein Projekt geladen'); return; }
+    // Vereinfachte URL-Erzeugung. Dies funktioniert nur, wenn Metro
+    // auf dieser IP/Port läuft und vom Gerät erreichbar ist.
+    // In echten Deployments bräuchte man einen Tunnel (z.B. ngrok oder Expo Tunnel)
+    const metroHost = "192.168.43.1:8081"; // Beispiel-IP aus deinen Logs! Passe dies ggf. an.
+    const expUrl = `exp://${metroHost}`; 
+    
     Alert.alert(
-      'Expo Go',
-      `Öffne Expo Go App und scanne den QR-Code oder öffne:\n\n${expUrl}`,
+      'Expo Go Vorschau',
+      `Stelle sicher, dass dein Metro Bundler läuft und vom Gerät erreichbar ist.\n\nÖffne in Expo Go:\n${expUrl}`,
       [
         { text: 'URL kopieren', onPress: () => Clipboard.setStringAsync(expUrl) },
         { text: 'OK' },
       ]
     );
+    console.log(`📲 Expo Go URL (manuell öffnen/scannen): ${expUrl}`);
+    addLog(`Expo Go URL: ${expUrl}`);
   };
 
   const isSupabaseReady = supabase && !supabase.functions.invoke.toString().includes('DUMMY_CLIENT');
@@ -505,13 +485,13 @@ const ChatScreen: React.FC<{ navigation: any; route: { params?: { debugCode?: st
   // ============================================================================
   // RENDER
   // ============================================================================
-
   return (
-    <SafeAreaView style={styles.safeArea} edges={[]}>
+    <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
+      {/* 🔥 FIX: KeyboardAvoidingView angepasst */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoidingContainer}
-        keyboardVerticalOffset={HEADER_HEIGHT + (Platform.OS === 'ios' ? 20 : -50)}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0} // Dein vorgeschlagener Wert
       >
         {/* Loading */}
         {(!supabase || (isProjectLoading && messages.length === 0)) && (
@@ -523,7 +503,7 @@ const ChatScreen: React.FC<{ navigation: any; route: { params?: { debugCode?: st
           data={messages}
           renderItem={({ item }) => <MessageItem item={item} />}
           keyExtractor={item => item._id}
-          inverted={true}
+          inverted={true} // Wichtig!
           style={styles.list}
           contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="handled"
@@ -539,108 +519,29 @@ const ChatScreen: React.FC<{ navigation: any; route: { params?: { debugCode?: st
           </View>
         )}
 
-        {/* Input */}
+        {/* Input Area */}
         <View style={styles.inputContainerOuter}>
-          {/* Attached file */}
           {selectedFileAsset && (
-            <View style={styles.attachedFileContainer}>
-              <Ionicons name="document-attach-outline" size={16} color={theme.palette.text.secondary} />
-              <Text style={styles.attachedFileText} numberOfLines={1}>
-                {selectedFileAsset.name}
-              </Text>
-              <TouchableOpacity
-                onPress={() => setSelectedFileAsset(null)}
-                style={styles.removeFileButton}
-              >
-                <Ionicons name="close-circle" size={18} color={theme.palette.text.secondary} />
-              </TouchableOpacity>
-            </View>
+             <View style={styles.attachedFileContainer}><Ionicons name="document-attach-outline" size={16} color={theme.palette.text.secondary} /><Text style={styles.attachedFileText} numberOfLines={1}>{selectedFileAsset.name}</Text><TouchableOpacity onPress={()=>setSelectedFileAsset(null)} style={styles.removeFileButton}><Ionicons name="close-circle" size={18} color={theme.palette.text.secondary} /></TouchableOpacity></View>
           )}
-
-          {/* Input row */}
           <View style={styles.inputContainerInner}>
             {/* Attach */}
-            <TouchableOpacity
-              onPress={handlePickDocument}
-              style={styles.iconButton}
-              disabled={combinedIsLoading}
-            >
-              <Ionicons
-                name="add-circle-outline"
-                size={28}
-                color={combinedIsLoading ? theme.palette.text.disabled : theme.palette.primary}
-              />
+            <TouchableOpacity onPress={handlePickDocument} style={styles.iconButton} disabled={combinedIsLoading} >
+              <Ionicons name="add-circle-outline" size={28} color={combinedIsLoading ? theme.palette.text.disabled : theme.palette.primary} />
             </TouchableOpacity>
-
             {/* Debug */}
-            <TouchableOpacity
-              onPress={handleDebugLastResponse}
-              style={styles.iconButton}
-              disabled={combinedIsLoading || messages.filter(m => m.user._id === 2).length === 0}
-            >
-              <Ionicons
-                name="bug-outline"
-                size={24}
-                color={
-                  combinedIsLoading || messages.filter(m => m.user._id === 2).length === 0
-                    ? theme.palette.text.disabled
-                    : theme.palette.primary
-                }
-              />
+            <TouchableOpacity onPress={handleDebugLastResponse} style={styles.iconButton} disabled={combinedIsLoading || messages.filter(m=>m.user._id===2).length===0} >
+              <Ionicons name="bug-outline" size={24} color={ combinedIsLoading || messages.filter(m=>m.user._id===2).length===0 ? theme.palette.text.disabled : theme.palette.primary } />
             </TouchableOpacity>
-
             {/* Expo Go */}
-            <TouchableOpacity
-              onPress={handleExpoGo}
-              style={styles.iconButton}
-              disabled={!projectData || combinedIsLoading}
-            >
-              <Ionicons
-                name="logo-react"
-                size={24}
-                color={
-                  !projectData || combinedIsLoading ? theme.palette.text.disabled : theme.palette.success
-                }
-              />
+            <TouchableOpacity onPress={handleExpoGo} style={styles.iconButton} disabled={!projectData || combinedIsLoading} >
+              <Ionicons name="logo-react" size={24} color={ !projectData || combinedIsLoading ? theme.palette.text.disabled : theme.palette.success } />
             </TouchableOpacity>
-
             {/* Input */}
-            <TextInput
-              style={styles.input}
-              placeholder={
-                !isSupabaseReady
-                  ? 'Verbinde...'
-                  : selectedFileAsset
-                  ? 'Zusatz...'
-                  : 'Nachricht...'
-              }
-              placeholderTextColor={theme.palette.text.secondary}
-              value={textInput}
-              onChangeText={setTextInput}
-              editable={!combinedIsLoading && isSupabaseReady}
-              multiline
-              blurOnSubmit={false}
-            />
-
+            <TextInput style={styles.input} placeholder={ !isSupabaseReady ? 'Verbinde...' : selectedFileAsset ? 'Zusatz...' : 'Nachricht...' } placeholderTextColor={theme.palette.text.secondary} value={textInput} onChangeText={setTextInput} editable={!combinedIsLoading && isSupabaseReady} multiline blurOnSubmit={false} />
             {/* Send */}
-            <TouchableOpacity
-              onPress={() => handleSend()}
-              disabled={
-                combinedIsLoading || !isSupabaseReady || (!textInput.trim() && !selectedFileAsset)
-              }
-              style={[
-                styles.sendButton,
-                (!isSupabaseReady ||
-                  combinedIsLoading ||
-                  (!textInput.trim() && !selectedFileAsset)) &&
-                  styles.sendButtonDisabled,
-              ]}
-            >
-              {isAiLoading ? (
-                <ActivityIndicator size="small" color={theme.palette.background} />
-              ) : (
-                <Ionicons name="send" size={24} color={theme.palette.background} />
-              )}
+            <TouchableOpacity onPress={() => handleSend()} disabled={ combinedIsLoading || !isSupabaseReady || (!textInput.trim() && !selectedFileAsset) } style={[ styles.sendButton, (!isSupabaseReady || combinedIsLoading || (!textInput.trim() && !selectedFileAsset)) && styles.sendButtonDisabled, ]} >
+              {isAiLoading ? ( <ActivityIndicator size="small" color={theme.palette.background} /> ) : ( <Ionicons name="send" size={24} color={theme.palette.background} /> )}
             </TouchableOpacity>
           </View>
         </View>
@@ -652,104 +553,30 @@ const ChatScreen: React.FC<{ navigation: any; route: { params?: { debugCode?: st
 // ============================================================================
 // STYLES
 // ============================================================================
-
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: theme.palette.background },
   keyboardAvoidingContainer: { flex: 1 },
-  loadingIndicator: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: [{ translateX: -15 }, { translateY: -15 }],
-    zIndex: 10,
-  },
+  loadingIndicator: { position: 'absolute', top: '50%', left: '50%', transform: [{ translateX: -15 }, { translateY: -15 }], zIndex: 10, },
   list: { flex: 1 },
   listContent: { paddingVertical: 10, paddingHorizontal: 10 },
-  messageBubble: {
-    borderRadius: 15,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginBottom: 8,
-    maxWidth: '85%',
-    borderWidth: 1,
-  },
-  userMessage: {
-    backgroundColor: theme.palette.primary + '20',
-    borderColor: theme.palette.primary,
-    alignSelf: 'flex-end',
-    borderBottomRightRadius: 3,
-  },
-  aiMessage: {
-    backgroundColor: theme.palette.card,
-    borderColor: theme.palette.border,
-    alignSelf: 'flex-start',
-    borderBottomLeftRadius: 3,
-  },
+  messageBubble: { borderRadius: 15, paddingVertical: 10, paddingHorizontal: 14, marginBottom: 8, maxWidth: '85%', borderWidth: 1, },
+  userMessage: { backgroundColor: theme.palette.primary + '20', borderColor: theme.palette.primary, alignSelf: 'flex-end', borderBottomRightRadius: 3, },
+  aiMessage: { backgroundColor: theme.palette.card, borderColor: theme.palette.border, alignSelf: 'flex-start', borderBottomLeftRadius: 3, },
   messagePressed: { opacity: 0.7 },
   userMessageText: { fontSize: 15, color: theme.palette.text.primary },
   aiMessageText: { fontSize: 15, color: theme.palette.text.primary },
-  inputContainerOuter: {
-    borderTopWidth: 1,
-    borderTopColor: theme.palette.border,
-    backgroundColor: theme.palette.background,
-  },
-  attachedFileContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.palette.input.background + '80',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    marginHorizontal: 10,
-    marginTop: 5,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-  },
-  attachedFileText: {
-    flex: 1,
-    marginLeft: 6,
-    marginRight: 6,
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-  },
+  inputContainerOuter: { borderTopWidth: 1, borderTopColor: theme.palette.border, backgroundColor: theme.palette.background, },
+  attachedFileContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.palette.input.background + '80', paddingVertical: 4, paddingHorizontal: 10, marginHorizontal: 10, marginTop: 5, borderRadius: 10, borderWidth: 1, borderColor: theme.palette.border, },
+  attachedFileText: { flex: 1, marginLeft: 6, marginRight: 6, fontSize: 12, color: theme.palette.text.secondary, },
   removeFileButton: { padding: 2 },
-  inputContainerInner: {
-    flexDirection: 'row',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    alignItems: 'flex-end',
-  },
+  inputContainerInner: { flexDirection: 'row', paddingHorizontal: 8, paddingVertical: 8, alignItems: 'flex-end', },
   iconButton: { padding: 8, marginBottom: 5 },
-  input: {
-    flex: 1,
-    backgroundColor: theme.palette.input.background,
-    borderRadius: 18,
-    paddingHorizontal: 15,
-    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
-    paddingTop: Platform.OS === 'ios' ? 10 : 8,
-    color: theme.palette.text.primary,
-    fontSize: 16,
-    maxHeight: 120,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    marginRight: 8,
-  },
-  sendButton: {
-    backgroundColor: theme.palette.primary,
-    borderRadius: 22,
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 5,
-  },
+  input: { flex: 1, backgroundColor: theme.palette.input.background, borderRadius: 18, paddingHorizontal: 15, paddingVertical: Platform.OS === 'ios' ? 10 : 8, paddingTop: Platform.OS === 'ios' ? 10 : 8, color: theme.palette.text.primary, fontSize: 16, maxHeight: 120, borderWidth: 1, borderColor: theme.palette.border, marginRight: 8, },
+  sendButton: { backgroundColor: theme.palette.primary, borderRadius: 22, width: 44, height: 44, justifyContent: 'center', alignItems: 'center', marginBottom: 5, },
   sendButtonDisabled: { backgroundColor: theme.palette.text.disabled },
-  errorContainer: {
-    paddingHorizontal: 15,
-    paddingVertical: 5,
-    backgroundColor: theme.palette.error + '20',
-  },
+  errorContainer: { paddingHorizontal: 15, paddingVertical: 5, backgroundColor: theme.palette.error + '20', },
   errorText: { color: theme.palette.error, textAlign: 'center', fontSize: 13 },
 });
 
 export default ChatScreen;
+
