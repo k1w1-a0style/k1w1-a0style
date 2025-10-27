@@ -38,10 +38,8 @@ const extractJsonArray = (text: string): string | null => {
 
 const tryParseJsonWithRepair = (jsonString: string): ProjectFile[] | null => {
   try {
-    // 1. Standard-Parse
     return JSON.parse(jsonString) as ProjectFile[];
   } catch (e) {
-    // 2. Fallback mit jsonrepair
     try {
       const repaired = jsonrepair(jsonString);
       const result = JSON.parse(repaired);
@@ -50,7 +48,6 @@ const tryParseJsonWithRepair = (jsonString: string): ProjectFile[] | null => {
         (result.length === 0 || (result[0]?.path && typeof result[0].content !== 'undefined'))
       ) {
         console.log('✅ JSON repariert');
-        // Sicherstellen, dass content string ist
         return result.map((file) => ({
           ...file,
           content:
@@ -64,7 +61,6 @@ const tryParseJsonWithRepair = (jsonString: string): ProjectFile[] | null => {
       }
     } catch (error) {
       console.error('❌ JSON Parse fehlgeschlagen:', error);
-      console.error("   -> Fehlerhafter String (Anfang):", jsonString.substring(0, 200));
       return null;
     }
   }
@@ -111,11 +107,10 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const [error, setError] = useState<string | null>(null);
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [selectedFileAsset, setSelectedFileAsset] = useState<DocumentResultAsset | null>(null);
-  
+
   const historyRef = useRef(new ConversationHistory());
   const rotationCounters = useRef<Record<string, number>>({ groq: 0, gemini: 0, openai: 0, anthropic: 0 });
 
-  // Load Supabase
   const loadClient = useCallback(async () => {
     setError(null);
     try {
@@ -125,14 +120,13 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       setError('Supabase Fehler');
     }
   }, []);
+  
   useFocusEffect(useCallback(() => { loadClient(); }, [loadClient]));
 
-  // Load history
   useEffect(() => {
     historyRef.current.loadFromMessages(messages);
   }, [messages]);
 
-  // File picker
   const handlePickDocument = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -156,12 +150,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
     }
   };
 
-  // ============================================================================
-  // MAIN SEND LOGIC
-  // ============================================================================
   const handleSend = useCallback(
     async (customPrompt?: string) => {
-      // --- 1. Validierung & Vorbereitung ---
       let userPrompt = customPrompt ?? textInput.trim();
       const fileToSend = selectedFileAsset;
       const displayPrompt =
@@ -183,7 +173,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       rotationCounters.current = { groq: 0, gemini: 0, openai: 0, anthropic: 0 };
       setIsAiLoading(true);
 
-      // --- 2. Datei-Inhalt lesen ---
       let messageForHistory = userPrompt;
       if (fileToSend && !customPrompt) {
         try {
@@ -193,7 +182,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
           messageForHistory = `--- Datei: ${fileToSend.name} ---\n${fileContent}\n--- Ende ---\n\n${
             userPrompt || '(Siehe Datei)'
           }`;
-          console.log(`Datei gelesen: ${fileToSend.name} (${fileContent.length} chars)`);
         } catch (readError: any) {
           console.error('Read Fail:', readError);
           Alert.alert('Lese-Fehler', `Datei "${fileToSend.name}" konnte nicht gelesen werden.`);
@@ -203,7 +191,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         }
       }
 
-      // --- 3. UI-Update (Optimistisch) ---
       const userMessage: ChatMessage = {
         _id: uuidv4(),
         text: displayPrompt || '...',
@@ -214,7 +201,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       if (fileToSend && !customPrompt) setSelectedFileAsset(null);
 
       historyRef.current.addUser(messageForHistory);
-      const originalMessages = messages; // Merke dir den Stand vor dem Senden
+      const originalMessages = messages;
       await updateMessages([userMessage, ...originalMessages]);
 
       let finalProjectFiles: ProjectFile[] | null = null;
@@ -223,11 +210,9 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       let aiMessageId = uuidv4();
 
       try {
-        // ========================================================================
-        // STAGE 1: GROQ (Generator)
-        // ========================================================================
         console.log(`🚀 Stage 1: Groq (${config.selectedChatMode})`);
         currentProvider = CHAT_PROVIDER;
+
         const groqApiKey = getCurrentApiKey(CHAT_PROVIDER);
         if (!groqApiKey) throw new Error(`Kein API Key für ${CHAT_PROVIDER.toUpperCase()}`);
 
@@ -252,6 +237,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         );
 
         if (groqFuncErr) throw groqFuncErr;
+
         const groqRawResponse = groqData?.response?.trim() || '';
         if (!groqRawResponse) {
           console.warn('⚠️ Groq: Leere Antwort');
@@ -260,14 +246,9 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         console.log(`💬 Groq Antwort: ${groqRawResponse.length} chars`);
         historyRef.current.addAssistant(groqRawResponse);
 
-        // ========================================================================
-        // QUALITY MODE DECISION
-        // ========================================================================
         const potentialJsonString = extractJsonArray(groqRawResponse);
-        let agentUsed = false;
 
         if (config.qualityMode === 'speed') {
-          // --- GESCHWINDIGKEITSMODUS ---
           console.log('⚙️ Modus: Geschwindigkeit');
           if (potentialJsonString) {
             finalProjectFiles = tryParseJsonWithRepair(potentialJsonString);
@@ -278,12 +259,10 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
           } else {
             finalAiTextMessage = groqRawResponse;
           }
-
         } else {
-          // --- QUALITÄTSMODUS ---
-          agentUsed = true;
           console.log(`⚙️ Modus: Qualität - Stage 2: Gemini (${config.selectedAgentMode})`);
           currentProvider = AGENT_PROVIDER;
+
           const geminiApiKey = getCurrentApiKey(AGENT_PROVIDER);
           if (!geminiApiKey) throw new Error(`Kein API Key für ${AGENT_PROVIDER.toUpperCase()}`);
 
@@ -316,7 +295,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
           }
           console.log(`🤖 Agent Antwort: ${agentResponse.length} chars`);
 
-          // Überschreibe letzte History-Nachricht
           const currentHist = historyRef.current.getHistory();
           if (currentHist.length > 0 && currentHist[currentHist.length-1].role === 'assistant') {
               currentHist[currentHist.length-1].content = agentResponse;
@@ -336,50 +314,37 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
           }
         }
 
-        // ========================================================================
-        // 4. VERARBEITUNG & UI-UPDATE (Erfolg)
-        // ========================================================================
         let aiMessageTextToShow: string;
 
         if (finalProjectFiles) {
-          // CODE UPDATE
           await updateProjectFiles(finalProjectFiles);
           aiMessageTextToShow = `✅ Projekt aktualisiert (${finalProjectFiles.length} Dateien${config.qualityMode === 'quality' ? ' - Agent geprüft' : ''})`;
 
-          // Aktualisiere History-Eintrag auf sauberen Text
           const currentHist = historyRef.current.getHistory();
           if (currentHist.length > 0 && currentHist[currentHist.length - 1].role === 'assistant') {
               currentHist[currentHist.length - 1].content = `[Code mit ${finalProjectFiles.length} Dateien generiert]`;
           }
         } else if (finalAiTextMessage) {
-          // TEXTANTWORT
           aiMessageTextToShow = finalAiTextMessage;
           console.log('💬 Normale Textantwort wird angezeigt.');
         } else {
-          // UNERWARTETER FALL
           aiMessageTextToShow = 'Fehler: Keine gültige Antwort erhalten.';
           setError(aiMessageTextToShow);
         }
 
-        // Erstelle finale AI-Nachricht
         const aiMessage: ChatMessage = {
           _id: aiMessageId,
           text: aiMessageTextToShow,
           createdAt: new Date(),
           user: { _id: 2, name: 'AI' },
         };
-        // Aktualisiere den Chat-State
         await updateMessages([aiMessage, userMessage, ...originalMessages]);
 
       } catch (e: any) {
-        // ========================================================================
-        // 5. FEHLERBEHANDLUNG
-        // ========================================================================
         console.error(`❌ Send Fail (${currentProvider}):`, e);
         let detailMsg = e.message || 'Unbekannter Fehler';
         const status = e.status || 500;
 
-        // Key Rotation
         if (status === 401 || status === 429) {
           const provider = currentProvider;
           const keyListLength = config.keys[provider]?.length || 0;
@@ -387,7 +352,9 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
 
           if (currentRotationCount >= keyListLength) {
             detailMsg = `Alle ${provider.toUpperCase()} Keys verbraucht (${status})`;
-            Alert.alert('Keys erschöpft', detailMsg); addLog(detailMsg); setError(detailMsg);
+            Alert.alert('Keys erschöpft', detailMsg); 
+            addLog(detailMsg); 
+            setError(detailMsg);
           } else {
             console.log(`🔑 Key Problem (${status}) bei ${provider}, rotiere...`);
             addLog(`Key ${provider} (${status}). Rotiere...`);
@@ -399,7 +366,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
               setError(detailMsg);
             } else {
               detailMsg = `Key-Rotation fehlgeschlagen (${status})`;
-              Alert.alert('Fehler', detailMsg); setError(detailMsg);
+              Alert.alert('Fehler', detailMsg); 
+              setError(detailMsg);
             }
           }
         } else {
@@ -407,9 +375,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
           setError(detailMsg);
         }
 
-        // Setze Chat-State zurück (entferne optimistische User-Nachricht)
         await updateMessages(originalMessages);
-        historyRef.current.loadFromMessages(originalMessages); // Setze History zurück
+        historyRef.current.loadFromMessages(originalMessages);
 
       } finally {
         setIsAiLoading(false);
@@ -422,7 +389,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
     ]
   );
 
-  // --- Debug Handlers ---
   useEffect(() => {
     if (route.params?.debugCode) {
       const code = route.params.debugCode;
@@ -445,45 +411,40 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
     handleSend(prompt);
   };
 
-  // --- Expo Go Handler ---
   const handleExpoGo = () => {
-    if (!projectData) { Alert.alert('Fehler', 'Kein Projekt geladen'); return; }
-    // Ersetze 'localhost' durch eine IP, die dein Gerät erreichen kann
-    const metroHost = "192.168.43.1:8081";
-    const expUrl = `exp://${metroHost}`; 
-    
+    if (!projectData) { 
+      Alert.alert('Fehler', 'Kein Projekt geladen'); 
+      return; 
+    }
+    const metroHost = "10.166.37.50:8081"; // Aus deinen Logs
+    const expUrl = `exp://${metroHost}`;
+
     Alert.alert(
       'Expo Go Vorschau',
-      `Stelle sicher, dass dein Metro Bundler läuft und vom Gerät erreichbar ist.\n\nÖffne in Expo Go:\n${expUrl}`,
+      `Öffne Expo Go und scanne den QR-Code oder öffne:\n\n${expUrl}`,
       [
         { text: 'URL kopieren', onPress: () => Clipboard.setStringAsync(expUrl) },
         { text: 'OK' },
       ]
     );
-    console.log(`📲 Expo Go URL (manuell öffnen/scannen): ${expUrl}`);
+    console.log(`📲 Expo Go URL: ${expUrl}`);
     addLog(`Expo Go URL: ${expUrl}`);
   };
 
   const isSupabaseReady = supabase && !supabase.functions.invoke.toString().includes('DUMMY_CLIENT');
   const combinedIsLoading = isAiLoading || isProjectLoading;
 
-  // ============================================================================
-  // RENDER
-  // ============================================================================
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
-      {/* 🔥 FIX: KeyboardAvoidingView angepasst */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardAvoidingContainer}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0} // Dein vorgeschlagener Wert
+        keyboardVerticalOffset={0}
       >
-        {/* Loading */}
         {(!supabase || (isProjectLoading && messages.length === 0)) && (
           <ActivityIndicator style={styles.loadingIndicator} color={theme.palette.primary} size="large" />
         )}
 
-        {/* Messages */}
         <FlatList
           data={messages}
           renderItem={({ item }) => <MessageItem item={item} />}
@@ -497,36 +458,55 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
           windowSize={11}
         />
 
-        {/* Error */}
         {error && (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{String(error)}</Text>
           </View>
         )}
 
-        {/* Input Area */}
         <View style={styles.inputContainerOuter}>
           {selectedFileAsset && (
-             <View style={styles.attachedFileContainer}><Ionicons name="document-attach-outline" size={16} color={theme.palette.text.secondary} /><Text style={styles.attachedFileText} numberOfLines={1}>{selectedFileAsset.name}</Text><TouchableOpacity onPress={()=>setSelectedFileAsset(null)} style={styles.removeFileButton}><Ionicons name="close-circle" size={18} color={theme.palette.text.secondary} /></TouchableOpacity></View>
+             <View style={styles.attachedFileContainer}>
+               <Ionicons name="document-attach-outline" size={16} color={theme.palette.text.secondary} />
+               <Text style={styles.attachedFileText} numberOfLines={1}>{selectedFileAsset.name}</Text>
+               <TouchableOpacity onPress={()=>setSelectedFileAsset(null)} style={styles.removeFileButton}>
+                 <Ionicons name="close-circle" size={18} color={theme.palette.text.secondary} />
+               </TouchableOpacity>
+             </View>
           )}
           <View style={styles.inputContainerInner}>
-            {/* Attach */}
             <TouchableOpacity onPress={handlePickDocument} style={styles.iconButton} disabled={combinedIsLoading} >
               <Ionicons name="add-circle-outline" size={28} color={combinedIsLoading ? theme.palette.text.disabled : theme.palette.primary} />
             </TouchableOpacity>
-            {/* Debug */}
             <TouchableOpacity onPress={handleDebugLastResponse} style={styles.iconButton} disabled={combinedIsLoading || messages.filter(m=>m.user._id===2).length===0} >
               <Ionicons name="bug-outline" size={24} color={ combinedIsLoading || messages.filter(m=>m.user._id===2).length===0 ? theme.palette.text.disabled : theme.palette.primary } />
             </TouchableOpacity>
-            {/* Expo Go */}
             <TouchableOpacity onPress={handleExpoGo} style={styles.iconButton} disabled={!projectData || combinedIsLoading} >
               <Ionicons name="logo-react" size={24} color={ !projectData || combinedIsLoading ? theme.palette.text.disabled : theme.palette.success } />
             </TouchableOpacity>
-            {/* Input */}
-            <TextInput style={styles.input} placeholder={ !isSupabaseReady ? 'Verbinde...' : selectedFileAsset ? 'Zusatz...' : 'Nachricht...'} placeholderTextColor={theme.palette.text.secondary} value={textInput} onChangeText={setTextInput} editable={!combinedIsLoading && isSupabaseReady} multiline blurOnSubmit={false} />
-            {/* Send */}
-            <TouchableOpacity onPress={() => handleSend()} disabled={ combinedIsLoading || !isSupabaseReady || (!textInput.trim() && !selectedFileAsset) } style={[ styles.sendButton, (!isSupabaseReady || combinedIsLoading || (!textInput.trim() && !selectedFileAsset)) && styles.sendButtonDisabled, ]} >
-              {isAiLoading ? ( <ActivityIndicator size="small" color={theme.palette.background} /> ) : ( <Ionicons name="send" size={24} color={theme.palette.background} /> )}
+            <TextInput 
+              style={styles.input} 
+              placeholder={!isSupabaseReady ? 'Verbinde...' : selectedFileAsset ? 'Zusatz...' : 'Nachricht...'} 
+              placeholderTextColor={theme.palette.text.secondary} 
+              value={textInput} 
+              onChangeText={setTextInput} 
+              editable={!combinedIsLoading && isSupabaseReady} 
+              multiline 
+              blurOnSubmit={false} 
+            />
+            <TouchableOpacity 
+              onPress={() => handleSend()} 
+              disabled={combinedIsLoading || !isSupabaseReady || (!textInput.trim() && !selectedFileAsset)} 
+              style={[
+                styles.sendButton, 
+                (!isSupabaseReady || combinedIsLoading || (!textInput.trim() && !selectedFileAsset)) && styles.sendButtonDisabled
+              ]} 
+            >
+              {isAiLoading ? (
+                <ActivityIndicator size="small" color={theme.palette.background} />
+              ) : (
+                <Ionicons name="send" size={24} color={theme.palette.background} />
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -535,33 +515,103 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   );
 };
 
-// ============================================================================
-// STYLES
-// ============================================================================
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: theme.palette.background },
   keyboardAvoidingContainer: { flex: 1 },
-  loadingIndicator: { position: 'absolute', top: '50%', left: '50%', transform: [{ translateX: -15 }, { translateY: -15 }], zIndex: 10, },
+  loadingIndicator: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -15 }, { translateY: -15 }],
+    zIndex: 10,
+  },
   list: { flex: 1 },
   listContent: { paddingVertical: 10, paddingHorizontal: 10 },
-  messageBubble: { borderRadius: 15, paddingVertical: 10, paddingHorizontal: 14, marginBottom: 8, maxWidth: '85%', borderWidth: 1, },
-  userMessage: { backgroundColor: theme.palette.primary + '20', borderColor: theme.palette.primary, alignSelf: 'flex-end', borderBottomRightRadius: 3, },
-  aiMessage: { backgroundColor: theme.palette.card, borderColor: theme.palette.border, alignSelf: 'flex-start', borderBottomLeftRadius: 3, },
+  messageBubble: {
+    borderRadius: 15,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+    maxWidth: '85%',
+    borderWidth: 1,
+  },
+  userMessage: {
+    backgroundColor: theme.palette.primary + '20',
+    borderColor: theme.palette.primary,
+    alignSelf: 'flex-end',
+    borderBottomRightRadius: 3,
+  },
+  aiMessage: {
+    backgroundColor: theme.palette.card,
+    borderColor: theme.palette.border,
+    alignSelf: 'flex-start',
+    borderBottomLeftRadius: 3,
+  },
   messagePressed: { opacity: 0.7 },
   userMessageText: { fontSize: 15, color: theme.palette.text.primary },
   aiMessageText: { fontSize: 15, color: theme.palette.text.primary },
-  inputContainerOuter: { borderTopWidth: 1, borderTopColor: theme.palette.border, backgroundColor: theme.palette.background, },
-  attachedFileContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.palette.input.background + '80', paddingVertical: 4, paddingHorizontal: 10, marginHorizontal: 10, marginTop: 5, borderRadius: 10, borderWidth: 1, borderColor: theme.palette.border, },
-  attachedFileText: { flex: 1, marginLeft: 6, marginRight: 6, fontSize: 12, color: theme.palette.text.secondary, },
+  inputContainerOuter: {
+    borderTopWidth: 1,
+    borderTopColor: theme.palette.border,
+    backgroundColor: theme.palette.background,
+  },
+  attachedFileContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.palette.input.background + '80',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    marginHorizontal: 10,
+    marginTop: 5,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  attachedFileText: {
+    flex: 1,
+    marginLeft: 6,
+    marginRight: 6,
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+  },
   removeFileButton: { padding: 2 },
-  inputContainerInner: { flexDirection: 'row', paddingHorizontal: 8, paddingVertical: 8, alignItems: 'flex-end', },
+  inputContainerInner: {
+    flexDirection: 'row',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    alignItems: 'flex-end',
+  },
   iconButton: { padding: 8, marginBottom: 5 },
-  input: { flex: 1, backgroundColor: theme.palette.input.background, borderRadius: 18, paddingHorizontal: 15, paddingVertical: Platform.OS === 'ios' ? 10 : 8, paddingTop: Platform.OS === 'ios' ? 10 : 8, color: theme.palette.text.primary, fontSize: 16, maxHeight: 120, borderWidth: 1, borderColor: theme.palette.border, marginRight: 8, },
-  sendButton: { backgroundColor: theme.palette.primary, borderRadius: 22, width: 44, height: 44, justifyContent: 'center', alignItems: 'center', marginBottom: 5, },
+  input: {
+    flex: 1,
+    backgroundColor: theme.palette.input.background,
+    borderRadius: 18,
+    paddingHorizontal: 15,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
+    paddingTop: Platform.OS === 'ios' ? 10 : 8,
+    color: theme.palette.text.primary,
+    fontSize: 16,
+    maxHeight: 120,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    marginRight: 8,
+  },
+  sendButton: {
+    backgroundColor: theme.palette.primary,
+    borderRadius: 22,
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
   sendButtonDisabled: { backgroundColor: theme.palette.text.disabled },
-  errorContainer: { paddingHorizontal: 15, paddingVertical: 5, backgroundColor: theme.palette.error + '20', },
+  errorContainer: {
+    paddingHorizontal: 15,
+    paddingVertical: 5,
+    backgroundColor: theme.palette.error + '20',
+  },
   errorText: { color: theme.palette.error, textAlign: 'center', fontSize: 13 },
 });
 
 export default ChatScreen;
-

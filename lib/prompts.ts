@@ -80,7 +80,7 @@ export const buildPrompt = (
     const instruction = role === 'agent'
         ? '\nDein Job ist es, die Generator-Antwort in valides JSON (nur neue/geänderte Dateien) zu formatieren.'
         : '\nÄndere nur nötige Dateien basierend auf der Anfrage.';
-    projectContext = `\n\nPROJEKT (${projectFiles.length} Dateien):\n${JSON.stringify(filePaths)}${instruction}`;
+    projectContext = `\n\nAKTUELLER PROJEKT-STATUS (${projectFiles.length} Dateien):\n${JSON.stringify(filePaths)}${instruction}`;
   }
 
   const fullSystemPrompt = `${systemPromptContent}${projectContext}`;

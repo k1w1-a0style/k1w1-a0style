@@ -1,135 +1,244 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import Groq from 'npm:groq-sdk'
-import OpenAI from 'npm:openai'
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from 'npm:@google/generative-ai' // Safety import
-import Anthropic from 'npm:@anthropic-ai/sdk'
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
-interface PromptMessage { role: 'system' | 'user' | 'assistant'; content: string; }
-interface RequestBody { provider: 'groq' | 'openai' | 'gemini' | 'anthropic'; model: string; apiKey: string; messages: PromptMessage[]; }
-
-const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
-
-console.log('k1w1-handler Function gestartet (Version 2.1 - Robuster + Gemini Fix)')
-
-// Helper für Gemini (konvertiert System+User/Assistant zu User/Model)
-function convertToGemini(messages: PromptMessage[]) {
-    const geminiMessages: { role: 'user' | 'model', parts: { text: string }[] }[] = [];
-    let systemPrompt = '';
-    messages.forEach(msg => {
-        if (msg.role === 'system') {
-            systemPrompt = (systemPrompt ? systemPrompt + '\n' : '') + msg.content;
-        } else if (msg.role === 'user') {
-            // Füge System-Prompt zur *ersten* User-Nachricht hinzu
-            const userContent = systemPrompt ? `${systemPrompt}\n\nUSER FRAGT:\n${msg.content}` : msg.content;
-            geminiMessages.push({ role: 'user', parts: [{ text: userContent }] });
-            systemPrompt = ''; // System-Prompt nur einmal hinzufügen
-        } else if (msg.role === 'assistant') {
-            geminiMessages.push({ role: 'model', parts: [{ text: msg.content }] });
-        }
-    });
-    // Falls nur System-Prompt da war (sollte nicht passieren, aber sicher ist sicher)
-    if (systemPrompt && geminiMessages.length === 0) {
-         geminiMessages.push({ role: 'user', parts: [{ text: systemPrompt }] });
-    }
-    return geminiMessages;
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// ✅ Safety Settings für Gemini (weniger Blockaden bei Code)
-const safetySettings = [
-  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-];
+interface Message {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+interface RequestBody {
+  messages: Message[];
+  apiKey: string;
+  provider: 'groq' | 'gemini' | 'openai' | 'anthropic';
+  model: string;
+}
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') { return new Response('ok', { headers: corsHeaders }) }
+  // CORS Preflight
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
 
   try {
-    const body: RequestBody = await req.json();
-    const { provider, model, apiKey, messages } = body;
-    if (!provider || !model || !apiKey || !messages || messages.length === 0) { throw new Error('Fehlende Parameter: provider, model, apiKey, oder messages Array') }
+    console.log('📥 k1w1-handler: Request empfangen')
+    
+    const body: RequestBody = await req.json()
+    const { messages, apiKey, provider, model } = body
 
-    console.log(`Anfrage: ${provider} / ${model} (${messages.length} Nachrichten)`);
-    let aiResponseText: string | null = '';
-    const lastUserMessage = messages[messages.length - 1].content; // Brauchen wir für Gemini Chat
+    console.log(`📊 Provider: ${provider}, Model: ${model}, Messages: ${messages?.length || 0}`)
 
-    switch (provider) {
-      case 'groq': {
-        const groq = new Groq({ apiKey: apiKey });
-        const chatCompletion = await groq.chat.completions.create({
-          messages: messages as Groq.Chat.Completions.CompletionCreateParams.Message[],
-          model: model, temperature: 0.3, max_tokens: 8000 // Temp runter für JSON
-        });
-        aiResponseText = chatCompletion.choices[0]?.message?.content || '';
-        break;
-      }
-      case 'openai': {
-        const openai = new OpenAI({ apiKey: apiKey });
-        const chatCompletion = await openai.chat.completions.create({
-          messages: messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-          model: model, temperature: 0.3 // Temp runter für JSON
-        });
-        aiResponseText = chatCompletion.choices[0]?.message?.content || '';
-        break;
-      }
-      case 'gemini': {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const geminiModel = genAI.getGenerativeModel({ model: model, safetySettings }); // ✅ Safety Settings
-        
-        // Konvertiere die gesamte History
-        const geminiHistory = convertToGemini(messages.slice(0, -1));
-
-        const chat = geminiModel.startChat({
-          history: geminiHistory,
-          generationConfig: { temperature: 0.4 } // Temp runter für JSON
-        });
-        const result = await chat.sendMessage(lastUserMessage); // Sende nur die letzte User-Nachricht
-        aiResponseText = result.response.text();
-        break;
-      }
-      case 'anthropic': {
-        const anthropic = new Anthropic({ apiKey: apiKey });
-        const systemPrompt = messages.find(m => m.role === 'system')?.content || '';
-        const userMessages = messages.filter(m => m.role !== 'system') as Anthropic.Messages.MessageParam[];
-        const msg = await anthropic.messages.create({
-          model: model, max_tokens: 4096, system: systemPrompt, messages: userMessages, temperature: 0.3 // Temp runter für JSON
-        });
-        // @ts-ignore // Anthropic SDK Typisierung ist manchmal unvollständig
-        aiResponseText = msg.content[0]?.text || '';
-        break;
-      }
-      default: throw new Error('Unbekannter Anbieter: ' + provider);
+    // Validierung
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      throw new Error('Messages array is required')
+    }
+    if (!apiKey || typeof apiKey !== 'string') {
+      throw new Error('API Key is required')
+    }
+    if (!provider) {
+      throw new Error('Provider is required')
+    }
+    if (!model) {
+      throw new Error('Model is required')
     }
 
-    console.log(`Erfolg: ${provider} (${aiResponseText?.length || 0} Zeichen)`);
-    return new Response(JSON.stringify({ response: aiResponseText || '' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+    let response: string = '';
 
-  } catch (error) {
-    console.error(`Fehler in k1w1-handler (${error.name}):`, error.message);
-    let statusCode = 500;
-    let errorMessage = error.message;
-    if (error instanceof Error) {
-        // @ts-ignore
-        if (error.status) statusCode = error.status;
-        // @ts-ignore
-        if (error.code === 'insufficient_quota') statusCode = 429; // Rate limit / Quota
-        // @ts-ignore
-        if (error.type === 'authentication_error') statusCode = 401; // Invalid API Key
-        // @ts-ignore
-        if (error.type === 'invalid_request_error') statusCode = 400; // Bad request (z.B. falsches Modell)
-        // @ts-ignore
-         if (error.message?.includes('SAFETY')) { // Gemini Safety Block
-             statusCode = 400; // Behandle als Bad Request
-             errorMessage = "Gemini Safety Block: Die Antwort wurde aufgrund von Sicherheitsrichtlinien blockiert.";
-             console.warn("Gemini Safety Block detektiert.");
-         }
+    // ========================================================================
+    // GROQ
+    // ========================================================================
+    if (provider === 'groq') {
+      console.log(`🚀 Calling Groq API...`)
+      
+      const groqModel = model === 'auto-groq' ? 'llama-3.3-70b-versatile' : model
+      
+      const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: groqModel,
+          messages: messages,
+          temperature: 0.7,
+          max_tokens: 4000,
+        }),
+      })
+
+      if (!groqRes.ok) {
+        const errorText = await groqRes.text()
+        console.error(`❌ Groq Error (${groqRes.status}):`, errorText)
+        throw new Error(`Groq API Error (${groqRes.status}): ${errorText.substring(0, 200)}`)
+      }
+
+      const data = await groqRes.json()
+      response = data.choices?.[0]?.message?.content || ''
+      
+      if (!response) {
+        throw new Error('Groq returned empty response')
+      }
+      
+      console.log(`✅ Groq Response: ${response.length} chars`)
+
+    // ========================================================================
+    // GEMINI
+    // ========================================================================
+    } else if (provider === 'gemini') {
+      console.log(`🤖 Calling Gemini API...`)
+      
+      // Konvertiere Messages für Gemini-Format
+      const geminiMessages = messages
+        .filter(m => m.role !== 'system')
+        .map(m => ({
+          role: m.role === 'user' ? 'user' : 'model',
+          parts: [{ text: m.content }]
+        }))
+
+      const systemInstruction = messages.find(m => m.role === 'system')?.content || ''
+
+      const requestBody: any = {
+        contents: geminiMessages,
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 4000,
+        },
+      }
+
+      if (systemInstruction) {
+        requestBody.systemInstruction = {
+          parts: [{ text: systemInstruction }]
+        }
+      }
+
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        }
+      )
+
+      if (!geminiRes.ok) {
+        const errorText = await geminiRes.text()
+        console.error(`❌ Gemini Error (${geminiRes.status}):`, errorText)
+        throw new Error(`Gemini API Error (${geminiRes.status}): ${errorText.substring(0, 200)}`)
+      }
+
+      const data = await geminiRes.json()
+      response = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+      
+      if (!response) {
+        throw new Error('Gemini returned empty response')
+      }
+      
+      console.log(`✅ Gemini Response: ${response.length} chars`)
+
+    // ========================================================================
+    // OPENAI
+    // ========================================================================
+    } else if (provider === 'openai') {
+      console.log(`🔵 Calling OpenAI API...`)
+      
+      const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: messages,
+          temperature: 0.7,
+          max_tokens: 4000,
+        }),
+      })
+
+      if (!openaiRes.ok) {
+        const errorText = await openaiRes.text()
+        console.error(`❌ OpenAI Error (${openaiRes.status}):`, errorText)
+        throw new Error(`OpenAI API Error (${openaiRes.status}): ${errorText.substring(0, 200)}`)
+      }
+
+      const data = await openaiRes.json()
+      response = data.choices?.[0]?.message?.content || ''
+      
+      if (!response) {
+        throw new Error('OpenAI returned empty response')
+      }
+      
+      console.log(`✅ OpenAI Response: ${response.length} chars`)
+
+    // ========================================================================
+    // ANTHROPIC
+    // ========================================================================
+    } else if (provider === 'anthropic') {
+      console.log(`🟣 Calling Anthropic API...`)
+      
+      const anthropicMessages = messages.filter(m => m.role !== 'system')
+      const systemMessage = messages.find(m => m.role === 'system')?.content || ''
+
+      const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: anthropicMessages,
+          system: systemMessage,
+          max_tokens: 4000,
+          temperature: 0.7,
+        }),
+      })
+
+      if (!anthropicRes.ok) {
+        const errorText = await anthropicRes.text()
+        console.error(`❌ Anthropic Error (${anthropicRes.status}):`, errorText)
+        throw new Error(`Anthropic API Error (${anthropicRes.status}): ${errorText.substring(0, 200)}`)
+      }
+
+      const data = await anthropicRes.json()
+      response = data.content?.[0]?.text || ''
+      
+      if (!response) {
+        throw new Error('Anthropic returned empty response')
+      }
+      
+      console.log(`✅ Anthropic Response: ${response.length} chars`)
+
+    } else {
+      throw new Error(`Unsupported provider: ${provider}`)
     }
-    // Detailliertere Fehlermeldung loggen
-    console.error(`Status Code: ${statusCode}, Message: ${errorMessage}`);
-    // @ts-ignore
-    if(error.response?.data) console.error("Response Data:", error.response.data);
 
-    return new Response(JSON.stringify({ error: errorMessage }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: statusCode });
+    // Success Response
+    return new Response(
+      JSON.stringify({ response }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200 
+      }
+    )
+
+  } catch (error: any) {
+    console.error('❌ k1w1-handler Error:', error)
+    
+    return new Response(
+      JSON.stringify({ 
+        error: error.message || 'Internal Server Error',
+        details: error.toString(),
+        stack: error.stack
+      }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500 
+      }
+    )
   }
 })

@@ -51,7 +51,6 @@ interface AIContextProps {
 // CONSTANTS & CONTEXT
 // ============================================================================
 const AIContext = createContext<AIContextProps | undefined>(undefined);
-
 // 🔥 FIX: Zurück zu v1!
 const CONFIG_STORAGE_KEY = 'ai_config_v1';
 
@@ -67,7 +66,7 @@ export const AVAILABLE_MODELS: Record<AllAIProviders, { id: string; label?: stri
     { id: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout' },
   ],
   gemini: [
-    { id: 'gemini-1.5-pro-latest', label: 'Gemini 1.5 Pro (Empfohlen)' },
+    { id: 'gemini-1.5-pro-latest', label: 'Gemini 1.5 Pro' },
     { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
     { id: 'gemini-1.5-flash-latest', label: 'Gemini 1.5 Flash' },
   ],
@@ -281,3 +280,4 @@ export const useAI = () => {
   if (!context) { throw new Error('useAI muss innerhalb von AIProvider verwendet werden'); }
   return context;
 };
+
