@@ -200,6 +200,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       let currentProvider: AllAIProviders = CHAT_PROVIDER;
       let aiMessageId = uuidv4();
 
+      // RETRY LOGIC MIT KEY ROTATION
       const callProviderWithRetry = async (
         provider: AllAIProviders,
         promptMessages: any[],
@@ -236,6 +237,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
             lastError = error;
             console.error(`❌ Fehler bei ${provider} (Versuch ${attempt + 1}):`, error.message);
             
+            // Prüfe ob wir rotieren sollten
             const errorMsg = error.message?.toLowerCase() || '';
             const shouldRotate = 
               errorMsg.includes('invalid') ||
@@ -251,13 +253,14 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
               if (newKey) {
                 console.log(`✅ Neuer Key aktiv: ${newKey.substring(0, 10)}...`);
                 addLog(`Key rotiert für ${provider}`);
-                continue;
+                continue; // Nächster Versuch
               } else {
                 console.log(`❌ Keine weiteren Keys für ${provider}`);
                 break;
               }
             }
             
+            // Bei organization_restricted sofort abbrechen
             if (errorMsg.includes('organization_restricted') || errorMsg.includes('account gesperrt')) {
               throw new Error(`${provider.toUpperCase()} Account ist GESPERRT! Verwende einen anderen Provider oder erstelle einen neuen Account.`);
             }
@@ -426,7 +429,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       Alert.alert('Fehler', 'Kein Projekt geladen');
       return;
     }
-    const metroHost = "10.212.162.31:8081";
+    const metroHost = "10.212.162.31:8081"; // Aktualisiert mit deiner IP
     const expUrl = `exp://${metroHost}`;
 
     Alert.alert(
@@ -445,93 +448,98 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const combinedIsLoading = isAiLoading || isProjectLoading;
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={messages}
-        renderItem={({ item }) => <MessageItem item={item} />}
-        keyExtractor={item => item._id}
-        inverted={true}
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-        keyboardShouldPersistTaps="handled"
-        initialNumToRender={15}
-        maxToRenderPerBatch={10}
-        windowSize={11}
-        ListFooterComponent={<View style={{ height: 80 }} />}
-      />
-
-      {(!supabase || (isProjectLoading && messages.length === 0)) && (
-        <ActivityIndicator style={styles.loadingIndicator} color={theme.palette.primary} size="large" />
-      )}
-
-      {error && (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{String(error)}</Text>
-        </View>
-      )}
-
+    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'position' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.keyboardAvoidingContainer}
+        keyboardVerticalOffset={HEADER_HEIGHT}
       >
-        <View style={styles.inputWrapper}>
-          {selectedFileAsset && (
-            <View style={styles.attachedFileContainer}>
-              <Ionicons name="document-attach-outline" size={16} color={theme.palette.text.secondary} />
-              <Text style={styles.attachedFileText} numberOfLines={1}>{selectedFileAsset.name}</Text>
-              <TouchableOpacity onPress={()=>setSelectedFileAsset(null)} style={styles.removeFileButton}>
-                <Ionicons name="close-circle" size={18} color={theme.palette.text.secondary} />
-              </TouchableOpacity>
+        <View style={styles.container}>
+          {(!supabase || (isProjectLoading && messages.length === 0)) && (
+            <ActivityIndicator style={styles.loadingIndicator} color={theme.palette.primary} size="large" />
+          )}
+
+          <FlatList
+            data={messages}
+            renderItem={({ item }) => <MessageItem item={item} />}
+            keyExtractor={item => item._id}
+            inverted={true}
+            style={styles.list}
+            contentContainerStyle={styles.listContent}
+            keyboardShouldPersistTaps="handled"
+            initialNumToRender={15}
+            maxToRenderPerBatch={10}
+            windowSize={11}
+          />
+
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{String(error)}</Text>
             </View>
           )}
-          <View style={styles.inputContainerInner}>
-            <TouchableOpacity onPress={handlePickDocument} style={styles.iconButton} disabled={combinedIsLoading}>
-              <Ionicons name="add-circle-outline" size={28} color={combinedIsLoading ? theme.palette.text.disabled : theme.palette.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleDebugLastResponse} style={styles.iconButton} disabled={combinedIsLoading || messages.filter(m=>m.user._id===2).length===0}>
-              <Ionicons name="bug-outline" size={24} color={combinedIsLoading || messages.filter(m=>m.user._id===2).length===0 ? theme.palette.text.disabled : theme.palette.primary} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleExpoGo} style={styles.iconButton} disabled={!projectData || combinedIsLoading}>
-              <Ionicons name="logo-react" size={24} color={!projectData || combinedIsLoading ? theme.palette.text.disabled : theme.palette.success} />
-            </TouchableOpacity>
-            <TextInput
-              style={styles.input}
-              placeholder={!isSupabaseReady ? 'Verbinde...' : selectedFileAsset ? 'Zusatz...' : 'Nachricht...'}
-              placeholderTextColor={theme.palette.text.secondary}
-              value={textInput}
-              onChangeText={setTextInput}
-              editable={!combinedIsLoading && isSupabaseReady}
-              multiline
-              blurOnSubmit={false}
-              maxHeight={120}
-              textAlignVertical="center"
-            />
-            <TouchableOpacity
-              onPress={() => handleSend()}
-              disabled={combinedIsLoading || !isSupabaseReady || (!textInput.trim() && !selectedFileAsset)}
-              style={[
-                styles.sendButton,
-                (!isSupabaseReady || combinedIsLoading || (!textInput.trim() && !selectedFileAsset)) && styles.sendButtonDisabled
-              ]}
-            >
-              {isAiLoading ? (
-                <ActivityIndicator size="small" color={theme.palette.background} />
-              ) : (
-                <Ionicons name="send" size={24} color={theme.palette.background} />
-              )}
-            </TouchableOpacity>
+
+          <View style={styles.inputContainerOuter}>
+            {selectedFileAsset && (
+               <View style={styles.attachedFileContainer}>
+                 <Ionicons name="document-attach-outline" size={16} color={theme.palette.text.secondary} />
+                 <Text style={styles.attachedFileText} numberOfLines={1}>{selectedFileAsset.name}</Text>
+                 <TouchableOpacity onPress={()=>setSelectedFileAsset(null)} style={styles.removeFileButton}>
+                   <Ionicons name="close-circle" size={18} color={theme.palette.text.secondary} />
+                 </TouchableOpacity>
+               </View>
+            )}
+            <View style={styles.inputContainerInner}>
+              <TouchableOpacity onPress={handlePickDocument} style={styles.iconButton} disabled={combinedIsLoading} >
+                <Ionicons name="add-circle-outline" size={28} color={combinedIsLoading ? theme.palette.text.disabled : theme.palette.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleDebugLastResponse} style={styles.iconButton} disabled={combinedIsLoading || messages.filter(m=>m.user._id===2).length===0} >
+                <Ionicons name="bug-outline" size={24} color={ combinedIsLoading || messages.filter(m=>m.user._id===2).length===0 ? theme.palette.text.disabled : theme.palette.primary } />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleExpoGo} style={styles.iconButton} disabled={!projectData || combinedIsLoading} >
+                <Ionicons name="logo-react" size={24} color={ !projectData || combinedIsLoading ? theme.palette.text.disabled : theme.palette.success } />
+              </TouchableOpacity>
+              <TextInput
+                style={styles.input}
+                placeholder={!isSupabaseReady ? 'Verbinde...' : selectedFileAsset ? 'Zusatz...' : 'Nachricht...'}
+                placeholderTextColor={theme.palette.text.secondary}
+                value={textInput}
+                onChangeText={setTextInput}
+                editable={!combinedIsLoading && isSupabaseReady}
+                multiline
+                blurOnSubmit={false}
+              />
+              <TouchableOpacity
+                onPress={() => handleSend()}
+                disabled={combinedIsLoading || !isSupabaseReady || (!textInput.trim() && !selectedFileAsset)}
+                style={[
+                  styles.sendButton,
+                  (!isSupabaseReady || combinedIsLoading || (!textInput.trim() && !selectedFileAsset)) && styles.sendButtonDisabled
+                ]}
+              >
+                {isAiLoading ? (
+                  <ActivityIndicator size="small" color={theme.palette.background} />
+                ) : (
+                  <Ionicons name="send" size={24} color={theme.palette.background} />
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: { 
+    flex: 1, 
+    backgroundColor: theme.palette.background 
+  },
+  keyboardAvoidingContainer: { 
+    flex: 1 
+  },
   container: {
-    flex: 1,
-    backgroundColor: theme.palette.background,
+    flex: 1
   },
   loadingIndicator: {
     position: 'absolute',
@@ -544,8 +552,8 @@ const styles = StyleSheet.create({
     flex: 1 
   },
   listContent: { 
-    paddingTop: 10,
-    paddingHorizontal: 10,
+    paddingVertical: 10, 
+    paddingHorizontal: 10 
   },
   messageBubble: {
     borderRadius: 15,
@@ -578,13 +586,7 @@ const styles = StyleSheet.create({
     fontSize: 15, 
     color: theme.palette.text.primary 
   },
-  keyboardAvoidingView: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  inputWrapper: {
+  inputContainerOuter: {
     borderTopWidth: 1,
     borderTopColor: theme.palette.border,
     backgroundColor: theme.palette.background,
@@ -614,8 +616,7 @@ const styles = StyleSheet.create({
   inputContainerInner: {
     flexDirection: 'row',
     paddingHorizontal: 8,
-    paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 8,
+    paddingVertical: 8,
     alignItems: 'flex-end',
   },
   iconButton: { 
@@ -631,7 +632,7 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 10 : 8,
     color: theme.palette.text.primary,
     fontSize: 16,
-    minHeight: 44,
+    maxHeight: 120,
     borderWidth: 1,
     borderColor: theme.palette.border,
     marginRight: 8,
@@ -652,12 +653,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 5,
     backgroundColor: theme.palette.error + '20',
-    position: 'absolute',
-    bottom: 85,
-    left: 10,
-    right: 10,
-    borderRadius: 8,
-    zIndex: 5,
   },
   errorText: { 
     color: theme.palette.error, 
