@@ -13,15 +13,11 @@ interface ModelConfig {
   label: string;
 }
 
+// ✅ NUR ECHTE, BEWÄHRTE MODELLE
 export const AVAILABLE_MODELS: Record<AllAIProviders, ModelConfig[]> = {
   groq: [
-    { id: 'auto-groq', label: 'Auto (Llama 3.3 70B)' },
-    { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile' },
-    { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant' },
-    { id: 'groq/compound', label: 'Groq Compound' },
-    { id: 'groq/compound-mini', label: 'Groq Compound Mini' },
-    { id: 'openai/gpt-oss-120b', label: 'GPT OSS 120B' },
-    { id: 'openai/gpt-oss-20b', label: 'GPT OSS 20B' },
+    { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B (Empfohlen)' },
+    { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B (Schnell)' },
   ],
   gemini: [
     { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
@@ -51,7 +47,7 @@ interface AIConfig {
 const defaultConfig: AIConfig = {
   keys: { groq: [], gemini: [], openai: [], anthropic: [] },
   keyIndexes: { groq: 0, gemini: 0, openai: 0, anthropic: 0 },
-  selectedChatMode: 'auto-groq',
+  selectedChatMode: 'llama-3.3-70b-versatile', // ✅ ECHTES DEFAULT
   selectedAgentMode: 'gemini-2.0-flash',
   qualityMode: 'speed',
 };
@@ -137,7 +133,7 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const newKeys = currentKeys.filter(k => k !== key);
     const currentIndex = config.keyIndexes[provider] || 0;
     const newIndex = currentIndex >= newKeys.length ? 0 : currentIndex;
-    
+
     const newConfig = {
       ...config,
       keys: { ...config.keys, [provider]: newKeys },
@@ -157,16 +153,16 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const rotateApiKey = async (provider: AllAIProviders): Promise<string | null> => {
     const keys = config.keys[provider] || [];
     if (keys.length <= 1) return getCurrentApiKey(provider);
-    
+
     const currentIndex = config.keyIndexes[provider] || 0;
     const nextIndex = (currentIndex + 1) % keys.length;
-    
+
     const newConfig = {
       ...config,
       keyIndexes: { ...config.keyIndexes, [provider]: nextIndex },
     };
     await saveConfig(newConfig);
-    
+
     console.log(`🔄 ${provider.toUpperCase()} Key rotiert: Index ${nextIndex}/${keys.length}`);
     return keys[nextIndex];
   };
@@ -192,7 +188,7 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 export const useAI = () => {
   const context = useContext(AIContext);
   if (!context) {
-    throw new Error('useAI must be used within an AIProvider');
+    throw new Error('useAI must be used within AIProvider');
   }
   return context;
 };
