@@ -12,9 +12,9 @@ import {
 } from '../contexts/AIContext';
 
 const getModelLabel = (provider: AllAIProviders, id: string): string => {
-    const models = AVAILABLE_MODELS[provider] || [];
-    const model = models.find(m => m.id === id);
-    return model?.label || id.split('/').pop()?.replace(/[-_]/g, ' ') || id;
+  const models = AVAILABLE_MODELS[provider] || [];
+  const model = models.find(m => m.id === id);
+  return model?.label || id.split('/').pop()?.replace(/[-_]/g, ' ') || id;
 };
 
 const SettingsScreen = () => {
@@ -67,10 +67,14 @@ const SettingsScreen = () => {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 70}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled">
-
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.contentContainer}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={true}
+        >
           <Text style={styles.sectionTitle}>⚙️ Modus</Text>
           <View style={styles.switchContainer}>
             <Text style={styles.switchLabel}>🚀 Schnell (1 Call)</Text>
@@ -145,7 +149,7 @@ const SettingsScreen = () => {
 
           <Text style={styles.sectionTitle}>🤖 Agent (Gemini)</Text>
           <Text style={styles.subTitle}>Modell (für Qualitätsmodus):</Text>
-           <View style={styles.modelContainer}>
+          <View style={styles.modelContainer}>
             {availableAgentModels.map(model => (
               <TouchableOpacity
                 key={model.id}
@@ -166,7 +170,7 @@ const SettingsScreen = () => {
           </View>
 
           <Text style={styles.subTitle}>API Keys:</Text>
-           {currentGeminiKeys.length > 0 && activeGeminiKey && (
+          {currentGeminiKeys.length > 0 && activeGeminiKey && (
             <View style={styles.activeKeyBanner}>
               <Ionicons name="checkmark-circle" size={18} color={theme.palette.success} />
               <Text style={styles.activeKeyText}>
@@ -199,13 +203,12 @@ const SettingsScreen = () => {
             onRemove={handleRemoveKey}
           />
 
-           <View style={styles.infoBox}>
+          <View style={styles.infoBox}>
             <Ionicons name="information-circle-outline" size={20} color={theme.palette.primary} />
             <Text style={styles.infoText}>
               Groq generiert Code. Gemini prüft Qualität (optional). Keys rotieren bei Fehlern automatisch.
             </Text>
           </View>
-
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

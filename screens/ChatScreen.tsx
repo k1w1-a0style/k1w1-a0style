@@ -1,11 +1,20 @@
 import React, { useState, useCallback, useEffect, memo, useRef } from 'react';
 import {
-  View, StyleSheet, FlatList, TextInput, Text, ActivityIndicator,
-  Alert, TouchableOpacity, KeyboardAvoidingView, Platform, Pressable,
+  View,
+  StyleSheet,
+  FlatList,
+  TextInput,
+  Text,
+  ActivityIndicator,
+  Alert,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ensureSupabaseClient } from '../lib/supabase';
-import { theme, HEADER_HEIGHT } from '../theme';
+import { theme } from '../theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { SupabaseClient } from '@supabase/supabase-js';
@@ -20,7 +29,10 @@ import { jsonrepair } from 'jsonrepair';
 import { v4 as uuidv4 } from 'uuid';
 
 type DocumentResultAsset = NonNullable<DocumentPicker.DocumentPickerResult['assets']>[0];
-type ChatScreenProps = { navigation: any; route: { params?: { debugCode?: string } } };
+type ChatScreenProps = {
+  navigation: any;
+  route: { params?: { debugCode?: string } }
+};
 
 const extractJsonArray = (text: string): string | null => {
   const match = text.match(/```json\s*(\[[\s\S]*\])\s*```|(\[[\s\S]*\])/);
@@ -42,7 +54,8 @@ const tryParseJsonWithRepair = (jsonString: string): ProjectFile[] | null => {
       const result = JSON.parse(repaired);
       if (
         Array.isArray(result) &&
-        (result.length === 0 || (result[0]?.path && typeof result[0].content !== 'undefined'))
+        (result.length === 0 ||
+          (result[0]?.path && typeof result[0].content !== 'undefined'))
       ) {
         console.log('✅ JSON repariert');
         return result.map((file) => ({
@@ -66,12 +79,14 @@ const tryParseJsonWithRepair = (jsonString: string): ProjectFile[] | null => {
 const MessageItem = memo(({ item }: { item: ChatMessage }) => {
   const messageText = item?.text?.trim() ?? '';
   if (item?.user?._id === 1 && messageText.length === 0) return null;
+
   const handleLongPress = () => {
     if (messageText) {
       Clipboard.setStringAsync(messageText);
       Alert.alert('Kopiert');
     }
   };
+
   return (
     <Pressable
       style={({ pressed }) => [
@@ -89,18 +104,28 @@ const MessageItem = memo(({ item }: { item: ChatMessage }) => {
 });
 
 const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
-  const { projectData, updateProjectFiles, messages, updateMessages, isLoading: isProjectLoading } = useProject();
+  const {
+    projectData,
+    updateProjectFiles,
+    messages,
+    updateMessages,
+    isLoading: isProjectLoading
+  } = useProject();
   const { config, getCurrentApiKey, rotateApiKey } = useAI();
   const { addLog } = useTerminal();
-
+  const flatListRef = useRef<FlatList>(null);
   const [textInput, setTextInput] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [selectedFileAsset, setSelectedFileAsset] = useState<DocumentResultAsset | null>(null);
-
   const historyRef = useRef(new ConversationHistory());
-  const rotationCounters = useRef<Record<string, number>>({ groq: 0, gemini: 0, openai: 0, anthropic: 0 });
+  const rotationCounters = useRef<Record<string, number>>({
+    groq: 0,
+    gemini: 0,
+    openai: 0,
+    anthropic: 0
+  });
 
   const loadClient = useCallback(async () => {
     setError(null);
@@ -112,10 +137,20 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { loadClient(); }, [loadClient]));
+  useFocusEffect(useCallback(() => {
+    loadClient();
+  }, [loadClient]));
 
   useEffect(() => {
     historyRef.current.loadFromMessages(messages);
+  }, [messages]);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      }, 100);
+    }
   }, [messages]);
 
   const handlePickDocument = async () => {
@@ -145,8 +180,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
     async (customPrompt?: string) => {
       let userPrompt = customPrompt ?? textInput.trim();
       const fileToSend = selectedFileAsset;
-      const displayPrompt =
-        textInput.trim() ||
+      const displayPrompt = textInput.trim() || 
         (fileToSend ? `(Datei: ${fileToSend.name})` : customPrompt ? 'Debug Anfrage' : '');
 
       if (
@@ -188,6 +222,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         createdAt: new Date(),
         user: { _id: 1, name: 'User' },
       };
+
       setTextInput('');
       if (fileToSend && !customPrompt) setSelectedFileAsset(null);
 
@@ -207,14 +242,12 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         maxRetries: number = 3
       ): Promise<any> => {
         let lastError: any = null;
-        
         for (let attempt = 0; attempt < maxRetries; attempt++) {
           const apiKey = getCurrentApiKey(provider);
-          
           console.log(`🔄 Versuch ${attempt + 1}/${maxRetries} für ${provider}`);
           console.log(`🔑 Verwende Key Index: ${config.keyIndexes[provider]} von ${config.keys[provider]?.length || 0}`);
           console.log(`🔑 Key: ${apiKey?.substring(0, 10)}...`);
-          
+
           if (!apiKey) {
             throw new Error(`Keine API Keys für ${provider} verfügbar`);
           }
@@ -231,20 +264,19 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
 
             if (error) throw error;
             return data;
-            
           } catch (error: any) {
             lastError = error;
             console.error(`❌ Fehler bei ${provider} (Versuch ${attempt + 1}):`, error.message);
-            
+
             const errorMsg = error.message?.toLowerCase() || '';
-            const shouldRotate = 
+            const shouldRotate =
               errorMsg.includes('invalid') ||
               errorMsg.includes('unauthorized') ||
               errorMsg.includes('restricted') ||
               errorMsg.includes('rate') ||
               error.status === 401 ||
               error.status === 429;
-            
+
             if (shouldRotate && attempt < maxRetries - 1) {
               console.log(`🔑 Rotiere Key für ${provider}...`);
               const newKey = await rotateApiKey(provider);
@@ -257,13 +289,12 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
                 break;
               }
             }
-            
+
             if (errorMsg.includes('organization_restricted') || errorMsg.includes('account gesperrt')) {
               throw new Error(`${provider.toUpperCase()} Account ist GESPERRT! Verwende einen anderen Provider oder erstelle einen neuen Account.`);
             }
           }
         }
-        
         throw lastError || new Error(`Alle Versuche für ${provider} fehlgeschlagen`);
       };
 
@@ -280,7 +311,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         );
 
         console.log(`📝 Sende ${groqPromptMessages.length} Messages an ${CHAT_PROVIDER}`);
-        
         const groqData = await callProviderWithRetry(
           CHAT_PROVIDER,
           groqPromptMessages,
@@ -292,6 +322,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
           console.warn(`⚠️ ${CHAT_PROVIDER}: Leere Antwort`);
           throw new Error(`${CHAT_PROVIDER} lieferte keine Antwort`);
         }
+
         console.log(`💬 ${CHAT_PROVIDER} Antwort: ${groqRawResponse.length} chars`);
         historyRef.current.addAssistant(groqRawResponse);
 
@@ -326,19 +357,19 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
             agentPromptMessages,
             config.selectedAgentMode
           );
-          
+
           const agentResponse = agentData?.response?.trim() || '';
           if (!agentResponse) {
             console.warn(`⚠️ ${AGENT_PROVIDER} Agent: Leere Antwort`);
             throw new Error('Agent lieferte keine Antwort');
           }
-          console.log(`🤖 Agent Antwort: ${agentResponse.length} chars`);
 
+          console.log(`🤖 Agent Antwort: ${agentResponse.length} chars`);
           const currentHist = historyRef.current.getHistory();
           if (currentHist.length > 0 && currentHist[currentHist.length-1].role === 'assistant') {
-              currentHist[currentHist.length-1].content = agentResponse;
+            currentHist[currentHist.length-1].content = agentResponse;
           } else {
-              historyRef.current.addAssistant(agentResponse);
+            historyRef.current.addAssistant(agentResponse);
           }
 
           const agentJsonString = extractJsonArray(agentResponse);
@@ -354,14 +385,12 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         }
 
         let aiMessageTextToShow: string;
-
         if (finalProjectFiles) {
           await updateProjectFiles(finalProjectFiles);
           aiMessageTextToShow = `✅ Projekt aktualisiert (${finalProjectFiles.length} Dateien${config.qualityMode === 'quality' ? ' - Agent geprüft' : ''})`;
-
           const currentHist = historyRef.current.getHistory();
           if (currentHist.length > 0 && currentHist[currentHist.length - 1].role === 'assistant') {
-              currentHist[currentHist.length - 1].content = `[Code mit ${finalProjectFiles.length} Dateien generiert]`;
+            currentHist[currentHist.length - 1].content = `[Code mit ${finalProjectFiles.length} Dateien generiert]`;
           }
         } else if (finalAiTextMessage) {
           aiMessageTextToShow = finalAiTextMessage;
@@ -376,26 +405,32 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
           createdAt: new Date(),
           user: { _id: 2, name: 'AI' },
         };
-        await updateMessages([aiMessage, userMessage, ...originalMessages]);
 
+        await updateMessages([aiMessage, userMessage, ...originalMessages]);
       } catch (e: any) {
         console.error(`❌ Send Fail (${currentProvider}):`, e);
         let detailMsg = e.message || 'Unbekannter Fehler';
-        
         Alert.alert('Fehler', detailMsg);
         setError(detailMsg);
-        
         await updateMessages(originalMessages);
         historyRef.current.loadFromMessages(originalMessages);
-
       } finally {
         setIsAiLoading(false);
       }
     },
     [
-      textInput, selectedFileAsset, supabase, config, projectData, messages,
-      isProjectLoading, getCurrentApiKey, rotateApiKey, addLog,
-      updateProjectFiles, updateMessages
+      textInput,
+      selectedFileAsset,
+      supabase,
+      config,
+      projectData,
+      messages,
+      isProjectLoading,
+      getCurrentApiKey,
+      rotateApiKey,
+      addLog,
+      updateProjectFiles,
+      updateMessages
     ]
   );
 
@@ -428,7 +463,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
     }
     const metroHost = "10.212.162.31:8081";
     const expUrl = `exp://${metroHost}`;
-
     Alert.alert(
       'Expo Go Vorschau',
       `Öffne Expo Go und scanne den QR-Code oder öffne:\n\n${expUrl}`,
@@ -445,55 +479,84 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const combinedIsLoading = isAiLoading || isProjectLoading;
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={messages}
-        renderItem={({ item }) => <MessageItem item={item} />}
-        keyExtractor={item => item._id}
-        inverted={true}
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-        keyboardShouldPersistTaps="handled"
-        initialNumToRender={15}
-        maxToRenderPerBatch={10}
-        windowSize={11}
-        ListFooterComponent={<View style={{ height: 80 }} />}
-      />
-
-      {(!supabase || (isProjectLoading && messages.length === 0)) && (
-        <ActivityIndicator style={styles.loadingIndicator} color={theme.palette.primary} size="large" />
-      )}
-
-      {error && (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{String(error)}</Text>
-        </View>
-      )}
-
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'position' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-        style={styles.keyboardAvoidingView}
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      <KeyboardAvoidingView 
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
       >
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={({ item }) => <MessageItem item={item} />}
+          keyExtractor={item => item._id}
+          inverted={true}
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          initialNumToRender={15}
+          maxToRenderPerBatch={10}
+          windowSize={11}
+        />
+
+        {(!supabase || (isProjectLoading && messages.length === 0)) && (
+          <ActivityIndicator
+            style={styles.loadingIndicator}
+            color={theme.palette.primary}
+            size="large"
+          />
+        )}
+
+        {error && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{String(error)}</Text>
+          </View>
+        )}
+
         <View style={styles.inputWrapper}>
           {selectedFileAsset && (
             <View style={styles.attachedFileContainer}>
-              <Ionicons name="document-attach-outline" size={16} color={theme.palette.text.secondary} />
+              <Ionicons name="document-attach-outline" size={14} color={theme.palette.text.secondary} />
               <Text style={styles.attachedFileText} numberOfLines={1}>{selectedFileAsset.name}</Text>
               <TouchableOpacity onPress={()=>setSelectedFileAsset(null)} style={styles.removeFileButton}>
-                <Ionicons name="close-circle" size={18} color={theme.palette.text.secondary} />
+                <Ionicons name="close-circle" size={16} color={theme.palette.text.secondary} />
               </TouchableOpacity>
             </View>
           )}
           <View style={styles.inputContainerInner}>
             <TouchableOpacity onPress={handlePickDocument} style={styles.iconButton} disabled={combinedIsLoading}>
-              <Ionicons name="add-circle-outline" size={28} color={combinedIsLoading ? theme.palette.text.disabled : theme.palette.primary} />
+              <Ionicons 
+                name="add-circle-outline" 
+                size={20} 
+                color={combinedIsLoading ? theme.palette.text.disabled : theme.palette.primary} 
+              />
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleDebugLastResponse} style={styles.iconButton} disabled={combinedIsLoading || messages.filter(m=>m.user._id===2).length===0}>
-              <Ionicons name="bug-outline" size={24} color={combinedIsLoading || messages.filter(m=>m.user._id===2).length===0 ? theme.palette.text.disabled : theme.palette.primary} />
+            <TouchableOpacity 
+              onPress={handleDebugLastResponse} 
+              style={styles.iconButton} 
+              disabled={combinedIsLoading || messages.filter(m=>m.user._id===2).length===0}
+            >
+              <Ionicons 
+                name="bug-outline" 
+                size={18} 
+                color={combinedIsLoading || messages.filter(m=>m.user._id===2).length===0 
+                  ? theme.palette.text.disabled 
+                  : theme.palette.primary} 
+              />
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleExpoGo} style={styles.iconButton} disabled={!projectData || combinedIsLoading}>
-              <Ionicons name="logo-react" size={24} color={!projectData || combinedIsLoading ? theme.palette.text.disabled : theme.palette.success} />
+            <TouchableOpacity 
+              onPress={handleExpoGo} 
+              style={styles.iconButton} 
+              disabled={!projectData || combinedIsLoading}
+            >
+              <Ionicons 
+                name="logo-react" 
+                size={18} 
+                color={!projectData || combinedIsLoading 
+                  ? theme.palette.text.disabled 
+                  : theme.palette.success} 
+              />
             </TouchableOpacity>
             <TextInput
               style={styles.input}
@@ -504,11 +567,11 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
               editable={!combinedIsLoading && isSupabaseReady}
               multiline
               blurOnSubmit={false}
-              maxHeight={120}
+              maxHeight={80}
               textAlignVertical="center"
             />
-            <TouchableOpacity
-              onPress={() => handleSend()}
+            <TouchableOpacity 
+              onPress={() => handleSend()} 
               disabled={combinedIsLoading || !isSupabaseReady || (!textInput.trim() && !selectedFileAsset)}
               style={[
                 styles.sendButton,
@@ -518,13 +581,13 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
               {isAiLoading ? (
                 <ActivityIndicator size="small" color={theme.palette.background} />
               ) : (
-                <Ionicons name="send" size={24} color={theme.palette.background} />
+                <Ionicons name="send" size={16} color={theme.palette.background} />
               )}
             </TouchableOpacity>
           </View>
         </View>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -540,18 +603,19 @@ const styles = StyleSheet.create({
     transform: [{ translateX: -15 }, { translateY: -15 }],
     zIndex: 10,
   },
-  list: { 
-    flex: 1 
+  list: {
+    flex: 1,
   },
-  listContent: { 
-    paddingTop: 10,
+  listContent: {
+    paddingTop: 8,
     paddingHorizontal: 10,
+    paddingBottom: 5,
   },
   messageBubble: {
     borderRadius: 15,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginBottom: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 6,
     maxWidth: '85%',
     borderWidth: 1,
   },
@@ -567,102 +631,103 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     borderBottomLeftRadius: 3,
   },
-  messagePressed: { 
-    opacity: 0.7 
+  messagePressed: {
+    opacity: 0.7
   },
-  userMessageText: { 
-    fontSize: 15, 
-    color: theme.palette.text.primary 
+  userMessageText: {
+    fontSize: 14,
+    color: theme.palette.text.primary,
+    lineHeight: 19,
   },
-  aiMessageText: { 
-    fontSize: 15, 
-    color: theme.palette.text.primary 
-  },
-  keyboardAvoidingView: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+  aiMessageText: {
+    fontSize: 14,
+    color: theme.palette.text.primary,
+    lineHeight: 19,
   },
   inputWrapper: {
     borderTopWidth: 1,
     borderTopColor: theme.palette.border,
     backgroundColor: theme.palette.background,
+    paddingHorizontal: 8,
+    paddingTop: 3,
+    paddingBottom: 3,
   },
   attachedFileContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.palette.input.background + '80',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    marginHorizontal: 10,
-    marginTop: 5,
-    borderRadius: 10,
+    backgroundColor: theme.palette.input.background + '60',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    marginHorizontal: 6,
+    marginTop: 2,
+    marginBottom: 2,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: theme.palette.border,
   },
   attachedFileText: {
     flex: 1,
-    marginLeft: 6,
-    marginRight: 6,
-    fontSize: 12,
+    marginLeft: 4,
+    marginRight: 4,
+    fontSize: 11,
     color: theme.palette.text.secondary,
   },
-  removeFileButton: { 
-    padding: 2 
+  removeFileButton: {
+    padding: 0
   },
   inputContainerInner: {
     flexDirection: 'row',
-    paddingHorizontal: 8,
-    paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 8,
-    alignItems: 'flex-end',
+    alignItems: 'center',
+    paddingHorizontal: 2,
+    paddingVertical: 2,
   },
-  iconButton: { 
-    padding: 8, 
-    marginBottom: 5 
+  iconButton: {
+    padding: 4,
+    marginHorizontal: 2,
   },
   input: {
     flex: 1,
     backgroundColor: theme.palette.input.background,
-    borderRadius: 18,
-    paddingHorizontal: 15,
-    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
-    paddingTop: Platform.OS === 'ios' ? 10 : 8,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: Platform.OS === 'ios' ? 5 : 4,
+    paddingTop: Platform.OS === 'ios' ? 5 : 4,
     color: theme.palette.text.primary,
-    fontSize: 16,
-    minHeight: 44,
+    fontSize: 14,
+    minHeight: 30,
+    maxHeight: 80,
     borderWidth: 1,
     borderColor: theme.palette.border,
-    marginRight: 8,
+    marginRight: 4,
+    marginLeft: 2,
   },
   sendButton: {
     backgroundColor: theme.palette.primary,
-    borderRadius: 22,
-    width: 44,
-    height: 44,
+    borderRadius: 14,
+    width: 30,
+    height: 30,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 5,
+    marginRight: 2,
   },
-  sendButtonDisabled: { 
-    backgroundColor: theme.palette.text.disabled 
+  sendButtonDisabled: {
+    backgroundColor: theme.palette.text.disabled
   },
   errorContainer: {
-    paddingHorizontal: 15,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
     backgroundColor: theme.palette.error + '20',
     position: 'absolute',
-    bottom: 85,
+    bottom: 60,
     left: 10,
     right: 10,
-    borderRadius: 8,
+    borderRadius: 6,
     zIndex: 5,
   },
-  errorText: { 
-    color: theme.palette.error, 
-    textAlign: 'center', 
-    fontSize: 13 
+  errorText: {
+    color: theme.palette.error,
+    textAlign: 'center',
+    fontSize: 12
   },
 });
 

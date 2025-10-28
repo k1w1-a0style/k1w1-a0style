@@ -10,9 +10,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 import { Mutex } from 'async-mutex';
 
-// ============================================================================
-// PROVIDER ROLES & TYPES
-// ============================================================================
 export const CHAT_PROVIDER = 'groq' as const;
 export const AGENT_PROVIDER = 'gemini' as const;
 const ALL_POSSIBLE_PROVIDERS = ['groq', 'openai', 'gemini', 'anthropic'] as const;
@@ -47,14 +44,10 @@ interface AIContextProps {
   updateConfig: (newConfig: Partial<AIConfig>) => Promise<void>;
 }
 
-// ============================================================================
-// CONSTANTS & CONTEXT
-// ============================================================================
 const AIContext = createContext<AIContextProps | undefined>(undefined);
-// 🔥 FIX: Bleibt auf v1, um deine Keys zu laden!
 const CONFIG_STORAGE_KEY = 'ai_config_v1';
 
-// 🔥 FIX: ALLE Groq-Modelle wiederhergestellt
+// 🔥 NEU: compound-Modelle hinzugefügt
 export const AVAILABLE_MODELS: Record<AllAIProviders, { id: string; label?: string }[]> = {
   groq: [
     { id: 'auto-groq', label: 'Auto (Empfohlen)' },
@@ -62,8 +55,8 @@ export const AVAILABLE_MODELS: Record<AllAIProviders, { id: string; label?: stri
     { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B' },
     { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B' },
     { id: 'openai/gpt-oss-20b', label: 'GPT-OSS 20B' },
-    { id: 'qwen/qwen3-32b', label: 'Qwen 3 32B' },
-    { id: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout' },
+    { id: 'groq/compound', label: 'Groq Compound' },
+    { id: 'groq/compound-mini', label: 'Groq Compound Mini' },
   ],
   gemini: [
     { id: 'gemini-1.5-pro-latest', label: 'Gemini 1.5 Pro (Empfohlen)' },
@@ -95,14 +88,10 @@ const getDefaultConfig = (): AIConfig => ({
 
 const saveMutex = new Mutex();
 
-// ============================================================================
-// PROVIDER
-// ============================================================================
 export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [config, setConfig] = useState<AIConfig>(getDefaultConfig());
   const [isLoading, setIsLoading] = useState(true);
 
-  // Lade Konfiguration beim Start
   useEffect(() => {
     const loadConfig = async () => {
       setIsLoading(true);
@@ -111,8 +100,6 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         if (storedConfig) {
           const parsed = JSON.parse(storedConfig);
           const defaultConfig = getDefaultConfig();
-
-          // Merge alte Daten (v1) mit neuer Struktur (v2), behalte Keys
           const mergedConfig: AIConfig = {
             selectedChatProvider: 'groq',
             selectedAgentProvider: 'gemini',
@@ -128,15 +115,12 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
             keys: { ...defaultConfig.keys, ...(parsed.keys || {}) },
             keyIndexes: { ...defaultConfig.keyIndexes, ...(parsed.keyIndexes || {}) },
           };
-
-          // Bereinige Key Indexes
           (Object.keys(mergedConfig.keyIndexes) as AllAIProviders[]).forEach(provider => {
               const keyListLength = mergedConfig.keys[provider]?.length || 0;
               mergedConfig.keyIndexes[provider] = keyListLength > 0
                 ? (mergedConfig.keyIndexes[provider] || 0) % keyListLength
                 : 0;
           });
-
           setConfig(mergedConfig);
           console.log(`✅ AI-Config geladen (von ${CONFIG_STORAGE_KEY})`);
         } else {
@@ -154,14 +138,11 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     loadConfig();
   }, []);
 
-  // Sicheres Speichern der Konfiguration
   const saveConfig = useCallback(async (newConfig: AIConfig | ((prev: AIConfig) => AIConfig)) => {
       const release = await saveMutex.acquire();
       try {
         const configToSave = typeof newConfig === 'function' ? newConfig(config) : newConfig;
-        
         const finalConfig: AIConfig = { ...getDefaultConfig(), ...configToSave };
-
         (Object.keys(finalConfig.keyIndexes) as AllAIProviders[]).forEach(provider => {
           const keyListLength = finalConfig.keys[provider]?.length || 0;
           finalConfig.keyIndexes[provider] = keyListLength > 0 ? (finalConfig.keyIndexes[provider] || 0) % keyListLength : 0;
@@ -171,12 +152,10 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         finalConfig.selectedChatMode = AVAILABLE_MODELS.groq.some(m=>m.id === finalConfig.selectedChatMode) ? finalConfig.selectedChatMode : getDefaultConfig().selectedChatMode;
         finalConfig.selectedAgentMode = AVAILABLE_MODELS.gemini.some(m=>m.id === finalConfig.selectedAgentMode) ? finalConfig.selectedAgentMode : getDefaultConfig().selectedAgentMode;
         finalConfig.qualityMode = ['speed','quality'].includes(finalConfig.qualityMode) ? finalConfig.qualityMode : getDefaultConfig().qualityMode;
-
         setConfig(finalConfig);
         AsyncStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(finalConfig)).catch(e => {
           console.error('❌ Config Save Error (async):', e);
         });
-
       } catch (e) {
         console.error('❌ saveConfig Error:', e);
       } finally {
@@ -184,7 +163,6 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       }
     }, [config]);
 
-  // ---- Öffentliche Funktionen ----
   const updateConfig = useCallback(async (newPartialConfig: Partial<AIConfig>) => {
     await saveConfig(prev => ({ ...prev, ...newPartialConfig }));
   }, [saveConfig]);
@@ -280,3 +258,4 @@ export const useAI = () => {
   if (!context) { throw new Error('useAI muss innerhalb von AIProvider verwendet werden'); }
   return context;
 };
+
