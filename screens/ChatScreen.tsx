@@ -5,14 +5,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ensureSupabaseClient } from '../lib/supabase';
-import { theme } from '../theme';
+import { theme, HEADER_HEIGHT } from '../theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { useAI, CHAT_PROVIDER, AGENT_PROVIDER, AllAIProviders } from '../contexts/AIContext';
 import { useTerminal } from '../contexts/TerminalContext';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useProject, ProjectFile, ChatMessage } from '../contexts/ProjectContext';
 import * as Clipboard from 'expo-clipboard';
 import { buildPrompt, ConversationHistory } from '../lib/prompts';
@@ -100,7 +100,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const [selectedFileAsset, setSelectedFileAsset] = useState<DocumentResultAsset | null>(null);
 
   const historyRef = useRef(new ConversationHistory());
-  const flatListRef = useRef<FlatList>(null); // ✅ REF für Auto-Scroll
+  const rotationCounters = useRef<Record<string, number>>({ groq: 0, gemini: 0, openai: 0, anthropic: 0 });
 
   const loadClient = useCallback(async () => {
     setError(null);
@@ -116,15 +116,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
 
   useEffect(() => {
     historyRef.current.loadFromMessages(messages);
-  }, [messages]);
-
-  // ✅ AUTO-SCROLL bei neuen Nachrichten
-  useEffect(() => {
-    if (messages.length > 0) {
-      setTimeout(() => {
-        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-      }, 100);
-    }
   }, [messages]);
 
   const handlePickDocument = async () => {
@@ -170,6 +161,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       }
 
       setError(null);
+      rotationCounters.current = { groq: 0, gemini: 0, openai: 0, anthropic: 0 };
       setIsAiLoading(true);
 
       let messageForHistory = userPrompt;
@@ -215,14 +207,14 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         maxRetries: number = 3
       ): Promise<any> => {
         let lastError: any = null;
-
+        
         for (let attempt = 0; attempt < maxRetries; attempt++) {
           const apiKey = getCurrentApiKey(provider);
-
+          
           console.log(`🔄 Versuch ${attempt + 1}/${maxRetries} für ${provider}`);
           console.log(`🔑 Verwende Key Index: ${config.keyIndexes[provider]} von ${config.keys[provider]?.length || 0}`);
           console.log(`🔑 Key: ${apiKey?.substring(0, 10)}...`);
-
+          
           if (!apiKey) {
             throw new Error(`Keine API Keys für ${provider} verfügbar`);
           }
@@ -239,20 +231,20 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
 
             if (error) throw error;
             return data;
-
+            
           } catch (error: any) {
             lastError = error;
             console.error(`❌ Fehler bei ${provider} (Versuch ${attempt + 1}):`, error.message);
-
+            
             const errorMsg = error.message?.toLowerCase() || '';
-            const shouldRotate =
+            const shouldRotate = 
               errorMsg.includes('invalid') ||
               errorMsg.includes('unauthorized') ||
               errorMsg.includes('restricted') ||
               errorMsg.includes('rate') ||
               error.status === 401 ||
               error.status === 429;
-
+            
             if (shouldRotate && attempt < maxRetries - 1) {
               console.log(`🔑 Rotiere Key für ${provider}...`);
               const newKey = await rotateApiKey(provider);
@@ -265,13 +257,13 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
                 break;
               }
             }
-
+            
             if (errorMsg.includes('organization_restricted') || errorMsg.includes('account gesperrt')) {
               throw new Error(`${provider.toUpperCase()} Account ist GESPERRT! Verwende einen anderen Provider oder erstelle einen neuen Account.`);
             }
           }
         }
-
+        
         throw lastError || new Error(`Alle Versuche für ${provider} fehlgeschlagen`);
       };
 
@@ -288,7 +280,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         );
 
         console.log(`📝 Sende ${groqPromptMessages.length} Messages an ${CHAT_PROVIDER}`);
-
+        
         const groqData = await callProviderWithRetry(
           CHAT_PROVIDER,
           groqPromptMessages,
@@ -334,7 +326,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
             agentPromptMessages,
             config.selectedAgentMode
           );
-
+          
           const agentResponse = agentData?.response?.trim() || '';
           if (!agentResponse) {
             console.warn(`⚠️ ${AGENT_PROVIDER} Agent: Leere Antwort`);
@@ -389,10 +381,10 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       } catch (e: any) {
         console.error(`❌ Send Fail (${currentProvider}):`, e);
         let detailMsg = e.message || 'Unbekannter Fehler';
-
+        
         Alert.alert('Fehler', detailMsg);
         setError(detailMsg);
-
+        
         await updateMessages(originalMessages);
         historyRef.current.loadFromMessages(originalMessages);
 
@@ -453,36 +445,36 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const combinedIsLoading = isAiLoading || isProjectLoading;
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
+    <View style={styles.container}>
+      <FlatList
+        data={messages}
+        renderItem={({ item }) => <MessageItem item={item} />}
+        keyExtractor={item => item._id}
+        inverted={true}
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        keyboardShouldPersistTaps="handled"
+        initialNumToRender={15}
+        maxToRenderPerBatch={10}
+        windowSize={11}
+        ListFooterComponent={<View style={{ height: 80 }} />}
+      />
+
+      {(!supabase || (isProjectLoading && messages.length === 0)) && (
+        <ActivityIndicator style={styles.loadingIndicator} color={theme.palette.primary} size="large" />
+      )}
+
+      {error && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{String(error)}</Text>
+        </View>
+      )}
+
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'position' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         style={styles.keyboardAvoidingView}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          renderItem={({ item }) => <MessageItem item={item} />}
-          keyExtractor={item => item._id}
-          inverted={true}
-          style={styles.list}
-          contentContainerStyle={styles.listContent}
-          keyboardShouldPersistTaps="handled"
-          initialNumToRender={15}
-          maxToRenderPerBatch={10}
-          windowSize={11}
-        />
-
-        {(!supabase || (isProjectLoading && messages.length === 0)) && (
-          <ActivityIndicator style={styles.loadingIndicator} color={theme.palette.primary} size="large" />
-        )}
-
-        {error && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{String(error)}</Text>
-          </View>
-        )}
-
         <View style={styles.inputWrapper}>
           {selectedFileAsset && (
             <View style={styles.attachedFileContainer}>
@@ -532,7 +524,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
           </View>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -541,9 +533,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.palette.background,
   },
-  keyboardAvoidingView: {
-    flex: 1,
-  },
   loadingIndicator: {
     position: 'absolute',
     top: '50%',
@@ -551,13 +540,12 @@ const styles = StyleSheet.create({
     transform: [{ translateX: -15 }, { translateY: -15 }],
     zIndex: 10,
   },
-  list: {
-    flex: 1
+  list: { 
+    flex: 1 
   },
-  listContent: {
+  listContent: { 
     paddingTop: 10,
     paddingHorizontal: 10,
-    paddingBottom: 10,
   },
   messageBubble: {
     borderRadius: 15,
@@ -579,16 +567,22 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     borderBottomLeftRadius: 3,
   },
-  messagePressed: {
-    opacity: 0.7
+  messagePressed: { 
+    opacity: 0.7 
   },
-  userMessageText: {
-    fontSize: 15,
-    color: theme.palette.text.primary
+  userMessageText: { 
+    fontSize: 15, 
+    color: theme.palette.text.primary 
   },
-  aiMessageText: {
-    fontSize: 15,
-    color: theme.palette.text.primary
+  aiMessageText: { 
+    fontSize: 15, 
+    color: theme.palette.text.primary 
+  },
+  keyboardAvoidingView: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   inputWrapper: {
     borderTopWidth: 1,
@@ -614,19 +608,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.palette.text.secondary,
   },
-  removeFileButton: {
-    padding: 2
+  removeFileButton: { 
+    padding: 2 
   },
   inputContainerInner: {
     flexDirection: 'row',
     paddingHorizontal: 8,
     paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 8 : 8,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 8,
     alignItems: 'flex-end',
   },
-  iconButton: {
-    padding: 8,
-    marginBottom: 5
+  iconButton: { 
+    padding: 8, 
+    marginBottom: 5 
   },
   input: {
     flex: 1,
@@ -651,21 +645,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 5,
   },
-  sendButtonDisabled: {
-    backgroundColor: theme.palette.text.disabled
+  sendButtonDisabled: { 
+    backgroundColor: theme.palette.text.disabled 
   },
   errorContainer: {
     paddingHorizontal: 15,
-    paddingVertical: 8,
+    paddingVertical: 5,
     backgroundColor: theme.palette.error + '20',
-    marginHorizontal: 10,
-    marginBottom: 5,
+    position: 'absolute',
+    bottom: 85,
+    left: 10,
+    right: 10,
     borderRadius: 8,
+    zIndex: 5,
   },
-  errorText: {
-    color: theme.palette.error,
-    textAlign: 'center',
-    fontSize: 13
+  errorText: { 
+    color: theme.palette.error, 
+    textAlign: 'center', 
+    fontSize: 13 
   },
 });
 
