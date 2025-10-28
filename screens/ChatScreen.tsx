@@ -12,7 +12,6 @@ import {
   Platform,
   Pressable,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { ensureSupabaseClient } from '../lib/supabase';
 import { theme } from '../theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,6 +28,7 @@ import { jsonrepair } from 'jsonrepair';
 import { v4 as uuidv4 } from 'uuid';
 
 type DocumentResultAsset = NonNullable<DocumentPicker.DocumentPickerResult['assets']>[0];
+
 type ChatScreenProps = {
   navigation: any;
   route: { params?: { debugCode?: string } }
@@ -37,6 +37,7 @@ type ChatScreenProps = {
 const extractJsonArray = (text: string): string | null => {
   const match = text.match(/```json\s*(\[[\s\S]*\])\s*```|(\[[\s\S]*\])/);
   if (!match) return null;
+  
   const jsonString = match[1] || match[2];
   if (jsonString) {
     console.log(`🔍 JSON gefunden (${jsonString.length} chars)`);
@@ -52,6 +53,7 @@ const tryParseJsonWithRepair = (jsonString: string): ProjectFile[] | null => {
     try {
       const repaired = jsonrepair(jsonString);
       const result = JSON.parse(repaired);
+      
       if (
         Array.isArray(result) &&
         (result.length === 0 ||
@@ -104,21 +106,17 @@ const MessageItem = memo(({ item }: { item: ChatMessage }) => {
 });
 
 const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
-  const {
-    projectData,
-    updateProjectFiles,
-    messages,
-    updateMessages,
-    isLoading: isProjectLoading
-  } = useProject();
+  const { projectData, updateProjectFiles, messages, updateMessages, isLoading: isProjectLoading } = useProject();
   const { config, getCurrentApiKey, rotateApiKey } = useAI();
   const { addLog } = useTerminal();
+  
   const flatListRef = useRef<FlatList>(null);
   const [textInput, setTextInput] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [selectedFileAsset, setSelectedFileAsset] = useState<DocumentResultAsset | null>(null);
+  
   const historyRef = useRef(new ConversationHistory());
   const rotationCounters = useRef<Record<string, number>>({
     groq: 0,
@@ -137,9 +135,11 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => {
-    loadClient();
-  }, [loadClient]));
+  useFocusEffect(
+    useCallback(() => {
+      loadClient();
+    }, [loadClient])
+  );
 
   useEffect(() => {
     historyRef.current.loadFromMessages(messages);
@@ -159,6 +159,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         type: '*/*',
         copyToCacheDirectory: true,
       });
+
       if (!result.canceled && result.assets?.[0]) {
         const asset = result.assets[0];
         setSelectedFileAsset(asset);
@@ -180,8 +181,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
     async (customPrompt?: string) => {
       let userPrompt = customPrompt ?? textInput.trim();
       const fileToSend = selectedFileAsset;
-      const displayPrompt = textInput.trim() || 
-        (fileToSend ? `(Datei: ${fileToSend.name})` : customPrompt ? 'Debug Anfrage' : '');
+      const displayPrompt = textInput.trim() || (fileToSend ? `(Datei: ${fileToSend.name})` : customPrompt ? 'Debug Anfrage' : '');
 
       if (
         (!userPrompt && !fileToSend && !customPrompt) ||
@@ -199,6 +199,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       setIsAiLoading(true);
 
       let messageForHistory = userPrompt;
+
       if (fileToSend && !customPrompt) {
         try {
           const fileContent = await FileSystem.readAsStringAsync(fileToSend.uri, {
@@ -242,6 +243,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         maxRetries: number = 3
       ): Promise<any> => {
         let lastError: any = null;
+
         for (let attempt = 0; attempt < maxRetries; attempt++) {
           const apiKey = getCurrentApiKey(provider);
           console.log(`🔄 Versuch ${attempt + 1}/${maxRetries} für ${provider}`);
@@ -295,6 +297,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
             }
           }
         }
+
         throw lastError || new Error(`Alle Versuche für ${provider} fehlgeschlagen`);
       };
 
@@ -365,6 +368,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
           }
 
           console.log(`🤖 Agent Antwort: ${agentResponse.length} chars`);
+
           const currentHist = historyRef.current.getHistory();
           if (currentHist.length > 0 && currentHist[currentHist.length-1].role === 'assistant') {
             currentHist[currentHist.length-1].content = agentResponse;
@@ -388,6 +392,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         if (finalProjectFiles) {
           await updateProjectFiles(finalProjectFiles);
           aiMessageTextToShow = `✅ Projekt aktualisiert (${finalProjectFiles.length} Dateien${config.qualityMode === 'quality' ? ' - Agent geprüft' : ''})`;
+
           const currentHist = historyRef.current.getHistory();
           if (currentHist.length > 0 && currentHist[currentHist.length - 1].role === 'assistant') {
             currentHist[currentHist.length - 1].content = `[Code mit ${finalProjectFiles.length} Dateien generiert]`;
@@ -451,6 +456,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       Alert.alert('Nichts zu debuggen', 'Keine gültige Textantwort von der KI gefunden.');
       return;
     }
+
     const prompt = `Analysiere:\n\n\`\`\`\n${lastAiMessage.text}\n\`\`\``;
     setTextInput('Debug Anfrage...');
     handleSend(prompt);
@@ -461,8 +467,10 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       Alert.alert('Fehler', 'Kein Projekt geladen');
       return;
     }
+
     const metroHost = "10.212.162.31:8081";
     const expUrl = `exp://${metroHost}`;
+
     Alert.alert(
       'Expo Go Vorschau',
       `Öffne Expo Go und scanne den QR-Code oder öffne:\n\n${expUrl}`,
@@ -471,6 +479,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
         { text: 'OK' },
       ]
     );
+
     console.log(`📲 Expo Go URL: ${expUrl}`);
     addLog(`Expo Go URL: ${expUrl}`);
   };
@@ -479,115 +488,118 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const combinedIsLoading = isAiLoading || isProjectLoading;
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <KeyboardAvoidingView 
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
-      >
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          renderItem={({ item }) => <MessageItem item={item} />}
-          keyExtractor={item => item._id}
-          inverted={true}
-          style={styles.list}
-          contentContainerStyle={styles.listContent}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
-          initialNumToRender={15}
-          maxToRenderPerBatch={10}
-          windowSize={11}
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 180 : 80}
+    >
+      <FlatList
+        ref={flatListRef}
+        data={messages}
+        renderItem={({ item }) => <MessageItem item={item} />}
+        keyExtractor={item => item._id}
+        inverted={true}
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        initialNumToRender={15}
+        maxToRenderPerBatch={10}
+        windowSize={11}
+      />
+
+      {(!supabase || (isProjectLoading && messages.length === 0)) && (
+        <ActivityIndicator
+          style={styles.loadingIndicator}
+          color={theme.palette.primary}
+          size="large"
         />
+      )}
 
-        {(!supabase || (isProjectLoading && messages.length === 0)) && (
-          <ActivityIndicator
-            style={styles.loadingIndicator}
-            color={theme.palette.primary}
-            size="large"
-          />
-        )}
-
-        {error && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{String(error)}</Text>
-          </View>
-        )}
-
-        <View style={styles.inputWrapper}>
-          {selectedFileAsset && (
-            <View style={styles.attachedFileContainer}>
-              <Ionicons name="document-attach-outline" size={14} color={theme.palette.text.secondary} />
-              <Text style={styles.attachedFileText} numberOfLines={1}>{selectedFileAsset.name}</Text>
-              <TouchableOpacity onPress={()=>setSelectedFileAsset(null)} style={styles.removeFileButton}>
-                <Ionicons name="close-circle" size={16} color={theme.palette.text.secondary} />
-              </TouchableOpacity>
-            </View>
-          )}
-          <View style={styles.inputContainerInner}>
-            <TouchableOpacity onPress={handlePickDocument} style={styles.iconButton} disabled={combinedIsLoading}>
-              <Ionicons 
-                name="add-circle-outline" 
-                size={20} 
-                color={combinedIsLoading ? theme.palette.text.disabled : theme.palette.primary} 
-              />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              onPress={handleDebugLastResponse} 
-              style={styles.iconButton} 
-              disabled={combinedIsLoading || messages.filter(m=>m.user._id===2).length===0}
-            >
-              <Ionicons 
-                name="bug-outline" 
-                size={18} 
-                color={combinedIsLoading || messages.filter(m=>m.user._id===2).length===0 
-                  ? theme.palette.text.disabled 
-                  : theme.palette.primary} 
-              />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              onPress={handleExpoGo} 
-              style={styles.iconButton} 
-              disabled={!projectData || combinedIsLoading}
-            >
-              <Ionicons 
-                name="logo-react" 
-                size={18} 
-                color={!projectData || combinedIsLoading 
-                  ? theme.palette.text.disabled 
-                  : theme.palette.success} 
-              />
-            </TouchableOpacity>
-            <TextInput
-              style={styles.input}
-              placeholder={!isSupabaseReady ? 'Verbinde...' : selectedFileAsset ? 'Zusatz...' : 'Nachricht...'}
-              placeholderTextColor={theme.palette.text.secondary}
-              value={textInput}
-              onChangeText={setTextInput}
-              editable={!combinedIsLoading && isSupabaseReady}
-              multiline
-              blurOnSubmit={false}
-              maxHeight={80}
-              textAlignVertical="center"
-            />
-            <TouchableOpacity 
-              onPress={() => handleSend()} 
-              disabled={combinedIsLoading || !isSupabaseReady || (!textInput.trim() && !selectedFileAsset)}
-              style={[
-                styles.sendButton,
-                (!isSupabaseReady || combinedIsLoading || (!textInput.trim() && !selectedFileAsset)) && styles.sendButtonDisabled
-              ]}
-            >
-              {isAiLoading ? (
-                <ActivityIndicator size="small" color={theme.palette.background} />
-              ) : (
-                <Ionicons name="send" size={16} color={theme.palette.background} />
-              )}
-            </TouchableOpacity>
-          </View>
+      {error && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{String(error)}</Text>
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      )}
+
+      <View style={styles.inputWrapper}>
+        {selectedFileAsset && (
+          <View style={styles.attachedFileContainer}>
+            <Ionicons name="document-attach-outline" size={14} color={theme.palette.text.secondary} />
+            <Text style={styles.attachedFileText} numberOfLines={1}>{selectedFileAsset.name}</Text>
+            <TouchableOpacity onPress={()=>setSelectedFileAsset(null)} style={styles.removeFileButton}>
+              <Ionicons name="close-circle" size={16} color={theme.palette.text.secondary} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <View style={styles.inputContainerInner}>
+          <TouchableOpacity
+            onPress={handlePickDocument}
+            style={styles.iconButton}
+            disabled={combinedIsLoading}
+          >
+            <Ionicons
+              name="add-circle-outline"
+              size={22}
+              color={combinedIsLoading ? theme.palette.text.disabled : theme.palette.primary}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleDebugLastResponse}
+            style={styles.iconButton}
+            disabled={combinedIsLoading || messages.filter(m=>m.user._id===2).length===0}
+          >
+            <Ionicons
+              name="bug-outline"
+              size={20}
+              color={combinedIsLoading || messages.filter(m=>m.user._id===2).length===0 ? theme.palette.text.disabled : theme.palette.primary}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleExpoGo}
+            style={styles.iconButton}
+            disabled={!projectData || combinedIsLoading}
+          >
+            <Ionicons
+              name="logo-react"
+              size={20}
+              color={!projectData || combinedIsLoading ? theme.palette.text.disabled : theme.palette.success}
+            />
+          </TouchableOpacity>
+
+          <TextInput
+            style={styles.input}
+            placeholder={!isSupabaseReady ? 'Verbinde...' : selectedFileAsset ? 'Zusatz...' : 'Nachricht...'}
+            placeholderTextColor={theme.palette.text.secondary}
+            value={textInput}
+            onChangeText={setTextInput}
+            editable={!combinedIsLoading && isSupabaseReady}
+            multiline
+            blurOnSubmit={false}
+            maxHeight={80}
+            textAlignVertical="center"
+          />
+
+          <TouchableOpacity
+            onPress={() => handleSend()}
+            disabled={combinedIsLoading || !isSupabaseReady || (!textInput.trim() && !selectedFileAsset)}
+            style={[
+              styles.sendButton,
+              (!isSupabaseReady || combinedIsLoading || (!textInput.trim() && !selectedFileAsset)) && styles.sendButtonDisabled
+            ]}
+          >
+            {isAiLoading ? (
+              <ActivityIndicator size="small" color={theme.palette.background} />
+            ) : (
+              <Ionicons name="send" size={18} color={theme.palette.background} />
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -649,8 +661,8 @@ const styles = StyleSheet.create({
     borderTopColor: theme.palette.border,
     backgroundColor: theme.palette.background,
     paddingHorizontal: 8,
-    paddingTop: 3,
-    paddingBottom: 3,
+    paddingTop: 4,
+    paddingBottom: Platform.OS === 'ios' ? 0 : 4,
   },
   attachedFileContainer: {
     flexDirection: 'row',
@@ -679,10 +691,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 2,
-    paddingVertical: 2,
+    paddingVertical: 3,
   },
   iconButton: {
-    padding: 4,
+    padding: 5,
     marginHorizontal: 2,
   },
   input: {
@@ -694,7 +706,7 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 5 : 4,
     color: theme.palette.text.primary,
     fontSize: 14,
-    minHeight: 30,
+    minHeight: 32,
     maxHeight: 80,
     borderWidth: 1,
     borderColor: theme.palette.border,
@@ -703,9 +715,9 @@ const styles = StyleSheet.create({
   },
   sendButton: {
     backgroundColor: theme.palette.primary,
-    borderRadius: 14,
-    width: 30,
-    height: 30,
+    borderRadius: 15,
+    width: 32,
+    height: 32,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 2,
