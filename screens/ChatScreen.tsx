@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, memo, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,109 +6,28 @@ import {
   TextInput,
   Text,
   ActivityIndicator,
-  Alert,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
 } from 'react-native';
 import { ensureSupabaseClient } from '../lib/supabase';
 import { theme } from '../theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { useAI, CHAT_PROVIDER, AGENT_PROVIDER, AllAIProviders } from '../contexts/AIContext';
-import { useTerminal } from '../contexts/TerminalContext';
-import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system/legacy';
-import { useProject, ProjectFile, ChatMessage } from '../contexts/ProjectContext';
-import * as Clipboard from 'expo-clipboard';
-import { buildPrompt, ConversationHistory } from '../lib/prompts';
-import { jsonrepair } from 'jsonrepair';
-import { v4 as uuidv4 } from 'uuid';
+import { useProject } from '../contexts/ProjectContext';
+import MessageItem from '../components/MessageItem';
+import { useChatHandlers } from '../hooks/useChatHandlers';
 
-type DocumentResultAsset = NonNullable<DocumentPicker.DocumentPickerResult['assets']>[0];
+type DocumentResultAsset = NonNullable<import('expo-document-picker').DocumentPickerResult['assets']>[0];
 
 type ChatScreenProps = {
   navigation: any;
   route: { params?: { debugCode?: string } }
 };
 
-const extractJsonArray = (text: string): string | null => {
-  const match = text.match(/```json\s*(\[[\s\S]*\])\s*```|(\[[\s\S]*\])/);
-  if (!match) return null;
-  
-  const jsonString = match[1] || match[2];
-  if (jsonString) {
-    console.log(`🔍 JSON gefunden (${jsonString.length} chars)`);
-    return jsonString;
-  }
-  return null;
-};
-
-const tryParseJsonWithRepair = (jsonString: string): ProjectFile[] | null => {
-  try {
-    return JSON.parse(jsonString) as ProjectFile[];
-  } catch (e) {
-    try {
-      const repaired = jsonrepair(jsonString);
-      const result = JSON.parse(repaired);
-      
-      if (
-        Array.isArray(result) &&
-        (result.length === 0 ||
-          (result[0]?.path && typeof result[0].content !== 'undefined'))
-      ) {
-        console.log('✅ JSON repariert');
-        return result.map((file) => ({
-          ...file,
-          content:
-            typeof file.content === 'string'
-              ? file.content
-              : JSON.stringify(file.content ?? '', null, 2),
-        }));
-      } else {
-        console.warn('⚠️ JSON repariert, aber Format ungültig');
-        return null;
-      }
-    } catch (error) {
-      console.error('❌ JSON Parse fehlgeschlagen:', error);
-      return null;
-    }
-  }
-};
-
-const MessageItem = memo(({ item }: { item: ChatMessage }) => {
-  const messageText = item?.text?.trim() ?? '';
-  if (item?.user?._id === 1 && messageText.length === 0) return null;
-
-  const handleLongPress = () => {
-    if (messageText) {
-      Clipboard.setStringAsync(messageText);
-      Alert.alert('Kopiert');
-    }
-  };
-
-  return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.messageBubble,
-        item.user._id === 1 ? styles.userMessage : styles.aiMessage,
-        pressed && styles.messagePressed,
-      ]}
-      onLongPress={handleLongPress}
-    >
-      <Text style={item.user._id === 1 ? styles.userMessageText : styles.aiMessageText}>
-        {messageText || '...'}
-      </Text>
-    </Pressable>
-  );
-});
-
 const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
-  const { projectData, updateProjectFiles, messages, updateMessages, isLoading: isProjectLoading } = useProject();
-  const { config, getCurrentApiKey, rotateApiKey } = useAI();
-  const { addLog } = useTerminal();
+  const { messages, isLoading: isProjectLoading, projectData } = useProject();
   
   const flatListRef = useRef<FlatList>(null);
   const [textInput, setTextInput] = useState('');
@@ -116,14 +35,22 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const [error, setError] = useState<string | null>(null);
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [selectedFileAsset, setSelectedFileAsset] = useState<DocumentResultAsset | null>(null);
-  
-  const historyRef = useRef(new ConversationHistory());
-  const rotationCounters = useRef<Record<string, number>>({
-    groq: 0,
-    gemini: 0,
-    openai: 0,
-    anthropic: 0
-  });
+
+  const {
+    handlePickDocument,
+    handleSend,
+    handleDebugLastResponse,
+    handleExpoGo,
+    loadHistoryFromMessages
+  } = useChatHandlers(
+    supabase,
+    textInput,
+    setTextInput,
+    selectedFileAsset,
+    setSelectedFileAsset,
+    setIsAiLoading,
+    setError
+  );
 
   const loadClient = useCallback(async () => {
     setError(null);
@@ -142,8 +69,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   );
 
   useEffect(() => {
-    historyRef.current.loadFromMessages(messages);
-  }, [messages]);
+    loadHistoryFromMessages();
+  }, [messages, loadHistoryFromMessages]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -152,292 +79,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       }, 100);
     }
   }, [messages]);
-
-  const handlePickDocument = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
-        copyToCacheDirectory: true,
-      });
-
-      if (!result.canceled && result.assets?.[0]) {
-        const asset = result.assets[0];
-        setSelectedFileAsset(asset);
-        Alert.alert(
-          'Datei ausgewählt',
-          `${asset.name} (${asset.size ? (asset.size / 1024).toFixed(2) + ' KB' : '?'})`
-        );
-      } else {
-        setSelectedFileAsset(null);
-      }
-    } catch (e) {
-      console.error('Pick Error:', e);
-      Alert.alert('Fehler', 'Dateiauswahl fehlgeschlagen');
-      setSelectedFileAsset(null);
-    }
-  };
-
-  const handleSend = useCallback(
-    async (customPrompt?: string) => {
-      let userPrompt = customPrompt ?? textInput.trim();
-      const fileToSend = selectedFileAsset;
-      const displayPrompt = textInput.trim() || (fileToSend ? `(Datei: ${fileToSend.name})` : customPrompt ? 'Debug Anfrage' : '');
-
-      if (
-        (!userPrompt && !fileToSend && !customPrompt) ||
-        !supabase ||
-        isProjectLoading ||
-        !projectData
-      ) {
-        if (!supabase) Alert.alert('Fehler', 'Supabase nicht verbunden');
-        if (isProjectLoading || !projectData) Alert.alert('Fehler', 'Projekt lädt noch');
-        return;
-      }
-
-      setError(null);
-      rotationCounters.current = { groq: 0, gemini: 0, openai: 0, anthropic: 0 };
-      setIsAiLoading(true);
-
-      let messageForHistory = userPrompt;
-
-      if (fileToSend && !customPrompt) {
-        try {
-          const fileContent = await FileSystem.readAsStringAsync(fileToSend.uri, {
-            encoding: 'utf8',
-          });
-          messageForHistory = `--- Datei: ${fileToSend.name} ---\n${fileContent}\n--- Ende ---\n\n${
-            userPrompt || '(Siehe Datei)'
-          }`;
-        } catch (readError: any) {
-          console.error('Read Fail:', readError);
-          Alert.alert('Lese-Fehler', `Datei "${fileToSend.name}" konnte nicht gelesen werden.`);
-          setIsAiLoading(false);
-          setSelectedFileAsset(null);
-          return;
-        }
-      }
-
-      const userMessage: ChatMessage = {
-        _id: uuidv4(),
-        text: displayPrompt || '...',
-        createdAt: new Date(),
-        user: { _id: 1, name: 'User' },
-      };
-
-      setTextInput('');
-      if (fileToSend && !customPrompt) setSelectedFileAsset(null);
-
-      historyRef.current.addUser(messageForHistory);
-      const originalMessages = messages;
-      await updateMessages([userMessage, ...originalMessages]);
-
-      let finalProjectFiles: ProjectFile[] | null = null;
-      let finalAiTextMessage: string | null = null;
-      let currentProvider: AllAIProviders = CHAT_PROVIDER;
-      let aiMessageId = uuidv4();
-
-      const callProviderWithRetry = async (
-        provider: AllAIProviders,
-        promptMessages: any[],
-        model: string,
-        maxRetries: number = 3
-      ): Promise<any> => {
-        let lastError: any = null;
-
-        for (let attempt = 0; attempt < maxRetries; attempt++) {
-          const apiKey = getCurrentApiKey(provider);
-          console.log(`🔄 Versuch ${attempt + 1}/${maxRetries} für ${provider}`);
-          console.log(`🔑 Verwende Key Index: ${config.keyIndexes[provider]} von ${config.keys[provider]?.length || 0}`);
-          console.log(`🔑 Key: ${apiKey?.substring(0, 10)}...`);
-
-          if (!apiKey) {
-            throw new Error(`Keine API Keys für ${provider} verfügbar`);
-          }
-
-          try {
-            const { data, error } = await supabase.functions.invoke('k1w1-handler', {
-              body: {
-                messages: promptMessages,
-                apiKey: apiKey,
-                provider: provider,
-                model: model,
-              },
-            });
-
-            if (error) throw error;
-            return data;
-          } catch (error: any) {
-            lastError = error;
-            console.error(`❌ Fehler bei ${provider} (Versuch ${attempt + 1}):`, error.message);
-
-            const errorMsg = error.message?.toLowerCase() || '';
-            const shouldRotate =
-              errorMsg.includes('invalid') ||
-              errorMsg.includes('unauthorized') ||
-              errorMsg.includes('restricted') ||
-              errorMsg.includes('rate') ||
-              error.status === 401 ||
-              error.status === 429;
-
-            if (shouldRotate && attempt < maxRetries - 1) {
-              console.log(`🔑 Rotiere Key für ${provider}...`);
-              const newKey = await rotateApiKey(provider);
-              if (newKey) {
-                console.log(`✅ Neuer Key aktiv: ${newKey.substring(0, 10)}...`);
-                addLog(`Key rotiert für ${provider}`);
-                continue;
-              } else {
-                console.log(`❌ Keine weiteren Keys für ${provider}`);
-                break;
-              }
-            }
-
-            if (errorMsg.includes('organization_restricted') || errorMsg.includes('account gesperrt')) {
-              throw new Error(`${provider.toUpperCase()} Account ist GESPERRT! Verwende einen anderen Provider oder erstelle einen neuen Account.`);
-            }
-          }
-        }
-
-        throw lastError || new Error(`Alle Versuche für ${provider} fehlgeschlagen`);
-      };
-
-      try {
-        console.log(`🚀 Stage 1: ${CHAT_PROVIDER} (${config.selectedChatMode})`);
-        currentProvider = CHAT_PROVIDER;
-
-        const groqPromptMessages = buildPrompt(
-          'generator',
-          CHAT_PROVIDER,
-          messageForHistory,
-          projectData.files,
-          historyRef.current.getHistory()
-        );
-
-        console.log(`📝 Sende ${groqPromptMessages.length} Messages an ${CHAT_PROVIDER}`);
-        const groqData = await callProviderWithRetry(
-          CHAT_PROVIDER,
-          groqPromptMessages,
-          config.selectedChatMode
-        );
-
-        const groqRawResponse = groqData?.response?.trim() || '';
-        if (!groqRawResponse) {
-          console.warn(`⚠️ ${CHAT_PROVIDER}: Leere Antwort`);
-          throw new Error(`${CHAT_PROVIDER} lieferte keine Antwort`);
-        }
-
-        console.log(`💬 ${CHAT_PROVIDER} Antwort: ${groqRawResponse.length} chars`);
-        historyRef.current.addAssistant(groqRawResponse);
-
-        const potentialJsonString = extractJsonArray(groqRawResponse);
-
-        if (config.qualityMode === 'speed') {
-          console.log('⚙️ Modus: Geschwindigkeit');
-          if (potentialJsonString) {
-            finalProjectFiles = tryParseJsonWithRepair(potentialJsonString);
-            if (!finalProjectFiles) {
-              console.warn('⚠️ Speed: JSON Parse fehlgeschlagen');
-              finalAiTextMessage = groqRawResponse;
-            }
-          } else {
-            finalAiTextMessage = groqRawResponse;
-          }
-        } else {
-          console.log(`⚙️ Modus: Qualität - Stage 2: ${AGENT_PROVIDER} (${config.selectedAgentMode})`);
-          currentProvider = AGENT_PROVIDER;
-
-          const agentPromptMessages = buildPrompt(
-            'agent',
-            AGENT_PROVIDER,
-            groqRawResponse,
-            projectData.files,
-            historyRef.current.getHistory(),
-            messageForHistory
-          );
-
-          const agentData = await callProviderWithRetry(
-            AGENT_PROVIDER,
-            agentPromptMessages,
-            config.selectedAgentMode
-          );
-
-          const agentResponse = agentData?.response?.trim() || '';
-          if (!agentResponse) {
-            console.warn(`⚠️ ${AGENT_PROVIDER} Agent: Leere Antwort`);
-            throw new Error('Agent lieferte keine Antwort');
-          }
-
-          console.log(`🤖 Agent Antwort: ${agentResponse.length} chars`);
-
-          const currentHist = historyRef.current.getHistory();
-          if (currentHist.length > 0 && currentHist[currentHist.length-1].role === 'assistant') {
-            currentHist[currentHist.length-1].content = agentResponse;
-          } else {
-            historyRef.current.addAssistant(agentResponse);
-          }
-
-          const agentJsonString = extractJsonArray(agentResponse);
-          if (agentJsonString) {
-            finalProjectFiles = tryParseJsonWithRepair(agentJsonString);
-            if (!finalProjectFiles) {
-              console.warn('⚠️ Quality: Agent JSON Parse fehlgeschlagen');
-              finalAiTextMessage = agentResponse;
-            }
-          } else {
-            finalAiTextMessage = agentResponse;
-          }
-        }
-
-        let aiMessageTextToShow: string;
-        if (finalProjectFiles) {
-          await updateProjectFiles(finalProjectFiles);
-          aiMessageTextToShow = `✅ Projekt aktualisiert (${finalProjectFiles.length} Dateien${config.qualityMode === 'quality' ? ' - Agent geprüft' : ''})`;
-
-          const currentHist = historyRef.current.getHistory();
-          if (currentHist.length > 0 && currentHist[currentHist.length - 1].role === 'assistant') {
-            currentHist[currentHist.length - 1].content = `[Code mit ${finalProjectFiles.length} Dateien generiert]`;
-          }
-        } else if (finalAiTextMessage) {
-          aiMessageTextToShow = finalAiTextMessage;
-        } else {
-          aiMessageTextToShow = 'Fehler: Keine gültige Antwort erhalten.';
-          setError(aiMessageTextToShow);
-        }
-
-        const aiMessage: ChatMessage = {
-          _id: aiMessageId,
-          text: aiMessageTextToShow,
-          createdAt: new Date(),
-          user: { _id: 2, name: 'AI' },
-        };
-
-        await updateMessages([aiMessage, userMessage, ...originalMessages]);
-      } catch (e: any) {
-        console.error(`❌ Send Fail (${currentProvider}):`, e);
-        let detailMsg = e.message || 'Unbekannter Fehler';
-        Alert.alert('Fehler', detailMsg);
-        setError(detailMsg);
-        await updateMessages(originalMessages);
-        historyRef.current.loadFromMessages(originalMessages);
-      } finally {
-        setIsAiLoading(false);
-      }
-    },
-    [
-      textInput,
-      selectedFileAsset,
-      supabase,
-      config,
-      projectData,
-      messages,
-      isProjectLoading,
-      getCurrentApiKey,
-      rotateApiKey,
-      addLog,
-      updateProjectFiles,
-      updateMessages
-    ]
-  );
 
   useEffect(() => {
     if (route.params?.debugCode) {
@@ -449,40 +90,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
       navigation.setParams({ debugCode: undefined });
     }
   }, [route.params?.debugCode, navigation, handleSend]);
-
-  const handleDebugLastResponse = () => {
-    const lastAiMessage = messages.find(m => m.user._id === 2);
-    if (!lastAiMessage?.text || lastAiMessage.text.startsWith('✅ Projekt')) {
-      Alert.alert('Nichts zu debuggen', 'Keine gültige Textantwort von der KI gefunden.');
-      return;
-    }
-
-    const prompt = `Analysiere:\n\n\`\`\`\n${lastAiMessage.text}\n\`\`\``;
-    setTextInput('Debug Anfrage...');
-    handleSend(prompt);
-  };
-
-  const handleExpoGo = () => {
-    if (!projectData) {
-      Alert.alert('Fehler', 'Kein Projekt geladen');
-      return;
-    }
-
-    const metroHost = "10.212.162.31:8081";
-    const expUrl = `exp://${metroHost}`;
-
-    Alert.alert(
-      'Expo Go Vorschau',
-      `Öffne Expo Go und scanne den QR-Code oder öffne:\n\n${expUrl}`,
-      [
-        { text: 'URL kopieren', onPress: () => Clipboard.setStringAsync(expUrl) },
-        { text: 'OK' },
-      ]
-    );
-
-    console.log(`📲 Expo Go URL: ${expUrl}`);
-    addLog(`Expo Go URL: ${expUrl}`);
-  };
 
   const isSupabaseReady = supabase && !supabase.functions.invoke.toString().includes('DUMMY_CLIENT');
   const combinedIsLoading = isAiLoading || isProjectLoading;
@@ -622,39 +229,6 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingHorizontal: 10,
     paddingBottom: 5,
-  },
-  messageBubble: {
-    borderRadius: 15,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginBottom: 6,
-    maxWidth: '85%',
-    borderWidth: 1,
-  },
-  userMessage: {
-    backgroundColor: theme.palette.primary + '20',
-    borderColor: theme.palette.primary,
-    alignSelf: 'flex-end',
-    borderBottomRightRadius: 3,
-  },
-  aiMessage: {
-    backgroundColor: theme.palette.card,
-    borderColor: theme.palette.border,
-    alignSelf: 'flex-start',
-    borderBottomLeftRadius: 3,
-  },
-  messagePressed: {
-    opacity: 0.7
-  },
-  userMessageText: {
-    fontSize: 14,
-    color: theme.palette.text.primary,
-    lineHeight: 19,
-  },
-  aiMessageText: {
-    fontSize: 14,
-    color: theme.palette.text.primary,
-    lineHeight: 19,
   },
   inputWrapper: {
     borderTopWidth: 1,

@@ -9,80 +9,57 @@ import React, {
 } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import 'react-native-get-random-values'; // Für uuid
+import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { unzip } from 'react-native-zip-archive';
-import { jsonrepair } from 'jsonrepair'; // ✅ NEU: Robuster JSON-Reparatur-Parser
-
-// ============================================================================
-// TYPE DEFINITIONS
-// ============================================================================
+import { jsonrepair } from 'jsonrepair';
 
 export type ProjectFile = {
-  path: string; // Relativer Pfad, z.B. "src/components/Button.tsx"
-  content: string; // Dateiinhalt IMMER als String speichern/verarbeiten
+  path: string;
+  content: string;
 };
 
 export interface ChatMessage {
-  _id: string; // Eindeutige ID der Nachricht
-  text: string; // Inhalt der Nachricht
-  createdAt: Date; // Zeitstempel
+  _id: string;
+  text: string;
+  createdAt: Date;
   user: {
-    _id: number; // 1 for user, 2 for AI
-    name: string; // 'User' or 'AI'
+    _id: number;
+    name: string;
   };
-  isStreaming?: boolean; // Optional für spätere Streaming-Anzeige
+  isStreaming?: boolean;
 }
 
 export type ProjectData = {
-  id: string; // Eindeutige ID des Projekts
-  name: string; // Anzeigename des Projekts
-  files: ProjectFile[]; // Array aller Dateien im Projekt
-  messages: ChatMessage[]; // Chatverlauf für dieses Projekt
-  lastModified: number; // Zeitstempel der letzten Änderung (Date.now())
+  id: string;
+  name: string;
+  files: ProjectFile[];
+  messages: ChatMessage[];
+  lastModified: number;
 };
 
-// Definition der Werte und Funktionen, die der Context bereitstellt
 interface ProjectContextProps {
-  projectData: ProjectData | null; // Aktuell geladenes Projekt oder null
-  isLoading: boolean; // Zeigt an, ob gerade geladen/gespeichert wird
-  updateProjectFiles: (
-    files: ProjectFile[],
-    newName?: string
-  ) => Promise<void>; // Aktualisiert Dateien (mit Merge!)
-  updateProject: (files: ProjectFile[], newName?: string) => Promise<void>; // Alias
-  updateMessages: (messages: ChatMessage[]) => Promise<void>; // Aktualisiert nur Chat
-  clearProject: () => Promise<void>; // Setzt auf leeres Template zurück
-  loadProjectFromZip: () => Promise<void>; // Importiert aus ZIP
-  setProjectName: (newName: string) => Promise<void>; // Ändert nur den Namen
-  deleteCurrentProject: () => Promise<void>; // Löscht (setzt zurück) mit Bestätigung
-  deleteProject: () => Promise<void>; // Alias
-  messages: ChatMessage[]; // Bequemer Zugriff auf aktuelle Nachrichten
+  projectData: ProjectData | null;
+  isLoading: boolean;
+  updateProjectFiles: (files: ProjectFile[], newName?: string) => Promise<void>;
+  updateProject: (files: ProjectFile[], newName?: string) => Promise<void>;
+  updateMessages: (messages: ChatMessage[]) => Promise<void>;
+  clearProject: () => Promise<void>;
+  loadProjectFromZip: () => Promise<void>;
+  setProjectName: (newName: string) => Promise<void>;
+  deleteCurrentProject: () => Promise<void>;
+  deleteProject: () => Promise<void>;
+  messages: ChatMessage[];
 }
 
-// ============================================================================
-// CONSTANTS
-// ============================================================================
-
-const PROJECT_STORAGE_KEY = 'k1w1_current_project_v4'; // Key für AsyncStorage
-const CACHE_DIR = FileSystem.cacheDirectory + 'unzipped_p/'; // Temp-Ordner für ZIP-Import
-const SAVE_DEBOUNCE_MS = 500; // Verzögerung für Auto-Save in Millisekunden
-
-// ============================================================================
-// CONTEXT
-// ============================================================================
+const PROJECT_STORAGE_KEY = 'k1w1_current_project_v4';
+const CACHE_DIR = FileSystem.cacheDirectory + 'unzipped_p/';
+const SAVE_DEBOUNCE_MS = 500;
 
 const ProjectContext = createContext<ProjectContextProps | undefined>(undefined);
 
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
-/**
- * Erstellt ein neues leeres Projekt-Objekt.
- */
 const createNewProject = (name = 'Neues Projekt'): ProjectData => ({
   id: uuidv4(),
   name,
@@ -91,9 +68,6 @@ const createNewProject = (name = 'Neues Projekt'): ProjectData => ({
   lastModified: Date.now(),
 });
 
-/**
- * Lädt das Basis-Template aus der eingebetteten JSON-Datei.
- */
 const loadTemplateFromFile = async (): Promise<ProjectFile[]> => {
   try {
     const template = require('../templates/expo-sdk54-base.json');
@@ -115,17 +89,14 @@ const loadTemplateFromFile = async (): Promise<ProjectFile[]> => {
   }
 };
 
-/**
- * Versucht robust, einen String als JSON zu parsen. Nutzt jsonrepair.
- */
 const tryParseJsonContent = (content: string | object): any | null => {
   if (typeof content !== 'string') return content;
   const jsonString = content.trim();
   if (!jsonString.startsWith('{') && !jsonString.startsWith('[')) return null;
 
-  try { // Standard-Parse
+  try {
     return JSON.parse(jsonString);
-  } catch (e) { // Fallback mit jsonrepair
+  } catch (e) {
     try {
       const repaired = jsonrepair(jsonString);
       const result = JSON.parse(repaired);
@@ -138,13 +109,9 @@ const tryParseJsonContent = (content: string | object): any | null => {
   }
 };
 
-/**
- * Extrahiert den Projektnamen aus package.json oder app.config.
- */
 const extractProjectName = (files: ProjectFile[]): string => {
   const fallback = 'Unbenanntes Projekt';
   try {
-    // package.json
     const pkgFile = files.find((f) => f.path === 'package.json');
     if (pkgFile?.content) {
       const pkg = tryParseJsonContent(pkgFile.content);
@@ -152,7 +119,6 @@ const extractProjectName = (files: ProjectFile[]): string => {
         return pkg.name.trim();
       }
     }
-    // app.config.js/json
     const appCfgFile = files.find((f) => f.path === 'app.config.js' || f.path === 'app.json');
     if (appCfgFile?.content && typeof appCfgFile.content === 'string') {
       const nameMatch = appCfgFile.content.match(/name:\s*["'](.*?)["']/);
@@ -173,18 +139,12 @@ const extractProjectName = (files: ProjectFile[]): string => {
   return fallback;
 };
 
-/**
- * Stellt sicher, dass der Dateiinhalt immer ein String ist.
- */
 const normalizeFileContent = (content: any): string => {
   return typeof content === 'string'
     ? content
     : JSON.stringify(content ?? '', null, 2);
 };
 
-/**
- * Liest rekursiv alle Dateien aus einem lokalen Verzeichnis.
- */
 const readDirectoryRecursive = async (
   dirUri: string,
   basePath = ''
@@ -215,18 +175,12 @@ const readDirectoryRecursive = async (
   return files;
 };
 
-// ============================================================================
-// PROVIDER COMPONENT
-// ============================================================================
 export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
   const isInitialMount = useRef(true);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null); // Für Debounce Cleanup
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // --------------------------------------------------------------------------
-  // LOAD FROM STORAGE
-  // --------------------------------------------------------------------------
   const loadProjectFromStorage = useCallback(async () => {
     console.log('📂 Lade Projekt...');
     setIsLoading(true);
@@ -235,15 +189,13 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     try {
       const jsonValue = await AsyncStorage.getItem(PROJECT_STORAGE_KEY);
       if (jsonValue) {
-        // Use tryParseJsonContent for loading as well, in case stored data is slightly corrupt
         const parsed = tryParseJsonContent(jsonValue);
-        if (!parsed || typeof parsed !== 'object' || !parsed.id) { // Basic validation
-             throw new Error('Gespeichertes Projekt ist ungültig');
+        if (!parsed || typeof parsed !== 'object' || !parsed.id) {
+          throw new Error('Gespeichertes Projekt ist ungültig');
         }
         loadedData = parsed as ProjectData;
-        // Normalize loaded data
         loadedData.messages = loadedData.messages || [];
-        loadedData.id = loadedData.id || uuidv4(); // Should exist from parse check
+        loadedData.id = loadedData.id || uuidv4();
         loadedData.files = (loadedData.files || []).map((file) => ({
           path: file.path || 'unbekannte_datei',
           content: normalizeFileContent(file.content),
@@ -262,36 +214,35 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       loadedData = createNewProject('Wiederhergestellt');
       loadedData.files = templateFiles;
     } finally {
-        setProjectData(loadedData);
-        setIsLoading(false);
-        console.log('✅ Laden abgeschlossen');
-        requestAnimationFrame(() => { isInitialMount.current = false; });
+      setProjectData(loadedData);
+      setIsLoading(false);
+      console.log('✅ Laden abgeschlossen');
+      requestAnimationFrame(() => {
+        isInitialMount.current = false;
+      });
     }
   }, []);
 
-  useEffect(() => { loadProjectFromStorage(); }, [loadProjectFromStorage]);
+  useEffect(() => {
+    loadProjectFromStorage();
+  }, [loadProjectFromStorage]);
 
-  // --------------------------------------------------------------------------
-  // AUTO-SAVE (mit Debounce)
-  // --------------------------------------------------------------------------
   useEffect(() => {
     if (isInitialMount.current || !projectData || isLoading) return;
 
     console.log(`💾 Speichere "${projectData.name}"... (Debounced)`);
 
-    // Clear previous timer if exists
     if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
+      clearTimeout(debounceTimerRef.current);
     }
 
-    // Set new timer
     debounceTimerRef.current = setTimeout(async () => {
       try {
         const dataToSave = {
           ...projectData,
           files: projectData.files.map((file) => ({
             ...file,
-            content: normalizeFileContent(file.content), // Ensure content is string
+            content: normalizeFileContent(file.content),
           })),
         };
         await AsyncStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(dataToSave));
@@ -301,25 +252,20 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       }
     }, SAVE_DEBOUNCE_MS);
 
-    // Cleanup timer on unmount or before next save
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [projectData, isLoading]); // Depend on projectData and isLoading
+  }, [projectData, isLoading]);
 
-  // --------------------------------------------------------------------------
-  // UPDATE FILES (Merge Logic v3 + Change Detection)
-  // --------------------------------------------------------------------------
   const updateProjectFiles = useCallback(
     async (newOrUpdatedFiles: ProjectFile[], newName?: string) => {
-      // 1. Validate input
       const validFiles = (newOrUpdatedFiles || [])
-        .filter(f => f?.path && typeof f.path === 'string') // Ensure path exists and is string
-        .map(f => ({
+        .filter((f) => f?.path && typeof f.path === 'string')
+        .map((f) => ({
           path: f.path,
-          content: normalizeFileContent(f.content), // Ensure content is string
+          content: normalizeFileContent(f.content),
         }));
 
       if (!validFiles.length) {
@@ -327,8 +273,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         return;
       }
 
-      // 2. Update state using functional update
-      setProjectData(prevData => {
+      setProjectData((prevData) => {
         if (!prevData) {
           console.error('❌ updateProjectFiles: Kein Projekt geladen (prevData is null).');
           return null;
@@ -336,41 +281,65 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
         console.log(`🔄 Merge v3: ${validFiles.length} Updates mit ${prevData.files.length} Dateien.`);
 
-        // 3. Create map of existing files
         const fileMap = new Map<string, ProjectFile>(
-          prevData.files.map(file => [file.path, file])
+          prevData.files.map((file) => [file.path, file])
         );
 
-        // 4. Merge updates into the map
         let hasChanges = false;
-        validFiles.forEach(updatedFile => {
-          const existingFile = fileMap.get(updatedFile.path);
-          const isNew = !existingFile;
-          // Check content difference carefully
-          const isChanged = existingFile && existingFile.content !== updatedFile.content;
+        const newFilesList: string[] = [];
+        const updatedFilesList: string[] = [];
 
-          if (isNew || isChanged) {
-            fileMap.set(updatedFile.path, updatedFile); // Add or overwrite
-            console.log(`${isNew ? '✨ Neu' : '📝 Update'}: ${updatedFile.path}`);
+        validFiles.forEach((updatedFile) => {
+          const existingFile = fileMap.get(updatedFile.path);
+
+          if (!existingFile) {
+            newFilesList.push(updatedFile.path);
+            fileMap.set(updatedFile.path, updatedFile);
+            console.log(`✨ Neu: ${updatedFile.path}`);
             hasChanges = true;
+          } else {
+            if (existingFile.content !== updatedFile.content) {
+              updatedFilesList.push(updatedFile.path);
+              fileMap.set(updatedFile.path, updatedFile);
+              console.log(`📝 Update: ${updatedFile.path}`);
+              hasChanges = true;
+            }
           }
         });
 
-        // 5. Determine final name
         const finalFiles = Array.from(fileMap.values());
-        const finalName = newName || extractProjectName(finalFiles) || prevData.name;
+
+        let finalName = prevData.name;
+        if (newName && newName.trim()) {
+          finalName = newName.trim();
+        }
+
         const nameChanged = finalName !== prevData.name;
         if (nameChanged) hasChanges = true;
 
-        // 6. Performance Optimization: Only return new object if changes occurred
+        if (newFilesList.length > 0) {
+          console.log(`🎉 NEUE DATEIEN (${newFilesList.length}): ${newFilesList.join(', ')}`);
+        }
+        if (updatedFilesList.length > 0) {
+          console.log(
+            `📝 GEÄNDERTE DATEIEN (${updatedFilesList.length}): ${updatedFilesList.join(', ')}`
+          );
+        }
+        if (nameChanged) {
+          console.log(`📛 NAME GEÄNDERT: "${prevData.name}" → "${finalName}"`);
+        }
+
         if (!hasChanges) {
           console.log('ℹ️ Merge v3: Keine Änderungen erkannt.');
-          return prevData; // Return previous state reference
+          // ✅ FIX: Gib trotzdem neues Objekt zurück für useMemo-Update
+          return {
+            ...prevData,
+            lastModified: Date.now(),
+          };
         }
 
         console.log(`✅ Merge v3 abgeschlossen: ${finalFiles.length} Dateien, Name: "${finalName}"`);
 
-        // 7. Return updated state object
         return {
           ...prevData,
           name: finalName,
@@ -378,33 +347,26 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
           lastModified: Date.now(),
         };
       });
-      // Saving is handled by the useEffect hook
     },
-    [] // No dependencies needed for useCallback with functional state updates
+    []
   );
 
-  // --------------------------------------------------------------------------
-  // UPDATE MESSAGES
-  // --------------------------------------------------------------------------
   const updateMessages = useCallback(async (newMessages: ChatMessage[]) => {
-    setProjectData(prevData => {
+    setProjectData((prevData) => {
       if (!prevData) return null;
       console.log(`💬 updateMessages: ${newMessages.length} Nachrichten`);
       return { ...prevData, messages: newMessages, lastModified: Date.now() };
     });
   }, []);
 
-  // --------------------------------------------------------------------------
-  // CLEAR PROJECT (Reset to Template)
-  // --------------------------------------------------------------------------
   const clearProject = useCallback(async () => {
     console.log('🗑️ Lösche aktuelles Projekt, lade Template...');
-    setIsLoading(true); // Show loading
+    setIsLoading(true);
     try {
       const templateFiles = await loadTemplateFromFile();
-      const newProject = createNewProject('Neues Projekt'); // Consistent naming
+      const newProject = createNewProject('Neues Projekt');
       newProject.files = templateFiles;
-      setProjectData(newProject); // Update state -> triggers save via useEffect
+      setProjectData(newProject);
       console.log('✅ Neues Projekt nach Clear erstellt');
     } catch (error) {
       console.error('❌ Clear-Fehler:', error);
@@ -414,9 +376,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   }, []);
 
-  // --------------------------------------------------------------------------
-  // DELETE (mit Bestätigung)
-  // --------------------------------------------------------------------------
   const deleteCurrentProject = useCallback(async () => {
     if (!projectData) return;
     Alert.alert(
@@ -429,25 +388,19 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     );
   }, [projectData, clearProject]);
 
-  // --------------------------------------------------------------------------
-  // SET NAME
-  // --------------------------------------------------------------------------
   const setProjectName = useCallback(async (newName: string) => {
     const trimmedName = newName?.trim();
     if (!trimmedName) {
       console.warn('⚠️ setProjectName: Ungültiger Name.');
       return;
     }
-    setProjectData(prevData => {
-      if (!prevData || prevData.name === trimmedName) return prevData; // No change
+    setProjectData((prevData) => {
+      if (!prevData || prevData.name === trimmedName) return prevData;
       console.log(`📝 Name: "${prevData.name}" → "${trimmedName}"`);
       return { ...prevData, name: trimmedName, lastModified: Date.now() };
     });
   }, []);
 
-  // --------------------------------------------------------------------------
-  // ZIP IMPORT
-  // --------------------------------------------------------------------------
   const loadProjectFromZip = useCallback(async () => {
     console.log('📦 ZIP-Import...');
     setIsLoading(true);
@@ -457,7 +410,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         copyToCacheDirectory: true,
       });
       if (result.canceled || !result.assets?.[0]?.uri) {
-        console.log('ℹ️ Import abgebrochen'); return; // Exit early
+        console.log('ℹ️ Import abgebrochen');
+        return;
       }
       const zipAsset = result.assets[0];
 
@@ -467,15 +421,19 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       console.log('📂 Entpacke...');
       await unzip(zipAsset.uri, CACHE_DIR);
 
-      const newFiles = await readDirectoryRecursive(CACHE_DIR); // Use helper
+      const newFiles = await readDirectoryRecursive(CACHE_DIR);
       if (newFiles.length === 0) throw new Error('ZIP enthält keine Dateien');
 
       const newName = extractProjectName(newFiles) || zipAsset.name.replace(/\.zip$/i, '') || 'Import';
 
       const newProject: ProjectData = {
-        id: uuidv4(), name: newName, files: newFiles, messages: [], lastModified: Date.now(),
+        id: uuidv4(),
+        name: newName,
+        files: newFiles,
+        messages: [],
+        lastModified: Date.now(),
       };
-      setProjectData(newProject); // Update state -> triggers save
+      setProjectData(newProject);
       Alert.alert('Import erfolgreich', `Projekt "${newName}" (${newFiles.length} Dateien)`);
       console.log(`✅ Import: ${newFiles.length} Dateien`);
     } catch (error: any) {
@@ -483,14 +441,14 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       Alert.alert('Import fehlgeschlagen', error.message || 'Fehler');
     } finally {
       setIsLoading(false);
-      try { await FileSystem.deleteAsync(CACHE_DIR, { idempotent: true }); }
-      catch (cleanupError) { console.warn('⚠️ Cleanup-Fehler:', cleanupError); }
+      try {
+        await FileSystem.deleteAsync(CACHE_DIR, { idempotent: true });
+      } catch (cleanupError) {
+        console.warn('⚠️ Cleanup-Fehler:', cleanupError);
+      }
     }
-  }, []); // extractProjectName is stable, no need to list as dependency
+  }, []);
 
-  // --------------------------------------------------------------------------
-  // CONTEXT VALUE
-  // --------------------------------------------------------------------------
   const value: ProjectContextProps = {
     projectData,
     isLoading,
@@ -505,16 +463,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     messages: projectData?.messages || [],
   };
 
-  return (
-    <ProjectContext.Provider value={value}>
-        {children}
-    </ProjectContext.Provider>
-  );
+  return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;
 };
 
-// ============================================================================
-// HOOK
-// ============================================================================
 export const useProject = (): ProjectContextProps => {
   const context = useContext(ProjectContext);
   if (!context) {

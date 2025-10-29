@@ -1,5 +1,15 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ScrollView, ActivityIndicator, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+  ActivityIndicator,
+  Platform,
+} from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
@@ -18,13 +28,13 @@ const buildFileTree = (files: ProjectFile[]): TreeNode[] => {
   const root: TreeNode = { id: 'root', name: 'root', path: '', children: [] };
 
   if (!files || !Array.isArray(files)) {
-    console.log("buildFileTree: Keine Dateien vorhanden");
+    console.log('buildFileTree: Keine Dateien vorhanden');
     return [];
   }
 
   console.log(`buildFileTree: Verarbeite ${files.length} Dateien`);
 
-  files.forEach(file => {
+  files.forEach((file) => {
     if (!file || !file.path) return;
 
     let currentLevel = root.children!;
@@ -34,7 +44,9 @@ const buildFileTree = (files: ProjectFile[]): TreeNode[] => {
       const isFile = index === pathParts.length - 1;
       const nodePath = pathParts.slice(0, index + 1).join('/');
 
-      let existingNode = currentLevel.find(node => node.name === part && (isFile ? !!node.file : !!node.children));
+      let existingNode = currentLevel.find(
+        (node) => node.name === part && (isFile ? !!node.file : !!node.children)
+      );
 
       if (!existingNode) {
         const newNode: TreeNode = {
@@ -67,7 +79,7 @@ const buildFileTree = (files: ProjectFile[]): TreeNode[] => {
       if (!a.children && b.children) return 1;
       return a.name.localeCompare(b.name);
     });
-    nodes.forEach(node => {
+    nodes.forEach((node) => {
       if (node.children) sortNodes(node.children);
     });
   };
@@ -77,7 +89,11 @@ const buildFileTree = (files: ProjectFile[]): TreeNode[] => {
   return root.children!;
 };
 
-const FileTreeItem: React.FC<{ node: TreeNode; onPressFile: (file: ProjectFile) => void; level: number }> = React.memo(({ node, onPressFile, level }) => {
+const FileTreeItem: React.FC<{
+  node: TreeNode;
+  onPressFile: (file: ProjectFile) => void;
+  level: number;
+}> = React.memo(({ node, onPressFile, level }) => {
   const isFolder = !!node.children;
   const indentStyle = { paddingLeft: level * 20 };
 
@@ -88,7 +104,7 @@ const FileTreeItem: React.FC<{ node: TreeNode; onPressFile: (file: ProjectFile) 
           <Ionicons name="folder-outline" size={20} color={theme.palette.text.secondary} />
           <Text style={styles.treeItemText}>{node.name}</Text>
         </View>
-        {node.children!.map(child => (
+        {node.children!.map((child) => (
           <FileTreeItem key={child.id} node={child} onPressFile={onPressFile} level={level + 1} />
         ))}
       </View>
@@ -108,22 +124,21 @@ const CodeScreen = () => {
   const { projectData, isLoading } = useProject();
   const [selectedFile, setSelectedFile] = useState<ProjectFile | null>(null);
 
-  // ✅ FIX: useMemo verhindert unnötiges Neuberechnen des FileTree
+  // ✅ FIX: useMemo hört auch auf lastModified
   const fileTree = useMemo(() => {
     if (projectData && projectData.files && Array.isArray(projectData.files)) {
       console.log(`CodeScreen: Baue FileTree mit ${projectData.files.length} Dateien`);
       return buildFileTree(projectData.files);
     }
-    console.log("CodeScreen: Keine Dateien, leerer Baum");
+    console.log('CodeScreen: Keine Dateien, leerer Baum');
     return [];
-  }, [projectData?.files]);
+  }, [projectData?.files, projectData?.lastModified]);
 
-  // ✅ FIX: Prüfe ob ausgewählte Datei noch existiert
   useEffect(() => {
     if (selectedFile) {
-      const fileExists = projectData?.files?.some(f => f.path === selectedFile.path);
+      const fileExists = projectData?.files?.some((f) => f.path === selectedFile.path);
       if (!fileExists) {
-        console.log("CodeScreen: Ausgewählte Datei existiert nicht mehr, setze Auswahl zurück.");
+        console.log('CodeScreen: Ausgewählte Datei existiert nicht mehr, setze Auswahl zurück.');
         setSelectedFile(null);
       }
     }
@@ -131,17 +146,18 @@ const CodeScreen = () => {
 
   useFocusEffect(
     useCallback(() => {
-      console.log("CodeScreen: Fokus erhalten.");
+      console.log('CodeScreen: Fokus erhalten.');
     }, [])
   );
 
   const handleCopy = (content: string) => {
     Clipboard.setStringAsync(content);
-    Alert.alert("Kopiert", "Datei-Inhalt wurde in die Zwischenablage kopiert.");
+    Alert.alert('Kopiert', 'Datei-Inhalt wurde in die Zwischenablage kopiert.');
   };
 
   const handleDebug = (file: ProjectFile) => {
-    const contentString = typeof file.content === 'string' ? file.content : JSON.stringify(file.content, null, 2);
+    const contentString =
+      typeof file.content === 'string' ? file.content : JSON.stringify(file.content, null, 2);
     console.log(`CodeScreen: Sende ${file.path} an Chat-Tab...`);
     const codeWithContext = `Datei: ${file.path}\n\n${contentString}`;
     /* @ts-ignore */
@@ -158,14 +174,19 @@ const CodeScreen = () => {
   }
 
   if (selectedFile) {
-    const fileContentString = typeof selectedFile.content === 'string' ? selectedFile.content : JSON.stringify(selectedFile.content, null, 2);
+    const fileContentString =
+      typeof selectedFile.content === 'string'
+        ? selectedFile.content
+        : JSON.stringify(selectedFile.content, null, 2);
 
     return (
       <View style={styles.container}>
         <View style={styles.detailHeader}>
           <TouchableOpacity style={styles.headerButton} onPress={() => setSelectedFile(null)}>
             <Ionicons name="arrow-back" size={24} color={theme.palette.primary} />
-            <Text style={styles.headerTitle} numberOfLines={1}>{selectedFile.path}</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {selectedFile.path}
+            </Text>
           </TouchableOpacity>
 
           <View style={styles.headerActions}>
@@ -189,21 +210,25 @@ const CodeScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.projectTitle}>{projectData ? projectData.name : "Kein Projekt"}</Text>
-      <Text style={styles.debugInfo}>Dateien: {projectData?.files?.length || 0} | Tree: {fileTree.length}</Text>
+      <Text style={styles.projectTitle}>{projectData ? projectData.name : 'Kein Projekt'}</Text>
+      <Text style={styles.debugInfo}>
+        Dateien: {projectData?.files?.length || 0} | Tree: {fileTree.length}
+      </Text>
 
       <FlatList
         data={fileTree}
-        keyExtractor={(item) => (item?.id || Math.random().toString())}
-        renderItem={({ item }) => (
-          <FileTreeItem node={item} onPressFile={setSelectedFile} level={0} />
-        )}
+        keyExtractor={(item) => item?.id || Math.random().toString()}
+        renderItem={({ item }) => <FileTreeItem node={item} onPressFile={setSelectedFile} level={0} />}
         ListEmptyComponent={
           <View style={styles.centered}>
             <Text style={styles.emptyText}>Das Projekt ist leer.</Text>
-            <Text style={styles.emptySubText}>Gehe zum Chat-Tab, um ein Projekt zu erstellen oder lade ein ZIP.</Text>
+            <Text style={styles.emptySubText}>
+              Gehe zum Chat-Tab, um ein Projekt zu erstellen oder lade ein ZIP.
+            </Text>
             {projectData && projectData.files && projectData.files.length > 0 && (
-              <Text style={styles.debugText}>DEBUG: {projectData.files.length} Dateien vorhanden, aber Baum ist leer!</Text>
+              <Text style={styles.debugText}>
+                DEBUG: {projectData.files.length} Dateien vorhanden, aber Baum ist leer!
+              </Text>
             )}
           </View>
         }
@@ -216,20 +241,63 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.palette.background },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   loadingText: { marginTop: 10, color: theme.palette.text.primary, fontSize: 16 },
-  projectTitle: { fontSize: 18, fontWeight: 'bold', color: theme.palette.text.primary, paddingHorizontal: 15, paddingTop: 20, paddingBottom: 5, backgroundColor: theme.palette.card, borderBottomWidth: 1, borderBottomColor: theme.palette.border },
-  debugInfo: { fontSize: 12, color: theme.palette.text.secondary, paddingHorizontal: 15, paddingBottom: 10, backgroundColor: theme.palette.card },
-  treeItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 15, borderBottomWidth: 1, borderBottomColor: theme.palette.border },
+  projectTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.palette.text.primary,
+    paddingHorizontal: 15,
+    paddingTop: 20,
+    paddingBottom: 5,
+    backgroundColor: theme.palette.card,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+  },
+  debugInfo: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+    paddingHorizontal: 15,
+    paddingBottom: 10,
+    backgroundColor: theme.palette.card,
+  },
+  treeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+  },
   treeItemText: { fontSize: 16, color: theme.palette.text.secondary, marginLeft: 10 },
   fileText: { color: theme.palette.text.primary },
   emptyText: { fontSize: 18, color: theme.palette.text.secondary, marginBottom: 10 },
   emptySubText: { fontSize: 14, color: theme.palette.text.disabled, textAlign: 'center' },
   debugText: { marginTop: 20, fontSize: 12, color: theme.palette.error, textAlign: 'center' },
-  detailHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 10, backgroundColor: theme.palette.card, borderBottomWidth: 1, borderBottomColor: theme.palette.border },
+  detailHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    backgroundColor: theme.palette.card,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+  },
   headerButton: { padding: 8, flexDirection: 'row', alignItems: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: theme.palette.text.primary, marginLeft: 10, maxWidth: '70%' },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.palette.text.primary,
+    marginLeft: 10,
+    maxWidth: '70%',
+  },
   headerActions: { flexDirection: 'row' },
   codeScrollView: { flex: 1, padding: 15 },
-  codeText: { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 14, color: '#e0e0e0', lineHeight: 20 },
+  codeText: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 14,
+    color: '#e0e0e0',
+    lineHeight: 20,
+  },
 });
 
 export default CodeScreen;
