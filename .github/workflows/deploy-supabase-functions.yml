@@ -3,6 +3,9 @@ name: Deploy Supabase Functions
 on:
   push:
     branches: [ main ]
+  
+  # DIESEN TEIL HINZUFÜGEN, DAMIT DIE API ES AUSLÖSEN KANN
+  workflow_dispatch:
 
 jobs:
   deploy:
