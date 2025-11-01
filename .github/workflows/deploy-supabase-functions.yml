@@ -1,30 +1,94 @@
-name: Deploy Supabase Functions
+name: Deploy Supabase & Trigger EAS
 
 on:
   push:
     branches: [ main ]
-  
-  # DIESEN TEIL HINZUFÜGEN, DAMIT DIE API ES AUSLÖSEN KANN
   workflow_dispatch:
+    inputs:
+      job_id:
+        description: 'Die ID des build_jobs Eintrags in Supabase'
+        required: true
 
 jobs:
-  deploy:
+  # Job 1: Supabase-Funktionen bereitstellen (wie bisher)
+  deploy-functions:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Install Supabase CLI
         run: |
           curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
           sudo apt-get update -y
           sudo apt-get install -y nodejs unzip
           npm i -g supabase
-
       - name: Login to Supabase
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: echo "$SUPABASE_ACCESS_TOKEN" | supabase login --token
+      - name: Deploy All Functions
+        run: |
+          supabase functions deploy k1w1-handler --no-verify-jwt
+          supabase functions deploy check-eas-build --no-verify-jwt
+          supabase functions deploy trigger-eas-build --no-verify-jwt
 
-      - name: Deploy k1w1-handler Function
-        run: supabase functions deploy k1w1-handler --no-verify-jwt
+  # Job 2: EAS Build auslösen (nur wenn via API aufgerufen)
+  trigger-eas-build:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Install dependencies
+        run: npm install
+      - name: Start EAS Build
+        id: eas_build
+        run: |
+          eas build --platform android --non-interactive --json > eas_output.json
+          echo "EAS JSON Output:"
+          cat eas_output.json
+          BUILD_ID=$(jq -r '.[0].id' eas_output.json)
+          if [ -z "$BUILD_ID" ] || [ "$BUILD_ID" == "null" ]; then
+            echo "::error::Konnte EAS Build ID nicht aus JSON extrahieren."
+            exit 1
+          fi
+          echo "EAS Build ID extrahiert: $BUILD_ID"
+          echo "eas_build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+
+      - name: Update Supabase Job Status
+        if: success()
+        env:
+          # HIER DIE ÄNDERUNG: Lese K1W1_... Secrets
+          SUPABASE_URL: ${{ secrets.K1W1_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.K1W1_SUPABASE_SERVICE_ROLE_KEY }}
+          JOB_ID: ${{ github.event.inputs.job_id }}
+          EAS_BUILD_ID: ${{ steps.eas_build.outputs.eas_build_id }}
+        run: |
+          echo "Aktualisiere Supabase Job $JOB_ID mit EAS Build ID $EAS_BUILD_ID"
+          curl -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{ "status": "building", "eas_build_id": "${EAS_BUILD_ID}", "github_run_id": "${{ github.run_id }}" }'
+
+      - name: Handle EAS Start-Fehler
+        if: failure()
+        env:
+          # HIER DIE ÄNDERUNG: Lese K1W1_... Secrets
+          SUPABASE_URL: ${{ secrets.K1W1_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.K1W1_SUPABASE_SERVICE_ROLE_KEY }}
+          JOB_ID: ${{ github.event.inputs.job_id }}
+        run: |
+          echo "Fehler beim Starten von EAS. Aktualisiere Job $JOB_ID"
+          curl -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{ "status": "error", "eas_build_id": "EAS Start failed", "github_run_id": "${{ github.run_id }}" }'
