@@ -1,16 +1,16 @@
 name: Deploy Supabase & Trigger EAS
 
 on:
+  # Triggert bei JEDEM Push auf 'main'
   push:
     branches: [ main ]
+  
+  # Behalten wir für den Notfall (manuelles Auslösen) bei
   workflow_dispatch:
-    inputs:
-      job_id:
-        description: 'Die ID des build_jobs Eintrags in Supabase'
-        required: true
 
 jobs:
-  # Job 1: Supabase-Funktionen bereitstellen (wie bisher)
+  # Job 1: Supabase-Funktionen bereitstellen (Bleibt unverändert)
+  # Dieser Job wird jetzt bei JEDEM PUSH ausgeführt, was gut ist.
   deploy-functions:
     runs-on: ubuntu-latest
     steps:
@@ -31,12 +31,28 @@ jobs:
           supabase functions deploy check-eas-build --no-verify-jwt
           supabase functions deploy trigger-eas-build --no-verify-jwt
 
-  # Job 2: EAS Build auslösen (nur wenn via API aufgerufen)
-  trigger-eas-build:
+  # Job 2: EAS Build auslösen
+  run-eas-build:
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
+    # WICHTIG: Läuft NUR, wenn die Commit-Nachricht unseren Spezial-Tag enthält
+    if: "contains(github.event.head_commit.message, '[k1w1-build-job:')"
+
     steps:
       - uses: actions/checkout@v4
+
+      - name: Extract Job ID from Commit Message
+        id: get_job_id
+        run: |
+          # Extrahiere die Job-ID (z.B. '42') aus der Nachricht "[k1w1-build-job: 42] ..."
+          MESSAGE="${{ github.event.head_commit.message }}"
+          JOB_ID=$(echo "$MESSAGE" | grep -o '\[k1w1-build-job: [0-9]*\]' | grep -o '[0-9]*')
+          if [ -z "$JOB_ID" ]; then
+            echo "::error::Konnte Job-ID aus Commit-Nachricht nicht extrahieren."
+            exit 1
+          fi
+          echo "Extrahierte Job-ID: $JOB_ID"
+          echo "job_id=$JOB_ID" >> $GITHUB_OUTPUT
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -48,6 +64,7 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
       - name: Install dependencies
         run: npm install
+
       - name: Start EAS Build
         id: eas_build
         run: |
@@ -65,30 +82,27 @@ jobs:
       - name: Update Supabase Job Status
         if: success()
         env:
-          # HIER DIE ÄNDERUNG: Lese K1W1_... Secrets
           SUPABASE_URL: ${{ secrets.K1W1_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.K1W1_SUPABASE_SERVICE_ROLE_KEY }}
-          JOB_ID: ${{ github.event.inputs.job_id }}
+          JOB_ID: ${{ steps.get_job_id.outputs.job_id }} # KORREKTUR
           EAS_BUILD_ID: ${{ steps.eas_build.outputs.eas_build_id }}
         run: |
           echo "Aktualisiere Supabase Job $JOB_ID mit EAS Build ID $EAS_BUILD_ID"
           curl -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
-            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
             -d '{ "status": "building", "eas_build_id": "${EAS_BUILD_ID}", "github_run_id": "${{ github.run_id }}" }'
 
       - name: Handle EAS Start-Fehler
         if: failure()
         env:
-          # HIER DIE ÄNDERUNG: Lese K1W1_... Secrets
           SUPABASE_URL: ${{ secrets.K1W1_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.K1W1_SUPABASE_SERVICE_ROLE_KEY }}
-          JOB_ID: ${{ github.event.inputs.job_id }}
+          JOB_ID: ${{ steps.get_job_id.outputs.job_id }} # KORREKTUR
         run: |
           echo "Fehler beim Starten von EAS. Aktualisiere Job $JOB_ID"
           curl -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
-            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
             -d '{ "status": "error", "eas_build_id": "EAS Start failed", "github_run_id": "${{ github.run_id }}" }'
+
