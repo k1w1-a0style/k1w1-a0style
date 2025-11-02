@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { ensureSupabaseClient } from '../lib/supabase';
 import { theme } from '../theme';
@@ -19,16 +20,16 @@ import { useProject } from '../contexts/ProjectContext';
 import MessageItem from '../components/MessageItem';
 import { useChatHandlers } from '../hooks/useChatHandlers';
 
+// Typ-Definition für das DocumentPicker-Asset
 type DocumentResultAsset = NonNullable<import('expo-document-picker').DocumentPickerResult['assets']>[0];
 
 type ChatScreenProps = {
   navigation: any;
-  route: { params?: { debugCode?: string } }
+  route: { params?: { debugCode?: string } };
 };
 
 const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const { messages, isLoading: isProjectLoading, projectData } = useProject();
-  
   const flatListRef = useRef<FlatList>(null);
   const [textInput, setTextInput] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -36,12 +37,12 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [selectedFileAsset, setSelectedFileAsset] = useState<DocumentResultAsset | null>(null);
 
+  // KORREKTUR: loadHistoryFromMessages wurde aus der Destrukturierung entfernt.
   const {
     handlePickDocument,
     handleSend,
     handleDebugLastResponse,
     handleExpoGo,
-    loadHistoryFromMessages
   } = useChatHandlers(
     supabase,
     textInput,
@@ -68,9 +69,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
     }, [loadClient])
   );
 
-  useEffect(() => {
-    loadHistoryFromMessages();
-  }, [messages, loadHistoryFromMessages]);
+  // KORREKTUR: Dieser useEffect, der loadHistoryFromMessages aufrief, wurde entfernt.
+  // Der useChatHandlers-Hook handhabt das Laden der History jetzt intern.
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -95,10 +95,10 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const combinedIsLoading = isAiLoading || isProjectLoading;
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 180 : 80}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'} // 'height' funktioniert oft besser
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 80} // Offset anpassen
     >
       <FlatList
         ref={flatListRef}
@@ -134,7 +134,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
           <View style={styles.attachedFileContainer}>
             <Ionicons name="document-attach-outline" size={14} color={theme.palette.text.secondary} />
             <Text style={styles.attachedFileText} numberOfLines={1}>{selectedFileAsset.name}</Text>
-            <TouchableOpacity onPress={()=>setSelectedFileAsset(null)} style={styles.removeFileButton}>
+            <TouchableOpacity onPress={() => setSelectedFileAsset(null)} style={styles.removeFileButton}>
               <Ionicons name="close-circle" size={16} color={theme.palette.text.secondary} />
             </TouchableOpacity>
           </View>
@@ -156,12 +156,12 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
           <TouchableOpacity
             onPress={handleDebugLastResponse}
             style={styles.iconButton}
-            disabled={combinedIsLoading || messages.filter(m=>m.user._id===2).length===0}
+            disabled={combinedIsLoading || messages.filter(m => m.user._id === 2).length === 0}
           >
             <Ionicons
               name="bug-outline"
               size={20}
-              color={combinedIsLoading || messages.filter(m=>m.user._id===2).length===0 ? theme.palette.text.disabled : theme.palette.primary}
+              color={combinedIsLoading || messages.filter(m => m.user._id === 2).length === 0 ? theme.palette.text.disabled : theme.palette.primary}
             />
           </TouchableOpacity>
 
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.palette.background,
     paddingHorizontal: 8,
     paddingTop: 4,
-    paddingBottom: Platform.OS === 'ios' ? 0 : 4,
+    paddingBottom: Platform.OS === 'ios' ? 20 : 4, // Mehr Padding für iOS Home Indicator
   },
   attachedFileContainer: {
     flexDirection: 'row',
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     backgroundColor: theme.palette.error + '20',
     position: 'absolute',
-    bottom: 60,
+    bottom: 80, // Angepasste Position
     left: 10,
     right: 10,
     borderRadius: 6,
@@ -318,3 +318,5 @@ const styles = StyleSheet.create({
 });
 
 export default ChatScreen;
+
+
