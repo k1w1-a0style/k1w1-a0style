@@ -1,0 +1,55 @@
+# .github/workflows/eas-build.yml
+# Dies ist die NEUE Workflow-Datei für "Variante A" (Serverless).
+# Sie wird NUR durch den "workflow_dispatch" aus der App getriggert.
+
+name: EAS Build (Variante A)
+
+on:
+  workflow_dispatch: # Ermöglicht das Triggern über die GitHub API aus unserer App
+    inputs:
+      job_id: # Optional, falls wir eine Job-ID aus der App übergeben wollen
+        description: 'Job ID from K1W1 App'
+        required: false
+
+jobs:
+  run-eas-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Expo und EAS einrichten
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          # WICHTIG: Dies ist das Secret, das du manuell im GitHub Repo
+          # (Settings > Secrets > Actions) setzen musst.
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Abhängigkeiten installieren
+        run: npm install
+
+      - name: EAS Build starten (und warten)
+        # --wait: Die Action wartet, bis der Build auf Expo-Servern fertig ist.
+        # --non-interactive: Verhindert Prompts in der CI.
+        # --output: Lädt das fertige Artefakt (APK) herunter.
+        run: |
+          eas build \
+            --platform android \
+            --non-interactive \
+            --wait \
+            --output=build/k1w1-build.apk
+
+      - name: Build-Artefakt hochladen
+        # Dies macht die .apk im "Summary" des GitHub Action Runs
+        # zum Download verfügbar.
+        uses: actions/upload-artifact@v4
+        with:
+          name: k1w1-android-build
+          path: build/k1w1-build.apk
+

@@ -18,5 +18,10 @@
   {
     "path": "README.md",
     "content": "# 🥝 Meine App\n\n**Erstellt mit k1w1-a0style**\n\n## 🚀 Start\n\n```bash\nnpm install\nnpm start\n```\n\n## 📱 Plattformen\n\n- **Android:** `npm run android`\n- **iOS:** `npm run ios`\n- **Web:** `npm run web`\n\n## 🛠️ Tech Stack\n\n- Expo SDK 54\n- React Native 0.81.4\n- TypeScript\n\n---\n\n**Powered by k1w1-a0style** 🥝"
+  },
+  {
+    "path": ".github/workflows/eas-build.yml",
+    "content": "# .github/workflows/eas-build.yml\n# KORRIGIERTE Version (V3) für \"Variante A\"\n\nname: EAS Build (Variante A)\n\non:\n  workflow_dispatch:\n    inputs:\n      job_id:\n        description: 'Job ID from K1W1 App'\n        required: false\n\njobs:\n  run-eas-build:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Code auschecken\n        uses: actions/checkout@v4\n\n      - name: Node.js einrichten\n        uses: actions/setup-node@v4\n        with:\n          node-version: 20\n\n      - name: Expo und EAS einrichten\n        uses: expo/expo-github-action@v8\n        with:\n          eas-version: latest\n          token: ${{ secrets.EXPO_TOKEN }}\n\n      - name: Abhängigkeiten installieren\n        run: npm install\n\n      - name: EAS Build starten (und warten)\n        # KORREKTUR: Die Flags --output und --wait wurden entfernt.\n        # --wait wird durch den Link zum EAS-Dashboard ersetzt.\n        # --non-interactive bleibt.\n        run: |\n          eas build \\\n            --platform android \\\n            --non-interactive\n"
   }
 ]
+

@@ -1,146 +1,135 @@
-// components/CustomHeader.tsx (v7.1 - Debug)
-import React, { useState, useEffect, useRef } from 'react';
+// components/CustomHeader.tsx (v8.0 - Variante A Serverless Build)
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Linking, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme, HEADER_HEIGHT } from '../theme';
 import { DrawerHeaderProps } from '@react-navigation/drawer';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ensureSupabaseClient } from '../lib/supabase';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { zip } from 'react-native-zip-archive';
 import { useProject } from '../contexts/ProjectContext';
-import { SupabaseClient } from '@supabase/supabase-js';
-
-const EAS_TOKEN_KEY = 'eas_token';
-const GITHUB_REPO_KEY = 'github_repo_key';
-const GITHUB_TOKEN_KEY = 'github_token';
 
 let pollingInterval: NodeJS.Timeout | null = null;
+const POLLING_INTERVAL_MS = 15000; // 15 Sekunden
 
 const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
   const [isTriggeringBuild, setIsTriggeringBuild] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const { projectData } = useProject();
+  
+  // NEU: ProjectContext verwenden (holt die serverlosen Funktionen)
+  const { projectData, exportAndBuild, getWorkflowRuns } = useProject();
 
   const [isPolling, setIsPolling] = useState(false);
-  const [currentJobId, setCurrentJobId] = useState<number | null>(null);
+  // NEU: Speichere das Repo, das gepollt wird
+  const [pollingRepo, setPollingRepo] = useState<{ owner: string, repo: string } | null>(null);
   const [buildStatus, setBuildStatus] = useState<string | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
 
-  const supabaseRef = useRef<SupabaseClient | null>(null);
-  const easTokenRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (isPolling && currentJobId) {
-      console.log(`POLLING GESTARTET für Job ${currentJobId}`);
-      setBuildStatus('Wartet auf GitHub...');
-
-      const poll = async () => {
-        if (!supabaseRef.current || !easTokenRef.current || !currentJobId) {
-          console.warn('Polling gestoppt: Refs fehlen.');
-          setIsPolling(false); setBuildStatus('Polling-Fehler'); return;
-        }
-        try {
-          const { data, error } = await supabaseRef.current.functions.invoke('check-eas-build', {
-            body: { jobId: currentJobId, easToken: easTokenRef.current }
-          });
-          if (error) throw error;
-          console.log('Poll Status:', data.status);
-          switch (data.status) {
-            case 'pending': setBuildStatus('Job erstellt...'); break;
-            case 'pushed': setBuildStatus('Code gepusht...'); break;
-            case 'building': setBuildStatus('Build läuft...'); break;
-            case 'success':
-              setBuildStatus('Build erfolgreich!');
-              setDownloadUrl(data.download_url || null);
-              setIsPolling(false); setCurrentJobId(null); break;
-            case 'error':
-              setBuildStatus('Build fehlgeschlagen!');
-              setIsPolling(false); setCurrentJobId(null); break;
+  // NEU: Polling-Logik für GitHub Actions (Variante A)
+  const pollGitHubActions = useCallback(async () => {
+    if (!pollingRepo) {
+      console.log('Polling gestoppt: Kein Repo ausgewählt.');
+      setIsPolling(false);
+      return;
+    }
+    
+    const WORKFLOW_FILE_NAME = 'eas-build.yml'; 
+    try {
+      console.log(`Polling GitHub Actions für ${pollingRepo.owner}/${pollingRepo.repo}...`);
+      const data = await getWorkflowRuns(pollingRepo.owner, pollingRepo.repo, WORKFLOW_FILE_NAME);
+      
+      if (!data.workflow_runs || data.workflow_runs.length === 0) {
+        setBuildStatus('Wartet auf GitHub...');
+        return;
+      }
+      
+      const latestRun = data.workflow_runs[0];
+      
+      switch (latestRun.status) {
+        case 'queued':
+          setBuildStatus('Build in Warteschlange...');
+          break;
+        case 'in_progress':
+          setBuildStatus('Build läuft...');
+          break;
+        case 'completed':
+          setIsPolling(false); 
+          setPollingRepo(null);
+          
+          if (latestRun.conclusion === 'success') {
+            setBuildStatus('Build erfolgreich!');
+            const runUrl = latestRun.html_url;
+            setDownloadUrl(runUrl);
+            Alert.alert(
+              'Build Abgeschlossen', 
+              'Build erfolgreich. Klicke auf den Download-Button, um das Artefakt (die .apk) anzusehen.'
+            );
+          } else {
+            setBuildStatus(`Build fehlgeschlagen (${latestRun.conclusion})`);
+            Alert.alert('Build Fehlgeschlagen', `Der GitHub Actions Run ist mit Status '${latestRun.conclusion}' fehlgeschlagen.`);
           }
-        } catch (pollError: any) {
-          console.error('Polling-Fehler:', pollError);
-          setBuildStatus('Polling-Fehler');
-          setIsPolling(false); setCurrentJobId(null);
-        }
-      };
-      poll();
-      pollingInterval = setInterval(poll, 15000);
+          break;
+        default:
+          setBuildStatus(`Status: ${latestRun.status}`);
+      }
+      
+    } catch (pollError: any) {
+      console.error('GitHub Polling-Fehler:', pollError);
+      setBuildStatus('Polling-Fehler');
+      setIsPolling(false);
+      setPollingRepo(null);
+    }
+  }, [pollingRepo, getWorkflowRuns]);
+
+  // NEU: useEffect für GitHub Actions Polling
+  useEffect(() => {
+    if (isPolling && pollingRepo) {
+      console.log(`POLLING GESTARTET für ${pollingRepo.owner}/${pollingRepo.repo}`);
+      pollGitHubActions(); 
+      pollingInterval = setInterval(pollGitHubActions, POLLING_INTERVAL_MS);
     } else if (!isPolling && pollingInterval) {
       console.log('POLLING GESTOPPT.');
       clearInterval(pollingInterval);
       pollingInterval = null;
     }
     return () => {
-      if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+      }
     };
-  }, [isPolling, currentJobId]);
+  }, [isPolling, pollingRepo, pollGitHubActions]);
 
+  // NEU: handleTriggerEasBuild (Variante A)
   const handleTriggerEasBuild = async () => {
-    console.log("EAS Build Button gedrückt (v7.1 - Debug)");
+    console.log("EAS Build Button gedrückt (Variante A - Serverless)");
+    if (!projectData) {
+        Alert.alert("Fehler", "Kein Projekt geladen.");
+        return;
+    }
+
     setIsTriggeringBuild(true);
-    setBuildStatus('Code wird vorbereitet...');
-    setDownloadUrl(null);
+    setBuildStatus('Starte Repo-Erstellung...');
+    setDownloadUrl(null); // Alten Download-Link löschen
 
     try {
-      if (!projectData || !projectData.files || projectData.files.length === 0) {
-        throw new Error("Projekt ist leer. Es gibt keine Dateien zum Bauen.");
-      }
-      const supabase = await ensureSupabaseClient();
-      supabaseRef.current = supabase;
-      /* @ts-ignore */
-      if (!supabase || supabase.functions.invoke.toString().includes('DUMMY_CLIENT')) {
-        throw new Error("Supabase Client nicht bereit. Bitte in 'Verbindungen' prüfen.");
-      }
+      // Rufe die Context-Funktion auf (diese enthält jetzt den Check für die YML)
+      const repoInfo = await exportAndBuild(projectData);
       
-      const easToken = await AsyncStorage.getItem(EAS_TOKEN_KEY);
-      const GITHUB_REPO = await AsyncStorage.getItem(GITHUB_REPO_KEY);
-      const GITHUB_TOKEN = await AsyncStorage.getItem(GITHUB_TOKEN_KEY);
-
-      // 🔍 DEBUG: Zeige Token-Previews
-      console.log('🔍 DEBUG App: easToken:', easToken ? easToken.substring(0, 10) + '...' : '❌ FEHLT');
-      console.log('🔍 DEBUG App: GITHUB_TOKEN:', GITHUB_TOKEN ? GITHUB_TOKEN.substring(0, 10) + '...' : '❌ FEHLT');
-      console.log('🔍 DEBUG App: GITHUB_REPO:', GITHUB_REPO || '❌ FEHLT');
-
-      easTokenRef.current = easToken;
-      if (!easToken || !GITHUB_REPO || !GITHUB_TOKEN) {
-        throw new Error("Expo Token, GitHub Token oder GitHub Repo fehlt. Bitte 'Verbindungen' prüfen.");
+      if (repoInfo) {
+        // Starte das Polling für das neu erstellte Repo
+        setPollingRepo(repoInfo);
+        setIsPolling(true);
+        setBuildStatus('Wartet auf GitHub...');
+      } else {
+        // Fehler wurde bereits im Context per Alert angezeigt
+        setBuildStatus(null);
       }
-
-      console.log(`(v7.1) Pushe ${projectData.files.length} Dateien nach ${GITHUB_REPO}...`);
-
-      const { data, error } = await supabase.functions.invoke('trigger-eas-build', {
-        body: {
-          githubRepo: GITHUB_REPO,
-          githubToken: GITHUB_TOKEN,
-          files: projectData.files
-        }
-      });
-
-      if (error) {
-        console.error("Fehler von Supabase Function:", error);
-        let detail = error.message || '?';
-        if (error.context?.details) {
-          try {
-            const p = JSON.parse(error.context.details);
-            detail = p.error || detail;
-            console.error("Server-Fehlerdetails:", detail);
-          } catch (e) { }
-        }
-        throw new Error(`Fehler beim Starten des Builds: ${detail}`);
-      }
-
-      console.log("Supabase Function (v7.1) erfolgreich:", data);
-
-      setCurrentJobId(data.job_id);
-      setIsPolling(true);
-      setBuildStatus('Code gepusht. Warte auf Build...');
-
     } catch (err: any) {
-      console.error("Fehler in handleTriggerEasBuild:", err);
-      Alert.alert("Build Fehlgeschlagen", err.message || "?");
+      // Fehler wurde bereits im Context per Alert angezeigt
+      console.error("Fehler in handleTriggerEasBuild (Variante A):", err);
       setBuildStatus(null);
     } finally {
       setIsTriggeringBuild(false);
@@ -151,7 +140,7 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
     if (downloadUrl) {
       Alert.alert(
         "Build herunterladen",
-        "Möchtest du die fertige APK im Browser öffnen?",
+        "Möchtest du die GitHub Actions Seite im Browser öffnen, um das Artefakt (die .apk) herunterzuladen?",
         [
           { text: "Abbrechen", style: "cancel" },
           { text: "Öffnen", onPress: () => Linking.openURL(downloadUrl) }
@@ -162,6 +151,7 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
 
   const handleStartExpoGo = () => { Alert.alert("Expo Go", "Deaktiviert."); };
 
+  // ZIP Export (Keine Änderung)
   const handleExportZip = async () => {
     console.log("Export ZIP Button gedrückt");
     if (!projectData || !projectData.files || projectData.files.length === 0) {
@@ -178,7 +168,9 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
       await FileSystem.deleteAsync(zipPath, { idempotent: true });
       await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
       for (const file of projectFiles) {
-        const contentString = typeof file.content === 'string' ? file.content : JSON.stringify(file.content, null, 2);
+        const contentString = typeof file.content === 'string' ?
+          file.content :
+          JSON.stringify(file.content, null, 2);
         const filePath = `${tempDir}${file.path}`;
         const dirName = filePath.substring(0, filePath.lastIndexOf('/'));
         if (dirName && dirName !== tempDir.slice(0, -1)) {
@@ -271,3 +263,4 @@ const styles = StyleSheet.create({
 });
 
 export default CustomHeader;
+

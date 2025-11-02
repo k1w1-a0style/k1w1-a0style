@@ -1,4 +1,4 @@
-// screens/ConnectionsScreen.tsx
+// screens/ConnectionsScreen.tsx (MIGRIERT ZU SECURESTORE & TEXT KORRIGIERT)
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
@@ -7,45 +7,54 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ensureSupabaseClient } from '../lib/supabase';
+import * as SecureStore from 'expo-secure-store';
 
-// Storage Keys
+// Secure token keys (Müssen mit ProjectContext.tsx übereinstimmen)
+const GH_TOKEN_KEY = 'github_pat_v1';
+const EXPO_TOKEN_KEY = 'expo_token_v1';
+
+// AsyncStorage Keys (Nur noch für nicht-sensible Daten oder Supabase)
 const SUPABASE_URL_KEY = 'supabase_url';
 const SUPABASE_ANON_KEY = 'supabase_key';
-const GITHUB_TOKEN_KEY = 'github_token';
-const GITHUB_REPO_KEY = 'github_repo_key'; // NEU: Key für das Ziel-Repo
-const EAS_TOKEN_KEY = 'eas_token';
+const GITHUB_REPO_KEY = 'github_repo_key'; // Bleibt in AsyncStorage, da nicht geheim
 
 const ConnectionsScreen = () => {
   const [supabaseUrl, setSupabaseUrl] = useState('');
   const [supabaseAnonKey, setSupabaseAnonKey] = useState('');
   const [githubToken, setGithubToken] = useState('');
-  const [githubRepo, setGithubRepo] = useState(''); // NEU: State für das Ziel-Repo
+  const [githubRepo, setGithubRepo] = useState(''); // State für das Ziel-Repo
   const [easToken, setEasToken] = useState('');
-
   const [isTestingSupabase, setIsTestingSupabase] = useState(false);
   const [isTestingGitHub, setIsTestingGitHub] = useState(false);
-
   const [supabaseStatus, setSupabaseStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [githubStatus, setGithubStatus] = useState<'idle' | 'success' | 'error'>('idle');
-
   const [githubUsername, setGithubUsername] = useState<string | null>(null);
 
-  // Lade-Funktion (ERWEITERT)
+  // Lade-Funktion (ANGEPASST auf SecureStore)
   useEffect(() => {
     const loadTokens = async () => {
       try {
-        const [sUrl, sKey, ghToken, ghRepo, eToken] = await Promise.all([ // NEU: ghRepo hinzugefügt
+        // Lade Supabase & Repo-Name aus AsyncStorage
+        const [sUrl, sKey, ghRepo] = await Promise.all([
           AsyncStorage.getItem(SUPABASE_URL_KEY),
           AsyncStorage.getItem(SUPABASE_ANON_KEY),
-          AsyncStorage.getItem(GITHUB_TOKEN_KEY),
-          AsyncStorage.getItem(GITHUB_REPO_KEY), // NEU
-          AsyncStorage.getItem(EAS_TOKEN_KEY)
+          AsyncStorage.getItem(GITHUB_REPO_KEY),
         ]);
+        
+        // NEU: Lade sensible Tokens aus SecureStore
+        const [ghToken, eToken] = await Promise.all([
+            SecureStore.getItemAsync(GH_TOKEN_KEY),
+            SecureStore.getItemAsync(EXPO_TOKEN_KEY)
+        ]);
+
         if (sUrl) setSupabaseUrl(sUrl);
         if (sKey) setSupabaseAnonKey(sKey);
+        if (ghRepo) setGithubRepo(ghRepo);
+        
+        // Setze Tokens aus SecureStore
         if (ghToken) setGithubToken(ghToken);
-        if (ghRepo) setGithubRepo(ghRepo); // NEU
         if (eToken) setEasToken(eToken);
+
       } catch (e) {
         console.error('Fehler beim Laden der Tokens:', e);
       }
@@ -55,7 +64,6 @@ const ConnectionsScreen = () => {
 
   // Speicher-Funktionen
   const handleSaveSupabase = async () => {
-    // ... (Keine Änderung hier)
     if (!supabaseUrl.trim() || !supabaseAnonKey.trim()) {
       Alert.alert('Fehler', 'Bitte fülle beide Felder aus.');
       return;
@@ -70,29 +78,35 @@ const ConnectionsScreen = () => {
   };
 
   const handleSaveGitHub = async () => {
-    // NEU: Speichert jetzt Token UND Repo
-    if (!githubToken.trim() || !githubRepo.trim()) {
-      Alert.alert('Fehler', 'Bitte gib einen GitHub Token UND das Ziel-Repo (z.B. owner/repo) ein.');
+    // Speichert Token in SecureStore
+    if (!githubToken.trim()) {
+      Alert.alert('Fehler', 'Bitte gib einen GitHub Token ein.');
       return;
     }
     try {
-      await AsyncStorage.setItem(GITHUB_TOKEN_KEY, githubToken.trim());
-      await AsyncStorage.setItem(GITHUB_REPO_KEY, githubRepo.trim()); // NEU
-      Alert.alert('Gespeichert', 'GitHub Token und Repo wurden gespeichert.');
+      // NEU: SecureStore
+      await SecureStore.setItemAsync(GH_TOKEN_KEY, githubToken.trim(), {
+          keychainAccessible: SecureStore.ALWAYS_THIS_DEVICE_ONLY,
+      });
+      // Repo-Feld wird nicht mehr gespeichert, da es automatisch generiert wird
+      Alert.alert('Gespeichert', 'GitHub Token (sicher) wurde gespeichert.');
     } catch (e) {
       Alert.alert('Fehler', 'Konnte nicht speichern.');
     }
   };
-  
+
   const handleSaveEAS = async () => {
-    // ... (Keine Änderung hier)
+    // NEU: Speichert in SecureStore
     if (!easToken.trim()) {
       Alert.alert('Fehler', 'Bitte gib einen Expo Access Token ein.');
       return;
     }
     try {
-      await AsyncStorage.setItem(EAS_TOKEN_KEY, easToken.trim());
-      Alert.alert('Gespeichert', 'Expo Access Token wurde gespeichert.');
+      // NEU: SecureStore
+      await SecureStore.setItemAsync(EXPO_TOKEN_KEY, easToken.trim(), {
+          keychainAccessible: SecureStore.ALWAYS_THIS_DEVICE_ONLY,
+      });
+      Alert.alert('Gespeichert', 'Expo Access Token wurde sicher gespeichert.');
     } catch (e) {
       Alert.alert('Fehler', 'Konnte nicht speichern.');
     }
@@ -100,7 +114,6 @@ const ConnectionsScreen = () => {
 
   // Test-Funktionen
   const handleTestSupabase = async () => {
-    // ... (Keine Änderung hier)
     setIsTestingSupabase(true);
     setSupabaseStatus('idle');
     try {
@@ -112,7 +125,7 @@ const ConnectionsScreen = () => {
       const { data, error } = await client.functions.invoke('test');
       if (error) {
         if ((error as any).context?.status === 404) {
-             throw new Error(`Edge Function 'test' nicht gefunden (404). Hast du 'npx supabase functions deploy' auf dem Ziel-Projekt ausgeführt?`);
+          throw new Error("Edge Function 'test' nicht gefunden (404). Hast du 'npx supabase functions deploy' auf dem Ziel-Projekt ausgeführt?");
         }
         throw new Error(`Edge Function Fehler (500): ${error.message}`);
       }
@@ -131,7 +144,6 @@ const ConnectionsScreen = () => {
   };
 
   const handleTestGitHub = async () => {
-    // ... (Keine Änderung hier)
     setIsTestingGitHub(true);
     setGithubStatus('idle');
     setGithubUsername(null);
@@ -143,7 +155,7 @@ const ConnectionsScreen = () => {
       });
       if (!response.ok) {
         if (response.status === 401) {
-          throw new Error(`GitHub API Error: 401 (Ungültiger Token oder fehlende 'user' Berechtigung)`);
+          throw new Error("GitHub API Error: 401 (Ungültiger Token oder fehlende 'user' Berechtigung)");
         }
         throw new Error(`GitHub API Error: ${response.status}`);
       }
@@ -160,7 +172,6 @@ const ConnectionsScreen = () => {
     }
   };
 
-  // --- UI (ERWEITERT) ---
   const getStatusIcon = (status: 'idle' | 'success' | 'error') => {
     if (status === 'success') return <Ionicons name="checkmark-circle" size={20} color={theme.palette.success} />;
     if (status === 'error') return <Ionicons name="close-circle" size={20} color={theme.palette.error} />;
@@ -170,11 +181,11 @@ const ConnectionsScreen = () => {
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-
+        
         {/* Supabase Sektion */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>1. Supabase Ziel-Projekt</Text>
+            <Text style={styles.sectionTitle}>1. Supabase (für KI-Chat)</Text>
             {getStatusIcon(supabaseStatus)}
           </View>
           <TextInput
@@ -207,10 +218,10 @@ const ConnectionsScreen = () => {
           </View>
         </View>
 
-        {/* GitHub Sektion (ERWEITERT) */}
+        {/* GitHub Sektion (KORRIGIERT) */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>2. GitHub Ziel-Projekt</Text>
+            <Text style={styles.sectionTitle}>2. GitHub (für EAS Build)</Text>
             {getStatusIcon(githubStatus)}
           </View>
           {githubUsername && (
@@ -227,32 +238,35 @@ const ConnectionsScreen = () => {
             onChangeText={setGithubToken}
             secureTextEntry
           />
-          {/* NEUES FELD FÜR REPO */}
           <TextInput
             style={styles.input}
-            placeholder="GitHub Repository (z.B. MeinName/MeineMusikApp)"
+            placeholder="GitHub Repository (wird automatisch erstellt)"
             placeholderTextColor={theme.palette.text.secondary}
             value={githubRepo}
             onChangeText={setGithubRepo}
             autoCapitalize="none"
+            editable={false}
+            selectTextOnFocus={false}
           />
+          <Text style={styles.hintText}>Repo-Name wird automatisch beim ersten Build erstellt (z.B. projekt-name-1234abcd)</Text>
+          
           <View style={styles.buttonRow}>
             <TouchableOpacity style={[styles.button, styles.buttonPrimary]} onPress={handleSaveGitHub}>
-              <Text style={styles.buttonText}>Speichern</Text>
+              <Text style={styles.buttonText}>Token speichern</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.button, styles.buttonSecondary]}
               onPress={handleTestGitHub}
               disabled={isTestingGitHub}
             >
-              {isTestingGitHub ? <ActivityIndicator size="small" color={theme.palette.primary} /> : <Text style={styles.buttonTextSecondary}>Testen</Text>}
+              {isTestingGitHub ? <ActivityIndicator size="small" color={theme.palette.primary} /> : <Text style={styles.buttonTextSecondary}>Token testen</Text>}
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* EAS Sektion */}
+        {/* EAS Sektion (KORRIGIERT) */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>3. Expo EAS Konto</Text>
+          <Text style={styles.sectionTitle}>3. Expo EAS Konto (für EAS Build)</Text>
           <TextInput
             style={styles.input}
             placeholder="Expo Access Token"
@@ -262,7 +276,7 @@ const ConnectionsScreen = () => {
             secureTextEntry
           />
           <TouchableOpacity style={[styles.button, styles.buttonPrimary]} onPress={handleSaveEAS}>
-            <Text style={styles.buttonText}>Speichern</Text>
+            <Text style={styles.buttonText}>Token speichern</Text>
           </TouchableOpacity>
         </View>
         
@@ -271,7 +285,7 @@ const ConnectionsScreen = () => {
   );
 };
 
-// Styles (Keine Änderung)
+// Styles
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: theme.palette.background },
   container: { flex: 1 },
@@ -282,6 +296,7 @@ const styles = StyleSheet.create({
   usernameBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.palette.background, padding: 10, borderRadius: 8, marginBottom: 12, borderLeftWidth: 3, borderLeftColor: theme.palette.success },
   usernameText: { marginLeft: 8, fontSize: 14, color: theme.palette.success, fontWeight: 'bold' },
   input: { backgroundColor: theme.palette.input.background, borderRadius: 8, paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 12 : 10, color: theme.palette.text.primary, fontSize: 14, borderWidth: 1, borderColor: theme.palette.border, marginBottom: 10 },
+  hintText: { fontSize: 12, color: theme.palette.text.secondary, fontStyle: 'italic', marginBottom: 10, marginTop: -5, paddingHorizontal: 4 },
   buttonRow: { flexDirection: 'row', gap: 10 },
   button: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   buttonPrimary: { backgroundColor: theme.palette.primary },
@@ -291,3 +306,4 @@ const styles = StyleSheet.create({
 });
 
 export default ConnectionsScreen;
+
