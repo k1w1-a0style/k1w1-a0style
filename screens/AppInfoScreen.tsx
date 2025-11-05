@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
-import { useProject } from '../contexts/ProjectContext';
+import { useProject } from '../contexts/ProjectContext'; // Verwendet den reparierten Context
 import * as ImagePicker from 'expo-image-picker';
 
 const TEMPLATE_INFO = {
@@ -11,7 +11,7 @@ const TEMPLATE_INFO = {
   version: "1.0.0",
   sdkVersion: "54.0.18",
   rnVersion: "0.81.4",
-  files: 5
+  files: 5 // (Dieser Wert scheint aus einer alten Datei zu stammen, aber wir lassen ihn)
 };
 
 const AppInfoScreen = () => {
@@ -20,6 +20,7 @@ const AppInfoScreen = () => {
   const [packageName, setPackageNameState] = useState('');
   const [iconPreview, setIconPreview] = useState<string | null>(null);
 
+  // KORRIGIERTES useEffect
   useEffect(() => {
     if (projectData && projectData.files) { 
       setAppName(projectData.name || 'Meine App');
@@ -34,26 +35,29 @@ const AppInfoScreen = () => {
         }
       }
 
+      // Icon-Logik (unverändert, aber funktioniert jetzt dank korrekter Abhängigkeiten)
       const iconFile = projectData.files.find(f => f.path === 'assets/icon.png');
       if (iconFile && iconFile.content) {
-        if (iconFile.content.length > 100 && !iconFile.content.includes('{') && !iconFile.content.startsWith('data:')) {
-           setIconPreview(`data:image/png;base64,${iconFile.content}`);
-        } else if (iconFile.content.startsWith('data:image/png;base64,')) {
-           setIconPreview(iconFile.content);
+        let base64Data = iconFile.content;
+        if (base64Data.startsWith('data:image/')) {
+           base64Data = base64Data.split(',')[1];
+        }
+        if (base64Data && base64Data.length > 100 && /^[A-Za-z0-9+/]*={0,2}$/.test(base64Data)) {
+          setIconPreview(`data:image/png;base64,${base64Data}`);
         } else {
-           setIconPreview(null);
+          setIconPreview(null);
         }
       } else {
         setIconPreview(null);
       }
     }
   // === KORREKTUR HIER ===
-  // Höre auf 'files' und 'lastModified', nicht nur auf das 'projectData'-Objekt.
+  // Hört jetzt auf Datei-Änderungen, damit der Picker die UI aktualisiert.
   }, [projectData?.files, projectData?.lastModified, projectData?.name]);
 
   const handleSaveAppName = async () => {
     if (appName.trim()) {
-      await setProjectName(appName.trim());
+      await setProjectName(appName.trim()); // Diese Funktion ist jetzt repariert
       Alert.alert('Gespeichert', `App-Name: "${appName.trim()}"`);
     }
   };
@@ -67,35 +71,41 @@ const AppInfoScreen = () => {
   };
 
   const handleChooseIcon = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permissionResult.granted === false) {
-      Alert.alert('Fehler', 'Zugriff auf die Fotogalerie wurde verweigert.');
-      return;
-    }
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permissionResult.granted === false) {
+        Alert.alert('Fehler', 'Zugriff auf die Fotogalerie wurde verweigert.');
+        return;
+      }
 
-    const pickerResult = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaType.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.5,
-      base64: true,
-    });
+      const pickerResult = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images, // Korrekt für deine Expo-Version
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: true,
+      });
 
-    if (pickerResult.canceled) {
-      return;
-    }
+      if (pickerResult.canceled) {
+        return;
+      }
 
-    const base64Content = pickerResult.assets[0].base64;
-    if (base64Content) {
+      const asset = pickerResult.assets?.[0];
+      if (!asset || !asset.base64) {
+        Alert.alert('Fehler', 'Konnte das Bild nicht als Base64 laden.');
+        return;
+      }
+      
+      const base64Content = asset.base64;
       const iconFile = { path: 'assets/icon.png', content: base64Content };
       const adaptiveIconFile = { path: 'assets/adaptive-icon.png', content: base64Content };
 
-      await updateProjectFiles([iconFile, adaptiveIconFile]);
-
-      // (Aktualisierung passiert jetzt automatisch durch das korrigierte useEffect)
-      Alert.alert('Icon aktualisiert', 'Das App-Icon wurde im Projekt gespeichert.');
-    } else {
-      Alert.alert('Fehler', 'Konnte das Bild nicht als Base64 laden.');
+      await updateProjectFiles([iconFile, adaptiveIconFile]); // Dies triggert jetzt das useEffect
+      
+      Alert.alert('Erfolg', 'Das App-Icon wurde erfolgreich aktualisiert!');
+    } catch (error: any) {
+      console.error('Icon Picker Error:', error);
+      Alert.alert('Fehler', `Beim Auswählen des Icons ist ein Fehler aufgetreten: ${error.message || 'Unbekannter Fehler'}`);
     }
   };
 
@@ -140,18 +150,29 @@ const AppInfoScreen = () => {
           <Text style={styles.hint}>Ändert package.json (name) und app.config.js (slug, package, bundleIdentifier)</Text>
         </View>
 
-        <Text style={styles.label}>App Icon:</Text>
-        <TouchableOpacity onPress={handleChooseIcon} style={styles.iconButton}>
-          {iconPreview ? (
-            <Image
-              source={{ uri: iconPreview }}
-              style={styles.iconPreview}
-            />
-          ) : (
-            <Ionicons name="image-outline" size={24} color={theme.palette.text.secondary} />
-          )}
-          <Text style={styles.iconButtonText}>App Icon ändern...</Text>
-        </TouchableOpacity>
+        <View style={styles.settingsContainer}>
+          <Text style={styles.label}>App Icon:</Text>
+          <TouchableOpacity onPress={handleChooseIcon} style={styles.iconButton}>
+            {iconPreview ?
+            (
+              <Image
+                source={{ uri: iconPreview }}
+                style={styles.iconPreview}
+                onError={(error) => {
+                  console.log('❌ Bild-Ladefehler:', error.nativeEvent.error);
+                  setIconPreview(null);
+                }}
+              />
+            ) : (
+              <View style={styles.iconPlaceholder}>
+                <Ionicons name="image-outline" size={24} color={theme.palette.text.secondary} />
+              </View>
+            )}
+            <Text style={styles.iconButtonText}>
+              {iconPreview ? 'App Icon ändern...' : 'App Icon auswählen...'}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         {/* TEMPLATE-INFO */}
         <Text style={styles.sectionTitle}>📦 Projekt-Template</Text>
@@ -170,7 +191,7 @@ const AppInfoScreen = () => {
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Standard-Dateien:</Text>
-            <Text style={styles.infoValue}>{TEMPLATE_INFO.files}</Text>
+            <Text style={styles.infoValue}>{projectData?.files?.length || 0}</Text>
           </View>
           <Text style={styles.infoHint}>
             ℹ️ Neue Projekte starten automatisch mit diesem Template.
@@ -192,7 +213,7 @@ const AppInfoScreen = () => {
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Nachrichten:</Text>
-            <Text style={styles.infoValue}>{projectData?.messages?.length || 0}</Text>
+            <Text style={styles.infoValue}>{(projectData?.chatHistory || projectData?.messages)?.length || 0}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Letzte Änderung:</Text>
@@ -209,32 +230,108 @@ const AppInfoScreen = () => {
   );
 };
 
+// Styles (Deine neuen Styles aus der .docx)
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: theme.palette.background },
   container: { flex: 1 },
   contentContainer: { padding: 20, paddingBottom: 40 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: theme.palette.text.primary, marginTop: 20, marginBottom: 12 },
-  settingsContainer: { marginBottom: 16 },
-  label: { fontSize: 14, color: theme.palette.text.secondary, marginBottom: 8 },
-  inputRow: { flexDirection: 'row', alignItems: 'center' },
-  input: { flex: 1, backgroundColor: theme.palette.input.background, borderRadius: 8, paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 12 : 10, color: theme.palette.text.primary, fontSize: 14, borderWidth: 1, borderColor: theme.palette.border },
-  saveButton: { padding: 8, marginLeft: 10 },
-  hint: { fontSize: 12, color: theme.palette.text.secondary, marginTop: 5, fontStyle: 'italic' },
-  iconButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.palette.card, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 8, borderWidth: 1, borderColor: theme.palette.border, marginBottom: 8 },
-  iconButtonText: { marginLeft: 12, fontSize: 14, color: theme.palette.text.secondary },
-  iconPreview: {
-    width: 24,
-    height: 24,
-    borderRadius: 4,
-    backgroundColor: '#333',
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: theme.palette.text.primary,
+    marginTop: 20,
+    marginBottom: 12
   },
-  templateInfoContainer: { backgroundColor: theme.palette.card, borderRadius: 8, padding: 16, borderWidth: 1, borderColor: theme.palette.border, marginBottom: 8 },
-  projectInfoContainer: { backgroundColor: theme.palette.card, borderRadius: 8, padding: 16, borderWidth: 1, borderColor: theme.palette.border },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: theme.palette.border },
+  settingsContainer: { marginBottom: 16 },
+  label: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+    marginBottom: 8
+  },
+  inputRow: { flexDirection: 'row', alignItems: 'center' },
+  input: {
+    flex: 1,
+    backgroundColor: theme.palette.input.background,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 10,
+    color: theme.palette.text.primary,
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: theme.palette.border
+  },
+  saveButton: { padding: 8, marginLeft: 10 },
+  hint: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+    marginTop: 5,
+    fontStyle: 'italic'
+  },
+  iconButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.palette.card,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.palette.border
+  },
+  iconButtonText: {
+    marginLeft: 12,
+    fontSize: 14,
+    color: theme.palette.text.secondary
+  },
+  iconPreview: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: '#f0f0f0',
+  },
+  iconPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  templateInfoContainer: {
+    backgroundColor: theme.palette.card,
+    borderRadius: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    marginBottom: 8
+  },
+  projectInfoContainer: {
+    backgroundColor: theme.palette.card,
+    borderRadius: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: theme.palette.border
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border
+  },
   infoLabel: { fontSize: 14, color: theme.palette.text.secondary },
   infoValue: { fontSize: 14, fontWeight: 'bold', color: theme.palette.primary },
-  infoValueMono: { fontSize: 12, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', color: theme.palette.primary, maxWidth: '60%' },
-  infoHint: { fontSize: 12, color: theme.palette.text.disabled, marginTop: 10, fontStyle: 'italic' },
+  infoValueMono: {
+    fontSize: 12,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    color: theme.palette.primary,
+    maxWidth: '60%'
+  },
+  infoHint: {
+    fontSize: 12,
+    color: theme.palette.text.disabled,
+    marginTop: 10,
+    fontStyle: 'italic'
+  },
 });
 
 export default AppInfoScreen;

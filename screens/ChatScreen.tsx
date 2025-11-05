@@ -1,3 +1,4 @@
+// screens/ChatScreen.tsx (V12 - Korrigierte Reihenfolge & Scroll)
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
@@ -20,7 +21,6 @@ import { useProject } from '../contexts/ProjectContext';
 import MessageItem from '../components/MessageItem';
 import { useChatHandlers } from '../hooks/useChatHandlers';
 
-// Typ-Definition für das DocumentPicker-Asset
 type DocumentResultAsset = NonNullable<import('expo-document-picker').DocumentPickerResult['assets']>[0];
 
 type ChatScreenProps = {
@@ -37,7 +37,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
   const [selectedFileAsset, setSelectedFileAsset] = useState<DocumentResultAsset | null>(null);
 
-  // KORREKTUR: loadHistoryFromMessages wurde aus der Destrukturierung entfernt.
   const {
     handlePickDocument,
     handleSend,
@@ -69,13 +68,11 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
     }, [loadClient])
   );
 
-  // KORREKTUR: Dieser useEffect, der loadHistoryFromMessages aufrief, wurde entfernt.
-  // Der useChatHandlers-Hook handhabt das Laden der History jetzt intern.
-
+  // Auto-Scroll nach unten bei neuen Nachrichten
   useEffect(() => {
     if (messages.length > 0) {
       setTimeout(() => {
-        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+        flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
   }, [messages]);
@@ -97,15 +94,15 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'} // 'height' funktioniert oft besser
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 80} // Offset anpassen
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 80}
     >
       <FlatList
         ref={flatListRef}
         data={messages}
         renderItem={({ item }) => <MessageItem item={item} />}
-        keyExtractor={item => item._id}
-        inverted={true}
+        keyExtractor={item => item.id}
+        inverted={false}
         style={styles.list}
         contentContainerStyle={styles.listContent}
         keyboardShouldPersistTaps="handled"
@@ -156,12 +153,12 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ navigation, route }) => {
           <TouchableOpacity
             onPress={handleDebugLastResponse}
             style={styles.iconButton}
-            disabled={combinedIsLoading || messages.filter(m => m.user._id === 2).length === 0}
+            disabled={combinedIsLoading || messages.filter(m => m.role === 'assistant').length === 0}
           >
             <Ionicons
               name="bug-outline"
               size={20}
-              color={combinedIsLoading || messages.filter(m => m.user._id === 2).length === 0 ? theme.palette.text.disabled : theme.palette.primary}
+              color={combinedIsLoading || messages.filter(m => m.role === 'assistant').length === 0 ? theme.palette.text.disabled : theme.palette.primary}
             />
           </TouchableOpacity>
 
@@ -236,7 +233,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.palette.background,
     paddingHorizontal: 8,
     paddingTop: 4,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 4, // Mehr Padding für iOS Home Indicator
+    paddingBottom: Platform.OS === 'ios' ? 20 : 4,
   },
   attachedFileContainer: {
     flexDirection: 'row',
@@ -304,7 +301,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     backgroundColor: theme.palette.error + '20',
     position: 'absolute',
-    bottom: 80, // Angepasste Position
+    bottom: 80,
     left: 10,
     right: 10,
     borderRadius: 6,
@@ -318,5 +315,3 @@ const styles = StyleSheet.create({
 });
 
 export default ChatScreen;
-
-

@@ -10,10 +10,9 @@ import { theme } from '../theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export function CustomDrawerContent(props: DrawerContentComponentProps) {
-  const { projectData, clearProject, loadProjectFromZip, isLoading } = useProject();
+  const { projectData, createNewProject, importProjectFromZip, isLoading } = useProject();
   const [iconPreview, setIconPreview] = useState<string | null>(null);
 
-  // Lade die Icon-Vorschau, wenn sich das Projekt ändert
   useEffect(() => {
     if (projectData && projectData.files) {
       const iconFile = projectData.files.find(f => f.path === 'assets/icon.png');
@@ -29,33 +28,16 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
         setIconPreview(null);
       }
     }
-  // === KORREKTUR HIER ===
-  }, [projectData?.files, projectData?.lastModified]); // Hört auf Datei-Änderungen
+  }, [projectData?.files, projectData?.lastModified]);
 
   const handleLoadZip = () => {
-    loadProjectFromZip();
+    importProjectFromZip();
     props.navigation.closeDrawer();
   };
 
   const handleNewProject = () => {
-    Alert.alert(
-      'Neues Projekt starten',
-      'Möchtest du das aktuelle Projekt wirklich verwerfen? Alle Dateien und der Chatverlauf gehen verloren.',
-      [
-        { text: 'Abbrechen', style: 'cancel' },
-        {
-          text: 'Ja, neu starten',
-          style: 'destructive',
-          onPress: async () => {
-            await clearProject();
-            console.log('CustomDrawer: Neues Projekt gestartet.');
-            props.navigation.closeDrawer();
-            // @ts-ignore
-            props.navigation.navigate('Home', { screen: 'Chat' });
-          },
-        },
-      ]
-    );
+    createNewProject();
+    props.navigation.closeDrawer();
   };
 
   const navigateTo = (screen: string) => {
@@ -87,16 +69,14 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
 
         <View style={styles.divider} />
 
-        {/* PROJEKT-INFO (KORRIGIERT) */}
+        {/* PROJEKT-INFO */}
         <Text style={styles.projectSectionTitle}>Aktuelles Projekt</Text>
         <View style={styles.projectDisplayContainer}>
-          
           {iconPreview ? (
             <Image source={{ uri: iconPreview }} style={styles.projectIcon} />
           ) : (
             <Ionicons name="folder-outline" size={24} color={theme.palette.primary} />
           )}
-          
           <View style={styles.projectTextContainer}>
             <Text style={styles.projectName} numberOfLines={1}>
               {projectData?.name || 'Neues Projekt'}
@@ -133,16 +113,15 @@ const styles = StyleSheet.create({
   customItemText: { marginLeft: 15, fontSize: 14, fontWeight: 'bold', color: theme.palette.primary },
   customItemTextWarning: { marginLeft: 15, fontSize: 14, fontWeight: 'bold', color: theme.palette.warning },
   projectSectionTitle: { fontSize: 12, fontWeight: 'bold', color: theme.palette.text.secondary, paddingHorizontal: 20, marginBottom: 10, textTransform: 'uppercase' },
-  
-  projectDisplayContainer: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    backgroundColor: theme.palette.background, 
-    paddingVertical: 12, 
-    paddingHorizontal: 16, 
-    marginHorizontal: 16, 
-    borderRadius: 8, 
-    borderWidth: 1, 
+  projectDisplayContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.palette.background,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
     borderColor: theme.palette.border
   },
   projectIcon: {
@@ -157,4 +136,3 @@ const styles = StyleSheet.create({
 });
 
 export default CustomDrawerContent;
-

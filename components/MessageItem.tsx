@@ -2,15 +2,24 @@ import React, { memo } from 'react';
 import { Text, Pressable, StyleSheet, Alert } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { theme } from '../theme';
-import { ChatMessage } from '../contexts/ProjectContext';
+
+// NEUES ChatMessage Format
+interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: string;
+}
 
 type MessageItemProps = {
   item: ChatMessage;
 };
 
 const MessageItem = memo(({ item }: MessageItemProps) => {
-  const messageText = item?.text?.trim() ?? '';
-  if (item?.user?._id === 1 && messageText.length === 0) return null;
+  const messageText = item?.content?.trim() ?? '';
+  const isUser = item?.role === 'user';
+  
+  if (isUser && messageText.length === 0) return null;
 
   const handleLongPress = () => {
     if (messageText) {
@@ -23,12 +32,12 @@ const MessageItem = memo(({ item }: MessageItemProps) => {
     <Pressable
       style={({ pressed }) => [
         styles.messageBubble,
-        item.user._id === 1 ? styles.userMessage : styles.aiMessage,
+        isUser ? styles.userMessage : styles.aiMessage,
         pressed && styles.messagePressed,
       ]}
       onLongPress={handleLongPress}
     >
-      <Text style={item.user._id === 1 ? styles.userMessageText : styles.aiMessageText}>
+      <Text style={isUser ? styles.userMessageText : styles.aiMessageText}>
         {messageText || '...'}
       </Text>
     </Pressable>
@@ -72,3 +81,4 @@ const styles = StyleSheet.create({
 });
 
 export default MessageItem;
+

@@ -1,4 +1,4 @@
-// lib/prompts.ts (V15 - ERZWINGE KONVERSATION!)
+// lib/prompts.ts (V13 - KONVERSATION ERLAUBT!)
 import { AllAIProviders } from '../contexts/AIContext';
 import { ProjectFile, ChatMessage } from '../contexts/types';
 
@@ -22,92 +22,29 @@ KRITISCHE REGELN FÜR JSON:
 ✅ NUR Dateien die NEU oder GEÄNDERT sind
 ✅ "content" MUSS escaped String sein (Newlines als \\n)
 ✅ Valides JSON - sonst Fehler!
-✅ IMMER VOLLSTÄNDIGEN CODE schreiben (NIEMALS Platzhalter!)
 ❌ NIEMALS "name" in package.json ändern (außer explizit gefordert)
 ❌ NIEMALS README2.md wenn README.md existiert - UPDATE stattdessen!
 ❌ KEINE Duplikate (README2, README3 etc.)
-
-🚫 VERBOTENE PLATZHALTER (NIEMALS VERWENDEN!):
-❌ "// ... existing code ..."
-❌ "// ... rest of the code ..."
-❌ "/* ... */{ ... }"
-❌ "// TODO: implement"
-❌ "// See previous version"
-
-➡️ Schreibe IMMER den KOMPLETTEN, ausführbaren Code!
-➡️ User muss Copy & Paste können ohne nachzudenken!
 `;
 
 // ============================================================================
 // SYSTEM PROMPTS
 // ============================================================================
 const GENERATOR_SYSTEM_PROMPT = `
-Du bist k1w1-a0style, ein freundlicher Bau-Assistent in einer KI-Builder-App für Expo SDK 54 + React Native.
+Du bist k1w1-a0style, ein freundlicher Code-Assistent für Expo SDK 54 + React Native.
 
-🎯 DEIN VERHALTEN (KRITISCH - GENAU SO BEFOLGEN!):
+🎯 DEIN VERHALTEN:
 
-**REGEL #1: IMMER ERST REDEN, NIEMALS DIREKT CODE!**
+1. **KONVERSATION** (Standard):
+   - Beantworte Fragen normal und freundlich
+   - Erkläre was du tun wirst BEVOR du Code generierst
+   - Frage nach, wenn etwas unklar ist
+   - Liste Änderungen auf (z.B. "Ich werde diese 3 Dateien ändern: ...")
 
-Wenn der User IRGENDWAS fragt oder sagt:
-1. ✅ Beantworte als TEXT (normale Konversation)
-2. ✅ Erkläre was du vorhast
-3. ✅ Frage nach Bestätigung
-4. ❌ NIEMALS sofort JSON generieren!
-
-**BEISPIELE WIE DU ANTWORTEN SOLLST:**
-
-User: "Wie viele Dateien haben wir?"
-Du: "📊 Dein Projekt hat aktuell 29 Dateien:
-- 12 TypeScript-Dateien (.tsx, .ts)
-- 5 Config-Dateien (package.json, app.config.js, etc.)
-- 3 Bilder (assets/)
-- 9 sonstige
-
-Möchtest du eine detaillierte Liste?"
-
-User: "Prüfe alle Dateien"
-Du: "👀 Ich schaue mir alle 29 Dateien an...
-
-Nach der Prüfung habe ich folgendes gefunden:
-• EqualizerScreen.tsx: Nur Platzhalter (8 Zeilen) → sollte vollständig implementiert werden
-• DatabaseScreen.tsx: Nur Platzhalter (8 Zeilen) → braucht echte Funktionalität
-• VisualizerScreen.tsx: Nur Platzhalter (8 Zeilen) → fehlt Audio-Visualizer
-
-Die restlichen Dateien sehen gut aus!
-
-**Soll ich diese 3 Screens vollständig implementieren?**
-(Wenn ja, sage 'ja' oder 'implementiere sie')"
-
-User: "Füge einen Dark Mode hinzu"
-Du: "💡 Ich werde folgende Änderungen vornehmen:
-
-1. **theme.ts** erweitern:
-   - Dark Mode Farben hinzufügen
-   - Light Mode Farben definieren
-
-2. **contexts/ThemeContext.tsx** (NEU):
-   - Toggle-Funktion für Dark/Light
-   - Theme-Provider
-
-3. **App.tsx** anpassen:
-   - ThemeContext einbinden
-   - Theme-Switch Button im Header
-
-Das sind 3 Dateien. **Soll ich das umsetzen?**"
-
-**NUR WENN User sagt:**
-- "ja"
-- "mach das"
-- "implementiere"
-- "erstelle"
-- "los"
-→ **DANN** generiere das JSON-Array!
-
-**NIEMALS JSON WENN User:**
-- Fragt ("Wie viele...?", "Was ist...?")
-- Analysiert ("Prüfe...", "Schau dir an...")
-- Nur redet
-→ **DANN** nur TEXT-Antwort!
+2. **CODE-GENERIERUNG** (nur bei klaren Anfragen):
+   - Wenn User sagt "baue", "erstelle", "ändere", "implementiere" → Generiere JSON
+   - **WICHTIG**: Erkläre VORHER was du ändern wirst (als Text)
+   - **DANACH**: Generiere das JSON-Array
 
 ${JSON_RESPONSE_FORMAT}
 
@@ -118,15 +55,23 @@ ${JSON_RESPONSE_FORMAT}
 - Neon-Grün Theme (#00FF00)
 - Mobile-first Design
 
-🚫 ABSOLUT VERBOTEN:
-- JSON generieren ohne vorher zu fragen
+🚫 VERBOTEN:
 - Namen in package.json ändern (außer explizit gefordert)
 - Duplikate erstellen (README2, README3 etc.)
 - Bundle IDs oder Slugs ändern
-- Platzhalter-Code wie "// ... existing code ..."
-- Stumm JSON ausgeben ohne Erklärung
+- Stumpf JSON ausgeben ohne Erklärung
 
-💬 DU BIST EIN GESPRÄCHSPARTNER, KEIN STUMMES CODE-TOOL!
+💡 BEISPIEL EINER GUTEN ANTWORT:
+User: "Füge einen Dark Mode hinzu"
+Du: "Ich werde folgende Änderungen vornehmen:
+1. theme.ts erweitern um Dark Mode Farben
+2. Ein ThemeContext erstellen für das Umschalten
+3. App.tsx anpassen um den Context zu nutzen
+
+Soll ich das umsetzen?"
+
+[Wenn User bestätigt oder direkt "implementiere" sagt]
+[Dann JSON-Array mit den 3 Dateien]
 `;
 
 const AGENT_SYSTEM_PROMPT = `
@@ -138,8 +83,6 @@ Du bist der Quality Agent. DEINE EINZIGE AUFGABE ist es, den Generator-Output zu
 3. Korrigiere alle Duplikate (z.B. README2.md in README.md umbenennen), ungültige Namen oder Datei-Fehler.
 4. Gib NUR das finale, korrigierte JSON-Array zurück.
 5. WENN NICHT VALIDE ODER NICHT KORRIGIERBAR: Gib GENAU dieses leere Array zurück: [].
-6. **ENTFERNE ALLE PLATZHALTER** wie "// ... existing code ..."
-7. **SCHREIBE VOLLSTÄNDIGEN CODE** oder lehne ab mit []
 </AGENT_CONSTRAINTS>
 
 ${JSON_RESPONSE_FORMAT}
@@ -183,7 +126,7 @@ DEINE AUFGABE: Führe die Regeln in <AGENT_CONSTRAINTS> strikt aus.
   }
 
   // ============================================================================
-  // PROJECT CONTEXT BUILDING (IMMER VOLLSTÄNDIG!)
+  // PROJECT CONTEXT BUILDING
   // ============================================================================
   let projectContext = '';
 
@@ -199,43 +142,30 @@ Erstelle Standard-Struktur:
   } else {
     const fileCount = projectFiles.length;
     projectContext = `
-📊 PROJEKT STATUS: ${fileCount} Dateien vorhanden
+📊 PROJEKT STATUS: ${fileCount} Dateien vorhanden`;
+
+    if (role === 'agent') {
+      projectContext += `
 
 <FILE_CONTEXT>
-🗂️ EXISTIERENDE DATEIEN IM PROJEKT:
+🗂️ EXISTIERENDE DATEIEN IM PROJEKT (NUR DIESE EXISTIEREN!):
 ────────────────────────────────────`;
-
-    // ALLE Dateien auflisten (mit Größe)
-    projectFiles.forEach((file, idx) => {
-      const lines = file.content.split('\n').length;
-      const size = (file.content.length / 1024).toFixed(1);
-      projectContext += `
-${idx + 1}. ${file.path} (${lines} Zeilen, ${size} KB)`;
-    });
-
-    projectContext += `
-────────────────────────────────────
-
-📋 WICHTIGE DATEIEN (Auszug):`;
-
-    // Wichtige Dateien mit Inhalt zeigen
-    const importantFiles = ['package.json', 'app.config.js', 'theme.ts', 'App.tsx'];
-    importantFiles.forEach(filename => {
-      const file = projectFiles.find(f => f.path === filename);
-      if (file) {
-        const preview = file.content.substring(0, 500);
+      projectFiles.forEach((file, idx) => {
+        const lines = file.content.split('\n').length;
+        const size = file.content.length;
         projectContext += `
-
-📄 ${filename}:
-\`\`\`
-${preview}${file.content.length > 500 ? '\n... (gekürzt)' : ''}
-\`\`\``;
-      }
-    });
-
-    projectContext += `
+${idx + 1}. ${file.path} (${lines} Zeilen, ${size} Zeichen)`;
+      });
+      projectContext += `
+────────────────────────────────────
 </FILE_CONTEXT>
 `;
+    } else {
+      const paths = projectFiles.map((f) => f.path);
+      projectContext += `
+
+Dateien: ${JSON.stringify(paths)}`;
+    }
 
     // Name Protection
     const pkgFile = projectFiles.find((f) => f.path === 'package.json');
@@ -266,18 +196,17 @@ Dieser Name (in package.json) darf NIEMALS geändert werden (außer explizit gef
   }
 
   // ============================================================================
-  // BUILD FINAL PROMPT (MIT MEHR HISTORY!)
+  // BUILD FINAL PROMPT
   // ============================================================================
   const fullSystemPrompt = `${systemPromptContent}${projectContext}`;
   const messages: PromptMessage[] = [{ role: 'system', content: fullSystemPrompt }];
 
-  // ✅ MEHR HISTORY! (20 statt 6)
-  const HISTORY_COUNT = 20;
+  // History hinzufügen
+  const HISTORY_COUNT = 6;
   const historyToUse = conversationHistory.slice(-HISTORY_COUNT);
-  
-  messages.push(...historyToUse.map(msg => ({
-    role: msg.role === 'user' ? 'user' : 'assistant',
-    content: msg.content
+  messages.push(...historyToUse.map(msg => ({ 
+    role: msg.role === 'user' ? 'user' : 'assistant', 
+    content: msg.content 
   } as PromptMessage)));
 
   // Current message
@@ -286,7 +215,7 @@ Dieser Name (in package.json) darf NIEMALS geändert werden (außer explizit gef
   console.log(`📝 Prompt (${role}/${provider}): ${messages.length} messages`);
   console.log(`   → System: 1, History: ${historyToUse.length}, Current: 1`);
 
-  if (messages.length < 5) {
+  if (messages.length < 8) {
     console.warn(`⚠️ WARNUNG: Prompt hat nur ${messages.length} messages!`);
   }
 
@@ -300,7 +229,7 @@ export class ConversationHistory {
   private history: ChatMessage[] = [];
 
   loadFromMessages(messages: ChatMessage[]) {
-    this.history = [...messages];
+    this.history = [...messages].reverse();
     console.log(`🧠 History geladen (${this.history.length} Einträge)`);
   }
 
