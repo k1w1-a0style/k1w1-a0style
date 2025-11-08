@@ -219,9 +219,9 @@ const validateImportsExports = (file: ProjectFile): string[] => {
   const isNotConfig = !CONFIG.VALIDATION.PATTERNS.CONFIG_FILES.test(normalizedPath);
   if (code && isNotConfig) {
     const content = ensureStringContent(file.content);
-    const hasImports = /(^|\n)\s*import\s+/m.test(content) ||
-                      /module\.exports/m.test(content) ||
-                      /export\s+(default|const|function|class|\{)/m.test(content);
+    const hasImports = /(^|\\n)\\s*import\\s+/m.test(content) ||
+                      /module\\.exports/m.test(content) ||
+                      /export\\s+(default|const|function|class|\\{)/m.test(content);
     if (!hasImports && content.length > 120) {
       errors.push(`${normalizedPath}: Keine erkennbaren Imports/Exports - verdächtig`);
       logError('Keine Imports/Exports');
@@ -237,7 +237,7 @@ const validateStyleSheet = (file: ProjectFile): string[] => {
   if (!normalizedPath) return errors;
   const content = ensureStringContent(file.content);
   if (normalizedPath.endsWith('.tsx') && content.includes('StyleSheet.create')) {
-    if (/StyleSheet\.create\(\s*\{\s*\}\s*\)/.test(content)) {
+    if (/StyleSheet\\.create\\(\\s*\\{\\s*\\}\\s*\\)/.test(content)) {
       errors.push(`${normalizedPath}: Leeres StyleSheet - unvollständig`);
       logError('Leeres StyleSheet');
     }
@@ -286,11 +286,11 @@ const fixUnquotedKeys = (json: string): string => {
       i++;
     } else if (!inString && json[i] === ':' && i > 0) {
       let keyStart = i - 1;
-      while (keyStart >= 0 && /[\w-]/.test(json[keyStart])) keyStart--;
+      while (keyStart >= 0 && /[\\w-]/.test(json[keyStart])) keyStart--;
       keyStart++;
       const key = json.slice(keyStart, i);
       if (key && !json[keyStart - 1]?.match(/["']/)) {
-        result = result.slice(0, -key.length) + `"${key}"`;
+        result = result.slice(0, -key.length) + `"\${key}"`.replace('${key}', key);
       }
       result += ':';
       i++;
@@ -320,8 +320,8 @@ export const tryParseJsonWithRepair = (jsonString: string): ProjectFile[] | null
       log('INFO', 'JSON mit jsonrepair repariert');
     } catch (repairError) {
       log('WARN', 'jsonrepair failed, versuche konservative fixes', { err: String(repairError) });
-      let r = jsonString.replace(/^\uFEFF/, '');
-      r = r.replace(/,\s*([}\]])/g, '$1');
+      let r = jsonString.replace(/^\\uFEFF/, '');
+      r = r.replace(/,\\s*([}\\]])/g, '$1');
       r = fixUnquotedKeys(r);
       try {
         parsed = JSON.parse(r);
@@ -404,7 +404,7 @@ export const tryParseJsonWithRepair = (jsonString: string): ProjectFile[] | null
 
 export const extractJsonArray = (text: string): string | null => {
   if (!text || typeof text !== 'string') return null;
-  const match = text.match(/```json\s*([\s\S]*)\s*```|(\[[\s\S]*\])/);
+  const match = text.match(/```json\\s*(\[\\s\\S]*\)\\s*```|(\\[[\\s\\S]*\\])/);
   if (!match) return null;
 
   const jsonString = match[1] || match[2];
