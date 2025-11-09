@@ -1,12 +1,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
-// Definiere die CORS-Header
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-// Typ-Definitionen für die Anfrage
 interface Message {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -19,9 +18,7 @@ interface RequestBody {
   model: string;
 }
 
-/**
- * Hilfsfunktion, um den Request-Body sicher zu parsen und Fehlerdetails zu loggen.
- */
+// Body sicher parsen
 async function parseRequestBody(req: Request): Promise<RequestBody> {
   const rawBody = await req.text();
   if (!rawBody) {
@@ -36,9 +33,7 @@ async function parseRequestBody(req: Request): Promise<RequestBody> {
   }
 }
 
-/**
- * Hilfsfunktion zur Validierung des Request-Bodys.
- */
+// Validierung
 function validateRequestBody({ messages, apiKey, provider, model }: RequestBody) {
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     throw new Error('Messages must be a non-empty array');
@@ -51,13 +46,15 @@ function validateRequestBody({ messages, apiKey, provider, model }: RequestBody)
   }
 }
 
-/**
- * Erstellt den API-Aufruf (URL, Header, Body) basierend auf dem Provider.
- */
-function buildApiRequest(body: RequestBody): { apiUrl: string; headers: Record<string, string>; requestBody: any } {
+// Request für Provider bauen
+function buildApiRequest(body: RequestBody): {
+  apiUrl: string;
+  headers: Record<string, string>;
+  requestBody: any;
+} {
   const { messages, apiKey, provider, model } = body;
-  const systemInstruction = messages.find(m => m.role === 'system');
-  const nonSystemMessages = messages.filter(m => m.role !== 'system');
+  const systemInstruction = messages.find((m) => m.role === 'system');
+  const nonSystemMessages = messages.filter((m) => m.role !== 'system');
 
   let apiUrl: string;
   let headers: Record<string, string>;
@@ -67,12 +64,12 @@ function buildApiRequest(body: RequestBody): { apiUrl: string; headers: Record<s
     case 'groq':
       apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
       headers = {
-        'Authorization': `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       };
       requestBody = {
         model: model === 'auto-groq' ? 'llama-3.3-70b-versatile' : model,
-        messages: messages,
+        messages,
         temperature: 0.7,
         max_tokens: 4000,
       };
@@ -82,9 +79,9 @@ function buildApiRequest(body: RequestBody): { apiUrl: string; headers: Record<s
       apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       headers = { 'Content-Type': 'application/json' };
       requestBody = {
-        contents: nonSystemMessages.map(m => ({
+        contents: nonSystemMessages.map((m) => ({
           role: m.role === 'user' ? 'user' : 'model',
-          parts: [{ text: m.content }]
+          parts: [{ text: m.content }],
         })),
         generationConfig: {
           temperature: 0.7,
@@ -93,7 +90,7 @@ function buildApiRequest(body: RequestBody): { apiUrl: string; headers: Record<s
       };
       if (systemInstruction) {
         requestBody.systemInstruction = {
-          parts: [{ text: systemInstruction.content }]
+          parts: [{ text: systemInstruction.content }],
         };
       }
       break;
@@ -101,12 +98,12 @@ function buildApiRequest(body: RequestBody): { apiUrl: string; headers: Record<s
     case 'openai':
       apiUrl = 'https://api.openai.com/v1/chat/completions';
       headers = {
-        'Authorization': `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       };
       requestBody = {
-        model: model,
-        messages: messages,
+        model,
+        messages,
         temperature: 0.7,
         max_tokens: 4000,
       };
@@ -120,7 +117,7 @@ function buildApiRequest(body: RequestBody): { apiUrl: string; headers: Record<s
         'Content-Type': 'application/json',
       };
       requestBody = {
-        model: model,
+        model,
         messages: nonSystemMessages,
         max_tokens: 4000,
         temperature: 0.7,
@@ -137,9 +134,7 @@ function buildApiRequest(body: RequestBody): { apiUrl: string; headers: Record<s
   return { apiUrl, headers, requestBody };
 }
 
-/**
- * Parst die Antwort der LLM-API.
- */
+// Antwort parsen
 function parseApiResponse(provider: string, responseText: string): string {
   try {
     const data = JSON.parse(responseText);
@@ -172,9 +167,7 @@ function parseApiResponse(provider: string, responseText: string): string {
   }
 }
 
-/**
- * Haupt-Handler für die Edge Function
- */
+// Handler
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -185,31 +178,38 @@ serve(async (req) => {
     validateRequestBody(requestData);
 
     const { provider, model, messages } = requestData;
-    console.log(`📥 k1w1-handler: Request. Provider: ${provider}, Model: ${model}, Messages: ${messages.length}`);
+    console.log(
+      `📥 k1w1-handler: Request. Provider: ${provider}, Model: ${model}, Messages: ${messages.length}`,
+    );
 
     const { apiUrl, headers, requestBody } = buildApiRequest(requestData);
 
     const apiResponse = await fetch(apiUrl, {
       method: 'POST',
-      headers: headers,
+      headers,
       body: JSON.stringify(requestBody),
     });
 
     const responseText = await apiResponse.text();
     if (!apiResponse.ok) {
-      console.error(`❌ ${provider} Error (${apiResponse.status}):`, responseText.substring(0, 500));
-      throw new Error(`[${provider} API Error ${apiResponse.status}] ${responseText.substring(0, 200)}`);
+      console.error(
+        `❌ ${provider} Error (${apiResponse.status}):`,
+        responseText.substring(0, 500),
+      );
+      throw new Error(
+        `[${provider} API Error ${apiResponse.status}] ${responseText.substring(
+          0,
+          200,
+        )}`,
+      );
     }
 
     const response = parseApiResponse(provider, responseText);
 
-    return new Response(
-      JSON.stringify({ response }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200
-      }
-    );
+    return new Response(JSON.stringify({ response }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    });
   } catch (error: any) {
     console.error('❌ k1w1-handler Error:', error.message);
     console.error('Stack:', error.stack);
@@ -220,8 +220,8 @@ serve(async (req) => {
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500
-      }
+        status: 500,
+      },
     );
   }
 });
