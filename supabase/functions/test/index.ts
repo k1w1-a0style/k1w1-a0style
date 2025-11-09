@@ -12,7 +12,7 @@ serve(async (req) => {
 
   try {
     console.log('✅ Test Function called successfully')
-    
+
     return new Response(
       JSON.stringify({
         message: 'Supabase Edge Functions funktionieren!',
@@ -31,7 +31,6 @@ serve(async (req) => {
     )
   } catch (error: any) {
     console.error('❌ Test Error:', error)
-    
     return new Response(
       JSON.stringify({
         error: error.message || 'Internal error',

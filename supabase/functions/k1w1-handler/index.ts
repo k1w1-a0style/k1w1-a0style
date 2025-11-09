@@ -1,5 +1,3 @@
-
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
 // Definiere die CORS-Header
@@ -31,7 +29,7 @@ async function parseRequestBody(req: Request): Promise<RequestBody> {
   }
   try {
     return JSON.parse(rawBody);
-  } catch (e) {
+  } catch (e: any) {
     console.error('❌ JSON Parse Error:', e.message);
     console.error('❌ Raw Body (first 500 chars):', rawBody.substring(0, 500));
     throw new Error(`Invalid JSON in request body: ${e.message}`);
@@ -58,10 +56,7 @@ function validateRequestBody({ messages, apiKey, provider, model }: RequestBody)
  */
 function buildApiRequest(body: RequestBody): { apiUrl: string; headers: Record<string, string>; requestBody: any } {
   const { messages, apiKey, provider, model } = body;
-
-  // System-Prompt extrahieren (wird für Gemini und Anthropic benötigt)
   const systemInstruction = messages.find(m => m.role === 'system');
-  // Nachrichten ohne System-Prompt
   const nonSystemMessages = messages.filter(m => m.role !== 'system');
 
   let apiUrl: string;
@@ -76,8 +71,8 @@ function buildApiRequest(body: RequestBody): { apiUrl: string; headers: Record<s
         'Content-Type': 'application/json',
       };
       requestBody = {
-        model: model === 'auto-groq' ? 'llama-3.3-70b-versatile' : model, // Fallback-Modell
-        messages: messages, // Groq verwendet das OpenAI-Format inkl. 'system'
+        model: model === 'auto-groq' ? 'llama-3.3-70b-versatile' : model,
+        messages: messages,
         temperature: 0.7,
         max_tokens: 4000,
       };
@@ -88,7 +83,7 @@ function buildApiRequest(body: RequestBody): { apiUrl: string; headers: Record<s
       headers = { 'Content-Type': 'application/json' };
       requestBody = {
         contents: nonSystemMessages.map(m => ({
-          role: m.role === 'user' ? 'user' : 'model', // Gemini verwendet 'model' statt 'assistant'
+          role: m.role === 'user' ? 'user' : 'model',
           parts: [{ text: m.content }]
         })),
         generationConfig: {
@@ -96,7 +91,6 @@ function buildApiRequest(body: RequestBody): { apiUrl: string; headers: Record<s
           maxOutputTokens: 4000,
         },
       };
-      // System-Instruktion KORREKT HINZUFÜGEN
       if (systemInstruction) {
         requestBody.systemInstruction = {
           parts: [{ text: systemInstruction.content }]
@@ -127,11 +121,10 @@ function buildApiRequest(body: RequestBody): { apiUrl: string; headers: Record<s
       };
       requestBody = {
         model: model,
-        messages: nonSystemMessages, // Anthropic erwartet Nachrichten ohne 'system'
+        messages: nonSystemMessages,
         max_tokens: 4000,
         temperature: 0.7,
       };
-      // System-Instruktion KORREKT HINZUFÜGEN
       if (systemInstruction) {
         requestBody.system = systemInstruction.content;
       }
@@ -166,15 +159,14 @@ function parseApiResponse(provider: string, responseText: string): string {
       default:
         throw new Error('Unknown provider in parseApiResponse');
     }
-    
+
     if (!response) {
       throw new Error(`${provider} returned an empty response content`);
     }
-    
+
     console.log(`✅ ${provider} Response: ${response.length} chars`);
     return response;
-
-  } catch (e) {
+  } catch (e: any) {
     console.error(`❌ ${provider} Response Parse Error:`, e.message);
     throw new Error(`Invalid response from ${provider} API: ${e.message}`);
   }
@@ -184,23 +176,19 @@ function parseApiResponse(provider: string, responseText: string): string {
  * Haupt-Handler für die Edge Function
  */
 serve(async (req) => {
-  // CORS Preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    // 1. Parsen und Validieren
     const requestData = await parseRequestBody(req);
     validateRequestBody(requestData);
-    
+
     const { provider, model, messages } = requestData;
     console.log(`📥 k1w1-handler: Request. Provider: ${provider}, Model: ${model}, Messages: ${messages.length}`);
 
-    // 2. API-Request erstellen
     const { apiUrl, headers, requestBody } = buildApiRequest(requestData);
 
-    // 3. API-Aufruf
     const apiResponse = await fetch(apiUrl, {
       method: 'POST',
       headers: headers,
@@ -208,17 +196,13 @@ serve(async (req) => {
     });
 
     const responseText = await apiResponse.text();
-
     if (!apiResponse.ok) {
       console.error(`❌ ${provider} Error (${apiResponse.status}):`, responseText.substring(0, 500));
-      // KORREKTUR: Detailliertere Fehlermeldung an den Client senden
       throw new Error(`[${provider} API Error ${apiResponse.status}] ${responseText.substring(0, 200)}`);
     }
 
-    // 4. Antwort parsen
     const response = parseApiResponse(provider, responseText);
 
-    // 5. Erfolgreiche Antwort
     return new Response(
       JSON.stringify({ response }),
       {
@@ -226,15 +210,13 @@ serve(async (req) => {
         status: 200
       }
     );
-
   } catch (error: any) {
-    // 6. Zentrale Fehlerbehandlung
     console.error('❌ k1w1-handler Error:', error.message);
     console.error('Stack:', error.stack);
     return new Response(
       JSON.stringify({
-        error: error.message, // Nur die Nachricht senden
-        details: error.stack, // Stack für optionales Debugging im Client
+        error: error.message,
+        details: error.stack,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -243,6 +225,3 @@ serve(async (req) => {
     );
   }
 });
-
-
-

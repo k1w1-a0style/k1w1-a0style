@@ -41,7 +41,7 @@ serve(async (req) => {
   let owner: string, repo: string;
   let githubToken: string;
   let octokit: Octokit;
-  let currentStep = 'INIT'; // ✅ Tracking des aktuellen Schritts
+  let currentStep = 'INIT';
 
   try {
     console.log('🚀 trigger-eas-build (v8 - DETAILLIERTE FEHLER) called')
@@ -58,10 +58,8 @@ serve(async (req) => {
     // 2. Parse body
     currentStep = 'PARSE_BODY';
     const body: RequestBody = await req.json() as RequestBody
-
     githubToken = body.githubToken;
     [owner, repo] = body.githubRepo.split('/')
-
     if (!body.githubRepo || !body.githubRepo.includes('/')) {
       throw new Error("[PARSE_BODY] 'githubRepo' missing or invalid (format: owner/repo)")
     }
@@ -127,9 +125,7 @@ serve(async (req) => {
       return octokit.git.createBlob({ owner, repo, content: file.content, encoding: encoding })
     })
     const blobResults = await Promise.all(blobPromises)
-    const tree: GitTreeElement[] = blobResults.map((b, i) => ({
-      path: body.files[i].path, mode: '100644', type: 'blob', sha: b.data.sha,
-    }))
+    const tree: GitTreeElement[] = blobResults.map((b, i) => ({ path: body.files[i].path, mode: '100644', type: 'blob', sha: b.data.sha }))
     console.log("✅ Blobs created successfully")
 
     // 4.4 Create tree
@@ -157,7 +153,7 @@ serve(async (req) => {
     // 6. Workflow dispatch
     currentStep = 'GITHUB_WORKFLOW';
     await octokit.actions.createWorkflowDispatch({
-        owner, repo, workflow_id: 'deploy-supabase-functions.yml', ref: usedBranch, inputs: { job_id: String(newJobId) }
+      owner, repo, workflow_id: 'deploy-supabase-functions.yml', ref: usedBranch, inputs: { job_id: String(newJobId) }
     });
     console.log("✅ Workflow manually triggered")
 
@@ -172,15 +168,13 @@ serve(async (req) => {
     )
 
   } catch (error: any) {
-    // ✅ DETAILLIERTE FEHLERBEHANDLUNG
     const errorMessage = String(error?.message || 'Unknown error')
     console.error(`❌ trigger-eas-build Error at step [${currentStep}]:`, errorMessage)
     console.error('Stack:', error.stack)
 
-    // User-freundliche Fehlermeldung je nach Schritt
     let userFriendlyMessage = errorMessage;
     if (currentStep === 'GITHUB_BRANCH') {
-      userFriendlyMessage = `GitHub Fehler: Repository "${owner}/${repo}" nicht gefunden oder kein Zugriff. Prüfe Token-Berechtigungen!`;
+      userFriendlyMessage = `GitHub Fehler: Repository \"${owner}/${repo}\" nicht gefunden oder kein Zugriff. Prüfe Token-Berechtigungen!`;
     } else if (currentStep.startsWith('GITHUB_')) {
       userFriendlyMessage = `GitHub API Fehler (${currentStep}): ${errorMessage}`;
     } else if (currentStep.startsWith('DB_')) {
@@ -190,21 +184,21 @@ serve(async (req) => {
     if (newJobId && supabaseAdmin) {
       await supabaseAdmin
         .from('build_jobs')
-        .update({ 
-          status: 'error', 
-          eas_build_id: `Error at ${currentStep}: ${errorMessage.substring(0,100)}` 
+        .update({
+          status: 'error',
+          eas_build_id: `Error at ${currentStep}: ${errorMessage.substring(0,100)}`
         })
         .eq('id', newJobId)
     }
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: false,
         error: userFriendlyMessage,
         step: currentStep,
         details: error.stack,
-        hint: currentStep === 'GITHUB_BRANCH' 
-          ? 'Stelle sicher, dass das Repository existiert und der Token "repo" Zugriff hat.' 
+        hint: currentStep === 'GITHUB_BRANCH'
+          ? 'Stelle sicher, dass das Repository existiert und der Token \"repo\" Zugriff hat.'
           : 'Prüfe die Logs für Details.'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
