@@ -14,24 +14,46 @@ export const FileItem: React.FC<FileItemProps> = ({ node, onPress, onLongPress }
   const getFileIcon = (fileName: string) => {
     const ext = fileName.split('.').pop()?.toLowerCase();
     switch (ext) {
-      case 'tsx': case 'ts': return 'logo-react';
-      case 'js': case 'jsx': return 'logo-javascript';
-      case 'json': return 'document-text';
-      case 'png': case 'jpg': case 'jpeg': case 'gif': return 'image';
-      case 'md': return 'document-outline';
-      default: return 'document-text-outline';
+      case 'tsx':
+      case 'ts':
+        return 'logo-react';
+      case 'js':
+      case 'jsx':
+        return 'logo-javascript';
+      case 'json':
+        return 'document-text';
+      case 'png':
+      case 'jpg':
+      case 'jpeg':
+      case 'gif':
+        return 'image';
+      case 'md':
+        return 'document-outline';
+      default:
+        return 'document-text-outline';
     }
   };
 
   const getFileColor = (fileName: string) => {
     const ext = fileName.split('.').pop()?.toLowerCase();
     switch (ext) {
-      case 'tsx': case 'ts': return '#61DAFB';
-      case 'js': case 'jsx': return '#F7DF1E';
-      case 'json': return '#FFB000';
-      case 'png': case 'jpg': case 'jpeg': case 'gif': return '#4CAF50';
-      case 'md': return '#0366D6';
-      default: return theme.palette.text.secondary;
+      case 'tsx':
+      case 'ts':
+        return '#61DAFB';
+      case 'js':
+      case 'jsx':
+        return '#F7DF1E';
+      case 'json':
+        return '#FFB000';
+      case 'png':
+      case 'jpg':
+      case 'jpeg':
+      case 'gif':
+        return '#4CAF50';
+      case 'md':
+        return '#0366D6';
+      default:
+        return theme.palette.text.secondary;
     }
   };
 
@@ -52,17 +74,18 @@ export const FileItem: React.FC<FileItemProps> = ({ node, onPress, onLongPress }
           <Text style={styles.fileName} numberOfLines={1}>
             {node.name}
           </Text>
+
           {node.type === 'folder' && node.children && (
             <Text style={styles.fileDetails}>
               {node.children.length} Element{node.children.length !== 1 ? 'e' : ''}
             </Text>
           )}
+
           {node.type === 'file' && node.file && (
             <Text style={styles.fileDetails}>
               {typeof node.file.content === 'string'
                 ? `${node.file.content.length} Zeichen`
-                : 'Binary'
-              }
+                : 'Binary'}
             </Text>
           )}
         </View>
@@ -82,7 +105,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: theme.palette.background.primary,
+    backgroundColor: theme.palette.card, // fix: vorher .background.primary
     borderBottomWidth: 1,
     borderBottomColor: theme.palette.border,
   },
@@ -106,4 +129,3 @@ const styles = StyleSheet.create({
     color: theme.palette.text.secondary,
   },
 });
-

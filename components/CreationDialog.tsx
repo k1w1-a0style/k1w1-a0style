@@ -11,12 +11,12 @@ interface CreationDialogProps {
   onCreateFolder: (name: string) => void;
 }
 
-export const CreationDialog: React.FC<CreationDialogProps> = ({ 
-  visible, 
-  currentPath, 
-  onClose, 
-  onCreateFile, 
-  onCreateFolder 
+export const CreationDialog: React.FC<CreationDialogProps> = ({
+  visible,
+  currentPath,
+  onClose,
+  onCreateFile,
+  onCreateFolder,
 }) => {
   const [name, setName] = useState('');
   const [type, setType] = useState<'file' | 'folder'>('file');
@@ -50,8 +50,17 @@ export const CreationDialog: React.FC<CreationDialogProps> = ({
               style={[styles.typeButton, type === 'file' && styles.typeButtonActive]}
               onPress={() => setType('file')}
             >
-              <Ionicons name="document-text-outline" size={20} color={type === 'file' ? '#fff' : theme.palette.text.secondary} />
-              <Text style={[styles.typeButtonText, type === 'file' && styles.typeButtonTextActive]}>
+              <Ionicons
+                name="document-text-outline"
+                size={20}
+                color={type === 'file' ? '#fff' : theme.palette.text.secondary}
+              />
+              <Text
+                style={[
+                  styles.typeButtonText,
+                  type === 'file' && styles.typeButtonTextActive,
+                ]}
+              >
                 Datei
               </Text>
             </TouchableOpacity>
@@ -60,8 +69,17 @@ export const CreationDialog: React.FC<CreationDialogProps> = ({
               style={[styles.typeButton, type === 'folder' && styles.typeButtonActive]}
               onPress={() => setType('folder')}
             >
-              <Ionicons name="folder-outline" size={20} color={type === 'folder' ? '#fff' : theme.palette.text.secondary} />
-              <Text style={[styles.typeButtonText, type === 'folder' && styles.typeButtonTextActive]}>
+              <Ionicons
+                name="folder-outline"
+                size={20}
+                color={type === 'folder' ? '#fff' : theme.palette.text.secondary}
+              />
+              <Text
+                style={[
+                  styles.typeButtonText,
+                  type === 'folder' && styles.typeButtonTextActive,
+                ]}
+              >
                 Ordner
               </Text>
             </TouchableOpacity>
@@ -71,10 +89,8 @@ export const CreationDialog: React.FC<CreationDialogProps> = ({
             style={styles.nameInput}
             value={name}
             onChangeText={setName}
-            placeholder={type === 'file' ? 'Dateiname.tsx' : 'Ordnername'}
+            placeholder={type === 'file' ? 'Dateiname.ext' : 'Ordnername'}
             placeholderTextColor={theme.palette.text.secondary}
-            autoFocus
-            autoCapitalize="none"
           />
 
           <View style={styles.modalActions}>
@@ -82,7 +98,10 @@ export const CreationDialog: React.FC<CreationDialogProps> = ({
               <Text style={styles.cancelButtonText}>Abbrechen</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.createButton, !name.trim() && styles.createButtonDisabled]}
+              style={[
+                styles.createButton,
+                (!name.trim() || !type) && styles.createButtonDisabled,
+              ]}
               onPress={handleCreate}
               disabled={!name.trim()}
             >
@@ -98,45 +117,38 @@ export const CreationDialog: React.FC<CreationDialogProps> = ({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: '#000000AA',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
   },
   creationModal: {
-    backgroundColor: theme.palette.background.primary,
+    width: '90%',
+    backgroundColor: theme.palette.card,
     borderRadius: 12,
-    padding: 24,
-    width: '100%',
-    maxWidth: 400,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: theme.palette.text.primary,
-    marginBottom: 16,
-    textAlign: 'center',
+    marginBottom: 12,
   },
   pathInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: theme.palette.background.secondary,
-    borderRadius: 8,
+    marginBottom: 12,
   },
   pathText: {
     fontSize: 14,
     color: theme.palette.text.secondary,
     marginLeft: 6,
-    fontFamily: 'monospace',
   },
   typeSelector: {
     flexDirection: 'row',
-    marginBottom: 20,
-    backgroundColor: theme.palette.background.secondary,
+    marginBottom: 16,
+    backgroundColor: theme.palette.background,
     borderRadius: 8,
     padding: 4,
   },
@@ -145,14 +157,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderRadius: 6,
   },
   typeButtonActive: {
     backgroundColor: theme.palette.primary,
   },
   typeButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     color: theme.palette.text.secondary,
     marginLeft: 8,
     fontWeight: '500',
@@ -164,33 +176,33 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.palette.border,
     borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
     color: theme.palette.text.primary,
-    backgroundColor: theme.palette.background.secondary,
-    marginBottom: 24,
+    backgroundColor: theme.palette.background,
+    marginBottom: 16,
   },
   modalActions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
   },
   cancelButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: theme.palette.border,
     alignItems: 'center',
   },
   cancelButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     color: theme.palette.text.secondary,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   createButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderRadius: 8,
     backgroundColor: theme.palette.primary,
     alignItems: 'center',
@@ -199,7 +211,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   createButtonText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#fff',
     fontWeight: '600',
   },

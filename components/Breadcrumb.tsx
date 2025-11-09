@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: theme.palette.background.secondary,
+    backgroundColor: theme.palette.card, // fix: kein .background.secondary
     borderBottomWidth: 1,
     borderBottomColor: theme.palette.border,
   },
@@ -56,4 +56,3 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
-
