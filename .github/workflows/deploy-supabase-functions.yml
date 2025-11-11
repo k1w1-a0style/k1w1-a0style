@@ -11,14 +11,15 @@ on:
 jobs:
   run-eas-build:
     runs-on: ubuntu-latest
-    
+
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       JOB_ID: ${{ github.event.inputs.job_id }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Validate Job ID
         run: |
@@ -28,40 +29,53 @@ jobs:
           fi
           echo "✓ Job ID: $JOB_ID"
 
-      - name: Setup Node
+      - name: Setup Node (v20)
         uses: actions/setup-node@v4
         with:
-          node-version: 18.x
+          node-version: 20
 
-      - name: Setup EAS
+      - name: Setup Expo & EAS
         uses: expo/expo-github-action@v8
         with:
           expo-version: latest
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
+          packager: npm
 
       - name: Install dependencies
         run: npm install
 
       - name: Update Build Status - Building
         run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::SUPABASE_URL oder SUPABASE_SERVICE_ROLE_KEY nicht gesetzt."
+            exit 1
+          fi
+
           curl -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
             -d "{\"status\":\"building\",\"github_run_id\":\"${{ github.run_id }}\"}"
 
-      - name: Run EAS Build
+      - name: Run EAS Build (Android, no-wait)
         id: eas
         run: |
           BUILD_OUTPUT=$(eas build --platform android --non-interactive --no-wait 2>&1)
           echo "$BUILD_OUTPUT"
+
           BUILD_ID=$(echo "$BUILD_OUTPUT" | grep -oP 'Build ID: \K[a-f0-9-]+' || echo "unknown")
+          echo "Build ID detected: $BUILD_ID"
           echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
 
       - name: Update Build Status - Success
         if: success()
         run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::SUPABASE_URL oder SUPABASE_SERVICE_ROLE_KEY nicht gesetzt."
+            exit 1
+          fi
+
           curl -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
@@ -71,6 +85,11 @@ jobs:
       - name: Update Build Status - Failed
         if: failure()
         run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::SUPABASE_URL oder SUPABASE_SERVICE_ROLE_KEY nicht gesetzt."
+            exit 1
+          fi
+
           curl -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \

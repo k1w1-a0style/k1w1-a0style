@@ -47,11 +47,9 @@ function validateRequestBody({ messages, apiKey, provider, model }: RequestBody)
 }
 
 // Request für Provider bauen
-function buildApiRequest(body: RequestBody): {
-  apiUrl: string;
-  headers: Record<string, string>;
-  requestBody: any;
-} {
+function buildApiRequest(
+  body: RequestBody
+): { apiUrl: string; headers: Record<string, string>; requestBody: any } {
   const { messages, apiKey, provider, model } = body;
   const systemInstruction = messages.find((m) => m.role === 'system');
   const nonSystemMessages = messages.filter((m) => m.role !== 'system');

@@ -1,5 +1,6 @@
 // supabase/functions/check-eas-build/index.ts
-// v2.3 - nutzt K1W1_ und Default ENV, stabilere Status-Checks
+// v2.4 - nutzt K1W1_ + Default ENV, liest easToken aus Request,
+// aktualisiert Build-Status ohne kaputt zu gehen.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -18,20 +19,19 @@ interface BuildJob {
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 function getSupabaseEnv() {
   const url =
     Deno.env.get("K1W1_SUPABASE_URL") ||
-    Deno.env.get("SUPABASE_URL");
-
+    Deno.env.get("SUPABASE_URL") ||
+    "";
   const serviceRoleKey =
     Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY") ||
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
+    "";
   return { url, serviceRoleKey };
 }
 
@@ -41,51 +41,47 @@ serve(async (req) => {
   }
 
   try {
-    console.log("🔍 check-eas-build (v2.3) called");
+    console.log("🔍 check-eas-build (v2.4) called");
 
-    const { url: SUPABASE_URL, serviceRoleKey: SERVICE_ROLE_KEY } =
-      getSupabaseEnv();
-    if (!SERVICE_ROLE_KEY || !SUPABASE_URL) {
+    const { url: SUPABASE_URL, serviceRoleKey: SERVICE_ROLE_KEY } = getSupabaseEnv();
+    if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
       throw new Error("Supabase Service Key oder URL nicht konfiguriert.");
     }
-
-    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
     const { jobId, easToken } = (await req.json()) as RequestBody;
     if (!jobId) throw new Error("Fehler: 'jobId' fehlt.");
     if (!easToken) throw new Error("Fehler: 'easToken' fehlt.");
+
+    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
     const { data: job, error: dbError } = await supabaseAdmin
       .from("build_jobs")
       .select("id, status, eas_build_id, download_url")
       .eq("id", jobId)
       .single();
-
     if (dbError) throw new Error(`DB Fehler: ${dbError.message}`);
 
     const currentJob = job as BuildJob;
     console.log(`Checking Job ${jobId}. DB Status: ${currentJob.status}`);
 
-    // Wenn DB schon final oder noch pending/pushed -> direkt zurück an App
+    // Final oder noch nicht gestartet -> einfach zurückgeben
     if (
       currentJob.status === "success" ||
       currentJob.status === "error" ||
       currentJob.status === "pending" ||
       currentJob.status === "pushed"
     ) {
-      console.log(
-        `Status ist '${currentJob.status}'. Kein Expo API-Call nötig.`
-      );
+      console.log(`Status '${currentJob.status}' -> kein Expo API Call.`);
       return new Response(JSON.stringify(currentJob), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
       });
     }
 
-    // Wenn "building" ohne eas_build_id -> inkonsistent, aber nicht crashen
+    // Inkonsistenz abfangen
     if (currentJob.status === "building" && !currentJob.eas_build_id) {
       console.error(
-        `Inkonsistenz: Job ${jobId} ist 'building', aber 'eas_build_id' fehlt!`
+        `Inkonsistenz: Job ${jobId} ist 'building', aber 'eas_build_id' fehlt.`
       );
       return new Response(JSON.stringify(currentJob), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -94,15 +90,14 @@ serve(async (req) => {
     }
 
     if (!currentJob.eas_build_id) {
-      console.log(
-        `Kein 'eas_build_id' für Job ${jobId}. Status: ${currentJob.status}`
-      );
+      console.log(`Job ${jobId} ohne 'eas_build_id'.`);
       return new Response(JSON.stringify(currentJob), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
       });
     }
 
+    // Expo Build Status holen
     const expoApiUrl = `https://api.expo.dev/v2/build/by-id?buildId=${currentJob.eas_build_id}`;
     const expoRes = await fetch(expoApiUrl, {
       headers: { Authorization: `Bearer ${easToken}` },
@@ -114,7 +109,7 @@ serve(async (req) => {
       if (expoRes.status === 401) {
         throw new Error("Expo Token ist ungültig (401).");
       }
-      // kein harter Fehler -> aktuellen DB-Status zurückgeben
+      // nichts überschreiben, letzten Status zurück
       return new Response(JSON.stringify(currentJob), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
@@ -130,18 +125,15 @@ serve(async (req) => {
     if (newStatus === "finished") {
       finalStatus = "success";
       newDownloadUrl = buildDetails.artifacts?.buildUrl || null;
-      console.log(`✅ Build ${jobId} FERTIG. URL: ${newDownloadUrl}`);
+      console.log(`✅ Build ${jobId} fertig. URL: ${newDownloadUrl}`);
     } else if (newStatus === "errored") {
       finalStatus = "error";
-      console.log(`❌ Build ${jobId} FEHLGESCHLAGEN.`);
+      console.log(`❌ Build ${jobId} fehlgeschlagen.`);
     } else {
       console.log(`Build ${jobId} läuft... (EAS Status: ${newStatus})`);
     }
 
-    if (
-      finalStatus !== currentJob.status ||
-      newDownloadUrl !== currentJob.download_url
-    ) {
+    if (finalStatus !== currentJob.status || newDownloadUrl !== currentJob.download_url) {
       const { data: updatedJob, error: updateError } = await supabaseAdmin
         .from("build_jobs")
         .update({
@@ -151,18 +143,14 @@ serve(async (req) => {
         .eq("id", jobId)
         .select()
         .single();
-
-      if (updateError) {
-        throw new Error(`DB Update Fehler: ${updateError.message}`);
-      }
-
+      if (updateError) throw new Error(`DB Update Fehler: ${updateError.message}`);
       return new Response(JSON.stringify(updatedJob), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
       });
     }
 
-    // Keine Änderung -> aktuellen Job zurück
+    // keine Änderung
     return new Response(JSON.stringify(currentJob), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
@@ -171,10 +159,7 @@ serve(async (req) => {
     console.error("❌ check-eas-build Error:", error.message);
     return new Response(
       JSON.stringify({ error: error.message }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 500,
-      }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });

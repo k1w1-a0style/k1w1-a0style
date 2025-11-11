@@ -1,5 +1,6 @@
 // supabase/functions/trigger-eas-build/index.ts
-// v9.3 - nutzt expoToken aus Request, ENV-Fallbacks & setzt nur vorhandene Secrets
+// v9.4 - nutzt expoToken aus Request (Settings), Fallback ENV,
+// setzt nur vorhandene Secrets und triggert GitHub Workflow.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -12,10 +13,10 @@ interface ProjectFile {
 }
 
 interface RequestBody {
-  githubRepo: string;
-  githubToken: string;
+  githubRepo: string;     // z.B. "k1w1-a0style/k1w1-a0style-musik-app"
+  githubToken: string;    // Personal Access Token mit repo-Rechten
   files: ProjectFile[];
-  expoToken?: string; // aus deinen App-Settings
+  expoToken?: string;     // aus deinen App-Settings (für EXPO_TOKEN Secret)
 }
 
 interface BuildJob {
@@ -36,19 +37,12 @@ const corsHeaders = {
 };
 
 const MAX_FILES = 200;
-const MAX_FILE_SIZE = 1_500_000; // 1.5MB
+const MAX_FILE_SIZE = 1_500_000; // 1.5 MB
 
 function guessEncoding(content: string, path: string): "utf-8" | "base64" {
-  if (
-    path.endsWith(".png") ||
-    path.endsWith(".jpg") ||
-    path.endsWith(".jpeg") ||
-    path.endsWith(".ico")
-  ) {
-    return "base64";
-  }
-  let nonAscii = 0;
+  if (/\.(png|jpg|jpeg|ico)$/i.test(path)) return "base64";
   const limit = Math.min(content.length, 500);
+  let nonAscii = 0;
   for (let i = 0; i < limit; i++) {
     const code = content.charCodeAt(i);
     if (code === 0) return "base64";
@@ -58,7 +52,6 @@ function guessEncoding(content: string, path: string): "utf-8" | "base64" {
   return "utf-8";
 }
 
-// GitHub Secret-Encryption
 async function encryptForGitHub(publicKey: string, secret: string): Promise<string> {
   await sodium.ready;
   const key = sodium.from_base64(publicKey, sodium.base64_variants.ORIGINAL);
@@ -67,21 +60,21 @@ async function encryptForGitHub(publicKey: string, secret: string): Promise<stri
   return sodium.to_base64(encryptedBytes, sodium.base64_variants.ORIGINAL);
 }
 
-// Supabase ENV mit Fallback
+// Supabase ENV mit K1W1_ Fallback
 function getSupabaseEnv() {
   const url =
     Deno.env.get("K1W1_SUPABASE_URL") ||
-    Deno.env.get("SUPABASE_URL");
-
+    Deno.env.get("SUPABASE_URL") ||
+    "";
   const serviceRoleKey =
     Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY") ||
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
+    "";
   return { url, serviceRoleKey };
 }
 
-// Expo Token ENV-Fallback
-function getExpoTokenFromEnv() {
+// Expo Token aus ENV (falls nicht im Request übergeben)
+function getExpoTokenFromEnv(): string {
   return (
     Deno.env.get("K1W1_EXPO_TOKEN") ||
     Deno.env.get("EXPO_TOKEN") ||
@@ -89,7 +82,7 @@ function getExpoTokenFromEnv() {
   );
 }
 
-// setzt NUR vorhandene Secrets
+// setzt NUR Secrets, für die Werte existieren
 async function ensureRepoSecrets(
   octokit: Octokit,
   owner: string,
@@ -100,15 +93,12 @@ async function ensureRepoSecrets(
   const expoToken = explicitExpoToken || getExpoTokenFromEnv();
 
   if (!SUPABASE_URL && !SUPABASE_SERVICE_ROLE_KEY && !expoToken) {
-    console.warn(
-      "⚠️ Auto-Secrets: Keine Werte für SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / EXPO_TOKEN gefunden. Überspringe."
-    );
+    console.warn("⚠️ Auto-Secrets: nichts zu setzen (alle leer).");
     return;
   }
 
   try {
     const { data: publicKey } = await octokit.actions.getRepoPublicKey({ owner, repo });
-
     const secrets: Record<string, string> = {};
 
     if (SUPABASE_URL) secrets.SUPABASE_URL = SUPABASE_URL;
@@ -116,8 +106,8 @@ async function ensureRepoSecrets(
     if (expoToken) secrets.EXPO_TOKEN = expoToken;
 
     const names = Object.keys(secrets);
-    if (names.length === 0) {
-      console.warn("⚠️ Auto-Secrets: Nichts zu setzen (alle Werte leer).");
+    if (!names.length) {
+      console.warn("⚠️ Auto-Secrets: nach Filter nichts zu setzen.");
       return;
     }
 
@@ -134,7 +124,7 @@ async function ensureRepoSecrets(
       console.log(`✅ Secret ${name} für ${owner}/${repo} gesetzt/aktualisiert`);
     }
   } catch (err: any) {
-    console.error("❌ Fehler beim Setzen der GitHub-Secrets:", err?.message || err);
+    console.error("❌ ensureRepoSecrets Fehler:", err?.message || err);
   }
 }
 
@@ -152,13 +142,13 @@ serve(async (req) => {
   let currentStep = "INIT";
 
   try {
-    console.log("🚀 trigger-eas-build (v9.3) called");
+    console.log("🚀 trigger-eas-build (v9.4) called");
 
-    // 1. ENV Checks (für DB)
+    // 1. Supabase ENV check
     currentStep = "ENV_CHECK";
     const { url: SUPABASE_URL, serviceRoleKey: SERVICE_ROLE_KEY } = getSupabaseEnv();
-    if (!SERVICE_ROLE_KEY || !SUPABASE_URL) {
-      throw new Error("[ENV_CHECK] Supabase ENV Variablen fehlen (SUPABASE_URL / SERVICE_ROLE_KEY).");
+    if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+      throw new Error("[ENV_CHECK] Supabase ENV fehlt (SUPABASE_URL / SERVICE_ROLE_KEY).");
     }
     supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
@@ -167,19 +157,19 @@ serve(async (req) => {
     const body = (await req.json()) as RequestBody;
 
     if (!body.githubRepo || !body.githubRepo.includes("/")) {
-      throw new Error("[PARSE_BODY] 'githubRepo' fehlt oder invalid (Format: owner/repo).");
+      throw new Error("[PARSE_BODY] 'githubRepo' fehlt/ungültig (owner/repo).");
     }
     if (!body.githubToken) {
       throw new Error("[PARSE_BODY] 'githubToken' fehlt.");
     }
-    if (!body.files || !Array.isArray(body.files) || body.files.length === 0) {
-      throw new Error("[PARSE_BODY] 'files' array fehlt oder ist leer.");
+    if (!Array.isArray(body.files) || body.files.length === 0) {
+      throw new Error("[PARSE_BODY] 'files' muss ein nicht-leeres Array sein.");
     }
 
     githubToken = body.githubToken;
     [owner, repo] = body.githubRepo.split("/");
 
-    console.log(`📦 Job requested for ${body.files.length} files in ${body.githubRepo}`);
+    console.log(`📦 Job: ${body.files.length} Dateien -> ${owner}/${repo}`);
 
     if (body.files.length > MAX_FILES) {
       throw new Error(`[FILES] Zu viele Dateien: ${body.files.length} > ${MAX_FILES}`);
@@ -190,30 +180,28 @@ serve(async (req) => {
       }
     }
 
-    // 3. Job in DB anlegen
+    // 3. build_jobs-Eintrag
     currentStep = "DB_INSERT";
     const { data: newJob, error: dbError } = await supabaseAdmin
       .from("build_jobs")
       .insert({ github_repo: body.githubRepo, status: "pending" })
       .select("id")
       .single();
-
-    if (dbError) throw new Error(`[DB_INSERT] Insert fehlgeschlagen: ${dbError.message}`);
+    if (dbError) throw new Error(`[DB_INSERT] ${dbError.message}`);
     newJobId = (newJob as BuildJob).id;
     console.log(`✅ Job ${newJobId} erstellt`);
 
-    // 4. GitHub / Octokit
+    // 4. Octokit
     currentStep = "GITHUB_INIT";
     octokit = new Octokit({ auth: githubToken });
     console.log("✅ Octokit initialisiert");
 
     // 4.1 Branch finden
     currentStep = "GITHUB_BRANCH";
-    const branchCandidates = ["main", "master"];
+    const branches = ["main", "master"];
     let parentCommitSha: string | null = null;
     let usedBranch: string | null = null;
-
-    for (const b of branchCandidates) {
+    for (const b of branches) {
       try {
         const { data: refData } = await octokit.git.getRef({
           owner,
@@ -222,25 +210,23 @@ serve(async (req) => {
         });
         parentCommitSha = refData.object.sha;
         usedBranch = b;
-        console.log(`✅ Branch gefunden: ${b} -> ${parentCommitSha}`);
+        console.log(`✅ Branch ${b} -> ${parentCommitSha}`);
         break;
       } catch (err: any) {
         console.warn(`ℹ️ Branch ${b} nicht gefunden: ${err.message}`);
       }
     }
-
     if (!parentCommitSha || !usedBranch) {
-      throw new Error("[GITHUB_BRANCH] Kein main/master Branch gefunden. Repo/Token prüfen.");
+      throw new Error("[GITHUB_BRANCH] Kein main/master gefunden. Repo/Token prüfen.");
     }
 
-    // 4.2 Secrets setzen (Expo/Supabase)
+    // 4.2 Secrets setzen
     currentStep = "GITHUB_SECRETS";
     await ensureRepoSecrets(octokit, owner, repo, body.expoToken);
 
-    // 4.3 Blobs erstellen
+    // 4.3 Blobs
     currentStep = "GITHUB_BLOBS";
-    console.log(`📝 Erstelle ${body.files.length} Blobs...`);
-
+    console.log("📝 Erstelle Blobs...");
     const blobResults = await Promise.all(
       body.files.map((file) => {
         const encoding = guessEncoding(file.content, file.path);
@@ -252,31 +238,27 @@ serve(async (req) => {
         });
       })
     );
-
     const tree: GitTreeElement[] = blobResults.map((b, i) => ({
       path: body.files[i].path,
       mode: "100644",
       type: "blob",
       sha: b.data.sha,
     }));
-
     console.log("✅ Blobs erstellt");
 
-    // 4.4 Tree erstellen
+    // 4.4 Tree
     currentStep = "GITHUB_CREATE_TREE";
     const { data: baseCommit } = await octokit.git.getCommit({
       owner,
       repo,
       commit_sha: parentCommitSha,
     });
-
     const { data: treeData } = await octokit.git.createTree({
       owner,
       repo,
-      tree,
       base_tree: baseCommit.tree.sha,
+      tree,
     });
-
     console.log("✅ Tree erstellt");
 
     // 4.5 Commit
@@ -289,10 +271,9 @@ serve(async (req) => {
       tree: treeData.sha,
       parents: [parentCommitSha],
     });
+    console.log(`✅ Commit ${commitData.sha}`);
 
-    console.log(`✅ Commit erstellt: ${commitData.sha}`);
-
-    // 4.6 Ref updaten (Push)
+    // 4.6 Push
     currentStep = "GITHUB_PUSH";
     await octokit.git.updateRef({
       owner,
@@ -301,59 +282,49 @@ serve(async (req) => {
       sha: commitData.sha,
       force: false,
     });
-
     console.log("✅ Code nach GitHub gepusht");
 
-    // 5. Job-Status -> pushed
+    // 5. Status "pushed"
     currentStep = "DB_UPDATE";
     await supabaseAdmin
       .from("build_jobs")
       .update({ status: "pushed", github_commit_sha: commitData.sha })
       .eq("id", newJobId);
 
-    // 6. Workflow fürs Deploy der Functions auslösen
+    // 6. Workflow triggern
     currentStep = "GITHUB_WORKFLOW";
     await octokit.actions.createWorkflowDispatch({
       owner,
       repo,
       workflow_id: "deploy-supabase-functions.yml",
       ref: usedBranch,
-      inputs: {
-        job_id: String(newJobId),
-      },
+      inputs: { job_id: String(newJobId) },
     });
-
     console.log("✅ Workflow deploy-supabase-functions.yml ausgelöst");
 
     return new Response(
       JSON.stringify({
         success: true,
-        message:
-          "Code gepusht, Secrets (soweit vorhanden) gesetzt und Build-Workflow ausgelöst.",
+        message: "Code gepusht, Secrets (falls vorhanden) gesetzt, Workflow gestartet.",
         job_id: newJobId,
         github_commit_sha: commitData.sha,
       }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
   } catch (error: any) {
     const errorMessage = String(error?.message || "Unknown error");
-    console.error(`❌ trigger-eas-build Error bei Schritt [${currentStep}]:`, errorMessage);
-    console.error("Stack:", error.stack);
+    console.error(`❌ trigger-eas-build Fehler bei [${currentStep}]:`, errorMessage);
 
-    let userFriendlyMessage = errorMessage;
-
+    let msg = errorMessage;
     if (currentStep === "GITHUB_BRANCH") {
-      userFriendlyMessage = `GitHub Fehler: Repository "${owner}/${repo}" nicht gefunden oder kein Zugriff. Prüfe Token-Berechtigungen!`;
+      msg = `GitHub Fehler: Repository "${owner}/${repo}" nicht gefunden oder kein Zugriff. Prüfe Token & Repo.`;
     } else if (currentStep.startsWith("GITHUB_")) {
-      userFriendlyMessage = `GitHub API Fehler (${currentStep}): ${errorMessage}`;
+      msg = `GitHub API Fehler (${currentStep}): ${errorMessage}`;
     } else if (currentStep.startsWith("DB_")) {
-      userFriendlyMessage = `Datenbank Fehler (${currentStep}): ${errorMessage}`;
+      msg = `Datenbank Fehler (${currentStep}): ${errorMessage}`;
     } else if (currentStep === "ENV_CHECK") {
-      userFriendlyMessage =
-        "Supabase ENV Variablen fehlen (SUPABASE_URL / SERVICE_ROLE_KEY). Bitte in Supabase Project Settings setzen.";
+      msg =
+        "Supabase ENV Variablen fehlen (SUPABASE_URL / SERVICE_ROLE_KEY). In Supabase Project Settings setzen.";
     }
 
     if (newJobId && supabaseAdmin) {
@@ -361,22 +332,14 @@ serve(async (req) => {
         .from("build_jobs")
         .update({
           status: "error",
-          eas_build_id: `Error at ${currentStep}: ${errorMessage.substring(0, 100)}`,
+          eas_build_id: `Error at ${currentStep}: ${errorMessage.slice(0, 100)}`,
         })
         .eq("id", newJobId);
     }
 
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: userFriendlyMessage,
-        step: currentStep,
-        details: error.stack,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 500,
-      }
+      JSON.stringify({ success: false, error: msg, step: currentStep }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
 });
