@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import {
   DrawerContentScrollView,
   DrawerContentComponentProps,
@@ -69,6 +69,12 @@ export function CustomDrawerContent(props: DrawerContentComponentProps) {
         <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('Connections')}>
           <Ionicons name="cloud-outline" size={22} color={theme.palette.primary} />
           <Text style={styles.drawerItemText}>Verbindungen</Text>
+        </TouchableOpacity>
+
+        {/* 📦 Builds – NEU */}
+        <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('Builds')}>
+          <Ionicons name="build-outline" size={22} color={theme.palette.primary} />
+          <Text style={styles.drawerItemText}>Builds</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('AppInfo')}>

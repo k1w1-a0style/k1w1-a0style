@@ -1,20 +1,22 @@
-
 import { AllAIProviders } from '../contexts/AIContext';
 import { ProjectFile, ChatMessage } from '../contexts/types';
 import { CONFIG } from '../config';
-import { getCodeLineCount, ensureStringContent, isCodeFile, normalizePath } from '../utils/chatUtils';
+import { getCodeLineCount, ensureStringContent, normalizePath } from '../utils/chatUtils';
 
 export interface PromptMessage {
   role: 'system' | 'user' | 'assistant';
+  content: string;
 }
 
-// Gekürzte gemeinsame Regeln
+// Gemeinsame Regeln für JSON-Responses
 const SHARED_JSON_RESPONSE_RULES = `
 Wenn du Code generierst, antworte NUR als valides JSON-Array mit vollständigen Dateien:
+
 [
   {"path":"components/Button.tsx","content":"import React...\\n(VOLLSTÄNDIGER CODE)"},
   {"path":"theme.ts","content":"export const theme = {...}"}
 ]
+
 Regeln:
 - Escaped Strings (\\n) erforderlich
 - ALLE Code-Dateien in einem der folgenden Ordner: ${CONFIG.PATHS.SRC_FOLDERS.join(', ')} (NICHT mit 'src/' präfixen)
@@ -58,7 +60,7 @@ Ordner-Entscheidung:
 
 // Agent-Prompt
 const GEMINI_AGENT_PROMPT = `
-Du bist der Quality Agent für Gemini.
+Du bist der Quality Agent.
 
 Aufgabe:
 - Prüfe Generator-Output
@@ -90,7 +92,7 @@ export const buildPrompt = (
   userOrGeneratorMessage: string,
   projectFiles: ProjectFile[],
   conversationHistory: ChatMessage[],
-  originalUserPrompt?: string
+  originalUserPrompt?: string,
 ): PromptMessage[] => {
   if (!userOrGeneratorMessage || typeof userOrGeneratorMessage !== 'string') {
     console.warn('⚠️ Ungültige Eingabe für userOrGeneratorMessage');
@@ -102,12 +104,14 @@ export const buildPrompt = (
   console.log(`🤖 Prompt gewählt: ${promptKey}`);
 
   const MAX_PROMPT_TOKENS = 8000;
-  const tokenRatio = CONFIG.TOKEN_RATIO[provider] || CONFIG.TOKEN_RATIO.default;
-  const estimateTokens = (text: string) => Math.ceil(text.length / tokenRatio);
+  const tokenRatioMap = CONFIG.TOKEN_RATIO as Record<string, number>;
+  const tokenRatio = tokenRatioMap[provider] ?? CONFIG.TOKEN_RATIO.default;
+  const estimateTokens = (text: string) => Math.ceil((text || '').length / tokenRatio);
 
-  let currentMessageContent = role === 'generator'
-    ? userOrGeneratorMessage
-    : `
+  let currentMessageContent =
+    role === 'generator'
+      ? userOrGeneratorMessage
+      : `
 AGENT_INPUT:
 ORIGINAL: "${originalUserPrompt || 'Unbekannt'}"
 GENERATOR:
@@ -120,20 +124,29 @@ Regeln:
 - Korrigiere Pfade
 `;
 
-  // Project Context mit dynamischer Kürzung
+  // PROJECT CONTEXT
   let projectContext = '';
-  if (projectFiles.length === 0) {
-    projectContext = `PROJECT EMPTY: Create base structure:\n${CONFIG.PATHS.SRC_FOLDERS.map(f => `├── ${f}/`).join('\n')}`;
+  if (!projectFiles || projectFiles.length === 0) {
+    projectContext = `PROJECT EMPTY: Create base structure:\n${CONFIG.PATHS.SRC_FOLDERS.map(
+      (f) => `├── ${f}/`,
+    ).join('\n')}`;
   } else {
     const fileCount = projectFiles.length;
-    const srcFolders = Array.from(new Set(projectFiles.map(f => f.path.split('/')[0]).filter(f => CONFIG.PATHS.SRC_FOLDERS.includes(f))));
-    const rootFiles = projectFiles.filter(f => !CONFIG.PATHS.SRC_FOLDERS.includes(f.path.split('/')[0]));
-    
+    const folderSet = new Set(
+      projectFiles
+        .map((f) => normalizePath(f.path).split('/')[0])
+        .filter((f) => CONFIG.PATHS.SRC_FOLDERS.includes(f)),
+    );
+    const srcFolders = Array.from(folderSet);
+    const rootFiles = projectFiles.filter(
+      (f) => !CONFIG.PATHS.SRC_FOLDERS.includes(normalizePath(f.path).split('/')[0]),
+    );
+
     projectContext = `📊 Project: ${fileCount} files (${srcFolders.length} Ordner)`;
-    
     projectContext += `\n<FILE_CONTEXT>\n🗂️ Root Files:`;
-    CONFIG.PATHS.ALLOWED_ROOT.forEach(filename => {
-      const file = rootFiles.find(f => f.path === filename);
+
+    CONFIG.PATHS.ALLOWED_ROOT.forEach((filename) => {
+      const file = rootFiles.find((f) => normalizePath(f.path) === filename);
       if (file) {
         const lines = getCodeLineCount(ensureStringContent(file.content));
         projectContext += `\n✅ ${filename} (${lines} lines)`;
@@ -142,73 +155,105 @@ Regeln:
 
     if (srcFolders.length > 0) {
       projectContext += `\n\n📁 Ordnerstruktur:`;
-      srcFolders.forEach(folder => {
-        const folderFiles = projectFiles.filter(f => f.path.startsWith(`${folder}/`));
+      srcFolders.forEach((folder) => {
+        const folderFiles = projectFiles.filter((f) =>
+          normalizePath(f.path).startsWith(`${folder}/`),
+        );
         projectContext += `\n📂 ${folder}/ (${folderFiles.length} files)`;
-        folderFiles.forEach(f => {
+        folderFiles.forEach((f) => {
           const lines = getCodeLineCount(ensureStringContent(f.content));
-          const fileName = f.path.split('/').pop();
+          const fileName = normalizePath(f.path).split('/').pop();
           projectContext += `\n * ${fileName} (${lines} lines)`;
         });
       });
     }
 
     projectContext += `\n</FILE_CONTEXT>`;
-    const pkgFile = projectFiles.find(f => f.path === 'package.json');
+
+    const pkgFile = projectFiles.find((f) => normalizePath(f.path) === 'package.json');
     if (pkgFile) {
       try {
         const pkg = JSON.parse(ensureStringContent(pkgFile.content));
         if (pkg.name) projectContext += `\n🚨 Protected name: "${pkg.name}"`;
       } catch {
-        // Ignoriert
+        // ignore
       }
     }
   }
 
-  // Dynamische Kürzung basierend auf Datei-Relevanz
-  const MAX_CONTEXT_TOKENS = 8000 * 0.6; // Annahme
+  // ggf. Kontext kürzen
+  const MAX_CONTEXT_TOKENS = MAX_PROMPT_TOKENS * 0.6;
   let trimmedContext = projectContext;
   if (estimateTokens(projectContext) > MAX_CONTEXT_TOKENS) {
     const lines = projectContext.split('\n');
-    const important = lines.filter(l =>
-      l.includes('Project:') ||
-      l.includes('Root Files:') ||
-      l.includes('Ordnerstruktur:') ||
-      l.startsWith('✅') ||
-      l.startsWith('📂') ||
-      l.startsWith('🚨') ||
-      l.includes('Protected name')
+    const important = lines.filter(
+      (l) =>
+        l.includes('Project:') ||
+        l.includes('Root Files:') ||
+        l.includes('Ordnerstruktur:') ||
+        l.startsWith('✅') ||
+        l.startsWith('📂') ||
+        l.startsWith('🚨') ||
+        l.includes('Protected name'),
     );
     trimmedContext = important.slice(0, 20).join('\n') + '\n... (gekürzt)';
-    console.warn(`⚠️ Project context gekürzt: ${estimateTokens(projectContext)} > ${MAX_CONTEXT_TOKENS}`);
+    console.warn(
+      `⚠️ Project context gekürzt: ${estimateTokens(projectContext)} > ${MAX_CONTEXT_TOKENS}`,
+    );
   }
 
   const fullSystemPrompt = `${systemPromptContent}\n${trimmedContext}`;
   const messages: PromptMessage[] = [{ role: 'system', content: fullSystemPrompt }];
 
+  // History anhängen
   const HISTORY_COUNT = 12;
-  let historyToUse = conversationHistory.slice(-HISTORY_COUNT);
-  const historyTokens = historyToUse.reduce((sum, msg) => sum + estimateTokens(msg.content), 0);
-  if (historyTokens + estimateTokens(fullSystemPrompt) + estimateTokens(currentMessageContent) > MAX_PROMPT_TOKENS) {
-    const excess = (historyTokens + estimateTokens(fullSystemPrompt) + estimateTokens(currentMessageContent)) - MAX_PROMPT_TOKENS;
-    const removeCount = Math.ceil(excess / (historyTokens / historyToUse.length));
+  let historyToUse = Array.isArray(conversationHistory)
+    ? conversationHistory.slice(-HISTORY_COUNT)
+    : [];
+
+  const historyTokens = historyToUse.reduce(
+    (sum, msg) => sum + estimateTokens(msg.content),
+    0,
+  );
+  if (
+    historyTokens +
+      estimateTokens(fullSystemPrompt) +
+      estimateTokens(currentMessageContent) >
+    MAX_PROMPT_TOKENS
+  ) {
+    const total =
+      historyTokens +
+      estimateTokens(fullSystemPrompt) +
+      estimateTokens(currentMessageContent);
+    const excess = total - MAX_PROMPT_TOKENS;
+    const avgPerMsg = historyTokens / Math.max(historyToUse.length, 1);
+    const removeCount = Math.ceil(excess / Math.max(avgPerMsg, 1));
     historyToUse = historyToUse.slice(removeCount);
     console.warn(`⚠️ History gekürzt um ${removeCount} Einträge wegen Token-Limit`);
   }
 
-  messages.push(...historyToUse.map(msg => ({
-    role: msg.role === 'user' ? 'user' : 'assistant',
-    content: msg.content
-  } as PromptMessage)));
+  messages.push(
+    ...historyToUse.map(
+      (msg): PromptMessage => ({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.content,
+      }),
+    ),
+  );
 
   messages.push({ role: 'user', content: currentMessageContent });
 
-  const totalTokens = messages.reduce((sum, msg) => sum + estimateTokens(msg.content), 0);
+  const totalTokens = messages.reduce(
+    (sum, msg) => sum + estimateTokens(msg.content),
+    0,
+  );
   if (totalTokens > MAX_PROMPT_TOKENS) {
     console.warn(`⚠️ Prompt tokens estimate ${totalTokens} > ${MAX_PROMPT_TOKENS}`);
   }
 
-  console.log(`📝 Prompt built: messages=${messages.length}, tokens≈${totalTokens}`);
+  console.log(
+    `📝 Prompt built: messages=${messages.length}, tokens≈${totalTokens}`,
+  );
   return messages;
 };
 
@@ -229,7 +274,10 @@ export class ConversationHistory {
 
   loadFromMessages(messages: ChatMessage[]) {
     const capped = Array.isArray(messages) ? messages.slice(-this.MAX_HISTORY) : [];
-    this.history = capped.map(msg => ({ ...msg, id: this.generateUniqueId() }));
+    this.history = capped.map((msg) => ({
+      ...msg,
+      id: this.generateUniqueId(),
+    }));
     if (messages.length > this.MAX_HISTORY) {
       console.warn(`🧠 History capped: ${messages.length} → ${this.MAX_HISTORY}`);
     }
@@ -242,7 +290,7 @@ export class ConversationHistory {
       id: this.generateUniqueId(),
       role: 'user',
       content: message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 
@@ -258,19 +306,20 @@ export class ConversationHistory {
             id: this.generateUniqueId(),
             role: 'assistant',
             content: summary,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
           return;
         }
       }
     } catch {
-      // Fallthrough
+      // ignoriere, fallback unten
     }
+
     this.pushAndTrim({
       id: this.generateUniqueId(),
       role: 'assistant',
       content: message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 
@@ -283,4 +332,3 @@ export class ConversationHistory {
     console.log('🧠 History cleared');
   }
 }
-

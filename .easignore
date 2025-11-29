@@ -1,0 +1,53 @@
+# ============================================================
+# EAS BUILD IGNORE – optimiert für k1w1-a0style
+# ============================================================
+
+# Node Stuff
+node_modules/
+pnpm-lock.yaml
+npm-debug.log*
+
+# Expo / Metro Cache
+.expo/
+.expo-shared/
+.cache/
+.expo-go/
+.expo-staging/
+web-build/
+dist/
+build/
+
+# Supabase CLI Cache
+supabase/.temp
+supabase/.cache
+supabase/functions/**/node_modules
+
+# Git / Workspace Stuff
+.git/
+.gitignore
+.github/
+
+# images / local junk
+.DS_Store
+Thumbs.db
+
+# Android / iOS native not used (Expo managed)
+android/
+ios/
+
+# Editor junk
+.vscode/
+.idea/
+
+# Logs & temps
+*.log
+logs/
+tmp/
+temp/
+
+# OS Junk
+*.orig
+*.backup
+*.backup2
+*.backup3
+*~

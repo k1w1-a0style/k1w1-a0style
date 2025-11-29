@@ -1,227 +1,241 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+// supabase/functions/k1w1-handler/index.ts
+// Zentraler KI-Handler für k1w1-a0style.
+// - Nimmt OpenAI-Style messages entgegen
+// - Ruft je nach provider Groq oder Gemini auf
+// - Verwendet NUR Server-Env-Keys (GROQ_API_KEY, GEMINI_API_KEY)
+// - Kein API-Key mehr im Request-Body nötig.
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-interface Message {
-  role: 'system' | 'user' | 'assistant';
+type Role = "system" | "user" | "assistant";
+
+interface ChatMessage {
+  role: Role;
   content: string;
 }
 
-interface RequestBody {
-  messages: Message[];
-  apiKey: string;
-  provider: 'groq' | 'gemini' | 'openai' | 'anthropic';
-  model: string;
+interface HandlerRequestBody {
+  provider: "groq" | "gemini" | string;
+  messages: ChatMessage[];
+  mode?: string;
+  model?: string;
+  quality?: "speed" | "quality";
 }
 
-// Body sicher parsen
-async function parseRequestBody(req: Request): Promise<RequestBody> {
-  const rawBody = await req.text();
-  if (!rawBody) {
-    throw new Error('Request body is empty');
+const corsHeaders: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, apikey, x-client-info, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+const DEFAULT_MODELS = {
+  groq: {
+    speed: "llama-3.1-8b-instant",
+    quality: "llama-3.3-70b-versatile",
+  },
+  gemini: {
+    speed: "gemini-1.5-flash",
+    quality: "gemini-1.5-pro",
+  },
+} as const;
+
+// ----------------- Helpers -----------------
+
+function parseRequestBody(body: unknown): HandlerRequestBody {
+  if (!body || typeof body !== "object") {
+    throw new Error("Invalid request body");
   }
+  const b = body as any;
+
+  if (!b.provider || typeof b.provider !== "string") {
+    throw new Error("Missing provider");
+  }
+  if (!b.messages || !Array.isArray(b.messages)) {
+    throw new Error("Missing messages");
+  }
+
+  const provider = b.provider as string;
+  const quality =
+    (b.quality === "quality" || b.quality === "speed"
+      ? b.quality
+      : "speed") as "speed" | "quality";
+
+  return {
+    provider,
+    messages: b.messages as ChatMessage[],
+    mode: typeof b.mode === "string" ? b.mode : "builder",
+    model: typeof b.model === "string" ? b.model : undefined,
+    quality,
+  };
+}
+
+function toGeminiContents(messages: ChatMessage[]) {
+  // OpenAI → Gemini Mapping
+  return messages.map((m) => ({
+    role:
+      m.role === "assistant"
+        ? "model"
+        : m.role === "user"
+        ? "user"
+        : "user",
+    parts: [{ text: m.content }],
+  }));
+}
+
+// ----------------- Provider Calls -----------------
+
+async function callGroq(
+  body: HandlerRequestBody,
+): Promise<{ content: string; raw: unknown; model: string }> {
+  const apiKey = Deno.env.get("GROQ_API_KEY");
+  if (!apiKey) {
+    throw new Error("GROQ_API_KEY not set in Edge env");
+  }
+
+  const qualityConfig = DEFAULT_MODELS.groq;
+  const model =
+    body.model ||
+    (body.quality === "quality" ? qualityConfig.quality : qualityConfig.speed);
+
+  const url = "https://api.groq.com/openai/v1/chat/completions";
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: body.messages,
+      temperature: 0.2,
+      max_tokens: 2048,
+    }),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`groq_http_${res.status}: ${txt}`);
+  }
+
+  const json = await res.json();
+  const content =
+    json?.choices?.[0]?.message?.content ??
+    json?.choices?.[0]?.delta?.content ??
+    "";
+
+  return { content, raw: json, model };
+}
+
+async function callGemini(
+  body: HandlerRequestBody,
+): Promise<{ content: string; raw: unknown; model: string }> {
+  const apiKey = Deno.env.get("GEMINI_API_KEY");
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY not set in Edge env");
+  }
+
+  const qualityConfig = DEFAULT_MODELS.gemini;
+  const model =
+    body.model ||
+    (body.quality === "quality" ? qualityConfig.quality : qualityConfig.speed);
+
+  const contents = toGeminiContents(body.messages);
+
+  const url =
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ contents }),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`gemini_http_${res.status}: ${txt}`);
+  }
+
+  const json = await res.json();
+  const parts =
+    json?.candidates?.[0]?.content?.parts ??
+    json?.candidates?.[0]?.content?.parts ??
+    [];
+  const text = parts.map((p: any) => p.text || "").join("\n");
+
+  return { content: text, raw: json, model };
+}
+
+// ----------------- Main Handler -----------------
+
+serve(async (req: Request): Promise<Response> => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (req.method !== "POST") {
+    return new Response("Method not allowed", {
+      status: 405,
+      headers: corsHeaders,
+    });
+  }
+
   try {
-    return JSON.parse(rawBody);
-  } catch (e: any) {
-    console.error('❌ JSON Parse Error:', e.message);
-    console.error('❌ Raw Body (first 500 chars):', rawBody.substring(0, 500));
-    throw new Error(`Invalid JSON in request body: ${e.message}`);
-  }
-}
+    const bodyJson = await req.json().catch(() => null);
+    const body = parseRequestBody(bodyJson);
 
-// Validierung
-function validateRequestBody({ messages, apiKey, provider, model }: RequestBody) {
-  if (!messages || !Array.isArray(messages) || messages.length === 0) {
-    throw new Error('Messages must be a non-empty array');
-  }
-  if (!apiKey || typeof apiKey !== 'string' || apiKey.length < 10) {
-    throw new Error('Valid API Key is required');
-  }
-  if (!provider || !model) {
-    throw new Error('Provider and model are required');
-  }
-}
-
-// Request für Provider bauen
-function buildApiRequest(body: RequestBody): {
-  apiUrl: string;
-  headers: Record<string, string>;
-  requestBody: any;
-} {
-  const { messages, apiKey, provider, model } = body;
-  const systemInstruction = messages.find((m) => m.role === 'system');
-  const nonSystemMessages = messages.filter((m) => m.role !== 'system');
-
-  let apiUrl: string;
-  let headers: Record<string, string>;
-  let requestBody: any;
-
-  switch (provider) {
-    case 'groq':
-      apiUrl = 'https://api.groq.com/openai/v1/chat/completions';
-      headers = {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      };
-      requestBody = {
-        model: model === 'auto-groq' ? 'llama-3.3-70b-versatile' : model,
-        messages,
-        temperature: 0.7,
-        max_tokens: 4000,
-      };
-      break;
-
-    case 'gemini':
-      apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      headers = { 'Content-Type': 'application/json' };
-      requestBody = {
-        contents: nonSystemMessages.map((m) => ({
-          role: m.role === 'user' ? 'user' : 'model',
-          parts: [{ text: m.content }],
-        })),
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 4000,
-        },
-      };
-      if (systemInstruction) {
-        requestBody.systemInstruction = {
-          parts: [{ text: systemInstruction.content }],
-        };
-      }
-      break;
-
-    case 'openai':
-      apiUrl = 'https://api.openai.com/v1/chat/completions';
-      headers = {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      };
-      requestBody = {
-        model,
-        messages,
-        temperature: 0.7,
-        max_tokens: 4000,
-      };
-      break;
-
-    case 'anthropic':
-      apiUrl = 'https://api.anthropic.com/v1/messages';
-      headers = {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'Content-Type': 'application/json',
-      };
-      requestBody = {
-        model,
-        messages: nonSystemMessages,
-        max_tokens: 4000,
-        temperature: 0.7,
-      };
-      if (systemInstruction) {
-        requestBody.system = systemInstruction.content;
-      }
-      break;
-
-    default:
-      throw new Error(`Unsupported provider: ${provider}`);
-  }
-
-  return { apiUrl, headers, requestBody };
-}
-
-// Antwort parsen
-function parseApiResponse(provider: string, responseText: string): string {
-  try {
-    const data = JSON.parse(responseText);
-    let response = '';
-
-    switch (provider) {
-      case 'groq':
-      case 'openai':
-        response = data.choices?.[0]?.message?.content || '';
-        break;
-      case 'gemini':
-        response = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        break;
-      case 'anthropic':
-        response = data.content?.[0]?.text || '';
-        break;
-      default:
-        throw new Error('Unknown provider in parseApiResponse');
-    }
-
-    if (!response) {
-      throw new Error(`${provider} returned an empty response content`);
-    }
-
-    console.log(`✅ ${provider} Response: ${response.length} chars`);
-    return response;
-  } catch (e: any) {
-    console.error(`❌ ${provider} Response Parse Error:`, e.message);
-    throw new Error(`Invalid response from ${provider} API: ${e.message}`);
-  }
-}
-
-// Handler
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
-
-  try {
-    const requestData = await parseRequestBody(req);
-    validateRequestBody(requestData);
-
-    const { provider, model, messages } = requestData;
     console.log(
-      `📥 k1w1-handler: Request. Provider: ${provider}, Model: ${model}, Messages: ${messages.length}`,
+      "🧠 k1w1-handler request",
+      JSON.stringify({
+        provider: body.provider,
+        quality: body.quality,
+        mode: body.mode,
+        model: body.model,
+        msgCount: body.messages.length,
+      }),
     );
 
-    const { apiUrl, headers, requestBody } = buildApiRequest(requestData);
+    let result;
+    const providerLower = body.provider.toLowerCase();
 
-    const apiResponse = await fetch(apiUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(requestBody),
-    });
-
-    const responseText = await apiResponse.text();
-    if (!apiResponse.ok) {
-      console.error(
-        `❌ ${provider} Error (${apiResponse.status}):`,
-        responseText.substring(0, 500),
-      );
-      throw new Error(
-        `[${provider} API Error ${apiResponse.status}] ${responseText.substring(
-          0,
-          200,
-        )}`,
-      );
+    if (providerLower === "groq") {
+      result = await callGroq(body);
+    } else if (providerLower === "gemini") {
+      result = await callGemini(body);
+    } else {
+      throw new Error(`Unsupported provider: ${body.provider}`);
     }
 
-    const response = parseApiResponse(provider, responseText);
+    const responsePayload = {
+      ok: true as const,
+      provider: providerLower,
+      model: result.model,
+      content: result.content,
+      raw: result.raw,
+    };
 
-    return new Response(JSON.stringify({ response }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    return new Response(JSON.stringify(responsePayload), {
       status: 200,
-    });
-  } catch (error: any) {
-    console.error('❌ k1w1-handler Error:', error.message);
-    console.error('Stack:', error.stack);
-    return new Response(
-      JSON.stringify({
-        error: error.message,
-        details: error.stack,
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
       },
-    );
+    });
+  } catch (err: any) {
+    console.error("❌ k1w1-handler error", err?.message, err);
+
+    const errorPayload = {
+      ok: false as const,
+      error: err?.message || "Unknown error",
+    };
+
+    return new Response(JSON.stringify(errorPayload), {
+      status: 400,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+      },
+    });
   }
 });

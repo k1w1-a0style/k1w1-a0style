@@ -10,6 +10,10 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string;
+  meta?: {                          // ✅ NEU: Optional meta-Daten
+    provider?: string;
+    error?: boolean;
+  };
 }
 
 export interface ProjectData {
@@ -36,17 +40,23 @@ export interface ProjectContextProps {
 
   // Project operations
   setPackageName: (packageName: string) => void;
-  createNewProject: () => Promise<void>; // ✅ NEU!
+  setProjectName: (name: string) => void;
+  createNewProject: () => Promise<void>;
 
   // Chat operations
   addChatMessage: (message: ChatMessage) => void;
+  messages: ChatMessage[];
 
   // Export/Import
-  exportAndBuild: (project: ProjectData) => Promise<{ owner: string; repo: string } | null>;
+  exportAndBuild: () => Promise<{ owner: string; repo: string } | null>;
   exportProjectAsZip: () => Promise<void>;
   importProjectFromZip: () => Promise<void>;
 
   // GitHub operations
   getGitHubToken: () => Promise<string | null>;
-  getWorkflowRuns: (owner: string, repo: string, workflowFileName?: string) => Promise<any>;
+  getWorkflowRuns: (
+    owner: string,
+    repo: string,
+    workflowFileName?: string,
+  ) => Promise<any>;
 }

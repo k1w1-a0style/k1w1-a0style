@@ -1,4 +1,4 @@
-import { ProjectFile } from '../contexts/ProjectContext';
+import { ProjectFile } from '../contexts/types';
 
 export type TreeNode = {
   id: string;
@@ -29,7 +29,7 @@ export const buildFileTree = (files: ProjectFile[]): TreeNode[] => {
           name: part,
           path: file.path,
           type: 'file',
-          file
+          file,
         };
 
         if (parentPath) {
@@ -49,7 +49,7 @@ export const buildFileTree = (files: ProjectFile[]): TreeNode[] => {
             path: currentPath,
             type: 'folder',
             children: [],
-            isExpanded: true
+            isExpanded: true,
           };
 
           folderMap.set(currentPath, folderNode);
@@ -101,4 +101,3 @@ export const findFolderContent = (nodes: TreeNode[], path: string): TreeNode[] =
   }
   return [];
 };
-

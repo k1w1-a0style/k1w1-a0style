@@ -1,261 +1,414 @@
+// contexts/AIContext.tsx - MIT AUTO-ROTATION
 import React, {
   createContext,
-  useContext,
-  useState,
-  useEffect,
-  ReactNode,
   useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  ReactNode,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert } from 'react-native';
-import { Mutex } from 'async-mutex';
 
-export const CHAT_PROVIDER = 'groq' as const;
-export const AGENT_PROVIDER = 'gemini' as const;
-const ALL_POSSIBLE_PROVIDERS = ['groq', 'openai', 'gemini', 'anthropic'] as const;
-export type AllAIProviders = typeof ALL_POSSIBLE_PROVIDERS[number];
-export type AIProvider = typeof CHAT_PROVIDER | typeof AGENT_PROVIDER;
-
-export type AIMode = string;
 export type QualityMode = 'speed' | 'quality';
-export type ApiKeyList = Record<AllAIProviders, string[]>;
-export type ApiKeyIndexMap = Record<AllAIProviders, number>;
+export type AllAIProviders = 'groq' | 'gemini' | 'openai' | 'anthropic' | 'huggingface';
 
-export interface AIConfig {
-  selectedChatProvider: typeof CHAT_PROVIDER;
-  selectedChatMode: AIMode;
-  selectedAgentProvider: typeof AGENT_PROVIDER;
-  selectedAgentMode: AIMode;
+export type AIConfig = {
+  version: number;
+  selectedChatProvider: AllAIProviders;
+  selectedChatMode: string;
+  selectedAgentProvider: AllAIProviders;
+  selectedAgentMode: string;
   qualityMode: QualityMode;
-  keys: ApiKeyList;
-  keyIndexes: ApiKeyIndexMap;
-}
+  apiKeys: Record<AllAIProviders, string[]>;
+};
 
-interface AIContextProps {
+export type AIContextProps = {
   config: AIConfig;
-  isLoading: boolean;
-  setSelectedChatMode: (mode: AIMode) => Promise<void>;
-  setSelectedAgentMode: (mode: AIMode) => Promise<void>;
-  setQualityMode: (mode: QualityMode) => Promise<void>;
+  setSelectedChatProvider: (provider: AllAIProviders) => void;
+  setSelectedChatMode: (modeId: string) => void;
+  setSelectedAgentProvider: (provider: AllAIProviders) => void;
+  setSelectedAgentMode: (modeId: string) => void;
+  setQualityMode: (mode: QualityMode) => void;
   addApiKey: (provider: AllAIProviders, key: string) => Promise<void>;
   removeApiKey: (provider: AllAIProviders, key: string) => Promise<void>;
-  rotateApiKey: (provider: AllAIProviders) => Promise<string | null>;
+  rotateApiKey: (provider: AllAIProviders) => Promise<void>;
+  moveApiKeyToFront: (provider: AllAIProviders, keyIndex: number) => Promise<void>;
+  rotateApiKeyOnError: (provider: AllAIProviders) => Promise<boolean>;
   getCurrentApiKey: (provider: AllAIProviders) => string | null;
-  updateConfig: (newConfig: Partial<AIConfig>) => Promise<void>;
-}
-
-const AIContext = createContext<AIContextProps | undefined>(undefined);
-const CONFIG_STORAGE_KEY = 'ai_config_v1';
-
-// 🔥 NEU: compound-Modelle hinzugefügt
-export const AVAILABLE_MODELS: Record<AllAIProviders, { id: string; label?: string }[]> = {
-  groq: [
-    { id: 'auto-groq', label: 'Auto (Empfohlen)' },
-    { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B' },
-    { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B' },
-    { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B' },
-    { id: 'openai/gpt-oss-20b', label: 'GPT-OSS 20B' },
-    { id: 'groq/compound', label: 'Groq Compound' },
-    { id: 'groq/compound-mini', label: 'Groq Compound Mini' },
-  ],
-  gemini: [
-    { id: 'gemini-1.5-pro-latest', label: 'Gemini 1.5 Pro (Empfohlen)' },
-    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-    { id: 'gemini-1.5-flash-latest', label: 'Gemini 1.5 Flash' },
-  ],
-  openai: [
-    { id: 'gpt-4o', label: 'GPT-4o' },
-    { id: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-    { id: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
-  ],
-  anthropic: [
-    { id: 'claude-opus-4-1-20250805', label: 'Claude Opus 4.1'},
-    { id: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5' },
-    { id: 'claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet' },
-    { id: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' }
-  ],
 };
 
-const getDefaultConfig = (): AIConfig => ({
+const CONFIG_STORAGE_KEY = 'ai_config_v2';
+
+const DEFAULT_CONFIG: AIConfig = {
+  version: 2,
   selectedChatProvider: 'groq',
   selectedChatMode: 'auto-groq',
-  selectedAgentProvider: 'gemini',
-  selectedAgentMode: 'gemini-1.5-pro-latest',
+  selectedAgentProvider: 'groq',
+  selectedAgentMode: 'llama-3.3-70b-versatile',
   qualityMode: 'speed',
-  keys: { groq: [], openai: [], gemini: [], anthropic: [] },
-  keyIndexes: { groq: 0, openai: 0, gemini: 0, anthropic: 0 },
-});
+  apiKeys: {
+    groq: [],
+    gemini: [],
+    openai: [],
+    anthropic: [],
+    huggingface: [],
+  },
+};
 
-const saveMutex = new Mutex();
+const AIContext = createContext<AIContextProps | undefined>(undefined);
+
+const migrateConfig = (raw: any): AIConfig => {
+  if (!raw) return { ...DEFAULT_CONFIG };
+
+  let parsed = raw;
+  if (typeof raw === 'string') {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return { ...DEFAULT_CONFIG };
+    }
+  }
+
+  const version = typeof parsed.version === 'number' ? parsed.version : 1;
+
+  const selectedChatProvider: AllAIProviders =
+    ['groq', 'gemini', 'openai', 'anthropic', 'huggingface'].includes(parsed.selectedChatProvider)
+      ? parsed.selectedChatProvider
+      : DEFAULT_CONFIG.selectedChatProvider;
+
+  const selectedAgentProvider: AllAIProviders =
+    ['groq', 'gemini', 'openai', 'anthropic', 'huggingface'].includes(parsed.selectedAgentProvider)
+      ? parsed.selectedAgentProvider
+      : DEFAULT_CONFIG.selectedAgentProvider;
+
+  const selectedChatMode = parsed.selectedChatMode || DEFAULT_CONFIG.selectedChatMode;
+  const selectedAgentMode = parsed.selectedAgentMode || DEFAULT_CONFIG.selectedAgentMode;
+
+  const qualityMode: QualityMode =
+    parsed.qualityMode === 'quality' ? 'quality' : 'speed';
+
+  const apiKeys = {
+    groq: Array.isArray(parsed.apiKeys?.groq) ? parsed.apiKeys.groq : [],
+    gemini: Array.isArray(parsed.apiKeys?.gemini) ? parsed.apiKeys.gemini : [],
+    openai: Array.isArray(parsed.apiKeys?.openai) ? parsed.apiKeys.openai : [],
+    anthropic: Array.isArray(parsed.apiKeys?.anthropic) ? parsed.apiKeys.anthropic : [],
+    huggingface: Array.isArray(parsed.apiKeys?.huggingface) ? parsed.apiKeys.huggingface : [],
+  };
+
+  return {
+    version: Math.max(version, DEFAULT_CONFIG.version),
+    selectedChatProvider,
+    selectedChatMode,
+    selectedAgentProvider,
+    selectedAgentMode,
+    qualityMode,
+    apiKeys,
+  };
+};
+
+const updateRuntimeGlobals = (cfg: AIConfig) => {
+  (global as any).__K1W1_AI_CONFIG = cfg;
+
+  // API-Keys in Runtime spiegeln
+  const providers: AllAIProviders[] = ['groq', 'gemini', 'openai', 'anthropic', 'huggingface'];
+  providers.forEach((provider) => {
+    const keys = cfg.apiKeys[provider];
+    if (keys && keys.length > 0) {
+      const currentKey = keys[0];
+
+      switch (provider) {
+        case 'groq':
+          (global as any).GROQ_API_KEY = currentKey;
+          break;
+        case 'gemini':
+          (global as any).GEMINI_API_KEY = currentKey;
+          break;
+        case 'openai':
+          (global as any).OPENAI_API_KEY = currentKey;
+          break;
+        case 'anthropic':
+          (global as any).ANTHROPIC_API_KEY = currentKey;
+          break;
+        case 'huggingface':
+          (global as any).HUGGINGFACE_API_KEY = currentKey;
+          break;
+      }
+    }
+  });
+
+  console.log('[AIContext] 🔄 Runtime-Globals aktualisiert');
+};
+
+// ✅ Globale Export-Funktionen für Orchestrator
+export const getAIConfig = (): AIConfig | null => {
+  return (global as any).__K1W1_AI_CONFIG || null;
+};
+
+let _rotateFunction: ((provider: AllAIProviders) => Promise<boolean>) | null = null;
+
+export const setRotateFunction = (fn: (provider: AllAIProviders) => Promise<boolean>) => {
+  _rotateFunction = fn;
+};
+
+export const rotateApiKeyOnError = async (provider: AllAIProviders): Promise<boolean> => {
+  if (!_rotateFunction) {
+    console.error('❌ [AIContext] Rotate-Funktion nicht initialisiert');
+    return false;
+  }
+  return _rotateFunction(provider);
+};
 
 export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [config, setConfig] = useState<AIConfig>(getDefaultConfig());
-  const [isLoading, setIsLoading] = useState(true);
+  const [config, setConfig] = useState<AIConfig>(DEFAULT_CONFIG);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    const loadConfig = async () => {
-      setIsLoading(true);
+    let active = true;
+    const load = async () => {
       try {
-        const storedConfig = await AsyncStorage.getItem(CONFIG_STORAGE_KEY);
-        if (storedConfig) {
-          const parsed = JSON.parse(storedConfig);
-          const defaultConfig = getDefaultConfig();
-          const mergedConfig: AIConfig = {
-            selectedChatProvider: 'groq',
-            selectedAgentProvider: 'gemini',
-            selectedChatMode: AVAILABLE_MODELS.groq.some(m => m.id === (parsed.selectedChatMode || parsed.selectedMode))
-              ? (parsed.selectedChatMode || parsed.selectedMode)
-              : defaultConfig.selectedChatMode,
-            selectedAgentMode: AVAILABLE_MODELS.gemini.some(m => m.id === parsed.selectedAgentMode)
-              ? parsed.selectedAgentMode
-              : defaultConfig.selectedAgentMode,
-            qualityMode: ['speed', 'quality'].includes(parsed.qualityMode)
-              ? parsed.qualityMode
-              : defaultConfig.qualityMode,
-            keys: { ...defaultConfig.keys, ...(parsed.keys || {}) },
-            keyIndexes: { ...defaultConfig.keyIndexes, ...(parsed.keyIndexes || {}) },
-          };
-          (Object.keys(mergedConfig.keyIndexes) as AllAIProviders[]).forEach(provider => {
-              const keyListLength = mergedConfig.keys[provider]?.length || 0;
-              mergedConfig.keyIndexes[provider] = keyListLength > 0
-                ? (mergedConfig.keyIndexes[provider] || 0) % keyListLength
-                : 0;
-          });
-          setConfig(mergedConfig);
-          console.log(`✅ AI-Config geladen (von ${CONFIG_STORAGE_KEY})`);
-        } else {
-          console.log(`ℹ️ Keine Config (${CONFIG_STORAGE_KEY}), verwende Defaults`);
-          setConfig(getDefaultConfig());
-        }
+        const stored = await AsyncStorage.getItem(CONFIG_STORAGE_KEY);
+        const migrated = migrateConfig(stored);
+        if (!active) return;
+        setConfig(migrated);
+        updateRuntimeGlobals(migrated);
+        console.log('✅ AI-Config geladen');
       } catch (e) {
-        console.error('❌ Config Load Error:', e);
-        setConfig(getDefaultConfig());
-        await AsyncStorage.removeItem(CONFIG_STORAGE_KEY);
+        console.log('[AIContext] Fehler beim Laden der AI-Config', e);
+        updateRuntimeGlobals(DEFAULT_CONFIG);
       } finally {
-        setIsLoading(false);
+        if (active) setLoaded(true);
       }
     };
-    loadConfig();
+    load();
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const saveConfig = useCallback(async (newConfig: AIConfig | ((prev: AIConfig) => AIConfig)) => {
-      const release = await saveMutex.acquire();
-      try {
-        const configToSave = typeof newConfig === 'function' ? newConfig(config) : newConfig;
-        const finalConfig: AIConfig = { ...getDefaultConfig(), ...configToSave };
-        (Object.keys(finalConfig.keyIndexes) as AllAIProviders[]).forEach(provider => {
-          const keyListLength = finalConfig.keys[provider]?.length || 0;
-          finalConfig.keyIndexes[provider] = keyListLength > 0 ? (finalConfig.keyIndexes[provider] || 0) % keyListLength : 0;
-        });
-        finalConfig.selectedChatProvider = 'groq';
-        finalConfig.selectedAgentProvider = 'gemini';
-        finalConfig.selectedChatMode = AVAILABLE_MODELS.groq.some(m=>m.id === finalConfig.selectedChatMode) ? finalConfig.selectedChatMode : getDefaultConfig().selectedChatMode;
-        finalConfig.selectedAgentMode = AVAILABLE_MODELS.gemini.some(m=>m.id === finalConfig.selectedAgentMode) ? finalConfig.selectedAgentMode : getDefaultConfig().selectedAgentMode;
-        finalConfig.qualityMode = ['speed','quality'].includes(finalConfig.qualityMode) ? finalConfig.qualityMode : getDefaultConfig().qualityMode;
-        setConfig(finalConfig);
-        AsyncStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(finalConfig)).catch(e => {
-          console.error('❌ Config Save Error (async):', e);
-        });
-      } catch (e) {
-        console.error('❌ saveConfig Error:', e);
-      } finally {
-        release();
-      }
-    }, [config]);
-
-  const updateConfig = useCallback(async (newPartialConfig: Partial<AIConfig>) => {
-    await saveConfig(prev => ({ ...prev, ...newPartialConfig }));
-  }, [saveConfig]);
-
-  const setSelectedChatMode = useCallback(async (mode: AIMode) => {
-    if (!AVAILABLE_MODELS.groq.some(m => m.id === mode)) {
-      console.warn(`Ungültiges Chat-Modell: ${mode}`);
-      Alert.alert('Ungültiges Modell', `${mode} ist nicht für Groq verfügbar.`);
-      return;
+  const persist = useCallback(async (next: AIConfig) => {
+    setConfig(next);
+    updateRuntimeGlobals(next);
+    try {
+      await AsyncStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(next));
+    } catch (e) {
+      console.log('[AIContext] Fehler beim Speichern der AI-Config', e);
     }
-    console.log(`💬 Chat-Modell: ${mode}`);
-    await updateConfig({ selectedChatMode: mode });
-  }, [updateConfig]);
+  }, []);
 
-  const setSelectedAgentMode = useCallback(async (mode: AIMode) => {
-    if (!AVAILABLE_MODELS.gemini.some(m => m.id === mode)) {
-      console.warn(`Ungültiges Agent-Modell: ${mode}`);
-      Alert.alert('Ungültiges Modell', `${mode} ist nicht für Gemini verfügbar.`);
-      return;
-    }
-    console.log(`🤖 Agent-Modell: ${mode}`);
-    await updateConfig({ selectedAgentMode: mode });
-  }, [updateConfig]);
-
-  const setQualityMode = useCallback(async (mode: QualityMode) => {
-    if (mode !== 'speed' && mode !== 'quality') return;
-    console.log(`⚙️ Qualitätsmodus: ${mode}`);
-    await updateConfig({ qualityMode: mode });
-  }, [updateConfig]);
-
-  const addApiKey = useCallback(async (provider: AllAIProviders, key: string) => {
-    const trimmedKey = key?.trim();
-    if (!trimmedKey || !ALL_POSSIBLE_PROVIDERS.includes(provider)) return;
-    await saveConfig(prev => {
-      const keys = prev.keys[provider] || [];
-      if (keys.includes(trimmedKey)) { Alert.alert('Info', 'Key existiert bereits'); return prev; }
-      Alert.alert('Gespeichert', `${provider.toUpperCase()} Key hinzugefügt`);
-      return { ...prev, keys: { ...prev.keys, [provider]: [...keys, trimmedKey] } };
-    });
-  }, [saveConfig]);
-
-  const removeApiKey = useCallback(async (provider: AllAIProviders, keyToRemove: string) => {
-    if (!ALL_POSSIBLE_PROVIDERS.includes(provider)) return;
-    await saveConfig(prev => {
-      const keys = prev.keys[provider] || [];
-      const newKeys = keys.filter(k => k !== keyToRemove);
-      if (newKeys.length === keys.length) return prev;
-      const oldIndex = prev.keyIndexes[provider] || 0;
-      const removedIdx = keys.indexOf(keyToRemove);
-      let newIndex = oldIndex;
-      if (removedIdx !== -1 && removedIdx < oldIndex) newIndex = Math.max(0, oldIndex - 1);
-      newIndex = newKeys.length > 0 ? newIndex % newKeys.length : 0;
-      Alert.alert('Gelöscht', `${provider.toUpperCase()} Key entfernt`);
-      return { ...prev, keys: { ...prev.keys, [provider]: newKeys }, keyIndexes: { ...prev.keyIndexes, [provider]: newIndex } };
-    });
-  }, [saveConfig]);
-
-  const getCurrentApiKey = useCallback((provider: AllAIProviders): string | null => {
-    if (!config || !ALL_POSSIBLE_PROVIDERS.includes(provider)) return null;
-    const keyList = config.keys[provider];
-    if (!keyList || keyList.length === 0) return null;
-    const idx = config.keyIndexes[provider] || 0;
-    const validIdx = keyList.length > 0 ? idx % keyList.length : 0;
-    return keyList[validIdx] ?? null;
-  }, [config]);
-
-  const rotateApiKey = useCallback(async (provider: AllAIProviders): Promise<string | null> => {
-    if (!ALL_POSSIBLE_PROVIDERS.includes(provider)) return null;
-    let nextKey: string | null = null;
-    await saveConfig(prev => {
-        const keyList = prev.keys[provider];
-        if (!keyList || keyList.length < 2) { nextKey = keyList?.[0] || null; return prev; }
-        const currentIdx = prev.keyIndexes[provider] || 0;
-        const nextIdx = (currentIdx + 1) % keyList.length;
-        nextKey = keyList[nextIdx];
-        console.log(`🔑 Key rotiert (${provider}): ${currentIdx} → ${nextIdx}`);
-        return { ...prev, keyIndexes: { ...prev.keyIndexes, [provider]: nextIdx } };
-    });
-    return nextKey;
-  }, [saveConfig]);
-
-  if (isLoading) return null;
-
-  return (
-    <AIContext.Provider value={{ config, isLoading, setSelectedChatMode, setSelectedAgentMode, setQualityMode, addApiKey, removeApiKey, rotateApiKey, getCurrentApiKey, updateConfig, }} >
-      {children}
-    </AIContext.Provider>
+  const setSelectedChatProvider = useCallback(
+    (provider: AllAIProviders) => {
+      const next = migrateConfig({ ...config, selectedChatProvider: provider });
+      persist(next);
+    },
+    [config, persist]
   );
+
+  const setSelectedChatMode = useCallback(
+    (modeId: string) => {
+      const next = migrateConfig({ ...config, selectedChatMode: modeId });
+      persist(next);
+    },
+    [config, persist]
+  );
+
+  const setSelectedAgentProvider = useCallback(
+    (provider: AllAIProviders) => {
+      const next = migrateConfig({ ...config, selectedAgentProvider: provider });
+      persist(next);
+    },
+    [config, persist]
+  );
+
+  const setSelectedAgentMode = useCallback(
+    (modeId: string) => {
+      const next = migrateConfig({ ...config, selectedAgentMode: modeId });
+      persist(next);
+    },
+    [config, persist]
+  );
+
+  const setQualityMode = useCallback(
+    (mode: QualityMode) => {
+      const next = migrateConfig({ ...config, qualityMode: mode });
+      persist(next);
+    },
+    [config, persist]
+  );
+
+  const addApiKey = useCallback(
+    async (provider: AllAIProviders, key: string) => {
+      const trimmed = key.trim();
+      if (!trimmed) throw new Error('API-Key darf nicht leer sein');
+
+      const existing = config.apiKeys[provider] || [];
+      if (existing.includes(trimmed)) {
+        throw new Error('Dieser Key existiert bereits');
+      }
+
+      const next = migrateConfig({
+        ...config,
+        apiKeys: {
+          ...config.apiKeys,
+          [provider]: [trimmed, ...existing],
+        },
+      });
+      await persist(next);
+    },
+    [config, persist]
+  );
+
+  const removeApiKey = useCallback(
+    async (provider: AllAIProviders, key: string) => {
+      const existing = config.apiKeys[provider] || [];
+      const filtered = existing.filter((k) => k !== key);
+
+      const next = migrateConfig({
+        ...config,
+        apiKeys: {
+          ...config.apiKeys,
+          [provider]: filtered,
+        },
+      });
+      await persist(next);
+    },
+    [config, persist]
+  );
+
+  // ✅ Manuelle Rotation (für Settings UI)
+  const rotateApiKey = useCallback(
+    async (provider: AllAIProviders) => {
+      const keys = config.apiKeys[provider] || [];
+      if (keys.length <= 1) {
+        throw new Error('Mindestens 2 Keys erforderlich für Rotation');
+      }
+
+      const rotated = [...keys.slice(1), keys[0]];
+
+      const next = migrateConfig({
+        ...config,
+        apiKeys: {
+          ...config.apiKeys,
+          [provider]: rotated,
+        },
+      });
+      await persist(next);
+      console.log(`🔄 [AIContext] Manuelle Rotation für ${provider}`);
+    },
+    [config, persist]
+  );
+
+  // ✅ Key an Position X nach vorne schieben
+  const moveApiKeyToFront = useCallback(
+    async (provider: AllAIProviders, keyIndex: number) => {
+      const keys = config.apiKeys[provider] || [];
+      if (keyIndex < 0 || keyIndex >= keys.length) {
+        throw new Error('Ungültiger Key-Index');
+      }
+
+      const key = keys[keyIndex];
+      const filtered = keys.filter((_, i) => i !== keyIndex);
+      const reordered = [key, ...filtered];
+
+      const next = migrateConfig({
+        ...config,
+        apiKeys: {
+          ...config.apiKeys,
+          [provider]: reordered,
+        },
+      });
+      await persist(next);
+    },
+    [config, persist]
+  );
+
+  // ✅ Auto-Rotation bei Error (für Orchestrator)
+  const rotateApiKeyOnErrorInternal = useCallback(
+    async (provider: AllAIProviders): Promise<boolean> => {
+      const keys = config.apiKeys[provider] || [];
+
+      if (keys.length <= 1) {
+        console.warn(`⚠️ [AIContext] Keine weiteren Keys für ${provider} verfügbar`);
+        return false;
+      }
+
+      const rotated = [...keys.slice(1), keys[0]];
+
+      const next = migrateConfig({
+        ...config,
+        apiKeys: {
+          ...config.apiKeys,
+          [provider]: rotated,
+        },
+      });
+
+      await persist(next);
+
+      console.log(
+        `🔄 [AIContext] Auto-Rotation für ${provider}: ${rotated[0].slice(0, 8)}... ist jetzt aktiv`
+      );
+
+      return true;
+    },
+    [config, persist]
+  );
+
+  const getCurrentApiKey = useCallback(
+    (provider: AllAIProviders): string | null => {
+      const keys = config.apiKeys[provider];
+      return keys && keys.length > 0 ? keys[0] : null;
+    },
+    [config]
+  );
+
+  // ✅ Rotate-Funktion für Orchestrator registrieren
+  useEffect(() => {
+    setRotateFunction(rotateApiKeyOnErrorInternal);
+    return () => setRotateFunction(() => Promise.resolve(false));
+  }, [rotateApiKeyOnErrorInternal]);
+
+  const value: AIContextProps = useMemo(
+    () => ({
+      config,
+      setSelectedChatProvider,
+      setSelectedChatMode,
+      setSelectedAgentProvider,
+      setSelectedAgentMode,
+      setQualityMode,
+      addApiKey,
+      removeApiKey,
+      rotateApiKey,
+      moveApiKeyToFront,
+      rotateApiKeyOnError: rotateApiKeyOnErrorInternal,
+      getCurrentApiKey,
+    }),
+    [
+      config,
+      setSelectedChatProvider,
+      setSelectedChatMode,
+      setSelectedAgentProvider,
+      setSelectedAgentMode,
+      setQualityMode,
+      addApiKey,
+      removeApiKey,
+      rotateApiKey,
+      moveApiKeyToFront,
+      rotateApiKeyOnErrorInternal,
+      getCurrentApiKey,
+    ]
+  );
+
+  if (!loaded) {
+    updateRuntimeGlobals(config);
+  }
+
+  return <AIContext.Provider value={value}>{children}</AIContext.Provider>;
 };
 
-export const useAI = () => {
-  const context = useContext(AIContext);
-  if (!context) { throw new Error('useAI muss innerhalb von AIProvider verwendet werden'); }
-  return context;
+export const useAI = (): AIContextProps => {
+  const ctx = useContext(AIContext);
+  if (!ctx) {
+    throw new Error('useAI muss innerhalb von <AIProvider> verwendet werden.');
+  }
+  return ctx;
 };
-

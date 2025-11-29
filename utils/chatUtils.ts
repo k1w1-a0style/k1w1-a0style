@@ -1,418 +1,246 @@
 import { jsonrepair } from 'jsonrepair';
-import { ProjectFile } from '../contexts/ProjectContext';
+import { ProjectFile } from '../contexts/types';
 import { CONFIG } from '../config';
 
-// Strukturierter Logger
-const log = (level: 'INFO' | 'WARN' | 'ERROR', message: string, meta?: Record<string, any>) => {
+type ErrorStat = {
+  count: number;
+  last: string;
+  meta?: any;
+};
+
+const errorStats: Record<string, ErrorStat> = {};
+
+const log = (
+  level: 'INFO' | 'WARN' | 'ERROR',
+  message: string,
+  meta?: Record<string, any>
+) => {
   const timestamp = new Date().toISOString();
   const ctx = meta ? ` | ${JSON.stringify(meta)}` : '';
   console.log(`[${level}] ${timestamp} - ${message}${ctx}`);
 };
 
-// Fehlerstatistiken
-const errorStats: Record<string, number> = {};
-const logError = (error: string) => {
-  errorStats[error] = (errorStats[error] || 0) + 1;
+const logError = (key: string, meta?: any) => {
+  if (!errorStats[key]) {
+    errorStats[key] = { count: 0, last: new Date().toISOString(), meta };
+  }
+  errorStats[key].count += 1;
+  errorStats[key].last = new Date().toISOString();
 };
 
-// Optimierte Zeilenzählung
-export const getCodeLineCount = (content: string): number => {
-  if (!content) return 0;
-  let lines = 0;
-  const len = content.length;
-  let start = 0;
-  for (let i = 0; i <= len; i++) {
-    if (i === len || content[i] === '\n') {
-      const line = content.slice(start, i).trim();
-      if (line.length > 0) lines++;
-      start = i + 1;
-    }
-  }
-  return lines;
-};
+// ---------------------------------------------------------------
+// BASIC HELPERS
+// ---------------------------------------------------------------
 
-// Type-Safe Content-Konvertierung
-export const ensureStringContent = (content: unknown): string => {
-  if (typeof content === 'string') return content;
-  if (content == null) return '';
-  try {
-    // Node Buffer detection defensive
-    // @ts-ignore
-    if (typeof Buffer !== 'undefined' && Buffer.isBuffer && Buffer.isBuffer(content)) {
-      // @ts-ignore
-      return Buffer.from(content).toString('utf8');
-    }
-  } catch (e) {
-    // ignore
-  }
-  if (typeof content === 'object') {
-    const c = content as any;
-    if (c?.content && typeof c.content === 'string') return c.content;
-    try {
-      return JSON.stringify(content, null, 2);
-    } catch {
-      return String(content);
-    }
-  }
-  return String(content);
-};
-
-// Normalisiert Pfade sicher
 export const normalizePath = (path: string): string => {
-  if (!path || typeof path !== 'string') return '';
-  let normalized = path.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\/|\/$/g, '');
-  if (CONFIG.VALIDATION.PATTERNS.INVALID_PATH.test(normalized)) {
-    log('ERROR', 'Ungültiger Pfad', { path: normalized, reason: 'Invalid characters or traversal' });
-    logError('Ungültiger Pfad');
-    return '';
-  }
-  if (normalized.length > CONFIG.PATHS.MAX_PATH_LENGTH) {
-    log('ERROR', 'Pfad zu lang', { path: normalized, length: normalized.length });
-    logError('Pfad zu lang');
-    return '';
-  }
+  if (!path) return '';
+  let normalized = path.replace(/\\/g, '/').replace(/\/+/g, '/');
+
+  if (normalized.startsWith('./')) normalized = normalized.slice(2);
+  if (normalized.startsWith('/')) normalized = normalized.slice(1);
+
+  // einfache Sicherheits-Normalisierung: "../" kappen
+  normalized = normalized.replace(/\.\.\//g, '');
+
   return normalized;
 };
 
-// Prüft, ob Pfad zu einer Code-Datei gehört
-export const isCodeFile = (p?: string) => !!p && (p.endsWith('.tsx') || p.endsWith('.ts') || p.endsWith('.js') || p.endsWith('.jsx'));
-
-// Heuristik für src-Ordner (behält Logik, um Ordner vorzuschlagen)
-export const getSrcFolderForFile = (filename: string, content?: string): string | null => {
-  const name = normalizePath(filename).toLowerCase();
-  if (!name) return null;
+export const ensureStringContent = (value: any): string => {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
   try {
-    if (content) {
-      if (CONFIG.VALIDATION.CONTENT_PATTERNS.CONTEXT.test(content)) return 'contexts';
-      if (CONFIG.VALIDATION.CONTENT_PATTERNS.HOOK.test(content) && name.endsWith('.ts')) return 'hooks';
-      if (CONFIG.VALIDATION.CONTENT_PATTERNS.STYLE.test(content)) return 'components';
-    }
-    if (CONFIG.VALIDATION.PATTERNS.COMPONENT.test(name)) return 'components';
-    if (CONFIG.VALIDATION.PATTERNS.SCREEN.test(name)) return 'screens';
-    if (CONFIG.VALIDATION.PATTERNS.CONTEXT.test(name)) return 'contexts';
-    if (CONFIG.VALIDATION.PATTERNS.HOOK.test(name)) return 'hooks';
-    if (CONFIG.VALIDATION.PATTERNS.UTIL.test(name)) return 'utils';
-    if (CONFIG.VALIDATION.PATTERNS.SERVICE.test(name)) return 'services';
-    if (CONFIG.VALIDATION.PATTERNS.TYPE.test(name) || name.endsWith('.d.ts')) return 'types';
-    if (name.endsWith('.tsx')) return 'components';
-    if (name.endsWith('.ts')) return 'utils';
-  } catch (e) {
-    log('WARN', 'getSrcFolderForFile failed', { filename, err: String(e) });
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
   }
-  return null;
 };
 
-// Validierungs-Helfer (gekürzt für Übersicht - bestehende Logik bleibt)
-const validateFileStructure = (file: ProjectFile, index: number): string[] => {
-  const errors: string[] = [];
-  const fileNum = `Datei ${index + 1}`;
-  if (!file?.path || typeof file.content === 'undefined') {
-    errors.push(`${fileNum}: Ungültige Struktur`);
-    logError('Ungültige Struktur');
-  }
-  const normalized = normalizePath(file?.path || '');
-  if (!normalized) {
-    errors.push(`${file?.path || 'undefined'}: Ungültiger Pfad`);
-    logError('Ungültiger Pfad');
-  }
-  return errors;
+export const getCodeLineCount = (content: string): number => {
+  if (!content) return 0;
+  return content.split('\n').filter((line) => line.trim().length > 0).length;
 };
 
-const validateDuplicatePaths = (file: ProjectFile, seenPaths: Set<string>): string[] => {
-  const errors: string[] = [];
-  const p = normalizePath(file?.path || '');
-  if (!p) return errors;
-  if (seenPaths.has(p)) {
-    errors.push(`${p}: DUPLIKAT!`);
-    logError('Duplikat-Pfad');
-  }
-  return errors;
+export const hasValidExtension = (path: string): boolean => {
+  const normalized = normalizePath(path);
+  return CONFIG.PATHS.ALLOWED_EXT.some((ext) => normalized.endsWith(ext));
 };
 
-const validateDuplicatePatterns = (file: ProjectFile): string[] => {
-  const errors: string[] = [];
-  const p = normalizePath(file?.path || '');
-  if (!p) return errors;
-  if (CONFIG.VALIDATION.PATTERNS.DUPLICATE.test(p)) {
-    errors.push(`${p}: Verbotenes Duplikat-Pattern`);
-    logError('Duplikat-Pattern');
-  }
-  return errors;
+export const hasInvalidPattern = (path: string): boolean => {
+  const normalized = normalizePath(path);
+  return CONFIG.VALIDATION.PATTERNS.INVALID_PATH.test(normalized);
 };
 
-// 💥 KORRIGIERT: Validiert nun die flache Struktur ohne 'src/' Präfix.
-const validateSrcFolder = (file: ProjectFile): string[] => {
-  const errors: string[] = [];
-  if (!file || !file.path) return errors;
-  const normalizedPath = normalizePath(file.path);
-  if (!normalizedPath) {
-    errors.push(`${file.path}: Ungültiger Pfad`);
-    logError('Ungültiger Pfad');
-    return errors;
+export const isPathAllowed = (path: string): boolean => {
+  const normalized = normalizePath(path);
+
+  if (CONFIG.PATHS.ALLOWED_ROOT.includes(normalized)) return true;
+  if (CONFIG.PATHS.ALLOWED_SINGLE.includes(normalized)) return true;
+
+  for (const prefix of CONFIG.PATHS.ALLOWED_PREFIXES) {
+    if (normalized.startsWith(prefix)) return true;
   }
-  const code = isCodeFile(normalizedPath);
-  const isRootFile = CONFIG.PATHS.ALLOWED_ROOT.includes(normalizedPath);
-
-  if (code && !isRootFile) {
-    const pathParts = normalizedPath.split('/');
-
-    if (pathParts.length < 2) {
-      const content = ensureStringContent(file.content);
-      const suggestedFolder = getSrcFolderForFile(normalizedPath, content) ||
-                             (normalizedPath.endsWith('.tsx') ? 'components' : 'utils');
-      errors.push(`${normalizedPath}: ❌ MUSS in einem Ordner sein! Vorschlag: ${suggestedFolder}/${normalizedPath}`);
-      logError('Kein Ordner');
-      return errors;
-    }
-
-    const topFolder = pathParts[0];
-    if (!CONFIG.PATHS.SRC_FOLDERS.includes(topFolder)) {
-      errors.push(`${normalizedPath}: Ungültiger Ordner "${topFolder}". Erlaubt: ${CONFIG.PATHS.SRC_FOLDERS.join(', ')}`);
-      logError('Ungültiger Hauptordner');
-    }
-  }
-  return errors;
+  return false;
 };
 
-const validatePlaceholders = (file: ProjectFile): string[] => {
-  const errors: string[] = [];
-  const content = ensureStringContent(file?.content);
-  CONFIG.VALIDATION.CONTENT_PATTERNS.PLACEHOLDERS.forEach(pattern => {
-    if (content.includes(pattern)) {
-      errors.push(`${file?.path}: PLATZHALTER gefunden: "${pattern}"`);
-      logError(`Platzhalter: ${pattern}`);
-    }
-  });
-  return errors;
+export const isCodeFile = (path: string): boolean => {
+  const normalized = normalizePath(path);
+  return (
+    normalized.endsWith('.ts') ||
+    normalized.endsWith('.tsx') ||
+    normalized.endsWith('.js') ||
+    normalized.endsWith('.jsx') ||
+    normalized.endsWith('.json') ||
+    normalized.endsWith('.md')
+  );
 };
 
-const validateMinLines = (file: ProjectFile): string[] => {
-  const errors: string[] = [];
-  if (!file || !file.path) return errors;
-  const normalizedPath = normalizePath(file.path);
-  if (!normalizedPath) {
-    errors.push(`${file.path}: Ungültiger Pfad`);
-    logError('Ungültiger Pfad');
-    return errors;
-  }
-  const code = isCodeFile(normalizedPath);
-  const isNotConfig = !CONFIG.VALIDATION.PATTERNS.CONFIG_FILES.test(normalizedPath);
+// ---------------------------------------------------------------
+// VALIDIERUNG
+// ---------------------------------------------------------------
 
-  if (code && isNotConfig) {
+export const validateFilePath = (
+  path: string
+): { valid: boolean; errors: string[] } => {
+  const errors: string[] = [];
+  const normalized = normalizePath(path);
+
+  if (!normalized) errors.push('Pfad ist leer oder ungültig.');
+  if (!hasValidExtension(normalized))
+    errors.push(`Ungültige Dateiendung: ${normalized}`);
+  if (!isPathAllowed(normalized))
+    errors.push(`Pfad außerhalb erlaubter Bereiche: ${normalized}`);
+  if (hasInvalidPattern(normalized))
+    errors.push(`Pfad enthält verbotene Muster: ${normalized}`);
+
+  return { valid: errors.length === 0, errors };
+};
+
+export const validateProjectFiles = (files: ProjectFile[]) => {
+  const errors: string[] = [];
+
+  if (!files || files.length === 0) {
+    errors.push('Es wurden keine Dateien geliefert.');
+    return { valid: false, errors };
+  }
+
+  if (files.length > CONFIG.VALIDATION.MAX_FILES) {
+    errors.push(
+      `Zu viele Dateien: ${files.length} (max. ${CONFIG.VALIDATION.MAX_FILES})`
+    );
+  }
+
+  const seen = new Set<string>();
+
+  for (const file of files) {
+    const path = file.path;
     const content = ensureStringContent(file.content);
-    const lines = getCodeLineCount(content);
-    const minLines = normalizedPath.endsWith('.tsx') ? CONFIG.VALIDATION.MIN_LINES_TSX : CONFIG.VALIDATION.MIN_LINES_TS;
-    if (lines < minLines) {
-      errors.push(`${normalizedPath}: Zu kurz (${lines} Zeilen Code, MIN ${minLines})`);
-      logError('Zu wenige Zeilen');
+
+    const { valid, errors: pathErrors } = validateFilePath(path);
+    if (!valid)
+      errors.push(`Pfad ungültig (${path}): ${pathErrors.join(' | ')}`);
+
+    if (seen.has(path)) {
+      errors.push(`Duplikat-Pfad: ${path}`);
+    } else {
+      seen.add(path);
     }
-  }
-  return errors;
-};
 
-const validateImportsExports = (file: ProjectFile): string[] => {
-  const errors: string[] = [];
-  if (!file || !file.path) return errors;
-  const normalizedPath = normalizePath(file.path);
-  if (!normalizedPath) return errors;
-  const code = isCodeFile(normalizedPath);
-  const isNotConfig = !CONFIG.VALIDATION.PATTERNS.CONFIG_FILES.test(normalizedPath);
-  if (code && isNotConfig) {
-    const content = ensureStringContent(file.content);
-    const hasImports = /(^|\n)\s*import\s+/m.test(content) ||
-                      /module\.exports/m.test(content) ||
-                      /export\s+(default|const|function|class|\{)/m.test(content);
-    if (!hasImports && content.length > 120) {
-      errors.push(`${normalizedPath}: Keine erkennbaren Imports/Exports - verdächtig`);
-      logError('Keine Imports/Exports');
+    if (CONFIG.VALIDATION.PATTERNS.FORBIDDEN_IMPORT.test(content)) {
+      errors.push(`Verbotenes Import-Muster in ${path} gefunden.`);
     }
-  }
-  return errors;
-};
 
-const validateStyleSheet = (file: ProjectFile): string[] => {
-  const errors: string[] = [];
-  if (!file || !file.path) return errors;
-  const normalizedPath = normalizePath(file.path);
-  if (!normalizedPath) return errors;
-  const content = ensureStringContent(file.content);
-  if (normalizedPath.endsWith('.tsx') && content.includes('StyleSheet.create')) {
-    if (/StyleSheet\.create\(\s*\{\s*\}\s*\)/.test(content)) {
-      errors.push(`${normalizedPath}: Leeres StyleSheet - unvollständig`);
-      logError('Leeres StyleSheet');
+    if (content.trim().length === 0) {
+      errors.push(`Datei ist leer: ${path}`);
     }
-  }
-  return errors;
-};
-
-// Haupt-Validierungsfunktion
-export const validateProjectFiles = (files: ProjectFile[]): { valid: boolean; errors: string[] } => {
-  const errors: string[] = [];
-  const seenPaths = new Set<string>();
-  if (!Array.isArray(files) || files.length === 0) {
-    return { valid: true, errors: [] };
-  }
-
-  files.forEach((file, idx) => {
-    errors.push(...validateFileStructure(file, idx));
-    errors.push(...validateDuplicatePaths(file, seenPaths));
-    errors.push(...validateDuplicatePatterns(file));
-    errors.push(...validateSrcFolder(file));
-    errors.push(...validatePlaceholders(file));
-    errors.push(...validateMinLines(file));
-    errors.push(...validateImportsExports(file));
-    errors.push(...validateStyleSheet(file));
-    const n = normalizePath(file.path);
-    if (n) seenPaths.add(n);
-  });
-
-  if (errors.length > 0) {
-    log('INFO', `Validation errors: ${JSON.stringify(errorStats)}`);
   }
 
   return { valid: errors.length === 0, errors };
 };
 
-// JSON Reparatur Utilities (unverändert)
-const fixUnquotedKeys = (json: string): string => {
-  let inString = false;
-  let result = '';
-  let i = 0;
+// ---------------------------------------------------------------
+// JSON / LLM HELFER
+// ---------------------------------------------------------------
 
-  while (i < json.length) {
-    if (json[i] === '"') {
-      inString = !inString;
-      result += json[i];
-      i++;
-    } else if (!inString && json[i] === ':' && i > 0) {
-      let keyStart = i - 1;
-      while (keyStart >= 0 && /[\w-]/.test(json[keyStart])) keyStart--;
-      keyStart++;
-      const key = json.slice(keyStart, i);
-      if (key && !json[keyStart - 1]?.match(/["']/)) {
-        result = result.slice(0, -key.length) + `"${key}"`;
-      }
-      result += ':';
-      i++;
-    } else {
-      result += json[i];
-      i++;
-    }
-  }
-  return result;
-};
-
-export const tryParseJsonWithRepair = (jsonString: string): ProjectFile[] | null => {
-  if (!jsonString || typeof jsonString !== 'string') {
-    log('ERROR', 'Ungültiger JSON-String', { inputLength: (jsonString as any)?.length || 0 });
-    logError('Ungültiger JSON-String');
-    return null;
-  }
-
-  let parsed: any;
+export const safeJsonParse = <T = any>(input: any): T | null => {
   try {
-    parsed = JSON.parse(jsonString);
-  } catch (e) {
-    log('WARN', 'JSON Parse Error, versuche jsonrepair...', { err: String(e) });
-    try {
-      const repaired = jsonrepair(jsonString);
-      parsed = JSON.parse(repaired);
-      log('INFO', 'JSON mit jsonrepair repariert');
-    } catch (repairError) {
-      log('WARN', 'jsonrepair failed, versuche konservative fixes', { err: String(repairError) });
-      let r = jsonString.replace(/^\uFEFF/, '');
-      r = r.replace(/,\s*([}\]])/g, '$1');
-      r = fixUnquotedKeys(r);
-      try {
-        parsed = JSON.parse(r);
-        log('INFO', 'JSON konservativ repariert');
-      } catch (e3) {
-        log('ERROR', `JSON Reparatur fehlgeschlagen: ${e3}`);
-        logError('JSON Reparatur fehlgeschlagen');
-        return null;
-      }
-    }
-  }
+    if (!input) return null;
+    if (typeof input === 'object') return input as T;
 
-  if (!Array.isArray(parsed)) {
-    log('ERROR', 'Kein Array empfangen');
-    logError('Kein Array empfangen');
+    const repaired = jsonrepair(String(input));
+    return JSON.parse(repaired) as T;
+  } catch (e: any) {
+    log('ERROR', 'JSON Parse fehlgeschlagen', { error: e.message });
+    logError('JSON Parse fehlgeschlagen', e.message);
     return null;
   }
-
-  if (parsed.length === 0) {
-    log('INFO', 'Leeres Array (Agent-Ablehnung)');
-    return [];
-  }
-
-  const makeUniquePath = (basePath: string, used: Set<string>): string => {
-    if (!used.has(basePath)) return basePath;
-    const dot = basePath.lastIndexOf('.');
-    const ext = dot !== -1 ? basePath.slice(dot) : '';
-    const base = dot !== -1 ? basePath.slice(0, dot) : basePath;
-    let i = 1;
-    let candidate = `${base}-${i}${ext}`;
-    while (used.has(candidate)) {
-      i++;
-      candidate = `${base}-${i}${ext}`;
-    }
-    return candidate;
-  };
-
-  const seen = new Set<string>();
-  const files: ProjectFile[] = parsed.map((file: any) => {
-    let correctedPath = normalizePath(file.path);
-    if (!correctedPath) {
-      const fallback = `src/utils/unknown_${Date.now()}.ts`;
-      log('WARN', 'Ungültiger Pfad, Fallback verwendet', { original: file.path, fallback });
-      logError('Ungültiger Pfad Fallback');
-      correctedPath = fallback;
-    }
-
-    if (correctedPath.startsWith('src/') && !CONFIG.PATHS.ALLOWED_ROOT.includes(correctedPath)) {
-      const pathAfterSrc = correctedPath.substring(4);
-      const folder = pathAfterSrc.split('/')[0];
-      if (CONFIG.PATHS.SRC_FOLDERS.includes(folder)) {
-        correctedPath = pathAfterSrc;
-        log('INFO', `Entferne 'src/' Präfix: ${file.path} → ${correctedPath}`);
-      }
-    }
-
-    if (correctedPath.startsWith('src/src/')) {
-      correctedPath = correctedPath.replace('src/src/', 'src/');
-      log('INFO', `Doppeltes src/ entfernt: ${correctedPath}`);
-    }
-
-    const content = ensureStringContent(file.content);
-    const unique = makeUniquePath(correctedPath, seen);
-    seen.add(unique);
-    return { ...file, path: unique, content } as ProjectFile;
-  });
-
-  const validation = validateProjectFiles(files);
-  if (!validation.valid) {
-    log('ERROR', 'VALIDIERUNG FEHLGESCHLAGEN:');
-    validation.errors.forEach((err, idx) => {
-      log('ERROR', `${idx + 1}. ${err}`);
-    });
-    return null;
-  }
-
-  log('INFO', `Validierung OK: ${files.length} Dateien`);
-  return files;
 };
 
 export const extractJsonArray = (text: string): string | null => {
-  if (!text || typeof text !== 'string') return null;
-  const match = text.match(/```json\s*([\s\S]*)\s*```|(\[[\s\S]*\])/);
-  if (!match) return null;
+  if (!text) return null;
 
-  const jsonString = match[1] || match[2];
-  if (jsonString) {
-    log('INFO', `JSON gefunden (${jsonString.length} chars)`);
-    return jsonString;
-  }
+  const block = text.match(/```json\s*([\s\S]*?)\s*```/);
+  if (block) return block[1];
+
+  const generic = text.match(/```\s*([\s\S]*?)\s*```/);
+  if (generic) return generic[1];
+
+  const arr = text.match(/\[[\s\S]*\]/);
+  if (arr) return arr[0];
+
+  const obj = text.match(/\{[\s\S]*\}$/);
+  if (obj) return obj[0];
+
   return null;
+};
+
+// ---------------------------------------------------------------
+// FILTER / NORMALIZE
+// ---------------------------------------------------------------
+
+export const filterProjectCodeFiles = (files: ProjectFile[]): ProjectFile[] => {
+  if (!files || files.length === 0) return [];
+
+  const result: ProjectFile[] = [];
+
+  for (const f of files) {
+    const p = normalizePath(f.path);
+    const c = ensureStringContent(f.content);
+
+    if (!hasValidExtension(p)) continue;
+    if (hasInvalidPattern(p)) continue;
+
+    if (!CONFIG.VALIDATION.PATTERNS.CODE_HEURISTIC.test(c)) continue;
+
+    result.push({ path: p, content: c });
+  }
+
+  return result;
+};
+
+export const normalizeAndValidateFiles = (
+  files: ProjectFile[]
+): ProjectFile[] | null => {
+  if (!files || files.length === 0) {
+    log('ERROR', 'Keine Dateien für Validierung übergeben.');
+    logError('Keine Dateien');
+    return null;
+  }
+
+  const normalized = files.map((f) => ({
+    path: normalizePath(f.path),
+    content: ensureStringContent(f.content).replace(/^\uFEFF/, ''),
+  }));
+
+  const validation = validateProjectFiles(normalized as ProjectFile[]);
+
+  if (!validation.valid) {
+    log('ERROR', 'VALIDIERUNG FEHLGESCHLAGEN', { errors: validation.errors });
+    validation.errors.forEach((e) => logError(e));
+    return null;
+  }
+
+  log('INFO', `Validierung OK: ${normalized.length} Dateien`);
+  return normalized as ProjectFile[];
 };
 
 export const getErrorStats = () => ({ ...errorStats });

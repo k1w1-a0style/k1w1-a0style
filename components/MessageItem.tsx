@@ -12,13 +12,13 @@ interface ChatMessage {
 }
 
 type MessageItemProps = {
-  item: ChatMessage;
+  message: ChatMessage;
 };
 
-const MessageItem = memo(({ item }: MessageItemProps) => {
-  const messageText = item?.content?.trim() ?? '';
-  const isUser = item?.role === 'user';
-  
+const MessageItem = memo(({ message }: MessageItemProps) => {
+  const messageText = message?.content?.trim() ?? '';
+  const isUser = message?.role === 'user';
+
   if (isUser && messageText.length === 0) return null;
 
   const handleLongPress = () => {
@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 3,
   },
   messagePressed: {
-    opacity: 0.7
+    opacity: 0.7,
   },
   userMessageText: {
     fontSize: 14,
@@ -81,4 +81,3 @@ const styles = StyleSheet.create({
 });
 
 export default MessageItem;
-

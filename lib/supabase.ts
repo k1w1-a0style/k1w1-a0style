@@ -1,17 +1,42 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants';
 
 let supabaseClient: SupabaseClient | null = null;
 let initPromise: Promise<SupabaseClient> | null = null;
 
+const STORAGE_URL_KEY = 'supabase_url';
+const STORAGE_ANON_KEY = 'supabase_key';
+
+const setRuntimeEnvFromSupabase = (url: string, anonKey: string) => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const anyProcess = process as any;
+
+    if (!anyProcess.env) {
+      anyProcess.env = {};
+    }
+
+    if (!anyProcess.env.EXPO_PUBLIC_SUPABASE_URL) {
+      anyProcess.env.EXPO_PUBLIC_SUPABASE_URL = url;
+      console.log('🌐 Runtime EXPO_PUBLIC_SUPABASE_URL gesetzt (aus Settings).');
+    }
+
+    if (!anyProcess.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
+      anyProcess.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = anonKey;
+      console.log('🔑 Runtime EXPO_PUBLIC_SUPABASE_ANON_KEY gesetzt (aus Settings).');
+    }
+  } catch (e) {
+    console.warn('⚠️ Konnte process.env nicht setzen (nicht kritisch):', e);
+  }
+};
+
 export const ensureSupabaseClient = async (): Promise<SupabaseClient> => {
-  // Falls bereits initialisiert → zurückgeben
+  // Bereits initialisiert?
   if (supabaseClient) {
     return supabaseClient;
   }
 
-  // ✅ FIX: Falls gerade initialisiert wird → auf bestehendes Promise warten
+  // Läuft schon eine Initialisierung?
   if (initPromise) {
     console.log('⏳ Warte auf laufende Supabase Initialisierung...');
     return initPromise;
@@ -19,28 +44,36 @@ export const ensureSupabaseClient = async (): Promise<SupabaseClient> => {
 
   console.log('Starte Supabase Initialisierung...');
 
-  // Initialisierung kapseln
   initPromise = (async () => {
-    let supabaseUrl = await AsyncStorage.getItem('supabase_url');
-    let supabaseAnonKey = await AsyncStorage.getItem('supabase_key');
+    // 1) Werte aus deinen App-Settings (AsyncStorage)
+    let supabaseUrl = await AsyncStorage.getItem(STORAGE_URL_KEY);
+    let supabaseAnonKey = await AsyncStorage.getItem(STORAGE_ANON_KEY);
 
-    // Fallback zu EXPO_PUBLIC env vars (falls nicht im Storage)
-    if (!supabaseUrl) {
-      supabaseUrl = Constants.expoConfig?.extra?.supabaseUrl || process.env.EXPO_PUBLIC_SUPABASE_URL;
+    // 2) Fallback: bestehende Runtime-Env
+    if (!supabaseUrl && typeof process !== 'undefined') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabaseUrl = (process as any).env?.EXPO_PUBLIC_SUPABASE_URL;
     }
-    if (!supabaseAnonKey) {
-      supabaseAnonKey = Constants.expoConfig?.extra?.supabaseAnonKey || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseAnonKey && typeof process !== 'undefined') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabaseAnonKey = (process as any).env?.EXPO_PUBLIC_SUPABASE_ANON_KEY;
     }
 
     if (!supabaseUrl || !supabaseAnonKey) {
       console.error('❌ Supabase URL oder Anon Key fehlt!');
       console.log('AsyncStorage URL:', supabaseUrl ? 'OK' : 'FEHLT');
       console.log('AsyncStorage Key:', supabaseAnonKey ? 'OK' : 'FEHLT');
-      initPromise = null; // Reset bei Fehler
+      initPromise = null;
       throw new Error('Supabase Credentials fehlen. Bitte in Verbindungen eintragen.');
     }
 
-    console.log('✅ Erstelle Supabase Client mit URL:', supabaseUrl.substring(0, 30) + '...');
+    // Bridge → Orchestrator & Co sehen die Variablen
+    setRuntimeEnvFromSupabase(supabaseUrl, supabaseAnonKey);
+
+    console.log(
+      '✅ Erstelle Supabase Client mit URL:',
+      supabaseUrl.substring(0, 30) + '...',
+    );
 
     supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
@@ -51,14 +84,14 @@ export const ensureSupabaseClient = async (): Promise<SupabaseClient> => {
       },
     });
 
-    initPromise = null; // Initialisierung abgeschlossen
+    initPromise = null;
     return supabaseClient;
   })();
 
   return initPromise;
 };
 
-// Optional: Export für manuelles Reset (falls nötig)
+// Optional: manuell resetten
 export const resetSupabaseClient = () => {
   supabaseClient = null;
   initPromise = null;

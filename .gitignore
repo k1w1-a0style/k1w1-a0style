@@ -1,8 +1,74 @@
+# ============================================================
+# K1W1-A0STYLE PROJECT – OPTIMIZED .GITIGNORE
+# ============================================================
+
+# -----------------------------
+# NODE / PNPM / NPM
+# -----------------------------
 node_modules/
+pnpm-lock.yaml
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# -----------------------------
+# EXPO / METRO / REACT-NATIVE
+# -----------------------------
 .expo/
-.cache/
-.pnpm/
+.expo-shared/
+.expo/web-build/
+.expo-packager/
+.expo-go/
+*.expo*
 dist/
 build/
-.env
-*.zip
+web-build/
+.cache/
+npm-cache/
+metro-cache/
+.expo-internal/
+
+# Temporary Metro cache folders
+**/.cache/
+**/.metro/
+**/.expo/
+
+# -----------------------------
+# ANDROID / IOS NATIVE (not used)
+# -----------------------------
+android/
+ios/
+
+# -----------------------------
+# MAC / SYSTEM
+# -----------------------------
+.DS_Store
+Thumbs.db
+
+# -----------------------------
+# SUPABASE CLI CACHE / TEMP
+# -----------------------------
+supabase/.temp
+supabase/.cache
+supabase/functions/**/node_modules
+supabase/.DS_Store
+
+# -----------------------------
+# PROJECT TRASH
+# -----------------------------
+*.backup
+*.backup2
+*.backup3
+*.orig
+*~
+*.log
+logs/
+tmp/
+temp/
+
+# -----------------------------
+# BABEL / TYPESCRIPT / WEBPACK
+# -----------------------------
+*.tsbuildinfo
+.cache-loader/

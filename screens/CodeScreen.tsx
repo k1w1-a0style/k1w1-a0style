@@ -1,24 +1,25 @@
 // screens/CodeScreen.tsx - MIT KORREKTEM THEME UND SYNTAX-VALIDIERUNG!
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  FlatList, 
-  TouchableOpacity, 
-  Alert, 
-  ActivityIndicator, 
-  Platform, 
-  TextInput, 
-  KeyboardAvoidingView, 
-  Image, 
-  ScrollView 
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  Platform,
+  TextInput,
+  KeyboardAvoidingView,
+  Image,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { theme } from '../theme';
-import { useProject, ProjectFile } from '../contexts/ProjectContext';
+import { useProject } from '../contexts/ProjectContext';
+import { ProjectFile } from '../contexts/types';
 import { SyntaxHighlighter } from '../components/SyntaxHighlighter';
 import { buildFileTree, findFolderContent, TreeNode } from '../components/FileTree';
 import { Breadcrumb } from '../components/Breadcrumb';
@@ -26,7 +27,15 @@ import { FileItem } from '../components/FileItem';
 import { CreationDialog } from '../components/CreationDialog';
 
 const CodeScreen = () => {
-  const { projectData, isLoading, updateProjectFiles, createFile, deleteFile, renameFile } = useProject();
+  const {
+    projectData,
+    isLoading,
+    updateProjectFiles,
+    createFile,
+    deleteFile,
+    renameFile,
+  } = useProject();
+
   const [selectedFile, setSelectedFile] = useState<ProjectFile | null>(null);
   const [editingContent, setEditingContent] = useState<string>('');
   const [currentFolderPath, setCurrentFolderPath] = useState<string>('');
@@ -52,7 +61,7 @@ const CodeScreen = () => {
       // Prüfe auf ungeschlossene Klammern
       const openBrackets = (code.match(/[\[{(]/g) || []).length;
       const closeBrackets = (code.match(/[\]})]/g) || []).length;
-      
+
       if (openBrackets !== closeBrackets) {
         return `Ungleiche Anzahl von Klammern: ${openBrackets} geöffnet, ${closeBrackets} geschlossen`;
       }
@@ -81,9 +90,10 @@ const CodeScreen = () => {
     if (node.type === 'folder') {
       setCurrentFolderPath(node.path);
     } else if (node.file) {
-      const contentString = typeof node.file.content === 'string'
-        ? node.file.content
-        : JSON.stringify(node.file.content, null, 2);
+      const contentString =
+        typeof node.file.content === 'string'
+          ? node.file.content
+          : JSON.stringify(node.file.content, null, 2);
       setSelectedFile(node.file);
       setEditingContent(contentString);
       setViewMode('preview');
@@ -113,13 +123,13 @@ const CodeScreen = () => {
                       setEditingContent('');
                     }
                   }
-                }
-              }
-            ]
+                },
+              },
+            ],
           );
-        }
+        },
       },
-      { text: 'Abbrechen', style: 'cancel' as const }
+      { text: 'Abbrechen', style: 'cancel' as const },
     ];
 
     Alert.alert(node.name, 'Aktion wählen:', options);
@@ -140,9 +150,10 @@ const CodeScreen = () => {
   };
 
   const handleSelectFile = (file: ProjectFile) => {
-    const contentString = typeof file.content === 'string'
-      ? file.content
-      : JSON.stringify(file.content, null, 2);
+    const contentString =
+      typeof file.content === 'string'
+        ? file.content
+        : JSON.stringify(file.content, null, 2);
     setSelectedFile(file);
     setEditingContent(contentString);
     setSyntaxError(null);
@@ -154,27 +165,27 @@ const CodeScreen = () => {
     // Prüfe Syntax vor dem Speichern
     const error = validateSyntax(editingContent, selectedFile.path);
     if (error) {
-      Alert.alert(
-        'Syntax-Warnung',
-        `${error}\n\nTrotzdem speichern?`,
-        [
-          { text: 'Abbrechen', style: 'cancel' },
-          {
-            text: 'Trotzdem speichern',
-            style: 'destructive',
-            onPress: () => {
-              updateProjectFiles([{ path: selectedFile.path, content: editingContent }]);
-              setSelectedFile(prev => prev ? { ...prev, content: editingContent } : null);
-              Alert.alert('Gespeichert', selectedFile.path);
-            }
-          }
-        ]
-      );
+      Alert.alert('Syntax-Warnung', `${error}\n\nTrotzdem speichern?`, [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Trotzdem speichern',
+          style: 'destructive',
+          onPress: () => {
+            updateProjectFiles([{ path: selectedFile.path, content: editingContent }]);
+            setSelectedFile((prev: ProjectFile | null) =>
+              prev ? { ...prev, content: editingContent } : null,
+            );
+            Alert.alert('Gespeichert', selectedFile.path);
+          },
+        },
+      ]);
       return;
     }
 
     updateProjectFiles([{ path: selectedFile.path, content: editingContent }]);
-    setSelectedFile(prev => prev ? { ...prev, content: editingContent } : null);
+    setSelectedFile((prev: ProjectFile | null) =>
+      prev ? { ...prev, content: editingContent } : null,
+    );
     Alert.alert('Gespeichert', selectedFile.path);
   };
 
@@ -196,7 +207,9 @@ const CodeScreen = () => {
   if (selectedFile) {
     const isDirty = selectedFile.content !== editingContent;
     const isImage = /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(selectedFile.path);
-    const isCodeFile = /\.(tsx?|jsx?|json|md|css|scss|html|xml|yaml|yml)$/i.test(selectedFile.path);
+    const isCodeFile = /\.(tsx?|jsx?|json|md|css|scss|html|xml|yaml|yml)$/i.test(
+      selectedFile.path,
+    );
 
     if (isImage) {
       const base64Content = typeof editingContent === 'string' ? editingContent : '';
@@ -213,7 +226,9 @@ const CodeScreen = () => {
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Ionicons name="arrow-back" size={24} color={theme.palette.primary} />
-              <Text style={styles.fileName} numberOfLines={1}>{selectedFile.path}</Text>
+              <Text style={styles.fileName} numberOfLines={1}>
+                {selectedFile.path}
+              </Text>
             </TouchableOpacity>
 
             <View style={styles.editorActions}>
@@ -256,14 +271,17 @@ const CodeScreen = () => {
             >
               <Ionicons name="arrow-back" size={24} color={theme.palette.primary} />
               <Text style={styles.fileName} numberOfLines={1}>
-                {selectedFile.path}{isDirty ? " *" : ""}
+                {selectedFile.path}
+                {isDirty ? ' *' : ''}
               </Text>
             </TouchableOpacity>
 
             <View style={styles.editorActions}>
               {isCodeFile && (
                 <TouchableOpacity
-                  onPress={() => setViewMode(prev => prev === 'edit' ? 'preview' : 'edit')}
+                  onPress={() =>
+                    setViewMode((prev) => (prev === 'edit' ? 'preview' : 'edit'))
+                  }
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <Ionicons
@@ -286,7 +304,7 @@ const CodeScreen = () => {
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <Ionicons
-                  name={isDirty ? "save" : "save-outline"}
+                  name={isDirty ? 'save' : 'save-outline'}
                   size={22}
                   color={isDirty ? theme.palette.warning : theme.palette.primary}
                 />
@@ -341,10 +359,7 @@ const CodeScreen = () => {
         </TouchableOpacity>
       </View>
 
-      <Breadcrumb
-        currentPath={currentFolderPath}
-        onNavigate={setCurrentFolderPath}
-      />
+      <Breadcrumb currentPath={currentFolderPath} onNavigate={setCurrentFolderPath} />
 
       <FlatList
         data={currentFolderItems}
@@ -359,7 +374,11 @@ const CodeScreen = () => {
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="folder-open-outline" size={48} color={theme.palette.text.secondary} />
+            <Ionicons
+              name="folder-open-outline"
+              size={48}
+              color={theme.palette.text.secondary}
+            />
             <Text style={styles.emptyText}>Dieser Ordner ist leer</Text>
             <TouchableOpacity
               style={styles.createFirstButton}

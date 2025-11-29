@@ -5,23 +5,23 @@ module.exports = {
     slug: "k1w1-a0style",
     owner: "k1w1-pro-plus",
     version: "1.0.0",
-    icon: "./assets/icon.png", 
-    userInterfaceStyle: "dark", 
+    icon: "./assets/icon.png",
+    userInterfaceStyle: "dark",
     splash: {
-      image: "./assets/icon.png", 
+      image: "./assets/icon.png",
       resizeMode: "contain",
-      backgroundColor: "#121212" 
+      backgroundColor: "#121212"
     },
     android: {
       package: "com.k1w1.a0style",
       adaptiveIcon: {
-        foregroundImage: "./assets/adaptive-icon.png", 
-        backgroundColor: "#000000" 
+        foregroundImage: "./assets/adaptive-icon.png",
+        backgroundColor: "#000000"
       },
       softwareKeyboardLayoutMode: "resize"
     },
     updates: {
-      enabled: false 
+      enabled: false
     },
     assetBundlePatterns: [
       "**/*"
@@ -34,19 +34,18 @@ module.exports = {
       }
     },
     web: {
-      favicon: "./assets/favicon.png" 
+      favicon: "./assets/favicon.png"
     },
     extra: {
       eas: {
-        projectId: "5e5a7791-8751-416b-9a1f-831adfffcb6c" 
+        projectId: "5e5a7791-8751-416b-9a1f-831adfffcb6c"
       }
     },
     plugins: [
       "expo-font",
       "expo-secure-store",
       // NEU: Plugin für Image Picker
-      "expo-image-picker" 
+      "expo-image-picker"
     ]
   }
 };
-

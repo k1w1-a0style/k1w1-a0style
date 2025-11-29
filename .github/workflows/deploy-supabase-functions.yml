@@ -1,21 +1,18 @@
 name: K1W1 Build Workflow
 
 on:
-  workflow_dispatch:
-    inputs:
-      job_id:
-        description: 'Die Supabase job_id'
-        required: true
-        type: string
+  # Wird von Supabase trigger-eas-build per repository_dispatch getriggert
+  repository_dispatch:
+    types: [trigger-eas-build]
 
 jobs:
   run-eas-build:
     runs-on: ubuntu-latest
-    
+
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      JOB_ID: ${{ github.event.inputs.job_id }}
+      JOB_ID: ${{ github.event.client_payload.job_id }}
 
     steps:
       - uses: actions/checkout@v4
@@ -23,10 +20,10 @@ jobs:
       - name: Validate Job ID
         run: |
           if [ -z "$JOB_ID" ]; then
-            echo "::error::Job ID fehlt!"
+            echo "::error::Job ID fehlt (client_payload.job_id ist leer)!"
             exit 1
           fi
-          echo "✓ Job ID: $JOB_ID"
+          echo "✓ Job ID aus client_payload: $JOB_ID"
 
       - name: Setup Node
         uses: actions/setup-node@v4

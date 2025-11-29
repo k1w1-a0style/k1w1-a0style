@@ -1,6 +1,14 @@
 // contexts/ProjectContext.tsx (V13 - CREATE NEW PROJECT FIX)
 import { v4 as uuidv4 } from 'uuid';
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  ReactNode,
+} from 'react';
 import { Alert } from 'react-native';
 import { ProjectData, ProjectFile, ChatMessage, ProjectContextProps } from './types';
 import {
@@ -22,7 +30,10 @@ const loadTemplateFromFile = async (): Promise<ProjectFile[]> => {
     }
     return template.map((file: any) => ({
       ...file,
-      content: typeof file.content === 'string' ? file.content : JSON.stringify(file.content ?? '', null, 2),
+      content:
+        typeof file.content === 'string'
+          ? file.content
+          : JSON.stringify(file.content ?? '', null, 2),
     })) as ProjectFile[];
   } catch (error) {
     console.error('X Template Fehler:', error);
@@ -49,53 +60,70 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     }, SAVE_DEBOUNCE_MS);
   }, []);
 
-  const updateProject = useCallback((updater: (prev: ProjectData) => ProjectData) => {
-    setProjectData(prev => {
-      if (!prev) return prev;
-      const updated = updater(prev);
-      const finalProject = { ...updated, lastModified: new Date().toISOString() };
-      debouncedSave(finalProject);
-      return finalProject;
-    });
-  }, [debouncedSave]);
+  const updateProject = useCallback(
+    (updater: (prev: ProjectData) => ProjectData) => {
+      setProjectData(prev => {
+        if (!prev) return prev;
+        const updated = updater(prev);
+        const finalProject = { ...updated, lastModified: new Date().toISOString() };
+        debouncedSave(finalProject);
+        return finalProject;
+      });
+    },
+    [debouncedSave],
+  );
 
   // ✅ FIX: MERGE statt OVERWRITE!
-  const updateProjectFiles = useCallback(async (files: ProjectFile[], newName?: string) => {
-    updateProject(prev => {
-      const fileMap = new Map(prev.files.map(f => [f.path, f]));
-      files.forEach(file => {
-        fileMap.set(file.path, file);
+  const updateProjectFiles = useCallback(
+    async (files: ProjectFile[], newName?: string) => {
+      updateProject(prev => {
+        const fileMap = new Map(prev.files.map(f => [f.path, f]));
+        files.forEach(file => {
+          fileMap.set(file.path, file);
+        });
+        const mergedFiles = Array.from(fileMap.values());
+        console.log(
+          `📝 Dateien aktualisiert: ${files.length} geändert, ${mergedFiles.length} gesamt`,
+        );
+        return {
+          ...prev,
+          files: mergedFiles,
+          name: newName || prev.name,
+        };
       });
-      const mergedFiles = Array.from(fileMap.values());
-      console.log(`📝 Dateien aktualisiert: ${files.length} geändert, ${mergedFiles.length} gesamt`);
-      return {
+    },
+    [updateProject],
+  );
+
+  const setProjectName = useCallback(
+    (newName: string) => {
+      updateProject(prev => ({
         ...prev,
-        files: mergedFiles,
-        name: newName || prev.name,
-      };
-    });
-  }, [updateProject]);
+        name: newName,
+      }));
+    },
+    [updateProject],
+  );
 
-  const setProjectName = useCallback(async (newName: string) => {
-    updateProject(prev => ({
-      ...prev,
-      name: newName,
-    }));
-  }, [updateProject]);
+  const addChatMessage = useCallback(
+    (message: ChatMessage) => {
+      updateProject(prev => ({
+        ...prev,
+        chatHistory: [...(prev.chatHistory || []), message],
+      }));
+    },
+    [updateProject],
+  );
 
-  const addChatMessage = useCallback((message: ChatMessage) => {
-    updateProject(prev => ({
-      ...prev,
-      chatHistory: [...(prev.chatHistory || []), message],
-    }));
-  }, [updateProject]);
-
-  const setPackageName = useCallback((packageName: string) => {
-    updateProject(prev => ({
-      ...prev,
-      packageName,
-    }));
-  }, [updateProject]);
+  const setPackageName = useCallback(
+    (packageName: string) => {
+      updateProject(prev => ({
+        ...prev,
+        packageName,
+      }));
+    },
+    [updateProject],
+  );
 
   // ✅ NEU: Neues Projekt erstellen
   const createNewProject = useCallback(async () => {
@@ -116,7 +144,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
                 name: 'Neues Projekt',
                 slug: 'neues-projekt',
                 files: templateFiles,
-                chatHistory: [], // ✅ Leerer Chat
+                chatHistory: [],
                 createdAt: new Date().toISOString(),
                 lastModified: new Date().toISOString(),
               };
@@ -125,13 +153,16 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
               Alert.alert('Erfolg', 'Neues Projekt wurde erstellt!');
               console.log('✅ Neues Projekt erstellt und gespeichert.');
             } catch (error: any) {
-              Alert.alert('Fehler', error.message || 'Projekt konnte nicht erstellt werden');
+              Alert.alert(
+                'Fehler',
+                error.message || 'Projekt konnte nicht erstellt werden',
+              );
             } finally {
               setIsLoading(false);
             }
-          }
-        }
-      ]
+          },
+        },
+      ],
     );
   }, []);
 
@@ -142,10 +173,16 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
     try {
       const result = await exportProjectAsZipFile(projectData);
-      Alert.alert('Export erfolgreich', `${result.fileCount} Dateien als ZIP gespeichert.`);
+      Alert.alert(
+        'Export erfolgreich',
+        `${result.fileCount} Dateien als ZIP gespeichert.`,
+      );
     } catch (error: any) {
       console.error('Fehler beim ZIP-Export:', error);
-      Alert.alert('Export Fehlgeschlagen', error.message || 'Ein unbekannter Fehler ist aufgetreten.');
+      Alert.alert(
+        'Export Fehlgeschlagen',
+        error.message || 'Ein unbekannter Fehler ist aufgetreten.',
+      );
     }
   }, [projectData]);
 
@@ -164,67 +201,84 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
               result.project.chatHistory = []; // ✅ Chat zurücksetzen
               setProjectData(result.project);
               await saveProjectToStorage(result.project);
-              Alert.alert('Import erfolgreich', `Projekt "${result.project.name}" importiert (${result.fileCount} Dateien).`);
+              Alert.alert(
+                'Import erfolgreich',
+                `Projekt "${result.project.name}" importiert (${result.fileCount} Dateien).`,
+              );
             } catch (error: any) {
-              Alert.alert('Import fehlgeschlagen', error.message || 'Fehler beim Importieren');
+              Alert.alert(
+                'Import fehlgeschlagen',
+                error.message || 'Fehler beim Importieren',
+              );
             } finally {
               setIsLoading(false);
             }
-          }
-        }
-      ]
+          },
+        },
+      ],
     );
   }, []);
 
-  const createFile = useCallback(async (path: string, content: string) => {
-    if (!path.trim()) {
-      Alert.alert("Fehler", "Dateiname darf nicht leer sein.");
-      return;
-    }
-    updateProject(prev => {
-      if (prev.files.some(f => f.path === path)) {
-        Alert.alert("Fehler", "Eine Datei mit diesem Pfad existiert bereits.");
-        return prev;
+  const createFile = useCallback(
+    async (path: string, content: string) => {
+      if (!path.trim()) {
+        Alert.alert('Fehler', 'Dateiname darf nicht leer sein.');
+        return;
       }
-      return {
+      updateProject(prev => {
+        if (prev.files.some(f => f.path === path)) {
+          Alert.alert('Fehler', 'Eine Datei mit diesem Pfad existiert bereits.');
+          return prev;
+        }
+        return {
+          ...prev,
+          files: [...prev.files, { path, content }],
+        };
+      });
+    },
+    [updateProject],
+  );
+
+  const deleteFile = useCallback(
+    async (path: string) => {
+      updateProject(prev => ({
         ...prev,
-        files: [...prev.files, { path, content }],
-      };
-    });
-  }, [updateProject]);
+        files: prev.files.filter(f => f.path !== path),
+      }));
+    },
+    [updateProject],
+  );
 
-  const deleteFile = useCallback(async (path: string) => {
-    updateProject(prev => ({
-      ...prev,
-      files: prev.files.filter(f => f.path !== path),
-    }));
-  }, [updateProject]);
-
-  const renameFile = useCallback(async (oldPath: string, newPath: string) => {
-    if (!newPath.trim()) {
-      Alert.alert("Fehler", "Neuer Dateiname darf nicht leer sein.");
-      return;
-    }
-    updateProject(prev => {
-      if (prev.files.some(f => f.path === newPath)) {
-        Alert.alert("Fehler", "Eine Datei mit dem neuen Pfad existiert bereits.");
-        return prev;
+  const renameFile = useCallback(
+    async (oldPath: string, newPath: string) => {
+      if (!newPath.trim()) {
+        Alert.alert('Fehler', 'Neuer Dateiname darf nicht leer sein.');
+        return;
       }
-      return {
-        ...prev,
-        files: prev.files.map(f =>
-          f.path === oldPath ? { ...f, path: newPath } : f
-        ),
-      };
-    });
-  }, [updateProject]);
+      updateProject(prev => {
+        if (prev.files.some(f => f.path === newPath)) {
+          Alert.alert(
+            'Fehler',
+            'Eine Datei mit dem neuen Pfad existiert bereits.',
+          );
+          return prev;
+        }
+        return {
+          ...prev,
+          files: prev.files.map(f =>
+            f.path === oldPath ? { ...f, path: newPath } : f,
+          ),
+        };
+      });
+    },
+    [updateProject],
+  );
 
   useEffect(() => {
     const initializeProject = async () => {
       try {
         console.log('APP START (Context V13 - CREATE NEW PROJECT)');
         const savedProject = await loadProjectFromStorage();
-
         if (savedProject) {
           console.log('📖 Projekt geladen:', savedProject.name);
           if (!savedProject.files) savedProject.files = [];
@@ -271,27 +325,15 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     setPackageName,
     exportProjectAsZip,
     importProjectFromZip,
-    createNewProject, // ✅ NEU!
-
-    updateProject: updateProjectFiles,
-    setProjectName: setProjectName,
-
-    // @ts-ignore
-    updateMessages: addChatMessage,
-
-    // @ts-ignore
-    exportAndBuild: () => { Alert.alert("Fehler", "exportAndBuild ist veraltet."); return Promise.resolve(null); },
-
-    // @ts-ignore
-    deleteCurrentProject: createNewProject, // ✅ Alias
-    // @ts-ignore
-    deleteProject: createNewProject, // ✅ Alias
-
-    // @ts-ignore
+    createNewProject,
+    setProjectName,
+    // Chat-Array für Screens
     messages: projectData?.chatHistory?.filter(msg => msg && msg.id) || [],
-
-    // @ts-ignore
-    loadProjectFromZip: importProjectFromZip,
+    // Für BuildScreen (Dummy-Implementierung bleibt, bis EAS-Flow final ist)
+    exportAndBuild: async () => {
+      Alert.alert('Fehler', 'exportAndBuild ist veraltet.');
+      return null;
+    },
   };
 
   return (
