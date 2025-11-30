@@ -1,14 +1,22 @@
-// lib/orchestrator.ts - MIT AUTO KEY-ROTATION (KORRIGIERT)
+// lib/orchestrator.ts – TEIL 3: Optimiert
+// ✅ Besseres Error-Handling mit detaillierten Fehlermeldungen
+// ✅ Timeout für jeden Provider-Call (30s)
+// ✅ Detailliertes Logging für Debugging
+// ✅ Retry-Strategie + Key-Rotation
+// ✅ Provider-spezifische Error-Messages
+
 import { extractJsonArray, safeJsonParse } from '../utils/chatUtils';
 import { ProjectFile } from '../contexts/types';
 import type { AllAIProviders } from '../contexts/AIContext';
 import { rotateApiKeyOnError } from '../contexts/AIContext';
 
 type ProviderId = AllAIProviders;
+
 export type LlmMessage = {
   role: 'system' | 'user' | 'assistant';
   content: string;
 };
+
 export type QualityMode = 'speed' | 'quality';
 
 type OrchestratorOkResult = {
@@ -20,11 +28,17 @@ type OrchestratorOkResult = {
   raw: any;
   files?: ProjectFile[];
   keysRotated?: number;
+  timing?: {
+    startTime: number;
+    endTime: number;
+    durationMs: number;
+  };
 };
 
 type OrchestratorErrorEntry = {
   provider: string;
   error: string;
+  timestamp: string;
 };
 
 type OrchestratorErrorResult = {
@@ -42,33 +56,64 @@ const PROVIDERS: ProviderId[] = [
   'huggingface',
 ];
 
-const TIMEOUT_MS = 25000;
+const TIMEOUT_MS = 30000; // 30 Sekunden
 const MAX_KEY_RETRIES = 3;
 
-// -------------------------
-// Helper: Timeout
-// -------------------------
-async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
+// ============================================
+// LOGGING
+// ============================================
+const log = (
+  level: 'INFO' | 'WARN' | 'ERROR',
+  message: string,
+  meta?: any,
+) => {
+  const timestamp = new Date().toISOString();
+  const metaStr = meta ? ` | ${JSON.stringify(meta)}` : '';
+  // eslint-disable-next-line no-console
+  console.log(`[Orchestrator:${level}] ${timestamp} - ${message}${metaStr}`);
+};
+
+// ============================================
+// TIMEOUT
+// ============================================
+async function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+): Promise<T> {
+  // Kein echter Abort der inneren fetches, aber sauberes Timeout für den Aufrufer
+  return (Promise.race([
     promise,
     new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error('timeout')), ms),
+      setTimeout(
+        () =>
+          reject(
+            new Error(`Timeout nach ${ms}ms: ${label || 'orchestrator_call'}`),
+          ),
+        ms,
+      ),
     ),
-  ]) as Promise<T>;
+  ]) as unknown) as Promise<T>;
 }
 
-// -------------------------
-// Helper: Keys aus Runtime holen
-// -------------------------
+// ============================================
+// API-KEY RESOLUTION
+// ============================================
 function resolveApiKey(provider: ProviderId): string | null {
   const g = (globalThis as any) || {};
 
   try {
     const cfg = g.__K1W1_AI_CONFIG;
     if (cfg?.apiKeys?.[provider]?.[0]) {
-      return String(cfg.apiKeys[provider][0]);
+      const key = String(cfg.apiKeys[provider][0]);
+      log('INFO', `API-Key für ${provider} aus Config geladen`, {
+        keyPreview: key.slice(0, 8) + '…',
+      });
+      return key;
     }
-  } catch {}
+  } catch {
+    // ignorieren
+  }
 
   try {
     let candidate: string | undefined;
@@ -92,10 +137,15 @@ function resolveApiKey(provider: ProviderId): string | null {
         break;
     }
 
-    if (candidate && typeof candidate === 'string' && candidate.trim().length > 0) {
+    if (candidate && typeof candidate === 'string' && candidate.trim().length) {
+      log('INFO', `API-Key für ${provider} aus globalThis geladen`, {
+        keyPreview: candidate.slice(0, 8) + '…',
+      });
       return candidate.trim();
     }
-  } catch {}
+  } catch {
+    // ignorieren
+  }
 
   const envNames: string[] =
     provider === 'groq'
@@ -111,19 +161,23 @@ function resolveApiKey(provider: ProviderId): string | null {
   for (const name of envNames) {
     const v = (process.env as any)[name];
     if (typeof v === 'string' && v.trim().length > 0) {
+      log('INFO', `API-Key für ${provider} aus process.env geladen`, {
+        envName: name,
+      });
       return v.trim();
     }
   }
 
+  log('ERROR', `Kein API-Key für ${provider} gefunden`);
   return null;
 }
 
-// -------------------------
-// ✅ Helper: Ist Error ein Rate-Limit oder Auth-Error?
-// -------------------------
+// ============================================
+// ERROR-KATEGORISIERUNG
+// ============================================
 function shouldRotateKey(errorMsg: string): boolean {
   const lower = errorMsg.toLowerCase();
-  return (
+  const isRotatable =
     lower.includes('rate limit') ||
     lower.includes('429') ||
     lower.includes('quota') ||
@@ -132,13 +186,42 @@ function shouldRotateKey(errorMsg: string): boolean {
     lower.includes('403') ||
     lower.includes('unauthorized') ||
     lower.includes('invalid api key') ||
-    lower.includes('invalid_api_key')
-  );
+    lower.includes('invalid_api_key');
+
+  if (isRotatable) {
+    log('INFO', 'Fehler ist rotierbar', { errorMsg });
+  }
+  return isRotatable;
 }
 
-// -------------------------
-// Meta aus Config ableiten
-// -------------------------
+// Provider-spezifische Fehlermeldungen
+function enhanceErrorMessage(provider: ProviderId, error: string): string {
+  const lower = error.toLowerCase();
+
+  if (lower.includes('401') || lower.includes('unauthorized')) {
+    return `${provider}: API-Key ungültig oder abgelaufen. Bitte prüfe deine Einstellungen.`;
+  }
+  if (lower.includes('403')) {
+    return `${provider}: Keine Berechtigung. API-Key hat nicht die erforderlichen Rechte.`;
+  }
+  if (lower.includes('429') || lower.includes('rate limit')) {
+    return `${provider}: Rate-Limit erreicht. Key wird automatisch rotiert.`;
+  }
+  if (lower.includes('timeout')) {
+    return `${provider}: Timeout – Server antwortet nicht innerhalb von ${
+      TIMEOUT_MS / 1000
+    }s.`;
+  }
+  if (lower.includes('network')) {
+    return `${provider}: Netzwerkfehler – prüfe deine Internetverbindung.`;
+  }
+
+  return `${provider}: ${error}`;
+}
+
+// ============================================
+// META-DATEN / MODE SELECTION
+// ============================================
 function detectMetaFromConfig(
   selectedProvider: string,
   selectedModel: string,
@@ -149,6 +232,7 @@ function detectMetaFromConfig(
   quality: 'speed' | 'quality' | 'unknown';
 } {
   let provider: ProviderId;
+
   switch (selectedProvider) {
     case 'gemini':
       provider = 'gemini';
@@ -186,8 +270,8 @@ function detectMetaFromConfig(
     if (!model || model === 'auto-gemini' || /llama/i.test(model)) {
       model =
         quality === 'quality'
-          ? 'gemini-1.5-pro-latest'
-          : 'gemini-1.5-flash-latest';
+          ? 'gemini-2.5-pro'
+          : 'gemini-2.0-flash-lite-001';
     }
   } else if (provider === 'openai') {
     if (!model || model === 'auto-openai') {
@@ -195,7 +279,10 @@ function detectMetaFromConfig(
     }
   } else if (provider === 'anthropic') {
     if (!model || model === 'auto-claude' || model === 'auto-anthropic') {
-      model = quality === 'quality' ? 'claude-3-5-sonnet-20241022' : 'claude-3-5-haiku-20241022';
+      model =
+        quality === 'quality'
+          ? 'claude-3-5-sonnet-20241022'
+          : 'claude-3-5-haiku-20241022';
     }
   } else if (provider === 'huggingface') {
     if (!model || model === 'auto-hf') {
@@ -203,96 +290,63 @@ function detectMetaFromConfig(
     }
   }
 
-  if (!model) {
-    if (provider === 'groq') model = 'llama-3.1-8b-instant';
-    else if (provider === 'gemini') model = 'gemini-1.5-flash-latest';
-    else if (provider === 'openai') model = 'gpt-4o-mini';
-    else if (provider === 'anthropic') model = 'claude-3-5-haiku-20241022';
-    else model = 'mistralai/Mistral-7B-Instruct-v0.3';
-  }
-
   return { provider, model, quality };
 }
 
-// -------------------------
-// Helper: Files aus Text parsen
-// -------------------------
-function parseFilesFromText(text: string): ProjectFile[] | null {
-  if (!text) return null;
-
-  const extracted = extractJsonArray(text) ?? text;
-  const parsed = safeJsonParse<any>(extracted);
-  if (!parsed) return null;
-
-  let arr: any = parsed;
-  if (!Array.isArray(arr)) {
-    if (Array.isArray(parsed?.files)) arr = parsed.files;
-    else if (Array.isArray(parsed?.result?.files)) arr = parsed.result.files;
-  }
-
-  if (!Array.isArray(arr)) return null;
-
-  const files: ProjectFile[] = [];
-
-  for (const item of arr) {
-    if (!item) continue;
-    const path = String(item.path ?? '').trim();
-    const content =
-      item.content == null
-        ? ''
-        : typeof item.content === 'string'
-        ? item.content
-        : JSON.stringify(item.content, null, 2);
-    if (!path) continue;
-    files.push({ path, content });
-  }
-
-  return files.length > 0 ? files : null;
-}
-
-// -------------------------
-// Helper: Ergebnisobjekt bauen
-// -------------------------
+// ============================================
+// HELPER: OK-RESULT
+// ============================================
 function buildOkResult(
   provider: ProviderId,
   model: string,
   text: string,
-  llmJson: any,
+  raw: any,
+  startTime: number,
 ): OrchestratorOkResult {
-  const files = parseFilesFromText(text) ?? undefined;
+  const endTime = Date.now();
+  const durationMs = endTime - startTime;
+
   return {
     ok: true,
     provider,
     model,
     quality: 'unknown',
     text,
-    raw: llmJson,
-    files,
+    raw,
+    timing: {
+      startTime,
+      endTime,
+      durationMs,
+    },
   };
 }
 
-// -------------------------
-// Provider-Calls
-// -------------------------
+// ============================================
+// PROVIDER-CALLS
+// ============================================
 async function callGroq(
   apiKey: string,
   model: string,
   messages: LlmMessage[],
 ): Promise<OrchestratorOkResult> {
+  const startTime = Date.now();
   const url = 'https://api.groq.com/openai/v1/chat/completions';
 
   const body = {
     model,
-    messages,
+    messages: messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    })),
     temperature: 0.15,
-    max_tokens: 8192, // ✅ Erhöht von 4096
+    max_tokens: 4096,
   };
 
   const res = await fetch(url, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
   });
@@ -300,17 +354,17 @@ async function callGroq(
   const json: any = await res.json();
 
   if (!res.ok) {
-    const errorMsg = json?.error?.message || `HTTP ${res.status}`;
-    console.log('[Orchestrator] ❌ Groq Fehler:', errorMsg);
+    const errorMsg =
+      json?.error?.message || json?.error || `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
 
   const text =
     json?.choices?.[0]?.message?.content ??
-    json?.choices?.[0]?.delta?.content ??
-    '';
+    json?.choices?.[0]?.text ??
+    JSON.stringify(json);
 
-  return buildOkResult('groq', model, text, json);
+  return buildOkResult('groq', model, text, json, startTime);
 }
 
 async function callGemini(
@@ -318,37 +372,33 @@ async function callGemini(
   model: string,
   messages: LlmMessage[],
 ): Promise<OrchestratorOkResult> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const startTime = Date.now();
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
+    apiKey,
+  )}`;
 
-  const systemParts = messages
-    .filter((m) => m.role === 'system')
-    .map((m) => ({ text: m.content }));
-  const userParts = messages
-    .filter((m) => m.role !== 'system')
-    .map((m) => ({ text: `${m.role.toUpperCase()}: ${m.content}` }));
+  const contents = [
+    {
+      role: 'user',
+      parts: [
+        {
+          text: messages
+            .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+            .join('\n'),
+        },
+      ],
+    },
+  ];
 
   const body = {
-    contents: [
-      {
-        role: 'user',
-        parts: [
-          {
-            text: [
-              'Du bist ein KI-Codegenerator für eine React Native / Expo App.',
-              'Antworte IMMER mit strukturiertem JSON, das eine Liste von Dateien enthält.',
-            ].join('\n'),
-          },
-        ],
-      },
-      { role: 'model', parts: systemParts },
-      { role: 'user', parts: userParts },
-    ],
+    contents,
     generationConfig: {
-      maxOutputTokens: 8192, // ✅ Erhöht
+      temperature: 0.15,
+      maxOutputTokens: 4096,
     },
   };
 
-  const res = await fetch(`${url}?key=${apiKey}`, {
+  const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -360,16 +410,14 @@ async function callGemini(
 
   if (!res.ok) {
     const errorMsg = json?.error?.message || `HTTP ${res.status}`;
-    console.log('[Orchestrator] ❌ Gemini Fehler:', errorMsg);
     throw new Error(errorMsg);
   }
 
   const text =
     json?.candidates?.[0]?.content?.parts?.[0]?.text ??
-    json?.candidates?.[0]?.output_text ??
-    '';
+    JSON.stringify(json);
 
-  return buildOkResult('gemini', model, text, json);
+  return buildOkResult('gemini', model, text, json, startTime);
 }
 
 async function callOpenAI(
@@ -377,38 +425,41 @@ async function callOpenAI(
   model: string,
   messages: LlmMessage[],
 ): Promise<OrchestratorOkResult> {
+  const startTime = Date.now();
   const url = 'https://api.openai.com/v1/chat/completions';
 
   const body = {
     model,
-    messages,
-    temperature: 0.15,
-    max_tokens: 8192, // ✅ Erhöht von 4096
+    messages: messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    })),
+    temperature: 0.2,
+    max_tokens: 4096,
   };
 
   const res = await fetch(url, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
   });
 
   const json: any = await res.json();
-
   if (!res.ok) {
-    const errorMsg = json?.error?.message || `HTTP ${res.status}`;
-    console.log('[Orchestrator] ❌ OpenAI Fehler:', errorMsg);
+    const errorMsg =
+      json?.error?.message || json?.error || `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
 
   const text =
     json?.choices?.[0]?.message?.content ??
-    json?.choices?.[0]?.delta?.content ??
-    '';
+    json?.choices?.[0]?.text ??
+    JSON.stringify(json);
 
-  return buildOkResult('openai', model, text, json);
+  return buildOkResult('openai', model, text, json, startTime);
 }
 
 async function callAnthropic(
@@ -416,36 +467,30 @@ async function callAnthropic(
   model: string,
   messages: LlmMessage[],
 ): Promise<OrchestratorOkResult> {
+  const startTime = Date.now();
   const url = 'https://api.anthropic.com/v1/messages';
 
-  const system = messages
-    .filter((m) => m.role === 'system')
-    .map((m) => m.content)
-    .join('\n');
+  const systemPrompt =
+    messages.find((m) => m.role === 'system')?.content || '';
+  const nonSystem = messages.filter((m) => m.role !== 'system');
 
-  const conv = messages
-    .filter((m) => m.role !== 'system')
-    .map((m) => ({
+  const body = {
+    model,
+    system: systemPrompt || undefined,
+    messages: nonSystem.map((m) => ({
       role: m.role === 'assistant' ? 'assistant' : 'user',
       content: m.content,
-    }));
-
-  const body: any = {
-    model,
-    max_tokens: 8192, // ✅ Erhöht von 4096
-    messages: conv,
+    })),
+    max_tokens: 4096,
+    temperature: 0.2,
   };
-
-  if (system) {
-    body.system = system;
-  }
 
   const res = await fetch(url, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
       'x-api-key': apiKey,
       'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
   });
@@ -454,7 +499,6 @@ async function callAnthropic(
 
   if (!res.ok) {
     const errorMsg = json?.error?.message || `HTTP ${res.status}`;
-    console.log('[Orchestrator] ❌ Anthropic Fehler:', errorMsg);
     throw new Error(errorMsg);
   }
 
@@ -463,7 +507,7 @@ async function callAnthropic(
     (Array.isArray(json?.content) && json.content[0]?.text) ??
     '';
 
-  return buildOkResult('anthropic', model, text, json);
+  return buildOkResult('anthropic', model, text, json, startTime);
 }
 
 async function callHuggingFace(
@@ -471,6 +515,7 @@ async function callHuggingFace(
   model: string,
   messages: LlmMessage[],
 ): Promise<OrchestratorOkResult> {
+  const startTime = Date.now();
   const url = `https://api-inference.huggingface.co/models/${model}`;
 
   const prompt = messages
@@ -480,7 +525,7 @@ async function callHuggingFace(
   const body = {
     inputs: prompt,
     parameters: {
-      max_new_tokens: 4096, // ✅ Erhöht von 2048
+      max_new_tokens: 4096,
       temperature: 0.15,
     },
   };
@@ -498,7 +543,6 @@ async function callHuggingFace(
 
   if (!res.ok) {
     const errorMsg = json?.error || `HTTP ${res.status}`;
-    console.log('[Orchestrator] ❌ HuggingFace Fehler:', errorMsg);
     throw new Error(errorMsg);
   }
 
@@ -514,76 +558,127 @@ async function callHuggingFace(
     text = JSON.stringify(json);
   }
 
-  return buildOkResult('huggingface', model, text, json);
+  return buildOkResult('huggingface', model, text, json, startTime);
 }
 
-// -------------------------
-// ✅ Single Provider mit Retry-Loop
-// -------------------------
+// ============================================
+// RETRY-LOGIC MIT VERBESSERTEM ERROR-HANDLING
+// ============================================
 async function callProviderWithRetry(
   provider: ProviderId,
   model: string,
   messages: LlmMessage[],
 ): Promise<{ result: OrchestratorOkResult; rotations: number }> {
   let rotations = 0;
+  const errors: string[] = [];
 
   for (let attempt = 0; attempt < MAX_KEY_RETRIES; attempt++) {
     const apiKey = resolveApiKey(provider);
-
     if (!apiKey) {
-      const msg = `missing_api_key_${provider}`;
-      console.log('[Orchestrator] ❌ Kein API-Key gefunden für Provider', provider);
+      const msg = `Kein API-Key für ${provider} gefunden`;
+      log('ERROR', msg);
       throw new Error(msg);
     }
 
-    console.log(
-      `[Orchestrator] ▶️ Call ${provider} (Versuch ${attempt + 1}/${MAX_KEY_RETRIES}), model: ${model}`
-    );
+    log('INFO', `Call ${provider} (Versuch ${attempt + 1}/${MAX_KEY_RETRIES})`, {
+      model,
+      keyPreview: apiKey.slice(0, 8) + '…',
+    });
 
     try {
-      let result: OrchestratorOkResult;
+      const callPromise = (async () => {
+        if (provider === 'groq') return await callGroq(apiKey, model, messages);
+        if (provider === 'gemini')
+          return await callGemini(apiKey, model, messages);
+        if (provider === 'openai')
+          return await callOpenAI(apiKey, model, messages);
+        if (provider === 'anthropic')
+          return await callAnthropic(apiKey, model, messages);
+        return await callHuggingFace(apiKey, model, messages);
+      })();
 
-      if (provider === 'groq') result = await callGroq(apiKey, model, messages);
-      else if (provider === 'gemini') result = await callGemini(apiKey, model, messages);
-      else if (provider === 'openai') result = await callOpenAI(apiKey, model, messages);
-      else if (provider === 'anthropic') result = await callAnthropic(apiKey, model, messages);
-      else result = await callHuggingFace(apiKey, model, messages);
+      const result = await withTimeout(
+        callPromise,
+        TIMEOUT_MS,
+        `${provider}:${model}`,
+      );
 
-      // ✅ Erfolg
-      console.log(`✅ [Orchestrator] Erfolg mit ${provider} nach ${rotations} Rotation(en)`);
+      log('INFO', `✅ Erfolg mit ${provider}`, {
+        model,
+        rotations,
+        durationMs: result.timing?.durationMs,
+        textLength: result.text.length,
+      });
+
       return { result, rotations };
-
     } catch (e: any) {
       const errorMsg = e?.message || 'unknown_error';
-      console.log(`⚠️ [Orchestrator] Provider-Fehler (${provider}): ${errorMsg}`);
+      const enhancedMsg = enhanceErrorMessage(provider, errorMsg);
 
-      // ✅ Prüfen ob rotierbar
+      errors.push(`Attempt ${attempt + 1}: ${enhancedMsg}`);
+
+      log('ERROR', 'Provider-Call fehlgeschlagen', {
+        provider,
+        model,
+        attempt: attempt + 1,
+        error: errorMsg,
+      });
+
       if (shouldRotateKey(errorMsg)) {
-        console.log(`🔄 [Orchestrator] Rotiere Key für ${provider}...`);
+        log('INFO', `🔄 Rotiere Key für ${provider}.`);
         const rotated = await rotateApiKeyOnError(provider);
 
         if (!rotated) {
-          // Keine weiteren Keys
-          throw new Error(`Alle API-Keys für ${provider} erschöpft: ${errorMsg}`);
+          log('ERROR', `Alle Keys für ${provider} erschöpft`);
+          throw new Error(
+            `Alle API-Keys für ${provider} erschöpft: ${enhancedMsg}`,
+          );
         }
 
         rotations++;
-        console.log(`🔄 [Orchestrator] Key rotiert (${rotations}x), nächster Versuch...`);
-        continue; // Nächster Versuch
-
+        log('INFO', `Key rotiert (${rotations}x), nächster Versuch.`);
+        continue;
       } else {
-        // Nicht-rotierbarer Fehler
-        throw e;
+        throw new Error(enhancedMsg);
       }
     }
   }
 
-  throw new Error(`Max. Versuche (${MAX_KEY_RETRIES}) erreicht für ${provider}`);
+  const finalError = `Max. Versuche (${MAX_KEY_RETRIES}) erreicht für ${provider}.\n\n${errors.join(
+    '\n',
+  )}`;
+  log('ERROR', finalError);
+  throw new Error(finalError);
 }
 
-// -------------------------
-// Fallback-Mechanik
-// -------------------------
+// ============================================
+// JSON → FILES (für spätere Nutzung, falls gebraucht)
+// ============================================
+export function parseFilesFromText(raw: any): ProjectFile[] | null {
+  try {
+    const parsed = typeof raw === 'string' ? safeJsonParse(raw) : raw;
+    const array = extractJsonArray(parsed);
+    if (!array || !Array.isArray(array)) return null;
+
+    const files: ProjectFile[] = array
+      .map((f: any) => ({
+        path: String(f.path || ''),
+        content: String(f.content ?? ''),
+      }))
+      .filter((f) => f.path && f.content.trim().length > 0);
+
+    return files;
+  } catch (e) {
+    log('ERROR', 'parseFilesFromText fehlgeschlagen', {
+      error: (e as any)?.message,
+    });
+    return null;
+  }
+}
+
+// ============================================
+// FALLBACK-MECHANIK
+// ============================================
 async function runSequentialFallback(
   selectedProvider: string,
   selectedModel: string,
@@ -612,52 +707,67 @@ async function runSequentialFallback(
         selectedModel,
         qualityMode,
       );
-
-      // ✅ FIX: Immer das provider-spezifische Modell verwenden
       const modelForProvider = metaForProvider.model;
 
-      console.log(`[Orchestrator] 🔄 Fallback zu ${provider} mit Modell: ${modelForProvider}`);
+      log('INFO', `🔄 Fallback zu ${provider}`, {
+        model: modelForProvider,
+      });
 
       const { result, rotations } = await withTimeout(
         callProviderWithRetry(provider, modelForProvider, messages),
-        TIMEOUT_MS
+        TIMEOUT_MS,
+        `Fallback:${provider}`,
       );
 
       return { ...result, quality, keysRotated: rotations };
-
     } catch (e: any) {
       const message = e?.message || 'unknown_error';
-      console.log(
-        '[Orchestrator] ⚠️ Provider-Fehler:',
-        provider,
-        '->',
-        message,
-      );
-      errors.push({ provider, error: message });
 
-      if (message.startsWith('missing_api_key_')) {
+      log('WARN', `Provider ${provider} fehlgeschlagen`, {
+        error: message,
+      });
+
+      errors.push({
+        provider,
+        error: message,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (message.includes('Kein API-Key')) {
+        // nächster Provider versuchen
         continue;
       }
     }
   }
 
+  log('ERROR', 'Alle Provider fehlgeschlagen', {
+    errorCount: errors.length,
+  });
+
   return {
     ok: false,
     errors,
     fatal: false,
-    error: errors[0]?.error || 'no_provider_succeeded',
+    error: errors[0]?.error || 'Kein Provider war erfolgreich',
   };
 }
 
-// -------------------------
-// Public API – Generator (Builder)
-// -------------------------
+// ============================================
+// PUBLIC API – Generator (Builder)
+// ============================================
 export async function runOrchestrator(
   selectedProvider: string,
   selectedModel: string,
   qualityMode: QualityMode,
   messages: LlmMessage[],
 ): Promise<OrchestratorOkResult | OrchestratorErrorResult> {
+  log('INFO', '🚀 Orchestrator gestartet', {
+    provider: selectedProvider,
+    model: selectedModel,
+    quality: qualityMode,
+    messageCount: messages.length,
+  });
+
   try {
     const result = await runSequentialFallback(
       selectedProvider,
@@ -665,9 +775,25 @@ export async function runOrchestrator(
       qualityMode,
       messages,
     );
+
+    if (result.ok) {
+      log('INFO', '✅ Orchestrator erfolgreich', {
+        provider: result.provider,
+        model: result.model,
+        durationMs: result.timing?.durationMs,
+      });
+    } else {
+      log('WARN', '⚠️ Orchestrator fehlgeschlagen', {
+        errorCount: result.errors.length,
+      });
+    }
+
     return result;
   } catch (err: any) {
-    console.log('[Orchestrator] ❌ Fatal error:', err?.message);
+    log('ERROR', '❌ Fatal error in Orchestrator', {
+      error: err?.message,
+    });
+
     return {
       ok: false,
       fatal: true,
@@ -677,14 +803,19 @@ export async function runOrchestrator(
   }
 }
 
-// -------------------------
-// Public API – Quality-Validator (Agent)
-// -------------------------
+// ============================================
+// PUBLIC API – Quality-Validator (Agent)
+// ============================================
 export async function runValidatorOrchestrator(
   selectedAgentProvider: string,
   selectedAgentMode: string,
   messages: LlmMessage[],
 ): Promise<OrchestratorOkResult | OrchestratorErrorResult> {
+  log('INFO', '🔍 Validator Orchestrator gestartet', {
+    provider: selectedAgentProvider,
+    mode: selectedAgentMode,
+  });
+
   try {
     const result = await runSequentialFallback(
       selectedAgentProvider,
@@ -694,7 +825,10 @@ export async function runValidatorOrchestrator(
     );
     return result;
   } catch (err: any) {
-    console.log('[Orchestrator] ❌ Fatal error (Validator):', err?.message);
+    log('ERROR', '❌ Fatal error in Validator', {
+      error: err?.message,
+    });
+
     return {
       ok: false,
       fatal: true,

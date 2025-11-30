@@ -133,6 +133,7 @@ export const validateProjectFiles = (files: ProjectFile[]) => {
 
   for (const file of files) {
     const path = file.path;
+    const normalizedPath = normalizePath(path);
     const content = ensureStringContent(file.content);
 
     const { valid, errors: pathErrors } = validateFilePath(path);
@@ -151,6 +152,48 @@ export const validateProjectFiles = (files: ProjectFile[]) => {
 
     if (content.trim().length === 0) {
       errors.push(`Datei ist leer: ${path}`);
+    }
+
+    // -----------------------------------------------------------
+    // 🔍 MINDESTZEILEN & "ECHTER CODE" (nur für Code-Dateien)
+    // -----------------------------------------------------------
+    const isTsx = normalizedPath.endsWith('.tsx');
+    const isTsOrJs =
+      normalizedPath.endsWith('.ts') ||
+      normalizedPath.endsWith('.js') ||
+      normalizedPath.endsWith('.jsx');
+    const isConfigLike =
+      CONFIG.VALIDATION.PATTERNS.CONFIG_FILES.test(normalizedPath);
+
+    if ((isTsx || isTsOrJs) && !isConfigLike) {
+      const lineCount = getCodeLineCount(content);
+      const minLines = isTsx
+        ? CONFIG.VALIDATION.MIN_LINES_TSX
+        : CONFIG.VALIDATION.MIN_LINES_TS;
+
+      if (lineCount < minLines) {
+        errors.push(
+          `Zu wenig Code-Zeilen in ${path}: ${lineCount} (min. ${minLines})`
+        );
+      }
+
+      // Heuristik: sieht der Inhalt wie echter Code aus?
+      if (!CONFIG.VALIDATION.PATTERNS.CODE_HEURISTIC.test(content)) {
+        errors.push(
+          `Inhalt von ${path} sieht nicht wie echter Code aus (Heuristik fehlgeschlagen).`
+        );
+      }
+    }
+
+    // -----------------------------------------------------------
+    // 🧱 Platzhalter-Texte erkennen (für alle Dateien)
+    // -----------------------------------------------------------
+    for (const placeholder of CONFIG.VALIDATION.CONTENT_PATTERNS
+      .PLACEHOLDERS) {
+      if (content.includes(placeholder)) {
+        errors.push(`Platzhalter in ${path} gefunden: "${placeholder}"`);
+        break;
+      }
     }
   }
 
@@ -199,7 +242,6 @@ export const extractJsonArray = (text: string): string | null => {
 
 export const filterProjectCodeFiles = (files: ProjectFile[]): ProjectFile[] => {
   if (!files || files.length === 0) return [];
-
   const result: ProjectFile[] = [];
 
   for (const f of files) {
@@ -208,7 +250,6 @@ export const filterProjectCodeFiles = (files: ProjectFile[]): ProjectFile[] => {
 
     if (!hasValidExtension(p)) continue;
     if (hasInvalidPattern(p)) continue;
-
     if (!CONFIG.VALIDATION.PATTERNS.CODE_HEURISTIC.test(c)) continue;
 
     result.push({ path: p, content: c });

@@ -1,224 +1,179 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import React from 'react';
 import {
-  DrawerContentScrollView,
-  DrawerContentComponentProps,
-} from '@react-navigation/drawer';
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+} from 'react-native';
+import { DrawerContentComponentProps } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../theme';
-import { useProject } from '../contexts/ProjectContext';
 
-export function CustomDrawerContent(props: DrawerContentComponentProps) {
-  const { projectData, createNewProject, importProjectFromZip, isLoading } = useProject();
-  const [iconPreview, setIconPreview] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (projectData && projectData.files) {
-      const iconFile = projectData.files.find((f) => f.path === 'assets/icon.png');
-      if (iconFile && iconFile.content) {
-        if (
-          iconFile.content.length > 100 &&
-          !iconFile.content.includes('{') &&
-          !iconFile.content.startsWith('data:')
-        ) {
-          setIconPreview(`data:image/png;base64,${iconFile.content}`);
-        } else if (iconFile.content.startsWith('data:image/png;base64,')) {
-          setIconPreview(iconFile.content);
-        } else {
-          setIconPreview(null);
-        }
-      } else {
-        setIconPreview(null);
-      }
-    }
-  }, [projectData?.files, projectData?.lastModified]);
-
-  const handleLoadZip = () => {
-    importProjectFromZip();
-    props.navigation.closeDrawer();
-  };
-
-  const handleNewProject = () => {
-    createNewProject();
-    props.navigation.closeDrawer();
-  };
+export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
+  props
+) => {
+  const { navigation, state } = props;
 
   const navigateTo = (screen: string) => {
-    // @ts-ignore
-    props.navigation.navigate(screen);
-    props.navigation.closeDrawer();
+    navigation.navigate(screen as never);
   };
 
-  const fileCount = projectData?.files?.length ?? 0;
+  const currentRouteName =
+    state.routeNames[state.index] ?? 'Home';
+
+  const isActive = (name: string) => currentRouteName === name;
+
+  const renderItem = (
+    label: string,
+    screen: string,
+    iconName: keyof typeof Ionicons.glyphMap
+  ) => {
+    const active = isActive(screen);
+    return (
+      <TouchableOpacity
+        key={screen}
+        style={[
+          styles.drawerItem,
+          active && styles.drawerItemActive,
+        ]}
+        onPress={() => navigateTo(screen)}
+      >
+        <Ionicons
+          name={iconName}
+          size={22}
+          color={
+            active
+              ? theme.palette.primary
+              : theme.palette.text.primary
+          }
+          style={styles.drawerIcon}
+        />
+        <Text
+          style={[
+            styles.drawerItemText,
+            active && styles.drawerItemTextActive,
+          ]}
+        >
+          {label}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['right', 'bottom', 'left']}>
-      <DrawerContentScrollView {...props}>
-        {/* Navigation */}
-        <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('Home')}>
-          <Ionicons name="home-outline" size={22} color={theme.palette.primary} />
-          <Text style={styles.drawerItemText}>Home</Text>
-        </TouchableOpacity>
+    <View style={styles.root}>
+      <View style={styles.header}>
+        <Text style={styles.appTitle}>K1W1 AO-Style</Text>
+        <Text style={styles.appSubTitle}>
+          Prompt → Code → GitHub → APK
+        </Text>
+      </View>
 
-        <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('Settings')}>
-          <Ionicons name="settings-outline" size={22} color={theme.palette.primary} />
-          <Text style={styles.drawerItemText}>KI-Einstellungen</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('Connections')}>
-          <Ionicons name="cloud-outline" size={22} color={theme.palette.primary} />
-          <Text style={styles.drawerItemText}>Verbindungen</Text>
-        </TouchableOpacity>
-
-        {/* 📦 Builds – NEU */}
-        <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('Builds')}>
-          <Ionicons name="build-outline" size={22} color={theme.palette.primary} />
-          <Text style={styles.drawerItemText}>Builds</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.drawerItem} onPress={() => navigateTo('AppInfo')}>
-          <Ionicons name="information-circle-outline" size={22} color={theme.palette.primary} />
-          <Text style={styles.drawerItemText}>App Info</Text>
-        </TouchableOpacity>
-
-        <View style={styles.divider} />
-
-        {/* Projekt-Info */}
-        {projectData && (
-          <>
-            <Text style={styles.projectSectionTitle}>Aktives Projekt</Text>
-            <View style={styles.projectDisplayContainer}>
-              {iconPreview ? (
-                <Image source={{ uri: iconPreview }} style={styles.projectIcon} />
-              ) : (
-                <View style={styles.projectIcon} />
-              )}
-              <View style={styles.projectTextContainer}>
-                <Text style={styles.projectName}>
-                  {projectData.name || 'Unbenanntes Projekt'}
-                </Text>
-                <Text style={styles.projectFileCount}>
-                  {fileCount} Datei{fileCount === 1 ? '' : 'en'}
-                </Text>
-              </View>
-            </View>
-          </>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {renderItem('Home', 'Home', 'home-outline')}
+        {renderItem(
+          'KI-Einstellungen',
+          'Settings',
+          'options-outline'
+        )}
+        {renderItem(
+          'Verbindungen',
+          'Connections',
+          'link-outline'
         )}
 
-        {/* Aktionen */}
-        <TouchableOpacity
-          onPress={handleLoadZip}
-          style={styles.customItem}
-          disabled={isLoading}
-        >
-          <Ionicons
-            name="cloud-download-outline"
-            size={24}
-            color={theme.palette.primary}
-          />
-          <Text style={styles.customItemText}>Projekt aus ZIP laden</Text>
-        </TouchableOpacity>
+        {/* 🔥 NEU: GitHub Repo Manager */}
+        {renderItem(
+          'GitHub Repos',
+          'GitHubRepos',
+          'logo-github'
+        )}
 
-        <TouchableOpacity
-          onPress={handleNewProject}
-          style={styles.customItem}
-          disabled={isLoading}
-        >
-          <Ionicons
-            name="add-circle-outline"
-            size={24}
-            color={theme.palette.warning}
-          />
-          <Text style={styles.customItemTextWarning}>Neues Projekt starten</Text>
-        </TouchableOpacity>
-      </DrawerContentScrollView>
-    </SafeAreaView>
+        {/* Builds alt & V2 */}
+        {renderItem(
+          'Builds (alt)',
+          'Builds',
+          'construct-outline'
+        )}
+        {renderItem(
+          'Builds (V2)',
+          'BuildsV2',
+          'rocket-outline'
+        )}
+
+        {renderItem('App Info', 'AppInfo', 'information-circle-outline')}
+      </ScrollView>
+
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>
+          k1w1-a0style · Alpha
+        </Text>
+      </View>
+    </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  safeArea: {
+  root: {
     flex: 1,
     backgroundColor: theme.palette.card,
+  },
+  header: {
+    paddingTop: 40,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
+  },
+  appTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.palette.text.primary,
+  },
+  appSubTitle: {
+    marginTop: 4,
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingVertical: 8,
   },
   drawerItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.palette.border,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  drawerItemActive: {
+    backgroundColor: theme.palette.background,
+  },
+  drawerIcon: {
+    marginRight: 12,
   },
   drawerItemText: {
-    marginLeft: 15,
-    fontSize: 16,
+    fontSize: 15,
     color: theme.palette.text.primary,
-    fontWeight: '500',
   },
-  divider: {
-    height: 1,
-    backgroundColor: theme.palette.border,
-    marginVertical: 15,
-    marginHorizontal: 16,
-  },
-  customItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-  },
-  customItemText: {
-    marginLeft: 15,
-    fontSize: 14,
-    fontWeight: 'bold',
+  drawerItemTextActive: {
+    fontWeight: '600',
     color: theme.palette.primary,
   },
-  customItemTextWarning: {
-    marginLeft: 15,
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: theme.palette.warning,
-  },
-  projectSectionTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: theme.palette.text.secondary,
-    paddingHorizontal: 20,
-    marginBottom: 10,
-    textTransform: 'uppercase',
-  },
-  projectDisplayContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.palette.background,
-    paddingVertical: 12,
+  footer: {
     paddingHorizontal: 16,
-    marginHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: theme.palette.border,
   },
-  projectIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 4,
-    backgroundColor: '#333',
-  },
-  projectTextContainer: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  projectName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: theme.palette.text.primary,
-  },
-  projectFileCount: {
-    fontSize: 12,
+  footerText: {
+    fontSize: 11,
     color: theme.palette.text.secondary,
-    marginTop: 2,
   },
 });
-
-export default CustomDrawerContent;

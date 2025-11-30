@@ -8,6 +8,9 @@
       "distribution": "internal",
       "ios": {
         "resourceClass": "m-medium"
+      },
+      "android": {
+        "gradleCommand": ":app:assembleDebug"
       }
     },
     "preview": {
@@ -24,6 +27,5 @@
   },
   "submit": {
     "production": {}
-  },
-  "projectId": "5e5a7791-8751-416b-9a1f-831adfffcb6c"
+  }
 }

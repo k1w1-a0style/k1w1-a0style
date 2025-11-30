@@ -1,4 +1,4 @@
-// screens/ChatScreen.tsx — Builder mit Rotation-Feedback
+// screens/ChatScreen.tsx — Builder mit Rotation-Feedback (TS-clean)
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { Ionicons } from '@expo/vector-icons';
+
 import { theme } from '../theme';
 import { useProject } from '../contexts/ProjectContext';
 import { ChatMessage, ProjectFile } from '../contexts/types';
@@ -63,12 +64,15 @@ const ChatScreen: React.FC = () => {
         type: '*/*',
         copyToCacheDirectory: true,
       });
+
       if (!result.canceled && result.assets?.[0]) {
         const asset = result.assets[0];
         setSelectedFileAsset(asset);
         Alert.alert(
-          'Datei ausgewählt',
-          `${asset.name} (${asset.size ? (asset.size / 1024).toFixed(2) + ' KB' : '?'})`
+          '✅ Datei ausgewählt',
+          `${asset.name} (${
+            asset.size ? (asset.size / 1024).toFixed(2) + ' KB' : '?'
+          })`
         );
       } else {
         setSelectedFileAsset(null);
@@ -85,21 +89,13 @@ const ChatScreen: React.FC = () => {
     }
 
     setError(null);
+
     const userContent =
       textInput.trim() ||
       (selectedFileAsset ? `Datei gesendet: ${selectedFileAsset.name}` : '');
-    const lower = userContent.toLowerCase();
 
-    console.log(
-      '[ChatScreen] ▶️ Sende an KI:',
-      userContent,
-      'Provider:',
-      config.selectedChatProvider,
-      'Model:',
-      config.selectedChatMode,
-      'Quality:',
-      config.qualityMode
-    );
+    const lower = userContent.toLowerCase();
+    console.log('[ChatScreen] ▶️ Sende an KI:', userContent);
 
     const userMessage: ChatMessage = {
       id: uuidv4(),
@@ -107,11 +103,12 @@ const ChatScreen: React.FC = () => {
       content: userContent,
       timestamp: new Date().toISOString(),
     };
+
     addChatMessage(userMessage);
     setTextInput('');
     setSelectedFileAsset(null);
 
-    // META-COMMANDS
+    // 🧠 Schnelle Meta-Commands ohne KI
     if (lower.includes('wie viele datei')) {
       const count = projectFiles.length;
       addChatMessage({
@@ -133,6 +130,7 @@ const ChatScreen: React.FC = () => {
         });
         return;
       }
+
       const lines = projectFiles.map((f) => `• ${f.path}`).join('\n');
       addChatMessage({
         id: uuidv4(),
@@ -153,6 +151,7 @@ const ChatScreen: React.FC = () => {
         });
         return;
       }
+
       const validation = validateProjectFiles(projectFiles);
       if (validation.valid) {
         addChatMessage({
@@ -167,6 +166,7 @@ const ChatScreen: React.FC = () => {
         const errorText =
           shown.map((e) => `• ${e}`).join('\n') +
           (rest > 0 ? `\n… und ${rest} weitere Meldung(en).` : '');
+
         addChatMessage({
           id: uuidv4(),
           role: 'assistant',
@@ -177,19 +177,9 @@ const ChatScreen: React.FC = () => {
       return;
     }
 
-    if (lower.includes('erstelle alle fehlenden datei')) {
-      addChatMessage({
-        id: uuidv4(),
-        role: 'assistant',
-        content:
-          'ℹ️ Der Builder kann nicht automatisch erkennen, welche Dateien "fehlen". Beschreibe bitte konkret, welche Screens/Komponenten du brauchst.',
-        timestamp: new Date().toISOString(),
-      });
-      return;
-    }
-
-    // KI-Flow
+    // 🧠 KI-Flow
     setIsAiLoading(true);
+
     try {
       const historyWithCurrent = [...messages, userMessage];
       const historyAsLlm: LlmMessage[] = historyWithCurrent.map((m) => ({
@@ -212,7 +202,7 @@ const ChatScreen: React.FC = () => {
         config.selectedChatProvider,
         config.selectedChatMode,
         config.qualityMode,
-        llmMessages as any[]
+        llmMessages
       );
 
       console.log('[ChatScreen] 🤖 Orchestrator Ergebnis:', ai);
@@ -272,13 +262,24 @@ const ChatScreen: React.FC = () => {
         return;
       }
 
-      console.log('[ChatScreen] 📦 Normalisierte Dateien:', normalized.length);
+      console.log(
+        '[ChatScreen] 📦 Normalisierte Dateien:',
+        normalized.length
+      );
 
       const mergeResult = applyFilesToProject(projectFiles, normalized);
       await updateProjectFiles(mergeResult.files);
 
+      const timing =
+        ai.timing && ai.timing.durationMs
+          ? ` (${(ai.timing.durationMs / 1000).toFixed(1)}s)`
+          : '';
+
       const summaryText =
-        `✅ KI-Update erfolgreich (Provider: ${ai.provider || 'unbekannt'})\n` +
+        `✅ KI-Update erfolgreich${timing}\n\n` +
+        `🤖 Provider: ${ai.provider || 'unbekannt'}${
+          ai.keysRotated ? ` (${ai.keysRotated}x rotiert)` : ''
+        }\n` +
         `📝 Neue Dateien: ${mergeResult.created.length}\n` +
         `📝 Geänderte Dateien: ${mergeResult.updated.length}\n` +
         `⏭ Übersprungen: ${mergeResult.skipped.length}`;
@@ -293,7 +294,6 @@ const ChatScreen: React.FC = () => {
         },
       });
 
-      // ✅ Rotation Feedback
       if (ai.keysRotated && ai.keysRotated > 0) {
         addChatMessage({
           id: uuidv4(),
@@ -310,11 +310,9 @@ const ChatScreen: React.FC = () => {
       addChatMessage({
         id: uuidv4(),
         role: 'assistant',
-        content: msg,
+        content: `${msg}\n\n${e?.message || 'Unbekannter Fehler'}`,
         timestamp: new Date().toISOString(),
-        meta: {
-          error: true,
-        },
+        meta: { error: true },
       });
     } finally {
       setIsAiLoading(false);
@@ -326,11 +324,11 @@ const ChatScreen: React.FC = () => {
   );
 
   const renderFooter = () => {
-    if (!isAiLoading) return null;
+    if (!combinedIsLoading) return null;
     return (
       <View style={styles.loadingFooter}>
         <ActivityIndicator size="small" color={theme.palette.primary} />
-        <Text style={styles.loadingText}>KI denkt nach…</Text>
+        <Text style={styles.loadingText}>Builder arbeitet ...</Text>
       </View>
     );
   };
@@ -346,88 +344,76 @@ const ChatScreen: React.FC = () => {
           {combinedIsLoading && messages.length === 0 ? (
             <View style={styles.loadingOverlay}>
               <ActivityIndicator size="large" color={theme.palette.primary} />
-              <Text style={styles.loadingText}>Lade Projekt / KI…</Text>
+              <Text style={styles.loadingOverlayText}>
+                Projekt und Chat werden geladen ...
+              </Text>
             </View>
           ) : (
             <FlatList
               ref={flatListRef}
               data={messages}
-              keyExtractor={(item) => item.id}
               renderItem={renderItem}
+              keyExtractor={(item) => item.id}
               contentContainerStyle={styles.listContent}
               ListFooterComponent={renderFooter}
-              keyboardDismissMode="on-drag"
-              keyboardShouldPersistTaps="handled"
             />
           )}
         </View>
 
-        {error && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{String(error)}</Text>
+        {error && <Text style={styles.errorText}>{error}</Text>}
+
+        <View style={styles.inputContainer}>
+          <TouchableOpacity
+            style={[
+              styles.iconButton,
+              selectedFileAsset && styles.iconButtonActive,
+            ]}
+            onPress={handlePickDocument}
+          >
+            <Ionicons
+              name="attach-outline"
+              size={22}
+              color={
+                selectedFileAsset
+                  ? theme.palette.secondary
+                  : theme.palette.text.secondary
+              }
+            />
+          </TouchableOpacity>
+
+          <TextInput
+            style={styles.textInput}
+            placeholder="Beschreibe deine App oder den nächsten Schritt ..."
+            placeholderTextColor={theme.palette.text.secondary}
+            value={textInput}
+            onChangeText={setTextInput}
+            multiline
+          />
+
+          <TouchableOpacity
+            style={styles.sendButton}
+            onPress={handleSend}
+            disabled={combinedIsLoading}
+          >
+            {combinedIsLoading ? (
+              <ActivityIndicator size="small" color={theme.palette.background} />
+            ) : (
+              <Ionicons
+                name="send-outline"
+                size={20}
+                color={theme.palette.background}
+              />
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {selectedFileAsset && (
+          <View style={styles.selectedFileBox}>
+            <Text style={styles.selectedFileText}>
+              📎 {selectedFileAsset.name}
+            </Text>
           </View>
         )}
-
-        <View style={styles.inputWrapper}>
-          {selectedFileAsset && (
-            <View style={styles.attachedFileContainer}>
-              <Ionicons
-                name="document-attach-outline"
-                size={14}
-                color={theme.palette.text.secondary}
-              />
-              <Text style={styles.attachedFileText} numberOfLines={1}>
-                {selectedFileAsset.name}
-              </Text>
-              <TouchableOpacity
-                onPress={() => setSelectedFileAsset(null)}
-                style={styles.removeFileButton}
-              >
-                <Ionicons
-                  name="close-circle"
-                  size={16}
-                  color={theme.palette.text.secondary}
-                />
-              </TouchableOpacity>
-            </View>
-          )}
-
-          <View style={styles.inputContainerInner}>
-            <TouchableOpacity
-              onPress={handlePickDocument}
-              style={styles.iconButton}
-              disabled={combinedIsLoading}
-            >
-              <Ionicons
-                name="document-attach-outline"
-                size={22}
-                color={theme.palette.text.secondary}
-              />
-            </TouchableOpacity>
-
-            <TextInput
-              style={styles.textInput}
-              value={textInput}
-              onChangeText={setTextInput}
-              placeholder="Beschreibe, was der Builder tun soll…"
-              placeholderTextColor={theme.palette.input.placeholder}
-              editable={!combinedIsLoading}
-              multiline
-            />
-
-            <TouchableOpacity
-              style={styles.sendButton}
-              onPress={handleSend}
-              disabled={combinedIsLoading}
-            >
-              {isAiLoading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Ionicons name="send" size={18} color="#fff" />
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -445,96 +431,83 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    paddingHorizontal: 8,
-    paddingVertical: 8,
+    padding: 12,
+    paddingBottom: 80,
   },
   loadingOverlay: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 32,
+  },
+  loadingOverlayText: {
+    marginTop: 12,
+    color: theme.palette.text.secondary,
   },
   loadingFooter: {
-    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
+    paddingVertical: 8,
   },
   loadingText: {
+    marginLeft: 8,
     color: theme.palette.text.secondary,
-    fontSize: 13,
-  },
-  inputWrapper: {
-    borderTopWidth: 1,
-    borderTopColor: theme.palette.border,
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-    backgroundColor: theme.palette.card,
-  },
-  inputContainerInner: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    backgroundColor: theme.palette.input.background,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-  },
-  iconButton: {
-    padding: 4,
-    marginRight: 4,
-  },
-  textInput: {
-    flex: 1,
-    color: theme.palette.text.primary,
-    maxHeight: 120,
-    minHeight: 36,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-  },
-  sendButton: {
-    padding: 8,
-    borderRadius: 999,
-    backgroundColor: theme.palette.primary,
-    marginLeft: 4,
-  },
-  attachedFileContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.palette.input.background + '60',
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    marginHorizontal: 6,
-    marginBottom: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-  },
-  attachedFileText: {
-    flex: 1,
-    marginLeft: 6,
-    marginRight: 4,
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-  },
-  removeFileButton: {
-    padding: 2,
-  },
-  errorContainer: {
-    marginTop: 4,
-    marginHorizontal: 6,
-    borderRadius: 6,
-    backgroundColor: theme.palette.card,
-    borderWidth: 1,
-    borderColor: theme.palette.error,
-    padding: 6,
   },
   errorText: {
     color: theme.palette.error,
-    textAlign: 'center',
+    paddingHorizontal: 12,
+    paddingBottom: 4,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  iconButtonActive: {
+    borderColor: theme.palette.secondary,
+  },
+  textInput: {
+    flex: 1,
+    maxHeight: 120,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    color: theme.palette.text.primary,
+    fontSize: 14,
+    backgroundColor: theme.palette.background,
+  },
+  sendButton: {
+    marginLeft: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.palette.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedFileBox: {
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+    backgroundColor: theme.palette.card,
+  },
+  selectedFileText: {
     fontSize: 12,
+    color: theme.palette.text.secondary,
   },
 });
 

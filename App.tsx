@@ -1,3 +1,5 @@
+// App.tsx – MIT ALLEN NEUEN SCREENS (Diagnostic + Preview)
+
 import {
   LogBox,
   StyleSheet,
@@ -22,6 +24,7 @@ import { theme } from './theme';
 import { TerminalProvider } from './contexts/TerminalContext';
 import { AIProvider } from './contexts/AIContext';
 import { ProjectProvider, useProject } from './contexts/ProjectContext';
+import { GitHubProvider } from './contexts/GitHubContext';
 
 import ChatScreen from './screens/ChatScreen';
 import CodeScreen from './screens/CodeScreen';
@@ -30,6 +33,12 @@ import SettingsScreen from './screens/SettingsScreen';
 import ConnectionsScreen from './screens/ConnectionsScreen';
 import AppInfoScreen from './screens/AppInfoScreen';
 import BuildScreen from './screens/BuildScreen';
+import GitHubReposScreen from './screens/GitHubReposScreen';
+import BuildScreenV2 from './screens/BuildScreenV2';
+
+// ✅ NEUE SCREENS
+import DiagnosticScreen from './screens/DiagnosticScreen';
+import PreviewScreen from './screens/PreviewScreen';
 
 import CustomHeader from './components/CustomHeader';
 import { CustomDrawerContent } from './components/CustomDrawer';
@@ -50,14 +59,22 @@ const TabNavigator = () => {
           let iconName: keyof typeof Ionicons.glyphMap = 'help-circle';
 
           if (route.name === 'Chat') {
-            iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+            iconName = focused
+              ? 'chatbubbles'
+              : 'chatbubbles-outline';
           } else if (route.name === 'Code') {
-            iconName = focused ? 'code-slash' : 'code-slash-outline';
+            iconName = focused
+              ? 'code-slash'
+              : 'code-slash-outline';
           } else if (route.name === 'Terminal') {
-            iconName = focused ? 'terminal' : 'terminal-outline';
+            iconName = focused
+              ? 'terminal'
+              : 'terminal-outline';
           }
 
-          return <Ionicons name={iconName} size={size} color={color} />;
+          return (
+            <Ionicons name={iconName} size={size} color={color} />
+          );
         },
         tabBarActiveTintColor: theme.palette.primary,
         tabBarInactiveTintColor: theme.palette.text.secondary,
@@ -86,18 +103,27 @@ const AppNavigation = () => {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.palette.primary} />
-        <Text style={styles.loadingText}>Projekt-Manager wird geladen...</Text>
+        <ActivityIndicator
+          size="large"
+          color={theme.palette.primary}
+        />
+        <Text style={styles.loadingText}>
+          Projekt-Manager wird geladen...
+        </Text>
       </View>
     );
   }
 
   return (
     <NavigationContainer>
-      <StatusBar style="light" backgroundColor={theme.palette.card} />
-
+      <StatusBar
+        style="light"
+        backgroundColor={theme.palette.card}
+      />
       <Drawer.Navigator
-        drawerContent={(props) => <CustomDrawerContent {...props} />}
+        drawerContent={(props) => (
+          <CustomDrawerContent {...props} />
+        )}
         screenOptions={{
           header: (props) => <CustomHeader {...props} />,
           drawerStyle: { backgroundColor: theme.palette.card },
@@ -108,31 +134,83 @@ const AppNavigation = () => {
         <Drawer.Screen
           name="Home"
           component={TabNavigator}
-          options={{ title: 'k1w1-a0style', drawerLabel: 'Home' }}
+          options={{
+            title: 'k1w1-a0style',
+            drawerLabel: 'Home',
+          }}
         />
 
         <Drawer.Screen
           name="Settings"
           component={SettingsScreen}
-          options={{ title: 'KI-Einstellungen', drawerLabel: 'KI-Einstellungen' }}
+          options={{
+            title: 'KI-Einstellungen',
+            drawerLabel: 'KI-Einstellungen',
+          }}
         />
 
         <Drawer.Screen
           name="Connections"
           component={ConnectionsScreen}
-          options={{ title: 'Verbindungen', drawerLabel: 'Verbindungen' }}
+          options={{
+            title: 'Verbindungen',
+            drawerLabel: 'Verbindungen',
+          }}
+        />
+
+        <Drawer.Screen
+          name="GitHubRepos"
+          component={GitHubReposScreen}
+          options={{
+            title: 'GitHub Repos',
+            drawerLabel: 'GitHub Repos',
+          }}
+        />
+
+        {/* ✅ NEUE SCREENS */}
+        <Drawer.Screen
+          name="Diagnostic"
+          component={DiagnosticScreen}
+          options={{
+            title: 'Diagnose',
+            drawerLabel: '🔍 Diagnose',
+          }}
+        />
+
+        <Drawer.Screen
+          name="Preview"
+          component={PreviewScreen}
+          options={{
+            title: 'Vorschau',
+            drawerLabel: '👁 Vorschau',
+          }}
         />
 
         <Drawer.Screen
           name="Builds"
           component={BuildScreen}
-          options={{ title: 'Build Status', drawerLabel: '📦 Builds' }}
+          options={{
+            title: 'Build Status',
+            drawerLabel: '📦 Builds (alt)',
+          }}
+        />
+
+        <Drawer.Screen
+          name="BuildsV2"
+          component={BuildScreenV2}
+          options={{
+            title: 'Build Status V2',
+            drawerLabel: '📦 Builds (V2)',
+          }}
         />
 
         <Drawer.Screen
           name="AppInfo"
           component={AppInfoScreen}
-          options={{ title: 'App Info', drawerLabel: 'App Info' }}
+          options={{
+            title: 'App Info',
+            drawerLabel: 'App Info',
+          }}
         />
       </Drawer.Navigator>
     </NavigationContainer>
@@ -148,7 +226,9 @@ export default function App() {
     <TerminalProvider>
       <AIProvider>
         <ProjectProvider>
-          <AppNavigation />
+          <GitHubProvider>
+            <AppNavigation />
+          </GitHubProvider>
         </ProjectProvider>
       </AIProvider>
     </TerminalProvider>

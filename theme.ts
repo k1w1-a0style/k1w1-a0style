@@ -24,7 +24,7 @@ export const theme = {
       border: '#444444',
       text: '#e0e0e0',
     },
-    systemBubble: {              // ✅ NEU
+    systemBubble: {
       background: 'transparent',
       border: '#ffaa00',
       text: '#ffaa00',
@@ -35,7 +35,7 @@ export const theme = {
       primary: '#e0e0e0',
       secondary: '#999999',
       disabled: '#555555',
-      muted: '#666666',          // ✅ NEU
+      muted: '#666666',
     },
 
     // Inputs
@@ -66,6 +66,13 @@ export const theme = {
   sizes: {
     screenWidth: width,
     screenHeight: height,
+  },
+
+  // 🔥 Neu: für alle Stellen mit theme.borderRadius.*
+  borderRadius: {
+    sm: 4,
+    md: 8,
+    lg: 16,
   },
 };
 

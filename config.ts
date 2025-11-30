@@ -1,5 +1,4 @@
 // Zentrale Konfiguration für Validierung, Pfade, API-Endpunkte usw.
-
 export const CONFIG = {
   VALIDATION: {
     // 🔧 Strengere Mindestzeilen für echte Dateien (keine 1-Zeilen-Platzhalter)
