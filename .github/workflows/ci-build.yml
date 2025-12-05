@@ -42,7 +42,44 @@ jobs:
         continue-on-error: true
 
       - name: Build on EAS (Android)
-        run: eas build --platform android --non-interactive --no-wait
+        id: eas
+        run: |
+          echo "🚀 Starting EAS build (CI mode)..."
+          echo "📱 Platform: Android"
+          echo "⚡ Mode: Fast validation (--no-wait)"
+          echo ""
+          
+          BUILD_OUTPUT=$(eas build --platform android --non-interactive --no-wait 2>&1)
+          BUILD_EXIT_CODE=$?
+          
+          echo "$BUILD_OUTPUT"
+          
+          # Extract Build ID
+          BUILD_ID=$(echo "$BUILD_OUTPUT" | grep -oP 'Build ID: \K[a-f0-9-]+' || echo "unknown")
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+          echo "✅ Build queued with ID: $BUILD_ID"
+          
+          # Extract Build URL
+          BUILD_URL=$(echo "$BUILD_OUTPUT" | grep -oP 'https://expo.dev/accounts/[^/]+/projects/[^/]+/builds/[a-f0-9-]+' || echo "")
+          echo "build_url=$BUILD_URL" >> $GITHUB_OUTPUT
+          
+          if [ $BUILD_EXIT_CODE -ne 0 ]; then
+            echo "❌ Build submission failed with exit code $BUILD_EXIT_CODE"
+            exit $BUILD_EXIT_CODE
+          fi
+          
+          echo "✅ Build submitted successfully!"
         # ✅ Fast CI validation with --no-wait
         # ✅ Android only (faster than --platform all)
         # ✅ Uses EAS cache (no --clear-cache)
+        
+      - name: Create CI Summary
+        if: always()
+        run: |
+          echo "## 📊 CI Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build ID:** ${{ steps.eas.outputs.build_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build URL:** ${{ steps.eas.outputs.build_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Build has been queued. Check EAS dashboard for progress." >> $GITHUB_STEP_SUMMARY
