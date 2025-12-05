@@ -41,6 +41,18 @@ npm run lint
 - [WORKFLOW_MIGRATION_COMPLETE.md](./WORKFLOW_MIGRATION_COMPLETE.md) - Migrations-Dokumentation
 - [.github/workflows/README.md](./.github/workflows/README.md) - Workflow-Guide
 
+### 🧪 Test & Security (NEU!)
+
+**🚀 START HIER:** [IMMEDIATE_NEXT_STEPS.md](./IMMEDIATE_NEXT_STEPS.md) - Was jetzt zu tun ist!
+
+#### Quick Reference:
+- [TEST_SECURITY_EXECUTIVE_SUMMARY.md](./TEST_SECURITY_EXECUTIVE_SUMMARY.md) - Executive Summary
+
+#### Vollständige Dokumentation:
+- [COMPREHENSIVE_TEST_SECURITY_PLAN.md](./COMPREHENSIVE_TEST_SECURITY_PLAN.md) - Kompletter Plan (88-122h)
+- [TEST_SECURITY_CHECKLIST.md](./TEST_SECURITY_CHECKLIST.md) - Implementation Checklist (150+ Tasks)
+- [SECURITY_QUICK_REFERENCE.md](./SECURITY_QUICK_REFERENCE.md) - Developer Security Guide
+
 ## 🔄 CI/CD Workflows
 
 Dieses Projekt verwendet 3 optimierte GitHub Actions Workflows:
@@ -102,21 +114,41 @@ k1w1-a0style/
 
 ### Bekannte Probleme:
 1. 🔴 API-Keys im Global Scope (10/10 Severity)
-2. 🔴 Keine Input-Validierung (8/10 Severity)
-3. 🟠 Race Conditions (7/10 Severity)
+2. 🔴 Keine Input-Validierung (9/10 Severity)
+3. 🔴 Token Storage ohne Encryption (8/10 Severity)
+4. 🟠 Race Conditions (7/10 Severity)
+5. 🟠 Memory Leaks (7/10 Severity)
+6. 🟠 Keine Rate Limiting (7/10 Severity)
 
-**Details:** [AKTUELLE_KRITISCHE_PRUEFUNG.md](./AKTUELLE_KRITISCHE_PRUEFUNG.md)
+**Total:** 11 Security Issues identifiziert
+
+**Quick Fix:** 25-36 Stunden für kritische Issues  
+**Vollständig:** 88-122 Stunden für Production-Ready
+
+**Details:** [COMPREHENSIVE_TEST_SECURITY_PLAN.md](./COMPREHENSIVE_TEST_SECURITY_PLAN.md) | [Security Guide](./SECURITY_QUICK_REFERENCE.md)
 
 ## 🧪 Testing
 
-**Status:** ❌ Keine Tests vorhanden
+**Status:** ❌ Keine Tests vorhanden (0% Coverage)
 
-**Geplant:**
-- Unit-Tests für `lib/*` und `utils/*`
-- Integration-Tests für Contexts
-- E2E-Tests für kritische User-Flows
+**Plan erstellt:** ✅ Comprehensive Test & Security Plan
 
-**Target:** >80% Coverage
+### Test-Strategie:
+- **Phase 1:** Jest Setup + Foundation (Woche 1-2, 16-24h)
+- **Phase 2:** Core Unit Tests (Woche 3-4, 44-58h)
+- **Phase 3:** Integration + E2E (Woche 5-6, 28-36h)
+- **Phase 4:** Final Polish (Woche 7, 16-24h)
+
+### Coverage Targets:
+| Module | Target |
+|--------|--------|
+| `lib/` | 85% |
+| `contexts/` | 80% |
+| `utils/` | 90% |
+| **Overall** | **80%** |
+
+**Vollständiger Plan:** [COMPREHENSIVE_TEST_SECURITY_PLAN.md](./COMPREHENSIVE_TEST_SECURITY_PLAN.md)  
+**Task Checklist:** [TEST_SECURITY_CHECKLIST.md](./TEST_SECURITY_CHECKLIST.md)
 
 ## 📦 Dependencies
 
@@ -198,6 +230,8 @@ Siehe LICENSE Datei.
 
 **Workflow-Probleme?** → [.github/workflows/README.md](./.github/workflows/README.md)  
 **Code-Reviews?** → [INDEX_KRITISCHE_REVIEWS.md](./INDEX_KRITISCHE_REVIEWS.md)  
+**Test & Security?** → [TEST_SECURITY_EXECUTIVE_SUMMARY.md](./TEST_SECURITY_EXECUTIVE_SUMMARY.md)  
+**Security Guide?** → [SECURITY_QUICK_REFERENCE.md](./SECURITY_QUICK_REFERENCE.md)  
 **Weitere Fragen?** → GitHub Issues
 
 ---
