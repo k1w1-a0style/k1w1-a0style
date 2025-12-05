@@ -5,9 +5,11 @@ import React, {
   useEffect,
   useMemo,
   useState,
+  useRef,
   ReactNode,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Mutex } from 'async-mutex';
 
 import SecureKeyManager from '../lib/SecureKeyManager';
 
@@ -586,29 +588,38 @@ const updateSecureKeyManager = (cfg: AIConfig) => {
   console.log('[AIContext] 🔐 SecureKeyManager aktualisiert');
 };
 
-let _currentConfig: AIConfig | null = null;
-export const getAIConfig = (): AIConfig | null => _currentConfig;
-const setAIConfig = (cfg: AIConfig) => {
-  _currentConfig = cfg;
+// ✅ FIX: Ref-based State statt module-level für bessere Testbarkeit
+const configRef: { current: AIConfig | null } = { current: null };
+const rotateFunctionRef: { 
+  current: ((provider: AllAIProviders, reason?: string) => Promise<boolean>) | null 
+} = { current: null };
+
+export const getAIConfig = (): AIConfig | null => {
+  if (configRef.current === null) {
+    console.warn('[AIContext] getAIConfig() called before initialization. Use useAI() hook instead.');
+  }
+  return configRef.current;
 };
 
-let _rotateFunction: ((provider: AllAIProviders, reason?: string) => Promise<boolean>) | null = null;
+const setAIConfig = (cfg: AIConfig) => {
+  configRef.current = cfg;
+};
 
 export const setRotateFunction = (
   fn: (provider: AllAIProviders, reason?: string) => Promise<boolean>,
 ) => {
-  _rotateFunction = fn;
+  rotateFunctionRef.current = fn;
 };
 
 export const rotateApiKeyOnError = async (
   provider: AllAIProviders,
   reason?: string,
 ): Promise<boolean> => {
-  if (!_rotateFunction) {
+  if (!rotateFunctionRef.current) {
     console.error('❌ [AIContext] Rotate-Funktion nicht initialisiert');
     return false;
   }
-  return _rotateFunction(provider, reason);
+  return rotateFunctionRef.current(provider, reason);
 };
 
 const createInitialProviderStatus = (): Record<AllAIProviders, ProviderLimitStatus> =>
@@ -626,6 +637,9 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [providerStatus, setProviderStatus] = useState<Record<AllAIProviders, ProviderLimitStatus>>(
     createInitialProviderStatus,
   );
+  
+  // ✅ FIX: Mutex für API Key Rotation gegen Race Conditions
+  const rotationMutexRef = useRef(new Mutex());
 
   useEffect(() => {
     let active = true;
@@ -834,28 +848,35 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
   const rotateApiKeyOnErrorInternal = useCallback(
     async (provider: AllAIProviders, reason?: string): Promise<boolean> => {
-      const keys = config.apiKeys[provider] || [];
-      if (keys.length <= 1) {
-        console.warn(`⚠️ [AIContext] Keine weiteren Keys für ${provider} verfügbar`);
+      // ✅ FIX: Mutex protection gegen gleichzeitige Rotationen
+      const release = await rotationMutexRef.current.acquire();
+      
+      try {
+        const keys = config.apiKeys[provider] || [];
+        if (keys.length <= 1) {
+          console.warn(`⚠️ [AIContext] Keine weiteren Keys für ${provider} verfügbar`);
+          flagProviderLimit(provider, reason);
+          return false;
+        }
+
+        const rotated = [...keys.slice(1), keys[0]];
+
+        const next = migrateConfig({
+          ...config,
+          apiKeys: {
+            ...config.apiKeys,
+            [provider]: rotated,
+          },
+        });
+
+        await persist(next);
         flagProviderLimit(provider, reason);
-        return false;
+        console.log(`🔄 [AIContext] Auto-Rotation für ${provider}`);
+
+        return true;
+      } finally {
+        release();
       }
-
-      const rotated = [...keys.slice(1), keys[0]];
-
-      const next = migrateConfig({
-        ...config,
-        apiKeys: {
-          ...config.apiKeys,
-          [provider]: rotated,
-        },
-      });
-
-      await persist(next);
-      flagProviderLimit(provider, reason);
-      console.log(`🔄 [AIContext] Auto-Rotation für ${provider}`);
-
-      return true;
     },
     [config, persist, flagProviderLimit],
   );
@@ -908,10 +929,13 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     ],
   );
 
-  if (!loaded) {
-    setAIConfig(config);
-    updateSecureKeyManager(config);
-  }
+  // ✅ FIX: Side Effects in useEffect statt während Render
+  useEffect(() => {
+    if (loaded) {
+      setAIConfig(config);
+      updateSecureKeyManager(config);
+    }
+  }, [loaded, config]);
 
   return <AIContext.Provider value={value}>{children}</AIContext.Provider>;
 };
