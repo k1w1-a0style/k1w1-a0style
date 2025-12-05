@@ -1,8 +1,8 @@
 // hooks/useGitHubRepos.ts - Custom hook for GitHub repository management
 import { useState, useCallback } from 'react';
-import { Alert } from 'react-native';
 import { Buffer } from 'buffer';
 import { ProjectFile } from '../contexts/types';
+import { fetchWithBackoff } from '../lib/retryWithBackoff';
 
 export type GitHubRepo = {
   id: number;
@@ -13,46 +13,27 @@ export type GitHubRepo = {
   updated_at: string;
 };
 
-// Retry helper for API calls
-async function fetchWithRetry(
-  url: string,
-  options: RequestInit,
-  maxRetries = 3
-): Promise<Response> {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const res = await fetch(url, options);
-
-      if (res.ok || res.status === 404 || res.status === 403) {
-        return res;
-      }
-
-      if (res.status >= 500 && i < maxRetries - 1) {
-        await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
-        continue;
-      }
-
-      return res;
-    } catch (e) {
-      if (i === maxRetries - 1) throw e;
-      await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
-    }
-  }
-
-  throw new Error('Max retries reached');
+// ============================================
+// CALLBACK TYPES
+// ============================================
+export interface UseGitHubReposCallbacks {
+  onLoadError?: (error: string) => void;
+  onDeleteError?: (error: string, repo: GitHubRepo) => void;
+  onDeleteNoPermission?: (repo: GitHubRepo) => void;
+  onRenameError?: (error: string, currentName: string, newName: string) => void;
+  onPullError?: (error: string) => void;
+  onPullNoFiles?: () => void;
+  onNoToken?: () => void;
 }
 
-export const useGitHubRepos = (token: string | null) => {
+export const useGitHubRepos = (token: string | null, callbacks?: UseGitHubReposCallbacks) => {
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadRepos = useCallback(async () => {
     if (!token) {
-      Alert.alert(
-        'Kein Token',
-        'Bitte hinterlege dein GitHub-PAT im „Verbindungen"-Screen.'
-      );
+      callbacks?.onNoToken?.();
       return;
     }
 
@@ -60,7 +41,7 @@ export const useGitHubRepos = (token: string | null) => {
       setLoading(true);
       setError(null);
 
-      const res = await fetchWithRetry(
+      const res = await fetchWithBackoff(
         'https://api.github.com/user/repos?per_page=100&sort=updated',
         {
           headers: {
@@ -79,19 +60,20 @@ export const useGitHubRepos = (token: string | null) => {
       setRepos(json);
     } catch (e: any) {
       console.error('[useGitHubRepos] Error:', e);
-      setError(e?.message ?? 'Fehler beim Laden der Repos');
-      Alert.alert('Fehler', 'Repos konnten nicht geladen werden.');
+      const errorMsg = e?.message ?? 'Fehler beim Laden der Repos';
+      setError(errorMsg);
+      callbacks?.onLoadError?.(errorMsg);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, callbacks]);
 
   const deleteRepo = useCallback(
     async (repo: GitHubRepo) => {
       if (!token) return;
 
       try {
-        const res = await fetchWithRetry(
+        const res = await fetchWithBackoff(
           `https://api.github.com/repos/${repo.full_name}`,
           {
             method: 'DELETE',
@@ -103,10 +85,7 @@ export const useGitHubRepos = (token: string | null) => {
         );
 
         if (res.status === 403) {
-          Alert.alert(
-            'Keine Rechte',
-            'Du brauchst Admin-Rechte + delete_repo-Scope.'
-          );
+          callbacks?.onDeleteNoPermission?.(repo);
           return false;
         }
 
@@ -118,11 +97,12 @@ export const useGitHubRepos = (token: string | null) => {
         return true;
       } catch (e: any) {
         console.error('[useGitHubRepos] Delete error:', e);
-        Alert.alert('Fehler', e?.message ?? 'Repo konnte nicht gelöscht werden.');
+        const errorMsg = e?.message ?? 'Repo konnte nicht gelöscht werden.';
+        callbacks?.onDeleteError?.(errorMsg, repo);
         return false;
       }
     },
-    [token]
+    [token, callbacks]
   );
 
   const renameRepo = useCallback(
@@ -130,7 +110,7 @@ export const useGitHubRepos = (token: string | null) => {
       if (!token) return null;
 
       try {
-        const res = await fetchWithRetry(
+        const res = await fetchWithBackoff(
           `https://api.github.com/repos/${currentFullName}`,
           {
             method: 'PATCH',
@@ -160,11 +140,12 @@ export const useGitHubRepos = (token: string | null) => {
         return newFullName;
       } catch (e: any) {
         console.error('[useGitHubRepos] Rename error:', e);
-        Alert.alert('Fehler', e?.message ?? 'Repo konnte nicht umbenannt werden.');
+        const errorMsg = e?.message ?? 'Repo konnte nicht umbenannt werden.';
+        callbacks?.onRenameError?.(errorMsg, currentFullName, newName);
         return null;
       }
     },
-    [token]
+    [token, callbacks]
   );
 
   const pullFromRepo = useCallback(
@@ -183,7 +164,7 @@ export const useGitHubRepos = (token: string | null) => {
 
         onProgress?.('Lade Repo-Info...');
 
-        const infoRes = await fetchWithRetry(
+        const infoRes = await fetchWithBackoff(
           `https://api.github.com/repos/${owner}/${repo}`,
           { headers }
         );
@@ -197,7 +178,7 @@ export const useGitHubRepos = (token: string | null) => {
 
         onProgress?.(`Lade Dateibaum (Branch: ${branch})...`);
 
-        const treeRes = await fetchWithRetry(
+        const treeRes = await fetchWithBackoff(
           `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
           { headers }
         );
@@ -218,7 +199,7 @@ export const useGitHubRepos = (token: string | null) => {
         const treeEntries = treeJson.tree.filter((entry: any) => entry.type === 'blob');
 
         if (!treeEntries.length) {
-          Alert.alert('Keine Dateien', 'Im Repository wurden keine Dateien gefunden.');
+          callbacks?.onPullNoFiles?.();
           return [];
         }
 
@@ -242,7 +223,7 @@ export const useGitHubRepos = (token: string | null) => {
               }
 
               try {
-                const res = await fetchWithRetry(
+                const res = await fetchWithBackoff(
                   `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`,
                   { headers }
                 );
@@ -270,18 +251,19 @@ export const useGitHubRepos = (token: string | null) => {
         }
 
         if (files.length === 0) {
-          Alert.alert('Keine Dateien', 'Im Repository wurden keine Text-Dateien gefunden.');
+          callbacks?.onPullNoFiles?.();
           return [];
         }
 
         return files;
       } catch (e: any) {
         console.error('[useGitHubRepos] Pull error:', e);
-        Alert.alert('Pull fehlgeschlagen', e?.message ?? 'Fehler beim Laden der Dateien.');
+        const errorMsg = e?.message ?? 'Fehler beim Laden der Dateien.';
+        callbacks?.onPullError?.(errorMsg);
         return null;
       }
     },
-    [token]
+    [token, callbacks]
   );
 
   return {
