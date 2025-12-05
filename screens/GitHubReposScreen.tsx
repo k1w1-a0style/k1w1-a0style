@@ -1,11 +1,5 @@
-// screens/GitHubReposScreen.tsx - MIT ALLEN FIXES (A)
-// ✅ Error-Handling bei Netzwerkproblemen
-// ✅ Loading-States bei allen Operationen
-// ✅ Binary Files werden übersprungen (kein Base64-Crash)
-// ✅ Retry-Logic bei API-Fehlern
-// ✅ Besseres User-Feedback
-
-import React, { useEffect, useState } from 'react';
+// screens/GitHubReposScreen.tsx - OPTIMIZED VERSION
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -19,77 +13,35 @@ import {
   Switch,
   Linking,
 } from 'react-native';
-import { Buffer } from 'buffer';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
 import { useGitHub } from '../contexts/GitHubContext';
 import { useProject, getGitHubToken } from '../contexts/ProjectContext';
 import { createRepo, pushFilesToRepo } from '../contexts/githubService';
-import { ProjectFile } from '../contexts/types';
-
-type GitHubRepo = {
-  id: number;
-  name: string;
-  full_name: string;
-  private: boolean;
-  description?: string | null;
-  updated_at: string;
-};
+import { useGitHubRepos, GitHubRepo } from '../hooks/useGitHubRepos';
+import { RepoListItem } from '../components/RepoListItem';
 
 type RepoFilterType = 'all' | 'activeOnly' | 'recentOnly';
 
-// ✅ Retry-Helper für API-Calls
-async function fetchWithRetry(
-  url: string,
-  options: RequestInit,
-  maxRetries = 3
-): Promise<Response> {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const res = await fetch(url, options);
-
-      // Erfolg oder "finaler" Fehler (404 / 403)
-      if (res.ok || res.status === 404 || res.status === 403) {
-        return res;
-      }
-
-      // Bei 5xx-Fehlern mit Backoff erneut versuchen
-      if (res.status >= 500 && i < maxRetries - 1) {
-        await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
-        continue;
-      }
-
-      return res;
-    } catch (e) {
-      if (i === maxRetries - 1) throw e;
-      await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
-    }
-  }
-
-  throw new Error('Max retries erreicht');
-}
-
 export default function GitHubReposScreen() {
-  const { activeRepo, setActiveRepo, recentRepos, addRecentRepo, clearRecentRepos } =
-    useGitHub();
+  const { activeRepo, setActiveRepo, recentRepos, addRecentRepo, clearRecentRepos } = useGitHub();
   const { projectData, updateProjectFiles } = useProject();
-
-  const [repos, setRepos] = useState<GitHubRepo[]>([]);
-  const [loadingRepos, setLoadingRepos] = useState(false);
-  const [errorRepos, setErrorRepos] = useState<string | null>(null);
 
   const [token, setToken] = useState<string | null>(null);
   const [tokenLoading, setTokenLoading] = useState(false);
-  const [tokenError, setTokenError] = useState<string | null>(null);
+
+  const { repos, loading: loadingRepos, loadRepos, deleteRepo: deleteRepoHook, renameRepo: renameRepoHook, pullFromRepo } = useGitHubRepos(token);
 
   const [filterType, setFilterType] = useState<RepoFilterType>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Neues Repo
+  // New repo
   const [newRepoName, setNewRepoName] = useState('');
   const [newRepoPrivate, setNewRepoPrivate] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
 
-  // Umbenennen
+  // Rename
   const [renameName, setRenameName] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
 
@@ -102,13 +54,11 @@ export default function GitHubReposScreen() {
     const loadToken = async () => {
       try {
         setTokenLoading(true);
-        setTokenError(null);
         const t = await getGitHubToken();
         setToken(t);
-        console.log('[GitHubReposScreen] GitHub-Token geladen:', !!t);
+        console.log('[GitHubReposScreen] Token loaded:', !!t);
       } catch (e: any) {
-        console.log('[GitHubReposScreen] Fehler beim Token-Laden:', e);
-        setTokenError(e?.message ?? 'Fehler beim Laden des Tokens');
+        console.error('[GitHubReposScreen] Token load error:', e);
       } finally {
         setTokenLoading(false);
       }
@@ -137,50 +87,20 @@ export default function GitHubReposScreen() {
     return true;
   };
 
-  const loadRepos = async () => {
-    try {
-      if (!requireTokenOrAlert()) return;
+  const handleSelectRepo = useCallback(
+    (repo: GitHubRepo) => {
+      setActiveRepo(repo.full_name);
+      addRecentRepo(repo.full_name);
+    },
+    [setActiveRepo, addRecentRepo]
+  );
 
-      setLoadingRepos(true);
-      setErrorRepos(null);
-
-      const res = await fetchWithRetry(
-        'https://api.github.com/user/repos?per_page=100&sort=updated',
-        {
-          headers: {
-            Accept: 'application/vnd.github+json',
-            Authorization: `token ${token}`,
-          },
-        }
-      );
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`GitHub-API Fehler (${res.status}): ${text}`);
+  const handleDeleteRepo = useCallback(
+    async (repo: GitHubRepo) => {
+      if (!token) {
+        Alert.alert('Kein Token', 'Bitte Token im Verbindungen-Screen hinterlegen.');
+        return;
       }
-
-      const json = (await res.json()) as GitHubRepo[];
-      setRepos(json);
-    } catch (e: any) {
-      console.log('[GitHubReposScreen] Netzwerkfehler:', e);
-      setErrorRepos(e?.message ?? 'Netzwerkfehler beim Laden der Repos.');
-      Alert.alert(
-        'Fehler',
-        'Repos konnten nicht geladen werden. Prüfe deine Internetverbindung.'
-      );
-    } finally {
-      setLoadingRepos(false);
-    }
-  };
-
-  const handleSelectRepo = (repo: GitHubRepo) => {
-    setActiveRepo(repo.full_name);
-    addRecentRepo(repo.full_name);
-  };
-
-  const deleteRepo = async (repo: GitHubRepo) => {
-    try {
-      if (!requireTokenOrAlert()) return;
 
       Alert.alert(
         'Repo löschen?',
@@ -191,57 +111,20 @@ export default function GitHubReposScreen() {
             text: 'Löschen',
             style: 'destructive',
             onPress: async () => {
-              try {
-                const res = await fetchWithRetry(
-                  `https://api.github.com/repos/${repo.full_name}`,
-                  {
-                    method: 'DELETE',
-                    headers: {
-                      Accept: 'application/vnd.github+json',
-                      Authorization: `token ${token}`,
-                    },
-                  }
-                );
-
-                if (res.status === 403) {
-                  const text = await res.text();
-                  console.log('[GitHubReposScreen] 403 beim Löschen:', text);
-                  Alert.alert(
-                    'Keine Rechte',
-                    'Du brauchst Admin-Rechte + delete_repo-Scope für dieses Repository.'
-                  );
-                  return;
-                }
-
-                if (res.status !== 204) {
-                  const text = await res.text();
-                  throw new Error(`Status ${res.status}: ${text}`);
-                }
-
-                setRepos((prev) =>
-                  prev.filter((r) => r.full_name !== repo.full_name)
-                );
-
+              const success = await deleteRepoHook(repo);
+              if (success) {
                 if (activeRepo === repo.full_name) {
                   setActiveRepo(null);
                 }
-
                 Alert.alert('✅ Gelöscht', `Repository "${repo.name}" wurde gelöscht.`);
-              } catch (e: any) {
-                console.log('[GitHubReposScreen] Fehler beim Löschen:', e);
-                Alert.alert(
-                  'Fehler',
-                  e?.message ?? 'Repo konnte nicht gelöscht werden.'
-                );
               }
             },
           },
         ]
       );
-    } catch (e: any) {
-      console.log('[GitHubReposScreen] deleteRepo Fehler:', e);
-    }
-  };
+    },
+    [token, deleteRepoHook, activeRepo, setActiveRepo]
+  );
 
   const handleCreateRepo = async () => {
     const name = newRepoName.trim();
@@ -271,7 +154,7 @@ export default function GitHubReposScreen() {
     }
   };
 
-  const handleRenameRepo = async () => {
+  const handleRenameRepo = useCallback(async () => {
     if (!activeRepo) {
       Alert.alert('Kein aktives Repo', 'Bitte wähle zuerst ein Repo aus.');
       return;
@@ -282,57 +165,21 @@ export default function GitHubReposScreen() {
       return;
     }
 
-    const [owner] = activeRepo.split('/');
-    const newFull = `${owner}/${newName}`;
-
-    try {
-      if (!requireTokenOrAlert()) return;
-
-      setIsRenaming(true);
-
-      const res = await fetchWithRetry(
-        `https://api.github.com/repos/${activeRepo}`,
-        {
-          method: 'PATCH',
-          headers: {
-            Accept: 'application/vnd.github+json',
-            Authorization: `token ${token}`,
-          },
-          body: JSON.stringify({ name: newName }),
-        }
-      );
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Status ${res.status}: ${text}`);
-      }
-
-      setActiveRepo(newFull);
-      addRecentRepo(newFull);
-
-      setRepos((prev) =>
-        prev.map((r) =>
-          r.full_name === activeRepo
-            ? {
-                ...r,
-                name: newName,
-                full_name: newFull,
-              }
-            : r
-        )
-      );
-
-      Alert.alert('✅ Umbenannt', `Repo heißt jetzt „${newFull}".`);
-    } catch (e: any) {
-      console.log('[GitHubReposScreen] Rename-Fehler:', e);
-      Alert.alert(
-        'Fehler beim Umbenennen',
-        e?.message ?? 'Repo konnte nicht umbenannt werden.'
-      );
-    } finally {
-      setIsRenaming(false);
+    if (!token) {
+      Alert.alert('Kein Token', 'Bitte Token im Verbindungen-Screen hinterlegen.');
+      return;
     }
-  };
+
+    setIsRenaming(true);
+    const newFullName = await renameRepoHook(activeRepo, newName);
+    setIsRenaming(false);
+
+    if (newFullName) {
+      setActiveRepo(newFullName);
+      addRecentRepo(newFullName);
+      Alert.alert('✅ Umbenannt', `Repo heißt jetzt „${newFullName}".`);
+    }
+  }, [activeRepo, renameName, token, renameRepoHook, setActiveRepo, addRecentRepo]);
 
   const handlePushToRepo = async () => {
     if (!activeRepo) {
@@ -371,9 +218,11 @@ export default function GitHubReposScreen() {
     }
   };
 
-  // ✅ VERBESSERTER PULL mit Error-Handling & Binary-Filter
-  const handlePullFromRepo = async () => {
-    if (!requireTokenOrAlert()) return;
+  const handlePullFromRepo = useCallback(async () => {
+    if (!token) {
+      Alert.alert('Kein Token', 'Bitte Token im Verbindungen-Screen hinterlegen.');
+      return;
+    }
     if (!activeRepo) {
       Alert.alert('Kein aktives Repo', 'Bitte wähle zuerst ein Repo aus.');
       return;
@@ -381,189 +230,20 @@ export default function GitHubReposScreen() {
 
     const [owner, repo] = activeRepo.split('/');
     if (!owner || !repo) {
-      Alert.alert(
-        'Ungültiges Repo',
-        `Aktives Repo hat ein unerwartetes Format: ${activeRepo}`
-      );
+      Alert.alert('Ungültiges Repo', `Aktives Repo hat ein unerwartetes Format: ${activeRepo}`);
       return;
     }
 
-    try {
-      setIsPulling(true);
-      setPullProgress('Lade Repo-Info...');
+    setIsPulling(true);
+    const files = await pullFromRepo(owner, repo, setPullProgress);
+    setIsPulling(false);
+    setPullProgress('');
 
-      const headers = {
-        Accept: 'application/vnd.github+json',
-        Authorization: `token ${token}`,
-      };
-
-      // 1. Repo-Info + Default-Branch abrufen
-      const infoRes = await fetchWithRetry(
-        `https://api.github.com/repos/${owner}/${repo}`,
-        { headers }
-      );
-
-      if (!infoRes.ok) {
-        const text = await infoRes.text();
-        throw new Error(`Repo nicht gefunden (${infoRes.status}): ${text}`);
-      }
-
-      const infoJson = await infoRes.json();
-      const branch = infoJson.default_branch || 'main';
-
-      setPullProgress(`Lade Dateibaum (Branch: ${branch})...`);
-
-      // 2. Git-Tree abrufen (mit Retry)
-      let treeJson: any = null;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const treeRes = await fetchWithRetry(
-          `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
-          { headers }
-        );
-
-        if (treeRes.ok) {
-          treeJson = await treeRes.json();
-          break;
-        }
-
-        if (attempt === 2) {
-          const text = await treeRes.text();
-          throw new Error(
-            `Tree-Abruf fehlgeschlagen (${treeRes.status}): ${text}`
-          );
-        }
-
-        await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
-      }
-
-      if (!treeJson || !Array.isArray(treeJson.tree)) {
-        throw new Error('Ungültige Baum-Struktur aus GitHub erhalten.');
-      }
-
-      const textExtensions = [
-        '.ts',
-        '.tsx',
-        '.js',
-        '.jsx',
-        '.json',
-        '.md',
-        '.txt',
-        '.yml',
-        '.yaml',
-        '.config.js',
-      ];
-
-      const files: ProjectFile[] = [];
-
-      const treeEntries = treeJson.tree.filter(
-        (entry: any) => entry.type === 'blob'
-      );
-
-      if (!treeEntries.length) {
-        Alert.alert(
-          'Keine Dateien',
-          'Im Repository wurden keine Dateien gefunden.'
-        );
-        return;
-      }
-
-      setPullProgress(`Lade Dateien (${treeEntries.length})...`);
-
-      const singleFetch = async (path: string) => {
-        const extMatch = path.match(/\.[^.]+$/);
-        const ext = extMatch ? extMatch[0].toLowerCase() : '';
-
-        if (!textExtensions.includes(ext)) {
-          console.log(`[GitHubReposScreen] ⏭ Überspringe Binary: ${path}`);
-          return null;
-        }
-
-        try {
-          const res = await fetchWithRetry(
-            `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(
-              path
-            )}`,
-            { headers }
-          );
-
-          if (!res.ok) {
-            console.log(
-              '[GitHubReposScreen] Fehler beim Laden von',
-              path,
-              res.status
-            );
-            return null;
-          }
-
-          const json = await res.json();
-          const content =
-            json.encoding === 'base64'
-              ? Buffer.from(
-                  String(json.content || '').replace(/\n/g, ''),
-                  'base64'
-                ).toString('utf8')
-              : json.content || '';
-
-          const file: ProjectFile = {
-            path,
-            content,
-          };
-
-          return file;
-        } catch (e) {
-          console.log('[GitHubReposScreen] Fehler bei Datei:', path, e);
-          return null;
-        }
-      };
-
-      // Dateien in Batches laden
-      const BATCH_SIZE = 10;
-      for (let i = 0; i < treeEntries.length; i += BATCH_SIZE) {
-        const batch = treeEntries.slice(i, i + BATCH_SIZE);
-        setPullProgress(
-          `Lade Dateien ${i + 1}-${Math.min(
-            i + BATCH_SIZE,
-            treeEntries.length
-          )} von ${treeEntries.length}...`
-        );
-
-        const results = await Promise.allSettled(
-          batch.map((entry: any) => singleFetch(entry.path))
-        );
-
-        results.forEach((result) => {
-          if (result.status === 'fulfilled' && result.value) {
-            files.push(result.value);
-          }
-        });
-      }
-
-      if (files.length === 0) {
-        Alert.alert(
-          'Keine Dateien',
-          'Im Repository wurden keine Text-Dateien gefunden.'
-        );
-        return;
-      }
-
-      setPullProgress('Aktualisiere Projekt...');
+    if (files && files.length > 0) {
       await updateProjectFiles(files as any, repo);
-
-      Alert.alert(
-        '✅ Pull erfolgreich',
-        `Es wurden ${files.length} Dateien aus „${activeRepo}" geladen.`
-      );
-    } catch (e: any) {
-      console.log('[GitHubReposScreen] Pull-Fehler:', e);
-      Alert.alert(
-        'Pull fehlgeschlagen',
-        e?.message ?? 'Dateien konnten nicht aus GitHub geladen werden.'
-      );
-    } finally {
-      setIsPulling(false);
-      setPullProgress('');
+      Alert.alert('✅ Pull erfolgreich', `Es wurden ${files.length} Dateien aus „${activeRepo}" geladen.`);
     }
-  };
+  }, [token, activeRepo, pullFromRepo, updateProjectFiles]);
 
   const openGitHubActions = () => {
     if (!activeRepo) {
@@ -598,35 +278,17 @@ export default function GitHubReposScreen() {
     return true;
   });
 
-  const renderRepoItem = ({ item }: { item: GitHubRepo }) => {
-    const isActive = item.full_name === activeRepo;
-
-    return (
-      <View style={[styles.repoItem, isActive && styles.repoItemSelected]}>
-        <TouchableOpacity
-          style={styles.repoInfo}
-          onPress={() => handleSelectRepo(item)}
-        >
-          <Text style={styles.repoName}>{item.name}</Text>
-          <Text style={styles.repoFullName}>{item.full_name}</Text>
-          {!!item.description && (
-            <Text style={styles.repoDescription}>{item.description}</Text>
-          )}
-          <Text style={styles.repoMeta}>
-            Zuletzt aktualisiert:{' '}
-            {new Date(item.updated_at).toLocaleString()}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.deleteButton}
-          onPress={() => deleteRepo(item)}
-        >
-          <Text style={styles.deleteButtonText}>🗑</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
+  const renderRepoItem = useCallback(
+    ({ item }: { item: GitHubRepo }) => (
+      <RepoListItem
+        repo={item}
+        isActive={item.full_name === activeRepo}
+        onPress={handleSelectRepo}
+        onDelete={handleDeleteRepo}
+      />
+    ),
+    [activeRepo, handleSelectRepo, handleDeleteRepo]
+  );
 
   const renderRecentRepos = () => {
     if (!recentRepos.length) {
@@ -659,12 +321,17 @@ export default function GitHubReposScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>GitHub Repositories</Text>
-      <Text style={styles.subtitle}>
-        Verwalte deine Repos, verknüpfe sie mit dem Projekt und nutze Push/Pull
-        für den Builder-Flow.
-      </Text>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <View style={styles.headerSection}>
+          <Ionicons name="logo-github" size={32} color={theme.palette.primary} />
+          <View style={styles.headerText}>
+            <Text style={styles.title}>GitHub Repositories</Text>
+            <Text style={styles.subtitle}>
+              Verwalte deine Repos, verknüpfe sie mit dem Projekt und nutze Push/Pull für den Builder-Flow.
+            </Text>
+          </View>
+        </View>
 
       {/* Token-Status */}
       <View style={styles.section}>
@@ -689,18 +356,20 @@ export default function GitHubReposScreen() {
           </>
         )}
 
-        <TouchableOpacity style={styles.button} onPress={loadRepos}>
+        <TouchableOpacity
+          style={[styles.button, loadingRepos && styles.buttonDisabled]}
+          onPress={loadRepos}
+          disabled={loadingRepos}
+        >
           {loadingRepos ? (
-            <ActivityIndicator
-              size="small"
-              color={theme.palette.primary}
-            />
+            <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text style={styles.buttonText}>Repos laden</Text>
+            <>
+              <Ionicons name="refresh" size={18} color="#fff" />
+              <Text style={styles.buttonText}>Repos laden</Text>
+            </>
           )}
         </TouchableOpacity>
-
-        {errorRepos && <Text style={styles.errorText}>{errorRepos}</Text>}
       </View>
 
       {/* Filter / Suche */}
@@ -892,18 +561,38 @@ export default function GitHubReposScreen() {
           <Text style={styles.progressText}>{pullProgress}</Text>
         )}
       </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.palette.background },
-  content: { padding: theme.spacing.md, paddingBottom: theme.spacing.xl },
+  safeArea: {
+    flex: 1,
+    backgroundColor: theme.palette.background,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: theme.palette.background,
+  },
+  content: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+  headerSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  headerText: {
+    flex: 1,
+  },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
     color: theme.palette.text.primary,
-    marginBottom: theme.spacing.sm,
+    marginBottom: 4,
   },
   subtitle: {
     fontSize: 13,
@@ -928,14 +617,24 @@ const styles = StyleSheet.create({
   tokenText: { fontSize: 12, color: theme.palette.text.secondary },
   errorText: { color: theme.palette.error, fontSize: 12, marginBottom: 8 },
   button: {
-    marginTop: 4,
-    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 8,
     backgroundColor: theme.palette.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 8,
+    alignSelf: 'flex-start',
   },
-  buttonText: { color: '#000', fontWeight: '600' },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
   searchRow: { flexDirection: 'row', marginBottom: 8 },
   searchInput: {
     flex: 1,
@@ -970,42 +669,6 @@ const styles = StyleSheet.create({
     color: '#000',
     fontWeight: '600',
   },
-  repoItem: {
-    flexDirection: 'row',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.palette.border,
-  },
-  repoItemSelected: {
-    // vorher: theme.palette.highlight → gibt's im Typ nicht
-    backgroundColor: theme.palette.card,
-  },
-  repoInfo: { flex: 1, paddingRight: 8 },
-  repoName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.palette.text.primary,
-  },
-  repoFullName: {
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-  },
-  repoDescription: {
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-    marginTop: 2,
-  },
-  repoMeta: {
-    fontSize: 11,
-    color: theme.palette.text.secondary,
-    marginTop: 4,
-  },
-  deleteButton: {
-    width: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteButtonText: { fontSize: 16 },
   noRecentText: {
     fontSize: 12,
     color: theme.palette.text.secondary,

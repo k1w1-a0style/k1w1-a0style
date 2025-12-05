@@ -1,5 +1,5 @@
 // screens/CodeScreen.tsx - MIT KORREKTEM THEME UND SYNTAX-VALIDIERUNG!
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -25,6 +25,7 @@ import { buildFileTree, findFolderContent, TreeNode } from '../components/FileTr
 import { Breadcrumb } from '../components/Breadcrumb';
 import { FileItem } from '../components/FileItem';
 import { CreationDialog } from '../components/CreationDialog';
+import { validateSyntax, validateCodeQuality, SyntaxError as ValidationError } from '../utils/syntaxValidator';
 
 const CodeScreen = () => {
   const {
@@ -41,7 +42,7 @@ const CodeScreen = () => {
   const [currentFolderPath, setCurrentFolderPath] = useState<string>('');
   const [showCreationDialog, setShowCreationDialog] = useState(false);
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('preview');
-  const [syntaxError, setSyntaxError] = useState<string | null>(null);
+  const [syntaxErrors, setSyntaxErrors] = useState<ValidationError[]>([]);
 
   const fileTree = useMemo(() => {
     if (projectData?.files) return buildFileTree(projectData.files);
@@ -52,41 +53,25 @@ const CodeScreen = () => {
     return findFolderContent(fileTree, currentFolderPath);
   }, [fileTree, currentFolderPath]);
 
-  // SYNTAX VALIDATION - Prüft Code auf Fehler
-  const validateSyntax = (code: string, filePath: string): string | null => {
-    if (!filePath.match(/\.(jsx?|tsx?)$/)) return null;
-
-    try {
-      // Basis Syntax Check für JavaScript/TypeScript
-      // Prüfe auf ungeschlossene Klammern
-      const openBrackets = (code.match(/[\[{(]/g) || []).length;
-      const closeBrackets = (code.match(/[\]})]/g) || []).length;
-
-      if (openBrackets !== closeBrackets) {
-        return `Ungleiche Anzahl von Klammern: ${openBrackets} geöffnet, ${closeBrackets} geschlossen`;
-      }
-
-      // Prüfe auf ungeschlossene Strings
-      const quotes = code.match(/["'`]/g) || [];
-      if (quotes.length % 2 !== 0) {
-        return 'Ungeschlossene String-Anführungszeichen gefunden';
-      }
-
-      return null;
-    } catch (error) {
-      return 'Syntax-Fehler erkannt';
-    }
-  };
-
-  // Prüfe Syntax beim Tippen
+  // Validate syntax while editing (with debounce)
   useEffect(() => {
-    if (selectedFile && viewMode === 'edit') {
-      const error = validateSyntax(editingContent, selectedFile.path);
-      setSyntaxError(error);
+    if (!selectedFile || viewMode !== 'edit') {
+      setSyntaxErrors([]);
+      return;
     }
+
+    const timeoutId = setTimeout(() => {
+      const errors = [
+        ...validateSyntax(editingContent, selectedFile.path),
+        ...validateCodeQuality(editingContent, selectedFile.path),
+      ];
+      setSyntaxErrors(errors);
+    }, 500); // Debounce 500ms
+
+    return () => clearTimeout(timeoutId);
   }, [editingContent, selectedFile, viewMode]);
 
-  const handleItemPress = (node: TreeNode) => {
+  const handleItemPress = useCallback((node: TreeNode) => {
     if (node.type === 'folder') {
       setCurrentFolderPath(node.path);
     } else if (node.file) {
@@ -97,9 +82,9 @@ const CodeScreen = () => {
       setSelectedFile(node.file);
       setEditingContent(contentString);
       setViewMode('preview');
-      setSyntaxError(null);
+      setSyntaxErrors([]);
     }
-  };
+  }, []);
 
   const handleItemLongPress = (node: TreeNode) => {
     const options = [
@@ -159,40 +144,42 @@ const CodeScreen = () => {
     setSyntaxError(null);
   };
 
-  const handleSaveFile = () => {
+  const handleSaveFile = useCallback(() => {
     if (!selectedFile) return;
 
-    // Prüfe Syntax vor dem Speichern
-    const error = validateSyntax(editingContent, selectedFile.path);
-    if (error) {
-      Alert.alert('Syntax-Warnung', `${error}\n\nTrotzdem speichern?`, [
-        { text: 'Abbrechen', style: 'cancel' },
-        {
-          text: 'Trotzdem speichern',
-          style: 'destructive',
-          onPress: () => {
-            updateProjectFiles([{ path: selectedFile.path, content: editingContent }]);
-            setSelectedFile((prev: ProjectFile | null) =>
-              prev ? { ...prev, content: editingContent } : null,
-            );
-            Alert.alert('Gespeichert', selectedFile.path);
+    const errors = validateSyntax(editingContent, selectedFile.path);
+    const criticalErrors = errors.filter((e) => e.severity === 'error');
+
+    if (criticalErrors.length > 0) {
+      const errorList = criticalErrors.map((e) => `• ${e.message}`).join('\n');
+      Alert.alert(
+        'Syntax-Fehler',
+        `Die folgenden Fehler wurden gefunden:\n\n${errorList}\n\nTrotzdem speichern?`,
+        [
+          { text: 'Abbrechen', style: 'cancel' },
+          {
+            text: 'Trotzdem speichern',
+            style: 'destructive',
+            onPress: () => {
+              updateProjectFiles([{ path: selectedFile.path, content: editingContent }]);
+              setSelectedFile((prev) => (prev ? { ...prev, content: editingContent } : null));
+              Alert.alert('✅ Gespeichert', selectedFile.path);
+            },
           },
-        },
-      ]);
+        ]
+      );
       return;
     }
 
     updateProjectFiles([{ path: selectedFile.path, content: editingContent }]);
-    setSelectedFile((prev: ProjectFile | null) =>
-      prev ? { ...prev, content: editingContent } : null,
-    );
-    Alert.alert('Gespeichert', selectedFile.path);
-  };
+    setSelectedFile((prev) => (prev ? { ...prev, content: editingContent } : null));
+    Alert.alert('✅ Gespeichert', selectedFile.path);
+  }, [selectedFile, editingContent, updateProjectFiles]);
 
-  const handleCopy = (content: string) => {
+  const handleCopy = useCallback((content: string) => {
     Clipboard.setStringAsync(content);
-    Alert.alert('Kopiert', 'Code in Zwischenablage kopiert');
-  };
+    Alert.alert('✅ Kopiert', 'Code in Zwischenablage kopiert');
+  }, []);
 
   if (isLoading && !projectData) {
     return (
@@ -312,17 +299,46 @@ const CodeScreen = () => {
             </View>
           </View>
 
-          {/* Syntax Error Anzeige */}
-          {syntaxError && viewMode === 'edit' && (
-            <View style={styles.errorBar}>
-              <Ionicons name="warning" size={16} color={theme.palette.error} />
-              <Text style={styles.errorText}>{syntaxError}</Text>
-            </View>
+          {/* Syntax Error Display */}
+          {syntaxErrors.length > 0 && viewMode === 'edit' && (
+            <ScrollView
+              style={styles.errorContainer}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+            >
+              {syntaxErrors.map((error, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.errorBadge,
+                    error.severity === 'error' ? styles.errorBadgeError : styles.errorBadgeWarning,
+                  ]}
+                >
+                  <Ionicons
+                    name={error.severity === 'error' ? 'close-circle' : 'warning'}
+                    size={14}
+                    color={error.severity === 'error' ? theme.palette.error : theme.palette.warning}
+                  />
+                  <Text
+                    style={[
+                      styles.errorBadgeText,
+                      error.severity === 'error' ? styles.errorTextError : styles.errorTextWarning,
+                    ]}
+                  >
+                    {error.line ? `Line ${error.line}: ` : ''}
+                    {error.message}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
           )}
 
           {viewMode === 'edit' ? (
             <TextInput
-              style={[styles.codeEditor, syntaxError && styles.codeEditorError]}
+              style={[
+                styles.codeEditor,
+                syntaxErrors.some((e) => e.severity === 'error') && styles.codeEditorError,
+              ]}
               value={editingContent}
               onChangeText={setEditingContent}
               multiline
@@ -476,18 +492,42 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingLeft: 8,
   },
-  errorBar: {
-    backgroundColor: `${theme.palette.error}20`,
-    paddingHorizontal: 16,
+  errorContainer: {
+    backgroundColor: theme.palette.card,
+    paddingHorizontal: 12,
     paddingVertical: 8,
+    maxHeight: 60,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+  },
+  errorBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginRight: 8,
   },
-  errorText: {
+  errorBadgeError: {
+    backgroundColor: `${theme.palette.error}15`,
+    borderWidth: 1,
+    borderColor: theme.palette.error,
+  },
+  errorBadgeWarning: {
+    backgroundColor: `${theme.palette.warning}15`,
+    borderWidth: 1,
+    borderColor: theme.palette.warning,
+  },
+  errorBadgeText: {
+    fontSize: 12,
+    maxWidth: 300,
+  },
+  errorTextError: {
     color: theme.palette.error,
-    fontSize: 13,
-    flex: 1,
+  },
+  errorTextWarning: {
+    color: theme.palette.warning,
   },
   codeEditor: {
     flex: 1,

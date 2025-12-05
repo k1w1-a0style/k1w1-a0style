@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
-import { useProject } from '../contexts/ProjectContext'; // Verwendet den reparierten Context
+import { useProject } from '../contexts/ProjectContext';
 import * as ImagePicker from 'expo-image-picker';
 
 const TEMPLATE_INFO = {
@@ -11,8 +11,7 @@ const TEMPLATE_INFO = {
   version: "1.0.0",
   sdkVersion: "54.0.18",
   rnVersion: "0.81.4",
-  files: 5 // (Dieser Wert scheint aus einer alten Datei zu stammen, aber wir lassen ihn)
-};
+} as const;
 
 const AppInfoScreen = () => {
   const { projectData, setProjectName, updateProjectFiles, setPackageName } = useProject();
@@ -20,57 +19,79 @@ const AppInfoScreen = () => {
   const [packageName, setPackageNameState] = useState('');
   const [iconPreview, setIconPreview] = useState<string | null>(null);
 
-  // KORRIGIERTES useEffect
+  // Load app name and package name from project
   useEffect(() => {
-    if (projectData && projectData.files) { 
-      setAppName(projectData.name || 'Meine App');
+    if (!projectData?.files) return;
+    
+    setAppName(projectData.name || 'Meine App');
 
-      const pkgJson = projectData.files.find(f => f.path === 'package.json');
-      if (pkgJson && typeof pkgJson.content === 'string') {
-        try {
-          const parsed = JSON.parse(pkgJson.content);
-          setPackageNameState(parsed.name || 'meine-app');
-        } catch (e) {
-          setPackageNameState('meine-app');
-        }
-      }
-
-      // Icon-Logik (unverändert, aber funktioniert jetzt dank korrekter Abhängigkeiten)
-      const iconFile = projectData.files.find(f => f.path === 'assets/icon.png');
-      if (iconFile && iconFile.content) {
-        let base64Data = iconFile.content;
-        if (base64Data.startsWith('data:image/')) {
-           base64Data = base64Data.split(',')[1];
-        }
-        if (base64Data && base64Data.length > 100 && /^[A-Za-z0-9+/]*={0,2}$/.test(base64Data)) {
-          setIconPreview(`data:image/png;base64,${base64Data}`);
-        } else {
-          setIconPreview(null);
-        }
-      } else {
-        setIconPreview(null);
+    const pkgJson = projectData.files.find(f => f.path === 'package.json');
+    if (pkgJson && typeof pkgJson.content === 'string') {
+      try {
+        const parsed = JSON.parse(pkgJson.content);
+        setPackageNameState(parsed.name || 'meine-app');
+      } catch {
+        setPackageNameState('meine-app');
       }
     }
-  // === KORREKTUR HIER ===
-  // Hört jetzt auf Datei-Änderungen, damit der Picker die UI aktualisiert.
-  }, [projectData?.files, projectData?.lastModified, projectData?.name]);
+  }, [projectData?.name, projectData?.files]);
 
-  const handleSaveAppName = async () => {
-    if (appName.trim()) {
-      await setProjectName(appName.trim()); // Diese Funktion ist jetzt repariert
-      Alert.alert('Gespeichert', `App-Name: "${appName.trim()}"`);
+  // Load icon preview separately to avoid unnecessary re-renders
+  useEffect(() => {
+    if (!projectData?.files) {
+      setIconPreview(null);
+      return;
     }
-  };
 
-  const handleSavePackageName = async () => {
-    if (!packageName.trim()) {
+    const iconFile = projectData.files.find(f => f.path === 'assets/icon.png');
+    if (!iconFile?.content) {
+      setIconPreview(null);
+      return;
+    }
+
+    let base64Data = iconFile.content;
+    if (base64Data.startsWith('data:image/')) {
+      base64Data = base64Data.split(',')[1];
+    }
+    
+    if (base64Data && base64Data.length > 100 && /^[A-Za-z0-9+/]*={0,2}$/.test(base64Data)) {
+      setIconPreview(`data:image/png;base64,${base64Data}`);
+    } else {
+      setIconPreview(null);
+    }
+  }, [projectData?.files, projectData?.lastModified]);
+
+  const handleSaveAppName = useCallback(async () => {
+    const trimmedName = appName.trim();
+    if (!trimmedName) {
+      Alert.alert('Fehler', 'App-Name darf nicht leer sein.');
+      return;
+    }
+    
+    try {
+      await setProjectName(trimmedName);
+      Alert.alert('✅ Gespeichert', `App-Name: "${trimmedName}"`);
+    } catch (error: any) {
+      Alert.alert('Fehler', error?.message || 'Konnte App-Name nicht speichern.');
+    }
+  }, [appName, setProjectName]);
+
+  const handleSavePackageName = useCallback(async () => {
+    const trimmedPkg = packageName.trim();
+    if (!trimmedPkg) {
       Alert.alert('Fehler', 'Package Name darf nicht leer sein.');
       return;
     }
-    await setPackageName(packageName.trim());
-  };
+    
+    try {
+      await setPackageName(trimmedPkg);
+      Alert.alert('✅ Gespeichert', `Package Name: "${trimmedPkg}"`);
+    } catch (error: any) {
+      Alert.alert('Fehler', error?.message || 'Konnte Package Name nicht speichern.');
+    }
+  }, [packageName, setPackageName]);
 
-  const handleChooseIcon = async () => {
+  const handleChooseIcon = useCallback(async () => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (permissionResult.granted === false) {
@@ -100,20 +121,26 @@ const AppInfoScreen = () => {
       const iconFile = { path: 'assets/icon.png', content: base64Content };
       const adaptiveIconFile = { path: 'assets/adaptive-icon.png', content: base64Content };
 
-      await updateProjectFiles([iconFile, adaptiveIconFile]); // Dies triggert jetzt das useEffect
+      await updateProjectFiles([iconFile, adaptiveIconFile]);
       
-      Alert.alert('Erfolg', 'Das App-Icon wurde erfolgreich aktualisiert!');
+      Alert.alert('✅ Erfolg', 'App-Icon wurde erfolgreich aktualisiert!');
     } catch (error: any) {
-      console.error('Icon Picker Error:', error);
-      Alert.alert('Fehler', `Beim Auswählen des Icons ist ein Fehler aufgetreten: ${error.message || 'Unbekannter Fehler'}`);
+      console.error('[AppInfoScreen] Icon Picker Error:', error);
+      Alert.alert('Fehler', error?.message || 'Icon konnte nicht aktualisiert werden.');
     }
-  };
+  }, [updateProjectFiles]);
+
+  const fileCount = useMemo(() => projectData?.files?.length || 0, [projectData?.files]);
+  const messageCount = useMemo(
+    () => (projectData?.chatHistory || projectData?.messages)?.length || 0,
+    [projectData?.chatHistory, projectData?.messages]
+  );
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
 
-        {/* APP-EINSTELLUNGEN */}
+        {/* APP SETTINGS */}
         <Text style={styles.sectionTitle}>📱 App-Einstellungen</Text>
 
         <View style={styles.settingsContainer}>
@@ -191,7 +218,7 @@ const AppInfoScreen = () => {
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Standard-Dateien:</Text>
-            <Text style={styles.infoValue}>{projectData?.files?.length || 0}</Text>
+            <Text style={styles.infoValue}>{fileCount}</Text>
           </View>
           <Text style={styles.infoHint}>
             ℹ️ Neue Projekte starten automatisch mit diesem Template.
@@ -209,11 +236,11 @@ const AppInfoScreen = () => {
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Dateien:</Text>
-            <Text style={styles.infoValue}>{projectData?.files?.length || 0}</Text>
+            <Text style={styles.infoValue}>{fileCount}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Nachrichten:</Text>
-            <Text style={styles.infoValue}>{(projectData?.chatHistory || projectData?.messages)?.length || 0}</Text>
+            <Text style={styles.infoValue}>{messageCount}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Letzte Änderung:</Text>
