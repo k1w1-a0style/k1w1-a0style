@@ -1,13 +1,27 @@
 // contexts/githubService.ts - simplified token handling + repo secrets sync
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// ✅ FIX: SecureStore für sensitive Tokens statt AsyncStorage
+import * as SecureStore from 'expo-secure-store';
 import sodium from 'tweetsodium';
 import { Buffer } from 'buffer';
 import { ProjectFile } from './types';
+import { RateLimiter } from '../lib/RateLimiter';
+
+// ✅ FIX: Buffer Polyfill Check
+if (typeof Buffer === 'undefined') {
+  throw new Error(
+    '❌ Buffer polyfill fehlt. Bitte "buffer" Package installieren: npm install buffer'
+  );
+}
 
 const GH_TOKEN_KEY = 'github_pat_v1';
 const EXPO_TOKEN_KEY = 'expo_token_v1';
-const STORAGE_PREFIX = '@k1w1_plain_token:';
+
+// ✅ FIX: Rate Limiter für GitHub API (5000/hour, wir nutzen 4000 als Buffer)
+const githubLimiter = new RateLimiter({ 
+  maxRequests: 4000, 
+  windowMs: 3600000 // 1 hour
+});
 
 type RepoSecretsPayload = Partial<{
   expoToken: string | null | undefined;
@@ -21,18 +35,31 @@ const SECRET_NAME_MAP: Record<keyof RepoSecretsPayload, string> = {
   supabaseServiceRole: 'SUPABASE_SERVICE_ROLE_KEY',
 };
 
-const buildStorageKey = (key: string) => `${STORAGE_PREFIX}${key}`;
-
-const savePlainToken = async (key: string, value: string) => {
-  await AsyncStorage.setItem(buildStorageKey(key), value);
+// ✅ FIX: SecureStore Wrapper-Funktionen (verschlüsselt!)
+const saveSecureToken = async (key: string, value: string): Promise<void> => {
+  try {
+    await SecureStore.setItemAsync(key, value);
+  } catch (error: any) {
+    console.error(`[SecureStore] Fehler beim Speichern von ${key}:`, error);
+    throw new Error(`Token konnte nicht sicher gespeichert werden: ${error.message}`);
+  }
 };
 
-const getPlainToken = async (key: string): Promise<string | null> => {
-  return AsyncStorage.getItem(buildStorageKey(key));
+const getSecureToken = async (key: string): Promise<string | null> => {
+  try {
+    return await SecureStore.getItemAsync(key);
+  } catch (error: any) {
+    console.error(`[SecureStore] Fehler beim Laden von ${key}:`, error);
+    return null;
+  }
 };
 
-const deletePlainToken = async (key: string) => {
-  await AsyncStorage.removeItem(buildStorageKey(key));
+const deleteSecureToken = async (key: string): Promise<void> => {
+  try {
+    await SecureStore.deleteItemAsync(key);
+  } catch (error: any) {
+    console.error(`[SecureStore] Fehler beim Löschen von ${key}:`, error);
+  }
 };
 
 const encryptSecret = (publicKey: string, value: string): string => {
