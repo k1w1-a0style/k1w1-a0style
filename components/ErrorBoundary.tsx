@@ -1,7 +1,8 @@
 // components/ErrorBoundary.tsx - Error Boundary für React Native
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { theme } from '../theme';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { theme, getNeonGlow } from '../theme';
 
 interface Props {
   children: ReactNode;
@@ -56,23 +57,48 @@ export class ErrorBoundary extends Component<Props, State> {
 
       return (
         <View style={styles.container}>
-          <View style={styles.errorCard}>
-            <Text style={styles.errorTitle}>⚠️ Ups, etwas ist schiefgelaufen</Text>
-            <Text style={styles.errorMessage}>
-              {this.state.error?.message || 'Unbekannter Fehler'}
-            </Text>
+          {/* Neon Glow Background */}
+          <View style={styles.glowOverlay} />
+          
+          <View style={[styles.errorCard, getNeonGlow(theme.palette.error, 'normal')]}>
+            {/* Error Icon mit Glow */}
+            <View style={styles.iconContainer}>
+              <View style={[styles.iconCircle, getNeonGlow(theme.palette.error, 'strong')]}>
+                <Ionicons name="warning" size={40} color={theme.palette.error} />
+              </View>
+            </View>
+            
+            <Text style={styles.errorTitle}>Oops! Etwas ist schiefgelaufen</Text>
+            
+            <View style={styles.errorMessageContainer}>
+              <Text style={styles.errorMessage}>
+                {this.state.error?.message || 'Unbekannter Fehler'}
+              </Text>
+            </View>
 
             {__DEV__ && this.state.errorInfo && (
-              <ScrollView style={styles.stackTrace}>
-                <Text style={styles.stackTraceText}>
-                  {this.state.errorInfo.componentStack}
-                </Text>
-              </ScrollView>
+              <View style={styles.devSection}>
+                <Text style={styles.devSectionTitle}>🔧 Debug Info (nur in DEV)</Text>
+                <ScrollView style={styles.stackTrace} nestedScrollEnabled>
+                  <Text style={styles.stackTraceText} selectable>
+                    {this.state.errorInfo.componentStack}
+                  </Text>
+                </ScrollView>
+              </View>
             )}
 
-            <TouchableOpacity style={styles.resetButton} onPress={this.handleReset}>
-              <Text style={styles.resetButtonText}>🔄 Erneut versuchen</Text>
+            <TouchableOpacity 
+              style={[styles.resetButton, getNeonGlow(theme.palette.primary, 'subtle')]} 
+              onPress={this.handleReset}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="refresh" size={20} color="#000" />
+              <Text style={styles.resetButtonText}>Erneut versuchen</Text>
             </TouchableOpacity>
+
+            <Text style={styles.hintText}>
+              Falls das Problem weiterhin besteht, starte die App neu.
+            </Text>
           </View>
         </View>
       );
@@ -89,50 +115,104 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+    position: 'relative',
+  },
+  glowOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: `${theme.palette.error}08`,
   },
   errorCard: {
     backgroundColor: theme.palette.card,
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: 20,
+    padding: 24,
     borderWidth: 2,
     borderColor: theme.palette.error,
-    maxWidth: 500,
+    maxWidth: 400,
     width: '100%',
+  },
+  iconContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  iconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: `${theme.palette.error}15`,
+    borderWidth: 2,
+    borderColor: theme.palette.error,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   errorTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: theme.palette.error,
-    marginBottom: 12,
+    color: theme.palette.text.primary,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  errorMessageContainer: {
+    backgroundColor: `${theme.palette.error}10`,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: `${theme.palette.error}30`,
   },
   errorMessage: {
     fontSize: 14,
-    color: theme.palette.text.primary,
+    color: theme.palette.error,
+    lineHeight: 22,
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  devSection: {
     marginBottom: 16,
-    lineHeight: 20,
+  },
+  devSectionTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.palette.text.secondary,
+    marginBottom: 8,
   },
   stackTrace: {
     backgroundColor: theme.palette.background,
     borderRadius: 8,
     padding: 12,
-    marginBottom: 16,
-    maxHeight: 200,
+    maxHeight: 150,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
   },
   stackTraceText: {
-    fontSize: 11,
-    fontFamily: 'monospace',
+    fontSize: 10,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     color: theme.palette.text.secondary,
+    lineHeight: 16,
   },
   resetButton: {
     backgroundColor: theme.palette.primary,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 12,
   },
   resetButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
+    fontWeight: '700',
+    color: '#000',
+  },
+  hintText: {
+    fontSize: 12,
+    color: theme.palette.text.disabled,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 });

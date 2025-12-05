@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { memo } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../theme';
+import { theme, getNeonGlow } from '../theme';
 import { TreeNode } from './FileTree';
 
 interface FileItemProps {
@@ -12,7 +12,7 @@ interface FileItemProps {
   selectionMode?: boolean;
 }
 
-export const FileItem: React.FC<FileItemProps> = ({ 
+export const FileItem: React.FC<FileItemProps> = memo(({ 
   node, 
   onPress, 
   onLongPress,
@@ -201,7 +201,9 @@ export const FileItem: React.FC<FileItemProps> = ({
       )}
     </TouchableOpacity>
   );
-};
+});
+
+FileItem.displayName = 'FileItem';
 
 const styles = StyleSheet.create({
   fileItem: {
@@ -214,9 +216,10 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.palette.border,
   },
   fileItemSelected: {
-    backgroundColor: `${theme.palette.primary}10`,
+    backgroundColor: `${theme.palette.primary}12`,
     borderLeftWidth: 3,
     borderLeftColor: theme.palette.primary,
+    ...getNeonGlow(theme.palette.primary, 'subtle'),
   },
   checkbox: {
     marginRight: 12,
@@ -224,22 +227,26 @@ const styles = StyleSheet.create({
   iconContainer: {
     width: 40,
     height: 40,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   fileInfo: {
     flex: 1,
   },
   fileName: {
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
     color: theme.palette.text.primary,
     marginBottom: 2,
+    letterSpacing: 0.2,
   },
   fileDetails: {
-    fontSize: 12,
+    fontSize: 11,
     color: theme.palette.text.secondary,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
 });
