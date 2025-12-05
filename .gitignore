@@ -72,3 +72,13 @@ temp/
 # -----------------------------
 *.tsbuildinfo
 .cache-loader/
+
+# -----------------------------
+# ENVIRONMENT VARIABLES / SECRETS
+# -----------------------------
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+.envrc

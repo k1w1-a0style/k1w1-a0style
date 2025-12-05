@@ -225,16 +225,36 @@ const DEFAULT_CONFIG: AIConfig = {
 
 const AIContext = createContext<AIContextProps | undefined>(undefined);
 
-const migrateConfig = (raw: any): AIConfig => {
+interface StoredConfig {
+  version?: number;
+  selectedChatProvider?: string;
+  selectedChatMode?: string;
+  selectedAgentProvider?: string;
+  selectedAgentMode?: string;
+  qualityMode?: string;
+  apiKeys?: {
+    groq?: string[];
+    gemini?: string[];
+    openai?: string[];
+    anthropic?: string[];
+    huggingface?: string[];
+  };
+}
+
+const migrateConfig = (raw: unknown): AIConfig => {
   if (!raw) return { ...DEFAULT_CONFIG };
 
-  let parsed = raw;
+  let parsed: StoredConfig;
   if (typeof raw === 'string') {
     try {
-      parsed = JSON.parse(raw);
+      parsed = JSON.parse(raw) as StoredConfig;
     } catch {
       return { ...DEFAULT_CONFIG };
     }
+  } else if (typeof raw === 'object' && raw !== null) {
+    parsed = raw as StoredConfig;
+  } else {
+    return { ...DEFAULT_CONFIG };
   }
 
   const version = typeof parsed.version === 'number' ? parsed.version : 1;
@@ -530,11 +550,9 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
       await persist(next);
 
+      // ✅ SICHERHEIT: Keine API-Key-Referenzen in Logs
       console.log(
-        `🔄 [AIContext] Auto-Rotation für ${provider}: ${rotated[0].slice(
-          0,
-          8,
-        )}... ist jetzt aktiv`,
+        `🔄 [AIContext] Auto-Rotation für ${provider}: Neuer Key ist jetzt aktiv`,
       );
 
       return true;

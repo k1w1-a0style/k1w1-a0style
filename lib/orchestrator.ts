@@ -106,9 +106,8 @@ function resolveApiKey(provider: ProviderId): string | null {
     const cfg = g.__K1W1_AI_CONFIG;
     if (cfg?.apiKeys?.[provider]?.[0]) {
       const key = String(cfg.apiKeys[provider][0]);
-      log('INFO', `API-Key für ${provider} aus Config geladen`, {
-        keyPreview: key.slice(0, 8) + '…',
-      });
+      // ✅ SICHERHEIT: Keine API-Key-Referenzen in Logs
+      log('INFO', `API-Key für ${provider} aus Config geladen`);
       return key;
     }
   } catch {
@@ -138,9 +137,8 @@ function resolveApiKey(provider: ProviderId): string | null {
     }
 
     if (candidate && typeof candidate === 'string' && candidate.trim().length) {
-      log('INFO', `API-Key für ${provider} aus globalThis geladen`, {
-        keyPreview: candidate.slice(0, 8) + '…',
-      });
+      // ✅ SICHERHEIT: Keine API-Key-Referenzen in Logs
+      log('INFO', `API-Key für ${provider} aus globalThis geladen`);
       return candidate.trim();
     }
   } catch {
@@ -580,9 +578,9 @@ async function callProviderWithRetry(
       throw new Error(msg);
     }
 
+    // ✅ SICHERHEIT: Keine API-Key-Referenzen in Logs
     log('INFO', `Call ${provider} (Versuch ${attempt + 1}/${MAX_KEY_RETRIES})`, {
       model,
-      keyPreview: apiKey.slice(0, 8) + '…',
     });
 
     try {

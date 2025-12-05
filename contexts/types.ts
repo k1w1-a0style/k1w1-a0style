@@ -58,5 +58,15 @@ export interface ProjectContextProps {
     owner: string,
     repo: string,
     workflowFileName?: string,
-  ) => Promise<any>;
+  ) => Promise<{
+    workflow_runs?: Array<{
+      id: number;
+      name: string;
+      status: string;
+      conclusion: string | null;
+      created_at: string;
+      updated_at: string;
+      html_url: string;
+    }>;
+  }>;
 }
