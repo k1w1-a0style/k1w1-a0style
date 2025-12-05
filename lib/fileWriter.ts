@@ -1,5 +1,6 @@
 import { ProjectFile } from "../contexts/types";
 import { validateFilePath, normalizePath } from "../utils/chatUtils";
+import { CONFIG } from "../config";
 
 /**
  * FileWriter System
@@ -11,6 +12,7 @@ import { validateFilePath, normalizePath } from "../utils/chatUtils";
  *    { created: [], updated: [], skipped: [] }
  */
 
+// ✅ FIXED: Nutze CONFIG statt hardcodierte Liste
 const PROTECTED_FILES = new Set<string>([
   "app.config.js",
   "eas.json",
@@ -19,6 +21,9 @@ const PROTECTED_FILES = new Set<string>([
   "tsconfig.json",
   "config.ts",
   "theme.ts",
+  ...CONFIG.PATHS.ALLOWED_ROOT.filter(f => 
+    f.endsWith('.json') || f.endsWith('.js') || f.endsWith('.ts')
+  ),
 ]);
 
 export function applyFilesToProject(

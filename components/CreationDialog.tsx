@@ -11,6 +11,12 @@ interface CreationDialogProps {
   onCreateFolder: (name: string) => void;
 }
 
+// ✅ ADDED: Filename validation
+const isValidFilename = (name: string): boolean => {
+  // Erlaubt: Buchstaben, Zahlen, Punkt, Unterstrich, Bindestrich
+  return /^[a-zA-Z0-9._-]+$/.test(name);
+};
+
 export const CreationDialog: React.FC<CreationDialogProps> = ({
   visible,
   currentPath,
@@ -20,17 +26,30 @@ export const CreationDialog: React.FC<CreationDialogProps> = ({
 }) => {
   const [name, setName] = useState('');
   const [type, setType] = useState<'file' | 'folder'>('file');
+  const [error, setError] = useState<string>('');
 
   const handleCreate = () => {
-    if (!name.trim()) return;
+    const trimmedName = name.trim();
+    
+    if (!trimmedName) {
+      setError('Name darf nicht leer sein');
+      return;
+    }
+
+    // ✅ FIXED: Validierung für Dateinamen
+    if (!isValidFilename(trimmedName)) {
+      setError('Nur Buchstaben, Zahlen, Punkt, Unterstrich und Bindestrich erlaubt');
+      return;
+    }
 
     if (type === 'file') {
-      onCreateFile(name.trim());
+      onCreateFile(trimmedName);
     } else {
-      onCreateFolder(name.trim());
+      onCreateFolder(trimmedName);
     }
 
     setName('');
+    setError('');
     onClose();
   };
 
@@ -88,10 +107,15 @@ export const CreationDialog: React.FC<CreationDialogProps> = ({
           <TextInput
             style={styles.nameInput}
             value={name}
-            onChangeText={setName}
+            onChangeText={(text) => {
+              setName(text);
+              setError('');
+            }}
             placeholder={type === 'file' ? 'Dateiname.ext' : 'Ordnername'}
             placeholderTextColor={theme.palette.text.secondary}
           />
+
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           <View style={styles.modalActions}>
             <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
@@ -214,5 +238,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#fff',
     fontWeight: '600',
+  },
+  errorText: {
+    fontSize: 12,
+    color: theme.palette.error,
+    marginBottom: 12,
+    marginTop: -8,
   },
 });
