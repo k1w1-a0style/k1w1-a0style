@@ -45,7 +45,13 @@ const loadTemplateFromFile = async (): Promise<ProjectFile[]> => {
 const SAVE_DEBOUNCE_MS = 500;
 const ProjectContext = createContext<ProjectContextProps | undefined>(undefined);
 
-export { getGitHubToken, saveGitHubToken, saveExpoToken, getExpoToken } from './githubService';
+export {
+  getGitHubToken,
+  saveGitHubToken,
+  saveExpoToken,
+  getExpoToken,
+  syncRepoSecrets,
+} from './githubService';
 
 export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
