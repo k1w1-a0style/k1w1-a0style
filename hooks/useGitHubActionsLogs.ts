@@ -54,12 +54,15 @@ export function useGitHubActionsLogs({
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
+  const isFetchPendingRef = useRef(false);
 
   const fetchLogs = useCallback(async () => {
     if (!githubRepo) {
       setError('Kein GitHub Repo ausgewählt');
       return;
     }
+    if (isFetchPendingRef.current) return;
+    isFetchPendingRef.current = true;
 
     setIsLoading(true);
     setError(null);
@@ -132,6 +135,7 @@ export function useGitHubActionsLogs({
       if (isMountedRef.current) {
         setIsLoading(false);
       }
+      isFetchPendingRef.current = false;
     }
   }, [githubRepo, runId]);
 

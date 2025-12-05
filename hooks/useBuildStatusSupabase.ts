@@ -52,9 +52,12 @@ export const useBuildStatusSupabase = (jobId: number | null) => {
   const errorCountRef = useRef(0);
   const isMountedRef = useRef(true);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isRequestPendingRef = useRef(false);
 
   const fetchStatus = useCallback(async () => {
     if (!jobId) return;
+    if (isRequestPendingRef.current) return;
+    isRequestPendingRef.current = true;
 
     try {
       setIsLoading(true);
@@ -138,6 +141,7 @@ export const useBuildStatusSupabase = (jobId: number | null) => {
         }
       }
     } finally {
+      isRequestPendingRef.current = false;
       if (!isMountedRef.current) return;
       setIsLoading(false);
     }
@@ -152,12 +156,14 @@ export const useBuildStatusSupabase = (jobId: number | null) => {
       setError(null);
       errorCountRef.current = 0;
       setErrorCount(0);
+      isRequestPendingRef.current = false;
       return;
     }
 
     // Reset error tracking for new job
     errorCountRef.current = 0;
     setErrorCount(0);
+    isRequestPendingRef.current = false;
 
     // ✅ Sofort einmal pollen, dann Intervall
     fetchStatus();

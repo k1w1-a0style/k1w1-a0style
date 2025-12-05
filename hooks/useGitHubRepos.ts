@@ -26,6 +26,12 @@ export interface UseGitHubReposCallbacks {
   onNoToken?: () => void;
 }
 
+const encodePathSegments = (path: string) =>
+  path
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+
 export const useGitHubRepos = (token: string | null, callbacks?: UseGitHubReposCallbacks) => {
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
   const [loading, setLoading] = useState(false);
@@ -223,8 +229,9 @@ export const useGitHubRepos = (token: string | null, callbacks?: UseGitHubReposC
               }
 
               try {
+                const encodedPath = encodePathSegments(path);
                 const res = await fetchWithBackoff(
-                  `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`,
+                  `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPath}`,
                   { headers }
                 );
 

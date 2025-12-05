@@ -68,11 +68,44 @@ export function useBuildStatus(
   const hasAlertedRef = useRef(false);
   const isMountedRef = useRef(true);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isRequestPendingRef = useRef(false);
+  const latestDetailsRef = useRef<BuildStatusDetails | null>(null);
+
+  const buildFailureDetails = useCallback(
+    (statusOverride: BuildStatus = 'error'): BuildStatusDetails | null => {
+      if (latestDetailsRef.current) {
+        return { ...latestDetailsRef.current, status: statusOverride };
+      }
+
+      if (!jobIdFromScreen) return null;
+
+      return {
+        jobId: jobIdFromScreen,
+        status: statusOverride,
+        urls: undefined,
+        raw: null,
+        runId: null,
+      };
+    },
+    [jobIdFromScreen]
+  );
+
+  const notifyFailure = useCallback(
+    (statusOverride: BuildStatus = 'error') => {
+      const failureDetails = buildFailureDetails(statusOverride);
+      if (failureDetails) {
+        callbacks?.onFailed?.(failureDetails);
+      }
+    },
+    [buildFailureDetails, callbacks]
+  );
 
   // Memoized poll function
   const poll = useCallback(async () => {
     if (!jobIdFromScreen) return;
-    
+    if (isRequestPendingRef.current) return;
+    isRequestPendingRef.current = true;
+
     try {
       console.log(
         `[useBuildStatus] 🔄 Polling Job ${jobIdFromScreen}. (Fehler: ${errorCountRef.current}/${MAX_ERRORS})`
@@ -123,6 +156,7 @@ export function useBuildStatus(
             hasAlertedRef.current = true;
             // Callback statt Alert
             callbacks?.onMaxErrors?.(errorMsg, MAX_ERRORS);
+            notifyFailure('error');
           }
         }
         return;
@@ -145,6 +179,7 @@ export function useBuildStatus(
       };
 
       setDetails(newDetails);
+      latestDetailsRef.current = newDetails;
 
       console.log('[useBuildStatus] ✅ Status:', mapped);
 
@@ -162,7 +197,7 @@ export function useBuildStatus(
           // Callbacks statt Alerts
           if (mapped === 'success') {
             callbacks?.onSuccess?.(newDetails);
-          } else if (mapped === 'failed') {
+          } else {
             callbacks?.onFailed?.(newDetails);
           }
         }
@@ -190,10 +225,13 @@ export function useBuildStatus(
           hasAlertedRef.current = true;
           // Callback statt Alert
           callbacks?.onMaxErrors?.(errorMsg, MAX_ERRORS);
+          notifyFailure('error');
         }
       }
+    } finally {
+      isRequestPendingRef.current = false;
     }
-  }, [jobIdFromScreen, callbacks]);
+  }, [jobIdFromScreen, callbacks, notifyFailure]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -201,10 +239,12 @@ export function useBuildStatus(
     if (!jobIdFromScreen) {
       setStatus('idle');
       setDetails(null);
+      latestDetailsRef.current = null;
       setLastError(null);
       errorCountRef.current = 0;
       setErrorCount(0);
       hasAlertedRef.current = false;
+      isRequestPendingRef.current = false;
       return;
     }
 
@@ -212,6 +252,8 @@ export function useBuildStatus(
     errorCountRef.current = 0;
     setErrorCount(0);
     hasAlertedRef.current = false;
+    isRequestPendingRef.current = false;
+    latestDetailsRef.current = null;
 
     // ✅ Sofort einmal pollen, dann Intervall
     poll();

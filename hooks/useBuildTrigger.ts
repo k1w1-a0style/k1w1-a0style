@@ -52,6 +52,7 @@ export function useBuildTrigger({
   const supabaseRef = useRef<SupabaseClient | null>(null);
   const easTokenRef = useRef<string | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingRequestRef = useRef(false);
 
   // Polling-Logik
   const pollSupabaseBuild = useCallback(async () => {
@@ -59,6 +60,8 @@ export function useBuildTrigger({
       setIsPolling(false);
       return;
     }
+    if (pollingRequestRef.current) return;
+    pollingRequestRef.current = true;
 
     if (!supabaseRef.current) {
       try {
@@ -91,6 +94,10 @@ export function useBuildTrigger({
       
       let statusMsg = '';
       switch (data.status) {
+        case 'queued':
+        case 'waiting':
+          statusMsg = 'Build in Warteschlange...';
+          break;
         case 'pending':
           statusMsg = 'Job erstellt...';
           break;
@@ -122,6 +129,9 @@ export function useBuildTrigger({
           // Callback für Error
           callbacks?.onBuildError?.('Build fehlgeschlagen', 'POLLING', 'Prüfe die Logs in GitHub Actions');
           break;
+        default:
+          statusMsg = `Status: ${data.status || 'unbekannt'}`;
+          break;
       }
       
       setBuildStatus(statusMsg);
@@ -135,6 +145,8 @@ export function useBuildTrigger({
       
       // Callback für Polling-Fehler
       callbacks?.onBuildError?.(pollError?.message || errorMsg, 'POLLING');
+    } finally {
+      pollingRequestRef.current = false;
     }
   }, [currentJobId, getExpoToken, callbacks]);
 
