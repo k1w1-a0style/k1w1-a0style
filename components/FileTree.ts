@@ -11,6 +11,7 @@ export type TreeNode = {
 };
 
 export const buildFileTree = (files: ProjectFile[]): TreeNode[] => {
+  // ✅ PERFORMANCE FIX: Verwende Hash-Map statt Array.find() → O(n) statt O(n²)
   const folderMap = new Map<string, TreeNode>();
   const rootNodes: TreeNode[] = [];
 
