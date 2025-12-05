@@ -1,4 +1,4 @@
-// contexts/ProjectContext.tsx (V14 - RACE CONDITION FIX + SECURITY)
+// contexts/ProjectContext.tsx (V15 - ALL CRITICAL FIXES APPLIED)
 import { v4 as uuidv4 } from 'uuid';
 import { Mutex } from 'async-mutex'; // ✅ SICHERHEIT: Race Condition Protection
 import React, {
@@ -10,7 +10,7 @@ import React, {
   useRef,
   ReactNode,
 } from 'react';
-import { Alert } from 'react-native';
+import { Alert, AppState, AppStateStatus } from 'react-native';
 import { ProjectData, ProjectFile, ChatMessage, ProjectContextProps } from './types';
 import {
   saveProjectToStorage,
@@ -22,6 +22,8 @@ import {
   getGitHubToken,
   getWorkflowRuns,
 } from './githubService';
+// ✅ FIX: Top-level imports statt dynamic imports
+import { validateFilePath, validateFileContent } from '../lib/validators';
 
 const loadTemplateFromFile = async (): Promise<ProjectFile[]> => {
   try {
@@ -156,7 +158,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     [updateProject],
   );
 
-  // ✅ NEU: Neues Projekt erstellen
+  // ✅ FIX: Neues Projekt erstellen - mit updateProject + Mutex
   const createNewProject = useCallback(async () => {
     Alert.alert(
       'Neues Projekt',
@@ -179,8 +181,18 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
                 createdAt: new Date().toISOString(),
                 lastModified: new Date().toISOString(),
               };
-              setProjectData(newProject);
-              await saveProjectToStorage(newProject);
+              
+              // ✅ FIX: Verwende updateProject statt direktes setState für Mutex-Protection
+              // Da wir ein komplett neues Projekt erstellen, setzen wir es direkt
+              // aber mit Mutex-Schutz
+              const release = await mutexRef.current.acquire();
+              try {
+                setProjectData(newProject);
+                await saveProjectToStorage(newProject);
+              } finally {
+                release();
+              }
+              
               Alert.alert('Erfolg', 'Neues Projekt wurde erstellt!');
               console.log('✅ Neues Projekt erstellt und gespeichert.');
             } catch (error: any) {
@@ -230,8 +242,16 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
             try {
               const result = await importProjectFromZipFile();
               result.project.chatHistory = []; // ✅ Chat zurücksetzen
-              setProjectData(result.project);
-              await saveProjectToStorage(result.project);
+              
+              // ✅ FIX: Mutex-Schutz für konsistenten State
+              const release = await mutexRef.current.acquire();
+              try {
+                setProjectData(result.project);
+                await saveProjectToStorage(result.project);
+              } finally {
+                release();
+              }
+              
               Alert.alert(
                 'Import erfolgreich',
                 `Projekt "${result.project.name}" importiert (${result.fileCount} Dateien).`,
@@ -252,8 +272,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const createFile = useCallback(
     async (path: string, content: string) => {
-      // ✅ SICHERHEIT: Importiere Validatoren
-      const { validateFilePath, validateFileContent } = await import('../lib/validators');
+      // ✅ FIX: Top-level imports (bereits importiert)
       
       // Validiere Pfad
       const pathValidation = validateFilePath(path);
@@ -303,8 +322,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const renameFile = useCallback(
     async (oldPath: string, newPath: string) => {
-      // ✅ SICHERHEIT: Validiere neuen Pfad
-      const { validateFilePath } = await import('../lib/validators');
+      // ✅ FIX: Top-level imports (bereits importiert)
       
       const pathValidation = validateFilePath(newPath);
       if (!pathValidation.valid) {
@@ -339,7 +357,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   useEffect(() => {
     const initializeProject = async () => {
       try {
-        console.log('APP START (Context V13 - CREATE NEW PROJECT)');
+        console.log('APP START (Context V15 - ALL CRITICAL FIXES APPLIED)');
         const savedProject = await loadProjectFromStorage();
         if (savedProject) {
           console.log('📖 Projekt geladen:', savedProject.name);
@@ -373,6 +391,37 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
     initializeProject();
   }, []);
+
+  // ✅ FIX: Force-Flush debounced save bei App Background/Inactive
+  useEffect(() => {
+    const handleAppStateChange = async (nextState: AppStateStatus) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        console.log('🔄 App geht in Background, flushe ausstehende Saves...');
+        
+        // Cancel pending debounce
+        if (saveTimeoutRef.current) {
+          clearTimeout(saveTimeoutRef.current);
+          saveTimeoutRef.current = null;
+        }
+        
+        // Force save current state
+        if (projectData) {
+          try {
+            await saveProjectToStorage(projectData);
+            console.log('✅ Background-Save erfolgreich');
+          } catch (error) {
+            console.error('❌ Background-Save fehlgeschlagen:', error);
+          }
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [projectData]);
 
   const value: ProjectContextProps = {
     projectData,
