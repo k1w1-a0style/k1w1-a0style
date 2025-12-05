@@ -123,13 +123,14 @@ const FileSystem = {
   },
 };
 
-export default FileSystem;
-export const EncodingType = FileSystem.EncodingType;
-export const documentDirectory = FileSystem.documentDirectory;
-export const cacheDirectory = FileSystem.cacheDirectory;
-export const readAsStringAsync = FileSystem.readAsStringAsync;
-export const writeAsStringAsync = FileSystem.writeAsStringAsync;
-export const deleteAsync = FileSystem.deleteAsync;
-export const getInfoAsync = FileSystem.getInfoAsync;
-export const makeDirectoryAsync = FileSystem.makeDirectoryAsync;
-export const readDirectoryAsync = FileSystem.readDirectoryAsync;
+module.exports = FileSystem;
+module.exports.default = FileSystem;
+module.exports.EncodingType = FileSystem.EncodingType;
+module.exports.documentDirectory = FileSystem.documentDirectory;
+module.exports.cacheDirectory = FileSystem.cacheDirectory;
+module.exports.readAsStringAsync = FileSystem.readAsStringAsync;
+module.exports.writeAsStringAsync = FileSystem.writeAsStringAsync;
+module.exports.deleteAsync = FileSystem.deleteAsync;
+module.exports.getInfoAsync = FileSystem.getInfoAsync;
+module.exports.makeDirectoryAsync = FileSystem.makeDirectoryAsync;
+module.exports.readDirectoryAsync = FileSystem.readDirectoryAsync;

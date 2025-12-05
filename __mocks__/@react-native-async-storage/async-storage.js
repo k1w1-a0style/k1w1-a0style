@@ -75,4 +75,4 @@ const AsyncStorage = {
   },
 };
 
-export default AsyncStorage;
+module.exports = AsyncStorage;

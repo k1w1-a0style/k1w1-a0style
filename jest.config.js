@@ -1,14 +1,13 @@
 /**
  * Jest Configuration für k1w1-a0style
  * 
- * ✅ Expo-kompatibel
  * ✅ TypeScript Support
  * ✅ Coverage Tracking
- * ✅ Transform Ignore Patterns für React Native
+ * ✅ Node Environment (keine React Native mocks nötig)
  */
 
 module.exports = {
-  preset: 'jest-expo',
+  // Kein preset - wir konfigurieren alles manuell für bessere Kontrolle
   
   // Test-Umgebung
   testEnvironment: 'node',
@@ -16,9 +15,14 @@ module.exports = {
   // Setup-Dateien (werden vor jedem Test geladen)
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   
-  // Transform-Patterns (welche Dateien müssen transformiert werden)
+  // TypeScript Transform
+  transform: {
+    '^.+\\.tsx?$': 'ts-jest',
+  },
+  
+  // Transform-Patterns (welche Dateien NICHT transformiert werden)
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg)',
+    'node_modules/(?!(zod)/)',
   ],
   
   // Module-Name-Mapping (für Aliases)
@@ -45,26 +49,29 @@ module.exports = {
     '!**/coverage/**',
   ],
   
-  // Coverage-Thresholds (Tests schlagen fehl wenn Coverage zu niedrig)
-  coverageThresholds: {
+  // Coverage-Thresholds (werden schrittweise erhöht)
+  // AKTUELL: Woche 1 - Foundation (3%)
+  // ZIEL: Woche 7 - Production (80%)
+  coverageThreshold: {
+    // Global Thresholds (niedrig für Start, wird erhöht)
     global: {
-      statements: 60,
-      branches: 50,
-      functions: 60,
-      lines: 60,
+      statements: 0, // Start: 0%, Ziel: 60%
+      branches: 0,   // Start: 0%, Ziel: 50%
+      functions: 0,  // Start: 0%, Ziel: 60%
+      lines: 0,      // Start: 0%, Ziel: 60%
     },
-    // Höhere Thresholds für kritische Module
-    './lib/': {
-      statements: 70,
-      branches: 60,
-      functions: 70,
-      lines: 70,
+    // Kritische Module: Höhere Standards
+    './lib/SecureKeyManager.ts': {
+      statements: 90,
+      branches: 90,
+      functions: 100,
+      lines: 90,
     },
-    './contexts/': {
-      statements: 65,
-      branches: 55,
-      functions: 65,
-      lines: 65,
+    './lib/validators.ts': {
+      statements: 90,
+      branches: 80,
+      functions: 100,
+      lines: 90,
     },
   },
   

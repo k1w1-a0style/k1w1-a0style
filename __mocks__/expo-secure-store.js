@@ -50,10 +50,11 @@ const SecureStore = {
   },
 };
 
-export default SecureStore;
-export const setItemAsync = SecureStore.setItemAsync;
-export const getItemAsync = SecureStore.getItemAsync;
-export const deleteItemAsync = SecureStore.deleteItemAsync;
-export const WHEN_UNLOCKED = SecureStore.WHEN_UNLOCKED;
-export const WHEN_UNLOCKED_THIS_DEVICE_ONLY = SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY;
-export const ALWAYS_THIS_DEVICE_ONLY = SecureStore.ALWAYS_THIS_DEVICE_ONLY;
+module.exports = SecureStore;
+module.exports.default = SecureStore;
+module.exports.setItemAsync = SecureStore.setItemAsync;
+module.exports.getItemAsync = SecureStore.getItemAsync;
+module.exports.deleteItemAsync = SecureStore.deleteItemAsync;
+module.exports.WHEN_UNLOCKED = SecureStore.WHEN_UNLOCKED;
+module.exports.WHEN_UNLOCKED_THIS_DEVICE_ONLY = SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY;
+module.exports.ALWAYS_THIS_DEVICE_ONLY = SecureStore.ALWAYS_THIS_DEVICE_ONLY;
