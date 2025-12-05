@@ -44,7 +44,6 @@ import ConnectionsScreen from './screens/ConnectionsScreen';
 import AppInfoScreen from './screens/AppInfoScreen';
 import BuildScreen from './screens/BuildScreen';
 import GitHubReposScreen from './screens/GitHubReposScreen';
-import BuildScreenV2 from './screens/BuildScreenV2';
 
 // ✅ NEUE SCREENS
 import DiagnosticScreen from './screens/DiagnosticScreen';
@@ -201,16 +200,7 @@ const AppNavigation = () => {
           component={BuildScreen}
           options={{
             title: 'Build Status',
-            drawerLabel: '📦 Builds (alt)',
-          }}
-        />
-
-        <Drawer.Screen
-          name="BuildsV2"
-          component={BuildScreenV2}
-          options={{
-            title: 'Build Status V2',
-            drawerLabel: '📦 Builds (V2)',
+            drawerLabel: '📦 Builds',
           }}
         />
 
