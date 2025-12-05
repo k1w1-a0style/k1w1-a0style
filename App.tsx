@@ -9,7 +9,17 @@ import {
   ActivityIndicator,
 } from 'react-native';
 
-LogBox.ignoreAllLogs(true);
+// Selektive Warnungsfilterung - nur bekannte, harmlose Warnungen ignorieren
+if (__DEV__) {
+  LogBox.ignoreLogs([
+    // React Native Reanimated Warnung (bekannt, harmlos)
+    'Reanimated 2',
+    // Expo SecureStore Warnung (bekannt, harmlos)
+    'SecureStore',
+    // Metro bundler Warnungen (bekannt, harmlos)
+    'Require cycle:',
+  ]);
+}
 
 import 'react-native-get-random-values';
 import 'react-native-reanimated';

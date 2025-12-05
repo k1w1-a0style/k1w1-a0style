@@ -1,4 +1,5 @@
 import { ProjectFile } from "../contexts/types";
+import { validateFilePath, normalizePath } from "../utils/chatUtils";
 
 /**
  * FileWriter System
@@ -32,7 +33,16 @@ export function applyFilesToProject(
   const result: ProjectFile[] = [...existing];
 
   for (const f of incoming) {
-    const path = f.path;
+    // ✅ SICHERHEIT: Pfad validieren bevor Verarbeitung
+    const validation = validateFilePath(f.path);
+    if (!validation.valid) {
+      console.warn(`[FileWriter] Pfad übersprungen: ${f.path}`, validation.errors);
+      skipped.push(f.path);
+      continue;
+    }
+
+    // Normalisiere Pfad für konsistente Verarbeitung
+    const path = normalizePath(f.path);
 
     // Sicherheitsregel: bestimmte Kern-Dateien niemals automatisch überschreiben
     if (PROTECTED_FILES.has(path)) {
@@ -46,14 +56,14 @@ export function applyFilesToProject(
         updated.push(path);
         const idx = result.findIndex((x) => x.path === path);
         if (idx !== -1) {
-          result[idx] = f;
+          result[idx] = { ...f, path }; // Verwende normalisierten Pfad
         }
       } else {
         skipped.push(path);
       }
     } else {
       created.push(path);
-      result.push(f);
+      result.push({ ...f, path }); // Verwende normalisierten Pfad
     }
   }
 

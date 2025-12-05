@@ -5,7 +5,7 @@ import { CONFIG } from '../config';
 type ErrorStat = {
   count: number;
   last: string;
-  meta?: any;
+  meta?: Record<string, unknown>;
 };
 
 const errorStats: Record<string, ErrorStat> = {};
@@ -13,14 +13,14 @@ const errorStats: Record<string, ErrorStat> = {};
 const log = (
   level: 'INFO' | 'WARN' | 'ERROR',
   message: string,
-  meta?: Record<string, any>
+  meta?: Record<string, unknown>
 ) => {
   const timestamp = new Date().toISOString();
   const ctx = meta ? ` | ${JSON.stringify(meta)}` : '';
   console.log(`[${level}] ${timestamp} - ${message}${ctx}`);
 };
 
-const logError = (key: string, meta?: any) => {
+const logError = (key: string, meta?: Record<string, unknown>) => {
   if (!errorStats[key]) {
     errorStats[key] = { count: 0, last: new Date().toISOString(), meta };
   }
@@ -32,20 +32,43 @@ const logError = (key: string, meta?: any) => {
 // BASIC HELPERS
 // ---------------------------------------------------------------
 
+/**
+ * Normalisiert einen Dateipfad und entfernt gefährliche Zeichen
+ * @param path - Der zu normalisierende Pfad
+ * @returns Normalisierter, sicherer Pfad
+ */
 export const normalizePath = (path: string): string => {
-  if (!path) return '';
-  let normalized = path.replace(/\\/g, '/').replace(/\/+/g, '/');
+  if (!path || typeof path !== 'string') return '';
+  
+  // Entferne gefährliche Zeichen und normalisiere Pfad-Trenner
+  let normalized = path
+    .replace(/\\/g, '/')           // Backslashes zu Forward Slashes
+    .replace(/\/+/g, '/')          // Mehrfache Slashes zu einem
+    .replace(/[<>:"|?*\x00-\x1f]/g, '') // Entferne verbotene Zeichen
+    .trim();
 
+  // Entferne führende/trailing Slashes und "./"
   if (normalized.startsWith('./')) normalized = normalized.slice(2);
   if (normalized.startsWith('/')) normalized = normalized.slice(1);
+  if (normalized.endsWith('/')) normalized = normalized.slice(0, -1);
 
-  // einfache Sicherheits-Normalisierung: "../" kappen
-  normalized = normalized.replace(/\.\.\//g, '');
+  // KRITISCH: Path Traversal-Schutz - entferne alle "../" Sequenzen
+  // Auch nach Normalisierung, falls sie durch Encoding umgangen wurden
+  normalized = normalized
+    .replace(/\.\.\//g, '')        // "../"
+    .replace(/\.\.\\/g, '')        // "..\" (falls noch vorhanden)
+    .replace(/\.\./g, '')          // ".." allein
+    .replace(/\/\.\//g, '/')       // "/./"
+    .replace(/\/\.$/g, '');        // "/." am Ende
+
+  // Entferne leere Segmente
+  const parts = normalized.split('/').filter(part => part.length > 0 && part !== '.');
+  normalized = parts.join('/');
 
   return normalized;
 };
 
-export const ensureStringContent = (value: any): string => {
+export const ensureStringContent = (value: unknown): string => {
   if (value == null) return '';
   if (typeof value === 'string') return value;
   try {
@@ -98,19 +121,62 @@ export const isCodeFile = (path: string): boolean => {
 // VALIDIERUNG
 // ---------------------------------------------------------------
 
+/**
+ * Validiert einen Dateipfad auf Sicherheit und Gültigkeit
+ * @param path - Der zu validierende Pfad
+ * @returns Validierungsergebnis mit Fehlern
+ */
 export const validateFilePath = (
   path: string
 ): { valid: boolean; errors: string[] } => {
   const errors: string[] = [];
-  const normalized = normalizePath(path);
+  
+  if (!path || typeof path !== 'string') {
+    errors.push('Pfad ist leer oder kein String.');
+    return { valid: false, errors };
+  }
 
-  if (!normalized) errors.push('Pfad ist leer oder ungültig.');
-  if (!hasValidExtension(normalized))
+  // Maximale Pfadlänge prüfen
+  if (path.length > CONFIG.PATHS.MAX_PATH_LENGTH) {
+    errors.push(`Pfad zu lang: ${path.length} Zeichen (max. ${CONFIG.PATHS.MAX_PATH_LENGTH})`);
+  }
+
+  // Normalisiere und prüfe auf Path Traversal-Versuche
+  const normalized = normalizePath(path);
+  
+  // Prüfe ob nach Normalisierung noch gefährliche Muster vorhanden sind
+  if (normalized.includes('..')) {
+    errors.push('Pfad enthält Path Traversal-Versuche (../)');
+  }
+  
+  if (normalized !== path && path.includes('..')) {
+    errors.push('Pfad wurde normalisiert - möglicher Path Traversal-Versuch erkannt');
+  }
+
+  if (!normalized) {
+    errors.push('Pfad ist nach Normalisierung leer.');
+    return { valid: false, errors };
+  }
+
+  // Prüfe auf verbotene Zeichen (sollten bereits durch normalizePath entfernt sein)
+  if (/[<>:"|?*\x00-\x1f]/.test(normalized)) {
+    errors.push('Pfad enthält verbotene Zeichen');
+  }
+
+  // Prüfe auf erlaubte Dateiendungen
+  if (!hasValidExtension(normalized)) {
     errors.push(`Ungültige Dateiendung: ${normalized}`);
-  if (!isPathAllowed(normalized))
+  }
+
+  // Prüfe auf erlaubte Pfade
+  if (!isPathAllowed(normalized)) {
     errors.push(`Pfad außerhalb erlaubter Bereiche: ${normalized}`);
-  if (hasInvalidPattern(normalized))
+  }
+
+  // Prüfe auf weitere verbotene Muster
+  if (hasInvalidPattern(normalized)) {
     errors.push(`Pfad enthält verbotene Muster: ${normalized}`);
+  }
 
   return { valid: errors.length === 0, errors };
 };
@@ -204,16 +270,17 @@ export const validateProjectFiles = (files: ProjectFile[]) => {
 // JSON / LLM HELFER
 // ---------------------------------------------------------------
 
-export const safeJsonParse = <T = any>(input: any): T | null => {
+export const safeJsonParse = <T = unknown>(input: unknown): T | null => {
   try {
     if (!input) return null;
     if (typeof input === 'object') return input as T;
 
     const repaired = jsonrepair(String(input));
     return JSON.parse(repaired) as T;
-  } catch (e: any) {
-    log('ERROR', 'JSON Parse fehlgeschlagen', { error: e.message });
-    logError('JSON Parse fehlgeschlagen', e.message);
+  } catch (e: unknown) {
+    const errorMessage = e instanceof Error ? e.message : String(e);
+    log('ERROR', 'JSON Parse fehlgeschlagen', { error: errorMessage });
+    logError('JSON Parse fehlgeschlagen', { error: errorMessage });
     return null;
   }
 };
