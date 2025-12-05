@@ -1,5 +1,5 @@
 # Projekt-Audit Bericht
-**Datum:** $(date)
+**Datum:** 5. Dezember 2025
 **Projekt:** k1w1-a0style-restored
 
 ## ✅ Durchgeführte Prüfungen
