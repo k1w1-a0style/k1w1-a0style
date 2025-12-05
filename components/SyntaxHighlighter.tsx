@@ -14,7 +14,7 @@ const NUMBERS = /\b(\d+\.?\d*)\b/g;
 
 const tokenize = (code: string): Token[] => {
   const tokens: Token[] = [];
-  const matches: Array<{ index: number; length: number; type: Token['type']; value: string }> = [];
+  const matches: { index: number; length: number; type: Token['type']; value: string }[] = [];
 
   let match;
   

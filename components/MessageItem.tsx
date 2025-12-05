@@ -44,6 +44,8 @@ const MessageItem = memo(({ message }: MessageItemProps) => {
   );
 });
 
+MessageItem.displayName = 'MessageItem';
+
 const styles = StyleSheet.create({
   messageBubble: {
     borderRadius: 15,

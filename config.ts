@@ -166,21 +166,23 @@ export const CONFIG = {
   } as const,
 } as const;
 
-// Mini-Check der Regex-Patterns zur Build-Zeit
-(function validateRegex() {
-  const patterns = CONFIG.VALIDATION.PATTERNS as Record<string, RegExp | string>;
-  Object.entries(patterns).forEach(([key, pattern]) => {
-    try {
-      if (pattern instanceof RegExp) return;
-      if (typeof pattern === 'string') {
-        new RegExp(pattern);
-      } else {
-        new RegExp(String(pattern));
+// Mini-Check der Regex-Patterns zur Build-Zeit (nur in Dev-Mode)
+if (__DEV__) {
+  (function validateRegex() {
+    const patterns = CONFIG.VALIDATION.PATTERNS as Record<string, RegExp | string>;
+    Object.entries(patterns).forEach(([key, pattern]) => {
+      try {
+        if (pattern instanceof RegExp) return;
+        if (typeof pattern === 'string') {
+          new RegExp(pattern);
+        } else {
+          new RegExp(String(pattern));
+        }
+      } catch (e) {
+        throw new Error(
+          `Ungültiges Regex in CONFIG.VALIDATION.PATTERNS.${key}: ${String(e)}`
+        );
       }
-    } catch (e) {
-      throw new Error(
-        `Ungültiges Regex in CONFIG.VALIDATION.PATTERNS.${key}: ${String(e)}`
-      );
-    }
-  });
-})();
+    });
+  })();
+}

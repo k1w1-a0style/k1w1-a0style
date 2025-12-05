@@ -1,5 +1,6 @@
 import { Dimensions } from 'react-native';
 
+// HINWEIS: Für reaktive Dimensions in Components, verwende useWindowDimensions() Hook
 const { width, height } = Dimensions.get('window');
 
 export const theme = {
