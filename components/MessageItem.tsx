@@ -64,7 +64,9 @@ const MessageItem = memo(({ message }: MessageItemProps) => {
         ])
       ).start();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // NOTE: Empty deps intentional - entrance animation should only run once on mount
 
   if (isUser && messageText.length === 0) return null;
 

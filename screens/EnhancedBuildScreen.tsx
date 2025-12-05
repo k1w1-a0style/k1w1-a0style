@@ -13,7 +13,8 @@ import {
   Easing,
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useBuildStatus, BuildStatus } from "../hooks/useBuildStatus";
+import { useBuildStatus } from "../hooks/useBuildStatus";
+import { BuildStatus } from "../lib/buildStatusMapper";
 import { useGitHubActionsLogs } from "../hooks/useGitHubActionsLogs";
 import { BuildErrorAnalyzer, ErrorAnalysis } from "../lib/buildErrorAnalyzer";
 import { CONFIG } from "../config";
