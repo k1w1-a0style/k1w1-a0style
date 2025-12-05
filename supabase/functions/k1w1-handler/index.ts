@@ -5,7 +5,7 @@
 // - Verwendet NUR Server-Env-Keys (GROQ_API_KEY, GEMINI_API_KEY)
 // - Kein API-Key mehr im Request-Body nötig.
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 
 type Role = "system" | "user" | "assistant";
 
@@ -22,12 +22,7 @@ interface HandlerRequestBody {
   quality?: "speed" | "quality";
 }
 
-const corsHeaders: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, apikey, x-client-info, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+import { corsHeaders, handleCors } from "../_shared/cors.ts";
 
 const DEFAULT_MODELS = {
   groq: {
@@ -170,9 +165,8 @@ async function callGemini(
 // ----------------- Main Handler -----------------
 
 serve(async (req: Request): Promise<Response> => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
 
   if (req.method !== "POST") {
     return new Response("Method not allowed", {
@@ -223,15 +217,20 @@ serve(async (req: Request): Promise<Response> => {
       },
     });
   } catch (err: any) {
-    console.error("❌ k1w1-handler error", err?.message, err);
+    console.error("❌ k1w1-handler error", err?.message, err?.stack, err);
 
     const errorPayload = {
       ok: false as const,
       error: err?.message || "Unknown error",
     };
 
+    // Use 500 for unexpected errors, 400 for validation errors
+    const statusCode = err?.message?.includes("Missing") || err?.message?.includes("Invalid") 
+      ? 400 
+      : 500;
+
     return new Response(JSON.stringify(errorPayload), {
-      status: 400,
+      status: statusCode,
       headers: {
         ...corsHeaders,
         "Content-Type": "application/json",
