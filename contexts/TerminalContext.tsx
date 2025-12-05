@@ -19,7 +19,9 @@ interface TerminalContextProps {
 
 const TerminalContext = createContext<TerminalContextProps | undefined>(undefined);
 
+// ✅ FIX: Log-Counter mit Overflow-Schutz (max 2^31-1)
 let logCounter = 0;
+const MAX_LOG_COUNTER = 2147483647; // 2^31 - 1
 
 // ✅ FIX: Konfigurierbare Console Override (standardmäßig AUS für Sicherheit)
 const ENABLE_CONSOLE_OVERRIDE = false; // Set to true to enable global console override
@@ -40,6 +42,13 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
       second: '2-digit',
       fractionalSecondDigits: 3 
     });
+    
+    // ✅ FIX: Overflow-Schutz für Log-Counter
+    if (logCounter >= MAX_LOG_COUNTER) {
+      logCounter = 0;
+      console.warn('[TerminalContext] Log-Counter zurückgesetzt (Overflow-Schutz)');
+    }
+    
     const newLog: LogEntry = {
       id: logCounter++,
       timestamp,

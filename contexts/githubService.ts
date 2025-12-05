@@ -7,10 +7,10 @@ import { Buffer } from 'buffer';
 import { ProjectFile } from './types';
 import { RateLimiter } from '../lib/RateLimiter';
 
-// ✅ FIX: Buffer Polyfill Check
-if (typeof Buffer === 'undefined') {
+// ✅ FIX: Buffer Polyfill Check (besserer Check)
+if (typeof Buffer === 'undefined' || typeof Buffer.from !== 'function') {
   throw new Error(
-    '❌ Buffer polyfill fehlt. Bitte "buffer" Package installieren: npm install buffer'
+    '❌ Buffer polyfill fehlt oder ist unvollständig. Bitte "buffer" Package installieren: npm install buffer'
   );
 }
 
