@@ -113,6 +113,8 @@ export function useBuildTrigger({
           }
           break;
         case 'error':
+        case 'failed':
+        case 'failure':
           statusMsg = 'Build fehlgeschlagen!';
           setIsPolling(false);
           setCurrentJobId(null);
@@ -178,32 +180,32 @@ export function useBuildTrigger({
         throw new Error("Credentials fehlen. Bitte 'Verbindungen' prüfen.");
       }
 
-      const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
-      const SUPABASE_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-
-      if (!SUPABASE_URL || !SUPABASE_KEY) {
-        throw new Error('Supabase-Konfiguration fehlt.');
-      }
-
+      // ✅ FIX: Verwende Supabase Client statt direkten fetch
+      const supabase = await ensureSupabaseClient();
+      
       console.log(`Pushe ${projectFiles.length} Dateien & triggere Build für ${GITHUB_REPO}...`);
 
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/trigger-eas-build`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${SUPABASE_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          githubRepo: GITHUB_REPO,
-          githubToken: GITHUB_TOKEN,
-          files: projectFiles,
-        }),
-      });
+      const { data: responseData, error: functionError } = await supabase.functions.invoke(
+        'trigger-eas-build',
+        {
+          body: {
+            githubRepo: GITHUB_REPO,
+            githubToken: GITHUB_TOKEN,
+            files: projectFiles,
+          },
+        }
+      );
 
-      const responseData: TriggerBuildResponse = await response.json();
+      if (functionError) {
+        throw new Error(functionError.message || 'Supabase Function Fehler');
+      }
+
+      if (!responseData) {
+        throw new Error('Keine Antwort vom Server');
+      }
       console.log('📥 Build Response:', responseData);
 
-      if (!response.ok || responseData.success === false) {
+      if (responseData.success === false) {
         const errorMessage = responseData.error || 'Unbekannter Fehler';
         const errorStep = responseData.step || 'UNKNOWN';
         const errorHint = responseData.hint || '';

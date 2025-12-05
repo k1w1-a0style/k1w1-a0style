@@ -60,6 +60,8 @@ export function useBuildStatus(
   const [status, setStatus] = useState<BuildStatus>('idle');
   const [details, setDetails] = useState<BuildStatusDetails | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
+  // ✅ FIX: State für errorCount um reaktive Updates zu ermöglichen
+  const [errorCount, setErrorCount] = useState(0);
   
   // Use refs for values that shouldn't trigger re-renders
   const errorCountRef = useRef(0);
@@ -95,6 +97,7 @@ export function useBuildStatus(
       } catch (e) {
         console.warn('[useBuildStatus] JSON Parse fehlgeschlagen:', e);
         errorCountRef.current += 1;
+        setErrorCount(errorCountRef.current);
         setLastError('Ungültige Server-Antwort');
         return;
       }
@@ -104,6 +107,7 @@ export function useBuildStatus(
         console.log('[useBuildStatus] ❌ Error Response:', json);
         const errorMsg = json?.error || `HTTP ${res.status}`;
         errorCountRef.current += 1;
+        setErrorCount(errorCountRef.current);
         setLastError(errorMsg);
 
         // Callback für jeden Fehler
@@ -126,6 +130,7 @@ export function useBuildStatus(
 
       // ✅ Erfolg: Fehler-Counter zurücksetzen
       errorCountRef.current = 0;
+      setErrorCount(0);
       setLastError(null);
 
       const mapped = mapBuildStatus(json.status);
@@ -168,6 +173,7 @@ export function useBuildStatus(
       console.log('[useBuildStatus] ⚠️ Poll Error:', e?.message);
       const errorMsg = e?.message || 'Netzwerkfehler';
       errorCountRef.current += 1;
+      setErrorCount(errorCountRef.current);
       setLastError(errorMsg);
 
       // Callback für jeden Fehler
@@ -197,12 +203,14 @@ export function useBuildStatus(
       setDetails(null);
       setLastError(null);
       errorCountRef.current = 0;
+      setErrorCount(0);
       hasAlertedRef.current = false;
       return;
     }
 
     // Reset error tracking for new job
     errorCountRef.current = 0;
+    setErrorCount(0);
     hasAlertedRef.current = false;
 
     // ✅ Sofort einmal pollen, dann Intervall
@@ -222,7 +230,7 @@ export function useBuildStatus(
   return {
     status,
     details,
-    errorCount: errorCountRef.current,
+    errorCount,
     lastError,
     isPolling: status === 'queued' || status === 'building',
   };

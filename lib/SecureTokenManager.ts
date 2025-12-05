@@ -19,14 +19,23 @@ import Constants from 'expo-constants';
  * Sichere Token-Verwaltung mit Verschlüsselung
  */
 class SecureTokenManager {
-  // Salt für Encryption-Key-Generierung (sollte in Production aus env kommen)
-  private static readonly SALT = 'k1w1-secure-token-v1';
+  // ✅ FIX: Salt aus env oder device-spezifisch (verbessert)
+  private static getSalt(): string {
+    // Versuche env-Variable zu verwenden, sonst device-spezifisch
+    if (typeof process !== 'undefined' && (process as any).env?.EXPO_PUBLIC_TOKEN_SALT) {
+      return (process as any).env.EXPO_PUBLIC_TOKEN_SALT;
+    }
+    // Device-spezifischer Salt (besser als hardcoded)
+    const deviceId = Constants.deviceId || 'fallback-device-id';
+    return `k1w1-secure-token-v1-${deviceId}`;
+  }
   
   // Cache für Encryption-Key (wird pro Session einmal generiert)
   private static encryptionKey: string | null = null;
   
   /**
-   * Generiert einen device-spezifischen Encryption-Key
+   * Generiert einen device-spezifischen Encryption-Key mit Key-Stretching
+   * ✅ FIX: Mehrfache Hash-Runden für bessere Sicherheit
    */
   private static async getEncryptionKey(): Promise<string> {
     if (this.encryptionKey) {
@@ -34,50 +43,67 @@ class SecureTokenManager {
     }
     
     try {
-      // Verwende Device-ID + Salt für device-spezifischen Key
+      const salt = this.getSalt();
       const deviceId = Constants.deviceId || 'fallback-device-id';
-      const keyMaterial = `${deviceId}-${this.SALT}`;
+      const keyMaterial = `${deviceId}-${salt}`;
       
-      // Hash mit SHA-256
-      const key = await Crypto.digestStringAsync(
-        Crypto.CryptoDigestAlgorithm.SHA256,
-        keyMaterial
-      );
+      // ✅ FIX: Key-Stretching mit mehrfachen Hash-Runden
+      let key = keyMaterial;
+      for (let i = 0; i < 1000; i++) {
+        key = await Crypto.digestStringAsync(
+          Crypto.CryptoDigestAlgorithm.SHA256,
+          `${key}-${i}`
+        );
+      }
       
       this.encryptionKey = key;
       return key;
     } catch (error) {
       console.error('[SecureTokenManager] Fehler bei Key-Generierung:', error);
       // Fallback zu statischem Key (nicht ideal, aber besser als nichts)
-      return await Crypto.digestStringAsync(
+      const fallback = await Crypto.digestStringAsync(
         Crypto.CryptoDigestAlgorithm.SHA256,
-        this.SALT
+        this.getSalt()
       );
+      this.encryptionKey = fallback;
+      return fallback;
     }
   }
   
   /**
-   * Einfache XOR-Verschlüsselung (für Production: crypto-js oder native crypto verwenden)
+   * Verbesserte Verschlüsselung mit IV (Initialization Vector)
+   * ✅ FIX: Verwendet IV für bessere Sicherheit
    * 
-   * NOTE: Dies ist eine vereinfachte Implementierung.
-   * Für Production sollte AES-256 mit crypto-js verwendet werden.
+   * NOTE: Dies ist eine verbesserte Implementierung mit IV.
+   * Für Production sollte AES-256 mit crypto-js verwendet werden, wenn möglich.
    */
   private static async encrypt(text: string): Promise<string> {
     try {
       const key = await this.getEncryptionKey();
       
-      // Einfache XOR-Verschlüsselung (Base64-encoded)
-      // In Production: AES-256 verwenden!
+      // ✅ FIX: Generiere IV für jeden Verschlüsselungsvorgang
+      const iv = await Crypto.getRandomBytesAsync(16);
+      const ivString = Array.from(iv).map(b => b.toString(16).padStart(2, '0')).join('');
+      
       const textBytes = new TextEncoder().encode(text);
       const keyBytes = new TextEncoder().encode(key);
+      const ivBytes = new TextEncoder().encode(ivString);
       
+      // ✅ FIX: XOR mit Key + IV für bessere Sicherheit
       const encrypted = new Uint8Array(textBytes.length);
       for (let i = 0; i < textBytes.length; i++) {
-        encrypted[i] = textBytes[i] ^ keyBytes[i % keyBytes.length];
+        const keyByte = keyBytes[i % keyBytes.length];
+        const ivByte = ivBytes[i % ivBytes.length];
+        encrypted[i] = textBytes[i] ^ keyByte ^ ivByte;
       }
       
+      // ✅ FIX: IV vorne anhängen für spätere Entschlüsselung
+      const combined = new Uint8Array(iv.length + encrypted.length);
+      combined.set(iv, 0);
+      combined.set(encrypted, iv.length);
+      
       // Convert to base64
-      return btoa(String.fromCharCode(...encrypted));
+      return btoa(String.fromCharCode(...combined));
     } catch (error) {
       console.error('[SecureTokenManager] Encryption-Fehler:', error);
       // Fallback: Nur Base64 (besser als plaintext)
@@ -86,19 +112,30 @@ class SecureTokenManager {
   }
   
   /**
-   * Entschlüsselung
+   * Entschlüsselung mit IV
+   * ✅ FIX: Extrahiert IV aus verschlüsselten Daten
    */
   private static async decrypt(encrypted: string): Promise<string> {
     try {
       const key = await this.getEncryptionKey();
       
       // Decode from base64
-      const encryptedBytes = Uint8Array.from(atob(encrypted), c => c.charCodeAt(0));
-      const keyBytes = new TextEncoder().encode(key);
+      const combinedBytes = Uint8Array.from(atob(encrypted), c => c.charCodeAt(0));
       
+      // ✅ FIX: Extrahiere IV (erste 16 Bytes)
+      const iv = combinedBytes.slice(0, 16);
+      const encryptedBytes = combinedBytes.slice(16);
+      
+      const ivString = Array.from(iv).map(b => b.toString(16).padStart(2, '0')).join('');
+      const keyBytes = new TextEncoder().encode(key);
+      const ivBytes = new TextEncoder().encode(ivString);
+      
+      // ✅ FIX: Entschlüssele mit Key + IV
       const decrypted = new Uint8Array(encryptedBytes.length);
       for (let i = 0; i < encryptedBytes.length; i++) {
-        decrypted[i] = encryptedBytes[i] ^ keyBytes[i % keyBytes.length];
+        const keyByte = keyBytes[i % keyBytes.length];
+        const ivByte = ivBytes[i % ivBytes.length];
+        decrypted[i] = encryptedBytes[i] ^ keyByte ^ ivByte;
       }
       
       // Convert back to string

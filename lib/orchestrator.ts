@@ -79,26 +79,45 @@ const log = (
 };
 
 // ============================================
-// TIMEOUT
+// TIMEOUT MIT ABORT CONTROLLER
 // ============================================
 async function withTimeout<T>(
   promise: Promise<T>,
   ms: number,
   label: string,
+  abortController?: AbortController,
 ): Promise<T> {
-  // Kein echter Abort der inneren fetches, aber sauberes Timeout für den Aufrufer
-  return (Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(
-        () =>
+  // ✅ FIX: Verwende AbortController für echtes Abort
+  const controller = abortController || new AbortController();
+  const timeoutId = setTimeout(() => {
+    if (!controller.signal.aborted) {
+      controller.abort();
+    }
+  }, ms);
+
+  try {
+    const result = await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        if (controller.signal.aborted) {
           reject(
             new Error(`Timeout nach ${ms}ms: ${label || 'orchestrator_call'}`),
-          ),
-        ms,
-      ),
-    ),
-  ]) as unknown) as Promise<T>;
+          );
+          return;
+        }
+        controller.signal.addEventListener('abort', () => {
+          reject(
+            new Error(`Timeout nach ${ms}ms: ${label || 'orchestrator_call'}`),
+          );
+        }, { once: true });
+      }),
+    ]);
+    clearTimeout(timeoutId);
+    return result;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
 }
 
 // ============================================
@@ -280,6 +299,7 @@ async function callGroq(
   apiKey: string,
   model: string,
   messages: LlmMessage[],
+  signal?: AbortSignal,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
   const url = 'https://api.groq.com/openai/v1/chat/completions';
@@ -301,6 +321,7 @@ async function callGroq(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
+    signal, // ✅ FIX: Unterstütze AbortSignal
   });
 
   const json: any = await res.json();
@@ -323,6 +344,7 @@ async function callGemini(
   apiKey: string,
   model: string,
   messages: LlmMessage[],
+  signal?: AbortSignal,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
@@ -356,6 +378,7 @@ async function callGemini(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
+    signal, // ✅ FIX: Unterstütze AbortSignal
   });
 
   const json: any = await res.json();
@@ -376,6 +399,7 @@ async function callOpenAI(
   apiKey: string,
   model: string,
   messages: LlmMessage[],
+  signal?: AbortSignal,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
   const url = 'https://api.openai.com/v1/chat/completions';
@@ -397,6 +421,7 @@ async function callOpenAI(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
+    signal, // ✅ FIX: Unterstütze AbortSignal
   });
 
   const json: any = await res.json();
@@ -418,6 +443,7 @@ async function callAnthropic(
   apiKey: string,
   model: string,
   messages: LlmMessage[],
+  signal?: AbortSignal,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
   const url = 'https://api.anthropic.com/v1/messages';
@@ -445,6 +471,7 @@ async function callAnthropic(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
+    signal, // ✅ FIX: Unterstütze AbortSignal
   });
 
   const json: any = await res.json();
@@ -466,6 +493,7 @@ async function callHuggingFace(
   apiKey: string,
   model: string,
   messages: LlmMessage[],
+  signal?: AbortSignal,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
   const url = `https://api-inference.huggingface.co/models/${model}`;
@@ -489,6 +517,7 @@ async function callHuggingFace(
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify(body),
+    signal, // ✅ FIX: Unterstütze AbortSignal
   });
 
   const json: any = await res.json();
@@ -523,12 +552,14 @@ async function callProviderWithRetry(
 ): Promise<{ result: OrchestratorOkResult; rotations: number }> {
   let rotations = 0;
   const errors: string[] = [];
+  const abortController = new AbortController();
 
   for (let attempt = 0; attempt < MAX_KEY_RETRIES; attempt++) {
     const apiKey = resolveApiKey(provider);
     if (!apiKey) {
       const msg = `Kein API-Key für ${provider} gefunden`;
       log('ERROR', msg);
+      abortController.abort();
       throw new Error(msg);
     }
 
@@ -539,20 +570,22 @@ async function callProviderWithRetry(
 
     try {
       const callPromise = (async () => {
-        if (provider === 'groq') return await callGroq(apiKey, model, messages);
+        const signal = abortController.signal;
+        if (provider === 'groq') return await callGroq(apiKey, model, messages, signal);
         if (provider === 'gemini')
-          return await callGemini(apiKey, model, messages);
+          return await callGemini(apiKey, model, messages, signal);
         if (provider === 'openai')
-          return await callOpenAI(apiKey, model, messages);
+          return await callOpenAI(apiKey, model, messages, signal);
         if (provider === 'anthropic')
-          return await callAnthropic(apiKey, model, messages);
-        return await callHuggingFace(apiKey, model, messages);
+          return await callAnthropic(apiKey, model, messages, signal);
+        return await callHuggingFace(apiKey, model, messages, signal);
       })();
 
       const result = await withTimeout(
         callPromise,
         TIMEOUT_MS,
         `${provider}:${model}`,
+        abortController,
       );
 
       log('INFO', `✅ Erfolg mit ${provider}`, {
