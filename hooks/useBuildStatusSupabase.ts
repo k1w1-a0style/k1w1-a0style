@@ -1,29 +1,12 @@
 import { useEffect, useState } from 'react';
 import { ensureSupabaseClient } from '../lib/supabase';
-
-export type BuildStatus =
-  | 'pending'
-  | 'queued'
-  | 'building'
-  | 'completed'
-  | 'error'
-  | 'failed';
-
-export interface BuildDetails {
-  id: number;
-  github_repo?: string;
-  build_profile?: string;
-  build_type?: string;
-  status: string;
-  eas_build_id?: string | null;
-  github_run_id?: string | null;
-  artifact_url?: string | null;
-  created_at?: string;
-  updated_at?: string;
-  // Fallback für zusätzliche Felder aus der DB
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [key: string]: any;
-}
+import { mapBuildStatus, type BuildStatus } from '../lib/buildStatusMapper';
+import {
+  type BuildDetails,
+  type CheckEASBuildResponse,
+  isCheckEASBuildResponse,
+  validateSupabaseResponse,
+} from '../lib/supabaseTypes';
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -43,29 +26,6 @@ export const useBuildStatusSupabase = (jobId: number | null) => {
 
     let isMounted = true;
     let intervalId: ReturnType<typeof setInterval> | null = null;
-
-    const mapStatus = (raw: string | undefined): BuildStatus => {
-      const s = (raw ?? '').toLowerCase();
-
-      switch (s) {
-        case 'queued':
-        case 'pending':
-          return 'queued';
-        case 'running':
-        case 'building':
-        case 'in_progress':
-          return 'building';
-        case 'completed':
-        case 'success':
-        case 'succeeded':
-          return 'completed';
-        case 'failed':
-        case 'failure':
-          return 'failed';
-        default:
-          return 'error';
-      }
-    };
 
     const fetchStatus = async () => {
       try {
@@ -96,9 +56,33 @@ export const useBuildStatusSupabase = (jobId: number | null) => {
           return;
         }
 
-        const normalizedStatus = mapStatus((data as any).status);
-        setStatus(normalizedStatus);
-        setDetails(data as BuildDetails);
+        // ✅ TYPENSICHERHEIT: Validiere Response
+        try {
+          const validatedData = validateSupabaseResponse(
+            data,
+            isCheckEASBuildResponse,
+            'Invalid check-eas-build response'
+          );
+
+          const normalizedStatus = mapBuildStatus(validatedData.status);
+          setStatus(normalizedStatus);
+          
+          // Map zu BuildDetails
+          const buildDetails: BuildDetails = {
+            id: validatedData.jobId,
+            github_repo: '',
+            status: validatedData.status,
+            artifact_url: validatedData.download_url || null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          
+          setDetails(buildDetails);
+        } catch (validationError: any) {
+          console.error('[useBuildStatusSupabase] Validation error:', validationError);
+          setError(validationError.message);
+          setStatus('error');
+        }
       } catch (e: any) {
         if (!isMounted) return;
         console.log('[useBuildStatusSupabase] Fehler:', e);

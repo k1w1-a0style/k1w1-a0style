@@ -5,40 +5,13 @@
 
 import { ProjectFile } from '../contexts/types';
 import { CONFIG } from '../config';
+import { buildProjectSnapshot } from '../utils/projectSnapshot';
 
 export type LlmMessageRole = 'system' | 'user' | 'assistant';
 
 export interface LlmMessage {
   role: LlmMessageRole;
   content: string;
-}
-
-// Hilfsfunktion: kleine, komprimierte Projektübersicht für den Prompt
-function buildProjectSnapshot(files: ProjectFile[]): string {
-  if (!files || files.length === 0) {
-    return 'Es sind aktuell noch keine Projektdateien angelegt.';
-  }
-
-  // Max. 20 Dateien in der Übersicht, damit der Prompt nicht explodiert
-  const MAX_FILES = 20;
-  const MAX_LINES_PER_FILE = 40;
-
-  const limitedFiles = [...files]
-    .slice(0, MAX_FILES)
-    .map((f) => {
-      const path = f.path;
-      const content = String(f.content ?? '');
-      const lines = content.split('\n').slice(0, MAX_LINES_PER_FILE);
-      const joined = lines.join('\n');
-
-      return `# ${path}\n${joined}`;
-    });
-
-  return (
-    'Ausschnitt der aktuellen Projektdateien (gekürzt):\n\n' +
-    limitedFiles.join('\n\n') +
-    '\n\n(Hinweis: Dies ist nur ein Ausschnitt, nicht das komplette Projekt.)'
-  );
 }
 
 function buildAllowedPathHint(): string {
@@ -157,7 +130,13 @@ export function buildBuilderMessages(
     content: systemIntroLines.join('\n\n'),
   };
 
-  const snapshot = buildProjectSnapshot(projectFiles);
+  // ✅ Nutze zentralisierte buildProjectSnapshot aus projectSnapshot.ts
+  const snapshot = buildProjectSnapshot(projectFiles, {
+    maxFiles: 20,
+    maxLinesPerFile: 40,
+    includeFileContent: true,
+    includeMetrics: false,
+  });
 
   const projectMessage: LlmMessage = {
     role: 'system',
@@ -208,7 +187,13 @@ export function buildValidatorMessages(
       'Wenn die Dateien OK sind, kannst du sie unverändert zurückgeben.',
   };
 
-  const snapshot = buildProjectSnapshot(projectFiles);
+  // ✅ Nutze zentralisierte buildProjectSnapshot
+  const snapshot = buildProjectSnapshot(projectFiles, {
+    maxFiles: 20,
+    maxLinesPerFile: 40,
+    includeFileContent: true,
+    includeMetrics: false,
+  });
 
   const context: LlmMessage = {
     role: 'system',

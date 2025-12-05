@@ -1,17 +1,32 @@
-// hooks/useBuildTrigger.ts - Extracted build trigger logic from CustomHeader
+// hooks/useBuildTrigger.ts - REFACTORED WITH TYPE SAFETY
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Alert } from 'react-native';
 import { ensureSupabaseClient } from '../lib/supabase';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ProjectFile } from '../contexts/types';
+import {
+  type TriggerEASBuildResponse,
+  type CheckEASBuildResponse,
+  isTriggerEASBuildResponse,
+  isCheckEASBuildResponse,
+  validateSupabaseResponse,
+} from '../lib/supabaseTypes';
 
 const POLLING_INTERVAL_MS = 15000;
+
+/**
+ * Callbacks für Build-Trigger-Events
+ */
+export interface BuildTriggerCallbacks {
+  onBuildError?: (error: string, hint?: string) => void;
+  onBuildSuccess?: (downloadUrl: string | null) => void;
+}
 
 interface UseBuildTriggerProps {
   projectFiles: ProjectFile[];
   getGitHubToken: () => Promise<string | null>;
   getExpoToken: () => Promise<string | null>;
   getGitHubRepo: () => Promise<string | null>;
+  callbacks?: BuildTriggerCallbacks;
 }
 
 interface BuildTriggerResult {
@@ -27,6 +42,7 @@ export function useBuildTrigger({
   getGitHubToken,
   getExpoToken,
   getGitHubRepo,
+  callbacks,
 }: UseBuildTriggerProps): BuildTriggerResult {
   const [isTriggeringBuild, setIsTriggeringBuild] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
@@ -65,43 +81,52 @@ export function useBuildTrigger({
       easTokenRef.current = token;
     }
 
-    try {
-      const { data, error } = await supabaseRef.current.functions.invoke('check-eas-build', {
-        body: { jobId: currentJobId, easToken: easTokenRef.current },
-      });
+      try {
+        const { data, error } = await supabaseRef.current.functions.invoke('check-eas-build', {
+          body: { jobId: currentJobId, easToken: easTokenRef.current },
+        });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      console.log('Poll Status:', data.status);
-      switch (data.status) {
-        case 'pending':
-          setBuildStatus('Job erstellt...');
-          break;
-        case 'pushed':
-          setBuildStatus('Code gepusht...');
-          break;
-        case 'building':
-          setBuildStatus('Build läuft...');
-          break;
-        case 'success':
-        case 'completed':
-          setBuildStatus('Build erfolgreich!');
-          setDownloadUrl(data.download_url || null);
-          setIsPolling(false);
-          setCurrentJobId(null);
-          break;
-        case 'error':
-          setBuildStatus('Build fehlgeschlagen!');
-          setIsPolling(false);
-          setCurrentJobId(null);
-          break;
+        // ✅ TYPENSICHERHEIT: Validiere Response
+        const validatedData = validateSupabaseResponse(
+          data,
+          isCheckEASBuildResponse,
+          'Invalid check-eas-build response'
+        );
+
+        console.log('Poll Status:', validatedData.status);
+        switch (validatedData.status.toLowerCase()) {
+          case 'pending':
+            setBuildStatus('Job erstellt...');
+            break;
+          case 'pushed':
+            setBuildStatus('Code gepusht...');
+            break;
+          case 'building':
+          case 'in_progress':
+            setBuildStatus('Build läuft...');
+            break;
+          case 'success':
+          case 'completed':
+            setBuildStatus('Build erfolgreich!');
+            setDownloadUrl(validatedData.download_url || null);
+            setIsPolling(false);
+            setCurrentJobId(null);
+            break;
+          case 'error':
+          case 'failed':
+            setBuildStatus('Build fehlgeschlagen!');
+            setIsPolling(false);
+            setCurrentJobId(null);
+            break;
+        }
+      } catch (pollError: any) {
+        console.error('Polling-Fehler:', pollError);
+        setBuildStatus('Polling-Fehler');
+        setIsPolling(false);
+        setCurrentJobId(null);
       }
-    } catch (pollError: any) {
-      console.error('Polling-Fehler:', pollError);
-      setBuildStatus('Polling-Fehler');
-      setIsPolling(false);
-      setCurrentJobId(null);
-    }
   }, [currentJobId, getExpoToken]);
 
   // Polling-Effect
@@ -171,25 +196,31 @@ export function useBuildTrigger({
       const responseData = await response.json();
       console.log('📥 Build Response:', responseData);
 
-      if (!response.ok || responseData.success === false) {
-        const errorMessage = responseData.error || 'Unbekannter Fehler';
-        const errorStep = responseData.step || 'UNKNOWN';
-        const errorHint = responseData.hint || '';
+      // ✅ TYPENSICHERHEIT: Validiere Response
+      const validatedData = validateSupabaseResponse(
+        responseData,
+        isTriggerEASBuildResponse,
+        'Invalid trigger-eas-build response'
+      );
 
-        let displayMessage = `Build-Fehler (${errorStep}):\n\n${errorMessage}`;
-        if (errorHint) {
-          displayMessage += `\n\n💡 Tipp:\n${errorHint}`;
-        }
+      if (!response.ok || validatedData.success === false) {
+        const errorMessage = validatedData.error || 'Unbekannter Fehler';
+        const errorStep = validatedData.step || 'UNKNOWN';
+        const errorHint = validatedData.hint || '';
 
         console.error('❌ Build Fehler:', { errorMessage, errorStep, errorHint });
 
-        Alert.alert('❌ Build fehlgeschlagen', displayMessage, [{ text: 'OK', style: 'default' }]);
+        callbacks?.onBuildError?.(errorMessage, errorHint);
 
         throw new Error(errorMessage);
       }
 
-      console.log('✅ Build gestartet:', responseData);
-      setCurrentJobId(responseData.job_id);
+      if (!validatedData.job_id) {
+        throw new Error('Keine Job-ID in Response');
+      }
+
+      console.log('✅ Build gestartet:', validatedData);
+      setCurrentJobId(validatedData.job_id);
       setIsPolling(true);
       setBuildStatus('Code gepusht. Warte auf Build...');
     } catch (err: any) {

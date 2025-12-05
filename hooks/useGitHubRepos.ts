@@ -1,8 +1,8 @@
-// hooks/useGitHubRepos.ts - Custom hook for GitHub repository management
+// hooks/useGitHubRepos.ts - REFACTORED WITH EXPONENTIAL BACKOFF
 import { useState, useCallback } from 'react';
-import { Alert } from 'react-native';
 import { Buffer } from 'buffer';
 import { ProjectFile } from '../contexts/types';
+import { fetchWithBackoff } from '../lib/retryWithBackoff';
 
 export type GitHubRepo = {
   id: number;
@@ -13,46 +13,64 @@ export type GitHubRepo = {
   updated_at: string;
 };
 
-// Retry helper for API calls
+/**
+ * Callbacks für GitHub-Repo-Events
+ */
+export interface GitHubReposCallbacks {
+  onLoadError?: (error: string) => void;
+  onDeleteError?: (error: string, repo: GitHubRepo) => void;
+  onRenameError?: (error: string, oldName: string) => void;
+  onPullError?: (error: string) => void;
+  onPullNoFiles?: (message: string) => void;
+  onPullProgress?: (message: string) => void;
+}
+
+/**
+ * ✅ VERBESSERT: Exponential Backoff statt fester Delays
+ */
 async function fetchWithRetry(
   url: string,
   options: RequestInit,
   maxRetries = 3
 ): Promise<Response> {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const res = await fetch(url, options);
-
-      if (res.ok || res.status === 404 || res.status === 403) {
-        return res;
+  return fetchWithBackoff(url, options, {
+    maxRetries,
+    baseDelay: 1000,
+    maxDelay: 10000,
+    factor: 2,
+    jitter: 0.2,
+    shouldRetry: (error) => {
+      const message = error.message.toLowerCase();
+      
+      // Immer retry bei 5xx
+      if (message.includes('500') || message.includes('502') || message.includes('503')) {
+        return true;
       }
-
-      if (res.status >= 500 && i < maxRetries - 1) {
-        await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
-        continue;
+      
+      // KEIN Retry bei 404/403 (erwartete Fehler)
+      if (message.includes('404') || message.includes('403')) {
+        return false;
       }
-
-      return res;
-    } catch (e) {
-      if (i === maxRetries - 1) throw e;
-      await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
-    }
-  }
-
-  throw new Error('Max retries reached');
+      
+      // Default: retry
+      return true;
+    },
+  });
 }
 
-export const useGitHubRepos = (token: string | null) => {
+export const useGitHubRepos = (
+  token: string | null,
+  callbacks?: GitHubReposCallbacks
+) => {
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadRepos = useCallback(async () => {
     if (!token) {
-      Alert.alert(
-        'Kein Token',
-        'Bitte hinterlege dein GitHub-PAT im „Verbindungen"-Screen.'
-      );
+      const errorMsg = 'Kein GitHub-Token konfiguriert';
+      setError(errorMsg);
+      callbacks?.onLoadError?.(errorMsg);
       return;
     }
 
@@ -79,12 +97,13 @@ export const useGitHubRepos = (token: string | null) => {
       setRepos(json);
     } catch (e: any) {
       console.error('[useGitHubRepos] Error:', e);
-      setError(e?.message ?? 'Fehler beim Laden der Repos');
-      Alert.alert('Fehler', 'Repos konnten nicht geladen werden.');
+      const errorMsg = e?.message ?? 'Fehler beim Laden der Repos';
+      setError(errorMsg);
+      callbacks?.onLoadError?.(errorMsg);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, callbacks]);
 
   const deleteRepo = useCallback(
     async (repo: GitHubRepo) => {
@@ -103,10 +122,8 @@ export const useGitHubRepos = (token: string | null) => {
         );
 
         if (res.status === 403) {
-          Alert.alert(
-            'Keine Rechte',
-            'Du brauchst Admin-Rechte + delete_repo-Scope.'
-          );
+          const errorMsg = 'Keine Rechte: Admin-Rechte + delete_repo-Scope erforderlich';
+          callbacks?.onDeleteError?.(errorMsg, repo);
           return false;
         }
 
@@ -118,11 +135,12 @@ export const useGitHubRepos = (token: string | null) => {
         return true;
       } catch (e: any) {
         console.error('[useGitHubRepos] Delete error:', e);
-        Alert.alert('Fehler', e?.message ?? 'Repo konnte nicht gelöscht werden.');
+        const errorMsg = e?.message ?? 'Repo konnte nicht gelöscht werden';
+        callbacks?.onDeleteError?.(errorMsg, repo);
         return false;
       }
     },
-    [token]
+    [token, callbacks]
   );
 
   const renameRepo = useCallback(
@@ -160,11 +178,12 @@ export const useGitHubRepos = (token: string | null) => {
         return newFullName;
       } catch (e: any) {
         console.error('[useGitHubRepos] Rename error:', e);
-        Alert.alert('Fehler', e?.message ?? 'Repo konnte nicht umbenannt werden.');
+        const errorMsg = e?.message ?? 'Repo konnte nicht umbenannt werden';
+        callbacks?.onRenameError?.(errorMsg, currentFullName);
         return null;
       }
     },
-    [token]
+    [token, callbacks]
   );
 
   const pullFromRepo = useCallback(
@@ -218,7 +237,7 @@ export const useGitHubRepos = (token: string | null) => {
         const treeEntries = treeJson.tree.filter((entry: any) => entry.type === 'blob');
 
         if (!treeEntries.length) {
-          Alert.alert('Keine Dateien', 'Im Repository wurden keine Dateien gefunden.');
+          callbacks?.onPullNoFiles?.('Im Repository wurden keine Dateien gefunden');
           return [];
         }
 
@@ -270,18 +289,19 @@ export const useGitHubRepos = (token: string | null) => {
         }
 
         if (files.length === 0) {
-          Alert.alert('Keine Dateien', 'Im Repository wurden keine Text-Dateien gefunden.');
+          callbacks?.onPullNoFiles?.('Im Repository wurden keine Text-Dateien gefunden');
           return [];
         }
 
         return files;
       } catch (e: any) {
         console.error('[useGitHubRepos] Pull error:', e);
-        Alert.alert('Pull fehlgeschlagen', e?.message ?? 'Fehler beim Laden der Dateien.');
+        const errorMsg = e?.message ?? 'Fehler beim Laden der Dateien';
+        callbacks?.onPullError?.(errorMsg);
         return null;
       }
     },
-    [token]
+    [token, callbacks]
   );
 
   return {
