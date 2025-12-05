@@ -5,6 +5,13 @@ import { ProjectFile } from '../contexts/types';
 import { normalizePath, ensureStringContent, getCodeLineCount } from './chatUtils';
 import { CONFIG } from '../config';
 
+type NormalizedFileEntry = {
+  original: ProjectFile;
+  normalizedPath: string;
+  safeContent: string;
+  lineCount: number;
+};
+
 export interface ProjectSnapshotOptions {
   maxFiles?: number;
   maxLinesPerFile?: number;
@@ -41,6 +48,34 @@ export function buildProjectSnapshot(
     return 'Es sind aktuell noch keine Projektdateien angelegt.';
   }
 
+  const normalizedEntries: NormalizedFileEntry[] = files.map((file) => {
+    const safeContent = ensureStringContent(file.content);
+    return {
+      original: file,
+      normalizedPath: normalizePath(file.path),
+      safeContent,
+      lineCount: getCodeLineCount(safeContent),
+    };
+  });
+
+  const folderFileMap = normalizedEntries.reduce<Record<string, NormalizedFileEntry[]>>(
+    (acc, entry) => {
+      if (!entry.normalizedPath.includes('/')) {
+        return acc;
+      }
+      const folder = entry.normalizedPath.split('/')[0];
+      if (!folder) {
+        return acc;
+      }
+      if (!acc[folder]) {
+        acc[folder] = [];
+      }
+      acc[folder].push(entry);
+      return acc;
+    },
+    {} as Record<string, NormalizedFileEntry[]>
+  );
+
   const metrics = includeMetrics ? calculateProjectMetrics(files) : null;
   let output = '';
 
@@ -57,10 +92,9 @@ export function buildProjectSnapshot(
   if (metrics && metrics.rootFiles.length > 0) {
     output += '🗂️ Root Files:\n';
     metrics.rootFiles.forEach((filename) => {
-      const file = files.find((f) => normalizePath(f.path) === filename);
-      if (file) {
-        const lines = getCodeLineCount(ensureStringContent(file.content));
-        output += `✅ ${filename} (${lines} lines)\n`;
+      const entry = normalizedEntries.find((e) => e.normalizedPath === filename);
+      if (entry) {
+        output += `✅ ${filename} (${entry.lineCount} lines)\n`;
       }
     });
     output += '\n';
@@ -69,26 +103,47 @@ export function buildProjectSnapshot(
   // Ordnerstruktur
   if (metrics && Object.keys(metrics.folders).length > 0) {
     output += '📁 Ordnerstruktur:\n';
-    Object.entries(metrics.folders).forEach(([folder, count]) => {
+    const maxFolderEntries = Math.max(maxFiles, 1);
+    let emittedFolderEntries = 0;
+    let truncatedFolders = false;
+
+    for (const [folder, count] of Object.entries(metrics.folders)) {
+      if (emittedFolderEntries >= maxFolderEntries) {
+        truncatedFolders = true;
+        break;
+      }
+
       output += `📂 ${folder}/ (${count} files)\n`;
-      const folderFiles = files.filter((f) => normalizePath(f.path).startsWith(`${folder}/`));
-      folderFiles.forEach((f) => {
-        const lines = getCodeLineCount(ensureStringContent(f.content));
-        const fileName = normalizePath(f.path).split('/').pop();
-        output += ` * ${fileName} (${lines} lines)\n`;
+      const folderEntries = folderFileMap[folder] || [];
+      const remainingSlots = maxFolderEntries - emittedFolderEntries;
+      const limitedEntries = folderEntries.slice(0, remainingSlots);
+
+      limitedEntries.forEach((entry) => {
+        const fileName = entry.normalizedPath.split('/').pop();
+        output += ` * ${fileName} (${entry.lineCount} lines)\n`;
+        emittedFolderEntries += 1;
       });
-    });
+
+      if (folderEntries.length > limitedEntries.length) {
+        output += ` * … weitere Dateien in ${folder}/ gekürzt\n`;
+      }
+    }
+
+    if (truncatedFolders) {
+      output += '📂 … weitere Ordner gekürzt\n';
+    }
+
     output += '\n';
   }
 
   // Datei-Inhalte (gekürzt)
   if (includeFileContent) {
-    const limitedFiles = [...files].slice(0, maxFiles).map((f) => {
-      const path = f.path;
-      const content = String(f.content ?? '');
-      const lines = content.split('\n').slice(0, maxLinesPerFile);
-      const joined = lines.join('\n');
-      return `# ${path}\n${joined}${lines.length === maxLinesPerFile ? '\n... (gekürzt)' : ''}`;
+    const limitedFiles = normalizedEntries.slice(0, maxFiles).map((entry) => {
+      const lines = entry.safeContent.split('\n');
+      const limitedLines = lines.slice(0, maxLinesPerFile);
+      const joined = limitedLines.join('\n');
+      const truncated = lines.length > maxLinesPerFile;
+      return `# ${entry.original.path}\n${joined}${truncated ? '\n... (gekürzt)' : ''}`;
     });
 
     if (limitedFiles.length > 0) {

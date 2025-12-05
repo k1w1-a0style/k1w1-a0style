@@ -5,9 +5,56 @@ export type SyntaxError = {
   line?: number;
 };
 
+const escapeRegex = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const normalizePathSeparators = (value: string): string =>
+  value.replace(/\\/g, '/');
+
+const extractImportIdentifiers = (importClause: string): string[] => {
+  const identifiers = new Set<string>();
+  const clause = importClause.replace(/\s+/g, ' ').trim();
+  if (!clause) return [];
+
+  const cleanedClause = clause.replace(/^type\s+/, '').trim();
+
+  const namespaceMatch = cleanedClause.match(/\*\s+as\s+([A-Za-z0-9_$]+)/i);
+  if (namespaceMatch) {
+    identifiers.add(namespaceMatch[1]);
+  }
+
+  const defaultMatch = cleanedClause.match(/^([A-Za-z0-9_$]+)/);
+  if (
+    defaultMatch &&
+    !defaultMatch[0].startsWith('{') &&
+    !defaultMatch[0].startsWith('*')
+  ) {
+    identifiers.add(defaultMatch[1]);
+  }
+
+  const braceMatch = cleanedClause.match(/\{([^}]*)\}/);
+  if (braceMatch) {
+    braceMatch[1]
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .forEach((part) => {
+        const sanitized = part.replace(/^type\s+/, '').trim();
+        const aliasParts = sanitized.split(/\s+as\s+/i);
+        const identifier = aliasParts.pop()?.trim();
+        if (identifier) {
+          identifiers.add(identifier);
+        }
+      });
+  }
+
+  return Array.from(identifiers);
+};
+
 export const validateSyntax = (code: string, filePath: string): SyntaxError[] => {
   const errors: SyntaxError[] = [];
   const extension = filePath.match(/\.(jsx?|tsx?|json|md)$/i)?.[1]?.toLowerCase();
+  const normalizedPath = normalizePathSeparators(filePath);
 
   if (!extension) return errors;
 
@@ -56,7 +103,10 @@ export const validateSyntax = (code: string, filePath: string): SyntaxError[] =>
     }
 
     // Check for missing exports in component files
-    if (filePath.includes('/components/') || filePath.includes('/screens/')) {
+    if (
+      normalizedPath.includes('/components/') ||
+      normalizedPath.includes('/screens/')
+    ) {
       if (!code.includes('export default') && !code.includes('export const') && !code.includes('export function')) {
         errors.push({
           message: 'Komponente hat keinen Export (export default/const/function fehlt)',
@@ -68,19 +118,20 @@ export const validateSyntax = (code: string, filePath: string): SyntaxError[] =>
     // Check for unused imports (basic check)
     const importMatches = code.match(/import\s+.*?\s+from\s+['"].*?['"]/g) || [];
     importMatches.forEach((importLine) => {
-      const match = importLine.match(/import\s+\{?\s*([^}]+?)\s*\}?\s+from/);
-      if (match) {
-        const imported = match[1].trim();
-        // Simple check if imported item is used
-        const usageRegex = new RegExp(`\\b${imported}\\b`, 'g');
+      const clauseMatch = importLine.match(/^import\s+(.+?)\s+from\s+['"]/i);
+      if (!clauseMatch) return;
+
+      const identifiers = extractImportIdentifiers(clauseMatch[1]);
+      identifiers.forEach((identifier) => {
+        const usageRegex = new RegExp(`\\b${escapeRegex(identifier)}\\b`, 'g');
         const usageCount = (code.match(usageRegex) || []).length;
-        if (usageCount === 1) { // Only found in import statement
+        if (usageCount <= 1) {
           errors.push({
-            message: `Import "${imported}" scheint ungenutzt zu sein`,
+            message: `Import "${identifier}" scheint ungenutzt zu sein`,
             severity: 'warning',
           });
         }
-      }
+      });
     });
   }
 
