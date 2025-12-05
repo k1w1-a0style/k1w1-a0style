@@ -1,0 +1,95 @@
+name: Release Build
+
+on:
+  # Manual trigger for production builds
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Platform to build"
+        required: true
+        type: choice
+        options:
+          - android
+          - ios
+          - all
+        default: "android"
+      profile:
+        description: "Build profile from eas.json"
+        required: true
+        type: choice
+        options:
+          - production
+          - preview
+          - development
+        default: "production"
+
+jobs:
+  build:
+    name: Release Build (${{ inputs.platform }})
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build on EAS
+        id: eas
+        run: |
+          echo "Starting EAS build for ${{ inputs.platform }} (${{ inputs.profile }})..."
+          BUILD_OUTPUT=$(eas build \
+            --platform ${{ inputs.platform }} \
+            --profile ${{ inputs.profile }} \
+            --non-interactive \
+            --wait \
+            2>&1)
+          
+          echo "$BUILD_OUTPUT"
+          
+          # Extract Build ID
+          BUILD_ID=$(echo "$BUILD_OUTPUT" | grep -oP 'Build ID: \K[a-f0-9-]+' || echo "unknown")
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+          
+          # Extract Build URL
+          BUILD_URL=$(echo "$BUILD_OUTPUT" | grep -oP 'https://expo.dev/accounts/[^/]+/projects/[^/]+/builds/[a-f0-9-]+' || echo "")
+          echo "build_url=$BUILD_URL" >> $GITHUB_OUTPUT
+
+      - name: Download Android APK
+        if: inputs.platform == 'android' || inputs.platform == 'all'
+        continue-on-error: true
+        run: |
+          mkdir -p build
+          eas build:download --id ${{ steps.eas.outputs.build_id }} --output build/k1w1-${{ inputs.profile }}.apk
+
+      - name: Upload Android Artifact
+        if: inputs.platform == 'android' || inputs.platform == 'all'
+        uses: actions/upload-artifact@v4
+        with:
+          name: k1w1-android-${{ inputs.profile }}
+          path: build/*.apk
+          retention-days: 30
+
+      - name: Create Release Summary
+        run: |
+          echo "## 🚀 Release Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Platform:** ${{ inputs.platform }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Profile:** ${{ inputs.profile }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build ID:** ${{ steps.eas.outputs.build_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build URL:** ${{ steps.eas.outputs.build_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Build artifacts are available in the Actions tab." >> $GITHUB_STEP_SUMMARY
