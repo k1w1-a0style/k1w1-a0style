@@ -93,16 +93,23 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
           'logo-github'
         )}
 
-        {/* Builds alt & V2 */}
+        {/* Builds */}
         {renderItem(
-          'Builds (alt)',
+          'Builds',
           'Builds',
           'construct-outline'
         )}
+
+        {/* ✅ NEUE SCREENS */}
         {renderItem(
-          'Builds (V2)',
-          'BuildsV2',
-          'rocket-outline'
+          '🔍 Diagnose',
+          'Diagnostic',
+          'bug-outline'
+        )}
+        {renderItem(
+          '👁 Vorschau',
+          'Preview',
+          'eye-outline'
         )}
 
         {renderItem('App Info', 'AppInfo', 'information-circle-outline')}
