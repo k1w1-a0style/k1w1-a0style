@@ -1,30 +1,81 @@
-// contexts/githubService.ts
+// contexts/githubService.ts - ✅ SICHER mit SecureTokenManager
 
-import * as SecureStore from 'expo-secure-store';
 import { Buffer } from 'buffer';
 import { ProjectFile } from './types';
+import SecureTokenManager from '../lib/SecureTokenManager';
 
+// Token-Keys (bleiben für Kompatibilität gleich)
 const GH_TOKEN_KEY = 'github_pat_v1';
 const EXPO_TOKEN_KEY = 'expo_token_v1';
 
-export const saveGitHubToken = async (token: string) => {
-  await SecureStore.setItemAsync(GH_TOKEN_KEY, token, {
-    keychainAccessible: SecureStore.ALWAYS_THIS_DEVICE_ONLY,
-  });
+// ✅ SICHERHEIT: Token-Expiry für GitHub (30 Tage)
+const GITHUB_TOKEN_EXPIRY_DAYS = 30;
+
+// ✅ SICHERHEIT: Token-Expiry für Expo (90 Tage)
+const EXPO_TOKEN_EXPIRY_DAYS = 90;
+
+/**
+ * Speichert GitHub Token mit Verschlüsselung und Expiry
+ */
+export const saveGitHubToken = async (token: string): Promise<void> => {
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + GITHUB_TOKEN_EXPIRY_DAYS);
+  
+  await SecureTokenManager.saveToken(GH_TOKEN_KEY, token, expiresAt);
+  console.log(`✅ GitHub Token gespeichert (gültig bis ${expiresAt.toISOString()})`);
 };
 
+/**
+ * Lädt GitHub Token (prüft automatisch Expiry)
+ */
 export const getGitHubToken = async (): Promise<string | null> => {
-  return await SecureStore.getItemAsync(GH_TOKEN_KEY);
+  return await SecureTokenManager.getToken(GH_TOKEN_KEY);
 };
 
-export const saveExpoToken = async (token: string) => {
-  await SecureStore.setItemAsync(EXPO_TOKEN_KEY, token, {
-    keychainAccessible: SecureStore.ALWAYS_THIS_DEVICE_ONLY,
-  });
+/**
+ * Speichert Expo Token mit Verschlüsselung und Expiry
+ */
+export const saveExpoToken = async (token: string): Promise<void> => {
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + EXPO_TOKEN_EXPIRY_DAYS);
+  
+  await SecureTokenManager.saveToken(EXPO_TOKEN_KEY, token, expiresAt);
+  console.log(`✅ Expo Token gespeichert (gültig bis ${expiresAt.toISOString()})`);
 };
 
+/**
+ * Lädt Expo Token (prüft automatisch Expiry)
+ */
 export const getExpoToken = async (): Promise<string | null> => {
-  return await SecureStore.getItemAsync(EXPO_TOKEN_KEY);
+  return await SecureTokenManager.getToken(EXPO_TOKEN_KEY);
+};
+
+/**
+ * Prüft ob GitHub Token vorhanden und gültig ist
+ */
+export const hasValidGitHubToken = async (): Promise<boolean> => {
+  return await SecureTokenManager.hasValidToken(GH_TOKEN_KEY);
+};
+
+/**
+ * Prüft ob Expo Token vorhanden und gültig ist
+ */
+export const hasValidExpoToken = async (): Promise<boolean> => {
+  return await SecureTokenManager.hasValidToken(EXPO_TOKEN_KEY);
+};
+
+/**
+ * Löscht GitHub Token
+ */
+export const deleteGitHubToken = async (): Promise<void> => {
+  await SecureTokenManager.deleteToken(GH_TOKEN_KEY);
+};
+
+/**
+ * Löscht Expo Token
+ */
+export const deleteExpoToken = async (): Promise<void> => {
+  await SecureTokenManager.deleteToken(EXPO_TOKEN_KEY);
 };
 
 export const createRepo = async (repoName: string, isPrivate = true) => {
