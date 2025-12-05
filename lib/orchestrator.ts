@@ -8,7 +8,11 @@
 import { extractJsonArray, safeJsonParse } from '../utils/chatUtils';
 import { ProjectFile } from '../contexts/types';
 import type { AllAIProviders } from '../contexts/AIContext';
-import { rotateApiKeyOnError } from '../contexts/AIContext';
+import {
+  rotateApiKeyOnError,
+  AVAILABLE_MODELS,
+  PROVIDER_DEFAULTS,
+} from '../contexts/AIContext';
 import SecureKeyManager from './SecureKeyManager';
 
 type ProviderId = AllAIProviders;
@@ -188,6 +192,12 @@ function enhanceErrorMessage(provider: ProviderId, error: string): string {
 // ============================================
 // META-DATEN / MODE SELECTION
 // ============================================
+const isKnownModel = (provider: ProviderId, modelId: string | undefined): boolean => {
+  if (!modelId) return false;
+  const list = AVAILABLE_MODELS[provider] ?? [];
+  return list.some((entry) => entry.id === modelId);
+};
+
 function detectMetaFromConfig(
   selectedProvider: string,
   selectedModel: string,
@@ -197,66 +207,42 @@ function detectMetaFromConfig(
   model: string;
   quality: 'speed' | 'quality' | 'unknown';
 } {
-  let provider: ProviderId;
+  const provider: ProviderId = PROVIDERS.includes(selectedProvider as ProviderId)
+    ? (selectedProvider as ProviderId)
+    : 'groq';
 
-  switch (selectedProvider) {
-    case 'gemini':
-      provider = 'gemini';
-      break;
-    case 'openai':
-      provider = 'openai';
-      break;
-    case 'anthropic':
-      provider = 'anthropic';
-      break;
-    case 'huggingface':
-      provider = 'huggingface';
-      break;
-    case 'groq':
-    default:
-      provider = 'groq';
-      break;
+  const defaults = PROVIDER_DEFAULTS[provider];
+
+  const quality: 'speed' | 'quality' | 'unknown' =
+    qualityMode === 'speed' || qualityMode === 'quality' ? qualityMode : 'unknown';
+
+  const isAutoSelection =
+    !selectedModel ||
+    selectedModel.startsWith('auto-') ||
+    (!!defaults.auto && selectedModel === defaults.auto);
+
+  if (isAutoSelection) {
+    const target =
+      quality === 'quality'
+        ? defaults.quality
+        : quality === 'speed'
+        ? defaults.speed
+        : defaults.speed;
+    return { provider, model: target, quality };
   }
 
-  let quality: 'speed' | 'quality' | 'unknown' = 'unknown';
-  if (qualityMode === 'speed' || qualityMode === 'quality') {
-    quality = qualityMode;
+  if (isKnownModel(provider, selectedModel)) {
+    return { provider, model: selectedModel, quality };
   }
 
-  let model = (selectedModel || '').trim();
+  const fallback =
+    quality === 'quality'
+      ? defaults.quality
+      : quality === 'speed'
+      ? defaults.speed
+      : defaults.speed;
 
-  if (provider === 'groq') {
-    if (!model || model === 'auto-groq') {
-      model =
-        quality === 'quality'
-          ? 'llama-3.3-70b-versatile'
-          : 'llama-3.1-8b-instant';
-    }
-  } else if (provider === 'gemini') {
-    if (!model || model === 'auto-gemini' || /llama/i.test(model)) {
-      model =
-        quality === 'quality'
-          ? 'gemini-2.5-pro'
-          : 'gemini-2.0-flash-lite-001';
-    }
-  } else if (provider === 'openai') {
-    if (!model || model === 'auto-openai') {
-      model = quality === 'quality' ? 'gpt-4o' : 'gpt-4o-mini';
-    }
-  } else if (provider === 'anthropic') {
-    if (!model || model === 'auto-claude' || model === 'auto-anthropic') {
-      model =
-        quality === 'quality'
-          ? 'claude-3-5-sonnet-20241022'
-          : 'claude-3-5-haiku-20241022';
-    }
-  } else if (provider === 'huggingface') {
-    if (!model || model === 'auto-hf') {
-      model = 'mistralai/Mistral-7B-Instruct-v0.3';
-    }
-  }
-
-  return { provider, model, quality };
+  return { provider, model: fallback, quality };
 }
 
 // ============================================
@@ -592,7 +578,7 @@ async function callProviderWithRetry(
 
       if (shouldRotateKey(errorMsg)) {
         log('INFO', `🔄 Rotiere Key für ${provider}.`);
-        const rotated = await rotateApiKeyOnError(provider);
+        const rotated = await rotateApiKeyOnError(provider, enhancedMsg);
 
         if (!rotated) {
           log('ERROR', `Alle Keys für ${provider} erschöpft`);

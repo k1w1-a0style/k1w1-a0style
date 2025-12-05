@@ -91,6 +91,14 @@ export function buildBuilderMessages(
   );
 
   systemIntroLines.push(
+    'Sprache: Deutsch. Beschreibe Funktionen, Kommentare und Statusmeldungen auf Deutsch (Code darf selbstverständlich englische Identifier nutzen).',
+  );
+
+  systemIntroLines.push(
+    'Nutze den Chat-Verlauf als Gedächtnis. Greife auf bestehende Entscheidungen zurück und überschreibe keine Dateien blind, wenn keine Änderung gefordert ist.',
+  );
+
+  systemIntroLines.push(
     'AUSGABEFORMAT (sehr wichtig): Du gibst als Antwort IMMER NUR ein valides JSON-Array zurück, ' +
       'ohne Erklärungstext, ohne Kommentare außerhalb der JSON-Struktur. Beispiel:\n' +
       '[\n  { "path": "screens/Foo.tsx", "content": "/* Code ... */" },\n' +
@@ -111,6 +119,10 @@ export function buildBuilderMessages(
   systemIntroLines.push(
     'Vermeide generisches Blabla im Dateiinhalt wie "kompletter Dateiinhalt hier..." oder ' +
       '"// Neue Datei". Schreibe immer echten, vollständigen Code / echte Inhalte.'
+  );
+
+  systemIntroLines.push(
+    'Keine Platzhalter, kein Lorem Ipsum, keine „TODO: hier Code einfügen“-Fragmente. Schreibe produktionsreifen Code.',
   );
 
   // Core-Files nur anfassen, wenn explizit verlangt
@@ -134,6 +146,10 @@ export function buildBuilderMessages(
   systemIntroLines.push(
     'Wenn der Nutzer nur kleine Änderungen will, ändere NUR die minimal nötigen Dateien. ' +
       'Du musst nicht jedes Mal App.tsx, package.json oder Theme komplett überschreiben.'
+  );
+
+  systemIntroLines.push(
+    'Validiere Pfade, JSON und Syntax bevor du antwortest. Schreibe nur Dateien, die echte Änderungen enthalten.',
   );
 
   const systemMessage: LlmMessage = {
