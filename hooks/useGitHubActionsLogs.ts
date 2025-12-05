@@ -135,17 +135,36 @@ export function useGitHubActionsLogs({
     await fetchLogs();
   }, [fetchLogs]);
 
-  // Auto-refresh effect
+  // Auto-refresh effect - uses workflowRun ref to avoid stale closure issues
+  const workflowStatusRef = useRef<string | undefined>(undefined);
+  
+  useEffect(() => {
+    workflowStatusRef.current = workflowRun?.status;
+  }, [workflowRun?.status]);
+
   useEffect(() => {
     if (!githubRepo || !autoRefresh) {
       return;
     }
 
+    // Initial fetch
     fetchLogs();
 
-    if (workflowRun?.status === 'in_progress' || workflowRun?.status === 'queued') {
-      intervalRef.current = setInterval(fetchLogs, refreshInterval);
-    }
+    // Set up interval - check ref inside interval callback
+    const checkAndFetch = () => {
+      const currentStatus = workflowStatusRef.current;
+      if (currentStatus === 'in_progress' || currentStatus === 'queued' || !currentStatus) {
+        fetchLogs();
+      } else {
+        // Stop polling when completed
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      }
+    };
+
+    intervalRef.current = setInterval(checkAndFetch, refreshInterval);
 
     return () => {
       if (intervalRef.current) {
@@ -153,7 +172,7 @@ export function useGitHubActionsLogs({
         intervalRef.current = null;
       }
     };
-  }, [githubRepo, autoRefresh, refreshInterval, workflowRun?.status, fetchLogs]);
+  }, [githubRepo, autoRefresh, refreshInterval, fetchLogs]);
 
   useEffect(() => {
     isMountedRef.current = true;

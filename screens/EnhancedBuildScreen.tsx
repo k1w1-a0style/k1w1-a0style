@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import {
   ActivityIndicator,
   Linking,
@@ -9,13 +9,15 @@ import {
   Alert,
   ScrollView,
   RefreshControl,
+  Animated,
+  Easing,
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBuildStatus, BuildStatus } from "../hooks/useBuildStatus";
 import { useGitHubActionsLogs } from "../hooks/useGitHubActionsLogs";
 import { BuildErrorAnalyzer, ErrorAnalysis } from "../lib/buildErrorAnalyzer";
 import { CONFIG } from "../config";
-import { theme } from "../theme";
+import { theme, getNeonGlow } from "../theme";
 import { useGitHub } from '../contexts/GitHubContext';
 
 type TimelineStepKey = "queued" | "building" | "success";
@@ -131,7 +133,14 @@ export default function EnhancedBuildScreen() {
   const [errorAnalyses, setErrorAnalyses] = useState<ErrorAnalysis[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Animated values for smooth progress bar
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
   const { status, details, lastError, isPolling } = useBuildStatus(jobId);
+  
+  // Extract runId from raw response if available
+  const runId = details?.raw?.runId || details?.raw?.run_id || null;
   
   const { 
     logs, 
@@ -141,7 +150,7 @@ export default function EnhancedBuildScreen() {
     refreshLogs 
   } = useGitHubActionsLogs({
     githubRepo: activeRepo,
-    runId: details?.runId,
+    runId: runId,
     autoRefresh: status === 'building' || status === 'queued',
   });
 
@@ -154,6 +163,44 @@ export default function EnhancedBuildScreen() {
       setErrorAnalyses([]);
     }
   }, [logs, status]);
+
+  // Animated progress bar
+  const progress = useMemo(() => STATUS_PROGRESS[status] ?? 0, [status]);
+  
+  useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: progress,
+      duration: 500,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [progress, progressAnim]);
+
+  // Pulse animation for active build indicator
+  useEffect(() => {
+    if (status === 'building' || status === 'queued') {
+      const pulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.2,
+            duration: 800,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 800,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      pulse.start();
+      return () => pulse.stop();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [status, pulseAnim]);
 
   const startBuild = useCallback(async () => {
     if (!activeRepo) {
@@ -229,7 +276,27 @@ export default function EnhancedBuildScreen() {
     setRefreshing(false);
   }, [refreshLogs]);
 
-  const progress = useMemo(() => STATUS_PROGRESS[status] ?? 0, [status]);
+  const resetBuild = useCallback(() => {
+    Alert.alert(
+      '🔄 Build zurücksetzen?',
+      'Möchtest du den aktuellen Build-Status zurücksetzen und einen neuen Build starten?',
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Zurücksetzen',
+          style: 'destructive',
+          onPress: () => {
+            setJobId(null);
+            setStartedAt(null);
+            setElapsedMs(0);
+            setShowLogs(false);
+            setErrorAnalyses([]);
+          },
+        },
+      ]
+    );
+  }, []);
+
   const eta = useMemo(() => computeEta(status, elapsedMs), [status, elapsedMs]);
   const errorSummary = useMemo(() => 
     BuildErrorAnalyzer.generateSummary(errorAnalyses), 
@@ -239,46 +306,87 @@ export default function EnhancedBuildScreen() {
     BuildErrorAnalyzer.getMostCriticalError(errorAnalyses),
     [errorAnalyses]
   );
+  
+  // Width interpolation for animated progress bar
+  const animatedWidth = progressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', '100%'],
+  });
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <ScrollView
         style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
             tintColor={theme.palette.primary}
+            colors={[theme.palette.primary]}
           />
         }
       >
         <View style={styles.header}>
-          <Text style={styles.title}>🚀 Live Build Status</Text>
+          <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+            <Text style={styles.title}>🚀 Live Build Status</Text>
+          </Animated.View>
           <Text style={styles.subtitle}>
             Starte einen Build und verfolge Warteschlange, Fortschritt und Dauer in Echtzeit.
           </Text>
         </View>
 
-        {activeRepo && (
+        {/* Repo Info Card - Show warning if no repo selected */}
+        {activeRepo ? (
           <View style={styles.repoInfo}>
-            <Text style={styles.repoLabel}>Aktives Repo:</Text>
+            <Text style={styles.repoLabel}>📂 Aktives Repository</Text>
             <Text style={styles.repoValue}>{activeRepo}</Text>
+          </View>
+        ) : (
+          <View style={styles.noRepoCard}>
+            <Text style={styles.noRepoIcon}>⚠️</Text>
+            <Text style={styles.noRepoTitle}>Kein Repository ausgewählt</Text>
+            <Text style={styles.noRepoText}>
+              Wähle zuerst ein GitHub-Repo im „GitHub Repos"-Tab aus, bevor du einen Build starten kannst.
+            </Text>
           </View>
         )}
 
-        <TouchableOpacity
-          onPress={startBuild}
-          style={[styles.buildButton, (isPolling || status === "building") && styles.buildButtonDisabled]}
-          disabled={isPolling || status === "building"}
-        >
-          {isPolling || status === "building" ? (
-            <ActivityIndicator color={theme.palette.secondary} />
-          ) : (
-            <Text style={styles.buildButtonText}>🚀 Build starten</Text>
-          )}
-        </TouchableOpacity>
+        {/* Action Buttons */}
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            onPress={startBuild}
+            style={[
+              styles.buildButton,
+              !activeRepo && styles.buildButtonDisabled,
+              (isPolling || status === "building") && styles.buildButtonActive,
+            ]}
+            disabled={!activeRepo || isPolling || status === "building"}
+            activeOpacity={0.7}
+          >
+            {isPolling || status === "building" ? (
+              <View style={styles.buildButtonContent}>
+                <ActivityIndicator color={theme.palette.secondary} size="small" />
+                <Text style={styles.buildButtonTextActive}>Build läuft...</Text>
+              </View>
+            ) : (
+              <Text style={styles.buildButtonText}>🚀 Build starten</Text>
+            )}
+          </TouchableOpacity>
 
-        {!jobId && (
+          {jobId && (
+            <TouchableOpacity
+              onPress={resetBuild}
+              style={styles.resetButton}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.resetButtonText}>🔄</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {!jobId && activeRepo && (
           <View style={styles.hintCard}>
             <Text style={styles.hintText}>
               💡 Noch kein Build aktiv. Starte oben einen Run, um Live-Daten zu sehen.
@@ -298,15 +406,20 @@ export default function EnhancedBuildScreen() {
               <Text style={styles.statusText}>{STATUS_MESSAGES[status]}</Text>
 
               <View style={styles.progressBar}>
-                <View 
+                <Animated.View 
                   style={[
                     styles.progressFill, 
-                    { width: `${(progress * 100).toFixed(1)}%` },
+                    { width: animatedWidth },
                     status === 'failed' && styles.progressFillError,
                     status === 'success' && styles.progressFillSuccess,
                   ]} 
                 />
               </View>
+              
+              {/* Progress percentage indicator */}
+              <Text style={styles.progressPercent}>
+                {Math.round(progress * 100)}%
+              </Text>
 
               <View style={styles.liveMetrics}>
                 <View style={styles.metricBox}>
@@ -437,8 +550,13 @@ export default function EnhancedBuildScreen() {
                   )}
 
                   {logs.length > 0 && (
-                    <View style={styles.logsContainer}>
-                      {logs.slice(-30).map((log, idx) => (
+                    <ScrollView 
+                      style={styles.logsScrollContainer}
+                      contentContainerStyle={styles.logsContent}
+                      nestedScrollEnabled={true}
+                      showsVerticalScrollIndicator={true}
+                    >
+                      {logs.slice(-50).map((log, idx) => (
                         <View
                           key={idx}
                           style={[
@@ -450,10 +568,12 @@ export default function EnhancedBuildScreen() {
                           <Text style={styles.logTimestamp}>
                             {new Date(log.timestamp).toLocaleTimeString('de-DE')}
                           </Text>
-                          <Text style={styles.logMessage}>{log.message}</Text>
+                          <Text style={styles.logMessage} numberOfLines={3}>
+                            {log.message}
+                          </Text>
                         </View>
                       ))}
-                    </View>
+                    </ScrollView>
                   )}
 
                   {logs.length === 0 && !isLoadingLogs && !logsError && (
@@ -509,55 +629,122 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: 32,
+  },
   header: {
     padding: 16,
+    alignItems: 'center',
   },
   title: {
     color: theme.palette.primary,
     fontSize: 26,
     fontWeight: "700",
     marginBottom: 6,
+    textAlign: 'center',
+    ...getNeonGlow(theme.palette.primary, 'subtle'),
   },
   subtitle: {
     color: theme.palette.text.secondary,
     fontSize: 14,
     lineHeight: 20,
+    textAlign: 'center',
   },
   repoInfo: {
     backgroundColor: theme.palette.card,
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 10,
+    padding: 14,
     marginHorizontal: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: theme.palette.border,
+    borderColor: theme.palette.primary + '40',
   },
   repoLabel: {
     fontSize: 12,
     color: theme.palette.text.secondary,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   repoValue: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
     color: theme.palette.primary,
   },
+  noRepoCard: {
+    backgroundColor: theme.palette.card,
+    borderRadius: 12,
+    padding: 20,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: theme.palette.warning,
+    alignItems: 'center',
+  },
+  noRepoIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  noRepoTitle: {
+    color: theme.palette.warning,
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  noRepoText: {
+    color: theme.palette.text.secondary,
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    gap: 10,
+  },
   buildButton: {
+    flex: 1,
     backgroundColor: theme.palette.primary,
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 10,
     alignItems: "center",
-    marginHorizontal: 16,
-    marginBottom: 16,
+    justifyContent: 'center',
+    ...getNeonGlow(theme.palette.primary, 'normal'),
+  },
+  buildButtonActive: {
+    backgroundColor: theme.palette.primaryDark,
+    opacity: 1,
   },
   buildButtonDisabled: {
-    opacity: 0.7,
+    opacity: 0.5,
+    ...getNeonGlow(theme.palette.primary, 'subtle'),
+  },
+  buildButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   buildButtonText: {
     color: theme.palette.secondary,
     fontWeight: "bold",
     fontSize: 16,
+  },
+  buildButtonTextActive: {
+    color: theme.palette.secondary,
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  resetButton: {
+    backgroundColor: theme.palette.card,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  resetButtonText: {
+    fontSize: 20,
   },
   hintCard: {
     backgroundColor: theme.palette.card,
@@ -572,6 +759,7 @@ const styles = StyleSheet.create({
     color: theme.palette.text.secondary,
     fontSize: 14,
     lineHeight: 20,
+    textAlign: 'center',
   },
   liveCard: {
     marginHorizontal: 16,
@@ -603,21 +791,29 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   progressBar: {
-    height: 8,
+    height: 10,
     borderRadius: 999,
     backgroundColor: theme.palette.background,
     overflow: "hidden",
+    borderWidth: 1,
+    borderColor: theme.palette.border,
   },
   progressFill: {
     height: "100%",
     backgroundColor: theme.palette.primary,
-    transition: 'width 0.3s ease',
+    borderRadius: 999,
   },
   progressFillError: {
     backgroundColor: theme.palette.error,
   },
   progressFillSuccess: {
     backgroundColor: theme.palette.success,
+  },
+  progressPercent: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    textAlign: 'right',
+    marginTop: 4,
   },
   liveMetrics: {
     flexDirection: "row",
@@ -810,9 +1006,14 @@ const styles = StyleSheet.create({
     padding: 12,
     textAlign: "center",
   },
-  logsContainer: {
+  logsScrollContainer: {
     marginTop: 8,
-    maxHeight: 400,
+    maxHeight: 300,
+    borderRadius: 8,
+    backgroundColor: theme.palette.background,
+  },
+  logsContent: {
+    paddingVertical: 4,
   },
   logEntry: {
     flexDirection: "row",
