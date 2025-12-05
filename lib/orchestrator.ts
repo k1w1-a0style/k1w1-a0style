@@ -9,6 +9,7 @@ import { extractJsonArray, safeJsonParse } from '../utils/chatUtils';
 import { ProjectFile } from '../contexts/types';
 import type { AllAIProviders } from '../contexts/AIContext';
 import { rotateApiKeyOnError } from '../contexts/AIContext';
+import SecureKeyManager from './SecureKeyManager';
 
 type ProviderId = AllAIProviders;
 
@@ -97,72 +98,39 @@ async function withTimeout<T>(
 }
 
 // ============================================
-// API-KEY RESOLUTION
+// API-KEY RESOLUTION (✅ SICHER mit SecureKeyManager)
 // ============================================
 function resolveApiKey(provider: ProviderId): string | null {
-  const g = (globalThis as any) || {};
-
-  try {
-    const cfg = g.__K1W1_AI_CONFIG;
-    if (cfg?.apiKeys?.[provider]?.[0]) {
-      const key = String(cfg.apiKeys[provider][0]);
-      // ✅ SICHERHEIT: Keine API-Key-Referenzen in Logs
-      log('INFO', `API-Key für ${provider} aus Config geladen`);
-      return key;
-    }
-  } catch {
-    // ignorieren
+  // ✅ SICHER: Zuerst SecureKeyManager prüfen
+  const key = SecureKeyManager.getCurrentKey(provider);
+  
+  if (key) {
+    // ✅ SICHERHEIT: Keine API-Key-Referenzen in Logs
+    log('INFO', `API-Key für ${provider} aus SecureKeyManager geladen`);
+    return key;
   }
 
-  try {
-    let candidate: string | undefined;
+  // Fallback: process.env (nur für Development/Testing)
+  if (typeof process !== 'undefined' && process.env) {
+    const envNames: string[] =
+      provider === 'groq'
+        ? ['GROQ_API_KEY', 'EXPO_PUBLIC_GROQ_API_KEY']
+        : provider === 'gemini'
+        ? ['GEMINI_API_KEY', 'EXPO_PUBLIC_GEMINI_API_KEY']
+        : provider === 'openai'
+        ? ['OPENAI_API_KEY', 'EXPO_PUBLIC_OPENAI_API_KEY']
+        : provider === 'anthropic'
+        ? ['ANTHROPIC_API_KEY', 'EXPO_PUBLIC_ANTHROPIC_API_KEY']
+        : ['HUGGINGFACE_API_KEY', 'EXPO_PUBLIC_HF_API_KEY', 'HF_API_KEY'];
 
-    switch (provider) {
-      case 'groq':
-        candidate = g.GROQ_API_KEY || g.EXPO_PUBLIC_GROQ_API_KEY;
-        break;
-      case 'gemini':
-        candidate = g.GEMINI_API_KEY || g.EXPO_PUBLIC_GEMINI_API_KEY;
-        break;
-      case 'openai':
-        candidate = g.OPENAI_API_KEY || g.EXPO_PUBLIC_OPENAI_API_KEY;
-        break;
-      case 'anthropic':
-        candidate = g.ANTHROPIC_API_KEY || g.EXPO_PUBLIC_ANTHROPIC_API_KEY;
-        break;
-      case 'huggingface':
-        candidate =
-          g.HUGGINGFACE_API_KEY || g.EXPO_PUBLIC_HF_API_KEY || g.HF_API_KEY;
-        break;
-    }
-
-    if (candidate && typeof candidate === 'string' && candidate.trim().length) {
-      // ✅ SICHERHEIT: Keine API-Key-Referenzen in Logs
-      log('INFO', `API-Key für ${provider} aus globalThis geladen`);
-      return candidate.trim();
-    }
-  } catch {
-    // ignorieren
-  }
-
-  const envNames: string[] =
-    provider === 'groq'
-      ? ['GROQ_API_KEY', 'EXPO_PUBLIC_GROQ_API_KEY']
-      : provider === 'gemini'
-      ? ['GEMINI_API_KEY', 'EXPO_PUBLIC_GEMINI_API_KEY']
-      : provider === 'openai'
-      ? ['OPENAI_API_KEY', 'EXPO_PUBLIC_OPENAI_API_KEY']
-      : provider === 'anthropic'
-      ? ['ANTHROPIC_API_KEY', 'EXPO_PUBLIC_ANTHROPIC_API_KEY']
-      : ['HUGGINGFACE_API_KEY', 'EXPO_PUBLIC_HF_API_KEY', 'HF_API_KEY'];
-
-  for (const name of envNames) {
-    const v = (process.env as any)[name];
-    if (typeof v === 'string' && v.trim().length > 0) {
-      log('INFO', `API-Key für ${provider} aus process.env geladen`, {
-        envName: name,
-      });
-      return v.trim();
+    for (const name of envNames) {
+      const v = (process.env as any)[name];
+      if (typeof v === 'string' && v.trim().length > 0) {
+        log('INFO', `API-Key für ${provider} aus process.env geladen`, {
+          envName: name,
+        });
+        return v.trim();
+      }
     }
   }
 

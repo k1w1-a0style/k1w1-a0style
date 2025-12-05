@@ -1,6 +1,7 @@
 import { ProjectFile } from "../contexts/types";
-import { validateFilePath, normalizePath } from "../utils/chatUtils";
+import { normalizePath } from "../utils/chatUtils";
 import { CONFIG } from "../config";
+import { validateFilePath, validateFileContent } from "./validators";
 
 /**
  * FileWriter System
@@ -39,18 +40,33 @@ export function applyFilesToProject(
 
   for (const f of incoming) {
     // ✅ SICHERHEIT: Pfad validieren bevor Verarbeitung
-    const validation = validateFilePath(f.path);
-    if (!validation.valid) {
-      console.warn(`[FileWriter] Pfad übersprungen: ${f.path}`, validation.errors);
+    const pathValidation = validateFilePath(f.path);
+    if (!pathValidation.valid) {
+      console.warn(
+        `[FileWriter] Pfad übersprungen: ${f.path}`,
+        pathValidation.errors
+      );
+      skipped.push(f.path);
+      continue;
+    }
+
+    // ✅ SICHERHEIT: Content-Größe validieren
+    const contentValidation = validateFileContent(f.content);
+    if (!contentValidation.valid) {
+      console.warn(
+        `[FileWriter] Content übersprungen: ${f.path} - ${contentValidation.error}`,
+        `Größe: ${contentValidation.sizeMB}MB`
+      );
       skipped.push(f.path);
       continue;
     }
 
     // Normalisiere Pfad für konsistente Verarbeitung
-    const path = normalizePath(f.path);
+    const path = pathValidation.normalized || normalizePath(f.path);
 
     // Sicherheitsregel: bestimmte Kern-Dateien niemals automatisch überschreiben
     if (PROTECTED_FILES.has(path)) {
+      console.log(`[FileWriter] Geschützte Datei übersprungen: ${path}`);
       skipped.push(path);
       continue;
     }

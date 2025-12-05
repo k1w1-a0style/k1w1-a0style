@@ -6,7 +6,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import { zip, unzip } from 'react-native-zip-archive';
 import { v4 as uuidv4 } from 'uuid';
-import { validateFilePath, normalizePath } from '../utils/chatUtils';
+import { normalizePath } from '../utils/chatUtils';
+import { validateFilePath, validateFileContent, validateZipImport } from '../lib/validators';
 
 const PROJECT_STORAGE_KEY = 'k1w1_project_data';
 const CACHE_DIR = FileSystem.cacheDirectory + 'zip_temp/';
@@ -17,8 +18,9 @@ const readDirectoryRecursive = async (
   basePath = ''
 ): Promise<ProjectFile[]> => {
   let files: ProjectFile[] = [];
-  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB Limit pro Datei
-  const MAX_TOTAL_FILES = 1000; // Maximale Anzahl Dateien im ZIP
+  const { constants } = await import('../lib/validators');
+  const MAX_FILE_SIZE = constants.MAX_FILE_SIZE;
+  const MAX_TOTAL_FILES = constants.MAX_FILES_IN_ZIP;
   
   try {
     const items = await FileSystem.readDirectoryAsync(dirUri);
@@ -40,19 +42,37 @@ const readDirectoryRecursive = async (
         try {
           // ✅ SICHERHEIT: Dateigröße prüfen
           if (info.size && info.size > MAX_FILE_SIZE) {
-            console.warn(`[projectStorage] Datei zu groß, übersprungen: ${relativePath} (${info.size} bytes)`);
+            console.warn(
+              `[projectStorage] Datei zu groß, übersprungen: ${relativePath}`,
+              `Größe: ${(info.size / (1024 * 1024)).toFixed(2)}MB`
+            );
             continue;
           }
           
-          // ✅ SICHERHEIT: Pfad validieren
-          const validation = validateFilePath(relativePath);
-          if (!validation.valid) {
-            console.warn(`[projectStorage] Ungültiger Pfad übersprungen: ${relativePath}`, validation.errors);
+          const content = await FileSystem.readAsStringAsync(itemUri, { 
+            encoding: FileSystem.EncodingType.UTF8 
+          });
+          
+          // ✅ SICHERHEIT: Pfad UND Content validieren
+          const pathValidation = validateFilePath(relativePath);
+          if (!pathValidation.valid) {
+            console.warn(
+              `[projectStorage] Ungültiger Pfad übersprungen: ${relativePath}`,
+              pathValidation.errors
+            );
             continue;
           }
           
-          const content = await FileSystem.readAsStringAsync(itemUri, { encoding: FileSystem.EncodingType.UTF8 });
-          const normalizedPath = normalizePath(relativePath);
+          const contentValidation = validateFileContent(content);
+          if (!contentValidation.valid) {
+            console.warn(
+              `[projectStorage] Ungültiger Content übersprungen: ${relativePath}`,
+              contentValidation.error
+            );
+            continue;
+          }
+          
+          const normalizedPath = pathValidation.normalized || normalizePath(relativePath);
           files.push({ path: normalizedPath, content });
         } catch (error) {
           console.warn(`[projectStorage] Konnte nicht lesen: ${relativePath}`, error);
@@ -199,11 +219,36 @@ export const importProjectFromZipFile = async (): Promise<{
     await FileSystem.deleteAsync(CACHE_DIR, { idempotent: true });
     await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
 
-    console.log(' Entpacke...');
+    console.log('📦 Entpacke...');
     await unzip(zipAsset.uri, CACHE_DIR);
     
     const newFiles = await readDirectoryRecursive(CACHE_DIR);
     if (newFiles.length === 0) throw new Error('ZIP enthält keine Dateien');
+    
+    // ✅ SICHERHEIT: Zusätzliche ZIP-Validierung
+    console.log('🔍 Validiere ZIP-Inhalte...');
+    const zipValidation = validateZipImport(newFiles);
+    
+    if (!zipValidation.valid) {
+      const errorMsg = [
+        'ZIP-Validierung fehlgeschlagen:',
+        ...zipValidation.errors,
+        `Ungültige Dateien: ${zipValidation.invalidFiles.length}`,
+      ].join('\n');
+      
+      console.error('[projectStorage]', errorMsg);
+      throw new Error(errorMsg);
+    }
+    
+    if (zipValidation.invalidFiles.length > 0) {
+      console.warn(
+        `[projectStorage] ${zipValidation.invalidFiles.length} ungültige Dateien übersprungen:`,
+        zipValidation.invalidFiles.map(f => `${f.path}: ${f.reason}`)
+      );
+    }
+    
+    // Verwende nur validierte Dateien
+    const validatedFiles = zipValidation.validFiles;
 
     const newName = zipAsset.name.replace(/\.zip$/i, '') || 'Importiertes Projekt';
     
@@ -211,15 +256,19 @@ export const importProjectFromZipFile = async (): Promise<{
     const newProject: ProjectData = {
       id: uuidv4(),
       name: newName,
-      files: newFiles,
+      files: validatedFiles, // ✅ Nur validierte Dateien verwenden
       chatHistory: [], // Ein importiertes Projekt startet mit leerem Chat
       createdAt: new Date().toISOString(),
       lastModified: new Date().toISOString(),
     };
     
+    console.log(
+      `✅ ZIP-Import erfolgreich: ${validatedFiles.length} Dateien validiert`
+    );
+    
     return {
       project: newProject,
-      fileCount: newFiles.length,
+      fileCount: validatedFiles.length,
       messageCount: 0
     };
 

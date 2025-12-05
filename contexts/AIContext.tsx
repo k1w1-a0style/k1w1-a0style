@@ -303,10 +303,11 @@ const migrateConfig = (raw: unknown): AIConfig => {
   };
 };
 
-const updateRuntimeGlobals = (cfg: AIConfig) => {
-  (global as any).__K1W1_AI_CONFIG = cfg;
+// ✅ SICHERHEIT: SecureKeyManager statt globalThis
+import SecureKeyManager from '../lib/SecureKeyManager';
 
-  // API-Keys in Runtime spiegeln
+const updateSecureKeyManager = (cfg: AIConfig) => {
+  // ✅ SICHER: Keys in SecureKeyManager statt globalThis
   const providers: AllAIProviders[] = [
     'groq',
     'gemini',
@@ -314,36 +315,28 @@ const updateRuntimeGlobals = (cfg: AIConfig) => {
     'anthropic',
     'huggingface',
   ];
+  
   providers.forEach((provider) => {
     const keys = cfg.apiKeys[provider];
     if (keys && keys.length > 0) {
-      const currentKey = keys[0];
-      switch (provider) {
-        case 'groq':
-          (global as any).GROQ_API_KEY = currentKey;
-          break;
-        case 'gemini':
-          (global as any).GEMINI_API_KEY = currentKey;
-          break;
-        case 'openai':
-          (global as any).OPENAI_API_KEY = currentKey;
-          break;
-        case 'anthropic':
-          (global as any).ANTHROPIC_API_KEY = currentKey;
-          break;
-        case 'huggingface':
-          (global as any).HUGGINGFACE_API_KEY = currentKey;
-          break;
-      }
+      SecureKeyManager.setKeys(provider, keys);
+    } else {
+      SecureKeyManager.clearKeys(provider);
     }
   });
 
-  console.log('[AIContext] 🔄 Runtime-Globals aktualisiert');
+  console.log('[AIContext] 🔐 SecureKeyManager aktualisiert');
 };
 
-// ✅ Globale Export-Funktionen für Orchestrator
+// ✅ Sichere Export-Funktion für Orchestrator (ohne globalThis)
+let _currentConfig: AIConfig | null = null;
+
 export const getAIConfig = (): AIConfig | null => {
-  return (global as any).__K1W1_AI_CONFIG || null;
+  return _currentConfig;
+};
+
+const setAIConfig = (cfg: AIConfig) => {
+  _currentConfig = cfg;
 };
 
 let _rotateFunction: ((provider: AllAIProviders) => Promise<boolean>) | null = null;
@@ -376,11 +369,13 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         const migrated = migrateConfig(stored);
         if (!active) return;
         setConfig(migrated);
-        updateRuntimeGlobals(migrated);
+        setAIConfig(migrated);
+        updateSecureKeyManager(migrated);
         console.log('✅ AI-Config geladen');
       } catch (e) {
         console.log('[AIContext] Fehler beim Laden der AI-Config', e);
-        updateRuntimeGlobals(DEFAULT_CONFIG);
+        setAIConfig(DEFAULT_CONFIG);
+        updateSecureKeyManager(DEFAULT_CONFIG);
       } finally {
         if (active) setLoaded(true);
       }
@@ -393,7 +388,8 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
   const persist = useCallback(async (next: AIConfig) => {
     setConfig(next);
-    updateRuntimeGlobals(next);
+    setAIConfig(next);
+    updateSecureKeyManager(next);
     try {
       await AsyncStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(next));
     } catch (e) {
@@ -606,7 +602,8 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   );
 
   if (!loaded) {
-    updateRuntimeGlobals(config);
+    setAIConfig(config);
+    updateSecureKeyManager(config);
   }
 
   return <AIContext.Provider value={value}>{children}</AIContext.Provider>;

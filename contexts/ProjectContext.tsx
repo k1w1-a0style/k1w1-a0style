@@ -1,5 +1,6 @@
-// contexts/ProjectContext.tsx (V13 - CREATE NEW PROJECT FIX)
+// contexts/ProjectContext.tsx (V14 - RACE CONDITION FIX + SECURITY)
 import { v4 as uuidv4 } from 'uuid';
+import { Mutex } from 'async-mutex'; // ✅ SICHERHEIT: Race Condition Protection
 import React, {
   createContext,
   useContext,
@@ -50,33 +51,57 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // ✅ SICHERHEIT: Mutex für atomare Updates (verhindert Race Conditions)
+  const mutexRef = useRef(new Mutex());
 
   const debouncedSave = useCallback((project: ProjectData) => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
     saveTimeoutRef.current = setTimeout(() => {
-      saveProjectToStorage(project);
+      saveProjectToStorage(project).catch(error => {
+        console.error('[ProjectContext] Save error:', error);
+      });
     }, SAVE_DEBOUNCE_MS);
   }, []);
 
+  // ✅ SICHERHEIT: Mutex-geschützte Updates (keine Race Conditions mehr!)
   const updateProject = useCallback(
-    (updater: (prev: ProjectData) => ProjectData) => {
-      setProjectData(prev => {
-        if (!prev) return prev;
-        const updated = updater(prev);
-        const finalProject = { ...updated, lastModified: new Date().toISOString() };
-        debouncedSave(finalProject);
-        return finalProject;
-      });
+    async (updater: (prev: ProjectData) => ProjectData) => {
+      const release = await mutexRef.current.acquire();
+      
+      try {
+        setProjectData(prev => {
+          if (!prev) {
+            release();
+            return prev;
+          }
+          
+          const updated = updater(prev);
+          const finalProject = { 
+            ...updated, 
+            lastModified: new Date().toISOString() 
+          };
+          
+          // Debounced save für UI-Performance
+          debouncedSave(finalProject);
+          
+          return finalProject;
+        });
+      } catch (error) {
+        console.error('[ProjectContext] Update error:', error);
+      } finally {
+        release();
+      }
     },
     [debouncedSave],
   );
 
-  // ✅ FIX: MERGE statt OVERWRITE!
+  // ✅ FIX: MERGE statt OVERWRITE! + Mutex-Protection
   const updateProjectFiles = useCallback(
     async (files: ProjectFile[], newName?: string) => {
-      updateProject(prev => {
+      await updateProject(prev => {
         const fileMap = new Map(prev.files.map(f => [f.path, f]));
         files.forEach(file => {
           fileMap.set(file.path, file);
@@ -96,8 +121,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   );
 
   const setProjectName = useCallback(
-    (newName: string) => {
-      updateProject(prev => ({
+    async (newName: string) => {
+      await updateProject(prev => ({
         ...prev,
         name: newName,
       }));
@@ -106,8 +131,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   );
 
   const addChatMessage = useCallback(
-    (message: ChatMessage) => {
-      updateProject(prev => ({
+    async (message: ChatMessage) => {
+      await updateProject(prev => ({
         ...prev,
         chatHistory: [...(prev.chatHistory || []), message],
       }));
@@ -116,8 +141,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   );
 
   const setPackageName = useCallback(
-    (packageName: string) => {
-      updateProject(prev => ({
+    async (packageName: string) => {
+      await updateProject(prev => ({
         ...prev,
         packageName,
       }));
@@ -221,18 +246,39 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const createFile = useCallback(
     async (path: string, content: string) => {
-      if (!path.trim()) {
-        Alert.alert('Fehler', 'Dateiname darf nicht leer sein.');
+      // ✅ SICHERHEIT: Importiere Validatoren
+      const { validateFilePath, validateFileContent } = await import('../lib/validators');
+      
+      // Validiere Pfad
+      const pathValidation = validateFilePath(path);
+      if (!pathValidation.valid) {
+        Alert.alert(
+          'Ungültiger Dateipfad',
+          pathValidation.errors.join('\n')
+        );
         return;
       }
-      updateProject(prev => {
-        if (prev.files.some(f => f.path === path)) {
+      
+      // Validiere Content
+      const contentValidation = validateFileContent(content);
+      if (!contentValidation.valid) {
+        Alert.alert(
+          'Ungültiger Dateiinhalt',
+          contentValidation.error || 'Datei ist zu groß'
+        );
+        return;
+      }
+      
+      const validPath = pathValidation.normalized || path;
+      
+      await updateProject(prev => {
+        if (prev.files.some(f => f.path === validPath)) {
           Alert.alert('Fehler', 'Eine Datei mit diesem Pfad existiert bereits.');
           return prev;
         }
         return {
           ...prev,
-          files: [...prev.files, { path, content }],
+          files: [...prev.files, { path: validPath, content }],
         };
       });
     },
@@ -241,7 +287,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const deleteFile = useCallback(
     async (path: string) => {
-      updateProject(prev => ({
+      await updateProject(prev => ({
         ...prev,
         files: prev.files.filter(f => f.path !== path),
       }));
@@ -251,12 +297,22 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const renameFile = useCallback(
     async (oldPath: string, newPath: string) => {
-      if (!newPath.trim()) {
-        Alert.alert('Fehler', 'Neuer Dateiname darf nicht leer sein.');
+      // ✅ SICHERHEIT: Validiere neuen Pfad
+      const { validateFilePath } = await import('../lib/validators');
+      
+      const pathValidation = validateFilePath(newPath);
+      if (!pathValidation.valid) {
+        Alert.alert(
+          'Ungültiger Dateipfad',
+          pathValidation.errors.join('\n')
+        );
         return;
       }
-      updateProject(prev => {
-        if (prev.files.some(f => f.path === newPath)) {
+      
+      const validNewPath = pathValidation.normalized || newPath;
+      
+      await updateProject(prev => {
+        if (prev.files.some(f => f.path === validNewPath)) {
           Alert.alert(
             'Fehler',
             'Eine Datei mit dem neuen Pfad existiert bereits.',
@@ -266,7 +322,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
         return {
           ...prev,
           files: prev.files.map(f =>
-            f.path === oldPath ? { ...f, path: newPath } : f,
+            f.path === oldPath ? { ...f, path: validNewPath } : f,
           ),
         };
       });
