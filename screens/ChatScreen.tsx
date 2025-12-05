@@ -13,10 +13,12 @@ import {
   Platform,
   Alert,
   Modal,
+  Animated,
+  Easing,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { theme } from '../theme';
 import { useProject } from '../contexts/ProjectContext';
@@ -53,6 +55,7 @@ const ChatScreen: React.FC = () => {
   } = useProject();
 
   const { config } = useAI();
+  const insets = useSafeAreaInsets();
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const [textInput, setTextInput] = useState('');
@@ -64,14 +67,26 @@ const ChatScreen: React.FC = () => {
   // Streaming state
   const [streamingMessage, setStreamingMessage] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const streamingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // Confirmation modal state
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingChange, setPendingChange] = useState<PendingChange | null>(null);
 
+  // Animation values
+  const thinkingOpacity = useRef(new Animated.Value(0)).current;
+  const thinkingScale = useRef(new Animated.Value(0.8)).current;
+  const typingDot1 = useRef(new Animated.Value(0)).current;
+  const typingDot2 = useRef(new Animated.Value(0)).current;
+  const typingDot3 = useRef(new Animated.Value(0)).current;
+  const modalScale = useRef(new Animated.Value(0.8)).current;
+  const modalOpacity = useRef(new Animated.Value(0)).current;
+  const sendButtonScale = useRef(new Animated.Value(1)).current;
+
   const combinedIsLoading = isProjectLoading || isAiLoading;
   const projectFiles: ProjectFile[] = projectData?.files ?? [];
 
+  // Auto-scroll when messages change
   useEffect(() => {
     if (flatListRef.current && messages.length > 0) {
       setTimeout(() => {
@@ -80,33 +95,162 @@ const ChatScreen: React.FC = () => {
     }
   }, [messages]);
 
-  // Streaming effect - simuliert fließendes Schreiben
+  // Typing dots animation (when AI is thinking/loading)
+  useEffect(() => {
+    if (isAiLoading || isStreaming) {
+      // Start thinking indicator animation
+      Animated.parallel([
+        Animated.timing(thinkingOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(thinkingScale, {
+          toValue: 1,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      // Animate typing dots in sequence
+      const animateDots = () => {
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(typingDot1, {
+              toValue: 1,
+              duration: 400,
+              easing: Easing.ease,
+              useNativeDriver: true,
+            }),
+            Animated.timing(typingDot2, {
+              toValue: 1,
+              duration: 400,
+              easing: Easing.ease,
+              useNativeDriver: true,
+            }),
+            Animated.timing(typingDot3, {
+              toValue: 1,
+              duration: 400,
+              easing: Easing.ease,
+              useNativeDriver: true,
+            }),
+            Animated.parallel([
+              Animated.timing(typingDot1, {
+                toValue: 0,
+                duration: 400,
+                useNativeDriver: true,
+              }),
+              Animated.timing(typingDot2, {
+                toValue: 0,
+                duration: 400,
+                useNativeDriver: true,
+              }),
+              Animated.timing(typingDot3, {
+                toValue: 0,
+                duration: 400,
+                useNativeDriver: true,
+              }),
+            ]),
+          ])
+        ).start();
+      };
+
+      animateDots();
+    } else {
+      // Hide thinking indicator
+      Animated.parallel([
+        Animated.timing(thinkingOpacity, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(thinkingScale, {
+          toValue: 0.8,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      // Reset dots
+      typingDot1.setValue(0);
+      typingDot2.setValue(0);
+      typingDot3.setValue(0);
+    }
+  }, [isAiLoading, isStreaming]);
+
+  // Modal animation
+  useEffect(() => {
+    if (showConfirmModal) {
+      Animated.parallel([
+        Animated.spring(modalScale, {
+          toValue: 1,
+          friction: 10,
+          tension: 80,
+          useNativeDriver: true,
+        }),
+        Animated.timing(modalOpacity, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      modalScale.setValue(0.8);
+      modalOpacity.setValue(0);
+    }
+  }, [showConfirmModal]);
+
+  // Cleanup streaming interval on unmount
+  useEffect(() => {
+    return () => {
+      if (streamingIntervalRef.current) {
+        clearInterval(streamingIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // Streaming effect - simuliert fließendes Schreiben (OPTIMIERT)
   const simulateStreaming = useCallback((fullText: string, onComplete: () => void) => {
+    // Clear any existing interval
+    if (streamingIntervalRef.current) {
+      clearInterval(streamingIntervalRef.current);
+    }
+
     setIsStreaming(true);
     setStreamingMessage('');
     
     let currentIndex = 0;
-    const chunkSize = 3; // Zeichen pro Chunk
-    const delay = 20; // ms zwischen Chunks
+    const chunkSize = 5; // Erhöht für bessere Performance
+    const delay = 30; // ms zwischen Chunks
+    let scrollCounter = 0;
     
-    const interval = setInterval(() => {
+    streamingIntervalRef.current = setInterval(() => {
       if (currentIndex < fullText.length) {
         const nextChunk = fullText.slice(currentIndex, currentIndex + chunkSize);
         setStreamingMessage(prev => prev + nextChunk);
         currentIndex += chunkSize;
         
-        // Auto-scroll während Streaming
+        // Auto-scroll nur alle 5 Chunks (Performance-Optimierung)
+        scrollCounter++;
+        if (scrollCounter % 5 === 0) {
+          setTimeout(() => {
+            flatListRef.current?.scrollToEnd({ animated: false });
+          }, 10);
+        }
+      } else {
+        if (streamingIntervalRef.current) {
+          clearInterval(streamingIntervalRef.current);
+          streamingIntervalRef.current = null;
+        }
+        setIsStreaming(false);
+        // Final scroll
         setTimeout(() => {
           flatListRef.current?.scrollToEnd({ animated: true });
-        }, 10);
-      } else {
-        clearInterval(interval);
-        setIsStreaming(false);
+        }, 100);
         onComplete();
       }
     }, delay);
-    
-    return () => clearInterval(interval);
   }, []);
 
   const handlePickDocument = useCallback(async () => {
@@ -201,6 +345,21 @@ const ChatScreen: React.FC = () => {
     if (!textInput.trim() && !selectedFileAsset) {
       return;
     }
+
+    // Send button animation
+    Animated.sequence([
+      Animated.timing(sendButtonScale, {
+        toValue: 0.85,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.spring(sendButtonScale, {
+        toValue: 1,
+        friction: 6,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
 
     setError(null);
 
@@ -404,9 +563,63 @@ const ChatScreen: React.FC = () => {
             <View style={[styles.messageBubble, styles.assistantBubble]}>
               <Text style={styles.assistantText}>{streamingMessage}</Text>
               <View style={styles.typingIndicator}>
-                <View style={styles.typingDot} />
-                <View style={[styles.typingDot, styles.typingDot2]} />
-                <View style={[styles.typingDot, styles.typingDot3]} />
+                <Animated.View
+                  style={[
+                    styles.typingDot,
+                    {
+                      opacity: typingDot1.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.3, 1],
+                      }),
+                      transform: [
+                        {
+                          translateY: typingDot1.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, -4],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    styles.typingDot,
+                    {
+                      opacity: typingDot2.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.3, 1],
+                      }),
+                      transform: [
+                        {
+                          translateY: typingDot2.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, -4],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    styles.typingDot,
+                    {
+                      opacity: typingDot3.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.3, 1],
+                      }),
+                      transform: [
+                        {
+                          translateY: typingDot3.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, -4],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
               </View>
             </View>
           </View>
@@ -414,34 +627,84 @@ const ChatScreen: React.FC = () => {
       }
       return <MessageItem message={item} />;
     },
-    [isStreaming, streamingMessage, messages.length]
+    [isStreaming, streamingMessage, messages.length, typingDot1, typingDot2, typingDot3]
   );
 
   const renderFooter = useCallback(() => {
     if (!combinedIsLoading) return null;
     return (
-      <View style={styles.loadingFooter}>
+      <Animated.View
+        style={[
+          styles.loadingFooter,
+          {
+            opacity: thinkingOpacity,
+            transform: [{ scale: thinkingScale }],
+          },
+        ]}
+      >
         <ActivityIndicator size="small" color={theme.palette.primary} />
-        <Text style={styles.loadingText}>Builder arbeitet ...</Text>
-      </View>
+        <Text style={styles.loadingText}>🧠 KI denkt nach...</Text>
+        <View style={styles.thinkingDots}>
+          <Animated.View
+            style={[
+              styles.thinkingDot,
+              {
+                opacity: typingDot1.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.3, 1],
+                }),
+              },
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.thinkingDot,
+              {
+                opacity: typingDot2.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.3, 1],
+                }),
+              },
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.thinkingDot,
+              {
+                opacity: typingDot3.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.3, 1],
+                }),
+              },
+            ]}
+          />
+        </View>
+      </Animated.View>
     );
-  }, [combinedIsLoading]);
+  }, [combinedIsLoading, thinkingOpacity, thinkingScale, typingDot1, typingDot2, typingDot3]);
 
   return (
-    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.root} edges={['bottom']}>
       <KeyboardAvoidingView
         style={styles.keyboardAvoid}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <View style={styles.container}>
           <View style={styles.listContainer}>
             {combinedIsLoading && messages.length === 0 ? (
               <View style={styles.loadingOverlay}>
-                <ActivityIndicator size="large" color={theme.palette.primary} />
-                <Text style={styles.loadingOverlayText}>
-                  Projekt und Chat werden geladen ...
-                </Text>
+                <Animated.View
+                  style={{
+                    opacity: thinkingOpacity,
+                    transform: [{ scale: thinkingScale }],
+                  }}
+                >
+                  <ActivityIndicator size="large" color={theme.palette.primary} />
+                  <Text style={styles.loadingOverlayText}>
+                    🧠 Projekt und Chat werden geladen...
+                  </Text>
+                </Animated.View>
               </View>
             ) : (
               <FlatList
@@ -454,26 +717,33 @@ const ChatScreen: React.FC = () => {
                 removeClippedSubviews={true}
                 maxToRenderPerBatch={10}
                 windowSize={21}
+                initialNumToRender={15}
               />
             )}
           </View>
 
-          {error && <Text style={styles.errorText}>{error}</Text>}
+          {error && (
+            <View style={styles.errorContainer}>
+              <Ionicons name="warning" size={16} color={theme.palette.error} />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
 
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 8) }]}>
             <TouchableOpacity
               style={[
                 styles.iconButton,
                 selectedFileAsset && styles.iconButtonActive,
               ]}
               onPress={handlePickDocument}
+              activeOpacity={0.7}
             >
               <Ionicons
                 name="attach-outline"
                 size={22}
                 color={
                   selectedFileAsset
-                    ? theme.palette.secondary
+                    ? theme.palette.primary
                     : theme.palette.text.secondary
                 }
               />
@@ -486,44 +756,70 @@ const ChatScreen: React.FC = () => {
               value={textInput}
               onChangeText={setTextInput}
               multiline
+              maxLength={2000}
             />
 
-            <TouchableOpacity
-              style={styles.sendButton}
-              onPress={handleSend}
-              disabled={combinedIsLoading}
-            >
-              {combinedIsLoading ? (
-                <ActivityIndicator size="small" color={theme.palette.background} />
-              ) : (
-                <Ionicons
-                  name="send-outline"
-                  size={20}
-                  color={theme.palette.background}
-                />
-              )}
-            </TouchableOpacity>
+            <Animated.View style={{ transform: [{ scale: sendButtonScale }] }}>
+              <TouchableOpacity
+                style={[
+                  styles.sendButton,
+                  combinedIsLoading && styles.sendButtonDisabled,
+                ]}
+                onPress={handleSend}
+                disabled={combinedIsLoading}
+                activeOpacity={0.8}
+              >
+                {combinedIsLoading ? (
+                  <ActivityIndicator size="small" color={theme.palette.background} />
+                ) : (
+                  <Ionicons
+                    name="send"
+                    size={20}
+                    color={theme.palette.background}
+                  />
+                )}
+              </TouchableOpacity>
+            </Animated.View>
           </View>
 
           {selectedFileAsset && (
-            <View style={styles.selectedFileBox}>
+            <View style={[styles.selectedFileBox, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+              <Ionicons name="document" size={16} color={theme.palette.primary} />
               <Text style={styles.selectedFileText}>
-                📎 {selectedFileAsset.name}
+                {selectedFileAsset.name}
               </Text>
+              <TouchableOpacity onPress={() => setSelectedFileAsset(null)}>
+                <Ionicons name="close-circle" size={20} color={theme.palette.text.secondary} />
+              </TouchableOpacity>
             </View>
           )}
         </View>
       </KeyboardAvoidingView>
 
-      {/* Bestätigungsmodal */}
+      {/* Bestätigungsmodal mit Animation */}
       <Modal
         visible={showConfirmModal}
         transparent={true}
-        animationType="fade"
+        animationType="none"
         onRequestClose={rejectChanges}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <Animated.View
+          style={[
+            styles.modalOverlay,
+            {
+              opacity: modalOpacity,
+            },
+          ]}
+        >
+          <Animated.View
+            style={[
+              styles.modalContent,
+              {
+                transform: [{ scale: modalScale }],
+                opacity: modalOpacity,
+              },
+            ]}
+          >
             <View style={styles.modalHeader}>
               <Ionicons name="code-slash" size={28} color={theme.palette.primary} />
               <Text style={styles.modalTitle}>Änderungen bestätigen</Text>
@@ -539,6 +835,7 @@ const ChatScreen: React.FC = () => {
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonReject]}
                 onPress={rejectChanges}
+                activeOpacity={0.8}
               >
                 <Ionicons name="close-circle" size={20} color={theme.palette.error} />
                 <Text style={styles.modalButtonTextReject}>Ablehnen</Text>
@@ -547,13 +844,14 @@ const ChatScreen: React.FC = () => {
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonAccept]}
                 onPress={applyChanges}
+                activeOpacity={0.8}
               >
                 <Ionicons name="checkmark-circle" size={20} color="#000" />
                 <Text style={styles.modalButtonTextAccept}>Bestätigen</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+          </Animated.View>
+        </Animated.View>
       </Modal>
     </SafeAreaView>
   );
@@ -589,16 +887,43 @@ const styles = StyleSheet.create({
   loadingFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    backgroundColor: theme.palette.card,
+    borderRadius: 12,
+    marginVertical: 8,
+    gap: 8,
   },
   loadingText: {
     marginLeft: 8,
     color: theme.palette.text.secondary,
+    fontWeight: '500',
+  },
+  thinkingDots: {
+    flexDirection: 'row',
+    gap: 4,
+    marginLeft: 4,
+  },
+  thinkingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.palette.primary,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: theme.palette.error + '20',
+    borderLeftWidth: 3,
+    borderLeftColor: theme.palette.error,
   },
   errorText: {
+    flex: 1,
     color: theme.palette.error,
-    paddingHorizontal: 12,
-    paddingBottom: 4,
+    fontSize: 13,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -642,15 +967,30 @@ const styles = StyleSheet.create({
     backgroundColor: theme.palette.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: theme.palette.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  sendButtonDisabled: {
+    opacity: 0.6,
   },
   selectedFileBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     paddingHorizontal: 12,
-    paddingBottom: 8,
+    paddingTop: 8,
     backgroundColor: theme.palette.card,
+    borderTopWidth: 1,
+    borderTopColor: theme.palette.border,
   },
   selectedFileText: {
-    fontSize: 12,
-    color: theme.palette.text.secondary,
+    flex: 1,
+    fontSize: 13,
+    color: theme.palette.text.primary,
+    fontWeight: '500',
   },
   messageWrapper: {
     marginVertical: 4,
@@ -674,20 +1014,14 @@ const styles = StyleSheet.create({
   typingIndicator: {
     flexDirection: 'row',
     marginTop: 8,
-    gap: 4,
+    gap: 6,
+    alignItems: 'center',
   },
   typingDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
     backgroundColor: theme.palette.primary,
-    opacity: 0.4,
-  },
-  typingDot2: {
-    opacity: 0.6,
-  },
-  typingDot3: {
-    opacity: 0.8,
   },
   modalOverlay: {
     flex: 1,
