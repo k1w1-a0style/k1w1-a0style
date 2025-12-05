@@ -21,25 +21,17 @@
 
 ### 1. **Sicherheitsprobleme**
 
-#### 1.1 API-Keys in globalen Variablen
+#### 1.1 API-Keys in globalen Variablen ✅ AKZEPTIERT
 **Datei:** `contexts/AIContext.tsx:287-320`
 
 ```typescript
-// ❌ PROBLEM: API-Keys werden in globalen Variablen gespeichert
+// ✅ AKZEPTIERT: API-Keys werden in globalen Variablen gespeichert
 (global as any).GROQ_API_KEY = currentKey;
 (global as any).GEMINI_API_KEY = currentKey;
 // ...
 ```
 
-**Risiko:** 
-- API-Keys sind im globalen Scope zugänglich
-- Können von Drittanbieter-Bibliotheken ausgelesen werden
-- Keine Verschlüsselung im Speicher
-
-**Empfehlung:**
-- API-Keys nur in SecureStore speichern
-- Globale Variablen entfernen
-- Keys nur bei Bedarf aus SecureStore laden
+**Status:** Vom Entwickler als akzeptabel eingestuft. Die globale Speicherung wird beibehalten.
 
 #### 1.2 Runtime Environment Manipulation
 **Datei:** `lib/supabase.ts:10-31`
@@ -292,27 +284,23 @@ const SAVE_DEBOUNCE_MS = 500; // Gut, aber könnte konfigurierbar sein
 
 ### 🔴 HOCH (Sofort beheben)
 
-1. **API-Keys aus globalen Variablen entfernen**
-   - `contexts/AIContext.tsx` refactoren
-   - SecureStore für alle API-Keys verwenden
-
-2. **LogBox.ignoreAllLogs entfernen**
+1. **LogBox.ignoreAllLogs entfernen**
    - `App.tsx:12` ändern
    - Selektive Warnungsfilterung implementieren
 
-3. **Input-Validierung für Dateipfade**
+2. **Input-Validierung für Dateipfade**
    - Path Traversal-Schutz
    - Whitelist für erlaubte Pfade
 
-4. **Type Safety verbessern**
+3. **Type Safety verbessern**
    - `any` Types schrittweise entfernen
    - Interfaces für API-Responses
 
-5. **.gitignore erweitern**
+4. **.gitignore erweitern**
    - `.env` Dateien explizit ignorieren
    - Sensitive Dateien schützen
 
-6. **API-Key Logging entfernen**
+5. **API-Key Logging entfernen**
    - Keine Key-Previews in Logs
    - Sensitive Daten aus Logs entfernen
 
@@ -352,18 +340,7 @@ const SAVE_DEBOUNCE_MS = 500; // Gut, aber könnte konfigurierbar sein
 
 ## 🔧 KONKRETE FIX-VORSCHLÄGE
 
-### Fix 1: API-Keys aus globalen Variablen entfernen
-
-```typescript
-// ❌ ALT (AIContext.tsx)
-(global as any).GROQ_API_KEY = currentKey;
-
-// ✅ NEU
-// Keys nur aus SecureStore laden, wenn benötigt
-// Keine globalen Variablen mehr
-```
-
-### Fix 2: Type Safety verbessern
+### Fix 1: Type Safety verbessern
 
 ```typescript
 // ❌ ALT
@@ -381,7 +358,7 @@ const migrateConfig = (raw: unknown): AIConfig => {
 }
 ```
 
-### Fix 3: Strukturiertes Logging
+### Fix 2: Strukturiertes Logging
 
 ```typescript
 // ❌ ALT
@@ -402,7 +379,7 @@ logger.info('Orchestrator', 'Message', { meta });
 - **Dependencies:** 44 Production, 4 Dev
 - **Console.log Statements:** 197
 - **`any` Types:** 161
-- **Security Issues:** 5 kritisch
+- **Security Issues:** 4 kritisch (1 akzeptiert)
 - **ESLint Errors:** 0 (gut!)
 - **TypeScript Errors:** 0 (gut!)
 
