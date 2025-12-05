@@ -59,7 +59,7 @@ export default function GitHubReposScreen() {
         setToken(t);
         console.log('[GitHubReposScreen] Token loaded:', !!t);
       } catch (e: any) {
-        console.error('[GitHubReposScreen] Token load error:', e);
+        // Silently handle token load errors
       } finally {
         setTokenLoading(false);
       }
@@ -146,13 +146,12 @@ export default function GitHubReposScreen() {
       loadRepos();
 
       Alert.alert('✅ Repo erstellt', `Repository "${repo.full_name}" wurde angelegt.`);
-    } catch (e: any) {
-      console.log('[GitHubReposScreen] Fehler beim Erstellen:', e);
-      Alert.alert(
-        'Fehler beim Erstellen',
-        e?.message ?? 'Repository konnte nicht erstellt werden.'
-      );
-    } finally {
+      } catch (e: any) {
+        Alert.alert(
+          'Fehler beim Erstellen',
+          e?.message ?? 'Repository konnte nicht erstellt werden.'
+        );
+      } finally {
       setIsCreating(false);
     }
   };
@@ -211,7 +210,6 @@ export default function GitHubReposScreen() {
       await pushFilesToRepo(owner, repo, projectData.files as any);
       Alert.alert('✅ Push erfolgreich', `Projekt nach „${activeRepo}" übertragen.`);
     } catch (e: any) {
-      console.log('[GitHubReposScreen] Push-Fehler:', e);
       Alert.alert(
         'Fehler beim Push',
         e?.message ?? 'Projekt konnte nicht nach GitHub gepusht werden.'
@@ -254,8 +252,7 @@ export default function GitHubReposScreen() {
       return;
     }
     const url = `https://github.com/${activeRepo}/actions`;
-    Linking.openURL(url).catch((e) => {
-      console.log('[GitHubReposScreen] Fehler beim Öffnen von Actions:', e);
+    Linking.openURL(url).catch(() => {
       Alert.alert(
         'Fehler',
         'GitHub Actions Seite konnte nicht geöffnet werden.'

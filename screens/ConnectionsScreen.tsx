@@ -139,7 +139,7 @@ const ConnectionsScreen: React.FC = () => {
         setEasToken(storedEasTokenAsync || '');
         setEasProjectId(storedEasProjectId || '');
       } catch (e) {
-        console.log('[ConnectionsScreen] Fehler beim Laden:', e);
+        // Silently handle load errors
       } finally {
         setConnectionsLoaded(true);
       }
@@ -196,15 +196,11 @@ const ConnectionsScreen: React.FC = () => {
             ? `Folgende Secrets wurden gesetzt:\n${result.updated.join(', ')}`
             : 'Es wurden keine Secrets geändert (alle Werte waren bereits identisch).';
           Alert.alert('Repo-Secrets aktualisiert', msg);
-        } else {
-          console.log('[ConnectionsScreen] Repo-Secrets automatisch aktualisiert:', result.updated);
         }
       } catch (error: any) {
         const message = error?.message ?? 'Unbekannter Fehler beim Secret-Sync.';
         if (reason === 'manual') {
           Alert.alert('Secret Sync fehlgeschlagen', message);
-        } else {
-          console.log('[ConnectionsScreen] Automatischer Secret Sync fehlgeschlagen:', message);
         }
       } finally {
         setSyncingSecrets(false);
@@ -253,7 +249,6 @@ const ConnectionsScreen: React.FC = () => {
       Alert.alert('✅ Gespeichert', 'Supabase-Konfiguration wurde gespeichert.');
       await syncSecretsForActiveRepo('manual');
     } catch (e) {
-      console.log('[ConnectionsScreen] Fehler beim Speichern Supabase:', e);
       Alert.alert('Fehler', 'Supabase-Konfiguration konnte nicht gespeichert werden.');
     }
   }, [supabaseProjectId, supabaseKey, supabaseServiceRoleKey, syncSecretsForActiveRepo]);
@@ -271,7 +266,6 @@ const ConnectionsScreen: React.FC = () => {
 
       Alert.alert('✅ Gespeichert', 'GitHub-Token wurde sicher gespeichert.');
     } catch (e) {
-      console.log('[ConnectionsScreen] Fehler beim Speichern GitHub-Token:', e);
       Alert.alert('Fehler', 'GitHub-Token konnte nicht gespeichert werden.');
     }
   }, [githubToken]);
@@ -291,7 +285,6 @@ const ConnectionsScreen: React.FC = () => {
       );
       await syncSecretsForActiveRepo('manual');
     } catch (e) {
-      console.log('[ConnectionsScreen] Fehler beim Speichern EAS:', e);
       Alert.alert('Fehler', 'EAS-Konfiguration konnte nicht gespeichert werden.');
     }
   }, [easToken, easProjectId, syncSecretsForActiveRepo]);
@@ -331,7 +324,6 @@ const ConnectionsScreen: React.FC = () => {
       });
 
       if (!restRes.ok && restRes.status !== 404) {
-        console.log('[ConnectionsScreen] Supabase Test – REST Status:', restRes.status);
         setSupabaseStatus('error');
         setSupabaseTestDetails(`REST API Fehler: Status ${restRes.status}`);
         Alert.alert(
@@ -353,7 +345,6 @@ const ConnectionsScreen: React.FC = () => {
       });
 
       if (!tableRes.ok) {
-        console.log('[ConnectionsScreen] build_jobs Test – Status:', tableRes.status);
         setSupabaseStatus('error');
         setSupabaseTestDetails(`Tabelle build_jobs nicht gefunden (${tableRes.status})`);
         Alert.alert(
@@ -385,14 +376,11 @@ const ConnectionsScreen: React.FC = () => {
 
         if (fnRes.ok) {
           setSupabaseTestDetails('✓ REST + Tabelle + Edge Functions OK');
-          console.log('✅ Edge Functions erreichbar');
         } else {
           setSupabaseTestDetails('✓ REST + Tabelle OK (Edge Functions nicht getestet)');
-          console.warn('⚠️ Edge Functions nicht erreichbar oder nicht deployed');
         }
       } catch (e: any) {
         setSupabaseTestDetails('✓ REST + Tabelle OK (Edge Functions nicht getestet)');
-        console.warn('⚠️ Edge Functions Test fehlgeschlagen:', e.message);
       }
 
       setSupabaseStatus('ok');
@@ -401,7 +389,6 @@ const ConnectionsScreen: React.FC = () => {
         'REST API und build_jobs Tabelle sind erreichbar.\n\n' + supabaseTestDetails
       );
     } catch (e: any) {
-      console.log('[ConnectionsScreen] Supabase Test – Fehler:', e);
       setSupabaseStatus('error');
       setSupabaseTestDetails(`Fehler: ${e.message || 'Unbekannter Fehler'}`);
       Alert.alert('Fehler', e?.message ?? 'Supabase konnte nicht erreicht werden.');
@@ -437,7 +424,6 @@ const ConnectionsScreen: React.FC = () => {
 
       if (!res.ok) {
         const text = await res.text();
-        console.log('[ConnectionsScreen] GitHub Test – Fehler:', res.status, text);
         setGithubStatus('error');
 
         if (res.status === 401) {
@@ -470,7 +456,6 @@ const ConnectionsScreen: React.FC = () => {
         }`
       );
     } catch (e: any) {
-      console.log('[ConnectionsScreen] GitHub Test – Netzwerkfehler:', e);
       setGithubStatus('error');
       Alert.alert('Fehler', e?.message ?? 'GitHub konnte nicht erreicht werden.');
     } finally {
@@ -523,7 +508,6 @@ const ConnectionsScreen: React.FC = () => {
         'EAS wird über Supabase Edge Functions genutzt.\n\nProject ID und Supabase-Daten sind gesetzt. Es wird kein zusätzlicher API-Call zu Expo ausgeführt – ideal auch für Free-Accounts.'
       );
     } catch (e: any) {
-      console.log('[ConnectionsScreen] EAS Test – Fehler:', e);
       setEasStatus('error');
       Alert.alert(
         'Fehler',
