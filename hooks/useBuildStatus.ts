@@ -1,11 +1,12 @@
-// hooks/useBuildStatus.ts - MIT ALLEN FIXES (C)
+// hooks/useBuildStatus.ts - OPTIMIZED VERSION
 // ✅ Timeout bei Netzwerkfehlern
-// ✅ Error-Counter stoppt Polling nach 5 Fehlern
+// ✅ Error-Counter stoppt Polling nach 5 Fehlern (mit useRef statt State)
 // ✅ Automatischer Stop bei finalen Status (success/failed)
 // ✅ Besseres Status-Mapping
 // ✅ Alert-Benachrichtigung bei Polling-Stop
+// ✅ Kein Race Condition durch errorCount in Dependencies
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Alert } from 'react-native';
 import { CONFIG } from '../config';
 
@@ -26,6 +27,7 @@ export type BuildStatusDetails = {
   };
   raw?: any;
   errorMessage?: string;
+  runId?: number | null;
 };
 
 const POLL_INTERVAL_MS = 6000; // 6 Sekunden
@@ -87,161 +89,181 @@ function mapStatus(rawStatus: string): BuildStatus {
 export function useBuildStatus(jobIdFromScreen?: number | null) {
   const [status, setStatus] = useState<BuildStatus>('idle');
   const [details, setDetails] = useState<BuildStatusDetails | null>(null);
-  const [errorCount, setErrorCount] = useState(0);
   const [lastError, setLastError] = useState<string | null>(null);
+  
+  // Use refs for values that shouldn't trigger re-renders
+  const errorCountRef = useRef(0);
+  const hasAlertedRef = useRef(false);
+  const isMountedRef = useRef(true);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    if (!jobIdFromScreen) {
-      setStatus('idle');
-      setDetails(null);
-      setErrorCount(0);
-      setLastError(null);
-      return;
-    }
+  // Memoized poll function
+  const poll = useCallback(async () => {
+    if (!jobIdFromScreen) return;
+    
+    try {
+      console.log(
+        `[useBuildStatus] 🔄 Polling Job ${jobIdFromScreen}. (Fehler: ${errorCountRef.current}/${MAX_ERRORS})`
+      );
 
-    let interval: NodeJS.Timeout | null = null;
-    let isMounted = true;
-    let hasAlerted = false;
+      const res = await fetchWithTimeout(
+        `${CONFIG.API.SUPABASE_EDGE_URL}/check-eas-build`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId: jobIdFromScreen }),
+        },
+        REQUEST_TIMEOUT_MS
+      );
 
-    const poll = async () => {
+      if (!isMountedRef.current) return;
+
+      // ✅ Response parsen (mit Fallback)
+      let json: any = null;
       try {
-        console.log(
-          `[useBuildStatus] 🔄 Polling Job ${jobIdFromScreen}. (Fehler: ${errorCount}/${MAX_ERRORS})`
-        );
+        json = await res.json();
+      } catch (e) {
+        console.warn('[useBuildStatus] JSON Parse fehlgeschlagen:', e);
+        errorCountRef.current += 1;
+        setLastError('Ungültige Server-Antwort');
+        return;
+      }
 
-        const res = await fetchWithTimeout(
-          `${CONFIG.API.SUPABASE_EDGE_URL}/check-eas-build`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jobId: jobIdFromScreen }),
-          },
-          REQUEST_TIMEOUT_MS
-        );
+      // ✅ Fehlerfall
+      if (!res.ok || !json || json.ok === false) {
+        console.log('[useBuildStatus] ❌ Error Response:', json);
+        errorCountRef.current += 1;
+        setLastError(json?.error || `HTTP ${res.status}`);
 
-        if (!isMounted) return;
-
-        // ✅ Response parsen (mit Fallback)
-        let json: any = null;
-        try {
-          json = await res.json();
-        } catch (e) {
-          console.warn('[useBuildStatus] JSON Parse fehlgeschlagen:', e);
-          setErrorCount((prev) => prev + 1);
-          setLastError('Ungültige Server-Antwort');
-          return;
-        }
-
-        // ✅ Fehlerfall
-        if (!res.ok || !json || json.ok === false) {
-          console.log('[useBuildStatus] ❌ Error Response:', json);
-          setErrorCount((prev) => prev + 1);
-          setLastError(json?.error || `HTTP ${res.status}`);
-
-          if (errorCount + 1 >= MAX_ERRORS) {
-            setStatus('error');
-            if (interval) clearInterval(interval);
-            if (!hasAlerted) {
-              hasAlerted = true;
-              Alert.alert(
-                '❌ Polling gestoppt',
-                `Zu viele Fehler beim Status-Abruf (${MAX_ERRORS}x).\n\nLetzter Fehler: ${
-                  json?.error || 'Unbekannt'
-                }\n\nBitte prüfe deine Supabase-Verbindung.`,
-                [{ text: 'OK', style: 'default' }]
-              );
-            }
-          }
-          return;
-        }
-
-        // ✅ Erfolg: Fehler-Counter zurücksetzen
-        setErrorCount(0);
-        setLastError(null);
-
-        const mapped = mapStatus(json.status);
-        setStatus(mapped);
-
-        const newDetails: BuildStatusDetails = {
-          jobId: jobIdFromScreen,
-          status: mapped,
-          urls: json.urls ?? undefined,
-          raw: json,
-        };
-
-        setDetails(newDetails);
-
-        console.log('[useBuildStatus] ✅ Status:', mapped);
-
-        // ✅ Polling bei finalen Status stoppen
-        if (['success', 'failed', 'error'].includes(mapped)) {
-          if (interval) {
-            clearInterval(interval);
-            console.log('[useBuildStatus] ⏸ Polling gestoppt (finaler Status)');
-          }
-
-          if (!hasAlerted) {
-            hasAlerted = true;
-
-            if (mapped === 'success') {
-              Alert.alert(
-                '✅ Build erfolgreich!',
-                json.urls?.artifacts
-                  ? 'Dein Build wurde erfolgreich erstellt.\n\nKlicke auf den Build-Button für den Download.'
-                  : 'Build wurde erfolgreich abgeschlossen.',
-                [{ text: 'OK', style: 'default' }]
-              );
-            } else if (mapped === 'failed') {
-              Alert.alert(
-                '❌ Build fehlgeschlagen',
-                'Der Build ist fehlgeschlagen. Prüfe die Logs in GitHub Actions.',
-                [{ text: 'OK', style: 'default' }]
-              );
-            }
-          }
-        }
-      } catch (e: any) {
-        if (!isMounted) return;
-
-        console.log('[useBuildStatus] ⚠️ Poll Error:', e?.message);
-        setErrorCount((prev) => prev + 1);
-        setLastError(e?.message || 'Netzwerkfehler');
-
-        if (errorCount + 1 >= MAX_ERRORS) {
+        if (errorCountRef.current >= MAX_ERRORS) {
           setStatus('error');
-          if (interval) clearInterval(interval);
-
-          if (!hasAlerted) {
-            hasAlerted = true;
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
+          if (!hasAlertedRef.current) {
+            hasAlertedRef.current = true;
             Alert.alert(
               '❌ Polling gestoppt',
-              `Zu viele Netzwerkfehler (${MAX_ERRORS}x).\n\nLetzter Fehler: ${
-                e?.message || 'Unbekannt'
-              }\n\nBitte prüfe deine Internetverbindung und Supabase-Konfiguration.`,
+              `Zu viele Fehler beim Status-Abruf (${MAX_ERRORS}x).\n\nLetzter Fehler: ${
+                json?.error || 'Unbekannt'
+              }\n\nBitte prüfe deine Supabase-Verbindung.`,
+              [{ text: 'OK', style: 'default' }]
+            );
+          }
+        }
+        return;
+      }
+
+      // ✅ Erfolg: Fehler-Counter zurücksetzen
+      errorCountRef.current = 0;
+      setLastError(null);
+
+      const mapped = mapStatus(json.status);
+      setStatus(mapped);
+
+      const newDetails: BuildStatusDetails = {
+        jobId: jobIdFromScreen,
+        status: mapped,
+        urls: json.urls ?? undefined,
+        raw: json,
+        runId: json.runId || json.run_id || null,
+      };
+
+      setDetails(newDetails);
+
+      console.log('[useBuildStatus] ✅ Status:', mapped);
+
+      // ✅ Polling bei finalen Status stoppen
+      if (['success', 'failed', 'error'].includes(mapped)) {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+          console.log('[useBuildStatus] ⏸ Polling gestoppt (finaler Status)');
+        }
+
+        if (!hasAlertedRef.current) {
+          hasAlertedRef.current = true;
+
+          if (mapped === 'success') {
+            Alert.alert(
+              '✅ Build erfolgreich!',
+              json.urls?.artifacts
+                ? 'Dein Build wurde erfolgreich erstellt.\n\nKlicke auf den Download-Button für die APK.'
+                : 'Build wurde erfolgreich abgeschlossen.',
+              [{ text: 'OK', style: 'default' }]
+            );
+          } else if (mapped === 'failed') {
+            Alert.alert(
+              '❌ Build fehlgeschlagen',
+              'Der Build ist fehlgeschlagen. Prüfe die Fehleranalyse und Logs.',
               [{ text: 'OK', style: 'default' }]
             );
           }
         }
       }
-    };
+    } catch (e: any) {
+      if (!isMountedRef.current) return;
+
+      console.log('[useBuildStatus] ⚠️ Poll Error:', e?.message);
+      errorCountRef.current += 1;
+      setLastError(e?.message || 'Netzwerkfehler');
+
+      if (errorCountRef.current >= MAX_ERRORS) {
+        setStatus('error');
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+
+        if (!hasAlertedRef.current) {
+          hasAlertedRef.current = true;
+          Alert.alert(
+            '❌ Polling gestoppt',
+            `Zu viele Netzwerkfehler (${MAX_ERRORS}x).\n\nLetzter Fehler: ${
+              e?.message || 'Unbekannt'
+            }\n\nBitte prüfe deine Internetverbindung und Supabase-Konfiguration.`,
+            [{ text: 'OK', style: 'default' }]
+          );
+        }
+      }
+    }
+  }, [jobIdFromScreen]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    if (!jobIdFromScreen) {
+      setStatus('idle');
+      setDetails(null);
+      setLastError(null);
+      errorCountRef.current = 0;
+      hasAlertedRef.current = false;
+      return;
+    }
+
+    // Reset error tracking for new job
+    errorCountRef.current = 0;
+    hasAlertedRef.current = false;
 
     // ✅ Sofort einmal pollen, dann Intervall
     poll();
-    interval = setInterval(poll, POLL_INTERVAL_MS);
+    intervalRef.current = setInterval(poll, POLL_INTERVAL_MS);
 
     return () => {
-      isMounted = false;
-      if (interval) {
-        clearInterval(interval);
-        console.log('[useBuildStatus] 🛑  Hook unmounted, Polling gestoppt');
+      isMountedRef.current = false;
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+        console.log('[useBuildStatus] 🛑 Hook unmounted, Polling gestoppt');
       }
     };
-  }, [jobIdFromScreen, errorCount]);
+  }, [jobIdFromScreen, poll]);
 
   return {
     status,
     details,
-    errorCount,
+    errorCount: errorCountRef.current,
     lastError,
     isPolling: status === 'queued' || status === 'building',
   };
