@@ -18,9 +18,9 @@ const readDirectoryRecursive = async (
   basePath = ''
 ): Promise<ProjectFile[]> => {
   let files: ProjectFile[] = [];
-  const { constants } = await import('../lib/validators');
-  const MAX_FILE_SIZE = constants.MAX_FILE_SIZE;
-  const MAX_TOTAL_FILES = constants.MAX_FILES_IN_ZIP;
+  const { Validators } = await import('../lib/validators');
+  const MAX_FILE_SIZE = Validators.constants.MAX_FILE_SIZE;
+  const MAX_TOTAL_FILES = Validators.constants.MAX_FILES_IN_ZIP;
   
   try {
     const items = await FileSystem.readDirectoryAsync(dirUri);
@@ -40,10 +40,11 @@ const readDirectoryRecursive = async (
       } else {
         try {
           // ✅ SICHERHEIT: Dateigröße prüfen
-          if (info.size && info.size > MAX_FILE_SIZE) {
+          const fileInfo = info as { exists: true; size: number; isDirectory: boolean; uri: string };
+          if (fileInfo.size && fileInfo.size > MAX_FILE_SIZE) {
             console.warn(
               `[projectStorage] Datei zu groß, übersprungen: ${relativePath}`,
-              `Größe: ${(info.size / (1024 * 1024)).toFixed(2)}MB`
+              `Größe: ${(fileInfo.size / (1024 * 1024)).toFixed(2)}MB`
             );
             continue;
           }

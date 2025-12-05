@@ -3,6 +3,7 @@ export type SyntaxError = {
   message: string;
   severity: 'error' | 'warning';
   line?: number;
+  code?: string;
 };
 
 const escapeRegex = (value: string): string =>

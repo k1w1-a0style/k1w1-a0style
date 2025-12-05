@@ -42,7 +42,7 @@ async function invokeWithTimeout<T>(
 }
 
 export const useBuildStatusSupabase = (jobId: number | null) => {
-  const [status, setStatus] = useState<BuildStatus>('pending');
+  const [status, setStatus] = useState<BuildStatus>('idle');
   const [details, setDetails] = useState<BuildDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -151,7 +151,7 @@ export const useBuildStatusSupabase = (jobId: number | null) => {
     isMountedRef.current = true;
 
     if (!jobId) {
-      setStatus('pending');
+      setStatus('idle');
       setDetails(null);
       setError(null);
       errorCountRef.current = 0;

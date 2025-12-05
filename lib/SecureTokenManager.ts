@@ -83,7 +83,7 @@ class SecureTokenManager {
       
       // ✅ FIX: Generiere IV für jeden Verschlüsselungsvorgang
       const iv = await Crypto.getRandomBytesAsync(16);
-      const ivString = Array.from(iv).map(b => b.toString(16).padStart(2, '0')).join('');
+      const ivString = Array.from(iv).map((b: number) => b.toString(16).padStart(2, '0')).join('');
       
       const textBytes = new TextEncoder().encode(text);
       const keyBytes = new TextEncoder().encode(key);
@@ -126,7 +126,7 @@ class SecureTokenManager {
       const iv = combinedBytes.slice(0, 16);
       const encryptedBytes = combinedBytes.slice(16);
       
-      const ivString = Array.from(iv).map(b => b.toString(16).padStart(2, '0')).join('');
+      const ivString = Array.from(iv).map((b: number) => b.toString(16).padStart(2, '0')).join('');
       const keyBytes = new TextEncoder().encode(key);
       const ivBytes = new TextEncoder().encode(ivString);
       
