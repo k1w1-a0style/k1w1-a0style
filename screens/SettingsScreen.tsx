@@ -1,5 +1,4 @@
-// screens/SettingsScreen.tsx - MIT MULTI-KEY SUPPORT & KORREKTEN MODELLEN
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,182 +8,108 @@ import {
   Platform,
   TextInput,
   Alert,
-  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+
 import { theme } from '../theme';
 import { useAI } from '../contexts/AIContext';
+import type {
+  AllAIProviders,
+  ModelInfo,
+  ModelTier,
+  ProviderLimitStatus,
+  QualityMode,
+} from '../contexts/AIContext';
+import { AVAILABLE_MODELS, PROVIDER_METADATA } from '../contexts/AIContext';
 
-type ProviderId = 'groq' | 'gemini' | 'openai' | 'anthropic' | 'huggingface';
+const PROVIDER_IDS: AllAIProviders[] = ['groq', 'gemini', 'openai', 'anthropic', 'huggingface'];
 
-const PROVIDER_LABELS: Record<ProviderId, string> = {
-  groq: '⚙️ Groq',
-  gemini: '🤖 Gemini',
-  openai: '🧠 OpenAI',
-  anthropic: '🧩 Anthropic',
-  huggingface: '📦 HuggingFace',
+const tierTokens: Record<ModelTier, { label: string; bg: string; color: string }> = {
+  free: { label: 'Free', bg: '#0f9d580f', color: '#0f9d58' },
+  credit: { label: 'Quota', bg: '#1a73e80f', color: '#1a73e8' },
+  paid: { label: 'Paid', bg: '#ea43350f', color: '#ea4335' },
 };
 
-const PROVIDER_DESCRIPTIONS: Record<ProviderId, string> = {
-  groq: 'Sehr schnell & günstig, ideal für Coding. Beste Wahl für Builder.',
-  gemini: 'Gute Code-Qualität, großer Kontext. Ideal als Quality Agent.',
-  openai: 'Starke Modelle, aber kostenpflichtig. Sehr gute Code-Qualität.',
-  anthropic: 'Claude: Sehr sauberer, gut kommentierter Code. Top für Reviews.',
-  huggingface: 'Open-Source-Modelle, kostenlos. Gut für Experimente & Tests.',
+const personaTokens = {
+  speed: { label: '⚡ Speed', color: '#ff8c37' },
+  quality: { label: '💎 Qualität', color: '#7c4dff' },
+  balanced: { label: '⚖️ Balance', color: '#5e8bff' },
+  review: { label: '🔍 Review', color: '#ff5c8d' },
 };
 
-const AVAILABLE_MODES: Record<ProviderId, { id: string; label: string; description?: string }[]> = {
-  groq: [
-    {
-      id: 'auto-groq',
-      label: '🎯 Auto (empfohlen)',
-      description: 'Wählt automatisch das beste Modell basierend auf Quality-Mode',
-    },
-    {
-      id: 'llama-3.3-70b-versatile',
-      label: 'LLaMA 3.3 70B Versatile',
-      description: 'Sehr gutes Allround-Modell, stark bei komplexen Aufgaben',
-    },
-    {
-      id: 'llama-3.1-8b-instant',
-      label: 'LLaMA 3.1 8B Instant',
-      description: 'Extrem schnell, günstig, gut für einfache Tasks',
-    },
-    {
-      id: 'openai/gpt-oss-120b',
-      label: 'GPT OSS 120B',
-      description: 'Sehr starkes Open-Source-Modell, höchste Qualität',
-    },
-    {
-      id: 'openai/gpt-oss-20b',
-      label: 'GPT OSS 20B',
-      description: 'Gute Balance zwischen Geschwindigkeit und Qualität',
-    },
-    {
-      id: 'openai/gpt-oss-safeguard-20b',
-      label: 'GPT OSS Safeguard 20B',
-      description: 'Mit Safety-Features, für produktiven Code',
-    },
-    {
-      id: 'qwen/qwen3-32b',
-      label: 'Qwen3 32B',
-      description: 'Neues chinesisches Modell, sehr gut bei Code',
-    },
-    {
-      id: 'groq/compound',
-      label: 'Groq Compound',
-      description: 'Experimentelles Compound-Modell',
-    },
-    {
-      id: 'groq/compound-mini',
-      label: 'Groq Compound Mini',
-      description: 'Kleinere Compound-Variante, schneller',
-    },
-  ],
-  gemini: [
-    {
-      id: 'gemini-1.5-pro-latest',
-      label: 'Gemini 1.5 Pro',
-      description: 'Beste Qualität, riesiger Kontext (2M Tokens)',
-    },
-    {
-      id: 'gemini-2.0-flash-exp',
-      label: 'Gemini 2.0 Flash Experimental',
-      description: 'Neueste Version, experimentell, sehr schnell',
-    },
-    {
-      id: 'gemini-1.5-flash-latest',
-      label: 'Gemini 1.5 Flash',
-      description: 'Schneller als Pro, gute Balance',
-    },
-    {
-      id: 'gemini-1.5-flash-8b',
-      label: 'Gemini 1.5 Flash 8B',
-      description: 'Kompakte Version, sehr schnell',
-    },
-  ],
-  openai: [
-    {
-      id: 'gpt-4o',
-      label: 'GPT-4o',
-      description: 'Neuestes Modell, optimiert für Code & Reasoning',
-    },
-    {
-      id: 'gpt-4o-mini',
-      label: 'GPT-4o mini',
-      description: 'Günstigere Variante, immer noch sehr gut',
-    },
-    {
-      id: 'gpt-4-turbo',
-      label: 'GPT-4 Turbo',
-      description: 'Schnellere GPT-4-Version',
-    },
-    {
-      id: 'gpt-3.5-turbo',
-      label: 'GPT-3.5 Turbo',
-      description: 'Günstig und schnell, für einfache Aufgaben',
-    },
-  ],
-  anthropic: [
-    {
-      id: 'claude-3-5-sonnet-20241022',
-      label: 'Claude 3.5 Sonnet (neu)',
-      description: 'Neueste Version, exzellente Code-Qualität',
-    },
-    {
-      id: 'claude-3-opus-20240229',
-      label: 'Claude 3 Opus',
-      description: 'Höchste Qualität, sehr gründlich',
-    },
-    {
-      id: 'claude-3-sonnet-20240229',
-      label: 'Claude 3 Sonnet',
-      description: 'Gute Balance zwischen Qualität & Geschwindigkeit',
-    },
-    {
-      id: 'claude-3-haiku-20240307',
-      label: 'Claude 3 Haiku',
-      description: 'Schnellste Claude-Variante, günstig',
-    },
-  ],
-  huggingface: [
-    {
-      id: 'Qwen/Qwen2.5-Coder-32B-Instruct',
-      label: 'Qwen2.5 Coder 32B',
-      description: 'Top Code-Modell, sehr gut für TypeScript/React',
-    },
-    {
-      id: 'meta-llama/Meta-Llama-3.1-8B-Instruct',
-      label: 'LLaMA 3.1 8B (HF)',
-      description: 'Open-Source LLaMA, guter Allrounder',
-    },
-    {
-      id: 'mistralai/Mistral-7B-Instruct-v0.3',
-      label: 'Mistral 7B Instruct',
-      description: 'Beliebtes Open-Source-Modell',
-    },
-    {
-      id: 'codellama/CodeLlama-34b-Instruct-hf',
-      label: 'CodeLlama 34B',
-      description: 'Spezialisiert auf Code-Generierung',
-    },
-    {
-      id: 'bigcode/starcoder2-15b',
-      label: 'StarCoder2 15B',
-      description: 'Von BigCode, sehr gut bei Code-Completion',
-    },
-    {
-      id: 'Salesforce/codegen25-7b-multi',
-      label: 'CodeGen 2.5 7B Multi',
-      description: 'Multi-Language Code-Generator',
-    },
-    {
-      id: 'WizardLM/WizardCoder-15B-V1.0',
-      label: 'WizardCoder 15B',
-      description: 'Stark bei komplexen Code-Aufgaben',
-    },
-  ],
+type ProviderId = AllAIProviders;
+
+type ModeListProps = {
+  provider: ProviderId;
+  selectedMode: string;
+  onSelect: (modeId: string) => void;
+  highlightPersona: 'speed' | 'quality';
+};
+
+const ModeList: React.FC<ModeListProps> = ({ provider, selectedMode, onSelect, highlightPersona }) => {
+  const modes = AVAILABLE_MODELS[provider] || [];
+
+  if (modes.length === 0) {
+    return (
+      <Text style={styles.emptyText}>
+        Für diesen Provider sind noch keine Modelle definiert.
+      </Text>
+    );
+  }
+
+  return (
+    <View style={styles.modelList}>
+      {modes.map((model: ModelInfo) => {
+        const isSelected = model.id === selectedMode;
+        const persona = personaTokens[model.persona];
+        const tier = tierTokens[model.tier];
+        const highlighted = model.persona === highlightPersona;
+
+        return (
+          <TouchableOpacity
+            key={model.id}
+            style={[
+              styles.modelRow,
+              isSelected && styles.modelRowActive,
+              highlighted && !isSelected && styles.modelRowPersona,
+            ]}
+            onPress={() => onSelect(model.id)}
+          >
+            <View style={styles.modelHeader}>
+              <View>
+                <Text style={[styles.modelLabel, isSelected && styles.modelLabelActive]}>
+                  {model.label}
+                </Text>
+                <Text style={styles.modelId}>{model.id}</Text>
+              </View>
+              <View style={styles.badgeColumn}>
+                <View style={[styles.badge, { backgroundColor: tier.bg }]}> 
+                  <Text style={[styles.badgeText, { color: tier.color }]}>{tier.label}</Text>
+                </View>
+                <View style={[styles.badge, styles.personaBadge]}> 
+                  <Text style={[styles.badgeText, { color: persona.color }]}>{persona.label}</Text>
+                </View>
+                {model.isAuto && (
+                  <View style={[styles.badge, styles.autoBadge]}>
+                    <Text style={styles.badgeText}>Auto</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            <Text style={styles.modelDescription}>{model.description}</Text>
+            <Text style={styles.modelBestFor}>{model.bestFor}</Text>
+            {model.contextWindow && (
+              <Text style={styles.modelContext}>
+                Kontext: {model.contextWindow}
+              </Text>
+            )}
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
 };
 
 const SettingsScreen: React.FC = () => {
@@ -199,6 +124,8 @@ const SettingsScreen: React.FC = () => {
     removeApiKey,
     rotateApiKey,
     moveApiKeyToFront,
+    providerStatus,
+    acknowledgeProviderStatus,
   } = useAI();
 
   const [newKey, setNewKey] = useState('');
@@ -206,20 +133,29 @@ const SettingsScreen: React.FC = () => {
 
   const generatorProvider = config.selectedChatProvider as ProviderId;
   const agentProvider = config.selectedAgentProvider as ProviderId;
-  const currentGeneratorModes = AVAILABLE_MODES[generatorProvider] || [];
-  const currentAgentModes = AVAILABLE_MODES[agentProvider] || [];
-
-  const currentGeneratorMode = currentGeneratorModes.find((m) => m.id === config.selectedChatMode);
-  const currentAgentMode = currentAgentModes.find((m) => m.id === config.selectedAgentMode);
 
   const isQualityMode = config.qualityMode === 'quality';
 
-  // ✅ Alle Keys für den ausgewählten Provider
   const allKeys = config.apiKeys[selectedKeyProvider] || [];
   const hasMultipleKeys = allKeys.length > 1;
+  const limitStatus: ProviderLimitStatus =
+    providerStatus[selectedKeyProvider] ?? { limitReached: false };
 
-  const handleToggleQualityMode = async (value: boolean) => {
-    await setQualityMode(value ? 'quality' : 'speed');
+  const generatorHighlightPersona = isQualityMode ? 'quality' : 'speed';
+  const agentHighlightPersona: 'speed' | 'quality' = 'quality';
+
+  const limitInfo = useMemo(() => {
+    if (!limitStatus?.limitReached) {
+      return 'Alles grün – aktueller Key liefert noch freie Tokens.';
+    }
+    const ts = limitStatus.lastRotation
+      ? new Date(limitStatus.lastRotation).toLocaleTimeString()
+      : 'gerade eben';
+    return `Limit erreicht (Free/Quota). Automatisch rotiert um ${ts}.`;
+  }, [limitStatus]);
+
+  const handleSetQuality = (mode: QualityMode) => {
+    setQualityMode(mode);
   };
 
   const handleAddKey = async () => {
@@ -231,19 +167,16 @@ const SettingsScreen: React.FC = () => {
     try {
       await addApiKey(selectedKeyProvider, trimmed);
       setNewKey('');
-      Alert.alert(
-        '✅ Gespeichert',
-        `API-Key für ${PROVIDER_LABELS[selectedKeyProvider]} wurde hinzugefügt und ist jetzt aktiv.`
-      );
-    } catch (e: any) {
-      Alert.alert('Fehler', e?.message || 'Konnte API-Key nicht speichern.');
+      Alert.alert('✅ Gespeichert', 'Der neue API-Key ist jetzt aktiv.');
+    } catch (error: any) {
+      Alert.alert('Fehler', error?.message || 'Key konnte nicht gespeichert werden.');
     }
   };
 
   const handleRemoveKey = async (key: string) => {
     Alert.alert(
       'Key löschen?',
-      `Möchtest du den Key ${key.slice(0, 8)}... wirklich löschen?`,
+      `Möchtest du den Key ${key.slice(0, 8)}... dauerhaft löschen?`,
       [
         { text: 'Abbrechen', style: 'cancel' },
         {
@@ -252,13 +185,13 @@ const SettingsScreen: React.FC = () => {
           onPress: async () => {
             try {
               await removeApiKey(selectedKeyProvider, key);
-              Alert.alert('🗑️ Entfernt', 'API-Key wurde gelöscht.');
-            } catch (e: any) {
-              Alert.alert('Fehler', e?.message || 'Konnte API-Key nicht entfernen.');
+              Alert.alert('🗑️ Entfernt', 'Key wurde gelöscht.');
+            } catch (error: any) {
+              Alert.alert('Fehler', error?.message || 'Key konnte nicht gelöscht werden.');
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -266,14 +199,14 @@ const SettingsScreen: React.FC = () => {
     try {
       await moveApiKeyToFront(selectedKeyProvider, index);
       Alert.alert('✅ Aktiviert', 'Dieser Key ist jetzt aktiv.');
-    } catch (e: any) {
-      Alert.alert('Fehler', e?.message || 'Konnte Key nicht aktivieren.');
+    } catch (error: any) {
+      Alert.alert('Fehler', error?.message || 'Key konnte nicht aktiviert werden.');
     }
   };
 
   const handleRotateKeys = async () => {
     if (!hasMultipleKeys) {
-      Alert.alert('Keine Rotation möglich', 'Du benötigst mindestens 2 Keys für eine Rotation.');
+      Alert.alert('Keine Rotation möglich', 'Mindestens zwei Keys sind notwendig.');
       return;
     }
 
@@ -288,87 +221,73 @@ const SettingsScreen: React.FC = () => {
             try {
               await rotateApiKey(selectedKeyProvider);
               Alert.alert('🔄 Rotiert', 'Keys wurden rotiert.');
-            } catch (e: any) {
-              Alert.alert('Fehler', e?.message || 'Rotation fehlgeschlagen.');
+            } catch (error: any) {
+              Alert.alert('Fehler', error?.message || 'Rotation fehlgeschlagen.');
             }
           },
         },
-      ]
+      ],
     );
   };
 
-  const renderProviderChips = (
+  const renderProviderTiles = (
     selectedProvider: ProviderId,
-    onSelect: (p: ProviderId) => void
+    onSelect: (provider: ProviderId) => void,
   ) => (
-    <View style={styles.chipRow}>
-      {(Object.keys(PROVIDER_LABELS) as ProviderId[]).map((id) => {
+    <View>
+      {PROVIDER_IDS.map((id) => {
+        const meta = PROVIDER_METADATA[id];
+        const status = providerStatus[id];
+        const keyCount = config.apiKeys[id]?.length || 0;
         const isSelected = id === selectedProvider;
+        const lampStyle = status.limitReached
+          ? styles.statusLampAlert
+          : keyCount > 0
+          ? styles.statusLampOk
+          : styles.statusLampIdle;
+
         return (
           <TouchableOpacity
             key={id}
-            style={[styles.chip, isSelected && styles.chipActive]}
+            style={[styles.providerTile, isSelected && styles.providerTileActive]}
             onPress={() => onSelect(id)}
           >
-            <Text style={[styles.chipLabel, isSelected && styles.chipLabelActive]}>
-              {PROVIDER_LABELS[id]}
-            </Text>
+            <View style={styles.providerLampWrapper}>
+              <View style={[styles.statusLamp, lampStyle]} />
+            </View>
+            <View style={styles.providerTileText}>
+              <Text style={styles.providerTileTitle}>
+                {meta.emoji} {meta.label}
+              </Text>
+              <Text style={styles.providerTileHero}>{meta.hero}</Text>
+              <Text style={styles.providerTileDesc}>{meta.description}</Text>
+              <Text style={styles.providerTileKeys}>
+                {keyCount > 0 ? `${keyCount} Key(s) hinterlegt` : 'Noch keine Keys gespeichert'}
+              </Text>
+              {status.limitReached && (
+                <View style={styles.providerTileWarningRow}>
+                  <Text style={styles.providerTileWarning}>Limit erreicht – automatische Rotation aktiv.</Text>
+                  <TouchableOpacity
+                    onPress={() => acknowledgeProviderStatus(id)}
+                    style={styles.lampResetButton}
+                  >
+                    <Text style={styles.lampResetText}>Lampe zurücksetzen</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
           </TouchableOpacity>
         );
       })}
     </View>
   );
 
-  const renderModelList = (
-    modes: { id: string; label: string; description?: string }[],
-    selectedMode: string,
-    onSelect: (modeId: string) => void
-  ) => {
-    if (!modes || modes.length === 0) {
-      return (
-        <Text style={styles.emptyText}>
-          Für diesen Provider sind noch keine Modelle definiert.
-        </Text>
-      );
-    }
-
-    return (
-      <View style={styles.modelList}>
-        {modes.map((m) => {
-          const isSelected = m.id === selectedMode;
-          return (
-            <TouchableOpacity
-              key={m.id}
-              style={[styles.modelRow, isSelected && styles.modelRowActive]}
-              onPress={() => onSelect(m.id)}
-            >
-              <View style={styles.modelTextContainer}>
-                <Text style={[styles.modelLabel, isSelected && styles.modelLabelActive]}>
-                  {m.label}
-                </Text>
-                <Text style={styles.modelId} numberOfLines={1}>
-                  {m.id}
-                </Text>
-                {m.description && (
-                  <Text style={styles.modelDescription} numberOfLines={2}>
-                    {m.description}
-                  </Text>
-                )}
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    );
-  };
-
-  // ✅ Key-Liste rendern
   const renderApiKeyList = () => {
     if (allKeys.length === 0) {
       return (
         <View style={styles.emptyKeyState}>
           <Text style={styles.emptyKeyText}>
-            🔑 Noch keine API-Keys für {PROVIDER_LABELS[selectedKeyProvider]} hinterlegt
+            🔑 Noch keine API-Keys für {PROVIDER_METADATA[selectedKeyProvider].label} hinterlegt
           </Text>
         </View>
       );
@@ -377,9 +296,7 @@ const SettingsScreen: React.FC = () => {
     return (
       <View style={styles.keyListContainer}>
         <View style={styles.keyListHeader}>
-          <Text style={styles.keyListTitle}>
-            Gespeicherte Keys ({allKeys.length})
-          </Text>
+          <Text style={styles.keyListTitle}>Gespeicherte Keys ({allKeys.length})</Text>
           {hasMultipleKeys && (
             <TouchableOpacity onPress={handleRotateKeys} style={styles.rotateButton}>
               <Ionicons name="sync-outline" size={16} color={theme.palette.primary} />
@@ -395,42 +312,25 @@ const SettingsScreen: React.FC = () => {
           return (
             <View key={key} style={[styles.keyRow, isActive && styles.keyRowActive]}>
               <View style={styles.keyInfo}>
-                {isActive && (
-                  <Ionicons name="star" size={14} color={theme.palette.success} />
-                )}
-                <Text style={[styles.keyText, isActive && styles.keyTextActive]}>
-                  {masked}
-                </Text>
+                {isActive && <Ionicons name="star" size={14} color={theme.palette.success} />}
+                <Text style={[styles.keyText, isActive && styles.keyTextActive]}>{masked}</Text>
                 {isActive && <Text style={styles.activeLabel}>AKTIV</Text>}
               </View>
-
               <View style={styles.keyActions}>
                 {!isActive && (
-                  <TouchableOpacity
-                    onPress={() => handleActivateKey(index)}
-                    style={styles.iconButton}
-                  >
-                    <Ionicons
-                      name="arrow-up-circle-outline"
-                      size={20}
-                      color={theme.palette.primary}
-                    />
+                  <TouchableOpacity onPress={() => handleActivateKey(index)} style={styles.iconButton}>
+                    <Ionicons name="arrow-up-circle-outline" size={20} color={theme.palette.primary} />
                   </TouchableOpacity>
                 )}
-
-                <TouchableOpacity
-                  onPress={() => handleRemoveKey(key)}
-                  style={styles.iconButton}
-                >
+                <TouchableOpacity onPress={() => handleRemoveKey(key)} style={styles.iconButton}>
                   <Ionicons name="trash-outline" size={20} color={theme.palette.error} />
                 </TouchableOpacity>
               </View>
             </View>
           );
         })}
-
         <Text style={styles.keyListHint}>
-          💡 Der oberste Key ist aktiv. Bei Rate-Limits rotiert die App automatisch zum nächsten.
+          💡 Der oberste Key ist aktiv. Bei Rate-Limits / 401 rotiert die App automatisch.
         </Text>
       </View>
     );
@@ -439,129 +339,132 @@ const SettingsScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-        {/* HEADER */}
         <Text style={styles.screenTitle}>⚙️ KI-Einstellungen</Text>
         <Text style={styles.screenSubtitle}>
-          Konfiguriere Generator, Quality-Agent und API-Keys
+          Wähle Provider, Modelle und verwalte deine API-Keys. Alle Texte & Prompts laufen komplett auf Deutsch.
         </Text>
 
-        {/* ÜBERSICHT */}
-        <View style={styles.overviewCard}>
-          <Text style={styles.overviewTitle}>📊 Aktuelle Konfiguration</Text>
-
-          <View style={styles.overviewSection}>
-            <Text style={styles.overviewLabel}>Generator (Code-Erzeugung)</Text>
-            <Text style={styles.overviewValue}>
-              {PROVIDER_LABELS[generatorProvider]} •{' '}
-              {currentGeneratorMode?.label || config.selectedChatMode}
+        <View style={styles.heroRow}>
+          <View style={styles.heroCard}>
+            <Text style={styles.heroTitle}>⚖️ Qualitätsmodus</Text>
+            <Text style={styles.heroSubtitle}>
+              Schalte zwischen Geschwindigkeit (direkte Umsetzung) und Qualität (Validator mit Review-Flow) um.
             </Text>
-          </View>
-
-          <View style={styles.separator} />
-
-          <View style={styles.overviewSection}>
-            <Text style={styles.overviewLabel}>Quality-Agent (Validator)</Text>
-            <Text style={styles.overviewValue}>
-              {PROVIDER_LABELS[agentProvider]} •{' '}
-              {currentAgentMode?.label || config.selectedAgentMode}
-            </Text>
-          </View>
-
-          <View style={styles.separator} />
-
-          <View style={styles.qualityRow}>
-            <View>
-              <Text style={styles.overviewLabel}>Quality Mode</Text>
-              <Text style={styles.overviewHint}>
-                {isQualityMode ? '💎 Aktiv - Beste Qualität' : '⚡ Aus - Maximale Geschwindigkeit'}
-              </Text>
+            <View style={styles.modeToggleRow}>
+              <TouchableOpacity
+                style={[styles.modeToggle, !isQualityMode && styles.modeToggleActive]}
+                onPress={() => handleSetQuality('speed')}
+              >
+                <Text style={[styles.modeToggleText, !isQualityMode && styles.modeToggleTextActive]}>⚡ Speed</Text>
+                <Text style={styles.modeToggleHint}>Günstig & schnell</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modeToggle, isQualityMode && styles.modeToggleActive]}
+                onPress={() => handleSetQuality('quality')}
+              >
+                <Text style={[styles.modeToggleText, isQualityMode && styles.modeToggleTextActive]}>💎 Qualität</Text>
+                <Text style={styles.modeToggleHint}>Validator aktiv</Text>
+              </TouchableOpacity>
             </View>
-            <Switch
-              value={isQualityMode}
-              onValueChange={handleToggleQualityMode}
-              thumbColor={isQualityMode ? theme.palette.primary : '#ccc'}
-              trackColor={{ false: '#767577', true: theme.palette.primary + '50' }}
-            />
+          </View>
+
+          <View style={styles.heroCardSecondary}>
+            <Text style={styles.heroTitle}>🔄 Key-Rotation</Text>
+            <Text style={styles.heroSubtitle}>
+              {limitInfo}
+            </Text>
+            <View style={styles.heroBulletRow}>
+              <Ionicons name="shield-checkmark" size={16} color={theme.palette.primary} />
+              <Text style={styles.heroBulletText}>Auto-Rotation nach 401/429 (max. 3 Versuche)</Text>
+            </View>
+            <View style={styles.heroBulletRow}>
+              <Ionicons name="alert-circle" size={16} color={theme.palette.secondary} />
+              <Text style={styles.heroBulletText}>Lampe zeigt erschöpftes Free/Quota an</Text>
+            </View>
           </View>
         </View>
 
-        {/* GENERATOR SETTINGS */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🛠️ Generator (Code-Erzeugung)</Text>
           <Text style={styles.sectionSubtitle}>
-            Diese KI erzeugt den Code basierend auf deinen Anfragen.
+            Diese KI schreibt Code, berücksichtigt Project-History und hält sich an echte Pfade.
           </Text>
-
-          <Text style={styles.subheading}>Provider</Text>
-          {renderProviderChips(generatorProvider, setSelectedChatProvider)}
-
-          <Text style={styles.providerDescription}>
-            {PROVIDER_DESCRIPTIONS[generatorProvider]}
-          </Text>
-
-          <Text style={styles.subheading}>Modell</Text>
-          {renderModelList(currentGeneratorModes, config.selectedChatMode, setSelectedChatMode)}
+          {renderProviderTiles(generatorProvider, setSelectedChatProvider)}
+          <ModeList
+            provider={generatorProvider}
+            selectedMode={config.selectedChatMode}
+            onSelect={setSelectedChatMode}
+            highlightPersona={generatorHighlightPersona}
+          />
         </View>
 
-        {/* QUALITY AGENT SETTINGS */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>💎 Quality-Agent (Validator)</Text>
           <Text style={styles.sectionSubtitle}>
-            Wenn Quality Mode aktiv ist, prüft diese KI den generierten Code, korrigiert Pfade und
-            entfernt Platzhalter.
+            Prüft Antworten, korrigiert Pfade, validiert JSON und verhindert Platzhalter.
           </Text>
-
-          <Text style={styles.subheading}>Provider</Text>
-          {renderProviderChips(agentProvider, setSelectedAgentProvider)}
-
-          <Text style={styles.providerDescription}>{PROVIDER_DESCRIPTIONS[agentProvider]}</Text>
-
-          <Text style={styles.subheading}>Modell</Text>
-          {renderModelList(currentAgentModes, config.selectedAgentMode, setSelectedAgentMode)}
+          {renderProviderTiles(agentProvider, setSelectedAgentProvider)}
+          <ModeList
+            provider={agentProvider}
+            selectedMode={config.selectedAgentMode}
+            onSelect={setSelectedAgentMode}
+            highlightPersona={agentHighlightPersona}
+          />
         </View>
 
-        {/* API-KEY MANAGEMENT */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🔑 API-Keys verwalten</Text>
+          <Text style={styles.sectionTitle}>🔑 API-Keys & Rotation</Text>
           <Text style={styles.sectionSubtitle}>
-            Hinterlege mehrere API-Keys pro Anbieter. Bei Rate-Limits rotiert die App automatisch.
+            Hinterlege mehrere Keys pro Anbieter. Die App merkt sich Fehler, rotiert automatisch und zeigt Limits über die Lampe an.
           </Text>
 
           <Text style={styles.subheading}>Provider auswählen</Text>
-          <View style={styles.chipRow}>
-            {(Object.keys(PROVIDER_LABELS) as ProviderId[]).map((id) => {
-              const isSelected = id === selectedKeyProvider;
-              const keyCount = config.apiKeys[id]?.length || 0;
+          <View style={styles.keyProviderRow}>
+            {PROVIDER_IDS.map((id) => {
+              const isActive = id === selectedKeyProvider;
               return (
                 <TouchableOpacity
                   key={id}
-                  style={[styles.chipSmall, isSelected && styles.chipActive]}
+                  style={[styles.keyProviderChip, isActive && styles.keyProviderChipActive]}
                   onPress={() => setSelectedKeyProvider(id)}
                 >
-                  <Text style={[styles.chipLabel, isSelected && styles.chipLabelActive]}>
-                    {PROVIDER_LABELS[id]} {keyCount > 0 && `(${keyCount})`}
+                  <Text style={[styles.keyProviderChipText, isActive && styles.keyProviderChipTextActive]}>
+                    {PROVIDER_METADATA[id].emoji} {PROVIDER_METADATA[id].label}
                   </Text>
                 </TouchableOpacity>
               );
             })}
           </View>
 
-          {/* ✅ Key-Liste */}
+          <View style={styles.limitCallout}>
+            <View style={[styles.statusLamp, limitStatus.limitReached ? styles.statusLampAlert : styles.statusLampOk]} />
+            <View style={styles.limitCalloutText}>
+              <Text style={styles.limitCalloutTitle}>Status</Text>
+              <Text style={styles.limitCalloutBody}>{limitInfo}</Text>
+            </View>
+            {limitStatus.limitReached && (
+              <TouchableOpacity
+                style={styles.lampResetButtonOutline}
+                onPress={() => acknowledgeProviderStatus(selectedKeyProvider)}
+              >
+                <Text style={styles.lampResetText}>Lampe zurücksetzen</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
           {renderApiKeyList()}
 
-          {/* Neuen Key hinzufügen */}
           <View style={styles.addKeySection}>
             <Text style={styles.subheading}>Neuen Key hinzufügen</Text>
             <TextInput
               style={styles.input}
               value={newKey}
               onChangeText={setNewKey}
-              placeholder="API-Key hier einfügen..."
+              placeholder="API-Key hier einfügen ..."
               placeholderTextColor={theme.palette.text.secondary}
               autoCapitalize="none"
               autoCorrect={false}
             />
-
             <TouchableOpacity style={styles.saveButton} onPress={handleAddKey}>
               <Ionicons name="add-circle-outline" size={18} color="#fff" />
               <Text style={styles.saveButtonText}>Key hinzufügen</Text>
@@ -569,7 +472,7 @@ const SettingsScreen: React.FC = () => {
           </View>
 
           <Text style={styles.hintText}>
-            💡 Keys werden lokal gespeichert und bei Rate-Limits automatisch rotiert (max. 3 Versuche).
+            💡 Keys werden lokal verschlüsselt gespeichert. Bei Limit-Fehlern erfolgt das Rotieren automatisch.
           </Text>
         </View>
       </ScrollView>
@@ -588,7 +491,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 48,
   },
   screenTitle: {
     fontSize: 24,
@@ -601,52 +504,84 @@ const styles = StyleSheet.create({
     color: theme.palette.text.secondary,
     marginBottom: 20,
   },
-
-  // ÜBERSICHT CARD
-  overviewCard: {
-    backgroundColor: theme.palette.primary + '15',
-    borderRadius: 12,
-    padding: 16,
+  heroRow: {
+    flexDirection: 'row',
+    gap: 12,
     marginBottom: 16,
+    flexWrap: 'wrap',
+  },
+  heroCard: {
+    flex: 1,
+    minWidth: 250,
+    backgroundColor: theme.palette.card,
+    borderRadius: 14,
+    padding: 16,
     borderWidth: 1,
     borderColor: theme.palette.primary + '30',
   },
-  overviewTitle: {
+  heroCardSecondary: {
+    flex: 1,
+    minWidth: 250,
+    backgroundColor: theme.palette.card,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  heroTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: theme.palette.text.primary,
+    marginBottom: 6,
+  },
+  heroSubtitle: {
+    fontSize: 13,
+    color: theme.palette.text.secondary,
     marginBottom: 12,
+    lineHeight: 18,
   },
-  overviewSection: {
-    marginBottom: 8,
+  heroBulletRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
   },
-  overviewLabel: {
+  heroBulletText: {
     fontSize: 12,
     color: theme.palette.text.secondary,
-    marginBottom: 4,
   },
-  overviewValue: {
+  modeToggleRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  modeToggle: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  modeToggleActive: {
+    backgroundColor: theme.palette.primary,
+    borderColor: theme.palette.primary,
+  },
+  modeToggleText: {
     fontSize: 14,
     fontWeight: '600',
-    color: theme.palette.text.primary,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  overviewHint: {
-    fontSize: 12,
     color: theme.palette.text.secondary,
-    marginTop: 2,
   },
-  separator: {
-    height: 1,
-    backgroundColor: theme.palette.border,
-    marginVertical: 12,
+  modeToggleTextActive: {
+    color: '#fff',
   },
-
-  // SECTIONS
+  modeToggleHint: {
+    fontSize: 10,
+    color: theme.palette.text.secondary,
+  },
   section: {
     backgroundColor: theme.palette.card,
     borderRadius: 12,
-    padding: 14,
+    padding: 16,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: theme.palette.border,
@@ -655,12 +590,12 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: theme.palette.text.primary,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   sectionSubtitle: {
     fontSize: 13,
     color: theme.palette.text.secondary,
-    marginBottom: 16,
+    marginBottom: 14,
     lineHeight: 18,
   },
   subheading: {
@@ -670,87 +605,120 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.palette.text.secondary,
   },
-  hintText: {
+  providerTile: {
+    flexDirection: 'row',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    marginBottom: 10,
+    backgroundColor: theme.palette.background,
+  },
+  providerTileActive: {
+    borderColor: theme.palette.primary,
+    backgroundColor: theme.palette.primary + '0D',
+  },
+  providerLampWrapper: {
+    marginRight: 12,
+    justifyContent: 'center',
+  },
+  statusLamp: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#00000020',
+  },
+  statusLampOk: {
+    backgroundColor: '#34a853',
+  },
+  statusLampAlert: {
+    backgroundColor: '#ea4335',
+  },
+  statusLampIdle: {
+    backgroundColor: '#bdc1c6',
+  },
+  providerTileText: {
+    flex: 1,
+  },
+  providerTileTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.palette.text.primary,
+  },
+  providerTileHero: {
     fontSize: 12,
     color: theme.palette.text.secondary,
-    marginTop: 8,
+    marginTop: 2,
+  },
+  providerTileDesc: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+    marginTop: 4,
     lineHeight: 16,
   },
-
-  // CHIPS
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 8,
-  },
-  chip: {
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    marginRight: 6,
-    marginBottom: 6,
-    backgroundColor: theme.palette.card,
-  },
-  chipSmall: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    marginRight: 6,
-    marginBottom: 6,
-    backgroundColor: theme.palette.card,
-  },
-  chipActive: {
-    backgroundColor: theme.palette.primary,
-    borderColor: theme.palette.primary,
-  },
-  chipLabel: {
+  providerTileKeys: {
     fontSize: 12,
     color: theme.palette.text.secondary,
+    marginTop: 4,
   },
-  chipLabelActive: {
-    color: '#fff',
+  providerTileWarningRow: {
+    marginTop: 6,
+  },
+  providerTileWarning: {
+    fontSize: 12,
+    color: theme.palette.error,
+  },
+  lampResetButton: {
+    marginTop: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    alignSelf: 'flex-start',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: theme.palette.error,
+  },
+  lampResetButtonOutline: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    alignSelf: 'center',
+  },
+  lampResetText: {
+    fontSize: 11,
+    color: theme.palette.text.primary,
     fontWeight: '600',
   },
-
-  // PROVIDER DESCRIPTION
-  providerDescription: {
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-    marginTop: 4,
-    marginBottom: 12,
-    lineHeight: 16,
-    fontStyle: 'italic',
-  },
-
-  // MODEL LIST
   modelList: {
-    marginTop: 4,
+    marginTop: 10,
   },
   modelRow: {
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: theme.palette.border,
-    padding: 12,
-    marginBottom: 8,
-    backgroundColor: theme.palette.card,
+    padding: 14,
+    marginBottom: 10,
+    backgroundColor: theme.palette.background,
   },
   modelRowActive: {
     borderColor: theme.palette.primary,
     borderWidth: 2,
-    backgroundColor: theme.palette.primary + '08',
+    backgroundColor: theme.palette.primary + '10',
   },
-  modelTextContainer: {
-    flex: 1,
+  modelRowPersona: {
+    borderColor: theme.palette.secondary,
+  },
+  modelHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
   modelLabel: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     color: theme.palette.text.primary,
-    marginBottom: 2,
   },
   modelLabelActive: {
     color: theme.palette.primary,
@@ -759,30 +727,96 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: theme.palette.text.secondary,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    marginBottom: 4,
   },
   modelDescription: {
+    fontSize: 13,
+    color: theme.palette.text.primary,
+    lineHeight: 18,
+  },
+  modelBestFor: {
     fontSize: 12,
     color: theme.palette.text.secondary,
-    lineHeight: 16,
+    marginTop: 6,
+  },
+  modelContext: {
+    fontSize: 11,
+    color: theme.palette.text.secondary,
+    marginTop: 4,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  badgeColumn: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  personaBadge: {
+    backgroundColor: '#0000000d',
+  },
+  autoBadge: {
+    backgroundColor: theme.palette.primary + '20',
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
   emptyText: {
     fontSize: 13,
     color: theme.palette.text.secondary,
     fontStyle: 'italic',
-    marginVertical: 8,
   },
-
-  // QUALITY MODE
-  qualityRow: {
+  keyProviderRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+  },
+  keyProviderChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  keyProviderChipActive: {
+    backgroundColor: theme.palette.primary,
+    borderColor: theme.palette.primary,
+  },
+  keyProviderChipText: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+  },
+  keyProviderChipTextActive: {
+    color: '#fff',
+  },
+  limitCallout: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    borderRadius: 12,
+    padding: 12,
+    gap: 12,
+    marginBottom: 12,
+    backgroundColor: theme.palette.background,
   },
-
-  // ✅ KEY LIST
+  limitCalloutText: {
+    flex: 1,
+  },
+  limitCalloutTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.palette.text.primary,
+  },
+  limitCalloutBody: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+  },
   keyListContainer: {
-    marginTop: 12,
     marginBottom: 16,
   },
   keyListHeader: {
@@ -801,7 +835,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    backgroundColor: theme.palette.card,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: theme.palette.border,
@@ -818,16 +851,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: theme.palette.background,
-    borderRadius: 8,
-    marginBottom: 6,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: theme.palette.border,
+    backgroundColor: theme.palette.background,
+    marginBottom: 6,
   },
   keyRowActive: {
     borderColor: theme.palette.success,
     borderWidth: 2,
-    backgroundColor: theme.palette.success + '08',
+    backgroundColor: theme.palette.success + '10',
   },
   keyInfo: {
     flexDirection: 'row',
@@ -869,8 +902,7 @@ const styles = StyleSheet.create({
   },
   emptyKeyState: {
     padding: 16,
-    backgroundColor: theme.palette.background,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: theme.palette.border,
     borderStyle: 'dashed',
@@ -882,10 +914,8 @@ const styles = StyleSheet.create({
     color: theme.palette.text.secondary,
     textAlign: 'center',
   },
-
-  // ADD KEY
   addKeySection: {
-    marginTop: 16,
+    marginTop: 12,
   },
   input: {
     marginTop: 8,
@@ -913,6 +943,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  hintText: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+    marginTop: 10,
+    lineHeight: 16,
   },
 });
 
