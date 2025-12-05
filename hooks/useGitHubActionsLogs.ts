@@ -114,7 +114,11 @@ export function useGitHubActionsLogs({
       const logsData = await logsResponse.json();
       
       if (isMountedRef.current) {
-        setLogs(logsData.logs || []);
+        // ✅ FIX: Verwende MAX_LOG_ENTRIES um Memory-Leaks zu verhindern
+        const rawLogs = logsData.logs || [];
+        const limitedLogs = rawLogs.slice(-MAX_LOG_ENTRIES);
+        setLogs(limitedLogs);
+        
         if (logsData.workflowRun) {
           setWorkflowRun(logsData.workflowRun);
         }
