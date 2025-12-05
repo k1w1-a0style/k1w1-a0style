@@ -1,5 +1,5 @@
 // screens/GitHubReposScreen.tsx - OPTIMIZED VERSION
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -31,7 +31,8 @@ export default function GitHubReposScreen() {
   const [token, setToken] = useState<string | null>(null);
   const [tokenLoading, setTokenLoading] = useState(false);
 
-  const { repos, loading: loadingRepos, loadRepos, deleteRepo: deleteRepoHook, renameRepo: renameRepoHook, pullFromRepo } = useGitHubRepos(token);
+  const { repos, loading: loadingRepos, loadRepos, deleteRepo: deleteRepoHook, renameRepo: renameRepoHook, pullFromRepo, error: tokenError } = useGitHubRepos(token);
+  const [localRepos, setLocalRepos] = useState<GitHubRepo[]>([]);
 
   const [filterType, setFilterType] = useState<RepoFilterType>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -139,8 +140,10 @@ export default function GitHubReposScreen() {
       setIsCreating(true);
 
       const repo = await createRepo(name, newRepoPrivate);
-      setRepos((prev) => [repo, ...prev]);
+      setLocalRepos((prev) => [repo, ...prev]);
       setNewRepoName('');
+      // Reload repos to sync with backend
+      loadRepos();
 
       Alert.alert('✅ Repo erstellt', `Repository "${repo.full_name}" wurde angelegt.`);
     } catch (e: any) {
@@ -260,7 +263,18 @@ export default function GitHubReposScreen() {
     });
   };
 
-  const filteredRepos = repos.filter((repo) => {
+  // Kombiniere geladene Repos mit lokalen (neu erstellten) Repos
+  const allRepos = useMemo(() => {
+    const combined = [...localRepos];
+    repos.forEach((repo) => {
+      if (!combined.find(r => r.id === repo.id)) {
+        combined.push(repo);
+      }
+    });
+    return combined;
+  }, [repos, localRepos]);
+
+  const filteredRepos = allRepos.filter((repo) => {
     const matchesSearch =
       !searchTerm ||
       repo.name.toLowerCase().includes(searchTerm.toLowerCase()) ||

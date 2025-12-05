@@ -51,6 +51,7 @@ import PreviewScreen from './screens/PreviewScreen';
 
 import CustomHeader from './components/CustomHeader';
 import { CustomDrawerContent } from './components/CustomDrawer';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { StatusBar } from 'expo-status-bar';
 
 const Tab = createBottomTabNavigator();
@@ -223,15 +224,17 @@ const AppNavigation = () => {
 
 export default function App() {
   return (
-    <TerminalProvider>
-      <AIProvider>
-        <ProjectProvider>
-          <GitHubProvider>
-            <AppNavigation />
-          </GitHubProvider>
-        </ProjectProvider>
-      </AIProvider>
-    </TerminalProvider>
+    <ErrorBoundary>
+      <TerminalProvider>
+        <AIProvider>
+          <ProjectProvider>
+            <GitHubProvider>
+              <AppNavigation />
+            </GitHubProvider>
+          </ProjectProvider>
+        </AIProvider>
+      </TerminalProvider>
+    </ErrorBoundary>
   );
 }
 
