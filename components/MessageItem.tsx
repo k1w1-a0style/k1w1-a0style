@@ -1,5 +1,5 @@
-import React, { memo } from 'react';
-import { Text, Pressable, StyleSheet, Alert } from 'react-native';
+import React, { memo, useEffect, useRef } from 'react';
+import { Text, Pressable, StyleSheet, Alert, Animated } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { theme } from '../theme';
 
@@ -18,29 +18,57 @@ type MessageItemProps = {
 const MessageItem = memo(({ message }: MessageItemProps) => {
   const messageText = message?.content?.trim() ?? '';
   const isUser = message?.role === 'user';
+  
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(isUser ? 20 : -20)).current;
+
+  useEffect(() => {
+    // Animate message entrance
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   if (isUser && messageText.length === 0) return null;
 
   const handleLongPress = () => {
     if (messageText) {
       Clipboard.setStringAsync(messageText);
-      Alert.alert('Kopiert');
+      Alert.alert('📋 Kopiert', 'Nachricht wurde in die Zwischenablage kopiert.');
     }
   };
 
   return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.messageBubble,
-        isUser ? styles.userMessage : styles.aiMessage,
-        pressed && styles.messagePressed,
-      ]}
-      onLongPress={handleLongPress}
+    <Animated.View
+      style={{
+        opacity: fadeAnim,
+        transform: [{ translateX: slideAnim }],
+      }}
     >
-      <Text style={isUser ? styles.userMessageText : styles.aiMessageText}>
-        {messageText || '...'}
-      </Text>
-    </Pressable>
+      <Pressable
+        style={({ pressed }) => [
+          styles.messageBubble,
+          isUser ? styles.userMessage : styles.aiMessage,
+          pressed && styles.messagePressed,
+        ]}
+        onLongPress={handleLongPress}
+      >
+        <Text style={isUser ? styles.userMessageText : styles.aiMessageText}>
+          {messageText || '...'}
+        </Text>
+      </Pressable>
+    </Animated.View>
   );
 });
 
