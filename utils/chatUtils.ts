@@ -195,7 +195,7 @@ export const validateProjectFiles = (files: ProjectFile[]) => {
     );
   }
 
-  const seen = new Set<string>();
+  const seen = new Map<string, string>();
 
   for (const file of files) {
     const path = file.path;
@@ -206,10 +206,11 @@ export const validateProjectFiles = (files: ProjectFile[]) => {
     if (!valid)
       errors.push(`Pfad ungültig (${path}): ${pathErrors.join(' | ')}`);
 
-    if (seen.has(path)) {
-      errors.push(`Duplikat-Pfad: ${path}`);
+    const duplicateOf = seen.get(normalizedPath);
+    if (duplicateOf) {
+      errors.push(`Duplikat-Pfad: ${path} (entspricht ${duplicateOf})`);
     } else {
-      seen.add(path);
+      seen.set(normalizedPath, path);
     }
 
     if (CONFIG.VALIDATION.PATTERNS.FORBIDDEN_IMPORT.test(content)) {
@@ -334,18 +335,18 @@ export const normalizeAndValidateFiles = (
     return null;
   }
 
-  const normalized = files.map((f) => ({
-    path: normalizePath(f.path),
-    content: ensureStringContent(f.content).replace(/^\uFEFF/, ''),
-  }));
-
-  const validation = validateProjectFiles(normalized as ProjectFile[]);
+  const validation = validateProjectFiles(files);
 
   if (!validation.valid) {
     log('ERROR', 'VALIDIERUNG FEHLGESCHLAGEN', { errors: validation.errors });
     validation.errors.forEach((e) => logError(e));
     return null;
   }
+
+  const normalized = files.map((f) => ({
+    path: normalizePath(f.path),
+    content: ensureStringContent(f.content).replace(/^\uFEFF/, ''),
+  }));
 
   log('INFO', `Validierung OK: ${normalized.length} Dateien`);
   return normalized as ProjectFile[];
