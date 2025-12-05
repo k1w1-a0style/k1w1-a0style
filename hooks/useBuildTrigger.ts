@@ -1,17 +1,31 @@
 // hooks/useBuildTrigger.ts - Extracted build trigger logic from CustomHeader
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Alert } from 'react-native';
 import { ensureSupabaseClient } from '../lib/supabase';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ProjectFile } from '../contexts/types';
+import { TriggerBuildResponse } from '../lib/supabaseTypes';
 
 const POLLING_INTERVAL_MS = 15000;
 
+// ============================================
+// CALLBACK TYPES
+// ============================================
+export interface UseBuildTriggerCallbacks {
+  onBuildSuccess?: (jobId: number) => void;
+  onBuildError?: (error: string, step?: string, hint?: string) => void;
+  onStatusUpdate?: (status: string) => void;
+  onDownloadReady?: (url: string) => void;
+}
+
+// ============================================
+// PROPS & RESULT TYPES
+// ============================================
 interface UseBuildTriggerProps {
   projectFiles: ProjectFile[];
   getGitHubToken: () => Promise<string | null>;
   getExpoToken: () => Promise<string | null>;
   getGitHubRepo: () => Promise<string | null>;
+  callbacks?: UseBuildTriggerCallbacks;
 }
 
 interface BuildTriggerResult {
@@ -27,6 +41,7 @@ export function useBuildTrigger({
   getGitHubToken,
   getExpoToken,
   getGitHubRepo,
+  callbacks,
 }: UseBuildTriggerProps): BuildTriggerResult {
   const [isTriggeringBuild, setIsTriggeringBuild] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
@@ -73,36 +88,53 @@ export function useBuildTrigger({
       if (error) throw error;
 
       console.log('Poll Status:', data.status);
+      
+      let statusMsg = '';
       switch (data.status) {
         case 'pending':
-          setBuildStatus('Job erstellt...');
+          statusMsg = 'Job erstellt...';
           break;
         case 'pushed':
-          setBuildStatus('Code gepusht...');
+          statusMsg = 'Code gepusht...';
           break;
         case 'building':
-          setBuildStatus('Build läuft...');
+          statusMsg = 'Build läuft...';
           break;
         case 'success':
         case 'completed':
-          setBuildStatus('Build erfolgreich!');
+          statusMsg = 'Build erfolgreich!';
           setDownloadUrl(data.download_url || null);
           setIsPolling(false);
           setCurrentJobId(null);
+          
+          // Callback für Success
+          if (data.download_url) {
+            callbacks?.onDownloadReady?.(data.download_url);
+          }
           break;
         case 'error':
-          setBuildStatus('Build fehlgeschlagen!');
+          statusMsg = 'Build fehlgeschlagen!';
           setIsPolling(false);
           setCurrentJobId(null);
+          
+          // Callback für Error
+          callbacks?.onBuildError?.('Build fehlgeschlagen', 'POLLING', 'Prüfe die Logs in GitHub Actions');
           break;
       }
+      
+      setBuildStatus(statusMsg);
+      callbacks?.onStatusUpdate?.(statusMsg);
     } catch (pollError: any) {
       console.error('Polling-Fehler:', pollError);
-      setBuildStatus('Polling-Fehler');
+      const errorMsg = 'Polling-Fehler';
+      setBuildStatus(errorMsg);
       setIsPolling(false);
       setCurrentJobId(null);
+      
+      // Callback für Polling-Fehler
+      callbacks?.onBuildError?.(pollError?.message || errorMsg, 'POLLING');
     }
-  }, [currentJobId, getExpoToken]);
+  }, [currentJobId, getExpoToken, callbacks]);
 
   // Polling-Effect
   useEffect(() => {
@@ -168,7 +200,7 @@ export function useBuildTrigger({
         }),
       });
 
-      const responseData = await response.json();
+      const responseData: TriggerBuildResponse = await response.json();
       console.log('📥 Build Response:', responseData);
 
       if (!response.ok || responseData.success === false) {
@@ -176,29 +208,36 @@ export function useBuildTrigger({
         const errorStep = responseData.step || 'UNKNOWN';
         const errorHint = responseData.hint || '';
 
-        let displayMessage = `Build-Fehler (${errorStep}):\n\n${errorMessage}`;
-        if (errorHint) {
-          displayMessage += `\n\n💡 Tipp:\n${errorHint}`;
-        }
-
         console.error('❌ Build Fehler:', { errorMessage, errorStep, errorHint });
 
-        Alert.alert('❌ Build fehlgeschlagen', displayMessage, [{ text: 'OK', style: 'default' }]);
+        // Callback statt Alert
+        callbacks?.onBuildError?.(errorMessage, errorStep, errorHint);
 
         throw new Error(errorMessage);
       }
 
       console.log('✅ Build gestartet:', responseData);
-      setCurrentJobId(responseData.job_id);
-      setIsPolling(true);
-      setBuildStatus('Code gepusht. Warte auf Build...');
+      
+      if (responseData.job_id) {
+        setCurrentJobId(responseData.job_id);
+        setIsPolling(true);
+        const statusMsg = 'Code gepusht. Warte auf Build...';
+        setBuildStatus(statusMsg);
+        
+        // Callbacks für Success
+        callbacks?.onBuildSuccess?.(responseData.job_id);
+        callbacks?.onStatusUpdate?.(statusMsg);
+      }
     } catch (err: any) {
       console.error('Fehler in triggerBuild:', err);
       setBuildStatus(null);
+      
+      // Callback für unerwartete Fehler
+      callbacks?.onBuildError?.(err?.message || 'Unbekannter Fehler', 'TRIGGER');
     } finally {
       setIsTriggeringBuild(false);
     }
-  }, [projectFiles, getExpoToken, getGitHubToken, getGitHubRepo]);
+  }, [projectFiles, getExpoToken, getGitHubToken, getGitHubRepo, callbacks]);
 
   return {
     isTriggeringBuild,

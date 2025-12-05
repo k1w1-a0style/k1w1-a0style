@@ -351,4 +351,100 @@ export const normalizeAndValidateFiles = (
   return normalized as ProjectFile[];
 };
 
+// ---------------------------------------------------------------
+// XSS PROTECTION HELPERS
+// ---------------------------------------------------------------
+
+/**
+ * Escaped HTML-Zeichen zur Verhinderung von XSS
+ * @param text - Der zu escapende Text
+ * @returns Escaped Text
+ */
+export function escapeHtml(text: string): string {
+  if (!text || typeof text !== 'string') return '';
+  
+  const htmlEscapes: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#x27;',
+    '/': '&#x2F;',
+  };
+  
+  return text.replace(/[&<>"'/]/g, (char) => htmlEscapes[char] || char);
+}
+
+/**
+ * Sanitized Text für sichere Anzeige
+ * Entfernt gefährliche HTML-Tags und JavaScript
+ * @param text - Der zu bereinigende Text
+ * @returns Bereinigter Text
+ */
+export function sanitizeForDisplay(text: string): string {
+  if (!text || typeof text !== 'string') return '';
+  
+  // Entferne script, iframe und andere gefährliche Tags
+  let sanitized = text
+    .replace(/<script[^>]*>.*?<\/script>/gi, '')
+    .replace(/<iframe[^>]*>.*?<\/iframe>/gi, '')
+    .replace(/<object[^>]*>.*?<\/object>/gi, '')
+    .replace(/<embed[^>]*>/gi, '')
+    .replace(/<applet[^>]*>.*?<\/applet>/gi, '')
+    .replace(/<meta[^>]*>/gi, '')
+    .replace(/<link[^>]*>/gi, '');
+  
+  // Entferne javascript: und data: URLs
+  sanitized = sanitized
+    .replace(/javascript:/gi, '')
+    .replace(/data:text\/html/gi, '');
+  
+  // Entferne on* Event-Handler
+  sanitized = sanitized.replace(/\son\w+\s*=/gi, ' data-blocked=');
+  
+  return sanitized;
+}
+
+/**
+ * Validiert ob ein Text sichere Anzeige erlaubt
+ * @param text - Der zu prüfende Text
+ * @returns Validierungsergebnis
+ */
+export function validateSafeDisplay(text: string): {
+  safe: boolean;
+  issues: string[];
+} {
+  const issues: string[] = [];
+  
+  if (!text || typeof text !== 'string') {
+    return { safe: true, issues: [] };
+  }
+  
+  // Prüfe auf gefährliche Patterns
+  if (/<script[^>]*>/i.test(text)) {
+    issues.push('Script-Tag gefunden');
+  }
+  
+  if (/<iframe[^>]*>/i.test(text)) {
+    issues.push('iFrame-Tag gefunden');
+  }
+  
+  if (/javascript:/i.test(text)) {
+    issues.push('JavaScript-URL gefunden');
+  }
+  
+  if (/on\w+\s*=/i.test(text)) {
+    issues.push('Event-Handler gefunden');
+  }
+  
+  if (/<object[^>]*>/i.test(text) || /<embed[^>]*>/i.test(text)) {
+    issues.push('Object/Embed-Tag gefunden');
+  }
+  
+  return {
+    safe: issues.length === 0,
+    issues,
+  };
+}
+
 export const getErrorStats = () => ({ ...errorStats });

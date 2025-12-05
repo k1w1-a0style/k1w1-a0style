@@ -1,29 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ensureSupabaseClient } from '../lib/supabase';
-
-export type BuildStatus =
-  | 'pending'
-  | 'queued'
-  | 'building'
-  | 'completed'
-  | 'error'
-  | 'failed';
-
-export interface BuildDetails {
-  id: number;
-  github_repo?: string;
-  build_profile?: string;
-  build_type?: string;
-  status: string;
-  eas_build_id?: string | null;
-  github_run_id?: string | null;
-  artifact_url?: string | null;
-  created_at?: string;
-  updated_at?: string;
-  // Fallback für zusätzliche Felder aus der DB
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [key: string]: any;
-}
+import { BuildStatus, mapBuildStatus } from '../lib/buildStatusMapper';
+import { BuildDetails } from '../lib/supabaseTypes';
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -43,29 +21,6 @@ export const useBuildStatusSupabase = (jobId: number | null) => {
 
     let isMounted = true;
     let intervalId: ReturnType<typeof setInterval> | null = null;
-
-    const mapStatus = (raw: string | undefined): BuildStatus => {
-      const s = (raw ?? '').toLowerCase();
-
-      switch (s) {
-        case 'queued':
-        case 'pending':
-          return 'queued';
-        case 'running':
-        case 'building':
-        case 'in_progress':
-          return 'building';
-        case 'completed':
-        case 'success':
-        case 'succeeded':
-          return 'completed';
-        case 'failed':
-        case 'failure':
-          return 'failed';
-        default:
-          return 'error';
-      }
-    };
 
     const fetchStatus = async () => {
       try {
@@ -96,7 +51,7 @@ export const useBuildStatusSupabase = (jobId: number | null) => {
           return;
         }
 
-        const normalizedStatus = mapStatus((data as any).status);
+        const normalizedStatus = mapBuildStatus((data as any).status);
         setStatus(normalizedStatus);
         setDetails(data as BuildDetails);
       } catch (e: any) {

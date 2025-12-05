@@ -2,6 +2,7 @@ import { AllAIProviders } from '../contexts/AIContext';
 import { ProjectFile, ChatMessage } from '../contexts/types';
 import { CONFIG } from '../config';
 import { getCodeLineCount, ensureStringContent, normalizePath } from '../utils/chatUtils';
+import { estimateTokens } from './tokenEstimator';
 
 export interface PromptMessage {
   role: 'system' | 'user' | 'assistant';
@@ -104,9 +105,6 @@ export const buildPrompt = (
   console.log(`🤖 Prompt gewählt: ${promptKey}`);
 
   const MAX_PROMPT_TOKENS = 8000;
-  const tokenRatioMap = CONFIG.TOKEN_RATIO as Record<string, number>;
-  const tokenRatio = tokenRatioMap[provider] ?? CONFIG.TOKEN_RATIO.default;
-  const estimateTokens = (text: string) => Math.ceil((text || '').length / tokenRatio);
 
   let currentMessageContent =
     role === 'generator'
@@ -184,7 +182,7 @@ Regeln:
   // ggf. Kontext kürzen
   const MAX_CONTEXT_TOKENS = MAX_PROMPT_TOKENS * 0.6;
   let trimmedContext = projectContext;
-  if (estimateTokens(projectContext) > MAX_CONTEXT_TOKENS) {
+  if (estimateTokens(projectContext, provider) > MAX_CONTEXT_TOKENS) {
     const lines = projectContext.split('\n');
     const important = lines.filter(
       (l) =>
@@ -198,7 +196,7 @@ Regeln:
     );
     trimmedContext = important.slice(0, 20).join('\n') + '\n... (gekürzt)';
     console.warn(
-      `⚠️ Project context gekürzt: ${estimateTokens(projectContext)} > ${MAX_CONTEXT_TOKENS}`,
+      `⚠️ Project context gekürzt: ${estimateTokens(projectContext, provider)} > ${MAX_CONTEXT_TOKENS}`,
     );
   }
 
@@ -212,19 +210,19 @@ Regeln:
     : [];
 
   const historyTokens = historyToUse.reduce(
-    (sum, msg) => sum + estimateTokens(msg.content),
+    (sum, msg) => sum + estimateTokens(msg.content, provider),
     0,
   );
   if (
     historyTokens +
-      estimateTokens(fullSystemPrompt) +
-      estimateTokens(currentMessageContent) >
+      estimateTokens(fullSystemPrompt, provider) +
+      estimateTokens(currentMessageContent, provider) >
     MAX_PROMPT_TOKENS
   ) {
     const total =
       historyTokens +
-      estimateTokens(fullSystemPrompt) +
-      estimateTokens(currentMessageContent);
+      estimateTokens(fullSystemPrompt, provider) +
+      estimateTokens(currentMessageContent, provider);
     const excess = total - MAX_PROMPT_TOKENS;
     const avgPerMsg = historyTokens / Math.max(historyToUse.length, 1);
     const removeCount = Math.ceil(excess / Math.max(avgPerMsg, 1));
@@ -244,7 +242,7 @@ Regeln:
   messages.push({ role: 'user', content: currentMessageContent });
 
   const totalTokens = messages.reduce(
-    (sum, msg) => sum + estimateTokens(msg.content),
+    (sum, msg) => sum + estimateTokens(msg.content, provider),
     0,
   );
   if (totalTokens > MAX_PROMPT_TOKENS) {

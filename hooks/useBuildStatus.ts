@@ -2,33 +2,14 @@
 // ✅ Timeout bei Netzwerkfehlern
 // ✅ Error-Counter stoppt Polling nach 5 Fehlern (mit useRef statt State)
 // ✅ Automatischer Stop bei finalen Status (success/failed)
-// ✅ Besseres Status-Mapping
-// ✅ Alert-Benachrichtigung bei Polling-Stop
+// ✅ Besseres Status-Mapping (zentralisiert über buildStatusMapper)
+// ✅ Callbacks statt Alert (bessere Testbarkeit)
 // ✅ Kein Race Condition durch errorCount in Dependencies
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { Alert } from 'react-native';
 import { CONFIG } from '../config';
-
-export type BuildStatus =
-  | 'idle'
-  | 'queued'
-  | 'building'
-  | 'success'
-  | 'failed'
-  | 'error';
-
-export type BuildStatusDetails = {
-  jobId: number;
-  status: BuildStatus;
-  urls?: {
-    html?: string | null;
-    artifacts?: string | null;
-  };
-  raw?: any;
-  errorMessage?: string;
-  runId?: number | null;
-};
+import { BuildStatus, mapBuildStatus } from '../lib/buildStatusMapper';
+import { BuildStatusDetails } from '../lib/supabaseTypes';
 
 const POLL_INTERVAL_MS = 6000; // 6 Sekunden
 const MAX_ERRORS = 5; // Nach 5 Fehlern stoppen
@@ -59,34 +40,23 @@ async function fetchWithTimeout(
   }
 }
 
-// ✅ Status-Mapping (GitHub Actions / Supabase -> k1w1)
-function mapStatus(rawStatus: string): BuildStatus {
-  const status = (rawStatus || '').toString().toLowerCase();
-  switch (status) {
-    case 'queued':
-    case 'pending':
-    case 'waiting':
-      return 'queued';
-    case 'building':
-    case 'in_progress':
-    case 'running':
-      return 'building';
-    case 'success':
-    case 'completed':
-    case 'succeeded':
-      return 'success';
-    case 'failed':
-    case 'failure':
-    case 'cancelled':
-      return 'failed';
-    case 'error':
-      return 'error';
-    default:
-      return 'idle';
-  }
+// ============================================
+// CALLBACK TYPES
+// ============================================
+export interface UseBuildStatusCallbacks {
+  onSuccess?: (details: BuildStatusDetails) => void;
+  onFailed?: (details: BuildStatusDetails) => void;
+  onError?: (error: string, errorCount: number) => void;
+  onMaxErrors?: (lastError: string, maxErrors: number) => void;
 }
 
-export function useBuildStatus(jobIdFromScreen?: number | null) {
+// ============================================
+// HOOK
+// ============================================
+export function useBuildStatus(
+  jobIdFromScreen?: number | null,
+  callbacks?: UseBuildStatusCallbacks
+) {
   const [status, setStatus] = useState<BuildStatus>('idle');
   const [details, setDetails] = useState<BuildStatusDetails | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
@@ -132,8 +102,12 @@ export function useBuildStatus(jobIdFromScreen?: number | null) {
       // ✅ Fehlerfall
       if (!res.ok || !json || json.ok === false) {
         console.log('[useBuildStatus] ❌ Error Response:', json);
+        const errorMsg = json?.error || `HTTP ${res.status}`;
         errorCountRef.current += 1;
-        setLastError(json?.error || `HTTP ${res.status}`);
+        setLastError(errorMsg);
+
+        // Callback für jeden Fehler
+        callbacks?.onError?.(errorMsg, errorCountRef.current);
 
         if (errorCountRef.current >= MAX_ERRORS) {
           setStatus('error');
@@ -143,13 +117,8 @@ export function useBuildStatus(jobIdFromScreen?: number | null) {
           }
           if (!hasAlertedRef.current) {
             hasAlertedRef.current = true;
-            Alert.alert(
-              '❌ Polling gestoppt',
-              `Zu viele Fehler beim Status-Abruf (${MAX_ERRORS}x).\n\nLetzter Fehler: ${
-                json?.error || 'Unbekannt'
-              }\n\nBitte prüfe deine Supabase-Verbindung.`,
-              [{ text: 'OK', style: 'default' }]
-            );
+            // Callback statt Alert
+            callbacks?.onMaxErrors?.(errorMsg, MAX_ERRORS);
           }
         }
         return;
@@ -159,7 +128,7 @@ export function useBuildStatus(jobIdFromScreen?: number | null) {
       errorCountRef.current = 0;
       setLastError(null);
 
-      const mapped = mapStatus(json.status);
+      const mapped = mapBuildStatus(json.status);
       setStatus(mapped);
 
       const newDetails: BuildStatusDetails = {
@@ -185,20 +154,11 @@ export function useBuildStatus(jobIdFromScreen?: number | null) {
         if (!hasAlertedRef.current) {
           hasAlertedRef.current = true;
 
+          // Callbacks statt Alerts
           if (mapped === 'success') {
-            Alert.alert(
-              '✅ Build erfolgreich!',
-              json.urls?.artifacts
-                ? 'Dein Build wurde erfolgreich erstellt.\n\nKlicke auf den Download-Button für die APK.'
-                : 'Build wurde erfolgreich abgeschlossen.',
-              [{ text: 'OK', style: 'default' }]
-            );
+            callbacks?.onSuccess?.(newDetails);
           } else if (mapped === 'failed') {
-            Alert.alert(
-              '❌ Build fehlgeschlagen',
-              'Der Build ist fehlgeschlagen. Prüfe die Fehleranalyse und Logs.',
-              [{ text: 'OK', style: 'default' }]
-            );
+            callbacks?.onFailed?.(newDetails);
           }
         }
       }
@@ -206,8 +166,12 @@ export function useBuildStatus(jobIdFromScreen?: number | null) {
       if (!isMountedRef.current) return;
 
       console.log('[useBuildStatus] ⚠️ Poll Error:', e?.message);
+      const errorMsg = e?.message || 'Netzwerkfehler';
       errorCountRef.current += 1;
-      setLastError(e?.message || 'Netzwerkfehler');
+      setLastError(errorMsg);
+
+      // Callback für jeden Fehler
+      callbacks?.onError?.(errorMsg, errorCountRef.current);
 
       if (errorCountRef.current >= MAX_ERRORS) {
         setStatus('error');
@@ -218,17 +182,12 @@ export function useBuildStatus(jobIdFromScreen?: number | null) {
 
         if (!hasAlertedRef.current) {
           hasAlertedRef.current = true;
-          Alert.alert(
-            '❌ Polling gestoppt',
-            `Zu viele Netzwerkfehler (${MAX_ERRORS}x).\n\nLetzter Fehler: ${
-              e?.message || 'Unbekannt'
-            }\n\nBitte prüfe deine Internetverbindung und Supabase-Konfiguration.`,
-            [{ text: 'OK', style: 'default' }]
-          );
+          // Callback statt Alert
+          callbacks?.onMaxErrors?.(errorMsg, MAX_ERRORS);
         }
       }
     }
-  }, [jobIdFromScreen]);
+  }, [jobIdFromScreen, callbacks]);
 
   useEffect(() => {
     isMountedRef.current = true;
