@@ -1,5 +1,5 @@
 // screens/ChatScreen.tsx — Builder mit Rotation-Feedback (TS-clean)
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -24,7 +24,7 @@ import { normalizeAiResponse } from '../lib/normalizer';
 import { applyFilesToProject } from '../lib/fileWriter';
 import { buildBuilderMessages, LlmMessage } from '../lib/promptEngine';
 import { useAI } from '../contexts/AIContext';
-import { validateProjectFiles } from '../utils/chatUtils';
+import { handleMetaCommand } from '../utils/metaCommands';
 import { v4 as uuidv4 } from 'uuid';
 
 type DocumentResultAsset = NonNullable<
@@ -54,11 +54,13 @@ const ChatScreen: React.FC = () => {
 
   useEffect(() => {
     if (flatListRef.current && messages.length > 0) {
-      flatListRef.current.scrollToEnd({ animated: true });
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
     }
   }, [messages]);
 
-  const handlePickDocument = async () => {
+  const handlePickDocument = useCallback(async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: '*/*',
@@ -81,9 +83,9 @@ const ChatScreen: React.FC = () => {
       Alert.alert('Fehler', 'Dateiauswahl fehlgeschlagen');
       setSelectedFileAsset(null);
     }
-  };
+  }, []);
 
-  const handleSend = async () => {
+  const handleSend = useCallback(async () => {
     if (!textInput.trim() && !selectedFileAsset) {
       return;
     }
@@ -108,72 +110,10 @@ const ChatScreen: React.FC = () => {
     setTextInput('');
     setSelectedFileAsset(null);
 
-    // 🧠 Schnelle Meta-Commands ohne KI
-    if (lower.includes('wie viele datei')) {
-      const count = projectFiles.length;
-      addChatMessage({
-        id: uuidv4(),
-        role: 'assistant',
-        content: `📊 Aktuell sind ${count} Datei(en) im Projekt gespeichert.`,
-        timestamp: new Date().toISOString(),
-      });
-      return;
-    }
-
-    if (lower.includes('liste alle datei')) {
-      if (projectFiles.length === 0) {
-        addChatMessage({
-          id: uuidv4(),
-          role: 'assistant',
-          content: '📂 Es sind noch keine Projektdateien vorhanden.',
-          timestamp: new Date().toISOString(),
-        });
-        return;
-      }
-
-      const lines = projectFiles.map((f) => `• ${f.path}`).join('\n');
-      addChatMessage({
-        id: uuidv4(),
-        role: 'assistant',
-        content: `📂 Aktuelle Projektdateien (${projectFiles.length}):\n\n${lines}`,
-        timestamp: new Date().toISOString(),
-      });
-      return;
-    }
-
-    if (lower.includes('prüfe alle datei')) {
-      if (projectFiles.length === 0) {
-        addChatMessage({
-          id: uuidv4(),
-          role: 'assistant',
-          content: '⚠️ Es gibt keine Dateien zum Prüfen.',
-          timestamp: new Date().toISOString(),
-        });
-        return;
-      }
-
-      const validation = validateProjectFiles(projectFiles);
-      if (validation.valid) {
-        addChatMessage({
-          id: uuidv4(),
-          role: 'assistant',
-          content: `✅ Projektprüfung: Keine kritischen Probleme (${projectFiles.length} Dateien).`,
-          timestamp: new Date().toISOString(),
-        });
-      } else {
-        const shown = validation.errors.slice(0, 15);
-        const rest = validation.errors.length - shown.length;
-        const errorText =
-          shown.map((e) => `• ${e}`).join('\n') +
-          (rest > 0 ? `\n… und ${rest} weitere Meldung(en).` : '');
-
-        addChatMessage({
-          id: uuidv4(),
-          role: 'assistant',
-          content: `⚠️ Projektprüfung: ${validation.errors.length} Problem(e):\n\n${errorText}`,
-          timestamp: new Date().toISOString(),
-        });
-      }
+    // 🧠 Check for Meta-Commands (instant responses without AI)
+    const metaResult = handleMetaCommand(userContent, projectFiles);
+    if (metaResult.handled && metaResult.message) {
+      addChatMessage(metaResult.message);
       return;
     }
 
@@ -317,13 +257,22 @@ const ChatScreen: React.FC = () => {
     } finally {
       setIsAiLoading(false);
     }
-  };
+  }, [
+    textInput,
+    selectedFileAsset,
+    projectFiles,
+    messages,
+    config,
+    addChatMessage,
+    updateProjectFiles,
+  ]);
 
-  const renderItem = ({ item }: { item: ChatMessage }) => (
-    <MessageItem message={item} />
+  const renderItem = useCallback(
+    ({ item }: { item: ChatMessage }) => <MessageItem message={item} />,
+    []
   );
 
-  const renderFooter = () => {
+  const renderFooter = useCallback(() => {
     if (!combinedIsLoading) return null;
     return (
       <View style={styles.loadingFooter}>
@@ -331,7 +280,7 @@ const ChatScreen: React.FC = () => {
         <Text style={styles.loadingText}>Builder arbeitet ...</Text>
       </View>
     );
-  };
+  }, [combinedIsLoading]);
 
   return (
     <KeyboardAvoidingView
@@ -356,6 +305,9 @@ const ChatScreen: React.FC = () => {
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.listContent}
               ListFooterComponent={renderFooter}
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={10}
+              windowSize={21}
             />
           )}
         </View>

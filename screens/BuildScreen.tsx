@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import {
   ActivityIndicator,
   Linking,
@@ -6,10 +6,13 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Alert,
 } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBuildStatus, BuildStatus } from "../hooks/useBuildStatus";
 import { CONFIG } from "../config";
 import { theme } from "../theme";
+import { useGitHub } from '../contexts/GitHubContext';
 
 type TimelineStepKey = "queued" | "building" | "success";
 type TimelineStepState = "done" | "current" | "upcoming" | "failed";
@@ -101,19 +104,30 @@ const getStepState = (status: BuildStatus, step: TimelineStepKey): TimelineStepS
 };
 
 export default function BuildScreen() {
+  const { activeRepo } = useGitHub();
   const [jobId, setJobId] = useState<number | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
 
   const { status, details, lastError, isPolling } = useBuildStatus(jobId);
 
-  const startBuild = async () => {
+  const startBuild = useCallback(async () => {
+    // Check if GitHub repo is selected
+    if (!activeRepo) {
+      Alert.alert(
+        'Kein Repo ausgewählt',
+        'Bitte wähle zuerst ein GitHub-Repo im „GitHub Repos"-Screen aus.'
+      );
+      return;
+    }
     try {
       const res = await fetch(`${CONFIG.API.SUPABASE_EDGE_URL}/trigger-eas-build`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          githubRepo: CONFIG.BUILD.GITHUB_REPO,
+          githubRepo: activeRepo,
+          buildProfile: 'preview',
+          buildType: 'normal',
         }),
       });
 
@@ -125,13 +139,13 @@ export default function BuildScreen() {
         setElapsedMs(0);
       } else {
         console.log("[BuildScreen] Unexpected trigger response:", json);
-        alert("Fehler beim Start des Builds");
+        Alert.alert("Fehler", json?.error || "Fehler beim Start des Builds");
       }
-    } catch (e) {
+    } catch (e: any) {
       console.log("[BuildScreen] Build-Start-Error:", e);
-      alert("Build konnte nicht gestartet werden");
+      Alert.alert("Fehler", e?.message || "Build konnte nicht gestartet werden");
     }
-  };
+  }, [activeRepo]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
@@ -152,23 +166,33 @@ export default function BuildScreen() {
     }
   }, [jobId]);
 
-  const openUrl = (url?: string | null) => {
-    if (!url) return;
+  const openUrl = useCallback((url?: string | null) => {
+    if (!url) {
+      Alert.alert("Fehler", "Kein Link verfügbar");
+      return;
+    }
     Linking.openURL(url).catch((e) => {
       console.log("[BuildScreen] Linking-Error:", e);
-      alert("Link konnte nicht geöffnet werden");
+      Alert.alert("Fehler", "Link konnte nicht geöffnet werden");
     });
-  };
+  }, []);
 
   const progress = useMemo(() => STATUS_PROGRESS[status] ?? 0, [status]);
   const eta = useMemo(() => computeEta(status, elapsedMs), [status, elapsedMs]);
 
   return (
-    <View style={styles.root}>
+    <SafeAreaView style={styles.root} edges={['top']}>
       <Text style={styles.title}>📦 Live Build Status</Text>
       <Text style={styles.subtitle}>
         Starte einen Build und verfolge Warteschlange, Fortschritt und Dauer in Echtzeit.
       </Text>
+
+      {activeRepo && (
+        <View style={styles.repoInfo}>
+          <Text style={styles.repoLabel}>Aktives Repo:</Text>
+          <Text style={styles.repoValue}>{activeRepo}</Text>
+        </View>
+      )}
 
       <TouchableOpacity
         onPress={startBuild}
@@ -277,7 +301,7 @@ export default function BuildScreen() {
           )}
         </>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -285,7 +309,7 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: theme.palette.background,
-    padding: (theme as any).layout?.screenPadding ?? 16,
+    padding: 16,
   },
   title: {
     color: theme.palette.text.primary,
@@ -295,7 +319,25 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     color: theme.palette.text.secondary,
+    marginBottom: 12,
+  },
+  repoInfo: {
+    backgroundColor: theme.palette.card,
+    borderRadius: 8,
+    padding: 12,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  repoLabel: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+    marginBottom: 4,
+  },
+  repoValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: theme.palette.primary,
   },
   buildButton: {
     backgroundColor: theme.palette.primary,
