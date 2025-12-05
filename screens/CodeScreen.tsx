@@ -88,17 +88,22 @@ const CodeScreen = () => {
 
   // Validate syntax while editing (with debounce)
   useEffect(() => {
-    if (!selectedFile || viewMode !== 'edit') {
+    if (!selectedFile || viewMode !== 'edit' || !editingContent.trim()) {
       setSyntaxErrors([]);
       return;
     }
 
     const timeoutId = setTimeout(() => {
-      const errors = [
-        ...validateSyntax(editingContent, selectedFile.path),
-        ...validateCodeQuality(editingContent, selectedFile.path),
-      ];
-      setSyntaxErrors(errors);
+      try {
+        const errors = [
+          ...validateSyntax(editingContent, selectedFile.path),
+          ...validateCodeQuality(editingContent, selectedFile.path),
+        ];
+        setSyntaxErrors(errors);
+      } catch (error) {
+        // Silently handle validation errors
+        setSyntaxErrors([]);
+      }
     }, 500);
 
     return () => clearTimeout(timeoutId);
@@ -173,7 +178,6 @@ const CodeScreen = () => {
       setSelectionMode(false);
       setSelectedFiles(new Set());
     } catch (error) {
-      console.error('Export error:', error);
       Alert.alert('Fehler', 'Export fehlgeschlagen: ' + (error as Error).message);
     }
   };
@@ -313,33 +317,37 @@ const CodeScreen = () => {
   const handleSaveFile = useCallback(() => {
     if (!selectedFile) return;
 
-    const errors = validateSyntax(editingContent, selectedFile.path);
-    const criticalErrors = errors.filter((e) => e.severity === 'error');
+    try {
+      const errors = validateSyntax(editingContent, selectedFile.path);
+      const criticalErrors = errors.filter((e) => e.severity === 'error');
 
-    if (criticalErrors.length > 0) {
-      const errorList = criticalErrors.map((e) => `• ${e.message}`).join('\n');
-      Alert.alert(
-        'Syntax-Fehler',
-        `Die folgenden Fehler wurden gefunden:\n\n${errorList}\n\nTrotzdem speichern?`,
-        [
-          { text: 'Abbrechen', style: 'cancel' },
-          {
-            text: 'Trotzdem speichern',
-            style: 'destructive',
-            onPress: () => {
-              updateProjectFiles([{ path: selectedFile.path, content: editingContent }]);
-              setSelectedFile((prev) => (prev ? { ...prev, content: editingContent } : null));
-              Alert.alert('✅ Gespeichert', selectedFile.path);
+      if (criticalErrors.length > 0) {
+        const errorList = criticalErrors.map((e) => `• ${e.message}`).join('\n');
+        Alert.alert(
+          'Syntax-Fehler',
+          `Die folgenden Fehler wurden gefunden:\n\n${errorList}\n\nTrotzdem speichern?`,
+          [
+            { text: 'Abbrechen', style: 'cancel' },
+            {
+              text: 'Trotzdem speichern',
+              style: 'destructive',
+              onPress: () => {
+                updateProjectFiles([{ path: selectedFile.path, content: editingContent }]);
+                setSelectedFile((prev) => (prev ? { ...prev, content: editingContent } : null));
+                Alert.alert('✅ Gespeichert', selectedFile.path);
+              },
             },
-          },
-        ]
-      );
-      return;
-    }
+          ]
+        );
+        return;
+      }
 
-    updateProjectFiles([{ path: selectedFile.path, content: editingContent }]);
-    setSelectedFile((prev) => (prev ? { ...prev, content: editingContent } : null));
-    Alert.alert('✅ Gespeichert', selectedFile.path);
+      updateProjectFiles([{ path: selectedFile.path, content: editingContent }]);
+      setSelectedFile((prev) => (prev ? { ...prev, content: editingContent } : null));
+      Alert.alert('✅ Gespeichert', selectedFile.path);
+    } catch (error) {
+      Alert.alert('Fehler', 'Datei konnte nicht gespeichert werden.');
+    }
   }, [selectedFile, editingContent, updateProjectFiles]);
 
   const handleCopy = useCallback((content: string) => {

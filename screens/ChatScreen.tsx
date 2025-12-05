@@ -205,7 +205,8 @@ const ChatScreen: React.FC = () => {
   useEffect(() => {
     return () => {
       if (streamingIntervalRef.current) {
-        clearInterval(streamingIntervalRef.current);
+        clearTimeout(streamingIntervalRef.current);
+        streamingIntervalRef.current = null;
       }
     };
   }, []);
@@ -215,17 +216,19 @@ const ChatScreen: React.FC = () => {
     // Clear any existing interval
     if (streamingIntervalRef.current) {
       clearInterval(streamingIntervalRef.current);
+      streamingIntervalRef.current = null;
     }
 
     setIsStreaming(true);
     setStreamingMessage('');
     
     let currentIndex = 0;
-    const chunkSize = 5; // Erhöht für bessere Performance
-    const delay = 30; // ms zwischen Chunks
+    const chunkSize = 8; // Optimiert für bessere Performance
+    const delay = 25; // ms zwischen Chunks
     let scrollCounter = 0;
+    let rafId: number | null = null;
     
-    streamingIntervalRef.current = setInterval(() => {
+    const updateStream = () => {
       if (currentIndex < fullText.length) {
         const nextChunk = fullText.slice(currentIndex, currentIndex + chunkSize);
         setStreamingMessage(prev => prev + nextChunk);
@@ -234,23 +237,30 @@ const ChatScreen: React.FC = () => {
         // Auto-scroll nur alle 5 Chunks (Performance-Optimierung)
         scrollCounter++;
         if (scrollCounter % 5 === 0) {
-          setTimeout(() => {
+          rafId = requestAnimationFrame(() => {
             flatListRef.current?.scrollToEnd({ animated: false });
-          }, 10);
+          });
         }
+        
+        streamingIntervalRef.current = setTimeout(updateStream, delay);
       } else {
         if (streamingIntervalRef.current) {
-          clearInterval(streamingIntervalRef.current);
+          clearTimeout(streamingIntervalRef.current);
           streamingIntervalRef.current = null;
+        }
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId);
         }
         setIsStreaming(false);
         // Final scroll
-        setTimeout(() => {
+        requestAnimationFrame(() => {
           flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
+        });
         onComplete();
       }
-    }, delay);
+    };
+    
+    streamingIntervalRef.current = setTimeout(updateStream, delay);
   }, []);
 
   const handlePickDocument = useCallback(async () => {
@@ -367,9 +377,6 @@ const ChatScreen: React.FC = () => {
       textInput.trim() ||
       (selectedFileAsset ? `Datei gesendet: ${selectedFileAsset.name}` : '');
 
-    const lower = userContent.toLowerCase();
-    console.log('[ChatScreen] ▶️ Sende an KI:', userContent);
-
     const userMessage: ChatMessage = {
       id: uuidv4(),
       role: 'user',
@@ -404,19 +411,12 @@ const ChatScreen: React.FC = () => {
         projectFiles
       );
 
-      console.log(
-        '[ChatScreen] 🧠 LLM-Messages vorbereitet, Länge:',
-        llmMessages.length
-      );
-
       const ai = await runOrchestrator(
         config.selectedChatProvider,
         config.selectedChatMode,
         config.qualityMode,
         llmMessages
       );
-
-      console.log('[ChatScreen] 🤖 Orchestrator Ergebnis:', ai);
 
       if (!ai || !ai.ok) {
         const msg =
@@ -445,10 +445,6 @@ const ChatScreen: React.FC = () => {
         return;
       }
 
-      console.log(
-        '[ChatScreen] 📄 Rohe KI-Antwort-Länge:',
-        (ai.text || '').length
-      );
 
       const rawForNormalizer =
         ai.files && Array.isArray(ai.files)
@@ -473,10 +469,6 @@ const ChatScreen: React.FC = () => {
         return;
       }
 
-      console.log(
-        '[ChatScreen] 📦 Normalisierte Dateien:',
-        normalized.length
-      );
 
       const mergeResult = applyFilesToProject(projectFiles, normalized);
 
@@ -531,8 +523,7 @@ const ChatScreen: React.FC = () => {
 
     } catch (e: any) {
       const msg =
-        '⚠️ Es ist ein Fehler im Builder-Flow aufgetreten. Siehe Konsole.';
-      console.log('[ChatScreen] ⚠️ Fehler:', e?.message || e);
+        '⚠️ Es ist ein Fehler im Builder-Flow aufgetreten.';
       setError(msg);
       addChatMessage({
         id: uuidv4(),

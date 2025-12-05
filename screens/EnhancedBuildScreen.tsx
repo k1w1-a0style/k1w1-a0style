@@ -176,27 +176,30 @@ export default function EnhancedBuildScreen() {
     }).start();
   }, [progress, progressAnim]);
 
-  // Pulse animation for active build indicator
+  // Pulse animation for active build indicator (optimized)
   useEffect(() => {
     if (status === 'building' || status === 'queued') {
       const pulse = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
-            toValue: 1.2,
-            duration: 800,
+            toValue: 1.15,
+            duration: 1000,
             easing: Easing.inOut(Easing.ease),
             useNativeDriver: true,
           }),
           Animated.timing(pulseAnim, {
             toValue: 1,
-            duration: 800,
+            duration: 1000,
             easing: Easing.inOut(Easing.ease),
             useNativeDriver: true,
           }),
         ])
       );
       pulse.start();
-      return () => pulse.stop();
+      return () => {
+        pulse.stop();
+        pulseAnim.setValue(1);
+      };
     } else {
       pulseAnim.setValue(1);
     }
@@ -231,11 +234,9 @@ export default function EnhancedBuildScreen() {
         setShowLogs(true);
         setErrorAnalyses([]);
       } else {
-        console.log("[EnhancedBuildScreen] Unexpected trigger response:", json);
         Alert.alert("Fehler", json?.error || "Fehler beim Start des Builds");
       }
     } catch (e: any) {
-      console.log("[EnhancedBuildScreen] Build-Start-Error:", e);
       Alert.alert("Fehler", e?.message || "Build konnte nicht gestartet werden");
     }
   }, [activeRepo]);
@@ -264,8 +265,7 @@ export default function EnhancedBuildScreen() {
       Alert.alert("Fehler", "Kein Link verfügbar");
       return;
     }
-    Linking.openURL(url).catch((e) => {
-      console.log("[EnhancedBuildScreen] Linking-Error:", e);
+    Linking.openURL(url).catch(() => {
       Alert.alert("Fehler", "Link konnte nicht geöffnet werden");
     });
   }, []);

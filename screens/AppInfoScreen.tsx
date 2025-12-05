@@ -48,10 +48,9 @@ const exportAPIConfig = async (config: any) => {
     });
     
     return { success: true, fileName };
-  } catch (error: any) {
-    console.error('Export-Fehler:', error);
-    throw new Error(error?.message || 'Export fehlgeschlagen');
-  }
+    } catch (error: any) {
+      throw new Error(error?.message || 'Export fehlgeschlagen');
+    }
 };
 
 const importAPIConfig = async () => {
@@ -76,13 +75,12 @@ const importAPIConfig = async () => {
     }
     
     return { success: true, config: importData.config, exportDate: importData.exportDate };
-  } catch (error: any) {
-    console.error('Import-Fehler:', error);
-    if (error.message.includes('abgebrochen')) {
-      throw error;
+    } catch (error: any) {
+      if (error.message.includes('abgebrochen')) {
+        throw error;
+      }
+      throw new Error(error?.message || 'Import fehlgeschlagen');
     }
-    throw new Error(error?.message || 'Import fehlgeschlagen');
-  }
 };
 
 const AppInfoScreen = () => {
@@ -103,7 +101,8 @@ const AppInfoScreen = () => {
       try {
         const parsed = JSON.parse(pkgJson.content);
         setPackageNameState(parsed.name || 'meine-app');
-      } catch {
+      } catch (error) {
+        // Silently fallback to default
         setPackageNameState('meine-app');
       }
     }
@@ -205,7 +204,6 @@ const AppInfoScreen = () => {
         'Alle App-Assets wurden aktualisiert:\n\n• icon.png\n• adaptive-icon.png\n• splash.png\n• favicon.png\n\nDeine App ist bereit für den Build!'
       );
     } catch (error: any) {
-      console.error('[AppInfoScreen] Icon Picker Error:', error);
       Alert.alert('Fehler', error?.message || 'Assets konnten nicht aktualisiert werden.');
     }
   }, [updateProjectFiles]);
@@ -347,8 +345,7 @@ const AppInfoScreen = () => {
               <Image
                 source={{ uri: iconPreview }}
                 style={styles.iconPreview}
-                onError={(error) => {
-                  console.log('❌ Bild-Ladefehler:', error.nativeEvent.error);
+                onError={() => {
                   setIconPreview(null);
                 }}
               />

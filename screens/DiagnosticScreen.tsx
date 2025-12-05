@@ -358,8 +358,7 @@ const DiagnosticScreen: React.FC = () => {
         },
       });
     } catch (error) {
-      console.error('[DiagnosticScreen] Fehler bei Analyse:', error);
-      Alert.alert('Fehler', 'Analyse fehlgeschlagen. Siehe Konsole für Details.');
+      Alert.alert('Fehler', 'Analyse fehlgeschlagen. Bitte versuche es erneut.');
     } finally {
       setIsAnalyzing(false);
     }
