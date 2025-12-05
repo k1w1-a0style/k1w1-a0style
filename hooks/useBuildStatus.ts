@@ -12,14 +12,7 @@ import {
   isCheckEASBuildResponse,
   validateSupabaseResponse,
 } from '../lib/supabaseTypes';
-
-export type BuildStatus =
-  | 'idle'
-  | 'queued'
-  | 'building'
-  | 'success'
-  | 'failed'
-  | 'error';
+import { mapBuildStatus, type BuildStatus } from '../lib/buildStatusMapper';
 
 export type BuildStatusDetails = {
   jobId: number;
@@ -70,8 +63,6 @@ async function fetchWithTimeout(
     throw error;
   }
 }
-
-import { mapBuildStatus } from '../lib/buildStatusMapper';
 
 /**
  * Hook für Build-Status-Polling mit Callbacks
