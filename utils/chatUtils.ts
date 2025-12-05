@@ -33,12 +33,22 @@ const logError = (key: string, meta?: Record<string, unknown>) => {
 // ---------------------------------------------------------------
 
 /**
- * Normalisiert einen Dateipfad und entfernt gefährliche Zeichen
+ * Normalisiert einen Dateipfad mit Whitelist-basiertem Path Traversal-Schutz
+ * 
+ * ✅ SICHER: Whitelist-basiert, verhindert Path Traversal komplett
+ * 
  * @param path - Der zu normalisierende Pfad
- * @returns Normalisierter, sicherer Pfad
+ * @returns Normalisierter, sicherer Pfad oder leerer String bei Sicherheitsproblem
  */
 export const normalizePath = (path: string): string => {
   if (!path || typeof path !== 'string') return '';
+  
+  // SICHERHEIT: Prüfe auf gefährliche Muster VOR der Normalisierung
+  // Dies verhindert Encoding-basierte Umgehungen
+  if (path.includes('..')) {
+    console.error('[Security] ❌ Path Traversal-Versuch erkannt:', path);
+    return '';
+  }
   
   // Entferne gefährliche Zeichen und normalisiere Pfad-Trenner
   let normalized = path
@@ -52,18 +62,48 @@ export const normalizePath = (path: string): string => {
   if (normalized.startsWith('/')) normalized = normalized.slice(1);
   if (normalized.endsWith('/')) normalized = normalized.slice(0, -1);
 
-  // KRITISCH: Path Traversal-Schutz - entferne alle "../" Sequenzen
-  // Auch nach Normalisierung, falls sie durch Encoding umgangen wurden
-  normalized = normalized
-    .replace(/\.\.\//g, '')        // "../"
-    .replace(/\.\.\\/g, '')        // "..\" (falls noch vorhanden)
-    .replace(/\.\./g, '')          // ".." allein
-    .replace(/\/\.\//g, '/')       // "/./"
-    .replace(/\/\.$/g, '');        // "/." am Ende
+  // ✅ WHITELIST-BASIERTE VALIDIERUNG
+  // Parse Pfad in Segmente
+  const segments = normalized.split('/').filter(part => part.length > 0);
+  
+  if (segments.length === 0) return '';
+  
+  // Prüfe jedes Segment einzeln
+  const validSegments: string[] = [];
+  for (const segment of segments) {
+    // Erlaube nur alphanumerische Zeichen, Bindestrich, Unterstrich und Punkt
+    if (!/^[a-zA-Z0-9_\-\.]+$/.test(segment)) {
+      console.error('[Security] ❌ Ungültiges Pfad-Segment:', segment);
+      return '';
+    }
+    
+    // Explizit verbotene Segmente (zusätzlicher Schutz)
+    if (segment === '.' || segment === '..' || segment === '...') {
+      console.error('[Security] ❌ Verbotenes Pfad-Segment:', segment);
+      return '';
+    }
+    
+    // Prüfe auf versteckte Dateien (außer .github, .gitignore)
+    if (segment.startsWith('.') && !['github', 'gitignore'].includes(segment.substring(1))) {
+      if (validSegments.length === 0) {
+        // Root-Level: nur explizit erlaubte Dotfiles
+        if (!CONFIG.PATHS.ALLOWED_ROOT.some(allowed => allowed.startsWith('.' + segment.substring(1)))) {
+          console.warn('[Security] ⚠️ Versteckte Datei nicht in Whitelist:', segment);
+          return '';
+        }
+      }
+    }
+    
+    validSegments.push(segment);
+  }
 
-  // Entferne leere Segmente
-  const parts = normalized.split('/').filter(part => part.length > 0 && part !== '.');
-  normalized = parts.join('/');
+  normalized = validSegments.join('/');
+  
+  // FINAL CHECK: Stelle sicher, dass nichts übersehen wurde
+  if (normalized.includes('..') || normalized.includes('./')) {
+    console.error('[Security] ❌ Path Traversal nach Normalisierung noch vorhanden');
+    return '';
+  }
 
   return normalized;
 };

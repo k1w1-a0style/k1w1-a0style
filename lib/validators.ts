@@ -183,20 +183,64 @@ export function validateGitHubRepo(repo: string): {
 // ============================================
 
 /**
- * Validiert Chat-Nachrichten
+ * Validiert Chat-Nachrichten mit umfassendem XSS-Schutz
  * - Max 10.000 Zeichen pro Nachricht
  * - Keine HTML-Tags (XSS-Schutz)
+ * - Keine Event-Handler (XSS-Schutz)
+ * - Keine JavaScript-Protokolle (XSS-Schutz)
  */
 export const ChatInputSchema = z.string()
   .min(1, 'Nachricht darf nicht leer sein')
   .max(10000, 'Nachricht zu lang (max 10.000 Zeichen)')
+  // Script-Tags
   .refine(
     (text) => !/<script[^>]*>.*?<\/script>/gi.test(text),
     'Script-Tags nicht erlaubt'
   )
+  // iFrame-Tags
   .refine(
     (text) => !/<iframe[^>]*>.*?<\/iframe>/gi.test(text),
     'iFrame-Tags nicht erlaubt'
+  )
+  // Object/Embed-Tags
+  .refine(
+    (text) => !/<(object|embed|applet)[^>]*>/gi.test(text),
+    'Object/Embed/Applet-Tags nicht erlaubt'
+  )
+  // Event-Handler (onload, onerror, onclick, etc.)
+  .refine(
+    (text) => !/\bon\w+\s*=/gi.test(text),
+    'Event-Handler nicht erlaubt (onload, onerror, onclick, etc.)'
+  )
+  // JavaScript-Protokolle
+  .refine(
+    (text) => !/javascript:/gi.test(text),
+    'JavaScript-Protokoll nicht erlaubt'
+  )
+  // Data-URLs mit HTML/Script
+  .refine(
+    (text) => !/data:text\/html/gi.test(text),
+    'HTML Data-URLs nicht erlaubt'
+  )
+  // SVG mit Script
+  .refine(
+    (text) => !/<svg[^>]*>.*?<script/gi.test(text),
+    'SVG mit Script nicht erlaubt'
+  )
+  // Meta-Refresh (kann für Phishing genutzt werden)
+  .refine(
+    (text) => !/<meta[^>]*http-equiv\s*=\s*["']?refresh/gi.test(text),
+    'Meta-Refresh nicht erlaubt'
+  )
+  // Base-Tag (kann Relative URLs umleiten)
+  .refine(
+    (text) => !/<base[^>]*>/gi.test(text),
+    'Base-Tag nicht erlaubt'
+  )
+  // Form-Tags (können für Phishing genutzt werden)
+  .refine(
+    (text) => !/<form[^>]*>/gi.test(text),
+    'Form-Tags nicht erlaubt'
   );
 
 /**
@@ -325,6 +369,47 @@ export function validateZipImport(files: Array<{ path: string; content: string }
 }
 
 // ============================================
+// XSS SANITIZATION
+// ============================================
+
+/**
+ * Escaped HTML-Entities zur sicheren Anzeige von User-Input
+ * 
+ * ✅ SICHERHEIT: Verhindert XSS durch Escaping
+ * 
+ * @param unsafe - Unsicherer String
+ * @returns Escaped String
+ */
+export function escapeHtml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+    .replace(/\//g, '&#x2F;');
+}
+
+/**
+ * Erweiterte XSS-Sanitization mit zusätzlichen Checks
+ * 
+ * @param input - User-Input
+ * @returns Sanitized String
+ */
+export function sanitizeForDisplay(input: string): string {
+  // 1. Escape HTML
+  let sanitized = escapeHtml(input);
+  
+  // 2. Entferne NULL-Bytes
+  sanitized = sanitized.replace(/\x00/g, '');
+  
+  // 3. Normalisiere Whitespace (verhindert Unicode-basierte Angriffe)
+  sanitized = sanitized.replace(/[\u200B-\u200D\uFEFF]/g, '');
+  
+  return sanitized;
+}
+
+// ============================================
 // EXPORTS
 // ============================================
 
@@ -334,6 +419,8 @@ export const Validators = {
   githubRepo: validateGitHubRepo,
   chatInput: validateChatInput,
   zipImport: validateZipImport,
+  escapeHtml,
+  sanitizeForDisplay,
   
   // Schemas für direkte Nutzung
   schemas: {

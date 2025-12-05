@@ -1,8 +1,12 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Mutex } from 'async-mutex';
 
 let supabaseClient: SupabaseClient | null = null;
 let initPromise: Promise<SupabaseClient> | null = null;
+
+// ✅ SICHERHEIT: Mutex verhindert Race Conditions bei parallelen Init-Aufrufen
+const initMutex = new Mutex();
 
 const STORAGE_URL_KEY = 'supabase_url';
 const STORAGE_ANON_KEY = 'supabase_key';
@@ -30,21 +34,36 @@ const setRuntimeEnvFromSupabase = (url: string, anonKey: string) => {
   }
 };
 
+/**
+ * Stellt sicher, dass ein Supabase-Client initialisiert ist.
+ * 
+ * ✅ THREAD-SAFE: Verwendet Mutex zur Vermeidung von Race Conditions
+ * 
+ * @returns Initialisierter Supabase-Client
+ * @throws Error wenn Credentials fehlen
+ */
 export const ensureSupabaseClient = async (): Promise<SupabaseClient> => {
-  // Bereits initialisiert?
+  // ✅ Fast Path: Client bereits initialisiert (kein Lock nötig)
   if (supabaseClient) {
     return supabaseClient;
   }
 
-  // Läuft schon eine Initialisierung?
-  if (initPromise) {
-    console.log('⏳ Warte auf laufende Supabase Initialisierung...');
-    return initPromise;
-  }
+  // ✅ RACE CONDITION SCHUTZ: Mutex Lock
+  return await initMutex.runExclusive(async () => {
+    // Double-Check nach Lock-Erhalt (ein anderer Thread könnte initialisiert haben)
+    if (supabaseClient) {
+      return supabaseClient;
+    }
 
-  console.log('Starte Supabase Initialisierung...');
+    // Läuft schon eine Initialisierung? (sollte durch Mutex verhindert werden)
+    if (initPromise) {
+      console.log('⏳ Warte auf laufende Supabase Initialisierung...');
+      return initPromise;
+    }
 
-  initPromise = (async () => {
+    console.log('🚀 Starte Supabase Initialisierung...');
+
+    initPromise = (async () => {
     // 1) Werte aus deinen App-Settings (AsyncStorage)
     let supabaseUrl = await AsyncStorage.getItem(STORAGE_URL_KEY);
     let supabaseAnonKey = await AsyncStorage.getItem(STORAGE_ANON_KEY);
@@ -84,11 +103,12 @@ export const ensureSupabaseClient = async (): Promise<SupabaseClient> => {
       },
     });
 
-    initPromise = null;
-    return supabaseClient;
-  })();
+      initPromise = null;
+      return supabaseClient;
+    })();
 
-  return initPromise;
+    return initPromise;
+  });
 };
 
 // Optional: manuell resetten

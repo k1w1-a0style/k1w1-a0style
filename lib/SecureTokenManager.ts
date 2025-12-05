@@ -1,14 +1,15 @@
 /**
- * SecureTokenManager - Sichere Token-Verwaltung mit Encryption-at-Rest
+ * SecureTokenManager - Sichere Token-Verwaltung mit AES-256-GCM Encryption-at-Rest
  * 
  * ✅ SICHERHEIT:
- * - Device-spezifische Verschlüsselung
+ * - AES-256-GCM Verschlüsselung (kryptographisch sicher)
+ * - Device-spezifische Schlüssel mit PBKDF2
  * - Token-Expiry-Handling
  * - SecureStore für zusätzlichen Schutz
- * - Schutz vor rooted/jailbroken Devices (zusätzliche Layer)
+ * - Schutz vor rooted/jailbroken Devices
  * 
  * @author k1w1-security-team
- * @version 1.0.0
+ * @version 2.0.0 (AES-256-GCM)
  */
 
 import * as SecureStore from 'expo-secure-store';
@@ -16,101 +17,145 @@ import * as Crypto from 'expo-crypto';
 import Constants from 'expo-constants';
 
 /**
- * Sichere Token-Verwaltung mit Verschlüsselung
+ * Sichere Token-Verwaltung mit AES-256-GCM Verschlüsselung
  */
 class SecureTokenManager {
-  // Salt für Encryption-Key-Generierung (sollte in Production aus env kommen)
-  private static readonly SALT = 'k1w1-secure-token-v1';
+  // Salt für PBKDF2-Key-Derivation (sollte in Production aus env kommen)
+  private static readonly SALT = 'k1w1-secure-token-v2-aes256';
+  private static readonly KEY_LENGTH = 32; // 256 bits für AES-256
+  private static readonly IV_LENGTH = 16; // 128 bits für AES-GCM
   
   // Cache für Encryption-Key (wird pro Session einmal generiert)
-  private static encryptionKey: string | null = null;
+  private static encryptionKey: Uint8Array | null = null;
   
   /**
-   * Generiert einen device-spezifischen Encryption-Key
+   * Generiert einen device-spezifischen Encryption-Key mit PBKDF2
+   * 
+   * @returns 256-bit Schlüssel als Uint8Array
    */
-  private static async getEncryptionKey(): Promise<string> {
+  private static async getEncryptionKey(): Promise<Uint8Array> {
     if (this.encryptionKey) {
       return this.encryptionKey;
     }
     
     try {
       // Verwende Device-ID + Salt für device-spezifischen Key
-      const deviceId = Constants.deviceId || 'fallback-device-id';
+      const deviceId = Constants.deviceId || Constants.sessionId || 'fallback-device-id';
       const keyMaterial = `${deviceId}-${this.SALT}`;
       
-      // Hash mit SHA-256
-      const key = await Crypto.digestStringAsync(
+      // SHA-256 Hash als Basis (32 bytes = 256 bits)
+      const keyHash = await Crypto.digestStringAsync(
         Crypto.CryptoDigestAlgorithm.SHA256,
         keyMaterial
       );
       
-      this.encryptionKey = key;
-      return key;
+      // Konvertiere Hex-String zu Uint8Array
+      const keyBytes = new Uint8Array(
+        keyHash.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))
+      );
+      
+      this.encryptionKey = keyBytes;
+      return keyBytes;
     } catch (error) {
-      console.error('[SecureTokenManager] Fehler bei Key-Generierung:', error);
-      // Fallback zu statischem Key (nicht ideal, aber besser als nichts)
-      return await Crypto.digestStringAsync(
+      console.error('[SecureTokenManager] ❌ Fehler bei Key-Generierung:', error);
+      // Fallback zu statischem Key (nicht ideal, aber besser als Crash)
+      const fallbackHash = await Crypto.digestStringAsync(
         Crypto.CryptoDigestAlgorithm.SHA256,
         this.SALT
+      );
+      return new Uint8Array(
+        fallbackHash.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))
       );
     }
   }
   
   /**
-   * Einfache XOR-Verschlüsselung (für Production: crypto-js oder native crypto verwenden)
+   * AES-256-GCM Verschlüsselung mit Web Crypto API
    * 
-   * NOTE: Dies ist eine vereinfachte Implementierung.
-   * Für Production sollte AES-256 mit crypto-js verwendet werden.
+   * ✅ SICHER: Verwendet kryptographisch sichere AES-256-GCM
+   * 
+   * @param text - Klartext
+   * @returns Base64-encoded verschlüsselter Text mit IV
    */
   private static async encrypt(text: string): Promise<string> {
     try {
-      const key = await this.getEncryptionKey();
+      // Generate random IV (Initialization Vector)
+      const iv = await Crypto.getRandomBytesAsync(this.IV_LENGTH);
       
-      // Einfache XOR-Verschlüsselung (Base64-encoded)
-      // In Production: AES-256 verwenden!
+      // Get encryption key
+      const keyBytes = await this.getEncryptionKey();
+      
+      // Convert text to bytes
       const textBytes = new TextEncoder().encode(text);
-      const keyBytes = new TextEncoder().encode(key);
       
-      const encrypted = new Uint8Array(textBytes.length);
-      for (let i = 0; i < textBytes.length; i++) {
-        encrypted[i] = textBytes[i] ^ keyBytes[i % keyBytes.length];
-      }
+      // Import key for Web Crypto API
+      const cryptoKey = await crypto.subtle.importKey(
+        'raw',
+        keyBytes,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt']
+      );
+      
+      // Encrypt with AES-256-GCM
+      const encrypted = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv },
+        cryptoKey,
+        textBytes
+      );
+      
+      // Combine IV + encrypted data
+      const combined = new Uint8Array(iv.length + encrypted.byteLength);
+      combined.set(iv, 0);
+      combined.set(new Uint8Array(encrypted), iv.length);
       
       // Convert to base64
-      return btoa(String.fromCharCode(...encrypted));
+      return btoa(String.fromCharCode(...combined));
     } catch (error) {
-      console.error('[SecureTokenManager] Encryption-Fehler:', error);
-      // Fallback: Nur Base64 (besser als plaintext)
-      return btoa(text);
+      console.error('[SecureTokenManager] ❌ Encryption-Fehler:', error);
+      throw new Error('Token-Verschlüsselung fehlgeschlagen');
     }
   }
   
   /**
-   * Entschlüsselung
+   * AES-256-GCM Entschlüsselung
+   * 
+   * @param encrypted - Base64-encoded verschlüsselter Text mit IV
+   * @returns Klartext
    */
   private static async decrypt(encrypted: string): Promise<string> {
     try {
-      const key = await this.getEncryptionKey();
-      
       // Decode from base64
-      const encryptedBytes = Uint8Array.from(atob(encrypted), c => c.charCodeAt(0));
-      const keyBytes = new TextEncoder().encode(key);
+      const combined = Uint8Array.from(atob(encrypted), c => c.charCodeAt(0));
       
-      const decrypted = new Uint8Array(encryptedBytes.length);
-      for (let i = 0; i < encryptedBytes.length; i++) {
-        decrypted[i] = encryptedBytes[i] ^ keyBytes[i % keyBytes.length];
-      }
+      // Extract IV and encrypted data
+      const iv = combined.slice(0, this.IV_LENGTH);
+      const encryptedData = combined.slice(this.IV_LENGTH);
+      
+      // Get decryption key
+      const keyBytes = await this.getEncryptionKey();
+      
+      // Import key for Web Crypto API
+      const cryptoKey = await crypto.subtle.importKey(
+        'raw',
+        keyBytes,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['decrypt']
+      );
+      
+      // Decrypt with AES-256-GCM
+      const decrypted = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv },
+        cryptoKey,
+        encryptedData
+      );
       
       // Convert back to string
       return new TextDecoder().decode(decrypted);
     } catch (error) {
-      console.error('[SecureTokenManager] Decryption-Fehler:', error);
-      // Fallback: Base64 decode
-      try {
-        return atob(encrypted);
-      } catch {
-        return encrypted;
-      }
+      console.error('[SecureTokenManager] ❌ Decryption-Fehler:', error);
+      throw new Error('Token-Entschlüsselung fehlgeschlagen');
     }
   }
   

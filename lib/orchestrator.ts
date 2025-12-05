@@ -102,43 +102,31 @@ async function withTimeout<T>(
 }
 
 // ============================================
-// API-KEY RESOLUTION (✅ SICHER mit SecureKeyManager)
+// API-KEY RESOLUTION (✅ SICHER - NUR SecureKeyManager)
 // ============================================
+/**
+ * Löst API-Keys AUSSCHLIESSLICH über SecureKeyManager auf.
+ * 
+ * ✅ SICHERHEIT:
+ * - Keine Fallbacks zu process.env (unsicher in React Native/Expo)
+ * - Keys werden verschlüsselt im SecureStore gespeichert
+ * - Keine API-Key-Referenzen in Logs
+ * 
+ * @param provider - AI-Provider ID
+ * @returns API-Key oder null wenn nicht konfiguriert
+ */
 function resolveApiKey(provider: ProviderId): string | null {
-  // ✅ SICHER: Zuerst SecureKeyManager prüfen
+  // ✅ SICHER: Nur SecureKeyManager verwenden
   const key = SecureKeyManager.getCurrentKey(provider);
   
   if (key) {
-    // ✅ SICHERHEIT: Keine API-Key-Referenzen in Logs
-    log('INFO', `API-Key für ${provider} aus SecureKeyManager geladen`);
+    log('INFO', `API-Key für ${provider} verfügbar`);
     return key;
   }
 
-  // Fallback: process.env (nur für Development/Testing)
-  if (typeof process !== 'undefined' && process.env) {
-    const envNames: string[] =
-      provider === 'groq'
-        ? ['GROQ_API_KEY', 'EXPO_PUBLIC_GROQ_API_KEY']
-        : provider === 'gemini'
-        ? ['GEMINI_API_KEY', 'EXPO_PUBLIC_GEMINI_API_KEY']
-        : provider === 'openai'
-        ? ['OPENAI_API_KEY', 'EXPO_PUBLIC_OPENAI_API_KEY']
-        : provider === 'anthropic'
-        ? ['ANTHROPIC_API_KEY', 'EXPO_PUBLIC_ANTHROPIC_API_KEY']
-        : ['HUGGINGFACE_API_KEY', 'EXPO_PUBLIC_HF_API_KEY', 'HF_API_KEY'];
-
-    for (const name of envNames) {
-      const v = (process.env as any)[name];
-      if (typeof v === 'string' && v.trim().length > 0) {
-        log('INFO', `API-Key für ${provider} aus process.env geladen`, {
-          envName: name,
-        });
-        return v.trim();
-      }
-    }
-  }
-
-  log('ERROR', `Kein API-Key für ${provider} gefunden`);
+  // ❌ KEIN FALLBACK zu process.env mehr!
+  // API-Keys müssen über die App-Einstellungen konfiguriert werden
+  log('ERROR', `Kein API-Key für ${provider} konfiguriert. Bitte in Einstellungen hinterlegen.`);
   return null;
 }
 
