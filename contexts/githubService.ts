@@ -1,81 +1,176 @@
-// contexts/githubService.ts - ✅ SICHER mit SecureTokenManager
+// contexts/githubService.ts - simplified token handling + repo secrets sync
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import sodium from 'tweetsodium';
 import { Buffer } from 'buffer';
 import { ProjectFile } from './types';
-import SecureTokenManager from '../lib/SecureTokenManager';
 
-// Token-Keys (bleiben für Kompatibilität gleich)
 const GH_TOKEN_KEY = 'github_pat_v1';
 const EXPO_TOKEN_KEY = 'expo_token_v1';
+const STORAGE_PREFIX = '@k1w1_plain_token:';
 
-// ✅ SICHERHEIT: Token-Expiry für GitHub (30 Tage)
-const GITHUB_TOKEN_EXPIRY_DAYS = 30;
+type RepoSecretsPayload = Partial<{
+  expoToken: string | null | undefined;
+  supabaseUrl: string | null | undefined;
+  supabaseServiceRole: string | null | undefined;
+}>;
 
-// ✅ SICHERHEIT: Token-Expiry für Expo (90 Tage)
-const EXPO_TOKEN_EXPIRY_DAYS = 90;
+const SECRET_NAME_MAP: Record<keyof RepoSecretsPayload, string> = {
+  expoToken: 'EXPO_TOKEN',
+  supabaseUrl: 'SUPABASE_URL',
+  supabaseServiceRole: 'SUPABASE_SERVICE_ROLE_KEY',
+};
+
+const buildStorageKey = (key: string) => `${STORAGE_PREFIX}${key}`;
+
+const savePlainToken = async (key: string, value: string) => {
+  await AsyncStorage.setItem(buildStorageKey(key), value);
+};
+
+const getPlainToken = async (key: string): Promise<string | null> => {
+  return AsyncStorage.getItem(buildStorageKey(key));
+};
+
+const deletePlainToken = async (key: string) => {
+  await AsyncStorage.removeItem(buildStorageKey(key));
+};
+
+const encryptSecret = (publicKey: string, value: string): string => {
+  const messageBytes = Buffer.from(value);
+  const keyBytes = Buffer.from(publicKey, 'base64');
+  const encryptedBytes = sodium.seal(messageBytes, keyBytes);
+  return Buffer.from(encryptedBytes).toString('base64');
+};
+
+const ensureGitHubRepoParts = (fullName: string): { owner: string; repo: string } => {
+  const [owner, repo] = fullName.split('/');
+  if (!owner || !repo) {
+    throw new Error(`Ungültiges Repo-Format: ${fullName}`);
+  }
+  return { owner, repo };
+};
 
 /**
- * Speichert GitHub Token mit Verschlüsselung und Expiry
+ * Speichert GitHub Token (plain AsyncStorage)
  */
 export const saveGitHubToken = async (token: string): Promise<void> => {
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + GITHUB_TOKEN_EXPIRY_DAYS);
-  
-  await SecureTokenManager.saveToken(GH_TOKEN_KEY, token, expiresAt);
-  console.log(`✅ GitHub Token gespeichert (gültig bis ${expiresAt.toISOString()})`);
+  await savePlainToken(GH_TOKEN_KEY, token);
+  console.log('✅ GitHub Token gespeichert (plain).');
 };
 
 /**
- * Lädt GitHub Token (prüft automatisch Expiry)
+ * Lädt GitHub Token
  */
 export const getGitHubToken = async (): Promise<string | null> => {
-  return await SecureTokenManager.getToken(GH_TOKEN_KEY);
+  return getPlainToken(GH_TOKEN_KEY);
 };
 
 /**
- * Speichert Expo Token mit Verschlüsselung und Expiry
+ * Speichert Expo Token
  */
 export const saveExpoToken = async (token: string): Promise<void> => {
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + EXPO_TOKEN_EXPIRY_DAYS);
-  
-  await SecureTokenManager.saveToken(EXPO_TOKEN_KEY, token, expiresAt);
-  console.log(`✅ Expo Token gespeichert (gültig bis ${expiresAt.toISOString()})`);
+  await savePlainToken(EXPO_TOKEN_KEY, token);
+  console.log('✅ Expo Token gespeichert (plain).');
 };
 
 /**
- * Lädt Expo Token (prüft automatisch Expiry)
+ * Lädt Expo Token
  */
 export const getExpoToken = async (): Promise<string | null> => {
-  return await SecureTokenManager.getToken(EXPO_TOKEN_KEY);
+  return getPlainToken(EXPO_TOKEN_KEY);
 };
 
 /**
- * Prüft ob GitHub Token vorhanden und gültig ist
+ * Prüft ob GitHub Token vorhanden ist
  */
 export const hasValidGitHubToken = async (): Promise<boolean> => {
-  return await SecureTokenManager.hasValidToken(GH_TOKEN_KEY);
+  const value = await getGitHubToken();
+  return !!value;
 };
 
 /**
- * Prüft ob Expo Token vorhanden und gültig ist
+ * Prüft ob Expo Token vorhanden ist
  */
 export const hasValidExpoToken = async (): Promise<boolean> => {
-  return await SecureTokenManager.hasValidToken(EXPO_TOKEN_KEY);
+  const value = await getExpoToken();
+  return !!value;
 };
 
 /**
  * Löscht GitHub Token
  */
 export const deleteGitHubToken = async (): Promise<void> => {
-  await SecureTokenManager.deleteToken(GH_TOKEN_KEY);
+  await deletePlainToken(GH_TOKEN_KEY);
 };
 
 /**
  * Löscht Expo Token
  */
 export const deleteExpoToken = async (): Promise<void> => {
-  await SecureTokenManager.deleteToken(EXPO_TOKEN_KEY);
+  await deletePlainToken(EXPO_TOKEN_KEY);
+};
+
+/**
+ * Synchronisiert Secrets (Expo/Supabase) mit dem aktiven GitHub-Repo.
+ */
+export const syncRepoSecrets = async (
+  repoFullName: string,
+  payload: RepoSecretsPayload,
+): Promise<{ updated: string[] }> => {
+  const token = await getGitHubToken();
+  if (!token) {
+    throw new Error('GitHub Token fehlt – bitte im Verbindungen Screen setzen.');
+  }
+
+  const { owner, repo } = ensureGitHubRepoParts(repoFullName);
+  const headers = {
+    Accept: 'application/vnd.github+json',
+    Authorization: `token ${token}`,
+    'Content-Type': 'application/json',
+  };
+
+  const keyRes = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/actions/secrets/public-key`,
+    { headers },
+  );
+
+  if (!keyRes.ok) {
+    const msg = await keyRes.text();
+    throw new Error(`Public Key konnte nicht geladen werden (${keyRes.status}): ${msg}`);
+  }
+
+  const { key, key_id } = await keyRes.json();
+  if (!key || !key_id) {
+    throw new Error('GitHub Public Key Antwort unvollständig.');
+  }
+
+  const updated: string[] = [];
+
+  for (const [field, secretName] of Object.entries(SECRET_NAME_MAP)) {
+    const value = payload[field as keyof RepoSecretsPayload];
+    if (!value) continue;
+
+    const encrypted_value = encryptSecret(key, value);
+    const putRes = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/actions/secrets/${secretName}`,
+      {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ encrypted_value, key_id }),
+      },
+    );
+
+    if (!putRes.ok) {
+      const text = await putRes.text();
+      throw new Error(
+        `Secret ${secretName} konnte nicht gesetzt werden (${putRes.status}): ${text}`,
+      );
+    }
+
+    updated.push(secretName);
+  }
+
+  return { updated };
 };
 
 export const createRepo = async (repoName: string, isPrivate = true) => {
