@@ -669,9 +669,10 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const persist = useCallback(async (next: AIConfig) => {
     setConfig(next);
     setAIConfig(next);
-    updateSecureKeyManager(next);
+    // ✅ FIX: updateSecureKeyManager nur einmal nach erfolgreichem Speichern
     try {
       await AsyncStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(next));
+      updateSecureKeyManager(next);
     } catch (error) {
       console.log('[AIContext] Fehler beim Speichern der AI-Config', error);
     }
@@ -702,11 +703,14 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
   const setSelectedChatProvider = useCallback(
     (provider: AllAIProviders) => {
-      const next = migrateConfig({
+      // ✅ OPTIMIERUNG: Direktes Update ohne migrateConfig wenn Provider gleich
+      if (config.selectedChatProvider === provider) return;
+      
+      const next: AIConfig = {
         ...config,
         selectedChatProvider: provider,
         selectedChatMode: ensureModeForProvider(provider, config.selectedChatMode, 'auto'),
-      });
+      };
       persist(next);
     },
     [config, persist],
@@ -714,14 +718,17 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
   const setSelectedChatMode = useCallback(
     (modeId: string) => {
-      const next = migrateConfig({
+      // ✅ OPTIMIERUNG: Direktes Update ohne migrateConfig wenn Mode gleich
+      if (config.selectedChatMode === modeId) return;
+      
+      const next: AIConfig = {
         ...config,
         selectedChatMode: ensureModeForProvider(
           config.selectedChatProvider,
           modeId,
           'auto',
         ),
-      });
+      };
       persist(next);
     },
     [config, persist],
@@ -729,11 +736,14 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
   const setSelectedAgentProvider = useCallback(
     (provider: AllAIProviders) => {
-      const next = migrateConfig({
+      // ✅ OPTIMIERUNG: Direktes Update ohne migrateConfig wenn Provider gleich
+      if (config.selectedAgentProvider === provider) return;
+      
+      const next: AIConfig = {
         ...config,
         selectedAgentProvider: provider,
         selectedAgentMode: ensureModeForProvider(provider, config.selectedAgentMode, 'quality'),
-      });
+      };
       persist(next);
     },
     [config, persist],
@@ -741,14 +751,17 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
   const setSelectedAgentMode = useCallback(
     (modeId: string) => {
-      const next = migrateConfig({
+      // ✅ OPTIMIERUNG: Direktes Update ohne migrateConfig wenn Mode gleich
+      if (config.selectedAgentMode === modeId) return;
+      
+      const next: AIConfig = {
         ...config,
         selectedAgentMode: ensureModeForProvider(
           config.selectedAgentProvider,
           modeId,
           'quality',
         ),
-      });
+      };
       persist(next);
     },
     [config, persist],
@@ -756,7 +769,10 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
   const setQualityMode = useCallback(
     (mode: QualityMode) => {
-      const next = migrateConfig({ ...config, qualityMode: mode });
+      // ✅ OPTIMIERUNG: Direktes Update ohne migrateConfig wenn Mode gleich
+      if (config.qualityMode === mode) return;
+      
+      const next: AIConfig = { ...config, qualityMode: mode };
       persist(next);
     },
     [config, persist],
@@ -772,13 +788,14 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         throw new Error('Dieser Key existiert bereits.');
       }
 
-      const next = migrateConfig({
+      // ✅ OPTIMIERUNG: Direktes Update ohne migrateConfig
+      const next: AIConfig = {
         ...config,
         apiKeys: {
           ...config.apiKeys,
           [provider]: [trimmed, ...existing],
         },
-      });
+      };
       await persist(next);
       acknowledgeProviderStatus(provider);
     },
@@ -790,13 +807,14 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       const existing = config.apiKeys[provider] || [];
       const filtered = existing.filter((item) => item !== key);
 
-      const next = migrateConfig({
+      // ✅ OPTIMIERUNG: Direktes Update ohne migrateConfig
+      const next: AIConfig = {
         ...config,
         apiKeys: {
           ...config.apiKeys,
           [provider]: filtered,
         },
-      });
+      };
       await persist(next);
     },
     [config, persist],
@@ -811,13 +829,14 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
       const rotated = [...keys.slice(1), keys[0]];
 
-      const next = migrateConfig({
+      // ✅ OPTIMIERUNG: Direktes Update ohne migrateConfig
+      const next: AIConfig = {
         ...config,
         apiKeys: {
           ...config.apiKeys,
           [provider]: rotated,
         },
-      });
+      };
       await persist(next);
       console.log(`🔄 [AIContext] Manuelle Rotation für ${provider}`);
     },
@@ -830,17 +849,21 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       if (keyIndex < 0 || keyIndex >= keys.length) {
         throw new Error('Ungültiger Key-Index');
       }
+      // ✅ OPTIMIERUNG: Early return wenn Key bereits vorne ist
+      if (keyIndex === 0) return;
+      
       const key = keys[keyIndex];
       const filtered = keys.filter((_, idx) => idx !== keyIndex);
       const reordered = [key, ...filtered];
 
-      const next = migrateConfig({
+      // ✅ OPTIMIERUNG: Direktes Update ohne migrateConfig
+      const next: AIConfig = {
         ...config,
         apiKeys: {
           ...config.apiKeys,
           [provider]: reordered,
         },
-      });
+      };
       await persist(next);
     },
     [config, persist],
@@ -861,13 +884,14 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
         const rotated = [...keys.slice(1), keys[0]];
 
-        const next = migrateConfig({
+        // ✅ OPTIMIERUNG: Direktes Update ohne migrateConfig
+        const next: AIConfig = {
           ...config,
           apiKeys: {
             ...config.apiKeys,
             [provider]: rotated,
           },
-        });
+        };
 
         await persist(next);
         flagProviderLimit(provider, reason);
@@ -930,10 +954,10 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   );
 
   // ✅ FIX: Side Effects in useEffect statt während Render
+  // ✅ FIX: updateSecureKeyManager wird bereits in persist() aufgerufen, hier nicht nötig
   useEffect(() => {
     if (loaded) {
       setAIConfig(config);
-      updateSecureKeyManager(config);
     }
   }, [loaded, config]);
 

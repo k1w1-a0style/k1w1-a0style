@@ -82,7 +82,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       try {
         setProjectData(prev => {
           if (!prev) {
-            release();
+            // ✅ FIX: Release im finally block, nicht hier
             return prev;
           }
           
@@ -182,9 +182,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
                 lastModified: new Date().toISOString(),
               };
               
-              // ✅ FIX: Verwende updateProject statt direktes setState für Mutex-Protection
-              // Da wir ein komplett neues Projekt erstellen, setzen wir es direkt
-              // aber mit Mutex-Schutz
+              // ✅ FIX: Verwende Mutex-Schutz für konsistenten State
               const release = await mutexRef.current.acquire();
               try {
                 setProjectData(newProject);

@@ -25,13 +25,12 @@ const readDirectoryRecursive = async (
   try {
     const items = await FileSystem.readDirectoryAsync(dirUri);
     
-    // Sicherheitscheck: Zu viele Dateien
-    if (files.length >= MAX_TOTAL_FILES) {
-      console.warn(`[projectStorage] Maximale Dateianzahl erreicht: ${MAX_TOTAL_FILES}`);
-      return files;
-    }
-    
     for (const item of items) {
+      // ✅ FIX: Prüfe Dateianzahl NACH dem Hinzufügen, nicht vorher
+      if (files.length >= MAX_TOTAL_FILES) {
+        console.warn(`[projectStorage] Maximale Dateianzahl erreicht: ${MAX_TOTAL_FILES}`);
+        return files;
+      }
       const itemUri = `${dirUri}${item}`;
       const info = await FileSystem.getInfoAsync(itemUri);
       const relativePath = basePath ? `${basePath}/${item}` : item;
