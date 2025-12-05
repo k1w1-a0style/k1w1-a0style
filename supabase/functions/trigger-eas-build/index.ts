@@ -53,14 +53,42 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
     // -----------------------------------------------------
-    // 1) GitHub DISPATCH ausführen
+    // 1) Build Job in Supabase anlegen (VOR GitHub Dispatch!)
+    // -----------------------------------------------------
+    const insert = await supabase
+      .from("build_jobs")
+      .insert([
+        {
+          github_repo: body.githubRepo,
+          status: "queued",
+        },
+      ])
+      .select("*")
+      .single();
+
+    if (insert.error) {
+      return new Response(
+        JSON.stringify({
+          error: "Supabase insert failed",
+          details: insert.error,
+        }),
+        { headers: corsHeaders, status: 500 },
+      );
+    }
+
+    const jobId = insert.data.id;
+
+    // -----------------------------------------------------
+    // 2) GitHub DISPATCH mit Job ID ausführen
     // -----------------------------------------------------
     const dispatchUrl =
       `https://api.github.com/repos/${body.githubRepo}/dispatches`;
 
     const dispatchPayload = {
       event_type: "trigger-eas-build",
-      client_payload: {},
+      client_payload: {
+        job_id: jobId, // ✅ Job ID mitgeben!
+      },
     };
 
     const ghRes = await fetch(dispatchUrl, {
@@ -77,34 +105,21 @@ serve(async (req) => {
     if (!pushSuccess) {
       const errorText = await ghRes.text();
 
+      // ✅ Bei Fehler: Job auf 'error' setzen
+      await supabase
+        .from("build_jobs")
+        .update({
+          status: "error",
+          error_message: `GitHub dispatch failed: ${errorText}`,
+        })
+        .eq("id", jobId);
+
       return new Response(
         JSON.stringify({
           error: "GitHub dispatch failed",
           status: ghRes.status,
           githubResponse: errorText,
-        }),
-        { headers: corsHeaders, status: 500 },
-      );
-    }
-
-    // -----------------------------------------------------
-    // 2) Build Job in Supabase anlegen
-    // -----------------------------------------------------
-    const insert = await supabase
-      .from("build_jobs")
-      .insert([
-        {
-          github_repo: body.githubRepo,
-        },
-      ])
-      .select("*")
-      .single();
-
-    if (insert.error) {
-      return new Response(
-        JSON.stringify({
-          error: "Supabase insert failed",
-          details: insert.error,
+          jobId: jobId,
         }),
         { headers: corsHeaders, status: 500 },
       );

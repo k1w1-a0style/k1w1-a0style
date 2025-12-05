@@ -2,6 +2,10 @@
   "name": "k1w1-a0style-restored",
   "version": "1.0.0",
   "main": "node_modules/expo/AppEntry.js",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
