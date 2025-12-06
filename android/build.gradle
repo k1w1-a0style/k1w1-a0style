@@ -2,15 +2,21 @@
 
 buildscript {
   ext {
-    // Use Kotlin version from gradle.properties (android.kotlinVersion) or default to 2.0.21
-    // This ensures consistency with the Expo version catalog override
-    kotlinVersion = findProperty('android.kotlinVersion') ?: '2.0.21'
+    // Keep Kotlin/AGP/KSP versions in one place so every Gradle plugin resolves
+    // the same combination that works with Expo SDK 54 + React Native 0.76.
+    gradlePluginVersion = findProperty('android.gradlePluginVersion')
+      ?: findProperty('gradlePluginVersion') ?: '8.7.3'
+    kotlinVersion = findProperty('android.kotlinVersion')
+      ?: findProperty('kotlinVersion') ?: '2.0.21'
+    kspVersion = findProperty('android.kspVersion')
+      ?: findProperty('kspVersion') ?: '2.0.21-1.0.28'
   }
   repositories {
     google()
     mavenCentral()
   }
   dependencies {
+    classpath("com.android.tools.build:gradle:$gradlePluginVersion")
     classpath('com.facebook.react:react-native-gradle-plugin')
     classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
   }
