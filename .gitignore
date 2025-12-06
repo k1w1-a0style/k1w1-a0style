@@ -15,9 +15,7 @@ pnpm-debug.log*
 # -----------------------------
 # EXPO / METRO / REACT-NATIVE
 # -----------------------------
-.expo/
 .expo-shared/
-.expo/web-build/
 .expo-packager/
 .expo-go/
 *.expo*
@@ -32,7 +30,6 @@ metro-cache/
 # Temporary Metro cache folders
 **/.cache/
 **/.metro/
-**/.expo/
 
 # -----------------------------
 # ANDROID / IOS NATIVE (not used)
@@ -82,3 +79,6 @@ temp/
 *.env
 !.env.example
 .envrc
+
+# Ignore local Expo state
+.expo/
