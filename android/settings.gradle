@@ -33,7 +33,35 @@ expoAutolinking.useExpoModules()
 
 rootProject.name = 'K1W1 AO-Style'
 
-expoAutolinking.useExpoVersionCatalog()
+def resolveVersionProvider = { List<String> propertyNames, String fallback ->
+  for (name in propertyNames) {
+    def provider = providers.gradleProperty(name)
+    if (provider.isPresent()) {
+      return provider
+    }
+  }
+  return providers.provider { fallback }
+}
+
+def kotlinVersionProvider = resolveVersionProvider(
+  ["android.kotlinVersion", "kotlinVersion"],
+  "2.0.21"
+)
+def kspVersionProvider = resolveVersionProvider(
+  ["android.kspVersion", "kspVersion"],
+  "2.0.21-1.0.28"
+)
+
+expoAutolinking.useExpoVersionCatalog { catalog ->
+  def kotlinVersion = kotlinVersionProvider.get()
+  if (kotlinVersion) {
+    catalog.version("kotlin", kotlinVersion)
+  }
+  def kspVersion = kspVersionProvider.get()
+  if (kspVersion) {
+    catalog.version("ksp", kspVersion)
+  }
+}
 
 include ':app'
 includeBuild(expoAutolinking.reactNativeGradlePlugin)
