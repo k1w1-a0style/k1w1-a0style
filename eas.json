@@ -61,9 +61,6 @@
           "node_modules",
           ".expo"
         ]
-      },
-      "localBuildOptions": {
-        "disableShallowClone": true
       }
     }
   },
