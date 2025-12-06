@@ -36,7 +36,9 @@
       },
       "cache": {
         "key": "preview-cache-v1",
-        "paths": ["node_modules"]
+        "paths": [
+          "node_modules"
+        ]
       }
     },
     "production": {
@@ -55,7 +57,13 @@
       },
       "cache": {
         "key": "production-cache-v1",
-        "paths": ["node_modules", ".expo"]
+        "paths": [
+          "node_modules",
+          ".expo"
+        ]
+      },
+      "localBuildOptions": {
+        "disableShallowClone": true
       }
     }
   },
