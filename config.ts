@@ -14,10 +14,6 @@ export const CONFIG = {
       SERVICE: /\b(service|api|client)\b/i,
       TYPE: /\b(type|interface)\b/i,
       DUPLICATE: /\b(README[0-9]|App[0-9]|_copy|_backup|\([0-9]+\))\b/i,
-      INVALID_PATH: /\.\.\/|[\\:*?"<>|]|^[\/\\]|[\/\\]$/,
-      CONFIG_FILES: /\b(types|theme|constants|config)\.ts$|\.d\.ts$/,
-      FORBIDDEN_IMPORT: /\bfrom\s+['"]react-native-web['"]/i,
-      CODE_HEURISTIC: /(import|export|function|const|let|=>|React\.|StyleSheet\.create)/i,
     },
     CONTENT_PATTERNS: {
       CONTEXT: /React\.createContext|Provider/,
@@ -34,14 +30,8 @@ export const CONFIG = {
         '// implement me',
         '// your code here',
         '// Your code here',
-        '// add logic',
-        '// add implementation',
         '/* TODO */',
-        '/* ToDo */',
-        '/* implement */',
-        '/* your code here */',
-        '/* add logic */',
-        '/* add implementation */',
+        '/* TODO:',
         '// placeholder',
         '// placeholder component',
         '// dummy',
@@ -59,116 +49,46 @@ export const CONFIG = {
         '() => {}',
       ],
     },
+    FILE_RULES: {
+      ALLOW_EMPTY_FILES: [
+        '.gitignore',
+        '.gitattributes',
+        '.editorconfig',
+      ],
+      // Dateien, die typischerweise kurz sein dürfen
+      ALLOW_SHORT_FILES: [
+        'App.js',
+        'index.js',
+        'babel.config.js',
+        'metro.config.js',
+        'app.config.js',
+      ],
+    },
   },
 
   PATHS: {
-    ALLOWED_ROOT: [
-      'App.tsx',
-      'App.js',
-      'index.js',
-      'theme.ts',
-      'config.ts',
-      'package.json',
-      'app.config.js',
-      'README.md',
-      'expo-env.d.ts',
-      '.gitignore',
-      'tsconfig.json',
-      'babel.config.js',
-      'metro.config.js',
-      'eas.json',
-      // ✅ CI/Workflow-Dateien explizit erlauben
-      '.github/workflows/deploy-supabase-functions.yml',
-      '.github/workflows/eas-build.yml',
-    ] as string[],
-
-    SRC_FOLDERS: [
-      'components',
-      'screens',
-      'contexts',
-      'hooks',
-      'utils',
-      'services',
-      'types',
-      'navigation',
-      'styles',
-      'assets',
-    ] as string[],
-
-    ALLOWED_PREFIXES: [
-      'components/',
-      'screens/',
-      'contexts/',
-      'hooks/',
-      'utils/',
-      'services/',
-      'types/',
-      'navigation/',
-      'styles/',
-      'assets/',
-    ] as string[],
-
-    ALLOWED_SINGLE: [
-      'app.config.js',
-      'package.json',
-      'tsconfig.json',
-      'babel.config.js',
-      'metro.config.js',
-      'theme.ts',
-      'App.tsx',
-      'App.js',
-      'index.js',
-      'config.ts',
-      'eas.json',
-      'README.md',
-      'expo-env.d.ts',
-      '.gitignore',
-      '.github/workflows/deploy-supabase-functions.yml',
-      '.github/workflows/eas-build.yml',
-    ] as string[],
-
-    ALLOWED_EXT: [
-      '.ts',
-      '.tsx',
-      '.js',
-      '.jsx',
-      '.json',
-      '.md',
-      '.svg',
-      '.png',
-      '.jpg',
-      '.yml',
-      '.gitignore',
-    ] as string[],
-
-    MAX_PATH_LENGTH: 255,
+    PROJECTS_DIR: 'projects',
+    EXPORT_DIR: 'exports',
+    TEMP_DIR: 'tmp',
   },
 
-  // 🔌 Supabase Edge-Funktionen (EAS Build / Check)
   API: {
-    SUPABASE_EDGE_URL:
-      // optional über env überschreibbar
-      (process.env.EXPO_PUBLIC_SUPABASE_EDGE_URL as string | undefined) ||
-      'https://xfgnzpcljsuqqdjlxgul.supabase.co/functions/v1',
+    // Optional: falls du später eigene Proxy-Endpunkte nutzt
+    OPENAI_BASE_URL: 'https://api.openai.com/v1',
+    ANTHROPIC_BASE_URL: 'https://api.anthropic.com/v1',
   },
 
-  // 🔧 Build-spezifische Defaults (GitHub Repo für EAS-Trigger)
-  BUILD: {
-    GITHUB_REPO: 'k1w1-pro-plus/k1w1-a0style',
+  ORCHESTRATOR: {
+    // Default Quality Mode
+    DEFAULT_QUALITY: 'speed',
+    MAX_CONTEXT_FILES: 40,
+    MAX_FILE_CHARS: 12000,
   },
-
-  TOKEN_RATIO: {
-    groq: 4,
-    openai: 3.8,
-    anthropic: 4.2,
-    gemini: 4,
-    default: 4,
-  } as const,
 } as const;
 
-// Mini-Check der Regex-Patterns zur Build-Zeit
-(function validateRegex() {
-  const patterns = CONFIG.VALIDATION.PATTERNS as Record<string, RegExp | string>;
+// 🔒 Kleine Selbstprüfung: sicherstellen, dass Regex valid sind
+(() => {
+  const patterns = CONFIG.VALIDATION.PATTERNS as Record<string, any>;
   Object.entries(patterns).forEach(([key, pattern]) => {
     try {
       if (pattern instanceof RegExp) return;

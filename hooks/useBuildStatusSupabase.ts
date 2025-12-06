@@ -77,7 +77,7 @@ export const useBuildStatusSupabase = (jobId: number | null) => {
           'check-eas-build',
           {
             body: { jobId },
-          }
+          },
         );
 
         if (!isMounted) return;
@@ -103,7 +103,7 @@ export const useBuildStatusSupabase = (jobId: number | null) => {
         if (!isMounted) return;
         console.log('[useBuildStatusSupabase] Fehler:', e);
         setError(
-          e?.message ?? 'Unbekannter Fehler beim Abrufen des Build-Status'
+          e?.message ?? 'Unbekannter Fehler beim Abrufen des Build-Status',
         );
         setStatus('error');
       } finally {
@@ -119,9 +119,16 @@ export const useBuildStatusSupabase = (jobId: number | null) => {
 
     return () => {
       isMounted = false;
-      if (intervalId) clearInterval(intervalId);
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
     };
   }, [jobId]);
 
-  return { status, details, error, isLoading };
+  return {
+    status,
+    details,
+    error,
+    isLoading,
+  };
 };

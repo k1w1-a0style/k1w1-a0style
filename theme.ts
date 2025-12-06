@@ -4,16 +4,20 @@ const { width, height } = Dimensions.get('window');
 
 export const theme = {
   palette: {
-    // Hauptfarben
-    primary: '#00FF00',        // Neongrün
+    // Grundfarben
+    primary: '#00FF00',
     secondary: '#1a1a1a',
+    background: '#050505',
+    card: '#111111',
+    surface: '#151515',
+    border: '#272727',
 
-    // Hintergründe
-    background: '#0a0a0a',     // Sehr dunkles Schwarz
-    card: '#121212',
-    border: '#2a2a2a',
+    // Soft-Farben
+    primarySoft: 'rgba(0,255,0,0.08)',
+    successSoft: 'rgba(0,255,0,0.10)',
+    warningSoft: 'rgba(255,170,0,0.10)',
 
-    // Chat-Bubbles (transparent mit Rahmen)
+    // Chat-Bubbles
     userBubble: {
       background: 'transparent',
       border: '#00FF00',
@@ -30,25 +34,64 @@ export const theme = {
       text: '#ffaa00',
     },
 
-    // Textfarben
+    // Text
     text: {
       primary: '#e0e0e0',
-      secondary: '#999999',
+      secondary: '#a0a0a0',
       disabled: '#555555',
-      muted: '#666666',
+      muted: '#777777',
+      accent: '#00FF00',
+      success: '#00ff7f',
+      warning: '#ffcc66',
     },
 
     // Inputs
     input: {
-      background: '#1a1a1a',
+      background: '#111111',
       border: '#2a2a2a',
-      placeholder: '#666666',
+      placeholder: '#777777',
     },
 
-    // Statusfarben
+    // Status
     error: '#ff4444',
     success: '#00FF00',
     warning: '#ffaa00',
+
+    // Badges / Labels
+    badge: {
+      defaultBg: '#1f1f1f',
+      defaultText: '#cccccc',
+      successBg: '#004d00',
+      successText: '#00ff00',
+      warningBg: '#4d2e00',
+      warningText: '#ffcc00',
+      errorBg: '#4d0000',
+      errorText: '#ff6666',
+    },
+
+    // Code / Terminal
+    code: {
+      background: '#05070b',
+      border: '#202634',
+      keyword: '#ff79c6',
+      string: '#f1fa8c',
+      comment: '#6272a4',
+    },
+    terminal: {
+      background: '#050505',
+      border: '#222222',
+      text: '#e0e0e0',
+      success: '#00ff00',
+      error: '#ff4444',
+      warning: '#ffaa00',
+    },
+
+    // Kleine Chips
+    chip: {
+      background: '#1e1e1e',
+      border: '#333333',
+      text: '#e0e0e0',
+    },
   },
 
   spacing: {
@@ -68,12 +111,9 @@ export const theme = {
     screenHeight: height,
   },
 
-  // 🔥 Neu: für alle Stellen mit theme.borderRadius.*
   borderRadius: {
     sm: 4,
     md: 8,
     lg: 16,
   },
 };
-
-export const HEADER_HEIGHT = 60;

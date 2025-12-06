@@ -1,5 +1,5 @@
-// screens/ChatScreen.tsx — Builder mit Rotation-Feedback (TS-clean)
-import React, { useState, useEffect, useRef } from 'react';
+// screens/ChatScreen.tsx – Builder mit Rotation-Feedback + RichContext (UI + Hook)
+import React, { useEffect, useRef, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -10,337 +10,71 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
-import * as DocumentPicker from 'expo-document-picker';
 import { Ionicons } from '@expo/vector-icons';
 
 import { theme } from '../theme';
-import { useProject } from '../contexts/ProjectContext';
-import { ChatMessage, ProjectFile } from '../contexts/types';
+import { ChatMessage } from '../contexts/types';
 import MessageItem from '../components/MessageItem';
-import { runOrchestrator } from '../lib/orchestrator';
-import { normalizeAiResponse } from '../lib/normalizer';
-import { applyFilesToProject } from '../lib/fileWriter';
-import { buildBuilderMessages, LlmMessage } from '../lib/promptEngine';
-import { useAI } from '../contexts/AIContext';
-import { validateProjectFiles } from '../utils/chatUtils';
-import { v4 as uuidv4 } from 'uuid';
-
-type DocumentResultAsset = NonNullable<
-  import('expo-document-picker').DocumentPickerResult['assets']
->[0];
+import { useChatLogic } from '../hooks/useChatLogic';
 
 const ChatScreen: React.FC = () => {
   const {
-    projectData,
     messages,
-    isLoading: isProjectLoading,
-    addChatMessage,
-    updateProjectFiles,
-  } = useProject();
-
-  const { config } = useAI();
+    textInput,
+    setTextInput,
+    selectedFileAsset,
+    handlePickDocument,
+    handleSend,
+    combinedIsLoading,
+    error,
+  } = useChatLogic();
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
-  const [textInput, setTextInput] = useState('');
-  const [isAiLoading, setIsAiLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedFileAsset, setSelectedFileAsset] =
-    useState<DocumentResultAsset | null>(null);
 
-  const combinedIsLoading = isProjectLoading || isAiLoading;
-  const projectFiles: ProjectFile[] = projectData?.files ?? [];
-
+  // Scrollt nach neuen Nachrichten ans Ende, mit sauberem Cleanup
   useEffect(() => {
-    if (flatListRef.current && messages.length > 0) {
-      flatListRef.current.scrollToEnd({ animated: true });
-    }
-  }, [messages]);
-
-  const handlePickDocument = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
-        copyToCacheDirectory: true,
-      });
-
-      if (!result.canceled && result.assets?.[0]) {
-        const asset = result.assets[0];
-        setSelectedFileAsset(asset);
-        Alert.alert(
-          '✅ Datei ausgewählt',
-          `${asset.name} (${
-            asset.size ? (asset.size / 1024).toFixed(2) + ' KB' : '?'
-          })`
-        );
-      } else {
-        setSelectedFileAsset(null);
+    let mounted = true;
+    const scrollToEnd = () => {
+      if (mounted && flatListRef.current && messages.length > 0) {
+        flatListRef.current.scrollToEnd({ animated: true });
       }
-    } catch (e) {
-      Alert.alert('Fehler', 'Dateiauswahl fehlgeschlagen');
-      setSelectedFileAsset(null);
-    }
-  };
-
-  const handleSend = async () => {
-    if (!textInput.trim() && !selectedFileAsset) {
-      return;
-    }
-
-    setError(null);
-
-    const userContent =
-      textInput.trim() ||
-      (selectedFileAsset ? `Datei gesendet: ${selectedFileAsset.name}` : '');
-
-    const lower = userContent.toLowerCase();
-    console.log('[ChatScreen] ▶️ Sende an KI:', userContent);
-
-    const userMessage: ChatMessage = {
-      id: uuidv4(),
-      role: 'user',
-      content: userContent,
-      timestamp: new Date().toISOString(),
     };
 
-    addChatMessage(userMessage);
-    setTextInput('');
-    setSelectedFileAsset(null);
+    const timer = setTimeout(scrollToEnd, 100);
 
-    // 🧠 Schnelle Meta-Commands ohne KI
-    if (lower.includes('wie viele datei')) {
-      const count = projectFiles.length;
-      addChatMessage({
-        id: uuidv4(),
-        role: 'assistant',
-        content: `📊 Aktuell sind ${count} Datei(en) im Projekt gespeichert.`,
-        timestamp: new Date().toISOString(),
-      });
-      return;
-    }
+    return () => {
+      mounted = false;
+      clearTimeout(timer);
+    };
+  }, [messages.length, messages]);
 
-    if (lower.includes('liste alle datei')) {
-      if (projectFiles.length === 0) {
-        addChatMessage({
-          id: uuidv4(),
-          role: 'assistant',
-          content: '📂 Es sind noch keine Projektdateien vorhanden.',
-          timestamp: new Date().toISOString(),
-        });
-        return;
-      }
-
-      const lines = projectFiles.map((f) => `• ${f.path}`).join('\n');
-      addChatMessage({
-        id: uuidv4(),
-        role: 'assistant',
-        content: `📂 Aktuelle Projektdateien (${projectFiles.length}):\n\n${lines}`,
-        timestamp: new Date().toISOString(),
-      });
-      return;
-    }
-
-    if (lower.includes('prüfe alle datei')) {
-      if (projectFiles.length === 0) {
-        addChatMessage({
-          id: uuidv4(),
-          role: 'assistant',
-          content: '⚠️ Es gibt keine Dateien zum Prüfen.',
-          timestamp: new Date().toISOString(),
-        });
-        return;
-      }
-
-      const validation = validateProjectFiles(projectFiles);
-      if (validation.valid) {
-        addChatMessage({
-          id: uuidv4(),
-          role: 'assistant',
-          content: `✅ Projektprüfung: Keine kritischen Probleme (${projectFiles.length} Dateien).`,
-          timestamp: new Date().toISOString(),
-        });
-      } else {
-        const shown = validation.errors.slice(0, 15);
-        const rest = validation.errors.length - shown.length;
-        const errorText =
-          shown.map((e) => `• ${e}`).join('\n') +
-          (rest > 0 ? `\n… und ${rest} weitere Meldung(en).` : '');
-
-        addChatMessage({
-          id: uuidv4(),
-          role: 'assistant',
-          content: `⚠️ Projektprüfung: ${validation.errors.length} Problem(e):\n\n${errorText}`,
-          timestamp: new Date().toISOString(),
-        });
-      }
-      return;
-    }
-
-    // 🧠 KI-Flow
-    setIsAiLoading(true);
-
-    try {
-      const historyWithCurrent = [...messages, userMessage];
-      const historyAsLlm: LlmMessage[] = historyWithCurrent.map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-
-      const llmMessages = buildBuilderMessages(
-        historyAsLlm,
-        userContent,
-        projectFiles
-      );
-
-      console.log(
-        '[ChatScreen] 🧠 LLM-Messages vorbereitet, Länge:',
-        llmMessages.length
-      );
-
-      const ai = await runOrchestrator(
-        config.selectedChatProvider,
-        config.selectedChatMode,
-        config.qualityMode,
-        llmMessages
-      );
-
-      console.log('[ChatScreen] 🤖 Orchestrator Ergebnis:', ai);
-
-      if (!ai || !ai.ok) {
-        const msg =
-          '⚠️ Die KI konnte keinen gültigen Output liefern (kein ok=true).';
-        setError(msg);
-        addChatMessage({
-          id: uuidv4(),
-          role: 'assistant',
-          content: msg,
-          timestamp: new Date().toISOString(),
-        });
-        setIsAiLoading(false);
-        return;
-      }
-
-      if (!ai.text && !ai.files) {
-        const msg = '⚠️ Die KI-Antwort war leer oder ohne Dateien.';
-        setError(msg);
-        addChatMessage({
-          id: uuidv4(),
-          role: 'assistant',
-          content: msg,
-          timestamp: new Date().toISOString(),
-        });
-        setIsAiLoading(false);
-        return;
-      }
-
-      console.log(
-        '[ChatScreen] 📄 Rohe KI-Antwort-Länge:',
-        (ai.text || '').length
-      );
-
-      const rawForNormalizer =
-        ai.files && Array.isArray(ai.files)
-          ? ai.files
-          : ai.text
-          ? ai.text
-          : ai.raw;
-
-      const normalized = normalizeAiResponse(rawForNormalizer);
-
-      if (!normalized) {
-        const msg =
-          '⚠️ Normalizer/Validator konnte die Dateien nicht verarbeiten.';
-        setError(msg);
-        addChatMessage({
-          id: uuidv4(),
-          role: 'assistant',
-          content: msg,
-          timestamp: new Date().toISOString(),
-        });
-        setIsAiLoading(false);
-        return;
-      }
-
-      console.log(
-        '[ChatScreen] 📦 Normalisierte Dateien:',
-        normalized.length
-      );
-
-      const mergeResult = applyFilesToProject(projectFiles, normalized);
-      await updateProjectFiles(mergeResult.files);
-
-      const timing =
-        ai.timing && ai.timing.durationMs
-          ? ` (${(ai.timing.durationMs / 1000).toFixed(1)}s)`
-          : '';
-
-      const summaryText =
-        `✅ KI-Update erfolgreich${timing}\n\n` +
-        `🤖 Provider: ${ai.provider || 'unbekannt'}${
-          ai.keysRotated ? ` (${ai.keysRotated}x rotiert)` : ''
-        }\n` +
-        `📝 Neue Dateien: ${mergeResult.created.length}\n` +
-        `📝 Geänderte Dateien: ${mergeResult.updated.length}\n` +
-        `⏭ Übersprungen: ${mergeResult.skipped.length}`;
-
-      addChatMessage({
-        id: uuidv4(),
-        role: 'assistant',
-        content: summaryText,
-        timestamp: new Date().toISOString(),
-        meta: {
-          provider: ai.provider,
-        },
-      });
-
-      if (ai.keysRotated && ai.keysRotated > 0) {
-        addChatMessage({
-          id: uuidv4(),
-          role: 'system',
-          content: `🔄 API-Key wurde ${ai.keysRotated}x automatisch rotiert (Rate Limit erreicht)`,
-          timestamp: new Date().toISOString(),
-        });
-      }
-    } catch (e: any) {
-      const msg =
-        '⚠️ Es ist ein Fehler im Builder-Flow aufgetreten. Siehe Konsole.';
-      console.log('[ChatScreen] ⚠️ Fehler:', e?.message || e);
-      setError(msg);
-      addChatMessage({
-        id: uuidv4(),
-        role: 'assistant',
-        content: `${msg}\n\n${e?.message || 'Unbekannter Fehler'}`,
-        timestamp: new Date().toISOString(),
-        meta: { error: true },
-      });
-    } finally {
-      setIsAiLoading(false);
-    }
-  };
-
-  const renderItem = ({ item }: { item: ChatMessage }) => (
-    <MessageItem message={item} />
+  const renderItem = useCallback(
+    ({ item }: { item: ChatMessage }) => <MessageItem message={item} />,
+    [],
   );
 
-  const renderFooter = () => {
+  const keyExtractor = useCallback((item: ChatMessage) => item.id, []);
+
+  const renderFooter = useCallback(() => {
     if (!combinedIsLoading) return null;
+
     return (
       <View style={styles.loadingFooter}>
         <ActivityIndicator size="small" color={theme.palette.primary} />
         <Text style={styles.loadingText}>Builder arbeitet ...</Text>
       </View>
     );
-  };
+  }, [combinedIsLoading]);
 
   return (
     <KeyboardAvoidingView
       style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior="height"
       keyboardVerticalOffset={80}
     >
       <View style={styles.container}>
-        <View style={styles.listContainer}>
+        <View className="listContainer" style={styles.listContainer}>
           {combinedIsLoading && messages.length === 0 ? (
             <View style={styles.loadingOverlay}>
               <ActivityIndicator size="large" color={theme.palette.primary} />
@@ -352,68 +86,70 @@ const ChatScreen: React.FC = () => {
             <FlatList
               ref={flatListRef}
               data={messages}
+              keyExtractor={keyExtractor}
               renderItem={renderItem}
-              keyExtractor={(item) => item.id}
               contentContainerStyle={styles.listContent}
               ListFooterComponent={renderFooter}
             />
           )}
         </View>
 
-        {error && <Text style={styles.errorText}>{error}</Text>}
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-        <View style={styles.inputContainer}>
-          <TouchableOpacity
-            style={[
-              styles.iconButton,
-              selectedFileAsset && styles.iconButtonActive,
-            ]}
-            onPress={handlePickDocument}
-          >
-            <Ionicons
-              name="attach-outline"
-              size={22}
-              color={
-                selectedFileAsset
-                  ? theme.palette.secondary
-                  : theme.palette.text.secondary
-              }
-            />
-          </TouchableOpacity>
-
-          <TextInput
-            style={styles.textInput}
-            placeholder="Beschreibe deine App oder den nächsten Schritt ..."
-            placeholderTextColor={theme.palette.text.secondary}
-            value={textInput}
-            onChangeText={setTextInput}
-            multiline
-          />
-
-          <TouchableOpacity
-            style={styles.sendButton}
-            onPress={handleSend}
-            disabled={combinedIsLoading}
-          >
-            {combinedIsLoading ? (
-              <ActivityIndicator size="small" color={theme.palette.background} />
-            ) : (
+        <View style={styles.inputWrapper}>
+          <View style={styles.inputContainer}>
+            <TouchableOpacity
+              style={[
+                styles.iconButton,
+                selectedFileAsset && styles.iconButtonActive,
+              ]}
+              onPress={handlePickDocument}
+            >
               <Ionicons
-                name="send-outline"
+                name="attach"
                 size={20}
-                color={theme.palette.background}
+                color={
+                  selectedFileAsset
+                    ? theme.palette.primary
+                    : theme.palette.text.secondary
+                }
               />
-            )}
-          </TouchableOpacity>
-        </View>
+            </TouchableOpacity>
 
-        {selectedFileAsset && (
-          <View style={styles.selectedFileBox}>
-            <Text style={styles.selectedFileText}>
-              📎 {selectedFileAsset.name}
-            </Text>
+            <TextInput
+              style={styles.textInput}
+              value={textInput}
+              onChangeText={setTextInput}
+              placeholder="Beschreibe, was der Builder tun soll ..."
+              placeholderTextColor={theme.palette.text.secondary}
+              multiline
+            />
+
+            <TouchableOpacity
+              style={styles.sendButton}
+              onPress={handleSend}
+              disabled={combinedIsLoading}
+            >
+              {combinedIsLoading ? (
+                <ActivityIndicator size="small" color={theme.palette.secondary} />
+              ) : (
+                <Ionicons
+                  name="send"
+                  size={20}
+                  color={theme.palette.secondary}
+                />
+              )}
+            </TouchableOpacity>
           </View>
-        )}
+
+          {selectedFileAsset && (
+            <View style={styles.selectedFileBox}>
+              <Text style={styles.selectedFileText}>
+                📎 {selectedFileAsset.name}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -432,7 +168,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 12,
-    paddingBottom: 80,
+    paddingBottom: 16,
   },
   loadingOverlay: {
     flex: 1,
@@ -457,14 +193,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingBottom: 4,
   },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  inputWrapper: {
     borderTopWidth: 1,
     borderTopColor: theme.palette.border,
-    backgroundColor: theme.palette.card,
+    backgroundColor: theme.palette.background,
+    paddingBottom: Platform.OS === 'android' ? 4 : 0,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
   },
   iconButton: {
     width: 36,
@@ -511,4 +250,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ChatScreen;
+export default React.memo(ChatScreen);

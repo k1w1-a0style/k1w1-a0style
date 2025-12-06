@@ -1,218 +1,278 @@
-// screens/DiagnosticScreen.tsx – Fehlersuche & Projekt-Check
+// screens/DiagnosticScreen.tsx – Projekt-Check + Chat-Integration
 
 import React, { useState } from 'react';
 import {
   View,
   Text,
-  ScrollView,
   StyleSheet,
+  ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
 import { useProject } from '../contexts/ProjectContext';
-import { validateProjectFiles } from '../utils/chatUtils';
-import { ProjectFile } from '../contexts/types';
+import { v4 as uuidv4 } from 'uuid';
 
-type ValidationResult = {
-  valid: boolean;
-  errors: string[];
-  warnings?: string[];
+type DiagnosticStats = {
+  totalFiles: number;
+  totalLines: number;
+  tsFiles: number;
+  tsxFiles: number;
+  jsFiles: number;
+  jsonFiles: number;
+  otherFiles: number;
 };
 
-type DiagnosticReport = {
-  stats: {
-    totalFiles: number;
-    totalLines: number;
+type StructureInfo = {
+  hasAppTsx: boolean;
+  hasPackageJson: boolean;
+  hasTheme: boolean;
+};
+
+type DiagnosticResult = {
+  stats: DiagnosticStats;
+  structure: StructureInfo;
+  warnings: string[];
+};
+
+const runSimpleDiagnostics = (projectData: any | null): DiagnosticResult => {
+  const files = projectData?.files ?? [];
+
+  const stats: DiagnosticStats = {
+    totalFiles: files.length,
+    totalLines: 0,
+    tsFiles: 0,
+    tsxFiles: 0,
+    jsFiles: 0,
+    jsonFiles: 0,
+    otherFiles: 0,
   };
-  structure: {
-    hasAppTsx: boolean;
-    hasPackageJson: boolean;
-    hasTheme: boolean;
+
+  let hasAppTsx = false;
+  let hasPackageJson = false;
+  let hasTheme = false;
+
+  for (const f of files) {
+    const path = String(f.path ?? '');
+    const content = String(f.content ?? '');
+    const lower = path.toLowerCase();
+
+    if (lower.endsWith('.ts')) stats.tsFiles += 1;
+    else if (lower.endsWith('.tsx')) stats.tsxFiles += 1;
+    else if (lower.endsWith('.js')) stats.jsFiles += 1;
+    else if (lower.endsWith('.json')) stats.jsonFiles += 1;
+    else stats.otherFiles += 1;
+
+    stats.totalLines += content.split('\n').length;
+
+    if (lower === 'app.tsx') hasAppTsx = true;
+    if (lower === 'package.json') hasPackageJson = true;
+    if (lower.endsWith('/theme.ts') || lower === 'theme.ts') hasTheme = true;
+  }
+
+  const warnings: string[] = [];
+
+  if (!hasAppTsx) {
+    warnings.push('App.tsx fehlt oder wurde nicht gefunden.');
+  }
+  if (!hasPackageJson) {
+    warnings.push('package.json fehlt – EAS / npm Builds können Probleme machen.');
+  }
+  if (!hasTheme) {
+    warnings.push('theme.ts wurde nicht gefunden – Styles könnten brechen.');
+  }
+  if (stats.totalFiles === 0) {
+    warnings.push('Es wurden keine Projektdateien gefunden.');
+  }
+  if (stats.totalLines > 5000) {
+    warnings.push(
+      `Großes Projekt (~${stats.totalLines.toLocaleString()} Zeilen) – KI-Kontext kann eng werden.`,
+    );
+  }
+
+  return {
+    stats,
+    structure: {
+      hasAppTsx,
+      hasPackageJson,
+      hasTheme,
+    },
+    warnings,
   };
-  validation: ValidationResult;
-  codeIssues: string[];
 };
 
 const DiagnosticScreen: React.FC = () => {
-  const { projectData } = useProject();
-  const [report, setReport] = useState<DiagnosticReport | null>(
-    null
-  );
+  const { projectData, addChatMessage } = useProject();
+  const [result, setResult] = useState<DiagnosticResult | null>(null);
+  const [isChecking, setIsChecking] = useState(false);
 
-  const runDiagnostic = () => {
-    const files: ProjectFile[] = projectData?.files ?? [];
-
-    const stats = {
-      totalFiles: files.length,
-      totalLines: files.reduce((sum, f) => {
-        const content = String(f.content ?? '');
-        return sum + content.split('\n').length;
-      }, 0),
-    };
-
-    const structure = {
-      hasAppTsx: files.some((f) => f.path === 'App.tsx'),
-      hasPackageJson: files.some(
-        (f) => f.path === 'package.json'
-      ),
-      hasTheme: files.some((f) => f.path === 'theme.ts'),
-    };
-
-    const validation =
-      (validateProjectFiles(files) as ValidationResult) ?? {
-        valid: true,
-        errors: [],
-      };
-
-    const codeIssues: string[] = [];
-
-    files.forEach((file) => {
-      const { path, content } = file;
-      const text = String(content ?? '');
-
-      if (!text.trim()) return;
-
-      // simple heuristics
-      if (
-        path.endsWith('.tsx') &&
-        text.includes('console.log(')
-      ) {
-        codeIssues.push(
-          `${path}: console.log() in TSX gefunden`
-        );
-      }
-
-      if (path.endsWith('.ts') && text.includes(': any')) {
-        codeIssues.push(`${path}: 'any' Type verwendet`);
-      }
-
-      if (
-        path.startsWith('components/') &&
-        !text.includes('export default') &&
-        !text.includes('export const')
-      ) {
-        codeIssues.push(
-          `${path}: Component ohne Export (export default/export const fehlt?)`
-        );
-      }
-    });
-
-    setReport({
-      stats,
-      structure,
-      validation,
-      codeIssues,
-    });
+  const handleRunDiagnostics = () => {
+    setIsChecking(true);
+    try {
+      const res = runSimpleDiagnostics(projectData);
+      setResult(res);
+    } finally {
+      setIsChecking(false);
+    }
   };
 
-  const renderStatRow = (label: string, value: string) => (
-    <View style={styles.row} key={label}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
+  const handleSendToChat = () => {
+    if (!result) return;
+
+    const { stats, structure, warnings } = result;
+
+    const lines: string[] = [];
+    lines.push('🔍 Projekt-Diagnose (k1w1-a0style):');
+    lines.push('');
+    lines.push('📦 Dateien:');
+    lines.push(`• Gesamt: ${stats.totalFiles}`);
+    lines.push(
+      `• TS: ${stats.tsFiles}, TSX: ${stats.tsxFiles}, JS: ${stats.jsFiles}, JSON: ${stats.jsonFiles}, Sonstige: ${stats.otherFiles}`,
+    );
+    lines.push(`• Geschätzte Zeilen: ~${stats.totalLines.toLocaleString()}`);
+    lines.push('');
+    lines.push('📁 Struktur:');
+    lines.push(`• App.tsx: ${structure.hasAppTsx ? '✅' : '❌ fehlt'}`);
+    lines.push(
+      `• package.json: ${structure.hasPackageJson ? '✅' : '❌ fehlt'}`,
+    );
+    lines.push(`• theme.ts: ${structure.hasTheme ? '✅' : '⚠️ nicht gefunden'}`);
+    lines.push('');
+
+    if (warnings.length > 0) {
+      lines.push('⚠️ Warnungen:');
+      for (const w of warnings) {
+        lines.push(`• ${w}`);
+      }
+      lines.push('');
+    }
+
+    lines.push(
+      '👉 Bitte analysiere diesen Diagnosebericht und optimiere das Projekt entsprechend.',
+    );
+
+    const content = lines.join('\n');
+
+    addChatMessage({
+      id: uuidv4(),
+      role: 'user',
+      content,
+      timestamp: new Date().toISOString(),
+    } as any);
+  };
+
+  const renderStatRow = (label: string, value: string | number) => (
+    <View style={styles.statRow} key={label}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>{String(value)}</Text>
     </View>
   );
 
-  const renderBool = (b: boolean) => (b ? '✓' : '✗');
-
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-    >
-      <Text style={styles.title}>🔍 Diagnose</Text>
-      <Text style={styles.subtitle}>
-        Schneller Projekt-Check: Struktur, Validation & ein paar
-        Code-Hinweise.
-      </Text>
-
-      <TouchableOpacity
-        style={styles.button}
-        onPress={runDiagnostic}
-      >
-        <Text style={styles.buttonText}>Projekt prüfen</Text>
-      </TouchableOpacity>
-
-      {!report && (
-        <Text style={styles.hint}>
-          Drück oben auf „Projekt prüfen“, um eine Diagnose zu
-          starten.
-        </Text>
-      )}
-
-      {report && (
-        <View style={styles.reportBox}>
-          <Text style={styles.sectionTitle}>📊 Statistiken</Text>
-          {renderStatRow(
-            'Dateien',
-            String(report.stats.totalFiles)
-          )}
-          {renderStatRow(
-            'Gesamtzeilen',
-            String(report.stats.totalLines)
-          )}
-
-          <Text style={styles.sectionTitle}>✅ Struktur</Text>
-          {renderStatRow(
-            'App.tsx vorhanden',
-            renderBool(report.structure.hasAppTsx)
-          )}
-          {renderStatRow(
-            'package.json vorhanden',
-            renderBool(report.structure.hasPackageJson)
-          )}
-          {renderStatRow(
-            'theme.ts vorhanden',
-            renderBool(report.structure.hasTheme)
-          )}
-
-          <Text style={styles.sectionTitle}>
-            ⚠️ Validierung
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={styles.header}>
+        <Ionicons
+          name="medkit-outline"
+          size={26}
+          color={theme.palette.primary}
+        />
+        <View style={{ marginLeft: 8 }}>
+          <Text style={styles.title}>Projekt-Diagnose</Text>
+          <Text style={styles.subtitle}>
+            Checkt Struktur & Dateigröße und kann an die KI gegeben werden.
           </Text>
-          {report.validation.valid &&
-          (!report.validation.errors ||
-            report.validation.errors.length === 0) ? (
-            <Text style={styles.success}>
-              Keine Validierungsfehler gemeldet.
-            </Text>
+        </View>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Projekt prüfen</Text>
+        <Text style={styles.cardText}>
+          Es werden keine Dateien verändert – nur analysiert.
+        </Text>
+
+        <TouchableOpacity
+          style={styles.primaryButton}
+          onPress={handleRunDiagnostics}
+          disabled={isChecking}
+        >
+          {isChecking ? (
+            <ActivityIndicator color={theme.palette.background} />
           ) : (
-            (report.validation.errors || []).map(
-              (err, idx) => (
-                <Text key={idx} style={styles.error}>
-                  • {err}
-                </Text>
-              )
-            )
-          )}
-
-          {report.validation.warnings &&
-            report.validation.warnings.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>
-                  💡 Hinweise (Validator)
-                </Text>
-                {report.validation.warnings.map(
-                  (w, idx) => (
-                    <Text key={idx} style={styles.warning}>
-                      • {w}
-                    </Text>
-                  )
-                )}
-              </>
-            )}
-
-          {report.codeIssues.length > 0 && (
             <>
-              <Text style={styles.sectionTitle}>
-                💡 Code-Hinweise
-              </Text>
-              {report.codeIssues.map((issue, idx) => (
-                <Text key={idx} style={styles.warning}>
-                  • {issue}
-                </Text>
-              ))}
+              <Ionicons
+                name="search-outline"
+                size={18}
+                color={theme.palette.background}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.primaryButtonText}>Projekt prüfen</Text>
             </>
           )}
-        </View>
+        </TouchableOpacity>
+
+        {result && (
+          <TouchableOpacity
+            style={[styles.secondaryButton, !result && { opacity: 0.5 }]}
+            onPress={handleSendToChat}
+          >
+            <Ionicons
+              name="chatbubbles-outline"
+              size={18}
+              color={theme.palette.primary}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={styles.secondaryButtonText}>
+              Diagnose in Chat senden
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {result && (
+        <>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Statistiken</Text>
+            {renderStatRow('Dateien gesamt', result.stats.totalFiles)}
+            {renderStatRow(
+              'Zeilen (geschätzt)',
+              result.stats.totalLines.toLocaleString(),
+            )}
+            {renderStatRow('TS-Dateien', result.stats.tsFiles)}
+            {renderStatRow('TSX-Dateien', result.stats.tsxFiles)}
+            {renderStatRow('JS-Dateien', result.stats.jsFiles)}
+            {renderStatRow('JSON-Dateien', result.stats.jsonFiles)}
+            {renderStatRow('Sonstige', result.stats.otherFiles)}
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Struktur</Text>
+            <Text style={styles.infoLine}>
+              App.tsx: {result.structure.hasAppTsx ? '✅ vorhanden' : '❌ fehlt'}
+            </Text>
+            <Text style={styles.infoLine}>
+              package.json:{' '}
+              {result.structure.hasPackageJson ? '✅ vorhanden' : '❌ fehlt'}
+            </Text>
+            <Text style={styles.infoLine}>
+              theme.ts:{' '}
+              {result.structure.hasTheme
+                ? '✅ vorhanden'
+                : '⚠️ nicht gefunden'}
+            </Text>
+          </View>
+
+          {result.warnings.length > 0 && (
+            <View style={styles.cardWarning}>
+              <Text style={styles.cardTitle}>Warnungen</Text>
+              {result.warnings.map((w) => (
+                <Text key={w} style={styles.warningText}>
+                  • {w}
+                </Text>
+              ))}
+            </View>
+          )}
+        </>
       )}
     </ScrollView>
   );
@@ -229,73 +289,100 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 32,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   title: {
+    fontSize: 20,
+    fontWeight: '600',
     color: theme.palette.text.primary,
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 8,
   },
   subtitle: {
+    fontSize: 12,
     color: theme.palette.text.secondary,
-    fontSize: 13,
-    marginBottom: 16,
+    marginTop: 2,
   },
-  button: {
-    backgroundColor: theme.palette.primary,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-    marginBottom: 16,
-  },
-  buttonText: {
-    color: '#000',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  hint: {
-    color: theme.palette.text.secondary,
-    fontSize: 13,
-  },
-  reportBox: {
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 8,
+  card: {
     backgroundColor: theme.palette.card,
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: theme.palette.border,
   },
-  sectionTitle: {
-    marginTop: 8,
-    marginBottom: 4,
-    fontSize: 15,
-    fontWeight: 'bold',
+  cardWarning: {
+    backgroundColor: theme.palette.card,
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: theme.palette.error,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
     color: theme.palette.text.primary,
+    marginBottom: 8,
   },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 2,
-  },
-  rowLabel: {
-    color: theme.palette.text.secondary,
+  cardText: {
     fontSize: 13,
+    color: theme.palette.text.secondary,
+    marginBottom: 12,
   },
-  rowValue: {
-    color: theme.palette.text.primary,
+  primaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.palette.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  primaryButtonText: {
+    color: theme.palette.background,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  secondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderColor: theme.palette.primary,
+    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    marginTop: 8,
+  },
+  secondaryButtonText: {
+    color: theme.palette.primary,
     fontSize: 13,
     fontWeight: '500',
   },
-  success: {
-    color: theme.palette.success,
-    fontSize: 13,
+  statRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 4,
   },
-  error: {
+  statLabel: {
+    fontSize: 13,
+    color: theme.palette.text.secondary,
+  },
+  statValue: {
+    fontSize: 13,
+    color: theme.palette.text.primary,
+  },
+  infoLine: {
+    fontSize: 13,
+    color: theme.palette.text.primary,
+    marginTop: 4,
+  },
+  warningText: {
+    fontSize: 13,
     color: theme.palette.error,
-    fontSize: 13,
-  },
-  warning: {
-    color: theme.palette.warning,
-    fontSize: 13,
+    marginTop: 4,
   },
 });

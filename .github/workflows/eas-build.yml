@@ -1,14 +1,25 @@
-name: EAS Build (Variante A)
+name: K1W1 EAS Build
 
 on:
-  # Manuell aus GitHub UI oder per workflow_dispatch (Variante A)
+  # Manuell aus GitHub UI
   workflow_dispatch:
     inputs:
       job_id:
-        description: "Job ID from K1W1 App"
+        description: "Supabase job_id (optional)"
         required: false
+        type: string
+      platform:
+        description: "android | ios | all"
+        required: false
+        default: "android"
+        type: string
+      profile:
+        description: "EAS build profile"
+        required: false
+        default: "production"
+        type: string
 
-  # Automatisch über Supabase / repository_dispatch (Variante B)
+  # Automatisch über Supabase / repository_dispatch
   repository_dispatch:
     types: [trigger-eas-build]
 
@@ -16,34 +27,85 @@ jobs:
   run-eas-build:
     runs-on: ubuntu-latest
 
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      JOB_ID: ${{ github.event.inputs.job_id || github.event.client_payload.job_id }}
+      PLATFORM: ${{ github.event.inputs.platform || github.event.client_payload.platform || 'android' }}
+      PROFILE: ${{ github.event.inputs.profile || github.event.client_payload.profile || 'production' }}
+
     steps:
-      - name: Code auschecken
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Node.js einrichten
+      - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
-      - name: Expo und EAS einrichten
+      - name: Setup Expo + EAS
         uses: expo/expo-github-action@v8
         with:
+          expo-version: latest
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Abhängigkeiten installieren
-        run: npm install
+      - name: Install dependencies
+        run: npm ci
 
-      - name: EAS Build starten (und warten)
+      - name: Validate Job ID (only if provided)
         run: |
-          eas build \
-            --platform android \
-            --non-interactive \
-            --wait \
-            --output=build/k1w1-build.apk
+          if [ -n "$JOB_ID" ]; then
+            echo "✓ JOB_ID: $JOB_ID"
+          else
+            echo "ℹ️ Kein JOB_ID übergeben – Supabase-Updates werden übersprungen."
+          fi
 
-      - name: Build-Artefakt hochladen
-        uses: actions/upload-artifact@v4
-        with:
-          name: k1w1-android-build
-          path: build/k1w1-build.apk
+      - name: Update Build Status - Building
+        if: ${{ env.JOB_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
+        run: |
+          curl -s -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"status\":\"building\",\"github_run_id\":\"${{ github.run_id }}\"}"
+
+      - name: Run EAS Build (no wait, json if available)
+        id: eas
+        run: |
+          set -e
+          echo "Platform: ${PLATFORM}"
+          echo "Profile: ${PROFILE}"
+
+          if eas build --help | grep -q -- "--json"; then
+            eas build --platform "${PLATFORM}" --profile "${PROFILE}" --non-interactive --no-wait --json > build_output.json
+
+            node -e "const fs=require('fs'); const d=JSON.parse(fs.readFileSync('build_output.json','utf8')); const arr=Array.isArray(d)?d:(d.builds||d.data||[]); const first=arr[0]||d; const id=first.id||first.buildId||first.build_id||'unknown'; console.log('Detected build id:', id); fs.appendFileSync(process.env.GITHUB_OUTPUT, `build_id=${id}\\n`);"
+          else
+            BUILD_OUTPUT=$(eas build --platform "${PLATFORM}" --profile "${PROFILE}" --non-interactive --no-wait 2>&1)
+            echo "$BUILD_OUTPUT"
+            BUILD_ID=$(echo "$BUILD_OUTPUT" | grep -oE 'Build ID: [A-Za-z0-9-]+' | awk '{print $3}' || echo "unknown")
+            echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update Build Status - Completed
+        if: ${{ success() && env.JOB_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
+        run: |
+          BUILD_ID="${{ steps.eas.outputs.build_id }}"
+          curl -s -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"status\":\"completed\",\"eas_build_id\":\"${BUILD_ID}\"}"
+
+      - name: Update Build Status - Failed
+        if: ${{ failure() && env.JOB_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
+        run: |
+          curl -s -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"status\":\"error\",\"github_run_id\":\"${{ github.run_id }}\"}"

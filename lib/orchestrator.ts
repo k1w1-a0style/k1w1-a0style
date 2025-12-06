@@ -1,16 +1,17 @@
-// lib/orchestrator.ts – TEIL 3: Optimiert
-// ✅ Besseres Error-Handling mit detaillierten Fehlermeldungen
-// ✅ Timeout für jeden Provider-Call (30s)
-// ✅ Detailliertes Logging für Debugging
-// ✅ Retry-Strategie + Key-Rotation
-// ✅ Provider-spezifische Error-Messages
+// lib/orchestrator.ts – Orchestrator mit sauberem Fallback & HuggingFace-Support
+// ✅ AbortController + Timeout pro Request
+// ✅ Key-Rotation via AIContext.rotateApiKeyOnError
+// ✅ Hugging Face Router (router.huggingface.co) statt alter Inference-API
+// ✅ Kein erzwungener HF→Groq-Fallback mehr – Provider-Order kommt aus Config
 
 import { extractJsonArray, safeJsonParse } from '../utils/chatUtils';
 import { ProjectFile } from '../contexts/types';
-import type { AllAIProviders } from '../contexts/AIContext';
-import { rotateApiKeyOnError } from '../contexts/AIContext';
-
-type ProviderId = AllAIProviders;
+import {
+  rotateApiKeyOnError,
+  detectMetaFromConfig,
+  type AllAIProviders,
+} from '../contexts/AIContext';
+import { toAppError, logAppError } from '../utils/errorUtils';
 
 export type LlmMessage = {
   role: 'system' | 'user' | 'assistant';
@@ -21,7 +22,7 @@ export type QualityMode = 'speed' | 'quality';
 
 type OrchestratorOkResult = {
   ok: true;
-  provider: ProviderId;
+  provider: AllAIProviders;
   model: string;
   quality: 'speed' | 'quality' | 'unknown';
   text: string;
@@ -48,7 +49,7 @@ type OrchestratorErrorResult = {
   error?: string;
 };
 
-const PROVIDERS: ProviderId[] = [
+const PROVIDERS: AllAIProviders[] = [
   'groq',
   'gemini',
   'openai',
@@ -56,17 +57,13 @@ const PROVIDERS: ProviderId[] = [
   'huggingface',
 ];
 
-const TIMEOUT_MS = 30000; // 30 Sekunden
+const TIMEOUT_MS = 30000;
 const MAX_KEY_RETRIES = 3;
 
 // ============================================
 // LOGGING
 // ============================================
-const log = (
-  level: 'INFO' | 'WARN' | 'ERROR',
-  message: string,
-  meta?: any,
-) => {
+const log = (level: 'INFO' | 'WARN' | 'ERROR', message: string, meta?: any) => {
   const timestamp = new Date().toISOString();
   const metaStr = meta ? ` | ${JSON.stringify(meta)}` : '';
   // eslint-disable-next-line no-console
@@ -74,34 +71,39 @@ const log = (
 };
 
 // ============================================
-// TIMEOUT
+// REQUEST POOL (verhindert parallele Requests)
 // ============================================
-async function withTimeout<T>(
-  promise: Promise<T>,
-  ms: number,
-  label: string,
-): Promise<T> {
-  // Kein echter Abort der inneren fetches, aber sauberes Timeout für den Aufrufer
-  return (Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(
-        () =>
-          reject(
-            new Error(`Timeout nach ${ms}ms: ${label || 'orchestrator_call'}`),
-          ),
-        ms,
-      ),
-    ),
-  ]) as unknown) as Promise<T>;
+const requestPool = new Map<string, AbortController>();
+
+function getRequestKey(provider: AllAIProviders): string {
+  return provider;
+}
+
+function abortExistingRequest(key: string) {
+  const controller = requestPool.get(key);
+  if (controller) {
+    controller.abort();
+    requestPool.delete(key);
+    log('INFO', `Abgebrochener Request für ${key}`);
+  }
+}
+
+function registerRequest(key: string, controller: AbortController) {
+  abortExistingRequest(key);
+  requestPool.set(key, controller);
+}
+
+function cleanupRequest(key: string) {
+  requestPool.delete(key);
 }
 
 // ============================================
 // API-KEY RESOLUTION
 // ============================================
-function resolveApiKey(provider: ProviderId): string | null {
+function resolveApiKey(provider: AllAIProviders): string | null {
   const g = (globalThis as any) || {};
 
+  // 1) Globale Config (__K1W1_AI_CONFIG)
   try {
     const cfg = g.__K1W1_AI_CONFIG;
     if (cfg?.apiKeys?.[provider]?.[0]) {
@@ -112,12 +114,12 @@ function resolveApiKey(provider: ProviderId): string | null {
       return key;
     }
   } catch {
-    // ignorieren
+    // ignore
   }
 
+  // 2) Direkt aus globalThis
   try {
     let candidate: string | undefined;
-
     switch (provider) {
       case 'groq':
         candidate = g.GROQ_API_KEY || g.EXPO_PUBLIC_GROQ_API_KEY;
@@ -133,10 +135,13 @@ function resolveApiKey(provider: ProviderId): string | null {
         break;
       case 'huggingface':
         candidate =
-          g.HUGGINGFACE_API_KEY || g.EXPO_PUBLIC_HF_API_KEY || g.HF_API_KEY;
+          g.HUGGINGFACE_API_KEY ||
+          g.EXPO_PUBLIC_HF_API_KEY ||
+          g.HF_API_KEY;
+        break;
+      default:
         break;
     }
-
     if (candidate && typeof candidate === 'string' && candidate.trim().length) {
       log('INFO', `API-Key für ${provider} aus globalThis geladen`, {
         keyPreview: candidate.slice(0, 8) + '…',
@@ -144,9 +149,10 @@ function resolveApiKey(provider: ProviderId): string | null {
       return candidate.trim();
     }
   } catch {
-    // ignorieren
+    // ignore
   }
 
+  // 3) process.env
   const envNames: string[] =
     provider === 'groq'
       ? ['GROQ_API_KEY', 'EXPO_PUBLIC_GROQ_API_KEY']
@@ -159,7 +165,7 @@ function resolveApiKey(provider: ProviderId): string | null {
       : ['HUGGINGFACE_API_KEY', 'EXPO_PUBLIC_HF_API_KEY', 'HF_API_KEY'];
 
   for (const name of envNames) {
-    const v = (process.env as any)[name];
+    const v = (process.env as any)?.[name];
     if (typeof v === 'string' && v.trim().length > 0) {
       log('INFO', `API-Key für ${provider} aus process.env geladen`, {
         envName: name,
@@ -168,7 +174,13 @@ function resolveApiKey(provider: ProviderId): string | null {
     }
   }
 
-  log('ERROR', `Kein API-Key für ${provider} gefunden`);
+  const msg = `Kein API-Key für ${provider} gefunden`;
+  log('ERROR', msg);
+  const appError = toAppError(new Error(msg), {
+    code: 'ORCH_NO_API_KEY',
+    meta: { provider },
+  });
+  logAppError(appError, 'resolveApiKey');
   return null;
 }
 
@@ -176,7 +188,7 @@ function resolveApiKey(provider: ProviderId): string | null {
 // ERROR-KATEGORISIERUNG
 // ============================================
 function shouldRotateKey(errorMsg: string): boolean {
-  const lower = errorMsg.toLowerCase();
+  const lower = (errorMsg || '').toLowerCase();
   const isRotatable =
     lower.includes('rate limit') ||
     lower.includes('429') ||
@@ -187,22 +199,20 @@ function shouldRotateKey(errorMsg: string): boolean {
     lower.includes('unauthorized') ||
     lower.includes('invalid api key') ||
     lower.includes('invalid_api_key');
-
-  if (isRotatable) {
-    log('INFO', 'Fehler ist rotierbar', { errorMsg });
-  }
+  if (isRotatable) log('INFO', 'Fehler ist rotierbar', { errorMsg });
   return isRotatable;
 }
 
-// Provider-spezifische Fehlermeldungen
-function enhanceErrorMessage(provider: ProviderId, error: string): string {
-  const lower = error.toLowerCase();
-
+function enhanceErrorMessage(provider: AllAIProviders, error: string): string {
+  const lower = (error || '').toLowerCase();
+  if (lower.includes('https://api-inference.huggingface.co')) {
+    return `${provider}: alter Endpoint (api-inference) – bitte 'router.huggingface.co' verwenden.`;
+  }
   if (lower.includes('401') || lower.includes('unauthorized')) {
-    return `${provider}: API-Key ungültig oder abgelaufen. Bitte prüfe deine Einstellungen.`;
+    return `${provider}: API-Key ungültig oder abgelaufen.`;
   }
   if (lower.includes('403')) {
-    return `${provider}: Keine Berechtigung. API-Key hat nicht die erforderlichen Rechte.`;
+    return `${provider}: Keine Berechtigung.`;
   }
   if (lower.includes('429') || lower.includes('rate limit')) {
     return `${provider}: Rate-Limit erreicht. Key wird automatisch rotiert.`;
@@ -213,91 +223,16 @@ function enhanceErrorMessage(provider: ProviderId, error: string): string {
     }s.`;
   }
   if (lower.includes('network')) {
-    return `${provider}: Netzwerkfehler – prüfe deine Internetverbindung.`;
+    return `${provider}: Netzwerkfehler – Verbindung prüfen.`;
   }
-
   return `${provider}: ${error}`;
-}
-
-// ============================================
-// META-DATEN / MODE SELECTION
-// ============================================
-function detectMetaFromConfig(
-  selectedProvider: string,
-  selectedModel: string,
-  qualityMode: QualityMode,
-): {
-  provider: ProviderId;
-  model: string;
-  quality: 'speed' | 'quality' | 'unknown';
-} {
-  let provider: ProviderId;
-
-  switch (selectedProvider) {
-    case 'gemini':
-      provider = 'gemini';
-      break;
-    case 'openai':
-      provider = 'openai';
-      break;
-    case 'anthropic':
-      provider = 'anthropic';
-      break;
-    case 'huggingface':
-      provider = 'huggingface';
-      break;
-    case 'groq':
-    default:
-      provider = 'groq';
-      break;
-  }
-
-  let quality: 'speed' | 'quality' | 'unknown' = 'unknown';
-  if (qualityMode === 'speed' || qualityMode === 'quality') {
-    quality = qualityMode;
-  }
-
-  let model = (selectedModel || '').trim();
-
-  if (provider === 'groq') {
-    if (!model || model === 'auto-groq') {
-      model =
-        quality === 'quality'
-          ? 'llama-3.3-70b-versatile'
-          : 'llama-3.1-8b-instant';
-    }
-  } else if (provider === 'gemini') {
-    if (!model || model === 'auto-gemini' || /llama/i.test(model)) {
-      model =
-        quality === 'quality'
-          ? 'gemini-2.5-pro'
-          : 'gemini-2.0-flash-lite-001';
-    }
-  } else if (provider === 'openai') {
-    if (!model || model === 'auto-openai') {
-      model = quality === 'quality' ? 'gpt-4o' : 'gpt-4o-mini';
-    }
-  } else if (provider === 'anthropic') {
-    if (!model || model === 'auto-claude' || model === 'auto-anthropic') {
-      model =
-        quality === 'quality'
-          ? 'claude-3-5-sonnet-20241022'
-          : 'claude-3-5-haiku-20241022';
-    }
-  } else if (provider === 'huggingface') {
-    if (!model || model === 'auto-hf') {
-      model = 'mistralai/Mistral-7B-Instruct-v0.3';
-    }
-  }
-
-  return { provider, model, quality };
 }
 
 // ============================================
 // HELPER: OK-RESULT
 // ============================================
 function buildOkResult(
-  provider: ProviderId,
+  provider: AllAIProviders,
   model: string,
   text: string,
   raw: any,
@@ -305,7 +240,6 @@ function buildOkResult(
 ): OrchestratorOkResult {
   const endTime = Date.now();
   const durationMs = endTime - startTime;
-
   return {
     ok: true,
     provider,
@@ -313,35 +247,27 @@ function buildOkResult(
     quality: 'unknown',
     text,
     raw,
-    timing: {
-      startTime,
-      endTime,
-      durationMs,
-    },
+    timing: { startTime, endTime, durationMs },
   };
 }
 
 // ============================================
-// PROVIDER-CALLS
+// PROVIDER CALLS
 // ============================================
 async function callGroq(
   apiKey: string,
   model: string,
   messages: LlmMessage[],
+  controller: AbortController,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
   const url = 'https://api.groq.com/openai/v1/chat/completions';
-
   const body = {
     model,
-    messages: messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    })),
+    messages: messages.map((m) => ({ role: m.role, content: m.content })),
     temperature: 0.15,
     max_tokens: 4096,
   };
-
   const res = await fetch(url, {
     method: 'POST',
     headers: {
@@ -349,21 +275,18 @@ async function callGroq(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
+    signal: controller.signal,
   });
-
   const json: any = await res.json();
-
   if (!res.ok) {
     const errorMsg =
       json?.error?.message || json?.error || `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
-
   const text =
     json?.choices?.[0]?.message?.content ??
     json?.choices?.[0]?.text ??
     JSON.stringify(json);
-
   return buildOkResult('groq', model, text, json, startTime);
 }
 
@@ -371,11 +294,12 @@ async function callGemini(
   apiKey: string,
   model: string,
   messages: LlmMessage[],
+  controller: AbortController,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
-    apiKey,
-  )}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+    model,
+  )}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const contents = [
     {
@@ -389,34 +313,23 @@ async function callGemini(
       ],
     },
   ];
-
   const body = {
     contents,
-    generationConfig: {
-      temperature: 0.15,
-      maxOutputTokens: 4096,
-    },
+    generationConfig: { temperature: 0.15, maxOutputTokens: 4096 },
   };
-
   const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal: controller.signal,
   });
-
   const json: any = await res.json();
-
   if (!res.ok) {
     const errorMsg = json?.error?.message || `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
-
   const text =
-    json?.candidates?.[0]?.content?.parts?.[0]?.text ??
-    JSON.stringify(json);
-
+    json?.candidates?.[0]?.content?.parts?.[0]?.text ?? JSON.stringify(json);
   return buildOkResult('gemini', model, text, json, startTime);
 }
 
@@ -424,20 +337,16 @@ async function callOpenAI(
   apiKey: string,
   model: string,
   messages: LlmMessage[],
+  controller: AbortController,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
   const url = 'https://api.openai.com/v1/chat/completions';
-
   const body = {
     model,
-    messages: messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    })),
+    messages: messages.map((m) => ({ role: m.role, content: m.content })),
     temperature: 0.2,
     max_tokens: 4096,
   };
-
   const res = await fetch(url, {
     method: 'POST',
     headers: {
@@ -445,20 +354,18 @@ async function callOpenAI(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
+    signal: controller.signal,
   });
-
   const json: any = await res.json();
   if (!res.ok) {
     const errorMsg =
       json?.error?.message || json?.error || `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
-
   const text =
     json?.choices?.[0]?.message?.content ??
     json?.choices?.[0]?.text ??
     JSON.stringify(json);
-
   return buildOkResult('openai', model, text, json, startTime);
 }
 
@@ -466,14 +373,13 @@ async function callAnthropic(
   apiKey: string,
   model: string,
   messages: LlmMessage[],
+  controller: AbortController,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
   const url = 'https://api.anthropic.com/v1/messages';
-
   const systemPrompt =
     messages.find((m) => m.role === 'system')?.content || '';
   const nonSystem = messages.filter((m) => m.role !== 'system');
-
   const body = {
     model,
     system: systemPrompt || undefined,
@@ -484,7 +390,6 @@ async function callAnthropic(
     max_tokens: 4096,
     temperature: 0.2,
   };
-
   const res = await fetch(url, {
     method: 'POST',
     headers: {
@@ -493,30 +398,34 @@ async function callAnthropic(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
+    signal: controller.signal,
   });
-
   const json: any = await res.json();
-
   if (!res.ok) {
     const errorMsg = json?.error?.message || `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
-
   const text =
-    json?.content?.[0]?.text ??
-    (Array.isArray(json?.content) && json.content[0]?.text) ??
+    (Array.isArray(json?.content) && json.content[0]?.text) ||
+    json?.content?.[0]?.text ||
     '';
-
   return buildOkResult('anthropic', model, text, json, startTime);
 }
 
+/**
+ * Hugging Face – Router API
+ * Endpoint: https://router.huggingface.co/models/{model}
+ */
 async function callHuggingFace(
   apiKey: string,
   model: string,
   messages: LlmMessage[],
+  controller: AbortController,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
-  const url = `https://api-inference.huggingface.co/models/${model}`;
+  const url = `https://router.huggingface.co/models/${encodeURIComponent(
+    model,
+  )}`;
 
   const prompt = messages
     .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
@@ -533,27 +442,37 @@ async function callHuggingFace(
   const res = await fetch(url, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
     },
     body: JSON.stringify(body),
+    signal: controller.signal,
   });
 
   const json: any = await res.json();
-
   if (!res.ok) {
-    const errorMsg = json?.error || `HTTP ${res.status}`;
+    const errorMsg =
+      json?.error ||
+      json?.error?.message ||
+      json?.message ||
+      json?.estimated_time?.toString() ||
+      `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
 
   let text = '';
-
-  if (Array.isArray(json) && json[0]?.generated_text) {
-    text = json[0].generated_text;
+  if (Array.isArray(json)) {
+    if (json[0]?.generated_text) text = json[0].generated_text;
+    else if (json[0]?.summary_text) text = json[0].summary_text;
+    else if (json[0]?.text) text = json[0].text;
+    else text = JSON.stringify(json);
   } else if (typeof json?.generated_text === 'string') {
     text = json.generated_text;
-  } else if (Array.isArray(json) && json[0]?.summary_text) {
-    text = json[0].summary_text;
+  } else if (typeof json?.text === 'string') {
+    text = json.text;
+  } else if (json?.choices?.[0]?.text) {
+    text = json.choices[0].text;
   } else {
     text = JSON.stringify(json);
   }
@@ -562,56 +481,85 @@ async function callHuggingFace(
 }
 
 // ============================================
-// RETRY-LOGIC MIT VERBESSERTEM ERROR-HANDLING
+// RETRY-LOGIK
 // ============================================
 async function callProviderWithRetry(
-  provider: ProviderId,
+  provider: AllAIProviders,
   model: string,
   messages: LlmMessage[],
 ): Promise<{ result: OrchestratorOkResult; rotations: number }> {
   let rotations = 0;
   const errors: string[] = [];
+  const requestKey = getRequestKey(provider);
 
   for (let attempt = 0; attempt < MAX_KEY_RETRIES; attempt++) {
     const apiKey = resolveApiKey(provider);
     if (!apiKey) {
       const msg = `Kein API-Key für ${provider} gefunden`;
-      log('ERROR', msg);
+      const appError = toAppError(new Error(msg), {
+        code: 'ORCH_NO_API_KEY',
+        meta: { provider, model, attempt: attempt + 1 },
+      });
+      logAppError(appError, 'callProviderWithRetry');
       throw new Error(msg);
     }
+
+    const controller = new AbortController();
+    registerRequest(requestKey, controller);
 
     log('INFO', `Call ${provider} (Versuch ${attempt + 1}/${MAX_KEY_RETRIES})`, {
       model,
       keyPreview: apiKey.slice(0, 8) + '…',
     });
 
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
     try {
       const callPromise = (async () => {
-        if (provider === 'groq') return await callGroq(apiKey, model, messages);
-        if (provider === 'gemini')
-          return await callGemini(apiKey, model, messages);
-        if (provider === 'openai')
-          return await callOpenAI(apiKey, model, messages);
-        if (provider === 'anthropic')
-          return await callAnthropic(apiKey, model, messages);
-        return await callHuggingFace(apiKey, model, messages);
+        switch (provider) {
+          case 'groq':
+            return callGroq(apiKey, model, messages, controller);
+          case 'gemini':
+            return callGemini(apiKey, model, messages, controller);
+          case 'openai':
+            return callOpenAI(apiKey, model, messages, controller);
+          case 'anthropic':
+            return callAnthropic(apiKey, model, messages, controller);
+          case 'huggingface':
+          default:
+            return callHuggingFace(apiKey, model, messages, controller);
+        }
       })();
 
-      const result = await withTimeout(
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          controller.abort();
+          reject(
+            new Error(`Timeout nach ${TIMEOUT_MS}ms: ${provider}:${model}`),
+          );
+        }, TIMEOUT_MS);
+      });
+
+      const result = (await Promise.race([
         callPromise,
-        TIMEOUT_MS,
-        `${provider}:${model}`,
-      );
+        timeoutPromise,
+      ])) as OrchestratorOkResult;
+
+      if (timeoutId) clearTimeout(timeoutId);
 
       log('INFO', `✅ Erfolg mit ${provider}`, {
         model,
         rotations,
         durationMs: result.timing?.durationMs,
-        textLength: result.text.length,
+        textLength: result.text?.length ?? 0,
       });
 
+      cleanupRequest(requestKey);
       return { result, rotations };
     } catch (e: any) {
+      if (timeoutId) clearTimeout(timeoutId);
+      cleanupRequest(requestKey);
+
       const errorMsg = e?.message || 'unknown_error';
       const enhancedMsg = enhanceErrorMessage(provider, errorMsg);
 
@@ -624,17 +572,25 @@ async function callProviderWithRetry(
         error: errorMsg,
       });
 
+      const appError = toAppError(e, {
+        code: 'ORCH_PROVIDER_CALL_FAILED',
+        message: enhancedMsg,
+        meta: { provider, model, attempt: attempt + 1 },
+      });
+      logAppError(appError, 'callProviderWithRetry');
+
       if (shouldRotateKey(errorMsg)) {
         log('INFO', `🔄 Rotiere Key für ${provider}.`);
         const rotated = await rotateApiKeyOnError(provider);
-
         if (!rotated) {
-          log('ERROR', `Alle Keys für ${provider} erschöpft`);
-          throw new Error(
-            `Alle API-Keys für ${provider} erschöpft: ${enhancedMsg}`,
-          );
+          const msg = `Alle API-Keys für ${provider} erschöpft: ${enhancedMsg}`;
+          const exhaustedError = toAppError(new Error(msg), {
+            code: 'ORCH_KEYS_EXHAUSTED',
+            meta: { provider, model, attempt: attempt + 1 },
+          });
+          logAppError(exhaustedError, 'callProviderWithRetry');
+          throw new Error(msg);
         }
-
         rotations++;
         log('INFO', `Key rotiert (${rotations}x), nächster Versuch.`);
         continue;
@@ -648,11 +604,16 @@ async function callProviderWithRetry(
     '\n',
   )}`;
   log('ERROR', finalError);
+  const appError = toAppError(new Error(finalError), {
+    code: 'ORCH_MAX_RETRIES_REACHED',
+    meta: { provider, model },
+  });
+  logAppError(appError, 'callProviderWithRetry');
   throw new Error(finalError);
 }
 
 // ============================================
-// JSON → FILES (für spätere Nutzung, falls gebraucht)
+// JSON → FILES
 // ============================================
 export function parseFilesFromText(raw: any): ProjectFile[] | null {
   try {
@@ -672,6 +633,8 @@ export function parseFilesFromText(raw: any): ProjectFile[] | null {
     log('ERROR', 'parseFilesFromText fehlgeschlagen', {
       error: (e as any)?.message,
     });
+    const appError = toAppError(e, { code: 'ORCH_PARSE_FILES_FAILED' });
+    logAppError(appError, 'parseFilesFromText');
     return null;
   }
 }
@@ -680,19 +643,18 @@ export function parseFilesFromText(raw: any): ProjectFile[] | null {
 // FALLBACK-MECHANIK
 // ============================================
 async function runSequentialFallback(
-  selectedProvider: string,
+  selectedProvider: AllAIProviders,
   selectedModel: string,
   qualityMode: QualityMode,
   messages: LlmMessage[],
 ): Promise<OrchestratorOkResult | OrchestratorErrorResult> {
-  const {
-    provider: primaryProvider,
-    model: primaryModel,
-    quality,
-  } = detectMetaFromConfig(selectedProvider, selectedModel, qualityMode);
+  const { provider: primaryProvider, quality } = detectMetaFromConfig(
+    selectedProvider,
+    selectedModel,
+    qualityMode,
+  );
 
-  const order: ProviderId[] = [...PROVIDERS];
-
+  const order: AllAIProviders[] = [...PROVIDERS];
   if (order.includes(primaryProvider)) {
     order.splice(order.indexOf(primaryProvider), 1);
     order.unshift(primaryProvider);
@@ -709,23 +671,24 @@ async function runSequentialFallback(
       );
       const modelForProvider = metaForProvider.model;
 
-      log('INFO', `🔄 Fallback zu ${provider}`, {
-        model: modelForProvider,
-      });
+      log('INFO', `🔄 Fallback zu ${provider}`, { model: modelForProvider });
 
-      const { result, rotations } = await withTimeout(
-        callProviderWithRetry(provider, modelForProvider, messages),
-        TIMEOUT_MS,
-        `Fallback:${provider}`,
+      const { result, rotations } = await callProviderWithRetry(
+        provider,
+        modelForProvider,
+        messages,
       );
 
       return { ...result, quality, keysRotated: rotations };
     } catch (e: any) {
       const message = e?.message || 'unknown_error';
+      log('WARN', `Provider ${provider} fehlgeschlagen`, { error: message });
 
-      log('WARN', `Provider ${provider} fehlgeschlagen`, {
-        error: message,
+      const appError = toAppError(e, {
+        code: 'ORCH_PROVIDER_FALLBACK_FAILED',
+        meta: { provider, model: selectedModel, qualityMode },
       });
+      logAppError(appError, 'runSequentialFallback');
 
       errors.push({
         provider,
@@ -734,15 +697,20 @@ async function runSequentialFallback(
       });
 
       if (message.includes('Kein API-Key')) {
-        // nächster Provider versuchen
         continue;
       }
     }
   }
 
-  log('ERROR', 'Alle Provider fehlgeschlagen', {
-    errorCount: errors.length,
-  });
+  log('ERROR', 'Alle Provider fehlgeschlagen', { errorCount: errors.length });
+  const appError = toAppError(
+    new Error(errors[0]?.error || 'Kein Provider war erfolgreich'),
+    {
+      code: 'ORCH_ALL_PROVIDERS_FAILED',
+      meta: { errorCount: errors.length },
+    },
+  );
+  logAppError(appError, 'runSequentialFallback');
 
   return {
     ok: false,
@@ -756,7 +724,7 @@ async function runSequentialFallback(
 // PUBLIC API – Generator (Builder)
 // ============================================
 export async function runOrchestrator(
-  selectedProvider: string,
+  selectedProvider: AllAIProviders,
   selectedModel: string,
   qualityMode: QualityMode,
   messages: LlmMessage[],
@@ -767,6 +735,9 @@ export async function runOrchestrator(
     quality: qualityMode,
     messageCount: messages.length,
   });
+
+  requestPool.forEach((controller) => controller.abort());
+  requestPool.clear();
 
   try {
     const result = await runSequentialFallback(
@@ -790,16 +761,27 @@ export async function runOrchestrator(
 
     return result;
   } catch (err: any) {
-    log('ERROR', '❌ Fatal error in Orchestrator', {
-      error: err?.message,
+    log('ERROR', '❌ Fatal error in Orchestrator', { error: err?.message });
+
+    const appError = toAppError(err, {
+      code: 'ORCH_FATAL',
+      meta: {
+        stage: 'runOrchestrator',
+        provider: selectedProvider,
+        model: selectedModel,
+      },
     });
+    logAppError(appError, 'runOrchestrator');
 
     return {
       ok: false,
       fatal: true,
-      error: err?.message || 'fatal_error',
+      error: appError.message || 'fatal_error',
       errors: [],
     };
+  } finally {
+    requestPool.forEach((controller) => controller.abort());
+    requestPool.clear();
   }
 }
 
@@ -807,7 +789,7 @@ export async function runOrchestrator(
 // PUBLIC API – Quality-Validator (Agent)
 // ============================================
 export async function runValidatorOrchestrator(
-  selectedAgentProvider: string,
+  selectedAgentProvider: AllAIProviders,
   selectedAgentMode: string,
   messages: LlmMessage[],
 ): Promise<OrchestratorOkResult | OrchestratorErrorResult> {
@@ -815,6 +797,9 @@ export async function runValidatorOrchestrator(
     provider: selectedAgentProvider,
     mode: selectedAgentMode,
   });
+
+  requestPool.forEach((controller) => controller.abort());
+  requestPool.clear();
 
   try {
     const result = await runSequentialFallback(
@@ -825,15 +810,26 @@ export async function runValidatorOrchestrator(
     );
     return result;
   } catch (err: any) {
-    log('ERROR', '❌ Fatal error in Validator', {
-      error: err?.message,
+    log('ERROR', '❌ Fatal error in Validator', { error: err?.message });
+
+    const appError = toAppError(err, {
+      code: 'ORCH_VALIDATOR_FATAL',
+      meta: {
+        stage: 'runValidatorOrchestrator',
+        provider: selectedAgentProvider,
+        mode: selectedAgentMode,
+      },
     });
+    logAppError(appError, 'runValidatorOrchestrator');
 
     return {
       ok: false,
       fatal: true,
-      error: err?.message || 'fatal_error',
+      error: appError.message || 'fatal_error',
       errors: [],
     };
+  } finally {
+    requestPool.forEach((controller) => controller.abort());
+    requestPool.clear();
   }
 }

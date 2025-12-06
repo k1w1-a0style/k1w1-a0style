@@ -9,6 +9,7 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
+
 import { theme } from '../theme';
 import { useBuildStatus } from '../hooks/useBuildStatus';
 import { ensureSupabaseClient } from '../lib/supabase';
@@ -18,51 +19,66 @@ const BuildScreenV2: React.FC = () => {
   const { activeRepo } = useGitHub();
   const [jobId, setJobId] = useState<number | null>(null);
   const [isStarting, setIsStarting] = useState(false);
-  const { status, details } = useBuildStatus(jobId);
+
+  const { status, details, errorCount, lastError, isPolling } = useBuildStatus(
+    jobId,
+  );
 
   const startBuild = async () => {
-    try {
-      if (!activeRepo) {
-        Alert.alert(
-          'Kein Repo ausgewählt',
-          'Bitte wähle zuerst ein GitHub-Repo im „GitHub Repos“-Screen aus.'
-        );
-        return;
-      }
+    if (!activeRepo) {
+      Alert.alert(
+        'Kein Repo',
+        'Bitte zuerst im GitHub-Screen ein aktives Repository auswählen.',
+      );
+      return;
+    }
 
+    try {
       setIsStarting(true);
       const supabase = await ensureSupabaseClient();
 
-      const { data, error: fnError } = await supabase.functions.invoke(
+      const { data, error } = await supabase.functions.invoke(
         'trigger-eas-build',
         {
           body: {
-            githubRepo: activeRepo,
-            buildProfile: 'preview', // oder "production"
-            buildType: 'normal',
+            repoFullName: activeRepo,
           },
-        }
+        },
       );
 
-      console.log('[BuildScreenV2] trigger-eas-build response:', data, fnError);
-
-      if (fnError || !data?.ok || !data?.job?.id) {
-        console.log('[BuildScreenV2] Unexpected trigger response:', data, fnError);
+      if (error) {
+        console.log('[BuildScreenV2] trigger-eas-build error:', error);
         Alert.alert(
           'Fehler',
-          data?.error ??
-            fnError?.message ??
-            'Fehler beim Start des Build-Jobs.'
+          error.message ?? 'Build konnte nicht gestartet werden.',
         );
         return;
       }
 
-      setJobId(data.job.id as number);
+      const rawJobId =
+        (data as any)?.jobId ??
+        (data as any)?.job_id ??
+        (data as any)?.id;
+
+      const parsed = Number(rawJobId);
+      if (!rawJobId || Number.isNaN(parsed)) {
+        console.log(
+          '[BuildScreenV2] Unerwartete Antwort von trigger-eas-build:',
+          data,
+        );
+        Alert.alert(
+          'Fehler',
+          'Build wurde gestartet, aber Job-ID konnte nicht gelesen werden.',
+        );
+        return;
+      }
+
+      setJobId(parsed);
     } catch (e: any) {
       console.log('[BuildScreenV2] Build-Error:', e);
       Alert.alert(
         'Fehler',
-        e?.message ?? 'Build konnte nicht gestartet werden.'
+        e?.message ?? 'Build konnte nicht gestartet werden.',
       );
     } finally {
       setIsStarting(false);
@@ -77,56 +93,85 @@ const BuildScreenV2: React.FC = () => {
     });
   };
 
-  const renderStatus = () => {
-    if (!jobId) {
-      return (
-        <Text style={styles.hintText}>
-          Noch kein Build gestartet. Starte oben einen neuen EAS-Build.
-        </Text>
-      );
+  const renderStatusText = () => {
+    switch (status) {
+      case 'idle':
+        return 'Bereit. Starte einen neuen Build.';
+      case 'queued':
+        return 'Build ist in der Warteschlange.';
+      case 'building':
+        return 'Build läuft...';
+      case 'success':
+        return 'Build erfolgreich abgeschlossen.';
+      case 'failed':
+        return 'Build fehlgeschlagen.';
+      case 'error':
+        return 'Fehler beim Abfragen des Build-Status.';
+      default:
+        return status;
     }
+  };
 
-    return (
-      <View style={styles.statusBox}>
-        <Text style={styles.label}>Job ID:</Text>
-        <Text style={styles.jobId}>{jobId}</Text>
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Text style={styles.title}>EAS Build</Text>
+      <Text style={styles.subtitle}>
+        Triggert einen EAS-Build über deine Supabase Edge Functions.
+      </Text>
 
-        <View style={styles.statusRow}>
-          <Text style={styles.label}>Status: </Text>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Repository</Text>
+        {activeRepo ? (
+          <Text style={styles.cardText}>{activeRepo}</Text>
+        ) : (
+          <Text style={styles.warningText}>
+            Kein aktives Repo gewählt. Wähle eines im GitHub-Screen aus.
+          </Text>
+        )}
+      </View>
 
-          {status === 'queued' && (
-            <Text style={styles.statusQueued}>⏳ Warteschlange…</Text>
-          )}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Build starten</Text>
+        <Text style={styles.cardText}>
+          Starte einen neuen EAS-Build für das aktive Repository. Der Status
+          wird automatisch abgefragt.
+        </Text>
 
-          {status === 'building' && (
-            <Text style={styles.statusBuilding}>🔧 Build läuft…</Text>
-          )}
-
-          {status === 'success' && (
-            <Text style={styles.statusSuccess}>✅ Build erfolgreich!</Text>
-          )}
-
-          {status === 'failed' && (
-            <Text style={styles.statusFailed}>❌ Build fehlgeschlagen</Text>
-          )}
-
-          {status === 'idle' && (
-            <Text style={styles.statusIdle}>⌛ Warten auf Status…</Text>
-          )}
-
-          {status === 'error' && (
-            <Text style={styles.statusFailed}>
-              ⚠️ Fehler beim Abrufen des Status
+        <TouchableOpacity
+          style={[
+            styles.primaryButton,
+            (!activeRepo || isStarting || isPolling) && styles.buttonDisabled,
+          ]}
+          onPress={startBuild}
+          disabled={!activeRepo || isStarting || isPolling}
+        >
+          {isStarting ? (
+            <ActivityIndicator
+              size="small"
+              color={theme.palette.background}
+            />
+          ) : (
+            <Text style={styles.primaryButtonText}>
+              {jobId ? 'Erneut starten' : 'Build starten'}
             </Text>
           )}
-        </View>
+        </TouchableOpacity>
+
+        {jobId && (
+          <Text style={styles.jobText}>Aktueller Job: #{jobId}</Text>
+        )}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Status</Text>
+        <Text style={styles.statusText}>{renderStatusText()}</Text>
 
         {details?.urls?.html && (
           <TouchableOpacity
             style={styles.linkButton}
             onPress={() => openUrl(details.urls?.html)}
           >
-            <Text style={styles.linkButtonText}>🔗 GitHub Actions öffnen</Text>
+            <Text style={styles.linkButtonText}>Build-Details aufrufen</Text>
           </TouchableOpacity>
         )}
 
@@ -135,37 +180,16 @@ const BuildScreenV2: React.FC = () => {
             style={styles.linkButton}
             onPress={() => openUrl(details.urls?.artifacts)}
           >
-            <Text style={styles.linkButtonText}>📦 Artefakte / Download</Text>
+            <Text style={styles.linkButtonText}>Artifacts öffnen</Text>
           </TouchableOpacity>
         )}
-      </View>
-    );
-  };
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>📦 EAS Build (Supabase + GitHub)</Text>
-
-      <TouchableOpacity
-        style={styles.buildButton}
-        onPress={startBuild}
-        disabled={isStarting}
-      >
-        {isStarting ? (
-          <ActivityIndicator color={theme.palette.secondary} />
-        ) : (
-          <Text style={styles.buildButtonText}>🚀 Build über Supabase starten</Text>
+        {lastError && (
+          <Text style={styles.errorText}>
+            Letzter Fehler ({errorCount}x): {lastError}
+          </Text>
         )}
-      </TouchableOpacity>
-
-      <Text style={styles.hintText}>
-        Dieser Screen nutzt die Supabase-Function{' '}
-        <Text style={{ fontWeight: 'bold' }}>trigger-eas-build</Text> und
-        pollt anschließend den Status über{' '}
-        <Text style={{ fontWeight: 'bold' }}>check-eas-build</Text>.
-      </Text>
-
-      {renderStatus()}
+      </View>
     </ScrollView>
   );
 };
@@ -177,63 +201,71 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
+    paddingBottom: 32,
   },
   title: {
     color: theme.palette.text.primary,
     fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 16,
+    fontWeight: '700',
+    marginBottom: 4,
   },
-  buildButton: {
-    backgroundColor: theme.palette.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  buildButtonText: {
-    color: theme.palette.secondary,
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
-  hintText: {
+  subtitle: {
     color: theme.palette.text.secondary,
-    marginTop: 4,
+    fontSize: 13,
+    marginBottom: 12,
   },
-  statusBox: {
-    marginTop: 20,
-    padding: 12,
-    borderRadius: 8,
+  card: {
     backgroundColor: theme.palette.card,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: theme.palette.border,
   },
-  label: {
-    color: theme.palette.text.secondary,
-    fontSize: 14,
-  },
-  jobId: {
+  cardTitle: {
     color: theme.palette.text.primary,
-    fontSize: 16,
-    marginBottom: 8,
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 6,
   },
-  statusRow: {
+  cardText: {
+    color: theme.palette.text.secondary,
+    fontSize: 13,
+  },
+  primaryButton: {
+    marginTop: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: theme.palette.primary,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  primaryButtonText: {
+    color: theme.palette.background,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  jobText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+  },
+  statusText: {
     marginTop: 4,
+    fontSize: 13,
+    color: theme.palette.text.primary,
   },
-  statusQueued: {
+  warningText: {
+    fontSize: 12,
     color: theme.palette.warning,
   },
-  statusBuilding: {
-    color: '#29b6f6',
-  },
-  statusSuccess: {
-    color: theme.palette.success,
-  },
-  statusFailed: {
+  errorText: {
+    fontSize: 12,
     color: theme.palette.error,
-  },
-  statusIdle: {
-    color: theme.palette.text.secondary,
+    marginTop: 8,
   },
   linkButton: {
     marginTop: 12,
@@ -244,6 +276,7 @@ const styles = StyleSheet.create({
   },
   linkButtonText: {
     color: theme.palette.text.primary,
+    fontSize: 13,
   },
 });
 

@@ -1,152 +1,313 @@
-// screens/PreviewScreen.tsx – einfache HTML-Vorschau deines Projekts
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+// screens/PreviewScreen.tsx - MIT WEBVIEW MEMORY MANAGEMENT
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from 'react';
+import {
+  View,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+  BackHandler,
+  Platform,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
-
-import { useProject } from '../contexts/ProjectContext';
+import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
-
-function escapeHtml(input: string): string {
-  return input
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
+import { useProject } from '../contexts/ProjectContext';
 
 const PreviewScreen: React.FC = () => {
-  const { projectData, isLoading } = useProject();
+  const { projectData } = useProject();
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const [webViewKey, setWebViewKey] = useState(1);
 
-  const html = useMemo(() => {
-    if (!projectData) {
-      return '<h1>Kein Projekt geladen</h1>';
+  const webViewRef = useRef<WebView | null>(null);
+  const isMountedRef = useRef(true);
+
+  // HTML aus Projektdateien generieren (pure, memoized)
+  const currentHtml = useMemo((): string => {
+    if (!projectData?.files) {
+      return '<html><body><h1>Kein Projekt geladen</h1></body></html>';
     }
 
-    const files = projectData.files || [];
-    const fileCount = files.length;
-    const totalLines = files.reduce(
-      (sum, f) => sum + String(f.content).split('\n').length,
-      0
-    );
-
-    const appFile = files.find((f) => f.path === 'App.tsx');
-    const pkgFile = files.find((f) => f.path === 'package.json');
-
-    let pkgName = projectData.name;
-    let pkgVersion = '1.0.0';
-
-    if (pkgFile) {
-      try {
-        const pkg = JSON.parse(String(pkgFile.content));
-        if (pkg.name) pkgName = String(pkg.name);
-        if (pkg.version) pkgVersion = String(pkg.version);
-      } catch {
-        // ignore parse errors
-      }
+    const htmlFile = projectData.files.find(f => f.path === 'index.html');
+    if (htmlFile && htmlFile.content) {
+      return htmlFile.content;
     }
 
-    const appSource = appFile ? escapeHtml(String(appFile.content)) : '';
+    // Fallback: einfache Vorschau mit Projektinfo
+    const fileCount = projectData.files.length;
+    const recentFiles = projectData.files
+      .slice(-5)
+      .map(f => f.path)
+      .join('<br>');
+
+    const lastModified = projectData.lastModified
+      ? new Date(projectData.lastModified).toLocaleString('de-DE')
+      : 'unbekannt';
 
     return `
       <!DOCTYPE html>
       <html>
         <head>
-          <meta charset="utf-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1" />
-          <title>${escapeHtml(pkgName)} – Preview</title>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <title>${projectData.name || 'K1W1 Preview'}</title>
           <style>
             body {
-              margin: 0;
-              padding: 16px;
-              font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-              background: #050608;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              margin: 20px;
+              background: #0a0a0a;
               color: #e0e0e0;
             }
-            h1, h2, h3 {
-              color: #ffffff;
+            .container {
+              max-width: 800px;
+              margin: 0 auto;
+              padding: 20px;
             }
-            .card {
-              background: #11151b;
+            h1 {
+              color: #00ff00;
+              border-bottom: 2px solid #00ff00;
+              padding-bottom: 10px;
+            }
+            .info {
+              background: #121212;
+              padding: 15px;
               border-radius: 8px;
-              border: 1px solid #242a33;
-              padding: 12px 14px;
-              margin-bottom: 16px;
+              margin: 20px 0;
+              border-left: 4px solid #00ff00;
             }
-            .label {
-              color: #9ca3af;
-              font-size: 12px;
-              text-transform: uppercase;
-              letter-spacing: .08em;
-            }
-            .value {
+            .file-list {
+              background: #1a1a1a;
+              padding: 15px;
+              border-radius: 8px;
+              font-family: 'Courier New', monospace;
               font-size: 14px;
             }
-            pre {
-              background: #050608;
-              border-radius: 8px;
-              padding: 12px;
-              overflow-x: auto;
-              font-size: 12px;
-              line-height: 1.4;
-            }
-            .badge {
-              display: inline-block;
-              padding: 2px 8px;
-              border-radius: 999px;
-              background: #111827;
-              border: 1px solid #1f2937;
-              font-size: 11px;
-              margin-right: 4px;
-              margin-bottom: 4px;
+            .warning {
+              background: #332200;
+              color: #ffaa00;
+              padding: 10px;
+              border-radius: 6px;
+              margin-top: 20px;
+              border: 1px solid #ffaa00;
             }
           </style>
         </head>
         <body>
-          <h1>📱 ${escapeHtml(pkgName)}</h1>
-          <div class="card">
-            <div class="label">Version</div>
-            <div class="value">${escapeHtml(pkgVersion)}</div>
-          </div>
-          <div class="card">
-            <div class="label">Projekt-Statistik</div>
-            <div class="value">
-              Dateien: <strong>${fileCount}</strong><br/>
-              Zeilen: <strong>${totalLines}</strong>
+          <div class="container">
+            <h1>${projectData.name || 'K1W1 Projekt'}</h1>
+            <div class="info">
+              <strong>Projekt-Vorschau</strong><br />
+              Dateien: ${fileCount}<br />
+              Letzte Änderung: ${lastModified}
             </div>
-          </div>
-          <div class="card">
-            <div class="label">App.tsx</div>
-            ${
-              appFile
-                ? `<pre><code>${appSource}</code></pre>`
-                : '<div class="value">Keine <code>App.tsx</code> im Projekt gefunden.</div>'
-            }
+
+            <h3>Letzte Dateien:</h3>
+            <div class="file-list">
+              ${recentFiles}
+            </div>
+
+            <div class="warning">
+              ⚠️ Dies ist eine automatisch generierte Vorschau.<br />
+              Für eine vollständige Vorschau erstelle eine index.html Datei.
+            </div>
           </div>
         </body>
       </html>
     `;
   }, [projectData]);
 
-  if (isLoading && !projectData) {
-    return (
-      <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color={theme.palette.primary} />
-        <Text style={styles.loadingText}>Projekt wird geladen ...</Text>
-      </View>
+  // Ladezustand zurücksetzen, wenn sich die HTML-Quelle ändert
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+    setHasError(false);
+    setIsLoading(true);
+    // WebView neu mounten, um State zu resetten
+    setWebViewKey(prev => prev + 1);
+  }, [currentHtml]);
+
+  // WebView neu laden (soft reload, falls Ref existiert)
+  const reloadWebView = useCallback(() => {
+    if (webViewRef.current) {
+      webViewRef.current.reload();
+    } else {
+      setWebViewKey(prev => prev + 1);
+    }
+  }, []);
+
+  // Handle Android Back Button → WebView back
+  useEffect(() => {
+    const backAction = () => {
+      if (webViewRef.current) {
+        webViewRef.current.goBack();
+        return true;
+      }
+      return false;
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      backAction,
     );
-  }
+
+    return () => {
+      backHandler.remove();
+    };
+  }, []);
+
+  // Cleanup beim Unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (webViewRef.current) {
+        webViewRef.current.stopLoading();
+        // explizit nullen hilft GC in manchen Engines
+        webViewRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleLoadEnd = useCallback(() => {
+    if (isMountedRef.current) {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const handleError = useCallback(
+    (syntheticEvent: any) => {
+      const { nativeEvent } = syntheticEvent;
+      // eslint-disable-next-line no-console
+      console.error('WebView Fehler:', nativeEvent);
+
+      if (!isMountedRef.current) return;
+
+      setHasError(true);
+      setIsLoading(false);
+
+      if (Platform.OS === 'android') {
+        Alert.alert(
+          'Ladefehler',
+          'WebView konnte die Seite nicht laden. Möglicherweise ist zu wenig Speicher verfügbar.',
+          [
+            { text: 'Abbrechen', style: 'cancel' },
+            { text: 'Neu laden', onPress: reloadWebView },
+          ],
+        );
+      }
+    },
+    [reloadWebView],
+  );
+
+  const handleHttpError = useCallback((syntheticEvent: any) => {
+    const { nativeEvent } = syntheticEvent;
+    // eslint-disable-next-line no-console
+    console.error('HTTP Fehler:', nativeEvent);
+
+    if (isMountedRef.current) {
+      setHasError(true);
+    }
+  }, []);
 
   if (!projectData) {
     return (
-      <View style={[styles.container, styles.centered]}>
-        <Text style={styles.emptyText}>Kein Projekt geladen.</Text>
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centered}>
+          <Ionicons
+            name="warning-outline"
+            size={48}
+            color={theme.palette.warning}
+          />
+          <Ionicons
+            name="warning-outline"
+            size={48}
+            color={theme.palette.warning}
+          />
+          <Ionicons
+            name="warning-outline"
+            size={48}
+            color={theme.palette.warning}
+          />
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <WebView source={{ html }} style={styles.webview} />
-    </View>
+    <SafeAreaView
+      style={styles.container}
+      edges={['bottom', 'left', 'right']}
+    >
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={theme.palette.primary} />
+        </View>
+      )}
+
+      {hasError ? (
+        <View style={styles.errorContainer}>
+          <Ionicons
+            name="alert-circle-outline"
+            size={64}
+            color={theme.palette.error}
+          />
+          <Ionicons
+            name="alert-circle-outline"
+            size={64}
+            color={theme.palette.error}
+          />
+          <Ionicons
+            name="alert-circle-outline"
+            size={64}
+            color={theme.palette.error}
+          />
+        </View>
+      ) : (
+        <WebView
+          key={`webview-${webViewKey}`}
+          ref={webViewRef}
+          source={{ html: currentHtml }}
+          style={styles.webview}
+          onLoadEnd={handleLoadEnd}
+          onError={handleError}
+          onHttpError={handleHttpError}
+          startInLoadingState
+          javaScriptEnabled
+          domStorageEnabled
+          allowFileAccess
+          mixedContentMode="always"
+          cacheEnabled
+          cacheMode="LOAD_DEFAULT"
+          onShouldStartLoadWithRequest={request => {
+            // Nur eigene HTML und Daten-URLs erlauben
+            const url = request.url || '';
+            return (
+              url.startsWith('data:text/html') || url.startsWith('about:blank')
+            );
+          }}
+          renderLoading={() => (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator
+                size="large"
+                color={theme.palette.primary}
+              />
+            </View>
+          )}
+          // Android-spezifische Optimierungen
+          androidLayerType="hardware"
+          setBuiltInZoomControls={false}
+          setDisplayZoomControls={false}
+          // iOS-spezifische Optimierungen
+          scrollEnabled
+          bounces={false}
+        />
+      )}
+    </SafeAreaView>
   );
 };
 
@@ -155,20 +316,38 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.palette.background,
   },
-  centered: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    color: theme.palette.text.secondary,
-  },
-  emptyText: {
-    color: theme.palette.text.secondary,
-  },
   webview: {
     flex: 1,
+    backgroundColor: theme.palette.background,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.palette.background,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.palette.background,
   },
 });
 
-export default PreviewScreen;
+export default React.memo(PreviewScreen);

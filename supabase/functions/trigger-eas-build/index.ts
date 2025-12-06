@@ -7,14 +7,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-/**
- * ✓ 100% stabiler trigger-eas-build
- * ✓ kein BuildJob wenn Push failed
- * ✓ saubere Fehlerstruktur
- * ✓ logging-ready für dein Frontend
- * ✓ unterstützt GitHub Actions dispatch
- */
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -25,9 +17,7 @@ serve(async (req) => {
 
     if (!body || !body.githubRepo) {
       return new Response(
-        JSON.stringify({
-          error: "Missing 'githubRepo' in request body",
-        }),
+        JSON.stringify({ error: "Missing 'githubRepo' in request body" }),
         { headers: corsHeaders, status: 400 },
       );
     }
@@ -52,51 +42,10 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // -----------------------------------------------------
-    // 1) GitHub DISPATCH ausführen
-    // -----------------------------------------------------
-    const dispatchUrl =
-      `https://api.github.com/repos/${body.githubRepo}/dispatches`;
-
-    const dispatchPayload = {
-      event_type: "trigger-eas-build",
-      client_payload: {},
-    };
-
-    const ghRes = await fetch(dispatchUrl, {
-      method: "POST",
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${GITHUB_TOKEN}`,
-      },
-      body: JSON.stringify(dispatchPayload),
-    });
-
-    const pushSuccess = ghRes.ok;
-
-    if (!pushSuccess) {
-      const errorText = await ghRes.text();
-
-      return new Response(
-        JSON.stringify({
-          error: "GitHub dispatch failed",
-          status: ghRes.status,
-          githubResponse: errorText,
-        }),
-        { headers: corsHeaders, status: 500 },
-      );
-    }
-
-    // -----------------------------------------------------
-    // 2) Build Job in Supabase anlegen
-    // -----------------------------------------------------
+    // 1) Build-Job zuerst anlegen
     const insert = await supabase
       .from("build_jobs")
-      .insert([
-        {
-          github_repo: body.githubRepo,
-        },
-      ])
+      .insert([{ github_repo: body.githubRepo, status: "pending" }])
       .select("*")
       .single();
 
@@ -110,23 +59,67 @@ serve(async (req) => {
       );
     }
 
-    // -----------------------------------------------------
-    // 3) Saubere Success Response
-    // -----------------------------------------------------
+    const jobId = insert.data.id;
 
+    // 2) GitHub Dispatch mit job_id im Payload
+    const dispatchUrl =
+      `https://api.github.com/repos/${body.githubRepo}/dispatches`;
+
+    const dispatchPayload = {
+      event_type: "trigger-eas-build",
+      client_payload: {
+        job_id: jobId,
+        repo: body.githubRepo,
+      },
+    };
+
+    const ghRes = await fetch(dispatchUrl, {
+      method: "POST",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${GITHUB_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(dispatchPayload),
+    });
+
+    if (!ghRes.ok) {
+      const errorText = await ghRes.text();
+
+      // Cleanup: Job auf "error" setzen
+      await supabase
+        .from("build_jobs")
+        .update({
+          status: "error",
+          error_message: `GitHub Dispatch failed: ${errorText}`,
+        })
+        .eq("id", jobId);
+
+      return new Response(
+        JSON.stringify({
+          error: "GitHub dispatch failed",
+          status: ghRes.status,
+          githubResponse: errorText,
+        }),
+        { headers: corsHeaders, status: 500 },
+      );
+    }
+
+    // 3) Erfolgreiche Antwort
     return new Response(
       JSON.stringify({
         ok: true,
-        githubDispatch: true,
-        buildJobCreated: true,
-        job: insert.data,
+        job_id: jobId,
+        github_repo: body.githubRepo,
+        message: "Build job created and GitHub Actions triggered",
       }),
       { headers: corsHeaders, status: 200 },
     );
   } catch (err: any) {
+    console.error("❌ trigger-eas-build error:", err);
     return new Response(
       JSON.stringify({
-        error: "Unhandled exception in trigger-eas-build",
+        error: "Unhandled exception",
         message: err?.message,
       }),
       { headers: corsHeaders, status: 500 },

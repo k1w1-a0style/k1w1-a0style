@@ -11,48 +11,42 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
 
 export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
-  props
+  props,
 ) => {
-  const { navigation, state } = props;
-
-  const navigateTo = (screen: string) => {
-    navigation.navigate(screen as never);
-  };
-
-  const currentRouteName =
-    state.routeNames[state.index] ?? 'Home';
-
-  const isActive = (name: string) => currentRouteName === name;
+  const { state, navigation } = props;
+  const currentRouteName = state.routeNames[state.index];
 
   const renderItem = (
     label: string,
-    screen: string,
-    iconName: keyof typeof Ionicons.glyphMap
+    routeName: string,
+    iconName: keyof typeof Ionicons.glyphMap,
   ) => {
-    const active = isActive(screen);
+    const isActive = currentRouteName === routeName;
+
     return (
       <TouchableOpacity
-        key={screen}
+        key={routeName}
         style={[
           styles.drawerItem,
-          active && styles.drawerItemActive,
+          isActive && styles.drawerItemActive,
         ]}
-        onPress={() => navigateTo(screen)}
+        onPress={() => navigation.navigate(routeName as never)}
+        activeOpacity={0.7}
       >
         <Ionicons
           name={iconName}
-          size={22}
+          size={20}
           color={
-            active
+            isActive
               ? theme.palette.primary
-              : theme.palette.text.primary
+              : theme.palette.text.secondary
           }
           style={styles.drawerIcon}
         />
         <Text
           style={[
             styles.drawerItemText,
-            active && styles.drawerItemTextActive,
+            isActive && styles.drawerItemTextActive,
           ]}
         >
           {label}
@@ -63,55 +57,50 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
 
   return (
     <View style={styles.root}>
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.appTitle}>K1W1 AO-Style</Text>
+        <Text style={styles.appTitle}>k1w1-a0style</Text>
         <Text style={styles.appSubTitle}>
-          Prompt → Code → GitHub → APK
+          Prompt → Code → GitHub → Build
         </Text>
       </View>
 
+      {/* Einträge */}
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
       >
-        {renderItem('Home', 'Home', 'home-outline')}
-        {renderItem(
-          'KI-Einstellungen',
-          'Settings',
-          'options-outline'
-        )}
-        {renderItem(
-          'Verbindungen',
-          'Connections',
-          'link-outline'
-        )}
+        {/* HOME */}
+        {renderItem('🏠 Projekt', 'Home', 'home-outline')}
 
-        {/* 🔥 NEU: GitHub Repo Manager */}
-        {renderItem(
-          'GitHub Repos',
-          'GitHubRepos',
-          'logo-github'
-        )}
+        {/* SETTINGS */}
+        {renderItem('🤖 KI-Einstellungen', 'Settings', 'settings-outline')}
 
-        {/* Builds alt & V2 */}
-        {renderItem(
-          'Builds (alt)',
-          'Builds',
-          'construct-outline'
-        )}
-        {renderItem(
-          'Builds (V2)',
-          'BuildsV2',
-          'rocket-outline'
-        )}
+        {/* KEYS / BACKUP */}
+        {renderItem('🔐 Keys & Backup', 'KeyBackup', 'key-outline')}
 
-        {renderItem('App Info', 'AppInfo', 'information-circle-outline')}
+        {/* CONNECTIONS */}
+        {renderItem('🔗 Verbindungen', 'Connections', 'link-outline')}
+
+        {/* GITHUB */}
+        {renderItem('🐙 GitHub Repos', 'GitHubRepos', 'logo-github')}
+
+        {/* DIAGNOSTIC */}
+        {renderItem('🔍 Diagnose', 'Diagnostic', 'medkit-outline')}
+
+        {/* PREVIEW */}
+        {renderItem('👁 Vorschau', 'Preview', 'eye-outline')}
+
+        {/* EINZIGER BUILD-EINTRAG */}
+        {renderItem('📦 Builds', 'BuildsV2', 'rocket-outline')}
+
+        {/* INFO */}
+        {renderItem('ℹ️ App Info', 'AppInfo', 'information-circle-outline')}
       </ScrollView>
 
+      {/* Footer */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>
-          k1w1-a0style · Alpha
-        </Text>
+        <Text style={styles.footerText}>k1w1-a0style · Alpha v1.0.0</Text>
       </View>
     </View>
   );
@@ -149,31 +138,33 @@ const styles = StyleSheet.create({
   drawerItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 16,
   },
   drawerItemActive: {
     backgroundColor: theme.palette.background,
+    borderLeftWidth: 3,
+    borderLeftColor: theme.palette.primary,
   },
   drawerIcon: {
     marginRight: 12,
   },
   drawerItemText: {
-    fontSize: 15,
-    color: theme.palette.text.primary,
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+    fontWeight: '500',
   },
   drawerItemTextActive: {
-    fontWeight: '600',
     color: theme.palette.primary,
   },
   footer: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: theme.palette.border,
+    padding: 12,
   },
   footerText: {
-    fontSize: 11,
+    fontSize: 12,
     color: theme.palette.text.secondary,
+    textAlign: 'center',
   },
 });

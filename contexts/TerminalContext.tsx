@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useState, ReactNode, useCallback, useEffect } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  ReactNode,
+  useCallback,
+  useEffect,
+} from 'react';
 
 type LogEntry = {
   id: number;
@@ -13,23 +20,30 @@ interface TerminalContextProps {
   clearLogs: () => void;
 }
 
-const TerminalContext = createContext<TerminalContextProps | undefined>(undefined);
+const TerminalContext = createContext<TerminalContextProps | undefined>(
+  undefined,
+);
 
 let logCounter = 0;
 
-export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const TerminalProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
-  const addLog = useCallback((message: string, type: 'log' | 'warn' | 'error' = 'log') => {
-    const timestamp = new Date().toLocaleTimeString();
-    const newLog: LogEntry = {
-      id: logCounter++,
-      timestamp,
-      message: String(message),
-      type,
-    };
-    setLogs(prevLogs => [newLog, ...prevLogs.slice(0, 199)]);
-  }, []);
+  const addLog = useCallback(
+    (message: string, type: 'log' | 'warn' | 'error' = 'log') => {
+      const timestamp = new Date().toLocaleTimeString();
+      const newLog: LogEntry = {
+        id: logCounter++,
+        timestamp,
+        message: String(message),
+        type,
+      };
+      setLogs(prevLogs => [newLog, ...prevLogs.slice(0, 199)]);
+    },
+    [],
+  );
 
   const clearLogs = useCallback(() => {
     setLogs([]);
@@ -42,35 +56,46 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
 
     console.log = (...args) => {
       queueMicrotask(() => {
-        addLog(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' '), 'log');
+        addLog(
+          args
+            .map(arg =>
+              typeof arg === 'object' ? JSON.stringify(arg) : String(arg),
+            )
+            .join(' '),
+          'log',
+        );
       });
+      // @ts-ignore
       originalLog.apply(console, args);
     };
 
     console.warn = (...args) => {
       queueMicrotask(() => {
-        addLog(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' '), 'warn');
+        addLog(
+          args
+            .map(arg =>
+              typeof arg === 'object' ? JSON.stringify(arg) : String(arg),
+            )
+            .join(' '),
+          'warn',
+        );
       });
+      // @ts-ignore
       originalWarn.apply(console, args);
     };
 
     console.error = (...args) => {
-      const msg = args.map(arg => typeof arg === 'object' ? String(arg) : arg).join(' ');
-      
-      // ✅ FIX: Erweiterte Filter für bekannte harmlose Spam-Meldungen
-      const ignorePatterns = [
-        'Text strings must be rendered within a <Text> component',
-        'VirtualizedLists should never be nested',
-        'Require cycle:',
-      ];
-      
-      const shouldIgnore = ignorePatterns.some(pattern => msg.includes(pattern));
-      
-      if (!shouldIgnore) {
-        queueMicrotask(() => {
-          addLog(msg, 'error');
-        });
-      }
+      queueMicrotask(() => {
+        addLog(
+          args
+            .map(arg =>
+              typeof arg === 'object' ? JSON.stringify(arg) : String(arg),
+            )
+            .join(' '),
+          'error',
+        );
+      });
+      // @ts-ignore
       originalError.apply(console, args);
     };
 
@@ -88,10 +113,10 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   );
 };
 
-export const useTerminal = () => {
-  const context = useContext(TerminalContext);
-  if (context === undefined) {
-    throw new Error('useTerminal muss innerhalb eines TerminalProvider verwendet werden');
+export const useTerminal = (): TerminalContextProps => {
+  const ctx = useContext(TerminalContext);
+  if (!ctx) {
+    throw new Error('useTerminal must be used within a TerminalProvider');
   }
-  return context;
+  return ctx;
 };

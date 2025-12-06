@@ -1,5 +1,9 @@
-// App.tsx – MIT ALLEN NEUEN SCREENS (Diagnostic + Preview)
+// App.tsx – mit Performance-Optimierungen (V3)
 
+import 'react-native-get-random-values';
+import 'react-native-reanimated';
+
+import React, { memo, useCallback } from 'react';
 import {
   LogBox,
   StyleSheet,
@@ -8,17 +12,12 @@ import {
   Text,
   ActivityIndicator,
 } from 'react-native';
-
-LogBox.ignoreAllLogs(true);
-
-import 'react-native-get-random-values';
-import 'react-native-reanimated';
-
-import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
+
 import { theme } from './theme';
 
 import { TerminalProvider } from './contexts/TerminalContext';
@@ -32,81 +31,94 @@ import TerminalScreen from './screens/TerminalScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import ConnectionsScreen from './screens/ConnectionsScreen';
 import AppInfoScreen from './screens/AppInfoScreen';
-import BuildScreen from './screens/BuildScreen';
 import GitHubReposScreen from './screens/GitHubReposScreen';
 import BuildScreenV2 from './screens/BuildScreenV2';
-
-// ✅ NEUE SCREENS
 import DiagnosticScreen from './screens/DiagnosticScreen';
 import PreviewScreen from './screens/PreviewScreen';
+import KeyBackupScreen from './screens/KeyBackupScreen';
 
 import CustomHeader from './components/CustomHeader';
 import { CustomDrawerContent } from './components/CustomDrawer';
-import { StatusBar } from 'expo-status-bar';
+
+LogBox.ignoreAllLogs(true);
 
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
 
 // ---------------------------------------------------------------
-// TAB NAVIGATION
+// TAB NAVIGATION - MIT MEMO OPTIMIERT
 // ---------------------------------------------------------------
 
-const TabNavigator = () => {
+const TabNavigator: React.FC = memo(() => {
+  const tabScreenOptions = useCallback(
+    ({ route }: { route: { name: string } }) => ({
+      tabBarIcon: ({
+        focused,
+        color,
+        size,
+      }: {
+        focused: boolean;
+        color: string;
+        size: number;
+      }) => {
+        let iconName: keyof typeof Ionicons.glyphMap = 'help-circle';
+
+        if (route.name === 'Chat') {
+          iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+        } else if (route.name === 'Code') {
+          iconName = focused ? 'code-slash' : 'code-slash-outline';
+        } else if (route.name === 'Terminal') {
+          iconName = focused ? 'terminal' : 'terminal-outline';
+        }
+
+        return <Ionicons name={iconName} size={size} color={color} />;
+      },
+      tabBarActiveTintColor: theme.palette.primary,
+      tabBarInactiveTintColor: theme.palette.text.secondary,
+      tabBarStyle: {
+        backgroundColor: theme.palette.card,
+        borderTopWidth: 0,
+      },
+      headerShown: false,
+      tabBarShowLabel: true,
+    }),
+    [],
+  );
+
   return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName: keyof typeof Ionicons.glyphMap = 'help-circle';
-
-          if (route.name === 'Chat') {
-            iconName = focused
-              ? 'chatbubbles'
-              : 'chatbubbles-outline';
-          } else if (route.name === 'Code') {
-            iconName = focused
-              ? 'code-slash'
-              : 'code-slash-outline';
-          } else if (route.name === 'Terminal') {
-            iconName = focused
-              ? 'terminal'
-              : 'terminal-outline';
-          }
-
-          return (
-            <Ionicons name={iconName} size={size} color={color} />
-          );
-        },
-        tabBarActiveTintColor: theme.palette.primary,
-        tabBarInactiveTintColor: theme.palette.text.secondary,
-        tabBarStyle: {
-          backgroundColor: theme.palette.card,
-          borderTopWidth: 0,
-        },
-        headerShown: false,
-        tabBarShowLabel: true,
-      })}
-    >
+    <Tab.Navigator screenOptions={tabScreenOptions}>
       <Tab.Screen name="Chat" component={ChatScreen} />
       <Tab.Screen name="Code" component={CodeScreen} />
       <Tab.Screen name="Terminal" component={TerminalScreen} />
     </Tab.Navigator>
   );
-};
+});
+
+TabNavigator.displayName = 'TabNavigator';
 
 // ---------------------------------------------------------------
-// DRAWER NAVIGATION
+// DRAWER NAVIGATION - MIT MEMO UND USE-CALLBACK
 // ---------------------------------------------------------------
 
-const AppNavigation = () => {
+const AppNavigation: React.FC = memo(() => {
   const { isLoading } = useProject();
+
+  const drawerScreenOptions = useCallback(
+    () => ({
+      header: (props: any) => <CustomHeader {...props} />,
+    }),
+    [],
+  );
+
+  const drawerContent = useCallback(
+    (props: any) => <CustomDrawerContent {...props} />,
+    [],
+  );
 
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator
-          size="large"
-          color={theme.palette.primary}
-        />
+        <ActivityIndicator size="large" color={theme.palette.primary} />
         <Text style={styles.loadingText}>
           Projekt-Manager wird geladen...
         </Text>
@@ -116,67 +128,72 @@ const AppNavigation = () => {
 
   return (
     <NavigationContainer>
-      <StatusBar
-        style="light"
-        backgroundColor={theme.palette.card}
-      />
       <Drawer.Navigator
-        drawerContent={(props) => (
-          <CustomDrawerContent {...props} />
-        )}
-        screenOptions={{
-          header: (props) => <CustomHeader {...props} />,
-          drawerStyle: { backgroundColor: theme.palette.card },
-          drawerActiveTintColor: theme.palette.primary,
-          drawerInactiveTintColor: theme.palette.text.primary,
-        }}
+        initialRouteName="Home"
+        screenOptions={drawerScreenOptions}
+        drawerContent={drawerContent}
       >
+        {/* HOME: Tabs (Chat / Code / Terminal) */}
         <Drawer.Screen
           name="Home"
           component={TabNavigator}
           options={{
-            title: 'k1w1-a0style',
-            drawerLabel: 'Home',
+            title: 'Projekt',
+            drawerLabel: '🏠 Projekt',
           }}
         />
 
+        {/* SETTINGS */}
         <Drawer.Screen
           name="Settings"
           component={SettingsScreen}
           options={{
             title: 'KI-Einstellungen',
-            drawerLabel: 'KI-Einstellungen',
+            drawerLabel: '🤖 KI-Einstellungen',
           }}
         />
 
+        {/* KEYS / BACKUP */}
+        <Drawer.Screen
+          name="KeyBackup"
+          component={KeyBackupScreen}
+          options={{
+            title: 'API-Keys & Backup',
+            drawerLabel: '🔐 Keys & Backup',
+          }}
+        />
+
+        {/* CONNECTIONS */}
         <Drawer.Screen
           name="Connections"
           component={ConnectionsScreen}
           options={{
             title: 'Verbindungen',
-            drawerLabel: 'Verbindungen',
+            drawerLabel: '🔗 Verbindungen',
           }}
         />
 
+        {/* GitHub Repos */}
         <Drawer.Screen
           name="GitHubRepos"
           component={GitHubReposScreen}
           options={{
-            title: 'GitHub Repos',
-            drawerLabel: 'GitHub Repos',
+            title: 'GitHub Repositories',
+            drawerLabel: '🐙 GitHub Repos',
           }}
         />
 
-        {/* ✅ NEUE SCREENS */}
+        {/* DIAGNOSTIC */}
         <Drawer.Screen
           name="Diagnostic"
           component={DiagnosticScreen}
           options={{
-            title: 'Diagnose',
+            title: 'Projekt-Diagnose',
             drawerLabel: '🔍 Diagnose',
           }}
         />
 
+        {/* PREVIEW */}
         <Drawer.Screen
           name="Preview"
           component={PreviewScreen}
@@ -186,70 +203,72 @@ const AppNavigation = () => {
           }}
         />
 
-        <Drawer.Screen
-          name="Builds"
-          component={BuildScreen}
-          options={{
-            title: 'Build Status',
-            drawerLabel: '📦 Builds (alt)',
-          }}
-        />
-
+        {/* EINZIGER Build-Screen: V2 */}
         <Drawer.Screen
           name="BuildsV2"
           component={BuildScreenV2}
           options={{
-            title: 'Build Status V2',
-            drawerLabel: '📦 Builds (V2)',
+            title: 'Build Status',
+            drawerLabel: '📦 Builds',
           }}
         />
 
+        {/* APP INFO */}
         <Drawer.Screen
           name="AppInfo"
           component={AppInfoScreen}
           options={{
             title: 'App Info',
-            drawerLabel: 'App Info',
+            drawerLabel: 'ℹ️ App Info',
           }}
         />
       </Drawer.Navigator>
     </NavigationContainer>
   );
-};
+});
+
+AppNavigation.displayName = 'AppNavigation';
 
 // ---------------------------------------------------------------
-// ROOT WRAPPER
+// ROOT APP - EINFACHER WRAPPER
 // ---------------------------------------------------------------
 
-export default function App() {
+const App: React.FC = memo(() => {
   return (
-    <TerminalProvider>
-      <AIProvider>
-        <ProjectProvider>
-          <GitHubProvider>
-            <AppNavigation />
-          </GitHubProvider>
-        </ProjectProvider>
-      </AIProvider>
-    </TerminalProvider>
+    <ProjectProvider>
+      <GitHubProvider>
+        <TerminalProvider>
+          <AIProvider>
+            <View
+              style={{
+                flex: 1,
+                backgroundColor: theme.palette.background,
+              }}
+            >
+              <RNStatusBar barStyle="light-content" />
+              <StatusBar style="light" />
+              <AppNavigation />
+            </View>
+          </AIProvider>
+        </TerminalProvider>
+      </GitHubProvider>
+    </ProjectProvider>
   );
-}
+});
 
-// ---------------------------------------------------------------
-// STYLES
-// ---------------------------------------------------------------
+App.displayName = 'App';
+
+export default App;
 
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
+    backgroundColor: theme.palette.background,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.palette.background,
-    paddingTop: RNStatusBar.currentHeight || 0,
   },
   loadingText: {
-    marginTop: 15,
+    marginTop: 12,
     color: theme.palette.text.secondary,
-    fontSize: 16,
   },
 });

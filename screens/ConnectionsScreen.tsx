@@ -1,9 +1,4 @@
-// screens/ConnectionsScreen.tsx - MIT ALLEN FIXES (B)
-// ✅ Supabase-Test prüft REST API + build_jobs Tabelle + Edge Functions
-// ✅ Besseres Error-Handling
-// ✅ GitHub-Token-Test mit User-Info
-// ✅ EAS bleibt "sparsam" (kein API-Call)
-
+// screens/ConnectionsScreen.tsx - MIT ALLEN FIXES (B) + TOKEN SICHERHEIT
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
@@ -19,8 +14,6 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
-import { useAI } from '../contexts/AIContext';
-import { useGitHub } from '../contexts/GitHubContext';
 import {
   getGitHubToken,
   saveGitHubToken,
@@ -33,10 +26,14 @@ type StatusType = 'idle' | 'ok' | 'error';
 const STORAGE_KEYS = {
   SUPABASE_RAW: 'supabase_raw',
   SUPABASE_KEY: 'supabase_key',
-  GITHUB_TOKEN: 'github_token',
-  EAS_TOKEN: 'eas_token',
   EAS_PROJECT_ID: 'eas_project_id',
 } as const;
+
+// Helper zum Maskieren von Tokens
+const maskToken = (token: string): string => {
+  if (!token || token.length < 8) return '••••••••';
+  return `${token.substring(0, 4)}••••${token.substring(token.length - 4)}`;
+};
 
 const getStatusColor = (status: StatusType) => {
   switch (status) {
@@ -74,9 +71,6 @@ const deriveSupabaseUrl = (raw: string): { projectId: string; url: string } => {
 };
 
 const ConnectionsScreen: React.FC = () => {
-  const { config } = useAI();
-  const { activeRepo } = useGitHub();
-
   const [supabaseProjectId, setSupabaseProjectId] = useState('');
   const [supabaseKey, setSupabaseKey] = useState('');
   const [githubToken, setGithubTokenState] = useState('');
@@ -93,6 +87,11 @@ const ConnectionsScreen: React.FC = () => {
 
   const [githubUser, setGithubUser] = useState<string | null>(null);
   const [supabaseTestDetails, setSupabaseTestDetails] = useState<string>('');
+
+  // Zustand für Token-Anzeige (maskiert vs. vollständig)
+  const [showSupabaseKey, setShowSupabaseKey] = useState(false);
+  const [showGithubToken, setShowGithubToken] = useState(false);
+  const [showEasToken, setShowEasToken] = useState(false);
 
   // --------------------------------------------------
   // Initial-Load: Supabase, GitHub-Token, EAS-Konfig
@@ -115,15 +114,18 @@ const ConnectionsScreen: React.FC = () => {
         ]);
 
         const envSupabaseUrl =
-          (process.env.EXPO_PUBLIC_SUPABASE_URL as string | undefined) || '';
+          (process.env.EXPO_PUBLIC_SUPABASE_URL as string | undefined) ||
+          '';
         const envSupabaseKey =
-          (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY as string | undefined) || '';
+          (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY as
+            | string
+            | undefined) || '';
 
-        let raw = storedSupabaseRaw || envSupabaseUrl || '';
+        const raw = storedSupabaseRaw || envSupabaseUrl || '';
         const derived = deriveSupabaseUrl(raw);
 
         setSupabaseProjectId(derived.projectId);
-        setSupabaseKey(storedSupabaseKey || envSupabaseKey);
+        setSupabaseKey(storedSupabaseKey || envSupabaseKey || '');
         setGithubTokenState(storedGithubTokenAsync || '');
         setEasToken(storedEasTokenAsync || '');
         setEasProjectId(storedEasProjectId || '');
@@ -147,12 +149,24 @@ const ConnectionsScreen: React.FC = () => {
       }
 
       await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, raw);
-      await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_KEY, supabaseKey.trim());
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.SUPABASE_KEY,
+        supabaseKey.trim(),
+      );
 
-      Alert.alert('✅ Gespeichert', 'Supabase-Konfiguration wurde gespeichert.');
+      Alert.alert(
+        '✅ Gespeichert',
+        'Supabase-Konfiguration wurde gespeichert.',
+      );
     } catch (e) {
-      console.log('[ConnectionsScreen] Fehler beim Speichern Supabase:', e);
-      Alert.alert('Fehler', 'Supabase-Konfiguration konnte nicht gespeichert werden.');
+      console.log(
+        '[ConnectionsScreen] Fehler beim Speichern Supabase:',
+        e,
+      );
+      Alert.alert(
+        'Fehler',
+        'Supabase-Konfiguration konnte nicht gespeichert werden.',
+      );
     }
   }, [supabaseProjectId, supabaseKey]);
 
@@ -164,13 +178,19 @@ const ConnectionsScreen: React.FC = () => {
         return;
       }
 
+      // Nur in der sicheren Storage-Lösung speichern, nicht zusätzlich in AsyncStorage
       await saveGitHubToken(token);
-      await AsyncStorage.setItem(STORAGE_KEYS.GITHUB_TOKEN, token);
 
       Alert.alert('✅ Gespeichert', 'GitHub-Token wurde sicher gespeichert.');
     } catch (e) {
-      console.log('[ConnectionsScreen] Fehler beim Speichern GitHub-Token:', e);
-      Alert.alert('Fehler', 'GitHub-Token konnte nicht gespeichert werden.');
+      console.log(
+        '[ConnectionsScreen] Fehler beim Speichern GitHub-Token:',
+        e,
+      );
+      Alert.alert(
+        'Fehler',
+        'GitHub-Token konnte nicht gespeichert werden.',
+      );
     }
   }, [githubToken]);
 
@@ -180,16 +200,21 @@ const ConnectionsScreen: React.FC = () => {
       const projectId = easProjectId.trim();
 
       await saveExpoToken(token);
-      await AsyncStorage.setItem(STORAGE_KEYS.EAS_TOKEN, token);
       await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, projectId);
 
       Alert.alert(
         '✅ Gespeichert',
-        'EAS-Konfiguration wurde gespeichert (Project ID + optionaler Token).'
+        'EAS-Konfiguration wurde gespeichert (Project ID + optionaler Token).',
       );
     } catch (e) {
-      console.log('[ConnectionsScreen] Fehler beim Speichern EAS:', e);
-      Alert.alert('Fehler', 'EAS-Konfiguration konnte nicht gespeichert werden.');
+      console.log(
+        '[ConnectionsScreen] Fehler beim Speichern EAS:',
+        e,
+      );
+      Alert.alert(
+        'Fehler',
+        'EAS-Konfiguration konnte nicht gespeichert werden.',
+      );
     }
   }, [easToken, easProjectId]);
 
@@ -201,14 +226,20 @@ const ConnectionsScreen: React.FC = () => {
     const key = supabaseKey.trim();
 
     if (!rawId || !key) {
-      Alert.alert('Fehlende Daten', 'Bitte Supabase Project-ID und Anon-Key eintragen.');
+      Alert.alert(
+        'Fehlende Daten',
+        'Bitte Supabase Project-ID und Anon-Key eintragen.',
+      );
       setSupabaseStatus('error');
       return;
     }
 
     const { url } = deriveSupabaseUrl(rawId);
     if (!url) {
-      Alert.alert('Fehler', 'Supabase Project-ID sieht ungültig aus.');
+      Alert.alert(
+        'Fehler',
+        'Supabase Project-ID sieht ungültig aus.',
+      );
       setSupabaseStatus('error');
       return;
     }
@@ -216,7 +247,9 @@ const ConnectionsScreen: React.FC = () => {
     try {
       setLoadingSupabase(true);
       setSupabaseStatus('idle');
-      setSupabaseTestDetails('Teste REST API...');
+
+      let details = 'Teste REST API...';
+      setSupabaseTestDetails(details);
 
       // Test 1: REST API Basisverbindung
       const restRes = await fetch(`${url}/rest/v1/`, {
@@ -228,39 +261,52 @@ const ConnectionsScreen: React.FC = () => {
       });
 
       if (!restRes.ok && restRes.status !== 404) {
-        console.log('[ConnectionsScreen] Supabase Test – REST Status:', restRes.status);
+        console.log(
+          '[ConnectionsScreen] Supabase Test – REST Status:',
+          restRes.status,
+        );
+        details = `REST API Fehler: Status ${restRes.status}`;
+        setSupabaseTestDetails(details);
         setSupabaseStatus('error');
-        setSupabaseTestDetails(`REST API Fehler: Status ${restRes.status}`);
         Alert.alert(
           'Fehler',
-          `Supabase REST API antwortet mit Status ${restRes.status}. Prüfe Project-ID/Key.`
+          `Supabase REST API antwortet mit Status ${restRes.status}. Prüfe Project-ID/Key.`,
         );
         return;
       }
 
-      setSupabaseTestDetails('✓ REST API OK. Teste build_jobs Tabelle...');
+      details = '✓ REST API OK. Teste build_jobs Tabelle...';
+      setSupabaseTestDetails(details);
 
       // Test 2: build_jobs Tabelle prüfen
-      const tableRes = await fetch(`${url}/rest/v1/build_jobs?limit=1`, {
-        method: 'GET',
-        headers: {
-          apikey: key,
-          Authorization: `Bearer ${key}`,
+      const tableRes = await fetch(
+        `${url}/rest/v1/build_jobs?limit=1`,
+        {
+          method: 'GET',
+          headers: {
+            apikey: key,
+            Authorization: `Bearer ${key}`,
+          },
         },
-      });
+      );
 
       if (!tableRes.ok) {
-        console.log('[ConnectionsScreen] build_jobs Test – Status:', tableRes.status);
+        console.log(
+          '[ConnectionsScreen] build_jobs Test – Status:',
+          tableRes.status,
+        );
+        details = `Tabelle build_jobs nicht gefunden (${tableRes.status})`;
+        setSupabaseTestDetails(details);
         setSupabaseStatus('error');
-        setSupabaseTestDetails(`Tabelle build_jobs nicht gefunden (${tableRes.status})`);
         Alert.alert(
           'Tabelle fehlt',
-          'Die Tabelle "build_jobs" existiert nicht in deinem Supabase-Projekt.\n\nBitte deploy das Schema aus der Dokumentation.'
+          'Die Tabelle "build_jobs" existiert nicht in deinem Supabase-Projekt.\n\nBitte deploy das Schema aus der Dokumentation.',
         );
         return;
       }
 
-      setSupabaseTestDetails('✓ build_jobs Tabelle OK. Teste Edge Functions...');
+      details = '✓ build_jobs Tabelle OK. Teste Edge Functions...';
+      setSupabaseTestDetails(details);
 
       // Test 3: Edge Functions (mit Timeout, optional)
       try {
@@ -274,38 +320,54 @@ const ConnectionsScreen: React.FC = () => {
           body: JSON.stringify({}),
         });
 
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('timeout')), 5000)
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 5000),
         );
 
-        const fnRes = (await Promise.race([fnTestPromise, timeoutPromise])) as Response;
+        const fnRes = (await Promise.race([
+          fnTestPromise,
+          timeoutPromise,
+        ])) as Response;
 
         if (fnRes.ok) {
-          setSupabaseTestDetails('✓ REST + Tabelle + Edge Functions OK');
+          details = '✓ REST + Tabelle + Edge Functions OK';
+          setSupabaseTestDetails(details);
           console.log('✅ Edge Functions erreichbar');
         } else {
-          setSupabaseTestDetails('✓ REST + Tabelle OK (Edge Functions nicht getestet)');
-          console.warn('⚠️ Edge Functions nicht erreichbar oder nicht deployed');
+          details =
+            '✓ REST + Tabelle OK (Edge Functions nicht getestet)';
+          setSupabaseTestDetails(details);
+          console.warn(
+            '⚠️ Edge Functions nicht erreichbar oder nicht deployed',
+          );
         }
       } catch (e: any) {
-        setSupabaseTestDetails('✓ REST + Tabelle OK (Edge Functions nicht getestet)');
-        console.warn('⚠️ Edge Functions Test fehlgeschlagen:', e.message);
+        details =
+          '✓ REST + Tabelle OK (Edge Functions nicht getestet)';
+        setSupabaseTestDetails(details);
+        console.warn(
+          '⚠️ Edge Functions Test fehlgeschlagen:',
+          e?.message,
+        );
       }
 
       setSupabaseStatus('ok');
       Alert.alert(
         '✅ Supabase OK',
-        'REST API und build_jobs Tabelle sind erreichbar.\n\n' + supabaseTestDetails
+        'REST API und build_jobs Tabelle sind erreichbar.\n\n' +
+          details,
       );
     } catch (e: any) {
       console.log('[ConnectionsScreen] Supabase Test – Fehler:', e);
       setSupabaseStatus('error');
-      setSupabaseTestDetails(`Fehler: ${e.message || 'Unbekannter Fehler'}`);
-      Alert.alert('Fehler', e?.message ?? 'Supabase konnte nicht erreicht werden.');
+      const msg =
+        e?.message || 'Unbekannter Fehler bei der Supabase-Prüfung.';
+      setSupabaseTestDetails(`Fehler: ${msg}`);
+      Alert.alert('Fehler', msg);
     } finally {
       setLoadingSupabase(false);
     }
-  }, [supabaseProjectId, supabaseKey, supabaseTestDetails]);
+  }, [supabaseProjectId, supabaseKey]);
 
   // --------------------------------------------------
   // GITHUB-TEST – PAT verifizieren
@@ -315,7 +377,7 @@ const ConnectionsScreen: React.FC = () => {
     if (!token) {
       Alert.alert(
         'Kein Token',
-        'Bitte trage dein GitHub-PAT ein und speichere es zuerst.'
+        'Bitte trage dein GitHub-PAT ein und speichere es zuerst.',
       );
       setGithubStatus('error');
       return;
@@ -334,23 +396,27 @@ const ConnectionsScreen: React.FC = () => {
 
       if (!res.ok) {
         const text = await res.text();
-        console.log('[ConnectionsScreen] GitHub Test – Fehler:', res.status, text);
+        console.log(
+          '[ConnectionsScreen] GitHub Test – Fehler:',
+          res.status,
+          text,
+        );
         setGithubStatus('error');
 
         if (res.status === 401) {
           Alert.alert(
             'Token ungültig',
-            'GitHub-Token ist ungültig oder abgelaufen.\n\nBitte erstelle ein neues PAT.'
+            'GitHub-Token ist ungültig oder abgelaufen.\n\nBitte erstelle ein neues PAT.',
           );
         } else if (res.status === 403) {
           Alert.alert(
             'Keine Rechte',
-            'GitHub-Token hat nicht die erforderlichen Rechte.\n\nBenötigt: repo, workflow'
+            'GitHub-Token hat nicht die erforderlichen Rechte.\n\nBenötigt: repo, workflow',
           );
         } else {
           Alert.alert(
             'Fehler',
-            `GitHub-API Fehler (Status ${res.status}).\n\n${text}`
+            `GitHub-API Fehler (Status ${res.status}).\n\n${text}`,
           );
         }
         return;
@@ -362,14 +428,22 @@ const ConnectionsScreen: React.FC = () => {
 
       Alert.alert(
         '✅ GitHub OK',
-        `Token ist gültig!\n\nUser: ${json?.login || 'Unbekannt'}\nScopes: ${
+        `Token ist gültig!\n\nUser: ${
+          json?.login || 'Unbekannt'
+        }\nScopes: ${
           res.headers.get('x-oauth-scopes') || 'Keine Info'
-        }`
+        }`,
       );
     } catch (e: any) {
-      console.log('[ConnectionsScreen] GitHub Test – Netzwerkfehler:', e);
+      console.log(
+        '[ConnectionsScreen] GitHub Test – Netzwerkfehler:',
+        e,
+      );
       setGithubStatus('error');
-      Alert.alert('Fehler', e?.message ?? 'GitHub konnte nicht erreicht werden.');
+      Alert.alert(
+        'Fehler',
+        e?.message ?? 'GitHub konnte nicht erreicht werden.',
+      );
     } finally {
       setLoadingGithub(false);
     }
@@ -391,267 +465,306 @@ const ConnectionsScreen: React.FC = () => {
         setEasStatus('error');
         Alert.alert(
           'Fehlende Daten',
-          'Bitte eine EAS Project ID eintragen (z.B. 5e5a7791-8751-416b-9a1f-831adfffcb6c).'
+          'Bitte eine EAS Project ID eintragen (z.B. 5e5a7791-8751-416b-9a1f-831adfffcb6c).',
         );
         return;
       }
 
+      // Validiere UUID-Format grob
       const uuidRegex =
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (!uuidRegex.test(projectId)) {
-        Alert.alert(
-          'Hinweis',
-          'Die EAS Project ID sieht ungewöhnlich aus. Prüfe sie bitte noch einmal.'
-        );
-      }
-
-      if (!supaId || !supaKey) {
         setEasStatus('error');
         Alert.alert(
-          'Supabase fehlt',
-          'Für EAS-Builds muss Supabase Project-ID und Anon-Key gesetzt sein.'
+          'Formatfehler',
+          'Die EAS Project ID sollte eine UUID sein (z.B. 5e5a7791-8751-416b-9a1f-831adfffcb6c).',
         );
         return;
       }
 
-      setEasStatus('ok');
-      Alert.alert(
-        '✅ Konfiguration OK',
-        'EAS wird über Supabase Edge Functions genutzt.\n\nProject ID und Supabase-Daten sind gesetzt. Es wird kein zusätzlicher API-Call zu Expo ausgeführt – ideal auch für Free-Accounts.'
-      );
+      // Wenn Supabase konfiguriert ist, prüfen ob EAS in Supabase hinterlegt ist
+      if (supaId && supaKey) {
+        setEasStatus('ok');
+        Alert.alert(
+          '✅ EAS Konfiguration OK',
+          `Project ID: ${projectId}\n\nToken: ${
+            easToken ? maskToken(easToken) : 'Kein Token hinterlegt'
+          }\n\nHinweis: Token ist optional für lokale Builds.`,
+        );
+      } else {
+        setEasStatus('ok');
+        Alert.alert(
+          '⚠️ EAS Konfiguration',
+          'Project ID ist eingetragen. Für Builds benötigst du auch eine korrekte Supabase-Konfiguration.',
+        );
+      }
     } catch (e: any) {
       console.log('[ConnectionsScreen] EAS Test – Fehler:', e);
       setEasStatus('error');
       Alert.alert(
         'Fehler',
-        e?.message ?? 'EAS-Konfiguration konnte nicht geprüft werden.'
+        e?.message ?? 'EAS-Konfiguration konnte nicht geprüft werden.',
       );
     } finally {
       setLoadingEas(false);
     }
-  }, [easProjectId, supabaseProjectId, supabaseKey]);
+  }, [easProjectId, easToken, supabaseProjectId, supabaseKey]);
 
-  const renderStatusDot = (status: StatusType) => (
-    <View style={[styles.statusDot, { backgroundColor: getStatusColor(status) }]} />
+  // Render-Funktion für Token-Input mit Toggle
+  const renderTokenInput = (
+    label: string,
+    value: string,
+    onChange: (text: string) => void,
+    secured: boolean,
+    show: boolean,
+    onToggleShow: () => void,
+    placeholder: string = '',
+  ) => (
+    <View style={styles.tokenInputContainer}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={styles.tokenInputRow}>
+        <TextInput
+          style={styles.tokenInput}
+          value={show ? value : maskToken(value)}
+          onChangeText={onChange}
+          placeholder={placeholder}
+          placeholderTextColor={theme.palette.text.secondary}
+          secureTextEntry={secured && !show}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        {secured && value.length > 0 && (
+          <TouchableOpacity
+            onPress={onToggleShow}
+            style={styles.showTokenButton}
+          >
+            <Ionicons
+              name={show ? 'eye-off-outline' : 'eye-outline'}
+              size={20}
+              color={theme.palette.text.secondary}
+            />
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
   );
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Verbindungen</Text>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+    >
+      <Text style={styles.title}>🔗 Verbindungen</Text>
+      <Text style={styles.subtitle}>
+        Hier trägst du die Zugangsdaten für Supabase, GitHub und EAS ein.
+      </Text>
 
-      <View style={styles.platformInfo}>
-        <Ionicons name="information-circle-outline" size={16} color="#fff" />
-        <Text style={styles.platformText}>
-          Läuft auf {Platform.OS === 'ios' ? 'iOS' : 'Android'} – Expo SDK 54.
-        </Text>
-      </View>
-
-      {!!activeRepo && (
-        <View style={styles.githubUserBadge}>
-          <Ionicons name="logo-github" size={16} color="#000" />
-          <Text style={styles.githubUserText}>Aktives Repo: {activeRepo}</Text>
-        </View>
-      )}
-
-      {/* SUPABASE */}
+      {/* Supabase */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
+          <Ionicons
+            name="server-outline"
+            size={20}
+            color={theme.palette.primary}
+          />
           <Text style={styles.sectionTitle}>Supabase</Text>
-          {renderStatusDot(supabaseStatus)}
+          <View
+            style={[
+              styles.statusDot,
+              { backgroundColor: getStatusColor(supabaseStatus) },
+            ]}
+          />
         </View>
-        <Text style={styles.sectionSubtitle}>
-          Nutzt die Supabase Project-ID (z.B. ekibkjarieqaslsrmazl) – die URL wird
-          automatisch als https://&lt;id&gt;.supabase.co gebaut.
-        </Text>
 
-        <Text style={styles.label}>Project ID</Text>
         <TextInput
           style={styles.input}
           value={supabaseProjectId}
           onChangeText={setSupabaseProjectId}
-          placeholder="z.B. ekibkjarieqaslsrmazl"
+          placeholder="Project ID oder URL (z.B. xfgnzpcljsuqqdjlxgul)"
           placeholderTextColor={theme.palette.text.secondary}
           autoCapitalize="none"
         />
 
-        <Text style={styles.label}>Anon Key</Text>
-        <TextInput
-          style={styles.input}
-          value={supabaseKey}
-          onChangeText={setSupabaseKey}
-          placeholder="EXPO_PUBLIC_SUPABASE_ANON_KEY"
-          placeholderTextColor={theme.palette.text.secondary}
-          autoCapitalize="none"
-        />
-
-        {!!supabaseTestDetails && (
-          <View style={styles.testDetails}>
-            <Text style={styles.testDetailsText}>{supabaseTestDetails}</Text>
-          </View>
+        {renderTokenInput(
+          'Anon Key (öffentlich):',
+          supabaseKey,
+          setSupabaseKey,
+          true,
+          showSupabaseKey,
+          () => setShowSupabaseKey(prev => !prev),
+          'sbp_...',
         )}
 
         <View style={styles.buttonRow}>
           <TouchableOpacity
-            style={[styles.button, loadingSupabase && styles.buttonDisabled]}
+            style={styles.saveButton}
             onPress={saveSupabaseConfig}
-            disabled={loadingSupabase}
           >
-            {loadingSupabase ? (
-              <ActivityIndicator size="small" color="#000" />
-            ) : (
-              <>
-                <Ionicons name="save-outline" size={18} color="#000" />
-                <Text style={styles.buttonText}>Speichern</Text>
-              </>
-            )}
+            <Text style={styles.saveButtonText}>Speichern</Text>
           </TouchableOpacity>
-
           <TouchableOpacity
-            style={[styles.button, loadingSupabase && styles.buttonDisabled]}
+            style={[
+              styles.testButton,
+              loadingSupabase && styles.testButtonDisabled,
+            ]}
             onPress={testSupabase}
             disabled={loadingSupabase}
           >
             {loadingSupabase ? (
-              <ActivityIndicator size="small" color="#000" />
+              <ActivityIndicator
+                size="small"
+                color={theme.palette.secondary}
+              />
             ) : (
-              <>
-                <Ionicons name="checkmark-circle-outline" size={18} color="#000" />
-                <Text style={styles.buttonText}>Testen</Text>
-              </>
+              <Text style={styles.testButtonText}>Testen</Text>
             )}
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.hintText}>
-          💡 Test prüft: REST API + build_jobs Tabelle + Edge Functions (optional)
-        </Text>
+        {supabaseTestDetails ? (
+          <Text style={styles.testDetails}>{supabaseTestDetails}</Text>
+        ) : null}
       </View>
 
-      {/* GITHUB */}
+      {/* GitHub */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
+          <Ionicons
+            name="logo-github"
+            size={20}
+            color={theme.palette.primary}
+          />
           <Text style={styles.sectionTitle}>GitHub</Text>
-          {renderStatusDot(githubStatus)}
+          <View
+            style={[
+              styles.statusDot,
+              { backgroundColor: getStatusColor(githubStatus) },
+            ]}
+          />
         </View>
-        <Text style={styles.sectionSubtitle}>
-          Speichere dein Personal Access Token (PAT) und teste die Verbindung.
-        </Text>
 
-        <Text style={styles.label}>GitHub Token (PAT)</Text>
-        <TextInput
-          style={styles.input}
-          value={githubToken}
-          onChangeText={setGithubTokenState}
-          placeholder="ghp_..."
-          placeholderTextColor={theme.palette.text.secondary}
-          autoCapitalize="none"
-        />
+        {renderTokenInput(
+          'Personal Access Token (PAT):',
+          githubToken,
+          setGithubTokenState,
+          true,
+          showGithubToken,
+          () => setShowGithubToken(prev => !prev),
+          'github_pat_...',
+        )}
+
+        {githubUser ? (
+          <View style={styles.userInfo}>
+            <Ionicons
+              name="person-outline"
+              size={16}
+              color={theme.palette.success}
+            />
+            <Text style={styles.userInfoText}>
+              Angemeldet als: {githubUser}
+            </Text>
+          </View>
+        ) : null}
 
         <View style={styles.buttonRow}>
           <TouchableOpacity
-            style={[styles.button, loadingGithub && styles.buttonDisabled]}
+            style={styles.saveButton}
             onPress={saveGithubTokenHandler}
-            disabled={loadingGithub}
           >
-            {loadingGithub ? (
-              <ActivityIndicator size="small" color="#000" />
-            ) : (
-              <>
-                <Ionicons name="save-outline" size={18} color="#000" />
-                <Text style={styles.buttonText}>Speichern</Text>
-              </>
-            )}
+            <Text style={styles.saveButtonText}>Speichern</Text>
           </TouchableOpacity>
-
           <TouchableOpacity
-            style={[styles.button, loadingGithub && styles.buttonDisabled]}
+            style={[
+              styles.testButton,
+              loadingGithub && styles.testButtonDisabled,
+            ]}
             onPress={testGithub}
             disabled={loadingGithub}
           >
             {loadingGithub ? (
-              <ActivityIndicator size="small" color="#000" />
+              <ActivityIndicator
+                size="small"
+                color={theme.palette.secondary}
+              />
             ) : (
-              <>
-                <Ionicons name="checkmark-circle-outline" size={18} color="#000" />
-                <Text style={styles.buttonText}>Testen</Text>
-              </>
+              <Text style={styles.testButtonText}>Testen</Text>
             )}
           </TouchableOpacity>
         </View>
 
-        {!!githubUser && (
-          <View style={styles.githubUserBadge}>
-            <Ionicons name="person-circle-outline" size={18} color="#000" />
-            <Text style={styles.githubUserText}>Eingeloggt als: {githubUser}</Text>
-          </View>
-        )}
+        <Text style={styles.hint}>
+          Benötigte Scopes:{' '}
+          <Text style={styles.hintBold}>repo, workflow</Text>
+        </Text>
       </View>
 
       {/* EAS */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>EAS (Expo Application Services)</Text>
-          {renderStatusDot(easStatus)}
+          <Ionicons
+            name="rocket-outline"
+            size={20}
+            color={theme.palette.primary}
+          />
+          <Text style={styles.sectionTitle}>
+            Expo Application Services (EAS)
+          </Text>
+          <View
+            style={[
+              styles.statusDot,
+              { backgroundColor: getStatusColor(easStatus) },
+            ]}
+          />
         </View>
-        <Text style={styles.sectionSubtitle}>
-          EAS wird bei dir über Supabase Edge Functions (trigger-eas-build) angesteuert.
-        </Text>
 
-        <Text style={styles.label}>EAS Project ID</Text>
         <TextInput
           style={styles.input}
           value={easProjectId}
           onChangeText={setEasProjectId}
-          placeholder="z.B. 5e5a7791-8751-416b-9a1f-831adfffcb6c"
+          placeholder="Project ID (UUID, z.B. 5e5a7791-8751-416b-9a1f-831adfffcb6c)"
           placeholderTextColor={theme.palette.text.secondary}
           autoCapitalize="none"
         />
 
-        <Text style={styles.label}>EAS Token (optional)</Text>
-        <TextInput
-          style={styles.input}
-          value={easToken}
-          onChangeText={setEasToken}
-          placeholder="EAS_TOKEN (falls benötigt)"
-          placeholderTextColor={theme.palette.text.secondary}
-          autoCapitalize="none"
-        />
+        {renderTokenInput(
+          'EAS Token (optional):',
+          easToken,
+          setEasToken,
+          true,
+          showEasToken,
+          () => setShowEasToken(prev => !prev),
+          'eas_...',
+        )}
 
         <View style={styles.buttonRow}>
           <TouchableOpacity
-            style={[styles.button, loadingEas && styles.buttonDisabled]}
+            style={styles.saveButton}
             onPress={saveEasConfig}
-            disabled={loadingEas}
           >
-            {loadingEas ? (
-              <ActivityIndicator size="small" color="#000" />
-            ) : (
-              <>
-                <Ionicons name="save-outline" size={18} color="#000" />
-                <Text style={styles.buttonText}>Speichern</Text>
-              </>
-            )}
+            <Text style={styles.saveButtonText}>Speichern</Text>
           </TouchableOpacity>
-
           <TouchableOpacity
-            style={[styles.button, loadingEas && styles.buttonDisabled]}
+            style={[
+              styles.testButton,
+              loadingEas && styles.testButtonDisabled,
+            ]}
             onPress={testEas}
             disabled={loadingEas}
           >
             {loadingEas ? (
-              <ActivityIndicator size="small" color="#000" />
+              <ActivityIndicator
+                size="small"
+                color={theme.palette.secondary}
+              />
             ) : (
-              <>
-                <Ionicons name="checkmark-circle-outline" size={18} color="#000" />
-                <Text style={styles.buttonText}>Konfig testen</Text>
-              </>
+              <Text style={styles.testButtonText}>Prüfen</Text>
             )}
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.hintText}>
-          💡 Es wird kein Request an Expo geschickt – nur deine lokale Konfiguration wird
-          geprüft.
+        <Text style={styles.hint}>
+          Das EAS Token ist nur für lokale Builds nötig. In der Cloud
+          übernimmt Supabase die Authentifizierung.
         </Text>
       </View>
     </ScrollView>
@@ -664,122 +777,145 @@ const styles = StyleSheet.create({
     backgroundColor: theme.palette.background,
   },
   content: {
-    padding: theme.spacing.md,
-    paddingBottom: theme.spacing.xl,
+    padding: 16,
+    paddingBottom: 32,
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
     color: theme.palette.text.primary,
-    marginBottom: theme.spacing.sm,
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 8,
   },
-  platformInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: theme.spacing.sm,
-  },
-  platformText: {
-    marginLeft: 6,
-    fontSize: 13,
+  subtitle: {
     color: theme.palette.text.secondary,
+    fontSize: 14,
+    marginBottom: 24,
   },
   section: {
-    marginBottom: 24,
-    padding: 12,
-    borderRadius: 8,
     backgroundColor: theme.palette.card,
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: theme.palette.border,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: 12,
   },
   sectionTitle: {
+    color: theme.palette.text.primary,
     fontSize: 16,
     fontWeight: '600',
-    color: theme.palette.text.primary,
-  },
-  sectionSubtitle: {
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-    marginBottom: 8,
-  },
-  label: {
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  input: {
-    backgroundColor: theme.palette.background,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    color: theme.palette.text.primary,
-    fontSize: 13,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    marginTop: 8,
-    columnGap: 8,
-  },
-  button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: theme.palette.primary,
-    marginRight: 8,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    marginLeft: 4,
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#000',
-  },
-  hintText: {
-    marginTop: 8,
-    fontSize: 11,
-    color: theme.palette.text.secondary,
+    marginLeft: 8,
+    flex: 1,
   },
   statusDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
   },
-  githubUserBadge: {
-    marginBottom: theme.spacing.sm,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#fff',
+  input: {
+    backgroundColor: theme.palette.input.background,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: theme.palette.text.primary,
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    marginBottom: 12,
+  },
+  tokenInputContainer: {
+    marginBottom: 12,
+  },
+  tokenInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
   },
-  githubUserText: {
-    marginLeft: 6,
+  tokenInput: {
+    flex: 1,
+    backgroundColor: theme.palette.input.background,
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: theme.palette.text.primary,
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  showTokenButton: {
+    padding: 10,
+    marginLeft: 8,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  saveButton: {
+    flex: 1,
+    backgroundColor: theme.palette.primary,
+    paddingVertical: 10,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  saveButtonText: {
+    color: theme.palette.secondary,
+    fontWeight: '600',
+  },
+  testButton: {
+    flex: 1,
+    backgroundColor: theme.palette.card,
+    paddingVertical: 10,
+    borderRadius: 6,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  testButtonDisabled: {
+    opacity: 0.5,
+  },
+  testButtonText: {
+    color: theme.palette.text.primary,
+    fontWeight: '600',
+  },
+  hint: {
+    color: theme.palette.text.secondary,
     fontSize: 12,
-    color: '#000',
+    marginTop: 12,
+    fontStyle: 'italic',
+  },
+  hintBold: {
+    fontWeight: 'bold',
+    color: theme.palette.text.primary,
   },
   testDetails: {
-    marginTop: 6,
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: theme.palette.background,
-  },
-  testDetailsText: {
-    fontSize: 11,
     color: theme.palette.text.secondary,
+    fontSize: 11,
+    marginTop: 8,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.palette.successSoft,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginBottom: 12,
+  },
+  userInfoText: {
+    color: theme.palette.success,
+    fontSize: 13,
+    marginLeft: 6,
+    fontWeight: '500',
+  },
+  label: {
+    color: theme.palette.text.primary,
+    fontSize: 13,
+    marginBottom: 4,
   },
 });
 

@@ -1,0 +1,98 @@
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  ReactNode,
+} from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+type GitHubStorageState = {
+  activeRepo: string | null;
+  recentRepos: string[];
+};
+
+type GitHubContextValue = { activeRepo: string | null; setActiveRepo: (repo: 
+  string | null) => void; recentRepos: string[]; addRecentRepo: (repo: string) 
+  => void; clearRecentRepos: () => void;
+};
+const GitHubContext = createContext<GitHubContextValue | undefined>(undefined);
+// Neuer Key: speichert aktive Repo-Auswahl + Recent-Liste zusammen
+const STORAGE_KEY = 'github_state_v1'; type Props = { children: ReactNode;
+};
+export const GitHubProvider: React.FC<Props> = ({ children }) => { const 
+  [activeRepo, setActiveRepoState] = useState<string | null>(null); const 
+  [recentRepos, setRecentReposState] = useState<string[]>([]); const 
+  persistState = useCallback(async (state: GitHubStorageState) => {
+    try { await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.log('[GitHubContext] Fehler beim Speichern des States', e);
+    }
+  }, []);
+  useEffect(() => { const load = async () => { try { const raw = await 
+        AsyncStorage.getItem(STORAGE_KEY); if (!raw) {
+          return;
+        }
+        const parsed = JSON.parse(raw);
+        // Fallback: alte Struktur war nur ein string[]
+        if (Array.isArray(parsed)) { const sanitized = parsed.filter( (r) => 
+            typeof r === 'string' && r.length > 0,
+          ); setRecentReposState(sanitized); return;
+        }
+        const storedActive = typeof parsed.activeRepo === 'string' && 
+          parsed.activeRepo.length > 0
+            ? parsed.activeRepo
+            : null;
+        const storedRecent = Array.isArray(parsed.recentRepos) ? 
+          parsed.recentRepos.filter(
+              (r: unknown) => typeof r === 'string' && (r as string).length > 0, 
+            )
+          : [];
+        setActiveRepoState(storedActive); setRecentReposState(storedRecent);
+      } catch (e) {
+        console.log('[GitHubContext] Fehler beim Laden des States', e);
+      }
+    };
+    load();
+  }, []);
+  const setActiveRepo = useCallback( (repo: string | null) => { 
+      setActiveRepoState(repo);
+      // Wenn ein Repo aktiv gesetzt wird, nach vorne in Recent-Liste ziehen
+      if (repo) { setRecentReposState((prev) => { const filtered = 
+          prev.filter((r) => r !== repo); const next = [repo, 
+          ...filtered].slice(0, 10); persistState({ activeRepo: repo, 
+          recentRepos: next }); return next;
+        });
+      } else {
+        // Nur Active leeren, Recent behalten
+        setRecentReposState((prev) => { persistState({ activeRepo: null, 
+          recentRepos: prev }); return prev;
+        });
+      }
+    },
+    [persistState], ); const addRecentRepo = useCallback( (repo: string) => { 
+      setRecentReposState((prev) => {
+        const filtered = prev.filter((r) => r !== repo); const next = [repo, 
+        ...filtered].slice(0, 10); persistState({ activeRepo, recentRepos: next 
+        });
+        return next;
+      });
+    },
+    [activeRepo, persistState], ); const clearRecentRepos = useCallback(() => { 
+    setRecentReposState([]); persistState({ activeRepo, recentRepos: [] });
+  }, [activeRepo, persistState]);
+  const value: GitHubContextValue = { activeRepo, setActiveRepo, recentRepos, 
+    addRecentRepo, clearRecentRepos,
+  };
+  return ( <GitHubContext.Provider 
+    value={value}>{children}</GitHubContext.Provider>
+  );
+};
+export const useGitHub = (): GitHubContextValue => { const ctx = 
+  useContext(GitHubContext); if (!ctx) {
+    throw new Error( 'useGitHub muss innerhalb eines GitHubProvider verwendet 
+      werden',
+    );
+  }
+  return ctx;
+};
