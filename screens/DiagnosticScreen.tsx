@@ -1,4 +1,4 @@
-// screens/DiagnosticScreen.tsx – Fehlersuche & Projekt-Check
+// screens/DiagnosticScreen.tsx – Erweiterte Fehlersuche & Projekt-Check
 
 import React, { useState, useCallback, useMemo } from 'react';
 import {
@@ -8,6 +8,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,11 +17,23 @@ import { useProject } from '../contexts/ProjectContext';
 import { validateProjectFiles } from '../utils/chatUtils';
 import { validateSyntax, validateCodeQuality } from '../utils/syntaxValidator';
 import { ProjectFile } from '../contexts/types';
+import { useNavigation } from '@react-navigation/native';
+import { v4 as uuidv4 } from 'uuid';
 
 type ValidationResult = {
   valid: boolean;
   errors: string[];
   warnings?: string[];
+};
+
+type DiagnosticIssue = {
+  type: 'error' | 'warning' | 'info';
+  source: string; // 'eslint' | 'typescript' | 'expo-doctor' | 'code-quality' | 'syntax'
+  file?: string;
+  line?: number;
+  message: string;
+  code?: string;
+  fixable?: boolean;
 };
 
 type DiagnosticReport = {
@@ -39,9 +52,10 @@ type DiagnosticReport = {
     hasGitignore: boolean;
     hasReadme: boolean;
     hasTypeScriptConfig: boolean;
+    hasEslintConfig: boolean;
   };
   validation: ValidationResult;
-  codeIssues: string[];
+  issues: DiagnosticIssue[];
   dependencies: {
     total: number;
     outdated: string[];
@@ -55,16 +69,43 @@ type DiagnosticReport = {
 };
 
 const DiagnosticScreen: React.FC = () => {
-  const { projectData } = useProject();
+  const { projectData, addChatMessage } = useProject();
+  const navigation = useNavigation();
   const [report, setReport] = useState<DiagnosticReport | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  const runDiagnostic = useCallback(() => {
+  // Funktion um Fehler in den Chat zu schicken
+  const sendIssueToChat = useCallback((issue: DiagnosticIssue) => {
+    const messageContent = `🔧 Fix Request: ${issue.source}\n\n` +
+      `**Typ**: ${issue.type}\n` +
+      (issue.file ? `**Datei**: ${issue.file}\n` : '') +
+      (issue.line ? `**Zeile**: ${issue.line}\n` : '') +
+      `**Problem**: ${issue.message}\n` +
+      (issue.code ? `\n**Code**: ${issue.code}\n` : '') +
+      `\nBitte behebe diesen Fehler und erkläre die Änderungen.`;
+
+    addChatMessage({
+      id: uuidv4(),
+      role: 'user',
+      content: messageContent,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Navigate to Home (Tab Navigator) which contains Chat
+    navigation.navigate('Home' as never);
+    Alert.alert(
+      '✅ An Chat gesendet',
+      'Die Fehlerbeschreibung wurde an den Chat geschickt. Öffne den Chat-Tab um fortzufahren.',
+      [{ text: 'OK' }]
+    );
+  }, [addChatMessage, navigation]);
+
+  const runDiagnostic = useCallback(async () => {
     setIsAnalyzing(true);
     
-    // Simulate async analysis for better UX
-    setTimeout(() => {
+    try {
       const files: ProjectFile[] = projectData?.files ?? [];
+      const issues: DiagnosticIssue[] = [];
 
       // Enhanced statistics
       let totalSize = 0;
@@ -106,6 +147,11 @@ const DiagnosticScreen: React.FC = () => {
         hasGitignore: files.some((f) => f.path === '.gitignore'),
         hasReadme: files.some((f) => f.path === 'README.md'),
         hasTypeScriptConfig: files.some((f) => f.path === 'tsconfig.json'),
+        hasEslintConfig: files.some((f) => 
+          f.path === 'eslint.config.js' || 
+          f.path === '.eslintrc.js' || 
+          f.path === '.eslintrc.json'
+        ),
       };
 
       const validation =
@@ -114,11 +160,29 @@ const DiagnosticScreen: React.FC = () => {
           errors: [],
         };
 
-      // Enhanced code issue detection
-      const codeIssues: string[] = [];
+      // Add validation errors as issues
+      validation.errors?.forEach((err) => {
+        issues.push({
+          type: 'error',
+          source: 'validation',
+          message: err,
+          fixable: false,
+        });
+      });
+
+      validation.warnings?.forEach((warn) => {
+        issues.push({
+          type: 'warning',
+          source: 'validation',
+          message: warn,
+          fixable: false,
+        });
+      });
+
       const filesOver500Lines: string[] = [];
       const unusedComponents: string[] = [];
 
+      // Enhanced code issue detection
       files.forEach((file) => {
         const { path, content } = file;
         const text = String(content ?? '');
@@ -130,23 +194,81 @@ const DiagnosticScreen: React.FC = () => {
         // Check file size
         if (lines.length > 500) {
           filesOver500Lines.push(`${path} (${lines.length} Zeilen)`);
+          issues.push({
+            type: 'warning',
+            source: 'code-quality',
+            file: path,
+            message: `Datei ist sehr groß (${lines.length} Zeilen). Überprüfe ob Refactoring sinnvoll ist.`,
+            fixable: true,
+          });
         }
 
-        // Use enhanced validators
+        // Syntax & Quality validation
         const syntaxErrors = validateSyntax(text, path);
         const qualityErrors = validateCodeQuality(text, path);
         
         syntaxErrors.forEach((err) => {
-          if (err.severity === 'error') {
-            codeIssues.push(`${path}: ${err.message}`);
-          }
+          issues.push({
+            type: err.severity === 'error' ? 'error' : 'warning',
+            source: 'syntax',
+            file: path,
+            line: err.line,
+            message: err.message,
+            code: err.code,
+            fixable: true,
+          });
         });
 
         qualityErrors.forEach((err) => {
-          if (err.severity === 'warning') {
-            codeIssues.push(`${path}: ${err.message}`);
-          }
+          issues.push({
+            type: err.severity === 'error' ? 'error' : 'warning',
+            source: 'code-quality',
+            file: path,
+            line: err.line,
+            message: err.message,
+            code: err.code,
+            fixable: true,
+          });
         });
+
+        // TypeScript specific checks
+        if (path.endsWith('.ts') || path.endsWith('.tsx')) {
+          // Check for common TS issues
+          if (text.includes('any') && !text.includes('// @ts-ignore')) {
+            const anyCount = (text.match(/:\s*any/g) || []).length;
+            if (anyCount > 3) {
+              issues.push({
+                type: 'warning',
+                source: 'typescript',
+                file: path,
+                message: `Datei enthält ${anyCount} 'any' Typen. Typsicherheit verbessern.`,
+                fixable: true,
+              });
+            }
+          }
+
+          // Check for missing type imports
+          if (text.includes('React.FC') && !text.includes("import React")) {
+            issues.push({
+              type: 'error',
+              source: 'typescript',
+              file: path,
+              message: 'React.FC verwendet aber React nicht importiert',
+              fixable: true,
+            });
+          }
+        }
+
+        // ESLint-style checks
+        if (text.includes('console.log') && !path.includes('test')) {
+          issues.push({
+            type: 'warning',
+            source: 'eslint',
+            file: path,
+            message: 'console.log gefunden - sollte vor Production entfernt werden',
+            fixable: true,
+          });
+        }
 
         // Check for unused components
         if ((path.includes('/components/') || path.startsWith('components/')) &&
@@ -154,12 +276,18 @@ const DiagnosticScreen: React.FC = () => {
             !path.endsWith('.test.ts')) {
           const componentName = path.split('/').pop()?.replace(/\.(tsx?|jsx?)$/, '');
           if (componentName) {
-            // Simple check: is component imported anywhere else?
             const isUsed = files.some((f) => 
               f.path !== path && String(f.content).includes(componentName)
             );
             if (!isUsed) {
               unusedComponents.push(path);
+              issues.push({
+                type: 'info',
+                source: 'code-quality',
+                file: path,
+                message: `Komponente wird möglicherweise nicht verwendet`,
+                fixable: false,
+              });
             }
           }
         }
@@ -178,19 +306,50 @@ const DiagnosticScreen: React.FC = () => {
           const pkg = JSON.parse(String(pkgFile.content));
           const deps = { ...pkg.dependencies, ...pkg.devDependencies };
           dependencies.total = Object.keys(deps).length;
-          
-          // Note: Actual outdated/missing check would require npm registry API
-          // This is a simplified version
         } catch (e) {
-          codeIssues.push('package.json: Konnte nicht geparst werden');
+          issues.push({
+            type: 'error',
+            source: 'validation',
+            file: 'package.json',
+            message: 'Konnte nicht geparst werden',
+            fixable: true,
+          });
         }
+      }
+
+      // Expo Doctor check (simulated - in real app would run expo doctor)
+      if (!structure.hasAppTsx) {
+        issues.push({
+          type: 'error',
+          source: 'expo-doctor',
+          message: 'App.tsx fehlt - Haupteinstiegspunkt der App nicht gefunden',
+          fixable: true,
+        });
+      }
+
+      if (!structure.hasPackageJson) {
+        issues.push({
+          type: 'error',
+          source: 'expo-doctor',
+          message: 'package.json fehlt - Projekt ist nicht korrekt konfiguriert',
+          fixable: true,
+        });
+      }
+
+      if (!structure.hasEslintConfig) {
+        issues.push({
+          type: 'info',
+          source: 'eslint',
+          message: 'ESLint-Konfiguration fehlt - Code-Qualitätscheck nicht verfügbar',
+          fixable: true,
+        });
       }
 
       setReport({
         stats,
         structure,
         validation,
-        codeIssues,
+        issues,
         dependencies,
         performance: {
           filesOver500Lines,
@@ -198,9 +357,11 @@ const DiagnosticScreen: React.FC = () => {
           unusedComponents,
         },
       });
-      
+    } catch (error) {
+      Alert.alert('Fehler', 'Analyse fehlgeschlagen. Bitte versuche es erneut.');
+    } finally {
       setIsAnalyzing(false);
-    }, 500);
+    }
   }, [projectData]);
 
   const renderStatRow = (label: string, value: string) => (
@@ -214,16 +375,76 @@ const DiagnosticScreen: React.FC = () => {
 
   const hasIssues = useMemo(() => {
     if (!report) return false;
-    return (
-      !report.validation.valid ||
-      report.codeIssues.length > 0 ||
-      report.performance.filesOver500Lines.length > 0 ||
-      report.performance.unusedComponents.length > 0
-    );
+    return report.issues.length > 0;
   }, [report]);
 
+  const issuesByType = useMemo(() => {
+    if (!report) return { errors: [], warnings: [], info: [] };
+    return {
+      errors: report.issues.filter(i => i.type === 'error'),
+      warnings: report.issues.filter(i => i.type === 'warning'),
+      info: report.issues.filter(i => i.type === 'info'),
+    };
+  }, [report]);
+
+  const renderIssue = (issue: DiagnosticIssue, index: number) => (
+    <View key={index} style={styles.issueCard}>
+      <View style={styles.issueHeader}>
+        <View style={styles.issueHeaderLeft}>
+          <Ionicons
+            name={
+              issue.type === 'error' ? 'close-circle' :
+              issue.type === 'warning' ? 'warning' : 'information-circle'
+            }
+            size={20}
+            color={
+              issue.type === 'error' ? theme.palette.error :
+              issue.type === 'warning' ? theme.palette.warning : theme.palette.primary
+            }
+          />
+          <Text style={[
+            styles.issueSource,
+            issue.type === 'error' && styles.issueSourceError,
+            issue.type === 'warning' && styles.issueSourceWarning,
+          ]}>
+            {issue.source.toUpperCase()}
+          </Text>
+        </View>
+        {issue.fixable && (
+          <TouchableOpacity
+            style={styles.fixButton}
+            onPress={() => sendIssueToChat(issue)}
+          >
+            <Ionicons name="construct" size={16} color={theme.palette.primary} />
+            <Text style={styles.fixButtonText}>Fix</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+      
+      {issue.file && (
+        <Text style={styles.issueFile}>
+          📄 {issue.file}{issue.line ? `:${issue.line}` : ''}
+        </Text>
+      )}
+      
+      <Text style={[
+        styles.issueMessage,
+        issue.type === 'error' && styles.issueMessageError,
+        issue.type === 'warning' && styles.issueMessageWarning,
+      ]}>
+        {issue.message}
+      </Text>
+      
+      {issue.code && (
+        <View style={styles.issueCodeBox}>
+          <Text style={styles.issueCode}>{issue.code}</Text>
+        </View>
+      )}
+    </View>
+  );
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}
@@ -233,7 +454,7 @@ const DiagnosticScreen: React.FC = () => {
           <View style={styles.headerText}>
             <Text style={styles.title}>🔍 Projekt-Diagnose</Text>
             <Text style={styles.subtitle}>
-              Umfassende Analyse: Struktur, Code-Qualität, Performance & Dependencies
+              ESLint, TypeScript, Expo Doctor, Code-Qualität & Performance
             </Text>
           </View>
         </View>
@@ -248,16 +469,19 @@ const DiagnosticScreen: React.FC = () => {
           ) : (
             <>
               <Ionicons name="search" size={18} color="#fff" />
-              <Text style={styles.buttonText}>Analyse starten</Text>
+              <Text style={styles.buttonText}>Vollständige Analyse starten</Text>
             </>
           )}
         </TouchableOpacity>
 
       {!report && (
-        <Text style={styles.hint}>
-          Drück oben auf „Projekt prüfen“, um eine Diagnose zu
-          starten.
-        </Text>
+        <View style={styles.emptyState}>
+          <Ionicons name="flask-outline" size={64} color={theme.palette.text.secondary} />
+          <Text style={styles.emptyTitle}>Bereit für Diagnose</Text>
+          <Text style={styles.emptyText}>
+            Starte die Analyse um detaillierte Informationen über dein Projekt zu erhalten.
+          </Text>
+        </View>
       )}
 
       {report && (
@@ -271,11 +495,11 @@ const DiagnosticScreen: React.FC = () => {
             />
             <View style={styles.healthText}>
               <Text style={styles.healthTitle}>
-                {hasIssues ? '⚠️ Verbesserungen empfohlen' : '✅ Projekt gesund'}
+                {hasIssues ? '⚠️ Probleme gefunden' : '✅ Projekt gesund'}
               </Text>
               <Text style={styles.healthSubtitle}>
                 {hasIssues
-                  ? 'Einige Probleme wurden gefunden'
+                  ? `${issuesByType.errors.length} Fehler, ${issuesByType.warnings.length} Warnungen, ${issuesByType.info.length} Infos`
                   : 'Keine kritischen Probleme erkannt'}
               </Text>
             </View>
@@ -300,86 +524,72 @@ const DiagnosticScreen: React.FC = () => {
             {renderStatRow('.gitignore', renderBool(report.structure.hasGitignore))}
             {renderStatRow('README.md', renderBool(report.structure.hasReadme))}
             {renderStatRow('tsconfig.json', renderBool(report.structure.hasTypeScriptConfig))}
+            {renderStatRow('ESLint Config', renderBool(report.structure.hasEslintConfig))}
+          </View>
 
-          <Text style={styles.sectionTitle}>
-            ⚠️ Validierung
-          </Text>
-          {report.validation.valid &&
-          (!report.validation.errors ||
-            report.validation.errors.length === 0) ? (
-            <Text style={styles.success}>
-              Keine Validierungsfehler gemeldet.
-            </Text>
-          ) : (
-            (report.validation.errors || []).map(
-              (err, idx) => (
-                <Text key={idx} style={styles.error}>
-                  • {err}
+          {/* Errors Section */}
+          {issuesByType.errors.length > 0 && (
+            <View style={styles.issuesSection}>
+              <View style={styles.issuesSectionHeader}>
+                <Ionicons name="close-circle" size={24} color={theme.palette.error} />
+                <Text style={[styles.sectionTitle, styles.sectionTitleError]}>
+                  🚨 Fehler ({issuesByType.errors.length})
                 </Text>
-              )
-            )
-          )}
-
-          {report.validation.warnings &&
-            report.validation.warnings.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>
-                  💡 Hinweise (Validator)
-                </Text>
-                {report.validation.warnings.map(
-                  (w, idx) => (
-                    <Text key={idx} style={styles.warning}>
-                      • {w}
-                    </Text>
-                  )
-                )}
-              </>
-            )}
-
-          {report.codeIssues.length > 0 && (
-            <>
-              <Text style={styles.sectionTitle}>💡 Code-Hinweise</Text>
-              {report.codeIssues.slice(0, 10).map((issue, idx) => (
-                <Text key={idx} style={styles.warning}>
-                  • {issue}
-                </Text>
-              ))}
-              {report.codeIssues.length > 10 && (
-                <Text style={styles.hint}>
-                  ... und {report.codeIssues.length - 10} weitere Hinweise
+              </View>
+              {issuesByType.errors.slice(0, 10).map(renderIssue)}
+              {issuesByType.errors.length > 10 && (
+                <Text style={styles.moreIssuesText}>
+                  ... und {issuesByType.errors.length - 10} weitere Fehler
                 </Text>
               )}
-            </>
+            </View>
           )}
 
-          {report.performance.filesOver500Lines.length > 0 && (
-            <>
-              <Text style={styles.sectionTitle}>⚡ Performance-Hinweise</Text>
-              <Text style={styles.warning}>
-                {report.performance.filesOver500Lines.length} Datei(en) mit >500 Zeilen gefunden:
-              </Text>
-              {report.performance.filesOver500Lines.slice(0, 5).map((file, idx) => (
-                <Text key={idx} style={styles.warningDetail}>
-                  • {file}
+          {/* Warnings Section */}
+          {issuesByType.warnings.length > 0 && (
+            <View style={styles.issuesSection}>
+              <View style={styles.issuesSectionHeader}>
+                <Ionicons name="warning" size={24} color={theme.palette.warning} />
+                <Text style={[styles.sectionTitle, styles.sectionTitleWarning]}>
+                  ⚠️ Warnungen ({issuesByType.warnings.length})
                 </Text>
-              ))}
-            </>
+              </View>
+              {issuesByType.warnings.slice(0, 10).map(renderIssue)}
+              {issuesByType.warnings.length > 10 && (
+                <Text style={styles.moreIssuesText}>
+                  ... und {issuesByType.warnings.length - 10} weitere Warnungen
+                </Text>
+              )}
+            </View>
           )}
 
-          {report.performance.unusedComponents.length > 0 && (
-            <>
-              <Text style={styles.sectionTitle}>🧹 Ungenutzte Komponenten</Text>
-              <Text style={styles.warning}>
-                {report.performance.unusedComponents.length} möglicherweise ungenutzte Komponente(n):
-              </Text>
-              {report.performance.unusedComponents.slice(0, 5).map((comp, idx) => (
-                <Text key={idx} style={styles.warningDetail}>
-                  • {comp}
+          {/* Info Section */}
+          {issuesByType.info.length > 0 && (
+            <View style={styles.issuesSection}>
+              <View style={styles.issuesSectionHeader}>
+                <Ionicons name="information-circle" size={24} color={theme.palette.primary} />
+                <Text style={[styles.sectionTitle, styles.sectionTitleInfo]}>
+                  💡 Hinweise ({issuesByType.info.length})
                 </Text>
-              ))}
-            </>
+              </View>
+              {issuesByType.info.slice(0, 10).map(renderIssue)}
+              {issuesByType.info.length > 10 && (
+                <Text style={styles.moreIssuesText}>
+                  ... und {issuesByType.info.length - 10} weitere Hinweise
+                </Text>
+              )}
+            </View>
           )}
-        </View>
+
+          {!hasIssues && (
+            <View style={styles.successBox}>
+              <Ionicons name="checkmark-circle" size={48} color={theme.palette.success} />
+              <Text style={styles.successTitle}>Alles in Ordnung! 🎉</Text>
+              <Text style={styles.successText}>
+                Keine Fehler oder Warnungen gefunden. Dein Projekt ist sauber.
+              </Text>
+            </View>
+          )}
         </>
       )}
       </ScrollView>
@@ -437,9 +647,28 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
-    color: '#fff',
+    color: '#000',
     fontWeight: '600',
     fontSize: 14,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.palette.text.primary,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   healthCard: {
     flexDirection: 'row',
@@ -471,12 +700,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.palette.text.secondary,
   },
-  hint: {
-    color: theme.palette.text.secondary,
-    fontSize: 13,
-  },
   reportBox: {
-    marginTop: 12,
+    marginBottom: 16,
     padding: 12,
     borderRadius: 8,
     backgroundColor: theme.palette.card,
@@ -484,16 +709,25 @@ const styles = StyleSheet.create({
     borderColor: theme.palette.border,
   },
   sectionTitle: {
-    marginTop: 8,
-    marginBottom: 4,
+    marginTop: 12,
+    marginBottom: 8,
     fontSize: 15,
     fontWeight: 'bold',
     color: theme.palette.text.primary,
   },
+  sectionTitleError: {
+    color: theme.palette.error,
+  },
+  sectionTitleWarning: {
+    color: theme.palette.warning,
+  },
+  sectionTitleInfo: {
+    color: theme.palette.primary,
+  },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 2,
+    paddingVertical: 4,
   },
   rowLabel: {
     color: theme.palette.text.secondary,
@@ -504,29 +738,121 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
   },
-  success: {
-    color: theme.palette.success,
-    fontSize: 13,
+  issuesSection: {
+    marginBottom: 16,
   },
-  error: {
+  issuesSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  issueCard: {
+    backgroundColor: theme.palette.card,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+  },
+  issueHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  issueHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  issueSource: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: theme.palette.text.secondary,
+    letterSpacing: 0.5,
+  },
+  issueSourceError: {
     color: theme.palette.error,
-    fontSize: 13,
   },
-  warning: {
+  issueSourceWarning: {
     color: theme.palette.warning,
-    fontSize: 13,
+  },
+  fixButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: `${theme.palette.primary}15`,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: theme.palette.primary,
+  },
+  fixButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.palette.primary,
+  },
+  issueFile: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
     marginBottom: 4,
+    fontFamily: 'monospace',
   },
-  warningDetail: {
-    color: theme.palette.text.secondary,
-    fontSize: 12,
-    marginLeft: 8,
-    marginBottom: 2,
+  issueMessage: {
+    fontSize: 13,
+    color: theme.palette.text.primary,
+    lineHeight: 18,
   },
-  hint: {
+  issueMessageError: {
+    color: theme.palette.error,
+  },
+  issueMessageWarning: {
+    color: theme.palette.warning,
+  },
+  issueCodeBox: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: theme.palette.background,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  issueCode: {
+    fontSize: 11,
+    fontFamily: 'monospace',
     color: theme.palette.text.secondary,
+  },
+  moreIssuesText: {
     fontSize: 12,
+    color: theme.palette.text.secondary,
     fontStyle: 'italic',
-    marginTop: 4,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  successBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    backgroundColor: `${theme.palette.success}10`,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: theme.palette.success,
+  },
+  successTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.palette.success,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  successText: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

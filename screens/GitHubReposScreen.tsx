@@ -1,5 +1,5 @@
 // screens/GitHubReposScreen.tsx - OPTIMIZED VERSION
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -31,7 +31,8 @@ export default function GitHubReposScreen() {
   const [token, setToken] = useState<string | null>(null);
   const [tokenLoading, setTokenLoading] = useState(false);
 
-  const { repos, loading: loadingRepos, loadRepos, deleteRepo: deleteRepoHook, renameRepo: renameRepoHook, pullFromRepo } = useGitHubRepos(token);
+  const { repos, loading: loadingRepos, loadRepos, deleteRepo: deleteRepoHook, renameRepo: renameRepoHook, pullFromRepo, error: tokenError } = useGitHubRepos(token);
+  const [localRepos, setLocalRepos] = useState<GitHubRepo[]>([]);
 
   const [filterType, setFilterType] = useState<RepoFilterType>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -58,7 +59,7 @@ export default function GitHubReposScreen() {
         setToken(t);
         console.log('[GitHubReposScreen] Token loaded:', !!t);
       } catch (e: any) {
-        console.error('[GitHubReposScreen] Token load error:', e);
+        // Silently handle token load errors
       } finally {
         setTokenLoading(false);
       }
@@ -139,17 +140,18 @@ export default function GitHubReposScreen() {
       setIsCreating(true);
 
       const repo = await createRepo(name, newRepoPrivate);
-      setRepos((prev) => [repo, ...prev]);
+      setLocalRepos((prev) => [repo, ...prev]);
       setNewRepoName('');
+      // Reload repos to sync with backend
+      loadRepos();
 
       Alert.alert('✅ Repo erstellt', `Repository "${repo.full_name}" wurde angelegt.`);
-    } catch (e: any) {
-      console.log('[GitHubReposScreen] Fehler beim Erstellen:', e);
-      Alert.alert(
-        'Fehler beim Erstellen',
-        e?.message ?? 'Repository konnte nicht erstellt werden.'
-      );
-    } finally {
+      } catch (e: any) {
+        Alert.alert(
+          'Fehler beim Erstellen',
+          e?.message ?? 'Repository konnte nicht erstellt werden.'
+        );
+      } finally {
       setIsCreating(false);
     }
   };
@@ -208,7 +210,6 @@ export default function GitHubReposScreen() {
       await pushFilesToRepo(owner, repo, projectData.files as any);
       Alert.alert('✅ Push erfolgreich', `Projekt nach „${activeRepo}" übertragen.`);
     } catch (e: any) {
-      console.log('[GitHubReposScreen] Push-Fehler:', e);
       Alert.alert(
         'Fehler beim Push',
         e?.message ?? 'Projekt konnte nicht nach GitHub gepusht werden.'
@@ -251,8 +252,7 @@ export default function GitHubReposScreen() {
       return;
     }
     const url = `https://github.com/${activeRepo}/actions`;
-    Linking.openURL(url).catch((e) => {
-      console.log('[GitHubReposScreen] Fehler beim Öffnen von Actions:', e);
+    Linking.openURL(url).catch(() => {
       Alert.alert(
         'Fehler',
         'GitHub Actions Seite konnte nicht geöffnet werden.'
@@ -260,7 +260,18 @@ export default function GitHubReposScreen() {
     });
   };
 
-  const filteredRepos = repos.filter((repo) => {
+  // Kombiniere geladene Repos mit lokalen (neu erstellten) Repos
+  const allRepos = useMemo(() => {
+    const combined = [...localRepos];
+    repos.forEach((repo) => {
+      if (!combined.find(r => r.id === repo.id)) {
+        combined.push(repo);
+      }
+    });
+    return combined;
+  }, [repos, localRepos]);
+
+  const filteredRepos = allRepos.filter((repo) => {
     const matchesSearch =
       !searchTerm ||
       repo.name.toLowerCase().includes(searchTerm.toLowerCase()) ||

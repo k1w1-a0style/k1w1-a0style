@@ -44,7 +44,6 @@ import ConnectionsScreen from './screens/ConnectionsScreen';
 import AppInfoScreen from './screens/AppInfoScreen';
 import BuildScreen from './screens/BuildScreen';
 import GitHubReposScreen from './screens/GitHubReposScreen';
-import BuildScreenV2 from './screens/BuildScreenV2';
 
 // ✅ NEUE SCREENS
 import DiagnosticScreen from './screens/DiagnosticScreen';
@@ -52,6 +51,7 @@ import PreviewScreen from './screens/PreviewScreen';
 
 import CustomHeader from './components/CustomHeader';
 import { CustomDrawerContent } from './components/CustomDrawer';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { StatusBar } from 'expo-status-bar';
 
 const Tab = createBottomTabNavigator();
@@ -201,16 +201,7 @@ const AppNavigation = () => {
           component={BuildScreen}
           options={{
             title: 'Build Status',
-            drawerLabel: '📦 Builds (alt)',
-          }}
-        />
-
-        <Drawer.Screen
-          name="BuildsV2"
-          component={BuildScreenV2}
-          options={{
-            title: 'Build Status V2',
-            drawerLabel: '📦 Builds (V2)',
+            drawerLabel: '📦 Builds',
           }}
         />
 
@@ -233,15 +224,17 @@ const AppNavigation = () => {
 
 export default function App() {
   return (
-    <TerminalProvider>
-      <AIProvider>
-        <ProjectProvider>
-          <GitHubProvider>
-            <AppNavigation />
-          </GitHubProvider>
-        </ProjectProvider>
-      </AIProvider>
-    </TerminalProvider>
+    <ErrorBoundary>
+      <TerminalProvider>
+        <AIProvider>
+          <ProjectProvider>
+            <GitHubProvider>
+              <AppNavigation />
+            </GitHubProvider>
+          </ProjectProvider>
+        </AIProvider>
+      </TerminalProvider>
+    </ErrorBoundary>
   );
 }
 

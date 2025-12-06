@@ -1,23 +1,28 @@
-import React from 'react';
-import { Text, StyleSheet } from 'react-native';
+import React, { useMemo } from 'react';
+import { Text, StyleSheet, Platform, View } from 'react-native';
+import { theme } from '../theme';
 
 interface Token {
-  type: 'keyword' | 'string' | 'comment' | 'function' | 'number' | 'operator' | 'default';
+  type: 'keyword' | 'string' | 'comment' | 'function' | 'number' | 'operator' | 'default' | 'type' | 'jsx';
   value: string;
 }
 
-const KEYWORDS = /\b(import|export|const|let|var|function|return|if|else|for|while|class|extends|async|await|try|catch|throw|new|this|super|static|from|as|default|interface|type|enum)\b/g;
+// Erweiterte Regex für bessere Erkennung
+const KEYWORDS = /\b(import|export|const|let|var|function|return|if|else|for|while|class|extends|async|await|try|catch|throw|new|this|super|static|from|as|default|interface|type|enum|implements|readonly|public|private|protected|abstract|declare|namespace|module)\b/g;
+const TYPE_KEYWORDS = /\b(string|number|boolean|void|null|undefined|any|never|unknown|object|symbol|bigint|Array|Promise|Record|Partial|Required|Pick|Omit|React)\b/g;
 const STRINGS = /(["'`])(?:(?=(\\?))\2.)*?\1/g;
 const COMMENTS = /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm;
 const FUNCTIONS = /\b([a-zA-Z_$][a-zA-Z0-9_$]*)\s*(?=\()/g;
 const NUMBERS = /\b(\d+\.?\d*)\b/g;
+const JSX_TAGS = /<\/?([A-Z][a-zA-Z0-9]*)/g;
 
 const tokenize = (code: string): Token[] => {
   const tokens: Token[] = [];
-  const matches: Array<{ index: number; length: number; type: Token['type']; value: string }> = [];
+  const matches: { index: number; length: number; type: Token['type']; value: string }[] = [];
 
   let match;
   
+  // Comments first (highest priority)
   const commentRegex = new RegExp(COMMENTS);
   while ((match = commentRegex.exec(code)) !== null) {
     matches.push({
@@ -28,6 +33,7 @@ const tokenize = (code: string): Token[] => {
     });
   }
 
+  // Strings
   const stringRegex = new RegExp(STRINGS);
   while ((match = stringRegex.exec(code)) !== null) {
     matches.push({
@@ -38,6 +44,29 @@ const tokenize = (code: string): Token[] => {
     });
   }
 
+  // JSX Tags
+  const jsxRegex = new RegExp(JSX_TAGS);
+  while ((match = jsxRegex.exec(code)) !== null) {
+    matches.push({
+      index: match.index,
+      length: match[0].length,
+      type: 'jsx',
+      value: match[0]
+    });
+  }
+
+  // Type Keywords
+  const typeRegex = new RegExp(TYPE_KEYWORDS);
+  while ((match = typeRegex.exec(code)) !== null) {
+    matches.push({
+      index: match.index,
+      length: match[0].length,
+      type: 'type',
+      value: match[0]
+    });
+  }
+
+  // Keywords
   const keywordRegex = new RegExp(KEYWORDS);
   while ((match = keywordRegex.exec(code)) !== null) {
     matches.push({
@@ -48,6 +77,7 @@ const tokenize = (code: string): Token[] => {
     });
   }
 
+  // Functions
   const functionRegex = new RegExp(FUNCTIONS);
   while ((match = functionRegex.exec(code)) !== null) {
     matches.push({
@@ -58,6 +88,7 @@ const tokenize = (code: string): Token[] => {
     });
   }
 
+  // Numbers
   const numberRegex = new RegExp(NUMBERS);
   while ((match = numberRegex.exec(code)) !== null) {
     matches.push({
@@ -68,8 +99,10 @@ const tokenize = (code: string): Token[] => {
     });
   }
 
+  // Sort by position
   matches.sort((a, b) => a.index - b.index);
 
+  // Remove overlaps (keep first match)
   const filteredMatches: typeof matches = [];
   let lastEnd = 0;
   matches.forEach(m => {
@@ -79,6 +112,7 @@ const tokenize = (code: string): Token[] => {
     }
   });
 
+  // Build tokens
   let lastIndex = 0;
   filteredMatches.forEach(m => {
     if (m.index > lastIndex) {
@@ -104,8 +138,41 @@ const tokenize = (code: string): Token[] => {
   return tokens;
 };
 
-export const SyntaxHighlighter: React.FC<{ code: string }> = ({ code }) => {
-  const tokens = tokenize(code);
+interface SyntaxHighlighterProps {
+  code: string;
+  showLineNumbers?: boolean;
+}
+
+export const SyntaxHighlighter: React.FC<SyntaxHighlighterProps> = ({ 
+  code, 
+  showLineNumbers = false 
+}) => {
+  const tokens = useMemo(() => tokenize(code), [code]);
+  
+  const lines = useMemo(() => code.split('\n'), [code]);
+
+  if (showLineNumbers) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.lineNumbers}>
+          {lines.map((_, index) => (
+            <Text key={index} style={styles.lineNumber}>
+              {index + 1}
+            </Text>
+          ))}
+        </View>
+        <View style={styles.codeContent}>
+          <Text style={styles.codeBlock}>
+            {tokens.map((token, index) => (
+              <Text key={index} style={styles[token.type]}>
+                {token.value}
+              </Text>
+            ))}
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <Text style={styles.codeBlock}>
@@ -119,33 +186,62 @@ export const SyntaxHighlighter: React.FC<{ code: string }> = ({ code }) => {
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+  },
+  lineNumbers: {
+    paddingRight: 12,
+    borderRightWidth: 1,
+    borderRightColor: theme.palette.border,
+    marginRight: 12,
+  },
+  lineNumber: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 12,
+    lineHeight: 22,
+    color: theme.palette.text.disabled,
+    textAlign: 'right',
+    minWidth: 28,
+  },
+  codeContent: {
+    flex: 1,
+  },
   codeBlock: {
-    fontFamily: 'monospace',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     fontSize: 14,
     lineHeight: 22,
   },
+  // 🔥 NEON SYNTAX COLORS
   keyword: {
-    color: '#C586C0',
+    color: theme.palette.syntax.keyword, // Neon Magenta
     fontWeight: '600',
   },
   string: {
-    color: '#CE9178',
+    color: theme.palette.syntax.string, // Neon Türkis
   },
   comment: {
-    color: '#6A9955',
+    color: theme.palette.syntax.comment, // Grau
     fontStyle: 'italic',
   },
   function: {
-    color: '#DCDCAA',
+    color: theme.palette.syntax.function, // Neon Gelb
   },
   number: {
-    color: '#B5CEA8',
+    color: theme.palette.syntax.number, // Neon Orange
   },
   operator: {
-    color: '#D4D4D4',
+    color: theme.palette.syntax.operator, // Neon Grün
+  },
+  type: {
+    color: theme.palette.syntax.type, // Neon Blau
+    fontWeight: '500',
+  },
+  jsx: {
+    color: theme.palette.primary, // Neon Grün für JSX
+    fontWeight: '600',
   },
   default: {
-    color: '#D4D4D4',
+    color: theme.palette.syntax.default, // Standard Text
   },
 });
 

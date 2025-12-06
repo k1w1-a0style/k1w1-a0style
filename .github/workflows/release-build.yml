@@ -50,7 +50,11 @@ jobs:
       - name: Build on EAS
         id: eas
         run: |
-          echo "Starting EAS build for ${{ inputs.platform }} (${{ inputs.profile }})..."
+          echo "🚀 Starting EAS build for ${{ inputs.platform }} (${{ inputs.profile }})..."
+          echo "📦 Platform: ${{ inputs.platform }}"
+          echo "⚙️  Profile: ${{ inputs.profile }}"
+          echo ""
+          
           BUILD_OUTPUT=$(eas build \
             --platform ${{ inputs.platform }} \
             --profile ${{ inputs.profile }} \
@@ -58,15 +62,24 @@ jobs:
             --wait \
             2>&1)
           
+          BUILD_EXIT_CODE=$?
           echo "$BUILD_OUTPUT"
           
           # Extract Build ID
           BUILD_ID=$(echo "$BUILD_OUTPUT" | grep -oP 'Build ID: \K[a-f0-9-]+' || echo "unknown")
           echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+          echo "✅ Build ID: $BUILD_ID"
           
           # Extract Build URL
           BUILD_URL=$(echo "$BUILD_OUTPUT" | grep -oP 'https://expo.dev/accounts/[^/]+/projects/[^/]+/builds/[a-f0-9-]+' || echo "")
           echo "build_url=$BUILD_URL" >> $GITHUB_OUTPUT
+          
+          if [ $BUILD_EXIT_CODE -ne 0 ]; then
+            echo "❌ Build failed with exit code $BUILD_EXIT_CODE"
+            exit $BUILD_EXIT_CODE
+          fi
+          
+          echo "✅ Build completed successfully!"
 
       - name: Download Android APK
         if: inputs.platform == 'android' || inputs.platform == 'all'

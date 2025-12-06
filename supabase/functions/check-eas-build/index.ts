@@ -1,11 +1,6 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeaders, handleCors } from "../_shared/cors.ts";
 
 /**
  * ✓ Stabile Status-Überprüfung
@@ -17,9 +12,8 @@ const corsHeaders = {
  */
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
 
   try {
     const body = await req.json().catch(() => null);
@@ -27,9 +21,13 @@ serve(async (req) => {
     if (!body || !body.jobId) {
       return new Response(
         JSON.stringify({
+          ok: false,
           error: "Missing 'jobId' in request body",
         }),
-        { headers: corsHeaders, status: 400 },
+        {
+          headers: corsHeaders,
+          status: 400,
+        },
       );
     }
 
@@ -39,9 +37,13 @@ serve(async (req) => {
     if (!SUPABASE_URL || !SERVICE_ROLE) {
       return new Response(
         JSON.stringify({
+          ok: false,
           error: "Missing required environment variables",
         }),
-        { headers: corsHeaders, status: 500 },
+        {
+          headers: corsHeaders,
+          status: 500,
+        },
       );
     }
 
@@ -71,9 +73,13 @@ serve(async (req) => {
     if (!job.github_repo) {
       return new Response(
         JSON.stringify({
+          ok: false,
           error: "build_jobs row missing github_repo",
         }),
-        { headers: corsHeaders, status: 500 },
+        {
+          headers: corsHeaders,
+          status: 500,
+        },
       );
     }
 
@@ -89,9 +95,13 @@ serve(async (req) => {
     if (!token) {
       return new Response(
         JSON.stringify({
+          ok: false,
           error: "Missing GITHUB_TOKEN",
         }),
-        { headers: corsHeaders, status: 500 },
+        {
+          headers: corsHeaders,
+          status: 500,
+        },
       );
     }
 
@@ -106,11 +116,15 @@ serve(async (req) => {
       const txt = await ghRes.text();
       return new Response(
         JSON.stringify({
+          ok: false,
           error: "GitHub API error",
           status: ghRes.status,
           githubResponse: txt,
         }),
-        { headers: corsHeaders, status: 500 },
+        {
+          headers: corsHeaders,
+          status: 500,
+        },
       );
     }
 
@@ -119,10 +133,14 @@ serve(async (req) => {
     if (!ghJson || !ghJson.workflow_runs) {
       return new Response(
         JSON.stringify({
+          ok: false,
           error: "Invalid GitHub response",
           githubResponse: ghJson,
         }),
-        { headers: corsHeaders, status: 500 },
+        {
+          headers: corsHeaders,
+          status: 500,
+        },
       );
     }
 
@@ -145,7 +163,10 @@ serve(async (req) => {
           status: "waiting",
           message: "No build run found yet",
         }),
-        { headers: corsHeaders, status: 200 },
+        {
+          headers: corsHeaders,
+          status: 200,
+        },
       );
     }
 
@@ -195,7 +216,7 @@ serve(async (req) => {
       },
     });
   } catch (err: any) {
-    console.error("❌ check-eas-build error", err?.message ?? err);
+    console.error("❌ check-eas-build error", err?.message ?? err, err?.stack);
 
     return new Response(
       JSON.stringify({

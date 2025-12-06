@@ -1,11 +1,10 @@
 // components/CustomHeader.tsx (V13 - REPARIERTES ERROR-HANDLING)
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Linking, Platform, Modal, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Linking, Modal, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme, HEADER_HEIGHT } from '../theme';
 import { DrawerHeaderProps } from '@react-navigation/drawer';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Sharing from 'expo-sharing';
 import { useProject, getGitHubToken, getExpoToken } from '../contexts/ProjectContext';
 import { ensureSupabaseClient } from '../lib/supabase';
 import { SupabaseClient } from '@supabase/supabase-js';
@@ -78,7 +77,7 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
       setSelectedRepo(repo.full_name);
       setShowRepoModal(false);
       Alert.alert('Repo ausgewählt', `Aktives Repo: ${repo.full_name}`);
-    } catch (error) {
+    } catch {
       Alert.alert('Fehler', 'Konnte Repo-Auswahl nicht speichern');
     }
   };
@@ -105,7 +104,7 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
     if (!supabaseRef.current) {
         try {
             supabaseRef.current = await ensureSupabaseClient();
-        } catch (e) {
+        } catch {
             setBuildStatus('Supabase-Fehler');
             setIsPolling(false);
             return;

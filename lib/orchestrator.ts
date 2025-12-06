@@ -8,7 +8,12 @@
 import { extractJsonArray, safeJsonParse } from '../utils/chatUtils';
 import { ProjectFile } from '../contexts/types';
 import type { AllAIProviders } from '../contexts/AIContext';
-import { rotateApiKeyOnError } from '../contexts/AIContext';
+import {
+  rotateApiKeyOnError,
+  AVAILABLE_MODELS,
+  PROVIDER_DEFAULTS,
+} from '../contexts/AIContext';
+import SecureKeyManager from './SecureKeyManager';
 
 type ProviderId = AllAIProviders;
 
@@ -74,95 +79,81 @@ const log = (
 };
 
 // ============================================
-// TIMEOUT
+// TIMEOUT MIT ABORT CONTROLLER
 // ============================================
 async function withTimeout<T>(
   promise: Promise<T>,
   ms: number,
   label: string,
+  abortController?: AbortController,
 ): Promise<T> {
-  // Kein echter Abort der inneren fetches, aber sauberes Timeout für den Aufrufer
-  return (Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(
-        () =>
+  // ✅ FIX: Verwende AbortController für echtes Abort
+  const controller = abortController || new AbortController();
+  const timeoutId = setTimeout(() => {
+    if (!controller.signal.aborted) {
+      controller.abort();
+    }
+  }, ms);
+
+  try {
+    const result = await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        if (controller.signal.aborted) {
           reject(
             new Error(`Timeout nach ${ms}ms: ${label || 'orchestrator_call'}`),
-          ),
-        ms,
-      ),
-    ),
-  ]) as unknown) as Promise<T>;
+          );
+          return;
+        }
+        controller.signal.addEventListener('abort', () => {
+          reject(
+            new Error(`Timeout nach ${ms}ms: ${label || 'orchestrator_call'}`),
+          );
+        }, { once: true });
+      }),
+    ]);
+    clearTimeout(timeoutId);
+    return result;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
 }
 
 // ============================================
-// API-KEY RESOLUTION
+// API-KEY RESOLUTION (✅ SICHER mit SecureKeyManager)
 // ============================================
 function resolveApiKey(provider: ProviderId): string | null {
-  const g = (globalThis as any) || {};
-
-  try {
-    const cfg = g.__K1W1_AI_CONFIG;
-    if (cfg?.apiKeys?.[provider]?.[0]) {
-      const key = String(cfg.apiKeys[provider][0]);
-      // ✅ SICHERHEIT: Keine API-Key-Referenzen in Logs
-      log('INFO', `API-Key für ${provider} aus Config geladen`);
-      return key;
-    }
-  } catch {
-    // ignorieren
+  // ✅ SICHER: Zuerst SecureKeyManager prüfen
+  const key = SecureKeyManager.getCurrentKey(provider);
+  
+  if (key) {
+    // ✅ SICHERHEIT: Keine API-Key-Referenzen in Logs
+    log('INFO', `API-Key für ${provider} aus SecureKeyManager geladen`);
+    return key;
   }
 
-  try {
-    let candidate: string | undefined;
+  // Fallback: process.env (nur für Development/Testing)
+  if (typeof process !== 'undefined' && process.env) {
+    const envNames: string[] =
+      provider === 'groq'
+        ? ['GROQ_API_KEY', 'EXPO_PUBLIC_GROQ_API_KEY']
+        : provider === 'gemini'
+        ? ['GEMINI_API_KEY', 'EXPO_PUBLIC_GEMINI_API_KEY']
+        : provider === 'openai'
+        ? ['OPENAI_API_KEY', 'EXPO_PUBLIC_OPENAI_API_KEY']
+        : provider === 'anthropic'
+        ? ['ANTHROPIC_API_KEY', 'EXPO_PUBLIC_ANTHROPIC_API_KEY']
+        : ['HUGGINGFACE_API_KEY', 'EXPO_PUBLIC_HF_API_KEY', 'HF_API_KEY'];
 
-    switch (provider) {
-      case 'groq':
-        candidate = g.GROQ_API_KEY || g.EXPO_PUBLIC_GROQ_API_KEY;
-        break;
-      case 'gemini':
-        candidate = g.GEMINI_API_KEY || g.EXPO_PUBLIC_GEMINI_API_KEY;
-        break;
-      case 'openai':
-        candidate = g.OPENAI_API_KEY || g.EXPO_PUBLIC_OPENAI_API_KEY;
-        break;
-      case 'anthropic':
-        candidate = g.ANTHROPIC_API_KEY || g.EXPO_PUBLIC_ANTHROPIC_API_KEY;
-        break;
-      case 'huggingface':
-        candidate =
-          g.HUGGINGFACE_API_KEY || g.EXPO_PUBLIC_HF_API_KEY || g.HF_API_KEY;
-        break;
-    }
-
-    if (candidate && typeof candidate === 'string' && candidate.trim().length) {
-      // ✅ SICHERHEIT: Keine API-Key-Referenzen in Logs
-      log('INFO', `API-Key für ${provider} aus globalThis geladen`);
-      return candidate.trim();
-    }
-  } catch {
-    // ignorieren
-  }
-
-  const envNames: string[] =
-    provider === 'groq'
-      ? ['GROQ_API_KEY', 'EXPO_PUBLIC_GROQ_API_KEY']
-      : provider === 'gemini'
-      ? ['GEMINI_API_KEY', 'EXPO_PUBLIC_GEMINI_API_KEY']
-      : provider === 'openai'
-      ? ['OPENAI_API_KEY', 'EXPO_PUBLIC_OPENAI_API_KEY']
-      : provider === 'anthropic'
-      ? ['ANTHROPIC_API_KEY', 'EXPO_PUBLIC_ANTHROPIC_API_KEY']
-      : ['HUGGINGFACE_API_KEY', 'EXPO_PUBLIC_HF_API_KEY', 'HF_API_KEY'];
-
-  for (const name of envNames) {
-    const v = (process.env as any)[name];
-    if (typeof v === 'string' && v.trim().length > 0) {
-      log('INFO', `API-Key für ${provider} aus process.env geladen`, {
-        envName: name,
-      });
-      return v.trim();
+    for (const name of envNames) {
+      const v = (process.env as any)[name];
+      if (typeof v === 'string' && v.trim().length > 0) {
+        log('INFO', `API-Key für ${provider} aus process.env geladen`, {
+          envName: name,
+        });
+        return v.trim();
+      }
     }
   }
 
@@ -220,6 +211,12 @@ function enhanceErrorMessage(provider: ProviderId, error: string): string {
 // ============================================
 // META-DATEN / MODE SELECTION
 // ============================================
+const isKnownModel = (provider: ProviderId, modelId: string | undefined): boolean => {
+  if (!modelId) return false;
+  const list = AVAILABLE_MODELS[provider] ?? [];
+  return list.some((entry) => entry.id === modelId);
+};
+
 function detectMetaFromConfig(
   selectedProvider: string,
   selectedModel: string,
@@ -229,66 +226,42 @@ function detectMetaFromConfig(
   model: string;
   quality: 'speed' | 'quality' | 'unknown';
 } {
-  let provider: ProviderId;
+  const provider: ProviderId = PROVIDERS.includes(selectedProvider as ProviderId)
+    ? (selectedProvider as ProviderId)
+    : 'groq';
 
-  switch (selectedProvider) {
-    case 'gemini':
-      provider = 'gemini';
-      break;
-    case 'openai':
-      provider = 'openai';
-      break;
-    case 'anthropic':
-      provider = 'anthropic';
-      break;
-    case 'huggingface':
-      provider = 'huggingface';
-      break;
-    case 'groq':
-    default:
-      provider = 'groq';
-      break;
+  const defaults = PROVIDER_DEFAULTS[provider];
+
+  const quality: 'speed' | 'quality' | 'unknown' =
+    qualityMode === 'speed' || qualityMode === 'quality' ? qualityMode : 'unknown';
+
+  const isAutoSelection =
+    !selectedModel ||
+    selectedModel.startsWith('auto-') ||
+    (!!defaults.auto && selectedModel === defaults.auto);
+
+  if (isAutoSelection) {
+    const target =
+      quality === 'quality'
+        ? defaults.quality
+        : quality === 'speed'
+        ? defaults.speed
+        : defaults.speed;
+    return { provider, model: target, quality };
   }
 
-  let quality: 'speed' | 'quality' | 'unknown' = 'unknown';
-  if (qualityMode === 'speed' || qualityMode === 'quality') {
-    quality = qualityMode;
+  if (isKnownModel(provider, selectedModel)) {
+    return { provider, model: selectedModel, quality };
   }
 
-  let model = (selectedModel || '').trim();
+  const fallback =
+    quality === 'quality'
+      ? defaults.quality
+      : quality === 'speed'
+      ? defaults.speed
+      : defaults.speed;
 
-  if (provider === 'groq') {
-    if (!model || model === 'auto-groq') {
-      model =
-        quality === 'quality'
-          ? 'llama-3.3-70b-versatile'
-          : 'llama-3.1-8b-instant';
-    }
-  } else if (provider === 'gemini') {
-    if (!model || model === 'auto-gemini' || /llama/i.test(model)) {
-      model =
-        quality === 'quality'
-          ? 'gemini-2.5-pro'
-          : 'gemini-2.0-flash-lite-001';
-    }
-  } else if (provider === 'openai') {
-    if (!model || model === 'auto-openai') {
-      model = quality === 'quality' ? 'gpt-4o' : 'gpt-4o-mini';
-    }
-  } else if (provider === 'anthropic') {
-    if (!model || model === 'auto-claude' || model === 'auto-anthropic') {
-      model =
-        quality === 'quality'
-          ? 'claude-3-5-sonnet-20241022'
-          : 'claude-3-5-haiku-20241022';
-    }
-  } else if (provider === 'huggingface') {
-    if (!model || model === 'auto-hf') {
-      model = 'mistralai/Mistral-7B-Instruct-v0.3';
-    }
-  }
-
-  return { provider, model, quality };
+  return { provider, model: fallback, quality };
 }
 
 // ============================================
@@ -326,6 +299,7 @@ async function callGroq(
   apiKey: string,
   model: string,
   messages: LlmMessage[],
+  signal?: AbortSignal,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
   const url = 'https://api.groq.com/openai/v1/chat/completions';
@@ -347,6 +321,7 @@ async function callGroq(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
+    signal, // ✅ FIX: Unterstütze AbortSignal
   });
 
   const json: any = await res.json();
@@ -369,6 +344,7 @@ async function callGemini(
   apiKey: string,
   model: string,
   messages: LlmMessage[],
+  signal?: AbortSignal,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
@@ -402,6 +378,7 @@ async function callGemini(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
+    signal, // ✅ FIX: Unterstütze AbortSignal
   });
 
   const json: any = await res.json();
@@ -422,6 +399,7 @@ async function callOpenAI(
   apiKey: string,
   model: string,
   messages: LlmMessage[],
+  signal?: AbortSignal,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
   const url = 'https://api.openai.com/v1/chat/completions';
@@ -443,6 +421,7 @@ async function callOpenAI(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
+    signal, // ✅ FIX: Unterstütze AbortSignal
   });
 
   const json: any = await res.json();
@@ -464,6 +443,7 @@ async function callAnthropic(
   apiKey: string,
   model: string,
   messages: LlmMessage[],
+  signal?: AbortSignal,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
   const url = 'https://api.anthropic.com/v1/messages';
@@ -491,6 +471,7 @@ async function callAnthropic(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
+    signal, // ✅ FIX: Unterstütze AbortSignal
   });
 
   const json: any = await res.json();
@@ -512,6 +493,7 @@ async function callHuggingFace(
   apiKey: string,
   model: string,
   messages: LlmMessage[],
+  signal?: AbortSignal,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
   const url = `https://api-inference.huggingface.co/models/${model}`;
@@ -535,6 +517,7 @@ async function callHuggingFace(
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify(body),
+    signal, // ✅ FIX: Unterstütze AbortSignal
   });
 
   const json: any = await res.json();
@@ -569,12 +552,14 @@ async function callProviderWithRetry(
 ): Promise<{ result: OrchestratorOkResult; rotations: number }> {
   let rotations = 0;
   const errors: string[] = [];
+  const abortController = new AbortController();
 
   for (let attempt = 0; attempt < MAX_KEY_RETRIES; attempt++) {
     const apiKey = resolveApiKey(provider);
     if (!apiKey) {
       const msg = `Kein API-Key für ${provider} gefunden`;
       log('ERROR', msg);
+      abortController.abort();
       throw new Error(msg);
     }
 
@@ -585,20 +570,22 @@ async function callProviderWithRetry(
 
     try {
       const callPromise = (async () => {
-        if (provider === 'groq') return await callGroq(apiKey, model, messages);
+        const signal = abortController.signal;
+        if (provider === 'groq') return await callGroq(apiKey, model, messages, signal);
         if (provider === 'gemini')
-          return await callGemini(apiKey, model, messages);
+          return await callGemini(apiKey, model, messages, signal);
         if (provider === 'openai')
-          return await callOpenAI(apiKey, model, messages);
+          return await callOpenAI(apiKey, model, messages, signal);
         if (provider === 'anthropic')
-          return await callAnthropic(apiKey, model, messages);
-        return await callHuggingFace(apiKey, model, messages);
+          return await callAnthropic(apiKey, model, messages, signal);
+        return await callHuggingFace(apiKey, model, messages, signal);
       })();
 
       const result = await withTimeout(
         callPromise,
         TIMEOUT_MS,
         `${provider}:${model}`,
+        abortController,
       );
 
       log('INFO', `✅ Erfolg mit ${provider}`, {
@@ -624,7 +611,7 @@ async function callProviderWithRetry(
 
       if (shouldRotateKey(errorMsg)) {
         log('INFO', `🔄 Rotiere Key für ${provider}.`);
-        const rotated = await rotateApiKeyOnError(provider);
+        const rotated = await rotateApiKeyOnError(provider, enhancedMsg);
 
         if (!rotated) {
           log('ERROR', `Alle Keys für ${provider} erschöpft`);

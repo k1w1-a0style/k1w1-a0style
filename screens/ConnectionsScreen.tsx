@@ -4,7 +4,7 @@
 // ✅ GitHub-Token-Test mit User-Info
 // ✅ EAS bleibt "sparsam" (kein API-Call)
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -19,20 +19,22 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
-import { useAI } from '../contexts/AIContext';
 import { useGitHub } from '../contexts/GitHubContext';
 import {
   getGitHubToken,
   saveGitHubToken,
   getExpoToken,
   saveExpoToken,
+  syncRepoSecrets,
 } from '../contexts/ProjectContext';
 
 type StatusType = 'idle' | 'ok' | 'error';
 
 const STORAGE_KEYS = {
   SUPABASE_RAW: 'supabase_raw',
+  SUPABASE_URL: 'supabase_url',
   SUPABASE_KEY: 'supabase_key',
+  SUPABASE_SERVICE_ROLE_KEY: 'supabase_service_role_key',
   GITHUB_TOKEN: 'github_token',
   EAS_TOKEN: 'eas_token',
   EAS_PROJECT_ID: 'eas_project_id',
@@ -74,14 +76,18 @@ const deriveSupabaseUrl = (raw: string): { projectId: string; url: string } => {
 };
 
 const ConnectionsScreen: React.FC = () => {
-  const { config } = useAI();
   const { activeRepo } = useGitHub();
 
   const [supabaseProjectId, setSupabaseProjectId] = useState('');
   const [supabaseKey, setSupabaseKey] = useState('');
+  const [supabaseServiceRoleKey, setSupabaseServiceRoleKey] = useState('');
   const [githubToken, setGithubTokenState] = useState('');
   const [easToken, setEasToken] = useState('');
   const [easProjectId, setEasProjectId] = useState('');
+  const [connectionsLoaded, setConnectionsLoaded] = useState(false);
+  const [syncingSecrets, setSyncingSecrets] = useState(false);
+  const [lastSecretSync, setLastSecretSync] = useState<string | null>(null);
+  const previousRepoRef = useRef<string | null>(null);
 
   const [supabaseStatus, setSupabaseStatus] = useState<StatusType>('idle');
   const [githubStatus, setGithubStatus] = useState<StatusType>('idle');
@@ -102,13 +108,17 @@ const ConnectionsScreen: React.FC = () => {
       try {
         const [
           storedSupabaseRaw,
+          storedSupabaseUrl,
           storedSupabaseKey,
+          storedServiceRoleKey,
           storedGithubTokenAsync,
           storedEasTokenAsync,
           storedEasProjectId,
         ] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_RAW),
+          AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL),
           AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_KEY),
+          AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY),
           getGitHubToken().catch(() => null),
           getExpoToken().catch(() => null),
           AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID),
@@ -119,21 +129,99 @@ const ConnectionsScreen: React.FC = () => {
         const envSupabaseKey =
           (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY as string | undefined) || '';
 
-        let raw = storedSupabaseRaw || envSupabaseUrl || '';
-        const derived = deriveSupabaseUrl(raw);
+        const rawSource = storedSupabaseRaw || storedSupabaseUrl || envSupabaseUrl || '';
+        const derived = rawSource ? deriveSupabaseUrl(rawSource) : { projectId: '', url: '' };
 
-        setSupabaseProjectId(derived.projectId);
+        setSupabaseProjectId(storedSupabaseRaw || derived.projectId);
         setSupabaseKey(storedSupabaseKey || envSupabaseKey);
+        setSupabaseServiceRoleKey(storedServiceRoleKey || '');
         setGithubTokenState(storedGithubTokenAsync || '');
         setEasToken(storedEasTokenAsync || '');
         setEasProjectId(storedEasProjectId || '');
       } catch (e) {
-        console.log('[ConnectionsScreen] Fehler beim Laden:', e);
+        // Silently handle load errors
+      } finally {
+        setConnectionsLoaded(true);
       }
     };
 
     loadConnections();
   }, []);
+
+  const secretPayload = useMemo(() => {
+    const trimmedProject = supabaseProjectId.trim();
+    const derived = trimmedProject ? deriveSupabaseUrl(trimmedProject) : { projectId: '', url: '' };
+
+    return {
+      supabaseUrl: derived.url || null,
+      supabaseServiceRole: supabaseServiceRoleKey.trim() || null,
+      expoToken: easToken.trim() || null,
+    };
+  }, [supabaseProjectId, supabaseServiceRoleKey, easToken]);
+
+  const hasSecretsConfigured = useMemo(
+    () => Object.values(secretPayload).some(Boolean),
+    [secretPayload],
+  );
+
+  const syncSecretsForActiveRepo = useCallback(
+    async (reason: 'manual' | 'auto') => {
+      if (!activeRepo) {
+        if (reason === 'manual') {
+          Alert.alert(
+            'Kein Repo',
+            'Bitte wähle zuerst ein aktives GitHub-Repository im GitHub-Screen aus.',
+          );
+        }
+        return;
+      }
+
+      if (!hasSecretsConfigured) {
+        if (reason === 'manual') {
+          Alert.alert(
+            'Keine Daten',
+            'Es gibt aktuell keine Supabase/EAS-Werte, die als Secret gespeichert werden können.',
+          );
+        }
+        return;
+      }
+
+      setSyncingSecrets(true);
+      try {
+        const result = await syncRepoSecrets(activeRepo, secretPayload);
+        setLastSecretSync(new Date().toISOString());
+
+        if (reason === 'manual') {
+          const msg = result.updated.length
+            ? `Folgende Secrets wurden gesetzt:\n${result.updated.join(', ')}`
+            : 'Es wurden keine Secrets geändert (alle Werte waren bereits identisch).';
+          Alert.alert('Repo-Secrets aktualisiert', msg);
+        }
+      } catch (error: any) {
+        const message = error?.message ?? 'Unbekannter Fehler beim Secret-Sync.';
+        if (reason === 'manual') {
+          Alert.alert('Secret Sync fehlgeschlagen', message);
+        }
+      } finally {
+        setSyncingSecrets(false);
+      }
+    },
+    [activeRepo, hasSecretsConfigured, secretPayload],
+  );
+
+  useEffect(() => {
+    if (!connectionsLoaded || !activeRepo) {
+      previousRepoRef.current = activeRepo ?? null;
+      return;
+    }
+
+    if (previousRepoRef.current === activeRepo) {
+      return;
+    }
+
+    previousRepoRef.current = activeRepo;
+    syncSecretsForActiveRepo('auto');
+  }, [activeRepo, connectionsLoaded, syncSecretsForActiveRepo]);
 
   // --------------------------------------------------
   // SAVE-Actions
@@ -146,15 +234,24 @@ const ConnectionsScreen: React.FC = () => {
         return;
       }
 
+      const derived = deriveSupabaseUrl(raw);
+
       await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, raw);
+      if (derived.url) {
+        await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, derived.url);
+      }
       await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_KEY, supabaseKey.trim());
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
+        supabaseServiceRoleKey.trim(),
+      );
 
       Alert.alert('✅ Gespeichert', 'Supabase-Konfiguration wurde gespeichert.');
+      await syncSecretsForActiveRepo('manual');
     } catch (e) {
-      console.log('[ConnectionsScreen] Fehler beim Speichern Supabase:', e);
       Alert.alert('Fehler', 'Supabase-Konfiguration konnte nicht gespeichert werden.');
     }
-  }, [supabaseProjectId, supabaseKey]);
+  }, [supabaseProjectId, supabaseKey, supabaseServiceRoleKey, syncSecretsForActiveRepo]);
 
   const saveGithubTokenHandler = useCallback(async () => {
     try {
@@ -169,7 +266,6 @@ const ConnectionsScreen: React.FC = () => {
 
       Alert.alert('✅ Gespeichert', 'GitHub-Token wurde sicher gespeichert.');
     } catch (e) {
-      console.log('[ConnectionsScreen] Fehler beim Speichern GitHub-Token:', e);
       Alert.alert('Fehler', 'GitHub-Token konnte nicht gespeichert werden.');
     }
   }, [githubToken]);
@@ -187,11 +283,11 @@ const ConnectionsScreen: React.FC = () => {
         '✅ Gespeichert',
         'EAS-Konfiguration wurde gespeichert (Project ID + optionaler Token).'
       );
+      await syncSecretsForActiveRepo('manual');
     } catch (e) {
-      console.log('[ConnectionsScreen] Fehler beim Speichern EAS:', e);
       Alert.alert('Fehler', 'EAS-Konfiguration konnte nicht gespeichert werden.');
     }
-  }, [easToken, easProjectId]);
+  }, [easToken, easProjectId, syncSecretsForActiveRepo]);
 
   // --------------------------------------------------
   // SUPABASE-TEST (REST + build_jobs + Edge Functions)
@@ -228,7 +324,6 @@ const ConnectionsScreen: React.FC = () => {
       });
 
       if (!restRes.ok && restRes.status !== 404) {
-        console.log('[ConnectionsScreen] Supabase Test – REST Status:', restRes.status);
         setSupabaseStatus('error');
         setSupabaseTestDetails(`REST API Fehler: Status ${restRes.status}`);
         Alert.alert(
@@ -250,7 +345,6 @@ const ConnectionsScreen: React.FC = () => {
       });
 
       if (!tableRes.ok) {
-        console.log('[ConnectionsScreen] build_jobs Test – Status:', tableRes.status);
         setSupabaseStatus('error');
         setSupabaseTestDetails(`Tabelle build_jobs nicht gefunden (${tableRes.status})`);
         Alert.alert(
@@ -282,14 +376,11 @@ const ConnectionsScreen: React.FC = () => {
 
         if (fnRes.ok) {
           setSupabaseTestDetails('✓ REST + Tabelle + Edge Functions OK');
-          console.log('✅ Edge Functions erreichbar');
         } else {
           setSupabaseTestDetails('✓ REST + Tabelle OK (Edge Functions nicht getestet)');
-          console.warn('⚠️ Edge Functions nicht erreichbar oder nicht deployed');
         }
       } catch (e: any) {
         setSupabaseTestDetails('✓ REST + Tabelle OK (Edge Functions nicht getestet)');
-        console.warn('⚠️ Edge Functions Test fehlgeschlagen:', e.message);
       }
 
       setSupabaseStatus('ok');
@@ -298,7 +389,6 @@ const ConnectionsScreen: React.FC = () => {
         'REST API und build_jobs Tabelle sind erreichbar.\n\n' + supabaseTestDetails
       );
     } catch (e: any) {
-      console.log('[ConnectionsScreen] Supabase Test – Fehler:', e);
       setSupabaseStatus('error');
       setSupabaseTestDetails(`Fehler: ${e.message || 'Unbekannter Fehler'}`);
       Alert.alert('Fehler', e?.message ?? 'Supabase konnte nicht erreicht werden.');
@@ -334,7 +424,6 @@ const ConnectionsScreen: React.FC = () => {
 
       if (!res.ok) {
         const text = await res.text();
-        console.log('[ConnectionsScreen] GitHub Test – Fehler:', res.status, text);
         setGithubStatus('error');
 
         if (res.status === 401) {
@@ -367,7 +456,6 @@ const ConnectionsScreen: React.FC = () => {
         }`
       );
     } catch (e: any) {
-      console.log('[ConnectionsScreen] GitHub Test – Netzwerkfehler:', e);
       setGithubStatus('error');
       Alert.alert('Fehler', e?.message ?? 'GitHub konnte nicht erreicht werden.');
     } finally {
@@ -420,7 +508,6 @@ const ConnectionsScreen: React.FC = () => {
         'EAS wird über Supabase Edge Functions genutzt.\n\nProject ID und Supabase-Daten sind gesetzt. Es wird kein zusätzlicher API-Call zu Expo ausgeführt – ideal auch für Free-Accounts.'
       );
     } catch (e: any) {
-      console.log('[ConnectionsScreen] EAS Test – Fehler:', e);
       setEasStatus('error');
       Alert.alert(
         'Fehler',
@@ -447,10 +534,38 @@ const ConnectionsScreen: React.FC = () => {
       </View>
 
       {!!activeRepo && (
-        <View style={styles.githubUserBadge}>
-          <Ionicons name="logo-github" size={16} color="#000" />
-          <Text style={styles.githubUserText}>Aktives Repo: {activeRepo}</Text>
-        </View>
+        <>
+          <View style={styles.githubUserBadge}>
+            <Ionicons name="logo-github" size={16} color="#000" />
+            <Text style={styles.githubUserText}>Aktives Repo: {activeRepo}</Text>
+          </View>
+
+          <View style={styles.secretSyncBox}>
+            <Text style={styles.secretSyncText}>
+              Repo-Secrets:{' '}
+              {lastSecretSync
+                ? `zuletzt ${new Date(lastSecretSync).toLocaleTimeString()}`
+                : 'noch nie synchronisiert'}
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.secretSyncButton,
+                (syncingSecrets || !hasSecretsConfigured) && styles.buttonDisabled,
+              ]}
+              onPress={() => syncSecretsForActiveRepo('manual')}
+              disabled={syncingSecrets || !hasSecretsConfigured}
+            >
+              {syncingSecrets ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <>
+                  <Ionicons name="cloud-upload-outline" size={18} color="#000" />
+                  <Text style={styles.secretSyncButtonText}>Secrets syncen</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </>
       )}
 
       {/* SUPABASE */}
@@ -480,6 +595,16 @@ const ConnectionsScreen: React.FC = () => {
           value={supabaseKey}
           onChangeText={setSupabaseKey}
           placeholder="EXPO_PUBLIC_SUPABASE_ANON_KEY"
+          placeholderTextColor={theme.palette.text.secondary}
+          autoCapitalize="none"
+        />
+
+        <Text style={styles.label}>Service Role Key</Text>
+        <TextInput
+          style={styles.input}
+          value={supabaseServiceRoleKey}
+          onChangeText={setSupabaseServiceRoleKey}
+          placeholder="SUPABASE_SERVICE_ROLE_KEY"
           placeholderTextColor={theme.palette.text.secondary}
           autoCapitalize="none"
         />
@@ -769,6 +894,35 @@ const styles = StyleSheet.create({
   githubUserText: {
     marginLeft: 6,
     fontSize: 12,
+    color: '#000',
+  },
+  secretSyncBox: {
+    marginBottom: theme.spacing.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: theme.palette.card,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  secretSyncText: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+    marginBottom: 6,
+  },
+  secretSyncButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: theme.palette.primary,
+  },
+  secretSyncButtonText: {
+    marginLeft: 6,
+    fontSize: 12,
+    fontWeight: '600',
     color: '#000',
   },
   testDetails: {

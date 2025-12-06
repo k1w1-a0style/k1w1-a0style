@@ -46,16 +46,16 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
     load();
   }, []);
 
-  const persist = async (repos: string[]) => {
+  const persist = useCallback(async (repos: string[]) => {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(repos));
     } catch (e) {
-      console.log(
+      console.error(
         '[GitHubContext] Fehler beim Speichern der Recent Repos',
         e
       );
     }
-  };
+  }, []);
 
   const setActiveRepo = useCallback((repo: string | null) => {
     setActiveRepoState(repo);
@@ -63,25 +63,34 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
       setRecentRepos((prev) => {
         const filtered = prev.filter((r) => r !== repo);
         const next = [repo, ...filtered].slice(0, 10);
-        persist(next);
+        // ✅ FIX: persist async aufrufen, aber nicht await (non-blocking)
+        persist(next).catch(err => {
+          console.error('[GitHubContext] Fehler beim Persistieren:', err);
+        });
         return next;
       });
     }
-  }, []);
+  }, [persist]);
 
   const addRecentRepo = useCallback((repo: string) => {
     setRecentRepos((prev) => {
       const filtered = prev.filter((r) => r !== repo);
       const next = [repo, ...filtered].slice(0, 10);
-      persist(next);
+      // ✅ FIX: persist async aufrufen, aber nicht await (non-blocking)
+      persist(next).catch(err => {
+        console.error('[GitHubContext] Fehler beim Persistieren:', err);
+      });
       return next;
     });
-  }, []);
+  }, [persist]);
 
   const clearRecentRepos = useCallback(() => {
     setRecentRepos([]);
-    persist([]);
-  }, []);
+    // ✅ FIX: persist async aufrufen
+    persist([]).catch(err => {
+      console.error('[GitHubContext] Fehler beim Persistieren:', err);
+    });
+  }, [persist]);
 
   const value: GitHubContextValue = {
     activeRepo,
