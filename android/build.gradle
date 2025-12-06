@@ -20,6 +20,16 @@ buildscript {
     classpath('com.facebook.react:react-native-gradle-plugin')
     classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
   }
+  
+  // Force all Kotlin dependencies to use the same version
+  configurations.all {
+    resolutionStrategy {
+      force "org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion"
+      force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlinVersion"
+      force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlinVersion"
+      force "org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion"
+    }
+  }
 }
 
 allprojects {
@@ -27,6 +37,16 @@ allprojects {
     google()
     mavenCentral()
     maven { url 'https://www.jitpack.io' }
+  }
+  
+  // Force all Kotlin dependencies to use version 2.0.21
+  configurations.all {
+    resolutionStrategy {
+      force "org.jetbrains.kotlin:kotlin-stdlib:${rootProject.ext.kotlinVersion}"
+      force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${rootProject.ext.kotlinVersion}"
+      force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${rootProject.ext.kotlinVersion}"
+      force "org.jetbrains.kotlin:kotlin-reflect:${rootProject.ext.kotlinVersion}"
+    }
   }
 }
 

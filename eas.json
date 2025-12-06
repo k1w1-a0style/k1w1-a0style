@@ -31,7 +31,8 @@
         "gradleCommand": ":app:assembleRelease"
       },
       "env": {
-        "NODE_ENV": "production"
+        "NODE_ENV": "production",
+        "EAS_SKIP_AUTO_FINGERPRINT": "1"
       },
       "cache": {
         "key": "preview-cache-v1",
@@ -49,7 +50,8 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "NODE_ENV": "production"
+        "NODE_ENV": "production",
+        "EAS_SKIP_AUTO_FINGERPRINT": "1"
       },
       "cache": {
         "key": "production-cache-v1",
