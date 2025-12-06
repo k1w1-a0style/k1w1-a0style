@@ -2,18 +2,15 @@
 
 buildscript {
   ext {
-    // Explicitly set Kotlin version to 2.0.21 (supported by KSP)
-    // This fixes the KSP compatibility issue with Kotlin 1.9.24
-    kotlinVersion = '2.0.21'
-    // Android Gradle Plugin version compatible with Expo SDK 54 and Gradle 8.14
-    agpVersion = '8.7.3'
+    // Use Kotlin version from gradle.properties (android.kotlinVersion) or default to 2.0.21
+    // This ensures consistency with the Expo version catalog override
+    kotlinVersion = findProperty('android.kotlinVersion') ?: '2.0.21'
   }
   repositories {
     google()
     mavenCentral()
   }
   dependencies {
-    classpath("com.android.tools.build:gradle:$agpVersion")
     classpath('com.facebook.react:react-native-gradle-plugin')
     classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
   }
