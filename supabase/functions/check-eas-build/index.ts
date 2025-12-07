@@ -67,6 +67,7 @@ serve(async (req) => {
     }
 
     const job = jobRes.data;
+    const jobIdStr = `${job.id ?? ""}`;
 
     if (!job.github_repo) {
       return new Response(
@@ -81,8 +82,14 @@ serve(async (req) => {
     // 2) GitHub Actions Build Status holen
     // -----------------------------------------------------
     const repo = job.github_repo;
-    const ghUrl =
-      `https://api.github.com/repos/${repo}/actions/runs?per_page=5`;
+    const workflowFile =
+      (job.workflow_file && typeof job.workflow_file === "string"
+        ? job.workflow_file
+        : "eas-build.yml");
+    const workflowRunsUrl =
+      `https://api.github.com/repos/${repo}/actions/workflows/${
+        encodeURIComponent(workflowFile)
+      }/runs?per_page=10`;
 
     const token = Deno.env.get("GITHUB_TOKEN");
 
@@ -95,47 +102,82 @@ serve(async (req) => {
       );
     }
 
-    const ghRes = await fetch(ghUrl, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const githubHeaders = {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+    };
 
-    if (!ghRes.ok) {
-      const txt = await ghRes.text();
-      return new Response(
-        JSON.stringify({
-          error: "GitHub API error",
-          status: ghRes.status,
-          githubResponse: txt,
-        }),
-        { headers: corsHeaders, status: 500 },
+    let run: any = null;
+    const targetRunId = job.github_run_id
+      ? job.github_run_id.toString()
+      : null;
+
+    if (targetRunId) {
+      const runRes = await fetch(
+        `https://api.github.com/repos/${repo}/actions/runs/${targetRunId}`,
+        { headers: githubHeaders },
       );
+      if (runRes.ok) {
+        run = await runRes.json().catch(() => null);
+      } else if (runRes.status !== 404) {
+        const txt = await runRes.text();
+        return new Response(
+          JSON.stringify({
+            error: "GitHub run lookup failed",
+            status: runRes.status,
+            githubResponse: txt,
+          }),
+          { headers: corsHeaders, status: 500 },
+        );
+      }
     }
 
-    const ghJson = await ghRes.json().catch(() => null);
+    if (!run) {
+      const ghRes = await fetch(workflowRunsUrl, {
+        headers: githubHeaders,
+      });
 
-    if (!ghJson || !ghJson.workflow_runs) {
-      return new Response(
-        JSON.stringify({
-          error: "Invalid GitHub response",
-          githubResponse: ghJson,
-        }),
-        { headers: corsHeaders, status: 500 },
+      if (!ghRes.ok) {
+        const txt = await ghRes.text();
+        return new Response(
+          JSON.stringify({
+            error: "GitHub API error",
+            status: ghRes.status,
+            githubResponse: txt,
+          }),
+          { headers: corsHeaders, status: 500 },
+        );
+      }
+
+      const ghJson = await ghRes.json().catch(() => null);
+
+      if (!ghJson || !ghJson.workflow_runs) {
+        return new Response(
+          JSON.stringify({
+            error: "Invalid GitHub response",
+            githubResponse: ghJson,
+          }),
+          { headers: corsHeaders, status: 500 },
+        );
+      }
+
+      const runs: any[] = ghJson.workflow_runs;
+      const normalizedJobName = jobIdStr ? jobIdStr.trim() : "";
+
+      run = runs.find((r: any) =>
+        normalizedJobName &&
+        typeof r?.name === "string" &&
+        r.name.trim().endsWith(normalizedJobName)
       );
+
+      if (!run) {
+        run = runs.find((r: any) => r?.event === "repository_dispatch");
+      }
+
+      if (!run) {
+        run = runs[0];
+      }
     }
-
-    // -----------------------------------------------------
-    // 3) Build finden (nur passende Repo-Runs)
-    // -----------------------------------------------------
-    const run = ghJson.workflow_runs.find((r: any) => {
-      return (
-        r.head_repository &&
-        r.head_repository.full_name &&
-        r.head_repository.full_name.toLowerCase() === repo.toLowerCase()
-      );
-    });
 
     if (!run) {
       return new Response(
@@ -147,6 +189,19 @@ serve(async (req) => {
         }),
         { headers: corsHeaders, status: 200 },
       );
+    }
+
+    if (
+      !targetRunId &&
+      run?.id &&
+      jobIdStr &&
+      typeof run?.name === "string" &&
+      run.name.trim().endsWith(jobIdStr.trim())
+    ) {
+      await supabase
+        .from("build_jobs")
+        .update({ github_run_id: `${run.id}` })
+        .eq("id", job.id);
     }
 
     // -----------------------------------------------------

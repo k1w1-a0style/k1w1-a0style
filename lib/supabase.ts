@@ -1,12 +1,17 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toAppError, logAppError } from '../utils/errorUtils';
+import {
+  deriveSupabaseDetails,
+  SUPABASE_STORAGE_KEYS,
+} from './supabaseConfig';
 
 let supabaseClient: SupabaseClient | null = null;
 let initPromise: Promise<SupabaseClient> | null = null;
 
-const STORAGE_URL_KEY = 'supabase_url';
-const STORAGE_ANON_KEY = 'supabase_key';
+const STORAGE_URL_KEY = SUPABASE_STORAGE_KEYS.URL;
+const STORAGE_RAW_KEY = SUPABASE_STORAGE_KEYS.RAW;
+const STORAGE_ANON_KEY = SUPABASE_STORAGE_KEYS.KEY;
 
 const setRuntimeEnvFromSupabase = (url: string, anonKey: string) => {
   try {
@@ -58,8 +63,30 @@ export const ensureSupabaseClient = async (): Promise<SupabaseClient> => {
   initPromise = (async () => {
     try {
       // 1) Werte aus deinen App-Settings (AsyncStorage)
-      let supabaseUrl = await AsyncStorage.getItem(STORAGE_URL_KEY);
-      let supabaseAnonKey = await AsyncStorage.getItem(STORAGE_ANON_KEY);
+      const [storedUrl, supabaseAnonKeyRaw, storedRaw] = await Promise.all([
+        AsyncStorage.getItem(STORAGE_URL_KEY),
+        AsyncStorage.getItem(STORAGE_ANON_KEY),
+        AsyncStorage.getItem(STORAGE_RAW_KEY),
+      ]);
+
+      let supabaseUrl = storedUrl;
+      let supabaseAnonKey = supabaseAnonKeyRaw;
+
+      if (!supabaseUrl && storedRaw) {
+        const derived = deriveSupabaseDetails(storedRaw);
+        if (derived.url) {
+          supabaseUrl = derived.url;
+          try {
+            await AsyncStorage.setItem(STORAGE_URL_KEY, derived.url);
+          } catch (setErr) {
+            // eslint-disable-next-line no-console
+            console.warn(
+              '[ensureSupabaseClient] Konnte supabase_url nicht persistieren:',
+              setErr,
+            );
+          }
+        }
+      }
 
       // 2) Fallback: bestehende Runtime-Env
       if (!supabaseUrl && typeof process !== 'undefined') {

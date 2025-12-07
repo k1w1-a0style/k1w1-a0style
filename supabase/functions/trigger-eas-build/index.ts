@@ -15,12 +15,37 @@ serve(async (req) => {
   try {
     const body = await req.json().catch(() => null);
 
-    // Akzeptiere sowohl githubRepo als auch repoFullName (Kompatibilität)
-    const githubRepo = body?.githubRepo || body?.repoFullName;
-    
-    if (!body || !githubRepo) {
+    if (!body) {
       return new Response(
-        JSON.stringify({ error: "Missing 'githubRepo' or 'repoFullName' in request body" }),
+        JSON.stringify({ error: "Missing request body" }),
+        { headers: corsHeaders, status: 400 },
+      );
+    }
+
+    // Akzeptiere sowohl githubRepo als auch repoFullName (Kompatibilität)
+    const githubRepo = body.githubRepo ?? body.repoFullName;
+    const easProjectId =
+      typeof body.easProjectId === "string" && body.easProjectId.trim().length
+        ? body.easProjectId.trim()
+        : null;
+    const easToken =
+      typeof body.easToken === "string" && body.easToken.trim().length
+        ? body.easToken.trim()
+        : null;
+    const platform =
+      typeof body.platform === "string" && body.platform.trim().length
+        ? body.platform.trim()
+        : null;
+    const profile =
+      typeof body.profile === "string" && body.profile.trim().length
+        ? body.profile.trim()
+        : null;
+
+    if (!githubRepo) {
+      return new Response(
+        JSON.stringify({
+          error: "Missing 'githubRepo' or 'repoFullName' in request body",
+        }),
         { headers: corsHeaders, status: 400 },
       );
     }
@@ -73,6 +98,10 @@ serve(async (req) => {
       client_payload: {
         job_id: jobId,
         repo: githubRepo,
+        eas_project_id: easProjectId,
+        eas_token: easToken,
+        platform,
+        profile,
       },
     };
 

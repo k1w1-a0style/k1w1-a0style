@@ -15,6 +15,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
 import {
+  SUPABASE_STORAGE_KEYS,
+  deriveSupabaseDetails,
+} from '../lib/supabaseConfig';
+import {
   getGitHubToken,
   saveGitHubToken,
   getExpoToken,
@@ -24,8 +28,9 @@ import {
 type StatusType = 'idle' | 'ok' | 'error';
 
 const STORAGE_KEYS = {
-  SUPABASE_RAW: 'supabase_raw',
-  SUPABASE_KEY: 'supabase_key',
+  SUPABASE_RAW: SUPABASE_STORAGE_KEYS.RAW,
+  SUPABASE_URL: SUPABASE_STORAGE_KEYS.URL,
+  SUPABASE_KEY: SUPABASE_STORAGE_KEYS.KEY,
   EAS_PROJECT_ID: 'eas_project_id',
 } as const;
 
@@ -47,28 +52,6 @@ const getStatusColor = (status: StatusType) => {
   }
 };
 
-const deriveSupabaseUrl = (raw: string): { projectId: string; url: string } => {
-  const trimmed = raw.trim();
-  if (!trimmed) {
-    return { projectId: '', url: '' };
-  }
-
-  // Falls schon eine URL eingetragen war: https://<id>.supabase.co -> id extrahieren
-  const match = trimmed.match(/^https?:\/\/([^.]+)\.supabase\.co/);
-  if (match && match[1]) {
-    const id = match[1];
-    return {
-      projectId: id,
-      url: `https://${id}.supabase.co`,
-    };
-  }
-
-  // Sonst nehmen wir es als Project-ID
-  return {
-    projectId: trimmed,
-    url: `https://${trimmed}.supabase.co`,
-  };
-};
 
 const ConnectionsScreen: React.FC = () => {
   const [supabaseProjectId, setSupabaseProjectId] = useState('');
@@ -102,12 +85,14 @@ const ConnectionsScreen: React.FC = () => {
         const [
           storedSupabaseRaw,
           storedSupabaseKey,
+          storedSupabaseUrl,
           storedGithubTokenAsync,
           storedEasTokenAsync,
           storedEasProjectId,
         ] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_RAW),
           AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_KEY),
+          AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL),
           getGitHubToken().catch(() => null),
           getExpoToken().catch(() => null),
           AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID),
@@ -121,10 +106,11 @@ const ConnectionsScreen: React.FC = () => {
             | string
             | undefined) || '';
 
-        const raw = storedSupabaseRaw || envSupabaseUrl || '';
-        const derived = deriveSupabaseUrl(raw);
+        const raw =
+          storedSupabaseRaw || storedSupabaseUrl || envSupabaseUrl || '';
+        const derived = deriveSupabaseDetails(raw);
 
-        setSupabaseProjectId(derived.projectId);
+        setSupabaseProjectId(derived.projectId || raw);
         setSupabaseKey(storedSupabaseKey || envSupabaseKey || '');
         setGithubTokenState(storedGithubTokenAsync || '');
         setEasToken(storedEasTokenAsync || '');
@@ -142,17 +128,22 @@ const ConnectionsScreen: React.FC = () => {
   // --------------------------------------------------
   const saveSupabaseConfig = useCallback(async () => {
     try {
-      const raw = supabaseProjectId.trim();
-      if (!raw) {
+      const rawInput = supabaseProjectId.trim();
+      if (!rawInput) {
         Alert.alert('Hinweis', 'Bitte eine Supabase Project-ID eintragen.');
         return;
       }
 
-      await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, raw);
-      await AsyncStorage.setItem(
-        STORAGE_KEYS.SUPABASE_KEY,
-        supabaseKey.trim(),
-      );
+      const derived = deriveSupabaseDetails(rawInput);
+      const anonKey = supabaseKey.trim();
+
+      await AsyncStorage.multiSet([
+        [STORAGE_KEYS.SUPABASE_RAW, rawInput],
+        [STORAGE_KEYS.SUPABASE_URL, derived.url],
+        [STORAGE_KEYS.SUPABASE_KEY, anonKey],
+      ]);
+
+      setSupabaseProjectId(derived.projectId || rawInput);
 
       Alert.alert(
         '✅ Gespeichert',
@@ -234,7 +225,7 @@ const ConnectionsScreen: React.FC = () => {
       return;
     }
 
-    const { url } = deriveSupabaseUrl(rawId);
+    const { url } = deriveSupabaseDetails(rawId);
     if (!url) {
       Alert.alert(
         'Fehler',

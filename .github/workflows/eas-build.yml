@@ -1,4 +1,5 @@
 name: K1W1 EAS Build
+run-name: EAS Build - ${{ github.event.inputs.job_id || github.event.client_payload.job_id || 'manual' }}
 
 on:
   # Manuell aus GitHub UI
@@ -18,6 +19,14 @@ on:
         required: false
         default: "production"
         type: string
+      eas_project_id:
+        description: "Override EAS project id (optional)"
+        required: false
+        type: string
+      eas_token:
+        description: "Override Expo/EAS token (optional)"
+        required: false
+        type: string
 
   # Automatisch über Supabase / repository_dispatch
   repository_dispatch:
@@ -30,11 +39,12 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EXPO_TOKEN: ${{ github.event.inputs.eas_token || github.event.client_payload.eas_token || secrets.EXPO_TOKEN }}
 
       JOB_ID: ${{ github.event.inputs.job_id || github.event.client_payload.job_id }}
       PLATFORM: ${{ github.event.inputs.platform || github.event.client_payload.platform || 'android' }}
       PROFILE: ${{ github.event.inputs.profile || github.event.client_payload.profile || 'production' }}
+      EAS_PROJECT_ID: ${{ github.event.inputs.eas_project_id || github.event.client_payload.eas_project_id || '' }}
 
     steps:
       - name: Checkout
@@ -80,12 +90,18 @@ jobs:
           echo "Platform: ${PLATFORM}"
           echo "Profile: ${PROFILE}"
 
+          PROJECT_FLAG=""
+          if [ -n "${EAS_PROJECT_ID}" ]; then
+            echo "EAS Project ID: ${EAS_PROJECT_ID}"
+            PROJECT_FLAG="--project-id ${EAS_PROJECT_ID}"
+          fi
+
           if eas build --help | grep -q -- "--json"; then
-            eas build --platform "${PLATFORM}" --profile "${PROFILE}" --non-interactive --no-wait --json > build_output.json
+            eas build --platform "${PLATFORM}" --profile "${PROFILE}" --non-interactive --no-wait ${PROJECT_FLAG} --json > build_output.json
 
             node -e "const fs=require('fs'); const d=JSON.parse(fs.readFileSync('build_output.json','utf8')); const arr=Array.isArray(d)?d:(d.builds||d.data||[]); const first=arr[0]||d; const id=first.id||first.buildId||first.build_id||'unknown'; console.log('Detected build id:', id); fs.appendFileSync(process.env.GITHUB_OUTPUT, `build_id=${id}\\n`);"
           else
-            BUILD_OUTPUT=$(eas build --platform "${PLATFORM}" --profile "${PROFILE}" --non-interactive --no-wait 2>&1)
+            BUILD_OUTPUT=$(eas build --platform "${PLATFORM}" --profile "${PROFILE}" --non-interactive --no-wait ${PROJECT_FLAG} 2>&1)
             echo "$BUILD_OUTPUT"
             BUILD_ID=$(echo "$BUILD_OUTPUT" | grep -oE 'Build ID: [A-Za-z0-9-]+' | awk '{print $3}' || echo "unknown")
             echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
