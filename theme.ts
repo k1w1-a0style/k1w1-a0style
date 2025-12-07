@@ -2,6 +2,9 @@ import { Dimensions } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
 
+// Header-Höhe für Custom Header
+export const HEADER_HEIGHT = 56;
+
 export const theme = {
   palette: {
     // Grundfarben

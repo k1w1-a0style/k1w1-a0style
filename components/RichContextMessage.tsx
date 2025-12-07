@@ -173,16 +173,19 @@ const RichContextMessage: React.FC<Props> = memo(({ context }) => {
                 <View key={`${c.path}-preview-${idx}`} style={{ marginBottom: 6 }}>
                   <Text style={styles.changePath}>{c.path}</Text>
                   {lines.map((line, lineIdx) => {
-                    let lineStyle = styles.codeLine;
-                    if (line.startsWith('+')) {
-                      lineStyle = [styles.codeLine, styles.codeAdded];
-                    } else if (line.startsWith('-')) {
-                      lineStyle = [styles.codeLine, styles.codeRemoved];
-                    } else if (line.startsWith('@@')) {
-                      lineStyle = [styles.codeLine, styles.codeHunk];
-                    }
+                    const isAdded = line.startsWith('+');
+                    const isRemoved = line.startsWith('-');
+                    const isHunk = line.startsWith('@@');
                     return (
-                      <Text key={lineIdx} style={lineStyle}>
+                      <Text 
+                        key={lineIdx} 
+                        style={[
+                          styles.codeLine,
+                          isAdded && styles.codeAdded,
+                          isRemoved && styles.codeRemoved,
+                          isHunk && styles.codeHunk,
+                        ]}
+                      >
                         {line || ' '}
                       </Text>
                     );

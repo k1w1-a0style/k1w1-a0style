@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   ActivityIndicator,
   Alert,
@@ -223,16 +224,9 @@ const PreviewScreen: React.FC = () => {
             size={48}
             color={theme.palette.warning}
           />
-          <Ionicons
-            name="warning-outline"
-            size={48}
-            color={theme.palette.warning}
-          />
-          <Ionicons
-            name="warning-outline"
-            size={48}
-            color={theme.palette.warning}
-          />
+          <Text style={{ color: theme.palette.warning, marginTop: 12, fontSize: 16 }}>
+            Kein Projekt geladen
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -256,16 +250,12 @@ const PreviewScreen: React.FC = () => {
             size={64}
             color={theme.palette.error}
           />
-          <Ionicons
-            name="alert-circle-outline"
-            size={64}
-            color={theme.palette.error}
-          />
-          <Ionicons
-            name="alert-circle-outline"
-            size={64}
-            color={theme.palette.error}
-          />
+          <Text style={{ color: theme.palette.error, marginTop: 12, fontSize: 16 }}>
+            Fehler beim Laden der Vorschau
+          </Text>
+          <Text style={{ color: theme.palette.text.secondary, marginTop: 8, fontSize: 14 }}>
+            Tippe zum Neuladen
+          </Text>
         </View>
       ) : (
         <WebView

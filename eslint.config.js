@@ -3,9 +3,12 @@
 
 const expoConfig = require('eslint-config-expo/flat');
 
+// Expo Config kann ein Array sein, daher spreaden
+const baseConfig = Array.isArray(expoConfig) ? expoConfig : [expoConfig];
+
 module.exports = [
   // Expo-Standardkonfiguration
-  expoConfig,
+  ...baseConfig,
   // Projekt-spezifische Overrides
   {
     ignores: [

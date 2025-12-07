@@ -15,9 +15,12 @@ serve(async (req) => {
   try {
     const body = await req.json().catch(() => null);
 
-    if (!body || !body.githubRepo) {
+    // Akzeptiere sowohl githubRepo als auch repoFullName (Kompatibilität)
+    const githubRepo = body?.githubRepo || body?.repoFullName;
+    
+    if (!body || !githubRepo) {
       return new Response(
-        JSON.stringify({ error: "Missing 'githubRepo' in request body" }),
+        JSON.stringify({ error: "Missing 'githubRepo' or 'repoFullName' in request body" }),
         { headers: corsHeaders, status: 400 },
       );
     }
@@ -45,7 +48,7 @@ serve(async (req) => {
     // 1) Build-Job zuerst anlegen
     const insert = await supabase
       .from("build_jobs")
-      .insert([{ github_repo: body.githubRepo, status: "pending" }])
+      .insert([{ github_repo: githubRepo, status: "pending" }])
       .select("*")
       .single();
 
@@ -63,13 +66,13 @@ serve(async (req) => {
 
     // 2) GitHub Dispatch mit job_id im Payload
     const dispatchUrl =
-      `https://api.github.com/repos/${body.githubRepo}/dispatches`;
+      `https://api.github.com/repos/${githubRepo}/dispatches`;
 
     const dispatchPayload = {
       event_type: "trigger-eas-build",
       client_payload: {
         job_id: jobId,
-        repo: body.githubRepo,
+        repo: githubRepo,
       },
     };
 
@@ -109,8 +112,9 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         ok: true,
-        job_id: jobId,
-        github_repo: body.githubRepo,
+        jobId: jobId, // Konsistent mit BuildScreenV2 Erwartung
+        job_id: jobId, // Legacy-Kompatibilität
+        github_repo: githubRepo,
         message: "Build job created and GitHub Actions triggered",
       }),
       { headers: corsHeaders, status: 200 },
