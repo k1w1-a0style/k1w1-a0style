@@ -2,7 +2,7 @@
 // Zeigt Builder-/Orchestrator-Kontext unter KI-Nachrichten
 // Scrollbare Code-Boxen mit einfacher Diff-Farbgebung (angepasst, kein theme.typography)
 
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { theme } from '../theme';
 import {
@@ -15,7 +15,7 @@ type Props = {
   context?: BuilderContextData | null;
 };
 
-const RichContextMessage: React.FC<Props> = ({ context }) => {
+const RichContextMessage: React.FC<Props> = memo(({ context }) => {
   if (!context) return null;
 
   const ctx = context as BuilderContextData & {
@@ -195,7 +195,9 @@ const RichContextMessage: React.FC<Props> = ({ context }) => {
       )}
     </View>
   );
-};
+});
+
+RichContextMessage.displayName = 'RichContextMessage';
 
 const styles = StyleSheet.create({
   container: {

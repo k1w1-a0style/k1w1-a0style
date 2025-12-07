@@ -145,9 +145,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     (packageName: string) => {
       updateProject(prev => ({
         ...prev,
-        // @ts-ignore – ProjectData kann packageName optional enthalten
         packageName,
-      }));
+      } as ProjectData));
     },
     [updateProject],
   );
