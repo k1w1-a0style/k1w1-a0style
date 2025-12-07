@@ -54,3 +54,7 @@ temp/
 .expo/
 =======
 >>>>>>> 97ea443 (chore: switch to a0style EAS project)
+
+app.config.js.bak
+supabase/.temp/
+
