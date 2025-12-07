@@ -112,15 +112,16 @@ const KeyBackupScreen: React.FC = () => {
 
               // AI-Keys wiederherstellen
               if (data.aiKeys) {
+                const validProviders = ['groq', 'gemini', 'openai', 'anthropic', 'huggingface'];
                 for (const provider of Object.keys(
                   data.aiKeys as Record<string, string[]>,
                 )) {
+                  if (!validProviders.includes(provider)) continue;
                   const keys = (data.aiKeys as Record<string, string[]>)[
                     provider
                   ];
                   for (const key of keys) {
-                    // @ts-ignore – Provider-String muss zu AllAIProviders passen
-                    await addApiKey(provider, key);
+                    await addApiKey(provider as any, key);
                   }
                 }
               }

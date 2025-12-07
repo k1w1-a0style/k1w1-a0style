@@ -14,6 +14,10 @@ export const CONFIG = {
       SERVICE: /\b(service|api|client)\b/i,
       TYPE: /\b(type|interface)\b/i,
       DUPLICATE: /\b(README[0-9]|App[0-9]|_copy|_backup|\([0-9]+\))\b/i,
+      INVALID_PATH: /\.\.|\/\.|node_modules|\.git/,
+      FORBIDDEN_IMPORT: /require\(['"]fs['"]\)|require\(['"]child_process['"]\)/,
+      CONFIG_FILES: /\b(config|\.config\.|babel\.config|metro\.config|app\.config)\b/i,
+      CODE_HEURISTIC: /(import|export|function|const|let|var|class|interface|type|=>|\{|\})/,
     },
     CONTENT_PATTERNS: {
       CONTEXT: /React\.createContext|Provider/,
@@ -70,6 +74,10 @@ export const CONFIG = {
     PROJECTS_DIR: 'projects',
     EXPORT_DIR: 'exports',
     TEMP_DIR: 'tmp',
+    ALLOWED_EXT: ['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.txt', '.yml', '.yaml'],
+    ALLOWED_ROOT: ['package.json', 'tsconfig.json', 'babel.config.js', 'metro.config.js', 'app.config.js', 'App.tsx', 'App.js', 'index.js', 'README.md', '.gitignore', '.env.example'],
+    ALLOWED_SINGLE: ['theme.ts', 'config.ts'],
+    ALLOWED_PREFIXES: ['screens/', 'components/', 'contexts/', 'hooks/', 'lib/', 'utils/', 'assets/', 'navigation/', 'services/', 'api/', 'types/', 'constants/', 'config/', 'store/', 'redux/', 'state/'],
   },
 
   API: {

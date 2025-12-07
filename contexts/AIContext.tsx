@@ -638,7 +638,7 @@ export const AIProvider: React.FC<AIProviderProps> = ({ children }) => {
     moveApiKeyToFront,
   };
 
-  return React.createElement(AIContext.Provider, { value }, children);
+  return <AIContext.Provider value={value}>{children}</AIContext.Provider>;
 };
 
 export function useAI(): AIContextValue {

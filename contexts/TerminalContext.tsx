@@ -54,7 +54,7 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({
     const originalWarn = console.warn;
     const originalError = console.error;
 
-    console.log = (...args) => {
+    console.log = (...args: any[]) => {
       queueMicrotask(() => {
         addLog(
           args
@@ -65,11 +65,10 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({
           'log',
         );
       });
-      // @ts-ignore
       originalLog.apply(console, args);
     };
 
-    console.warn = (...args) => {
+    console.warn = (...args: any[]) => {
       queueMicrotask(() => {
         addLog(
           args
@@ -80,11 +79,10 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({
           'warn',
         );
       });
-      // @ts-ignore
       originalWarn.apply(console, args);
     };
 
-    console.error = (...args) => {
+    console.error = (...args: any[]) => {
       queueMicrotask(() => {
         addLog(
           args
@@ -95,7 +93,6 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({
           'error',
         );
       });
-      // @ts-ignore
       originalError.apply(console, args);
     };
 
