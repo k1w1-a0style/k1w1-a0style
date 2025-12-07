@@ -7,7 +7,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { Alert } from 'react-native';
-import { CONFIG } from '../config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type BuildStatus =
   | 'idle'
@@ -109,6 +109,18 @@ export function useBuildStatus(jobIdFromScreen?: number | null) {
       abortControllerRef.current = controller;
 
       try {
+        // Supabase URL dynamisch aus AsyncStorage laden
+        const supabaseRaw = await AsyncStorage.getItem('supabase_raw');
+        if (!supabaseRaw) {
+          throw new Error('Supabase URL nicht konfiguriert');
+        }
+        
+        // URL ableiten
+        const supabaseUrl = supabaseRaw.includes('supabase.co') 
+          ? supabaseRaw 
+          : `https://${supabaseRaw}.supabase.co`;
+        const edgeFunctionsUrl = `${supabaseUrl}/functions/v1`;
+        
         const timeoutPromise = new Promise<never>((_, reject) => {
           timeoutRef.current = setTimeout(() => {
             reject(new Error('Request timeout - Keine Antwort vom Server'));
@@ -116,7 +128,7 @@ export function useBuildStatus(jobIdFromScreen?: number | null) {
         });
 
         const fetchPromise = fetch(
-          `${CONFIG.API.SUPABASE_EDGE_URL}/check-eas-build`,
+          `${edgeFunctionsUrl}/check-eas-build`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

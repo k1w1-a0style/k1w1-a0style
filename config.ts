@@ -84,6 +84,9 @@ export const CONFIG = {
     // Optional: falls du später eigene Proxy-Endpunkte nutzt
     OPENAI_BASE_URL: 'https://api.openai.com/v1',
     ANTHROPIC_BASE_URL: 'https://api.anthropic.com/v1',
+    // Supabase Edge Functions URL - wird dynamisch aus AsyncStorage gelesen
+    // Hier als Fallback/Referenz
+    SUPABASE_EDGE_URL: '',
   },
 
   ORCHESTRATOR: {

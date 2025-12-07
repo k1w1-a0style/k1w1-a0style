@@ -47,7 +47,7 @@ const ChatScreen: React.FC = () => {
       mounted = false;
       clearTimeout(timer);
     };
-  }, [messages.length, messages]);
+  }, [messages.length]);
 
   const renderItem = useCallback(
     ({ item }: { item: ChatMessage }) => <MessageItem message={item} />,
@@ -74,7 +74,7 @@ const ChatScreen: React.FC = () => {
       keyboardVerticalOffset={80}
     >
       <View style={styles.container}>
-        <View className="listContainer" style={styles.listContainer}>
+        <View style={styles.listContainer}>
           {combinedIsLoading && messages.length === 0 ? (
             <View style={styles.loadingOverlay}>
               <ActivityIndicator size="large" color={theme.palette.primary} />

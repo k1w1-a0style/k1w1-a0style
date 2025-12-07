@@ -10,7 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { theme } from '../theme';
@@ -112,7 +112,10 @@ const KeyBackupScreen: React.FC = () => {
 
               // AI-Keys wiederherstellen
               if (data.aiKeys) {
-                const validProviders = ['groq', 'gemini', 'openai', 'anthropic', 'huggingface'];
+                const validProviders = [
+                  'groq', 'gemini', 'google', 'openai', 'anthropic', 
+                  'huggingface', 'openrouter', 'deepseek', 'xai', 'ollama'
+                ];
                 for (const provider of Object.keys(
                   data.aiKeys as Record<string, string[]>,
                 )) {
@@ -176,7 +179,7 @@ const KeyBackupScreen: React.FC = () => {
           onPress={handleImportFile}
         >
           <Ionicons
-            name="upload-outline"
+            name="cloud-upload-outline"
             size={18}
             color={theme.palette.primary}
           />

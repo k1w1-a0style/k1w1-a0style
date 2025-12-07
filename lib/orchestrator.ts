@@ -52,9 +52,14 @@ type OrchestratorErrorResult = {
 const PROVIDERS: AllAIProviders[] = [
   'groq',
   'gemini',
+  'google',
   'openai',
   'anthropic',
   'huggingface',
+  'openrouter',
+  'deepseek',
+  'xai',
+  'ollama',
 ];
 
 const TIMEOUT_MS = 30000;
@@ -125,7 +130,8 @@ function resolveApiKey(provider: AllAIProviders): string | null {
         candidate = g.GROQ_API_KEY || g.EXPO_PUBLIC_GROQ_API_KEY;
         break;
       case 'gemini':
-        candidate = g.GEMINI_API_KEY || g.EXPO_PUBLIC_GEMINI_API_KEY;
+      case 'google':
+        candidate = g.GEMINI_API_KEY || g.EXPO_PUBLIC_GEMINI_API_KEY || g.GOOGLE_API_KEY;
         break;
       case 'openai':
         candidate = g.OPENAI_API_KEY || g.EXPO_PUBLIC_OPENAI_API_KEY;
@@ -138,6 +144,19 @@ function resolveApiKey(provider: AllAIProviders): string | null {
           g.HUGGINGFACE_API_KEY ||
           g.EXPO_PUBLIC_HF_API_KEY ||
           g.HF_API_KEY;
+        break;
+      case 'openrouter':
+        candidate = g.OPENROUTER_API_KEY || g.EXPO_PUBLIC_OPENROUTER_API_KEY;
+        break;
+      case 'deepseek':
+        candidate = g.DEEPSEEK_API_KEY || g.EXPO_PUBLIC_DEEPSEEK_API_KEY;
+        break;
+      case 'xai':
+        candidate = g.XAI_API_KEY || g.EXPO_PUBLIC_XAI_API_KEY;
+        break;
+      case 'ollama':
+        // Ollama braucht keinen API-Key, aber wir geben einen Dummy zurück
+        candidate = g.OLLAMA_API_KEY || 'ollama-local';
         break;
       default:
         break;
@@ -153,16 +172,20 @@ function resolveApiKey(provider: AllAIProviders): string | null {
   }
 
   // 3) process.env
-  const envNames: string[] =
-    provider === 'groq'
-      ? ['GROQ_API_KEY', 'EXPO_PUBLIC_GROQ_API_KEY']
-      : provider === 'gemini'
-      ? ['GEMINI_API_KEY', 'EXPO_PUBLIC_GEMINI_API_KEY']
-      : provider === 'openai'
-      ? ['OPENAI_API_KEY', 'EXPO_PUBLIC_OPENAI_API_KEY']
-      : provider === 'anthropic'
-      ? ['ANTHROPIC_API_KEY', 'EXPO_PUBLIC_ANTHROPIC_API_KEY']
-      : ['HUGGINGFACE_API_KEY', 'EXPO_PUBLIC_HF_API_KEY', 'HF_API_KEY'];
+  const envNamesMap: Record<AllAIProviders, string[]> = {
+    groq: ['GROQ_API_KEY', 'EXPO_PUBLIC_GROQ_API_KEY'],
+    gemini: ['GEMINI_API_KEY', 'EXPO_PUBLIC_GEMINI_API_KEY'],
+    google: ['GOOGLE_API_KEY', 'GEMINI_API_KEY', 'EXPO_PUBLIC_GEMINI_API_KEY'],
+    openai: ['OPENAI_API_KEY', 'EXPO_PUBLIC_OPENAI_API_KEY'],
+    anthropic: ['ANTHROPIC_API_KEY', 'EXPO_PUBLIC_ANTHROPIC_API_KEY'],
+    huggingface: ['HUGGINGFACE_API_KEY', 'EXPO_PUBLIC_HF_API_KEY', 'HF_API_KEY'],
+    openrouter: ['OPENROUTER_API_KEY', 'EXPO_PUBLIC_OPENROUTER_API_KEY'],
+    deepseek: ['DEEPSEEK_API_KEY', 'EXPO_PUBLIC_DEEPSEEK_API_KEY'],
+    xai: ['XAI_API_KEY', 'EXPO_PUBLIC_XAI_API_KEY'],
+    ollama: ['OLLAMA_API_KEY'],
+  };
+  
+  const envNames: string[] = envNamesMap[provider] || [];
 
   for (const name of envNames) {
     const v = (process.env as any)?.[name];

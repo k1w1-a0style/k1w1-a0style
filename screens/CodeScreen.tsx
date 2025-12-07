@@ -186,10 +186,7 @@ const CodeScreen: React.FC = () => {
               style={styles.imagePreview}
             />
           ) : isCode && viewMode === 'preview' ? (
-            <SyntaxHighlighter
-              code={editingContent}
-              language="tsx"
-            />
+            <SyntaxHighlighter code={editingContent} />
           ) : (
             <TextInput
               style={styles.editorInput}

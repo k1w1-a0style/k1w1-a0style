@@ -16,9 +16,14 @@ import React, {
 export type AllAIProviders =
   | 'groq'
   | 'gemini'
+  | 'google'
   | 'openai'
   | 'anthropic'
-  | 'huggingface';
+  | 'huggingface'
+  | 'openrouter'
+  | 'deepseek'
+  | 'xai'
+  | 'ollama';
 
 export type QualityMode = 'speed' | 'quality';
 export type BillingTier = 'free' | 'paid';
@@ -38,24 +43,34 @@ export interface ModelInfo {
 export const PROVIDER_LABELS: Record<AllAIProviders, string> = {
   groq: 'Groq',
   gemini: 'Gemini',
+  google: 'Google AI',
   openai: 'OpenAI',
   anthropic: 'Anthropic',
   huggingface: 'HuggingFace / OSS',
+  openrouter: 'OpenRouter',
+  deepseek: 'DeepSeek',
+  xai: 'xAI (Grok)',
+  ollama: 'Ollama (Lokal)',
 };
 
 export const PROVIDER_DESCRIPTIONS: Record<AllAIProviders, string> = {
   groq: 'Groq: schnelle LLaMA & OSS-Modelle (Developer-Tier oft kostenlos).',
   gemini: 'Google Gemini 2.x – gute Allround- & Coding-Modelle.',
+  google: 'Google AI Studio – Gemini-Modelle direkt von Google.',
   openai: 'GPT-5.x / 4.1 – stabile Premium-Modelle.',
   anthropic: 'Claude-Familie – stark für lange Kontexte & Sicherheit.',
   huggingface: 'HuggingFace Router mit freien Open-Source-Coding-Modellen.',
+  openrouter: 'OpenRouter – Multi-Provider mit einheitlicher API.',
+  deepseek: 'DeepSeek – starke Reasoning- & Coding-Modelle.',
+  xai: 'xAI Grok – leistungsstarkes Modell von xAI.',
+  ollama: 'Ollama – lokale LLMs ohne Cloud.',
 };
 
 // ======================================================================
 // DEINE MODEL-LISTE – 1:1 NACH DEINER BESCHREIBUNG
 // ======================================================================
 
-export const AVAILABLE_MODELS: Record<AllAIProviders, ModelInfo[]> = {
+export const AVAILABLE_MODELS: Partial<Record<AllAIProviders, ModelInfo[]>> = {
   // ---------------------------------------------------
   // GROQ – LLaMA / OSS über Groq
   // ---------------------------------------------------
@@ -281,6 +296,113 @@ export const AVAILABLE_MODELS: Record<AllAIProviders, ModelInfo[]> = {
       provider: 'huggingface',
       label: 'gpt-oss-20b (HF)',
       description: 'GPT OSS 20B als OSS-Variante.',
+      billing: 'free',
+    },
+  ],
+
+  // ---------------------------------------------------
+  // GOOGLE AI – Alias für Gemini
+  // ---------------------------------------------------
+  google: [
+    {
+      id: 'auto-google',
+      provider: 'google',
+      label: '🎯 Auto Google',
+      description: 'Wählt automatisch ein Google-Modell je nach Quality-Mode.',
+      billing: 'free',
+    },
+    {
+      id: 'gemini-2.5-flash',
+      provider: 'google',
+      label: 'gemini-2.5-flash',
+      description: 'Schnelles Gemini-Modell.',
+      billing: 'free',
+    },
+  ],
+
+  // ---------------------------------------------------
+  // OPENROUTER – Multi-Provider
+  // ---------------------------------------------------
+  openrouter: [
+    {
+      id: 'auto-openrouter',
+      provider: 'openrouter',
+      label: '🎯 Auto OpenRouter',
+      description: 'Automatische Modell-Auswahl über OpenRouter.',
+      billing: 'paid',
+    },
+  ],
+
+  // ---------------------------------------------------
+  // DEEPSEEK – Reasoning & Coding
+  // ---------------------------------------------------
+  deepseek: [
+    {
+      id: 'auto-deepseek',
+      provider: 'deepseek',
+      label: '🎯 Auto DeepSeek',
+      description: 'Automatische DeepSeek Modell-Auswahl.',
+      billing: 'paid',
+    },
+    {
+      id: 'deepseek-chat',
+      provider: 'deepseek',
+      label: 'deepseek-chat',
+      description: 'DeepSeek Chat-Modell.',
+      billing: 'paid',
+    },
+    {
+      id: 'deepseek-coder',
+      provider: 'deepseek',
+      label: 'deepseek-coder',
+      description: 'DeepSeek Coding-Modell.',
+      billing: 'paid',
+    },
+  ],
+
+  // ---------------------------------------------------
+  // XAI – Grok
+  // ---------------------------------------------------
+  xai: [
+    {
+      id: 'auto-xai',
+      provider: 'xai',
+      label: '🎯 Auto xAI',
+      description: 'Automatische xAI Grok Modell-Auswahl.',
+      billing: 'paid',
+    },
+    {
+      id: 'grok-2',
+      provider: 'xai',
+      label: 'grok-2',
+      description: 'Grok 2 von xAI.',
+      billing: 'paid',
+    },
+  ],
+
+  // ---------------------------------------------------
+  // OLLAMA – Lokal
+  // ---------------------------------------------------
+  ollama: [
+    {
+      id: 'auto-ollama',
+      provider: 'ollama',
+      label: '🎯 Auto Ollama',
+      description: 'Automatische lokale Modell-Auswahl.',
+      billing: 'free',
+    },
+    {
+      id: 'llama3.2',
+      provider: 'ollama',
+      label: 'llama3.2',
+      description: 'Llama 3.2 lokal via Ollama.',
+      billing: 'free',
+    },
+    {
+      id: 'codellama',
+      provider: 'ollama',
+      label: 'codellama',
+      description: 'Code Llama lokal via Ollama.',
       billing: 'free',
     },
   ],

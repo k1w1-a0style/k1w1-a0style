@@ -73,8 +73,8 @@ export const hasInvalidPattern = (path: string): boolean => {
 export const isPathAllowed = (path: string): boolean => {
   const normalized = normalizePath(path);
 
-  if (CONFIG.PATHS.ALLOWED_ROOT.includes(normalized)) return true;
-  if (CONFIG.PATHS.ALLOWED_SINGLE.includes(normalized)) return true;
+  if ((CONFIG.PATHS.ALLOWED_ROOT as readonly string[]).includes(normalized)) return true;
+  if ((CONFIG.PATHS.ALLOWED_SINGLE as readonly string[]).includes(normalized)) return true;
 
   for (const prefix of CONFIG.PATHS.ALLOWED_PREFIXES) {
     if (normalized.startsWith(prefix)) return true;

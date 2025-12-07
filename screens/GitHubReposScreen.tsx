@@ -583,7 +583,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   errorText: {
-    FontSize: 12,
+    fontSize: 12,
     color: theme.palette.error,
     marginTop: 4,
   },
