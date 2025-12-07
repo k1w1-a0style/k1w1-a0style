@@ -1,6 +1,7 @@
 // contexts/AIContext.ts
 // Zentraler AI-Context: Modelle, Provider, Key-Rotation & Runtime-Config
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, {
   createContext,
   useContext,
@@ -408,6 +409,71 @@ export const AVAILABLE_MODELS: Partial<Record<AllAIProviders, ModelInfo[]>> = {
   ],
 };
 
+const AI_STORAGE_KEY = 'k1w1_ai_config_v2';
+const PROVIDER_IDS = Object.keys(PROVIDER_LABELS) as AllAIProviders[];
+const QUALITY_OPTIONS: QualityMode[] = ['speed', 'quality'];
+
+function isProvider(value: any): value is AllAIProviders {
+  return PROVIDER_IDS.includes(value);
+}
+
+function isQualityModeValue(value: any): value is QualityMode {
+  return QUALITY_OPTIONS.includes(value);
+}
+
+function mergeConfig(
+  base: AIConfig,
+  incoming?: Partial<AIConfig>,
+): AIConfig {
+  if (!incoming || typeof incoming !== 'object') {
+    return base;
+  }
+
+  const next: AIConfig = { ...base };
+
+  if (isProvider(incoming.selectedChatProvider)) {
+    next.selectedChatProvider = incoming.selectedChatProvider;
+  }
+  if (typeof incoming.selectedChatMode === 'string') {
+    next.selectedChatMode = incoming.selectedChatMode;
+  }
+  if (isProvider(incoming.selectedAgentProvider)) {
+    next.selectedAgentProvider = incoming.selectedAgentProvider;
+  }
+  if (typeof incoming.selectedAgentMode === 'string') {
+    next.selectedAgentMode = incoming.selectedAgentMode;
+  }
+  if (isQualityModeValue(incoming.qualityMode)) {
+    next.qualityMode = incoming.qualityMode;
+  }
+
+  if (incoming.apiKeys && typeof incoming.apiKeys === 'object') {
+    const sanitized: Partial<Record<AllAIProviders, string[]>> = {};
+
+    PROVIDER_IDS.forEach((provider) => {
+      const keys = (incoming.apiKeys as any)[provider];
+      if (!Array.isArray(keys)) return;
+      const normalized = Array.from(
+        new Set(
+          keys
+            .map((key) => (typeof key === 'string' ? key.trim() : ''))
+            .filter((key) => key.length > 0),
+        ),
+      );
+      if (normalized.length > 0) {
+        sanitized[provider] = normalized;
+      }
+    });
+
+    next.apiKeys = {
+      ...next.apiKeys,
+      ...sanitized,
+    };
+  }
+
+  return next;
+}
+
 // ======================================================================
 // RUNTIME-KONFIG FÜR ORCHESTRATOR (__K1W1_AI_CONFIG)
 // ======================================================================
@@ -576,6 +642,7 @@ export interface AIConfig {
 
 interface AIContextValue {
   config: AIConfig;
+  isReady: boolean;
   setSelectedChatProvider: (p: AllAIProviders) => void;
   setSelectedAgentProvider: (p: AllAIProviders) => void;
   setSelectedChatMode: (modeId: string) => void;
@@ -625,6 +692,45 @@ interface AIProviderProps {
 
 export const AIProvider: React.FC<AIProviderProps> = ({ children }) => {
   const [config, setConfig] = useState<AIConfig>(() => readInitialConfig());
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    let isCancelled = false;
+    const hydrate = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(AI_STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return;
+        if (isCancelled) return;
+        setConfig((prev) => mergeConfig(prev, parsed as Partial<AIConfig>));
+      } catch (error) {
+        console.log('[AIContext] Fehler beim Laden der AI-Config:', error);
+      } finally {
+        if (!isCancelled) {
+          setIsHydrated(true);
+        }
+      }
+    };
+
+    void hydrate();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    const persist = async () => {
+      try {
+        await AsyncStorage.setItem(AI_STORAGE_KEY, JSON.stringify(config));
+      } catch (error) {
+        console.log('[AIContext] Fehler beim Speichern der AI-Config:', error);
+      }
+    };
+    void persist();
+  }, [config, isHydrated]);
 
   // API-Keys immer auch im globalen Config-Objekt spiegeln,
   // damit der Orchestrator sie findet.
@@ -755,6 +861,7 @@ export const AIProvider: React.FC<AIProviderProps> = ({ children }) => {
 
   const value: AIContextValue = {
     config,
+    isReady: isHydrated,
     setSelectedChatProvider,
     setSelectedAgentProvider,
     setSelectedChatMode,

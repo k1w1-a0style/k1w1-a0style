@@ -7,7 +7,10 @@ import {
   safeJsonParse,
   normalizeAndValidateFiles,
   ensureStringContent,
+  extractJsonArray,
+  NormalizedValidationResult,
 } from '../utils/chatUtils';
+import { ProjectFile } from '../contexts/types';
 
 // Minimale Struktur, die wir erwarten
 interface RawFile {
@@ -35,7 +38,7 @@ function extractFileArray(parsed: any): RawFile[] | null {
   }
 
   if (typeof parsed === 'object') {
-    const candidates = ['files', 'data', 'json', 'output', 'result'];
+    const candidates = ['files', 'data', 'json', 'output', 'result', 'response', 'responses'];
     for (const key of candidates) {
       const value = (parsed as any)[key];
       if (Array.isArray(value)) {
@@ -54,25 +57,49 @@ function extractFileArray(parsed: any): RawFile[] | null {
  * - bereinigt Pfade und Inhalte
  * - ruft am Ende normalizeAndValidateFiles() aus chatUtils
  */
-export function normalizeAiResponse(raw: any): any[] | null {
-  if (!raw) return null;
+export function normalizeAiResponse(raw: any): NormalizedValidationResult {
+  if (!raw) {
+    return {
+      ok: false,
+      errors: ['KI-Antwort war leer – keine Dateien zum Verarbeiten.'],
+    };
+  }
 
   let parsed: any = null;
 
   if (typeof raw === 'string') {
-    parsed = safeJsonParse(raw);
+    const trimmed = raw.trim();
+    const extracted = extractJsonArray(trimmed);
+    const candidate = extracted || trimmed;
+
+    parsed = safeJsonParse(candidate);
+
+    if (!parsed && extracted) {
+      parsed = safeJsonParse(extracted);
+    }
   } else if (typeof raw === 'object') {
     parsed = raw;
   } else {
-    return null;
+    return {
+      ok: false,
+      errors: ['KI-Antwort konnte nicht interpretiert werden (unbekanntes Format).'],
+    };
+  }
+
+  if (!parsed) {
+    return {
+      ok: false,
+      errors: ['KI-Antwort enthielt kein valides JSON-Array.'],
+    };
   }
 
   const fileArray = extractFileArray(parsed);
   if (!fileArray || !Array.isArray(fileArray) || fileArray.length === 0) {
-    console.log(
-      '[Normalizer] ❌ Keine gültige File-Liste im Handler-Output gefunden'
-    );
-    return null;
+    console.log('[Normalizer] ❌ Keine gültige File-Liste im Handler-Output gefunden');
+    return {
+      ok: false,
+      errors: ['In der KI-Antwort wurden keine Dateien gefunden.'],
+    };
   }
 
   // BOM / Control Cleanup + sicheres String-Handling
@@ -100,21 +127,30 @@ export function normalizeAiResponse(raw: any): any[] | null {
 
   // Leere Inhalte raus
   const nonEmpty = unique.filter(
-    (f) => (f.content || '').toString().trim().length > 0
+    (f) => (f.content || '').toString().trim().length > 0,
   );
 
-  const validated = normalizeAndValidateFiles(
-    nonEmpty.map((f) => ({
-      path: f.path as string,
-      content: f.content,
-    })) as any
-  );
-
-  if (!validated || !Array.isArray(validated) || validated.length === 0) {
-    console.log('[Normalizer] ❌ Validation failed oder leeres Ergebnis');
-    return null;
+  if (nonEmpty.length === 0) {
+    return {
+      ok: false,
+      errors: ['Alle gelieferten Dateien waren leer oder ungültig.'],
+    };
   }
 
-  console.log('[Normalizer] ✅ Dateien normalisiert:', validated.length);
-  return validated;
+  const validationResult = normalizeAndValidateFiles(
+    nonEmpty.map<ProjectFile>((f) => ({
+      path: f.path as string,
+      content: f.content,
+    })),
+  );
+
+  if (!validationResult.ok) {
+    console.log('[Normalizer] ❌ Validation failed oder leeres Ergebnis', {
+      errors: validationResult.errors,
+    });
+    return validationResult;
+  }
+
+  console.log('[Normalizer] ✅ Dateien normalisiert:', validationResult.files.length);
+  return validationResult;
 }

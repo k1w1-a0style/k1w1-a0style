@@ -32,7 +32,7 @@ export function useChatLogic() {
     updateProjectFiles,
   } = useProject();
 
-  const { config } = useAI();
+  const { config, isReady: isAiReady } = useAI();
 
   const [textInput, setTextInput] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -40,7 +40,7 @@ export function useChatLogic() {
   const [selectedFileAsset, setSelectedFileAsset] =
     useState<DocumentResultAsset | null>(null);
 
-  const combinedIsLoading = isProjectLoading || isAiLoading;
+  const combinedIsLoading = isProjectLoading || isAiLoading || !isAiReady;
 
   const handlePickDocument = useCallback(async () => {
     try {
@@ -71,6 +71,11 @@ export function useChatLogic() {
   const handleSend = useCallback(async () => {
     // Verhindert parallele Builder-Läufe, z.B. durch Enter-Tastatur während die KI arbeitet
     if (combinedIsLoading) {
+      return;
+    }
+
+    if (!isAiReady) {
+      setError('⚙️ KI-Konfiguration wird noch geladen. Bitte einen Moment warten.');
       return;
     }
 
@@ -197,11 +202,13 @@ export function useChatLogic() {
         return;
       }
 
-      const normalized = normalizeAiResponse(ai.text);
+      const normalization = normalizeAiResponse(ai.text);
 
-      if (!normalized || normalized.length === 0) {
+      if (!normalization.ok) {
+        const details = normalization.errors ?? [];
         const msg =
-          '⚠️ Die KI-Antwort konnte nicht in Dateien übersetzt werden (0 Dateien).';
+          '⚠️ Die KI-Antwort konnte nicht in gültige Dateien übersetzt werden.' +
+          (details.length ? `\n\n${details.join('\n')}` : '');
 
         setError(msg);
 
@@ -213,6 +220,22 @@ export function useChatLogic() {
         });
         return;
       }
+
+      if (normalization.files.length === 0) {
+        const msg =
+          '⚠️ Die KI-Antwort hat keine Dateien zurückgegeben.';
+
+        setError(msg);
+        addChatMessage({
+          id: uuidv4(),
+          role: 'assistant',
+          content: msg,
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      const normalized = normalization.files;
 
       console.log(
         '[ChatScreen] 📦 Normalisierte Dateien:',
@@ -226,7 +249,7 @@ export function useChatLogic() {
       const createdSet = new Set(mergeResult.created);
 
       const normalizedMap = new Map<string, string>();
-      normalized.forEach((f: any) => {
+      normalized.forEach((f) => {
         if (f?.path) {
           normalizedMap.set(f.path, String(f.content ?? ''));
         }
