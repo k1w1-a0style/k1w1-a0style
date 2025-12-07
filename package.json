@@ -18,12 +18,8 @@
     "test:verbose": "VERBOSE=true jest --verbose",
     "test:unit": "jest --testPathPattern=__tests__",
     "test:integration": "jest --testPathPattern=integration",
-<<<<<<< HEAD
     "test:clear": "jest --clearCache",
     "postinstall": "patch-package"
-=======
-    "test:clear": "jest --clearCache"
->>>>>>> 97ea443 (chore: switch to a0style EAS project)
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
