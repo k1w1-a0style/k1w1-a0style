@@ -1,19 +1,15 @@
 {
   "cli": {
-    "version": ">= 5.9.1"
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "channel": "development",
-      "ios": {
-        "resourceClass": "m-medium",
-        "simulator": true
-      },
       "android": {
-        "gradleCommand": ":app:assembleDebug",
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug"
       },
       "env": {
         "NODE_ENV": "development"
@@ -21,60 +17,19 @@
     },
     "preview": {
       "distribution": "internal",
-      "channel": "preview",
-      "ios": {
-        "resourceClass": "m-medium",
-        "buildConfiguration": "Release"
-      },
       "android": {
-        "buildType": "apk",
-        "gradleCommand": ":app:assembleRelease"
+        "buildType": "apk"
       },
       "env": {
-        "NODE_ENV": "production",
-        "EAS_SKIP_AUTO_FINGERPRINT": "1"
-      },
-      "cache": {
-        "key": "preview-cache-v1",
-        "paths": [
-          "node_modules"
-        ]
+        "NODE_ENV": "production"
       }
     },
     "production": {
-      "distribution": "store",
-      "channel": "production",
-      "ios": {
-        "resourceClass": "m-medium",
-        "buildConfiguration": "Release"
-      },
       "android": {
         "buildType": "app-bundle"
       },
       "env": {
-        "NODE_ENV": "production",
-        "EAS_SKIP_AUTO_FINGERPRINT": "1"
-      },
-      "cache": {
-        "key": "production-cache-v1",
-        "paths": [
-          "node_modules",
-          ".expo"
-        ]
-      }
-    }
-  },
-  "submit": {
-    "production": {
-      "ios": {
-        "appleId": "${APPLE_ID}",
-        "ascAppId": "${ASC_APP_ID}",
-        "appleTeamId": "${APPLE_TEAM_ID}"
-      },
-      "android": {
-        "serviceAccountKeyPath": "./android-service-account.json",
-        "track": "internal",
-        "releaseStatus": "draft"
+        "NODE_ENV": "production"
       }
     }
   }

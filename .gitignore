@@ -1,41 +1,8 @@
-# ============================================================
-# K1W1-A0STYLE PROJECT – OPTIMIZED .GITIGNORE
-# ============================================================
-
-# -----------------------------
-# NODE / PNPM / NPM
-# -----------------------------
 node_modules/
-pnpm-lock.yaml
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# -----------------------------
-# EXPO / METRO / REACT-NATIVE
-# -----------------------------
-.expo-shared/
-.expo-packager/
-.expo-go/
-*.expo*
-dist/
-build/
-web-build/
-.cache/
-npm-cache/
-metro-cache/
-.expo-internal/
-
-# Temporary Metro cache folders
-**/.cache/
-**/.metro/
-
-# -----------------------------
-# ANDROID / IOS NATIVE (not used)
-# -----------------------------
+.expo/
 android/
 ios/
+<<<<<<< HEAD
 
 # -----------------------------
 # MAC / SYSTEM
@@ -85,3 +52,5 @@ temp/
 
 # Ignore local Expo state
 .expo/
+=======
+>>>>>>> 97ea443 (chore: switch to a0style EAS project)
