@@ -258,13 +258,18 @@ export const filterProjectCodeFiles = (files: ProjectFile[]): ProjectFile[] => {
   return result;
 };
 
+export type NormalizedValidationResult =
+  | { ok: true; files: ProjectFile[] }
+  | { ok: false; errors: string[] };
+
 export const normalizeAndValidateFiles = (
-  files: ProjectFile[]
-): ProjectFile[] | null => {
+  files: ProjectFile[],
+): NormalizedValidationResult => {
   if (!files || files.length === 0) {
-    log('ERROR', 'Keine Dateien für Validierung übergeben.');
+    const errors = ['Keine Dateien für Validierung übergeben.'];
+    log('ERROR', errors[0]);
     logError('Keine Dateien');
-    return null;
+    return { ok: false, errors };
   }
 
   const normalized = files.map((f) => ({
@@ -277,11 +282,11 @@ export const normalizeAndValidateFiles = (
   if (!validation.valid) {
     log('ERROR', 'VALIDIERUNG FEHLGESCHLAGEN', { errors: validation.errors });
     validation.errors.forEach((e) => logError(e));
-    return null;
+    return { ok: false, errors: validation.errors };
   }
 
   log('INFO', `Validierung OK: ${normalized.length} Dateien`);
-  return normalized as ProjectFile[];
+  return { ok: true, files: normalized as ProjectFile[] };
 };
 
 export const getErrorStats = () => ({ ...errorStats });

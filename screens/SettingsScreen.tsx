@@ -11,11 +11,19 @@ import {
   TextInput,
   Alert,
   Switch,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
-import { useAI, AllAIProviders, QualityMode } from '../contexts/AIContext';
+import {
+  useAI,
+  AllAIProviders,
+  QualityMode,
+  AVAILABLE_MODELS,
+  PROVIDER_LABELS,
+  PROVIDER_DESCRIPTIONS,
+} from '../contexts/AIContext';
 
 type ModeOption = {
   id: string;
@@ -27,9 +35,11 @@ type ModeOption = {
 // Feste Liste bekannter Provider – muss zu AIContext passen
 const PROVIDER_ORDER: AllAIProviders[] = [
   'groq',
+  'gemini',
+  'google',
   'openai',
   'anthropic',
-  'google',
+  'huggingface',
   'openrouter',
   'deepseek',
   'xai',
@@ -39,11 +49,14 @@ const PROVIDER_ORDER: AllAIProviders[] = [
 const SettingsScreen: React.FC = () => {
   const {
     config,
+    isReady,
     addApiKey,
     removeApiKey,
     rotateApiKey,
     moveApiKeyToFront,
     setQualityMode,
+    setSelectedChatProvider,
+    setSelectedChatMode,
   } = useAI();
 
   const [tempKey, setTempKey] = useState('');
@@ -113,9 +126,41 @@ const SettingsScreen: React.FC = () => {
     await moveApiKeyToFront(provider, index);
   };
 
-  const providersToRender: AllAIProviders[] = [
-    ...PROVIDER_ORDER,
-  ].filter((p) => p in (config.apiKeys || {}));
+  const providerOptions: AllAIProviders[] = PROVIDER_ORDER.filter(
+    (provider) => (AVAILABLE_MODELS[provider] || []).length > 0,
+  );
+
+  const builderModels =
+    AVAILABLE_MODELS[config.selectedChatProvider] ?? [];
+
+  const providersToRender: AllAIProviders[] = [...PROVIDER_ORDER];
+
+  const handleSelectProvider = (provider: AllAIProviders) => {
+    setSelectedChatProvider(provider);
+    const fallbackModel =
+      AVAILABLE_MODELS[provider]?.[0]?.id || `auto-${provider}`;
+    setSelectedChatMode(fallbackModel);
+  };
+
+  const handleSelectModel = (modeId: string) => {
+    setSelectedChatMode(modeId);
+  };
+
+  if (!isReady) {
+    return (
+      <SafeAreaView
+        style={styles.safeArea}
+        edges={['bottom', 'left', 'right']}
+      >
+        <View style={styles.loadingState}>
+          <ActivityIndicator size="small" color={theme.palette.primary} />
+          <Text style={styles.loadingText}>
+            KI-Einstellungen werden geladen ...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
@@ -163,6 +208,91 @@ const SettingsScreen: React.FC = () => {
             Quality: bessere Ergebnisse, etwas langsamer. Speed: schneller,
             günstiger.
           </Text>
+        </View>
+
+        {/* Provider & Model Auswahl */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Builder Provider & Modell</Text>
+          <Text style={styles.cardDescription}>
+            Wähle den Standard-Provider und das Modell, das der Builder nutzen
+            soll.
+          </Text>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.providerSelectRow}
+          >
+            {providerOptions.map((provider) => {
+              const isActive = provider === config.selectedChatProvider;
+              return (
+                <TouchableOpacity
+                  key={provider}
+                  style={[
+                    styles.providerSelectCard,
+                    isActive && styles.providerSelectCardActive,
+                  ]}
+                  onPress={() => handleSelectProvider(provider)}
+                >
+                  <Text
+                    style={[
+                      styles.providerSelectCardTitle,
+                      isActive && styles.providerSelectCardTitleActive,
+                    ]}
+                  >
+                    {PROVIDER_LABELS[provider] || provider.toUpperCase()}
+                  </Text>
+                  <Text style={styles.providerSelectCardSubtitle}>
+                    {PROVIDER_DESCRIPTIONS[provider]}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          <View style={styles.modelList}>
+            {builderModels.map((model) => {
+              const isActive = config.selectedChatMode === model.id;
+              return (
+                <TouchableOpacity
+                  key={model.id}
+                  style={[
+                    styles.modelCard,
+                    isActive && styles.modelCardActive,
+                  ]}
+                  onPress={() => handleSelectModel(model.id)}
+                >
+                  <View style={styles.modelCardHeader}>
+                    <Text
+                      style={[
+                        styles.modelLabel,
+                        isActive && styles.modelLabelActive,
+                      ]}
+                    >
+                      {model.label}
+                    </Text>
+                    <View
+                      style={[
+                        styles.modelBadge,
+                        model.billing === 'free'
+                          ? styles.modelBadgeFree
+                          : styles.modelBadgePaid,
+                      ]}
+                    >
+                      <Text style={styles.modelBadgeText}>
+                        {model.billing === 'free' ? 'FREE' : 'PRO'}
+                      </Text>
+                    </View>
+                  </View>
+                  {model.description ? (
+                    <Text style={styles.modelDescription}>
+                      {model.description}
+                    </Text>
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
         {/* Provider & Keys */}
@@ -335,6 +465,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.palette.text.secondary,
   },
+  loadingState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  loadingText: {
+    marginTop: 12,
+    color: theme.palette.text.secondary,
+    fontSize: 14,
+  },
 
   card: {
     backgroundColor: theme.palette.card,
@@ -356,6 +497,35 @@ const styles = StyleSheet.create({
   },
   cardDescription: {
     marginTop: 6,
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+  },
+  providerSelectRow: {
+    marginTop: 12,
+  },
+  providerSelectCard: {
+    width: 220,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.background,
+    marginRight: 12,
+  },
+  providerSelectCardActive: {
+    borderColor: theme.palette.primary,
+    backgroundColor: `${theme.palette.primary}11`,
+  },
+  providerSelectCardTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.palette.text.primary,
+    marginBottom: 6,
+  },
+  providerSelectCardTitleActive: {
+    color: theme.palette.primary,
+  },
+  providerSelectCardSubtitle: {
     fontSize: 12,
     color: theme.palette.text.secondary,
   },
@@ -507,6 +677,55 @@ const styles = StyleSheet.create({
 
   spacer: {
     height: 32,
+  },
+  modelList: {
+    marginTop: 12,
+  },
+  modelCard: {
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 10,
+    backgroundColor: theme.palette.background,
+  },
+  modelCardActive: {
+    borderColor: theme.palette.primary,
+    backgroundColor: `${theme.palette.primary}0D`,
+  },
+  modelCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  modelLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.palette.text.primary,
+  },
+  modelLabelActive: {
+    color: theme.palette.primary,
+  },
+  modelDescription: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+  },
+  modelBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  modelBadgeFree: {
+    backgroundColor: 'rgba(72, 199, 116, 0.15)',
+  },
+  modelBadgePaid: {
+    backgroundColor: 'rgba(255, 193, 7, 0.15)',
+  },
+  modelBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.palette.text.primary,
   },
 });
 

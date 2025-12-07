@@ -74,10 +74,10 @@ export const CONFIG = {
     PROJECTS_DIR: 'projects',
     EXPORT_DIR: 'exports',
     TEMP_DIR: 'tmp',
-    ALLOWED_EXT: ['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.txt', '.yml', '.yaml'],
-    ALLOWED_ROOT: ['package.json', 'tsconfig.json', 'babel.config.js', 'metro.config.js', 'app.config.js', 'App.tsx', 'App.js', 'index.js', 'README.md', '.gitignore', '.env.example'],
+    ALLOWED_EXT: ['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.txt', '.yml', '.yaml', '.html', '.css', '.scss', '.svg'],
+    ALLOWED_ROOT: ['package.json', 'tsconfig.json', 'babel.config.js', 'metro.config.js', 'app.config.js', 'App.tsx', 'App.js', 'index.js', 'index.html', 'README.md', '.gitignore', '.env.example'],
     ALLOWED_SINGLE: ['theme.ts', 'config.ts'],
-    ALLOWED_PREFIXES: ['screens/', 'components/', 'contexts/', 'hooks/', 'lib/', 'utils/', 'assets/', 'navigation/', 'services/', 'api/', 'types/', 'constants/', 'config/', 'store/', 'redux/', 'state/'],
+    ALLOWED_PREFIXES: ['screens/', 'components/', 'contexts/', 'hooks/', 'lib/', 'utils/', 'assets/', 'navigation/', 'services/', 'api/', 'types/', 'constants/', 'config/', 'store/', 'redux/', 'state/', 'public/'],
   },
 
   API: {
