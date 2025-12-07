@@ -277,6 +277,10 @@ function buildOkResult(
 // ============================================
 // PROVIDER CALLS
 // ============================================
+function toOpenAIChatMessages(messages: LlmMessage[]) {
+  return messages.map((m) => ({ role: m.role, content: m.content }));
+}
+
 async function callGroq(
   apiKey: string,
   model: string,
@@ -287,7 +291,7 @@ async function callGroq(
   const url = 'https://api.groq.com/openai/v1/chat/completions';
   const body = {
     model,
-    messages: messages.map((m) => ({ role: m.role, content: m.content })),
+    messages: toOpenAIChatMessages(messages),
     temperature: 0.15,
     max_tokens: 4096,
   };
@@ -313,7 +317,8 @@ async function callGroq(
   return buildOkResult('groq', model, text, json, startTime);
 }
 
-async function callGemini(
+async function callGeminiFamily(
+  provider: 'gemini' | 'google',
   apiKey: string,
   model: string,
   messages: LlmMessage[],
@@ -353,8 +358,22 @@ async function callGemini(
   }
   const text =
     json?.candidates?.[0]?.content?.parts?.[0]?.text ?? JSON.stringify(json);
-  return buildOkResult('gemini', model, text, json, startTime);
+  return buildOkResult(provider, model, text, json, startTime);
 }
+
+const callGemini = (
+  apiKey: string,
+  model: string,
+  messages: LlmMessage[],
+  controller: AbortController,
+) => callGeminiFamily('gemini', apiKey, model, messages, controller);
+
+const callGoogle = (
+  apiKey: string,
+  model: string,
+  messages: LlmMessage[],
+  controller: AbortController,
+) => callGeminiFamily('google', apiKey, model, messages, controller);
 
 async function callOpenAI(
   apiKey: string,
@@ -366,7 +385,7 @@ async function callOpenAI(
   const url = 'https://api.openai.com/v1/chat/completions';
   const body = {
     model,
-    messages: messages.map((m) => ({ role: m.role, content: m.content })),
+    messages: toOpenAIChatMessages(messages),
     temperature: 0.2,
     max_tokens: 4096,
   };
@@ -433,6 +452,187 @@ async function callAnthropic(
     json?.content?.[0]?.text ||
     '';
   return buildOkResult('anthropic', model, text, json, startTime);
+}
+
+function buildOpenRouterHeaders(apiKey: string) {
+  const g = (globalThis as any) || {};
+  const referer =
+    g.OPENROUTER_SITE ||
+    g.EXPO_PUBLIC_OPENROUTER_SITE ||
+    process.env?.OPENROUTER_SITE ||
+    'https://k1w1.app';
+  const title =
+    g.OPENROUTER_TITLE ||
+    g.EXPO_PUBLIC_OPENROUTER_TITLE ||
+    process.env?.OPENROUTER_TITLE ||
+    'k1w1 Builder';
+
+  return {
+    Authorization: `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+    'HTTP-Referer': referer,
+    'X-Title': title,
+  };
+}
+
+async function callOpenRouter(
+  apiKey: string,
+  model: string,
+  messages: LlmMessage[],
+  controller: AbortController,
+): Promise<OrchestratorOkResult> {
+  const startTime = Date.now();
+  const url = 'https://openrouter.ai/api/v1/chat/completions';
+  const body = {
+    model,
+    messages: toOpenAIChatMessages(messages),
+    temperature: 0.2,
+    max_tokens: 4096,
+  };
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: buildOpenRouterHeaders(apiKey),
+    body: JSON.stringify(body),
+    signal: controller.signal,
+  });
+  const json: any = await res.json();
+  if (!res.ok) {
+    const errorMsg =
+      json?.error?.message || json?.message || `HTTP ${res.status}`;
+    throw new Error(errorMsg);
+  }
+  const text =
+    json?.choices?.[0]?.message?.content ??
+    json?.choices?.[0]?.text ??
+    JSON.stringify(json);
+  return buildOkResult('openrouter', model, text, json, startTime);
+}
+
+async function callDeepSeek(
+  apiKey: string,
+  model: string,
+  messages: LlmMessage[],
+  controller: AbortController,
+): Promise<OrchestratorOkResult> {
+  const startTime = Date.now();
+  const url = 'https://api.deepseek.com/chat/completions';
+  const body = {
+    model,
+    messages: toOpenAIChatMessages(messages),
+    temperature: 0.2,
+    max_tokens: 4096,
+  };
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+    signal: controller.signal,
+  });
+  const json: any = await res.json();
+  if (!res.ok) {
+    const errorMsg =
+      json?.error?.message || json?.message || `HTTP ${res.status}`;
+    throw new Error(errorMsg);
+  }
+  const text =
+    json?.choices?.[0]?.message?.content ??
+    json?.choices?.[0]?.text ??
+    JSON.stringify(json);
+  return buildOkResult('deepseek', model, text, json, startTime);
+}
+
+async function callXai(
+  apiKey: string,
+  model: string,
+  messages: LlmMessage[],
+  controller: AbortController,
+): Promise<OrchestratorOkResult> {
+  const startTime = Date.now();
+  const url = 'https://api.x.ai/v1/chat/completions';
+  const body = {
+    model,
+    messages: toOpenAIChatMessages(messages),
+    temperature: 0.2,
+    max_tokens: 4096,
+  };
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+    signal: controller.signal,
+  });
+  const json: any = await res.json();
+  if (!res.ok) {
+    const errorMsg =
+      json?.error?.message || json?.message || `HTTP ${res.status}`;
+    throw new Error(errorMsg);
+  }
+  const text =
+    json?.choices?.[0]?.message?.content ??
+    json?.choices?.[0]?.text ??
+    JSON.stringify(json);
+  return buildOkResult('xai', model, text, json, startTime);
+}
+
+function resolveOllamaBaseUrl() {
+  const g = (globalThis as any) || {};
+  const candidate =
+    g.OLLAMA_BASE_URL ||
+    g.EXPO_PUBLIC_OLLAMA_BASE_URL ||
+    process.env?.OLLAMA_BASE_URL ||
+    process.env?.EXPO_PUBLIC_OLLAMA_BASE_URL;
+  if (candidate && typeof candidate === 'string') {
+    return candidate.replace(/\/$/, '');
+  }
+  return 'http://127.0.0.1:11434';
+}
+
+async function callOllama(
+  apiKey: string,
+  model: string,
+  messages: LlmMessage[],
+  controller: AbortController,
+): Promise<OrchestratorOkResult> {
+  const startTime = Date.now();
+  const baseUrl = resolveOllamaBaseUrl();
+  const url = `${baseUrl}/api/chat`;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (apiKey && apiKey !== 'ollama-local') {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+  const body = {
+    model,
+    messages: toOpenAIChatMessages(messages),
+    stream: false,
+    options: {
+      temperature: 0.2,
+    },
+  };
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+    signal: controller.signal,
+  });
+  const json = await res.json();
+  if (!res.ok) {
+    const errorMsg = json?.error || json?.message || `HTTP ${res.status}`;
+    throw new Error(errorMsg);
+  }
+  const text =
+    json?.message?.content ??
+    json?.response ??
+    json?.choices?.[0]?.message?.content ??
+    JSON.stringify(json);
+  return buildOkResult('ollama', model, text, json, startTime);
 }
 
 /**
@@ -544,10 +744,20 @@ async function callProviderWithRetry(
             return callGroq(apiKey, model, messages, controller);
           case 'gemini':
             return callGemini(apiKey, model, messages, controller);
+          case 'google':
+            return callGoogle(apiKey, model, messages, controller);
           case 'openai':
             return callOpenAI(apiKey, model, messages, controller);
           case 'anthropic':
             return callAnthropic(apiKey, model, messages, controller);
+          case 'openrouter':
+            return callOpenRouter(apiKey, model, messages, controller);
+          case 'deepseek':
+            return callDeepSeek(apiKey, model, messages, controller);
+          case 'xai':
+            return callXai(apiKey, model, messages, controller);
+          case 'ollama':
+            return callOllama(apiKey, model, messages, controller);
           case 'huggingface':
           default:
             return callHuggingFace(apiKey, model, messages, controller);
