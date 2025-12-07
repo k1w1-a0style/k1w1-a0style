@@ -412,13 +412,63 @@ export const AVAILABLE_MODELS: Partial<Record<AllAIProviders, ModelInfo[]>> = {
 // RUNTIME-KONFIG FÜR ORCHESTRATOR (__K1W1_AI_CONFIG)
 // ======================================================================
 
-type ProviderDefaults = {
-  groq?: { speed?: string; quality?: string };
-  gemini?: { speed?: string; quality?: string };
-  openai?: { speed?: string; quality?: string };
-  anthropic?: { speed?: string; quality?: string };
-  huggingface?: { speed?: string; quality?: string };
+type ProviderDefaults = Partial<
+  Record<AllAIProviders, { speed?: string; quality?: string }>
+>;
+
+const BUILT_IN_DEFAULTS: ProviderDefaults = {
+  groq: {
+    speed: 'llama-3.1-8b-instant',
+    quality: 'llama-3.3-70b-versatile',
+  },
+  gemini: {
+    speed: 'gemini-2.5-flash',
+    quality: 'gemini-2.5-pro',
+  },
+  google: {
+    speed: 'gemini-2.5-flash',
+    quality: 'gemini-2.5-pro',
+  },
+  openai: {
+    speed: 'gpt-5-mini',
+    quality: 'gpt-5.1',
+  },
+  anthropic: {
+    speed: 'claude-3-5-haiku-20241022',
+    quality: 'claude-sonnet-4-20250514',
+  },
+  huggingface: {
+    speed: 'deepseek-ai/DeepSeek-V3.2',
+    quality: 'Qwen/Qwen2.5-Coder-32B-Instruct',
+  },
+  openrouter: {
+    speed: 'deepseek/deepseek-chat',
+    quality: 'anthropic/claude-3.5-sonnet',
+  },
+  deepseek: {
+    speed: 'deepseek-chat',
+    quality: 'deepseek-coder',
+  },
+  xai: {
+    speed: 'grok-2',
+    quality: 'grok-2',
+  },
+  ollama: {
+    speed: 'llama3.2',
+    quality: 'codellama',
+  },
 };
+
+function cloneProviderDefaults(): ProviderDefaults {
+  const copy: ProviderDefaults = {};
+  (Object.keys(BUILT_IN_DEFAULTS) as AllAIProviders[]).forEach((key) => {
+    const entry = BUILT_IN_DEFAULTS[key];
+    if (entry) {
+      copy[key] = { ...entry };
+    }
+  });
+  return copy;
+}
 
 type ApiConfig = {
   apiKeys?: Partial<Record<AllAIProviders, string[]>>;
@@ -432,29 +482,7 @@ type ApiConfig = {
       apiKeys: {
         // hier landen deine Keys zur Laufzeit (SettingsScreen)
       },
-      defaults: {
-        groq: {
-          speed: 'llama-3.1-8b-instant',
-          quality: 'llama-3.3-70b-versatile',
-        },
-        gemini: {
-          speed: 'gemini-2.5-flash',
-          quality: 'gemini-2.5-pro',
-        },
-        openai: {
-          speed: 'gpt-5-mini',
-          quality: 'gpt-5.1',
-        },
-        anthropic: {
-          speed: 'claude-3-5-haiku-20241022',
-          quality: 'claude-sonnet-4-20250514',
-        },
-        huggingface: {
-          // Auto-HF = diese zwei Modelle steuern den Modus:
-          speed: 'deepseek-ai/DeepSeek-V3.2',
-          quality: 'Qwen/Qwen2.5-Coder-32B-Instruct',
-        },
-      },
+      defaults: cloneProviderDefaults(),
     };
     g.__K1W1_AI_CONFIG = apiCfg;
   }
@@ -474,40 +502,18 @@ export function detectMetaFromConfig(
   const defaults: ProviderDefaults = cfg.defaults || {};
 
   const pickDefault = (): string => {
-    switch (provider) {
-      case 'groq':
-        return (
-          defaults.groq?.[quality] ||
-          (quality === 'speed'
-            ? 'llama-3.1-8b-instant'
-            : 'llama-3.3-70b-versatile')
-        );
-      case 'gemini':
-        return (
-          defaults.gemini?.[quality] ||
-          (quality === 'speed' ? 'gemini-2.5-flash' : 'gemini-2.5-pro')
-        );
-      case 'openai':
-        return (
-          defaults.openai?.[quality] ||
-          (quality === 'speed' ? 'gpt-5-mini' : 'gpt-5.1')
-        );
-      case 'anthropic':
-        return (
-          defaults.anthropic?.[quality] ||
-          (quality === 'speed'
-            ? 'claude-3-5-haiku-20241022'
-            : 'claude-sonnet-4-20250514')
-        );
-      case 'huggingface':
-      default:
-        return (
-          defaults.huggingface?.[quality] ||
-          (quality === 'speed'
-            ? 'deepseek-ai/DeepSeek-V3.2'
-            : 'Qwen/Qwen2.5-Coder-32B-Instruct')
-        );
-    }
+    const configured = defaults[provider];
+    const builtin = BUILT_IN_DEFAULTS[provider] || BUILT_IN_DEFAULTS.groq;
+
+    return (
+      configured?.[quality] ||
+      configured?.quality ||
+      configured?.speed ||
+      builtin?.[quality] ||
+      builtin?.quality ||
+      builtin?.speed ||
+      'llama-3.1-8b-instant'
+    );
   };
 
   const m = (selectedModel || '').trim();
