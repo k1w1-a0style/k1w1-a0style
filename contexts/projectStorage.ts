@@ -4,7 +4,6 @@ import { ProjectData, ProjectFile, ChatMessage } from './types';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
-import { zip, unzip } from 'react-native-zip-archive';
 import { v4 as uuidv4 } from 'uuid';
 import { normalizePath } from '../utils/chatUtils';
 import { validateFilePath, validateFileContent, validateZipImport } from '../lib/validators';
