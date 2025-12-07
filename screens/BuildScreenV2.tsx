@@ -9,11 +9,15 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { theme } from '../theme';
 import { useBuildStatus } from '../hooks/useBuildStatus';
 import { ensureSupabaseClient } from '../lib/supabase';
 import { useGitHub } from '../contexts/GitHubContext';
+import { getExpoToken } from '../contexts/ProjectContext';
+
+const EAS_PROJECT_ID_STORAGE_KEY = 'eas_project_id';
 
 const BuildScreenV2: React.FC = () => {
   const { activeRepo } = useGitHub();
@@ -36,12 +40,21 @@ const BuildScreenV2: React.FC = () => {
     try {
       setIsStarting(true);
       const supabase = await ensureSupabaseClient();
+      const [storedProjectId, storedEasToken] = await Promise.all([
+        AsyncStorage.getItem(EAS_PROJECT_ID_STORAGE_KEY),
+        getExpoToken().catch(() => null),
+      ]);
+
+      const easProjectId = storedProjectId?.trim() || null;
+      const easToken = storedEasToken?.trim() || null;
 
       const { data, error } = await supabase.functions.invoke(
         'trigger-eas-build',
         {
           body: {
             repoFullName: activeRepo,
+            easProjectId,
+            easToken,
           },
         },
       );

@@ -8,6 +8,10 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  SUPABASE_STORAGE_KEYS,
+  deriveSupabaseDetails,
+} from '../lib/supabaseConfig';
 
 export type BuildStatus =
   | 'idle'
@@ -109,17 +113,36 @@ export function useBuildStatus(jobIdFromScreen?: number | null) {
       abortControllerRef.current = controller;
 
       try {
-        // Supabase URL dynamisch aus AsyncStorage laden
-        const supabaseRaw = await AsyncStorage.getItem('supabase_raw');
-        if (!supabaseRaw) {
-          throw new Error('Supabase URL nicht konfiguriert');
+        // Supabase URL + Key aus AsyncStorage laden (mit Fallbacks)
+        const [storedUrl, storedKey, storedRaw] = await Promise.all([
+          AsyncStorage.getItem(SUPABASE_STORAGE_KEYS.URL),
+          AsyncStorage.getItem(SUPABASE_STORAGE_KEYS.KEY),
+          AsyncStorage.getItem(SUPABASE_STORAGE_KEYS.RAW),
+        ]);
+
+        let supabaseUrl = storedUrl;
+        let supabaseKey = storedKey;
+
+        if (!supabaseUrl && (storedRaw || '').length) {
+          const derived = deriveSupabaseDetails(storedRaw);
+          supabaseUrl = derived.url;
         }
-        
-        // URL ableiten
-        const supabaseUrl = supabaseRaw.includes('supabase.co') 
-          ? supabaseRaw 
-          : `https://${supabaseRaw}.supabase.co`;
-        const edgeFunctionsUrl = `${supabaseUrl}/functions/v1`;
+
+        if (!supabaseUrl && typeof process !== 'undefined') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          supabaseUrl = (process as any).env?.EXPO_PUBLIC_SUPABASE_URL ?? '';
+        }
+
+        if (!supabaseKey && typeof process !== 'undefined') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          supabaseKey = (process as any).env?.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+        }
+
+        if (!supabaseUrl || !supabaseKey) {
+          throw new Error('Supabase URL oder Anon Key nicht konfiguriert');
+        }
+
+        const edgeFunctionsUrl = `${supabaseUrl.replace(/\/$/, '')}/functions/v1`;
         
         const timeoutPromise = new Promise<never>((_, reject) => {
           timeoutRef.current = setTimeout(() => {
@@ -131,7 +154,11 @@ export function useBuildStatus(jobIdFromScreen?: number | null) {
           `${edgeFunctionsUrl}/check-eas-build`,
           {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: supabaseKey,
+              Authorization: `Bearer ${supabaseKey}`,
+            },
             body: JSON.stringify({ jobId }),
             signal: controller.signal,
           },

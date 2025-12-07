@@ -14,13 +14,15 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { theme } from '../theme';
+import { SUPABASE_STORAGE_KEYS } from '../lib/supabaseConfig';
 import { useAI } from '../contexts/AIContext';
 import { Ionicons } from '@expo/vector-icons';
 
 // Keys, die wir in AsyncStorage sichern
 const STORAGE_KEYS = [
-  'supabase_raw',
-  'supabase_key',
+  SUPABASE_STORAGE_KEYS.RAW,
+  SUPABASE_STORAGE_KEYS.URL,
+  SUPABASE_STORAGE_KEYS.KEY,
   'github_token',
   'eas_token',
   'eas_project_id',
