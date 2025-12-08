@@ -1,4 +1,4 @@
-// screens/PreviewScreen.tsx - MIT WEBVIEW MEMORY MANAGEMENT
+// screens/PreviewScreen.tsx - Live Preview über lokale Dateien
 import React, {
   useState,
   useEffect,
@@ -13,127 +13,315 @@ import {
   ActivityIndicator,
   Alert,
   BackHandler,
-  Platform,
+  TouchableOpacity,
+  ScrollView,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system/legacy';
 import { theme } from '../theme';
 import { useProject } from '../contexts/ProjectContext';
+import type { ProjectFile } from '../contexts/types';
+
+const BINARY_EXTENSIONS =
+  /\.(png|jpe?g|gif|webp|bmp|ico|ttf|otf|woff2?|mp3|mp4|wav|ogg|pdf|mov|avi)$/i;
+const PREVIEW_BASE =
+  (FileSystem.cacheDirectory ??
+    FileSystem.documentDirectory ??
+    'file:///data/local/tmp/') + 'preview-runtime/';
+
+const DEFAULT_HTML_TEMPLATE = `<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>K1W1 Vorschau</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at top, #0b2713 0%, #020402 65%);
+        color: #f0fff0;
+      }
+      .card {
+        background: rgba(0, 0, 0, 0.6);
+        border-radius: 20px;
+        padding: 32px;
+        max-width: 520px;
+        text-align: center;
+        box-shadow: 0 10px 35px rgba(0, 0, 0, 0.55);
+        border: 1px solid rgba(0, 255, 120, 0.25);
+      }
+      h1 {
+        margin-top: 0;
+        font-size: 2rem;
+      }
+      p {
+        color: #b3ffcf;
+        line-height: 1.5;
+      }
+      .badge {
+        display: inline-flex;
+        margin-top: 12px;
+        padding: 6px 14px;
+        border-radius: 999px;
+        background: rgba(0, 255, 120, 0.1);
+        border: 1px solid rgba(0, 255, 120, 0.35);
+        font-size: 0.8rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Willkommen zur Vorschau</h1>
+      <p>Lege eine <strong>index.html</strong> oder eine andere HTML-Datei an, um hier deine App zu sehen.</p>
+      <p>Alle relativen CSS/JS-Dateien werden automatisch unterstützt.</p>
+      <div class="badge">Projekt bereit</div>
+    </div>
+  </body>
+</html>`;
+
+type PreviewCacheMeta = {
+  projectKey: string;
+  lastModified?: string;
+  entryPath?: string;
+  entryUri?: string;
+};
+
+const normalizePath = (value: string): string => {
+  if (!value) return '';
+  return value
+    .replace(/\\/g, '/')
+    .replace(/^\.\/+/, '')
+    .replace(/\/+/g, '/')
+    .replace(/^\//, '');
+};
+
+const sanitizeSegment = (value: string | undefined): string => {
+  if (!value) return 'project';
+  const cleaned = value.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '');
+  return cleaned.length ? cleaned.slice(0, 48) : 'project';
+};
+
+const extractBase64Payload = (content: string): string => {
+  if (!content) return '';
+  const marker = 'base64,';
+  const idx = content.indexOf(marker);
+  return idx >= 0 ? content.slice(idx + marker.length) : content;
+};
+
+const isBinaryFile = (path: string): boolean => BINARY_EXTENSIONS.test(path);
+
+const ensureDirectory = async (
+  dir: string,
+  cache: Set<string>,
+): Promise<void> => {
+  if (!dir || cache.has(dir)) return;
+  const info = await FileSystem.getInfoAsync(dir);
+  if (!info.exists) {
+    await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+  }
+  cache.add(dir);
+};
+
+const writeProjectFilesToDisk = async (
+  projectKey: string,
+  files: ProjectFile[],
+  entryPath: string,
+): Promise<string> => {
+  const normalizedEntry = normalizePath(entryPath);
+  if (!normalizedEntry) {
+    throw new Error('Kein Einstiegspunkt für die Vorschau gefunden.');
+  }
+
+  const rootDir = `${PREVIEW_BASE}${projectKey}/`;
+  await FileSystem.deleteAsync(rootDir, { idempotent: true });
+  await FileSystem.makeDirectoryAsync(rootDir, { intermediates: true });
+
+  const dirCache = new Set<string>([rootDir.replace(/\/+$/, '')]);
+
+  for (const file of files) {
+    const normalizedPath = normalizePath(file.path);
+    if (!normalizedPath) continue;
+
+    if (normalizedPath.endsWith('/')) {
+      await ensureDirectory(`${rootDir}${normalizedPath}`, dirCache);
+      continue;
+    }
+
+    const targetPath = `${rootDir}${normalizedPath}`;
+    const parentDir = targetPath.slice(0, targetPath.lastIndexOf('/'));
+    if (parentDir) {
+      await ensureDirectory(parentDir, dirCache);
+    }
+
+    const rawContent =
+      typeof file.content === 'string'
+        ? file.content
+        : JSON.stringify(file.content ?? '', null, 2);
+
+    if (isBinaryFile(normalizedPath)) {
+      const payload = extractBase64Payload(rawContent);
+      await FileSystem.writeAsStringAsync(targetPath, payload, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+    } else {
+      await FileSystem.writeAsStringAsync(targetPath, rawContent, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+    }
+  }
+
+  const entryUri = `${rootDir}${normalizedEntry}`;
+  const entryInfo = await FileSystem.getInfoAsync(entryUri);
+  if (!entryInfo.exists) {
+    throw new Error(
+      `Eintrittsdatei "${normalizedEntry}" wurde nicht gefunden oder konnte nicht geschrieben werden.`,
+    );
+  }
+
+  return entryUri;
+};
 
 const PreviewScreen: React.FC = () => {
-  const { projectData } = useProject();
+  const { projectData, createFile } = useProject();
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [webViewKey, setWebViewKey] = useState(1);
+  const [selectedEntry, setSelectedEntry] = useState<string | null>(null);
+  const [entryUri, setEntryUri] = useState<string | null>(null);
+  const [resyncCounter, setResyncCounter] = useState(0);
 
   const webViewRef = useRef<WebView | null>(null);
   const isMountedRef = useRef(true);
+  const previewCacheRef = useRef<PreviewCacheMeta | null>(null);
 
-  // HTML aus Projektdateien generieren (pure, memoized)
-  const currentHtml = useMemo((): string => {
-    if (!projectData?.files) {
-      return '<html><body><h1>Kein Projekt geladen</h1></body></html>';
+  const projectStats = useMemo(() => {
+    if (!projectData) {
+      return { files: 0, lastModified: null as string | null };
     }
-
-    const htmlFile = projectData.files.find(f => f.path === 'index.html');
-    if (htmlFile && htmlFile.content) {
-      return htmlFile.content;
-    }
-
-    // Fallback: einfache Vorschau mit Projektinfo
-    const fileCount = projectData.files.length;
-    const recentFiles = projectData.files
-      .slice(-5)
-      .map(f => f.path)
-      .join('<br>');
-
-    const lastModified = projectData.lastModified
-      ? new Date(projectData.lastModified).toLocaleString('de-DE')
-      : 'unbekannt';
-
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <title>${projectData.name || 'K1W1 Preview'}</title>
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              margin: 20px;
-              background: #0a0a0a;
-              color: #e0e0e0;
-            }
-            .container {
-              max-width: 800px;
-              margin: 0 auto;
-              padding: 20px;
-            }
-            h1 {
-              color: #00ff00;
-              border-bottom: 2px solid #00ff00;
-              padding-bottom: 10px;
-            }
-            .info {
-              background: #121212;
-              padding: 15px;
-              border-radius: 8px;
-              margin: 20px 0;
-              border-left: 4px solid #00ff00;
-            }
-            .file-list {
-              background: #1a1a1a;
-              padding: 15px;
-              border-radius: 8px;
-              font-family: 'Courier New', monospace;
-              font-size: 14px;
-            }
-            .warning {
-              background: #332200;
-              color: #ffaa00;
-              padding: 10px;
-              border-radius: 6px;
-              margin-top: 20px;
-              border: 1px solid #ffaa00;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <h1>${projectData.name || 'K1W1 Projekt'}</h1>
-            <div class="info">
-              <strong>Projekt-Vorschau</strong><br />
-              Dateien: ${fileCount}<br />
-              Letzte Änderung: ${lastModified}
-            </div>
-
-            <h3>Letzte Dateien:</h3>
-            <div class="file-list">
-              ${recentFiles}
-            </div>
-
-            <div class="warning">
-              ⚠️ Dies ist eine automatisch generierte Vorschau.<br />
-              Für eine vollständige Vorschau erstelle eine index.html Datei.
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
+    return {
+      files: projectData.files?.length ?? 0,
+      lastModified: projectData.lastModified
+        ? new Date(projectData.lastModified).toLocaleString('de-DE')
+        : null,
+    };
   }, [projectData]);
 
-  // Ladezustand zurücksetzen, wenn sich die HTML-Quelle ändert
+  const htmlEntries = useMemo(() => {
+    if (!projectData?.files) return [];
+    return projectData.files
+      .filter(file => /\.html?$/i.test(file.path))
+      .map(file => file.path)
+      .sort((a, b) => {
+        if (a.toLowerCase() === 'index.html') return -1;
+        if (b.toLowerCase() === 'index.html') return 1;
+        return a.localeCompare(b);
+      });
+  }, [projectData?.files]);
+
+  useEffect(() => {
+    if (!htmlEntries.length) {
+      if (selectedEntry !== null) setSelectedEntry(null);
+      return;
+    }
+    if (!selectedEntry || !htmlEntries.includes(selectedEntry)) {
+      setSelectedEntry(htmlEntries[0]);
+    }
+  }, [htmlEntries, selectedEntry]);
+
+  const previewEntryPath = useMemo(() => {
+    if (!selectedEntry) return null;
+    return normalizePath(selectedEntry);
+  }, [selectedEntry]);
+
+  const ensurePreviewOnDisk = useCallback(async () => {
+    if (!projectData || !previewEntryPath) {
+      setEntryUri(null);
+      return;
+    }
+
+    const projectKey = sanitizeSegment(
+      projectData.id || projectData.slug || projectData.name,
+    );
+
+    const cached = previewCacheRef.current;
+    if (
+      cached &&
+      cached.projectKey === projectKey &&
+      cached.lastModified === projectData.lastModified &&
+      cached.entryPath === previewEntryPath &&
+      cached.entryUri
+    ) {
+      const info = await FileSystem.getInfoAsync(cached.entryUri);
+      if (info.exists) {
+        setEntryUri(cached.entryUri);
+        return;
+      }
+    }
+
+    setSyncing(true);
+    setSyncError(null);
+
+    try {
+      const uri = await writeProjectFilesToDisk(
+        projectKey,
+        projectData.files ?? [],
+        previewEntryPath,
+      );
+      if (isMountedRef.current) {
+        previewCacheRef.current = {
+          projectKey,
+          lastModified: projectData.lastModified,
+          entryPath: previewEntryPath,
+          entryUri: uri,
+        };
+        setEntryUri(uri);
+      }
+    } catch (error: any) {
+      if (isMountedRef.current) {
+        console.error('[PreviewScreen] Sync-Fehler', error);
+        setEntryUri(null);
+        setSyncError(
+          error?.message ||
+            'Dateien konnten nicht für die Vorschau geschrieben werden.',
+        );
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setSyncing(false);
+      }
+    }
+  }, [projectData, previewEntryPath]);
+
+  useEffect(() => {
+    ensurePreviewOnDisk();
+  }, [ensurePreviewOnDisk, resyncCounter]);
+
   useEffect(() => {
     if (!isMountedRef.current) return;
+    if (!entryUri) {
+      setIsLoading(false);
+      return;
+    }
     setHasError(false);
     setIsLoading(true);
-    // WebView neu mounten, um State zu resetten
     setWebViewKey(prev => prev + 1);
-  }, [currentHtml]);
+  }, [entryUri]);
 
-  // WebView neu laden (soft reload, falls Ref existiert)
   const reloadWebView = useCallback(() => {
     if (webViewRef.current) {
       webViewRef.current.reload();
@@ -142,10 +330,15 @@ const PreviewScreen: React.FC = () => {
     }
   }, []);
 
-  // Handle Android Back Button → WebView back
+  const forceResync = useCallback(() => {
+    previewCacheRef.current = null;
+    setEntryUri(null);
+    setResyncCounter(prev => prev + 1);
+  }, []);
+
   useEffect(() => {
     const backAction = () => {
-      if (webViewRef.current) {
+      if (webViewRef.current && entryUri) {
         webViewRef.current.goBack();
         return true;
       }
@@ -160,30 +353,26 @@ const PreviewScreen: React.FC = () => {
     return () => {
       backHandler.remove();
     };
-  }, []);
+  }, [entryUri]);
 
-  // Cleanup beim Unmount
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
       if (webViewRef.current) {
         webViewRef.current.stopLoading();
-        // explizit nullen hilft GC in manchen Engines
         webViewRef.current = null;
       }
     };
   }, []);
 
   const handleLoadEnd = useCallback(() => {
-    if (isMountedRef.current) {
-      setIsLoading(false);
-    }
+    if (!isMountedRef.current) return;
+    setIsLoading(false);
   }, []);
 
   const handleError = useCallback(
     (syntheticEvent: any) => {
       const { nativeEvent } = syntheticEvent;
-      // eslint-disable-next-line no-console
       console.error('WebView Fehler:', nativeEvent);
 
       if (!isMountedRef.current) return;
@@ -191,29 +380,73 @@ const PreviewScreen: React.FC = () => {
       setHasError(true);
       setIsLoading(false);
 
-      if (Platform.OS === 'android') {
-        Alert.alert(
-          'Ladefehler',
-          'WebView konnte die Seite nicht laden. Möglicherweise ist zu wenig Speicher verfügbar.',
-          [
-            { text: 'Abbrechen', style: 'cancel' },
-            { text: 'Neu laden', onPress: reloadWebView },
-          ],
-        );
-      }
+      Alert.alert(
+        'Vorschau fehlgeschlagen',
+        'Die Vorschau konnte nicht geladen werden. Prüfe deine HTML-Datei oder lade neu.',
+        [
+          { text: 'Abbrechen', style: 'cancel' },
+          { text: 'Neu laden', onPress: reloadWebView },
+        ],
+      );
     },
     [reloadWebView],
   );
 
   const handleHttpError = useCallback((syntheticEvent: any) => {
     const { nativeEvent } = syntheticEvent;
-    // eslint-disable-next-line no-console
     console.error('HTTP Fehler:', nativeEvent);
 
     if (isMountedRef.current) {
       setHasError(true);
     }
   }, []);
+
+  const handleExternalNav = useCallback(request => {
+    const url: string = request.url || '';
+    if (
+      url.startsWith('file://') ||
+      url.startsWith('data:') ||
+      url.startsWith('about:blank') ||
+      url.startsWith('blob:')
+    ) {
+      return true;
+    }
+
+    if (
+      /^https?:/i.test(url) ||
+      url.startsWith('mailto:') ||
+      url.startsWith('tel:')
+    ) {
+      Linking.openURL(url).catch(() => null);
+      return false;
+    }
+
+    return false;
+  }, []);
+
+  const handleCreateIndexHtml = useCallback(() => {
+    Alert.alert(
+      'index.html anlegen',
+      'Es wird eine einfache Startdatei mit Live-Reload vorbereitet.',
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Erstellen',
+          onPress: async () => {
+            try {
+              await createFile('index.html', DEFAULT_HTML_TEMPLATE);
+              Alert.alert('Fertig', 'index.html wurde erstellt.');
+            } catch (error: any) {
+              Alert.alert(
+                'Fehler',
+                error?.message || 'index.html konnte nicht erstellt werden.',
+              );
+            }
+          },
+        },
+      ],
+    );
+  }, [createFile]);
 
   if (!projectData) {
     return (
@@ -224,7 +457,9 @@ const PreviewScreen: React.FC = () => {
             size={48}
             color={theme.palette.warning}
           />
-          <Text style={{ color: theme.palette.warning, marginTop: 12, fontSize: 16 }}>
+          <Text
+            style={{ color: theme.palette.warning, marginTop: 12, fontSize: 16 }}
+          >
             Kein Projekt geladen
           </Text>
         </View>
@@ -232,70 +467,256 @@ const PreviewScreen: React.FC = () => {
     );
   }
 
+  const hasHtmlEntry = htmlEntries.length > 0;
+
   return (
     <SafeAreaView
       style={styles.container}
       edges={['bottom', 'left', 'right']}
     >
-      {isLoading && (
+      {!!(isLoading || syncing) && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={theme.palette.primary} />
+          <Text style={styles.loadingText}>
+            {syncing ? 'Dateien werden vorbereitet …' : 'Vorschau wird geladen …'}
+          </Text>
         </View>
       )}
 
-      {hasError ? (
-        <View style={styles.errorContainer}>
-          <Ionicons
-            name="alert-circle-outline"
-            size={64}
-            color={theme.palette.error}
-          />
-          <Text style={{ color: theme.palette.error, marginTop: 12, fontSize: 16 }}>
-            Fehler beim Laden der Vorschau
+      <View style={styles.header}>
+        <View style={styles.headerInfo}>
+          <Text style={styles.projectName} numberOfLines={1}>
+            {projectData.name || 'Projekt-Vorschau'}
           </Text>
-          <Text style={{ color: theme.palette.text.secondary, marginTop: 8, fontSize: 14 }}>
-            Tippe zum Neuladen
+          <Text style={styles.metaText}>
+            Dateien: {projectStats.files} ·{' '}
+            {projectStats.lastModified
+              ? `Stand ${projectStats.lastModified}`
+              : 'Kein Änderungsdatum'}
           </Text>
         </View>
-      ) : (
-        <WebView
-          key={`webview-${webViewKey}`}
-          ref={webViewRef}
-          source={{ html: currentHtml }}
-          style={styles.webview}
-          onLoadEnd={handleLoadEnd}
-          onError={handleError}
-          onHttpError={handleHttpError}
-          startInLoadingState
-          javaScriptEnabled
-          domStorageEnabled
-          allowFileAccess
-          mixedContentMode="always"
-          cacheEnabled
-          cacheMode="LOAD_DEFAULT"
-          onShouldStartLoadWithRequest={request => {
-            // Nur eigene HTML und Daten-URLs erlauben
-            const url = request.url || '';
-            return (
-              url.startsWith('data:text/html') || url.startsWith('about:blank')
-            );
-          }}
-          renderLoading={() => (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator
-                size="large"
-                color={theme.palette.primary}
+
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={forceResync}
+            style={styles.iconButton}
+            accessibilityLabel="Dateien neu laden"
+          >
+            <Ionicons
+              name="refresh-outline"
+              size={20}
+              color={theme.palette.text.primary}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={reloadWebView}
+            style={styles.iconButton}
+            accessibilityLabel="WebView neu laden"
+          >
+            <Ionicons
+              name="reload-circle-outline"
+              size={22}
+              color={theme.palette.text.primary}
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.badgeRow}>
+        <View style={styles.badge}>
+          <Ionicons
+            name="flash-outline"
+            size={14}
+            color={theme.palette.primary}
+          />
+          <Text style={styles.badgeText}>Live-Dateien</Text>
+        </View>
+        {syncError ? (
+          <View style={[styles.badge, styles.badgeError]}>
+            <Ionicons
+              name="warning-outline"
+              size={14}
+              color={theme.palette.error}
+            />
+            <Text style={[styles.badgeText, styles.badgeErrorText]}>
+              {syncError}
+            </Text>
+          </View>
+        ) : entryUri ? (
+          <View style={[styles.badge, styles.badgeSuccess]}>
+            <Ionicons
+              name="checkmark-circle-outline"
+              size={14}
+              color={theme.palette.success}
+            />
+            <Text style={[styles.badgeText, styles.badgeSuccessText]}>Bereit</Text>
+          </View>
+        ) : (
+          <View style={[styles.badge, styles.badgeWarning]}>
+            <Ionicons
+              name="hourglass-outline"
+              size={14}
+              color={theme.palette.warning}
+            />
+            <Text style={[styles.badgeText, styles.badgeWarningText]}>
+              Auswahl benötigt
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {htmlEntries.length > 0 && (
+        <ScrollView
+          horizontal
+          style={styles.entryScroll}
+          contentContainerStyle={styles.entryScrollContent}
+          showsHorizontalScrollIndicator={false}
+        >
+          {htmlEntries.map(path => (
+            <TouchableOpacity
+              key={path}
+              style={[
+                styles.entryChip,
+                selectedEntry === path && styles.entryChipActive,
+              ]}
+              onPress={() => setSelectedEntry(path)}
+            >
+              <Ionicons
+                name="document-text-outline"
+                size={14}
+                color={
+                  selectedEntry === path
+                    ? theme.palette.background
+                    : theme.palette.text.secondary
+                }
               />
-            </View>
-          )}
-          // Android-spezifische Optimierungen
-          androidLayerType="hardware"
-          setBuiltInZoomControls={false}
-          setDisplayZoomControls={false}
-          // iOS-spezifische Optimierungen
-          scrollEnabled
-          bounces={false}
-        />
+              <Text
+                style={[
+                  styles.entryChipText,
+                  selectedEntry === path && styles.entryChipTextActive,
+                ]}
+                numberOfLines={1}
+              >
+                {path}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
+      {syncError && (
+        <TouchableOpacity style={styles.syncErrorCard} onPress={forceResync}>
+          <Ionicons
+            name="alert-circle-outline"
+            size={18}
+            color={theme.palette.error}
+          />
+          <View style={{ flex: 1, marginLeft: 8 }}>
+            <Text style={styles.syncErrorTitle}>Sync fehlgeschlagen</Text>
+            <Text style={styles.syncErrorText}>{syncError}</Text>
+          </View>
+          <Ionicons
+            name="refresh"
+            size={18}
+            color={theme.palette.text.secondary}
+          />
+        </TouchableOpacity>
+      )}
+
+      {hasHtmlEntry ? (
+        entryUri ? (
+          <WebView
+            key={`webview-${webViewKey}`}
+            ref={webViewRef}
+            source={{ uri: entryUri }}
+            style={styles.webview}
+            onLoadEnd={handleLoadEnd}
+            onError={handleError}
+            onHttpError={handleHttpError}
+            startInLoadingState
+            javaScriptEnabled
+            domStorageEnabled
+            allowFileAccess
+            allowFileAccessFromFileURLs
+            allowUniversalAccessFromFileURLs
+            mixedContentMode="always"
+            cacheEnabled
+            cacheMode="LOAD_DEFAULT"
+            onShouldStartLoadWithRequest={handleExternalNav}
+            renderLoading={() => (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator
+                  size="large"
+                  color={theme.palette.primary}
+                />
+              </View>
+            )}
+            androidLayerType="hardware"
+            setBuiltInZoomControls={false}
+            setDisplayZoomControls={false}
+            scrollEnabled
+            bounces={false}
+          />
+        ) : (
+          <View style={styles.placeholder}>
+            <ActivityIndicator size="large" color={theme.palette.primary} />
+            <Text style={styles.placeholderText}>
+              Vorschau wird vorbereitet …
+            </Text>
+          </View>
+        )
+      ) : (
+        <View style={styles.infoWrapper}>
+          <View style={styles.infoCard}>
+            <Ionicons
+              name="eye-off-outline"
+              size={36}
+              color={theme.palette.text.secondary}
+              style={{ marginBottom: 12 }}
+            />
+            <Text style={styles.infoTitle}>Keine HTML-Datei gefunden</Text>
+            <Text style={styles.infoText}>
+              Lege eine <Text style={styles.highlight}>index.html</Text> oder eine andere
+              HTML-Datei im Projekt an. Sie wird automatisch auf das Gerät kopiert und mit
+              allen relativen Assets geladen.
+            </Text>
+            <TouchableOpacity
+              style={styles.primaryButton}
+              onPress={handleCreateIndexHtml}
+            >
+              <Text style={styles.primaryButtonText}>index.html erstellen</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryButton} onPress={forceResync}>
+              <Text style={styles.secondaryButtonText}>Erneut prüfen</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.hintCard}>
+            <Text style={styles.hintTitle}>Tipps für eine echte Preview</Text>
+            <Text style={styles.hintText}>
+              • Verwende relative Pfade wie <Text style={styles.highlight}>./styles.css</Text> für Assets.
+            </Text>
+            <Text style={styles.hintText}>
+              • Bilder können als Base64 (<Text style={styles.highlight}>data:image</Text>) hinterlegt werden.
+            </Text>
+            <Text style={styles.hintText}>
+              • Nach jeder Änderung genügt ein Tipp auf "Dateien neu laden".
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {hasError && entryUri && (
+        <TouchableOpacity style={styles.errorBanner} onPress={reloadWebView}>
+          <Ionicons
+            name="alert-circle-outline"
+            size={18}
+            color={theme.palette.error}
+          />
+          <Text style={styles.errorBannerText}>
+            Vorschau konnte nicht geladen werden. Tippe zum Neuversuch.
+          </Text>
+        </TouchableOpacity>
       )}
     </SafeAreaView>
   );
@@ -309,6 +730,8 @@ const styles = StyleSheet.create({
   webview: {
     flex: 1,
     backgroundColor: theme.palette.background,
+    borderTopWidth: 1,
+    borderTopColor: theme.palette.border,
   },
   loadingOverlay: {
     position: 'absolute',
@@ -316,10 +739,17 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 1000,
+    zIndex: 10,
+    paddingHorizontal: 24,
+  },
+  loadingText: {
+    color: theme.palette.text.secondary,
+    marginTop: 12,
+    fontSize: 14,
+    textAlign: 'center',
   },
   loadingContainer: {
     flex: 1,
@@ -331,12 +761,222 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 24,
   },
-  errorContainer: {
+  header: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerInfo: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  projectName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.palette.text.primary,
+  },
+  metaText: {
+    marginTop: 4,
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+  },
+  headerActions: {
+    flexDirection: 'row',
+  },
+  iconButton: {
+    padding: 6,
+    marginLeft: 4,
+    borderRadius: 8,
+    backgroundColor: theme.palette.card,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    marginRight: 8,
+    backgroundColor: theme.palette.card,
+  },
+  badgeText: {
+    marginLeft: 6,
+    fontSize: 11,
+    color: theme.palette.text.secondary,
+  },
+  badgeSuccess: {
+    borderColor: theme.palette.success,
+    backgroundColor: 'rgba(0,255,0,0.08)',
+  },
+  badgeSuccessText: {
+    color: theme.palette.success,
+  },
+  badgeWarning: {
+    borderColor: theme.palette.warning,
+    backgroundColor: 'rgba(255,200,0,0.12)',
+  },
+  badgeWarningText: {
+    color: theme.palette.warning,
+  },
+  badgeError: {
+    borderColor: theme.palette.error,
+    backgroundColor: 'rgba(255,0,0,0.08)',
+  },
+  badgeErrorText: {
+    color: theme.palette.error,
+  },
+  entryScroll: {
+    maxHeight: 42,
+    marginBottom: 8,
+  },
+  entryScrollContent: {
+    paddingHorizontal: 12,
+  },
+  entryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    marginHorizontal: 4,
+    backgroundColor: theme.palette.card,
+  },
+  entryChipActive: {
+    backgroundColor: theme.palette.primary,
+    borderColor: theme.palette.primary,
+  },
+  entryChipText: {
+    marginLeft: 6,
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+  },
+  entryChipTextActive: {
+    color: theme.palette.background,
+    fontWeight: '600',
+  },
+  infoWrapper: {
+    flex: 1,
+    padding: 24,
+  },
+  infoCard: {
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    borderRadius: 16,
+    backgroundColor: theme.palette.card,
+    padding: 20,
+    alignItems: 'center',
+  },
+  infoTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.palette.text.primary,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  infoText: {
+    color: theme.palette.text.secondary,
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  highlight: {
+    color: theme.palette.primary,
+    fontWeight: '600',
+  },
+  primaryButton: {
+    marginTop: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    backgroundColor: theme.palette.primary,
+  },
+  primaryButtonText: {
+    color: theme.palette.background,
+    fontWeight: '600',
+  },
+  secondaryButton: {
+    marginTop: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  secondaryButtonText: {
+    color: theme.palette.text.primary,
+    fontWeight: '600',
+  },
+  hintCard: {
+    marginTop: 20,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
+  },
+  hintTitle: {
+    color: theme.palette.text.primary,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  hintText: {
+    color: theme.palette.text.secondary,
+    fontSize: 13,
+    marginBottom: 4,
+  },
+  syncErrorCard: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.palette.error,
+    backgroundColor: 'rgba(255,0,0,0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  syncErrorTitle: {
+    color: theme.palette.error,
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  syncErrorText: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+  },
+  placeholder: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.palette.background,
+    padding: 24,
+  },
+  placeholderText: {
+    marginTop: 12,
+    color: theme.palette.text.secondary,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderTopWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  errorBannerText: {
+    color: theme.palette.error,
+    marginLeft: 8,
+    fontSize: 13,
   },
 });
 
