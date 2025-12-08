@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  View,
   Text,
   TouchableOpacity,
   ActivityIndicator,
@@ -10,6 +9,18 @@ import {
   Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  withSequence,
+  withRepeat,
+  Easing,
+  interpolate,
+  FadeIn,
+  FadeInDown,
+} from 'react-native-reanimated';
 
 import { theme } from '../theme';
 import { useBuildStatus } from '../hooks/useBuildStatus';
@@ -19,6 +30,11 @@ import { getExpoToken } from '../contexts/ProjectContext';
 
 const EAS_PROJECT_ID_STORAGE_KEY = 'eas_project_id';
 
+// Create animated versions of components
+const AnimatedTouchableOpacity =
+  Animated.createAnimatedComponent(TouchableOpacity);
+const AnimatedView = Animated.View;
+
 const BuildScreenV2: React.FC = () => {
   const { activeRepo } = useGitHub();
   const [jobId, setJobId] = useState<number | null>(null);
@@ -27,6 +43,81 @@ const BuildScreenV2: React.FC = () => {
   const { status, details, errorCount, lastError, isPolling } = useBuildStatus(
     jobId,
   );
+
+  // Animation values
+  const buttonScale = useSharedValue(1);
+  const statusOpacity = useSharedValue(1);
+  const statusScale = useSharedValue(1);
+  const successPulse = useSharedValue(0);
+  const errorShake = useSharedValue(0);
+
+  // Animate status changes
+  useEffect(() => {
+    statusOpacity.value = withSequence(
+      withTiming(0.5, { duration: 150 }),
+      withTiming(1, { duration: 150 }),
+    );
+    statusScale.value = withSequence(
+      withSpring(1.05, { damping: 10 }),
+      withSpring(1, { damping: 10 }),
+    );
+
+    // Success pulse animation
+    if (status === 'success') {
+      successPulse.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 800, easing: Easing.ease }),
+          withTiming(0, { duration: 800, easing: Easing.ease }),
+        ),
+        -1,
+        false,
+      );
+    } else {
+      successPulse.value = 0;
+    }
+
+    // Error shake animation
+    if (status === 'failed' || status === 'error') {
+      errorShake.value = withSequence(
+        withTiming(-5, { duration: 50 }),
+        withTiming(5, { duration: 50 }),
+        withTiming(-5, { duration: 50 }),
+        withTiming(5, { duration: 50 }),
+        withTiming(0, { duration: 50 }),
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
+  const buttonAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: buttonScale.value }],
+  }));
+
+  const statusAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: statusOpacity.value,
+    transform: [{ scale: statusScale.value }],
+  }));
+
+  const successPulseStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(successPulse.value, [0, 1], [0.3, 0.8]);
+    const scale = interpolate(successPulse.value, [0, 1], [1, 1.02]);
+    return {
+      opacity,
+      transform: [{ scale }],
+    };
+  });
+
+  const errorShakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: errorShake.value }],
+  }));
+
+  const handleButtonPressIn = () => {
+    buttonScale.value = withSpring(0.95, { damping: 15 });
+  };
+
+  const handleButtonPressOut = () => {
+    buttonScale.value = withSpring(1, { damping: 15 });
+  };
 
   const startBuild = async () => {
     if (!activeRepo) {
@@ -127,12 +218,17 @@ const BuildScreenV2: React.FC = () => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>EAS Build</Text>
-      <Text style={styles.subtitle}>
-        Triggert einen EAS-Build über deine Supabase Edge Functions.
-      </Text>
+      <AnimatedView entering={FadeIn.duration(400)}>
+        <Text style={styles.title}>EAS Build</Text>
+        <Text style={styles.subtitle}>
+          Triggert einen EAS-Build über deine Supabase Edge Functions.
+        </Text>
+      </AnimatedView>
 
-      <View style={styles.card}>
+      <AnimatedView
+        entering={FadeInDown.delay(100).duration(500).springify()}
+        style={styles.card}
+      >
         <Text style={styles.cardTitle}>Repository</Text>
         {activeRepo ? (
           <Text style={styles.cardText}>{activeRepo}</Text>
@@ -141,21 +237,27 @@ const BuildScreenV2: React.FC = () => {
             Kein aktives Repo gewählt. Wähle eines im GitHub-Screen aus.
           </Text>
         )}
-      </View>
+      </AnimatedView>
 
-      <View style={styles.card}>
+      <AnimatedView
+        entering={FadeInDown.delay(200).duration(500).springify()}
+        style={styles.card}
+      >
         <Text style={styles.cardTitle}>Build starten</Text>
         <Text style={styles.cardText}>
           Starte einen neuen EAS-Build für das aktive Repository. Der Status
           wird automatisch abgefragt.
         </Text>
 
-        <TouchableOpacity
+        <AnimatedTouchableOpacity
           style={[
             styles.primaryButton,
+            buttonAnimatedStyle,
             (!activeRepo || isStarting || isPolling) && styles.buttonDisabled,
           ]}
           onPress={startBuild}
+          onPressIn={handleButtonPressIn}
+          onPressOut={handleButtonPressOut}
           disabled={!activeRepo || isStarting || isPolling}
         >
           {isStarting ? (
@@ -168,41 +270,76 @@ const BuildScreenV2: React.FC = () => {
               {jobId ? 'Erneut starten' : 'Build starten'}
             </Text>
           )}
-        </TouchableOpacity>
+        </AnimatedTouchableOpacity>
 
         {jobId && (
-          <Text style={styles.jobText}>Aktueller Job: #{jobId}</Text>
+          <Animated.Text
+            entering={FadeIn.duration(300)}
+            style={styles.jobText}
+          >
+            Aktueller Job: #{jobId}
+          </Animated.Text>
         )}
-      </View>
+      </AnimatedView>
 
-      <View style={styles.card}>
+      <AnimatedView
+        entering={FadeInDown.delay(300).duration(500).springify()}
+        style={[
+          styles.card,
+          status === 'success' && styles.successCard,
+          (status === 'failed' || status === 'error') && styles.errorCard,
+        ]}
+      >
         <Text style={styles.cardTitle}>Status</Text>
-        <Text style={styles.statusText}>{renderStatusText()}</Text>
+        <AnimatedView
+          style={[
+            statusAnimatedStyle,
+            status === 'success' && successPulseStyle,
+            (status === 'failed' || status === 'error') && errorShakeStyle,
+          ]}
+        >
+          <Text
+            style={[
+              styles.statusText,
+              status === 'success' && styles.successText,
+              (status === 'failed' || status === 'error') && styles.errorText,
+              (status === 'building' || status === 'queued') &&
+                styles.buildingText,
+            ]}
+          >
+            {renderStatusText()}
+          </Text>
+        </AnimatedView>
 
         {details?.urls?.html && (
-          <TouchableOpacity
+          <AnimatedTouchableOpacity
+            entering={FadeIn.delay(100).duration(300)}
             style={styles.linkButton}
             onPress={() => openUrl(details.urls?.html)}
           >
             <Text style={styles.linkButtonText}>Build-Details aufrufen</Text>
-          </TouchableOpacity>
+          </AnimatedTouchableOpacity>
         )}
 
         {details?.urls?.artifacts && (
-          <TouchableOpacity
+          <AnimatedTouchableOpacity
+            entering={FadeIn.delay(200).duration(300)}
             style={styles.linkButton}
             onPress={() => openUrl(details.urls?.artifacts)}
           >
             <Text style={styles.linkButtonText}>Artifacts öffnen</Text>
-          </TouchableOpacity>
+          </AnimatedTouchableOpacity>
         )}
 
         {lastError && (
-          <Text style={styles.errorText}>
+          <Animated.Text
+            entering={FadeIn.duration(300)}
+            style={styles.errorText}
+          >
             Letzter Fehler ({errorCount}x): {lastError}
-          </Text>
+          </Animated.Text>
         )}
-      </View>
+      </AnimatedView>
     </ScrollView>
   );
 };
@@ -234,6 +371,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: theme.palette.border,
+  },
+  successCard: {
+    borderColor: theme.palette.success,
+    backgroundColor: theme.palette.successSoft,
+  },
+  errorCard: {
+    borderColor: theme.palette.error,
+    backgroundColor: 'rgba(255,68,68,0.05)',
   },
   cardTitle: {
     color: theme.palette.text.primary,
@@ -270,6 +415,16 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 13,
     color: theme.palette.text.primary,
+    fontWeight: '500',
+  },
+  successText: {
+    color: theme.palette.success,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  buildingText: {
+    color: theme.palette.text.accent,
+    fontSize: 14,
   },
   warningText: {
     fontSize: 12,
@@ -279,6 +434,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.palette.error,
     marginTop: 8,
+    fontWeight: '600',
   },
   linkButton: {
     marginTop: 12,
