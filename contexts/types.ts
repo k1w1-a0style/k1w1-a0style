@@ -1,35 +1,23 @@
-// contexts/types.ts - vereinheitlicht + Builder-Context für Rich Messages
+// contexts/types.ts
 
-export interface ProjectFile {
+// =====================================
+// Project Types
+// =====================================
+
+export type ProjectFile = {
   path: string;
   content: string;
-}
+};
 
-export interface ContextFileChange {
-  path: string;
-  type: 'created' | 'updated' | 'deleted';
-  preview?: string;
-}
-
-export interface BuilderContextData {
-  provider?: string;
-  model?: string;
-  duration?: number; // in ms
-
-  // Neue Struktur (optional) für Rich-Context
-  files?: ProjectFile[];
-  changes?: ContextFileChange[];
-
-  // Legacy-Feld (ältere Builder-Versionen)
-  filesChanged?: ContextFileChange[];
-
-  totalLines?: number;
-  keysRotated?: number;
-
-  // 🔥 Neue Felder für Rich-Context
-  summary?: string;        // Kurzbeschreibung des Builds
-  quality?: string;        // z.B. 'speed' | 'quality'
-  messageCount?: number;   // Anzahl der Prompt-Messages
+export interface ProjectData {
+  id: string;
+  name: string;
+  slug: string;
+  files: ProjectFile[];
+  chatHistory: ChatMessage[];
+  createdAt: string;
+  lastModified: string;
+  packageName?: string;
 }
 
 export interface ChatMessage {
@@ -37,93 +25,229 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string;
-  meta?: {
-    provider?: string;
-    error?: boolean;
-    context?: BuilderContextData;
-  };
+  context?: BuilderContextData;
 }
 
-export interface ProjectData {
-  id?: string;
-  name: string;
-  slug?: string;
-  description?: string;
+export interface BuilderContextData {
+  provider?: string;
+  model?: string;
+  duration?: number;
+  totalLines?: number;
+  keysRotated?: number;
+  files?: ProjectFile[];
+  changes?: ContextFileChange[];
+  filesChanged?: ContextFileChange[]; // legacy
+  error?: string;
+  success?: boolean;
+}
 
-  files: ProjectFile[];
-  chatHistory: ChatMessage[];
-  messages?: ChatMessage[];
-  createdAt: string;
-  lastModified: string;
+export interface ContextFileChange {
+  path: string;
+  type: 'created' | 'updated' | 'deleted';
+  linesAdded?: number;
+  linesRemoved?: number;
+  diff?: string;
 }
 
 export interface ProjectContextProps {
   projectData: ProjectData | null;
   isLoading: boolean;
-
-  // File operations
   updateProjectFiles: (files: ProjectFile[], newName?: string) => Promise<void>;
   createFile: (path: string, content: string) => Promise<void>;
   deleteFile: (path: string) => Promise<void>;
   updateFileContent: (path: string, content: string) => Promise<void>;
   renameFile: (oldPath: string, newPath: string) => Promise<void>;
-
-  // Project operations
   setPackageName: (packageName: string) => void;
   setProjectName: (name: string) => void;
   createNewProject: () => Promise<void>;
-
-  // Chat operations
   addChatMessage: (message: ChatMessage) => void;
   messages: ChatMessage[];
-
-  // Export/Import
-  exportAndBuild: () => Promise<{ owner: string; repo: string } | null>;
+  exportAndBuild: () => Promise<string | null>;
   exportProjectAsZip: () => Promise<void>;
   importProjectFromZip: () => Promise<void>;
 }
 
-export interface AIProviderConfig {
-  provider: 'openai' | 'anthropic' | 'google' | 'local';
-  apiKey?: string;
-  model?: string;
-  baseUrl?: string;
-}
+// =====================================
+// GitHub Actions Types
+// =====================================
 
-export interface AIContextProps {
-  provider: string;
-  apiKey: string;
-  projectName: string;
-  packageName: string;
-
-  isConfigLoaded: boolean;
-  isSaving: boolean;
-
-  keysRotated?: number;
-  timing?: {
-    startMs?: number;
-    endMs?: number;
-    durationMs?: number;
+export interface GitHubWorkflowRun {
+  id: number;
+  name: string;
+  head_branch: string;
+  head_sha: string;
+  status: 'queued' | 'in_progress' | 'completed' | 'waiting';
+  conclusion: 'success' | 'failure' | 'cancelled' | 'skipped' | 'timed_out' | 'action_required' | null;
+  event: string;
+  workflow_id: number;
+  run_number: number;
+  run_attempt: number;
+  created_at: string;
+  updated_at: string;
+  run_started_at?: string;
+  html_url: string;
+  jobs_url: string;
+  logs_url: string;
+  check_suite_url: string;
+  artifacts_url: string;
+  cancel_url: string;
+  rerun_url: string;
+  display_title?: string;
+  actor?: {
+    login: string;
+    avatar_url: string;
   };
+}
 
-  setProvider: (provider: string) => void;
-  setApiKey: (apiKey: string) => void;
-  setPackageName: (packageName: string) => void;
-  setProjectName: (name: string) => void;
-  createNewProject: () => Promise<void>;
+export interface GitHubWorkflowJob {
+  id: number;
+  run_id: number;
+  name: string;
+  status: 'queued' | 'in_progress' | 'completed' | 'waiting';
+  conclusion: 'success' | 'failure' | 'cancelled' | 'skipped' | null;
+  started_at?: string;
+  completed_at?: string;
+  html_url: string;
+  steps: GitHubWorkflowStep[];
+  runner_name?: string;
+  runner_group_name?: string;
+}
 
-  // Chat operations
-  addChatMessage: (message: ChatMessage) => void;
-  messages: ChatMessage[];
+export interface GitHubWorkflowStep {
+  name: string;
+  status: 'queued' | 'in_progress' | 'completed';
+  conclusion: 'success' | 'failure' | 'cancelled' | 'skipped' | null;
+  number: number;
+  started_at?: string;
+  completed_at?: string;
+}
 
-  // Export/Import
-  exportAndBuild: () => Promise<{ owner: string; repo: string } | null>;
-  exportProjectAsZip: () => Promise<void>;
-  importProjectFromZip: () => Promise<void>;
+export interface GitHubWorkflowRunsResponse {
+  total_count: number;
+  workflow_runs: GitHubWorkflowRun[];
+}
 
-  // GitHub operations
-  getGitHubToken: () => Promise<string | null>;
-  setGitHubToken: (token: string) => Promise<void>;
-  clearGitHubToken: () => Promise<void>;
-  exportProjectToGitHub: () => Promise<{ owner: string; repo: string } | null>;
+export interface GitHubWorkflowJobsResponse {
+  total_count: number;
+  jobs: GitHubWorkflowJob[];
+}
+
+export interface GitHubArtifact {
+  id: number;
+  node_id: string;
+  name: string;
+  size_in_bytes: number;
+  url: string;
+  archive_download_url: string;
+  expired: boolean;
+  created_at: string;
+  updated_at: string;
+  expires_at: string;
+  workflow_run?: {
+    id: number;
+    head_sha: string;
+  };
+}
+
+export interface GitHubArtifactsResponse {
+  total_count: number;
+  artifacts: GitHubArtifact[];
+}
+
+// =====================================
+// Build Status Types
+// =====================================
+
+export type BuildPhase = 
+  | 'idle' 
+  | 'queued' 
+  | 'checkout' 
+  | 'setup' 
+  | 'install' 
+  | 'building' 
+  | 'uploading' 
+  | 'success' 
+  | 'failed' 
+  | 'error';
+
+export interface BuildStepInfo {
+  name: string;
+  status: 'pending' | 'running' | 'success' | 'failed' | 'skipped';
+  startedAt?: string;
+  completedAt?: string;
+  duration?: number; // in seconds
+}
+
+export interface LiveBuildStatus {
+  phase: BuildPhase;
+  run?: GitHubWorkflowRun;
+  job?: GitHubWorkflowJob;
+  steps: BuildStepInfo[];
+  logs: LogLine[];
+  artifacts: GitHubArtifact[];
+  progress: number; // 0-100
+  eta?: string; // estimated time remaining
+  startedAt?: string;
+  completedAt?: string;
+  totalDuration?: number; // in seconds
+}
+
+export interface LogLine {
+  timestamp: string;
+  level: 'info' | 'warn' | 'error' | 'debug';
+  message: string;
+  stepName?: string;
+}
+
+// =====================================
+// Repository Types
+// =====================================
+
+export interface GitHubRepo {
+  id: number;
+  name: string;
+  full_name: string;
+  private: boolean;
+  description?: string;
+  updated_at: string;
+  html_url: string;
+  default_branch: string;
+  language?: string;
+  stargazers_count?: number;
+  forks_count?: number;
+  open_issues_count?: number;
+  owner: {
+    login: string;
+    avatar_url?: string;
+  };
+}
+
+export interface GitHubBranch {
+  name: string;
+  commit: {
+    sha: string;
+    url: string;
+  };
+  protected: boolean;
+}
+
+// =====================================
+// Workflow Types
+// =====================================
+
+export interface GitHubWorkflow {
+  id: number;
+  name: string;
+  path: string;
+  state: 'active' | 'disabled_fork' | 'disabled_manually' | 'disabled_inactivity';
+  created_at: string;
+  updated_at: string;
+  url: string;
+  html_url: string;
+  badge_url: string;
+}
+
+export interface GitHubWorkflowsResponse {
+  total_count: number;
+  workflows: GitHubWorkflow[];
 }
