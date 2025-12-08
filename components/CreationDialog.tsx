@@ -38,7 +38,7 @@ export const CreationDialog: React.FC<CreationDialogProps> = ({
     <Modal visible={visible} transparent animationType="slide">
       <KeyboardAvoidingView 
         style={styles.modalOverlay}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={styles.creationModal}>
           <Text style={styles.modalTitle}>Neu erstellen</Text>
