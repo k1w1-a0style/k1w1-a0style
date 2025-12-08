@@ -11,6 +11,7 @@ import {
   Platform,
   TextInput,
   Dimensions,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -317,49 +318,55 @@ const CodeScreen: React.FC = () => {
 
     return (
       <SafeAreaView style={styles.root} edges={['bottom', 'left', 'right']}>
-        <EditorHeader
-          file={selectedFile}
-          viewMode={viewMode}
-          onBack={handleBack}
-          onToggleView={handleToggleView}
-          onSave={handleSaveFile}
-          onDelete={handleDeleteFile}
-          hasChanges={hasChanges}
-        />
-
-        <Animated.View 
-          entering={FadeIn.duration(300)} 
-          style={styles.editorContainer}
+        <KeyboardAvoidingView 
+          style={styles.keyboardAvoidingView}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
-          {isImage ? (
-            <View style={styles.imagePreviewContainer}>
-              <Ionicons name="image-outline" size={64} color={theme.palette.text.muted} />
-              <Text style={styles.imagePreviewText}>Bild-Vorschau nicht verfügbar</Text>
-              <Text style={styles.imagePreviewPath}>{selectedFile.path}</Text>
-            </View>
-          ) : isCode && viewMode === 'preview' ? (
-            <SyntaxHighlighter code={editingContent} />
-          ) : (
-            <TextInput
-              style={styles.editorInput}
-              multiline
-              value={editingContent}
-              onChangeText={setEditingContent}
-              autoCapitalize="none"
-              autoCorrect={false}
-              textAlignVertical="top"
-              placeholder="Dateiinhalt hier eingeben..."
-              placeholderTextColor={theme.palette.text.muted}
-            />
-          )}
-        </Animated.View>
+          <EditorHeader
+            file={selectedFile}
+            viewMode={viewMode}
+            onBack={handleBack}
+            onToggleView={handleToggleView}
+            onSave={handleSaveFile}
+            onDelete={handleDeleteFile}
+            hasChanges={hasChanges}
+          />
 
-        {hasChanges && (
-          <View style={styles.unsavedBanner}>
-            <Ionicons name="alert-circle" size={16} color={theme.palette.warning} />
-            <Text style={styles.unsavedText}>Ungespeicherte Änderungen</Text>
-          </View>
-        )}
+          <Animated.View 
+            entering={FadeIn.duration(300)} 
+            style={styles.editorContainer}
+          >
+            {isImage ? (
+              <View style={styles.imagePreviewContainer}>
+                <Ionicons name="image-outline" size={64} color={theme.palette.text.muted} />
+                <Text style={styles.imagePreviewText}>Bild-Vorschau nicht verfügbar</Text>
+                <Text style={styles.imagePreviewPath}>{selectedFile.path}</Text>
+              </View>
+            ) : isCode && viewMode === 'preview' ? (
+              <SyntaxHighlighter code={editingContent} />
+            ) : (
+              <TextInput
+                style={styles.editorInput}
+                multiline
+                value={editingContent}
+                onChangeText={setEditingContent}
+                autoCapitalize="none"
+                autoCorrect={false}
+                textAlignVertical="top"
+                placeholder="Dateiinhalt hier eingeben..."
+                placeholderTextColor={theme.palette.text.muted}
+              />
+            )}
+          </Animated.View>
+
+          {hasChanges && (
+            <View style={styles.unsavedBanner}>
+              <Ionicons name="alert-circle" size={16} color={theme.palette.warning} />
+              <Text style={styles.unsavedText}>Ungespeicherte Änderungen</Text>
+            </View>
+          )}
+        </KeyboardAvoidingView>
       </SafeAreaView>
     );
   }
@@ -414,6 +421,9 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: theme.palette.background,
+  },
+  keyboardAvoidingView: {
+    flex: 1,
   },
 
   // Explorer Header

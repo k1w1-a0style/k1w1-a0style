@@ -215,7 +215,7 @@ const ChatScreen: React.FC = () => {
     <KeyboardAvoidingView
       style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 20}
     >
       <View style={styles.container}>
         {/* Messages List */}

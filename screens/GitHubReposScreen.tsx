@@ -19,6 +19,8 @@ import {
   ScrollView,
   Linking,
   RefreshControl,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
@@ -931,36 +933,43 @@ const GitHubReposScreen: React.FC = () => {
   );
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={(!activeRepo || viewMode === 'repos') ? filteredRepos : []}
-        keyExtractor={(item) => String(item.id)}
-        renderItem={renderRepoItem}
-        ListHeaderComponent={renderHeader}
-        contentContainerStyle={styles.contentContainer}
-        ListEmptyComponent={
-          !loadingRepos && (!activeRepo || viewMode === 'repos') ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="folder-open-outline" size={32} color={theme.palette.text.muted} />
-              <Text style={styles.emptyText}>Keine Repositories gefunden</Text>
-            </View>
-          ) : null
-        }
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={theme.palette.primary}
-          />
-        }
-      />
+    <KeyboardAvoidingView 
+      style={styles.keyboardAvoidingView}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <View style={styles.container}>
+        <FlatList
+          data={(!activeRepo || viewMode === 'repos') ? filteredRepos : []}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={renderRepoItem}
+          ListHeaderComponent={renderHeader}
+          contentContainerStyle={styles.contentContainer}
+          keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={
+            !loadingRepos && (!activeRepo || viewMode === 'repos') ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="folder-open-outline" size={32} color={theme.palette.text.muted} />
+                <Text style={styles.emptyText}>Keine Repositories gefunden</Text>
+              </View>
+            ) : null
+          }
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.palette.primary}
+            />
+          }
+        />
 
-      {loadingRepos && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color={theme.palette.primary} />
-        </View>
-      )}
-    </View>
+        {loadingRepos && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color={theme.palette.primary} />
+          </View>
+        )}
+      </View>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -986,9 +995,12 @@ const getLanguageColor = (language: string): string => {
 };
 
 const styles = StyleSheet.create({
-  container: {
+  keyboardAvoidingView: {
     flex: 1,
     backgroundColor: theme.palette.background,
+  },
+  container: {
+    flex: 1,
   },
   contentContainer: {
     padding: 16,
