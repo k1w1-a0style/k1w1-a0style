@@ -1,19 +1,17 @@
-// screens/SettingsScreen.tsx – KI-Provider & API-Keys (Best-of, ohne surfaceHover)
-
-import React, { useState } from 'react';
+// screens/SettingsScreen.tsx – Optimierter KI-Settings Screen
+import React, { useState, useCallback, memo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Platform,
   TextInput,
   Alert,
   Switch,
   ActivityIndicator,
 } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
@@ -26,19 +24,147 @@ import {
   PROVIDER_DESCRIPTIONS,
 } from '../contexts/AIContext';
 
-// Feste Liste bekannter Provider – muss zu AIContext passen
+// Provider-Reihenfolge (Free-Tier zuerst)
 const PROVIDER_ORDER: AllAIProviders[] = [
   'groq',
   'gemini',
   'google',
+  'huggingface',
+  'ollama',
   'openai',
   'anthropic',
-  'huggingface',
   'openrouter',
   'deepseek',
   'xai',
-  'ollama',
 ];
+
+// Provider-Icons
+const PROVIDER_ICONS: Record<AllAIProviders, string> = {
+  groq: 'flash-outline',
+  gemini: 'diamond-outline',
+  google: 'logo-google',
+  openai: 'cube-outline',
+  anthropic: 'sparkles-outline',
+  huggingface: 'heart-outline',
+  openrouter: 'git-network-outline',
+  deepseek: 'search-outline',
+  xai: 'planet-outline',
+  ollama: 'server-outline',
+};
+
+// Memoized Provider Card
+const ProviderCard = memo(({ 
+  provider, 
+  isActive, 
+  onPress 
+}: { 
+  provider: AllAIProviders; 
+  isActive: boolean; 
+  onPress: () => void;
+}) => (
+  <TouchableOpacity
+    style={[styles.providerCard, isActive && styles.providerCardActive]}
+    onPress={onPress}
+    activeOpacity={0.7}
+  >
+    <View style={styles.providerCardIcon}>
+      <Ionicons
+        name={PROVIDER_ICONS[provider] as any}
+        size={20}
+        color={isActive ? theme.palette.primary : theme.palette.text.secondary}
+      />
+    </View>
+    <Text style={[styles.providerCardTitle, isActive && styles.providerCardTitleActive]}>
+      {PROVIDER_LABELS[provider]}
+    </Text>
+    <Text style={styles.providerCardSubtitle} numberOfLines={2}>
+      {PROVIDER_DESCRIPTIONS[provider]}
+    </Text>
+  </TouchableOpacity>
+));
+
+ProviderCard.displayName = 'ProviderCard';
+
+// Memoized Model Card
+const ModelCard = memo(({ 
+  model, 
+  isActive, 
+  onPress 
+}: { 
+  model: { id: string; label: string; description?: string; billing: string }; 
+  isActive: boolean; 
+  onPress: () => void;
+}) => (
+  <TouchableOpacity
+    style={[styles.modelItem, isActive && styles.modelItemActive]}
+    onPress={onPress}
+    activeOpacity={0.7}
+  >
+    <View style={styles.modelItemHeader}>
+      <View style={styles.modelItemLeft}>
+        <Ionicons
+          name={isActive ? 'checkmark-circle' : 'ellipse-outline'}
+          size={18}
+          color={isActive ? theme.palette.primary : theme.palette.text.secondary}
+        />
+        <Text style={[styles.modelLabel, isActive && styles.modelLabelActive]}>
+          {model.label}
+        </Text>
+      </View>
+      <View style={[
+        styles.billingBadge,
+        model.billing === 'free' ? styles.billingFree : styles.billingPaid
+      ]}>
+        <Text style={styles.billingText}>
+          {model.billing === 'free' ? 'FREE' : 'PAID'}
+        </Text>
+      </View>
+    </View>
+    {model.description && (
+      <Text style={styles.modelDescription}>{model.description}</Text>
+    )}
+  </TouchableOpacity>
+));
+
+ModelCard.displayName = 'ModelCard';
+
+// API Key Item
+const ApiKeyItem = memo(({
+  keyValue,
+  index,
+  provider,
+  onPress,
+  onLongPress,
+}: {
+  keyValue: string;
+  index: number;
+  provider: AllAIProviders;
+  onPress: () => void;
+  onLongPress: () => void;
+}) => {
+  const masked = keyValue.length <= 8 
+    ? keyValue 
+    : `${keyValue.slice(0, 6)}...${keyValue.slice(-4)}`;
+
+  return (
+    <TouchableOpacity
+      style={styles.keyItem}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      activeOpacity={0.7}
+    >
+      <View style={styles.keyItemLeft}>
+        {index === 0 && (
+          <Ionicons name="star" size={14} color={theme.palette.warning} />
+        )}
+        <Text style={styles.keyText}>{masked}</Text>
+      </View>
+      <Ionicons name="trash-outline" size={16} color={theme.palette.text.muted} />
+    </TouchableOpacity>
+  );
+});
+
+ApiKeyItem.displayName = 'ApiKeyItem';
 
 const SettingsScreen: React.FC = () => {
   const {
@@ -54,22 +180,17 @@ const SettingsScreen: React.FC = () => {
   } = useAI();
 
   const [tempKey, setTempKey] = useState('');
-  const [selectedProviderForAdd, setSelectedProviderForAdd] =
-    useState<AllAIProviders>('groq');
+  const [selectedProviderForAdd, setSelectedProviderForAdd] = useState<AllAIProviders>('groq');
+  const [expandedProvider, setExpandedProvider] = useState<AllAIProviders | null>(null);
 
   const isQualityMode = config.qualityMode === 'quality';
 
-  const maskApiKey = (key: string): string => {
-    if (key.length <= 8) return key;
-    return `${key.slice(0, 4)}...${key.slice(-4)}`;
-  };
-
-  const handleToggleQualityMode = async (value: boolean) => {
+  const handleToggleQualityMode = useCallback(async (value: boolean) => {
     const mode: QualityMode = value ? 'quality' : 'speed';
     await setQualityMode(mode);
-  };
+  }, [setQualityMode]);
 
-  const handleAddKey = async () => {
+  const handleAddKey = useCallback(async () => {
     const trimmed = tempKey.trim();
     if (!trimmed) {
       Alert.alert('Fehler', 'Bitte gib einen gültigen API-Key ein.');
@@ -77,80 +198,56 @@ const SettingsScreen: React.FC = () => {
     }
     await addApiKey(selectedProviderForAdd, trimmed);
     setTempKey('');
-  };
+    Alert.alert('✅ Erfolg', `API-Key für ${PROVIDER_LABELS[selectedProviderForAdd]} hinzugefügt.`);
+  }, [tempKey, selectedProviderForAdd, addApiKey]);
 
-  const handleRemoveKey = async (provider: AllAIProviders, key: string) => {
+  const handleRemoveKey = useCallback((provider: AllAIProviders, key: string) => {
+    const masked = key.length <= 8 ? key : `${key.slice(0, 4)}...${key.slice(-4)}`;
     Alert.alert(
       'API-Key entfernen',
-      `Möchtest du den Key "${maskApiKey(
-        key,
-      )}" für ${provider.toUpperCase()} wirklich entfernen?`,
+      `Key "${masked}" für ${PROVIDER_LABELS[provider]} löschen?`,
       [
         { text: 'Abbrechen', style: 'cancel' },
         {
-          text: 'Entfernen',
+          text: 'Löschen',
           style: 'destructive',
-          onPress: async () => {
-            await removeApiKey(provider, key);
-          },
+          onPress: () => removeApiKey(provider, key),
         },
       ],
     );
-  };
+  }, [removeApiKey]);
 
-  const handleRotateKeys = async (provider: AllAIProviders) => {
+  const handleRotateKeys = useCallback(async (provider: AllAIProviders) => {
     const ok = await rotateApiKey(provider);
     if (!ok) {
-      Alert.alert(
-        'Rotation nicht möglich',
-        `Für ${provider.toUpperCase()} sind nicht genug Keys hinterlegt.`,
-      );
+      Alert.alert('Info', 'Mindestens 2 Keys nötig zum Rotieren.');
     } else {
-      Alert.alert(
-        'Keys rotiert',
-        `Der nächste Key in der Liste für ${provider.toUpperCase()} wird nun verwendet.`,
-      );
+      Alert.alert('✅ Rotiert', 'Nächster Key wird nun verwendet.');
     }
-  };
+  }, [rotateApiKey]);
 
-  const handleMoveToFront = async (
-    provider: AllAIProviders,
-    index: number,
-  ) => {
-    await moveApiKeyToFront(provider, index);
-  };
+  const handleSelectProvider = useCallback((provider: AllAIProviders) => {
+    setSelectedChatProvider(provider);
+    const fallbackModel = AVAILABLE_MODELS[provider]?.[0]?.id || `auto-${provider}`;
+    setSelectedChatMode(fallbackModel);
+  }, [setSelectedChatProvider, setSelectedChatMode]);
 
-  const providerOptions: AllAIProviders[] = PROVIDER_ORDER.filter(
-    (provider) => (AVAILABLE_MODELS[provider] || []).length > 0,
+  const handleSelectModel = useCallback((modeId: string) => {
+    setSelectedChatMode(modeId);
+  }, [setSelectedChatMode]);
+
+  const providerOptions = PROVIDER_ORDER.filter(
+    (p) => (AVAILABLE_MODELS[p] || []).length > 0
   );
 
-  const builderModels =
-    AVAILABLE_MODELS[config.selectedChatProvider] ?? [];
-
-  const providersToRender: AllAIProviders[] = [...PROVIDER_ORDER];
-
-  const handleSelectProvider = (provider: AllAIProviders) => {
-    setSelectedChatProvider(provider);
-    const fallbackModel =
-      AVAILABLE_MODELS[provider]?.[0]?.id || `auto-${provider}`;
-    setSelectedChatMode(fallbackModel);
-  };
-
-  const handleSelectModel = (modeId: string) => {
-    setSelectedChatMode(modeId);
-  };
+  const builderModels = AVAILABLE_MODELS[config.selectedChatProvider] ?? [];
 
   if (!isReady) {
     return (
-      <SafeAreaView
-        style={styles.safeArea}
-        edges={['bottom', 'left', 'right']}
-      >
+      <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
         <View style={styles.loadingState}>
-          <ActivityIndicator size="small" color={theme.palette.primary} />
-          <Text style={styles.loadingText}>
-            KI-Einstellungen werden geladen ...
-          </Text>
+          <ActivityIndicator size="large" color={theme.palette.primary} />
+          <Text style={styles.loadingText}>Einstellungen werden geladen...</Text>
         </View>
       </SafeAreaView>
     );
@@ -161,292 +258,222 @@ const SettingsScreen: React.FC = () => {
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
         {/* Header */}
-        <Animated.View
-          entering={FadeInDown.duration(400).springify()}
-          style={styles.headerRow}
-        >
-          <View>
-            <Text style={styles.title}>KI-Einstellungen</Text>
-            <Text style={styles.subtitle}>
-              Verwalte Provider, Modelle & API-Keys für deinen Builder.
-            </Text>
+        <Animated.View entering={FadeInDown.duration(400)} style={styles.header}>
+          <View style={styles.headerIcon}>
+            <Ionicons name="settings-outline" size={28} color={theme.palette.primary} />
           </View>
-          {Platform.OS !== 'android' && (
-            <Ionicons
-              name="settings-outline"
-              size={26}
-              color={theme.palette.text.secondary}
-            />
-          )}
+          <Text style={styles.headerTitle}>KI-Einstellungen</Text>
+          <Text style={styles.headerSubtitle}>
+            Provider, Modelle & API-Keys verwalten
+          </Text>
         </Animated.View>
 
-        {/* Quality / Speed Toggle */}
-        <Animated.View
-          entering={FadeInDown.delay(100).duration(500).springify()}
-          style={styles.card}
-        >
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Modus</Text>
-            <View style={styles.modeRow}>
-              <Text style={styles.modeLabel}>
-                {isQualityMode ? 'Quality' : 'Speed'}
+        {/* Quality Mode Toggle */}
+        <Animated.View entering={FadeInDown.delay(100).duration(400)} style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="speedometer-outline" size={20} color={theme.palette.primary} />
+            <Text style={styles.sectionTitle}>Modus</Text>
+          </View>
+          
+          <View style={styles.modeCard}>
+            <View style={styles.modeInfo}>
+              <Text style={styles.modeTitle}>
+                {isQualityMode ? '🎯 Quality-Modus' : '⚡ Speed-Modus'}
               </Text>
-              <Switch
-                value={isQualityMode}
-                onValueChange={handleToggleQualityMode}
-                trackColor={{
-                  false: theme.palette.border,
-                  true: theme.palette.primary,
-                }}
-                thumbColor={theme.palette.background}
-              />
+              <Text style={styles.modeDescription}>
+                {isQualityMode 
+                  ? 'Beste Ergebnisse, größere Modelle' 
+                  : 'Schnelle Antworten, kleinere Modelle'}
+              </Text>
             </View>
+            <Switch
+              value={isQualityMode}
+              onValueChange={handleToggleQualityMode}
+              trackColor={{ false: theme.palette.border, true: theme.palette.primary }}
+              thumbColor="#fff"
+            />
           </View>
-          <Text style={styles.cardDescription}>
-            Quality: bessere Ergebnisse, etwas langsamer. Speed: schneller,
-            günstiger.
-          </Text>
         </Animated.View>
 
-        {/* Provider & Model Auswahl */}
-        <Animated.View
-          entering={FadeInDown.delay(200).duration(500).springify()}
-          style={styles.card}
-        >
-          <Text style={styles.cardTitle}>Builder Provider & Modell</Text>
-          <Text style={styles.cardDescription}>
-            Wähle den Standard-Provider und das Modell, das der Builder nutzen
-            soll.
-          </Text>
-
+        {/* Provider Selection */}
+        <Animated.View entering={FadeInDown.delay(200).duration(400)} style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="cube-outline" size={20} color={theme.palette.primary} />
+            <Text style={styles.sectionTitle}>Provider</Text>
+          </View>
+          
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={styles.providerSelectRow}
+            contentContainerStyle={styles.providerScroll}
           >
-            {providerOptions.map((provider) => {
-              const isActive = provider === config.selectedChatProvider;
-              return (
+            {providerOptions.map((provider) => (
+              <ProviderCard
+                key={provider}
+                provider={provider}
+                isActive={provider === config.selectedChatProvider}
+                onPress={() => handleSelectProvider(provider)}
+              />
+            ))}
+          </ScrollView>
+        </Animated.View>
+
+        {/* Model Selection */}
+        <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="hardware-chip-outline" size={20} color={theme.palette.primary} />
+            <Text style={styles.sectionTitle}>Modell</Text>
+            <View style={styles.sectionBadge}>
+              <Text style={styles.sectionBadgeText}>
+                {PROVIDER_LABELS[config.selectedChatProvider]}
+              </Text>
+            </View>
+          </View>
+          
+          <View style={styles.modelList}>
+            {builderModels.map((model) => (
+              <ModelCard
+                key={model.id}
+                model={model}
+                isActive={config.selectedChatMode === model.id}
+                onPress={() => handleSelectModel(model.id)}
+              />
+            ))}
+          </View>
+        </Animated.View>
+
+        {/* API Keys Section */}
+        <Animated.View entering={FadeInDown.delay(400).duration(400)} style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="key-outline" size={20} color={theme.palette.primary} />
+            <Text style={styles.sectionTitle}>API-Keys</Text>
+          </View>
+
+          {/* Add Key Form */}
+          <View style={styles.addKeyCard}>
+            <Text style={styles.addKeyLabel}>Neuen Key hinzufügen:</Text>
+            
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.providerPillScroll}
+            >
+              {PROVIDER_ORDER.map((provider) => (
                 <TouchableOpacity
                   key={provider}
                   style={[
-                    styles.providerSelectCard,
-                    isActive && styles.providerSelectCardActive,
+                    styles.providerPill,
+                    selectedProviderForAdd === provider && styles.providerPillActive,
                   ]}
-                  onPress={() => handleSelectProvider(provider)}
+                  onPress={() => setSelectedProviderForAdd(provider)}
                 >
-                  <Text
-                    style={[
-                      styles.providerSelectCardTitle,
-                      isActive && styles.providerSelectCardTitleActive,
-                    ]}
-                  >
-                    {PROVIDER_LABELS[provider] || provider.toUpperCase()}
-                  </Text>
-                  <Text style={styles.providerSelectCardSubtitle}>
-                    {PROVIDER_DESCRIPTIONS[provider]}
+                  <Text style={[
+                    styles.providerPillText,
+                    selectedProviderForAdd === provider && styles.providerPillTextActive,
+                  ]}>
+                    {PROVIDER_LABELS[provider]}
                   </Text>
                 </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+              ))}
+            </ScrollView>
 
-          <View style={styles.modelList}>
-            {builderModels.map((model) => {
-              const isActive = config.selectedChatMode === model.id;
-              return (
-                <TouchableOpacity
-                  key={model.id}
-                  style={[
-                    styles.modelCard,
-                    isActive && styles.modelCardActive,
-                  ]}
-                  onPress={() => handleSelectModel(model.id)}
-                >
-                  <View style={styles.modelCardHeader}>
-                    <Text
-                      style={[
-                        styles.modelLabel,
-                        isActive && styles.modelLabelActive,
-                      ]}
-                    >
-                      {model.label}
-                    </Text>
-                    <View
-                      style={[
-                        styles.modelBadge,
-                        model.billing === 'free'
-                          ? styles.modelBadgeFree
-                          : styles.modelBadgePaid,
-                      ]}
-                    >
-                      <Text style={styles.modelBadgeText}>
-                        {model.billing === 'free' ? 'FREE' : 'PRO'}
-                      </Text>
-                    </View>
-                  </View>
-                  {model.description ? (
-                    <Text style={styles.modelDescription}>
-                      {model.description}
-                    </Text>
-                  ) : null}
-                </TouchableOpacity>
-              );
-            })}
+            <View style={styles.addKeyRow}>
+              <TextInput
+                style={styles.keyInput}
+                placeholder="API-Key eingeben..."
+                placeholderTextColor={theme.palette.text.muted}
+                value={tempKey}
+                onChangeText={setTempKey}
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry
+              />
+              <TouchableOpacity 
+                style={[styles.addButton, !tempKey.trim() && styles.addButtonDisabled]} 
+                onPress={handleAddKey}
+                disabled={!tempKey.trim()}
+              >
+                <Ionicons name="add" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
           </View>
-        </Animated.View>
 
-        {/* Provider & Keys */}
-        <Animated.View
-          entering={FadeInDown.delay(300).duration(500).springify()}
-          style={styles.sectionHeaderRow}
-        >
-          <Text style={styles.sectionTitle}>API-Keys je Provider</Text>
-          <Text style={styles.sectionSubtitle}>
-            Lang-press zum Entfernen oder als primär setzen.
-          </Text>
-        </Animated.View>
+          {/* Existing Keys */}
+          <View style={styles.keysContainer}>
+            {PROVIDER_ORDER.map((provider) => {
+              const keys = config.apiKeys[provider] ?? [];
+              if (keys.length === 0) return null;
 
-        {providersToRender.map((provider, index) => {
-          const keys: string[] = config.apiKeys[provider] || [];
-          const hasKeys = keys.length > 0;
+              const isExpanded = expandedProvider === provider;
 
-          return (
-            <Animated.View
-              key={provider}
-              entering={FadeInDown.delay(400 + index * 50)
-                .duration(500)
-                .springify()}
-              style={styles.card}
-            >
-              <View style={styles.providerHeader}>
-                <View style={styles.providerTitleRow}>
-                  <Text style={styles.providerName}>
-                    {provider.toUpperCase()}
-                  </Text>
-                  {hasKeys && (
-                    <View style={styles.keyCountBadge}>
-                      <Text style={styles.keyCountText}>
-                        {keys.length} Key
-                        {keys.length > 1 ? 's' : ''}
+              return (
+                <Animated.View 
+                  key={provider} 
+                  entering={FadeIn.duration(300)}
+                  style={styles.providerKeysCard}
+                >
+                  <TouchableOpacity
+                    style={styles.providerKeysHeader}
+                    onPress={() => setExpandedProvider(isExpanded ? null : provider)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.providerKeysLeft}>
+                      <Ionicons
+                        name={PROVIDER_ICONS[provider] as any}
+                        size={18}
+                        color={theme.palette.primary}
+                      />
+                      <Text style={styles.providerKeysTitle}>
+                        {PROVIDER_LABELS[provider]}
+                      </Text>
+                      <View style={styles.keyCountBadge}>
+                        <Text style={styles.keyCountText}>{keys.length}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.providerKeysRight}>
+                      {keys.length > 1 && (
+                        <TouchableOpacity
+                          style={styles.rotateButton}
+                          onPress={() => handleRotateKeys(provider)}
+                        >
+                          <Ionicons name="sync-outline" size={16} color={theme.palette.text.primary} />
+                        </TouchableOpacity>
+                      )}
+                      <Ionicons
+                        name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                        size={18}
+                        color={theme.palette.text.secondary}
+                      />
+                    </View>
+                  </TouchableOpacity>
+
+                  {isExpanded && (
+                    <View style={styles.keysList}>
+                      {keys.map((key, index) => (
+                        <ApiKeyItem
+                          key={`${provider}-${index}`}
+                          keyValue={key}
+                          index={index}
+                          provider={provider}
+                          onPress={() => index > 0 && moveApiKeyToFront(provider, index)}
+                          onLongPress={() => handleRemoveKey(provider, key)}
+                        />
+                      ))}
+                      <Text style={styles.keyHint}>
+                        Tippen = primär setzen • Lang drücken = löschen
                       </Text>
                     </View>
                   )}
-                </View>
-
-                {hasKeys && (
-                  <TouchableOpacity
-                    style={styles.rotateButton}
-                    onPress={() => handleRotateKeys(provider)}
-                  >
-                    <Ionicons
-                      name="sync-outline"
-                      size={16}
-                      color={theme.palette.text.primary}
-                    />
-                    <Text style={styles.rotateButtonText}>Keys rotieren</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {!hasKeys ? (
-                <Text style={styles.noKeysText}>
-                  Noch keine Keys für {provider.toUpperCase()} hinterlegt.
-                </Text>
-              ) : (
-                <View style={styles.keyList}>
-                  {keys.map((key, index) => (
-                    <View
-                      key={`${provider}-${index}-${key.slice(0, 4)}`}
-                      style={styles.keyRow}
-                    >
-                      <TouchableOpacity
-                        style={styles.keyTextWrapper}
-                        onLongPress={() =>
-                          handleRemoveKey(provider, key)
-                        }
-                        onPress={() => handleMoveToFront(provider, index)}
-                      >
-                        <Text style={styles.keyMaskedText}>
-                          {index === 0 ? '⭐ ' : ''}
-                          {maskApiKey(key)}
-                        </Text>
-                        <Text style={styles.keyHintText}>
-                          Tippen = als primär setzen • Lang-press = löschen
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </Animated.View>
-          );
-        })}
-
-        {/* Key hinzufügen */}
-        <Animated.View
-          entering={FadeInDown.delay(800).duration(500).springify()}
-          style={styles.card}
-        >
-          <Text style={styles.cardTitle}>API-Key hinzufügen</Text>
-          <Text style={styles.cardDescription}>
-            Wähle einen Provider und füge einen neuen API-Key hinzu.
-          </Text>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.providerPillRow}
-          >
-            {PROVIDER_ORDER.map((provider) => (
-              <TouchableOpacity
-                key={provider}
-                style={[
-                  styles.providerPill,
-                  selectedProviderForAdd === provider &&
-                    styles.providerPillActive,
-                ]}
-                onPress={() => setSelectedProviderForAdd(provider)}
-              >
-                <Text
-                  style={[
-                    styles.providerPillText,
-                    selectedProviderForAdd === provider &&
-                      styles.providerPillTextActive,
-                  ]}
-                >
-                  {provider.toUpperCase()}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <View style={styles.addRow}>
-            <TextInput
-              style={styles.keyInput}
-              placeholder="Neuer API-Key"
-              placeholderTextColor={theme.palette.text.secondary}
-              value={tempKey}
-              onChangeText={setTempKey}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={handleAddKey}
-            >
-              <Ionicons
-                name="add"
-                size={20}
-                color={theme.palette.background}
-              />
-            </TouchableOpacity>
+                </Animated.View>
+              );
+            })}
           </View>
         </Animated.View>
 
-        <View style={styles.spacer} />
+        <View style={styles.footer} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -461,193 +488,221 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: theme.palette.text.primary,
-  },
-  subtitle: {
-    marginTop: 4,
-    fontSize: 13,
-    color: theme.palette.text.secondary,
+    paddingBottom: 40,
   },
   loadingState: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    gap: 16,
   },
   loadingText: {
-    marginTop: 12,
     color: theme.palette.text.secondary,
-    fontSize: 14,
+    fontSize: 15,
   },
 
-  card: {
-    backgroundColor: theme.palette.card,
+  // Header
+  header: {
+    alignItems: 'center',
+    paddingTop: 20,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
+  },
+  headerIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: theme.palette.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: theme.palette.text.primary,
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+  },
+
+  // Sections
+  section: {
+    marginBottom: 24,
+    paddingHorizontal: 16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.palette.text.primary,
+  },
+  sectionBadge: {
+    backgroundColor: theme.palette.primarySoft,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
     borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
+    marginLeft: 'auto',
+  },
+  sectionBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.palette.primary,
+  },
+
+  // Mode Card
+  modeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.palette.card,
+    borderRadius: 14,
+    padding: 16,
     borderWidth: 1,
     borderColor: theme.palette.border,
   },
-  cardHeader: {
+  modeInfo: {
+    flex: 1,
+  },
+  modeTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.palette.text.primary,
+    marginBottom: 2,
+  },
+  modeDescription: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+  },
+
+  // Provider Cards
+  providerScroll: {
+    paddingRight: 16,
+    gap: 10,
+  },
+  providerCard: {
+    width: 140,
+    backgroundColor: theme.palette.card,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    marginRight: 10,
+  },
+  providerCardActive: {
+    borderColor: theme.palette.primary,
+    backgroundColor: theme.palette.primarySoft,
+  },
+  providerCardIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.palette.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  providerCardTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.palette.text.primary,
+    marginBottom: 4,
+  },
+  providerCardTitleActive: {
+    color: theme.palette.primary,
+  },
+  providerCardSubtitle: {
+    fontSize: 10,
+    color: theme.palette.text.secondary,
+    lineHeight: 14,
+  },
+
+  // Model List
+  modelList: {
+    gap: 8,
+  },
+  modelItem: {
+    backgroundColor: theme.palette.card,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  modelItemActive: {
+    borderColor: theme.palette.primary,
+    backgroundColor: theme.palette.primarySoft,
+  },
+  modelItemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.palette.text.primary,
-  },
-  cardDescription: {
-    marginTop: 6,
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-  },
-  providerSelectRow: {
-    marginTop: 12,
-  },
-  providerSelectCard: {
-    width: 220,
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    backgroundColor: theme.palette.background,
-    marginRight: 12,
-  },
-  providerSelectCardActive: {
-    borderColor: theme.palette.primary,
-    backgroundColor: `${theme.palette.primary}11`,
-  },
-  providerSelectCardTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.palette.text.primary,
-    marginBottom: 6,
-  },
-  providerSelectCardTitleActive: {
-    color: theme.palette.primary,
-  },
-  providerSelectCardSubtitle: {
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-  },
-  modeRow: {
+  modelItemLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1,
   },
-  modeLabel: {
-    fontSize: 13,
-    color: theme.palette.text.secondary,
-    marginRight: 8,
-  },
-
-  sectionHeaderRow: {
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.palette.text.primary,
-  },
-  sectionSubtitle: {
-    fontSize: 11,
-    color: theme.palette.text.secondary,
-  },
-
-  providerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  providerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  providerName: {
+  modelLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     color: theme.palette.text.primary,
   },
-  keyCountBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 999,
-    backgroundColor: theme.palette.badge.defaultBg,
+  modelLabelActive: {
+    color: theme.palette.primary,
   },
-  keyCountText: {
-    fontSize: 11,
-    color: theme.palette.badge.defaultText,
-  },
-  rotateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-  },
-  rotateButtonText: {
-    marginLeft: 6,
-    fontSize: 11,
-    color: theme.palette.text.primary,
-  },
-
-  noKeysText: {
+  modelDescription: {
     fontSize: 12,
     color: theme.palette.text.secondary,
-    marginTop: 4,
+    marginTop: 6,
+    marginLeft: 26,
   },
-
-  keyList: {
-    marginTop: 8,
+  billingBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
   },
-  keyRow: {
-    marginBottom: 8,
+  billingFree: {
+    backgroundColor: 'rgba(0, 200, 83, 0.15)',
   },
-  keyTextWrapper: {
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: theme.palette.background,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
+  billingPaid: {
+    backgroundColor: 'rgba(255, 170, 0, 0.15)',
   },
-  keyMaskedText: {
-    fontSize: 13,
+  billingText: {
+    fontSize: 10,
+    fontWeight: '700',
     color: theme.palette.text.primary,
   },
-  keyHintText: {
-    fontSize: 11,
-    color: theme.palette.text.secondary,
-    marginTop: 2,
-  },
 
-  providerPillRow: {
-    marginTop: 10,
-    marginBottom: 8,
+  // Add Key Card
+  addKeyCard: {
+    backgroundColor: theme.palette.card,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    marginBottom: 16,
+  },
+  addKeyLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: theme.palette.text.secondary,
+    marginBottom: 12,
+  },
+  providerPillScroll: {
+    marginBottom: 12,
   },
   providerPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: theme.palette.background,
     borderWidth: 1,
     borderColor: theme.palette.border,
     marginRight: 8,
@@ -661,86 +716,116 @@ const styles = StyleSheet.create({
     color: theme.palette.text.secondary,
   },
   providerPillTextActive: {
-    color: theme.palette.background,
+    color: '#fff',
     fontWeight: '600',
   },
-
-  addRow: {
+  addKeyRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 10,
+    gap: 10,
   },
   keyInput: {
     flex: 1,
+    backgroundColor: theme.palette.background,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: theme.palette.text.primary,
     borderWidth: 1,
     borderColor: theme.palette.border,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    color: theme.palette.text.primary,
-    fontSize: 13,
   },
   addButton: {
-    marginLeft: 8,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: theme.palette.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.palette.primary,
+  },
+  addButtonDisabled: {
+    opacity: 0.5,
   },
 
-  spacer: {
-    height: 32,
+  // Keys Container
+  keysContainer: {
+    gap: 10,
   },
-  modelList: {
-    marginTop: 12,
-  },
-  modelCard: {
+  providerKeysCard: {
+    backgroundColor: theme.palette.card,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: theme.palette.border,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 10,
-    backgroundColor: theme.palette.background,
+    overflow: 'hidden',
   },
-  modelCardActive: {
-    borderColor: theme.palette.primary,
-    backgroundColor: `${theme.palette.primary}0D`,
-  },
-  modelCardHeader: {
+  providerKeysHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    justifyContent: 'space-between',
+    padding: 14,
   },
-  modelLabel: {
+  providerKeysLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  providerKeysTitle: {
     fontSize: 14,
     fontWeight: '600',
     color: theme.palette.text.primary,
   },
-  modelLabelActive: {
-    color: theme.palette.primary,
-  },
-  modelDescription: {
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-  },
-  modelBadge: {
-    borderRadius: 999,
+  keyCountBadge: {
+    backgroundColor: theme.palette.primarySoft,
     paddingHorizontal: 8,
     paddingVertical: 2,
+    borderRadius: 10,
   },
-  modelBadgeFree: {
-    backgroundColor: 'rgba(72, 199, 116, 0.15)',
-  },
-  modelBadgePaid: {
-    backgroundColor: 'rgba(255, 193, 7, 0.15)',
-  },
-  modelBadgeText: {
+  keyCountText: {
     fontSize: 11,
     fontWeight: '600',
+    color: theme.palette.primary,
+  },
+  providerKeysRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  rotateButton: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: theme.palette.background,
+  },
+  keysList: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+  },
+  keyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: theme.palette.background,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 6,
+  },
+  keyItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  keyText: {
+    fontSize: 13,
     color: theme.palette.text.primary,
+    fontFamily: 'monospace',
+  },
+  keyHint: {
+    fontSize: 11,
+    color: theme.palette.text.muted,
+    textAlign: 'center',
+    marginTop: 6,
+  },
+
+  footer: {
+    height: 40,
   },
 });
 

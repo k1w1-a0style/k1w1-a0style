@@ -1,5 +1,5 @@
-// screens/ChatScreen.tsx – Builder mit Rotation-Feedback + RichContext (UI + Hook)
-import React, { useEffect, useRef, useCallback } from 'react';
+// screens/ChatScreen.tsx – Optimierter Builder Chat mit Performance-Verbesserungen
+import React, { useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -25,8 +26,37 @@ import { ChatMessage } from '../contexts/types';
 import MessageItem from '../components/MessageItem';
 import { useChatLogic } from '../hooks/useChatLogic';
 
-const AnimatedTouchableOpacity =
-  Animated.createAnimatedComponent(TouchableOpacity);
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+
+// Estimated item height for getItemLayout
+const ESTIMATED_ITEM_HEIGHT = 80;
+
+// Loading footer component - memoized outside main component
+const LoadingFooter = () => (
+  <View style={styles.loadingFooter}>
+    <ActivityIndicator size="small" color={theme.palette.primary} />
+    <Text style={styles.loadingText}>Builder arbeitet ...</Text>
+  </View>
+);
+
+// Empty state component - memoized outside main component  
+const EmptyState = () => (
+  <View style={styles.emptyState}>
+    <Ionicons name="chatbubble-ellipses-outline" size={48} color={theme.palette.text.muted} />
+    <Text style={styles.emptyStateTitle}>Willkommen!</Text>
+    <Text style={styles.emptyStateSubtitle}>
+      Beschreibe dein Projekt und der Builder hilft dir beim Coden.
+    </Text>
+  </View>
+);
+
+// Loading overlay component
+const LoadingOverlay = () => (
+  <View style={styles.loadingOverlay}>
+    <ActivityIndicator size="large" color={theme.palette.primary} />
+    <Text style={styles.loadingOverlayText}>Projekt und Chat werden geladen...</Text>
+  </View>
+);
 
 const ChatScreen: React.FC = () => {
   const {
@@ -42,7 +72,7 @@ const ChatScreen: React.FC = () => {
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
 
-  // Animation values for buttons
+  // Animation values
   const sendButtonScale = useSharedValue(1);
   const attachButtonScale = useSharedValue(1);
 
@@ -54,8 +84,10 @@ const ChatScreen: React.FC = () => {
     transform: [{ scale: attachButtonScale.value }],
   }));
 
+  // Memoized handlers to prevent unnecessary re-renders
   const handleSendPress = useCallback(() => {
     sendButtonScale.value = withSpring(1, { damping: 15 });
+    Keyboard.dismiss();
     handleSend();
   }, [handleSend, sendButtonScale]);
 
@@ -65,7 +97,7 @@ const ChatScreen: React.FC = () => {
   }, [handlePickDocument, attachButtonScale]);
 
   const handleSendPressIn = useCallback(() => {
-    sendButtonScale.value = withSpring(0.9, { damping: 15 });
+    sendButtonScale.value = withSpring(0.92, { damping: 15 });
   }, [sendButtonScale]);
 
   const handleSendPressOut = useCallback(() => {
@@ -73,79 +105,121 @@ const ChatScreen: React.FC = () => {
   }, [sendButtonScale]);
 
   const handleAttachPressIn = useCallback(() => {
-    attachButtonScale.value = withSpring(0.9, { damping: 15 });
+    attachButtonScale.value = withSpring(0.92, { damping: 15 });
   }, [attachButtonScale]);
 
   const handleAttachPressOut = useCallback(() => {
     attachButtonScale.value = withSpring(1, { damping: 15 });
   }, [attachButtonScale]);
 
-  // Scrollt nach neuen Nachrichten ans Ende, mit sauberem Cleanup
+  // Scroll to end when new messages arrive
   useEffect(() => {
-    let mounted = true;
-    const scrollToEnd = () => {
-      if (mounted && flatListRef.current && messages.length > 0) {
-        flatListRef.current.scrollToEnd({ animated: true });
-      }
-    };
+    if (messages.length === 0) return;
 
-    const timer = setTimeout(scrollToEnd, 100);
+    const timer = setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }, 150);
 
-    return () => {
-      mounted = false;
-      clearTimeout(timer);
-    };
+    return () => clearTimeout(timer);
   }, [messages.length]);
 
+  // Memoized render item function
   const renderItem = useCallback(
     ({ item }: { item: ChatMessage }) => <MessageItem message={item} />,
     [],
   );
 
+  // Memoized key extractor
   const keyExtractor = useCallback((item: ChatMessage) => item.id, []);
 
-  const renderFooter = useCallback(() => {
-    if (!combinedIsLoading) return null;
+  // Memoized footer component
+  const ListFooterComponent = useMemo(() => {
+    if (!combinedIsLoading || messages.length === 0) return null;
+    return <LoadingFooter />;
+  }, [combinedIsLoading, messages.length]);
 
-    return (
-      <View style={styles.loadingFooter}>
-        <ActivityIndicator size="small" color={theme.palette.primary} />
-        <Text style={styles.loadingText}>Builder arbeitet ...</Text>
-      </View>
-    );
+  // Memoized empty component
+  const ListEmptyComponent = useMemo(() => {
+    if (combinedIsLoading) return null;
+    return <EmptyState />;
   }, [combinedIsLoading]);
+
+  // getItemLayout for better scrolling performance
+  const getItemLayout = useCallback(
+    (_data: any, index: number) => ({
+      length: ESTIMATED_ITEM_HEIGHT,
+      offset: ESTIMATED_ITEM_HEIGHT * index,
+      index,
+    }),
+    [],
+  );
+
+  // Check if send button should be disabled
+  const isSendDisabled = combinedIsLoading || (!textInput.trim() && !selectedFileAsset);
 
   return (
     <KeyboardAvoidingView
       style={styles.root}
-      behavior="height"
-      keyboardVerticalOffset={80}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <View style={styles.container}>
+        {/* Messages List */}
         <View style={styles.listContainer}>
           {combinedIsLoading && messages.length === 0 ? (
-            <View style={styles.loadingOverlay}>
-              <ActivityIndicator size="large" color={theme.palette.primary} />
-              <Text style={styles.loadingOverlayText}>
-                Projekt und Chat werden geladen ...
-              </Text>
-            </View>
+            <LoadingOverlay />
           ) : (
             <FlatList
               ref={flatListRef}
               data={messages}
               keyExtractor={keyExtractor}
               renderItem={renderItem}
-              contentContainerStyle={styles.listContent}
-              ListFooterComponent={renderFooter}
+              contentContainerStyle={[
+                styles.listContent,
+                messages.length === 0 && styles.listContentEmpty,
+              ]}
+              ListFooterComponent={ListFooterComponent}
+              ListEmptyComponent={ListEmptyComponent}
+              // Performance optimizations
+              initialNumToRender={10}
+              maxToRenderPerBatch={8}
+              windowSize={7}
+              removeClippedSubviews={Platform.OS === 'android'}
+              getItemLayout={getItemLayout}
+              // Maintain scroll position
+              maintainVisibleContentPosition={{
+                minIndexForVisible: 0,
+              }}
             />
           )}
         </View>
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {/* Error Banner */}
+        {error && (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle" size={16} color={theme.palette.error} />
+            <Text style={styles.errorText} numberOfLines={2}>{error}</Text>
+          </View>
+        )}
 
+        {/* Input Area */}
         <View style={styles.inputWrapper}>
+          {/* Selected File Indicator */}
+          {selectedFileAsset && (
+            <Animated.View
+              entering={FadeIn.duration(200)}
+              exiting={FadeOut.duration(150)}
+              style={styles.selectedFileBox}
+            >
+              <Ionicons name="document-attach" size={14} color={theme.palette.primary} />
+              <Text style={styles.selectedFileText} numberOfLines={1}>
+                {selectedFileAsset.name}
+              </Text>
+            </Animated.View>
+          )}
+
           <View style={styles.inputContainer}>
+            {/* Attach Button */}
             <AnimatedTouchableOpacity
               style={[
                 styles.iconButton,
@@ -159,53 +233,41 @@ const ChatScreen: React.FC = () => {
               <Ionicons
                 name="attach"
                 size={20}
-                color={
-                  selectedFileAsset
-                    ? theme.palette.primary
-                    : theme.palette.text.secondary
-                }
+                color={selectedFileAsset ? theme.palette.primary : theme.palette.text.secondary}
               />
             </AnimatedTouchableOpacity>
 
+            {/* Text Input */}
             <TextInput
               style={styles.textInput}
               value={textInput}
               onChangeText={setTextInput}
-              placeholder="Beschreibe, was der Builder tun soll ..."
-              placeholderTextColor={theme.palette.text.secondary}
+              placeholder="Was soll der Builder tun?"
+              placeholderTextColor={theme.palette.text.muted}
               multiline
+              maxLength={4000}
+              editable={!combinedIsLoading}
             />
 
+            {/* Send Button */}
             <AnimatedTouchableOpacity
-              style={[styles.sendButton, sendButtonAnimatedStyle]}
+              style={[
+                styles.sendButton,
+                sendButtonAnimatedStyle,
+                isSendDisabled && styles.sendButtonDisabled,
+              ]}
               onPress={handleSendPress}
               onPressIn={handleSendPressIn}
               onPressOut={handleSendPressOut}
-              disabled={combinedIsLoading}
+              disabled={isSendDisabled}
             >
               {combinedIsLoading ? (
-                <ActivityIndicator size="small" color={theme.palette.secondary} />
+                <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Ionicons
-                  name="send"
-                  size={20}
-                  color={theme.palette.secondary}
-                />
+                <Ionicons name="send" size={18} color="#fff" />
               )}
             </AnimatedTouchableOpacity>
           </View>
-
-          {selectedFileAsset && (
-            <Animated.View
-              entering={FadeIn.duration(300)}
-              exiting={FadeOut.duration(200)}
-              style={styles.selectedFileBox}
-            >
-              <Text style={styles.selectedFileText}>
-                📎 {selectedFileAsset.name}
-              </Text>
-            </Animated.View>
-          )}
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -225,70 +287,116 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 12,
-    paddingBottom: 16,
+    paddingBottom: 8,
   },
+  listContentEmpty: {
+    flex: 1,
+  },
+
+  // Loading States
   loadingOverlay: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 12,
   },
   loadingOverlayText: {
-    marginTop: 12,
+    fontSize: 14,
     color: theme.palette.text.secondary,
   },
   loadingFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 10,
   },
   loadingText: {
-    marginLeft: 8,
+    fontSize: 13,
     color: theme.palette.text.secondary,
   },
-  errorText: {
-    color: theme.palette.error,
-    paddingHorizontal: 12,
-    paddingBottom: 4,
+
+  // Empty State
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+    gap: 12,
   },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.palette.text.primary,
+  },
+  emptyStateSubtitle: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+
+  // Error Banner
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(255, 68, 68, 0.1)',
+    borderTopWidth: 1,
+    borderTopColor: theme.palette.error,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    color: theme.palette.error,
+  },
+
+  // Input Wrapper
   inputWrapper: {
     borderTopWidth: 1,
     borderTopColor: theme.palette.border,
-    backgroundColor: theme.palette.background,
-    paddingBottom: Platform.OS === 'android' ? 4 : 0,
+    backgroundColor: theme.palette.card,
+    paddingBottom: Platform.OS === 'android' ? 8 : 0,
+  },
+  selectedFileBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 4,
+  },
+  selectedFileText: {
+    fontSize: 12,
+    color: theme.palette.primary,
+    flex: 1,
   },
   inputContainer: {
     flexDirection: 'row',
+    alignItems: 'flex-end',
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    alignItems: 'center',
+    paddingVertical: 10,
+    gap: 8,
   },
+
+  // Buttons
   iconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
+    backgroundColor: theme.palette.background,
     borderWidth: 1,
     borderColor: theme.palette.border,
   },
   iconButtonActive: {
-    borderColor: theme.palette.secondary,
-  },
-  textInput: {
-    flex: 1,
-    maxHeight: 120,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    borderRadius: 18,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    color: theme.palette.text.primary,
-    fontSize: 14,
-    backgroundColor: theme.palette.background,
+    borderColor: theme.palette.primary,
+    backgroundColor: theme.palette.primarySoft,
   },
   sendButton: {
-    marginLeft: 8,
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -296,14 +404,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  selectedFileBox: {
-    paddingHorizontal: 12,
-    paddingBottom: 8,
-    backgroundColor: theme.palette.card,
+  sendButtonDisabled: {
+    opacity: 0.5,
   },
-  selectedFileText: {
-    fontSize: 12,
-    color: theme.palette.text.secondary,
+
+  // Text Input
+  textInput: {
+    flex: 1,
+    minHeight: 40,
+    maxHeight: 120,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    paddingTop: Platform.OS === 'ios' ? 10 : 8,
+    color: theme.palette.text.primary,
+    fontSize: 15,
+    backgroundColor: theme.palette.background,
   },
 });
 
