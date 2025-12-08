@@ -1,5 +1,5 @@
-// screens/CodeScreen.tsx – Optimierter Code Explorer (ohne Split-Screen)
-import React, { useState, useCallback, memo } from 'react';
+// screens/CodeScreen.tsx – Enhanced Code Explorer with advanced features
+import React, { useState, useCallback, memo, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,10 +12,12 @@ import {
   TextInput,
   Dimensions,
   KeyboardAvoidingView,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
+import * as Clipboard from 'expo-clipboard';
 
 import { theme } from '../theme';
 import { useProject } from '../contexts/ProjectContext';
@@ -71,22 +73,72 @@ const getLanguageFromExtension = (ext: string): string => {
   return map[ext] || 'text';
 };
 
+const getFileSize = (content: string): string => {
+  const bytes = new Blob([content]).size;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+};
+
+const getLineCount = (content: string): number => {
+  return content.split('\n').length;
+};
+
+// File Stats Component
+const FileStats = memo(({ file }: { file: ProjectFile }) => {
+  const content = typeof file.content === 'string'
+    ? file.content
+    : JSON.stringify(file.content, null, 2);
+  
+  const stats = useMemo(() => ({
+    size: getFileSize(content),
+    lines: getLineCount(content),
+    chars: content.length,
+    words: content.split(/\s+/).filter(Boolean).length,
+  }), [content]);
+
+  return (
+    <View style={styles.fileStats}>
+      <View style={styles.statItem}>
+        <Ionicons name="document-text-outline" size={14} color={theme.palette.text.muted} />
+        <Text style={styles.statText}>{stats.lines} Zeilen</Text>
+      </View>
+      <View style={styles.statItem}>
+        <Ionicons name="text-outline" size={14} color={theme.palette.text.muted} />
+        <Text style={styles.statText}>{stats.words} Wörter</Text>
+      </View>
+      <View style={styles.statItem}>
+        <Ionicons name="analytics-outline" size={14} color={theme.palette.text.muted} />
+        <Text style={styles.statText}>{stats.size}</Text>
+      </View>
+    </View>
+  );
+});
+
+FileStats.displayName = 'FileStats';
+
 // Header component for editor view
 const EditorHeader = memo(({
   file,
   viewMode,
+  showLineNumbers,
   onBack,
   onToggleView,
+  onToggleLineNumbers,
   onSave,
   onDelete,
+  onCopy,
   hasChanges,
 }: {
   file: ProjectFile;
   viewMode: 'edit' | 'preview';
+  showLineNumbers: boolean;
   onBack: () => void;
   onToggleView: () => void;
+  onToggleLineNumbers: () => void;
   onSave: () => void;
   onDelete: () => void;
+  onCopy: () => void;
   hasChanges: boolean;
 }) => {
   const ext = getFileExtension(file.path);
@@ -107,16 +159,42 @@ const EditorHeader = memo(({
         </Text>
       </View>
 
-      <View style={styles.editorActions}>
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        style={styles.editorActions}
+        contentContainerStyle={styles.editorActionsContent}
+      >
+        {isCode && viewMode === 'preview' && (
+          <TouchableOpacity 
+            style={[styles.actionBtn, showLineNumbers && styles.actionBtnActive]} 
+            onPress={onToggleLineNumbers}
+          >
+            <Ionicons
+              name="list-outline"
+              size={18}
+              color={showLineNumbers ? theme.palette.primary : theme.palette.text.secondary}
+            />
+          </TouchableOpacity>
+        )}
+
         {isCode && (
           <TouchableOpacity style={styles.actionBtn} onPress={onToggleView}>
             <Ionicons
               name={viewMode === 'edit' ? 'eye-outline' : 'create-outline'}
-              size={20}
+              size={18}
               color={theme.palette.text.secondary}
             />
           </TouchableOpacity>
         )}
+
+        <TouchableOpacity style={styles.actionBtn} onPress={onCopy}>
+          <Ionicons
+            name="copy-outline"
+            size={18}
+            color={theme.palette.text.secondary}
+          />
+        </TouchableOpacity>
 
         <TouchableOpacity 
           style={[styles.actionBtn, hasChanges && styles.actionBtnHighlight]} 
@@ -124,58 +202,107 @@ const EditorHeader = memo(({
         >
           <Ionicons
             name="save-outline"
-            size={20}
+            size={18}
             color={hasChanges ? theme.palette.primary : theme.palette.text.secondary}
           />
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={onDelete}>
-          <Ionicons name="trash-outline" size={20} color={theme.palette.error} />
+          <Ionicons name="trash-outline" size={18} color={theme.palette.error} />
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </View>
   );
 });
 
 EditorHeader.displayName = 'EditorHeader';
 
-// Explorer Header
+// Sort options
+type SortOption = 'name' | 'type' | 'size' | 'modified';
+
+// Explorer Header with search and sort
 const ExplorerHeader = memo(({
   currentPath,
   fileCount,
+  searchQuery,
+  sortBy,
+  onSearchChange,
+  onSortChange,
   onCreateNew,
 }: {
   currentPath: string;
   fileCount: number;
+  searchQuery: string;
+  sortBy: SortOption;
+  onSearchChange: (text: string) => void;
+  onSortChange: () => void;
   onCreateNew: () => void;
-}) => (
-  <View style={styles.explorerHeader}>
-    <View style={styles.explorerHeaderLeft}>
-      <Ionicons name="folder-open-outline" size={24} color={theme.palette.primary} />
-      <View style={styles.explorerHeaderInfo}>
-        <Text style={styles.explorerTitle}>Code Explorer</Text>
-        <Text style={styles.explorerSubtitle}>
-          {fileCount} {fileCount === 1 ? 'Datei' : 'Dateien'}
-        </Text>
+}) => {
+  const sortIcon = sortBy === 'name' ? 'text' : sortBy === 'type' ? 'extension-puzzle' : sortBy === 'size' ? 'analytics' : 'time';
+  
+  return (
+    <View style={styles.explorerHeaderContainer}>
+      <View style={styles.explorerHeader}>
+        <View style={styles.explorerHeaderLeft}>
+          <Ionicons name="folder-open-outline" size={24} color={theme.palette.primary} />
+          <View style={styles.explorerHeaderInfo}>
+            <Text style={styles.explorerTitle}>Code Explorer</Text>
+            <Text style={styles.explorerSubtitle}>
+              {fileCount} {fileCount === 1 ? 'Datei' : 'Dateien'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.explorerHeaderRight}>
+          <TouchableOpacity style={styles.sortBtn} onPress={onSortChange}>
+            <Ionicons name={sortIcon} size={18} color={theme.palette.text.secondary} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.newFileBtn} onPress={onCreateNew}>
+            <Ionicons name="add" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={18} color={theme.palette.text.muted} style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Dateien durchsuchen..."
+          placeholderTextColor={theme.palette.text.muted}
+          value={searchQuery}
+          onChangeText={onSearchChange}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => onSearchChange('')} style={styles.clearBtn}>
+            <Ionicons name="close-circle" size={18} color={theme.palette.text.muted} />
+          </TouchableOpacity>
+        )}
       </View>
     </View>
-
-    <TouchableOpacity style={styles.newFileBtn} onPress={onCreateNew}>
-      <Ionicons name="add" size={20} color="#fff" />
-      <Text style={styles.newFileBtnText}>Neu</Text>
-    </TouchableOpacity>
-  </View>
-));
+  );
+});
 
 ExplorerHeader.displayName = 'ExplorerHeader';
 
 // Empty State
-const EmptyState = memo(() => (
+const EmptyState = memo(({ searchQuery }: { searchQuery?: string }) => (
   <View style={styles.emptyState}>
-    <Ionicons name="document-outline" size={48} color={theme.palette.text.muted} />
-    <Text style={styles.emptyStateTitle}>Ordner ist leer</Text>
+    <Ionicons 
+      name={searchQuery ? "search-outline" : "document-outline"} 
+      size={48} 
+      color={theme.palette.text.muted} 
+    />
+    <Text style={styles.emptyStateTitle}>
+      {searchQuery ? 'Keine Ergebnisse' : 'Ordner ist leer'}
+    </Text>
     <Text style={styles.emptyStateSubtitle}>
-      Erstelle eine neue Datei oder navigiere zurück
+      {searchQuery 
+        ? `Keine Dateien gefunden für "${searchQuery}"`
+        : 'Erstelle eine neue Datei oder navigiere zurück'
+      }
     </Text>
   </View>
 ));
@@ -196,11 +323,60 @@ const CodeScreen: React.FC = () => {
   const [originalContent, setOriginalContent] = useState<string>('');
   const [showCreationDialog, setShowCreationDialog] = useState(false);
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('preview');
+  const [showLineNumbers, setShowLineNumbers] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<SortOption>('name');
 
   const files = projectData?.files ?? [];
   const { currentFolderItems, currentFolderPath, setCurrentFolderPath } = useFileTree(files);
 
   const hasChanges = editingContent !== originalContent;
+
+  // Filter and sort items
+  const filteredAndSortedItems = useMemo(() => {
+    let items = [...currentFolderItems];
+
+    // Filter by search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      items = items.filter(item => 
+        item.name.toLowerCase().includes(query) ||
+        item.path.toLowerCase().includes(query)
+      );
+    }
+
+    // Sort items
+    items.sort((a, b) => {
+      // Folders first
+      if (a.type === 'folder' && b.type === 'file') return -1;
+      if (a.type === 'file' && b.type === 'folder') return 1;
+
+      switch (sortBy) {
+        case 'name':
+          return a.name.localeCompare(b.name);
+        case 'type': {
+          const extA = getFileExtension(a.path);
+          const extB = getFileExtension(b.path);
+          return extA.localeCompare(extB) || a.name.localeCompare(b.name);
+        }
+        case 'size': {
+          if (a.file && b.file) {
+            const sizeA = typeof a.file.content === 'string' ? a.file.content.length : 0;
+            const sizeB = typeof b.file.content === 'string' ? b.file.content.length : 0;
+            return sizeB - sizeA;
+          }
+          return 0;
+        }
+        case 'modified':
+          // Could implement if timestamp is available
+          return a.name.localeCompare(b.name);
+        default:
+          return 0;
+      }
+    });
+
+    return items;
+  }, [currentFolderItems, searchQuery, sortBy]);
 
   const handleItemPress = useCallback((node: TreeNode) => {
     if (node.type === 'folder') {
@@ -244,17 +420,22 @@ const CodeScreen: React.FC = () => {
   const handleSaveFile = useCallback(async () => {
     if (!selectedFile) return;
 
-    const updated: ProjectFile = {
-      ...selectedFile,
-      content: editingContent,
-    };
+    try {
+      const updated: ProjectFile = {
+        ...selectedFile,
+        content: editingContent,
+      };
 
-    const nextFiles = files.map((f) => f.path === updated.path ? updated : f);
+      const nextFiles = files.map((f) => f.path === updated.path ? updated : f);
 
-    await updateProjectFiles(nextFiles);
-    setSelectedFile(updated);
-    setOriginalContent(editingContent);
-    Alert.alert('✅ Gespeichert', 'Datei wurde gespeichert.');
+      await updateProjectFiles(nextFiles);
+      setSelectedFile(updated);
+      setOriginalContent(editingContent);
+      Alert.alert('✅ Gespeichert', 'Datei wurde erfolgreich gespeichert.');
+    } catch (error) {
+      Alert.alert('❌ Fehler', 'Datei konnte nicht gespeichert werden.');
+      console.error('Error saving file:', error);
+    }
   }, [selectedFile, editingContent, files, updateProjectFiles]);
 
   const handleDeleteFile = useCallback(() => {
@@ -269,18 +450,37 @@ const CodeScreen: React.FC = () => {
           text: 'Löschen',
           style: 'destructive',
           onPress: async () => {
-            await deleteFile(selectedFile.path);
-            setSelectedFile(null);
-            setEditingContent('');
-            setOriginalContent('');
+            try {
+              await deleteFile(selectedFile.path);
+              setSelectedFile(null);
+              setEditingContent('');
+              setOriginalContent('');
+            } catch (error) {
+              Alert.alert('❌ Fehler', 'Datei konnte nicht gelöscht werden.');
+              console.error('Error deleting file:', error);
+            }
           },
         },
       ]
     );
   }, [selectedFile, deleteFile]);
 
+  const handleCopyContent = useCallback(async () => {
+    try {
+      await Clipboard.setStringAsync(editingContent);
+      Alert.alert('✅ Kopiert', 'Inhalt wurde in die Zwischenablage kopiert.');
+    } catch (error) {
+      Alert.alert('❌ Fehler', 'Inhalt konnte nicht kopiert werden.');
+      console.error('Error copying content:', error);
+    }
+  }, [editingContent]);
+
   const handleToggleView = useCallback(() => {
     setViewMode((prev) => prev === 'edit' ? 'preview' : 'edit');
+  }, []);
+
+  const handleToggleLineNumbers = useCallback(() => {
+    setShowLineNumbers((prev) => !prev);
   }, []);
 
   const handleDeleteItem = useCallback((node: TreeNode) => {
@@ -294,11 +494,25 @@ const CodeScreen: React.FC = () => {
         {
           text: 'Löschen',
           style: 'destructive',
-          onPress: () => deleteFile(node.file!.path),
+          onPress: async () => {
+            try {
+              await deleteFile(node.file!.path);
+            } catch (error) {
+              Alert.alert('❌ Fehler', 'Datei konnte nicht gelöscht werden.');
+              console.error('Error deleting file:', error);
+            }
+          },
         },
       ]
     );
   }, [deleteFile]);
+
+  const handleSortChange = useCallback(() => {
+    const options: SortOption[] = ['name', 'type', 'size'];
+    const currentIndex = options.indexOf(sortBy);
+    const nextIndex = (currentIndex + 1) % options.length;
+    setSortBy(options[nextIndex]);
+  }, [sortBy]);
 
   const renderFileItem = useCallback(({ item }: { item: TreeNode }) => (
     <FileItem
@@ -326,12 +540,17 @@ const CodeScreen: React.FC = () => {
           <EditorHeader
             file={selectedFile}
             viewMode={viewMode}
+            showLineNumbers={showLineNumbers}
             onBack={handleBack}
             onToggleView={handleToggleView}
+            onToggleLineNumbers={handleToggleLineNumbers}
             onSave={handleSaveFile}
             onDelete={handleDeleteFile}
+            onCopy={handleCopyContent}
             hasChanges={hasChanges}
           />
+
+          <FileStats file={selectedFile} />
 
           <Animated.View 
             entering={FadeIn.duration(300)} 
@@ -361,10 +580,14 @@ const CodeScreen: React.FC = () => {
           </Animated.View>
 
           {hasChanges && (
-            <View style={styles.unsavedBanner}>
+            <Animated.View 
+              entering={FadeIn.duration(200)} 
+              exiting={FadeOut.duration(200)}
+              style={styles.unsavedBanner}
+            >
               <Ionicons name="alert-circle" size={16} color={theme.palette.warning} />
               <Text style={styles.unsavedText}>Ungespeicherte Änderungen</Text>
-            </View>
+            </Animated.View>
           )}
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -377,6 +600,10 @@ const CodeScreen: React.FC = () => {
       <ExplorerHeader
         currentPath={currentFolderPath}
         fileCount={files.length}
+        searchQuery={searchQuery}
+        sortBy={sortBy}
+        onSearchChange={setSearchQuery}
+        onSortChange={handleSortChange}
         onCreateNew={() => setShowCreationDialog(true)}
       />
 
@@ -393,15 +620,15 @@ const CodeScreen: React.FC = () => {
       ) : (
         <Animated.View entering={FadeInDown.duration(300)} style={styles.listContainer}>
           <FlatList
-            data={currentFolderItems}
+            data={filteredAndSortedItems}
             keyExtractor={keyExtractor}
             renderItem={renderFileItem}
-            contentContainerStyle={currentFolderItems.length === 0 ? { flex: 1 } : styles.listContent}
-            ListEmptyComponent={<EmptyState />}
+            contentContainerStyle={filteredAndSortedItems.length === 0 ? { flex: 1 } : styles.listContent}
+            ListEmptyComponent={<EmptyState searchQuery={searchQuery} />}
             showsVerticalScrollIndicator={false}
-            initialNumToRender={15}
-            maxToRenderPerBatch={10}
-            windowSize={5}
+            initialNumToRender={20}
+            maxToRenderPerBatch={15}
+            windowSize={7}
           />
         </Animated.View>
       )}
@@ -427,20 +654,23 @@ const styles = StyleSheet.create({
   },
 
   // Explorer Header
+  explorerHeaderContainer: {
+    backgroundColor: theme.palette.card,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+  },
   explorerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: theme.palette.card,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.palette.border,
+    paddingVertical: 12,
   },
   explorerHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flex: 1,
   },
   explorerHeaderInfo: {
     gap: 2,
@@ -453,6 +683,15 @@ const styles = StyleSheet.create({
   explorerSubtitle: {
     fontSize: 12,
     color: theme.palette.text.secondary,
+  },
+  explorerHeaderRight: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  sortBtn: {
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: theme.palette.background,
   },
   newFileBtn: {
     flexDirection: 'row',
@@ -467,6 +706,32 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+
+  // Search
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 12,
+    backgroundColor: theme.palette.background,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    paddingHorizontal: 12,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: theme.palette.text.primary,
+  },
+  clearBtn: {
+    padding: 4,
   },
 
   // List
@@ -506,6 +771,26 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
+  // File Stats
+  fileStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: theme.palette.card,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statText: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+  },
+
   // Editor Header
   editorHeader: {
     flexDirection: 'row',
@@ -536,6 +821,9 @@ const styles = StyleSheet.create({
     color: theme.palette.text.secondary,
   },
   editorActions: {
+    maxWidth: '40%',
+  },
+  editorActionsContent: {
     flexDirection: 'row',
     gap: 4,
   },
@@ -543,6 +831,9 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
     backgroundColor: theme.palette.background,
+  },
+  actionBtnActive: {
+    backgroundColor: theme.palette.primarySoft,
   },
   actionBtnHighlight: {
     backgroundColor: theme.palette.primarySoft,
