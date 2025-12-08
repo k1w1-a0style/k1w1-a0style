@@ -14,7 +14,7 @@ import {
   KeyboardAvoidingView,
   ScrollView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import * as Clipboard from 'expo-clipboard';
@@ -310,6 +310,7 @@ const EmptyState = memo(({ searchQuery }: { searchQuery?: string }) => (
 EmptyState.displayName = 'EmptyState';
 
 const CodeScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const {
     projectData,
     isLoading,
@@ -524,6 +525,16 @@ const CodeScreen: React.FC = () => {
 
   const keyExtractor = useCallback((item: TreeNode) => item.id, []);
 
+  const safeAreaStyle = useMemo(
+    () => ({
+      paddingTop: insets.top,
+      paddingBottom: Platform.OS === 'ios' ? insets.bottom : 0,
+    }),
+    [insets.bottom, insets.top],
+  );
+
+  const editorBottomPadding = Math.max(Platform.OS === 'ios' ? insets.bottom : 0, 12);
+
   // Editor View
   if (selectedFile) {
     const isCode = isCodeFile(selectedFile.path);
@@ -531,11 +542,11 @@ const CodeScreen: React.FC = () => {
     const ext = getFileExtension(selectedFile.path);
 
     return (
-      <SafeAreaView style={styles.root} edges={['bottom', 'left', 'right']}>
+      <SafeAreaView style={[styles.root, safeAreaStyle]} edges={['left', 'right']}>
         <KeyboardAvoidingView 
           style={styles.keyboardAvoidingView}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
         >
           <EditorHeader
             file={selectedFile}
@@ -563,10 +574,17 @@ const CodeScreen: React.FC = () => {
                 <Text style={styles.imagePreviewPath}>{selectedFile.path}</Text>
               </View>
             ) : isCode && viewMode === 'preview' ? (
-              <SyntaxHighlighter code={editingContent} />
+              <ScrollView
+                style={styles.codeScroll}
+                contentContainerStyle={[styles.codeScrollContent, { paddingBottom: editorBottomPadding }]}
+                showsVerticalScrollIndicator
+                bounces={false}
+              >
+                <SyntaxHighlighter code={editingContent} />
+              </ScrollView>
             ) : (
               <TextInput
-                style={styles.editorInput}
+                style={[styles.editorInput, { paddingBottom: editorBottomPadding }]}
                 multiline
                 value={editingContent}
                 onChangeText={setEditingContent}
@@ -596,7 +614,7 @@ const CodeScreen: React.FC = () => {
 
   // Explorer View
   return (
-    <SafeAreaView style={styles.root} edges={['bottom', 'left', 'right']}>
+    <SafeAreaView style={[styles.root, safeAreaStyle]} edges={['left', 'right']}>
       <ExplorerHeader
         currentPath={currentFolderPath}
         fileCount={files.length}
@@ -623,7 +641,10 @@ const CodeScreen: React.FC = () => {
             data={filteredAndSortedItems}
             keyExtractor={keyExtractor}
             renderItem={renderFileItem}
-            contentContainerStyle={filteredAndSortedItems.length === 0 ? { flex: 1 } : styles.listContent}
+            contentContainerStyle={[
+              filteredAndSortedItems.length === 0 ? styles.listContentEmpty : styles.listContent,
+              { paddingBottom: Math.max(insets.bottom, 12) },
+            ]}
             ListEmptyComponent={<EmptyState searchQuery={searchQuery} />}
             showsVerticalScrollIndicator={false}
             initialNumToRender={20}
@@ -741,6 +762,9 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: 20,
   },
+  listContentEmpty: {
+    flex: 1,
+  },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
@@ -843,6 +867,13 @@ const styles = StyleSheet.create({
   editorContainer: {
     flex: 1,
     backgroundColor: theme.palette.code.background,
+  },
+  codeScroll: {
+    flex: 1,
+  },
+  codeScrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
   editorInput: {
     flex: 1,
