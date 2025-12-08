@@ -13,6 +13,7 @@ import {
   Keyboard,
   AccessibilityInfo,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -107,6 +108,7 @@ const ErrorBanner = React.memo<ErrorBannerProps>(({ error, onDismiss, onRetry })
 ErrorBanner.displayName = 'ErrorBanner';
 
 const ChatScreen: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const {
     messages,
     textInput,
@@ -211,11 +213,15 @@ const ChatScreen: React.FC = () => {
     }
   }, [messages, setTextInput, clearError]);
 
+  const keyboardBehavior = Platform.OS === 'ios' ? 'padding' : 'height';
+  const inputBottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 8);
+  const listBottomPadding = inputBottomPadding + 72;
+
   return (
     <KeyboardAvoidingView
       style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+      behavior={keyboardBehavior}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
     >
       <View style={styles.container}>
         {/* Messages List */}
@@ -231,9 +237,12 @@ const ChatScreen: React.FC = () => {
               contentContainerStyle={[
                 styles.listContent,
                 messages.length === 0 && styles.listContentEmpty,
+                { paddingBottom: listBottomPadding },
               ]}
               ListFooterComponent={ListFooterComponent}
               ListEmptyComponent={ListEmptyComponent}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
               // Performance optimizations
               initialNumToRender={12}
               maxToRenderPerBatch={10}
@@ -261,7 +270,7 @@ const ChatScreen: React.FC = () => {
         )}
 
         {/* Input Area */}
-        <View style={styles.inputWrapper}>
+        <View style={[styles.inputWrapper, { paddingBottom: inputBottomPadding }]}>
           {/* Selected File Indicator */}
           {selectedFileAsset && (
             <Animated.View
@@ -472,7 +481,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: theme.palette.border,
     backgroundColor: theme.palette.card,
-    paddingBottom: Platform.OS === 'android' ? 16 : 0,
   },
   selectedFileBox: {
     flexDirection: 'row',
