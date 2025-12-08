@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Platform, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Platform, Image, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
@@ -111,9 +111,18 @@ const AppInfoScreen = () => {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView 
+          style={styles.container} 
+          contentContainerStyle={styles.contentContainer}
+          keyboardShouldPersistTaps="handled"
+        >
 
-        {/* APP-EINSTELLUNGEN */}
+          {/* APP-EINSTELLUNGEN */}
         <Text style={styles.sectionTitle}>📱 App-Einstellungen</Text>
 
         <View style={styles.settingsContainer}>
@@ -225,7 +234,8 @@ const AppInfoScreen = () => {
           </View>
         </View>
 
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -233,6 +243,7 @@ const AppInfoScreen = () => {
 // Styles (Deine neuen Styles aus der .docx)
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: theme.palette.background },
+  keyboardAvoidingView: { flex: 1 },
   container: { flex: 1 },
   contentContainer: { padding: 20, paddingBottom: 40 },
   sectionTitle: {

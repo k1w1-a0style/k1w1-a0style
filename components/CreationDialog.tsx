@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Modal, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Modal, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
 
@@ -36,7 +36,10 @@ export const CreationDialog: React.FC<CreationDialogProps> = ({
 
   return (
     <Modal visible={visible} transparent animationType="slide">
-      <View style={styles.modalOverlay}>
+      <KeyboardAvoidingView 
+        style={styles.modalOverlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <View style={styles.creationModal}>
           <Text style={styles.modalTitle}>Neu erstellen</Text>
 
@@ -109,7 +112,7 @@ export const CreationDialog: React.FC<CreationDialogProps> = ({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -120,6 +123,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000AA',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 20,
   },
   creationModal: {
     width: '90%',

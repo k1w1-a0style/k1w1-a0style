@@ -10,6 +10,8 @@ import {
   Alert,
   Switch,
   ActivityIndicator,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -255,12 +257,18 @@ const SettingsScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom', 'left', 'right']}>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        {/* Header */}
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header */}
         <Animated.View entering={FadeInDown.duration(400)} style={styles.header}>
           <View style={styles.headerIcon}>
             <Ionicons name="settings-outline" size={28} color={theme.palette.primary} />
@@ -473,8 +481,9 @@ const SettingsScreen: React.FC = () => {
           </View>
         </Animated.View>
 
-        <View style={styles.footer} />
-      </ScrollView>
+          <View style={styles.footer} />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -483,6 +492,9 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: theme.palette.background,
+  },
+  keyboardAvoidingView: {
+    flex: 1,
   },
   container: {
     flex: 1,

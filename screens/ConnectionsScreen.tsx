@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -541,11 +542,17 @@ const ConnectionsScreen: React.FC = () => {
   );
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
+    <KeyboardAvoidingView 
+      style={styles.keyboardAvoidingView}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
-      <Text style={styles.title}>🔗 Verbindungen</Text>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={styles.title}>🔗 Verbindungen</Text>
       <Text style={styles.subtitle}>
         Hier trägst du die Zugangsdaten für Supabase, GitHub und EAS ein.
       </Text>
@@ -758,14 +765,18 @@ const ConnectionsScreen: React.FC = () => {
           übernimmt Supabase die Authentifizierung.
         </Text>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  keyboardAvoidingView: {
     flex: 1,
     backgroundColor: theme.palette.background,
+  },
+  container: {
+    flex: 1,
   },
   content: {
     padding: 16,
