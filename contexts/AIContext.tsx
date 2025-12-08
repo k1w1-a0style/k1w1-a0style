@@ -98,13 +98,6 @@ export const AVAILABLE_MODELS: Partial<Record<AllAIProviders, ModelInfo[]>> = {
       billing: 'free',
     },
     {
-      id: 'llama-3.1-70b-versatile',
-      provider: 'groq',
-      label: 'Llama 3.1 70B',
-      description: 'Bewährtes 70B Modell.',
-      billing: 'free',
-    },
-    {
       id: 'mixtral-8x7b-32768',
       provider: 'groq',
       label: 'Mixtral 8x7B',
@@ -132,24 +125,10 @@ export const AVAILABLE_MODELS: Partial<Record<AllAIProviders, ModelInfo[]>> = {
       billing: 'free',
     },
     {
-      id: 'gemini-2.0-flash',
+      id: 'gemini-2.0-flash-exp',
       provider: 'gemini',
-      label: 'Gemini 2.0 Flash',
-      description: 'Neustes schnelles Modell mit erweiterten Fähigkeiten.',
-      billing: 'free',
-    },
-    {
-      id: 'gemini-2.0-flash-lite',
-      provider: 'gemini',
-      label: 'Gemini 2.0 Flash Lite',
-      description: 'Leicht & schnell für einfache Aufgaben.',
-      billing: 'free',
-    },
-    {
-      id: 'gemini-1.5-flash',
-      provider: 'gemini',
-      label: 'Gemini 1.5 Flash',
-      description: 'Schnelles Modell mit 1M Token Kontext.',
+      label: 'Gemini 2.0 Flash Exp',
+      description: 'Experimentelles schnelles Modell (v1beta API).',
       billing: 'free',
     },
     {
@@ -157,6 +136,13 @@ export const AVAILABLE_MODELS: Partial<Record<AllAIProviders, ModelInfo[]>> = {
       provider: 'gemini',
       label: 'Gemini 1.5 Pro',
       description: 'Starkes Modell mit 2M Token Kontext.',
+      billing: 'free',
+    },
+    {
+      id: 'gemini-1.5-flash-002',
+      provider: 'gemini',
+      label: 'Gemini 1.5 Flash-002',
+      description: 'Stabile Flash-Version.',
       billing: 'free',
     },
   ],
@@ -488,11 +474,11 @@ const BUILT_IN_DEFAULTS: ProviderDefaults = {
     quality: 'llama-3.3-70b-versatile',
   },
   gemini: {
-    speed: 'gemini-2.0-flash',
+    speed: 'gemini-1.5-flash-002',
     quality: 'gemini-1.5-pro',
   },
   google: {
-    speed: 'gemini-2.0-flash',
+    speed: 'gemini-1.5-flash-002',
     quality: 'gemini-1.5-pro',
   },
   openai: {
