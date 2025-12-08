@@ -222,7 +222,7 @@ const AppInfoScreen = () => {
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Nachrichten:</Text>
-            <Text style={styles.infoValue}>{(projectData?.chatHistory || projectData?.messages)?.length || 0}</Text>
+            <Text style={styles.infoValue}>{projectData?.chatHistory?.length || 0}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Letzte Änderung:</Text>

@@ -420,7 +420,7 @@ const PreviewScreen: React.FC = () => {
     }
   }, []);
 
-  const handleExternalNav = useCallback(request => {
+  const handleExternalNav = useCallback((request: any) => {
     const url: string = request.url || '';
     if (
       url.startsWith('file://') ||

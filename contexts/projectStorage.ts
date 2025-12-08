@@ -182,6 +182,7 @@ export const importProjectFromZipFile = async (): Promise<{
     const newProject: ProjectData = {
       id: uuidv4(),
       name: newName,
+      slug: newName.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
       files: newFiles,
       chatHistory: [], // Ein importiertes Projekt startet mit leerem Chat
       createdAt: new Date().toISOString(),
