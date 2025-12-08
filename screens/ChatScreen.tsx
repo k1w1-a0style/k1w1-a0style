@@ -214,8 +214,8 @@ const ChatScreen: React.FC = () => {
   return (
     <KeyboardAvoidingView
       style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 20}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
     >
       <View style={styles.container}>
         {/* Messages List */}
@@ -472,7 +472,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: theme.palette.border,
     backgroundColor: theme.palette.card,
-    paddingBottom: Platform.OS === 'android' ? 8 : 0,
+    paddingBottom: Platform.OS === 'android' ? 16 : 0,
   },
   selectedFileBox: {
     flexDirection: 'row',

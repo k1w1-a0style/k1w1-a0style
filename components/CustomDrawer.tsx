@@ -9,12 +9,14 @@ import {
 import { DrawerContentComponentProps } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
+import { useProject } from '../contexts/ProjectContext';
 
 export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
   props,
 ) => {
   const { state, navigation } = props;
   const currentRouteName = state.routeNames[state.index];
+  const { createNewProject, projectData } = useProject();
 
   const renderItem = (
     label: string,
@@ -59,10 +61,29 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
     <View style={styles.root}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.appTitle}>k1w1-a0style</Text>
-        <Text style={styles.appSubTitle}>
-          Prompt → Code → GitHub → Build
-        </Text>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.appTitle}>k1w1-a0style</Text>
+            <Text style={styles.appSubTitle}>
+              Prompt → Code → GitHub → Build
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.newProjectButton}
+            onPress={createNewProject}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="add-circle" size={24} color={theme.palette.primary} />
+          </TouchableOpacity>
+        </View>
+        {projectData && (
+          <View style={styles.projectInfo}>
+            <Ionicons name="folder-open-outline" size={14} color={theme.palette.text.secondary} />
+            <Text style={styles.projectName} numberOfLines={1}>
+              {projectData.name || 'Unbenanntes Projekt'}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Einträge */}
@@ -119,6 +140,11 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.palette.border,
     backgroundColor: theme.palette.card,
   },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
   appTitle: {
     fontSize: 20,
     fontWeight: 'bold',
@@ -128,6 +154,26 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 12,
     color: theme.palette.text.secondary,
+  },
+  newProjectButton: {
+    padding: 4,
+    borderRadius: 8,
+    backgroundColor: theme.palette.primarySoft,
+  },
+  projectInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: theme.palette.border,
+    gap: 6,
+  },
+  projectName: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    color: theme.palette.text.primary,
   },
   scroll: {
     flex: 1,
