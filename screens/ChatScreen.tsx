@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  AccessibilityInfo,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -18,6 +19,7 @@ import Animated, {
   withSpring,
   FadeIn,
   FadeOut,
+  FadeInDown,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -28,35 +30,81 @@ import { useChatLogic } from '../hooks/useChatLogic';
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
-// Estimated item height for getItemLayout
-const ESTIMATED_ITEM_HEIGHT = 80;
-
 // Loading footer component - memoized outside main component
-const LoadingFooter = () => (
+const LoadingFooter = React.memo(() => (
   <View style={styles.loadingFooter}>
     <ActivityIndicator size="small" color={theme.palette.primary} />
     <Text style={styles.loadingText}>Builder arbeitet ...</Text>
   </View>
-);
+));
+LoadingFooter.displayName = 'LoadingFooter';
 
 // Empty state component - memoized outside main component  
-const EmptyState = () => (
+const EmptyState = React.memo(() => (
   <View style={styles.emptyState}>
     <Ionicons name="chatbubble-ellipses-outline" size={48} color={theme.palette.text.muted} />
     <Text style={styles.emptyStateTitle}>Willkommen!</Text>
     <Text style={styles.emptyStateSubtitle}>
       Beschreibe dein Projekt und der Builder hilft dir beim Coden.
     </Text>
+    <View style={styles.emptyStateHints}>
+      <Text style={styles.emptyStateHint}>💡 "Erstelle einen Login-Screen"</Text>
+      <Text style={styles.emptyStateHint}>💡 "Füge Dark Mode hinzu"</Text>
+      <Text style={styles.emptyStateHint}>💡 "Wie viele Dateien?"</Text>
+    </View>
   </View>
-);
+));
+EmptyState.displayName = 'EmptyState';
 
 // Loading overlay component
-const LoadingOverlay = () => (
+const LoadingOverlay = React.memo(() => (
   <View style={styles.loadingOverlay}>
     <ActivityIndicator size="large" color={theme.palette.primary} />
     <Text style={styles.loadingOverlayText}>Projekt und Chat werden geladen...</Text>
   </View>
-);
+));
+LoadingOverlay.displayName = 'LoadingOverlay';
+
+// Error Banner Component
+interface ErrorBannerProps {
+  error: string;
+  onDismiss: () => void;
+  onRetry?: () => void;
+}
+
+const ErrorBanner = React.memo<ErrorBannerProps>(({ error, onDismiss, onRetry }) => (
+  <Animated.View
+    entering={FadeInDown.duration(200)}
+    exiting={FadeOut.duration(150)}
+    style={styles.errorBanner}
+  >
+    <View style={styles.errorContent}>
+      <Ionicons name="alert-circle" size={18} color={theme.palette.error} />
+      <Text style={styles.errorText} numberOfLines={3}>{error}</Text>
+    </View>
+    <View style={styles.errorActions}>
+      {onRetry && (
+        <TouchableOpacity
+          style={styles.errorRetryButton}
+          onPress={onRetry}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="refresh" size={16} color={theme.palette.primary} />
+        </TouchableOpacity>
+      )}
+      <TouchableOpacity
+        style={styles.errorDismissButton}
+        onPress={onDismiss}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        accessibilityRole="button"
+        accessibilityLabel="Fehler schließen"
+      >
+        <Ionicons name="close" size={18} color={theme.palette.text.secondary} />
+      </TouchableOpacity>
+    </View>
+  </Animated.View>
+));
+ErrorBanner.displayName = 'ErrorBanner';
 
 const ChatScreen: React.FC = () => {
   const {
@@ -68,6 +116,9 @@ const ChatScreen: React.FC = () => {
     handleSend,
     combinedIsLoading,
     error,
+    clearError,
+    cancelRequest,
+    isAiLoading,
   } = useChatLogic();
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
@@ -123,10 +174,14 @@ const ChatScreen: React.FC = () => {
     return () => clearTimeout(timer);
   }, [messages.length]);
 
-  // Memoized render item function
+  // Memoized render item function - Animation nur für neue Nachrichten
   const renderItem = useCallback(
-    ({ item }: { item: ChatMessage }) => <MessageItem message={item} />,
-    [],
+    ({ item, index }: { item: ChatMessage; index: number }) => {
+      // Animation nur für die letzten 2 Nachrichten (Performance)
+      const disableAnimation = index < messages.length - 2;
+      return <MessageItem message={item} disableAnimation={disableAnimation} />;
+    },
+    [messages.length],
   );
 
   // Memoized key extractor
@@ -134,9 +189,9 @@ const ChatScreen: React.FC = () => {
 
   // Memoized footer component
   const ListFooterComponent = useMemo(() => {
-    if (!combinedIsLoading || messages.length === 0) return null;
+    if (!isAiLoading || messages.length === 0) return null;
     return <LoadingFooter />;
-  }, [combinedIsLoading, messages.length]);
+  }, [isAiLoading, messages.length]);
 
   // Memoized empty component
   const ListEmptyComponent = useMemo(() => {
@@ -144,18 +199,17 @@ const ChatScreen: React.FC = () => {
     return <EmptyState />;
   }, [combinedIsLoading]);
 
-  // getItemLayout for better scrolling performance
-  const getItemLayout = useCallback(
-    (_data: any, index: number) => ({
-      length: ESTIMATED_ITEM_HEIGHT,
-      offset: ESTIMATED_ITEM_HEIGHT * index,
-      index,
-    }),
-    [],
-  );
-
   // Check if send button should be disabled
   const isSendDisabled = combinedIsLoading || (!textInput.trim() && !selectedFileAsset);
+
+  // Handle retry - sendet die letzte User-Nachricht nochmal
+  const handleRetry = useCallback(() => {
+    const lastUserMessage = [...messages].reverse().find(m => m.role === 'user');
+    if (lastUserMessage) {
+      setTextInput(lastUserMessage.content);
+      clearError();
+    }
+  }, [messages, setTextInput, clearError]);
 
   return (
     <KeyboardAvoidingView
@@ -181,25 +235,29 @@ const ChatScreen: React.FC = () => {
               ListFooterComponent={ListFooterComponent}
               ListEmptyComponent={ListEmptyComponent}
               // Performance optimizations
-              initialNumToRender={10}
-              maxToRenderPerBatch={8}
-              windowSize={7}
+              initialNumToRender={12}
+              maxToRenderPerBatch={10}
+              windowSize={9}
               removeClippedSubviews={Platform.OS === 'android'}
-              getItemLayout={getItemLayout}
+              // Kein getItemLayout - dynamische Höhen funktionieren besser
               // Maintain scroll position
               maintainVisibleContentPosition={{
                 minIndexForVisible: 0,
               }}
+              // Accessibility
+              accessibilityRole="list"
+              accessibilityLabel="Chat-Nachrichten"
             />
           )}
         </View>
 
-        {/* Error Banner */}
+        {/* Error Banner mit Dismiss und Retry */}
         {error && (
-          <View style={styles.errorBanner}>
-            <Ionicons name="alert-circle" size={16} color={theme.palette.error} />
-            <Text style={styles.errorText} numberOfLines={2}>{error}</Text>
-          </View>
+          <ErrorBanner
+            error={error}
+            onDismiss={clearError}
+            onRetry={handleRetry}
+          />
         )}
 
         {/* Input Area */}
@@ -229,6 +287,9 @@ const ChatScreen: React.FC = () => {
               onPress={handleAttachPress}
               onPressIn={handleAttachPressIn}
               onPressOut={handleAttachPressOut}
+              disabled={isAiLoading}
+              accessibilityRole="button"
+              accessibilityLabel="Datei anhängen"
             >
               <Ionicons
                 name="attach"
@@ -246,27 +307,40 @@ const ChatScreen: React.FC = () => {
               placeholderTextColor={theme.palette.text.muted}
               multiline
               maxLength={4000}
-              editable={!combinedIsLoading}
+              editable={!isAiLoading}
+              accessibilityLabel="Nachricht eingeben"
+              accessibilityHint="Beschreibe was du bauen möchtest"
             />
 
-            {/* Send Button */}
-            <AnimatedTouchableOpacity
-              style={[
-                styles.sendButton,
-                sendButtonAnimatedStyle,
-                isSendDisabled && styles.sendButtonDisabled,
-              ]}
-              onPress={handleSendPress}
-              onPressIn={handleSendPressIn}
-              onPressOut={handleSendPressOut}
-              disabled={isSendDisabled}
-            >
-              {combinedIsLoading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
+            {/* Cancel Button (nur während Loading) */}
+            {isAiLoading ? (
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={cancelRequest}
+                accessibilityRole="button"
+                accessibilityLabel="Request abbrechen"
+              >
+                <Ionicons name="stop-circle" size={24} color={theme.palette.error} />
+              </TouchableOpacity>
+            ) : (
+              /* Send Button */
+              <AnimatedTouchableOpacity
+                style={[
+                  styles.sendButton,
+                  sendButtonAnimatedStyle,
+                  isSendDisabled && styles.sendButtonDisabled,
+                ]}
+                onPress={handleSendPress}
+                onPressIn={handleSendPressIn}
+                onPressOut={handleSendPressOut}
+                disabled={isSendDisabled}
+                accessibilityRole="button"
+                accessibilityLabel="Nachricht senden"
+                accessibilityState={{ disabled: isSendDisabled }}
+              >
                 <Ionicons name="send" size={18} color="#fff" />
-              )}
-            </AnimatedTouchableOpacity>
+              </AnimatedTouchableOpacity>
+            )}
           </View>
         </View>
       </View>
@@ -336,21 +410,61 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
+  // Empty State Hints
+  emptyStateHints: {
+    marginTop: 16,
+    gap: 8,
+  },
+  emptyStateHint: {
+    fontSize: 13,
+    color: theme.palette.text.muted,
+    textAlign: 'center',
+  },
+
   // Error Banner
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
     paddingVertical: 10,
     backgroundColor: 'rgba(255, 68, 68, 0.1)',
     borderTopWidth: 1,
     borderTopColor: theme.palette.error,
   },
+  errorContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   errorText: {
     flex: 1,
     fontSize: 13,
     color: theme.palette.error,
+    lineHeight: 18,
+  },
+  errorActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginLeft: 8,
+  },
+  errorRetryButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.palette.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorDismissButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.palette.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // Input Wrapper
@@ -406,6 +520,16 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     opacity: 0.5,
+  },
+  cancelButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 68, 68, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.palette.error,
   },
 
   // Text Input

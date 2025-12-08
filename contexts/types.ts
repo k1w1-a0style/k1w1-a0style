@@ -20,12 +20,18 @@ export interface ProjectData {
   packageName?: string;
 }
 
+export interface ChatMessageMeta {
+  provider?: string;
+  error?: string;
+  context?: BuilderContextData;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string;
-  context?: BuilderContextData;
+  meta?: ChatMessageMeta;
 }
 
 export interface BuilderContextData {
@@ -36,9 +42,15 @@ export interface BuilderContextData {
   keysRotated?: number;
   files?: ProjectFile[];
   changes?: ContextFileChange[];
-  filesChanged?: ContextFileChange[]; // legacy
+  filesChanged?: ContextFileChange[]; // legacy alias für changes
   error?: string;
   success?: boolean;
+  /** Zusammenfassung des Builder-Ergebnisses */
+  summary?: string;
+  /** Quality-Modus: 'speed' | 'quality' */
+  quality?: string;
+  /** Anzahl der LLM-Messages im Kontext */
+  messageCount?: number;
 }
 
 export interface ContextFileChange {
@@ -47,6 +59,8 @@ export interface ContextFileChange {
   linesAdded?: number;
   linesRemoved?: number;
   diff?: string;
+  /** Code-Vorschau der Änderung */
+  preview?: string;
 }
 
 export interface ProjectContextProps {

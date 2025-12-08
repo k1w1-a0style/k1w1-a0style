@@ -26,6 +26,8 @@ export const CONFIG = {
       PLACEHOLDERS: [
         '// ... existing code',
         '// ... rest of file',
+        '// rest of the code remains unchanged',
+        '// remaining code',
         '// TODO',
         '// TODO:',
         '// ToDo',
@@ -40,7 +42,7 @@ export const CONFIG = {
         '// placeholder component',
         '// dummy',
         '// dummy component',
-        'return null;',
+        // 'return null;' entfernt - das ist oft legitimer Code (z.B. Early Return, Conditional Rendering)
         'throw new Error("NotImplemented");',
         'throw new Error("Not implemented");',
         'throw new Error("TODO");',
@@ -50,7 +52,8 @@ export const CONFIG = {
         '// Previous code',
         '// Add your code',
         '// Insert code here',
-        '() => {}',
+        '// ... andere Imports',
+        '// ... weitere Komponenten',
       ],
     },
     FILE_RULES: {

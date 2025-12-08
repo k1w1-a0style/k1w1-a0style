@@ -1,7 +1,7 @@
 // hooks/useChatLogic.ts
 // Kapselt die gesamte Chat- und Builder-Logik des ChatScreens
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Alert } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { v4 as uuidv4 } from 'uuid';
@@ -23,6 +23,64 @@ type DocumentResultAsset = NonNullable<
   DocumentPicker.DocumentPickerResult['assets']
 >[0];
 
+// Meta-Commands für schnelle Aktionen
+interface MetaCommand {
+  patterns: RegExp[];
+  handler: (projectFiles: ProjectFile[], match: RegExpMatchArray | null) => string;
+}
+
+const META_COMMANDS: MetaCommand[] = [
+  {
+    patterns: [/wie\s*viele?\s*datei/i, /anzahl\s*(der\s*)?datei/i, /datei.*anzahl/i],
+    handler: (files) => `📂 Dein Projekt enthält aktuell ${files.length} Dateien.`,
+  },
+  {
+    patterns: [/liste?\s*(alle\s*)?datei/i, /zeig.*datei/i, /datei.*liste/i, /welche\s*datei/i],
+    handler: (files) => {
+      if (files.length === 0) {
+        return '📂 Keine Dateien im Projekt – starte mit einem neuen Template!';
+      }
+      const list = files
+        .slice(0, 30)
+        .map((f) => `• ${f.path} (${f.content.length} Zeichen)`)
+        .join('\n');
+      const suffix = files.length > 30 ? `\n\n... und ${files.length - 30} weitere Dateien` : '';
+      return `📂 Projektdateien:\n${list}${suffix}`;
+    },
+  },
+  {
+    patterns: [/projekt.*name/i, /wie\s*heißt.*projekt/i, /name.*projekt/i],
+    handler: () => '💡 Um den Projektnamen zu ändern, gehe zu Einstellungen > Projekt.',
+  },
+  {
+    patterns: [/typescript.*check/i, /tsc\b/i, /prüfe.*code/i, /lint/i],
+    handler: () =>
+      '🧪 TypeScript-/Lint-Check ist noch nicht direkt angebunden – nutze den Code-Screen für Syntax-Highlighting.',
+  },
+  {
+    patterns: [/hilfe|help|was kannst du/i],
+    handler: () =>
+      '🤖 Ich bin der k1w1 Builder! Du kannst mir sagen:\n' +
+      '• "Erstelle einen Login-Screen"\n' +
+      '• "Füge einen Dark Mode Toggle hinzu"\n' +
+      '• "Wie viele Dateien hat mein Projekt?"\n' +
+      '• "Liste alle Dateien"\n\n' +
+      'Beschreibe einfach, was du bauen möchtest!',
+  },
+];
+
+/** Prüft ob ein Text einem Meta-Command entspricht */
+const matchMetaCommand = (text: string): { command: MetaCommand; match: RegExpMatchArray } | null => {
+  const lower = text.toLowerCase().trim();
+  for (const cmd of META_COMMANDS) {
+    for (const pattern of cmd.patterns) {
+      const match = lower.match(pattern);
+      if (match) return { command: cmd, match };
+    }
+  }
+  return null;
+};
+
 export function useChatLogic() {
   const {
     projectData,
@@ -40,7 +98,41 @@ export function useChatLogic() {
   const [selectedFileAsset, setSelectedFileAsset] =
     useState<DocumentResultAsset | null>(null);
 
+  // AbortController für Request-Cancellation
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const combinedIsLoading = isProjectLoading || isAiLoading || !isAiReady;
+
+  // Cleanup bei Unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  /** Bricht den aktuellen AI-Request ab */
+  const cancelRequest = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsAiLoading(false);
+      setError('Request abgebrochen');
+      
+      addChatMessage({
+        id: uuidv4(),
+        role: 'system',
+        content: '⏹️ Request wurde abgebrochen.',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }, [addChatMessage]);
+
+  /** Löscht den aktuellen Fehler */
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
 
   const handlePickDocument = useCallback(async () => {
     try {
@@ -69,7 +161,7 @@ export function useChatLogic() {
   }, []);
 
   const handleSend = useCallback(async () => {
-    // Verhindert parallele Builder-Läufe, z.B. durch Enter-Tastatur während die KI arbeitet
+    // Verhindert parallele Builder-Läufe
     if (combinedIsLoading) {
       return;
     }
@@ -83,6 +175,7 @@ export function useChatLogic() {
       return;
     }
 
+    // Error beim Senden löschen
     setError(null);
 
     // Projektdateien jeweils aktuell aus dem Context lesen
@@ -94,7 +187,6 @@ export function useChatLogic() {
         ? `Datei gesendet: ${selectedFileAsset.name}`
         : '');
 
-    const lower = userContent.toLowerCase();
     console.log('[ChatScreen] ▶️ Sende an KI:', userContent);
 
     const userMessage: ChatMessage = {
@@ -109,44 +201,14 @@ export function useChatLogic() {
     setTextInput('');
     setSelectedFileAsset(null);
 
-    // Schnelle Meta-Commands zum Testen / Debuggen
-    if (lower.includes('wie viele datei')) {
+    // Meta-Commands prüfen (schnelle lokale Aktionen)
+    const metaMatch = matchMetaCommand(userContent);
+    if (metaMatch) {
+      const response = metaMatch.command.handler(projectFiles, metaMatch.match);
       addChatMessage({
         id: uuidv4(),
         role: 'assistant',
-        content: `📂 Dein Projekt enthält aktuell ${projectFiles.length} Dateien.`,
-        timestamp: new Date().toISOString(),
-      });
-      return;
-    }
-
-    if (lower.includes('liste alle datei')) {
-      const list = projectFiles
-        .map((f) => `• ${f.path} (${f.content.length} Zeichen)`)
-        .join('\n');
-
-      addChatMessage({
-        id: uuidv4(),
-        role: 'assistant',
-        content:
-          list ||
-          '📂 Keine Dateien im Projekt – starte mit einem neuen Template!',
-        timestamp: new Date().toISOString(),
-      });
-      return;
-    }
-
-    if (
-      lower.includes('prüfe alle datei') ||
-      lower.includes('check typescript') ||
-      lower.includes('tsc') ||
-      lower.includes('typescript error')
-    ) {
-      addChatMessage({
-        id: uuidv4(),
-        role: 'assistant',
-        content:
-          '🧪 TypeScript-Check ist noch nicht direkt angebunden – bitte den TS-Check manuell im Terminal ausführen.',
+        content: response,
         timestamp: new Date().toISOString(),
       });
       return;
@@ -154,6 +216,9 @@ export function useChatLogic() {
 
     // Ab hier: normaler Builder-Flow
     setIsAiLoading(true);
+
+    // Neuen AbortController erstellen
+    abortControllerRef.current = new AbortController();
 
     try {
       const historyWithCurrent = [...messages, userMessage];
@@ -380,5 +445,8 @@ export function useChatLogic() {
     handleSend,
     combinedIsLoading,
     error,
+    clearError,
+    cancelRequest,
+    isAiLoading,
   };
 }
