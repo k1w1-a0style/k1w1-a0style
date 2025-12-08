@@ -73,7 +73,7 @@ export const PROVIDER_DESCRIPTIONS: Record<AllAIProviders, string> = {
 
 export const AVAILABLE_MODELS: Partial<Record<AllAIProviders, ModelInfo[]>> = {
   // ---------------------------------------------------
-  // GROQ – LLaMA / OSS über Groq
+  // GROQ – LLaMA & OSS Modelle (ultra-schnell)
   // ---------------------------------------------------
   groq: [
     {
@@ -86,49 +86,42 @@ export const AVAILABLE_MODELS: Partial<Record<AllAIProviders, ModelInfo[]>> = {
     {
       id: 'llama-3.1-8b-instant',
       provider: 'groq',
-      label: 'llama-3.1-8b-instant',
-      description: 'Sehr schnelles Modell für Alltags-Coding.',
+      label: 'Llama 3.1 8B Instant',
+      description: 'Ultra-schnell für einfache Aufgaben.',
       billing: 'free',
     },
     {
       id: 'llama-3.3-70b-versatile',
       provider: 'groq',
-      label: 'llama-3.3-70b-versatile',
-      description: 'Großes, starkes Modell für komplexe Projekte.',
+      label: 'Llama 3.3 70B',
+      description: 'Starkes Modell für komplexe Aufgaben.',
       billing: 'free',
     },
     {
-      id: 'gpt-oss-20b',
+      id: 'llama-3.1-70b-versatile',
       provider: 'groq',
-      label: 'gpt-oss-20b',
-      description: 'Offenes 20B GPT-OSS-Modell.',
+      label: 'Llama 3.1 70B',
+      description: 'Bewährtes 70B Modell.',
       billing: 'free',
     },
     {
-      id: 'gpt-oss-120b',
+      id: 'mixtral-8x7b-32768',
       provider: 'groq',
-      label: 'gpt-oss-120b',
-      description: 'Großes Reasoning-/Tool-Use-Modell.',
+      label: 'Mixtral 8x7B',
+      description: 'MoE-Modell mit 32K Kontext.',
       billing: 'free',
     },
     {
-      id: 'qwen-3-32b',
+      id: 'gemma2-9b-it',
       provider: 'groq',
-      label: 'qwen-3-32b',
-      description: 'Starkes 32B-Modell für Code + Reasoning.',
-      billing: 'free',
-    },
-    {
-      id: 'deepseek-r1-distill-llama-70b',
-      provider: 'groq',
-      label: 'deepseek-r1-distill-llama-70b',
-      description: 'Reasoning-/Coding-Distill für Analyse & Debugging.',
+      label: 'Gemma 2 9B',
+      description: 'Googles effizientes Open-Source Modell.',
       billing: 'free',
     },
   ],
 
   // ---------------------------------------------------
-  // GEMINI – 2.x Familie
+  // GEMINI – 1.5 & 2.0 Familie
   // ---------------------------------------------------
   gemini: [
     {
@@ -139,37 +132,37 @@ export const AVAILABLE_MODELS: Partial<Record<AllAIProviders, ModelInfo[]>> = {
       billing: 'free',
     },
     {
-      id: 'gemini-2.5-flash',
-      provider: 'gemini',
-      label: 'gemini-2.5-flash',
-      description: 'Sehr schnell & günstig.',
-      billing: 'free',
-    },
-    {
-      id: 'gemini-2.5-flash-lite',
-      provider: 'gemini',
-      label: 'gemini-2.5-flash-lite',
-      description: 'Leicht & sparsam für Free-Tier.',
-      billing: 'free',
-    },
-    {
-      id: 'gemini-2.5-pro',
-      provider: 'gemini',
-      label: 'gemini-2.5-pro',
-      description: 'Starkes Modell mit großem Kontext.',
-      billing: 'free',
-    },
-    {
       id: 'gemini-2.0-flash',
       provider: 'gemini',
-      label: 'gemini-2.0-flash',
-      description: 'Vorläufer der 2.5er-Generation.',
+      label: 'Gemini 2.0 Flash',
+      description: 'Neustes schnelles Modell mit erweiterten Fähigkeiten.',
+      billing: 'free',
+    },
+    {
+      id: 'gemini-2.0-flash-lite',
+      provider: 'gemini',
+      label: 'Gemini 2.0 Flash Lite',
+      description: 'Leicht & schnell für einfache Aufgaben.',
+      billing: 'free',
+    },
+    {
+      id: 'gemini-1.5-flash',
+      provider: 'gemini',
+      label: 'Gemini 1.5 Flash',
+      description: 'Schnelles Modell mit 1M Token Kontext.',
+      billing: 'free',
+    },
+    {
+      id: 'gemini-1.5-pro',
+      provider: 'gemini',
+      label: 'Gemini 1.5 Pro',
+      description: 'Starkes Modell mit 2M Token Kontext.',
       billing: 'free',
     },
   ],
 
   // ---------------------------------------------------
-  // OPENAI – GPT-5.x / 4.1 Familie
+  // OPENAI – GPT-4o / o1 Familie
   // ---------------------------------------------------
   openai: [
     {
@@ -181,31 +174,38 @@ export const AVAILABLE_MODELS: Partial<Record<AllAIProviders, ModelInfo[]>> = {
       billing: 'paid',
     },
     {
-      id: 'gpt-5-mini',
+      id: 'gpt-4o-mini',
       provider: 'openai',
-      label: 'gpt-5-mini',
-      description: 'Sehr schnell & günstig.',
+      label: 'GPT-4o Mini',
+      description: 'Schnell & günstig für alltägliche Aufgaben.',
       billing: 'paid',
     },
     {
-      id: 'gpt-5.1',
+      id: 'gpt-4o',
       provider: 'openai',
-      label: 'gpt-5.1',
-      description: 'Starkes General-Purpose-Modell.',
+      label: 'GPT-4o',
+      description: 'Multimodales Flagship-Modell mit schneller Antwortzeit.',
       billing: 'paid',
     },
     {
-      id: 'gpt-4.1-mini',
+      id: 'gpt-4-turbo',
       provider: 'openai',
-      label: 'gpt-4.1-mini',
-      description: 'Mini-Allrounder für Experimente.',
+      label: 'GPT-4 Turbo',
+      description: 'Leistungsstark mit 128K Kontext.',
       billing: 'paid',
     },
     {
-      id: 'gpt-4.1',
+      id: 'o1-mini',
       provider: 'openai',
-      label: 'gpt-4.1',
-      description: 'Stabiler Klassiker.',
+      label: 'o1-mini',
+      description: 'Reasoning-Modell für komplexe Aufgaben.',
+      billing: 'paid',
+    },
+    {
+      id: 'o1',
+      provider: 'openai',
+      label: 'o1',
+      description: 'Starkes Reasoning & Coding Modell.',
       billing: 'paid',
     },
   ],
@@ -223,80 +223,73 @@ export const AVAILABLE_MODELS: Partial<Record<AllAIProviders, ModelInfo[]>> = {
       billing: 'paid',
     },
     {
-      id: 'claude-3-5-haiku-20241022',
+      id: 'claude-3-5-haiku-latest',
       provider: 'anthropic',
-      label: 'claude-3-5-haiku-20241022',
-      description: 'Schnelles Claude-Modell.',
+      label: 'Claude 3.5 Haiku',
+      description: 'Schnellstes Claude-Modell für einfache Aufgaben.',
       billing: 'paid',
     },
     {
-      id: 'claude-3-7-sonnet-20250219',
+      id: 'claude-3-5-sonnet-latest',
       provider: 'anthropic',
-      label: 'claude-3-7-sonnet-20250219',
-      description: 'Balance aus Power & Kosten.',
+      label: 'Claude 3.5 Sonnet',
+      description: 'Beste Balance aus Geschwindigkeit & Qualität.',
       billing: 'paid',
     },
     {
       id: 'claude-sonnet-4-20250514',
       provider: 'anthropic',
-      label: 'claude-sonnet-4-20250514',
-      description: 'Neuere Sonnet-Generation.',
+      label: 'Claude Sonnet 4',
+      description: 'Neueste Sonnet-Generation mit verbessertem Coding.',
       billing: 'paid',
     },
     {
-      id: 'claude-opus-4-1-20250805',
+      id: 'claude-opus-4-20250514',
       provider: 'anthropic',
-      label: 'claude-opus-4-1-20250805',
-      description: 'Maximale Power für schwere Probleme.',
+      label: 'Claude Opus 4',
+      description: 'Maximale Power für komplexe Probleme.',
       billing: 'paid',
     },
   ],
 
   // ---------------------------------------------------
-  // HUGGINGFACE / OSS – Open Weights (aktuelle Coding-Modelle)
+  // HUGGINGFACE – Open-Source Modelle via Inference API
   // ---------------------------------------------------
   huggingface: [
     {
       id: 'auto-hf',
       provider: 'huggingface',
-      label: '🎯 Auto HF (OSS)',
+      label: '🎯 Auto HuggingFace',
       description:
-        'Wählt automatisch ein OSS-Coding-Modell je nach Quality-Mode.',
+        'Wählt automatisch ein OSS-Modell je nach Quality-Mode.',
       billing: 'free',
     },
     {
       id: 'Qwen/Qwen2.5-Coder-32B-Instruct',
       provider: 'huggingface',
-      label: 'Qwen/Qwen2.5-Coder-32B-Instruct',
-      description: 'Starkes OSS-Coding-Modell.',
-      billing: 'free',
-    },
-    {
-      id: 'deepseek-ai/DeepSeek-V3.2',
-      provider: 'huggingface',
-      label: 'deepseek-ai/DeepSeek-V3.2',
-      description: 'Reasoning-starkes Open-Model.',
+      label: 'Qwen 2.5 Coder 32B',
+      description: 'Starkes Coding-Modell von Alibaba.',
       billing: 'free',
     },
     {
       id: 'mistralai/Mistral-Nemo-Instruct-2407',
       provider: 'huggingface',
-      label: 'mistralai/Mistral-Nemo-Instruct-2407',
-      description: 'Flottes OSS-Modell.',
+      label: 'Mistral Nemo 12B',
+      description: 'Kompaktes Mistral-Modell.',
       billing: 'free',
     },
     {
-      id: 'microsoft/Phi-4',
+      id: 'microsoft/Phi-3-mini-4k-instruct',
       provider: 'huggingface',
-      label: 'microsoft/Phi-4',
-      description: 'Kompaktes, effizientes OSS-Modell.',
+      label: 'Phi-3 Mini',
+      description: 'Microsofts effizientes kleines Modell.',
       billing: 'free',
     },
     {
-      id: 'gpt-oss-20b',
+      id: 'meta-llama/Meta-Llama-3.1-8B-Instruct',
       provider: 'huggingface',
-      label: 'gpt-oss-20b (HF)',
-      description: 'GPT OSS 20B als OSS-Variante.',
+      label: 'Llama 3.1 8B',
+      description: 'Metas schnelles Open-Source Modell.',
       billing: 'free',
     },
   ],
@@ -313,10 +306,17 @@ export const AVAILABLE_MODELS: Partial<Record<AllAIProviders, ModelInfo[]>> = {
       billing: 'free',
     },
     {
-      id: 'gemini-2.5-flash',
+      id: 'gemini-2.0-flash',
       provider: 'google',
-      label: 'gemini-2.5-flash',
-      description: 'Schnelles Gemini-Modell.',
+      label: 'Gemini 2.0 Flash',
+      description: 'Schnelles Gemini-Modell mit erweiterten Fähigkeiten.',
+      billing: 'free',
+    },
+    {
+      id: 'gemini-1.5-pro',
+      provider: 'google',
+      label: 'Gemini 1.5 Pro',
+      description: 'Starkes Modell mit großem Kontext.',
       billing: 'free',
     },
   ],
@@ -488,23 +488,23 @@ const BUILT_IN_DEFAULTS: ProviderDefaults = {
     quality: 'llama-3.3-70b-versatile',
   },
   gemini: {
-    speed: 'gemini-2.5-flash',
-    quality: 'gemini-2.5-pro',
+    speed: 'gemini-2.0-flash',
+    quality: 'gemini-1.5-pro',
   },
   google: {
-    speed: 'gemini-2.5-flash',
-    quality: 'gemini-2.5-pro',
+    speed: 'gemini-2.0-flash',
+    quality: 'gemini-1.5-pro',
   },
   openai: {
-    speed: 'gpt-5-mini',
-    quality: 'gpt-5.1',
+    speed: 'gpt-4o-mini',
+    quality: 'gpt-4o',
   },
   anthropic: {
-    speed: 'claude-3-5-haiku-20241022',
-    quality: 'claude-sonnet-4-20250514',
+    speed: 'claude-3-5-haiku-latest',
+    quality: 'claude-3-5-sonnet-latest',
   },
   huggingface: {
-    speed: 'deepseek-ai/DeepSeek-V3.2',
+    speed: 'microsoft/Phi-3-mini-4k-instruct',
     quality: 'Qwen/Qwen2.5-Coder-32B-Instruct',
   },
   openrouter: {

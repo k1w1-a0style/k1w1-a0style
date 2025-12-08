@@ -49,17 +49,18 @@ type OrchestratorErrorResult = {
   error?: string;
 };
 
+// Provider-Reihenfolge für Fallback (Free-Tier zuerst)
 const PROVIDERS: AllAIProviders[] = [
-  'groq',
-  'gemini',
-  'google',
-  'openai',
-  'anthropic',
-  'huggingface',
-  'openrouter',
-  'deepseek',
-  'xai',
-  'ollama',
+  'groq',       // Free, sehr schnell
+  'gemini',     // Free-Tier verfügbar
+  'google',     // Free-Tier verfügbar
+  'huggingface',// Meist kostenlos
+  'ollama',     // Lokal, kostenlos
+  'openai',     // Paid
+  'anthropic',  // Paid
+  'openrouter', // Paid
+  'deepseek',   // Paid
+  'xai',        // Paid
 ];
 
 const TIMEOUT_MS = 30000;
@@ -228,27 +229,45 @@ function shouldRotateKey(errorMsg: string): boolean {
 
 function enhanceErrorMessage(provider: AllAIProviders, error: string): string {
   const lower = (error || '').toLowerCase();
-  if (lower.includes('https://api-inference.huggingface.co')) {
-    return `${provider}: alter Endpoint (api-inference) – bitte 'router.huggingface.co' verwenden.`;
+  const providerLabel = provider.toUpperCase();
+  
+  // HuggingFace-spezifisch
+  if (lower.includes('api-inference.huggingface.co')) {
+    return `${providerLabel}: Alter Endpoint – bitte neuere API verwenden.`;
   }
-  if (lower.includes('401') || lower.includes('unauthorized')) {
-    return `${provider}: API-Key ungültig oder abgelaufen.`;
+  
+  // Auth-Fehler
+  if (lower.includes('401') || lower.includes('unauthorized') || lower.includes('invalid_api_key') || lower.includes('invalid api key')) {
+    return `${providerLabel}: API-Key ungültig oder abgelaufen.`;
   }
-  if (lower.includes('403')) {
-    return `${provider}: Keine Berechtigung.`;
+  if (lower.includes('403') || lower.includes('forbidden')) {
+    return `${providerLabel}: Zugriff verweigert – Berechtigung prüfen.`;
   }
-  if (lower.includes('429') || lower.includes('rate limit')) {
-    return `${provider}: Rate-Limit erreicht. Key wird automatisch rotiert.`;
+  
+  // Rate Limits
+  if (lower.includes('429') || lower.includes('rate limit') || lower.includes('too many requests') || lower.includes('quota')) {
+    return `${providerLabel}: Rate-Limit erreicht – Key wird rotiert.`;
   }
-  if (lower.includes('timeout')) {
-    return `${provider}: Timeout – Server antwortet nicht innerhalb von ${
-      TIMEOUT_MS / 1000
-    }s.`;
+  
+  // Netzwerk/Timeout
+  if (lower.includes('timeout') || lower.includes('timed out')) {
+    return `${providerLabel}: Timeout nach ${TIMEOUT_MS / 1000}s.`;
   }
-  if (lower.includes('network')) {
-    return `${provider}: Netzwerkfehler – Verbindung prüfen.`;
+  if (lower.includes('network') || lower.includes('fetch') || lower.includes('econnrefused')) {
+    return `${providerLabel}: Netzwerkfehler – Verbindung prüfen.`;
   }
-  return `${provider}: ${error}`;
+  
+  // Model nicht gefunden
+  if (lower.includes('model not found') || lower.includes('does not exist')) {
+    return `${providerLabel}: Modell nicht verfügbar.`;
+  }
+  
+  // Server-Fehler
+  if (lower.includes('500') || lower.includes('502') || lower.includes('503') || lower.includes('internal server')) {
+    return `${providerLabel}: Server-Fehler – später erneut versuchen.`;
+  }
+  
+  return `${providerLabel}: ${error}`;
 }
 
 // ============================================

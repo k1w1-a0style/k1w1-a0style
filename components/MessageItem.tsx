@@ -1,19 +1,18 @@
-// components/MessageItem.tsx - Chat Bubble + Rich Context
-import React, { memo, useCallback } from 'react';
-import { Text, Pressable, StyleSheet, Alert } from 'react-native';
-import Animated, { FadeInLeft, FadeInRight } from 'react-native-reanimated';
+// components/MessageItem.tsx - Optimierte Chat Bubble + Rich Context
+import React, { memo, useCallback, useMemo } from 'react';
+import { Text, Pressable, StyleSheet, Alert, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import * as Clipboard from 'expo-clipboard';
 import { theme } from '../theme';
 import { ChatMessage, BuilderContextData } from '../contexts/types';
 import RichContextMessage from './RichContextMessage';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
 type MessageItemProps = {
   message: ChatMessage;
 };
 
-const getContextSignature = (ctx?: BuilderContextData) => {
+// Stable signature generator for context comparison
+const getContextSignature = (ctx?: BuilderContextData): string => {
   if (!ctx) return '';
 
   const filesLen = Array.isArray(ctx.files) ? ctx.files.length : 0;
@@ -37,16 +36,18 @@ const getContextSignature = (ctx?: BuilderContextData) => {
   ].join('|');
 };
 
+// Optimized props comparison
 const arePropsEqual = (
   prevProps: MessageItemProps,
   nextProps: MessageItemProps,
-) => {
+): boolean => {
   const prev = prevProps.message;
   const next = nextProps.message;
 
+  // Same reference = no change
   if (prev === next) return true;
 
-  // Kernfelder
+  // Core fields comparison
   if (prev.id !== next.id) return false;
   if (prev.role !== next.role) return false;
   if (prev.content !== next.content) return false;
@@ -55,71 +56,76 @@ const arePropsEqual = (
   const prevMeta = prev.meta;
   const nextMeta = next.meta;
 
+  // Both undefined = equal
   if (!prevMeta && !nextMeta) return true;
+  // One undefined = different
   if (!!prevMeta !== !!nextMeta) return false;
 
-  // Flache Meta-Vergleiche
+  // Provider comparison
   if ((prevMeta?.provider ?? '') !== (nextMeta?.provider ?? '')) return false;
+  // Error state comparison
   if (!!prevMeta?.error !== !!nextMeta?.error) return false;
 
-  // Kontext-Signatur (billig + stabil)
-  const prevSig = getContextSignature(prevMeta?.context);
-  const nextSig = getContextSignature(nextMeta?.context);
-
-  return prevSig === nextSig;
+  // Context signature comparison
+  return getContextSignature(prevMeta?.context) === getContextSignature(nextMeta?.context);
 };
 
 const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
   const isUser = message.role === 'user';
+  const isSystem = message.role === 'system';
   const messageText = String(message.content ?? '');
 
   const handleLongPress = useCallback(() => {
     if (messageText) {
       Clipboard.setStringAsync(messageText);
-      Alert.alert('Kopiert');
+      Alert.alert('Kopiert', 'Nachricht in Zwischenablage kopiert');
     }
   }, [messageText]);
 
-  const hasContext = !!message?.meta?.context;
+  const hasContext = useMemo(() => !!message?.meta?.context, [message?.meta?.context]);
+
+  // Memoized bubble style
+  const bubbleStyle = useMemo(() => {
+    if (isUser) return styles.userMessage;
+    if (isSystem) return styles.systemMessage;
+    return styles.aiMessage;
+  }, [isUser, isSystem]);
+
+  const textStyle = useMemo(() => {
+    if (isUser) return styles.userMessageText;
+    if (isSystem) return styles.systemMessageText;
+    return styles.aiMessageText;
+  }, [isUser, isSystem]);
 
   return (
     <Animated.View
-      entering={
-        isUser
-          ? FadeInRight.duration(400).springify()
-          : FadeInLeft.duration(400).springify()
-      }
+      entering={FadeIn.duration(250)}
       style={[
         styles.rowWrapper,
         isUser ? styles.rowWrapperUser : styles.rowWrapperAI,
       ]}
     >
-      <AnimatedPressable
+      <Pressable
         style={({ pressed }) => [
           styles.messageBubble,
-          isUser ? styles.userMessage : styles.aiMessage,
+          bubbleStyle,
           pressed && styles.messagePressed,
         ]}
         onLongPress={handleLongPress}
-        delayLongPress={300}
+        delayLongPress={400}
       >
-        <Text
-          style={isUser ? styles.userMessageText : styles.aiMessageText}
-          selectable
-        >
-          {messageText || '‎'}
+        <Text style={textStyle} selectable>
+          {messageText || ' '}
         </Text>
 
-        {!isUser && message?.meta?.provider ? (
-          <Text style={styles.providerTag}>
-            {message.meta.provider}
-          </Text>
-        ) : null}
-      </AnimatedPressable>
+        {!isUser && !isSystem && message?.meta?.provider && (
+          <Text style={styles.providerTag}>{message.meta.provider}</Text>
+        )}
+      </Pressable>
 
-      {!isUser && hasContext ? (
+      {!isUser && !isSystem && hasContext && (
         <RichContextMessage context={message.meta?.context ?? null} />
-      ) : null}
+      )}
     </Animated.View>
   );
 };
@@ -155,16 +161,25 @@ const styles = StyleSheet.create({
     backgroundColor: theme.palette.surface,
     borderColor: theme.palette.border,
   },
+  systemMessage: {
+    backgroundColor: theme.palette.warningSoft,
+    borderColor: theme.palette.warning,
+  },
 
   userMessageText: {
     fontSize: 14,
     color: theme.palette.text.primary,
-    lineHeight: 19,
+    lineHeight: 20,
   },
   aiMessageText: {
     fontSize: 14,
     color: theme.palette.text.primary,
-    lineHeight: 19,
+    lineHeight: 20,
+  },
+  systemMessageText: {
+    fontSize: 13,
+    color: theme.palette.warning,
+    lineHeight: 18,
   },
 
   providerTag: {
