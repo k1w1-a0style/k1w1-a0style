@@ -312,7 +312,7 @@ async function callGroq(
     model,
     messages: toOpenAIChatMessages(messages),
     temperature: 0.15,
-    max_tokens: 4096,
+    max_tokens: 8000, // Increased from 4096 to reduce truncation
   };
   const res = await fetch(url, {
     method: 'POST',
@@ -329,6 +329,13 @@ async function callGroq(
       json?.error?.message || json?.error || `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
+  
+  // Check for truncation
+  const finishReason = json?.choices?.[0]?.finish_reason;
+  if (finishReason === 'length') {
+    log('WARN', 'Response truncated due to max_tokens limit', { model, finishReason });
+  }
+  
   const text =
     json?.choices?.[0]?.message?.content ??
     json?.choices?.[0]?.text ??
@@ -362,7 +369,7 @@ async function callGeminiFamily(
   ];
   const body = {
     contents,
-    generationConfig: { temperature: 0.15, maxOutputTokens: 4096 },
+    generationConfig: { temperature: 0.15, maxOutputTokens: 8000 }, // Increased from 4096
   };
   const res = await fetch(url, {
     method: 'POST',
@@ -375,6 +382,13 @@ async function callGeminiFamily(
     const errorMsg = json?.error?.message || `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
+  
+  // Check for truncation
+  const finishReason = json?.candidates?.[0]?.finishReason;
+  if (finishReason === 'MAX_TOKENS' || finishReason === 'LENGTH') {
+    log('WARN', 'Gemini response truncated due to token limit', { model, finishReason });
+  }
+  
   const text =
     json?.candidates?.[0]?.content?.parts?.[0]?.text ?? JSON.stringify(json);
   return buildOkResult(provider, model, text, json, startTime);
@@ -406,7 +420,7 @@ async function callOpenAI(
     model,
     messages: toOpenAIChatMessages(messages),
     temperature: 0.2,
-    max_tokens: 4096,
+    max_tokens: 8000, // Increased from 4096
   };
   const res = await fetch(url, {
     method: 'POST',
@@ -423,6 +437,13 @@ async function callOpenAI(
       json?.error?.message || json?.error || `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
+  
+  // Check for truncation
+  const finishReason = json?.choices?.[0]?.finish_reason;
+  if (finishReason === 'length') {
+    log('WARN', 'OpenAI response truncated due to max_tokens limit', { model, finishReason });
+  }
+  
   const text =
     json?.choices?.[0]?.message?.content ??
     json?.choices?.[0]?.text ??
@@ -448,7 +469,7 @@ async function callAnthropic(
       role: m.role === 'assistant' ? 'assistant' : 'user',
       content: m.content,
     })),
-    max_tokens: 4096,
+    max_tokens: 8000, // Increased from 4096
     temperature: 0.2,
   };
   const res = await fetch(url, {
@@ -466,6 +487,13 @@ async function callAnthropic(
     const errorMsg = json?.error?.message || `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
+  
+  // Check for truncation
+  const stopReason = json?.stop_reason;
+  if (stopReason === 'max_tokens') {
+    log('WARN', 'Anthropic response truncated due to max_tokens limit', { model, stopReason });
+  }
+  
   const text =
     (Array.isArray(json?.content) && json.content[0]?.text) ||
     json?.content?.[0]?.text ||
@@ -506,7 +534,7 @@ async function callOpenRouter(
     model,
     messages: toOpenAIChatMessages(messages),
     temperature: 0.2,
-    max_tokens: 4096,
+    max_tokens: 8000, // Increased from 4096
   };
   const res = await fetch(url, {
     method: 'POST',
@@ -520,6 +548,13 @@ async function callOpenRouter(
       json?.error?.message || json?.message || `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
+  
+  // Check for truncation
+  const finishReason = json?.choices?.[0]?.finish_reason;
+  if (finishReason === 'length') {
+    log('WARN', 'OpenRouter response truncated due to max_tokens limit', { model, finishReason });
+  }
+  
   const text =
     json?.choices?.[0]?.message?.content ??
     json?.choices?.[0]?.text ??
@@ -539,7 +574,7 @@ async function callDeepSeek(
     model,
     messages: toOpenAIChatMessages(messages),
     temperature: 0.2,
-    max_tokens: 4096,
+    max_tokens: 8000, // Increased from 4096
   };
   const res = await fetch(url, {
     method: 'POST',
@@ -556,6 +591,13 @@ async function callDeepSeek(
       json?.error?.message || json?.message || `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
+  
+  // Check for truncation
+  const finishReason = json?.choices?.[0]?.finish_reason;
+  if (finishReason === 'length') {
+    log('WARN', 'DeepSeek response truncated due to max_tokens limit', { model, finishReason });
+  }
+  
   const text =
     json?.choices?.[0]?.message?.content ??
     json?.choices?.[0]?.text ??
@@ -575,7 +617,7 @@ async function callXai(
     model,
     messages: toOpenAIChatMessages(messages),
     temperature: 0.2,
-    max_tokens: 4096,
+    max_tokens: 8000, // Increased from 4096
   };
   const res = await fetch(url, {
     method: 'POST',
@@ -592,6 +634,13 @@ async function callXai(
       json?.error?.message || json?.message || `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
+  
+  // Check for truncation
+  const finishReason = json?.choices?.[0]?.finish_reason;
+  if (finishReason === 'length') {
+    log('WARN', 'XAI response truncated due to max_tokens limit', { model, finishReason });
+  }
+  
   const text =
     json?.choices?.[0]?.message?.content ??
     json?.choices?.[0]?.text ??
@@ -676,7 +725,7 @@ async function callHuggingFace(
   const body = {
     inputs: prompt,
     parameters: {
-      max_new_tokens: 4096,
+      max_new_tokens: 8000, // Increased from 4096
       temperature: 0.15,
     },
   };

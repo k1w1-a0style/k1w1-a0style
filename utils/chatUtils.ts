@@ -209,8 +209,16 @@ export const safeJsonParse = <T = any>(input: any): T | null => {
     if (!input) return null;
     if (typeof input === 'object') return input as T;
 
-    const repaired = jsonrepair(String(input));
-    return JSON.parse(repaired) as T;
+    const inputStr = String(input);
+    
+    // Try direct parse first
+    try {
+      return JSON.parse(inputStr) as T;
+    } catch {
+      // If direct parse fails, try jsonrepair
+      const repaired = jsonrepair(inputStr);
+      return JSON.parse(repaired) as T;
+    }
   } catch (e: any) {
     log('ERROR', 'JSON Parse fehlgeschlagen', { error: e.message });
     logError('JSON Parse fehlgeschlagen', e.message);
@@ -221,19 +229,57 @@ export const safeJsonParse = <T = any>(input: any): T | null => {
 export const extractJsonArray = (text: string): string | null => {
   if (!text) return null;
 
+  // Try code blocks first
   const block = text.match(/```json\s*([\s\S]*?)\s*```/);
   if (block) return block[1];
 
   const generic = text.match(/```\s*([\s\S]*?)\s*```/);
   if (generic) return generic[1];
 
+  // Try to find complete JSON array
   const arr = text.match(/\[[\s\S]*\]/);
   if (arr) return arr[0];
 
-  const obj = text.match(/\{[\s\S]*\}$/);
+  // Try to find object
+  const obj = text.match(/\{[\s\S]*\}/);
   if (obj) return obj[0];
 
   return null;
+};
+
+/**
+ * Detects if a JSON string appears to be truncated
+ */
+export const isJsonTruncated = (text: string): boolean => {
+  if (!text) return false;
+  
+  const trimmed = text.trim();
+  
+  // Check for incomplete array/object brackets
+  const openBrackets = (trimmed.match(/\[/g) || []).length;
+  const closeBrackets = (trimmed.match(/\]/g) || []).length;
+  const openBraces = (trimmed.match(/\{/g) || []).length;
+  const closeBraces = (trimmed.match(/\}/g) || []).length;
+  
+  if (openBrackets !== closeBrackets || openBraces !== closeBraces) {
+    return true;
+  }
+  
+  // Check for incomplete string (odd number of quotes at end)
+  const endsWithIncompleteString = /[^\\]"[^"]*$/.test(trimmed);
+  if (endsWithIncompleteString) return true;
+  
+  // Check for incomplete property (ends with colon)
+  if (trimmed.endsWith(':') || /:\s*$/.test(trimmed)) {
+    return true;
+  }
+  
+  // Check for incomplete value (ends with comma and nothing after)
+  if (/,\s*$/.test(trimmed)) {
+    return true;
+  }
+  
+  return false;
 };
 
 // ---------------------------------------------------------------

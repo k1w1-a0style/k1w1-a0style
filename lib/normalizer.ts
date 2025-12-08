@@ -8,6 +8,7 @@ import {
   normalizeAndValidateFiles,
   ensureStringContent,
   extractJsonArray,
+  isJsonTruncated,
   NormalizedValidationResult,
 } from '../utils/chatUtils';
 import { ProjectFile } from '../contexts/types';
@@ -69,6 +70,19 @@ export function normalizeAiResponse(raw: any): NormalizedValidationResult {
 
   if (typeof raw === 'string') {
     const trimmed = raw.trim();
+    
+    // Check if response appears truncated
+    if (isJsonTruncated(trimmed)) {
+      console.log('[Normalizer] ⚠️ Response appears to be truncated (incomplete JSON)');
+      return {
+        ok: false,
+        errors: [
+          'Die KI-Antwort wurde abgeschnitten (Token-Limit erreicht).',
+          'Bitte stelle eine kürzere Anfrage oder frage nur nach wenigen Dateien.',
+        ],
+      };
+    }
+    
     const extracted = extractJsonArray(trimmed);
     const candidate = extracted || trimmed;
 
@@ -89,7 +103,10 @@ export function normalizeAiResponse(raw: any): NormalizedValidationResult {
   if (!parsed) {
     return {
       ok: false,
-      errors: ['KI-Antwort enthielt kein valides JSON-Array.'],
+      errors: [
+        'KI-Antwort enthielt kein valides JSON-Array.',
+        'Möglicherweise wurde die Antwort abgeschnitten – versuche eine einfachere Anfrage.',
+      ],
     };
   }
 
