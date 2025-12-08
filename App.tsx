@@ -80,6 +80,7 @@ const TabNavigator: React.FC = memo(() => {
         borderTopWidth: 0,
       },
       headerShown: false,
+      tabBarHideOnKeyboard: true,
       tabBarShowLabel: true,
     }),
     [],
@@ -173,23 +174,33 @@ const AppNavigation: React.FC = memo(() => {
           }}
         />
 
-        {/* GitHub Repos */}
+        {/* GITHUB REPOS */}
         <Drawer.Screen
           name="GitHubRepos"
           component={GitHubReposScreen}
           options={{
-            title: 'GitHub Repositories',
+            title: 'GitHub Repos',
             drawerLabel: '🐙 GitHub Repos',
           }}
         />
 
-        {/* DIAGNOSTIC */}
+        {/* BUILD */}
         <Drawer.Screen
-          name="Diagnostic"
+          name="Build"
+          component={BuildScreenV2}
+          options={{
+            title: 'Build & Deployment',
+            drawerLabel: '🚀 Build',
+          }}
+        />
+
+        {/* DIAGNOSTICS */}
+        <Drawer.Screen
+          name="Diagnostics"
           component={DiagnosticScreen}
           options={{
             title: 'Projekt-Diagnose',
-            drawerLabel: '🔍 Diagnose',
+            drawerLabel: '🩺 Diagnose',
           }}
         />
 
@@ -198,18 +209,8 @@ const AppNavigation: React.FC = memo(() => {
           name="Preview"
           component={PreviewScreen}
           options={{
-            title: 'Vorschau',
-            drawerLabel: '👁 Vorschau',
-          }}
-        />
-
-        {/* EINZIGER Build-Screen: V2 */}
-        <Drawer.Screen
-          name="BuildsV2"
-          component={BuildScreenV2}
-          options={{
-            title: 'Build Status',
-            drawerLabel: '📦 Builds',
+            title: 'Live Preview',
+            drawerLabel: '👀 Preview',
           }}
         />
 
@@ -218,8 +219,8 @@ const AppNavigation: React.FC = memo(() => {
           name="AppInfo"
           component={AppInfoScreen}
           options={{
-            title: 'App Info',
-            drawerLabel: 'ℹ️ App Info',
+            title: 'App-Info',
+            drawerLabel: 'ℹ️ App-Info',
           }}
         />
       </Drawer.Navigator>
@@ -230,45 +231,57 @@ const AppNavigation: React.FC = memo(() => {
 AppNavigation.displayName = 'AppNavigation';
 
 // ---------------------------------------------------------------
-// ROOT APP - EINFACHER WRAPPER
+// ROOT APP
 // ---------------------------------------------------------------
 
-const App: React.FC = memo(() => {
+const App: React.FC = () => {
   return (
     <ProjectProvider>
-      <GitHubProvider>
-        <TerminalProvider>
-          <AIProvider>
-            <View
-              style={{
-                flex: 1,
-                backgroundColor: theme.palette.background,
-              }}
-            >
-              <RNStatusBar barStyle="light-content" />
-              <StatusBar style="light" />
+      <AIProvider>
+        <GitHubProvider>
+          <TerminalProvider>
+            <StatusBar style="light" />
+            <View style={styles.root}>
+              {/* iOS StatusBar Background */}
+              <View style={styles.statusBarBg} />
+              <RNStatusBar
+                barStyle="light-content"
+                backgroundColor={theme.palette.background}
+              />
               <AppNavigation />
             </View>
-          </AIProvider>
-        </TerminalProvider>
-      </GitHubProvider>
+          </TerminalProvider>
+        </GitHubProvider>
+      </AIProvider>
     </ProjectProvider>
   );
-});
-
-App.displayName = 'App';
+};
 
 export default App;
 
+// ---------------------------------------------------------------
+// STYLES
+// ---------------------------------------------------------------
+
 const styles = StyleSheet.create({
-  loadingContainer: {
+  root: {
     flex: 1,
     backgroundColor: theme.palette.background,
+  },
+  statusBarBg: {
+    height: 0,
+    backgroundColor: theme.palette.background,
+  },
+  loadingContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: theme.palette.background,
+    paddingHorizontal: 24,
   },
   loadingText: {
     marginTop: 12,
+    fontSize: 14,
     color: theme.palette.text.secondary,
   },
 });

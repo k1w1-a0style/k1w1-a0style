@@ -210,7 +210,7 @@ export const safeJsonParse = <T = any>(input: any): T | null => {
     if (typeof input === 'object') return input as T;
 
     const inputStr = String(input);
-    
+
     // Try direct parse first
     try {
       return JSON.parse(inputStr) as T;
@@ -252,34 +252,23 @@ export const extractJsonArray = (text: string): string | null => {
  */
 export const isJsonTruncated = (text: string): boolean => {
   if (!text) return false;
-  
+
   const trimmed = text.trim();
-  
-  // Check for incomplete array/object brackets
-  const openBrackets = (trimmed.match(/\[/g) || []).length;
-  const closeBrackets = (trimmed.match(/\]/g) || []).length;
-  const openBraces = (trimmed.match(/\{/g) || []).length;
-  const closeBraces = (trimmed.match(/\}/g) || []).length;
-  
-  if (openBrackets !== closeBrackets || openBraces !== closeBraces) {
-    return true;
+  if (!trimmed) return false;
+
+  // 1) Wenn es gültiges JSON ist → nicht truncated
+  try {
+    JSON.parse(trimmed);
+    return false;
+  } catch {
+    // 2) Fallback: einfache Klammer-Heuristik
+    let depth = 0;
+    for (const ch of trimmed) {
+      if (ch === '[' || ch === '{') depth++;
+      if (ch === ']' || ch === '}') depth--;
+    }
+    return depth !== 0;
   }
-  
-  // Check for incomplete string (odd number of quotes at end)
-  const endsWithIncompleteString = /[^\\]"[^"]*$/.test(trimmed);
-  if (endsWithIncompleteString) return true;
-  
-  // Check for incomplete property (ends with colon)
-  if (trimmed.endsWith(':') || /:\s*$/.test(trimmed)) {
-    return true;
-  }
-  
-  // Check for incomplete value (ends with comma and nothing after)
-  if (/,\s*$/.test(trimmed)) {
-    return true;
-  }
-  
-  return false;
 };
 
 // ---------------------------------------------------------------

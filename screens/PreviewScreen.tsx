@@ -792,7 +792,7 @@ const PreviewScreen: React.FC = () => {
                   • Bilder können als Base64 (<Text style={styles.highlight}>data:image</Text>) hinterlegt werden.
                 </Text>
                 <Text style={styles.hintText}>
-                  • Nach jeder Änderung genügt ein Tipp auf "Dateien neu laden".
+                  • Nach jeder Änderung genügt ein Tipp auf „Dateien neu laden“.
                 </Text>
               </>
             )}

@@ -1,0 +1,6 @@
+diff --git a/config.ts b/config.ts
+--- a/config.ts
++++ b/config.ts
+@@ -1,1 +1,1 @@
+-    ALLOWED_EXT: ['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.txt', '.yml', '.yaml', '.html', '.css', '.scss', '.svg'],
++    ALLOWED_EXT: ['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.txt', '.yml', '.yaml', '.html', '.css', '.scss', '.svg', '.png', '.jpg', '.jpeg', '.webp'],

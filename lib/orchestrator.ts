@@ -2,29 +2,29 @@
 // ✅ AbortController + Timeout pro Request
 // ✅ Key-Rotation via AIContext.rotateApiKeyOnError
 // ✅ Hugging Face Router (router.huggingface.co) statt alter Inference-API
-// ✅ Kein erzwungener HF→Groq-Fallback mehr – Provider-Order kommt aus Config
+// ✅ Provider-Order aus Config, inkl. Fallback
 
-import { extractJsonArray, safeJsonParse } from '../utils/chatUtils';
-import { ProjectFile } from '../contexts/types';
+import { extractJsonArray, safeJsonParse } from "../utils/chatUtils";
+import { ProjectFile } from "../contexts/types";
 import {
   rotateApiKeyOnError,
   detectMetaFromConfig,
   type AllAIProviders,
-} from '../contexts/AIContext';
-import { toAppError, logAppError } from '../utils/errorUtils';
+} from "../contexts/AIContext";
+import { toAppError, logAppError } from "../utils/errorUtils";
 
 export type LlmMessage = {
-  role: 'system' | 'user' | 'assistant';
+  role: "system" | "user" | "assistant";
   content: string;
 };
 
-export type QualityMode = 'speed' | 'quality';
+export type QualityMode = "speed" | "quality";
 
 type OrchestratorOkResult = {
   ok: true;
   provider: AllAIProviders;
   model: string;
-  quality: 'speed' | 'quality' | 'unknown';
+  quality: "speed" | "quality" | "unknown";
   text: string;
   raw: any;
   files?: ProjectFile[];
@@ -51,30 +51,49 @@ type OrchestratorErrorResult = {
 
 // Provider-Reihenfolge für Fallback (Free-Tier zuerst)
 const PROVIDERS: AllAIProviders[] = [
-  'groq',       // Free, sehr schnell
-  'gemini',     // Free-Tier verfügbar
-  'google',     // Free-Tier verfügbar
-  'huggingface',// Meist kostenlos
-  'ollama',     // Lokal, kostenlos
-  'openai',     // Paid
-  'anthropic',  // Paid
-  'openrouter', // Paid
-  'deepseek',   // Paid
-  'xai',        // Paid
+  "groq", // Free, sehr schnell
+  "gemini", // Free-Tier verfügbar
+  "google", // Free-Tier verfügbar (Alias von gemini)
+  "huggingface", // Meist kostenlos
+  "ollama", // Lokal, kostenlos
+  "openai", // Paid
+  "anthropic", // Paid
+  "openrouter", // Paid
+  "deepseek", // Paid
+  "xai", // Paid
 ];
 
-const TIMEOUT_MS = 30000;
+const TIMEOUT_BY_PROVIDER: Record<AllAIProviders, number> = {
+  openai: 45000, // OpenAI braucht manchmal etwas länger
+  groq: 20000,
+  gemini: 30000,
+  google: 30000,
+  huggingface: 30000,
+  ollama: 30000,
+  anthropic: 30000,
+  openrouter: 30000,
+  deepseek: 30000,
+  xai: 30000,
+};
+
+const DEFAULT_TIMEOUT_MS = 30000;
 const MAX_KEY_RETRIES = 3;
+
+function getTimeoutMs(provider: AllAIProviders): number {
+  return TIMEOUT_BY_PROVIDER[provider] ?? DEFAULT_TIMEOUT_MS;
+}
 
 // ============================================
 // LOGGING
 // ============================================
-const log = (level: 'INFO' | 'WARN' | 'ERROR', message: string, meta?: any) => {
-  const timestamp = new Date().toISOString();
-  const metaStr = meta ? ` | ${JSON.stringify(meta)}` : '';
-  // eslint-disable-next-line no-console
-  console.log(`[Orchestrator:${level}] ${timestamp} - ${message}${metaStr}`);
-};
+function log(level: "INFO" | "WARN" | "ERROR", msg: string, meta?: any) {
+  const time = new Date().toISOString();
+  if (meta) {
+    console.log(`[Orchestrator:${level}] ${time} - ${msg}`, meta);
+  } else {
+    console.log(`[Orchestrator:${level}] ${time} - ${msg}`);
+  }
+}
 
 // ============================================
 // REQUEST POOL (verhindert parallele Requests)
@@ -90,7 +109,6 @@ function abortExistingRequest(key: string) {
   if (controller) {
     controller.abort();
     requestPool.delete(key);
-    log('INFO', `Abgebrochener Request für ${key}`);
   }
 }
 
@@ -114,8 +132,17 @@ function resolveApiKey(provider: AllAIProviders): string | null {
     const cfg = g.__K1W1_AI_CONFIG;
     if (cfg?.apiKeys?.[provider]?.[0]) {
       const key = String(cfg.apiKeys[provider][0]);
-      log('INFO', `API-Key für ${provider} aus Config geladen`, {
-        keyPreview: key.slice(0, 8) + '…',
+      log("INFO", `API-Key für ${provider} aus Config geladen`, {
+        keyPreview: key.slice(0, 8) + "…",
+      });
+      return key;
+    }
+
+    // Alias: google → gemini (Config-basiert)
+    if (provider === "google" && cfg?.apiKeys?.gemini?.[0]) {
+      const key = String(cfg.apiKeys.gemini[0]);
+      log("INFO", "API-Key für google aus Config (Alias gemini) geladen", {
+        keyPreview: key.slice(0, 8) + "…",
       });
       return key;
     }
@@ -127,44 +154,43 @@ function resolveApiKey(provider: AllAIProviders): string | null {
   try {
     let candidate: string | undefined;
     switch (provider) {
-      case 'groq':
+      case "groq":
         candidate = g.GROQ_API_KEY || g.EXPO_PUBLIC_GROQ_API_KEY;
         break;
-      case 'gemini':
-      case 'google':
-        candidate = g.GEMINI_API_KEY || g.EXPO_PUBLIC_GEMINI_API_KEY || g.GOOGLE_API_KEY;
+      case "gemini":
+      case "google":
+        candidate =
+          g.GEMINI_API_KEY || g.EXPO_PUBLIC_GEMINI_API_KEY || g.GOOGLE_API_KEY;
         break;
-      case 'openai':
+      case "openai":
         candidate = g.OPENAI_API_KEY || g.EXPO_PUBLIC_OPENAI_API_KEY;
         break;
-      case 'anthropic':
+      case "anthropic":
         candidate = g.ANTHROPIC_API_KEY || g.EXPO_PUBLIC_ANTHROPIC_API_KEY;
         break;
-      case 'huggingface':
+      case "huggingface":
         candidate =
-          g.HUGGINGFACE_API_KEY ||
-          g.EXPO_PUBLIC_HF_API_KEY ||
-          g.HF_API_KEY;
+          g.HUGGINGFACE_API_KEY || g.EXPO_PUBLIC_HF_API_KEY || g.HF_API_KEY;
         break;
-      case 'openrouter':
+      case "openrouter":
         candidate = g.OPENROUTER_API_KEY || g.EXPO_PUBLIC_OPENROUTER_API_KEY;
         break;
-      case 'deepseek':
+      case "deepseek":
         candidate = g.DEEPSEEK_API_KEY || g.EXPO_PUBLIC_DEEPSEEK_API_KEY;
         break;
-      case 'xai':
+      case "xai":
         candidate = g.XAI_API_KEY || g.EXPO_PUBLIC_XAI_API_KEY;
         break;
-      case 'ollama':
+      case "ollama":
         // Ollama braucht keinen API-Key, aber wir geben einen Dummy zurück
-        candidate = g.OLLAMA_API_KEY || 'ollama-local';
+        candidate = g.OLLAMA_API_KEY || "ollama-local";
         break;
       default:
         break;
     }
-    if (candidate && typeof candidate === 'string' && candidate.trim().length) {
-      log('INFO', `API-Key für ${provider} aus globalThis geladen`, {
-        keyPreview: candidate.slice(0, 8) + '…',
+    if (candidate && typeof candidate === "string" && candidate.trim().length) {
+      log("INFO", `API-Key für ${provider} aus globalThis geladen`, {
+        keyPreview: candidate.slice(0, 8) + "…",
       });
       return candidate.trim();
     }
@@ -174,24 +200,28 @@ function resolveApiKey(provider: AllAIProviders): string | null {
 
   // 3) process.env
   const envNamesMap: Record<AllAIProviders, string[]> = {
-    groq: ['GROQ_API_KEY', 'EXPO_PUBLIC_GROQ_API_KEY'],
-    gemini: ['GEMINI_API_KEY', 'EXPO_PUBLIC_GEMINI_API_KEY'],
-    google: ['GOOGLE_API_KEY', 'GEMINI_API_KEY', 'EXPO_PUBLIC_GEMINI_API_KEY'],
-    openai: ['OPENAI_API_KEY', 'EXPO_PUBLIC_OPENAI_API_KEY'],
-    anthropic: ['ANTHROPIC_API_KEY', 'EXPO_PUBLIC_ANTHROPIC_API_KEY'],
-    huggingface: ['HUGGINGFACE_API_KEY', 'EXPO_PUBLIC_HF_API_KEY', 'HF_API_KEY'],
-    openrouter: ['OPENROUTER_API_KEY', 'EXPO_PUBLIC_OPENROUTER_API_KEY'],
-    deepseek: ['DEEPSEEK_API_KEY', 'EXPO_PUBLIC_DEEPSEEK_API_KEY'],
-    xai: ['XAI_API_KEY', 'EXPO_PUBLIC_XAI_API_KEY'],
-    ollama: ['OLLAMA_API_KEY'],
+    groq: ["GROQ_API_KEY", "EXPO_PUBLIC_GROQ_API_KEY"],
+    gemini: ["GEMINI_API_KEY", "EXPO_PUBLIC_GEMINI_API_KEY"],
+    google: ["GOOGLE_API_KEY", "GEMINI_API_KEY", "EXPO_PUBLIC_GEMINI_API_KEY"],
+    openai: ["OPENAI_API_KEY", "EXPO_PUBLIC_OPENAI_API_KEY"],
+    anthropic: ["ANTHROPIC_API_KEY", "EXPO_PUBLIC_ANTHROPIC_API_KEY"],
+    huggingface: [
+      "HUGGINGFACE_API_KEY",
+      "EXPO_PUBLIC_HF_API_KEY",
+      "HF_API_KEY",
+    ],
+    openrouter: ["OPENROUTER_API_KEY", "EXPO_PUBLIC_OPENROUTER_API_KEY"],
+    deepseek: ["DEEPSEEK_API_KEY", "EXPO_PUBLIC_DEEPSEEK_API_KEY"],
+    xai: ["XAI_API_KEY", "EXPO_PUBLIC_XAI_API_KEY"],
+    ollama: ["OLLAMA_API_KEY"],
   };
-  
+
   const envNames: string[] = envNamesMap[provider] || [];
 
   for (const name of envNames) {
     const v = (process.env as any)?.[name];
-    if (typeof v === 'string' && v.trim().length > 0) {
-      log('INFO', `API-Key für ${provider} aus process.env geladen`, {
+    if (typeof v === "string" && v.trim().length > 0) {
+      log("INFO", `API-Key für ${provider} aus process.env geladen`, {
         envName: name,
       });
       return v.trim();
@@ -199,12 +229,12 @@ function resolveApiKey(provider: AllAIProviders): string | null {
   }
 
   const msg = `Kein API-Key für ${provider} gefunden`;
-  log('ERROR', msg);
+  log("ERROR", msg);
   const appError = toAppError(new Error(msg), {
-    code: 'ORCH_NO_API_KEY',
+    code: "ORCH_NO_API_KEY",
     meta: { provider },
   });
-  logAppError(appError, 'resolveApiKey');
+  logAppError(appError, "resolveApiKey");
   return null;
 }
 
@@ -212,61 +242,75 @@ function resolveApiKey(provider: AllAIProviders): string | null {
 // ERROR-KATEGORISIERUNG
 // ============================================
 function shouldRotateKey(errorMsg: string): boolean {
-  const lower = (errorMsg || '').toLowerCase();
+  const lower = (errorMsg || "").toLowerCase();
   const isRotatable =
-    lower.includes('rate limit') ||
-    lower.includes('429') ||
-    lower.includes('quota') ||
-    lower.includes('too many requests') ||
-    lower.includes('401') ||
-    lower.includes('403') ||
-    lower.includes('unauthorized') ||
-    lower.includes('invalid api key') ||
-    lower.includes('invalid_api_key');
-  if (isRotatable) log('INFO', 'Fehler ist rotierbar', { errorMsg });
+    lower.includes("rate limit") ||
+    lower.includes("429") ||
+    lower.includes("quota") ||
+    lower.includes("too many requests");
+  if (isRotatable) log("INFO", "Fehler ist rotierbar", { errorMsg });
   return isRotatable;
 }
 
 function enhanceErrorMessage(provider: AllAIProviders, error: string): string {
-  const lower = (error || '').toLowerCase();
+  const lower = (error || "").toLowerCase();
   const providerLabel = provider.toUpperCase();
-  
+
   // HuggingFace-spezifisch
-  if (lower.includes('api-inference.huggingface.co')) {
+  if (lower.includes("api-inference.huggingface.co")) {
     return `${providerLabel}: Alter Endpoint – bitte neuere API verwenden.`;
   }
-  
+
   // Auth-Fehler
-  if (lower.includes('401') || lower.includes('unauthorized') || lower.includes('invalid_api_key') || lower.includes('invalid api key')) {
+  if (
+    lower.includes("401") ||
+    lower.includes("unauthorized") ||
+    lower.includes("invalid_api_key") ||
+    lower.includes("invalid api key")
+  ) {
     return `${providerLabel}: API-Key ungültig oder abgelaufen.`;
   }
-  if (lower.includes('403') || lower.includes('forbidden')) {
+  if (lower.includes("403") || lower.includes("forbidden")) {
     return `${providerLabel}: Zugriff verweigert – Berechtigung prüfen.`;
   }
-  
+
   // Rate Limits
-  if (lower.includes('429') || lower.includes('rate limit') || lower.includes('too many requests') || lower.includes('quota')) {
+  if (
+    lower.includes("429") ||
+    lower.includes("rate limit") ||
+    lower.includes("too many requests") ||
+    lower.includes("quota")
+  ) {
     return `${providerLabel}: Rate-Limit erreicht – Key wird rotiert.`;
   }
-  
+
   // Netzwerk/Timeout
-  if (lower.includes('timeout') || lower.includes('timed out')) {
-    return `${providerLabel}: Timeout nach ${TIMEOUT_MS / 1000}s.`;
+  if (lower.includes("timeout") || lower.includes("timed out")) {
+    return `${providerLabel}: Timeout – Anfrage zu lange gedauert.`;
   }
-  if (lower.includes('network') || lower.includes('fetch') || lower.includes('econnrefused')) {
+  if (
+    lower.includes("network") ||
+    lower.includes("fetch") ||
+    lower.includes("econnrefused")
+  ) {
     return `${providerLabel}: Netzwerkfehler – Verbindung prüfen.`;
   }
-  
+
   // Model nicht gefunden
-  if (lower.includes('model not found') || lower.includes('does not exist')) {
+  if (lower.includes("model not found") || lower.includes("does not exist")) {
     return `${providerLabel}: Modell nicht verfügbar.`;
   }
-  
+
   // Server-Fehler
-  if (lower.includes('500') || lower.includes('502') || lower.includes('503') || lower.includes('internal server')) {
+  if (
+    lower.includes("500") ||
+    lower.includes("502") ||
+    lower.includes("503") ||
+    lower.includes("internal server")
+  ) {
     return `${providerLabel}: Server-Fehler – später erneut versuchen.`;
   }
-  
+
   return `${providerLabel}: ${error}`;
 }
 
@@ -286,7 +330,7 @@ function buildOkResult(
     ok: true,
     provider,
     model,
-    quality: 'unknown',
+    quality: "unknown",
     text,
     raw,
     timing: { startTime, endTime, durationMs },
@@ -307,18 +351,18 @@ async function callGroq(
   controller: AbortController,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
-  const url = 'https://api.groq.com/openai/v1/chat/completions';
+  const url = "https://api.groq.com/openai/v1/chat/completions";
   const body = {
     model,
     messages: toOpenAIChatMessages(messages),
-    temperature: 0.15,
-    max_tokens: 8000, // Increased from 4096 to reduce truncation
+    temperature: 0.2,
+    max_tokens: 8000,
   };
   const res = await fetch(url, {
-    method: 'POST',
+    method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
     signal: controller.signal,
@@ -326,69 +370,96 @@ async function callGroq(
   const json: any = await res.json();
   if (!res.ok) {
     const errorMsg =
-      json?.error?.message || json?.error || `HTTP ${res.status}`;
+      json?.error?.message ||
+      json?.error ||
+      json?.message ||
+      `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
-  
-  // Check for truncation
+
   const finishReason = json?.choices?.[0]?.finish_reason;
-  if (finishReason === 'length') {
-    log('WARN', 'Response truncated due to max_tokens limit', { model, finishReason });
+  if (finishReason === "length") {
+    log("WARN", "Groq response truncated due to max_tokens limit", {
+      model,
+      finishReason,
+    });
   }
-  
+
   const text =
     json?.choices?.[0]?.message?.content ??
     json?.choices?.[0]?.text ??
     JSON.stringify(json);
-  return buildOkResult('groq', model, text, json, startTime);
+  return buildOkResult("groq", model, text, json, startTime);
+}
+
+function geminiApiVersionForModel(model: string): "v1" | "v1beta" {
+  const m = model.toLowerCase();
+
+  // Gemini 1.5 + 2.x + experimental laufen typischerweise über v1beta
+  if (
+    m.includes("1.5") ||
+    m.includes("2.0") ||
+    m.includes("2.") ||
+    m.includes("exp")
+  ) {
+    return "v1beta";
+  }
+
+  return "v1";
 }
 
 async function callGeminiFamily(
-  provider: 'gemini' | 'google',
+  provider: "gemini" | "google",
   apiKey: string,
   model: string,
   messages: LlmMessage[],
   controller: AbortController,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+  const apiVersion = geminiApiVersionForModel(model);
+  const url = `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodeURIComponent(
     model,
   )}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const contents = [
     {
-      role: 'user',
+      role: "user",
       parts: [
         {
           text: messages
             .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
-            .join('\n'),
+            .join("\n"),
         },
       ],
     },
   ];
+
   const body = {
     contents,
-    generationConfig: { temperature: 0.15, maxOutputTokens: 8000 }, // Increased from 4096
+    generationConfig: { temperature: 0.15, maxOutputTokens: 8000 },
   };
+
   const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
     signal: controller.signal,
   });
+
   const json: any = await res.json();
   if (!res.ok) {
     const errorMsg = json?.error?.message || `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
-  
-  // Check for truncation
+
   const finishReason = json?.candidates?.[0]?.finishReason;
-  if (finishReason === 'MAX_TOKENS' || finishReason === 'LENGTH') {
-    log('WARN', 'Gemini response truncated due to token limit', { model, finishReason });
+  if (finishReason === "MAX_TOKENS" || finishReason === "LENGTH") {
+    log("WARN", "Gemini response truncated due to token limit", {
+      model,
+      finishReason,
+    });
   }
-  
+
   const text =
     json?.candidates?.[0]?.content?.parts?.[0]?.text ?? JSON.stringify(json);
   return buildOkResult(provider, model, text, json, startTime);
@@ -399,14 +470,14 @@ const callGemini = (
   model: string,
   messages: LlmMessage[],
   controller: AbortController,
-) => callGeminiFamily('gemini', apiKey, model, messages, controller);
+) => callGeminiFamily("gemini", apiKey, model, messages, controller);
 
 const callGoogle = (
   apiKey: string,
   model: string,
   messages: LlmMessage[],
   controller: AbortController,
-) => callGeminiFamily('google', apiKey, model, messages, controller);
+) => callGeminiFamily("google", apiKey, model, messages, controller);
 
 async function callOpenAI(
   apiKey: string,
@@ -415,18 +486,18 @@ async function callOpenAI(
   controller: AbortController,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
-  const url = 'https://api.openai.com/v1/chat/completions';
+  const url = "https://api.openai.com/v1/chat/completions";
   const body = {
     model,
     messages: toOpenAIChatMessages(messages),
     temperature: 0.2,
-    max_tokens: 8000, // Increased from 4096
+    max_tokens: 8000,
   };
   const res = await fetch(url, {
-    method: 'POST',
+    method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
     signal: controller.signal,
@@ -434,21 +505,26 @@ async function callOpenAI(
   const json: any = await res.json();
   if (!res.ok) {
     const errorMsg =
-      json?.error?.message || json?.error || `HTTP ${res.status}`;
+      json?.error?.message ||
+      json?.error ||
+      json?.message ||
+      `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
-  
-  // Check for truncation
+
   const finishReason = json?.choices?.[0]?.finish_reason;
-  if (finishReason === 'length') {
-    log('WARN', 'OpenAI response truncated due to max_tokens limit', { model, finishReason });
+  if (finishReason === "length") {
+    log("WARN", "OpenAI response truncated due to max_tokens limit", {
+      model,
+      finishReason,
+    });
   }
-  
+
   const text =
     json?.choices?.[0]?.message?.content ??
     json?.choices?.[0]?.text ??
     JSON.stringify(json);
-  return buildOkResult('openai', model, text, json, startTime);
+  return buildOkResult("openai", model, text, json, startTime);
 }
 
 async function callAnthropic(
@@ -458,68 +534,53 @@ async function callAnthropic(
   controller: AbortController,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
-  const url = 'https://api.anthropic.com/v1/messages';
-  const systemPrompt =
-    messages.find((m) => m.role === 'system')?.content || '';
-  const nonSystem = messages.filter((m) => m.role !== 'system');
+  const url = "https://api.anthropic.com/v1/messages";
+  const systemMsg = messages.find((m) => m.role === "system");
+  const userMessages = messages.filter((m) => m.role !== "system");
+
   const body = {
     model,
-    system: systemPrompt || undefined,
-    messages: nonSystem.map((m) => ({
-      role: m.role === 'assistant' ? 'assistant' : 'user',
+    system: systemMsg?.content,
+    messages: userMessages.map((m) => ({
+      role: m.role,
       content: m.content,
     })),
-    max_tokens: 8000, // Increased from 4096
     temperature: 0.2,
+    max_tokens: 8000,
   };
   const res = await fetch(url, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'Content-Type': 'application/json',
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
     signal: controller.signal,
   });
   const json: any = await res.json();
   if (!res.ok) {
-    const errorMsg = json?.error?.message || `HTTP ${res.status}`;
+    const errorMsg =
+      json?.error?.message ||
+      json?.error ||
+      json?.message ||
+      `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
-  
-  // Check for truncation
-  const stopReason = json?.stop_reason;
-  if (stopReason === 'max_tokens') {
-    log('WARN', 'Anthropic response truncated due to max_tokens limit', { model, stopReason });
+
+  const finishReason = json?.stop_reason;
+  if (finishReason === "max_tokens") {
+    log("WARN", "Anthropic response truncated due to max_tokens limit", {
+      model,
+      finishReason,
+    });
   }
-  
+
   const text =
-    (Array.isArray(json?.content) && json.content[0]?.text) ||
-    json?.content?.[0]?.text ||
-    '';
-  return buildOkResult('anthropic', model, text, json, startTime);
-}
-
-function buildOpenRouterHeaders(apiKey: string) {
-  const g = (globalThis as any) || {};
-  const referer =
-    g.OPENROUTER_SITE ||
-    g.EXPO_PUBLIC_OPENROUTER_SITE ||
-    process.env?.OPENROUTER_SITE ||
-    'https://k1w1.app';
-  const title =
-    g.OPENROUTER_TITLE ||
-    g.EXPO_PUBLIC_OPENROUTER_TITLE ||
-    process.env?.OPENROUTER_TITLE ||
-    'k1w1 Builder';
-
-  return {
-    Authorization: `Bearer ${apiKey}`,
-    'Content-Type': 'application/json',
-    'HTTP-Referer': referer,
-    'X-Title': title,
-  };
+    json?.content?.[0]?.text ??
+    json?.choices?.[0]?.message?.content ??
+    JSON.stringify(json);
+  return buildOkResult("anthropic", model, text, json, startTime);
 }
 
 async function callOpenRouter(
@@ -529,37 +590,45 @@ async function callOpenRouter(
   controller: AbortController,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
-  const url = 'https://openrouter.ai/api/v1/chat/completions';
+  const url = "https://openrouter.ai/api/v1/chat/completions";
   const body = {
     model,
     messages: toOpenAIChatMessages(messages),
     temperature: 0.2,
-    max_tokens: 8000, // Increased from 4096
+    max_tokens: 8000,
   };
   const res = await fetch(url, {
-    method: 'POST',
-    headers: buildOpenRouterHeaders(apiKey),
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(body),
     signal: controller.signal,
   });
   const json: any = await res.json();
   if (!res.ok) {
     const errorMsg =
-      json?.error?.message || json?.message || `HTTP ${res.status}`;
+      json?.error?.message ||
+      json?.error ||
+      json?.message ||
+      `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
-  
-  // Check for truncation
+
   const finishReason = json?.choices?.[0]?.finish_reason;
-  if (finishReason === 'length') {
-    log('WARN', 'OpenRouter response truncated due to max_tokens limit', { model, finishReason });
+  if (finishReason === "length") {
+    log("WARN", "OpenRouter response truncated due to max_tokens limit", {
+      model,
+      finishReason,
+    });
   }
-  
+
   const text =
     json?.choices?.[0]?.message?.content ??
     json?.choices?.[0]?.text ??
     JSON.stringify(json);
-  return buildOkResult('openrouter', model, text, json, startTime);
+  return buildOkResult("openrouter", model, text, json, startTime);
 }
 
 async function callDeepSeek(
@@ -569,18 +638,18 @@ async function callDeepSeek(
   controller: AbortController,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
-  const url = 'https://api.deepseek.com/chat/completions';
+  const url = "https://api.deepseek.com/chat/completions";
   const body = {
     model,
     messages: toOpenAIChatMessages(messages),
     temperature: 0.2,
-    max_tokens: 8000, // Increased from 4096
+    max_tokens: 8000,
   };
   const res = await fetch(url, {
-    method: 'POST',
+    method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
     signal: controller.signal,
@@ -588,21 +657,26 @@ async function callDeepSeek(
   const json: any = await res.json();
   if (!res.ok) {
     const errorMsg =
-      json?.error?.message || json?.message || `HTTP ${res.status}`;
+      json?.error?.message ||
+      json?.error ||
+      json?.message ||
+      `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
-  
-  // Check for truncation
+
   const finishReason = json?.choices?.[0]?.finish_reason;
-  if (finishReason === 'length') {
-    log('WARN', 'DeepSeek response truncated due to max_tokens limit', { model, finishReason });
+  if (finishReason === "length") {
+    log("WARN", "DeepSeek response truncated due to max_tokens limit", {
+      model,
+      finishReason,
+    });
   }
-  
+
   const text =
     json?.choices?.[0]?.message?.content ??
     json?.choices?.[0]?.text ??
     JSON.stringify(json);
-  return buildOkResult('deepseek', model, text, json, startTime);
+  return buildOkResult("deepseek", model, text, json, startTime);
 }
 
 async function callXai(
@@ -612,18 +686,18 @@ async function callXai(
   controller: AbortController,
 ): Promise<OrchestratorOkResult> {
   const startTime = Date.now();
-  const url = 'https://api.x.ai/v1/chat/completions';
+  const url = "https://api.x.ai/v1/chat/completions";
   const body = {
     model,
     messages: toOpenAIChatMessages(messages),
     temperature: 0.2,
-    max_tokens: 8000, // Increased from 4096
+    max_tokens: 8000,
   };
   const res = await fetch(url, {
-    method: 'POST',
+    method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
     signal: controller.signal,
@@ -631,76 +705,26 @@ async function callXai(
   const json: any = await res.json();
   if (!res.ok) {
     const errorMsg =
-      json?.error?.message || json?.message || `HTTP ${res.status}`;
+      json?.error?.message ||
+      json?.error ||
+      json?.message ||
+      `HTTP ${res.status}`;
     throw new Error(errorMsg);
   }
-  
-  // Check for truncation
+
   const finishReason = json?.choices?.[0]?.finish_reason;
-  if (finishReason === 'length') {
-    log('WARN', 'XAI response truncated due to max_tokens limit', { model, finishReason });
+  if (finishReason === "length") {
+    log("WARN", "xAI response truncated due to max_tokens limit", {
+      model,
+      finishReason,
+    });
   }
-  
+
   const text =
     json?.choices?.[0]?.message?.content ??
     json?.choices?.[0]?.text ??
     JSON.stringify(json);
-  return buildOkResult('xai', model, text, json, startTime);
-}
-
-function resolveOllamaBaseUrl() {
-  const g = (globalThis as any) || {};
-  const candidate =
-    g.OLLAMA_BASE_URL ||
-    g.EXPO_PUBLIC_OLLAMA_BASE_URL ||
-    process.env?.OLLAMA_BASE_URL ||
-    process.env?.EXPO_PUBLIC_OLLAMA_BASE_URL;
-  if (candidate && typeof candidate === 'string') {
-    return candidate.replace(/\/$/, '');
-  }
-  return 'http://127.0.0.1:11434';
-}
-
-async function callOllama(
-  apiKey: string,
-  model: string,
-  messages: LlmMessage[],
-  controller: AbortController,
-): Promise<OrchestratorOkResult> {
-  const startTime = Date.now();
-  const baseUrl = resolveOllamaBaseUrl();
-  const url = `${baseUrl}/api/chat`;
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  if (apiKey && apiKey !== 'ollama-local') {
-    headers.Authorization = `Bearer ${apiKey}`;
-  }
-  const body = {
-    model,
-    messages: toOpenAIChatMessages(messages),
-    stream: false,
-    options: {
-      temperature: 0.2,
-    },
-  };
-  const res = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-    signal: controller.signal,
-  });
-  const json = await res.json();
-  if (!res.ok) {
-    const errorMsg = json?.error || json?.message || `HTTP ${res.status}`;
-    throw new Error(errorMsg);
-  }
-  const text =
-    json?.message?.content ??
-    json?.response ??
-    json?.choices?.[0]?.message?.content ??
-    JSON.stringify(json);
-  return buildOkResult('ollama', model, text, json, startTime);
+  return buildOkResult("xai", model, text, json, startTime);
 }
 
 /**
@@ -720,47 +744,59 @@ async function callHuggingFace(
 
   const prompt = messages
     .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
-    .join('\n');
+    .join("\n");
 
   const body = {
     inputs: prompt,
     parameters: {
-      max_new_tokens: 8000, // Increased from 4096
-      temperature: 0.15,
+      max_new_tokens: 8000,
+      temperature: 0.2,
+    },
+    options: {
+      wait_for_model: true,
     },
   };
 
   const res = await fetch(url, {
-    method: 'POST',
+    method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
     signal: controller.signal,
   });
 
-  const json: any = await res.json();
+  const txt = await res.text();
+  let json: any = null;
+  try {
+    json = txt ? JSON.parse(txt) : null;
+  } catch {
+    json = null;
+  }
+
   if (!res.ok) {
     const errorMsg =
-      json?.error ||
       json?.error?.message ||
+      json?.error ||
       json?.message ||
-      json?.estimated_time?.toString() ||
-      `HTTP ${res.status}`;
+      `HTTP ${res.status}: ${txt.slice(0, 120)}`;
     throw new Error(errorMsg);
   }
 
-  let text = '';
+  if (!json) {
+    throw new Error(`hf_non_json_response: ${txt.slice(0, 120)}`);
+  }
+
+  let text = "";
   if (Array.isArray(json)) {
     if (json[0]?.generated_text) text = json[0].generated_text;
     else if (json[0]?.summary_text) text = json[0].summary_text;
     else if (json[0]?.text) text = json[0].text;
     else text = JSON.stringify(json);
-  } else if (typeof json?.generated_text === 'string') {
+  } else if (typeof json?.generated_text === "string") {
     text = json.generated_text;
-  } else if (typeof json?.text === 'string') {
+  } else if (typeof json?.text === "string") {
     text = json.text;
   } else if (json?.choices?.[0]?.text) {
     text = json.choices[0].text;
@@ -768,7 +804,7 @@ async function callHuggingFace(
     text = JSON.stringify(json);
   }
 
-  return buildOkResult('huggingface', model, text, json, startTime);
+  return buildOkResult("huggingface", model, text, json, startTime);
 }
 
 // ============================================
@@ -788,57 +824,64 @@ async function callProviderWithRetry(
     if (!apiKey) {
       const msg = `Kein API-Key für ${provider} gefunden`;
       const appError = toAppError(new Error(msg), {
-        code: 'ORCH_NO_API_KEY',
+        code: "ORCH_NO_API_KEY",
         meta: { provider, model, attempt: attempt + 1 },
       });
-      logAppError(appError, 'callProviderWithRetry');
+      logAppError(appError, "callProviderWithRetry");
       throw new Error(msg);
     }
 
     const controller = new AbortController();
     registerRequest(requestKey, controller);
 
-    log('INFO', `Call ${provider} (Versuch ${attempt + 1}/${MAX_KEY_RETRIES})`, {
-      model,
-      keyPreview: apiKey.slice(0, 8) + '…',
-    });
+    log(
+      "INFO",
+      `Call ${provider} (Versuch ${attempt + 1}/${MAX_KEY_RETRIES})`,
+      {
+        model,
+        keyPreview: apiKey.slice(0, 8) + "…",
+      },
+    );
 
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     try {
       const callPromise = (async () => {
         switch (provider) {
-          case 'groq':
+          case "groq":
             return callGroq(apiKey, model, messages, controller);
-          case 'gemini':
+          case "gemini":
             return callGemini(apiKey, model, messages, controller);
-          case 'google':
+          case "google":
             return callGoogle(apiKey, model, messages, controller);
-          case 'openai':
+          case "openai":
             return callOpenAI(apiKey, model, messages, controller);
-          case 'anthropic':
+          case "anthropic":
             return callAnthropic(apiKey, model, messages, controller);
-          case 'openrouter':
+          case "openrouter":
             return callOpenRouter(apiKey, model, messages, controller);
-          case 'deepseek':
+          case "deepseek":
             return callDeepSeek(apiKey, model, messages, controller);
-          case 'xai':
+          case "xai":
             return callXai(apiKey, model, messages, controller);
-          case 'ollama':
-            return callOllama(apiKey, model, messages, controller);
-          case 'huggingface':
-          default:
+          case "huggingface":
             return callHuggingFace(apiKey, model, messages, controller);
+          case "ollama":
+            return callOllama(apiKey, model, messages, controller);
+          default:
+            throw new Error(`Unbekannter Provider: ${provider}`);
         }
       })();
 
-      const timeoutPromise = new Promise<never>((_, reject) => {
+      const timeoutPromise = new Promise<OrchestratorOkResult>((_, reject) => {
         timeoutId = setTimeout(() => {
           controller.abort();
           reject(
-            new Error(`Timeout nach ${TIMEOUT_MS}ms: ${provider}:${model}`),
+            new Error(
+              `Timeout nach ${getTimeoutMs(provider)}ms: ${provider}:${model}`,
+            ),
           );
-        }, TIMEOUT_MS);
+        }, getTimeoutMs(provider));
       });
 
       const result = (await Promise.race([
@@ -848,11 +891,11 @@ async function callProviderWithRetry(
 
       if (timeoutId) clearTimeout(timeoutId);
 
-      log('INFO', `✅ Erfolg mit ${provider}`, {
+      log("INFO", `✅ Erfolg mit ${provider}`, {
         model,
         rotations,
         durationMs: result.timing?.durationMs,
-        textLength: result.text?.length ?? 0,
+        textLength: result.text?.length,
       });
 
       cleanupRequest(requestKey);
@@ -861,12 +904,11 @@ async function callProviderWithRetry(
       if (timeoutId) clearTimeout(timeoutId);
       cleanupRequest(requestKey);
 
-      const errorMsg = e?.message || 'unknown_error';
+      const errorMsg = String(e?.message || e || "Unknown error");
       const enhancedMsg = enhanceErrorMessage(provider, errorMsg);
+      errors.push(enhancedMsg);
 
-      errors.push(`Attempt ${attempt + 1}: ${enhancedMsg}`);
-
-      log('ERROR', 'Provider-Call fehlgeschlagen', {
+      log("ERROR", "Provider-Call fehlgeschlagen", {
         provider,
         model,
         attempt: attempt + 1,
@@ -874,86 +916,117 @@ async function callProviderWithRetry(
       });
 
       const appError = toAppError(e, {
-        code: 'ORCH_PROVIDER_CALL_FAILED',
+        code: "ORCH_PROVIDER_CALL_FAILED",
         message: enhancedMsg,
         meta: { provider, model, attempt: attempt + 1 },
       });
-      logAppError(appError, 'callProviderWithRetry');
+      logAppError(appError, "callProviderWithRetry");
 
       if (shouldRotateKey(errorMsg)) {
-        log('INFO', `🔄 Rotiere Key für ${provider}.`);
+        log("INFO", `🔄 Rotiere Key für ${provider}.`);
         const rotated = await rotateApiKeyOnError(provider);
         if (!rotated) {
           const msg = `Alle API-Keys für ${provider} erschöpft: ${enhancedMsg}`;
           const exhaustedError = toAppError(new Error(msg), {
-            code: 'ORCH_KEYS_EXHAUSTED',
+            code: "ORCH_KEYS_EXHAUSTED",
             meta: { provider, model, attempt: attempt + 1 },
           });
-          logAppError(exhaustedError, 'callProviderWithRetry');
+          logAppError(exhaustedError, "callProviderWithRetry");
           throw new Error(msg);
         }
         rotations++;
-        log('INFO', `Key rotiert (${rotations}x), nächster Versuch.`);
+        log("INFO", `Key rotiert (${rotations}x), nächster Versuch.`);
         continue;
       } else {
-        throw new Error(enhancedMsg);
+        // Nicht-rotierbarer Fehler → direkt abbrechen
+        break;
       }
     }
   }
 
-  const finalError = `Max. Versuche (${MAX_KEY_RETRIES}) erreicht für ${provider}.\n\n${errors.join(
-    '\n',
-  )}`;
-  log('ERROR', finalError);
-  const appError = toAppError(new Error(finalError), {
-    code: 'ORCH_MAX_RETRIES_REACHED',
+  const msgLines = [
+    `Max. Versuche (${MAX_KEY_RETRIES}) erreicht für ${provider}.`,
+    ...errors.map((e, i) => `Attempt ${i + 1}: ${e}`),
+  ];
+  const finalMsg = msgLines.join("\n");
+
+  const appError = toAppError(new Error(finalMsg), {
+    code: "ORCH_MAX_RETRIES_REACHED",
     meta: { provider, model },
   });
-  logAppError(appError, 'callProviderWithRetry');
-  throw new Error(finalError);
+  logAppError(appError, "callProviderWithRetry");
+  throw new Error(finalMsg);
 }
 
 // ============================================
-// JSON → FILES
+// OLLAMA
 // ============================================
-export function parseFilesFromText(raw: any): ProjectFile[] | null {
-  try {
-    const parsed = typeof raw === 'string' ? safeJsonParse(raw) : raw;
-    const array = extractJsonArray(parsed);
-    if (!array || !Array.isArray(array)) return null;
+async function callOllama(
+  apiKey: string,
+  model: string,
+  messages: LlmMessage[],
+  controller: AbortController,
+): Promise<OrchestratorOkResult> {
+  const startTime = Date.now();
+  const g = (globalThis as any) || {};
+  const baseUrl = g.OLLAMA_BASE_URL || "http://localhost:11434";
+  const url = `${baseUrl}/api/chat`;
+  const body = {
+    model,
+    messages: toOpenAIChatMessages(messages),
+    stream: false,
+  };
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: apiKey ? `Bearer ${apiKey}` : undefined,
+      "Content-Type": "application/json",
+    } as any,
+    body: JSON.stringify(body),
+    signal: controller.signal,
+  });
 
-    const files: ProjectFile[] = array
-      .map((f: any) => ({
-        path: String(f.path || ''),
-        content: String(f.content ?? ''),
-      }))
-      .filter((f) => f.path && f.content.trim().length > 0);
-
-    return files;
-  } catch (e) {
-    log('ERROR', 'parseFilesFromText fehlgeschlagen', {
-      error: (e as any)?.message,
-    });
-    const appError = toAppError(e, { code: 'ORCH_PARSE_FILES_FAILED' });
-    logAppError(appError, 'parseFilesFromText');
-    return null;
+  const text = await res.text();
+  if (!res.ok) {
+    const errorMsg = text || `HTTP ${res.status}`;
+    throw new Error(errorMsg);
   }
+
+  let json: any = null;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = { raw: text };
+  }
+
+  let answer = "";
+  if (json?.message?.content) {
+    answer = json.message.content;
+  } else if (Array.isArray(json?.messages)) {
+    const last = json.messages[json.messages.length - 1];
+    answer = last?.content ?? JSON.stringify(json);
+  } else {
+    answer = JSON.stringify(json);
+  }
+
+  return buildOkResult("ollama", model, answer, json, startTime);
 }
 
 // ============================================
-// FALLBACK-MECHANIK
+// SEQUENTIELLER Fallback mit Config-Meta
 // ============================================
 async function runSequentialFallback(
-  selectedProvider: AllAIProviders,
+  primaryProvider: AllAIProviders,
   selectedModel: string,
   qualityMode: QualityMode,
   messages: LlmMessage[],
 ): Promise<OrchestratorOkResult | OrchestratorErrorResult> {
-  const { provider: primaryProvider, quality } = detectMetaFromConfig(
-    selectedProvider,
+  const meta = detectMetaFromConfig(
+    primaryProvider,
     selectedModel,
     qualityMode,
   );
+  const quality = meta.quality;
 
   const order: AllAIProviders[] = [...PROVIDERS];
   if (order.includes(primaryProvider)) {
@@ -972,7 +1045,7 @@ async function runSequentialFallback(
       );
       const modelForProvider = metaForProvider.model;
 
-      log('INFO', `🔄 Fallback zu ${provider}`, { model: modelForProvider });
+      log("INFO", `🔄 Fallback zu ${provider}`, { model: modelForProvider });
 
       const { result, rotations } = await callProviderWithRetry(
         provider,
@@ -982,14 +1055,14 @@ async function runSequentialFallback(
 
       return { ...result, quality, keysRotated: rotations };
     } catch (e: any) {
-      const message = e?.message || 'unknown_error';
-      log('WARN', `Provider ${provider} fehlgeschlagen`, { error: message });
+      const message = e?.message || "unknown_error";
+      log("WARN", `Provider ${provider} fehlgeschlagen`, { error: message });
 
       const appError = toAppError(e, {
-        code: 'ORCH_PROVIDER_FALLBACK_FAILED',
+        code: "ORCH_PROVIDER_FALLBACK_FAILED",
         meta: { provider, model: selectedModel, qualityMode },
       });
-      logAppError(appError, 'runSequentialFallback');
+      logAppError(appError, "runSequentialFallback");
 
       errors.push({
         provider,
@@ -997,32 +1070,33 @@ async function runSequentialFallback(
         timestamp: new Date().toISOString(),
       });
 
-      if (message.includes('Kein API-Key')) {
+      if (message.includes("Kein API-Key")) {
+        // Kein Key → nächster Provider
         continue;
       }
     }
   }
 
-  log('ERROR', 'Alle Provider fehlgeschlagen', { errorCount: errors.length });
+  log("ERROR", "Alle Provider fehlgeschlagen", { errorCount: errors.length });
   const appError = toAppError(
-    new Error(errors[0]?.error || 'Kein Provider war erfolgreich'),
+    new Error(errors[0]?.error || "Kein Provider war erfolgreich"),
     {
-      code: 'ORCH_ALL_PROVIDERS_FAILED',
+      code: "ORCH_ALL_PROVIDERS_FAILED",
       meta: { errorCount: errors.length },
     },
   );
-  logAppError(appError, 'runSequentialFallback');
+  logAppError(appError, "runSequentialFallback");
 
   return {
     ok: false,
     errors,
     fatal: false,
-    error: errors[0]?.error || 'Kein Provider war erfolgreich',
+    error: errors[0]?.error || "Kein Provider war erfolgreich",
   };
 }
 
 // ============================================
-// PUBLIC API – Generator (Builder)
+// PUBLIC API – Haupt-Orchestrator
 // ============================================
 export async function runOrchestrator(
   selectedProvider: AllAIProviders,
@@ -1030,13 +1104,14 @@ export async function runOrchestrator(
   qualityMode: QualityMode,
   messages: LlmMessage[],
 ): Promise<OrchestratorOkResult | OrchestratorErrorResult> {
-  log('INFO', '🚀 Orchestrator gestartet', {
+  log("INFO", "🚀 Orchestrator gestartet", {
     provider: selectedProvider,
     model: selectedModel,
     quality: qualityMode,
     messageCount: messages.length,
   });
 
+  // Vor neuem Lauf alle offenen Requests abbrechen
   requestPool.forEach((controller) => controller.abort());
   requestPool.clear();
 
@@ -1049,35 +1124,35 @@ export async function runOrchestrator(
     );
 
     if (result.ok) {
-      log('INFO', '✅ Orchestrator erfolgreich', {
+      log("INFO", "✅ Orchestrator erfolgreich", {
         provider: result.provider,
         model: result.model,
         durationMs: result.timing?.durationMs,
       });
     } else {
-      log('WARN', '⚠️ Orchestrator fehlgeschlagen', {
+      log("WARN", "⚠️ Orchestrator fehlgeschlagen", {
         errorCount: result.errors.length,
       });
     }
 
     return result;
   } catch (err: any) {
-    log('ERROR', '❌ Fatal error in Orchestrator', { error: err?.message });
+    log("ERROR", "❌ Fatal error in Orchestrator", { error: err?.message });
 
     const appError = toAppError(err, {
-      code: 'ORCH_FATAL',
+      code: "ORCH_FATAL",
       meta: {
-        stage: 'runOrchestrator',
+        stage: "runOrchestrator",
         provider: selectedProvider,
         model: selectedModel,
       },
     });
-    logAppError(appError, 'runOrchestrator');
+    logAppError(appError, "runOrchestrator");
 
     return {
       ok: false,
       fatal: true,
-      error: appError.message || 'fatal_error',
+      error: appError.message || "fatal_error",
       errors: [],
     };
   } finally {
@@ -1087,16 +1162,17 @@ export async function runOrchestrator(
 }
 
 // ============================================
-// PUBLIC API – Quality-Validator (Agent)
+// PUBLIC API – Validator-Orchestrator
 // ============================================
 export async function runValidatorOrchestrator(
   selectedAgentProvider: AllAIProviders,
   selectedAgentMode: string,
   messages: LlmMessage[],
 ): Promise<OrchestratorOkResult | OrchestratorErrorResult> {
-  log('INFO', '🔍 Validator Orchestrator gestartet', {
+  log("INFO", "🔍 Validator-Orchestrator gestartet", {
     provider: selectedAgentProvider,
     mode: selectedAgentMode,
+    messageCount: messages.length,
   });
 
   requestPool.forEach((controller) => controller.abort());
@@ -1106,27 +1182,40 @@ export async function runValidatorOrchestrator(
     const result = await runSequentialFallback(
       selectedAgentProvider,
       selectedAgentMode,
-      'quality',
+      "quality",
       messages,
     );
+
+    if (result.ok) {
+      log("INFO", "✅ Validator-Orchestrator erfolgreich", {
+        provider: result.provider,
+        model: result.model,
+        durationMs: result.timing?.durationMs,
+      });
+    } else {
+      log("WARN", "⚠️ Validator-Orchestrator fehlgeschlagen", {
+        errorCount: result.errors.length,
+      });
+    }
+
     return result;
   } catch (err: any) {
-    log('ERROR', '❌ Fatal error in Validator', { error: err?.message });
+    log("ERROR", "❌ Fatal error in Validator", { error: err?.message });
 
     const appError = toAppError(err, {
-      code: 'ORCH_VALIDATOR_FATAL',
+      code: "ORCH_VALIDATOR_FATAL",
       meta: {
-        stage: 'runValidatorOrchestrator',
+        stage: "runValidatorOrchestrator",
         provider: selectedAgentProvider,
         mode: selectedAgentMode,
       },
     });
-    logAppError(appError, 'runValidatorOrchestrator');
+    logAppError(appError, "runValidatorOrchestrator");
 
     return {
       ok: false,
       fatal: true,
-      error: appError.message || 'fatal_error',
+      error: appError.message || "fatal_error",
       errors: [],
     };
   } finally {

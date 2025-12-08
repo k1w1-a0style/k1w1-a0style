@@ -1,0 +1,35 @@
+diff --git a/config.ts b/config.ts
+--- a/config.ts
++++ b/config.ts
+@@
+   PATHS: {
+     PROJECTS_DIR: 'projects',
+     EXPORT_DIR: 'exports',
+     TEMP_DIR: 'tmp',
+-    ALLOWED_EXT: ['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.txt', '.yml', '.yaml', '.html', '.css', '.scss', '.svg'],
++    ALLOWED_EXT: ['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.txt', '.yml', '.yaml', '.html', '.css', '.scss', '.svg', '.png', '.jpg', '.jpeg', '.webp'],
+     ALLOWED_ROOT: ['package.json', 'tsconfig.json', 'babel.config.js', 'metro.config.js', 'app.config.js', 'App.tsx', 'App.js', 'index.js', 'index.html', 'README.md', '.gitignore', '.env.example'],
+     ALLOWED_SINGLE: ['theme.ts', 'config.ts'],
+     ALLOWED_PREFIXES: ['screens/', 'components/', 'contexts/', 'hooks/', 'lib/', 'utils/', 'assets/', 'navigation/', 'services/', 'api/', 'types/', 'constants/', 'config/', 'store/', 'redux/', 'state/', 'public/'],
+   },
+diff --git a/lib/orchestrator.ts b/lib/orchestrator.ts
+--- a/lib/orchestrator.ts
++++ b/lib/orchestrator.ts
+@@
+ function geminiApiVersionForModel(model: string): 'v1' | 'v1beta' {
+   const m = model.toLowerCase();
+-  if (m.includes('2.0') || m.includes('exp')) return 'v1beta';
+-  return 'v1';
++
++  // Gemini 1.5 + 2.x + experimental laufen typischerweise über v1beta
++  if (
++    m.includes('1.5') ||
++    m.includes('2.0') ||
++    m.includes('2.') ||
++    m.includes('exp')
++  ) {
++    return 'v1beta';
++  }
++
++  return 'v1';
+ }

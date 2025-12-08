@@ -11,9 +11,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
-  AccessibilityInfo,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useHeaderHeight } from '@react-navigation/elements';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -49,9 +49,9 @@ const EmptyState = React.memo(() => (
       Beschreibe dein Projekt und der Builder hilft dir beim Coden.
     </Text>
     <View style={styles.emptyStateHints}>
-      <Text style={styles.emptyStateHint}>💡 "Erstelle einen Login-Screen"</Text>
-      <Text style={styles.emptyStateHint}>💡 "Füge Dark Mode hinzu"</Text>
-      <Text style={styles.emptyStateHint}>💡 "Wie viele Dateien?"</Text>
+      <Text style={styles.emptyStateHint}>💡 „Erstelle einen Login-Screen“</Text>
+      <Text style={styles.emptyStateHint}>💡 „Füge Dark Mode hinzu“</Text>
+      <Text style={styles.emptyStateHint}>💡 „Wie viele Dateien?“</Text>
     </View>
   </View>
 ));
@@ -109,6 +109,7 @@ ErrorBanner.displayName = 'ErrorBanner';
 
 const ChatScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
   const {
     messages,
     textInput,
@@ -221,7 +222,7 @@ const ChatScreen: React.FC = () => {
     <KeyboardAvoidingView
       style={styles.root}
       behavior={keyboardBehavior}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      keyboardVerticalOffset={headerHeight + (Platform.OS === 'ios' ? 8 : 0)}
     >
       <View style={styles.container}>
         {/* Messages List */}

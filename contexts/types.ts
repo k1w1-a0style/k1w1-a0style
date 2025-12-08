@@ -22,6 +22,7 @@ export interface ProjectData {
 
 export interface ChatMessageMeta {
   provider?: string;
+  model?: string;
   error?: string;
   context?: BuilderContextData;
 }

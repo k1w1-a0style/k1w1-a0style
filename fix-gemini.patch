@@ -1,0 +1,24 @@
+diff --git a/lib/orchestrator.ts b/lib/orchestrator.ts
+--- a/lib/orchestrator.ts
++++ b/lib/orchestrator.ts
+@@ -1,1 +1,1 @@
+-function geminiApiVersionForModel(model: string): 'v1' | 'v1beta' {
+-  const m = model.toLowerCase();
+-  if (m.includes('2.0') || m.includes('exp')) return 'v1beta';
+-  return 'v1';
+-}
++function geminiApiVersionForModel(model: string): 'v1' | 'v1beta' {
++  const m = model.toLowerCase();
++
++  // Gemini 1.5 + 2.x + experimental laufen typischerweise über v1beta
++  if (
++    m.includes('1.5') ||
++    m.includes('2.0') ||
++    m.includes('2.') ||
++    m.includes('exp')
++  ) {
++    return 'v1beta';
++  }
++
++  return 'v1';
++}

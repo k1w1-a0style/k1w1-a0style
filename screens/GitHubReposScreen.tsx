@@ -712,7 +712,7 @@ const GitHubReposScreen: React.FC = () => {
         )}
         {!tokenLoading && !token && (
           <Text style={styles.warningText}>
-            ⚠️ Kein Token gefunden. Bitte im Screen „Verbindungen" hinterlegen.
+            ⚠️ Kein Token gefunden. Bitte im Screen „Verbindungen“ hinterlegen.
           </Text>
         )}
         {tokenError && <Text style={styles.errorText}>{tokenError}</Text>}

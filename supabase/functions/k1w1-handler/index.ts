@@ -25,29 +25,29 @@ interface HandlerRequestBody {
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, apikey, x-client-info, content-type",
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// Default-Modelle (kannst du bei Bedarf anpassen)
 const DEFAULT_MODELS = {
   groq: {
     speed: "llama-3.1-8b-instant",
-    quality: "llama-3.3-70b-versatile",
+    quality: "llama-3.1-70b-versatile",
   },
   gemini: {
-    speed: "gemini-1.5-flash",
-    quality: "gemini-1.5-pro",
+    speed: "gemini-1.5-flash-002",
+    quality: "gemini-1.5-pro-002",
   },
-} as const;
+};
 
-// ----------------- Helpers -----------------
-
-function parseRequestBody(body: unknown): HandlerRequestBody {
-  if (!body || typeof body !== "object") {
-    throw new Error("Invalid request body");
+// ----------------------------------------------------------
+// Helpers
+// ----------------------------------------------------------
+function parseRequestBody(b: any): HandlerRequestBody {
+  if (!b || typeof b !== "object") {
+    throw new Error("Invalid JSON body");
   }
-  const b = body as any;
-
   if (!b.provider || typeof b.provider !== "string") {
     throw new Error("Missing provider");
   }
@@ -64,27 +64,55 @@ function parseRequestBody(body: unknown): HandlerRequestBody {
   return {
     provider,
     messages: b.messages as ChatMessage[],
-    mode: typeof b.mode === "string" ? b.mode : "builder",
+    mode: typeof b.mode === "string" ? b.mode : undefined,
     model: typeof b.model === "string" ? b.model : undefined,
     quality,
   };
 }
 
+/**
+ * Baut den Prompt für Gemini als "contents"-Array.
+ * Wir packen alles in eine USER-Nachricht, inkl. System/Assistant Rollen.
+ */
 function toGeminiContents(messages: ChatMessage[]) {
-  // OpenAI → Gemini Mapping
-  return messages.map((m) => ({
-    role:
-      m.role === "assistant"
-        ? "model"
-        : m.role === "user"
-        ? "user"
-        : "user",
-    parts: [{ text: m.content }],
-  }));
+  const systemParts: string[] = [];
+  const otherParts: string[] = [];
+
+  for (const m of messages) {
+    if (m.role === "system") {
+      systemParts.push(m.content);
+    } else {
+      otherParts.push(`${m.role.toUpperCase()}: ${m.content}`);
+    }
+  }
+
+  const text =
+    (systemParts.length
+      ? `SYSTEM:\n${systemParts.join("\n")}\n\n`
+      : "") + otherParts.join("\n");
+
+  return [
+    {
+      role: "user",
+      parts: [{ text }],
+    },
+  ];
 }
 
-// ----------------- Provider Calls -----------------
+/**
+ * Wählt die passende Gemini API-Version anhand des Modellnamens.
+ * - 2.0 / exp → v1beta
+ * - Rest (1.5-Modelle, stabile) → v1
+ */
+function geminiApiVersionForModel(model: string): "v1" | "v1beta" {
+  const m = model.toLowerCase();
+  if (m.includes("2.0") || m.includes("exp")) return "v1beta";
+  return "v1";
+}
 
+// ----------------------------------------------------------
+// Provider Calls
+// ----------------------------------------------------------
 async function callGroq(
   body: HandlerRequestBody,
 ): Promise<{ content: string; raw: unknown; model: string }> {
@@ -119,11 +147,11 @@ async function callGroq(
     throw new Error(`groq_http_${res.status}: ${txt}`);
   }
 
-  const json = await res.json();
+  const json: any = await res.json();
   const content =
     json?.choices?.[0]?.message?.content ??
-    json?.choices?.[0]?.delta?.content ??
-    "";
+    json?.choices?.[0]?.text ??
+    JSON.stringify(json);
 
   return { content, raw: json, model };
 }
@@ -143,8 +171,11 @@ async function callGemini(
 
   const contents = toGeminiContents(body.messages);
 
+  const apiVersion = geminiApiVersionForModel(model);
   const url =
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodeURIComponent(
+      model,
+    )}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const res = await fetch(url, {
     method: "POST",
@@ -157,21 +188,25 @@ async function callGemini(
     throw new Error(`gemini_http_${res.status}: ${txt}`);
   }
 
-  const json = await res.json();
+  const json: any = await res.json();
   const parts =
     json?.candidates?.[0]?.content?.parts ??
     json?.candidates?.[0]?.content?.parts ??
     [];
-  const text = parts.map((p: any) => p.text || "").join("\n");
+  const text = (parts as any[]).map((p) => p.text || "").join("\n");
 
   return { content: text, raw: json, model };
 }
 
-// ----------------- Main Handler -----------------
-
+// ----------------------------------------------------------
+// Main Handler
+// ----------------------------------------------------------
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", {
+      status: 200,
+      headers: corsHeaders,
+    });
   }
 
   if (req.method !== "POST") {
@@ -196,12 +231,16 @@ serve(async (req: Request): Promise<Response> => {
       }),
     );
 
-    let result;
+    let result:
+      | { content: string; raw: unknown; model: string }
+      | undefined = undefined;
+
     const providerLower = body.provider.toLowerCase();
 
     if (providerLower === "groq") {
       result = await callGroq(body);
-    } else if (providerLower === "gemini") {
+    } else if (providerLower === "gemini" || providerLower === "google") {
+      // google → Alias für Gemini
       result = await callGemini(body);
     } else {
       throw new Error(`Unsupported provider: ${body.provider}`);
@@ -211,7 +250,7 @@ serve(async (req: Request): Promise<Response> => {
       ok: true as const,
       provider: providerLower,
       model: result.model,
-      content: result.content,
+      text: result.content,
       raw: result.raw,
     };
 
@@ -223,7 +262,7 @@ serve(async (req: Request): Promise<Response> => {
       },
     });
   } catch (err: any) {
-    console.error("❌ k1w1-handler error", err?.message, err);
+    console.error("❌ k1w1-handler error", err);
 
     const errorPayload = {
       ok: false as const,
