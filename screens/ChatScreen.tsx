@@ -213,15 +213,15 @@ const ChatScreen: React.FC = () => {
     }
   }, [messages, setTextInput, clearError]);
 
-  const keyboardBehavior = Platform.OS === 'ios' ? 'padding' : 'height';
-  const inputBottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 8);
-  const listBottomPadding = inputBottomPadding + 72;
+  const keyboardBehavior = Platform.OS === 'ios' ? 'padding' : undefined;
+  const inputBottomPadding = Platform.OS === 'ios' ? Math.max(insets.bottom, 8) : 8;
+  const listBottomPadding = 90; // Fixed padding for input area height
 
   return (
     <KeyboardAvoidingView
       style={styles.root}
       behavior={keyboardBehavior}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <View style={styles.container}>
         {/* Messages List */}
@@ -481,6 +481,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: theme.palette.border,
     backgroundColor: theme.palette.card,
+    paddingTop: 4,
   },
   selectedFileBox: {
     flexDirection: 'row',
@@ -499,7 +500,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingTop: 6,
+    paddingBottom: 6,
     gap: 8,
   },
 
