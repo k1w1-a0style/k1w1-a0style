@@ -213,7 +213,7 @@ const ChatScreen: React.FC = () => {
     }
   }, [messages, setTextInput, clearError]);
 
-  const keyboardBehavior = Platform.OS === 'ios' ? 'padding' : undefined;
+  const keyboardBehavior = Platform.OS === 'ios' ? 'padding' : 'height';
   const inputBottomPadding = Platform.OS === 'ios' ? Math.max(insets.bottom, 8) : 8;
   const listBottomPadding = 90; // Fixed padding for input area height
 
