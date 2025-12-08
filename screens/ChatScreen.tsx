@@ -11,12 +11,22 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  FadeIn,
+  FadeOut,
+} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 
 import { theme } from '../theme';
 import { ChatMessage } from '../contexts/types';
 import MessageItem from '../components/MessageItem';
 import { useChatLogic } from '../hooks/useChatLogic';
+
+const AnimatedTouchableOpacity =
+  Animated.createAnimatedComponent(TouchableOpacity);
 
 const ChatScreen: React.FC = () => {
   const {
@@ -31,6 +41,44 @@ const ChatScreen: React.FC = () => {
   } = useChatLogic();
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
+
+  // Animation values for buttons
+  const sendButtonScale = useSharedValue(1);
+  const attachButtonScale = useSharedValue(1);
+
+  const sendButtonAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: sendButtonScale.value }],
+  }));
+
+  const attachButtonAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: attachButtonScale.value }],
+  }));
+
+  const handleSendPress = useCallback(() => {
+    sendButtonScale.value = withSpring(1, { damping: 15 });
+    handleSend();
+  }, [handleSend, sendButtonScale]);
+
+  const handleAttachPress = useCallback(() => {
+    attachButtonScale.value = withSpring(1, { damping: 15 });
+    handlePickDocument();
+  }, [handlePickDocument, attachButtonScale]);
+
+  const handleSendPressIn = useCallback(() => {
+    sendButtonScale.value = withSpring(0.9, { damping: 15 });
+  }, [sendButtonScale]);
+
+  const handleSendPressOut = useCallback(() => {
+    sendButtonScale.value = withSpring(1, { damping: 15 });
+  }, [sendButtonScale]);
+
+  const handleAttachPressIn = useCallback(() => {
+    attachButtonScale.value = withSpring(0.9, { damping: 15 });
+  }, [attachButtonScale]);
+
+  const handleAttachPressOut = useCallback(() => {
+    attachButtonScale.value = withSpring(1, { damping: 15 });
+  }, [attachButtonScale]);
 
   // Scrollt nach neuen Nachrichten ans Ende, mit sauberem Cleanup
   useEffect(() => {
@@ -98,12 +146,15 @@ const ChatScreen: React.FC = () => {
 
         <View style={styles.inputWrapper}>
           <View style={styles.inputContainer}>
-            <TouchableOpacity
+            <AnimatedTouchableOpacity
               style={[
                 styles.iconButton,
+                attachButtonAnimatedStyle,
                 selectedFileAsset && styles.iconButtonActive,
               ]}
-              onPress={handlePickDocument}
+              onPress={handleAttachPress}
+              onPressIn={handleAttachPressIn}
+              onPressOut={handleAttachPressOut}
             >
               <Ionicons
                 name="attach"
@@ -114,7 +165,7 @@ const ChatScreen: React.FC = () => {
                     : theme.palette.text.secondary
                 }
               />
-            </TouchableOpacity>
+            </AnimatedTouchableOpacity>
 
             <TextInput
               style={styles.textInput}
@@ -125,9 +176,11 @@ const ChatScreen: React.FC = () => {
               multiline
             />
 
-            <TouchableOpacity
-              style={styles.sendButton}
-              onPress={handleSend}
+            <AnimatedTouchableOpacity
+              style={[styles.sendButton, sendButtonAnimatedStyle]}
+              onPress={handleSendPress}
+              onPressIn={handleSendPressIn}
+              onPressOut={handleSendPressOut}
               disabled={combinedIsLoading}
             >
               {combinedIsLoading ? (
@@ -139,15 +192,19 @@ const ChatScreen: React.FC = () => {
                   color={theme.palette.secondary}
                 />
               )}
-            </TouchableOpacity>
+            </AnimatedTouchableOpacity>
           </View>
 
           {selectedFileAsset && (
-            <View style={styles.selectedFileBox}>
+            <Animated.View
+              entering={FadeIn.duration(300)}
+              exiting={FadeOut.duration(200)}
+              style={styles.selectedFileBox}
+            >
               <Text style={styles.selectedFileText}>
                 📎 {selectedFileAsset.name}
               </Text>
-            </View>
+            </Animated.View>
           )}
         </View>
       </View>

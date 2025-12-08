@@ -1,10 +1,13 @@
 // components/MessageItem.tsx - Chat Bubble + Rich Context
 import React, { memo, useCallback } from 'react';
-import { Text, Pressable, StyleSheet, Alert, View } from 'react-native';
+import { Text, Pressable, StyleSheet, Alert } from 'react-native';
+import Animated, { FadeInLeft, FadeInRight } from 'react-native-reanimated';
 import * as Clipboard from 'expo-clipboard';
 import { theme } from '../theme';
 import { ChatMessage, BuilderContextData } from '../contexts/types';
 import RichContextMessage from './RichContextMessage';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type MessageItemProps = {
   message: ChatMessage;
@@ -80,13 +83,18 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
   const hasContext = !!message?.meta?.context;
 
   return (
-    <View
+    <Animated.View
+      entering={
+        isUser
+          ? FadeInRight.duration(400).springify()
+          : FadeInLeft.duration(400).springify()
+      }
       style={[
         styles.rowWrapper,
         isUser ? styles.rowWrapperUser : styles.rowWrapperAI,
       ]}
     >
-      <Pressable
+      <AnimatedPressable
         style={({ pressed }) => [
           styles.messageBubble,
           isUser ? styles.userMessage : styles.aiMessage,
@@ -107,12 +115,12 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
             {message.meta.provider}
           </Text>
         ) : null}
-      </Pressable>
+      </AnimatedPressable>
 
       {!isUser && hasContext ? (
         <RichContextMessage context={message.meta?.context ?? null} />
       ) : null}
-    </View>
+    </Animated.View>
   );
 };
 

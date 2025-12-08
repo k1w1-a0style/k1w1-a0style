@@ -13,6 +13,7 @@ import {
   Switch,
   ActivityIndicator,
 } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
@@ -24,13 +25,6 @@ import {
   PROVIDER_LABELS,
   PROVIDER_DESCRIPTIONS,
 } from '../contexts/AIContext';
-
-type ModeOption = {
-  id: string;
-  label: string;
-  description?: string;
-  billing?: 'free' | 'paid';
-};
 
 // Feste Liste bekannter Provider – muss zu AIContext passen
 const PROVIDER_ORDER: AllAIProviders[] = [
@@ -169,7 +163,10 @@ const SettingsScreen: React.FC = () => {
         contentContainerStyle={styles.scrollContent}
       >
         {/* Header */}
-        <View style={styles.headerRow}>
+        <Animated.View
+          entering={FadeInDown.duration(400).springify()}
+          style={styles.headerRow}
+        >
           <View>
             <Text style={styles.title}>KI-Einstellungen</Text>
             <Text style={styles.subtitle}>
@@ -183,10 +180,13 @@ const SettingsScreen: React.FC = () => {
               color={theme.palette.text.secondary}
             />
           )}
-        </View>
+        </Animated.View>
 
         {/* Quality / Speed Toggle */}
-        <View style={styles.card}>
+        <Animated.View
+          entering={FadeInDown.delay(100).duration(500).springify()}
+          style={styles.card}
+        >
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>Modus</Text>
             <View style={styles.modeRow}>
@@ -208,10 +208,13 @@ const SettingsScreen: React.FC = () => {
             Quality: bessere Ergebnisse, etwas langsamer. Speed: schneller,
             günstiger.
           </Text>
-        </View>
+        </Animated.View>
 
         {/* Provider & Model Auswahl */}
-        <View style={styles.card}>
+        <Animated.View
+          entering={FadeInDown.delay(200).duration(500).springify()}
+          style={styles.card}
+        >
           <Text style={styles.cardTitle}>Builder Provider & Modell</Text>
           <Text style={styles.cardDescription}>
             Wähle den Standard-Provider und das Modell, das der Builder nutzen
@@ -293,22 +296,31 @@ const SettingsScreen: React.FC = () => {
               );
             })}
           </View>
-        </View>
+        </Animated.View>
 
         {/* Provider & Keys */}
-        <View style={styles.sectionHeaderRow}>
+        <Animated.View
+          entering={FadeInDown.delay(300).duration(500).springify()}
+          style={styles.sectionHeaderRow}
+        >
           <Text style={styles.sectionTitle}>API-Keys je Provider</Text>
           <Text style={styles.sectionSubtitle}>
             Lang-press zum Entfernen oder als primär setzen.
           </Text>
-        </View>
+        </Animated.View>
 
-        {providersToRender.map((provider) => {
+        {providersToRender.map((provider, index) => {
           const keys: string[] = config.apiKeys[provider] || [];
           const hasKeys = keys.length > 0;
 
           return (
-            <View key={provider} style={styles.card}>
+            <Animated.View
+              key={provider}
+              entering={FadeInDown.delay(400 + index * 50)
+                .duration(500)
+                .springify()}
+              style={styles.card}
+            >
               <View style={styles.providerHeader}>
                 <View style={styles.providerTitleRow}>
                   <Text style={styles.providerName}>
@@ -369,12 +381,15 @@ const SettingsScreen: React.FC = () => {
                   ))}
                 </View>
               )}
-            </View>
+            </Animated.View>
           );
         })}
 
         {/* Key hinzufügen */}
-        <View style={styles.card}>
+        <Animated.View
+          entering={FadeInDown.delay(800).duration(500).springify()}
+          style={styles.card}
+        >
           <Text style={styles.cardTitle}>API-Key hinzufügen</Text>
           <Text style={styles.cardDescription}>
             Wähle einen Provider und füge einen neuen API-Key hinzu.
@@ -429,7 +444,7 @@ const SettingsScreen: React.FC = () => {
               />
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
 
         <View style={styles.spacer} />
       </ScrollView>
