@@ -221,12 +221,31 @@ const PreviewScreen: React.FC = () => {
     };
   }, [projectData]);
 
+  // Prüfe ob es ein React Native Projekt ist
+  const isReactNativeProject = useMemo(() => {
+    if (!projectData?.files) return false;
+    const hasAppTsx = projectData.files.some(f => 
+      f.path === 'App.tsx' || f.path === 'App.js'
+    );
+    const hasPackageJson = projectData.files.some(f => f.path === 'package.json');
+    if (hasPackageJson) {
+      const pkgFile = projectData.files.find(f => f.path === 'package.json');
+      if (pkgFile?.content?.includes('"expo"') || pkgFile?.content?.includes('"react-native"')) {
+        return true;
+      }
+    }
+    return hasAppTsx;
+  }, [projectData?.files]);
+
   const htmlEntries = useMemo(() => {
     if (!projectData?.files) return [];
     return projectData.files
       .filter(file => /\.html?$/i.test(file.path))
       .map(file => file.path)
       .sort((a, b) => {
+        // Priorisiere preview.html für React Native Projekte
+        if (a.toLowerCase() === 'preview.html') return -1;
+        if (b.toLowerCase() === 'preview.html') return 1;
         if (a.toLowerCase() === 'index.html') return -1;
         if (b.toLowerCase() === 'index.html') return 1;
         return a.localeCompare(b);
@@ -424,29 +443,71 @@ const PreviewScreen: React.FC = () => {
     return false;
   }, []);
 
-  const handleCreateIndexHtml = useCallback(() => {
+  const PREVIEW_HTML_TEMPLATE = `<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>K1W1 App Preview</title>
+  <style>
+    :root { --primary: #00FF00; --bg: #000; --card: #111; --border: #222; --text: #fff; --text-secondary: #aaa; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+    .content { text-align: center; max-width: 400px; }
+    .emoji { font-size: 64px; margin-bottom: 16px; }
+    h1 { font-size: 28px; color: var(--primary); margin-bottom: 8px; text-shadow: 0 0 20px rgba(0,255,0,0.3); }
+    .subtitle { color: var(--text-secondary); margin-bottom: 24px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+    .card-title { color: var(--primary); font-weight: 600; margin-bottom: 8px; }
+    .card-text { color: var(--text-secondary); font-size: 14px; line-height: 1.6; }
+    .badge { display: inline-block; background: rgba(0,255,0,0.1); border: 1px solid rgba(0,255,0,0.3); padding: 6px 12px; border-radius: 20px; font-size: 12px; color: var(--primary); margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="content">
+    <div class="emoji">📱</div>
+    <h1>App-Vorschau</h1>
+    <p class="subtitle">React Native Projekt</p>
+    <div class="card">
+      <div class="card-title">Vorschau-Modus</div>
+      <p class="card-text">Dies ist eine Web-Vorschau deiner App. Für die echte App-Erfahrung nutze Expo Go auf deinem Handy oder starte einen Build.</p>
+    </div>
+    <div class="badge">K1W1 Preview</div>
+  </div>
+</body>
+</html>`;
+
+  const handleCreatePreviewHtml = useCallback(() => {
+    const fileName = isReactNativeProject ? 'preview.html' : 'index.html';
+    const template = isReactNativeProject ? PREVIEW_HTML_TEMPLATE : DEFAULT_HTML_TEMPLATE;
+    
     Alert.alert(
-      'index.html anlegen',
-      'Es wird eine einfache Startdatei mit Live-Reload vorbereitet.',
+      `${fileName} anlegen`,
+      isReactNativeProject 
+        ? 'Es wird eine Web-Vorschau für dein React Native Projekt erstellt.'
+        : 'Es wird eine einfache Startdatei mit Live-Reload vorbereitet.',
       [
         { text: 'Abbrechen', style: 'cancel' },
         {
           text: 'Erstellen',
           onPress: async () => {
             try {
-              await createFile('index.html', DEFAULT_HTML_TEMPLATE);
-              Alert.alert('Fertig', 'index.html wurde erstellt.');
+              await createFile(fileName, template);
+              Alert.alert('Fertig', `${fileName} wurde erstellt.`);
             } catch (error: any) {
               Alert.alert(
                 'Fehler',
-                error?.message || 'index.html konnte nicht erstellt werden.',
+                error?.message || `${fileName} konnte nicht erstellt werden.`,
               );
             }
           },
         },
       ],
     );
-  }, [createFile]);
+  }, [createFile, isReactNativeProject]);
+
+  // Alias für Abwärtskompatibilität
+  const handleCreateIndexHtml = handleCreatePreviewHtml;
 
   if (!projectData) {
     return (
@@ -669,22 +730,37 @@ const PreviewScreen: React.FC = () => {
         <View style={styles.infoWrapper}>
           <View style={styles.infoCard}>
             <Ionicons
-              name="eye-off-outline"
+              name={isReactNativeProject ? 'phone-portrait-outline' : 'eye-off-outline'}
               size={36}
-              color={theme.palette.text.secondary}
+              color={isReactNativeProject ? theme.palette.primary : theme.palette.text.secondary}
               style={{ marginBottom: 12 }}
             />
-            <Text style={styles.infoTitle}>Keine HTML-Datei gefunden</Text>
+            <Text style={styles.infoTitle}>
+              {isReactNativeProject 
+                ? 'React Native Projekt erkannt' 
+                : 'Keine HTML-Datei gefunden'}
+            </Text>
             <Text style={styles.infoText}>
-              Lege eine <Text style={styles.highlight}>index.html</Text> oder eine andere
-              HTML-Datei im Projekt an. Sie wird automatisch auf das Gerät kopiert und mit
-              allen relativen Assets geladen.
+              {isReactNativeProject ? (
+                <>
+                  Für React Native Apps empfehlen wir <Text style={styles.highlight}>Expo Go</Text> auf deinem Handy.
+                  Du kannst aber auch eine Web-Vorschau erstellen.
+                </>
+              ) : (
+                <>
+                  Lege eine <Text style={styles.highlight}>index.html</Text> oder eine andere
+                  HTML-Datei im Projekt an. Sie wird automatisch auf das Gerät kopiert und mit
+                  allen relativen Assets geladen.
+                </>
+              )}
             </Text>
             <TouchableOpacity
               style={styles.primaryButton}
-              onPress={handleCreateIndexHtml}
+              onPress={handleCreatePreviewHtml}
             >
-              <Text style={styles.primaryButtonText}>index.html erstellen</Text>
+              <Text style={styles.primaryButtonText}>
+                {isReactNativeProject ? 'preview.html erstellen' : 'index.html erstellen'}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.secondaryButton} onPress={forceResync}>
               <Text style={styles.secondaryButtonText}>Erneut prüfen</Text>
@@ -692,16 +768,34 @@ const PreviewScreen: React.FC = () => {
           </View>
 
           <View style={styles.hintCard}>
-            <Text style={styles.hintTitle}>Tipps für eine echte Preview</Text>
-            <Text style={styles.hintText}>
-              • Verwende relative Pfade wie <Text style={styles.highlight}>./styles.css</Text> für Assets.
+            <Text style={styles.hintTitle}>
+              {isReactNativeProject ? 'Vorschau-Optionen' : 'Tipps für eine echte Preview'}
             </Text>
-            <Text style={styles.hintText}>
-              • Bilder können als Base64 (<Text style={styles.highlight}>data:image</Text>) hinterlegt werden.
-            </Text>
-            <Text style={styles.hintText}>
-              • Nach jeder Änderung genügt ein Tipp auf "Dateien neu laden".
-            </Text>
+            {isReactNativeProject ? (
+              <>
+                <Text style={styles.hintText}>
+                  • <Text style={styles.highlight}>Expo Go</Text>: Scanne den QR-Code nach `npm start`
+                </Text>
+                <Text style={styles.hintText}>
+                  • <Text style={styles.highlight}>Web-Preview</Text>: Erstelle eine preview.html für eine schnelle Vorschau
+                </Text>
+                <Text style={styles.hintText}>
+                  • <Text style={styles.highlight}>Build</Text>: Erstelle einen EAS Build für die echte App
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.hintText}>
+                  • Verwende relative Pfade wie <Text style={styles.highlight}>./styles.css</Text> für Assets.
+                </Text>
+                <Text style={styles.hintText}>
+                  • Bilder können als Base64 (<Text style={styles.highlight}>data:image</Text>) hinterlegt werden.
+                </Text>
+                <Text style={styles.hintText}>
+                  • Nach jeder Änderung genügt ein Tipp auf "Dateien neu laden".
+                </Text>
+              </>
+            )}
           </View>
         </View>
       )}
