@@ -544,8 +544,8 @@ const ConnectionsScreen: React.FC = () => {
   return (
     <KeyboardAvoidingView 
       style={styles.keyboardAvoidingView}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
       <ScrollView
         style={styles.container}
@@ -780,7 +780,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
-    paddingBottom: 32,
+    paddingBottom: Platform.OS === 'android' ? 80 : 32,
   },
   title: {
     color: theme.palette.text.primary,
