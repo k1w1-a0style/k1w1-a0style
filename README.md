@@ -1,6 +1,27 @@
 # k1w1-a0style
 
-React Native App Builder mit KI-Integration - ähnlich Bolt.new/Lovable.
+**React Native App Builder mit KI-Integration** – ähnlich Bolt.new/Lovable.
+
+Eine mobile App zum Erstellen und Bearbeiten von React Native Apps mit KI-Unterstützung, GitHub-Integration und EAS Build-Support.
+
+---
+
+## 📋 Inhaltsverzeichnis
+
+- [Quick Start](#-quick-start)
+- [Projekt-Status](#-projekt-status)
+- [Features](#-features)
+- [Architektur](#-architektur)
+- [Security](#-security)
+- [Testing](#-testing)
+- [Build & Deploy](#-build--deploy)
+- [API-Provider](#-api-provider)
+- [Screens & Funktionen](#-screens--funktionen)
+- [To-Do Liste](#-to-do-liste)
+- [Development](#-development)
+- [Troubleshooting](#-troubleshooting)
+
+---
 
 ## 🚀 Quick Start
 
@@ -11,264 +32,427 @@ npm install
 # Development starten
 npm start
 
+# Tests ausführen
+npm test
+
 # Lint prüfen
 npm run lint
 ```
 
-## 📋 Projekt-Status
+---
+
+## 📊 Projekt-Status
 
 | Kategorie | Status | Details |
 |-----------|--------|---------|
-| **Workflows** | ✅ Optimiert | [Siehe Workflow-Docs](./.github/workflows/README.md) |
-| **Code-Review** | ⚠️ Action Items | [Siehe Critical Review](./INDEX_KRITISCHE_REVIEWS.md) |
-| **Tests** | ✅ 95 Tests Passing | 97% Success Rate, 93%+ Security Coverage |
-| **Sicherheit** | ✅ Beta-Ready | 4 kritische Issues behoben |
-| **Status** | 🎉 **BETA-READY!** | Tests laufen, App ist stabil |
+| **Security** | ✅ Beta-Ready | 4/11 kritische Issues behoben, Score: 7/10 |
+| **Tests** | ✅ 112 Tests | 6/7 Test-Suites passing |
+| **EAS Build** | ✅ Konfiguriert | Kotlin 2.0.21, APK/AAB ready |
+| **UI/UX** | ✅ Modern | Dark Theme, Neon-Grün Akzente, Animationen |
+| **Status** | 🎉 **BETA-READY** | App ist stabil und launchbar |
 
-## 📚 Wichtige Dokumente
+### Aktueller Test-Status
 
-### 🔍 Code-Reviews & Optimierungen
-
-**Start hier:** [INDEX_KRITISCHE_REVIEWS.md](./INDEX_KRITISCHE_REVIEWS.md) - Übersicht aller Reviews
-
-#### Code-Review:
-- [EXECUTIVE_SUMMARY.md](./EXECUTIVE_SUMMARY.md) - Schnellübersicht
-- [AKTUELLE_KRITISCHE_PRUEFUNG.md](./AKTUELLE_KRITISCHE_PRUEFUNG.md) - Vollständiges Audit
-- [CRITICAL_ACTION_ITEMS.md](./CRITICAL_ACTION_ITEMS.md) - Priorisierte Checkliste
-
-#### Workflow-Optimierung:
-- [WORKFLOW_OPTIMIERUNG_SUMMARY.md](./WORKFLOW_OPTIMIERUNG_SUMMARY.md) - Schnellübersicht
-- [WORKFLOW_KRITISCHE_ANALYSE.md](./WORKFLOW_KRITISCHE_ANALYSE.md) - Detaillierte Analyse
-- [WORKFLOW_MIGRATION_COMPLETE.md](./WORKFLOW_MIGRATION_COMPLETE.md) - Migrations-Dokumentation
-- [.github/workflows/README.md](./.github/workflows/README.md) - Workflow-Guide
-
-### 🧪 Test & Security
-
-**🎉 WOCHE 1 KOMPLETT!** [Beta-Ready Success Report](./BETA_READY_SUCCESS_REPORT.md) - READ THIS FIRST!
-
-#### Test-Befehle:
-```bash
-npm test                  # Alle Tests ausführen
-npm run test:coverage     # Mit Coverage-Report
-npm run test:watch        # Watch Mode
+```
+Test Suites: 6 passed, 1 failed (Mock fehlt), 7 total
+Tests:       112 passed, 3 skipped, 115 total
 ```
 
-**Test-Ergebnisse:**
-- ✅ 95 Tests passing (97% success rate)
-- ✅ 93%+ Coverage für kritische Security-Module
-- ⚡ 0.5s Ausführungszeit
+---
 
-#### Quick Reference:
-- [🎉 BETA-READY SUCCESS REPORT](./BETA_READY_SUCCESS_REPORT.md) - ⭐ Woche 1 Zusammenfassung
-- [TESTING_GUIDE.md](./TESTING_GUIDE.md) - Wie man Tests schreibt
-- [JEST_SETUP_COMPLETE.md](./JEST_SETUP_COMPLETE.md) - Jest Setup Dokumentation
-- [TEST_SECURITY_EXECUTIVE_SUMMARY.md](./TEST_SECURITY_EXECUTIVE_SUMMARY.md) - Executive Summary
+## ✨ Features
 
-#### Vollständige Dokumentation:
-- [COMPREHENSIVE_TEST_SECURITY_PLAN.md](./COMPREHENSIVE_TEST_SECURITY_PLAN.md) - Kompletter Plan (88-122h)
-- [TEST_SECURITY_CHECKLIST.md](./TEST_SECURITY_CHECKLIST.md) - Implementation Checklist (150+ Tasks)
-- [SECURITY_QUICK_REFERENCE.md](./SECURITY_QUICK_REFERENCE.md) - Developer Security Guide
-- [IMMEDIATE_NEXT_STEPS.md](./IMMEDIATE_NEXT_STEPS.md) - Woche 1 Tasks (KOMPLETT!)
-- [WEEK1_PROGRESS_REPORT.md](./WEEK1_PROGRESS_REPORT.md) - Fortschritts-Tracking
+### 🤖 KI-Integration
+- **Multi-Provider Support**: Groq, Gemini, OpenAI, Anthropic, HuggingFace
+- **Automatisches Fallback**: Bei Fehler → nächster Provider
+- **Key-Rotation**: Automatische Rotation bei Rate Limits
+- **Quality Modes**: Speed vs. Quality
 
-## 🔄 CI/CD Workflows
+### 📁 Projekt-Management
+- **File-Editor**: Erstellen, Bearbeiten, Löschen von Dateien
+- **ZIP Import/Export**: Projekte als ZIP teilen
+- **Template-System**: Expo SDK 54 Templates
+- **Syntax-Validierung**: Fehler-Erkennung in Echtzeit
 
-Dieses Projekt verwendet 3 optimierte GitHub Actions Workflows:
+### 🔗 GitHub-Integration
+- **Repository-Verknüpfung**: Connect mit GitHub Repos
+- **Commit & Push**: Änderungen direkt committen
+- **Workflow-Status**: GitHub Actions Live-Logs
+- **API-Backup**: Keys exportieren/importieren
 
-| Workflow | Trigger | Zweck | Build-Zeit |
-|----------|---------|-------|------------|
-| `ci-build.yml` | Push/PR | Schnelle CI Validierung | ~5-8 min |
-| `k1w1-triggered-build.yml` | K1W1 App | Build mit Status-Tracking | ~5-10 min |
-| `release-build.yml` | Manuell | Production Builds | ~10-15 min |
+### 🏗️ Build System
+- **EAS Build**: Preview, Development, Production Profiles
+- **Live-Status**: Echtzeit Build-Fortschritt
+- **Fehleranalyse**: Automatische Erkennung & Lösungsvorschläge
+- **Download**: APK/AAB direkt in der App
 
-**Dokumentation:** [.github/workflows/README.md](./.github/workflows/README.md)
+### 🖥️ Terminal
+- **Console-Logs**: Alle Logs in Echtzeit
+- **Filter**: Nach Level filtern (Info, Warn, Error)
+- **Suche**: Logs durchsuchen
+- **Export**: JSON/TXT Export
 
-## 🎉 Status Update: BETA-READY!
-
-Das Projekt ist **BETA-READY!** 🎊
-
-### ✅ Woche 1 Komplett (ALLE behoben!):
-1. ✅ API-Keys aus Global Scope entfernen → `SecureKeyManager` implementiert
-2. ✅ Input-Validierung → `validators.ts` mit Zod implementiert
-3. ✅ Token Encryption → `SecureTokenManager` implementiert
-4. ✅ Race Conditions → Mutex in ProjectContext
-5. ✅ Jest Setup → 95 Tests passing!
-
-**Investiert:** 20 Stunden (UNTER Budget!)  
-**Erreicht:** Security 7/10, 95 Tests, Beta-Ready Status ✅
-
-### 📋 Nächste Schritte (Woche 2):
-- [ ] Weitere Unit Tests (fileWriter, orchestrator)
-- [ ] Integration Tests
-- [ ] CI/CD Integration
-- [ ] Coverage auf 40% erhöhen
-
-**Details:** Siehe [BETA_READY_SUCCESS_REPORT.md](./BETA_READY_SUCCESS_REPORT.md)
+---
 
 ## 🎯 Architektur
 
-### Verzeichnisstruktur:
+### Verzeichnisstruktur
+
 ```
 k1w1-a0style/
-├── .github/workflows/    # CI/CD Workflows (optimiert)
-├── components/           # React Components
-├── contexts/            # React Contexts (State Management)
-├── lib/                 # Core-Logik (orchestrator, fileWriter, etc.)
-├── screens/             # App-Screens
-├── supabase/            # Supabase Functions
+├── screens/              # App-Screens (11 Screens)
+│   ├── ChatScreen.tsx    # KI-Chat Interface
+│   ├── CodeScreen.tsx    # Datei-Editor
+│   ├── BuildScreen.tsx   # Build-Management
+│   ├── TerminalScreen.tsx# Console-Logs
+│   └── ...
+├── contexts/             # React Context (State Management)
+│   ├── AIContext.tsx     # KI-Konfiguration
+│   ├── ProjectContext.tsx# Projekt-State
+│   └── ...
+├── lib/                  # Core-Logik (15 Module)
+│   ├── orchestrator.ts   # KI-Provider-Orchestrierung
+│   ├── SecureKeyManager.ts # Sichere Key-Verwaltung
+│   ├── validators.ts     # Input-Validierung (Zod)
+│   └── ...
+├── hooks/               # Custom React Hooks (5 Hooks)
+├── components/          # UI-Komponenten (11 Components)
 ├── utils/               # Helper-Funktionen
-└── hooks/               # Custom React Hooks
+├── supabase/            # Supabase Edge Functions
+│   └── functions/       # 7 Serverless Functions
+├── __tests__/           # Tests (112+ Tests)
+└── __mocks__/           # Jest Mocks (6 Mocks)
 ```
 
-### Tech Stack:
-- **Framework:** React Native (Expo)
-- **Language:** TypeScript (Strict Mode)
-- **State:** React Context API
-- **Backend:** Supabase
-- **CI/CD:** GitHub Actions + EAS Build
-- **AI Providers:** Groq, Gemini, OpenAI, Anthropic, HuggingFace
+### Tech Stack
+
+| Kategorie | Technologie |
+|-----------|-------------|
+| **Framework** | React Native (Expo SDK 54) |
+| **Language** | TypeScript (Strict Mode) |
+| **State** | React Context API |
+| **Backend** | Supabase (Edge Functions, Auth) |
+| **Build** | EAS Build + GitHub Actions |
+| **Tests** | Jest + Testing Library |
+| **Validation** | Zod |
+
+---
 
 ## 🔐 Security
 
-**Status:** ✅ Beta-Ready (Kritische Issues behoben)
+### ✅ Behobene Issues (Woche 1)
 
-### Behobene kritische Issues:
-1. ✅ API-Keys aus Global Scope entfernt (SEC-001) - [Details](./CRITICAL_FIXES_COMPLETED.md#fix-1)
-2. ✅ Input-Validierung implementiert (SEC-002) - [Details](./CRITICAL_FIXES_COMPLETED.md#fix-2)
-3. ✅ Token Encryption hinzugefügt (SEC-003) - [Details](./CRITICAL_FIXES_COMPLETED.md#fix-4)
-4. ✅ Race Conditions behoben (SEC-004) - [Details](./CRITICAL_FIXES_COMPLETED.md#fix-7)
+| Issue | Beschreibung | Status |
+|-------|--------------|--------|
+| **SEC-001** | API Keys aus globalThis entfernt | ✅ `SecureKeyManager.ts` |
+| **SEC-002** | Input Validation implementiert | ✅ `validators.ts` (Zod) |
+| **SEC-003** | Token Encryption hinzugefügt | ✅ `SecureTokenManager.ts` |
+| **SEC-004** | Race Conditions behoben | ✅ Mutex in ProjectContext |
 
-### Verbleibende Issues (Medium/Low - geplant):
-5. 🟡 Memory Leaks (SEC-005) - Geplant für Woche 2
-6. 🟡 Rate Limiting (SEC-006) - Geplant für Woche 2
-7. 🟡 XSS Prevention (SEC-007) - Geplant für Woche 5
-8. 🟡 Supabase RLS (SEC-008) - Geplant für Woche 5
-9. 🟡 CORS (SEC-009) - Geplant für Woche 5
-10. 🟡 Dependency Audit (SEC-010) - Geplant für Woche 2
-11. 🟡 Supabase Function Validation (SEC-011) - Geplant für Woche 5
+### 📋 Geplante Issues (Woche 2-5)
 
-**Security Score:** 7/10 (Beta-Ready)  
-**Details:** [CRITICAL_FIXES_COMPLETED.md](./CRITICAL_FIXES_COMPLETED.md) | [Security Guide](./SECURITY_QUICK_REFERENCE.md)
+| Issue | Beschreibung | Priorität |
+|-------|--------------|-----------|
+| **SEC-005** | Memory Leaks beheben | 🟡 Mittel |
+| **SEC-006** | Rate Limiting implementieren | 🟡 Mittel |
+| **SEC-007** | XSS Prevention | 🟢 Niedrig |
+| **SEC-008** | Supabase RLS | 🟢 Niedrig |
+| **SEC-009** | CORS Hardening | 🟢 Niedrig |
+| **SEC-010** | Dependency Audit | 🟡 Mittel |
+| **SEC-011** | Supabase Function Validation | 🟢 Niedrig |
+
+### Security Best Practices
+
+```typescript
+// ❌ FALSCH: Keys in globalThis
+(global as any).API_KEY = key;
+
+// ✅ RICHTIG: SecureKeyManager verwenden
+import SecureKeyManager from './lib/SecureKeyManager';
+SecureKeyManager.setKeys('groq', ['key1', 'key2']);
+const key = SecureKeyManager.getCurrentKey('groq');
+```
+
+```typescript
+// ❌ FALSCH: Keine Validierung
+const createFile = (path: string) => fs.write(path, content);
+
+// ✅ RICHTIG: Mit Validierung
+import { FilePathSchema } from './lib/validators';
+const validated = FilePathSchema.parse(path); // Throws bei Fehler
+```
+
+---
 
 ## 🧪 Testing
 
-**Status:** ✅ Jest Setup komplett! (95 Tests passing, 3% global Coverage, 93%+ für kritische Module)
+### Test-Befehle
 
-**Ausführen:**
 ```bash
-npm install
-npm test              # Alle Tests
-npm run test:coverage # Mit Coverage-Report
-npm run test:watch    # Watch-Mode
+npm test                  # Alle Tests ausführen
+npm run test:watch        # Watch Mode
+npm run test:coverage     # Mit Coverage-Report
+npm run test:verbose      # Verbose Output
+npm run test:clear        # Cache leeren
 ```
 
-### Aktueller Stand:
-| Modul | Tests | Coverage |
-|-------|-------|----------|
-| `lib/SecureKeyManager` | 16 | 93.33% ✅ |
-| `lib/validators` | 40+ | 94.11% ✅ |
-| `__tests__/smoke` | 50+ | 100% ✅ |
-| **GESAMT** | **95 passing** | **3% global, 93%+ kritische Module** |
+### Test-Status
 
-### Coverage Targets:
-| Module | Current | Target |
-|--------|---------|--------|
-| `lib/` | ~90% | 85% ✅ |
-| `contexts/` | ~10% | 80% |
-| `utils/` | ~80% | 90% |
-| **Overall** | **~20%** | **80%** |
+| Modul | Tests | Status |
+|-------|-------|--------|
+| `SecureKeyManager` | 16 | ✅ Passing |
+| `validators` | 40+ | ✅ Passing |
+| `smoke tests` | 50+ | ✅ Passing |
+| `chatParsing` | 5 | ✅ Passing |
+| `jsonTruncation` | 3 | ✅ Passing |
+| **Gesamt** | **112** | ✅ **6/7 Suites** |
 
-**Guides:**
-- [TESTING_GUIDE.md](./TESTING_GUIDE.md) - Wie man Tests schreibt
-- [JEST_SETUP_COMPLETE.md](./JEST_SETUP_COMPLETE.md) - Setup-Dokumentation
-- [COMPREHENSIVE_TEST_SECURITY_PLAN.md](./COMPREHENSIVE_TEST_SECURITY_PLAN.md) - Vollständiger Plan
+### Vorhandene Mocks
 
-## 📦 Dependencies
+- `@react-native-async-storage/async-storage`
+- `expo-secure-store`
+- `expo-file-system`
+- `expo-constants`
+- `expo-crypto`
+- `uuid`
 
-### Production:
-- expo ~54.0.18
-- react-native 0.81.5
-- @supabase/supabase-js ^2.75.0
-- expo-secure-store ~15.0.7
-- async-mutex ^0.5.0
+---
 
-### Development:
-- typescript ~5.9.3
-- eslint ^9.0.0
+## 🏗️ Build & Deploy
 
-**Node:** >=20.0.0 (siehe package.json engines)
+### EAS Build
 
-## 🚀 Build & Deploy
-
-### EAS Build (via GitHub Actions):
 ```bash
-# CI Build (automatisch bei Push)
-git push origin main
+# Preview Build (APK)
+eas build --platform android --profile preview
 
-# K1W1 App Build (via Supabase Function)
-# → Über K1W1 App triggern
+# Production Build (AAB)
+eas build --platform android --profile production
 
-# Release Build (manuell)
-gh workflow run release-build.yml -f platform=android -f profile=production
-```
-
-### Lokal:
-```bash
 # Development Build
-npx eas build --profile development --platform android
-
-# Production Build
-npx eas build --profile production --platform android
+eas build --platform android --profile development
 ```
 
-**Dokumentation:** [.github/workflows/README.md](./.github/workflows/README.md)
+### Build Profiles (eas.json)
 
-## 🐛 Known Issues
+| Profil | Output | Verwendung |
+|--------|--------|------------|
+| `development` | APK (Debug) | Lokale Entwicklung |
+| `preview` | APK (Release) | Interne Tests |
+| `production` | AAB | Store-Submission |
 
-1. ✅ ~~Workflow Job ID Bug~~ (GEFIXT)
-2. ✅ ~~Redundante Workflows~~ (GEFIXT)
-3. ⚠️ API-Keys im Global Scope (OFFEN)
-4. ⚠️ Keine Tests (OFFEN)
-5. ⚠️ Input-Validierung fehlt (OFFEN)
+### Kotlin Konfiguration
 
-**Details:** [CRITICAL_ACTION_ITEMS.md](./CRITICAL_ACTION_ITEMS.md)
+Das Projekt verwendet **Kotlin 2.0.21** für KSP-Kompatibilität:
 
-## 📊 Performance
+```properties
+# android/gradle.properties
+android.kotlinVersion=2.0.21
+android.kspVersion=2.0.21-1.0.28
+```
 
-### Workflow-Optimierung:
-- **Vorher:** 15-25 Minuten Build-Zeit
-- **Nachher:** 5-8 Minuten Build-Zeit
-- **Verbesserung:** 🚀 60-70% schneller!
+---
 
-### Code-Optimierung:
-- **Status:** In Progress
-- **Target:** 50% weniger Race Conditions, Memory Leaks behoben
+## 🤖 API-Provider
 
-## 🤝 Contributing
+### Unterstützte Provider
 
-1. Lese [CRITICAL_ACTION_ITEMS.md](./CRITICAL_ACTION_ITEMS.md) für priorisierte Tasks
-2. Erstelle Feature-Branch
-3. Implementiere Tests (Required!)
-4. Submit Pull Request
+| Provider | Modelle | Speed | Quality |
+|----------|---------|-------|---------|
+| **Groq** | llama-3.3-70b, mixtral-8x7b | ⚡ Sehr schnell | 🟢 Gut |
+| **Gemini** | gemini-1.5-pro, gemini-2.0-flash | ⚡ Schnell | 🟢 Sehr gut |
+| **OpenAI** | gpt-4o, gpt-4o-mini | 🟡 Mittel | 🟢 Exzellent |
+| **Anthropic** | claude-3.5-sonnet, claude-3-opus | 🟡 Mittel | 🟢 Exzellent |
+| **HuggingFace** | Diverse Open-Source | ⚡ Variabel | 🟡 Variabel |
 
-**Wichtig:** Keine Pull Requests ohne Tests für neue Features!
+### Key-Konfiguration
 
-## 📝 License
+1. **In der App**: Settings → API-Keys
+2. **Backup/Restore**: AppInfo → API-Backup exportieren/importieren
 
-Siehe LICENSE Datei.
+---
+
+## 📱 Screens & Funktionen
+
+### Übersicht
+
+| Screen | Funktion |
+|--------|----------|
+| **ChatScreen** | KI-Chat für Code-Generierung |
+| **CodeScreen** | Datei-Editor mit Syntax-Highlighting |
+| **PreviewScreen** | App-Vorschau (WebView) |
+| **BuildScreen** | Build-Status & Trigger |
+| **EnhancedBuildScreen** | Erweiterte Build-Ansicht mit Logs |
+| **TerminalScreen** | Console-Logs mit Filter & Export |
+| **SettingsScreen** | API-Keys & Provider-Auswahl |
+| **ConnectionsScreen** | GitHub & Expo Verbindung |
+| **GitHubReposScreen** | Repository-Auswahl |
+| **AppInfoScreen** | App-Name, Icon, Backup |
+| **DiagnosticScreen** | Debug-Informationen |
+
+---
+
+## 📋 To-Do Liste
+
+### ✅ Erledigt
+
+- [x] **Security**: SecureKeyManager implementiert
+- [x] **Security**: Input Validation mit Zod
+- [x] **Security**: Token Encryption
+- [x] **Security**: Race Conditions behoben
+- [x] **Tests**: Jest Setup komplett
+- [x] **Tests**: 112 Tests implementiert
+- [x] **Tests**: Mocks für alle Dependencies
+- [x] **Build**: EAS Konfiguration
+- [x] **Build**: Kotlin 2.0.21 Kompatibilität
+- [x] **Build**: EnhancedBuildScreen mit Live-Logs
+- [x] **UI**: Terminal Enhancements (Filter, Suche, Export)
+- [x] **UI**: Chat Animationen & Optimierungen
+- [x] **UI**: AppInfoScreen mit Icon-Picker & API-Backup
+- [x] **Hooks**: useBuildStatus, useGitHubActionsLogs
+
+### 🔄 In Arbeit / Geplant
+
+#### Priorität: Hoch
+- [ ] Mock für `react-native-zip-archive` (App.test.tsx failing)
+- [ ] Test Coverage erhöhen (Ziel: 40%)
+- [ ] fileWriter.test.ts schreiben
+- [ ] orchestrator.test.ts erweitern
+
+#### Priorität: Mittel
+- [ ] CI/CD Integration für Tests (GitHub Actions)
+- [ ] Integration Tests (AI + Orchestrator)
+- [ ] SEC-005: Memory Leaks beheben
+- [ ] SEC-006: Rate Limiting implementieren
+- [ ] SecureTokenManager.test.ts schreiben
+
+#### Priorität: Niedrig
+- [ ] E2E Tests mit Detox
+- [ ] SEC-007 bis SEC-011 beheben
+- [ ] Push-Benachrichtigungen bei Build-Completion
+- [ ] Build-Historie mit Statistiken
+- [ ] Code-Syntax-Highlighting in Chat
+
+---
+
+## 🛠️ Development
+
+### Requirements
+
+- Node.js >= 20.0.0
+- npm >= 10.0.0
+- Expo CLI
+- EAS CLI (für Builds)
+
+### Umgebung einrichten
+
+```bash
+# Repository klonen
+git clone https://github.com/your-repo/k1w1-a0style.git
+cd k1w1-a0style
+
+# Dependencies installieren
+npm install
+
+# Development starten
+npm start
+```
+
+### Neue Tests schreiben
+
+```typescript
+// lib/__tests__/MyModule.test.ts
+describe('MyModule', () => {
+  it('sollte korrekt funktionieren', () => {
+    const result = myFunction('input');
+    expect(result).toBe('expected');
+  });
+});
+```
+
+### Supabase Functions deployen
+
+```bash
+cd supabase/functions
+supabase functions deploy <function-name>
+```
+
+---
+
+## 🐛 Troubleshooting
+
+### Tests schlagen fehl
+
+```bash
+# Cache leeren
+npm run test:clear
+npm install
+npm test
+```
+
+### Build-Fehler (Kotlin)
+
+Verifiziere Kotlin-Version in `android/gradle.properties`:
+```properties
+android.kotlinVersion=2.0.21
+```
+
+### API-Keys funktionieren nicht
+
+1. Prüfe Key-Format im Settings-Screen
+2. Verifiziere Provider-Status auf deren Websites
+3. Prüfe Rate-Limits
+
+### App startet nicht
+
+```bash
+# Expo Cache leeren
+npx expo start --clear
+```
+
+---
+
+## 📚 Weitere Ressourcen
+
+- [Expo Documentation](https://docs.expo.dev)
+- [EAS Build Documentation](https://docs.expo.dev/build/introduction/)
+- [React Native Testing Library](https://callstack.github.io/react-native-testing-library/)
+- [Zod Documentation](https://zod.dev)
+
+---
+
+## 📝 Changelog
+
+### Version 1.0.0 (Dezember 2025)
+
+**Security:**
+- ✅ SecureKeyManager für sichere API-Key-Verwaltung
+- ✅ Input Validation mit Zod-Schemas
+- ✅ Token Encryption mit IV und Key-Stretching
+- ✅ Race Conditions mit async-mutex behoben
+
+**Testing:**
+- ✅ Jest Setup mit 112 Tests
+- ✅ Mocks für Expo-Module
+
+**Build:**
+- ✅ EAS Build konfiguriert (APK/AAB)
+- ✅ Kotlin 2.0.21 Kompatibilität
+- ✅ Enhanced Build Screen mit Live-Logs
+
+**UI/UX:**
+- ✅ Terminal mit Filter, Suche, Export
+- ✅ Chat mit Animationen
+- ✅ AppInfoScreen mit Icon-Picker & API-Backup
 
 ---
 
 ## 📞 Support
 
-**Workflow-Probleme?** → [.github/workflows/README.md](./.github/workflows/README.md)  
-**Code-Reviews?** → [INDEX_KRITISCHE_REVIEWS.md](./INDEX_KRITISCHE_REVIEWS.md)  
-**Test & Security?** → [TEST_SECURITY_EXECUTIVE_SUMMARY.md](./TEST_SECURITY_EXECUTIVE_SUMMARY.md)  
-**Security Guide?** → [SECURITY_QUICK_REFERENCE.md](./SECURITY_QUICK_REFERENCE.md)  
-**Weitere Fragen?** → GitHub Issues
+**Issues?** → GitHub Issues erstellen
 
 ---
 
-**Letztes Update:** 5. Dezember 2025  
-**Status:** In Active Development  
-**Production-Ready:** ⚠️ Beta-Ready (siehe [BETA_READY_SUCCESS_REPORT.md](./BETA_READY_SUCCESS_REPORT.md))
+**Status:** 🎉 BETA-READY  
+**Letztes Update:** Dezember 2025  
+**Version:** 1.0.0
