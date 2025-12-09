@@ -11,7 +11,7 @@ import React, {
   ReactNode,
 } from 'react';
 import { Alert, AppState, AppStateStatus } from 'react-native';
-import { ProjectData, ProjectFile, ChatMessage, ProjectContextProps } from './types';
+import { ProjectData, ProjectFile, ChatMessage, ProjectContextProps, AutoFixRequest } from './types';
 import {
   saveProjectToStorage,
   loadProjectFromStorage,
@@ -62,6 +62,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   
   // ✅ SICHERHEIT: Mutex für atomare Updates (verhindert Race Conditions)
   const mutexRef = useRef(new Mutex());
+  
+  // ✅ NEU: Auto-Fix State für DiagnosticScreen -> ChatScreen Kommunikation
+  const [autoFixRequest, setAutoFixRequest] = useState<AutoFixRequest | null>(null);
 
   const debouncedSave = useCallback((project: ProjectData) => {
     if (saveTimeoutRef.current) {
@@ -352,6 +355,22 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     [updateProject],
   );
 
+  // ✅ NEU: Auto-Fix Funktionen für DiagnosticScreen
+  const triggerAutoFix = useCallback((message: string) => {
+    const request: AutoFixRequest = {
+      id: uuidv4(),
+      message,
+      timestamp: new Date().toISOString(),
+    };
+    setAutoFixRequest(request);
+    console.log('[ProjectContext] Auto-Fix Request getriggert:', request.id);
+  }, []);
+
+  const clearAutoFixRequest = useCallback(() => {
+    setAutoFixRequest(null);
+    console.log('[ProjectContext] Auto-Fix Request gelöscht');
+  }, []);
+
   useEffect(() => {
     const initializeProject = async () => {
       try {
@@ -438,6 +457,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     setProjectName,
     // Chat-Array für Screens
     messages: projectData?.chatHistory?.filter(msg => msg && msg.id) || [],
+    // ✅ NEU: Auto-Fix Feature
+    autoFixRequest,
+    triggerAutoFix,
+    clearAutoFixRequest,
     // Für BuildScreen (Dummy-Implementierung bleibt, bis EAS-Flow final ist)
     exportAndBuild: async () => {
       Alert.alert('Fehler', 'exportAndBuild ist veraltet.');

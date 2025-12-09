@@ -13,7 +13,15 @@ export interface ChatMessage {
   meta?: {                          // ✅ NEU: Optional meta-Daten
     provider?: string;
     error?: boolean;
+    autoFix?: boolean;              // ✅ NEU: Flag für Auto-Fix Requests
   };
+}
+
+// ✅ NEU: Auto-Fix Request Interface
+export interface AutoFixRequest {
+  id: string;
+  message: string;
+  timestamp: string;
 }
 
 export interface ProjectData {
@@ -46,6 +54,11 @@ export interface ProjectContextProps {
   // Chat operations
   addChatMessage: (message: ChatMessage) => void;
   messages: ChatMessage[];
+
+  // ✅ NEU: Auto-Fix Feature
+  autoFixRequest: AutoFixRequest | null;
+  triggerAutoFix: (message: string) => void;
+  clearAutoFixRequest: () => void;
 
   // Export/Import
   exportAndBuild: () => Promise<{ owner: string; repo: string } | null>;
