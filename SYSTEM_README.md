@@ -38,7 +38,7 @@ Die App besteht aus:
 - `supabase/functions/` (7 Edge Functions)
 - `hooks/` (5 Hooks: useBuildStatus, useBuildStatusSupabase, useBuildTrigger, useGitHubActionsLogs, useGitHubRepos)
 - `utils/` (4 Modules: chatUtils, metaCommands, projectSnapshot, syntaxValidator)
-- `templates/`
+- `templates/` (3 Templates: base, navigation, crud)
 - `types/`
 - `__tests__/` + `__mocks__/`
 
@@ -107,14 +107,23 @@ console.log(`Remaining: ${status.remaining}/${status.total}`);
 
 ---
 
-## 3.4 Project Analyzer
-Analysiert geladene Projekte:
+## 3.4 Project Analyzer ✅ VERBESSERT
+Analysiert geladene Projekte im DiagnosticScreen:
 
-- prüft `app.config.js`
-- prüft Android packageName
-- prüft `App.tsx` Existenz
-- erkennt Expo SDK Version
-- listet Probleme im DiagnosticScreen
+### Features (NEU erweitert):
+- prüft `app.config.js` und validiert Android Package Name
+- prüft iOS bundleIdentifier
+- erkennt Expo SDK Version automatisch
+- listet alle Probleme kategorisiert (Error, Warning, Info)
+- **Security Checks**: API-Keys, Passwörter, eval(), dangerouslySetInnerHTML
+- **Dependency Analyse**: Deprecated Packages, veraltete Versionen
+- **Code Quality**: console.log, TODO/FIXME, @ts-ignore ohne Erklärung
+- **Multi-Fix**: Mehrere Issues gleichzeitig zur KI senden
+
+### Neue Funktionen:
+- `selectAllFixable()` - Alle fixbaren Issues auswählen
+- `sendMultipleIssuesToChat()` - Mehrere Issues gleichzeitig fixen
+- Priority-System (high, medium, low) für Issues
 
 ### KI-Regel:
 Wenn Projektdateien generiert werden → IMMER gültige Struktur sicherstellen.
@@ -230,6 +239,16 @@ UI: GitHubReposScreen.tsx enthält alle Funktionen.
 
 ---
 
+### 8.4 Chat Syntax Highlighting ✅ NEU IMPLEMENTIERT
+**Feature:** Code-Blöcke in Chat-Nachrichten werden jetzt mit Syntax Highlighting dargestellt:
+- Erkennung von ```language...``` Markdown-Blöcken
+- Syntax Highlighting für TypeScript, JavaScript, JSX, etc.
+- Copy-Button für jeden Code-Block
+- Zeilennummern bei längeren Code-Blöcken (>3 Zeilen)
+- Scrollbare Code-Blöcke für lange Inhalte
+
+---
+
 # 9. 📋 Vollständige ToDo-Liste (Neu strukturiert + Prioritäten)
 
 **Stand:** 9. Dezember 2025 (aktualisiert)  
@@ -251,23 +270,27 @@ UI: GitHubReposScreen.tsx enthält alle Funktionen.
 - [x] **retryWithBackoff.test.ts erstellen** ✅ NEU
 - [x] **normalizer.test.ts erstellen** ✅ NEU
 - [x] **SEC-006: Rate Limiting verbessern** ✅ NEU (Token Bucket Algorithm implementiert)
+- [x] **Project Analyzer verbessern** ✅ NEU (Expo SDK Detection, Security Checks, Dependency Analysis)
+- [x] **Mehrere Diagnose-Fixes gleichzeitig ausführen** ✅ NEU (Multi-Fix Button)
+- [x] **Mehr Templates hinzufügen** ✅ NEU (Navigation + CRUD Templates)
+- [x] **Chat Syntax Highlighting** ✅ NEU (Code-Blöcke in Nachrichten)
 
 ## 🔥 HIGH PRIORITY
 - [ ] Echten PreviewScreen bauen (Bolt-Style Live-Preview)  
-- [ ] Project Analyzer verbessern  
+- [x] Project Analyzer verbessern ✅ ERLEDIGT
 - [x] Test Coverage auf 40% erhöhen ✅ ERREICHT
 
 ## 🟡 MEDIUM
 - [x] Integration Tests (AI + Orchestrator) ✅ Bereits vorhanden (AIContext.integration.test.ts)
 - [x] SEC-005: Memory Leaks - Code Review durchgeführt, keine kritischen Leaks gefunden
 - [x] SEC-006: Rate Limiting verbessern ✅ TokenBucketRateLimiter + ProviderRateLimiterManager
-- [ ] Mehrere Diagnose-Fixes gleichzeitig ausführen  
+- [x] Mehrere Diagnose-Fixes gleichzeitig ausführen ✅ ERLEDIGT
 
 ## 🟢 LOW
 - [ ] Build-Historie implementieren  
-- [ ] Mehr Templates hinzufügen  
+- [x] Mehr Templates hinzufügen ✅ ERLEDIGT (2 neue Templates)
 - [ ] Push-Benachrichtigungen nach Build  
-- [ ] Chat Syntax Highlighting  
+- [x] Chat Syntax Highlighting ✅ ERLEDIGT
 - [ ] E2E Tests mit Detox  
 - [ ] SEC-007 bis SEC-011 Security Issues  
 
@@ -333,7 +356,34 @@ Damit Cursor perfekte Ergebnisse liefert:
 
 ---
 
-# 14. 📚 Supabase Functions (7 Stück)
+# 14. 📁 Templates (3 Stück) ✅ ERWEITERT
+Verfügbare Projekt-Templates in `/templates/`:
+
+### expo-sdk54-base.json
+Basis-Template mit:
+- TypeScript + Zod Validation
+- Expo SDK 54 konfiguriert
+- Dark Theme
+- env.ts für Runtime-Env-Validation
+
+### expo-sdk54-navigation.json ✅ NEU
+Navigation-Template mit:
+- React Navigation (Bottom Tabs + Stack)
+- 5 vorkonfigurierte Screens (Home, Explore, Profile, Settings, Details)
+- TypeScript Navigation Types
+- @expo/vector-icons integriert
+
+### expo-sdk54-crud.json ✅ NEU
+CRUD-Template mit:
+- AsyncStorage für lokale Persistenz
+- Create, Read, Update, Delete Operationen
+- FAB (Floating Action Button)
+- Modal für Add/Edit
+- Dark Theme
+
+---
+
+# 15. 📚 Supabase Functions (7 Stück)
 Die KI darf diese erweitern, aber:
 
 - keine Breaking Changes  
@@ -342,7 +392,7 @@ Die KI darf diese erweitern, aber:
 
 ---
 
-# 15. 🎉 Schlusswort
+# 16. 🎉 Schlusswort
 Dies ist die vollständige System-Dokumentation für Cursor.  
 Alle Module, Bugs, Features und Logiken sind enthalten.
 
