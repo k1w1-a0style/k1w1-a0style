@@ -245,16 +245,26 @@ describe('Validators', () => {
       ];
 
       xssPayloads.forEach(payload => {
-        it(`sollte XSS-Payload ablehnen: ${payload.substring(0, 30)}...`, () => {
+        it(`sollte XSS-Payload sanitieren und als hadXSS markieren: ${payload.substring(0, 30)}...`, () => {
           const result = validateChatInput(payload);
-          expect(result.valid).toBe(false);
+          // XSS wird jetzt sanitiert statt abgelehnt
+          expect(result.valid).toBe(true);
+          expect(result.hadXSS).toBe(true);
+          expect(result.sanitized).toBeDefined();
+          // Sanitized sollte keine < oder > Zeichen mehr enthalten
+          expect(result.sanitized).not.toContain('<');
+          expect(result.sanitized).not.toContain('>');
         });
       });
     });
 
-    it('sollte HTML-Tags in Text akzeptieren (als String)', () => {
+    it('sollte harmlose HTML-Tags in Text akzeptieren (kein XSS)', () => {
       const result = validateChatInput('Ich möchte ein <div> Element erstellen');
       expect(result.valid).toBe(true);
+      // Harmlose HTML-Tags wie <div> werden nicht als XSS erkannt
+      // XSS-Erkennung fokussiert auf gefährliche Patterns (script, iframe, onclick, etc.)
+      expect(result.hadXSS).toBe(false);
+      expect(result.sanitized).toBe('Ich möchte ein <div> Element erstellen');
     });
   });
 

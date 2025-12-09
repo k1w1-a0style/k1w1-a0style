@@ -14,12 +14,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBuildStatus } from "../hooks/useBuildStatus";
+import { useBuildHistory } from "../hooks/useBuildHistory";
 import { BuildStatus } from "../lib/buildStatusMapper";
 import { useGitHubActionsLogs } from "../hooks/useGitHubActionsLogs";
 import { BuildErrorAnalyzer, ErrorAnalysis } from "../lib/buildErrorAnalyzer";
 import { CONFIG } from "../config";
 import { theme, getNeonGlow } from "../theme";
 import { useGitHub } from '../contexts/GitHubContext';
+import { BuildHistoryEntry } from "../contexts/types";
 
 type TimelineStepKey = "queued" | "building" | "success";
 type TimelineStepState = "done" | "current" | "upcoming" | "failed";
@@ -133,10 +135,23 @@ export default function EnhancedBuildScreen() {
   const [showLogs, setShowLogs] = useState(false);
   const [errorAnalyses, setErrorAnalyses] = useState<ErrorAnalysis[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   // Animated values for smooth progress bar
   const progressAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Build History Hook
+  const { 
+    history, 
+    stats, 
+    startBuild: addToHistory, 
+    completeBuild: updateHistory,
+    deleteEntry: deleteFromHistory,
+    clearHistory,
+    refresh: refreshHistory,
+    isLoading: historyLoading 
+  } = useBuildHistory();
 
   const { status, details, lastError, isPolling } = useBuildStatus(jobId);
   
@@ -229,18 +244,22 @@ export default function EnhancedBuildScreen() {
       const json = await res.json();
 
       if (json.ok && json.job?.id) {
-        setJobId(json.job.id);
+        const newJobId = json.job.id;
+        setJobId(newJobId);
         setStartedAt(Date.now());
         setElapsedMs(0);
         setShowLogs(true);
         setErrorAnalyses([]);
+        
+        // ✅ Build zur Historie hinzufügen
+        await addToHistory(newJobId, activeRepo, 'preview');
       } else {
         Alert.alert("Fehler", json?.error || "Fehler beim Start des Builds");
       }
     } catch (e: any) {
       Alert.alert("Fehler", e?.message || "Build konnte nicht gestartet werden");
     }
-  }, [activeRepo]);
+  }, [activeRepo, addToHistory]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
@@ -261,6 +280,17 @@ export default function EnhancedBuildScreen() {
     }
   }, [jobId]);
 
+  // ✅ NEU: Build-Historie aktualisieren bei Status-Änderung
+  useEffect(() => {
+    if (jobId && ['success', 'failed', 'error'].includes(status)) {
+      updateHistory(jobId, status as 'success' | 'failed' | 'error', {
+        artifactUrl: details?.urls?.artifacts,
+        htmlUrl: details?.urls?.html,
+        errorMessage: lastError || undefined,
+      });
+    }
+  }, [jobId, status, details, lastError, updateHistory]);
+
   const openUrl = useCallback((url?: string | null) => {
     if (!url) {
       Alert.alert("Fehler", "Kein Link verfügbar");
@@ -273,9 +303,9 @@ export default function EnhancedBuildScreen() {
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refreshLogs();
+    await Promise.all([refreshLogs(), refreshHistory()]);
     setRefreshing(false);
-  }, [refreshLogs]);
+  }, [refreshLogs, refreshHistory]);
 
   const resetBuild = useCallback(() => {
     Alert.alert(
@@ -313,6 +343,74 @@ export default function EnhancedBuildScreen() {
     inputRange: [0, 1],
     outputRange: ['0%', '100%'],
   });
+
+  // ✅ NEU: Helper für Build-Historie Zeitformatierung
+  const formatHistoryDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMinutes = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMinutes < 1) return 'gerade eben';
+    if (diffMinutes < 60) return `vor ${diffMinutes} Min.`;
+    if (diffHours < 24) return `vor ${diffHours} Std.`;
+    if (diffDays < 7) return `vor ${diffDays} Tagen`;
+    return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  };
+
+  const getStatusIcon = (historyStatus: string): string => {
+    switch (historyStatus) {
+      case 'success': return '✅';
+      case 'failed': 
+      case 'error': return '❌';
+      case 'building': return '🔨';
+      case 'queued': return '⏳';
+      default: return '❓';
+    }
+  };
+
+  const getStatusColor = (historyStatus: string): string => {
+    switch (historyStatus) {
+      case 'success': return theme.palette.success;
+      case 'failed': 
+      case 'error': return theme.palette.error;
+      case 'building': return theme.palette.primary;
+      case 'queued': return theme.palette.warning;
+      default: return theme.palette.text.secondary;
+    }
+  };
+
+  const handleDeleteHistoryEntry = useCallback((jobIdToDelete: number) => {
+    Alert.alert(
+      'Eintrag löschen?',
+      `Möchtest du Build #${jobIdToDelete} aus der Historie entfernen?`,
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Löschen',
+          style: 'destructive',
+          onPress: () => deleteFromHistory(jobIdToDelete),
+        },
+      ]
+    );
+  }, [deleteFromHistory]);
+
+  const handleClearHistory = useCallback(() => {
+    Alert.alert(
+      'Historie löschen?',
+      'Möchtest du die gesamte Build-Historie unwiderruflich löschen?',
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Alles löschen',
+          style: 'destructive',
+          onPress: clearHistory,
+        },
+      ]
+    );
+  }, [clearHistory]);
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -617,6 +715,114 @@ export default function EnhancedBuildScreen() {
             )}
           </>
         )}
+
+        {/* ✅ NEU: Build History Card */}
+        <View style={styles.historyCard}>
+          <View style={styles.cardHeader}>
+            <View style={styles.historyTitleRow}>
+              <Text style={styles.cardTitle}>📜 Build-Historie</Text>
+              <View style={styles.statsRow}>
+                <Text style={styles.statBadge}>
+                  ✅ {stats.success}
+                </Text>
+                <Text style={[styles.statBadge, { color: theme.palette.error }]}>
+                  ❌ {stats.failed}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              onPress={() => setShowHistory(!showHistory)}
+              style={styles.toggleButton}
+            >
+              <Text style={styles.toggleButtonText}>
+                {showHistory ? '▼ Ausblenden' : `▶ Anzeigen (${stats.total})`}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {showHistory && (
+            <>
+              {historyLoading ? (
+                <View style={styles.logsLoading}>
+                  <ActivityIndicator color={theme.palette.primary} />
+                  <Text style={styles.logsLoadingText}>Historie wird geladen...</Text>
+                </View>
+              ) : history.length === 0 ? (
+                <Text style={styles.historyEmpty}>
+                  Noch keine Builds in der Historie. Starte oben einen Build!
+                </Text>
+              ) : (
+                <>
+                  <ScrollView 
+                    style={styles.historyScrollContainer}
+                    contentContainerStyle={styles.historyContent}
+                    nestedScrollEnabled={true}
+                    showsVerticalScrollIndicator={true}
+                  >
+                    {history.map((entry) => (
+                      <TouchableOpacity
+                        key={entry.id}
+                        style={[
+                          styles.historyEntry,
+                          entry.jobId === jobId && styles.historyEntryCurrent,
+                        ]}
+                        onLongPress={() => handleDeleteHistoryEntry(entry.jobId)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.historyEntryHeader}>
+                          <Text style={styles.historyEntryIcon}>
+                            {getStatusIcon(entry.status)}
+                          </Text>
+                          <View style={styles.historyEntryInfo}>
+                            <Text style={styles.historyEntryRepo} numberOfLines={1}>
+                              {entry.repoName}
+                            </Text>
+                            <Text style={styles.historyEntryMeta}>
+                              Job #{entry.jobId} • {formatHistoryDate(entry.startedAt)}
+                            </Text>
+                          </View>
+                          <Text style={[styles.historyEntryStatus, { color: getStatusColor(entry.status) }]}>
+                            {entry.status.toUpperCase()}
+                          </Text>
+                        </View>
+                        
+                        {entry.durationMs && (
+                          <Text style={styles.historyEntryDuration}>
+                            ⏱ Dauer: {formatDuration(entry.durationMs)}
+                          </Text>
+                        )}
+                        
+                        {entry.artifactUrl && (
+                          <TouchableOpacity
+                            style={styles.historyArtifactButton}
+                            onPress={() => openUrl(entry.artifactUrl)}
+                          >
+                            <Text style={styles.historyArtifactText}>⬇️ APK herunterladen</Text>
+                          </TouchableOpacity>
+                        )}
+                        
+                        {entry.errorMessage && (
+                          <Text style={styles.historyEntryError} numberOfLines={2}>
+                            ⚠️ {entry.errorMessage}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                  
+                  {history.length > 0 && (
+                    <TouchableOpacity
+                      style={styles.clearHistoryButton}
+                      onPress={handleClearHistory}
+                    >
+                      <Text style={styles.clearHistoryText}>🗑️ Historie löschen</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -1090,5 +1296,118 @@ const styles = StyleSheet.create({
   errorText: {
     color: theme.palette.text.primary,
     fontSize: 13,
+  },
+  // ✅ NEU: Build History Styles
+  historyCard: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: theme.palette.card,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  historyTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  statBadge: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.palette.success,
+  },
+  historyEmpty: {
+    color: theme.palette.text.secondary,
+    padding: 12,
+    textAlign: 'center',
+  },
+  historyScrollContainer: {
+    marginTop: 12,
+    maxHeight: 350,
+    borderRadius: 8,
+    backgroundColor: theme.palette.background,
+  },
+  historyContent: {
+    paddingVertical: 4,
+  },
+  historyEntry: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+  },
+  historyEntryCurrent: {
+    backgroundColor: theme.palette.primary + '15',
+    borderLeftWidth: 3,
+    borderLeftColor: theme.palette.primary,
+  },
+  historyEntryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  historyEntryIcon: {
+    fontSize: 18,
+  },
+  historyEntryInfo: {
+    flex: 1,
+  },
+  historyEntryRepo: {
+    color: theme.palette.text.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  historyEntryMeta: {
+    color: theme.palette.text.secondary,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  historyEntryStatus: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  historyEntryDuration: {
+    color: theme.palette.text.secondary,
+    fontSize: 11,
+    marginTop: 6,
+    marginLeft: 28,
+  },
+  historyArtifactButton: {
+    marginTop: 8,
+    marginLeft: 28,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: theme.palette.success + '20',
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  historyArtifactText: {
+    color: theme.palette.success,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  historyEntryError: {
+    color: theme.palette.error,
+    fontSize: 11,
+    marginTop: 6,
+    marginLeft: 28,
+  },
+  clearHistoryButton: {
+    marginTop: 12,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: theme.palette.error + '15',
+    borderWidth: 1,
+    borderColor: theme.palette.error + '40',
+    alignItems: 'center',
+  },
+  clearHistoryText: {
+    color: theme.palette.error,
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

@@ -5,6 +5,21 @@ export interface ProjectFile {
   content: string;
 }
 
+// ✅ NEU: Build History Types
+export interface BuildHistoryEntry {
+  id: string;
+  jobId: number;
+  repoName: string;
+  status: 'queued' | 'building' | 'success' | 'failed' | 'error';
+  startedAt: string;
+  completedAt?: string;
+  durationMs?: number;
+  buildProfile?: string;
+  artifactUrl?: string | null;
+  htmlUrl?: string | null;
+  errorMessage?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
