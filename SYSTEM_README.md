@@ -34,12 +34,12 @@ Die App besteht aus:
 - `screens/` (11 Screens)
 - `components/` (11 UI-Modules)
 - `lib/` (Core-Logic, 15 Modules)
-- `contexts/` (App State Layers)
-- `supabase/` (7 Edge Functions)
-- `hooks/`
-- `utils/`
+- `contexts/` (7 Modules: AIContext, GitHubContext, githubService, ProjectContext, projectStorage, TerminalContext, types)
+- `supabase/functions/` (7 Edge Functions)
+- `hooks/` (5 Hooks: useBuildStatus, useBuildStatusSupabase, useBuildTrigger, useGitHubActionsLogs, useGitHubRepos)
+- `utils/` (4 Modules: chatUtils, metaCommands, projectSnapshot, syntaxValidator)
 - `templates/`
-- `android_backup/`
+- `types/`
 - `__tests__/` + `__mocks__/`
 
 Die KI MUSS diese Module kennen, da sie miteinander interagieren.
@@ -117,10 +117,26 @@ Wenn Projektdateien generiert werden → IMMER gültige Struktur sicherstellen.
 
 # 5. 📱 Screens (mit Korrekturen & Änderungen)
 
-### 🟢 NEU / GEÄNDERT
-❗ Der "PreviewScreen" ist KEIN Preview → **umbenannt zu AppStatusScreen**.
+### ⚠️ HINWEIS: PreviewScreen
+❗ Der "PreviewScreen" ist KEIN echtes Preview → sollte zu **AppStatusScreen** umbenannt werden.  
+**Status:** Noch nicht umgesetzt. Datei heißt noch `PreviewScreen.tsx`.
 
 Ein echter PreviewScreen (Bolt-Style) wird in Zukunft implementiert.
+
+### 📋 Alle Screens:
+| Screen | Funktion |
+|--------|----------|
+| ChatScreen | KI-Chat |
+| CodeScreen | Editor |
+| PreviewScreen | Projektinfos, Analyse (sollte AppStatusScreen heißen) |
+| BuildScreen | Build-Status |
+| EnhancedBuildScreen | Detaillierte Build-Logs |
+| TerminalScreen | Terminal-Logs |
+| SettingsScreen | API Keys |
+| ConnectionsScreen | GitHub/Expo Verbindungen |
+| GitHubReposScreen | Repository-Verwaltung |
+| AppInfoScreen | Icons, Backup |
+| DiagnosticScreen | Fehleranalyse |
 
 ---
 
@@ -178,36 +194,57 @@ KI-Pflicht:
 
 # 9. 📋 Vollständige ToDo-Liste (Neu strukturiert + Prioritäten)
 
+**Stand:** 9. Dezember 2025  
+**Tests:** 113 passed, 7 Suites  
+**Coverage:** ~10-15% (Ziel: 40%)
+
 ## 🔥 HIGH PRIORITY
-- ZIP-Import implementieren  
-- ChatScreen Input fixen  
-- DiagnosticScreen Auto-Fix  
-- GitHub Funktionen erweitern  
-- echten PreviewScreen bauen  
-- project analyzer verbessern  
+- [ ] ZIP-Import implementieren  
+- [ ] ChatScreen Input fixen (Keyboard + Position)  
+- [ ] DiagnosticScreen Auto-Fix (KI soll automatisch reagieren)  
+- [ ] GitHub Funktionen erweitern (Delete, Create, Pull, Push)  
+- [ ] Echten PreviewScreen bauen (Bolt-Style)  
+- [ ] PreviewScreen → AppStatusScreen umbenennen  
+- [ ] Project Analyzer verbessern  
+- [ ] Test Coverage auf 40% erhöhen  
 
 ## 🟡 MEDIUM
-- Integration Tests  
-- Memory Leaks fixen  
-- Rate Limiting verbessern  
-- Coverage erhöhen  
-- mehrere Diagnose-Fixes gleichzeitig  
+- [ ] Integration Tests (AI + Orchestrator)  
+- [ ] SEC-005: Memory Leaks fixen  
+- [ ] SEC-006: Rate Limiting verbessern  
+- [ ] fileWriter.test.ts erstellen  
+- [ ] SecureTokenManager.test.ts erstellen  
+- [ ] coverage/ Ordner aus Git entfernen (.gitignore aktualisieren)  
+- [ ] Mehrere Diagnose-Fixes gleichzeitig ausführen  
 
 ## 🟢 LOW
-- Build-Historie  
-- mehr Templates  
-- Push-Benachrichtigungen  
-- Chat Syntax Highlighting  
+- [ ] Build-Historie implementieren  
+- [ ] Mehr Templates hinzufügen  
+- [ ] Push-Benachrichtigungen nach Build  
+- [ ] Chat Syntax Highlighting  
+- [ ] E2E Tests mit Detox  
+- [ ] SEC-007 bis SEC-011 Security Issues  
 
 ---
 
 # 10. 🧪 Tests
-113 Tests vorhanden.  
-Neue Tests notwendig:
+**Status:** 113 Tests passed, 7 Test Suites (3 Tests skipped)  
+**Coverage:** ~10-15%
 
-- fileWriter.test.ts  
-- orchestrator Erweiterung  
-- SecureTokenManager  
+### Vorhandene Test-Dateien:
+- `__tests__/App.test.tsx`
+- `__tests__/smoke.test.ts`
+- `__tests__/chatParsing.test.ts`
+- `__tests__/navigation.smoke.test.tsx`
+- `__tests__/jsonTruncation.test.ts`
+- `lib/__tests__/SecureKeyManager.test.ts`
+- `lib/__tests__/validators.test.ts`
+
+### Fehlende Tests (TODO):
+- [ ] `lib/__tests__/fileWriter.test.ts`
+- [ ] `lib/__tests__/orchestrator.test.ts` erweitern
+- [ ] `lib/__tests__/SecureTokenManager.test.ts`
+- [ ] Integration Tests für AI-Context  
 
 ---
 
