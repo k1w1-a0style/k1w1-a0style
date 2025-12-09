@@ -58,3 +58,7 @@ temp/
 app.config.js.bak
 supabase/.temp/
 
+
+# local dumps
+code-files.txt
+code-source-dump.txt
