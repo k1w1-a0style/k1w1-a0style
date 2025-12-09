@@ -156,6 +156,7 @@ MessageItem.displayName = 'MessageItem';
 const styles = StyleSheet.create({
   messageContainer: {
     marginBottom: 8,
+    marginHorizontal: 4,
     position: 'relative',
   },
   userContainer: {
@@ -175,12 +176,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingVertical: 10,
     paddingHorizontal: 14,
-    maxWidth: '85%',
+    maxWidth: '88%',
+    minWidth: 60,
     borderWidth: 1.5,
   },
   messageContent: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    flexShrink: 1,
   },
   icon: {
     marginRight: 6,
@@ -197,7 +200,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.palette.userBubble.text,
     lineHeight: 20,
-    flex: 1,
+    flexShrink: 1,
+    flexWrap: 'wrap',
   },
   // AI Message
   aiMessage: {
@@ -210,7 +214,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.palette.aiBubble.text,
     lineHeight: 20,
-    flex: 1,
+    flexShrink: 1,
+    flexWrap: 'wrap',
   },
   // System Message
   systemMessage: {
@@ -224,7 +229,8 @@ const styles = StyleSheet.create({
     color: theme.palette.systemBubble.text,
     lineHeight: 19,
     fontStyle: 'italic',
-    flex: 1,
+    flexShrink: 1,
+    flexWrap: 'wrap',
   },
   // Error Message
   errorMessage: {
@@ -237,7 +243,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.palette.error,
     lineHeight: 20,
-    flex: 1,
+    flexShrink: 1,
+    flexWrap: 'wrap',
   },
   messagePressed: {
     opacity: 0.7,

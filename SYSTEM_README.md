@@ -190,16 +190,19 @@ UI: GitHubReposScreen.tsx enthält alle Funktionen.
 
 ---
 
-### 8.3 Nachrichten-Ränder abgeschnitten
-→ Layout-Bug im MessageItem (OFFEN).
+### 8.3 Nachrichten-Ränder abgeschnitten ✅ BEHOBEN
+**Fix:** MessageItem Layout verbessert:
+- marginHorizontal auf Container hinzugefügt
+- flexShrink und flexWrap für Text-Styles
+- maxWidth auf 88% erhöht, minWidth hinzugefügt
 
 ---
 
 # 9. 📋 Vollständige ToDo-Liste (Neu strukturiert + Prioritäten)
 
-**Stand:** 9. Dezember 2025  
-**Tests:** 162 passed, 9 Suites  
-**Coverage:** ~15-20% (Ziel: 40%)
+**Stand:** 9. Dezember 2025 (aktualisiert)  
+**Tests:** 241 passed, 11 Suites  
+**Coverage:** ~25-30% (Ziel: 40%)
 
 ## ✅ COMPLETED (9. Dezember 2025)
 - [x] ZIP-Import implementieren  
@@ -233,8 +236,8 @@ UI: GitHubReposScreen.tsx enthält alle Funktionen.
 ---
 
 # 10. 🧪 Tests
-**Status:** 162 Tests passed, 9 Test Suites (3 Tests skipped)  
-**Coverage:** ~15-20%
+**Status:** 241 Tests passed, 11 Test Suites (3 Tests skipped)  
+**Coverage:** ~25-30%
 
 ### Vorhandene Test-Dateien:
 - `__tests__/App.test.tsx`
@@ -246,10 +249,10 @@ UI: GitHubReposScreen.tsx enthält alle Funktionen.
 - `lib/__tests__/validators.test.ts`
 - `lib/__tests__/fileWriter.test.ts` ✅ NEU
 - `lib/__tests__/SecureTokenManager.test.ts` ✅ NEU
+- `lib/__tests__/orchestrator.test.ts` ✅ NEU (9. Dezember 2025)
+- `lib/__tests__/AIContext.integration.test.ts` ✅ NEU (9. Dezember 2025)
 
 ### Fehlende Tests (TODO):
-- [ ] `lib/__tests__/orchestrator.test.ts` erweitern
-- [ ] Integration Tests für AI-Context
 - [ ] E2E Tests mit Detox  
 
 ---
