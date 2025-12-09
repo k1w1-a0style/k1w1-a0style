@@ -39,11 +39,11 @@ const logError = (key: string, meta?: Record<string, unknown>) => {
  */
 export const normalizePath = (path: string): string => {
   if (!path || typeof path !== 'string') return '';
-  
+
   // Entferne gefährliche Zeichen und normalisiere Pfad-Trenner
   let normalized = path
-    .replace(/\\/g, '/')           // Backslashes zu Forward Slashes
-    .replace(/\/+/g, '/')          // Mehrfache Slashes zu einem
+    .replace(/\\/g, '/')                // Backslashes zu Forward Slashes
+    .replace(/\/+/g, '/')               // Mehrfache Slashes zu einem
     .replace(/[<>:"|?*\x00-\x1f]/g, '') // Entferne verbotene Zeichen
     .trim();
 
@@ -55,14 +55,17 @@ export const normalizePath = (path: string): string => {
   // KRITISCH: Path Traversal-Schutz - entferne alle "../" Sequenzen
   // Auch nach Normalisierung, falls sie durch Encoding umgangen wurden
   normalized = normalized
-    .replace(/\.\.\//g, '')        // "../"
-    .replace(/\.\.\\/g, '')        // "..\" (falls noch vorhanden)
-    .replace(/\.\./g, '')          // ".." allein
-    .replace(/\/\.\//g, '/')       // "/./"
-    .replace(/\/\.$/g, '');        // "/." am Ende
+    .replace(/\.\.\//g, '')             // "../"
+    .replace(/\.\.\\/g, '')             // "..\" (falls noch vorhanden)
+    .replace(/\.\./g, '')               // ".." allein
+    .replace(/\/\.\//g, '/')            // "/./"
+    .replace(/\/\.$/g, '');             // "/." am Ende
 
   // Entferne leere Segmente
-  const parts = normalized.split('/').filter(part => part.length > 0 && part !== '.');
+  const parts = normalized
+    .split('/')
+    .filter(part => part.length > 0 && part !== '.');
+
   normalized = parts.join('/');
 
   return normalized;
@@ -130,7 +133,7 @@ export const validateFilePath = (
   path: string
 ): { valid: boolean; errors: string[] } => {
   const errors: string[] = [];
-  
+
   if (!path || typeof path !== 'string') {
     errors.push('Pfad ist leer oder kein String.');
     return { valid: false, errors };
@@ -138,19 +141,23 @@ export const validateFilePath = (
 
   // Maximale Pfadlänge prüfen
   if (path.length > CONFIG.PATHS.MAX_PATH_LENGTH) {
-    errors.push(`Pfad zu lang: ${path.length} Zeichen (max. ${CONFIG.PATHS.MAX_PATH_LENGTH})`);
+    errors.push(
+      `Pfad zu lang: ${path.length} Zeichen (max. ${CONFIG.PATHS.MAX_PATH_LENGTH})`
+    );
   }
 
   // Normalisiere und prüfe auf Path Traversal-Versuche
   const normalized = normalizePath(path);
-  
+
   // Prüfe ob nach Normalisierung noch gefährliche Muster vorhanden sind
   if (normalized.includes('..')) {
     errors.push('Pfad enthält Path Traversal-Versuche (../)');
   }
-  
+
   if (normalized !== path && path.includes('..')) {
-    errors.push('Pfad wurde normalisiert - möglicher Path Traversal-Versuch erkannt');
+    errors.push(
+      'Pfad wurde normalisiert - möglicher Path Traversal-Versuch erkannt'
+    );
   }
 
   if (!normalized) {
@@ -305,6 +312,75 @@ export const extractJsonArray = (text: string): string | null => {
 };
 
 // ---------------------------------------------------------------
+// JSON TRUNCATION DETECTION (für KI-Antworten)
+// ---------------------------------------------------------------
+
+/**
+ * Heuristik um zu erkennen, ob JSON-Text abgeschnitten/unvollständig ist.
+ * Wird speziell für LLM-Responses genutzt.
+ */
+export const isJsonTruncated = (input: string): boolean => {
+  if (!input || typeof input !== 'string') return false;
+
+  const text = input.trim();
+  if (!text) return false;
+
+  // Wenn JSON parsebar ist => nicht truncated
+  try {
+    JSON.parse(text);
+    return false;
+  } catch {
+    // weiter mit Heuristik
+  }
+
+  let inString = false;
+  let escape = false;
+  let braces = 0;   // {}
+  let brackets = 0; // []
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inString) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escape = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (ch === '{') braces++;
+    else if (ch === '}') braces--;
+
+    if (ch === '[') brackets++;
+    else if (ch === ']') brackets--;
+  }
+
+  // Unbalanced => sehr wahrscheinlich truncated
+  if (braces !== 0 || brackets !== 0) return true;
+
+  // Typische Truncation-Endungen
+  if (/:$/.test(text)) return true;
+  if (/,\s*$/.test(text)) return true;
+
+  // Wenn wir hier sind: nicht parsebar aber balanced
+  // LLM-Responses sind dann meist trotzdem unvollständig.
+  return true;
+};
+
+// ---------------------------------------------------------------
 // FILTER / NORMALIZE
 // ---------------------------------------------------------------
 
@@ -363,7 +439,7 @@ export const normalizeAndValidateFiles = (
  */
 export function escapeHtml(text: string): string {
   if (!text || typeof text !== 'string') return '';
-  
+
   const htmlEscapes: Record<string, string> = {
     '&': '&amp;',
     '<': '&lt;',
@@ -372,7 +448,7 @@ export function escapeHtml(text: string): string {
     "'": '&#x27;',
     '/': '&#x2F;',
   };
-  
+
   return text.replace(/[&<>"'/]/g, (char) => htmlEscapes[char] || char);
 }
 
@@ -384,7 +460,7 @@ export function escapeHtml(text: string): string {
  */
 export function sanitizeForDisplay(text: string): string {
   if (!text || typeof text !== 'string') return '';
-  
+
   // Entferne script, iframe und andere gefährliche Tags
   let sanitized = text
     .replace(/<script[^>]*>.*?<\/script>/gi, '')
@@ -394,15 +470,15 @@ export function sanitizeForDisplay(text: string): string {
     .replace(/<applet[^>]*>.*?<\/applet>/gi, '')
     .replace(/<meta[^>]*>/gi, '')
     .replace(/<link[^>]*>/gi, '');
-  
+
   // Entferne javascript: und data: URLs
   sanitized = sanitized
     .replace(/javascript:/gi, '')
     .replace(/data:text\/html/gi, '');
-  
+
   // Entferne on* Event-Handler
   sanitized = sanitized.replace(/\son\w+\s*=/gi, ' data-blocked=');
-  
+
   return sanitized;
 }
 
@@ -416,32 +492,32 @@ export function validateSafeDisplay(text: string): {
   issues: string[];
 } {
   const issues: string[] = [];
-  
+
   if (!text || typeof text !== 'string') {
     return { safe: true, issues: [] };
   }
-  
+
   // Prüfe auf gefährliche Patterns
   if (/<script[^>]*>/i.test(text)) {
     issues.push('Script-Tag gefunden');
   }
-  
+
   if (/<iframe[^>]*>/i.test(text)) {
     issues.push('iFrame-Tag gefunden');
   }
-  
+
   if (/javascript:/i.test(text)) {
     issues.push('JavaScript-URL gefunden');
   }
-  
+
   if (/on\w+\s*=/i.test(text)) {
     issues.push('Event-Handler gefunden');
   }
-  
+
   if (/<object[^>]*>/i.test(text) || /<embed[^>]*>/i.test(text)) {
     issues.push('Object/Embed-Tag gefunden');
   }
-  
+
   return {
     safe: issues.length === 0,
     issues,
