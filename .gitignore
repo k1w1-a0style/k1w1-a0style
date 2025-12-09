@@ -1,8 +1,20 @@
+# ============================================================
+# Git Ignore – k1w1-a0style
+# ============================================================
+
+# -----------------------------
+# NODE / EXPO / REACT NATIVE
+# -----------------------------
 node_modules/
 .expo/
+.expo-shared/
+
+# -----------------------------
+# NATIVE BUILDS (Expo Managed Workflow)
+# android/ und ios/ werden bei EAS Build automatisch generiert
+# -----------------------------
 android/
 ios/
-<<<<<<< HEAD
 
 # -----------------------------
 # MAC / SYSTEM
@@ -19,7 +31,7 @@ supabase/functions/**/node_modules
 supabase/.DS_Store
 
 # -----------------------------
-# PROJECT TRASH
+# PROJECT TRASH / BACKUPS
 # -----------------------------
 *.backup
 *.backup2
@@ -47,18 +59,22 @@ temp/
 !.env.example
 .envrc
 
-# Ignore local Expo state
-.expo/
+# -----------------------------
+# BUILD / CACHE
+# -----------------------------
+web-build/
+dist/
+build/
 
-# Ignore local Expo state
-.expo/
-=======
->>>>>>> 97ea443 (chore: switch to a0style EAS project)
+# -----------------------------
+# EDITOR / IDE
+# -----------------------------
+.vscode/
+.idea/
 
+# -----------------------------
+# DEPRECATED / LOCAL FILES
+# -----------------------------
 app.config.js.bak
-supabase/.temp/
-
-
-# local dumps
 code-files.txt
 code-source-dump.txt

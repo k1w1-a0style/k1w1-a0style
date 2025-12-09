@@ -4,6 +4,8 @@
 
 Eine mobile App zum Erstellen und Bearbeiten von React Native Apps mit KI-Unterstützung, GitHub-Integration und EAS Build-Support.
 
+> **Hinweis:** Der offizielle Package-Name ist `k1w1-a0style-restored` (siehe `package.json`).
+
 ---
 
 ## 📋 Inhaltsverzeichnis
@@ -17,6 +19,7 @@ Eine mobile App zum Erstellen und Bearbeiten von React Native Apps mit KI-Unters
 - [Build & Deploy](#-build--deploy)
 - [API-Provider](#-api-provider)
 - [Screens & Funktionen](#-screens--funktionen)
+- [Verzeichnis-Erklärungen](#-verzeichnis-erklärungen)
 - [To-Do Liste](#-to-do-liste)
 - [Development](#-development)
 - [Troubleshooting](#-troubleshooting)
@@ -46,16 +49,17 @@ npm run lint
 | Kategorie | Status | Details |
 |-----------|--------|---------|
 | **Security** | ✅ Beta-Ready | 4/11 kritische Issues behoben, Score: 7/10 |
-| **Tests** | ✅ 112 Tests | 6/7 Test-Suites passing |
-| **EAS Build** | ✅ Konfiguriert | Kotlin 2.0.21, APK/AAB ready |
+| **Tests** | ✅ 113 Tests | 7/7 Test-Suites passing |
+| **EAS Build** | ✅ Konfiguriert | Expo Managed Workflow, APK/AAB ready |
 | **UI/UX** | ✅ Modern | Dark Theme, Neon-Grün Akzente, Animationen |
 | **Status** | 🎉 **BETA-READY** | App ist stabil und launchbar |
 
 ### Aktueller Test-Status
 
 ```
-Test Suites: 6 passed, 1 failed (Mock fehlt), 7 total
-Tests:       112 passed, 3 skipped, 115 total
+Test Suites: 7 passed, 7 total
+Tests:       113 passed, 3 skipped, 116 total
+Letzter Testlauf: Dezember 2025
 ```
 
 ---
@@ -71,7 +75,7 @@ Tests:       112 passed, 3 skipped, 115 total
 ### 📁 Projekt-Management
 - **File-Editor**: Erstellen, Bearbeiten, Löschen von Dateien
 - **ZIP Import/Export**: Projekte als ZIP teilen
-- **Template-System**: Expo SDK 54 Templates
+- **Template-System**: Expo SDK 54 Base-Template
 - **Syntax-Validierung**: Fehler-Erkennung in Echtzeit
 
 ### 🔗 GitHub-Integration
@@ -106,23 +110,40 @@ k1w1-a0style/
 │   ├── BuildScreen.tsx   # Build-Management
 │   ├── TerminalScreen.tsx# Console-Logs
 │   └── ...
-├── contexts/             # React Context (State Management)
-│   ├── AIContext.tsx     # KI-Konfiguration
-│   ├── ProjectContext.tsx# Projekt-State
+├── contexts/             # React Context (7 Dateien)
+│   ├── AIContext.tsx     # KI-Konfiguration (mit Mutex)
+│   ├── ProjectContext.tsx# Projekt-State (mit Mutex)
 │   └── ...
 ├── lib/                  # Core-Logik (15 Module)
 │   ├── orchestrator.ts   # KI-Provider-Orchestrierung
 │   ├── SecureKeyManager.ts # Sichere Key-Verwaltung
 │   ├── validators.ts     # Input-Validierung (Zod)
-│   └── ...
-├── hooks/               # Custom React Hooks (5 Hooks)
-├── components/          # UI-Komponenten (11 Components)
-├── utils/               # Helper-Funktionen
-├── supabase/            # Supabase Edge Functions
-│   └── functions/       # 7 Serverless Functions
-├── __tests__/           # Tests (112+ Tests)
-└── __mocks__/           # Jest Mocks (6 Mocks)
+│   └── __tests__/        # Lib-Tests (2 Dateien)
+├── hooks/                # Custom React Hooks (5 Hooks)
+├── components/           # UI-Komponenten (11 Components)
+├── utils/                # Helper-Funktionen (4 Dateien)
+├── supabase/             # Supabase Edge Functions
+│   └── functions/        # 7 Serverless Functions + _shared
+├── templates/            # Projekt-Templates (1 Template)
+├── __tests__/            # Haupt-Tests (5 Dateien)
+├── __mocks__/            # Jest Mocks (7 Mocks)
+├── android_backup/       # Backup der Android-Konfiguration
+├── coverage/             # Jest Coverage Reports (generiert)
+└── assets/               # App-Icons (2 Dateien)
 ```
+
+### Datei-Übersicht (Aktuell)
+
+| Kategorie | Anzahl | Dateien |
+|-----------|--------|---------|
+| **Screens** | 11 | AppInfoScreen, BuildScreen, ChatScreen, CodeScreen, ConnectionsScreen, DiagnosticScreen, EnhancedBuildScreen, GitHubReposScreen, PreviewScreen, SettingsScreen, TerminalScreen |
+| **Components** | 11 | Breadcrumb, CreationDialog, CustomDrawer, CustomHeader, ErrorBoundary, FileActionsModal, FileItem, FileTree, MessageItem, RepoListItem, SyntaxHighlighter |
+| **Hooks** | 5 | useBuildStatus, useBuildStatusSupabase, useBuildTrigger, useGitHubActionsLogs, useGitHubRepos |
+| **lib/** | 15 | buildErrorAnalyzer, buildStatusMapper, fileWriter, normalizer, orchestrator, promptEngine, prompts, RateLimiter, retryWithBackoff, SecureKeyManager, SecureTokenManager, supabase, supabaseTypes, tokenEstimator, validators |
+| **contexts/** | 7 | AIContext, GitHubContext, githubService, ProjectContext, projectStorage, TerminalContext, types |
+| **utils/** | 4 | chatUtils, metaCommands, projectSnapshot, syntaxValidator |
+| **Mocks** | 7 | async-storage, expo-constants, expo-crypto, expo-file-system, expo-secure-store, react-native-zip-archive, uuid |
+| **Supabase Functions** | 7 | check-eas-build, github-workflow-dispatch, github-workflow-logs, github-workflow-runs, k1w1-handler, test, trigger-eas-build |
 
 ### Tech Stack
 
@@ -130,9 +151,9 @@ k1w1-a0style/
 |-----------|-------------|
 | **Framework** | React Native (Expo SDK 54) |
 | **Language** | TypeScript (Strict Mode) |
-| **State** | React Context API |
+| **State** | React Context API + async-mutex |
 | **Backend** | Supabase (Edge Functions, Auth) |
-| **Build** | EAS Build + GitHub Actions |
+| **Build** | EAS Build (Expo Managed Workflow) |
 | **Tests** | Jest + Testing Library |
 | **Validation** | Zod |
 
@@ -147,7 +168,7 @@ k1w1-a0style/
 | **SEC-001** | API Keys aus globalThis entfernt | ✅ `SecureKeyManager.ts` |
 | **SEC-002** | Input Validation implementiert | ✅ `validators.ts` (Zod) |
 | **SEC-003** | Token Encryption hinzugefügt | ✅ `SecureTokenManager.ts` |
-| **SEC-004** | Race Conditions behoben | ✅ Mutex in ProjectContext |
+| **SEC-004** | Race Conditions behoben | ✅ Mutex in ProjectContext + AIContext |
 
 ### 📋 Geplante Issues (Woche 2-5)
 
@@ -196,7 +217,7 @@ npm run test:verbose      # Verbose Output
 npm run test:clear        # Cache leeren
 ```
 
-### Test-Status
+### Test-Status (Aktuell)
 
 | Modul | Tests | Status |
 |-------|-------|--------|
@@ -205,16 +226,36 @@ npm run test:clear        # Cache leeren
 | `smoke tests` | 50+ | ✅ Passing |
 | `chatParsing` | 5 | ✅ Passing |
 | `jsonTruncation` | 3 | ✅ Passing |
-| **Gesamt** | **112** | ✅ **6/7 Suites** |
+| `navigation.smoke` | ~5 | ✅ Passing |
+| `App.test` | ~3 | ✅ Passing |
+| **Gesamt** | **113** | ✅ **7/7 Suites** |
 
-### Vorhandene Mocks
+### Vorhandene Mocks (`__mocks__/`)
 
-- `@react-native-async-storage/async-storage`
-- `expo-secure-store`
-- `expo-file-system`
-- `expo-constants`
-- `expo-crypto`
-- `uuid`
+| Mock | Datei | Beschreibung |
+|------|-------|--------------|
+| `@react-native-async-storage/async-storage` | `async-storage.js` | AsyncStorage Mock |
+| `expo-secure-store` | `expo-secure-store.js` | SecureStore Mock |
+| `expo-file-system` | `expo-file-system.js` | FileSystem Mock |
+| `expo-constants` | `expo-constants.js` | Constants Mock |
+| `expo-crypto` | `expo-crypto.js` | Crypto Mock |
+| `react-native-zip-archive` | `react-native-zip-archive.js` | ZIP-Archiv Mock |
+| `uuid` | `uuid.js` | UUID Mock |
+
+### Test-Dateien
+
+```
+__tests__/
+├── App.test.tsx              # App-Komponenten-Test
+├── chatParsing.test.ts       # Chat-Parsing Tests
+├── jsonTruncation.test.ts    # JSON-Truncation Tests
+├── navigation.smoke.test.tsx # Navigation Smoke Tests
+└── smoke.test.ts             # Allgemeine Smoke Tests
+
+lib/__tests__/
+├── SecureKeyManager.test.ts  # SecureKeyManager Tests
+└── validators.test.ts        # Zod Validators Tests
+```
 
 ---
 
@@ -237,19 +278,18 @@ eas build --platform android --profile development
 
 | Profil | Output | Verwendung |
 |--------|--------|------------|
-| `development` | APK (Debug) | Lokale Entwicklung |
+| `development` | APK (Debug) | Lokale Entwicklung mit Dev-Client |
 | `preview` | APK (Release) | Interne Tests |
 | `production` | AAB | Store-Submission |
 
-### Kotlin Konfiguration
+### Build-Workflow
 
-Das Projekt verwendet **Kotlin 2.0.21** für KSP-Kompatibilität:
+Dieses Projekt verwendet **Expo Managed Workflow**:
 
-```properties
-# android/gradle.properties
-android.kotlinVersion=2.0.21
-android.kspVersion=2.0.21-1.0.28
-```
+- `android/` und `ios/` werden NICHT im Repository gehalten
+- EAS Build generiert die nativen Verzeichnisse automatisch
+- `.easignore` und `.gitignore` schließen `android/` und `ios/` aus
+- Kotlin-Konfiguration wird über `android_backup/` dokumentiert (siehe unten)
 
 ---
 
@@ -274,7 +314,7 @@ android.kspVersion=2.0.21-1.0.28
 
 ## 📱 Screens & Funktionen
 
-### Übersicht
+### Übersicht (11 Screens)
 
 | Screen | Funktion |
 |--------|----------|
@@ -292,6 +332,36 @@ android.kspVersion=2.0.21-1.0.28
 
 ---
 
+## 📁 Verzeichnis-Erklärungen
+
+### `android_backup/`
+
+**Zweck:** Backup der Android-Konfiguration für Referenz und Troubleshooting.
+
+Dieses Verzeichnis enthält eine gesicherte Kopie der Android-Build-Konfiguration, die bei einem `expo prebuild` generiert wurde. Es dient als Referenz für:
+
+- **Kotlin-Version**: `kotlinVersion=2.0.21` (für KSP-Kompatibilität)
+- **Gradle-Konfiguration**: `androidGradlePluginVersion=8.7.3`
+- **App-Icons**: Adaptive Icons in allen Auflösungen
+- **Splash-Screen**: Konfigurierte Splash-Images
+
+> ⚠️ **Wichtig:** Dieser Ordner wird NICHT für EAS Builds verwendet. Bei Expo Managed Workflow werden die nativen Verzeichnisse automatisch von EAS generiert. Das Backup dient nur zur Dokumentation und für den Fall, dass man auf Bare Workflow wechseln möchte.
+
+### `coverage/`
+
+**Zweck:** Jest Coverage Reports (automatisch generiert).
+
+Wird durch `npm run test:coverage` erstellt und enthält HTML-Reports zur Code-Coverage-Analyse. Dieser Ordner sollte nicht committed werden (ist aber aktuell im Repo für Referenz).
+
+### `templates/`
+
+**Zweck:** Projekt-Templates für neue Projekte.
+
+Enthält aktuell ein Template:
+- `expo-sdk54-base.json` - Basis-Template für Expo SDK 54 Projekte
+
+---
+
 ## 📋 To-Do Liste
 
 ### ✅ Erledigt
@@ -299,25 +369,27 @@ android.kspVersion=2.0.21-1.0.28
 - [x] **Security**: SecureKeyManager implementiert
 - [x] **Security**: Input Validation mit Zod
 - [x] **Security**: Token Encryption
-- [x] **Security**: Race Conditions behoben
+- [x] **Security**: Race Conditions behoben (async-mutex)
 - [x] **Tests**: Jest Setup komplett
-- [x] **Tests**: 112 Tests implementiert
-- [x] **Tests**: Mocks für alle Dependencies
-- [x] **Build**: EAS Konfiguration
-- [x] **Build**: Kotlin 2.0.21 Kompatibilität
+- [x] **Tests**: 113 Tests implementiert (7/7 Suites passing)
+- [x] **Tests**: Mocks für alle Dependencies (7 Mocks)
+- [x] **Tests**: Mock für react-native-zip-archive erstellt
+- [x] **Build**: EAS Konfiguration (Managed Workflow)
 - [x] **Build**: EnhancedBuildScreen mit Live-Logs
 - [x] **UI**: Terminal Enhancements (Filter, Suche, Export)
 - [x] **UI**: Chat Animationen & Optimierungen
 - [x] **UI**: AppInfoScreen mit Icon-Picker & API-Backup
 - [x] **Hooks**: useBuildStatus, useGitHubActionsLogs
+- [x] **Docs**: README aktualisiert (Dezember 2025)
+- [x] **.gitignore**: Merge-Konflikt behoben
 
 ### 🔄 In Arbeit / Geplant
 
 #### Priorität: Hoch
-- [ ] Mock für `react-native-zip-archive` (App.test.tsx failing)
 - [ ] Test Coverage erhöhen (Ziel: 40%)
 - [ ] fileWriter.test.ts schreiben
 - [ ] orchestrator.test.ts erweitern
+- [ ] Web-Favicon hinzufügen oder Referenz entfernen (`app.config.js` → `web.favicon`)
 
 #### Priorität: Mittel
 - [ ] CI/CD Integration für Tests (GitHub Actions)
@@ -325,6 +397,7 @@ android.kspVersion=2.0.21-1.0.28
 - [ ] SEC-005: Memory Leaks beheben
 - [ ] SEC-006: Rate Limiting implementieren
 - [ ] SecureTokenManager.test.ts schreiben
+- [ ] `coverage/` aus Git entfernen (nur lokal generieren)
 
 #### Priorität: Niedrig
 - [ ] E2E Tests mit Detox
@@ -332,6 +405,7 @@ android.kspVersion=2.0.21-1.0.28
 - [ ] Push-Benachrichtigungen bei Build-Completion
 - [ ] Build-Historie mit Statistiken
 - [ ] Code-Syntax-Highlighting in Chat
+- [ ] Weitere Templates erstellen
 
 ---
 
@@ -392,10 +466,13 @@ npm test
 
 ### Build-Fehler (Kotlin)
 
-Verifiziere Kotlin-Version in `android/gradle.properties`:
+Bei Kotlin/KSP-Problemen: Die Referenz-Konfiguration liegt in `android_backup/gradle.properties`:
 ```properties
-android.kotlinVersion=2.0.21
+kotlinVersion=2.0.21
+androidGradlePluginVersion=8.7.3
 ```
+
+> **Hinweis:** Bei Expo Managed Workflow werden diese Werte von EAS automatisch konfiguriert. Bei Problemen kann ein `expo prebuild --clean` helfen.
 
 ### API-Keys funktionieren nicht
 
@@ -409,6 +486,12 @@ android.kotlinVersion=2.0.21
 # Expo Cache leeren
 npx expo start --clear
 ```
+
+### Web-Favicon fehlt
+
+Das Projekt referenziert `./assets/favicon.png` in `app.config.js`, aber die Datei fehlt. Optionen:
+1. Favicon-Datei hinzufügen
+2. Web-Config entfernen (wenn kein Web-Support benötigt wird)
 
 ---
 
@@ -429,21 +512,27 @@ npx expo start --clear
 - ✅ SecureKeyManager für sichere API-Key-Verwaltung
 - ✅ Input Validation mit Zod-Schemas
 - ✅ Token Encryption mit IV und Key-Stretching
-- ✅ Race Conditions mit async-mutex behoben
+- ✅ Race Conditions mit async-mutex behoben (AIContext + ProjectContext)
 
 **Testing:**
-- ✅ Jest Setup mit 112 Tests
-- ✅ Mocks für Expo-Module
+- ✅ Jest Setup mit 113 Tests (7/7 Suites passing)
+- ✅ 7 Mocks für Expo-Module und Dependencies
+- ✅ Mock für react-native-zip-archive implementiert
 
 **Build:**
-- ✅ EAS Build konfiguriert (APK/AAB)
-- ✅ Kotlin 2.0.21 Kompatibilität
+- ✅ EAS Build konfiguriert (Expo Managed Workflow)
+- ✅ APK/AAB Build-Profile
 - ✅ Enhanced Build Screen mit Live-Logs
 
 **UI/UX:**
 - ✅ Terminal mit Filter, Suche, Export
 - ✅ Chat mit Animationen
 - ✅ AppInfoScreen mit Icon-Picker & API-Backup
+
+**Dokumentation:**
+- ✅ README vollständig aktualisiert
+- ✅ .gitignore bereinigt (Merge-Konflikt behoben)
+- ✅ android_backup/ dokumentiert
 
 ---
 
