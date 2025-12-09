@@ -7,6 +7,7 @@
 
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 // Notification Handler Configuration
 Notifications.setNotificationHandler({
@@ -65,8 +66,13 @@ class NotificationService {
 
       // Expo Push Token abrufen (für zukünftige Remote-Notifications)
       try {
+        // ✅ FIX: projectId aus app.config.js laden
+        const projectId = Constants.expoConfig?.extra?.eas?.projectId || 
+                         Constants.expoConfig?.owner || 
+                         'your-project-id'; // Fallback
+        
         const tokenData = await Notifications.getExpoPushTokenAsync({
-          projectId: 'your-project-id', // TODO: Aus app.config.js laden
+          projectId: projectId as string,
         });
         this.expoPushToken = tokenData.data;
         console.log('📱 Expo Push Token:', this.expoPushToken);
