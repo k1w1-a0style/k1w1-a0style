@@ -1,8 +1,9 @@
-import React, { memo, useEffect, useRef } from 'react';
-import { Text, Pressable, StyleSheet, Alert, Animated, View, Platform } from 'react-native';
+import React, { memo, useEffect, useRef, useMemo } from 'react';
+import { Text, Pressable, StyleSheet, Alert, Animated, View, Platform, ScrollView, TouchableOpacity } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { theme, getNeonGlow } from '../theme';
+import { SyntaxHighlighter } from './SyntaxHighlighter';
 
 // NEUES ChatMessage Format
 interface ChatMessage {
@@ -16,6 +17,55 @@ interface ChatMessage {
   };
 }
 
+// ✅ NEU: Typ für geparste Nachrichtenteile
+type MessagePart = 
+  | { type: 'text'; content: string }
+  | { type: 'code'; language: string; content: string };
+
+// ✅ NEU: Parser für Markdown-Code-Blöcke
+const parseMessageContent = (content: string): MessagePart[] => {
+  const parts: MessagePart[] = [];
+  // Regex für Code-Blöcke: ```language\ncode\n``` oder ```\ncode\n```
+  const codeBlockRegex = /```(\w*)\n?([\s\S]*?)```/g;
+  
+  let lastIndex = 0;
+  let match;
+  
+  while ((match = codeBlockRegex.exec(content)) !== null) {
+    // Text vor dem Code-Block hinzufügen
+    if (match.index > lastIndex) {
+      const textContent = content.slice(lastIndex, match.index).trim();
+      if (textContent) {
+        parts.push({ type: 'text', content: textContent });
+      }
+    }
+    
+    // Code-Block hinzufügen
+    const language = match[1] || 'text';
+    const codeContent = match[2].trim();
+    if (codeContent) {
+      parts.push({ type: 'code', language, content: codeContent });
+    }
+    
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // Restlichen Text hinzufügen
+  if (lastIndex < content.length) {
+    const remainingText = content.slice(lastIndex).trim();
+    if (remainingText) {
+      parts.push({ type: 'text', content: remainingText });
+    }
+  }
+  
+  // Falls keine Parts gefunden wurden, gesamten Content als Text zurückgeben
+  if (parts.length === 0) {
+    parts.push({ type: 'text', content: content.trim() });
+  }
+  
+  return parts;
+};
+
 type MessageItemProps = {
   message: ChatMessage;
 };
@@ -25,6 +75,10 @@ const MessageItem = memo(({ message }: MessageItemProps) => {
   const isUser = message?.role === 'user';
   const isSystem = message?.role === 'system';
   const isError = message?.meta?.error;
+  
+  // ✅ NEU: Parse message content für Syntax Highlighting
+  const messageParts = useMemo(() => parseMessageContent(messageText), [messageText]);
+  const hasCodeBlocks = useMemo(() => messageParts.some(p => p.type === 'code'), [messageParts]);
   
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -129,14 +183,55 @@ const MessageItem = memo(({ message }: MessageItemProps) => {
           getBubbleStyle(),
           pressed && styles.messagePressed,
           isUser && getNeonGlow(theme.palette.primary, 'subtle'),
+          hasCodeBlocks && styles.messageBubbleWithCode,
         ]}
         onLongPress={handleLongPress}
       >
         <View style={styles.messageContent}>
           {getIcon()}
-          <Text style={getTextStyle()}>
-            {messageText || '...'}
-          </Text>
+          {/* ✅ NEU: Rendern mit Syntax Highlighting für Code-Blöcke */}
+          {hasCodeBlocks ? (
+            <View style={styles.messagePartsContainer}>
+              {messageParts.map((part, index) => {
+                if (part.type === 'code') {
+                  return (
+                    <View key={index} style={styles.codeBlockContainer}>
+                      <View style={styles.codeBlockHeader}>
+                        <Text style={styles.codeLanguage}>{part.language || 'code'}</Text>
+                        <TouchableOpacity 
+                          style={styles.copyCodeButton}
+                          onPress={() => {
+                            Clipboard.setStringAsync(part.content);
+                            Alert.alert('📋 Kopiert', 'Code wurde in die Zwischenablage kopiert.');
+                          }}
+                        >
+                          <Ionicons name="copy-outline" size={14} color={theme.palette.text.secondary} />
+                        </TouchableOpacity>
+                      </View>
+                      <ScrollView 
+                        horizontal 
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.codeScrollView}
+                      >
+                        <View style={styles.codeContent}>
+                          <SyntaxHighlighter code={part.content} showLineNumbers={part.content.split('\n').length > 3} />
+                        </View>
+                      </ScrollView>
+                    </View>
+                  );
+                }
+                return (
+                  <Text key={index} style={getTextStyle()}>
+                    {part.content}
+                  </Text>
+                );
+              })}
+            </View>
+          ) : (
+            <Text style={getTextStyle()}>
+              {messageText || '...'}
+            </Text>
+          )}
         </View>
         
         {/* Timestamp */}
@@ -255,6 +350,49 @@ const styles = StyleSheet.create({
     color: theme.palette.text.disabled,
     marginTop: 4,
     alignSelf: 'flex-end',
+  },
+  // ✅ NEU: Code Block Styles
+  messageBubbleWithCode: {
+    maxWidth: '95%',
+  },
+  messagePartsContainer: {
+    flex: 1,
+    gap: 8,
+  },
+  codeBlockContainer: {
+    backgroundColor: theme.palette.background,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    overflow: 'hidden',
+    marginVertical: 4,
+  },
+  codeBlockHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: `${theme.palette.border}50`,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+  },
+  codeLanguage: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.palette.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  copyCodeButton: {
+    padding: 4,
+  },
+  codeScrollView: {
+    maxHeight: 300,
+  },
+  codeContent: {
+    padding: 10,
+    minWidth: '100%',
   },
 });
 
