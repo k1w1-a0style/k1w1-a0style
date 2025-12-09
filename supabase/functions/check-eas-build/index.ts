@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, handleCors } from "../_shared/cors.ts";
+import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
+import { validateCheckBuildRequest } from "../_shared/validation.ts";
 
 /**
  * ✓ Stabile Status-Überprüfung
@@ -9,6 +10,7 @@ import { corsHeaders, handleCors } from "../_shared/cors.ts";
  * ✓ EAS + GitHub Status-Mapping
  * ✓ Kein undefined mehr
  * ✓ Voll kompatibel mit deinem k1w1-Builder
+ * ✓ SEC-011: Input Validation hinzugefügt
  */
 
 serve(async (req) => {
@@ -18,32 +20,27 @@ serve(async (req) => {
   try {
     const body = await req.json().catch(() => null);
 
-    if (!body || !body.jobId) {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "Missing 'jobId' in request body",
-        }),
-        {
-          headers: corsHeaders,
-          status: 400,
-        },
+    // ✅ SEC-011: Strikte Input-Validierung
+    const validation = validateCheckBuildRequest(body);
+    if (!validation.valid) {
+      return errorResponse(
+        'Validation failed',
+        req,
+        400,
+        { errors: validation.errors }
       );
     }
+
+    const { jobId } = validation.data!;
 
     const SUPABASE_URL = Deno.env.get("K1W1_SUPABASE_URL");
     const SERVICE_ROLE = Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY");
 
     if (!SUPABASE_URL || !SERVICE_ROLE) {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "Missing required environment variables",
-        }),
-        {
-          headers: corsHeaders,
-          status: 500,
-        },
+      return errorResponse(
+        'Missing required environment variables',
+        req,
+        500
       );
     }
 
@@ -55,31 +52,20 @@ serve(async (req) => {
     const jobRes = await supabase
       .from("build_jobs")
       .select("*")
-      .eq("id", body.jobId)
+      .eq("id", jobId) // ✅ Validierter Wert
       .single();
 
     if (jobRes.error || !jobRes.data) {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "Build job not found",
-        }),
-        { headers: corsHeaders, status: 404 },
-      );
+      return errorResponse('Build job not found', req, 404);
     }
 
     const job = jobRes.data;
 
     if (!job.github_repo) {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "build_jobs row missing github_repo",
-        }),
-        {
-          headers: corsHeaders,
-          status: 500,
-        },
+      return errorResponse(
+        'build_jobs row missing github_repo',
+        req,
+        500
       );
     }
 
@@ -93,16 +79,7 @@ serve(async (req) => {
     const token = Deno.env.get("GITHUB_TOKEN");
 
     if (!token) {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "Missing GITHUB_TOKEN",
-        }),
-        {
-          headers: corsHeaders,
-          status: 500,
-        },
-      );
+      return errorResponse('Missing GITHUB_TOKEN', req, 500);
     }
 
     const ghRes = await fetch(ghUrl, {
@@ -114,33 +91,22 @@ serve(async (req) => {
 
     if (!ghRes.ok) {
       const txt = await ghRes.text();
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "GitHub API error",
-          status: ghRes.status,
-          githubResponse: txt,
-        }),
-        {
-          headers: corsHeaders,
-          status: 500,
-        },
+      return errorResponse(
+        'GitHub API error',
+        req,
+        500,
+        { status: ghRes.status, githubResponse: txt }
       );
     }
 
     const ghJson = await ghRes.json().catch(() => null);
 
     if (!ghJson || !ghJson.workflow_runs) {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "Invalid GitHub response",
-          githubResponse: ghJson,
-        }),
-        {
-          headers: corsHeaders,
-          status: 500,
-        },
+      return errorResponse(
+        'Invalid GitHub response',
+        req,
+        500,
+        { githubResponse: ghJson }
       );
     }
 
@@ -156,18 +122,12 @@ serve(async (req) => {
     });
 
     if (!run) {
-      return new Response(
-        JSON.stringify({
-          ok: true,
-          buildFound: false,
-          status: "waiting",
-          message: "No build run found yet",
-        }),
-        {
-          headers: corsHeaders,
-          status: 200,
-        },
-      );
+      return jsonResponse({
+        ok: true,
+        buildFound: false,
+        status: "waiting",
+        message: "No build run found yet",
+      }, req);
     }
 
     // -----------------------------------------------------
@@ -194,8 +154,8 @@ serve(async (req) => {
       }
     }
 
-    const responsePayload = {
-      ok: true as const,
+    return jsonResponse({
+      ok: true,
       buildFound: true,
       status: mappedStatus,
       githubStatus: ghStatus,
@@ -206,30 +166,15 @@ serve(async (req) => {
         artifacts: artifactUrl,
       },
       job,
-    };
-
-    return new Response(JSON.stringify(responsePayload), {
-      status: 200,
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/json",
-      },
-    });
+    }, req);
+    
   } catch (err: any) {
     console.error("❌ check-eas-build error", err?.message ?? err, err?.stack);
 
-    return new Response(
-      JSON.stringify({
-        ok: false,
-        error: err?.message || "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      },
+    return errorResponse(
+      err?.message || 'Unknown error',
+      req,
+      500
     );
   }
 });

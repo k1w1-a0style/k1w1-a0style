@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders, handleCors } from "../_shared/cors.ts";
+import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
+import { validateTriggerBuildRequest } from "../_shared/validation.ts";
 
 /**
  * ✓ 100% stabiler trigger-eas-build
@@ -8,6 +9,7 @@ import { corsHeaders, handleCors } from "../_shared/cors.ts";
  * ✓ saubere Fehlerstruktur
  * ✓ logging-ready für dein Frontend
  * ✓ unterstützt GitHub Actions dispatch
+ * ✓ SEC-011: Input Validation hinzugefügt
  */
 
 serve(async (req) => {
@@ -17,38 +19,35 @@ serve(async (req) => {
   try {
     const body = await req.json().catch(() => null);
 
-    if (!body || !body.githubRepo) {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "Missing 'githubRepo' in request body",
-        }),
-        {
-          headers: corsHeaders,
-          status: 400,
-        },
+    // ✅ SEC-011: Strikte Input-Validierung
+    const validation = validateTriggerBuildRequest(body);
+    if (!validation.valid) {
+      return errorResponse(
+        'Validation failed',
+        req,
+        400,
+        { errors: validation.errors }
       );
     }
+
+    const { githubRepo, buildProfile } = validation.data!;
 
     const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN");
     const SUPABASE_URL = Deno.env.get("K1W1_SUPABASE_URL");
     const SERVICE_ROLE = Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY");
 
     if (!GITHUB_TOKEN || !SUPABASE_URL || !SERVICE_ROLE) {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "Missing required environment variables",
+      return errorResponse(
+        'Missing required environment variables',
+        req,
+        500,
+        {
           missing: {
             GITHUB_TOKEN: !!GITHUB_TOKEN,
             SUPABASE_URL: !!SUPABASE_URL,
             SERVICE_ROLE: !!SERVICE_ROLE,
           },
-        }),
-        {
-          headers: corsHeaders,
-          status: 500,
-        },
+        }
       );
     }
 
@@ -61,7 +60,8 @@ serve(async (req) => {
       .from("build_jobs")
       .insert([
         {
-          github_repo: body.githubRepo,
+          github_repo: githubRepo, // ✅ Validierter Wert
+          build_profile: buildProfile, // ✅ Validierter Wert
           status: "queued",
         },
       ])
@@ -69,16 +69,11 @@ serve(async (req) => {
       .single();
 
     if (insert.error) {
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "Supabase insert failed",
-          details: insert.error,
-        }),
-        {
-          headers: corsHeaders,
-          status: 500,
-        },
+      return errorResponse(
+        'Supabase insert failed',
+        req,
+        500,
+        insert.error
       );
     }
 
@@ -88,12 +83,13 @@ serve(async (req) => {
     // 2) GitHub DISPATCH mit Job ID ausführen
     // -----------------------------------------------------
     const dispatchUrl =
-      `https://api.github.com/repos/${body.githubRepo}/dispatches`;
+      `https://api.github.com/repos/${githubRepo}/dispatches`; // ✅ Validierter Wert
 
     const dispatchPayload = {
       event_type: "trigger-eas-build",
       client_payload: {
         job_id: jobId, // ✅ Job ID mitgeben!
+        build_profile: buildProfile,
       },
     };
 
@@ -120,53 +116,36 @@ serve(async (req) => {
         })
         .eq("id", jobId);
 
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: "GitHub dispatch failed",
+      return errorResponse(
+        'GitHub dispatch failed',
+        req,
+        500,
+        {
           status: ghRes.status,
           githubResponse: errorText,
           jobId: jobId,
-        }),
-        {
-          headers: corsHeaders,
-          status: 500,
-        },
+        }
       );
     }
 
     // -----------------------------------------------------
     // 3) Saubere Success Response
     // -----------------------------------------------------
-
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        githubDispatch: true,
-        buildJobCreated: true,
-        job: insert.data,
-      }),
-      {
-        headers: corsHeaders,
-        status: 200,
-      },
-    );
+    return jsonResponse({
+      ok: true,
+      githubDispatch: true,
+      buildJobCreated: true,
+      job: insert.data,
+    }, req);
+    
   } catch (err: any) {
     console.error("❌ trigger-eas-build error", err?.message ?? err, err?.stack);
     
-    return new Response(
-      JSON.stringify({
-        ok: false,
-        error: "Unhandled exception in trigger-eas-build",
-        message: err?.message || "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      },
+    return errorResponse(
+      'Unhandled exception in trigger-eas-build',
+      req,
+      500,
+      { message: err?.message || 'Unknown error' }
     );
   }
 });

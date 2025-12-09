@@ -179,50 +179,102 @@ export function validateGitHubRepo(repo: string): {
 }
 
 // ============================================
-// CHAT INPUT VALIDATION
+// CHAT INPUT VALIDATION (SEC-007: XSS Prevention)
 // ============================================
+
+/**
+ * XSS-gefährliche Patterns
+ */
+const XSS_PATTERNS = [
+  /<script[^>]*>/gi,
+  /<\/script>/gi,
+  /<iframe[^>]*>/gi,
+  /<\/iframe>/gi,
+  /<object[^>]*>/gi,
+  /<\/object>/gi,
+  /<embed[^>]*>/gi,
+  /<\/embed>/gi,
+  /javascript:/gi,
+  /vbscript:/gi,
+  /on\w+\s*=/gi,  // onclick=, onerror=, etc.
+  /data:\s*text\/html/gi,
+  /<svg[^>]*onload/gi,
+  /<img[^>]*onerror/gi,
+  /expression\s*\(/gi, // CSS expression
+  /url\s*\(\s*["']?\s*javascript:/gi,
+];
+
+/**
+ * Prüft ob Text XSS-Muster enthält
+ */
+function containsXSS(text: string): boolean {
+  return XSS_PATTERNS.some(pattern => pattern.test(text));
+}
+
+/**
+ * Sanitized HTML-ähnliche Inhalte
+ */
+export function sanitizeForXSS(input: string): string {
+  return input
+    // HTML-Entities für kritische Zeichen
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    // JavaScript URI entfernen
+    .replace(/javascript:/gi, '')
+    .replace(/vbscript:/gi, '')
+    // Event Handler entfernen
+    .replace(/on\w+\s*=/gi, 'data-removed=')
+    .trim();
+}
 
 /**
  * Validiert Chat-Nachrichten
  * - Max 10.000 Zeichen pro Nachricht
  * - Keine HTML-Tags (XSS-Schutz)
+ * - Keine gefährlichen Patterns
  */
 export const ChatInputSchema = z.string()
   .min(1, 'Nachricht darf nicht leer sein')
   .max(10000, 'Nachricht zu lang (max 10.000 Zeichen)')
   .refine(
-    (text) => !/<script[^>]*>.*?<\/script>/gi.test(text),
-    'Script-Tags nicht erlaubt'
-  )
-  .refine(
-    (text) => !/<iframe[^>]*>.*?<\/iframe>/gi.test(text),
-    'iFrame-Tags nicht erlaubt'
+    (text) => !containsXSS(text),
+    'Potenziell gefährliche Inhalte erkannt (XSS-Schutz)'
   );
 
 /**
  * Helper-Funktion für Chat Input Validierung
+ * Gibt sanitized Version zurück auch bei XSS-Erkennung
  */
 export function validateChatInput(input: string): {
   valid: boolean;
   error?: string;
   sanitized?: string;
+  hadXSS?: boolean;
 } {
+  const hadXSS = containsXSS(input);
+  const sanitized = hadXSS ? sanitizeForXSS(input) : input;
+  
   try {
-    const validated = ChatInputSchema.parse(input);
+    // Validiere die sanitized Version wenn XSS entfernt wurde
+    ChatInputSchema.parse(sanitized);
     return {
       valid: true,
-      sanitized: validated
+      sanitized,
+      hadXSS
     };
   } catch (error) {
     if (error instanceof z.ZodError) {
       return {
         valid: false,
-        error: error.errors[0].message
+        error: error.errors[0].message,
+        sanitized,
+        hadXSS
       };
     }
     return {
       valid: false,
-      error: 'Unbekannter Validierungsfehler'
+      error: 'Unbekannter Validierungsfehler',
+      hadXSS
     };
   }
 }

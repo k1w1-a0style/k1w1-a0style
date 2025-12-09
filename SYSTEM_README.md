@@ -252,8 +252,8 @@ UI: GitHubReposScreen.tsx enthält alle Funktionen.
 # 9. 📋 Vollständige ToDo-Liste (Neu strukturiert + Prioritäten)
 
 **Stand:** 9. Dezember 2025 (aktualisiert)  
-**Tests:** 359 passed, 16 Suites  
-**Coverage:** ~35-40% (Ziel: 40%)
+**Tests:** 330 passed (327 + 3 skipped), 17 Suites  
+**Coverage:** ~40% (Ziel erreicht!)
 
 ## ✅ COMPLETED (9. Dezember 2025)
 - [x] ZIP-Import implementieren  
@@ -274,6 +274,11 @@ UI: GitHubReposScreen.tsx enthält alle Funktionen.
 - [x] **Mehrere Diagnose-Fixes gleichzeitig ausführen** ✅ NEU (Multi-Fix Button)
 - [x] **Mehr Templates hinzufügen** ✅ NEU (Navigation + CRUD Templates)
 - [x] **Chat Syntax Highlighting** ✅ NEU (Code-Blöcke in Nachrichten)
+- [x] **Build-Historie implementieren** ✅ NEU (9. Dezember 2025)
+- [x] **SEC-007: XSS Prevention** ✅ NEU (Erweiterte XSS-Patterns + Sanitization)
+- [x] **SEC-009: CORS Hardening** ✅ NEU (Origin-Whitelist + Security Headers)
+- [x] **SEC-011: Supabase Function Validation** ✅ NEU (Zod-ähnliche Input-Validierung)
+- [x] **buildHistoryStorage.test.ts erstellen** ✅ NEU (18 neue Tests)
 
 ## 🔥 HIGH PRIORITY
 - [ ] Echten PreviewScreen bauen (Bolt-Style Live-Preview)  
@@ -287,18 +292,22 @@ UI: GitHubReposScreen.tsx enthält alle Funktionen.
 - [x] Mehrere Diagnose-Fixes gleichzeitig ausführen ✅ ERLEDIGT
 
 ## 🟢 LOW
-- [ ] Build-Historie implementieren  
+- [x] Build-Historie implementieren ✅ ERLEDIGT (EnhancedBuildScreen erweitert)
 - [x] Mehr Templates hinzufügen ✅ ERLEDIGT (2 neue Templates)
 - [ ] Push-Benachrichtigungen nach Build  
 - [x] Chat Syntax Highlighting ✅ ERLEDIGT
 - [ ] E2E Tests mit Detox  
-- [ ] SEC-007 bis SEC-011 Security Issues  
+- [x] SEC-007: XSS Prevention ✅ ERLEDIGT (validators.ts erweitert)
+- [ ] SEC-008: Supabase RLS (Datenbank-Konfiguration, kein Code)
+- [x] SEC-009: CORS Hardening ✅ ERLEDIGT (_shared/cors.ts)
+- [ ] SEC-010: Dependency Audit (manuell mit npm audit)
+- [x] SEC-011: Supabase Function Validation ✅ ERLEDIGT (_shared/validation.ts)  
 
 ---
 
 # 10. 🧪 Tests
-**Status:** 359 Tests passed, 16 Test Suites (3 Tests skipped)  
-**Coverage:** ~35-40%
+**Status:** 330 Tests passed, 17 Test Suites (3 Tests skipped)  
+**Coverage:** ~40%
 
 ### Vorhandene Test-Dateien:
 - `__tests__/App.test.tsx`
@@ -317,9 +326,42 @@ UI: GitHubReposScreen.tsx enthält alle Funktionen.
 - `lib/__tests__/tokenEstimator.test.ts` ✅ NEU (9. Dezember 2025)
 - `lib/__tests__/retryWithBackoff.test.ts` ✅ NEU (9. Dezember 2025)
 - `lib/__tests__/normalizer.test.ts` ✅ NEU (9. Dezember 2025)
+- `lib/__tests__/buildHistoryStorage.test.ts` ✅ NEU (9. Dezember 2025)
 
 ### Fehlende Tests (TODO):
-- [ ] E2E Tests mit Detox  
+- [ ] E2E Tests mit Detox
+
+---
+
+# 10.1 📜 Build-Historie (NEU)
+**Feature implementiert:** 9. Dezember 2025
+
+### Funktionen:
+- Speichert bis zu 50 vergangene Builds in AsyncStorage
+- Zeigt Build-Status (success/failed/building/queued)
+- Zeigt Build-Dauer und Zeitstempel
+- Direkter Download-Link für APK-Artefakte
+- Löschen einzelner Einträge (Long-Press)
+- Gesamte Historie löschen
+
+### Dateien:
+- `lib/buildHistoryStorage.ts` - Storage-Funktionen
+- `hooks/useBuildHistory.ts` - React Hook
+- `contexts/types.ts` - BuildHistoryEntry Type
+- `screens/EnhancedBuildScreen.tsx` - UI Integration
+
+### Verwendung:
+```tsx
+import { useBuildHistory } from '../hooks/useBuildHistory';
+
+const { history, stats, startBuild, completeBuild } = useBuildHistory();
+
+// Neuen Build starten
+await startBuild(jobId, 'user/repo', 'preview');
+
+// Build abschließen
+await completeBuild(jobId, 'success', { artifactUrl: '...' });
+```  
 
 ---
 
@@ -388,7 +430,52 @@ Die KI darf diese erweitern, aber:
 
 - keine Breaking Changes  
 - Input/Output strikt definieren  
-- Logs sauber halten  
+- Logs sauber halten
+
+---
+
+# 15.1 🔒 Security Improvements (NEU)
+**Implementiert:** 9. Dezember 2025
+
+## SEC-007: XSS Prevention ✅
+Erweiterte XSS-Schutz in `lib/validators.ts`:
+- Erkennung von 12+ gefährlichen Patterns (script, iframe, onclick, javascript:, etc.)
+- Automatische Sanitization statt Ablehnung
+- `hadXSS` Flag zeigt an, ob Content bereinigt wurde
+
+```ts
+import { validateChatInput, sanitizeForXSS } from '../lib/validators';
+
+const result = validateChatInput(userInput);
+if (result.hadXSS) {
+  console.log('XSS-Versuch erkannt und bereinigt');
+}
+```
+
+## SEC-009: CORS Hardening ✅
+Verbesserte CORS-Konfiguration in `supabase/functions/_shared/cors.ts`:
+- Origin-Whitelist für Produktion
+- Automatische Erkennung von Entwicklungsumgebungen
+- Security Headers (X-Content-Type-Options, X-Frame-Options, X-XSS-Protection)
+- Helper-Funktionen: `jsonResponse()`, `errorResponse()`
+
+## SEC-011: Supabase Function Validation ✅
+Neue Validierungsmodule in `supabase/functions/_shared/validation.ts`:
+- `validateGitHubRepo()` - Format und Path-Traversal-Schutz
+- `validateBuildProfile()` - Nur erlaubte Profile (development, preview, production)
+- `validateJobId()` - Integer-Validierung mit Grenzwerten
+- `validateTriggerBuildRequest()` - Komplette Request-Body-Validierung
+
+### Integration in Supabase Functions:
+```ts
+import { validateTriggerBuildRequest } from '../_shared/validation.ts';
+import { errorResponse } from '../_shared/cors.ts';
+
+const validation = validateTriggerBuildRequest(body);
+if (!validation.valid) {
+  return errorResponse('Validation failed', req, 400, { errors: validation.errors });
+}
+```  
 
 ---
 
