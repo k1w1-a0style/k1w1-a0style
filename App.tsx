@@ -48,6 +48,7 @@ import GitHubReposScreen from './screens/GitHubReposScreen';
 // ✅ NEUE SCREENS
 import DiagnosticScreen from './screens/DiagnosticScreen';
 import AppStatusScreen from './screens/AppStatusScreen';
+import PreviewScreen from './screens/PreviewScreen';
 
 import CustomHeader from './components/CustomHeader';
 import { CustomDrawerContent } from './components/CustomDrawer';
@@ -193,6 +194,15 @@ const AppNavigation = () => {
           options={{
             title: 'App Status',
             drawerLabel: '📊 App Status',
+          }}
+        />
+
+        <Drawer.Screen
+          name="Preview"
+          component={PreviewScreen}
+          options={{
+            title: 'Live Preview',
+            drawerLabel: '📱 Live Preview',
           }}
         />
 
