@@ -7,6 +7,7 @@ import * as Sharing from 'expo-sharing';
 import { v4 as uuidv4 } from 'uuid';
 import { normalizePath } from '../utils/chatUtils';
 import { validateFilePath, validateFileContent, validateZipImport } from '../lib/validators';
+import { zip, unzip } from 'react-native-zip-archive';
 
 const PROJECT_STORAGE_KEY = 'k1w1_project_data';
 const CACHE_DIR = FileSystem.cacheDirectory + 'zip_temp/';
@@ -20,20 +21,21 @@ const readDirectoryRecursive = async (
   const { Validators } = await import('../lib/validators');
   const MAX_FILE_SIZE = Validators.constants.MAX_FILE_SIZE;
   const MAX_TOTAL_FILES = Validators.constants.MAX_FILES_IN_ZIP;
-  
+
   try {
     const items = await FileSystem.readDirectoryAsync(dirUri);
-    
+
     for (const item of items) {
       // ✅ FIX: Prüfe Dateianzahl NACH dem Hinzufügen, nicht vorher
       if (files.length >= MAX_TOTAL_FILES) {
         console.warn(`[projectStorage] Maximale Dateianzahl erreicht: ${MAX_TOTAL_FILES}`);
         return files;
       }
+
       const itemUri = `${dirUri}${item}`;
       const info = await FileSystem.getInfoAsync(itemUri);
       const relativePath = basePath ? `${basePath}/${item}` : item;
-      
+
       if (info.isDirectory) {
         files = files.concat(await readDirectoryRecursive(itemUri + '/', relativePath));
       } else {
@@ -47,11 +49,11 @@ const readDirectoryRecursive = async (
             );
             continue;
           }
-          
-          const content = await FileSystem.readAsStringAsync(itemUri, { 
-            encoding: FileSystem.EncodingType.UTF8 
+
+          const content = await FileSystem.readAsStringAsync(itemUri, {
+            encoding: FileSystem.EncodingType.UTF8
           });
-          
+
           // ✅ SICHERHEIT: Pfad UND Content validieren
           const pathValidation = validateFilePath(relativePath);
           if (!pathValidation.valid) {
@@ -61,7 +63,7 @@ const readDirectoryRecursive = async (
             );
             continue;
           }
-          
+
           const contentValidation = validateFileContent(content);
           if (!contentValidation.valid) {
             console.warn(
@@ -70,7 +72,7 @@ const readDirectoryRecursive = async (
             );
             continue;
           }
-          
+
           const normalizedPath = pathValidation.normalized || normalizePath(relativePath);
           files.push({ path: normalizedPath, content });
         } catch (error) {
@@ -81,6 +83,7 @@ const readDirectoryRecursive = async (
   } catch (error) {
     console.error(`[projectStorage] Verzeichnis-Fehler ${dirUri}: `, error);
   }
+
   return files;
 };
 
@@ -103,19 +106,23 @@ export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
       console.log('📂 Kein gespeichertes Projekt gefunden');
       return null;
     }
+
     const project = JSON.parse(projectString);
     console.log('📖 Projekt geladen:', project.name);
+
     if (!project.files) {
       project.files = [];
       console.log('🔧 files Array repariert');
     }
+
     if (!project.chatHistory) {
       // Repariere alte Speicherstände
       // Migration: Alte 'messages' Property zu 'chatHistory'
       const projectWithMessages = project as ProjectData & { messages?: ChatMessage[] };
-      project.chatHistory = projectWithMessages.messages || []; 
+      project.chatHistory = projectWithMessages.messages || [];
       console.log('🔧 chatHistory Array repariert');
     }
+
     return project;
   } catch (error) {
     console.error('❌ Fehler beim Laden:', error);
@@ -134,17 +141,15 @@ export const clearProjectFromStorage = async (): Promise<void> => {
 };
 
 // === ECHTE ZIP-FUNKTIONEN ===
-
 export const exportProjectAsZipFile = async (project: ProjectData): Promise<{
   projectName: string;
   fileCount: number;
   messageCount: number;
 }> => {
   console.log('🎯 Export-Anfrage für:', project.name);
-  
   const projectFiles = project.files;
   const projectName = project.name.replace(/[\s\/]+/g, '_') || "projekt";
-  
+
   try {
     const tempDir = CACHE_DIR + 'projekt-export/';
     const zipPath = FileSystem.cacheDirectory + `${projectName}.zip`;
@@ -154,17 +159,17 @@ export const exportProjectAsZipFile = async (project: ProjectData): Promise<{
     await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
 
     for (const file of projectFiles) {
-      const contentString = typeof file.content === 'string' ?
-        file.content :
-        JSON.stringify(file.content, null, 2);
-        
+      const contentString = typeof file.content === 'string'
+        ? file.content
+        : JSON.stringify(file.content, null, 2);
+
       const filePath = `${tempDir}${file.path}`;
       const dirName = filePath.substring(0, filePath.lastIndexOf('/'));
-      
+
       if (dirName && dirName !== tempDir.slice(0, -1)) {
         await FileSystem.makeDirectoryAsync(dirName, { intermediates: true });
       }
-      
+
       await FileSystem.writeAsStringAsync(filePath, contentString, {
         encoding: FileSystem.EncodingType.UTF8
       });
@@ -172,17 +177,17 @@ export const exportProjectAsZipFile = async (project: ProjectData): Promise<{
 
     const resultPath = await zip(tempDir, zipPath);
     const shareableUri = `file://${resultPath}`;
-    
+
     if (!(await Sharing.isAvailableAsync())) {
       throw new Error("Teilen ist auf diesem Gerät nicht verfügbar.");
     }
-    
+
     await Sharing.shareAsync(shareableUri, {
       mimeType: 'application/zip',
       dialogTitle: `Projekt '${project.name}' exportieren`,
       UTI: 'com.pkware.zip-archive'
     });
-    
+
     await FileSystem.deleteAsync(tempDir, { idempotent: true });
 
     return {
@@ -190,7 +195,6 @@ export const exportProjectAsZipFile = async (project: ProjectData): Promise<{
       fileCount: (project.files || []).length,
       messageCount: (project.chatHistory || []).length
     };
-
   } catch (error: unknown) {
     console.error('❌ Fehler beim ZIP-Export:', error);
     const errorMessage = error instanceof Error ? error.message : 'ZIP-Export fehlgeschlagen';
@@ -213,44 +217,44 @@ export const importProjectFromZipFile = async (): Promise<{
     if (result.canceled || !result.assets?.[0]?.uri) {
       throw new Error('Import abgebrochen');
     }
-    
+
     const zipAsset = result.assets[0];
     await FileSystem.deleteAsync(CACHE_DIR, { idempotent: true });
     await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
 
     console.log('📦 Entpacke...');
     await unzip(zipAsset.uri, CACHE_DIR);
-    
+
     const newFiles = await readDirectoryRecursive(CACHE_DIR);
     if (newFiles.length === 0) throw new Error('ZIP enthält keine Dateien');
-    
+
     // ✅ SICHERHEIT: Zusätzliche ZIP-Validierung
     console.log('🔍 Validiere ZIP-Inhalte...');
     const zipValidation = validateZipImport(newFiles);
-    
+
     if (!zipValidation.valid) {
       const errorMsg = [
         'ZIP-Validierung fehlgeschlagen:',
         ...zipValidation.errors,
         `Ungültige Dateien: ${zipValidation.invalidFiles.length}`,
       ].join('\n');
-      
+
       console.error('[projectStorage]', errorMsg);
       throw new Error(errorMsg);
     }
-    
+
     if (zipValidation.invalidFiles.length > 0) {
       console.warn(
         `[projectStorage] ${zipValidation.invalidFiles.length} ungültige Dateien übersprungen:`,
         zipValidation.invalidFiles.map(f => `${f.path}: ${f.reason}`)
       );
     }
-    
+
     // Verwende nur validierte Dateien
     const validatedFiles = zipValidation.validFiles;
 
     const newName = zipAsset.name.replace(/\.zip$/i, '') || 'Importiertes Projekt';
-    
+
     // (Hier könnten wir auch nach einer 'project.json' im ZIP suchen)
     const newProject: ProjectData = {
       id: uuidv4(),
@@ -260,28 +264,28 @@ export const importProjectFromZipFile = async (): Promise<{
       createdAt: new Date().toISOString(),
       lastModified: new Date().toISOString(),
     };
-    
+
     console.log(
       `✅ ZIP-Import erfolgreich: ${validatedFiles.length} Dateien validiert`
     );
-    
+
     return {
       project: newProject,
       fileCount: validatedFiles.length,
       messageCount: 0
     };
-
   } catch (error: unknown) {
     console.error('❌ Fehler beim ZIP-Import:', error);
+
     if (error instanceof Error) {
       if (error.message.includes('Import abgebrochen')) {
         throw error;
       }
       throw new Error(error.message || 'ZIP-Import fehlgeschlagen');
     }
+
     throw new Error('ZIP-Import fehlgeschlagen');
   } finally {
     await FileSystem.deleteAsync(CACHE_DIR, { idempotent: true }).catch(() => {});
   }
 };
-
