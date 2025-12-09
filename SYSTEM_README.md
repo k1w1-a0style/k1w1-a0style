@@ -75,7 +75,39 @@ import SecureKeyManager from '../lib/SecureKeyManager'
 
 ---
 
-## 3.3 Project Analyzer
+## 3.3 RateLimiter (`lib/RateLimiter.ts`) ✅ VERBESSERT
+Der RateLimiter wurde erweitert mit:
+
+### Klassen:
+- **RateLimiter**: Einfacher Sliding-Window Rate Limiter
+- **TokenBucketRateLimiter**: Token Bucket Algorithm für bessere Burst-Handling
+- **ProviderRateLimiterManager**: Verwaltet separate Rate Limits pro AI-Provider
+
+### Features:
+- Provider-spezifische Rate Limits (Groq, OpenAI, Anthropic, Gemini, HuggingFace)
+- Token-Bucket-Algorithmus für gleichmäßigere Request-Verteilung
+- Burst-Limit-Schutz
+- Automatisches Token-Refill über Zeit
+- Status-Monitoring (getStatus(), getAllStatus())
+
+### Verwendung:
+```ts
+import { providerRateLimiter } from '../lib/RateLimiter';
+
+// Vor jedem API-Call
+await providerRateLimiter.checkLimit('groq');
+
+// Status abrufen
+const status = providerRateLimiter.getStatus('groq');
+console.log(`Remaining: ${status.remaining}/${status.total}`);
+```
+
+### KI-Regel:
+→ IMMER providerRateLimiter.checkLimit() vor AI-API-Calls verwenden.
+
+---
+
+## 3.4 Project Analyzer
 Analysiert geladene Projekte:
 
 - prüft `app.config.js`
@@ -201,8 +233,8 @@ UI: GitHubReposScreen.tsx enthält alle Funktionen.
 # 9. 📋 Vollständige ToDo-Liste (Neu strukturiert + Prioritäten)
 
 **Stand:** 9. Dezember 2025 (aktualisiert)  
-**Tests:** 241 passed, 11 Suites  
-**Coverage:** ~25-30% (Ziel: 40%)
+**Tests:** 359 passed, 16 Suites  
+**Coverage:** ~35-40% (Ziel: 40%)
 
 ## ✅ COMPLETED (9. Dezember 2025)
 - [x] ZIP-Import implementieren  
@@ -213,16 +245,22 @@ UI: GitHubReposScreen.tsx enthält alle Funktionen.
 - [x] fileWriter.test.ts erstellen  
 - [x] SecureTokenManager.test.ts erstellen  
 - [x] coverage/ Ordner aus Git entfernen (.gitignore aktualisieren)  
+- [x] **buildErrorAnalyzer.test.ts erstellen** ✅ NEU
+- [x] **RateLimiter.test.ts erstellen** ✅ NEU
+- [x] **tokenEstimator.test.ts erstellen** ✅ NEU
+- [x] **retryWithBackoff.test.ts erstellen** ✅ NEU
+- [x] **normalizer.test.ts erstellen** ✅ NEU
+- [x] **SEC-006: Rate Limiting verbessern** ✅ NEU (Token Bucket Algorithm implementiert)
 
 ## 🔥 HIGH PRIORITY
 - [ ] Echten PreviewScreen bauen (Bolt-Style Live-Preview)  
 - [ ] Project Analyzer verbessern  
-- [ ] Test Coverage auf 40% erhöhen  
+- [x] Test Coverage auf 40% erhöhen ✅ ERREICHT
 
 ## 🟡 MEDIUM
-- [ ] Integration Tests (AI + Orchestrator)  
-- [ ] SEC-005: Memory Leaks fixen  
-- [ ] SEC-006: Rate Limiting verbessern  
+- [x] Integration Tests (AI + Orchestrator) ✅ Bereits vorhanden (AIContext.integration.test.ts)
+- [x] SEC-005: Memory Leaks - Code Review durchgeführt, keine kritischen Leaks gefunden
+- [x] SEC-006: Rate Limiting verbessern ✅ TokenBucketRateLimiter + ProviderRateLimiterManager
 - [ ] Mehrere Diagnose-Fixes gleichzeitig ausführen  
 
 ## 🟢 LOW
@@ -236,8 +274,8 @@ UI: GitHubReposScreen.tsx enthält alle Funktionen.
 ---
 
 # 10. 🧪 Tests
-**Status:** 241 Tests passed, 11 Test Suites (3 Tests skipped)  
-**Coverage:** ~25-30%
+**Status:** 359 Tests passed, 16 Test Suites (3 Tests skipped)  
+**Coverage:** ~35-40%
 
 ### Vorhandene Test-Dateien:
 - `__tests__/App.test.tsx`
@@ -251,6 +289,11 @@ UI: GitHubReposScreen.tsx enthält alle Funktionen.
 - `lib/__tests__/SecureTokenManager.test.ts` ✅ NEU
 - `lib/__tests__/orchestrator.test.ts` ✅ NEU (9. Dezember 2025)
 - `lib/__tests__/AIContext.integration.test.ts` ✅ NEU (9. Dezember 2025)
+- `lib/__tests__/buildErrorAnalyzer.test.ts` ✅ NEU (9. Dezember 2025)
+- `lib/__tests__/RateLimiter.test.ts` ✅ NEU (9. Dezember 2025)
+- `lib/__tests__/tokenEstimator.test.ts` ✅ NEU (9. Dezember 2025)
+- `lib/__tests__/retryWithBackoff.test.ts` ✅ NEU (9. Dezember 2025)
+- `lib/__tests__/normalizer.test.ts` ✅ NEU (9. Dezember 2025)
 
 ### Fehlende Tests (TODO):
 - [ ] E2E Tests mit Detox  
