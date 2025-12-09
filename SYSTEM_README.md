@@ -36,7 +36,7 @@ Die App besteht aus:
 - `lib/` (Core-Logic, 15 Modules)
 - `contexts/` (7 Modules: AIContext, GitHubContext, githubService, ProjectContext, projectStorage, TerminalContext, types)
 - `supabase/functions/` (7 Edge Functions)
-- `hooks/` (5 Hooks: useBuildStatus, useBuildStatusSupabase, useBuildTrigger, useGitHubActionsLogs, useGitHubRepos)
+- `hooks/` (6 Hooks: useBuildStatus, useBuildStatusSupabase, useBuildTrigger, useGitHubActionsLogs, useGitHubRepos, useNotifications)
 - `utils/` (4 Modules: chatUtils, metaCommands, projectSnapshot, syntaxValidator)
 - `templates/` (3 Templates: base, navigation, crud)
 - `types/`

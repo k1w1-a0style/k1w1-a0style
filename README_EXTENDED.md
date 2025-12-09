@@ -33,35 +33,43 @@ Dieses Projekt hat drei Dokumentationsdateien mit unterschiedlichen Zwecken:
 ### ✅ Funktioniert
 - Multi-Provider KI (Groq, OpenAI, Gemini, Anthropic, HuggingFace)
 - Projekt-Editor mit FileTree
-- ZIP-Export
+- ZIP-Export ✅
+- ZIP-Import ✅ (vollständig implementiert)
 - EAS Build Integration
 - GitHub Repos & Workflow Trigger
-- 113 Tests (7 Suites)
+- GitHub Repo-Funktionen (Create/Delete/Pull/Push) ✅
+- Push-Benachrichtigungen ✅
+- Build-Historie ✅
+- Chat Syntax Highlighting ✅
+- PreviewScreen (Live-Preview) ✅
+- 330 Tests (17 Suites) ✅
 
 ### ⚠️ In Arbeit / Bekannte Bugs
-- ZIP-Import fehlt
-- ChatScreen Input-Bug (Keyboard/Position)
-- DiagnosticScreen Auto-Fix
-- GitHub erweiterte Funktionen (Delete, Create, Pull, Push)
-- PreviewScreen → AppStatusScreen Umbenennung
+✅ Alle kritischen Bugs behoben (9. Dezember 2025)
+
+**Offene Punkte:**
+- [ ] E2E Tests mit Detox
+- [ ] SEC-008: Supabase RLS (Datenbank-Konfiguration)
 
 ### 📊 Metriken
-- **Tests:** 113 passed, 7 Suites
-- **Coverage:** ~10% (Ziel: 40%)
-- **Security:** 7/11 Issues behoben
-- **Screens:** 11
+- **Tests:** 330 passed, 17 Suites (3 skipped)
+- **Coverage:** ~40% ✅ (Ziel erreicht!)
+- **Security:** 10/11 Issues behoben ✅
+- **Screens:** 12 (inkl. PreviewScreen)
 - **Components:** 11
 - **Lib Modules:** 15
+- **Hooks:** 6 (inkl. useNotifications)
 
 ---
 
 ## 🎯 Nächste Schritte (High Priority)
 
-1. ZIP-Import implementieren
-2. ChatScreen Input fixen
-3. DiagnosticScreen Auto-Fix
-4. Test Coverage erhöhen
-5. PreviewScreen umbenennen
+✅ Alle High-Priority-Tasks abgeschlossen (9. Dezember 2025)!
+
+**Verbleibende Aufgaben:**
+1. E2E Tests mit Detox
+2. SEC-008: Supabase RLS konfigurieren
+3. Web-Favicon fixen (optional)
 
 Für die vollständige ToDo-Liste siehe [README.md](./README.md#-to-do-liste-logisch-sortiert).
 

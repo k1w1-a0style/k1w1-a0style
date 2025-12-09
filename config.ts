@@ -78,8 +78,9 @@ export const CONFIG = {
       'metro.config.js',
       'eas.json',
       // ✅ CI/Workflow-Dateien explizit erlauben
-      '.github/workflows/deploy-supabase-functions.yml',
-      '.github/workflows/eas-build.yml',
+      '.github/workflows/ci-build.yml',
+      '.github/workflows/k1w1-triggered-build.yml',
+      '.github/workflows/release-build.yml',
     ] as string[],
 
     SRC_FOLDERS: [
@@ -123,8 +124,9 @@ export const CONFIG = {
       'README.md',
       'expo-env.d.ts',
       '.gitignore',
-      '.github/workflows/deploy-supabase-functions.yml',
-      '.github/workflows/eas-build.yml',
+      '.github/workflows/ci-build.yml',
+      '.github/workflows/k1w1-triggered-build.yml',
+      '.github/workflows/release-build.yml',
     ] as string[],
 
     ALLOWED_EXT: [
