@@ -22,6 +22,7 @@ import type {
   QualityMode,
 } from '../contexts/AIContext';
 import { AVAILABLE_MODELS, PROVIDER_METADATA } from '../contexts/AIContext';
+import { useNotifications } from '../hooks/useNotifications';
 
 const PROVIDER_IDS: AllAIProviders[] = ['groq', 'gemini', 'openai', 'anthropic', 'huggingface'];
 
@@ -130,6 +131,9 @@ const SettingsScreen: React.FC = () => {
 
   const [newKey, setNewKey] = useState('');
   const [selectedKeyProvider, setSelectedKeyProvider] = useState<ProviderId>('groq');
+
+  // Notifications
+  const { isInitialized, hasPermissions, requestPermissions, pushToken } = useNotifications();
 
   const generatorProvider = config.selectedChatProvider as ProviderId;
   const agentProvider = config.selectedAgentProvider as ProviderId;
@@ -473,6 +477,56 @@ const SettingsScreen: React.FC = () => {
 
           <Text style={styles.hintText}>
             💡 Keys werden lokal verschlüsselt gespeichert. Bei Limit-Fehlern erfolgt das Rotieren automatisch.
+          </Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>📱 Push-Benachrichtigungen</Text>
+          <Text style={styles.sectionSubtitle}>
+            Erhalte Benachrichtigungen über Build-Status-Updates (Start, Erfolg, Fehler).
+          </Text>
+
+          <View style={styles.notificationCard}>
+            <View style={styles.notificationRow}>
+              <Ionicons 
+                name={hasPermissions ? "notifications" : "notifications-off"} 
+                size={24} 
+                color={hasPermissions ? theme.palette.success : theme.palette.text.secondary} 
+              />
+              <View style={styles.notificationInfo}>
+                <Text style={styles.notificationTitle}>
+                  {hasPermissions ? '✅ Aktiviert' : '⚠️ Nicht aktiviert'}
+                </Text>
+                <Text style={styles.notificationSubtext}>
+                  {hasPermissions 
+                    ? 'Du erhältst Build-Benachrichtigungen' 
+                    : 'Aktiviere Benachrichtigungen für Updates'}
+                </Text>
+              </View>
+            </View>
+
+            {!hasPermissions && (
+              <TouchableOpacity 
+                style={styles.notificationButton} 
+                onPress={requestPermissions}
+              >
+                <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+                <Text style={styles.notificationButtonText}>Aktivieren</Text>
+              </TouchableOpacity>
+            )}
+
+            {pushToken && (
+              <View style={styles.tokenInfo}>
+                <Text style={styles.tokenLabel}>Push Token (für Remote-Notifications):</Text>
+                <Text style={styles.tokenText} numberOfLines={1}>
+                  {pushToken.substring(0, 30)}...
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <Text style={styles.hintText}>
+            💡 Benachrichtigungen werden lokal gesendet. Stelle sicher, dass dein Gerät keine App-Benachrichtigungen blockiert.
           </Text>
         </View>
       </ScrollView>
@@ -949,6 +1003,65 @@ const styles = StyleSheet.create({
     color: theme.palette.text.secondary,
     marginTop: 10,
     lineHeight: 16,
+  },
+  notificationCard: {
+    backgroundColor: theme.palette.background,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    padding: 16,
+    marginTop: 12,
+    gap: 12,
+  },
+  notificationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  notificationInfo: {
+    flex: 1,
+  },
+  notificationTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.palette.text.primary,
+    marginBottom: 4,
+  },
+  notificationSubtext: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+    lineHeight: 16,
+  },
+  notificationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: theme.palette.primary,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  notificationButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  tokenInfo: {
+    marginTop: 8,
+    padding: 10,
+    backgroundColor: theme.palette.surface,
+    borderRadius: 8,
+  },
+  tokenLabel: {
+    fontSize: 11,
+    color: theme.palette.text.secondary,
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  tokenText: {
+    fontSize: 10,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    color: theme.palette.text.primary,
   },
 });
 

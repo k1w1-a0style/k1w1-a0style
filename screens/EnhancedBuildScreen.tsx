@@ -22,6 +22,7 @@ import { CONFIG } from "../config";
 import { theme, getNeonGlow } from "../theme";
 import { useGitHub } from '../contexts/GitHubContext';
 import { BuildHistoryEntry } from "../contexts/types";
+import { useNotifications } from "../hooks/useNotifications";
 
 type TimelineStepKey = "queued" | "building" | "success";
 type TimelineStepState = "done" | "current" | "upcoming" | "failed";
@@ -153,6 +154,9 @@ export default function EnhancedBuildScreen() {
     isLoading: historyLoading 
   } = useBuildHistory();
 
+  // Notifications Hook
+  const { notifyBuildSuccess, notifyBuildFailure, notifyBuildStarted } = useNotifications();
+
   const { status, details, lastError, isPolling } = useBuildStatus(jobId);
   
   // Extract runId from raw response if available
@@ -253,6 +257,9 @@ export default function EnhancedBuildScreen() {
         
         // ✅ Build zur Historie hinzufügen
         await addToHistory(newJobId, activeRepo, 'preview');
+        
+        // 📱 Notification senden
+        await notifyBuildStarted(String(newJobId), 'Android');
       } else {
         Alert.alert("Fehler", json?.error || "Fehler beim Start des Builds");
       }
@@ -280,7 +287,7 @@ export default function EnhancedBuildScreen() {
     }
   }, [jobId]);
 
-  // ✅ NEU: Build-Historie aktualisieren bei Status-Änderung
+  // ✅ NEU: Build-Historie aktualisieren bei Status-Änderung + Notifications
   useEffect(() => {
     if (jobId && ['success', 'failed', 'error'].includes(status)) {
       updateHistory(jobId, status as 'success' | 'failed' | 'error', {
@@ -288,8 +295,15 @@ export default function EnhancedBuildScreen() {
         htmlUrl: details?.urls?.html,
         errorMessage: lastError || undefined,
       });
+      
+      // 📱 Notifications senden
+      if (status === 'success') {
+        notifyBuildSuccess(String(jobId), 'Android');
+      } else if (status === 'failed' || status === 'error') {
+        notifyBuildFailure(String(jobId), lastError || 'Unbekannter Fehler', 'Android');
+      }
     }
-  }, [jobId, status, details, lastError, updateHistory]);
+  }, [jobId, status, details, lastError, updateHistory, notifyBuildSuccess, notifyBuildFailure]);
 
   const openUrl = useCallback((url?: string | null) => {
     if (!url) {
