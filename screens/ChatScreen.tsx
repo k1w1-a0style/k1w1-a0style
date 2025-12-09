@@ -52,6 +52,8 @@ const ChatScreen: React.FC = () => {
     isLoading: isProjectLoading,
     addChatMessage,
     updateProjectFiles,
+    autoFixRequest,
+    clearAutoFixRequest,
   } = useProject();
 
   const { config } = useAI();
@@ -210,6 +212,149 @@ const ChatScreen: React.FC = () => {
       }
     };
   }, []);
+
+  // ✅ NEU: Auto-Fix Handler - reagiert auf Fix-Requests vom DiagnosticScreen
+  useEffect(() => {
+    if (autoFixRequest && !isAiLoading && !isStreaming) {
+      const processAutoFix = async () => {
+        console.log('[ChatScreen] Auto-Fix Request empfangen:', autoFixRequest.id);
+        
+        // User-Nachricht hinzufügen
+        const userMessage: ChatMessage = {
+          id: uuidv4(),
+          role: 'user',
+          content: autoFixRequest.message,
+          timestamp: new Date().toISOString(),
+          meta: { autoFix: true },
+        };
+        
+        addChatMessage(userMessage);
+        clearAutoFixRequest();
+        
+        // KI-Flow starten (wie bei handleSend)
+        setIsAiLoading(true);
+        setError(null);
+        
+        try {
+          const historyWithCurrent = [...messages, userMessage];
+          const historyAsLlm: LlmMessage[] = historyWithCurrent.map((m) => ({
+            role: m.role,
+            content: m.content,
+          }));
+
+          const llmMessages = buildBuilderMessages(
+            historyAsLlm,
+            autoFixRequest.message,
+            projectFiles
+          );
+
+          const ai = await runOrchestrator(
+            config.selectedChatProvider,
+            config.selectedChatMode,
+            config.qualityMode,
+            llmMessages
+          );
+
+          if (!ai || !ai.ok) {
+            const msg = '⚠️ Die KI konnte keinen gültigen Output liefern.';
+            setError(msg);
+            addChatMessage({
+              id: uuidv4(),
+              role: 'assistant',
+              content: msg,
+              timestamp: new Date().toISOString(),
+            });
+            return;
+          }
+
+          if (!ai.text && !ai.files) {
+            const msg = '⚠️ Die KI-Antwort war leer oder ohne Dateien.';
+            setError(msg);
+            addChatMessage({
+              id: uuidv4(),
+              role: 'assistant',
+              content: msg,
+              timestamp: new Date().toISOString(),
+            });
+            return;
+          }
+
+          const rawForNormalizer =
+            ai.files && Array.isArray(ai.files)
+              ? ai.files
+              : ai.text
+              ? ai.text
+              : ai.raw;
+
+          const normalized = normalizeAiResponse(rawForNormalizer);
+
+          if (!normalized) {
+            const msg = '⚠️ Normalizer konnte die Dateien nicht verarbeiten.';
+            setError(msg);
+            addChatMessage({
+              id: uuidv4(),
+              role: 'assistant',
+              content: msg,
+              timestamp: new Date().toISOString(),
+            });
+            return;
+          }
+
+          const mergeResult = applyFilesToProject(projectFiles, normalized);
+
+          const summaryText =
+            `🤖 **Auto-Fix Vorschlag:**\n\n` +
+            `📝 **Neue Dateien** (${mergeResult.created.length}):\n` +
+            (mergeResult.created.length > 0 
+              ? mergeResult.created.slice(0, 5).map(f => `  • ${f}`).join('\n') + 
+                (mergeResult.created.length > 5 ? `\n  ... und ${mergeResult.created.length - 5} weitere` : '')
+              : '  (keine)') +
+            `\n\n` +
+            `📝 **Geänderte Dateien** (${mergeResult.updated.length}):\n` +
+            (mergeResult.updated.length > 0 
+              ? mergeResult.updated.slice(0, 5).map(f => `  • ${f}`).join('\n') +
+                (mergeResult.updated.length > 5 ? `\n  ... und ${mergeResult.updated.length - 5} weitere` : '')
+              : '  (keine)') +
+            `\n\nMöchtest du diese Änderungen übernehmen?`;
+
+          const streamingId = uuidv4();
+          addChatMessage({
+            id: streamingId,
+            role: 'assistant',
+            content: '',
+            timestamp: new Date().toISOString(),
+          });
+
+          simulateStreaming(summaryText, () => {
+            setPendingChange({
+              files: mergeResult.files,
+              summary: summaryText,
+              created: mergeResult.created,
+              updated: mergeResult.updated,
+              skipped: mergeResult.skipped,
+              aiResponse: ai,
+            });
+            setShowConfirmModal(true);
+          });
+
+        } catch (e: any) {
+          const msg = '⚠️ Fehler beim Auto-Fix.';
+          setError(msg);
+          addChatMessage({
+            id: uuidv4(),
+            role: 'assistant',
+            content: `${msg}\n\n${e?.message || 'Unbekannter Fehler'}`,
+            timestamp: new Date().toISOString(),
+            meta: { error: true },
+          });
+        } finally {
+          setIsAiLoading(false);
+        }
+      };
+
+      processAutoFix();
+    }
+  }, [autoFixRequest, isAiLoading, isStreaming, clearAutoFixRequest]);
 
   // Streaming effect - simuliert fließendes Schreiben (OPTIMIERT)
   const simulateStreaming = useCallback((fullText: string, onComplete: () => void) => {
@@ -678,8 +823,8 @@ const ChatScreen: React.FC = () => {
     <SafeAreaView style={styles.root} edges={['bottom']}>
       <KeyboardAvoidingView
         style={styles.keyboardAvoid}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <View style={styles.container}>
           <View style={styles.listContainer}>

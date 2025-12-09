@@ -1,4 +1,5 @@
-// screens/PreviewScreen.tsx – Build Preview & Pre-Build Validation
+// screens/AppStatusScreen.tsx – App Status & Pre-Build Validation
+// (umbenannt von PreviewScreen - zeigt Projektstatus, NICHT echte Preview)
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
@@ -42,7 +43,7 @@ interface ProjectStats {
   hasAppTsx: boolean;
 }
 
-const PreviewScreen: React.FC = () => {
+const AppStatusScreen: React.FC = () => {
   const { projectData, isLoading, exportProjectAsZip } = useProject();
   const [activeSection, setActiveSection] = useState<SectionType>('overview');
 
@@ -264,7 +265,7 @@ const PreviewScreen: React.FC = () => {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>🔍 Build Preview</Text>
+        <Text style={styles.headerTitle}>📊 App Status</Text>
         <TouchableOpacity style={styles.exportButton} onPress={handleExport}>
           <Ionicons name="download-outline" size={20} color={theme.palette.primary} />
           <Text style={styles.exportButtonText}>Export</Text>
@@ -906,4 +907,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PreviewScreen;
+export default AppStatusScreen;

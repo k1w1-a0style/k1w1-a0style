@@ -117,94 +117,102 @@ Wenn Projektdateien generiert werden → IMMER gültige Struktur sicherstellen.
 
 # 5. 📱 Screens (mit Korrekturen & Änderungen)
 
-### ⚠️ HINWEIS: PreviewScreen
-❗ Der "PreviewScreen" ist KEIN echtes Preview → sollte zu **AppStatusScreen** umbenannt werden.  
-**Status:** Noch nicht umgesetzt. Datei heißt noch `PreviewScreen.tsx`.
+### ✅ AppStatusScreen (ehemals PreviewScreen)
+PreviewScreen wurde zu **AppStatusScreen** umbenannt.  
+**Status:** ✅ Umgesetzt (9. Dezember 2025)
 
-Ein echter PreviewScreen (Bolt-Style) wird in Zukunft implementiert.
+Ein echter PreviewScreen (Bolt-Style Live-Preview) wird in Zukunft implementiert.
 
 ### 📋 Alle Screens:
 | Screen | Funktion |
 |--------|----------|
-| ChatScreen | KI-Chat |
+| ChatScreen | KI-Chat (mit Auto-Fix Support) |
 | CodeScreen | Editor |
-| PreviewScreen | Projektinfos, Analyse (sollte AppStatusScreen heißen) |
+| AppStatusScreen | Projektinfos, Build-Validierung ✅ |
 | BuildScreen | Build-Status |
 | EnhancedBuildScreen | Detaillierte Build-Logs |
 | TerminalScreen | Terminal-Logs |
 | SettingsScreen | API Keys |
 | ConnectionsScreen | GitHub/Expo Verbindungen |
-| GitHubReposScreen | Repository-Verwaltung |
+| GitHubReposScreen | Repository-Verwaltung (Create/Delete/Push/Pull) |
 | AppInfoScreen | Icons, Backup |
-| DiagnosticScreen | Fehleranalyse |
+| DiagnosticScreen | Fehleranalyse (mit Auto-Fix) |
 
 ---
 
 # 6. 🛠️ ZIP Import/Export (Aktueller Stand)
-- ZIP-Export funktioniert  
-- ZIP-Import → **fehlt** (ToDo HIGH PRIORITY)
+- ZIP-Export ✅ funktioniert  
+- ZIP-Import ✅ funktioniert (implementiert in projectStorage.ts)
 
-Importprozess soll:
+Importprozess:
 
-1. ZIP entpacken  
-2. strikte Validierung über Project Analyzer  
+1. ZIP entpacken via react-native-zip-archive
+2. strikte Validierung über validators.ts (validateZipImport)
 3. Datei-Struktur in FileTree laden  
 4. Projektzustand in ProjectContext setzen  
 
 ---
 
 # 7. 🔗 GitHub Repo Funktionen
-Aktuell fehlen (ToDo HIGH):
+✅ Alle Funktionen implementiert:
 
-- Repo löschen  
-- Repo neu erstellen  
-- Pull  
-- Push (teilweise bereits vorhanden, aber unvollständig)
+- **Repo erstellen** ✅ (createRepo in githubService.ts)
+- **Repo löschen** ✅ (deleteRepo in useGitHubRepos.ts)
+- **Repo umbenennen** ✅ (renameRepo in useGitHubRepos.ts)
+- **Pull** ✅ (pullFromRepo in useGitHubRepos.ts)
+- **Push** ✅ (pushFilesToRepo in githubService.ts)
 
-KI darf diese Features implementieren.
+UI: GitHubReposScreen.tsx enthält alle Funktionen.
 
 ---
 
 # 8. 🪲 Bekannte Bugs (MÜSSEN berücksichtigt werden)
 
-### 8.1 ChatScreen Input-Bug
-- Eingabefeld hängt in der Mitte  
-- Wird komplett von der Tastatur verdeckt  
+### 8.1 ChatScreen Input-Bug ✅ BEHOBEN
+- ~~Eingabefeld hängt in der Mitte~~  
+- ~~Wird komplett von der Tastatur verdeckt~~
+- **Fix:** KeyboardAvoidingView behavior='height' für Android, keyboardVerticalOffset für iOS
 
 ### KI-Pflicht:
 → Immer `KeyboardAvoidingView` + `useSafeAreaInsets()` berücksichtigen.
 
 ---
 
-### 8.2 DiagnosticScreen Fix-Bug
-Problem:
-- Klick auf "Fix" erzeugt Nachricht  
-- KI antwortet NICHT automatisch  
-- Benutzer muss Nachricht manuell kopieren
+### 8.2 DiagnosticScreen Fix-Bug ✅ BEHOBEN
+~~Problem:~~
+- ~~Klick auf "Fix" erzeugt Nachricht~~  
+- ~~KI antwortet NICHT automatisch~~  
+- ~~Benutzer muss Nachricht manuell kopieren~~
 
-KI-Pflicht:
-→ Fix-Requests sollen direkt an KI gehen und Response soll direkt verarbeitet werden.
+**Fix:** Auto-Fix Feature implementiert:
+- triggerAutoFix() im ProjectContext
+- ChatScreen hört auf autoFixRequest und startet KI-Flow automatisch
 
 ---
 
 ### 8.3 Nachrichten-Ränder abgeschnitten
-→ Layout-Bug im MessageItem.
+→ Layout-Bug im MessageItem (OFFEN).
 
 ---
 
 # 9. 📋 Vollständige ToDo-Liste (Neu strukturiert + Prioritäten)
 
 **Stand:** 9. Dezember 2025  
-**Tests:** 113 passed, 7 Suites  
-**Coverage:** ~10-15% (Ziel: 40%)
+**Tests:** 162 passed, 9 Suites  
+**Coverage:** ~15-20% (Ziel: 40%)
+
+## ✅ COMPLETED (9. Dezember 2025)
+- [x] ZIP-Import implementieren  
+- [x] ChatScreen Input fixen (Keyboard + Position)  
+- [x] DiagnosticScreen Auto-Fix (KI soll automatisch reagieren)  
+- [x] GitHub Funktionen erweitern (Delete, Create, Pull, Push)  
+- [x] PreviewScreen → AppStatusScreen umbenennen  
+- [x] fileWriter.test.ts erstellen  
+- [x] SecureTokenManager.test.ts erstellen  
+- [x] coverage/ Ordner aus Git entfernen (.gitignore aktualisieren)  
 
 ## 🔥 HIGH PRIORITY
-- [ ] ZIP-Import implementieren  
-- [ ] ChatScreen Input fixen (Keyboard + Position)  
-- [ ] DiagnosticScreen Auto-Fix (KI soll automatisch reagieren)  
-- [ ] GitHub Funktionen erweitern (Delete, Create, Pull, Push)  
-- [ ] Echten PreviewScreen bauen (Bolt-Style)  
-- [ ] PreviewScreen → AppStatusScreen umbenennen  
+- [ ] Echten PreviewScreen bauen (Bolt-Style Live-Preview)  
 - [ ] Project Analyzer verbessern  
 - [ ] Test Coverage auf 40% erhöhen  
 
@@ -212,9 +220,6 @@ KI-Pflicht:
 - [ ] Integration Tests (AI + Orchestrator)  
 - [ ] SEC-005: Memory Leaks fixen  
 - [ ] SEC-006: Rate Limiting verbessern  
-- [ ] fileWriter.test.ts erstellen  
-- [ ] SecureTokenManager.test.ts erstellen  
-- [ ] coverage/ Ordner aus Git entfernen (.gitignore aktualisieren)  
 - [ ] Mehrere Diagnose-Fixes gleichzeitig ausführen  
 
 ## 🟢 LOW
@@ -228,8 +233,8 @@ KI-Pflicht:
 ---
 
 # 10. 🧪 Tests
-**Status:** 113 Tests passed, 7 Test Suites (3 Tests skipped)  
-**Coverage:** ~10-15%
+**Status:** 162 Tests passed, 9 Test Suites (3 Tests skipped)  
+**Coverage:** ~15-20%
 
 ### Vorhandene Test-Dateien:
 - `__tests__/App.test.tsx`
@@ -239,12 +244,13 @@ KI-Pflicht:
 - `__tests__/jsonTruncation.test.ts`
 - `lib/__tests__/SecureKeyManager.test.ts`
 - `lib/__tests__/validators.test.ts`
+- `lib/__tests__/fileWriter.test.ts` ✅ NEU
+- `lib/__tests__/SecureTokenManager.test.ts` ✅ NEU
 
 ### Fehlende Tests (TODO):
-- [ ] `lib/__tests__/fileWriter.test.ts`
 - [ ] `lib/__tests__/orchestrator.test.ts` erweitern
-- [ ] `lib/__tests__/SecureTokenManager.test.ts`
-- [ ] Integration Tests für AI-Context  
+- [ ] Integration Tests für AI-Context
+- [ ] E2E Tests mit Detox  
 
 ---
 

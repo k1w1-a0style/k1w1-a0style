@@ -69,12 +69,12 @@ type DiagnosticReport = {
 };
 
 const DiagnosticScreen: React.FC = () => {
-  const { projectData, addChatMessage } = useProject();
+  const { projectData, triggerAutoFix } = useProject();
   const navigation = useNavigation();
   const [report, setReport] = useState<DiagnosticReport | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // Funktion um Fehler in den Chat zu schicken
+  // ✅ FIXED: Funktion sendet Fix-Request und triggert KI automatisch
   const sendIssueToChat = useCallback((issue: DiagnosticIssue) => {
     const messageContent = `🔧 Fix Request: ${issue.source}\n\n` +
       `**Typ**: ${issue.type}\n` +
@@ -84,21 +84,17 @@ const DiagnosticScreen: React.FC = () => {
       (issue.code ? `\n**Code**: ${issue.code}\n` : '') +
       `\nBitte behebe diesen Fehler und erkläre die Änderungen.`;
 
-    addChatMessage({
-      id: uuidv4(),
-      role: 'user',
-      content: messageContent,
-      timestamp: new Date().toISOString(),
-    });
+    // ✅ NEU: Trigger Auto-Fix - KI wird automatisch antworten
+    triggerAutoFix(messageContent);
 
     // Navigate to Home (Tab Navigator) which contains Chat
     navigation.navigate('Home' as never);
     Alert.alert(
-      '✅ An Chat gesendet',
-      'Die Fehlerbeschreibung wurde an den Chat geschickt. Öffne den Chat-Tab um fortzufahren.',
+      '🤖 Auto-Fix gestartet',
+      'Die KI analysiert das Problem und wird automatisch eine Lösung vorschlagen.',
       [{ text: 'OK' }]
     );
-  }, [addChatMessage, navigation]);
+  }, [triggerAutoFix, navigation]);
 
   const runDiagnostic = useCallback(async () => {
     setIsAnalyzing(true);
