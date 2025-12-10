@@ -42,7 +42,7 @@ import TerminalScreen from './screens/TerminalScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import ConnectionsScreen from './screens/ConnectionsScreen';
 import AppInfoScreen from './screens/AppInfoScreen';
-import BuildScreen from './screens/BuildScreen';
+import EnhancedBuildScreen from './screens/EnhancedBuildScreen';
 import GitHubReposScreen from './screens/GitHubReposScreen';
 
 // ✅ NEUE SCREENS
@@ -208,7 +208,7 @@ const AppNavigation = () => {
 
         <Drawer.Screen
           name="Builds"
-          component={BuildScreen}
+          component={EnhancedBuildScreen}
           options={{
             title: 'Build Status',
             drawerLabel: '📦 Builds',
