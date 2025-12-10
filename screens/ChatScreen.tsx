@@ -73,7 +73,7 @@ const ChatScreen: React.FC = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingChange, setPendingChange] = useState<PendingChange | null>(null);
 
-  const isAtBottomRef = useRef(true); // Track if user is at bottom for auto-scroll
+  const isAtBottomRef = useRef(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
 
   // Keyboard-Höhe für Android
@@ -200,7 +200,15 @@ const ChatScreen: React.FC = () => {
         animationRef.stop();
       }
     };
-  }, [isAiLoading, isStreaming, thinkingOpacity, thinkingScale, typingDot1, typingDot2, typingDot3]);
+  }, [
+    isAiLoading,
+    isStreaming,
+    thinkingOpacity,
+    thinkingScale,
+    typingDot1,
+    typingDot2,
+    typingDot3,
+  ]);
 
   // Modal animation and keyboard dismiss
   useEffect(() => {
@@ -237,52 +245,55 @@ const ChatScreen: React.FC = () => {
   }, []);
 
   // Streaming
-  const simulateStreaming = useCallback((fullText: string, onComplete: () => void) => {
-    if (streamingIntervalRef.current) {
-      clearTimeout(streamingIntervalRef.current);
-      streamingIntervalRef.current = null;
-    }
-
-    setIsStreaming(true);
-    setStreamingMessage('');
-
-    let currentIndex = 0;
-    const chunkSize = 10;
-    const delay = 20;
-    let scrollCounter = 0;
-
-    const updateStream = () => {
-      if (currentIndex < fullText.length) {
-        const nextChunk = fullText.slice(currentIndex, currentIndex + chunkSize);
-        setStreamingMessage(prev => prev + nextChunk);
-        currentIndex += chunkSize;
-
-        scrollCounter++;
-        if (scrollCounter % 3 === 0 && isAtBottomRef.current) {
-          requestAnimationFrame(() => {
-            flatListRef.current?.scrollToEnd({ animated: false });
-          });
-        }
-
-        streamingIntervalRef.current = setTimeout(updateStream, delay);
-      } else {
-        if (streamingIntervalRef.current) {
-          clearTimeout(streamingIntervalRef.current);
-          streamingIntervalRef.current = null;
-        }
-        setIsStreaming(false);
-
-        if (isAtBottomRef.current) {
-          requestAnimationFrame(() => {
-            flatListRef.current?.scrollToEnd({ animated: true });
-          });
-        }
-        onComplete();
+  const simulateStreaming = useCallback(
+    (fullText: string, onComplete: () => void) => {
+      if (streamingIntervalRef.current) {
+        clearTimeout(streamingIntervalRef.current);
+        streamingIntervalRef.current = null;
       }
-    };
 
-    streamingIntervalRef.current = setTimeout(updateStream, delay);
-  }, []);
+      setIsStreaming(true);
+      setStreamingMessage('');
+
+      let currentIndex = 0;
+      const chunkSize = 10;
+      const delay = 20;
+      let scrollCounter = 0;
+
+      const updateStream = () => {
+        if (currentIndex < fullText.length) {
+          const nextChunk = fullText.slice(currentIndex, currentIndex + chunkSize);
+          setStreamingMessage((prev) => prev + nextChunk);
+          currentIndex += chunkSize;
+
+          scrollCounter++;
+          if (scrollCounter % 3 === 0 && isAtBottomRef.current) {
+            requestAnimationFrame(() => {
+              flatListRef.current?.scrollToEnd({ animated: false });
+            });
+          }
+
+          streamingIntervalRef.current = setTimeout(updateStream, delay);
+        } else {
+          if (streamingIntervalRef.current) {
+            clearTimeout(streamingIntervalRef.current);
+            streamingIntervalRef.current = null;
+          }
+          setIsStreaming(false);
+
+          if (isAtBottomRef.current) {
+            requestAnimationFrame(() => {
+              flatListRef.current?.scrollToEnd({ animated: true });
+            });
+          }
+          onComplete();
+        }
+      };
+
+      streamingIntervalRef.current = setTimeout(updateStream, delay);
+    },
+    []
+  );
 
   // AI Processing
   const processAIRequest = useCallback(
@@ -335,6 +346,7 @@ const ChatScreen: React.FC = () => {
         const prefix = isAutoFix
           ? '🤖 **Auto-Fix Vorschlag:**'
           : '🤖 Die KI möchte folgende Änderungen vornehmen:';
+
         const summaryText =
           `${prefix}\n\n` +
           `📝 **Neue Dateien** (${mergeResult.created.length}):\n` +
@@ -439,7 +451,14 @@ const ChatScreen: React.FC = () => {
 
       processAutoFix();
     }
-  }, [autoFixRequest, isAiLoading, isStreaming, clearAutoFixRequest, addChatMessage, processAIRequest]);
+  }, [
+    autoFixRequest,
+    isAiLoading,
+    isStreaming,
+    clearAutoFixRequest,
+    addChatMessage,
+    processAIRequest,
+  ]);
 
   // Document picker
   const handlePickDocument = useCallback(async () => {
@@ -487,7 +506,9 @@ const ChatScreen: React.FC = () => {
       const confirmationText =
         `✅ Änderungen erfolgreich angewendet${timing}\n\n` +
         `🤖 Provider: ${pendingChange.aiResponse.provider || 'unbekannt'}${
-          pendingChange.aiResponse.keysRotated ? ` (${pendingChange.aiResponse.keysRotated}x rotiert)` : ''
+          pendingChange.aiResponse.keysRotated
+            ? ` (${pendingChange.aiResponse.keysRotated}x rotiert)`
+            : ''
         }\n` +
         `📝 Neue Dateien: ${pendingChange.created.length}\n` +
         `📝 Geänderte Dateien: ${pendingChange.updated.length}\n` +
@@ -751,8 +772,8 @@ const ChatScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        {/* leicht reduzierte Keyboard-Höhe (45 px Offset) */}
-        <View style={[styles.container, { paddingBottom: Math.max(0, keyboardHeight - 45) }]}>
+        {/* WICHTIG: leicht reduzierte Keyboard-Höhe */}
+        <View style={[styles.container, { paddingBottom: Math.max(0, keyboardHeight - 50) }]}>
           <View style={styles.listContainer}>
             {combinedIsLoading && messages.length === 0 ? (
               <View style={styles.loadingOverlay}>
@@ -877,6 +898,64 @@ const ChatScreen: React.FC = () => {
           )}
         </View>
       </TouchableWithoutFeedback>
+
+      {/* Bestätigungsmodal mit Animation */}
+      <Modal
+        visible={showConfirmModal}
+        transparent={true}
+        animationType="none"
+        onRequestClose={rejectChanges}
+      >
+        <Animated.View
+          style={[
+            styles.modalOverlay,
+            {
+              opacity: modalOpacity,
+            },
+          ]}
+        >
+          <Animated.View
+            style={[
+              styles.modalContent,
+              {
+                transform: [{ scale: modalScale }],
+                opacity: modalOpacity,
+              },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <Ionicons name="code-slash" size={28} color={theme.palette.primary} />
+              <Text style={styles.modalTitle}>Änderungen bestätigen</Text>
+            </View>
+
+            <View style={styles.modalBody}>
+              <Text style={styles.modalText}>
+                {pendingChange?.summary}
+              </Text>
+            </View>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonReject]}
+                onPress={rejectChanges}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close-circle" size={20} color={theme.palette.error} />
+                <Text style={styles.modalButtonTextReject}>Ablehnen</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonAccept]}
+                onPress={applyChanges}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="checkmark-circle" size={20} color="#000" />
+                <Text style={styles.modalButtonTextAccept}>Bestätigen</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </Animated.View>
+      </Modal>
     </SafeAreaView>
   );
 };
