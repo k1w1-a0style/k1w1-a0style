@@ -759,7 +759,7 @@ const ChatScreen: React.FC = () => {
   }, [combinedIsLoading, thinkingOpacity, thinkingScale, typingDot1, typingDot2, typingDot3]);
 
   return (
-    <SafeAreaView style={styles.root} edges={['bottom']}>
+    <SafeAreaView style={styles.root} edges={['bottom']} testID="chat-screen">
       <KeyboardAvoidingView
         style={styles.keyboardAvoid}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -829,6 +829,7 @@ const ChatScreen: React.FC = () => {
               </TouchableOpacity>
 
               <TextInput
+                testID="chat-input"
                 style={styles.textInput}
                 placeholder="Beschreibe deine App oder den nächsten Schritt ..."
                 placeholderTextColor={theme.palette.text.secondary}

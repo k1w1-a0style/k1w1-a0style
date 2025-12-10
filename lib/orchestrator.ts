@@ -30,7 +30,7 @@ type OrchestratorOkResult = {
   model: string;
   quality: 'speed' | 'quality' | 'unknown';
   text: string;
-  raw: any;
+  raw: unknown;
   files?: ProjectFile[];
   keysRotated?: number;
   timing?: {
@@ -70,7 +70,7 @@ const MAX_KEY_RETRIES = 3;
 const log = (
   level: 'INFO' | 'WARN' | 'ERROR',
   message: string,
-  meta?: any,
+  meta?: Record<string, unknown>,
 ) => {
   const timestamp = new Date().toISOString();
   const metaStr = meta ? ` | ${JSON.stringify(meta)}` : '';
