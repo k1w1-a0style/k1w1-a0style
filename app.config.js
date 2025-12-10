@@ -38,9 +38,8 @@ module.exports = {
       url: "https://u.expo.dev/dc9e8a5c-714d-4ae8-9ca9-98071a755655"
     },
 
-    runtimeVersion: {
-      policy: "appVersion"
-    },
+    // ❗ FIXED → POLICIES SIND IM BARE WORKFLOW NICHT ERLAUBT
+    runtimeVersion: "1.0.0",
 
     assetBundlePatterns: ["**/*"],
 

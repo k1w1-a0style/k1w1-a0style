@@ -14,3 +14,6 @@ jest.mock(
 jest.mock('expo-secure-store');
 
 jest.mock('uuid', () => ({ v4: () => 'test-uuid' }));
+
+// 🔥 Neu: react-native-webview in Tests immer mocken
+jest.mock('react-native-webview');
