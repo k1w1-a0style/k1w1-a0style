@@ -751,8 +751,8 @@ const ChatScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        {/* WICHTIG: leicht reduzierte Keyboard-Höhe (40 px Offset) */}
-        <View style={[styles.container, { paddingBottom: Math.max(0, keyboardHeight - 40) }]}>
+        {/* leicht reduzierte Keyboard-Höhe (45 px Offset) */}
+        <View style={[styles.container, { paddingBottom: Math.max(0, keyboardHeight - 45) }]}>
           <View style={styles.listContainer}>
             {combinedIsLoading && messages.length === 0 ? (
               <View style={styles.loadingOverlay}>
