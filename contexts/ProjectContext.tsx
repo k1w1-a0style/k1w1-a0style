@@ -1,0 +1,447 @@
+// contexts/ProjectContext.tsx (V15 - ALL CRITICAL FIXES APPLIED)
+import { v4 as uuidv4 } from 'uuid';
+import { Mutex } from 'async-mutex';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  ReactNode,
+} from 'react';
+import { Alert, AppState, AppStateStatus } from 'react-native';
+import { ProjectData, ProjectFile, ChatMessage, ProjectContextProps, AutoFixRequest } from './types';
+import {
+  saveProjectToStorage,
+  loadProjectFromStorage,
+  exportProjectAsZipFile,
+  importProjectFromZipFile,
+} from './projectStorage';
+import {
+  getGitHubToken,
+  getWorkflowRuns,
+} from './githubService';
+// ✅ FIX: Einheitlicher Validator-Wrapper
+import { validateFilePath, validateFileContent } from '../lib/validators';
+
+const loadTemplateFromFile = async (): Promise<ProjectFile[]> => {
+  try {
+    const template = require('../templates/expo-sdk54-base.json');
+    if (!Array.isArray(template) || template.length === 0) {
+      throw new Error('Template ist ungültig');
+    }
+    return template.map((file: any) => ({
+      ...file,
+      content:
+        typeof file.content === 'string'
+          ? file.content
+          : JSON.stringify(file.content ?? '', null, 2),
+    })) as ProjectFile[];
+  } catch (error) {
+    console.error('X Template Fehler:', error);
+    return [{ path: 'README.md', content: '# Template Fehler' }];
+  }
+};
+
+const SAVE_DEBOUNCE_MS = 500;
+const ProjectContext = createContext<ProjectContextProps | undefined>(undefined);
+
+export {
+  getGitHubToken,
+  saveGitHubToken,
+  saveExpoToken,
+  getExpoToken,
+  syncRepoSecrets,
+} from './githubService';
+
+export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [projectData, setProjectData] = useState<ProjectData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentBuild, setCurrentBuild] = useState<{ status: 'idle' | 'queued' | 'building' | 'completed' | 'error'; message?: string } | null>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const mutexRef = useRef(new Mutex());
+
+  const [autoFixRequest, setAutoFixRequest] = useState<AutoFixRequest | null>(null);
+
+  const debouncedSave = useCallback((project: ProjectData) => {
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      saveProjectToStorage(project).catch(error => {
+        console.error('[ProjectContext] Save error:', error);
+      });
+    }, SAVE_DEBOUNCE_MS);
+  }, []);
+
+  const updateProject = useCallback(
+    async (updater: (prev: ProjectData) => ProjectData) => {
+      const release = await mutexRef.current.acquire();
+      try {
+        setProjectData(prev => {
+          if (!prev) return prev;
+          const updated = updater(prev);
+          const finalProject = {
+            ...updated,
+            lastModified: new Date().toISOString()
+          };
+          debouncedSave(finalProject);
+          return finalProject;
+        });
+      } catch (error) {
+        console.error('[ProjectContext] Update error:', error);
+      } finally {
+        release();
+      }
+    },
+    [debouncedSave],
+  );
+
+  const updateProjectFiles = useCallback(
+    async (files: ProjectFile[], newName?: string) => {
+      await updateProject(prev => {
+        const fileMap = new Map(prev.files.map(f => [f.path, f]));
+        files.forEach(file => {
+          fileMap.set(file.path, file);
+        });
+        const mergedFiles = Array.from(fileMap.values());
+        console.log(`📝 Dateien aktualisiert: ${files.length} geändert, ${mergedFiles.length} gesamt`);
+        return {
+          ...prev,
+          files: mergedFiles,
+          name: newName || prev.name,
+        };
+      });
+    },
+    [updateProject],
+  );
+
+  const setProjectName = useCallback(
+    async (newName: string) => {
+      await updateProject(prev => ({ ...prev, name: newName }));
+    },
+    [updateProject],
+  );
+
+  const addChatMessage = useCallback(
+    async (message: ChatMessage) => {
+      await updateProject(prev => ({
+        ...prev,
+        chatHistory: [...(prev.chatHistory || []), message],
+      }));
+    },
+    [updateProject],
+  );
+
+  const clearChatHistory = useCallback(async () => {
+    await updateProject(prev => ({
+      ...prev,
+      chatHistory: [],
+    }));
+  }, [updateProject]);
+
+
+  const setPackageName = useCallback(
+    async (packageName: string) => {
+      await updateProject(prev => ({ ...prev, packageName }));
+    },
+    [updateProject],
+  );
+
+  const createNewProject = useCallback(async () => {
+    Alert.alert(
+      'Neues Projekt',
+      'Möchtest du ein neues Projekt erstellen? Der aktuelle Chat und alle Dateien werden zurückgesetzt.',
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Neu erstellen',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsLoading(true);
+              const templateFiles = await loadTemplateFromFile();
+              const newProject: ProjectData = {
+                id: uuidv4(),
+                name: 'Neues Projekt',
+                slug: 'neues-projekt',
+                files: templateFiles,
+                chatHistory: [],
+                createdAt: new Date().toISOString(),
+                lastModified: new Date().toISOString(),
+              };
+
+              const release = await mutexRef.current.acquire();
+              try {
+                setProjectData(newProject);
+                await saveProjectToStorage(newProject);
+              } finally {
+                release();
+              }
+
+              Alert.alert('Erfolg', 'Neues Projekt wurde erstellt!');
+              console.log('✅ Neues Projekt erstellt und gespeichert.');
+            } catch (error: any) {
+              Alert.alert('Fehler', error.message || 'Projekt konnte nicht erstellt werden');
+            } finally {
+              setIsLoading(false);
+            }
+          },
+        },
+      ],
+    );
+  }, []);
+
+  const exportProjectAsZip = useCallback(async () => {
+    if (!projectData) {
+      Alert.alert('Export Fehlgeschlagen', 'Kein Projekt zum Exportieren vorhanden.');
+      return;
+    }
+    try {
+      const result = await exportProjectAsZipFile(projectData);
+      Alert.alert('Export erfolgreich', `${result.fileCount} Dateien als ZIP gespeichert.`);
+    } catch (error: any) {
+      console.error('Fehler beim ZIP-Export:', error);
+      Alert.alert('Export Fehlgeschlagen', error.message || 'Ein unbekannter Fehler ist aufgetreten.');
+    }
+  }, [projectData]);
+
+  const importProjectFromZip = useCallback(async () => {
+    Alert.alert(
+      'Import aus ZIP',
+      'WARNUNG: Überschreibt das aktuelle Projekt. Fortfahren?',
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Auswählen',
+          onPress: async () => {
+            setIsLoading(true);
+            try {
+              const result = await importProjectFromZipFile();
+              result.project.chatHistory = [];
+
+              const release = await mutexRef.current.acquire();
+              try {
+                setProjectData(result.project);
+                await saveProjectToStorage(result.project);
+              } finally {
+                release();
+              }
+
+              Alert.alert('Import erfolgreich', `Projekt "${result.project.name}" importiert (${result.fileCount} Dateien).`);
+            } catch (error: any) {
+              Alert.alert('Import fehlgeschlagen', error.message || 'Fehler beim Importieren');
+            } finally {
+              setIsLoading(false);
+            }
+          },
+        },
+      ],
+    );
+  }, []);
+
+  const createFile = useCallback(
+    async (path: string, content: string) => {
+      const pathValidation = validateFilePath(path);
+      if (!pathValidation.valid) {
+        Alert.alert('Ungültiger Dateipfad', pathValidation.errors.join('\n'));
+        return;
+      }
+
+      const contentValidation = validateFileContent(content);
+      if (!contentValidation.valid) {
+        Alert.alert('Ungültiger Dateiinhalt', contentValidation.error || 'Datei ist zu groß');
+        return;
+      }
+
+      const validPath = pathValidation.normalized || path;
+
+      await updateProject(prev => {
+        if (prev.files.some(f => f.path === validPath)) {
+          Alert.alert('Fehler', 'Eine Datei mit diesem Pfad existiert bereits.');
+          return prev;
+        }
+        return {
+          ...prev,
+          files: [...prev.files, { path: validPath, content }],
+        };
+      });
+    },
+    [updateProject],
+  );
+
+  const deleteFile = useCallback(
+    async (path: string) => {
+      await updateProject(prev => ({
+        ...prev,
+        files: prev.files.filter(f => f.path !== path),
+      }));
+    },
+    [updateProject],
+  );
+
+  const renameFile = useCallback(
+    async (oldPath: string, newPath: string) => {
+      const pathValidation = validateFilePath(newPath);
+      if (!pathValidation.valid) {
+        Alert.alert('Ungültiger Dateipfad', pathValidation.errors.join('\n'));
+        return;
+      }
+
+      const validNewPath = pathValidation.normalized || newPath;
+
+      await updateProject(prev => {
+        if (prev.files.some(f => f.path === validNewPath)) {
+          Alert.alert('Fehler', 'Eine Datei mit dem neuen Pfad existiert bereits.');
+          return prev;
+        }
+        return {
+          ...prev,
+          files: prev.files.map(f =>
+            f.path === oldPath ? { ...f, path: validNewPath } : f,
+          ),
+        };
+      });
+    },
+    [updateProject],
+  );
+
+  const triggerAutoFix = useCallback((message: string) => {
+    const request: AutoFixRequest = {
+      id: uuidv4(),
+      message,
+      timestamp: new Date().toISOString(),
+    };
+    setAutoFixRequest(request);
+    console.log('[ProjectContext] Auto-Fix Request getriggert:', request.id);
+  }, []);
+
+  const clearAutoFixRequest = useCallback(() => {
+    setAutoFixRequest(null);
+    console.log('[ProjectContext] Auto-Fix Request gelöscht');
+  }, []);
+
+  useEffect(() => {
+    const initializeProject = async () => {
+      try {
+        console.log('APP START (Context V15 - ALL CRITICAL FIXES APPLIED)');
+        const savedProject = await loadProjectFromStorage();
+        if (savedProject) {
+          console.log('📖 Projekt geladen:', savedProject.name);
+          if (!savedProject.files) savedProject.files = [];
+          if (!savedProject.chatHistory) {
+            savedProject.chatHistory = [];
+          }
+          setProjectData(savedProject);
+        } else {
+          console.log('Kein Projekt gefunden, lade neues Template...');
+          const templateFiles = await loadTemplateFromFile();
+          const newProject: ProjectData = {
+            id: uuidv4(),
+            name: 'Neues Projekt',
+            slug: 'neues-projekt',
+            files: templateFiles,
+            chatHistory: [],
+            createdAt: new Date().toISOString(),
+            lastModified: new Date().toISOString(),
+          };
+          setProjectData(newProject);
+          await saveProjectToStorage(newProject);
+          console.log('Neues Template-Projekt erstellt und gespeichert.');
+        }
+      } catch (error) {
+        console.error('Fehler beim Laden:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeProject();
+  }, []);
+
+  useEffect(() => {
+    const handleAppStateChange = async (nextState: AppStateStatus) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        console.log('🔄 App geht in Background, flushe ausstehende Saves...');
+        if (saveTimeoutRef.current) {
+          clearTimeout(saveTimeoutRef.current);
+          saveTimeoutRef.current = null;
+        }
+        if (projectData) {
+          try {
+            await saveProjectToStorage(projectData);
+            console.log('✅ Background-Save erfolgreich');
+          } catch (error) {
+            console.error('❌ Background-Save fehlgeschlagen:', error);
+          }
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, [projectData]);
+
+
+  const valueShimExportAndBuild = useCallback(async () => {
+    // Aktuell: exportAndBuild ist als deprecated markiert.
+    // Hier bleibt ein Hook-Punkt für die zukünftige Build-Implementierung.
+    return null;
+  }, []);
+
+  const startBuild = useCallback(async () => {
+    try {
+      setCurrentBuild({ status: 'queued' });
+      // Placeholder: in Zukunft echte EAS/GitHub Build Pipeline
+      setCurrentBuild({ status: 'building' });
+      // simulate async tick
+      await Promise.resolve();
+      await valueShimExportAndBuild();
+      setCurrentBuild({ status: 'completed' });
+    } catch (e: any) {
+      setCurrentBuild({ status: 'error', message: e?.message || String(e) });
+    }
+  }, []);
+
+  const value: ProjectContextProps = {
+    projectData,
+    isLoading,
+    startBuild,
+    currentBuild,
+    updateProjectFiles,
+    addChatMessage,
+    clearChatHistory,
+    getGitHubToken,
+    getWorkflowRuns,
+    createFile,
+    deleteFile,
+    renameFile,
+    setPackageName,
+    exportProjectAsZip,
+    importProjectFromZip,
+    createNewProject,
+    setProjectName,
+    messages: projectData?.chatHistory?.filter(msg => msg && msg.id) || [],
+    autoFixRequest,
+    triggerAutoFix,
+    clearAutoFixRequest,
+    exportAndBuild: async () => {
+      Alert.alert('Fehler', 'exportAndBuild ist veraltet.');
+      return null;
+    },
+  };
+
+  return (
+    <ProjectContext.Provider value={value}>
+      {children}
+    </ProjectContext.Provider>
+  );
+};
+
+export const useProject = (): ProjectContextProps => {
+  const context = useContext(ProjectContext);
+  if (!context) {
+    throw new Error('useProject must be used within a ProjectProvider');
+  }
+  return context;
+};

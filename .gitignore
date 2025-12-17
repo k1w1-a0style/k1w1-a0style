@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Expo / RN build
+.expo/
+.expo-shared/
+web-build/
+dist/
+android/.gradle/
+android/app/build/
+ios/Pods/
+ios/build/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Env (niemals pushen)
+.env
+.env.*
+
+# Local dumps / backups
+project_code_dump.txt
+debug_dump_latest.txt
+*.bak
+\[0\]
+
+# Supabase temp
+supabase/.temp/
+
+# scripts sollen nicht ins repo
+scripts/

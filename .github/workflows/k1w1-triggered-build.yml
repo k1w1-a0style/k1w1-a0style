@@ -1,0 +1,100 @@
+name: K1W1 App Build
+
+on:
+  # Triggered by Supabase Function via repository_dispatch
+  repository_dispatch:
+    types: [trigger-eas-build]
+  
+  # Manual trigger from GitHub UI
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: "Optional Job ID from K1W1 App (for status tracking)"
+        required: false
+        type: string
+
+jobs:
+  build:
+    name: EAS Build (K1W1)
+    runs-on: ubuntu-latest
+
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      JOB_ID: ${{ github.event.client_payload.job_id || inputs.job_id }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate Job ID
+        run: |
+          if [ -z "$JOB_ID" ]; then
+            echo "⚠️ Warning: No Job ID provided. Skipping Supabase status updates."
+            echo "has_job_id=false" >> $GITHUB_ENV
+          else
+            echo "✅ Job ID from client_payload: $JOB_ID"
+            echo "has_job_id=true" >> $GITHUB_ENV
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Update Build Status - Building
+        if: env.has_job_id == 'true'
+        run: |
+          curl -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d "{\"status\":\"building\",\"github_run_id\":\"${{ github.run_id }}\",\"started_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+
+      - name: Run EAS Build
+        id: eas
+        run: |
+          echo "Starting EAS build..."
+          BUILD_OUTPUT=$(eas build --platform android --non-interactive --no-wait 2>&1)
+          echo "$BUILD_OUTPUT"
+          
+          # Extract Build ID from output
+          BUILD_ID=$(echo "$BUILD_OUTPUT" | grep -oP 'Build ID: \K[a-f0-9-]+' || echo "unknown")
+          echo "Extracted Build ID: $BUILD_ID"
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+          
+          # Extract Build URL from output
+          BUILD_URL=$(echo "$BUILD_OUTPUT" | grep -oP 'https://expo.dev/accounts/[^/]+/projects/[^/]+/builds/[a-f0-9-]+' || echo "")
+          echo "Build URL: $BUILD_URL"
+          echo "build_url=$BUILD_URL" >> $GITHUB_OUTPUT
+
+      - name: Update Build Status - Success
+        if: success() && env.has_job_id == 'true'
+        run: |
+          curl -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d "{\"status\":\"completed\",\"eas_build_id\":\"${{ steps.eas.outputs.build_id }}\",\"build_url\":\"${{ steps.eas.outputs.build_url }}\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+
+      - name: Update Build Status - Failed
+        if: failure() && env.has_job_id == 'true'
+        run: |
+          curl -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d "{\"status\":\"error\",\"github_run_id\":\"${{ github.run_id }}\",\"error_message\":\"Build failed. Check GitHub Actions logs.\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"

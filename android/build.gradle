@@ -1,0 +1,54 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+  ext {
+    // Keep Kotlin/AGP/KSP versions in one place so every Gradle plugin resolves
+    // the same combination that works with Expo SDK 54 + React Native 0.76.
+    gradlePluginVersion = findProperty('android.gradlePluginVersion')
+      ?: findProperty('gradlePluginVersion') ?: '8.7.3'
+    kotlinVersion = findProperty('android.kotlinVersion')
+      ?: findProperty('kotlinVersion') ?: '2.0.21'
+    kspVersion = findProperty('android.kspVersion')
+      ?: findProperty('kspVersion') ?: '2.0.21-1.0.28'
+  }
+  repositories {
+    google()
+    mavenCentral()
+  }
+  dependencies {
+    classpath("com.android.tools.build:gradle:$gradlePluginVersion")
+    classpath('com.facebook.react:react-native-gradle-plugin')
+    classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
+  }
+  
+  // Force all Kotlin dependencies to use the same version
+  configurations.all {
+    resolutionStrategy {
+      force "org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion"
+      force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlinVersion"
+      force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlinVersion"
+      force "org.jetbrains.kotlin:kotlin-reflect:$kotlinVersion"
+    }
+  }
+}
+
+allprojects {
+  repositories {
+    google()
+    mavenCentral()
+    maven { url 'https://www.jitpack.io' }
+  }
+  
+  // Force all Kotlin dependencies to use version 2.0.21
+  configurations.all {
+    resolutionStrategy {
+      force "org.jetbrains.kotlin:kotlin-stdlib:${rootProject.ext.kotlinVersion}"
+      force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${rootProject.ext.kotlinVersion}"
+      force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${rootProject.ext.kotlinVersion}"
+      force "org.jetbrains.kotlin:kotlin-reflect:${rootProject.ext.kotlinVersion}"
+    }
+  }
+}
+
+apply plugin: "expo-root-project"
+apply plugin: "com.facebook.react.rootproject"

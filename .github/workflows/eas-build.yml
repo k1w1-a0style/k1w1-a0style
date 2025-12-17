@@ -1,0 +1,120 @@
+name: EAS Android Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "EAS build profile (development|preview|production)"
+        required: true
+        default: "preview"
+        type: string
+      job_id:
+        description: "Optional: Supabase build_jobs ID (wenn aus App getriggert)"
+        required: false
+        type: string
+
+jobs:
+  eas-android:
+    name: Run EAS Build (Android)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    env:
+      PROFILE: ${{ github.event.inputs.profile }}
+      JOB_ID: ${{ github.event.inputs.job_id }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${PROFILE}" ]]; then
+            echo "::error::profile is required"
+            exit 1
+          fi
+          if [[ "${PROFILE}" != "development" && "${PROFILE}" != "preview" && "${PROFILE}" != "production" ]]; then
+            echo "::error::Invalid profile: ${PROFILE}"
+            echo "Use: development | preview | production"
+            exit 1
+          fi
+          echo "✓ profile=${PROFILE}"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Setup Expo & EAS
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Update build status -> building (optional)
+        if: ${{ env.JOB_ID != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${SUPABASE_URL}" || -z "${SUPABASE_SERVICE_ROLE_KEY}" ]]; then
+            echo "::warning::Supabase secrets missing, skipping status update."
+            exit 0
+          fi
+          curl --fail-with-body -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"status\":\"building\",\"github_run_id\":\"${GITHUB_RUN_ID}\"}" \
+            --silent
+
+      - name: Run EAS build (cloud)
+        id: eas
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Starting EAS cloud build..."
+          BUILD_OUTPUT=$(eas build --platform android --profile "${PROFILE}" --non-interactive --no-wait 2>&1)
+          echo "${BUILD_OUTPUT}"
+          BUILD_ID=$(echo "${BUILD_OUTPUT}" | grep -oP 'Build ID:\s*\K[a-f0-9-]+' || true)
+          echo "build_id=${BUILD_ID:-unknown}" >> "${GITHUB_OUTPUT}"
+
+      - name: Update build status -> completed (optional)
+        if: ${{ success() && env.JOB_ID != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${SUPABASE_URL}" || -z "${SUPABASE_SERVICE_ROLE_KEY}" ]]; then
+            echo "::warning::Supabase secrets missing, skipping status update."
+            exit 0
+          fi
+          curl --fail-with-body -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"status\":\"completed\",\"eas_build_id\":\"${{ steps.eas.outputs.build_id }}\"}" \
+            --silent
+
+      - name: Update build status -> error (optional)
+        if: ${{ failure() && env.JOB_ID != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${SUPABASE_URL}" || -z "${SUPABASE_SERVICE_ROLE_KEY}" ]]; then
+            echo "::warning::Supabase secrets missing, skipping status update."
+            exit 0
+          fi
+          curl --fail-with-body -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"status\":\"error\"}" \
+            --silent
