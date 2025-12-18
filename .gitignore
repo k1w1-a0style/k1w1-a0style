@@ -32,3 +32,5 @@ supabase/.temp/
 
 # scripts sollen nicht ins repo
 scripts/
+
+backups/
