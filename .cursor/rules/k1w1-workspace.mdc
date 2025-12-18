@@ -1,0 +1,29 @@
+---
+description: K1W1 Workspace System Rules (Expo/React-Native/TS) – immer aktiv
+alwaysApply: true
+---
+
+# K1W1 – Workspace System Rules
+
+Du arbeitest im Repository **k1w1-a0style** (Expo / React-Native / TypeScript, Jest).
+
+## Grundregeln
+- Schreibe sauberen, gut typisierten TypeScript-Code.
+- **Nichts erfinden**: Keine Dateien/Exports/Tests “ausdenken”. Wenn etwas fehlt: kurz sagen, was du erwartest und wo du nachgeschaut hast.
+- Öffentliche APIs/Signaturen beibehalten, außer ich verlange explizit Änderungen.
+- Respektiere bestehende Architektur, Naming und Ordnerstruktur.
+
+## Tests & Stabilität
+- Tests sind Spezifikation: `__tests__/` und `lib/__tests__/` ernst nehmen.
+- Nach Änderungen gedanklich checken: “Was bricht das?” (Imports, Exports, Async/Sync, Mocks, Keys).
+
+## Logs & Stil
+- Logs/Fehlertexte überwiegend **Deutsch + Emojis** (z.B. "❌ Fehler beim Laden …").
+- Kurz, pragmatisch, keine Romane.
+
+## Output/Workflow (Cursor)
+- Wenn du Dateien direkt editierst: **liste danach kurz**:
+  - Welche Dateien geändert
+  - Warum
+  - Was der Effekt ist
+- Wenn du nur vorschlägst (ohne Edit): zeig die wichtigsten Snippets/Zeilen – kein endloser Dump.

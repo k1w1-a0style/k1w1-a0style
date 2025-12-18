@@ -1,0 +1,35 @@
+---
+description: Feature/Refactor Helfer – minimal-invasiv, testfreundlich, saubere Architektur
+globs:
+  - "lib/**"
+  - "screens/**"
+  - "components/**"
+  - "contexts/**"
+alwaysApply: false
+---
+
+# K1W1 – Feature & Refactor Helfer
+
+## Vorgehen bei JEDEM Feature/Refactor
+1) **Klären**: Was ist das gewünschte Verhalten? (kurz zusammenfassen)
+2) **Betroffene Stellen finden**: Welche Dateien/Module sind zuständig?
+3) **Tests prüfen**:
+   - Gibt es passende Tests?
+   - Wenn nötig: Tests ergänzen/aktualisieren (minimal).
+4) **Implementieren (minimal-invasiv)**:
+   - Signaturen möglichst beibehalten
+   - Konsistente Fehlerbehandlung
+   - Typensicher
+5) **Review**: Risiken nennen (Imports, Exports, Race Conditions, Edgecases)
+
+## Speziell: KI/Builder-Flow im Projekt
+- Wenn du `lib/orchestrator.ts` / `lib/normalizer.ts` / Prompt-Engine anfasst:
+  - Robust gegen leere/kaputte KI-Antworten
+  - Keine “magischen” Annahmen über Response-Format
+  - Bestehende Tests dürfen nicht sterben
+
+## Output in Cursor
+- Wenn du editierst: am Ende **kurz**:
+  - ✅ Was geändert (Dateiliste)
+  - ✅ Warum (1–3 Bulletpoints)
+  - ✅ Welche Tests relevant sind / was ich laufen lassen soll
