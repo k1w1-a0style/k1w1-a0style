@@ -11,17 +11,24 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+
     "lint": "expo lint",
+    "lint:ci": "eslint . --max-warnings=0",
+
+    "typecheck": "tsc --noEmit",
+
     "test": "jest",
+    "test:silent": "jest --silent",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:verbose": "VERBOSE=true jest --verbose",
     "test:unit": "jest --testPathPattern=__tests__",
     "test:integration": "jest --testPathPattern=integration",
     "test:clear": "jest --clearCache",
+
     "postinstall": "patch-package",
-    "lint:ci": "eslint . --max-warnings=0",
-    "preflight": "npm run lint:ci && npx tsc --noEmit && npm test -- --silent && npx expo-doctor",
+
+    "preflight": "npm run lint:ci && npm run typecheck && npm run test:silent && npx expo-doctor",
     "eas-prebuild": "npm run preflight"
   },
   "dependencies": {
@@ -89,9 +96,7 @@
   "expo": {
     "doctor": {
       "reactNativeDirectoryCheck": {
-        "exclude": [
-          "react-native-zip-archive"
-        ]
+        "exclude": ["react-native-zip-archive"]
       }
     },
     "owner": "a0style"
