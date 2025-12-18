@@ -27,7 +27,6 @@
     "test:clear": "jest --clearCache",
 
     "postinstall": "patch-package",
-
     "preflight": "npm run lint:ci && npm run typecheck && npm run test:silent && npx expo-doctor",
     "eas-prebuild": "npm run preflight"
   },
@@ -96,7 +95,9 @@
   "expo": {
     "doctor": {
       "reactNativeDirectoryCheck": {
-        "exclude": ["react-native-zip-archive"]
+        "exclude": [
+          "react-native-zip-archive"
+        ]
       }
     },
     "owner": "a0style"
