@@ -1,7 +1,5 @@
 // lib/promptEngine.ts
 // Zentrale Prompt-Logik für den k1w1 APK-Builder
-// Ziel: KI versteht, dass wir ein bestehenden Expo/React-Native-Code-Builder sind
-// und liefert NUR ein JSON-Array aus { path, content } ohne Gelaber.
 
 import { ProjectFile } from '../contexts/types';
 import { CONFIG } from '../config';
@@ -19,20 +17,15 @@ function buildProjectSnapshot(files: ProjectFile[]): string {
     return 'Es sind aktuell noch keine Projektdateien angelegt.';
   }
 
-  // Max. 20 Dateien in der Übersicht, damit der Prompt nicht explodiert
   const MAX_FILES = 20;
   const MAX_LINES_PER_FILE = 40;
 
-  const limitedFiles = [...files]
-    .slice(0, MAX_FILES)
-    .map((f) => {
-      const path = f.path;
-      const content = String(f.content ?? '');
-      const lines = content.split('\n').slice(0, MAX_LINES_PER_FILE);
-      const joined = lines.join('\n');
-
-      return `# ${path}\n${joined}`;
-    });
+  const limitedFiles = [...files].slice(0, MAX_FILES).map((f) => {
+    const path = f.path;
+    const content = String(f.content ?? '');
+    const lines = content.split('\n').slice(0, MAX_LINES_PER_FILE);
+    return `# ${path}\n${lines.join('\n')}`;
+  });
 
   return (
     'Ausschnitt der aktuellen Projektdateien (gekürzt):\n\n' +
@@ -65,100 +58,96 @@ function buildAllowedPathHint(): string {
 }
 
 /**
- * Baut die Messages für den Builder-Call.
- * history: bisheriger Chatverlauf (user/assistant)
- * userContent: letzte User-Eingabe
- * projectFiles: aktueller Projektzustand
+ * CALL 1: PLANER (Kommunikation)
+ * - 1–3 Rückfragen ODER Mini-Plan + Dateiliste + optional 1 Snippet
+ * - Kein JSON-only!
+ */
+export function buildPlannerMessages(
+  history: LlmMessage[],
+  userContent: string,
+  projectFiles: ProjectFile[],
+): LlmMessage[] {
+  const systemLines: string[] = [];
+
+  systemLines.push('Du bist der k1w1 PLANER. Ziel: bessere Kommunikation, bevor Code geändert wird.');
+  systemLines.push('Sprache: Deutsch. Antworte kurz & klar.');
+  systemLines.push(
+    'Regeln:\n' +
+      '1) Wenn Details fehlen: stelle 1–3 kurze Rückfragen.\n' +
+      '2) Wenn genug klar ist: gib einen Mini-Plan (max. 6 Bulletpoints) + eine Dateiliste (welche Dateien du ändern würdest und warum).\n' +
+      '3) Optional: 1 kleines Code-Snippet in ```ts``` oder ```tsx``` (max. ca. 20 Zeilen).\n' +
+      '4) Kein Markdown-Kram außer Code-Fences. Kein JSON-Array in diesem Call.',
+  );
+
+  const pathHint = buildAllowedPathHint();
+  if (pathHint) systemLines.push(pathHint);
+
+  const systemMessage: LlmMessage = { role: 'system', content: systemLines.join('\n\n') };
+
+  const snapshot = buildProjectSnapshot(projectFiles);
+  const projectMessage: LlmMessage = {
+    role: 'system',
+    content: 'Kontext – aktueller Projektzustand:\n\n' + snapshot,
+  };
+
+  const MAX_HISTORY = 8;
+  const trimmedHistory = history.length > MAX_HISTORY ? history.slice(history.length - MAX_HISTORY) : history;
+
+  const userTask: LlmMessage = {
+    role: 'user',
+    content: 'Nutzerwunsch:\n' + userContent + '\n\nBitte antworte als PLANER (Fragen ODER Plan+Dateiliste).',
+  };
+
+  return [systemMessage, projectMessage, ...trimmedHistory, userTask];
+}
+
+/**
+ * CALL 2: BUILDER (strict JSON-only)
  */
 export function buildBuilderMessages(
   history: LlmMessage[],
   userContent: string,
-  projectFiles: ProjectFile[]
+  projectFiles: ProjectFile[],
 ): LlmMessage[] {
   const systemIntroLines: string[] = [];
 
   systemIntroLines.push(
-    'Du bist der k1w1 APK-Builder. Deine Aufgabe: bestehenden Expo/React-Native-Code ' +
-      'erweitern oder verbessern. Du baust KEIN eigenständiges Demo-Projekt, ' +
-      'sondern arbeitest immer im Kontext des vorhandenen Projekts.'
+    'Du bist der k1w1 APK-Builder. Deine Aufgabe: bestehenden Expo/React-Native-Code erweitern oder verbessern. ' +
+      'Du baust KEIN eigenständiges Demo-Projekt, sondern arbeitest immer im Kontext des vorhandenen Projekts.',
   );
 
   systemIntroLines.push(
-    'Das Projekt ist ein „Code-/APK-Builder“ (ähnlich Bolt, a0.dev, Lovable), ' +
-      'nicht einfach nur eine Musikplayer-App. Wenn der Nutzer z.B. "Baue mir einen Musikplayer" sagt, ' +
-      'sollst du passende Komponenten/Screen in dieses bestehende Projekt einfügen, ' +
-      'aber KEIN komplett neues, isoliertes Template-Projekt starten.'
+    'Das Projekt ist ein Code-/APK-Builder. Wenn der Nutzer "Baue mir X" sagt, fügst du passende Screens/Components ' +
+      'in dieses bestehende Projekt ein, aber startest KEIN komplett neues Template-Projekt.',
   );
 
   systemIntroLines.push(
-    'Sprache: Deutsch. Beschreibe Funktionen, Kommentare und Statusmeldungen auf Deutsch (Code darf selbstverständlich englische Identifier nutzen).',
+    'AUSGABEFORMAT (sehr wichtig): Antworte IMMER NUR mit einem validen JSON-Array von { "path", "content" }. ' +
+      'Es darf NICHTS vor oder nach diesem Array stehen.',
   );
 
   systemIntroLines.push(
-    'Nutze den Chat-Verlauf als Gedächtnis. Greife auf bestehende Entscheidungen zurück und überschreibe keine Dateien blind, wenn keine Änderung gefordert ist.',
+    'Jedes Element muss genau diese Felder haben: "path" (string, relativer Pfad) und "content" (string, kompletter Dateiinhalt).',
   );
 
   systemIntroLines.push(
-    'AUSGABEFORMAT (sehr wichtig): Du gibst als Antwort IMMER NUR ein valides JSON-Array zurück, ' +
-      'ohne Erklärungstext, ohne Kommentare außerhalb der JSON-Struktur. Beispiel:\n' +
-      '[\n  { "path": "screens/Foo.tsx", "content": "/* Code ... */" },\n' +
-      '  { "path": "components/Bar.tsx", "content": "/* Code ... */" }\n]\n' +
-      'Es darf NICHTS vor oder nach diesem Array stehen.'
+    'JSON-Dateien wie package.json/tsconfig/app.json müssen reines JSON sein – keine Kommentare, keine Zusatztexte.',
   );
 
   systemIntroLines.push(
-    'Jedes Element muss genau diese Felder haben: "path" (string, relativer Pfad im Projekt) ' +
-      'und "content" (string, kompletter Dateiinhalt).'
+    'Keine Platzhalter, kein Lorem Ipsum, keine TODO-Fragmente. Schreibe echten, vollständigen Code.',
   );
 
   systemIntroLines.push(
-    'JSON-Dateien wie "package.json", "tsconfig.json", "app.json" usw. müssen reines JSON sein – ' +
-      'KEINE Kommentare, KEIN "// Importiere die notwendigen Bibliotheken" über dem JSON.'
-  );
-
-  systemIntroLines.push(
-    'Vermeide generisches Blabla im Dateiinhalt wie "kompletter Dateiinhalt hier..." oder ' +
-      '"// Neue Datei". Schreibe immer echten, vollständigen Code / echte Inhalte.'
-  );
-
-  systemIntroLines.push(
-    'Keine Platzhalter, kein Lorem Ipsum, keine „TODO: hier Code einfügen“-Fragmente. Schreibe produktionsreifen Code.',
-  );
-
-  // Core-Files nur anfassen, wenn explizit verlangt
-  systemIntroLines.push(
-    'Fasse zentrale Projektdateien wie "package.json", "app.config.js", "eas.json", ' +
-      '"metro.config.js", ".gitignore" oder "tsconfig.json" NUR dann an, wenn der Nutzer ' +
-      'das EXPLIZIT verlangt (z.B. "ändere meine package.json" oder "füge Script X hinzu"). ' +
-      'Ansonsten lässt du diese Dateien UNVERÄNDERT.'
+    'Fasse zentrale Projektdateien (package.json, app.config.js, eas.json, metro.config.js, tsconfig.json, .gitignore) NUR an, wenn der Nutzer das explizit verlangt.',
   );
 
   const pathHint = buildAllowedPathHint();
-  if (pathHint) {
-    systemIntroLines.push(pathHint);
-  }
+  if (pathHint) systemIntroLines.push(pathHint);
 
-  systemIntroLines.push(
-    'Wenn du neue Dateien erstellst, nutze sinnvolle, kurze Namen und halte dich an die existierende Struktur. ' +
-      'Bevorzuge z.B. "screens/Name.tsx", "components/Name.tsx", "lib/Name.ts", "utils/Name.ts" usw.'
-  );
-
-  systemIntroLines.push(
-    'Wenn der Nutzer nur kleine Änderungen will, ändere NUR die minimal nötigen Dateien. ' +
-      'Du musst nicht jedes Mal App.tsx, package.json oder Theme komplett überschreiben.'
-  );
-
-  systemIntroLines.push(
-    'Validiere Pfade, JSON und Syntax bevor du antwortest. Schreibe nur Dateien, die echte Änderungen enthalten.',
-  );
-
-  const systemMessage: LlmMessage = {
-    role: 'system',
-    content: systemIntroLines.join('\n\n'),
-  };
+  const systemMessage: LlmMessage = { role: 'system', content: systemIntroLines.join('\n\n') };
 
   const snapshot = buildProjectSnapshot(projectFiles);
-
   const projectMessage: LlmMessage = {
     role: 'system',
     content:
@@ -167,54 +156,40 @@ export function buildBuilderMessages(
       '\n\nNutze diesen Kontext, um nur die relevanten Dateien zu ändern oder zu ergänzen.',
   };
 
-  // Chatverlauf auf die letzten paar Nachrichten begrenzen,
-  // damit der Prompt nicht zu groß wird
   const MAX_HISTORY = 10;
-  const trimmedHistory =
-    history.length > MAX_HISTORY ? history.slice(history.length - MAX_HISTORY) : history;
+  const trimmedHistory = history.length > MAX_HISTORY ? history.slice(history.length - MAX_HISTORY) : history;
 
-  // Letzte User-Nachricht nochmal explizit hervorheben
   const userTask: LlmMessage = {
     role: 'user',
     content:
       'Aufgabe (aktuelle User-Eingabe):\n' +
       userContent +
-      '\n\nDenke daran: Antworte ausschließlich mit einem JSON-Array von Dateien, ' +
-      'ohne zusätzliche Erklärungen.',
+      '\n\nDenke daran: Antworte ausschließlich mit einem JSON-Array von Dateien, ohne zusätzliche Erklärungen.',
   };
 
   return [systemMessage, projectMessage, ...trimmedHistory, userTask];
 }
 
 /**
- * Optional: Messages für einen Validator-Call (zweite KI),
- * falls du später Quality-Flow stärker nutzen willst.
- * Wird aktuell evtl. noch nicht überall verwendet, ist aber vorbereitet.
+ * Validator / Agent (optional)
  */
 export function buildValidatorMessages(
   originalUserRequest: string,
   aiFiles: ProjectFile[],
-  projectFiles: ProjectFile[]
+  projectFiles: ProjectFile[],
 ): LlmMessage[] {
   const system: LlmMessage = {
     role: 'system',
     content:
       'Du bist ein strenger Code-Validator für den k1w1 APK-Builder. ' +
       'Du bekommst den ursprünglichen User-Wunsch und die von der Haupt-KI vorgeschlagenen Dateien. ' +
-      'Deine Aufgabe: Prüfe, ob die Dateien sinnvoll, vollständig und konsistent sind. ' +
-      'Falls sie gravierende Probleme haben (z.B. unpassende Pfade, kaputtes JSON, ' +
-      'komplett falscher Projekttyp), liefere ein korrigiertes Set an Dateien zurück ' +
-      '– wieder ausschließlich als JSON-Array von { "path", "content" } ohne Erklärungstext. ' +
-      'Wenn die Dateien OK sind, kannst du sie unverändert zurückgeben.',
+      'Prüfe Konsistenz/JSON/Pfade. Liefere ggf. ein korrigiertes JSON-Array zurück (wieder nur {path, content}).',
   };
 
   const snapshot = buildProjectSnapshot(projectFiles);
-
   const context: LlmMessage = {
     role: 'system',
-    content:
-      'Ausschnitt des aktuellen Projekts (nur zur Orientierung, muss nicht komplett repliziert werden):\n\n' +
-      snapshot,
+    content: 'Ausschnitt des aktuellen Projekts:\n\n' + snapshot,
   };
 
   const user: LlmMessage = {
@@ -222,20 +197,15 @@ export function buildValidatorMessages(
     content:
       'Ursprüngliche Nutzeranfrage:\n' +
       originalUserRequest +
-      '\n\nHier sind die von der Haupt-KI erzeugten Dateien (als JSON-Array). ' +
-      'Analysiere sie kritisch und liefere ein optimiertes/validiertes Array zurück:',
+      '\n\nHier sind die von der Haupt-KI erzeugten Dateien (JSON-Array). Prüfe sie und liefere ggf. ein verbessertes Array:',
   };
 
   const aiFilesJson = JSON.stringify(
     aiFiles.map((f) => ({ path: f.path, content: String(f.content ?? '') })),
     null,
-    2
+    2,
   );
 
-  const assistantDraft: LlmMessage = {
-    role: 'assistant',
-    content: aiFilesJson,
-  };
-
+  const assistantDraft: LlmMessage = { role: 'assistant', content: aiFilesJson };
   return [system, context, user, assistantDraft];
 }

@@ -40,38 +40,20 @@ function resolveModel(provider: AllAIProviders, model: string, quality: Quality)
 
 function splitSystem(messages: LlmMessage[]): { system?: string; rest: LlmMessage[] } {
   const system = messages
-    .filter((m) => m.role === 'system')
-    .map((m) => String(m.content ?? ''))
+    .filter(m => m.role === 'system')
+    .map(m => String(m.content ?? ''))
     .join('\n')
     .trim();
 
-  const rest = messages.filter((m) => m.role !== 'system');
+  const rest = messages.filter(m => m.role !== 'system');
   return { system: system || undefined, rest };
 }
 
-function sanitizeMessages(messages: LlmMessage[]): LlmMessage[] {
-  // Kill empty history messages (Streaming placeholder etc.)
-  const cleaned = messages
-    .map((m) => ({ role: m.role, content: String(m.content ?? '') }))
-    .filter((m) => m.content.trim().length > 0);
-
-  // If somehow everything is empty, keep at least a user message
-  if (cleaned.length === 0) return [{ role: 'user', content: 'Hi' }];
-  return cleaned;
-}
-
-function toOpenAIResponsesInput(messages: LlmMessage[]) {
-  // IMPORTANT:
-  // - user/system blocks -> input_text
-  // - assistant blocks   -> output_text
-  return messages.map((m) => ({
+function toOpenAIInput(messages: LlmMessage[]) {
+  // Responses API akzeptiert: input: [{role, content: "..."}, ...]
+  return messages.map(m => ({
     role: m.role,
-    content: [
-      {
-        type: m.role === 'assistant' ? 'output_text' : 'input_text',
-        text: m.content,
-      },
-    ],
+    content: String(m.content ?? ''),
   }));
 }
 
@@ -107,24 +89,23 @@ export async function runOrchestrator(
     }
 
     const resolvedModel = resolveModel(provider, model, quality);
-    const safeMessages = sanitizeMessages(messages);
 
     let result: OrchestratorResult;
     switch (provider) {
       case 'groq':
-        result = await callGroq(apiKey, resolvedModel, safeMessages, quality);
+        result = await callGroq(apiKey, resolvedModel, messages, quality);
         break;
       case 'openai':
-        result = await callOpenAI(apiKey, resolvedModel, safeMessages, quality);
+        result = await callOpenAI(apiKey, resolvedModel, messages, quality);
         break;
       case 'anthropic':
-        result = await callAnthropic(apiKey, resolvedModel, safeMessages, quality);
+        result = await callAnthropic(apiKey, resolvedModel, messages, quality);
         break;
       case 'gemini':
-        result = await callGemini(apiKey, resolvedModel, safeMessages, quality);
+        result = await callGemini(apiKey, resolvedModel, messages, quality);
         break;
       case 'huggingface':
-        result = await callHuggingFace(apiKey, resolvedModel, safeMessages, quality);
+        result = await callHuggingFace(apiKey, resolvedModel, messages, quality);
         break;
       default:
         result = { ok: false, error: `Unbekannter Provider: ${provider}` };
@@ -150,12 +131,7 @@ export async function runOrchestrator(
 }
 
 // ---- Groq ----
-async function callGroq(
-  apiKey: string,
-  model: string,
-  messages: LlmMessage[],
-  quality: Quality,
-): Promise<OrchestratorResult> {
+async function callGroq(apiKey: string, model: string, messages: LlmMessage[], quality: Quality): Promise<OrchestratorResult> {
   try {
     const temperature = quality === 'quality' ? 0.7 : 0.3;
 
@@ -176,8 +152,10 @@ async function callGroq(
 
     const data = await response.json();
     const text = data?.choices?.[0]?.message?.content;
+
     const cleaned = stripThinking(String(text || ''));
     if (!cleaned) return { ok: false, error: 'Keine Antwort von Groq erhalten' };
+
     return { ok: true, text: cleaned };
   } catch (error: any) {
     return { ok: false, error: `Groq Netzwerkfehler: ${error?.message ?? String(error)}` };
@@ -185,12 +163,7 @@ async function callGroq(
 }
 
 // ---- OpenAI (Responses API) ----
-async function callOpenAI(
-  apiKey: string,
-  model: string,
-  messages: LlmMessage[],
-  quality: Quality,
-): Promise<OrchestratorResult> {
+async function callOpenAI(apiKey: string, model: string, messages: LlmMessage[], quality: Quality): Promise<OrchestratorResult> {
   try {
     const temperature = quality === 'quality' ? 0.7 : 0.2;
     const max_output_tokens = quality === 'quality' ? 8192 : 4096;
@@ -200,9 +173,8 @@ async function callOpenAI(
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model,
-        input: toOpenAIResponsesInput(messages),
+        input: toOpenAIInput(messages),
         temperature,
-        // ✅ correct param for Responses API:
         max_output_tokens,
         text: { verbosity: quality === 'quality' ? 'high' : 'low' },
       }),
@@ -225,6 +197,7 @@ async function callOpenAI(
 
     const text = stripThinking(String(textFromConvenience || textFromOutput || ''));
     if (!text) return { ok: false, error: 'Keine Antwort von OpenAI erhalten' };
+
     return { ok: true, text };
   } catch (error: any) {
     return { ok: false, error: `OpenAI Netzwerkfehler: ${error?.message ?? String(error)}` };
@@ -241,17 +214,24 @@ async function callAnthropic(
   try {
     const { system, rest } = splitSystem(messages);
 
+    // ✅ Keine leeren text-blocks (Anthropic 400: "must be non-empty")
     const anthropicMessages = rest
-      .filter((m) => m.role !== 'system')
+      .filter(m => m.role !== 'system')
+      .map((m) => {
+        const txt = String(m.content ?? '').trim();
+        return {
+          role: m.role as 'user' | 'assistant',
+          text: txt,
+        };
+      })
+      .filter(m => m.text.length > 0)
       .map((m) => ({
-        role: m.role as 'user' | 'assistant',
-        content: [{ type: 'text', text: String(m.content ?? '').trim() }],
-      }))
-      // ✅ remove any empty blocks (Anthropic hard-fails on them)
-      .filter((m) => m.content?.[0]?.text?.trim?.().length > 0);
+        role: m.role,
+        content: [{ type: 'text', text: m.text }],
+      }));
 
-    const safeAnthropicMessages =
-      anthropicMessages.length > 0 ? anthropicMessages : [{ role: 'user', content: [{ type: 'text', text: 'Hi' }] }];
+    const safeMessages =
+      anthropicMessages.length > 0 ? anthropicMessages : [{ role: 'user', content: [{ type: 'text', text: 'Hallo' }] }];
 
     const max_tokens = quality === 'quality' ? 8192 : 4096;
     const temperature = quality === 'quality' ? 0.6 : 0.2;
@@ -268,7 +248,7 @@ async function callAnthropic(
         max_tokens,
         temperature,
         system: system ?? undefined,
-        messages: safeAnthropicMessages,
+        messages: safeMessages,
       }),
     });
 
@@ -286,6 +266,7 @@ async function callAnthropic(
 
     const cleaned = stripThinking(String(text || ''));
     if (!cleaned) return { ok: false, error: 'Keine Antwort von Anthropic erhalten' };
+
     return { ok: true, text: cleaned };
   } catch (error: any) {
     return { ok: false, error: `Anthropic Netzwerkfehler: ${error?.message ?? String(error)}` };
@@ -293,14 +274,9 @@ async function callAnthropic(
 }
 
 // ---- Gemini ----
-async function callGemini(
-  apiKey: string,
-  model: string,
-  messages: LlmMessage[],
-  quality: Quality,
-): Promise<OrchestratorResult> {
+async function callGemini(apiKey: string, model: string, messages: LlmMessage[], quality: Quality): Promise<OrchestratorResult> {
   try {
-    const prompt = messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
+    const prompt = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
     const temperature = quality === 'quality' ? 0.7 : 0.3;
 
     const response = await fetch(
@@ -310,9 +286,12 @@ async function callGemini(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature, maxOutputTokens: quality === 'quality' ? 8192 : 4096 },
+          generationConfig: {
+            temperature,
+            maxOutputTokens: quality === 'quality' ? 8192 : 4096,
+          },
         }),
-      },
+      }
     );
 
     if (!response.ok) {
@@ -321,62 +300,57 @@ async function callGemini(
 
     const data = await response.json();
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
     const cleaned = stripThinking(String(text || ''));
     if (!cleaned) return { ok: false, error: 'Keine Antwort von Gemini erhalten' };
+
     return { ok: true, text: cleaned };
   } catch (error: any) {
     return { ok: false, error: `Gemini Netzwerkfehler: ${error?.message ?? String(error)}` };
   }
 }
 
-// ---- HuggingFace (Router / OpenAI-compatible chat.completions) ----
-async function callHuggingFace(
-  apiKey: string,
-  model: string,
-  messages: LlmMessage[],
-  quality: Quality,
-): Promise<OrchestratorResult> {
+// ---- HuggingFace (Router / OpenAI-compatible) ----
+async function callHuggingFace(apiKey: string, model: string, messages: LlmMessage[], quality: Quality): Promise<OrchestratorResult> {
   try {
     const temperature = quality === 'quality' ? 0.7 : 0.3;
-    const max_tokens = quality === 'quality' ? 4096 : 2048;
 
-    // HF router expects OpenAI-compatible "chat.completions" format:
-    const hfMessages = messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
+    const tryOnce = async (modelId: string) => {
+      const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: modelId,
+          messages,
+          temperature,
+          max_tokens: quality === 'quality' ? 4096 : 2048,
+          stream: false,
+        }),
+      });
 
-    const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        messages: hfMessages,
-        temperature,
-        max_tokens,
-      }),
-    });
+      if (!response.ok) {
+        return { ok: false as const, status: response.status, body: await fetchTextSafe(response) };
+      }
 
-    if (!response.ok) {
-      return { ok: false, error: `HF API Fehler (${response.status}): ${await fetchTextSafe(response)}` };
+      const data = await response.json();
+      const txt = data?.choices?.[0]?.message?.content;
+      const cleaned = stripThinking(String(txt || ''));
+      if (!cleaned) return { ok: false as const, status: 500, body: 'Keine Antwort von HuggingFace erhalten' };
+      return { ok: true as const, text: cleaned };
+    };
+
+    // 1) so wie es im UI steht
+    const r1 = await tryOnce(model);
+    if (r1.ok) return { ok: true, text: r1.text };
+
+    // 2) fallback: viele HF Router Setups erwarten ":hf-inference" suffix
+    if (!model.includes(':')) {
+      const r2 = await tryOnce(`${model}:hf-inference`);
+      if (r2.ok) return { ok: true, text: r2.text };
+      return { ok: false, error: `HF API Fehler (${r2.status}): ${r2.body}` };
     }
 
-    const data = await response.json();
-    const raw = data?.choices?.[0]?.message?.content;
-
-    const text =
-      typeof raw === 'string'
-        ? raw
-        : Array.isArray(raw)
-          ? raw
-              .filter((p: any) => p?.type === 'text' && typeof p?.text === 'string')
-              .map((p: any) => p.text)
-              .join('\n')
-          : '';
-
-    const cleaned = stripThinking(String(text || ''));
-    if (!cleaned) return { ok: false, error: 'Keine Antwort von HuggingFace erhalten' };
-    return { ok: true, text: cleaned };
+    return { ok: false, error: `HF API Fehler (${r1.status}): ${r1.body}` };
   } catch (error: any) {
     return { ok: false, error: `HF Netzwerkfehler: ${error?.message ?? String(error)}` };
   }
