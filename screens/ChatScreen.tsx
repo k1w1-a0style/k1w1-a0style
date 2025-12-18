@@ -3,7 +3,7 @@
 // 1) Chat startet zuverlässig unten (Initial-AutoScroll, auch bei Virtualization)
 // 2) Scroll-Pfeil: 1x drücken -> wirklich ganz runter (scrollToEnd + retry)
 // 3) 2-Call Flow: Planner (Fragen/Plan) -> erst nach deiner Antwort Builder
-// 4) Extra: Vor dem Bestätigen gibt’s eine kurze Erklärung "warum/was" (kleiner Explain-Call)
+// 4) Extra: Vor dem Bestätigen gibt's eine kurze Erklärung "warum/was" (kleiner Explain-Call)
 // 5) ✅ LIST FIX: contentContainer füllt die Höhe, Messages kleben unten (flexGrow + justifyContent)
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -38,10 +38,19 @@ import MessageItem from '../components/MessageItem';
 import { runOrchestrator } from '../lib/orchestrator';
 import { normalizeAiResponse } from '../lib/normalizer';
 import { applyFilesToProject } from '../lib/fileWriter';
-import { buildBuilderMessages, buildPlannerMessages, buildValidatorMessages, LlmMessage } from '../lib/promptEngine';
+import { buildBuilderMessages, buildPlannerMessages, buildValidatorMessages } from '../lib/promptEngine';
 import { useAI } from '../contexts/AIContext';
 import { handleMetaCommand } from '../utils/metaCommands';
 import { v4 as uuidv4 } from 'uuid';
+
+// ✅ Extrahierte Heuristics
+import {
+  looksLikeExplicitFileTask,
+  looksLikeAdviceRequest,
+  looksAmbiguousBuilderRequest,
+  buildChangeDigest,
+  buildExplainMessages,
+} from '../utils/chatHeuristics';
 
 type DocumentResultAsset = NonNullable<import('expo-document-picker').DocumentPickerResult['assets']>[0];
 
@@ -65,99 +74,6 @@ const INPUT_BAR_MIN_H = 56;
 const SELECTED_FILE_ROW_H = 42;
 const KEYBOARD_NUDGE = 2;
 const FOOTER_LIFT_WHEN_BUSY = 72;
-
-// ---- Heuristiken ----
-const looksLikeExplicitFileTask = (s: string) => {
-  return (
-    /\b[\w.-]+\/[\w./-]+\.(tsx?|jsx?|ts|js|json|md|yml|yaml|sh|css)\b/i.test(s) ||
-    /\bin datei\b/i.test(s) ||
-    /\b(package\.json|tsconfig\.json|app\.json|app\.config\.js|eas\.json|metro\.config\.js)\b/i.test(s)
-  );
-};
-
-const looksLikeAdviceRequest = (s: string) => {
-  const t = String(s || '').trim();
-  if (!t) return false;
-  return /\b(vorschlag|vorschläge|ideen|review|analyse|bewerte|feedback|verbesserungsvorschläge)\b/i.test(t);
-};
-
-const looksAmbiguousBuilderRequest = (s: string) => {
-  const t = String(s || '').trim();
-  if (!t) return false;
-
-  const genericVerb =
-    /\b(baue|bauen|erstelle|erstellen|mach|mache|implementiere|füge hinzu|erweitere|optimiere|korrigiere|fix|repariere|prüfe|checke|verbessere)\b/i.test(
-      t,
-    );
-
-  if (looksLikeAdviceRequest(t)) return true;
-  if (!genericVerb) return false;
-  if (looksLikeExplicitFileTask(t)) return false;
-
-  const wc = t.split(/\s+/).filter(Boolean).length;
-  if (wc <= 12) return true;
-  if (/\b(alles|komplett|gesamt|überall)\b/i.test(t)) return true;
-
-  const hasConcreteNouns =
-    /\b(playlist|id3|download|login|auth|api|cache|offline|sync|player|ui|screen|settings|github|terminal|orchestrator|prompt|normalizer)\b/i.test(
-      t,
-    );
-
-  return !hasConcreteNouns;
-};
-
-// ---- Explain helper ----
-const buildChangeDigest = (projectFiles: ProjectFile[], finalFiles: ProjectFile[], created: string[], updated: string[]) => {
-  const oldMap = new Map(projectFiles.map((f) => [f.path, String(f.content ?? '')]));
-  const newMap = new Map(finalFiles.map((f) => [f.path, String(f.content ?? '')]));
-
-  const pick = [
-    ...created.map((p) => ({ p, kind: 'NEW' as const })),
-    ...updated.map((p) => ({ p, kind: 'UPD' as const })),
-  ].slice(0, 8);
-
-  const chunks = pick.map(({ p, kind }) => {
-    const oldC = oldMap.get(p) ?? '';
-    const newC = newMap.get(p) ?? '';
-    const oldLines = oldC ? oldC.split('\n').length : 0;
-    const newLines = newC ? newC.split('\n').length : 0;
-    const delta = newLines - oldLines;
-
-    const preview = newC.split('\n').slice(0, 14).join('\n');
-
-    return [
-      `• ${kind === 'NEW' ? 'NEU' : 'UPDATE'}: ${p}`,
-      `  Zeilen: ${oldLines} -> ${newLines} (${delta >= 0 ? '+' : ''}${delta})`,
-      `  Preview (Anfang):`,
-      preview ? preview : '(leer)',
-      '',
-    ].join('\n');
-  });
-
-  return chunks.join('\n');
-};
-
-const buildExplainMessages = (userRequest: string, digest: string): LlmMessage[] => {
-  return [
-    {
-      role: 'system',
-      content:
-        'Du bist ein kurzer, pragmatischer Code-Reviewer für eine Expo/React-Native Builder-App.\n' +
-        'Aufgabe: Erkläre knapp, was sich an den Dateien ändert und warum das zur Nutzeranfrage passt.\n' +
-        'Regeln:\n' +
-        '- Max 6 Bulletpoints, sehr kurz.\n' +
-        '- Wenn sinnvoll: 1 kleines Snippet (max 12 Zeilen) als ```ts``` oder ```tsx```.\n' +
-        '- Keine neuen Dateien erfinden. Keine langen Texte. Kein Roman.',
-    },
-    {
-      role: 'user',
-      content:
-        `Nutzerwunsch:\n${userRequest}\n\n` +
-        `Änderungs-Digest (Auszug):\n${digest}\n\n` +
-        'Bitte kurz erklären (was/warum).',
-    },
-  ];
-};
 
 const ChatScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -381,7 +297,7 @@ const ChatScreen: React.FC = () => {
       setError(null);
 
       try {
-        const historyAsLlm: LlmMessage[] = messages
+        const historyAsLlm = messages
           .map((m) => ({ role: m.role, content: m.content }))
           .filter((m) => String(m.content ?? '').trim().length > 0);
 
@@ -409,7 +325,7 @@ const ChatScreen: React.FC = () => {
                 content:
                   '🧩 **Kurz bevor ich Code anfasse:**\n\n' +
                   planText +
-                  '\n\n➡️ Antworte kurz auf die Fragen **oder** sag „weiter“, dann starte ich den Build (Call 2).',
+                  '\n\n➡️ Antworte kurz auf die Fragen **oder** sag „weiter", dann starte ich den Build (Call 2).',
                 timestamp: new Date().toISOString(),
                 meta: { planner: true },
               });
@@ -722,7 +638,7 @@ const ChatScreen: React.FC = () => {
         addChatMessage({
           id: uuidv4(),
           role: 'assistant',
-          content: 'Alles klar. Wenn du willst, kann ich das direkt umsetzen – sag einfach **„weiter“** oder nenn die Features, die ich einbauen soll.',
+          content: 'Alles klar. Wenn du willst, kann ich das direkt umsetzen – sag einfach **„weiter"** oder nenn die Features, die ich einbauen soll.',
           timestamp: new Date().toISOString(),
         });
         return;
@@ -898,7 +814,7 @@ const ChatScreen: React.FC = () => {
               <TextInput
                 ref={inputRef}
                 style={styles.textInput}
-                placeholder={pendingPlan ? 'Antwort auf die Fragen… (oder „weiter“)' : 'Beschreibe deine App oder den nächsten Schritt ...'}
+                placeholder={pendingPlan ? 'Antwort auf die Fragen… (oder „weiter")' : 'Beschreibe deine App oder den nächsten Schritt ...'}
                 placeholderTextColor={theme.palette.text.secondary}
                 value={textInput}
                 onChangeText={setTextInput}
@@ -964,7 +880,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   listContainer: { flex: 1 },
 
-  // ✅ WICHTIG: damit wenige Messages unten kleben und Layout nicht “oben hängt”
+  // ✅ WICHTIG: damit wenige Messages unten kleben und Layout nicht "oben hängt"
   listContent: { padding: 12, width: '100%', flexGrow: 1, justifyContent: 'flex-end' },
 
   loadingOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center' },
