@@ -1,10 +1,10 @@
 // screens/ChatScreen.tsx — Builder mit Bestätigung & Streaming
 // FIXES:
-// 1) Kein "Gap" über der Tabbar (SafeArea ohne bottom-edge)
-// 2) ✅ Keyboard hebt Input korrekt an (keyboardHeight - insets.bottom) und wird minimal "genudged" -> kein Mini-Spalt
-// 3) ✅ Autoscroll stabil + Scroll-Button scrollt wirklich bis ganz unten (keine "nur ein Stück"-Scrolls mehr)
-// 4) ✅ Entfernt den 1cm-Gap im Normalzustand: KEIN insets.bottom Padding in der Bottom-Leiste
-// 5) ✅ Optimiert gegen "Chat ist kurz leer / flackert" beim Scrollen (removeClippedSubviews aus, Streaming nicht mehr als leere Message gespeichert)
+// 1) Chat startet zuverlässig unten (Initial-AutoScroll, auch bei Virtualization)
+// 2) Scroll-Pfeil: 1x drücken -> wirklich ganz runter (scrollToEnd + retry)
+// 3) 2-Call Flow: Planner (Fragen/Plan) -> erst nach deiner Antwort Builder
+// 4) Extra: Vor dem Bestätigen gibt’s eine kurze Erklärung "warum/was" (kleiner Explain-Call)
+// 5) ✅ LIST FIX: contentContainer füllt die Höhe, Messages kleben unten (flexGrow + justifyContent)
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -24,10 +24,12 @@ import {
   Platform,
   NativeSyntheticEvent,
   TextInputSubmitEditingEventData,
+  InteractionManager,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { theme } from '../theme';
 import { useProject } from '../contexts/ProjectContext';
@@ -36,14 +38,12 @@ import MessageItem from '../components/MessageItem';
 import { runOrchestrator } from '../lib/orchestrator';
 import { normalizeAiResponse } from '../lib/normalizer';
 import { applyFilesToProject } from '../lib/fileWriter';
-import { buildBuilderMessages, buildValidatorMessages, LlmMessage } from '../lib/promptEngine';
+import { buildBuilderMessages, buildPlannerMessages, buildValidatorMessages, LlmMessage } from '../lib/promptEngine';
 import { useAI } from '../contexts/AIContext';
 import { handleMetaCommand } from '../utils/metaCommands';
 import { v4 as uuidv4 } from 'uuid';
 
-type DocumentResultAsset = NonNullable<
-  import('expo-document-picker').DocumentPickerResult['assets']
->[0];
+type DocumentResultAsset = NonNullable<import('expo-document-picker').DocumentPickerResult['assets']>[0];
 
 type PendingChange = {
   files: ProjectFile[];
@@ -55,18 +55,112 @@ type PendingChange = {
   agentResponse?: any;
 };
 
+type PendingPlan = {
+  originalRequest: string;
+  planText: string;
+  mode: 'advice' | 'build';
+};
+
 const INPUT_BAR_MIN_H = 56;
 const SELECTED_FILE_ROW_H = 42;
-
-// Mini-Feintuning (visuell ~1mm, je nach Device-Dichte)
 const KEYBOARD_NUDGE = 2;
+const FOOTER_LIFT_WHEN_BUSY = 72;
 
-// Scroll Threshold: ab wann gilt "du bist unten"
-const BOTTOM_THRESHOLD_PX = 80;
+// ---- Heuristiken ----
+const looksLikeExplicitFileTask = (s: string) => {
+  return (
+    /\b[\w.-]+\/[\w./-]+\.(tsx?|jsx?|ts|js|json|md|yml|yaml|sh|css)\b/i.test(s) ||
+    /\bin datei\b/i.test(s) ||
+    /\b(package\.json|tsconfig\.json|app\.json|app\.config\.js|eas\.json|metro\.config\.js)\b/i.test(s)
+  );
+};
+
+const looksLikeAdviceRequest = (s: string) => {
+  const t = String(s || '').trim();
+  if (!t) return false;
+  return /\b(vorschlag|vorschläge|ideen|review|analyse|bewerte|feedback|verbesserungsvorschläge)\b/i.test(t);
+};
+
+const looksAmbiguousBuilderRequest = (s: string) => {
+  const t = String(s || '').trim();
+  if (!t) return false;
+
+  const genericVerb =
+    /\b(baue|bauen|erstelle|erstellen|mach|mache|implementiere|füge hinzu|erweitere|optimiere|korrigiere|fix|repariere|prüfe|checke|verbessere)\b/i.test(
+      t,
+    );
+
+  if (looksLikeAdviceRequest(t)) return true;
+  if (!genericVerb) return false;
+  if (looksLikeExplicitFileTask(t)) return false;
+
+  const wc = t.split(/\s+/).filter(Boolean).length;
+  if (wc <= 12) return true;
+  if (/\b(alles|komplett|gesamt|überall)\b/i.test(t)) return true;
+
+  const hasConcreteNouns =
+    /\b(playlist|id3|download|login|auth|api|cache|offline|sync|player|ui|screen|settings|github|terminal|orchestrator|prompt|normalizer)\b/i.test(
+      t,
+    );
+
+  return !hasConcreteNouns;
+};
+
+// ---- Explain helper ----
+const buildChangeDigest = (projectFiles: ProjectFile[], finalFiles: ProjectFile[], created: string[], updated: string[]) => {
+  const oldMap = new Map(projectFiles.map((f) => [f.path, String(f.content ?? '')]));
+  const newMap = new Map(finalFiles.map((f) => [f.path, String(f.content ?? '')]));
+
+  const pick = [
+    ...created.map((p) => ({ p, kind: 'NEW' as const })),
+    ...updated.map((p) => ({ p, kind: 'UPD' as const })),
+  ].slice(0, 8);
+
+  const chunks = pick.map(({ p, kind }) => {
+    const oldC = oldMap.get(p) ?? '';
+    const newC = newMap.get(p) ?? '';
+    const oldLines = oldC ? oldC.split('\n').length : 0;
+    const newLines = newC ? newC.split('\n').length : 0;
+    const delta = newLines - oldLines;
+
+    const preview = newC.split('\n').slice(0, 14).join('\n');
+
+    return [
+      `• ${kind === 'NEW' ? 'NEU' : 'UPDATE'}: ${p}`,
+      `  Zeilen: ${oldLines} -> ${newLines} (${delta >= 0 ? '+' : ''}${delta})`,
+      `  Preview (Anfang):`,
+      preview ? preview : '(leer)',
+      '',
+    ].join('\n');
+  });
+
+  return chunks.join('\n');
+};
+
+const buildExplainMessages = (userRequest: string, digest: string): LlmMessage[] => {
+  return [
+    {
+      role: 'system',
+      content:
+        'Du bist ein kurzer, pragmatischer Code-Reviewer für eine Expo/React-Native Builder-App.\n' +
+        'Aufgabe: Erkläre knapp, was sich an den Dateien ändert und warum das zur Nutzeranfrage passt.\n' +
+        'Regeln:\n' +
+        '- Max 6 Bulletpoints, sehr kurz.\n' +
+        '- Wenn sinnvoll: 1 kleines Snippet (max 12 Zeilen) als ```ts``` oder ```tsx```.\n' +
+        '- Keine neuen Dateien erfinden. Keine langen Texte. Kein Roman.',
+    },
+    {
+      role: 'user',
+      content:
+        `Nutzerwunsch:\n${userRequest}\n\n` +
+        `Änderungs-Digest (Auszug):\n${digest}\n\n` +
+        'Bitte kurz erklären (was/warum).',
+    },
+  ];
+};
 
 const ChatScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
-
   const {
     projectData,
     messages,
@@ -85,10 +179,9 @@ const ChatScreen: React.FC = () => {
   const [textInput, setTextInput] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   const [selectedFileAsset, setSelectedFileAsset] = useState<DocumentResultAsset | null>(null);
 
-  // Streaming state (nur UI, wird NICHT als leere Message gespeichert)
+  // Streaming state
   const [streamingMessage, setStreamingMessage] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState(false);
   const streamingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -97,80 +190,77 @@ const ChatScreen: React.FC = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingChange, setPendingChange] = useState<PendingChange | null>(null);
 
+  // Planner state
+  const [pendingPlan, setPendingPlan] = useState<PendingPlan | null>(null);
+
   const isAtBottomRef = useRef(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
 
-  // Scroll metrics (für zuverlässiges Auto-Scroll + Button-Verhalten)
-  const scrollStateRef = useRef({ y: 0, contentH: 0, layoutH: 0 });
+  // ✅ Initial scroll lock
+  const didInitialScrollRef = useRef(false);
 
   // Keyboard height
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
-  // Animation values
+  // Animations
   const thinkingOpacity = useRef(new Animated.Value(0)).current;
   const thinkingScale = useRef(new Animated.Value(0.8)).current;
-
   const typingDot1 = useRef(new Animated.Value(0)).current;
   const typingDot2 = useRef(new Animated.Value(0)).current;
   const typingDot3 = useRef(new Animated.Value(0)).current;
-
   const modalScale = useRef(new Animated.Value(0.8)).current;
   const modalOpacity = useRef(new Animated.Value(0)).current;
-
   const sendButtonScale = useRef(new Animated.Value(1)).current;
 
   const combinedIsLoading = isProjectLoading || isAiLoading;
   const projectFiles: ProjectFile[] = projectData?.files ?? [];
 
-  // ---- KEYBOARD FIX ----
-  // keyboardHeight enthält (je nach Gerät) auch Bottom-Inset/NavBar-Anteile.
-  // => insets.bottom abziehen, sonst entsteht bei geöffneter Tastatur oben ein Spalt.
-  // => KEYBOARD_NUDGE zieht minimal ab (damit die BottomBar ~1mm tiefer sitzt, Spalt weg)
   const keyboardOffsetInScreen =
     keyboardHeight > 0 ? Math.max(0, keyboardHeight - insets.bottom - KEYBOARD_NUDGE) : 0;
 
-  // ✅ WICHTIG: KEIN insets.bottom hier! (sonst Gap im Normalzustand (BottomTabs))
   const bottomBarVisualH = INPUT_BAR_MIN_H + (selectedFileAsset ? SELECTED_FILE_ROW_H : 0);
+  const busyLift = combinedIsLoading || isStreaming ? FOOTER_LIFT_WHEN_BUSY : 0;
 
-  const listBottomPadding = bottomBarVisualH + keyboardOffsetInScreen + 14;
+  const listBottomPadding = bottomBarVisualH + keyboardOffsetInScreen + 14 + busyLift;
   const scrollBtnBottom = bottomBarVisualH + keyboardOffsetInScreen + 14;
 
-  const computeBottomOffset = useCallback(() => {
-    const { contentH, layoutH } = scrollStateRef.current;
-    const target = Math.max(0, contentH - layoutH);
-    return target;
-  }, []);
-
-  const scrollToBottom = useCallback(
-    (animated: boolean) => {
-      const target = computeBottomOffset();
-
-      const doScroll = () => {
-        // Ziel-Offset ist stabiler als "MAX_SAFE_INTEGER"
-        try {
-          flatListRef.current?.scrollToOffset({ offset: target, animated });
-          return;
-        } catch {}
+  const hardScrollToBottom = useCallback((animated: boolean) => {
+    const doIt = () => {
+      try {
+        flatListRef.current?.scrollToEnd({ animated });
+      } catch {}
+      setTimeout(() => {
         try {
           flatListRef.current?.scrollToEnd({ animated });
         } catch {}
-      };
+      }, 140);
+    };
+    requestAnimationFrame(doIt);
+  }, []);
 
-      requestAnimationFrame(doScroll);
-      setTimeout(doScroll, 60);
-    },
-    [computeBottomOffset],
+  useFocusEffect(
+    useCallback(() => {
+      didInitialScrollRef.current = false;
+      const task = InteractionManager.runAfterInteractions(() => {
+        hardScrollToBottom(false);
+      });
+      const t1 = setTimeout(() => hardScrollToBottom(false), 90);
+      const t2 = setTimeout(() => hardScrollToBottom(false), 260);
+      return () => {
+        task?.cancel?.();
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
+    }, [hardScrollToBottom]),
   );
 
-  // Auto-scroll when messages change (only if user is at bottom)
   useEffect(() => {
     if (messages.length > 0 && isAtBottomRef.current) {
-      const timer = setTimeout(() => scrollToBottom(true), 40);
+      const timer = setTimeout(() => hardScrollToBottom(true), 40);
       return () => clearTimeout(timer);
     }
-  }, [messages, scrollToBottom]);
+  }, [messages, hardScrollToBottom]);
 
-  // Keyboard Events
   useEffect(() => {
     const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
@@ -178,6 +268,7 @@ const ChatScreen: React.FC = () => {
     const showSub = Keyboard.addListener(showEvt as any, (e: any) => {
       setKeyboardHeight(e?.endCoordinates?.height ?? 0);
     });
+
     const hideSub = Keyboard.addListener(hideEvt as any, () => {
       setKeyboardHeight(0);
     });
@@ -188,7 +279,6 @@ const ChatScreen: React.FC = () => {
     };
   }, []);
 
-  // Typing dots / thinking animation
   useEffect(() => {
     let animationRef: Animated.CompositeAnimation | null = null;
 
@@ -216,7 +306,6 @@ const ChatScreen: React.FC = () => {
         Animated.timing(thinkingOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
         Animated.timing(thinkingScale, { toValue: 0.8, duration: 200, useNativeDriver: true }),
       ]).start();
-
       typingDot1.setValue(0);
       typingDot2.setValue(0);
       typingDot3.setValue(0);
@@ -225,11 +314,9 @@ const ChatScreen: React.FC = () => {
     return () => animationRef?.stop();
   }, [isAiLoading, isStreaming, thinkingOpacity, thinkingScale, typingDot1, typingDot2, typingDot3]);
 
-  // Modal animation and keyboard dismiss
   useEffect(() => {
     if (showConfirmModal) {
       Keyboard.dismiss();
-
       Animated.parallel([
         Animated.spring(modalScale, { toValue: 1, friction: 10, tension: 80, useNativeDriver: true }),
         Animated.timing(modalOpacity, { toValue: 1, duration: 250, useNativeDriver: true }),
@@ -240,7 +327,6 @@ const ChatScreen: React.FC = () => {
     }
   }, [showConfirmModal, modalScale, modalOpacity]);
 
-  // Cleanup streaming interval on unmount
   useEffect(() => {
     return () => {
       if (streamingIntervalRef.current) {
@@ -250,15 +336,6 @@ const ChatScreen: React.FC = () => {
     };
   }, []);
 
-  const updateIsAtBottom = useCallback(() => {
-    const { y, contentH, layoutH } = scrollStateRef.current;
-    const distanceFromBottom = contentH - (y + layoutH);
-    const isAtBottom = distanceFromBottom < BOTTOM_THRESHOLD_PX;
-    isAtBottomRef.current = isAtBottom;
-    setShowScrollButton(!isAtBottom && messages.length > 3);
-  }, [messages.length]);
-
-  // Streaming
   const simulateStreaming = useCallback(
     (fullText: string, onComplete: () => void) => {
       if (streamingIntervalRef.current) {
@@ -270,59 +347,80 @@ const ChatScreen: React.FC = () => {
       setStreamingMessage('');
 
       let currentIndex = 0;
-      const chunkSize = 10;
+      const chunkSize = 12;
       const delay = 18;
 
-      let scrollCounter = 0;
-
-      const tick = () => {
+      const updateStream = () => {
         if (currentIndex < fullText.length) {
           const nextChunk = fullText.slice(currentIndex, currentIndex + chunkSize);
+          setStreamingMessage((prev) => prev + nextChunk);
           currentIndex += chunkSize;
 
-          setStreamingMessage(prev => prev + nextChunk);
-
-          scrollCounter++;
-          if (scrollCounter % 3 === 0 && isAtBottomRef.current) {
-            requestAnimationFrame(() => scrollToBottom(false));
+          if (isAtBottomRef.current) requestAnimationFrame(() => hardScrollToBottom(false));
+          streamingIntervalRef.current = setTimeout(updateStream, delay);
+        } else {
+          if (streamingIntervalRef.current) {
+            clearTimeout(streamingIntervalRef.current);
+            streamingIntervalRef.current = null;
           }
+          setIsStreaming(false);
 
-          streamingIntervalRef.current = setTimeout(tick, delay);
-          return;
+          if (isAtBottomRef.current) requestAnimationFrame(() => hardScrollToBottom(true));
+          onComplete();
         }
-
-        // done
-        if (streamingIntervalRef.current) {
-          clearTimeout(streamingIntervalRef.current);
-          streamingIntervalRef.current = null;
-        }
-
-        setIsStreaming(false);
-
-        if (isAtBottomRef.current) {
-          requestAnimationFrame(() => scrollToBottom(true));
-        }
-
-        onComplete();
       };
 
-      streamingIntervalRef.current = setTimeout(tick, delay);
+      streamingIntervalRef.current = setTimeout(updateStream, delay);
     },
-    [scrollToBottom],
+    [hardScrollToBottom],
   );
 
-  // AI Processing
   const processAIRequest = useCallback(
-    async (userContent: string, isAutoFix: boolean = false): Promise<void> => {
+    async (userContent: string, isAutoFix: boolean = false, forceBuilder: boolean = false): Promise<void> => {
       setIsAiLoading(true);
       setError(null);
 
       try {
-        // ✅ Kritisch: keine leeren Chat-Messages an LLM schicken (Anthropic meckert sonst)
         const historyAsLlm: LlmMessage[] = messages
-          .filter(m => String(m.content ?? '').trim().length > 0)
-          .map(m => ({ role: m.role, content: m.content }));
+          .map((m) => ({ role: m.role, content: m.content }))
+          .filter((m) => String(m.content ?? '').trim().length > 0);
 
+        // ✅ CALL 1: Planner
+        if (!isAutoFix && !forceBuilder && !pendingPlan) {
+          const advice = looksLikeAdviceRequest(userContent);
+          const shouldPlanner = advice || (looksAmbiguousBuilderRequest(userContent) && !looksLikeExplicitFileTask(userContent));
+
+          if (shouldPlanner) {
+            const plannerMsgs = buildPlannerMessages(historyAsLlm, userContent, projectFiles);
+
+            const planRes = await runOrchestrator(
+              config.selectedChatProvider,
+              config.selectedChatMode,
+              'speed',
+              plannerMsgs,
+            );
+
+            if (planRes?.ok && typeof planRes.text === 'string' && planRes.text.trim().length > 0) {
+              const planText = planRes.text.trim();
+
+              addChatMessage({
+                id: uuidv4(),
+                role: 'assistant',
+                content:
+                  '🧩 **Kurz bevor ich Code anfasse:**\n\n' +
+                  planText +
+                  '\n\n➡️ Antworte kurz auf die Fragen **oder** sag „weiter“, dann starte ich den Build (Call 2).',
+                timestamp: new Date().toISOString(),
+                meta: { planner: true },
+              });
+
+              setPendingPlan({ originalRequest: userContent, planText, mode: advice ? 'advice' : 'build' });
+              return;
+            }
+          }
+        }
+
+        // ✅ CALL 2: Builder
         const llmMessages = buildBuilderMessages(historyAsLlm, userContent, projectFiles);
 
         let ai = await runOrchestrator(
@@ -332,7 +430,6 @@ const ChatScreen: React.FC = () => {
           llmMessages,
         );
 
-        // Wenn Provider kurz zickt (Rate Limit / Overload), einmal "soft" neu versuchen.
         if (!ai?.ok) {
           const errText = String((ai as any)?.error ?? '');
           const shouldRetry =
@@ -349,12 +446,10 @@ const ChatScreen: React.FC = () => {
 
         if (!ai || !ai.ok) {
           const details =
-            (ai as any)?.error || (ai as any)?.errors?.join?.('\n') || 'Kein ok=true (unbekannter Fehler).';
+            (ai as any)?.error ||
+            (ai as any)?.errors?.join?.('\n') ||
+            'Kein ok=true (unbekannter Fehler).';
           throw new Error(`KI-Request fehlgeschlagen: ${details}`);
-        }
-
-        if (!(ai as any).text && !(ai as any).files) {
-          throw new Error('Die KI-Antwort war leer oder ohne Dateien.');
         }
 
         const rawForNormalizer =
@@ -365,62 +460,15 @@ const ChatScreen: React.FC = () => {
               : (ai as any).raw;
 
         let normalized = normalizeAiResponse(rawForNormalizer);
-
-        // Fallback: wenn das Modell Text liefert der NICHT sauber JSON ist,
-        // versuchen wir einmal, das Modell selbst in "JSON-only" zu reparieren.
-        if (!normalized && typeof (ai as any).text === 'string' && (ai as any).text.trim().length > 0) {
-          const uniquePaths = Array.from(
-            new Set(projectFiles.map(f => String(f.path || '').trim()).filter(Boolean)),
-          ).sort();
-
-          const listHint = uniquePaths.length
-            ? `Erlaubte Pfade (nur aus dieser Liste verwenden, keine erfinden):\n${uniquePaths.map(p => '- ' + p).join('\n')}`
-            : 'Es existieren aktuell keine Projektdateien.';
-
-          const rawText = String((ai as any).text);
-          const clipped = rawText.length > 40000 ? rawText.slice(0, 40000) + '\n\n... (gekürzt)' : rawText;
-
-          const repairMessages: LlmMessage[] = [
-            {
-              role: 'system',
-              content:
-                'Du bist ein strenger JSON-Reparatur-Worker. ' +
-                'Du bekommst eine fehlerhafte/unsichere KI-Ausgabe und MUSST daraus ein valides JSON-Array machen.\n\n' +
-                'Output-Regel: Antworte ausschließlich mit einem JSON-Array im Format: ' +
-                '[{ "path": "...", "content": "..." }, ...]. Kein Text davor/dahinter.\n' +
-                'Wenn du keine Dateien erkennen kannst, gib [] zurück.\n' +
-                'WICHTIG: Erfinde keine neuen Pfade oder Inhalte. Nutze nur, was im RAW-Text steht.\n\n' +
-                listHint,
-            },
-            {
-              role: 'user',
-              content: `User-Aufgabe: ${userContent}\n\nRAW-KI-Ausgabe (zu reparieren):\n${clipped}`,
-            },
-          ];
-
-          const repaired = await runOrchestrator(
-            config.selectedChatProvider,
-            config.selectedChatMode,
-            'speed',
-            repairMessages,
-          );
-
-          if (repaired?.ok && typeof repaired.text === 'string') {
-            normalized = normalizeAiResponse(repaired.text);
-          }
-        }
-
         if (!normalized) {
           const preview =
             typeof (ai as any).text === 'string'
               ? String((ai as any).text).slice(0, 600).replace(/\s+/g, ' ')
               : '';
-          throw new Error(
-            'Normalizer/Validator konnte die Dateien nicht verarbeiten.' + (preview ? `\n\nOutput-Preview: ${preview}` : ''),
-          );
+          throw new Error('Normalizer/Validator konnte die Dateien nicht verarbeiten.' + (preview ? `\n\nOutput-Preview: ${preview}` : ''));
         }
 
-        // Optional: 2. Pass (Agent) zur Validierung/Verbesserung
+        // Optional Agent (Validator)
         let finalFiles = normalized;
         let agentMeta: any = null;
 
@@ -428,7 +476,7 @@ const ChatScreen: React.FC = () => {
           try {
             const validatorMsgs = buildValidatorMessages(
               userContent,
-              normalized.map(f => ({ path: f.path, content: f.content })),
+              normalized.map((f: any) => ({ path: f.path, content: f.content })),
               projectFiles,
             );
 
@@ -453,55 +501,54 @@ const ChatScreen: React.FC = () => {
                 agentMeta = agentRes;
               }
             }
-          } catch {
-            // Agent darf den Haupt-Flow nicht killen
-          }
+          } catch {}
         }
 
         const mergeResult = applyFilesToProject(projectFiles, finalFiles);
+
+        // ✅ Explain-Call
+        let explainText = '';
+        if (!isAutoFix && (mergeResult.created.length + mergeResult.updated.length) > 0) {
+          try {
+            const digest = buildChangeDigest(projectFiles, mergeResult.files, mergeResult.created, mergeResult.updated);
+            const explainMsgs = buildExplainMessages(userContent, digest);
+            const explainRes = await runOrchestrator(
+              config.selectedChatProvider,
+              config.selectedChatMode,
+              'speed',
+              explainMsgs,
+            );
+            if (explainRes?.ok && typeof explainRes.text === 'string') explainText = explainRes.text.trim();
+          } catch {}
+        }
 
         const prefix = isAutoFix ? '🤖 **Auto-Fix Vorschlag:**' : '🤖 Die KI möchte folgende Änderungen vornehmen:';
 
         const summaryText =
           `${prefix}\n\n` +
+          (explainText ? `🧾 **Kurz erklärt (warum/was):**\n${explainText}\n\n---\n\n` : '') +
           `📝 **Neue Dateien** (${mergeResult.created.length}):\n` +
           (mergeResult.created.length > 0
-            ? mergeResult.created
-                .slice(0, 5)
-                .map(f => `  • ${f}`)
-                .join('\n') +
-              (mergeResult.created.length > 5 ? `\n  ... und ${mergeResult.created.length - 5} weitere` : '')
+            ? mergeResult.created.slice(0, 6).map((f: string) => `  • ${f}`).join('\n') +
+              (mergeResult.created.length > 6 ? `\n  ... und ${mergeResult.created.length - 6} weitere` : '')
             : '  (keine)') +
           `\n\n` +
           `📝 **Geänderte Dateien** (${mergeResult.updated.length}):\n` +
           (mergeResult.updated.length > 0
-            ? mergeResult.updated
-                .slice(0, 5)
-                .map(f => `  • ${f}`)
-                .join('\n') +
-              (mergeResult.updated.length > 5 ? `\n  ... und ${mergeResult.updated.length - 5} weitere` : '')
+            ? mergeResult.updated.slice(0, 6).map((f: string) => `  • ${f}`).join('\n') +
+              (mergeResult.updated.length > 6 ? `\n  ... und ${mergeResult.updated.length - 6} weitere` : '')
             : '  (keine)') +
           (!isAutoFix
             ? `\n\n` +
               `⏭ **Übersprungen** (${mergeResult.skipped.length}):\n` +
               (mergeResult.skipped.length > 0
-                ? mergeResult.skipped
-                    .slice(0, 3)
-                    .map(f => `  • ${f}`)
-                    .join('\n') + (mergeResult.skipped.length > 3 ? `\n  ... und ${mergeResult.skipped.length - 3} weitere` : '')
+                ? mergeResult.skipped.slice(0, 3).map((f: string) => `  • ${f}`).join('\n') +
+                  (mergeResult.skipped.length > 3 ? `\n  ... und ${mergeResult.skipped.length - 3} weitere` : '')
                 : '  (keine)')
             : '') +
           `\n\nMöchtest du diese Änderungen übernehmen?`;
 
-        // ✅ Streaming nur im UI-Footer. Wenn fertig: echte Message speichern.
         simulateStreaming(summaryText, () => {
-          addChatMessage({
-            id: uuidv4(),
-            role: 'assistant',
-            content: summaryText,
-            timestamp: new Date().toISOString(),
-          });
-
           setPendingChange({
             files: mergeResult.files,
             summary: summaryText,
@@ -511,7 +558,6 @@ const ChatScreen: React.FC = () => {
             aiResponse: ai,
             agentResponse: agentMeta ?? undefined,
           });
-
           setShowConfirmModal(true);
         });
       } catch (e: any) {
@@ -529,10 +575,10 @@ const ChatScreen: React.FC = () => {
         setIsAiLoading(false);
       }
     },
-    [messages, projectFiles, config, addChatMessage, simulateStreaming],
+    [messages, projectFiles, config, addChatMessage, simulateStreaming, pendingPlan, hardScrollToBottom],
   );
 
-  // Auto-Fix Handler
+  // AutoFix Handler
   useEffect(() => {
     if (autoFixRequest && !isAiLoading && !isStreaming) {
       const processAutoFix = async () => {
@@ -546,7 +592,6 @@ const ChatScreen: React.FC = () => {
 
         addChatMessage(userMessage);
         clearAutoFixRequest();
-
         await processAIRequest(autoFixRequest.message, true);
       };
 
@@ -554,10 +599,12 @@ const ChatScreen: React.FC = () => {
     }
   }, [autoFixRequest, isAiLoading, isStreaming, clearAutoFixRequest, addChatMessage, processAIRequest]);
 
-  // Document picker
   const handlePickDocument = useCallback(async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+      });
 
       if (!result.canceled && result.assets?.[0]) {
         const asset = result.assets[0];
@@ -580,10 +627,8 @@ const ChatScreen: React.FC = () => {
     }
   }, []);
 
-  // Apply changes
   const applyChanges = useCallback(async () => {
     if (!pendingChange) return;
-
     setShowConfirmModal(false);
 
     try {
@@ -610,9 +655,10 @@ const ChatScreen: React.FC = () => {
         timestamp: new Date().toISOString(),
         meta: { provider: pendingChange.aiResponse.provider },
       });
+
+      requestAnimationFrame(() => hardScrollToBottom(true));
     } catch (e: any) {
       Alert.alert('Fehler beim Anwenden', e?.message || 'Änderungen konnten nicht angewendet werden. Bitte versuche es erneut.');
-
       addChatMessage({
         id: uuidv4(),
         role: 'system',
@@ -623,7 +669,7 @@ const ChatScreen: React.FC = () => {
     } finally {
       setPendingChange(null);
     }
-  }, [pendingChange, updateProjectFiles, addChatMessage]);
+  }, [pendingChange, updateProjectFiles, addChatMessage, hardScrollToBottom]);
 
   const rejectChanges = useCallback(() => {
     addChatMessage({
@@ -632,12 +678,10 @@ const ChatScreen: React.FC = () => {
       content: '❌ Änderungen wurden abgelehnt. Keine Dateien wurden geändert.',
       timestamp: new Date().toISOString(),
     });
-
     setShowConfirmModal(false);
     setPendingChange(null);
   }, [addChatMessage]);
 
-  // Send handler
   const handleSend = useCallback(async () => {
     if (!textInput.trim() && !selectedFileAsset) return;
     if (isAiLoading || isStreaming) return;
@@ -651,14 +695,12 @@ const ChatScreen: React.FC = () => {
 
     const userContent = textInput.trim() || (selectedFileAsset ? `Datei gesendet: ${selectedFileAsset.name}` : '');
 
-    const userMessage: ChatMessage = {
+    addChatMessage({
       id: uuidv4(),
       role: 'user',
       content: userContent,
       timestamp: new Date().toISOString(),
-    };
-
-    addChatMessage(userMessage);
+    });
 
     const currentInput = textInput;
     setTextInput('');
@@ -672,6 +714,32 @@ const ChatScreen: React.FC = () => {
       return;
     }
 
+    if (pendingPlan) {
+      const lower = userContent.trim().toLowerCase();
+      const wantsProceed = lower === 'weiter' || lower === 'mach weiter' || lower === 'ok' || lower === 'ja' || lower === 'go';
+
+      if (pendingPlan.mode === 'advice' && !wantsProceed) {
+        addChatMessage({
+          id: uuidv4(),
+          role: 'assistant',
+          content: 'Alles klar. Wenn du willst, kann ich das direkt umsetzen – sag einfach **„weiter“** oder nenn die Features, die ich einbauen soll.',
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      const combined =
+        pendingPlan.originalRequest +
+        '\n\n---\nPlaner-Ausgabe:\n' +
+        pendingPlan.planText +
+        '\n\n---\nNutzer-Antwort/Details:\n' +
+        (wantsProceed ? '(User sagt: weiter)' : userContent);
+
+      setPendingPlan(null);
+      await processAIRequest(combined, false, true);
+      return;
+    }
+
     await processAIRequest(userContent, false);
   }, [
     textInput,
@@ -682,137 +750,71 @@ const ChatScreen: React.FC = () => {
     addChatMessage,
     processAIRequest,
     sendButtonScale,
+    pendingPlan,
   ]);
 
-  // Scroll tracking
   const handleScroll = useCallback(
     (event: any) => {
       const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+      const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+      const isAtBottom = distanceFromBottom < 60;
 
-      scrollStateRef.current = {
-        y: contentOffset.y,
-        contentH: contentSize.height,
-        layoutH: layoutMeasurement.height,
-      };
-
-      updateIsAtBottom();
+      isAtBottomRef.current = isAtBottom;
+      setShowScrollButton(!isAtBottom && messages.length > 3);
     },
-    [updateIsAtBottom],
+    [messages.length],
   );
 
   const scrollButtonPress = useCallback(() => {
-    scrollToBottom(true);
+    isAtBottomRef.current = true;
+    hardScrollToBottom(true);
+    setTimeout(() => hardScrollToBottom(true), 160);
     setShowScrollButton(false);
-  }, [scrollToBottom]);
+  }, [hardScrollToBottom]);
 
-  const renderItem = useCallback(({ item }: { item: ChatMessage }) => {
+  const renderItem = useCallback(({ item }: { item: ChatMessage; index: number }) => {
     return <MessageItem message={item} />;
   }, []);
 
   const renderFooter = useCallback(() => {
-    // Footer enthält Streaming-Bubble + optionalen "denkt nach" Indikator
     if (!combinedIsLoading && !isStreaming) return null;
 
     return (
-      <View>
-        {isStreaming && (
-          <View style={styles.messageWrapper}>
-            <View style={[styles.messageBubble, styles.assistantBubble]}>
-              <Text style={styles.assistantText}>{streamingMessage}</Text>
-
-              <View style={styles.typingIndicator}>
-                <Animated.View
-                  style={[
-                    styles.typingDot,
-                    {
-                      opacity: typingDot1.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
-                      transform: [{ translateY: typingDot1.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) }],
-                    },
-                  ]}
-                />
-                <Animated.View
-                  style={[
-                    styles.typingDot,
-                    {
-                      opacity: typingDot2.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
-                      transform: [{ translateY: typingDot2.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) }],
-                    },
-                  ]}
-                />
-                <Animated.View
-                  style={[
-                    styles.typingDot,
-                    {
-                      opacity: typingDot3.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
-                      transform: [{ translateY: typingDot3.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) }],
-                    },
-                  ]}
-                />
-              </View>
-            </View>
-          </View>
-        )}
-
-        {combinedIsLoading && (
-          <Animated.View
-            style={[
-              styles.loadingFooter,
-              {
-                opacity: thinkingOpacity,
-                transform: [{ scale: thinkingScale }],
-              },
-            ]}
-          >
-            <ActivityIndicator size="small" color={theme.palette.primary} />
+      <Animated.View
+        style={[
+          styles.loadingFooter,
+          {
+            opacity: thinkingOpacity,
+            transform: [{ scale: thinkingScale }],
+          },
+        ]}
+      >
+        <ActivityIndicator size="small" color={theme.palette.primary} />
+        <View style={{ flex: 1 }}>
+          {isStreaming ? (
+            <>
+              <Text style={styles.loadingText}>🤖 KI schreibt…</Text>
+              <Text style={styles.streamingText}>{streamingMessage}</Text>
+            </>
+          ) : (
             <Text style={styles.loadingText}>🧠 KI denkt nach...</Text>
+          )}
+        </View>
 
-            <View style={styles.thinkingDots}>
-              <Animated.View
-                style={[
-                  styles.thinkingDot,
-                  { opacity: typingDot1.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) },
-                ]}
-              />
-              <Animated.View
-                style={[
-                  styles.thinkingDot,
-                  { opacity: typingDot2.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) },
-                ]}
-              />
-              <Animated.View
-                style={[
-                  styles.thinkingDot,
-                  { opacity: typingDot3.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) },
-                ]}
-              />
-            </View>
-          </Animated.View>
-        )}
-      </View>
+        <View style={styles.thinkingDots}>
+          <Animated.View style={[styles.thinkingDot, { opacity: typingDot1.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }]} />
+          <Animated.View style={[styles.thinkingDot, { opacity: typingDot2.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }]} />
+          <Animated.View style={[styles.thinkingDot, { opacity: typingDot3.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }]} />
+        </View>
+      </Animated.View>
     );
-  }, [
-    combinedIsLoading,
-    isStreaming,
-    streamingMessage,
-    thinkingOpacity,
-    thinkingScale,
-    typingDot1,
-    typingDot2,
-    typingDot3,
-  ]);
+  }, [combinedIsLoading, isStreaming, thinkingOpacity, thinkingScale, typingDot1, typingDot2, typingDot3, streamingMessage]);
 
   return (
-    // IMPORTANT: KEIN bottom-edge -> verhindert SafeArea-Gap über der Tabbar
     <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.container}>
-          <View
-            style={styles.listContainer}
-            onLayout={e => {
-              scrollStateRef.current.layoutH = e.nativeEvent.layout.height;
-              updateIsAtBottom();
-            }}
-          >
+          <View style={styles.listContainer}>
             {combinedIsLoading && messages.length === 0 ? (
               <View style={styles.loadingOverlay}>
                 <Animated.View style={{ opacity: thinkingOpacity, transform: [{ scale: thinkingScale }] }}>
@@ -825,24 +827,27 @@ const ChatScreen: React.FC = () => {
                 ref={flatListRef}
                 data={messages}
                 renderItem={renderItem}
-                keyExtractor={item => item.id}
+                keyExtractor={(item) => item.id}
                 contentContainerStyle={[styles.listContent, { paddingBottom: listBottomPadding }]}
                 ListFooterComponent={renderFooter}
-                // ✅ Fix für "Chat wird zwischendurch leer": removeClippedSubviews aus
-                removeClippedSubviews={false}
-                maxToRenderPerBatch={12}
-                windowSize={12}
-                initialNumToRender={12}
-                updateCellsBatchingPeriod={50}
+                removeClippedSubviews={Platform.OS === 'ios'}
+                maxToRenderPerBatch={10}
+                windowSize={21}
+                initialNumToRender={15}
                 onScroll={handleScroll}
                 scrollEventThrottle={16}
-                keyboardDismissMode="on-drag"
-                keyboardShouldPersistTaps="handled"
-                onContentSizeChange={(_w, h) => {
-                  scrollStateRef.current.contentH = h;
-                  updateIsAtBottom();
-                  if (isAtBottomRef.current) scrollToBottom(false);
+                onScrollBeginDrag={Keyboard.dismiss}
+                onContentSizeChange={() => {
+                  if (!didInitialScrollRef.current && messages.length > 0) {
+                    didInitialScrollRef.current = true;
+                    isAtBottomRef.current = true;
+                    hardScrollToBottom(false);
+                    setTimeout(() => hardScrollToBottom(false), 160);
+                    return;
+                  }
+                  if (isAtBottomRef.current) hardScrollToBottom(false);
                 }}
+                keyboardShouldPersistTaps="handled"
               />
             )}
           </View>
@@ -864,7 +869,6 @@ const ChatScreen: React.FC = () => {
             </TouchableOpacity>
           )}
 
-          {/* Bottom-Bereich absolut, und bei Keyboard um keyboardOffsetInScreen anheben */}
           <View style={[styles.bottomArea, { bottom: keyboardOffsetInScreen }]}>
             {selectedFileAsset && (
               <View style={styles.selectedFileBox}>
@@ -878,7 +882,6 @@ const ChatScreen: React.FC = () => {
               </View>
             )}
 
-            {/* !!! Eingabefeld/Styles/Keyboard-Offset bleiben unverändert !!! */}
             <View style={styles.inputContainer}>
               <TouchableOpacity
                 style={[styles.iconButton, selectedFileAsset && styles.iconButtonActive]}
@@ -895,7 +898,7 @@ const ChatScreen: React.FC = () => {
               <TextInput
                 ref={inputRef}
                 style={styles.textInput}
-                placeholder="Beschreibe deine App oder den nächsten Schritt ..."
+                placeholder={pendingPlan ? 'Antwort auf die Fragen… (oder „weiter“)' : 'Beschreibe deine App oder den nächsten Schritt ...'}
                 placeholderTextColor={theme.palette.text.secondary}
                 value={textInput}
                 onChangeText={setTextInput}
@@ -924,13 +927,7 @@ const ChatScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* Bestätigungsmodal */}
-          <Modal
-            visible={showConfirmModal}
-            transparent={true}
-            animationType="none"
-            onRequestClose={rejectChanges}
-          >
+          <Modal visible={showConfirmModal} transparent={true} animationType="none" onRequestClose={rejectChanges}>
             <Animated.View style={[styles.modalOverlay, { opacity: modalOpacity }]}>
               <Animated.View style={[styles.modalContent, { transform: [{ scale: modalScale }], opacity: modalOpacity }]}>
                 <View style={styles.modalHeader}>
@@ -943,20 +940,12 @@ const ChatScreen: React.FC = () => {
                 </View>
 
                 <View style={styles.modalFooter}>
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.modalButtonReject]}
-                    onPress={rejectChanges}
-                    activeOpacity={0.8}
-                  >
+                  <TouchableOpacity style={[styles.modalButton, styles.modalButtonReject]} onPress={rejectChanges} activeOpacity={0.8}>
                     <Ionicons name="close-circle" size={20} color={theme.palette.error} />
                     <Text style={styles.modalButtonTextReject}>Ablehnen</Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.modalButtonAccept]}
-                    onPress={applyChanges}
-                    activeOpacity={0.8}
-                  >
+                  <TouchableOpacity style={[styles.modalButton, styles.modalButtonAccept]} onPress={applyChanges} activeOpacity={0.8}>
                     <Ionicons name="checkmark-circle" size={20} color="#000" />
                     <Text style={styles.modalButtonTextAccept}>Bestätigen</Text>
                   </TouchableOpacity>
@@ -971,33 +960,19 @@ const ChatScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: theme.palette.background,
-  },
-  container: {
-    flex: 1,
-  },
-  listContainer: {
-    flex: 1,
-  },
-  listContent: {
-    padding: 12,
-  },
+  root: { flex: 1, backgroundColor: theme.palette.background },
+  container: { flex: 1 },
+  listContainer: { flex: 1 },
 
-  loadingOverlay: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingOverlayText: {
-    marginTop: 12,
-    color: theme.palette.text.secondary,
-  },
+  // ✅ WICHTIG: damit wenige Messages unten kleben und Layout nicht “oben hängt”
+  listContent: { padding: 12, width: '100%', flexGrow: 1, justifyContent: 'flex-end' },
+
+  loadingOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  loadingOverlayText: { marginTop: 12, color: theme.palette.text.secondary },
 
   loadingFooter: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingVertical: 12,
     paddingHorizontal: 12,
     backgroundColor: theme.palette.card,
@@ -1005,22 +980,11 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     gap: 8,
   },
-  loadingText: {
-    marginLeft: 8,
-    color: theme.palette.text.secondary,
-    fontWeight: '500',
-  },
-  thinkingDots: {
-    flexDirection: 'row',
-    gap: 4,
-    marginLeft: 4,
-  },
-  thinkingDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: theme.palette.primary,
-  },
+  loadingText: { color: theme.palette.text.secondary, fontWeight: '600' },
+  streamingText: { marginTop: 6, color: theme.palette.text.primary, fontSize: 14, lineHeight: 20 },
+
+  thinkingDots: { flexDirection: 'row', gap: 4, marginLeft: 4, marginTop: 2 },
+  thinkingDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.palette.primary },
 
   errorContainer: {
     flexDirection: 'row',
@@ -1032,11 +996,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: theme.palette.error,
   },
-  errorText: {
-    flex: 1,
-    color: theme.palette.error,
-    fontSize: 13,
-  },
+  errorText: { flex: 1, color: theme.palette.error, fontSize: 13 },
 
   bottomArea: {
     position: 'absolute',
@@ -1057,12 +1017,7 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.palette.border,
     backgroundColor: theme.palette.card,
   },
-  selectedFileText: {
-    flex: 1,
-    fontSize: 13,
-    color: theme.palette.text.primary,
-    fontWeight: '500',
-  },
+  selectedFileText: { flex: 1, fontSize: 13, color: theme.palette.text.primary, fontWeight: '500' },
 
   inputContainer: {
     minHeight: INPUT_BAR_MIN_H,
@@ -1082,9 +1037,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.palette.border,
   },
-  iconButtonActive: {
-    borderColor: theme.palette.secondary,
-  },
+  iconButtonActive: { borderColor: theme.palette.secondary },
+
   textInput: {
     flex: 1,
     maxHeight: 120,
@@ -1111,41 +1065,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  sendButtonDisabled: {
-    opacity: 0.6,
-  },
-
-  messageWrapper: {
-    marginVertical: 4,
-  },
-  messageBubble: {
-    padding: 12,
-    borderRadius: 12,
-    maxWidth: '85%',
-  },
-  assistantBubble: {
-    alignSelf: 'flex-start',
-    backgroundColor: theme.palette.card,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-  },
-  assistantText: {
-    color: theme.palette.text.primary,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  typingIndicator: {
-    flexDirection: 'row',
-    marginTop: 8,
-    gap: 6,
-    alignItems: 'center',
-  },
-  typingDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: theme.palette.primary,
-  },
+  sendButtonDisabled: { opacity: 0.6 },
 
   modalOverlay: {
     flex: 1,
@@ -1171,27 +1091,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.palette.border,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.palette.text.primary,
-  },
-  modalBody: {
-    padding: 20,
-    maxHeight: 400,
-  },
-  modalText: {
-    fontSize: 14,
-    color: theme.palette.text.primary,
-    lineHeight: 22,
-  },
-  modalFooter: {
-    flexDirection: 'row',
-    gap: 12,
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: theme.palette.border,
-  },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: theme.palette.text.primary },
+  modalBody: { padding: 20, maxHeight: 420 },
+  modalText: { fontSize: 14, color: theme.palette.text.primary, lineHeight: 22 },
+  modalFooter: { flexDirection: 'row', gap: 12, padding: 20, borderTopWidth: 1, borderTopColor: theme.palette.border },
   modalButton: {
     flex: 1,
     flexDirection: 'row',
@@ -1202,24 +1105,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 2,
   },
-  modalButtonReject: {
-    backgroundColor: 'transparent',
-    borderColor: theme.palette.error,
-  },
-  modalButtonAccept: {
-    backgroundColor: theme.palette.primary,
-    borderColor: theme.palette.primary,
-  },
-  modalButtonTextReject: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.palette.error,
-  },
-  modalButtonTextAccept: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
-  },
+  modalButtonReject: { backgroundColor: 'transparent', borderColor: theme.palette.error },
+  modalButtonAccept: { backgroundColor: theme.palette.primary, borderColor: theme.palette.primary },
+  modalButtonTextReject: { fontSize: 14, fontWeight: '600', color: theme.palette.error },
+  modalButtonTextAccept: { fontSize: 14, fontWeight: '600', color: '#000' },
 
   scrollToBottomButton: {
     position: 'absolute',
