@@ -48,15 +48,15 @@ const CodeScreen = () => {
   const [editingContent, setEditingContent] = useState<string>('');
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('preview');
   const [syntaxErrors, setSyntaxErrors] = useState<ValidationError[]>([]);
-  
+
   // Explorer State
   const [currentFolderPath, setCurrentFolderPath] = useState<string>('');
   const [showCreationDialog, setShowCreationDialog] = useState(false);
-  
+
   // Selection & Export State
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
-  
+
   // Actions Modal State
   const [showActionsModal, setShowActionsModal] = useState(false);
   const [actionTargetFile, setActionTargetFile] = useState<ProjectFile | null>(null);
@@ -140,17 +140,17 @@ const CodeScreen = () => {
 
     try {
       const files = projectData?.files.filter(f => selectedFiles.has(f.path)) || [];
-      
+
       let content = `# ${projectData?.name || 'Project'} - Code Export\n`;
       content += `# Erstellt am: ${new Date().toLocaleString('de-DE')}\n`;
       content += `# Anzahl Dateien: ${files.length}\n`;
       content += `\n${'='.repeat(80)}\n\n`;
 
       files.forEach((file, index) => {
-        const fileContent = typeof file.content === 'string' 
-          ? file.content 
+        const fileContent = typeof file.content === 'string'
+          ? file.content
           : JSON.stringify(file.content, null, 2);
-        
+
         content += `\n### DATEI ${index + 1}: ${file.path}\n`;
         content += `${'─'.repeat(80)}\n\n`;
         content += fileContent;
@@ -158,10 +158,19 @@ const CodeScreen = () => {
       });
 
       const fileName = `${projectData?.name || 'export'}_${Date.now()}.txt`;
-      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-      
-      await FileSystem.writeAsStringAsync(fileUri, content, {
-        encoding: FileSystem.EncodingType.UTF8,
+
+      // ✅ TS-safe across Expo versions (some type defs are missing these fields)
+      const baseDir =
+        (FileSystem as any).documentDirectory ??
+        (FileSystem as any).cacheDirectory ??
+        '';
+      const fileUri = `${baseDir}${fileName}`;
+
+      const encoding =
+        (FileSystem as any).EncodingType?.UTF8 ?? 'utf8';
+
+      await (FileSystem as any).writeAsStringAsync(fileUri, content, {
+        encoding,
       });
 
       // Share the file
@@ -205,7 +214,7 @@ const CodeScreen = () => {
 
   const handleItemLongPress = (node: TreeNode) => {
     if (selectionMode) return;
-    
+
     if (node.type === 'folder') {
       // Folder actions
       Alert.alert(
@@ -226,7 +235,7 @@ const CodeScreen = () => {
                     style: 'destructive',
                     onPress: () => {
                       // Delete all files in folder
-                      const filesToDelete = projectData?.files.filter(f => 
+                      const filesToDelete = projectData?.files.filter(f =>
                         f.path.startsWith(node.path + '/')
                       ) || [];
                       filesToDelete.forEach(f => deleteFile(f.path));
@@ -247,14 +256,14 @@ const CodeScreen = () => {
 
   const handleRenameFile = (newName: string) => {
     if (!actionTargetFile) return;
-    
+
     const oldPath = actionTargetFile.path;
     const pathParts = oldPath.split('/');
     pathParts[pathParts.length - 1] = newName;
     const newPath = pathParts.join('/');
-    
+
     renameFile(oldPath, newPath);
-    
+
     if (selectedFile?.path === oldPath) {
       setSelectedFile({ ...actionTargetFile, path: newPath });
     }
@@ -262,12 +271,12 @@ const CodeScreen = () => {
 
   const handleMoveFile = (targetFolder: string) => {
     if (!actionTargetFile) return;
-    
+
     const fileName = actionTargetFile.path.split('/').pop() || '';
     const newPath = targetFolder ? `${targetFolder}/${fileName}` : fileName;
-    
+
     renameFile(actionTargetFile.path, newPath);
-    
+
     if (selectedFile?.path === actionTargetFile.path) {
       setSelectedFile({ ...actionTargetFile, path: newPath });
     }
@@ -275,9 +284,9 @@ const CodeScreen = () => {
 
   const handleDeleteFile = () => {
     if (!actionTargetFile) return;
-    
+
     deleteFile(actionTargetFile.path);
-    
+
     if (selectedFile?.path === actionTargetFile.path) {
       setSelectedFile(null);
       setEditingContent('');
@@ -286,11 +295,11 @@ const CodeScreen = () => {
 
   const handleDuplicateFile = () => {
     if (!actionTargetFile) return;
-    
+
     const ext = actionTargetFile.path.split('.').pop() || '';
     const baseName = actionTargetFile.path.replace(`.${ext}`, '');
     const newPath = `${baseName}_copy.${ext}`;
-    
+
     createFile(newPath, actionTargetFile.content);
     Alert.alert('✅ Dupliziert', `Neue Datei erstellt: ${newPath}`);
   };
@@ -300,7 +309,7 @@ const CodeScreen = () => {
     const ext = name.includes('.') ? '' : '.tsx';
     const finalPath = fullPath + ext;
     createFile(finalPath, `// ${finalPath}\n`);
-    
+
     // Auto-open new file
     const newFile: ProjectFile = { path: finalPath, content: `// ${finalPath}\n` };
     setSelectedFile(newFile);

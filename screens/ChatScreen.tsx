@@ -3,8 +3,8 @@
 // 1) Chat startet zuverlässig unten (Initial-AutoScroll, auch bei Virtualization)
 // 2) Scroll-Pfeil: 1x drücken -> wirklich ganz runter (scrollToEnd + retry)
 // 3) 2-Call Flow: Planner (Fragen/Plan) -> erst nach deiner Antwort Builder
-// 4) Extra: Vor dem Bestätigen gibt's eine kurze Erklärung "warum/was" (kleiner Explain-Call)
-// 5) ✅ LIST FIX: contentContainer füllt die Höhe, Messages kleben unten (flexGrow + justifyContent)
+// 4) Vor dem Bestätigen: kurzer Explain-Call "warum/was"
+// 5) LIST FIX: contentContainer füllt die Höhe, Messages kleben unten (flexGrow + justifyContent)
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -30,6 +30,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import { v4 as uuidv4 } from 'uuid';
 
 import { theme } from '../theme';
 import { useProject } from '../contexts/ProjectContext';
@@ -41,7 +42,6 @@ import { applyFilesToProject } from '../lib/fileWriter';
 import { buildBuilderMessages, buildPlannerMessages, buildValidatorMessages } from '../lib/promptEngine';
 import { useAI } from '../contexts/AIContext';
 import { handleMetaCommand } from '../utils/metaCommands';
-import { v4 as uuidv4 } from 'uuid';
 
 // ✅ Extrahierte Heuristics
 import {
@@ -375,13 +375,16 @@ const ChatScreen: React.FC = () => {
               ? (ai as any).text
               : (ai as any).raw;
 
-        let normalized = normalizeAiResponse(rawForNormalizer);
+        const normalized = normalizeAiResponse(rawForNormalizer);
         if (!normalized) {
           const preview =
             typeof (ai as any).text === 'string'
               ? String((ai as any).text).slice(0, 600).replace(/\s+/g, ' ')
               : '';
-          throw new Error('Normalizer/Validator konnte die Dateien nicht verarbeiten.' + (preview ? `\n\nOutput-Preview: ${preview}` : ''));
+          throw new Error(
+            'Normalizer/Validator konnte die Dateien nicht verarbeiten.' +
+              (preview ? `\n\nOutput-Preview: ${preview}` : ''),
+          );
         }
 
         // Optional Agent (Validator)
@@ -424,7 +427,7 @@ const ChatScreen: React.FC = () => {
 
         // ✅ Explain-Call
         let explainText = '';
-        if (!isAutoFix && (mergeResult.created.length + mergeResult.updated.length) > 0) {
+        if (!isAutoFix && mergeResult.created.length + mergeResult.updated.length > 0) {
           try {
             const digest = buildChangeDigest(projectFiles, mergeResult.files, mergeResult.created, mergeResult.updated);
             const explainMsgs = buildExplainMessages(userContent, digest);
@@ -543,6 +546,7 @@ const ChatScreen: React.FC = () => {
     }
   }, []);
 
+  // ✅ applyChanges: Dateiliste + Next-Step-Vorschläge (ohne meta.helper)
   const applyChanges = useCallback(async () => {
     if (!pendingChange) return;
     setShowConfirmModal(false);
@@ -551,30 +555,66 @@ const ChatScreen: React.FC = () => {
       await updateProjectFiles(pendingChange.files);
 
       const timing =
-        pendingChange.aiResponse.timing && pendingChange.aiResponse.timing.durationMs
+        pendingChange.aiResponse?.timing?.durationMs
           ? ` (${(pendingChange.aiResponse.timing.durationMs / 1000).toFixed(1)}s)`
           : '';
 
-      const confirmationText =
-        `✅ Änderungen erfolgreich angewendet${timing}\n\n` +
-        `🤖 Provider: ${pendingChange.aiResponse.provider || 'unbekannt'}${
-          pendingChange.aiResponse.keysRotated ? ` (${pendingChange.aiResponse.keysRotated}x rotiert)` : ''
-        }\n` +
-        `📝 Neue Dateien: ${pendingChange.created.length}\n` +
-        `📝 Geänderte Dateien: ${pendingChange.updated.length}\n` +
-        `⏭ Übersprungen: ${pendingChange.skipped.length}`;
+      const { created, updated, skipped } = pendingChange;
 
+      const summaryText =
+        `🤖 Provider: ${pendingChange.aiResponse?.provider || 'unbekannt'}${
+          pendingChange.aiResponse?.keysRotated ? ` (${pendingChange.aiResponse.keysRotated}x Key-Rotation)` : ''
+        }\n` +
+        `🆕 Neue Dateien: ${created.length}\n` +
+        `✏️ Geänderte Dateien: ${updated.length}\n` +
+        `⏭️ Übersprungen: ${skipped.length}`;
+
+      const lines: string[] = [];
+
+      if (created.length) {
+        lines.push('🆕 Neue Dateien:');
+        created.forEach((p) => lines.push(`  • ${p}`));
+      }
+      if (updated.length) {
+        lines.push('✏️ Geänderte Dateien:');
+        updated.forEach((p) => lines.push(`  • ${p}`));
+      }
+      if (skipped.length) {
+        lines.push('⏭️ Übersprungene Dateien:');
+        skipped.forEach((p) => lines.push(`  • ${p}`));
+      }
+
+      const filesBlock = lines.length ? `\n\n📂 Details:\n${lines.join('\n')}` : '';
+
+      const confirmationText = `✅ Änderungen erfolgreich angewendet${timing}\n\n${summaryText}${filesBlock}`;
+
+      // 1) Zusammenfassung + Dateiliste
       addChatMessage({
         id: uuidv4(),
         role: 'assistant',
         content: confirmationText,
         timestamp: new Date().toISOString(),
-        meta: { provider: pendingChange.aiResponse.provider },
+        meta: { provider: pendingChange.aiResponse?.provider || 'system' },
+      });
+
+      // 2) Direkt danach Vorschläge
+      addChatMessage({
+        id: uuidv4(),
+        role: 'assistant',
+        content:
+          '💡 Nächste Schritte:\n' +
+          '• Teste die Änderungen direkt in der App (insbesondere die oben gelisteten Dateien).\n' +
+          '• Wenn etwas nicht passt oder Fehler auftauchen, beschreib mir kurz das Verhalten.\n' +
+          '• Oder sag mir, welche Datei / welchen Bereich ich als nächstes optimieren oder erweitern soll.',
+        timestamp: new Date().toISOString(),
       });
 
       requestAnimationFrame(() => hardScrollToBottom(true));
     } catch (e: any) {
-      Alert.alert('Fehler beim Anwenden', e?.message || 'Änderungen konnten nicht angewendet werden. Bitte versuche es erneut.');
+      Alert.alert(
+        'Fehler beim Anwenden',
+        e?.message || 'Änderungen konnten nicht angewendet werden. Bitte versuche es erneut.',
+      );
       addChatMessage({
         id: uuidv4(),
         role: 'system',
@@ -718,9 +758,24 @@ const ChatScreen: React.FC = () => {
         </View>
 
         <View style={styles.thinkingDots}>
-          <Animated.View style={[styles.thinkingDot, { opacity: typingDot1.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }]} />
-          <Animated.View style={[styles.thinkingDot, { opacity: typingDot2.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }]} />
-          <Animated.View style={[styles.thinkingDot, { opacity: typingDot3.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }]} />
+          <Animated.View
+            style={[
+              styles.thinkingDot,
+              { opacity: typingDot1.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) },
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.thinkingDot,
+              { opacity: typingDot2.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) },
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.thinkingDot,
+              { opacity: typingDot3.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) },
+            ]}
+          />
         </View>
       </Animated.View>
     );
@@ -967,6 +1022,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     backgroundColor: theme.palette.background,
   },
+
   sendButton: {
     marginLeft: 8,
     width: 40,
@@ -1008,9 +1064,17 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.palette.border,
   },
   modalTitle: { fontSize: 18, fontWeight: '700', color: theme.palette.text.primary },
+
   modalBody: { padding: 20, maxHeight: 420 },
   modalText: { fontSize: 14, color: theme.palette.text.primary, lineHeight: 22 },
-  modalFooter: { flexDirection: 'row', gap: 12, padding: 20, borderTopWidth: 1, borderTopColor: theme.palette.border },
+
+  modalFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: theme.palette.border,
+  },
   modalButton: {
     flex: 1,
     flexDirection: 'row',
