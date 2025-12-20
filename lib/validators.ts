@@ -10,46 +10,38 @@ export type ValidationResult = { valid: true; errors: string[] } | { valid: fals
 const bytesToMB = (bytes: number) => Math.round((bytes / (1024 * 1024)) * 100) / 100;
 
 /**
- * Projekt-Policy: Root ist grundsätzlich gesperrt – außer einer harten Allowlist.
- * Alles andere muss in einem erlaubten Ordner liegen.
+ * Projekt-Policy (Single Source of Truth):
+ * - Root-Dateien nur über CONFIG.PATHS.ALLOWED_ROOT
+ * - Unterordner nur über CONFIG.PATHS.SRC_FOLDERS (plus .github)
  */
-const ROOT_ALLOWLIST = new Set<string>([
-  'App.tsx',
-  'app.config.js',
-  'eas.json',
-  'package.json',
-  'tsconfig.json',
-  'babel.config.js',
-  'metro.config.js',
-  'jest.config.js',
-  'jest.setup.js',
-  'eslint.config.js',
-  'README.md',
-  'SYSTEM_README.md',
-]);
+const ROOT_ALLOWLIST = new Set<string>([...((CONFIG as any)?.PATHS?.ALLOWED_ROOT ?? [])]);
+const ALLOWED_TOP_LEVEL_DIRS = new Set<string>([...((CONFIG as any)?.PATHS?.SRC_FOLDERS ?? []), '.github']);
 
-const ALLOWED_TOP_LEVEL_DIRS = new Set<string>([
-  'screens',
-  'components',
-  'contexts',
-  'hooks',
-  'lib',
-  'utils',
-  'types',
-  'navigation',
-  'assets',
-  'templates',
-  'tools',
-  'scripts',
-  'supabase',
-]);
+const hasAllowedExtension = (normalizedPath: string): boolean => {
+  const allowed: string[] = ((CONFIG as any)?.PATHS?.ALLOWED_EXT ?? []) as string[];
+  if (!allowed || allowed.length === 0) return true;
+
+  const base = normalizedPath.split('/').pop() ?? normalizedPath;
+  // Special case: filenames like ".gitignore" are listed as "extensions" in config.
+  if (allowed.includes(base)) return true;
+
+  return allowed.some((ext) => normalizedPath.endsWith(ext));
+};
 
 const INVALID_PATH_CHARS = /[\\:*?"<>|]/; // Windows reserved
 const INVALID_PATH_SEGMENT = /(^|\/)\.(\/|$)|(^|\/)\.\.(\/|$)/; // . or ..
 const LEADING_DOTSLASH = /^\.\//;
 
+// ✅ FIX (einziger inhaltlicher Change): führendes "./" entfernen (auch mehrfach)
 export const normalizePath = (p: string) =>
-  p.replace(/\r/g, '').trim().replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/g, '').replace(/\/{2,}/g, '/');
+  p
+    .replace(/\r/g, '')
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '')
+    .replace(/^(\.\/)+/, '') // führende "./" Segmente entfernen
+    .replace(/\/+$/g, '')
+    .replace(/\/{2,}/g, '/');
 
 export const FilePathSchema = z.string().min(1);
 export const FileContentSchema = z.string(); // content can be empty (tests expect empty allowed)
@@ -64,7 +56,7 @@ export const validateFilePath = (path: string): { valid: boolean; errors: string
 
   const normalized = normalizePath(path);
 
-  // Must not keep leading "./" (tests expect reject)
+  // Must not keep leading "./" (tests expect reject in validateFilePath)
   if (LEADING_DOTSLASH.test(path.trim())) {
     errors.push('Pfad darf nicht mit ./ beginnen');
   }
@@ -106,6 +98,11 @@ export const validateFilePath = (path: string): { valid: boolean; errors: string
     if (!ALLOWED_TOP_LEVEL_DIRS.has(top)) {
       errors.push(`Ordner "${top}" ist nicht erlaubt`);
     }
+  }
+
+  // Extension policy (keeps chat-utils + file-writer consistent)
+  if (normalized && !hasAllowedExtension(normalized)) {
+    errors.push('Ungültige Dateiendung');
   }
 
   return { valid: errors.length === 0, errors, normalized };
@@ -220,7 +217,6 @@ export const validateZipImport = (
 
   return { valid: errors.length === 0 && invalidFiles.length === 0, validFiles, invalidFiles, errors };
 };
-
 
 // Backwards-compat: einige Stellen erwarten Validators.constants
 export const Validators = {

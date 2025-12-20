@@ -1,7 +1,12 @@
 // utils/metaCommands.ts - Meta-Commands für den Chat-Builder
 import { ProjectFile, ChatMessage } from '../contexts/types';
 import { v4 as uuidv4 } from 'uuid';
-import { validateProjectFiles, normalizePath } from './chatUtils';
+
+// ✅ Step 4B: normalizePath direkt aus lib/validators (Single Source of Truth)
+import { normalizePath } from '../lib/validators';
+
+// validateProjectFiles bleibt in chatUtils (exists there + used by tests/flow)
+import { validateProjectFiles } from './chatUtils';
 
 export type MetaCommandResult = {
   handled: boolean;

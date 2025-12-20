@@ -11,6 +11,11 @@ android/app/build/
 ios/Pods/
 ios/build/
 
+# Cursor / IDE
+.cursor/
+.vscode/
+.idea/
+
 # Logs
 npm-debug.log*
 yarn-debug.log*
@@ -24,8 +29,14 @@ pnpm-debug.log*
 # Local dumps / backups
 project_code_dump.txt
 debug_dump_latest.txt
+
+# Backup/Temp files (z.B. normalizer.ts.bak_2025-12-18_...)
 *.bak
-\[0\]
+*.bak_*
+*.bak-*
+*~
+*.swp
+*.swo
 
 # Supabase temp
 supabase/.temp/
@@ -33,6 +44,5 @@ supabase/.temp/
 # scripts sollen nicht ins repo
 scripts/
 
-backups/
-backups/
+# Backups folder
 backups/

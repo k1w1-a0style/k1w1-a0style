@@ -2,6 +2,8 @@ import { providerRateLimiter } from './RateLimiter';
 import SecureKeyManager from './SecureKeyManager';
 import { AllAIProviders, PROVIDER_DEFAULTS } from '../contexts/AIContext';
 
+import { normalizeAiResponse } from './normalizer';
+
 export interface LlmMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -63,6 +65,28 @@ async function fetchTextSafe(res: Response): Promise<string> {
   } catch {
     return '';
   }
+}
+
+/**
+ * ✅ Needed by tests:
+ * Parse file-array JSON from text, apply minimal safety filtering / normalization.
+ */
+export function parseFilesFromText(text: string): Array<{ path: string; content: string }> | null {
+  // ✅ Single source of truth: parsing/normalizing lives in lib/normalizer.
+  // This keeps orchestrator lean and avoids duplicated heuristics.
+  return normalizeAiResponse(text);
+}
+
+/**
+ * ✅ Needed by tests:
+ * Convenience wrapper that always runs validator-ish in quality mode.
+ */
+export async function runValidatorOrchestrator(
+  provider: AllAIProviders,
+  model: string,
+  messages: LlmMessage[],
+): Promise<OrchestratorResult> {
+  return runOrchestrator(provider, model, 'quality', messages);
 }
 
 export async function runOrchestrator(
@@ -291,7 +315,7 @@ async function callGemini(apiKey: string, model: string, messages: LlmMessage[],
             maxOutputTokens: quality === 'quality' ? 8192 : 4096,
           },
         }),
-      }
+      },
     );
 
     if (!response.ok) {

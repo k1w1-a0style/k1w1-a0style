@@ -1,11 +1,10 @@
-// contexts/types.ts - VEREINHEITLICHT & REPARIERT
+// contexts/types.ts
 
 export interface ProjectFile {
   path: string;
   content: string;
 }
 
-// ✅ NEU: Build History Types
 export interface BuildHistoryEntry {
   id: string;
   jobId: number;
@@ -25,14 +24,14 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: string;
-  meta?: {                          // ✅ NEU: Optional meta-Daten
+  meta?: {
     provider?: string;
     error?: boolean;
-    autoFix?: boolean;              // ✅ NEU: Flag für Auto-Fix Requests
+    autoFix?: boolean;
+    planner?: boolean;
   };
 }
 
-// ✅ NEU: Auto-Fix Request Interface
 export interface AutoFixRequest {
   id: string;
   message: string;
@@ -55,38 +54,31 @@ export interface ProjectContextProps {
   projectData: ProjectData | null;
   isLoading: boolean;
 
-  // File operations
   updateProjectFiles: (files: ProjectFile[], newName?: string) => Promise<void>;
   createFile: (path: string, content: string) => Promise<void>;
   deleteFile: (path: string) => Promise<void>;
   renameFile: (oldPath: string, newPath: string) => Promise<void>;
 
-  // Project operations
   setPackageName: (packageName: string) => void;
   setProjectName: (name: string) => void;
   createNewProject: () => Promise<void>;
 
-  // Chat operations
   addChatMessage: (message: ChatMessage) => void;
   messages: ChatMessage[];
 
   clearChatHistory: () => void;
 
-  // ✅ NEU: Auto-Fix Feature
   autoFixRequest: AutoFixRequest | null;
   triggerAutoFix: (message: string) => void;
   clearAutoFixRequest: () => void;
 
-  // Build (UI helper)
   startBuild?: () => Promise<void>;
   currentBuild?: { status: 'idle' | 'queued' | 'building' | 'completed' | 'error'; message?: string } | null;
 
-  // Export/Import
   exportAndBuild: () => Promise<{ owner: string; repo: string } | null>;
   exportProjectAsZip: () => Promise<void>;
   importProjectFromZip: () => Promise<void>;
 
-  // GitHub operations
   getGitHubToken: () => Promise<string | null>;
   getWorkflowRuns: (
     owner: string,

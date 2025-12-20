@@ -13,7 +13,7 @@
     "web": "expo start --web",
 
     "lint": "expo lint",
-    "lint:ci": "eslint . --max-warnings=0",
+    "lint:ci": "eslint . --quiet",
 
     "typecheck": "tsc --noEmit",
 

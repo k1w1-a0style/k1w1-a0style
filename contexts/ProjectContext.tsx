@@ -68,7 +68,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
   const debouncedSave = useCallback((project: ProjectData) => {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
-      saveProjectToStorage(project).catch(error => {
+      // ✅ FIX: error typed (noImplicitAny)
+      saveProjectToStorage(project).catch((error: unknown) => {
         console.error('[ProjectContext] Save error:', error);
       });
     }, SAVE_DEBOUNCE_MS);
@@ -384,17 +385,13 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
 
 
   const valueShimExportAndBuild = useCallback(async () => {
-    // Aktuell: exportAndBuild ist als deprecated markiert.
-    // Hier bleibt ein Hook-Punkt für die zukünftige Build-Implementierung.
     return null;
   }, []);
 
   const startBuild = useCallback(async () => {
     try {
       setCurrentBuild({ status: 'queued' });
-      // Placeholder: in Zukunft echte EAS/GitHub Build Pipeline
       setCurrentBuild({ status: 'building' });
-      // simulate async tick
       await Promise.resolve();
       await valueShimExportAndBuild();
       setCurrentBuild({ status: 'completed' });

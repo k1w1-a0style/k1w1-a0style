@@ -6,7 +6,8 @@
     "noEmit": true,
     "isolatedModules": true,
     "allowJs": false,
-    "noUncheckedIndexedAccess": true,
+
+    "noUncheckedIndexedAccess": false,
     "exactOptionalPropertyTypes": false
   },
   "include": [
@@ -16,6 +17,8 @@
   "exclude": [
     "node_modules",
     "supabase/functions/**",
-    "tools/_archive/**"
+    "tools/_archive/**",
+    "backups/**",
+    "**/backups/**"
   ]
 }

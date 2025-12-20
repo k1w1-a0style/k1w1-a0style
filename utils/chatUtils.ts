@@ -1,6 +1,7 @@
 import { jsonrepair } from 'jsonrepair';
 import { ProjectFile } from '../contexts/types';
 import { CONFIG } from '../config';
+import { normalizePath as libNormalizePath, validateFilePath as libValidateFilePath } from '../lib/validators';
 
 type ErrorStat = {
   count: number;
@@ -10,11 +11,7 @@ type ErrorStat = {
 
 const errorStats: Record<string, ErrorStat> = {};
 
-const log = (
-  level: 'INFO' | 'WARN' | 'ERROR',
-  message: string,
-  meta?: Record<string, unknown>
-) => {
+const log = (level: 'INFO' | 'WARN' | 'ERROR', message: string, meta?: Record<string, unknown>) => {
   const timestamp = new Date().toISOString();
   const ctx = meta ? ` | ${JSON.stringify(meta)}` : '';
   console.log(`[${level}] ${timestamp} - ${message}${ctx}`);
@@ -28,35 +25,29 @@ const logError = (key: string, meta?: Record<string, unknown>) => {
   errorStats[key].last = new Date().toISOString();
 };
 
+// ✅ Step 4A: normalizePath bleibt exportiert (kompatibel), delegiert final an lib/validators.normalizePath
 export const normalizePath = (path: string): string => {
   if (!path || typeof path !== 'string') return '';
 
-  let normalized = path
+  // Keep legacy sanitization (removes illegal chars / control chars),
+  // then delegate to lib/validators.normalizePath for canonical normalization.
+  let sanitized = path
+    .replace(/\r/g, '')
+    .trim()
     .replace(/\\/g, '/')
     .replace(/\/+/g, '/')
-    .replace(/[<>:"|?*\x00-\x1f]/g, '')
-    .trim();
+    .replace(/[<>:"|?*\x00-\x1f]/g, '');
 
-  if (normalized.startsWith('./')) normalized = normalized.slice(2);
-  if (normalized.startsWith('/')) normalized = normalized.slice(1);
-  if (normalized.endsWith('/')) normalized = normalized.slice(0, -1);
+  // Remove leading "./" segments (even multiple), and leading slashes
+  sanitized = sanitized.replace(/^(\.\/)+/, '').replace(/^\/+/, '').replace(/\/+$/, '');
+  // Remove trivial traversal fragments (best-effort)
+  sanitized = sanitized.replace(/\.\.\//g, '').replace(/\.\.\\/g, '').replace(/\/{2,}/g, '/');
 
-  normalized = normalized
-    .replace(/\.\.\//g, '')
-    .replace(/\.\.\\/g, '')
-    .replace(/\.\./g, '')
-    .replace(/\/\.\//g, '/')
-    .replace(/\/\.$/g, '');
-
-  const parts = normalized
-    .split('/')
-    .filter(part => part.length > 0 && part !== '.');
-
-  return parts.join('/');
+  return libNormalizePath(sanitized);
 };
 
 export const ensureStringContent = (value: unknown): string => {
-  if (value == null) return '';
+  if (value === null || value === undefined) return '';
   if (typeof value === 'string') return value;
   try {
     return JSON.stringify(value, null, 2);
@@ -75,81 +66,69 @@ export const hasValidExtension = (path: string): boolean => {
   return CONFIG.PATHS.ALLOWED_EXT.some((ext) => normalized.endsWith(ext));
 };
 
+/**
+ * Dein CONFIG hat kein PATHS.INVALID_PATTERNS.
+ * Wir halten diese Funktion als “safe guard”, aber basierend auf robusten Basics:
+ * - path traversal
+ * - node_modules/android/ios
+ * - absolute paths
+ */
 export const hasInvalidPattern = (path: string): boolean => {
   const normalized = normalizePath(path);
-  return CONFIG.VALIDATION.PATTERNS.INVALID_PATH.test(normalized);
+  if (!normalized) return true;
+
+  if (normalized.startsWith('/') || normalized.startsWith('\\')) return true;
+  if (normalized.includes('..')) return true;
+
+  const badPrefixes = ['node_modules/', 'android/', 'ios/'];
+  if (badPrefixes.some((p) => normalized === p.slice(0, -1) || normalized.startsWith(p))) return true;
+
+  return false;
 };
 
 export const isPathAllowed = (path: string): boolean => {
   const normalized = normalizePath(path);
+
+  // root allowlist
   if (CONFIG.PATHS.ALLOWED_ROOT.includes(normalized)) return true;
-  if (CONFIG.PATHS.ALLOWED_SINGLE.includes(normalized)) return true;
-  for (const prefix of CONFIG.PATHS.ALLOWED_PREFIXES) {
-    if (normalized.startsWith(prefix)) return true;
-  }
-  return false;
+
+  // allowed folders
+  return CONFIG.PATHS.SRC_FOLDERS.some(
+    (folder) => normalized === folder || normalized.startsWith(`${folder}/`),
+  );
 };
 
 export const isCodeFile = (path: string): boolean => {
   const normalized = normalizePath(path);
-  return (
-    normalized.endsWith('.ts') ||
-    normalized.endsWith('.tsx') ||
-    normalized.endsWith('.js') ||
-    normalized.endsWith('.jsx') ||
-    normalized.endsWith('.json') ||
-    normalized.endsWith('.md')
-  );
+  const okExt = CONFIG.PATHS.ALLOWED_EXT.some((ext) => normalized.endsWith(ext));
+  return okExt && !normalized.endsWith('.json');
 };
 
-// ---------------------------------------------------------------
-// VALIDIERUNG
-// ---------------------------------------------------------------
-export const validateFilePath = (
-  path: string
-): { valid: boolean; errors: string[]; normalized: string } => {
-  const errors: string[] = [];
+const getMinLinesForFile = (normalizedPath: string): number => {
+  const p = normalizedPath.toLowerCase();
+  const v = CONFIG.VALIDATION;
 
-  if (!path || typeof path !== 'string') {
-    errors.push('Pfad ist leer oder kein String.');
-    return { valid: false, errors, normalized: '' };
-  }
+  // du hast: MIN_LINES_TSX / MIN_LINES_TS (kein CODE_MIN_LINES)
+  if (p.endsWith('.tsx') || p.endsWith('.jsx')) return v.MIN_LINES_TSX ?? 8;
+  if (p.endsWith('.ts') || p.endsWith('.js')) return v.MIN_LINES_TS ?? 5;
 
-  if (path.length > CONFIG.PATHS.MAX_PATH_LENGTH) {
-    errors.push(
-      `Pfad zu lang: ${path.length} Zeichen (max. ${CONFIG.PATHS.MAX_PATH_LENGTH})`
-    );
-  }
+  // fallback: nicht streng
+  return 1;
+};
 
-  const normalized = normalizePath(path);
+// ✅ Step 4A: validateFilePath bleibt exportiert (kompatibel), Policy ist aber in lib/validators
+export const validateFilePath = (path: string): { valid: boolean; errors: string[]; normalized: string } => {
+  // Single source of truth: policy lives in lib/validators.validateFilePath
+  // This wrapper exists only for backwards compatibility (other modules import from utils/chatUtils).
+  const base = libValidateFilePath(path);
+  const normalized = base.normalized ?? normalizePath(path);
 
-  if (normalized.includes('..')) {
-    errors.push('Pfad enthält Path Traversal-Versuche (../)');
-  }
+  const errors = [...(base.errors ?? [])];
 
-  if (normalized !== path && path.includes('..')) {
-    errors.push('Pfad wurde normalisiert - möglicher Path Traversal-Versuch erkannt');
-  }
-
-  if (!normalized) {
-    errors.push('Pfad ist nach Normalisierung leer.');
-    return { valid: false, errors, normalized: '' };
-  }
-
-  if (/[<>:"|?*\x00-\x1f]/.test(normalized)) {
-    errors.push('Pfad enthält verbotene Zeichen');
-  }
-
-  if (!hasValidExtension(normalized)) {
-    errors.push(`Ungültige Dateiendung: ${normalized}`);
-  }
-
-  if (!isPathAllowed(normalized)) {
-    errors.push(`Pfad außerhalb erlaubter Bereiche: ${normalized}`);
-  }
-
-  if (hasInvalidPattern(normalized)) {
-    errors.push(`Pfad enthält verbotene Muster: ${normalized}`);
+  // Extra defense-in-depth: keep legacy forbidden pattern check (even if policy already catches most)
+  if (normalized && hasInvalidPattern(normalized)) {
+    const already = errors.some((e) => /verbotene|muster|pattern/i.test(e));
+    if (!already) errors.push(`Pfad enthält verbotene Muster: ${normalized}`);
   }
 
   return { valid: errors.length === 0, errors, normalized };
@@ -170,51 +149,43 @@ export const validateProjectFiles = (files: ProjectFile[]) => {
   const seen = new Map<string, string>();
 
   for (const file of files) {
-    const path = file.path;
-    const normalizedPath = normalizePath(path);
-    const content = ensureStringContent(file.content);
+    const path = ensureStringContent(file?.path);
+    const content = ensureStringContent(file?.content);
 
-    const { valid, errors: pathErrors } = validateFilePath(path);
-    if (!valid) errors.push(`Pfad ungültig (${path}): ${pathErrors.join(' | ')}`);
+    const pathRes = validateFilePath(path);
+    if (!pathRes.valid) {
+      errors.push(...pathRes.errors.map((e) => `${path || '(leer)'}: ${e}`));
+      continue;
+    }
 
-    const duplicateOf = seen.get(normalizedPath);
-    if (duplicateOf) {
-      errors.push(`Duplikat-Pfad: ${path} (entspricht ${duplicateOf})`);
+    if (!content || content.trim().length === 0) {
+      errors.push(`Leerer Dateiinhalt: ${pathRes.normalized}`);
+      continue;
+    }
+
+    const prev = seen.get(pathRes.normalized);
+    if (prev) {
+      errors.push(`Doppelter Pfad: ${pathRes.normalized} (bereits gesehen als "${prev}")`);
     } else {
-      seen.set(normalizedPath, path);
+      seen.set(pathRes.normalized, path);
     }
 
-    if (CONFIG.VALIDATION.PATTERNS.FORBIDDEN_IMPORT.test(content)) {
-      errors.push(`Verbotenes Import-Muster in ${path} gefunden.`);
-    }
-
-    if (content.trim().length === 0) {
-      errors.push(`Datei ist leer: ${path}`);
-    }
-
-    const isTsx = normalizedPath.endsWith('.tsx');
-    const isTsOrJs =
-      normalizedPath.endsWith('.ts') ||
-      normalizedPath.endsWith('.js') ||
-      normalizedPath.endsWith('.jsx');
-    const isConfigLike = CONFIG.VALIDATION.PATTERNS.CONFIG_FILES.test(normalizedPath);
-
-    if ((isTsx || isTsOrJs) && !isConfigLike) {
+    if (isCodeFile(pathRes.normalized)) {
       const lineCount = getCodeLineCount(content);
-      const minLines = isTsx ? CONFIG.VALIDATION.MIN_LINES_TSX : CONFIG.VALIDATION.MIN_LINES_TS;
+      const minLines = getMinLinesForFile(pathRes.normalized);
 
       if (lineCount < minLines) {
-        errors.push(`Zu wenig Code-Zeilen in ${path}: ${lineCount} (min. ${minLines})`);
+        errors.push(`Zu wenig Code-Zeilen in ${pathRes.normalized}: ${lineCount} (min. ${minLines})`);
       }
 
       if (!CONFIG.VALIDATION.PATTERNS.CODE_HEURISTIC.test(content)) {
-        errors.push(`Inhalt von ${path} sieht nicht wie echter Code aus (Heuristik fehlgeschlagen).`);
+        errors.push(`Inhalt von ${pathRes.normalized} sieht nicht wie echter Code aus (Heuristik fehlgeschlagen).`);
       }
     }
 
     for (const placeholder of CONFIG.VALIDATION.CONTENT_PATTERNS.PLACEHOLDERS) {
       if (content.includes(placeholder)) {
-        errors.push(`Platzhalter in ${path} gefunden: "${placeholder}"`);
+        errors.push(`Platzhalter in ${pathRes.normalized} gefunden: "${placeholder}"`);
         break;
       }
     }
@@ -228,104 +199,106 @@ export const validateProjectFiles = (files: ProjectFile[]) => {
 // ---------------------------------------------------------------
 type SafeJsonOpts = { silent?: boolean };
 
+const extractBalanced = (text: string, open: string, close: string): string | null => {
+  let inString = false;
+  let escape = false;
+  let depth = 0;
+  let start = -1;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inString) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escape = true;
+        continue;
+      }
+      if (ch === '"') inString = false;
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (ch === open) {
+      if (depth === 0) start = i;
+      depth++;
+      continue;
+    }
+
+    if (ch === close) {
+      depth--;
+      if (depth === 0 && start >= 0) return text.slice(start, i + 1);
+    }
+  }
+
+  return null;
+};
+
 export const safeJsonParse = <T = unknown>(input: unknown, opts: SafeJsonOpts = {}): T | null => {
   try {
-    if (!input) return null;
+    if (input === null || input === undefined) return null;
     if (typeof input === 'object') return input as T;
+
     const repaired = jsonrepair(String(input));
     return JSON.parse(repaired) as T;
   } catch (e: unknown) {
     if (!opts.silent) {
-      const errorMessage = e instanceof Error ? e.message : String(e);
-      log('ERROR', 'JSON Parse fehlgeschlagen', { error: errorMessage });
-      logError('JSON Parse fehlgeschlagen', { error: errorMessage });
+      const msg = e instanceof Error ? e.message : String(e);
+      log('WARN', 'JSON Parse failed', { error: msg });
+      logError('JSON Parse failed', { error: msg });
     }
     return null;
   }
 };
 
-export const safeJsonParseSilent = <T = unknown>(input: unknown): T | null =>
-  safeJsonParse<T>(input, { silent: true });
-
-// Balanced extraction (nicht greedy)
-function extractBalanced(text: string, open: '{' | '[', close: '}' | ']'): string | null {
-  const start = text.indexOf(open);
-  if (start < 0) return null;
-
-  let inString = false;
-  let escape = false;
-  let depth = 0;
-
-  for (let i = start; i < text.length; i++) {
-    const ch = text[i];
-
-    if (inString) {
-      if (escape) { escape = false; continue; }
-      if (ch === '\\') { escape = true; continue; }
-      if (ch === '"') inString = false;
-      continue;
-    }
-
-    if (ch === '"') { inString = true; continue; }
-    if (ch === open) depth++;
-    if (ch === close) depth--;
-
-    if (depth === 0 && i > start) {
-      return text.slice(start, i + 1);
-    }
-  }
-
-  // Unbalanced -> gib den Rest zurück (kann truncate sein)
-  return text.slice(start);
-}
+export const safeJsonParseSilent = <T = unknown>(input: unknown): T | null => safeJsonParse<T>(input, { silent: true });
 
 export const extractJsonArray = (text: string): string | null => {
   if (!text) return null;
 
-  // fenced json
-  const block = text.match(/```json\s*([\s\S]*?)\s*```/i);
-  if (block) return block[1];
+  const jsonBlock = text.match(/```json\s*([\s\S]*?)\s*```/i);
+  if (jsonBlock && jsonBlock[1]) return jsonBlock[1];
 
-  // fenced generic
   const generic = text.match(/```\s*([\s\S]*?)\s*```/);
-  if (generic) return generic[1];
+  if (generic && generic[1]) return generic[1];
 
-  // balanced [] zuerst
   const arr = extractBalanced(text, '[', ']');
   if (arr) return arr;
-
-  // dann balanced {}
-  const obj = extractBalanced(text, '{', '}');
-  if (obj) return obj;
 
   return null;
 };
 
-// ---------------------------------------------------------------
-// FILTER / NORMALIZE
-// ---------------------------------------------------------------
-export const filterProjectCodeFiles = (files: ProjectFile[]): ProjectFile[] => {
-  if (!files || files.length === 0) return [];
-  const result: ProjectFile[] = [];
+export const isJsonTruncated = (text: string): boolean => {
+  if (!text) return false;
+  const t = text.trim();
 
-  for (const f of files) {
-    const p = normalizePath(f.path);
-    const c = ensureStringContent(f.content);
+  if (t.endsWith('...')) return true;
 
-    if (!hasValidExtension(p)) continue;
-    if (hasInvalidPattern(p)) continue;
-    if (!CONFIG.VALIDATION.PATTERNS.CODE_HEURISTIC.test(c)) continue;
+  const openBrackets = (t.match(/\[/g) || []).length;
+  const closeBrackets = (t.match(/\]/g) || []).length;
 
-    result.push({ path: p, content: c });
-  }
+  const openBraces = (t.match(/\{/g) || []).length;
+  const closeBraces = (t.match(/\}/g) || []).length;
 
-  return result;
+  if (openBrackets !== closeBrackets) return true;
+  if (openBraces !== closeBraces) return true;
+
+  return false;
 };
 
-export const normalizeAndValidateFiles = (
-  files: ProjectFile[],
-  opts: { silent?: boolean } = {}
-): ProjectFile[] | null => {
+export const filterProjectCodeFiles = (files: ProjectFile[]) => {
+  if (!files) return [];
+  return files.filter((f) => isCodeFile(f.path));
+};
+
+export const normalizeAndValidateFiles = (files: ProjectFile[], opts: { silent?: boolean } = {}): ProjectFile[] | null => {
   if (!files || files.length === 0) {
     if (!opts.silent) {
       log('ERROR', 'Keine Dateien für Validierung übergeben.');
@@ -356,56 +329,40 @@ export const normalizeAndValidateFiles = (
 // ---------------------------------------------------------------
 // XSS PROTECTION HELPERS
 // ---------------------------------------------------------------
-export function escapeHtml(text: string): string {
-  if (!text || typeof text !== 'string') return '';
-  const htmlEscapes: Record<string, string> = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#x27;',
-    '/': '&#x2F;',
-  };
-  return text.replace(/[&<>"'/]/g, (char) => htmlEscapes[char] || char);
+export function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
-export function sanitizeForDisplay(text: string): string {
-  if (!text || typeof text !== 'string') return '';
-  let sanitized = text
-    .replace(/<script[^>]*>.*?<\/script>/gi, '')
-    .replace(/<iframe[^>]*>.*?<\/iframe>/gi, '')
-    .replace(/<object[^>]*>.*?<\/object>/gi, '')
-    .replace(/<embed[^>]*>/gi, '')
-    .replace(/<applet[^>]*>.*?<\/applet>/gi, '')
-    .replace(/<meta[^>]*>/gi, '')
-    .replace(/<link[^>]*>/gi, '');
+export function sanitizeForDisplay(text: string): { sanitized: string; hadXSS: boolean } {
+  if (!text || typeof text !== 'string') return { sanitized: '', hadXSS: false };
 
-  sanitized = sanitized
-    .replace(/javascript:/gi, '')
-    .replace(/data:text\/html/gi, '');
+  const hadXSS =
+    /<script[^>]*>/i.test(text) ||
+    /<iframe[^>]*>/i.test(text) ||
+    /javascript:/i.test(text) ||
+    /on\w+\s*=/i.test(text) ||
+    /<object[^>]*>/i.test(text) ||
+    /<embed[^>]*>/i.test(text);
 
-  sanitized = sanitized.replace(/\son\w+\s*=/gi, ' data-blocked=');
-
-  return sanitized;
+  // Minimal neutralization (display only)
+  const sanitized = escapeHtml(text);
+  return { sanitized, hadXSS };
 }
 
-export function validateSafeDisplay(text: string): {
-  safe: boolean;
-  issues: string[];
-} {
+export function validateSafeDisplay(text: string): { safe: boolean; issues: string[] } {
   const issues: string[] = [];
-
-  if (!text || typeof text !== 'string') {
-    return { safe: true, issues: [] };
-  }
+  if (!text || typeof text !== 'string') return { safe: true, issues: [] };
 
   if (/<script[^>]*>/i.test(text)) issues.push('Script-Tag gefunden');
   if (/<iframe[^>]*>/i.test(text)) issues.push('iFrame-Tag gefunden');
   if (/javascript:/i.test(text)) issues.push('JavaScript-URL gefunden');
   if (/on\w+\s*=/i.test(text)) issues.push('Event-Handler gefunden');
-  if (/<object[^>]*>/i.test(text) || /<embed[^>]*>/i.test(text)) {
-    issues.push('Object/Embed-Tag gefunden');
-  }
+  if (/<object[^>]*>/i.test(text) || /<embed[^>]*>/i.test(text)) issues.push('Object/Embed-Tag gefunden');
 
   return { safe: issues.length === 0, issues };
 }
