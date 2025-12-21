@@ -11,12 +11,9 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-
     "lint": "expo lint",
     "lint:ci": "eslint . --quiet",
-
     "typecheck": "tsc --noEmit",
-
     "test": "jest",
     "test:silent": "jest --silent",
     "test:watch": "jest --watch",
@@ -25,10 +22,10 @@
     "test:unit": "jest --testPathPattern=__tests__",
     "test:integration": "jest --testPathPattern=integration",
     "test:clear": "jest --clearCache",
-
     "postinstall": "patch-package",
     "preflight": "npm run lint:ci && npm run typecheck && npm run test:silent && npx expo-doctor",
-    "eas-prebuild": "npm run preflight"
+    "eas-prebuild": "npm run preflight",
+    "prepare": "husky install"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -85,8 +82,11 @@
     "depcheck": "^1.4.7",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~10.0.0",
+    "husky": "^9.1.7",
     "jest": "^29.7.0",
+    "lint-staged": "^16.2.7",
     "patch-package": "^8.0.1",
+    "prettier": "^3.7.4",
     "react-test-renderer": "^19.1.0",
     "ts-jest": "^29.4.6",
     "typescript": "~5.9.3"
