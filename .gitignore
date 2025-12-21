@@ -29,6 +29,8 @@ pnpm-debug.log*
 # Local dumps / backups
 project_code_dump.txt
 debug_dump_latest.txt
+project_dump_*.txt
+project_src_*.zip
 
 # Backup/Temp files (z.B. normalizer.ts.bak_2025-12-18_...)
 *.bak
