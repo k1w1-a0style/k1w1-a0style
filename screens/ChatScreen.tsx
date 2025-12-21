@@ -1,84 +1,41 @@
-// screens/ChatScreen.tsx — Builder mit Bestätigung & Streaming
-// FIXES:
-// 1) Chat startet zuverlässig unten (Initial-AutoScroll, auch bei Virtualization)
-// 2) Scroll-Pfeil: 1x drücken -> wirklich ganz runter (scrollToEnd + retry)
-// 3) 2-Call Flow: Planner (Fragen/Plan) -> erst nach deiner Antwort Builder
-// 4) Vor dem Bestätigen: kurzer Explain-Call "warum/was"
-// 5) LIST FIX: contentContainer füllt die Höhe, Messages kleben unten (flexGrow + justifyContent)
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   FlatList,
-  TextInput,
-  Text,
-  ActivityIndicator,
-  TouchableOpacity,
   Alert,
   Animated,
   Easing,
   Keyboard,
   TouchableWithoutFeedback,
   Platform,
-  NativeSyntheticEvent,
-  TextInputSubmitEditingEventData,
   InteractionManager,
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
-import { Ionicons } from "@expo/vector-icons";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
-import { v4 as uuidv4 } from "uuid";
 
-import { theme } from "../theme";
 import { useProject } from "../contexts/ProjectContext";
 import { ChatMessage, ProjectFile } from "../contexts/types";
 import MessageItem from "../components/MessageItem";
-import { runOrchestrator } from "../lib/orchestrator";
-import { normalizeAiResponse } from "../lib/normalizer";
-import { applyFilesToProject } from "../lib/fileWriter";
-import {
-  buildBuilderMessages,
-  buildPlannerMessages,
-  buildValidatorMessages,
-} from "../lib/promptEngine";
 import { useAI } from "../contexts/AIContext";
-import { handleMetaCommand } from "../utils/metaCommands";
 
 import ConfirmChangesModal from "../components/chat/ConfirmChangesModal";
-import { styles } from "../styles/chatScreenStyles";
+import ChatComposer from "../components/chat/ChatComposer";
+import ChatLoadingOverlay from "../components/chat/ChatLoadingOverlay";
+import ChatLoadingFooter from "../components/chat/ChatLoadingFooter";
+import ChatErrorBanner from "../components/chat/ChatErrorBanner";
+import ChatScrollToBottomButton from "../components/chat/ChatScrollToBottomButton";
 
-// ✅ Extrahierte Heuristics
-import {
-  looksLikeExplicitFileTask,
-  looksLikeAdviceRequest,
-  looksAmbiguousBuilderRequest,
-  buildChangeDigest,
-  buildExplainMessages,
-} from "../utils/chatHeuristics";
+import { styles } from "../styles/chatScreenStyles";
+import { useKeyboardHeight } from "../hooks/useKeyboardHeight";
+import { useChatAIFlow } from "../hooks/useChatAIFlow";
 
 type DocumentResultAsset = NonNullable<
   import("expo-document-picker").DocumentPickerResult["assets"]
 >[0];
-
-type PendingChange = {
-  files: ProjectFile[];
-  summary: string;
-  created: string[];
-  updated: string[];
-  skipped: string[];
-  aiResponse: any;
-  agentResponse?: any;
-};
-
-type PendingPlan = {
-  originalRequest: string;
-  planText: string;
-  mode: "advice" | "build";
-};
 
 const INPUT_BAR_MIN_H = 56;
 const SELECTED_FILE_ROW_H = 42;
@@ -100,7 +57,6 @@ const ChatScreen: React.FC = () => {
   const { config } = useAI();
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
-  const inputRef = useRef<TextInput>(null);
 
   const [textInput, setTextInput] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -108,28 +64,15 @@ const ChatScreen: React.FC = () => {
   const [selectedFileAsset, setSelectedFileAsset] =
     useState<DocumentResultAsset | null>(null);
 
-  // Streaming state
   const [streamingMessage, setStreamingMessage] = useState<string>("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const streamingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Confirmation modal state
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [pendingChange, setPendingChange] = useState<PendingChange | null>(
-    null,
-  );
-
-  // Planner state
-  const [pendingPlan, setPendingPlan] = useState<PendingPlan | null>(null);
-
-  const isAtBottomRef = useRef(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
-
-  // ✅ Initial scroll lock
   const didInitialScrollRef = useRef(false);
 
-  // Keyboard height
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  // Keyboard (Offset bleibt 1:1)
+  const keyboardHeight = useKeyboardHeight();
 
   // Animations
   const thinkingOpacity = useRef(new Animated.Value(0)).current;
@@ -169,6 +112,30 @@ const ChatScreen: React.FC = () => {
     requestAnimationFrame(doIt);
   }, []);
 
+  const {
+    pendingPlan,
+    pendingChange,
+    isAtBottomRef,
+    setAtBottom,
+    handleSendWithMeta,
+    applyChanges,
+    rejectChanges,
+  } = useChatAIFlow({
+    config,
+    messages,
+    projectFiles,
+    addChatMessage,
+    updateProjectFiles,
+    autoFixRequest,
+    clearAutoFixRequest,
+    hardScrollToBottom,
+    setIsStreaming,
+    setStreamingMessage,
+    setIsAiLoading,
+    setError,
+    setShowConfirmModal,
+  });
+
   useFocusEffect(
     useCallback(() => {
       didInitialScrollRef.current = false;
@@ -190,27 +157,7 @@ const ChatScreen: React.FC = () => {
       const timer = setTimeout(() => hardScrollToBottom(true), 40);
       return () => clearTimeout(timer);
     }
-  }, [messages, hardScrollToBottom]);
-
-  useEffect(() => {
-    const showEvt =
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvt =
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
-    const showSub = Keyboard.addListener(showEvt as any, (e: any) => {
-      setKeyboardHeight(e?.endCoordinates?.height ?? 0);
-    });
-
-    const hideSub = Keyboard.addListener(hideEvt as any, () => {
-      setKeyboardHeight(0);
-    });
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
+  }, [messages, hardScrollToBottom, isAtBottomRef]);
 
   useEffect(() => {
     let animationRef: Animated.CompositeAnimation | null = null;
@@ -299,361 +246,6 @@ const ChatScreen: React.FC = () => {
     typingDot3,
   ]);
 
-  useEffect(() => {
-    return () => {
-      if (streamingIntervalRef.current) {
-        clearTimeout(streamingIntervalRef.current);
-        streamingIntervalRef.current = null;
-      }
-    };
-  }, []);
-
-  const simulateStreaming = useCallback(
-    (fullText: string, onComplete: () => void) => {
-      if (streamingIntervalRef.current) {
-        clearTimeout(streamingIntervalRef.current);
-        streamingIntervalRef.current = null;
-      }
-
-      setIsStreaming(true);
-      setStreamingMessage("");
-
-      let currentIndex = 0;
-      const chunkSize = 12;
-      const delay = 18;
-
-      const updateStream = () => {
-        if (currentIndex < fullText.length) {
-          const nextChunk = fullText.slice(
-            currentIndex,
-            currentIndex + chunkSize,
-          );
-          setStreamingMessage((prev) => prev + nextChunk);
-          currentIndex += chunkSize;
-
-          if (isAtBottomRef.current)
-            requestAnimationFrame(() => hardScrollToBottom(false));
-          streamingIntervalRef.current = setTimeout(updateStream, delay);
-        } else {
-          if (streamingIntervalRef.current) {
-            clearTimeout(streamingIntervalRef.current);
-            streamingIntervalRef.current = null;
-          }
-          setIsStreaming(false);
-
-          if (isAtBottomRef.current)
-            requestAnimationFrame(() => hardScrollToBottom(true));
-          onComplete();
-        }
-      };
-
-      streamingIntervalRef.current = setTimeout(updateStream, delay);
-    },
-    [hardScrollToBottom],
-  );
-
-  const processAIRequest = useCallback(
-    async (
-      userContent: string,
-      isAutoFix: boolean = false,
-      forceBuilder: boolean = false,
-    ): Promise<void> => {
-      setIsAiLoading(true);
-      setError(null);
-
-      try {
-        const historyAsLlm = messages
-          .map((m) => ({ role: m.role, content: m.content }))
-          .filter((m) => String(m.content ?? "").trim().length > 0);
-
-        // ✅ CALL 1: Planner
-        if (!isAutoFix && !forceBuilder && !pendingPlan) {
-          const advice = looksLikeAdviceRequest(userContent);
-          const shouldPlanner =
-            advice ||
-            (looksAmbiguousBuilderRequest(userContent) &&
-              !looksLikeExplicitFileTask(userContent));
-
-          if (shouldPlanner) {
-            const plannerMsgs = buildPlannerMessages(
-              historyAsLlm,
-              userContent,
-              projectFiles,
-            );
-
-            const planRes = await runOrchestrator(
-              config.selectedChatProvider,
-              config.selectedChatMode,
-              "speed",
-              plannerMsgs,
-            );
-
-            if (
-              planRes?.ok &&
-              typeof planRes.text === "string" &&
-              planRes.text.trim().length > 0
-            ) {
-              const planText = planRes.text.trim();
-
-              addChatMessage({
-                id: uuidv4(),
-                role: "assistant",
-                content:
-                  "🧩 **Kurz bevor ich Code anfasse:**\n\n" +
-                  planText +
-                  '\n\n➡️ Antworte kurz auf die Fragen **oder** sag „weiter", dann starte ich den Build (Call 2).',
-                timestamp: new Date().toISOString(),
-                meta: { planner: true },
-              });
-
-              setPendingPlan({
-                originalRequest: userContent,
-                planText,
-                mode: advice ? "advice" : "build",
-              });
-              return;
-            }
-          }
-        }
-
-        // ✅ CALL 2: Builder
-        const llmMessages = buildBuilderMessages(
-          historyAsLlm,
-          userContent,
-          projectFiles,
-        );
-
-        let ai = await runOrchestrator(
-          config.selectedChatProvider,
-          config.selectedChatMode,
-          config.qualityMode,
-          llmMessages,
-        );
-
-        if (!ai?.ok) {
-          const errText = String((ai as any)?.error ?? "");
-          const shouldRetry =
-            /\b429\b|\brate\s*limit\b|\b503\b|overloaded|timeout|timed\s*out|ECONNRESET|network/i.test(
-              errText,
-            );
-          if (shouldRetry) {
-            ai = await runOrchestrator(
-              config.selectedChatProvider,
-              config.selectedChatMode,
-              config.qualityMode,
-              llmMessages,
-            );
-          }
-        }
-
-        if (!ai || !ai.ok) {
-          const details =
-            (ai as any)?.error ||
-            (ai as any)?.errors?.join?.("\n") ||
-            "Kein ok=true (unbekannter Fehler).";
-          throw new Error(`KI-Request fehlgeschlagen: ${details}`);
-        }
-
-        const rawForNormalizer =
-          (ai as any).files && Array.isArray((ai as any).files)
-            ? (ai as any).files
-            : (ai as any).text
-              ? (ai as any).text
-              : (ai as any).raw;
-
-        const normalized = normalizeAiResponse(rawForNormalizer);
-        if (!normalized) {
-          const preview =
-            typeof (ai as any).text === "string"
-              ? String((ai as any).text)
-                  .slice(0, 600)
-                  .replace(/\s+/g, " ")
-              : "";
-          throw new Error(
-            "Normalizer/Validator konnte die Dateien nicht verarbeiten." +
-              (preview ? `\n\nOutput-Preview: ${preview}` : ""),
-          );
-        }
-
-        // Optional Agent (Validator)
-        let finalFiles = normalized;
-        let agentMeta: any = null;
-
-        if ((config as any)?.agentEnabled) {
-          try {
-            const validatorMsgs = buildValidatorMessages(
-              userContent,
-              normalized.map((f: any) => ({
-                path: f.path,
-                content: f.content,
-              })),
-              projectFiles,
-            );
-
-            const agentRes = await runOrchestrator(
-              (config as any)?.selectedAgentProvider ??
-                config.selectedChatProvider,
-              (config as any)?.selectedAgentMode ?? config.selectedChatMode,
-              "quality",
-              validatorMsgs,
-            );
-
-            if (agentRes && agentRes.ok) {
-              const agentRaw =
-                (agentRes as any).files &&
-                Array.isArray((agentRes as any).files)
-                  ? (agentRes as any).files
-                  : agentRes.text
-                    ? agentRes.text
-                    : (agentRes as any).raw;
-
-              const normalizedAgent = normalizeAiResponse(agentRaw);
-              if (normalizedAgent && normalizedAgent.length > 0) {
-                finalFiles = normalizedAgent;
-                agentMeta = agentRes;
-              }
-            }
-          } catch {}
-        }
-
-        const mergeResult = applyFilesToProject(projectFiles, finalFiles);
-
-        // ✅ Explain-Call
-        let explainText = "";
-        if (
-          !isAutoFix &&
-          mergeResult.created.length + mergeResult.updated.length > 0
-        ) {
-          try {
-            const digest = buildChangeDigest(
-              projectFiles,
-              mergeResult.files,
-              mergeResult.created,
-              mergeResult.updated,
-            );
-            const explainMsgs = buildExplainMessages(userContent, digest);
-            const explainRes = await runOrchestrator(
-              config.selectedChatProvider,
-              config.selectedChatMode,
-              "speed",
-              explainMsgs,
-            );
-            if (explainRes?.ok && typeof explainRes.text === "string")
-              explainText = explainRes.text.trim();
-          } catch {}
-        }
-
-        const prefix = isAutoFix
-          ? "🤖 **Auto-Fix Vorschlag:**"
-          : "🤖 Die KI möchte folgende Änderungen vornehmen:";
-
-        const summaryText =
-          `${prefix}\n\n` +
-          (explainText
-            ? `🧾 **Kurz erklärt (warum/was):**\n${explainText}\n\n---\n\n`
-            : "") +
-          `📝 **Neue Dateien** (${mergeResult.created.length}):\n` +
-          (mergeResult.created.length > 0
-            ? mergeResult.created
-                .slice(0, 6)
-                .map((f: string) => `  • ${f}`)
-                .join("\n") +
-              (mergeResult.created.length > 6
-                ? `\n  ... und ${mergeResult.created.length - 6} weitere`
-                : "")
-            : "  (keine)") +
-          `\n\n` +
-          `📝 **Geänderte Dateien** (${mergeResult.updated.length}):\n` +
-          (mergeResult.updated.length > 0
-            ? mergeResult.updated
-                .slice(0, 6)
-                .map((f: string) => `  • ${f}`)
-                .join("\n") +
-              (mergeResult.updated.length > 6
-                ? `\n  ... und ${mergeResult.updated.length - 6} weitere`
-                : "")
-            : "  (keine)") +
-          (!isAutoFix
-            ? `\n\n` +
-              `⏭ **Übersprungen** (${mergeResult.skipped.length}):\n` +
-              (mergeResult.skipped.length > 0
-                ? mergeResult.skipped
-                    .slice(0, 3)
-                    .map((f: string) => `  • ${f}`)
-                    .join("\n") +
-                  (mergeResult.skipped.length > 3
-                    ? `\n  ... und ${mergeResult.skipped.length - 3} weitere`
-                    : "")
-                : "  (keine)")
-            : "") +
-          `\n\nMöchtest du diese Änderungen übernehmen?`;
-
-        simulateStreaming(summaryText, () => {
-          setPendingChange({
-            files: mergeResult.files,
-            summary: summaryText,
-            created: mergeResult.created,
-            updated: mergeResult.updated,
-            skipped: mergeResult.skipped,
-            aiResponse: ai,
-            agentResponse: agentMeta ?? undefined,
-          });
-          setShowConfirmModal(true);
-        });
-      } catch (e: any) {
-        const msg = `⚠️ ${e?.message || "Es ist ein Fehler im Builder-Flow aufgetreten."}`;
-        setError(msg);
-
-        addChatMessage({
-          id: uuidv4(),
-          role: "assistant",
-          content: msg,
-          timestamp: new Date().toISOString(),
-          meta: { error: true },
-        });
-      } finally {
-        setIsAiLoading(false);
-      }
-    },
-    [
-      messages,
-      projectFiles,
-      config,
-      addChatMessage,
-      simulateStreaming,
-      pendingPlan,
-      hardScrollToBottom,
-    ],
-  );
-
-  // AutoFix Handler
-  useEffect(() => {
-    if (autoFixRequest && !isAiLoading && !isStreaming) {
-      const processAutoFix = async () => {
-        const userMessage: ChatMessage = {
-          id: uuidv4(),
-          role: "user",
-          content: autoFixRequest.message,
-          timestamp: new Date().toISOString(),
-          meta: { autoFix: true },
-        };
-
-        addChatMessage(userMessage);
-        clearAutoFixRequest();
-        await processAIRequest(autoFixRequest.message, true);
-      };
-
-      processAutoFix();
-    }
-  }, [
-    autoFixRequest,
-    isAiLoading,
-    isStreaming,
-    clearAutoFixRequest,
-    addChatMessage,
-    processAIRequest,
-  ]);
-
   const handlePickDocument = useCallback(async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -664,7 +256,6 @@ const ChatScreen: React.FC = () => {
       if (!result.canceled && result.assets?.[0]) {
         const asset = result.assets[0];
         const sizeKB = asset.size ? (asset.size / 1024).toFixed(2) : "?";
-
         setSelectedFileAsset(asset);
 
         if (asset.size && asset.size > 100000) {
@@ -681,101 +272,6 @@ const ChatScreen: React.FC = () => {
       setSelectedFileAsset(null);
     }
   }, []);
-
-  // ✅ applyChanges: Dateiliste + Next-Step-Vorschläge (ohne meta.helper)
-  const applyChanges = useCallback(async () => {
-    if (!pendingChange) return;
-    setShowConfirmModal(false);
-
-    try {
-      await updateProjectFiles(pendingChange.files);
-
-      const timing = pendingChange.aiResponse?.timing?.durationMs
-        ? ` (${(pendingChange.aiResponse.timing.durationMs / 1000).toFixed(1)}s)`
-        : "";
-
-      const { created, updated, skipped } = pendingChange;
-
-      const summaryText =
-        `🤖 Provider: ${pendingChange.aiResponse?.provider || "unbekannt"}${
-          pendingChange.aiResponse?.keysRotated
-            ? ` (${pendingChange.aiResponse.keysRotated}x Key-Rotation)`
-            : ""
-        }\n` +
-        `🆕 Neue Dateien: ${created.length}\n` +
-        `✏️ Geänderte Dateien: ${updated.length}\n` +
-        `⏭️ Übersprungen: ${skipped.length}`;
-
-      const lines: string[] = [];
-
-      if (created.length) {
-        lines.push("🆕 Neue Dateien:");
-        created.forEach((p) => lines.push(`  • ${p}`));
-      }
-      if (updated.length) {
-        lines.push("✏️ Geänderte Dateien:");
-        updated.forEach((p) => lines.push(`  • ${p}`));
-      }
-      if (skipped.length) {
-        lines.push("⏭️ Übersprungene Dateien:");
-        skipped.forEach((p) => lines.push(`  • ${p}`));
-      }
-
-      const filesBlock = lines.length
-        ? `\n\n📂 Details:\n${lines.join("\n")}`
-        : "";
-      const confirmationText = `✅ Änderungen erfolgreich angewendet${timing}\n\n${summaryText}${filesBlock}`;
-
-      // 1) Zusammenfassung + Dateiliste
-      addChatMessage({
-        id: uuidv4(),
-        role: "assistant",
-        content: confirmationText,
-        timestamp: new Date().toISOString(),
-        meta: { provider: pendingChange.aiResponse?.provider || "system" },
-      });
-
-      // 2) Direkt danach Vorschläge
-      addChatMessage({
-        id: uuidv4(),
-        role: "assistant",
-        content:
-          "💡 Nächste Schritte:\n" +
-          "• Teste die Änderungen direkt in der App (insbesondere die oben gelisteten Dateien).\n" +
-          "• Wenn etwas nicht passt oder Fehler auftauchen, beschreib mir kurz das Verhalten.\n" +
-          "• Oder sag mir, welche Datei / welchen Bereich ich als nächstes optimieren oder erweitern soll.",
-        timestamp: new Date().toISOString(),
-      });
-
-      requestAnimationFrame(() => hardScrollToBottom(true));
-    } catch (e: any) {
-      Alert.alert(
-        "Fehler beim Anwenden",
-        e?.message ||
-          "Änderungen konnten nicht angewendet werden. Bitte versuche es erneut.",
-      );
-      addChatMessage({
-        id: uuidv4(),
-        role: "system",
-        content: `⚠️ Fehler beim Anwenden der Änderungen: ${e?.message || "Unbekannt"}`,
-        timestamp: new Date().toISOString(),
-        meta: { error: true },
-      });
-    } finally {
-      setPendingChange(null);
-    }
-  }, [pendingChange, updateProjectFiles, addChatMessage, hardScrollToBottom]);
-
-  const rejectChanges = useCallback(() => {
-    addChatMessage({
-      id: uuidv4(),
-      role: "system",
-      content: "❌ Änderungen wurden abgelehnt. Keine Dateien wurden geändert.",
-      timestamp: new Date().toISOString(),
-    });
-    setShowConfirmModal(false);
-    setPendingChange(null);
-  }, [addChatMessage]);
 
   const handleSend = useCallback(async () => {
     if (!textInput.trim() && !selectedFileAsset) return;
@@ -797,72 +293,22 @@ const ChatScreen: React.FC = () => {
 
     setError(null);
 
-    const userContent =
-      textInput.trim() ||
-      (selectedFileAsset ? `Datei gesendet: ${selectedFileAsset.name}` : "");
-
-    addChatMessage({
-      id: uuidv4(),
-      role: "user",
-      content: userContent,
-      timestamp: new Date().toISOString(),
-    });
-
     const currentInput = textInput;
+    const fileName = selectedFileAsset?.name;
+
     setTextInput("");
     setSelectedFileAsset(null);
 
     Keyboard.dismiss();
 
-    const metaResult = handleMetaCommand(currentInput.trim(), projectFiles);
-    if (metaResult.handled && metaResult.message) {
-      addChatMessage(metaResult.message);
-      return;
-    }
-
-    if (pendingPlan) {
-      const lower = userContent.trim().toLowerCase();
-      const wantsProceed =
-        lower === "weiter" ||
-        lower === "mach weiter" ||
-        lower === "ok" ||
-        lower === "ja" ||
-        lower === "go";
-
-      if (pendingPlan.mode === "advice" && !wantsProceed) {
-        addChatMessage({
-          id: uuidv4(),
-          role: "assistant",
-          content:
-            'Alles klar. Wenn du willst, kann ich das direkt umsetzen – sag einfach **„weiter"** oder nenn die Features, die ich einbauen soll.',
-          timestamp: new Date().toISOString(),
-        });
-        return;
-      }
-
-      const combined =
-        pendingPlan.originalRequest +
-        "\n\n---\nPlaner-Ausgabe:\n" +
-        pendingPlan.planText +
-        "\n\n---\nNutzer-Antwort/Details:\n" +
-        (wantsProceed ? "(User sagt: weiter)" : userContent);
-
-      setPendingPlan(null);
-      await processAIRequest(combined, false, true);
-      return;
-    }
-
-    await processAIRequest(userContent, false);
+    await handleSendWithMeta(currentInput, fileName);
   }, [
     textInput,
     selectedFileAsset,
-    projectFiles,
     isAiLoading,
     isStreaming,
-    addChatMessage,
-    processAIRequest,
     sendButtonScale,
-    pendingPlan,
+    handleSendWithMeta,
   ]);
 
   const handleScroll = useCallback(
@@ -873,265 +319,98 @@ const ChatScreen: React.FC = () => {
         contentSize.height - (contentOffset.y + layoutMeasurement.height);
       const isAtBottom = distanceFromBottom < 60;
 
-      isAtBottomRef.current = isAtBottom;
+      setAtBottom(isAtBottom);
       setShowScrollButton(!isAtBottom && messages.length > 3);
     },
-    [messages.length],
+    [messages.length, setAtBottom],
   );
 
   const scrollButtonPress = useCallback(() => {
-    isAtBottomRef.current = true;
+    setAtBottom(true);
     hardScrollToBottom(true);
     setTimeout(() => hardScrollToBottom(true), 160);
     setShowScrollButton(false);
-  }, [hardScrollToBottom]);
+  }, [hardScrollToBottom, setAtBottom]);
 
-  const renderItem = useCallback(
-    ({ item }: { item: ChatMessage; index: number }) => {
-      return <MessageItem message={item} />;
-    },
-    [],
-  );
-
-  const renderFooter = useCallback(() => {
-    if (!combinedIsLoading && !isStreaming) return null;
-
-    return (
-      <Animated.View
-        style={[
-          styles.loadingFooter,
-          {
-            opacity: thinkingOpacity,
-            transform: [{ scale: thinkingScale }],
-          },
-        ]}
-      >
-        <ActivityIndicator size="small" color={theme.palette.primary} />
-        <View style={{ flex: 1 }}>
-          {isStreaming ? (
-            <>
-              <Text style={styles.loadingText}>🤖 KI schreibt…</Text>
-              <Text style={styles.streamingText}>{streamingMessage}</Text>
-            </>
-          ) : (
-            <Text style={styles.loadingText}>🧠 KI denkt nach...</Text>
-          )}
-        </View>
-
-        <View style={styles.thinkingDots}>
-          <Animated.View
-            style={[
-              styles.thinkingDot,
-              {
-                opacity: typingDot1.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.3, 1],
-                }),
-              },
-            ]}
-          />
-          <Animated.View
-            style={[
-              styles.thinkingDot,
-              {
-                opacity: typingDot2.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.3, 1],
-                }),
-              },
-            ]}
-          />
-          <Animated.View
-            style={[
-              styles.thinkingDot,
-              {
-                opacity: typingDot3.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.3, 1],
-                }),
-              },
-            ]}
-          />
-        </View>
-      </Animated.View>
-    );
-  }, [
-    combinedIsLoading,
-    isStreaming,
-    thinkingOpacity,
-    thinkingScale,
-    typingDot1,
-    typingDot2,
-    typingDot3,
-    streamingMessage,
-  ]);
+  const renderItem = useCallback(({ item }: { item: ChatMessage }) => {
+    return <MessageItem message={item} />;
+  }, []);
 
   return (
     <SafeAreaView style={styles.root} edges={["top", "left", "right"]}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.container}>
           <View style={styles.listContainer}>
-            {combinedIsLoading && messages.length === 0 ? (
-              <View style={styles.loadingOverlay}>
-                <Animated.View
-                  style={{
-                    opacity: thinkingOpacity,
-                    transform: [{ scale: thinkingScale }],
-                  }}
-                >
-                  <ActivityIndicator
-                    size="large"
-                    color={theme.palette.primary}
+            <ChatLoadingOverlay
+              visible={combinedIsLoading && messages.length === 0}
+              thinkingOpacity={thinkingOpacity}
+              thinkingScale={thinkingScale}
+            />
+
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              renderItem={renderItem}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={[
+                styles.listContent,
+                { paddingBottom: listBottomPadding },
+              ]}
+              ListFooterComponent={
+                combinedIsLoading || isStreaming ? (
+                  <ChatLoadingFooter
+                    visible={combinedIsLoading || isStreaming}
+                    isStreaming={isStreaming}
+                    streamingMessage={streamingMessage}
+                    thinkingOpacity={thinkingOpacity}
+                    thinkingScale={thinkingScale}
+                    typingDot1={typingDot1}
+                    typingDot2={typingDot2}
+                    typingDot3={typingDot3}
                   />
-                  <Text style={styles.loadingOverlayText}>
-                    🧠 Projekt und Chat werden geladen...
-                  </Text>
-                </Animated.View>
-              </View>
-            ) : (
-              <FlatList
-                ref={flatListRef}
-                data={messages}
-                renderItem={renderItem}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={[
-                  styles.listContent,
-                  { paddingBottom: listBottomPadding },
-                ]}
-                ListFooterComponent={renderFooter}
-                removeClippedSubviews={Platform.OS === "ios"}
-                maxToRenderPerBatch={10}
-                windowSize={21}
-                initialNumToRender={15}
-                onScroll={handleScroll}
-                scrollEventThrottle={16}
-                onScrollBeginDrag={Keyboard.dismiss}
-                onContentSizeChange={() => {
-                  if (!didInitialScrollRef.current && messages.length > 0) {
-                    didInitialScrollRef.current = true;
-                    isAtBottomRef.current = true;
-                    hardScrollToBottom(false);
-                    setTimeout(() => hardScrollToBottom(false), 160);
-                    return;
-                  }
-                  if (isAtBottomRef.current) hardScrollToBottom(false);
-                }}
-                keyboardShouldPersistTaps="handled"
-              />
-            )}
-          </View>
-
-          {error && (
-            <View style={styles.errorContainer}>
-              <Ionicons name="warning" size={16} color={theme.palette.error} />
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          )}
-
-          {showScrollButton && (
-            <TouchableOpacity
-              style={[styles.scrollToBottomButton, { bottom: scrollBtnBottom }]}
-              onPress={scrollButtonPress}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="arrow-down"
-                size={20}
-                color={theme.palette.background}
-              />
-            </TouchableOpacity>
-          )}
-
-          <View style={[styles.bottomArea, { bottom: keyboardOffsetInScreen }]}>
-            {selectedFileAsset && (
-              <View style={styles.selectedFileBox}>
-                <Ionicons
-                  name="document"
-                  size={16}
-                  color={theme.palette.primary}
-                />
-                <Text style={styles.selectedFileText} numberOfLines={1}>
-                  {selectedFileAsset.name}
-                </Text>
-                <TouchableOpacity onPress={() => setSelectedFileAsset(null)}>
-                  <Ionicons
-                    name="close-circle"
-                    size={20}
-                    color={theme.palette.text.secondary}
-                  />
-                </TouchableOpacity>
-              </View>
-            )}
-
-            <View style={styles.inputContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.iconButton,
-                  selectedFileAsset && styles.iconButtonActive,
-                ]}
-                onPress={handlePickDocument}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name="attach-outline"
-                  size={22}
-                  color={
-                    selectedFileAsset
-                      ? theme.palette.primary
-                      : theme.palette.text.secondary
-                  }
-                />
-              </TouchableOpacity>
-
-              <TextInput
-                ref={inputRef}
-                style={styles.textInput}
-                placeholder={
-                  pendingPlan
-                    ? 'Antwort auf die Fragen… (oder „weiter")'
-                    : "Beschreibe deine App oder den nächsten Schritt ..."
+                ) : null
+              }
+              removeClippedSubviews={Platform.OS === "android"}
+              maxToRenderPerBatch={10}
+              windowSize={21}
+              initialNumToRender={15}
+              onScroll={handleScroll}
+              scrollEventThrottle={16}
+              onScrollBeginDrag={Keyboard.dismiss}
+              onContentSizeChange={() => {
+                if (!didInitialScrollRef.current && messages.length > 0) {
+                  didInitialScrollRef.current = true;
+                  setAtBottom(true);
+                  hardScrollToBottom(false);
+                  setTimeout(() => hardScrollToBottom(false), 160);
+                  return;
                 }
-                placeholderTextColor={theme.palette.text.secondary}
-                value={textInput}
-                onChangeText={setTextInput}
-                onSubmitEditing={(
-                  e: NativeSyntheticEvent<TextInputSubmitEditingEventData>,
-                ) => {
-                  if (e.nativeEvent?.text?.trim()) handleSend();
-                }}
-                blurOnSubmit={false}
-                multiline
-                maxLength={2000}
-              />
-
-              <Animated.View
-                style={{ transform: [{ scale: sendButtonScale }] }}
-              >
-                <TouchableOpacity
-                  style={[
-                    styles.sendButton,
-                    combinedIsLoading && styles.sendButtonDisabled,
-                  ]}
-                  onPress={handleSend}
-                  disabled={combinedIsLoading}
-                  activeOpacity={0.8}
-                >
-                  {combinedIsLoading ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={theme.palette.background}
-                    />
-                  ) : (
-                    <Ionicons
-                      name="send"
-                      size={20}
-                      color={theme.palette.background}
-                    />
-                  )}
-                </TouchableOpacity>
-              </Animated.View>
-            </View>
+                if (isAtBottomRef.current) hardScrollToBottom(false);
+              }}
+              keyboardShouldPersistTaps="handled"
+            />
           </View>
+
+          <ChatErrorBanner message={error} />
+
+          <ChatScrollToBottomButton
+            visible={showScrollButton}
+            bottom={scrollBtnBottom}
+            onPress={scrollButtonPress}
+          />
+
+          <ChatComposer
+            textInput={textInput}
+            onChangeText={setTextInput}
+            pendingPlan={pendingPlan}
+            selectedFileAsset={selectedFileAsset}
+            onPickDocument={handlePickDocument}
+            onClearSelectedFile={() => setSelectedFileAsset(null)}
+            onSend={handleSend}
+            combinedIsLoading={combinedIsLoading}
+            keyboardOffsetInScreen={keyboardOffsetInScreen}
+            sendButtonScale={sendButtonScale}
+          />
 
           <ConfirmChangesModal
             visible={showConfirmModal}
