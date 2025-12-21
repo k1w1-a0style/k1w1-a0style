@@ -67,6 +67,17 @@ export const styles = StyleSheet.create({
     marginRight: 8,
     borderWidth: 1,
     borderColor: theme.palette.border,
+
+    // ✅ nur Optik: leichte Tiefe
+    ...Platform.select({
+      android: { elevation: 2 },
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.22,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 3 },
+      },
+    }),
   },
   iconButtonActive: {
     borderColor: theme.palette.primary,
@@ -93,15 +104,15 @@ export const styles = StyleSheet.create({
     backgroundColor: theme.palette.primary,
     alignItems: "center",
     justifyContent: "center",
+
+    // ✅ nur Optik: bisschen mehr Punch
     ...Platform.select({
+      android: { elevation: 4 },
       ios: {
-        shadowColor: "#00FF00",
-        shadowOffset: { width: 0, height: 2 },
+        shadowColor: theme.palette.primary,
         shadowOpacity: 0.3,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 4,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 3 },
       },
     }),
   },

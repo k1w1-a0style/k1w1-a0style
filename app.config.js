@@ -1,46 +1,38 @@
-// Inhalt für app.config.js:
 /**
- * app.config.js – Expo App Config
+ * app.config.js – Expo App Config (Android-only)
  * ✅ android.softwareKeyboardLayoutMode = "pan"
  * ✅ EAS projectId nur wenn ENV gesetzt ist (kein Dummy!)
  */
 
-require('dotenv').config();
+require("dotenv").config();
 
 const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID;
 
 module.exports = {
   expo: {
-    jsEngine: 'hermes',
-    name: 'k1w1-a0style',
-    slug: 'k1w1-a0style',
-    version: '1.0.0',
-    scheme: 'k1w1a0',
-    orientation: 'portrait',
-    userInterfaceStyle: 'automatic',
+    jsEngine: "hermes",
+    name: "k1w1-a0style",
+    slug: "k1w1-a0style",
+    version: "1.0.0",
+    scheme: "k1w1a0",
+    orientation: "portrait",
+    userInterfaceStyle: "automatic",
+
+    // ✅ Android-only
+    platforms: ["android"],
 
     // ✅ Expo wollte das (wegen expo-font install/dev-client)
-    plugins: ['expo-font'],
+    plugins: ["expo-font"],
 
-    assetBundlePatterns: ['**/*'],
-
-    ios: {
-      supportsTablet: true,
-      bundleIdentifier: 'com.k1w1.a0style',
-    },
+    assetBundlePatterns: ["**/*"],
 
     android: {
-      package: 'com.k1w1.a0style',
+      package: "com.k1w1.a0style",
       adaptiveIcon: {
-        foregroundImage: './assets/adaptive-icon.png',
-        backgroundColor: '#FFFFFF',
+        foregroundImage: "./assets/adaptive-icon.png",
+        backgroundColor: "#FFFFFF",
       },
-      softwareKeyboardLayoutMode: 'pan',
-    },
-
-    web: {
-      bundler: 'metro',
-      output: 'single',
+      softwareKeyboardLayoutMode: "pan",
     },
 
     extra: {
