@@ -1,19 +1,32 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, Keyboard, Modal, Text, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useRef } from "react";
+import {
+  Modal,
+  View,
+  Text,
+  TouchableOpacity,
+  Animated,
+  Easing,
+  Keyboard,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
-import { theme } from '../../theme';
-import { styles } from '../../styles/chatScreenStyles';
+import { theme } from "../../theme";
+import { styles } from "../../styles/chatScreenStyles";
 
 type Props = {
   visible: boolean;
   summary: string;
-  onReject: () => void;
   onAccept: () => void;
+  onReject: () => void;
 };
 
-const ConfirmChangesModal: React.FC<Props> = ({ visible, summary, onReject, onAccept }) => {
-  const modalScale = useRef(new Animated.Value(0.8)).current;
+const ConfirmChangesModal: React.FC<Props> = ({
+  visible,
+  summary,
+  onAccept,
+  onReject,
+}) => {
+  const modalScale = useRef(new Animated.Value(0.92)).current;
   const modalOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -28,22 +41,37 @@ const ConfirmChangesModal: React.FC<Props> = ({ visible, summary, onReject, onAc
         }),
         Animated.timing(modalOpacity, {
           toValue: 1,
-          duration: 250,
+          duration: 220,
+          easing: Easing.out(Easing.ease),
           useNativeDriver: true,
         }),
       ]).start();
     } else {
-      modalScale.setValue(0.8);
+      modalScale.setValue(0.92);
       modalOpacity.setValue(0);
     }
   }, [visible, modalOpacity, modalScale]);
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onReject}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      onRequestClose={onReject}
+    >
       <Animated.View style={[styles.modalOverlay, { opacity: modalOpacity }]}>
-        <Animated.View style={[styles.modalContent, { transform: [{ scale: modalScale }], opacity: modalOpacity }]}>
+        <Animated.View
+          style={[
+            styles.modalContent,
+            { transform: [{ scale: modalScale }], opacity: modalOpacity },
+          ]}
+        >
           <View style={styles.modalHeader}>
-            <Ionicons name="code-slash" size={28} color={theme.palette.primary} />
+            <Ionicons
+              name="code-slash"
+              size={28}
+              color={theme.palette.primary}
+            />
             <Text style={styles.modalTitle}>Änderungen bestätigen</Text>
           </View>
 
@@ -55,16 +83,20 @@ const ConfirmChangesModal: React.FC<Props> = ({ visible, summary, onReject, onAc
             <TouchableOpacity
               style={[styles.modalButton, styles.modalButtonReject]}
               onPress={onReject}
-              activeOpacity={0.8}
+              activeOpacity={0.85}
             >
-              <Ionicons name="close-circle" size={20} color={theme.palette.error} />
+              <Ionicons
+                name="close-circle"
+                size={20}
+                color={theme.palette.error}
+              />
               <Text style={styles.modalButtonTextReject}>Ablehnen</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.modalButton, styles.modalButtonAccept]}
               onPress={onAccept}
-              activeOpacity={0.8}
+              activeOpacity={0.85}
             >
               <Ionicons name="checkmark-circle" size={20} color="#000" />
               <Text style={styles.modalButtonTextAccept}>Bestätigen</Text>
