@@ -1,5 +1,5 @@
 // styles/chatComposerStyles.ts
-import { Platform, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 import { theme } from "../theme";
 
 const INPUT_BAR_MIN_H = 56;
@@ -68,16 +68,8 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.palette.border,
 
-    // ✅ nur Optik: leichte Tiefe
-    ...Platform.select({
-      android: { elevation: 2 },
-      ios: {
-        shadowColor: "#000",
-        shadowOpacity: 0.22,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 3 },
-      },
-    }),
+    // ✅ Android Tiefe (ohne iOS)
+    elevation: 2,
   },
   iconButtonActive: {
     borderColor: theme.palette.primary,
@@ -105,16 +97,8 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
 
-    // ✅ nur Optik: bisschen mehr Punch
-    ...Platform.select({
-      android: { elevation: 4 },
-      ios: {
-        shadowColor: theme.palette.primary,
-        shadowOpacity: 0.3,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 3 },
-      },
-    }),
+    // ✅ Android Tiefe (ohne iOS)
+    elevation: 4,
   },
   sendButtonDisabled: {
     opacity: 0.6,

@@ -1,0 +1,4695 @@
+Refactoring
+genauer: Modularisierung / Aufteilung nach Verantwortlichkeiten
+Pattern-mäßig: Separation of Concerns + Extract Hook + Extract Components
+
+
+Ziel: Refactor/Modularisierung von screens/CodeScreen.tsx (und nur dem CodeScreen-Feature), ohne Verhalten zu ändern.
+
+Input: Ich gebe dir einen Bundle-Dump mit screens/CodeScreen.tsx + allen lokal importierten Dateien.
+
+Bitte liefere:
+1) Eine Aufteilung in mehrere Dateien unter screens/CodeScreen/ (z.B. useCodeScreen.ts Hook + UI-Components + styles.ts), sodass screens/CodeScreen.tsx nur noch orchestriert.
+2) KEINE Feature-Änderungen: gleiche UI/UX, gleiche Texte, gleiche Logik, gleiche Defaults. Nur Struktur/Dateischnitt.
+3) Android-only Projekt: vermeide Platform.OS === 'ios', vermeide iOS-spezifische Fonts/KeyboardAvoidingView-Branches. Wenn nötig: Android-konform lösen oder neutral halten.
+4) Keine Änderungen an Dateien außerhalb des CodeScreen-Scopes (außer du MUSST Imports anpassen, damit es kompiliert – dann minimal).
+5) Output immer als vollständige Dateiinhalte + Befehle im Format:
+   cd ~/k1w1-a0style
+   rm -f <pfad>
+   nano <pfad>
+   <vollständiger Inhalt>
+
+Am Ende: Liste aller neu angelegten/ersetzten Dateien + Check-Kommandos (prettier, lint, typecheck, tests).
+
+-------
+
+
+## OPUS BUNDLE: CodeScreen Refactor Input
+# Generated: 2025-12-21T18:01:18.778Z
+# Entry: screens/CodeScreen.tsx
+
+## FILE LIST
+- components/Breadcrumb.tsx
+- components/CreationDialog.tsx
+- components/FileActionsModal.tsx
+- components/FileItem.tsx
+- components/FileTree.ts
+- components/SyntaxHighlighter.tsx
+- config.ts
+- contexts/githubService.ts
+- contexts/ProjectContext.tsx
+- contexts/projectStorage.ts
+- contexts/types.ts
+- lib/RateLimiter.ts
+- lib/validators.ts
+- screens/CodeScreen.tsx
+- theme.ts
+- utils/syntaxValidator.ts
+
+## FILE CONTENTS
+
+===== FILE: components/Breadcrumb.tsx =====
+import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { theme } from '../theme';
+
+interface BreadcrumbProps {
+  currentPath: string;
+  onNavigate: (path: string) => void;
+}
+
+export const Breadcrumb: React.FC<BreadcrumbProps> = ({ currentPath, onNavigate }) => {
+  if (!currentPath) return null;
+
+  const parts = currentPath.split('/');
+
+  return (
+    <View style={styles.breadcrumb}>
+      <TouchableOpacity onPress={() => onNavigate('')} style={styles.breadcrumbItem}>
+        <Ionicons name="home-outline" size={16} color={theme.palette.primary} />
+        <Text style={styles.breadcrumbText}>Root</Text>
+      </TouchableOpacity>
+
+      {parts.map((part, index) => {
+        const path = parts.slice(0, index + 1).join('/');
+        return (
+          <View key={path} style={styles.breadcrumbItem}>
+            <Ionicons name="chevron-forward" size={14} color={theme.palette.text.secondary} />
+            <TouchableOpacity onPress={() => onNavigate(path)}>
+              <Text style={styles.breadcrumbText}>{part}</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      })}
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  breadcrumb: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: theme.palette.card, // fix: kein .background.secondary
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+  },
+  breadcrumbItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  breadcrumbText: {
+    fontSize: 14,
+    color: theme.palette.text.primary,
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+});
+
+===== FILE: components/CreationDialog.tsx =====
+import React, { useState } from 'react';
+import { View, Text, Modal, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { theme } from '../theme';
+
+interface CreationDialogProps {
+  visible: boolean;
+  currentPath: string;
+  onClose: () => void;
+  onCreateFile: (name: string) => void;
+  onCreateFolder: (name: string) => void;
+}
+
+// ✅ ADDED: Filename validation
+const isValidFilename = (name: string): boolean => {
+  // Erlaubt: Buchstaben, Zahlen, Punkt, Unterstrich, Bindestrich
+  return /^[a-zA-Z0-9._-]+$/.test(name);
+};
+
+export const CreationDialog: React.FC<CreationDialogProps> = ({
+  visible,
+  currentPath,
+  onClose,
+  onCreateFile,
+  onCreateFolder,
+}) => {
+  const [name, setName] = useState('');
+  const [type, setType] = useState<'file' | 'folder'>('file');
+  const [error, setError] = useState<string>('');
+
+  const handleCreate = () => {
+    const trimmedName = name.trim();
+    
+    if (!trimmedName) {
+      setError('Name darf nicht leer sein');
+      return;
+    }
+
+    // ✅ FIXED: Validierung für Dateinamen
+    if (!isValidFilename(trimmedName)) {
+      setError('Nur Buchstaben, Zahlen, Punkt, Unterstrich und Bindestrich erlaubt');
+      return;
+    }
+
+    if (type === 'file') {
+      onCreateFile(trimmedName);
+    } else {
+      onCreateFolder(trimmedName);
+    }
+
+    setName('');
+    setError('');
+    onClose();
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide">
+      <View style={styles.modalOverlay}>
+        <View style={styles.creationModal}>
+          <Text style={styles.modalTitle}>Neu erstellen</Text>
+
+          <View style={styles.pathInfo}>
+            <Ionicons name="folder-outline" size={16} color={theme.palette.text.secondary} />
+            <Text style={styles.pathText}>in: /{currentPath || 'Root'}</Text>
+          </View>
+
+          <View style={styles.typeSelector}>
+            <TouchableOpacity
+              style={[styles.typeButton, type === 'file' && styles.typeButtonActive]}
+              onPress={() => setType('file')}
+            >
+              <Ionicons
+                name="document-text-outline"
+                size={20}
+                color={type === 'file' ? '#fff' : theme.palette.text.secondary}
+              />
+              <Text
+                style={[
+                  styles.typeButtonText,
+                  type === 'file' && styles.typeButtonTextActive,
+                ]}
+              >
+                Datei
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.typeButton, type === 'folder' && styles.typeButtonActive]}
+              onPress={() => setType('folder')}
+            >
+              <Ionicons
+                name="folder-outline"
+                size={20}
+                color={type === 'folder' ? '#fff' : theme.palette.text.secondary}
+              />
+              <Text
+                style={[
+                  styles.typeButtonText,
+                  type === 'folder' && styles.typeButtonTextActive,
+                ]}
+              >
+                Ordner
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <TextInput
+            style={styles.nameInput}
+            value={name}
+            onChangeText={(text) => {
+              setName(text);
+              setError('');
+            }}
+            placeholder={type === 'file' ? 'Dateiname.ext' : 'Ordnername'}
+            placeholderTextColor={theme.palette.text.secondary}
+          />
+
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+          <View style={styles.modalActions}>
+            <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
+              <Text style={styles.cancelButtonText}>Abbrechen</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.createButton,
+                (!name.trim() || !type) && styles.createButtonDisabled,
+              ]}
+              onPress={handleCreate}
+              disabled={!name.trim()}
+            >
+              <Text style={styles.createButtonText}>Erstellen</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: '#000000AA',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  creationModal: {
+    width: '90%',
+    backgroundColor: theme.palette.card,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.palette.text.primary,
+    marginBottom: 12,
+  },
+  pathInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  pathText: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+    marginLeft: 6,
+  },
+  typeSelector: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    backgroundColor: theme.palette.background,
+    borderRadius: 8,
+    padding: 4,
+  },
+  typeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 6,
+  },
+  typeButtonActive: {
+    backgroundColor: theme.palette.primary,
+  },
+  typeButtonText: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+    marginLeft: 8,
+    fontWeight: '500',
+  },
+  typeButtonTextActive: {
+    color: '#fff',
+  },
+  nameInput: {
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: theme.palette.text.primary,
+    backgroundColor: theme.palette.background,
+    marginBottom: 16,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+    fontWeight: '500',
+  },
+  createButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: theme.palette.primary,
+    alignItems: 'center',
+  },
+  createButtonDisabled: {
+    opacity: 0.5,
+  },
+  createButtonText: {
+    fontSize: 14,
+    color: '#fff',
+    fontWeight: '600',
+  },
+  errorText: {
+    fontSize: 12,
+    color: theme.palette.error,
+    marginBottom: 12,
+    marginTop: -8,
+  },
+});
+
+===== FILE: components/FileActionsModal.tsx =====
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  Modal,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  ScrollView,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { theme } from '../theme';
+
+export interface FileAction {
+  type: 'rename' | 'move' | 'delete' | 'duplicate' | 'info';
+  icon: string;
+  label: string;
+  color: string;
+  destructive?: boolean;
+}
+
+interface FileActionsModalProps {
+  visible: boolean;
+  fileName: string;
+  filePath: string;
+  onClose: () => void;
+  onRename: (newName: string) => void;
+  onMove: (newPath: string) => void;
+  onDelete: () => void;
+  onDuplicate: () => void;
+  folders?: string[];
+}
+
+export const FileActionsModal: React.FC<FileActionsModalProps> = ({
+  visible,
+  fileName,
+  filePath,
+  onClose,
+  onRename,
+  onMove,
+  onDelete,
+  onDuplicate,
+  folders = [],
+}) => {
+  const [showRename, setShowRename] = useState(false);
+  const [showMove, setShowMove] = useState(false);
+  const [newName, setNewName] = useState(fileName);
+  const [selectedFolder, setSelectedFolder] = useState<string>('');
+
+  const handleRename = () => {
+    if (!newName.trim()) {
+      Alert.alert('Fehler', 'Bitte einen Namen eingeben');
+      return;
+    }
+    if (newName === fileName) {
+      setShowRename(false);
+      return;
+    }
+    onRename(newName);
+    setShowRename(false);
+    onClose();
+  };
+
+  const handleMove = () => {
+    if (!selectedFolder && selectedFolder !== '') {
+      Alert.alert('Fehler', 'Bitte einen Ordner auswählen');
+      return;
+    }
+    onMove(selectedFolder);
+    setShowMove(false);
+    onClose();
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Löschen bestätigen',
+      `"${fileName}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`,
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Löschen',
+          style: 'destructive',
+          onPress: () => {
+            onDelete();
+            onClose();
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDuplicate = () => {
+    onDuplicate();
+    onClose();
+  };
+
+  if (showRename) {
+    return (
+      <Modal
+        visible={visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowRename(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Ionicons name="create-outline" size={24} color={theme.palette.primary} />
+              <Text style={styles.modalTitle}>Umbenennen</Text>
+            </View>
+
+            <TextInput
+              style={styles.input}
+              value={newName}
+              onChangeText={setNewName}
+              autoFocus
+              selectTextOnFocus
+              placeholder="Neuer Name"
+              placeholderTextColor={theme.palette.text.secondary}
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => {
+                  setNewName(fileName);
+                  setShowRename(false);
+                }}
+              >
+                <Text style={styles.modalButtonTextSecondary}>Abbrechen</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonPrimary]}
+                onPress={handleRename}
+              >
+                <Text style={styles.modalButtonText}>Umbenennen</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
+  if (showMove) {
+    return (
+      <Modal
+        visible={visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowMove(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '70%' }]}>
+            <View style={styles.modalHeader}>
+              <Ionicons name="folder-open-outline" size={24} color={theme.palette.primary} />
+              <Text style={styles.modalTitle}>Verschieben nach</Text>
+            </View>
+
+            <ScrollView style={styles.folderList}>
+              <TouchableOpacity
+                style={[
+                  styles.folderItem,
+                  selectedFolder === '' && styles.folderItemSelected,
+                ]}
+                onPress={() => setSelectedFolder('')}
+              >
+                <Ionicons name="home" size={20} color={theme.palette.primary} />
+                <Text style={styles.folderItemText}>Root (Hauptverzeichnis)</Text>
+              </TouchableOpacity>
+
+              {folders.map((folder) => (
+                <TouchableOpacity
+                  key={folder}
+                  style={[
+                    styles.folderItem,
+                    selectedFolder === folder && styles.folderItemSelected,
+                  ]}
+                  onPress={() => setSelectedFolder(folder)}
+                >
+                  <Ionicons name="folder" size={20} color="#FFA726" />
+                  <Text style={styles.folderItemText}>{folder}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => setShowMove(false)}
+              >
+                <Text style={styles.modalButtonTextSecondary}>Abbrechen</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonPrimary]}
+                onPress={handleMove}
+              >
+                <Text style={styles.modalButtonText}>Verschieben</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.actionSheet}>
+          <View style={styles.actionSheetHeader}>
+            <View style={styles.actionSheetHandle} />
+            <Text style={styles.actionSheetTitle} numberOfLines={1}>
+              {fileName}
+            </Text>
+            <Text style={styles.actionSheetSubtitle} numberOfLines={1}>
+              {filePath}
+            </Text>
+          </View>
+
+          <View style={styles.actionList}>
+            <TouchableOpacity
+              style={styles.actionItem}
+              onPress={() => setShowRename(true)}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: '#2196F315' }]}>
+                <Ionicons name="create-outline" size={22} color="#2196F3" />
+              </View>
+              <Text style={styles.actionText}>Umbenennen</Text>
+              <Ionicons name="chevron-forward" size={20} color={theme.palette.text.secondary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionItem}
+              onPress={() => setShowMove(true)}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: '#9C27B015' }]}>
+                <Ionicons name="folder-open-outline" size={22} color="#9C27B0" />
+              </View>
+              <Text style={styles.actionText}>Verschieben</Text>
+              <Ionicons name="chevron-forward" size={20} color={theme.palette.text.secondary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionItem}
+              onPress={handleDuplicate}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: '#FF980015' }]}>
+                <Ionicons name="copy-outline" size={22} color="#FF9800" />
+              </View>
+              <Text style={styles.actionText}>Duplizieren</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionItem, styles.actionItemDestructive]}
+              onPress={handleDelete}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: '#F4433615' }]}>
+                <Ionicons name="trash-outline" size={22} color="#F44336" />
+              </View>
+              <Text style={[styles.actionText, styles.actionTextDestructive]}>Löschen</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
+            <Text style={styles.cancelButtonText}>Abbrechen</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  actionSheet: {
+    backgroundColor: theme.palette.card,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 20,
+  },
+  actionSheetHeader: {
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+    alignItems: 'center',
+  },
+  actionSheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: theme.palette.border,
+    borderRadius: 2,
+    marginBottom: 12,
+  },
+  actionSheetTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.palette.text.primary,
+    marginBottom: 4,
+  },
+  actionSheetSubtitle: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+  },
+  actionList: {
+    padding: 12,
+  },
+  actionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    backgroundColor: theme.palette.background,
+  },
+  actionItemDestructive: {
+    marginTop: 8,
+  },
+  actionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  actionText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: theme.palette.text.primary,
+    flex: 1,
+  },
+  actionTextDestructive: {
+    color: '#F44336',
+  },
+  cancelButton: {
+    marginHorizontal: 12,
+    marginTop: 8,
+    padding: 16,
+    backgroundColor: theme.palette.background,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.palette.primary,
+  },
+  modalContent: {
+    backgroundColor: theme.palette.card,
+    borderRadius: 16,
+    padding: 24,
+    marginHorizontal: 20,
+    maxWidth: 400,
+    alignSelf: 'center',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: theme.palette.text.primary,
+    marginLeft: 12,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: theme.palette.text.primary,
+    backgroundColor: theme.palette.background,
+    marginBottom: 20,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalButtonPrimary: {
+    backgroundColor: theme.palette.primary,
+  },
+  modalButtonSecondary: {
+    backgroundColor: theme.palette.background,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  modalButtonTextSecondary: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.palette.text.primary,
+  },
+  folderList: {
+    maxHeight: 300,
+    marginBottom: 20,
+  },
+  folderItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: theme.palette.background,
+  },
+  folderItemSelected: {
+    backgroundColor: `${theme.palette.primary}15`,
+    borderWidth: 2,
+    borderColor: theme.palette.primary,
+  },
+  folderItemText: {
+    fontSize: 15,
+    color: theme.palette.text.primary,
+    marginLeft: 12,
+  },
+});
+
+===== FILE: components/FileItem.tsx =====
+import React, { memo } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { theme, getNeonGlow } from '../theme';
+import { TreeNode } from './FileTree';
+
+interface FileItemProps {
+  node: TreeNode;
+  onPress: () => void;
+  onLongPress: () => void;
+  isSelected?: boolean;
+  selectionMode?: boolean;
+}
+
+export const FileItem: React.FC<FileItemProps> = memo(({ 
+  node, 
+  onPress, 
+  onLongPress,
+  isSelected = false,
+  selectionMode = false,
+}) => {
+  const getFileIcon = (fileName: string): string => {
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    switch (ext) {
+      // React & TypeScript
+      case 'tsx': return 'logo-react';
+      case 'ts': return 'code-slash';
+      
+      // JavaScript
+      case 'jsx': return 'logo-react';
+      case 'js': return 'logo-javascript';
+      
+      // Web
+      case 'html': return 'logo-html5';
+      case 'css': return 'logo-css3';
+      case 'scss': case 'sass': return 'color-palette';
+      
+      // Data
+      case 'json': return 'code-working';
+      case 'xml': return 'code-slash';
+      case 'yaml': case 'yml': return 'list';
+      
+      // Images
+      case 'png': case 'jpg': case 'jpeg': return 'image';
+      case 'gif': return 'film';
+      case 'svg': return 'shapes';
+      case 'webp': return 'image-outline';
+      
+      // Documents
+      case 'md': return 'document-text';
+      case 'txt': return 'document-outline';
+      case 'pdf': return 'document';
+      
+      // Config
+      case 'env': return 'key';
+      case 'config': case 'conf': return 'settings';
+      
+      // Other
+      case 'gitignore': return 'git-branch';
+      default: return 'document-text-outline';
+    }
+  };
+
+  const getFileColor = (fileName: string): string => {
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    const name = fileName.toLowerCase();
+    
+    // Special files
+    if (name === 'package.json') return '#CB3837';
+    if (name === 'tsconfig.json') return '#3178C6';
+    if (name.includes('readme')) return '#0366D6';
+    if (name.includes('.env')) return '#ECD53F';
+    
+    switch (ext) {
+      // React & TypeScript
+      case 'tsx': return '#61DAFB';
+      case 'ts': return '#3178C6';
+      
+      // JavaScript
+      case 'jsx': return '#61DAFB';
+      case 'js': return '#F7DF1E';
+      
+      // Web
+      case 'html': return '#E34F26';
+      case 'css': return '#1572B6';
+      case 'scss': case 'sass': return '#CC6699';
+      
+      // Data
+      case 'json': return '#FFB000';
+      case 'xml': return '#FF6600';
+      case 'yaml': case 'yml': return '#CB171E';
+      
+      // Images
+      case 'png': case 'jpg': case 'jpeg': return '#4CAF50';
+      case 'gif': return '#FF6D00';
+      case 'svg': return '#FFB13B';
+      case 'webp': return '#67C52A';
+      
+      // Documents
+      case 'md': return '#0366D6';
+      case 'txt': return '#607D8B';
+      case 'pdf': return '#D32F2F';
+      
+      // Config
+      case 'env': return '#ECD53F';
+      case 'config': case 'conf': return '#795548';
+      
+      default: return theme.palette.text.secondary;
+    }
+  };
+
+  const getFolderIcon = (): string => {
+    const name = node.name.toLowerCase();
+    if (name === 'components') return 'extension-puzzle';
+    if (name === 'screens') return 'phone-portrait';
+    if (name === 'utils' || name === 'lib') return 'build';
+    if (name === 'assets' || name === 'images') return 'images';
+    if (name === 'tests' || name.includes('test')) return 'flask';
+    if (name === 'contexts') return 'layers';
+    if (name === 'hooks') return 'git-branch';
+    if (name === 'config') return 'settings';
+    if (name.startsWith('.')) return 'eye-off';
+    return 'folder';
+  };
+
+  const getFolderColor = (): string => {
+    const name = node.name.toLowerCase();
+    if (name === 'components') return '#9C27B0';
+    if (name === 'screens') return '#2196F3';
+    if (name === 'utils' || name === 'lib') return '#FF9800';
+    if (name === 'assets' || name === 'images') return '#4CAF50';
+    if (name === 'tests' || name.includes('test')) return '#F44336';
+    if (name === 'contexts') return '#00BCD4';
+    if (name === 'hooks') return '#E91E63';
+    if (name === 'config') return '#795548';
+    if (name.startsWith('.')) return '#9E9E9E';
+    return '#FFA726';
+  };
+
+  const icon = node.type === 'folder' ? getFolderIcon() : getFileIcon(node.name);
+  const color = node.type === 'folder' ? getFolderColor() : getFileColor(node.name);
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.fileItem,
+        isSelected && styles.fileItemSelected,
+      ]}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      activeOpacity={0.7}
+    >
+      {selectionMode && (
+        <View style={styles.checkbox}>
+          <Ionicons
+            name={isSelected ? 'checkbox' : 'square-outline'}
+            size={24}
+            color={isSelected ? theme.palette.primary : theme.palette.text.secondary}
+          />
+        </View>
+      )}
+
+      <View style={[styles.iconContainer, { backgroundColor: `${color}15` }]}>
+        <Ionicons name={icon as any} size={22} color={color} />
+      </View>
+
+      <View style={styles.fileInfo}>
+        <Text style={styles.fileName} numberOfLines={1}>
+          {node.name}
+        </Text>
+
+        {node.type === 'folder' && node.children && (
+          <Text style={styles.fileDetails}>
+            {node.children.length} Element{node.children.length !== 1 ? 'e' : ''}
+          </Text>
+        )}
+
+        {node.type === 'file' && node.file && (
+          <Text style={styles.fileDetails}>
+            {typeof node.file.content === 'string'
+              ? `${(node.file.content.length / 1024).toFixed(1)} KB`
+              : 'Binary'}
+          </Text>
+        )}
+      </View>
+
+      {!selectionMode && node.type === 'folder' && (
+        <Ionicons name="chevron-forward" size={20} color={theme.palette.text.secondary} />
+      )}
+
+      {!selectionMode && node.type === 'file' && (
+        <TouchableOpacity
+          onPress={(e) => {
+            e.stopPropagation();
+            onLongPress();
+          }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="ellipsis-vertical" size={20} color={theme.palette.text.secondary} />
+        </TouchableOpacity>
+      )}
+    </TouchableOpacity>
+  );
+});
+
+FileItem.displayName = 'FileItem';
+
+const styles = StyleSheet.create({
+  fileItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: theme.palette.card,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+  },
+  fileItemSelected: {
+    backgroundColor: `${theme.palette.primary}12`,
+    borderLeftWidth: 3,
+    borderLeftColor: theme.palette.primary,
+    ...getNeonGlow(theme.palette.primary, 'subtle'),
+  },
+  checkbox: {
+    marginRight: 12,
+  },
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  fileInfo: {
+    flex: 1,
+  },
+  fileName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.palette.text.primary,
+    marginBottom: 2,
+    letterSpacing: 0.2,
+  },
+  fileDetails: {
+    fontSize: 11,
+    color: theme.palette.text.secondary,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+});
+
+===== FILE: components/FileTree.ts =====
+import { ProjectFile } from '../contexts/types';
+
+export type TreeNode = {
+  id: string;
+  name: string;
+  path: string;
+  type: 'file' | 'folder';
+  children?: TreeNode[];
+  file?: ProjectFile;
+  isExpanded?: boolean;
+};
+
+export const buildFileTree = (files: ProjectFile[]): TreeNode[] => {
+  // ✅ PERFORMANCE FIX: Verwende Hash-Map statt Array.find() → O(n) statt O(n²)
+  const folderMap = new Map<string, TreeNode>();
+  const rootNodes: TreeNode[] = [];
+
+  files.forEach(file => {
+    const pathParts = file.path.split('/');
+    let currentPath = '';
+
+    pathParts.forEach((part, index) => {
+      const isLast = index === pathParts.length - 1;
+      const parentPath = currentPath;
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+
+      if (isLast) {
+        const fileNode: TreeNode = {
+          id: file.path,
+          name: part,
+          path: file.path,
+          type: 'file',
+          file,
+        };
+
+        if (parentPath) {
+          const parent = folderMap.get(parentPath);
+          if (parent) {
+            parent.children = parent.children || [];
+            parent.children.push(fileNode);
+          }
+        } else {
+          rootNodes.push(fileNode);
+        }
+      } else {
+        if (!folderMap.has(currentPath)) {
+          const folderNode: TreeNode = {
+            id: `folder_${currentPath}`,
+            name: part,
+            path: currentPath,
+            type: 'folder',
+            children: [],
+            isExpanded: true,
+          };
+
+          folderMap.set(currentPath, folderNode);
+
+          if (parentPath) {
+            const parent = folderMap.get(parentPath);
+            if (parent) {
+              parent.children = parent.children || [];
+              parent.children.push(folderNode);
+            }
+          } else {
+            rootNodes.push(folderNode);
+          }
+        }
+      }
+    });
+  });
+
+  const sortNodes = (nodes: TreeNode[]) => {
+    nodes.sort((a, b) => {
+      if (a.type !== b.type) {
+        return a.type === 'folder' ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name);
+    });
+
+    nodes.forEach(node => {
+      if (node.children) {
+        sortNodes(node.children);
+      }
+    });
+  };
+
+  sortNodes(rootNodes);
+  return rootNodes;
+};
+
+export const findFolderContent = (nodes: TreeNode[], path: string): TreeNode[] => {
+  if (!path) return nodes;
+
+  for (const node of nodes) {
+    if (node.path === path && node.type === 'folder') {
+      return node.children || [];
+    }
+    if (node.children) {
+      const result = findFolderContent(node.children, path);
+      if (result.length > 0) return result;
+    }
+  }
+  return [];
+};
+
+===== FILE: components/SyntaxHighlighter.tsx =====
+import React, { useMemo } from 'react';
+import { Text, StyleSheet, Platform, View } from 'react-native';
+import { theme } from '../theme';
+
+interface Token {
+  type: 'keyword' | 'string' | 'comment' | 'function' | 'number' | 'operator' | 'default' | 'type' | 'jsx';
+  value: string;
+}
+
+// Erweiterte Regex für bessere Erkennung
+const KEYWORDS = /\b(import|export|const|let|var|function|return|if|else|for|while|class|extends|async|await|try|catch|throw|new|this|super|static|from|as|default|interface|type|enum|implements|readonly|public|private|protected|abstract|declare|namespace|module)\b/g;
+const TYPE_KEYWORDS = /\b(string|number|boolean|void|null|undefined|any|never|unknown|object|symbol|bigint|Array|Promise|Record|Partial|Required|Pick|Omit|React)\b/g;
+const STRINGS = /(["'`])(?:(?=(\\?))\2.)*?\1/g;
+const COMMENTS = /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm;
+const FUNCTIONS = /\b([a-zA-Z_$][a-zA-Z0-9_$]*)\s*(?=\()/g;
+const NUMBERS = /\b(\d+\.?\d*)\b/g;
+const JSX_TAGS = /<\/?([A-Z][a-zA-Z0-9]*)/g;
+
+const tokenize = (code: string): Token[] => {
+  const tokens: Token[] = [];
+  const matches: { index: number; length: number; type: Token['type']; value: string }[] = [];
+
+  let match;
+  
+  // Comments first (highest priority)
+  const commentRegex = new RegExp(COMMENTS);
+  while ((match = commentRegex.exec(code)) !== null) {
+    matches.push({
+      index: match.index,
+      length: match[0].length,
+      type: 'comment',
+      value: match[0]
+    });
+  }
+
+  // Strings
+  const stringRegex = new RegExp(STRINGS);
+  while ((match = stringRegex.exec(code)) !== null) {
+    matches.push({
+      index: match.index,
+      length: match[0].length,
+      type: 'string',
+      value: match[0]
+    });
+  }
+
+  // JSX Tags
+  const jsxRegex = new RegExp(JSX_TAGS);
+  while ((match = jsxRegex.exec(code)) !== null) {
+    matches.push({
+      index: match.index,
+      length: match[0].length,
+      type: 'jsx',
+      value: match[0]
+    });
+  }
+
+  // Type Keywords
+  const typeRegex = new RegExp(TYPE_KEYWORDS);
+  while ((match = typeRegex.exec(code)) !== null) {
+    matches.push({
+      index: match.index,
+      length: match[0].length,
+      type: 'type',
+      value: match[0]
+    });
+  }
+
+  // Keywords
+  const keywordRegex = new RegExp(KEYWORDS);
+  while ((match = keywordRegex.exec(code)) !== null) {
+    matches.push({
+      index: match.index,
+      length: match[0].length,
+      type: 'keyword',
+      value: match[0]
+    });
+  }
+
+  // Functions
+  const functionRegex = new RegExp(FUNCTIONS);
+  while ((match = functionRegex.exec(code)) !== null) {
+    matches.push({
+      index: match.index,
+      length: match[1].length,
+      type: 'function',
+      value: match[1]
+    });
+  }
+
+  // Numbers
+  const numberRegex = new RegExp(NUMBERS);
+  while ((match = numberRegex.exec(code)) !== null) {
+    matches.push({
+      index: match.index,
+      length: match[0].length,
+      type: 'number',
+      value: match[0]
+    });
+  }
+
+  // Sort by position
+  matches.sort((a, b) => a.index - b.index);
+
+  // Remove overlaps (keep first match)
+  const filteredMatches: typeof matches = [];
+  let lastEnd = 0;
+  matches.forEach(m => {
+    if (m.index >= lastEnd) {
+      filteredMatches.push(m);
+      lastEnd = m.index + m.length;
+    }
+  });
+
+  // Build tokens
+  let lastIndex = 0;
+  filteredMatches.forEach(m => {
+    if (m.index > lastIndex) {
+      tokens.push({
+        type: 'default',
+        value: code.substring(lastIndex, m.index)
+      });
+    }
+    tokens.push({
+      type: m.type,
+      value: m.value
+    });
+    lastIndex = m.index + m.length;
+  });
+
+  if (lastIndex < code.length) {
+    tokens.push({
+      type: 'default',
+      value: code.substring(lastIndex)
+    });
+  }
+
+  return tokens;
+};
+
+interface SyntaxHighlighterProps {
+  code: string;
+  showLineNumbers?: boolean;
+}
+
+export const SyntaxHighlighter: React.FC<SyntaxHighlighterProps> = ({ 
+  code, 
+  showLineNumbers = false 
+}) => {
+  const tokens = useMemo(() => tokenize(code), [code]);
+  
+  const lines = useMemo(() => code.split('\n'), [code]);
+
+  if (showLineNumbers) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.lineNumbers}>
+          {lines.map((_, index) => (
+            <Text key={index} style={styles.lineNumber}>
+              {index + 1}
+            </Text>
+          ))}
+        </View>
+        <View style={styles.codeContent}>
+          <Text style={styles.codeBlock}>
+            {tokens.map((token, index) => (
+              <Text key={index} style={styles[token.type]}>
+                {token.value}
+              </Text>
+            ))}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <Text style={styles.codeBlock}>
+      {tokens.map((token, index) => (
+        <Text key={index} style={styles[token.type]}>
+          {token.value}
+        </Text>
+      ))}
+    </Text>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+  },
+  lineNumbers: {
+    paddingRight: 12,
+    borderRightWidth: 1,
+    borderRightColor: theme.palette.border,
+    marginRight: 12,
+  },
+  lineNumber: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 12,
+    lineHeight: 22,
+    color: theme.palette.text.disabled,
+    textAlign: 'right',
+    minWidth: 28,
+  },
+  codeContent: {
+    flex: 1,
+  },
+  codeBlock: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  // 🔥 NEON SYNTAX COLORS
+  keyword: {
+    color: theme.palette.syntax.keyword, // Neon Magenta
+    fontWeight: '600',
+  },
+  string: {
+    color: theme.palette.syntax.string, // Neon Türkis
+  },
+  comment: {
+    color: theme.palette.syntax.comment, // Grau
+    fontStyle: 'italic',
+  },
+  function: {
+    color: theme.palette.syntax.function, // Neon Gelb
+  },
+  number: {
+    color: theme.palette.syntax.number, // Neon Orange
+  },
+  operator: {
+    color: theme.palette.syntax.operator, // Neon Grün
+  },
+  type: {
+    color: theme.palette.syntax.type, // Neon Blau
+    fontWeight: '500',
+  },
+  jsx: {
+    color: theme.palette.primary, // Neon Grün für JSX
+    fontWeight: '600',
+  },
+  default: {
+    color: theme.palette.syntax.default, // Standard Text
+  },
+});
+
+===== FILE: config.ts =====
+// Zentrale Konfiguration für Validierung, Pfade, API-Endpunkte usw.
+export const CONFIG = {
+  VALIDATION: {
+    MIN_LINES_TSX: 8,
+    MIN_LINES_TS: 5,
+    MAX_FILES: 200,
+    PATTERNS: {
+      COMPONENT: /\b(component|button|card|modal|header|footer|input|list|item)\b/i,
+      SCREEN: /\b(screen|page|view|home|settings|profile)\b/i,
+      CONTEXT: /\b(context|provider)\b/i,
+      HOOK: /\buse[A-Z][A-Za-z0-9_]*\b/,
+      UTIL: /\b(util|helper|format|validate|constant)\b/i,
+      SERVICE: /\b(service|api|client)\b/i,
+      TYPE: /\b(type|interface)\b/i,
+      DUPLICATE: /\b(README[0-9]|App[0-9]|_copy|_backup|\([0-9]+\))\b/i,
+      INVALID_PATH: /\.\.\/|[\\:*?"<>|]|^[\/\\]|[\/\\]$/,
+      CONFIG_FILES: /\b(types|theme|constants|config)\.ts$|\.d\.ts$/,
+      FORBIDDEN_IMPORT: /\bfrom\s+['"]react-native-web['"]/i,
+      CODE_HEURISTIC: /(import|export|function|const|let|=>|React\.|StyleSheet\.create)/i,
+    },
+    CONTENT_PATTERNS: {
+      CONTEXT: /React\.createContext|Provider/,
+      HOOK: /useState|useEffect|useRef|useCallback/,
+      STYLE: /StyleSheet\.create/,
+      PLACEHOLDERS: [
+        '// ... existing code',
+        '// ... rest of file',
+        '// TODO',
+        '// TODO:',
+        '// implement',
+        '/* TODO */',
+        'return null;',
+        '() => {}',
+      ],
+    },
+  },
+
+  PATHS: {
+    // Root-Dateien, die erlaubt sind (nur im Projekt-Root)
+    ALLOWED_ROOT: [
+      'App.tsx',
+      'App.js',
+      'index.js',
+
+      'config.ts',
+      'theme.ts',
+
+      'README.md',
+      'SYSTEM_README.md',
+
+      'package.json',
+      'tsconfig.json',
+
+      'app.config.js',
+      'babel.config.js',
+      'metro.config.js',
+      'eas.json',
+
+      'eslint.config.js',
+      'jest.config.js',
+      'jest.setup.js',
+
+      'expo-env.d.ts',
+      '.gitignore',
+
+      '.github/workflows/ci-build.yml',
+      '.github/workflows/k1w1-triggered-build.yml',
+      '.github/workflows/release-build.yml',
+      '.github/workflows/eas-build.yml',
+    ] as string[],
+
+    // Ordner, die als “Source Folders” gelten
+    SRC_FOLDERS: [
+      'components',
+      'screens',
+      'contexts',
+      'hooks',
+      'utils',
+      'services',
+      'types',
+      'styles',
+      'assets',
+      'navigation',
+
+      // ✅ im Dump vorhanden → muss erlaubt sein
+      'lib',
+      'scripts',
+      'templates',
+      'supabase',
+      '__tests__',
+      '__mocks__',
+    ] as string[],
+
+    // Erlaubte Präfixe (alles darunter darf existieren/geschrieben werden)
+    ALLOWED_PREFIXES: [
+      'components/',
+      'screens/',
+      'contexts/',
+      'hooks/',
+      'utils/',
+      'services/',
+      'types/',
+      'styles/',
+      'assets/',
+      'navigation/',
+
+      // ✅ im Dump vorhanden → muss erlaubt sein
+      'lib/',
+      'scripts/',
+      'templates/',
+      'supabase/',
+      '__tests__/',
+      '__mocks__/',
+      '.github/',
+    ] as string[],
+
+    ALLOWED_SINGLE: [
+      'app.config.js',
+      'package.json',
+      'tsconfig.json',
+      'babel.config.js',
+      'metro.config.js',
+      'eslint.config.js',
+      'jest.config.js',
+      'jest.setup.js',
+      'theme.ts',
+      'config.ts',
+      'README.md',
+      'SYSTEM_README.md',
+      'index.js',
+      'App.tsx',
+      'App.js',
+      'eas.json',
+      'expo-env.d.ts',
+      '.gitignore',
+    ] as string[],
+
+    ALLOWED_EXT: [
+      '.ts',
+      '.tsx',
+      '.js',
+      '.jsx',
+      '.json',
+      '.md',
+      '.svg',
+      '.png',
+      '.jpg',
+      '.yml',
+      '.gitignore',
+    ] as string[],
+
+    MAX_PATH_LENGTH: 255,
+  },
+
+  API: {
+    SUPABASE_EDGE_URL:
+      (process.env.EXPO_PUBLIC_SUPABASE_EDGE_URL as string | undefined) ||
+      'https://xfgnzpcljsuqqdjlxgul.supabase.co/functions/v1',
+  },
+
+  BUILD: {
+    GITHUB_REPO: 'k1w1-pro-plus/k1w1-a0style',
+  },
+
+  TOKEN_RATIO: {
+    groq: 4,
+    openai: 3.8,
+    anthropic: 4.2,
+    gemini: 4,
+    default: 4,
+  } as const,
+} as const;
+
+===== FILE: contexts/githubService.ts =====
+// contexts/githubService.ts - simplified token handling + repo secrets sync
+
+// ✅ FIX: SecureStore für sensitive Tokens statt AsyncStorage
+import * as SecureStore from 'expo-secure-store';
+import sodium from 'tweetsodium';
+import { Buffer } from 'buffer';
+import { ProjectFile } from './types';
+import { RateLimiter } from '../lib/RateLimiter';
+
+// ✅ FIX: Buffer Polyfill Check (besserer Check)
+if (typeof Buffer === 'undefined' || typeof Buffer.from !== 'function') {
+  throw new Error(
+    '❌ Buffer polyfill fehlt oder ist unvollständig. Bitte "buffer" Package installieren: npm install buffer'
+  );
+}
+
+const GH_TOKEN_KEY = 'github_pat_v1';
+const EXPO_TOKEN_KEY = 'expo_token_v1';
+
+// ✅ FIX: Rate Limiter für GitHub API (5000/hour, wir nutzen 4000 als Buffer)
+const githubLimiter = new RateLimiter({ 
+  maxRequests: 4000, 
+  windowMs: 3600000 // 1 hour
+});
+
+type RepoSecretsPayload = Partial<{
+  expoToken: string | null | undefined;
+  supabaseUrl: string | null | undefined;
+  supabaseServiceRole: string | null | undefined;
+}>;
+
+const SECRET_NAME_MAP: Record<keyof RepoSecretsPayload, string> = {
+  expoToken: 'EXPO_TOKEN',
+  supabaseUrl: 'SUPABASE_URL',
+  supabaseServiceRole: 'SUPABASE_SERVICE_ROLE_KEY',
+};
+
+// ✅ FIX: SecureStore Wrapper-Funktionen (verschlüsselt!)
+const saveSecureToken = async (key: string, value: string): Promise<void> => {
+  try {
+    await SecureStore.setItemAsync(key, value);
+  } catch (error: any) {
+    console.error(`[SecureStore] Fehler beim Speichern von ${key}:`, error);
+    throw new Error(`Token konnte nicht sicher gespeichert werden: ${error.message}`);
+  }
+};
+
+const getSecureToken = async (key: string): Promise<string | null> => {
+  try {
+    return await SecureStore.getItemAsync(key);
+  } catch (error: any) {
+    console.error(`[SecureStore] Fehler beim Laden von ${key}:`, error);
+    return null;
+  }
+};
+
+const deleteSecureToken = async (key: string): Promise<void> => {
+  try {
+    await SecureStore.deleteItemAsync(key);
+  } catch (error: any) {
+    console.error(`[SecureStore] Fehler beim Löschen von ${key}:`, error);
+  }
+};
+
+const encryptSecret = (publicKey: string, value: string): string => {
+  const messageBytes = Buffer.from(value);
+  const keyBytes = Buffer.from(publicKey, 'base64');
+  const encryptedBytes = sodium.seal(messageBytes, keyBytes);
+  return Buffer.from(encryptedBytes).toString('base64');
+};
+
+const ensureGitHubRepoParts = (fullName: string): { owner: string; repo: string } => {
+  const [owner, repo] = fullName.split('/');
+  if (!owner || !repo) {
+    throw new Error(`Ungültiges Repo-Format: ${fullName}`);
+  }
+  return { owner, repo };
+};
+
+/**
+ * Speichert GitHub Token (SecureStore - verschlüsselt)
+ */
+export const saveGitHubToken = async (token: string): Promise<void> => {
+  await saveSecureToken(GH_TOKEN_KEY, token);
+  console.log('✅ GitHub Token sicher gespeichert (SecureStore).');
+};
+
+/**
+ * Lädt GitHub Token
+ */
+export const getGitHubToken = async (): Promise<string | null> => {
+  return getSecureToken(GH_TOKEN_KEY);
+};
+
+/**
+ * Speichert Expo Token (SecureStore - verschlüsselt)
+ */
+export const saveExpoToken = async (token: string): Promise<void> => {
+  await saveSecureToken(EXPO_TOKEN_KEY, token);
+  console.log('✅ Expo Token sicher gespeichert (SecureStore).');
+};
+
+/**
+ * Lädt Expo Token
+ */
+export const getExpoToken = async (): Promise<string | null> => {
+  return getSecureToken(EXPO_TOKEN_KEY);
+};
+
+/**
+ * Prüft ob GitHub Token vorhanden ist
+ */
+export const hasValidGitHubToken = async (): Promise<boolean> => {
+  const value = await getGitHubToken();
+  return !!value;
+};
+
+/**
+ * Prüft ob Expo Token vorhanden ist
+ */
+export const hasValidExpoToken = async (): Promise<boolean> => {
+  const value = await getExpoToken();
+  return !!value;
+};
+
+/**
+ * Löscht GitHub Token
+ */
+export const deleteGitHubToken = async (): Promise<void> => {
+  await deleteSecureToken(GH_TOKEN_KEY);
+};
+
+/**
+ * Löscht Expo Token
+ */
+export const deleteExpoToken = async (): Promise<void> => {
+  await deleteSecureToken(EXPO_TOKEN_KEY);
+};
+
+/**
+ * Synchronisiert Secrets (Expo/Supabase) mit dem aktiven GitHub-Repo.
+ * ✅ FIX: Rate Limiting + besseres Error Handling
+ */
+export const syncRepoSecrets = async (
+  repoFullName: string,
+  payload: RepoSecretsPayload,
+): Promise<{ updated: string[] }> => {
+  const token = await getGitHubToken();
+  if (!token) {
+    throw new Error('GitHub Token fehlt – bitte im Verbindungen Screen setzen.');
+  }
+
+  const { owner, repo } = ensureGitHubRepoParts(repoFullName);
+  const headers = {
+    Accept: 'application/vnd.github+json',
+    Authorization: `token ${token}`,
+    'Content-Type': 'application/json',
+  };
+
+  // ✅ Rate Limit Check
+  await githubLimiter.checkLimit();
+
+  const keyRes = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/actions/secrets/public-key`,
+    { headers },
+  );
+
+  // ✅ Besseres Error Handling
+  if (!keyRes.ok) {
+    const status = keyRes.status;
+    if (status === 401) {
+      throw new Error('GitHub Token ungültig. Bitte in Einstellungen neu eingeben.');
+    }
+    if (status === 403) {
+      throw new Error('Keine Berechtigung. Token benötigt "repo" Scope.');
+    }
+    if (status === 404) {
+      throw new Error('Repository nicht gefunden oder kein Zugriff.');
+    }
+    const msg = await keyRes.text();
+    throw new Error(`Public Key konnte nicht geladen werden (${status}): ${msg}`);
+  }
+
+  const { key, key_id } = await keyRes.json();
+  if (!key || !key_id) {
+    throw new Error('GitHub Public Key Antwort unvollständig.');
+  }
+
+  const updated: string[] = [];
+
+  for (const [field, secretName] of Object.entries(SECRET_NAME_MAP)) {
+    const value = payload[field as keyof RepoSecretsPayload];
+    if (!value) continue;
+
+    const encrypted_value = encryptSecret(key, value);
+    
+    // ✅ Rate Limit Check
+    await githubLimiter.checkLimit();
+    
+    const putRes = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/actions/secrets/${secretName}`,
+      {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ encrypted_value, key_id }),
+      },
+    );
+
+    if (!putRes.ok) {
+      const text = await putRes.text();
+      throw new Error(
+        `Secret ${secretName} konnte nicht gesetzt werden (${putRes.status}): ${text}`,
+      );
+    }
+
+    updated.push(secretName);
+  }
+
+  return { updated };
+};
+
+export const createRepo = async (repoName: string, isPrivate = true) => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error('GitHub token fehlt. Bitte in Einstellungen eintragen.');
+
+  // ✅ Rate Limit Check
+  await githubLimiter.checkLimit();
+
+  const resp = await fetch('https://api.github.com/user/repos', {
+    method: 'POST',
+    headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: repoName, private: isPrivate }),
+  });
+
+  let json: any;
+  try {
+    json = await resp.json();
+  } catch (e) {
+    const textResponse = await resp.text();
+    throw new Error(`GitHub API Fehler (Status ${resp.status}): Kein JSON empfangen. Antwort: ${textResponse}`);
+  }
+
+  if (!resp.ok) {
+    const status = resp.status;
+    
+    // ✅ Besseres Error Handling
+    if (status === 401) {
+      throw new Error('GitHub Token ungültig. Bitte in Einstellungen neu eingeben.');
+    }
+    if (status === 403) {
+      throw new Error('Keine Berechtigung. Token benötigt "repo" Scope.');
+    }
+    
+    const alreadyExistsError = json.errors?.find((e: any) =>
+      e.message?.includes('name already exists')
+    );
+
+    if (status === 422 && alreadyExistsError) {
+      console.warn(`Repo '${repoName}' existiert bereits, verwende es.`);
+      try {
+        await githubLimiter.checkLimit();
+        const userResp = await fetch('https://api.github.com/user', {
+          headers: { Authorization: `token ${token}` },
+        });
+        const userData = await userResp.json();
+        if (!userData.login) throw new Error('Konnte User-Login nicht abrufen.');
+
+        return { 
+          owner: { login: userData.login }, 
+          name: repoName, 
+          html_url: `https://github.com/${userData.login}/${repoName}` 
+        };
+      } catch (userError: any) {
+        throw new Error(`Repo existiert, aber Owner konnte nicht abgerufen werden: ${userError.message}`);
+      }
+    }
+
+    const errorDetails = JSON.stringify(json, null, 2);
+    console.error('GitHub API Fehlerdetails:', errorDetails);
+    throw new Error(`GitHub API Fehler (Status ${status}): ${json.message || errorDetails}`);
+  }
+
+  return json;
+};
+
+export const createOrUpdateFile = async (
+  owner: string, 
+  repo: string, 
+  path: string, 
+  content: string, 
+  message = 'Add file'
+) => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error('GitHub token fehlt.');
+  
+  // ✅ Rate Limit Check
+  await githubLimiter.checkLimit();
+  
+  const getResp = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`, 
+    { headers: { Authorization: `token ${token}` } }
+  );
+  
+  let sha: string | undefined = undefined;
+  if (getResp.ok) {
+    const existing = await getResp.json();
+    sha = existing.sha;
+  }
+  
+  const body: any = {
+    message,
+    content: Buffer.from(content, 'utf8').toString('base64'),
+    branch: 'main',
+  };
+  if (sha) body.sha = sha;
+  
+  // ✅ Rate Limit Check
+  await githubLimiter.checkLimit();
+  
+  const putResp = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`, 
+    {
+      method: 'PUT',
+      headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }
+  );
+  
+  const json = await putResp.json();
+  if (!putResp.ok) {
+    const status = putResp.status;
+    if (status === 401) throw new Error('GitHub Token ungültig.');
+    if (status === 403) throw new Error('Keine Berechtigung für Datei-Upload.');
+    if (status === 404) throw new Error('Repository nicht gefunden.');
+    throw new Error(json.message || `create/update file failed: ${path}`);
+  }
+  return json;
+};
+
+export const pushFilesToRepo = async (owner: string, repo: string, files: ProjectFile[]) => {
+  const sortedFiles = [...files].sort((a, b) => a.path.localeCompare(b.path));
+  for (const f of sortedFiles) {
+    if (!f.path) continue;
+    console.log(`Pushing ${f.path}...`);
+    await createOrUpdateFile(owner, repo, f.path, f.content, `Add ${f.path}`);
+  }
+};
+
+export const triggerWorkflow = async (
+  owner: string, 
+  repo: string, 
+  workflowFileName = 'eas-build.yml', 
+  ref = 'main', 
+  inputs = {}
+) => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error('GitHub token fehlt.');
+  
+  // ✅ Rate Limit Check
+  await githubLimiter.checkLimit();
+  
+  const url = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowFileName)}/dispatches`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ref, inputs }),
+  });
+  
+  if (resp.status === 204) return { started: true };
+  
+  // ✅ Besseres Error Handling
+  const status = resp.status;
+  if (status === 401) throw new Error('GitHub Token ungültig.');
+  if (status === 403) throw new Error('Keine Berechtigung für Workflow-Trigger.');
+  if (status === 404) {
+    throw new Error(
+      `Workflow nicht gefunden. Stelle sicher, dass '${workflowFileName}' im '.github/workflows' Ordner auf GitHub (Branch 'main') existiert.`
+    );
+  }
+  
+  const json = await resp.json();
+  throw new Error(json.message || 'workflow dispatch failed');
+};
+
+export const getWorkflowRuns = async (
+  owner: string, 
+  repo: string, 
+  workflowFileName = 'eas-build.yml'
+) => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error('GitHub token fehlt.');
+  
+  // ✅ Rate Limit Check
+  await githubLimiter.checkLimit();
+  
+  const url = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowFileName)}/runs?per_page=5`;
+  const resp = await fetch(url, {
+    headers: { Authorization: `token ${token}` },
+  });
+  
+  // ✅ Check Rate Limit Headers
+  const remaining = resp.headers.get('X-RateLimit-Remaining');
+  const reset = resp.headers.get('X-RateLimit-Reset');
+  
+  if (remaining && parseInt(remaining) < 100) {
+    const resetDate = reset ? new Date(parseInt(reset) * 1000).toLocaleTimeString() : 'unbekannt';
+    console.warn(
+      `⚠️ [GitHub API] Niedriges Rate Limit: ${remaining} Anfragen übrig. Reset: ${resetDate}`
+    );
+  }
+  
+  const json = await resp.json();
+  if (!resp.ok) {
+    const status = resp.status;
+    if (status === 401) throw new Error('GitHub Token ungültig.');
+    if (status === 403) throw new Error('Keine Berechtigung für Workflow-Abfrage.');
+    if (status === 404) throw new Error('Workflow oder Repository nicht gefunden.');
+    throw new Error(json.message || 'get runs failed');
+  }
+  return json;
+};
+
+===== FILE: contexts/ProjectContext.tsx =====
+// contexts/ProjectContext.tsx (V15 - ALL CRITICAL FIXES APPLIED)
+import { v4 as uuidv4 } from 'uuid';
+import { Mutex } from 'async-mutex';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  ReactNode,
+} from 'react';
+import { Alert, AppState, AppStateStatus } from 'react-native';
+import { ProjectData, ProjectFile, ChatMessage, ProjectContextProps, AutoFixRequest } from './types';
+import {
+  saveProjectToStorage,
+  loadProjectFromStorage,
+  exportProjectAsZipFile,
+  importProjectFromZipFile,
+} from './projectStorage';
+import {
+  getGitHubToken,
+  getWorkflowRuns,
+} from './githubService';
+// ✅ FIX: Einheitlicher Validator-Wrapper
+import { validateFilePath, validateFileContent } from '../lib/validators';
+
+const loadTemplateFromFile = async (): Promise<ProjectFile[]> => {
+  try {
+    const template = require('../templates/expo-sdk54-base.json');
+    if (!Array.isArray(template) || template.length === 0) {
+      throw new Error('Template ist ungültig');
+    }
+    return template.map((file: any) => ({
+      ...file,
+      content:
+        typeof file.content === 'string'
+          ? file.content
+          : JSON.stringify(file.content ?? '', null, 2),
+    })) as ProjectFile[];
+  } catch (error) {
+    console.error('X Template Fehler:', error);
+    return [{ path: 'README.md', content: '# Template Fehler' }];
+  }
+};
+
+const SAVE_DEBOUNCE_MS = 500;
+const ProjectContext = createContext<ProjectContextProps | undefined>(undefined);
+
+export {
+  getGitHubToken,
+  saveGitHubToken,
+  saveExpoToken,
+  getExpoToken,
+  syncRepoSecrets,
+} from './githubService';
+
+export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [projectData, setProjectData] = useState<ProjectData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentBuild, setCurrentBuild] = useState<{ status: 'idle' | 'queued' | 'building' | 'completed' | 'error'; message?: string } | null>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const mutexRef = useRef(new Mutex());
+
+  const [autoFixRequest, setAutoFixRequest] = useState<AutoFixRequest | null>(null);
+
+  const debouncedSave = useCallback((project: ProjectData) => {
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      // ✅ FIX: error typed (noImplicitAny)
+      saveProjectToStorage(project).catch((error: unknown) => {
+        console.error('[ProjectContext] Save error:', error);
+      });
+    }, SAVE_DEBOUNCE_MS);
+  }, []);
+
+  const updateProject = useCallback(
+    async (updater: (prev: ProjectData) => ProjectData) => {
+      const release = await mutexRef.current.acquire();
+      try {
+        setProjectData(prev => {
+          if (!prev) return prev;
+          const updated = updater(prev);
+          const finalProject = {
+            ...updated,
+            lastModified: new Date().toISOString()
+          };
+          debouncedSave(finalProject);
+          return finalProject;
+        });
+      } catch (error) {
+        console.error('[ProjectContext] Update error:', error);
+      } finally {
+        release();
+      }
+    },
+    [debouncedSave],
+  );
+
+  const updateProjectFiles = useCallback(
+    async (files: ProjectFile[], newName?: string) => {
+      await updateProject(prev => {
+        const fileMap = new Map(prev.files.map(f => [f.path, f]));
+        files.forEach(file => {
+          fileMap.set(file.path, file);
+        });
+        const mergedFiles = Array.from(fileMap.values());
+        console.log(`📝 Dateien aktualisiert: ${files.length} geändert, ${mergedFiles.length} gesamt`);
+        return {
+          ...prev,
+          files: mergedFiles,
+          name: newName || prev.name,
+        };
+      });
+    },
+    [updateProject],
+  );
+
+  const setProjectName = useCallback(
+    async (newName: string) => {
+      await updateProject(prev => ({ ...prev, name: newName }));
+    },
+    [updateProject],
+  );
+
+  const addChatMessage = useCallback(
+    async (message: ChatMessage) => {
+      await updateProject(prev => ({
+        ...prev,
+        chatHistory: [...(prev.chatHistory || []), message],
+      }));
+    },
+    [updateProject],
+  );
+
+  const clearChatHistory = useCallback(async () => {
+    await updateProject(prev => ({
+      ...prev,
+      chatHistory: [],
+    }));
+  }, [updateProject]);
+
+
+  const setPackageName = useCallback(
+    async (packageName: string) => {
+      await updateProject(prev => ({ ...prev, packageName }));
+    },
+    [updateProject],
+  );
+
+  const createNewProject = useCallback(async () => {
+    Alert.alert(
+      'Neues Projekt',
+      'Möchtest du ein neues Projekt erstellen? Der aktuelle Chat und alle Dateien werden zurückgesetzt.',
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Neu erstellen',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsLoading(true);
+              const templateFiles = await loadTemplateFromFile();
+              const newProject: ProjectData = {
+                id: uuidv4(),
+                name: 'Neues Projekt',
+                slug: 'neues-projekt',
+                files: templateFiles,
+                chatHistory: [],
+                createdAt: new Date().toISOString(),
+                lastModified: new Date().toISOString(),
+              };
+
+              const release = await mutexRef.current.acquire();
+              try {
+                setProjectData(newProject);
+                await saveProjectToStorage(newProject);
+              } finally {
+                release();
+              }
+
+              Alert.alert('Erfolg', 'Neues Projekt wurde erstellt!');
+              console.log('✅ Neues Projekt erstellt und gespeichert.');
+            } catch (error: any) {
+              Alert.alert('Fehler', error.message || 'Projekt konnte nicht erstellt werden');
+            } finally {
+              setIsLoading(false);
+            }
+          },
+        },
+      ],
+    );
+  }, []);
+
+  const exportProjectAsZip = useCallback(async () => {
+    if (!projectData) {
+      Alert.alert('Export Fehlgeschlagen', 'Kein Projekt zum Exportieren vorhanden.');
+      return;
+    }
+    try {
+      const result = await exportProjectAsZipFile(projectData);
+      Alert.alert('Export erfolgreich', `${result.fileCount} Dateien als ZIP gespeichert.`);
+    } catch (error: any) {
+      console.error('Fehler beim ZIP-Export:', error);
+      Alert.alert('Export Fehlgeschlagen', error.message || 'Ein unbekannter Fehler ist aufgetreten.');
+    }
+  }, [projectData]);
+
+  const importProjectFromZip = useCallback(async () => {
+    Alert.alert(
+      'Import aus ZIP',
+      'WARNUNG: Überschreibt das aktuelle Projekt. Fortfahren?',
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Auswählen',
+          onPress: async () => {
+            setIsLoading(true);
+            try {
+              const result = await importProjectFromZipFile();
+              result.project.chatHistory = [];
+
+              const release = await mutexRef.current.acquire();
+              try {
+                setProjectData(result.project);
+                await saveProjectToStorage(result.project);
+              } finally {
+                release();
+              }
+
+              Alert.alert('Import erfolgreich', `Projekt "${result.project.name}" importiert (${result.fileCount} Dateien).`);
+            } catch (error: any) {
+              Alert.alert('Import fehlgeschlagen', error.message || 'Fehler beim Importieren');
+            } finally {
+              setIsLoading(false);
+            }
+          },
+        },
+      ],
+    );
+  }, []);
+
+  const createFile = useCallback(
+    async (path: string, content: string) => {
+      const pathValidation = validateFilePath(path);
+      if (!pathValidation.valid) {
+        Alert.alert('Ungültiger Dateipfad', pathValidation.errors.join('\n'));
+        return;
+      }
+
+      const contentValidation = validateFileContent(content);
+      if (!contentValidation.valid) {
+        Alert.alert('Ungültiger Dateiinhalt', contentValidation.error || 'Datei ist zu groß');
+        return;
+      }
+
+      const validPath = pathValidation.normalized || path;
+
+      await updateProject(prev => {
+        if (prev.files.some(f => f.path === validPath)) {
+          Alert.alert('Fehler', 'Eine Datei mit diesem Pfad existiert bereits.');
+          return prev;
+        }
+        return {
+          ...prev,
+          files: [...prev.files, { path: validPath, content }],
+        };
+      });
+    },
+    [updateProject],
+  );
+
+  const deleteFile = useCallback(
+    async (path: string) => {
+      await updateProject(prev => ({
+        ...prev,
+        files: prev.files.filter(f => f.path !== path),
+      }));
+    },
+    [updateProject],
+  );
+
+  const renameFile = useCallback(
+    async (oldPath: string, newPath: string) => {
+      const pathValidation = validateFilePath(newPath);
+      if (!pathValidation.valid) {
+        Alert.alert('Ungültiger Dateipfad', pathValidation.errors.join('\n'));
+        return;
+      }
+
+      const validNewPath = pathValidation.normalized || newPath;
+
+      await updateProject(prev => {
+        if (prev.files.some(f => f.path === validNewPath)) {
+          Alert.alert('Fehler', 'Eine Datei mit dem neuen Pfad existiert bereits.');
+          return prev;
+        }
+        return {
+          ...prev,
+          files: prev.files.map(f =>
+            f.path === oldPath ? { ...f, path: validNewPath } : f,
+          ),
+        };
+      });
+    },
+    [updateProject],
+  );
+
+  const triggerAutoFix = useCallback((message: string) => {
+    const request: AutoFixRequest = {
+      id: uuidv4(),
+      message,
+      timestamp: new Date().toISOString(),
+    };
+    setAutoFixRequest(request);
+    console.log('[ProjectContext] Auto-Fix Request getriggert:', request.id);
+  }, []);
+
+  const clearAutoFixRequest = useCallback(() => {
+    setAutoFixRequest(null);
+    console.log('[ProjectContext] Auto-Fix Request gelöscht');
+  }, []);
+
+  useEffect(() => {
+    const initializeProject = async () => {
+      try {
+        console.log('APP START (Context V15 - ALL CRITICAL FIXES APPLIED)');
+        const savedProject = await loadProjectFromStorage();
+        if (savedProject) {
+          console.log('📖 Projekt geladen:', savedProject.name);
+          if (!savedProject.files) savedProject.files = [];
+          if (!savedProject.chatHistory) {
+            savedProject.chatHistory = [];
+          }
+          setProjectData(savedProject);
+        } else {
+          console.log('Kein Projekt gefunden, lade neues Template...');
+          const templateFiles = await loadTemplateFromFile();
+          const newProject: ProjectData = {
+            id: uuidv4(),
+            name: 'Neues Projekt',
+            slug: 'neues-projekt',
+            files: templateFiles,
+            chatHistory: [],
+            createdAt: new Date().toISOString(),
+            lastModified: new Date().toISOString(),
+          };
+          setProjectData(newProject);
+          await saveProjectToStorage(newProject);
+          console.log('Neues Template-Projekt erstellt und gespeichert.');
+        }
+      } catch (error) {
+        console.error('Fehler beim Laden:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeProject();
+  }, []);
+
+  useEffect(() => {
+    const handleAppStateChange = async (nextState: AppStateStatus) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        console.log('🔄 App geht in Background, flushe ausstehende Saves...');
+        if (saveTimeoutRef.current) {
+          clearTimeout(saveTimeoutRef.current);
+          saveTimeoutRef.current = null;
+        }
+        if (projectData) {
+          try {
+            await saveProjectToStorage(projectData);
+            console.log('✅ Background-Save erfolgreich');
+          } catch (error) {
+            console.error('❌ Background-Save fehlgeschlagen:', error);
+          }
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, [projectData]);
+
+
+  const valueShimExportAndBuild = useCallback(async () => {
+    return null;
+  }, []);
+
+  const startBuild = useCallback(async () => {
+    try {
+      setCurrentBuild({ status: 'queued' });
+      setCurrentBuild({ status: 'building' });
+      await Promise.resolve();
+      await valueShimExportAndBuild();
+      setCurrentBuild({ status: 'completed' });
+    } catch (e: any) {
+      setCurrentBuild({ status: 'error', message: e?.message || String(e) });
+    }
+  }, []);
+
+  const value: ProjectContextProps = {
+    projectData,
+    isLoading,
+    startBuild,
+    currentBuild,
+    updateProjectFiles,
+    addChatMessage,
+    clearChatHistory,
+    getGitHubToken,
+    getWorkflowRuns,
+    createFile,
+    deleteFile,
+    renameFile,
+    setPackageName,
+    exportProjectAsZip,
+    importProjectFromZip,
+    createNewProject,
+    setProjectName,
+    messages: projectData?.chatHistory?.filter(msg => msg && msg.id) || [],
+    autoFixRequest,
+    triggerAutoFix,
+    clearAutoFixRequest,
+    exportAndBuild: async () => {
+      Alert.alert('Fehler', 'exportAndBuild ist veraltet.');
+      return null;
+    },
+  };
+
+  return (
+    <ProjectContext.Provider value={value}>
+      {children}
+    </ProjectContext.Provider>
+  );
+};
+
+export const useProject = (): ProjectContextProps => {
+  const context = useContext(ProjectContext);
+  if (!context) {
+    throw new Error('useProject must be used within a ProjectProvider');
+  }
+  return context;
+};
+
+===== FILE: contexts/projectStorage.ts =====
+// contexts/projectStorage.ts (V2.0 - MIT ECHTER ZIP-LOGIK)
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ProjectData, ProjectFile, ChatMessage } from './types';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as DocumentPicker from 'expo-document-picker';
+import * as Sharing from 'expo-sharing';
+import { v4 as uuidv4 } from 'uuid';
+
+// ✅ Phase 1 Step 3: normalizePath aus lib/validators statt utils/chatUtils
+import { normalizePath, Validators, validateFilePath, validateFileContent, validateZipImport } from '../lib/validators';
+
+import { zip, unzip } from 'react-native-zip-archive';
+
+const PROJECT_STORAGE_KEY = 'k1w1_project_data';
+const CACHE_DIR = FileSystem.cacheDirectory + 'zip_temp/';
+
+// === HELPER: Verzeichnis rekursiv lesen (wird für ZIP-Import benötigt) ===
+const readDirectoryRecursive = async (dirUri: string, basePath = ''): Promise<ProjectFile[]> => {
+  let files: ProjectFile[] = [];
+  const MAX_FILE_SIZE = Validators.constants.MAX_FILE_SIZE_BYTES;
+  const MAX_TOTAL_FILES = Validators.constants.MAX_FILES_IN_ZIP;
+
+  try {
+    const items = await FileSystem.readDirectoryAsync(dirUri);
+
+    for (const item of items) {
+      // ✅ FIX: Prüfe Dateianzahl NACH dem Hinzufügen, nicht vorher
+      if (files.length >= MAX_TOTAL_FILES) {
+        console.warn(`[projectStorage] Maximale Dateianzahl erreicht: ${MAX_TOTAL_FILES}`);
+        return files;
+      }
+
+      const itemUri = `${dirUri}${item}`;
+      const info = await FileSystem.getInfoAsync(itemUri);
+      const relativePath = basePath ? `${basePath}/${item}` : item;
+
+      if (info.isDirectory) {
+        files = files.concat(await readDirectoryRecursive(itemUri + '/', relativePath));
+      } else {
+        try {
+          // ✅ SICHERHEIT: Dateigröße prüfen
+          const fileInfo = info as { exists: true; size?: number; isDirectory: boolean; uri: string };
+          if (fileInfo.size && fileInfo.size > MAX_FILE_SIZE) {
+            console.warn(
+              `[projectStorage] Datei zu groß, übersprungen: ${relativePath}`,
+              `Größe: ${(fileInfo.size / (1024 * 1024)).toFixed(2)}MB`,
+            );
+            continue;
+          }
+
+          const content = await FileSystem.readAsStringAsync(itemUri, {
+            encoding: FileSystem.EncodingType.UTF8,
+          });
+
+          // ✅ SICHERHEIT: Pfad UND Content validieren
+          const pathValidation = validateFilePath(relativePath);
+          if (!pathValidation.valid) {
+            console.warn(`[projectStorage] Ungültiger Pfad übersprungen: ${relativePath}`, pathValidation.errors);
+            continue;
+          }
+
+          const contentValidation = validateFileContent(content);
+          if (!contentValidation.valid) {
+            console.warn(
+              `[projectStorage] Ungültiger Content übersprungen: ${relativePath}`,
+              contentValidation.error,
+            );
+            continue;
+          }
+
+          const normalizedPath = pathValidation.normalized || normalizePath(relativePath);
+          files.push({ path: normalizedPath, content });
+        } catch (error) {
+          console.warn(`[projectStorage] Konnte nicht lesen: ${relativePath}`, error);
+        }
+      }
+    }
+  } catch (error) {
+    console.error(`[projectStorage] Verzeichnis-Fehler ${dirUri}: `, error);
+  }
+
+  return files;
+};
+
+// === PROJEKT SPEICHERN/LADEN (Unverändert) ===
+export const saveProjectToStorage = async (project: ProjectData): Promise<void> => {
+  try {
+    const projectString = JSON.stringify(project);
+    await AsyncStorage.setItem(PROJECT_STORAGE_KEY, projectString);
+    console.log('💾 Projekt gespeichert:', project.name);
+  } catch (error) {
+    console.error('❌ Fehler beim Speichern:', error);
+    throw new Error('Projekt konnte nicht gespeichert werden');
+  }
+};
+
+export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
+  try {
+    const projectString = await AsyncStorage.getItem(PROJECT_STORAGE_KEY);
+    if (!projectString) {
+      console.log('📂 Kein gespeichertes Projekt gefunden');
+      return null;
+    }
+
+    const project = JSON.parse(projectString);
+    console.log('📖 Projekt geladen:', project.name);
+
+    if (!project.files) {
+      project.files = [];
+      console.log('🔧 files Array repariert');
+    }
+
+    if (!project.chatHistory) {
+      // Repariere alte Speicherstände
+      // Migration: Alte 'messages' Property zu 'chatHistory'
+      const projectWithMessages = project as ProjectData & { messages?: ChatMessage[] };
+      project.chatHistory = projectWithMessages.messages || [];
+      console.log('🔧 chatHistory Array repariert');
+    }
+
+    return project;
+  } catch (error) {
+    console.error('❌ Fehler beim Laden:', error);
+    return null;
+  }
+};
+
+export const clearProjectFromStorage = async (): Promise<void> => {
+  try {
+    await AsyncStorage.removeItem(PROJECT_STORAGE_KEY);
+    console.log('🗑️ Projekt aus Storage gelöscht');
+  } catch (error) {
+    console.error('❌ Fehler beim Löschen:', error);
+    throw new Error('Projekt konnte nicht gelöscht werden');
+  }
+};
+
+// === ECHTE ZIP-FUNKTIONEN ===
+export const exportProjectAsZipFile = async (
+  project: ProjectData,
+): Promise<{
+  projectName: string;
+  fileCount: number;
+  messageCount: number;
+}> => {
+  console.log('🎯 Export-Anfrage für:', project.name);
+  const projectFiles = project.files;
+  const projectName = project.name.replace(/[\s\/]+/g, '_') || 'projekt';
+
+  try {
+    const tempDir = CACHE_DIR + 'projekt-export/';
+    const zipPath = FileSystem.cacheDirectory + `${projectName}.zip`;
+
+    await FileSystem.deleteAsync(tempDir, { idempotent: true });
+    await FileSystem.deleteAsync(zipPath, { idempotent: true });
+    await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
+
+    for (const file of projectFiles) {
+      const contentString =
+        typeof file.content === 'string' ? file.content : JSON.stringify(file.content, null, 2);
+
+      const filePath = `${tempDir}${file.path}`;
+      const dirName = filePath.substring(0, filePath.lastIndexOf('/'));
+
+      if (dirName && dirName !== tempDir.slice(0, -1)) {
+        await FileSystem.makeDirectoryAsync(dirName, { intermediates: true });
+      }
+
+      await FileSystem.writeAsStringAsync(filePath, contentString, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+    }
+
+    const resultPath = await zip(tempDir, zipPath);
+    const shareableUri = resultPath.startsWith('file://') ? resultPath : `file://${resultPath}`;
+
+    if (!(await Sharing.isAvailableAsync())) {
+      throw new Error('Teilen ist auf diesem Gerät nicht verfügbar.');
+    }
+
+    await Sharing.shareAsync(shareableUri, {
+      mimeType: 'application/zip',
+      dialogTitle: `Projekt '${project.name}' exportieren`,
+      UTI: 'com.pkware.zip-archive',
+    });
+
+    await FileSystem.deleteAsync(tempDir, { idempotent: true });
+
+    return {
+      projectName: project.name || 'Unbenannt',
+      fileCount: (project.files || []).length,
+      messageCount: (project.chatHistory || []).length,
+    };
+  } catch (error: unknown) {
+    console.error('❌ Fehler beim ZIP-Export:', error);
+    const errorMessage = error instanceof Error ? error.message : 'ZIP-Export fehlgeschlagen';
+    throw new Error(errorMessage);
+  }
+};
+
+export const importProjectFromZipFile = async (): Promise<{
+  project: ProjectData;
+  fileCount: number;
+  messageCount: number;
+  metadata?: Record<string, unknown>;
+}> => {
+  try {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: 'application/zip',
+      copyToCacheDirectory: true,
+    });
+
+    if (result.canceled || !result.assets?.[0]?.uri) {
+      throw new Error('Import abgebrochen');
+    }
+
+    const zipAsset = result.assets[0];
+    await FileSystem.deleteAsync(CACHE_DIR, { idempotent: true });
+    await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
+
+    console.log('📦 Entpacke...');
+    await unzip(zipAsset.uri, CACHE_DIR);
+
+    const newFiles = await readDirectoryRecursive(CACHE_DIR);
+    if (newFiles.length === 0) throw new Error('ZIP enthält keine Dateien');
+
+    // ✅ SICHERHEIT: Zusätzliche ZIP-Validierung
+    console.log('🔍 Validiere ZIP-Inhalte...');
+    const zipValidation = validateZipImport(newFiles);
+
+    if (!zipValidation.valid) {
+      const errorMsg = [
+        'ZIP-Validierung fehlgeschlagen:',
+        ...zipValidation.errors,
+        `Ungültige Dateien: ${zipValidation.invalidFiles.length}`,
+      ].join('\n');
+
+      console.error('[projectStorage]', errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    if (zipValidation.invalidFiles.length > 0) {
+      console.warn(
+        `[projectStorage] ${zipValidation.invalidFiles.length} ungültige Dateien übersprungen:`,
+        zipValidation.invalidFiles.map((f: { path: string; reason: string }) => `${f.path}: ${f.reason}`),
+      );
+    }
+
+    const validatedFiles = zipValidation.validFiles;
+    const newName = zipAsset.name.replace(/\.zip$/i, '') || 'Importiertes Projekt';
+
+    const newProject: ProjectData = {
+      id: uuidv4(),
+      name: newName,
+      files: validatedFiles,
+      chatHistory: [],
+      createdAt: new Date().toISOString(),
+      lastModified: new Date().toISOString(),
+    };
+
+    console.log(`✅ ZIP-Import erfolgreich: ${validatedFiles.length} Dateien validiert`);
+
+    return {
+      project: newProject,
+      fileCount: validatedFiles.length,
+      messageCount: 0,
+    };
+  } catch (error: unknown) {
+    console.error('❌ Fehler beim ZIP-Import:', error);
+
+    if (error instanceof Error) {
+      if (error.message.includes('Import abgebrochen')) {
+        throw error;
+      }
+      throw new Error(error.message || 'ZIP-Import fehlgeschlagen');
+    }
+
+    throw new Error('ZIP-Import fehlgeschlagen');
+  } finally {
+    await FileSystem.deleteAsync(CACHE_DIR, { idempotent: true }).catch(() => {});
+  }
+};
+
+===== FILE: contexts/types.ts =====
+// contexts/types.ts
+
+export interface ProjectFile {
+  path: string;
+  content: string;
+}
+
+export interface BuildHistoryEntry {
+  id: string;
+  jobId: number;
+  repoName: string;
+  status: 'queued' | 'building' | 'success' | 'failed' | 'error';
+  startedAt: string;
+  completedAt?: string;
+  durationMs?: number;
+  buildProfile?: string;
+  artifactUrl?: string | null;
+  htmlUrl?: string | null;
+  errorMessage?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: string;
+  meta?: {
+    provider?: string;
+    error?: boolean;
+    autoFix?: boolean;
+    planner?: boolean;
+  };
+}
+
+export interface AutoFixRequest {
+  id: string;
+  message: string;
+  timestamp: string;
+}
+
+export interface ProjectData {
+  id?: string;
+  name: string;
+  slug?: string;
+  packageName?: string;
+  files: ProjectFile[];
+  chatHistory: ChatMessage[];
+  messages?: ChatMessage[];
+  createdAt: string;
+  lastModified: string;
+}
+
+export interface ProjectContextProps {
+  projectData: ProjectData | null;
+  isLoading: boolean;
+
+  updateProjectFiles: (files: ProjectFile[], newName?: string) => Promise<void>;
+  createFile: (path: string, content: string) => Promise<void>;
+  deleteFile: (path: string) => Promise<void>;
+  renameFile: (oldPath: string, newPath: string) => Promise<void>;
+
+  setPackageName: (packageName: string) => void;
+  setProjectName: (name: string) => void;
+  createNewProject: () => Promise<void>;
+
+  addChatMessage: (message: ChatMessage) => void;
+  messages: ChatMessage[];
+
+  clearChatHistory: () => void;
+
+  autoFixRequest: AutoFixRequest | null;
+  triggerAutoFix: (message: string) => void;
+  clearAutoFixRequest: () => void;
+
+  startBuild?: () => Promise<void>;
+  currentBuild?: { status: 'idle' | 'queued' | 'building' | 'completed' | 'error'; message?: string } | null;
+
+  exportAndBuild: () => Promise<{ owner: string; repo: string } | null>;
+  exportProjectAsZip: () => Promise<void>;
+  importProjectFromZip: () => Promise<void>;
+
+  getGitHubToken: () => Promise<string | null>;
+  getWorkflowRuns: (
+    owner: string,
+    repo: string,
+    workflowFileName?: string,
+  ) => Promise<{
+    workflow_runs?: Array<{
+      id: number;
+      name: string;
+      status: string;
+      conclusion: string | null;
+      created_at: string;
+      updated_at: string;
+      html_url: string;
+    }>;
+  }>;
+}
+
+===== FILE: lib/RateLimiter.ts =====
+// lib/RateLimiter.ts - Enhanced Rate Limiter mit Token Bucket Algorithm
+
+/**
+ * Provider-spezifische Rate Limit Konfiguration
+ */
+export interface RateLimitConfig {
+  maxRequests: number;
+  windowMs: number;
+  burstLimit?: number; // Maximale Burst-Requests
+}
+
+/**
+ * Rate Limit Status für Monitoring
+ */
+export interface RateLimitStatus {
+  remaining: number;
+  total: number;
+  resetMs: number;
+  isLimited: boolean;
+}
+
+/**
+ * Standard Rate Limits für verschiedene AI-Provider
+ */
+export const PROVIDER_RATE_LIMITS: Record<string, RateLimitConfig> = {
+  groq: { maxRequests: 30, windowMs: 60000, burstLimit: 10 },
+  openai: { maxRequests: 60, windowMs: 60000, burstLimit: 20 },
+  anthropic: { maxRequests: 50, windowMs: 60000, burstLimit: 15 },
+  gemini: { maxRequests: 60, windowMs: 60000, burstLimit: 20 },
+  huggingface: { maxRequests: 20, windowMs: 60000, burstLimit: 5 },
+  default: { maxRequests: 30, windowMs: 60000, burstLimit: 10 },
+};
+
+/**
+ * Simple Rate Limiter mit Sliding Window
+ */
+export class RateLimiter {
+  private requests: number[] = [];
+  private maxRequests: number;
+  private windowMs: number;
+
+  constructor(options: { maxRequests: number; windowMs: number }) {
+    this.maxRequests = options.maxRequests;
+    this.windowMs = options.windowMs;
+  }
+
+  async checkLimit(): Promise<void> {
+    const now = Date.now();
+    
+    // Remove old requests outside the time window
+    this.requests = this.requests.filter(time => now - time < this.windowMs);
+    
+    if (this.requests.length >= this.maxRequests) {
+      const oldestRequest = this.requests[0];
+      const resetTime = oldestRequest + this.windowMs;
+      const waitTime = resetTime - now;
+      
+      console.warn(
+        `[RateLimiter] Limit erreicht (${this.maxRequests}/${this.windowMs}ms). Warte ${Math.ceil(waitTime / 1000)}s...`
+      );
+      
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      
+      // Cleanup after wait
+      this.requests = this.requests.filter(time => Date.now() - time < this.windowMs);
+    }
+    
+    this.requests.push(now);
+  }
+
+  getRemainingRequests(): number {
+    const now = Date.now();
+    this.requests = this.requests.filter(time => now - time < this.windowMs);
+    return Math.max(0, this.maxRequests - this.requests.length);
+  }
+
+  reset(): void {
+    this.requests = [];
+  }
+}
+
+/**
+ * Enhanced Token Bucket Rate Limiter
+ * - Ermöglicht Burst-Traffic bis zu einem Limit
+ * - Tokens werden kontinuierlich nachgefüllt
+ * - Bessere UX bei kurzzeitig erhöhter Last
+ */
+export class TokenBucketRateLimiter {
+  private tokens: number;
+  private maxTokens: number;
+  private refillRate: number; // Tokens pro Millisekunde
+  private lastRefill: number;
+  private burstLimit: number;
+  private waitQueue: Array<{
+    resolve: () => void;
+    tokensNeeded: number;
+  }> = [];
+  private isProcessingQueue: boolean = false;
+
+  constructor(options: RateLimitConfig) {
+    this.maxTokens = options.maxRequests;
+    this.tokens = options.maxRequests;
+    this.refillRate = options.maxRequests / options.windowMs;
+    this.lastRefill = Date.now();
+    this.burstLimit = options.burstLimit ?? Math.ceil(options.maxRequests / 3);
+  }
+
+  /**
+   * Füllt Tokens basierend auf vergangener Zeit nach
+   */
+  private refillTokens(): void {
+    const now = Date.now();
+    const elapsed = now - this.lastRefill;
+    const tokensToAdd = elapsed * this.refillRate;
+    
+    this.tokens = Math.min(this.maxTokens, this.tokens + tokensToAdd);
+    this.lastRefill = now;
+  }
+
+  /**
+   * Verarbeitet wartende Requests in der Queue
+   */
+  private async processQueue(): Promise<void> {
+    if (this.isProcessingQueue) return;
+    this.isProcessingQueue = true;
+
+    while (this.waitQueue.length > 0) {
+      this.refillTokens();
+      
+      const next = this.waitQueue[0];
+      if (this.tokens >= next.tokensNeeded) {
+        this.tokens -= next.tokensNeeded;
+        this.waitQueue.shift();
+        next.resolve();
+      } else {
+        // Warte bis genug Tokens verfügbar sind
+        const tokensNeeded = next.tokensNeeded - this.tokens;
+        const waitTime = Math.ceil(tokensNeeded / this.refillRate);
+        await new Promise(r => setTimeout(r, Math.min(waitTime, 1000)));
+      }
+    }
+
+    this.isProcessingQueue = false;
+  }
+
+  /**
+   * Prüft und wartet auf Rate Limit
+   * @param tokensNeeded - Anzahl benötigter Tokens (Standard: 1)
+   */
+  async checkLimit(tokensNeeded: number = 1): Promise<void> {
+    this.refillTokens();
+
+    // Prüfe Burst-Limit
+    if (tokensNeeded > this.burstLimit) {
+      console.warn(
+        `[TokenBucketRateLimiter] Request überschreitet Burst-Limit (${tokensNeeded} > ${this.burstLimit})`
+      );
+      tokensNeeded = this.burstLimit;
+    }
+
+    if (this.tokens >= tokensNeeded) {
+      this.tokens -= tokensNeeded;
+      return;
+    }
+
+    // Nicht genug Tokens - in Warteschlange einreihen
+    console.warn(
+      `[TokenBucketRateLimiter] Nicht genug Tokens (${this.tokens.toFixed(2)}/${tokensNeeded}). Warte...`
+    );
+
+    return new Promise<void>((resolve) => {
+      this.waitQueue.push({ resolve, tokensNeeded });
+      this.processQueue();
+    });
+  }
+
+  /**
+   * Gibt aktuellen Status zurück
+   */
+  getStatus(): RateLimitStatus {
+    this.refillTokens();
+    const resetMs = this.tokens < this.maxTokens
+      ? Math.ceil((this.maxTokens - this.tokens) / this.refillRate)
+      : 0;
+
+    return {
+      remaining: Math.floor(this.tokens),
+      total: this.maxTokens,
+      resetMs,
+      isLimited: this.tokens < 1,
+    };
+  }
+
+  /**
+   * Gibt verbleibende Tokens zurück (Kompatibilität mit RateLimiter)
+   */
+  getRemainingRequests(): number {
+    this.refillTokens();
+    return Math.floor(this.tokens);
+  }
+
+  /**
+   * Setzt Rate Limiter zurück
+   */
+  reset(): void {
+    this.tokens = this.maxTokens;
+    this.lastRefill = Date.now();
+    this.waitQueue = [];
+  }
+}
+
+/**
+ * Provider-spezifischer Rate Limiter Manager
+ * Verwaltet separate Rate Limiter für jeden AI-Provider
+ */
+export class ProviderRateLimiterManager {
+  private limiters: Map<string, TokenBucketRateLimiter> = new Map();
+  private customConfigs: Map<string, RateLimitConfig> = new Map();
+
+  /**
+   * Setzt benutzerdefinierte Rate Limit Config für einen Provider
+   */
+  setProviderConfig(provider: string, config: RateLimitConfig): void {
+    this.customConfigs.set(provider, config);
+    // Lösche bestehenden Limiter damit er mit neuer Config neu erstellt wird
+    this.limiters.delete(provider);
+  }
+
+  /**
+   * Holt oder erstellt Rate Limiter für einen Provider
+   */
+  private getLimiter(provider: string): TokenBucketRateLimiter {
+    if (!this.limiters.has(provider)) {
+      const config = this.customConfigs.get(provider) 
+        ?? PROVIDER_RATE_LIMITS[provider] 
+        ?? PROVIDER_RATE_LIMITS.default;
+      
+      this.limiters.set(provider, new TokenBucketRateLimiter(config));
+    }
+    return this.limiters.get(provider)!;
+  }
+
+  /**
+   * Prüft Rate Limit für einen Provider
+   */
+  async checkLimit(provider: string, tokensNeeded: number = 1): Promise<void> {
+    const limiter = this.getLimiter(provider);
+    await limiter.checkLimit(tokensNeeded);
+  }
+
+  /**
+   * Gibt Status für einen Provider zurück
+   */
+  getStatus(provider: string): RateLimitStatus {
+    const limiter = this.getLimiter(provider);
+    return limiter.getStatus();
+  }
+
+  /**
+   * Gibt alle Provider-Status zurück
+   */
+  getAllStatus(): Record<string, RateLimitStatus> {
+    const status: Record<string, RateLimitStatus> = {};
+    for (const [provider, limiter] of this.limiters) {
+      status[provider] = limiter.getStatus();
+    }
+    return status;
+  }
+
+  /**
+   * Setzt Rate Limiter für einen Provider zurück
+   */
+  resetProvider(provider: string): void {
+    this.limiters.get(provider)?.reset();
+  }
+
+  /**
+   * Setzt alle Rate Limiter zurück
+   */
+  resetAll(): void {
+    for (const limiter of this.limiters.values()) {
+      limiter.reset();
+    }
+  }
+}
+
+// Globale Instanz des Provider Rate Limiter Managers
+export const providerRateLimiter = new ProviderRateLimiterManager();
+
+===== FILE: lib/validators.ts =====
+// lib/validators.ts
+// Sicherheits-Validatoren für Chat/Import/Files
+// Ziel: deterministisch, testbar, und als "Gatekeeper" für LLM-Dateiänderungen.
+
+import { z } from 'zod';
+import { CONFIG } from '../config';
+
+export type ValidationResult = { valid: true; errors: string[] } | { valid: false; errors: string[] };
+
+const bytesToMB = (bytes: number) => Math.round((bytes / (1024 * 1024)) * 100) / 100;
+
+/**
+ * Projekt-Policy (Single Source of Truth):
+ * - Root-Dateien nur über CONFIG.PATHS.ALLOWED_ROOT
+ * - Unterordner nur über CONFIG.PATHS.SRC_FOLDERS (plus .github)
+ */
+const ROOT_ALLOWLIST = new Set<string>([...((CONFIG as any)?.PATHS?.ALLOWED_ROOT ?? [])]);
+const ALLOWED_TOP_LEVEL_DIRS = new Set<string>([...((CONFIG as any)?.PATHS?.SRC_FOLDERS ?? []), '.github']);
+
+const hasAllowedExtension = (normalizedPath: string): boolean => {
+  const allowed: string[] = ((CONFIG as any)?.PATHS?.ALLOWED_EXT ?? []) as string[];
+  if (!allowed || allowed.length === 0) return true;
+
+  const base = normalizedPath.split('/').pop() ?? normalizedPath;
+  // Special case: filenames like ".gitignore" are listed as "extensions" in config.
+  if (allowed.includes(base)) return true;
+
+  return allowed.some((ext) => normalizedPath.endsWith(ext));
+};
+
+const INVALID_PATH_CHARS = /[\\:*?"<>|]/; // Windows reserved
+const INVALID_PATH_SEGMENT = /(^|\/)\.(\/|$)|(^|\/)\.\.(\/|$)/; // . or ..
+const LEADING_DOTSLASH = /^\.\//;
+
+// ✅ FIX (einziger inhaltlicher Change): führendes "./" entfernen (auch mehrfach)
+export const normalizePath = (p: string) =>
+  p
+    .replace(/\r/g, '')
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '')
+    .replace(/^(\.\/)+/, '') // führende "./" Segmente entfernen
+    .replace(/\/+$/g, '')
+    .replace(/\/{2,}/g, '/');
+
+export const FilePathSchema = z.string().min(1);
+export const FileContentSchema = z.string(); // content can be empty (tests expect empty allowed)
+export const GitHubRepoSchema = z.string().min(1);
+export const ChatInputSchema = z.string().min(1);
+
+export const validateFilePath = (path: string): { valid: boolean; errors: string[]; normalized?: string } => {
+  const errors: string[] = [];
+  if (!path || typeof path !== 'string' || path.trim().length === 0) {
+    return { valid: false, errors: ['Pfad ist leer'] };
+  }
+
+  const normalized = normalizePath(path);
+
+  // Must not keep leading "./" (tests expect reject in validateFilePath)
+  if (LEADING_DOTSLASH.test(path.trim())) {
+    errors.push('Pfad darf nicht mit ./ beginnen');
+  }
+
+  if (normalized.length > ((CONFIG as any)?.PATHS?.MAX_PATH_LENGTH ?? 255)) {
+    errors.push('Pfad ist zu lang');
+  }
+
+  if (normalized.startsWith('/') || normalized.startsWith('\\')) {
+    errors.push('Pfad darf nicht absolut sein');
+  }
+
+  if (INVALID_PATH_SEGMENT.test('/' + normalized + '/')) {
+    errors.push('Pfad enthält ungültige Segmente');
+  }
+
+  if (INVALID_PATH_CHARS.test(normalized) || /[<>]/.test(normalized)) {
+    errors.push('Ungültige Zeichen im Pfad');
+  }
+
+  // Disallow node_modules & native folders via policy
+  if (normalized === 'node_modules' || normalized.startsWith('node_modules/')) {
+    errors.push('node_modules ist nicht erlaubt');
+  }
+  if (normalized === 'android' || normalized.startsWith('android/')) {
+    errors.push('android ist nicht erlaubt');
+  }
+  if (normalized === 'ios' || normalized.startsWith('ios/')) {
+    errors.push('ios ist nicht erlaubt');
+  }
+
+  // Root policy: allowlist only
+  if (!normalized.includes('/')) {
+    if (!ROOT_ALLOWLIST.has(normalized)) {
+      errors.push('Root-Dateien sind nur über eine Allowlist erlaubt');
+    }
+  } else {
+    const top = normalized.split('/')[0];
+    if (!ALLOWED_TOP_LEVEL_DIRS.has(top)) {
+      errors.push(`Ordner "${top}" ist nicht erlaubt`);
+    }
+  }
+
+  // Extension policy (keeps chat-utils + file-writer consistent)
+  if (normalized && !hasAllowedExtension(normalized)) {
+    errors.push('Ungültige Dateiendung');
+  }
+
+  return { valid: errors.length === 0, errors, normalized };
+};
+
+export const validateFileContent = (
+  content: string
+): { valid: boolean; error?: string; sizeBytes: number; sizeMB: number } => {
+  // Ensure string
+  const safe = typeof content === 'string' ? content : String(content ?? '');
+  const sizeBytes = Buffer.byteLength(safe, 'utf8');
+  const sizeMB = bytesToMB(sizeBytes);
+
+  const maxBytes = (() => {
+    const cfg = CONFIG?.VALIDATION as any;
+    // prefer bytes if present, otherwise MB fallback to 10MB
+    const maxBytesDirect = Number(cfg?.MAX_FILE_SIZE_BYTES);
+    if (Number.isFinite(maxBytesDirect) && maxBytesDirect > 0) return maxBytesDirect;
+    const maxMB = Number(cfg?.MAX_FILE_SIZE_MB);
+    if (Number.isFinite(maxMB) && maxMB > 0) return Math.floor(maxMB * 1024 * 1024);
+    return 10 * 1024 * 1024; // tests expect 10MB ok, 11MB rejected
+  })();
+
+  if (sizeBytes > maxBytes) {
+    return { valid: false, error: `Content ist zu groß (${sizeMB}MB)`, sizeBytes, sizeMB };
+  }
+  return { valid: true, sizeBytes, sizeMB };
+};
+
+export const validateGitHubRepo = (
+  repo: string
+): { valid: boolean; error?: string; owner?: string; name?: string } => {
+  const raw = (repo ?? '').trim();
+  if (!raw) return { valid: false, error: 'Repo ist leer' };
+  // only "owner/name" (single slash), no leading/trailing slash
+  const m = raw.match(/^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/);
+  if (!m) return { valid: false, error: 'Repo muss im Format owner/repo sein' };
+  return { valid: true, owner: m[1], name: m[2] };
+};
+
+const XSS_DANGEROUS = /(script\b|iframe\b|on\w+\s*=|javascript:|data:text\/html)/i;
+export const sanitizeChat = (input: string) => {
+  // Keep harmless tags, but neutralize dangerous patterns
+  let out = input;
+  // remove script/iframe tags content
+  out = out.replace(/<\s*script[^>]*>[\s\S]*?<\s*\/\s*script\s*>/gi, '');
+  out = out.replace(/<\s*iframe[^>]*>[\s\S]*?<\s*\/\s*iframe\s*>/gi, '');
+  // remove event handlers: onclick="..."
+  out = out.replace(/\son\w+\s*=\s*(['"]).*?\1/gi, '');
+  // neutralize javascript: URLs
+  out = out.replace(/javascript:/gi, '');
+  return out;
+};
+
+export const validateChatInput = (
+  input: string
+): { valid: boolean; error?: string; sanitized?: string; hadXSS?: boolean } => {
+  const raw = typeof input === 'string' ? input : String(input ?? '');
+  if (raw.trim().length === 0) return { valid: false, error: 'Nachricht ist leer' };
+  if (raw.length > 10000) return { valid: false, error: 'Nachricht ist zu lang' };
+
+  const hadXSS = XSS_DANGEROUS.test(raw);
+  const sanitized = hadXSS ? sanitizeChat(raw) : raw;
+
+  return { valid: true, sanitized, hadXSS };
+};
+
+export type ZipFileEntry = { path: string; content: string };
+
+export const validateZipImport = (
+  files: ZipFileEntry[]
+): {
+  valid: boolean;
+  validFiles: { path: string; content: string }[];
+  invalidFiles: { path: string; reason: string }[];
+  errors: string[];
+} => {
+  const errors: string[] = [];
+  const validFiles: { path: string; content: string }[] = [];
+  const invalidFiles: { path: string; reason: string }[] = [];
+
+  const maxFiles = CONFIG?.VALIDATION?.MAX_FILES ?? 200;
+
+  if (!Array.isArray(files)) {
+    return { valid: false, validFiles: [], invalidFiles: [], errors: ['Import ist kein Array'] };
+  }
+
+  if (files.length > maxFiles) {
+    errors.push(`Zu viele Dateien (max ${maxFiles})`);
+  }
+
+  for (const f of files) {
+    const p = normalizePath(String(f?.path ?? ''));
+    const c = typeof f?.content === 'string' ? f.content : String(f?.content ?? '');
+
+    const pRes = validateFilePath(p);
+    if (!pRes.valid) {
+      invalidFiles.push({ path: p || '(leer)', reason: pRes.errors.join('; ') });
+      continue;
+    }
+
+    const cRes = validateFileContent(c);
+    if (!cRes.valid) {
+      invalidFiles.push({ path: pRes.normalized || p, reason: cRes.error || 'Ungültiger Content' });
+      continue;
+    }
+
+    validFiles.push({ path: pRes.normalized || p, content: c });
+  }
+
+  if (invalidFiles.length > 0) errors.push('Einige Dateien sind ungültig');
+
+  return { valid: errors.length === 0 && invalidFiles.length === 0, validFiles, invalidFiles, errors };
+};
+
+// Backwards-compat: einige Stellen erwarten Validators.constants
+export const Validators = {
+  constants: {
+    MAX_FILES: CONFIG?.VALIDATION?.MAX_FILES ?? 200,
+    MAX_FILES_IN_ZIP: CONFIG?.VALIDATION?.MAX_FILES ?? 200,
+    MAX_FILE_SIZE_BYTES: (() => {
+      const cfg: any = CONFIG?.VALIDATION;
+      const b = Number(cfg?.MAX_FILE_SIZE_BYTES);
+      if (Number.isFinite(b) && b > 0) return b;
+      const mb = Number(cfg?.MAX_FILE_SIZE_MB);
+      if (Number.isFinite(mb) && mb > 0) return Math.floor(mb * 1024 * 1024);
+      return 10 * 1024 * 1024;
+    })(),
+    MAX_FILE_SIZE: (() => {
+      const cfg = CONFIG?.VALIDATION as any;
+      const b = Number(cfg?.MAX_FILE_SIZE_BYTES);
+      if (Number.isFinite(b) && b > 0) return b;
+      const mb = Number(cfg?.MAX_FILE_SIZE_MB);
+      if (Number.isFinite(mb) && mb > 0) return Math.floor(mb * 1024 * 1024);
+      return 10 * 1024 * 1024;
+    })(),
+  },
+};
+
+===== FILE: screens/CodeScreen.tsx =====
+// screens/CodeScreen.tsx - MODERN MOBILE FILE EDITOR WITH EXPORT
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  Platform,
+  TextInput,
+  KeyboardAvoidingView,
+  Image,
+  ScrollView,
+  Share,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { theme } from '../theme';
+import { useProject } from '../contexts/ProjectContext';
+import { ProjectFile } from '../contexts/types';
+import { SyntaxHighlighter } from '../components/SyntaxHighlighter';
+import { buildFileTree, findFolderContent, TreeNode } from '../components/FileTree';
+import { Breadcrumb } from '../components/Breadcrumb';
+import { FileItem } from '../components/FileItem';
+import { CreationDialog } from '../components/CreationDialog';
+import { FileActionsModal } from '../components/FileActionsModal';
+import { validateSyntax, validateCodeQuality, SyntaxError as ValidationError } from '../utils/syntaxValidator';
+
+type ViewState = 'explorer' | 'editor' | 'image';
+
+const CodeScreen = () => {
+  const {
+    projectData,
+    isLoading,
+    updateProjectFiles,
+    createFile,
+    deleteFile,
+    renameFile,
+  } = useProject();
+
+  // Editor State
+  const [selectedFile, setSelectedFile] = useState<ProjectFile | null>(null);
+  const [editingContent, setEditingContent] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('preview');
+  const [syntaxErrors, setSyntaxErrors] = useState<ValidationError[]>([]);
+
+  // Explorer State
+  const [currentFolderPath, setCurrentFolderPath] = useState<string>('');
+  const [showCreationDialog, setShowCreationDialog] = useState(false);
+
+  // Selection & Export State
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+
+  // Actions Modal State
+  const [showActionsModal, setShowActionsModal] = useState(false);
+  const [actionTargetFile, setActionTargetFile] = useState<ProjectFile | null>(null);
+
+  const fileTree = useMemo(() => {
+    if (projectData?.files) return buildFileTree(projectData.files);
+    return [];
+  }, [projectData?.files]);
+
+  const currentFolderItems = useMemo(() => {
+    return findFolderContent(fileTree, currentFolderPath);
+  }, [fileTree, currentFolderPath]);
+
+  const allFolders = useMemo(() => {
+    const folders: string[] = [];
+    const extractFolders = (nodes: TreeNode[], prefix = '') => {
+      nodes.forEach(node => {
+        if (node.type === 'folder') {
+          folders.push(node.path);
+          if (node.children) {
+            extractFolders(node.children, node.path);
+          }
+        }
+      });
+    };
+    extractFolders(fileTree);
+    return folders;
+  }, [fileTree]);
+
+  // Validate syntax while editing (with debounce)
+  useEffect(() => {
+    if (!selectedFile || viewMode !== 'edit' || !editingContent.trim()) {
+      setSyntaxErrors([]);
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      try {
+        const errors = [
+          ...validateSyntax(editingContent, selectedFile.path),
+          ...validateCodeQuality(editingContent, selectedFile.path),
+        ];
+        setSyntaxErrors(errors);
+      } catch (error) {
+        // Silently handle validation errors
+        setSyntaxErrors([]);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [editingContent, selectedFile, viewMode]);
+
+  // File Selection Handlers
+  const toggleFileSelection = (filePath: string) => {
+    setSelectedFiles(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(filePath)) {
+        newSet.delete(filePath);
+      } else {
+        newSet.add(filePath);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllFiles = () => {
+    const allFiles = projectData?.files.filter(f => !f.path.includes('node_modules')).map(f => f.path) || [];
+    setSelectedFiles(new Set(allFiles));
+  };
+
+  const deselectAllFiles = () => {
+    setSelectedFiles(new Set());
+  };
+
+  // Export Functionality
+  const exportSelectedFilesAsTxt = async () => {
+    if (selectedFiles.size === 0) {
+      Alert.alert('Keine Dateien', 'Bitte wählen Sie mindestens eine Datei zum Export aus');
+      return;
+    }
+
+    try {
+      const files = projectData?.files.filter(f => selectedFiles.has(f.path)) || [];
+
+      let content = `# ${projectData?.name || 'Project'} - Code Export\n`;
+      content += `# Erstellt am: ${new Date().toLocaleString('de-DE')}\n`;
+      content += `# Anzahl Dateien: ${files.length}\n`;
+      content += `\n${'='.repeat(80)}\n\n`;
+
+      files.forEach((file, index) => {
+        const fileContent = typeof file.content === 'string'
+          ? file.content
+          : JSON.stringify(file.content, null, 2);
+
+        content += `\n### DATEI ${index + 1}: ${file.path}\n`;
+        content += `${'─'.repeat(80)}\n\n`;
+        content += fileContent;
+        content += `\n\n${'='.repeat(80)}\n`;
+      });
+
+      const fileName = `${projectData?.name || 'export'}_${Date.now()}.txt`;
+
+      // ✅ TS-safe across Expo versions (some type defs are missing these fields)
+      const baseDir =
+        (FileSystem as any).documentDirectory ??
+        (FileSystem as any).cacheDirectory ??
+        '';
+      const fileUri = `${baseDir}${fileName}`;
+
+      const encoding =
+        (FileSystem as any).EncodingType?.UTF8 ?? 'utf8';
+
+      await (FileSystem as any).writeAsStringAsync(fileUri, content, {
+        encoding,
+      });
+
+      // Share the file
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/plain',
+          dialogTitle: 'Code exportieren',
+        });
+      } else {
+        Alert.alert('✅ Exportiert', `Datei gespeichert als: ${fileName}`);
+      }
+
+      // Exit selection mode
+      setSelectionMode(false);
+      setSelectedFiles(new Set());
+    } catch (error) {
+      Alert.alert('Fehler', 'Export fehlgeschlagen: ' + (error as Error).message);
+    }
+  };
+
+  // File Actions
+  const handleItemPress = useCallback((node: TreeNode) => {
+    if (selectionMode && node.type === 'file' && node.file) {
+      toggleFileSelection(node.file.path);
+      return;
+    }
+
+    if (node.type === 'folder') {
+      setCurrentFolderPath(node.path);
+    } else if (node.file) {
+      const contentString =
+        typeof node.file.content === 'string'
+          ? node.file.content
+          : JSON.stringify(node.file.content, null, 2);
+      setSelectedFile(node.file);
+      setEditingContent(contentString);
+      setViewMode('preview');
+      setSyntaxErrors([]);
+    }
+  }, [selectionMode]);
+
+  const handleItemLongPress = (node: TreeNode) => {
+    if (selectionMode) return;
+
+    if (node.type === 'folder') {
+      // Folder actions
+      Alert.alert(
+        node.name,
+        'Ordner-Aktion wählen:',
+        [
+          {
+            text: 'Löschen',
+            style: 'destructive',
+            onPress: () => {
+              Alert.alert(
+                'Ordner löschen',
+                `Ordner "${node.name}" und alle Inhalte wirklich löschen?`,
+                [
+                  { text: 'Abbrechen', style: 'cancel' },
+                  {
+                    text: 'Löschen',
+                    style: 'destructive',
+                    onPress: () => {
+                      // Delete all files in folder
+                      const filesToDelete = projectData?.files.filter(f =>
+                        f.path.startsWith(node.path + '/')
+                      ) || [];
+                      filesToDelete.forEach(f => deleteFile(f.path));
+                    },
+                  },
+                ],
+              );
+            },
+          },
+          { text: 'Abbrechen', style: 'cancel' },
+        ]
+      );
+    } else if (node.file) {
+      setActionTargetFile(node.file);
+      setShowActionsModal(true);
+    }
+  };
+
+  const handleRenameFile = (newName: string) => {
+    if (!actionTargetFile) return;
+
+    const oldPath = actionTargetFile.path;
+    const pathParts = oldPath.split('/');
+    pathParts[pathParts.length - 1] = newName;
+    const newPath = pathParts.join('/');
+
+    renameFile(oldPath, newPath);
+
+    if (selectedFile?.path === oldPath) {
+      setSelectedFile({ ...actionTargetFile, path: newPath });
+    }
+  };
+
+  const handleMoveFile = (targetFolder: string) => {
+    if (!actionTargetFile) return;
+
+    const fileName = actionTargetFile.path.split('/').pop() || '';
+    const newPath = targetFolder ? `${targetFolder}/${fileName}` : fileName;
+
+    renameFile(actionTargetFile.path, newPath);
+
+    if (selectedFile?.path === actionTargetFile.path) {
+      setSelectedFile({ ...actionTargetFile, path: newPath });
+    }
+  };
+
+  const handleDeleteFile = () => {
+    if (!actionTargetFile) return;
+
+    deleteFile(actionTargetFile.path);
+
+    if (selectedFile?.path === actionTargetFile.path) {
+      setSelectedFile(null);
+      setEditingContent('');
+    }
+  };
+
+  const handleDuplicateFile = () => {
+    if (!actionTargetFile) return;
+
+    const ext = actionTargetFile.path.split('.').pop() || '';
+    const baseName = actionTargetFile.path.replace(`.${ext}`, '');
+    const newPath = `${baseName}_copy.${ext}`;
+
+    createFile(newPath, actionTargetFile.content);
+    Alert.alert('✅ Dupliziert', `Neue Datei erstellt: ${newPath}`);
+  };
+
+  const handleCreateFile = (name: string) => {
+    const fullPath = currentFolderPath ? `${currentFolderPath}/${name}` : name;
+    const ext = name.includes('.') ? '' : '.tsx';
+    const finalPath = fullPath + ext;
+    createFile(finalPath, `// ${finalPath}\n`);
+
+    // Auto-open new file
+    const newFile: ProjectFile = { path: finalPath, content: `// ${finalPath}\n` };
+    setSelectedFile(newFile);
+    setEditingContent(`// ${finalPath}\n`);
+    setViewMode('edit');
+  };
+
+  const handleCreateFolder = (name: string) => {
+    const fullPath = currentFolderPath ? `${currentFolderPath}/${name}` : name;
+    createFile(`${fullPath}/.gitkeep`, '');
+    Alert.alert('✅ Erfolg', `Ordner "${name}" erstellt`);
+  };
+
+  const handleSaveFile = useCallback(() => {
+    if (!selectedFile) return;
+
+    try {
+      const errors = validateSyntax(editingContent, selectedFile.path);
+      const criticalErrors = errors.filter((e) => e.severity === 'error');
+
+      if (criticalErrors.length > 0) {
+        const errorList = criticalErrors.map((e) => `• ${e.message}`).join('\n');
+        Alert.alert(
+          'Syntax-Fehler',
+          `Die folgenden Fehler wurden gefunden:\n\n${errorList}\n\nTrotzdem speichern?`,
+          [
+            { text: 'Abbrechen', style: 'cancel' },
+            {
+              text: 'Trotzdem speichern',
+              style: 'destructive',
+              onPress: () => {
+                updateProjectFiles([{ path: selectedFile.path, content: editingContent }]);
+                setSelectedFile((prev) => (prev ? { ...prev, content: editingContent } : null));
+                Alert.alert('✅ Gespeichert', selectedFile.path);
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      updateProjectFiles([{ path: selectedFile.path, content: editingContent }]);
+      setSelectedFile((prev) => (prev ? { ...prev, content: editingContent } : null));
+      Alert.alert('✅ Gespeichert', selectedFile.path);
+    } catch (error) {
+      Alert.alert('Fehler', 'Datei konnte nicht gespeichert werden.');
+    }
+  }, [selectedFile, editingContent, updateProjectFiles]);
+
+  const handleCopy = useCallback((content: string) => {
+    Clipboard.setStringAsync(content);
+    Alert.alert('✅ Kopiert', 'Code in Zwischenablage kopiert');
+  }, []);
+
+  if (isLoading && !projectData) {
+    return (
+      <SafeAreaView style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color={theme.palette.primary} />
+        <Text style={styles.loadingText}>Projekt wird geladen...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  // ==================== IMAGE VIEWER ====================
+  if (selectedFile && /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(selectedFile.path)) {
+    const base64Content = typeof editingContent === 'string' ? editingContent : '';
+    const imageUri = base64Content.startsWith('data:image')
+      ? base64Content
+      : `data:image/png;base64,${base64Content}`;
+
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.editorHeader}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => setSelectedFile(null)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="arrow-back" size={24} color={theme.palette.primary} />
+            <Text style={styles.fileName} numberOfLines={1}>
+              {selectedFile.path}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => handleCopy(editingContent)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="copy-outline" size={22} color={theme.palette.primary} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={styles.imageScrollContainer}>
+          <View style={styles.imageContainer}>
+            <Image
+              source={{ uri: imageUri }}
+              style={styles.imagePreview}
+              resizeMode="contain"
+            />
+            <Text style={styles.imageInfo}>
+              {selectedFile.path} • {(base64Content.length / 1024).toFixed(1)} KB
+            </Text>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // ==================== CODE EDITOR (FULLSCREEN) ====================
+  if (selectedFile) {
+    const isDirty = selectedFile.content !== editingContent;
+    const isCodeFile = /\.(tsx?|jsx?|json|md|css|scss|html|xml|yaml|yml)$/i.test(
+      selectedFile.path,
+    );
+
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <KeyboardAvoidingView
+          style={styles.container}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          {/* HEADER */}
+          <View style={styles.editorHeader}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => {
+                if (isDirty) {
+                  Alert.alert(
+                    'Ungespeicherte Änderungen',
+                    'Möchten Sie die Änderungen speichern?',
+                    [
+                      { text: 'Verwerfen', style: 'destructive', onPress: () => setSelectedFile(null) },
+                      { text: 'Speichern', onPress: () => { handleSaveFile(); setSelectedFile(null); } },
+                      { text: 'Abbrechen', style: 'cancel' },
+                    ]
+                  );
+                } else {
+                  setSelectedFile(null);
+                }
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="arrow-back" size={24} color={theme.palette.primary} />
+              <Text style={styles.fileName} numberOfLines={1}>
+                {selectedFile.path.split('/').pop()}
+                {isDirty ? ' •' : ''}
+              </Text>
+            </TouchableOpacity>
+
+            <View style={styles.editorActions}>
+              {isCodeFile && (
+                <TouchableOpacity
+                  onPress={() =>
+                    setViewMode((prev) => (prev === 'edit' ? 'preview' : 'edit'))
+                  }
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  style={styles.actionButton}
+                >
+                  <Ionicons
+                    name={viewMode === 'edit' ? 'eye' : 'create'}
+                    size={22}
+                    color={theme.palette.primary}
+                  />
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                onPress={() => handleCopy(editingContent)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={styles.actionButton}
+              >
+                <Ionicons name="copy-outline" size={22} color={theme.palette.primary} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleSaveFile}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={[styles.actionButton, isDirty && styles.actionButtonHighlight]}
+              >
+                <Ionicons
+                  name={isDirty ? 'save' : 'checkmark-circle'}
+                  size={22}
+                  color={isDirty ? '#fff' : theme.palette.success}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* SYNTAX ERRORS */}
+          {syntaxErrors.length > 0 && viewMode === 'edit' && (
+            <ScrollView
+              style={styles.errorContainer}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+            >
+              {syntaxErrors.map((error, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.errorBadge,
+                    error.severity === 'error' ? styles.errorBadgeError : styles.errorBadgeWarning,
+                  ]}
+                >
+                  <Ionicons
+                    name={error.severity === 'error' ? 'close-circle' : 'warning'}
+                    size={14}
+                    color={error.severity === 'error' ? theme.palette.error : theme.palette.warning}
+                  />
+                  <Text
+                    style={[
+                      styles.errorBadgeText,
+                      error.severity === 'error' ? styles.errorTextError : styles.errorTextWarning,
+                    ]}
+                  >
+                    {error.line ? `Line ${error.line}: ` : ''}
+                    {error.message}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+
+          {/* EDITOR / PREVIEW */}
+          {viewMode === 'edit' ? (
+            <TextInput
+              style={[
+                styles.codeEditor,
+                syntaxErrors.some((e) => e.severity === 'error') && styles.codeEditorError,
+              ]}
+              value={editingContent}
+              onChangeText={setEditingContent}
+              multiline
+              autoCapitalize="none"
+              autoCorrect={false}
+              spellCheck={false}
+              textAlignVertical="top"
+              placeholder="// Code eingeben..."
+              placeholderTextColor={theme.palette.text.secondary}
+            />
+          ) : (
+            <ScrollView style={styles.previewContainer}>
+              <SyntaxHighlighter code={editingContent} />
+            </ScrollView>
+          )}
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
+
+  // ==================== FILE EXPLORER ====================
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* HEADER */}
+      <View style={styles.explorerHeader}>
+        {selectionMode ? (
+          <>
+            <View style={styles.selectionHeader}>
+              <TouchableOpacity
+                onPress={() => {
+                  setSelectionMode(false);
+                  setSelectedFiles(new Set());
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close" size={24} color={theme.palette.text.primary} />
+              </TouchableOpacity>
+              <Text style={styles.selectionCount}>
+                {selectedFiles.size} ausgewählt
+              </Text>
+            </View>
+            <View style={styles.selectionActions}>
+              <TouchableOpacity
+                onPress={selectAllFiles}
+                style={styles.selectionButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={styles.selectionButtonText}>Alle</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={deselectAllFiles}
+                style={styles.selectionButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={styles.selectionButtonText}>Keine</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={exportSelectedFilesAsTxt}
+                style={[styles.exportButton, selectedFiles.size === 0 && styles.exportButtonDisabled]}
+                disabled={selectedFiles.size === 0}
+              >
+                <Ionicons name="download" size={20} color="#fff" />
+                <Text style={styles.exportButtonText}>Export</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          <>
+            <Text style={styles.projectTitle} numberOfLines={1}>
+              {projectData?.name || 'Kein Projekt'}
+            </Text>
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => setSelectionMode(true)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="checkbox-outline" size={24} color={theme.palette.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => setShowCreationDialog(true)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="add" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+      </View>
+
+      {/* BREADCRUMB */}
+      <Breadcrumb currentPath={currentFolderPath} onNavigate={setCurrentFolderPath} />
+
+      {/* FILE LIST */}
+      <FlatList
+        data={currentFolderItems}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <FileItem
+            node={item}
+            onPress={() => handleItemPress(item)}
+            onLongPress={() => handleItemLongPress(item)}
+            isSelected={item.file ? selectedFiles.has(item.file.path) : false}
+            selectionMode={selectionMode}
+          />
+        )}
+        contentContainerStyle={styles.listContent}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Ionicons
+              name="folder-open-outline"
+              size={64}
+              color={theme.palette.text.secondary}
+            />
+            <Text style={styles.emptyText}>Dieser Ordner ist leer</Text>
+            <TouchableOpacity
+              style={styles.createFirstButton}
+              onPress={() => setShowCreationDialog(true)}
+            >
+              <Ionicons name="add-circle" size={20} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.createFirstButtonText}>Erste Datei erstellen</Text>
+            </TouchableOpacity>
+          </View>
+        }
+      />
+
+      {/* DIALOGS */}
+      <CreationDialog
+        visible={showCreationDialog}
+        currentPath={currentFolderPath}
+        onClose={() => setShowCreationDialog(false)}
+        onCreateFile={handleCreateFile}
+        onCreateFolder={handleCreateFolder}
+      />
+
+      <FileActionsModal
+        visible={showActionsModal}
+        fileName={actionTargetFile?.path.split('/').pop() || ''}
+        filePath={actionTargetFile?.path || ''}
+        onClose={() => {
+          setShowActionsModal(false);
+          setActionTargetFile(null);
+        }}
+        onRename={handleRenameFile}
+        onMove={handleMoveFile}
+        onDelete={handleDeleteFile}
+        onDuplicate={handleDuplicateFile}
+        folders={allFolders}
+      />
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.palette.background,
+  },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: theme.palette.text.secondary,
+  },
+
+  // ==================== EXPLORER HEADER ====================
+  explorerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: theme.palette.card,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+    minHeight: 60,
+  },
+  projectTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: theme.palette.text.primary,
+    flex: 1,
+    marginRight: 12,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addButton: {
+    backgroundColor: theme.palette.primary,
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+
+  // ==================== SELECTION MODE ====================
+  selectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  selectionCount: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.palette.text.primary,
+  },
+  selectionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  selectionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: theme.palette.background,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  selectionButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.palette.primary,
+  },
+  exportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: theme.palette.success,
+  },
+  exportButtonDisabled: {
+    opacity: 0.5,
+  },
+  exportButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+
+  // ==================== EDITOR HEADER ====================
+  editorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: theme.palette.card,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+    minHeight: 56,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 12,
+  },
+  fileName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.palette.text.primary,
+    marginLeft: 8,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    flex: 1,
+  },
+  editorActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: theme.palette.background,
+  },
+  actionButtonHighlight: {
+    backgroundColor: theme.palette.primary,
+  },
+
+  // ==================== SYNTAX ERRORS ====================
+  errorContainer: {
+    backgroundColor: theme.palette.card,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    maxHeight: 60,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+  },
+  errorBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  errorBadgeError: {
+    backgroundColor: `${theme.palette.error}15`,
+    borderWidth: 1,
+    borderColor: theme.palette.error,
+  },
+  errorBadgeWarning: {
+    backgroundColor: `${theme.palette.warning}15`,
+    borderWidth: 1,
+    borderColor: theme.palette.warning,
+  },
+  errorBadgeText: {
+    fontSize: 12,
+    maxWidth: 300,
+  },
+  errorTextError: {
+    color: theme.palette.error,
+  },
+  errorTextWarning: {
+    color: theme.palette.warning,
+  },
+
+  // ==================== CODE EDITOR ====================
+  codeEditor: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    fontSize: 15,
+    lineHeight: 22,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    color: theme.palette.text.primary,
+    backgroundColor: theme.palette.background,
+    textAlignVertical: 'top',
+  },
+  codeEditorError: {
+    backgroundColor: `${theme.palette.error}05`,
+  },
+  previewContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: theme.palette.card,
+  },
+
+  // ==================== IMAGE VIEWER ====================
+  imageScrollContainer: {
+    flex: 1,
+    backgroundColor: theme.palette.background,
+  },
+  imageContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    minHeight: 400,
+  },
+  imagePreview: {
+    width: '100%',
+    height: undefined,
+    aspectRatio: 1,
+    maxHeight: 500,
+    borderRadius: 8,
+    backgroundColor: theme.palette.card,
+  },
+  imageInfo: {
+    marginTop: 16,
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+    textAlign: 'center',
+  },
+
+  // ==================== FILE LIST ====================
+  listContent: {
+    flexGrow: 1,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 64,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: theme.palette.text.secondary,
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  createFirstButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: theme.palette.primary,
+    borderRadius: 12,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  createFirstButtonText: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: '600',
+  },
+});
+
+export default CodeScreen;
+
+===== FILE: theme.ts =====
+import { Dimensions, Platform } from 'react-native';
+
+// HINWEIS: Für reaktive Dimensions in Components, verwende useWindowDimensions() Hook
+const { width, height } = Dimensions.get('window');
+
+export const theme = {
+  palette: {
+    // Hauptfarben - Neon Giftgrün
+    primary: '#00FF00', // Neongrün / Giftgrün
+    primaryDark: '#00CC00', // Dunkleres Neongrün
+    primaryLight: '#33FF33', // Helleres Neongrün
+    secondary: '#1a1a1a',
+
+    // Hintergründe - Deep Dark
+    background: '#0a0a0a', // Sehr dunkles Schwarz
+    backgroundDark: '#050505', // Noch dunkler
+    card: '#121212',
+    cardHover: '#181818',
+    border: '#2a2a2a',
+    borderLight: '#333333',
+
+    // Chat-Bubbles (transparent mit Rahmen - Neon Style)
+    userBubble: {
+      background: 'rgba(0, 255, 0, 0.08)',
+      border: '#00FF00',
+      text: '#00FF00',
+    },
+    aiBubble: {
+      background: 'rgba(68, 68, 68, 0.15)',
+      border: '#444444',
+      text: '#e0e0e0',
+    },
+    systemBubble: {
+      background: 'rgba(255, 170, 0, 0.08)',
+      border: '#ffaa00',
+      text: '#ffaa00',
+    },
+
+    // Textfarben
+    text: {
+      primary: '#e0e0e0',
+      secondary: '#999999',
+      disabled: '#555555',
+      muted: '#666666',
+      accent: '#00FF00', // Neon-Akzent für Text
+    },
+
+    // Inputs
+    input: {
+      background: '#1a1a1a',
+      border: '#2a2a2a',
+      borderFocused: '#00FF00',
+      placeholder: '#666666',
+    },
+
+    // Statusfarben
+    error: '#ff4444',
+    errorDark: '#cc3333',
+    success: '#00FF00',
+    warning: '#ffaa00',
+    info: '#00aaff',
+
+    // Syntax-Highlighting Farben (Neon Style)
+    syntax: {
+      keyword: '#FF00FF', // Neon Magenta
+      string: '#00FFAA', // Neon Türkis
+      comment: '#666666', // Grau
+      function: '#FFFF00', // Neon Gelb
+      number: '#FF8800', // Neon Orange
+      operator: '#00FF00', // Neon Grün
+      default: '#e0e0e0', // Standard Text
+      type: '#00AAFF', // Neon Blau für Types
+    },
+  },
+
+  spacing: {
+    xs: 4,
+    sm: 8,
+    md: 16,
+    lg: 24,
+    xl: 32,
+  },
+
+  layout: {
+    screenPadding: 16,
+  },
+
+  sizes: {
+    screenWidth: width,
+    screenHeight: height,
+  },
+
+  // Border-Radii
+  borderRadius: {
+    sm: 4,
+    md: 8,
+    lg: 16,
+    xl: 24,
+    full: 999,
+  },
+
+  // 🔥 NEU: Neon Glow Effekte
+  glow: {
+    primary: {
+      shadowColor: '#00FF00',
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.5,
+      shadowRadius: 10,
+      elevation: 8,
+    },
+    primarySubtle: {
+      shadowColor: '#00FF00',
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.25,
+      shadowRadius: 6,
+      elevation: 4,
+    },
+    error: {
+      shadowColor: '#ff4444',
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.4,
+      shadowRadius: 8,
+      elevation: 6,
+    },
+    warning: {
+      shadowColor: '#ffaa00',
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.4,
+      shadowRadius: 8,
+      elevation: 6,
+    },
+  },
+
+  // Typography
+  typography: {
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+    monoFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+};
+
+export const HEADER_HEIGHT = 60;
+
+// Hilfsfunktion für Neon-Glow auf Android (elevation + Farbe)
+export const getNeonGlow = (
+  color: string,
+  intensity: 'subtle' | 'normal' | 'strong' = 'normal'
+) => {
+  const opacities = { subtle: 0.2, normal: 0.4, strong: 0.6 };
+  const radii = { subtle: 4, normal: 8, strong: 12 };
+  const elevations = { subtle: 3, normal: 6, strong: 10 };
+
+  return {
+    shadowColor: color,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: opacities[intensity],
+    shadowRadius: radii[intensity],
+    elevation: elevations[intensity],
+  };
+};
+
+// ✅ Safety-Net: erlaubt auch "import theme from '../theme';"
+export default theme;
+
+===== FILE: utils/syntaxValidator.ts =====
+// utils/syntaxValidator.ts - Erweiterte Syntax-Validierung für Code-Editor
+export type SyntaxError = {
+  message: string;
+  severity: 'error' | 'warning';
+  line?: number;
+  code?: string;
+};
+
+const escapeRegex = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const normalizePathSeparators = (value: string): string =>
+  value.replace(/\\/g, '/');
+
+const extractImportIdentifiers = (importClause: string): string[] => {
+  const identifiers = new Set<string>();
+  const clause = importClause.replace(/\s+/g, ' ').trim();
+  if (!clause) return [];
+
+  const cleanedClause = clause.replace(/^type\s+/, '').trim();
+
+  const namespaceMatch = cleanedClause.match(/\*\s+as\s+([A-Za-z0-9_$]+)/i);
+  if (namespaceMatch) {
+    identifiers.add(namespaceMatch[1]);
+  }
+
+  const defaultMatch = cleanedClause.match(/^([A-Za-z0-9_$]+)/);
+  if (
+    defaultMatch &&
+    !defaultMatch[0].startsWith('{') &&
+    !defaultMatch[0].startsWith('*')
+  ) {
+    identifiers.add(defaultMatch[1]);
+  }
+
+  const braceMatch = cleanedClause.match(/\{([^}]*)\}/);
+  if (braceMatch) {
+    braceMatch[1]
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .forEach((part) => {
+        const sanitized = part.replace(/^type\s+/, '').trim();
+        const aliasParts = sanitized.split(/\s+as\s+/i);
+        const identifier = aliasParts.pop()?.trim();
+        if (identifier) {
+          identifiers.add(identifier);
+        }
+      });
+  }
+
+  return Array.from(identifiers);
+};
+
+export const validateSyntax = (code: string, filePath: string): SyntaxError[] => {
+  const errors: SyntaxError[] = [];
+  const extension = filePath.match(/\.(jsx?|tsx?|json|md)$/i)?.[1]?.toLowerCase();
+  const normalizedPath = normalizePathSeparators(filePath);
+
+  if (!extension) return errors;
+
+  // TypeScript/JavaScript validation
+  if (['js', 'jsx', 'ts', 'tsx'].includes(extension)) {
+    // Check for unmatched brackets
+    const openBrackets = (code.match(/[\[{(]/g) || []).length;
+    const closeBrackets = (code.match(/[\]})]/g) || []).length;
+    if (openBrackets !== closeBrackets) {
+      errors.push({
+        message: `Ungleiche Anzahl von Klammern: ${openBrackets} geöffnet, ${closeBrackets} geschlossen`,
+        severity: 'error',
+      });
+    }
+
+    // Check for unclosed strings (simple check)
+    const lines = code.split('\n');
+    lines.forEach((line, index) => {
+      // Skip comments
+      if (line.trim().startsWith('//') || line.trim().startsWith('/*')) return;
+      
+      const quotes = line.match(/["'`]/g) || [];
+      if (quotes.length % 2 !== 0) {
+        errors.push({
+          message: 'Möglicherweise ungeschlossene Anführungszeichen',
+          severity: 'warning',
+          line: index + 1,
+        });
+      }
+    });
+
+    // Check for common issues
+    if (code.includes('console.log') && ['tsx', 'jsx'].includes(extension)) {
+      errors.push({
+        message: 'console.log() in Komponente gefunden - sollte im Production-Build entfernt werden',
+        severity: 'warning',
+      });
+    }
+
+    // Check for any type
+    if (code.match(/:\s*any\b/) && ['ts', 'tsx'].includes(extension)) {
+      errors.push({
+        message: 'Type "any" verwendet - sollte spezifischer typisiert werden',
+        severity: 'warning',
+      });
+    }
+
+    // Check for missing exports in component files
+    if (
+      normalizedPath.includes('/components/') ||
+      normalizedPath.includes('/screens/')
+    ) {
+      if (!code.includes('export default') && !code.includes('export const') && !code.includes('export function')) {
+        errors.push({
+          message: 'Komponente hat keinen Export (export default/const/function fehlt)',
+          severity: 'error',
+        });
+      }
+    }
+
+    // Check for unused imports (basic check)
+    const importMatches = code.match(/import\s+.*?\s+from\s+['"].*?['"]/g) || [];
+    importMatches.forEach((importLine) => {
+      const clauseMatch = importLine.match(/^import\s+(.+?)\s+from\s+['"]/i);
+      if (!clauseMatch) return;
+
+      const identifiers = extractImportIdentifiers(clauseMatch[1]);
+      identifiers.forEach((identifier) => {
+        const usageRegex = new RegExp(`\\b${escapeRegex(identifier)}\\b`, 'g');
+        const usageCount = (code.match(usageRegex) || []).length;
+        if (usageCount <= 1) {
+          errors.push({
+            message: `Import "${identifier}" scheint ungenutzt zu sein`,
+            severity: 'warning',
+          });
+        }
+      });
+    });
+  }
+
+  // JSON validation
+  if (extension === 'json') {
+    try {
+      JSON.parse(code);
+    } catch (e: any) {
+      errors.push({
+        message: `JSON Syntax-Fehler: ${e.message}`,
+        severity: 'error',
+      });
+    }
+  }
+
+  return errors;
+};
+
+export const validateCodeQuality = (code: string, filePath: string): SyntaxError[] => {
+  const errors: SyntaxError[] = [];
+  const lines = code.split('\n');
+
+  // Check for very long lines
+  lines.forEach((line, index) => {
+    if (line.length > 120) {
+      errors.push({
+        message: `Zeile ${index + 1} ist sehr lang (${line.length} Zeichen) - sollte < 120 sein`,
+        severity: 'warning',
+        line: index + 1,
+      });
+    }
+  });
+
+  // Check for deeply nested code
+  lines.forEach((line, index) => {
+    const indentation = line.search(/\S/);
+    if (indentation > 24) { // More than 6 levels (4 spaces each)
+      errors.push({
+        message: `Zeile ${index + 1} ist stark verschachtelt - sollte refaktoriert werden`,
+        severity: 'warning',
+        line: index + 1,
+      });
+    }
+  });
+
+  // Check for TODO/FIXME comments
+  const todoMatches = code.match(/\/\/\s*(TODO|FIXME|XXX|HACK):.*/gi) || [];
+  if (todoMatches.length > 0) {
+    errors.push({
+      message: `${todoMatches.length} TODO/FIXME Kommentar(e) gefunden`,
+      severity: 'warning',
+    });
+  }
+
+  return errors;
+};
