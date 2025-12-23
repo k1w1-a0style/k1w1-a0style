@@ -82,7 +82,10 @@ const CodeScreen: React.FC = () => {
       );
 
     return (
-      <SafeAreaView style={styles.container} edges={["top"]}>
+      <SafeAreaView
+        style={styles.container}
+        edges={["left", "right", "bottom"]}
+      >
         <KeyboardAvoidingView style={styles.container} behavior="height">
           <View style={styles.editorHeader}>
             <EditorHeaderContent
@@ -141,7 +144,7 @@ const CodeScreen: React.FC = () => {
 
   // ==================== FILE EXPLORER ====================
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
       <ExplorerHeader
         projectName={projectData?.name || "Kein Projekt"}
         selectionMode={selectionMode}

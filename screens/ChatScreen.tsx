@@ -337,7 +337,7 @@ const ChatScreen: React.FC = () => {
   }, []);
 
   return (
-    <SafeAreaView style={styles.root} edges={["top", "left", "right"]}>
+    <SafeAreaView style={styles.root} edges={["left", "right", "bottom"]}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.container}>
           <View style={styles.listContainer}>

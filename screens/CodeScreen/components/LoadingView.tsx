@@ -7,7 +7,10 @@ import { styles } from "../styles";
 
 export const LoadingView: React.FC = () => {
   return (
-    <SafeAreaView style={[styles.container, styles.centered]}>
+    <SafeAreaView
+      edges={["left", "right", "bottom"]}
+      style={[styles.container, styles.centered]}
+    >
       <ActivityIndicator size="large" color={theme.palette.primary} />
       <Text style={styles.loadingText}>Projekt wird geladen...</Text>
     </SafeAreaView>
