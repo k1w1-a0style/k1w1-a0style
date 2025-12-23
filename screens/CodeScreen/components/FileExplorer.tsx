@@ -54,6 +54,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
               color={theme.palette.text.secondary}
             />
             <Text style={styles.emptyText}>Dieser Ordner ist leer</Text>
+
             <TouchableOpacity
               style={styles.createFirstButton}
               onPress={onOpenCreationDialog}
@@ -61,7 +62,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
               <Ionicons
                 name="add-circle"
                 size={20}
-                color="#fff"
+                color={theme.palette.text.primary}
                 style={{ marginRight: 8 }}
               />
               <Text style={styles.createFirstButtonText}>

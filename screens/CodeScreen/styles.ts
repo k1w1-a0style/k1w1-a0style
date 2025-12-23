@@ -39,7 +39,7 @@ export const styles = StyleSheet.create({
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 12 as any,
   },
   iconButton: {
     width: 40,
@@ -47,8 +47,10 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
+  // ✅ dunkel + Schatten dunkel (#000 ist ok)
   addButton: {
-    backgroundColor: theme.palette.primary,
+    backgroundColor: theme.palette.secondary,
     borderRadius: 20,
     width: 40,
     height: 40,
@@ -65,7 +67,7 @@ export const styles = StyleSheet.create({
   selectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: 16 as any,
   },
   selectionCount: {
     fontSize: 18,
@@ -75,7 +77,7 @@ export const styles = StyleSheet.create({
   selectionActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 8 as any,
   },
   selectionButton: {
     paddingHorizontal: 12,
@@ -90,14 +92,16 @@ export const styles = StyleSheet.create({
     fontWeight: "600",
     color: theme.palette.primary,
   },
+
+  // ✅ Export Button dunkel + Text hell
   exportButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 6 as any,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: theme.palette.success,
+    backgroundColor: theme.palette.secondary,
   },
   exportButtonDisabled: {
     opacity: 0.5,
@@ -105,7 +109,7 @@ export const styles = StyleSheet.create({
   exportButtonText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#fff",
+    color: theme.palette.text.primary,
   },
 
   // ==================== EDITOR HEADER ====================
@@ -137,7 +141,7 @@ export const styles = StyleSheet.create({
   editorActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 8 as any,
   },
   actionButton: {
     width: 40,
@@ -147,8 +151,10 @@ export const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: theme.palette.background,
   },
+
+  // ✅ dirty highlight dunkel
   actionButtonHighlight: {
-    backgroundColor: theme.palette.primary,
+    backgroundColor: theme.palette.secondary,
   },
 
   // ==================== SYNTAX ERRORS ====================
@@ -163,7 +169,7 @@ export const styles = StyleSheet.create({
   errorBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 6 as any,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 6,
@@ -254,12 +260,14 @@ export const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 24,
   },
+
+  // ✅ Button dunkel + Schatten dunkel (#000 ok)
   createFirstButton: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 24,
     paddingVertical: 12,
-    backgroundColor: theme.palette.primary,
+    backgroundColor: theme.palette.secondary,
     borderRadius: 12,
     elevation: 3,
     shadowColor: "#000",
@@ -269,7 +277,7 @@ export const styles = StyleSheet.create({
   },
   createFirstButtonText: {
     fontSize: 16,
-    color: "#fff",
+    color: theme.palette.text.primary,
     fontWeight: "600",
   },
 });

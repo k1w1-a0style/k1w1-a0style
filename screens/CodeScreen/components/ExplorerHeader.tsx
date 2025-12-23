@@ -73,7 +73,11 @@ export const ExplorerHeader: React.FC<ExplorerHeaderProps> = ({
               ]}
               disabled={selectedCount === 0}
             >
-              <Ionicons name="download" size={20} color="#fff" />
+              <Ionicons
+                name="download"
+                size={20}
+                color={theme.palette.text.primary}
+              />
               <Text style={styles.exportButtonText}>Export</Text>
             </TouchableOpacity>
           </View>
@@ -102,7 +106,11 @@ export const ExplorerHeader: React.FC<ExplorerHeaderProps> = ({
               onPress={onOpenCreationDialog}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="add" size={24} color="#fff" />
+              <Ionicons
+                name="add"
+                size={24}
+                color={theme.palette.text.primary}
+              />
             </TouchableOpacity>
           </View>
         </>

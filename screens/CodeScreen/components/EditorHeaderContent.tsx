@@ -75,7 +75,7 @@ export const EditorHeaderContent: React.FC<EditorHeaderContentProps> = ({
           <Ionicons
             name={isDirty ? "save" : "checkmark-circle"}
             size={22}
-            color={isDirty ? "#fff" : theme.palette.success}
+            color={isDirty ? theme.palette.text.primary : theme.palette.success}
           />
         </TouchableOpacity>
       </View>
