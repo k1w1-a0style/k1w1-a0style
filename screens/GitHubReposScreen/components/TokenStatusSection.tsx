@@ -1,4 +1,4 @@
-import React, { memo } from "react";
+import React from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../../../theme";
@@ -12,7 +12,7 @@ interface TokenStatusSectionProps {
   loadRepos: () => void;
 }
 
-export const TokenStatusSection = memo(function TokenStatusSection({
+export function TokenStatusSection({
   tokenLoading,
   token,
   tokenError,
@@ -34,7 +34,7 @@ export const TokenStatusSection = memo(function TokenStatusSection({
               ? "✅ Token vorhanden (siehe Verbindungen-Screen)"
               : '⚠️ Kein Token gesetzt. Bitte in „Verbindungen" speichern.'}
           </Text>
-          {!!tokenError && <Text style={styles.errorText}>{tokenError}</Text>}
+          {tokenError && <Text style={styles.errorText}>{tokenError}</Text>}
         </>
       )}
 
@@ -47,15 +47,11 @@ export const TokenStatusSection = memo(function TokenStatusSection({
           <ActivityIndicator size="small" color={theme.palette.primary} />
         ) : (
           <>
-            <Ionicons
-              name="refresh"
-              size={18}
-              color={theme.palette.text.primary}
-            />
+            <Ionicons name="refresh" size={18} color={theme.palette.primary} />
             <Text style={styles.buttonText}>Repos laden</Text>
           </>
         )}
       </TouchableOpacity>
     </View>
   );
-});
+}

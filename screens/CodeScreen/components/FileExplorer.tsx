@@ -62,7 +62,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
               <Ionicons
                 name="add-circle"
                 size={20}
-                color={theme.palette.text.primary}
+                color={theme.palette.primary}
                 style={{ marginRight: 8 }}
               />
               <Text style={styles.createFirstButtonText}>

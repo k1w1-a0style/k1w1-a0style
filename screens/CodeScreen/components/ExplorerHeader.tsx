@@ -76,7 +76,7 @@ export const ExplorerHeader: React.FC<ExplorerHeaderProps> = ({
               <Ionicons
                 name="download"
                 size={20}
-                color={theme.palette.text.primary}
+                color={theme.palette.primary}
               />
               <Text style={styles.exportButtonText}>Export</Text>
             </TouchableOpacity>
@@ -106,11 +106,7 @@ export const ExplorerHeader: React.FC<ExplorerHeaderProps> = ({
               onPress={onOpenCreationDialog}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons
-                name="add"
-                size={24}
-                color={theme.palette.text.primary}
-              />
+              <Ionicons name="add" size={24} color={theme.palette.primary} />
             </TouchableOpacity>
           </View>
         </>

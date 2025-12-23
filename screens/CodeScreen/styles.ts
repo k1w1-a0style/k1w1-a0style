@@ -47,8 +47,6 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
-  // ✅ dunkel + Schatten dunkel (#000 ist ok)
   addButton: {
     backgroundColor: theme.palette.secondary,
     borderRadius: 20,
@@ -92,8 +90,6 @@ export const styles = StyleSheet.create({
     fontWeight: "600",
     color: theme.palette.primary,
   },
-
-  // ✅ Export Button dunkel + Text hell
   exportButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -102,14 +98,17 @@ export const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 8,
     backgroundColor: theme.palette.secondary,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
   },
   exportButtonDisabled: {
     opacity: 0.5,
   },
+  // ✅ neon text
   exportButtonText: {
     fontSize: 14,
     fontWeight: "600",
-    color: theme.palette.text.primary,
+    color: theme.palette.primary,
   },
 
   // ==================== EDITOR HEADER ====================
@@ -150,11 +149,12 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: 8,
     backgroundColor: theme.palette.background,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
   },
-
-  // ✅ dirty highlight dunkel
   actionButtonHighlight: {
     backgroundColor: theme.palette.secondary,
+    borderColor: theme.palette.primary,
   },
 
   // ==================== SYNTAX ERRORS ====================
@@ -260,8 +260,6 @@ export const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 24,
   },
-
-  // ✅ Button dunkel + Schatten dunkel (#000 ok)
   createFirstButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -274,10 +272,13 @@ export const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
   },
+  // ✅ neon text
   createFirstButtonText: {
     fontSize: 16,
-    color: theme.palette.text.primary,
+    color: theme.palette.primary,
     fontWeight: "600",
   },
 });
