@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { theme } from "../../theme";
+import { theme } from "../../../theme";
 import type { LogType } from "../types";
 
 export const getLogLabel = (type: LogType) =>
