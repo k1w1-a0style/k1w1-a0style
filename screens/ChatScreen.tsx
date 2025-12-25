@@ -21,6 +21,7 @@ import { useProject } from "../contexts/ProjectContext";
 import { ChatMessage, ProjectFile } from "../contexts/types";
 import MessageItem from "../components/MessageItem";
 import { useAI } from "../contexts/AIContext";
+import { useGitHub } from "../contexts/GitHubContext";
 
 import ConfirmChangesModal from "../components/chat/ConfirmChangesModal";
 import ChatComposer from "../components/chat/ChatComposer";
@@ -55,6 +56,7 @@ const ChatScreen: React.FC = () => {
   } = useProject();
 
   const { config } = useAI();
+  const { activeRepo } = useGitHub();
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
 
@@ -122,6 +124,7 @@ const ChatScreen: React.FC = () => {
     rejectChanges,
   } = useChatAIFlow({
     config,
+    activeRepo,
     messages,
     projectFiles,
     addChatMessage,

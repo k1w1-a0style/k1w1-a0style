@@ -39,7 +39,7 @@ const IGNORE_DIRS = new Set([
   "build",
   "coverage",
   "supabase",
-  "backups"
+  "backups",
 ]);
 
 const FILE_EXTS = new Set([".ts", ".tsx", ".js", ".jsx"]);
@@ -133,21 +133,29 @@ function main() {
   const files = listSourceFiles(ROOT);
 
   const detected = new Set();
+  const allExternal = new Set();
+
   for (const f of files) {
     const code = fs.readFileSync(f, "utf8");
     const mods = extractModules(code);
     for (const mod of mods) {
-      if (map[mod]) detected.add(mod);
+      allExternal.add(mod);
+      if (map[mod]) detected.add(mod); // known native-ish mapping
     }
   }
 
   const detectedList = Array.from(detected).sort();
+  const allExternalList = Array.from(allExternal).sort();
   const installed = getInstalledPackages();
 
   const missingExpo = [];
   const missingNpm = [];
+  const missingUnknownExpo = [];
+  const missingUnknownNpm = [];
+
   const plugins = [];
 
+  // Known mapped packages
   for (const mod of detectedList) {
     const cfg = map[mod];
     if (!installed[mod]) {
@@ -159,11 +167,21 @@ function main() {
     }
   }
 
+  // Generic fallback: any missing import gets installed too (future-proof)
+  for (const mod of allExternalList) {
+    if (installed[mod]) continue;
+    if (map[mod]) continue; // already handled above
+
+    // Heuristic: expo-* should be installed via expo install
+    if (mod.startsWith("expo-")) missingUnknownExpo.push(mod);
+    else missingUnknownNpm.push(mod);
+  }
+
   const autogen = {
     generatedAt: new Date().toISOString(),
     detected: detectedList.map((m) => ({ name: m, ...map[m] })),
-    missing: { expo: missingExpo, npm: missingNpm },
-    plugins: uniquePlugins(plugins)
+    missing: { expo: missingExpo, npm: missingNpm, unknownExpo: missingUnknownExpo, unknownNpm: missingUnknownNpm },
+    plugins: uniquePlugins(plugins),
   };
 
   fs.mkdirSync(path.dirname(OUT_PATH), { recursive: true });
@@ -173,12 +191,14 @@ function main() {
   console.log(`- Detected native-ish packages: ${detectedList.length}`);
   if (detectedList.length) console.log(`  ${detectedList.join(", ")}`);
 
-  if (missingExpo.length || missingNpm.length) {
+  if (missingExpo.length || missingNpm.length || missingUnknownExpo.length || missingUnknownNpm.length) {
     console.log("\n⚠️ Missing packages:");
-    if (missingExpo.length) console.log(`- expo install: ${missingExpo.join(", ")}`);
-    if (missingNpm.length) console.log(`- npm install:  ${missingNpm.join(", ")}`);
+    if (missingExpo.length) console.log(`- expo install (mapped): ${missingExpo.join(", ")}`);
+    if (missingNpm.length) console.log(`- npm install (mapped):  ${missingNpm.join(", ")}`);
+    if (missingUnknownExpo.length) console.log(`- expo install (auto):  ${missingUnknownExpo.join(", ")}`);
+    if (missingUnknownNpm.length) console.log(`- npm install (auto):   ${missingUnknownNpm.join(", ")}`);
   } else {
-    console.log("\n✅ No missing native packages detected.");
+    console.log("\n✅ No missing packages detected.");
   }
 
   console.log(`\n🧾 Wrote: ${path.relative(ROOT, OUT_PATH)}`);
@@ -192,8 +212,14 @@ function main() {
   if (missingExpo.length) {
     run(`npx expo install ${missingExpo.join(" ")}`);
   }
+  if (missingUnknownExpo.length) {
+    run(`npx expo install ${missingUnknownExpo.join(" ")}`);
+  }
   if (missingNpm.length) {
     run(`npm install ${missingNpm.join(" ")}`);
+  }
+  if (missingUnknownNpm.length) {
+    run(`npm install ${missingUnknownNpm.join(" ")}`);
   }
 
   console.log("\n✅ Applied missing dependency installs.");

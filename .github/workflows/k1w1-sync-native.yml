@@ -1,0 +1,81 @@
+name: K1W1 Sync Native Deps
+
+run-name: "Sync Native Deps (job ${{ github.event.client_payload.job_id || inputs.job_id || 'na' }})"
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Install missing deps (true/false)"
+        required: false
+        default: "true"
+      create_pr:
+        description: "Create PR with updated package.json/lock (true/false)"
+        required: false
+        default: "false"
+      base_ref:
+        description: "Base branch/ref"
+        required: false
+        default: "main"
+      job_id:
+        description: "Supabase build_jobs.id for logging"
+        required: false
+        default: ""
+  repository_dispatch:
+    types: [k1w1-sync-native]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      APPLY: ${{ github.event.client_payload.apply || inputs.apply || 'true' }}
+      CREATE_PR: ${{ github.event.client_payload.create_pr || inputs.create_pr || 'false' }}
+      BASE_REF: ${{ github.event.client_payload.base_ref || inputs.base_ref || 'main' }}
+      JOB_ID: ${{ github.event.client_payload.job_id || inputs.job_id || '' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BASE_REF }}
+
+      - name: Use Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install deps
+        run: npm ci || npm install
+
+      - name: Run native sync scan
+        run: |
+          node scripts/k1w1-sync-native.mjs --apply=${APPLY} --create-pr=${CREATE_PR} --base-ref=${BASE_REF}
+
+      - name: Attach job id into report (if present)
+        run: |
+          node -e "const fs=require('fs'); const p='scripts/.k1w1-native-autogen.json'; if(!fs.existsSync(p)) process.exit(0); const j=JSON.parse(fs.readFileSync(p,'utf8')); j.jobId=process.env.JOB_ID||''; j.baseRef=process.env.BASE_REF||''; j.apply=process.env.APPLY||''; j.createPr=process.env.CREATE_PR||''; fs.writeFileSync(p, JSON.stringify(j,null,2)); console.log('patched report with jobId');"
+
+      - name: Upload autogen report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: k1w1-native-autogen
+          path: scripts/.k1w1-native-autogen.json
+
+      - name: Summary
+        run: |
+          echo "## K1W1 Native Sync" >> $GITHUB_STEP_SUMMARY
+          echo "- JobId: ${JOB_ID}" >> $GITHUB_STEP_SUMMARY
+          echo "- Apply: ${APPLY}" >> $GITHUB_STEP_SUMMARY
+          echo "- Create PR: ${CREATE_PR}" >> $GITHUB_STEP_SUMMARY
+          echo "- Base Ref: ${BASE_REF}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Create PR if requested
+        if: env.CREATE_PR == 'true'
+        run: |
+          echo "PR creation is handled inside script (or implement here if needed)."
