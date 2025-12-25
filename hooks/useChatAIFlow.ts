@@ -69,6 +69,8 @@ type UseChatAIFlowArgs = {
   setShowConfirmModal: (v: boolean) => void;
 };
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 export function useChatAIFlow({
   config,
   activeRepo,
@@ -111,6 +113,101 @@ export function useChatAIFlow({
     setShowConfirmModal(false);
   }, [setShowConfirmModal]);
 
+  const pushAssistant = useCallback(
+    (content: string) => {
+      addChatMessage({
+        id: uuidv4(),
+        role: "assistant",
+        content,
+        timestamp: new Date().toISOString(),
+      });
+      hardScrollToBottom(true);
+    },
+    [addChatMessage, hardScrollToBottom],
+  );
+
+  /**
+   * ✅ Pollt check-native-sync und schreibt Status updates in den Chat.
+   * - sendet nur dann ein Update, wenn sich status ändert oder ein Run-Link auftaucht
+   */
+  const pollNativeSyncStatusToChat = useCallback(
+    async (jobId: string) => {
+      const url = `${CONFIG.API.SUPABASE_EDGE_URL}/check-native-sync`;
+
+      let lastStatus = "";
+      let lastRunUrl = "";
+
+      // bis zu ~45s (15 * 3s) – reicht normalerweise, bis ein Run sichtbar ist
+      for (let i = 0; i < 15; i++) {
+        try {
+          const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ jobId }),
+          });
+
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok || !json?.ok) {
+            // nicht sofort abbrechen – GitHub braucht manchmal kurz
+            await sleep(3000);
+            continue;
+          }
+
+          const status = String(json?.job?.status || "").toLowerCase();
+          const runUrl = json?.run?.html_url ? String(json.run.html_url) : "";
+          const runStatus = json?.run?.status ? String(json.run.status) : "";
+          const runConclusion = json?.run?.conclusion
+            ? String(json.run.conclusion)
+            : "";
+
+          const statusChanged = status && status !== lastStatus;
+          const runChanged = runUrl && runUrl !== lastRunUrl;
+
+          if (statusChanged || runChanged) {
+            lastStatus = status || lastStatus;
+            lastRunUrl = runUrl || lastRunUrl;
+
+            const nice =
+              status === "success"
+                ? "✅ SUCCESS"
+                : status === "error"
+                  ? "❌ ERROR"
+                  : status === "running"
+                    ? "⏳ RUNNING"
+                    : status === "queued"
+                      ? "🕒 QUEUED"
+                      : status === "dispatched"
+                        ? "🚀 DISPATCHED"
+                        : status
+                          ? status.toUpperCase()
+                          : "…";
+
+            let msg =
+              `📡 Native Sync Status Update\n\n` +
+              `🆔 JobId: ${jobId}\n` +
+              `Status: ${nice}\n`;
+
+            if (runStatus) msg += `Run Status: ${runStatus}\n`;
+            if (runConclusion) msg += `Run Conclusion: ${runConclusion}\n`;
+
+            if (runUrl) msg += `\n🔗 Run: ${runUrl}\n`;
+            if (activeRepo && !runUrl) msg += `\nℹ️ Repo: ${activeRepo}\n`;
+
+            pushAssistant(msg.trim());
+          }
+
+          // stop conditions
+          if (status === "success" || status === "error") break;
+        } catch {
+          // ignore + keep polling
+        }
+
+        await sleep(3000);
+      }
+    },
+    [activeRepo, pushAssistant],
+  );
+
   const handleSendWithMeta = useCallback(
     async (userContent: string) => {
       const rawInput = String(userContent ?? "");
@@ -140,19 +237,16 @@ export function useChatAIFlow({
 
       if (wantsSyncNative) {
         if (!activeRepo) {
-          addChatMessage({
-            id: uuidv4(),
-            role: "assistant",
-            content:
-              "⚠️ Kein GitHub-Repo ausgewählt. Geh erst zu „GitHub Repos“ und wähle eins aus – dann kann ich die Dependencies syncen.",
-            timestamp: new Date().toISOString(),
-          });
+          pushAssistant(
+            "⚠️ Kein GitHub-Repo ausgewählt. Geh erst zu „GitHub Repos“ und wähle eins aus – dann kann ich die Dependencies syncen.",
+          );
           return;
         }
 
         try {
           setIsAiLoading(true);
 
+          // ✅ Trigger via Supabase Edge Function
           const res = await fetch(
             `${CONFIG.API.SUPABASE_EDGE_URL}/trigger-native-sync`,
             {
@@ -171,30 +265,26 @@ export function useChatAIFlow({
           );
 
           const json = await res.json().catch(() => ({}));
-
           if (!res.ok || !json?.ok) {
             throw new Error(json?.error || `Trigger failed (${res.status})`);
           }
 
           const jobId = json?.jobId ? String(json.jobId) : "";
 
-          addChatMessage({
-            id: uuidv4(),
-            role: "assistant",
-            content:
-              "🧩 Native-Dependency Sync gestartet (mit Status-Logging).\n\n" +
-              (jobId ? `🆔 JobId: ${jobId}\n\n` : "") +
-              "GitHub Actions scannt jetzt dein Projekt, installiert fehlende Dependencies (expo install / npm install) und erzeugt einen Autogen-Report.\n\n" +
-              "👉 Tipp: Öffne den Diagnostic Screen → da kannst du den detaillierten Status + Logs sehen.",
-            timestamp: new Date().toISOString(),
-          });
+          pushAssistant(
+            "🧩 Native-Dependency Sync gestartet.\n\n" +
+              (jobId ? `🆔 JobId: ${jobId}\n` : "") +
+              "Ich poste gleich automatisch Status-Updates hier im Chat (queued → running → success/error).",
+          );
+
+          // ✅ Auto status polling in chat
+          if (jobId) {
+            pollNativeSyncStatusToChat(jobId);
+          }
         } catch (e: any) {
-          addChatMessage({
-            id: uuidv4(),
-            role: "assistant",
-            content: `❌ Sync fehlgeschlagen: ${e?.message || "Unbekannter Fehler"}`,
-            timestamp: new Date().toISOString(),
-          });
+          pushAssistant(
+            `❌ Sync fehlgeschlagen: ${e?.message || "Unbekannter Fehler"}`,
+          );
         } finally {
           setIsAiLoading(false);
         }
@@ -225,13 +315,9 @@ export function useChatAIFlow({
             lower.includes("weiter");
 
           if (!wantsProceed) {
-            addChatMessage({
-              id: uuidv4(),
-              role: "assistant",
-              content:
-                "Alles klar. Sag einfach „weiter“ wenn ich den Plan umsetzen soll.",
-              timestamp: new Date().toISOString(),
-            });
+            pushAssistant(
+              "Alles klar. Sag einfach „weiter“ wenn ich den Plan umsetzen soll.",
+            );
             return;
           }
         }
@@ -263,13 +349,7 @@ export function useChatAIFlow({
             mode: isAdvice ? "advice" : "build",
           });
 
-          addChatMessage({
-            id: uuidv4(),
-            role: "assistant",
-            content: String(plan?.content ?? ""),
-            timestamp: new Date().toISOString(),
-          });
-
+          pushAssistant(String(plan?.content ?? ""));
           return;
         }
 
@@ -321,15 +401,7 @@ export function useChatAIFlow({
         });
 
         setShowConfirmModal(true);
-
-        addChatMessage({
-          id: uuidv4(),
-          role: "assistant",
-          content: explainMessages,
-          timestamp: new Date().toISOString(),
-        });
-
-        hardScrollToBottom(true);
+        pushAssistant(explainMessages);
       } catch (e: any) {
         console.log("[useChatAIFlow] error", e);
         setError(e?.message || "Fehler im Chat Flow");
@@ -342,15 +414,15 @@ export function useChatAIFlow({
       activeRepo,
       addChatMessage,
       config,
-      hardScrollToBottom,
       pendingPlan,
       projectFiles,
+      pollNativeSyncStatusToChat,
+      pushAssistant,
       setError,
       setIsAiLoading,
       setIsStreaming,
       setShowConfirmModal,
       setStreamingMessage,
-      updateProjectFiles,
     ],
   );
 
