@@ -87,11 +87,12 @@ function isExpoInstallPkg(pkg: string) {
     "expo-camera",
     "expo-av",
     "expo-clipboard",
+    "expo-router",
   ]);
   return expoFavs.has(pkg);
 }
 
-function buildInstallCommands(missing: string[]) {
+function splitMissing(missing: string[]) {
   const expoInstall: string[] = [];
   const npmInstall: string[] = [];
 
@@ -100,12 +101,29 @@ function buildInstallCommands(missing: string[]) {
     else npmInstall.push(p);
   }
 
-  const lines: string[] = [];
-  if (expoInstall.length)
-    lines.push(`npx expo install ${expoInstall.join(" ")}`);
-  if (npmInstall.length) lines.push(`npm install ${npmInstall.join(" ")}`);
+  // unique + stable
+  const uniq = (arr: string[]) =>
+    Array.from(new Set(arr)).sort((a, b) => a.localeCompare(b));
 
-  return lines.join("\n");
+  return {
+    expoInstall: uniq(expoInstall),
+    npmInstall: uniq(npmInstall),
+  };
+}
+
+function buildExpoCommand(pkgs: string[]) {
+  if (!pkgs.length) return "";
+  return `npx expo install ${pkgs.join(" ")}`;
+}
+
+function buildNpmCommand(pkgs: string[]) {
+  if (!pkgs.length) return "";
+  return `npm install ${pkgs.join(" ")}`;
+}
+
+function buildAllCommands(expoCmd: string, npmCmd: string) {
+  const parts = [expoCmd, npmCmd].filter(Boolean);
+  return parts.join("\n");
 }
 
 export default function DiagnosticScreen() {
@@ -124,13 +142,17 @@ export default function DiagnosticScreen() {
   const [easRunUrl, setEasRunUrl] = useState<string>("");
   const [easArtifactUrl, setEasArtifactUrl] = useState<string>("");
 
-  // NEW: Native report state
+  // Native report state
   const [isLoadingNativeReport, setIsLoadingNativeReport] = useState(false);
   const [nativeReport, setNativeReport] = useState<NativeAutogenReport | null>(
     null,
   );
   const [showNativeReport, setShowNativeReport] = useState(false);
-  const [showInstallCmds, setShowInstallCmds] = useState(false);
+
+  // NEW: split command toggles
+  const [showExpoCmd, setShowExpoCmd] = useState(false);
+  const [showNpmCmd, setShowNpmCmd] = useState(false);
+  const [showAllCmds, setShowAllCmds] = useState(false);
 
   const loadSaved = useCallback(async () => {
     const r = (await safeGet(STORAGE_KEYS.lastRepo)) || "";
@@ -202,7 +224,7 @@ export default function DiagnosticScreen() {
     }
   }, [savedEasJobId]);
 
-  // NEW: Fetch latest native report for saved jobId
+  // Fetch latest native report for saved jobId
   const fetchLatestNativeReport = useCallback(async () => {
     if (!savedNativeJobId) {
       Alert.alert(
@@ -227,12 +249,14 @@ export default function DiagnosticScreen() {
       if (!res.ok || !json?.ok)
         throw new Error(json?.error || `HTTP ${res.status}`);
 
-      // json.report = row in native_sync_reports; json.report.report = actual autogen JSON
       const autogen: NativeAutogenReport | null = json?.report?.report ?? null;
 
       if (!autogen) {
         setNativeReport(null);
         setShowNativeReport(true);
+        setShowExpoCmd(false);
+        setShowNpmCmd(false);
+        setShowAllCmds(false);
         Alert.alert(
           "Kein Report",
           "Für diesen Job wurde noch kein Report gespeichert (oder ingest fehlt).",
@@ -242,6 +266,11 @@ export default function DiagnosticScreen() {
 
       setNativeReport(autogen);
       setShowNativeReport(true);
+
+      // reset toggles on new report
+      setShowExpoCmd(false);
+      setShowNpmCmd(false);
+      setShowAllCmds(false);
     } catch (e: any) {
       Alert.alert("Report Fehler", e?.message || "Unbekannter Fehler");
     } finally {
@@ -356,7 +385,11 @@ export default function DiagnosticScreen() {
   );
 
   const missingDeps = nativeReport?.missing?.deps ?? [];
-  const installCmds = buildInstallCommands(missingDeps);
+  const { expoInstall, npmInstall } = splitMissing(missingDeps);
+
+  const expoCmd = buildExpoCommand(expoInstall);
+  const npmCmd = buildNpmCommand(npmInstall);
+  const allCmds = buildAllCommands(expoCmd, npmCmd);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -431,7 +464,7 @@ export default function DiagnosticScreen() {
           )}
         </View>
 
-        {/* NEW: Native Report Button */}
+        {/* Native Report Button */}
         <View style={styles.reportRow}>
           <TouchableOpacity
             style={[
@@ -496,7 +529,13 @@ export default function DiagnosticScreen() {
                   </Text>
                 </Text>
                 <Text style={styles.reportMeta}>
-                  Missing: <Text style={styles.mono}>{missingDeps.length}</Text>
+                  Missing total:{" "}
+                  <Text style={styles.mono}>{missingDeps.length}</Text>
+                </Text>
+                <Text style={styles.reportMeta}>
+                  Expo install:{" "}
+                  <Text style={styles.mono}>{expoInstall.length}</Text> | npm
+                  install: <Text style={styles.mono}>{npmInstall.length}</Text>
                 </Text>
 
                 {missingDeps.length > 0 ? (
@@ -518,31 +557,94 @@ export default function DiagnosticScreen() {
                   </Text>
                 )}
 
+                {/* NEW: Command Buttons */}
                 {missingDeps.length > 0 && (
                   <>
-                    <View style={styles.cmdRow}>
+                    <View style={styles.cmdBtnRow}>
                       <TouchableOpacity
-                        style={styles.cmdBtn}
-                        onPress={() => setShowInstallCmds((v) => !v)}
+                        style={[
+                          styles.cmdBtn,
+                          !expoCmd ? styles.btnDisabled : null,
+                        ]}
+                        onPress={() => setShowExpoCmd((v) => !v)}
+                        disabled={!expoCmd}
                       >
                         <Ionicons
-                          name="terminal"
+                          name="logo-react"
                           size={16}
                           color={theme.palette.background}
                         />
                         <Text style={styles.cmdBtnText}>
-                          {showInstallCmds
-                            ? "Commands ausblenden"
-                            : "Install-Commands anzeigen"}
+                          {showExpoCmd ? "Expo hide" : "Expo install"}
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.cmdBtn,
+                          !npmCmd ? styles.btnDisabled : null,
+                        ]}
+                        onPress={() => setShowNpmCmd((v) => !v)}
+                        disabled={!npmCmd}
+                      >
+                        <Ionicons
+                          name="logo-npm"
+                          size={16}
+                          color={theme.palette.background}
+                        />
+                        <Text style={styles.cmdBtnText}>
+                          {showNpmCmd ? "npm hide" : "npm install"}
                         </Text>
                       </TouchableOpacity>
                     </View>
 
-                    {showInstallCmds && (
+                    <TouchableOpacity
+                      style={[
+                        styles.cmdBtnWide,
+                        !allCmds ? styles.btnDisabled : null,
+                      ]}
+                      onPress={() => setShowAllCmds((v) => !v)}
+                      disabled={!allCmds}
+                    >
+                      <Ionicons
+                        name="terminal"
+                        size={16}
+                        color={theme.palette.background}
+                      />
+                      <Text style={styles.cmdBtnText}>
+                        {showAllCmds ? "Alle hide" : "Alle Commands"}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {showExpoCmd && !!expoCmd && (
                       <View style={styles.cmdBox}>
-                        <Text style={styles.cmdTitle}>Commands (copybar):</Text>
+                        <Text style={styles.cmdTitle}>
+                          Expo install (copybar):
+                        </Text>
                         <Text selectable style={styles.cmdText}>
-                          {installCmds || "—"}
+                          {expoCmd}
+                        </Text>
+                      </View>
+                    )}
+
+                    {showNpmCmd && !!npmCmd && (
+                      <View style={styles.cmdBox}>
+                        <Text style={styles.cmdTitle}>
+                          npm install (copybar):
+                        </Text>
+                        <Text selectable style={styles.cmdText}>
+                          {npmCmd}
+                        </Text>
+                      </View>
+                    )}
+
+                    {showAllCmds && !!allCmds && (
+                      <View style={styles.cmdBox}>
+                        <Text style={styles.cmdTitle}>
+                          Alle Commands (copybar):
+                        </Text>
+                        <Text selectable style={styles.cmdText}>
+                          {allCmds}
                         </Text>
                       </View>
                     )}
@@ -715,7 +817,6 @@ const styles = StyleSheet.create({
   statusSub: { color: theme.palette.text.muted, fontSize: 12 },
   mono: { fontFamily: "monospace" },
 
-  // NEW Report UI
   reportRow: { flexDirection: "row", gap: 10, marginTop: 6 },
   reportBtn: {
     flex: 1,
@@ -776,8 +877,19 @@ const styles = StyleSheet.create({
   missingList: { gap: 4 },
   missingItem: { color: theme.palette.text.primary, fontWeight: "700" },
 
-  cmdRow: { marginTop: 6 },
+  cmdBtnRow: { flexDirection: "row", gap: 10, marginTop: 8 },
   cmdBtn: {
+    flex: 1,
+    backgroundColor: theme.palette.primary,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  cmdBtnWide: {
+    marginTop: 10,
     backgroundColor: theme.palette.primary,
     borderRadius: 10,
     paddingVertical: 10,
@@ -787,8 +899,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cmdBtnText: { color: theme.palette.background, fontWeight: "900" },
+
   cmdBox: {
-    marginTop: 8,
+    marginTop: 10,
     backgroundColor: theme.palette.card,
     borderWidth: 1,
     borderColor: theme.palette.border,
