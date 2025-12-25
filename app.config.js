@@ -2,14 +2,15 @@
  * app.config.js – Expo App Config (Android-only)
  * ✅ android.softwareKeyboardLayoutMode = "pan"
  * ✅ EAS projectId nur wenn ENV gesetzt ist (kein Dummy!)
+ * ✅ AUTOGEN Plugins werden gefiltert: nur echte Expo Config Plugins (app.plugin.*)
  */
 
 require("dotenv").config();
 
-const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID;
-
 const fs = require("fs");
 const path = require("path");
+
+const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID;
 
 function readAutogen() {
   try {
@@ -33,7 +34,62 @@ function uniqPlugins(list) {
   return out;
 }
 
+function isLocalPluginRef(name) {
+  if (!name) return false;
+  return (
+    name.startsWith("./") ||
+    name.startsWith("../") ||
+    name.startsWith("/") ||
+    name.endsWith(".js") ||
+    name.endsWith(".cjs") ||
+    name.endsWith(".mjs")
+  );
+}
+
+function getPluginName(entry) {
+  if (Array.isArray(entry)) return String(entry[0] ?? "");
+  return String(entry ?? "");
+}
+
+/**
+ * Expo lädt Config Plugins nur, wenn das Package eine Datei app.plugin.* hat
+ * (oder du einen lokalen Pfad übergibst).
+ */
+function hasAppPluginFile(pkgName) {
+  if (!pkgName || isLocalPluginRef(pkgName)) return true;
+
+  try {
+    const pkgJsonPath = require.resolve(`${pkgName}/package.json`);
+    const root = path.dirname(pkgJsonPath);
+
+    const candidates = ["app.plugin.js", "app.plugin.cjs", "app.plugin.mjs"];
+    return candidates.some((f) => fs.existsSync(path.join(root, f)));
+  } catch {
+    return false;
+  }
+}
+
+function filterValidConfigPlugins(entries) {
+  const valid = [];
+  const skipped = [];
+
+  for (const entry of entries) {
+    const name = getPluginName(entry);
+    if (!name) continue;
+
+    if (hasAppPluginFile(name)) valid.push(entry);
+    else skipped.push(name);
+  }
+
+  // Optional Debug (falls du mal wissen willst, was rausfliegt):
+  // if (skipped.length) console.log("[app.config] skipped non-config-plugins:", skipped);
+
+  return valid;
+}
+
 const AUTOGEN = readAutogen();
+const autogenPlugins = Array.isArray(AUTOGEN.plugins) ? AUTOGEN.plugins : [];
+const filteredAutogenPlugins = filterValidConfigPlugins(autogenPlugins);
 
 module.exports = {
   expo: {
@@ -48,8 +104,8 @@ module.exports = {
     // ✅ Android-only
     platforms: ["android"],
 
-    // ✅ Expo wollte das (wegen expo-font install/dev-client)
-    plugins: uniqPlugins(["expo-font", ...(AUTOGEN.plugins || [])]),
+    // ✅ Wichtig: Nur echte Config-Plugins hier rein (sonst PluginError/typeof-Crash)
+    plugins: uniqPlugins(filteredAutogenPlugins),
 
     assetBundlePatterns: ["**/*"],
 

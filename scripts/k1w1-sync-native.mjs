@@ -1,284 +1,235 @@
 #!/usr/bin/env node
 /**
- * k1w1-sync-native.mjs
- * - Scannt JS/TS Files nach Imports
- * - vergleicht mit package.json deps/devDeps
- * - erkennt Expo config plugins (app.json)
- * - erzeugt Report: scripts/.k1w1-native-autogen.json
- * - optional: --apply=true => installiert fehlende Packages (expo install / npm install)
+ * K1W1 Native Sync – scan project files for native-ish deps and ensure they're installed.
+ * Writes autogen report: scripts/.k1w1-native-autogen.json
  *
- * NOTE: Das ist "best-effort" Auto-Erkennung. 100% perfekt geht nur mit tieferem Build/Runtime-Graph.
+ * Flags:
+ *   --apply       actually installs missing deps
+ *   --apply=true  same
+ *   --apply=false report only
  */
 
 import fs from "fs";
 import path from "path";
-import { execSync } from "child_process";
+import { spawnSync } from "child_process";
+import { createRequire } from "module";
 
-const cwd = process.cwd();
+const require = createRequire(import.meta.url);
 
-function argValue(name, def = null) {
-  const hit = process.argv.find((a) => a === name || a.startsWith(`${name}=`));
-  if (!hit) return def;
-  if (hit.includes("=")) return hit.split("=").slice(1).join("=");
-  const idx = process.argv.indexOf(hit);
-  return process.argv[idx + 1] ?? def;
+const PROJECT_ROOT = process.cwd();
+const MAP_PATH = path.join(PROJECT_ROOT, "scripts", "k1w1-native-map.json");
+const REPORT_PATH = path.join(PROJECT_ROOT, "scripts", ".k1w1-native-autogen.json");
+
+function readJSON(p) {
+  return JSON.parse(fs.readFileSync(p, "utf8"));
 }
 
-const applyRaw = argValue("--apply", "false");
-const APPLY = String(applyRaw).toLowerCase() === "true" || applyRaw === "1" || applyRaw === true;
+function walk(dir, out = []) {
+  const items = fs.readdirSync(dir, { withFileTypes: true });
+  for (const it of items) {
+    const full = path.join(dir, it.name);
+    if (it.isDirectory()) {
+      if (it.name === "node_modules" || it.name === ".git" || it.name === "android" || it.name === "ios") continue;
+      walk(full, out);
+    } else {
+      if (
+        it.name.endsWith(".ts") ||
+        it.name.endsWith(".tsx") ||
+        it.name.endsWith(".js") ||
+        it.name.endsWith(".jsx") ||
+        it.name.endsWith(".json") ||
+        it.name.endsWith(".mjs") ||
+        it.name.endsWith(".cjs")
+      ) {
+        out.push(full);
+      }
+    }
+  }
+  return out;
+}
 
-const OUT_PATH = path.join(cwd, "scripts", ".k1w1-native-autogen.json");
+function uniqPlugins(list) {
+  const seen = new Set();
+  const out = [];
+  for (const item of list) {
+    const key = JSON.stringify(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
 
-function exists(p) {
+function isLocalPluginRef(name) {
+  if (!name) return false;
+  return (
+    name.startsWith("./") ||
+    name.startsWith("../") ||
+    name.startsWith("/") ||
+    name.endsWith(".js") ||
+    name.endsWith(".cjs") ||
+    name.endsWith(".mjs")
+  );
+}
+
+function getPluginName(entry) {
+  if (Array.isArray(entry)) return String(entry[0] ?? "");
+  return String(entry ?? "");
+}
+
+/**
+ * Expo Config Plugins exist only if the package contains app.plugin.(js|cjs|mjs),
+ * or the plugin ref is a local path.
+ */
+function hasAppPluginFile(pkgName) {
+  if (!pkgName || isLocalPluginRef(pkgName)) return true;
+
   try {
-    fs.accessSync(p, fs.constants.F_OK);
-    return true;
+    const pkgJsonPath = require.resolve(`${pkgName}/package.json`, { paths: [PROJECT_ROOT] });
+    const root = path.dirname(pkgJsonPath);
+    const candidates = ["app.plugin.js", "app.plugin.cjs", "app.plugin.mjs"];
+    return candidates.some((f) => fs.existsSync(path.join(root, f)));
   } catch {
     return false;
   }
 }
 
-function readJson(p) {
-  return JSON.parse(fs.readFileSync(p, "utf8"));
-}
+function filterValidConfigPlugins(entries) {
+  const valid = [];
+  const skipped = [];
 
-function writeJson(p, obj) {
-  fs.mkdirSync(path.dirname(p), { recursive: true });
-  fs.writeFileSync(p, JSON.stringify(obj, null, 2), "utf8");
-}
+  for (const entry of entries) {
+    const name = getPluginName(entry);
+    if (!name) continue;
 
-function listFiles(dir, acc = []) {
-  const skipDirs = new Set([
-    "node_modules",
-    ".git",
-    ".expo",
-    "dist",
-    "build",
-    "android",
-    "ios",
-    ".next",
-    ".turbo",
-    "web-build",
-    "coverage",
-  ]);
-
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-  for (const e of entries) {
-    const full = path.join(dir, e.name);
-    if (e.isDirectory()) {
-      if (skipDirs.has(e.name)) continue;
-      listFiles(full, acc);
-    } else if (e.isFile()) {
-      if (/\.(ts|tsx|js|jsx)$/.test(e.name)) acc.push(full);
-    }
-  }
-  return acc;
-}
-
-function parseImports(code) {
-  // import x from 'pkg'
-  // import {x} from "pkg"
-  // import 'pkg'
-  // require('pkg')
-  const pkgs = new Set();
-
-  const importRe = /import\s+(?:type\s+)?(?:[\s\S]*?\s+from\s+)?["']([^"']+)["']/g;
-  const sideEffectRe = /import\s+["']([^"']+)["']/g;
-  const requireRe = /require\(\s*["']([^"']+)["']\s*\)/g;
-
-  for (const re of [importRe, sideEffectRe, requireRe]) {
-    let m;
-    while ((m = re.exec(code))) {
-      const spec = m[1];
-      if (!spec) continue;
-      if (spec.startsWith(".") || spec.startsWith("/") || spec.startsWith("..")) continue;
-
-      // normalize: @scope/name/sub -> @scope/name, pkg/sub -> pkg
-      let pkg = spec;
-      if (pkg.startsWith("@")) {
-        const parts = pkg.split("/");
-        if (parts.length >= 2) pkg = `${parts[0]}/${parts[1]}`;
-      } else {
-        pkg = pkg.split("/")[0];
-      }
-      pkgs.add(pkg);
-    }
+    if (hasAppPluginFile(name)) valid.push(entry);
+    else skipped.push(name);
   }
 
-  return [...pkgs];
+  return { valid, skipped };
 }
 
-function getExpoPlugins() {
-  const appJsonPath = path.join(cwd, "app.json");
-  if (!exists(appJsonPath)) return [];
+function readPackageJson() {
+  const p = path.join(PROJECT_ROOT, "package.json");
+  return readJSON(p);
+}
 
-  try {
-    const appJson = readJson(appJsonPath);
-    const plugins = appJson?.expo?.plugins ?? [];
-    const out = [];
+function hasDep(pkgJson, name) {
+  return Boolean(pkgJson?.dependencies?.[name] || pkgJson?.devDependencies?.[name]);
+}
 
-    for (const p of plugins) {
-      if (typeof p === "string") out.push(p);
-      else if (Array.isArray(p) && typeof p[0] === "string") out.push(p[0]);
-    }
-    return out;
-  } catch {
-    return [];
+function run(cmd, args, opts = {}) {
+  const res = spawnSync(cmd, args, {
+    stdio: "inherit",
+    shell: false,
+    cwd: PROJECT_ROOT,
+    ...opts,
+  });
+  if (res.status !== 0) {
+    throw new Error(`${cmd} ${args.join(" ")} failed (${res.status})`);
   }
 }
 
-function getPackageJsonDeps() {
-  const pkgPath = path.join(cwd, "package.json");
-  if (!exists(pkgPath)) throw new Error("package.json not found in project root.");
-  const pkg = readJson(pkgPath);
-  const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
-  return { pkg, deps };
+function parseApplyFlag() {
+  const arg = process.argv.find((x) => x.startsWith("--apply"));
+  if (!arg) return false;
+  const parts = arg.split("=");
+  if (parts.length === 1) return true;
+  return parts[1].trim().toLowerCase() === "true";
 }
 
-function detectPackageManager() {
-  if (exists(path.join(cwd, "pnpm-lock.yaml"))) return "pnpm";
-  if (exists(path.join(cwd, "yarn.lock"))) return "yarn";
-  return "npm";
-}
+function main() {
+  const apply = parseApplyFlag();
 
-function run(cmd) {
-  return execSync(cmd, { stdio: "pipe", cwd }).toString("utf8");
-}
-
-function runLive(cmd) {
-  execSync(cmd, { stdio: "inherit", cwd });
-}
-
-const pm = detectPackageManager();
-const startedAt = new Date().toISOString();
-
-const report = {
-  ok: true,
-  startedAt,
-  apply: APPLY,
-  packageManager: pm,
-  stats: {
-    scannedFiles: 0,
-    foundImports: 0,
-    foundPlugins: 0,
-    missingPackages: 0,
-    installedPackages: 0,
-    errors: 0,
-  },
-  found: {
-    imports: [],
-    expoPlugins: [],
-  },
-  installed: {
-    deps: [],
-  },
-  missing: {
-    deps: [],
-  },
-  actions: [],
-  errors: [],
-};
-
-try {
-  const { deps } = getPackageJsonDeps();
-
-  // 1) scan files
-  const files = listFiles(cwd);
-  report.stats.scannedFiles = files.length;
-
-  const importSet = new Set();
-  for (const f of files) {
-    try {
-      const code = fs.readFileSync(f, "utf8");
-      for (const p of parseImports(code)) importSet.add(p);
-    } catch (e) {
-      report.errors.push({ file: f, error: String(e?.message ?? e) });
-    }
+  if (!fs.existsSync(MAP_PATH)) {
+    console.error("Missing map file:", MAP_PATH);
+    process.exit(1);
   }
 
-  // remove noise packages
-  const ignore = new Set([
-    "react",
-    "react-native",
-    "expo",
-    "@expo/vector-icons",
-    "typescript",
-    "tslib",
-  ]);
+  const MAP = readJSON(MAP_PATH);
 
-  for (const i of ignore) importSet.delete(i);
+  const files = walk(PROJECT_ROOT);
+  const detected = [];
 
-  const imports = [...importSet].sort();
-  report.found.imports = imports;
-  report.stats.foundImports = imports.length;
+  for (const [pkgName, cfg] of Object.entries(MAP)) {
+    const token = pkgName.replace("/", "\\/"); // escape for regex
+    const re = new RegExp(`(['"\`]|\\b)${token}(['"\`]|\\b)`, "i");
 
-  // 2) expo plugins
-  const plugins = getExpoPlugins();
-  report.found.expoPlugins = plugins;
-  report.stats.foundPlugins = plugins.length;
-
-  // 3) required packages = imports + plugins (plugins usually equal package name)
-  const required = new Set([...imports, ...plugins]);
-
-  // 4) missing
-  const missing = [];
-  const installed = [];
-  for (const p of required) {
-    if (!p) continue;
-    if (deps[p]) installed.push(p);
-    else missing.push(p);
-  }
-
-  report.installed.deps = installed.sort();
-  report.missing.deps = missing.sort();
-  report.stats.missingPackages = missing.length;
-  report.stats.installedPackages = installed.length;
-
-  // 5) apply install
-  if (APPLY && missing.length > 0) {
-    for (const pkg of missing) {
-      // expo install for expo-* and a few common RN native deps under Expo
-      const isExpoFamily =
-        pkg.startsWith("expo-") ||
-        pkg === "react-native-reanimated" ||
-        pkg === "react-native-gesture-handler" ||
-        pkg === "react-native-screens" ||
-        pkg === "react-native-safe-area-context" ||
-        pkg === "react-native-webview";
-
+    let hit = false;
+    for (const f of files) {
+      let txt = "";
       try {
-        if (isExpoFamily) {
-          report.actions.push({ pkg, cmd: `npx expo install ${pkg}`, kind: "expo-install" });
-          runLive(`npx expo install ${pkg}`);
-        } else {
-          const cmd =
-            pm === "yarn"
-              ? `yarn add ${pkg}`
-              : pm === "pnpm"
-                ? `pnpm add ${pkg}`
-                : `npm install ${pkg}`;
-          report.actions.push({ pkg, cmd, kind: "pm-install" });
-          runLive(cmd);
-        }
-      } catch (e) {
-        report.ok = false;
-        report.stats.errors += 1;
-        report.errors.push({ pkg, error: String(e?.message ?? e) });
+        txt = fs.readFileSync(f, "utf8");
+      } catch {
+        continue;
       }
+      if (re.test(txt)) {
+        hit = true;
+        break;
+      }
+    }
+
+    if (hit) {
+      detected.push({
+        name: pkgName,
+        install: cfg.install || "expo",
+        plugins: cfg.plugins || [],
+        reason: cfg.reason || "Detected usage",
+      });
     }
   }
 
-  writeJson(OUT_PATH, report);
-  console.log(`[k1w1-sync-native] Report written: ${OUT_PATH}`);
-  console.log(`[k1w1-sync-native] Missing: ${report.missing.deps.length}`);
-  process.exit(report.ok ? 0 : 1);
-} catch (e) {
-  report.ok = false;
-  report.stats.errors += 1;
-  report.errors.push({ error: String(e?.message ?? e) });
-  try {
-    writeJson(OUT_PATH, report);
-  } catch {}
-  console.error(`[k1w1-sync-native] FAILED: ${String(e?.message ?? e)}`);
-  process.exit(1);
+  const pkgJson = readPackageJson();
+
+  const missingExpo = [];
+  const missingNpm = [];
+
+  for (const d of detected) {
+    if (!hasDep(pkgJson, d.name)) {
+      if (d.install === "expo") missingExpo.push(d.name);
+      else missingNpm.push(d.name);
+    }
+  }
+
+  // Build plugins list (BUT filter to only real Expo config plugins)
+  const allPlugins = uniqPlugins(detected.flatMap((d) => d.plugins || []));
+  const { valid: validPlugins, skipped: skippedPlugins } = filterValidConfigPlugins(allPlugins);
+
+  const report = {
+    generatedAt: new Date().toISOString(),
+    detected,
+    missing: { expo: missingExpo, npm: missingNpm },
+    plugins: validPlugins, // ✅ ONLY valid config plugins
+    pluginsAll: allPlugins,
+    pluginsSkipped: skippedPlugins,
+  };
+
+  fs.mkdirSync(path.dirname(REPORT_PATH), { recursive: true });
+  fs.writeFileSync(REPORT_PATH, JSON.stringify(report, null, 2), "utf8");
+
+  console.log("\n[K1W1] Native scan complete.");
+  console.log(`[K1W1] Detected: ${detected.length}`);
+  console.log(`[K1W1] Missing (expo): ${missingExpo.length}`);
+  console.log(`[K1W1] Missing (npm): ${missingNpm.length}`);
+  console.log(`[K1W1] Config-plugins valid: ${validPlugins.length}`);
+  if (skippedPlugins.length) {
+    console.log(`[K1W1] Skipped non-config-plugins: ${skippedPlugins.join(", ")}`);
+  }
+  console.log(`[K1W1] Report: ${REPORT_PATH}\n`);
+
+  if (!apply) return;
+
+  // Install missing deps
+  if (missingExpo.length) {
+    console.log("[K1W1] Installing expo deps:", missingExpo.join(", "));
+    run("npx", ["-y", "expo", "install", ...missingExpo]);
+  }
+  if (missingNpm.length) {
+    console.log("[K1W1] Installing npm deps:", missingNpm.join(", "));
+    run("npm", ["install", ...missingNpm]);
+  }
+
+  console.log("\n[K1W1] Apply finished.\n");
 }
+
+main();
