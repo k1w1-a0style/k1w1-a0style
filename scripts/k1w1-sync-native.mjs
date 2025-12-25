@@ -4,7 +4,7 @@
  * Writes autogen report: scripts/.k1w1-native-autogen.json
  *
  * Flags:
- *   --apply       actually installs missing deps
+ *   --apply       installs missing deps + auto-rescan + expo config check
  *   --apply=true  same
  *   --apply=false report only
  */
@@ -22,6 +22,11 @@ const REPORT_PATH = path.join(PROJECT_ROOT, "scripts", ".k1w1-native-autogen.jso
 
 function readJSON(p) {
   return JSON.parse(fs.readFileSync(p, "utf8"));
+}
+
+function writeJSON(p, obj) {
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, JSON.stringify(obj, null, 2), "utf8");
 }
 
 function walk(dir, out = []) {
@@ -118,16 +123,56 @@ function hasDep(pkgJson, name) {
   return Boolean(pkgJson?.dependencies?.[name] || pkgJson?.devDependencies?.[name]);
 }
 
-function run(cmd, args, opts = {}) {
+function run(cmd, args) {
   const res = spawnSync(cmd, args, {
     stdio: "inherit",
     shell: false,
     cwd: PROJECT_ROOT,
-    ...opts,
   });
   if (res.status !== 0) {
     throw new Error(`${cmd} ${args.join(" ")} failed (${res.status})`);
   }
+}
+
+function runCapture(cmd, args) {
+  return spawnSync(cmd, args, {
+    cwd: PROJECT_ROOT,
+    shell: false,
+    encoding: "utf8",
+    maxBuffer: 10 * 1024 * 1024,
+  });
+}
+
+function clip(s, max = 2500) {
+  const str = String(s ?? "");
+  if (str.length <= max) return str;
+  return str.slice(0, max) + "\n...<clipped>...";
+}
+
+function guessExpoConfigTip(stderrText) {
+  const s = String(stderrText || "");
+
+  if (/Cannot find module 'dotenv'|Cannot find module "dotenv"/i.test(s)) {
+    return `Tipp: Installiere dotenv (dev oder normal) und stelle sicher, dass app.config.js require("dotenv").config() laden kann.\nCommand: npm i -D dotenv`;
+  }
+
+  if (/does not contain a valid config plugin/i.test(s)) {
+    return `Tipp: Du hast ein Plugin in "plugins" stehen, das KEIN Expo Config Plugin ist (kein app.plugin.*).\nFix: Entferne es aus plugins oder lass es nur in der Autogen-Liste als "non-config-plugin" drin (nicht in app.config.js plugins).`;
+  }
+
+  if (/Unexpected token 'typeof'/i.test(s)) {
+    return `Tipp: Meist Folgefehler durch kaputtes Plugin/Config-Laden.\nCheck: In stderr steht oft vorher "valid config plugin" Fehler oder ein require()-Problem.`;
+  }
+
+  if (/Error reading Expo config/i.test(s)) {
+    return `Tipp: app.config.js wirft beim Ausführen einen Fehler. Schau auf die erste Root-Cause in stderr (Missing module / SyntaxError / require stack).`;
+  }
+
+  if (/fetch failed|Unable to reach/i.test(s)) {
+    return `Tipp: Das ist meist ein Expo-API/Netzwerk-Thema (expo-doctor). expo config selbst sollte offline gehen.\nWenn expo config check fehlschlägt: prüfe Node/CLI Output.`;
+  }
+
+  return "Tipp: Sieh dir stderrHead an (Root Cause). Häufig: kaputtes app.config.js, ungültige Plugins, fehlende Module.";
 }
 
 function parseApplyFlag() {
@@ -138,21 +183,19 @@ function parseApplyFlag() {
   return parts[1].trim().toLowerCase() === "true";
 }
 
-function main() {
-  const apply = parseApplyFlag();
-
+function scanOnce() {
   if (!fs.existsSync(MAP_PATH)) {
     console.error("Missing map file:", MAP_PATH);
     process.exit(1);
   }
 
   const MAP = readJSON(MAP_PATH);
-
   const files = walk(PROJECT_ROOT);
+
   const detected = [];
 
   for (const [pkgName, cfg] of Object.entries(MAP)) {
-    const token = pkgName.replace("/", "\\/"); // escape for regex
+    const token = pkgName.replace("/", "\\/");
     const re = new RegExp(`(['"\`]|\\b)${token}(['"\`]|\\b)`, "i");
 
     let hit = false;
@@ -191,7 +234,6 @@ function main() {
     }
   }
 
-  // Build plugins list (BUT filter to only real Expo config plugins)
   const allPlugins = uniqPlugins(detected.flatMap((d) => d.plugins || []));
   const { valid: validPlugins, skipped: skippedPlugins } = filterValidConfigPlugins(allPlugins);
 
@@ -199,14 +241,18 @@ function main() {
     generatedAt: new Date().toISOString(),
     detected,
     missing: { expo: missingExpo, npm: missingNpm },
-    plugins: validPlugins, // ✅ ONLY valid config plugins
+    plugins: validPlugins,
     pluginsAll: allPlugins,
     pluginsSkipped: skippedPlugins,
+    expoConfigCheck: null, // will be filled after apply (optional)
   };
 
-  fs.mkdirSync(path.dirname(REPORT_PATH), { recursive: true });
-  fs.writeFileSync(REPORT_PATH, JSON.stringify(report, null, 2), "utf8");
+  writeJSON(REPORT_PATH, report);
 
+  return { report, missingExpo, missingNpm, validPlugins, skippedPlugins, detected };
+}
+
+function printSummary({ detected, missingExpo, missingNpm, validPlugins, skippedPlugins }) {
   console.log("\n[K1W1] Native scan complete.");
   console.log(`[K1W1] Detected: ${detected.length}`);
   console.log(`[K1W1] Missing (expo): ${missingExpo.length}`);
@@ -216,20 +262,79 @@ function main() {
     console.log(`[K1W1] Skipped non-config-plugins: ${skippedPlugins.join(", ")}`);
   }
   console.log(`[K1W1] Report: ${REPORT_PATH}\n`);
+}
+
+function checkExpoConfigAndPatchReport() {
+  console.log("[K1W1] Checking Expo config (npx -y expo config --type public) ...");
+
+  const res = runCapture("npx", ["-y", "expo", "config", "--type", "public"]);
+
+  const stdoutHead = clip(res.stdout, 2200);
+  const stderrHead = clip(res.stderr, 2200);
+
+  const ok = res.status === 0 && !res.error;
+  const tip = ok ? "OK" : guessExpoConfigTip(res.stderr);
+
+  const payload = {
+    checkedAt: new Date().toISOString(),
+    ok,
+    exitCode: res.status,
+    error: res.error ? String(res.error?.message || res.error) : null,
+    stdoutHead,
+    stderrHead,
+    tip,
+  };
+
+  // Patch report file
+  let report = null;
+  try {
+    report = readJSON(REPORT_PATH);
+  } catch {
+    report = {};
+  }
+
+  report.expoConfigCheck = payload;
+  writeJSON(REPORT_PATH, report);
+
+  if (ok) {
+    console.log("[K1W1] Expo config check: OK ✅");
+  } else {
+    console.log("[K1W1] Expo config check: FAILED ❌");
+    console.log("[K1W1] Tip:", tip);
+  }
+
+  return payload;
+}
+
+function main() {
+  const apply = parseApplyFlag();
+
+  // 1) Initial scan + report
+  const first = scanOnce();
+  printSummary(first);
 
   if (!apply) return;
 
-  // Install missing deps
-  if (missingExpo.length) {
-    console.log("[K1W1] Installing expo deps:", missingExpo.join(", "));
-    run("npx", ["-y", "expo", "install", ...missingExpo]);
+  // 2) Apply installs (based on FIRST scan)
+  if (first.missingExpo.length) {
+    console.log("[K1W1] Installing expo deps:", first.missingExpo.join(", "));
+    run("npx", ["-y", "expo", "install", ...first.missingExpo]);
   }
-  if (missingNpm.length) {
-    console.log("[K1W1] Installing npm deps:", missingNpm.join(", "));
-    run("npm", ["install", ...missingNpm]);
+  if (first.missingNpm.length) {
+    console.log("[K1W1] Installing npm deps:", first.missingNpm.join(", "));
+    run("npm", ["install", ...first.missingNpm]);
   }
 
-  console.log("\n[K1W1] Apply finished.\n");
+  console.log("\n[K1W1] Apply finished. Re-scanning to refresh report...\n");
+
+  // 3) Auto-rescan + final report
+  const second = scanOnce();
+  printSummary(second);
+
+  // 4) Expo config sanity check + report patch
+  checkExpoConfigAndPatchReport();
+
+  console.log("[K1W1] Final report refreshed after apply (includes expoConfigCheck).\n");
 }
 
 main();
