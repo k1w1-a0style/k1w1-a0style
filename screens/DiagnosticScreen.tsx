@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -7,15 +7,16 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  TextInput,
   Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { theme } from "../theme";
 import { useProject } from "../contexts/ProjectContext";
 import { validateFilePath } from "../lib/validators";
-import { useGitHub } from "../contexts/GitHubContext";
 import { CONFIG } from "../config";
 
 type DiagnosticIssue = {
@@ -33,65 +34,184 @@ type DiagnosticReport = {
   issues: DiagnosticIssue[];
 };
 
-type NativeSyncState = {
-  status: "idle" | "running" | "success" | "error" | "queued" | "dispatched";
-  message?: string;
-  jobId?: string;
-  run?: {
-    id: number;
-    status: string;
-    conclusion: string | null;
-    html_url: string;
-    display_title?: string;
-    created_at?: string;
-    updated_at?: string;
-  } | null;
+type EasStatusState = {
+  status: string;
+  runUrl?: string | null;
+  buildUrl?: string | null;
+  artifactUrl?: string | null;
+  updatedAtISO?: string;
 };
 
-type NativeAutogen = {
-  generatedAt?: string;
-  detected?: Array<{ name: string; install?: string; plugins?: any[] }>;
-  missing?: {
-    expo?: string[];
-    npm?: string[];
-    unknownExpo?: string[];
-    unknownNpm?: string[];
-  };
-  plugins?: any[];
+type SyncStatusState = {
+  status: string;
+  conclusion?: string | null;
+  runUrl?: string | null;
+  updatedAtISO?: string;
 };
 
-function isNonEmptyArray(v: any): v is any[] {
-  return Array.isArray(v) && v.length > 0;
-}
-
-function formatPlugin(p: any) {
-  if (typeof p === "string") return p;
-  if (Array.isArray(p)) {
-    const name = String(p[0] ?? "");
-    const opts = p[1] ? JSON.stringify(p[1]) : "";
-    return opts ? `${name} ${opts}` : name;
-  }
-  return JSON.stringify(p);
-}
+const STORAGE_KEYS = {
+  lastRepo: "k1w1:last_repo",
+  lastEasJobId: "k1w1:last_eas_job_id",
+};
 
 export default function DiagnosticScreen() {
   const { projectData, triggerAutoFix } = useProject();
-  const { activeRepo } = useGitHub();
 
+  // Diagnose
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [report, setReport] = useState<DiagnosticReport | null>(null);
 
-  const [syncState, setSyncState] = useState<NativeSyncState>({
-    status: "idle",
-    run: null,
-  });
+  // Live Status
+  const [lastRepo, setLastRepo] = useState<string>("");
+  const [easJobIdInput, setEasJobIdInput] = useState<string>("");
+  const [isRefreshingEas, setIsRefreshingEas] = useState(false);
+  const [isRefreshingSync, setIsRefreshingSync] = useState(false);
 
-  const [isSyncBusy, setIsSyncBusy] = useState(false);
-  const [logs, setLogs] = useState<string[]>([]);
-  const [isLogsBusy, setIsLogsBusy] = useState(false);
+  const [easState, setEasState] = useState<EasStatusState | null>(null);
+  const [syncState, setSyncState] = useState<SyncStatusState | null>(null);
 
-  const [autogen, setAutogen] = useState<NativeAutogen | null>(null);
-  const [isAutogenBusy, setIsAutogenBusy] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const repo = (await AsyncStorage.getItem(STORAGE_KEYS.lastRepo)) || "";
+        const jobId =
+          (await AsyncStorage.getItem(STORAGE_KEYS.lastEasJobId)) || "";
+        if (repo) setLastRepo(repo);
+        if (jobId) setEasJobIdInput(jobId);
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
+
+  const openUrl = useCallback(async (url?: string | null) => {
+    if (!url) return;
+    try {
+      const can = await Linking.canOpenURL(url);
+      if (!can) {
+        Alert.alert("Kann URL nicht öffnen", url);
+        return;
+      }
+      await Linking.openURL(url);
+    } catch (e: any) {
+      Alert.alert("URL Fehler", e?.message || "Konnte URL nicht öffnen");
+    }
+  }, []);
+
+  const refreshEasStatus = useCallback(async () => {
+    const jobIdNum = Number(easJobIdInput);
+    if (!Number.isFinite(jobIdNum) || jobIdNum <= 0) {
+      Alert.alert("JobId fehlt", "Bitte eine gültige EAS JobId eintragen.");
+      return;
+    }
+
+    setIsRefreshingEas(true);
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.lastEasJobId, String(jobIdNum));
+
+      const res = await fetch(
+        `${CONFIG.API.SUPABASE_EDGE_URL}/check-eas-build`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId: jobIdNum }),
+        },
+      );
+
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok || !json?.ok) {
+        throw new Error(
+          json?.error || `check-eas-build failed (${res.status})`,
+        );
+      }
+
+      const status = String(json?.status || "unknown");
+      const runUrl = json?.urls?.html ?? null;
+      const buildUrl = json?.urls?.build ?? null;
+      const artifactUrl = json?.urls?.artifacts ?? null;
+
+      setEasState({
+        status,
+        runUrl,
+        buildUrl,
+        artifactUrl,
+        updatedAtISO: new Date().toISOString(),
+      });
+    } catch (e: any) {
+      Alert.alert("EAS Status Fehler", e?.message || "Unbekannter Fehler");
+    } finally {
+      setIsRefreshingEas(false);
+    }
+  }, [easJobIdInput]);
+
+  const refreshSyncStatus = useCallback(async () => {
+    const repo = String(lastRepo || "").trim();
+    if (!repo) {
+      Alert.alert(
+        "Repo fehlt",
+        "Kein Repo gespeichert. Tipp hier dein Repo rein (owner/repo) oder triggere einmal „sync deps“ im Chat, damit es gespeichert wird.",
+      );
+      return;
+    }
+
+    setIsRefreshingSync(true);
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.lastRepo, repo);
+
+      const res = await fetch(
+        `${CONFIG.API.SUPABASE_EDGE_URL}/github-workflow-runs`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ githubRepo: repo, perPage: 20 }),
+        },
+      );
+
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok || !json?.ok || !Array.isArray(json?.runs)) {
+        throw new Error(
+          json?.error || `github-workflow-runs failed (${res.status})`,
+        );
+      }
+
+      const runs: any[] = json.runs;
+
+      // Wir suchen den letzten Run von "K1W1 Sync Native Deps"
+      const match =
+        runs
+          .filter((r) =>
+            String(r?.workflow_name || "").includes("K1W1 Sync Native Deps"),
+          )
+          .sort(
+            (a, b) =>
+              Date.parse(String(b?.created_at || "")) -
+              Date.parse(String(a?.created_at || "")),
+          )[0] || null;
+
+      if (!match) {
+        setSyncState({
+          status: "not_found",
+          conclusion: null,
+          runUrl: null,
+          updatedAtISO: new Date().toISOString(),
+        });
+        return;
+      }
+
+      setSyncState({
+        status: String(match?.status || "unknown"),
+        conclusion: match?.conclusion ? String(match.conclusion) : null,
+        runUrl: match?.html_url ? String(match.html_url) : null,
+        updatedAtISO: new Date().toISOString(),
+      });
+    } catch (e: any) {
+      Alert.alert("Sync Status Fehler", e?.message || "Unbekannter Fehler");
+    } finally {
+      setIsRefreshingSync(false);
+    }
+  }, [lastRepo]);
 
   const analyze = useCallback(async () => {
     if (!projectData) {
@@ -105,6 +225,7 @@ export default function DiagnosticScreen() {
       const issues: DiagnosticIssue[] = [];
       const files = projectData.files || [];
 
+      // --- Baseline Checks ---
       const hasPackageJson = files.some((f) => f.path === "package.json");
       if (!hasPackageJson) {
         issues.push({
@@ -144,6 +265,7 @@ export default function DiagnosticScreen() {
         });
       }
 
+      // --- “Fixable” nur wenn Datei laut Policy erlaubt ist ---
       for (const issue of issues) {
         if (!issue.fixable || !issue.file) continue;
         const res = validateFilePath(issue.file);
@@ -188,119 +310,28 @@ export default function DiagnosticScreen() {
     [triggerAutoFix],
   );
 
-  const openRepoActions = useCallback(() => {
-    if (!activeRepo) {
-      Alert.alert("Kein Repo", "Bitte zuerst ein Repo auswählen.");
-      return;
-    }
-    Linking.openURL(`https://github.com/${activeRepo}/actions`).catch(() =>
-      Alert.alert("Fehler", "Konnte GitHub Actions nicht öffnen."),
+  const renderStatusPill = (label: string, value?: string | null) => {
+    const v = (value || "").toLowerCase();
+    const isGood = v === "success" || v === "completed";
+    const isBad = v === "failed" || v === "error";
+
+    return (
+      <View
+        style={[
+          styles.pill,
+          isGood
+            ? styles.pillGood
+            : isBad
+              ? styles.pillBad
+              : styles.pillNeutral,
+        ]}
+      >
+        <Text style={styles.pillText}>
+          {label}: {value || "—"}
+        </Text>
+      </View>
     );
-  }, [activeRepo]);
-
-  const loadAutogenReport = useCallback(async () => {
-    if (!syncState.jobId) {
-      Alert.alert(
-        "Kein Job",
-        "Starte zuerst “Sync deps”, damit eine JobId existiert.",
-      );
-      return;
-    }
-    setIsAutogenBusy(true);
-    try {
-      const res = await fetch(
-        `${CONFIG.API.SUPABASE_EDGE_URL}/native-sync-report`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jobId: syncState.jobId }),
-        },
-      );
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json?.ok)
-        throw new Error(json?.error || `Report fetch failed (${res.status})`);
-
-      const reportRow = json.reportRow;
-      const r = reportRow?.report as NativeAutogen;
-      setAutogen(r || null);
-    } catch (e: any) {
-      Alert.alert(
-        "Report konnte nicht geladen werden",
-        e?.message || "Unbekannter Fehler",
-      );
-    } finally {
-      setIsAutogenBusy(false);
-    }
-  }, [syncState.jobId]);
-
-  const fetchLogs = useCallback(async () => {
-    if (!activeRepo) {
-      Alert.alert("Kein Repo", "Bitte erst ein Repo auswählen.");
-      return;
-    }
-    if (!syncState.run?.id) {
-      Alert.alert(
-        "Kein Run",
-        "Erst “Refresh” drücken, bis ein Run gefunden wurde.",
-      );
-      return;
-    }
-
-    setIsLogsBusy(true);
-    try {
-      const res = await fetch(
-        `${CONFIG.API.SUPABASE_EDGE_URL}/github-workflow-logs`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            githubRepo: activeRepo,
-            runId: String(syncState.run.id),
-          }),
-        },
-      );
-
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json?.ok)
-        throw new Error(json?.error || `Logs failed (${res.status})`);
-
-      const lines: string[] = Array.isArray(json.logs)
-        ? json.logs.map((l: any) => String(l?.message ?? l)).filter(Boolean)
-        : [];
-      setLogs(lines.slice(-25));
-    } catch (e: any) {
-      Alert.alert("Logs fehlgeschlagen", e?.message || "Unbekannter Fehler");
-    } finally {
-      setIsLogsBusy(false);
-    }
-  }, [activeRepo, syncState.run?.id]);
-
-  // NOTE: Trigger/Refresh Status bleiben wie bei dir (du hast das schon drin)
-  // -> hier nur minimal: wir zeigen UI + Report-Liste
-
-  const niceList = useMemo(() => {
-    if (!autogen) return null;
-
-    const missing = autogen.missing || {};
-    const expo = [...(missing.expo || []), ...(missing.unknownExpo || [])];
-    const npm = [...(missing.npm || []), ...(missing.unknownNpm || [])];
-
-    const pluginLines = (autogen.plugins || [])
-      .map(formatPlugin)
-      .filter(Boolean);
-
-    const detectedNames = (autogen.detected || [])
-      .map((d) => d?.name)
-      .filter(Boolean) as string[];
-
-    return {
-      generatedAt: autogen.generatedAt || "—",
-      expo,
-      npm,
-      pluginLines,
-      detectedNames,
-    };
-  }, [autogen]);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -327,235 +358,232 @@ export default function DiagnosticScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* --- NATIVE SYNC REPORT UI --- */}
-        <View style={styles.box}>
-          <View style={styles.boxTop}>
-            <Text style={styles.boxTitle}>
-              Native Deps Report (Schöne Liste)
-            </Text>
-          </View>
-
-          <Text style={styles.boxText}>
-            Lädt den Autogen-Report aus Supabase (hochgeladen vom GitHub
-            Workflow).
-          </Text>
-
-          <Text style={styles.boxMeta}>
-            JobId: {syncState.jobId ? syncState.jobId : "—"}
-          </Text>
-
-          <View style={styles.row}>
-            <TouchableOpacity
-              style={[
-                styles.smallBtnAlt,
-                isAutogenBusy && styles.smallBtnDisabled,
-              ]}
-              onPress={loadAutogenReport}
-              disabled={isAutogenBusy}
-            >
-              {isAutogenBusy ? (
-                <ActivityIndicator />
-              ) : (
-                <Ionicons
-                  name="list"
-                  size={16}
-                  color={theme.palette.text.primary}
-                />
-              )}
-              <Text style={styles.smallBtnAltText}>Report laden</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.smallBtnAlt,
-                isLogsBusy && styles.smallBtnDisabled,
-              ]}
-              onPress={fetchLogs}
-              disabled={isLogsBusy}
-            >
-              {isLogsBusy ? (
-                <ActivityIndicator />
-              ) : (
-                <Ionicons
-                  name="document-text-outline"
-                  size={16}
-                  color={theme.palette.text.primary}
-                />
-              )}
-              <Text style={styles.smallBtnAltText}>Logs</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.smallBtnAlt}
-              onPress={openRepoActions}
-            >
-              <Ionicons
-                name="open-outline"
-                size={16}
-                color={theme.palette.text.primary}
-              />
-              <Text style={styles.smallBtnAltText}>Actions</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* NICE LIST */}
-          {niceList && (
-            <View style={styles.reportBox}>
-              <Text style={styles.reportTitle}>Report</Text>
-              <Text style={styles.reportMeta}>
-                Generated: {niceList.generatedAt}
-              </Text>
-
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>✅ Expo install</Text>
-                {isNonEmptyArray(niceList.expo) ? (
-                  niceList.expo.map((x) => (
-                    <Text key={x} style={styles.bullet}>
-                      • {x}
-                    </Text>
-                  ))
-                ) : (
-                  <Text style={styles.dim}>— nichts —</Text>
-                )}
-              </View>
-
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>✅ npm install</Text>
-                {isNonEmptyArray(niceList.npm) ? (
-                  niceList.npm.map((x) => (
-                    <Text key={x} style={styles.bullet}>
-                      • {x}
-                    </Text>
-                  ))
-                ) : (
-                  <Text style={styles.dim}>— nichts —</Text>
-                )}
-              </View>
-
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>🔌 Expo Plugins</Text>
-                {isNonEmptyArray(niceList.pluginLines) ? (
-                  niceList.pluginLines.map((x) => (
-                    <Text key={x} style={styles.bullet}>
-                      • {x}
-                    </Text>
-                  ))
-                ) : (
-                  <Text style={styles.dim}>— keine —</Text>
-                )}
-              </View>
-
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>
-                  🧠 Detected Imports (mapped)
-                </Text>
-                {isNonEmptyArray(niceList.detectedNames) ? (
-                  niceList.detectedNames.slice(0, 25).map((x) => (
-                    <Text key={x} style={styles.bullet}>
-                      • {x}
-                    </Text>
-                  ))
-                ) : (
-                  <Text style={styles.dim}>— keine —</Text>
-                )}
-                {niceList.detectedNames.length > 25 && (
-                  <Text style={styles.dim}>
-                    … +{niceList.detectedNames.length - 25} more
-                  </Text>
-                )}
-              </View>
-            </View>
-          )}
-
-          {/* LOGS */}
-          {logs.length > 0 && (
-            <View style={styles.logsBox}>
-              <Text style={styles.reportTitle}>Logs (last lines)</Text>
-              {logs.map((l, idx) => (
-                <Text key={String(idx)} style={styles.logLine}>
-                  {l}
-                </Text>
-              ))}
-            </View>
-          )}
+      {/* ✅ Live Status Box */}
+      <View style={styles.liveBox}>
+        <View style={styles.liveTop}>
+          <Ionicons name="pulse" size={16} color={theme.palette.primary} />
+          <Text style={styles.liveTitle}>Live Status</Text>
         </View>
 
-        {/* --- Existing diagnose report --- */}
-        {!report ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>Noch kein Report</Text>
-            <Text style={styles.emptyText}>
-              Tippe auf „Analysieren“, um Probleme zu finden.
-            </Text>
-          </View>
-        ) : (
-          <>
-            <Text style={styles.timestamp}>
-              Stand: {new Date(report.timestamp).toLocaleString()}
-            </Text>
-
-            {sortedIssues.length === 0 ? (
-              <View style={styles.okBox}>
+        <View style={styles.fieldRow}>
+          <Text style={styles.fieldLabel}>Repo</Text>
+          <TextInput
+            value={lastRepo}
+            onChangeText={setLastRepo}
+            placeholder="owner/repo"
+            placeholderTextColor={theme.palette.text.muted}
+            autoCapitalize="none"
+            style={styles.input}
+          />
+          <TouchableOpacity
+            style={[
+              styles.smallBtn,
+              isRefreshingSync && styles.smallBtnDisabled,
+            ]}
+            onPress={refreshSyncStatus}
+            disabled={isRefreshingSync}
+          >
+            {isRefreshingSync ? (
+              <ActivityIndicator />
+            ) : (
+              <>
                 <Ionicons
-                  name="checkmark-circle"
-                  size={18}
+                  name="refresh"
+                  size={14}
+                  color={theme.palette.background}
+                />
+                <Text style={styles.smallBtnText}>Sync</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {syncState ? (
+          <View style={styles.statusRow}>
+            {renderStatusPill("Sync", syncState.status)}
+            {renderStatusPill("Conclusion", syncState.conclusion)}
+            {!!syncState.runUrl && (
+              <TouchableOpacity
+                style={styles.linkBtn}
+                onPress={() => openUrl(syncState.runUrl)}
+              >
+                <Ionicons
+                  name="open-outline"
+                  size={16}
                   color={theme.palette.primary}
                 />
-                <Text style={styles.okText}>Keine Probleme gefunden 🎉</Text>
-              </View>
+                <Text style={styles.linkText}>Run öffnen</Text>
+              </TouchableOpacity>
+            )}
+            {!!syncState.updatedAtISO && (
+              <Text style={styles.smallMuted}>
+                {new Date(syncState.updatedAtISO).toLocaleString()}
+              </Text>
+            )}
+          </View>
+        ) : (
+          <Text style={styles.smallMuted}>Noch kein Sync-Status geladen.</Text>
+        )}
+
+        <View style={styles.divider} />
+
+        <View style={styles.fieldRow}>
+          <Text style={styles.fieldLabel}>EAS JobId</Text>
+          <TextInput
+            value={easJobIdInput}
+            onChangeText={setEasJobIdInput}
+            placeholder="z.B. 123"
+            placeholderTextColor={theme.palette.text.muted}
+            keyboardType="number-pad"
+            style={styles.input}
+          />
+          <TouchableOpacity
+            style={[
+              styles.smallBtn,
+              isRefreshingEas && styles.smallBtnDisabled,
+            ]}
+            onPress={refreshEasStatus}
+            disabled={isRefreshingEas}
+          >
+            {isRefreshingEas ? (
+              <ActivityIndicator />
             ) : (
-              sortedIssues.map((issue) => (
-                <View key={issue.id} style={styles.issue}>
-                  <View style={styles.issueTop}>
-                    <View
-                      style={[
-                        styles.badge,
-                        issue.type === "error"
-                          ? styles.badgeError
-                          : styles.badgeWarn,
-                      ]}
-                    >
-                      <Text style={styles.badgeText}>
-                        {issue.type.toUpperCase()}
-                      </Text>
-                    </View>
+              <>
+                <Ionicons
+                  name="refresh"
+                  size={14}
+                  color={theme.palette.background}
+                />
+                <Text style={styles.smallBtnText}>EAS</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
 
-                    <Text style={styles.issueCat}>{issue.category}</Text>
-                    <View style={{ flex: 1 }} />
+        {easState ? (
+          <View style={styles.statusRow}>
+            {renderStatusPill("Build", easState.status)}
+            {!!easState.runUrl && (
+              <TouchableOpacity
+                style={styles.linkBtn}
+                onPress={() => openUrl(easState.runUrl)}
+              >
+                <Ionicons
+                  name="open-outline"
+                  size={16}
+                  color={theme.palette.primary}
+                />
+                <Text style={styles.linkText}>Run</Text>
+              </TouchableOpacity>
+            )}
+            {!!easState.buildUrl && (
+              <TouchableOpacity
+                style={styles.linkBtn}
+                onPress={() => openUrl(easState.buildUrl)}
+              >
+                <Ionicons
+                  name="open-outline"
+                  size={16}
+                  color={theme.palette.primary}
+                />
+                <Text style={styles.linkText}>Build</Text>
+              </TouchableOpacity>
+            )}
+            {!!easState.artifactUrl && (
+              <TouchableOpacity
+                style={styles.linkBtn}
+                onPress={() => openUrl(easState.artifactUrl)}
+              >
+                <Ionicons
+                  name="download-outline"
+                  size={16}
+                  color={theme.palette.primary}
+                />
+                <Text style={styles.linkText}>APK</Text>
+              </TouchableOpacity>
+            )}
+            {!!easState.updatedAtISO && (
+              <Text style={styles.smallMuted}>
+                {new Date(easState.updatedAtISO).toLocaleString()}
+              </Text>
+            )}
+          </View>
+        ) : (
+          <Text style={styles.smallMuted}>Noch kein EAS-Status geladen.</Text>
+        )}
+      </View>
 
-                    {issue.fixable ? (
-                      <TouchableOpacity
-                        style={styles.fixBtn}
-                        onPress={() => sendFixToChat(issue)}
-                      >
-                        <Ionicons
-                          name="hammer"
-                          size={16}
-                          color={theme.palette.background}
-                        />
-                        <Text style={styles.fixBtnText}>Fix</Text>
-                      </TouchableOpacity>
-                    ) : (
-                      <View style={styles.noFixPill}>
-                        <Text style={styles.noFixText}>Kein Fix</Text>
-                      </View>
-                    )}
+      {!report ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyTitle}>Noch kein Report</Text>
+          <Text style={styles.emptyText}>
+            Tippe auf „Analysieren“, um Probleme zu finden.
+          </Text>
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+        >
+          <Text style={styles.timestamp}>
+            Stand: {new Date(report.timestamp).toLocaleString()}
+          </Text>
+
+          {sortedIssues.length === 0 ? (
+            <View style={styles.okBox}>
+              <Ionicons
+                name="checkmark-circle"
+                size={18}
+                color={theme.palette.primary}
+              />
+              <Text style={styles.okText}>Keine Probleme gefunden 🎉</Text>
+            </View>
+          ) : (
+            sortedIssues.map((issue) => (
+              <View key={issue.id} style={styles.issue}>
+                <View style={styles.issueTop}>
+                  <View
+                    style={[
+                      styles.badge,
+                      issue.type === "error"
+                        ? styles.badgeError
+                        : styles.badgeWarn,
+                    ]}
+                  >
+                    <Text style={styles.badgeText}>
+                      {issue.type.toUpperCase()}
+                    </Text>
                   </View>
 
-                  {!!issue.file && (
-                    <Text style={styles.file}>{issue.file}</Text>
+                  <Text style={styles.issueCat}>{issue.category}</Text>
+                  <View style={{ flex: 1 }} />
+
+                  {issue.fixable ? (
+                    <TouchableOpacity
+                      style={styles.fixBtn}
+                      onPress={() => sendFixToChat(issue)}
+                    >
+                      <Ionicons
+                        name="hammer"
+                        size={16}
+                        color={theme.palette.background}
+                      />
+                      <Text style={styles.fixBtnText}>Fix</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.noFixPill}>
+                      <Text style={styles.noFixText}>Kein Fix</Text>
+                    </View>
                   )}
-                  <Text style={styles.msg}>{issue.message}</Text>
                 </View>
-              ))
-            )}
-          </>
-        )}
-      </ScrollView>
+
+                {!!issue.file && <Text style={styles.file}>{issue.file}</Text>}
+                <Text style={styles.msg}>{issue.message}</Text>
+              </View>
+            ))
+          )}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -587,79 +615,80 @@ const styles = StyleSheet.create({
   },
   analyzeBtnText: { color: theme.palette.background, fontWeight: "700" },
 
-  scroll: { flex: 1 },
-  scrollContent: { padding: 16, gap: 12 },
-
-  box: {
+  // ✅ Live Status Box
+  liveBox: {
+    margin: 16,
+    marginBottom: 8,
+    padding: 12,
+    borderRadius: 14,
     backgroundColor: theme.palette.card,
     borderWidth: 1,
     borderColor: theme.palette.border,
-    borderRadius: 12,
-    padding: 12,
-    gap: 8,
+    gap: 10,
   },
-  boxTop: { flexDirection: "row", alignItems: "center", gap: 10 },
-  boxTitle: {
-    fontSize: 15,
-    fontWeight: "800",
+  liveTop: { flexDirection: "row", alignItems: "center", gap: 8 },
+  liveTitle: { color: theme.palette.text.primary, fontWeight: "800" },
+
+  divider: {
+    height: 1,
+    backgroundColor: theme.palette.border,
+    opacity: 0.9,
+  },
+
+  fieldRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  fieldLabel: { width: 70, color: theme.palette.text.muted, fontWeight: "700" },
+  input: {
+    flex: 1,
+    backgroundColor: theme.palette.background,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     color: theme.palette.text.primary,
   },
-  boxText: { color: theme.palette.text.primary, lineHeight: 18 },
-  boxMeta: { color: theme.palette.text.muted, fontSize: 12 },
 
-  row: { flexDirection: "row", gap: 10, flexWrap: "wrap", marginTop: 4 },
-
-  smallBtnAlt: {
-    backgroundColor: theme.palette.border,
+  smallBtn: {
+    backgroundColor: theme.palette.primary,
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 10,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
-  smallBtnDisabled: { opacity: 0.55 },
-  smallBtnAltText: {
-    color: theme.palette.text.primary,
-    fontWeight: "800",
+  smallBtnDisabled: { opacity: 0.7 },
+  smallBtnText: {
+    color: theme.palette.background,
+    fontWeight: "900",
     fontSize: 12,
   },
 
-  reportBox: {
-    marginTop: 8,
-    padding: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    backgroundColor: theme.palette.background,
-    gap: 8,
+  statusRow: { gap: 8 },
+  pill: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
   },
-  reportTitle: { fontWeight: "900", color: theme.palette.text.primary },
-  reportMeta: { color: theme.palette.text.muted, fontSize: 12 },
-
-  section: { gap: 4, marginTop: 4 },
-  sectionTitle: {
+  pillNeutral: { backgroundColor: theme.palette.border },
+  pillGood: { backgroundColor: theme.palette.primary },
+  pillBad: { backgroundColor: theme.palette.error },
+  pillText: {
+    color: theme.palette.background,
     fontWeight: "900",
-    color: theme.palette.text.primary,
-    marginTop: 6,
+    fontSize: 12,
   },
-  bullet: { color: theme.palette.text.primary, fontSize: 12, lineHeight: 16 },
-  dim: { color: theme.palette.text.muted, fontSize: 12 },
 
-  logsBox: {
-    marginTop: 8,
-    padding: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    backgroundColor: theme.palette.background,
-    gap: 4,
+  linkBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
   },
-  logLine: {
-    color: theme.palette.text.muted,
-    fontSize: 11,
-    fontFamily: "monospace",
-  },
+  linkText: { color: theme.palette.primary, fontWeight: "800" },
+
+  smallMuted: { color: theme.palette.text.muted, fontSize: 12 },
 
   empty: { padding: 16, gap: 8 },
   emptyTitle: {
@@ -669,6 +698,8 @@ const styles = StyleSheet.create({
   },
   emptyText: { color: theme.palette.text.muted },
 
+  scroll: { flex: 1 },
+  scrollContent: { padding: 16, gap: 12 },
   timestamp: { color: theme.palette.text.muted, fontSize: 12 },
 
   okBox: {
