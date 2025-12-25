@@ -97,6 +97,19 @@ export function useChatAIFlow({
     isAtBottomRef.current = v;
   }, []);
 
+  const pushAssistant = useCallback(
+    (content: string) => {
+      addChatMessage({
+        id: uuidv4(),
+        role: "assistant",
+        content,
+        timestamp: new Date().toISOString(),
+      });
+      hardScrollToBottom(true);
+    },
+    [addChatMessage, hardScrollToBottom],
+  );
+
   const applyChanges = useCallback(async () => {
     if (!pendingChange) return;
     await applyFilesToProject(
@@ -113,32 +126,19 @@ export function useChatAIFlow({
     setShowConfirmModal(false);
   }, [setShowConfirmModal]);
 
-  const pushAssistant = useCallback(
-    (content: string) => {
-      addChatMessage({
-        id: uuidv4(),
-        role: "assistant",
-        content,
-        timestamp: new Date().toISOString(),
-      });
-      hardScrollToBottom(true);
-    },
-    [addChatMessage, hardScrollToBottom],
-  );
-
-  /**
-   * ✅ Pollt check-native-sync und schreibt Status updates in den Chat.
-   * - sendet nur dann ein Update, wenn sich status ändert oder ein Run-Link auftaucht
-   */
-  const pollNativeSyncStatusToChat = useCallback(
-    async (jobId: string) => {
-      const url = `${CONFIG.API.SUPABASE_EDGE_URL}/check-native-sync`;
+  // ✅ Poll EAS status via check-eas-build und poste Updates in den Chat
+  const pollEasBuildStatusToChat = useCallback(
+    async (jobId: number) => {
+      const url = `${CONFIG.API.SUPABASE_EDGE_URL}/check-eas-build`;
 
       let lastStatus = "";
-      let lastRunUrl = "";
+      let lastHtml = "";
+      let lastBuild = "";
+      let lastArtifact = "";
 
-      // bis zu ~45s (15 * 3s) – reicht normalerweise, bis ein Run sichtbar ist
-      for (let i = 0; i < 15; i++) {
+      // 60 * 5s = 5min (reicht für queued/building + Run-Link).
+      // Für lange Builds: danach kannst du "build status <jobId>" schreiben.
+      for (let i = 0; i < 60; i++) {
         try {
           const res = await fetch(url, {
             method: "POST",
@@ -148,68 +148,72 @@ export function useChatAIFlow({
 
           const json = await res.json().catch(() => ({}));
           if (!res.ok || !json?.ok) {
-            // nicht sofort abbrechen – GitHub braucht manchmal kurz
-            await sleep(3000);
+            await sleep(5000);
             continue;
           }
 
-          const status = String(json?.job?.status || "").toLowerCase();
-          const runUrl = json?.run?.html_url ? String(json.run.html_url) : "";
-          const runStatus = json?.run?.status ? String(json.run.status) : "";
-          const runConclusion = json?.run?.conclusion
-            ? String(json.run.conclusion)
+          const status = String(json?.status || "").toLowerCase();
+          const html = json?.urls?.html ? String(json.urls.html) : "";
+          const build = json?.urls?.build ? String(json.urls.build) : "";
+          const artifacts = json?.urls?.artifacts
+            ? String(json.urls.artifacts)
             : "";
 
-          const statusChanged = status && status !== lastStatus;
-          const runChanged = runUrl && runUrl !== lastRunUrl;
+          const changed =
+            (status && status !== lastStatus) ||
+            (html && html !== lastHtml) ||
+            (build && build !== lastBuild) ||
+            (artifacts && artifacts !== lastArtifact);
 
-          if (statusChanged || runChanged) {
+          if (changed) {
             lastStatus = status || lastStatus;
-            lastRunUrl = runUrl || lastRunUrl;
+            lastHtml = html || lastHtml;
+            lastBuild = build || lastBuild;
+            lastArtifact = artifacts || lastArtifact;
 
             const nice =
               status === "success"
                 ? "✅ SUCCESS"
-                : status === "error"
-                  ? "❌ ERROR"
-                  : status === "running"
-                    ? "⏳ RUNNING"
+                : status === "failed"
+                  ? "❌ FAILED"
+                  : status === "building"
+                    ? "⏳ BUILDING"
                     : status === "queued"
                       ? "🕒 QUEUED"
-                      : status === "dispatched"
-                        ? "🚀 DISPATCHED"
-                        : status
-                          ? status.toUpperCase()
-                          : "…";
+                      : status
+                        ? status.toUpperCase()
+                        : "…";
 
             let msg =
-              `📡 Native Sync Status Update\n\n` +
+              `📦 EAS Build Status Update\n\n` +
               `🆔 JobId: ${jobId}\n` +
               `Status: ${nice}\n`;
 
-            if (runStatus) msg += `Run Status: ${runStatus}\n`;
-            if (runConclusion) msg += `Run Conclusion: ${runConclusion}\n`;
-
-            if (runUrl) msg += `\n🔗 Run: ${runUrl}\n`;
-            if (activeRepo && !runUrl) msg += `\nℹ️ Repo: ${activeRepo}\n`;
+            if (html) msg += `\n🔗 Run: ${html}\n`;
+            if (build) msg += `\n🌐 Build URL: ${build}\n`;
+            if (artifacts) msg += `\n📎 Artifact URL: ${artifacts}\n`;
 
             pushAssistant(msg.trim());
           }
 
-          // stop conditions
-          if (status === "success" || status === "error") break;
+          if (status === "success" || status === "failed") return;
         } catch {
-          // ignore + keep polling
+          // ignore
         }
 
-        await sleep(3000);
+        await sleep(5000);
       }
+
+      pushAssistant(
+        `ℹ️ Build läuft wahrscheinlich noch (JobId: ${jobId}).\n` +
+          `Sag einfach: "build status ${jobId}" um weiter zu checken.`,
+      );
     },
-    [activeRepo, pushAssistant],
+    [pushAssistant],
   );
 
   const handleSendWithMeta = useCallback(
-    async (userContent: string) => {
+    async (userContent: string, _fileName?: string) => {
       const rawInput = String(userContent ?? "");
       if (!rawInput.trim()) return;
 
@@ -221,69 +225,76 @@ export function useChatAIFlow({
         timestamp: new Date().toISOString(),
       });
 
-      // ✅ Local Chat Command: sync native deps/plugins (no LLM needed)
-      // Examples:
-      // - "sync deps"
-      // - "aktualisiere dependencies"
-      // - "aktualisiere defenses der dev apk"
-      // - "scan native deps"
-      const wantsSyncNative =
-        /(\b(sync|scan|update|aktualisiere|prüfe|checke)\b.*\b(dep|deps|dependencies|defenses|native)\b)/i.test(
-          rawInput,
-        ) ||
-        /(\bdev\b.*\b(apk|build)\b.*\b(dep|deps|dependencies|defenses)\b)/i.test(
-          rawInput,
+      const lower = rawInput.trim().toLowerCase();
+
+      // ✅ EAS status only: "build status 123"
+      const statusMatch = lower.match(/\b(build|eas)\s+status\s+(\d+)\b/);
+      if (statusMatch) {
+        const jobId = Number(statusMatch[2]);
+        if (!Number.isFinite(jobId)) {
+          pushAssistant("❌ Ungültige JobId.");
+          return;
+        }
+        pushAssistant(`🔎 Checke EAS Build Status… (JobId: ${jobId})`);
+        pollEasBuildStatusToChat(jobId);
+        return;
+      }
+
+      // ✅ EAS build trigger by chat
+      const wantsEasBuild =
+        /\b(eas\s*)?build\b/.test(lower) ||
+        /\b(dev|development|preview|prod|production)\b.*\b(build|apk)\b/.test(
+          lower,
         );
 
-      if (wantsSyncNative) {
+      if (wantsEasBuild) {
         if (!activeRepo) {
           pushAssistant(
-            "⚠️ Kein GitHub-Repo ausgewählt. Geh erst zu „GitHub Repos“ und wähle eins aus – dann kann ich die Dependencies syncen.",
+            "⚠️ Kein GitHub-Repo ausgewählt. Geh erst zu „GitHub Repos“ und wähle eins aus – dann kann ich den EAS Build starten.",
           );
           return;
         }
 
+        // profile ableiten
+        let profile: "development" | "preview" | "production" = "preview";
+        if (/\b(dev|development)\b/.test(lower)) profile = "development";
+        if (/\b(prod|production)\b/.test(lower)) profile = "production";
+        if (/\bpreview\b/.test(lower)) profile = "preview";
+
         try {
           setIsAiLoading(true);
 
-          // ✅ Trigger via Supabase Edge Function
           const res = await fetch(
-            `${CONFIG.API.SUPABASE_EDGE_URL}/trigger-native-sync`,
+            `${CONFIG.API.SUPABASE_EDGE_URL}/trigger-eas-build`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 githubRepo: activeRepo,
-                ref: "main",
-                inputs: {
-                  apply: "true",
-                  create_pr: /\bpr\b/i.test(rawInput) ? "true" : "false",
-                  base_ref: "main",
-                },
+                buildProfile: profile,
               }),
             },
           );
 
           const json = await res.json().catch(() => ({}));
-          if (!res.ok || !json?.ok) {
+          if (!res.ok || !json?.ok || !json?.job?.id) {
             throw new Error(json?.error || `Trigger failed (${res.status})`);
           }
 
-          const jobId = json?.jobId ? String(json.jobId) : "";
+          const jobId = Number(json.job.id);
 
           pushAssistant(
-            "🧩 Native-Dependency Sync gestartet.\n\n" +
-              (jobId ? `🆔 JobId: ${jobId}\n` : "") +
-              "Ich poste gleich automatisch Status-Updates hier im Chat (queued → running → success/error).",
+            `🚀 EAS Build gestartet\n\n` +
+              `Repo: ${activeRepo}\n` +
+              `Profile: ${profile}\n` +
+              `🆔 JobId: ${jobId}\n\n` +
+              `Ich poste Status-Updates automatisch hier im Chat.`,
           );
 
-          // ✅ Auto status polling in chat
-          if (jobId) {
-            pollNativeSyncStatusToChat(jobId);
-          }
+          pollEasBuildStatusToChat(jobId);
         } catch (e: any) {
           pushAssistant(
-            `❌ Sync fehlgeschlagen: ${e?.message || "Unbekannter Fehler"}`,
+            `❌ EAS Build fehlgeschlagen: ${e?.message || "Unbekannter Fehler"}`,
           );
         } finally {
           setIsAiLoading(false);
@@ -291,6 +302,7 @@ export function useChatAIFlow({
         return;
       }
 
+      // meta command
       const metaResult = handleMetaCommand(rawInput.trim(), projectFiles);
       if (metaResult.handled && metaResult.message) {
         addChatMessage(metaResult.message);
@@ -304,9 +316,7 @@ export function useChatAIFlow({
         setIsStreaming(false);
         setStreamingMessage("");
 
-        // If there is a pending plan, user can proceed/abort...
         if (pendingPlan) {
-          const lower = userContent.trim().toLowerCase();
           const wantsProceed =
             lower.includes("ja") ||
             lower.includes("ok") ||
@@ -327,7 +337,6 @@ export function useChatAIFlow({
 
         let agentResponse: any = null;
 
-        // Planner first if ambiguous/advice
         if (isAdvice || isAmbiguous) {
           const plannerMessages = buildPlannerMessages({
             userRequest: userContent,
@@ -369,7 +378,6 @@ export function useChatAIFlow({
 
         const normalized = normalizeAiResponse(aiResponse);
 
-        // Validate
         const validatorMessages = buildValidatorMessages({
           aiResponse: normalized,
           projectFiles,
@@ -415,8 +423,8 @@ export function useChatAIFlow({
       addChatMessage,
       config,
       pendingPlan,
+      pollEasBuildStatusToChat,
       projectFiles,
-      pollNativeSyncStatusToChat,
       pushAssistant,
       setError,
       setIsAiLoading,
@@ -426,7 +434,7 @@ export function useChatAIFlow({
     ],
   );
 
-  // auto-fix request support (existing)
+  // auto-fix request support
   useEffect(() => {
     // existing logic remains
   }, [autoFixRequest, clearAutoFixRequest]);

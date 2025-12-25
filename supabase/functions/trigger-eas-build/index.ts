@@ -4,9 +4,10 @@ import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { validateTriggerBuildRequest } from "../_shared/validation.ts";
 
 /**
- * ✓ Trigger EAS Build via workflow_dispatch (stabil)
- * ✓ erzeugt build_jobs row, gibt jobId zurück
- * ✓ dispatcht .github/workflows/eas-build.yml mit inputs: profile + job_id
+ * ✅ trigger-eas-build (stabil)
+ * - erstellt build_jobs row
+ * - triggert GitHub Actions via workflow_dispatch (passt zu eas-build.yml)
+ * - gibt jobId zurück (für Status-Polling)
  */
 
 serve(async (req) => {
@@ -41,7 +42,7 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // 1) Build job anlegen
+    // 1) build job anlegen
     const insert = await supabase
       .from("build_jobs")
       .insert([
@@ -60,11 +61,11 @@ serve(async (req) => {
 
     const jobId = insert.data.id;
 
-    // 2) workflow_dispatch trigger auf eas-build.yml
+    // 2) GitHub workflow_dispatch auf eas-build.yml
     const workflowId = "eas-build.yml";
     const dispatchUrl = `https://api.github.com/repos/${githubRepo}/actions/workflows/${workflowId}/dispatches`;
 
-    const dispatchRes = await fetch(dispatchUrl, {
+    const ghRes = await fetch(dispatchUrl, {
       method: "POST",
       headers: {
         Accept: "application/vnd.github+json",
@@ -80,22 +81,28 @@ serve(async (req) => {
       }),
     });
 
-    if (!dispatchRes.ok) {
-      const txt = await dispatchRes.text().catch(() => "");
+    if (!ghRes.ok) {
+      const txt = await ghRes.text().catch(() => "");
       await supabase
         .from("build_jobs")
         .update({
           status: "error",
-          error_message: `GitHub workflow_dispatch failed: ${txt || dispatchRes.status}`,
+          error_message: `GitHub workflow_dispatch failed: ${txt || ghRes.status}`,
         })
         .eq("id", jobId);
 
       return errorResponse("GitHub workflow_dispatch failed", req, 500, {
-        status: dispatchRes.status,
+        status: ghRes.status,
         details: txt,
         jobId,
       });
     }
+
+    // Optional: status -> dispatched
+    await supabase
+      .from("build_jobs")
+      .update({ status: "dispatched" })
+      .eq("id", jobId);
 
     return jsonResponse(
       {

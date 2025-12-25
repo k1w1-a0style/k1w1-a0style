@@ -1,158 +1,166 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
+import { validateCheckBuildRequest } from "../_shared/validation.ts";
 
-// Returns the build status for a given build job id.
-// - Prefers the exact GitHub Actions run id stored on the job (github_run_id), to avoid reading the wrong run.
-// - Also returns artifact_url / build_url if the workflow stored them.
+/**
+ * ✅ check-eas-build (kritisch stabilisiert)
+ * - bevorzugt build_jobs.status + build_url/artifact_url (weil Workflow diese setzt)
+ * - wenn github_run_id vorhanden: holt Run-Details direkt über /actions/runs/:id
+ * - fallback: schaut workflow runs von eas-build.yml
+ */
+
+function pickJobField(job: any, keys: string[]) {
+  for (const k of keys) {
+    if (job && job[k] != null && String(job[k]).trim() !== "") return job[k];
+  }
+  return null;
+}
 
 serve(async (req) => {
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
+
   try {
-    const url = new URL(req.url);
-    const buildId = url.searchParams.get("buildId");
+    const body = await req.json().catch(() => null);
+    const validation = validateCheckBuildRequest(body);
 
-    if (!buildId) {
-      return new Response(
-        JSON.stringify({ error: "Missing buildId parameter" }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const githubToken = Deno.env.get("GITHUB_TOKEN");
-
-    if (!supabaseUrl || !supabaseKey) {
-      return new Response(
-        JSON.stringify({ error: "Supabase config missing" }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-    }
-
-    if (!githubToken) {
-      return new Response(JSON.stringify({ error: "GitHub token missing" }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
+    if (!validation.valid) {
+      return errorResponse("Validation failed", req, 400, {
+        errors: validation.errors,
       });
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const { jobId } = validation.data!;
 
-    // Fetch job row
-    const { data: job, error: jobError } = await supabase
+    const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN");
+    const SUPABASE_URL = Deno.env.get("K1W1_SUPABASE_URL");
+    const SERVICE_ROLE = Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!GITHUB_TOKEN || !SUPABASE_URL || !SERVICE_ROLE) {
+      return errorResponse("Missing required environment variables", req, 500);
+    }
+
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+    // 1) build_jobs row holen
+    const jobRes = await supabase
       .from("build_jobs")
       .select("*")
-      .eq("id", buildId)
+      .eq("id", jobId)
       .single();
 
-    if (jobError || !job) {
-      return new Response(
-        JSON.stringify({
-          error: "Build job not found",
-          details: jobError?.message,
-        }),
-        {
-          status: 404,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
+    if (jobRes.error || !jobRes.data) {
+      return errorResponse("build_jobs lookup failed", req, 404, jobRes.error);
     }
 
-    const repo: string = job.github_repo;
-    const runId: number | null = job.github_run_id
-      ? Number(job.github_run_id)
-      : null;
+    const job = jobRes.data;
 
-    const urls = {
-      html: runId ? `https://github.com/${repo}/actions/runs/${runId}` : null,
-      artifacts: job.artifact_url || null,
-      build: job.build_url || null,
-    };
-
-    // If the job already has a final status from workflow, return it immediately.
-    if (["success", "failed", "error"].includes(job.status)) {
-      return new Response(
-        JSON.stringify({
-          status: job.status,
-          runId,
-          urls,
-          job,
-        }),
-        { headers: { "Content-Type": "application/json" } },
-      );
+    if (!job.github_repo) {
+      return errorResponse("build_jobs row missing github_repo", req, 500);
     }
 
-    // GitHub API helper
-    const gh = async (endpoint: string) => {
-      const res = await fetch(`https://api.github.com${endpoint}`, {
-        headers: {
-          Authorization: `Bearer ${githubToken}`,
-          Accept: "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-        },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data?.message || `GitHub API error (${res.status})`);
-      }
-      return data;
-    };
+    const repo = String(job.github_repo);
+    const jobStatus = String(job.status || "").toLowerCase();
 
-    // Fetch the exact run if we have runId, otherwise fall back to latest runs.
+    const buildUrl = pickJobField(job, ["build_url", "buildUrl", "url"]) as
+      | string
+      | null;
+    const artifactUrl = pickJobField(job, [
+      "artifact_url",
+      "artifactUrl",
+      "apk_url",
+      "apkUrl",
+    ]) as string | null;
+
+    const ghRunId = pickJobField(job, [
+      "github_run_id",
+      "githubRunId",
+      "run_id",
+      "runId",
+    ]);
+
     let run: any = null;
 
-    if (runId) {
-      run = await gh(`/repos/${repo}/actions/runs/${runId}`);
-    } else {
-      const runs = await gh(`/repos/${repo}/actions/runs?per_page=10`);
-      run = runs?.workflow_runs?.[0] || null;
-    }
-
-    if (!run) {
-      return new Response(JSON.stringify({ error: "No workflow runs found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
+    // 2) wenn wir run_id haben: direkt fetchen (beste Variante)
+    if (ghRunId) {
+      const ghRunUrl = `https://api.github.com/repos/${repo}/actions/runs/${ghRunId}`;
+      const ghRunRes = await fetch(ghRunUrl, {
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${GITHUB_TOKEN}`,
+        },
       });
+
+      if (ghRunRes.ok) {
+        run = await ghRunRes.json().catch(() => null);
+      }
     }
 
-    const mappedStatus =
-      run.status === "queued"
-        ? "queued"
-        : run.status === "in_progress"
-          ? "building"
-          : run.status === "completed"
-            ? run.conclusion === "success"
-              ? "success"
-              : run.conclusion === "cancelled"
-                ? "cancelled"
-                : "failed"
-            : "unknown";
+    // 3) fallback: nur runs von eas-build.yml (nicht "irgendein run")
+    if (!run) {
+      const ghUrl = `https://api.github.com/repos/${repo}/actions/workflows/eas-build.yml/runs?per_page=15`;
+      const ghRes = await fetch(ghUrl, {
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${GITHUB_TOKEN}`,
+        },
+      });
 
-    // If workflow completed but did not update DB for some reason, we still return its status.
-    const finalUrls = {
-      html: run.html_url || urls.html,
-      artifacts: urls.artifacts,
-      build: urls.build,
-    };
+      const ghJson = await ghRes.json().catch(() => null);
+      if (
+        ghJson &&
+        ghJson.workflow_runs &&
+        Array.isArray(ghJson.workflow_runs)
+      ) {
+        run = ghJson.workflow_runs[0] || null;
+      }
+    }
 
-    return new Response(
-      JSON.stringify({
+    // 4) Status mapping: bevorzugt job.status, sonst GitHub
+    let mappedStatus = "waiting";
+
+    if (jobStatus) {
+      if (["queued", "dispatched", "waiting"].includes(jobStatus))
+        mappedStatus = "queued";
+      else if (["building", "in_progress", "running"].includes(jobStatus))
+        mappedStatus = "building";
+      else if (["success", "succeeded"].includes(jobStatus))
+        mappedStatus = "success";
+      else if (["failed", "error"].includes(jobStatus)) mappedStatus = "failed";
+      else mappedStatus = jobStatus;
+    } else if (run) {
+      const ghStatus = String(run.status || "").toLowerCase();
+      const ghConclusion = String(run.conclusion || "").toLowerCase();
+
+      if (ghStatus === "queued") mappedStatus = "queued";
+      if (ghStatus === "in_progress") mappedStatus = "building";
+      if (ghStatus === "completed")
+        mappedStatus = ghConclusion === "success" ? "success" : "failed";
+      if (ghStatus === "") mappedStatus = "waiting";
+    }
+
+    const runHtml = run?.html_url ? String(run.html_url) : null;
+
+    const buildFound = !!run || mappedStatus !== "waiting";
+
+    return jsonResponse(
+      {
+        ok: true,
+        buildFound,
         status: mappedStatus,
-        runId: run.id,
-        urls: finalUrls,
+        runId: run?.id ?? null,
+        urls: {
+          html: runHtml,
+          build: buildUrl,
+          artifacts: artifactUrl,
+        },
         job,
-      }),
-      { headers: { "Content-Type": "application/json" } },
+      },
+      req,
     );
-  } catch (error: any) {
-    return new Response(
-      JSON.stringify({ error: error?.message || "Unknown error" }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
-    );
+  } catch (err: any) {
+    console.error("❌ check-eas-build error", err?.message ?? err, err?.stack);
+    return errorResponse(err?.message || "Unknown error", req, 500);
   }
 });
