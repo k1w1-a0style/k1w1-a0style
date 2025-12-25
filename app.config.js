@@ -1,8 +1,8 @@
 /**
  * app.config.js – Expo App Config (Android-only)
  * ✅ android.softwareKeyboardLayoutMode = "pan"
- * ✅ EAS projectId nur wenn ENV gesetzt ist (kein Dummy!)
- * ✅ AUTOGEN Plugins werden gefiltert: nur echte Expo Config Plugins (app.plugin.*)
+ * ✅ EAS projectId nur wenn ENV gesetzt ist
+ * ✅ Autogen Plugins (crash-sicher): nur echte Expo Config Plugins (app.plugin.*)
  */
 
 require("dotenv").config();
@@ -51,17 +51,12 @@ function getPluginName(entry) {
   return String(entry ?? "");
 }
 
-/**
- * Expo lädt Config Plugins nur, wenn das Package eine Datei app.plugin.* hat
- * (oder du einen lokalen Pfad übergibst).
- */
 function hasAppPluginFile(pkgName) {
   if (!pkgName || isLocalPluginRef(pkgName)) return true;
 
   try {
     const pkgJsonPath = require.resolve(`${pkgName}/package.json`);
     const root = path.dirname(pkgJsonPath);
-
     const candidates = ["app.plugin.js", "app.plugin.cjs", "app.plugin.mjs"];
     return candidates.some((f) => fs.existsSync(path.join(root, f)));
   } catch {
@@ -71,25 +66,21 @@ function hasAppPluginFile(pkgName) {
 
 function filterValidConfigPlugins(entries) {
   const valid = [];
-  const skipped = [];
-
   for (const entry of entries) {
     const name = getPluginName(entry);
     if (!name) continue;
-
     if (hasAppPluginFile(name)) valid.push(entry);
-    else skipped.push(name);
   }
-
-  // Optional Debug (falls du mal wissen willst, was rausfliegt):
-  // if (skipped.length) console.log("[app.config] skipped non-config-plugins:", skipped);
-
   return valid;
 }
 
 const AUTOGEN = readAutogen();
 const autogenPlugins = Array.isArray(AUTOGEN.plugins) ? AUTOGEN.plugins : [];
-const filteredAutogenPlugins = filterValidConfigPlugins(autogenPlugins);
+
+// Baseline (nur wenn wirklich Config Plugin vorhanden)
+const baseline = filterValidConfigPlugins(["expo-font"]);
+
+const finalPlugins = uniqPlugins([...baseline, ...autogenPlugins]);
 
 module.exports = {
   expo: {
@@ -100,12 +91,9 @@ module.exports = {
     scheme: "k1w1a0",
     orientation: "portrait",
     userInterfaceStyle: "automatic",
-
-    // ✅ Android-only
     platforms: ["android"],
 
-    // ✅ Wichtig: Nur echte Config-Plugins hier rein (sonst PluginError/typeof-Crash)
-    plugins: uniqPlugins(filteredAutogenPlugins),
+    plugins: finalPlugins,
 
     assetBundlePatterns: ["**/*"],
 
