@@ -13,56 +13,60 @@ on:
         required: false
         type: string
 
+permissions:
+  contents: read
+
 jobs:
-  eas-android:
-    name: Run EAS Build (Android)
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
 
     env:
-      PROFILE: ${{ github.event.inputs.profile }}
-      JOB_ID: ${{ github.event.inputs.job_id }}
+      JOB_ID: ${{ inputs.job_id || '' }}
+      PROFILE: ${{ inputs.profile }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate inputs
+      - name: Validate profile
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${PROFILE}" ]]; then
-            echo "::error::profile is required"
-            exit 1
-          fi
-          if [[ "${PROFILE}" != "development" && "${PROFILE}" != "preview" && "${PROFILE}" != "production" ]]; then
-            echo "::error::Invalid profile: ${PROFILE}"
-            echo "Use: development | preview | production"
-            exit 1
-          fi
-          echo "✓ profile=${PROFILE}"
+          case "${PROFILE}" in
+            development|preview|production) echo "✓ profile=${PROFILE}" ;;
+            *) echo "::error::Invalid profile '${PROFILE}'"; exit 1 ;;
+          esac
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20.x
+          node-version: 18.x
           cache: npm
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Setup Expo & EAS
+      - name: Setup Expo Application Services
         uses: expo/expo-github-action@v8
         with:
           expo-version: latest
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
+      - name: Auto-detect native deps (install + plugins)
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/k1w1-sync-native.mjs --apply
+
       - name: Update build status -> building (optional)
         if: ${{ env.JOB_ID != '' }}
         shell: bash
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
           if [[ -z "${SUPABASE_URL}" || -z "${SUPABASE_SERVICE_ROLE_KEY}" ]]; then
@@ -76,18 +80,32 @@ jobs:
             -d "{\"status\":\"building\",\"github_run_id\":\"${GITHUB_RUN_ID}\"}" \
             --silent
 
-      - name: Run EAS build (cloud)
+      - name: Run EAS Build (wait + JSON)
         id: eas
         shell: bash
         run: |
           set -euo pipefail
-          echo "Starting EAS cloud build..."
-          BUILD_OUTPUT=$(eas build --platform android --profile "${PROFILE}" --non-interactive --no-wait 2>&1)
-          echo "${BUILD_OUTPUT}"
-          BUILD_ID=$(echo "${BUILD_OUTPUT}" | grep -oP 'Build ID:\s*\K[a-f0-9-]+' || true)
-          echo "build_id=${BUILD_ID:-unknown}" >> "${GITHUB_OUTPUT}"
+          echo "Starting EAS build (profile=${PROFILE})..."
+          eas build --platform android --profile "${PROFILE}" --non-interactive --json > eas_build.json
+          cat eas_build.json
 
-      - name: Update build status -> completed (optional)
+          BUILD_ID="$(jq -r '.[0].id // empty' eas_build.json)"
+          if [[ -z "${BUILD_ID}" ]]; then
+            echo "::error::Could not parse build id from EAS JSON"
+            exit 1
+          fi
+          echo "build_id=${BUILD_ID}" >> "$GITHUB_OUTPUT"
+
+          eas build:view "${BUILD_ID}" --json > eas_build_view.json
+          cat eas_build_view.json
+
+          ARTIFACT_URL="$(jq -r '.artifacts.buildUrl // .artifacts.applicationArchiveUrl // .artifacts.appUrl // empty' eas_build_view.json)"
+          BUILD_URL="$(jq -r '.buildUrl // .url // empty' eas_build_view.json)"
+
+          echo "artifact_url=${ARTIFACT_URL}" >> "$GITHUB_OUTPUT"
+          echo "build_url=${BUILD_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Update build status -> success (optional)
         if: ${{ success() && env.JOB_ID != '' }}
         shell: bash
         run: |
@@ -100,12 +118,14 @@ jobs:
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
-            -d "{\"status\":\"completed\",\"eas_build_id\":\"${{ steps.eas.outputs.build_id }}\"}" \
+            -d "{\"status\":\"success\",\"eas_build_id\":\"${{ steps.eas.outputs.build_id }}\",\"artifact_url\":\"${{ steps.eas.outputs.artifact_url }}\",\"build_url\":\"${{ steps.eas.outputs.build_url }}\"}" \
             --silent
 
       - name: Update build status -> error (optional)
         if: ${{ failure() && env.JOB_ID != '' }}
         shell: bash
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
           if [[ -z "${SUPABASE_URL}" || -z "${SUPABASE_SERVICE_ROLE_KEY}" ]]; then
@@ -116,5 +136,5 @@ jobs:
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
-            -d "{\"status\":\"error\"}" \
+            -d "{\"status\":\"failed\",\"github_run_id\":\"${GITHUB_RUN_ID}\"}" \
             --silent

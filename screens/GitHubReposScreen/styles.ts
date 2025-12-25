@@ -2,17 +2,27 @@ import { StyleSheet } from "react-native";
 import { theme } from "../../theme";
 
 export const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: theme.palette.background },
-  container: { flex: 1, backgroundColor: theme.palette.background },
-  content: { padding: 16, paddingBottom: 32 },
-
+  safeArea: {
+    flex: 1,
+    backgroundColor: theme.palette.background,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: theme.palette.background,
+  },
+  content: {
+    padding: 16,
+    paddingBottom: 32,
+  },
   headerSection: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 16,
     gap: 12 as any,
   },
-  headerText: { flex: 1 },
+  headerText: {
+    flex: 1,
+  },
   title: {
     fontSize: 20,
     fontWeight: "bold",
@@ -24,7 +34,6 @@ export const styles = StyleSheet.create({
     color: theme.palette.text.secondary,
     marginBottom: 16,
   },
-
   section: {
     marginBottom: 24,
     padding: 12,
@@ -39,11 +48,18 @@ export const styles = StyleSheet.create({
     color: theme.palette.text.primary,
     marginBottom: 8,
   },
-
-  tokenLoader: { marginBottom: 8 },
-  tokenText: { fontSize: 12, color: theme.palette.text.secondary },
-  errorText: { color: theme.palette.error, fontSize: 12, marginBottom: 8 },
-
+  tokenLoader: {
+    marginBottom: 8,
+  },
+  tokenText: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+  },
+  errorText: {
+    color: theme.palette.error,
+    fontSize: 12,
+    marginBottom: 8,
+  },
   // ✅ Buttons: dark background + neon (primary) text/icon
   button: {
     flexDirection: "row",
@@ -57,10 +73,17 @@ export const styles = StyleSheet.create({
     borderRadius: 8,
     alignSelf: "flex-start",
   },
-  buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: theme.palette.primary, fontWeight: "600" },
-
-  searchRow: { flexDirection: "row", marginBottom: 8 },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  buttonText: {
+    color: theme.palette.primary,
+    fontWeight: "600",
+  },
+  searchRow: {
+    flexDirection: "row",
+    marginBottom: 8,
+  },
   searchInput: {
     flex: 1,
     backgroundColor: theme.palette.background,
@@ -72,8 +95,10 @@ export const styles = StyleSheet.create({
     color: theme.palette.text.primary,
     fontSize: 13,
   },
-
-  filterRow: { flexDirection: "row", marginBottom: 8 },
+  filterRow: {
+    flexDirection: "row",
+    marginBottom: 8,
+  },
   filterButton: {
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -88,22 +113,26 @@ export const styles = StyleSheet.create({
     backgroundColor: theme.palette.secondary,
     borderColor: theme.palette.primary,
   },
-  filterButtonText: { fontSize: 12, color: theme.palette.text.secondary },
+  filterButtonText: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+  },
   // ✅ Active text neon
   filterButtonTextActive: {
     fontSize: 12,
     color: theme.palette.primary,
     fontWeight: "600",
   },
-
-  noRecentText: { fontSize: 12, color: theme.palette.text.secondary },
+  noRecentText: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+  },
   recentContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6 as any,
     marginTop: 8,
   },
-
   recentPill: {
     paddingHorizontal: 8,
     paddingVertical: 4,
@@ -119,30 +148,40 @@ export const styles = StyleSheet.create({
     backgroundColor: theme.palette.secondary,
     borderColor: theme.palette.primary,
   },
-  recentPillText: { fontSize: 11, color: theme.palette.primary },
-  clearRecentText: { fontSize: 11, color: theme.palette.text.secondary },
-
+  recentPillText: {
+    fontSize: 11,
+    color: theme.palette.primary,
+  },
+  clearRecentText: {
+    fontSize: 11,
+    color: theme.palette.text.secondary,
+  },
   rowBetween: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginTop: 8,
   },
-  smallLabel: { fontSize: 13, color: theme.palette.text.secondary },
+  smallLabel: {
+    fontSize: 13,
+    color: theme.palette.text.secondary,
+  },
   currentRepoText: {
     fontSize: 13,
     color: theme.palette.text.primary,
     marginBottom: 8,
   },
-
   actionsLabel: {
     fontSize: 13,
     color: theme.palette.text.secondary,
     marginTop: 8,
     marginBottom: 4,
   },
-  actionsRow: { flexDirection: "row", marginTop: 8, gap: 8 as any },
-
+  actionsRow: {
+    flexDirection: "row",
+    marginTop: 8,
+    gap: 8 as any,
+  },
   // ✅ Action Buttons: dark bg + neon text
   actionButton: {
     backgroundColor: theme.palette.secondary,

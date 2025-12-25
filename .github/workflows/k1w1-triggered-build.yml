@@ -4,7 +4,7 @@ on:
   # Triggered by Supabase Function via repository_dispatch
   repository_dispatch:
     types: [trigger-eas-build]
-  
+
   # Manual trigger from GitHub UI
   workflow_dispatch:
     inputs:
@@ -12,89 +12,140 @@ on:
         description: "Optional Job ID from K1W1 App (for status tracking)"
         required: false
         type: string
+      profile:
+        description: "EAS build profile (development|preview|production)"
+        required: false
+        default: "preview"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: k1w1-build-${{ github.event.client_payload.job_id || inputs.job_id || github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   build:
-    name: EAS Build (K1W1)
     runs-on: ubuntu-latest
+    timeout-minutes: 120
 
     env:
+      # From repository_dispatch payload
+      JOB_ID: ${{ github.event.client_payload.job_id || inputs.job_id || '' }}
+      PROFILE: ${{ github.event.client_payload.build_profile || github.event.client_payload.profile || inputs.profile || 'preview' }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      JOB_ID: ${{ github.event.client_payload.job_id || inputs.job_id }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Validate Job ID
+      - name: Validate profile
+        shell: bash
         run: |
-          if [ -z "$JOB_ID" ]; then
-            echo "⚠️ Warning: No Job ID provided. Skipping Supabase status updates."
-            echo "has_job_id=false" >> $GITHUB_ENV
-          else
-            echo "✅ Job ID from client_payload: $JOB_ID"
-            echo "has_job_id=true" >> $GITHUB_ENV
-          fi
+          set -euo pipefail
+          case "${PROFILE}" in
+            development|preview|production) echo "✓ profile=${PROFILE}" ;;
+            *) echo "::error::Invalid profile '${PROFILE}'"; exit 1 ;;
+          esac
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 18.x
           cache: npm
 
-      - name: Setup EAS
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Setup Expo Application Services
         uses: expo/expo-github-action@v8
         with:
+          expo-version: latest
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Update Build Status - Building
-        if: env.has_job_id == 'true'
+      - name: Auto-detect native deps (install + plugins)
+        shell: bash
         run: |
-          curl -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+          set -euo pipefail
+          node scripts/k1w1-sync-native.mjs --apply
+
+      - name: Update Supabase status -> building (optional)
+        if: ${{ env.JOB_ID != '' }}
+        shell: bash
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${SUPABASE_URL}" || -z "${SUPABASE_SERVICE_ROLE_KEY}" ]]; then
+            echo "::warning::Supabase secrets missing, skipping status update."
+            exit 0
+          fi
+          curl --fail-with-body -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
-            -H "Prefer: return=minimal" \
-            -d "{\"status\":\"building\",\"github_run_id\":\"${{ github.run_id }}\",\"started_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+            -d "{\"status\":\"building\",\"github_run_id\":\"${GITHUB_RUN_ID}\"}" \
+            --silent
 
-      - name: Run EAS Build
+      - name: Run EAS Build (wait + JSON)
         id: eas
+        shell: bash
         run: |
-          echo "Starting EAS build..."
-          BUILD_OUTPUT=$(eas build --platform android --non-interactive --no-wait 2>&1)
-          echo "$BUILD_OUTPUT"
-          
-          # Extract Build ID from output
-          BUILD_ID=$(echo "$BUILD_OUTPUT" | grep -oP 'Build ID: \K[a-f0-9-]+' || echo "unknown")
-          echo "Extracted Build ID: $BUILD_ID"
-          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
-          
-          # Extract Build URL from output
-          BUILD_URL=$(echo "$BUILD_OUTPUT" | grep -oP 'https://expo.dev/accounts/[^/]+/projects/[^/]+/builds/[a-f0-9-]+' || echo "")
-          echo "Build URL: $BUILD_URL"
-          echo "build_url=$BUILD_URL" >> $GITHUB_OUTPUT
+          set -euo pipefail
+          echo "Starting EAS build (profile=${PROFILE})..."
+          eas build --platform android --profile "${PROFILE}" --non-interactive --json > eas_build.json
+          cat eas_build.json
 
-      - name: Update Build Status - Success
-        if: success() && env.has_job_id == 'true'
+          BUILD_ID="$(jq -r '.[0].id // empty' eas_build.json)"
+          if [[ -z "${BUILD_ID}" ]]; then
+            echo "::error::Could not parse build id from EAS JSON"
+            exit 1
+          fi
+
+          echo "build_id=${BUILD_ID}" >> "$GITHUB_OUTPUT"
+
+          eas build:view "${BUILD_ID}" --json > eas_build_view.json
+          cat eas_build_view.json
+
+          ARTIFACT_URL="$(jq -r '.artifacts.buildUrl // .artifacts.applicationArchiveUrl // .artifacts.appUrl // empty' eas_build_view.json)"
+          BUILD_URL="$(jq -r '.buildUrl // .url // empty' eas_build_view.json)"
+
+          echo "artifact_url=${ARTIFACT_URL}" >> "$GITHUB_OUTPUT"
+          echo "build_url=${BUILD_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Update build status -> success (optional)
+        if: ${{ success() && env.JOB_ID != '' }}
+        shell: bash
         run: |
-          curl -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+          set -euo pipefail
+          if [[ -z "${SUPABASE_URL}" || -z "${SUPABASE_SERVICE_ROLE_KEY}" ]]; then
+            echo "::warning::Supabase secrets missing, skipping status update."
+            exit 0
+          fi
+          curl --fail-with-body -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
-            -H "Prefer: return=minimal" \
-            -d "{\"status\":\"completed\",\"eas_build_id\":\"${{ steps.eas.outputs.build_id }}\",\"build_url\":\"${{ steps.eas.outputs.build_url }}\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+            -d "{\"status\":\"success\",\"eas_build_id\":\"${{ steps.eas.outputs.build_id }}\",\"artifact_url\":\"${{ steps.eas.outputs.artifact_url }}\",\"build_url\":\"${{ steps.eas.outputs.build_url }}\"}" \
+            --silent
 
-      - name: Update Build Status - Failed
-        if: failure() && env.has_job_id == 'true'
+      - name: Update build status -> error (optional)
+        if: ${{ failure() && env.JOB_ID != '' }}
+        shell: bash
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
         run: |
-          curl -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+          set -euo pipefail
+          if [[ -z "${SUPABASE_URL}" || -z "${SUPABASE_SERVICE_ROLE_KEY}" ]]; then
+            echo "::warning::Supabase secrets missing, skipping status update."
+            exit 0
+          fi
+          curl --fail-with-body -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
-            -H "Prefer: return=minimal" \
-            -d "{\"status\":\"error\",\"github_run_id\":\"${{ github.run_id }}\",\"error_message\":\"Build failed. Check GitHub Actions logs.\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+            -d "{\"status\":\"failed\",\"github_run_id\":\"${GITHUB_RUN_ID}\"}" \
+            --silent

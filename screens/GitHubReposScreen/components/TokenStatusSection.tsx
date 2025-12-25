@@ -25,7 +25,7 @@ export function TokenStatusSection({
 
       {tokenLoading ? (
         <View style={styles.tokenLoader}>
-          <ActivityIndicator size="small" color={theme.palette.primary} />
+          <ActivityIndicator size="small" color={"#000"} />
         </View>
       ) : (
         <>
@@ -44,10 +44,10 @@ export function TokenStatusSection({
         disabled={loadingRepos}
       >
         {loadingRepos ? (
-          <ActivityIndicator size="small" color={theme.palette.primary} />
+          <ActivityIndicator size="small" color={"#000"} />
         ) : (
           <>
-            <Ionicons name="refresh" size={18} color={theme.palette.primary} />
+            <Ionicons name="refresh" size={18} color={"#000"} />
             <Text style={styles.buttonText}>Repos laden</Text>
           </>
         )}

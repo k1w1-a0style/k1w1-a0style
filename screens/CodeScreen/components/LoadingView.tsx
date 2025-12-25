@@ -8,7 +8,7 @@ import { styles } from "../styles";
 export const LoadingView: React.FC = () => {
   return (
     <SafeAreaView
-      edges={["left", "right", "bottom"]}
+      edges={["left", "right"]}
       style={[styles.container, styles.centered]}
     >
       <ActivityIndicator size="large" color={theme.palette.primary} />

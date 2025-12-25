@@ -8,6 +8,33 @@ require("dotenv").config();
 
 const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID;
 
+const fs = require("fs");
+const path = require("path");
+
+function readAutogen() {
+  try {
+    const p = path.join(__dirname, "scripts", ".k1w1-native-autogen.json");
+    if (!fs.existsSync(p)) return { plugins: [] };
+    return JSON.parse(fs.readFileSync(p, "utf8"));
+  } catch {
+    return { plugins: [] };
+  }
+}
+
+function uniqPlugins(list) {
+  const seen = new Set();
+  const out = [];
+  for (const item of list) {
+    const key = JSON.stringify(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
+const AUTOGEN = readAutogen();
+
 module.exports = {
   expo: {
     jsEngine: "hermes",
@@ -22,7 +49,7 @@ module.exports = {
     platforms: ["android"],
 
     // ✅ Expo wollte das (wegen expo-font install/dev-client)
-    plugins: ["expo-font"],
+    plugins: uniqPlugins(["expo-font", ...(AUTOGEN.plugins || [])]),
 
     assetBundlePatterns: ["**/*"],
 

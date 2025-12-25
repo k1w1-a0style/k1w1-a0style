@@ -16,35 +16,41 @@ ios/build/
 .vscode/
 .idea/
 
+# dotenv
+.env
+.env.*
+
 # Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+*.log
 
-# Env (niemals pushen)
-.env
-.env.*
+# OS
+.DS_Store
+Thumbs.db
 
-# Local dumps / backups
-project_code_dump.txt
-debug_dump_latest.txt
-project_dump_*.txt
-project_src_*.zip
+# tests / coverage
+coverage/
 
-# Backup/Temp files (z.B. normalizer.ts.bak_2025-12-18_...)
-*.bak
-*.bak_*
-*.bak-*
-*~
+# temp files
+*.tmp
+*.temp
 *.swp
 *.swo
 
 # Supabase temp
 supabase/.temp/
 
-# scripts sollen nicht ins repo
-scripts/
+# scripts (k1w1 sync) are committed; only autogen output is ignored
+scripts/.k1w1-native-autogen.json
 
 # Backups folder
 backups/
+
+# misc
+*.bak
+*.bak_*
+*.bak-*
+*~

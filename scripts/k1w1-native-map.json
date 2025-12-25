@@ -1,0 +1,122 @@
+{
+  "expo-camera": {
+    "install": "expo",
+    "plugins": [["expo-camera", {}]],
+    "reason": "Camera (needs native permissions)"
+  },
+  "expo-image-picker": {
+    "install": "expo",
+    "plugins": [["expo-image-picker", {}]],
+    "reason": "Image picker"
+  },
+  "expo-file-system": {
+    "install": "expo",
+    "plugins": [["expo-file-system", {}]],
+    "reason": "Filesystem access"
+  },
+  "expo-notifications": {
+    "install": "expo",
+    "plugins": [["expo-notifications", {}]],
+    "reason": "Push notifications"
+  },
+  "expo-location": {
+    "install": "expo",
+    "plugins": [["expo-location", {}]],
+    "reason": "Location/permissions"
+  },
+  "expo-contacts": {
+    "install": "expo",
+    "plugins": [["expo-contacts", {}]],
+    "reason": "Contacts"
+  },
+  "expo-av": {
+    "install": "expo",
+    "plugins": [["expo-av", {}]],
+    "reason": "Audio/Video"
+  },
+  "expo-sensors": {
+    "install": "expo",
+    "plugins": [["expo-sensors", {}]],
+    "reason": "Device sensors"
+  },
+  "expo-barcode-scanner": {
+    "install": "expo",
+    "plugins": [["expo-barcode-scanner", {}]],
+    "reason": "Barcode scanning"
+  },
+  "expo-document-picker": {
+    "install": "expo",
+    "plugins": [["expo-document-picker", {}]],
+    "reason": "Document picker"
+  },
+  "expo-sharing": {
+    "install": "expo",
+    "plugins": [["expo-sharing", {}]],
+    "reason": "Share sheet"
+  },
+  "expo-clipboard": {
+    "install": "expo",
+    "plugins": [["expo-clipboard", {}]],
+    "reason": "Clipboard"
+  },
+  "expo-haptics": {
+    "install": "expo",
+    "plugins": [["expo-haptics", {}]],
+    "reason": "Haptics"
+  },
+  "expo-secure-store": {
+    "install": "expo",
+    "plugins": [["expo-secure-store", {}]],
+    "reason": "Secure storage"
+  },
+  "expo-sqlite": {
+    "install": "expo",
+    "plugins": [["expo-sqlite", {}]],
+    "reason": "SQLite"
+  },
+  "react-native-reanimated": {
+    "install": "expo",
+    "plugins": [["react-native-reanimated", {}]],
+    "reason": "Reanimated (babel + native)"
+  },
+  "react-native-gesture-handler": {
+    "install": "expo",
+    "plugins": [["react-native-gesture-handler", {}]],
+    "reason": "Gesture Handler"
+  },
+  "react-native-screens": {
+    "install": "expo",
+    "plugins": [["react-native-screens", {}]],
+    "reason": "Screens"
+  },
+  "react-native-safe-area-context": {
+    "install": "expo",
+    "plugins": [["react-native-safe-area-context", {}]],
+    "reason": "Safe area"
+  },
+  "react-native-webview": {
+    "install": "expo",
+    "plugins": [["react-native-webview", {}]],
+    "reason": "WebView (native)"
+  },
+  "@react-native-community/netinfo": {
+    "install": "expo",
+    "plugins": [["@react-native-community/netinfo", {}]],
+    "reason": "Network info"
+  },
+  "react-native-device-info": {
+    "install": "npm",
+    "plugins": [],
+    "reason": "Device info (3rd-party native)"
+  },
+  "react-native-fs": {
+    "install": "npm",
+    "plugins": [],
+    "reason": "Native filesystem (3rd-party)"
+  },
+  "react-native-vision-camera": {
+    "install": "npm",
+    "plugins": [],
+    "reason": "Vision camera (3rd-party)"
+  }
+}

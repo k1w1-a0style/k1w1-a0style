@@ -1,250 +1,317 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { WebView } from 'react-native-webview';
-import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../theme';
-import { useProject } from '../contexts/ProjectContext';
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  Linking,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { WebView } from "react-native-webview";
+import Constants from "expo-constants";
 
-type DeviceMode = 'mobile' | 'tablet';
+import { CONFIG } from "../config";
+import { useGitHub } from "../contexts/GitHubContext";
+import { useProject } from "../contexts/ProjectContext";
+import { useTheme } from "../theme/ThemeProvider";
 
-const escapeHtml = (input: string) =>
-  input
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+type Mode = "web" | "info";
+
+function repoToPagesUrl(repoFullName: string) {
+  // repoFullName = "owner/repo"
+  const [owner, repo] = repoFullName.split("/");
+  if (!owner || !repo) return "";
+  return `https://${owner}.github.io/${repo}/`;
+}
 
 export default function PreviewScreen() {
   const { projectData } = useProject();
-  const [device, setDevice] = useState<DeviceMode>('mobile');
-  const [reloadKey, setReloadKey] = useState(0);
-  const lastHashRef = useRef<string>('');
+  const { activeRepo } = useGitHub();
+  const theme = useTheme();
 
-  // 🔁 Live Reload bei Projektänderungen
+  const [mode, setMode] = useState<Mode>("web");
+  const [loading, setLoading] = useState(false);
+
+  const webPreviewBaseFromConfig =
+    (Constants.expoConfig as any)?.extra?.webPreview?.baseUrl ||
+    (Constants.manifest as any)?.extra?.webPreview?.baseUrl ||
+    "";
+
+  const defaultWebUrl = useMemo(() => {
+    // If user provides a full URL (e.g. Cloudflare Pages), use it.
+    // Otherwise compute GitHub Pages URL from activeRepo.
+    if (
+      webPreviewBaseFromConfig &&
+      webPreviewBaseFromConfig.startsWith("http")
+    ) {
+      return webPreviewBaseFromConfig.replace(/\/+$/, "") + "/";
+    }
+    if (!activeRepo) return "";
+    return repoToPagesUrl(activeRepo);
+  }, [activeRepo, webPreviewBaseFromConfig]);
+
+  const [webUrl, setWebUrl] = useState<string>(defaultWebUrl);
+
   useEffect(() => {
-    if (!projectData?.files) return;
+    if (defaultWebUrl && !webUrl) setWebUrl(defaultWebUrl);
+  }, [defaultWebUrl, webUrl]);
 
-    const hash = JSON.stringify(
-      projectData.files.map((f) => `${f.path}:${String(f.content).length}`),
-    );
-
-    if (hash !== lastHashRef.current) {
-      lastHashRef.current = hash;
-      setReloadKey((k) => k + 1);
-    }
-  }, [projectData]);
-
-  const htmlContent = useMemo(() => {
-    if (!projectData) {
-      return errorHtml('Kein Projekt geladen', 'Erstelle oder importiere ein Projekt.');
-    }
-
-    if (!projectData.files || projectData.files.length === 0) {
-      return errorHtml(
-        'Projekt ist leer',
-        'Erstelle Dateien über den CodeScreen oder nutze die KI.',
-      );
-    }
-
-    const appFile = projectData.files.find(
-      (f) => f.path === 'App.tsx' || f.path === 'App.js',
-    );
-
-    if (!appFile) {
-      return errorHtml(
-        'Kein App.tsx gefunden',
-        'Dein Projekt braucht eine App.tsx als Einstiegspunkt.',
-      );
-    }
-
-    const fileList = projectData.files
-      .map(
-        (f) =>
-          `<li><strong>${escapeHtml(f.path)}</strong> (${String(f.content).length} bytes)</li>`,
-      )
-      .join('');
-
-    const appPreview = escapeHtml(
-      typeof appFile.content === 'string'
-        ? appFile.content
-        : JSON.stringify(appFile.content, null, 2),
-    );
+  const htmlPreview = useMemo(() => {
+    const filesList = projectData?.files
+      ? Object.keys(projectData.files)
+          .sort()
+          .map(
+            (f) =>
+              `<li><code>${f}</code> (${(projectData.files[f]?.content || "").length} chars)</li>`,
+          )
+          .join("")
+      : "<li>Keine Dateien</li>";
 
     return `
       <html>
         <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <style>
-            body {
-              background: #0a0a0a;
-              color: #e0e0e0;
-              font-family: system-ui, sans-serif;
-              padding: 16px;
-            }
-            h1 {
-              color: #00ff00;
-              margin-bottom: 8px;
-            }
-            .box {
-              border: 1px solid #333;
-              border-radius: 14px;
-              padding: 16px;
-              margin-bottom: 16px;
-              background: rgba(0,255,0,0.05);
-            }
-            ul {
-              list-style: none;
-              padding: 0;
-              margin: 0;
-            }
-            li {
-              padding: 6px 0;
-              border-bottom: 1px solid #222;
-            }
-            pre {
-              background: #000;
-              padding: 12px;
-              border-radius: 12px;
-              overflow-x: auto;
-              font-size: 11px;
-              border: 1px solid #222;
-            }
-            .hint {
-              color: #999;
-              font-size: 12px;
-            }
+            body { font-family: -apple-system, system-ui, sans-serif; padding: 14px; background: #0A0A0A; color: #fff; }
+            .card { background: #151515; border: 1px solid #2A2A2A; border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+            h1 { font-size: 18px; margin: 0 0 8px 0; }
+            h2 { font-size: 14px; margin: 16px 0 8px 0; color: #d0d0d0; }
+            code { background: #111; padding: 2px 6px; border-radius: 8px; border: 1px solid #2A2A2A; }
+            .muted { color: #aaa; font-size: 12px; line-height: 1.4; }
+            ul { margin: 8px 0 0 0; padding-left: 18px; }
+            li { margin-bottom: 6px; }
           </style>
         </head>
         <body>
-          <h1>⚡ ${escapeHtml(projectData.name || 'Preview')}</h1>
-
-          <div class="box">
-            <h3>Live Preview (Simulation)</h3>
-            <p class="hint">
-              Dies ist eine visuelle HTML-Simulation deines React-Native-Projekts.
-              Kein Code wird ausgeführt.
-            </p>
+          <div class="card">
+            <h1>Preview (Info/Dummy)</h1>
+            <div class="muted">
+              Das ist die reine Info-Ansicht (Dateiübersicht). Für echtes UI-Preview nutze den Tab „Web Preview“.
+            </div>
           </div>
 
-          <div class="box">
-            <h3>Dateien (${projectData.files.length})</h3>
-            <ul>${fileList}</ul>
+          <div class="card">
+            <h2>Aktives Repo</h2>
+            <div class="muted">${activeRepo || "Keins ausgewählt"}</div>
           </div>
 
-          <div class="box">
-            <h3>App.tsx Preview</h3>
-            <pre>${appPreview}</pre>
+          <div class="card">
+            <h2>Projektdateien</h2>
+            <ul>${filesList}</ul>
           </div>
         </body>
       </html>
     `;
-  }, [projectData]);
+  }, [activeRepo, projectData?.files]);
+
+  const triggerWebPreviewBuild = async () => {
+    if (!activeRepo) {
+      Alert.alert(
+        "Kein Repo ausgewählt",
+        "Bitte wähle erst ein Repo im GitHub-Repos Screen.",
+      );
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `${CONFIG.API.SUPABASE_EDGE_URL}/github-workflow-dispatch`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            githubRepo: activeRepo,
+            workflowId: "web-preview.yml",
+            ref: "main",
+            inputs: {},
+          }),
+        },
+      );
+
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok || !json?.ok) {
+        throw new Error(
+          json?.error || `GitHub dispatch failed (${res.status})`,
+        );
+      }
+
+      Alert.alert(
+        "Web Preview gestartet",
+        "GitHub Actions baut jetzt die Web Preview und deployed nach GitHub Pages.\n\nHinweis: GitHub Pages muss im Repo einmalig aktiviert sein (Settings → Pages → Source: GitHub Actions).",
+      );
+
+      // Optional: direkt auf URL springen
+      if (webUrl) setMode("web");
+    } catch (e: any) {
+      Alert.alert("Fehler", e?.message || "Konnte Web Preview nicht starten");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openExternal = async () => {
+    if (!webUrl) return;
+    try {
+      await Linking.openURL(webUrl);
+    } catch {
+      Alert.alert("Fehler", "Konnte Link nicht öffnen");
+    }
+  };
+
+  const canShowWeb = mode === "web" && !!webUrl;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* TOOLBAR */}
-      <View style={styles.toolbar}>
-        <Text style={styles.title}>Live Preview</Text>
+    <View
+      style={[styles.container, { backgroundColor: theme.palette.background }]}
+    >
+      <View
+        style={[styles.topbar, { borderBottomColor: theme.palette.border }]}
+      >
+        <View style={styles.modeRow}>
+          <TouchableOpacity
+            onPress={() => setMode("web")}
+            style={[
+              styles.modeBtn,
+              mode === "web" && { backgroundColor: theme.palette.primary },
+              { borderColor: theme.palette.border },
+            ]}
+          >
+            <Text style={styles.modeBtnText}>Web Preview</Text>
+          </TouchableOpacity>
 
-        <View style={styles.toolbarRight}>
-          <TouchableOpacity onPress={() => setReloadKey((k) => k + 1)}>
-            <Ionicons name="refresh" size={20} color={theme.palette.text.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setDevice('mobile')}>
-            <Ionicons
-              name="phone-portrait"
-              size={20}
-              color={device === 'mobile' ? theme.palette.primary : '#555'}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setDevice('tablet')}>
-            <Ionicons
-              name="tablet-landscape"
-              size={20}
-              color={device === 'tablet' ? theme.palette.primary : '#555'}
-            />
+          <TouchableOpacity
+            onPress={() => setMode("info")}
+            style={[
+              styles.modeBtn,
+              mode === "info" && { backgroundColor: theme.palette.primary },
+              { borderColor: theme.palette.border },
+            ]}
+          >
+            <Text style={styles.modeBtnText}>Info</Text>
           </TouchableOpacity>
         </View>
+
+        {mode === "web" && (
+          <View style={styles.webControls}>
+            <TouchableOpacity
+              onPress={triggerWebPreviewBuild}
+              disabled={loading || !activeRepo}
+              style={[
+                styles.webBtn,
+                { backgroundColor: theme.palette.primary },
+                (loading || !activeRepo) && { opacity: 0.5 },
+              ]}
+            >
+              <Text style={styles.webBtnText}>
+                {loading ? "…" : "Build Web Preview"}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={openExternal}
+              disabled={!webUrl}
+              style={[
+                styles.webBtn,
+                { backgroundColor: theme.palette.card },
+                !webUrl && { opacity: 0.5 },
+              ]}
+            >
+              <Text style={[styles.webBtnText, { color: theme.palette.text }]}>
+                Open
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
-      {/* WEBVIEW */}
-      <View style={styles.previewContainer}>
+      {mode === "web" && (
         <View
-          style={[
-            styles.deviceFrame,
-            device === 'mobile' ? styles.mobile : styles.tablet,
-          ]}
+          style={[styles.urlRow, { borderBottomColor: theme.palette.border }]}
         >
-          <WebView
-            key={reloadKey}
-            originWhitelist={['*']}
-            source={{ html: htmlContent }}
-            style={{ flex: 1, backgroundColor: '#000' }}
-          />
+          <Text
+            style={[styles.urlLabel, { color: theme.palette.textSecondary }]}
+          >
+            URL
+          </Text>
+          <View style={styles.inputWrap}>
+            <TextInput
+              value={webUrl}
+              onChangeText={setWebUrl}
+              placeholder={defaultWebUrl || "https://…"}
+              placeholderTextColor={theme.palette.textSecondary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={[
+                styles.urlInput,
+                {
+                  color: theme.palette.text,
+                  borderColor: theme.palette.border,
+                },
+              ]}
+            />
+          </View>
         </View>
-      </View>
-    </SafeAreaView>
+      )}
+
+      {canShowWeb ? (
+        <WebView
+          source={{ uri: webUrl }}
+          style={styles.webview}
+          onError={(e) =>
+            Alert.alert("WebView Error", e.nativeEvent.description)
+          }
+        />
+      ) : (
+        <ScrollView style={styles.scroll}>
+          <WebView
+            originWhitelist={["*"]}
+            source={{ html: htmlPreview }}
+            style={styles.webview}
+          />
+        </ScrollView>
+      )}
+    </View>
   );
 }
 
-// ❌ Error Overlay HTML
-function errorHtml(title: string, message: string) {
-  return `
-    <html>
-      <body style="
-        background:#0a0a0a;
-        color:#ff4444;
-        font-family:sans-serif;
-        display:flex;
-        flex-direction:column;
-        justify-content:center;
-        align-items:center;
-        padding:24px;
-        text-align:center;
-      ">
-        <h1>❌ ${title}</h1>
-        <p>${message}</p>
-      </body>
-    </html>
-  `;
-}
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.palette.background },
-
-  toolbar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.palette.border,
-    backgroundColor: theme.palette.card,
+  container: { flex: 1 },
+  topbar: {
+    padding: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 10,
   },
-  title: { color: theme.palette.text.primary, fontWeight: '700', fontSize: 16 },
-  toolbarRight: { flexDirection: 'row', gap: 16 },
-
-  previewContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
+  modeRow: { flexDirection: "row", gap: 10 },
+  modeBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
   },
-  deviceFrame: {
-    borderWidth: 10,
-    borderColor: '#333',
-    borderRadius: 28,
-    overflow: 'hidden',
-    backgroundColor: '#000',
+  modeBtnText: { color: "#fff", fontWeight: "600" },
+  webControls: { flexDirection: "row", gap: 10 },
+  webBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12 },
+  webBtnText: { color: "#fff", fontWeight: "700" },
+  urlRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  mobile: {
-    width: '100%',
-    maxWidth: 360,
-    height: '92%',
+  urlLabel: { width: 40, fontSize: 12, fontWeight: "700" },
+  inputWrap: { flex: 1 },
+  urlInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    fontSize: 12,
   },
-  tablet: {
-    width: '100%',
-    maxWidth: 900,
-    height: '85%',
-  },
+  webview: { flex: 1 },
+  scroll: { flex: 1 },
 });

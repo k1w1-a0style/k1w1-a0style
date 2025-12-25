@@ -1,5 +1,11 @@
 /* eslint-disable react/no-unescaped-entities */
-import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+  useRef,
+} from "react";
 import {
   ActivityIndicator,
   Linking,
@@ -11,16 +17,16 @@ import {
   RefreshControl,
   Animated,
   Easing,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useBuildStatus } from '../hooks/useBuildStatus';
-import { useBuildHistory } from '../hooks/useBuildHistory';
-import { useGitHubActionsLogs } from '../hooks/useGitHubActionsLogs';
-import { BuildErrorAnalyzer, ErrorAnalysis } from '../lib/buildErrorAnalyzer';
-import { CONFIG } from '../config';
-import { theme } from '../theme';
-import { useGitHub } from '../contexts/GitHubContext';
-import { useNotifications } from '../hooks/useNotifications';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useBuildStatus } from "../hooks/useBuildStatus";
+import { useBuildHistory } from "../hooks/useBuildHistory";
+import { useGitHubActionsLogs } from "../hooks/useGitHubActionsLogs";
+import { BuildErrorAnalyzer, ErrorAnalysis } from "../lib/buildErrorAnalyzer";
+import { CONFIG } from "../config";
+import { theme } from "../theme";
+import { useGitHub } from "../contexts/GitHubContext";
+import { useNotifications } from "../hooks/useNotifications";
 
 // ✅ Extrahierte Module
 import {
@@ -32,9 +38,9 @@ import {
   formatHistoryDate,
   getStatusIcon,
   getStatusColor,
-} from '../utils/buildScreenUtils';
-import { BuildTimelineCard } from '../components/build/BuildTimelineCard';
-import { styles } from '../styles/enhancedBuildScreenStyles';
+} from "../utils/buildScreenUtils";
+import { BuildTimelineCard } from "../components/build/BuildTimelineCard";
+import { styles } from "../styles/enhancedBuildScreenStyles";
 
 export default function EnhancedBuildScreen() {
   const { activeRepo } = useGitHub();
@@ -63,7 +69,8 @@ export default function EnhancedBuildScreen() {
   } = useBuildHistory();
 
   // Notifications Hook
-  const { notifyBuildSuccess, notifyBuildFailure, notifyBuildStarted } = useNotifications();
+  const { notifyBuildSuccess, notifyBuildFailure, notifyBuildStarted } =
+    useNotifications();
 
   const { status, details, lastError, isPolling } = useBuildStatus(jobId);
 
@@ -78,12 +85,12 @@ export default function EnhancedBuildScreen() {
   } = useGitHubActionsLogs({
     githubRepo: activeRepo,
     runId: runId,
-    autoRefresh: status === 'building' || status === 'queued',
+    autoRefresh: status === "building" || status === "queued",
   });
 
   // Analyze errors when logs update
   useEffect(() => {
-    if (logs.length > 0 && (status === 'failed' || status === 'error')) {
+    if (logs.length > 0 && (status === "failed" || status === "error")) {
       const analyses = BuildErrorAnalyzer.analyzeLogs(logs);
       setErrorAnalyses(analyses);
     } else {
@@ -105,7 +112,7 @@ export default function EnhancedBuildScreen() {
 
   // Pulse animation for active build indicator (optimized)
   useEffect(() => {
-    if (status === 'building' || status === 'queued') {
+    if (status === "building" || status === "queued") {
       const pulse = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
@@ -120,7 +127,7 @@ export default function EnhancedBuildScreen() {
             easing: Easing.inOut(Easing.ease),
             useNativeDriver: true,
           }),
-        ])
+        ]),
       );
       pulse.start();
       return () => {
@@ -132,52 +139,60 @@ export default function EnhancedBuildScreen() {
     }
   }, [status, pulseAnim]);
 
-  const startBuild = useCallback(async () => {
-    if (!activeRepo) {
-      Alert.alert(
-        'Kein Repo ausgewählt',
-        'Bitte wähle zuerst ein GitHub-Repo im „GitHub Repos"-Screen aus.'
-      );
-      return;
-    }
-
-    try {
-      const res = await fetch(`${CONFIG.API.SUPABASE_EDGE_URL}/trigger-eas-build`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          githubRepo: activeRepo,
-          buildProfile: 'preview',
-          buildType: 'normal',
-        }),
-      });
-
-      const json = await res.json();
-
-      if (json.ok && json.job?.id) {
-        const newJobId = json.job.id;
-        setJobId(newJobId);
-        setStartedAt(Date.now());
-        setElapsedMs(0);
-        setShowLogs(true);
-        setErrorAnalyses([]);
-
-        // ✅ Build zur Historie hinzufügen
-        await addToHistory(newJobId, activeRepo, 'preview');
-
-        // 📱 Notification senden
-        await notifyBuildStarted(String(newJobId), 'Android');
-      } else {
-        Alert.alert('Fehler', json?.error || 'Fehler beim Start des Builds');
+  const startBuild = useCallback(
+    async (profile: "development" | "preview" | "production" = "preview") => {
+      if (!activeRepo) {
+        Alert.alert(
+          "Kein Repo ausgewählt",
+          'Bitte wähle zuerst ein GitHub-Repo im „GitHub Repos"-Screen aus.',
+        );
+        return;
       }
-    } catch (e: any) {
-      Alert.alert('Fehler', e?.message || 'Build konnte nicht gestartet werden');
-    }
-  }, [activeRepo, addToHistory, notifyBuildStarted]);
+      try {
+        const res = await fetch(
+          `${CONFIG.API.SUPABASE_EDGE_URL}/trigger-eas-build`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              githubRepo: activeRepo,
+              buildProfile: profile,
+              buildType: "normal",
+            }),
+          },
+        );
+
+        const json = await res.json();
+
+        if (json.ok && json.job?.id) {
+          const newJobId = json.job.id;
+          setJobId(newJobId);
+          setStartedAt(Date.now());
+          setElapsedMs(0);
+          setShowLogs(true);
+          setErrorAnalyses([]);
+
+          // ✅ Build zur Historie hinzufügen
+          await addToHistory(newJobId, activeRepo, profile);
+
+          // 📱 Notification senden
+          await notifyBuildStarted(String(newJobId), "Android");
+        } else {
+          Alert.alert("Fehler", json?.error || "Fehler beim Start des Builds");
+        }
+      } catch (e: any) {
+        Alert.alert(
+          "Fehler",
+          e?.message || "Build konnte nicht gestartet werden",
+        );
+      }
+    },
+    [activeRepo, addToHistory, notifyBuildStarted],
+  );
 
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
-    if (jobId && startedAt && (status === 'queued' || status === 'building')) {
+    if (jobId && startedAt && (status === "queued" || status === "building")) {
       timer = setInterval(() => {
         setElapsedMs(Date.now() - startedAt);
       }, 1000);
@@ -196,29 +211,41 @@ export default function EnhancedBuildScreen() {
 
   // ✅ NEU: Build-Historie aktualisieren bei Status-Änderung + Notifications
   useEffect(() => {
-    if (jobId && ['success', 'failed', 'error'].includes(status)) {
-      updateHistory(jobId, status as 'success' | 'failed' | 'error', {
+    if (jobId && ["success", "failed", "error"].includes(status)) {
+      updateHistory(jobId, status as "success" | "failed" | "error", {
         artifactUrl: details?.urls?.artifacts,
         htmlUrl: details?.urls?.html,
         errorMessage: lastError || undefined,
       });
 
       // 📱 Notifications senden
-      if (status === 'success') {
-        notifyBuildSuccess(String(jobId), 'Android');
-      } else if (status === 'failed' || status === 'error') {
-        notifyBuildFailure(String(jobId), lastError || 'Unbekannter Fehler', 'Android');
+      if (status === "success") {
+        notifyBuildSuccess(String(jobId), "Android");
+      } else if (status === "failed" || status === "error") {
+        notifyBuildFailure(
+          String(jobId),
+          lastError || "Unbekannter Fehler",
+          "Android",
+        );
       }
     }
-  }, [jobId, status, details, lastError, updateHistory, notifyBuildSuccess, notifyBuildFailure]);
+  }, [
+    jobId,
+    status,
+    details,
+    lastError,
+    updateHistory,
+    notifyBuildSuccess,
+    notifyBuildFailure,
+  ]);
 
   const openUrl = useCallback((url?: string | null) => {
     if (!url) {
-      Alert.alert('Fehler', 'Kein Link verfügbar');
+      Alert.alert("Fehler", "Kein Link verfügbar");
       return;
     }
     Linking.openURL(url).catch(() => {
-      Alert.alert('Fehler', 'Link konnte nicht geöffnet werden');
+      Alert.alert("Fehler", "Link konnte nicht geöffnet werden");
     });
   }, []);
 
@@ -230,13 +257,13 @@ export default function EnhancedBuildScreen() {
 
   const resetBuild = useCallback(() => {
     Alert.alert(
-      '🔄 Build zurücksetzen?',
-      'Möchtest du den aktuellen Build-Status zurücksetzen und einen neuen Build starten?',
+      "🔄 Build zurücksetzen?",
+      "Möchtest du den aktuellen Build-Status zurücksetzen und einen neuen Build starten?",
       [
-        { text: 'Abbrechen', style: 'cancel' },
+        { text: "Abbrechen", style: "cancel" },
         {
-          text: 'Zurücksetzen',
-          style: 'destructive',
+          text: "Zurücksetzen",
+          style: "destructive",
           onPress: () => {
             setJobId(null);
             setStartedAt(null);
@@ -245,61 +272,61 @@ export default function EnhancedBuildScreen() {
             setErrorAnalyses([]);
           },
         },
-      ]
+      ],
     );
   }, []);
 
   const eta = useMemo(() => computeEta(status, elapsedMs), [status, elapsedMs]);
   const errorSummary = useMemo(
     () => BuildErrorAnalyzer.generateSummary(errorAnalyses),
-    [errorAnalyses]
+    [errorAnalyses],
   );
   const criticalError = useMemo(
     () => BuildErrorAnalyzer.getMostCriticalError(errorAnalyses),
-    [errorAnalyses]
+    [errorAnalyses],
   );
 
   // Width interpolation for animated progress bar
   const animatedWidth = progressAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ['0%', '100%'],
+    outputRange: ["0%", "100%"],
   });
 
   const handleDeleteHistoryEntry = useCallback(
     (jobIdToDelete: number) => {
       Alert.alert(
-        'Eintrag löschen?',
+        "Eintrag löschen?",
         `Möchtest du Build #${jobIdToDelete} aus der Historie entfernen?`,
         [
-          { text: 'Abbrechen', style: 'cancel' },
+          { text: "Abbrechen", style: "cancel" },
           {
-            text: 'Löschen',
-            style: 'destructive',
+            text: "Löschen",
+            style: "destructive",
             onPress: () => deleteFromHistory(jobIdToDelete),
           },
-        ]
+        ],
       );
     },
-    [deleteFromHistory]
+    [deleteFromHistory],
   );
 
   const handleClearHistory = useCallback(() => {
     Alert.alert(
-      'Historie löschen?',
-      'Möchtest du die gesamte Build-Historie unwiderruflich löschen?',
+      "Historie löschen?",
+      "Möchtest du die gesamte Build-Historie unwiderruflich löschen?",
       [
-        { text: 'Abbrechen', style: 'cancel' },
+        { text: "Abbrechen", style: "cancel" },
         {
-          text: 'Alles löschen',
-          style: 'destructive',
+          text: "Alles löschen",
+          style: "destructive",
           onPress: clearHistory,
         },
-      ]
+      ],
     );
   }, [clearHistory]);
 
   return (
-    <SafeAreaView style={styles.root} edges={['top']}>
+    <SafeAreaView style={styles.root} edges={["top"]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -318,7 +345,8 @@ export default function EnhancedBuildScreen() {
             <Text style={styles.title}>🚀 Live Build Status</Text>
           </Animated.View>
           <Text style={styles.subtitle}>
-            Starte einen Build und verfolge Warteschlange, Fortschritt und Dauer in Echtzeit.
+            Starte einen Build und verfolge Warteschlange, Fortschritt und Dauer
+            in Echtzeit.
           </Text>
         </View>
 
@@ -333,8 +361,8 @@ export default function EnhancedBuildScreen() {
             <Text style={styles.noRepoIcon}>⚠️</Text>
             <Text style={styles.noRepoTitle}>Kein Repository ausgewählt</Text>
             <Text style={styles.noRepoText}>
-              Wähle zuerst ein GitHub-Repo im „GitHub Repos"-Tab aus, bevor du einen Build starten
-              kannst.
+              Wähle zuerst ein GitHub-Repo im „GitHub Repos"-Tab aus, bevor du
+              einen Build starten kannst.
             </Text>
           </View>
         )}
@@ -342,27 +370,57 @@ export default function EnhancedBuildScreen() {
         {/* Action Buttons */}
         <View style={styles.actionRow}>
           <TouchableOpacity
-            onPress={startBuild}
+            onPress={() => startBuild("development")}
             style={[
               styles.buildButton,
               !activeRepo && styles.buildButtonDisabled,
-              (isPolling || status === 'building') && styles.buildButtonActive,
+              (isPolling || status === "building") && styles.buildButtonActive,
             ]}
-            disabled={!activeRepo || isPolling || status === 'building'}
+            disabled={!activeRepo || isPolling || status === "building"}
             activeOpacity={0.7}
           >
-            {isPolling || status === 'building' ? (
+            {isPolling || status === "building" ? (
               <View style={styles.buildButtonContent}>
-                <ActivityIndicator color={theme.palette.secondary} size="small" />
+                <ActivityIndicator
+                  color={theme.palette.secondary}
+                  size="small"
+                />
                 <Text style={styles.buildButtonTextActive}>Build läuft...</Text>
               </View>
             ) : (
-              <Text style={styles.buildButtonText}>🚀 Build starten</Text>
+              <Text style={styles.buildButtonText}>🧪 Dev Build</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => startBuild("preview")}
+            style={[
+              styles.buildButton,
+              !activeRepo && styles.buildButtonDisabled,
+              (isPolling || status === "building") && styles.buildButtonActive,
+            ]}
+            disabled={!activeRepo || isPolling || status === "building"}
+            activeOpacity={0.7}
+          >
+            {isPolling || status === "building" ? (
+              <View style={styles.buildButtonContent}>
+                <ActivityIndicator
+                  color={theme.palette.secondary}
+                  size="small"
+                />
+                <Text style={styles.buildButtonTextActive}>Build läuft...</Text>
+              </View>
+            ) : (
+              <Text style={styles.buildButtonText}>📦 Preview APK</Text>
             )}
           </TouchableOpacity>
 
           {jobId && (
-            <TouchableOpacity onPress={resetBuild} style={styles.resetButton} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={resetBuild}
+              style={styles.resetButton}
+              activeOpacity={0.7}
+            >
               <Text style={styles.resetButtonText}>🔄</Text>
             </TouchableOpacity>
           )}
@@ -371,7 +429,8 @@ export default function EnhancedBuildScreen() {
         {!jobId && activeRepo && (
           <View style={styles.hintCard}>
             <Text style={styles.hintText}>
-              💡 Noch kein Build aktiv. Starte oben einen Run, um Live-Daten zu sehen.
+              💡 Noch kein Build aktiv. Starte oben einen Run, um Live-Daten zu
+              sehen.
             </Text>
           </View>
         )}
@@ -392,24 +451,28 @@ export default function EnhancedBuildScreen() {
                   style={[
                     styles.progressFill,
                     { width: animatedWidth },
-                    status === 'failed' && styles.progressFillError,
-                    status === 'success' && styles.progressFillSuccess,
+                    status === "failed" && styles.progressFillError,
+                    status === "success" && styles.progressFillSuccess,
                   ]}
                 />
               </View>
 
               {/* Progress percentage indicator */}
-              <Text style={styles.progressPercent}>{Math.round(progress * 100)}%</Text>
+              <Text style={styles.progressPercent}>
+                {Math.round(progress * 100)}%
+              </Text>
 
               <View style={styles.liveMetrics}>
                 <View style={styles.metricBox}>
                   <Text style={styles.metricLabel}>⏱ Verstrichene Zeit</Text>
-                  <Text style={styles.metricValue}>{formatDuration(elapsedMs)}</Text>
+                  <Text style={styles.metricValue}>
+                    {formatDuration(elapsedMs)}
+                  </Text>
                 </View>
                 <View style={styles.metricBox}>
                   <Text style={styles.metricLabel}>⏳ Geschätzte Restzeit</Text>
                   <Text style={styles.metricValue}>
-                    {status === 'success' ? '0:00 min' : formatDuration(eta)}
+                    {status === "success" ? "0:00 min" : formatDuration(eta)}
                   </Text>
                 </View>
               </View>
@@ -417,73 +480,93 @@ export default function EnhancedBuildScreen() {
 
             {/* Timeline Card - Extracted Component */}
             <BuildTimelineCard status={status} />
-
             {/* Error Analysis Card */}
-            {(status === 'failed' || status === 'error') && errorAnalyses.length > 0 && (
-              <View style={styles.errorAnalysisCard}>
-                <View style={styles.cardHeader}>
-                  <Text style={styles.cardTitle}>🔍 Fehleranalyse</Text>
-                  <Text style={[styles.cardMeta, { color: theme.palette.error }]}>
-                    {errorSummary}
-                  </Text>
+            {(status === "failed" || status === "error") &&
+              errorAnalyses.length > 0 && (
+                <View style={styles.errorAnalysisCard}>
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.cardTitle}>🔍 Fehleranalyse</Text>
+                    <Text
+                      style={[styles.cardMeta, { color: theme.palette.error }]}
+                    >
+                      {errorSummary}
+                    </Text>
+                  </View>
+
+                  {criticalError && (
+                    <View style={[styles.errorItem, styles.errorItemCritical]}>
+                      <View style={styles.errorItemHeader}>
+                        <Text
+                          style={[
+                            styles.errorCategory,
+                            { color: getSeverityColor(criticalError.severity) },
+                          ]}
+                        >
+                          {criticalError.category}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.errorSeverity,
+                            { color: getSeverityColor(criticalError.severity) },
+                          ]}
+                        >
+                          {criticalError.severity.toUpperCase()}
+                        </Text>
+                      </View>
+                      <Text style={styles.errorDescription}>
+                        {criticalError.description}
+                      </Text>
+                      <View style={styles.errorSuggestionBox}>
+                        <Text style={styles.errorSuggestionLabel}>
+                          💡 Lösung:
+                        </Text>
+                        <Text style={styles.errorSuggestion}>
+                          {criticalError.suggestion}
+                        </Text>
+                      </View>
+                      {criticalError.documentation && (
+                        <TouchableOpacity
+                          style={styles.docsButton}
+                          onPress={() => openUrl(criticalError.documentation)}
+                        >
+                          <Text style={styles.docsButtonText}>
+                            📖 Dokumentation öffnen
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
+
+                  {errorAnalyses.slice(1).map((error, idx) => (
+                    <View key={idx} style={styles.errorItem}>
+                      <View style={styles.errorItemHeader}>
+                        <Text
+                          style={[
+                            styles.errorCategory,
+                            { color: getSeverityColor(error.severity) },
+                          ]}
+                        >
+                          {error.category}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.errorSeverity,
+                            { color: getSeverityColor(error.severity) },
+                          ]}
+                        >
+                          {error.severity}
+                        </Text>
+                      </View>
+                      <Text style={styles.errorDescription}>
+                        {error.description}
+                      </Text>
+                      <Text style={styles.errorSuggestion}>
+                        💡 {error.suggestion}
+                      </Text>
+                    </View>
+                  ))}
                 </View>
-
-                {criticalError && (
-                  <View style={[styles.errorItem, styles.errorItemCritical]}>
-                    <View style={styles.errorItemHeader}>
-                      <Text
-                        style={[
-                          styles.errorCategory,
-                          { color: getSeverityColor(criticalError.severity) },
-                        ]}
-                      >
-                        {criticalError.category}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.errorSeverity,
-                          { color: getSeverityColor(criticalError.severity) },
-                        ]}
-                      >
-                        {criticalError.severity.toUpperCase()}
-                      </Text>
-                    </View>
-                    <Text style={styles.errorDescription}>{criticalError.description}</Text>
-                    <View style={styles.errorSuggestionBox}>
-                      <Text style={styles.errorSuggestionLabel}>💡 Lösung:</Text>
-                      <Text style={styles.errorSuggestion}>{criticalError.suggestion}</Text>
-                    </View>
-                    {criticalError.documentation && (
-                      <TouchableOpacity
-                        style={styles.docsButton}
-                        onPress={() => openUrl(criticalError.documentation)}
-                      >
-                        <Text style={styles.docsButtonText}>📖 Dokumentation öffnen</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                )}
-
-                {errorAnalyses.slice(1).map((error, idx) => (
-                  <View key={idx} style={styles.errorItem}>
-                    <View style={styles.errorItemHeader}>
-                      <Text
-                        style={[styles.errorCategory, { color: getSeverityColor(error.severity) }]}
-                      >
-                        {error.category}
-                      </Text>
-                      <Text
-                        style={[styles.errorSeverity, { color: getSeverityColor(error.severity) }]}
-                      >
-                        {error.severity}
-                      </Text>
-                    </View>
-                    <Text style={styles.errorDescription}>{error.description}</Text>
-                    <Text style={styles.errorSuggestion}>💡 {error.suggestion}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
+              )}
 
             {/* GitHub Actions Logs Card */}
             <View style={styles.logsCard}>
@@ -494,7 +577,7 @@ export default function EnhancedBuildScreen() {
                   style={styles.toggleButton}
                 >
                   <Text style={styles.toggleButtonText}>
-                    {showLogs ? '▼ Ausblenden' : '▶ Anzeigen'}
+                    {showLogs ? "▼ Ausblenden" : "▶ Anzeigen"}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -504,11 +587,15 @@ export default function EnhancedBuildScreen() {
                   {isLoadingLogs && (
                     <View style={styles.logsLoading}>
                       <ActivityIndicator color={theme.palette.primary} />
-                      <Text style={styles.logsLoadingText}>Logs werden geladen...</Text>
+                      <Text style={styles.logsLoadingText}>
+                        Logs werden geladen...
+                      </Text>
                     </View>
                   )}
 
-                  {logsError && <Text style={styles.logsError}>⚠️ {logsError}</Text>}
+                  {logsError && (
+                    <Text style={styles.logsError}>⚠️ {logsError}</Text>
+                  )}
 
                   {logs.length > 0 && (
                     <ScrollView
@@ -522,12 +609,14 @@ export default function EnhancedBuildScreen() {
                           key={idx}
                           style={[
                             styles.logEntry,
-                            log.level === 'error' && styles.logEntryError,
-                            log.level === 'warning' && styles.logEntryWarning,
+                            log.level === "error" && styles.logEntryError,
+                            log.level === "warning" && styles.logEntryWarning,
                           ]}
                         >
                           <Text style={styles.logTimestamp}>
-                            {new Date(log.timestamp).toLocaleTimeString('de-DE')}
+                            {new Date(log.timestamp).toLocaleTimeString(
+                              "de-DE",
+                            )}
                           </Text>
                           <Text style={styles.logMessage} numberOfLines={3}>
                             {log.message}
@@ -545,7 +634,6 @@ export default function EnhancedBuildScreen() {
                 </>
               )}
             </View>
-
             {/* Links & Actions Card */}
             <View style={styles.infoCard}>
               <Text style={styles.cardTitle}>🔗 Links & Aktionen</Text>
@@ -554,10 +642,14 @@ export default function EnhancedBuildScreen() {
                   style={styles.linkButton}
                   onPress={() => openUrl(details.urls?.html)}
                 >
-                  <Text style={styles.linkButtonText}>📱 GitHub Actions öffnen</Text>
+                  <Text style={styles.linkButtonText}>
+                    📱 GitHub Actions öffnen
+                  </Text>
                 </TouchableOpacity>
               ) : (
-                <Text style={styles.infoText}>GitHub-Link noch nicht verfügbar.</Text>
+                <Text style={styles.infoText}>
+                  GitHub-Link noch nicht verfügbar.
+                </Text>
               )}
 
               {details?.urls?.artifacts ? (
@@ -565,7 +657,9 @@ export default function EnhancedBuildScreen() {
                   style={[styles.linkButton, styles.linkButtonSuccess]}
                   onPress={() => openUrl(details.urls?.artifacts)}
                 >
-                  <Text style={styles.linkButtonText}>⬇️ APK / Artefakte laden</Text>
+                  <Text style={styles.linkButtonText}>
+                    ⬇️ APK / Artefakte laden
+                  </Text>
                 </TouchableOpacity>
               ) : (
                 <Text style={styles.infoText}>
@@ -590,7 +684,9 @@ export default function EnhancedBuildScreen() {
               <Text style={styles.cardTitle}>📜 Build-Historie</Text>
               <View style={styles.statsRow}>
                 <Text style={styles.statBadge}>✅ {stats.success}</Text>
-                <Text style={[styles.statBadge, { color: theme.palette.error }]}>
+                <Text
+                  style={[styles.statBadge, { color: theme.palette.error }]}
+                >
                   ❌ {stats.failed}
                 </Text>
               </View>
@@ -600,7 +696,7 @@ export default function EnhancedBuildScreen() {
               style={styles.toggleButton}
             >
               <Text style={styles.toggleButtonText}>
-                {showHistory ? '▼ Ausblenden' : `▶ Anzeigen (${stats.total})`}
+                {showHistory ? "▼ Ausblenden" : `▶ Anzeigen (${stats.total})`}
               </Text>
             </TouchableOpacity>
           </View>
@@ -610,7 +706,9 @@ export default function EnhancedBuildScreen() {
               {historyLoading ? (
                 <View style={styles.logsLoading}>
                   <ActivityIndicator color={theme.palette.primary} />
-                  <Text style={styles.logsLoadingText}>Historie wird geladen...</Text>
+                  <Text style={styles.logsLoadingText}>
+                    Historie wird geladen...
+                  </Text>
                 </View>
               ) : history.length === 0 ? (
                 <Text style={styles.historyEmpty}>
@@ -631,17 +729,25 @@ export default function EnhancedBuildScreen() {
                           styles.historyEntry,
                           entry.jobId === jobId && styles.historyEntryCurrent,
                         ]}
-                        onLongPress={() => handleDeleteHistoryEntry(entry.jobId)}
+                        onLongPress={() =>
+                          handleDeleteHistoryEntry(entry.jobId)
+                        }
                         activeOpacity={0.7}
                       >
                         <View style={styles.historyEntryHeader}>
-                          <Text style={styles.historyEntryIcon}>{getStatusIcon(entry.status)}</Text>
+                          <Text style={styles.historyEntryIcon}>
+                            {getStatusIcon(entry.status)}
+                          </Text>
                           <View style={styles.historyEntryInfo}>
-                            <Text style={styles.historyEntryRepo} numberOfLines={1}>
+                            <Text
+                              style={styles.historyEntryRepo}
+                              numberOfLines={1}
+                            >
                               {entry.repoName}
                             </Text>
                             <Text style={styles.historyEntryMeta}>
-                              Job #{entry.jobId} • {formatHistoryDate(entry.startedAt)}
+                              Job #{entry.jobId} •{" "}
+                              {formatHistoryDate(entry.startedAt)}
                             </Text>
                           </View>
                           <Text
@@ -665,25 +771,31 @@ export default function EnhancedBuildScreen() {
                             style={styles.historyArtifactButton}
                             onPress={() => openUrl(entry.artifactUrl)}
                           >
-                            <Text style={styles.historyArtifactText}>⬇️ APK herunterladen</Text>
+                            <Text style={styles.historyArtifactText}>
+                              ⬇️ APK herunterladen
+                            </Text>
                           </TouchableOpacity>
                         )}
 
                         {entry.errorMessage && (
-                          <Text style={styles.historyEntryError} numberOfLines={2}>
+                          <Text
+                            style={styles.historyEntryError}
+                            numberOfLines={2}
+                          >
                             ⚠️ {entry.errorMessage}
                           </Text>
                         )}
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
-
                   {history.length > 0 && (
                     <TouchableOpacity
                       style={styles.clearHistoryButton}
                       onPress={handleClearHistory}
                     >
-                      <Text style={styles.clearHistoryText}>🗑️ Historie löschen</Text>
+                      <Text style={styles.clearHistoryText}>
+                        🗑️ Historie löschen
+                      </Text>
                     </TouchableOpacity>
                   )}
                 </>

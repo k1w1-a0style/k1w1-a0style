@@ -25,7 +25,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
     : `data:image/png;base64,${base64Content}`;
 
   return (
-    <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
+    <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <View style={styles.editorHeader}>
         <TouchableOpacity
           style={styles.backButton}
