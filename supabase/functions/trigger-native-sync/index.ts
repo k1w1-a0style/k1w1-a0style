@@ -2,26 +2,18 @@ import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 
-type TriggerNativeSyncBody = {
-  githubRepo: string;
+type ReqBody = {
+  githubRepo?: string;
   ref?: string;
-  inputs?: {
-    apply?: string; // "true" | "false"
-    create_pr?: string; // "true" | "false"
-    base_ref?: string; // branch
-  };
+  apply?: string | boolean;
+  create_pr?: string | boolean;
+  base_ref?: string;
 };
 
-function isValidRepo(repo: string) {
-  return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo);
-}
-
-function normalizeBoolString(v: unknown, fallback: "true" | "false") {
-  const s = String(v ?? "")
-    .toLowerCase()
-    .trim();
-  if (s === "true" || s === "false") return s as "true" | "false";
-  return fallback;
+function toBool(v: any, def = false) {
+  if (v === true || v === "true" || v === "1" || v === 1) return true;
+  if (v === false || v === "false" || v === "0" || v === 0) return false;
+  return def;
 }
 
 serve(async (req) => {
@@ -29,69 +21,53 @@ serve(async (req) => {
   if (corsResponse) return corsResponse;
 
   try {
-    const body = (await req
-      .json()
-      .catch(() => null)) as TriggerNativeSyncBody | null;
+    const body = (await req.json().catch(() => ({}))) as ReqBody;
 
-    if (!body?.githubRepo || !isValidRepo(body.githubRepo)) {
+    const githubRepo = String(body.githubRepo || "").trim();
+    if (!githubRepo || !githubRepo.includes("/")) {
       return errorResponse(
-        "Invalid githubRepo (expected owner/repo)",
+        "Validation failed: githubRepo missing/invalid",
         req,
         400,
       );
     }
 
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const ref = String(body.ref || "main");
+    const baseRef = String(body.base_ref || "main");
+    const apply = toBool(body.apply, true);
+    const createPr = toBool(body.create_pr, false);
+
     const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN");
+    const SUPABASE_URL = Deno.env.get("K1W1_SUPABASE_URL");
+    const SERVICE_ROLE = Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY");
 
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      return errorResponse(
-        "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY",
-        req,
-        500,
-      );
-    }
-    if (!GITHUB_TOKEN) {
-      return errorResponse("Missing GITHUB_TOKEN", req, 500);
-    }
-
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-    const githubRepo = body.githubRepo;
-    const baseRef =
-      String(body.inputs?.base_ref ?? body.ref ?? "main").trim() || "main";
-    const apply = normalizeBoolString(body.inputs?.apply, "true");
-    const create_pr = normalizeBoolString(body.inputs?.create_pr, "false");
-
-    // 1) log job to Supabase (reusing existing build_jobs table)
-    const insert = await supabase
-      .from("build_jobs")
-      .insert([
-        {
-          github_repo: githubRepo,
-          build_profile: "native_sync",
-          status: "queued",
+    if (!GITHUB_TOKEN || !SUPABASE_URL || !SERVICE_ROLE) {
+      return errorResponse("Missing required environment variables", req, 500, {
+        missing: {
+          GITHUB_TOKEN: !!GITHUB_TOKEN,
+          K1W1_SUPABASE_URL: !!SUPABASE_URL,
+          K1W1_SUPABASE_SERVICE_ROLE_KEY: !!SERVICE_ROLE,
         },
-      ])
+      });
+    }
+
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+    // 1) job anlegen
+    const ins = await supabase
+      .from("native_sync_jobs")
+      .insert([{ github_repo: githubRepo, status: "queued" }])
       .select("*")
       .single();
 
-    if (insert.error || !insert.data?.id) {
-      return errorResponse(
-        "Supabase insert failed (build_jobs)",
-        req,
-        500,
-        insert.error,
-      );
+    if (ins.error || !ins.data) {
+      return errorResponse("Supabase insert failed", req, 500, ins.error);
     }
 
-    const jobId = String(insert.data.id);
+    const jobId = ins.data.id;
 
     // 2) dispatch workflow
-    // We dispatch the existing workflow file (hard-coded to prevent abuse)
     const workflowId = "k1w1-sync-native.yml";
-
     const dispatchUrl = `https://api.github.com/repos/${githubRepo}/actions/workflows/${workflowId}/dispatches`;
 
     const dispatchRes = await fetch(dispatchUrl, {
@@ -102,41 +78,36 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        ref: baseRef,
+        ref,
         inputs: {
-          apply,
-          create_pr,
+          apply: apply ? "true" : "false",
+          create_pr: createPr ? "true" : "false",
           base_ref: baseRef,
-          job_id: jobId,
+          job_id: String(jobId),
         },
       }),
     });
 
     if (!dispatchRes.ok) {
-      const errorText = await dispatchRes.text();
-
+      const txt = await dispatchRes.text().catch(() => "");
       await supabase
-        .from("build_jobs")
+        .from("native_sync_jobs")
         .update({
           status: "error",
-          error_message: `GitHub dispatch failed: ${dispatchRes.status} ${errorText}`,
+          last_error: `dispatch failed: ${txt || dispatchRes.status}`,
         })
         .eq("id", jobId);
 
-      return errorResponse("GitHub dispatch failed", req, 500, {
+      return errorResponse("GitHub workflow_dispatch failed", req, 500, {
         status: dispatchRes.status,
-        details: errorText,
+        details: txt,
         jobId,
       });
     }
 
-    // mark as dispatched
     await supabase
-      .from("build_jobs")
-      .update({
-        status: "dispatched",
-        error_message: null,
-      })
+      .from("native_sync_jobs")
+      .update({ status: "dispatched" })
       .eq("id", jobId);
 
     return jsonResponse(
@@ -144,16 +115,23 @@ serve(async (req) => {
         ok: true,
         jobId,
         githubRepo,
-        workflowId,
-        ref: baseRef,
-        inputs: { apply, create_pr, base_ref: baseRef },
+        workflow: workflowId,
       },
       req,
-      200,
     );
   } catch (err: any) {
-    return errorResponse("trigger-native-sync error", req, 500, {
-      message: err?.message ?? String(err),
-    });
+    console.error(
+      "❌ trigger-native-sync error",
+      err?.message ?? err,
+      err?.stack,
+    );
+    return errorResponse(
+      "Unhandled exception in trigger-native-sync",
+      req,
+      500,
+      {
+        message: err?.message || "Unknown error",
+      },
+    );
   }
 });

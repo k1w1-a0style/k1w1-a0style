@@ -2,21 +2,10 @@ import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 
-type CheckNativeSyncBody = {
-  jobId: string;
-};
+type ReqBody = { jobId?: string | number };
 
-function mapStatus(runStatus: string | null, conclusion: string | null) {
-  const s = (runStatus || "").toLowerCase();
-  if (s === "queued") return "running";
-  if (s === "in_progress") return "running";
-  if (s === "completed") {
-    if ((conclusion || "").toLowerCase() === "success") return "success";
-    if ((conclusion || "").toLowerCase() === "cancelled") return "error";
-    if ((conclusion || "").toLowerCase() === "skipped") return "error";
-    return "error";
-  }
-  return "running";
+function safeStr(v: any) {
+  return v == null ? "" : String(v);
 }
 
 serve(async (req) => {
@@ -24,41 +13,37 @@ serve(async (req) => {
   if (corsResponse) return corsResponse;
 
   try {
-    const body = (await req
-      .json()
-      .catch(() => null)) as CheckNativeSyncBody | null;
-    const jobId = String(body?.jobId ?? "").trim();
+    const body = (await req.json().catch(() => ({}))) as ReqBody;
+    const jobIdRaw = body.jobId;
 
-    if (!jobId) {
-      return errorResponse("Missing jobId", req, 400);
-    }
-
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN");
-
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    const jobId = Number(jobIdRaw);
+    if (!Number.isFinite(jobId) || jobId <= 0) {
       return errorResponse(
-        "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY",
+        "Validation failed: jobId missing/invalid",
         req,
-        500,
+        400,
       );
     }
-    if (!GITHUB_TOKEN) {
-      return errorResponse("Missing GITHUB_TOKEN", req, 500);
+
+    const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN");
+    const SUPABASE_URL = Deno.env.get("K1W1_SUPABASE_URL");
+    const SERVICE_ROLE = Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!GITHUB_TOKEN || !SUPABASE_URL || !SERVICE_ROLE) {
+      return errorResponse("Missing required environment variables", req, 500);
     }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
     const jobRes = await supabase
-      .from("build_jobs")
+      .from("native_sync_jobs")
       .select("*")
       .eq("id", jobId)
       .single();
 
     if (jobRes.error || !jobRes.data) {
       return errorResponse(
-        "Job not found (build_jobs)",
+        "native_sync_jobs lookup failed",
         req,
         404,
         jobRes.error,
@@ -66,14 +51,16 @@ serve(async (req) => {
     }
 
     const job = jobRes.data;
-    const githubRepo = String(job.github_repo || "").trim();
-    if (!githubRepo) {
-      return errorResponse("build_jobs row missing github_repo", req, 500);
-    }
+    const repo = safeStr(job.github_repo);
+    if (!repo)
+      return errorResponse(
+        "native_sync_jobs row missing github_repo",
+        req,
+        500,
+      );
 
-    const workflowId = "k1w1-sync-native.yml";
-    const runsUrl = `https://api.github.com/repos/${githubRepo}/actions/workflows/${workflowId}/runs?per_page=20`;
-
+    // Find matching workflow run by run-name "Sync Native Deps (job <id>)"
+    const runsUrl = `https://api.github.com/repos/${repo}/actions/workflows/k1w1-sync-native.yml/runs?per_page=30`;
     const ghRes = await fetch(runsUrl, {
       headers: {
         Accept: "application/vnd.github+json",
@@ -81,85 +68,55 @@ serve(async (req) => {
       },
     });
 
-    if (!ghRes.ok) {
-      const t = await ghRes.text();
-      return errorResponse("GitHub runs fetch failed", req, 500, {
-        status: ghRes.status,
-        details: t,
-      });
-    }
-
     const ghJson = await ghRes.json().catch(() => null);
-    const runs = ghJson?.workflow_runs || [];
+    const runs = ghJson?.workflow_runs ?? [];
 
-    // We match by jobId embedded in run-name (display_title)
-    const match =
-      runs.find((r: any) => {
-        const title = String(r?.display_title ?? "");
-        return title.includes(jobId);
-      }) ||
+    const wanted = `job ${jobId}`;
+    const run =
+      runs.find((r: any) => safeStr(r?.name).includes(wanted)) ||
       runs[0] ||
       null;
 
-    if (!match) {
-      // still not visible -> keep queued/dispatched
-      return jsonResponse(
-        {
-          ok: true,
-          job: {
-            id: jobId,
-            status: job.status,
-            error_message: job.error_message ?? null,
-          },
-          run: null,
-          note: "No run found yet. GitHub may need a few seconds.",
-        },
-        req,
-        200,
-      );
+    // Map status
+    let status = safeStr(job.status || "waiting").toLowerCase();
+    let runStatus = run ? safeStr(run.status).toLowerCase() : "";
+    let runConclusion = run ? safeStr(run.conclusion).toLowerCase() : "";
+
+    if (run) {
+      if (runStatus === "queued") status = "queued";
+      else if (runStatus === "in_progress") status = "running";
+      else if (runStatus === "completed")
+        status = runConclusion === "success" ? "success" : "failed";
     }
 
-    const runStatus = String(match.status ?? "");
-    const conclusion = match.conclusion ? String(match.conclusion) : null;
-    const mapped = mapStatus(runStatus, conclusion);
-
-    // Update minimal fields safely (status + error_message)
-    const detail =
-      `GitHub: ${runStatus}${conclusion ? ` / ${conclusion}` : ""} | ${match.html_url || ""}`.trim();
-
-    await supabase
-      .from("build_jobs")
-      .update({
-        status: mapped,
-        error_message: mapped === "success" ? null : detail,
-      })
-      .eq("id", jobId);
+    // Keep helpful URLs
+    const htmlUrl = run?.html_url ?? job.run_html_url ?? null;
+    const runId = run?.id ?? job.github_run_id ?? null;
 
     return jsonResponse(
       {
         ok: true,
-        job: {
-          id: jobId,
-          status: mapped,
-          error_message: mapped === "success" ? null : detail,
-        },
-        run: {
-          id: match.id,
-          status: match.status,
-          conclusion: match.conclusion,
-          html_url: match.html_url,
-          run_number: match.run_number,
-          created_at: match.created_at,
-          updated_at: match.updated_at,
-          display_title: match.display_title,
-        },
+        status,
+        run: run
+          ? {
+              id: runId,
+              status: runStatus,
+              conclusion: runConclusion,
+              html_url: htmlUrl,
+              created_at: run?.created_at ?? null,
+              updated_at: run?.updated_at ?? null,
+            }
+          : null,
+        job,
       },
       req,
-      200,
     );
   } catch (err: any) {
-    return errorResponse("check-native-sync error", req, 500, {
-      message: err?.message ?? String(err),
-    });
+    console.error(
+      "❌ check-native-sync error",
+      err?.message ?? err,
+      err?.stack,
+    );
+    return errorResponse(err?.message || "Unknown error", req, 500);
   }
 });

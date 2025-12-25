@@ -1,24 +1,31 @@
 name: K1W1 Sync Native Deps
 
+run-name: Sync Native Deps (job ${{ inputs.job_id }})
+
 on:
   workflow_dispatch:
     inputs:
       apply:
-        description: "Install missing deps (true/false)"
+        description: Install missing deps (true/false)
         required: false
         default: "true"
       create_pr:
-        description: "Create PR with changes (true/false)"
+        description: Create PR with changed files (true/false)
         required: false
         default: "false"
       base_ref:
-        description: "Base branch/ref"
+        description: Base branch/ref
         required: false
         default: "main"
+      job_id:
+        description: native_sync_jobs.id (for logging)
+        required: false
+        default: ""
 
 permissions:
   contents: write
   pull-requests: write
+  actions: read
 
 jobs:
   sync-native:
@@ -26,9 +33,12 @@ jobs:
     timeout-minutes: 30
 
     env:
-      APPLY: ${{ inputs.apply || 'true' }}
-      CREATE_PR: ${{ inputs.create_pr || 'false' }}
-      BASE_REF: ${{ inputs.base_ref || 'main' }}
+      APPLY: ${{ inputs.apply }}
+      CREATE_PR: ${{ inputs.create_pr }}
+      BASE_REF: ${{ inputs.base_ref }}
+      JOB_ID: ${{ inputs.job_id }}
+      SUPABASE_EDGE_URL: ${{ secrets.SUPABASE_EDGE_URL }}
+      K1W1_SYNC_SECRET: ${{ secrets.K1W1_SYNC_SECRET }}
 
     steps:
       - name: Checkout
@@ -36,46 +46,75 @@ jobs:
         with:
           ref: ${{ env.BASE_REF }}
 
-      - name: Setup Node
+      - name: Use Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: npm
 
       - name: Install deps
         run: npm ci || npm install
 
       - name: Run native sync scan
         run: |
-          set -euo pipefail
-          if [[ "${APPLY}" == "true" ]]; then
-            node scripts/k1w1-sync-native.mjs --apply
-          else
-            node scripts/k1w1-sync-native.mjs
-          fi
+          node scripts/k1w1-sync-native.mjs --apply=${APPLY}
 
-      - name: Upload report artifact
+      - name: Upload autogen report artifact
         uses: actions/upload-artifact@v4
         with:
           name: k1w1-native-autogen
           path: scripts/.k1w1-native-autogen.json
-          retention-days: 7
+
+      - name: Send report to Supabase (nice list in app)
+        if: env.SUPABASE_EDGE_URL != '' && env.JOB_ID != ''
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+
+          const report = JSON.parse(fs.readFileSync('scripts/.k1w1-native-autogen.json','utf8'));
+          const payload = {
+            jobId: String(process.env.JOB_ID || ""),
+            githubRepo: String(process.env.GITHUB_REPOSITORY || ""),
+            report
+          };
+
+          const url = `${process.env.SUPABASE_EDGE_URL}/native-sync-report-ingest`;
+
+          fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-k1w1-sync-secret': String(process.env.K1W1_SYNC_SECRET || '')
+            },
+            body: JSON.stringify(payload)
+          }).then(async (r) => {
+            const t = await r.text();
+            console.log("Ingest status:", r.status);
+            console.log(t);
+            if (!r.ok) process.exit(1);
+          }).catch((e) => {
+            console.error(e);
+            process.exit(1);
+          });
+          NODE
 
       - name: Create PR (optional)
-        if: ${{ env.CREATE_PR == 'true' }}
-        uses: peter-evans/create-pull-request@v6
-        with:
-          commit-message: "chore: sync native deps (autogen)"
-          title: "Sync native deps (autogen)"
-          body: |
-            Auto-generated update from scripts/k1w1-sync-native.mjs.
-            Includes dependency/plugin alignment for Expo/EAS.
-          branch: k1w1/native-sync
-          delete-branch: true
+        if: env.CREATE_PR == 'true'
+        run: |
+          git config user.name "k1w1-bot"
+          git config user.email "k1w1-bot@users.noreply.github.com"
+          BR="k1w1/native-sync-${{ github.run_id }}"
+          git checkout -b "$BR"
+          git add package.json package-lock.json yarn.lock pnpm-lock.yaml app.json eas.json || true
+          git commit -m "chore: sync native deps" || echo "No changes to commit"
+          git push origin "$BR" || true
+          gh pr create --title "chore: sync native deps" --body "Auto sync via workflow" --base "${BASE_REF}" --head "$BR" || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Summary
         run: |
           echo "## K1W1 Native Sync" >> $GITHUB_STEP_SUMMARY
+          echo "- JobId: ${JOB_ID}" >> $GITHUB_STEP_SUMMARY
           echo "- Apply: ${APPLY}" >> $GITHUB_STEP_SUMMARY
           echo "- Base Ref: ${BASE_REF}" >> $GITHUB_STEP_SUMMARY
-          echo "- Report: scripts/.k1w1-native-autogen.json (artifact)" >> $GITHUB_STEP_SUMMARY
+          echo "- Report: scripts/.k1w1-native-autogen.json" >> $GITHUB_STEP_SUMMARY

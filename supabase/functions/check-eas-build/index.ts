@@ -4,15 +4,15 @@ import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { validateCheckBuildRequest } from "../_shared/validation.ts";
 
 /**
- * ✅ check-eas-build (kritisch stabilisiert)
- * - bevorzugt build_jobs.status + build_url/artifact_url (weil Workflow diese setzt)
- * - wenn github_run_id vorhanden: holt Run-Details direkt über /actions/runs/:id
- * - fallback: schaut workflow runs von eas-build.yml
+ * check-eas-build (robust)
+ * - bevorzugt build_jobs.status + urls (weil Workflow diese schreibt)
+ * - wenn github_run_id vorhanden: holt Run-Details direkt /actions/runs/:id
+ * - fallback: holt runs von eas-build.yml
  */
-
-function pickJobField(job: any, keys: string[]) {
+function pick(job: any, keys: string[]) {
   for (const k of keys) {
-    if (job && job[k] != null && String(job[k]).trim() !== "") return job[k];
+    const v = job?.[k];
+    if (v != null && String(v).trim() !== "") return v;
   }
   return null;
 }
@@ -43,7 +43,6 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // 1) build_jobs row holen
     const jobRes = await supabase
       .from("build_jobs")
       .select("*")
@@ -55,25 +54,20 @@ serve(async (req) => {
     }
 
     const job = jobRes.data;
-
-    if (!job.github_repo) {
+    const repo = String(job.github_repo || "");
+    if (!repo) {
       return errorResponse("build_jobs row missing github_repo", req, 500);
     }
 
-    const repo = String(job.github_repo);
     const jobStatus = String(job.status || "").toLowerCase();
-
-    const buildUrl = pickJobField(job, ["build_url", "buildUrl", "url"]) as
-      | string
-      | null;
-    const artifactUrl = pickJobField(job, [
+    const buildUrl = pick(job, ["build_url", "buildUrl", "url"]);
+    const artifactUrl = pick(job, [
       "artifact_url",
       "artifactUrl",
       "apk_url",
       "apkUrl",
-    ]) as string | null;
-
-    const ghRunId = pickJobField(job, [
+    ]);
+    const ghRunId = pick(job, [
       "github_run_id",
       "githubRunId",
       "run_id",
@@ -82,7 +76,7 @@ serve(async (req) => {
 
     let run: any = null;
 
-    // 2) wenn wir run_id haben: direkt fetchen (beste Variante)
+    // Best: run_id direkt
     if (ghRunId) {
       const ghRunUrl = `https://api.github.com/repos/${repo}/actions/runs/${ghRunId}`;
       const ghRunRes = await fetch(ghRunUrl, {
@@ -91,13 +85,10 @@ serve(async (req) => {
           Authorization: `Bearer ${GITHUB_TOKEN}`,
         },
       });
-
-      if (ghRunRes.ok) {
-        run = await ghRunRes.json().catch(() => null);
-      }
+      if (ghRunRes.ok) run = await ghRunRes.json().catch(() => null);
     }
 
-    // 3) fallback: nur runs von eas-build.yml (nicht "irgendein run")
+    // Fallback: eas-build.yml runs
     if (!run) {
       const ghUrl = `https://api.github.com/repos/${repo}/actions/workflows/eas-build.yml/runs?per_page=15`;
       const ghRes = await fetch(ghUrl, {
@@ -106,54 +97,39 @@ serve(async (req) => {
           Authorization: `Bearer ${GITHUB_TOKEN}`,
         },
       });
-
       const ghJson = await ghRes.json().catch(() => null);
-      if (
-        ghJson &&
-        ghJson.workflow_runs &&
-        Array.isArray(ghJson.workflow_runs)
-      ) {
-        run = ghJson.workflow_runs[0] || null;
-      }
+      run = ghJson?.workflow_runs?.[0] || null;
     }
 
-    // 4) Status mapping: bevorzugt job.status, sonst GitHub
-    let mappedStatus = "waiting";
-
+    // Map status: prefer job.status
+    let status = "waiting";
     if (jobStatus) {
       if (["queued", "dispatched", "waiting"].includes(jobStatus))
-        mappedStatus = "queued";
+        status = "queued";
       else if (["building", "in_progress", "running"].includes(jobStatus))
-        mappedStatus = "building";
-      else if (["success", "succeeded"].includes(jobStatus))
-        mappedStatus = "success";
-      else if (["failed", "error"].includes(jobStatus)) mappedStatus = "failed";
-      else mappedStatus = jobStatus;
+        status = "building";
+      else if (["success", "succeeded"].includes(jobStatus)) status = "success";
+      else if (["failed", "error"].includes(jobStatus)) status = "failed";
+      else status = jobStatus;
     } else if (run) {
       const ghStatus = String(run.status || "").toLowerCase();
       const ghConclusion = String(run.conclusion || "").toLowerCase();
-
-      if (ghStatus === "queued") mappedStatus = "queued";
-      if (ghStatus === "in_progress") mappedStatus = "building";
+      if (ghStatus === "queued") status = "queued";
+      if (ghStatus === "in_progress") status = "building";
       if (ghStatus === "completed")
-        mappedStatus = ghConclusion === "success" ? "success" : "failed";
-      if (ghStatus === "") mappedStatus = "waiting";
+        status = ghConclusion === "success" ? "success" : "failed";
     }
-
-    const runHtml = run?.html_url ? String(run.html_url) : null;
-
-    const buildFound = !!run || mappedStatus !== "waiting";
 
     return jsonResponse(
       {
         ok: true,
-        buildFound,
-        status: mappedStatus,
+        buildFound: !!run || status !== "waiting",
+        status,
         runId: run?.id ?? null,
         urls: {
-          html: runHtml,
-          build: buildUrl,
-          artifacts: artifactUrl,
+          html: run?.html_url ?? null,
+          build: buildUrl ?? null,
+          artifacts: artifactUrl ?? null,
         },
         job,
       },

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,8 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  TextInput,
-  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -34,184 +32,111 @@ type DiagnosticReport = {
   issues: DiagnosticIssue[];
 };
 
-type EasStatusState = {
-  status: string;
-  runUrl?: string | null;
-  buildUrl?: string | null;
-  artifactUrl?: string | null;
-  updatedAtISO?: string;
-};
-
-type SyncStatusState = {
-  status: string;
-  conclusion?: string | null;
-  runUrl?: string | null;
-  updatedAtISO?: string;
-};
-
 const STORAGE_KEYS = {
   lastRepo: "k1w1:last_repo",
+  lastNativeJobId: "k1w1:last_native_sync_job_id",
   lastEasJobId: "k1w1:last_eas_job_id",
 };
 
+async function safeGet(key: string) {
+  try {
+    return await AsyncStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+async function safeSet(key: string, val: string) {
+  try {
+    await AsyncStorage.setItem(key, val);
+  } catch {}
+}
+
 export default function DiagnosticScreen() {
   const { projectData, triggerAutoFix } = useProject();
-
-  // Diagnose
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [report, setReport] = useState<DiagnosticReport | null>(null);
 
-  // Live Status
-  const [lastRepo, setLastRepo] = useState<string>("");
-  const [easJobIdInput, setEasJobIdInput] = useState<string>("");
-  const [isRefreshingEas, setIsRefreshingEas] = useState(false);
-  const [isRefreshingSync, setIsRefreshingSync] = useState(false);
+  // auto-saved status
+  const [savedRepo, setSavedRepo] = useState<string>("");
+  const [savedNativeJobId, setSavedNativeJobId] = useState<string>("");
+  const [savedEasJobId, setSavedEasJobId] = useState<string>("");
 
-  const [easState, setEasState] = useState<EasStatusState | null>(null);
-  const [syncState, setSyncState] = useState<SyncStatusState | null>(null);
+  const [nativeStatus, setNativeStatus] = useState<string>("");
+  const [nativeRunUrl, setNativeRunUrl] = useState<string>("");
+  const [easStatus, setEasStatus] = useState<string>("");
+  const [easRunUrl, setEasRunUrl] = useState<string>("");
+  const [easArtifactUrl, setEasArtifactUrl] = useState<string>("");
+
+  const loadSaved = useCallback(async () => {
+    const r = (await safeGet(STORAGE_KEYS.lastRepo)) || "";
+    const n = (await safeGet(STORAGE_KEYS.lastNativeJobId)) || "";
+    const e = (await safeGet(STORAGE_KEYS.lastEasJobId)) || "";
+    setSavedRepo(r);
+    setSavedNativeJobId(n);
+    setSavedEasJobId(e);
+  }, []);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const repo = (await AsyncStorage.getItem(STORAGE_KEYS.lastRepo)) || "";
-        const jobId =
-          (await AsyncStorage.getItem(STORAGE_KEYS.lastEasJobId)) || "";
-        if (repo) setLastRepo(repo);
-        if (jobId) setEasJobIdInput(jobId);
-      } catch {
-        // ignore
-      }
-    })();
-  }, []);
+    loadSaved();
+  }, [loadSaved]);
 
-  const openUrl = useCallback(async (url?: string | null) => {
-    if (!url) return;
-    try {
-      const can = await Linking.canOpenURL(url);
-      if (!can) {
-        Alert.alert("Kann URL nicht öffnen", url);
-        return;
-      }
-      await Linking.openURL(url);
-    } catch (e: any) {
-      Alert.alert("URL Fehler", e?.message || "Konnte URL nicht öffnen");
-    }
-  }, []);
-
-  const refreshEasStatus = useCallback(async () => {
-    const jobIdNum = Number(easJobIdInput);
-    if (!Number.isFinite(jobIdNum) || jobIdNum <= 0) {
-      Alert.alert("JobId fehlt", "Bitte eine gültige EAS JobId eintragen.");
+  const refreshNative = useCallback(async () => {
+    if (!savedNativeJobId) {
+      Alert.alert(
+        "Kein Job",
+        "Kein gespeicherter Native-Sync JobId vorhanden.",
+      );
       return;
     }
-
-    setIsRefreshingEas(true);
     try {
-      await AsyncStorage.setItem(STORAGE_KEYS.lastEasJobId, String(jobIdNum));
+      const res = await fetch(
+        `${CONFIG.API.SUPABASE_EDGE_URL}/check-native-sync`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId: savedNativeJobId }),
+        },
+      );
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.ok)
+        throw new Error(json?.error || `HTTP ${res.status}`);
 
+      setNativeStatus(String(json.status || json.job?.status || ""));
+      setNativeRunUrl(String(json.run?.html_url || ""));
+    } catch (e: any) {
+      Alert.alert(
+        "Native-Sync Status Fehler",
+        e?.message || "Unbekannter Fehler",
+      );
+    }
+  }, [savedNativeJobId]);
+
+  const refreshEas = useCallback(async () => {
+    if (!savedEasJobId) {
+      Alert.alert("Kein Job", "Kein gespeicherter EAS JobId vorhanden.");
+      return;
+    }
+    try {
       const res = await fetch(
         `${CONFIG.API.SUPABASE_EDGE_URL}/check-eas-build`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jobId: jobIdNum }),
+          body: JSON.stringify({ jobId: savedEasJobId }),
         },
       );
-
       const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.ok)
+        throw new Error(json?.error || `HTTP ${res.status}`);
 
-      if (!res.ok || !json?.ok) {
-        throw new Error(
-          json?.error || `check-eas-build failed (${res.status})`,
-        );
-      }
-
-      const status = String(json?.status || "unknown");
-      const runUrl = json?.urls?.html ?? null;
-      const buildUrl = json?.urls?.build ?? null;
-      const artifactUrl = json?.urls?.artifacts ?? null;
-
-      setEasState({
-        status,
-        runUrl,
-        buildUrl,
-        artifactUrl,
-        updatedAtISO: new Date().toISOString(),
-      });
+      setEasStatus(String(json.status || ""));
+      setEasRunUrl(String(json.urls?.html || ""));
+      setEasArtifactUrl(String(json.urls?.artifacts || ""));
     } catch (e: any) {
       Alert.alert("EAS Status Fehler", e?.message || "Unbekannter Fehler");
-    } finally {
-      setIsRefreshingEas(false);
     }
-  }, [easJobIdInput]);
-
-  const refreshSyncStatus = useCallback(async () => {
-    const repo = String(lastRepo || "").trim();
-    if (!repo) {
-      Alert.alert(
-        "Repo fehlt",
-        "Kein Repo gespeichert. Tipp hier dein Repo rein (owner/repo) oder triggere einmal „sync deps“ im Chat, damit es gespeichert wird.",
-      );
-      return;
-    }
-
-    setIsRefreshingSync(true);
-    try {
-      await AsyncStorage.setItem(STORAGE_KEYS.lastRepo, repo);
-
-      const res = await fetch(
-        `${CONFIG.API.SUPABASE_EDGE_URL}/github-workflow-runs`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ githubRepo: repo, perPage: 20 }),
-        },
-      );
-
-      const json = await res.json().catch(() => ({}));
-
-      if (!res.ok || !json?.ok || !Array.isArray(json?.runs)) {
-        throw new Error(
-          json?.error || `github-workflow-runs failed (${res.status})`,
-        );
-      }
-
-      const runs: any[] = json.runs;
-
-      // Wir suchen den letzten Run von "K1W1 Sync Native Deps"
-      const match =
-        runs
-          .filter((r) =>
-            String(r?.workflow_name || "").includes("K1W1 Sync Native Deps"),
-          )
-          .sort(
-            (a, b) =>
-              Date.parse(String(b?.created_at || "")) -
-              Date.parse(String(a?.created_at || "")),
-          )[0] || null;
-
-      if (!match) {
-        setSyncState({
-          status: "not_found",
-          conclusion: null,
-          runUrl: null,
-          updatedAtISO: new Date().toISOString(),
-        });
-        return;
-      }
-
-      setSyncState({
-        status: String(match?.status || "unknown"),
-        conclusion: match?.conclusion ? String(match.conclusion) : null,
-        runUrl: match?.html_url ? String(match.html_url) : null,
-        updatedAtISO: new Date().toISOString(),
-      });
-    } catch (e: any) {
-      Alert.alert("Sync Status Fehler", e?.message || "Unbekannter Fehler");
-    } finally {
-      setIsRefreshingSync(false);
-    }
-  }, [lastRepo]);
+  }, [savedEasJobId]);
 
   const analyze = useCallback(async () => {
     if (!projectData) {
@@ -310,28 +235,14 @@ export default function DiagnosticScreen() {
     [triggerAutoFix],
   );
 
-  const renderStatusPill = (label: string, value?: string | null) => {
-    const v = (value || "").toLowerCase();
-    const isGood = v === "success" || v === "completed";
-    const isBad = v === "failed" || v === "error";
-
-    return (
-      <View
-        style={[
-          styles.pill,
-          isGood
-            ? styles.pillGood
-            : isBad
-              ? styles.pillBad
-              : styles.pillNeutral,
-        ]}
-      >
-        <Text style={styles.pillText}>
-          {label}: {value || "—"}
-        </Text>
-      </View>
-    );
-  };
+  const pill = (label: string, value: string) => (
+    <View style={styles.pill}>
+      <Text style={styles.pillLabel}>{label}</Text>
+      <Text style={styles.pillValue} numberOfLines={1}>
+        {value || "—"}
+      </Text>
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -358,159 +269,52 @@ export default function DiagnosticScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* ✅ Live Status Box */}
-      <View style={styles.liveBox}>
-        <View style={styles.liveTop}>
-          <Ionicons name="pulse" size={16} color={theme.palette.primary} />
-          <Text style={styles.liveTitle}>Live Status</Text>
-        </View>
-
-        <View style={styles.fieldRow}>
-          <Text style={styles.fieldLabel}>Repo</Text>
-          <TextInput
-            value={lastRepo}
-            onChangeText={setLastRepo}
-            placeholder="owner/repo"
-            placeholderTextColor={theme.palette.text.muted}
-            autoCapitalize="none"
-            style={styles.input}
-          />
-          <TouchableOpacity
-            style={[
-              styles.smallBtn,
-              isRefreshingSync && styles.smallBtnDisabled,
-            ]}
-            onPress={refreshSyncStatus}
-            disabled={isRefreshingSync}
-          >
-            {isRefreshingSync ? (
-              <ActivityIndicator />
-            ) : (
-              <>
-                <Ionicons
-                  name="refresh"
-                  size={14}
-                  color={theme.palette.background}
-                />
-                <Text style={styles.smallBtnText}>Sync</Text>
-              </>
-            )}
+      {/* Live Status */}
+      <View style={styles.statusCard}>
+        <View style={styles.statusTop}>
+          <Text style={styles.statusTitle}>Live Status (Auto-Save)</Text>
+          <TouchableOpacity onPress={loadSaved} style={styles.iconBtn}>
+            <Ionicons
+              name="refresh"
+              size={16}
+              color={theme.palette.text.primary}
+            />
           </TouchableOpacity>
         </View>
 
-        {syncState ? (
-          <View style={styles.statusRow}>
-            {renderStatusPill("Sync", syncState.status)}
-            {renderStatusPill("Conclusion", syncState.conclusion)}
-            {!!syncState.runUrl && (
-              <TouchableOpacity
-                style={styles.linkBtn}
-                onPress={() => openUrl(syncState.runUrl)}
-              >
-                <Ionicons
-                  name="open-outline"
-                  size={16}
-                  color={theme.palette.primary}
-                />
-                <Text style={styles.linkText}>Run öffnen</Text>
-              </TouchableOpacity>
-            )}
-            {!!syncState.updatedAtISO && (
-              <Text style={styles.smallMuted}>
-                {new Date(syncState.updatedAtISO).toLocaleString()}
-              </Text>
-            )}
-          </View>
-        ) : (
-          <Text style={styles.smallMuted}>Noch kein Sync-Status geladen.</Text>
-        )}
+        {pill("Repo", savedRepo)}
+        {pill("Native JobId", savedNativeJobId)}
+        {pill("EAS JobId", savedEasJobId)}
 
-        <View style={styles.divider} />
-
-        <View style={styles.fieldRow}>
-          <Text style={styles.fieldLabel}>EAS JobId</Text>
-          <TextInput
-            value={easJobIdInput}
-            onChangeText={setEasJobIdInput}
-            placeholder="z.B. 123"
-            placeholderTextColor={theme.palette.text.muted}
-            keyboardType="number-pad"
-            style={styles.input}
-          />
-          <TouchableOpacity
-            style={[
-              styles.smallBtn,
-              isRefreshingEas && styles.smallBtnDisabled,
-            ]}
-            onPress={refreshEasStatus}
-            disabled={isRefreshingEas}
-          >
-            {isRefreshingEas ? (
-              <ActivityIndicator />
-            ) : (
-              <>
-                <Ionicons
-                  name="refresh"
-                  size={14}
-                  color={theme.palette.background}
-                />
-                <Text style={styles.smallBtnText}>EAS</Text>
-              </>
-            )}
+        <View style={styles.statusRow}>
+          <TouchableOpacity style={styles.smallBtn} onPress={refreshNative}>
+            <Ionicons name="pulse" size={16} color={theme.palette.background} />
+            <Text style={styles.smallBtnText}>Native</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.smallBtn} onPress={refreshEas}>
+            <Ionicons name="cube" size={16} color={theme.palette.background} />
+            <Text style={styles.smallBtnText}>EAS</Text>
           </TouchableOpacity>
         </View>
 
-        {easState ? (
-          <View style={styles.statusRow}>
-            {renderStatusPill("Build", easState.status)}
-            {!!easState.runUrl && (
-              <TouchableOpacity
-                style={styles.linkBtn}
-                onPress={() => openUrl(easState.runUrl)}
-              >
-                <Ionicons
-                  name="open-outline"
-                  size={16}
-                  color={theme.palette.primary}
-                />
-                <Text style={styles.linkText}>Run</Text>
-              </TouchableOpacity>
-            )}
-            {!!easState.buildUrl && (
-              <TouchableOpacity
-                style={styles.linkBtn}
-                onPress={() => openUrl(easState.buildUrl)}
-              >
-                <Ionicons
-                  name="open-outline"
-                  size={16}
-                  color={theme.palette.primary}
-                />
-                <Text style={styles.linkText}>Build</Text>
-              </TouchableOpacity>
-            )}
-            {!!easState.artifactUrl && (
-              <TouchableOpacity
-                style={styles.linkBtn}
-                onPress={() => openUrl(easState.artifactUrl)}
-              >
-                <Ionicons
-                  name="download-outline"
-                  size={16}
-                  color={theme.palette.primary}
-                />
-                <Text style={styles.linkText}>APK</Text>
-              </TouchableOpacity>
-            )}
-            {!!easState.updatedAtISO && (
-              <Text style={styles.smallMuted}>
-                {new Date(easState.updatedAtISO).toLocaleString()}
-              </Text>
-            )}
-          </View>
-        ) : (
-          <Text style={styles.smallMuted}>Noch kein EAS-Status geladen.</Text>
-        )}
+        <View style={styles.statusDetails}>
+          <Text style={styles.statusLine}>
+            🧩 Native: <Text style={styles.mono}>{nativeStatus || "—"}</Text>
+          </Text>
+          {!!nativeRunUrl && (
+            <Text style={styles.statusSub}>Run: {nativeRunUrl}</Text>
+          )}
+
+          <Text style={styles.statusLine}>
+            📦 EAS: <Text style={styles.mono}>{easStatus || "—"}</Text>
+          </Text>
+          {!!easRunUrl && (
+            <Text style={styles.statusSub}>Run: {easRunUrl}</Text>
+          )}
+          {!!easArtifactUrl && (
+            <Text style={styles.statusSub}>Artifact: {easArtifactUrl}</Text>
+          )}
+        </View>
       </View>
 
       {!report ? (
@@ -615,80 +419,64 @@ const styles = StyleSheet.create({
   },
   analyzeBtnText: { color: theme.palette.background, fontWeight: "700" },
 
-  // ✅ Live Status Box
-  liveBox: {
+  statusCard: {
     margin: 16,
-    marginBottom: 8,
-    padding: 12,
-    borderRadius: 14,
     backgroundColor: theme.palette.card,
     borderWidth: 1,
     borderColor: theme.palette.border,
+    borderRadius: 12,
+    padding: 12,
     gap: 10,
   },
-  liveTop: { flexDirection: "row", alignItems: "center", gap: 8 },
-  liveTitle: { color: theme.palette.text.primary, fontWeight: "800" },
-
-  divider: {
-    height: 1,
+  statusTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  statusTitle: { color: theme.palette.text.primary, fontWeight: "800" },
+  iconBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
     backgroundColor: theme.palette.border,
-    opacity: 0.9,
   },
 
-  fieldRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  fieldLabel: { width: 70, color: theme.palette.text.muted, fontWeight: "700" },
-  input: {
-    flex: 1,
+  pill: {
     backgroundColor: theme.palette.background,
     borderWidth: 1,
     borderColor: theme.palette.border,
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 8,
+  },
+  pillLabel: {
+    color: theme.palette.text.muted,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  pillValue: {
     color: theme.palette.text.primary,
+    fontWeight: "700",
+    marginTop: 2,
   },
 
+  statusRow: { flexDirection: "row", gap: 10, marginTop: 2 },
   smallBtn: {
+    flex: 1,
     backgroundColor: theme.palette.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
     borderRadius: 10,
-    flexDirection: "row",
+    paddingVertical: 10,
     alignItems: "center",
-    gap: 6,
-  },
-  smallBtnDisabled: { opacity: 0.7 },
-  smallBtnText: {
-    color: theme.palette.background,
-    fontWeight: "900",
-    fontSize: 12,
-  },
-
-  statusRow: { gap: 8 },
-  pill: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-  pillNeutral: { backgroundColor: theme.palette.border },
-  pillGood: { backgroundColor: theme.palette.primary },
-  pillBad: { backgroundColor: theme.palette.error },
-  pillText: {
-    color: theme.palette.background,
-    fontWeight: "900",
-    fontSize: 12,
-  },
-
-  linkBtn: {
+    justifyContent: "center",
     flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    alignSelf: "flex-start",
+    gap: 8,
   },
-  linkText: { color: theme.palette.primary, fontWeight: "800" },
+  smallBtnText: { color: theme.palette.background, fontWeight: "800" },
 
-  smallMuted: { color: theme.palette.text.muted, fontSize: 12 },
+  statusDetails: { gap: 4, marginTop: 2 },
+  statusLine: { color: theme.palette.text.primary, fontWeight: "700" },
+  statusSub: { color: theme.palette.text.muted, fontSize: 12 },
+  mono: { fontFamily: "monospace" },
 
   empty: { padding: 16, gap: 8 },
   emptyTitle: {

@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { v4 as uuidv4 } from "uuid";
 
 import { ChatMessage, ProjectFile } from "../contexts/types";
@@ -69,7 +71,29 @@ type UseChatAIFlowArgs = {
   setShowConfirmModal: (v: boolean) => void;
 };
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const STORAGE_KEYS = {
+  lastRepo: "k1w1:last_repo",
+  lastNativeJobId: "k1w1:last_native_sync_job_id",
+  lastEasJobId: "k1w1:last_eas_job_id",
+};
+
+async function safeSet(key: string, value: string) {
+  try {
+    await AsyncStorage.setItem(key, value);
+  } catch {}
+}
+
+async function safeGet(key: string) {
+  try {
+    return await AsyncStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
 export function useChatAIFlow({
   config,
@@ -97,18 +121,13 @@ export function useChatAIFlow({
     isAtBottomRef.current = v;
   }, []);
 
-  const pushAssistant = useCallback(
-    (content: string) => {
-      addChatMessage({
-        id: uuidv4(),
-        role: "assistant",
-        content,
-        timestamp: new Date().toISOString(),
-      });
-      hardScrollToBottom(true);
-    },
-    [addChatMessage, hardScrollToBottom],
-  );
+  // keep one poller at a time
+  const pollAbortRef = useRef<{ aborted: boolean }>({ aborted: false });
+
+  useEffect(() => {
+    // auto-save active repo
+    if (activeRepo) safeSet(STORAGE_KEYS.lastRepo, String(activeRepo));
+  }, [activeRepo]);
 
   const applyChanges = useCallback(async () => {
     if (!pendingChange) return;
@@ -126,143 +145,298 @@ export function useChatAIFlow({
     setShowConfirmModal(false);
   }, [setShowConfirmModal]);
 
-  // ✅ Poll EAS status via check-eas-build und poste Updates in den Chat
-  const pollEasBuildStatusToChat = useCallback(
-    async (jobId: number) => {
-      const url = `${CONFIG.API.SUPABASE_EDGE_URL}/check-eas-build`;
+  const pushAssistant = useCallback(
+    (content: string) => {
+      addChatMessage({
+        id: uuidv4(),
+        role: "assistant",
+        content,
+        timestamp: new Date().toISOString(),
+      });
+      hardScrollToBottom(true);
+    },
+    [addChatMessage, hardScrollToBottom],
+  );
+
+  const pollNativeSyncToChat = useCallback(
+    async (jobId: string) => {
+      const abort = { aborted: false };
+      pollAbortRef.current = abort;
 
       let lastStatus = "";
-      let lastHtml = "";
-      let lastBuild = "";
-      let lastArtifact = "";
+      let lastRunUrl = "";
 
-      // 60 * 5s = 5min (reicht für queued/building + Run-Link).
-      // Für lange Builds: danach kannst du "build status <jobId>" schreiben.
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 180; i++) {
+        if (abort.aborted) return;
+
         try {
-          const res = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ jobId }),
-          });
-
+          const res = await fetch(
+            `${CONFIG.API.SUPABASE_EDGE_URL}/check-native-sync`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ jobId }),
+            },
+          );
           const json = await res.json().catch(() => ({}));
+
           if (!res.ok || !json?.ok) {
+            if (i === 0)
+              pushAssistant(
+                `⚠️ Native-Sync Status: Server antwortet nicht sauber (HTTP ${res.status}).`,
+              );
             await sleep(5000);
             continue;
           }
 
-          const status = String(json?.status || "").toLowerCase();
-          const html = json?.urls?.html ? String(json.urls.html) : "";
-          const build = json?.urls?.build ? String(json.urls.build) : "";
-          const artifacts = json?.urls?.artifacts
-            ? String(json.urls.artifacts)
-            : "";
+          const status = String(json?.status || json?.job?.status || "unknown");
+          const runUrl = String(json?.run?.html_url || "");
 
-          const changed =
-            (status && status !== lastStatus) ||
-            (html && html !== lastHtml) ||
-            (build && build !== lastBuild) ||
-            (artifacts && artifacts !== lastArtifact);
-
-          if (changed) {
-            lastStatus = status || lastStatus;
-            lastHtml = html || lastHtml;
-            lastBuild = build || lastBuild;
-            lastArtifact = artifacts || lastArtifact;
+          if (status !== lastStatus || (runUrl && runUrl !== lastRunUrl)) {
+            lastStatus = status;
+            lastRunUrl = runUrl;
 
             const nice =
-              status === "success"
-                ? "✅ SUCCESS"
-                : status === "failed"
-                  ? "❌ FAILED"
-                  : status === "building"
-                    ? "⏳ BUILDING"
-                    : status === "queued"
-                      ? "🕒 QUEUED"
-                      : status
-                        ? status.toUpperCase()
-                        : "…";
+              status === "queued" || status === "dispatched"
+                ? "⏳ queued"
+                : status === "running"
+                  ? "🧠 running"
+                  : status === "success"
+                    ? "✅ success"
+                    : status === "failed" || status === "error"
+                      ? "❌ failed"
+                      : `ℹ️ ${status}`;
 
-            let msg =
-              `📦 EAS Build Status Update\n\n` +
-              `🆔 JobId: ${jobId}\n` +
-              `Status: ${nice}\n`;
+            pushAssistant(
+              `🧩 Native-Sync Status Update\n- JobId: ${jobId}\n- Status: ${nice}${
+                runUrl ? `\n- GitHub Run: ${runUrl}` : ""
+              }`,
+            );
 
-            if (html) msg += `\n🔗 Run: ${html}\n`;
-            if (build) msg += `\n🌐 Build URL: ${build}\n`;
-            if (artifacts) msg += `\n📎 Artifact URL: ${artifacts}\n`;
+            if (
+              status === "success" ||
+              status === "failed" ||
+              status === "error"
+            ) {
+              // also try to fetch last report
+              try {
+                const r2 = await fetch(
+                  `${CONFIG.API.SUPABASE_EDGE_URL}/native-sync-report`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ jobId }),
+                  },
+                );
+                const j2 = await r2.json().catch(() => ({}));
+                const rep = j2?.report?.report;
 
-            pushAssistant(msg.trim());
+                if (rep) {
+                  const missing = rep?.missing?.deps?.length ?? 0;
+                  const topMissing = Array.isArray(rep?.missing?.deps)
+                    ? rep.missing.deps.slice(0, 12)
+                    : [];
+                  pushAssistant(
+                    `📄 Native-Sync Report (latest)\n- Missing: ${missing}\n${
+                      topMissing.length
+                        ? `- Top:\n${topMissing.map((x: string) => `  • ${x}`).join("\n")}`
+                        : ""
+                    }`,
+                  );
+                }
+              } catch {}
+              return;
+            }
           }
-
-          if (status === "success" || status === "failed") return;
-        } catch {
-          // ignore
-        }
+        } catch {}
 
         await sleep(5000);
       }
 
       pushAssistant(
-        `ℹ️ Build läuft wahrscheinlich noch (JobId: ${jobId}).\n` +
-          `Sag einfach: "build status ${jobId}" um weiter zu checken.`,
+        `⚠️ Native-Sync: Timeout beim Status-Polling (JobId: ${jobId}).`,
+      );
+    },
+    [pushAssistant],
+  );
+
+  const pollEasBuildToChat = useCallback(
+    async (jobId: string) => {
+      const abort = { aborted: false };
+      pollAbortRef.current = abort;
+
+      let lastStatus = "";
+      let lastUrl = "";
+      let lastArtifact = "";
+
+      for (let i = 0; i < 180; i++) {
+        if (abort.aborted) return;
+
+        try {
+          const res = await fetch(
+            `${CONFIG.API.SUPABASE_EDGE_URL}/check-eas-build`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ jobId }),
+            },
+          );
+          const json = await res.json().catch(() => ({}));
+
+          if (!res.ok || !json?.ok) {
+            if (i === 0)
+              pushAssistant(
+                `⚠️ EAS Status: Server antwortet nicht sauber (HTTP ${res.status}).`,
+              );
+            await sleep(5000);
+            continue;
+          }
+
+          const status = String(json?.status || "unknown");
+          const html = String(json?.urls?.html || "");
+          const artifact = String(json?.urls?.artifacts || "");
+
+          const changed =
+            status !== lastStatus ||
+            (html && html !== lastUrl) ||
+            (artifact && artifact !== lastArtifact);
+
+          if (changed) {
+            lastStatus = status;
+            lastUrl = html;
+            lastArtifact = artifact;
+
+            const nice =
+              status === "queued"
+                ? "⏳ queued"
+                : status === "building"
+                  ? "🏗️ building"
+                  : status === "success"
+                    ? "✅ success"
+                    : status === "failed"
+                      ? "❌ failed"
+                      : `ℹ️ ${status}`;
+
+            pushAssistant(
+              `📦 EAS Build Status Update\n- JobId: ${jobId}\n- Status: ${nice}${
+                html ? `\n- GitHub Run: ${html}` : ""
+              }${artifact ? `\n- Artifact: ${artifact}` : ""}`,
+            );
+
+            if (status === "success" || status === "failed") return;
+          }
+        } catch {}
+
+        await sleep(5000);
+      }
+
+      pushAssistant(
+        `⚠️ EAS Build: Timeout beim Status-Polling (JobId: ${jobId}).`,
       );
     },
     [pushAssistant],
   );
 
   const handleSendWithMeta = useCallback(
-    async (userContent: string, _fileName?: string) => {
+    async (userContent: string, fileName?: string) => {
       const rawInput = String(userContent ?? "");
-      if (!rawInput.trim()) return;
+      if (!rawInput.trim() && !fileName) return;
 
       // user message
       addChatMessage({
         id: uuidv4(),
         role: "user",
-        content: userContent,
+        content: fileName
+          ? `${userContent}\n\n📎 Datei: ${fileName}`
+          : userContent,
         timestamp: new Date().toISOString(),
       });
 
-      const lower = rawInput.trim().toLowerCase();
+      // abort old polling if new command arrives
+      pollAbortRef.current.aborted = true;
 
-      // ✅ EAS status only: "build status 123"
-      const statusMatch = lower.match(/\b(build|eas)\s+status\s+(\d+)\b/);
-      if (statusMatch) {
-        const jobId = Number(statusMatch[2]);
-        if (!Number.isFinite(jobId)) {
-          pushAssistant("❌ Ungültige JobId.");
-          return;
-        }
-        pushAssistant(`🔎 Checke EAS Build Status… (JobId: ${jobId})`);
-        pollEasBuildStatusToChat(jobId);
-        return;
-      }
-
-      // ✅ EAS build trigger by chat
-      const wantsEasBuild =
-        /\b(eas\s*)?build\b/.test(lower) ||
-        /\b(dev|development|preview|prod|production)\b.*\b(build|apk)\b/.test(
-          lower,
+      // --- local commands (no LLM) ---
+      const wantsSyncNative =
+        /(\b(sync|scan|update|aktualisiere|prüfe|checke)\b.*\b(dep|deps|dependencies|defenses|native)\b)/i.test(
+          rawInput,
+        ) ||
+        /(\bdev\b.*\b(apk|build)\b.*\b(dep|deps|dependencies|defenses)\b)/i.test(
+          rawInput,
         );
 
-      if (wantsEasBuild) {
+      const wantsEasBuild =
+        /(\b(build|baue|erstelle)\b.*\b(apk|dev build|development build|eas)\b)/i.test(
+          rawInput,
+        ) || /(\beas\b.*\b(build|apk)\b)/i.test(rawInput);
+
+      if (wantsSyncNative) {
         if (!activeRepo) {
           pushAssistant(
-            "⚠️ Kein GitHub-Repo ausgewählt. Geh erst zu „GitHub Repos“ und wähle eins aus – dann kann ich den EAS Build starten.",
+            "⚠️ Kein GitHub-Repo ausgewählt. Geh erst zu „GitHub Repos“ und wähle eins aus – dann kann ich die Dependencies syncen.",
           );
           return;
         }
 
-        // profile ableiten
-        let profile: "development" | "preview" | "production" = "preview";
-        if (/\b(dev|development)\b/.test(lower)) profile = "development";
-        if (/\b(prod|production)\b/.test(lower)) profile = "production";
-        if (/\bpreview\b/.test(lower)) profile = "preview";
+        try {
+          setIsAiLoading(true);
+
+          const createPr = /\bpr\b/i.test(rawInput);
+          const apply = !/\b(dry|dry-run|nur scan|scan only)\b/i.test(rawInput);
+
+          // use new edge function trigger-native-sync
+          const res = await fetch(
+            `${CONFIG.API.SUPABASE_EDGE_URL}/trigger-native-sync`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                githubRepo: activeRepo,
+                ref: "main",
+                base_ref: "main",
+                apply: apply ? "true" : "false",
+                create_pr: createPr ? "true" : "false",
+              }),
+            },
+          );
+
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok || !json?.ok)
+            throw new Error(json?.error || `Dispatch failed (${res.status})`);
+
+          const jobId = String(json.jobId);
+          await safeSet(STORAGE_KEYS.lastNativeJobId, jobId);
+          await safeSet(STORAGE_KEYS.lastRepo, String(activeRepo));
+
+          pushAssistant(
+            `🧩 Native-Dependency Sync gestartet.\n- Repo: ${activeRepo}\n- JobId: ${jobId}\n\nIch logge den Status jetzt automatisch hier rein.\n(Tipp: sag „sync deps + PR“ wenn du direkt ne PR willst.)`,
+          );
+
+          pollNativeSyncToChat(jobId);
+        } catch (e: any) {
+          pushAssistant(
+            `❌ Native-Sync fehlgeschlagen: ${e?.message || "Unbekannter Fehler"}`,
+          );
+        } finally {
+          setIsAiLoading(false);
+        }
+
+        return;
+      }
+
+      if (wantsEasBuild) {
+        if (!activeRepo) {
+          pushAssistant(
+            "⚠️ Kein GitHub-Repo ausgewählt. Geh erst zu „GitHub Repos“ und wähle eins aus – dann kann ich den Build starten.",
+          );
+          return;
+        }
 
         try {
           setIsAiLoading(true);
+
+          const profile = /\b(prod|production|release)\b/i.test(rawInput)
+            ? "production"
+            : "preview";
 
           const res = await fetch(
             `${CONFIG.API.SUPABASE_EDGE_URL}/trigger-eas-build`,
@@ -277,21 +451,21 @@ export function useChatAIFlow({
           );
 
           const json = await res.json().catch(() => ({}));
-          if (!res.ok || !json?.ok || !json?.job?.id) {
-            throw new Error(json?.error || `Trigger failed (${res.status})`);
-          }
+          if (!res.ok || !json?.ok)
+            throw new Error(json?.error || `Dispatch failed (${res.status})`);
 
-          const jobId = Number(json.job.id);
+          const jobId = String(json?.job?.id ?? json?.jobId ?? "");
+          if (!jobId)
+            throw new Error("No jobId returned from trigger-eas-build");
+
+          await safeSet(STORAGE_KEYS.lastEasJobId, jobId);
+          await safeSet(STORAGE_KEYS.lastRepo, String(activeRepo));
 
           pushAssistant(
-            `🚀 EAS Build gestartet\n\n` +
-              `Repo: ${activeRepo}\n` +
-              `Profile: ${profile}\n` +
-              `🆔 JobId: ${jobId}\n\n` +
-              `Ich poste Status-Updates automatisch hier im Chat.`,
+            `📦 EAS Build gestartet.\n- Repo: ${activeRepo}\n- Profile: ${profile}\n- JobId: ${jobId}\n\nIch logge den Status jetzt automatisch hier rein.`,
           );
 
-          pollEasBuildStatusToChat(jobId);
+          pollEasBuildToChat(jobId);
         } catch (e: any) {
           pushAssistant(
             `❌ EAS Build fehlgeschlagen: ${e?.message || "Unbekannter Fehler"}`,
@@ -299,17 +473,18 @@ export function useChatAIFlow({
         } finally {
           setIsAiLoading(false);
         }
+
         return;
       }
 
-      // meta command
+      // meta commands (existing)
       const metaResult = handleMetaCommand(rawInput.trim(), projectFiles);
       if (metaResult.handled && metaResult.message) {
         addChatMessage(metaResult.message);
         return;
       }
 
-      // existing flow (planner/builder/validator)
+      // --- existing planner/builder/validator flow ---
       try {
         setError(null);
         setIsAiLoading(true);
@@ -317,6 +492,7 @@ export function useChatAIFlow({
         setStreamingMessage("");
 
         if (pendingPlan) {
+          const lower = rawInput.trim().toLowerCase();
           const wantsProceed =
             lower.includes("ja") ||
             lower.includes("ok") ||
@@ -332,14 +508,15 @@ export function useChatAIFlow({
           }
         }
 
-        const isAdvice = looksLikeAdviceRequest(userContent);
-        const isAmbiguous = looksAmbiguousBuilderRequest(userContent);
+        const isExplicit = looksLikeExplicitFileTask(rawInput);
+        const isAdvice = looksLikeAdviceRequest(rawInput);
+        const isAmbiguous = looksAmbiguousBuilderRequest(rawInput);
 
         let agentResponse: any = null;
 
         if (isAdvice || isAmbiguous) {
           const plannerMessages = buildPlannerMessages({
-            userRequest: userContent,
+            userRequest: rawInput,
             projectFiles,
             qualityMode: config.qualityMode,
           });
@@ -353,7 +530,7 @@ export function useChatAIFlow({
           });
 
           setPendingPlan({
-            originalRequest: userContent,
+            originalRequest: rawInput,
             planText: String(plan?.content ?? ""),
             mode: isAdvice ? "advice" : "build",
           });
@@ -363,7 +540,7 @@ export function useChatAIFlow({
         }
 
         const builderMessages = buildBuilderMessages({
-          userRequest: userContent,
+          userRequest: rawInput,
           projectFiles,
           qualityMode: config.qualityMode,
         });
@@ -422,8 +599,10 @@ export function useChatAIFlow({
       activeRepo,
       addChatMessage,
       config,
+      hardScrollToBottom,
       pendingPlan,
-      pollEasBuildStatusToChat,
+      pollEasBuildToChat,
+      pollNativeSyncToChat,
       projectFiles,
       pushAssistant,
       setError,
@@ -434,9 +613,10 @@ export function useChatAIFlow({
     ],
   );
 
-  // auto-fix request support
+  // auto-fix request support (unchanged placeholder)
   useEffect(() => {
-    // existing logic remains
+    // Dein vorhandenes AutoFix Verhalten bleibt wie es ist.
+    // (Du hattest das bereits in ProjectContext/DiagnosticScreen verdrahtet)
   }, [autoFixRequest, clearAutoFixRequest]);
 
   return {
