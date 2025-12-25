@@ -46,10 +46,66 @@ async function safeGet(key: string) {
   }
 }
 
-async function safeSet(key: string, val: string) {
-  try {
-    await AsyncStorage.setItem(key, val);
-  } catch {}
+type NativeAutogenReport = {
+  ok?: boolean;
+  startedAt?: string;
+  apply?: boolean;
+  packageManager?: string;
+  stats?: {
+    scannedFiles?: number;
+    foundImports?: number;
+    foundPlugins?: number;
+    missingPackages?: number;
+    installedPackages?: number;
+    errors?: number;
+  };
+  missing?: {
+    deps?: string[];
+  };
+  found?: {
+    imports?: string[];
+    expoPlugins?: string[];
+  };
+  errors?: any[];
+};
+
+function isExpoInstallPkg(pkg: string) {
+  if (!pkg) return false;
+  if (pkg.startsWith("expo-")) return true;
+
+  // typisches Expo/RN native Zeug
+  const expoFavs = new Set([
+    "react-native-reanimated",
+    "react-native-gesture-handler",
+    "react-native-screens",
+    "react-native-safe-area-context",
+    "react-native-webview",
+    "expo-image-picker",
+    "expo-file-system",
+    "expo-notifications",
+    "expo-location",
+    "expo-camera",
+    "expo-av",
+    "expo-clipboard",
+  ]);
+  return expoFavs.has(pkg);
+}
+
+function buildInstallCommands(missing: string[]) {
+  const expoInstall: string[] = [];
+  const npmInstall: string[] = [];
+
+  for (const p of missing) {
+    if (isExpoInstallPkg(p)) expoInstall.push(p);
+    else npmInstall.push(p);
+  }
+
+  const lines: string[] = [];
+  if (expoInstall.length)
+    lines.push(`npx expo install ${expoInstall.join(" ")}`);
+  if (npmInstall.length) lines.push(`npm install ${npmInstall.join(" ")}`);
+
+  return lines.join("\n");
 }
 
 export default function DiagnosticScreen() {
@@ -67,6 +123,14 @@ export default function DiagnosticScreen() {
   const [easStatus, setEasStatus] = useState<string>("");
   const [easRunUrl, setEasRunUrl] = useState<string>("");
   const [easArtifactUrl, setEasArtifactUrl] = useState<string>("");
+
+  // NEW: Native report state
+  const [isLoadingNativeReport, setIsLoadingNativeReport] = useState(false);
+  const [nativeReport, setNativeReport] = useState<NativeAutogenReport | null>(
+    null,
+  );
+  const [showNativeReport, setShowNativeReport] = useState(false);
+  const [showInstallCmds, setShowInstallCmds] = useState(false);
 
   const loadSaved = useCallback(async () => {
     const r = (await safeGet(STORAGE_KEYS.lastRepo)) || "";
@@ -137,6 +201,53 @@ export default function DiagnosticScreen() {
       Alert.alert("EAS Status Fehler", e?.message || "Unbekannter Fehler");
     }
   }, [savedEasJobId]);
+
+  // NEW: Fetch latest native report for saved jobId
+  const fetchLatestNativeReport = useCallback(async () => {
+    if (!savedNativeJobId) {
+      Alert.alert(
+        "Kein Job",
+        "Kein gespeicherter Native-Sync JobId vorhanden.",
+      );
+      return;
+    }
+
+    setIsLoadingNativeReport(true);
+    try {
+      const res = await fetch(
+        `${CONFIG.API.SUPABASE_EDGE_URL}/native-sync-report`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId: savedNativeJobId }),
+        },
+      );
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.ok)
+        throw new Error(json?.error || `HTTP ${res.status}`);
+
+      // json.report = row in native_sync_reports; json.report.report = actual autogen JSON
+      const autogen: NativeAutogenReport | null = json?.report?.report ?? null;
+
+      if (!autogen) {
+        setNativeReport(null);
+        setShowNativeReport(true);
+        Alert.alert(
+          "Kein Report",
+          "Für diesen Job wurde noch kein Report gespeichert (oder ingest fehlt).",
+        );
+        return;
+      }
+
+      setNativeReport(autogen);
+      setShowNativeReport(true);
+    } catch (e: any) {
+      Alert.alert("Report Fehler", e?.message || "Unbekannter Fehler");
+    } finally {
+      setIsLoadingNativeReport(false);
+    }
+  }, [savedNativeJobId]);
 
   const analyze = useCallback(async () => {
     if (!projectData) {
@@ -244,6 +355,9 @@ export default function DiagnosticScreen() {
     </View>
   );
 
+  const missingDeps = nativeReport?.missing?.deps ?? [];
+  const installCmds = buildInstallCommands(missingDeps);
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -291,6 +405,7 @@ export default function DiagnosticScreen() {
             <Ionicons name="pulse" size={16} color={theme.palette.background} />
             <Text style={styles.smallBtnText}>Native</Text>
           </TouchableOpacity>
+
           <TouchableOpacity style={styles.smallBtn} onPress={refreshEas}>
             <Ionicons name="cube" size={16} color={theme.palette.background} />
             <Text style={styles.smallBtnText}>EAS</Text>
@@ -315,6 +430,128 @@ export default function DiagnosticScreen() {
             <Text style={styles.statusSub}>Artifact: {easArtifactUrl}</Text>
           )}
         </View>
+
+        {/* NEW: Native Report Button */}
+        <View style={styles.reportRow}>
+          <TouchableOpacity
+            style={[
+              styles.reportBtn,
+              isLoadingNativeReport ? styles.btnDisabled : null,
+            ]}
+            onPress={fetchLatestNativeReport}
+            disabled={isLoadingNativeReport}
+          >
+            {isLoadingNativeReport ? (
+              <ActivityIndicator />
+            ) : (
+              <>
+                <Ionicons
+                  name="document-text"
+                  size={16}
+                  color={theme.palette.background}
+                />
+                <Text style={styles.reportBtnText}>Letzten Native-Report</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.reportBtnSecondary,
+              !nativeReport ? styles.btnDisabled : null,
+            ]}
+            onPress={() => setShowNativeReport((v) => !v)}
+            disabled={!nativeReport}
+          >
+            <Ionicons
+              name={showNativeReport ? "chevron-up" : "chevron-down"}
+              size={16}
+              color={theme.palette.text.primary}
+            />
+            <Text style={styles.reportBtnSecondaryText}>
+              {showNativeReport ? "Hide" : "Show"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {showNativeReport && (
+          <View style={styles.reportBox}>
+            {!nativeReport ? (
+              <Text style={styles.reportEmpty}>Kein Report geladen.</Text>
+            ) : (
+              <>
+                <View style={styles.reportTop}>
+                  <Text style={styles.reportTitle}>Native Sync Report</Text>
+                  <View style={styles.reportPill}>
+                    <Text style={styles.reportPillText}>
+                      {nativeReport.ok ? "OK" : "FAIL"}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={styles.reportMeta}>
+                  Started:{" "}
+                  <Text style={styles.mono}>
+                    {nativeReport.startedAt || "—"}
+                  </Text>
+                </Text>
+                <Text style={styles.reportMeta}>
+                  Missing: <Text style={styles.mono}>{missingDeps.length}</Text>
+                </Text>
+
+                {missingDeps.length > 0 ? (
+                  <View style={styles.missingList}>
+                    {missingDeps.slice(0, 40).map((p) => (
+                      <Text key={p} style={styles.missingItem}>
+                        • {p}
+                      </Text>
+                    ))}
+                    {missingDeps.length > 40 && (
+                      <Text style={styles.reportMeta}>
+                        … +{missingDeps.length - 40} weitere
+                      </Text>
+                    )}
+                  </View>
+                ) : (
+                  <Text style={styles.reportMeta}>
+                    Keine fehlenden Dependencies 🎉
+                  </Text>
+                )}
+
+                {missingDeps.length > 0 && (
+                  <>
+                    <View style={styles.cmdRow}>
+                      <TouchableOpacity
+                        style={styles.cmdBtn}
+                        onPress={() => setShowInstallCmds((v) => !v)}
+                      >
+                        <Ionicons
+                          name="terminal"
+                          size={16}
+                          color={theme.palette.background}
+                        />
+                        <Text style={styles.cmdBtnText}>
+                          {showInstallCmds
+                            ? "Commands ausblenden"
+                            : "Install-Commands anzeigen"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {showInstallCmds && (
+                      <View style={styles.cmdBox}>
+                        <Text style={styles.cmdTitle}>Commands (copybar):</Text>
+                        <Text selectable style={styles.cmdText}>
+                          {installCmds || "—"}
+                        </Text>
+                      </View>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </View>
+        )}
       </View>
 
       {!report ? (
@@ -477,6 +714,99 @@ const styles = StyleSheet.create({
   statusLine: { color: theme.palette.text.primary, fontWeight: "700" },
   statusSub: { color: theme.palette.text.muted, fontSize: 12 },
   mono: { fontFamily: "monospace" },
+
+  // NEW Report UI
+  reportRow: { flexDirection: "row", gap: 10, marginTop: 6 },
+  reportBtn: {
+    flex: 1,
+    backgroundColor: theme.palette.primary,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  reportBtnText: { color: theme.palette.background, fontWeight: "900" },
+  reportBtnSecondary: {
+    width: 110,
+    backgroundColor: theme.palette.border,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  reportBtnSecondaryText: {
+    color: theme.palette.text.primary,
+    fontWeight: "900",
+  },
+  btnDisabled: { opacity: 0.6 },
+
+  reportBox: {
+    marginTop: 10,
+    backgroundColor: theme.palette.background,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    borderRadius: 12,
+    padding: 10,
+    gap: 8,
+  },
+  reportEmpty: { color: theme.palette.text.muted, fontWeight: "700" },
+  reportTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  reportTitle: { color: theme.palette.text.primary, fontWeight: "900" },
+  reportPill: {
+    backgroundColor: theme.palette.border,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  reportPillText: {
+    color: theme.palette.text.primary,
+    fontWeight: "900",
+    fontSize: 12,
+  },
+  reportMeta: { color: theme.palette.text.muted, fontSize: 12 },
+
+  missingList: { gap: 4 },
+  missingItem: { color: theme.palette.text.primary, fontWeight: "700" },
+
+  cmdRow: { marginTop: 6 },
+  cmdBtn: {
+    backgroundColor: theme.palette.primary,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  cmdBtnText: { color: theme.palette.background, fontWeight: "900" },
+  cmdBox: {
+    marginTop: 8,
+    backgroundColor: theme.palette.card,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    borderRadius: 12,
+    padding: 10,
+  },
+  cmdTitle: {
+    color: theme.palette.text.muted,
+    fontSize: 12,
+    fontWeight: "900",
+    marginBottom: 6,
+  },
+  cmdText: {
+    color: theme.palette.text.primary,
+    fontFamily: "monospace",
+    fontSize: 12,
+    lineHeight: 18,
+  },
 
   empty: { padding: 16, gap: 8 },
   emptyTitle: {
