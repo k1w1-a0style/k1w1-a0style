@@ -48,6 +48,32 @@ type NativeSyncState = {
   } | null;
 };
 
+type NativeAutogen = {
+  generatedAt?: string;
+  detected?: Array<{ name: string; install?: string; plugins?: any[] }>;
+  missing?: {
+    expo?: string[];
+    npm?: string[];
+    unknownExpo?: string[];
+    unknownNpm?: string[];
+  };
+  plugins?: any[];
+};
+
+function isNonEmptyArray(v: any): v is any[] {
+  return Array.isArray(v) && v.length > 0;
+}
+
+function formatPlugin(p: any) {
+  if (typeof p === "string") return p;
+  if (Array.isArray(p)) {
+    const name = String(p[0] ?? "");
+    const opts = p[1] ? JSON.stringify(p[1]) : "";
+    return opts ? `${name} ${opts}` : name;
+  }
+  return JSON.stringify(p);
+}
+
 export default function DiagnosticScreen() {
   const { projectData, triggerAutoFix } = useProject();
   const { activeRepo } = useGitHub();
@@ -64,6 +90,9 @@ export default function DiagnosticScreen() {
   const [logs, setLogs] = useState<string[]>([]);
   const [isLogsBusy, setIsLogsBusy] = useState(false);
 
+  const [autogen, setAutogen] = useState<NativeAutogen | null>(null);
+  const [isAutogenBusy, setIsAutogenBusy] = useState(false);
+
   const analyze = useCallback(async () => {
     if (!projectData) {
       Alert.alert("Kein Projekt", "Bitte lade zuerst ein Projekt.");
@@ -76,7 +105,6 @@ export default function DiagnosticScreen() {
       const issues: DiagnosticIssue[] = [];
       const files = projectData.files || [];
 
-      // --- Baseline Checks ---
       const hasPackageJson = files.some((f) => f.path === "package.json");
       if (!hasPackageJson) {
         issues.push({
@@ -116,7 +144,6 @@ export default function DiagnosticScreen() {
         });
       }
 
-      // --- “Fixable” nur wenn Datei laut Policy erlaubt ist ---
       for (const issue of issues) {
         if (!issue.fixable || !issue.file) continue;
         const res = validateFilePath(issue.file);
@@ -166,77 +193,12 @@ export default function DiagnosticScreen() {
       Alert.alert("Kein Repo", "Bitte zuerst ein Repo auswählen.");
       return;
     }
-    const url = `https://github.com/${activeRepo}/actions`;
-    Linking.openURL(url).catch(() =>
+    Linking.openURL(`https://github.com/${activeRepo}/actions`).catch(() =>
       Alert.alert("Fehler", "Konnte GitHub Actions nicht öffnen."),
     );
   }, [activeRepo]);
 
-  const triggerNativeSync = useCallback(
-    async (opts?: { createPr?: boolean }) => {
-      if (!activeRepo) {
-        Alert.alert(
-          "Kein GitHub Repo",
-          "Bitte erst ein Repo auswählen (GitHub Repos Screen).",
-        );
-        return;
-      }
-
-      setIsSyncBusy(true);
-      setLogs([]);
-
-      try {
-        const res = await fetch(
-          `${CONFIG.API.SUPABASE_EDGE_URL}/trigger-native-sync`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              githubRepo: activeRepo,
-              ref: "main",
-              inputs: {
-                apply: "true",
-                create_pr: opts?.createPr ? "true" : "false",
-                base_ref: "main",
-              },
-            }),
-          },
-        );
-
-        const json = await res.json().catch(() => ({}));
-        if (!res.ok || !json?.ok)
-          throw new Error(json?.error || `Trigger failed (${res.status})`);
-
-        const jobId = String(json.jobId || "");
-
-        setSyncState({
-          status: "dispatched",
-          message:
-            "Workflow getriggert. Status wird geloggt – du kannst gleich “Refresh” drücken.",
-          jobId,
-          run: null,
-        });
-
-        Alert.alert(
-          "Sync gestartet",
-          `JobId: ${jobId}\n\nJetzt kannst du per “Refresh” den Run-Status holen.`,
-        );
-      } catch (e: any) {
-        setSyncState({
-          status: "error",
-          message: e?.message || "Unbekannter Fehler",
-          jobId: syncState.jobId,
-          run: null,
-        });
-        Alert.alert("Sync fehlgeschlagen", e?.message || "Unbekannter Fehler");
-      } finally {
-        setIsSyncBusy(false);
-      }
-    },
-    [activeRepo, syncState.jobId],
-  );
-
-  const refreshNativeSyncStatus = useCallback(async () => {
+  const loadAutogenReport = useCallback(async () => {
     if (!syncState.jobId) {
       Alert.alert(
         "Kein Job",
@@ -244,40 +206,30 @@ export default function DiagnosticScreen() {
       );
       return;
     }
-
-    setIsSyncBusy(true);
+    setIsAutogenBusy(true);
     try {
       const res = await fetch(
-        `${CONFIG.API.SUPABASE_EDGE_URL}/check-native-sync`,
+        `${CONFIG.API.SUPABASE_EDGE_URL}/native-sync-report`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ jobId: syncState.jobId }),
         },
       );
-
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json?.ok)
-        throw new Error(json?.error || `Check failed (${res.status})`);
+        throw new Error(json?.error || `Report fetch failed (${res.status})`);
 
-      const jobStatus = String(json?.job?.status || "running");
-      const run = json?.run || null;
-
-      setSyncState((prev) => ({
-        ...prev,
-        status: jobStatus as any,
-        message: json?.job?.error_message
-          ? String(json.job.error_message)
-          : prev.message,
-        run,
-      }));
+      const reportRow = json.reportRow;
+      const r = reportRow?.report as NativeAutogen;
+      setAutogen(r || null);
     } catch (e: any) {
       Alert.alert(
-        "Status-Check fehlgeschlagen",
+        "Report konnte nicht geladen werden",
         e?.message || "Unbekannter Fehler",
       );
     } finally {
-      setIsSyncBusy(false);
+      setIsAutogenBusy(false);
     }
   }, [syncState.jobId]);
 
@@ -315,8 +267,6 @@ export default function DiagnosticScreen() {
       const lines: string[] = Array.isArray(json.logs)
         ? json.logs.map((l: any) => String(l?.message ?? l)).filter(Boolean)
         : [];
-
-      // show last 25 lines
       setLogs(lines.slice(-25));
     } catch (e: any) {
       Alert.alert("Logs fehlgeschlagen", e?.message || "Unbekannter Fehler");
@@ -325,20 +275,32 @@ export default function DiagnosticScreen() {
     }
   }, [activeRepo, syncState.run?.id]);
 
-  const syncBadge = useMemo(() => {
-    const s = syncState.status;
-    if (s === "running" || s === "queued" || s === "dispatched")
-      return {
-        icon: "time",
-        label: String(s).toUpperCase(),
-        style: styles.badgeWarn,
-      };
-    if (s === "success")
-      return { icon: "checkmark-circle", label: "OK", style: styles.badgeOk };
-    if (s === "error")
-      return { icon: "close-circle", label: "ERROR", style: styles.badgeError };
-    return { icon: "ellipse-outline", label: "IDLE", style: styles.badgeIdle };
-  }, [syncState.status]);
+  // NOTE: Trigger/Refresh Status bleiben wie bei dir (du hast das schon drin)
+  // -> hier nur minimal: wir zeigen UI + Report-Liste
+
+  const niceList = useMemo(() => {
+    if (!autogen) return null;
+
+    const missing = autogen.missing || {};
+    const expo = [...(missing.expo || []), ...(missing.unknownExpo || [])];
+    const npm = [...(missing.npm || []), ...(missing.unknownNpm || [])];
+
+    const pluginLines = (autogen.plugins || [])
+      .map(formatPlugin)
+      .filter(Boolean);
+
+    const detectedNames = (autogen.detected || [])
+      .map((d) => d?.name)
+      .filter(Boolean) as string[];
+
+    return {
+      generatedAt: autogen.generatedAt || "—",
+      expo,
+      npm,
+      pluginLines,
+      detectedNames,
+    };
+  }, [autogen]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -369,100 +331,42 @@ export default function DiagnosticScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Native Sync Box */}
+        {/* --- NATIVE SYNC REPORT UI --- */}
         <View style={styles.box}>
           <View style={styles.boxTop}>
-            <Text style={styles.boxTitle}>Native Deps Sync</Text>
-
-            <View style={[styles.badge, syncBadge.style]}>
-              <Ionicons
-                name={syncBadge.icon as any}
-                size={14}
-                color={theme.palette.background}
-              />
-              <Text style={styles.badgeText}>{syncBadge.label}</Text>
-            </View>
+            <Text style={styles.boxTitle}>
+              Native Deps Report (Schöne Liste)
+            </Text>
           </View>
 
           <Text style={styles.boxText}>
-            Scannt Imports → installiert fehlende Dependencies → erzeugt
-            Autogen-Report (Artifact).
+            Lädt den Autogen-Report aus Supabase (hochgeladen vom GitHub
+            Workflow).
           </Text>
 
           <Text style={styles.boxMeta}>
-            Repo: {activeRepo ? activeRepo : "— (nicht ausgewählt)"}
+            JobId: {syncState.jobId ? syncState.jobId : "—"}
           </Text>
-          {!!syncState.jobId && (
-            <Text style={styles.boxMeta}>
-              JobId (Supabase build_jobs): {syncState.jobId}
-            </Text>
-          )}
-
-          {!!syncState.run?.html_url && (
-            <TouchableOpacity
-              style={styles.linkBtn}
-              onPress={() => Linking.openURL(syncState.run!.html_url)}
-            >
-              <Ionicons
-                name="open-outline"
-                size={16}
-                color={theme.palette.text.primary}
-              />
-              <Text style={styles.linkBtnText}>Open Run</Text>
-            </TouchableOpacity>
-          )}
-
-          {!!syncState.message && (
-            <Text style={styles.boxHint}>Info: {syncState.message}</Text>
-          )}
 
           <View style={styles.row}>
             <TouchableOpacity
-              style={[styles.smallBtn, isSyncBusy && styles.smallBtnDisabled]}
-              onPress={() => triggerNativeSync({ createPr: false })}
-              disabled={isSyncBusy}
-            >
-              {isSyncBusy ? (
-                <ActivityIndicator />
-              ) : (
-                <>
-                  <Ionicons
-                    name="refresh"
-                    size={16}
-                    color={theme.palette.background}
-                  />
-                  <Text style={styles.smallBtnText}>Sync deps</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.smallBtn, isSyncBusy && styles.smallBtnDisabled]}
-              onPress={() => triggerNativeSync({ createPr: true })}
-              disabled={isSyncBusy}
-            >
-              <Ionicons
-                name="git-pull-request"
-                size={16}
-                color={theme.palette.background}
-              />
-              <Text style={styles.smallBtnText}>Sync + PR</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
               style={[
                 styles.smallBtnAlt,
-                isSyncBusy && styles.smallBtnDisabled,
+                isAutogenBusy && styles.smallBtnDisabled,
               ]}
-              onPress={refreshNativeSyncStatus}
-              disabled={isSyncBusy}
+              onPress={loadAutogenReport}
+              disabled={isAutogenBusy}
             >
-              <Ionicons
-                name="reload"
-                size={16}
-                color={theme.palette.text.primary}
-              />
-              <Text style={styles.smallBtnAltText}>Refresh</Text>
+              {isAutogenBusy ? (
+                <ActivityIndicator />
+              ) : (
+                <Ionicons
+                  name="list"
+                  size={16}
+                  color={theme.palette.text.primary}
+                />
+              )}
+              <Text style={styles.smallBtnAltText}>Report laden</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -498,24 +402,79 @@ export default function DiagnosticScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Run summary */}
-          {!!syncState.run && (
-            <View style={styles.runBox}>
-              <Text style={styles.runTitle}>Run</Text>
-              <Text style={styles.runText}>
-                Title: {syncState.run.display_title || "—"}
+          {/* NICE LIST */}
+          {niceList && (
+            <View style={styles.reportBox}>
+              <Text style={styles.reportTitle}>Report</Text>
+              <Text style={styles.reportMeta}>
+                Generated: {niceList.generatedAt}
               </Text>
-              <Text style={styles.runText}>Status: {syncState.run.status}</Text>
-              <Text style={styles.runText}>
-                Conclusion: {syncState.run.conclusion ?? "—"}
-              </Text>
+
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>✅ Expo install</Text>
+                {isNonEmptyArray(niceList.expo) ? (
+                  niceList.expo.map((x) => (
+                    <Text key={x} style={styles.bullet}>
+                      • {x}
+                    </Text>
+                  ))
+                ) : (
+                  <Text style={styles.dim}>— nichts —</Text>
+                )}
+              </View>
+
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>✅ npm install</Text>
+                {isNonEmptyArray(niceList.npm) ? (
+                  niceList.npm.map((x) => (
+                    <Text key={x} style={styles.bullet}>
+                      • {x}
+                    </Text>
+                  ))
+                ) : (
+                  <Text style={styles.dim}>— nichts —</Text>
+                )}
+              </View>
+
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>🔌 Expo Plugins</Text>
+                {isNonEmptyArray(niceList.pluginLines) ? (
+                  niceList.pluginLines.map((x) => (
+                    <Text key={x} style={styles.bullet}>
+                      • {x}
+                    </Text>
+                  ))
+                ) : (
+                  <Text style={styles.dim}>— keine —</Text>
+                )}
+              </View>
+
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>
+                  🧠 Detected Imports (mapped)
+                </Text>
+                {isNonEmptyArray(niceList.detectedNames) ? (
+                  niceList.detectedNames.slice(0, 25).map((x) => (
+                    <Text key={x} style={styles.bullet}>
+                      • {x}
+                    </Text>
+                  ))
+                ) : (
+                  <Text style={styles.dim}>— keine —</Text>
+                )}
+                {niceList.detectedNames.length > 25 && (
+                  <Text style={styles.dim}>
+                    … +{niceList.detectedNames.length - 25} more
+                  </Text>
+                )}
+              </View>
             </View>
           )}
 
-          {/* Logs */}
+          {/* LOGS */}
           {logs.length > 0 && (
             <View style={styles.logsBox}>
-              <Text style={styles.runTitle}>Logs (last lines)</Text>
+              <Text style={styles.reportTitle}>Logs (last lines)</Text>
               {logs.map((l, idx) => (
                 <Text key={String(idx)} style={styles.logLine}>
                   {l}
@@ -525,7 +484,7 @@ export default function DiagnosticScreen() {
           )}
         </View>
 
-        {/* Existing diagnostics report */}
+        {/* --- Existing diagnose report --- */}
         {!report ? (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>Noch kein Report</Text>
@@ -646,42 +605,9 @@ const styles = StyleSheet.create({
     color: theme.palette.text.primary,
   },
   boxText: { color: theme.palette.text.primary, lineHeight: 18 },
-  boxHint: { color: theme.palette.text.muted, fontSize: 12, lineHeight: 16 },
   boxMeta: { color: theme.palette.text.muted, fontSize: 12 },
 
   row: { flexDirection: "row", gap: 10, flexWrap: "wrap", marginTop: 4 },
-
-  linkBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: theme.palette.border,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    alignSelf: "flex-start",
-  },
-  linkBtnText: {
-    color: theme.palette.text.primary,
-    fontWeight: "800",
-    fontSize: 12,
-  },
-
-  smallBtn: {
-    backgroundColor: theme.palette.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  smallBtnDisabled: { opacity: 0.55 },
-  smallBtnText: {
-    color: theme.palette.background,
-    fontWeight: "800",
-    fontSize: 12,
-  },
 
   smallBtnAlt: {
     backgroundColor: theme.palette.border,
@@ -692,27 +618,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
+  smallBtnDisabled: { opacity: 0.55 },
   smallBtnAltText: {
     color: theme.palette.text.primary,
     fontWeight: "800",
     fontSize: 12,
   },
 
-  runBox: {
+  reportBox: {
     marginTop: 8,
     padding: 10,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: theme.palette.border,
     backgroundColor: theme.palette.background,
-    gap: 4,
+    gap: 8,
   },
-  runTitle: {
-    fontWeight: "800",
+  reportTitle: { fontWeight: "900", color: theme.palette.text.primary },
+  reportMeta: { color: theme.palette.text.muted, fontSize: 12 },
+
+  section: { gap: 4, marginTop: 4 },
+  sectionTitle: {
+    fontWeight: "900",
     color: theme.palette.text.primary,
-    marginBottom: 4,
+    marginTop: 6,
   },
-  runText: { color: theme.palette.text.primary, fontSize: 12 },
+  bullet: { color: theme.palette.text.primary, fontSize: 12, lineHeight: 16 },
+  dim: { color: theme.palette.text.muted, fontSize: 12 },
 
   logsBox: {
     marginTop: 8,
@@ -729,7 +661,6 @@ const styles = StyleSheet.create({
     fontFamily: "monospace",
   },
 
-  // existing
   empty: { padding: 16, gap: 8 },
   emptyTitle: {
     fontSize: 16,
@@ -762,18 +693,9 @@ const styles = StyleSheet.create({
   },
   issueTop: { flexDirection: "row", alignItems: "center", gap: 8 },
 
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
+  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   badgeError: { backgroundColor: theme.palette.error },
   badgeWarn: { backgroundColor: theme.palette.warning },
-  badgeOk: { backgroundColor: theme.palette.primary },
-  badgeIdle: { backgroundColor: theme.palette.border },
   badgeText: {
     color: theme.palette.background,
     fontSize: 11,
