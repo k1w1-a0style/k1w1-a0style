@@ -6,7 +6,7 @@
  * Flags:
  *   --apply       installs missing deps + auto-rescan + expo config check
  *   --apply=true  same
- *   --apply=false report only
+ *   --apply=false report only (NOW includes expo config check too)
  */
 
 import fs from "fs";
@@ -34,7 +34,13 @@ function walk(dir, out = []) {
   for (const it of items) {
     const full = path.join(dir, it.name);
     if (it.isDirectory()) {
-      if (it.name === "node_modules" || it.name === ".git" || it.name === "android" || it.name === "ios") continue;
+      if (
+        it.name === "node_modules" ||
+        it.name === ".git" ||
+        it.name === "android" ||
+        it.name === "ios"
+      )
+        continue;
       walk(full, out);
     } else {
       if (
@@ -223,7 +229,6 @@ function scanOnce() {
   }
 
   const pkgJson = readPackageJson();
-
   const missingExpo = [];
   const missingNpm = [];
 
@@ -244,7 +249,7 @@ function scanOnce() {
     plugins: validPlugins,
     pluginsAll: allPlugins,
     pluginsSkipped: skippedPlugins,
-    expoConfigCheck: null, // will be filled after apply (optional)
+    expoConfigCheck: null, // will be filled by checkExpoConfigAndPatchReport()
   };
 
   writeJSON(REPORT_PATH, report);
@@ -268,7 +273,6 @@ function checkExpoConfigAndPatchReport() {
   console.log("[K1W1] Checking Expo config (npx -y expo config --type public) ...");
 
   const res = runCapture("npx", ["-y", "expo", "config", "--type", "public"]);
-
   const stdoutHead = clip(res.stdout, 2200);
   const stderrHead = clip(res.stderr, 2200);
 
@@ -313,6 +317,10 @@ function main() {
   const first = scanOnce();
   printSummary(first);
 
+  // ✅ NEW: Always run expo config sanity check, even in report-only mode
+  checkExpoConfigAndPatchReport();
+
+  // Report-only mode ends here
   if (!apply) return;
 
   // 2) Apply installs (based on FIRST scan)
@@ -320,6 +328,7 @@ function main() {
     console.log("[K1W1] Installing expo deps:", first.missingExpo.join(", "));
     run("npx", ["-y", "expo", "install", ...first.missingExpo]);
   }
+
   if (first.missingNpm.length) {
     console.log("[K1W1] Installing npm deps:", first.missingNpm.join(", "));
     run("npm", ["install", ...first.missingNpm]);
@@ -331,7 +340,7 @@ function main() {
   const second = scanOnce();
   printSummary(second);
 
-  // 4) Expo config sanity check + report patch
+  // 4) Expo config sanity check again (after apply), so report reflects final state
   checkExpoConfigAndPatchReport();
 
   console.log("[K1W1] Final report refreshed after apply (includes expoConfigCheck).\n");
