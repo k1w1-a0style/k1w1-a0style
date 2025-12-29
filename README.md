@@ -1,211 +1,101 @@
-# k1w1-a0style 🚀
-**React Native App-Builder mit KI-Integration (Bolt-Style)**
+# k1w1-a0style-restored
 
-Erstellen, Bearbeiten und Bauen von React-Native-Apps direkt auf dem Handy – mit KI-Unterstützung, GitHub-Anbindung und EAS-Builds.
+React-Native/Expo App zum Bauen und Testen von Projekten/Flows mit **integriertem Preview-System**.
 
----
+## Was das Preview-System kann
 
-## 📊 Projekt-Status
-| Bereich | Status |
-|--------|--------|
-| Security | 10/11 behoben (SEC-005 bis SEC-011) |
-| Tests | 330 passed, 17 Suites (~40% Coverage) ✅ |
-| EAS Build | Vollständig konfiguriert |
-| UX | Stabil, modern |
-| Version | **BETA-READY** |
+Du hast jetzt **drei** Preview-Modi in `PreviewScreen`:
 
-**Letzte Aktualisierung:** 9. Dezember 2025
+1. **🚀 Supabase Preview (empfohlen)**
+   - App schickt Projekt-Dateien an eine Supabase Edge Function (`save_preview`).
+   - DB speichert ein Preview-Objekt (`previews` Tabelle) + `secret` Token.
+   - `preview_page` rendert eine HTML Seite, die die Files in einem Browser-Sandbox-Runner startet (Sandpack Client).
+   - Vorteil: _alles_ bleibt in deiner Supabase Infrastruktur (bis auf die Sandpack Assets via CDN), und die URLs sind über `secret` geschützt.
 
----
+2. **🧪 CodeSandbox Preview (für dich / Debug / Demo)**
+   - App schickt Projekt-Dateien an `create_codesandbox`.
+   - Edge Function erstellt eine echte CodeSandbox über deren **define API** und gibt `embed`/`editor` URLs zurück.
+   - Wichtig: **CodeSandbox Sandboxes sind öffentlich**. Also **keine sensiblen Daten**.
 
-## ✨ Features
-### 🤖 KI
-- Multi-Provider (Groq, OpenAI, Gemini, Anthropic, HF)
-- Fallback, Key-Rotation, Speed/Quality-Modi
-
-### 🗂️ Projekt
-- Datei-Editor
-- Dateioperationen
-- ZIP-Export ✔️
-- ZIP-Import ✔️ (vollständig implementiert)
-- Syntax-Validierung
-
-### 🔗 GitHub
-- Repos anzeigen ✔️
-- Repos erstellen ✔️
-- Repos löschen ✔️
-- Repos umbenennen ✔️
-- Workflow-Trigger ✔️
-- Logs anzeigen ✔️
-- Pull/Push ✔️
-
-### 🏗️ Build
-- EAS Trigger
-- Build-Status
-- Fehleranalyse
-- APK/AAB Download
+3. **🌐 Web (lokal)**
+   - Du kannst irgendeine lokale URL laden (Metro/Expo/Vite), z.B. für schnelle Tests in der Dev-Umgebung.
 
 ---
 
-## 🧱 Architektur
-- `screens/` (12 Screens: ChatScreen, CodeScreen, TerminalScreen, SettingsScreen, ConnectionsScreen, GitHubReposScreen, DiagnosticScreen, AppStatusScreen, PreviewScreen, BuildScreen, EnhancedBuildScreen, AppInfoScreen)
-- `components/` (11 UI-Modules)
-- `lib/` (15 Core-Logic Modules)
-- `contexts/` (7 State Modules)
-- `hooks/` (6 Custom Hooks: useBuildStatus, useBuildStatusSupabase, useBuildTrigger, useGitHubActionsLogs, useGitHubRepos, useNotifications)
-- `utils/` (4 Utility Modules)
-- `supabase/functions/` (7 Edge Functions)
-- **Project Analyzer** prüft Projektdateien
-- **BuildConfig Reader** liest SDK, Versionen usw.
+## Architektur (Preview Flow)
+
+### Supabase Preview
+
+1. `PreviewScreen` sammelt Projektdateien (max. Anzahl + max. Bytes)
+2. `save_preview` (Edge Function)
+   - validiert Payload
+   - speichert in `public.previews`
+   - generiert `secret`
+   - gibt `previewUrl` zurück → `preview_page?secret=...`
+3. `preview_page` (Edge Function)
+   - lädt Preview über `secret`
+   - blockt abgelaufene Previews
+   - rendert HTML mit Sandpack Runtime
+
+### CodeSandbox Preview
+
+1. `PreviewScreen` schickt Projektdateien an `create_codesandbox`
+2. `create_codesandbox` baut ein CRA-artiges Dateisystem (`package.json`, `src/index.tsx`, etc.)
+3. ruft CodeSandbox API auf und gibt URLs zurück
 
 ---
 
-## 🛠️ Pflichtdateien
-Diese Dateien **müssen existieren**, damit dein Projekt gültig ist:
+## Setup
 
-### **App.tsx**
-- Einstiegspunkt
-- Muss im Projekt vorhanden sein
+### 1) Env
 
-### **app.config.js**
-- Definiert Name, Slug, Android-Package
-- Ohne diese Datei → Analyzer-Fehler
+Erstelle `.env.local` (nicht committen) oder `.env` (nur lokal) mit:
 
-Beispiel:
-```js
-module.exports = {
-  expo: {
-    name: "MyApp",
-    slug: "myapp",
-    android: { package: "com.example.myapp" }
-  }
-}
+```bash
+EXPO_PUBLIC_SUPABASE_URL=https://<dein-ref>.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=<dein anon key>
+
+# optional overrides
+EXPO_PUBLIC_SAVE_PREVIEW_URL=https://<dein-ref>.supabase.co/functions/v1/save_preview
+EXPO_PUBLIC_CREATE_CODESANDBOX_URL=https://<dein-ref>.supabase.co/functions/v1/create_codesandbox
 ```
 
----
+### 2) Supabase
 
-# ⚙️ ZIP Import & Export
-### ZIP-Export
-✔️ Vorhanden und funktionsfähig
+Migrations pushen + Functions deployen:
 
-### ZIP-Import
-✔️ Vollständig implementiert (9. Dezember 2025)
-- Implementiert in `contexts/projectStorage.ts`
-- Validierung über `lib/validators.ts` (validateZipImport)
-- Unterstützt rekursives Entpacken
-- Sicherheitsprüfungen (Pfad-Validierung, Content-Validierung, Größenlimits)
+```bash
+supabase db push
+supabase functions deploy save_preview
+supabase functions deploy preview_page
+supabase functions deploy create_codesandbox
+```
 
----
+### 3) App
 
-# 📱 Screens
-| Screen | Funktion |
-|--------|----------|
-| ChatScreen | KI-Chat (mit Auto-Fix Support, Syntax Highlighting) |
-| CodeScreen | Editor |
-| AppStatusScreen | Projektinfos, Build-Validierung ✅ (ehemals PreviewScreen) |
-| PreviewScreen | Live-Preview (Bolt-Style) ✅ NEU |
-| BuildScreen | Build-Status (Re-export von EnhancedBuildScreen) |
-| EnhancedBuildScreen | Detaillierte Build-Logs (mit Notifications, Build-Historie) |
-| TerminalScreen | Terminal-Logs |
-| SettingsScreen | API Keys + Notifications-Einstellungen |
-| ConnectionsScreen | GitHub/Expo Verbindungen |
-| GitHubReposScreen | Repository-Verwaltung (Create/Delete/Push/Pull) ✅ |
-| AppInfoScreen | Icons, Backup |
-| DiagnosticScreen | Fehleranalyse (mit Auto-Fix, Multi-Fix) |
-
----
-
-# ❗ Bekannte Probleme
-✅ Alle kritischen Bugs behoben (9. Dezember 2025):
-- ✅ Chat-Eingabefeld fix (KeyboardAvoidingView + dynamische Höhe)
-- ✅ Diagnose-Fix Auto-Verarbeitung implementiert
-- ✅ Nachrichten-Ränder behoben (Layout-Verbesserungen)
-- ✅ ZIP-Import vollständig implementiert
-- ✅ GitHub Repo-Funktionen vollständig (Create/Delete/Pull/Push)
-- ✅ PreviewScreen → AppStatusScreen umbenannt + neuer PreviewScreen implementiert
-
-**Offene Punkte:**
-- [ ] E2E Tests mit Detox
-- [ ] SEC-008: Supabase RLS (Datenbank-Konfiguration)
-
----
-
-# 📋 To-Do Liste (logisch sortiert)
-
-## ✅ Erledigt (Stand: 9. Dezember 2025)
-- Security: KeyManager, Zod Validation, Encryption, Mutex
-- Tests: 330 Tests (17 Suites), ~40% Coverage ✅
-- Build: EAS konfiguriert, EnhancedBuildScreen mit Build-Historie
-- UI: Terminal, Chat-Optimierungen, AppInfoScreen, PreviewScreen
-- Hooks: useBuildStatus, useBuildStatusSupabase, useBuildTrigger, useGitHubActionsLogs, useGitHubRepos, useNotifications ✅
-- ZIP-Import: Vollständig implementiert ✅
-- GitHub Repo-Funktionen: Create/Delete/Pull/Push vollständig ✅
-- PreviewScreen: Umbenennung zu AppStatusScreen + neuer Live-PreviewScreen ✅
-- Push-Benachrichtigungen: Vollständig implementiert ✅
-- Chat Syntax Highlighting: Implementiert ✅
-- Security: SEC-005 bis SEC-011 behoben (10/11) ✅
-- Docs: README aktualisiert
-- .gitignore Fix
-
----
-
-## 🔥 Priorität: Hoch
-- [x] Test Coverage erhöhen (Ziel: 40%, erreicht: ~40%) ✅
-- [x] fileWriter.test.ts erstellen ✅
-- [x] orchestrator.test.ts erweitern ✅
-- [ ] Web-Favicon fixen (`app.config.js → web.favicon`)
-- [x] **ZIP-Import implementieren** ✅
-- [x] **GitHub Repo Screen erweitern** (Delete, Create, Pull, Push) ✅
-- [x] **DiagnosticScreen Fix-Button reparieren** (Auto-KI-Antwort) ✅
-- [x] **Chat-Input fixen** (Position + Keyboard) ✅
-- [x] **PreviewScreen.tsx umbenennen** → „AppStatusScreen.tsx" ✅
-- [x] **Echten Preview-Screen planen** (Bolt-Style) ✅
-
----
-
-## 🟡 Priorität: Mittel
-- [ ] CI/CD für Tests
-- [x] Integration Tests (AI + Orchestrator) ✅ (AIContext.integration.test.ts vorhanden)
-- [x] SEC-005: Memory Leaks ✅ (Code Review durchgeführt, keine kritischen Leaks)
-- [x] SEC-006: Rate Limiting ✅ (TokenBucketRateLimiter implementiert)
-- [x] SecureTokenManager.test.ts erstellen ✅
-- [x] coverage/ aus Repo entfernen ✅
-- [x] ChatScreen Layout fixen ✅
-- [x] Mehrere Diagnose-Fixes gleichzeitig ausführen ✅ (Multi-Fix Button)
-
----
-
-## 🟢 Priorität: Niedrig
-- [ ] E2E Tests (Detox)
-- [x] SEC-007 bis SEC-011 ✅ (XSS Prevention, CORS Hardening, Dependency Audit, Supabase Function Validation)
-- [x] Push-Benachrichtigungen nach Build ✅
-- [x] Build-Historie ✅
-- [x] Syntax-Highlighting im Chat ✅
-- [x] Weitere Templates ✅ (Navigation + CRUD Templates hinzugefügt)
-- [ ] Optional: Auto-Next-Step-Assistent
-
----
-
-## 📋 Security-Issues
-| Issue | Beschreibung | Status |
-|-------|--------------|--------|
-| SEC-005 | Memory Leaks | ✅ Behoben (Code Review durchgeführt) |
-| SEC-006 | Rate Limiting | ✅ Behoben (TokenBucketRateLimiter) |
-| SEC-007 | XSS Prevention | ✅ Behoben (Erweiterte Patterns + Sanitization) |
-| SEC-008 | Supabase RLS | ⏳ Offen (Datenbank-Konfiguration) |
-| SEC-009 | CORS Hardening | ✅ Behoben (Origin-Whitelist + Security Headers) |
-| SEC-010 | Dependency Audit | ✅ Behoben (0 Sicherheitslücken gefunden) |
-| SEC-011 | Supabase Function Validation | ✅ Behoben (Zod-ähnliche Validierung) |
-
----
-
-# 🛠️ Development
 ```bash
 npm install
-npm start
-npm run test
+npm run typecheck
+npm run lint:ci
+npm run test:silent
+npx expo start -c
 ```
 
 ---
 
-Fertig. Repo-ready. 💚🚀
+## Wichtige Hinweise (kritisch)
+
+- **Nicht committen:** `.env`, `.env.local` mit echten Keys.
+- **CodeSandbox:** öffentlich. Nutze das nur als persönliches Debug-Tool.
+- **Browser-Sandbox Limits:** Native Features (Kamera/GPS/Bluetooth) laufen nicht in Browser Previews.
+
+---
+
+## Dateien (Preview relevante Teile)
+
+- `screens/PreviewScreen.tsx`
+- `styles/previewScreenStyles.ts`
+- `supabase/functions/save_preview/*`
+- `supabase/functions/preview_page/*`
+- `supabase/functions/create_codesandbox/*`
+- `supabase/migrations/*previews*.sql`

@@ -100,7 +100,8 @@ export const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 14, color: theme.palette.text.primary },
 
-  list: { paddingHorizontal: 16, paddingBottom: 80 },
+  // vorher: paddingBottom: 80 -> das erzeugt bei wenig Inhalt optisch ein "Loch"
+  list: { paddingHorizontal: 16, paddingBottom: 12 },
 
   logRow: {
     paddingVertical: 10,

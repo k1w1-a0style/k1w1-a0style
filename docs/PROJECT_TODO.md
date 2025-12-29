@@ -1,99 +1,43 @@
-# PROJECT_TODO / Bauplan (k1w1-a0style)
+# PROJECT TODO (aktualisiert)
 
-Stand: (Datum eintragen)
-Ziel: Stabil + wartbar + schneller iterieren, ohne „Fratze geht“ bei Commits.
+> Stand: 2025-12-27
 
----
+## ✅ Bereits erledigt
 
-## Status / Wo wir sind
+- [x] Supabase `previews` Tabelle + Indizes + Expiry Support
+- [x] `secret` **NOT NULL** + Unique Index
+- [x] `cleanup_expired_previews()` Function + `service_role` grant
+- [x] Edge Function `save_preview` deployed
+- [x] Edge Function `preview_page` deployed (inkl. **Option B**: `unhandledrejection` + `error` listener)
+- [x] `PreviewScreen` kann Preview URL laden (WebView)
 
-Aktuell grün:
+## ✅ Neu implementiert (dieses Patch)
 
-- ✅ eslint (`npm run lint:ci`)
-- ✅ typecheck (`npm run typecheck`)
-- ✅ tests (`npm run test:silent`)
+- [x] Edge Function `create_codesandbox` (CodeSandbox define API)
+- [x] `PreviewScreen` hat neuen Modus **🧪 Sandbox**
+- [x] `supabase/config.toml` erweitert um `functions.create_codesandbox`
 
-Zuletzt umgesetzt (ChatScreen-Aufräumen):
+## 🔥 Kritische Punkte / Bugs / Risiken
 
-- ✅ Styles aus ChatScreen ausgelagert (`styles/chatScreenStyles.ts`)
-- ✅ ConfirmChangesModal extrahiert (`components/chat/ConfirmChangesModal.tsx`)
-- ✅ Prettier + Husky + lint-staged + .editorconfig eingeführt (Pre-Commit Formatierung)
-- ✅ Chat weiter “verschlankt” durch Extraktionen (Composer/Loading/Error/Scroll Button) – je nach aktuellem Stand im Repo
+- [ ] **Security/Privacy:** CodeSandbox Previews sind öffentlich → niemals sensible Inhalte
+- [ ] **Edge Function Rate Limits:** CodeSandbox API kann limitieren; Fehlerhandling UI ggf. verbessern
+- [ ] **Dependency Kompatibilität:** RN/Expo Packages können Browser-Preview killen → Filter ist best-effort
+- [ ] **WebView Cookies/CSP:** Einige Sandboxes/Embeds können in WebView blocken (je nach Plattform)
 
-Hinweis:
+## 🚧 Nächste sinnvolle Schritte
 
-- MessageItem existiert als eigenes Component – das ist okay. ChatScreen nutzt es weiterhin über MessageList/RenderItem.
+### Preview-Qualität
 
----
+- [ ] In `preview_page`: optionaler Toggle „raw logs“ / „runtime errors“ in UI anzeigen
+- [ ] In `PreviewScreen`: bessere Anzeige von _was_ gesendet wurde (fileCount/size/skipped)
+- [ ] Auto-Cleanup Job (cron) in Supabase einrichten, der `cleanup_expired_previews()` regelmäßig ausführt
 
-## Wichtig: Regeln für “Safe Refactor”
+### Stabilität
 
-Immer so arbeiten:
+- [ ] Server-side Payload Limits (save_preview + create_codesandbox): harte max bytes + max files enforced
+- [ ] Observability: Logs + optionales `meta.debug` speichern (nur minimal)
 
-1. Kleine, isolierte Extraktion (1 Baustein)
-2. Prettier nur für betroffene Dateien
-3. `npm run lint:ci && npm run typecheck && npm run test:silent`
-4. Commit
-5. Nächster Schritt
+### UX
 
----
-
-## To-Do Liste (Projektweit)
-
-### A) Chat / UI (sicher & sinnvoll)
-
-- [ ] (SAFE) ChatMessageList extrahieren (nur FlatList + onContentSizeChange + renderFooter Hookup)
-- [ ] (SAFE) useKeyboardHeight Hook extrahieren (Keyboard listeners raus aus ChatScreen)
-- [ ] (SAFE) useChatAutoScroll Hook extrahieren (hardScrollToBottom + focus effect + isAtBottom tracking)
-- [ ] (SAFE) Streaming-Simulation in Hook auslagern (useSimulatedStreaming)
-- [ ] (SAFE) Konstanten in `constants/chat.ts` (INPUT_BAR_MIN_H, SELECTED_FILE_ROW_H, KEYBOARD_NUDGE, …)
-- [ ] (SAFE) processAIRequest “Service” auslagern (z.B. `lib/chatFlow.ts`) → leichter testbar
-
-### B) Tooling / Format / “Nichts geht kaputt”
-
-- [ ] `.prettierignore` ergänzen (node_modules, dist, coverage, expo build artefacts, patch backups, etc.)
-- [ ] Script: `"format": "prettier --write ."` + `"format:check": "prettier --check ."`
-- [ ] lint-staged: nur sinnvolle Patterns, kein Formatieren von Build/Lockfiles wenn’s nervt (optional)
-- [ ] Husky Warnung fixen (deprecated shim lines entfernen falls noch drin)
-
-### C) Projektgröße / Performance (Audit)
-
-- [ ] Große Dateien identifizieren & “splitten” (Screens, utils, Services)
-- [ ] Assets checken (Bilder/Audio/JSON): unnötig große Assets raus / komprimieren
-- [ ] Unused deps prüfen (depcheck) & entfernen
-- [ ] “Backups”/alte Dateien konsequent in ignore oder aus Repo
-
-### D) Reliability / Fehlerklassen
-
-- [ ] Netzwerkfehler/Retry Logik zentralisieren (ein Modul)
-- [ ] Einheitliche Error-Messages & UI-Banner
-- [ ] Agent/Validator Flow robuster: klare Fallbacks, Telemetrie minimal (optional)
-
----
-
-## “Sonet”-Hinweise (kritisch bewertet)
-
-Kurzfazit:
-
-- Die Grundidee “aus ChatScreen extrahieren” ist richtig.
-- In den Sonet-Snippets waren typische Stolperfallen:
-  - Styles/Keys passten nicht zu deinem echten `theme` (z.B. `palette.surface` existiert bei dir nicht)
-  - Style-Namen/Exports uneinheitlich → TypeScript Fehler (`styles.modalCard` etc.)
-  - Teilweise unvollständig (Snippet abgebrochen) → gefährlich beim Copy/Paste
-
-Regel:
-
-- Extraktionen nur dann “safe”, wenn:
-  1. die Styles exakt existieren,
-  2. Imports/Exports eindeutig sind,
-  3. Lint+Typecheck+Tests grün laufen.
-
----
-
-## Nächster sinnvoller Schritt (Empfehlung)
-
-1. useKeyboardHeight Hook (klein, sehr safe)
-2. useChatAutoScroll Hook
-3. ChatMessageList Component
-
-Danach ist ChatScreen deutlich kürzer, ohne Logik zu riskieren.
+- [ ] „Open in external browser“ immer anbieten, wenn WebView Probleme macht
+- [ ] Beim Switch der Modi: optionaler Hinweis, dass URLs/Preview getrennt sind

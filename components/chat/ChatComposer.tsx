@@ -1,5 +1,5 @@
 // components/chat/ChatComposer.tsx
-import React, { useCallback } from "react";
+import React, { useCallback, useRef } from "react";
 import {
   Animated,
   ActivityIndicator,
@@ -26,6 +26,9 @@ type Props = {
   combinedIsLoading: boolean;
   keyboardOffsetInScreen: number;
   sendButtonScale: Animated.Value;
+
+  // ✅ neu: Composer-Höhe an ChatScreen melden (damit nichts hinterm Input verschwindet)
+  onHeightChange?: (h: number) => void;
 };
 
 const ChatComposer: React.FC<Props> = ({
@@ -39,10 +42,13 @@ const ChatComposer: React.FC<Props> = ({
   combinedIsLoading,
   keyboardOffsetInScreen,
   sendButtonScale,
+  onHeightChange,
 }) => {
   const placeholder = pendingPlan
     ? 'Antwort auf die Fragen... (oder "weiter")'
     : "Beschreibe deine App oder den nächsten Schritt ...";
+
+  const lastH = useRef<number>(0);
 
   const handleSubmit = useCallback(
     (e: NativeSyntheticEvent<TextInputSubmitEditingEventData>) => {
@@ -52,7 +58,19 @@ const ChatComposer: React.FC<Props> = ({
   );
 
   return (
-    <View style={[styles.bottomArea, { bottom: keyboardOffsetInScreen }]}>
+    <View
+      style={[styles.bottomArea, { bottom: keyboardOffsetInScreen }]}
+      onLayout={(e) => {
+        const h = Math.round(e.nativeEvent.layout.height);
+        if (!onHeightChange) return;
+
+        // nur melden wenn wirklich Änderung (verhindert Render-Spam)
+        if (Math.abs(h - lastH.current) >= 1) {
+          lastH.current = h;
+          onHeightChange(h);
+        }
+      }}
+    >
       {pendingPlan && (
         <View style={styles.planHint}>
           <Text style={styles.planHintText}>

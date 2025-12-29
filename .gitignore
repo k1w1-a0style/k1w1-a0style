@@ -48,3 +48,6 @@ scripts/
 
 # Backups folder
 backups/
+.vercel
+.env*.local
+debug.log

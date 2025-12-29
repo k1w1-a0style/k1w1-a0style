@@ -38,8 +38,10 @@ type DocumentResultAsset = NonNullable<
 >[0];
 
 const INPUT_BAR_MIN_H = 56;
-const SELECTED_FILE_ROW_H = 42;
-const KEYBOARD_NUDGE = 2;
+
+// ✅ Mini-Fix Android: Composer 1–2px näher an die Tastatur (wenn offen)
+const KEYBOARD_NUDGE = Platform.OS === "android" ? 4 : 2;
+
 const FOOTER_LIFT_WHEN_BUSY = 72;
 
 const ChatScreen: React.FC = () => {
@@ -71,6 +73,9 @@ const ChatScreen: React.FC = () => {
   const [showScrollButton, setShowScrollButton] = useState(false);
   const didInitialScrollRef = useRef(false);
 
+  // ✅ neu: echte Composer-Höhe (damit Bilder nicht hinterm Eingabefeld verschwinden)
+  const [composerHeight, setComposerHeight] = useState<number>(INPUT_BAR_MIN_H);
+
   // Keyboard (Offset bleibt 1:1)
   const keyboardHeight = useKeyboardHeight();
 
@@ -90,9 +95,10 @@ const ChatScreen: React.FC = () => {
       ? Math.max(0, keyboardHeight - insets.bottom - KEYBOARD_NUDGE)
       : 0;
 
-  const bottomBarVisualH =
-    INPUT_BAR_MIN_H + (selectedFileAsset ? SELECTED_FILE_ROW_H : 0);
   const busyLift = combinedIsLoading || isStreaming ? FOOTER_LIFT_WHEN_BUSY : 0;
+
+  // ✅ statt Konstanten: echte Composer-Höhe nutzen
+  const bottomBarVisualH = Math.max(INPUT_BAR_MIN_H, composerHeight);
 
   const listBottomPadding =
     bottomBarVisualH + keyboardOffsetInScreen + 14 + busyLift;
@@ -337,7 +343,7 @@ const ChatScreen: React.FC = () => {
   }, []);
 
   return (
-    <SafeAreaView style={styles.root} edges={["left", "right", "bottom"]}>
+    <SafeAreaView style={styles.root} edges={["left", "right"]}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.container}>
           <View style={styles.listContainer}>
@@ -410,6 +416,7 @@ const ChatScreen: React.FC = () => {
             combinedIsLoading={combinedIsLoading}
             keyboardOffsetInScreen={keyboardOffsetInScreen}
             sendButtonScale={sendButtonScale}
+            onHeightChange={(h) => setComposerHeight(h)}
           />
 
           <ConfirmChangesModal

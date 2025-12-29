@@ -1,7 +1,7 @@
 /**
  * app.config.js – Expo App Config (Android-only)
  * ✅ android.softwareKeyboardLayoutMode = "pan"
- * ✅ EAS projectId nur wenn ENV gesetzt ist (kein Dummy!)
+ * ✅ Supabase Env Support
  */
 
 require("dotenv").config();
@@ -18,10 +18,8 @@ module.exports = {
     orientation: "portrait",
     userInterfaceStyle: "automatic",
 
-    // ✅ Android-only
     platforms: ["android"],
 
-    // ✅ Expo wollte das (wegen expo-font install/dev-client)
     plugins: ["expo-font"],
 
     assetBundlePatterns: ["**/*"],
@@ -39,6 +37,10 @@ module.exports = {
       eas: {
         ...(EAS_PROJECT_ID ? { projectId: EAS_PROJECT_ID } : {}),
       },
+      // ✅ Supabase Env
+      EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL || "",
+      EXPO_PUBLIC_SUPABASE_ANON_KEY:
+        process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
     },
   },
 };

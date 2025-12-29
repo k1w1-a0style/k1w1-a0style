@@ -36,7 +36,7 @@ export default function TerminalScreen() {
   const renderItem = ({ item }: { item: LogEntry }) => <LogRow item={item} />;
 
   return (
-    <SafeAreaView style={styles.container} edges={["bottom", "left", "right"]}>
+    <SafeAreaView style={styles.container} edges={["left", "right"]}>
       <TerminalHeader
         onSendLogsToAiAutoFix={sendLogsToAiAutoFix}
         onExportDebugZip={exportDebugZip}
@@ -67,6 +67,7 @@ export default function TerminalScreen() {
       </Animated.View>
 
       <FlatList
+        style={{ flex: 1 }}
         ref={flatListRef}
         data={filteredLogs}
         keyExtractor={(item) => String(item.id)}

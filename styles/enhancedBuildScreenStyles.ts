@@ -1,529 +1,220 @@
-/**
- * EnhancedBuildScreen Styles
- * Ausgelagerte StyleSheet-Definition für bessere Übersichtlichkeit
- */
+// styles/enhancedBuildScreenStyles.ts
+import { Platform, StyleSheet } from "react-native";
+import { theme } from "../theme";
 
-import { StyleSheet } from 'react-native';
-import { theme, getNeonGlow } from '../theme';
+function withOpacity(color: string, opacity: number): string {
+  if (!color.startsWith("#")) return color;
+  let hex = color.slice(1);
+  if (hex.length === 3)
+    hex = hex
+      .split("")
+      .map((c) => c + c)
+      .join("");
+  if (hex.length !== 6) return color;
+  const alpha = Math.round(Math.max(0, Math.min(1, opacity)) * 255)
+    .toString(16)
+    .padStart(2, "0");
+  return `#${hex}${alpha}`;
+}
 
 export const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: theme.palette.background,
   },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: 32,
-  },
+  scroll: { flex: 1 },
+  content: { paddingBottom: 40 },
+
   header: {
-    padding: 16,
-    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
   },
   title: {
-    color: theme.palette.primary,
-    fontSize: 26,
-    fontWeight: '700',
-    marginBottom: 6,
-    textAlign: 'center',
-    ...getNeonGlow(theme.palette.primary, 'subtle'),
+    color: theme.palette.text.primary,
+    fontSize: 20,
+    fontWeight: "900",
+    marginBottom: 4,
   },
   subtitle: {
     color: theme.palette.text.secondary,
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center',
-  },
-  repoInfo: {
-    backgroundColor: theme.palette.card,
-    borderRadius: 10,
-    padding: 14,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: theme.palette.primary + '40',
-  },
-  repoLabel: {
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-    marginBottom: 6,
-  },
-  repoValue: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.palette.primary,
-  },
-  noRepoCard: {
-    backgroundColor: theme.palette.card,
-    borderRadius: 12,
-    padding: 20,
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: theme.palette.warning,
-    alignItems: 'center',
-  },
-  noRepoIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  noRepoTitle: {
-    color: theme.palette.warning,
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  noRepoText: {
-    color: theme.palette.text.secondary,
     fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 18,
   },
-  actionRow: {
-    flexDirection: 'row',
+
+  card: {
+    marginTop: 14,
     marginHorizontal: 16,
-    marginBottom: 16,
-    gap: 10,
-  },
-  buildButton: {
-    flex: 1,
-    backgroundColor: theme.palette.primary,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...getNeonGlow(theme.palette.primary, 'normal'),
-  },
-  buildButtonActive: {
-    backgroundColor: theme.palette.primaryDark,
-    opacity: 1,
-  },
-  buildButtonDisabled: {
-    opacity: 0.5,
-    ...getNeonGlow(theme.palette.primary, 'subtle'),
-  },
-  buildButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  buildButtonText: {
-    color: theme.palette.secondary,
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  buildButtonTextActive: {
-    color: theme.palette.secondary,
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  resetButton: {
     backgroundColor: theme.palette.card,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
     borderWidth: 1,
     borderColor: theme.palette.border,
-  },
-  resetButtonText: {
-    fontSize: 20,
-  },
-  hintCard: {
-    backgroundColor: theme.palette.card,
-    borderRadius: 10,
+    borderRadius: 16,
     padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-  },
-  hintText: {
-    color: theme.palette.text.secondary,
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center',
-  },
-  liveCard: {
-    marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: theme.palette.card,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
   },
   cardTitle: {
     color: theme.palette.text.primary,
-    fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "900",
+    fontSize: 15,
+    marginBottom: 14,
   },
-  cardMeta: {
-    color: theme.palette.text.secondary,
-    fontSize: 13,
-  },
-  statusText: {
-    color: theme.palette.text.primary,
-    fontSize: 14,
-    marginBottom: 12,
-  },
-  progressBar: {
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: theme.palette.background,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: theme.palette.primary,
-    borderRadius: 999,
-  },
-  progressFillError: {
-    backgroundColor: theme.palette.error,
-  },
-  progressFillSuccess: {
-    backgroundColor: theme.palette.success,
-  },
-  progressPercent: {
-    color: theme.palette.text.secondary,
-    fontSize: 12,
-    textAlign: 'right',
-    marginTop: 4,
-  },
-  liveMetrics: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 16,
-  },
-  metricBox: {
-    flex: 1,
-  },
-  metricLabel: {
-    color: theme.palette.text.secondary,
-    fontSize: 12,
-  },
-  metricValue: {
-    color: theme.palette.primary,
-    fontSize: 18,
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  errorAnalysisCard: {
-    marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: theme.palette.card,
-    borderWidth: 2,
-    borderColor: theme.palette.error,
-  },
-  errorItem: {
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: theme.palette.background,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-  },
-  errorItemCritical: {
-    borderColor: theme.palette.error,
-    borderWidth: 2,
-  },
-  errorItemHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  errorCategory: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  errorSeverity: {
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  errorDescription: {
-    color: theme.palette.text.primary,
-    fontSize: 13,
-    marginBottom: 8,
-  },
-  errorSuggestionBox: {
-    backgroundColor: theme.palette.background,
-    padding: 10,
-    borderRadius: 6,
-    borderLeftWidth: 3,
-    borderLeftColor: theme.palette.primary,
-  },
-  errorSuggestionLabel: {
-    color: theme.palette.primary,
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  errorSuggestion: {
-    color: theme.palette.text.secondary,
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  docsButton: {
-    marginTop: 8,
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: theme.palette.primary + '20',
-    borderWidth: 1,
-    borderColor: theme.palette.primary,
-  },
-  docsButtonText: {
-    color: theme.palette.primary,
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  logsCard: {
-    marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: theme.palette.card,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-  },
-  toggleButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: theme.palette.background,
-  },
-  toggleButtonText: {
-    color: theme.palette.primary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  logsLoading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-  },
-  logsLoadingText: {
-    color: theme.palette.text.secondary,
-    marginLeft: 8,
-  },
-  logsError: {
-    color: theme.palette.error,
-    padding: 12,
-  },
-  logsEmpty: {
-    color: theme.palette.text.secondary,
-    padding: 12,
-    textAlign: 'center',
-  },
-  logsScrollContainer: {
-    marginTop: 8,
-    maxHeight: 300,
-    borderRadius: 8,
-    backgroundColor: theme.palette.background,
-  },
-  logsContent: {
-    paddingVertical: 4,
-  },
-  logEntry: {
-    flexDirection: 'row',
-    padding: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.palette.border,
-  },
-  logEntryError: {
-    backgroundColor: theme.palette.error + '15',
-    borderLeftWidth: 3,
-    borderLeftColor: theme.palette.error,
-  },
-  logEntryWarning: {
-    backgroundColor: theme.palette.warning + '15',
-    borderLeftWidth: 3,
-    borderLeftColor: theme.palette.warning,
-  },
-  logTimestamp: {
-    color: theme.palette.text.secondary,
-    fontSize: 11,
-    fontFamily: 'monospace',
-    marginRight: 8,
-    minWidth: 70,
-  },
-  logMessage: {
-    color: theme.palette.text.primary,
-    fontSize: 12,
-    fontFamily: 'monospace',
-    flex: 1,
-  },
-  infoCard: {
-    marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: theme.palette.card,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-  },
-  linkButton: {
-    marginTop: 8,
-    backgroundColor: theme.palette.primary,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  linkButtonSuccess: {
-    backgroundColor: theme.palette.success,
-  },
-  linkButtonText: {
-    color: theme.palette.secondary,
-    fontWeight: '600',
-  },
-  infoText: {
-    color: theme.palette.text.secondary,
-    marginTop: 6,
-    fontSize: 13,
-  },
-  errorBox: {
-    marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 14,
-    borderRadius: 10,
-    backgroundColor: theme.palette.error + '11',
-    borderWidth: 1,
-    borderColor: theme.palette.error,
-  },
-  errorTitle: {
-    color: theme.palette.error,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  errorText: {
-    color: theme.palette.text.primary,
-    fontSize: 13,
-  },
-  // Build History Styles
-  historyCard: {
-    marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: theme.palette.card,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-  },
-  historyTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  statBadge: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: theme.palette.success,
-  },
-  historyEmpty: {
-    color: theme.palette.text.secondary,
+    marginBottom: 16,
     padding: 12,
-    textAlign: 'center',
-  },
-  historyScrollContainer: {
-    marginTop: 12,
-    maxHeight: 350,
-    borderRadius: 8,
     backgroundColor: theme.palette.background,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
   },
-  historyContent: {
-    paddingVertical: 4,
-  },
-  historyEntry: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.palette.border,
-  },
-  historyEntryCurrent: {
-    backgroundColor: theme.palette.primary + '15',
-    borderLeftWidth: 3,
-    borderLeftColor: theme.palette.primary,
-  },
-  historyEntryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  historyEntryIcon: {
-    fontSize: 18,
-  },
-  historyEntryInfo: {
-    flex: 1,
-  },
-  historyEntryRepo: {
+  statusEmoji: { fontSize: 28 },
+  statusTextWrap: { flex: 1 },
+  statusLabel: {
     color: theme.palette.text.primary,
+    fontWeight: "800",
     fontSize: 14,
-    fontWeight: '600',
   },
-  historyEntryMeta: {
+  statusMessage: {
     color: theme.palette.text.secondary,
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 2,
   },
-  historyEntryStatus: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  historyEntryDuration: {
+
+  inputRow: { gap: 12, marginBottom: 14 },
+  inputWrap: { gap: 6 },
+  inputLabel: {
     color: theme.palette.text.secondary,
-    fontSize: 11,
-    marginTop: 6,
-    marginLeft: 28,
-  },
-  historyArtifactButton: {
-    marginTop: 8,
-    marginLeft: 28,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    backgroundColor: theme.palette.success + '20',
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-  },
-  historyArtifactText: {
-    color: theme.palette.success,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "700",
+    marginLeft: 4,
   },
-  historyEntryError: {
-    color: theme.palette.error,
-    fontSize: 11,
-    marginTop: 6,
-    marginLeft: 28,
-  },
-  clearHistoryButton: {
-    marginTop: 12,
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: theme.palette.error + '15',
+  input: {
+    backgroundColor: theme.palette.background,
     borderWidth: 1,
-    borderColor: theme.palette.error + '40',
-    alignItems: 'center',
+    borderColor: theme.palette.border,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === "ios" ? 12 : 10,
+    color: theme.palette.text.primary,
+    fontSize: 14,
+    fontWeight: "600",
   },
-  clearHistoryText: {
+
+  primaryBtn: {
+    backgroundColor: theme.palette.primary,
+    borderWidth: 1,
+    borderColor: theme.palette.primary,
+    borderRadius: 12,
+    minHeight: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  primaryBtnText: {
+    color: theme.palette.secondary,
+    fontWeight: "900",
+    fontSize: 15,
+  },
+  btnDisabled: { opacity: 0.5 },
+
+  warningBox: {
+    backgroundColor: withOpacity("#FFAA00", 0.1),
+    borderWidth: 1,
+    borderColor: withOpacity("#FFAA00", 0.3),
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 14,
+  },
+  warningText: {
+    color: "#FFAA00",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 8,
+    textAlign: "center",
+  },
+
+  errorBox: {
+    marginTop: 14,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: withOpacity(theme.palette.error, 0.1),
+    borderWidth: 1,
+    borderColor: withOpacity(theme.palette.error, 0.3),
+  },
+  errorText: {
     color: theme.palette.error,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "700",
+  },
+
+  emptyState: {
+    marginTop: 16,
+    padding: 20,
+    alignItems: "center",
+  },
+  emptyText: {
+    color: theme.palette.text.secondary,
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+
+  runList: { marginTop: 16, gap: 10 },
+  runItem: {
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.background,
+    borderRadius: 12,
+    padding: 14,
+  },
+  runHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 8,
+  },
+  statusDot: { width: 10, height: 10, borderRadius: 5 },
+  runTitle: {
+    flex: 1,
+    color: theme.palette.text.primary,
+    fontWeight: "800",
+    fontSize: 14,
+  },
+  runMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  runStatus: {
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  runDivider: {
+    color: theme.palette.text.secondary,
+    fontSize: 10,
+  },
+  runTime: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  runBranch: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    fontWeight: "600",
+    maxWidth: 120,
+  },
+  moreText: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
+    marginTop: 8,
   },
 });
