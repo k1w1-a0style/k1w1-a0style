@@ -1,18 +1,11 @@
 // lib/previewSettings.ts
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
-export type PreviewMode = "supabase" | "codesandbox" | "web";
-
-export type PreviewSettings = {
-  defaultMode: PreviewMode;
-  autoFullscreen: boolean;
-  defaultWebUrl: string;
-};
+import type { PreviewMode, PreviewSettings } from "../types/preview";
 
 const STORAGE_KEY = "k1w1.previewSettings.v1";
 
 export const DEFAULT_PREVIEW_SETTINGS: PreviewSettings = {
-  defaultMode: "supabase",
+  defaultMode: "sandpack",
   autoFullscreen: true,
   defaultWebUrl: "https://codesandbox.io/",
 };

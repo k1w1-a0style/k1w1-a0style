@@ -22,20 +22,8 @@ import { WebView, WebViewNavigation } from "react-native-webview";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { theme } from "../theme";
-
-// ============================================================================
-// TYPES
-// ============================================================================
-
-type RootStackParamList = {
-  Root: undefined;
-  PreviewFullscreen: {
-    url?: string; // optional
-    html?: string; // optional
-    title?: string;
-    baseUrl?: string;
-  };
-};
+import { isHttpUrl, truncateUrl } from "../utils/url";
+import type { RootStackParamList } from "../types/preview";
 
 type PreviewFullscreenRouteProp = RouteProp<
   RootStackParamList,
@@ -46,30 +34,13 @@ type PreviewFullscreenNavigationProp = NativeStackNavigationProp<
   "PreviewFullscreen"
 >;
 
-// ============================================================================
-// UTILITIES
-// ============================================================================
-
-function isHttpUrl(url: string): boolean {
-  return /^https?:\/\//i.test(url);
-}
-
-function truncateUrl(url: string, maxLength: number = 55): string {
-  if (url.length <= maxLength) return url;
-  return url.slice(0, maxLength - 3) + "...";
-}
-
-// ============================================================================
-// COMPONENT
-// ============================================================================
-
 export default function PreviewFullscreenScreen() {
   const navigation = useNavigation<PreviewFullscreenNavigationProp>();
   const route = useRoute<PreviewFullscreenRouteProp>();
 
   const title = route.params?.title ?? "Preview";
   const url = route.params?.url;
-  const html = route.params?.html ?? ""; // ✅ FIX: immer string
+  const html = route.params?.html ?? "";
   const baseUrl = route.params?.baseUrl ?? "https://local.preview/";
 
   const [loading, setLoading] = useState(true);
@@ -80,7 +51,6 @@ export default function PreviewFullscreenScreen() {
   const webViewRef = useRef<WebView>(null);
   const isMountedRef = useRef(true);
 
-  // wir benutzen HTML wenn vorhanden, sonst URL
   const mode = useMemo<"html" | "url" | "none">(() => {
     if (html.trim().length > 0) return "html";
     if (typeof url === "string" && url.length > 0 && isHttpUrl(url))
@@ -153,7 +123,6 @@ export default function PreviewFullscreenScreen() {
   const handleShouldStartLoad = useCallback((request: any): boolean => {
     const requestUrl = String(request?.url || "");
 
-    // Block non-HTTP(S) URLs
     if (!isHttpUrl(requestUrl)) {
       Alert.alert(
         "Navigation blockiert",
@@ -207,7 +176,6 @@ export default function PreviewFullscreenScreen() {
     [handleGoBack, handleReload],
   );
 
-  // Android Back: erst WebView Back, sonst Stack Back
   useEffect(() => {
     if (Platform.OS !== "android") return;
 
@@ -229,7 +197,6 @@ export default function PreviewFullscreenScreen() {
     };
   }, []);
 
-  // Invalid State
   if (mode === "none") {
     return (
       <SafeAreaView style={styles.screen}>
@@ -262,7 +229,6 @@ export default function PreviewFullscreenScreen() {
     );
   }
 
-  // Main
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.topBar}>
@@ -330,11 +296,7 @@ export default function PreviewFullscreenScreen() {
           startInLoadingState
           style={styles.webView}
           mixedContentMode={Platform.OS === "android" ? "always" : undefined}
-          source={
-            mode === "html"
-              ? { html, baseUrl } // ✅ html ist garantiert string
-              : { uri: url! }
-          }
+          source={mode === "html" ? { html, baseUrl } : { uri: url! }}
         />
 
         {loading && (

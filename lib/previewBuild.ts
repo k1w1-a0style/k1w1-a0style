@@ -1,7 +1,6 @@
 // lib/previewBuild.ts
 import type { ProjectFile } from "../contexts/types";
-
-export type PreviewFiles = Record<string, { type?: string; contents: string }>;
+import type { PreviewFiles, PreviewStats } from "../types/preview";
 
 function toBytes(str: string): number {
   try {
@@ -57,7 +56,7 @@ export function normalizeDependencies(
 export function buildPreviewFilesFromProject(files: ProjectFile[]): {
   files: PreviewFiles;
   hasApp: boolean;
-  stats: { fileCount: number; totalBytes: number; skipped: number };
+  stats: PreviewStats;
 } {
   const fileMap: PreviewFiles = {};
   let totalBytes = 0;

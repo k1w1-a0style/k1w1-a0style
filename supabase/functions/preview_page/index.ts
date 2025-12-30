@@ -73,29 +73,32 @@ function escapeHtml(s: string) {
 // If your table name differs, adjust TABLE below.
 const TABLE = "previews";
 
-function supabaseHeaders(req: Request) {
-  const url = new URL(req.url);
-  const anon =
-    Deno.env.get("EXPO_PUBLIC_SUPABASE_ANON_KEY") ??
-    Deno.env.get("SUPABASE_ANON_KEY") ??
+// ✅ FIX: Use SERVICE_ROLE key server-side to bypass RLS
+function supabaseHeaders(): Record<string, string> {
+  // Server-side: use SERVICE_ROLE key (has full access, bypasses RLS)
+  const serviceRoleKey =
+    Deno.env.get("PREVIEW_SERVICE_ROLE_KEY") ??
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
     "";
-  const apiKey = anon;
 
-  // If caller sent an Authorization header, prefer it.
-  const auth = req.headers.get("authorization") ?? `Bearer ${anon}`;
+  if (!serviceRoleKey) {
+    throw new Error(
+      "Missing PREVIEW_SERVICE_ROLE_KEY or SUPABASE_SERVICE_ROLE_KEY",
+    );
+  }
 
   return {
-    apikey: apiKey,
-    authorization: auth,
+    apikey: serviceRoleKey,
+    authorization: `Bearer ${serviceRoleKey}`,
     "content-type": "application/json",
   };
 }
 
 async function fetchPreviewRecord(
-  req: Request,
   secret: string,
 ): Promise<PreviewRecord | null> {
   const base =
+    Deno.env.get("PREVIEW_SUPABASE_URL") ??
     Deno.env.get("EXPO_PUBLIC_SUPABASE_URL") ??
     Deno.env.get("SUPABASE_URL") ??
     "";
@@ -103,15 +106,20 @@ async function fetchPreviewRecord(
 
   const restUrl = `${base}/rest/v1/${TABLE}?secret=eq.${encodeURIComponent(secret)}&select=name,secret,created_at,expires_at,payload&limit=1`;
 
-  const res = await fetch(restUrl, {
-    method: "GET",
-    headers: supabaseHeaders(req),
-  });
+  try {
+    const res = await fetch(restUrl, {
+      method: "GET",
+      headers: supabaseHeaders(),
+    });
 
-  if (!res.ok) return null;
-  const arr = (await res.json()) as PreviewRecord[];
-  if (!Array.isArray(arr) || arr.length === 0) return null;
-  return arr[0];
+    if (!res.ok) return null;
+    const arr = (await res.json()) as PreviewRecord[];
+    if (!Array.isArray(arr) || arr.length === 0) return null;
+    return arr[0];
+  } catch (e) {
+    console.error("fetchPreviewRecord error:", e);
+    return null;
+  }
 }
 
 // Build a Sandpack page that can run Expo/React stuff in-browser.
@@ -292,7 +300,7 @@ serve(async (req) => {
       );
     }
 
-    const record = await fetchPreviewRecord(req, secret);
+    const record = await fetchPreviewRecord(secret);
     if (!record) {
       return html(
         `<!doctype html><meta charset="utf-8"><title>Not found</title><pre>Preview not found (invalid/expired secret?)</pre>`,
