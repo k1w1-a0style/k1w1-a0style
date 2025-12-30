@@ -1,3 +1,4 @@
+// screens/PreviewFullscreenScreen.tsx
 import React, {
   useCallback,
   useEffect,
@@ -18,183 +19,322 @@ import {
   Share,
 } from "react-native";
 import { WebView, WebViewNavigation } from "react-native-webview";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { theme } from "../theme";
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+type RootStackParamList = {
+  Root: undefined;
+  PreviewFullscreen: {
+    url?: string; // optional
+    html?: string; // optional
+    title?: string;
+    baseUrl?: string;
+  };
+};
+
+type PreviewFullscreenRouteProp = RouteProp<
+  RootStackParamList,
+  "PreviewFullscreen"
+>;
+type PreviewFullscreenNavigationProp = NativeStackNavigationProp<
+  RootStackParamList,
+  "PreviewFullscreen"
+>;
+
+// ============================================================================
+// UTILITIES
+// ============================================================================
 
 function isHttpUrl(url: string): boolean {
   return /^https?:\/\//i.test(url);
 }
 
-function truncate(s: string, n: number) {
-  if (!s) return "";
-  return s.length <= n ? s : s.slice(0, n - 3) + "...";
+function truncateUrl(url: string, maxLength: number = 55): string {
+  if (url.length <= maxLength) return url;
+  return url.slice(0, maxLength - 3) + "...";
 }
 
+// ============================================================================
+// COMPONENT
+// ============================================================================
+
 export default function PreviewFullscreenScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const navigation = useNavigation<PreviewFullscreenNavigationProp>();
+  const route = useRoute<PreviewFullscreenRouteProp>();
 
-  const html: string | undefined = route?.params?.html;
-  const title: string = route?.params?.title || "Preview";
+  const title = route.params?.title ?? "Preview";
+  const url = route.params?.url;
+  const html = route.params?.html ?? ""; // ✅ FIX: immer string
+  const baseUrl = route.params?.baseUrl ?? "https://local.preview/";
 
-  const webViewRef = useRef<WebView>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [canGoBack, setCanGoBack] = useState(false);
+  const [canGoForward, setCanGoForward] = useState(false);
 
-  const isValid = useMemo(
-    () => typeof html === "string" && html.length > 20,
-    [html],
+  const webViewRef = useRef<WebView>(null);
+  const isMountedRef = useRef(true);
+
+  // wir benutzen HTML wenn vorhanden, sonst URL
+  const mode = useMemo<"html" | "url" | "none">(() => {
+    if (html.trim().length > 0) return "html";
+    if (typeof url === "string" && url.length > 0 && isHttpUrl(url))
+      return "url";
+    return "none";
+  }, [html, url]);
+
+  const headerSubtitle = useMemo(() => {
+    if (mode === "html") return "Local HTML Preview";
+    if (mode === "url" && url) return truncateUrl(url, 60);
+    return "Keine Preview";
+  }, [mode, url]);
+
+  const handleGoBack = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
+
+  const handleWebViewGoBack = useCallback(() => {
+    if (canGoBack) webViewRef.current?.goBack();
+  }, [canGoBack]);
+
+  const handleWebViewGoForward = useCallback(() => {
+    if (canGoForward) webViewRef.current?.goForward();
+  }, [canGoForward]);
+
+  const handleReload = useCallback(() => {
+    webViewRef.current?.reload();
+    setError(null);
+  }, []);
+
+  const handleShare = useCallback(async () => {
+    try {
+      if (mode === "url" && url) {
+        await Share.share({
+          message: `Schau dir diese Preview an: ${url}`,
+          url,
+          title,
+        });
+      } else {
+        await Share.share({
+          message: `Preview: ${title}`,
+          title,
+        });
+      }
+    } catch (err) {
+      console.error("Share failed:", err);
+    }
+  }, [mode, url, title]);
+
+  const handleLoadStart = useCallback(() => {
+    if (!isMountedRef.current) return;
+    setLoading(true);
+    setError(null);
+  }, []);
+
+  const handleLoadEnd = useCallback(() => {
+    if (!isMountedRef.current) return;
+    setLoading(false);
+  }, []);
+
+  const handleNavigationStateChange = useCallback(
+    (navState: WebViewNavigation) => {
+      if (!isMountedRef.current) return;
+      setCanGoBack(navState.canGoBack);
+      setCanGoForward(navState.canGoForward);
+    },
+    [],
   );
 
-  const goBack = useCallback(() => navigation.goBack(), [navigation]);
+  const handleShouldStartLoad = useCallback((request: any): boolean => {
+    const requestUrl = String(request?.url || "");
 
-  const onNavChange = useCallback((navState: WebViewNavigation) => {
-    setCanGoBack(!!navState.canGoBack);
-  }, []);
-
-  const onShouldStartLoadWithRequest = useCallback((req: any) => {
-    const url = String(req?.url || "");
-
-    // allow about:blank + local base
-    if (url === "about:blank") return true;
-
-    // allow http(s) only
-    if (isHttpUrl(url)) return true;
-
-    // block everything else (intent://, file://, etc.)
-    Alert.alert(
-      "Navigation blockiert",
-      `Dieser Link kann nicht geöffnet werden:\n\n${truncate(url, 120)}`,
-    );
-    return false;
-  }, []);
-
-  const onError = useCallback((e: any) => {
-    const msg = e?.nativeEvent?.description || "Unbekannter WebView-Fehler";
-    setError(msg);
-    setLoading(false);
-  }, []);
-
-  const onHttpError = useCallback((e: any) => {
-    const status = e?.nativeEvent?.statusCode;
-    const desc = e?.nativeEvent?.description || "";
-    setError(`HTTP ${status}${desc ? `: ${desc}` : ""}`);
-    setLoading(false);
-  }, []);
-
-  const reload = useCallback(() => {
-    setError(null);
-    setLoading(true);
-    webViewRef.current?.reload();
-  }, []);
-
-  const share = useCallback(async () => {
-    try {
-      await Share.share({
-        message: `Preview: ${title}`,
-        title,
-      });
-    } catch {
-      // ignore
+    // Block non-HTTP(S) URLs
+    if (!isHttpUrl(requestUrl)) {
+      Alert.alert(
+        "Navigation blockiert",
+        `Dieser Link kann nicht geöffnet werden:\n\n${truncateUrl(requestUrl, 90)}`,
+        [{ text: "OK" }],
+      );
+      return false;
     }
-  }, [title]);
 
-  // Android Back: wenn WebView zurück kann -> WebView back, sonst Screen back
+    return true;
+  }, []);
+
+  const handleError = useCallback((syntheticEvent: any) => {
+    const { nativeEvent } = syntheticEvent;
+    const errorMessage =
+      nativeEvent?.description || "Unbekannter WebView-Fehler";
+
+    if (!isMountedRef.current) return;
+    setError(errorMessage);
+    setLoading(false);
+
+    console.error("WebView Error:", nativeEvent);
+  }, []);
+
+  const handleHttpError = useCallback(
+    (syntheticEvent: any) => {
+      const { nativeEvent } = syntheticEvent;
+      const statusCode = nativeEvent?.statusCode;
+      const description = nativeEvent?.description || "";
+
+      if (!isMountedRef.current) return;
+
+      if (statusCode === 404) {
+        setError("HTTP 404: Preview abgelaufen oder nicht gefunden");
+        setLoading(false);
+
+        Alert.alert(
+          "Preview nicht gefunden",
+          "Die Preview ist abgelaufen oder ungültig. Bitte neu erstellen.",
+          [
+            { text: "Zurück", onPress: handleGoBack, style: "cancel" },
+            { text: "Neu laden", onPress: handleReload },
+          ],
+        );
+        return;
+      }
+
+      setError(`HTTP ${statusCode}${description ? `: ${description}` : ""}`);
+      setLoading(false);
+    },
+    [handleGoBack, handleReload],
+  );
+
+  // Android Back: erst WebView Back, sonst Stack Back
   useEffect(() => {
     if (Platform.OS !== "android") return;
 
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
       if (canGoBack) {
-        webViewRef.current?.goBack();
+        handleWebViewGoBack();
         return true;
       }
       return false;
     });
 
     return () => sub.remove();
-  }, [canGoBack]);
+  }, [canGoBack, handleWebViewGoBack]);
 
-  if (!isValid) {
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Invalid State
+  if (mode === "none") {
     return (
       <SafeAreaView style={styles.screen}>
         <View style={styles.topBar}>
-          <Pressable style={styles.backBtn} onPress={goBack}>
-            <Text style={styles.backBtnText}>← Zurück</Text>
+          <Pressable style={styles.backButton} onPress={handleGoBack}>
+            <Text style={styles.backButtonText}>← Zurück</Text>
           </Pressable>
-          <View style={{ flex: 1 }} />
+
+          <View style={styles.titleContainer}>
+            <Text style={styles.topTitle} numberOfLines={1}>
+              {title}
+            </Text>
+            <Text style={styles.topSubtitle} numberOfLines={1}>
+              Keine gültige URL/HTML
+            </Text>
+          </View>
+
+          <View style={{ width: 110 }} />
         </View>
 
-        <View style={styles.center}>
-          <Text style={styles.bigIcon}>⚠️</Text>
-          <Text style={styles.title}>Keine Preview-Daten</Text>
-          <Text style={styles.sub}>
-            Es wurde kein HTML übergeben. Geh zurück und erstelle die Preview
-            neu.
+        <View style={styles.errorState}>
+          <Text style={styles.errorStateIcon}>⚠️</Text>
+          <Text style={styles.errorStateTitle}>Keine gültige Preview</Text>
+          <Text style={styles.errorStateText}>
+            Es wurde weder eine gültige URL noch HTML übergeben.
+            {"\n"}Gehe zurück und erstelle die Preview neu.
           </Text>
         </View>
       </SafeAreaView>
     );
   }
 
+  // Main
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.topBar}>
-        <Pressable style={styles.backBtn} onPress={goBack}>
-          <Text style={styles.backBtnText}>← Zurück</Text>
+        <Pressable style={styles.backButton} onPress={handleGoBack}>
+          <Text style={styles.backButtonText}>← Zurück</Text>
         </Pressable>
 
-        <View style={styles.titleWrap}>
+        <View style={styles.titleContainer}>
           <Text style={styles.topTitle} numberOfLines={1}>
             {title}
           </Text>
-          <Text style={styles.topSub} numberOfLines={1}>
-            In-App Sandpack (kein Browser)
+          <Text style={styles.topSubtitle} numberOfLines={1}>
+            {headerSubtitle}
           </Text>
         </View>
 
         <View style={styles.actions}>
-          <Pressable style={styles.iconBtn} onPress={share}>
-            <Text style={styles.iconTxt}>📤</Text>
+          {canGoBack && (
+            <Pressable style={styles.iconButton} onPress={handleWebViewGoBack}>
+              <Text style={styles.iconText}>◀</Text>
+            </Pressable>
+          )}
+
+          {canGoForward && (
+            <Pressable
+              style={styles.iconButton}
+              onPress={handleWebViewGoForward}
+            >
+              <Text style={styles.iconText}>▶</Text>
+            </Pressable>
+          )}
+
+          <Pressable style={styles.iconButton} onPress={handleShare}>
+            <Text style={styles.iconText}>📤</Text>
           </Pressable>
-          <Pressable style={styles.iconBtn} onPress={reload}>
-            <Text style={styles.iconTxt}>↻</Text>
+
+          <Pressable style={styles.iconButton} onPress={handleReload}>
+            <Text style={styles.iconText}>↻</Text>
           </Pressable>
         </View>
       </View>
 
       {error && (
-        <View style={styles.errorBar}>
-          <Text style={styles.errorText} numberOfLines={2}>
-            ⚠️ {error}
-          </Text>
-          <Pressable style={styles.errorBtn} onPress={reload}>
-            <Text style={styles.errorBtnText}>Neu laden</Text>
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorBannerText}>⚠️ {error}</Text>
+          <Pressable onPress={handleReload} style={styles.errorBannerButton}>
+            <Text style={styles.errorBannerButtonText}>Neu laden</Text>
           </Pressable>
         </View>
       )}
 
-      <View style={styles.webWrap}>
+      <View style={styles.webViewContainer}>
         <WebView
           ref={webViewRef}
           originWhitelist={["*"]}
-          source={{ html, baseUrl: "https://local.preview/" }}
-          onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
-          onNavigationStateChange={onNavChange}
-          onLoadStart={() => {
-            setLoading(true);
-            setError(null);
-          }}
-          onLoadEnd={() => setLoading(false)}
-          onError={onError}
-          onHttpError={onHttpError}
-          javaScriptEnabled
-          domStorageEnabled
           setSupportMultipleWindows={false}
           javaScriptCanOpenWindowsAutomatically={false}
           allowsBackForwardNavigationGestures={Platform.OS === "ios"}
+          onShouldStartLoadWithRequest={handleShouldStartLoad}
+          onNavigationStateChange={handleNavigationStateChange}
+          onLoadStart={handleLoadStart}
+          onLoadEnd={handleLoadEnd}
+          onError={handleError}
+          onHttpError={handleHttpError}
+          startInLoadingState
+          style={styles.webView}
           mixedContentMode={Platform.OS === "android" ? "always" : undefined}
-          style={styles.web}
+          source={
+            mode === "html"
+              ? { html, baseUrl } // ✅ html ist garantiert string
+              : { uri: url! }
+          }
         />
 
         {loading && (
@@ -211,16 +351,16 @@ export default function PreviewFullscreenScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.palette.background },
   topBar: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: theme.palette.card,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.palette.border,
   },
-  backBtn: {
+  backButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
@@ -230,16 +370,25 @@ const styles = StyleSheet.create({
     minWidth: 90,
     alignItems: "center",
   },
-  backBtnText: { color: theme.palette.text.primary, fontWeight: "900" },
-  titleWrap: { flex: 1, minWidth: 0 },
+  backButtonText: {
+    color: theme.palette.text.primary,
+    fontWeight: "800",
+    fontSize: 14,
+  },
+  titleContainer: { flex: 1, minWidth: 0 },
   topTitle: {
     color: theme.palette.text.primary,
-    fontWeight: "900",
     fontSize: 16,
+    fontWeight: "900",
+    letterSpacing: -0.3,
   },
-  topSub: { color: theme.palette.text.secondary, fontSize: 11, marginTop: 2 },
+  topSubtitle: {
+    color: theme.palette.text.secondary,
+    fontSize: 11,
+    marginTop: 2,
+  },
   actions: { flexDirection: "row", gap: 8, alignItems: "center" },
-  iconBtn: {
+  iconButton: {
     width: 40,
     height: 40,
     borderRadius: 10,
@@ -249,56 +398,60 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  iconTxt: { fontSize: 18 },
-
-  errorBar: {
+  iconText: { fontSize: 18 },
+  errorBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    justifyContent: "space-between",
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: "#ffebee",
     borderBottomWidth: 1,
     borderBottomColor: "#d32f2f",
+    gap: 10,
   },
-  errorText: { flex: 1, color: "#c62828", fontWeight: "800", fontSize: 12 },
-  errorBtn: {
+  errorBannerText: {
+    flex: 1,
+    color: "#c62828",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  errorBannerButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: 6,
     backgroundColor: "#d32f2f",
   },
-  errorBtnText: { color: "#fff", fontWeight: "900", fontSize: 12 },
-
-  webWrap: { flex: 1, backgroundColor: "#000" },
-  web: { flex: 1, backgroundColor: "#000" },
-
+  errorBannerButtonText: { color: "#fff", fontSize: 12, fontWeight: "800" },
+  webViewContainer: { flex: 1, backgroundColor: "#000", position: "relative" },
+  webView: { flex: 1, backgroundColor: "#000" },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.72)",
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
     alignItems: "center",
     justifyContent: "center",
     gap: 12,
   },
-  loadingText: { color: "#fff", fontWeight: "900" },
-
-  center: {
+  loadingText: { color: "#fff", fontSize: 15, fontWeight: "800" },
+  errorState: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
-    gap: 10,
+    gap: 12,
   },
-  bigIcon: { fontSize: 64 },
-  title: {
+  errorStateIcon: { fontSize: 64, marginBottom: 8 },
+  errorStateTitle: {
     color: theme.palette.text.primary,
-    fontWeight: "900",
     fontSize: 18,
+    fontWeight: "900",
     textAlign: "center",
   },
-  sub: {
+  errorStateText: {
     color: theme.palette.text.secondary,
+    fontSize: 14,
     textAlign: "center",
     lineHeight: 20,
+    maxWidth: 400,
   },
 });
