@@ -5,12 +5,12 @@ import "react-native-reanimated";
 
 import React from "react";
 import {
+  ActivityIndicator,
   LogBox,
+  StatusBar as RNStatusBar,
   StyleSheet,
   Text,
   View,
-  ActivityIndicator,
-  StatusBar as RNStatusBar,
 } from "react-native";
 
 import { NavigationContainer } from "@react-navigation/native";
@@ -18,10 +18,7 @@ import { createDrawerNavigator } from "@react-navigation/drawer";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
@@ -54,12 +51,16 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 LogBox.ignoreLogs([
   "Require cycle:",
   "VirtualizedLists should never be nested",
-  "Sending `onAnimatedValueUpdate` with no listeners registered.",
 ]);
+
+type RootStackParamList = {
+  Root: undefined;
+  PreviewFullscreen: { url: string; title?: string };
+};
 
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
-const Stack = createNativeStackNavigator();
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const TabNavigator = () => {
   const insets = useSafeAreaInsets();
@@ -84,6 +85,7 @@ const TabNavigator = () => {
         },
         tabBarActiveTintColor: theme.palette.primary,
         tabBarInactiveTintColor: theme.palette.text.secondary,
+
         tabBarStyle: {
           backgroundColor: theme.palette.card,
           borderTopColor: theme.palette.border,
@@ -91,11 +93,13 @@ const TabNavigator = () => {
           paddingBottom: insets.bottom,
           paddingTop: 6,
         },
+
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: "700",
           marginBottom: 4,
         },
+
         headerShown: false,
       })}
     >
@@ -175,14 +179,13 @@ const DrawerRoot = () => {
 };
 
 const AppNavigation = () => {
-  // Wir nutzen nur isLoading, weil das in deinem Context safe existiert.
   const { isLoading } = useProject();
 
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.palette.primary} />
-        <Text style={styles.loadingText}>Projekt wird geladen…</Text>
+        <Text style={styles.loadingText}>Projekt-Manager wird geladen...</Text>
       </View>
     );
   }
@@ -193,12 +196,10 @@ const AppNavigation = () => {
 
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Root" component={DrawerRoot} />
-
-        {/* Vollbild-Preview als Modal (kein Browser-Wechsel) */}
         <Stack.Screen
           name="PreviewFullscreen"
           component={PreviewFullscreenScreen}
-          options={{ presentation: "modal" }}
+          options={{ presentation: "fullScreenModal" }}
         />
       </Stack.Navigator>
     </NavigationContainer>
@@ -237,6 +238,5 @@ const styles = StyleSheet.create({
     marginTop: 15,
     color: theme.palette.text.secondary,
     fontSize: 16,
-    fontWeight: "700",
   },
 });
