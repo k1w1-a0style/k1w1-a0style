@@ -1,13 +1,14 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import { useProject } from "../contexts/ProjectContext";
@@ -19,7 +20,8 @@ import { theme } from "../theme";
  * PreviewScreen - Simplified single-flow preview
  * - Creates Sandpack preview in WebView
  * - No browser redirects, no external auth
- * - Direct fullscreen navigation
+ * - Direct fullscreen navigation with proper HTML rendering
+ * - Platform-specific baseUrl to avoid DNS errors
  */
 
 export default function PreviewScreen() {

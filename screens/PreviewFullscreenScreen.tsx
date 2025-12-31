@@ -12,12 +12,12 @@ import {
   BackHandler,
   Platform,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
   Share,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView, WebViewNavigation } from "react-native-webview";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -41,9 +41,13 @@ export default function PreviewFullscreenScreen() {
   const title = route.params?.title ?? "Preview";
   const url = route.params?.url;
   const html = route.params?.html ?? "";
-  // Use about:blank as baseUrl to avoid DNS resolution errors (e.g., net::ERR_NAME_NOT_RESOLVED)
-  // This works offline and doesn't require any hostname lookup
-  const baseUrl = route.params?.baseUrl ?? "about:blank";
+  // Platform-specific baseUrl to avoid DNS errors
+  // Android: Use appassets for local content
+  // iOS: Use localhost for local content
+  const defaultBaseUrl = Platform.OS === "android" 
+    ? "https://appassets.androidplatform.net" 
+    : "https://localhost";
+  const baseUrl = route.params?.baseUrl ?? defaultBaseUrl;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -130,8 +134,13 @@ export default function PreviewFullscreenScreen() {
       return false;
     }
 
-    // Allow about:blank (used as baseUrl for HTML mode)
-    if (requestUrl === "about:blank") {
+    // Allow platform-specific baseUrls for HTML mode
+    if (
+      requestUrl === "https://appassets.androidplatform.net" ||
+      requestUrl === "https://localhost" ||
+      requestUrl.startsWith("https://appassets.androidplatform.net/") ||
+      requestUrl.startsWith("https://localhost/")
+    ) {
       return true;
     }
 
