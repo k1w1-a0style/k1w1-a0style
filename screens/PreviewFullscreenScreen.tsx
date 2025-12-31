@@ -41,7 +41,9 @@ export default function PreviewFullscreenScreen() {
   const title = route.params?.title ?? "Preview";
   const url = route.params?.url;
   const html = route.params?.html ?? "";
-  const baseUrl = route.params?.baseUrl ?? "https://local.preview/";
+  // Use about:blank as baseUrl to avoid DNS resolution errors (e.g., net::ERR_NAME_NOT_RESOLVED)
+  // This works offline and doesn't require any hostname lookup
+  const baseUrl = route.params?.baseUrl ?? "about:blank";
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -122,6 +124,16 @@ export default function PreviewFullscreenScreen() {
 
   const handleShouldStartLoad = useCallback((request: any): boolean => {
     const requestUrl = String(request?.url || "");
+
+    // Block navigation to local.preview (legacy placeholder that requires DNS)
+    if (requestUrl.includes("local.preview")) {
+      return false;
+    }
+
+    // Allow about:blank (used as baseUrl for HTML mode)
+    if (requestUrl === "about:blank") {
+      return true;
+    }
 
     if (!isHttpUrl(requestUrl)) {
       Alert.alert(
