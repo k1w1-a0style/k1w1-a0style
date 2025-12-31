@@ -36,6 +36,8 @@ project_src_*.zip
 *.bak
 *.bak_*
 *.bak-*
+*.BAK*
+*.BACKUP*
 *~
 *.swp
 *.swo
