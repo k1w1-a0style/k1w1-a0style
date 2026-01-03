@@ -18,7 +18,15 @@ import { useBuildHistory } from "../hooks/useBuildHistory";
 import { useGitHubActionsLogs } from "../hooks/useGitHubActionsLogs";
 import { BuildTimelineCard } from "../components/build/BuildTimelineCard";
 import { BuildErrorAnalyzer } from "../lib/buildErrorAnalyzer";
-import { getSeverityColor } from "../utils/buildScreenUtils";
+import {
+  getSeverityColor,
+  getWorkflowStatusColor,
+  getWorkflowStatusText,
+  formatRelativeTime,
+  formatDuration,
+  computeEta,
+  getStatusIcon,
+} from "../utils/buildScreenUtils";
 import { styles } from "../styles/enhancedBuildScreenStyles";
 import { CONFIG } from "../config";
 import type { BuildStatus } from "../lib/buildStatusMapper";
@@ -41,52 +49,6 @@ interface WorkflowRunsResponse {
 
 const FETCH_TIMEOUT_MS = 15_000;
 const MAX_RUNS_DISPLAY = 10;
-
-function getStatusColor(status: string, conclusion: string | null): string {
-  if (status === "completed") {
-    switch (conclusion) {
-      case "success":
-        return "#00FF00";
-      case "failure":
-        return "#FF4444";
-      case "cancelled":
-        return "#888888";
-      default:
-        return "#FFAA00";
-    }
-  }
-  if (status === "in_progress" || status === "queued") return "#00AAFF";
-  return "#666666";
-}
-
-function getStatusText(status: string, conclusion: string | null): string {
-  if (status === "completed") return conclusion || "completed";
-  return status;
-}
-
-function formatRelativeTime(dateString: string): string {
-  try {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMins < 1) return "gerade eben";
-    if (diffMins < 60) return `vor ${diffMins} Min.`;
-    if (diffHours < 24) return `vor ${diffHours} Std.`;
-    if (diffDays < 7) return `vor ${diffDays} Tagen`;
-
-    return date.toLocaleDateString("de-DE", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "2-digit",
-    });
-  } catch {
-    return dateString;
-  }
-}
 
 async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -136,6 +98,8 @@ export default function EnhancedBuildScreen(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [buildLoading, setBuildLoading] = useState(false);
+  const [savingRepo, setSavingRepo] = useState(false);
+  const [buildStartTime, setBuildStartTime] = useState<number | null>(null);
 
   useEffect(() => {
     setRepoFullName(initialRepo);
@@ -243,6 +207,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
       return;
     }
     setBuildLoading(true);
+    setBuildStartTime(Date.now());
     try {
       await startBuild(buildProfile);
       Alert.alert(
@@ -250,6 +215,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
         `Der Build wurde angestoßen (${buildProfile}).`,
       );
     } catch (e) {
+      setBuildStartTime(null);
       Alert.alert(
         "❌ Fehler",
         e instanceof Error ? e.message : "Build fehlgeschlagen",
@@ -269,6 +235,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
       Alert.alert("Ungültig", "Bitte Repo im Format owner/repo eintragen.");
       return;
     }
+    setSavingRepo(true);
     try {
       await setLinkedRepo(v, projectData?.linkedBranch ?? null);
       Alert.alert("✅ Gespeichert", `Repo verknüpft: ${v}`);
@@ -277,6 +244,8 @@ export default function EnhancedBuildScreen(): React.ReactElement {
         "❌ Fehler",
         e instanceof Error ? e.message : "Konnte Repo nicht speichern",
       );
+    } finally {
+      setSavingRepo(false);
     }
   }, [
     hasSetLinkedRepo,
@@ -303,18 +272,32 @@ export default function EnhancedBuildScreen(): React.ReactElement {
   const message = currentBuild?.message ?? "";
   const progress = currentBuild?.progress;
 
-  const statusEmoji =
-    status === "queued"
-      ? "⏳"
-      : status === "building"
-        ? "🔄"
-        : status === "success"
-          ? "✅"
-          : status === "failed"
-            ? "❌"
-            : status === "error"
-              ? "❌"
-              : "⏸️";
+  // ETA berechnen wenn Build läuft
+  const elapsedMs = useMemo(() => {
+    if (!buildStartTime) return 0;
+    return Date.now() - buildStartTime;
+  }, [buildStartTime]);
+
+  const etaMs = useMemo(() => {
+    if (
+      status === "idle" ||
+      status === "success" ||
+      status === "failed" ||
+      status === "error"
+    ) {
+      return 0;
+    }
+    return computeEta(status, elapsedMs);
+  }, [status, elapsedMs]);
+
+  // Reset buildStartTime bei finalem Status
+  useEffect(() => {
+    if (status === "success" || status === "failed" || status === "error") {
+      setBuildStartTime(null);
+    }
+  }, [status]);
+
+  const statusEmoji = getStatusIcon(status);
   const statusLabel =
     status === "building" && typeof progress === "number"
       ? `${Math.round(progress * 100)}%`
@@ -357,6 +340,11 @@ export default function EnhancedBuildScreen(): React.ReactElement {
               {!!message && <Text style={styles.statusMessage}>{message}</Text>}
               {!!jobId && (
                 <Text style={styles.statusMessage}>Job ID: #{jobId}</Text>
+              )}
+              {etaMs > 0 && (
+                <Text style={styles.statusMessage}>
+                  ⏱️ Geschätzte Restzeit: {formatDuration(etaMs)}
+                </Text>
               )}
             </View>
           </View>
@@ -414,21 +402,28 @@ export default function EnhancedBuildScreen(): React.ReactElement {
             </View>
           </View>
 
-          <View style={{ flexDirection: "row", gap: 10, marginBottom: 14 }}>
+          <View style={styles.profileRow}>
             {(["development", "preview", "production"] as const).map((p) => {
               const active = buildProfile === p;
+              const emoji =
+                p === "development" ? "🔧" : p === "preview" ? "👁️" : "🚀";
               return (
                 <TouchableOpacity
                   key={p}
-                  style={[
-                    styles.primaryBtn,
-                    { flex: 1 },
-                    !active && { opacity: 0.65 },
-                  ]}
+                  style={[styles.profileBtn, active && styles.profileBtnActive]}
                   onPress={() => setBuildProfile(p)}
                   activeOpacity={0.8}
+                  accessibilityLabel={`Build-Profile: ${p}`}
+                  accessibilityState={{ selected: active }}
                 >
-                  <Text style={styles.primaryBtnText}>{p}</Text>
+                  <Text
+                    style={[
+                      styles.profileBtnText,
+                      active && styles.profileBtnTextActive,
+                    ]}
+                  >
+                    {emoji} {p}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
@@ -437,13 +432,24 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           <TouchableOpacity
             style={[
               styles.primaryBtn,
-              (!hasSetLinkedRepo || repoFullName.trim().length === 0) &&
+              (!hasSetLinkedRepo ||
+                repoFullName.trim().length === 0 ||
+                savingRepo) &&
                 styles.btnDisabled,
             ]}
             onPress={onSaveLinkedRepo}
-            disabled={!hasSetLinkedRepo || repoFullName.trim().length === 0}
+            disabled={
+              !hasSetLinkedRepo ||
+              repoFullName.trim().length === 0 ||
+              savingRepo
+            }
+            accessibilityLabel="Repo speichern"
           >
-            <Text style={styles.primaryBtnText}>💾 Repo speichern</Text>
+            {savingRepo ? (
+              <ActivityIndicator color="#1a1a1a" />
+            ) : (
+              <Text style={styles.primaryBtnText}>💾 Repo speichern</Text>
+            )}
           </TouchableOpacity>
 
           {!hasSetLinkedRepo && (
@@ -490,8 +496,8 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           {runs.length > 0 && (
             <View style={styles.runList}>
               {runs.slice(0, MAX_RUNS_DISPLAY).map((run) => {
-                const c = getStatusColor(run.status, run.conclusion);
-                const t = getStatusText(run.status, run.conclusion);
+                const c = getWorkflowStatusColor(run.status, run.conclusion);
+                const t = getWorkflowStatusText(run.status, run.conclusion);
                 const timeAgo = formatRelativeTime(run.created_at);
 
                 return (
@@ -551,6 +557,50 @@ export default function EnhancedBuildScreen(): React.ReactElement {
             </Text>
           )}
 
+          {/* WorkflowRun-Status anzeigen wenn verfügbar */}
+          {workflowRun && (
+            <View style={styles.workflowStatusBox}>
+              <View style={styles.runHeader}>
+                <View
+                  style={[
+                    styles.statusDot,
+                    {
+                      backgroundColor: getWorkflowStatusColor(
+                        workflowRun.status,
+                        workflowRun.conclusion || null,
+                      ),
+                    },
+                  ]}
+                />
+                <Text style={styles.runTitle}>
+                  Run #{workflowRun.run_number}
+                </Text>
+              </View>
+              <View style={styles.runMeta}>
+                <Text
+                  style={[
+                    styles.runStatus,
+                    {
+                      color: getWorkflowStatusColor(
+                        workflowRun.status,
+                        workflowRun.conclusion || null,
+                      ),
+                    },
+                  ]}
+                >
+                  {getWorkflowStatusText(
+                    workflowRun.status,
+                    workflowRun.conclusion || null,
+                  )}
+                </Text>
+                <Text style={styles.runDivider}>•</Text>
+                <Text style={styles.runTime}>
+                  {formatRelativeTime(workflowRun.created_at)}
+                </Text>
+              </View>
+            </View>
+          )}
+
           {!!logsError && (
             <View style={styles.errorBox}>
               <Text style={styles.errorText}>⚠️ {logsError}</Text>
@@ -560,7 +610,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           {logsLoading && <ActivityIndicator color="#00FF00" />}
 
           {analyses.length > 0 && (
-            <View style={{ marginTop: 12, gap: 10 }}>
+            <View style={styles.analysisContainer}>
               {analyses.slice(0, 3).map((a, idx) => (
                 <View
                   key={`${a.category}-${idx}`}
@@ -580,7 +630,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           )}
 
           {logs.length > 0 && (
-            <View style={{ marginTop: 12 }}>
+            <View style={styles.logsContainer}>
               <Text style={styles.inputLabel}>
                 Letzte Logs ({Math.min(logs.length, 20)} / {logs.length})
               </Text>
@@ -596,7 +646,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
               </View>
               {!!workflowRun?.html_url && (
                 <TouchableOpacity
-                  style={[styles.primaryBtn, { marginTop: 10 }]}
+                  style={[styles.primaryBtn, styles.logsBtnSpacing]}
                   onPress={() => openRun(workflowRun.html_url)}
                 >
                   <Text style={styles.primaryBtnText}>↗️ Run öffnen</Text>
@@ -619,33 +669,65 @@ export default function EnhancedBuildScreen(): React.ReactElement {
               </Text>
 
               <TouchableOpacity
-                style={[styles.primaryBtn, { marginTop: 12 }]}
+                style={[styles.primaryBtn, styles.historyBtnSpacing]}
                 onPress={clearHistory}
+                accessibilityLabel="Build-Historie leeren"
               >
                 <Text style={styles.primaryBtnText}>🗑️ Historie leeren</Text>
               </TouchableOpacity>
 
               {history.length > 0 && (
                 <View style={styles.runList}>
-                  {history.slice(0, 10).map((h) => (
-                    <View key={h.id} style={styles.runItem}>
-                      <Text style={styles.runTitle}>
-                        #{h.jobId} • {h.repoName}
-                      </Text>
-                      <Text style={styles.runTime}>
-                        {h.status.toUpperCase()}
-                        {h.buildProfile ? ` • ${h.buildProfile}` : ""}
-                      </Text>
-                      {!!h.htmlUrl && (
-                        <TouchableOpacity
-                          onPress={() => openRun(h.htmlUrl || "")}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.moreText}>↗️ GitHub öffnen</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  ))}
+                  {history.slice(0, 10).map((h) => {
+                    const icon = getStatusIcon(h.status);
+                    return (
+                      <View key={h.id} style={styles.runItem}>
+                        <View style={styles.runHeader}>
+                          <Text style={styles.historyIcon}>{icon}</Text>
+                          <Text style={styles.runTitle} numberOfLines={1}>
+                            #{h.jobId} • {h.repoName}
+                          </Text>
+                        </View>
+                        <View style={styles.runMeta}>
+                          <Text style={styles.runTime}>
+                            {h.status.toUpperCase()}
+                          </Text>
+                          {h.buildProfile && (
+                            <>
+                              <Text style={styles.runDivider}>•</Text>
+                              <Text style={styles.runTime}>
+                                {h.buildProfile}
+                              </Text>
+                            </>
+                          )}
+                          {typeof h.durationMs === "number" &&
+                            h.durationMs > 0 && (
+                              <>
+                                <Text style={styles.runDivider}>•</Text>
+                                <Text style={styles.runTime}>
+                                  {formatDuration(h.durationMs)}
+                                </Text>
+                              </>
+                            )}
+                          <Text style={styles.runDivider}>•</Text>
+                          <Text style={styles.runTime}>
+                            {formatRelativeTime(h.startedAt)}
+                          </Text>
+                        </View>
+                        {!!h.htmlUrl && (
+                          <TouchableOpacity
+                            onPress={() => openRun(h.htmlUrl || "")}
+                            activeOpacity={0.7}
+                            style={styles.historyLink}
+                          >
+                            <Text style={styles.moreText}>
+                              ↗️ GitHub öffnen
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    );
+                  })}
                 </View>
               )}
             </>
