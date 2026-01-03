@@ -44,10 +44,9 @@ export default function PreviewFullscreenScreen() {
   const url = route.params?.url;
   const html = route.params?.html ?? "";
 
-  // FIX: Android appassets.androidplatform.net verursacht DNS/ERR_NAME_NOT_RESOLVED,
-  // weil Expo/react-native-webview keinen nativen AssetLoader dafür konfiguriert.
-  const defaultBaseUrl = "https://localhost";
-  const baseUrl = route.params?.baseUrl ?? defaultBaseUrl;
+  // FIX: Keine baseUrl verwenden - verhindert ERR_CONNECTION_REFUSED
+  // HTML wird direkt inline geladen ohne Remote-Server
+  const baseUrl = route.params?.baseUrl ?? undefined;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -158,10 +157,11 @@ export default function PreviewFullscreenScreen() {
       return false;
     }
 
-    // Allow our local baseUrl for HTML mode
+    // Allow data: URLs and about:blank for HTML mode
     if (
-      requestUrl === "https://localhost" ||
-      requestUrl.startsWith("https://localhost/")
+      requestUrl.startsWith("data:") ||
+      requestUrl === "about:blank" ||
+      requestUrl.startsWith("about:")
     ) {
       return true;
     }
