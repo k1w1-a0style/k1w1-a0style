@@ -94,7 +94,14 @@ export function buildSandpackHtml(opts: SandpackOptions): string {
 
   try {
     const mod = await import("https://esm.sh/@codesandbox/sandpack-client@2.19.0");
-    const SandpackClient = mod.SandpackClient || mod.default || mod;
+
+    // FIX: esm.sh kann CommonJS Exporte unter "default" wrappen (default ist dann ein Objekt)
+    // -> zuerst default.SandpackClient prüfen
+    const SandpackClient =
+      mod.SandpackClient ||
+      (mod.default && mod.default.SandpackClient) ||
+      mod.default ||
+      mod;
 
     const client = new SandpackClient(frame, config, {
       showLoadingScreen: true,

@@ -1,26 +1,26 @@
 // contexts/githubService.ts - simplified token handling + repo secrets sync
 
 // ✅ FIX: SecureStore für sensitive Tokens statt AsyncStorage
-import * as SecureStore from 'expo-secure-store';
-import sodium from 'tweetsodium';
-import { Buffer } from 'buffer';
-import { ProjectFile } from './types';
-import { RateLimiter } from '../lib/RateLimiter';
+import * as SecureStore from "expo-secure-store";
+import { seal } from "tweetsodium";
+import { Buffer } from "buffer";
+import { ProjectFile } from "./types";
+import { RateLimiter } from "../lib/RateLimiter";
 
 // ✅ FIX: Buffer Polyfill Check (besserer Check)
-if (typeof Buffer === 'undefined' || typeof Buffer.from !== 'function') {
+if (typeof Buffer === "undefined" || typeof Buffer.from !== "function") {
   throw new Error(
-    '❌ Buffer polyfill fehlt oder ist unvollständig. Bitte "buffer" Package installieren: npm install buffer'
+    '❌ Buffer polyfill fehlt oder ist unvollständig. Bitte "buffer" Package installieren: npm install buffer',
   );
 }
 
-const GH_TOKEN_KEY = 'github_pat_v1';
-const EXPO_TOKEN_KEY = 'expo_token_v1';
+const GH_TOKEN_KEY = "github_pat_v1";
+const EXPO_TOKEN_KEY = "expo_token_v1";
 
 // ✅ FIX: Rate Limiter für GitHub API (5000/hour, wir nutzen 4000 als Buffer)
-const githubLimiter = new RateLimiter({ 
-  maxRequests: 4000, 
-  windowMs: 3600000 // 1 hour
+const githubLimiter = new RateLimiter({
+  maxRequests: 4000,
+  windowMs: 3600000, // 1 hour
 });
 
 type RepoSecretsPayload = Partial<{
@@ -30,9 +30,9 @@ type RepoSecretsPayload = Partial<{
 }>;
 
 const SECRET_NAME_MAP: Record<keyof RepoSecretsPayload, string> = {
-  expoToken: 'EXPO_TOKEN',
-  supabaseUrl: 'SUPABASE_URL',
-  supabaseServiceRole: 'SUPABASE_SERVICE_ROLE_KEY',
+  expoToken: "EXPO_TOKEN",
+  supabaseUrl: "SUPABASE_URL",
+  supabaseServiceRole: "SUPABASE_SERVICE_ROLE_KEY",
 };
 
 // ✅ FIX: SecureStore Wrapper-Funktionen (verschlüsselt!)
@@ -41,7 +41,9 @@ const saveSecureToken = async (key: string, value: string): Promise<void> => {
     await SecureStore.setItemAsync(key, value);
   } catch (error: any) {
     console.error(`[SecureStore] Fehler beim Speichern von ${key}:`, error);
-    throw new Error(`Token konnte nicht sicher gespeichert werden: ${error.message}`);
+    throw new Error(
+      `Token konnte nicht sicher gespeichert werden: ${error.message}`,
+    );
   }
 };
 
@@ -64,13 +66,15 @@ const deleteSecureToken = async (key: string): Promise<void> => {
 
 const encryptSecret = (publicKey: string, value: string): string => {
   const messageBytes = Buffer.from(value);
-  const keyBytes = Buffer.from(publicKey, 'base64');
-  const encryptedBytes = sodium.seal(messageBytes, keyBytes);
-  return Buffer.from(encryptedBytes).toString('base64');
+  const keyBytes = Buffer.from(publicKey, "base64");
+  const encryptedBytes = seal(messageBytes, keyBytes);
+  return Buffer.from(encryptedBytes).toString("base64");
 };
 
-const ensureGitHubRepoParts = (fullName: string): { owner: string; repo: string } => {
-  const [owner, repo] = fullName.split('/');
+const ensureGitHubRepoParts = (
+  fullName: string,
+): { owner: string; repo: string } => {
+  const [owner, repo] = fullName.split("/");
   if (!owner || !repo) {
     throw new Error(`Ungültiges Repo-Format: ${fullName}`);
   }
@@ -82,7 +86,7 @@ const ensureGitHubRepoParts = (fullName: string): { owner: string; repo: string 
  */
 export const saveGitHubToken = async (token: string): Promise<void> => {
   await saveSecureToken(GH_TOKEN_KEY, token);
-  console.log('✅ GitHub Token sicher gespeichert (SecureStore).');
+  console.log("✅ GitHub Token sicher gespeichert (SecureStore).");
 };
 
 /**
@@ -97,7 +101,7 @@ export const getGitHubToken = async (): Promise<string | null> => {
  */
 export const saveExpoToken = async (token: string): Promise<void> => {
   await saveSecureToken(EXPO_TOKEN_KEY, token);
-  console.log('✅ Expo Token sicher gespeichert (SecureStore).');
+  console.log("✅ Expo Token sicher gespeichert (SecureStore).");
 };
 
 /**
@@ -147,14 +151,16 @@ export const syncRepoSecrets = async (
 ): Promise<{ updated: string[] }> => {
   const token = await getGitHubToken();
   if (!token) {
-    throw new Error('GitHub Token fehlt – bitte im Verbindungen Screen setzen.');
+    throw new Error(
+      "GitHub Token fehlt – bitte im Verbindungen Screen setzen.",
+    );
   }
 
   const { owner, repo } = ensureGitHubRepoParts(repoFullName);
   const headers = {
-    Accept: 'application/vnd.github+json',
+    Accept: "application/vnd.github+json",
     Authorization: `token ${token}`,
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   };
 
   // ✅ Rate Limit Check
@@ -169,21 +175,25 @@ export const syncRepoSecrets = async (
   if (!keyRes.ok) {
     const status = keyRes.status;
     if (status === 401) {
-      throw new Error('GitHub Token ungültig. Bitte in Einstellungen neu eingeben.');
+      throw new Error(
+        "GitHub Token ungültig. Bitte in Einstellungen neu eingeben.",
+      );
     }
     if (status === 403) {
       throw new Error('Keine Berechtigung. Token benötigt "repo" Scope.');
     }
     if (status === 404) {
-      throw new Error('Repository nicht gefunden oder kein Zugriff.');
+      throw new Error("Repository nicht gefunden oder kein Zugriff.");
     }
     const msg = await keyRes.text();
-    throw new Error(`Public Key konnte nicht geladen werden (${status}): ${msg}`);
+    throw new Error(
+      `Public Key konnte nicht geladen werden (${status}): ${msg}`,
+    );
   }
 
   const { key, key_id } = await keyRes.json();
   if (!key || !key_id) {
-    throw new Error('GitHub Public Key Antwort unvollständig.');
+    throw new Error("GitHub Public Key Antwort unvollständig.");
   }
 
   const updated: string[] = [];
@@ -193,14 +203,14 @@ export const syncRepoSecrets = async (
     if (!value) continue;
 
     const encrypted_value = encryptSecret(key, value);
-    
+
     // ✅ Rate Limit Check
     await githubLimiter.checkLimit();
-    
+
     const putRes = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/actions/secrets/${secretName}`,
       {
-        method: 'PUT',
+        method: "PUT",
         headers,
         body: JSON.stringify({ encrypted_value, key_id }),
       },
@@ -221,14 +231,18 @@ export const syncRepoSecrets = async (
 
 export const createRepo = async (repoName: string, isPrivate = true) => {
   const token = await getGitHubToken();
-  if (!token) throw new Error('GitHub token fehlt. Bitte in Einstellungen eintragen.');
+  if (!token)
+    throw new Error("GitHub token fehlt. Bitte in Einstellungen eintragen.");
 
   // ✅ Rate Limit Check
   await githubLimiter.checkLimit();
 
-  const resp = await fetch('https://api.github.com/user/repos', {
-    method: 'POST',
-    headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json' },
+  const resp = await fetch("https://api.github.com/user/repos", {
+    method: "POST",
+    headers: {
+      Authorization: `token ${token}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({ name: repoName, private: isPrivate }),
   });
 
@@ -237,107 +251,123 @@ export const createRepo = async (repoName: string, isPrivate = true) => {
     json = await resp.json();
   } catch (e) {
     const textResponse = await resp.text();
-    throw new Error(`GitHub API Fehler (Status ${resp.status}): Kein JSON empfangen. Antwort: ${textResponse}`);
+    throw new Error(
+      `GitHub API Fehler (Status ${resp.status}): Kein JSON empfangen. Antwort: ${textResponse}`,
+    );
   }
 
   if (!resp.ok) {
     const status = resp.status;
-    
+
     // ✅ Besseres Error Handling
     if (status === 401) {
-      throw new Error('GitHub Token ungültig. Bitte in Einstellungen neu eingeben.');
+      throw new Error(
+        "GitHub Token ungültig. Bitte in Einstellungen neu eingeben.",
+      );
     }
     if (status === 403) {
       throw new Error('Keine Berechtigung. Token benötigt "repo" Scope.');
     }
-    
+
     const alreadyExistsError = json.errors?.find((e: any) =>
-      e.message?.includes('name already exists')
+      e.message?.includes("name already exists"),
     );
 
     if (status === 422 && alreadyExistsError) {
       console.warn(`Repo '${repoName}' existiert bereits, verwende es.`);
       try {
         await githubLimiter.checkLimit();
-        const userResp = await fetch('https://api.github.com/user', {
+        const userResp = await fetch("https://api.github.com/user", {
           headers: { Authorization: `token ${token}` },
         });
         const userData = await userResp.json();
-        if (!userData.login) throw new Error('Konnte User-Login nicht abrufen.');
+        if (!userData.login)
+          throw new Error("Konnte User-Login nicht abrufen.");
 
-        return { 
-          owner: { login: userData.login }, 
-          name: repoName, 
-          html_url: `https://github.com/${userData.login}/${repoName}` 
+        return {
+          owner: { login: userData.login },
+          name: repoName,
+          html_url: `https://github.com/${userData.login}/${repoName}`,
         };
       } catch (userError: any) {
-        throw new Error(`Repo existiert, aber Owner konnte nicht abgerufen werden: ${userError.message}`);
+        throw new Error(
+          `Repo existiert, aber Owner konnte nicht abgerufen werden: ${userError.message}`,
+        );
       }
     }
 
     const errorDetails = JSON.stringify(json, null, 2);
-    console.error('GitHub API Fehlerdetails:', errorDetails);
-    throw new Error(`GitHub API Fehler (Status ${status}): ${json.message || errorDetails}`);
+    console.error("GitHub API Fehlerdetails:", errorDetails);
+    throw new Error(
+      `GitHub API Fehler (Status ${status}): ${json.message || errorDetails}`,
+    );
   }
 
   return json;
 };
 
 export const createOrUpdateFile = async (
-  owner: string, 
-  repo: string, 
-  path: string, 
-  content: string, 
-  message = 'Add file'
+  owner: string,
+  repo: string,
+  path: string,
+  content: string,
+  message = "Add file",
 ) => {
   const token = await getGitHubToken();
-  if (!token) throw new Error('GitHub token fehlt.');
-  
+  if (!token) throw new Error("GitHub token fehlt.");
+
   // ✅ Rate Limit Check
   await githubLimiter.checkLimit();
-  
+
   const getResp = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`, 
-    { headers: { Authorization: `token ${token}` } }
+    `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`,
+    { headers: { Authorization: `token ${token}` } },
   );
-  
+
   let sha: string | undefined = undefined;
   if (getResp.ok) {
     const existing = await getResp.json();
     sha = existing.sha;
   }
-  
+
   const body: any = {
     message,
-    content: Buffer.from(content, 'utf8').toString('base64'),
-    branch: 'main',
+    content: Buffer.from(content, "utf8").toString("base64"),
+    branch: "main",
   };
   if (sha) body.sha = sha;
-  
+
   // ✅ Rate Limit Check
   await githubLimiter.checkLimit();
-  
+
   const putResp = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`, 
+    `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`,
     {
-      method: 'PUT',
-      headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json' },
+      method: "PUT",
+      headers: {
+        Authorization: `token ${token}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(body),
-    }
+    },
   );
-  
+
   const json = await putResp.json();
   if (!putResp.ok) {
     const status = putResp.status;
-    if (status === 401) throw new Error('GitHub Token ungültig.');
-    if (status === 403) throw new Error('Keine Berechtigung für Datei-Upload.');
-    if (status === 404) throw new Error('Repository nicht gefunden.');
+    if (status === 401) throw new Error("GitHub Token ungültig.");
+    if (status === 403) throw new Error("Keine Berechtigung für Datei-Upload.");
+    if (status === 404) throw new Error("Repository nicht gefunden.");
     throw new Error(json.message || `create/update file failed: ${path}`);
   }
   return json;
 };
 
-export const pushFilesToRepo = async (owner: string, repo: string, files: ProjectFile[]) => {
+export const pushFilesToRepo = async (
+  owner: string,
+  repo: string,
+  files: ProjectFile[],
+) => {
   const sortedFiles = [...files].sort((a, b) => a.path.localeCompare(b.path));
   for (const f of sortedFiles) {
     if (!f.path) continue;
@@ -347,75 +377,83 @@ export const pushFilesToRepo = async (owner: string, repo: string, files: Projec
 };
 
 export const triggerWorkflow = async (
-  owner: string, 
-  repo: string, 
-  workflowFileName = 'eas-build.yml', 
-  ref = 'main', 
-  inputs = {}
+  owner: string,
+  repo: string,
+  workflowFileName = "eas-build.yml",
+  ref = "main",
+  inputs = {},
 ) => {
   const token = await getGitHubToken();
-  if (!token) throw new Error('GitHub token fehlt.');
-  
+  if (!token) throw new Error("GitHub token fehlt.");
+
   // ✅ Rate Limit Check
   await githubLimiter.checkLimit();
-  
+
   const url = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowFileName)}/dispatches`;
   const resp = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: {
+      Authorization: `token ${token}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({ ref, inputs }),
   });
-  
+
   if (resp.status === 204) return { started: true };
-  
+
   // ✅ Besseres Error Handling
   const status = resp.status;
-  if (status === 401) throw new Error('GitHub Token ungültig.');
-  if (status === 403) throw new Error('Keine Berechtigung für Workflow-Trigger.');
+  if (status === 401) throw new Error("GitHub Token ungültig.");
+  if (status === 403)
+    throw new Error("Keine Berechtigung für Workflow-Trigger.");
   if (status === 404) {
     throw new Error(
-      `Workflow nicht gefunden. Stelle sicher, dass '${workflowFileName}' im '.github/workflows' Ordner auf GitHub (Branch 'main') existiert.`
+      `Workflow nicht gefunden. Stelle sicher, dass '${workflowFileName}' im '.github/workflows' Ordner auf GitHub (Branch 'main') existiert.`,
     );
   }
-  
+
   const json = await resp.json();
-  throw new Error(json.message || 'workflow dispatch failed');
+  throw new Error(json.message || "workflow dispatch failed");
 };
 
 export const getWorkflowRuns = async (
-  owner: string, 
-  repo: string, 
-  workflowFileName = 'eas-build.yml'
+  owner: string,
+  repo: string,
+  workflowFileName = "eas-build.yml",
 ) => {
   const token = await getGitHubToken();
-  if (!token) throw new Error('GitHub token fehlt.');
-  
+  if (!token) throw new Error("GitHub token fehlt.");
+
   // ✅ Rate Limit Check
   await githubLimiter.checkLimit();
-  
+
   const url = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowFileName)}/runs?per_page=5`;
   const resp = await fetch(url, {
     headers: { Authorization: `token ${token}` },
   });
-  
+
   // ✅ Check Rate Limit Headers
-  const remaining = resp.headers.get('X-RateLimit-Remaining');
-  const reset = resp.headers.get('X-RateLimit-Reset');
-  
+  const remaining = resp.headers.get("X-RateLimit-Remaining");
+  const reset = resp.headers.get("X-RateLimit-Reset");
+
   if (remaining && parseInt(remaining) < 100) {
-    const resetDate = reset ? new Date(parseInt(reset) * 1000).toLocaleTimeString() : 'unbekannt';
+    const resetDate = reset
+      ? new Date(parseInt(reset) * 1000).toLocaleTimeString()
+      : "unbekannt";
     console.warn(
-      `⚠️ [GitHub API] Niedriges Rate Limit: ${remaining} Anfragen übrig. Reset: ${resetDate}`
+      `⚠️ [GitHub API] Niedriges Rate Limit: ${remaining} Anfragen übrig. Reset: ${resetDate}`,
     );
   }
-  
+
   const json = await resp.json();
   if (!resp.ok) {
     const status = resp.status;
-    if (status === 401) throw new Error('GitHub Token ungültig.');
-    if (status === 403) throw new Error('Keine Berechtigung für Workflow-Abfrage.');
-    if (status === 404) throw new Error('Workflow oder Repository nicht gefunden.');
-    throw new Error(json.message || 'get runs failed');
+    if (status === 401) throw new Error("GitHub Token ungültig.");
+    if (status === 403)
+      throw new Error("Keine Berechtigung für Workflow-Abfrage.");
+    if (status === 404)
+      throw new Error("Workflow oder Repository nicht gefunden.");
+    throw new Error(json.message || "get runs failed");
   }
   return json;
 };
