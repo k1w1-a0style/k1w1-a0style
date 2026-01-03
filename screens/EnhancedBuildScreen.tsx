@@ -114,9 +114,18 @@ export default function EnhancedBuildScreen(): React.ReactElement {
 
   const jobId = currentBuild?.jobId ?? null;
   const normalizedRepo = repoFullName.trim();
-  const githubRepoForLogs =
-    currentBuild?.githubRepo?.trim() || normalizedRepo || null;
   const runId = currentBuild?.runId ?? null;
+  const status: BuildStatus = currentBuild?.status ?? "idle";
+
+  // Logs nur laden wenn ein aktiver Build läuft oder eine runId existiert
+  const shouldLoadLogs =
+    status === "queued" ||
+    status === "building" ||
+    (runId !== null && status !== "idle");
+
+  const githubRepoForLogs = shouldLoadLogs
+    ? currentBuild?.githubRepo?.trim() || normalizedRepo || null
+    : null;
 
   const {
     logs,
@@ -126,7 +135,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
   } = useGitHubActionsLogs({
     githubRepo: githubRepoForLogs,
     runId,
-    autoRefresh: true,
+    autoRefresh: shouldLoadLogs,
   });
 
   const analyses = useMemo(() => {
@@ -268,7 +277,6 @@ export default function EnhancedBuildScreen(): React.ReactElement {
     }
   }, []);
 
-  const status: BuildStatus = currentBuild?.status ?? "idle";
   const message = currentBuild?.message ?? "";
   const progress = currentBuild?.progress;
 
@@ -551,7 +559,13 @@ export default function EnhancedBuildScreen(): React.ReactElement {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Logs & Fehleranalyse</Text>
 
-          {!githubRepoForLogs && (
+          {!shouldLoadLogs && status === "idle" && (
+            <Text style={styles.emptyText}>
+              ℹ️ Logs werden geladen sobald ein Build gestartet wird.
+            </Text>
+          )}
+
+          {!githubRepoForLogs && shouldLoadLogs && (
             <Text style={styles.emptyText}>
               ⚠️ Kein Repo gesetzt – Logs können nicht geladen werden.
             </Text>

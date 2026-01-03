@@ -144,7 +144,13 @@ export function useGitHubActionsLogs({
         }
       }
     } catch (err: any) {
-      console.error("[useGitHubActionsLogs] Error:", err);
+      // Nur einmal loggen (nicht bei jedem Poll-Versuch)
+      if (isMountedRef.current && !error) {
+        console.warn(
+          "[useGitHubActionsLogs] ⚠️ Logs nicht verfügbar:",
+          err?.message,
+        );
+      }
       if (isMountedRef.current) {
         setError(err?.message || "Fehler beim Abrufen der Logs");
       }
