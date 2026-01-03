@@ -243,7 +243,7 @@ export default function PreviewScreen() {
               size={20}
               color={theme.palette.primary}
             />
-            <Text style={styles.cardTitle}>Wie funktioniert's?</Text>
+            <Text style={styles.cardTitle}>Wie funktioniert es?</Text>
           </View>
           <Text style={styles.cardText}>
             • Preview läuft im WebView mit Sandpack{"\n"}• Kein Browser-Wechsel
