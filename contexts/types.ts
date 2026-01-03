@@ -9,7 +9,7 @@ export interface BuildHistoryEntry {
   id: string;
   jobId: number;
   repoName: string;
-  status: 'queued' | 'building' | 'success' | 'failed' | 'error';
+  status: "queued" | "building" | "success" | "failed" | "error";
   startedAt: string;
   completedAt?: string;
   durationMs?: number;
@@ -21,7 +21,7 @@ export interface BuildHistoryEntry {
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant' | 'system';
+  role: "user" | "assistant" | "system";
   content: string;
   timestamp: string;
   meta?: {
@@ -48,6 +48,10 @@ export interface ProjectData {
   messages?: ChatMessage[];
   createdAt: string;
   lastModified: string;
+  /** Verknüpftes GitHub Repo (full_name: owner/repo) */
+  linkedRepo?: string | null;
+  /** Verknüpfter Branch (z.B. "main") */
+  linkedBranch?: string | null;
 }
 
 export interface ProjectContextProps {
@@ -73,7 +77,10 @@ export interface ProjectContextProps {
   clearAutoFixRequest: () => void;
 
   startBuild?: () => Promise<void>;
-  currentBuild?: { status: 'idle' | 'queued' | 'building' | 'completed' | 'error'; message?: string } | null;
+  currentBuild?: {
+    status: "idle" | "queued" | "building" | "completed" | "error";
+    message?: string;
+  } | null;
 
   exportAndBuild: () => Promise<{ owner: string; repo: string } | null>;
   exportProjectAsZip: () => Promise<void>;
@@ -95,4 +102,7 @@ export interface ProjectContextProps {
       html_url: string;
     }>;
   }>;
+
+  /** Verknüpft Repo+Branch mit dem Projekt (persistent) */
+  setLinkedRepo: (repo: string | null, branch?: string | null) => Promise<void>;
 }

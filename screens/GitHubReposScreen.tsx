@@ -24,6 +24,8 @@ import { RepoListSection } from "./GitHubReposScreen/components/RepoListSection"
 import { NewRepoSection } from "./GitHubReposScreen/components/NewRepoSection";
 import { RenameRepoSection } from "./GitHubReposScreen/components/RenameRepoSection";
 import { ActionsSection } from "./GitHubReposScreen/components/ActionsSection";
+import { BranchSelector } from "./GitHubReposScreen/components/BranchSelector";
+import { WorkflowRunsSection } from "./GitHubReposScreen/components/WorkflowRunsSection";
 
 import { RepoFilterType } from "./GitHubReposScreen/types";
 import { styles } from "./GitHubReposScreen/styles";
@@ -39,11 +41,13 @@ export default function GitHubReposScreen() {
   const {
     activeRepo,
     setActiveRepo,
+    activeBranch,
+    setActiveBranch,
     recentRepos,
     addRecentRepo,
     clearRecentRepos,
   } = useGitHub();
-  const { projectData, updateProjectFiles } = useProject();
+  const { projectData, updateProjectFiles, setLinkedRepo } = useProject();
 
   const [token, setToken] = useState<string | null>(null);
   const [tokenLoading, setTokenLoading] = useState(false);
@@ -57,6 +61,9 @@ export default function GitHubReposScreen() {
     deleteRepo: deleteRepoHook,
     renameRepo: renameRepoHook,
     pullFromRepo,
+    loadBranches,
+    loadWorkflowRuns,
+    loadDefaultBranch,
     error: tokenError,
   } = useGitHubRepos(token);
 
@@ -74,6 +81,9 @@ export default function GitHubReposScreen() {
   const [isPulling, setIsPulling] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
   const [pullProgress, setPullProgress] = useState("");
+
+  // Lade verknüpftes Repo aus Projekt beim Start
+  const hasRestoredLink = useRef(false);
 
   // Token laden beim Mount
   useEffect(() => {
@@ -107,6 +117,21 @@ export default function GitHubReposScreen() {
     }
   }, [token, repos.length, loadingRepos, loadRepos]);
 
+  // Verknüpftes Repo aus Projekt wiederherstellen
+  useEffect(() => {
+    if (!hasRestoredLink.current && projectData?.linkedRepo && !activeRepo) {
+      hasRestoredLink.current = true;
+      console.log(
+        "[GitHubReposScreen] 🔗 Verknüpftes Repo wiederhergestellt:",
+        projectData.linkedRepo,
+      );
+      setActiveRepo(projectData.linkedRepo);
+      if (projectData.linkedBranch) {
+        setActiveBranch(projectData.linkedBranch);
+      }
+    }
+  }, [projectData, activeRepo, setActiveRepo, setActiveBranch]);
+
   useEffect(() => {
     setRenameName(deriveRenameDefault(activeRepo));
   }, [activeRepo]);
@@ -134,8 +159,23 @@ export default function GitHubReposScreen() {
     (repo: GitHubRepo) => {
       setActiveRepo(repo.full_name);
       addRecentRepo(repo.full_name);
+      // Automatisch mit Projekt verknüpfen
+      setLinkedRepo(repo.full_name, null);
+      // Branch zurücksetzen bei Repo-Wechsel
+      setActiveBranch(null);
     },
-    [setActiveRepo, addRecentRepo],
+    [setActiveRepo, addRecentRepo, setLinkedRepo, setActiveBranch],
+  );
+
+  const handleSelectBranch = useCallback(
+    (branch: string) => {
+      setActiveBranch(branch);
+      // Branch auch im Projekt speichern
+      if (activeRepo) {
+        setLinkedRepo(activeRepo, branch);
+      }
+    },
+    [setActiveBranch, activeRepo, setLinkedRepo],
   );
 
   const handleDeleteRepo = useCallback(
@@ -427,6 +467,19 @@ export default function GitHubReposScreen() {
           activeRepo={activeRepo}
           onSelectRepo={handleSelectRepo}
           onDeleteRepo={handleDeleteRepo}
+        />
+
+        <BranchSelector
+          activeRepo={activeRepo}
+          activeBranch={activeBranch}
+          onSelectBranch={handleSelectBranch}
+          loadBranches={loadBranches}
+          loadDefaultBranch={loadDefaultBranch}
+        />
+
+        <WorkflowRunsSection
+          activeRepo={activeRepo}
+          loadWorkflowRuns={loadWorkflowRuns}
         />
 
         <NewRepoSection

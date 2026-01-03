@@ -457,3 +457,115 @@ export const getWorkflowRuns = async (
   }
   return json;
 };
+
+/**
+ * Lädt alle Workflow Runs für ein Repo (über alle Workflows hinweg)
+ */
+export const getAllWorkflowRuns = async (
+  owner: string,
+  repo: string,
+  perPage = 10,
+): Promise<WorkflowRun[]> => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error("GitHub token fehlt.");
+
+  await githubLimiter.checkLimit();
+
+  const url = `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=${perPage}`;
+  const resp = await fetch(url, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `token ${token}`,
+    },
+  });
+
+  if (!resp.ok) {
+    const status = resp.status;
+    if (status === 401) throw new Error("GitHub Token ungültig.");
+    if (status === 403) throw new Error("Keine Berechtigung.");
+    if (status === 404) throw new Error("Repository nicht gefunden.");
+    const text = await resp.text();
+    throw new Error(`Workflow Runs Fehler (${status}): ${text}`);
+  }
+
+  const json = await resp.json();
+  return (json.workflow_runs || []) as WorkflowRun[];
+};
+
+export interface WorkflowRun {
+  id: number;
+  name: string;
+  head_branch: string;
+  status: "queued" | "in_progress" | "completed" | "waiting";
+  conclusion: "success" | "failure" | "cancelled" | "skipped" | null;
+  created_at: string;
+  updated_at: string;
+  html_url: string;
+  run_number: number;
+}
+
+export interface GitHubBranch {
+  name: string;
+  commit: { sha: string };
+  protected: boolean;
+}
+
+/**
+ * Lädt alle Branches eines Repos
+ */
+export const getBranches = async (
+  owner: string,
+  repo: string,
+): Promise<GitHubBranch[]> => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error("GitHub token fehlt.");
+
+  await githubLimiter.checkLimit();
+
+  const url = `https://api.github.com/repos/${owner}/${repo}/branches?per_page=100`;
+  const resp = await fetch(url, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `token ${token}`,
+    },
+  });
+
+  if (!resp.ok) {
+    const status = resp.status;
+    if (status === 401) throw new Error("GitHub Token ungültig.");
+    if (status === 403) throw new Error("Keine Berechtigung.");
+    if (status === 404) throw new Error("Repository nicht gefunden.");
+    const text = await resp.text();
+    throw new Error(`Branches Fehler (${status}): ${text}`);
+  }
+
+  return (await resp.json()) as GitHubBranch[];
+};
+
+/**
+ * Lädt den Default Branch eines Repos
+ */
+export const getDefaultBranch = async (
+  owner: string,
+  repo: string,
+): Promise<string> => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error("GitHub token fehlt.");
+
+  await githubLimiter.checkLimit();
+
+  const url = `https://api.github.com/repos/${owner}/${repo}`;
+  const resp = await fetch(url, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `token ${token}`,
+    },
+  });
+
+  if (!resp.ok) {
+    throw new Error(`Repo-Info Fehler (${resp.status})`);
+  }
+
+  const json = await resp.json();
+  return json.default_branch || "main";
+};
