@@ -6,20 +6,40 @@
 // ✅ Callbacks statt Alert (bessere Testbarkeit)
 // ✅ Kein Race Condition durch errorCount in Dependencies
 
-import { useEffect, useState, useRef, useCallback } from 'react';
-import { CONFIG } from '../config';
-import { BuildStatus, mapBuildStatus } from '../lib/buildStatusMapper';
-import { BuildStatusDetails } from '../lib/supabaseTypes';
+import { useEffect, useState, useRef, useCallback } from "react";
+import { CONFIG } from "../config";
+import { BuildStatus, mapBuildStatus } from "../lib/buildStatusMapper";
+import { BuildStatusDetails } from "../lib/supabaseTypes";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const POLL_INTERVAL_MS = 6000; // 6 Sekunden
 const MAX_ERRORS = 5; // Nach 5 Fehlern stoppen
 const REQUEST_TIMEOUT_MS = 10000; // 10 Sekunden Timeout pro Request
 
+async function getSupabaseEdgeUrl(): Promise<string> {
+  const storedUrl = await AsyncStorage.getItem("supabase_url").catch(
+    () => null,
+  );
+  const runtimeUrl =
+    storedUrl ||
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ((typeof process !== "undefined"
+      ? (process as any).env?.EXPO_PUBLIC_SUPABASE_URL
+      : null) as string | null) ||
+    null;
+
+  if (runtimeUrl) {
+    return `${runtimeUrl.replace(/\/$/, "")}/functions/v1`;
+  }
+
+  return CONFIG.API.SUPABASE_EDGE_URL;
+}
+
 // ✅ Timeout-Helper für Fetch
 async function fetchWithTimeout(
   url: string,
   options: RequestInit,
-  timeoutMs: number
+  timeoutMs: number,
 ): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -33,8 +53,8 @@ async function fetchWithTimeout(
     return response;
   } catch (error: any) {
     clearTimeout(timeoutId);
-    if (error?.name === 'AbortError') {
-      throw new Error('Request timeout - Keine Antwort vom Server');
+    if (error?.name === "AbortError") {
+      throw new Error("Request timeout - Keine Antwort vom Server");
     }
     throw error;
   }
@@ -55,14 +75,14 @@ export interface UseBuildStatusCallbacks {
 // ============================================
 export function useBuildStatus(
   jobIdFromScreen?: number | null,
-  callbacks?: UseBuildStatusCallbacks
+  callbacks?: UseBuildStatusCallbacks,
 ) {
-  const [status, setStatus] = useState<BuildStatus>('idle');
+  const [status, setStatus] = useState<BuildStatus>("idle");
   const [details, setDetails] = useState<BuildStatusDetails | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
   // ✅ FIX: State für errorCount um reaktive Updates zu ermöglichen
   const [errorCount, setErrorCount] = useState(0);
-  
+
   // Use refs for values that shouldn't trigger re-renders
   const errorCountRef = useRef(0);
   const hasAlertedRef = useRef(false);
@@ -72,7 +92,7 @@ export function useBuildStatus(
   const latestDetailsRef = useRef<BuildStatusDetails | null>(null);
 
   const buildFailureDetails = useCallback(
-    (statusOverride: BuildStatus = 'error'): BuildStatusDetails | null => {
+    (statusOverride: BuildStatus = "error"): BuildStatusDetails | null => {
       if (latestDetailsRef.current) {
         return { ...latestDetailsRef.current, status: statusOverride };
       }
@@ -87,17 +107,17 @@ export function useBuildStatus(
         runId: null,
       };
     },
-    [jobIdFromScreen]
+    [jobIdFromScreen],
   );
 
   const notifyFailure = useCallback(
-    (statusOverride: BuildStatus = 'error') => {
+    (statusOverride: BuildStatus = "error") => {
       const failureDetails = buildFailureDetails(statusOverride);
       if (failureDetails) {
         callbacks?.onFailed?.(failureDetails);
       }
     },
-    [buildFailureDetails, callbacks]
+    [buildFailureDetails, callbacks],
   );
 
   // Memoized poll function
@@ -108,17 +128,18 @@ export function useBuildStatus(
 
     try {
       console.log(
-        `[useBuildStatus] 🔄 Polling Job ${jobIdFromScreen}. (Fehler: ${errorCountRef.current}/${MAX_ERRORS})`
+        `[useBuildStatus] 🔄 Polling Job ${jobIdFromScreen}. (Fehler: ${errorCountRef.current}/${MAX_ERRORS})`,
       );
 
+      const edgeUrl = await getSupabaseEdgeUrl();
       const res = await fetchWithTimeout(
-        `${CONFIG.API.SUPABASE_EDGE_URL}/check-eas-build`,
+        `${edgeUrl}/check-eas-build`,
         {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ jobId: jobIdFromScreen }),
         },
-        REQUEST_TIMEOUT_MS
+        REQUEST_TIMEOUT_MS,
       );
 
       if (!isMountedRef.current) return;
@@ -128,16 +149,16 @@ export function useBuildStatus(
       try {
         json = await res.json();
       } catch (e) {
-        console.warn('[useBuildStatus] JSON Parse fehlgeschlagen:', e);
+        console.warn("[useBuildStatus] JSON Parse fehlgeschlagen:", e);
         errorCountRef.current += 1;
         setErrorCount(errorCountRef.current);
-        setLastError('Ungültige Server-Antwort');
+        setLastError("Ungültige Server-Antwort");
         return;
       }
 
       // ✅ Fehlerfall
       if (!res.ok || !json || json.ok === false) {
-        console.log('[useBuildStatus] ❌ Error Response:', json);
+        console.log("[useBuildStatus] ❌ Error Response:", json);
         const errorMsg = json?.error || `HTTP ${res.status}`;
         errorCountRef.current += 1;
         setErrorCount(errorCountRef.current);
@@ -147,7 +168,7 @@ export function useBuildStatus(
         callbacks?.onError?.(errorMsg, errorCountRef.current);
 
         if (errorCountRef.current >= MAX_ERRORS) {
-          setStatus('error');
+          setStatus("error");
           if (intervalRef.current) {
             clearInterval(intervalRef.current);
             intervalRef.current = null;
@@ -156,7 +177,7 @@ export function useBuildStatus(
             hasAlertedRef.current = true;
             // Callback statt Alert
             callbacks?.onMaxErrors?.(errorMsg, MAX_ERRORS);
-            notifyFailure('error');
+            notifyFailure("error");
           }
         }
         return;
@@ -181,21 +202,21 @@ export function useBuildStatus(
       setDetails(newDetails);
       latestDetailsRef.current = newDetails;
 
-      console.log('[useBuildStatus] ✅ Status:', mapped);
+      console.log("[useBuildStatus] ✅ Status:", mapped);
 
       // ✅ Polling bei finalen Status stoppen
-      if (['success', 'failed', 'error'].includes(mapped)) {
+      if (["success", "failed", "error"].includes(mapped)) {
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
-          console.log('[useBuildStatus] ⏸ Polling gestoppt (finaler Status)');
+          console.log("[useBuildStatus] ⏸ Polling gestoppt (finaler Status)");
         }
 
         if (!hasAlertedRef.current) {
           hasAlertedRef.current = true;
 
           // Callbacks statt Alerts
-          if (mapped === 'success') {
+          if (mapped === "success") {
             callbacks?.onSuccess?.(newDetails);
           } else {
             callbacks?.onFailed?.(newDetails);
@@ -205,8 +226,8 @@ export function useBuildStatus(
     } catch (e: any) {
       if (!isMountedRef.current) return;
 
-      console.log('[useBuildStatus] ⚠️ Poll Error:', e?.message);
-      const errorMsg = e?.message || 'Netzwerkfehler';
+      console.log("[useBuildStatus] ⚠️ Poll Error:", e?.message);
+      const errorMsg = e?.message || "Netzwerkfehler";
       errorCountRef.current += 1;
       setErrorCount(errorCountRef.current);
       setLastError(errorMsg);
@@ -215,7 +236,7 @@ export function useBuildStatus(
       callbacks?.onError?.(errorMsg, errorCountRef.current);
 
       if (errorCountRef.current >= MAX_ERRORS) {
-        setStatus('error');
+        setStatus("error");
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
@@ -225,7 +246,7 @@ export function useBuildStatus(
           hasAlertedRef.current = true;
           // Callback statt Alert
           callbacks?.onMaxErrors?.(errorMsg, MAX_ERRORS);
-          notifyFailure('error');
+          notifyFailure("error");
         }
       }
     } finally {
@@ -235,9 +256,9 @@ export function useBuildStatus(
 
   useEffect(() => {
     isMountedRef.current = true;
-    
+
     if (!jobIdFromScreen) {
-      setStatus('idle');
+      setStatus("idle");
       setDetails(null);
       latestDetailsRef.current = null;
       setLastError(null);
@@ -264,7 +285,7 @@ export function useBuildStatus(
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
-        console.log('[useBuildStatus] 🛑 Hook unmounted, Polling gestoppt');
+        console.log("[useBuildStatus] 🛑 Hook unmounted, Polling gestoppt");
       }
     };
   }, [jobIdFromScreen, poll]);
@@ -274,6 +295,6 @@ export function useBuildStatus(
     details,
     errorCount,
     lastError,
-    isPolling: status === 'queued' || status === 'building',
+    isPolling: status === "queued" || status === "building",
   };
 }

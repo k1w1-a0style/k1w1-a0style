@@ -27,6 +27,13 @@ import {
 import { getGitHubToken, getWorkflowRuns } from "./githubService";
 // ✅ FIX: Einheitlicher Validator-Wrapper
 import { validateFilePath, validateFileContent } from "../lib/validators";
+import { BuildStatus, mapBuildStatus } from "../lib/buildStatusMapper";
+import { ensureSupabaseClient } from "../lib/supabase";
+import {
+  addBuildToHistory,
+  updateBuildInHistory,
+} from "../lib/buildHistoryStorage";
+import { CONFIG } from "../config";
 
 const loadTemplateFromFile = async (): Promise<ProjectFile[]> => {
   try {
@@ -52,6 +59,8 @@ const ProjectContext = createContext<ProjectContextProps | undefined>(
   undefined,
 );
 
+type CurrentBuildState = NonNullable<ProjectContextProps["currentBuild"]>;
+
 export {
   getGitHubToken,
   saveGitHubToken,
@@ -65,10 +74,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentBuild, setCurrentBuild] = useState<{
-    status: "idle" | "queued" | "building" | "completed" | "error";
-    message?: string;
-  } | null>(null);
+  const [currentBuild, setCurrentBuild] = useState<CurrentBuildState | null>(
+    null,
+  );
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const mutexRef = useRef(new Mutex());
@@ -440,21 +448,237 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     return () => subscription.remove();
   }, [projectData]);
 
-  const valueShimExportAndBuild = useCallback(async () => {
-    return null;
+  const buildPollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const buildPollErrorCountRef = useRef(0);
+  const activeBuildJobIdRef = useRef<number | null>(null);
+
+  const stopBuildPolling = useCallback(() => {
+    if (buildPollIntervalRef.current) {
+      clearInterval(buildPollIntervalRef.current);
+      buildPollIntervalRef.current = null;
+    }
+    buildPollErrorCountRef.current = 0;
+    activeBuildJobIdRef.current = null;
   }, []);
 
-  const startBuild = useCallback(async () => {
-    try {
-      setCurrentBuild({ status: "queued" });
-      setCurrentBuild({ status: "building" });
-      await Promise.resolve();
-      await valueShimExportAndBuild();
-      setCurrentBuild({ status: "completed" });
-    } catch (e: any) {
-      setCurrentBuild({ status: "error", message: e?.message || String(e) });
-    }
-  }, []);
+  useEffect(() => {
+    return () => {
+      // ✅ Cleanup auf Unmount
+      stopBuildPolling();
+    };
+  }, [stopBuildPolling]);
+
+  const pollBuildStatusOnce = useCallback(
+    async (jobId: number) => {
+      try {
+        const supabase = await ensureSupabaseClient();
+
+        const { data, error } = await supabase.functions.invoke(
+          "check-eas-build",
+          {
+            body: { jobId },
+          },
+        );
+
+        if (error) {
+          throw error;
+        }
+
+        const mapped: BuildStatus = mapBuildStatus(data?.status);
+        const nowIso = new Date().toISOString();
+
+        setCurrentBuild((prev) => {
+          const base: CurrentBuildState = prev ?? { status: "idle" };
+          return {
+            ...base,
+            status: mapped,
+            jobId,
+            runId: data?.runId || data?.run_id || base.runId || null,
+            urls: {
+              html: data?.urls?.html ?? base.urls?.html ?? null,
+              artifacts: data?.urls?.artifacts ?? base.urls?.artifacts ?? null,
+              buildUrl:
+                // Legacy/Fallback (falls irgendein Backend das Feld anders nennt)
+                data?.build_url ??
+                data?.download_url ??
+                base.urls?.buildUrl ??
+                null,
+            },
+            message:
+              mapped === "queued"
+                ? "⏳ Build ist in der Warteschlange…"
+                : mapped === "building"
+                  ? "🔨 Build läuft…"
+                  : mapped === "success"
+                    ? "✅ Build erfolgreich!"
+                    : mapped === "failed"
+                      ? "❌ Build fehlgeschlagen."
+                      : mapped === "error"
+                        ? "⚠️ Fehler beim Status-Abruf."
+                        : "⏸️ Kein aktiver Build.",
+            lastUpdatedAt: nowIso,
+            completedAt: ["success", "failed", "error"].includes(mapped)
+              ? nowIso
+              : base.completedAt,
+          };
+        });
+
+        // Historie aktualisieren (best-effort)
+        try {
+          await updateBuildInHistory(jobId, {
+            status: mapped,
+            htmlUrl: data?.urls?.html ?? null,
+            artifactUrl: data?.urls?.artifacts ?? null,
+          });
+        } catch (historyError) {
+          console.warn(
+            "⚠️ Build-Historie konnte nicht aktualisiert werden:",
+            historyError,
+          );
+        }
+
+        // Final? → Polling stoppen
+        if (["success", "failed", "error"].includes(mapped)) {
+          stopBuildPolling();
+        }
+
+        buildPollErrorCountRef.current = 0;
+      } catch (e: any) {
+        buildPollErrorCountRef.current += 1;
+        const msg = e?.message || String(e);
+        console.warn(
+          `⚠️ check-eas-build Polling Fehler (${buildPollErrorCountRef.current}):`,
+          msg,
+        );
+
+        setCurrentBuild((prev) => {
+          const base: CurrentBuildState = prev ?? { status: "idle" };
+          return {
+            ...base,
+            status: base.status === "idle" ? "error" : base.status,
+            message: `⚠️ Status konnte nicht aktualisiert werden: ${msg}`,
+            lastUpdatedAt: new Date().toISOString(),
+          };
+        });
+
+        // Nach mehreren Fehlern aufgeben
+        if (buildPollErrorCountRef.current >= 5) {
+          stopBuildPolling();
+        }
+      }
+    },
+    [stopBuildPolling],
+  );
+
+  const startBuild = useCallback(
+    async (buildProfile?: string) => {
+      try {
+        if (!projectData?.files || projectData.files.length === 0) {
+          throw new Error("Projekt ist leer. Es gibt keine Dateien zum Bauen.");
+        }
+
+        // Repo Quelle: Projekt-Link → Fallback Config
+        const githubRepo =
+          projectData.linkedRepo?.trim() || CONFIG.BUILD.GITHUB_REPO;
+
+        // Build Profile: nur erlaubte Werte (Default: preview)
+        const profile =
+          buildProfile === "development" ||
+          buildProfile === "preview" ||
+          buildProfile === "production"
+            ? buildProfile
+            : "preview";
+
+        // Bestehendes Polling stoppen (falls ein Build schon lief)
+        stopBuildPolling();
+
+        const startedAt = new Date().toISOString();
+        setCurrentBuild({
+          status: "queued",
+          message: "🚀 Build wird gestartet…",
+          jobId: null,
+          githubRepo,
+          buildProfile: profile,
+          startedAt,
+          lastUpdatedAt: startedAt,
+        });
+
+        const supabase = await ensureSupabaseClient();
+        const { data, error } = await supabase.functions.invoke(
+          "trigger-eas-build",
+          {
+            body: { githubRepo, buildProfile: profile },
+          },
+        );
+
+        if (error) {
+          throw error;
+        }
+
+        // Robust: verschiedene Response-Formate akzeptieren
+        const jobId: number | null =
+          typeof data?.jobId === "number"
+            ? data.jobId
+            : typeof data?.job_id === "number"
+              ? data.job_id
+              : typeof data?.job?.id === "number"
+                ? data.job.id
+                : null;
+
+        if (!jobId) {
+          throw new Error(
+            "❌ trigger-eas-build lieferte keine gültige Job-ID zurück.",
+          );
+        }
+
+        activeBuildJobIdRef.current = jobId;
+
+        setCurrentBuild((prev) => ({
+          ...(prev ?? { status: "queued" }),
+          status: "queued",
+          message: "✅ Build gestartet. Warte auf GitHub Actions…",
+          jobId,
+          githubRepo,
+          buildProfile: profile,
+          lastUpdatedAt: new Date().toISOString(),
+        }));
+
+        // Historie: Eintrag anlegen (best-effort)
+        try {
+          await addBuildToHistory({
+            id: uuidv4(),
+            jobId,
+            repoName: githubRepo,
+            status: "queued",
+            startedAt,
+            buildProfile: profile,
+          });
+        } catch (historyError) {
+          console.warn(
+            "⚠️ Build-Historie konnte nicht gespeichert werden:",
+            historyError,
+          );
+        }
+
+        // Polling starten: sofort + Intervall
+        await pollBuildStatusOnce(jobId);
+        buildPollIntervalRef.current = setInterval(() => {
+          const activeId = activeBuildJobIdRef.current;
+          if (!activeId) return;
+          pollBuildStatusOnce(activeId);
+        }, 6000);
+      } catch (e: any) {
+        stopBuildPolling();
+        setCurrentBuild({
+          status: "error",
+          message: e?.message || String(e),
+          lastUpdatedAt: new Date().toISOString(),
+        });
+        throw e;
+      }
+    },
+    [pollBuildStatusOnce, projectData, stopBuildPolling],
+  );
 
   const value: ProjectContextProps = {
     projectData,
