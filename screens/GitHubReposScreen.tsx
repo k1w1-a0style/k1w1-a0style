@@ -1,14 +1,21 @@
 /* eslint-disable react/no-unescaped-entities */
 // screens/GitHubReposScreen.tsx
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { ScrollView, Alert, Linking } from "react-native";
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
+import { ScrollView, Alert, Linking, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useGitHub } from "../contexts/GitHubContext";
 import { useProject, getGitHubToken } from "../contexts/ProjectContext";
 import { createRepo, pushFilesToRepo } from "../contexts/githubService";
 import { useGitHubRepos, GitHubRepo } from "../hooks/useGitHubRepos";
+import { theme } from "../theme";
 
 import { HeaderSection } from "./GitHubReposScreen/components/HeaderSection";
 import { TokenStatusSection } from "./GitHubReposScreen/components/TokenStatusSection";
@@ -25,6 +32,7 @@ import {
   filterRepos,
   splitFullName,
   deriveRenameDefault,
+  isValidRepoName,
 } from "./GitHubReposScreen/utils/repos";
 
 export default function GitHubReposScreen() {
@@ -39,6 +47,8 @@ export default function GitHubReposScreen() {
 
   const [token, setToken] = useState<string | null>(null);
   const [tokenLoading, setTokenLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const hasAutoLoaded = useRef(false);
 
   const {
     repos,
@@ -65,15 +75,16 @@ export default function GitHubReposScreen() {
   const [isPushing, setIsPushing] = useState(false);
   const [pullProgress, setPullProgress] = useState("");
 
+  // Token laden beim Mount
   useEffect(() => {
     const loadToken = async () => {
       try {
         setTokenLoading(true);
         const t = await getGitHubToken();
         setToken(t);
-        console.log("[GitHubReposScreen] Token loaded:", !!t);
-      } catch (e: any) {
-        // silently
+        console.log("[GitHubReposScreen] 🔑 Token geladen:", !!t);
+      } catch (e: unknown) {
+        console.error("[GitHubReposScreen] ❌ Token-Fehler:", e);
       } finally {
         setTokenLoading(false);
       }
@@ -82,9 +93,31 @@ export default function GitHubReposScreen() {
     loadToken();
   }, []);
 
+  // Auto-Load Repos wenn Token verfügbar und noch nicht geladen
+  useEffect(() => {
+    if (
+      token &&
+      !hasAutoLoaded.current &&
+      repos.length === 0 &&
+      !loadingRepos
+    ) {
+      hasAutoLoaded.current = true;
+      console.log("[GitHubReposScreen] 🔄 Auto-Load Repos gestartet");
+      loadRepos();
+    }
+  }, [token, repos.length, loadingRepos, loadRepos]);
+
   useEffect(() => {
     setRenameName(deriveRenameDefault(activeRepo));
   }, [activeRepo]);
+
+  // Pull-to-Refresh Handler
+  const handleRefresh = useCallback(async () => {
+    if (!token) return;
+    setRefreshing(true);
+    await loadRepos();
+    setRefreshing(false);
+  }, [token, loadRepos]);
 
   const requireTokenOrAlert = useCallback(() => {
     if (!token) {
@@ -142,8 +175,14 @@ export default function GitHubReposScreen() {
 
   const handleCreateRepo = useCallback(async () => {
     const name = newRepoName.trim();
-    if (!name) {
-      Alert.alert("Hinweis", "Bitte einen Repo-Namen eingeben.");
+
+    // Validierung
+    const validation = isValidRepoName(name);
+    if (!validation.valid) {
+      Alert.alert(
+        "❌ Ungültiger Name",
+        validation.error ?? "Bitte prüfe den Repo-Namen.",
+      );
       return;
     }
 
@@ -155,17 +194,20 @@ export default function GitHubReposScreen() {
       const repo = await createRepo(name, newRepoPrivate);
       setLocalRepos((prev) => [repo, ...prev]);
       setNewRepoName("");
-      loadRepos();
+
+      // Repos neu laden um Duplikate zu vermeiden
+      await loadRepos();
 
       Alert.alert(
         "✅ Repo erstellt",
-        `Repository "${repo.full_name}" wurde angelegt.`,
+        `Repository "${repo.full_name || repo.name}" wurde angelegt.`,
       );
-    } catch (e: any) {
-      Alert.alert(
-        "Fehler beim Erstellen",
-        e?.message ?? "Repository konnte nicht erstellt werden.",
-      );
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error
+          ? e.message
+          : "Repository konnte nicht erstellt werden.";
+      Alert.alert("❌ Fehler beim Erstellen", message);
     } finally {
       setIsCreating(false);
     }
@@ -173,32 +215,50 @@ export default function GitHubReposScreen() {
 
   const handleRenameRepo = useCallback(async () => {
     if (!activeRepo) {
-      Alert.alert("Kein aktives Repo", "Bitte wähle zuerst ein Repo aus.");
+      Alert.alert("⚠️ Kein aktives Repo", "Bitte wähle zuerst ein Repo aus.");
       return;
     }
 
     const newName = renameName.trim();
-    if (!newName) {
-      Alert.alert("Hinweis", "Bitte einen neuen Repo-Namen eingeben.");
+
+    // Validierung
+    const validation = isValidRepoName(newName);
+    if (!validation.valid) {
+      Alert.alert(
+        "❌ Ungültiger Name",
+        validation.error ?? "Bitte prüfe den Repo-Namen.",
+      );
       return;
     }
 
     if (!token) {
       Alert.alert(
-        "Kein Token",
+        "🔑 Kein Token",
         "Bitte Token im Verbindungen-Screen hinterlegen.",
       );
       return;
     }
 
     setIsRenaming(true);
-    const newFullName = await renameRepoHook(activeRepo, newName);
-    setIsRenaming(false);
+    try {
+      const newFullName = await renameRepoHook(activeRepo, newName);
 
-    if (newFullName) {
-      setActiveRepo(newFullName);
-      addRecentRepo(newFullName);
-      Alert.alert("✅ Umbenannt", `Repo heißt jetzt „${newFullName}".`);
+      if (newFullName) {
+        setActiveRepo(newFullName);
+        addRecentRepo(newFullName);
+        Alert.alert("✅ Umbenannt", `Repo heißt jetzt „${newFullName}".`);
+      } else {
+        Alert.alert(
+          "❌ Fehler",
+          "Umbenennung fehlgeschlagen. Bitte erneut versuchen.",
+        );
+      }
+    } catch (e: unknown) {
+      const message =
+        e instanceof Error ? e.message : "Umbenennung fehlgeschlagen.";
+      Alert.alert("❌ Fehler beim Umbenennen", message);
+    } finally {
+      setIsRenaming(false);
     }
   }, [
     activeRepo,
@@ -330,6 +390,15 @@ export default function GitHubReposScreen() {
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[theme.palette.primary]}
+            tintColor={theme.palette.primary}
+            enabled={!!token}
+          />
+        }
       >
         <HeaderSection />
 
