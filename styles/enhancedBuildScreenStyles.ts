@@ -217,4 +217,70 @@ export const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 8,
   },
+
+  // Profile-Buttons (verbesserter Zustand)
+  profileRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 14,
+  },
+  profileBtn: {
+    flex: 1,
+    backgroundColor: theme.palette.background,
+    borderWidth: 2,
+    borderColor: theme.palette.border,
+    borderRadius: 12,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
+  profileBtnActive: {
+    borderColor: theme.palette.primary,
+    backgroundColor: withOpacity(theme.palette.primary, 0.1),
+  },
+  profileBtnText: {
+    color: theme.palette.text.secondary,
+    fontWeight: "700",
+    fontSize: 12,
+    textTransform: "capitalize",
+  },
+  profileBtnTextActive: {
+    color: theme.palette.primary,
+    fontWeight: "900",
+  },
+
+  // Workflow-Status-Box in der Logs-Sektion
+  workflowStatusBox: {
+    backgroundColor: theme.palette.background,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+  },
+
+  // Historie-Link
+  historyLink: {
+    marginTop: 8,
+  },
+  historyIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+
+  // Analyse-/Logs-Sektion
+  analysisContainer: {
+    marginTop: 12,
+    gap: 10,
+  },
+  logsContainer: {
+    marginTop: 12,
+  },
+  logsBtnSpacing: {
+    marginTop: 10,
+  },
+  historyBtnSpacing: {
+    marginTop: 12,
+  },
 });
