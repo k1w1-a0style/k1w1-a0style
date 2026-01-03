@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Alert,
   BackHandler,
+  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -21,6 +22,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView, WebViewNavigation } from "react-native-webview";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../theme";
 import { isHttpUrl, truncateUrl } from "../utils/url";
 import type { RootStackParamList } from "../types/preview";
@@ -103,6 +105,30 @@ export default function PreviewFullscreenScreen() {
       console.error("Share failed:", err);
     }
   }, [mode, url, title]);
+
+  const handleOpenExternal = useCallback(async () => {
+    if (mode === "url" && url) {
+      try {
+        const canOpen = await Linking.canOpenURL(url);
+        if (canOpen) {
+          await Linking.openURL(url);
+        } else {
+          Alert.alert(
+            "❌ Fehler",
+            "Diese URL kann nicht im Browser geöffnet werden.",
+          );
+        }
+      } catch (err) {
+        console.error("External open failed:", err);
+        Alert.alert("❌ Fehler", "Browser konnte nicht geöffnet werden.");
+      }
+    } else {
+      Alert.alert(
+        "ℹ️ Hinweis",
+        "Diese lokale HTML-Preview kann nicht im externen Browser geöffnet werden.",
+      );
+    }
+  }, [mode, url]);
 
   const handleLoadStart = useCallback(() => {
     if (!isMountedRef.current) return;
@@ -219,7 +245,12 @@ export default function PreviewFullscreenScreen() {
       <SafeAreaView style={styles.screen}>
         <View style={styles.topBar}>
           <Pressable style={styles.backButton} onPress={handleGoBack}>
-            <Text style={styles.backButtonText}>← Zurück</Text>
+            <Ionicons
+              name="arrow-back"
+              size={18}
+              color={theme.palette.text.primary}
+            />
+            <Text style={styles.backButtonText}>Zurück</Text>
           </Pressable>
 
           <View style={styles.titleContainer}>
@@ -231,16 +262,24 @@ export default function PreviewFullscreenScreen() {
             </Text>
           </View>
 
-          <View style={{ width: 110 }} />
+          <View style={{ width: 80 }} />
         </View>
 
         <View style={styles.errorState}>
-          <Text style={styles.errorStateIcon}>⚠️</Text>
+          <Ionicons name="alert-circle" size={64} color={theme.palette.error} />
           <Text style={styles.errorStateTitle}>Keine gültige Preview</Text>
           <Text style={styles.errorStateText}>
             Es wurde weder eine gültige URL noch HTML übergeben.
             {"\n"}Gehe zurück und erstelle die Preview neu.
           </Text>
+          <Pressable style={styles.retryButton} onPress={handleGoBack}>
+            <Ionicons
+              name="arrow-back"
+              size={16}
+              color={theme.palette.text.primary}
+            />
+            <Text style={styles.retryButtonText}>Zurück</Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     );
@@ -250,7 +289,12 @@ export default function PreviewFullscreenScreen() {
     <SafeAreaView style={styles.screen}>
       <View style={styles.topBar}>
         <Pressable style={styles.backButton} onPress={handleGoBack}>
-          <Text style={styles.backButtonText}>← Zurück</Text>
+          <Ionicons
+            name="arrow-back"
+            size={18}
+            color={theme.palette.text.primary}
+          />
+          <Text style={styles.backButtonText}>Zurück</Text>
         </Pressable>
 
         <View style={styles.titleContainer}>
@@ -265,7 +309,11 @@ export default function PreviewFullscreenScreen() {
         <View style={styles.actions}>
           {canGoBack && (
             <Pressable style={styles.iconButton} onPress={handleWebViewGoBack}>
-              <Text style={styles.iconText}>◀</Text>
+              <Ionicons
+                name="chevron-back"
+                size={20}
+                color={theme.palette.text.primary}
+              />
             </Pressable>
           )}
 
@@ -274,16 +322,38 @@ export default function PreviewFullscreenScreen() {
               style={styles.iconButton}
               onPress={handleWebViewGoForward}
             >
-              <Text style={styles.iconText}>▶</Text>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={theme.palette.text.primary}
+              />
+            </Pressable>
+          )}
+
+          <Pressable style={styles.iconButton} onPress={handleReload}>
+            <Ionicons
+              name="refresh"
+              size={18}
+              color={theme.palette.text.primary}
+            />
+          </Pressable>
+
+          {mode === "url" && (
+            <Pressable style={styles.iconButton} onPress={handleOpenExternal}>
+              <Ionicons
+                name="open-outline"
+                size={18}
+                color={theme.palette.primary}
+              />
             </Pressable>
           )}
 
           <Pressable style={styles.iconButton} onPress={handleShare}>
-            <Text style={styles.iconText}>📤</Text>
-          </Pressable>
-
-          <Pressable style={styles.iconButton} onPress={handleReload}>
-            <Text style={styles.iconText}>↻</Text>
+            <Ionicons
+              name="share-outline"
+              size={18}
+              color={theme.palette.text.primary}
+            />
           </Pressable>
         </View>
       </View>
@@ -340,14 +410,15 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: theme.palette.border,
     backgroundColor: theme.palette.card,
-    minWidth: 90,
-    alignItems: "center",
   },
   backButtonText: {
     color: theme.palette.text.primary,
@@ -419,12 +490,12 @@ const styles = StyleSheet.create({
     padding: 24,
     gap: 12,
   },
-  errorStateIcon: { fontSize: 64, marginBottom: 8 },
   errorStateTitle: {
     color: theme.palette.text.primary,
     fontSize: 18,
     fontWeight: "900",
     textAlign: "center",
+    marginTop: 12,
   },
   errorStateText: {
     color: theme.palette.text.secondary,
@@ -432,5 +503,22 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
     maxWidth: 400,
+  },
+  retryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 8,
+    marginTop: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: theme.palette.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  retryButtonText: {
+    color: theme.palette.text.primary,
+    fontSize: 14,
+    fontWeight: "800",
   },
 });
