@@ -1,5 +1,7 @@
 // contexts/types.ts
 
+import type { BuildStatus } from "../lib/buildStatusMapper";
+
 export interface ProjectFile {
   path: string;
   content: string;
@@ -9,7 +11,7 @@ export interface BuildHistoryEntry {
   id: string;
   jobId: number;
   repoName: string;
-  status: "queued" | "building" | "success" | "failed" | "error";
+  status: BuildStatus;
   startedAt: string;
   completedAt?: string;
   durationMs?: number;
@@ -76,10 +78,27 @@ export interface ProjectContextProps {
   triggerAutoFix: (message: string) => void;
   clearAutoFixRequest: () => void;
 
-  startBuild?: () => Promise<void>;
+  /**
+   * Startet einen EAS Build über Supabase (trigger-eas-build).
+   * Optional mit Build-Profile (development|preview|production).
+   */
+  startBuild?: (buildProfile?: string) => Promise<void>;
   currentBuild?: {
-    status: "idle" | "queued" | "building" | "completed" | "error";
+    status: BuildStatus;
     message?: string;
+    progress?: number; // 0..1 (optional UI-Hilfe)
+    jobId?: number | null;
+    githubRepo?: string | null;
+    buildProfile?: string;
+    runId?: number | null;
+    urls?: {
+      html?: string | null;
+      artifacts?: string | null;
+      buildUrl?: string | null;
+    };
+    startedAt?: string;
+    completedAt?: string;
+    lastUpdatedAt?: string;
   } | null;
 
   exportAndBuild: () => Promise<{ owner: string; repo: string } | null>;

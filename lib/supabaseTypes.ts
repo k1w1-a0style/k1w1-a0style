@@ -3,7 +3,7 @@
  * Type-Definitionen und Type Guards für Supabase API Responses
  */
 
-import { BuildStatus, mapBuildStatus } from './buildStatusMapper';
+import { BuildStatus, mapBuildStatus } from "./buildStatusMapper";
 
 /**
  * Build Details aus Supabase
@@ -58,33 +58,28 @@ export interface CheckBuildResponse {
  * Supabase Function Response für trigger-eas-build
  */
 export interface TriggerBuildResponse {
-  success: boolean;
-  job_id?: number;
+  ok: boolean;
+  githubDispatch?: boolean;
+  buildJobCreated?: boolean;
+  job?: BuildDetails;
   error?: string;
-  step?: string;
-  hint?: string;
+  details?: unknown;
 }
 
 /**
  * Type Guard: Prüft ob Response ein gültiges CheckBuildResponse ist
  */
 export function isCheckBuildResponse(data: any): data is CheckBuildResponse {
-  return (
-    data &&
-    typeof data === 'object' &&
-    typeof data.status === 'string'
-  );
+  return data && typeof data === "object" && typeof data.status === "string";
 }
 
 /**
  * Type Guard: Prüft ob Response ein gültiges TriggerBuildResponse ist
  */
-export function isTriggerBuildResponse(data: any): data is TriggerBuildResponse {
-  return (
-    data &&
-    typeof data === 'object' &&
-    typeof data.success === 'boolean'
-  );
+export function isTriggerBuildResponse(
+  data: any,
+): data is TriggerBuildResponse {
+  return data && typeof data === "object" && typeof data.ok === "boolean";
 }
 
 /**
@@ -93,9 +88,9 @@ export function isTriggerBuildResponse(data: any): data is TriggerBuildResponse 
 export function isBuildDetails(data: any): data is BuildDetails {
   return (
     data &&
-    typeof data === 'object' &&
-    typeof data.id === 'number' &&
-    typeof data.status === 'string'
+    typeof data === "object" &&
+    typeof data.id === "number" &&
+    typeof data.status === "string"
   );
 }
 
@@ -104,7 +99,7 @@ export function isBuildDetails(data: any): data is BuildDetails {
  */
 export function toBuildStatusDetails(
   jobId: number,
-  response: CheckBuildResponse
+  response: CheckBuildResponse,
 ): BuildStatusDetails {
   return {
     jobId,
