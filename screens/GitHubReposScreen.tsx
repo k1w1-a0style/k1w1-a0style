@@ -20,13 +20,21 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useGitHub } from "../contexts/GitHubContext";
 import { useProject, getGitHubToken } from "../contexts/ProjectContext";
-import { createRepo, pushFilesToRepo } from "../contexts/githubService";
+import {
+  createRepo,
+  pushFilesToRepo,
+  deleteRepo as deleteGitHubRepo,
+  renameRepo as renameGitHubRepo,
+  createBranch,
+  deleteBranch,
+  renameBranch,
+} from "../contexts/githubService";
+
 import { autoSyncRepoSecrets } from "../lib/autoSyncRepoSecrets";
 import { useGitHubRepos, GitHubRepo } from "../hooks/useGitHubRepos";
 import { theme } from "../theme";
@@ -39,12 +47,6 @@ import {
   splitFullName,
   isValidRepoName,
 } from "./GitHubReposScreen/utils/repos";
-
-const STORAGE_KEYS = {
-  SUPABASE_URL: "supabase_url",
-  SUPABASE_SERVICE_ROLE_KEY: "supabase_service_role_key",
-  EAS_TOKEN: "eas_token",
-} as const;
 
 export default function GitHubReposScreen() {
   const {
@@ -81,8 +83,31 @@ export default function GitHubReposScreen() {
   const [isCreating, setIsCreating] = useState(false);
   const [isPulling, setIsPulling] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
-  const [isSyncingSecrets, setIsSyncingSecrets] = useState(false);
   const [pullProgress, setPullProgress] = useState("");
+
+  // Manage Modal (für Repo/Branch Aktionen)
+  type ManageModalConfig = {
+    title: string;
+    placeholder: string;
+    initialValue?: string;
+    confirmText?: string;
+    action: (value: string) => Promise<void>;
+  };
+
+  const [manageModal, setManageModal] = useState<ManageModalConfig | null>(
+    null,
+  );
+  const [manageValue, setManageValue] = useState("");
+
+  const openManageModal = useCallback((cfg: ManageModalConfig) => {
+    setManageValue(cfg.initialValue ?? "");
+    setManageModal(cfg);
+  }, []);
+
+  const closeManageModal = useCallback(() => {
+    setManageModal(null);
+    setManageValue("");
+  }, []);
 
   // Token laden
   useEffect(() => {
@@ -229,6 +254,219 @@ export default function GitHubReposScreen() {
     }
   }, [token, activeRepo, pullFromRepo, updateProjectFiles]);
 
+  const handleSyncSecrets = useCallback(async () => {
+    if (!activeRepo) {
+      Alert.alert("⚠️", "Bitte zuerst ein Repository auswählen.");
+      return;
+    }
+    try {
+      const result = await autoSyncRepoSecrets(activeRepo);
+      if (result.updated.length === 0) {
+        Alert.alert(
+          "ℹ️ Secrets",
+          "Keine Secrets zum Synchronisieren gefunden.",
+        );
+      } else {
+        Alert.alert("✅ Secrets synchronisiert", result.updated.join(", "));
+      }
+    } catch (e: any) {
+      Alert.alert("❌ Secrets Sync fehlgeschlagen", e?.message ?? "");
+    }
+  }, [activeRepo]);
+
+  const handleDeleteRepo = useCallback(async () => {
+    if (!activeRepo) return;
+    const parsed = splitFullName(activeRepo);
+    if (!parsed) return;
+
+    Alert.alert(
+      "Repo löschen?",
+      `Das Repository "${activeRepo}" wird dauerhaft gelöscht.`,
+      [
+        { text: "Abbrechen", style: "cancel" },
+        {
+          text: "Löschen",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const ok = await deleteGitHubRepo(parsed.owner, parsed.repo);
+              if (!ok) {
+                Alert.alert("⚠️", "Repo nicht gefunden oder kein Zugriff.");
+                return;
+              }
+              setActiveRepo(null);
+              setActiveBranch(null);
+              setLinkedRepo(null, null);
+              await loadRepos();
+              Alert.alert("✅ Gelöscht", "Repository wurde gelöscht.");
+            } catch (e: any) {
+              Alert.alert("❌ Fehler", e?.message ?? "");
+            }
+          },
+        },
+      ],
+    );
+  }, [activeRepo, loadRepos, setActiveRepo, setActiveBranch, setLinkedRepo]);
+
+  const handleRenameRepo = useCallback(() => {
+    if (!activeRepo) return;
+    const parsed = splitFullName(activeRepo);
+    if (!parsed) return;
+
+    openManageModal({
+      title: "Repo umbenennen",
+      placeholder: "neuer-repo-name",
+      initialValue: parsed.repo,
+      confirmText: "Umbenennen",
+      action: async (newName: string) => {
+        const res = await renameGitHubRepo(parsed.owner, parsed.repo, newName);
+        // res.full_name = owner/newName
+        setActiveRepo(res.full_name);
+        addRecentRepo(res.full_name);
+        setLinkedRepo(res.full_name, activeBranch ?? null);
+        await loadRepos();
+        closeManageModal();
+        Alert.alert("✅ Umbenannt", res.full_name);
+      },
+    });
+  }, [
+    activeRepo,
+    activeBranch,
+    addRecentRepo,
+    closeManageModal,
+    loadRepos,
+    openManageModal,
+    setActiveRepo,
+    setLinkedRepo,
+  ]);
+
+  const handleCreateBranch = useCallback(async () => {
+    if (!activeRepo) return;
+    const parsed = splitFullName(activeRepo);
+    if (!parsed) return;
+
+    const base =
+      activeBranch || (await loadDefaultBranch(parsed.owner, parsed.repo));
+
+    openManageModal({
+      title: "Branch erstellen",
+      placeholder: "neuer-branch-name",
+      confirmText: "Erstellen",
+      action: async (newBranchName: string) => {
+        await createBranch(parsed.owner, parsed.repo, newBranchName, base);
+        closeManageModal();
+        await loadBranches(parsed.owner, parsed.repo);
+        Alert.alert("✅ Branch erstellt", `${newBranchName} (von ${base})`);
+      },
+    });
+  }, [
+    activeRepo,
+    activeBranch,
+    closeManageModal,
+    loadBranches,
+    loadDefaultBranch,
+    openManageModal,
+  ]);
+
+  const handleDeleteBranch = useCallback(async () => {
+    if (!activeRepo) return;
+    const parsed = splitFullName(activeRepo);
+    if (!parsed) return;
+
+    const branch = activeBranch;
+    if (!branch) {
+      Alert.alert("⚠️", "Bitte zuerst einen Branch auswählen.");
+      return;
+    }
+
+    Alert.alert("Branch löschen?", `Branch "${branch}" wird gelöscht.`, [
+      { text: "Abbrechen", style: "cancel" },
+      {
+        text: "Löschen",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const ok = await deleteBranch(parsed.owner, parsed.repo, branch);
+            if (!ok) {
+              Alert.alert("⚠️", "Branch nicht gefunden oder kein Zugriff.");
+              return;
+            }
+            setActiveBranch(null);
+            await loadBranches(parsed.owner, parsed.repo);
+            Alert.alert("✅ Gelöscht", `Branch "${branch}" wurde gelöscht.`);
+          } catch (e: any) {
+            Alert.alert("❌ Fehler", e?.message ?? "");
+          }
+        },
+      },
+    ]);
+  }, [activeRepo, activeBranch, loadBranches, setActiveBranch]);
+
+  const handleRenameBranch = useCallback(() => {
+    if (!activeRepo) return;
+    const parsed = splitFullName(activeRepo);
+    if (!parsed) return;
+
+    const branch = activeBranch;
+    if (!branch) {
+      Alert.alert("⚠️", "Bitte zuerst einen Branch auswählen.");
+      return;
+    }
+
+    openManageModal({
+      title: "Branch umbenennen",
+      placeholder: "neuer-branch-name",
+      initialValue: branch,
+      confirmText: "Umbenennen",
+      action: async (newName: string) => {
+        const res = await renameBranch(
+          parsed.owner,
+          parsed.repo,
+          branch,
+          newName,
+        );
+        setActiveBranch(res.name);
+        closeManageModal();
+        await loadBranches(parsed.owner, parsed.repo);
+        Alert.alert("✅ Umbenannt", res.name);
+      },
+    });
+  }, [
+    activeRepo,
+    activeBranch,
+    closeManageModal,
+    loadBranches,
+    openManageModal,
+    setActiveBranch,
+  ]);
+  const openManageMenu = useCallback(() => {
+    if (!activeRepo) return;
+
+    const buttons: any[] = [
+      { text: "Sync Secrets", onPress: handleSyncSecrets },
+      { text: "Repo umbenennen", onPress: handleRenameRepo },
+      { text: "Repo löschen", style: "destructive", onPress: handleDeleteRepo },
+      { text: "Branch erstellen", onPress: handleCreateBranch },
+      { text: "Branch umbenennen", onPress: handleRenameBranch },
+      {
+        text: "Branch löschen",
+        style: "destructive",
+        onPress: handleDeleteBranch,
+      },
+      { text: "Abbrechen", style: "cancel" },
+    ];
+
+    Alert.alert("Repository Aktionen", activeRepo, buttons);
+  }, [
+    activeRepo,
+    handleCreateBranch,
+    handleDeleteBranch,
+    handleDeleteRepo,
+    handleRenameBranch,
+    handleRenameRepo,
+    handleSyncSecrets,
+  ]);
+
   const openOnGitHub = useCallback(() => {
     if (!activeRepo) return;
     Linking.openURL(`https://github.com/${activeRepo}`);
@@ -342,6 +580,27 @@ export default function GitHubReposScreen() {
               color={theme.palette.primary}
             />
             <Text style={s.actionBtnText}>GitHub</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* More Actions */}
+        <View style={s.moreActions}>
+          <TouchableOpacity style={s.actionBtn} onPress={handleSyncSecrets}>
+            <Ionicons
+              name="sync-outline"
+              size={16}
+              color={theme.palette.primary}
+            />
+            <Text style={s.actionBtnText}>Sync</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={s.actionBtn} onPress={openManageMenu}>
+            <Ionicons
+              name="settings-outline"
+              size={16}
+              color={theme.palette.primary}
+            />
+            <Text style={s.actionBtnText}>Manage</Text>
           </TouchableOpacity>
         </View>
 
@@ -561,6 +820,43 @@ export default function GitHubReposScreen() {
       {/* Overlays */}
       {renderRepoList()}
       {renderNewRepoModal()}
+
+      {/* Manage Modal */}
+      {manageModal ? (
+        <View style={s.newRepoOverlay}>
+          <View style={s.newRepoCard}>
+            <Text style={s.newRepoTitle}>{manageModal.title}</Text>
+            <TextInput
+              style={s.newRepoInput}
+              placeholder={manageModal.placeholder}
+              placeholderTextColor={theme.palette.text.secondary}
+              value={manageValue}
+              onChangeText={setManageValue}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <View style={s.newRepoActions}>
+              <TouchableOpacity style={s.cancelBtn} onPress={closeManageModal}>
+                <Text style={s.cancelBtnText}>Abbrechen</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={s.createBtn}
+                onPress={async () => {
+                  try {
+                    await manageModal.action(manageValue);
+                  } catch (e: any) {
+                    Alert.alert("❌ Fehler", e?.message ?? "");
+                  }
+                }}
+              >
+                <Text style={s.createBtnText}>
+                  {manageModal.confirmText ?? "OK"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -635,6 +931,7 @@ const s = StyleSheet.create({
   },
 
   quickActions: { flexDirection: "row", gap: 8, marginTop: 14 },
+  moreActions: { flexDirection: "row", gap: 8, marginTop: 8 },
   actionBtn: {
     flex: 1,
     flexDirection: "row",
