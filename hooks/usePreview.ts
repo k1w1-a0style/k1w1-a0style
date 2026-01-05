@@ -93,7 +93,15 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
 
   const fileMap = useMemo(() => {
     const files: Record<string, string> = {};
-    const list: ProjectFile[] = (projectData?.files as ProjectFile[]) || [];
+    const rawFiles = projectData?.files;
+    const list: ProjectFile[] = Array.isArray(rawFiles)
+      ? (rawFiles.filter((f: any) => {
+          if (!f || typeof f !== "object") return false;
+          const p = (f as any).path;
+          const c = (f as any).content;
+          return typeof p === "string" && typeof c === "string";
+        }) as ProjectFile[])
+      : [];
 
     let total = 0;
     const MAX_SIZE = 1_500_000; // 1.5 MB local cap (save_preview has 3MB cap)
