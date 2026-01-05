@@ -17,11 +17,11 @@ jobs:
   eas-android:
     name: Run EAS Build (Android)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     env:
-      PROFILE: ${{ github.event.inputs.profile }}
-      JOB_ID: ${{ github.event.inputs.job_id }}
+      PROFILE: ${{ inputs.profile }}
+      JOB_ID: ${{ inputs.job_id }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
@@ -50,8 +50,14 @@ jobs:
           node-version: 20.x
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+      - name: Ensure EXPO_TOKEN exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
+            echo "::error::Missing GitHub Secret EXPO_TOKEN"
+            exit 1
+          fi
 
       - name: Setup Expo & EAS
         uses: expo/expo-github-action@v8
@@ -59,6 +65,19 @@ jobs:
           expo-version: latest
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
+          packager: npm
+          expo-cache: true
+          eas-cache: true
+
+      - name: Verify EAS authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          eas --version
+          eas whoami
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
 
       - name: Update build status -> building (optional)
         if: ${{ env.JOB_ID != '' }}
@@ -69,23 +88,29 @@ jobs:
             echo "::warning::Supabase secrets missing, skipping status update."
             exit 0
           fi
-          curl --fail-with-body -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+          TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          curl --fail-with-body --silent --show-error -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
-            -d "{\"status\":\"building\",\"github_run_id\":\"${GITHUB_RUN_ID}\"}" \
-            --silent
+            -d "{\"status\":\"building\",\"github_run_id\":\"${GITHUB_RUN_ID}\",\"started_at\":\"${TS}\"}" \
+            || echo "::warning::Failed to update Supabase status"
 
-      - name: Run EAS build (cloud)
+      - name: Run EAS build (WAIT)
         id: eas
         shell: bash
         run: |
           set -euo pipefail
-          echo "Starting EAS cloud build..."
-          BUILD_OUTPUT=$(eas build --platform android --profile "${PROFILE}" --non-interactive --no-wait 2>&1)
+          echo "Starting EAS cloud build (WAIT)..."
+          BUILD_OUTPUT="$(eas build --platform android --profile "${PROFILE}" --non-interactive --wait 2>&1)" || {
+            EXIT_CODE=$?
+            echo "${BUILD_OUTPUT}"
+            exit ${EXIT_CODE}
+          }
           echo "${BUILD_OUTPUT}"
-          BUILD_ID=$(echo "${BUILD_OUTPUT}" | grep -oP 'Build ID:\s*\K[a-f0-9-]+' || true)
-          echo "build_id=${BUILD_ID:-unknown}" >> "${GITHUB_OUTPUT}"
+          BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oP 'Build ID:\s*\K[a-fA-F0-9-]+' | head -n1 || true)"
+          if [ -z "${BUILD_ID}" ]; then BUILD_ID="unknown"; fi
+          echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
 
       - name: Update build status -> completed (optional)
         if: ${{ success() && env.JOB_ID != '' }}
@@ -96,12 +121,12 @@ jobs:
             echo "::warning::Supabase secrets missing, skipping status update."
             exit 0
           fi
-          curl --fail-with-body -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+          curl --fail-with-body --silent --show-error -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
             -d "{\"status\":\"completed\",\"eas_build_id\":\"${{ steps.eas.outputs.build_id }}\"}" \
-            --silent
+            || echo "::warning::Failed to update Supabase status"
 
       - name: Update build status -> error (optional)
         if: ${{ failure() && env.JOB_ID != '' }}
@@ -112,9 +137,9 @@ jobs:
             echo "::warning::Supabase secrets missing, skipping status update."
             exit 0
           fi
-          curl --fail-with-body -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+          curl --fail-with-body --silent --show-error -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
             -d "{\"status\":\"error\"}" \
-            --silent
+            || echo "::warning::Failed to update Supabase status"
