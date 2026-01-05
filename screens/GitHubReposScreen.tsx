@@ -20,12 +20,14 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useGitHub } from "../contexts/GitHubContext";
 import { useProject, getGitHubToken } from "../contexts/ProjectContext";
 import { createRepo, pushFilesToRepo } from "../contexts/githubService";
+import { autoSyncRepoSecrets } from "../lib/autoSyncRepoSecrets";
 import { useGitHubRepos, GitHubRepo } from "../hooks/useGitHubRepos";
 import { theme } from "../theme";
 
@@ -37,6 +39,12 @@ import {
   splitFullName,
   isValidRepoName,
 } from "./GitHubReposScreen/utils/repos";
+
+const STORAGE_KEYS = {
+  SUPABASE_URL: "supabase_url",
+  SUPABASE_SERVICE_ROLE_KEY: "supabase_service_role_key",
+  EAS_TOKEN: "eas_token",
+} as const;
 
 export default function GitHubReposScreen() {
   const {
@@ -73,6 +81,7 @@ export default function GitHubReposScreen() {
   const [isCreating, setIsCreating] = useState(false);
   const [isPulling, setIsPulling] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
+  const [isSyncingSecrets, setIsSyncingSecrets] = useState(false);
   const [pullProgress, setPullProgress] = useState("");
 
   // Token laden
