@@ -24,7 +24,11 @@ import {
   exportProjectAsZipFile,
   importProjectFromZipFile,
 } from "./projectStorage";
-import { getGitHubToken, getWorkflowRuns } from "./githubService";
+import {
+  getGitHubToken,
+  getWorkflowRuns,
+  pushFilesToRepo,
+} from "./githubService";
 // ✅ FIX: Einheitlicher Validator-Wrapper
 import { validateFilePath, validateFileContent } from "../lib/validators";
 import { BuildStatus, mapBuildStatus } from "../lib/buildStatusMapper";
@@ -471,6 +475,20 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   const pollBuildStatusOnce = useCallback(
     async (jobId: number) => {
       try {
+        // ✅ Build läuft auf GitHub. Damit wirklich der aktuelle Stand gebaut wird,
+        // pushen wir (best-effort) die lokalen Projektdateien ins Repo.
+        try {
+          const [owner, repo] = githubRepo.split("/");
+          if (owner && repo && projectData.files?.length) {
+            await pushFilesToRepo(owner, repo, projectData.files as any);
+          }
+        } catch (e) {
+          console.warn(
+            "⚠️ Auto-Push nach GitHub fehlgeschlagen. Build nutzt evtl. alten Repo-Stand:",
+            e,
+          );
+        }
+
         const supabase = await ensureSupabaseClient();
 
         const { data, error } = await supabase.functions.invoke(
@@ -602,6 +620,20 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           startedAt,
           lastUpdatedAt: startedAt,
         });
+
+        // ✅ Build läuft auf GitHub. Damit wirklich der aktuelle Stand gebaut wird,
+        // pushen wir (best-effort) die lokalen Projektdateien ins Repo.
+        try {
+          const [owner, repo] = githubRepo.split("/");
+          if (owner && repo && projectData.files?.length) {
+            await pushFilesToRepo(owner, repo, projectData.files as any);
+          }
+        } catch (e) {
+          console.warn(
+            "⚠️ Auto-Push nach GitHub fehlgeschlagen. Build nutzt evtl. alten Repo-Stand:",
+            e,
+          );
+        }
 
         const supabase = await ensureSupabaseClient();
         const { data, error } = await supabase.functions.invoke(

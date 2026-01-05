@@ -228,7 +228,8 @@ export function buildSandpackHtml(opts: SandpackOptions): string {
 }
 </script>
 
-<script type="module">
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="module">
 const loading = document.getElementById("loading");
 const errorBox = document.getElementById("error-box");
 const errorText = document.getElementById("error-text");
@@ -254,65 +255,90 @@ try {
   const appCode = \`${appCode}\`;
   
   // Einfache Komponente die den Code rendert
-  function PreviewApp() {
-    const [error, setError] = React.useState(null);
-    
-    React.useEffect(() => {
-      try {
-        // Versuche den Code zu parsen
-        console.log("Preview Code geladen");
-      } catch (e) {
-        setError(e.message);
-      }
-    }, []);
-    
-    if (error) {
-      return React.createElement("div", { 
-        style: { padding: 24, color: "#ff6b6b" } 
-      }, "Fehler: " + error);
+  let UserApp = null;
+  let userAppError = null;
+
+  const loadUserApp = async () => {
+    try {
+      if (!appCode || !appCode.trim()) throw new Error("Kein App Code gefunden");
+      if (typeof Babel === "undefined") throw new Error("Babel Standalone nicht geladen");
+
+      const compiled = Babel.transform(appCode, {
+        presets: ["env", "react", "typescript"],
+        sourceType: "module",
+      }).code;
+
+      const exports = {};
+      const module = { exports };
+      const require = (name) => {
+        if (name === "react") return React;
+        // Minimal Shim für häufige Imports, damit simple Apps nicht sofort crashen
+        if (name === "react-native") return {};
+        return {};
+      };
+
+      const fn = new Function(
+        "React",
+        "exports",
+        "module",
+        "require",
+        compiled + "\nreturn module.exports.default || exports.default || module.exports || exports;",
+      );
+
+      const mod = fn(React, exports, module, require);
+      const Comp = (mod && mod.default) ? mod.default : mod;
+
+      if (!Comp) throw new Error("Default export nicht gefunden");
+      return Comp;
+    } catch (e) {
+      userAppError = e;
+      return null;
     }
-    
-    // Einfache Preview-Anzeige
-    return React.createElement("div", { 
-      style: { 
-        padding: 24, 
-        fontFamily: "system-ui",
-        maxWidth: 600,
-        margin: "0 auto"
-      } 
-    }, [
-      React.createElement("h1", { 
-        key: "h1",
-        style: { color: "#00ff88", marginBottom: 16 } 
-      }, "✅ Preview läuft"),
-      React.createElement("p", { 
-        key: "p1",
-        style: { color: "#ccc", lineHeight: 1.6 } 
-      }, "Dein Projekt wurde erfolgreich geladen."),
-      React.createElement("div", { 
-        key: "info",
-        style: { 
-          marginTop: 24,
-          padding: 16, 
-          background: "#151515", 
-          borderRadius: 12,
-          border: "1px solid #2a2a2a"
-        } 
-      }, [
-        React.createElement("div", {
-          key: "label",
-          style: { color: "#888", fontSize: 12, marginBottom: 8 }
-        }, "Projekt-Dateien:"),
-        React.createElement("div", {
-          key: "count",
-          style: { color: "#00ff88", fontSize: 24, fontWeight: 800 }
-        }, "${fileCount}")
-      ])
-    ]);
+  };
+
+  function PreviewApp() {
+    if (UserApp) {
+      return React.createElement(UserApp);
+    }
+
+    return React.createElement(
+      "div",
+      {
+        style: {
+          fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+          padding: 16,
+          lineHeight: 1.4,
+        },
+      },
+      React.createElement("h2", { style: { margin: 0 } }, "Preview (Fallback)"),
+      React.createElement(
+        "p",
+        { style: { opacity: 0.8 } },
+        "Lokales Fallback (ohne Supabase). Dateien: ",
+        String(fileCount),
+      ),
+      userAppError
+        ? React.createElement(
+            "pre",
+            {
+              style: {
+                whiteSpace: "pre-wrap",
+                background: "#111",
+                color: "#fff",
+                padding: 12,
+                borderRadius: 8,
+                marginTop: 12,
+              },
+            },
+            String(userAppError?.message || userAppError),
+          )
+        : null,
+    );
   }
-  
-  // Render
-  loading.classList.add("hidden");
+
+
+  UserApp = await loadUserApp();
+
   const root = ReactDOM.createRoot(document.getElementById("app-root"));
   root.render(React.createElement(PreviewApp));
   
