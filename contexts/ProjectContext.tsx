@@ -1,6 +1,4 @@
 // contexts/ProjectContext.tsx (V15 - ALL CRITICAL FIXES APPLIED)
-import { v4 as uuidv4 } from "uuid";
-import { Mutex } from "async-mutex";
 import React, {
   createContext,
   useContext,
@@ -11,6 +9,9 @@ import React, {
   ReactNode,
 } from "react";
 import { Alert, AppState, AppStateStatus } from "react-native";
+import { v4 as uuidv4 } from "uuid";
+import { Mutex } from "async-mutex";
+
 import {
   ProjectData,
   ProjectFile,
@@ -18,17 +19,20 @@ import {
   ProjectContextProps,
   AutoFixRequest,
 } from "./types";
+
 import {
   saveProjectToStorage,
   loadProjectFromStorage,
   exportProjectAsZipFile,
   importProjectFromZipFile,
 } from "./projectStorage";
+
 import {
   getGitHubToken,
   getWorkflowRuns,
   pushFilesToRepo,
 } from "./githubService";
+
 // ✅ FIX: Einheitlicher Validator-Wrapper
 import { validateFilePath, validateFileContent } from "../lib/validators";
 import { BuildStatus, mapBuildStatus } from "../lib/buildStatusMapper";
@@ -41,6 +45,7 @@ import { CONFIG } from "../config";
 
 const loadTemplateFromFile = async (): Promise<ProjectFile[]> => {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const template = require("../templates/expo-sdk54-base.json");
     if (!Array.isArray(template) || template.length === 0) {
       throw new Error("Template ist ungültig");
@@ -59,6 +64,7 @@ const loadTemplateFromFile = async (): Promise<ProjectFile[]> => {
 };
 
 const SAVE_DEBOUNCE_MS = 500;
+
 const ProjectContext = createContext<ProjectContextProps | undefined>(
   undefined,
 );
@@ -81,8 +87,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   const [currentBuild, setCurrentBuild] = useState<CurrentBuildState | null>(
     null,
   );
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mutexRef = useRef(new Mutex());
 
   const [autoFixRequest, setAutoFixRequest] = useState<AutoFixRequest | null>(
@@ -91,6 +97,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
   const debouncedSave = useCallback((project: ProjectData) => {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+
     saveTimeoutRef.current = setTimeout(() => {
       // ✅ FIX: error typed (noImplicitAny)
       saveProjectToStorage(project).catch((error: unknown) => {
@@ -393,12 +400,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       try {
         console.log("APP START (Context V15 - ALL CRITICAL FIXES APPLIED)");
         const savedProject = await loadProjectFromStorage();
+
         if (savedProject) {
           console.log("📖 Projekt geladen:", savedProject.name);
           if (!savedProject.files) savedProject.files = [];
-          if (!savedProject.chatHistory) {
-            savedProject.chatHistory = [];
-          }
+          if (!savedProject.chatHistory) savedProject.chatHistory = [];
           setProjectData(savedProject);
         } else {
           console.log("Kein Projekt gefunden, lade neues Template...");
@@ -467,7 +473,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     return () => {
-      // ✅ Cleanup auf Unmount
       stopBuildPolling();
     };
   }, [stopBuildPolling]);
@@ -484,9 +489,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           },
         );
 
-        if (error) {
-          throw error;
-        }
+        if (error) throw error;
 
         const mapped: BuildStatus = mapBuildStatus(data?.status);
         const nowIso = new Date().toISOString();
@@ -502,7 +505,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
               html: data?.urls?.html ?? base.urls?.html ?? null,
               artifacts: data?.urls?.artifacts ?? base.urls?.artifacts ?? null,
               buildUrl:
-                // Legacy/Fallback (falls irgendein Backend das Feld anders nennt)
                 data?.build_url ??
                 data?.download_url ??
                 base.urls?.buildUrl ??
@@ -527,7 +529,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           };
         });
 
-        // Historie aktualisieren (best-effort)
         try {
           await updateBuildInHistory(jobId, {
             status: mapped,
@@ -541,7 +542,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           );
         }
 
-        // Final? → Polling stoppen
         if (["success", "failed", "error"].includes(mapped)) {
           stopBuildPolling();
         }
@@ -565,7 +565,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           };
         });
 
-        // Nach mehreren Fehlern aufgeben
         if (buildPollErrorCountRef.current >= 5) {
           stopBuildPolling();
         }
@@ -595,7 +594,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
             ? buildProfile
             : "preview";
 
-        // Bestehendes Polling stoppen (falls ein Build schon lief)
         stopBuildPolling();
 
         const startedAt = new Date().toISOString();
@@ -613,8 +611,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         // pushen wir (best-effort) die lokalen Projektdateien ins Repo.
         try {
           const [owner, repo] = githubRepo.split("/");
-          if (owner && repo && projectData.files?.length) {
-            await pushFilesToRepo(owner, repo, pd.files as any);
+          const localFiles = pd.files;
+
+          if (owner && repo && localFiles?.length) {
+            await pushFilesToRepo(owner, repo, localFiles as any);
           }
         } catch (e) {
           console.warn(
@@ -631,11 +631,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           },
         );
 
-        if (error) {
-          throw error;
-        }
+        if (error) throw error;
 
-        // Robust: verschiedene Response-Formate akzeptieren
         const jobId: number | null =
           typeof data?.jobId === "number"
             ? data.jobId
@@ -663,7 +660,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           lastUpdatedAt: new Date().toISOString(),
         }));
 
-        // Historie: Eintrag anlegen (best-effort)
         try {
           await addBuildToHistory({
             id: uuidv4(),
@@ -680,7 +676,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           );
         }
 
-        // Polling starten: sofort + Intervall
         await pollBuildStatusOnce(jobId);
         buildPollIntervalRef.current = setInterval(() => {
           const activeId = activeBuildJobIdRef.current;
