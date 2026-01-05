@@ -1,14 +1,16 @@
 // hooks/usePreview.ts
-// Custom hook for preview creation logic
+// Preview creation: prefer Supabase-hosted preview (save_preview -> preview_page).
+// Fallback: local HTML via buildSandpackHtml (best-effort).
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { ProjectData } from "../contexts/types";
 import { normalizePath } from "../utils/url";
 import { buildSandpackHtml } from "../lib/sandpackBuilder";
+import { ensureSupabaseClient } from "../lib/supabase";
+import type { PreviewFiles, PreviewResponse } from "../types/preview";
 
 type ProjectFile = { path?: string; content?: string };
 
-// Erlaubte Dateitypen für Preview
 const ALLOWED_EXTENSIONS = new Set([
   ".ts",
   ".tsx",
@@ -31,7 +33,6 @@ const ALLOWED_EXTENSIONS = new Set([
   ".gql",
 ]);
 
-// Ignorierte Pfade
 const IGNORED_PATTERNS = [
   "node_modules/",
   ".expo/",
@@ -46,16 +47,9 @@ const IGNORED_PATTERNS = [
 
 function isAllowedFile(path: string): boolean {
   const p = path.toLowerCase();
-
-  // Prüfe ignorierte Patterns
-  if (IGNORED_PATTERNS.some((pattern) => p.includes(pattern))) {
-    return false;
-  }
-
-  // Prüfe Erweiterung
+  if (IGNORED_PATTERNS.some((pattern) => p.includes(pattern))) return false;
   const ext = p.match(/\.[^./]+$/)?.[0];
   if (!ext) return false;
-
   return ALLOWED_EXTENSIONS.has(ext);
 }
 
@@ -75,37 +69,34 @@ export interface PreviewState {
   totalSize: number;
 }
 
+export type PreviewResult = {
+  url: string | null;
+  html: string | null;
+  expiresAt: string | null;
+  source: "supabase" | "local";
+};
+
 export interface UsePreviewReturn {
-  /** Aktueller Preview-Status */
   state: PreviewState;
-  /** Generierte File-Map für Sandpack */
   fileMap: Record<string, string>;
-  /** Extrahierte Dependencies aus package.json */
   dependencies: Record<string, string> | undefined;
-  /** Zuletzt generiertes HTML (für Re-Open) */
-  lastHtml: string | null;
-  /** Preview erstellen und HTML generieren */
-  createPreview: () => Promise<string | null>;
-  /** Preview zurücksetzen */
+  lastPreview: PreviewResult | null;
+  createPreview: () => Promise<PreviewResult | null>;
   reset: () => void;
 }
 
-/**
- * Hook für Preview-Erstellung mit Sandpack
- */
 export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
   const [isCreating, setIsCreating] = useState(false);
   const [lastCreatedAt, setLastCreatedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const lastHtmlRef = useRef<string | null>(null);
+  const lastPreviewRef = useRef<PreviewResult | null>(null);
 
-  // File-Map aus Projekt-Dateien erstellen
   const fileMap = useMemo(() => {
     const files: Record<string, string> = {};
     const list: ProjectFile[] = (projectData?.files as ProjectFile[]) || [];
 
     let total = 0;
-    const MAX_SIZE = 1_500_000; // 1.5 MB Limit
+    const MAX_SIZE = 1_500_000; // 1.5 MB local cap (save_preview has 3MB cap)
 
     for (const f of list) {
       const p = f?.path ? String(f.path) : "";
@@ -116,7 +107,6 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
       const content = String(f?.content ?? "");
       total += content.length;
 
-      // Größen-Limit prüfen
       if (total > MAX_SIZE) {
         console.warn(
           "[usePreview] ⚠️ Größen-Limit erreicht, weitere Dateien werden übersprungen",
@@ -130,7 +120,6 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
     return files;
   }, [projectData]);
 
-  // Dependencies aus package.json extrahieren
   const dependencies = useMemo(() => {
     const pkgRaw =
       fileMap["/package.json"] ||
@@ -145,19 +134,25 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
 
     const out: Record<string, string> = {};
     for (const [k, v] of Object.entries(deps)) {
-      // React-Native spezifische Packages ausfiltern (funktionieren nicht in Sandpack)
-      if (k.includes("react-native") || k.includes("expo-")) continue;
-      if (typeof v === "string") out[k] = v;
+      const key = String(k);
+
+      // Keep react-native-web if present; otherwise avoid RN/expo deps in plain web Sandpack.
+      if (key === "react-native-web") {
+        if (typeof v === "string") out[key] = v;
+        continue;
+      }
+      if (key === "react-native" || key.startsWith("react-native-")) continue;
+      if (key === "expo" || key.startsWith("expo-")) continue;
+
+      if (typeof v === "string") out[key] = v;
     }
 
-    // Immer React und React-DOM hinzufügen falls nicht vorhanden
     if (!out.react) out.react = "^18.2.0";
     if (!out["react-dom"]) out["react-dom"] = "^18.2.0";
 
     return Object.keys(out).length ? out : undefined;
   }, [fileMap]);
 
-  // Minimale Dateien sicherstellen
   const ensureMinimumFiles = useCallback(
     (files: Record<string, string>): Record<string, string> => {
       const hasIndex =
@@ -180,7 +175,6 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
 
       const out = { ...files };
 
-      // HTML Template
       if (!hasHtml) {
         out["/public/index.html"] = `<!DOCTYPE html>
 <html lang="de">
@@ -199,32 +193,24 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
 </html>`;
       }
 
-      // Default App-Komponente
       if (!hasApp) {
         out["/src/App.tsx"] = `import React from "react";
 
 export default function App() {
   return (
-    <div style={{ 
-      padding: 24, 
-      fontFamily: "system-ui", 
-      maxWidth: 600, 
-      margin: "0 auto" 
-    }}>
+    <div style={{ padding: 24, fontFamily: "system-ui", maxWidth: 640, margin: "0 auto" }}>
       <h1 style={{ color: "#00ff88", marginBottom: 8 }}>Preview läuft ✅</h1>
       <p style={{ color: "#888", lineHeight: 1.5 }}>
         Kein App-Einstiegspunkt gefunden. Dies ist eine Standard-Vorschau.
       </p>
       <p style={{ color: "#666", fontSize: 14, marginTop: 16 }}>
-        Erstelle eine <code>/src/App.tsx</code> oder <code>/App.tsx</code> Datei
-        um deine eigene App anzuzeigen.
+        Lege <code>/src/App.tsx</code> oder <code>/App.tsx</code> an, um deine App zu sehen.
       </p>
     </div>
   );
 }`;
       }
 
-      // Entry-Point
       if (!hasIndex) {
         out["/src/index.tsx"] = `import React from "react";
 import { createRoot } from "react-dom/client";
@@ -242,7 +228,6 @@ if (container) {
 `;
       }
 
-      // package.json
       if (!out["/package.json"]) {
         out["/package.json"] = JSON.stringify(
           {
@@ -264,8 +249,7 @@ if (container) {
     [],
   );
 
-  // Preview erstellen
-  const createPreview = useCallback(async (): Promise<string | null> => {
+  const createPreview = useCallback(async (): Promise<PreviewResult | null> => {
     if (!projectData) {
       setError("Kein Projekt geladen.");
       return null;
@@ -277,20 +261,82 @@ if (container) {
     try {
       const files = ensureMinimumFiles(fileMap);
 
-      const html = buildSandpackHtml({
-        title: projectData.name || "Preview",
-        files,
-        dependencies,
-      });
+      // 1) Prefer Supabase-hosted preview
+      try {
+        const supabase = await ensureSupabaseClient();
 
-      lastHtmlRef.current = html;
+        const snackFiles: PreviewFiles = {};
+        for (const [path, content] of Object.entries(files)) {
+          snackFiles[path] = { contents: content };
+        }
+
+        const { data, error: fnError } = await supabase.functions.invoke(
+          "save_preview",
+          {
+            body: {
+              projectId: projectData.id,
+              name: projectData.name || "Preview",
+              files: snackFiles,
+              dependencies,
+              meta: { template: "react" },
+            },
+          },
+        );
+
+        if (fnError) throw fnError;
+
+        const resp = data as PreviewResponse;
+        const previewUrl =
+          typeof resp?.previewUrl === "string" ? resp.previewUrl : null;
+
+        if (resp?.ok && previewUrl) {
+          const result: PreviewResult = {
+            url: previewUrl,
+            html: null,
+            expiresAt: resp?.expiresAt ?? null,
+            source: "supabase",
+          };
+          lastPreviewRef.current = result;
+          setLastCreatedAt(Date.now());
+          return result;
+        }
+
+        throw new Error(resp?.error || "Preview konnte nicht erstellt werden");
+      } catch (supErr: unknown) {
+        console.warn(
+          "[usePreview] ⚠️ Supabase Preview fehlgeschlagen, fallback auf Local HTML:",
+          supErr,
+        );
+      }
+
+      // 2) Fallback: Local HTML (best-effort). If this fails too, return a clear error.
+      let html: string;
+      try {
+        html = buildSandpackHtml({
+          title: projectData.name || "Preview",
+          files,
+          dependencies,
+        });
+      } catch (e) {
+        console.error("[usePreview] ❌ buildSandpackHtml failed:", e);
+        setError("Local Preview konnte nicht erzeugt werden.");
+        return null;
+      }
+
+      if (!html || typeof html !== "string") {
+        setError("Local Preview konnte nicht erzeugt werden.");
+        return null;
+      }
+
+      const fallback: PreviewResult = {
+        url: null,
+        html,
+        expiresAt: null,
+        source: "local",
+      };
+      lastPreviewRef.current = fallback;
       setLastCreatedAt(Date.now());
-
-      console.log(
-        `[usePreview] ✅ Preview erstellt: ${Object.keys(files).length} Dateien`,
-      );
-
-      return html;
+      return fallback;
     } catch (e: unknown) {
       const message =
         e instanceof Error ? e.message : "Unbekannter Fehler beim Erstellen.";
@@ -302,14 +348,12 @@ if (container) {
     }
   }, [projectData, fileMap, dependencies, ensureMinimumFiles]);
 
-  // Reset
   const reset = useCallback(() => {
-    lastHtmlRef.current = null;
+    lastPreviewRef.current = null;
     setLastCreatedAt(null);
     setError(null);
   }, []);
 
-  // State-Objekt
   const state: PreviewState = useMemo(
     () => ({
       isCreating,
@@ -328,7 +372,7 @@ if (container) {
     state,
     fileMap,
     dependencies,
-    lastHtml: lastHtmlRef.current,
+    lastPreview: lastPreviewRef.current,
     createPreview,
     reset,
   };

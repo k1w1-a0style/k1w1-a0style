@@ -20,64 +20,65 @@ import { usePreview } from "../hooks/usePreview";
 import { theme } from "../theme";
 
 /**
- * PreviewScreen - In-App Preview mit Sandpack
- * - Erstellt Sandpack-Preview im WebView
- * - Kein externer Browser, alles in der App
- * - Zeigt Projektdateien-Übersicht
+ * PreviewScreen
+ * - Erstellt bevorzugt Supabase-Preview (URL)
+ * - Fallback: Local HTML
  */
 
 export default function PreviewScreen() {
   const navigation = useNavigation<any>();
   const { projectData, isLoading } = useProject();
 
-  const { state, fileMap, dependencies, lastHtml, createPreview, reset } =
+  const { state, dependencies, lastPreview, createPreview, reset } =
     usePreview(projectData);
 
-  // Vollbild öffnen
   const openFullscreen = useCallback(
-    (html: string) => {
+    (preview: { url: string | null; html: string | null }) => {
       navigation.navigate("PreviewFullscreen", {
-        html,
+        url: preview.url ?? undefined,
+        html: preview.html ?? undefined,
         title: projectData?.name || "Preview",
       });
     },
     [navigation, projectData?.name],
   );
 
-  // Neue Preview erstellen und öffnen
   const handleCreateAndOpen = useCallback(async () => {
-    const html = await createPreview();
-    if (html) {
-      openFullscreen(html);
+    const result = await createPreview();
+    if (result) {
+      openFullscreen(result);
     } else if (state.error) {
       Alert.alert("❌ Preview-Fehler", state.error);
     }
   }, [createPreview, openFullscreen, state.error]);
 
-  // Letzte Preview erneut öffnen
   const handleReopenLast = useCallback(() => {
-    if (!lastHtml) {
+    if (!lastPreview) {
       Alert.alert("⚠️ Keine Preview", "Erstelle zuerst eine neue Preview.");
       return;
     }
-    openFullscreen(lastHtml);
-  }, [lastHtml, openFullscreen]);
+    openFullscreen(lastPreview);
+  }, [lastPreview, openFullscreen]);
 
-  // HTML in Zwischenablage kopieren
-  const handleCopyHtml = useCallback(async () => {
-    if (!lastHtml) {
+  const handleCopy = useCallback(async () => {
+    if (!lastPreview) {
       Alert.alert("⚠️ Keine Preview", "Erstelle zuerst eine Preview.");
       return;
     }
+    const textToCopy = lastPreview.url || lastPreview.html || "";
     try {
-      await Clipboard.setStringAsync(lastHtml);
-      Alert.alert("✅ Kopiert", "HTML wurde in die Zwischenablage kopiert.");
+      await Clipboard.setStringAsync(textToCopy);
+      Alert.alert(
+        "✅ Kopiert",
+        lastPreview.url
+          ? "Preview-URL wurde kopiert."
+          : "HTML wurde in die Zwischenablage kopiert.",
+      );
     } catch {
-      Alert.alert("❌ Fehler", "Konnte HTML nicht kopieren.");
+      Alert.alert("❌ Fehler", "Konnte nicht kopieren.");
     }
-  }, [lastHtml]);
+  }, [lastPreview]);
 
-  // Letzte Erstellung formatieren
   const lastCreatedText = useMemo(() => {
     if (!state.lastCreatedAt) return null;
     return new Date(state.lastCreatedAt).toLocaleTimeString("de-DE", {
@@ -87,14 +88,12 @@ export default function PreviewScreen() {
     });
   }, [state.lastCreatedAt]);
 
-  // File-Stats
   const fileStats = useMemo(() => {
     const count = state.fileCount;
     const sizeKb = (state.totalSize / 1024).toFixed(1);
     return `${count} Datei${count !== 1 ? "en" : ""} (${sizeKb} KB)`;
   }, [state.fileCount, state.totalSize]);
 
-  // Dependencies-Liste (Top 5)
   const depsList = useMemo(() => {
     if (!dependencies) return null;
     const entries = Object.entries(dependencies);
@@ -106,7 +105,6 @@ export default function PreviewScreen() {
     };
   }, [dependencies]);
 
-  // Loading State
   if (isLoading) {
     return (
       <SafeAreaView style={styles.screen}>
@@ -118,7 +116,6 @@ export default function PreviewScreen() {
     );
   }
 
-  // Kein Projekt State
   if (!projectData) {
     return (
       <SafeAreaView style={styles.screen}>
@@ -135,7 +132,6 @@ export default function PreviewScreen() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Ionicons
@@ -175,7 +171,6 @@ export default function PreviewScreen() {
         style={styles.body}
         contentContainerStyle={styles.bodyContent}
       >
-        {/* Status Card */}
         {lastCreatedText && (
           <View style={styles.statusCard}>
             <View style={styles.statusRow}>
@@ -189,6 +184,29 @@ export default function PreviewScreen() {
               </Text>
             </View>
 
+            {!!lastPreview?.source && (
+              <View style={styles.sourceRow}>
+                <Ionicons
+                  name={
+                    lastPreview.source === "supabase"
+                      ? "cloud-done-outline"
+                      : "flask-outline"
+                  }
+                  size={16}
+                  color={
+                    lastPreview.source === "supabase"
+                      ? theme.palette.primary
+                      : theme.palette.text.secondary
+                  }
+                />
+                <Text style={styles.sourceText}>
+                  {lastPreview.source === "supabase"
+                    ? "Quelle: Supabase Preview (stabil)"
+                    : "Quelle: Local Preview (experimentell)"}
+                </Text>
+              </View>
+            )}
+
             <View style={styles.statusActions}>
               <Pressable style={styles.statusBtn} onPress={handleReopenLast}>
                 <Ionicons
@@ -199,7 +217,7 @@ export default function PreviewScreen() {
                 <Text style={styles.statusBtnText}>Öffnen</Text>
               </Pressable>
 
-              <Pressable style={styles.statusBtn} onPress={handleCopyHtml}>
+              <Pressable style={styles.statusBtn} onPress={handleCopy}>
                 <Ionicons
                   name="copy-outline"
                   size={16}
@@ -227,7 +245,6 @@ export default function PreviewScreen() {
           </View>
         )}
 
-        {/* Error Banner */}
         {state.error && (
           <View style={styles.errorCard}>
             <Ionicons name="warning" size={20} color={theme.palette.error} />
@@ -235,24 +252,6 @@ export default function PreviewScreen() {
           </View>
         )}
 
-        {/* Info Card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Ionicons
-              name="information-circle-outline"
-              size={20}
-              color={theme.palette.primary}
-            />
-            <Text style={styles.cardTitle}>Wie funktioniert es?</Text>
-          </View>
-          <Text style={styles.cardText}>
-            • Preview läuft im WebView mit Sandpack{"\n"}• Kein Browser-Wechsel
-            nötig{"\n"}• Unterstützt React, TypeScript, CSS{"\n"}• Benötigt
-            Internetverbindung für Module
-          </Text>
-        </View>
-
-        {/* Files Card */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Ionicons
@@ -263,16 +262,30 @@ export default function PreviewScreen() {
             <Text style={styles.cardTitle}>Projekt-Dateien</Text>
           </View>
           <Text style={styles.statsText}>{fileStats}</Text>
-
           {state.fileCount === 0 && (
-            <Text style={styles.hintText}>
-              Keine Preview-fähigen Dateien gefunden. Erstelle .tsx, .jsx, .ts
-              oder .js Dateien.
+            <Text style={styles.cardText}>
+              Keine Preview-fähigen Dateien gefunden.
             </Text>
           )}
         </View>
 
-        {/* Dependencies Card */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons
+              name="information-circle-outline"
+              size={20}
+              color={theme.palette.primary}
+            />
+            <Text style={styles.cardTitle}>Hinweis</Text>
+          </View>
+          <Text style={styles.cardText}>
+            • Preview ist eine Sandbox: keine Secrets/Keys in Dateien{"\n"}• Für
+            “echte” Vorschau wird Supabase-Preview (URL) bevorzugt{"\n"}•
+            Fallback ist Local HTML (best-effort){"\n"}• Internet wird für
+            Module benötigt
+          </Text>
+        </View>
+
         {depsList && (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
@@ -300,7 +313,6 @@ export default function PreviewScreen() {
           </View>
         )}
 
-        {/* Hint */}
         <View style={styles.hint}>
           <Ionicons
             name="bulb-outline"
@@ -308,8 +320,8 @@ export default function PreviewScreen() {
             color={theme.palette.text.secondary}
           />
           <Text style={styles.hintText}>
-            Tipp: Wenn nichts lädt, prüfe deine Internetverbindung. Sandpack
-            lädt Module über esm.sh.
+            Wenn du im Vollbild nur “weiß” siehst: meist CSP oder Netzwerk. Mit
+            Supabase-URL-Preview bist du i.d.R. stabiler.
           </Text>
         </View>
       </ScrollView>
@@ -323,7 +335,6 @@ const styles = StyleSheet.create({
     backgroundColor: theme.palette.background,
   },
 
-  // Header
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -357,7 +368,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  // Body
   body: {
     flex: 1,
   },
@@ -366,7 +376,6 @@ const styles = StyleSheet.create({
     gap: 14,
   },
 
-  // Status Card
   statusCard: {
     backgroundColor: theme.palette.card,
     borderWidth: 1,
@@ -383,6 +392,17 @@ const styles = StyleSheet.create({
     color: theme.palette.text.primary,
     fontSize: 14,
     fontWeight: "600",
+  },
+  sourceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 8,
+    marginTop: 10,
+  },
+  sourceText: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    fontWeight: "700",
   },
   statusActions: {
     flexDirection: "row",
@@ -406,7 +426,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
-  // Error Card
   errorCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -424,7 +443,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  // Cards
   card: {
     borderWidth: 1,
     borderColor: theme.palette.border,
@@ -451,10 +469,9 @@ const styles = StyleSheet.create({
   statsText: {
     color: theme.palette.text.primary,
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "800",
   },
 
-  // Dependencies
   depsList: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -478,7 +495,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  // Buttons
   btn: {
     flexDirection: "row",
     alignItems: "center",
@@ -505,7 +521,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  // Center/Empty States
   center: {
     flex: 1,
     alignItems: "center",
@@ -534,7 +549,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  // Hints
   hint: {
     flexDirection: "row",
     alignItems: "flex-start",
