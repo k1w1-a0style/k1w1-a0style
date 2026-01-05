@@ -81,6 +81,14 @@ const ensureGitHubRepoParts = (
   return { owner, repo };
 };
 
+// GitHub Contents API expects slashes as path separators. Encode each segment, not the whole string.
+const encodeGitHubPath = (p: string): string => {
+  return p
+    .split("/")
+    .map((seg) => encodeURIComponent(seg))
+    .join("/");
+};
+
 /**
  * Speichert GitHub Token (SecureStore - verschlüsselt)
  */
@@ -159,7 +167,7 @@ export const syncRepoSecrets = async (
   const { owner, repo } = ensureGitHubRepoParts(repoFullName);
   const headers = {
     Accept: "application/vnd.github+json",
-    Authorization: `token ${token}`,
+    Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
   };
 
@@ -240,7 +248,8 @@ export const createRepo = async (repoName: string, isPrivate = true) => {
   const resp = await fetch("https://api.github.com/user/repos", {
     method: "POST",
     headers: {
-      Authorization: `token ${token}`,
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ name: repoName, private: isPrivate }),
@@ -278,7 +287,10 @@ export const createRepo = async (repoName: string, isPrivate = true) => {
       try {
         await githubLimiter.checkLimit();
         const userResp = await fetch("https://api.github.com/user", {
-          headers: { Authorization: `token ${token}` },
+          headers: {
+            Accept: "application/vnd.github+json",
+            Authorization: `Bearer ${token}`,
+          },
         });
         const userData = await userResp.json();
         if (!userData.login)
@@ -312,6 +324,7 @@ export const createOrUpdateFile = async (
   path: string,
   content: string,
   message = "Add file",
+  branch = "main",
 ) => {
   const token = await getGitHubToken();
   if (!token) throw new Error("GitHub token fehlt.");
@@ -320,8 +333,13 @@ export const createOrUpdateFile = async (
   await githubLimiter.checkLimit();
 
   const getResp = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`,
-    { headers: { Authorization: `token ${token}` } },
+    `https://api.github.com/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}`,
+    {
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+      },
+    },
   );
 
   let sha: string | undefined = undefined;
@@ -333,7 +351,7 @@ export const createOrUpdateFile = async (
   const body: any = {
     message,
     content: Buffer.from(content, "utf8").toString("base64"),
-    branch: "main",
+    branch,
   };
   if (sha) body.sha = sha;
 
@@ -341,18 +359,28 @@ export const createOrUpdateFile = async (
   await githubLimiter.checkLimit();
 
   const putResp = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`,
+    `https://api.github.com/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}`,
     {
       method: "PUT",
       headers: {
-        Authorization: `token ${token}`,
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
     },
   );
 
-  const json = await putResp.json();
+  let json: any;
+  try {
+    json = await putResp.json();
+  } catch {
+    const text = await putResp.text();
+    throw new Error(
+      `create/update file failed (${putResp.status}): ${path} -> ${text}`,
+    );
+  }
+
   if (!putResp.ok) {
     const status = putResp.status;
     if (status === 401) throw new Error("GitHub Token ungültig.");
@@ -367,12 +395,20 @@ export const pushFilesToRepo = async (
   owner: string,
   repo: string,
   files: ProjectFile[],
+  branch = "main",
 ) => {
   const sortedFiles = [...files].sort((a, b) => a.path.localeCompare(b.path));
   for (const f of sortedFiles) {
     if (!f.path) continue;
     console.log(`Pushing ${f.path}...`);
-    await createOrUpdateFile(owner, repo, f.path, f.content, `Add ${f.path}`);
+    await createOrUpdateFile(
+      owner,
+      repo,
+      f.path,
+      f.content,
+      `Add ${f.path}`,
+      branch,
+    );
   }
 };
 
@@ -393,7 +429,8 @@ export const triggerWorkflow = async (
   const resp = await fetch(url, {
     method: "POST",
     headers: {
-      Authorization: `token ${token}`,
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ ref, inputs }),
@@ -429,7 +466,10 @@ export const getWorkflowRuns = async (
 
   const url = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowFileName)}/runs?per_page=5`;
   const resp = await fetch(url, {
-    headers: { Authorization: `token ${token}` },
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+    },
   });
 
   // ✅ Check Rate Limit Headers
@@ -475,7 +515,7 @@ export const getAllWorkflowRuns = async (
   const resp = await fetch(url, {
     headers: {
       Accept: "application/vnd.github+json",
-      Authorization: `token ${token}`,
+      Authorization: `Bearer ${token}`,
     },
   });
 
@@ -526,7 +566,7 @@ export const getBranches = async (
   const resp = await fetch(url, {
     headers: {
       Accept: "application/vnd.github+json",
-      Authorization: `token ${token}`,
+      Authorization: `Bearer ${token}`,
     },
   });
 
@@ -558,7 +598,7 @@ export const getDefaultBranch = async (
   const resp = await fetch(url, {
     headers: {
       Accept: "application/vnd.github+json",
-      Authorization: `token ${token}`,
+      Authorization: `Bearer ${token}`,
     },
   });
 

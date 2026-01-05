@@ -181,18 +181,23 @@ export default function GitHubReposScreen() {
     if (!parsed) return;
     setIsPushing(true);
     try {
+      const branch = activeBranch ?? "main";
       await pushFilesToRepo(
         parsed.owner,
         parsed.repo,
         projectData.files as any,
+        branch,
       );
-      Alert.alert("✅ Push erfolgreich", `Dateien nach ${activeRepo} gepusht.`);
+      Alert.alert(
+        "✅ Push erfolgreich",
+        `Dateien nach ${activeRepo} (Branch: ${activeBranch ?? "main"}) gepusht.`,
+      );
     } catch (e: any) {
       Alert.alert("❌ Push Fehler", e?.message ?? "");
     } finally {
       setIsPushing(false);
     }
-  }, [activeRepo, projectData?.files]);
+  }, [activeRepo, activeBranch, projectData?.files]);
 
   const handlePull = useCallback(async () => {
     if (!token || !activeRepo) {

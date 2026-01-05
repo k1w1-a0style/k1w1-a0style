@@ -1,11 +1,11 @@
 name: K1W1 App Build
 
 on:
-  # Triggered by Supabase Function via repository_dispatch
+  # Triggered by Supabase Edge Function via repository_dispatch
   repository_dispatch:
     types: [trigger-eas-build]
 
-  # Manual trigger from GitHub UI
+  # Manual trigger from GitHub UI (optional)
   workflow_dispatch:
     inputs:
       job_id:
@@ -13,20 +13,22 @@ on:
         required: false
         type: string
       profile:
-        description: "Optional EAS build profile (development|preview|production)"
+        description: "EAS build profile (development|preview|production)"
         required: false
         default: "preview"
         type: string
 
 jobs:
   build:
-    name: EAS Build (K1W1)
+    name: EAS Build (Android, WAIT)
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      # repo_dispatch sends github.event.client_payload.job_id
+      # workflow_dispatch sends inputs.job_id
       JOB_ID: ${{ github.event.client_payload.job_id || inputs.job_id || '' }}
 
     steps:
@@ -54,7 +56,7 @@ jobs:
             PROFILE="preview"
           fi
 
-          echo "PROFILE=${PROFILE}" >> "$GITHUB_ENV"
+          echo "PROFILE=${PROFILE}" >> "${GITHUB_ENV}"
           echo "✅ Using build profile: ${PROFILE}"
 
       - name: Validate Job ID
@@ -62,11 +64,11 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${JOB_ID}" ]; then
-            echo "⚠️ Warning: No Job ID provided. Skipping Supabase status updates."
-            echo "has_job_id=false" >> $GITHUB_ENV
+            echo "has_job_id=false" >> "${GITHUB_ENV}"
+            echo "⚠️ No JOB_ID provided -> Supabase status updates will be skipped."
           else
-            echo "✅ Job ID: ${JOB_ID}"
-            echo "has_job_id=true" >> $GITHUB_ENV
+            echo "has_job_id=true" >> "${GITHUB_ENV}"
+            echo "✅ JOB_ID: ${JOB_ID}"
           fi
 
       - name: Setup Node
@@ -103,7 +105,7 @@ jobs:
           eas whoami
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Update Build Status - Building
         if: env.has_job_id == 'true'
@@ -134,10 +136,10 @@ jobs:
             --non-interactive \
             --wait \
             2>&1)" || {
-              EXIT_CODE=$?
+              CODE=$?
               echo "${BUILD_OUTPUT}"
-              echo "::error::EAS build failed with exit code ${EXIT_CODE}"
-              exit ${EXIT_CODE}
+              echo "::error::EAS build failed (exit ${CODE})"
+              exit "${CODE}"
             }
 
           echo "${BUILD_OUTPUT}"
@@ -149,9 +151,9 @@ jobs:
 
           BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oP 'https://expo\.dev/accounts/[^/]+/projects/[^/]+/builds/[a-fA-F0-9-]+' | head -n1 || true)"
           echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"
-          echo "🔗 Build URL: ${BUILD_URL}"
+          if [ -n "${BUILD_URL}" ]; then echo "🔗 Build URL: ${BUILD_URL}"; fi
 
-      - name: Download Android APK
+      - name: Download Android Artifact (APK)
         if: steps.eas.outputs.build_id != 'unknown' && steps.eas.outputs.build_id != ''
         continue-on-error: true
         shell: bash
@@ -159,10 +161,12 @@ jobs:
           set -euo pipefail
           mkdir -p build
           echo "📦 Downloading APK for build: ${{ steps.eas.outputs.build_id }}"
-          eas build:download --id "${{ steps.eas.outputs.build_id }}" --output "build/k1w1-${PROFILE}.apk" || {
-            echo "::warning::Failed to download APK"
-            exit 0
-          }
+          eas build:download \
+            --id "${{ steps.eas.outputs.build_id }}" \
+            --output "build/k1w1-${PROFILE}.apk" || {
+              echo "::warning::Failed to download APK"
+              exit 0
+            }
           ls -lah build || true
 
       - name: Upload Android Artifact

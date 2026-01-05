@@ -1,4 +1,4 @@
-name: EAS Android Build
+name: EAS Android Build (WAIT)
 
 on:
   workflow_dispatch:
@@ -15,13 +15,13 @@ on:
 
 jobs:
   eas-android:
-    name: Run EAS Build (Android)
+    name: EAS Build (Android)
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
     env:
       PROFILE: ${{ inputs.profile }}
-      JOB_ID: ${{ inputs.job_id }}
+      JOB_ID: ${{ inputs.job_id || '' }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
@@ -33,21 +33,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${PROFILE}" ]]; then
-            echo "::error::profile is required"
+
+          if [[ ! "${PROFILE}" =~ ^(development|preview|production)$ ]]; then
+            echo "::error::Invalid profile: ${PROFILE} (use development|preview|production)"
             exit 1
           fi
-          if [[ "${PROFILE}" != "development" && "${PROFILE}" != "preview" && "${PROFILE}" != "production" ]]; then
-            echo "::error::Invalid profile: ${PROFILE}"
-            echo "Use: development | preview | production"
-            exit 1
+
+          if [ -n "${JOB_ID}" ]; then
+            echo "has_job_id=true" >> "${GITHUB_ENV}"
+            echo "✅ JOB_ID: ${JOB_ID}"
+          else
+            echo "has_job_id=false" >> "${GITHUB_ENV}"
+            echo "⚠️ No JOB_ID provided -> Supabase status updates will be skipped."
           fi
-          echo "✓ profile=${PROFILE}"
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20.x
+          node-version: 20
           cache: npm
 
       - name: Ensure EXPO_TOKEN exists
@@ -58,6 +61,7 @@ jobs:
             echo "::error::Missing GitHub Secret EXPO_TOKEN"
             exit 1
           fi
+          echo "✅ EXPO_TOKEN secret is set"
 
       - name: Setup Expo & EAS
         uses: expo/expo-github-action@v8
@@ -79,21 +83,20 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Update build status -> building (optional)
-        if: ${{ env.JOB_ID != '' }}
+      - name: Update build status -> building
+        if: env.has_job_id == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${SUPABASE_URL}" || -z "${SUPABASE_SERVICE_ROLE_KEY}" ]]; then
-            echo "::warning::Supabase secrets missing, skipping status update."
-            exit 0
-          fi
           TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          curl --fail-with-body --silent --show-error -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+
+          curl --fail-with-body --silent --show-error \
+            -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
-            -d "{\"status\":\"building\",\"github_run_id\":\"${GITHUB_RUN_ID}\",\"started_at\":\"${TS}\"}" \
+            -H "Prefer: return=minimal" \
+            -d "{\"status\":\"building\",\"build_profile\":\"${PROFILE}\",\"github_run_id\":\"${{ github.run_id }}\",\"started_at\":\"${TS}\"}" \
             || echo "::warning::Failed to update Supabase status"
 
       - name: Run EAS build (WAIT)
@@ -101,45 +104,83 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "Starting EAS cloud build (WAIT)..."
-          BUILD_OUTPUT="$(eas build --platform android --profile "${PROFILE}" --non-interactive --wait 2>&1)" || {
-            EXIT_CODE=$?
-            echo "${BUILD_OUTPUT}"
-            exit ${EXIT_CODE}
-          }
+          echo "🚀 Starting EAS build (android, profile=${PROFILE}) with --wait..."
+
+          BUILD_OUTPUT="$(eas build \
+            --platform android \
+            --profile "${PROFILE}" \
+            --non-interactive \
+            --wait \
+            2>&1)" || {
+              CODE=$?
+              echo "${BUILD_OUTPUT}"
+              echo "::error::EAS build failed (exit ${CODE})"
+              exit "${CODE}"
+            }
+
           echo "${BUILD_OUTPUT}"
+
           BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oP 'Build ID:\s*\K[a-fA-F0-9-]+' | head -n1 || true)"
           if [ -z "${BUILD_ID}" ]; then BUILD_ID="unknown"; fi
           echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
 
-      - name: Update build status -> completed (optional)
-        if: ${{ success() && env.JOB_ID != '' }}
+          BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oP 'https://expo\.dev/accounts/[^/]+/projects/[^/]+/builds/[a-fA-F0-9-]+' | head -n1 || true)"
+          echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"
+
+      - name: Download Android APK
+        if: steps.eas.outputs.build_id != 'unknown' && steps.eas.outputs.build_id != ''
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${SUPABASE_URL}" || -z "${SUPABASE_SERVICE_ROLE_KEY}" ]]; then
-            echo "::warning::Supabase secrets missing, skipping status update."
-            exit 0
-          fi
-          curl --fail-with-body --silent --show-error -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+          mkdir -p build
+          eas build:download \
+            --id "${{ steps.eas.outputs.build_id }}" \
+            --output "build/k1w1-${PROFILE}.apk" || {
+              echo "::warning::Failed to download APK"
+              exit 0
+            }
+          ls -lah build || true
+
+      - name: Upload Android Artifact
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: k1w1-android-${{ env.PROFILE }}-${{ github.run_number }}
+          path: build/*.apk
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Update build status -> completed
+        if: success() && env.has_job_id == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+          curl --fail-with-body --silent --show-error \
+            -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
-            -d "{\"status\":\"completed\",\"eas_build_id\":\"${{ steps.eas.outputs.build_id }}\"}" \
+            -H "Prefer: return=minimal" \
+            -d "{\"status\":\"completed\",\"eas_build_id\":\"${{ steps.eas.outputs.build_id }}\",\"build_url\":\"${{ steps.eas.outputs.build_url }}\",\"completed_at\":\"${TS}\"}" \
             || echo "::warning::Failed to update Supabase status"
 
-      - name: Update build status -> error (optional)
-        if: ${{ failure() && env.JOB_ID != '' }}
+      - name: Update build status -> error
+        if: failure() && env.has_job_id == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${SUPABASE_URL}" || -z "${SUPABASE_SERVICE_ROLE_KEY}" ]]; then
-            echo "::warning::Supabase secrets missing, skipping status update."
-            exit 0
-          fi
-          curl --fail-with-body --silent --show-error -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+          TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          ERR="Build failed. Check GitHub Actions logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          curl --fail-with-body --silent --show-error \
+            -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
-            -d "{\"status\":\"error\"}" \
+            -H "Prefer: return=minimal" \
+            -d "{\"status\":\"error\",\"github_run_id\":\"${{ github.run_id }}\",\"error_message\":\"${ERR}\",\"completed_at\":\"${TS}\"}" \
             || echo "::warning::Failed to update Supabase status"
