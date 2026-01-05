@@ -475,20 +475,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   const pollBuildStatusOnce = useCallback(
     async (jobId: number) => {
       try {
-        // ✅ Build läuft auf GitHub. Damit wirklich der aktuelle Stand gebaut wird,
-        // pushen wir (best-effort) die lokalen Projektdateien ins Repo.
-        try {
-          const [owner, repo] = githubRepo.split("/");
-          if (owner && repo && projectData.files?.length) {
-            await pushFilesToRepo(owner, repo, projectData.files as any);
-          }
-        } catch (e) {
-          console.warn(
-            "⚠️ Auto-Push nach GitHub fehlgeschlagen. Build nutzt evtl. alten Repo-Stand:",
-            e,
-          );
-        }
-
         const supabase = await ensureSupabaseClient();
 
         const { data, error } = await supabase.functions.invoke(
@@ -591,13 +577,15 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   const startBuild = useCallback(
     async (buildProfile?: string) => {
       try {
-        if (!projectData?.files || projectData.files.length === 0) {
+        const pd = projectData;
+        if (!pd?.files || pd.files.length === 0) {
           throw new Error("Projekt ist leer. Es gibt keine Dateien zum Bauen.");
         }
 
         // Repo Quelle: Projekt-Link → Fallback Config
-        const githubRepo =
-          projectData.linkedRepo?.trim() || CONFIG.BUILD.GITHUB_REPO;
+        const githubRepo = (
+          pd.linkedRepo?.trim() || CONFIG.BUILD.GITHUB_REPO
+        ).trim();
 
         // Build Profile: nur erlaubte Werte (Default: preview)
         const profile =
@@ -626,7 +614,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         try {
           const [owner, repo] = githubRepo.split("/");
           if (owner && repo && projectData.files?.length) {
-            await pushFilesToRepo(owner, repo, projectData.files as any);
+            await pushFilesToRepo(owner, repo, pd.files as any);
           }
         } catch (e) {
           console.warn(
