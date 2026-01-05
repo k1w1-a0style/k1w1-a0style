@@ -31,6 +31,7 @@ import {
   getGitHubToken,
   getWorkflowRuns,
   pushFilesToRepo,
+  getDefaultBranch,
 } from "./githubService";
 
 // ✅ FIX: Einheitlicher Validator-Wrapper
@@ -614,7 +615,25 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           const localFiles = pd.files;
 
           if (owner && repo && localFiles?.length) {
-            await pushFilesToRepo(owner, repo, localFiles as any);
+            // ✅ Branch: linkedBranch → repo default branch → fallback main
+            let branchToUse =
+              typeof pd.linkedBranch === "string" ? pd.linkedBranch.trim() : "";
+
+            if (!branchToUse) {
+              try {
+                branchToUse = (await getDefaultBranch(owner, repo)).trim();
+              } catch (err) {
+                console.warn(
+                  "⚠️ Default-Branch konnte nicht ermittelt werden, fallback auf 'main':",
+                  err,
+                );
+                branchToUse = "main";
+              }
+            }
+
+            if (!branchToUse) branchToUse = "main";
+
+            await pushFilesToRepo(owner, repo, localFiles as any, branchToUse);
           }
         } catch (e) {
           console.warn(

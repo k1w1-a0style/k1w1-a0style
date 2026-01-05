@@ -581,15 +581,14 @@ export const createOrUpdateFile = async (
   // ✅ Rate Limit Check
   await githubLimiter.checkLimit();
 
-  const getResp = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}`,
-    {
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${token}`,
-      },
+  // ✅ FIX: SHA muss aus *dem gleichen Branch* kommen, sonst mismatch beim PUT
+  const getUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}?ref=${encodeURIComponent(branch)}`;
+  const getResp = await fetch(getUrl, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
     },
-  );
+  });
 
   let sha: string | undefined = undefined;
   if (getResp.ok) {
@@ -694,7 +693,7 @@ export const triggerWorkflow = async (
     throw new Error("Keine Berechtigung für Workflow-Trigger.");
   if (status === 404) {
     throw new Error(
-      `Workflow nicht gefunden. Stelle sicher, dass '${workflowFileName}' im '.github/workflows' Ordner auf GitHub (Branch 'main') existiert.`,
+      `Workflow nicht gefunden. Stelle sicher, dass '${workflowFileName}' im '.github/workflows' Ordner auf GitHub (Branch '${ref}') existiert.`,
     );
   }
 
