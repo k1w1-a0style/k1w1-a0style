@@ -19,11 +19,7 @@ const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
- * Sliding window limiter (Tests erwarten warn + wait-Logik).
- *
- * WICHTIG: Wir behandeln das Zeitfenster "inklusiv" (<= windowMs),
- * damit Fake-Timer-Tests mit advanceTimersByTime(windowMs) nicht genau
- * auf die Kante fallen und dadurch das Limit "weggefiltert" wird.
+ * Sliding window limiter (einfach, tests erwarten warn + wait).
  */
 export class RateLimiter {
   private maxRequests: number;
@@ -44,31 +40,23 @@ export class RateLimiter {
 
   private async checkLimitInternal(): Promise<void> {
     const now = Date.now();
-
-    // inclusive window to avoid edge-case in fake-timer tests
+    // inclusive window to ensure boundary cases behave deterministically in tests
     this.requests = this.requests.filter((t) => now - t <= this.windowMs);
 
     if (this.requests.length >= this.maxRequests) {
       const oldest = Math.min(...this.requests);
       const resetAt = oldest + this.windowMs;
-      const waitTime = Math.max(0, resetAt - now);
+      // IMPORTANT: avoid zero-wait under fake timers -> ensure at least 1ms wait
+      const waitTime = Math.max(1, resetAt - now);
 
       console.warn(
         `[RateLimiter] Rate limit exceeded. Waiting ${waitTime}ms before proceeding.`,
       );
 
-      // Only wait if actually needed.
-      // With fake timers, waiting for 0ms can be problematic / never flushed by the test.
-      if (waitTime > 0) {
-        await sleep(waitTime);
+      await sleep(waitTime);
 
-        const now2 = Date.now();
-        this.requests = this.requests.filter((t) => now2 - t <= this.windowMs);
-      } else {
-        // still re-filter once (no-op usually) to keep state consistent
-        const now2 = Date.now();
-        this.requests = this.requests.filter((t) => now2 - t <= this.windowMs);
-      }
+      const now2 = Date.now();
+      this.requests = this.requests.filter((t) => now2 - t <= this.windowMs);
     }
 
     this.requests.push(Date.now());
@@ -94,7 +82,7 @@ export interface TokenBucketConfig extends RateLimitConfig {
 }
 
 /**
- * Token Bucket mit kontinuierlichem Refill.
+ * Token Bucket mit kontinuierlichem Refill (wichtig für euren Test bei 500ms).
  */
 export class TokenBucketRateLimiter {
   private maxRequests: number;
@@ -124,6 +112,7 @@ export class TokenBucketRateLimiter {
     const elapsed = now - this.lastRefill;
     if (elapsed <= 0) return;
 
+    // continuous refill: maxRequests tokens per windowMs
     const refillRate = this.maxRequests / this.windowMs; // tokens per ms
     const add = elapsed * refillRate;
 
@@ -151,6 +140,7 @@ export class TokenBucketRateLimiter {
       effective = this.burstLimit;
     }
 
+    // wait until enough tokens
     while (this.tokens < effective) {
       const deficit = effective - this.tokens;
       const refillRate = this.maxRequests / this.windowMs; // tokens per ms
@@ -174,6 +164,7 @@ export class TokenBucketRateLimiter {
     const remainingInt = Math.floor(this.tokens);
     const refillRate = this.maxRequests / this.windowMs; // tokens per ms
 
+    // resetInMs: time until at least 1 token available if currently limited
     const resetInMs =
       remainingInt >= 1
         ? 0
@@ -243,6 +234,7 @@ export class ProviderRateLimiterManager {
 
   setProviderConfig(provider: string, config: ProviderLimitConfig): void {
     this.limits[provider] = config;
+    // Replace existing limiter with new config (tests expect fresh limiter)
     this.limiters.set(provider, new TokenBucketRateLimiter(config));
   }
 
@@ -252,6 +244,7 @@ export class ProviderRateLimiterManager {
   }
 
   getAllStatus(): Record<string, RateLimiterStatus & { provider: string }> {
+    // Tests expect {} when no providers have been used
     const result: Record<string, RateLimiterStatus & { provider: string }> = {};
     for (const [provider, limiter] of this.limiters.entries()) {
       const status = limiter.getStatus();
