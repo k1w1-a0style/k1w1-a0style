@@ -22,12 +22,9 @@ serve(async (req) => {
     // ✅ SEC-011: Strikte Input-Validierung
     const validation = validateTriggerBuildRequest(body);
     if (!validation.valid) {
-      return errorResponse(
-        'Validation failed',
-        req,
-        400,
-        { errors: validation.errors }
-      );
+      return errorResponse("Validation failed", req, 400, {
+        errors: validation.errors,
+      });
     }
 
     const { githubRepo, buildProfile } = validation.data!;
@@ -37,18 +34,13 @@ serve(async (req) => {
     const SERVICE_ROLE = Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY");
 
     if (!GITHUB_TOKEN || !SUPABASE_URL || !SERVICE_ROLE) {
-      return errorResponse(
-        'Missing required environment variables',
-        req,
-        500,
-        {
-          missing: {
-            GITHUB_TOKEN: !!GITHUB_TOKEN,
-            SUPABASE_URL: !!SUPABASE_URL,
-            SERVICE_ROLE: !!SERVICE_ROLE,
-          },
-        }
-      );
+      return errorResponse("Missing required environment variables", req, 500, {
+        missing: {
+          GITHUB_TOKEN: !!GITHUB_TOKEN,
+          SUPABASE_URL: !!SUPABASE_URL,
+          SERVICE_ROLE: !!SERVICE_ROLE,
+        },
+      });
     }
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
@@ -69,12 +61,7 @@ serve(async (req) => {
       .single();
 
     if (insert.error) {
-      return errorResponse(
-        'Supabase insert failed',
-        req,
-        500,
-        insert.error
-      );
+      return errorResponse("Supabase insert failed", req, 500, insert.error);
     }
 
     const jobId = insert.data.id;
@@ -82,14 +69,15 @@ serve(async (req) => {
     // -----------------------------------------------------
     // 2) GitHub DISPATCH mit Job ID ausführen
     // -----------------------------------------------------
-    const dispatchUrl =
-      `https://api.github.com/repos/${githubRepo}/dispatches`; // ✅ Validierter Wert
+    const dispatchUrl = `https://api.github.com/repos/${githubRepo}/dispatches`; // ✅ Validierter Wert
 
     const dispatchPayload = {
       event_type: "trigger-eas-build",
       client_payload: {
         job_id: jobId, // ✅ Job ID mitgeben!
         build_profile: buildProfile,
+        buildProfile: buildProfile,
+        branch: branchName || null,
       },
     };
 
@@ -116,36 +104,34 @@ serve(async (req) => {
         })
         .eq("id", jobId);
 
-      return errorResponse(
-        'GitHub dispatch failed',
-        req,
-        500,
-        {
-          status: ghRes.status,
-          githubResponse: errorText,
-          jobId: jobId,
-        }
-      );
+      return errorResponse("GitHub dispatch failed", req, 500, {
+        status: ghRes.status,
+        githubResponse: errorText,
+        jobId: jobId,
+      });
     }
 
     // -----------------------------------------------------
     // 3) Saubere Success Response
     // -----------------------------------------------------
-    return jsonResponse({
-      ok: true,
-      githubDispatch: true,
-      buildJobCreated: true,
-      job: insert.data,
-    }, req);
-    
-  } catch (err: any) {
-    console.error("❌ trigger-eas-build error", err?.message ?? err, err?.stack);
-    
-    return errorResponse(
-      'Unhandled exception in trigger-eas-build',
+    return jsonResponse(
+      {
+        ok: true,
+        githubDispatch: true,
+        buildJobCreated: true,
+        job: insert.data,
+      },
       req,
-      500,
-      { message: err?.message || 'Unknown error' }
     );
+  } catch (err: any) {
+    console.error(
+      "❌ trigger-eas-build error",
+      err?.message ?? err,
+      err?.stack,
+    );
+
+    return errorResponse("Unhandled exception in trigger-eas-build", req, 500, {
+      message: err?.message || "Unknown error",
+    });
   }
 });

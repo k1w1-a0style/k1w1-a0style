@@ -61,6 +61,17 @@ function escapeHtml(s: string) {
     .replaceAll("'", "&#39;");
 }
 
+function safeJsonForScript(obj: unknown): string {
+  // Prevent </script> breakouts and other HTML/script parsing edge-cases when embedding JSON into <script>.
+  // This keeps the JSON valid while replacing characters that have special meaning in HTML parsing contexts.
+  return JSON.stringify(obj)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
 function getSupabaseBaseUrl(): string {
   // Keep consistent with your save_preview function (uses PREVIEW_SUPABASE_URL)
   return Deno.env.get("PREVIEW_SUPABASE_URL") ?? "";
@@ -206,8 +217,7 @@ function renderPage(params: {
     template: template ?? "react",
   };
 
-  const sandpackJson = JSON.stringify(sandpackSetup);
-
+  const sandpackJson = safeJsonForScript(sandpackSetup);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>

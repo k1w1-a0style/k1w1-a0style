@@ -19,44 +19,75 @@ const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
- * Sliding window limiter (einfach, tests erwarten warn + wait).
+ * Sliding-window rate limiter.
+ *
+ * Important: Jest fake timers advance timers BEFORE awaiting the promise.
+ * To stay test-compatible and still avoid races, we use a lightweight mutex
+ * that can acquire synchronously (no await) when unlocked.
  */
 export class RateLimiter {
   private maxRequests: number;
   private windowMs: number;
   private requests: number[] = [];
-  private queue: Promise<void> = Promise.resolve();
+
+  // lightweight mutex (test-friendly)
+  private locked = false;
+  private waiters: Array<() => void> = [];
 
   constructor(config: RateLimitConfig) {
     this.maxRequests = config.maxRequests;
     this.windowMs = config.windowMs;
   }
 
+  private acquire(): void | Promise<void> {
+    if (!this.locked) {
+      this.locked = true;
+      return;
+    }
+    return new Promise<void>((resolve) => this.waiters.push(resolve));
+  }
+
+  private release(): void {
+    const next = this.waiters.shift();
+    if (next) next();
+    else this.locked = false;
+  }
+
   async checkLimit(): Promise<void> {
-    // serialize to avoid race conditions in concurrent calls
-    this.queue = this.queue.then(() => this.checkLimitInternal());
-    return this.queue;
+    const ticket = this.acquire();
+    if (ticket) await ticket;
+
+    try {
+      await this.checkLimitInternal();
+    } finally {
+      this.release();
+    }
   }
 
   private async checkLimitInternal(): Promise<void> {
     const now = Date.now();
-    // inclusive window to ensure boundary cases behave deterministically in tests
-    this.requests = this.requests.filter((t) => now - t <= this.windowMs);
+
+    // Keep only requests within window
+    this.requests = this.requests.filter((t) => now - t < this.windowMs);
 
     if (this.requests.length >= this.maxRequests) {
       const oldest = Math.min(...this.requests);
       const resetAt = oldest + this.windowMs;
-      // IMPORTANT: avoid zero-wait under fake timers -> ensure at least 1ms wait
-      const waitTime = Math.max(1, resetAt - now);
+      const waitTime = Math.max(0, resetAt - now);
 
       console.warn(
         `[RateLimiter] Rate limit exceeded. Waiting ${waitTime}ms before proceeding.`,
       );
 
-      await sleep(waitTime);
+      if (waitTime > 0) {
+        await sleep(waitTime);
+      } else {
+        // yield once (also helps with fake timers / microtasks)
+        await Promise.resolve();
+      }
 
       const now2 = Date.now();
-      this.requests = this.requests.filter((t) => now2 - t <= this.windowMs);
+      this.requests = this.requests.filter((t) => now2 - t < this.windowMs);
     }
 
     this.requests.push(Date.now());
@@ -64,7 +95,7 @@ export class RateLimiter {
 
   getRemainingRequests(): number {
     const now = Date.now();
-    this.requests = this.requests.filter((t) => now - t <= this.windowMs);
+    this.requests = this.requests.filter((t) => now - t < this.windowMs);
     return Math.max(0, this.maxRequests - this.requests.length);
   }
 
@@ -82,7 +113,7 @@ export interface TokenBucketConfig extends RateLimitConfig {
 }
 
 /**
- * Token Bucket mit kontinuierlichem Refill (wichtig für euren Test bei 500ms).
+ * Token Bucket with continuous refill (important for mid-window refills in tests).
  */
 export class TokenBucketRateLimiter {
   private maxRequests: number;
@@ -91,13 +122,16 @@ export class TokenBucketRateLimiter {
 
   private tokens: number;
   private lastRefill: number;
-  private queue: Promise<void> = Promise.resolve();
+
+  // lightweight mutex (test-friendly)
+  private locked = false;
+  private waiters: Array<() => void> = [];
 
   constructor(config: TokenBucketConfig) {
     this.maxRequests = config.maxRequests;
     this.windowMs = config.windowMs;
 
-    // Tests erwarten: burstLimit optional. Wenn nicht gesetzt -> maxRequests.
+    // burstLimit optional; default to maxRequests
     this.burstLimit =
       typeof config.burstLimit === "number" && config.burstLimit > 0
         ? config.burstLimit
@@ -107,12 +141,25 @@ export class TokenBucketRateLimiter {
     this.lastRefill = Date.now();
   }
 
+  private acquire(): void | Promise<void> {
+    if (!this.locked) {
+      this.locked = true;
+      return;
+    }
+    return new Promise<void>((resolve) => this.waiters.push(resolve));
+  }
+
+  private release(): void {
+    const next = this.waiters.shift();
+    if (next) next();
+    else this.locked = false;
+  }
+
   private refillTokens(): void {
     const now = Date.now();
     const elapsed = now - this.lastRefill;
     if (elapsed <= 0) return;
 
-    // continuous refill: maxRequests tokens per windowMs
     const refillRate = this.maxRequests / this.windowMs; // tokens per ms
     const add = elapsed * refillRate;
 
@@ -121,10 +168,14 @@ export class TokenBucketRateLimiter {
   }
 
   async checkLimit(tokensRequested = 1): Promise<void> {
-    this.queue = this.queue.then(() =>
-      this.checkLimitInternal(tokensRequested),
-    );
-    return this.queue;
+    const ticket = this.acquire();
+    if (ticket) await ticket;
+
+    try {
+      await this.checkLimitInternal(tokensRequested);
+    } finally {
+      this.release();
+    }
   }
 
   private async checkLimitInternal(tokensRequested: number): Promise<void> {
@@ -132,7 +183,6 @@ export class TokenBucketRateLimiter {
 
     let effective = tokensRequested;
 
-    // burst limit cap (Tests erwarten Warnung mit "Burst-Limit")
     if (effective > this.burstLimit) {
       console.warn(
         `[TokenBucketRateLimiter] Burst-Limit: requested ${effective} tokens exceeds burst limit ${this.burstLimit}. Capping.`,
@@ -140,7 +190,6 @@ export class TokenBucketRateLimiter {
       effective = this.burstLimit;
     }
 
-    // wait until enough tokens
     while (this.tokens < effective) {
       const deficit = effective - this.tokens;
       const refillRate = this.maxRequests / this.windowMs; // tokens per ms
@@ -163,8 +212,6 @@ export class TokenBucketRateLimiter {
 
     const remainingInt = Math.floor(this.tokens);
     const refillRate = this.maxRequests / this.windowMs; // tokens per ms
-
-    // resetInMs: time until at least 1 token available if currently limited
     const resetInMs =
       remainingInt >= 1
         ? 0
@@ -234,7 +281,6 @@ export class ProviderRateLimiterManager {
 
   setProviderConfig(provider: string, config: ProviderLimitConfig): void {
     this.limits[provider] = config;
-    // Replace existing limiter with new config (tests expect fresh limiter)
     this.limiters.set(provider, new TokenBucketRateLimiter(config));
   }
 
@@ -244,7 +290,6 @@ export class ProviderRateLimiterManager {
   }
 
   getAllStatus(): Record<string, RateLimiterStatus & { provider: string }> {
-    // Tests expect {} when no providers have been used
     const result: Record<string, RateLimiterStatus & { provider: string }> = {};
     for (const [provider, limiter] of this.limiters.entries()) {
       const status = limiter.getStatus();

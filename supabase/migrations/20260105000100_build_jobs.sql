@@ -1,3 +1,4 @@
+
 -- supabase/migrations/20260105000100_build_jobs.sql
 -- Adds the missing build_jobs table used by:
 -- - supabase/functions/trigger-eas-build

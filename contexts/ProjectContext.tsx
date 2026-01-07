@@ -610,30 +610,31 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
         // ✅ Build läuft auf GitHub. Damit wirklich der aktuelle Stand gebaut wird,
         // pushen wir (best-effort) die lokalen Projektdateien ins Repo.
+        // ✅ Branch: nutze Projekt-Branch, sonst Default-Branch des Repos (wichtig wenn Repo nicht 'main' nutzt)
+        let buildBranch =
+          typeof pd.linkedBranch === "string" ? pd.linkedBranch.trim() : "";
+
         try {
           const [owner, repo] = githubRepo.split("/");
           const localFiles = pd.files;
 
           if (owner && repo && localFiles?.length) {
             // ✅ Branch: linkedBranch → repo default branch → fallback main
-            let branchToUse =
-              typeof pd.linkedBranch === "string" ? pd.linkedBranch.trim() : "";
-
-            if (!branchToUse) {
+            if (!buildBranch) {
               try {
-                branchToUse = (await getDefaultBranch(owner, repo)).trim();
+                buildBranch = (await getDefaultBranch(owner, repo)).trim();
               } catch (err) {
                 console.warn(
                   "⚠️ Default-Branch konnte nicht ermittelt werden, fallback auf 'main':",
                   err,
                 );
-                branchToUse = "main";
+                buildBranch = "main";
               }
             }
 
-            if (!branchToUse) branchToUse = "main";
+            if (!buildBranch) buildBranch = "main";
 
-            await pushFilesToRepo(owner, repo, localFiles as any, branchToUse);
+            await pushFilesToRepo(owner, repo, localFiles as any, buildBranch);
           }
         } catch (e) {
           console.warn(
@@ -646,7 +647,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         const { data, error } = await supabase.functions.invoke(
           "trigger-eas-build",
           {
-            body: { githubRepo, buildProfile: profile },
+            body: { githubRepo, buildProfile: profile, branch: buildBranch },
           },
         );
 
@@ -699,7 +700,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         buildPollIntervalRef.current = setInterval(() => {
           const activeId = activeBuildJobIdRef.current;
           if (!activeId) return;
-          pollBuildStatusOnce(activeId);
+          pollBuildStatusOnce(activeId).catch(() => {});
         }, 6000);
       } catch (e: any) {
         stopBuildPolling();

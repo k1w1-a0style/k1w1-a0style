@@ -643,19 +643,35 @@ export const pushFilesToRepo = async (
   owner: string,
   repo: string,
   files: ProjectFile[],
-  branch = "main",
+  branch?: string,
 ) => {
+  let targetBranch = typeof branch === "string" ? branch.trim() : "";
+
+  // ✅ Falls kein Branch angegeben ist: nimm Default-Branch des Repos (wichtig wenn Repo nicht 'main' nutzt)
+  if (!targetBranch) {
+    try {
+      targetBranch = (await getDefaultBranch(owner, repo)).trim();
+    } catch (e) {
+      console.warn(
+        "⚠️ Default-Branch konnte nicht ermittelt werden, fallback auf 'main':",
+        e,
+      );
+      targetBranch = "main";
+    }
+  }
+  if (!targetBranch) targetBranch = "main";
+
   const sortedFiles = [...files].sort((a, b) => a.path.localeCompare(b.path));
   for (const f of sortedFiles) {
     if (!f.path) continue;
-    console.log(`Pushing ${f.path}...`);
+    console.log(`Pushing ${f.path}... (branch: ${targetBranch})`);
     await createOrUpdateFile(
       owner,
       repo,
       f.path,
       f.content,
       `Add ${f.path}`,
-      branch,
+      targetBranch,
     );
   }
 };
