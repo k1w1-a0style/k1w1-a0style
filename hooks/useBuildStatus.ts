@@ -67,7 +67,7 @@ export function useBuildStatus(
   const errorCountRef = useRef(0);
   const hasAlertedRef = useRef(false);
   const isMountedRef = useRef(true);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isRequestPendingRef = useRef(false);
   const latestDetailsRef = useRef<BuildStatusDetails | null>(null);
 

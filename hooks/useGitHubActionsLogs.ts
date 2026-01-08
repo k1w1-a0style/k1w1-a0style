@@ -51,8 +51,8 @@ export function useGitHubActionsLogs({
   const [workflowRun, setWorkflowRun] = useState<WorkflowRun | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isMountedRef = useRef(true);
   const isFetchPendingRef = useRef(false);
 

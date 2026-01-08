@@ -58,9 +58,11 @@ export {
 export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentBuild, setCurrentBuild] = useState<{ status: 'idle' | 'queued' | 'building' | 'completed' | 'error'; message?: string } | null>(null);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [currentBuild, setCurrentBuild] = useState<CurrentBuildState | null>(
+    null,
+  );
 
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mutexRef = useRef(new Mutex());
 
   const [autoFixRequest, setAutoFixRequest] = useState<AutoFixRequest | null>(null);
@@ -383,6 +385,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
     return () => subscription.remove();
   }, [projectData]);
 
+  const buildPollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
+  const buildPollErrorCountRef = useRef(0);
+  const activeBuildJobIdRef = useRef<number | null>(null);
 
   const valueShimExportAndBuild = useCallback(async () => {
     return null;
