@@ -16,6 +16,9 @@ serve(async (req) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
+  // Outer scope so catch can update DB status when something explodes mid-flight
+  let jobId: number | null = null;
+
   try {
     const body = await req.json().catch(() => null);
 
@@ -27,7 +30,7 @@ serve(async (req) => {
       });
     }
 
-    const { githubRepo, buildProfile } = validation.data!;
+    const { githubRepo, buildProfile, branch } = validation.data!;
 
     const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN");
     const SUPABASE_URL = Deno.env.get("K1W1_SUPABASE_URL");
@@ -55,6 +58,7 @@ serve(async (req) => {
           github_repo: githubRepo, // ✅ Validierter Wert
           build_profile: buildProfile, // ✅ Validierter Wert
           status: "queued",
+          branch: branch ?? null,
         },
       ])
       .select("*")
@@ -64,7 +68,7 @@ serve(async (req) => {
       return errorResponse("Supabase insert failed", req, 500, insert.error);
     }
 
-    const jobId = insert.data.id;
+    jobId = insert.data.id;
 
     // -----------------------------------------------------
     // 2) GitHub DISPATCH mit Job ID ausführen
@@ -77,7 +81,8 @@ serve(async (req) => {
         job_id: jobId, // ✅ Job ID mitgeben!
         build_profile: buildProfile,
         buildProfile: buildProfile,
-        branch: branchName || null,
+        // Optionaler Branch/Ref (wird im Workflow genutzt für Checkout)
+        branch: branch ?? null,
       },
     };
 
@@ -129,6 +134,26 @@ serve(async (req) => {
       err?.message ?? err,
       err?.stack,
     );
+
+    // Best-effort: falls Job bereits erstellt wurde, nicht im "queued" hängen lassen
+    if (jobId) {
+      try {
+        const SUPABASE_URL = Deno.env.get("K1W1_SUPABASE_URL");
+        const SERVICE_ROLE = Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY");
+        if (SUPABASE_URL && SERVICE_ROLE) {
+          const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+          await supabase
+            .from("build_jobs")
+            .update({
+              status: "error",
+              error_message: err?.message || "Unhandled exception",
+            })
+            .eq("id", jobId);
+        }
+      } catch {
+        // ignore
+      }
+    }
 
     return errorResponse("Unhandled exception in trigger-eas-build", req, 500, {
       message: err?.message || "Unknown error",

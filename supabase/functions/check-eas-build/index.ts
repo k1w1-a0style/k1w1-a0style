@@ -4,13 +4,10 @@ import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { validateCheckBuildRequest } from "../_shared/validation.ts";
 
 /**
- * ✓ Stabile Status-Überprüfung
- * ✓ Konsistente Response-Struktur
- * ✓ Fehlerkategorien sauber getrennt
- * ✓ EAS + GitHub Status-Mapping
- * ✓ Kein undefined mehr
- * ✓ Voll kompatibel mit deinem k1w1-Builder
- * ✓ SEC-011: Input Validation hinzugefügt
+ * ✓ Stabile Status-Überprüfung (Source of Truth: build_jobs Row)
+ * ✓ Keine flakey GitHub-API Suche nach "irgendeinem" Run
+ * ✓ Response bleibt kompatibel (status, urls, runId)
+ * ✓ SEC-011: Input Validation
  */
 
 serve(async (req) => {
@@ -23,12 +20,9 @@ serve(async (req) => {
     // ✅ SEC-011: Strikte Input-Validierung
     const validation = validateCheckBuildRequest(body);
     if (!validation.valid) {
-      return errorResponse(
-        'Validation failed',
-        req,
-        400,
-        { errors: validation.errors }
-      );
+      return errorResponse("Validation failed", req, 400, {
+        errors: validation.errors,
+      });
     }
 
     const { jobId } = validation.data!;
@@ -37,11 +31,12 @@ serve(async (req) => {
     const SERVICE_ROLE = Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY");
 
     if (!SUPABASE_URL || !SERVICE_ROLE) {
-      return errorResponse(
-        'Missing required environment variables',
-        req,
-        500
-      );
+      return errorResponse("Missing required environment variables", req, 500, {
+        missing: {
+          SUPABASE_URL: !!SUPABASE_URL,
+          SERVICE_ROLE: !!SERVICE_ROLE,
+        },
+      });
     }
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
@@ -52,129 +47,60 @@ serve(async (req) => {
     const jobRes = await supabase
       .from("build_jobs")
       .select("*")
-      .eq("id", jobId) // ✅ Validierter Wert
+      .eq("id", jobId)
       .single();
 
     if (jobRes.error || !jobRes.data) {
-      return errorResponse('Build job not found', req, 404);
+      return errorResponse("Build job not found", req, 404, {
+        jobId,
+      });
     }
 
     const job = jobRes.data;
 
-    if (!job.github_repo) {
-      return errorResponse(
-        'build_jobs row missing github_repo',
-        req,
-        500
-      );
-    }
-
     // -----------------------------------------------------
-    // 2) GitHub Actions Build Status holen
+    // 2) Response ableiten (DB = Source of Truth)
     // -----------------------------------------------------
-    const repo = job.github_repo;
-    const ghUrl =
-      `https://api.github.com/repos/${repo}/actions/runs?per_page=5`;
+    const status = (job.status || "queued").toString();
 
-    const token = Deno.env.get("GITHUB_TOKEN");
+    const repo = typeof job.github_repo === "string" ? job.github_repo : null;
+    const runId = job.github_run_id
+      ? Number.parseInt(String(job.github_run_id), 10)
+      : null;
 
-    if (!token) {
-      return errorResponse('Missing GITHUB_TOKEN', req, 500);
-    }
+    const buildUrl = job.build_url ? String(job.build_url) : null;
+    const githubRunUrl =
+      repo && runId && Number.isFinite(runId)
+        ? `https://github.com/${repo}/actions/runs/${runId}`
+        : null;
 
-    const ghRes = await fetch(ghUrl, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (!ghRes.ok) {
-      const txt = await ghRes.text();
-      return errorResponse(
-        'GitHub API error',
-        req,
-        500,
-        { status: ghRes.status, githubResponse: txt }
-      );
-    }
-
-    const ghJson = await ghRes.json().catch(() => null);
-
-    if (!ghJson || !ghJson.workflow_runs) {
-      return errorResponse(
-        'Invalid GitHub response',
-        req,
-        500,
-        { githubResponse: ghJson }
-      );
-    }
-
-    // -----------------------------------------------------
-    // 3) Build finden (nur passende Repo-Runs)
-    // -----------------------------------------------------
-    const run = ghJson.workflow_runs.find((r: any) => {
-      return (
-        r.head_repository &&
-        r.head_repository.full_name &&
-        r.head_repository.full_name.toLowerCase() === repo.toLowerCase()
-      );
-    });
-
-    if (!run) {
-      return jsonResponse({
+    return jsonResponse(
+      {
         ok: true,
-        buildFound: false,
-        status: "waiting",
-        message: "No build run found yet",
-      }, req);
-    }
+        status,
+        runId: runId && Number.isFinite(runId) ? runId : null,
 
-    // -----------------------------------------------------
-    // 4) Mapping GitHub -> k1w1 Build Status
-    // -----------------------------------------------------
-    let mappedStatus = "unknown";
+        // Backwards compatible fields used in RN code
+        build_url: buildUrl,
+        download_url: null,
 
-    const ghStatus = (run.status || "").toLowerCase();
-    const ghConclusion = (run.conclusion || "").toLowerCase();
+        urls: {
+          // Für UI: zuerst EAS Build URL (wenn vorhanden), sonst GitHub Run
+          html: buildUrl ?? githubRunUrl,
+          artifacts: null,
+          githubRun: githubRunUrl,
+        },
 
-    if (ghStatus === "queued") mappedStatus = "queued";
-    if (ghStatus === "in_progress") mappedStatus = "building";
-    if (ghStatus === "completed") {
-      if (ghConclusion === "success") mappedStatus = "success";
-      else mappedStatus = "failed";
-    }
-    if (ghStatus === "") mappedStatus = "waiting";
-
-    // Direkt Download-URL extrahieren, falls Erfolg
-    let artifactUrl: string | null = null;
-    if (mappedStatus === "success") {
-      if (run.artifacts_url) {
-        artifactUrl = run.artifacts_url;
-      }
-    }
-
-    return jsonResponse({
-      ok: true,
-      buildFound: true,
-      status: mappedStatus,
-      githubStatus: ghStatus,
-      githubConclusion: ghConclusion,
-      runId: run.id,
-      urls: {
-        html: run.html_url,
-        artifacts: artifactUrl,
+        errorMessage: job.error_message ?? null,
+        job,
       },
-      job,
-    }, req);
-    
+      req,
+    );
   } catch (err: any) {
     console.error("❌ check-eas-build error", err?.message ?? err, err?.stack);
 
-    return errorResponse(
-      err?.message || 'Unknown error',
-      req,
-      500
-    );
+    return errorResponse("Unhandled exception in check-eas-build", req, 500, {
+      message: err?.message || "Unknown error",
+    });
   }
 });

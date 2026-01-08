@@ -89,7 +89,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     null,
   );
 
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mutexRef = useRef(new Mutex());
 
   const [autoFixRequest, setAutoFixRequest] = useState<AutoFixRequest | null>(
@@ -459,7 +459,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     return () => subscription.remove();
   }, [projectData]);
 
-  const buildPollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const buildPollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
   const buildPollErrorCountRef = useRef(0);
   const activeBuildJobIdRef = useRef<number | null>(null);
 
