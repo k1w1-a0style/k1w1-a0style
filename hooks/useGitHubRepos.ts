@@ -1,8 +1,17 @@
 // hooks/useGitHubRepos.ts - Custom hook for GitHub repository management
-import { useState, useCallback } from 'react';
-import { Buffer } from 'buffer';
-import { ProjectFile } from '../contexts/types';
-import { fetchWithBackoff } from '../lib/retryWithBackoff';
+import { useState, useCallback } from "react";
+import { Buffer } from "buffer";
+import { ProjectFile } from "../contexts/types";
+import { fetchWithBackoff } from "../lib/retryWithBackoff";
+import {
+  getBranches as apiBranches,
+  getAllWorkflowRuns as apiWorkflowRuns,
+  getDefaultBranch as apiDefaultBranch,
+  GitHubBranch,
+  WorkflowRun,
+} from "../contexts/githubService";
+
+export type { GitHubBranch, WorkflowRun };
 
 export type GitHubRepo = {
   id: number;
@@ -28,11 +37,14 @@ export interface UseGitHubReposCallbacks {
 
 const encodePathSegments = (path: string) =>
   path
-    .split('/')
+    .split("/")
     .map((segment) => encodeURIComponent(segment))
-    .join('/');
+    .join("/");
 
-export const useGitHubRepos = (token: string | null, callbacks?: UseGitHubReposCallbacks) => {
+export const useGitHubRepos = (
+  token: string | null,
+  callbacks?: UseGitHubReposCallbacks,
+) => {
   const [repos, setRepos] = useState<GitHubRepo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,13 +60,13 @@ export const useGitHubRepos = (token: string | null, callbacks?: UseGitHubReposC
       setError(null);
 
       const res = await fetchWithBackoff(
-        'https://api.github.com/user/repos?per_page=100&sort=updated',
+        "https://api.github.com/user/repos?per_page=100&sort=updated",
         {
           headers: {
-            Accept: 'application/vnd.github+json',
+            Accept: "application/vnd.github+json",
             Authorization: `token ${token}`,
           },
-        }
+        },
       );
 
       if (!res.ok) {
@@ -65,8 +77,8 @@ export const useGitHubRepos = (token: string | null, callbacks?: UseGitHubReposC
       const json = (await res.json()) as GitHubRepo[];
       setRepos(json);
     } catch (e: any) {
-      console.error('[useGitHubRepos] Error:', e);
-      const errorMsg = e?.message ?? 'Fehler beim Laden der Repos';
+      console.error("[useGitHubRepos] Error:", e);
+      const errorMsg = e?.message ?? "Fehler beim Laden der Repos";
       setError(errorMsg);
       callbacks?.onLoadError?.(errorMsg);
     } finally {
@@ -82,12 +94,12 @@ export const useGitHubRepos = (token: string | null, callbacks?: UseGitHubReposC
         const res = await fetchWithBackoff(
           `https://api.github.com/repos/${repo.full_name}`,
           {
-            method: 'DELETE',
+            method: "DELETE",
             headers: {
-              Accept: 'application/vnd.github+json',
+              Accept: "application/vnd.github+json",
               Authorization: `token ${token}`,
             },
-          }
+          },
         );
 
         if (res.status === 403) {
@@ -102,13 +114,13 @@ export const useGitHubRepos = (token: string | null, callbacks?: UseGitHubReposC
         setRepos((prev) => prev.filter((r) => r.full_name !== repo.full_name));
         return true;
       } catch (e: any) {
-        console.error('[useGitHubRepos] Delete error:', e);
-        const errorMsg = e?.message ?? 'Repo konnte nicht gelöscht werden.';
+        console.error("[useGitHubRepos] Delete error:", e);
+        const errorMsg = e?.message ?? "Repo konnte nicht gelöscht werden.";
         callbacks?.onDeleteError?.(errorMsg, repo);
         return false;
       }
     },
-    [token, callbacks]
+    [token, callbacks],
   );
 
   const renameRepo = useCallback(
@@ -119,60 +131,60 @@ export const useGitHubRepos = (token: string | null, callbacks?: UseGitHubReposC
         const res = await fetchWithBackoff(
           `https://api.github.com/repos/${currentFullName}`,
           {
-            method: 'PATCH',
+            method: "PATCH",
             headers: {
-              Accept: 'application/vnd.github+json',
+              Accept: "application/vnd.github+json",
               Authorization: `token ${token}`,
             },
             body: JSON.stringify({ name: newName }),
-          }
+          },
         );
 
         if (!res.ok) {
           throw new Error(`Status ${res.status}`);
         }
 
-        const [owner] = currentFullName.split('/');
+        const [owner] = currentFullName.split("/");
         const newFullName = `${owner}/${newName}`;
 
         setRepos((prev) =>
           prev.map((r) =>
             r.full_name === currentFullName
               ? { ...r, name: newName, full_name: newFullName }
-              : r
-          )
+              : r,
+          ),
         );
 
         return newFullName;
       } catch (e: any) {
-        console.error('[useGitHubRepos] Rename error:', e);
-        const errorMsg = e?.message ?? 'Repo konnte nicht umbenannt werden.';
+        console.error("[useGitHubRepos] Rename error:", e);
+        const errorMsg = e?.message ?? "Repo konnte nicht umbenannt werden.";
         callbacks?.onRenameError?.(errorMsg, currentFullName, newName);
         return null;
       }
     },
-    [token, callbacks]
+    [token, callbacks],
   );
 
   const pullFromRepo = useCallback(
     async (
       owner: string,
       repo: string,
-      onProgress?: (message: string) => void
+      onProgress?: (message: string) => void,
     ): Promise<ProjectFile[] | null> => {
       if (!token) return null;
 
       try {
         const headers = {
-          Accept: 'application/vnd.github+json',
+          Accept: "application/vnd.github+json",
           Authorization: `token ${token}`,
         };
 
-        onProgress?.('Lade Repo-Info...');
+        onProgress?.("Lade Repo-Info...");
 
         const infoRes = await fetchWithBackoff(
           `https://api.github.com/repos/${owner}/${repo}`,
-          { headers }
+          { headers },
         );
 
         if (!infoRes.ok) {
@@ -180,13 +192,13 @@ export const useGitHubRepos = (token: string | null, callbacks?: UseGitHubReposC
         }
 
         const infoJson = await infoRes.json();
-        const branch = infoJson.default_branch || 'main';
+        const branch = infoJson.default_branch || "main";
 
         onProgress?.(`Lade Dateibaum (Branch: ${branch})...`);
 
         const treeRes = await fetchWithBackoff(
           `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
-          { headers }
+          { headers },
         );
 
         if (!treeRes.ok) {
@@ -196,13 +208,26 @@ export const useGitHubRepos = (token: string | null, callbacks?: UseGitHubReposC
         const treeJson = await treeRes.json();
 
         if (!treeJson?.tree || !Array.isArray(treeJson.tree)) {
-          throw new Error('Ungültige Baum-Struktur');
+          throw new Error("Ungültige Baum-Struktur");
         }
 
-        const textExtensions = ['.ts', '.tsx', '.js', '.jsx', '.json', '.md', '.txt', '.yml', '.yaml', '.config.js'];
+        const textExtensions = [
+          ".ts",
+          ".tsx",
+          ".js",
+          ".jsx",
+          ".json",
+          ".md",
+          ".txt",
+          ".yml",
+          ".yaml",
+          ".config.js",
+        ];
         const files: ProjectFile[] = [];
 
-        const treeEntries = treeJson.tree.filter((entry: any) => entry.type === 'blob');
+        const treeEntries = treeJson.tree.filter(
+          (entry: any) => entry.type === "blob",
+        );
 
         if (!treeEntries.length) {
           callbacks?.onPullNoFiles?.();
@@ -215,13 +240,13 @@ export const useGitHubRepos = (token: string | null, callbacks?: UseGitHubReposC
         for (let i = 0; i < treeEntries.length; i += BATCH_SIZE) {
           const batch = treeEntries.slice(i, i + BATCH_SIZE);
           onProgress?.(
-            `Lade Dateien ${i + 1}-${Math.min(i + BATCH_SIZE, treeEntries.length)} von ${treeEntries.length}...`
+            `Lade Dateien ${i + 1}-${Math.min(i + BATCH_SIZE, treeEntries.length)} von ${treeEntries.length}...`,
           );
 
           const results = await Promise.allSettled(
             batch.map(async (entry: any) => {
               const path = entry.path;
-              const ext = path.match(/\.[^.]+$/)?.[0]?.toLowerCase() || '';
+              const ext = path.match(/\.[^.]+$/)?.[0]?.toLowerCase() || "";
 
               if (!textExtensions.includes(ext)) {
                 console.log(`[useGitHubRepos] Skip binary: ${path}`);
@@ -232,26 +257,29 @@ export const useGitHubRepos = (token: string | null, callbacks?: UseGitHubReposC
                 const encodedPath = encodePathSegments(path);
                 const res = await fetchWithBackoff(
                   `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPath}`,
-                  { headers }
+                  { headers },
                 );
 
                 if (!res.ok) return null;
 
                 const json = await res.json();
                 const content =
-                  json.encoding === 'base64'
-                    ? Buffer.from(String(json.content || '').replace(/\n/g, ''), 'base64').toString('utf8')
-                    : json.content || '';
+                  json.encoding === "base64"
+                    ? Buffer.from(
+                        String(json.content || "").replace(/\n/g, ""),
+                        "base64",
+                      ).toString("utf8")
+                    : json.content || "";
 
                 return { path, content };
               } catch {
                 return null;
               }
-            })
+            }),
           );
 
           results.forEach((result) => {
-            if (result.status === 'fulfilled' && result.value) {
+            if (result.status === "fulfilled" && result.value) {
               files.push(result.value);
             }
           });
@@ -264,13 +292,55 @@ export const useGitHubRepos = (token: string | null, callbacks?: UseGitHubReposC
 
         return files;
       } catch (e: any) {
-        console.error('[useGitHubRepos] Pull error:', e);
-        const errorMsg = e?.message ?? 'Fehler beim Laden der Dateien.';
+        console.error("[useGitHubRepos] Pull error:", e);
+        const errorMsg = e?.message ?? "Fehler beim Laden der Dateien.";
         callbacks?.onPullError?.(errorMsg);
         return null;
       }
     },
-    [token, callbacks]
+    [token, callbacks],
+  );
+
+  const loadBranches = useCallback(
+    async (owner: string, repo: string): Promise<GitHubBranch[]> => {
+      if (!token) return [];
+      try {
+        return await apiBranches(owner, repo);
+      } catch (e: any) {
+        console.error("[useGitHubRepos] Branches error:", e);
+        return [];
+      }
+    },
+    [token],
+  );
+
+  const loadWorkflowRuns = useCallback(
+    async (
+      owner: string,
+      repo: string,
+      perPage = 10,
+    ): Promise<WorkflowRun[]> => {
+      if (!token) return [];
+      try {
+        return await apiWorkflowRuns(owner, repo, perPage);
+      } catch (e: any) {
+        console.error("[useGitHubRepos] WorkflowRuns error:", e);
+        return [];
+      }
+    },
+    [token],
+  );
+
+  const loadDefaultBranch = useCallback(
+    async (owner: string, repo: string): Promise<string> => {
+      if (!token) return "main";
+      try {
+        return await apiDefaultBranch(owner, repo);
+      } catch {
+        return "main";
+      }
+    },
+    [token],
   );
 
   return {
@@ -281,5 +351,8 @@ export const useGitHubRepos = (token: string | null, callbacks?: UseGitHubReposC
     deleteRepo,
     renameRepo,
     pullFromRepo,
+    loadBranches,
+    loadWorkflowRuns,
+    loadDefaultBranch,
   };
 };

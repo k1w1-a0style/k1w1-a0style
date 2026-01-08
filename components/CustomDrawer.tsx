@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   View,
   Text,
@@ -6,13 +6,13 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
-} from 'react-native';
-import { DrawerContentComponentProps } from '@react-navigation/drawer';
-import { Ionicons } from '@expo/vector-icons';
-import { theme, getNeonGlow } from '../theme';
+} from "react-native";
+import { DrawerContentComponentProps } from "@react-navigation/drawer";
+import { Ionicons } from "@expo/vector-icons";
+import { theme, getNeonGlow } from "../theme";
 
 export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
-  props
+  props,
 ) => {
   const { navigation, state } = props;
 
@@ -20,8 +20,7 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
     navigation.navigate(screen as never);
   };
 
-  const currentRouteName =
-    state.routeNames[state.index] ?? 'Home';
+  const currentRouteName = state.routeNames[state.index] ?? "Home";
 
   const isActive = (name: string) => currentRouteName === name;
 
@@ -29,42 +28,33 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
     label: string,
     screen: string,
     iconName: keyof typeof Ionicons.glyphMap,
-    badge?: string
+    badge?: string,
   ) => {
     const active = isActive(screen);
     return (
       <TouchableOpacity
         key={screen}
-        style={[
-          styles.drawerItem,
-          active && styles.drawerItemActive,
-        ]}
+        style={[styles.drawerItem, active && styles.drawerItemActive]}
         onPress={() => navigateTo(screen)}
         activeOpacity={0.7}
       >
         {/* Neon Glow Indicator für aktives Item */}
         {active && <View style={styles.activeIndicator} />}
-        
-        <View style={[
-          styles.iconContainer,
-          active && styles.iconContainerActive,
-        ]}>
+
+        <View
+          style={[styles.iconContainer, active && styles.iconContainerActive]}
+        >
           <Ionicons
             name={iconName}
             size={20}
             color={
-              active
-                ? theme.palette.primary
-                : theme.palette.text.secondary
+              active ? theme.palette.primary : theme.palette.text.secondary
             }
           />
         </View>
-        
+
         <Text
-          style={[
-            styles.drawerItemText,
-            active && styles.drawerItemTextActive,
-          ]}
+          style={[styles.drawerItemText, active && styles.drawerItemTextActive]}
         >
           {label}
         </Text>
@@ -77,10 +67,10 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
 
         {active && (
           <View style={styles.activeChevron}>
-            <Ionicons 
-              name="chevron-forward" 
-              size={16} 
-              color={theme.palette.primary} 
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={theme.palette.primary}
             />
           </View>
         )}
@@ -97,17 +87,20 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
       {/* Header mit Neon-Akzent */}
       <View style={styles.header}>
         <View style={styles.logoContainer}>
-          <View style={[styles.logoIcon, getNeonGlow(theme.palette.primary, 'subtle')]}>
+          <View
+            style={[
+              styles.logoIcon,
+              getNeonGlow(theme.palette.primary, "subtle"),
+            ]}
+          >
             <Text style={styles.logoEmoji}>⚡</Text>
           </View>
           <View style={styles.logoText}>
             <Text style={styles.appTitle}>K1W1 AO-Style</Text>
-            <Text style={styles.appSubTitle}>
-              Prompt → Code → GitHub → APK
-            </Text>
+            <Text style={styles.appSubTitle}>Prompt → Code → GitHub → APK</Text>
           </View>
         </View>
-        
+
         {/* Status Indicator */}
         <View style={styles.statusBar}>
           <View style={styles.statusDot} />
@@ -120,21 +113,21 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {renderSectionTitle('HAUPTMENÜ')}
-        {renderItem('Home', 'Home', 'home-outline')}
-        {renderItem('KI-Einstellungen', 'Settings', 'options-outline')}
-        {renderItem('Verbindungen', 'Connections', 'link-outline')}
+        {renderSectionTitle("HAUPTMENÜ")}
+        {renderItem("Home", "Home", "home-outline")}
+        {renderItem("KI-Einstellungen", "Settings", "options-outline")}
+        {renderItem("Verbindungen", "Connections", "link-outline")}
 
-        {renderSectionTitle('ENTWICKLUNG')}
-        {renderItem('GitHub Repos', 'GitHubRepos', 'logo-github')}
-        {renderItem('Builds', 'Builds', 'construct-outline')}
+        {renderSectionTitle("ENTWICKLUNG")}
+        {renderItem("GitHub Repos", "GitHubRepos", "logo-github")}
+        {renderItem("Build", "EnhancedBuild", "construct-outline")}
 
-        {renderSectionTitle('ANALYSE')}
-        {renderItem('Diagnose', 'Diagnostic', 'bug-outline')}
-        {renderItem('Vorschau', 'Preview', 'eye-outline')}
+        {renderSectionTitle("ANALYSE")}
+        {renderItem("Diagnose", "Diagnostic", "bug-outline")}
+        {renderItem("Vorschau", "Preview", "eye-outline")}
 
-        {renderSectionTitle('INFO')}
-        {renderItem('App Info', 'AppInfo', 'information-circle-outline')}
+        {renderSectionTitle("INFO")}
+        {renderItem("App Info", "AppInfo", "information-circle-outline")}
       </ScrollView>
 
       {/* Footer mit Versionsnummer */}
@@ -145,9 +138,7 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
             <Text style={styles.versionText}>v1.0.0-alpha</Text>
           </View>
         </View>
-        <Text style={styles.footerSubtext}>
-          Made with 💚 for Expo SDK 54
-        </Text>
+        <Text style={styles.footerSubtext}>Made with 💚 for Expo SDK 54</Text>
       </View>
     </View>
   );
@@ -167,8 +158,8 @@ const styles = StyleSheet.create({
     backgroundColor: theme.palette.card,
   },
   logoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 12,
   },
   logoIcon: {
@@ -178,8 +169,8 @@ const styles = StyleSheet.create({
     backgroundColor: `${theme.palette.primary}15`,
     borderWidth: 1,
     borderColor: theme.palette.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
   logoEmoji: {
@@ -190,7 +181,7 @@ const styles = StyleSheet.create({
   },
   appTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: theme.palette.primary,
     letterSpacing: 0.5,
   },
@@ -201,13 +192,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   statusBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 6,
     paddingHorizontal: 10,
     backgroundColor: `${theme.palette.primary}10`,
     borderRadius: 20,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   statusDot: {
     width: 6,
@@ -219,7 +210,7 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 11,
     color: theme.palette.primary,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   scroll: {
     flex: 1,
@@ -229,7 +220,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: "700",
     color: theme.palette.text.disabled,
     letterSpacing: 1.2,
     marginTop: 16,
@@ -237,35 +228,35 @@ const styles = StyleSheet.create({
     marginLeft: 16,
   },
   drawerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 12,
     paddingHorizontal: 16,
     marginHorizontal: 8,
     marginVertical: 2,
     borderRadius: 10,
-    position: 'relative',
+    position: "relative",
   },
   drawerItemActive: {
     backgroundColor: `${theme.palette.primary}12`,
   },
   activeIndicator: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
-    top: '25%',
-    bottom: '25%',
+    top: "25%",
+    bottom: "25%",
     width: 3,
     backgroundColor: theme.palette.primary,
     borderRadius: 2,
-    ...getNeonGlow(theme.palette.primary, 'subtle'),
+    ...getNeonGlow(theme.palette.primary, "subtle"),
   },
   iconContainer: {
     width: 32,
     height: 32,
     borderRadius: 8,
     backgroundColor: theme.palette.card,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
   iconContainerActive: {
@@ -277,7 +268,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   drawerItemTextActive: {
-    fontWeight: '600',
+    fontWeight: "600",
     color: theme.palette.primary,
   },
   badge: {
@@ -289,8 +280,8 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 10,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: "bold",
+    color: "#fff",
   },
   activeChevron: {
     marginLeft: 4,
@@ -303,14 +294,14 @@ const styles = StyleSheet.create({
     backgroundColor: theme.palette.card,
   },
   footerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 4,
   },
   footerText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
     color: theme.palette.text.primary,
   },
   versionBadge: {
@@ -323,9 +314,9 @@ const styles = StyleSheet.create({
   },
   versionText: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: "600",
     color: theme.palette.primary,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
   footerSubtext: {
     fontSize: 10,

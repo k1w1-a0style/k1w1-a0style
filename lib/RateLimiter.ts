@@ -1,282 +1,308 @@
-// lib/RateLimiter.ts - Enhanced Rate Limiter mit Token Bucket Algorithm
+// lib/RateLimiter.ts
 
-/**
- * Provider-spezifische Rate Limit Konfiguration
- */
 export interface RateLimitConfig {
   maxRequests: number;
   windowMs: number;
-  burstLimit?: number; // Maximale Burst-Requests
+  burstLimit?: number;
 }
 
-/**
- * Rate Limit Status für Monitoring
- */
-export interface RateLimitStatus {
+export type RateLimiterStatus = {
   remaining: number;
   total: number;
-  resetMs: number;
   isLimited: boolean;
-}
-
-/**
- * Standard Rate Limits für verschiedene AI-Provider
- */
-export const PROVIDER_RATE_LIMITS: Record<string, RateLimitConfig> = {
-  groq: { maxRequests: 30, windowMs: 60000, burstLimit: 10 },
-  openai: { maxRequests: 60, windowMs: 60000, burstLimit: 20 },
-  anthropic: { maxRequests: 50, windowMs: 60000, burstLimit: 15 },
-  gemini: { maxRequests: 60, windowMs: 60000, burstLimit: 20 },
-  huggingface: { maxRequests: 20, windowMs: 60000, burstLimit: 5 },
-  default: { maxRequests: 30, windowMs: 60000, burstLimit: 10 },
+  resetInMs: number;
+  tokens: number;
+  maxTokens: number;
 };
 
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 /**
- * Simple Rate Limiter mit Sliding Window
+ * Sliding-window rate limiter.
+ *
+ * Important: Jest fake timers advance timers BEFORE awaiting the promise.
+ * To stay test-compatible and still avoid races, we use a lightweight mutex
+ * that can acquire synchronously (no await) when unlocked.
  */
 export class RateLimiter {
-  private requests: number[] = [];
   private maxRequests: number;
   private windowMs: number;
+  private requests: number[] = [];
 
-  constructor(options: { maxRequests: number; windowMs: number }) {
-    this.maxRequests = options.maxRequests;
-    this.windowMs = options.windowMs;
+  // lightweight mutex (test-friendly)
+  private locked = false;
+  private waiters: Array<() => void> = [];
+
+  constructor(config: RateLimitConfig) {
+    this.maxRequests = config.maxRequests;
+    this.windowMs = config.windowMs;
+  }
+
+  private acquire(): void | Promise<void> {
+    if (!this.locked) {
+      this.locked = true;
+      return;
+    }
+    return new Promise<void>((resolve) => this.waiters.push(resolve));
+  }
+
+  private release(): void {
+    const next = this.waiters.shift();
+    if (next) next();
+    else this.locked = false;
   }
 
   async checkLimit(): Promise<void> {
-    const now = Date.now();
-    
-    // Remove old requests outside the time window
-    this.requests = this.requests.filter(time => now - time < this.windowMs);
-    
-    if (this.requests.length >= this.maxRequests) {
-      const oldestRequest = this.requests[0];
-      const resetTime = oldestRequest + this.windowMs;
-      const waitTime = resetTime - now;
-      
-      console.warn(
-        `[RateLimiter] Limit erreicht (${this.maxRequests}/${this.windowMs}ms). Warte ${Math.ceil(waitTime / 1000)}s...`
-      );
-      
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-      
-      // Cleanup after wait
-      this.requests = this.requests.filter(time => Date.now() - time < this.windowMs);
+    const ticket = this.acquire();
+    if (ticket) await ticket;
+
+    try {
+      await this.checkLimitInternal();
+    } finally {
+      this.release();
     }
-    
-    this.requests.push(now);
+  }
+
+  private async checkLimitInternal(): Promise<void> {
+    const now = Date.now();
+
+    // Keep only requests within window
+    this.requests = this.requests.filter((t) => now - t < this.windowMs);
+
+    if (this.requests.length >= this.maxRequests) {
+      const oldest = Math.min(...this.requests);
+      const resetAt = oldest + this.windowMs;
+      const waitTime = Math.max(0, resetAt - now);
+
+      console.warn(
+        `[RateLimiter] Rate limit exceeded. Waiting ${waitTime}ms before proceeding.`,
+      );
+
+      if (waitTime > 0) {
+        await sleep(waitTime);
+      } else {
+        // yield once (also helps with fake timers / microtasks)
+        await Promise.resolve();
+      }
+
+      const now2 = Date.now();
+      this.requests = this.requests.filter((t) => now2 - t < this.windowMs);
+    }
+
+    this.requests.push(Date.now());
   }
 
   getRemainingRequests(): number {
     const now = Date.now();
-    this.requests = this.requests.filter(time => now - time < this.windowMs);
+    this.requests = this.requests.filter((t) => now - t < this.windowMs);
     return Math.max(0, this.maxRequests - this.requests.length);
   }
 
   reset(): void {
     this.requests = [];
   }
+
+  getConfig(): RateLimitConfig {
+    return { maxRequests: this.maxRequests, windowMs: this.windowMs };
+  }
+}
+
+export interface TokenBucketConfig extends RateLimitConfig {
+  burstLimit?: number;
 }
 
 /**
- * Enhanced Token Bucket Rate Limiter
- * - Ermöglicht Burst-Traffic bis zu einem Limit
- * - Tokens werden kontinuierlich nachgefüllt
- * - Bessere UX bei kurzzeitig erhöhter Last
+ * Token Bucket with continuous refill (important for mid-window refills in tests).
  */
 export class TokenBucketRateLimiter {
-  private tokens: number;
-  private maxTokens: number;
-  private refillRate: number; // Tokens pro Millisekunde
-  private lastRefill: number;
+  private maxRequests: number;
+  private windowMs: number;
   private burstLimit: number;
-  private waitQueue: Array<{
-    resolve: () => void;
-    tokensNeeded: number;
-  }> = [];
-  private isProcessingQueue: boolean = false;
 
-  constructor(options: RateLimitConfig) {
-    this.maxTokens = options.maxRequests;
-    this.tokens = options.maxRequests;
-    this.refillRate = options.maxRequests / options.windowMs;
+  private tokens: number;
+  private lastRefill: number;
+
+  // lightweight mutex (test-friendly)
+  private locked = false;
+  private waiters: Array<() => void> = [];
+
+  constructor(config: TokenBucketConfig) {
+    this.maxRequests = config.maxRequests;
+    this.windowMs = config.windowMs;
+
+    // burstLimit optional; default to maxRequests
+    this.burstLimit =
+      typeof config.burstLimit === "number" && config.burstLimit > 0
+        ? config.burstLimit
+        : config.maxRequests;
+
+    this.tokens = this.maxRequests;
     this.lastRefill = Date.now();
-    this.burstLimit = options.burstLimit ?? Math.ceil(options.maxRequests / 3);
   }
 
-  /**
-   * Füllt Tokens basierend auf vergangener Zeit nach
-   */
+  private acquire(): void | Promise<void> {
+    if (!this.locked) {
+      this.locked = true;
+      return;
+    }
+    return new Promise<void>((resolve) => this.waiters.push(resolve));
+  }
+
+  private release(): void {
+    const next = this.waiters.shift();
+    if (next) next();
+    else this.locked = false;
+  }
+
   private refillTokens(): void {
     const now = Date.now();
     const elapsed = now - this.lastRefill;
-    const tokensToAdd = elapsed * this.refillRate;
-    
-    this.tokens = Math.min(this.maxTokens, this.tokens + tokensToAdd);
+    if (elapsed <= 0) return;
+
+    const refillRate = this.maxRequests / this.windowMs; // tokens per ms
+    const add = elapsed * refillRate;
+
+    this.tokens = Math.min(this.maxRequests, this.tokens + add);
     this.lastRefill = now;
   }
 
-  /**
-   * Verarbeitet wartende Requests in der Queue
-   */
-  private async processQueue(): Promise<void> {
-    if (this.isProcessingQueue) return;
-    this.isProcessingQueue = true;
+  async checkLimit(tokensRequested = 1): Promise<void> {
+    const ticket = this.acquire();
+    if (ticket) await ticket;
 
-    while (this.waitQueue.length > 0) {
-      this.refillTokens();
-      
-      const next = this.waitQueue[0];
-      if (this.tokens >= next.tokensNeeded) {
-        this.tokens -= next.tokensNeeded;
-        this.waitQueue.shift();
-        next.resolve();
-      } else {
-        // Warte bis genug Tokens verfügbar sind
-        const tokensNeeded = next.tokensNeeded - this.tokens;
-        const waitTime = Math.ceil(tokensNeeded / this.refillRate);
-        await new Promise(r => setTimeout(r, Math.min(waitTime, 1000)));
-      }
+    try {
+      await this.checkLimitInternal(tokensRequested);
+    } finally {
+      this.release();
     }
-
-    this.isProcessingQueue = false;
   }
 
-  /**
-   * Prüft und wartet auf Rate Limit
-   * @param tokensNeeded - Anzahl benötigter Tokens (Standard: 1)
-   */
-  async checkLimit(tokensNeeded: number = 1): Promise<void> {
+  private async checkLimitInternal(tokensRequested: number): Promise<void> {
     this.refillTokens();
 
-    // Prüfe Burst-Limit
-    if (tokensNeeded > this.burstLimit) {
+    let effective = tokensRequested;
+
+    if (effective > this.burstLimit) {
       console.warn(
-        `[TokenBucketRateLimiter] Request überschreitet Burst-Limit (${tokensNeeded} > ${this.burstLimit})`
+        `[TokenBucketRateLimiter] Burst-Limit: requested ${effective} tokens exceeds burst limit ${this.burstLimit}. Capping.`,
       );
-      tokensNeeded = this.burstLimit;
+      effective = this.burstLimit;
     }
 
-    if (this.tokens >= tokensNeeded) {
-      this.tokens -= tokensNeeded;
-      return;
+    while (this.tokens < effective) {
+      const deficit = effective - this.tokens;
+      const refillRate = this.maxRequests / this.windowMs; // tokens per ms
+      const waitMs = Math.max(1, Math.ceil(deficit / refillRate));
+
+      await sleep(waitMs);
+      this.refillTokens();
     }
 
-    // Nicht genug Tokens - in Warteschlange einreihen
-    console.warn(
-      `[TokenBucketRateLimiter] Nicht genug Tokens (${this.tokens.toFixed(2)}/${tokensNeeded}). Warte...`
-    );
-
-    return new Promise<void>((resolve) => {
-      this.waitQueue.push({ resolve, tokensNeeded });
-      this.processQueue();
-    });
+    this.tokens -= effective;
   }
 
-  /**
-   * Gibt aktuellen Status zurück
-   */
-  getStatus(): RateLimitStatus {
-    this.refillTokens();
-    const resetMs = this.tokens < this.maxTokens
-      ? Math.ceil((this.maxTokens - this.tokens) / this.refillRate)
-      : 0;
-
-    return {
-      remaining: Math.floor(this.tokens),
-      total: this.maxTokens,
-      resetMs,
-      isLimited: this.tokens < 1,
-    };
-  }
-
-  /**
-   * Gibt verbleibende Tokens zurück (Kompatibilität mit RateLimiter)
-   */
   getRemainingRequests(): number {
     this.refillTokens();
     return Math.floor(this.tokens);
   }
 
-  /**
-   * Setzt Rate Limiter zurück
-   */
+  getStatus(): RateLimiterStatus {
+    this.refillTokens();
+
+    const remainingInt = Math.floor(this.tokens);
+    const refillRate = this.maxRequests / this.windowMs; // tokens per ms
+    const resetInMs =
+      remainingInt >= 1
+        ? 0
+        : Math.max(1, Math.ceil((1 - this.tokens) / refillRate));
+
+    return {
+      remaining: remainingInt,
+      total: this.maxRequests,
+      isLimited: remainingInt <= 0,
+      resetInMs,
+      tokens: this.tokens,
+      maxTokens: this.maxRequests,
+    };
+  }
+
   reset(): void {
-    this.tokens = this.maxTokens;
+    this.tokens = this.maxRequests;
     this.lastRefill = Date.now();
-    this.waitQueue = [];
+  }
+
+  getConfig(): TokenBucketConfig {
+    return {
+      maxRequests: this.maxRequests,
+      windowMs: this.windowMs,
+      burstLimit: this.burstLimit,
+    };
   }
 }
 
-/**
- * Provider-spezifischer Rate Limiter Manager
- * Verwaltet separate Rate Limiter für jeden AI-Provider
- */
+export type ProviderLimitConfig = TokenBucketConfig;
+
+export const PROVIDER_RATE_LIMITS: Record<string, ProviderLimitConfig> = {
+  openai: { maxRequests: 60, windowMs: 60000, burstLimit: 10 },
+  anthropic: { maxRequests: 50, windowMs: 60000, burstLimit: 10 },
+  gemini: { maxRequests: 60, windowMs: 60000, burstLimit: 10 },
+  huggingface: { maxRequests: 30, windowMs: 60000, burstLimit: 5 },
+  groq: { maxRequests: 120, windowMs: 60000, burstLimit: 20 },
+  default: { maxRequests: 30, windowMs: 60000, burstLimit: 5 },
+};
+
 export class ProviderRateLimiterManager {
   private limiters: Map<string, TokenBucketRateLimiter> = new Map();
-  private customConfigs: Map<string, RateLimitConfig> = new Map();
+  private limits: Record<string, ProviderLimitConfig>;
 
-  /**
-   * Setzt benutzerdefinierte Rate Limit Config für einen Provider
-   */
-  setProviderConfig(provider: string, config: RateLimitConfig): void {
-    this.customConfigs.set(provider, config);
-    // Lösche bestehenden Limiter damit er mit neuer Config neu erstellt wird
-    this.limiters.delete(provider);
+  constructor(
+    limits: Record<string, ProviderLimitConfig> = PROVIDER_RATE_LIMITS,
+  ) {
+    this.limits = { ...limits };
   }
 
-  /**
-   * Holt oder erstellt Rate Limiter für einen Provider
-   */
+  private getProviderConfig(provider: string): ProviderLimitConfig {
+    return this.limits[provider] || this.limits.default;
+  }
+
   private getLimiter(provider: string): TokenBucketRateLimiter {
-    if (!this.limiters.has(provider)) {
-      const config = this.customConfigs.get(provider) 
-        ?? PROVIDER_RATE_LIMITS[provider] 
-        ?? PROVIDER_RATE_LIMITS.default;
-      
-      this.limiters.set(provider, new TokenBucketRateLimiter(config));
+    let limiter = this.limiters.get(provider);
+    if (!limiter) {
+      limiter = new TokenBucketRateLimiter(this.getProviderConfig(provider));
+      this.limiters.set(provider, limiter);
     }
-    return this.limiters.get(provider)!;
+    return limiter;
   }
 
-  /**
-   * Prüft Rate Limit für einen Provider
-   */
-  async checkLimit(provider: string, tokensNeeded: number = 1): Promise<void> {
-    const limiter = this.getLimiter(provider);
-    await limiter.checkLimit(tokensNeeded);
+  async checkLimit(provider: string, tokensRequested = 1): Promise<void> {
+    await this.getLimiter(provider).checkLimit(tokensRequested);
   }
 
-  /**
-   * Gibt Status für einen Provider zurück
-   */
-  getStatus(provider: string): RateLimitStatus {
-    const limiter = this.getLimiter(provider);
-    return limiter.getStatus();
+  setProviderConfig(provider: string, config: ProviderLimitConfig): void {
+    this.limits[provider] = config;
+    this.limiters.set(provider, new TokenBucketRateLimiter(config));
   }
 
-  /**
-   * Gibt alle Provider-Status zurück
-   */
-  getAllStatus(): Record<string, RateLimitStatus> {
-    const status: Record<string, RateLimitStatus> = {};
-    for (const [provider, limiter] of this.limiters) {
-      status[provider] = limiter.getStatus();
+  getStatus(provider: string): RateLimiterStatus & { provider: string } {
+    const status = this.getLimiter(provider).getStatus();
+    return { ...status, provider };
+  }
+
+  getAllStatus(): Record<string, RateLimiterStatus & { provider: string }> {
+    const result: Record<string, RateLimiterStatus & { provider: string }> = {};
+    for (const [provider, limiter] of this.limiters.entries()) {
+      const status = limiter.getStatus();
+      result[provider] = { ...status, provider };
     }
-    return status;
+    return result;
   }
 
-  /**
-   * Setzt Rate Limiter für einen Provider zurück
-   */
   resetProvider(provider: string): void {
-    this.limiters.get(provider)?.reset();
+    const limiter = this.limiters.get(provider);
+    if (limiter) limiter.reset();
   }
 
-  /**
-   * Setzt alle Rate Limiter zurück
-   */
   resetAll(): void {
     for (const limiter of this.limiters.values()) {
       limiter.reset();
@@ -284,5 +310,4 @@ export class ProviderRateLimiterManager {
   }
 }
 
-// Globale Instanz des Provider Rate Limiter Managers
 export const providerRateLimiter = new ProviderRateLimiterManager();

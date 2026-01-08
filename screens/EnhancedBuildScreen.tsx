@@ -1,5 +1,5 @@
 // screens/EnhancedBuildScreen.tsx
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,7 +14,22 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useProject } from "../contexts/ProjectContext";
+import { useBuildHistory } from "../hooks/useBuildHistory";
+import { useGitHubActionsLogs } from "../hooks/useGitHubActionsLogs";
+import { BuildTimelineCard } from "../components/build/BuildTimelineCard";
+import { BuildErrorAnalyzer } from "../lib/buildErrorAnalyzer";
+import {
+  getSeverityColor,
+  getWorkflowStatusColor,
+  getWorkflowStatusText,
+  formatRelativeTime,
+  formatDuration,
+  computeEta,
+  getStatusIcon,
+} from "../utils/buildScreenUtils";
 import { styles } from "../styles/enhancedBuildScreenStyles";
+import { CONFIG } from "../config";
+import type { BuildStatus } from "../lib/buildStatusMapper";
 
 interface WorkflowRun {
   id: number;
@@ -32,62 +47,8 @@ interface WorkflowRunsResponse {
   workflow_runs?: WorkflowRun[];
 }
 
-type BuildStatus = "idle" | "pending" | "running" | "success" | "error";
-
-interface CurrentBuild {
-  status?: BuildStatus;
-  message?: string;
-  progress?: number; // 0..1
-}
-
 const FETCH_TIMEOUT_MS = 15_000;
 const MAX_RUNS_DISPLAY = 10;
-
-function getStatusColor(status: string, conclusion: string | null): string {
-  if (status === "completed") {
-    switch (conclusion) {
-      case "success":
-        return "#00FF00";
-      case "failure":
-        return "#FF4444";
-      case "cancelled":
-        return "#888888";
-      default:
-        return "#FFAA00";
-    }
-  }
-  if (status === "in_progress" || status === "queued") return "#00AAFF";
-  return "#666666";
-}
-
-function getStatusText(status: string, conclusion: string | null): string {
-  if (status === "completed") return conclusion || "completed";
-  return status;
-}
-
-function formatRelativeTime(dateString: string): string {
-  try {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMins < 1) return "gerade eben";
-    if (diffMins < 60) return `vor ${diffMins} Min.`;
-    if (diffHours < 24) return `vor ${diffHours} Std.`;
-    if (diffDays < 7) return `vor ${diffDays} Tagen`;
-
-    return date.toLocaleDateString("de-DE", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "2-digit",
-    });
-  } catch {
-    return dateString;
-  }
-}
 
 async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -107,32 +68,103 @@ export default function EnhancedBuildScreen(): React.ReactElement {
 
   const startBuild = projectContext?.startBuild as
     | undefined
-    | (() => Promise<void>);
-  const currentBuild = projectContext?.currentBuild as undefined | CurrentBuild;
+    | ((buildProfile?: string) => Promise<void>);
+  const currentBuild = projectContext?.currentBuild ?? null;
   const getWorkflowRuns = projectContext?.getWorkflowRuns as
     | undefined
-    | ((owner: string, repo: string) => Promise<WorkflowRunsResponse>);
+    | ((
+        owner: string,
+        repo: string,
+        workflowFileName?: string,
+      ) => Promise<WorkflowRunsResponse>);
+  const setLinkedRepo = projectContext?.setLinkedRepo as
+    | undefined
+    | ((repo: string | null, branch?: string | null) => Promise<void>);
 
-  const [owner, setOwner] = useState("");
-  const [repo, setRepo] = useState("");
+  const initialRepo = useMemo(() => {
+    return (
+      projectData?.linkedRepo?.trim() ||
+      (currentBuild?.githubRepo ?? "").trim() ||
+      CONFIG.BUILD.GITHUB_REPO
+    );
+  }, [currentBuild?.githubRepo, projectData?.linkedRepo]);
+
+  const [repoFullName, setRepoFullName] = useState(initialRepo);
+  const [buildProfile, setBuildProfile] = useState<
+    "development" | "preview" | "production"
+  >("preview");
   const [loadingRuns, setLoadingRuns] = useState(false);
   const [runs, setRuns] = useState<WorkflowRun[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [buildLoading, setBuildLoading] = useState(false);
+  const [savingRepo, setSavingRepo] = useState(false);
+  const [buildStartTime, setBuildStartTime] = useState<number | null>(null);
+
+  useEffect(() => {
+    setRepoFullName(initialRepo);
+  }, [initialRepo]);
+
+  const {
+    history,
+    stats,
+    isLoading: historyLoading,
+    clearHistory,
+  } = useBuildHistory();
+
+  const jobId = currentBuild?.jobId ?? null;
+  const normalizedRepo = repoFullName.trim();
+  const runId = currentBuild?.runId ?? null;
+  const status: BuildStatus = currentBuild?.status ?? "idle";
+
+  // Logs nur laden wenn ein aktiver Build läuft oder eine runId existiert
+  const shouldLoadLogs =
+    status === "queued" ||
+    status === "building" ||
+    (runId !== null && status !== "idle");
+
+  const githubRepoForLogs = shouldLoadLogs
+    ? currentBuild?.githubRepo?.trim() || normalizedRepo || null
+    : null;
+
+  const {
+    logs,
+    workflowRun,
+    isLoading: logsLoading,
+    error: logsError,
+  } = useGitHubActionsLogs({
+    githubRepo: githubRepoForLogs,
+    runId,
+    autoRefresh: shouldLoadLogs,
+  });
+
+  const analyses = useMemo(() => {
+    if (!logs || logs.length === 0) return [];
+    return BuildErrorAnalyzer.analyzeLogs(logs);
+  }, [logs]);
 
   const canFetch = useMemo(
-    () => owner.trim().length > 0 && repo.trim().length > 0,
-    [owner, repo],
+    () => normalizedRepo.length > 0 && normalizedRepo.includes("/"),
+    [normalizedRepo],
   );
+  const owner = useMemo(
+    () => normalizedRepo.split("/")[0] || "",
+    [normalizedRepo],
+  );
+  const repo = useMemo(
+    () => normalizedRepo.split("/")[1] || "",
+    [normalizedRepo],
+  );
+
   const hasGetWorkflowRuns = typeof getWorkflowRuns === "function";
   const hasStartBuild = typeof startBuild === "function";
+  const hasSetLinkedRepo = typeof setLinkedRepo === "function";
 
   const fetchRuns = useCallback(async () => {
     if (!canFetch) {
       Alert.alert(
         "Repo fehlt",
-        "Bitte Owner und Repo eintragen (z.B. a0style / mein-repo).",
+        "Bitte Repo als owner/repo eintragen (z.B. a0style/mein-repo).",
       );
       return;
     }
@@ -149,7 +181,9 @@ export default function EnhancedBuildScreen(): React.ReactElement {
 
     try {
       const res = await withTimeout(
-        getWorkflowRuns(owner.trim(), repo.trim()),
+        // ✅ Wichtig: App-getriggerte Builds laufen über k1w1-triggered-build.yml
+        // -> getWorkflowRuns() default ist evtl. eas-build.yml, daher hier explizit:
+        getWorkflowRuns(owner.trim(), repo.trim(), "k1w1-triggered-build.yml"),
         FETCH_TIMEOUT_MS,
       );
       const list = res?.workflow_runs ?? [];
@@ -182,10 +216,15 @@ export default function EnhancedBuildScreen(): React.ReactElement {
       return;
     }
     setBuildLoading(true);
+    setBuildStartTime(Date.now());
     try {
-      await startBuild();
-      Alert.alert("✅ Build gestartet", "Der Build wurde angestoßen.");
+      await startBuild(buildProfile);
+      Alert.alert(
+        "✅ Build gestartet",
+        `Der Build wurde angestoßen (${buildProfile}).`,
+      );
     } catch (e) {
+      setBuildStartTime(null);
       Alert.alert(
         "❌ Fehler",
         e instanceof Error ? e.message : "Build fehlgeschlagen",
@@ -193,7 +232,36 @@ export default function EnhancedBuildScreen(): React.ReactElement {
     } finally {
       setBuildLoading(false);
     }
-  }, [hasStartBuild, startBuild]);
+  }, [buildProfile, hasStartBuild, startBuild]);
+
+  const onSaveLinkedRepo = useCallback(async () => {
+    if (!hasSetLinkedRepo || !setLinkedRepo) {
+      Alert.alert("Nicht verfügbar", "setLinkedRepo() ist nicht verfügbar.");
+      return;
+    }
+    const v = repoFullName.trim();
+    if (!v || !v.includes("/")) {
+      Alert.alert("Ungültig", "Bitte Repo im Format owner/repo eintragen.");
+      return;
+    }
+    setSavingRepo(true);
+    try {
+      await setLinkedRepo(v, projectData?.linkedBranch ?? null);
+      Alert.alert("✅ Gespeichert", `Repo verknüpft: ${v}`);
+    } catch (e) {
+      Alert.alert(
+        "❌ Fehler",
+        e instanceof Error ? e.message : "Konnte Repo nicht speichern",
+      );
+    } finally {
+      setSavingRepo(false);
+    }
+  }, [
+    hasSetLinkedRepo,
+    projectData?.linkedBranch,
+    repoFullName,
+    setLinkedRepo,
+  ]);
 
   const openRun = useCallback(async (url: string) => {
     if (!url) return;
@@ -209,22 +277,37 @@ export default function EnhancedBuildScreen(): React.ReactElement {
     }
   }, []);
 
-  const status = currentBuild?.status ?? "idle";
   const message = currentBuild?.message ?? "";
   const progress = currentBuild?.progress;
 
-  const statusEmoji =
-    status === "pending"
-      ? "⏳"
-      : status === "running"
-        ? "🔄"
-        : status === "success"
-          ? "✅"
-          : status === "error"
-            ? "❌"
-            : "⏸️";
+  // ETA berechnen wenn Build läuft
+  const elapsedMs = useMemo(() => {
+    if (!buildStartTime) return 0;
+    return Date.now() - buildStartTime;
+  }, [buildStartTime]);
+
+  const etaMs = useMemo(() => {
+    if (
+      status === "idle" ||
+      status === "success" ||
+      status === "failed" ||
+      status === "error"
+    ) {
+      return 0;
+    }
+    return computeEta(status, elapsedMs);
+  }, [status, elapsedMs]);
+
+  // Reset buildStartTime bei finalem Status
+  useEffect(() => {
+    if (status === "success" || status === "failed" || status === "error") {
+      setBuildStartTime(null);
+    }
+  }, [status]);
+
+  const statusEmoji = getStatusIcon(status);
   const statusLabel =
-    status === "running" && typeof progress === "number"
+    status === "building" && typeof progress === "number"
       ? `${Math.round(progress * 100)}%`
       : status.toUpperCase();
 
@@ -263,8 +346,29 @@ export default function EnhancedBuildScreen(): React.ReactElement {
             <View style={styles.statusTextWrap}>
               <Text style={styles.statusLabel}>{statusLabel}</Text>
               {!!message && <Text style={styles.statusMessage}>{message}</Text>}
+              {!!jobId && (
+                <Text style={styles.statusMessage}>Job ID: #{jobId}</Text>
+              )}
+              {etaMs > 0 && (
+                <Text style={styles.statusMessage}>
+                  ⏱️ Geschätzte Restzeit: {formatDuration(etaMs)}
+                </Text>
+              )}
             </View>
           </View>
+
+          {/* Timeline (unified BuildStatus) */}
+          <BuildTimelineCard status={status} />
+
+          {!!currentBuild?.urls?.html && (
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              onPress={() => openRun(currentBuild.urls?.html || "")}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.primaryBtnText}>🔎 GitHub Run öffnen</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={[
@@ -289,6 +393,82 @@ export default function EnhancedBuildScreen(): React.ReactElement {
         </View>
 
         <View style={styles.card}>
+          <Text style={styles.cardTitle}>Repo & Profile</Text>
+
+          <View style={styles.inputRow}>
+            <View style={styles.inputWrap}>
+              <Text style={styles.inputLabel}>GitHub Repo (owner/repo)</Text>
+              <TextInput
+                value={repoFullName}
+                onChangeText={setRepoFullName}
+                placeholder="z.B. k1w1-pro-plus/k1w1-a0style"
+                placeholderTextColor="#666"
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.input}
+              />
+            </View>
+          </View>
+
+          <View style={styles.profileRow}>
+            {(["development", "preview", "production"] as const).map((p) => {
+              const active = buildProfile === p;
+              const emoji =
+                p === "development" ? "🔧" : p === "preview" ? "👁️" : "🚀";
+              return (
+                <TouchableOpacity
+                  key={p}
+                  style={[styles.profileBtn, active && styles.profileBtnActive]}
+                  onPress={() => setBuildProfile(p)}
+                  activeOpacity={0.8}
+                  accessibilityLabel={`Build-Profile: ${p}`}
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text
+                    style={[
+                      styles.profileBtnText,
+                      active && styles.profileBtnTextActive,
+                    ]}
+                  >
+                    {emoji} {p}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <TouchableOpacity
+            style={[
+              styles.primaryBtn,
+              (!hasSetLinkedRepo ||
+                repoFullName.trim().length === 0 ||
+                savingRepo) &&
+                styles.btnDisabled,
+            ]}
+            onPress={onSaveLinkedRepo}
+            disabled={
+              !hasSetLinkedRepo ||
+              repoFullName.trim().length === 0 ||
+              savingRepo
+            }
+            accessibilityLabel="Repo speichern"
+          >
+            {savingRepo ? (
+              <ActivityIndicator color="#1a1a1a" />
+            ) : (
+              <Text style={styles.primaryBtnText}>💾 Repo speichern</Text>
+            )}
+          </TouchableOpacity>
+
+          {!hasSetLinkedRepo && (
+            <Text style={styles.warningText}>
+              ⚠️ setLinkedRepo() ist nicht verfügbar – Repo wird nicht
+              persistent gespeichert.
+            </Text>
+          )}
+        </View>
+
+        <View style={styles.card}>
           <Text style={styles.cardTitle}>GitHub Actions</Text>
 
           {!hasGetWorkflowRuns && (
@@ -298,34 +478,6 @@ export default function EnhancedBuildScreen(): React.ReactElement {
               </Text>
             </View>
           )}
-
-          <View style={styles.inputRow}>
-            <View style={styles.inputWrap}>
-              <Text style={styles.inputLabel}>Owner</Text>
-              <TextInput
-                value={owner}
-                onChangeText={setOwner}
-                placeholder="z.B. a0style"
-                placeholderTextColor="#666"
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={styles.input}
-              />
-            </View>
-
-            <View style={styles.inputWrap}>
-              <Text style={styles.inputLabel}>Repository</Text>
-              <TextInput
-                value={repo}
-                onChangeText={setRepo}
-                placeholder="z.B. k1w1-a0style"
-                placeholderTextColor="#666"
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={styles.input}
-              />
-            </View>
-          </View>
 
           <TouchableOpacity
             style={[
@@ -352,8 +504,8 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           {runs.length > 0 && (
             <View style={styles.runList}>
               {runs.slice(0, MAX_RUNS_DISPLAY).map((run) => {
-                const c = getStatusColor(run.status, run.conclusion);
-                const t = getStatusText(run.status, run.conclusion);
+                const c = getWorkflowStatusColor(run.status, run.conclusion);
+                const t = getWorkflowStatusText(run.status, run.conclusion);
                 const timeAgo = formatRelativeTime(run.created_at);
 
                 return (
@@ -398,9 +550,201 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           {runs.length === 0 && !loadingRuns && !error && (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>
-                Gib Owner und Repo ein, um Workflow Runs zu laden.
+                Trage ein Repo (owner/repo) ein, um Workflow Runs zu laden.
               </Text>
             </View>
+          )}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Logs & Fehleranalyse</Text>
+
+          {!shouldLoadLogs && status === "idle" && (
+            <Text style={styles.emptyText}>
+              ℹ️ Logs werden geladen sobald ein Build gestartet wird.
+            </Text>
+          )}
+
+          {!githubRepoForLogs && shouldLoadLogs && (
+            <Text style={styles.emptyText}>
+              ⚠️ Kein Repo gesetzt – Logs können nicht geladen werden.
+            </Text>
+          )}
+
+          {/* WorkflowRun-Status anzeigen wenn verfügbar */}
+          {workflowRun && (
+            <View style={styles.workflowStatusBox}>
+              <View style={styles.runHeader}>
+                <View
+                  style={[
+                    styles.statusDot,
+                    {
+                      backgroundColor: getWorkflowStatusColor(
+                        workflowRun.status,
+                        workflowRun.conclusion || null,
+                      ),
+                    },
+                  ]}
+                />
+                <Text style={styles.runTitle}>
+                  Run #{workflowRun.run_number}
+                </Text>
+              </View>
+              <View style={styles.runMeta}>
+                <Text
+                  style={[
+                    styles.runStatus,
+                    {
+                      color: getWorkflowStatusColor(
+                        workflowRun.status,
+                        workflowRun.conclusion || null,
+                      ),
+                    },
+                  ]}
+                >
+                  {getWorkflowStatusText(
+                    workflowRun.status,
+                    workflowRun.conclusion || null,
+                  )}
+                </Text>
+                <Text style={styles.runDivider}>•</Text>
+                <Text style={styles.runTime}>
+                  {formatRelativeTime(workflowRun.created_at)}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {!!logsError && (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>⚠️ {logsError}</Text>
+            </View>
+          )}
+
+          {logsLoading && <ActivityIndicator color="#00FF00" />}
+
+          {analyses.length > 0 && (
+            <View style={styles.analysisContainer}>
+              {analyses.slice(0, 3).map((a, idx) => (
+                <View
+                  key={`${a.category}-${idx}`}
+                  style={[
+                    styles.runItem,
+                    { borderColor: getSeverityColor(a.severity) },
+                  ]}
+                >
+                  <Text style={styles.runTitle}>
+                    {a.category} ({a.severity})
+                  </Text>
+                  <Text style={styles.runTime}>{a.description}</Text>
+                  <Text style={styles.runTime}>💡 {a.suggestion}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {logs.length > 0 && (
+            <View style={styles.logsContainer}>
+              <Text style={styles.inputLabel}>
+                Letzte Logs ({Math.min(logs.length, 20)} / {logs.length})
+              </Text>
+              <View style={styles.runList}>
+                {logs.slice(-20).map((l, idx) => (
+                  <View key={`${l.timestamp}-${idx}`} style={styles.runItem}>
+                    <Text style={styles.runTime}>
+                      {l.timestamp} • {l.level}
+                    </Text>
+                    <Text style={styles.runTitle}>{l.message}</Text>
+                  </View>
+                ))}
+              </View>
+              {!!workflowRun?.html_url && (
+                <TouchableOpacity
+                  style={[styles.primaryBtn, styles.logsBtnSpacing]}
+                  onPress={() => openRun(workflowRun.html_url)}
+                >
+                  <Text style={styles.primaryBtnText}>↗️ Run öffnen</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Build-Historie</Text>
+
+          {historyLoading ? (
+            <ActivityIndicator color="#00FF00" />
+          ) : (
+            <>
+              <Text style={styles.subtitle}>
+                Gesamt: {stats.total} • ✅ {stats.success} • ❌ {stats.failed} •
+                ⏳ {stats.building}
+              </Text>
+
+              <TouchableOpacity
+                style={[styles.primaryBtn, styles.historyBtnSpacing]}
+                onPress={clearHistory}
+                accessibilityLabel="Build-Historie leeren"
+              >
+                <Text style={styles.primaryBtnText}>🗑️ Historie leeren</Text>
+              </TouchableOpacity>
+
+              {history.length > 0 && (
+                <View style={styles.runList}>
+                  {history.slice(0, 10).map((h) => {
+                    const icon = getStatusIcon(h.status);
+                    return (
+                      <View key={h.id} style={styles.runItem}>
+                        <View style={styles.runHeader}>
+                          <Text style={styles.historyIcon}>{icon}</Text>
+                          <Text style={styles.runTitle} numberOfLines={1}>
+                            #{h.jobId} • {h.repoName}
+                          </Text>
+                        </View>
+                        <View style={styles.runMeta}>
+                          <Text style={styles.runTime}>
+                            {h.status.toUpperCase()}
+                          </Text>
+                          {h.buildProfile && (
+                            <>
+                              <Text style={styles.runDivider}>•</Text>
+                              <Text style={styles.runTime}>
+                                {h.buildProfile}
+                              </Text>
+                            </>
+                          )}
+                          {typeof h.durationMs === "number" &&
+                            h.durationMs > 0 && (
+                              <>
+                                <Text style={styles.runDivider}>•</Text>
+                                <Text style={styles.runTime}>
+                                  {formatDuration(h.durationMs)}
+                                </Text>
+                              </>
+                            )}
+                          <Text style={styles.runDivider}>•</Text>
+                          <Text style={styles.runTime}>
+                            {formatRelativeTime(h.startedAt)}
+                          </Text>
+                        </View>
+                        {!!h.htmlUrl && (
+                          <TouchableOpacity
+                            onPress={() => openRun(h.htmlUrl || "")}
+                            activeOpacity={0.7}
+                            style={styles.historyLink}
+                          >
+                            <Text style={styles.moreText}>
+                              ↗️ GitHub öffnen
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </>
           )}
         </View>
       </ScrollView>

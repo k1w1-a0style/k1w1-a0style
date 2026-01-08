@@ -1,18 +1,45 @@
 // supabase/functions/preview_page/index.ts
-// Serves a lightweight preview page for a previously "saved preview" (by secret).
-// IMPORTANT: Supabase often adds a very strict default CSP (default-src 'none'; sandbox)
-// unless you override it. That strict CSP breaks Sandpack/WebView and causes a white screen.
+// Serves a preview page for a previously "saved preview" (by secret).
+// NOTE: Preview runs in a sandbox. Do NOT put secrets/service keys into preview files.
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+
+type SnackFiles = Record<string, { type?: string; contents: string }>;
 
 type PreviewRecord = {
   name: string;
   secret: string;
   created_at: string;
   expires_at: string;
-  // payload holds files, dependencies, etc.
-  payload: unknown;
+  project_id?: string | null;
+  files: SnackFiles;
+  dependencies: Record<string, string> | null;
+  meta: Record<string, unknown> | null;
 };
+
+const TABLE = "previews";
+
+// Limits
+const MAX_FILES_BYTES = 3_000_000; // 3MB (align with save_preview default)
+const MAX_RESPONSE_BYTES = 5_000_000; // 5MB safety for generated HTML
+
+// Rate limiting (best-effort, in-memory; resets on cold start)
+const RATE_WINDOW_MS = 60_000; // 1 minute
+const RATE_MAX_REQ = 60; // 60 req/min per IP
+const recentRequests = new Map<string, number[]>();
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const arr = recentRequests.get(ip) || [];
+  const filtered = arr.filter((t) => now - t < RATE_WINDOW_MS);
+  if (filtered.length >= RATE_MAX_REQ) {
+    recentRequests.set(ip, filtered);
+    return true;
+  }
+  filtered.push(now);
+  recentRequests.set(ip, filtered);
+  return false;
+}
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -21,34 +48,6 @@ function json(data: unknown, status = 200) {
       "Content-Type": "application/json; charset=utf-8",
       "Cache-Control": "no-store, no-cache, must-revalidate",
       "X-Content-Type-Options": "nosniff",
-    },
-  });
-}
-
-function html(body: string, status = 200) {
-  return new Response(body, {
-    status,
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-store, no-cache, must-revalidate",
-      "X-Content-Type-Options": "nosniff",
-
-      // ✅ Override Supabase default CSP (often: default-src 'none'; sandbox)
-      // Otherwise Sandpack (scripts/iframes) won't run and you'll see a white screen.
-      "Content-Security-Policy": [
-        "default-src 'self' https: data: blob:",
-        "img-src 'self' https: data: blob:",
-        "media-src 'self' https: data: blob:",
-        "font-src 'self' https: data: blob:",
-        "style-src 'self' 'unsafe-inline' https: data: blob:",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:",
-        "connect-src 'self' https: wss: data: blob:",
-        "frame-src 'self' https: data: blob:",
-        "worker-src 'self' blob:",
-        "object-src 'none'",
-        "base-uri 'self'",
-      ].join("; "),
-      "Referrer-Policy": "no-referrer",
     },
   });
 }
@@ -62,99 +61,163 @@ function escapeHtml(s: string) {
     .replaceAll("'", "&#39;");
 }
 
-// This expects you saved previews in Supabase (DB + storage).
-// The "save_preview" function returns previewUrl like:
-// /functions/v1/preview_page?secret=...
-//
-// In your project, you likely store preview records in a table.
-// We'll try a safe, conventional approach with Supabase REST:
-// GET /rest/v1/previews?secret=eq.<secret>&select=...
-//
-// If your table name differs, adjust TABLE below.
-const TABLE = "previews";
+function safeJsonForScript(obj: unknown): string {
+  // Prevent </script> breakouts and other HTML/script parsing edge-cases when embedding JSON into <script>.
+  // This keeps the JSON valid while replacing characters that have special meaning in HTML parsing contexts.
+  return JSON.stringify(obj)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
 
-// ✅ FIX: Use SERVICE_ROLE key server-side to bypass RLS
+function getSupabaseBaseUrl(): string {
+  // Keep consistent with your save_preview function (uses PREVIEW_SUPABASE_URL)
+  return Deno.env.get("PREVIEW_SUPABASE_URL") ?? "";
+}
+
 function supabaseHeaders(): Record<string, string> {
-  // Server-side: use SERVICE_ROLE key (has full access, bypasses RLS)
-  const serviceRoleKey =
-    Deno.env.get("PREVIEW_SERVICE_ROLE_KEY") ??
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
-    "";
-
-  if (!serviceRoleKey) {
-    throw new Error(
-      "Missing PREVIEW_SERVICE_ROLE_KEY or SUPABASE_SERVICE_ROLE_KEY",
-    );
-  }
+  // Keep consistent with your save_preview function (uses PREVIEW_SERVICE_ROLE_KEY)
+  const key = Deno.env.get("PREVIEW_SERVICE_ROLE_KEY") ?? "";
+  if (!key) throw new Error("Missing PREVIEW_SERVICE_ROLE_KEY");
 
   return {
-    apikey: serviceRoleKey,
-    authorization: `Bearer ${serviceRoleKey}`,
+    apikey: key,
+    authorization: `Bearer ${key}`,
     "content-type": "application/json",
   };
+}
+
+function withTimeout(ms: number) {
+  const ac = new AbortController();
+  const id = setTimeout(() => ac.abort(), ms);
+  return { signal: ac.signal, cancel: () => clearTimeout(id) };
+}
+
+function utf8Size(s: string): number {
+  return new TextEncoder().encode(s).length;
+}
+
+function approxFilesPayloadSize(files: SnackFiles): number {
+  try {
+    return utf8Size(JSON.stringify(files));
+  } catch {
+    return Number.MAX_SAFE_INTEGER;
+  }
+}
+
+function buildCsp(): string {
+  // Optional strict CSP test mode: remove unsafe-eval
+  const strict =
+    (Deno.env.get("TEST_STRICT_CSP") ?? "").toLowerCase() === "true";
+  const evalPart = strict ? "" : " 'unsafe-eval'";
+
+  return [
+    "default-src 'self' data: blob:",
+    "img-src 'self' https: data: blob:",
+    "media-src 'self' https: data: blob:",
+    "font-src 'self' https: data: blob:",
+    "style-src 'self' 'unsafe-inline' https: data: blob:",
+    // Keep sources tight; SandpackClient is loaded from esm.sh.
+    `script-src 'self' 'unsafe-inline'${evalPart} https://esm.sh data: blob:`,
+    "connect-src 'self' https: wss: data: blob:",
+    "frame-src 'self' https: data: blob:",
+    "worker-src 'self' blob:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "frame-ancestors 'none'",
+  ].join("; ");
+}
+
+function html(body: string, status = 200) {
+  return new Response(body, {
+    status,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+      "X-Content-Type-Options": "nosniff",
+
+      // Supabase can inject a very strict CSP (default-src 'none'; sandbox),
+      // which breaks Sandpack/WebViews (white screen). Override it here.
+      "Content-Security-Policy": buildCsp(),
+      "Referrer-Policy": "no-referrer",
+    },
+  });
 }
 
 async function fetchPreviewRecord(
   secret: string,
 ): Promise<PreviewRecord | null> {
-  const base =
-    Deno.env.get("PREVIEW_SUPABASE_URL") ??
-    Deno.env.get("EXPO_PUBLIC_SUPABASE_URL") ??
-    Deno.env.get("SUPABASE_URL") ??
-    "";
+  const base = getSupabaseBaseUrl();
   if (!base) return null;
 
-  const restUrl = `${base}/rest/v1/${TABLE}?secret=eq.${encodeURIComponent(secret)}&select=name,secret,created_at,expires_at,payload&limit=1`;
+  // ✅ Match your DB schema (migrations + save_preview): files/dependencies/meta (NOT payload)
+  const select =
+    "name,secret,created_at,expires_at,project_id,files,dependencies,meta";
 
+  const restUrl =
+    `${base}/rest/v1/${TABLE}?secret=eq.${encodeURIComponent(secret)}` +
+    `&select=${encodeURIComponent(select)}&limit=1`;
+
+  const t = withTimeout(8000);
   try {
     const res = await fetch(restUrl, {
       method: "GET",
       headers: supabaseHeaders(),
+      signal: t.signal,
     });
 
     if (!res.ok) return null;
-    const arr = (await res.json()) as PreviewRecord[];
+
+    const ctype = res.headers.get("content-type") ?? "";
+    if (!ctype.toLowerCase().includes("application/json")) {
+      console.error("preview_page: unexpected content-type:", ctype);
+      return null;
+    }
+
+    let arr: unknown = null;
+    try {
+      arr = await res.json();
+    } catch (e) {
+      console.error("preview_page: failed to parse JSON:", e);
+      return null;
+    }
+
     if (!Array.isArray(arr) || arr.length === 0) return null;
-    return arr[0];
+    return arr[0] as PreviewRecord;
   } catch (e) {
     console.error("fetchPreviewRecord error:", e);
     return null;
+  } finally {
+    t.cancel();
   }
 }
 
-// Build a Sandpack page that can run Expo/React stuff in-browser.
-// You probably already tuned this in your save_preview/preview_page before;
-// this is a pragmatic implementation that works with many JS/TS projects.
+function isExpired(expiresAtIso: string | null | undefined): boolean {
+  if (!expiresAtIso) return false;
+  const t = Date.parse(expiresAtIso);
+  if (Number.isNaN(t)) return false;
+  return t < Date.now();
+}
+
 function renderPage(params: {
   name: string;
   createdAt: string;
   expiresAt: string;
-  payload: any;
+  files: SnackFiles;
+  dependencies?: Record<string, string>;
+  template?: string;
 }) {
-  const { name, createdAt, expiresAt, payload } = params;
-
-  // payload is whatever your save_preview stored.
-  // We'll accept:
-  // - payload.files: { [path]: { contents: string } }  (CodeSandbox-like)
-  // - payload.dependencies: { [pkg]: version }
-  // - payload.devDependencies: { ... }
-  // - payload.template: "react" | "vite-react" | etc (optional)
-
-  const files = payload?.files ?? {};
-  const dependencies = payload?.dependencies ?? undefined;
-  const devDependencies = payload?.devDependencies ?? undefined;
-  const template = payload?.template ?? "react";
+  const { name, createdAt, expiresAt, files, dependencies, template } = params;
 
   const sandpackSetup = {
     files,
-    dependencies,
-    devDependencies,
-    template,
+    dependencies: dependencies ?? undefined,
+    template: template ?? "react",
   };
 
-  const sandpackJson = JSON.stringify(sandpackSetup);
-
-  // UI: simple header + iframe area. Sandpack mounts inside #root.
+  const sandpackJson = safeJsonForScript(sandpackSetup);
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -212,7 +275,6 @@ function renderPage(params: {
 
   const setup = ${sandpackJson};
 
-  // Sandpack client runtime
   import { SandpackClient } from "https://esm.sh/@codesandbox/sandpack-client@2.19.0";
 
   function hideOverlay() {
@@ -239,33 +301,25 @@ function renderPage(params: {
 
       const root = document.getElementById("root");
       if (!root) throw new Error("Missing #root container");
-
       root.innerHTML = "";
 
-      // Build sandbox config for SandpackClient
       const files = setup.files || {};
       const dependencies = setup.dependencies || undefined;
-      const devDependencies = setup.devDependencies || undefined;
       const template = setup.template || "react";
 
-      // SandpackClient expects a "files" object with path->content or { code }
-      // We'll normalize CodeSandbox-like { contents } to plain string.
       const normalizedFiles = {};
       for (const [path, v] of Object.entries(files)) {
         if (typeof v === "string") normalizedFiles[path] = v;
         else if (v && typeof v === "object" && "contents" in v) normalizedFiles[path] = v.contents;
-        else if (v && typeof v === "object" && "code" in v) normalizedFiles[path] = v.code;
         else normalizedFiles[path] = String(v ?? "");
       }
 
       const client = new SandpackClient(root, normalizedFiles, {
         template,
         dependencies,
-        devDependencies,
       });
 
       client.listen((msg) => {
-        // Hide overlay once preview is running
         if (msg.type === "status" && (msg.status === "running" || msg.status === "idle")) {
           hideOverlay();
         }
@@ -274,7 +328,6 @@ function renderPage(params: {
         }
       });
 
-      // small fallback
       setTimeout(() => hideOverlay(), 2500);
     } catch (e) {
       showError(e);
@@ -289,6 +342,16 @@ function renderPage(params: {
 }
 
 serve(async (req) => {
+  const started = Date.now();
+  const ip =
+    (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() ||
+    "unknown";
+
+  // Rate limit early
+  if (isRateLimited(ip)) {
+    return json({ ok: false, error: "Rate limit exceeded" }, 429);
+  }
+
   try {
     const url = new URL(req.url);
     const secret = url.searchParams.get("secret") ?? "";
@@ -303,8 +366,24 @@ serve(async (req) => {
     const record = await fetchPreviewRecord(secret);
     if (!record) {
       return html(
-        `<!doctype html><meta charset="utf-8"><title>Not found</title><pre>Preview not found (invalid/expired secret?)</pre>`,
+        `<!doctype html><meta charset="utf-8"><title>Not found</title><pre>Preview not found (invalid secret?)</pre>`,
         404,
+      );
+    }
+
+    if (isExpired(record.expires_at)) {
+      return html(
+        `<!doctype html><meta charset="utf-8"><title>Expired</title><pre>Preview expired. Please create a new one.</pre>`,
+        404,
+      );
+    }
+
+    // Size safety net for DB payload
+    const fileBytes = approxFilesPayloadSize(record.files ?? {});
+    if (fileBytes > MAX_FILES_BYTES) {
+      return html(
+        `<!doctype html><meta charset="utf-8"><title>Too large</title><pre>Preview files exceed 3MB limit.</pre>`,
+        413,
       );
     }
 
@@ -315,15 +394,44 @@ serve(async (req) => {
       ? new Date(record.expires_at).toISOString().slice(0, 16).replace("T", " ")
       : "";
 
+    const metaTemplate =
+      record?.meta && typeof record.meta === "object"
+        ? (record.meta as any)?.template
+        : undefined;
+
     const page = renderPage({
-      name: record.name || "preview",
+      name: record.name || "Preview",
       createdAt,
       expiresAt,
-      payload: record.payload ?? {},
+      files: record.files ?? {},
+      dependencies: record.dependencies ?? undefined,
+      template: typeof metaTemplate === "string" ? metaTemplate : undefined,
     });
+
+    // Response size check
+    const pageBytes = utf8Size(page);
+    if (pageBytes > MAX_RESPONSE_BYTES) {
+      return html(
+        `<!doctype html><meta charset="utf-8"><title>Response too large</title><pre>Generated preview exceeds size limit.</pre>`,
+        413,
+      );
+    }
+
+    const ms = Date.now() - started;
+    const fileCount = record.files ? Object.keys(record.files).length : 0;
+    console.log(
+      `[preview_page] ip=${ip} name=${record.name ?? "?"} files=${fileCount} bytes=${fileBytes} ms=${ms}`,
+    );
 
     return html(page, 200);
   } catch (e) {
-    return json({ ok: false, error: String(e?.stack || e?.message || e) }, 500);
+    console.error("[preview_page] error:", e);
+    return json(
+      {
+        ok: false,
+        error: String((e as any)?.stack || (e as any)?.message || e),
+      },
+      500,
+    );
   }
 });

@@ -10,7 +10,7 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 16,
-    gap: 12 as any,
+    columnGap: 12,
   },
   headerText: { flex: 1 },
   title: {
@@ -28,14 +28,14 @@ export const styles = StyleSheet.create({
   section: {
     marginBottom: 24,
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: theme.palette.card,
     borderWidth: 1,
     borderColor: theme.palette.border,
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
     color: theme.palette.text.primary,
     marginBottom: 8,
   },
@@ -44,83 +44,89 @@ export const styles = StyleSheet.create({
   tokenText: { fontSize: 12, color: theme.palette.text.secondary },
   errorText: { color: theme.palette.error, fontSize: 12, marginBottom: 8 },
 
-  // ✅ Buttons: dark background + neon (primary) text/icon
+  // Buttons: dark background + neon (primary) text/icon
   button: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8 as any,
+    columnGap: 8,
     marginTop: 8,
     backgroundColor: theme.palette.secondary,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 10,
     alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: theme.palette.border,
   },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: theme.palette.primary, fontWeight: "600" },
+  buttonText: { color: theme.palette.primary, fontWeight: "700" },
 
   searchRow: { flexDirection: "row", marginBottom: 8 },
   searchInput: {
     flex: 1,
     backgroundColor: theme.palette.background,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: theme.palette.border,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     color: theme.palette.text.primary,
-    fontSize: 13,
+    fontSize: 14,
   },
 
-  filterRow: { flexDirection: "row", marginBottom: 8 },
+  filterRow: { flexDirection: "row", marginBottom: 8, flexWrap: "wrap" },
   filterButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: theme.palette.border,
     marginRight: 8,
+    marginBottom: 4,
     backgroundColor: theme.palette.background,
   },
-  // ✅ Active Filter: dark bg + neon border
+  // Active Filter: dark bg + neon border
   filterButtonActive: {
     backgroundColor: theme.palette.secondary,
     borderColor: theme.palette.primary,
   },
-  filterButtonText: { fontSize: 12, color: theme.palette.text.secondary },
-  // ✅ Active text neon
+  filterButtonText: { fontSize: 13, color: theme.palette.text.secondary },
+  // Active text neon
   filterButtonTextActive: {
-    fontSize: 12,
+    fontSize: 13,
     color: theme.palette.primary,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 
   noRecentText: { fontSize: 12, color: theme.palette.text.secondary },
   recentContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 6 as any,
     marginTop: 8,
   },
 
   recentPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: theme.palette.border,
-    marginRight: 4,
-    marginBottom: 4,
+    marginRight: 6,
+    marginBottom: 6,
     backgroundColor: theme.palette.background,
   },
-  // ✅ Active pill: dark bg + neon border
+  // Active pill: dark bg + neon border
   recentPillActive: {
     backgroundColor: theme.palette.secondary,
     borderColor: theme.palette.primary,
   },
-  recentPillText: { fontSize: 11, color: theme.palette.primary },
-  clearRecentText: { fontSize: 11, color: theme.palette.text.secondary },
+  recentPillText: { fontSize: 12, color: theme.palette.primary },
+  clearRecentText: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+    paddingVertical: 6,
+  },
 
   rowBetween: {
     flexDirection: "row",
@@ -141,27 +147,29 @@ export const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 4,
   },
-  actionsRow: { flexDirection: "row", marginTop: 8, gap: 8 as any },
+  actionsRow: { flexDirection: "row", marginTop: 8, columnGap: 8 },
 
-  // ✅ Action Buttons: dark bg + neon text
+  // Action Buttons: dark bg + neon text
   actionButton: {
     backgroundColor: theme.palette.secondary,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginRight: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: theme.palette.border,
+    minWidth: 70,
+    alignItems: "center",
   },
   actionButtonText: {
-    fontSize: 12,
+    fontSize: 13,
     color: theme.palette.primary,
+    fontWeight: "700",
     textAlign: "center",
   },
   progressText: {
-    fontSize: 10,
+    fontSize: 11,
     color: theme.palette.text.secondary,
-    marginTop: 4,
+    marginTop: 6,
     textAlign: "center",
   },
 });

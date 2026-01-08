@@ -4,18 +4,21 @@ import React, {
   useState,
   useCallback,
   useEffect,
-} from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+} from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type GitHubContextValue = {
   activeRepo: string | null;
   setActiveRepo: (repo: string | null) => void;
+  activeBranch: string | null;
+  setActiveBranch: (branch: string | null) => void;
   recentRepos: string[];
   addRecentRepo: (repo: string) => void;
   clearRecentRepos: () => void;
 };
 
-const STORAGE_KEY = 'k1w1_github_recent_repos';
+const STORAGE_KEY = "k1w1_github_recent_repos";
+const BRANCH_STORAGE_KEY = "k1w1_github_active_branch";
 
 const GitHubContext = createContext<GitHubContextValue | undefined>(undefined);
 
@@ -23,6 +26,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [activeRepo, setActiveRepoState] = useState<string | null>(null);
+  const [activeBranch, setActiveBranchState] = useState<string | null>(null);
   const [recentRepos, setRecentRepos] = useState<string[]>([]);
 
   useEffect(() => {
@@ -35,11 +39,13 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
             setRecentRepos(parsed);
           }
         }
+        // Branch laden
+        const storedBranch = await AsyncStorage.getItem(BRANCH_STORAGE_KEY);
+        if (storedBranch) {
+          setActiveBranchState(storedBranch);
+        }
       } catch (e) {
-        console.log(
-          '[GitHubContext] Fehler beim Laden der Recent Repos',
-          e
-        );
+        console.log("[GitHubContext] Fehler beim Laden der Recent Repos", e);
       }
     };
 
@@ -51,50 +57,71 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(repos));
     } catch (e) {
       console.error(
-        '[GitHubContext] Fehler beim Speichern der Recent Repos',
-        e
+        "[GitHubContext] Fehler beim Speichern der Recent Repos",
+        e,
       );
     }
   }, []);
 
-  const setActiveRepo = useCallback((repo: string | null) => {
-    setActiveRepoState(repo);
-    if (repo) {
+  const setActiveRepo = useCallback(
+    (repo: string | null) => {
+      setActiveRepoState(repo);
+      if (repo) {
+        setRecentRepos((prev) => {
+          const filtered = prev.filter((r) => r !== repo);
+          const next = [repo, ...filtered].slice(0, 10);
+          // ✅ FIX: persist async aufrufen, aber nicht await (non-blocking)
+          persist(next).catch((err) => {
+            console.error("[GitHubContext] Fehler beim Persistieren:", err);
+          });
+          return next;
+        });
+      }
+    },
+    [persist],
+  );
+
+  const addRecentRepo = useCallback(
+    (repo: string) => {
       setRecentRepos((prev) => {
         const filtered = prev.filter((r) => r !== repo);
         const next = [repo, ...filtered].slice(0, 10);
         // ✅ FIX: persist async aufrufen, aber nicht await (non-blocking)
-        persist(next).catch(err => {
-          console.error('[GitHubContext] Fehler beim Persistieren:', err);
+        persist(next).catch((err) => {
+          console.error("[GitHubContext] Fehler beim Persistieren:", err);
         });
         return next;
       });
-    }
-  }, [persist]);
-
-  const addRecentRepo = useCallback((repo: string) => {
-    setRecentRepos((prev) => {
-      const filtered = prev.filter((r) => r !== repo);
-      const next = [repo, ...filtered].slice(0, 10);
-      // ✅ FIX: persist async aufrufen, aber nicht await (non-blocking)
-      persist(next).catch(err => {
-        console.error('[GitHubContext] Fehler beim Persistieren:', err);
-      });
-      return next;
-    });
-  }, [persist]);
+    },
+    [persist],
+  );
 
   const clearRecentRepos = useCallback(() => {
     setRecentRepos([]);
     // ✅ FIX: persist async aufrufen
-    persist([]).catch(err => {
-      console.error('[GitHubContext] Fehler beim Persistieren:', err);
+    persist([]).catch((err) => {
+      console.error("[GitHubContext] Fehler beim Persistieren:", err);
     });
   }, [persist]);
+
+  const setActiveBranch = useCallback((branch: string | null) => {
+    setActiveBranchState(branch);
+    if (branch) {
+      AsyncStorage.setItem(BRANCH_STORAGE_KEY, branch).catch((err) => {
+        console.error("[GitHubContext] Fehler beim Speichern des Branch:", err);
+      });
+    } else {
+      AsyncStorage.removeItem(BRANCH_STORAGE_KEY).catch((err) => {
+        console.error("[GitHubContext] Fehler beim Löschen des Branch:", err);
+      });
+    }
+  }, []);
 
   const value: GitHubContextValue = {
     activeRepo,
     setActiveRepo,
+    activeBranch,
+    setActiveBranch,
     recentRepos,
     addRecentRepo,
     clearRecentRepos,
@@ -109,7 +136,7 @@ export const useGitHub = (): GitHubContextValue => {
   const ctx = useContext(GitHubContext);
   if (!ctx) {
     throw new Error(
-      'useGitHub muss innerhalb eines GitHubProvider verwendet werden'
+      "useGitHub muss innerhalb eines GitHubProvider verwendet werden",
     );
   }
   return ctx;

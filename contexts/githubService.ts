@@ -7,12 +7,26 @@ import { Buffer } from "buffer";
 import { ProjectFile } from "./types";
 import { RateLimiter } from "../lib/RateLimiter";
 
-// ✅ FIX: Buffer Polyfill Check (besserer Check)
-if (typeof Buffer === "undefined" || typeof Buffer.from !== "function") {
-  throw new Error(
-    '❌ Buffer polyfill fehlt oder ist unvollständig. Bitte "buffer" Package installieren: npm install buffer',
-  );
-}
+// ✅ FIX: Buffer Polyfill Check (lazy + zuverlässig)
+const ensureBuffer = () => {
+  if (typeof Buffer === "undefined" || typeof Buffer.from !== "function") {
+    throw new Error(
+      '❌ Buffer polyfill fehlt oder ist unvollständig. Bitte "buffer" Package installieren: npm install buffer',
+    );
+  }
+};
+
+// Unterstützt "base64:" prefix für Binärdateien (z.B. PNG im Template).
+// - Wenn content mit "base64:" beginnt, wird der Rest 1:1 als Base64 an GitHub gesendet.
+// - Sonst wird UTF-8 Inhalt normal base64-encodiert.
+const encodeGitHubFileContent = (content: string): string => {
+  ensureBuffer();
+  const trimmed = (content ?? "").toString();
+  if (trimmed.startsWith("base64:")) {
+    return trimmed.slice("base64:".length).trim();
+  }
+  return Buffer.from(trimmed, "utf8").toString("base64");
+};
 
 const GH_TOKEN_KEY = "github_pat_v1";
 const EXPO_TOKEN_KEY = "expo_token_v1";
@@ -65,6 +79,7 @@ const deleteSecureToken = async (key: string): Promise<void> => {
 };
 
 const encryptSecret = (publicKey: string, value: string): string => {
+  ensureBuffer();
   const messageBytes = Buffer.from(value);
   const keyBytes = Buffer.from(publicKey, "base64");
   const encryptedBytes = seal(messageBytes, keyBytes);
@@ -79,6 +94,14 @@ const ensureGitHubRepoParts = (
     throw new Error(`Ungültiges Repo-Format: ${fullName}`);
   }
   return { owner, repo };
+};
+
+// GitHub Contents API expects slashes as path separators. Encode each segment, not the whole string.
+const encodeGitHubPath = (p: string): string => {
+  return p
+    .split("/")
+    .map((seg) => encodeURIComponent(seg))
+    .join("/");
 };
 
 /**
@@ -159,7 +182,7 @@ export const syncRepoSecrets = async (
   const { owner, repo } = ensureGitHubRepoParts(repoFullName);
   const headers = {
     Accept: "application/vnd.github+json",
-    Authorization: `token ${token}`,
+    Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
   };
 
@@ -240,7 +263,8 @@ export const createRepo = async (repoName: string, isPrivate = true) => {
   const resp = await fetch("https://api.github.com/user/repos", {
     method: "POST",
     headers: {
-      Authorization: `token ${token}`,
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ name: repoName, private: isPrivate }),
@@ -278,7 +302,10 @@ export const createRepo = async (repoName: string, isPrivate = true) => {
       try {
         await githubLimiter.checkLimit();
         const userResp = await fetch("https://api.github.com/user", {
-          headers: { Authorization: `token ${token}` },
+          headers: {
+            Accept: "application/vnd.github+json",
+            Authorization: `Bearer ${token}`,
+          },
         });
         const userData = await userResp.json();
         if (!userData.login)
@@ -306,12 +333,247 @@ export const createRepo = async (repoName: string, isPrivate = true) => {
   return json;
 };
 
+/**
+ * Löscht ein Repository.
+ * Hinweis: GitHub API gibt bei Erfolg 204 zurück.
+ */
+export const deleteRepo = async (
+  owner: string,
+  repo: string,
+): Promise<boolean> => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error("GitHub token fehlt.");
+
+  await githubLimiter.checkLimit();
+
+  const resp = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+    method: "DELETE",
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `token ${token}`,
+    },
+  });
+
+  if (resp.status === 204) return true;
+  if (resp.status === 404) return false;
+
+  const text = await resp.text();
+  if (resp.status === 401) throw new Error("GitHub Token ungültig.");
+  if (resp.status === 403)
+    throw new Error("Keine Berechtigung. Token benötigt Repo-Admin Rechte.");
+  throw new Error(`Repo löschen fehlgeschlagen (${resp.status}): ${text}`);
+};
+
+/**
+ * Benennt ein Repository um.
+ */
+export const renameRepo = async (
+  owner: string,
+  repo: string,
+  newName: string,
+): Promise<{ full_name: string; name: string; html_url: string }> => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error("GitHub token fehlt.");
+
+  const name = newName.trim();
+  if (!name) throw new Error("Neuer Repo-Name ist leer.");
+
+  await githubLimiter.checkLimit();
+
+  const resp = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+    method: "PATCH",
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `token ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name }),
+  });
+
+  const json: any = await resp.json().catch(() => ({}));
+
+  if (!resp.ok) {
+    if (resp.status === 401) throw new Error("GitHub Token ungültig.");
+    if (resp.status === 403)
+      throw new Error("Keine Berechtigung. Token benötigt Repo-Admin Rechte.");
+    if (resp.status === 404) throw new Error("Repository nicht gefunden.");
+    throw new Error(
+      json.message || `Repo umbenennen fehlgeschlagen (${resp.status})`,
+    );
+  }
+
+  return {
+    full_name: json.full_name,
+    name: json.name,
+    html_url: json.html_url,
+  };
+};
+
+/**
+ * Erstellt einen Branch aus einem bestehenden Branch.
+ */
+export const createBranch = async (
+  owner: string,
+  repo: string,
+  newBranch: string,
+  fromBranch: string,
+): Promise<boolean> => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error("GitHub token fehlt.");
+
+  const branchName = newBranch.trim();
+  if (!branchName) throw new Error("Branch-Name ist leer.");
+
+  await githubLimiter.checkLimit();
+
+  const refResp = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(fromBranch)}`,
+    {
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `token ${token}`,
+      },
+    },
+  );
+
+  const refJson: any = await refResp.json().catch(() => ({}));
+  if (!refResp.ok) {
+    if (refResp.status === 401) throw new Error("GitHub Token ungültig.");
+    if (refResp.status === 403)
+      throw new Error("Keine Berechtigung. Token benötigt Repo-Write Rechte.");
+    throw new Error(
+      refJson.message || `Base-Branch nicht gefunden: ${fromBranch}`,
+    );
+  }
+
+  const sha = refJson?.object?.sha;
+  if (!sha) throw new Error("Konnte SHA vom Base-Branch nicht ermitteln.");
+
+  await githubLimiter.checkLimit();
+
+  const createResp = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/git/refs`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `token ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ ref: `refs/heads/${branchName}`, sha }),
+    },
+  );
+
+  const createJson: any = await createResp.json().catch(() => ({}));
+  if (!createResp.ok) {
+    if (createResp.status === 401) throw new Error("GitHub Token ungültig.");
+    if (createResp.status === 403)
+      throw new Error("Keine Berechtigung. Token benötigt Repo-Write Rechte.");
+    throw new Error(
+      createJson.message ||
+        `Branch erstellen fehlgeschlagen (${createResp.status})`,
+    );
+  }
+
+  return true;
+};
+
+/**
+ * Löscht einen Branch.
+ */
+export const deleteBranch = async (
+  owner: string,
+  repo: string,
+  branch: string,
+): Promise<boolean> => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error("GitHub token fehlt.");
+
+  const b = branch.trim();
+  if (!b) throw new Error("Branch-Name ist leer.");
+
+  await githubLimiter.checkLimit();
+
+  const resp = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(b)}`,
+    {
+      method: "DELETE",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `token ${token}`,
+      },
+    },
+  );
+
+  if (resp.status === 204) return true;
+  if (resp.status === 404) return false;
+
+  const text = await resp.text();
+  if (resp.status === 401) throw new Error("GitHub Token ungültig.");
+  if (resp.status === 403)
+    throw new Error(
+      "Keine Berechtigung. Token benötigt Repo-Admin/Write Rechte.",
+    );
+  throw new Error(`Branch löschen fehlgeschlagen (${resp.status}): ${text}`);
+};
+
+/**
+ * Benennt einen Branch um.
+ * GitHub API: POST /repos/{owner}/{repo}/branches/{branch}/rename
+ */
+export const renameBranch = async (
+  owner: string,
+  repo: string,
+  oldBranch: string,
+  newBranch: string,
+): Promise<{ name: string }> => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error("GitHub token fehlt.");
+
+  const from = oldBranch.trim();
+  const to = newBranch.trim();
+  if (!from) throw new Error("Alter Branch-Name ist leer.");
+  if (!to) throw new Error("Neuer Branch-Name ist leer.");
+
+  await githubLimiter.checkLimit();
+
+  const resp = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/branches/${encodeURIComponent(from)}/rename`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `token ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ new_name: to }),
+    },
+  );
+
+  const json: any = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    if (resp.status === 401) throw new Error("GitHub Token ungültig.");
+    if (resp.status === 403)
+      throw new Error(
+        "Keine Berechtigung. Token benötigt Repo-Admin/Write Rechte.",
+      );
+    if (resp.status === 404)
+      throw new Error("Branch oder Repo nicht gefunden.");
+    throw new Error(
+      json.message || `Branch umbenennen fehlgeschlagen (${resp.status})`,
+    );
+  }
+
+  return { name: json.name || to };
+};
+
 export const createOrUpdateFile = async (
   owner: string,
   repo: string,
   path: string,
   content: string,
   message = "Add file",
+  branch = "main",
 ) => {
   const token = await getGitHubToken();
   if (!token) throw new Error("GitHub token fehlt.");
@@ -319,10 +581,14 @@ export const createOrUpdateFile = async (
   // ✅ Rate Limit Check
   await githubLimiter.checkLimit();
 
-  const getResp = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`,
-    { headers: { Authorization: `token ${token}` } },
-  );
+  // ✅ FIX: SHA muss aus *dem gleichen Branch* kommen, sonst mismatch beim PUT
+  const getUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}?ref=${encodeURIComponent(branch)}`;
+  const getResp = await fetch(getUrl, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
   let sha: string | undefined = undefined;
   if (getResp.ok) {
@@ -332,8 +598,8 @@ export const createOrUpdateFile = async (
 
   const body: any = {
     message,
-    content: Buffer.from(content, "utf8").toString("base64"),
-    branch: "main",
+    content: encodeGitHubFileContent(content),
+    branch,
   };
   if (sha) body.sha = sha;
 
@@ -341,18 +607,28 @@ export const createOrUpdateFile = async (
   await githubLimiter.checkLimit();
 
   const putResp = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`,
+    `https://api.github.com/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}`,
     {
       method: "PUT",
       headers: {
-        Authorization: `token ${token}`,
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
     },
   );
 
-  const json = await putResp.json();
+  let json: any;
+  try {
+    json = await putResp.json();
+  } catch {
+    const text = await putResp.text();
+    throw new Error(
+      `create/update file failed (${putResp.status}): ${path} -> ${text}`,
+    );
+  }
+
   if (!putResp.ok) {
     const status = putResp.status;
     if (status === 401) throw new Error("GitHub Token ungültig.");
@@ -367,12 +643,36 @@ export const pushFilesToRepo = async (
   owner: string,
   repo: string,
   files: ProjectFile[],
+  branch?: string,
 ) => {
+  let targetBranch = typeof branch === "string" ? branch.trim() : "";
+
+  // ✅ Falls kein Branch angegeben ist: nimm Default-Branch des Repos (wichtig wenn Repo nicht 'main' nutzt)
+  if (!targetBranch) {
+    try {
+      targetBranch = (await getDefaultBranch(owner, repo)).trim();
+    } catch (e) {
+      console.warn(
+        "⚠️ Default-Branch konnte nicht ermittelt werden, fallback auf 'main':",
+        e,
+      );
+      targetBranch = "main";
+    }
+  }
+  if (!targetBranch) targetBranch = "main";
+
   const sortedFiles = [...files].sort((a, b) => a.path.localeCompare(b.path));
   for (const f of sortedFiles) {
     if (!f.path) continue;
-    console.log(`Pushing ${f.path}...`);
-    await createOrUpdateFile(owner, repo, f.path, f.content, `Add ${f.path}`);
+    console.log(`Pushing ${f.path}... (branch: ${targetBranch})`);
+    await createOrUpdateFile(
+      owner,
+      repo,
+      f.path,
+      f.content,
+      `Add ${f.path}`,
+      targetBranch,
+    );
   }
 };
 
@@ -393,7 +693,8 @@ export const triggerWorkflow = async (
   const resp = await fetch(url, {
     method: "POST",
     headers: {
-      Authorization: `token ${token}`,
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ ref, inputs }),
@@ -408,7 +709,7 @@ export const triggerWorkflow = async (
     throw new Error("Keine Berechtigung für Workflow-Trigger.");
   if (status === 404) {
     throw new Error(
-      `Workflow nicht gefunden. Stelle sicher, dass '${workflowFileName}' im '.github/workflows' Ordner auf GitHub (Branch 'main') existiert.`,
+      `Workflow nicht gefunden. Stelle sicher, dass '${workflowFileName}' im '.github/workflows' Ordner auf GitHub (Branch '${ref}') existiert.`,
     );
   }
 
@@ -429,7 +730,10 @@ export const getWorkflowRuns = async (
 
   const url = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowFileName)}/runs?per_page=5`;
   const resp = await fetch(url, {
-    headers: { Authorization: `token ${token}` },
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+    },
   });
 
   // ✅ Check Rate Limit Headers
@@ -456,4 +760,116 @@ export const getWorkflowRuns = async (
     throw new Error(json.message || "get runs failed");
   }
   return json;
+};
+
+/**
+ * Lädt alle Workflow Runs für ein Repo (über alle Workflows hinweg)
+ */
+export const getAllWorkflowRuns = async (
+  owner: string,
+  repo: string,
+  perPage = 10,
+): Promise<WorkflowRun[]> => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error("GitHub token fehlt.");
+
+  await githubLimiter.checkLimit();
+
+  const url = `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=${perPage}`;
+  const resp = await fetch(url, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!resp.ok) {
+    const status = resp.status;
+    if (status === 401) throw new Error("GitHub Token ungültig.");
+    if (status === 403) throw new Error("Keine Berechtigung.");
+    if (status === 404) throw new Error("Repository nicht gefunden.");
+    const text = await resp.text();
+    throw new Error(`Workflow Runs Fehler (${status}): ${text}`);
+  }
+
+  const json = await resp.json();
+  return (json.workflow_runs || []) as WorkflowRun[];
+};
+
+export interface WorkflowRun {
+  id: number;
+  name: string;
+  head_branch: string;
+  status: "queued" | "in_progress" | "completed" | "waiting";
+  conclusion: "success" | "failure" | "cancelled" | "skipped" | null;
+  created_at: string;
+  updated_at: string;
+  html_url: string;
+  run_number: number;
+}
+
+export interface GitHubBranch {
+  name: string;
+  commit: { sha: string };
+  protected: boolean;
+}
+
+/**
+ * Lädt alle Branches eines Repos
+ */
+export const getBranches = async (
+  owner: string,
+  repo: string,
+): Promise<GitHubBranch[]> => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error("GitHub token fehlt.");
+
+  await githubLimiter.checkLimit();
+
+  const url = `https://api.github.com/repos/${owner}/${repo}/branches?per_page=100`;
+  const resp = await fetch(url, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!resp.ok) {
+    const status = resp.status;
+    if (status === 401) throw new Error("GitHub Token ungültig.");
+    if (status === 403) throw new Error("Keine Berechtigung.");
+    if (status === 404) throw new Error("Repository nicht gefunden.");
+    const text = await resp.text();
+    throw new Error(`Branches Fehler (${status}): ${text}`);
+  }
+
+  return (await resp.json()) as GitHubBranch[];
+};
+
+/**
+ * Lädt den Default Branch eines Repos
+ */
+export const getDefaultBranch = async (
+  owner: string,
+  repo: string,
+): Promise<string> => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error("GitHub token fehlt.");
+
+  await githubLimiter.checkLimit();
+
+  const url = `https://api.github.com/repos/${owner}/${repo}`;
+  const resp = await fetch(url, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!resp.ok) {
+    throw new Error(`Repo-Info Fehler (${resp.status})`);
+  }
+
+  const json = await resp.json();
+  return json.default_branch || "main";
 };

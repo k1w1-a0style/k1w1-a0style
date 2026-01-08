@@ -1,5 +1,7 @@
 // contexts/types.ts
 
+import type { BuildStatus } from "../lib/buildStatusMapper";
+
 export interface ProjectFile {
   path: string;
   content: string;
@@ -9,7 +11,7 @@ export interface BuildHistoryEntry {
   id: string;
   jobId: number;
   repoName: string;
-  status: 'queued' | 'building' | 'success' | 'failed' | 'error';
+  status: BuildStatus;
   startedAt: string;
   completedAt?: string;
   durationMs?: number;
@@ -21,7 +23,7 @@ export interface BuildHistoryEntry {
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant' | 'system';
+  role: "user" | "assistant" | "system";
   content: string;
   timestamp: string;
   meta?: {
@@ -48,6 +50,10 @@ export interface ProjectData {
   messages?: ChatMessage[];
   createdAt: string;
   lastModified: string;
+  /** Verknüpftes GitHub Repo (full_name: owner/repo) */
+  linkedRepo?: string | null;
+  /** Verknüpfter Branch (z.B. "main") */
+  linkedBranch?: string | null;
 }
 
 export interface ProjectContextProps {
@@ -72,8 +78,28 @@ export interface ProjectContextProps {
   triggerAutoFix: (message: string) => void;
   clearAutoFixRequest: () => void;
 
-  startBuild?: () => Promise<void>;
-  currentBuild?: { status: 'idle' | 'queued' | 'building' | 'completed' | 'error'; message?: string } | null;
+  /**
+   * Startet einen EAS Build über Supabase (trigger-eas-build).
+   * Optional mit Build-Profile (development|preview|production).
+   */
+  startBuild?: (buildProfile?: string) => Promise<void>;
+  currentBuild?: {
+    status: BuildStatus;
+    message?: string;
+    progress?: number; // 0..1 (optional UI-Hilfe)
+    jobId?: number | null;
+    githubRepo?: string | null;
+    buildProfile?: string;
+    runId?: number | null;
+    urls?: {
+      html?: string | null;
+      artifacts?: string | null;
+      buildUrl?: string | null;
+    };
+    startedAt?: string;
+    completedAt?: string;
+    lastUpdatedAt?: string;
+  } | null;
 
   exportAndBuild: () => Promise<{ owner: string; repo: string } | null>;
   exportProjectAsZip: () => Promise<void>;
@@ -95,4 +121,7 @@ export interface ProjectContextProps {
       html_url: string;
     }>;
   }>;
+
+  /** Verknüpft Repo+Branch mit dem Projekt (persistent) */
+  setLinkedRepo: (repo: string | null, branch?: string | null) => Promise<void>;
 }
