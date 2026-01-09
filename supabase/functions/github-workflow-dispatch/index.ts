@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
+import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 
 /**
  * Triggers a GitHub Actions workflow via workflow_dispatch
@@ -9,6 +10,12 @@ serve(async (req) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
+  const auth = requireAdminKey(req);
+  if (auth) return auth;
+
+  const rl = rateLimit(req, "github-workflow-dispatch");
+  if (rl) return rl;
+
   try {
     const body = await req.json().catch(() => null);
 
@@ -17,24 +24,24 @@ serve(async (req) => {
         JSON.stringify({
           error: "Missing 'githubRepo' or 'workflowId' in request body",
         }),
-        { headers: corsHeaders, status: 400 }
+        { headers: corsHeaders, status: 400 },
       );
     }
 
     const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN");
 
     if (!GITHUB_TOKEN) {
-      return new Response(
-        JSON.stringify({ error: "Missing GITHUB_TOKEN" }),
-        { headers: corsHeaders, status: 500 }
-      );
+      return new Response(JSON.stringify({ error: "Missing GITHUB_TOKEN" }), {
+        headers: corsHeaders,
+        status: 500,
+      });
     }
 
     const { githubRepo, workflowId, ref = "main", inputs = {} } = body;
 
     // Trigger workflow dispatch
     const dispatchUrl = `https://api.github.com/repos/${githubRepo}/actions/workflows/${workflowId}/dispatches`;
-    
+
     const dispatchResponse = await fetch(dispatchUrl, {
       method: "POST",
       headers: {
@@ -56,7 +63,7 @@ serve(async (req) => {
           status: dispatchResponse.status,
           details: errorText,
         }),
-        { headers: corsHeaders, status: dispatchResponse.status }
+        { headers: corsHeaders, status: dispatchResponse.status },
       );
     }
 
@@ -75,10 +82,14 @@ serve(async (req) => {
           ...corsHeaders,
           "Content-Type": "application/json",
         },
-      }
+      },
     );
   } catch (err: any) {
-    console.error("❌ github-workflow-dispatch error", err?.message ?? err, err?.stack);
+    console.error(
+      "❌ github-workflow-dispatch error",
+      err?.message ?? err,
+      err?.stack,
+    );
 
     return new Response(
       JSON.stringify({
@@ -91,7 +102,7 @@ serve(async (req) => {
           ...corsHeaders,
           "Content-Type": "application/json",
         },
-      }
+      },
     );
   }
 });

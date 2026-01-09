@@ -8,15 +8,15 @@
  */
 const ALLOWED_ORIGINS = [
   // Produktion
-  'https://k1w1.app',
-  'https://www.k1w1.app',
+  "https://k1w1.app",
+  "https://www.k1w1.app",
   // Entwicklung - Expo Dev Server
-  'http://localhost:8081',
-  'http://localhost:19000',
-  'http://localhost:19001',
-  'http://localhost:19002',
+  "http://localhost:8081",
+  "http://localhost:19000",
+  "http://localhost:19001",
+  "http://localhost:19002",
   // Expo Go App (spezielle Behandlung)
-  'exp://',
+  "exp://",
 ];
 
 /**
@@ -24,17 +24,17 @@ const ALLOWED_ORIGINS = [
  */
 function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
-  
+
   // Entwicklungsmodus: Erlaube alle localhost und Expo-Origins
-  const isDev = Deno.env.get('ENVIRONMENT') !== 'production';
+  const isDev = Deno.env.get("ENVIRONMENT") !== "production";
   if (isDev) {
-    if (origin.startsWith('http://localhost:')) return true;
-    if (origin.startsWith('http://192.168.')) return true; // Lokales Netzwerk für Expo
-    if (origin.startsWith('exp://')) return true;
+    if (origin.startsWith("http://localhost:")) return true;
+    if (origin.startsWith("http://192.168.")) return true; // Lokales Netzwerk für Expo
+    if (origin.startsWith("exp://")) return true;
   }
-  
-  return ALLOWED_ORIGINS.some(allowed => {
-    if (allowed.endsWith('//')) {
+
+  return ALLOWED_ORIGINS.some((allowed) => {
+    if (allowed.endsWith("//")) {
       // Prefix match (z.B. exp://)
       return origin.startsWith(allowed);
     }
@@ -47,17 +47,18 @@ function isAllowedOrigin(origin: string | null): boolean {
  */
 export function getCorsHeaders(origin: string | null): Record<string, string> {
   const allowedOrigin = isAllowedOrigin(origin) ? origin : ALLOWED_ORIGINS[0];
-  
+
   return {
-    'Access-Control-Allow-Origin': allowedOrigin || '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
-    'Access-Control-Max-Age': '86400', // Cache preflight für 24h
-    'Content-Type': 'application/json',
+    "Access-Control-Allow-Origin": allowedOrigin || "*",
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type, x-k1w1-admin-key",
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+    "Access-Control-Max-Age": "86400", // Cache preflight für 24h
+    "Content-Type": "application/json",
     // Security Headers
-    'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'DENY',
-    'X-XSS-Protection': '1; mode=block',
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "X-XSS-Protection": "1; mode=block",
   };
 }
 
@@ -66,19 +67,20 @@ export function getCorsHeaders(origin: string | null): Record<string, string> {
  * @deprecated Verwende getCorsHeaders(origin) für produktionsreife CORS
  */
 export const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
-  'Content-Type': 'application/json',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-k1w1-admin-key",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+  "Content-Type": "application/json",
 };
 
 /**
  * Behandelt CORS Preflight Requests
  */
 export function handleCors(req: Request): Response | null {
-  if (req.method === 'OPTIONS') {
-    const origin = req.headers.get('origin');
-    return new Response('ok', { headers: getCorsHeaders(origin) });
+  if (req.method === "OPTIONS") {
+    const origin = req.headers.get("origin");
+    return new Response("ok", { headers: getCorsHeaders(origin) });
   }
   return null;
 }
@@ -89,16 +91,13 @@ export function handleCors(req: Request): Response | null {
 export function jsonResponse(
   data: unknown,
   req: Request,
-  status: number = 200
+  status: number = 200,
 ): Response {
-  const origin = req.headers.get('origin');
-  return new Response(
-    JSON.stringify(data),
-    {
-      status,
-      headers: getCorsHeaders(origin),
-    }
-  );
+  const origin = req.headers.get("origin");
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: getCorsHeaders(origin),
+  });
 }
 
 /**
@@ -108,7 +107,7 @@ export function errorResponse(
   error: string,
   req: Request,
   status: number = 400,
-  details?: unknown
+  details?: unknown,
 ): Response {
   return jsonResponse(
     {
@@ -117,6 +116,6 @@ export function errorResponse(
       ...(details && { details }),
     },
     req,
-    status
+    status,
   );
 }

@@ -1,5 +1,6 @@
 import { serve } from "std/http/server.ts";
 import { createClient } from "@supabase/supabase-js";
+import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 
 type SnackFiles = Record<string, { type?: string; contents: string }>;
 type Payload = {
@@ -44,6 +45,12 @@ function approxSize(obj: unknown): number {
 }
 
 serve(async (req) => {
+  const auth = requireAdminKey(req);
+  if (auth) return auth;
+
+  const rl = rateLimit(req, "save_preview");
+  if (rl) return rl;
+
   const origin = req.headers.get("origin");
   const cors = corsHeaders(origin);
 

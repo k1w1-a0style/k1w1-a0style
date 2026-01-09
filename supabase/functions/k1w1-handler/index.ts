@@ -23,6 +23,7 @@ interface HandlerRequestBody {
 }
 
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
+import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 
 const DEFAULT_MODELS = {
   groq: {
@@ -51,10 +52,9 @@ function parseRequestBody(body: unknown): HandlerRequestBody {
   }
 
   const provider = b.provider as string;
-  const quality =
-    (b.quality === "quality" || b.quality === "speed"
-      ? b.quality
-      : "speed") as "speed" | "quality";
+  const quality = (
+    b.quality === "quality" || b.quality === "speed" ? b.quality : "speed"
+  ) as "speed" | "quality";
 
   return {
     provider,
@@ -69,11 +69,7 @@ function toGeminiContents(messages: ChatMessage[]) {
   // OpenAI → Gemini Mapping
   return messages.map((m) => ({
     role:
-      m.role === "assistant"
-        ? "model"
-        : m.role === "user"
-        ? "user"
-        : "user",
+      m.role === "assistant" ? "model" : m.role === "user" ? "user" : "user",
     parts: [{ text: m.content }],
   }));
 }
@@ -138,8 +134,7 @@ async function callGemini(
 
   const contents = toGeminiContents(body.messages);
 
-  const url =
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const res = await fetch(url, {
     method: "POST",
@@ -167,6 +162,12 @@ async function callGemini(
 serve(async (req: Request): Promise<Response> => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
+
+  const auth = requireAdminKey(req);
+  if (auth) return auth;
+
+  const rl = rateLimit(req, "k1w1-handler");
+  if (rl) return rl;
 
   if (req.method !== "POST") {
     return new Response("Method not allowed", {
@@ -225,9 +226,10 @@ serve(async (req: Request): Promise<Response> => {
     };
 
     // Use 500 for unexpected errors, 400 for validation errors
-    const statusCode = err?.message?.includes("Missing") || err?.message?.includes("Invalid") 
-      ? 400 
-      : 500;
+    const statusCode =
+      err?.message?.includes("Missing") || err?.message?.includes("Invalid")
+        ? 400
+        : 500;
 
     return new Response(JSON.stringify(errorPayload), {
       status: statusCode,

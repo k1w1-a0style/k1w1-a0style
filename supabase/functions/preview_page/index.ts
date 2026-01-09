@@ -3,6 +3,7 @@
 // NOTE: Preview runs in a sandbox. Do NOT put secrets/service keys into preview files.
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 
 type SnackFiles = Record<string, { type?: string; contents: string }>;
 
@@ -342,6 +343,12 @@ function renderPage(params: {
 }
 
 serve(async (req) => {
+  const auth = requireAdminKey(req);
+  if (auth) return auth;
+
+  const rl = rateLimit(req, "preview_page");
+  if (rl) return rl;
+
   const started = Date.now();
   const ip =
     (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() ||

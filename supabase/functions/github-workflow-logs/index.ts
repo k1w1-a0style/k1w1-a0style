@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
+import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 
 /**
  * Fetches GitHub Actions workflow logs
@@ -9,6 +10,12 @@ serve(async (req) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
+  const auth = requireAdminKey(req);
+  if (auth) return auth;
+
+  const rl = rateLimit(req, "github-workflow-logs");
+  if (rl) return rl;
+
   try {
     const body = await req.json().catch(() => null);
 
@@ -17,17 +24,17 @@ serve(async (req) => {
         JSON.stringify({
           error: "Missing 'githubRepo' or 'runId' in request body",
         }),
-        { headers: corsHeaders, status: 400 }
+        { headers: corsHeaders, status: 400 },
       );
     }
 
     const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN");
 
     if (!GITHUB_TOKEN) {
-      return new Response(
-        JSON.stringify({ error: "Missing GITHUB_TOKEN" }),
-        { headers: corsHeaders, status: 500 }
-      );
+      return new Response(JSON.stringify({ error: "Missing GITHUB_TOKEN" }), {
+        headers: corsHeaders,
+        status: 500,
+      });
     }
 
     const { githubRepo, runId } = body;
@@ -49,7 +56,7 @@ serve(async (req) => {
           status: runResponse.status,
           details: errorText,
         }),
-        { headers: corsHeaders, status: runResponse.status }
+        { headers: corsHeaders, status: runResponse.status },
       );
     }
 
@@ -65,17 +72,17 @@ serve(async (req) => {
     });
 
     if (!jobsResponse.ok) {
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch jobs" }),
-        { headers: corsHeaders, status: jobsResponse.status }
-      );
+      return new Response(JSON.stringify({ error: "Failed to fetch jobs" }), {
+        headers: corsHeaders,
+        status: jobsResponse.status,
+      });
     }
 
     const jobsData = await jobsResponse.json();
 
     // Parse logs from all jobs
     const logs: any[] = [];
-    
+
     for (const job of jobsData.jobs || []) {
       // Add job start entry
       logs.push({
@@ -87,14 +94,21 @@ serve(async (req) => {
 
       // Add step entries
       for (const step of job.steps || []) {
-        const level = 
-          step.conclusion === "failure" ? "error" :
-          step.conclusion === "success" ? "info" : "info";
+        const level =
+          step.conclusion === "failure"
+            ? "error"
+            : step.conclusion === "success"
+              ? "info"
+              : "info";
 
-        const icon = 
-          step.conclusion === "failure" ? "❌" :
-          step.conclusion === "success" ? "✅" :
-          step.status === "in_progress" ? "⏳" : "⏸";
+        const icon =
+          step.conclusion === "failure"
+            ? "❌"
+            : step.conclusion === "success"
+              ? "✅"
+              : step.status === "in_progress"
+                ? "⏳"
+                : "⏸";
 
         logs.push({
           timestamp: step.started_at || new Date().toISOString(),
@@ -117,8 +131,9 @@ serve(async (req) => {
     }
 
     // Sort logs by timestamp
-    logs.sort((a, b) => 
-      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    logs.sort(
+      (a, b) =>
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
     );
 
     return new Response(
@@ -141,10 +156,14 @@ serve(async (req) => {
           ...corsHeaders,
           "Content-Type": "application/json",
         },
-      }
+      },
     );
   } catch (err: any) {
-    console.error("❌ github-workflow-logs error", err?.message ?? err, err?.stack);
+    console.error(
+      "❌ github-workflow-logs error",
+      err?.message ?? err,
+      err?.stack,
+    );
 
     return new Response(
       JSON.stringify({
@@ -157,7 +176,7 @@ serve(async (req) => {
           ...corsHeaders,
           "Content-Type": "application/json",
         },
-      }
+      },
     );
   }
 });

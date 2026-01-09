@@ -8,7 +8,15 @@ Deno.serve(async (req) => {
   const gate = await requireAdminKey(req);
   if (gate) return gate;
 
-  return new Response(JSON.stringify({ ok: true }), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+  return new Response(
+    JSON.stringify({
+      ok: false,
+      disabled: true,
+      message: "This function is disabled on this deployment.",
+    }),
+    {
+      status: 410,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    },
+  );
 });

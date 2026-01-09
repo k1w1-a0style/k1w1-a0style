@@ -263,6 +263,7 @@ AppRegistry.runApplication("app", {
       files["src/App.tsx"] = {
         content: `import React from "react";
 import { View, Text, StyleSheet } from "react-native";
+import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 
 export default function App() {
   return (
@@ -318,6 +319,12 @@ function filterDeps(
 }
 
 serve(async (req) => {
+  const auth = requireAdminKey(req);
+  if (auth) return auth;
+
+  const rl = rateLimit(req, "create_codesandbox");
+  if (rl) return rl;
+
   const origin = req.headers.get("origin");
 
   if (req.method === "OPTIONS") {

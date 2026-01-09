@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { validateCheckBuildRequest } from "../_shared/validation.ts";
+import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 
 /**
  * ✓ Stabile Status-Überprüfung (Source of Truth: build_jobs Row)
@@ -13,6 +14,12 @@ import { validateCheckBuildRequest } from "../_shared/validation.ts";
 serve(async (req) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
+
+  const auth = requireAdminKey(req);
+  if (auth) return auth;
+
+  const rl = rateLimit(req, "check-eas-build");
+  if (rl) return rl;
 
   try {
     const body = await req.json().catch(() => null);
