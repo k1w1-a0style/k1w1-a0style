@@ -11,6 +11,7 @@ import { CONFIG } from "../config";
 import { BuildStatus, mapBuildStatus } from "../lib/buildStatusMapper";
 import { BuildStatusDetails } from "../lib/supabaseTypes";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getEdgeAdminKey } from "../contexts/githubService";
 
 const POLL_INTERVAL_MS = 6000; // 6 Sekunden
 const MAX_ERRORS = 5; // Nach 5 Fehlern stoppen
@@ -132,11 +133,15 @@ export function useBuildStatus(
       );
 
       const edgeUrl = await getSupabaseEdgeUrl();
+      const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
       const res = await fetchWithTimeout(
         `${edgeUrl}/check-eas-build`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
+          },
           body: JSON.stringify({ jobId: jobIdFromScreen }),
         },
         REQUEST_TIMEOUT_MS,

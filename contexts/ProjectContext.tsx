@@ -29,6 +29,7 @@ import {
 
 import {
   getGitHubToken,
+  getEdgeAdminKey,
   getWorkflowRuns,
   pushFilesToRepo,
   getDefaultBranch,
@@ -78,6 +79,9 @@ export {
   saveExpoToken,
   getExpoToken,
   syncRepoSecrets,
+  getEdgeAdminKey,
+  saveEdgeAdminKey,
+  deleteEdgeAdminKey,
 } from "./githubService";
 
 export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
@@ -485,11 +489,15 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       try {
         const supabase = await ensureSupabaseClient();
 
+        const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+        const invokeOpts: { body: any; headers?: Record<string, string> } = {
+          body: { jobId },
+        };
+        if (edgeAdminKey)
+          invokeOpts.headers = { "x-k1w1-admin-key": edgeAdminKey };
         const { data, error } = await supabase.functions.invoke(
           "check-eas-build",
-          {
-            body: { jobId },
-          },
+          invokeOpts,
         );
 
         if (error) throw error;
@@ -646,11 +654,15 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         }
 
         const supabase = await ensureSupabaseClient();
+        const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+        const invokeOpts: { body: any; headers?: Record<string, string> } = {
+          body: { githubRepo, buildProfile: profile, branch: buildBranch },
+        };
+        if (edgeAdminKey)
+          invokeOpts.headers = { "x-k1w1-admin-key": edgeAdminKey };
         const { data, error } = await supabase.functions.invoke(
           "trigger-eas-build",
-          {
-            body: { githubRepo, buildProfile: profile, branch: buildBranch },
-          },
+          invokeOpts,
         );
 
         if (error) throw error;

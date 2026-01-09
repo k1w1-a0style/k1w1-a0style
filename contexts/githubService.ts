@@ -30,6 +30,7 @@ const encodeGitHubFileContent = (content: string): string => {
 
 const GH_TOKEN_KEY = "github_pat_v1";
 const EXPO_TOKEN_KEY = "expo_token_v1";
+const EDGE_ADMIN_KEY = "edge_admin_key_v1";
 
 // ✅ FIX: Rate Limiter für GitHub API (5000/hour, wir nutzen 4000 als Buffer)
 const githubLimiter = new RateLimiter({
@@ -162,6 +163,26 @@ export const deleteGitHubToken = async (): Promise<void> => {
  */
 export const deleteExpoToken = async (): Promise<void> => {
   await deleteSecureToken(EXPO_TOKEN_KEY);
+};
+
+// ----------------------
+// Edge Admin Key (optional)
+// ----------------------
+export const getEdgeAdminKey = async (): Promise<string | null> => {
+  return await SecureStore.getItemAsync(EDGE_ADMIN_KEY);
+};
+
+export const saveEdgeAdminKey = async (key: string): Promise<void> => {
+  const v = (key ?? "").trim();
+  if (!v) {
+    await SecureStore.deleteItemAsync(EDGE_ADMIN_KEY);
+    return;
+  }
+  await SecureStore.setItemAsync(EDGE_ADMIN_KEY, v);
+};
+
+export const deleteEdgeAdminKey = async (): Promise<void> => {
+  await SecureStore.deleteItemAsync(EDGE_ADMIN_KEY);
 };
 
 /**

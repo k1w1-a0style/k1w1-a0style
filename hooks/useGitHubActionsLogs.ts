@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { CONFIG } from "../config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getEdgeAdminKey } from "../contexts/githubService";
 
 export interface LogEntry {
   timestamp: string;
@@ -93,11 +94,15 @@ export function useGitHubActionsLogs({
       // Fetch latest workflow run if no runId provided
       let targetRunId = runId;
       const edgeUrl = await getSupabaseEdgeUrl();
+      const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
 
       if (!targetRunId) {
         const runsResponse = await fetch(`${edgeUrl}/github-workflow-runs`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
+          },
           body: JSON.stringify({ githubRepo }),
         });
 
@@ -120,7 +125,10 @@ export function useGitHubActionsLogs({
       // Fetch logs for the workflow run
       const logsResponse = await fetch(`${edgeUrl}/github-workflow-logs`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
+        },
         body: JSON.stringify({
           githubRepo,
           runId: targetRunId,

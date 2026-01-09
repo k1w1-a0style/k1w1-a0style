@@ -4,7 +4,13 @@
 // ✅ GitHub-Token-Test mit User-Info
 // ✅ EAS bleibt "sparsam" (kein API-Call)
 
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
   View,
   Text,
@@ -15,38 +21,41 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
-} from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../theme';
-import { useGitHub } from '../contexts/GitHubContext';
+} from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
+import { theme } from "../theme";
+import { useGitHub } from "../contexts/GitHubContext";
 import {
   getGitHubToken,
   saveGitHubToken,
   getExpoToken,
   saveExpoToken,
   syncRepoSecrets,
-} from '../contexts/ProjectContext';
+  getEdgeAdminKey,
+  saveEdgeAdminKey,
+  deleteEdgeAdminKey,
+} from "../contexts/ProjectContext";
 
-type StatusType = 'idle' | 'ok' | 'error';
+type StatusType = "idle" | "ok" | "error";
 
 const STORAGE_KEYS = {
-  SUPABASE_RAW: 'supabase_raw',
-  SUPABASE_URL: 'supabase_url',
-  SUPABASE_KEY: 'supabase_key',
-  SUPABASE_SERVICE_ROLE_KEY: 'supabase_service_role_key',
-  GITHUB_TOKEN: 'github_token',
-  EAS_TOKEN: 'eas_token',
-  EAS_PROJECT_ID: 'eas_project_id',
+  SUPABASE_RAW: "supabase_raw",
+  SUPABASE_URL: "supabase_url",
+  SUPABASE_KEY: "supabase_key",
+  SUPABASE_SERVICE_ROLE_KEY: "supabase_service_role_key",
+  GITHUB_TOKEN: "github_token",
+  EAS_TOKEN: "eas_token",
+  EAS_PROJECT_ID: "eas_project_id",
 } as const;
 
 const getStatusColor = (status: StatusType) => {
   switch (status) {
-    case 'ok':
+    case "ok":
       return theme.palette.success;
-    case 'error':
+    case "error":
       return theme.palette.error;
-    case 'idle':
+    case "idle":
     default:
       return theme.palette.text.secondary;
   }
@@ -55,7 +64,7 @@ const getStatusColor = (status: StatusType) => {
 const deriveSupabaseUrl = (raw: string): { projectId: string; url: string } => {
   const trimmed = raw.trim();
   if (!trimmed) {
-    return { projectId: '', url: '' };
+    return { projectId: "", url: "" };
   }
 
   // Falls schon eine URL eingetragen war: https://<id>.supabase.co -> id extrahieren
@@ -78,27 +87,28 @@ const deriveSupabaseUrl = (raw: string): { projectId: string; url: string } => {
 const ConnectionsScreen: React.FC = () => {
   const { activeRepo } = useGitHub();
 
-  const [supabaseProjectId, setSupabaseProjectId] = useState('');
-  const [supabaseKey, setSupabaseKey] = useState('');
-  const [supabaseServiceRoleKey, setSupabaseServiceRoleKey] = useState('');
-  const [githubToken, setGithubTokenState] = useState('');
-  const [easToken, setEasToken] = useState('');
-  const [easProjectId, setEasProjectId] = useState('');
+  const [supabaseProjectId, setSupabaseProjectId] = useState("");
+  const [supabaseKey, setSupabaseKey] = useState("");
+  const [supabaseServiceRoleKey, setSupabaseServiceRoleKey] = useState("");
+  const [githubToken, setGithubTokenState] = useState("");
+  const [easToken, setEasToken] = useState("");
+  const [easProjectId, setEasProjectId] = useState("");
+  const [edgeAdminKey, setEdgeAdminKey] = useState("");
   const [connectionsLoaded, setConnectionsLoaded] = useState(false);
   const [syncingSecrets, setSyncingSecrets] = useState(false);
   const [lastSecretSync, setLastSecretSync] = useState<string | null>(null);
   const previousRepoRef = useRef<string | null>(null);
 
-  const [supabaseStatus, setSupabaseStatus] = useState<StatusType>('idle');
-  const [githubStatus, setGithubStatus] = useState<StatusType>('idle');
-  const [easStatus, setEasStatus] = useState<StatusType>('idle');
+  const [supabaseStatus, setSupabaseStatus] = useState<StatusType>("idle");
+  const [githubStatus, setGithubStatus] = useState<StatusType>("idle");
+  const [easStatus, setEasStatus] = useState<StatusType>("idle");
 
   const [loadingSupabase, setLoadingSupabase] = useState(false);
   const [loadingGithub, setLoadingGithub] = useState(false);
   const [loadingEas, setLoadingEas] = useState(false);
 
   const [githubUser, setGithubUser] = useState<string | null>(null);
-  const [supabaseTestDetails, setSupabaseTestDetails] = useState<string>('');
+  const [supabaseTestDetails, setSupabaseTestDetails] = useState<string>("");
 
   // --------------------------------------------------
   // Initial-Load: Supabase, GitHub-Token, EAS-Konfig
@@ -113,6 +123,7 @@ const ConnectionsScreen: React.FC = () => {
           storedServiceRoleKey,
           storedGithubTokenAsync,
           storedEasTokenAsync,
+          storedEdgeAdminKey,
           storedEasProjectId,
         ] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_RAW),
@@ -121,23 +132,29 @@ const ConnectionsScreen: React.FC = () => {
           AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY),
           getGitHubToken().catch(() => null),
           getExpoToken().catch(() => null),
+          getEdgeAdminKey().catch(() => null),
           AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID),
         ]);
 
         const envSupabaseUrl =
-          (process.env.EXPO_PUBLIC_SUPABASE_URL as string | undefined) || '';
+          (process.env.EXPO_PUBLIC_SUPABASE_URL as string | undefined) || "";
         const envSupabaseKey =
-          (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY as string | undefined) || '';
+          (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY as string | undefined) ||
+          "";
 
-        const rawSource = storedSupabaseRaw || storedSupabaseUrl || envSupabaseUrl || '';
-        const derived = rawSource ? deriveSupabaseUrl(rawSource) : { projectId: '', url: '' };
+        const rawSource =
+          storedSupabaseRaw || storedSupabaseUrl || envSupabaseUrl || "";
+        const derived = rawSource
+          ? deriveSupabaseUrl(rawSource)
+          : { projectId: "", url: "" };
 
         setSupabaseProjectId(storedSupabaseRaw || derived.projectId);
         setSupabaseKey(storedSupabaseKey || envSupabaseKey);
-        setSupabaseServiceRoleKey(storedServiceRoleKey || '');
-        setGithubTokenState(storedGithubTokenAsync || '');
-        setEasToken(storedEasTokenAsync || '');
-        setEasProjectId(storedEasProjectId || '');
+        setSupabaseServiceRoleKey(storedServiceRoleKey || "");
+        setGithubTokenState(storedGithubTokenAsync || "");
+        setEasToken(storedEasTokenAsync || "");
+        setEdgeAdminKey(storedEdgeAdminKey || "");
+        setEasProjectId(storedEasProjectId || "");
       } catch (e) {
         // Silently handle load errors
       } finally {
@@ -150,7 +167,9 @@ const ConnectionsScreen: React.FC = () => {
 
   const secretPayload = useMemo(() => {
     const trimmedProject = supabaseProjectId.trim();
-    const derived = trimmedProject ? deriveSupabaseUrl(trimmedProject) : { projectId: '', url: '' };
+    const derived = trimmedProject
+      ? deriveSupabaseUrl(trimmedProject)
+      : { projectId: "", url: "" };
 
     return {
       supabaseUrl: derived.url || null,
@@ -165,22 +184,22 @@ const ConnectionsScreen: React.FC = () => {
   );
 
   const syncSecretsForActiveRepo = useCallback(
-    async (reason: 'manual' | 'auto') => {
+    async (reason: "manual" | "auto") => {
       if (!activeRepo) {
-        if (reason === 'manual') {
+        if (reason === "manual") {
           Alert.alert(
-            'Kein Repo',
-            'Bitte wähle zuerst ein aktives GitHub-Repository im GitHub-Screen aus.',
+            "Kein Repo",
+            "Bitte wähle zuerst ein aktives GitHub-Repository im GitHub-Screen aus.",
           );
         }
         return;
       }
 
       if (!hasSecretsConfigured) {
-        if (reason === 'manual') {
+        if (reason === "manual") {
           Alert.alert(
-            'Keine Daten',
-            'Es gibt aktuell keine Supabase/EAS-Werte, die als Secret gespeichert werden können.',
+            "Keine Daten",
+            "Es gibt aktuell keine Supabase/EAS-Werte, die als Secret gespeichert werden können.",
           );
         }
         return;
@@ -191,16 +210,17 @@ const ConnectionsScreen: React.FC = () => {
         const result = await syncRepoSecrets(activeRepo, secretPayload);
         setLastSecretSync(new Date().toISOString());
 
-        if (reason === 'manual') {
+        if (reason === "manual") {
           const msg = result.updated.length
-            ? `Folgende Secrets wurden gesetzt:\n${result.updated.join(', ')}`
-            : 'Es wurden keine Secrets geändert (alle Werte waren bereits identisch).';
-          Alert.alert('Repo-Secrets aktualisiert', msg);
+            ? `Folgende Secrets wurden gesetzt:\n${result.updated.join(", ")}`
+            : "Es wurden keine Secrets geändert (alle Werte waren bereits identisch).";
+          Alert.alert("Repo-Secrets aktualisiert", msg);
         }
       } catch (error: any) {
-        const message = error?.message ?? 'Unbekannter Fehler beim Secret-Sync.';
-        if (reason === 'manual') {
-          Alert.alert('Secret Sync fehlgeschlagen', message);
+        const message =
+          error?.message ?? "Unbekannter Fehler beim Secret-Sync.";
+        if (reason === "manual") {
+          Alert.alert("Secret Sync fehlgeschlagen", message);
         }
       } finally {
         setSyncingSecrets(false);
@@ -220,7 +240,7 @@ const ConnectionsScreen: React.FC = () => {
     }
 
     previousRepoRef.current = activeRepo;
-    syncSecretsForActiveRepo('auto');
+    syncSecretsForActiveRepo("auto");
   }, [activeRepo, connectionsLoaded, syncSecretsForActiveRepo]);
 
   // --------------------------------------------------
@@ -230,7 +250,7 @@ const ConnectionsScreen: React.FC = () => {
     try {
       const raw = supabaseProjectId.trim();
       if (!raw) {
-        Alert.alert('Hinweis', 'Bitte eine Supabase Project-ID eintragen.');
+        Alert.alert("Hinweis", "Bitte eine Supabase Project-ID eintragen.");
         return;
       }
 
@@ -246,27 +266,38 @@ const ConnectionsScreen: React.FC = () => {
         supabaseServiceRoleKey.trim(),
       );
 
-      Alert.alert('✅ Gespeichert', 'Supabase-Konfiguration wurde gespeichert.');
-      await syncSecretsForActiveRepo('manual');
+      Alert.alert(
+        "✅ Gespeichert",
+        "Supabase-Konfiguration wurde gespeichert.",
+      );
+      await syncSecretsForActiveRepo("manual");
     } catch (e) {
-      Alert.alert('Fehler', 'Supabase-Konfiguration konnte nicht gespeichert werden.');
+      Alert.alert(
+        "Fehler",
+        "Supabase-Konfiguration konnte nicht gespeichert werden.",
+      );
     }
-  }, [supabaseProjectId, supabaseKey, supabaseServiceRoleKey, syncSecretsForActiveRepo]);
+  }, [
+    supabaseProjectId,
+    supabaseKey,
+    supabaseServiceRoleKey,
+    syncSecretsForActiveRepo,
+  ]);
 
   const saveGithubTokenHandler = useCallback(async () => {
     try {
       const token = githubToken.trim();
       if (!token) {
-        Alert.alert('Hinweis', 'Bitte ein GitHub-PAT eintragen.');
+        Alert.alert("Hinweis", "Bitte ein GitHub-PAT eintragen.");
         return;
       }
 
       await saveGitHubToken(token);
       await AsyncStorage.setItem(STORAGE_KEYS.GITHUB_TOKEN, token);
 
-      Alert.alert('✅ Gespeichert', 'GitHub-Token wurde sicher gespeichert.');
+      Alert.alert("✅ Gespeichert", "GitHub-Token wurde sicher gespeichert.");
     } catch (e) {
-      Alert.alert('Fehler', 'GitHub-Token konnte nicht gespeichert werden.');
+      Alert.alert("Fehler", "GitHub-Token konnte nicht gespeichert werden.");
     }
   }, [githubToken]);
 
@@ -280,15 +311,39 @@ const ConnectionsScreen: React.FC = () => {
       await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, projectId);
 
       Alert.alert(
-        '✅ Gespeichert',
-        'EAS-Konfiguration wurde gespeichert (Project ID + optionaler Token).'
+        "✅ Gespeichert",
+        "EAS-Konfiguration wurde gespeichert (Project ID + optionaler Token).",
       );
-      await syncSecretsForActiveRepo('manual');
+      await syncSecretsForActiveRepo("manual");
     } catch (e) {
-      Alert.alert('Fehler', 'EAS-Konfiguration konnte nicht gespeichert werden.');
+      Alert.alert(
+        "Fehler",
+        "EAS-Konfiguration konnte nicht gespeichert werden.",
+      );
     }
   }, [easToken, easProjectId, syncSecretsForActiveRepo]);
 
+  // -----------------------------
+  // EDGE ADMIN KEY (optional)
+  // -----------------------------
+  const saveEdgeAdminKeyConfig = useCallback(async () => {
+    try {
+      await saveEdgeAdminKey(edgeAdminKey);
+      Alert.alert("✅ Gespeichert", "Edge Admin Key wurde gespeichert.");
+    } catch (e) {
+      Alert.alert("Fehler", "Edge Admin Key konnte nicht gespeichert werden.");
+    }
+  }, [edgeAdminKey]);
+
+  const clearEdgeAdminKeyConfig = useCallback(async () => {
+    try {
+      await deleteEdgeAdminKey();
+      setEdgeAdminKey("");
+      Alert.alert("✅ Entfernt", "Edge Admin Key wurde entfernt.");
+    } catch (e) {
+      Alert.alert("Fehler", "Edge Admin Key konnte nicht entfernt werden.");
+    }
+  }, []);
   // --------------------------------------------------
   // SUPABASE-TEST (REST + build_jobs + Edge Functions)
   // --------------------------------------------------
@@ -297,26 +352,29 @@ const ConnectionsScreen: React.FC = () => {
     const key = supabaseKey.trim();
 
     if (!rawId || !key) {
-      Alert.alert('Fehlende Daten', 'Bitte Supabase Project-ID und Anon-Key eintragen.');
-      setSupabaseStatus('error');
+      Alert.alert(
+        "Fehlende Daten",
+        "Bitte Supabase Project-ID und Anon-Key eintragen.",
+      );
+      setSupabaseStatus("error");
       return;
     }
 
     const { url } = deriveSupabaseUrl(rawId);
     if (!url) {
-      Alert.alert('Fehler', 'Supabase Project-ID sieht ungültig aus.');
-      setSupabaseStatus('error');
+      Alert.alert("Fehler", "Supabase Project-ID sieht ungültig aus.");
+      setSupabaseStatus("error");
       return;
     }
 
     try {
       setLoadingSupabase(true);
-      setSupabaseStatus('idle');
-      setSupabaseTestDetails('Teste REST API...');
+      setSupabaseStatus("idle");
+      setSupabaseTestDetails("Teste REST API...");
 
       // Test 1: REST API Basisverbindung
       const restRes = await fetch(`${url}/rest/v1/`, {
-        method: 'GET',
+        method: "GET",
         headers: {
           apikey: key,
           Authorization: `Bearer ${key}`,
@@ -324,20 +382,20 @@ const ConnectionsScreen: React.FC = () => {
       });
 
       if (!restRes.ok && restRes.status !== 404) {
-        setSupabaseStatus('error');
+        setSupabaseStatus("error");
         setSupabaseTestDetails(`REST API Fehler: Status ${restRes.status}`);
         Alert.alert(
-          'Fehler',
-          `Supabase REST API antwortet mit Status ${restRes.status}. Prüfe Project-ID/Key.`
+          "Fehler",
+          `Supabase REST API antwortet mit Status ${restRes.status}. Prüfe Project-ID/Key.`,
         );
         return;
       }
 
-      setSupabaseTestDetails('✓ REST API OK. Teste build_jobs Tabelle...');
+      setSupabaseTestDetails("✓ REST API OK. Teste build_jobs Tabelle...");
 
       // Test 2: build_jobs Tabelle prüfen
       const tableRes = await fetch(`${url}/rest/v1/build_jobs?limit=1`, {
-        method: 'GET',
+        method: "GET",
         headers: {
           apikey: key,
           Authorization: `Bearer ${key}`,
@@ -345,53 +403,68 @@ const ConnectionsScreen: React.FC = () => {
       });
 
       if (!tableRes.ok) {
-        setSupabaseStatus('error');
-        setSupabaseTestDetails(`Tabelle build_jobs nicht gefunden (${tableRes.status})`);
+        setSupabaseStatus("error");
+        setSupabaseTestDetails(
+          `Tabelle build_jobs nicht gefunden (${tableRes.status})`,
+        );
         Alert.alert(
-          'Tabelle fehlt',
-          'Die Tabelle "build_jobs" existiert nicht in deinem Supabase-Projekt.\n\nBitte deploy das Schema aus der Dokumentation.'
+          "Tabelle fehlt",
+          'Die Tabelle "build_jobs" existiert nicht in deinem Supabase-Projekt.\n\nBitte deploy das Schema aus der Dokumentation.',
         );
         return;
       }
 
-      setSupabaseTestDetails('✓ build_jobs Tabelle OK. Teste Edge Functions...');
+      setSupabaseTestDetails(
+        "✓ build_jobs Tabelle OK. Teste Edge Functions...",
+      );
 
       // Test 3: Edge Functions (mit Timeout, optional)
       try {
         const fnTestPromise = fetch(`${url}/functions/v1/test`, {
-          method: 'POST',
+          method: "POST",
           headers: {
             apikey: key,
             Authorization: `Bearer ${key}`,
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({}),
         });
 
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('timeout')), 5000)
+          setTimeout(() => reject(new Error("timeout")), 5000),
         );
 
-        const fnRes = (await Promise.race([fnTestPromise, timeoutPromise])) as Response;
+        const fnRes = (await Promise.race([
+          fnTestPromise,
+          timeoutPromise,
+        ])) as Response;
 
         if (fnRes.ok) {
-          setSupabaseTestDetails('✓ REST + Tabelle + Edge Functions OK');
+          setSupabaseTestDetails("✓ REST + Tabelle + Edge Functions OK");
         } else {
-          setSupabaseTestDetails('✓ REST + Tabelle OK (Edge Functions nicht getestet)');
+          setSupabaseTestDetails(
+            "✓ REST + Tabelle OK (Edge Functions nicht getestet)",
+          );
         }
       } catch (e: any) {
-        setSupabaseTestDetails('✓ REST + Tabelle OK (Edge Functions nicht getestet)');
+        setSupabaseTestDetails(
+          "✓ REST + Tabelle OK (Edge Functions nicht getestet)",
+        );
       }
 
-      setSupabaseStatus('ok');
+      setSupabaseStatus("ok");
       Alert.alert(
-        '✅ Supabase OK',
-        'REST API und build_jobs Tabelle sind erreichbar.\n\n' + supabaseTestDetails
+        "✅ Supabase OK",
+        "REST API und build_jobs Tabelle sind erreichbar.\n\n" +
+          supabaseTestDetails,
       );
     } catch (e: any) {
-      setSupabaseStatus('error');
-      setSupabaseTestDetails(`Fehler: ${e.message || 'Unbekannter Fehler'}`);
-      Alert.alert('Fehler', e?.message ?? 'Supabase konnte nicht erreicht werden.');
+      setSupabaseStatus("error");
+      setSupabaseTestDetails(`Fehler: ${e.message || "Unbekannter Fehler"}`);
+      Alert.alert(
+        "Fehler",
+        e?.message ?? "Supabase konnte nicht erreicht werden.",
+      );
     } finally {
       setLoadingSupabase(false);
     }
@@ -404,42 +477,42 @@ const ConnectionsScreen: React.FC = () => {
     const token = githubToken.trim();
     if (!token) {
       Alert.alert(
-        'Kein Token',
-        'Bitte trage dein GitHub-PAT ein und speichere es zuerst.'
+        "Kein Token",
+        "Bitte trage dein GitHub-PAT ein und speichere es zuerst.",
       );
-      setGithubStatus('error');
+      setGithubStatus("error");
       return;
     }
 
     try {
       setLoadingGithub(true);
-      setGithubStatus('idle');
+      setGithubStatus("idle");
 
-      const res = await fetch('https://api.github.com/user', {
+      const res = await fetch("https://api.github.com/user", {
         headers: {
-          Accept: 'application/vnd.github+json',
+          Accept: "application/vnd.github+json",
           Authorization: `token ${token}`,
         },
       });
 
       if (!res.ok) {
         const text = await res.text();
-        setGithubStatus('error');
+        setGithubStatus("error");
 
         if (res.status === 401) {
           Alert.alert(
-            'Token ungültig',
-            'GitHub-Token ist ungültig oder abgelaufen.\n\nBitte erstelle ein neues PAT.'
+            "Token ungültig",
+            "GitHub-Token ist ungültig oder abgelaufen.\n\nBitte erstelle ein neues PAT.",
           );
         } else if (res.status === 403) {
           Alert.alert(
-            'Keine Rechte',
-            'GitHub-Token hat nicht die erforderlichen Rechte.\n\nBenötigt: repo, workflow'
+            "Keine Rechte",
+            "GitHub-Token hat nicht die erforderlichen Rechte.\n\nBenötigt: repo, workflow",
           );
         } else {
           Alert.alert(
-            'Fehler',
-            `GitHub-API Fehler (Status ${res.status}).\n\n${text}`
+            "Fehler",
+            `GitHub-API Fehler (Status ${res.status}).\n\n${text}`,
           );
         }
         return;
@@ -447,17 +520,20 @@ const ConnectionsScreen: React.FC = () => {
 
       const json = await res.json();
       setGithubUser(json?.login ?? null);
-      setGithubStatus('ok');
+      setGithubStatus("ok");
 
       Alert.alert(
-        '✅ GitHub OK',
-        `Token ist gültig!\n\nUser: ${json?.login || 'Unbekannt'}\nScopes: ${
-          res.headers.get('x-oauth-scopes') || 'Keine Info'
-        }`
+        "✅ GitHub OK",
+        `Token ist gültig!\n\nUser: ${json?.login || "Unbekannt"}\nScopes: ${
+          res.headers.get("x-oauth-scopes") || "Keine Info"
+        }`,
       );
     } catch (e: any) {
-      setGithubStatus('error');
-      Alert.alert('Fehler', e?.message ?? 'GitHub konnte nicht erreicht werden.');
+      setGithubStatus("error");
+      Alert.alert(
+        "Fehler",
+        e?.message ?? "GitHub konnte nicht erreicht werden.",
+      );
     } finally {
       setLoadingGithub(false);
     }
@@ -469,17 +545,17 @@ const ConnectionsScreen: React.FC = () => {
   const testEas = useCallback(async () => {
     try {
       setLoadingEas(true);
-      setEasStatus('idle');
+      setEasStatus("idle");
 
       const projectId = easProjectId.trim();
       const supaId = supabaseProjectId.trim();
       const supaKey = supabaseKey.trim();
 
       if (!projectId) {
-        setEasStatus('error');
+        setEasStatus("error");
         Alert.alert(
-          'Fehlende Daten',
-          'Bitte eine EAS Project ID eintragen (z.B. 5e5a7791-8751-416b-9a1f-831adfffcb6c).'
+          "Fehlende Daten",
+          "Bitte eine EAS Project ID eintragen (z.B. 5e5a7791-8751-416b-9a1f-831adfffcb6c).",
         );
         return;
       }
@@ -488,30 +564,30 @@ const ConnectionsScreen: React.FC = () => {
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (!uuidRegex.test(projectId)) {
         Alert.alert(
-          'Hinweis',
-          'Die EAS Project ID sieht ungewöhnlich aus. Prüfe sie bitte noch einmal.'
+          "Hinweis",
+          "Die EAS Project ID sieht ungewöhnlich aus. Prüfe sie bitte noch einmal.",
         );
       }
 
       if (!supaId || !supaKey) {
-        setEasStatus('error');
+        setEasStatus("error");
         Alert.alert(
-          'Supabase fehlt',
-          'Für EAS-Builds muss Supabase Project-ID und Anon-Key gesetzt sein.'
+          "Supabase fehlt",
+          "Für EAS-Builds muss Supabase Project-ID und Anon-Key gesetzt sein.",
         );
         return;
       }
 
-      setEasStatus('ok');
+      setEasStatus("ok");
       Alert.alert(
-        '✅ Konfiguration OK',
-        'EAS wird über Supabase Edge Functions genutzt.\n\nProject ID und Supabase-Daten sind gesetzt. Es wird kein zusätzlicher API-Call zu Expo ausgeführt – ideal auch für Free-Accounts.'
+        "✅ Konfiguration OK",
+        "EAS wird über Supabase Edge Functions genutzt.\n\nProject ID und Supabase-Daten sind gesetzt. Es wird kein zusätzlicher API-Call zu Expo ausgeführt – ideal auch für Free-Accounts.",
       );
     } catch (e: any) {
-      setEasStatus('error');
+      setEasStatus("error");
       Alert.alert(
-        'Fehler',
-        e?.message ?? 'EAS-Konfiguration konnte nicht geprüft werden.'
+        "Fehler",
+        e?.message ?? "EAS-Konfiguration konnte nicht geprüft werden.",
       );
     } finally {
       setLoadingEas(false);
@@ -519,7 +595,9 @@ const ConnectionsScreen: React.FC = () => {
   }, [easProjectId, supabaseProjectId, supabaseKey]);
 
   const renderStatusDot = (status: StatusType) => (
-    <View style={[styles.statusDot, { backgroundColor: getStatusColor(status) }]} />
+    <View
+      style={[styles.statusDot, { backgroundColor: getStatusColor(status) }]}
+    />
   );
 
   return (
@@ -529,7 +607,7 @@ const ConnectionsScreen: React.FC = () => {
       <View style={styles.platformInfo}>
         <Ionicons name="information-circle-outline" size={16} color="#fff" />
         <Text style={styles.platformText}>
-          Läuft auf {Platform.OS === 'ios' ? 'iOS' : 'Android'} – Expo SDK 54.
+          Läuft auf {Platform.OS === "ios" ? "iOS" : "Android"} – Expo SDK 54.
         </Text>
       </View>
 
@@ -537,30 +615,39 @@ const ConnectionsScreen: React.FC = () => {
         <>
           <View style={styles.githubUserBadge}>
             <Ionicons name="logo-github" size={16} color="#000" />
-            <Text style={styles.githubUserText}>Aktives Repo: {activeRepo}</Text>
+            <Text style={styles.githubUserText}>
+              Aktives Repo: {activeRepo}
+            </Text>
           </View>
 
           <View style={styles.secretSyncBox}>
             <Text style={styles.secretSyncText}>
-              Repo-Secrets:{' '}
+              Repo-Secrets:{" "}
               {lastSecretSync
                 ? `zuletzt ${new Date(lastSecretSync).toLocaleTimeString()}`
-                : 'noch nie synchronisiert'}
+                : "noch nie synchronisiert"}
             </Text>
             <TouchableOpacity
               style={[
                 styles.secretSyncButton,
-                (syncingSecrets || !hasSecretsConfigured) && styles.buttonDisabled,
+                (syncingSecrets || !hasSecretsConfigured) &&
+                  styles.buttonDisabled,
               ]}
-              onPress={() => syncSecretsForActiveRepo('manual')}
+              onPress={() => syncSecretsForActiveRepo("manual")}
               disabled={syncingSecrets || !hasSecretsConfigured}
             >
               {syncingSecrets ? (
                 <ActivityIndicator size="small" color="#000" />
               ) : (
                 <>
-                  <Ionicons name="cloud-upload-outline" size={18} color="#000" />
-                  <Text style={styles.secretSyncButtonText}>Secrets syncen</Text>
+                  <Ionicons
+                    name="cloud-upload-outline"
+                    size={18}
+                    color="#000"
+                  />
+                  <Text style={styles.secretSyncButtonText}>
+                    Secrets syncen
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
@@ -575,8 +662,8 @@ const ConnectionsScreen: React.FC = () => {
           {renderStatusDot(supabaseStatus)}
         </View>
         <Text style={styles.sectionSubtitle}>
-          Nutzt die Supabase Project-ID (z.B. ekibkjarieqaslsrmazl) – die URL wird
-          automatisch als https://&lt;id&gt;.supabase.co gebaut.
+          Nutzt die Supabase Project-ID (z.B. ekibkjarieqaslsrmazl) – die URL
+          wird automatisch als https://&lt;id&gt;.supabase.co gebaut.
         </Text>
 
         <Text style={styles.label}>Project ID</Text>
@@ -609,6 +696,40 @@ const ConnectionsScreen: React.FC = () => {
           autoCapitalize="none"
         />
 
+        <Text style={styles.label}>Edge Admin Key (optional)</Text>
+        <TextInput
+          style={styles.input}
+          value={edgeAdminKey}
+          onChangeText={setEdgeAdminKey}
+          placeholder="K1W1_EDGE_ADMIN_KEY"
+          placeholderTextColor={theme.palette.text.secondary}
+          autoCapitalize="none"
+          secureTextEntry
+        />
+
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={saveEdgeAdminKeyConfig}
+          >
+            <Ionicons name="save-outline" size={16} color="#000" />
+            <Text style={styles.buttonText}>Speichern</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.button}
+            onPress={clearEdgeAdminKeyConfig}
+          >
+            <Ionicons name="trash-outline" size={16} color="#000" />
+            <Text style={styles.buttonText}>Entfernen</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.hintText}>
+          Optionaler Schutz für Edge Functions. Wird erst erzwungen, wenn du in
+          Supabase das Secret K1W1_EDGE_ADMIN_KEY setzt.
+        </Text>
+
         {!!supabaseTestDetails && (
           <View style={styles.testDetails}>
             <Text style={styles.testDetailsText}>{supabaseTestDetails}</Text>
@@ -640,7 +761,11 @@ const ConnectionsScreen: React.FC = () => {
               <ActivityIndicator size="small" color="#000" />
             ) : (
               <>
-                <Ionicons name="checkmark-circle-outline" size={18} color="#000" />
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={18}
+                  color="#000"
+                />
                 <Text style={styles.buttonText}>Testen</Text>
               </>
             )}
@@ -648,7 +773,8 @@ const ConnectionsScreen: React.FC = () => {
         </View>
 
         <Text style={styles.hintText}>
-          💡 Test prüft: REST API + build_jobs Tabelle + Edge Functions (optional)
+          💡 Test prüft: REST API + build_jobs Tabelle + Edge Functions
+          (optional)
         </Text>
       </View>
 
@@ -697,7 +823,11 @@ const ConnectionsScreen: React.FC = () => {
               <ActivityIndicator size="small" color="#000" />
             ) : (
               <>
-                <Ionicons name="checkmark-circle-outline" size={18} color="#000" />
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={18}
+                  color="#000"
+                />
                 <Text style={styles.buttonText}>Testen</Text>
               </>
             )}
@@ -707,7 +837,9 @@ const ConnectionsScreen: React.FC = () => {
         {!!githubUser && (
           <View style={styles.githubUserBadge}>
             <Ionicons name="person-circle-outline" size={18} color="#000" />
-            <Text style={styles.githubUserText}>Eingeloggt als: {githubUser}</Text>
+            <Text style={styles.githubUserText}>
+              Eingeloggt als: {githubUser}
+            </Text>
           </View>
         )}
       </View>
@@ -715,11 +847,14 @@ const ConnectionsScreen: React.FC = () => {
       {/* EAS */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>EAS (Expo Application Services)</Text>
+          <Text style={styles.sectionTitle}>
+            EAS (Expo Application Services)
+          </Text>
           {renderStatusDot(easStatus)}
         </View>
         <Text style={styles.sectionSubtitle}>
-          EAS wird bei dir über Supabase Edge Functions (trigger-eas-build) angesteuert.
+          EAS wird bei dir über Supabase Edge Functions (trigger-eas-build)
+          angesteuert.
         </Text>
 
         <Text style={styles.label}>EAS Project ID</Text>
@@ -767,7 +902,11 @@ const ConnectionsScreen: React.FC = () => {
               <ActivityIndicator size="small" color="#000" />
             ) : (
               <>
-                <Ionicons name="checkmark-circle-outline" size={18} color="#000" />
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={18}
+                  color="#000"
+                />
                 <Text style={styles.buttonText}>Konfig testen</Text>
               </>
             )}
@@ -775,8 +914,8 @@ const ConnectionsScreen: React.FC = () => {
         </View>
 
         <Text style={styles.hintText}>
-          💡 Es wird kein Request an Expo geschickt – nur deine lokale Konfiguration wird
-          geprüft.
+          💡 Es wird kein Request an Expo geschickt – nur deine lokale
+          Konfiguration wird geprüft.
         </Text>
       </View>
     </ScrollView>
@@ -794,13 +933,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: theme.palette.text.primary,
     marginBottom: theme.spacing.sm,
   },
   platformInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: theme.spacing.sm,
   },
   platformText: {
@@ -817,14 +956,14 @@ const styles = StyleSheet.create({
     borderColor: theme.palette.border,
   },
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 4,
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: theme.palette.text.primary,
   },
   sectionSubtitle: {
@@ -849,13 +988,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   buttonRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginTop: 8,
     columnGap: 8,
   },
   button: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 8,
@@ -868,8 +1007,8 @@ const styles = StyleSheet.create({
   buttonText: {
     marginLeft: 4,
     fontSize: 13,
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: "600",
+    color: "#000",
   },
   hintText: {
     marginTop: 8,
@@ -886,15 +1025,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: '#fff',
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
+    backgroundColor: "#fff",
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
   },
   githubUserText: {
     marginLeft: 6,
     fontSize: 12,
-    color: '#000',
+    color: "#000",
   },
   secretSyncBox: {
     marginBottom: theme.spacing.md,
@@ -911,9 +1050,9 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   secretSyncButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
@@ -922,8 +1061,8 @@ const styles = StyleSheet.create({
   secretSyncButtonText: {
     marginLeft: 6,
     fontSize: 12,
-    fontWeight: '600',
-    color: '#000',
+    fontWeight: "600",
+    color: "#000",
   },
   testDetails: {
     marginTop: 6,
