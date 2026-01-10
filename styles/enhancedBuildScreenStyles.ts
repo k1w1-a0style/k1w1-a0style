@@ -60,6 +60,38 @@ export const styles = StyleSheet.create({
     marginBottom: 14,
   },
 
+  // Header row inside cards (title + small actions)
+  sectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+
+  logActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  inlineLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
+  },
+
+  inlineLinkText: {
+    color: theme.palette.primary,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
   statusRow: {
     flexDirection: "row",
     alignItems: "center",

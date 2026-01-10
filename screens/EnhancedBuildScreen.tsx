@@ -1,5 +1,11 @@
 // screens/EnhancedBuildScreen.tsx
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -12,11 +18,14 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { theme } from "../theme";
 
 import { useProject } from "../contexts/ProjectContext";
 import { useBuildHistory } from "../hooks/useBuildHistory";
 import { useGitHubActionsLogs } from "../hooks/useGitHubActionsLogs";
 import { BuildTimelineCard } from "../components/build/BuildTimelineCard";
+import { BuildLogsModal } from "../components/BuildLogsModal";
 import { BuildErrorAnalyzer } from "../lib/buildErrorAnalyzer";
 import {
   getSeverityColor,
@@ -63,6 +72,8 @@ async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 export default function EnhancedBuildScreen(): React.ReactElement {
+  const runsReqIdRef = useRef(0); // verhindert Race-Conditions bei mehrfachen fetchRuns()
+
   const projectContext = useProject();
   const projectData = projectContext?.projectData ?? null;
 
@@ -100,6 +111,8 @@ export default function EnhancedBuildScreen(): React.ReactElement {
   const [buildLoading, setBuildLoading] = useState(false);
   const [savingRepo, setSavingRepo] = useState(false);
   const [buildStartTime, setBuildStartTime] = useState<number | null>(null);
+  const [logModalVisible, setLogModalVisible] = useState(false);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
 
   useEffect(() => {
     setRepoFullName(initialRepo);
@@ -132,15 +145,26 @@ export default function EnhancedBuildScreen(): React.ReactElement {
     workflowRun,
     isLoading: logsLoading,
     error: logsError,
+    refreshLogs,
   } = useGitHubActionsLogs({
     githubRepo: githubRepoForLogs,
     runId,
-    autoRefresh: shouldLoadLogs,
+    autoRefresh: shouldLoadLogs && autoRefreshEnabled,
   });
 
   const analyses = useMemo(() => {
     if (!logs || logs.length === 0) return [];
     return BuildErrorAnalyzer.analyzeLogs(logs);
+  }, [logs]);
+
+  const logLines = useMemo(() => {
+    if (!logs || logs.length === 0) return [];
+    return logs.map((entry) => {
+      const ts = entry.timestamp;
+      const time = ts ? new Date(ts).toLocaleTimeString() : "";
+      const prefix = time ? `${time} ` : "";
+      return `${prefix}[${entry.level}] ${entry.message}`;
+    });
   }, [logs]);
 
   const canFetch = useMemo(
@@ -161,6 +185,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
   const hasSetLinkedRepo = typeof setLinkedRepo === "function";
 
   const fetchRuns = useCallback(async () => {
+    const reqId = ++runsReqIdRef.current;
     if (!canFetch) {
       Alert.alert(
         "Repo fehlt",
@@ -187,13 +212,14 @@ export default function EnhancedBuildScreen(): React.ReactElement {
         FETCH_TIMEOUT_MS,
       );
       const list = res?.workflow_runs ?? [];
+      if (reqId !== runsReqIdRef.current) return;
       setRuns(Array.isArray(list) ? list : []);
       if (!list || list.length === 0) setError("Keine Workflow Runs gefunden.");
     } catch (e) {
       setRuns([]);
       setError(e instanceof Error ? e.message : "Konnte Runs nicht laden");
     } finally {
-      setLoadingRuns(false);
+      if (reqId === runsReqIdRef.current) setLoadingRuns(false);
     }
   }, [canFetch, getWorkflowRuns, hasGetWorkflowRuns, owner, repo]);
 
@@ -557,7 +583,40 @@ export default function EnhancedBuildScreen(): React.ReactElement {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Logs & Fehleranalyse</Text>
+          <View style={styles.sectionTitleRow}>
+            <Text style={[styles.cardTitle, { marginBottom: 0 }]}>
+              Logs & Fehleranalyse
+            </Text>
+
+            <View style={styles.logActions}>
+              <TouchableOpacity
+                style={styles.inlineLink}
+                onPress={() => setLogModalVisible(true)}
+                disabled={logsLoading && logs.length === 0}
+              >
+                <Ionicons
+                  name="terminal-outline"
+                  size={16}
+                  color={theme.palette.primary}
+                />
+                <Text style={styles.inlineLinkText}>Live in App</Text>
+              </TouchableOpacity>
+
+              {workflowRun?.html_url ? (
+                <TouchableOpacity
+                  style={styles.inlineLink}
+                  onPress={() => Linking.openURL(workflowRun.html_url)}
+                >
+                  <Ionicons
+                    name="open-outline"
+                    size={16}
+                    color={theme.palette.primary}
+                  />
+                  <Text style={styles.inlineLinkText}>Run</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
 
           {!shouldLoadLogs && status === "idle" && (
             <Text style={styles.emptyText}>
@@ -748,6 +807,18 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           )}
         </View>
       </ScrollView>
+
+      <BuildLogsModal
+        visible={logModalVisible}
+        onClose={() => setLogModalVisible(false)}
+        logs={logLines}
+        isLoading={logsLoading}
+        error={logsError}
+        onManualRefresh={refreshLogs}
+        autoRefreshEnabled={shouldLoadLogs && autoRefreshEnabled}
+        onToggleAutoRefresh={setAutoRefreshEnabled}
+        defaultOnlyErrors={status === "failed" || status === "error"}
+      />
     </SafeAreaView>
   );
 }
