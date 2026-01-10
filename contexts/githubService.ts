@@ -42,12 +42,14 @@ type RepoSecretsPayload = Partial<{
   expoToken: string | null | undefined;
   supabaseUrl: string | null | undefined;
   supabaseServiceRole: string | null | undefined;
+  easProjectId: string | null | undefined;
 }>;
 
 const SECRET_NAME_MAP: Record<keyof RepoSecretsPayload, string> = {
   expoToken: "EXPO_TOKEN",
   supabaseUrl: "SUPABASE_URL",
   supabaseServiceRole: "SUPABASE_SERVICE_ROLE_KEY",
+  easProjectId: "EAS_PROJECT_ID",
 };
 
 // ✅ FIX: SecureStore Wrapper-Funktionen (verschlüsselt!)
@@ -893,4 +895,70 @@ export const getDefaultBranch = async (
 
   const json = await resp.json();
   return json.default_branch || "main";
+};
+
+export const getRepoFileText = async (params: {
+  owner: string;
+  repo: string;
+  path: string;
+  ref?: string;
+}): Promise<string> => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error("GitHub token fehlt.");
+
+  // ✅ Rate Limit Check
+  await githubLimiter.checkLimit();
+
+  const ref = params.ref?.trim();
+  const url =
+    `https://api.github.com/repos/${params.owner}/${params.repo}/contents/${encodeGitHubPath(params.path)}` +
+    (ref ? `?ref=${encodeURIComponent(ref)}` : "");
+
+  const resp = await fetch(url, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`File read Fehler (${resp.status}): ${text}`);
+  }
+
+  const json = await resp.json();
+  if (!json?.content || json?.encoding !== "base64") {
+    throw new Error("Unsupported file response (not base64 content).");
+  }
+
+  ensureBuffer();
+  return Buffer.from(json.content, "base64").toString("utf-8");
+};
+
+export const listRepoSecretNames = async (
+  owner: string,
+  repo: string,
+): Promise<string[]> => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error("GitHub token fehlt.");
+
+  // ✅ Rate Limit Check
+  await githubLimiter.checkLimit();
+
+  const url = `https://api.github.com/repos/${owner}/${repo}/actions/secrets?per_page=100`;
+  const resp = await fetch(url, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`Secrets read Fehler (${resp.status}): ${text}`);
+  }
+
+  const json = await resp.json();
+  const secrets = Array.isArray(json?.secrets) ? json.secrets : [];
+  return secrets.map((s: any) => String(s?.name || "")).filter(Boolean);
 };

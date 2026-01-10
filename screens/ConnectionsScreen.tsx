@@ -85,7 +85,7 @@ const deriveSupabaseUrl = (raw: string): { projectId: string; url: string } => {
 };
 
 const ConnectionsScreen: React.FC = () => {
-  const { activeRepo } = useGitHub();
+  const { activeRepo, activeBranch } = useGitHub();
 
   const [supabaseProjectId, setSupabaseProjectId] = useState("");
   const [supabaseKey, setSupabaseKey] = useState("");
@@ -175,8 +175,9 @@ const ConnectionsScreen: React.FC = () => {
       supabaseUrl: derived.url || null,
       supabaseServiceRole: supabaseServiceRoleKey.trim() || null,
       expoToken: easToken.trim() || null,
+      easProjectId: easProjectId.trim() || null,
     };
-  }, [supabaseProjectId, supabaseServiceRoleKey, easToken]);
+  }, [supabaseProjectId, supabaseServiceRoleKey, easToken, easProjectId]);
 
   const hasSecretsConfigured = useMemo(
     () => Object.values(secretPayload).some(Boolean),
@@ -322,6 +323,64 @@ const ConnectionsScreen: React.FC = () => {
       );
     }
   }, [easToken, easProjectId, syncSecretsForActiveRepo]);
+
+  const initEasProject = useCallback(async () => {
+    if (!githubToken) {
+      Alert.alert("Fehlt noch", "Bitte zuerst einen GitHub-PAT speichern.");
+      return;
+    }
+    if (!activeRepo) {
+      Alert.alert(
+        "Kein Repo ausgewählt",
+        "Bitte zuerst ein Repo/Projekt auswählen.",
+      );
+      return;
+    }
+
+    try {
+      setLoadingEas(true);
+      setEasStatus("idle");
+
+      const [owner, repo] = activeRepo.split("/");
+      const ref = (activeBranch || "main").trim();
+
+      // Dispatch: .github/workflows/eas-link.yml
+      const res = await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/actions/workflows/eas-link.yml/dispatches`,
+        {
+          method: "POST",
+          headers: {
+            Accept: "application/vnd.github+json",
+            Authorization: `token ${githubToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ ref }),
+        },
+      );
+
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        throw new Error(
+          `GitHub workflow dispatch failed (${res.status}): ${t || res.statusText}`,
+        );
+      }
+
+      setEasStatus("ok");
+      Alert.alert(
+        "Gestartet",
+        "EAS Init Workflow wurde gestartet. Schau in GitHub Actions nach 'EAS Init'. Danach kannst du den Build erneut triggern.",
+      );
+    } catch (e: any) {
+      console.error("initEasProject failed", e);
+      setEasStatus("error");
+      Alert.alert(
+        "Fehler",
+        e?.message || "Konnte EAS Projekt nicht initialisieren.",
+      );
+    } finally {
+      setLoadingEas(false);
+    }
+  }, [githubToken, activeRepo, activeBranch]);
 
   // -----------------------------
   // EDGE ADMIN KEY (optional)
@@ -552,10 +611,10 @@ const ConnectionsScreen: React.FC = () => {
       const supaKey = supabaseKey.trim();
 
       if (!projectId) {
-        setEasStatus("error");
+        setEasStatus("idle");
         Alert.alert(
-          "Fehlende Daten",
-          "Bitte eine EAS Project ID eintragen (z.B. 5e5a7791-8751-416b-9a1f-831adfffcb6c).",
+          "Keine Project ID",
+          "Optional kannst du hier eine existierende EAS Project-ID eintragen.\n\nWenn du noch keine hast: „EAS Projekt erstellen“ drücken (oben). Danach erneut testen.",
         );
         return;
       }
@@ -709,207 +768,21 @@ const ConnectionsScreen: React.FC = () => {
 
         <View style={styles.buttonRow}>
           <TouchableOpacity
-            style={styles.button}
-            onPress={saveEdgeAdminKeyConfig}
+            style={[styles.button, loadingEas && styles.buttonDisabled]}
+            onPress={initEasProject}
+            disabled={loadingEas || !githubToken || !activeRepo}
           >
-            <Ionicons name="save-outline" size={16} color="#000" />
+            <Text style={styles.buttonText}>
+              EAS Projekt erstellen / verbinden
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.button} onPress={saveEasConfig}>
             <Text style={styles.buttonText}>Speichern</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.button}
-            onPress={clearEdgeAdminKeyConfig}
-          >
-            <Ionicons name="trash-outline" size={16} color="#000" />
-            <Text style={styles.buttonText}>Entfernen</Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.hintText}>
-          Optionaler Schutz für Edge Functions. Wird erst erzwungen, wenn du in
-          Supabase das Secret K1W1_EDGE_ADMIN_KEY setzt.
-        </Text>
-
-        {!!supabaseTestDetails && (
-          <View style={styles.testDetails}>
-            <Text style={styles.testDetailsText}>{supabaseTestDetails}</Text>
-          </View>
-        )}
-
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={[styles.button, loadingSupabase && styles.buttonDisabled]}
-            onPress={saveSupabaseConfig}
-            disabled={loadingSupabase}
-          >
-            {loadingSupabase ? (
-              <ActivityIndicator size="small" color="#000" />
-            ) : (
-              <>
-                <Ionicons name="save-outline" size={18} color="#000" />
-                <Text style={styles.buttonText}>Speichern</Text>
-              </>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, loadingSupabase && styles.buttonDisabled]}
-            onPress={testSupabase}
-            disabled={loadingSupabase}
-          >
-            {loadingSupabase ? (
-              <ActivityIndicator size="small" color="#000" />
-            ) : (
-              <>
-                <Ionicons
-                  name="checkmark-circle-outline"
-                  size={18}
-                  color="#000"
-                />
-                <Text style={styles.buttonText}>Testen</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.hintText}>
-          💡 Test prüft: REST API + build_jobs Tabelle + Edge Functions
-          (optional)
-        </Text>
-      </View>
-
-      {/* GITHUB */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>GitHub</Text>
-          {renderStatusDot(githubStatus)}
-        </View>
-        <Text style={styles.sectionSubtitle}>
-          Speichere dein Personal Access Token (PAT) und teste die Verbindung.
-        </Text>
-
-        <Text style={styles.label}>GitHub Token (PAT)</Text>
-        <TextInput
-          style={styles.input}
-          value={githubToken}
-          onChangeText={setGithubTokenState}
-          placeholder="ghp_..."
-          placeholderTextColor={theme.palette.text.secondary}
-          autoCapitalize="none"
-        />
-
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={[styles.button, loadingGithub && styles.buttonDisabled]}
-            onPress={saveGithubTokenHandler}
-            disabled={loadingGithub}
-          >
-            {loadingGithub ? (
-              <ActivityIndicator size="small" color="#000" />
-            ) : (
-              <>
-                <Ionicons name="save-outline" size={18} color="#000" />
-                <Text style={styles.buttonText}>Speichern</Text>
-              </>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, loadingGithub && styles.buttonDisabled]}
-            onPress={testGithub}
-            disabled={loadingGithub}
-          >
-            {loadingGithub ? (
-              <ActivityIndicator size="small" color="#000" />
-            ) : (
-              <>
-                <Ionicons
-                  name="checkmark-circle-outline"
-                  size={18}
-                  color="#000"
-                />
-                <Text style={styles.buttonText}>Testen</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {!!githubUser && (
-          <View style={styles.githubUserBadge}>
-            <Ionicons name="person-circle-outline" size={18} color="#000" />
-            <Text style={styles.githubUserText}>
-              Eingeloggt als: {githubUser}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {/* EAS */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            EAS (Expo Application Services)
-          </Text>
-          {renderStatusDot(easStatus)}
-        </View>
-        <Text style={styles.sectionSubtitle}>
-          EAS wird bei dir über Supabase Edge Functions (trigger-eas-build)
-          angesteuert.
-        </Text>
-
-        <Text style={styles.label}>EAS Project ID</Text>
-        <TextInput
-          style={styles.input}
-          value={easProjectId}
-          onChangeText={setEasProjectId}
-          placeholder="z.B. 5e5a7791-8751-416b-9a1f-831adfffcb6c"
-          placeholderTextColor={theme.palette.text.secondary}
-          autoCapitalize="none"
-        />
-
-        <Text style={styles.label}>EAS Token (optional)</Text>
-        <TextInput
-          style={styles.input}
-          value={easToken}
-          onChangeText={setEasToken}
-          placeholder="EAS_TOKEN (falls benötigt)"
-          placeholderTextColor={theme.palette.text.secondary}
-          autoCapitalize="none"
-        />
-
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={[styles.button, loadingEas && styles.buttonDisabled]}
-            onPress={saveEasConfig}
-            disabled={loadingEas}
-          >
-            {loadingEas ? (
-              <ActivityIndicator size="small" color="#000" />
-            ) : (
-              <>
-                <Ionicons name="save-outline" size={18} color="#000" />
-                <Text style={styles.buttonText}>Speichern</Text>
-              </>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, loadingEas && styles.buttonDisabled]}
-            onPress={testEas}
-            disabled={loadingEas}
-          >
-            {loadingEas ? (
-              <ActivityIndicator size="small" color="#000" />
-            ) : (
-              <>
-                <Ionicons
-                  name="checkmark-circle-outline"
-                  size={18}
-                  color="#000"
-                />
-                <Text style={styles.buttonText}>Konfig testen</Text>
-              </>
-            )}
+          <TouchableOpacity style={styles.button} onPress={testEas}>
+            <Text style={styles.buttonText}>Test</Text>
           </TouchableOpacity>
         </View>
 
