@@ -625,6 +625,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           typeof pd.linkedBranch === "string" ? pd.linkedBranch.trim() : "";
 
         try {
+          if (!githubRepo || !githubRepo.includes("/")) {
+            throw new Error(
+              'Kein GitHub-Repo verbunden. Bitte in "Connections" ein Repo verknüpfen.',
+            );
+          }
           const [owner, repo] = githubRepo.split("/");
           const localFiles = pd.files;
 
