@@ -6,6 +6,7 @@ import React, {
   useState,
 } from "react";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Modal,
@@ -206,6 +207,10 @@ export function DiagnosticScreen() {
   const [history, setHistory] = useState<FixHistoryEntry[]>([]);
   const [applyBusy, setApplyBusy] = useState(false);
 
+  const [autoFixBusy, setAutoFixBusy] = useState(false);
+  const [autoFixStage, setAutoFixStage] = useState("");
+  const [autoFixTotal, setAutoFixTotal] = useState(0);
+
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadCooldownUntil, setUploadCooldownUntil] = useState(0);
   const [cooldownNow, setCooldownNow] = useState(() => Date.now());
@@ -289,6 +294,8 @@ export function DiagnosticScreen() {
   const selectableFixes = useMemo(() => {
     return results.filter((r) => r.status !== "pass" && r.fix?.patch);
   }, [results]);
+
+  const autoFixAvailable = selectableFixes.length > 0;
 
   const selectedCount = selected.size;
 
@@ -489,6 +496,64 @@ export function DiagnosticScreen() {
     openFixPreview(`Batch Fix (${patches.length})`, merged);
   }, [applyBusy, openFixPreview, selectableFixes, selected]);
 
+  const autoFixAll = useCallback(() => {
+    if (!projectData) {
+      Alert.alert("Kein Projekt", "Öffne oder importiere zuerst ein Projekt.");
+      return;
+    }
+    if (running || applyBusy || autoFixBusy) return;
+
+    const items = selectableFixes
+      .filter((r) => r.fix?.patch)
+      .map((r) => ({ id: r.id, patch: r.fix!.patch }));
+
+    if (!items.length) {
+      Alert.alert(
+        "AutoFix",
+        "Für die aktuellen Findings gibt es keine automatischen Fixes.",
+      );
+      return;
+    }
+
+    Alert.alert(
+      "✨ AutoFix",
+      `Soll ich ${items.length} Fix(es) automatisch anwenden?\n\nTipp: Du kannst danach jederzeit mit Undo zurück.`,
+      [
+        { text: "Abbrechen", style: "cancel" },
+        {
+          text: "Anwenden",
+          style: "default",
+          onPress: () => {
+            void (async () => {
+              try {
+                setSelected(new Set(items.map((x) => x.id)));
+                setAutoFixTotal(items.length);
+                setAutoFixStage("Bereite Fixes vor…");
+                setAutoFixBusy(true);
+
+                const merged = mergePatches(items.map((x) => x.patch));
+                setAutoFixStage("Wende Fixes an…");
+                await applyPatch(`AutoFix (${items.length})`, merged);
+              } finally {
+                if (mountedRef.current) {
+                  setAutoFixStage("");
+                  setAutoFixBusy(false);
+                }
+              }
+            })();
+          },
+        },
+      ],
+    );
+  }, [
+    applyBusy,
+    applyPatch,
+    autoFixBusy,
+    projectData,
+    running,
+    selectableFixes,
+  ]);
+
   const toggleSelected = useCallback((id: string) => {
     setSelected((prev) => {
       const n = new Set(prev);
@@ -595,10 +660,31 @@ export function DiagnosticScreen() {
 
   const Header = (
     <View style={styles.header}>
-      <Text style={styles.h1}>Diagnostics</Text>
-      <Text style={styles.sub}>
-        Pass: {counts.pass} • Warn: {counts.warn} • Fail: {counts.fail}
-      </Text>
+      <View style={styles.headerTop}>
+        <Text style={styles.h1}>Diagnostics</Text>
+        <View style={styles.chips}>
+          <View style={[styles.chip, styles.chipPass]}>
+            <Ionicons
+              name="checkmark-circle"
+              size={14}
+              color={theme.palette.success}
+            />
+            <Text style={styles.chipText}>Pass {counts.pass}</Text>
+          </View>
+          <View style={[styles.chip, styles.chipWarn]}>
+            <Ionicons name="warning" size={14} color={theme.palette.warning} />
+            <Text style={styles.chipText}>Warn {counts.warn}</Text>
+          </View>
+          <View style={[styles.chip, styles.chipFail]}>
+            <Ionicons
+              name="close-circle"
+              size={14}
+              color={theme.palette.error}
+            />
+            <Text style={styles.chipText}>Fail {counts.fail}</Text>
+          </View>
+        </View>
+      </View>
 
       <View style={styles.row}>
         <TouchableOpacity
@@ -637,26 +723,52 @@ export function DiagnosticScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.row}>
+      <View style={styles.actionGrid}>
         <TouchableOpacity
-          style={[styles.btn, running && styles.btnDisabled]}
+          style={[styles.btn, styles.btnGrid, running && styles.btnDisabled]}
           onPress={run}
           disabled={running}
         >
           <Ionicons name="play" size={16} color={theme.palette.text.primary} />
           <Text style={styles.btnText}>{running ? "Running…" : "Run"}</Text>
         </TouchableOpacity>
+
         <TouchableOpacity
-          style={styles.btn}
+          style={[
+            styles.btn,
+            styles.btnGrid,
+            styles.btnPrimary,
+            (!autoFixAvailable || running || applyBusy || autoFixBusy) &&
+              styles.btnDisabled,
+          ]}
+          onPress={autoFixAll}
+          disabled={!autoFixAvailable || running || applyBusy || autoFixBusy}
+        >
+          <Ionicons
+            name="sparkles"
+            size={16}
+            color={theme.palette.text.primary}
+          />
+          <Text style={styles.btnText}>
+            {autoFixAvailable
+              ? `AutoFix (${selectableFixes.length})`
+              : "AutoFix"}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.btn, styles.btnGrid]}
           onPress={copyReport}
           disabled={running}
         >
           <Ionicons name="copy" size={16} color={theme.palette.text.primary} />
           <Text style={styles.btnText}>Copy</Text>
         </TouchableOpacity>
+
         <TouchableOpacity
           style={[
             styles.btn,
+            styles.btnGrid,
             (running || uploadBusy || uploadCooldownLeftSec > 0) &&
               styles.btnDisabled,
           ]}
@@ -680,6 +792,16 @@ export function DiagnosticScreen() {
 
       {progressStage ? (
         <Text style={styles.progress}>{progressStage}</Text>
+      ) : null}
+
+      {!running &&
+      results.length > 0 &&
+      selectedCount === 0 &&
+      autoFixAvailable ? (
+        <Text style={styles.hint}>
+          Tipp: Drück <Text style={styles.hintStrong}>AutoFix</Text> oder {'"'}
+          Select fails{'"'} + {'"'}Fix Selected{'"'}.
+        </Text>
       ) : null}
 
       <View style={styles.row}>
@@ -722,6 +844,25 @@ export function DiagnosticScreen() {
 
   return (
     <View style={styles.container}>
+      <Modal visible={autoFixBusy} transparent animationType="fade">
+        <View style={styles.overlay}>
+          <View style={styles.overlayCard}>
+            <Ionicons
+              name="sparkles"
+              size={26}
+              color={theme.palette.text.primary}
+            />
+            <Text style={styles.overlayTitle}>AutoFix</Text>
+            <Text style={styles.overlaySub}>
+              {autoFixStage || "Bitte warten…"}
+            </Text>
+            {autoFixTotal ? (
+              <Text style={styles.overlaySub2}>{autoFixTotal} Fix(es)</Text>
+            ) : null}
+            <ActivityIndicator size="small" color={theme.palette.primary} />
+          </View>
+        </View>
+      </Modal>
       {Header}
       <FlatList
         data={sortedResults}
@@ -901,10 +1042,46 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.palette.border,
   },
+  headerTop: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
+  },
+  chipPass: { borderColor: "rgba(0,255,170,0.35)" },
+  chipWarn: { borderColor: "rgba(255,200,0,0.35)" },
+  chipFail: { borderColor: "rgba(255,80,80,0.35)" },
+  chipText: {
+    color: theme.palette.text.primary,
+    fontSize: 12,
+    fontWeight: "800",
+  },
   h1: { color: theme.palette.text.primary, fontSize: 22, fontWeight: "800" },
   sub: { color: theme.palette.text.muted, marginTop: 4 },
   row: { flexDirection: "row", gap: 10, marginTop: 10, flexWrap: "wrap" },
   progress: { color: theme.palette.text.muted, marginTop: 8 },
+  actionGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: 10,
+    marginTop: 12,
+  },
+  btnGrid: { width: "48%", justifyContent: "center" },
+  hint: { color: theme.palette.text.muted, marginTop: 8, lineHeight: 18 },
+  hintStrong: { color: theme.palette.text.primary, fontWeight: "900" },
   pill: {
     paddingVertical: 6,
     paddingHorizontal: 10,
@@ -1024,6 +1201,31 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: theme.palette.border,
   },
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  overlayCard: {
+    width: "100%",
+    maxWidth: 420,
+    backgroundColor: theme.palette.card,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    borderRadius: 16,
+    padding: 16,
+    alignItems: "center",
+    gap: 10,
+  },
+  overlayTitle: {
+    color: theme.palette.text.primary,
+    fontWeight: "900",
+    fontSize: 18,
+  },
+  overlaySub: { color: theme.palette.text.muted, textAlign: "center" },
+  overlaySub2: { color: theme.palette.text.primary, fontWeight: "800" },
 });
 
 export default DiagnosticScreen;
