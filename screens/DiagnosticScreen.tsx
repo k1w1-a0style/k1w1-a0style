@@ -17,11 +17,13 @@ import {
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import * as SecureStore from "expo-secure-store";
+import * as Crypto from "expo-crypto";
 import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../theme";
 import { useProject } from "../contexts/ProjectContext";
 import type { ProjectFile } from "../contexts/types";
+import { validateFileContent, validateFilePath } from "../lib/validators";
 import type {
   PreflightCheckResult,
   PreflightPatch,
@@ -41,15 +43,27 @@ type FixHistoryEntry = {
   at: number;
   label: string;
   snapshot: ProjectFile[];
+  createdPaths: string[];
+  touchedPaths: string[];
 };
 
 const DEVICE_ID_KEY = "k1w1_device_id";
 const MAX_HISTORY = 10;
+const UPLOAD_COOLDOWN_MS = 30_000;
 
 async function getOrCreateDeviceId(): Promise<string> {
   const existing = await SecureStore.getItemAsync(DEVICE_ID_KEY);
   if (existing) return existing;
-  const fresh = `dev_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  let rand = "";
+  try {
+    const bytes = await Crypto.getRandomBytesAsync(16);
+    rand = Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  } catch {
+    rand = Math.random().toString(16).slice(2);
+  }
+  const fresh = `dev_${Date.now()}_${rand}`;
   await SecureStore.setItemAsync(DEVICE_ID_KEY, fresh);
   return fresh;
 }
@@ -189,11 +203,36 @@ export function DiagnosticScreen() {
   const [history, setHistory] = useState<FixHistoryEntry[]>([]);
   const [applyBusy, setApplyBusy] = useState(false);
 
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [uploadCooldownUntil, setUploadCooldownUntil] = useState(0);
+  const [cooldownNow, setCooldownNow] = useState(() => Date.now());
+
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewTitle, setPreviewTitle] = useState("");
   const [previewPatch, setPreviewPatch] = useState<PreflightPatch | null>(null);
 
   const runningRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const uploadCooldownLeftSec = useMemo(() => {
+    const leftMs = uploadCooldownUntil - cooldownNow;
+    return leftMs > 0 ? Math.ceil(leftMs / 1000) : 0;
+  }, [cooldownNow, uploadCooldownUntil]);
+
+  useEffect(() => {
+    if (!uploadCooldownUntil) return;
+    const now = Date.now();
+    if (uploadCooldownUntil <= now) return;
+    const t = setInterval(() => setCooldownNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [uploadCooldownUntil]);
 
   const files: ProjectFile[] = projectData?.files ?? [];
 
@@ -231,7 +270,7 @@ export function DiagnosticScreen() {
     } catch (e: any) {
       Alert.alert("Diagnostics Fehler", e?.message || "Unbekannter Fehler");
     } finally {
-      setRunning(false);
+      if (mountedRef.current) setRunning(false);
       runningRef.current = false;
       setTimeout(() => setProgressStage(""), 700);
     }
@@ -249,30 +288,77 @@ export function DiagnosticScreen() {
       if (applyBusy) return;
       setApplyBusy(true);
 
-      const snapshot = projectData.files.map((f) => ({ ...f }));
+      // Snapshot only touched paths (keeps memory small)
+      const touchedPaths = Array.from(
+        new Set([
+          ...(patch.upsert ?? []).map((u) => u.path),
+          ...(patch.delete ?? []).map((d) => d),
+          ...(patch.jsonMerge ?? []).map((j) => j.path),
+        ]),
+      );
+
+      // Validate & normalize touched paths
+      const normalizedTouched = touchedPaths.map((p) => {
+        const v = validateFilePath(p);
+        if (!v.valid || !v.normalized) {
+          throw new Error(
+            `Ungültiger Pfad im Patch: ${p} (${v.errors.join(", ")})`,
+          );
+        }
+        return v.normalized;
+      });
+
+      const currentMap = new Map(
+        projectData.files.map((f) => [normalizePath(f.path), { ...f }]),
+      );
+
+      const snapshot: ProjectFile[] = [];
+      const createdPaths: string[] = [];
+      for (const p of normalizedTouched) {
+        const prev = currentMap.get(p);
+        if (prev) snapshot.push(prev);
+        else createdPaths.push(p);
+      }
 
       const restore = async () => {
-        const snapshotPaths = new Set(snapshot.map((f) => f.path));
-        const currentPaths = new Set(projectData.files.map((f) => f.path));
-        for (const p of currentPaths) {
-          if (!snapshotPaths.has(p)) await deleteFile(p);
+        // Remove only files that were created by this patch, then restore previous versions of touched files.
+        for (const p of createdPaths) {
+          await deleteFile(p);
         }
-        await updateProjectFiles(snapshot);
+        if (snapshot.length) {
+          await updateProjectFiles(snapshot);
+        }
       };
 
       try {
         // deletes first
-        for (const p of patch.delete ?? []) await deleteFile(p);
+        for (const pRaw of patch.delete ?? []) {
+          const v = validateFilePath(pRaw);
+          if (!v.valid || !v.normalized)
+            throw new Error(
+              `Ungültiger Delete-Pfad: ${pRaw} (${v.errors.join(", ")})`,
+            );
+          await deleteFile(v.normalized);
+        }
 
         // compute jsonMerge upserts based on snapshot (predictable)
         const snapMap = new Map(
           snapshot.map((f) => [normalizePath(f.path), f.content]),
         );
-        for (const d of patch.delete ?? []) snapMap.delete(normalizePath(d));
+        for (const dRaw of patch.delete ?? []) {
+          const v = validateFilePath(dRaw);
+          if (v.valid && v.normalized)
+            snapMap.delete(normalizePath(v.normalized));
+        }
 
         const mergeUpserts: Array<{ path: string; content: string }> = [];
         for (const j of patch.jsonMerge ?? []) {
-          const p = normalizePath(j.path);
+          const v = validateFilePath(j.path);
+          if (!v.valid || !v.normalized)
+            throw new Error(
+              `Ungültiger JSON-Merge Pfad: ${j.path} (${v.errors.join(", ")})`,
+            );
+          const p = normalizePath(v.normalized);
           const old = snapMap.get(p) ?? null;
           const res = applyJsonMerge(old, j.patch, Boolean(j.createIfMissing));
           if (!res.ok)
@@ -281,7 +367,22 @@ export function DiagnosticScreen() {
           snapMap.set(p, res.nextText);
         }
 
-        const upserts = [...(patch.upsert ?? []), ...mergeUpserts];
+        const upsertsRaw = [...(patch.upsert ?? []), ...mergeUpserts];
+        const upserts: ProjectFile[] = upsertsRaw.map((u) => {
+          const v = validateFilePath(u.path);
+          if (!v.valid || !v.normalized) {
+            throw new Error(
+              `Ungültiger Upsert-Pfad: ${u.path} (${v.errors.join(", ")})`,
+            );
+          }
+          const cRes = validateFileContent(u.content);
+          if (!cRes.valid) {
+            throw new Error(
+              `Ungültiger File-Content für ${u.path}: ${cRes.error ?? "unknown"}`,
+            );
+          }
+          return { path: v.normalized, content: u.content };
+        });
         if (upserts.length) await updateProjectFiles(upserts);
 
         setHistory((prev) =>
@@ -291,6 +392,8 @@ export function DiagnosticScreen() {
               at: Date.now(),
               label,
               snapshot,
+              createdPaths,
+              touchedPaths: normalizedTouched,
             },
             ...prev,
           ].slice(0, MAX_HISTORY),
@@ -315,12 +418,12 @@ export function DiagnosticScreen() {
     const last = history[0];
     if (!last || !projectData) return;
     try {
-      const snapshotPaths = new Set(last.snapshot.map((f) => f.path));
-      const currentPaths = new Set(projectData.files.map((f) => f.path));
-      for (const p of currentPaths) {
-        if (!snapshotPaths.has(p)) await deleteFile(p);
+      for (const p of last.createdPaths ?? []) {
+        await deleteFile(p);
       }
-      await updateProjectFiles(last.snapshot);
+      if (last.snapshot.length) {
+        await updateProjectFiles(last.snapshot);
+      }
       setHistory((prev) => prev.slice(1));
       Alert.alert("↶ Undo", `Zurückgesetzt: ${last.label}`);
     } catch (e: any) {
@@ -371,6 +474,19 @@ export function DiagnosticScreen() {
 
   const upload = useCallback(async () => {
     if (!projectData) return;
+    if (uploadBusy) return;
+
+    if (uploadCooldownLeftSec > 0) {
+      Alert.alert("⏳ Cooldown", `Bitte warte noch ${uploadCooldownLeftSec}s.`);
+      return;
+    }
+
+    if (!results.length) {
+      Alert.alert("Kein Report", "Erst 'Run' ausführen, dann Upload.");
+      return;
+    }
+
+    setUploadBusy(true);
     try {
       const deviceId = await getOrCreateDeviceId();
       const payload = formatDiagnosticUpload({
@@ -385,8 +501,13 @@ export function DiagnosticScreen() {
       Alert.alert("✅ Upload OK", `ID: ${id.id}`);
     } catch (e: any) {
       Alert.alert("Upload fehlgeschlagen", e?.message || "Unbekannter Fehler");
+    } finally {
+      if (mountedRef.current) setUploadBusy(false);
+      const until = Date.now() + UPLOAD_COOLDOWN_MS;
+      setUploadCooldownUntil(until);
+      setCooldownNow(Date.now());
     }
-  }, [files, projectData, results, target]);
+  }, [files, projectData, results, target, uploadBusy, uploadCooldownLeftSec]);
 
   const previewEntries = useMemo(() => {
     if (!previewPatch) return [];
@@ -469,16 +590,26 @@ export function DiagnosticScreen() {
           <Text style={styles.btnText}>Copy</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.btn}
+          style={[
+            styles.btn,
+            (running || uploadBusy || uploadCooldownLeftSec > 0) &&
+              styles.btnDisabled,
+          ]}
           onPress={upload}
-          disabled={running}
+          disabled={running || uploadBusy || uploadCooldownLeftSec > 0}
         >
           <Ionicons
             name="cloud-upload"
             size={16}
             color={theme.palette.text.primary}
           />
-          <Text style={styles.btnText}>Upload</Text>
+          <Text style={styles.btnText}>
+            {uploadBusy
+              ? "Uploading…"
+              : uploadCooldownLeftSec > 0
+                ? `Upload (${uploadCooldownLeftSec}s)`
+                : "Upload"}
+          </Text>
         </TouchableOpacity>
       </View>
 
