@@ -18,6 +18,7 @@ import {
 import * as Clipboard from "expo-clipboard";
 import * as SecureStore from "expo-secure-store";
 import * as Crypto from "expo-crypto";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../theme";
@@ -50,6 +51,8 @@ type FixHistoryEntry = {
 const DEVICE_ID_KEY = "k1w1_device_id";
 const MAX_HISTORY = 10;
 const UPLOAD_COOLDOWN_MS = 30_000;
+const UPLOAD_RETRY_DELAY_MS = 3_000;
+const UPLOAD_COOLDOWN_KEY = "k1w1_upload_cooldown_until";
 
 async function getOrCreateDeviceId(): Promise<string> {
   const existing = await SecureStore.getItemAsync(DEVICE_ID_KEY);
@@ -207,11 +210,41 @@ export function DiagnosticScreen() {
   const [uploadCooldownUntil, setUploadCooldownUntil] = useState(0);
   const [cooldownNow, setCooldownNow] = useState(() => Date.now());
 
+  // Restore persisted cooldown (best-effort). This is UX-only; DB rate limit is the real protection.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(UPLOAD_COOLDOWN_KEY);
+        if (!raw) return;
+        const until = Number(raw);
+        if (!Number.isFinite(until) || until <= 0) {
+          await AsyncStorage.removeItem(UPLOAD_COOLDOWN_KEY);
+          return;
+        }
+        const now = Date.now();
+        if (until <= now) {
+          await AsyncStorage.removeItem(UPLOAD_COOLDOWN_KEY);
+          return;
+        }
+        if (cancelled) return;
+        setUploadCooldownUntil(until);
+        setCooldownNow(now);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewTitle, setPreviewTitle] = useState("");
   const [previewPatch, setPreviewPatch] = useState<PreflightPatch | null>(null);
 
   const runningRef = useRef(false);
+  const uploadBusyRef = useRef(false);
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -228,9 +261,24 @@ export function DiagnosticScreen() {
 
   useEffect(() => {
     if (!uploadCooldownUntil) return;
-    const now = Date.now();
-    if (uploadCooldownUntil <= now) return;
-    const t = setInterval(() => setCooldownNow(Date.now()), 1000);
+
+    const tick = () => {
+      const now = Date.now();
+      if (!mountedRef.current) return;
+      setCooldownNow(now);
+
+      if (uploadCooldownUntil <= now) {
+        setUploadCooldownUntil(0);
+        AsyncStorage.removeItem(UPLOAD_COOLDOWN_KEY).catch(() => {});
+      }
+    };
+
+    // run once immediately so UI updates without waiting 1s
+    tick();
+
+    if (uploadCooldownUntil <= Date.now()) return;
+
+    const t = setInterval(tick, 1000);
     return () => clearInterval(t);
   }, [uploadCooldownUntil]);
 
@@ -474,7 +522,8 @@ export function DiagnosticScreen() {
 
   const upload = useCallback(async () => {
     if (!projectData) return;
-    if (uploadBusy) return;
+
+    if (uploadBusyRef.current) return;
 
     if (uploadCooldownLeftSec > 0) {
       Alert.alert("⏳ Cooldown", `Bitte warte noch ${uploadCooldownLeftSec}s.`);
@@ -486,6 +535,7 @@ export function DiagnosticScreen() {
       return;
     }
 
+    uploadBusyRef.current = true;
     setUploadBusy(true);
     try {
       const deviceId = await getOrCreateDeviceId();
@@ -498,14 +548,29 @@ export function DiagnosticScreen() {
       });
       const id = await uploadDiagnosticToSupabase(payload);
       if (!id) throw new Error("Upload fehlgeschlagen");
+      if (mountedRef.current) {
+        const until = Date.now() + UPLOAD_COOLDOWN_MS;
+        setUploadCooldownUntil(until);
+        setCooldownNow(Date.now());
+        AsyncStorage.setItem(UPLOAD_COOLDOWN_KEY, String(until)).catch(
+          () => {},
+        );
+      }
       Alert.alert("✅ Upload OK", `ID: ${id.id}`);
     } catch (e: any) {
+      // Short retry delay for UX (not security). Real protection is DB rate limiting.
+      if (mountedRef.current) {
+        const until = Date.now() + UPLOAD_RETRY_DELAY_MS;
+        setUploadCooldownUntil(until);
+        setCooldownNow(Date.now());
+        AsyncStorage.setItem(UPLOAD_COOLDOWN_KEY, String(until)).catch(
+          () => {},
+        );
+      }
       Alert.alert("Upload fehlgeschlagen", e?.message || "Unbekannter Fehler");
     } finally {
+      uploadBusyRef.current = false;
       if (mountedRef.current) setUploadBusy(false);
-      const until = Date.now() + UPLOAD_COOLDOWN_MS;
-      setUploadCooldownUntil(until);
-      setCooldownNow(Date.now());
     }
   }, [files, projectData, results, target, uploadBusy, uploadCooldownLeftSec]);
 
