@@ -129,6 +129,7 @@ export async function uploadDiagnosticReport(
 
 export function formatDiagnosticUpload(args: {
   deviceId: string;
+  clientRequestId?: string;
   projectName?: string;
   target: PreflightTarget;
   results: PreflightCheckResult[];
@@ -138,6 +139,7 @@ export function formatDiagnosticUpload(args: {
 }): DiagnosticUploadInput {
   return {
     deviceId: args.deviceId,
+    clientRequestId: args.clientRequestId,
     appVersion: args.appVersion,
     projectName: args.projectName,
     target: args.target,
