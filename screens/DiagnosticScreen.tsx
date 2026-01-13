@@ -1,3 +1,5 @@
+import "react-native-get-random-values";
+import { v4 as uuidv4 } from "uuid";
 import React, {
   useCallback,
   useEffect,
@@ -301,6 +303,27 @@ export default function DiagnosticScreen() {
   const [uploadBusy, setUploadBusy] = useState(false);
   const uploadBusyRef = useRef(false);
   const [uploadCooldownUntil, setUploadCooldownUntil] = useState(0);
+  const uploadClientRequestIdRef = useRef<string | null>(null);
+  const uploadClientRequestIdExpiresAtRef = useRef<number>(0);
+
+  // Cache client_request_id for a short window so retries are idempotent.
+  // After TTL or after a successful upload we generate a fresh one.
+  const getOrCreateUploadClientRequestId = useCallback((): string => {
+    const now = Date.now();
+    const cur = uploadClientRequestIdRef.current;
+    const exp = uploadClientRequestIdExpiresAtRef.current;
+    if (cur && exp && now < exp) return cur;
+    const next = uuidv4();
+    uploadClientRequestIdRef.current = next;
+    uploadClientRequestIdExpiresAtRef.current = now + 30_000; // 30s window
+    return next;
+  }, []);
+
+  const resetUploadClientRequestId = useCallback(() => {
+    uploadClientRequestIdRef.current = null;
+    uploadClientRequestIdExpiresAtRef.current = 0;
+  }, []);
+
   const [cooldownNow, setCooldownNow] = useState(() => Date.now());
   const uploadCooldownLeftSec = useMemo(() => {
     if (!uploadCooldownUntil) return 0;
@@ -919,6 +942,7 @@ export default function DiagnosticScreen() {
       const deviceId = await getOrCreateDeviceId();
       const payload = sanitizeDiagnosticUpload(
         formatDiagnosticUpload({
+          clientRequestId: getOrCreateUploadClientRequestId(),
           deviceId,
           projectName: project.name,
           target,
@@ -967,6 +991,7 @@ export default function DiagnosticScreen() {
       const deviceId = await getOrCreateDeviceId();
       const payload = sanitizeDiagnosticUpload(
         formatDiagnosticUpload({
+          clientRequestId: getOrCreateUploadClientRequestId(),
           deviceId,
           projectName: project.name,
           target,
