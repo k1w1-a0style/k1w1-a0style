@@ -1,6 +1,5 @@
 // lib/diagnostics/diagnosticUploader.ts
 import { Platform } from "react-native";
-import * as Crypto from "expo-crypto";
 import type { ProjectFile } from "../../contexts/types";
 import { ensureSupabaseClient } from "../supabase";
 import type { PreflightCheckResult, PreflightTarget } from "./preflightTypes";
@@ -43,28 +42,6 @@ function buildSnapshots(files: ProjectFile[]) {
   return out;
 }
 
-// UUIDv4 without Node crypto (Expo-safe)
-async function uuidv4(): Promise<string> {
-  try {
-    const b = await Crypto.getRandomBytesAsync(16);
-    // RFC 4122 version/variant bits
-    b[6] = (b[6] & 0x0f) | 0x40;
-    b[8] = (b[8] & 0x3f) | 0x80;
-
-    const hex = Array.from(b).map((x) => x.toString(16).padStart(2, "0"));
-    return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex
-      .slice(6, 8)
-      .join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
-  } catch {
-    // last-resort fallback (still unique-ish, but less ideal)
-    const r = () =>
-      Math.floor(Math.random() * 0xffffffff)
-        .toString(16)
-        .padStart(8, "0");
-    return `${r()}-${r().slice(0, 4)}-4${r().slice(0, 3)}-8${r().slice(0, 3)}-${r()}${r().slice(0, 4)}`;
-  }
-}
-
 export type DiagnosticUploadInput = {
   deviceId: string;
   appVersion?: string;
@@ -76,11 +53,14 @@ export type DiagnosticUploadInput = {
 };
 
 /**
- * Upload that returns REAL DB id via RPC (no anon SELECT needed).
- * DB should have:
- * - table public.diagnostic_uploads (RLS on)
- * - anon INSERT policy (already)
- * - RPC function public.insert_diagnostic_upload(...) SECURITY DEFINER that returns bigint id
+ * Uploads a diagnostics report.
+ *
+ * IMPORTANT:
+ * - We keep RLS strict: anon can INSERT but cannot SELECT from diagnostic_uploads.
+ * - Therefore, we use a SECURITY DEFINER RPC that returns the real DB id.
+ * - No `.select()` after insert from the client.
+ *
+ * Returns `{ id }` (real DB id) or `null` on failure.
  */
 export async function uploadDiagnosticReport(
   input: DiagnosticUploadInput,
@@ -119,37 +99,19 @@ export async function uploadDiagnosticReport(
       : null,
   };
 
-  const clientRequestId = await uuidv4();
+  // SECURITY DEFINER RPC returns the real DB id while keeping anon SELECT disabled.
+  const { data, error } = await supabase.rpc("insert_diagnostic_upload", {
+    payload,
+  });
 
-  // 1) Prefer RPC to get real DB id without opening SELECT for anon
-  try {
-    const { data, error } = await supabase.rpc("insert_diagnostic_upload", {
-      p_device_id: payload.device_id,
-      p_app_version: payload.app_version,
-      p_project_name: payload.project_name,
-      p_target: payload.target,
-      p_summary: payload.summary,
-      p_snapshots: payload.snapshots,
-      p_notes: payload.notes,
-      p_client_request_id: clientRequestId,
-    });
-
-    if (error) {
-      console.warn("[diagnostics] upload rpc failed", error);
-      return null;
-    }
-
-    const idNum = typeof data === "number" ? data : Number(data);
-    if (!Number.isFinite(idNum) || idNum <= 0) {
-      console.warn("[diagnostics] upload rpc returned invalid id", data);
-      return null;
-    }
-
-    return { id: idNum };
-  } catch (e) {
-    console.warn("[diagnostics] upload rpc threw", e);
+  if (error) {
+    console.warn("[diagnostics] upload failed", error);
     return null;
   }
+
+  const idNum = typeof data === "number" ? data : Number(data);
+  if (!Number.isFinite(idNum)) return null;
+  return { id: idNum };
 }
 
 // ---------------------------------------------------------------------------
