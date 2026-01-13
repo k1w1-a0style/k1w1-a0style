@@ -452,8 +452,140 @@ const checkQualityScriptsDeps: PreflightCheck = {
 const FORBIDDEN_PATTERNS: Array<{ label: string; re: RegExp }> = [
   { label: "Private Keys", re: /BEGIN (RSA|EC|OPENSSH|DSA) PRIVATE KEY/ },
   { label: "Android Keystore", re: /\.jks$|\.keystore$/i },
-  { label: "Service Role", re: /SUPABASE_SERVICE_ROLE_KEY/i },
 ];
+
+const JWT_LIKE_RE =
+  /eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}/;
+const GH_SECRETS_REF_RE = /\$\{\{\s*secrets\.[A-Z0-9_]+\s*\}\}/;
+
+function scanWorkflowServiceRoleUsage(content: string): {
+  hasServiceRoleName: boolean;
+  leaks: Array<{ line: number; key: string; value: string }>;
+  fixed?: string;
+} {
+  const lines = content.split(/\r?\n/);
+  const leaks: Array<{ line: number; key: string; value: string }> = [];
+  let hasServiceRoleName = false;
+
+  // Very conservative YAML line parser: KEY: VALUE (single line only)
+  const assignRe =
+    /^([ \t-]*)?([A-Z0-9_]*SERVICE_ROLE[A-Z0-9_]*)\s*:\s*(.+?)\s*$/;
+
+  let outLines: string[] | null = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const m = raw.match(assignRe);
+    if (!m) continue;
+
+    const indent = m[1] ?? "";
+    const key = m[2];
+    const value = (m[3] ?? "").trim();
+
+    hasServiceRoleName = true;
+
+    // Safe if it references GitHub Secrets (or uses expression syntax generally)
+    if (GH_SECRETS_REF_RE.test(value)) continue;
+
+    // If the value looks like a token/JWT or a long secret, treat as leak.
+    const unquoted = value.replace(/^["']|["']$/g, "");
+    const looksSecret = JWT_LIKE_RE.test(unquoted) || unquoted.length >= 32;
+
+    if (!looksSecret) continue;
+
+    leaks.push({ line: i + 1, key, value });
+
+    // Build a safe auto-fix: move to GH secrets reference
+    if (!outLines) outLines = [...lines];
+    outLines[i] = `${indent}${key}: \${{ secrets.${key} }}`;
+  }
+
+  return {
+    hasServiceRoleName,
+    leaks,
+    fixed: outLines ? outLines.join("\n") : undefined,
+  };
+}
+
+const checkServiceRoleKeyLeak: PreflightCheck = {
+  id: "security-service-role-key",
+  title: "Security: Service Role Key Handling",
+  severity: "high",
+  run(files) {
+    const workflowFiles = files.filter((f) =>
+      /^(?:\.github\/workflows\/).+\.(yml|yaml)$/i.test(normalizePath(f.path)),
+    );
+    if (!workflowFiles.length) {
+      return {
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        status: "pass",
+        message: "Keine GitHub Workflows gefunden.",
+      };
+    }
+
+    const leaksDetails: string[] = [];
+    let anyMention = false;
+    let fixPatch: PreflightPatch | null = null;
+    let fixLabel = "Move Service Role keys to GitHub Secrets";
+
+    for (const f of workflowFiles) {
+      const p = normalizePath(f.path);
+      const scan = scanWorkflowServiceRoleUsage(f.content);
+      if (scan.hasServiceRoleName) anyMention = true;
+
+      if (scan.leaks.length) {
+        for (const l of scan.leaks) {
+          leaksDetails.push(
+            `${p}: line ${l.line} (${l.key}) looks like a hardcoded secret`,
+          );
+        }
+
+        if (scan.fixed && !fixPatch) {
+          fixPatch = { upsert: [{ path: p, content: scan.fixed }] };
+        }
+      }
+    }
+
+    if (leaksDetails.length) {
+      const res: PreflightCheckResult = {
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        status: "fail",
+        message:
+          "Service Role Key scheint in Workflow-Dateien im Klartext zu stehen. Das ist riskant – nutze GitHub Secrets.",
+        details: leaksDetails.slice(0, 50),
+        tags: ["security", "supabase", "github-actions"],
+      };
+      if (fixPatch) {
+        res.fix = { label: fixLabel, patch: fixPatch };
+      }
+      return res;
+    }
+
+    if (anyMention) {
+      return {
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        status: "warn",
+        message:
+          "Workflow referenziert Service Role Variablen. Stelle sicher, dass der Key nur über GitHub Secrets kommt (kein Klartext im Repo).",
+        tags: ["security", "supabase", "github-actions"],
+      };
+    }
+
+    return {
+      id: this.id,
+      title: this.title,
+      severity: this.severity,
+      status: "pass",
+      message: "Kein Service Role Key in Workflows erkannt.",
+    };
+  },
+};
 
 const checkForbiddenFiles: PreflightCheck = {
   id: "security-forbidden-files",
@@ -496,6 +628,7 @@ export const PREFLIGHT_CHECKS: PreflightCheck[] = [
   checkAssetsExist,
   checkQualityScriptsDeps,
   checkSdkConsistency,
+  checkServiceRoleKeyLeak,
   checkForbiddenFiles,
 ];
 
