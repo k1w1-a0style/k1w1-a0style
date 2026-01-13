@@ -1,4 +1,6 @@
 // lib/diagnostics/diagnosticUploader.ts
+import "react-native-get-random-values";
+import { v4 as uuidv4 } from "uuid";
 import { Platform } from "react-native";
 import type { ProjectFile } from "../../contexts/types";
 import { ensureSupabaseClient } from "../supabase";
@@ -50,17 +52,16 @@ export type DiagnosticUploadInput = {
   checks: PreflightCheckResult[];
   projectFiles: ProjectFile[];
   notes?: string;
+
+  // optional: wenn du von außen idempotent sein willst
+  clientRequestId?: string;
 };
 
 /**
- * Uploads a diagnostics report.
- *
- * IMPORTANT:
- * - We keep RLS strict: anon can INSERT but cannot SELECT from diagnostic_uploads.
- * - Therefore, we use a SECURITY DEFINER RPC that returns the real DB id.
- * - No `.select()` after insert from the client.
- *
- * Returns `{ id }` (real DB id) or `null` on failure.
+ * Upload via RPC:
+ * - returns REAL db id
+ * - anon SELECT bleibt aus (RLS)
+ * - server-side rate limit + hardening kann in SQL passieren
  */
 export async function uploadDiagnosticReport(
   input: DiagnosticUploadInput,
@@ -86,8 +87,15 @@ export async function uploadDiagnosticReport(
 
   const snapshots = buildSnapshots(input.projectFiles);
 
+  // stabile id pro upload (idempotent)
+  const clientRequestId =
+    input.clientRequestId && input.clientRequestId.trim()
+      ? input.clientRequestId.trim()
+      : uuidv4();
+
   const payload = {
     device_id: input.deviceId,
+    client_request_id: clientRequestId,
     app_version: input.appVersion ?? null,
     project_name: input.projectName ?? null,
     target:
@@ -99,7 +107,6 @@ export async function uploadDiagnosticReport(
       : null,
   };
 
-  // SECURITY DEFINER RPC returns the real DB id while keeping anon SELECT disabled.
   const { data, error } = await supabase.rpc("insert_diagnostic_upload", {
     payload,
   });
@@ -109,8 +116,10 @@ export async function uploadDiagnosticReport(
     return null;
   }
 
+  // RPC returns bigint -> JS number (ok für kleine ids)
   const idNum = typeof data === "number" ? data : Number(data);
   if (!Number.isFinite(idNum)) return null;
+
   return { id: idNum };
 }
 
