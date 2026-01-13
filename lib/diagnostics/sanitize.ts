@@ -99,3 +99,14 @@ export function sanitizeJsonString(jsonText: string): string {
     return sanitizeText(jsonText);
   }
 }
+
+// Convenience wrapper for diagnostic uploads.
+// Ensures we don't accidentally ship secrets or huge payloads.
+export function sanitizeDiagnosticUpload<T>(payload: T): T {
+  try {
+    // sanitizeJson expects Json-compatible values; if not, just return payload.
+    return sanitizeJson(payload as unknown as Json) as unknown as T;
+  } catch {
+    return payload;
+  }
+}

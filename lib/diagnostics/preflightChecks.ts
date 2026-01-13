@@ -324,6 +324,261 @@ const checkAssetsExist: PreflightCheck = {
   },
 };
 
+// --- Extra quality checks (v8.9) ---
+
+const checkLockfileConsistency: PreflightCheck = {
+  id: "lockfile-consistency",
+  title: "Lockfile Konsistenz",
+  severity: "normal",
+  run(files) {
+    const m = byPath(files);
+    if (!has(m, "package.json")) {
+      return ok({ id: this.id, title: this.title, severity: this.severity });
+    }
+
+    const hasNpm = has(m, "package-lock.json");
+    const hasYarn = has(m, "yarn.lock");
+    const hasPnpm = has(m, "pnpm-lock.yaml");
+
+    const lockCount = [hasNpm, hasYarn, hasPnpm].filter(Boolean).length;
+
+    if (lockCount === 0) {
+      return {
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        status: "warn",
+        message:
+          "Kein Lockfile gefunden (package-lock.json / yarn.lock / pnpm-lock.yaml). Builds können dadurch inkonsistent werden.",
+      };
+    }
+
+    if (lockCount > 1) {
+      const details = [
+        hasNpm ? "package-lock.json" : null,
+        hasYarn ? "yarn.lock" : null,
+        hasPnpm ? "pnpm-lock.yaml" : null,
+      ].filter(Boolean) as string[];
+
+      return {
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        status: "warn",
+        message: `Mehrere Lockfiles gefunden (${details.length}). Nutze nur EINEN Package Manager.`,
+        details,
+      };
+    }
+
+    return ok({ id: this.id, title: this.title, severity: this.severity });
+  },
+};
+
+const checkExpoConfig: PreflightCheck = {
+  id: "expo-config-validation",
+  title: "Expo Config Validation",
+  severity: "high",
+  run(files) {
+    const m = byPath(files);
+
+    const hasAppJson = has(m, "app.json");
+    const hasAppConfigJs = has(m, "app.config.js");
+
+    if (!hasAppJson && !hasAppConfigJs) {
+      return {
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        status: "fail",
+        message:
+          "Keine app.json oder app.config.js gefunden (Expo Config fehlt).",
+      };
+    }
+
+    if (hasAppConfigJs && !hasAppJson) {
+      // JS config exists (cannot reliably parse here) — treat as pass.
+      return ok({
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        message: "app.config.js vorhanden",
+      });
+    }
+
+    const raw = getText(m, "app.json");
+    const cfg = parseJson<any>(raw);
+    if (!cfg) {
+      return {
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        status: "fail",
+        message: "app.json ist keine gültige JSON.",
+      };
+    }
+
+    const expo = cfg.expo;
+    if (!expo || typeof expo !== "object") {
+      return {
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        status: "fail",
+        message: 'app.json fehlt "expo" Objekt.',
+      };
+    }
+
+    const issues: string[] = [];
+    if (!expo.name) issues.push("expo.name fehlt");
+    if (!expo.slug) issues.push("expo.slug fehlt");
+    if (!expo.version) issues.push("expo.version fehlt");
+    if (expo.ios && !expo.ios.bundleIdentifier)
+      issues.push("expo.ios.bundleIdentifier fehlt");
+    if (expo.android && !expo.android.package)
+      issues.push("expo.android.package fehlt");
+
+    if (issues.length) {
+      return {
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        status: "warn",
+        message: `Expo Config unvollständig (${issues.length} Feld(er) fehlen).`,
+        details: issues,
+      };
+    }
+
+    return ok({ id: this.id, title: this.title, severity: this.severity });
+  },
+};
+
+const checkGitignorePresent: PreflightCheck = {
+  id: "gitignore-present",
+  title: ".gitignore vorhanden",
+  severity: "normal",
+  run(files) {
+    const m = byPath(files);
+
+    if (has(m, ".gitignore")) {
+      const content = getText(m, ".gitignore");
+      const misses: string[] = [];
+      if (!/\bnode_modules\b/i.test(content)) misses.push("node_modules/");
+      if (!/\b\.expo\b/i.test(content)) misses.push(".expo/");
+      if (!/\b(dist|build|web-build)\b/i.test(content))
+        misses.push("dist/ oder build/");
+      if (!/\.env/i.test(content)) misses.push(".env*");
+
+      if (misses.length) {
+        return {
+          id: this.id,
+          title: this.title,
+          severity: this.severity,
+          status: "warn",
+          message: ".gitignore wirkt unvollständig (häufige Einträge fehlen).",
+          details: misses,
+        };
+      }
+
+      return ok({ id: this.id, title: this.title, severity: this.severity });
+    }
+
+    const template = `# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# Native
+android/
+ios/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# Debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Misc
+.DS_Store
+
+# Env
+.env
+.env*.local
+`;
+
+    return {
+      id: this.id,
+      title: this.title,
+      severity: this.severity,
+      status: "fail",
+      message: ".gitignore fehlt im Projekt.",
+      fix: {
+        patch: mkFix(
+          [{ path: ".gitignore", content: template }],
+          [],
+          ".gitignore erzeugen",
+        ),
+      },
+    };
+  },
+};
+
+const checkReactNativeCompatibility: PreflightCheck = {
+  id: "rn-react-compat",
+  title: "React / React Native Kompatibilität",
+  severity: "high",
+  run(files) {
+    const m = byPath(files);
+    if (!has(m, "package.json")) {
+      return ok({ id: this.id, title: this.title, severity: this.severity });
+    }
+    const pkg = parseJson<any>(getText(m, "package.json")) ?? {};
+    const deps = {
+      ...(pkg.dependencies ?? {}),
+      ...(pkg.devDependencies ?? {}),
+    } as Record<string, string>;
+    const react = deps.react;
+    const rn = deps["react-native"];
+
+    if (!react || !rn) {
+      return ok({ id: this.id, title: this.title, severity: this.severity });
+    }
+
+    const reactM = String(react).match(/(\d+)\.(\d+)/);
+    const rnM = String(rn).match(/0\.(\d+)/);
+    if (!reactM || !rnM) {
+      return ok({ id: this.id, title: this.title, severity: this.severity });
+    }
+
+    const reactMajor = Number(reactM[1]);
+    const reactMinor = Number(reactM[2]);
+    const rnMinor = Number(rnM[1]);
+
+    // Conservative, heuristics-based guidance (not perfect).
+    // React 18.3+ tends to require RN 0.75+ in modern stacks.
+    if (reactMajor === 18 && reactMinor >= 3 && rnMinor < 75) {
+      return {
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        status: "fail",
+        message: `Mögliche Inkompatibilität: react ${react} mit react-native ${rn}. Empfohlen: RN >= 0.75 bei React 18.3+.`,
+      };
+    }
+
+    return ok({ id: this.id, title: this.title, severity: this.severity });
+  },
+};
+
 const checkSdkConsistency: PreflightCheck = {
   id: "expo-sdk-consistency",
   title: "Expo SDK Konsistenz (light)",
@@ -449,143 +704,140 @@ const checkQualityScriptsDeps: PreflightCheck = {
   },
 };
 
-const FORBIDDEN_PATTERNS: Array<{ label: string; re: RegExp }> = [
-  { label: "Private Keys", re: /BEGIN (RSA|EC|OPENSSH|DSA) PRIVATE KEY/ },
-  { label: "Android Keystore", re: /\.jks$|\.keystore$/i },
-];
+// --- GitHub Actions Workflow Security: Service Role Key Leak Detection ---
+// This is intentionally conservative (single-line KEY: VALUE only) to avoid pulling a YAML parser into the app.
+// It targets the common footgun: hardcoded Supabase *service role* keys inside workflow files.
+// Safe patterns are GitHub expressions like ${{ secrets.X }} / ${{ env.X }} as well as shell env references ($VAR / ${VAR}).
 
+const GH_EXPR_REF_RE =
+  /^\$\{\{\s*(secrets|env|vars|inputs)\.[A-Za-z0-9_]+\s*\}\}$/i;
+const SHELL_ENV_REF_RE = /^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$/;
 const JWT_LIKE_RE =
   /eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}/;
-const GH_SECRETS_REF_RE = /\$\{\{\s*secrets\.[A-Z0-9_]+\s*\}\}/;
 
-function scanWorkflowServiceRoleUsage(content: string): {
-  hasServiceRoleName: boolean;
-  leaks: Array<{ line: number; key: string; value: string }>;
+function stripInlineYamlComment(value: string): string {
+  const v = value.trim();
+  if (!v) return v;
+  // If quoted, keep as-is (comment markers inside quotes are valid content)
+  if (
+    (v.startsWith('"') && v.endsWith('"')) ||
+    (v.startsWith("'") && v.endsWith("'"))
+  )
+    return v;
+  // YAML comment starts with # preceded by whitespace
+  return v.replace(/\s+#.*$/, "").trim();
+}
+
+function unquoteYamlScalar(value: string): string {
+  const v = value.trim();
+  return v.replace(/^["']|["']$/g, "");
+}
+
+function scanWorkflowServiceRoleUsage(text: string): {
+  leaks: string[];
   fixed?: string;
 } {
-  const lines = content.split(/\r?\n/);
-  const leaks: Array<{ line: number; key: string; value: string }> = [];
-  let hasServiceRoleName = false;
+  const lines = (text ?? "").split(/\r?\n/);
+  const outLines = [...lines];
+  const leaks: string[] = [];
 
-  // Very conservative YAML line parser: KEY: VALUE (single line only)
+  // indent + KEY: VALUE (single-line only)
   const assignRe =
-    /^([ \t-]*)?([A-Z0-9_]*SERVICE_ROLE[A-Z0-9_]*)\s*:\s*(.+?)\s*$/;
-
-  let outLines: string[] | null = null;
+    /^([\t -]*)?([A-Za-z0-9_]*SERVICE_ROLE[A-Za-z0-9_]*)\s*:\s*(.+?)\s*$/i;
 
   for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
+    const raw = lines[i] ?? "";
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+
     const m = raw.match(assignRe);
     if (!m) continue;
 
     const indent = m[1] ?? "";
-    const key = m[2];
-    const value = (m[3] ?? "").trim();
+    const key = m[2] ?? "";
+    const valueRaw = m[3] ?? "";
+    const valueNoComment = stripInlineYamlComment(valueRaw);
 
-    hasServiceRoleName = true;
+    // allow GitHub expression refs and shell env refs as "safe"
+    const valTrim = valueNoComment.trim();
+    if (GH_EXPR_REF_RE.test(valTrim) || SHELL_ENV_REF_RE.test(valTrim))
+      continue;
 
-    // Safe if it references GitHub Secrets (or uses expression syntax generally)
-    if (GH_SECRETS_REF_RE.test(value)) continue;
+    const unquoted = unquoteYamlScalar(valTrim);
 
-    // If the value looks like a token/JWT or a long secret, treat as leak.
-    const unquoted = value.replace(/^["']|["']$/g, "");
-    const looksSecret = JWT_LIKE_RE.test(unquoted) || unquoted.length >= 32;
+    const looksSecret =
+      JWT_LIKE_RE.test(unquoted) ||
+      (unquoted.length >= 32 && !/\s/.test(unquoted));
 
     if (!looksSecret) continue;
 
-    leaks.push({ line: i + 1, key, value });
+    leaks.push(`${key} (line ${i + 1})`);
 
-    // Build a safe auto-fix: move to GH secrets reference
-    if (!outLines) outLines = [...lines];
-    outLines[i] = `${indent}${key}: \${{ secrets.${key} }}`;
+    // Auto-fix: replace value with GitHub secrets reference (keep indentation)
+    outLines[i] = `${indent ?? ""}${key}: \${{ secrets.${key} }}`;
   }
 
-  return {
-    hasServiceRoleName,
-    leaks,
-    fixed: outLines ? outLines.join("\n") : undefined,
-  };
+  const fixed = outLines.join("\n");
+  return { leaks, fixed: leaks.length ? fixed : undefined };
 }
 
-const checkServiceRoleKeyLeak: PreflightCheck = {
-  id: "security-service-role-key",
-  title: "Security: Service Role Key Handling",
+const checkWorkflowServiceRoleKeyLeak: PreflightCheck = {
+  id: "security-workflow-service-role-key",
+  title: "Security: Service Role Key Leak in Workflows",
   severity: "high",
   run(files) {
-    const workflowFiles = files.filter((f) =>
-      /^(?:\.github\/workflows\/).+\.(yml|yaml)$/i.test(normalizePath(f.path)),
-    );
-    if (!workflowFiles.length) {
-      return {
-        id: this.id,
-        title: this.title,
-        severity: this.severity,
-        status: "pass",
-        message: "Keine GitHub Workflows gefunden.",
-      };
-    }
+    const m = byPath(files);
+    const workflowFiles = files
+      .map((f) => normalizePath(f.path))
+      .filter((p) => /^(?:\.github\/workflows\/).+\.(yml|yaml)$/i.test(p));
 
-    const leaksDetails: string[] = [];
-    let anyMention = false;
-    let fixPatch: PreflightPatch | null = null;
-    let fixLabel = "Move Service Role keys to GitHub Secrets";
+    if (!workflowFiles.length)
+      return ok({ id: this.id, title: this.title, severity: this.severity });
 
-    for (const f of workflowFiles) {
-      const p = normalizePath(f.path);
-      const scan = scanWorkflowServiceRoleUsage(f.content);
-      if (scan.hasServiceRoleName) anyMention = true;
+    const details: string[] = [];
+    const fixes: Array<{ path: string; content: string }> = [];
 
-      if (scan.leaks.length) {
-        for (const l of scan.leaks) {
-          leaksDetails.push(
-            `${p}: line ${l.line} (${l.key}) looks like a hardcoded secret`,
-          );
-        }
+    for (const p of workflowFiles) {
+      const f = m.get(p);
+      if (!f) continue;
 
-        if (scan.fixed && !fixPatch) {
-          fixPatch = { upsert: [{ path: p, content: scan.fixed }] };
-        }
+      const scan = scanWorkflowServiceRoleUsage(f.content ?? "");
+      if (!scan.leaks.length) continue;
+
+      details.push(`${p}: ${scan.leaks.join(", ")}`);
+      if (scan.fixed) {
+        fixes.push({ path: p, content: scan.fixed });
       }
     }
 
-    if (leaksDetails.length) {
-      const res: PreflightCheckResult = {
-        id: this.id,
-        title: this.title,
-        severity: this.severity,
-        status: "fail",
-        message:
-          "Service Role Key scheint in Workflow-Dateien im Klartext zu stehen. Das ist riskant – nutze GitHub Secrets.",
-        details: leaksDetails.slice(0, 50),
-        tags: ["security", "supabase", "github-actions"],
-      };
-      if (fixPatch) {
-        res.fix = { label: fixLabel, patch: fixPatch };
-      }
-      return res;
-    }
-
-    if (anyMention) {
-      return {
-        id: this.id,
-        title: this.title,
-        severity: this.severity,
-        status: "warn",
-        message:
-          "Workflow referenziert Service Role Variablen. Stelle sicher, dass der Key nur über GitHub Secrets kommt (kein Klartext im Repo).",
-        tags: ["security", "supabase", "github-actions"],
-      };
-    }
+    if (!details.length)
+      return ok({ id: this.id, title: this.title, severity: this.severity });
 
     return {
       id: this.id,
       title: this.title,
       severity: this.severity,
-      status: "pass",
-      message: "Kein Service Role Key in Workflows erkannt.",
+      status: "fail",
+      message:
+        "Möglicher hardcoded Supabase Service Role Key in GitHub Workflows gefunden. Nutze GitHub Secrets (secrets.*) statt Klartext.",
+      details,
+      fix: fixes.length
+        ? {
+            patch: mkFix(
+              fixes,
+              [],
+              "Service Role Key(s) in GitHub Workflows auf secrets.* umstellen",
+            ),
+          }
+        : undefined,
     };
   },
 };
+
+const FORBIDDEN_PATTERNS: Array<{ label: string; re: RegExp }> = [
+  { label: "Private Keys", re: /BEGIN (RSA|EC|OPENSSH|DSA) PRIVATE KEY/ },
+  { label: "Android Keystore", re: /\.jks$|\.keystore$/i },
+];
 
 const checkForbiddenFiles: PreflightCheck = {
   id: "security-forbidden-files",
@@ -623,12 +875,14 @@ const checkForbiddenFiles: PreflightCheck = {
 
 export const PREFLIGHT_CHECKS: PreflightCheck[] = [
   checkPackageJson,
+  checkGitignorePresent,
+  checkLockfileConsistency,
   checkEntryPoint,
+  checkExpoConfig,
   checkEasProfiles,
-  checkAssetsExist,
-  checkQualityScriptsDeps,
   checkSdkConsistency,
-  checkServiceRoleKeyLeak,
+  checkReactNativeCompatibility,
+  checkWorkflowServiceRoleKeyLeak,
   checkForbiddenFiles,
 ];
 
