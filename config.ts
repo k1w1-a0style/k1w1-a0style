@@ -65,6 +65,7 @@ export const CONFIG = {
 
       "expo-env.d.ts",
       ".gitignore",
+      ".npmrc",
 
       ".github/workflows/ci-build.yml",
       ".github/workflows/k1w1-triggered-build.yml",
@@ -136,6 +137,7 @@ export const CONFIG = {
       "eas.json",
       "expo-env.d.ts",
       ".gitignore",
+      ".npmrc",
     ] as string[],
 
     ALLOWED_EXT: [
@@ -150,6 +152,7 @@ export const CONFIG = {
       ".jpg",
       ".yml",
       ".gitignore",
+      ".npmrc",
     ] as string[],
 
     MAX_PATH_LENGTH: 255,
