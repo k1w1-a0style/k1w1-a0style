@@ -20,7 +20,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
@@ -666,7 +665,7 @@ const ConnectionsScreen: React.FC = () => {
       <View style={styles.platformInfo}>
         <Ionicons name="information-circle-outline" size={16} color="#fff" />
         <Text style={styles.platformText}>
-          Läuft auf {Platform.OS === "ios" ? "iOS" : "Android"} – Expo SDK 54.
+          Läuft auf Android – Expo SDK 54.
         </Text>
       </View>
 

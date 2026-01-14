@@ -11,7 +11,6 @@ import {
   Alert,
   BackHandler,
   Linking,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -220,8 +219,6 @@ export default function PreviewFullscreenScreen() {
   );
 
   useEffect(() => {
-    if (Platform.OS !== "android") return;
-
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
       if (canGoBack) {
         handleWebViewGoBack();
@@ -373,7 +370,6 @@ export default function PreviewFullscreenScreen() {
           originWhitelist={["*"]}
           setSupportMultipleWindows={false}
           javaScriptCanOpenWindowsAutomatically={false}
-          allowsBackForwardNavigationGestures={Platform.OS === "ios"}
           onShouldStartLoadWithRequest={handleShouldStartLoad}
           onNavigationStateChange={handleNavigationStateChange}
           onLoadStart={handleLoadStart}
@@ -382,7 +378,7 @@ export default function PreviewFullscreenScreen() {
           onHttpError={handleHttpError}
           startInLoadingState
           style={styles.webView}
-          mixedContentMode={Platform.OS === "android" ? "always" : undefined}
+          mixedContentMode="always"
           source={mode === "html" ? { html, baseUrl } : { uri: url! }}
         />
 

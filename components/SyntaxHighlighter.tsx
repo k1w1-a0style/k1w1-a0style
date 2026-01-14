@@ -1,15 +1,26 @@
-import React, { useMemo } from 'react';
-import { Text, StyleSheet, Platform, View } from 'react-native';
-import { theme } from '../theme';
+import React, { useMemo } from "react";
+import { Text, StyleSheet, View } from "react-native";
+import { theme } from "../theme";
 
 interface Token {
-  type: 'keyword' | 'string' | 'comment' | 'function' | 'number' | 'operator' | 'default' | 'type' | 'jsx';
+  type:
+    | "keyword"
+    | "string"
+    | "comment"
+    | "function"
+    | "number"
+    | "operator"
+    | "default"
+    | "type"
+    | "jsx";
   value: string;
 }
 
 // Erweiterte Regex für bessere Erkennung
-const KEYWORDS = /\b(import|export|const|let|var|function|return|if|else|for|while|class|extends|async|await|try|catch|throw|new|this|super|static|from|as|default|interface|type|enum|implements|readonly|public|private|protected|abstract|declare|namespace|module)\b/g;
-const TYPE_KEYWORDS = /\b(string|number|boolean|void|null|undefined|any|never|unknown|object|symbol|bigint|Array|Promise|Record|Partial|Required|Pick|Omit|React)\b/g;
+const KEYWORDS =
+  /\b(import|export|const|let|var|function|return|if|else|for|while|class|extends|async|await|try|catch|throw|new|this|super|static|from|as|default|interface|type|enum|implements|readonly|public|private|protected|abstract|declare|namespace|module)\b/g;
+const TYPE_KEYWORDS =
+  /\b(string|number|boolean|void|null|undefined|any|never|unknown|object|symbol|bigint|Array|Promise|Record|Partial|Required|Pick|Omit|React)\b/g;
 const STRINGS = /(["'`])(?:(?=(\\?))\2.)*?\1/g;
 const COMMENTS = /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm;
 const FUNCTIONS = /\b([a-zA-Z_$][a-zA-Z0-9_$]*)\s*(?=\()/g;
@@ -18,18 +29,23 @@ const JSX_TAGS = /<\/?([A-Z][a-zA-Z0-9]*)/g;
 
 const tokenize = (code: string): Token[] => {
   const tokens: Token[] = [];
-  const matches: { index: number; length: number; type: Token['type']; value: string }[] = [];
+  const matches: {
+    index: number;
+    length: number;
+    type: Token["type"];
+    value: string;
+  }[] = [];
 
   let match;
-  
+
   // Comments first (highest priority)
   const commentRegex = new RegExp(COMMENTS);
   while ((match = commentRegex.exec(code)) !== null) {
     matches.push({
       index: match.index,
       length: match[0].length,
-      type: 'comment',
-      value: match[0]
+      type: "comment",
+      value: match[0],
     });
   }
 
@@ -39,8 +55,8 @@ const tokenize = (code: string): Token[] => {
     matches.push({
       index: match.index,
       length: match[0].length,
-      type: 'string',
-      value: match[0]
+      type: "string",
+      value: match[0],
     });
   }
 
@@ -50,8 +66,8 @@ const tokenize = (code: string): Token[] => {
     matches.push({
       index: match.index,
       length: match[0].length,
-      type: 'jsx',
-      value: match[0]
+      type: "jsx",
+      value: match[0],
     });
   }
 
@@ -61,8 +77,8 @@ const tokenize = (code: string): Token[] => {
     matches.push({
       index: match.index,
       length: match[0].length,
-      type: 'type',
-      value: match[0]
+      type: "type",
+      value: match[0],
     });
   }
 
@@ -72,8 +88,8 @@ const tokenize = (code: string): Token[] => {
     matches.push({
       index: match.index,
       length: match[0].length,
-      type: 'keyword',
-      value: match[0]
+      type: "keyword",
+      value: match[0],
     });
   }
 
@@ -83,8 +99,8 @@ const tokenize = (code: string): Token[] => {
     matches.push({
       index: match.index,
       length: match[1].length,
-      type: 'function',
-      value: match[1]
+      type: "function",
+      value: match[1],
     });
   }
 
@@ -94,8 +110,8 @@ const tokenize = (code: string): Token[] => {
     matches.push({
       index: match.index,
       length: match[0].length,
-      type: 'number',
-      value: match[0]
+      type: "number",
+      value: match[0],
     });
   }
 
@@ -105,7 +121,7 @@ const tokenize = (code: string): Token[] => {
   // Remove overlaps (keep first match)
   const filteredMatches: typeof matches = [];
   let lastEnd = 0;
-  matches.forEach(m => {
+  matches.forEach((m) => {
     if (m.index >= lastEnd) {
       filteredMatches.push(m);
       lastEnd = m.index + m.length;
@@ -114,24 +130,24 @@ const tokenize = (code: string): Token[] => {
 
   // Build tokens
   let lastIndex = 0;
-  filteredMatches.forEach(m => {
+  filteredMatches.forEach((m) => {
     if (m.index > lastIndex) {
       tokens.push({
-        type: 'default',
-        value: code.substring(lastIndex, m.index)
+        type: "default",
+        value: code.substring(lastIndex, m.index),
       });
     }
     tokens.push({
       type: m.type,
-      value: m.value
+      value: m.value,
     });
     lastIndex = m.index + m.length;
   });
 
   if (lastIndex < code.length) {
     tokens.push({
-      type: 'default',
-      value: code.substring(lastIndex)
+      type: "default",
+      value: code.substring(lastIndex),
     });
   }
 
@@ -143,13 +159,13 @@ interface SyntaxHighlighterProps {
   showLineNumbers?: boolean;
 }
 
-export const SyntaxHighlighter: React.FC<SyntaxHighlighterProps> = ({ 
-  code, 
-  showLineNumbers = false 
+export const SyntaxHighlighter: React.FC<SyntaxHighlighterProps> = ({
+  code,
+  showLineNumbers = false,
 }) => {
   const tokens = useMemo(() => tokenize(code), [code]);
-  
-  const lines = useMemo(() => code.split('\n'), [code]);
+
+  const lines = useMemo(() => code.split("\n"), [code]);
 
   if (showLineNumbers) {
     return (
@@ -187,7 +203,7 @@ export const SyntaxHighlighter: React.FC<SyntaxHighlighterProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   lineNumbers: {
     paddingRight: 12,
@@ -196,32 +212,32 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   lineNumber: {
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontFamily: "monospace",
     fontSize: 12,
     lineHeight: 22,
     color: theme.palette.text.disabled,
-    textAlign: 'right',
+    textAlign: "right",
     minWidth: 28,
   },
   codeContent: {
     flex: 1,
   },
   codeBlock: {
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontFamily: "monospace",
     fontSize: 14,
     lineHeight: 22,
   },
   // 🔥 NEON SYNTAX COLORS
   keyword: {
     color: theme.palette.syntax.keyword, // Neon Magenta
-    fontWeight: '600',
+    fontWeight: "600",
   },
   string: {
     color: theme.palette.syntax.string, // Neon Türkis
   },
   comment: {
     color: theme.palette.syntax.comment, // Grau
-    fontStyle: 'italic',
+    fontStyle: "italic",
   },
   function: {
     color: theme.palette.syntax.function, // Neon Gelb
@@ -234,11 +250,11 @@ const styles = StyleSheet.create({
   },
   type: {
     color: theme.palette.syntax.type, // Neon Blau
-    fontWeight: '500',
+    fontWeight: "500",
   },
   jsx: {
     color: theme.palette.primary, // Neon Grün für JSX
-    fontWeight: '600',
+    fontWeight: "600",
   },
   default: {
     color: theme.palette.syntax.default, // Standard Text

@@ -1,7 +1,6 @@
 // lib/diagnostics/diagnosticUploader.ts
 import "react-native-get-random-values";
 import { v4 as uuidv4 } from "uuid";
-import { Platform } from "react-native";
 import type { ProjectFile } from "../../contexts/types";
 import { ensureSupabaseClient } from "../supabase";
 import type { PreflightCheckResult, PreflightTarget } from "./preflightTypes";
@@ -82,7 +81,7 @@ export async function uploadDiagnosticReport(
       },
       { pass: 0, warn: 0, fail: 0 } as Record<"pass" | "warn" | "fail", number>,
     ),
-    platform: Platform.OS,
+    platform: "android",
   };
 
   const snapshots = buildSnapshots(input.projectFiles);

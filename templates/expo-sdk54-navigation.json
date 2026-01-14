@@ -1,7 +1,7 @@
 [
   {
     "path": "package.json",
-    "content": "{\n  \"name\": \"navigation-template\",\n  \"version\": \"1.0.0\",\n  \"description\": \"Expo SDK 54 mit React Navigation (Tabs + Stack)\",\n  \"private\": true,\n  \"main\": \"node_modules/expo/AppEntry.js\",\n  \"scripts\": {\n    \"start\": \"expo start --clear\",\n    \"android\": \"expo run:android\",\n    \"ios\": \"expo run:ios\",\n    \"web\": \"expo start --web\",\n    \"lint\": \"eslint . --ext .ts,.tsx --max-warnings=0\",\n    \"typecheck\": \"tsc --noEmit\"\n  },\n  \"dependencies\": {\n    \"expo\": \"~54.0.0\",\n    \"expo-constants\": \"~16.0.2\",\n    \"expo-status-bar\": \"~2.0.0\",\n    \"react\": \"18.3.1\",\n    \"react-native\": \"0.76.5\",\n    \"@react-navigation/native\": \"^7.0.0\",\n    \"@react-navigation/bottom-tabs\": \"^7.0.0\",\n    \"@react-navigation/stack\": \"^7.0.0\",\n    \"react-native-screens\": \"~4.4.0\",\n    \"react-native-safe-area-context\": \"~4.14.0\",\n    \"@expo/vector-icons\": \"^14.0.0\"\n  },\n  \"devDependencies\": {\n    \"@babel/core\": \"^7.25.2\",\n    \"@types/react\": \"~18.3.12\",\n    \"typescript\": \"^5.3.3\"\n  }\n}\n"
+    "content": "{\n  \"name\": \"navigation-template\",\n  \"version\": \"1.0.0\",\n  \"description\": \"Expo SDK 54 mit React Navigation (Tabs + Stack)\",\n  \"private\": true,\n  \"main\": \"node_modules/expo/AppEntry.js\",\n  \"scripts\": {\n    \"start\": \"expo start --clear\",\n    \"android\": \"expo run:android\",\n    \"web\": \"expo start --web\",\n    \"lint\": \"eslint . --ext .ts,.tsx --max-warnings=0\",\n    \"typecheck\": \"tsc --noEmit\"\n  },\n  \"dependencies\": {\n    \"expo\": \"~54.0.0\",\n    \"expo-constants\": \"~16.0.2\",\n    \"expo-status-bar\": \"~2.0.0\",\n    \"react\": \"18.3.1\",\n    \"react-native\": \"0.76.5\",\n    \"@react-navigation/native\": \"^7.0.0\",\n    \"@react-navigation/bottom-tabs\": \"^7.0.0\",\n    \"@react-navigation/stack\": \"^7.0.0\",\n    \"react-native-screens\": \"~4.4.0\",\n    \"react-native-safe-area-context\": \"~4.14.0\",\n    \"@expo/vector-icons\": \"^14.0.0\"\n  },\n  \"devDependencies\": {\n    \"@babel/core\": \"^7.25.2\",\n    \"@types/react\": \"~18.3.12\",\n    \"typescript\": \"^5.3.3\"\n  }\n}\n"
   },
   {
     "path": "App.tsx",
@@ -33,7 +33,7 @@
   },
   {
     "path": "app.config.js",
-    "content": "module.exports = {\n  expo: {\n    name: 'Navigation Template',\n    slug: 'navigation-template',\n    version: '1.0.0',\n    orientation: 'portrait',\n    userInterfaceStyle: 'dark',\n    newArchEnabled: true,\n    splash: {\n      resizeMode: 'contain',\n      backgroundColor: '#020617',\n    },\n    ios: {\n      supportsTablet: true,\n      bundleIdentifier: 'com.yourcompany.navigationtemplate',\n    },\n    android: {\n      package: 'com.yourcompany.navigationtemplate',\n      adaptiveIcon: {\n        backgroundColor: '#020617',\n      },\n    },\n    extra: {\n      eas: {\n        projectId: '',\n      },\n    },\n  },\n};\n"
+    "content": "module.exports = {\n  expo: {\n    name: 'Navigation Template',\n    slug: 'navigation-template',\n    version: '1.0.0',\n    orientation: 'portrait',\n    userInterfaceStyle: 'dark',\n    newArchEnabled: true,\n    splash: {\n      resizeMode: 'contain',\n      backgroundColor: '#020617',\n    },\n    android: {\n      package: 'com.yourcompany.navigationtemplate',\n      adaptiveIcon: {\n        backgroundColor: '#020617',\n      },\n    },\n    extra: {\n      eas: {\n        projectId: '',\n      },\n    },\n  },\n};\n"
   },
   {
     "path": "tsconfig.json",

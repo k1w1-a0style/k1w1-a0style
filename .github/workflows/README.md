@@ -4,11 +4,11 @@ Dieses Projekt verwendet optimierte GitHub Actions Workflows für CI/CD und Buil
 
 ## 📋 Workflow-Übersicht
 
-| Workflow | Trigger | Zweck | Build-Zeit | Artifacts |
-|----------|---------|-------|------------|-----------|
-| **ci-build.yml** | Push/PR zu main | Schnelle CI Validierung | ~5-8 min | ❌ |
-| **k1w1-triggered-build.yml** | K1W1 App oder manuell | Vollständiger Build mit Status-Tracking | ~5-10 min | ❌ |
-| **release-build.yml** | Manuell | Production Builds mit Download | ~10-15 min | ✅ |
+| Workflow                     | Trigger               | Zweck                                   | Build-Zeit | Artifacts |
+| ---------------------------- | --------------------- | --------------------------------------- | ---------- | --------- |
+| **ci-build.yml**             | Push/PR zu main       | Schnelle CI Validierung                 | ~5-8 min   | ❌        |
+| **k1w1-triggered-build.yml** | K1W1 App oder manuell | Vollständiger Build mit Status-Tracking | ~5-10 min  | ❌        |
+| **release-build.yml**        | Manuell               | Production Builds mit Download          | ~10-15 min | ✅        |
 
 ---
 
@@ -16,12 +16,14 @@ Dieses Projekt verwendet optimierte GitHub Actions Workflows für CI/CD und Buil
 
 **Trigger:** Automatisch bei Push/PR zu `main` oder `master` Branch
 
-**Zweck:** 
+**Zweck:**
+
 - Schnelle Validierung bei Code-Changes
 - Stellt sicher, dass der Code kompiliert
 - Führt Linting aus
 
 **Optimierungen:**
+
 - ✅ Nur Android (schneller als iOS/Web)
 - ✅ `--no-wait` für schnelles Feedback
 - ✅ Nutzt EAS Cache (kein `--clear-cache`)
@@ -30,6 +32,7 @@ Dieses Projekt verwendet optimierte GitHub Actions Workflows für CI/CD und Buil
 **Build-Zeit:** ~5-8 Minuten
 
 **Beispiel:**
+
 ```bash
 # Automatisch bei:
 git push origin main
@@ -39,16 +42,19 @@ git push origin main
 
 ## 🚀 k1w1-triggered-build.yml - App-getriggerte Builds
 
-**Trigger:** 
+**Trigger:**
+
 1. Via Supabase Function (`trigger-eas-build`)
 2. Manuell über GitHub UI
 
 **Zweck:**
+
 - Vollständiger EAS Build für K1W1 App
 - Supabase Status-Tracking (optional)
 - Unterstützt Builds mit und ohne Job ID
 
 **Features:**
+
 - ✅ Job ID wird von Supabase Function übergeben
 - ✅ Status-Updates in Supabase `build_jobs` Tabelle
 - ✅ Funktioniert auch ohne Job ID (für manuelle Triggers)
@@ -60,8 +66,8 @@ git push origin main
 
 ```typescript
 // K1W1 App triggert Build via Supabase Function:
-const { data } = await supabase.functions.invoke('trigger-eas-build', {
-  body: { githubRepo: 'your-username/k1w1-a0style' }
+const { data } = await supabase.functions.invoke("trigger-eas-build", {
+  body: { githubRepo: "your-username/k1w1-a0style" },
 });
 
 // Supabase Function erstellt Job und triggert Workflow:
@@ -81,6 +87,7 @@ gh workflow run k1w1-triggered-build.yml -f job_id=123
 ```
 
 **Status Flow:**
+
 ```
 queued → building → completed
    ↓         ↓          ↓
@@ -94,18 +101,20 @@ queued → building → completed
 **Trigger:** Manuell über GitHub UI
 
 **Zweck:**
+
 - Production-ready Builds
 - Download von Build-Artifacts
 - Flexible Platform/Profile-Auswahl
 
 **Input-Parameter:**
 
-| Parameter | Optionen | Default | Beschreibung |
-|-----------|----------|---------|--------------|
-| `platform` | android, ios, all | android | Zu bauende Platform(s) |
-| `profile` | production, preview, development | production | EAS Build Profile |
+| Parameter  | Optionen                         | Default    | Beschreibung           |
+| ---------- | -------------------------------- | ---------- | ---------------------- |
+| `platform` | android, ios, all                | android    | Zu bauende Platform(s) |
+| `profile`  | production, preview, development | production | EAS Build Profile      |
 
 **Features:**
+
 - ✅ Wartet auf Build-Completion (`--wait`)
 - ✅ Download der APK/IPA Dateien
 - ✅ Upload als GitHub Artifacts (30 Tage Retention)
@@ -126,6 +135,7 @@ gh workflow run release-build.yml -f platform=android -f profile=production
 **Artifact Download:**
 
 Nach erfolgreichem Build:
+
 1. Gehe zu GitHub Actions → Release Build → Latest Run
 2. Scrolle zu "Artifacts"
 3. Download `k1w1-android-production.zip`
@@ -137,22 +147,23 @@ Nach erfolgreichem Build:
 
 Alle Workflows benötigen folgende GitHub Secrets:
 
-| Secret | Beschreibung | Required für |
-|--------|--------------|--------------|
-| `EXPO_TOKEN` | EAS CLI Token | Alle Workflows |
-| `SUPABASE_URL` | K1W1 Supabase URL | k1w1-triggered-build |
+| Secret                      | Beschreibung                   | Required für         |
+| --------------------------- | ------------------------------ | -------------------- |
+| `EXPO_TOKEN`                | EAS CLI Token                  | Alle Workflows       |
+| `SUPABASE_URL`              | K1W1 Supabase URL              | k1w1-triggered-build |
 | `SUPABASE_SERVICE_ROLE_KEY` | K1W1 Supabase Service Role Key | k1w1-triggered-build |
 
 ### Setup Instructions:
 
 1. **EXPO_TOKEN:**
+
    ```bash
    # Login to Expo
    npx eas login
-   
+
    # Generate token
    npx eas build:configure
-   
+
    # Add to GitHub:
    # Settings → Secrets → Actions → New repository secret
    # Name: EXPO_TOKEN
@@ -160,11 +171,12 @@ Alle Workflows benötigen folgende GitHub Secrets:
    ```
 
 2. **SUPABASE_URL & SUPABASE_SERVICE_ROLE_KEY:**
+
    ```bash
    # Get from Supabase Dashboard:
    # Project Settings → API → URL
    # Project Settings → API → service_role key (secret!)
-   
+
    # Add to GitHub:
    # Settings → Secrets → Actions → New repository secret
    ```
@@ -178,6 +190,7 @@ Alle Workflows benötigen folgende GitHub Secrets:
 **Symptom:** Workflow zeigt Fehler in "Build on EAS" Step
 
 **Lösungen:**
+
 1. Prüfe EAS CLI Token:
    ```bash
    npx eas whoami
@@ -194,10 +207,12 @@ Alle Workflows benötigen folgende GitHub Secrets:
 **Symptom:** Workflow läuft, aber "Validate Job ID" zeigt Warning
 
 **Ursachen:**
+
 - Manueller Trigger ohne Job ID (OK)
 - Supabase Function sendet keine Job ID (BUG - sollte gefixt sein!)
 
 **Prüfen:**
+
 ```bash
 # Supabase Function Logs:
 supabase functions logs trigger-eas-build
@@ -211,9 +226,10 @@ supabase functions logs trigger-eas-build
 **Symptom:** Build dauert > 20 Minuten
 
 **Optimierungen:**
+
 1. Verwende `--no-wait` für CI (ci-build.yml)
 2. Entferne `--clear-cache` wenn nicht nötig
-3. Baue nur eine Platform (android ODER ios)
+3. Baue nur eine Platform (nur android)
 4. Prüfe EAS Build-Queue Status:
    ```bash
    npx eas build:list --status=in-queue
@@ -224,6 +240,7 @@ supabase functions logs trigger-eas-build
 **Symptom:** `npm ci` schlägt fehl
 
 **Lösung:**
+
 ```bash
 # Lokal dependencies aktualisieren:
 npm install
@@ -240,6 +257,7 @@ git push
 ## 📊 Performance-Optimierungen
 
 ### Vor Optimierung (alte Workflows):
+
 ```
 build.yml:
   - Platform: all (iOS + Android + Web)
@@ -250,6 +268,7 @@ build.yml:
 ```
 
 ### Nach Optimierung (neue Workflows):
+
 ```
 ci-build.yml:
   - Platform: android only
@@ -263,13 +282,13 @@ ci-build.yml:
 
 ### Optimierungs-Details:
 
-| Optimierung | Zeitersparnis | Warum? |
-|-------------|---------------|--------|
-| `--no-wait` statt `--wait` | ~5-10 min | Workflow wartet nicht auf EAS Build Completion |
-| Android only statt `all` | ~10-15 min | iOS Builds benötigen macOS Runner (teurer) |
-| `npm ci` statt `npm install` | ~1-2 min | Deterministisch, kein dependency resolution |
-| Node 20 statt 18 | ~30 sec | Bessere Performance, neuere V8 Engine |
-| Cache nutzen (kein `--clear-cache`) | ~2-5 min | Dependencies werden gecacht |
+| Optimierung                         | Zeitersparnis | Warum?                                         |
+| ----------------------------------- | ------------- | ---------------------------------------------- |
+| `--no-wait` statt `--wait`          | ~5-10 min     | Workflow wartet nicht auf EAS Build Completion |
+| Android only statt `all`            | ~10-15 min    | iOS Builds benötigen macOS Runner (teurer)     |
+| `npm ci` statt `npm install`        | ~1-2 min      | Deterministisch, kein dependency resolution    |
+| Node 20 statt 18                    | ~30 sec       | Bessere Performance, neuere V8 Engine          |
+| Cache nutzen (kein `--clear-cache`) | ~2-5 min      | Dependencies werden gecacht                    |
 
 ---
 
@@ -277,15 +296,16 @@ ci-build.yml:
 
 ### Alte Workflows → Neue Workflows
 
-| Alt | Neu | Grund |
-|-----|-----|-------|
-| `build.yml` | ✅ `ci-build.yml` | Optimiert für schnelle CI |
+| Alt                             | Neu                           | Grund                      |
+| ------------------------------- | ----------------------------- | -------------------------- |
+| `build.yml`                     | ✅ `ci-build.yml`             | Optimiert für schnelle CI  |
 | `deploy-supabase-functions.yml` | ✅ `k1w1-triggered-build.yml` | Korrekter Name + Bug-Fixes |
-| `eas-build.yml` | ❌ Gelöscht | Redundant + Output-Bug |
+| `eas-build.yml`                 | ❌ Gelöscht                   | Redundant + Output-Bug     |
 
 ### Breaking Changes:
 
 **Keine!** Die neuen Workflows sind rückwärtskompatibel:
+
 - ✅ Supabase Function Integration funktioniert weiterhin
 - ✅ GitHub Secrets bleiben gleich
 - ✅ EAS Build Konfiguration unverändert
@@ -306,6 +326,7 @@ ci-build.yml:
 **Fragen?** Öffne ein GitHub Issue oder kontaktiere das Team.
 
 **Build-Logs:** Alle Logs sind verfügbar unter:
+
 - GitHub Actions: `https://github.com/<username>/k1w1-a0style/actions`
 - EAS Build: `https://expo.dev/accounts/<username>/projects/k1w1-a0style/builds`
 - Supabase Logs: Supabase Dashboard → Edge Functions → Logs

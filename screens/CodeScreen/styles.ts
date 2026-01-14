@@ -56,9 +56,6 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     elevation: 3,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
   },
 
   // ==================== SELECTION MODE ====================
@@ -269,9 +266,6 @@ export const styles = StyleSheet.create({
     borderRadius: 12,
     elevation: 3,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
     borderWidth: 1,
     borderColor: theme.palette.border,
   },

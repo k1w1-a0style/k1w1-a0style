@@ -591,8 +591,6 @@ const checkExpoConfig: PreflightCheck = {
     if (!expo.name) issues.push("expo.name fehlt");
     if (!expo.slug) issues.push("expo.slug fehlt");
     if (!expo.version) issues.push("expo.version fehlt");
-    if (expo.ios && !expo.ios.bundleIdentifier)
-      issues.push("expo.ios.bundleIdentifier fehlt");
     if (expo.android && !expo.android.package)
       issues.push("expo.android.package fehlt");
 

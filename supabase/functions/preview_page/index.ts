@@ -245,7 +245,7 @@ function renderPage(params: {
   .overlay-text { margin-top: 16px; color: #666; font-size: 14px; }
   .error-overlay { background: #1a0505; }
   .error-title { color: #ff4444; font-size: 18px; font-weight: 600; margin-bottom: 8px; }
-  .error-message { color: #ff6b6b; font-size: 14px; max-width: 520px; text-align: center; line-height: 1.5; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; white-space: pre-wrap; word-break: break-word; padding: 0 16px; }
+  .error-message { color: #ff6b6b; font-size: 14px; max-width: 520px; text-align: center; line-height: 1.5; font-family: ui-monospace, Consolas, "Liberation Mono", "Courier New", monospace; white-space: pre-wrap; word-break: break-word; padding: 0 16px; }
 </style>
 </head>
 <body>

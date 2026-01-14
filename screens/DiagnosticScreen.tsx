@@ -12,7 +12,6 @@ import {
   Alert,
   FlatList,
   Modal,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -1402,7 +1401,7 @@ export default function DiagnosticScreen() {
         renderItem={renderItem}
         contentContainerStyle={{
           padding: 14,
-          paddingBottom: Platform.OS === "ios" ? 40 : 24,
+          paddingBottom: 24,
         }}
         ListEmptyComponent={
           <View style={styles.empty}>
@@ -1627,7 +1626,7 @@ const styles = StyleSheet.create({
   // Preview
   previewWrap: { flex: 1, backgroundColor: theme.palette.background },
   previewHeader: {
-    paddingTop: Platform.OS === "ios" ? 54 : 18,
+    paddingTop: 18,
     paddingHorizontal: 14,
     paddingBottom: 12,
     borderBottomWidth: 1,
@@ -1665,11 +1664,7 @@ const styles = StyleSheet.create({
   },
   previewText: {
     color: theme.palette.text.secondary,
-    fontFamily: Platform.select({
-      ios: "Menlo",
-      android: "monospace",
-      default: "monospace",
-    }),
+    fontFamily: "monospace",
     fontSize: 12,
     lineHeight: 16,
   },
