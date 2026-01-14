@@ -11,14 +11,14 @@ import type {
 } from "./preflightTypes";
 import { safeTruncate, sanitizeJsonString, sanitizeText } from "./sanitize";
 
+const normalizePath = (p: string) =>
+  p.replace(/\\/g, "/").replace(/^\.?\//, "");
+
 const byPath = (files: ProjectFile[]) => {
   const map = new Map<string, ProjectFile>();
   for (const f of files) map.set(normalizePath(f.path), f);
   return map;
 };
-
-const normalizePath = (p: string) =>
-  p.replace(/\\/g, "/").replace(/^\.?\//, "");
 
 const has = (m: Map<string, ProjectFile>, p: string) => m.has(normalizePath(p));
 
@@ -73,28 +73,53 @@ function statusBySeverity(sev: PreflightSeverity): PreflightStatus {
         ? "warn"
         : "warn";
 }
+
+// --- helpers for warn autofix
+
 function ensureEndsWithNewline(s: string): string {
   return s.endsWith("\n") ? s : s + "\n";
 }
 
+function normalizeGitignoreEntry(entry: string): string {
+  const e = String(entry ?? "").trim();
+  if (!e) return "";
+  // keep as-is except ensure folders end with "/"
+  if (e.endsWith("/") || e.includes("*") || e.includes("!")) return e;
+  // for typical folder patterns like node_modules or .expo, prefer trailing slash
+  if (!e.includes(".") || e.startsWith("."))
+    return e.endsWith("/") ? e : `${e}/`;
+  return e;
+}
+
 function gitignoreAppendMissing(existing: string, misses: string[]): string {
   const lines = (existing ?? "").split(/\r?\n/);
-  const set = new Set(
+
+  const normalizedExisting = new Set(
     lines
       .map((l) => l.trim())
-      .filter((l) => l.length > 0 && !l.startsWith("#")),
+      .filter((l) => l.length > 0 && !l.startsWith("#"))
+      .flatMap((l) => {
+        const a = l;
+        const b = l.endsWith("/") ? l.slice(0, -1) : `${l}/`;
+        return [a, b];
+      }),
   );
+
   const out = [...lines];
   let changed = false;
 
-  for (const m of misses) {
-    const norm = String(m ?? "").trim();
+  for (const raw of misses) {
+    const norm = normalizeGitignoreEntry(raw);
     if (!norm) continue;
+
     const a = norm;
-    const b = norm.endsWith("/") ? norm.slice(0, -1) : norm + "/";
-    if (set.has(a) || set.has(b)) continue;
+    const b = norm.endsWith("/") ? norm.slice(0, -1) : `${norm}/`;
+
+    if (normalizedExisting.has(a) || normalizedExisting.has(b)) continue;
+
     out.push(a);
-    set.add(a);
+    normalizedExisting.add(a);
+    normalizedExisting.add(b);
     changed = true;
   }
 
@@ -104,11 +129,21 @@ function gitignoreAppendMissing(existing: string, misses: string[]): string {
     : ensureEndsWithNewline(existing ?? "");
 }
 
-function npmrcHasLockfileHint(content: string): boolean {
+function npmrcLockfileSetting(content: string): boolean | null {
+  // returns:
+  //   true  -> package-lock=true/1
+  //   false -> package-lock=false/0
+  //   null  -> not set
   const c = String(content ?? "");
-  // package-lock=true / 1 in .npmrc
-  return /(^|\n)\s*package-lock\s*=\s*(true|1)\s*(\n|$)/im.test(c);
+  const re = /(^|\n)\s*package-lock\s*=\s*(true|false|1|0)\s*(\n|$)/im;
+  const m = c.match(re);
+  if (!m) return null;
+  const v = String(m[2]).toLowerCase();
+  if (v === "true" || v === "1") return true;
+  if (v === "false" || v === "0") return false;
+  return null;
 }
+
 // --- Checks
 
 const checkPackageJson: PreflightCheck = {
@@ -117,6 +152,7 @@ const checkPackageJson: PreflightCheck = {
   severity: "critical",
   run(files) {
     const m = byPath(files);
+
     if (has(m, "package.json")) {
       const pkg = parseJson(getText(m, "package.json"));
       if (!pkg || typeof pkg !== "object") {
@@ -146,6 +182,7 @@ const checkPackageJson: PreflightCheck = {
         "react-native": "0.78.0",
       },
     };
+
     return {
       id: this.id,
       title: this.title,
@@ -180,16 +217,22 @@ const checkEntryPoint: PreflightCheck = {
         ? pkg.main.trim()
         : "index.js";
     const mainNorm = normalizePath(main);
+
     const indexOk =
       has(m, mainNorm) ||
       has(m, "index.js") ||
       has(m, "App.tsx") ||
       has(m, "App.js");
+
     if (indexOk) {
       return ok({ id: this.id, title: this.title, severity: this.severity });
     }
 
-    const stub = `import { registerRootComponent } from 'expo';\nimport App from './App';\n\nregisterRootComponent(App);\n`;
+    const stub =
+      "import { registerRootComponent } from 'expo';\n" +
+      "import App from './App';\n\n" +
+      "registerRootComponent(App);\n";
+
     return {
       id: this.id,
       title: this.title,
@@ -227,7 +270,9 @@ const checkEasProfiles: PreflightCheck = {
         message: "Nicht relevant (Expo Go).",
       });
     }
+
     const m = byPath(files);
+
     if (!has(m, "eas.json")) {
       const template = {
         build: {
@@ -243,16 +288,12 @@ const checkEasProfiles: PreflightCheck = {
         status: statusBySeverity(this.severity),
         message: "eas.json fehlt. Ohne Profile können Builds schief laufen.",
         fix: {
-          patch: mkFix(
-            [
-              {
-                path: "eas.json",
-                content: JSON.stringify(template, null, 2) + "\n",
-              },
-            ],
-            [],
-            "eas.json erzeugen",
-          ),
+          patch: mkFix([
+            {
+              path: "eas.json",
+              content: JSON.stringify(template, null, 2) + "\n",
+            },
+          ]),
         },
       };
     }
@@ -280,7 +321,6 @@ const checkEasProfiles: PreflightCheck = {
       };
     }
 
-    // lightweight hint: preview should be APK for easy install; production typically AAB
     const buildType = p?.android?.buildType;
     if (profile === "preview" && buildType && buildType !== "apk") {
       return {
@@ -288,7 +328,7 @@ const checkEasProfiles: PreflightCheck = {
         title: this.title,
         severity: this.severity,
         status: "warn",
-        message: `preview.android.buildType ist "${buildType}" – für 1‑Click Install ist "apk" oft besser.`,
+        message: `preview.android.buildType ist "${buildType}" – für 1-Click Install ist "apk" oft besser.`,
       };
     }
     if (profile === "production" && buildType && buildType !== "aab") {
@@ -317,6 +357,7 @@ const checkAssetsExist: PreflightCheck = {
       "app.config.ts",
       "app.config.json",
     ]);
+
     if (!cfgPath) {
       return ok({
         id: this.id,
@@ -326,16 +367,21 @@ const checkAssetsExist: PreflightCheck = {
         message: "Keine app.json/app.config.* gefunden.",
       });
     }
+
     const cfgText = getText(m, cfgPath);
+
     const iconMatches = [...cfgText.matchAll(/"icon"\s*:\s*"([^"]+)"/g)]
       .map((x) => x[1])
       .filter(Boolean);
+
     const splashMatches = [...cfgText.matchAll(/"image"\s*:\s*"([^"]+)"/g)]
       .map((x) => x[1])
       .filter(Boolean);
+
     const candidates = [...new Set([...iconMatches, ...splashMatches])]
       .map((p) => normalizePath(p.replace(/^\.\//, "")))
       .filter((p) => p && !p.startsWith("http"));
+
     if (!candidates.length) {
       return ok({
         id: this.id,
@@ -345,9 +391,11 @@ const checkAssetsExist: PreflightCheck = {
         message: "Keine Asset-Refs gefunden.",
       });
     }
+
     const missing = candidates.filter((p) => !has(m, p));
     if (!missing.length)
       return ok({ id: this.id, title: this.title, severity: this.severity });
+
     return {
       id: this.id,
       title: this.title,
@@ -359,7 +407,7 @@ const checkAssetsExist: PreflightCheck = {
   },
 };
 
-// --- Extra quality checks (v8.9) ---
+// --- Extra quality checks ---
 
 const checkLockfileConsistency: PreflightCheck = {
   id: "lockfile-consistency",
@@ -374,12 +422,13 @@ const checkLockfileConsistency: PreflightCheck = {
     const hasNpm = has(m, "package-lock.json");
     const hasYarn = has(m, "yarn.lock");
     const hasPnpm = has(m, "pnpm-lock.yaml");
-
     const lockCount = [hasNpm, hasYarn, hasPnpm].filter(Boolean).length;
 
     if (lockCount === 0) {
       const npmrc = has(m, ".npmrc") ? getText(m, ".npmrc") : "";
-      if (npmrc && npmrcHasLockfileHint(npmrc)) {
+      const setting = npmrc ? npmrcLockfileSetting(npmrc) : null;
+
+      if (setting === true) {
         return ok({
           id: this.id,
           title: this.title,
@@ -388,6 +437,35 @@ const checkLockfileConsistency: PreflightCheck = {
           message:
             "Kein Lockfile im Source – wird beim Install generiert (.npmrc: package-lock=true).",
         });
+      }
+
+      if (setting === false) {
+        return {
+          id: this.id,
+          title: this.title,
+          severity: this.severity,
+          status: "warn",
+          message:
+            "Kein Lockfile im Source und .npmrc deaktiviert package-lock (package-lock=false). Builds können dadurch inkonsistent werden.",
+          fix: {
+            patch: mkFix(
+              [
+                {
+                  path: ".npmrc",
+                  content: ensureEndsWithNewline(
+                    (npmrc || "").replace(
+                      /(^|\n)\s*package-lock\s*=\s*(false|0)\s*(\n|$)/im,
+                      "$1package-lock=true$3",
+                    ) ||
+                      "# Generated by k1w1 diagnostics\npackage-lock=true\nsave-exact=true\n",
+                  ),
+                },
+              ],
+              [],
+              ".npmrc korrigieren (package-lock=true)",
+            ),
+          },
+        };
       }
 
       return {
@@ -421,6 +499,7 @@ const checkLockfileConsistency: PreflightCheck = {
         hasPnpm ? "pnpm-lock.yaml" : null,
       ].filter(Boolean) as string[];
 
+      // default preference: pnpm > npm > yarn
       const keep = hasPnpm
         ? "pnpm-lock.yaml"
         : hasNpm
@@ -477,7 +556,6 @@ const checkExpoConfig: PreflightCheck = {
     }
 
     if (hasAppConfigJs && !hasAppJson) {
-      // JS config exists (cannot reliably parse here) — treat as pass.
       return ok({
         id: this.id,
         title: this.title,
@@ -542,12 +620,28 @@ const checkGitignorePresent: PreflightCheck = {
 
     if (has(m, ".gitignore")) {
       const content = getText(m, ".gitignore");
+
+      // keep this list small + relevant for exported projects
       const misses: string[] = [];
-      if (!/\bnode_modules\b/i.test(content)) misses.push("node_modules/");
-      if (!/\b\.expo\b/i.test(content)) misses.push(".expo/");
-      if (!/\b(dist|build|web-build)\b/i.test(content))
-        misses.push("dist/ oder build/");
-      if (!/\.env/i.test(content)) misses.push(".env*");
+      const mustHave = [
+        "node_modules/",
+        ".expo/",
+        ".expo-shared/",
+        ".vscode/",
+        ".idea/",
+        ".env",
+        "dist/",
+        "build/",
+        "web-build/",
+        "*.log",
+      ];
+
+      const lowered = content.toLowerCase();
+      for (const entry of mustHave) {
+        const e = entry.toLowerCase().replace(/\/$/, "");
+        // naive but stable: substring check (works for typical ignore lines)
+        if (!lowered.includes(e)) misses.push(entry);
+      }
 
       if (misses.length) {
         const next = gitignoreAppendMissing(content, misses);
@@ -579,6 +673,7 @@ node_modules/
 
 # Expo
 .expo/
+.expo-shared/
 dist/
 web-build/
 
@@ -591,6 +686,10 @@ ios/
 *.key
 *.mobileprovision
 
+# IDE
+.vscode/
+.idea/
+
 # Metro
 .metro-health-check*
 
@@ -598,6 +697,7 @@ ios/
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+*.log
 
 # Misc
 .DS_Store
@@ -633,6 +733,7 @@ const checkReactNativeCompatibility: PreflightCheck = {
     if (!has(m, "package.json")) {
       return ok({ id: this.id, title: this.title, severity: this.severity });
     }
+
     const pkg = parseJson<any>(getText(m, "package.json")) ?? {};
     const deps = {
       ...(pkg.dependencies ?? {}),
@@ -655,8 +756,6 @@ const checkReactNativeCompatibility: PreflightCheck = {
     const reactMinor = Number(reactM[2]);
     const rnMinor = Number(rnM[1]);
 
-    // Conservative, heuristics-based guidance (not perfect).
-    // React 18.3+ tends to require RN 0.75+ in modern stacks.
     if (reactMajor === 18 && reactMinor >= 3 && rnMinor < 75) {
       return {
         id: this.id,
@@ -685,6 +784,7 @@ const checkSdkConsistency: PreflightCheck = {
         status: "pass",
       });
     }
+
     const pkg = parseJson<any>(getText(m, "package.json")) ?? {};
     const deps = {
       ...(pkg.dependencies ?? {}),
@@ -692,6 +792,7 @@ const checkSdkConsistency: PreflightCheck = {
     };
     const expo = deps.expo as string | undefined;
     const rn = deps["react-native"] as string | undefined;
+
     if (!expo) {
       return {
         id: this.id,
@@ -711,15 +812,10 @@ const checkSdkConsistency: PreflightCheck = {
         message: "react-native dependency fehlt.",
       };
     }
-    // Very lightweight: ensure major expo version and RN version are not obviously incompatible
+
     const expoMajor = Number(String(expo).match(/(\d+)/)?.[1] ?? "0");
     const rnMajorMinor = String(rn).match(/(\d+)\.(\d+)/);
     if (expoMajor >= 54 && rnMajorMinor) {
-      const rnMajor = Number(rnMajorMinor[1]);
-      // Expo SDK 54 uses RN 0.78 (at least around). If wildly different, warn.
-      if (rnMajor !== 0) {
-        // ignore, rnMajor for RN is 0
-      }
       const rnMinor = Number(rnMajorMinor[2]);
       if (Math.abs(rnMinor - 78) >= 6) {
         return {
@@ -731,6 +827,7 @@ const checkSdkConsistency: PreflightCheck = {
         };
       }
     }
+
     return ok({ id: this.id, title: this.title, severity: this.severity });
   },
 };
@@ -750,6 +847,7 @@ const checkQualityScriptsDeps: PreflightCheck = {
         status: "pass",
       });
     }
+
     const scripts: Record<string, string> = pkg.scripts ?? {};
     const deps = {
       ...(pkg.dependencies ?? {}),
@@ -769,6 +867,7 @@ const checkQualityScriptsDeps: PreflightCheck = {
 
     if (!missing.length)
       return ok({ id: this.id, title: this.title, severity: this.severity });
+
     return {
       id: this.id,
       title: this.title,
@@ -797,26 +896,26 @@ const checkQualityScriptsDeps: PreflightCheck = {
 };
 
 // --- GitHub Actions Workflow Security: Service Role Key Leak Detection ---
-// This is intentionally conservative (single-line KEY: VALUE only) to avoid pulling a YAML parser into the app.
-// It targets the common footgun: hardcoded Supabase *service role* keys inside workflow files.
-// Safe patterns are GitHub expressions like ${{ secrets.X }} / ${{ env.X }} as well as shell env references ($VAR / ${VAR}).
+// NOTE: No YAML parser here by design (lightweight). This check is conservative.
 
 const GH_EXPR_REF_RE =
   /^\$\{\{\s*(secrets|env|vars|inputs)\.[A-Za-z0-9_]+\s*\}\}$/i;
 const SHELL_ENV_REF_RE = /^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$/;
+
+// JWT-like AND generic secret-like tokens (long, base64-ish / urlsafe-ish)
 const JWT_LIKE_RE =
   /eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}/;
+const GENERIC_SECRET_RE = /^[A-Za-z0-9._-]{40,}$/;
 
 function stripInlineYamlComment(value: string): string {
   const v = value.trim();
   if (!v) return v;
-  // If quoted, keep as-is (comment markers inside quotes are valid content)
   if (
     (v.startsWith('"') && v.endsWith('"')) ||
     (v.startsWith("'") && v.endsWith("'"))
-  )
+  ) {
     return v;
-  // YAML comment starts with # preceded by whitespace
+  }
   return v.replace(/\s+#.*$/, "").trim();
 }
 
@@ -833,14 +932,43 @@ function scanWorkflowServiceRoleUsage(text: string): {
   const outLines = [...lines];
   const leaks: string[] = [];
 
-  // indent + KEY: VALUE (single-line only)
+  // single-line: KEY: VALUE
   const assignRe =
     /^([\t -]*)?([A-Za-z0-9_]*SERVICE_ROLE[A-Za-z0-9_]*)\s*:\s*(.+?)\s*$/i;
+
+  // block scalar start: KEY: | / KEY: >
+  const blockStartRe =
+    /^([\t -]*)?([A-Za-z0-9_]*SERVICE_ROLE[A-Za-z0-9_]*)\s*:\s*([|>])\s*$/i;
+
+  const looksSecret = (raw: string) => {
+    const v = unquoteYamlScalar(stripInlineYamlComment(raw)).trim();
+    if (!v) return false;
+    if (GH_EXPR_REF_RE.test(v) || SHELL_ENV_REF_RE.test(v)) return false;
+    return JWT_LIKE_RE.test(v) || (GENERIC_SECRET_RE.test(v) && !/\s/.test(v));
+  };
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i] ?? "";
     const trimmed = raw.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
+
+    // block scalar case (cannot safely auto-fix multi-line content)
+    const bm = raw.match(blockStartRe);
+    if (bm) {
+      const key = bm[2] ?? "";
+      // scan subsequent indented lines until indentation drops
+      const baseIndent = (bm[1] ?? "").length;
+      for (let j = i + 1; j < lines.length; j++) {
+        const l = lines[j] ?? "";
+        const indent = l.match(/^(\s*)/)?.[1]?.length ?? 0;
+        if (l.trim() && indent <= baseIndent) break;
+        if (looksSecret(l)) {
+          leaks.push(`${key} (block, near line ${i + 1})`);
+          break;
+        }
+      }
+      continue;
+    }
 
     const m = raw.match(assignRe);
     if (!m) continue;
@@ -848,25 +976,11 @@ function scanWorkflowServiceRoleUsage(text: string): {
     const indent = m[1] ?? "";
     const key = m[2] ?? "";
     const valueRaw = m[3] ?? "";
-    const valueNoComment = stripInlineYamlComment(valueRaw);
-
-    // allow GitHub expression refs and shell env refs as "safe"
-    const valTrim = valueNoComment.trim();
-    if (GH_EXPR_REF_RE.test(valTrim) || SHELL_ENV_REF_RE.test(valTrim))
-      continue;
-
-    const unquoted = unquoteYamlScalar(valTrim);
-
-    const looksSecret =
-      JWT_LIKE_RE.test(unquoted) ||
-      (unquoted.length >= 32 && !/\s/.test(unquoted));
-
-    if (!looksSecret) continue;
+    if (!looksSecret(valueRaw)) continue;
 
     leaks.push(`${key} (line ${i + 1})`);
-
-    // Auto-fix: replace value with GitHub secrets reference (keep indentation)
-    outLines[i] = `${indent ?? ""}${key}: \${{ secrets.${key} }}`;
+    // auto-fix single-line only
+    outLines[i] = `${indent}${key}: \${{ secrets.${key} }}`;
   }
 
   const fixed = outLines.join("\n");
@@ -883,8 +997,9 @@ const checkWorkflowServiceRoleKeyLeak: PreflightCheck = {
       .map((f) => normalizePath(f.path))
       .filter((p) => /^(?:\.github\/workflows\/).+\.(yml|yaml)$/i.test(p));
 
-    if (!workflowFiles.length)
+    if (!workflowFiles.length) {
       return ok({ id: this.id, title: this.title, severity: this.severity });
+    }
 
     const details: string[] = [];
     const fixes: Array<{ path: string; content: string }> = [];
@@ -897,13 +1012,12 @@ const checkWorkflowServiceRoleKeyLeak: PreflightCheck = {
       if (!scan.leaks.length) continue;
 
       details.push(`${p}: ${scan.leaks.join(", ")}`);
-      if (scan.fixed) {
-        fixes.push({ path: p, content: scan.fixed });
-      }
+      if (scan.fixed) fixes.push({ path: p, content: scan.fixed });
     }
 
-    if (!details.length)
+    if (!details.length) {
       return ok({ id: this.id, title: this.title, severity: this.severity });
+    }
 
     return {
       id: this.id,
@@ -937,23 +1051,40 @@ const checkForbiddenFiles: PreflightCheck = {
   severity: "high",
   run(files) {
     const hits: string[] = [];
+
     for (const f of files) {
       const p = normalizePath(f.path);
+      const content = f.content ?? "";
+
+      // fast path: forbidden by filename/extension
       for (const pat of FORBIDDEN_PATTERNS) {
-        if (pat.re.test(p) || pat.re.test(f.content)) {
+        if (pat.re.test(p)) {
           hits.push(`${p} (${pat.label})`);
           break;
         }
       }
-      // huge file heuristic: content stored in JSON, so large means dangerous anyway
-      if (f.content.length > 2_000_000) {
+
+      // huge content heuristic BEFORE scanning content (perf)
+      if (content.length > 2_000_000) {
         hits.push(
-          `${p} (sehr groß: ${Math.round(f.content.length / 1024 / 1024)}MB in content)`,
+          `${p} (sehr groß: ${Math.round(content.length / 1024 / 1024)}MB in content)`,
         );
+        continue;
+      }
+
+      // now scan content (safe size)
+      for (const pat of FORBIDDEN_PATTERNS) {
+        if (pat.re.test(content)) {
+          hits.push(`${p} (${pat.label})`);
+          break;
+        }
       }
     }
-    if (!hits.length)
+
+    if (!hits.length) {
       return ok({ id: this.id, title: this.title, severity: this.severity });
+    }
+
     return {
       id: this.id,
       title: this.title,
@@ -984,10 +1115,12 @@ export function buildDiagnosticUploadSnapshot(
 ): Array<{ path: string; content: string; truncated: boolean }> {
   const m = byPath(files);
   const out: Array<{ path: string; content: string; truncated: boolean }> = [];
+
   for (const pRaw of paths) {
     const p = normalizePath(pRaw);
     const f = m.get(p);
     if (!f) continue;
+
     const isJson = /\.json$/i.test(p);
     const sanitized = isJson
       ? sanitizeJsonString(f.content)
@@ -995,5 +1128,6 @@ export function buildDiagnosticUploadSnapshot(
     const { text, truncated } = safeTruncate(sanitized, 20_000);
     out.push({ path: p, content: text, truncated });
   }
+
   return out;
 }
