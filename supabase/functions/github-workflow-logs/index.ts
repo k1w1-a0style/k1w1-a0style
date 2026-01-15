@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { unzipSync, strFromU8 } from "https://deno.land/x/fflate@0.8.2/mod.ts";
 
 /**
  * Fetches GitHub Actions workflow logs
@@ -27,17 +28,16 @@ serve(async (req) => {
         { headers: corsHeaders, status: 400 },
       );
     }
-    const { githubRepo, runId } = body;
-    const githubToken = String(body.githubToken || "").trim();
 
-    const token = githubToken || Deno.env.get("GITHUB_TOKEN") || "";
-    if (!token) {
-      return new Response(
-        JSON.stringify({
-          error: "Missing GITHUB_TOKEN (set secret or provide githubToken)",
-        }),
-        { headers: corsHeaders, status: 500 },
-      );
+    const envToken = Deno.env.get("GITHUB_TOKEN");
+    const { githubRepo, runId, githubToken, mode } = body;
+    const GITHUB_TOKEN = githubToken || envToken;
+
+    if (!GITHUB_TOKEN) {
+      return new Response(JSON.stringify({ error: "Missing GitHub token" }), {
+        headers: corsHeaders,
+        status: 400,
+      });
     }
 
     // Get workflow run details
@@ -45,7 +45,7 @@ serve(async (req) => {
     const runResponse = await fetch(runUrl, {
       headers: {
         Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${GITHUB_TOKEN}`,
       },
     });
 
@@ -68,7 +68,7 @@ serve(async (req) => {
     const jobsResponse = await fetch(jobsUrl, {
       headers: {
         Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${GITHUB_TOKEN}`,
       },
     });
 
@@ -80,6 +80,80 @@ serve(async (req) => {
     }
 
     const jobsData = await jobsResponse.json();
+
+    // If requested, fetch the real CLI log archive (zip) for this workflow run
+    const wantRaw = (mode || "raw") === "raw";
+    if (wantRaw) {
+      const logsUrl = `https://api.github.com/repos/${githubRepo}/actions/runs/${runId}/logs`;
+      const zipResp = await fetch(logsUrl, {
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${GITHUB_TOKEN}`,
+        },
+      });
+
+      if (zipResp.ok) {
+        const buf = new Uint8Array(await zipResp.arrayBuffer());
+        try {
+          const files = unzipSync(buf);
+          const names = Object.keys(files)
+            .filter((n) => n.toLowerCase().endsWith(".txt"))
+            .sort((a, b) => a.localeCompare(b));
+
+          // Concatenate all text files into a single raw log stream
+          let combined = "";
+          for (const name of names) {
+            const text = strFromU8(files[name]);
+            combined += `\n### ${name}\n` + text + "\n";
+          }
+
+          // Safety cap: keep only the last ~250k chars (mobile + edge limits)
+          const MAX_CHARS = 250_000;
+          if (combined.length > MAX_CHARS) {
+            combined = combined.slice(combined.length - MAX_CHARS);
+          }
+
+          const lines = combined
+            .split(/\r?\n/)
+            .filter((l) => l.trim().length > 0);
+          const logs = lines.map((line) => {
+            const lower = line.toLowerCase();
+            const level =
+              lower.includes("##[error]") ||
+              lower.includes("error") ||
+              lower.includes("failed") ||
+              lower.includes("exception")
+                ? "error"
+                : "raw";
+            return {
+              timestamp: "",
+              message: line,
+              level,
+              step: undefined,
+            };
+          });
+
+          return new Response(
+            JSON.stringify({
+              logs,
+              workflowRun: runData,
+              mode: "raw",
+              jobs: jobsData.jobs || [],
+            }),
+            {
+              headers: corsHeaders,
+              status: 200,
+            },
+          );
+        } catch (e) {
+          // fall through to summary logs if unzip fails
+          console.error("Failed to unzip GitHub logs:", e);
+        }
+      } else {
+        const t = await zipResp.text().catch(() => "");
+        console.error("GitHub logs zip fetch failed:", zipResp.status, t);
+      }
+    }
 
     // Parse logs from all jobs
     const logs: any[] = [];

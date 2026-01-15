@@ -7,7 +7,7 @@ import { getEdgeAdminKey, getGitHubToken } from "../contexts/githubService";
 export interface LogEntry {
   timestamp: string;
   message: string;
-  level: "info" | "warning" | "error";
+  level: "info" | "warning" | "error" | "raw";
   step?: string;
 }
 
@@ -122,6 +122,8 @@ export function useGitHubActionsLogs({
         }
       }
 
+      const githubToken = await getGitHubToken().catch(() => null);
+
       // Fetch logs for the workflow run
       const logsResponse = await fetch(`${edgeUrl}/github-workflow-logs`, {
         method: "POST",
@@ -132,6 +134,8 @@ export function useGitHubActionsLogs({
         body: JSON.stringify({
           githubRepo,
           runId: targetRunId,
+          mode: "raw",
+          githubToken,
         }),
       });
 

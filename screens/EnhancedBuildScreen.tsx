@@ -160,6 +160,10 @@ export default function EnhancedBuildScreen(): React.ReactElement {
   const logLines = useMemo(() => {
     if (!logs || logs.length === 0) return [];
     return logs.map((entry) => {
+      // Show raw CLI output without extra prefixes
+      if (entry.level === "raw") {
+        return entry.message;
+      }
       const ts = entry.timestamp;
       const time = ts ? new Date(ts).toLocaleTimeString() : "";
       const prefix = time ? `${time} ` : "";
