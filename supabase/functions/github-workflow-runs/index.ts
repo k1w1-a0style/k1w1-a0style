@@ -26,17 +26,19 @@ serve(async (req) => {
         { headers: corsHeaders, status: 400 },
       );
     }
+    const { githubRepo } = body;
+    const githubToken = String(body.githubToken || "").trim();
 
-    const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN");
-
-    if (!GITHUB_TOKEN) {
-      return new Response(JSON.stringify({ error: "Missing GITHUB_TOKEN" }), {
-        headers: corsHeaders,
-        status: 500,
-      });
+    const token = githubToken || Deno.env.get("GITHUB_TOKEN") || "";
+    if (!token) {
+      return new Response(
+        JSON.stringify({
+          error: "Missing GITHUB_TOKEN (set secret or provide githubToken)",
+        }),
+        { headers: corsHeaders, status: 500 },
+      );
     }
 
-    const { githubRepo } = body;
     const perPage = body.perPage || 10;
 
     // Fetch workflow runs
@@ -44,7 +46,7 @@ serve(async (req) => {
     const runsResponse = await fetch(runsUrl, {
       headers: {
         Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${GITHUB_TOKEN}`,
+        Authorization: `Bearer ${token}`,
       },
     });
 

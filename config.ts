@@ -71,6 +71,8 @@ export const CONFIG = {
       ".github/workflows/k1w1-triggered-build.yml",
       ".github/workflows/release-build.yml",
       ".github/workflows/eas-build.yml",
+      ".github/workflows/eas-link.yml",
+      ".github/workflows/deploy-supabase-functions.yml",
     ] as string[],
 
     // Ordner, die als “Source Folders” gelten

@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { CONFIG } from "../config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getEdgeAdminKey } from "../contexts/githubService";
+import { getEdgeAdminKey, getGitHubToken } from "../contexts/githubService";
 
 export interface LogEntry {
   timestamp: string;

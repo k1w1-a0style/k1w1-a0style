@@ -22,6 +22,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useGitHub } from "../contexts/GitHubContext";
 import { useProject, getGitHubToken } from "../contexts/ProjectContext";
@@ -33,6 +34,9 @@ import {
   createBranch,
   deleteBranch,
   renameBranch,
+  getRepoFileText,
+  createOrUpdateFile,
+  triggerWorkflow,
 } from "../contexts/githubService";
 
 import { autoSyncRepoSecrets } from "../lib/autoSyncRepoSecrets";
@@ -47,6 +51,44 @@ import {
   splitFullName,
   isValidRepoName,
 } from "./GitHubReposScreen/utils/repos";
+
+const STORAGE_KEYS = {
+  EAS_PROJECT_ID: "eas_project_id",
+} as const;
+
+type TemplateFile = { path: string; content: string };
+
+const loadCoreTemplateFiles = (): TemplateFile[] => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const template = require("../templates/expo-sdk54-base.json") as any[];
+    if (!Array.isArray(template)) return [];
+    return template
+      .filter((f) => f && typeof f.path === "string")
+      .map((f) => ({
+        path: String(f.path),
+        content:
+          typeof f.content === "string"
+            ? f.content
+            : JSON.stringify(f.content ?? "", null, 2),
+      }));
+  } catch {
+    return [];
+  }
+};
+
+const CORE_PATHS = [
+  ".github/workflows/eas-link.yml",
+  ".github/workflows/eas-build.yml",
+  ".github/workflows/k1w1-triggered-build.yml",
+  ".github/workflows/deploy-supabase-functions.yml",
+] as const;
+
+const getCoreFileContent = (path: string): string | null => {
+  const files = loadCoreTemplateFiles();
+  const hit = files.find((f) => f.path === path);
+  return hit?.content ?? null;
+};
 
 export default function GitHubReposScreen() {
   const {
@@ -84,6 +126,12 @@ export default function GitHubReposScreen() {
   const [isPulling, setIsPulling] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
   const [pullProgress, setPullProgress] = useState("");
+
+  const [easProjectId, setEasProjectId] = useState<string>("");
+  const [isEasLinking, setIsEasLinking] = useState(false);
+  const [easLinkStatus, setEasLinkStatus] = useState<
+    "unknown" | "ok" | "missing"
+  >("unknown");
 
   // Manage Modal (für Repo/Branch Aktionen)
   type ManageModalConfig = {
@@ -124,6 +172,21 @@ export default function GitHubReposScreen() {
       }
     };
     loadToken();
+  }, []);
+
+  // EAS Project ID aus Storage (optional)
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const id = await AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID).catch(
+        () => "",
+      );
+      if (!mounted) return;
+      setEasProjectId((id || "").trim());
+    })();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // Auto-Load Repos
@@ -206,6 +269,22 @@ export default function GitHubReposScreen() {
     }
   }, [newRepoName, token, loadRepos, handleSelectRepo]);
 
+  const withCoreFiles = useCallback(
+    (files: Array<{ path: string; content: string }>) => {
+      const out = [...files];
+      const seen = new Set(out.map((f) => f.path));
+      for (const p of CORE_PATHS) {
+        if (seen.has(p)) continue;
+        const c = getCoreFileContent(p);
+        if (!c) continue;
+        out.push({ path: p, content: c });
+        seen.add(p);
+      }
+      return out;
+    },
+    [],
+  );
+
   const handlePush = useCallback(async () => {
     if (!activeRepo || !projectData?.files?.length) {
       Alert.alert("⚠️", "Kein Repo/Projekt ausgewählt oder keine Dateien.");
@@ -219,7 +298,7 @@ export default function GitHubReposScreen() {
       await pushFilesToRepo(
         parsed.owner,
         parsed.repo,
-        projectData.files as any,
+        withCoreFiles(projectData.files as any),
         branch,
       );
       Alert.alert(
@@ -232,6 +311,96 @@ export default function GitHubReposScreen() {
       setIsPushing(false);
     }
   }, [activeRepo, activeBranch, projectData?.files]);
+
+  const checkEasLinkWorkflow = useCallback(async () => {
+    if (!activeRepo || !token) {
+      setEasLinkStatus("unknown");
+      return;
+    }
+    const parsed = splitFullName(activeRepo);
+    if (!parsed) {
+      setEasLinkStatus("unknown");
+      return;
+    }
+    const branch = activeBranch ?? "main";
+    try {
+      await getRepoFileText({
+        owner: parsed.owner,
+        repo: parsed.repo,
+        path: ".github/workflows/eas-link.yml",
+        ref: branch,
+      });
+      setEasLinkStatus("ok");
+    } catch (e: any) {
+      // 404 -> missing
+      const msg = String(e?.message || "");
+      if (msg.includes("404") || msg.toLowerCase().includes("not found")) {
+        setEasLinkStatus("missing");
+      } else {
+        setEasLinkStatus("unknown");
+      }
+    }
+  }, [activeRepo, activeBranch, token]);
+
+  useEffect(() => {
+    checkEasLinkWorkflow().catch(() => {});
+  }, [checkEasLinkWorkflow]);
+
+  const handleEasLink = useCallback(async () => {
+    if (!activeRepo) {
+      Alert.alert("⚠️", "Bitte erst Repo auswählen.");
+      return;
+    }
+    if (!token) {
+      Alert.alert("⚠️", "GitHub Token fehlt (Connections Screen).");
+      return;
+    }
+    const parsed = splitFullName(activeRepo);
+    if (!parsed) return;
+
+    setIsEasLinking(true);
+    try {
+      const branch = activeBranch ?? "main";
+
+      // 1) ensure workflow exists (auto-fix)
+      try {
+        await getRepoFileText({
+          owner: parsed.owner,
+          repo: parsed.repo,
+          path: ".github/workflows/eas-link.yml",
+          ref: branch,
+        });
+      } catch (e: any) {
+        const content = getCoreFileContent(".github/workflows/eas-link.yml");
+        if (!content) {
+          throw new Error("Konnte eas-link.yml nicht aus dem Template laden.");
+        }
+        await createOrUpdateFile(
+          parsed.owner,
+          parsed.repo,
+          ".github/workflows/eas-link.yml",
+          content,
+          "chore(ci): add eas-link workflow",
+          branch,
+        );
+      }
+
+      // 2) trigger workflow
+      await triggerWorkflow(parsed.owner, parsed.repo, "eas-link.yml", branch, {
+        eas_project_id: (easProjectId || "").trim(),
+      });
+
+      setEasLinkStatus("ok");
+      Alert.alert(
+        "✅ EAS Link gestartet",
+        "Workflow 'eas-link.yml' wurde gestartet. Check die Runs unten oder in GitHub Actions.",
+      );
+    } catch (e: any) {
+      Alert.alert("❌ initEasProject", e?.message ?? "Fehler");
+    } finally {
+      setIsEasLinking(false);
+    }
+  }, [activeRepo, activeBranch, token, easProjectId]);
 
   const handlePull = useCallback(async () => {
     if (!token || !activeRepo) {
@@ -591,7 +760,26 @@ export default function GitHubReposScreen() {
               size={16}
               color={theme.palette.primary}
             />
-            <Text style={s.actionBtnText}>Sync</Text>
+            <Text style={s.actionBtnText}>Secrets</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[s.actionBtn, isEasLinking && s.actionBtnDisabled]}
+            onPress={handleEasLink}
+            disabled={isEasLinking}
+          >
+            {isEasLinking ? (
+              <ActivityIndicator size="small" color={theme.palette.primary} />
+            ) : (
+              <>
+                <Ionicons
+                  name="rocket-outline"
+                  size={16}
+                  color={theme.palette.primary}
+                />
+                <Text style={s.actionBtnText}>EAS Link</Text>
+              </>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity style={s.actionBtn} onPress={openManageMenu}>
@@ -602,6 +790,29 @@ export default function GitHubReposScreen() {
             />
             <Text style={s.actionBtnText}>Manage</Text>
           </TouchableOpacity>
+        </View>
+
+        <View style={s.easStatusRow}>
+          <View
+            style={[
+              s.statusDot,
+              {
+                backgroundColor:
+                  easLinkStatus === "ok"
+                    ? theme.palette.success
+                    : easLinkStatus === "missing"
+                      ? theme.palette.error
+                      : theme.palette.text.muted,
+              },
+            ]}
+          />
+          <Text style={s.easStatusText}>
+            {easLinkStatus === "ok"
+              ? "Workflow eas-link.yml vorhanden"
+              : easLinkStatus === "missing"
+                ? "Workflow eas-link.yml fehlt (wird bei EAS Link auto-gefixt)"
+                : "Workflow-Status: unbekannt"}
+          </Text>
         </View>
 
         {pullProgress ? (
@@ -1100,5 +1311,23 @@ const s = StyleSheet.create({
     color: theme.palette.text.secondary,
     textAlign: "center",
     lineHeight: 20,
+  },
+  easStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 10,
+    paddingVertical: 6,
+  },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 99,
+    backgroundColor: theme.palette.text.muted,
+  },
+  easStatusText: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    fontWeight: "700",
   },
 });

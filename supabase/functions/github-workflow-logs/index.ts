@@ -27,24 +27,25 @@ serve(async (req) => {
         { headers: corsHeaders, status: 400 },
       );
     }
-
-    const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN");
-
-    if (!GITHUB_TOKEN) {
-      return new Response(JSON.stringify({ error: "Missing GITHUB_TOKEN" }), {
-        headers: corsHeaders,
-        status: 500,
-      });
-    }
-
     const { githubRepo, runId } = body;
+    const githubToken = String(body.githubToken || "").trim();
+
+    const token = githubToken || Deno.env.get("GITHUB_TOKEN") || "";
+    if (!token) {
+      return new Response(
+        JSON.stringify({
+          error: "Missing GITHUB_TOKEN (set secret or provide githubToken)",
+        }),
+        { headers: corsHeaders, status: 500 },
+      );
+    }
 
     // Get workflow run details
     const runUrl = `https://api.github.com/repos/${githubRepo}/actions/runs/${runId}`;
     const runResponse = await fetch(runUrl, {
       headers: {
         Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${GITHUB_TOKEN}`,
+        Authorization: `Bearer ${token}`,
       },
     });
 
@@ -67,7 +68,7 @@ serve(async (req) => {
     const jobsResponse = await fetch(jobsUrl, {
       headers: {
         Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${GITHUB_TOKEN}`,
+        Authorization: `Bearer ${token}`,
       },
     });
 

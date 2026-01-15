@@ -39,7 +39,10 @@ serve(async (req) => {
 
     const { githubRepo, buildProfile, branch } = validation.data!;
 
-    const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN");
+    const githubTokenFromBody = String(body?.githubToken || "").trim();
+
+    const GITHUB_TOKEN =
+      githubTokenFromBody || Deno.env.get("GITHUB_TOKEN") || "";
     const SUPABASE_URL = Deno.env.get("K1W1_SUPABASE_URL");
     const SERVICE_ROLE = Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY");
 

@@ -8,8 +8,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
-  Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerHeaderProps } from "@react-navigation/drawer";
@@ -22,7 +20,7 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
   const title = options.title ?? "k1w1";
 
   const { activeRepo, activeBranch } = useGitHub();
-  const { currentBuild, startBuild } = useProject();
+  const { currentBuild } = useProject();
 
   const repoLine = useMemo(() => {
     if (!activeRepo) return "Kein Repo ausgewählt";
@@ -31,12 +29,6 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
 
   const isBuilding =
     currentBuild?.status === "queued" || currentBuild?.status === "building";
-
-  const buildUrl =
-    currentBuild?.urls?.buildUrl ||
-    currentBuild?.urls?.html ||
-    currentBuild?.urls?.artifacts ||
-    null;
 
   const buildIcon = () => {
     if (isBuilding)
@@ -61,31 +53,8 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
     );
   };
 
-  const onPressBuild = async () => {
-    if (isBuilding) return;
-
-    if (currentBuild?.status === "success" && buildUrl) {
-      try {
-        await Linking.openURL(buildUrl);
-      } catch {
-        Alert.alert("Fehler", "Konnte Build-URL nicht öffnen.");
-      }
-      return;
-    }
-
-    if (!startBuild) {
-      Alert.alert("Nicht verfügbar", "startBuild() ist nicht verfügbar.");
-      return;
-    }
-
-    try {
-      await startBuild("preview");
-    } catch (e: any) {
-      Alert.alert(
-        "❌ Build fehlgeschlagen",
-        e?.message || "Unbekannter Fehler",
-      );
-    }
+  const onPressBuild = () => {
+    navigation.navigate("EnhancedBuild" as never);
   };
 
   return (
