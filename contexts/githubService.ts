@@ -43,6 +43,8 @@ type RepoSecretsPayload = Partial<{
   supabaseUrl: string | null | undefined;
   supabaseServiceRole: string | null | undefined;
   easProjectId: string | null | undefined;
+  /** Optional: Shared secret for Supabase Edge Functions (x-k1w1-admin-key) */
+  edgeAdminKey: string | null | undefined;
 }>;
 
 const SECRET_NAME_MAP: Record<keyof RepoSecretsPayload, string> = {
@@ -50,6 +52,7 @@ const SECRET_NAME_MAP: Record<keyof RepoSecretsPayload, string> = {
   supabaseUrl: "SUPABASE_URL",
   supabaseServiceRole: "SUPABASE_SERVICE_ROLE_KEY",
   easProjectId: "EAS_PROJECT_ID",
+  edgeAdminKey: "K1W1_EDGE_ADMIN_KEY",
 };
 
 // ✅ FIX: SecureStore Wrapper-Funktionen (verschlüsselt!)

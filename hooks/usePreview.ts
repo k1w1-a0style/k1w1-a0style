@@ -4,10 +4,23 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { ProjectData } from "../contexts/types";
-import { normalizePath } from "../utils/url";
 import { buildSandpackHtml } from "../lib/sandpackBuilder";
 import { ensureSupabaseClient } from "../lib/supabase";
 import type { PreviewFiles, PreviewResponse } from "../types/preview";
+
+function promiseWithTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  timeoutMessage: string,
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), ms);
+  });
+  return (Promise.race([promise, timeoutPromise]) as Promise<T>).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+}
 
 type ProjectFile = { path?: string; content?: string };
 
@@ -44,6 +57,23 @@ const IGNORED_PATTERNS = [
   "__tests__/",
   "__mocks__/",
 ];
+
+function sanitizePreviewPath(raw: string): string | null {
+  let p = String(raw ?? "")
+    .trim()
+    .replace(/\\/g, "/");
+  if (!p) return null;
+  if (p.length > 300) return null;
+  if (p.includes("\0")) return null;
+
+  const segs = p.split("/").filter(Boolean);
+  if (segs.some((s) => s === "..")) return null;
+
+  // Collapse multiple slashes
+  p = p.replace(/\/+/g, "/");
+  if (!p.startsWith("/")) p = "/" + p;
+  return p;
+}
 
 function isAllowedFile(path: string): boolean {
   const p = path.toLowerCase();
@@ -104,14 +134,15 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
       : [];
 
     let total = 0;
-    const MAX_SIZE = 1_500_000; // 1.5 MB local cap (save_preview has 3MB cap)
+    const MAX_SIZE = 1_500_000; // 1.5 MB local cap (aligned with save_preview)
 
     for (const f of list) {
       const p = f?.path ? String(f.path) : "";
       if (!p) continue;
       if (!isAllowedFile(p)) continue;
 
-      const key = normalizePath(p);
+      const key = sanitizePreviewPath(p);
+      if (!key) continue;
       const content = String(f?.content ?? "");
       total += content.length;
 
@@ -278,9 +309,8 @@ if (container) {
           snackFiles[path] = { contents: content };
         }
 
-        const { data, error: fnError } = await supabase.functions.invoke(
-          "save_preview",
-          {
+        const { data, error: fnError } = await promiseWithTimeout(
+          supabase.functions.invoke("save_preview", {
             body: {
               projectId: projectData.id,
               name: projectData.name || "Preview",
@@ -288,7 +318,9 @@ if (container) {
               dependencies,
               meta: { template: "react" },
             },
-          },
+          }),
+          12_000,
+          "Supabase Preview Timeout (12s)",
         );
 
         if (fnError) throw fnError;
@@ -350,7 +382,7 @@ if (container) {
         e instanceof Error ? e.message : "Unbekannter Fehler beim Erstellen.";
       console.error("[usePreview] ❌ Fehler:", message);
       setError(message);
-      return null;
+      throw new Error(message);
     } finally {
       setIsCreating(false);
     }

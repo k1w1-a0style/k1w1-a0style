@@ -3,7 +3,11 @@
 // Uses the same tokens/values the user enters in the Connections screen.
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getExpoToken, syncRepoSecrets } from "../contexts/githubService";
+import {
+  getExpoToken,
+  getEdgeAdminKey,
+  syncRepoSecrets,
+} from "../contexts/githubService";
 
 type AutoSyncResult = {
   updated: string[];
@@ -13,15 +17,8 @@ type AutoSyncResult = {
 const STORAGE_KEYS = {
   SUPABASE_URL: "supabase_url",
   SUPABASE_SERVICE_ROLE_KEY: "supabase_service_role_key",
+  EAS_PROJECT_ID: "eas_project_id",
 } as const;
-
-// Minimal validation: accept https://<ref>.supabase.co
-const normalizeSupabaseUrl = (url: string): string => {
-  const trimmed = url.trim();
-  if (!trimmed) return "";
-  // accept both with/without trailing slash
-  return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
-};
 
 export const autoSyncRepoSecrets = async (
   repoFullName: string,
@@ -29,24 +26,38 @@ export const autoSyncRepoSecrets = async (
   const updated: string[] = [];
   const skipped: string[] = [];
 
-  // Values are entered by the user in the Connections screen
-  const [rawSupabaseUrl, rawServiceRole] = await Promise.all([
+  // Read values from storage
+  const [
+    expoToken,
+    supabaseUrl,
+    supabaseServiceRole,
+    easProjectId,
+    edgeAdminKey,
+  ] = await Promise.all([
+    getExpoToken(),
     AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL),
     AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY),
+    AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID),
+    getEdgeAdminKey(),
   ]);
-
-  const supabaseUrl = normalizeSupabaseUrl(rawSupabaseUrl ?? "");
-  const supabaseServiceRole = (rawServiceRole ?? "").trim();
-
-  const expoToken = (await getExpoToken())?.trim() ?? "";
 
   // Validate inputs (but keep a useful 'skipped' list instead of throwing)
   if (!expoToken) skipped.push("EXPO_TOKEN (missing)");
   if (!supabaseUrl) skipped.push("SUPABASE_URL (missing)");
   if (!supabaseServiceRole) skipped.push("SUPABASE_SERVICE_ROLE_KEY (missing)");
 
+  // Optional (do not mark missing as error)
+  if (!easProjectId) skipped.push("EAS_PROJECT_ID (optional, empty)");
+  if (!edgeAdminKey) skipped.push("K1W1_EDGE_ADMIN_KEY (optional, empty)");
+
   // If nothing to sync, return early
-  if (!expoToken && !supabaseUrl && !supabaseServiceRole) {
+  if (
+    !expoToken &&
+    !supabaseUrl &&
+    !supabaseServiceRole &&
+    !easProjectId &&
+    !edgeAdminKey
+  ) {
     return { updated, skipped };
   }
 
@@ -55,6 +66,8 @@ export const autoSyncRepoSecrets = async (
     expoToken: expoToken || undefined,
     supabaseUrl: supabaseUrl || undefined,
     supabaseServiceRole: supabaseServiceRole || undefined,
+    easProjectId: easProjectId || undefined,
+    edgeAdminKey: edgeAdminKey || undefined,
   });
 
   updated.push(...res.updated);

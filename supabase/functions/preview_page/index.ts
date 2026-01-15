@@ -3,7 +3,7 @@
 // NOTE: Preview runs in a sandbox. Do NOT put secrets/service keys into preview files.
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { rateLimit } from "../_shared/auth.ts";
 
 type SnackFiles = Record<string, { type?: string; contents: string }>;
 
@@ -21,27 +21,10 @@ type PreviewRecord = {
 const TABLE = "previews";
 
 // Limits
-const MAX_FILES_BYTES = 3_000_000; // 3MB (align with save_preview default)
+const MAX_FILES_BYTES = 1_500_000; // 1.5MB (aligned with save_preview)
 const MAX_RESPONSE_BYTES = 5_000_000; // 5MB safety for generated HTML
 
 // Rate limiting (best-effort, in-memory; resets on cold start)
-const RATE_WINDOW_MS = 60_000; // 1 minute
-const RATE_MAX_REQ = 60; // 60 req/min per IP
-const recentRequests = new Map<string, number[]>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const arr = recentRequests.get(ip) || [];
-  const filtered = arr.filter((t) => now - t < RATE_WINDOW_MS);
-  if (filtered.length >= RATE_MAX_REQ) {
-    recentRequests.set(ip, filtered);
-    return true;
-  }
-  filtered.push(now);
-  recentRequests.set(ip, filtered);
-  return false;
-}
-
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -108,8 +91,13 @@ function approxFilesPayloadSize(files: SnackFiles): number {
   }
 }
 
-function buildCsp(): string {
-  // Optional strict CSP test mode: remove unsafe-eval
+function randomNonce(len = 16): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(len));
+  return btoa(String.fromCharCode(...bytes)).replace(/=+$/g, "");
+}
+
+function buildCsp(nonce: string): string {
+  // Optional strict CSP test mode (disables eval; some sandpack/babel setups need eval)
   const strict =
     (Deno.env.get("TEST_STRICT_CSP") ?? "").toLowerCase() === "true";
   const evalPart = strict ? "" : " 'unsafe-eval'";
@@ -120,18 +108,15 @@ function buildCsp(): string {
     "media-src 'self' https: data: blob:",
     "font-src 'self' https: data: blob:",
     "style-src 'self' 'unsafe-inline' https: data: blob:",
-    // Keep sources tight; SandpackClient is loaded from esm.sh.
-    `script-src 'self' 'unsafe-inline'${evalPart} https://esm.sh data: blob:`,
+    `script-src 'self' 'nonce-${nonce}'${evalPart} https://esm.sh`,
     "connect-src 'self' https: wss: data: blob:",
     "frame-src 'self' https: data: blob:",
-    "worker-src 'self' blob:",
-    "object-src 'none'",
     "base-uri 'self'",
     "frame-ancestors 'none'",
   ].join("; ");
 }
 
-function html(body: string, status = 200) {
+function html(body: string, nonce: string, status = 200) {
   return new Response(body, {
     status,
     headers: {
@@ -141,7 +126,7 @@ function html(body: string, status = 200) {
 
       // Supabase can inject a very strict CSP (default-src 'none'; sandbox),
       // which breaks Sandpack/WebViews (white screen). Override it here.
-      "Content-Security-Policy": buildCsp(),
+      "Content-Security-Policy": buildCsp(nonce),
       "Referrer-Policy": "no-referrer",
     },
   });
@@ -195,6 +180,26 @@ async function fetchPreviewRecord(
   }
 }
 
+async function deletePreviewRecord(secret: string): Promise<void> {
+  const base = getSupabaseBaseUrl();
+  if (!base) return;
+
+  const restUrl = `${base}/rest/v1/${TABLE}?secret=eq.${encodeURIComponent(secret)}`;
+
+  const t = withTimeout(6000);
+  try {
+    await fetch(restUrl, {
+      method: "DELETE",
+      headers: supabaseHeaders(),
+      signal: t.signal,
+    });
+  } catch (e) {
+    console.error("deletePreviewRecord error:", e);
+  } finally {
+    t.cancel();
+  }
+}
+
 function isExpired(expiresAtIso: string | null | undefined): boolean {
   if (!expiresAtIso) return false;
   const t = Date.parse(expiresAtIso);
@@ -206,11 +211,13 @@ function renderPage(params: {
   name: string;
   createdAt: string;
   expiresAt: string;
+  nonce: string;
   files: SnackFiles;
   dependencies?: Record<string, string>;
   template?: string;
 }) {
-  const { name, createdAt, expiresAt, files, dependencies, template } = params;
+  const { name, createdAt, expiresAt, nonce, files, dependencies, template } =
+    params;
 
   const sandpackSetup = {
     files,
@@ -270,7 +277,7 @@ function renderPage(params: {
     <div class="overlay-text">Booting preview…</div>
   </div>
 
-<script type="module">
+<script type="module" nonce="${nonce}">
   const overlay = document.getElementById("overlay");
   const btnReload = document.getElementById("btn-reload");
 
@@ -343,9 +350,6 @@ function renderPage(params: {
 }
 
 serve(async (req) => {
-  const auth = requireAdminKey(req);
-  if (auth) return auth;
-
   const rl = rateLimit(req, "preview_page");
   if (rl) return rl;
 
@@ -354,18 +358,15 @@ serve(async (req) => {
     (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() ||
     "unknown";
 
-  // Rate limit early
-  if (isRateLimited(ip)) {
-    return json({ ok: false, error: "Rate limit exceeded" }, 429);
-  }
-
   try {
     const url = new URL(req.url);
     const secret = url.searchParams.get("secret") ?? "";
+    const nonce = randomNonce();
 
     if (!secret) {
       return html(
         `<!doctype html><meta charset="utf-8"><title>Missing secret</title><pre>Missing ?secret=...</pre>`,
+        nonce,
         400,
       );
     }
@@ -374,14 +375,17 @@ serve(async (req) => {
     if (!record) {
       return html(
         `<!doctype html><meta charset="utf-8"><title>Not found</title><pre>Preview not found (invalid secret?)</pre>`,
+        nonce,
         404,
       );
     }
 
     if (isExpired(record.expires_at)) {
+      await deletePreviewRecord(secret);
       return html(
         `<!doctype html><meta charset="utf-8"><title>Expired</title><pre>Preview expired. Please create a new one.</pre>`,
-        404,
+        nonce,
+        410,
       );
     }
 
@@ -390,6 +394,7 @@ serve(async (req) => {
     if (fileBytes > MAX_FILES_BYTES) {
       return html(
         `<!doctype html><meta charset="utf-8"><title>Too large</title><pre>Preview files exceed 3MB limit.</pre>`,
+        nonce,
         413,
       );
     }
@@ -407,6 +412,7 @@ serve(async (req) => {
         : undefined;
 
     const page = renderPage({
+      nonce,
       name: record.name || "Preview",
       createdAt,
       expiresAt,
@@ -420,6 +426,7 @@ serve(async (req) => {
     if (pageBytes > MAX_RESPONSE_BYTES) {
       return html(
         `<!doctype html><meta charset="utf-8"><title>Response too large</title><pre>Generated preview exceeds size limit.</pre>`,
+        nonce,
         413,
       );
     }
@@ -430,15 +437,9 @@ serve(async (req) => {
       `[preview_page] ip=${ip} name=${record.name ?? "?"} files=${fileCount} bytes=${fileBytes} ms=${ms}`,
     );
 
-    return html(page, 200);
+    return html(page, nonce, 200);
   } catch (e) {
     console.error("[preview_page] error:", e);
-    return json(
-      {
-        ok: false,
-        error: String((e as any)?.stack || (e as any)?.message || e),
-      },
-      500,
-    );
+    return json({ ok: false, error: "Internal Server Error" }, 500);
   }
 });

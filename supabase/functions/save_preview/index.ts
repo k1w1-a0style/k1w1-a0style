@@ -1,6 +1,6 @@
 import { serve } from "std/http/server.ts";
 import { createClient } from "@supabase/supabase-js";
-import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { rateLimit } from "../_shared/auth.ts";
 
 type SnackFiles = Record<string, { type?: string; contents: string }>;
 type Payload = {
@@ -10,6 +10,48 @@ type Payload = {
   dependencies?: Record<string, string>;
   meta?: Record<string, unknown>;
 };
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function sanitizePath(raw: string): string | null {
+  let p = String(raw ?? "")
+    .trim()
+    .replace(/\\/g, "/");
+  if (!p) return null;
+  if (p.length > 300) return null;
+  if (p.includes("\0")) return null;
+
+  const segs = p.split("/").filter(Boolean);
+  if (segs.some((s) => s === "..")) return null;
+
+  p = p.replace(/\/+/g, "/");
+  if (!p.startsWith("/")) p = "/" + p;
+  return p;
+}
+
+function sanitizeFiles(files: SnackFiles): SnackFiles {
+  const out: SnackFiles = {};
+  let total = 0;
+  let count = 0;
+
+  for (const [rawPath, val] of Object.entries(files)) {
+    count++;
+    if (count > 250) throw new Error("Too many files");
+
+    const key = sanitizePath(rawPath);
+    if (!key) continue;
+
+    const contents = String((val as any)?.contents ?? "");
+    total += contents.length;
+    if (total > 1_500_000) throw new Error("Payload too large");
+
+    out[key] = { type: (val as any)?.type, contents };
+  }
+
+  if (!Object.keys(out).length) throw new Error("No valid files");
+  return out;
+}
 
 function corsHeaders(origin: string | null) {
   return {
@@ -45,9 +87,6 @@ function approxSize(obj: unknown): number {
 }
 
 serve(async (req) => {
-  const auth = requireAdminKey(req);
-  if (auth) return auth;
-
   const rl = rateLimit(req, "save_preview");
   if (rl) return rl;
 
@@ -99,8 +138,21 @@ serve(async (req) => {
     );
   }
 
+  let files: SnackFiles;
+  try {
+    files = sanitizeFiles(body.files);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "Invalid files";
+    return json({ ok: false, error: msg }, { status: 400, headers: cors });
+  }
+
+  const project_id =
+    body.projectId && UUID_RE.test(String(body.projectId))
+      ? String(body.projectId)
+      : null;
+
   const bytes = approxSize(body);
-  if (bytes > 3_000_000) {
+  if (bytes > 1_500_000) {
     return json(
       { ok: false, error: `Payload zu groß (${bytes} bytes)` },
       { status: 413, headers: cors },
@@ -121,8 +173,8 @@ serve(async (req) => {
     const insertRow = {
       secret,
       name: (body.name ?? "Preview").slice(0, 120),
-      project_id: body.projectId ? String(body.projectId).slice(0, 120) : null,
-      files: body.files,
+      project_id,
+      files,
       dependencies: body.dependencies ?? {},
       meta: body.meta ?? {},
     };
@@ -147,7 +199,10 @@ serve(async (req) => {
       { status: 200, headers: cors },
     );
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return json({ ok: false, error: msg }, { status: 500, headers: cors });
+    console.error("[save_preview] error:", e);
+    return json(
+      { ok: false, error: "Internal Server Error" },
+      { status: 500, headers: cors },
+    );
   }
 });
