@@ -39,9 +39,15 @@ jobs:
 
       - name: EAS project:init (link / create)
         env:
+          # IMPORTANT: ensure EAS CLI can see the token during CI runs
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           EAS_PROJECT_ID_INPUT: ${{ inputs.eas_project_id }}
         run: |
           set -e
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "❌ Missing EXPO_TOKEN secret. Set it in GitHub Actions Secrets (EXPO_TOKEN)."
+            exit 1
+          fi
           if [ -n "$EAS_PROJECT_ID_INPUT" ]; then
             echo "Linking with EAS Project ID: $EAS_PROJECT_ID_INPUT"
             npx --yes eas-cli@latest project:init --id "$EAS_PROJECT_ID_INPUT" --non-interactive --force
