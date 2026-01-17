@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { validateTriggerBuildRequest } from "../_shared/validation.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { githubHeaders } from "../_shared/github.ts";
 
 /**
  * ✓ 100% stabiler trigger-eas-build
@@ -98,10 +99,7 @@ serve(async (req) => {
 
     const ghRes = await fetch(dispatchUrl, {
       method: "POST",
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${GITHUB_TOKEN}`,
-      },
+      headers: githubHeaders(GITHUB_TOKEN),
       body: JSON.stringify(dispatchPayload),
     });
 

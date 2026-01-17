@@ -13,6 +13,13 @@ on:
         required: false
         type: string
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   eas-android:
     name: EAS Build (Android)
@@ -27,7 +34,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Validate inputs
         shell: bash
@@ -48,7 +55,7 @@ jobs:
           fi
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
@@ -62,9 +69,21 @@ jobs:
             exit 1
           fi
           echo "✅ EXPO_TOKEN secret is set"
+      - name: Validate profile input
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROFILE="${{ inputs.profile }}"
+          case "$PROFILE" in
+            development|preview|production) ;;
+            *)
+              echo "::error::Invalid profile: '$PROFILE' (allowed: development|preview|production)"
+              exit 1
+              ;;
+          esac
 
       - name: Setup Expo & EAS
-        uses: expo/expo-github-action@v8
+        uses: expo/expo-github-action@c7b66a9c327a43a8fa7c0158e7f30d6040d2481e # v8 (8.2.1)
         with:
           expo-version: latest
           eas-version: latest
@@ -145,7 +164,7 @@ jobs:
       - name: Upload Android Artifact
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         with:
           name: k1w1-android-${{ env.PROFILE }}-${{ github.run_number }}
           path: build/*.apk

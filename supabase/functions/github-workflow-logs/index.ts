@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 import { unzipSync, strFromU8 } from "https://deno.land/x/fflate@0.8.2/mod.ts";
+import { githubHeaders } from "../_shared/github.ts";
 
 /**
  * Fetches GitHub Actions workflow logs
@@ -43,10 +44,7 @@ serve(async (req) => {
     // Get workflow run details
     const runUrl = `https://api.github.com/repos/${githubRepo}/actions/runs/${runId}`;
     const runResponse = await fetch(runUrl, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${GITHUB_TOKEN}`,
-      },
+      headers: githubHeaders(GITHUB_TOKEN),
     });
 
     if (!runResponse.ok) {
@@ -66,10 +64,7 @@ serve(async (req) => {
     // Get jobs for this run
     const jobsUrl = `https://api.github.com/repos/${githubRepo}/actions/runs/${runId}/jobs`;
     const jobsResponse = await fetch(jobsUrl, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${GITHUB_TOKEN}`,
-      },
+      headers: githubHeaders(GITHUB_TOKEN),
     });
 
     if (!jobsResponse.ok) {
@@ -86,10 +81,7 @@ serve(async (req) => {
     if (wantRaw) {
       const logsUrl = `https://api.github.com/repos/${githubRepo}/actions/runs/${runId}/logs`;
       const zipResp = await fetch(logsUrl, {
-        headers: {
-          Accept: "application/vnd.github+json",
-          Authorization: `Bearer ${GITHUB_TOKEN}`,
-        },
+        headers: githubHeaders(GITHUB_TOKEN),
       });
 
       if (zipResp.ok) {

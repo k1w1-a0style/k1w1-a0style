@@ -1,0 +1,47 @@
+name: CI Core
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Branch/Tag/SHA, z.B. feature/foo"
+        required: false
+        type: string
+      node-version:
+        description: "Node Version"
+        required: false
+        type: string
+        default: "20"
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout (ref aus App/Workflow)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ inputs['node-version'] }}
+          cache: npm
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint (optional)
+        run: npm run lint --if-present
+
+      - name: Tests (optional)
+        run: npm test --if-present
+
+      - name: Preflight (optional)
+        run: npm run preflight --if-present
+
+      - name: Build (optional)
+        run: npm run build --if-present

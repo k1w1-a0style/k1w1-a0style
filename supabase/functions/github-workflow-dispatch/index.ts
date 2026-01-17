@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { githubHeaders } from "../_shared/github.ts";
 
 /**
  * Triggers a GitHub Actions workflow via workflow_dispatch
@@ -45,11 +46,7 @@ serve(async (req) => {
 
     const dispatchResponse = await fetch(dispatchUrl, {
       method: "POST",
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
+      headers: githubHeaders(token),
       body: JSON.stringify({
         ref,
         inputs,

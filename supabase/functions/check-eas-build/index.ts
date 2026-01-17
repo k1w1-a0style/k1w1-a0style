@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { validateCheckBuildRequest } from "../_shared/validation.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { githubHeaders } from "../_shared/github.ts";
 
 /**
  * ✓ Stabile Status-Überprüfung (Source of Truth: build_jobs Row)

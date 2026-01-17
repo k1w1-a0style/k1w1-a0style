@@ -1,0 +1,52 @@
+name: Workflow Lint (dry)
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - ".github/scripts/**"
+  push:
+    paths:
+      - ".github/workflows/**"
+      - ".github/scripts/**"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch/Tag/SHA (leer = aktueller Ref)"
+        required: false
+        default: ""
+  repository_dispatch:
+    types: ["trigger-workflow-lint"]
+
+concurrency:
+  group: workflow-lint-${{ github.event.client_payload.ref || inputs.ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.event.client_payload.ref || inputs.ref || github.ref }}
+          fetch-depth: 1
+
+      - name: Setup Node.js (für Pin-Check Script)
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+
+      - name: Install actionlint (binary via pip)
+        run: |
+          python -m pip install --user --upgrade pip
+          python -m pip install --user "actionlint-py==1.7.7.24"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: actionlint (YAML/Actions dry validation)
+        run: actionlint -color
+
+      - name: "alle Actions sind auf volle SHAs gepinnt"
+        run: node .github/scripts/check-actions-pinned.mjs

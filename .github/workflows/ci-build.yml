@@ -1,20 +1,21 @@
-name: CI (lint + tests)
+name: CI (App Trigger)
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
+  repository_dispatch:
+    types: ["trigger-ci"]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch/Tag/SHA (leer = aktueller Ref)"
+        required: false
+        default: ""
+
+concurrency:
+  group: ci-app-${{ github.event.client_payload.ref || inputs.ref || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
-          cache: npm
-      - run: npm ci --no-audit --no-fund
-      - run: npm run lint
-      - run: npm test
+  ci:
+    uses: ./.github/workflows/ci-core.yml
+    with:
+      ref: ${{ github.event.client_payload.ref || inputs.ref || github.ref }}

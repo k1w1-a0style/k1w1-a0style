@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { githubHeaders } from "../_shared/github.ts";
 
 /**
  * Fetches recent GitHub Actions workflow runs for a repository
@@ -44,10 +45,7 @@ serve(async (req) => {
     // Fetch workflow runs
     const runsUrl = `https://api.github.com/repos/${githubRepo}/actions/runs?per_page=${perPage}`;
     const runsResponse = await fetch(runsUrl, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers: githubHeaders(token),
     });
 
     if (!runsResponse.ok) {
