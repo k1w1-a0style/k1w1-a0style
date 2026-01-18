@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
-import { unzipSync, strFromU8 } from "https://deno.land/x/fflate@0.8.2/mod.ts";
+import { unzipSync, strFromU8 } from "npm:fflate@0.8.2";
 import { githubHeaders } from "../_shared/github.ts";
 
 /**
