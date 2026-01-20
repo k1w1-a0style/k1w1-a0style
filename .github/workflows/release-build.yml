@@ -38,11 +38,43 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
 
-      - name: Setup Node
+      - name: Detect lockfile (for cache + install strategy)
+        id: lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
+          elif [ -f npm-shrinkwrap.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
+          elif [ -f pnpm-lock.yaml ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Repo root: $(pwd)"
+          echo "Files:"; ls -lah
+
+      - name: Setup Node (with npm cache)
+        if: steps.lock.outputs.has_lockfile == 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
+
+      - name: Setup Node (no cache - lockfile missing)
+        if: steps.lock.outputs.has_lockfile != 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
 
       - name: Validate secrets
         shell: bash
@@ -53,8 +85,17 @@ jobs:
             exit 1
           fi
 
-      - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+      - name: Install dependencies (frozen if possible)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
+            echo "Using npm ci (lockfile: ${{ steps.lock.outputs.lockfile_path }})"
+            npm ci --no-audit --no-fund
+          else
+            echo "::warning::No lockfile found in repo. Falling back to npm install (non-reproducible)."
+            npm install --no-audit --no-fund
+          fi
 
       - name: Install EAS CLI (pinned)
         shell: bash
@@ -85,12 +126,7 @@ jobs:
 
           echo "🚀 Starting EAS build (platform=android, profile=${PROFILE}) with --wait..."
 
-          BUILD_OUTPUT="$(eas build \
-            --platform android \
-            --profile "${PROFILE}" \
-            --non-interactive \
-            --wait \
-            2>&1)" || {
+          BUILD_OUTPUT="$(eas build             --platform android             --profile "${PROFILE}"             --non-interactive             --wait             2>&1)" || {
               CODE=$?
               echo "${BUILD_OUTPUT}"
               echo "::error::EAS build failed (exit ${CODE})"
@@ -99,11 +135,11 @@ jobs:
 
           echo "${BUILD_OUTPUT}"
 
-          BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oP 'Build ID:\s*\K[a-fA-F0-9-]+' | head -n1 || true)"
+          BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oE "Build ID:[[:space:]]*[a-fA-F0-9-]+" | head -n1 | awk '{print $3}' || true)"
           if [ -z "${BUILD_ID}" ]; then BUILD_ID="unknown"; fi
           echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
 
-          BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oP 'https?://[^\s]+' | grep -E '/projects/[^/]+/builds/[a-fA-F0-9-]+' | head -n1 || true)"
+          BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oE "https?://[^[:space:]]+" | grep -E "/projects/[^/]+/builds/[a-fA-F0-9-]+" | head -n1 || true)"
           echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"
 
       - name: Download Android Artifact
@@ -114,9 +150,7 @@ jobs:
           set -euo pipefail
           mkdir -p build
           OUT="build/k1w1-${{ inputs.profile }}.${{ steps.eas.outputs.artifact_ext }}"
-          eas build:download \
-            --id "${{ steps.eas.outputs.build_id }}" \
-            --output "${OUT}" || {
+          eas build:download             --id "${{ steps.eas.outputs.build_id }}"             --output "${OUT}" || {
               echo "::warning::Failed to download artifact"
               exit 0
             }
@@ -131,19 +165,3 @@ jobs:
           path: build/*
           retention-days: 30
           if-no-files-found: warn
-
-      - name: Summary
-        if: always()
-        shell: bash
-        run: |
-          cat >> "$GITHUB_STEP_SUMMARY" << 'EOF'
-          ## Release Build
-
-          - Platform: android
-          - Ref: ${{ inputs.ref }}
-          - Profile: ${{ inputs.profile }}
-          - Build ID: ${{ steps.eas.outputs.build_id }}
-          - Build URL: ${{ steps.eas.outputs.build_url }}
-
-          Artifacts: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          EOF

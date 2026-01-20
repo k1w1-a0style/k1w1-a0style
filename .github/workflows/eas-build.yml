@@ -84,32 +84,55 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
 
-      - name: Setup Node
+      - name: Detect lockfile (for cache + install strategy)
+        id: lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
+          elif [ -f npm-shrinkwrap.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
+          elif [ -f pnpm-lock.yaml ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Repo root: $(pwd)"
+          echo "Files:"; ls -lah
+
+      - name: Setup Node (with npm cache)
+        if: steps.lock.outputs.has_lockfile == 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
 
-      - name: Diagnostics (commit + token presence + workflow sanity)
+      - name: Setup Node (no cache - lockfile missing)
+        if: steps.lock.outputs.has_lockfile != 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies (frozen if possible)
         shell: bash
         run: |
           set -euo pipefail
-          echo "GITHUB_REF=${GITHUB_REF}"
-          echo "GITHUB_SHA=${GITHUB_SHA}"
-          echo "Checked out: $(git rev-parse HEAD)"
-          echo "Inputs: ref=${{ inputs.ref }}, profile=${{ inputs.profile }}, platform=${{ inputs.platform }}"
-
-          if [ -z "${EXPO_TOKEN:-}" ]; then
-            echo "::error::Missing GitHub Secret EXPO_TOKEN"
-            exit 1
+          if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
+            echo "Using npm ci (lockfile: ${{ steps.lock.outputs.lockfile_path }})"
+            npm ci --no-audit --no-fund
+          else
+            echo "::warning::No lockfile found in repo. Falling back to npm install (non-reproducible)."
+            npm install --no-audit --no-fund
           fi
-          echo "EXPO_TOKEN present (len=${#EXPO_TOKEN})"
-
-          echo "eas-build.yml contains eas-cli@latest?" 
-          grep -n "eas-cli@latest" .github/workflows/eas-build.yml || true
-
-      - name: Install dependencies (frozen)
-        run: npm ci --no-audit --no-fund
 
       - name: Install EAS CLI (pinned)
         shell: bash
@@ -130,19 +153,12 @@ jobs:
         run: |
           set -euo pipefail
           TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          RUN_ID="${GITHUB_RUN_ID}"
+          RUN_ID="${{ github.run_id }}"
           PROFILE="${{ inputs.profile }}"
 
           JSON="$(node -e 'console.log(JSON.stringify({status:"building",build_profile:process.argv[1],github_run_id:process.argv[2],started_at:process.argv[3]}))' "${PROFILE}" "${RUN_ID}" "${TS}")"
 
-          curl --fail-with-body --silent --show-error \
-            -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
-            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Content-Type: application/json" \
-            -H "Prefer: return=minimal" \
-            -d "${JSON}" \
-            || echo "::warning::Failed to update Supabase status (building)"
+          curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (building)"
 
       - name: Run EAS Build (WAIT)
         id: eas
@@ -154,12 +170,7 @@ jobs:
 
           echo "🚀 Starting EAS build (platform=${PLATFORM}, profile=${PROFILE}) with --wait..."
 
-          BUILD_OUTPUT="$(eas build \
-            --platform "${PLATFORM}" \
-            --profile "${PROFILE}" \
-            --non-interactive \
-            --wait \
-            2>&1)" || {
+          BUILD_OUTPUT="$(eas build             --platform "${PLATFORM}"             --profile "${PROFILE}"             --non-interactive             --wait             2>&1)" || {
               CODE=$?
               echo "${BUILD_OUTPUT}"
               echo "::error::EAS build failed (exit ${CODE})"
@@ -183,9 +194,7 @@ jobs:
           set -euo pipefail
           mkdir -p build
           OUT="build/k1w1-${{ inputs.profile }}.${ARTIFACT_EXT}"
-          eas build:download \
-            --id "${{ steps.eas.outputs.build_id }}" \
-            --output "${OUT}" || {
+          eas build:download             --id "${{ steps.eas.outputs.build_id }}"             --output "${OUT}" || {
               echo "::warning::Failed to download artifact"
               exit 0
             }
@@ -205,20 +214,22 @@ jobs:
         if: always()
         shell: bash
         run: |
-          set -euo pipefail
-          {
-            echo "## EAS Build Summary"
-            echo ""
-            echo "- Input ref: ${{ inputs.ref }}"
-            echo "- Input profile: ${{ inputs.profile }}"
-            echo "- Platform: ${{ inputs.platform }}"
-            echo "- Checked out: $(git rev-parse HEAD)"
-            echo "- EAS CLI: $(eas --version 2>/dev/null || echo unknown)"
-            echo "- Build ID: ${{ steps.eas.outputs.build_id }}"
-            echo "- Build URL: ${{ steps.eas.outputs.build_url }}"
-            echo ""
-            echo "Artifacts: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          } >> "$GITHUB_STEP_SUMMARY"
+          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          ## EAS Build Summary
+
+          - Repo: ${{ github.repository }}
+          - Input ref: ${{ inputs.ref }}
+          - Input profile: ${{ inputs.profile }}
+          - Platform: ${{ inputs.platform }}
+          - Checked out: $(git rev-parse HEAD)
+          - Lockfile present: ${{ steps.lock.outputs.has_lockfile }}
+          - Lockfile path: ${{ steps.lock.outputs.lockfile_path }}
+          - EAS CLI: $(eas --version 2>/dev/null || echo "unknown")
+          - Build ID: ${{ steps.eas.outputs.build_id }}
+          - Build URL: ${{ steps.eas.outputs.build_url }}
+
+          Artifacts: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EOF
 
       - name: Update Build Status - Success
         if: success() && env.has_job_id == 'true'
@@ -226,20 +237,13 @@ jobs:
         run: |
           set -euo pipefail
           TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          RUN_ID="${GITHUB_RUN_ID}"
+          RUN_ID="${{ github.run_id }}"
           BUILD_ID="${{ steps.eas.outputs.build_id }}"
           BUILD_URL="${{ steps.eas.outputs.build_url }}"
 
           JSON="$(node -e 'console.log(JSON.stringify({status:"completed",github_run_id:process.argv[1],eas_build_id:process.argv[2],build_url:(process.argv[3]||null),completed_at:process.argv[4]}))' "${RUN_ID}" "${BUILD_ID}" "${BUILD_URL}" "${TS}")"
 
-          curl --fail-with-body --silent --show-error \
-            -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
-            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Content-Type: application/json" \
-            -H "Prefer: return=minimal" \
-            -d "${JSON}" \
-            || echo "::warning::Failed to update Supabase status (success)"
+          curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (success)"
 
       - name: Update Build Status - Failed
         if: failure() && env.has_job_id == 'true'
@@ -247,16 +251,9 @@ jobs:
         run: |
           set -euo pipefail
           TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          RUN_ID="${GITHUB_RUN_ID}"
-          ERR="Build failed. Check logs: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          RUN_ID="${{ github.run_id }}"
+          ERR="Build failed. Check logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
           JSON="$(node -e 'console.log(JSON.stringify({status:"error",github_run_id:process.argv[1],error_message:process.argv[2],completed_at:process.argv[3]}))' "${RUN_ID}" "${ERR}" "${TS}")"
 
-          curl --fail-with-body --silent --show-error \
-            -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
-            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Content-Type: application/json" \
-            -H "Prefer: return=minimal" \
-            -d "${JSON}" \
-            || echo "::warning::Failed to update Supabase status (failed)"
+          curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (failed)"
