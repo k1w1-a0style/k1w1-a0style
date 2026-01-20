@@ -19,7 +19,10 @@ on:
         default: ""
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  group: >-
+    ${{ github.workflow }}-${{ github.event_name }}-
+    ${{ github.event.client_payload.branch || github.event.client_payload.ref || inputs.ref || github.ref }}-
+    ${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || inputs.profile || 'preview' }}
   cancel-in-progress: false
 
 permissions:
@@ -32,8 +35,12 @@ jobs:
     timeout-minutes: 60
 
     env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_CLI_VERSION: "16.0.0"
+
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
       JOB_ID: ${{ github.event.client_payload.job_id || github.event.inputs.job_id || '' }}
 
     steps:
@@ -41,18 +48,57 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           REF="${{ github.event.client_payload.branch }}"
           if [ -z "$REF" ]; then REF="${{ github.event.client_payload.ref }}"; fi
           if [ -z "$REF" ]; then REF="${{ github.event.inputs.ref }}"; fi
-
-          if [ -z "$REF" ]; then
-            echo "::warning::No branch/ref provided. Falling back to 'main'."
-            REF="main"
-          fi
-
+          if [ -z "$REF" ]; then REF="main"; fi
           echo "CHECKOUT_REF=$REF" >> "$GITHUB_ENV"
           echo "📌 Checkout ref: $REF"
+
+      - name: Determine build profile + artifact extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROFILE="${{ github.event.client_payload.build_profile }}"
+          if [ -z "$PROFILE" ]; then PROFILE="${{ github.event.client_payload.buildProfile }}"; fi
+          if [ -z "$PROFILE" ]; then PROFILE="${{ github.event.inputs.profile }}"; fi
+          if [ -z "$PROFILE" ]; then PROFILE="preview"; fi
+
+          case "$PROFILE" in
+            development|preview|production) ;;
+            *)
+              echo "::warning::Invalid PROFILE='$PROFILE', defaulting to preview"
+              PROFILE="preview"
+              ;;
+          esac
+
+          if [ "$PROFILE" = "production" ]; then EXT="aab"; else EXT="apk"; fi
+
+          echo "PROFILE=$PROFILE" >> "$GITHUB_ENV"
+          echo "ARTIFACT_EXT=$EXT" >> "$GITHUB_ENV"
+          echo "✅ Using build profile: $PROFILE (artifact: .$EXT)"
+
+      - name: Validate secrets / optional JOB_ID
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${EXPO_TOKEN:-}" ]; then
+            echo "::error::Missing GitHub Secret EXPO_TOKEN"
+            exit 1
+          fi
+
+          if [ -z "${JOB_ID:-}" ]; then
+            echo "has_job_id=false" >> "$GITHUB_ENV"
+            echo "⚠️ No JOB_ID provided -> Supabase status updates will be skipped."
+          else
+            if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+              echo "::warning::JOB_ID provided, but SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing -> status updates will be skipped."
+              echo "has_job_id=false" >> "$GITHUB_ENV"
+            else
+              echo "has_job_id=true" >> "$GITHUB_ENV"
+              echo "✅ JOB_ID: ${JOB_ID}"
+            fi
+          fi
 
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -60,82 +106,27 @@ jobs:
           ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
 
-      - name: Determine build profile
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          PROFILE="${{ github.event.client_payload.build_profile }}"
-          if [ -z "$PROFILE" ]; then PROFILE="${{ github.event.client_payload.buildProfile }}"; fi
-          if [ -z "$PROFILE" ]; then PROFILE="${{ github.event.inputs.profile }}"; fi
-          if [ -z "$PROFILE" ]; then PROFILE="preview"; fi
-
-          if [[ ! "$PROFILE" =~ ^(development|preview|production)$ ]]; then
-            echo "::warning::Invalid PROFILE='$PROFILE', defaulting to preview"
-            PROFILE="preview"
-          fi
-
-          echo "PROFILE=$PROFILE" >> "$GITHUB_ENV"
-          echo "✅ Using build profile: $PROFILE"
-      - name: Validate profile input
-        shell: bash
-        run: |
-          set -euo pipefail
-          case "${PROFILE}" in
-            development|preview|production) ;;
-            *)
-              echo "::error::Invalid profile: '${PROFILE}' (allowed: development|preview|production)"
-              exit 1
-              ;;
-          esac
-
-      - name: Validate Job ID
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -z "${JOB_ID}" ]; then
-            echo "has_job_id=false" >> "$GITHUB_ENV"
-            echo "⚠️ No JOB_ID provided -> Supabase status updates will be skipped."
-          else
-            echo "has_job_id=true" >> "$GITHUB_ENV"
-            echo "✅ JOB_ID: ${JOB_ID}"
-          fi
-
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
 
-      - name: Ensure EXPO_TOKEN exists
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
-            echo "::error::Missing GitHub Secret EXPO_TOKEN"
-            exit 1
-          fi
-          echo "✅ EXPO_TOKEN secret is set"
-
-      - name: Setup Expo & EAS
-        uses: expo/expo-github-action@c7b66a9c327a43a8fa7c0158e7f30d6040d2481e # v8 (8.2.1)
-        with:
-          expo-version: latest
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-          packager: npm
-          expo-cache: true
-          eas-cache: true
-
-      - name: Verify EAS authentication
-        shell: bash
-        run: |
-          set -euo pipefail
-          eas --version
-          eas whoami
-
-      - name: Install dependencies
+      - name: Install dependencies (frozen)
         run: npm ci --no-audit --no-fund
+
+      - name: Install EAS CLI (pinned)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm i -g "eas-cli@${EAS_CLI_VERSION}"
+          eas --version
+
+      - name: Verify EAS auth
+        shell: bash
+        run: |
+          set -euo pipefail
+          eas whoami
 
       - name: Update Build Status - Building
         if: env.has_job_id == 'true'
@@ -145,10 +136,10 @@ jobs:
           TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           RUN_ID="${{ github.run_id }}"
 
-          JSON="$(printf '{"status":"building","build_profile":"%s","github_run_id":"%s","started_at":"%s"}' "${PROFILE}" "${RUN_ID}" "${TS}")"
+          JSON="$(node -e 'console.log(JSON.stringify({status:"building",build_profile:process.argv[1],github_run_id:process.argv[2],started_at:process.argv[3]}))' "${PROFILE}" "${RUN_ID}" "${TS}")"
 
           curl --fail-with-body --silent --show-error \
-            -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+            -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
@@ -177,27 +168,28 @@ jobs:
 
           echo "${BUILD_OUTPUT}"
 
-          BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oE 'Build ID:[[:space:]]*[a-fA-F0-9-]+' | head -n1 | awk '{print $3}' || true)"
+          BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oE "Build ID:[[:space:]]*[a-fA-F0-9-]+" | head -n1 | awk '{print $3}' || true)"
           if [ -z "${BUILD_ID}" ]; then BUILD_ID="unknown"; fi
           echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
           echo "✅ Build ID: ${BUILD_ID}"
 
-          BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oE 'https://expo\.dev/accounts/[^/]+/projects/[^/]+/builds/[a-fA-F0-9-]+' | head -n1 || true)"
+          BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oE "https?://[^[:space:]]+" | grep -E "/projects/[^/]+/builds/[a-fA-F0-9-]+" | head -n1 || true)"
           echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"
           if [ -n "${BUILD_URL}" ]; then echo "🔗 Build URL: ${BUILD_URL}"; fi
 
-      - name: Download Android Artifact (APK)
+      - name: Download Android Artifact
         if: steps.eas.outputs.build_id != 'unknown' && steps.eas.outputs.build_id != ''
         continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p build
-          echo "📦 Downloading APK for build: ${{ steps.eas.outputs.build_id }}"
+          OUT="build/k1w1-${PROFILE}.${ARTIFACT_EXT}"
+          echo "📦 Downloading artifact (${ARTIFACT_EXT}) for build: ${{ steps.eas.outputs.build_id }} -> ${OUT}"
           eas build:download \
             --id "${{ steps.eas.outputs.build_id }}" \
-            --output "build/k1w1-${PROFILE}.apk" || {
-              echo "::warning::Failed to download APK"
+            --output "${OUT}" || {
+              echo "::warning::Failed to download artifact"
               exit 0
             }
           ls -lah build || true
@@ -208,7 +200,7 @@ jobs:
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         with:
           name: k1w1-android-${{ env.PROFILE }}-${{ github.run_number }}
-          path: build/*.apk
+          path: build/*
           retention-days: 30
           if-no-files-found: warn
 
@@ -222,10 +214,10 @@ jobs:
           BUILD_ID="${{ steps.eas.outputs.build_id }}"
           BUILD_URL="${{ steps.eas.outputs.build_url }}"
 
-          JSON="$(printf '{"status":"completed","github_run_id":"%s","eas_build_id":"%s","build_url":"%s","completed_at":"%s"}' "${RUN_ID}" "${BUILD_ID}" "${BUILD_URL}" "${TS}")"
+          JSON="$(node -e 'console.log(JSON.stringify({status:"completed",github_run_id:process.argv[1],eas_build_id:process.argv[2],build_url:(process.argv[3]||null),completed_at:process.argv[4]}))' "${RUN_ID}" "${BUILD_ID}" "${BUILD_URL}" "${TS}")"
 
           curl --fail-with-body --silent --show-error \
-            -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+            -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
@@ -242,10 +234,10 @@ jobs:
           RUN_ID="${{ github.run_id }}"
           ERR="Build failed. Check logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-          JSON="$(printf '{"status":"error","github_run_id":"%s","error_message":"%s","completed_at":"%s"}' "${RUN_ID}" "${ERR}" "${TS}")"
+          JSON="$(node -e 'console.log(JSON.stringify({status:"error",github_run_id:process.argv[1],error_message:process.argv[2],completed_at:process.argv[3]}))' "${RUN_ID}" "${ERR}" "${TS}")"
 
           curl --fail-with-body --silent --show-error \
-            -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+            -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \

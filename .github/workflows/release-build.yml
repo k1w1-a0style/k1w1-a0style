@@ -9,12 +9,16 @@ on:
         type: choice
         options: [production, preview, development]
         default: production
+      ref:
+        description: "Branch/Tag/SHA (optional)"
+        required: false
+        default: "main"
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ inputs.ref }}-${{ inputs.profile }}
   cancel-in-progress: false
 
 jobs:
@@ -23,9 +27,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_CLI_VERSION: "16.0.0"
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -33,34 +44,53 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Setup EAS CLI
-        run: |
-          set -euo pipefail
-          npm i -g eas-cli
-          eas --version
-
-      - name: Authenticate with Expo
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Validate secrets
+        shell: bash
         run: |
           set -euo pipefail
           if [ -z "${EXPO_TOKEN:-}" ]; then
             echo "::error::Missing EXPO_TOKEN secret"
             exit 1
           fi
-          eas whoami
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
+
+      - name: Install EAS CLI (pinned)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm i -g "eas-cli@${EAS_CLI_VERSION}"
+          eas --version
+
+      - name: Verify EAS authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          eas whoami
 
       - name: Run EAS build (WAIT)
         id: eas
         shell: bash
         run: |
           set -euo pipefail
-          echo "🚀 Starting EAS build (platform=android, profile=${{ inputs.profile }}) with --wait..."
+          PROFILE="${{ inputs.profile }}"
 
-          BUILD_OUTPUT="$(eas build             --platform android             --profile "${{ inputs.profile }}"             --non-interactive             --wait             2>&1)" || {
+          if [ "$PROFILE" = "production" ]; then
+            EXT="aab"
+          else
+            EXT="apk"
+          fi
+          echo "artifact_ext=${EXT}" >> "${GITHUB_OUTPUT}"
+
+          echo "🚀 Starting EAS build (platform=android, profile=${PROFILE}) with --wait..."
+
+          BUILD_OUTPUT="$(eas build \
+            --platform android \
+            --profile "${PROFILE}" \
+            --non-interactive \
+            --wait \
+            2>&1)" || {
               CODE=$?
               echo "${BUILD_OUTPUT}"
               echo "::error::EAS build failed (exit ${CODE})"
@@ -72,21 +102,22 @@ jobs:
           BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oP 'Build ID:\s*\K[a-fA-F0-9-]+' | head -n1 || true)"
           if [ -z "${BUILD_ID}" ]; then BUILD_ID="unknown"; fi
           echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
-          echo "✅ Build ID: ${BUILD_ID}"
 
           BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oP 'https?://[^\s]+' | grep -E '/projects/[^/]+/builds/[a-fA-F0-9-]+' | head -n1 || true)"
           echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"
-          if [ -n "${BUILD_URL}" ]; then echo "🔗 Build URL: ${BUILD_URL}"; fi
 
-      - name: Download Android APK
+      - name: Download Android Artifact
         if: steps.eas.outputs.build_id != 'unknown' && steps.eas.outputs.build_id != ''
         continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p build
-          eas build:download             --id "${{ steps.eas.outputs.build_id }}"             --output "build/k1w1-${{ inputs.profile }}.apk" || {
-              echo "::warning::Failed to download APK"
+          OUT="build/k1w1-${{ inputs.profile }}.${{ steps.eas.outputs.artifact_ext }}"
+          eas build:download \
+            --id "${{ steps.eas.outputs.build_id }}" \
+            --output "${OUT}" || {
+              echo "::warning::Failed to download artifact"
               exit 0
             }
           ls -lah build || true
@@ -97,7 +128,7 @@ jobs:
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         with:
           name: k1w1-android-${{ inputs.profile }}-${{ github.run_number }}
-          path: build/*.apk
+          path: build/*
           retention-days: 30
           if-no-files-found: warn
 
@@ -109,9 +140,10 @@ jobs:
           ## Release Build
 
           - Platform: android
+          - Ref: ${{ inputs.ref }}
           - Profile: ${{ inputs.profile }}
           - Build ID: ${{ steps.eas.outputs.build_id }}
           - Build URL: ${{ steps.eas.outputs.build_url }}
 
-          Artifacts (if any): https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          Artifacts: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EOF
