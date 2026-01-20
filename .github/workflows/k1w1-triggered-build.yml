@@ -112,6 +112,22 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Diagnostics (commit + token presence)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "GITHUB_REF=${GITHUB_REF}"
+          echo "GITHUB_SHA=${GITHUB_SHA}"
+          echo "Checked out: $(git rev-parse HEAD)"
+          echo "PROFILE=${PROFILE} / ARTIFACT_EXT=${ARTIFACT_EXT}"
+          echo "Triggered by: ${{ github.event_name }}"
+
+          if [ -z "${EXPO_TOKEN:-}" ]; then
+            echo "::error::Missing GitHub Secret EXPO_TOKEN"
+            exit 1
+          fi
+          echo "EXPO_TOKEN present (len=${#EXPO_TOKEN})"
+
       - name: Install dependencies (frozen)
         run: npm ci --no-audit --no-fund
 
@@ -134,7 +150,7 @@ jobs:
         run: |
           set -euo pipefail
           TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          RUN_ID="${{ github.run_id }}"
+          RUN_ID="${GITHUB_RUN_ID}"
 
           JSON="$(node -e 'console.log(JSON.stringify({status:"building",build_profile:process.argv[1],github_run_id:process.argv[2],started_at:process.argv[3]}))' "${PROFILE}" "${RUN_ID}" "${TS}")"
 
@@ -204,13 +220,33 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Triggered Build Summary"
+            echo ""
+            echo "- Event: ${{ github.event_name }}"
+            echo "- Ref: ${GITHUB_REF}"
+            echo "- Checkout ref: ${CHECKOUT_REF}"
+            echo "- Profile: ${PROFILE}"
+            echo "- Checked out: $(git rev-parse HEAD)"
+            echo "- EAS CLI: $(eas --version 2>/dev/null || echo unknown)"
+            echo "- Build ID: ${{ steps.eas.outputs.build_id }}"
+            echo "- Build URL: ${{ steps.eas.outputs.build_url }}"
+            echo ""
+            echo "Artifacts: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Update Build Status - Success
         if: success() && env.has_job_id == 'true'
         shell: bash
         run: |
           set -euo pipefail
           TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          RUN_ID="${{ github.run_id }}"
+          RUN_ID="${GITHUB_RUN_ID}"
           BUILD_ID="${{ steps.eas.outputs.build_id }}"
           BUILD_URL="${{ steps.eas.outputs.build_url }}"
 
@@ -231,8 +267,8 @@ jobs:
         run: |
           set -euo pipefail
           TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          RUN_ID="${{ github.run_id }}"
-          ERR="Build failed. Check logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          RUN_ID="${GITHUB_RUN_ID}"
+          ERR="Build failed. Check logs: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
           JSON="$(node -e 'console.log(JSON.stringify({status:"error",github_run_id:process.argv[1],error_message:process.argv[2],completed_at:process.argv[3]}))' "${RUN_ID}" "${ERR}" "${TS}")"
 

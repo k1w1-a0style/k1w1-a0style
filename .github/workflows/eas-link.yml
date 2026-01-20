@@ -23,6 +23,7 @@ jobs:
   link:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_CLI_VERSION: "16.0.0"
@@ -32,6 +33,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -39,14 +42,23 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Validate EXPO_TOKEN
+      - name: Diagnostics (commit + branch + token presence)
         shell: bash
         run: |
           set -euo pipefail
+          echo "GITHUB_REF=${GITHUB_REF}"
+          echo "GITHUB_SHA=${GITHUB_SHA}"
+          echo "Checked out: $(git rev-parse HEAD)"
+
           if [ -z "${EXPO_TOKEN:-}" ]; then
             echo "::error::Missing EXPO_TOKEN secret. Add GitHub Secret EXPO_TOKEN."
             exit 1
           fi
+          echo "EXPO_TOKEN present (len=${#EXPO_TOKEN})"
+
+          echo "" 
+          echo "Workflow sanity (first 80 lines):"
+          sed -n '1,80p' .github/workflows/eas-link.yml
 
       - name: Install deps (frozen)
         run: npm ci --no-audit --no-fund
@@ -57,6 +69,12 @@ jobs:
           set -euo pipefail
           npm i -g "eas-cli@${EAS_CLI_VERSION}"
           eas --version
+
+      - name: Verify EAS auth (whoami)
+        shell: bash
+        run: |
+          set -euo pipefail
+          eas whoami
 
       - name: EAS project:init (link / create)
         shell: bash
@@ -87,6 +105,23 @@ jobs:
             node -e 'const fs=require("fs"); fs.writeFileSync("eas-project.json", JSON.stringify({projectId: process.argv[1]}, null, 2)+"\n");' "${PROJECT_ID}"
             echo "✅ Wrote eas-project.json with projectId=${PROJECT_ID}"
           fi
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## EAS Link / Init Summary"
+            echo ""
+            echo "- Ref: ${GITHUB_REF}"
+            echo "- SHA: ${GITHUB_SHA}"
+            echo "- Checked out: $(git rev-parse HEAD)"
+            echo "- EAS CLI: $(eas --version 2>/dev/null || echo unknown)"
+            echo "- Has EXPO_TOKEN: $([ -n \"${EXPO_TOKEN:-}\" ] && echo yes || echo no)"
+            echo ""
+            echo "Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Commit changes (if any)
         shell: bash
