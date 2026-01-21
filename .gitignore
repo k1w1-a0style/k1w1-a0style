@@ -53,3 +53,7 @@ backups/
 .vercel
 .env*.local
 debug.log
+
+# Patch zips (never commit)
+k1w1-*.zip
+*_patch.zip
