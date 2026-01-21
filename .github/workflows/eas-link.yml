@@ -23,7 +23,6 @@ jobs:
   link:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_CLI_VERSION: "16.0.0"
@@ -33,35 +32,62 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          fetch-depth: 1
 
-      - name: Setup Node
+      - name: Detect lockfile (for cache + install strategy)
+        id: lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
+          elif [ -f npm-shrinkwrap.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
+          elif [ -f pnpm-lock.yaml ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node (with npm cache)
+        if: steps.lock.outputs.has_lockfile == 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
 
-      - name: Diagnostics (commit + branch + token presence)
+      - name: Setup Node (no cache - lockfile missing)
+        if: steps.lock.outputs.has_lockfile != 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+
+      - name: Validate EXPO_TOKEN
         shell: bash
         run: |
           set -euo pipefail
-          echo "GITHUB_REF=${GITHUB_REF}"
-          echo "GITHUB_SHA=${GITHUB_SHA}"
-          echo "Checked out: $(git rev-parse HEAD)"
-
           if [ -z "${EXPO_TOKEN:-}" ]; then
             echo "::error::Missing EXPO_TOKEN secret. Add GitHub Secret EXPO_TOKEN."
             exit 1
           fi
-          echo "EXPO_TOKEN present (len=${#EXPO_TOKEN})"
 
-          echo "" 
-          echo "Workflow sanity (first 80 lines):"
-          sed -n '1,80p' .github/workflows/eas-link.yml
-
-      - name: Install deps (frozen)
-        run: npm ci --no-audit --no-fund
+      - name: Install deps (lockfile-aware)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
+            npm ci --no-audit --no-fund
+          else
+            echo "::warning::No lockfile found -> using 'npm install' (non-deterministic)."
+            npm install --no-audit --no-fund
+          fi
 
       - name: Install EAS CLI (pinned)
         shell: bash
@@ -70,7 +96,7 @@ jobs:
           npm i -g "eas-cli@${EAS_CLI_VERSION}"
           eas --version
 
-      - name: Verify EAS auth (whoami)
+      - name: Verify EAS auth
         shell: bash
         run: |
           set -euo pipefail
@@ -105,23 +131,6 @@ jobs:
             node -e 'const fs=require("fs"); fs.writeFileSync("eas-project.json", JSON.stringify({projectId: process.argv[1]}, null, 2)+"\n");' "${PROJECT_ID}"
             echo "✅ Wrote eas-project.json with projectId=${PROJECT_ID}"
           fi
-
-      - name: Summary
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          {
-            echo "## EAS Link / Init Summary"
-            echo ""
-            echo "- Ref: ${GITHUB_REF}"
-            echo "- SHA: ${GITHUB_SHA}"
-            echo "- Checked out: $(git rev-parse HEAD)"
-            echo "- EAS CLI: $(eas --version 2>/dev/null || echo unknown)"
-            echo "- Has EXPO_TOKEN: $([ -n \"${EXPO_TOKEN:-}\" ] && echo yes || echo no)"
-            echo ""
-            echo "Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Commit changes (if any)
         shell: bash
