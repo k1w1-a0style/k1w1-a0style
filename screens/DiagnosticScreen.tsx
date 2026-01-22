@@ -22,6 +22,12 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../theme";
 import { useProject } from "../contexts/ProjectContext";
+
+import {
+  autoFixCIWorkflows,
+  checkRepoSecrets,
+  parseOwnerRepo,
+} from "../lib/diagnostics/ciAutoFix";
 import type { ProjectFile } from "../contexts/types";
 
 import { validateFileContent, validateFilePath } from "../lib/validators";
@@ -32,7 +38,6 @@ import type {
   PreflightTarget,
 } from "../lib/diagnostics/preflightTypes";
 import { runPreflightChecksProgressive } from "../lib/diagnostics/preflightRunner";
-import { autoFixCiWorkflows } from "../lib/diagnostics/ciAutoFix";
 import {
   formatDiagnosticUpload,
   uploadDiagnosticToSupabase,
@@ -261,17 +266,69 @@ function FixRunModal(props: {
 export default function DiagnosticScreen() {
   const { projectData, updateProjectFiles, deleteFile } = useProject();
 
-  // NOTE:
-  // In this codebase, linkedRepo/linkedBranch are stored on projectData
-  // (ProjectData), not on the ProjectContextProps. Avoid destructuring
-  // them from useProject() to keep typecheck green.
-  type ProjectDataWithLink = typeof projectData & {
-    linkedRepo?: string;
-    linkedBranch?: string;
-  };
-  const linkedRepo = (projectData as ProjectDataWithLink | null)?.linkedRepo;
-  const linkedBranch = (projectData as ProjectDataWithLink | null)
-    ?.linkedBranch;
+  const linkedRepo = (projectData as any)?.linkedRepo
+    ? String((projectData as any).linkedRepo)
+    : "";
+  const linkedBranch = (projectData as any)?.linkedBranch
+    ? String((projectData as any).linkedBranch)
+    : "";
+
+  const runCiAutofix = useCallback(async () => {
+    const parsed = parseOwnerRepo(linkedRepo);
+    if (!parsed) {
+      Alert.alert(
+        "CI/Workflows",
+        "Kein gültiges GitHub Repo verknüpft (erwartet: owner/repo).",
+      );
+      return;
+    }
+    const branch = (linkedBranch || "main").trim();
+
+    setCiFixing(true);
+    setCiFixLog(null);
+    try {
+      const secrets = await checkRepoSecrets(parsed.owner, parsed.repo);
+      const changes = await autoFixCIWorkflows({
+        owner: parsed.owner,
+        repo: parsed.repo,
+        branch,
+      });
+
+      const changedCount = changes.filter((c) => c.changed).length;
+      const missing = secrets.missing;
+
+      const summaryLines: string[] = [
+        `Repo: ${parsed.owner}/${parsed.repo}`,
+        `Branch: ${branch}`,
+        `Workflow-Files aktualisiert: ${changedCount}/${changes.length}`,
+        missing.length
+          ? `❗ Fehlende Secrets: ${missing.join(", ")}`
+          : `✅ Secrets: OK`,
+        "",
+        "Details:",
+        ...changes.map(
+          (c) => `${c.changed ? "🛠️" : "✅"} ${c.path} — ${c.message}`,
+        ),
+      ];
+
+      const summary = summaryLines.join("\n");
+      setCiFixLog(summary);
+      Alert.alert(
+        "CI/Workflows",
+        missing.length
+          ? "Workflows gefixt. Es fehlen noch Secrets."
+          : "Workflows sind gefixt & Secrets sehen gut aus.",
+      );
+    } catch (e: any) {
+      setCiFixLog(String(e?.message || e));
+      Alert.alert(
+        "CI/Workflows",
+        "Fehler beim Fixen: " + String(e?.message || e),
+      );
+    } finally {
+      setCiFixing(false);
+    }
+  }, [linkedRepo, linkedBranch]);
 
   const projectRef = useRef(projectData);
   useEffect(() => {
@@ -313,8 +370,6 @@ export default function DiagnosticScreen() {
 
   const [applyBusy, setApplyBusy] = useState(false);
   const [uploadBusy, setUploadBusy] = useState(false);
-  const [ciFixing, setCiFixing] = useState(false);
-  const [ciFixMsg, setCiFixMsg] = useState<string | null>(null);
   const uploadBusyRef = useRef(false);
   const [uploadCooldownUntil, setUploadCooldownUntil] = useState(0);
   const uploadClientRequestIdRef = useRef<string | null>(null);
@@ -878,43 +933,6 @@ export default function DiagnosticScreen() {
       ],
     );
   }, [applyPatch, fixableResults]);
-  const ciAutoFix = useCallback(async () => {
-    if (!linkedRepo) {
-      Alert.alert(
-        "Kein Repo",
-        "Dieses Projekt ist noch nicht mit einem GitHub-Repo verknüpft.",
-      );
-      return;
-    }
-
-    const parts = linkedRepo.split("/");
-    if (parts.length !== 2) {
-      Alert.alert("Repo-Format", `Ungültiges Repo: ${linkedRepo}`);
-      return;
-    }
-
-    const [owner, repo] = parts;
-    const branch = linkedBranch || "main";
-
-    try {
-      setCiFixing(true);
-      setCiFixMsg(null);
-
-      const res = await autoFixCiWorkflows(owner, repo, branch);
-
-      if (res.missingRequiredSecrets.length) {
-        setCiFixMsg(
-          `✅ Workflows synced. ⚠️ Missing secrets in GitHub repo: ${res.missingRequiredSecrets.join(", ")}`,
-        );
-      } else {
-        setCiFixMsg("✅ Workflows synced. Secrets look present (names only).");
-      }
-    } catch (e: any) {
-      setCiFixMsg(`❌ CI Auto-Fix failed: ${String(e?.message || e)}`);
-    } finally {
-      setCiFixing(false);
-    }
-  }, [linkedRepo, linkedBranch]);
 
   const applySingle = useCallback(
     (r: PreflightCheckResult) => {
@@ -1296,27 +1314,6 @@ export default function DiagnosticScreen() {
             <Text style={styles.bigBtnText}>AutoFix</Text>
           </TouchableOpacity>
 
-          {linkedRepo ? (
-            <TouchableOpacity
-              style={[
-                styles.bigBtn,
-                styles.bigBtnGhost,
-                (busy || ciFixing) && { opacity: 0.5 },
-              ]}
-              onPress={ciAutoFix}
-              disabled={busy || ciFixing}
-            >
-              <Ionicons
-                name="git-branch-outline"
-                size={18}
-                color={theme.palette.text.primary}
-              />
-              <Text style={styles.bigBtnText}>
-                {ciFixing ? "CI Fix…" : "CI Fix"}
-              </Text>
-            </TouchableOpacity>
-          ) : null}
-
           <TouchableOpacity
             style={[
               styles.bigBtn,
@@ -1362,12 +1359,6 @@ export default function DiagnosticScreen() {
             <Text style={styles.bigBtnText}>Copy</Text>
           </TouchableOpacity>
         </View>
-
-        {ciFixMsg ? (
-          <View style={styles.ciFixMsgWrap}>
-            <Text style={styles.ciFixMsgText}>{ciFixMsg}</Text>
-          </View>
-        ) : null}
 
         <View style={styles.actionsRow2}>
           <TouchableOpacity
@@ -1834,16 +1825,5 @@ const styles = StyleSheet.create({
     backgroundColor: theme.palette.card,
     alignItems: "center",
     justifyContent: "center",
-  },
-  ciFixMsgWrap: {
-    marginTop: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: "rgba(0,0,0,0.04)",
-  },
-  ciFixMsgText: {
-    fontSize: 13,
-    lineHeight: 18,
   },
 });

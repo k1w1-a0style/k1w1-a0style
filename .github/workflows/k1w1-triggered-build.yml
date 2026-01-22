@@ -26,7 +26,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -127,6 +127,8 @@ jobs:
             echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
             echo "lockfile_path=" >> "$GITHUB_OUTPUT"
           fi
+          echo "Repo root: $(pwd)"
+          echo "Files:"; ls -lah
 
       - name: Setup Node (with npm cache)
         if: steps.lock.outputs.has_lockfile == 'true'
@@ -142,7 +144,7 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install dependencies
+      - name: Install dependencies (frozen if possible)
         shell: bash
         run: |
           set -euo pipefail
@@ -154,36 +156,62 @@ jobs:
             npm install --no-audit --no-fund
           fi
 
-      - name: Ensure expo-dev-client for development builds
-        if: env.PROFILE == 'development'
-        shell: bash
-        run: |
-          set -euo pipefail
-          export CI=1
-          echo "Ensuring expo-dev-client (development profile)..."
-          node -e "const p=require('./package.json'); const ok=!!((p.dependencies&&p.dependencies['expo-dev-client'])||(p.devDependencies&&p.devDependencies['expo-dev-client'])); process.exit(ok?0:1)"             && echo "expo-dev-client already declared in package.json"             || (echo "Installing expo-dev-client via expo install..." && npx --yes expo install expo-dev-client || npm install expo-dev-client --no-audit --no-fund)
-
-      - name: Install EAS CLI
+      - name: Install EAS CLI (pinned)
         shell: bash
         run: |
           set -euo pipefail
           npm i -g "eas-cli@${EAS_CLI_VERSION}"
           eas --version
 
-      - name: Verify Expo auth
+      - name: Verify EAS auth
         shell: bash
         run: |
           set -euo pipefail
           eas whoami
 
-      - name: Run EAS build (WAIT)
+      - name: Self-heal repo (lockfile + dev client) [commit back]
+        shell: bash
+        env:
+          TARGET_BRANCH: ${{ env.CHECKOUT_REF }}
+          PROFILE: ${{ env.PROFILE }}
+        run: |
+          set -euo pipefail
+
+          echo "🧯 Self-heal: ensure lockfile + expo-dev-client (if development)."
+          npm config set package-lock true
+
+          if [ "${PROFILE}" = "development" ]; then
+            echo "📦 Ensuring expo-dev-client for development builds..."
+            npx expo install expo-dev-client --fix || npx expo install expo-dev-client
+          fi
+
+          if [ ! -f package-lock.json ]; then
+            echo "📌 Generating package-lock.json..."
+            npm install --package-lock-only --no-audit --no-fund
+          fi
+
+          if git status --porcelain | grep -qE '^( M|??) (package.json|package-lock.json|.npmrc)$'; then
+            echo "✅ Changes detected -> committing back to repo."
+            git config user.email "actions@users.noreply.github.com"
+            git config user.name "github-actions[bot]"
+            git add package.json package-lock.json .npmrc 2>/dev/null || true
+            git commit -m "chore(ci): self-heal lockfile/dev-client" || true
+            BR="${TARGET_BRANCH:-}"
+            if [ -z "$BR" ]; then BR="$(git rev-parse --abbrev-ref HEAD)"; fi
+            echo "🚀 Pushing to origin $BR (best effort)..."
+            git push origin "HEAD:$BR" || echo "::warning::Could not push self-heal commit (branch may be protected or ref is not a branch)."
+          else
+            echo "ℹ️ No relevant changes to commit."
+          fi
+
+      - name: Run EAS Build (WAIT)
         id: eas
         shell: bash
         run: |
           set -euo pipefail
           echo "🚀 Starting EAS build (android, profile=${PROFILE}) with --wait..."
 
-          BUILD_OUTPUT="$(eas build --platform android --profile "${PROFILE}" --non-interactive --wait 2>&1)" || {
+          BUILD_OUTPUT="$(eas build             --platform android             --profile "${PROFILE}"             --non-interactive             --wait             2>&1)" || {
               CODE=$?
               echo "${BUILD_OUTPUT}"
               echo "::error::EAS build failed (exit ${CODE})"
@@ -199,7 +227,31 @@ jobs:
           BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oE "https?://[^[:space:]]+" | grep -E "/projects/[^/]+/builds/[a-fA-F0-9-]+" | head -n1 || true)"
           echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"
 
-      - name: Job summary
+      - name: Download Android Artifact
+        if: steps.eas.outputs.build_id != 'unknown' && steps.eas.outputs.build_id != ''
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          OUT="build/k1w1-${PROFILE}.${ARTIFACT_EXT}"
+          eas build:download             --id "${{ steps.eas.outputs.build_id }}"             --output "${OUT}" || {
+              echo "::warning::Failed to download artifact"
+              exit 0
+            }
+          ls -lah build || true
+
+      - name: Upload Android Artifact
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+        with:
+          name: k1w1-android-${{ env.PROFILE }}-${{ github.run_number }}
+          path: build/*
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Summary
         if: always()
         shell: bash
         run: |
@@ -217,5 +269,5 @@ jobs:
           - Build ID: ${{ steps.eas.outputs.build_id }}
           - Build URL: ${{ steps.eas.outputs.build_url }}
 
-          Artifacts: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          Artifacts: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EOF
