@@ -354,6 +354,8 @@ export default function DiagnosticScreen() {
 
   const [progressStage, setProgressStage] = useState<string | null>(null);
 
+  const [ciFixing, setCiFixing] = useState(false);
+  const [ciFixLog, setCiFixLog] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const selectedCount = useMemo(
     () => Object.values(selected).filter(Boolean).length,
