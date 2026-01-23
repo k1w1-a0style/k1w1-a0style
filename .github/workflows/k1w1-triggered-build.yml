@@ -140,11 +140,10 @@ jobs:
         env:
           TARGET_BRANCH: ${{ env.CHECKOUT_REF }}
           PROFILE: ${{ env.PROFILE }}
-          ALLOWED_REF_REGEX: "^(work|dev|develop|fmature/.+|hotfix/.+)$"
+          ALLOWED_REF_REGEX: "^(work|dev|develop|feature/.+|hotfix/.+)$"
         run: |
           set -euo pipefail
-
-          echo "🧥 Auto-fix: lockfile + expo-dev-client (development only)."
+          echo "🧯 Auto-fix: lockfile + expo-dev-client (development only)."
           npm config set package-lock true
 
           if [ "${PROFILE}" = "development" ]; then
@@ -157,12 +156,12 @@ jobs:
             npm install --package-lock-only --no-audit --no-fund
           fi
 
-          if ! git status --porcelain | grep -qE "^( M|\??) (package.json|package-lock.json|\.npmrc)$"; then
-            echo "℉ No CI auto-fix changes to write back."
+          if ! git status --porcelain | grep -qE '^( M|\?\?) (package.json|package-lock.json|\.npmrc)$'; then
+            echo "ℹ️ No CI auto-fix changes to write back."
             exit 0
           fi
 
-          BR>"${TARGET_BRANCH:-}"
+          BR="${TARGET_BRANCH:-}"
           if [ -z "$BR" ]; then
             echo "::warning::No TARGET_BRANCH provided; skipping writeback."
             exit 0
@@ -241,6 +240,7 @@ jobs:
           esac
 
           if [ "$PROFILE" = "production" ]; then EXT="aab"; else EXT="apk"; fi
+
           echo "PROFILE=$PROFILE" >> "$GITHUB_ENV"
           echo "ARTIFACT_EXT=$EXT" >> "$GITHUB_ENV"
           echo "✅ Using build profile: $PROFILE (artifact: .$EXT)"
@@ -262,6 +262,12 @@ jobs:
           elif [ -f npm-shrinkwrap.json ]; then
             echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
             echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
+          elif [ -f pnpm-lock.yaml ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
           else
             echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
             echo "lockfile_path=" >> "$GITHUB_OUTPUT"
@@ -309,4 +315,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "🪀
+          echo "🚀 Starting EAS build (android, profile=${PROFILE}) with --wait..."
+          eas build --platform android --profile "${PROFILE}" --non-interactive --wait
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" << EOF_SUM
+          ## Triggered Build Summary
+          - Repo: ${{ github.repository }}
+          - Event: ${{ github.event_name }}
+          - Checkout ref: ${CHECKOUT_REF}
+          - Profile: ${PROFILE}
+          EOF_SUM
