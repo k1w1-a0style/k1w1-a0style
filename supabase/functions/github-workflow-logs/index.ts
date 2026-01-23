@@ -1,12 +1,43 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
-import {
-  parseJsonBody,
-  validateGitHubRepo,
-  validateRunId,
-} from "../_shared/validation.ts";
+import { validateGitHubRepo, validateRunId } from "../_shared/validation.ts";
 import { githubHeaders } from "../_shared/github.ts";
+
+type JsonObj = Record<string, unknown>;
+
+async function readJsonObject(
+  req: Request,
+  maxBytes: number,
+): Promise<JsonObj | null> {
+  const raw = await req.text();
+  if (raw.length > maxBytes) return null;
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed as JsonObj;
+  } catch {
+    return null;
+  }
+}
+
+function pickString(obj: JsonObj, ...keys: string[]): string | undefined {
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === "string" && v.trim().length > 0) return v.trim();
+  }
+  return undefined;
+}
+
+function pickGitHubRepo(obj: JsonObj): string | undefined {
+  const direct = pickString(obj, "githubRepo", "github_repo", "repoFullName");
+  if (direct) return direct;
+  const owner = pickString(obj, "owner", "githubOwner");
+  const repo = pickString(obj, "repo", "githubRepoName");
+  if (owner && repo) return `${owner}/${repo}`;
+  return undefined;
+}
 import { unzipSync, strFromU8 } from "npm:fflate@0.8.2";
 
 const MAX_LOG_ZIP_BYTES = 15 * 1024 * 1024; // 15 MiB (compressed)
@@ -29,15 +60,15 @@ serve(async (req) => {
   if (rl) return rl;
 
   try {
-    const body = await parseJsonBody(req, 20 * 1024); // 20 KiB
-    if (!body || typeof body !== "object") {
+    const obj = await readJsonObject(req, 64 * 1024);
+    if (!obj) {
       return errorResponse("Invalid JSON body", req, 400, {
-        error: "Body must be an object",
+        error: "Body must be a JSON object (<= 64 KiB)",
       });
     }
-    const obj = body as Record<string, unknown>;
 
-    const repoV = validateGitHubRepo(obj.githubRepo);
+    const githubRepo = pickGitHubRepo(obj) ?? (obj as any).githubRepo;
+    const repoV = validateGitHubRepo(githubRepo);
     const runV = validateRunId(obj.runId);
 
     if (!repoV.valid || !runV.valid || !runV.value) {
