@@ -184,10 +184,10 @@ jobs:
           set -euo pipefail
           if [ "\${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
             echo "Using npm ci (lockfile: \${{ steps.lock.outputs.lockfile_path }})"
-            npm ci --no-audit --no-fund
+            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
           else
             echo "::warning::No lockfile found in repo. Falling back to npm install (non-reproducible)."
-            npm install --no-audit --no-fund
+            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
           fi
 
       - name: Install EAS CLI (pinned)
@@ -435,10 +435,10 @@ jobs:
           set -euo pipefail
           if [ "\${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
             echo "Using npm ci (lockfile: \${{ steps.lock.outputs.lockfile_path }})"
-            npm ci --no-audit --no-fund
+            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
           else
             echo "::warning::No lockfile found in repo. Falling back to npm install (non-reproducible)."
-            npm install --no-audit --no-fund
+            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
           fi
 
       - name: Install EAS CLI (pinned)
@@ -692,10 +692,10 @@ jobs:
           set -euo pipefail
           if [ "\${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
             echo "Using npm ci (lockfile: \${{ steps.lock.outputs.lockfile_path }})"
-            npm ci --no-audit --no-fund
+            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
           else
             echo "::warning::No lockfile found in repo. Falling back to npm install (non-reproducible)."
-            npm install --no-audit --no-fund
+            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
           fi
 
       - name: Install EAS CLI (pinned)
@@ -827,7 +827,7 @@ jobs:
           sed -n '1,80p' .github/workflows/eas-link.yml
 
       - name: Install deps (frozen)
-        run: npm ci --no-audit --no-fund
+        run: npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
 
       - name: Install EAS CLI (pinned)
         shell: bash
