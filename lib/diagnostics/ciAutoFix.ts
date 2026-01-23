@@ -828,7 +828,6 @@ jobs:
 
       - name: Install deps (frozen)
         run: npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
-
       - name: Install EAS CLI (pinned)
         shell: bash
         run: |
