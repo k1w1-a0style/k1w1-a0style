@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Branch/Ref to build (e.g. main, dev, feature-x)"
+        description: "Branch/Ref to build (e.g. work, main, dev, feature-x)"
         required: false
         default: "work"
       profile:
@@ -26,7 +26,7 @@ on:
 concurrency:
   group: >-
     ${{ github.workflow }}-${{ github.event_name }}-
-    ${{ github.event.client_payload.branch || github.event.client_payload.ref || inputs.ref || github.ref }}-
+    ${{ github.event.client_payload.branch || github.event.client_payload.ref || inputs.ref || github.ref_name }}-
     ${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || inputs.profile || 'preview' }}
   cancel-in-progress: false
 
@@ -60,7 +60,7 @@ jobs:
           echo "CHECKOUT_REF=$REF" >> "$GITHUB_ENV"
           echo "📌 Checkout ref: $REF"
 
-      - name: Determine build profile + artifact extension
+      - name: Determine build profile
         shell: bash
         run: |
           set -euo pipefail
@@ -71,7 +71,7 @@ jobs:
           echo "PROFILE=$PROFILE" >> "$GITHUB_ENV"
 
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
         with:
           ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
@@ -94,7 +94,7 @@ jobs:
 
       - name: Setup Node (with npm cache)
         if: steps.lock.outputs.has_lockfile == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
@@ -102,7 +102,7 @@ jobs:
 
       - name: Setup Node (no cache - lockfile missing)
         if: steps.lock.outputs.has_lockfile != 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
@@ -208,10 +208,8 @@ jobs:
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_CLI_VERSION: "16.0.0"
-
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-
       JOB_ID: ${{ github.event.client_payload.job_id || github.event.inputs.job_id || '' }}
 
     steps:
@@ -301,7 +299,7 @@ jobs:
           || echo "::warning::Failed to update Supabase status (building)"
 
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
         with:
           ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
@@ -327,12 +325,10 @@ jobs:
             echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
             echo "lockfile_path=" >> "$GITHUB_OUTPUT"
           fi
-          echo "Repo root: $(pwd)"
-          echo "Files:"; ls -lah
 
       - name: Setup Node (with npm cache)
         if: steps.lock.outputs.has_lockfile == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
@@ -340,7 +336,7 @@ jobs:
 
       - name: Setup Node (no cache - lockfile missing)
         if: steps.lock.outputs.has_lockfile != 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
@@ -392,6 +388,7 @@ jobs:
 
           BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oE "https://expo.dev[^[:space:]]*/builds/${UUID_RE}" | head -n1 || true)"
           echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"
+
       - name: Download Android Artifact
         if: steps.eas.outputs.build_id != 'unknown' && steps.eas.outputs.build_id != ''
         continue-on-error: true
@@ -400,16 +397,16 @@ jobs:
           set -euo pipefail
           mkdir -p build
           OUT="build/k1w1-${PROFILE}.${ARTIFACT_EXT}"
-          eas build:download             --id "${{ steps.eas.outputs.build_id }}"             --output "${OUT}" || {
-              echo "::warning::Failed to download artifact"
-              exit 0
-            }
+          eas build:download --id "${{ steps.eas.outputs.build_id }}" --output "${OUT}" || {
+            echo "::warning::Failed to download artifact"
+            exit 0
+          }
           ls -lah build || true
 
       - name: Upload Android Artifact
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+        uses: actions/upload-artifact@v4
         with:
           name: k1w1-android-${{ env.PROFILE }}-${{ github.run_number }}
           path: build/*
@@ -436,65 +433,3 @@ jobs:
 
           Artifacts: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EOF
-      - name: Update Supabase status (success)
-        if: env.has_job_id == 'true' && success()
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          BUILD_ID="${{ steps.eas.outputs.build_id }}"
-          BUILD_URL="${{ steps.eas.outputs.build_url }}"
-          python - <<'PY' > payload.json
-          import json, os
-          run_id=os.environ.get("GITHUB_RUN_ID")
-          build_id=os.environ.get("BUILD_ID")
-          build_url=os.environ.get("BUILD_URL")
-          ts=os.environ.get("TS")
-          out={
-            "status":"completed",
-            "github_run_id":int(run_id) if run_id and run_id.isdigit() else None,
-            "eas_build_id":build_id if build_id and build_id!="unknown" else None,
-            "build_url":build_url if build_url else None,
-            "completed_at":ts,
-          }
-          print(json.dumps(out, separators=(",",":")))
-          PY
-          curl --fail-with-body --silent --show-error \
-            -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
-            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Content-Type: application/json" \
-            -H "Prefer: return=representation" \
-            --data-binary @payload.json \
-          || echo "::warning::Failed to update Supabase status (success)"
-
-      - name: Update Supabase status (failed)
-        if: env.has_job_id == 'true' && failure()
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          ERR="Workflow failed"
-          python - <<'PY' > payload.json
-          import json, os
-          run_id=os.environ.get("GITHUB_RUN_ID")
-          err=os.environ.get("ERR") or "error"
-          ts=os.environ.get("TS")
-          out={
-            "status":"error",
-            "github_run_id":int(run_id) if run_id and run_id.isdigit() else None,
-            "error_message":err,
-            "completed_at":ts,
-          }
-          print(json.dumps(out, separators=(",",":")))
-          PY
-          curl --fail-with-body --silent --show-error \
-            -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
-            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Content-Type: application/json" \
-            -H "Prefer: return=representation" \
-            --data-binary @payload.json \
-          || echo "::warning::Failed to update Supabase status (failed)"
