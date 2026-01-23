@@ -56,6 +56,61 @@ function redactSecrets(text: string): string {
   return t2;
 }
 
+function isPrivateIp(hostname: string): boolean {
+  // IPv4 only best-effort
+  const m = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!m) return false;
+  const o = m.slice(1).map((x) => Number(x));
+  if (o.some((n) => !Number.isFinite(n) || n < 0 || n > 255)) return false;
+  const [a, b] = o;
+  if (a === 10) return true;
+  if (a === 127) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  return false;
+}
+
+function assertAllowedRedirect(urlStr: string): URL {
+  let u: URL;
+  try {
+    u = new URL(urlStr);
+  } catch {
+    throw { status: 400, body: "Invalid redirect URL for logs zip" };
+  }
+
+  if (u.protocol !== "https:") {
+    throw { status: 400, body: "Logs redirect must be https" };
+  }
+
+  const host = u.hostname.toLowerCase();
+  if (
+    !host ||
+    host === "localhost" ||
+    host.endsWith(".local") ||
+    isPrivateIp(host)
+  ) {
+    throw { status: 400, body: "Disallowed logs redirect host" };
+  }
+
+  // GitHub logs redirects typically point to GitHub/Azure/AWS controlled hosts.
+  // We allow a conservative set of suffixes to reduce SSRF risk without breaking normal runs.
+  const allowedSuffixes = [
+    "github.com",
+    "githubusercontent.com",
+    "actions.githubusercontent.com",
+    "pipelines.actions.githubusercontent.com",
+    "blob.core.windows.net",
+    "amazonaws.com",
+  ];
+
+  if (!allowedSuffixes.some((s) => host === s || host.endsWith("." + s))) {
+    throw { status: 400, body: "Logs redirect host not allowed" };
+  }
+
+  return u;
+}
+
 async function fetchLogsZip(
   owner: string,
   repo: string,
@@ -79,8 +134,10 @@ async function fetchLogsZip(
   if (!loc)
     throw { status: 502, body: "Missing redirect location for logs zip" };
 
+  const safeLoc = assertAllowedRedirect(loc).toString();
+
   // Second request: download zip from signed URL (no auth header).
-  const r2 = await fetch(loc, { method: "GET" });
+  const r2 = await fetch(safeLoc, { method: "GET" });
   if (!r2.ok) {
     const body = await r2.text().catch(() => "");
     throw { status: r2.status, body };

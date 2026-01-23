@@ -88,13 +88,18 @@ function approxSize(obj: unknown): number {
 }
 
 serve(async (req) => {
-  const rl = rateLimit(req, "save_preview");
-  if (rl) return rl;
-
   const origin = req.headers.get("origin");
   const cors = corsHeaders(origin);
 
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: cors });
+  }
+
+  const auth = requireAdminKey(req);
+  if (auth) return auth;
+
+  const rl = rateLimit(req, "save_preview");
+  if (rl) return rl;
 
   if (req.method !== "POST") {
     return json(
@@ -105,9 +110,6 @@ serve(async (req) => {
 
   const auth = requireAdminKey(req);
   if (auth) return auth;
-
-  const rl = rateLimit(req, "save_preview");
-  if (rl) return rl;
 
   const PREVIEW_SUPABASE_URL = Deno.env.get("PREVIEW_SUPABASE_URL") ?? "";
   const PREVIEW_SERVICE_ROLE_KEY =

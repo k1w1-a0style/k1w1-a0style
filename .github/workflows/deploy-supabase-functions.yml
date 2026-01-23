@@ -2,12 +2,17 @@ name: Deploy Supabase (Edge Functions)
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "work"]
     paths:
       - "supabase/functions/**"
       - "supabase/config.toml"
   workflow_dispatch:
     inputs:
+      ref:
+        description: "Branch/Ref to deploy from (default: work)"
+        required: false
+        default: "work"
+        type: string
       deploy_all:
         description: "Alle Edge Functions deployen (true/false)"
         required: false
@@ -33,6 +38,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.ref || github.ref_name }}
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4

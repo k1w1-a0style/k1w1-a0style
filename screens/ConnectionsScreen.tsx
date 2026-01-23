@@ -307,7 +307,16 @@ export default function ConnectionsScreen() {
     } finally {
       setBusy(false);
     }
-  }, [githubToken]);
+  }, [
+    githubToken,
+    expoToken,
+    edgeAdminKey,
+    supabaseRaw,
+    supabaseUrl,
+    supabaseAnonKey,
+    supabaseServiceRoleKey,
+    easProjectId,
+  ]);
 
   const testSupabase = useCallback(async () => {
     const url = supabaseUrl.trim();
