@@ -1,0 +1,13 @@
+k1w1-a0style PATCH: restore broken files after persistence_single_poller patch
+Generated: 2026-01-23T15:28:19.168344
+
+Restored files (authoritative versions from current project zip):
+- lib/autoSyncRepoSecrets.ts
+- screens/ConnectionsScreen.tsx
+- screens/GitHubReposScreen.tsx
+- hooks/useBuildStatus.ts
+- lib/storageKeys.ts
+
+Purpose:
+- Fix TypeScript parse errors caused by corrupted import blocks / truncated content.
+- Keep current architecture: Supabase build_jobs = source of truth; ProjectContext = single poller.
