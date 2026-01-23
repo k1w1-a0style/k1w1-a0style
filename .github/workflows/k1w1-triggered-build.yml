@@ -8,7 +8,7 @@ on:
       ref:
         description: "Branch/Ref to build (e.g. main, dev, feature-x)"
         required: false
-        default: "main"
+        default: "work"
       profile:
         description: "EAS build profile (development|preview|production)"
         required: false
@@ -55,7 +55,8 @@ jobs:
           REF="${{ github.event.client_payload.branch }}"
           if [ -z "$REF" ]; then REF="${{ github.event.client_payload.ref }}"; fi
           if [ -z "$REF" ]; then REF="${{ github.event.inputs.ref }}"; fi
-          if [ -z "$REF" ]; then REF="main"; fi
+          if [ -z "$REF" ]; then REF="${GITHUB_REF_NAME:-work}"; fi
+          if [ -z "$REF" ]; then REF="work"; fi
           echo "CHECKOUT_REF=$REF" >> "$GITHUB_ENV"
           echo "📌 Checkout ref: $REF"
 
@@ -221,7 +222,8 @@ jobs:
           REF="${{ github.event.client_payload.branch }}"
           if [ -z "$REF" ]; then REF="${{ github.event.client_payload.ref }}"; fi
           if [ -z "$REF" ]; then REF="${{ github.event.inputs.ref }}"; fi
-          if [ -z "$REF" ]; then REF="main"; fi
+          if [ -z "$REF" ]; then REF="${GITHUB_REF_NAME:-work}"; fi
+          if [ -z "$REF" ]; then REF="work"; fi
           echo "CHECKOUT_REF=$REF" >> "$GITHUB_ENV"
           echo "📌 Checkout ref: $REF"
 
