@@ -1,196 +1,187 @@
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
-import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
-import { validateGitHubRepo, validateRunId } from "../_shared/validation.ts";
-import { githubHeaders } from "../_shared/github.ts";
-
-type JsonObj = Record<string, unknown>;
-
-async function readJsonObject(
-  req: Request,
-  maxBytes: number,
-): Promise<JsonObj | null> {
-  const raw = await req.text();
-  if (raw.length > maxBytes) return null;
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return null;
-    return parsed as JsonObj;
-  } catch {
-    return null;
-  }
-}
-
-function pickString(obj: JsonObj, ...keys: string[]): string | undefined {
-  for (const k of keys) {
-    const v = obj[k];
-    if (typeof v === "string" && v.trim().length > 0) return v.trim();
-  }
-  return undefined;
-}
-
-function pickGitHubRepo(obj: JsonObj): string | undefined {
-  const direct = pickString(obj, "githubRepo", "github_repo", "repoFullName");
-  if (direct) return direct;
-  const owner = pickString(obj, "owner", "githubOwner");
-  const repo = pickString(obj, "repo", "githubRepoName");
-  if (owner && repo) return `${owner}/${repo}`;
-  return undefined;
-}
-import { unzipSync, strFromU8 } from "npm:fflate@0.8.2";
-
-const MAX_LOG_ZIP_BYTES = 15 * 1024 * 1024; // 15 MiB (compressed)
-const MAX_LOG_UNZIPPED_BYTES = 50 * 1024 * 1024; // 50 MiB (uncompressed)
-const MAX_LOG_FILES = 2000;
-
 /**
- * Fetches GitHub Actions workflow logs.
- * - Downloads the log ZIP from GitHub, unzips with strict limits
- * - Returns structured log chunks for the app UI
+ * Supabase Edge Function: github-workflow-logs
+ *
+ * Fetches GitHub Actions run logs (zip) and returns a sanitized text output.
+ * - Requires x-k1w1-admin-key header (K1W1_EDGE_ADMIN_KEY)
+ * - Uses GITHUB_TOKEN (fine-grained PAT supported)
+ * - Accepts githubRepo like "owner/repo" and runId
+ *
+ * Response is intentionally minimized & sanitized to avoid leaking huge GitHub objects.
  */
+import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
+import { corsHeaders, handleCors } from "../_shared/cors.ts";
+import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { githubHeaders } from "../_shared/github.ts";
+import { unzipSync, strFromU8 } from "https://deno.land/x/fflate@0.8.2/mod.ts";
+
+type Json = Record<string, unknown>;
+
+function jsonOk(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "content-type": "application/json" },
+  });
+}
+
+function jsonErr(error: string, details?: unknown, status = 400) {
+  return jsonOk({ ok: false, error, details }, status);
+}
+
+function safeJson(req: Request): Promise<Json> {
+  return req
+    .json()
+    .then((v) => (v && typeof v === "object" ? (v as Json) : {}))
+    .catch(() => ({}));
+}
+
+function asString(v: unknown): string | undefined {
+  return typeof v === "string" ? v : undefined;
+}
+function asNumber(v: unknown): number | undefined {
+  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+}
+
+function parseGithubRepo(v: unknown): { owner: string; repo: string } | null {
+  const s = (asString(v) ?? "").trim();
+  const m = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/.exec(s);
+  if (!m) return null;
+  return { owner: m[1], repo: m[2] };
+}
+
+function redactSecrets(text: string): string {
+  // Basic redaction: emails + obvious token patterns.
+  // Keep it conservative to avoid destroying useful logs.
+  const t1 = text.replace(
+    /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
+    "<redacted-email>",
+  );
+  const t2 = t1.replace(
+    /\b(ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g,
+    "<redacted-token>",
+  );
+  return t2;
+}
+
+async function fetchLogsZip(
+  owner: string,
+  repo: string,
+  runId: number,
+): Promise<Uint8Array> {
+  const api = `https://api.github.com/repos/${owner}/${repo}/actions/runs/${runId}/logs`;
+
+  // First request: get the signed URL (302 Location).
+  const r1 = await fetch(api, {
+    method: "GET",
+    headers: githubHeaders(undefined, "Bearer"),
+    redirect: "manual",
+  });
+
+  if (r1.status !== 302) {
+    const body = await r1.text().catch(() => "");
+    throw { status: r1.status, body };
+  }
+
+  const loc = r1.headers.get("location") || r1.headers.get("Location");
+  if (!loc)
+    throw { status: 502, body: "Missing redirect location for logs zip" };
+
+  // Second request: download zip from signed URL (no auth header).
+  const r2 = await fetch(loc, { method: "GET" });
+  if (!r2.ok) {
+    const body = await r2.text().catch(() => "");
+    throw { status: r2.status, body };
+  }
+  return new Uint8Array(await r2.arrayBuffer());
+}
+
+function zipToText(zipBytes: Uint8Array): {
+  fileCount: number;
+  files: string[];
+  text: string;
+} {
+  const out = unzipSync(zipBytes);
+  const files = Object.keys(out).sort();
+  const parts: string[] = [];
+  for (const name of files) {
+    const bytes = out[name];
+    const chunk = strFromU8(bytes);
+    parts.push(`\n===== ${name} =====\n`);
+    parts.push(chunk);
+  }
+  return { fileCount: files.length, files, text: parts.join("") };
+}
+
+const MAX_CHARS = 200_000; // keep responses sane
+
 serve(async (req) => {
-  const corsResponse = handleCors(req);
-  if (corsResponse) return corsResponse;
-
-  const auth = requireAdminKey(req);
-  if (auth) return auth;
-
-  const rl = rateLimit(req, "github-workflow-logs");
-  if (rl) return rl;
+  const cors = handleCors(req);
+  if (cors) return cors;
 
   try {
-    const obj = await readJsonObject(req, 64 * 1024);
-    if (!obj) {
-      return errorResponse("Invalid JSON body", req, 400, {
-        error: "Body must be a JSON object (<= 64 KiB)",
-      });
-    }
+    rateLimit(req, { limit: 60, windowMs: 60_000 });
+    requireAdminKey(req);
 
-    const githubRepo = pickGitHubRepo(obj) ?? (obj as any).githubRepo;
-    const repoV = validateGitHubRepo(githubRepo);
-    const runV = validateRunId(obj.runId);
+    const body = await safeJson(req);
 
-    if (!repoV.valid || !runV.valid || !runV.value) {
-      return errorResponse("Validation failed", req, 400, {
-        errors: [repoV.error, runV.error].filter(Boolean),
-      });
-    }
-
-    const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN");
-    if (!GITHUB_TOKEN) {
-      return errorResponse("Missing required environment variables", req, 500, {
-        missing: { GITHUB_TOKEN: false },
-      });
-    }
-
-    const githubRepo = repoV.value!;
-    const runId = runV.value!;
-
-    // 1) Fetch workflow run details to get logs URL and metadata
-    const runUrl = `https://api.github.com/repos/${githubRepo}/actions/runs/${runId}`;
-    const runResponse = await fetch(runUrl, {
-      headers: githubHeaders(GITHUB_TOKEN),
-    });
-
-    if (!runResponse.ok) {
-      const errorText = await runResponse.text().catch(() => "");
-      return errorResponse(
-        "Failed to fetch workflow run",
-        req,
-        runResponse.status,
-        {
-          status: runResponse.status,
-          body: errorText,
-        },
+    const repoObj = parseGithubRepo(body.githubRepo);
+    if (!repoObj) {
+      return jsonErr(
+        "Validation failed",
+        { error: "githubRepo must be 'owner/repo' string" },
+        400,
       );
     }
 
-    const runData = await runResponse.json();
-    const logsUrl = runData?.logs_url;
-    if (!logsUrl || typeof logsUrl !== "string") {
-      return errorResponse("Workflow run logs_url missing", req, 500, {
-        runId,
-      });
-    }
+    const runId =
+      asNumber(body.runId) ??
+      (typeof body.runId === "string" ? Number(body.runId) : undefined) ??
+      asNumber(body.run_id) ??
+      (typeof body.run_id === "string" ? Number(body.run_id) : undefined);
 
-    // 2) Download ZIP
-    const logsResponse = await fetch(logsUrl, {
-      headers: githubHeaders(GITHUB_TOKEN, {
-        Accept: "application/vnd.github+json",
-      }),
-    });
-
-    if (!logsResponse.ok) {
-      const errorText = await logsResponse.text().catch(() => "");
-      return errorResponse(
-        "Failed to fetch logs ZIP",
-        req,
-        logsResponse.status,
-        {
-          status: logsResponse.status,
-          body: errorText,
-        },
+    if (!runId || !Number.isFinite(runId)) {
+      return jsonErr(
+        "Validation failed",
+        { error: "runId must be a number" },
+        400,
       );
     }
 
-    const buf = new Uint8Array(await logsResponse.arrayBuffer());
-    if (buf.byteLength > MAX_LOG_ZIP_BYTES) {
-      return errorResponse("Logs ZIP too large", req, 413, {
-        maxBytes: MAX_LOG_ZIP_BYTES,
-        gotBytes: buf.byteLength,
-      });
+    const zipBytes = await fetchLogsZip(
+      repoObj.owner,
+      repoObj.repo,
+      Math.trunc(runId),
+    );
+    const parsed = zipToText(zipBytes);
+
+    let text = redactSecrets(parsed.text);
+    let truncated = false;
+    if (text.length > MAX_CHARS) {
+      truncated = true;
+      text = text.slice(0, MAX_CHARS) + "\n\n<...truncated...>";
     }
 
-    // 3) Unzip with limits
-    const files = unzipSync(buf, {
-      filter: (file) =>
-        file.name.endsWith(".txt") || file.name.endsWith(".log"),
+    return jsonOk({
+      ok: true,
+      githubRepo: `${repoObj.owner}/${repoObj.repo}`,
+      runId: Math.trunc(runId),
+      fileCount: parsed.fileCount,
+      files: parsed.files,
+      truncated,
+      logsText: text,
     });
-
-    const outFiles: { name: string; text: string }[] = [];
-    let totalUnzipped = 0;
-    let count = 0;
-
-    for (const [name, data] of Object.entries(files)) {
-      count++;
-      if (count > MAX_LOG_FILES) break;
-
-      const bytes = (data as Uint8Array).byteLength;
-      totalUnzipped += bytes;
-      if (totalUnzipped > MAX_LOG_UNZIPPED_BYTES) break;
-
-      outFiles.push({ name, text: strFromU8(data as Uint8Array) });
+  } catch (e) {
+    const anyE = e as any;
+    if (anyE && typeof anyE.status === "number") {
+      return jsonErr(
+        "GitHub workflow logs fetch failed",
+        { status: anyE.status, body: anyE.body ?? "" },
+        502,
+      );
     }
-
-    return jsonResponse(
-      {
-        ok: true,
-        repo: githubRepo,
-        runId,
-        meta: {
-          zipBytes: buf.byteLength,
-          unzippedBytes: totalUnzipped,
-          files: outFiles.length,
-        },
-        files: outFiles,
-      },
-      req,
-      200,
-    );
-  } catch (err: any) {
-    console.error(
-      "❌ github-workflow-logs error",
-      err?.message ?? err,
-      err?.stack,
-    );
-    return errorResponse(
-      "Unhandled exception in github-workflow-logs",
-      req,
+    return jsonErr(
+      "Internal error",
+      { message: String(anyE?.message ?? e), code: anyE?.code },
       500,
-      {
-        message: err?.message || "Unknown error",
-      },
     );
   }
 });
