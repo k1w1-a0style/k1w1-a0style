@@ -92,6 +92,24 @@ export const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
+  // Secondary action button (e.g. "Repo/Branch speichern")
+  secondaryButton: {
+    marginTop: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.background,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryButtonText: {
+    color: theme.palette.text.primary,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+
   statusRow: {
     flexDirection: "row",
     alignItems: "center",
