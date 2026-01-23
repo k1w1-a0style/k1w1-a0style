@@ -3,6 +3,7 @@
 // Uses the same tokens/values the user enters in the Connections screen.
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { STORAGE_KEYS } from "./storageKeys";
 import {
   getExpoToken,
   getEdgeAdminKey,
@@ -13,12 +14,6 @@ type AutoSyncResult = {
   updated: string[];
   skipped: string[];
 };
-
-const STORAGE_KEYS = {
-  SUPABASE_URL: "supabase_url",
-  SUPABASE_SERVICE_ROLE_KEY: "supabase_service_role_key",
-  EAS_PROJECT_ID: "eas_project_id",
-} as const;
 
 export const autoSyncRepoSecrets = async (
   repoFullName: string,

@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { CONFIG } from "../config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { STORAGE_KEYS } from "../lib/storageKeys";
 import { getEdgeAdminKey, getGitHubToken } from "../contexts/githubService";
 
 export interface LogEntry {
@@ -41,7 +42,7 @@ const MAX_LOG_ENTRIES = 500;
 
 async function getSupabaseEdgeUrl(): Promise<string> {
   // ✅ Prefer runtime-configured Supabase URL (ConnectionsScreen)
-  const storedUrl = await AsyncStorage.getItem("supabase_url").catch(
+  const storedUrl = await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).catch(
     () => null,
   );
   const runtimeUrl =

@@ -1,11 +1,9 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { STORAGE_KEYS } from "./storageKeys";
 
 let supabaseClient: SupabaseClient | null = null;
 let initPromise: Promise<SupabaseClient> | null = null;
-
-const STORAGE_URL_KEY = 'supabase_url';
-const STORAGE_ANON_KEY = 'supabase_key';
 
 const setRuntimeEnvFromSupabase = (url: string, anonKey: string) => {
   try {
@@ -18,15 +16,19 @@ const setRuntimeEnvFromSupabase = (url: string, anonKey: string) => {
 
     if (!anyProcess.env.EXPO_PUBLIC_SUPABASE_URL) {
       anyProcess.env.EXPO_PUBLIC_SUPABASE_URL = url;
-      console.log('🌐 Runtime EXPO_PUBLIC_SUPABASE_URL gesetzt (aus Settings).');
+      console.log(
+        "🌐 Runtime EXPO_PUBLIC_SUPABASE_URL gesetzt (aus Settings).",
+      );
     }
 
     if (!anyProcess.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
       anyProcess.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = anonKey;
-      console.log('🔑 Runtime EXPO_PUBLIC_SUPABASE_ANON_KEY gesetzt (aus Settings).');
+      console.log(
+        "🔑 Runtime EXPO_PUBLIC_SUPABASE_ANON_KEY gesetzt (aus Settings).",
+      );
     }
   } catch (e) {
-    console.warn('⚠️ Konnte process.env nicht setzen (nicht kritisch):', e);
+    console.warn("⚠️ Konnte process.env nicht setzen (nicht kritisch):", e);
   }
 };
 
@@ -38,34 +40,38 @@ export const ensureSupabaseClient = async (): Promise<SupabaseClient> => {
 
   // Läuft schon eine Initialisierung?
   if (initPromise) {
-    console.log('⏳ Warte auf laufende Supabase Initialisierung...');
+    console.log("⏳ Warte auf laufende Supabase Initialisierung...");
     return initPromise;
   }
 
-  console.log('Starte Supabase Initialisierung...');
+  console.log("Starte Supabase Initialisierung...");
 
   initPromise = (async () => {
     try {
       // 1) Werte aus deinen App-Settings (AsyncStorage)
-      let supabaseUrl = await AsyncStorage.getItem(STORAGE_URL_KEY);
-      let supabaseAnonKey = await AsyncStorage.getItem(STORAGE_ANON_KEY);
+      let supabaseUrl = await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL);
+      let supabaseAnonKey = await AsyncStorage.getItem(
+        STORAGE_KEYS.SUPABASE_KEY,
+      );
 
       // 2) Fallback: bestehende Runtime-Env
-      if (!supabaseUrl && typeof process !== 'undefined') {
+      if (!supabaseUrl && typeof process !== "undefined") {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         supabaseUrl = (process as any).env?.EXPO_PUBLIC_SUPABASE_URL;
       }
-      if (!supabaseAnonKey && typeof process !== 'undefined') {
+      if (!supabaseAnonKey && typeof process !== "undefined") {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         supabaseAnonKey = (process as any).env?.EXPO_PUBLIC_SUPABASE_ANON_KEY;
       }
 
       if (!supabaseUrl || !supabaseAnonKey) {
-        console.error('❌ Supabase URL oder Anon Key fehlt!');
-        console.log('AsyncStorage URL:', supabaseUrl ? 'OK' : 'FEHLT');
-        console.log('AsyncStorage Key:', supabaseAnonKey ? 'OK' : 'FEHLT');
+        console.error("❌ Supabase URL oder Anon Key fehlt!");
+        console.log("AsyncStorage URL:", supabaseUrl ? "OK" : "FEHLT");
+        console.log("AsyncStorage Key:", supabaseAnonKey ? "OK" : "FEHLT");
         // ✅ FIX: Setze initPromise erst NACH dem Error werfen
-        const error = new Error('Supabase Credentials fehlen. Bitte in Verbindungen eintragen.');
+        const error = new Error(
+          "Supabase Credentials fehlen. Bitte in Verbindungen eintragen.",
+        );
         initPromise = null;
         throw error;
       }
@@ -74,8 +80,8 @@ export const ensureSupabaseClient = async (): Promise<SupabaseClient> => {
       setRuntimeEnvFromSupabase(supabaseUrl, supabaseAnonKey);
 
       console.log(
-        '✅ Erstelle Supabase Client mit URL:',
-        supabaseUrl.substring(0, 30) + '...',
+        "✅ Erstelle Supabase Client mit URL:",
+        supabaseUrl.substring(0, 30) + "...",
       );
 
       supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -105,5 +111,5 @@ export const ensureSupabaseClient = async (): Promise<SupabaseClient> => {
 export const resetSupabaseClient = () => {
   supabaseClient = null;
   initPromise = null;
-  console.log('Supabase Client wurde zurückgesetzt.');
+  console.log("Supabase Client wurde zurückgesetzt.");
 };

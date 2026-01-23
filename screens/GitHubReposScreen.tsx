@@ -23,6 +23,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { STORAGE_KEYS } from "../lib/storageKeys";
 
 import { useGitHub } from "../contexts/GitHubContext";
 import { useProject, getGitHubToken } from "../contexts/ProjectContext";
@@ -51,10 +52,6 @@ import {
   splitFullName,
   isValidRepoName,
 } from "./GitHubReposScreen/utils/repos";
-
-const STORAGE_KEYS = {
-  EAS_PROJECT_ID: "eas_project_id",
-} as const;
 
 type TemplateFile = { path: string; content: string };
 

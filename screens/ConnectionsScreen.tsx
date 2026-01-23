@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { STORAGE_KEYS } from "../lib/storageKeys";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -33,14 +34,6 @@ import {
   saveEdgeAdminKey,
   deleteEdgeAdminKey,
 } from "../contexts/githubService";
-
-const STORAGE_KEYS = {
-  SUPABASE_RAW: "supabase_raw",
-  SUPABASE_URL: "supabase_url",
-  SUPABASE_KEY: "supabase_key",
-  SUPABASE_SERVICE_ROLE_KEY: "supabase_service_role_key",
-  EAS_PROJECT_ID: "eas_project_id",
-} as const;
 
 const deriveSupabaseUrl = (raw: string): { projectId: string; url: string } => {
   const trimmed = (raw || "").trim();

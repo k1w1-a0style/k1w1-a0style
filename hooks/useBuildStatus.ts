@@ -11,6 +11,7 @@ import { CONFIG } from "../config";
 import { BuildStatus, mapBuildStatus } from "../lib/buildStatusMapper";
 import { BuildStatusDetails } from "../lib/supabaseTypes";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { STORAGE_KEYS } from "../lib/storageKeys";
 import { getEdgeAdminKey } from "../contexts/githubService";
 
 const POLL_INTERVAL_MS = 6000; // 6 Sekunden
@@ -18,7 +19,7 @@ const MAX_ERRORS = 5; // Nach 5 Fehlern stoppen
 const REQUEST_TIMEOUT_MS = 10000; // 10 Sekunden Timeout pro Request
 
 async function getSupabaseEdgeUrl(): Promise<string> {
-  const storedUrl = await AsyncStorage.getItem("supabase_url").catch(
+  const storedUrl = await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).catch(
     () => null,
   );
   const runtimeUrl =
