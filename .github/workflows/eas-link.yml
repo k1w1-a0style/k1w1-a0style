@@ -40,6 +40,7 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
+
       - name: Diagnostics (commit + branch + token presence)
         shell: bash
         run: |
@@ -53,13 +54,46 @@ jobs:
             exit 1
           fi
           echo "EXPO_TOKEN present (len=${#EXPO_TOKEN})"
+          echo ""
+          echo "Workflow sanity (first 60 lines):"
+          sed -n '1,60p' .github/workflows/eas-link.yml
 
-          echo "" 
-          echo "Workflow sanity (first 80 lines):"
-          sed -n '1,80p' .github/workflows/eas-link.yml
+      - name: Detect lockfile
+        id: lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
+          elif [ -f npm-shrinkwrap.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
+          elif [ -f pnpm-lock.yaml ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Install deps (frozen)
-        run: npm ci --no-audit --no-fund
+      - name: Install deps (reproducible)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.lockfile.outputs.has_lockfile }}" = "true" ]; then
+            echo "Using npm ci (lockfile: ${{ steps.lockfile.outputs.lockfile_path }})"
+            npm ci --no-audit --no-fund
+          else
+            echo "::warning::No lockfile found in repo. Falling back to npm install (non-reproducible)."
+            npm install --no-audit --no-fund
+            if [ ! -f package-lock.json ]; then
+              npm install --package-lock-only --no-audit --no-fund || true
+            fi
+          fi
 
       - name: Install EAS CLI (pinned)
         shell: bash
@@ -116,7 +150,7 @@ jobs:
             echo "- SHA: ${GITHUB_SHA}"
             echo "- Checked out: $(git rev-parse HEAD)"
             echo "- EAS CLI: $(eas --version 2>/dev/null || echo unknown)"
-            echo "- Has EXPO_TOKEN: $([ -n \"${EXPO_TOKEN:-}\" ] && echo yes || echo no)"
+            echo "- Has EXPO_TOKEN: $([ -n "${EXPO_TOKEN:-}" ] && echo yes || echo no)"
             echo ""
             echo "Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -129,8 +163,8 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add -A
-            git commit -m "chore(eas): link/init projectId"
-            git push
+            git commit -m "chore(eas): link/init projectId" || true
+            git push || true
           else
             echo "No changes to commit."
           fi

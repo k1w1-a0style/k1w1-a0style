@@ -85,7 +85,7 @@ jobs:
             exit 1
           fi
 
-      - name: Install dependencies (frozen if possible)
+      - name: Install deps (reproducible if lockfile exists)
         shell: bash
         run: |
           set -euo pipefail
@@ -93,9 +93,33 @@ jobs:
             echo "Using npm ci (lockfile: ${{ steps.lock.outputs.lockfile_path }})"
             npm ci --no-audit --no-fund
           else
-            echo "::warning::No lockfile found in repo. Falling back to npm install (non-reproducible)."
+            echo "::warning::No lockfile found. Using npm install and generating package-lock.json."
             npm install --no-audit --no-fund
+            if [ ! -f package-lock.json ]; then
+              npm install --package-lock-only --no-audit --no-fund || true
+            fi
           fi
+
+      - name: Persist lockfile if generated
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- package-lock.json package.json 2>/dev/null; then
+            echo "No lockfile/package.json changes to persist."
+            exit 0
+          fi
+
+          BRANCH="$(git symbolic-ref --short -q HEAD || true)"
+          if [ -z "$BRANCH" ]; then
+            echo "::warning::Detached HEAD (ref='${{ inputs.ref }}') -> not pushing lockfile changes."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json package.json || true
+          git commit -m "chore(ci): persist lockfile [skip ci]" || true
+          git push origin "$BRANCH" || true
 
       - name: Install EAS CLI (pinned)
         shell: bash
@@ -125,13 +149,12 @@ jobs:
           echo "artifact_ext=${EXT}" >> "${GITHUB_OUTPUT}"
 
           echo "🚀 Starting EAS build (platform=android, profile=${PROFILE}) with --wait..."
-
-          BUILD_OUTPUT="$(eas build             --platform android             --profile "${PROFILE}"             --non-interactive             --wait             2>&1)" || {
-              CODE=$?
-              echo "${BUILD_OUTPUT}"
-              echo "::error::EAS build failed (exit ${CODE})"
-              exit "${CODE}"
-            }
+          BUILD_OUTPUT="$(eas build --platform android --profile "${PROFILE}" --non-interactive --wait 2>&1)" || {
+            CODE=$?
+            echo "${BUILD_OUTPUT}"
+            echo "::error::EAS build failed (exit ${CODE})"
+            exit "${CODE}"
+          }
 
           echo "${BUILD_OUTPUT}"
 
@@ -150,10 +173,10 @@ jobs:
           set -euo pipefail
           mkdir -p build
           OUT="build/k1w1-${{ inputs.profile }}.${{ steps.eas.outputs.artifact_ext }}"
-          eas build:download             --id "${{ steps.eas.outputs.build_id }}"             --output "${OUT}" || {
-              echo "::warning::Failed to download artifact"
-              exit 0
-            }
+          eas build:download --id "${{ steps.eas.outputs.build_id }}" --output "${OUT}" || {
+            echo "::warning::Failed to download artifact"
+            exit 0
+          }
           ls -lah build || true
 
       - name: Upload Android Artifact
@@ -165,3 +188,20 @@ jobs:
           path: build/*
           retention-days: 30
           if-no-files-found: warn
+
+      - name: Build Summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Release Build Summary"
+            echo ""
+            echo "- Ref: ${{ inputs.ref }}"
+            echo "- Profile: ${{ inputs.profile }}"
+            echo "- EAS CLI: $(eas --version 2>/dev/null || echo unknown)"
+            echo "- Build ID: ${{ steps.eas.outputs.build_id }}"
+            echo "- Build URL: ${{ steps.eas.outputs.build_url }}"
+            echo ""
+            echo "Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } >> "$GITHUB_STEP_SUMMARY"
