@@ -55,7 +55,7 @@ export function requireAdminKey(req: Request): Response | null {
   if (!expected) return null; // rollout-mode: Secret not set => do not enforce
 
   const provided = getProvidedKey(req);
-  if (!provided || provided !== expected) {
+  if (!provided || !timingSafeEqual(provided, expected)) {
     return json(401, {
       ok: false,
       error: "Unauthorized",

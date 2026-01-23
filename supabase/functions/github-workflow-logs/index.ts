@@ -1,19 +1,22 @@
+import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
+import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
+import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 import {
   parseJsonBody,
-  serve,
-} from "https://deno.land/std@0.208.0/http/server.ts";
-import { parseJsonBody, corsHeaders, handleCors } from "../_shared/cors.ts";
-import { parseJsonBody, requireAdminKey, rateLimit } from "../_shared/auth.ts";
-import { parseJsonBody, unzipSync, strFromU8 } from "npm:fflate@0.8.2";
-import { parseJsonBody, githubHeaders } from "../_shared/github.ts";
+  validateGitHubRepo,
+  validateRunId,
+} from "../_shared/validation.ts";
+import { githubHeaders } from "../_shared/github.ts";
+import { unzipSync, strFromU8 } from "npm:fflate@0.8.2";
 
 const MAX_LOG_ZIP_BYTES = 15 * 1024 * 1024; // 15 MiB (compressed)
 const MAX_LOG_UNZIPPED_BYTES = 50 * 1024 * 1024; // 50 MiB (uncompressed)
 const MAX_LOG_FILES = 2000;
 
 /**
- * Fetches GitHub Actions workflow logs
- * Returns parsed logs with timestamps and levels
+ * Fetches GitHub Actions workflow logs.
+ * - Downloads the log ZIP from GitHub, unzips with strict limits
+ * - Returns structured log chunks for the app UI
  */
 serve(async (req) => {
   const corsResponse = handleCors(req);
@@ -26,256 +29,123 @@ serve(async (req) => {
   if (rl) return rl;
 
   try {
-    const body = await req.json().catch(() => null);
-
-    if (!body || !body.githubRepo || !body.runId) {
-      return new Response(
-        JSON.stringify({
-          error: "Missing 'githubRepo' or 'runId' in request body",
-        }),
-        { headers: corsHeaders, status: 400 },
-      );
+    const body = await parseJsonBody(req, 20 * 1024); // 20 KiB
+    if (!body || typeof body !== "object") {
+      return errorResponse("Invalid JSON body", req, 400, {
+        error: "Body must be an object",
+      });
     }
+    const obj = body as Record<string, unknown>;
 
-    const envToken = Deno.env.get("GITHUB_TOKEN");
-    const { githubRepo, runId, githubToken, mode } = body;
-    const GITHUB_TOKEN = githubToken || envToken;
+    const repoV = validateGitHubRepo(obj.githubRepo);
+    const runV = validateRunId(obj.runId);
 
-    if (!GITHUB_TOKEN) {
-      return new Response(JSON.stringify({ error: "Missing GitHub token" }), {
-        headers: corsHeaders,
-        status: 400,
+    if (!repoV.valid || !runV.valid || !runV.value) {
+      return errorResponse("Validation failed", req, 400, {
+        errors: [repoV.error, runV.error].filter(Boolean),
       });
     }
 
-    // Get workflow run details
+    const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN");
+    if (!GITHUB_TOKEN) {
+      return errorResponse("Missing required environment variables", req, 500, {
+        missing: { GITHUB_TOKEN: false },
+      });
+    }
+
+    const githubRepo = repoV.value!;
+    const runId = runV.value!;
+
+    // 1) Fetch workflow run details to get logs URL and metadata
     const runUrl = `https://api.github.com/repos/${githubRepo}/actions/runs/${runId}`;
     const runResponse = await fetch(runUrl, {
       headers: githubHeaders(GITHUB_TOKEN),
     });
 
     if (!runResponse.ok) {
-      const errorText = await runResponse.text();
-      return new Response(
-        JSON.stringify({
-          error: "Failed to fetch workflow run",
+      const errorText = await runResponse.text().catch(() => "");
+      return errorResponse(
+        "Failed to fetch workflow run",
+        req,
+        runResponse.status,
+        {
           status: runResponse.status,
-          details: errorText,
-        }),
-        { headers: corsHeaders, status: runResponse.status },
+          body: errorText,
+        },
       );
     }
 
     const runData = await runResponse.json();
+    const logsUrl = runData?.logs_url;
+    if (!logsUrl || typeof logsUrl !== "string") {
+      return errorResponse("Workflow run logs_url missing", req, 500, {
+        runId,
+      });
+    }
 
-    // Get jobs for this run
-    const jobsUrl = `https://api.github.com/repos/${githubRepo}/actions/runs/${runId}/jobs`;
-    const jobsResponse = await fetch(jobsUrl, {
-      headers: githubHeaders(GITHUB_TOKEN),
+    // 2) Download ZIP
+    const logsResponse = await fetch(logsUrl, {
+      headers: githubHeaders(GITHUB_TOKEN, {
+        Accept: "application/vnd.github+json",
+      }),
     });
 
-    if (!jobsResponse.ok) {
-      return new Response(JSON.stringify({ error: "Failed to fetch jobs" }), {
-        headers: corsHeaders,
-        status: jobsResponse.status,
-      });
-    }
-
-    const jobsData = await jobsResponse.json();
-
-    // If requested, fetch the real CLI log archive (zip) for this workflow run
-    const wantRaw = (mode || "raw") === "raw";
-    if (wantRaw) {
-      const logsUrl = `https://api.github.com/repos/${githubRepo}/actions/runs/${runId}/logs`;
-      const zipResp = await fetch(logsUrl, {
-        headers: githubHeaders(GITHUB_TOKEN),
-      });
-
-      if (zipResp.ok) {
-        const zipBuf = await zipResp.arrayBuffer();
-        if (zipBuf.byteLength > MAX_LOG_ZIP_BYTES) {
-          return new Response(
-            JSON.stringify({
-              error: `Logs zip too large (${zipBuf.byteLength} bytes)`,
-            }),
-            {
-              status: 413,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            },
-          );
-        }
-        const buf = new Uint8Array(zipBuf);
-        try {
-          const files = unzipSync(buf);
-
-          const names = Object.keys(files);
-          if (names.length > MAX_LOG_FILES) {
-            return new Response(
-              JSON.stringify({
-                error: `Too many files in logs zip (${names.length})`,
-              }),
-              {
-                status: 413,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-              },
-            );
-          }
-
-          let totalUnzipped = 0;
-          for (const name of names) {
-            totalUnzipped += files[name].length;
-            if (totalUnzipped > MAX_LOG_UNZIPPED_BYTES) {
-              return new Response(
-                JSON.stringify({
-                  error: `Logs too large after unzip (> ${MAX_LOG_UNZIPPED_BYTES} bytes)`,
-                }),
-                {
-                  status: 413,
-                  headers: {
-                    ...corsHeaders,
-                    "Content-Type": "application/json",
-                  },
-                },
-              );
-            }
-          }
-
-          const names = Object.keys(files)
-            .filter((n) => n.toLowerCase().endsWith(".txt"))
-            .sort((a, b) => a.localeCompare(b));
-
-          // Concatenate all text files into a single raw log stream
-          let combined = "";
-          for (const name of names) {
-            const text = strFromU8(files[name]);
-            combined += `\n### ${name}\n` + text + "\n";
-          }
-
-          // Safety cap: keep only the last ~250k chars (mobile + edge limits)
-          const MAX_CHARS = 250_000;
-          if (combined.length > MAX_CHARS) {
-            combined = combined.slice(combined.length - MAX_CHARS);
-          }
-
-          const lines = combined
-            .split(/\r?\n/)
-            .filter((l) => l.trim().length > 0);
-          const logs = lines.map((line) => {
-            const lower = line.toLowerCase();
-            const level =
-              lower.includes("##[error]") ||
-              lower.includes("error") ||
-              lower.includes("failed") ||
-              lower.includes("exception")
-                ? "error"
-                : "raw";
-            return {
-              timestamp: "",
-              message: line,
-              level,
-              step: undefined,
-            };
-          });
-
-          return new Response(
-            JSON.stringify({
-              logs,
-              workflowRun: runData,
-              mode: "raw",
-              jobs: jobsData.jobs || [],
-            }),
-            {
-              headers: corsHeaders,
-              status: 200,
-            },
-          );
-        } catch (e) {
-          // fall through to summary logs if unzip fails
-          console.error("Failed to unzip GitHub logs:", e);
-        }
-      } else {
-        const t = await zipResp.text().catch(() => "");
-        console.error("GitHub logs zip fetch failed:", zipResp.status, t);
-      }
-    }
-
-    // Parse logs from all jobs
-    const logs: any[] = [];
-
-    for (const job of jobsData.jobs || []) {
-      // Add job start entry
-      logs.push({
-        timestamp: job.started_at || job.created_at,
-        message: `▶️ Job started: ${job.name}`,
-        level: "info",
-        step: job.name,
-      });
-
-      // Add step entries
-      for (const step of job.steps || []) {
-        const level =
-          step.conclusion === "failure"
-            ? "error"
-            : step.conclusion === "success"
-              ? "info"
-              : "info";
-
-        const icon =
-          step.conclusion === "failure"
-            ? "❌"
-            : step.conclusion === "success"
-              ? "✅"
-              : step.status === "in_progress"
-                ? "⏳"
-                : "⏸";
-
-        logs.push({
-          timestamp: step.started_at || new Date().toISOString(),
-          message: `${icon} ${step.name}: ${step.conclusion || step.status}`,
-          level,
-          step: step.name,
-        });
-      }
-
-      // Add job completion entry
-      if (job.conclusion) {
-        const icon = job.conclusion === "success" ? "✅" : "❌";
-        logs.push({
-          timestamp: job.completed_at || new Date().toISOString(),
-          message: `${icon} Job ${job.conclusion}: ${job.name}`,
-          level: job.conclusion === "failure" ? "error" : "info",
-          step: job.name,
-        });
-      }
-    }
-
-    // Sort logs by timestamp
-    logs.sort(
-      (a, b) =>
-        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-    );
-
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        logs,
-        workflowRun: {
-          id: runData.id,
-          status: runData.status,
-          conclusion: runData.conclusion,
-          html_url: runData.html_url,
-          run_number: runData.run_number,
-          created_at: runData.created_at,
-          updated_at: runData.updated_at,
+    if (!logsResponse.ok) {
+      const errorText = await logsResponse.text().catch(() => "");
+      return errorResponse(
+        "Failed to fetch logs ZIP",
+        req,
+        logsResponse.status,
+        {
+          status: logsResponse.status,
+          body: errorText,
         },
-      }),
+      );
+    }
+
+    const buf = new Uint8Array(await logsResponse.arrayBuffer());
+    if (buf.byteLength > MAX_LOG_ZIP_BYTES) {
+      return errorResponse("Logs ZIP too large", req, 413, {
+        maxBytes: MAX_LOG_ZIP_BYTES,
+        gotBytes: buf.byteLength,
+      });
+    }
+
+    // 3) Unzip with limits
+    const files = unzipSync(buf, {
+      filter: (file) =>
+        file.name.endsWith(".txt") || file.name.endsWith(".log"),
+    });
+
+    const outFiles: { name: string; text: string }[] = [];
+    let totalUnzipped = 0;
+    let count = 0;
+
+    for (const [name, data] of Object.entries(files)) {
+      count++;
+      if (count > MAX_LOG_FILES) break;
+
+      const bytes = (data as Uint8Array).byteLength;
+      totalUnzipped += bytes;
+      if (totalUnzipped > MAX_LOG_UNZIPPED_BYTES) break;
+
+      outFiles.push({ name, text: strFromU8(data as Uint8Array) });
+    }
+
+    return jsonResponse(
       {
-        status: 200,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
+        ok: true,
+        repo: githubRepo,
+        runId,
+        meta: {
+          zipBytes: buf.byteLength,
+          unzippedBytes: totalUnzipped,
+          files: outFiles.length,
         },
+        files: outFiles,
       },
+      req,
+      200,
     );
   } catch (err: any) {
     console.error(
@@ -283,18 +153,12 @@ serve(async (req) => {
       err?.message ?? err,
       err?.stack,
     );
-
-    return new Response(
-      JSON.stringify({
-        ok: false,
-        error: err?.message || "Unknown error",
-      }),
+    return errorResponse(
+      "Unhandled exception in github-workflow-logs",
+      req,
+      500,
       {
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
+        message: err?.message || "Unknown error",
       },
     );
   }

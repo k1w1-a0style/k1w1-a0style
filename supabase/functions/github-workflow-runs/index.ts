@@ -1,13 +1,16 @@
+import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
+import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
+import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 import {
   parseJsonBody,
-  serve,
-} from "https://deno.land/std@0.208.0/http/server.ts";
-import { parseJsonBody, corsHeaders, handleCors } from "../_shared/cors.ts";
-import { parseJsonBody, requireAdminKey, rateLimit } from "../_shared/auth.ts";
-import { parseJsonBody, githubHeaders } from "../_shared/github.ts";
+  validateGitHubRepo,
+  sanitizeString,
+} from "../_shared/validation.ts";
+import { githubHeaders } from "../_shared/github.ts";
 
 /**
- * Fetches recent GitHub Actions workflow runs for a repository
+ * Fetches recent GitHub Actions workflow runs for a repository.
+ * Intended for the in-app logs/diagnostics viewer.
  */
 serve(async (req) => {
   const corsResponse = handleCors(req);
@@ -20,97 +23,76 @@ serve(async (req) => {
   if (rl) return rl;
 
   try {
-    const body = await req.json().catch(() => null);
-
-    if (!body || !body.githubRepo) {
-      return new Response(
-        JSON.stringify({
-          error: "Missing 'githubRepo' in request body",
-        }),
-        { headers: corsHeaders, status: 400 },
-      );
+    const body = await parseJsonBody(req, 30 * 1024); // 30 KiB
+    if (!body || typeof body !== "object") {
+      return errorResponse("Invalid JSON body", req, 400, {
+        error: "Body must be an object",
+      });
     }
-    const { githubRepo } = body;
-    const githubToken = String(body.githubToken || "").trim();
+    const obj = body as Record<string, unknown>;
 
-    const token = githubToken || Deno.env.get("GITHUB_TOKEN") || "";
-    if (!token) {
-      return new Response(
-        JSON.stringify({
-          error: "Missing GITHUB_TOKEN (set secret or provide githubToken)",
-        }),
-        { headers: corsHeaders, status: 500 },
-      );
+    const repoV = validateGitHubRepo(obj.githubRepo);
+    if (!repoV.valid) {
+      return errorResponse("Validation failed", req, 400, {
+        error: repoV.error,
+      });
     }
 
-    const perPage = body.perPage || 10;
-
-    // Fetch workflow runs
-    const runsUrl = `https://api.github.com/repos/${githubRepo}/actions/runs?per_page=${perPage}`;
-    const runsResponse = await fetch(runsUrl, {
-      headers: githubHeaders(token),
-    });
-
-    if (!runsResponse.ok) {
-      const errorText = await runsResponse.text();
-      return new Response(
-        JSON.stringify({
-          error: "Failed to fetch workflow runs",
-          status: runsResponse.status,
-          details: errorText,
-        }),
-        { headers: corsHeaders, status: runsResponse.status },
-      );
+    const perPageV = sanitizeString(obj.perPage, 4);
+    let perPage = 20;
+    if (perPageV.valid && perPageV.value) {
+      const n = Number.parseInt(perPageV.value, 10);
+      if (Number.isFinite(n) && n >= 1 && n <= 50) perPage = n;
     }
 
-    const runsData = await runsResponse.json();
+    const workflowV = sanitizeString(obj.workflowFile, 200);
+    const workflowFile = workflowV.valid
+      ? workflowV.value || undefined
+      : undefined;
 
-    // Map runs to simplified format
-    const runs = (runsData.workflow_runs || []).map((run: any) => ({
-      id: run.id,
-      status: run.status,
-      conclusion: run.conclusion,
-      html_url: run.html_url,
-      run_number: run.run_number,
-      created_at: run.created_at,
-      updated_at: run.updated_at,
-      head_branch: run.head_branch,
-      event: run.event,
-      workflow_name: run.name,
-    }));
+    const branchV = sanitizeString(obj.branch, 200);
+    const branch = branchV.valid ? branchV.value || undefined : undefined;
 
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        runs,
-        total_count: runsData.total_count,
-      }),
-      {
-        status: 200,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      },
-    );
+    const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN");
+    if (!GITHUB_TOKEN) {
+      return errorResponse("Missing required environment variables", req, 500, {
+        missing: { GITHUB_TOKEN: false },
+      });
+    }
+
+    let url = `https://api.github.com/repos/${repoV.value}/actions/runs?per_page=${perPage}`;
+    // Optional filters
+    if (branch) url += `&branch=${encodeURIComponent(branch)}`;
+
+    // If workflowFile provided, use workflow runs endpoint for that workflow file/name/id
+    if (workflowFile) {
+      url = `https://api.github.com/repos/${repoV.value}/actions/workflows/${workflowFile}/runs?per_page=${perPage}`;
+      if (branch) url += `&branch=${encodeURIComponent(branch)}`;
+    }
+
+    const res = await fetch(url, { headers: githubHeaders(GITHUB_TOKEN) });
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => "");
+      return errorResponse("GitHub runs fetch failed", req, res.status, {
+        status: res.status,
+        body: errorText,
+      });
+    }
+
+    const data = await res.json().catch(() => null);
+    return jsonResponse({ ok: true, data }, req, 200);
   } catch (err: any) {
     console.error(
       "❌ github-workflow-runs error",
       err?.message ?? err,
       err?.stack,
     );
-
-    return new Response(
-      JSON.stringify({
-        ok: false,
-        error: err?.message || "Unknown error",
-      }),
+    return errorResponse(
+      "Unhandled exception in github-workflow-runs",
+      req,
+      500,
       {
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
+        message: err?.message || "Unknown error",
       },
     );
   }

@@ -270,6 +270,34 @@ jobs:
             fi
           fi
 
+      - name: Update Supabase status (building)
+        if: env.has_job_id == 'true'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          python - <<'PY' > payload.json
+          import json, os
+          profile=os.environ.get("PROFILE") or "preview"
+          run_id=os.environ.get("GITHUB_RUN_ID")
+          ts=os.environ.get("TS")
+          print(json.dumps({
+            "status":"building",
+            "build_profile":profile,
+            "github_run_id":int(run_id) if run_id and run_id.isdigit() else None,
+            "started_at":ts,
+          }, separators=(",",":")))
+          PY
+          curl --fail-with-body --silent --show-error \
+            -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=representation" \
+            --data-binary @payload.json \
+          || echo "::warning::Failed to update Supabase status (building)"
+
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -406,3 +434,65 @@ jobs:
 
           Artifacts: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EOF
+      - name: Update Supabase status (success)
+        if: env.has_job_id == 'true' && success()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          BUILD_ID="${{ steps.eas.outputs.build_id }}"
+          BUILD_URL="${{ steps.eas.outputs.build_url }}"
+          python - <<'PY' > payload.json
+          import json, os
+          run_id=os.environ.get("GITHUB_RUN_ID")
+          build_id=os.environ.get("BUILD_ID")
+          build_url=os.environ.get("BUILD_URL")
+          ts=os.environ.get("TS")
+          out={
+            "status":"completed",
+            "github_run_id":int(run_id) if run_id and run_id.isdigit() else None,
+            "eas_build_id":build_id if build_id and build_id!="unknown" else None,
+            "build_url":build_url if build_url else None,
+            "completed_at":ts,
+          }
+          print(json.dumps(out, separators=(",",":")))
+          PY
+          curl --fail-with-body --silent --show-error \
+            -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=representation" \
+            --data-binary @payload.json \
+          || echo "::warning::Failed to update Supabase status (success)"
+
+      - name: Update Supabase status (failed)
+        if: env.has_job_id == 'true' && failure()
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          ERR="Workflow failed"
+          python - <<'PY' > payload.json
+          import json, os
+          run_id=os.environ.get("GITHUB_RUN_ID")
+          err=os.environ.get("ERR") or "error"
+          ts=os.environ.get("TS")
+          out={
+            "status":"error",
+            "github_run_id":int(run_id) if run_id and run_id.isdigit() else None,
+            "error_message":err,
+            "completed_at":ts,
+          }
+          print(json.dumps(out, separators=(",",":")))
+          PY
+          curl --fail-with-body --silent --show-error \
+            -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=representation" \
+            --data-binary @payload.json \
+          || echo "::warning::Failed to update Supabase status (failed)"

@@ -1,14 +1,21 @@
+import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
+import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
+import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 import {
   parseJsonBody,
-  serve,
-} from "https://deno.land/std@0.208.0/http/server.ts";
-import { parseJsonBody, corsHeaders, handleCors } from "../_shared/cors.ts";
-import { parseJsonBody, requireAdminKey, rateLimit } from "../_shared/auth.ts";
-import { parseJsonBody, githubHeaders } from "../_shared/github.ts";
+  validateGitHubRepo,
+  sanitizeString,
+} from "../_shared/validation.ts";
+import { githubHeaders } from "../_shared/github.ts";
 
 /**
- * Triggers a GitHub Actions workflow via workflow_dispatch
- * Allows manual triggering of workflows from the app
+ * Triggers a GitHub Actions workflow via workflow_dispatch.
+ * Used by the app to trigger workflows without manual UI interaction.
+ *
+ * Security:
+ * - Admin key gate (if configured)
+ * - Rate limit
+ * - Strict input validation and size limits
  */
 serve(async (req) => {
   const corsResponse = handleCors(req);
@@ -21,69 +28,101 @@ serve(async (req) => {
   if (rl) return rl;
 
   try {
-    const body = await req.json().catch(() => null);
-
-    if (!body || !body.githubRepo || !body.workflowId) {
-      return new Response(
-        JSON.stringify({
-          error: "Missing 'githubRepo' or 'workflowId' in request body",
-        }),
-        { headers: corsHeaders, status: 400 },
-      );
-    }
-    const githubToken = String(body.githubToken || "").trim();
-    const token = githubToken || Deno.env.get("GITHUB_TOKEN") || "";
-    if (!token) {
-      return new Response(
-        JSON.stringify({
-          error: "Missing GITHUB_TOKEN (set secret or provide githubToken)",
-        }),
-        { headers: corsHeaders, status: 500 },
-      );
+    const body = await parseJsonBody(req, 40 * 1024); // 40 KiB
+    if (!body || typeof body !== "object") {
+      return errorResponse("Invalid JSON body", req, 400, {
+        error: "Body must be an object",
+      });
     }
 
-    const { githubRepo, workflowId, ref = "main", inputs = {} } = body;
+    const obj = body as Record<string, unknown>;
 
-    // Trigger workflow dispatch
-    const dispatchUrl = `https://api.github.com/repos/${githubRepo}/actions/workflows/${workflowId}/dispatches`;
+    const repoV = validateGitHubRepo(obj.githubRepo);
+    if (!repoV.valid) {
+      return errorResponse("Validation failed", req, 400, {
+        error: repoV.error,
+      });
+    }
 
-    const dispatchResponse = await fetch(dispatchUrl, {
+    const workflowV = sanitizeString(obj.workflowFile, 200);
+    if (!workflowV.valid) {
+      return errorResponse("Validation failed", req, 400, {
+        error: workflowV.error,
+      });
+    }
+
+    // Allow explicit ref (branch/tag/SHA). Optional.
+    const refV = sanitizeString(obj.ref, 200);
+    const ref = refV.valid ? refV.value || undefined : undefined;
+
+    // Optional inputs map (string->string). Limit size & keys to avoid abuse.
+    let inputs: Record<string, string> | undefined;
+    if (obj.inputs !== undefined && obj.inputs !== null) {
+      if (typeof obj.inputs !== "object" || Array.isArray(obj.inputs)) {
+        return errorResponse("Validation failed", req, 400, {
+          error: "inputs must be an object",
+        });
+      }
+      const inObj = obj.inputs as Record<string, unknown>;
+      const keys = Object.keys(inObj);
+      if (keys.length > 50) {
+        return errorResponse("Validation failed", req, 400, {
+          error: "inputs too large (max 50 keys)",
+        });
+      }
+      inputs = {};
+      for (const k of keys) {
+        const kV = sanitizeString(k, 64);
+        if (!kV.valid || !kV.value) {
+          return errorResponse("Validation failed", req, 400, {
+            error: "invalid input key",
+          });
+        }
+        const vV = sanitizeString(inObj[k], 400);
+        if (!vV.valid) {
+          return errorResponse("Validation failed", req, 400, {
+            error: `invalid input value for ${k}`,
+          });
+        }
+        inputs[kV.value] = vV.value || "";
+      }
+    }
+
+    const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN");
+    if (!GITHUB_TOKEN) {
+      return errorResponse("Missing required environment variables", req, 500, {
+        missing: { GITHUB_TOKEN: false },
+      });
+    }
+
+    const dispatchUrl = `https://api.github.com/repos/${repoV.value}/actions/workflows/${workflowV.value}/dispatches`;
+    const payload: Record<string, unknown> = {};
+    if (ref) payload.ref = ref;
+    if (inputs) payload.inputs = inputs;
+
+    const res = await fetch(dispatchUrl, {
       method: "POST",
-      headers: githubHeaders(token),
-      body: JSON.stringify({
-        ref,
-        inputs,
-      }),
+      headers: githubHeaders(GITHUB_TOKEN),
+      body: JSON.stringify(payload),
     });
 
-    if (!dispatchResponse.ok) {
-      const errorText = await dispatchResponse.text();
-      return new Response(
-        JSON.stringify({
-          error: "Failed to trigger workflow",
-          status: dispatchResponse.status,
-          details: errorText,
-        }),
-        { headers: corsHeaders, status: dispatchResponse.status },
-      );
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => "");
+      return errorResponse("GitHub workflow dispatch failed", req, res.status, {
+        status: res.status,
+        body: errorText,
+      });
     }
 
-    // GitHub returns 204 No Content on success
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        message: "Workflow triggered successfully",
-        githubRepo,
-        workflowId,
-        ref,
-      }),
+    return jsonResponse(
       {
-        status: 200,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
+        ok: true,
+        githubRepo: repoV.value,
+        workflowFile: workflowV.value,
+        ref: ref ?? null,
       },
+      req,
+      200,
     );
   } catch (err: any) {
     console.error(
@@ -91,18 +130,12 @@ serve(async (req) => {
       err?.message ?? err,
       err?.stack,
     );
-
-    return new Response(
-      JSON.stringify({
-        ok: false,
-        error: err?.message || "Unknown error",
-      }),
+    return errorResponse(
+      "Unhandled exception in github-workflow-dispatch",
+      req,
+      500,
       {
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
+        message: err?.message || "Unknown error",
       },
     );
   }

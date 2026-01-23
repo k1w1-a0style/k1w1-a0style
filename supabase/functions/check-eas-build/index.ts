@@ -1,7 +1,10 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
-import { validateCheckBuildRequest } from "../_shared/validation.ts";
+import {
+  validateCheckBuildRequest,
+  parseJsonBody,
+} from "../_shared/validation.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 import { githubHeaders } from "../_shared/github.ts";
 
@@ -23,7 +26,7 @@ serve(async (req) => {
   if (rl) return rl;
 
   try {
-    const body = await req.json().catch(() => null);
+    const body = await parseJsonBody(req, 20 * 1024);
 
     // ✅ SEC-011: Strikte Input-Validierung
     const validation = validateCheckBuildRequest(body);
