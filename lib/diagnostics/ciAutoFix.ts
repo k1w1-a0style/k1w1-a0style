@@ -904,11 +904,10 @@ jobs:
           fi`,
 };
 
-export const REQUIRED_SECRETS = [
-  "EXPO_TOKEN",
-  "SUPABASE_URL",
-  "SUPABASE_SERVICE_ROLE_KEY",
-];
+export const REQUIRED_SECRETS = ["EXPO_TOKEN"];
+
+// Optional (used only for in-app status updates if you pass a job_id)
+// NOTE: Do NOT require these; service-role keys should not be distributed broadly.
 
 export async function checkRepoSecrets(
   owner: string,
@@ -970,6 +969,84 @@ export async function autoFixCIWorkflows(params: {
       changed: true,
       message: "Updated",
     });
+  }
+
+  // Ensure repo ignores patch ZIPs produced by this builder (avoid accidentally committing patch bundles)
+  // We keep this narrow (k1w1-* + *_patch*) and do NOT ignore all *.zip to avoid breaking repos that legitimately version zip assets.
+  const giPath = ".gitignore";
+  const giMarker = "# --- k1w1 apk-builder: ignore patch zips ---";
+  const giBlock =
+    giMarker +
+    "\n" +
+    [
+      "k1w1-*.zip",
+      "*_patch*.zip",
+      "project_src_*.zip",
+      "project_dump_*.zip",
+      "k1w1-*-patch.zip",
+      "k1w1-*-hotfix*.zip",
+    ].join("\n") +
+    "\n";
+
+  try {
+    const existing = await getRepoFileText({
+      owner,
+      repo,
+      path: giPath,
+      ref: branch,
+    });
+    if (!existing.includes(giMarker)) {
+      const next = (existing.trimEnd() + "\n\n" + giBlock).replace(
+        /\r\n/g,
+        "\n",
+      );
+      await createOrUpdateFile(
+        owner,
+        repo,
+        giPath,
+        next,
+        "chore(ci): ignore patch zips",
+        branch,
+      );
+      results.push({
+        path: giPath,
+        changed: true,
+        message: "Updated .gitignore to ignore patch ZIPs",
+      });
+    } else {
+      results.push({
+        path: giPath,
+        changed: false,
+        message: ".gitignore already ignores patch ZIPs",
+      });
+    }
+  } catch (e) {
+    const msg = String((e as any)?.message || e || "");
+    const looksMissing =
+      msg.includes("404") || msg.toLowerCase().includes("not found");
+    if (!looksMissing) {
+      results.push({
+        path: giPath,
+        changed: false,
+        message: `Skipped .gitignore update (could not read existing file): ${msg.slice(0, 120)}`,
+      });
+    } else {
+      // .gitignore missing -> create a minimal one with the ignore block
+      const next = (giBlock + "\n").replace(/\r\n/g, "\n");
+      await createOrUpdateFile(
+        owner,
+        repo,
+        giPath,
+        next,
+        "chore(ci): add .gitignore for patch zips",
+        branch,
+      );
+      results.push({
+        path: giPath,
+        changed: true,
+        message: "Created .gitignore to ignore patch ZIPs",
+      });
+    }
   }
 
   return results;
