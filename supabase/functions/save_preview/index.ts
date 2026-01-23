@@ -1,6 +1,7 @@
 import { serve } from "std/http/server.ts";
 import { createClient } from "@supabase/supabase-js";
-import { rateLimit } from "../_shared/auth.ts";
+import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { parseJsonBody } from "../_shared/validation.ts";
 
 type SnackFiles = Record<string, { type?: string; contents: string }>;
 type Payload = {
@@ -102,6 +103,12 @@ serve(async (req) => {
     );
   }
 
+  const auth = requireAdminKey(req);
+  if (auth) return auth;
+
+  const rl = rateLimit(req, "save_preview");
+  if (rl) return rl;
+
   const PREVIEW_SUPABASE_URL = Deno.env.get("PREVIEW_SUPABASE_URL") ?? "";
   const PREVIEW_SERVICE_ROLE_KEY =
     Deno.env.get("PREVIEW_SERVICE_ROLE_KEY") ?? "";
@@ -118,14 +125,12 @@ serve(async (req) => {
   }
 
   let body: Payload;
-  try {
-    body = (await req.json()) as Payload;
-  } catch {
-    return json(
-      { ok: false, error: "Invalid JSON body" },
-      { status: 400, headers: cors },
-    );
+  const parsed = await parseJsonBody(req, 2_000_000);
+  if (!parsed.ok) {
+    const status = parsed.error.toLowerCase().includes("too large") ? 413 : 400;
+    return json({ ok: false, error: parsed.error }, { status, headers: cors });
   }
+  body = parsed.body as Payload;
 
   if (
     !body?.files ||

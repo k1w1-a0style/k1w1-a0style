@@ -54,6 +54,8 @@ export interface ProjectData {
   linkedRepo?: string | null;
   /** Verknüpfter Branch (z.B. "main") */
   linkedBranch?: string | null;
+  /** Bevorzugtes EAS Build-Profil (persistiert) */
+  preferredBuildProfile?: "development" | "preview" | "production" | null;
 }
 
 export interface ProjectContextProps {
@@ -124,4 +126,7 @@ export interface ProjectContextProps {
 
   /** Verknüpft Repo+Branch mit dem Projekt (persistent) */
   setLinkedRepo: (repo: string | null, branch?: string | null) => Promise<void>;
+  setPreferredBuildProfile?: (
+    profile: "development" | "preview" | "production",
+  ) => Promise<void>;
 }

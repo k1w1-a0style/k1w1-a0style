@@ -400,6 +400,17 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     [updateProject],
   );
 
+  const setPreferredBuildProfile = useCallback(
+    async (profile: "development" | "preview" | "production") => {
+      await updateProject((prev) => ({
+        ...prev,
+        preferredBuildProfile: profile,
+      }));
+      console.log(`⚙️ Preferred Build-Profile gespeichert: ${profile}`);
+    },
+    [updateProject],
+  );
+
   useEffect(() => {
     const initializeProject = async () => {
       try {
@@ -761,6 +772,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       return null;
     },
     setLinkedRepo,
+    setPreferredBuildProfile,
   };
 
   return (

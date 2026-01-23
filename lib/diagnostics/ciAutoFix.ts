@@ -42,7 +42,7 @@ on:
       ref:
         description: "Branch/Ref to build (e.g. main, dev, feature-x)"
         required: false
-        default: "main"
+        default: "work"
       profile:
         description: "EAS build profile (development|preview|production)"
         required: false
@@ -449,7 +449,7 @@ on:
       ref:
         description: "Branch/Tag/SHA to build"
         required: false
-        default: "main"
+        default: "work"
       profile:
         description: "EAS build profile (development|preview|production)"
         required: false
@@ -862,7 +862,7 @@ on:
       ref:
         description: "Branch/Tag/SHA (optional)"
         required: false
-        default: "main"
+        default: "work"
 
 permissions:
   contents: write
@@ -1079,7 +1079,7 @@ on:
       ref:
         description: "Branch/Tag/SHA (optional)"
         required: false
-        default: "main"
+        default: "work"
       eas_project_id:
         description: "Existing EAS Project ID (optional)"
         required: false

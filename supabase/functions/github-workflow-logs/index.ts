@@ -11,6 +11,7 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { parseJsonBody } from "../_shared/validation.ts";
 import { githubHeaders } from "../_shared/github.ts";
 import { unzipSync, strFromU8 } from "npm:fflate@0.8.2";
 
@@ -25,13 +26,6 @@ function jsonOk(body: unknown, status = 200) {
 
 function jsonErr(error: string, details?: unknown, status = 400) {
   return jsonOk({ ok: false, error, details }, status);
-}
-
-function safeJson(req: Request): Promise<Json> {
-  return req
-    .json()
-    .then((v) => (v && typeof v === "object" ? (v as Json) : {}))
-    .catch(() => ({}));
 }
 
 function asString(v: unknown): string | undefined {
@@ -91,7 +85,51 @@ async function fetchLogsZip(
     const body = await r2.text().catch(() => "");
     throw { status: r2.status, body };
   }
-  return new Uint8Array(await r2.arrayBuffer());
+  const len2 = r2.headers.get("content-length");
+  if (len2) {
+    const n = Number(len2);
+    if (Number.isFinite(n) && n > MAX_ZIP_BYTES) {
+      throw { status: 413, body: `Logs zip too large (${n} bytes)` };
+    }
+  }
+
+  const reader = r2.body?.getReader?.();
+  if (!reader) {
+    const buf = await r2.arrayBuffer();
+    if (buf.byteLength > MAX_ZIP_BYTES) {
+      throw {
+        status: 413,
+        body: `Logs zip too large (${buf.byteLength} bytes)`,
+      };
+    }
+    return new Uint8Array(buf);
+  }
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > MAX_ZIP_BYTES) {
+      try {
+        reader.cancel?.();
+      } catch {
+        // ignore
+      }
+      throw { status: 413, body: `Logs zip too large (${total} bytes)` };
+    }
+    chunks.push(value);
+  }
+
+  const merged = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) {
+    merged.set(c, off);
+    off += c.byteLength;
+  }
+  return merged;
 }
 
 function zipToText(zipBytes: Uint8Array): {
@@ -112,6 +150,7 @@ function zipToText(zipBytes: Uint8Array): {
 }
 
 const MAX_CHARS = 200_000; // keep responses sane
+const MAX_ZIP_BYTES = 25_000_000; // avoid huge downloads / zip bombs
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -121,7 +160,12 @@ serve(async (req) => {
     rateLimit(req, { limit: 60, windowMs: 60_000 });
     requireAdminKey(req);
 
-    const body = await safeJson(req);
+    const parsedBody = await parseJsonBody(req, 50_000);
+    if (!parsedBody.ok) {
+      const status = parsedBody.error.includes("too large") ? 413 : 400;
+      return jsonErr("Validation failed", { error: parsedBody.error }, status);
+    }
+    const body = parsedBody.body as Json;
 
     const repoObj = parseGithubRepo(body.githubRepo);
     if (!repoObj) {

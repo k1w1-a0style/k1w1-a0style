@@ -24,15 +24,50 @@ export async function parseJsonBody(
     }
   }
 
-  const buf = await req.arrayBuffer();
-  if (buf.byteLength > maxBytes) {
-    return {
-      ok: false,
-      error: `Payload too large (${buf.byteLength} > ${maxBytes})`,
-    };
+  // Streamed read with hard cap to avoid allocating attacker-controlled bodies
+  const reader = req.body?.getReader?.();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+
+  if (reader) {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        try {
+          reader.cancel?.();
+        } catch {
+          // ignore
+        }
+        return {
+          ok: false,
+          error: `Payload too large (${total} > ${maxBytes})`,
+        };
+      }
+      chunks.push(value);
+    }
+  } else {
+    // Fallback (should be rare) – still enforce post-read size
+    const buf = await req.arrayBuffer();
+    total = buf.byteLength;
+    if (total > maxBytes) {
+      return { ok: false, error: `Payload too large (${total} > ${maxBytes})` };
+    }
+    chunks.push(new Uint8Array(buf));
   }
 
-  const text = new TextDecoder().decode(new Uint8Array(buf));
+  if (total === 0) return { ok: true, body: {} };
+
+  const merged = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) {
+    merged.set(c, off);
+    off += c.byteLength;
+  }
+
+  const text = new TextDecoder().decode(merged);
   if (text.trim().length === 0) return { ok: true, body: {} };
 
   try {
