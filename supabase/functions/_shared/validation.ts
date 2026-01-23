@@ -9,6 +9,39 @@
  * - Invalid Data Types
  */
 
+export async function parseJsonBody(
+  req: Request,
+  maxBytes = 200_000,
+): Promise<{ ok: true; body: any } | { ok: false; error: string }> {
+  const lenHeader = req.headers.get("content-length");
+  if (lenHeader) {
+    const n = Number(lenHeader);
+    if (Number.isFinite(n) && n > maxBytes) {
+      return {
+        ok: false,
+        error: `Payload too large (content-length ${n} > ${maxBytes})`,
+      };
+    }
+  }
+
+  const buf = await req.arrayBuffer();
+  if (buf.byteLength > maxBytes) {
+    return {
+      ok: false,
+      error: `Payload too large (${buf.byteLength} > ${maxBytes})`,
+    };
+  }
+
+  const text = new TextDecoder().decode(new Uint8Array(buf));
+  if (text.trim().length === 0) return { ok: true, body: {} };
+
+  try {
+    return { ok: true, body: JSON.parse(text) };
+  } catch (_e) {
+    return { ok: false, error: "Invalid JSON body" };
+  }
+}
+
 // Maximale Größen
 const MAX_REPO_LENGTH = 100;
 const MAX_BUILD_PROFILE_LENGTH = 50;

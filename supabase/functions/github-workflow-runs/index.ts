@@ -1,7 +1,10 @@
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { corsHeaders, handleCors } from "../_shared/cors.ts";
-import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
-import { githubHeaders } from "../_shared/github.ts";
+import {
+  parseJsonBody,
+  serve,
+} from "https://deno.land/std@0.208.0/http/server.ts";
+import { parseJsonBody, corsHeaders, handleCors } from "../_shared/cors.ts";
+import { parseJsonBody, requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { parseJsonBody, githubHeaders } from "../_shared/github.ts";
 
 /**
  * Fetches recent GitHub Actions workflow runs for a repository

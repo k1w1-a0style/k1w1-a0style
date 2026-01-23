@@ -1,9 +1,23 @@
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
-import { validateTriggerBuildRequest } from "../_shared/validation.ts";
-import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
-import { githubHeaders } from "../_shared/github.ts";
+import {
+  parseJsonBody,
+  serve,
+} from "https://deno.land/std@0.208.0/http/server.ts";
+import {
+  parseJsonBody,
+  createClient,
+} from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  parseJsonBody,
+  handleCors,
+  jsonResponse,
+  errorResponse,
+} from "../_shared/cors.ts";
+import {
+  parseJsonBody,
+  validateTriggerBuildRequest,
+} from "../_shared/validation.ts";
+import { parseJsonBody, requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { parseJsonBody, githubHeaders } from "../_shared/github.ts";
 
 /**
  * ✓ 100% stabiler trigger-eas-build

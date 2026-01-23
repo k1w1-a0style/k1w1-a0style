@@ -1,8 +1,15 @@
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { corsHeaders, handleCors } from "../_shared/cors.ts";
-import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
-import { unzipSync, strFromU8 } from "npm:fflate@0.8.2";
-import { githubHeaders } from "../_shared/github.ts";
+import {
+  parseJsonBody,
+  serve,
+} from "https://deno.land/std@0.208.0/http/server.ts";
+import { parseJsonBody, corsHeaders, handleCors } from "../_shared/cors.ts";
+import { parseJsonBody, requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { parseJsonBody, unzipSync, strFromU8 } from "npm:fflate@0.8.2";
+import { parseJsonBody, githubHeaders } from "../_shared/github.ts";
+
+const MAX_LOG_ZIP_BYTES = 15 * 1024 * 1024; // 15 MiB (compressed)
+const MAX_LOG_UNZIPPED_BYTES = 50 * 1024 * 1024; // 50 MiB (uncompressed)
+const MAX_LOG_FILES = 2000;
 
 /**
  * Fetches GitHub Actions workflow logs
@@ -85,9 +92,54 @@ serve(async (req) => {
       });
 
       if (zipResp.ok) {
-        const buf = new Uint8Array(await zipResp.arrayBuffer());
+        const zipBuf = await zipResp.arrayBuffer();
+        if (zipBuf.byteLength > MAX_LOG_ZIP_BYTES) {
+          return new Response(
+            JSON.stringify({
+              error: `Logs zip too large (${zipBuf.byteLength} bytes)`,
+            }),
+            {
+              status: 413,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+        const buf = new Uint8Array(zipBuf);
         try {
           const files = unzipSync(buf);
+
+          const names = Object.keys(files);
+          if (names.length > MAX_LOG_FILES) {
+            return new Response(
+              JSON.stringify({
+                error: `Too many files in logs zip (${names.length})`,
+              }),
+              {
+                status: 413,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              },
+            );
+          }
+
+          let totalUnzipped = 0;
+          for (const name of names) {
+            totalUnzipped += files[name].length;
+            if (totalUnzipped > MAX_LOG_UNZIPPED_BYTES) {
+              return new Response(
+                JSON.stringify({
+                  error: `Logs too large after unzip (> ${MAX_LOG_UNZIPPED_BYTES} bytes)`,
+                }),
+                {
+                  status: 413,
+                  headers: {
+                    ...corsHeaders,
+                    "Content-Type": "application/json",
+                  },
+                },
+              );
+            }
+          }
+
           const names = Object.keys(files)
             .filter((n) => n.toLowerCase().endsWith(".txt"))
             .sort((a, b) => a.localeCompare(b));
