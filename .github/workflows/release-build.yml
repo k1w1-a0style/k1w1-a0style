@@ -33,10 +33,11 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
+          persist-credentials: true
 
       - name: Detect lockfile (for cache + install strategy)
         id: lock
@@ -64,7 +65,7 @@ jobs:
 
       - name: Setup Node (with npm cache)
         if: steps.lock.outputs.has_lockfile == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
@@ -72,7 +73,7 @@ jobs:
 
       - name: Setup Node (no cache - lockfile missing)
         if: steps.lock.outputs.has_lockfile != 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
@@ -81,11 +82,13 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${EXPO_TOKEN:-}" ]; then
-            echo "::error::Missing EXPO_TOKEN secret"
+            echo "::error::Missing GitHub Secret EXPO_TOKEN"
             exit 1
           fi
+          echo "✅ EXPO_TOKEN present (len=${#EXPO_TOKEN})"
+          echo "Using profile='${{ inputs.profile }}', ref='${{ inputs.ref }}'"
 
-      - name: Install deps (reproducible if lockfile exists)
+      - name: Install deps (reproducible when possible)
         shell: bash
         run: |
           set -euo pipefail
@@ -93,33 +96,24 @@ jobs:
             echo "Using npm ci (lockfile: ${{ steps.lock.outputs.lockfile_path }})"
             npm ci --no-audit --no-fund
           else
-            echo "::warning::No lockfile found. Using npm install and generating package-lock.json."
+            echo "::warning::No lockfile found. Falling back to npm install."
             npm install --no-audit --no-fund
             if [ ! -f package-lock.json ]; then
               npm install --package-lock-only --no-audit --no-fund || true
             fi
           fi
 
-      - name: Persist lockfile if generated
+      - name: Ensure expo-dev-client for development builds
+        if: inputs.profile == 'development'
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- package-lock.json package.json 2>/dev/null; then
-            echo "No lockfile/package.json changes to persist."
-            exit 0
+          if node -e 'const p=require("./package.json"); const d={...p.dependencies,...p.devDependencies}; process.exit(d["expo-dev-client"]?0:1)'; then
+            echo "expo-dev-client already present."
+          else
+            echo "::warning::expo-dev-client missing -> installing via expo install"
+            npx --yes expo install expo-dev-client
           fi
-
-          BRANCH="$(git symbolic-ref --short -q HEAD || true)"
-          if [ -z "$BRANCH" ]; then
-            echo "::warning::Detached HEAD (ref='${{ inputs.ref }}') -> not pushing lockfile changes."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json package.json || true
-          git commit -m "chore(ci): persist lockfile [skip ci]" || true
-          git push origin "$BRANCH" || true
 
       - name: Install EAS CLI (pinned)
         shell: bash
@@ -139,13 +133,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PROFILE="${{ inputs.profile }}"
 
-          if [ "$PROFILE" = "production" ]; then
-            EXT="aab"
-          else
-            EXT="apk"
-          fi
+          PROFILE="${{ inputs.profile }}"
+          if [ "$PROFILE" = "production" ]; then EXT="aab"; else EXT="apk"; fi
           echo "artifact_ext=${EXT}" >> "${GITHUB_OUTPUT}"
 
           echo "🚀 Starting EAS build (platform=android, profile=${PROFILE}) with --wait..."
@@ -182,14 +172,36 @@ jobs:
       - name: Upload Android Artifact
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+        uses: actions/upload-artifact@v4
         with:
           name: k1w1-android-${{ inputs.profile }}-${{ github.run_number }}
           path: build/*
           retention-days: 30
           if-no-files-found: warn
 
-      - name: Build Summary
+      - name: Persist generated lockfile / dev-client changes (optional)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No repo changes to persist."
+            exit 0
+          fi
+
+          BRANCH="$(git symbolic-ref --short -q HEAD || true)"
+          if [ -z "$BRANCH" ]; then
+            echo "::warning::Detached HEAD -> not pushing changes."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json eas-project.json 2>/dev/null || true
+          git commit -m "chore(ci): persist build deps [skip ci]" || true
+          git push origin "$BRANCH" || true
+
+      - name: Summary
         if: always()
         shell: bash
         run: |
@@ -199,6 +211,8 @@ jobs:
             echo ""
             echo "- Ref: ${{ inputs.ref }}"
             echo "- Profile: ${{ inputs.profile }}"
+            echo "- Checked out: $(git rev-parse HEAD)"
+            echo "- Lockfile present: ${{ steps.lock.outputs.has_lockfile }}"
             echo "- EAS CLI: $(eas --version 2>/dev/null || echo unknown)"
             echo "- Build ID: ${{ steps.eas.outputs.build_id }}"
             echo "- Build URL: ${{ steps.eas.outputs.build_url }}"
