@@ -283,7 +283,8 @@ export function useBuildStatus(
 
     // ✅ Sofort einmal pollen, dann Intervall
     poll();
-    intervalRef.current = setInterval(poll, POLL_INTERVAL_MS);
+    // NOTE: Polling interval is handled globally by ProjectContext to avoid duplicate polling.
+    // We only do a single immediate poll here.
 
     return () => {
       isMountedRef.current = false;

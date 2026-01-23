@@ -1,0 +1,13 @@
+k1w1-a0style Patch Manifest (Single-Poller + ciAutoFix Workflow Sync)
+- hooks/useBuildStatus.ts
+  - removes internal setInterval polling; keeps single immediate poll only
+  - avoids duplicate polling (ProjectContext remains the global poller)
+
+- lib/diagnostics/ciAutoFix.ts
+  - replaces truncated/invalid workflow templates with exact copies of:
+      .github/workflows/k1w1-triggered-build.yml
+      .github/workflows/eas-build.yml
+      .github/workflows/release-build.yml
+      .github/workflows/eas-link.yml
+  - escapes GitHub expression markers so template literals are valid JS
+  - removes invalid JSON curl --data fragments and truncated action SHAs by syncing full files
