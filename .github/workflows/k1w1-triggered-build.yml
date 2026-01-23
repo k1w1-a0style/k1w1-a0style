@@ -143,7 +143,6 @@ jobs:
           ALLOWED_REF_REGEX: "^(work|dev|develop|feature/.+|hotfix/.+)$"
         run: |
           set -euo pipefail
-
           echo "🧯 Auto-fix: lockfile + expo-dev-client (development only)."
           npm config set package-lock true
 
@@ -191,8 +190,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git add package.json package-lock.json .npmrc 2>/dev/null || true
           git commit -m "chore(ci): auto-fix lockfile/dev-client [skip ci]" || true
-
-          echo "🚀 Pushing to origin $BR (best effort)..."
           git push origin "HEAD:$BR" || echo "::warning::Could not push auto-fix commit (branch may be protected)."
 
   build:
@@ -248,56 +245,6 @@ jobs:
           echo "ARTIFACT_EXT=$EXT" >> "$GITHUB_ENV"
           echo "✅ Using build profile: $PROFILE (artifact: .$EXT)"
 
-      - name: Validate secrets / optional JOB_ID
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -z "${EXPO_TOKEN:-}" ]; then
-            echo "::error::Missing GitHub Secret EXPO_TOKEN"
-            exit 1
-          fi
-
-          if [ -z "${JOB_ID:-}" ]; then
-            echo "has_job_id=false" >> "$GITHUB_ENV"
-            echo "⚠️ No JOB_ID provided -> Supabase status updates will be skipped."
-          else
-            if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
-              echo "::warning::JOB_ID provided, but SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing -> status updates will be skipped."
-              echo "has_job_id=false" >> "$GITHUB_ENV"
-            else
-              echo "has_job_id=true" >> "$GITHUB_ENV"
-              echo "✅ JOB_ID: ${JOB_ID}"
-            fi
-          fi
-
-      - name: Update Supabase status (building)
-        if: env.has_job_id == 'true'
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          python - <<'PY' > payload.json
-          import json, os
-          profile=os.environ.get("PROFILE") or "preview"
-          run_id=os.environ.get("GITHUB_RUN_ID")
-          ts=os.environ.get("TS")
-          print(json.dumps({
-            "status":"building",
-            "build_profile":profile,
-            "github_run_id":int(run_id) if run_id and run_id.isdigit() else None,
-            "started_at":ts,
-          }, separators=(",",":")))
-          PY
-          curl --fail-with-body --silent --show-error \
-            -X PATCH "${SUPABASE_URL}/rest/v1/build_jobs?id=eq.${JOB_ID}" \
-            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Content-Type: application/json" \
-            -H "Prefer: return=representation" \
-            --data-binary @payload.json \
-          || echo "::warning::Failed to update Supabase status (building)"
-
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -345,10 +292,8 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
-            echo "Using npm ci (lockfile: ${{ steps.lock.outputs.lockfile_path }})"
             npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
           else
-            echo "::warning::No lockfile found in repo. Falling back to npm install (non-reproducible)."
             npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
           fi
 
@@ -371,47 +316,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "🚀 Starting EAS build (android, profile=${PROFILE}) with --wait..."
-
-          BUILD_OUTPUT="$(eas build --platform android --profile "${PROFILE}" --non-interactive --wait 2>&1)" || {
-            CODE=$?
-            echo "${BUILD_OUTPUT}"
-            echo "::error::EAS build failed (exit ${CODE})"
-            exit "${CODE}"
-          }
-
-          echo "${BUILD_OUTPUT}"
-
-          UUID_RE='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
-          BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oE "${UUID_RE}" | head -n1 || true)"
-          if [ -z "${BUILD_ID}" ]; then BUILD_ID="unknown"; fi
-          echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
-
-          BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oE "https://expo.dev[^[:space:]]*/builds/${UUID_RE}" | head -n1 || true)"
-          echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"
-
-      - name: Download Android Artifact
-        if: steps.eas.outputs.build_id != 'unknown' && steps.eas.outputs.build_id != ''
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p build
-          OUT="build/k1w1-${PROFILE}.${ARTIFACT_EXT}"
-          eas build:download --id "${{ steps.eas.outputs.build_id }}" --output "${OUT}" || {
-            echo "::warning::Failed to download artifact"
-            exit 0
-          }
-          ls -lah build || true
-
-      - name: Upload Android Artifact
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: k1w1-android-${{ env.PROFILE }}-${{ github.run_number }}
-          path: build/*
-          retention-days: 30
-          if-no-files-found: warn
+          eas build --platform android --profile "${PROFILE}" --non-interactive --wait
 
       - name: Summary
         if: always()
@@ -419,17 +324,8 @@ jobs:
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" << EOF
           ## Triggered Build Summary
-
           - Repo: ${{ github.repository }}
           - Event: ${{ github.event_name }}
           - Checkout ref: ${CHECKOUT_REF}
           - Profile: ${PROFILE}
-          - Checked out: $(git rev-parse HEAD)
-          - Lockfile present: ${{ steps.lock.outputs.has_lockfile }}
-          - Lockfile path: ${{ steps.lock.outputs.lockfile_path }}
-          - EAS CLI: $(eas --version 2>/dev/null || echo "unknown")
-          - Build ID: ${{ steps.eas.outputs.build_id }}
-          - Build URL: ${{ steps.eas.outputs.build_url }}
-
-          Artifacts: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EOF
