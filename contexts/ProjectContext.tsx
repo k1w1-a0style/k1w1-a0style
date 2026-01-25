@@ -472,6 +472,14 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     [updateProject],
   );
 
+
+  const setAdvancedTemplatePickerEnabled = useCallback(async (enabled: boolean) => {
+    await updateProject((prev) => ({
+      ...prev,
+      advancedTemplatePickerEnabled: enabled,
+    }));
+  }, [updateProject]);
+
 const setPreferredBuildProfile = useCallback(
     async (profile: "development" | "preview" | "production") => {
       await updateProject((prev) => ({
@@ -846,6 +854,7 @@ const setPreferredBuildProfile = useCallback(
     },
     setLinkedRepo,
     setPreferredBuildProfile,
+    setAdvancedTemplatePickerEnabled,
   };
 
   return (

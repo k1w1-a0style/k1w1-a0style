@@ -64,6 +64,8 @@ files: ProjectFile[];
   linkedBranch?: string | null;
   /** Bevorzugtes EAS Build-Profil (persistiert) */
   preferredBuildProfile?: "development" | "preview" | "production" | null;
+  /** Dev: Manuelles Template-Override/Picker anzeigen (default: false). */
+  advancedTemplatePickerEnabled?: boolean;
 }
 
 export interface ProjectContextProps {
@@ -82,6 +84,9 @@ export interface ProjectContextProps {
   /** Persist preferred template id (used for next new project / repo scaffold). */
   setTemplateId?: (templateId: TemplateId) => Promise<void>;
 
+
+  /** Dev: zeigt/versteckt den manuellen Template-Picker (Advanced). */
+  setAdvancedTemplatePickerEnabled?: (enabled: boolean) => Promise<void>;
   addChatMessage: (message: ChatMessage) => void;
   messages: ChatMessage[];
 

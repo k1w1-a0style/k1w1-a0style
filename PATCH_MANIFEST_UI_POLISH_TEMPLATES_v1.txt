@@ -1,0 +1,21 @@
+PATCH: UI Polish - Template Badge & Auto Label (v1)
+
+Goal
+- Fix & polish UI around template handling now that Auto resolves to Full by default.
+- Make it obvious (without any extra clicks) which template is active.
+- Avoid breaking builds: no template logic changes, only UI + display.
+
+Changed files
+1) components/ChatHeaderActions.tsx
+   - Adds template badge (e.g., "Auto (Full)") in header + options menu.
+   - Uses resolveEffectiveTemplateId(templateId, files) correctly (2 args).
+   - Adds missing styles used by the new UI bits.
+
+2) screens/AppInfoScreen.tsx
+   - Shows active template as "Auto (Full)" (or manual effective template).
+   - Shows mode (Auto/Manual) and effective core template.
+   - Keeps SDK/RN info rows.
+
+Notes
+- Manual template switching is NOT added to the main flow (kept simple). This is just clearer display.
+- If you ever change the auto-resolution logic later, the UI will reflect it automatically.

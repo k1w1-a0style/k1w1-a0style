@@ -14,7 +14,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
 import { useProject } from '../contexts/ProjectContext';
-import { resolveEffectiveTemplateId } from '../lib/templateChecklist';
 
 const ChatHeaderActions: React.FC = () => {
   const {
@@ -28,19 +27,6 @@ const ChatHeaderActions: React.FC = () => {
   } = useProject();
 
   const currentName = useMemo(() => projectData?.name || 'Neues Projekt', [projectData?.name]);
-
-	// UI: always show what the Auto/Manual template resolves to
-	const templateId = (projectData?.templateId || 'auto') as any;
-	const { mode: templateMode, effective: effectiveCoreTemplate } = resolveEffectiveTemplateId(
-		templateId,
-		(projectData?.files || []) as any
-	);
-	const templateBadge = useMemo(() => {
-		const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
-  const advancedEnabled = !!projectData?.advancedTemplatePickerEnabled;
-		const eff = cap(String(effectiveCoreTemplate));
-		return templateMode === 'auto' ? `Auto (${eff})` : eff;
-	}, [templateMode, effectiveCoreTemplate]);
 
   const [menuVisible, setMenuVisible] = useState(false);
 
@@ -127,11 +113,6 @@ const handleChooseTemplate = async () => {
         <Ionicons name="ellipsis-vertical" size={20} color={theme.palette.primary} />
       </TouchableOpacity>
 
-	  {/* Small badge in the header so you always see what's active */}
-	  <View style={styles.templatePill}>
-		<Text style={styles.templatePillText}>{templateBadge}</Text>
-	  </View>
-
       {/* Dropdown */}
       <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={toggleMenu}>
         <TouchableWithoutFeedback onPress={toggleMenu}>
@@ -139,13 +120,6 @@ const handleChooseTemplate = async () => {
             <TouchableWithoutFeedback>
               <View style={styles.menuCard}>
                 <Text style={styles.menuTitle}>Projekt / Chat</Text>
-
-				<View style={styles.menuInfoRow}>
-				  <Ionicons name="layers-outline" size={16} color={theme.palette.text.secondary} style={styles.menuIcon} />
-				  <Text style={styles.menuInfoText}>Template: {templateBadge}</Text>
-				</View>
-
-				<View style={styles.menuDivider} />
 
                 <TouchableOpacity style={styles.menuItem} onPress={handleClearChat}>
                   <Ionicons name="chatbubbles-outline" size={18} color={theme.palette.text.primary} />
@@ -173,13 +147,6 @@ const handleChooseTemplate = async () => {
                   <Ionicons name="cloud-upload-outline" size={18} color={theme.palette.text.primary} />
                   <Text style={styles.menuItemText}>Projekt aus ZIP laden</Text>
                 </TouchableOpacity>
-
-				<View style={styles.menuDivider} />
-
-				<TouchableOpacity style={styles.menuItem} onPress={handleChooseTemplate}>
-				  <Ionicons name="options-outline" size={18} color={theme.palette.text.primary} />
-				  <Text style={styles.menuItemText}>Erweitert: Template überschreiben</Text>
-				</TouchableOpacity>
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -239,22 +206,6 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
 
-  templatePill: {
-    marginLeft: 8,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    backgroundColor: theme.palette.card,
-  },
-
-  templatePillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: theme.palette.text.secondary,
-  },
-
   modalOverlay: {
     flex: 1,
     justifyContent: 'flex-start',
@@ -280,23 +231,6 @@ const styles = StyleSheet.create({
     color: theme.palette.text.secondary,
     marginBottom: 4,
     marginLeft: 2,
-  },
-
-  menuInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 6,
-  },
-
-  menuInfoText: {
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-  },
-
-  menuIcon: {
-    opacity: 0.9,
   },
 
   menuItem: {
