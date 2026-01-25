@@ -57,15 +57,17 @@ import type { TemplateId, CoreTemplateId } from "../contexts/types";
 
 type TemplateFile = { path: string; content: string };
 
-const loadCoreTemplateFiles = (templateId: "base" | "navigation" | "crud" = "navigation"): TemplateFile[] => {
+const loadCoreTemplateFiles = (templateId: CoreTemplateId = "navigation"): TemplateFile[] => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const template = (
-      templateId === "navigation"
-        ? require("../templates/expo-sdk54-navigation.json")
-        : templateId === "crud"
-          ? require("../templates/expo-sdk54-crud.json")
-          : require("../templates/expo-sdk54-base.json")
+      templateId === "full"
+        ? require("../templates/expo-sdk54-full.json")
+        : templateId === "navigation"
+          ? require("../templates/expo-sdk54-navigation.json")
+          : templateId === "crud"
+            ? require("../templates/expo-sdk54-crud.json")
+            : require("../templates/expo-sdk54-base.json")
     ) as any[];
     if (!Array.isArray(template)) return [];
     const mapped = template

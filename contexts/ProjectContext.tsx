@@ -21,7 +21,7 @@ import {
   AutoFixRequest,
 } from "./types";
 
-import type { TemplateId } from "./types";
+import type { TemplateId, CoreTemplateId } from "./types";
 
 import {
   saveProjectToStorage,
@@ -57,7 +57,9 @@ const loadTemplateFromFile = async (templateId: TemplateId = "base"): Promise<Pr
         ? require("../templates/expo-sdk54-navigation.json")
         : templateId === "crud"
           ? require("../templates/expo-sdk54-crud.json")
-          : require("../templates/expo-sdk54-base.json");
+          : templateId === "full"
+            ? require("../templates/expo-sdk54-full.json")
+            : require("../templates/expo-sdk54-base.json");
     if (!Array.isArray(template) || template.length === 0) {
       throw new Error("Template ist ungültig");
     }
@@ -97,7 +99,7 @@ const loadTemplateFromFile = async (templateId: TemplateId = "base"): Promise<Pr
 
 const SAVE_DEBOUNCE_MS = 500;
 
-const TEMPLATE_CATALOG: Record<"base" | "navigation" | "crud", { id: TemplateId; label: string; description: string; files: any[] }> = {
+const TEMPLATE_CATALOG: Record<CoreTemplateId, { id: CoreTemplateId; label: string; description: string; files: any[] }> = {
   base: {
     id: "base",
     label: "Base (Blank)",
@@ -115,6 +117,12 @@ const TEMPLATE_CATALOG: Record<"base" | "navigation" | "crud", { id: TemplateId;
     label: "CRUD",
     description: "Blank + simple CRUD sample + storage (Android-only).",
     files: require("../templates/expo-sdk54-crud.json"),
+  },
+  full: {
+    id: "full",
+    label: "Full",
+    description: "Blank + React Navigation + CRUD sample (Android-only).",
+    files: require("../templates/expo-sdk54-full.json"),
   },
 };
 

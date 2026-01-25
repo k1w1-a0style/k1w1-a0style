@@ -46,6 +46,8 @@ const handleChooseTemplate = async () => {
     "Vorlage wählen",
     "Diese Vorlage wird für das nächste \"Neues Projekt\" und für GitHub-Scaffolding genutzt. Build-Profile (dev/preview/prod) bleiben davon unabhängig.",
     [
+      { text: "Auto (Empfohlen)", onPress: () => setTemplateId?.("auto") },
+      { text: "Full (All-in-one)", onPress: () => setTemplateId?.("full") },
       { text: "Base", onPress: () => setTemplateId?.("base") },
       { text: "Navigation", onPress: () => setTemplateId?.("navigation") },
       { text: "CRUD", onPress: () => setTemplateId?.("crud") },

@@ -3,7 +3,7 @@
 import type { BuildStatus } from "../lib/buildStatusMapper";
 
 // Which scaffold template the user prefers for newly created projects
-export type CoreTemplateId = "base" | "navigation" | "crud";
+export type CoreTemplateId = "base" | "navigation" | "crud" | "full";
 export type TemplateId = CoreTemplateId | "auto";
 
 export interface ProjectFile {

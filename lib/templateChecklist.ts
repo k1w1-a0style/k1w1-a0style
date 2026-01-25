@@ -6,7 +6,7 @@ import type { ProjectFile } from "../contexts/types";
 import { normalizePath } from "./validators";
 
 // Template selection (auto mode)
-export type CoreTemplateId = "base" | "navigation" | "crud";
+export type CoreTemplateId = "base" | "navigation" | "crud" | "full";
 export type TemplateId = CoreTemplateId | "auto";
 
 export function detectCoreTemplateId(files: ProjectFile[]): CoreTemplateId {
@@ -15,28 +15,29 @@ export function detectCoreTemplateId(files: ProjectFile[]): CoreTemplateId {
   const hasPath = (re: RegExp) => paths.some((p) => re.test(p));
 
   // Strong navigation signals
-  if (
+  const nav =
     hasPath(/^src\/navigation\//) ||
     hasPath(/^src\/screens\/.*Screen\.tsx$/) ||
     hasPath(/^src\/screens\/navigation\//) ||
-    hasPath(/^src\/routes\//)
-  ) {
-    return "navigation";
-  }
+    hasPath(/^src\/routes\//) ||
+    files.some((f) => /@react-navigation\//.test(f.content ?? "")) ||
+    files.some((f) => /NavigationContainer/.test(f.content ?? ""));
 
   // CRUD-ish / "app already has a shared theme / data layer" signals
-  const hasCrudStructure =
+  const crud =
     pathSet.has("theme.ts") ||
     hasPath(/^src\/(services|store|data|api|db)\//) ||
-    hasPath(/^src\/features\//);
+    hasPath(/^src\/features\//) ||
+    files.some((f) => {
+      const c = f.content ?? "";
+      return /\bCRUD\b/i.test(c) || /create\s*read\s*update\s*delete/i.test(c) || /AsyncStorage/.test(c);
+    });
 
-  const mentionsCrudInCode = files.some((f) => {
-    const c = f.content ?? "";
-    return /\bCRUD\b/i.test(c) || /create\s*read\s*update\s*delete/i.test(c);
-  });
-
-  if (hasCrudStructure || mentionsCrudInCode) return "crud";
-  return "navigation";
+  if (nav && crud) return "full";
+  if (crud) return "crud";
+  if (nav) return "navigation";
+  // Safe default: Full (läuft in allen Fällen und spart Auswahl-Stress)
+  return "full";
 }
 
 export function resolveEffectiveTemplateId(
