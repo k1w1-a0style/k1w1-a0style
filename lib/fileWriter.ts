@@ -116,7 +116,32 @@ function isReferencedByAnyOtherIncoming(newPath: string, incoming: ProjectFile[]
     }
   }
 
+  
+
+function isReferencedByAnyExisting(newPath: string, existing: ProjectFile[]): boolean {
+  const newPathNorm = normalizePath(newPath);
+
+  const quotedRe = (spec: string) =>
+    new RegExp(`['"]${spec.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"]`, 'm');
+
+  for (const f of existing ?? []) {
+    const fromPath = normalizePath(String(f?.path ?? ''));
+    if (!fromPath || fromPath === newPathNorm) continue;
+
+    const content = typeof f?.content === 'string' ? f.content : String(f?.content ?? '');
+    if (!content) continue;
+
+    // quick check
+    if (content.includes(stripExt(newPathNorm))) return true;
+
+    const specs = buildImportSpecifiers(fromPath, newPathNorm);
+    for (const spec of specs) {
+      if (quotedRe(spec).test(content)) return true;
+    }
+  }
   return false;
+}
+return false;
 }
 
 export function applyFilesToProject(existing: ProjectFile[], incoming: ProjectFile[]): ApplyFilesResult {

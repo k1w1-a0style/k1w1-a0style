@@ -220,10 +220,10 @@ export function buildSandpackHtml(opts: SandpackOptions): string {
 <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@18.2.0",
-    "react-dom": "https://esm.sh/react-dom@18.2.0",
-    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-    "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime"
+    "react": "https://esm.sh/react@19.1.0",
+    "react-dom": "https://esm.sh/react-dom@19.1.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.1.0/client",
+    "react/jsx-runtime": "https://esm.sh/react@19.1.0/jsx-runtime"
   }
 }
 </script>
@@ -272,8 +272,30 @@ try {
       const module = { exports };
       const require = (name) => {
         if (name === "react") return React;
+        if (name === "react-native-web") return require("react-native");
         // Minimal Shim für häufige Imports, damit simple Apps nicht sofort crashen
-        if (name === "react-native") return {};
+        if (name === "react-native") {
+          // Minimal RN shim for local preview (no external deps)
+          const React = require("react");
+          const create = (tag) => (props) => React.createElement(tag, props, props?.children);
+          const View = create("div");
+          const Text = create("span");
+          const ScrollView = create("div");
+          const Pressable = create("button");
+          const TouchableOpacity = create("button");
+          const Image = (props) => React.createElement("img", props);
+          const StyleSheet = { create: (s) => s };
+          return {
+            View,
+            Text,
+            ScrollView,
+            Pressable,
+            TouchableOpacity,
+            Image,
+            StyleSheet,
+            Platform: { OS: "web" },
+          };
+        }
         return {};
       };
 

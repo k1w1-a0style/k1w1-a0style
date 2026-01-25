@@ -186,10 +186,21 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
       if (typeof v === "string") out[key] = v;
     }
 
-    if (!out.react) out.react = "^18.2.0";
-    if (!out["react-dom"]) out["react-dom"] = "^18.2.0";
+    if (!out.react) out.react = "^19.1.0";
+    if (!out["react-dom"]) out["react-dom"] = "^19.1.0";
 
-    return Object.keys(out).length ? out : undefined;
+        const needsRNW = Object.values(fileMap ?? {}).some((c) =>
+      typeof c === "string" &&
+      (c.includes("from \"react-native\"") ||
+        c.includes("from 'react-native'") ||
+        c.includes("require(\"react-native\")") ||
+        c.includes("require('react-native')"))
+    );
+    if (needsRNW && !out["react-native-web"]) {
+      out["react-native-web"] = "^0.21.1";
+    }
+
+return Object.keys(out).length ? out : undefined;
   }, [fileMap]);
 
   const ensureMinimumFiles = useCallback(
@@ -247,6 +258,30 @@ export default function App() {
       </p>
     </div>
   );
+
+  const normalizeForWebPreview = useCallback(
+    (files: Record<string, string>): Record<string, string> => {
+      const out: Record<string, string> = { ...files };
+
+      const replaceImports = (s: string) => {
+        let x = s;
+        // Web Sandpack kann kein RN-Bundler-Alias: ersetze react-native -> react-native-web (Preview-only).
+        x = x.replace(/from\s+['"]react-native['"]/g, 'from "react-native-web"');
+        x = x.replace(/require\(\s*['"]react-native['"]\s*\)/g, 'require("react-native-web")');
+        return x;
+      };
+
+      for (const [p, c] of Object.entries(out)) {
+        if (typeof c !== "string") continue;
+        if (!/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(p)) continue;
+        out[p] = replaceImports(c);
+      }
+
+      return out;
+    },
+    [],
+  );
+
 }`;
       }
 
@@ -298,7 +333,7 @@ if (container) {
     setError(null);
 
     try {
-      const files = ensureMinimumFiles(fileMap);
+      const files = normalizeForWebPreview(ensureMinimumFiles(fileMap));
 
       // 1) Prefer Supabase-hosted preview
       try {

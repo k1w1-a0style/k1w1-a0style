@@ -295,7 +295,7 @@ export default function GitHubReposScreen() {
       await pushFilesToRepo(
         parsed.owner,
         parsed.repo,
-        withCoreFiles(projectData.files as any),
+        withCoreFiles(materializeProjectFiles(projectData.files as any, { name: projectData.name, slug: projectData.slug ?? slugify(projectData.name), packageName: projectData.packageName })),
         branch,
       );
       Alert.alert(

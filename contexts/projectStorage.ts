@@ -144,7 +144,7 @@ export const exportProjectAsZipFile = async (
   messageCount: number;
 }> => {
   console.log('🎯 Export-Anfrage für:', project.name);
-  const projectFiles = project.files;
+  const projectFiles = materializeProjectFiles(project.files, { name: project.name, slug: project.slug ?? project.name, packageName: project.packageName });
   const projectName = project.name.replace(/[\s\/]+/g, '_') || 'projekt';
 
   try {

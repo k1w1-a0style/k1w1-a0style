@@ -199,10 +199,14 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
             try {
               setIsLoading(true);
               const templateFiles = await loadTemplateFromFile();
+              const baseName = "Neues Projekt";
+              const baseSlug = slugify(baseName);
+              const basePkg = sanitizeAndroidPackage(`com.yourcompany.${baseSlug}`) || "com.yourcompany.app";
               const newProject: ProjectData = {
                 id: uuidv4(),
-                name: "Neues Projekt",
-                slug: "neues-projekt",
+                name: baseName,
+                slug: baseSlug,
+                packageName: basePkg,
                 files: templateFiles,
                 chatHistory: [],
                 createdAt: new Date().toISOString(),
@@ -211,8 +215,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
               const release = await mutexRef.current.acquire();
               try {
-                setProjectData(newProject);
-                await saveProjectToStorage(newProject);
+                const materialized = materializeProjectData(newProject);
+              setProjectData(materialized);
+                await saveProjectToStorage(materialized);
               } finally {
                 release();
               }
@@ -242,7 +247,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       return;
     }
     try {
-      const result = await exportProjectAsZipFile(projectData);
+      const materialized = materializeProjectData(projectData);
+      const result = await exportProjectAsZipFile(materialized);
       Alert.alert(
         "Export erfolgreich",
         `${result.fileCount} Dateien als ZIP gespeichert.`,
@@ -425,17 +431,22 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         } else {
           console.log("Kein Projekt gefunden, lade neues Template...");
           const templateFiles = await loadTemplateFromFile();
-          const newProject: ProjectData = {
-            id: uuidv4(),
-            name: "Neues Projekt",
-            slug: "neues-projekt",
-            files: templateFiles,
+          const baseName = "Neues Projekt";
+              const baseSlug = slugify(baseName);
+              const basePkg = sanitizeAndroidPackage(`com.yourcompany.${baseSlug}`) || "com.yourcompany.app";
+              const newProject: ProjectData = {
+                id: uuidv4(),
+                name: baseName,
+                slug: baseSlug,
+                packageName: basePkg,
+                files: templateFiles,
             chatHistory: [],
             createdAt: new Date().toISOString(),
             lastModified: new Date().toISOString(),
           };
-          setProjectData(newProject);
-          await saveProjectToStorage(newProject);
+          const materialized = materializeProjectData(newProject);
+              setProjectData(materialized);
+          await saveProjectToStorage(materialized);
           console.log("Neues Template-Projekt erstellt und gespeichert.");
         }
       } catch (error) {
