@@ -82,5 +82,13 @@
   {
     "path": "jest.setup.js",
     "content": "/* eslint-env jest */\nimport \"react-native-gesture-handler/jestSetup\";\n\njest.mock(\"react-native-reanimated\", () =>\n  require(\"react-native-reanimated/mock\"),\n);\n\njest.mock(\"react-native/Libraries/Animated/NativeAnimatedHelper\", () => ({}), {\n  virtual: true,\n});\n\n// Wichtig: Kein Factory-Require, damit __mocks__/expo-secure-store.js genutzt wird\njest.mock(\"expo-secure-store\");\n\njest.mock(\"uuid\", () => ({ v4: () => \"test-uuid\" }));\n\n// 🔥 react-native-webview in Tests immer mocken\njest.mock(\"react-native-webview\");\n\n// ✅ Fix: expo-notifications side effects in Jest verhindern (Worker-Leaks / Warnspam)\njest.mock(\"expo-notifications\", () => ({\n  // permissions\n  getPermissionsAsync: jest.fn(async () => ({ status: \"granted\" })),\n  requestPermissionsAsync: jest.fn(async () => ({ status: \"granted\" })),\n\n  // token\n  getExpoPushTokenAsync: jest.fn(async () => ({\n    data: \"ExponentPushToken[test-token]\",\n  })),\n\n  // handler / channels\n  setNotificationHandler: jest.fn(),\n  setNotificationChannelAsync: jest.fn(async () => ({})),\n\n  // scheduling / clearing\n  scheduleNotificationAsync: jest.fn(async () => \"notification-id\"),\n  cancelAllScheduledNotificationsAsync: jest.fn(async () => {}),\n  dismissAllNotificationsAsync: jest.fn(async () => {}),\n  // listeners: wichtig => Rückgabeobjekt mit remove()\n  addNotificationReceivedListener: jest.fn(() => ({ remove: jest.fn() })),\n  addNotificationResponseReceivedListener: jest.fn(() => ({\n    remove: jest.fn(),\n  })),\n  removeNotificationSubscription: jest.fn(),\n\n  // constants\n  AndroidImportance: { MAX: 5 },\n}));\n"
+  },
+  {
+    "path": "babel.config.js",
+    "content": "module.exports = function(api) {\n  api.cache(true);\n  return { presets: ['babel-preset-expo'] };\n};\n"
+  },
+  {
+    "path": "metro.config.js",
+    "content": "const { getDefaultConfig } = require('expo/metro-config');\nconst config = getDefaultConfig(__dirname);\nmodule.exports = config;\n"
   }
 ]

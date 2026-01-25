@@ -1,0 +1,17 @@
+Patch: k1w1-a0style_PATCH_review_fixes_v1.zip
+Date: 2026-01-25
+
+Changes:
+- Fix export/import ZIP handling for base64 binary assets (projectStorage).
+- Fix corrupted project materializer call in projectStorage.
+- Improve FileWriter phantom-file guard: allow new files when referenced by existing project imports.
+- Fix templates: CRUD + Navigation now include required dependencies; Base template now includes babel + metro configs (still minimal).
+- Preview stability: add best-effort shims for common Expo/React-Navigation/native modules in sandpackBuilder.
+
+Files:
+- contexts/projectStorage.ts
+- lib/fileWriter.ts
+- templates/expo-sdk54-base.json
+- templates/expo-sdk54-crud.json
+- templates/expo-sdk54-navigation.json
+- lib/sandpackBuilder.ts
