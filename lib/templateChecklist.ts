@@ -182,7 +182,8 @@ export function runTemplateHardChecklist(
     }
   } else if (hasAppConfigJs) {
     const raw = get("app.config.js");
-    const { next, changed, p1 } = patchAppConfigJs(raw);
+    const { next, changed, p0, p1 } = patchAppConfigJs(raw, autofix);
+    if (p0.length) issues.push(...p0);
     if (p1.length) issues.push(...p1);
     if (autofix && changed) set("app.config.js", next);
   }
@@ -441,51 +442,140 @@ function patchAppJson(
 
 function patchAppConfigJs(
   raw: string,
-): { next: string; changed: boolean; p1: ChecklistItem[] } {
+  autofix: boolean,
+): { next: string; changed: boolean; p0: ChecklistItem[]; p1: ChecklistItem[] } {
+  const p0: ChecklistItem[] = [];
   const p1: ChecklistItem[] = [];
   let out = raw || "";
   let changed = false;
 
-  // enforce Android-only if config uses `platforms: [...]`
-  if (/platforms\s*:\s*\[[^\]]*\]/m.test(out)) {
-    const next = out.replace(/platforms\s*:\s*\[[^\]]*\]/m, "platforms: ['android']");
+  // 1) platforms: ['android'] is REQUIRED for this project (Android-only policy)
+  if (/\bplatforms\s*:\s*\[[^\]]*\]/m.test(out)) {
+    const next = out.replace(/\bplatforms\s*:\s*\[[^\]]*\]/m, "platforms: ['android']");
     if (next !== out) {
       out = next;
       changed = true;
     }
   } else {
-    p1.push({
-      severity: "P1",
+    const msg: ChecklistItem = {
+      severity: "P0",
       file: "app.config.js",
-      reason: "Konnte platforms nicht sicher patchen (kein platforms-Feld gefunden).",
-      fix: "Empfohlen: platforms: ['android'] hinzufügen.",
-    });
+      reason: "Android-only Policy: platforms fehlt in app.config.js",
+      fix: "platforms: ['android'] ergänzen.",
+    };
+    if (autofix) {
+      // Insert right after `expo: {`
+      const next = out.replace(/\bexpo\s*:\s*\{/m, (s) => `${s}\n    platforms: ['android'],`);
+      if (next !== out) {
+        out = next;
+        changed = true;
+      } else {
+        // If insertion failed (unexpected structure), keep as P0
+        p0.push(msg);
+      }
+    } else {
+      p0.push(msg);
+    }
   }
 
-  // ensure newArchEnabled: true if present
-  if (/newArchEnabled\s*:\s*false/m.test(out)) {
-    out = out.replace(/newArchEnabled\s*:\s*false/m, "newArchEnabled: true");
+  // 2) newArchEnabled: true (recommended, but we enforce to avoid drift)
+  if (/\bnewArchEnabled\s*:\s*false\b/m.test(out)) {
+    out = out.replace(/\bnewArchEnabled\s*:\s*false\b/m, "newArchEnabled: true");
     changed = true;
-  } else if (!/newArchEnabled\s*:\s*true/m.test(out)) {
-    p1.push({
+  } else if (!/\bnewArchEnabled\s*:\s*true\b/m.test(out)) {
+    const msg: ChecklistItem = {
       severity: "P1",
       file: "app.config.js",
-      reason: "newArchEnabled nicht gefunden – kann ok sein, aber SDK54 empfohlen.",
+      reason: "newArchEnabled nicht gefunden – SDK54 empfohlen.",
       fix: "newArchEnabled: true setzen.",
-    });
+    };
+    if (autofix) {
+      const next = out.replace(/\bexpo\s*:\s*\{/m, (s) => `${s}\n    newArchEnabled: true,`);
+      if (next !== out) {
+        out = next;
+        changed = true;
+      } else {
+        p1.push(msg);
+      }
+    } else {
+      p1.push(msg);
+    }
   }
 
-  // ensure icon/adaptive/splash references exist
-  if (!/assets\/icon\.png/.test(out)) {
-    p1.push({
+  // 3) icon: './assets/icon.png'
+  if (!/\bicon\s*:\s*['"][^'"]+['"]/m.test(out)) {
+    const msg: ChecklistItem = {
       severity: "P1",
       file: "app.config.js",
-      reason: "icon nicht erkennbar (assets/icon.png) – Build kann Assets nicht finden.",
-      fix: "icon: './assets/icon.png' setzen.",
+      reason: "icon fehlt – Expo/EAS kann Assets nicht finden.",
+      fix: "icon: './assets/icon.png' ergänzen.",
+    };
+    if (autofix) {
+      const next = out.replace(/\bexpo\s*:\s*\{/m, (s) => `${s}\n    icon: './assets/icon.png',`);
+      if (next !== out) {
+        out = next;
+        changed = true;
+      } else {
+        p1.push(msg);
+      }
+    } else {
+      p1.push(msg);
+    }
+  }
+
+  // 4) splash.image: './assets/splash.png' (ensure if splash block exists)
+  if (/\bsplash\s*:\s*\{/m.test(out) && !/\bsplash\s*:\s*\{[\s\S]*?\bimage\s*:/m.test(out)) {
+    const msg: ChecklistItem = {
+      severity: "P1",
+      file: "app.config.js",
+      reason: "splash.image fehlt – Preview/Build kann inkonsistent sein.",
+      fix: "splash: { image: './assets/splash.png', ... } ergänzen.",
+    };
+    if (autofix) {
+      const next = out.replace(/\bsplash\s*:\s*\{/m, (s) => `${s}\n      image: './assets/splash.png',`);
+      if (next !== out) {
+        out = next
+        changed = true;
+      } else {
+        p1.push(msg);
+      }
+    } else {
+      p1.push(msg);
+    }
+  }
+
+  // 5) android.adaptiveIcon.foregroundImage
+  if (/\badaptiveIcon\s*:\s*\{/m.test(out) && !/\badaptiveIcon\s*:\s*\{[\s\S]*?\bforegroundImage\s*:/m.test(out)) {
+    const msg: ChecklistItem = {
+      severity: "P1",
+      file: "app.config.js",
+      reason: "android.adaptiveIcon.foregroundImage fehlt – AdaptiveIcon kann fehlen.",
+      fix: "foregroundImage: './assets/adaptive-icon.png' ergänzen.",
+    };
+    if (autofix) {
+      const next = out.replace(/\badaptiveIcon\s*:\s*\{/m, (s) => `${s}\n        foregroundImage: './assets/adaptive-icon.png',`);
+      if (next !== out) {
+        out = next
+        changed = true;
+      } else {
+        p1.push(msg);
+      }
+    } else {
+      p1.push(msg);
+    }
+  }
+
+  // 6) android.package required (can't safely fix automatically)
+  if (!/\bpackage\s*:\s*['"][a-z0-9.]+['"]/m.test(out)) {
+    p0.push({
+      severity: "P0",
+      file: "app.config.js",
+      reason: "expo.android.package fehlt oder ist nicht erkennbar.",
+      fix: "android: { package: 'com.yourcompany.app' } setzen.",
     });
   }
 
-  return { next: out, changed, p1 };
+  return { next: out, changed, p0, p1 };
 }
 
 function patchEasJson(
