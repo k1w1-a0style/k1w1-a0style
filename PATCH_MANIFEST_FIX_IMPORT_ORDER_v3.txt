@@ -1,0 +1,2 @@
+PATCH v3: fix invalid import injection in contexts/ProjectContext.tsx
+- Move materializeProjectData/slugify/sanitizeAndroidPackage import below React import block

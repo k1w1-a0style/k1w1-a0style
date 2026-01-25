@@ -1,6 +1,5 @@
 // contexts/ProjectContext.tsx (V15 - ALL CRITICAL FIXES APPLIED)
 import React, {
-import { materializeProjectData, sanitizeAndroidPackage, slugify } from "../lib/projectMaterializer";
   createContext,
   useContext,
   useState,
@@ -9,6 +8,7 @@ import { materializeProjectData, sanitizeAndroidPackage, slugify } from "../lib/
   useRef,
   ReactNode,
 } from "react";
+import { materializeProjectData, sanitizeAndroidPackage, slugify } from "../lib/projectMaterializer";
 import { Alert, AppState, AppStateStatus } from "react-native";
 import { v4 as uuidv4 } from "uuid";
 import { Mutex } from "async-mutex";
