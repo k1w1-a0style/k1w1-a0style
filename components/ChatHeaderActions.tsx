@@ -23,6 +23,7 @@ const ChatHeaderActions: React.FC = () => {
     importProjectFromZip,
     createNewProject,
     setProjectName,
+    setTemplateId,
   } = useProject();
 
   const currentName = useMemo(() => projectData?.name || 'Neues Projekt', [projectData?.name]);
@@ -38,6 +39,20 @@ const ChatHeaderActions: React.FC = () => {
     setMenuVisible(false);
     Keyboard.dismiss();
   };
+
+const handleChooseTemplate = async () => {
+  closeAll();
+  Alert.alert(
+    "Vorlage wählen",
+    "Diese Vorlage wird für das nächste \"Neues Projekt\" und für GitHub-Scaffolding genutzt. Build-Profile (dev/preview/prod) bleiben davon unabhängig.",
+    [
+      { text: "Base", onPress: () => setTemplateId?.("base") },
+      { text: "Navigation", onPress: () => setTemplateId?.("navigation") },
+      { text: "CRUD", onPress: () => setTemplateId?.("crud") },
+      { text: "Abbrechen", style: "cancel" },
+    ]
+  );
+};
 
   const handleClearChat = async () => {
     closeAll();

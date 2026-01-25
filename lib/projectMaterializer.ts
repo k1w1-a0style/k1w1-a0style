@@ -176,15 +176,28 @@ function updateAppJson(raw: string, name: string, slug: string, packageName: str
 
 function updateAppConfigJs(raw: string, name: string, slug: string, packageName: string): string {
   let out = raw || "";
-  if (name) out = out.replace(/\bname\s*:\s*['"][^'"]*['"]/, `name: '${escapeJs(name)}'`);
-  if (slug) out = out.replace(/\bslug\s*:\s*['"][^'"]*['"]/, `slug: '${escapeJs(slug)}'`);
+
+  // name/slug/package are replaced opportunistically; do not assume a specific formatting
+  if (name) {
+    out = out.replace(/\bname\s*:\s*['"][^'"]*['"]/, `name: '${escapeJs(name)}'`);
+  }
+  if (slug) {
+    out = out.replace(/\bslug\s*:\s*['"][^'"]*['"]/, `slug: '${escapeJs(slug)}'`);
+  }
   if (packageName) {
     out = out.replace(/\bpackage\s*:\s*['"][^'"]*['"]/, `package: '${escapeJs(packageName)}'`);
   }
-  // enforce Android-only platforms if present
+
+  // Enforce Android-only platforms (insert if missing)
   if (/\bplatforms\s*:/.test(out)) {
     out = out.replace(/\bplatforms\s*:\s*\[[^\]]*\]/, "platforms: ['android']");
+  } else {
+    // Insert near top of expo config if possible
+    if (/expo\s*:\s*{/.test(out)) {
+      out = out.replace(/expo\s*:\s*{/, "expo: {\n    platforms: ['android'],");
+    }
   }
+
   return out;
 }
 

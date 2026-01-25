@@ -2,6 +2,9 @@
 
 import type { BuildStatus } from "../lib/buildStatusMapper";
 
+// Which scaffold template the user prefers for newly created projects
+export type TemplateId = "base" | "navigation" | "crud";
+
 export interface ProjectFile {
   path: string;
   content: string;
@@ -45,6 +48,8 @@ export interface ProjectData {
   name: string;
   slug?: string;
   packageName?: string;
+  /** Selected template for the project (also used as default for next scaffolds). */
+  templateId?: TemplateId;
   files: ProjectFile[];
   chatHistory: ChatMessage[];
   messages?: ChatMessage[];
@@ -70,6 +75,9 @@ export interface ProjectContextProps {
   setPackageName: (packageName: string) => void;
   setProjectName: (name: string) => void;
   createNewProject: () => Promise<void>;
+
+  /** Persist preferred template id (used for next new project / repo scaffold). */
+  setTemplateId?: (templateId: TemplateId) => Promise<void>;
 
   addChatMessage: (message: ChatMessage) => void;
   messages: ChatMessage[];

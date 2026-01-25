@@ -21,6 +21,8 @@ import {
   AutoFixRequest,
 } from "./types";
 
+import type { TemplateId } from "./types";
+
 import {
   saveProjectToStorage,
   loadProjectFromStorage,
@@ -47,10 +49,15 @@ import {
 import { CONFIG } from "../config";
 import { runTemplateHardChecklist } from "../lib/templateChecklist";
 
-const loadTemplateFromFile = async (): Promise<ProjectFile[]> => {
+const loadTemplateFromFile = async (templateId: TemplateId = "base"): Promise<ProjectFile[]> => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const template = require("../templates/expo-sdk54-base.json");
+    const template =
+      templateId === "navigation"
+        ? require("../templates/expo-sdk54-navigation.json")
+        : templateId === "crud"
+          ? require("../templates/expo-sdk54-crud.json")
+          : require("../templates/expo-sdk54-base.json");
     if (!Array.isArray(template) || template.length === 0) {
       throw new Error("Template ist ungültig");
     }
@@ -89,6 +96,27 @@ const loadTemplateFromFile = async (): Promise<ProjectFile[]> => {
 };
 
 const SAVE_DEBOUNCE_MS = 500;
+
+const TEMPLATE_CATALOG: Record<TemplateId, { id: TemplateId; label: string; description: string; files: any[] }> = {
+  base: {
+    id: "base",
+    label: "Base (Blank)",
+    description: "Expo SDK 54 blank scaffold (Android-only) with EAS profiles (dev/preview/prod).",
+    files: require("../templates/expo-sdk54-base.json"),
+  },
+  navigation: {
+    id: "navigation",
+    label: "Navigation",
+    description: "Blank + React Navigation stack + basic screens (Android-only).",
+    files: require("../templates/expo-sdk54-navigation.json"),
+  },
+  crud: {
+    id: "crud",
+    label: "CRUD",
+    description: "Blank + simple CRUD sample + storage (Android-only).",
+    files: require("../templates/expo-sdk54-crud.json"),
+  },
+};
 
 const ProjectContext = createContext<ProjectContextProps | undefined>(
   undefined,
@@ -221,7 +249,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           onPress: async () => {
             try {
               setIsLoading(true);
-              const templateFiles = await loadTemplateFromFile();
+              const templateId = (projectData?.templateId as TemplateId) || "base";
+      const templateFiles = await loadTemplateFromFile(templateId);
               const newProject: ProjectData = {
                 id: uuidv4(),
                 name: "Neues Projekt",
@@ -423,7 +452,16 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     [updateProject],
   );
 
-  const setPreferredBuildProfile = useCallback(
+  const setTemplateId = useCallback(
+    async (templateId: TemplateId) => {
+      if (!templateId) return;
+      await updateProject((prev) => ({ ...prev, templateId }));
+      console.log(`🧩 Template gespeichert: ${templateId}`);
+    },
+    [updateProject],
+  );
+
+const setPreferredBuildProfile = useCallback(
     async (profile: "development" | "preview" | "production") => {
       await updateProject((prev) => ({
         ...prev,
@@ -785,6 +823,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     exportProjectAsZip,
     importProjectFromZip,
     createNewProject,
+    setTemplateId,
     setProjectName,
     messages: projectData?.chatHistory?.filter((msg) => msg && msg.id) || [],
     autoFixRequest,

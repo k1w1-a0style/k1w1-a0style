@@ -14,6 +14,9 @@ export type ChecklistItem = {
   fix?: string;
 };
 
+// Internal helper map for quick lookup/mutation during autofix.
+type TemplateFileMap = Record<string, string>;
+
 export type TemplateChecklistReport = {
   ok: boolean;
   issues: ChecklistItem[];
@@ -790,3 +793,31 @@ function majorOf(v: any): number | null {
   if (!m) return null;
   return Number(m[1]);
 }
+
+function ensureAppConfigFile(files: TemplateFileMap): TemplateFileMap {
+  const hasAppJson = !!files["app.json"];
+  const hasAppConfig = !!files["app.config.js"];
+  if (hasAppJson || hasAppConfig) return files;
+
+  // Default to app.config.js so we can support per-profile "on-the-fly" config via APP_VARIANT.
+  const content = `// Auto-generated fallback (Android-only)\n` +
+    `const getVariant = () => {\n` +
+    `  const v = process.env.APP_VARIANT || process.env.BUILD_PROFILE || process.env.EAS_BUILD_PROFILE || "preview";\n` +
+    `  return String(v).toLowerCase();\n` +
+    `};\n\n` +
+    `module.exports = ({ config }) => {\n` +
+    `  const variant = getVariant();\n` +
+    `  const isDev = variant === "development";\n` +
+    `  return {\n` +
+    `    expo: {\n` +
+    `      ...config,\n` +
+    `      platforms: ["android"],\n` +
+    `      updates: { ...(config.updates || {}), enabled: !isDev },\n` +
+    `      extra: { ...(config.extra || {}), appVariant: variant },\n` +
+    `    },\n` +
+    `  };\n` +
+    `};\n`;
+  return { ...files, ["app.config.js"]: content };
+}
+
+

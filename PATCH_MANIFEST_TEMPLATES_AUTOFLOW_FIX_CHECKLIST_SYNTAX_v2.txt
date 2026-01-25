@@ -1,0 +1,4 @@
+PATCH: templates_autoflow_fix_checklist_syntax_v2
+Fixes TypeScript syntax errors introduced in templateChecklist.ts (missing `file` values).
+Files:
+- lib/templateChecklist.ts
