@@ -17,7 +17,7 @@ export function materializeProjectFiles(
   opts: MaterializeOptions,
 ): ProjectFile[] {
   const name = (opts.name ?? "").trim();
-  const slug = slugify(opts.slug ?? name || "app");
+  const slug = slugify((opts.slug ?? name) || "app");
   const packageName = sanitizeAndroidPackage(opts.packageName ?? "");
 
   const out: ProjectFile[] = [];

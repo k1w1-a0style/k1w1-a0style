@@ -341,7 +341,8 @@ if (container) {
 
         const snackFiles: PreviewFiles = {};
         for (const [path, content] of Object.entries(files)) {
-          snackFiles[path] = { contents: content };
+          const text = typeof content === "string" ? content : String((content as any) ?? "");
+          snackFiles[path] = { contents: text };
         }
 
         const { data, error: fnError } = await promiseWithTimeout(
@@ -451,4 +452,21 @@ if (container) {
     createPreview,
     reset,
   };
+}
+
+function normalizeForWebPreview(fileMap: Record<string, string>): Record<string, string> {
+  // Web preview can't handle `react-native` runtime; map imports to react-native-web when present.
+  const out: Record<string, string> = {};
+  for (const [p, c] of Object.entries(fileMap)) {
+    if (typeof c !== "string") {
+      out[p] = String((c as any) ?? "");
+      continue;
+    }
+    let next = c;
+    // Simple import rewrites
+    next = next.replace(/from\s+['"]react-native['"]/g, "from 'react-native-web'");
+    next = next.replace(/require\(['"]react-native['"]\)/g, "require('react-native-web')");
+    out[p] = next;
+  }
+  return out;
 }

@@ -1,5 +1,6 @@
 // contexts/ProjectContext.tsx (V15 - ALL CRITICAL FIXES APPLIED)
 import React, {
+import { materializeProjectData, sanitizeAndroidPackage, slugify } from "../lib/projectMaterializer";
   createContext,
   useContext,
   useState,

@@ -675,9 +675,7 @@ function defaultEasIgnore(): string {
     "dist",
     "build",
     ".DS_Store",
-  ].join("
-") + "
-";
+  ].join("\n") + "\n";
 }
 
 // -------------------- helpers --------------------

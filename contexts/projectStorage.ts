@@ -5,6 +5,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import { v4 as uuidv4 } from 'uuid';
+import { materializeProjectFiles } from "../lib/projectMaterializer";
 
 // ✅ Phase 1 Step 3: normalizePath aus lib/validators statt utils/chatUtils
 import { normalizePath, Validators, validateFilePath, validateFileContent, validateZipImport } from '../lib/validators';
