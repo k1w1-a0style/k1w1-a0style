@@ -45,7 +45,10 @@ export function resolveEffectiveTemplateId(
   files: ProjectFile[]
 ): { mode: TemplateId; effective: CoreTemplateId } {
   const mode: TemplateId = templateId ?? "auto";
-  if (mode === "auto") return { mode, effective: detectCoreTemplateId(files) };
+  // Auto-Mode soll **immer** "full" als Default nehmen.
+  // (Auch wenn die Files eher nach "navigation" oder "crud" aussehen,
+  //  weil "full" beides abdeckt und damit 0 Auswahl/0 Fehlklick-Drama.)
+  if (mode === "auto") return { mode, effective: "full" };
   return { mode, effective: mode };
 }
 
