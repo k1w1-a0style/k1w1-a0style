@@ -1,0 +1,9 @@
+PATCH: Hard Template Checklist (v1)
+
+New files:
+- lib/templateChecklist.ts
+
+Changed files:
+- contexts/ProjectContext.tsx (template loader runs checklist + report file)
+- screens/GitHubReposScreen.tsx (core template loader runs checklist)
+- config.ts (allowlist: app.json, .easignore, eas-project.json, polyfills.ts)

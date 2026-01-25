@@ -44,6 +44,7 @@ import {
   updateBuildInHistory,
 } from "../lib/buildHistoryStorage";
 import { CONFIG } from "../config";
+import { runTemplateHardChecklist } from "../lib/templateChecklist";
 
 const loadTemplateFromFile = async (): Promise<ProjectFile[]> => {
   try {
@@ -52,13 +53,34 @@ const loadTemplateFromFile = async (): Promise<ProjectFile[]> => {
     if (!Array.isArray(template) || template.length === 0) {
       throw new Error("Template ist ungültig");
     }
-    return template.map((file: any) => ({
+    const mapped = template.map((file: any) => ({
       ...file,
       content:
         typeof file.content === "string"
           ? file.content
           : JSON.stringify(file.content ?? "", null, 2),
     })) as ProjectFile[];
+
+    // ✅ Harte Template-Checkliste (Autofix aktiv): verhindert "halbkaputte" New-Projects
+    const firstPass = runTemplateHardChecklist(mapped, { autofix: true });
+    const secondPass = runTemplateHardChecklist(firstPass.files, { autofix: false });
+
+    if (!secondPass.report.ok) {
+      const issues = secondPass.report.issues
+        .map((i) => `- [${i.severity}] ${i.file ?? "(global)"}: ${i.reason}${i.fix ? ` → FIX: ${i.fix}` : ""}`)
+        .join("\n");
+
+      // Wir lassen das Projekt trotzdem entstehen (autofix hat schon viel repariert),
+      // aber legen einen Report ab, damit du sofort siehst, was noch fehlt.
+      const reportFile: ProjectFile = {
+        path: "TEMPLATE_CHECKLIST_REPORT.md",
+        content: `# Template Checklist Report\n\n${secondPass.report.summary}\n\n${issues}\n`,
+      };
+
+      return [reportFile, ...firstPass.files];
+    }
+
+    return firstPass.files;
   } catch (error) {
     console.error("X Template Fehler:", error);
     return [{ path: "README.md", content: "# Template Fehler" }];
@@ -199,14 +221,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
             try {
               setIsLoading(true);
               const templateFiles = await loadTemplateFromFile();
-              const baseName = "Neues Projekt";
-              const baseSlug = slugify(baseName);
-              const basePkg = sanitizeAndroidPackage(`com.yourcompany.${baseSlug}`) || "com.yourcompany.app";
               const newProject: ProjectData = {
                 id: uuidv4(),
-                name: baseName,
-                slug: baseSlug,
-                packageName: basePkg,
+                name: "Neues Projekt",
+                slug: "neues-projekt",
                 files: templateFiles,
                 chatHistory: [],
                 createdAt: new Date().toISOString(),
@@ -215,9 +233,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
               const release = await mutexRef.current.acquire();
               try {
-                const materialized = materializeProjectData(newProject);
-              setProjectData(materialized);
-                await saveProjectToStorage(materialized);
+                setProjectData(newProject);
+                await saveProjectToStorage(newProject);
               } finally {
                 release();
               }
@@ -247,8 +264,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       return;
     }
     try {
-      const materialized = materializeProjectData(projectData);
-      const result = await exportProjectAsZipFile(materialized);
+      const result = await exportProjectAsZipFile(projectData);
       Alert.alert(
         "Export erfolgreich",
         `${result.fileCount} Dateien als ZIP gespeichert.`,
@@ -431,22 +447,17 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         } else {
           console.log("Kein Projekt gefunden, lade neues Template...");
           const templateFiles = await loadTemplateFromFile();
-          const baseName = "Neues Projekt";
-              const baseSlug = slugify(baseName);
-              const basePkg = sanitizeAndroidPackage(`com.yourcompany.${baseSlug}`) || "com.yourcompany.app";
-              const newProject: ProjectData = {
-                id: uuidv4(),
-                name: baseName,
-                slug: baseSlug,
-                packageName: basePkg,
-                files: templateFiles,
+          const newProject: ProjectData = {
+            id: uuidv4(),
+            name: "Neues Projekt",
+            slug: "neues-projekt",
+            files: templateFiles,
             chatHistory: [],
             createdAt: new Date().toISOString(),
             lastModified: new Date().toISOString(),
           };
-          const materialized = materializeProjectData(newProject);
-              setProjectData(materialized);
-          await saveProjectToStorage(materialized);
+          setProjectData(newProject);
+          await saveProjectToStorage(newProject);
           console.log("Neues Template-Projekt erstellt und gespeichert.");
         }
       } catch (error) {

@@ -52,6 +52,7 @@ import {
   splitFullName,
   isValidRepoName,
 } from "./GitHubReposScreen/utils/repos";
+import { runTemplateHardChecklist } from "../lib/templateChecklist";
 
 type TemplateFile = { path: string; content: string };
 
@@ -60,7 +61,7 @@ const loadCoreTemplateFiles = (): TemplateFile[] => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const template = require("../templates/expo-sdk54-base.json") as any[];
     if (!Array.isArray(template)) return [];
-    return template
+    const mapped = template
       .filter((f) => f && typeof f.path === "string")
       .map((f) => ({
         path: String(f.path),
@@ -69,6 +70,15 @@ const loadCoreTemplateFiles = (): TemplateFile[] => {
             ? f.content
             : JSON.stringify(f.content ?? "", null, 2),
       }));
+
+    // Core-Template Dateien sollen nie "halbkaputt" sein.
+    // Autofix: wir nutzen hier nur die gefixten Inhalte als Quelle für Core-Workflows.
+    const checked = runTemplateHardChecklist(
+      mapped.map((f) => ({ path: f.path, content: f.content })),
+      { autofix: true },
+    );
+
+    return checked.files.map((f) => ({ path: f.path, content: f.content }));
   } catch {
     return [];
   }
@@ -295,7 +305,7 @@ export default function GitHubReposScreen() {
       await pushFilesToRepo(
         parsed.owner,
         parsed.repo,
-        withCoreFiles(materializeProjectFiles(projectData.files as any, { name: projectData.name, slug: projectData.slug ?? slugify(projectData.name), packageName: projectData.packageName })),
+        withCoreFiles(projectData.files as any),
         branch,
       );
       Alert.alert(
