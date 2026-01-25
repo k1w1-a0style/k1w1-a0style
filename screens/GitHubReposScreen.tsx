@@ -52,12 +52,12 @@ import {
   splitFullName,
   isValidRepoName,
 } from "./GitHubReposScreen/utils/repos";
-import { runTemplateHardChecklist } from "../lib/templateChecklist";
-import type { TemplateId } from "../contexts/types";
+import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../lib/templateChecklist";
+import type { TemplateId, CoreTemplateId } from "../contexts/types";
 
 type TemplateFile = { path: string; content: string };
 
-const loadCoreTemplateFiles = (templateId: TemplateId = "base"): TemplateFile[] => {
+const loadCoreTemplateFiles = (templateId: "base" | "navigation" | "crud" = "navigation"): TemplateFile[] => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const template = (
@@ -98,7 +98,7 @@ const CORE_PATHS = [
   ".github/workflows/deploy-supabase-functions.yml",
 ] as const;
 
-const getCoreFileContent = (path: string, templateId: TemplateId = "base"): string | null => {
+const getCoreFileContent = (path: string, templateId: CoreTemplateId = "base"): string | null => {
   const files = loadCoreTemplateFiles(templateId);
   const hit = files.find((f) => f.path === path);
   return hit?.content ?? null;
@@ -113,7 +113,8 @@ export default function GitHubReposScreen() {
     addRecentRepo,
   } = useGitHub();
   const { projectData, updateProjectFiles, setLinkedRepo } = useProject();
-  const templateId: TemplateId = (projectData?.templateId ?? "base") as TemplateId;
+  const templateId: TemplateId = ((projectData?.templateId as TemplateId) || "auto");
+  const effectiveTemplateId: CoreTemplateId = resolveEffectiveTemplateId(templateId, (projectData?.files || []) as any).effective;
 
   const [token, setToken] = useState<string | null>(null);
   const [tokenLoading, setTokenLoading] = useState(false);
@@ -290,14 +291,14 @@ export default function GitHubReposScreen() {
       const seen = new Set(out.map((f) => f.path));
       for (const p of CORE_PATHS) {
         if (seen.has(p)) continue;
-        const c = getCoreFileContent(p, templateId);
+        const c = getCoreFileContent(p, effectiveTemplateId);
         if (!c) continue;
         out.push({ path: p, content: c });
         seen.add(p);
       }
       return out;
     },
-    [],
+    [effectiveTemplateId],
   );
 
   const handlePush = useCallback(async () => {
@@ -386,7 +387,7 @@ export default function GitHubReposScreen() {
           ref: branch,
         });
       } catch (e: any) {
-        const content = getCoreFileContent(".github/workflows/eas-link.yml", templateId);
+        const content = getCoreFileContent(".github/workflows/eas-link.yml", effectiveTemplateId);
         if (!content) {
           throw new Error("Konnte eas-link.yml nicht aus dem Template laden.");
         }

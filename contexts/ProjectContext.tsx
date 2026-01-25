@@ -47,7 +47,7 @@ import {
   updateBuildInHistory,
 } from "../lib/buildHistoryStorage";
 import { CONFIG } from "../config";
-import { runTemplateHardChecklist } from "../lib/templateChecklist";
+import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../lib/templateChecklist";
 
 const loadTemplateFromFile = async (templateId: TemplateId = "base"): Promise<ProjectFile[]> => {
   try {
@@ -97,7 +97,7 @@ const loadTemplateFromFile = async (templateId: TemplateId = "base"): Promise<Pr
 
 const SAVE_DEBOUNCE_MS = 500;
 
-const TEMPLATE_CATALOG: Record<TemplateId, { id: TemplateId; label: string; description: string; files: any[] }> = {
+const TEMPLATE_CATALOG: Record<"base" | "navigation" | "crud", { id: TemplateId; label: string; description: string; files: any[] }> = {
   base: {
     id: "base",
     label: "Base (Blank)",
@@ -249,12 +249,15 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           onPress: async () => {
             try {
               setIsLoading(true);
-              const templateId = (projectData?.templateId as TemplateId) || "base";
-      const templateFiles = await loadTemplateFromFile(templateId);
+              const mode = (projectData?.templateId as TemplateId) || "auto";
+              const { effective } = resolveEffectiveTemplateId(mode, projectData?.files || []);
+              const templateFiles = await loadTemplateFromFile(effective);
               const newProject: ProjectData = {
                 id: uuidv4(),
                 name: "Neues Projekt",
                 slug: "neues-projekt",
+                templateId: mode,
+                effectiveTemplateId: resolveEffectiveTemplateId(mode, projectData?.files || []).effective,
                 files: templateFiles,
                 chatHistory: [],
                 createdAt: new Date().toISOString(),

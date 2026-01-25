@@ -1,0 +1,10 @@
+PATCH: Auto Template Mode + Anzeige (Jan 25 2026)
+Files:
+- contexts/types.ts (TemplateId includes 'auto', adds effectiveTemplateId)
+- lib/templateChecklist.ts (detectCoreTemplateId + resolveEffectiveTemplateId, default navigation)
+- contexts/ProjectContext.tsx (default template mode 'auto', stores effectiveTemplateId, supports auto selection in creation & setTemplateId)
+- components/ChatHeaderActions.tsx (Auto option + current display)
+- screens/GitHubReposScreen.tsx (uses resolveEffectiveTemplateId for core template selection)
+- screens/AppInfoScreen.tsx (shows Template-Modus + Aktives Template)
+Notes:
+- Auto mode picks Navigation by default and switches to CRUD if it detects theme/data structure; otherwise Navigation.

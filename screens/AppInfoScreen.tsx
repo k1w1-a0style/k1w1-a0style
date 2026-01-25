@@ -18,6 +18,8 @@ import {
   PROVIDER_METADATA,
   type AllAIProviders,
 } from "../contexts/AIContext";
+import { resolveEffectiveTemplateId } from "../lib/templateChecklist";
+import type { TemplateId } from "../contexts/types";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";

@@ -5,6 +5,50 @@
 import type { ProjectFile } from "../contexts/types";
 import { normalizePath } from "./validators";
 
+// Template selection (auto mode)
+export type CoreTemplateId = "base" | "navigation" | "crud";
+export type TemplateId = CoreTemplateId | "auto";
+
+export function detectCoreTemplateId(files: ProjectFile[]): CoreTemplateId {
+  const paths = files.map((f) => f.path);
+  const pathSet = new Set(paths);
+  const hasPath = (re: RegExp) => paths.some((p) => re.test(p));
+
+  // Strong navigation signals
+  if (
+    hasPath(/^src\/navigation\//) ||
+    hasPath(/^src\/screens\/.*Screen\.tsx$/) ||
+    hasPath(/^src\/screens\/navigation\//) ||
+    hasPath(/^src\/routes\//)
+  ) {
+    return "navigation";
+  }
+
+  // CRUD-ish / "app already has a shared theme / data layer" signals
+  const hasCrudStructure =
+    pathSet.has("theme.ts") ||
+    hasPath(/^src\/(services|store|data|api|db)\//) ||
+    hasPath(/^src\/features\//);
+
+  const mentionsCrudInCode = files.some((f) => {
+    const c = f.content ?? "";
+    return /\bCRUD\b/i.test(c) || /create\s*read\s*update\s*delete/i.test(c);
+  });
+
+  if (hasCrudStructure || mentionsCrudInCode) return "crud";
+  return "navigation";
+}
+
+export function resolveEffectiveTemplateId(
+  templateId: TemplateId | undefined,
+  files: ProjectFile[]
+): { mode: TemplateId; effective: CoreTemplateId } {
+  const mode: TemplateId = templateId ?? "auto";
+  if (mode === "auto") return { mode, effective: detectCoreTemplateId(files) };
+  return { mode, effective: mode };
+}
+
+
 export type ChecklistSeverity = "P0" | "P1" | "P2";
 
 export type ChecklistItem = {
@@ -819,5 +863,4 @@ function ensureAppConfigFile(files: TemplateFileMap): TemplateFileMap {
     `};\n`;
   return { ...files, ["app.config.js"]: content };
 }
-
 

@@ -1,0 +1,6 @@
+PATCH: Auto template mode - fix AppInfoScreen import syntax
+
+Fixes TypeScript parse errors caused by a broken react-native import block.
+
+Files:
+- screens/AppInfoScreen.tsx

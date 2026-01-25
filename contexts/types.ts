@@ -3,7 +3,8 @@
 import type { BuildStatus } from "../lib/buildStatusMapper";
 
 // Which scaffold template the user prefers for newly created projects
-export type TemplateId = "base" | "navigation" | "crud";
+export type CoreTemplateId = "base" | "navigation" | "crud";
+export type TemplateId = CoreTemplateId | "auto";
 
 export interface ProjectFile {
   path: string;
@@ -50,7 +51,9 @@ export interface ProjectData {
   packageName?: string;
   /** Selected template for the project (also used as default for next scaffolds). */
   templateId?: TemplateId;
-  files: ProjectFile[];
+    /** If templateId is "auto", this stores the last detected core template. */
+  effectiveTemplateId?: CoreTemplateId;
+files: ProjectFile[];
   chatHistory: ChatMessage[];
   messages?: ChatMessage[];
   createdAt: string;
