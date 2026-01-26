@@ -670,7 +670,7 @@ const AppInfoScreen = () => {
             <Text style={styles.infoValue}>{fileCount}</Text>
           </View>
           <Text style={styles.infoHint}>
-				ℹ️ Auto ist Standard und wird aktuell immer zu <Text style={styles.inlineCode}>Full</Text> aufgelöst.
+				ℹ️ Auto (Full) ist Standard – es wird immer das <Text style={styles.inlineCode}>Full</Text>-Template verwendet.
           </Text>
         </View>
 

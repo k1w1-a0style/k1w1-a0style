@@ -3,6 +3,7 @@ import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
+  Switch,
   StyleSheet,
   TouchableOpacity,
   Modal,
@@ -10,11 +11,11 @@ import {
   TextInput,
   Keyboard,
   Alert,
-  Switch
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
 import { useProject } from '../contexts/ProjectContext';
+import type { CoreTemplateId, TemplateId } from '../contexts/types';
 import { resolveEffectiveTemplateId } from '../lib/templateChecklist';
 
 const ChatHeaderActions: React.FC = () => {
@@ -31,20 +32,35 @@ const ChatHeaderActions: React.FC = () => {
 
   const currentName = useMemo(() => projectData?.name || 'Neues Projekt', [projectData?.name]);
 
-	
-  const isDev = __DEV__;
+	// UI: always show what the Auto/Manual template resolves to
+	const templateId = (projectData?.templateId || 'auto') as TemplateId;
+  const files = (projectData?.files || []) as any[];
+
+  const { mode: templateMode, effective: effectiveCoreTemplate } = resolveEffectiveTemplateId(templateId, files);
+
+  const isDev = typeof __DEV__ !== 'undefined' ? __DEV__ : false;
   const advancedEnabled = isDev && !!projectData?.advancedTemplatePickerEnabled;
-// UI: always show what the Auto/Manual template resolves to
-	const templateId = (projectData?.templateId || 'auto') as any;
-	const { mode: templateMode, effective: effectiveCoreTemplate } = resolveEffectiveTemplateId(
-		templateId,
-		(projectData?.files || []) as any
-	);
-	const templateBadge = useMemo(() => {
-		const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
-		const eff = cap(String(effectiveCoreTemplate));
-		return templateMode === 'auto' ? `Auto (${eff})` : eff;
-	}, [templateMode, effectiveCoreTemplate]);
+
+  const formatCoreTemplateLabel = (id: CoreTemplateId): string => {
+    switch (id) {
+      case 'crud':
+        return 'CRUD';
+      case 'base':
+        return 'Base';
+      case 'navigation':
+        return 'Navigation';
+      case 'full':
+        return 'Full';
+      default:
+        return String(id);
+    }
+  };
+
+  const templateBadge = useMemo(() => {
+    const eff = formatCoreTemplateLabel(effectiveCoreTemplate);
+    if (templateMode === 'auto') return `Auto (${eff})`;
+    return eff;
+  }, [templateMode, effectiveCoreTemplate]);
 
   const [menuVisible, setMenuVisible] = useState(false);
 
@@ -59,17 +75,12 @@ const ChatHeaderActions: React.FC = () => {
   };
 
 const handleChooseTemplate = async () => {
-    if (!advancedEnabled) {
-      Alert.alert("Nur im Dev-Modus", "Aktiviere zuerst \"Dev: Manuelle Template-Wahl\" (Erweitert-Menü).");
-      return;
-    }
-
   closeAll();
   Alert.alert(
     "Vorlage wählen",
     "Diese Vorlage wird für das nächste \"Neues Projekt\" und für GitHub-Scaffolding genutzt. Build-Profile (dev/preview/prod) bleiben davon unabhängig.",
     [
-      { text: "Auto (Empfohlen)", onPress: () => setTemplateId?.("auto") },
+      { text: "Auto (Full)", onPress: () => setTemplateId?.("auto") },
       { text: "Full (All-in-one)", onPress: () => setTemplateId?.("full") },
       { text: "Base", onPress: () => setTemplateId?.("base") },
       { text: "Navigation", onPress: () => setTemplateId?.("navigation") },
@@ -154,6 +165,18 @@ const handleChooseTemplate = async () => {
 				  <Text style={styles.menuInfoText}>Template: {templateBadge}</Text>
 				</View>
 
+				{isDev && typeof setAdvancedTemplatePickerEnabled === 'function' && (
+				  <View style={styles.devToggleRow}>
+					<Ionicons name="flask-outline" size={18} color={theme.palette.text.primary} style={styles.devToggleIcon} />
+					<Text style={styles.devToggleText}>Dev: Manuelle Template-Wahl</Text>
+					<Switch
+					  value={!!projectData?.advancedTemplatePickerEnabled}
+					  onValueChange={(v) => {
+						void setAdvancedTemplatePickerEnabled(v);
+					  }}
+					/>
+				  </View>
+				)}
 				<View style={styles.menuDivider} />
 
                 <TouchableOpacity style={styles.menuItem} onPress={handleClearChat}>
@@ -183,32 +206,31 @@ const handleChooseTemplate = async () => {
                   <Text style={styles.menuItemText}>Projekt aus ZIP laden</Text>
                 </TouchableOpacity>
 
+				{isDev && typeof setAdvancedTemplatePickerEnabled === 'function' && (
+				  <View style={styles.devToggleRow}>
+					<Ionicons name="flask-outline" size={18} color={theme.palette.text.primary} style={styles.devToggleIcon} />
+					<Text style={styles.devToggleText}>Dev: Manuelle Template-Wahl</Text>
+					<Switch
+					  value={!!projectData?.advancedTemplatePickerEnabled}
+					  onValueChange={(v) => {
+						void setAdvancedTemplatePickerEnabled(v);
+					  }}
+					/>
+				  </View>
+				)}
 				<View style={styles.menuDivider} />
-        {isDev && (
-          <View style={styles.devToggleRow}>
-            <Ionicons
-              name="flask-outline"
-              size={18}
-              color={theme.palette.text.primary}
-              style={styles.devToggleIcon}
-            />
-            <Text style={styles.devToggleText}>Dev: Manuelle Template-Wahl</Text>
-            <Switch
-              value={advancedEnabled}
-              onValueChange={(v) => {
-                void setAdvancedTemplatePickerEnabled?.(v);
-              }}
-            />
-          </View>
-        )}
 
-        {advancedEnabled && (
-				<TouchableOpacity style={styles.menuItem} onPress={handleChooseTemplate}>
-				  <Ionicons name="options-outline" size={18} color={theme.palette.text.primary} />
-				  <Text style={styles.menuItemText}>Erweitert: Template überschreiben</Text>
-				</TouchableOpacity>
-        )}
+				{advancedEnabled && (
 
+				  <TouchableOpacity style={styles.menuItem} onPress={handleChooseTemplate}>
+
+				    <Ionicons name="options-outline" size={18} color={theme.palette.text.primary} />
+
+				    <Text style={styles.menuItemText}>Erweitert: Template überschreiben</Text>
+
+				  </TouchableOpacity>
+
+				)}
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -327,26 +349,12 @@ const styles = StyleSheet.create({
   devToggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    backgroundColor: theme.palette.card,
-    marginBottom: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    gap: 10,
   },
-  devToggleIcon: {
-    marginRight: 8,
-    opacity: 0.9,
-  },
-  devToggleText: {
-    flex: 1,
-    fontSize: 13,
-    color: theme.palette.text.primary,
-    opacity: 0.9,
-  },
-
+  devToggleIcon: { opacity: 0.9 },
+  devToggleText: { flex: 1, fontSize: 14, color: theme.palette.text.primary },
 
   menuIcon: {
     opacity: 0.9,
