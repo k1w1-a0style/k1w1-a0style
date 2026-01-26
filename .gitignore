@@ -63,3 +63,5 @@ project_dump_*.zip
 k1w1-*-patch.zip
 k1w1-*-hotfix*.zip
 mnt/
+apply_ui_polish_fix_dev_toggle_v2.sh
+k1w1_ui_polish_templates.sh

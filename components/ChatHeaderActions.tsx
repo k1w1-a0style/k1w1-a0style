@@ -10,6 +10,7 @@ import {
   TextInput,
   Keyboard,
   Alert,
+  Switch
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
@@ -25,11 +26,15 @@ const ChatHeaderActions: React.FC = () => {
     createNewProject,
     setProjectName,
     setTemplateId,
+    setAdvancedTemplatePickerEnabled,
   } = useProject();
 
   const currentName = useMemo(() => projectData?.name || 'Neues Projekt', [projectData?.name]);
 
-	// UI: always show what the Auto/Manual template resolves to
+	
+  const isDev = __DEV__;
+  const advancedEnabled = isDev && !!projectData?.advancedTemplatePickerEnabled;
+// UI: always show what the Auto/Manual template resolves to
 	const templateId = (projectData?.templateId || 'auto') as any;
 	const { mode: templateMode, effective: effectiveCoreTemplate } = resolveEffectiveTemplateId(
 		templateId,
@@ -37,7 +42,6 @@ const ChatHeaderActions: React.FC = () => {
 	);
 	const templateBadge = useMemo(() => {
 		const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
-  const advancedEnabled = !!projectData?.advancedTemplatePickerEnabled;
 		const eff = cap(String(effectiveCoreTemplate));
 		return templateMode === 'auto' ? `Auto (${eff})` : eff;
 	}, [templateMode, effectiveCoreTemplate]);
@@ -55,6 +59,11 @@ const ChatHeaderActions: React.FC = () => {
   };
 
 const handleChooseTemplate = async () => {
+    if (!advancedEnabled) {
+      Alert.alert("Nur im Dev-Modus", "Aktiviere zuerst \"Dev: Manuelle Template-Wahl\" (Erweitert-Menü).");
+      return;
+    }
+
   closeAll();
   Alert.alert(
     "Vorlage wählen",
@@ -175,11 +184,31 @@ const handleChooseTemplate = async () => {
                 </TouchableOpacity>
 
 				<View style={styles.menuDivider} />
+        {isDev && (
+          <View style={styles.devToggleRow}>
+            <Ionicons
+              name="flask-outline"
+              size={18}
+              color={theme.palette.text.primary}
+              style={styles.devToggleIcon}
+            />
+            <Text style={styles.devToggleText}>Dev: Manuelle Template-Wahl</Text>
+            <Switch
+              value={advancedEnabled}
+              onValueChange={(v) => {
+                void setAdvancedTemplatePickerEnabled?.(v);
+              }}
+            />
+          </View>
+        )}
 
+        {advancedEnabled && (
 				<TouchableOpacity style={styles.menuItem} onPress={handleChooseTemplate}>
 				  <Ionicons name="options-outline" size={18} color={theme.palette.text.primary} />
 				  <Text style={styles.menuItemText}>Erweitert: Template überschreiben</Text>
 				</TouchableOpacity>
+        )}
+
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -294,6 +323,30 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.palette.text.secondary,
   },
+
+  devToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
+    marginBottom: 10,
+  },
+  devToggleIcon: {
+    marginRight: 8,
+    opacity: 0.9,
+  },
+  devToggleText: {
+    flex: 1,
+    fontSize: 13,
+    color: theme.palette.text.primary,
+    opacity: 0.9,
+  },
+
 
   menuIcon: {
     opacity: 0.9,

@@ -1,0 +1,13 @@
+PATCH: UI polish templates full fix v4
+
+Fixes build errors from v3 patch:
+- Define isDev safely via globalThis.__DEV__ (no TS name errors)
+- Guard optional context setter setAdvancedTemplatePickerEnabled via optional chaining
+- Guard nullable projectData via optional chaining
+- Replace missing style keys by using existing styles, add devToggleRow/devToggleText styles
+- Add Switch import and dev-only toggle UI
+
+Behavior:
+- Manual template override menu is hidden by default.
+- In dev builds, a switch "Dev: Manuelle Template-Wahl" appears; when enabled, the manual override menu item is shown.
+- Auto template still resolves to Full and badge stays.
