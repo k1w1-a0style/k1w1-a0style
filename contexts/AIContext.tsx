@@ -268,6 +268,8 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
   const [config, setConfigState] = useState<AIConfig>(DEFAULT_CONFIG);
   const [providerStatus, setProviderStatus] = useState<ProviderLimitStatus[]>([]);
   const didLoad = useRef(false);
+  const rotateKeyInterceptorInstalled = useRef(false);
+  const persistRotationInProgress = useRef(false);
 
   
 useEffect(() => {
@@ -298,6 +300,44 @@ useEffect(() => {
       didLoad.current = true;
     }
   })();
+}, []);
+
+useEffect(() => {
+  // Persistente Rotation: wenn SecureKeyManager wegen 429 rotiert, spiegeln wir das in config.apiKeys,
+  // damit es nach App-Neustart/Backup erhalten bleibt.
+  if (rotateKeyInterceptorInstalled.current) return;
+  rotateKeyInterceptorInstalled.current = true;
+
+  const originalRotate = SecureKeyManager.rotateKey.bind(SecureKeyManager);
+
+  SecureKeyManager.rotateKey = (provider: AllAIProviders): boolean => {
+    const rotated = originalRotate(provider);
+    if (!rotated) return false;
+
+    // Nur persistieren, wenn Config bereits geladen ist und wir nicht gerade selbst persistieren
+    if (!didLoad.current || persistRotationInProgress.current) return true;
+
+    persistRotationInProgress.current = true;
+    try {
+      setConfigState((prev) => {
+        const list = prev.apiKeys?.[provider] ?? [];
+        if (list.length < 2) return prev;
+        const next = [...list.slice(1), list[0]];
+        return { ...prev, apiKeys: { ...prev.apiKeys, [provider]: next } };
+      });
+    } finally {
+      // Reset in next tick so state update can flush
+      setTimeout(() => {
+        persistRotationInProgress.current = false;
+      }, 0);
+    }
+    return true;
+  };
+
+  return () => {
+    // Best effort restore (hot reload / unmount)
+    (SecureKeyManager as any).rotateKey = originalRotate;
+  };
 }, []);
 
 useEffect(() => {
