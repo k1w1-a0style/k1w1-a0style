@@ -1,0 +1,4 @@
+PATCH: AUTOROTATE_429 v4
+- Fix orchestrator system prompt test: ensure groq key present and fetch mocked response so fetch is actually called.
+Files:
+- lib/__tests__/orchestrator.test.ts

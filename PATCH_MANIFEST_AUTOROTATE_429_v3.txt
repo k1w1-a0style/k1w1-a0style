@@ -1,0 +1,3 @@
+PATCH v3 - Fix orchestrator 429 auto-rotate test to mock global.fetch locally.
+Files:
+- lib/__tests__/orchestrator.test.ts

@@ -1,4 +1,26 @@
+import SecureKeyManager from '../SecureKeyManager';
 import { runOrchestrator, parseFilesFromText, runValidatorOrchestrator, type LlmMessage } from '../orchestrator';
+
+// Ensure global.fetch is a Jest mock for this test file.
+// Jest setup in this repo does not guarantee fetch is mocked.
+const __originalFetch: any = (global as any).fetch;
+
+beforeAll(() => {
+  if (!(global as any).fetch || !(global as any).fetch.mock) {
+    (global as any).fetch = jest.fn(async () => ({
+      ok: false,
+      status: 401,
+      text: async () => 'Unauthorized',
+      json: async () => ({ error: 'Unauthorized' }),
+    }));
+  }
+});
+
+afterAll(() => {
+  // Restore original fetch if it existed (important for other suites).
+  (global as any).fetch = __originalFetch;
+});
+
 
 describe('Orchestrator', () => {
   describe('parseFilesFromText', () => {
@@ -97,6 +119,19 @@ describe('Orchestrator', () => {
         return;
       }
 
+      // Ensure a key is available so the orchestrator actually performs a network call.
+      SecureKeyManager.setKeys('groq', ['k1']);
+      fetchAny.mockReset();
+
+      fetchAny.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          choices: [{ message: { content: 'ok' } }],
+        }),
+        text: async () => 'ok',
+      });
+
       const testMessages: LlmMessage[] = [
         { role: 'system', content: 'Du bist ein hilfreicher Assistent.' },
         { role: 'user', content: 'Sag Hallo' },
@@ -104,12 +139,53 @@ describe('Orchestrator', () => {
 
       await runOrchestrator('groq', 'llama-3.1-8b-instant', 'speed', testMessages);
 
+      expect(fetchAny).toHaveBeenCalled();
       const fetchCall = fetchAny.mock.calls[0];
+      expect(fetchCall).toBeTruthy();
+      expect(fetchCall[1]).toBeTruthy();
+
       const body = JSON.parse(fetchCall[1].body);
 
       expect(Array.isArray(body.messages)).toBe(true);
       expect(body.messages[0].role).toBe('system');
       expect(body.messages[0].content).toBe('Du bist ein hilfreicher Assistent.');
     });
+
+
+it('sollte bei 429 automatisch den API-Key rotieren und retry machen', async () => {
+  const fetchAny: any = (global as any).fetch;
+  if (!fetchAny || !fetchAny.mock) {
+    // Should not happen because we install a mock in beforeAll.
+    (global as any).fetch = jest.fn();
+  }
+
+
+  SecureKeyManager.setKeys('groq', ['k1', 'k2']);
+  fetchAny.mockReset();
+
+  fetchAny
+    .mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      text: async () => 'Too Many Requests',
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: 'ok' } }] }),
+      text: async () => '',
+    });
+
+  const res: any = await runOrchestrator('groq', 'llama-3.1-8b-instant', 'speed', [
+    { role: 'user', content: 'hi' },
+  ]);
+
+  expect(res.ok).toBe(true);
+  expect(res.keysRotated).toBe(1);
+
+  expect(fetchAny.mock.calls.length).toBe(2);
+  expect(fetchAny.mock.calls[0][1].headers.Authorization).toBe('Bearer k1');
+  expect(fetchAny.mock.calls[1][1].headers.Authorization).toBe('Bearer k2');
+});
   });
 });
