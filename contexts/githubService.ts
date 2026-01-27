@@ -32,6 +32,7 @@ const GH_TOKEN_KEY = "github_pat_v1";
 const EXPO_TOKEN_KEY = "expo_token_v1";
 const EDGE_ADMIN_KEY = "edge_admin_key_v1";
 
+const SUPABASE_SERVICE_ROLE_KEY = "supabase_service_role_key_v1";
 // ✅ FIX: Rate Limiter für GitHub API (5000/hour, wir nutzen 4000 als Buffer)
 const githubLimiter = new RateLimiter({
   maxRequests: 4000,
@@ -188,6 +189,25 @@ export const saveEdgeAdminKey = async (key: string): Promise<void> => {
 
 export const deleteEdgeAdminKey = async (): Promise<void> => {
   await SecureStore.deleteItemAsync(EDGE_ADMIN_KEY);
+};
+
+
+// Supabase Service Role Key (HIGHLY SENSITIVE) -> SecureStore
+export const getSupabaseServiceRoleKey = async (): Promise<string | null> => {
+  return await SecureStore.getItemAsync(SUPABASE_SERVICE_ROLE_KEY);
+};
+
+export const saveSupabaseServiceRoleKey = async (key: string): Promise<void> => {
+  const v = (key ?? "").trim();
+  if (!v) {
+    await SecureStore.deleteItemAsync(SUPABASE_SERVICE_ROLE_KEY);
+    return;
+  }
+  await SecureStore.setItemAsync(SUPABASE_SERVICE_ROLE_KEY, v);
+};
+
+export const deleteSupabaseServiceRoleKey = async (): Promise<void> => {
+  await SecureStore.deleteItemAsync(SUPABASE_SERVICE_ROLE_KEY);
 };
 
 /**

@@ -33,6 +33,9 @@ import {
   getEdgeAdminKey,
   saveEdgeAdminKey,
   deleteEdgeAdminKey,
+  getSupabaseServiceRoleKey,
+  saveSupabaseServiceRoleKey,
+  deleteSupabaseServiceRoleKey,
 } from "../contexts/githubService";
 
 const deriveSupabaseUrl = (raw: string): { projectId: string; url: string } => {
@@ -195,17 +198,32 @@ export default function ConnectionsScreen() {
         getExpoToken().catch(() => ""),
         getEdgeAdminKey().catch(() => ""),
       ]);
-      const [raw, url, anon, srv, eas] = await Promise.all([
-        AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_RAW).catch(() => ""),
-        AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).catch(() => ""),
-        AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_KEY).catch(() => ""),
-        AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY).catch(
-          () => "",
-        ),
-        AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID).catch(() => ""),
-      ]);
+      
+const srvSecure =
+  (await getSupabaseServiceRoleKey().catch(() => null)) || "";
 
-      if (!mounted) return;
+const [raw, url, anon, eas] = await Promise.all([
+  AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_RAW).catch(() => ""),
+  AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).catch(() => ""),
+  AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_KEY).catch(() => ""),
+  AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID).catch(() => ""),
+]);
+
+// Legacy migration: AsyncStorage -> SecureStore
+let srv = srvSecure;
+if (!srv) {
+  const legacy = await AsyncStorage.getItem(
+    STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY_LEGACY,
+  ).catch(() => "");
+  if (legacy) {
+    await saveSupabaseServiceRoleKey(legacy);
+    await AsyncStorage.removeItem(
+      STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY_LEGACY,
+    ).catch(() => {});
+    srv = legacy;
+  }
+}
+if (!mounted) return;
       setGithubToken(gh || "");
       setExpoToken(ex || "");
       setEdgeAdminKeyState(edge || "");
@@ -249,10 +267,11 @@ export default function ConnectionsScreen() {
         STORAGE_KEYS.SUPABASE_KEY,
         supabaseAnonKey.trim(),
       );
-      await AsyncStorage.setItem(
-        STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
-        supabaseServiceRoleKey.trim(),
-      );
+      const srv = supabaseServiceRoleKey.trim();
+      if (srv) await saveSupabaseServiceRoleKey(srv);
+      else await deleteSupabaseServiceRoleKey();
+      // Remove legacy value if it exists
+      await AsyncStorage.removeItem(STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY_LEGACY).catch(() => {});
       await AsyncStorage.setItem(
         STORAGE_KEYS.EAS_PROJECT_ID,
         easProjectId.trim(),

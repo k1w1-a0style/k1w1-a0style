@@ -1,6 +1,7 @@
 // contexts/AIContext.tsx
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import SecureKeyManager from '../lib/SecureKeyManager';
 
 export type AllAIProviders = 'groq' | 'gemini' | 'openai' | 'anthropic' | 'huggingface';
@@ -176,6 +177,7 @@ export const AVAILABLE_MODELS: Record<AllAIProviders, ModelInfo[]> = {
 };
 
 const CONFIG_STORAGE_KEY = 'ai_config_v4';
+const AI_KEYS_SECURE_KEY = 'ai_api_keys_v1';
 const STORAGE_FALLBACK_KEYS = ['ai_config_v3', 'ai_config_v2', 'ai_config_v1'];
 
 const DEFAULT_CONFIG: AIConfig = {
@@ -197,6 +199,37 @@ function normalizeAuto(mode: string | undefined | null): string {
   return m.startsWith('auto-') ? 'auto' : (m.trim() || 'auto');
 }
 
+
+
+async function loadSecureApiKeys(): Promise<Record<AllAIProviders, string[]>> {
+  try {
+    const raw = await SecureStore.getItemAsync(AI_KEYS_SECURE_KEY);
+    if (!raw) return { ...DEFAULT_CONFIG.apiKeys };
+    const parsed = JSON.parse(raw) as Partial<Record<AllAIProviders, unknown>>;
+    const next: Record<AllAIProviders, string[]> = { ...DEFAULT_CONFIG.apiKeys };
+    (Object.keys(next) as AllAIProviders[]).forEach((p) => {
+      const v = (parsed as any)?.[p];
+      if (Array.isArray(v)) next[p] = v.map((k) => String(k ?? "").trim()).filter(Boolean);
+    });
+    return next;
+  } catch {
+    return { ...DEFAULT_CONFIG.apiKeys };
+  }
+}
+
+async function saveSecureApiKeys(keys: Record<AllAIProviders, string[]>): Promise<void> {
+  const cleaned: Record<AllAIProviders, string[]> = { ...DEFAULT_CONFIG.apiKeys };
+  (Object.keys(cleaned) as AllAIProviders[]).forEach((p) => {
+    const v = (keys as any)?.[p];
+    cleaned[p] = Array.isArray(v) ? v.map((k) => String(k ?? "").trim()).filter(Boolean) : [];
+  });
+  const hasAny = (Object.keys(cleaned) as AllAIProviders[]).some((p) => cleaned[p].length > 0);
+  if (!hasAny) {
+    await SecureStore.deleteItemAsync(AI_KEYS_SECURE_KEY).catch(() => undefined);
+    return;
+  }
+  await SecureStore.setItemAsync(AI_KEYS_SECURE_KEY, JSON.stringify(cleaned)).catch(() => undefined);
+}
 async function loadConfig(): Promise<AIConfig | null> {
   const keys = [CONFIG_STORAGE_KEY, ...STORAGE_FALLBACK_KEYS];
   for (const k of keys) {
@@ -236,30 +269,57 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
   const [providerStatus, setProviderStatus] = useState<ProviderLimitStatus[]>([]);
   const didLoad = useRef(false);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const loaded = await loadConfig();
-        if (loaded) setConfigState(loaded);
-      } finally {
-        didLoad.current = true;
+  
+useEffect(() => {
+  (async () => {
+    try {
+      const loaded = (await loadConfig()) ?? DEFAULT_CONFIG;
+
+      // Load keys from SecureStore (authoritative)
+      const secureKeys = await loadSecureApiKeys();
+
+      // Legacy migration: if SecureStore empty but config contains keys, migrate them once
+      const hasSecureAny = (Object.keys(secureKeys) as AllAIProviders[]).some(
+        (p) => (secureKeys[p] ?? []).length > 0,
+      );
+      const hasLegacyAny = (Object.keys(loaded.apiKeys) as AllAIProviders[]).some(
+        (p) => (loaded.apiKeys[p] ?? []).length > 0,
+      );
+
+      let finalKeys = secureKeys;
+      if (!hasSecureAny && hasLegacyAny) {
+        finalKeys = { ...DEFAULT_CONFIG.apiKeys, ...loaded.apiKeys };
+        await saveSecureApiKeys(finalKeys);
       }
-    })();
-  }, []);
 
-  useEffect(() => {
-    if (!didLoad.current) return;
-    AsyncStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config)).catch(() => undefined);
-  }, [config]);
+      // Keep models/modes untouched; only ensure keys are loaded
+      setConfigState({ ...loaded, apiKeys: finalKeys });
+    } finally {
+      didLoad.current = true;
+    }
+  })();
+}, []);
 
-  useEffect(() => {
-    if (!didLoad.current) return;
-    (Object.keys(config.apiKeys) as AllAIProviders[]).forEach((provider) => {
-      SecureKeyManager.setKeys(provider, config.apiKeys[provider] ?? []);
-    });
-  }, [config.apiKeys]);
+useEffect(() => {
+  if (!didLoad.current) return;
+  const redacted = { ...(config as any), apiKeys: {} as any };
+  AsyncStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(redacted)).catch(
+    () => undefined,
+  );
+}, [config]);
 
-  const setConfig = useCallback((next: AIConfig) => setConfigState(next), []);
+useEffect(() => {
+  if (!didLoad.current) return;
+
+  // 1) In-memory keys for request-time usage
+  (Object.keys(config.apiKeys) as AllAIProviders[]).forEach((provider) => {
+    SecureKeyManager.setKeys(provider, config.apiKeys[provider] ?? []);
+  });
+
+  // 2) Persist keys securely
+  saveSecureApiKeys(config.apiKeys as any).catch(() => undefined);
+}, [config.apiKeys]);
+const setConfig = useCallback((next: AIConfig) => setConfigState(next), []);
   const updateConfig = useCallback((patch: Partial<AIConfig>) => {
     setConfigState((prev) => ({ ...prev, ...patch }));
   }, []);

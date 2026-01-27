@@ -7,6 +7,8 @@ import { STORAGE_KEYS } from "./storageKeys";
 import {
   getExpoToken,
   getEdgeAdminKey,
+  getSupabaseServiceRoleKey,
+  saveSupabaseServiceRoleKey,
   syncRepoSecrets,
 } from "../contexts/githubService";
 
@@ -21,20 +23,30 @@ export const autoSyncRepoSecrets = async (
   const updated: string[] = [];
   const skipped: string[] = [];
 
-  // Read values from storage
-  const [
-    expoToken,
-    supabaseUrl,
-    supabaseServiceRole,
-    easProjectId,
-    edgeAdminKey,
-  ] = await Promise.all([
+  const [expoToken, supabaseUrl, easProjectId, edgeAdminKey] = await Promise.all([
     getExpoToken(),
     AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL),
-    AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY),
     AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID),
     getEdgeAdminKey(),
   ]);
+
+  // Service role: SecureStore first
+  let supabaseServiceRole =
+    (await getSupabaseServiceRoleKey().catch(() => null)) || "";
+
+  // Legacy migration fallback
+  if (!supabaseServiceRole) {
+    const legacy = await AsyncStorage.getItem(
+      STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY_LEGACY,
+    ).catch(() => "");
+    if (legacy) {
+      supabaseServiceRole = legacy;
+      await saveSupabaseServiceRoleKey(legacy);
+      await AsyncStorage.removeItem(
+        STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY_LEGACY,
+      ).catch(() => {});
+    }
+  }
 
   // Validate inputs (but keep a useful 'skipped' list instead of throwing)
   if (!expoToken) skipped.push("EXPO_TOKEN (missing)");
@@ -46,17 +58,10 @@ export const autoSyncRepoSecrets = async (
   if (!edgeAdminKey) skipped.push("K1W1_EDGE_ADMIN_KEY (optional, empty)");
 
   // If nothing to sync, return early
-  if (
-    !expoToken &&
-    !supabaseUrl &&
-    !supabaseServiceRole &&
-    !easProjectId &&
-    !edgeAdminKey
-  ) {
+  if (!expoToken && !supabaseUrl && !supabaseServiceRole && !easProjectId && !edgeAdminKey) {
     return { updated, skipped };
   }
 
-  // Perform sync
   const res = await syncRepoSecrets(repoFullName, {
     expoToken: expoToken || undefined,
     supabaseUrl: supabaseUrl || undefined,
@@ -66,6 +71,5 @@ export const autoSyncRepoSecrets = async (
   });
 
   updated.push(...res.updated);
-
   return { updated, skipped };
 };

@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { CONFIG } from "../config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { STORAGE_KEYS } from "../lib/storageKeys";
-import { getEdgeAdminKey, getGitHubToken } from "../contexts/githubService";
+import { getEdgeAdminKey } from "../contexts/githubService";
 
 export interface LogEntry {
   timestamp: string;
@@ -78,6 +78,7 @@ export function useGitHubActionsLogs({
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isMountedRef = useRef(true);
+  const loggedErrorRef = useRef(false);
   const isFetchPendingRef = useRef(false);
 
   const fetchLogs = useCallback(async () => {
@@ -90,6 +91,7 @@ export function useGitHubActionsLogs({
 
     setIsLoading(true);
     setError(null);
+    loggedErrorRef.current = false;
 
     try {
       // Fetch latest workflow run if no runId provided
@@ -123,8 +125,6 @@ export function useGitHubActionsLogs({
         }
       }
 
-      const githubToken = await getGitHubToken().catch(() => null);
-
       // Fetch logs for the workflow run
       const logsResponse = await fetch(`${edgeUrl}/github-workflow-logs`, {
         method: "POST",
@@ -136,7 +136,6 @@ export function useGitHubActionsLogs({
           githubRepo,
           runId: targetRunId,
           mode: "raw",
-          githubToken,
         }),
       });
 
@@ -158,11 +157,12 @@ export function useGitHubActionsLogs({
       }
     } catch (err: any) {
       // Nur einmal loggen (nicht bei jedem Poll-Versuch)
-      if (isMountedRef.current && !error) {
+      if (isMountedRef.current && !loggedErrorRef.current) {
         console.warn(
           "[useGitHubActionsLogs] ⚠️ Logs nicht verfügbar:",
           err?.message,
         );
+        loggedErrorRef.current = true;
       }
       if (isMountedRef.current) {
         setError(err?.message || "Fehler beim Abrufen der Logs");

@@ -1,0 +1,17 @@
+Combined Patch v3 (Safe): SecureStore secrets + stable polling/logs + FULL backup/restore (all tokens)
+Files:
+- contexts/AIContext.tsx
+- contexts/githubService.ts
+- contexts/ProjectContext.tsx
+- hooks/useGitHubActionsLogs.ts
+- lib/autoSyncRepoSecrets.ts
+- lib/storageKeys.ts
+- screens/ConnectionsScreen.tsx
+- screens/AppInfoScreen.tsx
+
+Fixes vs previous patch zips:
+- AppInfoScreen full-backup now includes Supabase Service Role Key stored in SecureStore (with legacy AsyncStorage fallback + migration).
+- ProjectContext no longer references pauseBuildPolling/pollBuildStatusOnce before declaration (fixes runtime ReferenceError).
+
+Notes:
+- Does NOT modify AI provider/model lists or defaults; only changes secret storage/persistence.

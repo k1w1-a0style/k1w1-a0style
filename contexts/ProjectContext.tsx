@@ -569,6 +569,15 @@ const setPreferredBuildProfile = useCallback(
     activeBuildJobIdRef.current = null;
   }, []);
 
+
+const pauseBuildPolling = useCallback(() => {
+  if (buildPollIntervalRef.current) {
+    clearInterval(buildPollIntervalRef.current);
+    buildPollIntervalRef.current = null;
+  }
+  // keep activeBuildJobIdRef for resume
+}, []);
+
   useEffect(() => {
     return () => {
       stopBuildPolling();
@@ -651,6 +660,17 @@ const setPreferredBuildProfile = useCallback(
         buildPollErrorCountRef.current = 0;
       } catch (e: any) {
         buildPollErrorCountRef.current += 1;
+        if (buildPollErrorCountRef.current >= 8) {
+          const msg = e?.message || String(e);
+          stopBuildPolling();
+          setCurrentBuild((prev) => ({
+            ...(prev ?? { status: "error" }),
+            status: "error",
+            message: `🛑 Polling abgebrochen (zu viele Fehler). Letzter Fehler: ${msg}`,
+            lastUpdatedAt: new Date().toISOString(),
+          }));
+          return;
+        }
         const msg = e?.message || String(e);
         console.warn(
           `⚠️ check-eas-build Polling Fehler (${buildPollErrorCountRef.current}):`,
@@ -674,6 +694,27 @@ const setPreferredBuildProfile = useCallback(
     },
     [stopBuildPolling],
   );
+
+// Pause/Resume build polling on AppState (Android background reliability)
+useEffect(() => {
+  const sub = AppState.addEventListener("change", (state) => {
+    if (state !== "active") {
+      pauseBuildPolling();
+      return;
+    }
+    const activeId = activeBuildJobIdRef.current;
+    if (activeId && !buildPollIntervalRef.current) {
+      pollBuildStatusOnce(activeId).catch(() => {});
+      buildPollIntervalRef.current = setInterval(() => {
+        const id = activeBuildJobIdRef.current;
+        if (!id) return;
+        pollBuildStatusOnce(id).catch(() => {});
+      }, 6000);
+    }
+  });
+  return () => sub.remove();
+}, [pauseBuildPolling, pollBuildStatusOnce]);
+
 
   const startBuild = useCallback(
     async (buildProfile?: string) => {
