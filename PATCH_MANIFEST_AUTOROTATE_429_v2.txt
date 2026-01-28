@@ -1,3 +1,0 @@
-PATCH_MANIFEST_AUTOROTATE_429_v2.txt
-- lib/orchestrator.ts (auto-rotate on 429, no status field in OrchestratorResult)
-- lib/__tests__/orchestrator.test.ts (adds 429 rotation test)
