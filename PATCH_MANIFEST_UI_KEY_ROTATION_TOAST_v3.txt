@@ -1,0 +1,6 @@
+PATCH_MANIFEST_UI_KEY_ROTATION_TOAST_v3
+
+Fix: ChatMessage.meta supports keyRotation flag used by useChatAIFlow for 429 key-rotation notifications.
+
+Files:
+- contexts/types.ts

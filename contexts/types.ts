@@ -35,6 +35,7 @@ export interface ChatMessage {
     error?: boolean;
     autoFix?: boolean;
     planner?: boolean;
+    keyRotation?: boolean;
   };
 }
 
