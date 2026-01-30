@@ -29,7 +29,7 @@ permissions:
   contents: read
 
 env:
-  EAS_CLI_VERSION: "16.0.0"
+  EAS_CLI_VERSION: "16.31.0"
   ARTIFACT_EXT: "apk"
   ALLOWED_REF_REGEX: "^(work|main|develop|dev|release\\/.*|feature\\/.*|hotfix\\/.*)$"
 
@@ -215,6 +215,26 @@ jobs:
         run: |
           set -euo pipefail
           eas whoami
+
+      - name: Ensure EAS project is initialized (non-interactive)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Create or link an EAS project without prompts. Safe to run on every CI build.
+          eas project:init --force --non-interactive
+
+      - name: Normalize build profile (avoid dev-client hard fail)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${PROFILE}" = "development" ]; then
+            if node -e "require.resolve('expo-dev-client/package.json')" >/dev/null 2>&1; then
+              echo "expo-dev-client present."
+            else
+              echo "⚠️ expo-dev-client missing; falling back to PROFILE=preview for APK build."
+              echo "PROFILE=preview" >> "$GITHUB_ENV"
+            fi
+          fi
 
       - name: Update Supabase job: running
         if: ${{ env.JOB_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}

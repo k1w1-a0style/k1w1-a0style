@@ -1,19 +1,14 @@
-PATCH3 Manifest – APK Download URL (Supabase Storage) + error_message Fix
+PATCH5 - Fully automated EAS init in CI (no local terminal) + resilient app.config
 
-Enthaltene Dateien:
-1) .github/workflows/k1w1-triggered-build.yml
-   - Upload der gebauten APK nach Supabase Storage (Bucket: apk-builds oder secrets.SUPABASE_APK_BUCKET)
-   - Erzeugt signed download_url (7 Tage) und schreibt sie in build_jobs.download_url
-   - Failure schreibt jetzt build_jobs.error_message statt error
+Changed files:
+1) app.config.js
+   - Make dotenv optional so CI can evaluate dynamic Expo config without crashing.
+2) .github/workflows/k1w1-triggered-build.yml
+   - Run `eas project:init --force --non-interactive` before build to auto-link/create EAS project in CI.
+   - If PROFILE=development but expo-dev-client is missing, auto-fallback to PROFILE=preview to still produce an APK.
+   - Bump EAS_CLI_VERSION to 16.31.0.
 
-2) supabase/functions/check-eas-build/index.ts
-   - Liefert download_url + build_url konsistent (top-level + job)
-   - Nutzt error_message (fallback error), entfernt double CORS call
-
-3) screens/EnhancedBuildScreen.tsx
-   - Zeigt Buttons: “📦 Artifacts öffnen” und “⬇️ APK Download” / “🔗 Build Ergebnis”
-   - Nutzt currentBuild.urls.* (aus check-eas-build / Polling)
-
-Voraussetzungen:
-- Supabase Storage Bucket “apk-builds” existiert (private empfohlen).
-- Optional GitHub Secret SUPABASE_APK_BUCKET (ansonsten default apk-builds).
+Why:
+- Fixes 'EAS project not configured' without requiring you to run `eas init` locally.
+- Prevents CI failures when dotenv isn't installed.
+- Avoids hard-failing on development profile when expo-dev-client isn't installed in the target project.

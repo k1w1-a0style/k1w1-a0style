@@ -1,30 +1,20 @@
-PATCH3 Apply & Verify
+Apply (project root):
+  unzip -o Mobile-APK-Builder-PATCH5.zip
+  rm Mobile-APK-Builder-PATCH5.zip
 
-1) Apply (im Projekt-Root):
-   unzip -o Mobile-APK-Builder-PATCH3.zip
-   rm Mobile-APK-Builder-PATCH3.zip
+Verify locally:
+  npm run typecheck
+  npm run lint:ci
+  npm run test:silent
 
-2) GitHub Secret (optional):
-   SUPABASE_APK_BUCKET = apk-builds   (oder anderer Bucketname)
+Commit & push:
+  git add -A
+  git commit -m "fix(ci): auto-init EAS project + resilient config + profile fallback"
+  git push origin build
 
-3) Supabase Storage Bucket einmalig anlegen:
-   - Supabase Dashboard → Storage → New bucket → Name: apk-builds
-   - Private bucket empfohlen (wir erzeugen signed URLs)
+Deploy updated edge functions: (not needed for this patch)
+  (none)
 
-4) Tests lokal:
-   npm run typecheck
-   npm run lint:ci
-   npm run test:silent
-
-5) Commit + Push:
-   git add -A
-   git commit -m "feat(build): add APK download_url via Supabase Storage"
-   git push origin build
-
-6) Deploy Edge Function:
-   supabase functions deploy check-eas-build
-
-7) E2E Verify:
-   - In-App Build starten
-   - Supabase build_jobs: download_url gefüllt
-   - App zeigt Button “⬇️ APK Download” und öffnet den Link
+Expected result:
+- GitHub Actions no longer fails with 'EAS project not configured' even for fresh repos/branches.
+- If a target project lacks expo-dev-client, development builds fall back to preview APK automatically.

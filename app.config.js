@@ -7,7 +7,12 @@
  * - ENV bleibt als Override/Fallback erlaubt.
  */
 
-require("dotenv").config();
+try {
+  require("dotenv").config();
+} catch (e) {
+  // dotenv is optional in CI; config must not crash if it is missing
+}
+
 
 const fs = require("fs");
 const path = require("path");
