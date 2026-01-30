@@ -1,0 +1,15 @@
+PATCH: templates + generator + preview fixes (v1)
+
+Changed files:
+- contexts/ProjectContext.tsx
+- contexts/projectStorage.ts
+- hooks/usePreview.ts
+- lib/fileWriter.ts
+- lib/sandpackBuilder.ts
+- screens/GitHubReposScreen.tsx
+- templates/expo-sdk54-base.json
+- templates/expo-sdk54-crud.json
+- templates/expo-sdk54-navigation.json
+
+New files:
+- lib/projectMaterializer.ts

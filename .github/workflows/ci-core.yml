@@ -1,0 +1,57 @@
+name: CI Core
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Branch/Tag/SHA, z.B. feature/foo"
+        required: false
+        type: string
+      node-version:
+        description: "Node Version"
+        required: false
+        type: string
+        default: "20"
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout (ref aus App/Workflow)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ inputs['node-version'] }}
+          cache: npm
+
+      - name: Install (frozen)
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint (CI)
+        run: npm run lint:ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm run test:silent
+
+      - name: Expo config smoke test (projectId present)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --no-install expo config --json > /tmp/expo-config.json
+          PROJECT_ID="$(node -e 'const c=require("/tmp/expo-config.json"); process.stdout.write(String(c?.expo?.extra?.eas?.projectId||""))')"
+          if [ -z "${PROJECT_ID}" ]; then
+            echo "::error::expo.extra.eas.projectId missing (fix: run eas-link.yml or commit eas-project.json)."
+            exit 1
+          fi
+          echo "✅ expo.extra.eas.projectId: ${PROJECT_ID}"

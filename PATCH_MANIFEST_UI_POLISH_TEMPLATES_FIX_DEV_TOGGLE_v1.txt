@@ -1,0 +1,27 @@
+PATCH: UI_POLISH_TEMPLATES_FIX_DEV_TOGGLE_v1
+
+Ziel:
+- Fix für TS-Error in AppInfoScreen (styles.inlineCode fehlte)
+- „Manuelle Template-Wahl“ (Template Override) per Dev-Toggle ein-/ausblendbar
+- Toggle + Statusanzeige in AppInfoScreen, Advanced-Menu-Item im Header nur wenn Toggle aktiv
+
+Geänderte Dateien:
+- contexts/types.ts
+  - ProjectData: showAdvancedTemplatePicker?: boolean
+  - ProjectContextProps: setShowAdvancedTemplatePicker(enabled: boolean)
+
+- contexts/ProjectContext.tsx
+  - Neuer Setter setShowAdvancedTemplatePicker() (persistiert über updateProject)
+  - Export im Context value
+
+- screens/AppInfoScreen.tsx
+  - Import Switch
+  - Anzeige „Advanced Template Picker“ Toggle (unter Template-Sektion)
+  - style inlineCode + styles für Toggle
+
+- components/ChatHeaderActions.tsx
+  - Advanced Menu Item „Erweitert: Template überschreiben“ nur wenn showAdvancedTemplatePicker aktiv
+
+Hinweis:
+- Default bleibt „Auto => Full“.
+- Der Toggle beeinflusst nur die UI/Bedienung (sichtbar/unsichtbar), nicht die Auto-Resolution.

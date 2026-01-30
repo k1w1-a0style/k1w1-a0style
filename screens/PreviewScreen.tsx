@@ -44,13 +44,17 @@ export default function PreviewScreen() {
   );
 
   const handleCreateAndOpen = useCallback(async () => {
-    const result = await createPreview();
-    if (result) {
-      openFullscreen(result);
-    } else if (state.error) {
-      Alert.alert("❌ Preview-Fehler", state.error);
+    try {
+      const result = await createPreview();
+      if (result) openFullscreen(result);
+    } catch (e: unknown) {
+      const msg =
+        e instanceof Error
+          ? e.message
+          : "Unbekannter Fehler beim Erstellen der Preview.";
+      Alert.alert("❌ Preview-Fehler", msg);
     }
-  }, [createPreview, openFullscreen, state.error]);
+  }, [createPreview, openFullscreen]);
 
   const handleReopenLast = useCallback(() => {
     if (!lastPreview) {

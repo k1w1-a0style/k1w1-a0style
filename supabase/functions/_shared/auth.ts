@@ -40,12 +40,22 @@ function json(status: number, body: Record<string, unknown>): Response {
 /**
  * Returns Response when unauthorized; otherwise null
  */
+function timingSafeEqual(a: string, b: string): boolean {
+  // Constant-time string compare to reduce timing side-channel leakage.
+  if (a.length !== b.length) return false;
+  let out = 0;
+  for (let i = 0; i < a.length; i++) {
+    out |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return out === 0;
+}
+
 export function requireAdminKey(req: Request): Response | null {
   const expected = getExpectedKey();
   if (!expected) return null; // rollout-mode: Secret not set => do not enforce
 
   const provided = getProvidedKey(req);
-  if (!provided || provided !== expected) {
+  if (!provided || !timingSafeEqual(provided, expected)) {
     return json(401, {
       ok: false,
       error: "Unauthorized",

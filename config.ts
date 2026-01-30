@@ -45,8 +45,15 @@ export const CONFIG = {
       "App.js",
       "index.js",
 
+      // Expo config
+      "app.json",
+      "app.config.js",
+
       "config.ts",
       "theme.ts",
+
+      // optional runtime helpers
+      "polyfills.ts",
 
       "README.md",
       "SYSTEM_README.md",
@@ -54,10 +61,13 @@ export const CONFIG = {
       "package.json",
       "tsconfig.json",
 
-      "app.config.js",
       "babel.config.js",
       "metro.config.js",
       "eas.json",
+      "eas-project.json",
+
+      // EAS upload hygiene
+      ".easignore",
 
       "eslint.config.js",
       "jest.config.js",
@@ -71,6 +81,8 @@ export const CONFIG = {
       ".github/workflows/k1w1-triggered-build.yml",
       ".github/workflows/release-build.yml",
       ".github/workflows/eas-build.yml",
+      ".github/workflows/eas-link.yml",
+      ".github/workflows/deploy-supabase-functions.yml",
     ] as string[],
 
     // Ordner, die als “Source Folders” gelten
@@ -119,6 +131,7 @@ export const CONFIG = {
     ] as string[],
 
     ALLOWED_SINGLE: [
+      "app.json",
       "app.config.js",
       "package.json",
       "tsconfig.json",
@@ -135,8 +148,10 @@ export const CONFIG = {
       "App.tsx",
       "App.js",
       "eas.json",
+      "eas-project.json",
       "expo-env.d.ts",
       ".gitignore",
+      ".easignore",
       ".npmrc",
     ] as string[],
 

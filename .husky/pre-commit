@@ -1,1 +1,8 @@
-npx lint-staged
+# Skip hooks on old Node versions (Termux/Androidix often pinned)
+NODE_MAJOR="$(node -p "process.versions.node.split('.')[0]" 2>/dev/null || echo 0)"
+if [ "$NODE_MAJOR" -lt 20 ]; then
+  echo "[husky] Skipping pre-commit: Node $NODE_MAJOR < 20"
+  exit 0
+fi
+
+npm run typecheck && npm run lint:ci

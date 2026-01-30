@@ -1,0 +1,94 @@
+name: Deploy Supabase (Edge Functions)
+
+on:
+  push:
+    branches: ["main", "work"]
+    paths:
+      - "supabase/functions/**"
+      - "supabase/config.toml"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch/Ref to deploy from (default: work)"
+        required: false
+        default: "work"
+        type: string
+      deploy_all:
+        description: "Alle Edge Functions deployen (true/false)"
+        required: false
+        default: "true"
+        type: choice
+        options: ["true", "false"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.ref || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20.x
+
+      - name: Verify required secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
+            echo "::error::Missing SUPABASE_ACCESS_TOKEN secret"
+            exit 1
+          fi
+          if [ -z "${SUPABASE_PROJECT_REF:-}" ]; then
+            echo "::error::Missing SUPABASE_PROJECT_REF secret"
+            exit 1
+          fi
+
+      - name: Install Supabase CLI (pinned)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm i -g supabase@2.72.7
+          supabase --version
+
+      - name: Login + Link project
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase login --token "${SUPABASE_ACCESS_TOKEN}"
+          supabase link --project-ref "${SUPABASE_PROJECT_REF}" --workdir supabase
+
+      - name: Deploy Edge Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd supabase
+          if [ "${{ github.event.inputs.deploy_all || 'true' }}" = "true" ]; then
+            echo "Deploying all functions..."
+            # deploy everything (skip _shared)
+            for d in functions/*; do
+              name="$(basename "$d")"
+              if [ -d "$d" ] && [ "$name" != "_shared" ]; then
+                echo "-> $name"
+                supabase functions deploy "$name"
+              fi
+            done
+          else
+            echo "deploy_all=false -> nothing to deploy automatically"
+          fi

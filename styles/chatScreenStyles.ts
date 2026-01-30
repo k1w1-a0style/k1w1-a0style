@@ -106,9 +106,6 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     shadowColor: theme.palette.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
     elevation: 8,
   },
 });

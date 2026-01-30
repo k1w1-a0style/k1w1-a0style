@@ -1,0 +1,24 @@
+PATCH: UI polish + Full template fix (v3)
+
+Changes
+1) components/ChatHeaderActions.tsx
+   - Auto badge shows as "Auto (Full)"
+   - Manual template override hidden by default
+   - Dev-only toggle (Switch) enables "Advanced Template Picker"
+   - Manual override menu item appears ONLY when dev-toggle is ON (and in __DEV__)
+
+2) templates/expo-sdk54-full.json
+   - Rebuilt to be a true superset of expo-sdk54-navigation template
+   - Fixed broken imports/paths (no ./screens/* mismatches)
+   - Added real CRUD demo screen at src/screens/CrudScreen.tsx
+   - Added "Crud" tab (CRUD) in App.tsx
+   - Kept extra GH workflows (.github/workflows/eas-build.yml, release-build.yml) + .npmrc
+
+3) .gitignore
+   - Ignore leftover local patch helper scripts:
+     - apply_ui_polish_fix_dev_toggle_v2.sh
+     - k1w1_ui_polish_templates.sh
+
+Recommended cleanup (tracked files):
+  git rm apply_ui_polish_fix_dev_toggle_v2.sh k1w1_ui_polish_templates.sh
+

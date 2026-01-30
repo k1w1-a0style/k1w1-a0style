@@ -1,0 +1,10 @@
+PATCH: AUTO TEMPLATE MODE – Fix GitHubReposScreen typing (v6)
+
+Fixes:
+- GitHubReposScreen now resolves effective core template id when templateId='auto'
+- All loadCoreTemplateFiles / getCoreFileContent calls use CoreTemplateId
+- useCallback deps include effectiveTemplateId to avoid stale template snapshots
+
+Apply:
+- unzip into repo root
+- npm run typecheck && npm run lint:ci && npm run test:silent

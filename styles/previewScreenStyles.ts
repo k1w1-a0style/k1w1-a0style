@@ -1,5 +1,5 @@
 // styles/previewScreenStyles.ts
-import { Platform, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 import { theme } from "../theme";
 
 function withOpacity(color: string, opacity: number): string {
@@ -161,7 +161,7 @@ export const styles = StyleSheet.create({
     borderColor: theme.palette.border,
     borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: Platform.OS === "ios" ? 12 : 10,
+    paddingVertical: 10,
     color: theme.palette.text.primary,
     fontSize: 14,
     fontWeight: "700",
@@ -284,10 +284,6 @@ export const styles = StyleSheet.create({
     padding: 16,
     fontSize: 13,
     color: theme.palette.text.primary,
-    fontFamily: Platform.select({
-      ios: "Menlo",
-      android: "monospace",
-      default: "monospace",
-    }),
+    fontFamily: "monospace",
   },
 });

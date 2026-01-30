@@ -2,6 +2,10 @@
 
 import type { BuildStatus } from "../lib/buildStatusMapper";
 
+// Which scaffold template the user prefers for newly created projects
+export type CoreTemplateId = "base" | "navigation" | "crud" | "full";
+export type TemplateId = CoreTemplateId | "auto";
+
 export interface ProjectFile {
   path: string;
   content: string;
@@ -31,6 +35,7 @@ export interface ChatMessage {
     error?: boolean;
     autoFix?: boolean;
     planner?: boolean;
+    keyRotation?: boolean;
   };
 }
 
@@ -45,7 +50,11 @@ export interface ProjectData {
   name: string;
   slug?: string;
   packageName?: string;
-  files: ProjectFile[];
+  /** Selected template for the project (also used as default for next scaffolds). */
+  templateId?: TemplateId;
+    /** If templateId is "auto", this stores the last detected core template. */
+  effectiveTemplateId?: CoreTemplateId;
+files: ProjectFile[];
   chatHistory: ChatMessage[];
   messages?: ChatMessage[];
   createdAt: string;
@@ -54,6 +63,10 @@ export interface ProjectData {
   linkedRepo?: string | null;
   /** Verknüpfter Branch (z.B. "main") */
   linkedBranch?: string | null;
+  /** Bevorzugtes EAS Build-Profil (persistiert) */
+  preferredBuildProfile?: "development" | "preview" | "production" | null;
+  /** Dev: Manuelles Template-Override/Picker anzeigen (default: false). */
+  advancedTemplatePickerEnabled?: boolean;
 }
 
 export interface ProjectContextProps {
@@ -69,6 +82,12 @@ export interface ProjectContextProps {
   setProjectName: (name: string) => void;
   createNewProject: () => Promise<void>;
 
+  /** Persist preferred template id (used for next new project / repo scaffold). */
+  setTemplateId?: (templateId: TemplateId) => Promise<void>;
+
+
+  /** Dev: zeigt/versteckt den manuellen Template-Picker (Advanced). */
+  setAdvancedTemplatePickerEnabled?: (enabled: boolean) => Promise<void>;
   addChatMessage: (message: ChatMessage) => void;
   messages: ChatMessage[];
 
@@ -124,4 +143,7 @@ export interface ProjectContextProps {
 
   /** Verknüpft Repo+Branch mit dem Projekt (persistent) */
   setLinkedRepo: (repo: string | null, branch?: string | null) => Promise<void>;
+  setPreferredBuildProfile?: (
+    profile: "development" | "preview" | "production",
+  ) => Promise<void>;
 }

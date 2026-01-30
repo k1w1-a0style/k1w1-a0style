@@ -5,6 +5,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import { v4 as uuidv4 } from 'uuid';
+import { materializeProjectFiles } from "../lib/projectMaterializer";
 
 // ✅ Phase 1 Step 3: normalizePath aus lib/validators statt utils/chatUtils
 import { normalizePath, Validators, validateFilePath, validateFileContent, validateZipImport } from '../lib/validators';
@@ -13,6 +14,24 @@ import { zip, unzip } from 'react-native-zip-archive';
 
 const PROJECT_STORAGE_KEY = 'k1w1_project_data';
 const CACHE_DIR = FileSystem.cacheDirectory + 'zip_temp/';
+// === Binary file handling (assets etc.) ===
+const BINARY_EXTENSIONS = new Set([
+  "png","jpg","jpeg","webp","gif","bmp","ico",
+  "mp3","wav","m4a","mp4","mov","mkv",
+  "zip","jar","keystore","jks","cer","der","p12",
+  "ttf","otf","woff","woff2",
+]);
+
+function isBinaryFilePath(p: string): boolean {
+  const n = normalizePath(p).toLowerCase();
+  const ext = n.includes(".") ? n.split(".").pop()! : "";
+  return BINARY_EXTENSIONS.has(ext);
+}
+
+function stripBase64Prefix(s: string): string {
+  return s.startsWith("base64:") ? s.slice("base64:".length) : s;
+}
+
 
 // === HELPER: Verzeichnis rekursiv lesen (wird für ZIP-Import benötigt) ===
 const readDirectoryRecursive = async (dirUri: string, basePath = ''): Promise<ProjectFile[]> => {
@@ -48,9 +67,11 @@ const readDirectoryRecursive = async (dirUri: string, basePath = ''): Promise<Pr
             continue;
           }
 
-          const content = await FileSystem.readAsStringAsync(itemUri, {
-            encoding: FileSystem.EncodingType.UTF8,
-          });
+          const rel = normalizePath(relativePath);
+          const isBinary = isBinaryFilePath(rel);
+          const content = isBinary
+            ? `base64:${await FileSystem.readAsStringAsync(itemUri, { encoding: FileSystem.EncodingType.Base64 })}`
+            : await FileSystem.readAsStringAsync(itemUri, { encoding: FileSystem.EncodingType.UTF8 });
 
           // ✅ SICHERHEIT: Pfad UND Content validieren
           const pathValidation = validateFilePath(relativePath);
@@ -144,7 +165,7 @@ export const exportProjectAsZipFile = async (
   messageCount: number;
 }> => {
   console.log('🎯 Export-Anfrage für:', project.name);
-  const projectFiles = project.files;
+  const projectFiles = materializeProjectFiles(project.files, { name: project.name, slug: project.slug ?? project.name, packageName: project.packageName });
   const projectName = project.name.replace(/[\s\/]+/g, '_') || 'projekt';
 
   try {
@@ -166,10 +187,21 @@ export const exportProjectAsZipFile = async (
         await FileSystem.makeDirectoryAsync(dirName, { intermediates: true });
       }
 
-      await FileSystem.writeAsStringAsync(filePath, contentString, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-    }
+      const normalized = normalizePath(file.path);
+      const isBinary = isBinaryFilePath(normalized);
+      const hasBase64 = typeof contentString === "string" && contentString.startsWith("base64:");
+
+      if (isBinary && hasBase64) {
+        await FileSystem.writeAsStringAsync(filePath, stripBase64Prefix(contentString), {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      } else {
+        await FileSystem.writeAsStringAsync(filePath, contentString, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+      }
+
+}
 
     const resultPath = await zip(tempDir, zipPath);
     const shareableUri = resultPath.startsWith('file://') ? resultPath : `file://${resultPath}`;

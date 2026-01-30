@@ -1,0 +1,10 @@
+PATCH: e2e persistence + key consistency
+
+Changes:
+- Add lib/storageKeys.ts as single source of truth for AsyncStorage key names.
+- Update screens/ConnectionsScreen.tsx, screens/GitHubReposScreen.tsx, lib/autoSyncRepoSecrets.ts, lib/supabase.ts,
+  hooks/useBuildStatus.ts, hooks/useGitHubActionsLogs.ts to use STORAGE_KEYS.
+- Goal: prevent key drift so tokens/IDs persist correctly and secrets sync reads the right keys.
+
+Notes:
+- No placeholder code; only refactor of key constants to be consistent.

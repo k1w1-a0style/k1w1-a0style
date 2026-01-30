@@ -1,5 +1,5 @@
 // styles/enhancedBuildScreenStyles.ts
-import { Platform, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 import { theme } from "../theme";
 
 function withOpacity(color: string, opacity: number): string {
@@ -92,6 +92,24 @@ export const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
+  // Secondary action button (e.g. "Repo/Branch speichern")
+  secondaryButton: {
+    marginTop: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.background,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryButtonText: {
+    color: theme.palette.text.primary,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+
   statusRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -130,7 +148,7 @@ export const styles = StyleSheet.create({
     borderColor: theme.palette.border,
     borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: Platform.OS === "ios" ? 12 : 10,
+    paddingVertical: 10,
     color: theme.palette.text.primary,
     fontSize: 14,
     fontWeight: "600",

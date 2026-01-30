@@ -53,3 +53,15 @@ backups/
 .vercel
 .env*.local
 debug.log
+
+
+# --- k1w1 apk-builder: ignore patch zips ---
+k1w1-*.zip
+*_patch*.zip
+project_src_*.zip
+project_dump_*.zip
+k1w1-*-patch.zip
+k1w1-*-hotfix*.zip
+mnt/
+apply_ui_polish_fix_dev_toggle_v2.sh
+k1w1_ui_polish_templates.sh

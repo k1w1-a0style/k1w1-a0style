@@ -1,0 +1,9 @@
+PATCH: Full template v1 – Fix missing CoreTemplateId import
+
+Fixes:
+- contexts/ProjectContext.tsx
+  - Import CoreTemplateId from contexts/types.ts so the Full template catalog typing compiles.
+
+Reason:
+The previous patch added the CoreTemplateId type but ProjectContext.tsx referenced it without importing, causing:
+TS2552: Cannot find name 'CoreTemplateId'

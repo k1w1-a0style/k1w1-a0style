@@ -1,0 +1,8 @@
+PATCH: UI Key Rotation Indicator (Toast + Chat log-row)
+Version: v2 (fix syntax in useChatAIFlow.ts)
+Date: 2026-01-27
+
+Changes:
+- hooks/useChatAIFlow.ts
+  - Fix misplaced braces introduced in v1.
+  - Show ToastAndroid + system chat log-row when orchestrator result contains keysRotated>0.

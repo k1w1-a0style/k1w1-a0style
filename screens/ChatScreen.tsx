@@ -7,7 +7,6 @@ import {
   Easing,
   Keyboard,
   TouchableWithoutFeedback,
-  Platform,
   InteractionManager,
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
@@ -40,7 +39,7 @@ type DocumentResultAsset = NonNullable<
 const INPUT_BAR_MIN_H = 56;
 
 // ✅ Mini-Fix Android: Composer 1–2px näher an die Tastatur (wenn offen)
-const KEYBOARD_NUDGE = Platform.OS === "android" ? 4 : 2;
+const KEYBOARD_NUDGE = 4;
 
 const FOOTER_LIFT_WHEN_BUSY = 72;
 
@@ -376,7 +375,7 @@ const ChatScreen: React.FC = () => {
                   />
                 ) : null
               }
-              removeClippedSubviews={Platform.OS === "android"}
+              removeClippedSubviews={true}
               maxToRenderPerBatch={10}
               windowSize={21}
               initialNumToRender={15}

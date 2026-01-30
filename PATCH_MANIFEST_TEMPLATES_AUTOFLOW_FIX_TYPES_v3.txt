@@ -1,0 +1,17 @@
+PATCH: k1w1-a0style_PATCH_templates_autoflow_fix_types_v3
+
+Fixes (TS/Lint)
+- Define TemplateId and persist template choice on ProjectData
+- loadTemplateFromFile(templateId) supports base/navigation/crud selection
+- setTemplateId now uses updateProject (no broken defaultProjectData/saveProjectData/messages refs)
+- GitHubReposScreen core-template helpers take templateId param (no out-of-scope projectData)
+- templateChecklist: fix missing closing brace + remove stray '}' before helper + add TemplateFileMap type
+
+Modified files
+- contexts/types.ts
+- contexts/ProjectContext.tsx
+- screens/GitHubReposScreen.tsx
+- lib/templateChecklist.ts
+
+Added files
+- PATCH_MANIFEST_TEMPLATES_AUTOFLOW_FIX_TYPES_v3.txt

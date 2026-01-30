@@ -12,7 +12,6 @@ import {
   Alert,
   FlatList,
   Modal,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,6 +22,12 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../theme";
 import { useProject } from "../contexts/ProjectContext";
+
+import {
+  autoFixCIWorkflows,
+  checkRepoSecrets,
+  parseOwnerRepo,
+} from "../lib/diagnostics/ciAutoFix";
 import type { ProjectFile } from "../contexts/types";
 
 import { validateFileContent, validateFilePath } from "../lib/validators";
@@ -261,6 +266,70 @@ function FixRunModal(props: {
 export default function DiagnosticScreen() {
   const { projectData, updateProjectFiles, deleteFile } = useProject();
 
+  const linkedRepo = (projectData as any)?.linkedRepo
+    ? String((projectData as any).linkedRepo)
+    : "";
+  const linkedBranch = (projectData as any)?.linkedBranch
+    ? String((projectData as any).linkedBranch)
+    : "";
+
+  const runCiAutofix = useCallback(async () => {
+    const parsed = parseOwnerRepo(linkedRepo);
+    if (!parsed) {
+      Alert.alert(
+        "CI/Workflows",
+        "Kein gültiges GitHub Repo verknüpft (erwartet: owner/repo).",
+      );
+      return;
+    }
+    const branch = (linkedBranch || "main").trim();
+
+    setCiFixing(true);
+    setCiFixLog(null);
+    try {
+      const secrets = await checkRepoSecrets(parsed.owner, parsed.repo);
+      const changes = await autoFixCIWorkflows({
+        owner: parsed.owner,
+        repo: parsed.repo,
+        branch,
+      });
+
+      const changedCount = changes.filter((c) => c.changed).length;
+      const missing = secrets.missing;
+
+      const summaryLines: string[] = [
+        `Repo: ${parsed.owner}/${parsed.repo}`,
+        `Branch: ${branch}`,
+        `Workflow-Files aktualisiert: ${changedCount}/${changes.length}`,
+        missing.length
+          ? `❗ Fehlende Secrets: ${missing.join(", ")}`
+          : `✅ Secrets: OK`,
+        "",
+        "Details:",
+        ...changes.map(
+          (c) => `${c.changed ? "🛠️" : "✅"} ${c.path} — ${c.message}`,
+        ),
+      ];
+
+      const summary = summaryLines.join("\n");
+      setCiFixLog(summary);
+      Alert.alert(
+        "CI/Workflows",
+        missing.length
+          ? "Workflows gefixt. Es fehlen noch Secrets."
+          : "Workflows sind gefixt & Secrets sehen gut aus.",
+      );
+    } catch (e: any) {
+      setCiFixLog(String(e?.message || e));
+      Alert.alert(
+        "CI/Workflows",
+        "Fehler beim Fixen: " + String(e?.message || e),
+      );
+    } finally {
+      setCiFixing(false);
+    }
+  }, [linkedRepo, linkedBranch]);
+
   const projectRef = useRef(projectData);
   useEffect(() => {
     projectRef.current = projectData;
@@ -285,6 +354,8 @@ export default function DiagnosticScreen() {
 
   const [progressStage, setProgressStage] = useState<string | null>(null);
 
+  const [ciFixing, setCiFixing] = useState(false);
+  const [ciFixLog, setCiFixLog] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const selectedCount = useMemo(
     () => Object.values(selected).filter(Boolean).length,
@@ -1402,7 +1473,7 @@ export default function DiagnosticScreen() {
         renderItem={renderItem}
         contentContainerStyle={{
           padding: 14,
-          paddingBottom: Platform.OS === "ios" ? 40 : 24,
+          paddingBottom: 24,
         }}
         ListEmptyComponent={
           <View style={styles.empty}>
@@ -1627,7 +1698,7 @@ const styles = StyleSheet.create({
   // Preview
   previewWrap: { flex: 1, backgroundColor: theme.palette.background },
   previewHeader: {
-    paddingTop: Platform.OS === "ios" ? 54 : 18,
+    paddingTop: 18,
     paddingHorizontal: 14,
     paddingBottom: 12,
     borderBottomWidth: 1,
@@ -1665,11 +1736,7 @@ const styles = StyleSheet.create({
   },
   previewText: {
     color: theme.palette.text.secondary,
-    fontFamily: Platform.select({
-      ios: "Menlo",
-      android: "monospace",
-      default: "monospace",
-    }),
+    fontFamily: "monospace",
     fontSize: 12,
     lineHeight: 16,
   },

@@ -1,0 +1,10 @@
+PATCH: Hard Template Checklist v2 (Android-only enforced for app.config.js) + template app.config.js sync
+
+Changed:
+- lib/templateChecklist.ts
+- templates/expo-sdk54-navigation.json
+- templates/expo-sdk54-crud.json
+
+Notes:
+- patchAppConfigJs now enforces platforms:['android'] as P0 and autofixes insertion when missing.
+- app.config.js in navigation/crud templates now includes platforms, icon, splash.image and adaptiveIcon.foregroundImage.

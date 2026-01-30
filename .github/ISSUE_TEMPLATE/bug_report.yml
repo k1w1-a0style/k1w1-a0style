@@ -1,0 +1,47 @@
+name: 🐛 Bug Report
+description: Etwas funktioniert nicht wie erwartet
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke fürs Melden! Bitte so konkret wie möglich ausfüllen.
+  - type: input
+    id: environment
+    attributes:
+      label: Umgebung
+      description: OS, Node-Version, Expo SDK, App-Version
+      placeholder: "macOS 14, Node 20.x, Expo SDK 54, App 1.2.3"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Repro Steps
+      description: Schritte zum Reproduzieren (gerne nummeriert)
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Erwartetes Verhalten
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Tatsächliches Verhalten
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Screenshots
+      description: Relevante Logs (bitte keine Secrets!)
+      render: shell
+    validations:
+      required: false

@@ -1,0 +1,6 @@
+Patch: k1w1-a0style FINAL (v2)
+Date: 2026-01-23
+Purpose: Fix TS build-breakers introduced by previous patch (useGitHub import, branch default, styles).
+Files:
+- screens/EnhancedBuildScreen.tsx
+- styles/enhancedBuildScreenStyles.ts

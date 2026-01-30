@@ -1,0 +1,13 @@
+k1w1-a0style Auto-Hardening Patch (no service-role removal)
+
+Changes:
+1) deploy-supabase-functions.yml: deploy on work + selectable ref for manual dispatch.
+2) k1w1-triggered-build.yml: update build_jobs status/run_id/build_url/error_message in Supabase for true end-to-end status; capture EAS build URL.
+3) ciAutoFix.ts: workflow templates fully synced with real workflows (no truncation/ellipsis), safe escapes.
+4) ConnectionsScreen.tsx: fix saveAll useCallback deps to avoid stale saves.
+5) save_preview/index.ts: correct CORS preflight handling + single rateLimit, no duplicate calls.
+6) github-workflow-logs/index.ts: mitigate SSRF via redirect allowlist + private host rejection.
+
+Notes:
+- Service role key remains in app storage as requested.
+- No placeholders; YAML and TS parse cleanly with prettier.

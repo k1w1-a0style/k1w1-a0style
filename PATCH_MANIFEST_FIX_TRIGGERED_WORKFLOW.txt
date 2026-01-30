@@ -1,0 +1,3 @@
+PATCH: Fix YAML validity + remove bad chars in k1w1-triggered-build workflow (prettier/husky).
+Files:
+- .github/workflows/k1w1-triggered-build.yml

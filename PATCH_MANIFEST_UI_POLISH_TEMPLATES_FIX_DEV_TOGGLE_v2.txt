@@ -1,0 +1,21 @@
+PATCH: UI polish templates fix dev-toggle v2
+==========================================
+
+This patch fixes the fallout of the previous v1 zip that accidentally extracted into ./mnt/data/_proj_cur
+and broke TypeScript parsing.
+
+What it does:
+- Deletes accidental ./mnt folder if present (safe cleanup).
+- Ignores ./mnt in:
+  - .gitignore
+  - tsconfig.json (exclude)
+  - eslint.config.js (ignores) when possible
+- Adds missing style definitions:
+  - screens/AppInfoScreen.tsx: styles.inlineCode (only if referenced)
+  - components/ChatHeaderActions.tsx: menuInfoRow/menuInfoText/menuIcon (only if referenced)
+- Fixes resolveEffectiveTemplateId(...) call sites if they were left with the old 1-arg signature.
+
+How to use:
+1) unzip this patch in repo root
+2) run: bash ./apply_ui_polish_fix_dev_toggle_v2.sh
+3) then run your usual typecheck/lint/tests and commit/push

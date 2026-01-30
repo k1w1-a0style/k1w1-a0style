@@ -2,12 +2,13 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { CONFIG } from "../config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { STORAGE_KEYS } from "../lib/storageKeys";
 import { getEdgeAdminKey } from "../contexts/githubService";
 
 export interface LogEntry {
   timestamp: string;
   message: string;
-  level: "info" | "warning" | "error";
+  level: "info" | "warning" | "error" | "raw";
   step?: string;
 }
 
@@ -41,7 +42,7 @@ const MAX_LOG_ENTRIES = 500;
 
 async function getSupabaseEdgeUrl(): Promise<string> {
   // ✅ Prefer runtime-configured Supabase URL (ConnectionsScreen)
-  const storedUrl = await AsyncStorage.getItem("supabase_url").catch(
+  const storedUrl = await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).catch(
     () => null,
   );
   const runtimeUrl =
@@ -77,6 +78,7 @@ export function useGitHubActionsLogs({
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isMountedRef = useRef(true);
+  const loggedErrorRef = useRef(false);
   const isFetchPendingRef = useRef(false);
 
   const fetchLogs = useCallback(async () => {
@@ -89,6 +91,7 @@ export function useGitHubActionsLogs({
 
     setIsLoading(true);
     setError(null);
+    loggedErrorRef.current = false;
 
     try {
       // Fetch latest workflow run if no runId provided
@@ -132,6 +135,7 @@ export function useGitHubActionsLogs({
         body: JSON.stringify({
           githubRepo,
           runId: targetRunId,
+          mode: "raw",
         }),
       });
 
@@ -153,11 +157,12 @@ export function useGitHubActionsLogs({
       }
     } catch (err: any) {
       // Nur einmal loggen (nicht bei jedem Poll-Versuch)
-      if (isMountedRef.current && !error) {
+      if (isMountedRef.current && !loggedErrorRef.current) {
         console.warn(
           "[useGitHubActionsLogs] ⚠️ Logs nicht verfügbar:",
           err?.message,
         );
+        loggedErrorRef.current = true;
       }
       if (isMountedRef.current) {
         setError(err?.message || "Fehler beim Abrufen der Logs");

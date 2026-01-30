@@ -1,0 +1,17 @@
+PATCH: Full Template (Navigation + CRUD) for Expo SDK 54
+
+Adds a new core template: "full" (templates/expo-sdk54-full.json)
+- Includes Navigation + CRUD demo + EAS config, ready for Android-only Expo projects
+- Adds missing runtime deps for navigation/CRUD (gesture-handler, reanimated, async-storage, uuid, etc.)
+- Adds screens/CrudScreen.tsx inside the template (stored inside the template JSON)
+
+Wiring changes
+- contexts/types.ts: allow CoreTemplateId "full"
+- contexts/ProjectContext.tsx: add catalog entry + loader support
+- screens/GitHubReposScreen.tsx: allow loading the "full" template
+- lib/templateChecklist.ts: auto-detect can return "full" when nav+crud signals are present (or as safe fallback)
+- components/ChatHeaderActions.tsx: add "Full" and "Auto" into the template chooser alert
+
+Apply
+- unzip over repo root
+- npm run typecheck && npm run lint:ci && npm run test:silent

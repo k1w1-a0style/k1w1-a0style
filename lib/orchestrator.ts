@@ -100,46 +100,81 @@ export async function runOrchestrator(
   try {
     await providerRateLimiter.checkLimit(provider);
 
-    const apiKey = SecureKeyManager.getCurrentKey(provider);
-    if (!apiKey) {
-      const endMs = Date.now();
-      return {
-        ok: false,
-        error: `Kein API-Key für ${provider} gefunden. Bitte in Einstellungen konfigurieren.`,
-        provider,
-        model,
-        timing: { startMs, endMs, durationMs: endMs - startMs },
-      };
-    }
-
     const resolvedModel = resolveModel(provider, model, quality);
 
-    let result: OrchestratorResult;
-    switch (provider) {
-      case 'groq':
-        result = await callGroq(apiKey, resolvedModel, messages, quality);
-        break;
-      case 'openai':
-        result = await callOpenAI(apiKey, resolvedModel, messages, quality);
-        break;
-      case 'anthropic':
-        result = await callAnthropic(apiKey, resolvedModel, messages, quality);
-        break;
-      case 'gemini':
-        result = await callGemini(apiKey, resolvedModel, messages, quality);
-        break;
-      case 'huggingface':
-        result = await callHuggingFace(apiKey, resolvedModel, messages, quality);
-        break;
-      default:
-        result = { ok: false, error: `Unbekannter Provider: ${provider}` };
+    const isRateLimit = (r: OrchestratorResult): boolean => {
+      const parts: string[] = [];
+      if (typeof r.error === 'string') parts.push(r.error);
+      if (Array.isArray(r.errors)) parts.push(...r.errors);
+      const s = parts.join('\n').toLowerCase();
+
+      // Common signals
+      if (s.includes('too many requests')) return true;
+      if (s.includes('rate limit')) return true;
+      if (s.includes('resource_exhausted')) return true;
+      if (s.includes('quota')) return true;
+
+      // "(429)" or standalone 429
+      if (s.includes('(429)')) return true;
+      if (/(^|[^0-9])429([^0-9]|$)/.test(s)) return true;
+
+      return false;
+    };
+
+    let keysRotated = 0;
+    const maxRotations = 2;
+
+    let lastResult: OrchestratorResult = {
+      ok: false,
+      error: `Kein API-Key für ${provider} gefunden. Bitte in Einstellungen konfigurieren.`,
+      provider,
+      model: resolvedModel,
+    };
+
+    for (let attempt = 0; attempt <= maxRotations; attempt++) {
+      const apiKey = SecureKeyManager.getCurrentKey(provider);
+      if (!apiKey) break;
+
+      let result: OrchestratorResult;
+      switch (provider) {
+        case 'groq':
+          result = await callGroq(apiKey, resolvedModel, messages, quality);
+          break;
+        case 'openai':
+          result = await callOpenAI(apiKey, resolvedModel, messages, quality);
+          break;
+        case 'anthropic':
+          result = await callAnthropic(apiKey, resolvedModel, messages, quality);
+          break;
+        case 'gemini':
+          result = await callGemini(apiKey, resolvedModel, messages, quality);
+          break;
+        case 'huggingface':
+          result = await callHuggingFace(apiKey, resolvedModel, messages, quality);
+          break;
+        default:
+          result = { ok: false, error: `Unbekannter Provider: ${provider}` };
+      }
+
+      lastResult = result;
+
+      if (result.ok) break;
+
+      // Auto-rotate key on rate limit, then retry
+      if (isRateLimit(result) && SecureKeyManager.rotateKey(provider)) {
+        keysRotated += 1;
+        continue;
+      }
+
+      break;
     }
 
     const endMs = Date.now();
     return {
-      ...result,
+      ...lastResult,
       provider,
       model: resolvedModel,
+      keysRotated: keysRotated || undefined,
       timing: { startMs, endMs, durationMs: endMs - startMs },
     };
   } catch (error: any) {

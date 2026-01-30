@@ -1,12 +1,32 @@
 /**
  * app.config.js – Expo App Config (Android-only)
- * ✅ android.softwareKeyboardLayoutMode = "pan"
- * ✅ Supabase Env Support
+ *
+ * WICHTIG:
+ * - expo.extra.eas.projectId MUSS deterministisch sein (CI + EAS Cloud Build).
+ * - Deshalb wird projectId primär aus ./eas-project.json gelesen.
+ * - ENV bleibt als Override/Fallback erlaubt.
  */
 
 require("dotenv").config();
 
-const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID;
+const fs = require("fs");
+const path = require("path");
+
+function readEasProjectIdFromFile() {
+  try {
+    const p = path.join(process.cwd(), "eas-project.json");
+    if (!fs.existsSync(p)) return "";
+    const raw = fs.readFileSync(p, "utf8");
+    const json = JSON.parse(raw);
+    const id = typeof json?.projectId === "string" ? json.projectId.trim() : "";
+    return id;
+  } catch {
+    return "";
+  }
+}
+
+const EAS_PROJECT_ID =
+  String(process.env.EAS_PROJECT_ID || "").trim() || readEasProjectIdFromFile();
 
 module.exports = {
   expo: {
@@ -37,7 +57,8 @@ module.exports = {
       eas: {
         ...(EAS_PROJECT_ID ? { projectId: EAS_PROJECT_ID } : {}),
       },
-      // ✅ Supabase Env
+
+      // Supabase (public)
       EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL || "",
       EXPO_PUBLIC_SUPABASE_ANON_KEY:
         process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",

@@ -1,0 +1,9 @@
+PATCH: Auto Template Mode -> always default to "full"
+
+Changes:
+- lib/templateChecklist.ts
+  - resolveEffectiveTemplateId(): when template mode is "auto" (or unset), effective template is always "full".
+
+Rationale:
+- User wants zero template-selection friction.
+- "full" includes both navigation + crud scaffolding, so it is the safest default.

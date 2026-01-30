@@ -220,10 +220,10 @@ export function buildSandpackHtml(opts: SandpackOptions): string {
 <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@18.2.0",
-    "react-dom": "https://esm.sh/react-dom@18.2.0",
-    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-    "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime"
+    "react": "https://esm.sh/react@19.1.0",
+    "react-dom": "https://esm.sh/react-dom@19.1.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.1.0/client",
+    "react/jsx-runtime": "https://esm.sh/react@19.1.0/jsx-runtime"
   }
 }
 </script>
@@ -272,8 +272,104 @@ try {
       const module = { exports };
       const require = (name) => {
         if (name === "react") return React;
+        if (name === "react-native-web") return require("react-native");
         // Minimal Shim für häufige Imports, damit simple Apps nicht sofort crashen
-        if (name === "react-native") return {};
+        if (name === "react-native") {
+          // Minimal RN shim for local preview (no external deps)
+          const React = require("react");
+          const create = (tag) => (props) => React.createElement(tag, props, props?.children);
+          const View = create("div");
+          const Text = create("span");
+          const ScrollView = create("div");
+          const Pressable = create("button");
+          const TouchableOpacity = create("button");
+          const Image = (props) => React.createElement("img", props);
+          const StyleSheet = { create: (s) => s };
+          return {
+            View,
+            Text,
+            ScrollView,
+            Pressable,
+            TouchableOpacity,
+            Image,
+            StyleSheet,
+            Platform: { OS: "web" },
+          };
+        }
+        // Expo / common libs shims for preview (no native runtime in WebView)
+        if (name === "expo-status-bar") {
+          return { StatusBar: () => null };
+        }
+        if (name === "@expo/vector-icons") {
+          const React = require("react");
+          const Icon = ({ name, size, color, ...rest }) =>
+            React.createElement("span", { ...rest, title: String(name ?? "icon") }, "🔷");
+          // Provide a few common icon sets
+          return new Proxy(
+            {},
+            {
+              get: (_t, prop) => {
+                if (prop === "__esModule") return true;
+                return Icon;
+              },
+            }
+          );
+        }
+        if (name === "@react-native-async-storage/async-storage") {
+          const mem = new Map();
+          const api = {
+            getItem: async (k) => (mem.has(k) ? String(mem.get(k)) : null),
+            setItem: async (k, v) => void mem.set(k, String(v)),
+            removeItem: async (k) => void mem.delete(k),
+            clear: async () => void mem.clear(),
+            getAllKeys: async () => Array.from(mem.keys()),
+          };
+          return { __esModule: true, default: api, ...api };
+        }
+        if (name === "uuid") {
+          const v4 = () => "00000000-0000-4000-8000-000000000000";
+          return { __esModule: true, v4, default: { v4 } };
+        }
+
+        // React Navigation (best-effort no-op navigator so screens can render)
+        if (name === "@react-navigation/native") {
+          const React = require("react");
+          const NavigationContainer = ({ children }) => React.createElement(React.Fragment, null, children);
+          const useNavigation = () => ({ navigate: () => {}, goBack: () => {}, setOptions: () => {} });
+          const useRoute = () => ({ params: {} });
+          return { __esModule: true, NavigationContainer, useNavigation, useRoute };
+        }
+        if (name === "@react-navigation/native-stack" || name === "@react-navigation/bottom-tabs") {
+          const React = require("react");
+          const make = () => ({
+            Navigator: ({ children }) => React.createElement(React.Fragment, null, children),
+            Screen: ({ component: Comp, children }) =>
+              Comp ? React.createElement(Comp) : React.createElement(React.Fragment, null, children),
+          });
+          const createNativeStackNavigator = () => make();
+          const createBottomTabNavigator = () => make();
+          return { __esModule: true, createNativeStackNavigator, createBottomTabNavigator };
+        }
+
+        // RN ecosystem shims
+        if (name === "react-native-gesture-handler") {
+          const React = require("react");
+          const GHRoot = ({ children, ...rest }) => React.createElement("div", rest, children);
+          return { __esModule: true, GestureHandlerRootView: GHRoot };
+        }
+        if (name === "react-native-safe-area-context") {
+          const React = require("react");
+          const SafeAreaProvider = ({ children }) => React.createElement(React.Fragment, null, children);
+          const SafeAreaView = ({ children, ...rest }) => React.createElement("div", rest, children);
+          return { __esModule: true, SafeAreaProvider, SafeAreaView, useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) };
+        }
+        if (name === "react-native-screens") {
+          return { __esModule: true, enableScreens: () => {} };
+        }
+        if (name === "react-native-reanimated") {
+          return { __esModule: true, default: {}, useSharedValue: (v) => ({ value: v }), useAnimatedStyle: (fn) => fn?.() ?? {}, withTiming: (v) => v };
+        }
+
         return {};
       };
 

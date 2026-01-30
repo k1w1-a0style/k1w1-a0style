@@ -1,0 +1,15 @@
+PATCH v2: Fix typecheck errors after template/materializer/checklist patches
+
+Fixed:
+- missing imports for slugify/sanitizeAndroidPackage/materializeProjectData/materializeProjectFiles
+- hooks/usePreview normalizeForWebPreview missing + snackFiles content typing
+- lib/projectMaterializer precedence (?? with ||)
+- lib/templateChecklist defaultEasIgnore unterminated string
+
+Files:
+- contexts/ProjectContext.tsx
+- contexts/projectStorage.ts
+- screens/GitHubReposScreen.tsx
+- hooks/usePreview.ts
+- lib/projectMaterializer.ts
+- lib/templateChecklist.ts

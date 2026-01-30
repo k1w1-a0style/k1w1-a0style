@@ -1,0 +1,35 @@
+Patch: Auto-Rotation bei 429 (konsolidiert)
+Stand: 2026-01-28T11:23:19+01:00
+
+===== PATCH_MANIFEST_AUTOROTATE_429_v1.txt =====
+PATCH: Auto-Rotation bei 429 (Rate Limit) in Orchestrator
+
+Änderungen:
+- lib/orchestrator.ts
+  - Auto-Retry mit Key-Rotation (SecureKeyManager.rotateKey) bei HTTP 429 / quota strings
+  - max 2 Rotationen pro Request (oder weniger, wenn weniger Keys)
+  - Ergebnis enthält keysRotated
+  - Provider-Call Results liefern status in Error-Fällen
+
+- lib/__tests__/orchestrator.test.ts
+  - Neuer best-effort Test: 429 -> rotate -> success
+
+Hinweis:
+- Rotation ist runtime/in-memory. Die Reihenfolge wird nicht dauerhaft gespeichert.
+  (Nach App-Neustart ist wieder die gespeicherte Reihenfolge aktiv.)
+
+===== PATCH_MANIFEST_AUTOROTATE_429_v2.txt =====
+PATCH_MANIFEST_AUTOROTATE_429_v2.txt
+- lib/orchestrator.ts (auto-rotate on 429, no status field in OrchestratorResult)
+- lib/__tests__/orchestrator.test.ts (adds 429 rotation test)
+===== PATCH_MANIFEST_AUTOROTATE_429_v3.txt =====
+PATCH v3 - Fix orchestrator 429 auto-rotate test to mock global.fetch locally.
+Files:
+- lib/__tests__/orchestrator.test.ts
+
+===== PATCH_MANIFEST_AUTOROTATE_429_v4.txt =====
+PATCH: AUTOROTATE_429 v4
+- Fix orchestrator system prompt test: ensure groq key present and fetch mocked response so fetch is actually called.
+Files:
+- lib/__tests__/orchestrator.test.ts
+

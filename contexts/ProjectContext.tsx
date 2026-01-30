@@ -8,6 +8,7 @@ import React, {
   useRef,
   ReactNode,
 } from "react";
+import { materializeProjectData, sanitizeAndroidPackage, slugify } from "../lib/projectMaterializer";
 import { Alert, AppState, AppStateStatus } from "react-native";
 import { v4 as uuidv4 } from "uuid";
 import { Mutex } from "async-mutex";
@@ -19,6 +20,8 @@ import {
   ProjectContextProps,
   AutoFixRequest,
 } from "./types";
+
+import type { TemplateId, CoreTemplateId } from "./types";
 
 import {
   saveProjectToStorage,
@@ -44,21 +47,50 @@ import {
   updateBuildInHistory,
 } from "../lib/buildHistoryStorage";
 import { CONFIG } from "../config";
+import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../lib/templateChecklist";
 
-const loadTemplateFromFile = async (): Promise<ProjectFile[]> => {
+const loadTemplateFromFile = async (templateId: TemplateId = "base"): Promise<ProjectFile[]> => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const template = require("../templates/expo-sdk54-base.json");
+    const template =
+      templateId === "navigation"
+        ? require("../templates/expo-sdk54-navigation.json")
+        : templateId === "crud"
+          ? require("../templates/expo-sdk54-crud.json")
+          : templateId === "full"
+            ? require("../templates/expo-sdk54-full.json")
+            : require("../templates/expo-sdk54-base.json");
     if (!Array.isArray(template) || template.length === 0) {
       throw new Error("Template ist ungültig");
     }
-    return template.map((file: any) => ({
+    const mapped = template.map((file: any) => ({
       ...file,
       content:
         typeof file.content === "string"
           ? file.content
           : JSON.stringify(file.content ?? "", null, 2),
     })) as ProjectFile[];
+
+    // ✅ Harte Template-Checkliste (Autofix aktiv): verhindert "halbkaputte" New-Projects
+    const firstPass = runTemplateHardChecklist(mapped, { autofix: true });
+    const secondPass = runTemplateHardChecklist(firstPass.files, { autofix: false });
+
+    if (!secondPass.report.ok) {
+      const issues = secondPass.report.issues
+        .map((i) => `- [${i.severity}] ${i.file ?? "(global)"}: ${i.reason}${i.fix ? ` → FIX: ${i.fix}` : ""}`)
+        .join("\n");
+
+      // Wir lassen das Projekt trotzdem entstehen (autofix hat schon viel repariert),
+      // aber legen einen Report ab, damit du sofort siehst, was noch fehlt.
+      const reportFile: ProjectFile = {
+        path: "TEMPLATE_CHECKLIST_REPORT.md",
+        content: `# Template Checklist Report\n\n${secondPass.report.summary}\n\n${issues}\n`,
+      };
+
+      return [reportFile, ...firstPass.files];
+    }
+
+    return firstPass.files;
   } catch (error) {
     console.error("X Template Fehler:", error);
     return [{ path: "README.md", content: "# Template Fehler" }];
@@ -66,6 +98,33 @@ const loadTemplateFromFile = async (): Promise<ProjectFile[]> => {
 };
 
 const SAVE_DEBOUNCE_MS = 500;
+
+const TEMPLATE_CATALOG: Record<CoreTemplateId, { id: CoreTemplateId; label: string; description: string; files: any[] }> = {
+  base: {
+    id: "base",
+    label: "Base (Blank)",
+    description: "Expo SDK 54 blank scaffold (Android-only) with EAS profiles (dev/preview/prod).",
+    files: require("../templates/expo-sdk54-base.json"),
+  },
+  navigation: {
+    id: "navigation",
+    label: "Navigation",
+    description: "Blank + React Navigation stack + basic screens (Android-only).",
+    files: require("../templates/expo-sdk54-navigation.json"),
+  },
+  crud: {
+    id: "crud",
+    label: "CRUD",
+    description: "Blank + simple CRUD sample + storage (Android-only).",
+    files: require("../templates/expo-sdk54-crud.json"),
+  },
+  full: {
+    id: "full",
+    label: "Full",
+    description: "Blank + React Navigation + CRUD sample (Android-only).",
+    files: require("../templates/expo-sdk54-full.json"),
+  },
+};
 
 const ProjectContext = createContext<ProjectContextProps | undefined>(
   undefined,
@@ -198,11 +257,15 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           onPress: async () => {
             try {
               setIsLoading(true);
-              const templateFiles = await loadTemplateFromFile();
+              const mode = (projectData?.templateId as TemplateId) || "auto";
+              const { effective } = resolveEffectiveTemplateId(mode, projectData?.files || []);
+              const templateFiles = await loadTemplateFromFile(effective);
               const newProject: ProjectData = {
                 id: uuidv4(),
                 name: "Neues Projekt",
                 slug: "neues-projekt",
+                templateId: mode,
+                effectiveTemplateId: resolveEffectiveTemplateId(mode, projectData?.files || []).effective,
                 files: templateFiles,
                 chatHistory: [],
                 createdAt: new Date().toISOString(),
@@ -400,6 +463,34 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     [updateProject],
   );
 
+  const setTemplateId = useCallback(
+    async (templateId: TemplateId) => {
+      if (!templateId) return;
+      await updateProject((prev) => ({ ...prev, templateId }));
+      console.log(`🧩 Template gespeichert: ${templateId}`);
+    },
+    [updateProject],
+  );
+
+
+  const setAdvancedTemplatePickerEnabled = useCallback(async (enabled: boolean) => {
+    await updateProject((prev) => ({
+      ...prev,
+      advancedTemplatePickerEnabled: enabled,
+    }));
+  }, [updateProject]);
+
+const setPreferredBuildProfile = useCallback(
+    async (profile: "development" | "preview" | "production") => {
+      await updateProject((prev) => ({
+        ...prev,
+        preferredBuildProfile: profile,
+      }));
+      console.log(`⚙️ Preferred Build-Profile gespeichert: ${profile}`);
+    },
+    [updateProject],
+  );
+
   useEffect(() => {
     const initializeProject = async () => {
       try {
@@ -477,6 +568,15 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     buildPollErrorCountRef.current = 0;
     activeBuildJobIdRef.current = null;
   }, []);
+
+
+const pauseBuildPolling = useCallback(() => {
+  if (buildPollIntervalRef.current) {
+    clearInterval(buildPollIntervalRef.current);
+    buildPollIntervalRef.current = null;
+  }
+  // keep activeBuildJobIdRef for resume
+}, []);
 
   useEffect(() => {
     return () => {
@@ -560,6 +660,17 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         buildPollErrorCountRef.current = 0;
       } catch (e: any) {
         buildPollErrorCountRef.current += 1;
+        if (buildPollErrorCountRef.current >= 8) {
+          const msg = e?.message || String(e);
+          stopBuildPolling();
+          setCurrentBuild((prev) => ({
+            ...(prev ?? { status: "error" }),
+            status: "error",
+            message: `🛑 Polling abgebrochen (zu viele Fehler). Letzter Fehler: ${msg}`,
+            lastUpdatedAt: new Date().toISOString(),
+          }));
+          return;
+        }
         const msg = e?.message || String(e);
         console.warn(
           `⚠️ check-eas-build Polling Fehler (${buildPollErrorCountRef.current}):`,
@@ -583,6 +694,27 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     },
     [stopBuildPolling],
   );
+
+// Pause/Resume build polling on AppState (Android background reliability)
+useEffect(() => {
+  const sub = AppState.addEventListener("change", (state) => {
+    if (state !== "active") {
+      pauseBuildPolling();
+      return;
+    }
+    const activeId = activeBuildJobIdRef.current;
+    if (activeId && !buildPollIntervalRef.current) {
+      pollBuildStatusOnce(activeId).catch(() => {});
+      buildPollIntervalRef.current = setInterval(() => {
+        const id = activeBuildJobIdRef.current;
+        if (!id) return;
+        pollBuildStatusOnce(id).catch(() => {});
+      }, 6000);
+    }
+  });
+  return () => sub.remove();
+}, [pauseBuildPolling, pollBuildStatusOnce]);
+
 
   const startBuild = useCallback(
     async (buildProfile?: string) => {
@@ -751,6 +883,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     exportProjectAsZip,
     importProjectFromZip,
     createNewProject,
+    setTemplateId,
     setProjectName,
     messages: projectData?.chatHistory?.filter((msg) => msg && msg.id) || [],
     autoFixRequest,
@@ -761,6 +894,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       return null;
     },
     setLinkedRepo,
+    setPreferredBuildProfile,
+    setAdvancedTemplatePickerEnabled,
   };
 
   return (

@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Platform,
 } from "react-native";
 import { DrawerContentComponentProps } from "@react-navigation/drawer";
 import { Ionicons } from "@expo/vector-icons";
@@ -316,7 +315,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "600",
     color: theme.palette.primary,
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    fontFamily: "monospace",
   },
   footerSubtext: {
     fontSize: 10,

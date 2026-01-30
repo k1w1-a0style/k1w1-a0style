@@ -1,108 +1,112 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { corsHeaders, handleCors } from "../_shared/cors.ts";
+import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { githubHeaders, getGithubToken } from "../_shared/github.ts";
+import {
+  parseJsonBody,
+  validateGithubWorkflowDispatchRequest,
+} from "../_shared/validation.ts";
+
+function parseCsvEnv(name: string): string[] {
+  const raw = (Deno.env.get(name) ?? "").trim();
+  if (!raw) return [];
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+function isAllowedRepo(repo: string): boolean {
+  const allow = parseCsvEnv("K1W1_ALLOWED_GITHUB_REPOS");
+  if (allow.length === 0) return true; // rollout mode
+  return allow.includes(repo);
+}
+
+function isAllowedRef(ref: string): boolean {
+  const r = (ref ?? "").trim();
+  if (!r) return true;
+  if (r.startsWith("refs/")) return false;
+  if (/^[0-9a-f]{40}$/i.test(r)) return false;
+
+  const regexStr = (Deno.env.get("K1W1_ALLOWED_REF_REGEX") ?? "").trim();
+  if (!regexStr) return true; // rollout mode
+  try {
+    const re = new RegExp(regexStr);
+    return re.test(r);
+  } catch {
+    return false;
+  }
+}
 
 /**
- * Triggers a GitHub Actions workflow via workflow_dispatch
- * Allows manual triggering of workflows from the app
+ * Dispatches a GitHub Actions workflow via workflow_dispatch.
+ *
+ * Expected input:
+ * {
+ *   githubRepo: "owner/repo",
+ *   workflow: "file.yml" (or workflow_id),
+ *   ref: "branch",
+ *   inputs?: object
+ * }
  */
 serve(async (req) => {
-  const corsResponse = handleCors(req);
-  if (corsResponse) return corsResponse;
-
-  const auth = requireAdminKey(req);
-  if (auth) return auth;
-
-  const rl = rateLimit(req, "github-workflow-dispatch");
-  if (rl) return rl;
+  if (handleCors(req)) return handleCors(req);
 
   try {
-    const body = await req.json().catch(() => null);
+    const auth = requireAdminKey(req);
+    if (auth) return auth;
 
-    if (!body || !body.githubRepo || !body.workflowId) {
-      return new Response(
-        JSON.stringify({
-          error: "Missing 'githubRepo' or 'workflowId' in request body",
-        }),
-        { headers: corsHeaders, status: 400 },
-      );
-    }
+    const rl = rateLimit(req, "github-workflow-dispatch");
+    if (rl) return rl;
 
-    const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN");
+    const parsed = await parseJsonBody(req, 200_000);
+    if (!parsed.ok) return errorResponse(parsed.error, req, 400);
 
-    if (!GITHUB_TOKEN) {
-      return new Response(JSON.stringify({ error: "Missing GITHUB_TOKEN" }), {
-        headers: corsHeaders,
-        status: 500,
+    const val = validateGithubWorkflowDispatchRequest(parsed.body);
+    if (!val.ok) return errorResponse("Invalid request", req, 400, val.errors);
+
+    const { githubRepo, workflow, ref, inputs } = val.data!;
+    const token = getGithubToken();
+
+    if (!token) {
+      return errorResponse("Missing GitHub token", req, 500, {
+        expected: ["GITHUB_TOKEN", "GH_TOKEN", "GITHUB_API_TOKEN"],
       });
     }
 
-    const { githubRepo, workflowId, ref = "main", inputs = {} } = body;
-
-    // Trigger workflow dispatch
-    const dispatchUrl = `https://api.github.com/repos/${githubRepo}/actions/workflows/${workflowId}/dispatches`;
-
-    const dispatchResponse = await fetch(dispatchUrl, {
-      method: "POST",
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${GITHUB_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        ref,
-        inputs,
-      }),
-    });
-
-    if (!dispatchResponse.ok) {
-      const errorText = await dispatchResponse.text();
-      return new Response(
-        JSON.stringify({
-          error: "Failed to trigger workflow",
-          status: dispatchResponse.status,
-          details: errorText,
-        }),
-        { headers: corsHeaders, status: dispatchResponse.status },
+    if (!isAllowedRepo(githubRepo)) {
+      return jsonResponse(
+        { ok: false, error: "githubRepo not allowed", details: { githubRepo } },
+        req,
+        403,
       );
     }
 
-    // GitHub returns 204 No Content on success
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        message: "Workflow triggered successfully",
-        githubRepo,
-        workflowId,
-        ref,
-      }),
-      {
-        status: 200,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      },
-    );
-  } catch (err: any) {
-    console.error(
-      "❌ github-workflow-dispatch error",
-      err?.message ?? err,
-      err?.stack,
-    );
+    if (!isAllowedRef(ref)) {
+      return jsonResponse({ ok: false, error: "ref not allowed", details: { ref } }, req, 403);
+    }
 
-    return new Response(
-      JSON.stringify({
-        ok: false,
-        error: err?.message || "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      },
-    );
+    const [owner, repo] = githubRepo.split("/");
+
+    const url = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflow}/dispatches`;
+    const body = { ref, inputs: inputs ?? {} };
+
+    const r = await fetch(url, {
+      method: "POST",
+      headers: githubHeaders(token),
+      body: JSON.stringify(body),
+    });
+
+    if (!r.ok) {
+      const txt = await r.text();
+      return errorResponse("GitHub workflow dispatch failed", req, 502, {
+        status: r.status,
+        body: txt.slice(0, 4000),
+        url,
+      });
+    }
+
+    return jsonResponse({ ok: true }, req, 200);
+  } catch (e) {
+    return errorResponse("Unexpected error", req, 500, {
+      message: e?.message ?? String(e),
+    });
   }
 });

@@ -1,113 +1,160 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { githubHeaders, getGithubToken } from "../_shared/github.ts";
 
 /**
- * Fetches recent GitHub Actions workflow runs for a repository
+ * Lists GitHub Actions workflow runs.
+ *
+ * Input (JSON body) supports multiple aliases:
+ * - githubRepo: "owner/repo"  (aliases: github_repo, repoFullName, fullName, repository, githubRepository)
+ * - owner + repo (fallback)
+ * - workflowId: workflow filename (e.g. "k1w1-triggered-build.yml") OR numeric workflow id
+ *   aliases: workflow_id, workflowFile, workflow_file, workflow, path
+ * - perPage (aliases: per_page)
+ * - ref/branch (aliases: branch)
+ * - status (optional)
  */
 serve(async (req) => {
-  const corsResponse = handleCors(req);
-  if (corsResponse) return corsResponse;
-
-  const auth = requireAdminKey(req);
-  if (auth) return auth;
-
-  const rl = rateLimit(req, "github-workflow-runs");
-  if (rl) return rl;
+  if (handleCors(req)) return handleCors(req);
 
   try {
-    const body = await req.json().catch(() => null);
+    const auth = requireAdminKey(req);
+    if (auth) return auth;
 
-    if (!body || !body.githubRepo) {
+    const rl = rateLimit(req, "github-workflow-runs");
+    if (rl) return rl;
+
+    const raw = await req.text();
+    let body: any = {};
+    if (raw?.trim()) {
+      try {
+        body = JSON.parse(raw);
+      } catch {
+        return new Response(
+          JSON.stringify({ ok: false, error: "Invalid JSON body" }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+    }
+
+    const githubRepo =
+      body.githubRepo ??
+      body.github_repo ??
+      body.repoFullName ??
+      body.fullName ??
+      body.repository ??
+      body.githubRepository ??
+      (body.owner && body.repo ? `${body.owner}/${body.repo}` : "");
+
+    if (!githubRepo || typeof githubRepo !== "string" || !githubRepo.includes("/")) {
       return new Response(
-        JSON.stringify({
-          error: "Missing 'githubRepo' in request body",
-        }),
-        { headers: corsHeaders, status: 400 },
+        JSON.stringify({ ok: false, error: "Missing/invalid githubRepo" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
-    const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN");
+    const workflowId =
+      body.workflowId ??
+      body.workflow_id ??
+      body.workflowFile ??
+      body.workflow_file ??
+      body.workflow ??
+      body.path ??
+      "";
 
-    if (!GITHUB_TOKEN) {
-      return new Response(JSON.stringify({ error: "Missing GITHUB_TOKEN" }), {
-        headers: corsHeaders,
-        status: 500,
-      });
+    if (!workflowId || typeof workflowId !== "string") {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Missing/invalid workflowId" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
-    const { githubRepo } = body;
-    const perPage = body.perPage || 10;
+    const perPageRaw = body.perPage ?? body.per_page ?? 20;
+    const perPage = Math.max(1, Math.min(100, Number(perPageRaw) || 20));
 
-    // Fetch workflow runs
-    const runsUrl = `https://api.github.com/repos/${githubRepo}/actions/runs?per_page=${perPage}`;
-    const runsResponse = await fetch(runsUrl, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${GITHUB_TOKEN}`,
-      },
+    const ref = (body.ref ?? body.branch ?? "").toString().trim();
+    const status = (body.status ?? "").toString().trim();
+
+    const token = getGithubToken();
+    if (!token) {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: "Missing GitHub token",
+          expected: ["GITHUB_TOKEN", "GH_TOKEN", "GITHUB_API_TOKEN"],
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    const [owner, repo] = githubRepo.split("/");
+    const params = new URLSearchParams();
+    params.set("per_page", String(perPage));
+    if (ref) params.set("branch", ref);
+    if (status) params.set("status", status);
+
+    const url =
+      `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowId)}/runs?` +
+      params.toString();
+
+    const r = await fetch(url, {
+      method: "GET",
+      headers: githubHeaders(token),
     });
 
-    if (!runsResponse.ok) {
-      const errorText = await runsResponse.text();
+    const txt = await r.text();
+    if (!r.ok) {
       return new Response(
         JSON.stringify({
-          error: "Failed to fetch workflow runs",
-          status: runsResponse.status,
-          details: errorText,
+          ok: false,
+          error: "GitHub API failed",
+          status: r.status,
+          body: txt.slice(0, 4000),
+          url,
         }),
-        { headers: corsHeaders, status: runsResponse.status },
+        {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
-    const runsData = await runsResponse.json();
-
-    // Map runs to simplified format
-    const runs = (runsData.workflow_runs || []).map((run: any) => ({
-      id: run.id,
-      status: run.status,
-      conclusion: run.conclusion,
-      html_url: run.html_url,
-      run_number: run.run_number,
-      created_at: run.created_at,
-      updated_at: run.updated_at,
-      head_branch: run.head_branch,
-      event: run.event,
-      workflow_name: run.name,
-    }));
-
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        runs,
-        total_count: runsData.total_count,
-      }),
-      {
-        status: 200,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
+    let json: any;
+    try {
+      json = JSON.parse(txt);
+    } catch {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Invalid JSON from GitHub", url }),
+        {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
-      },
-    );
-  } catch (err: any) {
-    console.error(
-      "❌ github-workflow-runs error",
-      err?.message ?? err,
-      err?.stack,
-    );
+      );
+    }
 
+    return new Response(JSON.stringify({ ok: true, data: json }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (e) {
     return new Response(
-      JSON.stringify({
-        ok: false,
-        error: err?.message || "Unknown error",
-      }),
+      JSON.stringify({ ok: false, error: "Unexpected error", message: e?.message ?? String(e) }),
       {
         status: 500,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );
   }

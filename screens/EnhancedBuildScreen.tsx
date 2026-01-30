@@ -22,6 +22,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../theme";
 
 import { useProject } from "../contexts/ProjectContext";
+import { useGitHub } from "../contexts/GitHubContext";
 import { useBuildHistory } from "../hooks/useBuildHistory";
 import { useGitHubActionsLogs } from "../hooks/useGitHubActionsLogs";
 import { BuildTimelineCard } from "../components/build/BuildTimelineCard";
@@ -75,6 +76,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
   const runsReqIdRef = useRef(0); // verhindert Race-Conditions bei mehrfachen fetchRuns()
 
   const projectContext = useProject();
+  const { activeBranch, setActiveRepo, setActiveBranch } = useGitHub();
   const projectData = projectContext?.projectData ?? null;
 
   const startBuild = projectContext?.startBuild as
@@ -91,6 +93,9 @@ export default function EnhancedBuildScreen(): React.ReactElement {
   const setLinkedRepo = projectContext?.setLinkedRepo as
     | undefined
     | ((repo: string | null, branch?: string | null) => Promise<void>);
+  const setPreferredBuildProfile = projectContext?.setPreferredBuildProfile as
+    | undefined
+    | ((profile: "development" | "preview" | "production") => Promise<void>);
 
   const initialRepo = useMemo(() => {
     return (
@@ -100,11 +105,30 @@ export default function EnhancedBuildScreen(): React.ReactElement {
     );
   }, [currentBuild?.githubRepo, projectData?.linkedRepo]);
 
+  const initialBranch = useMemo(() => {
+    return projectData?.linkedBranch?.trim() || activeBranch?.trim() || "work";
+  }, [projectData?.linkedBranch, activeBranch]);
+
   const [repoFullName, setRepoFullName] = useState(initialRepo);
+  const [branchName, setBranchName] = useState(initialBranch);
   const [buildProfile, setBuildProfile] = useState<
     "development" | "preview" | "production"
-  >("preview");
+  >((projectData?.preferredBuildProfile as any) || "preview");
   const [loadingRuns, setLoadingRuns] = useState(false);
+
+  // Sync persisted profile/branch when project loads or changes
+  useEffect(() => {
+    const p = projectData?.preferredBuildProfile;
+    if (p === "development" || p === "preview" || p === "production") {
+      setBuildProfile(p);
+    }
+  }, [projectData?.preferredBuildProfile]);
+
+  useEffect(() => {
+    const b = initialBranch?.trim();
+    if (b) setBranchName(b);
+  }, [initialBranch]);
+
   const [runs, setRuns] = useState<WorkflowRun[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -160,6 +184,10 @@ export default function EnhancedBuildScreen(): React.ReactElement {
   const logLines = useMemo(() => {
     if (!logs || logs.length === 0) return [];
     return logs.map((entry) => {
+      // Show raw CLI output without extra prefixes
+      if (entry.level === "raw") {
+        return entry.message;
+      }
       const ts = entry.timestamp;
       const time = ts ? new Date(ts).toLocaleTimeString() : "";
       const prefix = time ? `${time} ` : "";
@@ -433,6 +461,69 @@ export default function EnhancedBuildScreen(): React.ReactElement {
                 autoCorrect={false}
                 style={styles.input}
               />
+
+              <Text style={styles.inputLabel}>
+                Branch (z.B. work, main, feature-x)
+              </Text>
+              <TextInput
+                style={styles.input}
+                value={branchName}
+                onChangeText={setBranchName}
+                autoCapitalize="none"
+                autoCorrect={false}
+                placeholder="work"
+                accessibilityLabel="Branch"
+              />
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={async () => {
+                  const repo = repoFullName.trim();
+                  const br = branchName.trim();
+                  if (!repo || !repo.includes("/")) {
+                    Alert.alert(
+                      "Ungültiges Repo",
+                      'Bitte ein Repo im Format "owner/repo" eingeben.',
+                    );
+                    return;
+                  }
+                  if (
+                    !br ||
+                    br.length > 100 ||
+                    br.includes("..") ||
+                    br.startsWith("/") ||
+                    br.endsWith("/")
+                  ) {
+                    Alert.alert(
+                      "Ungültiger Branch",
+                      "Bitte einen gültigen Branch-Namen eingeben.",
+                    );
+                    return;
+                  }
+                  try {
+                    if (setLinkedRepo) await setLinkedRepo(repo, br);
+                    setActiveRepo(repo);
+                    setActiveBranch(br);
+                    Alert.alert(
+                      "✅ Gespeichert",
+                      `Repo/Branch verknüpft: ${repo} (${br})`,
+                    );
+                  } catch (e) {
+                    console.error(
+                      "[Build] Repo/Branch speichern fehlgeschlagen:",
+                      e,
+                    );
+                    Alert.alert(
+                      "Fehler",
+                      "Repo/Branch konnte nicht gespeichert werden.",
+                    );
+                  }
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.secondaryButtonText}>
+                  Repo/Branch speichern
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -445,7 +536,18 @@ export default function EnhancedBuildScreen(): React.ReactElement {
                 <TouchableOpacity
                   key={p}
                   style={[styles.profileBtn, active && styles.profileBtnActive]}
-                  onPress={() => setBuildProfile(p)}
+                  onPress={async () => {
+                    setBuildProfile(p);
+                    try {
+                      if (setPreferredBuildProfile)
+                        await setPreferredBuildProfile(p);
+                    } catch (e) {
+                      console.warn(
+                        "[Build] Konnte Build-Profil nicht persistieren:",
+                        e,
+                      );
+                    }
+                  }}
                   activeOpacity={0.8}
                   accessibilityLabel={`Build-Profile: ${p}`}
                   accessibilityState={{ selected: active }}

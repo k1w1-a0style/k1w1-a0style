@@ -1,169 +1,154 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
-import { validateTriggerBuildRequest } from "../_shared/validation.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import {
+  parseJsonBody,
+  validateTriggerBuildRequest,
+} from "../_shared/validation.ts";
+import { githubHeaders, getGithubToken } from "../_shared/github.ts";
+
+function parseCsvEnv(name: string): string[] {
+  const raw = (Deno.env.get(name) ?? "").trim();
+  if (!raw) return [];
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+function isAllowedRepo(repo: string): boolean {
+  const allow = parseCsvEnv("K1W1_ALLOWED_GITHUB_REPOS");
+  if (allow.length === 0) return true; // rollout mode
+  return allow.includes(repo);
+}
+
+function isAllowedRef(ref: string | null | undefined): boolean {
+  const r = (ref ?? "").trim();
+  if (!r) return true;
+  if (r.startsWith("refs/")) return false;
+  if (/^[0-9a-f]{40}$/i.test(r)) return false;
+
+  const regexStr = (Deno.env.get("K1W1_ALLOWED_REF_REGEX") ?? "").trim();
+  if (!regexStr) return true; // rollout mode
+  try {
+    const re = new RegExp(regexStr);
+    return re.test(r);
+  } catch {
+    return false;
+  }
+}
 
 /**
- * ✓ 100% stabiler trigger-eas-build
- * ✓ kein BuildJob wenn Push failed
- * ✓ saubere Fehlerstruktur
- * ✓ logging-ready für dein Frontend
- * ✓ unterstützt GitHub Actions dispatch
- * ✓ SEC-011: Input Validation hinzugefügt
+ * Creates a build_jobs row and triggers the GitHub repository_dispatch event (trigger-eas-build).
+ *
+ * Contract:
+ * - Input: { githubRepo, buildProfile, branch? }
+ * - Output: { ok: true, jobId, githubRepo, branch, buildProfile }
  */
-
 serve(async (req) => {
-  const corsResponse = handleCors(req);
-  if (corsResponse) return corsResponse;
-
-  const auth = requireAdminKey(req);
-  if (auth) return auth;
-
-  const rl = rateLimit(req, "trigger-eas-build");
-  if (rl) return rl;
-
-  // Outer scope so catch can update DB status when something explodes mid-flight
-  let jobId: number | null = null;
+  if (handleCors(req)) return handleCors(req);
 
   try {
-    const body = await req.json().catch(() => null);
+    const auth = requireAdminKey(req);
+    if (auth) return auth;
 
-    // ✅ SEC-011: Strikte Input-Validierung
-    const validation = validateTriggerBuildRequest(body);
-    if (!validation.valid) {
-      return errorResponse("Validation failed", req, 400, {
-        errors: validation.errors,
-      });
+    const rl = rateLimit(req, "trigger-eas-build");
+    if (rl) return rl;
+
+    const parsed = await parseJsonBody(req, 200_000);
+    if (!parsed.ok) {
+      return errorResponse(parsed.error, req, 400);
     }
 
-    const { githubRepo, buildProfile, branch } = validation.data!;
+    const validation = validateTriggerBuildRequest(parsed.body);
+    if (!validation.ok) {
+      return errorResponse("Invalid request", req, 400, validation.errors);
+    }
 
-    const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN");
-    const SUPABASE_URL = Deno.env.get("K1W1_SUPABASE_URL");
-    const SERVICE_ROLE = Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY");
+    const SUPABASE_URL = Deno.env.get("K1W1_SUPABASE_URL") ?? Deno.env.get("SUPABASE_URL");
+    const SERVICE_ROLE =
+      Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY") ??
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const GITHUB_TOKEN = getGithubToken();
 
-    if (!GITHUB_TOKEN || !SUPABASE_URL || !SERVICE_ROLE) {
-      return errorResponse("Missing required environment variables", req, 500, {
-        missing: {
-          GITHUB_TOKEN: !!GITHUB_TOKEN,
-          SUPABASE_URL: !!SUPABASE_URL,
-          SERVICE_ROLE: !!SERVICE_ROLE,
-        },
+    if (!SUPABASE_URL || !SERVICE_ROLE || !GITHUB_TOKEN) {
+      return errorResponse("Missing required server env", req, 500, {
+        SUPABASE_URL: !!SUPABASE_URL,
+        SERVICE_ROLE: !!SERVICE_ROLE,
+        GITHUB_TOKEN: !!GITHUB_TOKEN,
       });
     }
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // -----------------------------------------------------
-    // 1) Build Job in Supabase anlegen (VOR GitHub Dispatch!)
-    // -----------------------------------------------------
-    const insert = await supabase
-      .from("build_jobs")
-      .insert([
-        {
-          github_repo: githubRepo, // ✅ Validierter Wert
-          build_profile: buildProfile, // ✅ Validierter Wert
-          status: "queued",
-          branch: branch ?? null,
-        },
-      ])
-      .select("*")
-      .single();
+    const { githubRepo, buildProfile, branch } = validation.data!;
 
-    if (insert.error) {
-      return errorResponse("Supabase insert failed", req, 500, insert.error);
+    if (!isAllowedRepo(githubRepo)) {
+      return errorResponse("githubRepo not allowed", req, 403, { githubRepo });
     }
 
-    jobId = insert.data.id;
+    if (!isAllowedRef(branch ?? null)) {
+      return errorResponse("branch/ref not allowed", req, 403, { branch: branch ?? null });
+    }
 
-    // -----------------------------------------------------
-    // 2) GitHub DISPATCH mit Job ID ausführen
-    // -----------------------------------------------------
-    const dispatchUrl = `https://api.github.com/repos/${githubRepo}/dispatches`; // ✅ Validierter Wert
+    // Create job row
+    const insertRes = await supabase
+      .from("build_jobs")
+      .insert({
+        status: "queued",
+        github_repo: githubRepo,
+        build_profile: buildProfile,
+        branch: branch ?? null,
+      })
+      .select("id")
+      .single();
 
-    const dispatchPayload = {
+    if (insertRes.error) {
+      return errorResponse("Failed to create build job", req, 500, insertRes.error);
+    }
+
+    const jobId = insertRes.data.id;
+
+    const [owner, repo] = githubRepo.split("/");
+    const payload = {
       event_type: "trigger-eas-build",
       client_payload: {
-        job_id: jobId, // ✅ Job ID mitgeben!
+        github_repo: githubRepo,
+        repo: githubRepo,
+        branch: branch ?? null,
+        ref: branch ?? null,
         build_profile: buildProfile,
         buildProfile: buildProfile,
-        // Optionaler Branch/Ref (wird im Workflow genutzt für Checkout)
-        branch: branch ?? null,
+        job_id: jobId,
       },
     };
 
-    const ghRes = await fetch(dispatchUrl, {
+    const r = await fetch(`https://api.github.com/repos/${owner}/${repo}/dispatches`, {
       method: "POST",
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${GITHUB_TOKEN}`,
-      },
-      body: JSON.stringify(dispatchPayload),
+      headers: githubHeaders(GITHUB_TOKEN),
+      body: JSON.stringify(payload),
     });
 
-    const pushSuccess = ghRes.ok;
-
-    if (!pushSuccess) {
-      const errorText = await ghRes.text();
-
-      // ✅ Bei Fehler: Job auf 'error' setzen
-      await supabase
-        .from("build_jobs")
-        .update({
-          status: "error",
-          error_message: `GitHub dispatch failed: ${errorText}`,
-        })
-        .eq("id", jobId);
-
-      return errorResponse("GitHub dispatch failed", req, 500, {
-        status: ghRes.status,
-        githubResponse: errorText,
-        jobId: jobId,
+    if (!r.ok) {
+      const txt = await r.text();
+      return errorResponse("GitHub dispatch failed", req, 502, {
+        status: r.status,
+        body: txt.slice(0, 2000),
       });
     }
 
-    // -----------------------------------------------------
-    // 3) Saubere Success Response
-    // -----------------------------------------------------
     return jsonResponse(
       {
         ok: true,
-        githubDispatch: true,
-        buildJobCreated: true,
-        job: insert.data,
+        jobId,
+        githubRepo,
+        branch: branch ?? null,
+        buildProfile,
       },
       req,
+      200,
     );
-  } catch (err: any) {
-    console.error(
-      "❌ trigger-eas-build error",
-      err?.message ?? err,
-      err?.stack,
-    );
-
-    // Best-effort: falls Job bereits erstellt wurde, nicht im "queued" hängen lassen
-    if (jobId) {
-      try {
-        const SUPABASE_URL = Deno.env.get("K1W1_SUPABASE_URL");
-        const SERVICE_ROLE = Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY");
-        if (SUPABASE_URL && SERVICE_ROLE) {
-          const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
-          await supabase
-            .from("build_jobs")
-            .update({
-              status: "error",
-              error_message: err?.message || "Unhandled exception",
-            })
-            .eq("id", jobId);
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    return errorResponse("Unhandled exception in trigger-eas-build", req, 500, {
-      message: err?.message || "Unknown error",
+  } catch (e) {
+    return errorResponse("Unexpected error", req, 500, {
+      message: e?.message ?? String(e),
     });
   }
 });

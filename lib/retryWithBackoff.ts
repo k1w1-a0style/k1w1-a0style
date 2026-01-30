@@ -1,20 +1,36 @@
 /**
  * Retry with Backoff
  * Wiederholungslogik mit exponentiellem Backoff für API-Calls
+ *
+ * Wichtig: deterministische Delays (ohne Random/Jitter), damit
+ * CI/Tests stabil bleiben und Fake-Timer korrekt funktionieren.
  */
 
+const BASE_DELAY_MS = 1000;
+const MAX_DELAY_MS = 30_000;
+
 /**
- * Führt einen fetch-Request mit Retry-Logik aus
- * 
- * @param url - Die URL für den Request
- * @param options - Fetch-Optionen
- * @param maxRetries - Maximale Anzahl an Versuchen (Standard: 3)
- * @returns Response-Promise
+ * Berechnet Backoff-Delay basierend auf Versuchsnummer.
+ * Exponentieller Backoff: 1s, 2s, 4s, 8s, ...
+ *
+ * @param attemptNumber - 0-basiert
+ */
+function calculateBackoff(attemptNumber: number): number {
+  const delay = BASE_DELAY_MS * Math.pow(2, attemptNumber);
+  return Math.min(delay, MAX_DELAY_MS);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Führt einen fetch-Request mit Retry-Logik aus.
  */
 export async function fetchWithBackoff(
   url: string,
   options: RequestInit,
-  maxRetries = 3
+  maxRetries = 3,
 ): Promise<Response> {
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -28,7 +44,9 @@ export async function fetchWithBackoff(
       // Bei Server-Fehlern (5xx) wiederholen, außer beim letzten Versuch
       if (res.status >= 500 && i < maxRetries - 1) {
         const delay = calculateBackoff(i);
-        console.log(`[retryWithBackoff] Server error ${res.status}, retry ${i + 1}/${maxRetries} in ${delay}ms`);
+        console.log(
+          `[retryWithBackoff] Server error ${res.status}, retry ${i + 1}/${maxRetries} in ${delay}ms`,
+        );
         await sleep(delay);
         continue;
       }
@@ -37,48 +55,25 @@ export async function fetchWithBackoff(
     } catch (e) {
       // Bei Netzwerkfehlern wiederholen, außer beim letzten Versuch
       if (i === maxRetries - 1) throw e;
-      
+
       const delay = calculateBackoff(i);
-      console.log(`[retryWithBackoff] Network error, retry ${i + 1}/${maxRetries} in ${delay}ms`);
+      console.log(
+        `[retryWithBackoff] Network error, retry ${i + 1}/${maxRetries} in ${delay}ms`,
+      );
       await sleep(delay);
     }
   }
 
-  throw new Error('Max retries reached');
+  throw new Error("Max retries reached");
 }
 
 /**
- * Berechnet Backoff-Delay basierend auf Versuchsnummer
- * Exponentieller Backoff: 1s, 2s, 4s, ...
- * 
- * @param attemptNumber - Die Versuchsnummer (0-basiert)
- * @returns Delay in Millisekunden
- */
-function calculateBackoff(attemptNumber: number): number {
-  return 1000 * Math.pow(2, attemptNumber);
-}
-
-/**
- * Promise-basierte Sleep-Funktion
- * 
- * @param ms - Wartezeit in Millisekunden
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Generische Retry-Funktion für beliebige async Operationen
- * 
- * @param operation - Die auszuführende Operation
- * @param maxRetries - Maximale Anzahl an Versuchen
- * @param shouldRetry - Funktion die bestimmt ob retry sinnvoll ist
- * @returns Das Ergebnis der Operation
+ * Generische Retry-Funktion für beliebige async Operationen.
  */
 export async function retryWithBackoff<T>(
   operation: () => Promise<T>,
   maxRetries = 3,
-  shouldRetry?: (error: any) => boolean
+  shouldRetry?: (error: any) => boolean,
 ): Promise<T> {
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -95,10 +90,12 @@ export async function retryWithBackoff<T>(
       }
 
       const delay = calculateBackoff(i);
-      console.log(`[retryWithBackoff] Retry ${i + 1}/${maxRetries} in ${delay}ms`);
+      console.log(
+        `[retryWithBackoff] Retry ${i + 1}/${maxRetries} in ${delay}ms`,
+      );
       await sleep(delay);
     }
   }
 
-  throw new Error('Max retries reached');
+  throw new Error("Max retries reached");
 }

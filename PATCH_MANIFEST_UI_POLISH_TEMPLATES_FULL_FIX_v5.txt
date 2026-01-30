@@ -1,0 +1,6 @@
+UI polish templates full fix v5
+
+Fixes TS errors after v4 dev toggle.
+
+Files:
+- components/ChatHeaderActions.tsx

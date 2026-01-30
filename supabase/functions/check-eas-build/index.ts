@@ -1,113 +1,109 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
-import { validateCheckBuildRequest } from "../_shared/validation.ts";
+import {
+  validateCheckBuildRequest,
+  parseJsonBody,
+} from "../_shared/validation.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
-
-/**
- * ✓ Stabile Status-Überprüfung (Source of Truth: build_jobs Row)
- * ✓ Keine flakey GitHub-API Suche nach "irgendeinem" Run
- * ✓ Response bleibt kompatibel (status, urls, runId)
- * ✓ SEC-011: Input Validation
- */
+import { githubHeaders } from "../_shared/github.ts";
 
 serve(async (req) => {
-  const corsResponse = handleCors(req);
-  if (corsResponse) return corsResponse;
-
-  const auth = requireAdminKey(req);
-  if (auth) return auth;
-
-  const rl = rateLimit(req, "check-eas-build");
-  if (rl) return rl;
+  if (handleCors(req)) return handleCors(req);
 
   try {
-    const body = await req.json().catch(() => null);
+    const auth = requireAdminKey(req);
+    if (auth) return auth;
 
-    // ✅ SEC-011: Strikte Input-Validierung
-    const validation = validateCheckBuildRequest(body);
-    if (!validation.valid) {
-      return errorResponse("Validation failed", req, 400, {
-        errors: validation.errors,
-      });
-    }
+    const rl = rateLimit(req, "check-eas-build");
+    if (rl) return rl;
 
-    const { jobId } = validation.data!;
+    const parsed = await parseJsonBody(req, 200_000);
+    if (!parsed.ok) return errorResponse(parsed.error, req, 400);
 
-    const SUPABASE_URL = Deno.env.get("K1W1_SUPABASE_URL");
-    const SERVICE_ROLE = Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY");
+    const validation = validateCheckBuildRequest(parsed.body);
+    if (!validation.ok) return errorResponse("Invalid request", req, 400, validation.errors);
+
+    const SUPABASE_URL = Deno.env.get("K1W1_SUPABASE_URL") ?? Deno.env.get("SUPABASE_URL");
+    const SERVICE_ROLE =
+      Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY") ??
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!SUPABASE_URL || !SERVICE_ROLE) {
-      return errorResponse("Missing required environment variables", req, 500, {
-        missing: {
-          SUPABASE_URL: !!SUPABASE_URL,
-          SERVICE_ROLE: !!SERVICE_ROLE,
-        },
+      return errorResponse("Missing Supabase env", req, 500, {
+        SUPABASE_URL: !!SUPABASE_URL,
+        SERVICE_ROLE: !!SERVICE_ROLE,
       });
     }
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // -----------------------------------------------------
-    // 1) BuildJob aus Supabase laden
-    // -----------------------------------------------------
-    const jobRes = await supabase
+    const { jobId } = validation.data!;
+    const res = await supabase
       .from("build_jobs")
       .select("*")
       .eq("id", jobId)
-      .single();
+      .maybeSingle();
 
-    if (jobRes.error || !jobRes.data) {
-      return errorResponse("Build job not found", req, 404, {
-        jobId,
-      });
-    }
+    if (res.error) return errorResponse("DB error", req, 500, res.error);
+    if (!res.data) return errorResponse("Not found", req, 404, { jobId });
 
-    const job = jobRes.data;
+    const job = res.data as any;
 
-    // -----------------------------------------------------
-    // 2) Response ableiten (DB = Source of Truth)
-    // -----------------------------------------------------
-    const status = (job.status || "queued").toString();
-
-    const repo = typeof job.github_repo === "string" ? job.github_repo : null;
-    const runId = job.github_run_id
-      ? Number.parseInt(String(job.github_run_id), 10)
-      : null;
-
-    const buildUrl = job.build_url ? String(job.build_url) : null;
     const githubRunUrl =
-      repo && runId && Number.isFinite(runId)
-        ? `https://github.com/${repo}/actions/runs/${runId}`
+      job.github_run_id && job.github_repo
+        ? `https://github.com/${job.github_repo}/actions/runs/${job.github_run_id}`
+        : null;
+    const artifactsUrl = githubRunUrl ? `${githubRunUrl}#artifacts` : null;
+
+    // Optional fields (added by newer workflows/migrations)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const anyJob = job as any;
+    const downloadUrl =
+      typeof anyJob.download_url === "string" && anyJob.download_url.trim()
+        ? anyJob.download_url.trim()
+        : null;
+
+    const artifact =
+      typeof anyJob.artifact_name === "string" && anyJob.artifact_name.trim()
+        ? {
+            name: anyJob.artifact_name,
+            sha256:
+              typeof anyJob.artifact_sha256 === "string" ? anyJob.artifact_sha256 : null,
+            size: typeof anyJob.artifact_size === "number" ? anyJob.artifact_size : null,
+          }
         : null;
 
     return jsonResponse(
       {
         ok: true,
-        status,
-        runId: runId && Number.isFinite(runId) ? runId : null,
-
-        // Backwards compatible fields used in RN code
-        build_url: buildUrl,
-        download_url: null,
-
-        urls: {
-          // Für UI: zuerst EAS Build URL (wenn vorhanden), sonst GitHub Run
-          html: buildUrl ?? githubRunUrl,
-          artifacts: null,
-          githubRun: githubRunUrl,
+        job: {
+          id: job.id,
+          status: job.status,
+          github_repo: job.github_repo ?? null,
+          github_run_id: job.github_run_id ?? null,
+          build_profile: job.build_profile ?? null,
+          branch: job.branch ?? null,
+          build_url: job.build_url ?? null,
+          download_url: downloadUrl,
+          urls: {
+            html: githubRunUrl,
+            githubRun: githubRunUrl,
+            buildUrl: job.build_url ?? null,
+            artifacts: artifactsUrl,
+          },
+          artifact,
+          error: job.error ?? null,
+          created_at: job.created_at ?? null,
+          updated_at: job.updated_at ?? null,
         },
-
-        errorMessage: job.error_message ?? null,
-        job,
       },
       req,
+      200,
     );
-  } catch (err: any) {
-    console.error("❌ check-eas-build error", err?.message ?? err, err?.stack);
-
-    return errorResponse("Unhandled exception in check-eas-build", req, 500, {
-      message: err?.message || "Unknown error",
+  } catch (e) {
+    return errorResponse("Unexpected error", req, 500, {
+      message: e?.message ?? String(e),
     });
   }
 });

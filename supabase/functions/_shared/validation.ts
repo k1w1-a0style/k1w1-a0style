@@ -1,345 +1,184 @@
-// supabase/functions/_shared/validation.ts
-// ✅ SEC-011: Supabase Function Input Validation
+import {
+  isSafePath,
+  normalizePath,
+  safeJsonForScript,
+  escapeHtml,
+} from "./security.ts";
 
 /**
- * Input Validation für Supabase Edge Functions
- * Verhindert:
- * - Injection Attacks
- * - Oversized Payloads
- * - Invalid Data Types
- */
-
-// Maximale Größen
-const MAX_REPO_LENGTH = 100;
-const MAX_BUILD_PROFILE_LENGTH = 50;
-const MAX_STRING_LENGTH = 500;
-const MAX_BRANCH_LENGTH = 200;
-const MAX_JOB_ID = 2147483647; // PostgreSQL INT max
-
-/**
- * Validiert GitHub Repository Format (owner/repo)
- */
-export function validateGitHubRepo(repo: unknown): {
-  valid: boolean;
-  value?: string;
-  error?: string;
-} {
-  if (typeof repo !== "string") {
-    return { valid: false, error: "githubRepo must be a string" };
-  }
-
-  if (repo.length === 0) {
-    return { valid: false, error: "githubRepo cannot be empty" };
-  }
-
-  if (repo.length > MAX_REPO_LENGTH) {
-    return {
-      valid: false,
-      error: `githubRepo too long (max ${MAX_REPO_LENGTH} chars)`,
-    };
-  }
-
-  // Format: owner/repo (nur alphanumerisch, Unterstriche, Bindestriche)
-  const repoRegex = /^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+$/;
-  if (!repoRegex.test(repo)) {
-    return {
-      valid: false,
-      error: "Invalid githubRepo format. Expected: owner/repo",
-    };
-  }
-
-  // Verhindere Path Traversal
-  if (repo.includes("..") || repo.includes("//")) {
-    return { valid: false, error: "Invalid characters in githubRepo" };
-  }
-
-  return { valid: true, value: repo };
-}
-
-/**
- * Validiert Build Profile
- */
-export function validateBuildProfile(profile: unknown): {
-  valid: boolean;
-  value?: string;
-  error?: string;
-} {
-  if (profile === undefined || profile === null) {
-    // Default: 'preview'
-    return { valid: true, value: "preview" };
-  }
-
-  if (typeof profile !== "string") {
-    return { valid: false, error: "buildProfile must be a string" };
-  }
-
-  if (profile.length > MAX_BUILD_PROFILE_LENGTH) {
-    return {
-      valid: false,
-      error: `buildProfile too long (max ${MAX_BUILD_PROFILE_LENGTH} chars)`,
-    };
-  }
-
-  // Erlaubte Profile
-  const allowedProfiles = ["development", "preview", "production"];
-  if (!allowedProfiles.includes(profile)) {
-    return {
-      valid: false,
-      error: `Invalid buildProfile. Allowed: ${allowedProfiles.join(", ")}`,
-    };
-  }
-
-  return { valid: true, value: profile };
-}
-
-/**
- * Validiert Git Branch / Ref (optional)
- * Erlaubt typische Git-Refs wie:
- * - main
- * - develop
- * - feature/something
+ * Central validation helpers for Edge Functions.
  *
- * Blockt offensichtliche Injection/Traversal Patterns.
+ * NOTE: Keep these pure + dependency-light.
  */
-export function validateBranch(branch: unknown): {
-  valid: boolean;
-  value?: string | null;
-  error?: string;
-} {
-  if (branch === undefined || branch === null || branch === "") {
-    return { valid: true, value: null };
+
+type Ok<T> = { ok: true; data: T };
+type Err = { ok: false; errors: any };
+
+export function parseJsonBody(
+  req: Request,
+  maxBytes = 200_000,
+): Promise<{ ok: true; body: any } | { ok: false; error: string }> {
+  const lenHeader = req.headers.get("content-length");
+  if (lenHeader) {
+    const len = Number(lenHeader);
+    if (Number.isFinite(len) && len > maxBytes) {
+      return Promise.resolve({
+        ok: false,
+        error: `Body too large (content-length=${len} > ${maxBytes})`,
+      });
+    }
   }
 
-  if (typeof branch !== "string") {
-    return { valid: false, error: "branch must be a string" };
-  }
+  return req.text().then((t) => {
+    if (!t || !t.trim()) return { ok: true, body: {} };
+    if (t.length > maxBytes)
+      return { ok: false, error: `Body too large (${t.length} > ${maxBytes})` };
 
-  const trimmed = branch.trim();
-  if (trimmed.length === 0) {
-    return { valid: true, value: null };
-  }
+    try {
+      const body = JSON.parse(t);
+      return { ok: true, body };
+    } catch (e) {
+      return { ok: false, error: `Invalid JSON: ${e?.message ?? String(e)}` };
+    }
+  });
+}
 
-  if (trimmed.length > MAX_BRANCH_LENGTH) {
-    return {
-      valid: false,
-      error: `branch too long (max ${MAX_BRANCH_LENGTH} chars)`,
-    };
-  }
+function isString(x: unknown): x is string {
+  return typeof x === "string";
+}
 
-  // Sehr konservativ: nur sichere Zeichen
-  // (kein Whitespace, keine Quotes, keine Backticks, keine @{}, etc.)
-  const safeRefRegex = /^[A-Za-z0-9._/-]+$/;
+function isObject(x: unknown): x is Record<string, unknown> {
+  return !!x && typeof x === "object" && !Array.isArray(x);
+}
+
+export function validateBranch(
+  input: unknown,
+): { valid: true; value: string } | { valid: false; error: string } {
+  if (input == null) return { valid: true, value: "" };
+
+  if (!isString(input)) return { valid: false, error: "branch must be a string" };
+
+  const trimmed = input.trim();
+  if (!trimmed) return { valid: true, value: "" };
+
+  // Git branch allowed charset (conservative)
+  const safeRefRegex = /^[A-Za-z0-9._/-]{1,200}$/;
   if (!safeRefRegex.test(trimmed)) {
     return { valid: false, error: "Invalid branch format" };
   }
 
-  // Blocke klassische Traversal/Weirdness
-  if (
-    trimmed.includes("..") ||
-    trimmed.includes("//") ||
-    trimmed.startsWith("/") ||
-    trimmed.endsWith("/")
-  ) {
-    return { valid: false, error: "Invalid characters in branch" };
+  // Disallow full refs/* and full SHAs (defense-in-depth)
+  if (trimmed.startsWith("refs/")) {
+    return { valid: false, error: "branch must be a branch name, not refs/*" };
+  }
+  if (/^[0-9a-f]{40}$/i.test(trimmed)) {
+    return { valid: false, error: "branch must not be a full 40-char SHA" };
   }
 
   return { valid: true, value: trimmed };
 }
 
-/**
- * Validiert Job ID
- */
-export function validateJobId(jobId: unknown): {
-  valid: boolean;
-  value?: number;
-  error?: string;
-} {
-  if (jobId === undefined || jobId === null) {
-    return { valid: false, error: "jobId is required" };
+export function validateTriggerBuildRequest(body: unknown): Ok<{
+  githubRepo: string;
+  buildProfile: "development" | "preview" | "production";
+  branch?: string;
+}> | Err {
+  if (!isObject(body)) return { ok: false, errors: { error: "body must be an object" } };
+
+  const githubRepo = body.githubRepo ?? body.github_repo ?? body.repo ?? body.repository;
+  const buildProfile = body.buildProfile ?? body.build_profile ?? body.profile;
+  const branch = body.branch ?? body.ref;
+
+  const errors: any = {};
+
+  if (!isString(githubRepo) || !githubRepo.includes("/")) {
+    errors.githubRepo = "githubRepo must be like owner/repo";
   }
 
-  const numericJobId = typeof jobId === "string" ? parseInt(jobId, 10) : jobId;
-
-  if (typeof numericJobId !== "number" || isNaN(numericJobId)) {
-    return { valid: false, error: "jobId must be a number" };
+  if (
+    !isString(buildProfile) ||
+    !["development", "preview", "production"].includes(buildProfile)
+  ) {
+    errors.buildProfile = "buildProfile must be development|preview|production";
   }
 
-  if (!Number.isInteger(numericJobId)) {
-    return { valid: false, error: "jobId must be an integer" };
-  }
+  const br = validateBranch(branch);
+  if (!br.valid) errors.branch = br.error;
 
-  if (numericJobId <= 0) {
-    return { valid: false, error: "jobId must be positive" };
-  }
+  if (Object.keys(errors).length) return { ok: false, errors };
 
-  if (numericJobId > MAX_JOB_ID) {
-    return { valid: false, error: "jobId exceeds maximum value" };
-  }
-
-  return { valid: true, value: numericJobId };
-}
-
-/**
- * Validiert Run ID (GitHub Actions)
- */
-export function validateRunId(runId: unknown): {
-  valid: boolean;
-  value?: number;
-  error?: string;
-} {
-  if (runId === undefined || runId === null) {
-    return { valid: true, value: undefined }; // Optional
-  }
-
-  const numericRunId = typeof runId === "string" ? parseInt(runId, 10) : runId;
-
-  if (typeof numericRunId !== "number" || isNaN(numericRunId)) {
-    return { valid: false, error: "runId must be a number" };
-  }
-
-  if (!Number.isInteger(numericRunId)) {
-    return { valid: false, error: "runId must be an integer" };
-  }
-
-  if (numericRunId <= 0) {
-    return { valid: false, error: "runId must be positive" };
-  }
-
-  return { valid: true, value: numericRunId };
-}
-
-/**
- * Sanitized String (allgemein)
- */
-export function sanitizeString(
-  input: unknown,
-  maxLength: number = MAX_STRING_LENGTH,
-): {
-  valid: boolean;
-  value?: string;
-  error?: string;
-} {
-  if (input === undefined || input === null) {
-    return { valid: true, value: "" };
-  }
-
-  if (typeof input !== "string") {
-    return { valid: false, error: "Input must be a string" };
-  }
-
-  if (input.length > maxLength) {
-    return { valid: false, error: `Input too long (max ${maxLength} chars)` };
-  }
-
-  // Basis-Sanitization: Entferne potenziell gefährliche Zeichen
-  const sanitized = input
-    .replace(/[<>]/g, "") // HTML Tags
-    .replace(/javascript:/gi, "") // JavaScript URIs
-    .replace(/on\w+=/gi, "") // Event Handler
-    .trim();
-
-  return { valid: true, value: sanitized };
-}
-
-/**
- * Validiert vollständigen trigger-eas-build Request Body
- */
-export function validateTriggerBuildRequest(body: unknown): {
-  valid: boolean;
-  data?: {
-    githubRepo: string;
-    buildProfile: string;
-    buildType?: string;
-    branch?: string | null;
+  return {
+    ok: true,
+    data: {
+      githubRepo: String(githubRepo),
+      buildProfile: buildProfile as any,
+      branch: br.value || undefined,
+    },
   };
-  errors: string[];
-} {
-  const errors: string[] = [];
+}
 
-  if (!body || typeof body !== "object") {
-    return { valid: false, errors: ["Request body must be an object"] };
+export function validateCheckBuildRequest(body: unknown): Ok<{ jobId: number }> | Err {
+  if (!isObject(body)) return { ok: false, errors: { error: "body must be an object" } };
+  const jobId = body.jobId ?? body.job_id ?? body.id;
+  const n = Number(jobId);
+  if (!Number.isFinite(n) || n <= 0) {
+    return { ok: false, errors: { jobId: "jobId must be a positive number" } };
+  }
+  return { ok: true, data: { jobId: n } };
+}
+
+export function validateGithubWorkflowDispatchRequest(body: unknown): Ok<{
+  githubRepo: string;
+  workflow: string;
+  ref: string;
+  inputs?: Record<string, string>;
+}> | Err {
+  if (!isObject(body)) return { ok: false, errors: { error: "body must be an object" } };
+
+  const githubRepo = body.githubRepo ?? body.github_repo ?? body.repo ?? body.repository;
+  const workflow = body.workflow ?? body.workflowId ?? body.workflow_id ?? body.path;
+  const ref = body.ref ?? body.branch ?? "main";
+  const inputs = body.inputs;
+
+  const errors: any = {};
+
+  if (!isString(githubRepo) || !githubRepo.includes("/")) {
+    errors.githubRepo = "githubRepo must be like owner/repo";
   }
 
-  const bodyObj = body as Record<string, unknown>;
-
-  // Validate githubRepo
-  const repoValidation = validateGitHubRepo(bodyObj.githubRepo);
-  if (!repoValidation.valid) {
-    errors.push(repoValidation.error!);
+  if (!isString(workflow) || workflow.length < 1 || workflow.length > 200) {
+    errors.workflow = "workflow must be a string (filename or id)";
   }
 
-  // Validate buildProfile
-  const profileValidation = validateBuildProfile(bodyObj.buildProfile);
-  if (!profileValidation.valid) {
-    errors.push(profileValidation.error!);
-  }
+  const br = validateBranch(ref);
+  if (!br.valid) errors.ref = br.error;
 
-  // Validate buildType (optional)
-  let buildType: string | undefined;
-  if (bodyObj.buildType !== undefined) {
-    const typeValidation = sanitizeString(bodyObj.buildType, 20);
-    if (!typeValidation.valid) {
-      errors.push(typeValidation.error!);
+  if (inputs != null) {
+    if (!isObject(inputs)) {
+      errors.inputs = "inputs must be an object";
     } else {
-      buildType = typeValidation.value;
+      // Make sure all inputs are strings and not crazy large
+      const bad: any = {};
+      for (const [k, v] of Object.entries(inputs)) {
+        if (!isString(k) || k.length > 100) bad[k] = "invalid key";
+        if (!isString(v) || v.length > 2000) bad[k] = "invalid value";
+      }
+      if (Object.keys(bad).length) errors.inputs = bad;
     }
   }
 
-  // Validate branch (optional)
-  const branchValidation = validateBranch(bodyObj.branch);
-  if (!branchValidation.valid) {
-    errors.push(branchValidation.error!);
-  }
-
-  if (errors.length > 0) {
-    return { valid: false, errors };
-  }
+  if (Object.keys(errors).length) return { ok: false, errors };
 
   return {
-    valid: true,
+    ok: true,
     data: {
-      githubRepo: repoValidation.value!,
-      buildProfile: profileValidation.value!,
-      buildType,
-      branch: branchValidation.value ?? null,
+      githubRepo: String(githubRepo),
+      workflow: String(workflow),
+      ref: br.value || "main",
+      inputs: inputs as any,
     },
-    errors: [],
   };
 }
 
-/**
- * Validiert check-eas-build Request Body
- */
-export function validateCheckBuildRequest(body: unknown): {
-  valid: boolean;
-  data?: {
-    jobId: number;
-  };
-  errors: string[];
-} {
-  const errors: string[] = [];
-
-  if (!body || typeof body !== "object") {
-    return { valid: false, errors: ["Request body must be an object"] };
-  }
-
-  const bodyObj = body as Record<string, unknown>;
-
-  // Validate jobId
-  const jobIdValidation = validateJobId(bodyObj.jobId);
-  if (!jobIdValidation.valid) {
-    errors.push(jobIdValidation.error!);
-  }
-
-  if (errors.length > 0) {
-    return { valid: false, errors };
-  }
-
-  return {
-    valid: true,
-    data: {
-      jobId: jobIdValidation.value!,
-    },
-    errors: [],
-  };
-}
+// Re-export security helpers that other modules already use
+export { isSafePath, normalizePath, safeJsonForScript, escapeHtml };

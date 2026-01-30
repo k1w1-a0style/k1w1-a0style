@@ -1,0 +1,13 @@
+PATCH: UI + Copy Polish (v1)
+
+Changes:
+- components/ChatHeaderActions.tsx
+  - Template badge now consistently shows "Auto (Full)" (since Auto resolves to Full).
+  - Manual template override is now gated behind a DEV-only toggle (Switch) in the menu.
+    * In production: no manual override UI is visible.
+    * In DEV: enable "Dev: Manuelle Template-Wahl" to show the override menu item.
+- screens/AppInfoScreen.tsx
+  - Template info copy tightened + consistent label "Auto (Full)".
+
+Notes:
+- No logic changes to template resolution itself (Auto still resolves to Full via templateChecklist).

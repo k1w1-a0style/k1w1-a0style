@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert } from "react-native";
+import { Alert, Platform, ToastAndroid } from "react-native";
 import { v4 as uuidv4 } from "uuid";
 
 import { ChatMessage, ProjectFile } from "../contexts/types";
@@ -202,6 +202,34 @@ export function useChatAIFlow({
     drainAutoFixQueue();
   }, [autoFixRequest, clearAutoFixRequest, drainAutoFixQueue]);
 
+
+
+const notifyKeyRotation = useCallback(
+  (res: any) => {
+    const count = Number(res?.keysRotated ?? 0);
+    if (!count || count <= 0) return;
+
+    const provider = String(res?.provider ?? "unbekannt");
+    const msg = `🔑 Key rotiert (${count}x) wegen 429/Rate-Limit • Provider: ${provider}`;
+
+    // Android-first: Toast + zusätzlich Log-Row im Chat (system)
+    try {
+      if (Platform.OS === "android") {
+        ToastAndroid.show(msg, ToastAndroid.LONG);
+      }
+    } catch {}
+
+    addChatMessage({
+      id: uuidv4(),
+      role: "system",
+      content: msg,
+      timestamp: new Date().toISOString(),
+      meta: { keyRotation: true, provider },
+    });
+  },
+  [addChatMessage],
+);
+
   const processAIRequest = useCallback(
     async (userContent: string, isAutoFix = false, forceBuilder = false) => {
       if (inFlightRef.current) return;
@@ -236,6 +264,8 @@ export function useChatAIFlow({
               "speed",
               plannerMsgs,
             );
+
+            notifyKeyRotation(planRes);
 
             if (
               planRes?.ok &&
@@ -282,6 +312,9 @@ export function useChatAIFlow({
           llmMessages,
         );
 
+        // Hinweis: Auto-Key-Rotation (429) sichtbar machen
+        notifyKeyRotation(ai);
+
         if (!ai?.ok) {
           const errText = String((ai as any)?.error ?? "");
           const shouldRetry =
@@ -295,6 +328,8 @@ export function useChatAIFlow({
               config.qualityMode,
               llmMessages,
             );
+
+            notifyKeyRotation(ai);
           }
         }
 
@@ -350,6 +385,8 @@ export function useChatAIFlow({
               validatorMsgs,
             );
 
+            notifyKeyRotation(agentRes);
+
             if (agentRes && agentRes.ok) {
               const agentRaw =
                 (agentRes as any).files &&
@@ -390,6 +427,8 @@ export function useChatAIFlow({
               "speed",
               explainMsgs,
             );
+
+            notifyKeyRotation(explainRes);
             if (explainRes?.ok && typeof explainRes.text === "string") {
               explainText = explainRes.text.trim();
             }

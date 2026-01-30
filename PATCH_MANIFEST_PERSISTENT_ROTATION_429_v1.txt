@@ -1,0 +1,9 @@
+PATCH: Persistent API-key rotation (429)
+
+Files:
+- contexts/AIContext.tsx
+
+Changes:
+- Install an interceptor for SecureKeyManager.rotateKey inside AIProvider.
+- When a rotation occurs (typically triggered by orchestrator on HTTP 429/rate limit), also rotate config.apiKeys[provider].
+- This persists the new key order via existing SecureStore persistence and includes it in full backups.

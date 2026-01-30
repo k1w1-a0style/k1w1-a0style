@@ -264,6 +264,7 @@ AppRegistry.runApplication("app", {
         content: `import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { parseJsonBody } from "../_shared/validation.ts";
 
 export default function App() {
   return (
@@ -339,7 +340,12 @@ serve(async (req) => {
   }
 
   try {
-    const body = (await req.json()) as RequestBody;
+    const parsedBody = await parseJsonBody(req, 2_000_000);
+    if (!parsedBody.ok) {
+      const status = parsedBody.error.includes("too large") ? 413 : 400;
+      return json({ ok: false, error: parsedBody.error }, { status });
+    }
+    const body = parsedBody.body as RequestBody;
 
     if (!body || !isObject(body) || !body.files || !isObject(body.files)) {
       return json(

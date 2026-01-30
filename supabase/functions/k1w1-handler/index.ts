@@ -24,6 +24,7 @@ interface HandlerRequestBody {
 
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { parseJsonBody } from "../_shared/validation.ts";
 
 const DEFAULT_MODELS = {
   groq: {
@@ -177,7 +178,18 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const bodyJson = await req.json().catch(() => null);
+    const parsedBody = await parseJsonBody(req, 200_000);
+    if (!parsedBody.ok) {
+      const isTooLarge = parsedBody.error.toLowerCase().includes("too large");
+      return new Response(
+        JSON.stringify({ ok: false, error: parsedBody.error }),
+        {
+          status: isTooLarge ? 413 : 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+    const bodyJson = parsedBody.body;
     const body = parseRequestBody(bodyJson);
 
     console.log(
