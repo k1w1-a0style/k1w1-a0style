@@ -106,7 +106,7 @@ export function useGitHubActionsLogs({
             "Content-Type": "application/json",
             ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
           },
-          body: JSON.stringify({ githubRepo }),
+          body: JSON.stringify({ githubRepo, workflowId: "k1w1-triggered-build.yml" }),
         });
 
         if (!runsResponse.ok) {
@@ -115,9 +115,15 @@ export function useGitHubActionsLogs({
 
         const runsData = await runsResponse.json();
 
-        if (runsData.runs && runsData.runs.length > 0) {
-          targetRunId = runsData.runs[0].id;
-          setWorkflowRun(runsData.runs[0]);
+        const runs =
+          runsData?.data?.workflow_runs ??
+          runsData?.workflow_runs ??
+          runsData?.runs ??
+          [];
+
+        if (Array.isArray(runs) && runs.length > 0) {
+          targetRunId = runs[0].id;
+          setWorkflowRun(runs[0]);
         } else {
           setLogs([]);
           setIsLoading(false);
@@ -145,16 +151,28 @@ export function useGitHubActionsLogs({
 
       const logsData = await logsResponse.json();
 
-      if (isMountedRef.current) {
-        // ✅ FIX: Verwende MAX_LOG_ENTRIES um Memory-Leaks zu verhindern
-        const rawLogs = logsData.logs || [];
-        const limitedLogs = rawLogs.slice(-MAX_LOG_ENTRIES);
-        setLogs(limitedLogs);
+       if (isMountedRef.current) {
+         // logs function returns logsText (string). Convert to LogEntry[].
+         const text: string =
+           typeof logsData?.logsText === "string" ? logsData.logsText : "";
+         const lines = text.split(/\r?\n/);
 
-        if (logsData.workflowRun) {
-          setWorkflowRun(logsData.workflowRun);
-        }
-      }
+         const rawLogs: LogEntry[] = lines
+           .filter((l) => l != null && l !== "")
+           .map((message) => ({
+             timestamp: "",
+             message,
+             level: "raw" as const,
+           }));
+
+         const limitedLogs = rawLogs.slice(-MAX_LOG_ENTRIES);
+         setLogs(limitedLogs);
+
+         // keep existing workflowRun unless the response includes one
+         if (logsData?.workflowRun) {
+           setWorkflowRun(logsData.workflowRun);
+         }
+       }
     } catch (err: any) {
       // Nur einmal loggen (nicht bei jedem Poll-Versuch)
       if (isMountedRef.current && !loggedErrorRef.current) {

@@ -424,6 +424,26 @@ export default function EnhancedBuildScreen(): React.ReactElement {
             </TouchableOpacity>
           )}
 
+          {!!currentBuild?.urls?.artifacts && (
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              onPress={() => openRun(currentBuild.urls?.artifacts || "")}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.primaryBtnText}>📦 Artifacts öffnen</Text>
+            </TouchableOpacity>
+          )}
+
+          {!!currentBuild?.urls?.buildUrl && (
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              onPress={() => openRun(currentBuild.urls?.buildUrl || "")}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.primaryBtnText}>🔗 Build Ergebnis öffnen</Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={[
               styles.primaryBtn,

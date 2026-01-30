@@ -6,10 +6,10 @@ import {
   parseJsonBody,
 } from "../_shared/validation.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
-import { githubHeaders } from "../_shared/github.ts";
 
 serve(async (req) => {
-  if (handleCors(req)) return handleCors(req);
+  const cors = handleCors(req);
+  if (cors) return cors;
 
   try {
     const auth = requireAdminKey(req);
@@ -22,9 +22,11 @@ serve(async (req) => {
     if (!parsed.ok) return errorResponse(parsed.error, req, 400);
 
     const validation = validateCheckBuildRequest(parsed.body);
-    if (!validation.ok) return errorResponse("Invalid request", req, 400, validation.errors);
+    if (!validation.ok)
+      return errorResponse("Invalid request", req, 400, validation.errors);
 
-    const SUPABASE_URL = Deno.env.get("K1W1_SUPABASE_URL") ?? Deno.env.get("SUPABASE_URL");
+    const SUPABASE_URL =
+      Deno.env.get("K1W1_SUPABASE_URL") ?? Deno.env.get("SUPABASE_URL");
     const SERVICE_ROLE =
       Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY") ??
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -48,7 +50,8 @@ serve(async (req) => {
     if (res.error) return errorResponse("DB error", req, 500, res.error);
     if (!res.data) return errorResponse("Not found", req, 404, { jobId });
 
-    const job = res.data as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const job: any = res.data;
 
     const githubRunUrl =
       job.github_run_id && job.github_repo
@@ -56,44 +59,59 @@ serve(async (req) => {
         : null;
     const artifactsUrl = githubRunUrl ? `${githubRunUrl}#artifacts` : null;
 
-    // Optional fields (added by newer workflows/migrations)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const anyJob = job as any;
     const downloadUrl =
-      typeof anyJob.download_url === "string" && anyJob.download_url.trim()
-        ? anyJob.download_url.trim()
+      typeof job.download_url === "string" && job.download_url.trim()
+        ? job.download_url.trim()
         : null;
 
     const artifact =
-      typeof anyJob.artifact_name === "string" && anyJob.artifact_name.trim()
+      typeof job.artifact_name === "string" && job.artifact_name.trim()
         ? {
-            name: anyJob.artifact_name,
+            name: job.artifact_name,
             sha256:
-              typeof anyJob.artifact_sha256 === "string" ? anyJob.artifact_sha256 : null,
-            size: typeof anyJob.artifact_size === "number" ? anyJob.artifact_size : null,
+              typeof job.artifact_sha256 === "string" ? job.artifact_sha256 : null,
+            size: typeof job.artifact_size === "number" ? job.artifact_size : null,
           }
         : null;
 
+    const errorMessage =
+      typeof job.error_message === "string" && job.error_message.trim()
+        ? job.error_message
+        : typeof job.error === "string" && job.error.trim()
+          ? job.error
+          : null;
+
+    const urls = {
+      html: githubRunUrl,
+      githubRun: githubRunUrl,
+      artifacts: artifactsUrl,
+      buildUrl: job.build_url ?? null,
+    };
+
+    // Compatibility: also expose common top-level fields expected by the app.
     return jsonResponse(
       {
         ok: true,
+        status: job.status ?? null,
+        runId: job.github_run_id ?? null,
+        run_id: job.github_run_id ?? null,
+        build_url: job.build_url ?? null,
+        download_url: downloadUrl,
+        urls,
         job: {
           id: job.id,
-          status: job.status,
+          status: job.status ?? null,
           github_repo: job.github_repo ?? null,
           github_run_id: job.github_run_id ?? null,
           build_profile: job.build_profile ?? null,
           branch: job.branch ?? null,
           build_url: job.build_url ?? null,
           download_url: downloadUrl,
-          urls: {
-            html: githubRunUrl,
-            githubRun: githubRunUrl,
-            buildUrl: job.build_url ?? null,
-            artifacts: artifactsUrl,
-          },
+          urls,
           artifact,
-          error: job.error ?? null,
+          error_message: errorMessage,
+          // keep older field name for backwards-compat
+          error: errorMessage,
           created_at: job.created_at ?? null,
           updated_at: job.updated_at ?? null,
         },

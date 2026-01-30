@@ -341,7 +341,7 @@ jobs:
           log=""
           if log_path.exists():
             log=log_path.read_text(errors="ignore")[-5000:]
-          body={"status":"failed","error":log}
+          body={"status":"failed","error_message":log}
           bu=os.environ.get("EAS_BUILD_URL","").strip()
           if bu:
             body["build_url"]=bu

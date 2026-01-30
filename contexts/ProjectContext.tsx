@@ -602,7 +602,52 @@ const pauseBuildPolling = useCallback(() => {
 
         if (error) throw error;
 
-        const mapped: BuildStatus = mapBuildStatus(data?.status);
+        // check-eas-build returns { ok, job: {...} }.
+        // Keep backwards-compat with older shapes by probing multiple fields.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const anyData: any = data ?? {};
+        const job = anyData?.job ?? anyData?.data?.job ?? null;
+
+        const rawStatus: string | undefined =
+          (job?.status as string | undefined) ??
+          (anyData?.status as string | undefined) ??
+          (anyData?.job_status as string | undefined) ??
+          undefined;
+
+        const mapped: BuildStatus = mapBuildStatus(rawStatus);
+
+        const runIdRaw =
+          job?.github_run_id ??
+          anyData?.runId ??
+          anyData?.run_id ??
+          anyData?.github_run_id ??
+          null;
+
+        const runId: number | null =
+          typeof runIdRaw === "number"
+            ? runIdRaw
+            : typeof runIdRaw === "string" && /^\d+$/.test(runIdRaw)
+              ? Number(runIdRaw)
+              : null;
+
+        const urls = job?.urls ?? anyData?.urls ?? {};
+        const htmlUrl =
+          urls?.githubRun ?? urls?.html ?? urls?.run ?? urls?.runUrl ?? null;
+        const artifactsUrl = urls?.artifacts ?? urls?.artifact ?? null;
+
+        const buildUrl =
+          urls?.buildUrl ??
+          job?.build_url ??
+          anyData?.build_url ??
+          anyData?.buildUrl ??
+          null;
+
+        const downloadUrl =
+          job?.download_url ??
+          anyData?.download_url ??
+          anyData?.downloadUrl ??
+          null;
+
         const nowIso = new Date().toISOString();
 
         setCurrentBuild((prev) => {
@@ -611,13 +656,21 @@ const pauseBuildPolling = useCallback(() => {
             ...base,
             status: mapped,
             jobId,
-            runId: data?.runId || data?.run_id || base.runId || null,
+            runId: runId ?? base.runId ?? null,
             urls: {
-              html: data?.urls?.html ?? base.urls?.html ?? null,
-              artifacts: data?.urls?.artifacts ?? base.urls?.artifacts ?? null,
+              html: htmlUrl ?? base.urls?.html ?? null,
+              artifacts: artifactsUrl ?? base.urls?.artifacts ?? null,
+              // Priority: direct download_url → artifacts page → EAS build url
               buildUrl:
-                data?.build_url ??
-                data?.download_url ??
+                (typeof downloadUrl === "string" && downloadUrl.trim()
+                  ? downloadUrl
+                  : null) ??
+                (typeof artifactsUrl === "string" && artifactsUrl.trim()
+                  ? artifactsUrl
+                  : null) ??
+                (typeof buildUrl === "string" && buildUrl.trim()
+                  ? buildUrl
+                  : null) ??
                 base.urls?.buildUrl ??
                 null,
             },
@@ -643,8 +696,8 @@ const pauseBuildPolling = useCallback(() => {
         try {
           await updateBuildInHistory(jobId, {
             status: mapped,
-            htmlUrl: data?.urls?.html ?? null,
-            artifactUrl: data?.urls?.artifacts ?? null,
+            htmlUrl: htmlUrl ?? null,
+            artifactUrl: artifactsUrl ?? null,
           });
         } catch (historyError) {
           console.warn(

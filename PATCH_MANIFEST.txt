@@ -1,6 +1,20 @@
-Patch: k1w1-a0style FINAL (v2)
-Date: 2026-01-23
-Purpose: Fix TS build-breakers introduced by previous patch (useGitHub import, branch default, styles).
-Files:
+PATCH MANIFEST - Mobile APK Builder
+
+Generated: 2026-01-30T15:24:49.506855
+
+Files included (root-relative) + reason:
+
+- contexts/ProjectContext.tsx
+  - Fix robust parsing of check-eas-build response (job/status/urls), correct build result URL prioritization, and history update.
+
+- supabase/functions/check-eas-build/index.ts
+  - Return consistent response contract incl. top-level status/urls and job.error_message; fix CORS handling.
+
+- .github/workflows/k1w1-triggered-build.yml
+  - Write error_message to Supabase (matches schema) so UI polling does not hang on failure.
+
+- hooks/useGitHubActionsLogs.ts
+  - Align with Edge Functions contract: send workflowId, parse workflow_runs from {data}, and use logsText.
+
 - screens/EnhancedBuildScreen.tsx
-- styles/enhancedBuildScreenStyles.ts
+  - Expose Artifacts and Build Result links in UI for end-to-end visibility.
