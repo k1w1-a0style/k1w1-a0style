@@ -424,25 +424,35 @@ export default function EnhancedBuildScreen(): React.ReactElement {
             </TouchableOpacity>
           )}
 
-          {!!currentBuild?.urls?.artifacts && (
-            <TouchableOpacity
-              style={styles.primaryBtn}
-              onPress={() => openRun(currentBuild.urls?.artifacts || "")}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.primaryBtnText}>📦 Artifacts öffnen</Text>
-            </TouchableOpacity>
-          )}
+{!!currentBuild?.urls?.artifacts && (
+  <TouchableOpacity
+    style={styles.primaryBtn}
+    onPress={() => openRun(currentBuild.urls?.artifacts || "")}
+    activeOpacity={0.8}
+  >
+    <Text style={styles.primaryBtnText}>📦 Artifacts öffnen</Text>
+  </TouchableOpacity>
+)}
 
-          {!!currentBuild?.urls?.buildUrl && (
-            <TouchableOpacity
-              style={styles.primaryBtn}
-              onPress={() => openRun(currentBuild.urls?.buildUrl || "")}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.primaryBtnText}>🔗 Build Ergebnis öffnen</Text>
-            </TouchableOpacity>
-          )}
+{!!currentBuild?.urls?.buildUrl && (
+  <TouchableOpacity
+    style={styles.primaryBtn}
+    onPress={() => openRun(currentBuild.urls?.buildUrl || "")}
+    activeOpacity={0.8}
+  >
+    <Text style={styles.primaryBtnText}>
+      {(() => {
+        const u = currentBuild?.urls?.buildUrl || "";
+        const isApk =
+          u.toLowerCase().endsWith(".apk") ||
+          u.includes("/storage/v1/object/") ||
+          u.includes("/storage/v1/object/sign/");
+        return isApk ? "⬇️ APK Download" : "🔗 Build Ergebnis";
+      })()}
+    </Text>
+  </TouchableOpacity>
+)}
+
 
           <TouchableOpacity
             style={[

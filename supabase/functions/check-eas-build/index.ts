@@ -1,10 +1,7 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
-import {
-  validateCheckBuildRequest,
-  parseJsonBody,
-} from "../_shared/validation.ts";
+import { validateCheckBuildRequest, parseJsonBody } from "../_shared/validation.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 
 serve(async (req) => {
@@ -22,8 +19,9 @@ serve(async (req) => {
     if (!parsed.ok) return errorResponse(parsed.error, req, 400);
 
     const validation = validateCheckBuildRequest(parsed.body);
-    if (!validation.ok)
+    if (!validation.ok) {
       return errorResponse("Invalid request", req, 400, validation.errors);
+    }
 
     const SUPABASE_URL =
       Deno.env.get("K1W1_SUPABASE_URL") ?? Deno.env.get("SUPABASE_URL");
@@ -64,54 +62,55 @@ serve(async (req) => {
         ? job.download_url.trim()
         : null;
 
-    const artifact =
-      typeof job.artifact_name === "string" && job.artifact_name.trim()
-        ? {
-            name: job.artifact_name,
-            sha256:
-              typeof job.artifact_sha256 === "string" ? job.artifact_sha256 : null,
-            size: typeof job.artifact_size === "number" ? job.artifact_size : null,
-          }
+    const buildUrl =
+      typeof job.build_url === "string" && job.build_url.trim()
+        ? job.build_url.trim()
         : null;
 
     const errorMessage =
       typeof job.error_message === "string" && job.error_message.trim()
-        ? job.error_message
+        ? job.error_message.trim()
         : typeof job.error === "string" && job.error.trim()
-          ? job.error
+          ? job.error.trim()
           : null;
 
+    const artifact =
+      typeof job.artifact_name === "string" && job.artifact_name.trim()
+        ? {
+            name: job.artifact_name,
+            sha256: typeof job.artifact_sha256 === "string" ? job.artifact_sha256 : null,
+            size: typeof job.artifact_size === "number" ? job.artifact_size : null,
+          }
+        : null;
+
+    // Compatibility: return both top-level and nested fields
     const urls = {
       html: githubRunUrl,
       githubRun: githubRunUrl,
       artifacts: artifactsUrl,
-      buildUrl: job.build_url ?? null,
+      buildUrl: downloadUrl ?? artifactsUrl ?? buildUrl,
     };
 
-    // Compatibility: also expose common top-level fields expected by the app.
     return jsonResponse(
       {
         ok: true,
         status: job.status ?? null,
         runId: job.github_run_id ?? null,
-        run_id: job.github_run_id ?? null,
-        build_url: job.build_url ?? null,
+        build_url: buildUrl,
         download_url: downloadUrl,
         urls,
         job: {
           id: job.id,
-          status: job.status ?? null,
+          status: job.status,
           github_repo: job.github_repo ?? null,
           github_run_id: job.github_run_id ?? null,
           build_profile: job.build_profile ?? null,
           branch: job.branch ?? null,
-          build_url: job.build_url ?? null,
+          build_url: buildUrl,
           download_url: downloadUrl,
           urls,
           artifact,
           error_message: errorMessage,
-          // keep older field name for backwards-compat
-          error: errorMessage,
           created_at: job.created_at ?? null,
           updated_at: job.updated_at ?? null,
         },

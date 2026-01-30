@@ -1,20 +1,19 @@
-PATCH MANIFEST - Mobile APK Builder
+PATCH3 Manifest – APK Download URL (Supabase Storage) + error_message Fix
 
-Generated: 2026-01-30T15:24:49.506855
+Enthaltene Dateien:
+1) .github/workflows/k1w1-triggered-build.yml
+   - Upload der gebauten APK nach Supabase Storage (Bucket: apk-builds oder secrets.SUPABASE_APK_BUCKET)
+   - Erzeugt signed download_url (7 Tage) und schreibt sie in build_jobs.download_url
+   - Failure schreibt jetzt build_jobs.error_message statt error
 
-Files included (root-relative) + reason:
+2) supabase/functions/check-eas-build/index.ts
+   - Liefert download_url + build_url konsistent (top-level + job)
+   - Nutzt error_message (fallback error), entfernt double CORS call
 
-- contexts/ProjectContext.tsx
-  - Fix robust parsing of check-eas-build response (job/status/urls), correct build result URL prioritization, and history update.
+3) screens/EnhancedBuildScreen.tsx
+   - Zeigt Buttons: “📦 Artifacts öffnen” und “⬇️ APK Download” / “🔗 Build Ergebnis”
+   - Nutzt currentBuild.urls.* (aus check-eas-build / Polling)
 
-- supabase/functions/check-eas-build/index.ts
-  - Return consistent response contract incl. top-level status/urls and job.error_message; fix CORS handling.
-
-- .github/workflows/k1w1-triggered-build.yml
-  - Write error_message to Supabase (matches schema) so UI polling does not hang on failure.
-
-- hooks/useGitHubActionsLogs.ts
-  - Align with Edge Functions contract: send workflowId, parse workflow_runs from {data}, and use logsText.
-
-- screens/EnhancedBuildScreen.tsx
-  - Expose Artifacts and Build Result links in UI for end-to-end visibility.
+Voraussetzungen:
+- Supabase Storage Bucket “apk-builds” existiert (private empfohlen).
+- Optional GitHub Secret SUPABASE_APK_BUCKET (ansonsten default apk-builds).
