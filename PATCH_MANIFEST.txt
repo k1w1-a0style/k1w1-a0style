@@ -1,7 +1,9 @@
-Mobile-APK-Builder PATCH29
+PATCH: Mobile-APK-Builder-PATCH30
+Changes:
+- .github/workflows/k1w1-triggered-build.yml: add normalization step before EAS init/build
+- .github/workflows/eas-build.yml: add normalization step before EAS init/build
 
-Files:
-- .github/workflows/k1w1-triggered-build.yml
-- .github/workflows/eas-build.yml
-- PATCH_MANIFEST.txt
-- PATCH_README.txt
+Why:
+- Fixes EAS failures when a partial android/ directory exists but android/app/build.gradle is missing.
+- Ensures expo-dev-client is installed when declared (prevents EAS preflight error).
+- Enforces APK-only managed defaults during CI runs.

@@ -54,23 +54,6 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
 
-      - name: Ensure managed Expo project (remove broken native folders)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -d android ]; then
-            if [ ! -f android/app/build.gradle ] && [ ! -f android/app/build.gradle.kts ]; then
-              echo "::warning::android/ directory detected but android/app/build.gradle is missing. Removing android/ to force managed workflow build."
-              rm -rf android
-            fi
-          fi
-          if [ -d ios ]; then
-            if [ ! -f ios/Podfile ]; then
-              echo "::warning::ios/ directory detected but Podfile is missing. Removing ios/ to force managed workflow build."
-              rm -rf ios
-            fi
-          fi
-
       - name: Detect lockfile (for cache + install strategy)
         id: lock
         shell: bash
@@ -111,6 +94,62 @@ jobs:
           else
             echo "::warning::No lockfile found in repo. Falling back to npm install (non-reproducible)."
             npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
+
+      - name: Normalize managed build state (remove broken native dirs, patch eas.json)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "🔎 Checking for broken native directories..."
+          if [ -d android ]; then
+            if [ ! -f android/app/build.gradle ] && [ ! -f android/app/build.gradle.kts ]; then
+              echo "::warning::android/ exists but android/app/build.gradle(.kts) is missing. Removing android/ and ios/ to force managed workflow."
+              rm -rf android ios
+            fi
+          fi
+
+          echo "🧩 Ensuring eas.json is compatible with APK-only builds (no dev-client by default)..."
+          if [ -f eas.json ]; then
+            node <<'NODE'
+            const fs = require('fs');
+            const path = 'eas.json';
+            const raw = fs.readFileSync(path, 'utf8');
+            let cfg;
+            try { cfg = JSON.parse(raw); } catch (e) { console.error('Invalid eas.json:', e.message); process.exit(0); }
+
+            cfg.build = cfg.build || {};
+            const ensureProfile = (name) => (cfg.build[name] = cfg.build[name] || {});
+            const ensureAndroid = (p) => (p.android = p.android || {});
+
+            for (const name of ['development', 'preview', 'production']) {
+              const p = ensureProfile(name);
+              const a = ensureAndroid(p);
+              if (!a.buildType) a.buildType = 'apk';
+              if (name === 'development') {
+                if (p.developmentClient === true) p.developmentClient = false;
+                if (!p.distribution) p.distribution = 'internal';
+              }
+            }
+
+            const next = JSON.stringify(cfg, null, 2) + '\n';
+            if (next !== raw) {
+              fs.writeFileSync(path, next, 'utf8');
+              console.log('✅ Updated eas.json for APK-only managed builds.');
+            } else {
+              console.log('✅ eas.json already OK.');
+            }
+            NODE
+          else
+            echo "::notice::No eas.json found - skipping profile normalization."
+          fi
+
+          echo "📦 If expo-dev-client is declared, ensure it's installed (avoid EAS preflight error)..."
+          if [ -f package.json ]; then
+            HAS="$(node -e "const p=require('./package.json'); const d=Object.assign({},p.dependencies,p.devDependencies); process.stdout.write(d && d['expo-dev-client'] ? 'yes' : 'no');")"
+            if [ "${HAS}" = "yes" ]; then
+              npm ls expo-dev-client >/dev/null 2>&1 || npm install expo-dev-client --no-save
+            fi
+          fi
           fi
 
       - name: Install EAS CLI (pinned)
@@ -248,23 +287,6 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
-
-      - name: Ensure managed Expo project (remove broken native folders)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -d android ]; then
-            if [ ! -f android/app/build.gradle ] && [ ! -f android/app/build.gradle.kts ]; then
-              echo "::warning::android/ directory detected but android/app/build.gradle is missing. Removing android/ to force managed workflow build."
-              rm -rf android
-            fi
-          fi
-          if [ -d ios ]; then
-            if [ ! -f ios/Podfile ]; then
-              echo "::warning::ios/ directory detected but Podfile is missing. Removing ios/ to force managed workflow build."
-              rm -rf ios
-            fi
-          fi
 
       - name: Detect lockfile (for cache + install strategy)
         id: lock
