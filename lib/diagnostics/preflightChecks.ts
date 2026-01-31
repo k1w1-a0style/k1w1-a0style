@@ -323,22 +323,54 @@ const checkEasProfiles: PreflightCheck = {
     }
 
     const buildType = p?.android?.buildType;
-    if (profile === "preview" && buildType && buildType !== "apk") {
+
+    // APK-only policy: for this app, ALL profiles must build installable APKs.
+    // Make it explicit; missing buildType is allowed but should be fixed.
+    if (!buildType) {
       return {
         id: this.id,
         title: this.title,
         severity: this.severity,
         status: "warn",
-        message: `preview.android.buildType ist "${buildType}" – für 1-Click Install ist "apk" oft besser.`,
+        message: `${profile}.android.buildType ist nicht gesetzt – bitte explizit "apk" setzen.`,
+        fix: {
+          label: `Setze ${profile}.android.buildType auf "apk"`,
+          patch: {
+            jsonMerge: [
+              {
+                path: "eas.json",
+                patch: { build: { [profile]: { android: { buildType: "apk" } } } },
+                createIfMissing: true,
+              },
+            ],
+            explanation:
+              "Der In-App APK Builder unterstützt ausschließlich APK (kein AAB).",
+          },
+        },
       };
     }
-    if (profile === "production" && buildType && buildType !== "aab") {
+
+    if (buildType !== "apk") {
       return {
         id: this.id,
         title: this.title,
-        severity: this.severity,
-        status: "warn",
-        message: `production.android.buildType ist "${buildType}" – für Play Store ist "aab" üblich.`,
+        severity: "high",
+        status: "fail",
+        message: `${profile}.android.buildType ist "${buildType}" – diese App unterstützt ausschließlich "apk".`,
+        fix: {
+          label: `Setze ${profile}.android.buildType auf "apk"`,
+          patch: {
+            jsonMerge: [
+              {
+                path: "eas.json",
+                patch: { build: { [profile]: { android: { buildType: "apk" } } } },
+                createIfMissing: true,
+              },
+            ],
+            explanation:
+              "Der In-App APK Builder unterstützt ausschließlich APK (kein AAB).",
+          },
+        },
       };
     }
 

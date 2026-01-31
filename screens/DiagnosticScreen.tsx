@@ -565,8 +565,9 @@ export default function DiagnosticScreen() {
             title: c.title,
             severity: c.status === "fail" ? "high" : "normal",
             status: c.status === "pass" ? "pass" : c.status === "fail" ? "fail" : "warn",
-            message: c.details,
+            message: c.details || undefined,
             details: c.fixHint ? [c.fixHint] : undefined,
+            fix: c.fix ? { label: c.fix.label, patch: c.fix.patch } : undefined,
           }));
 
           all.push(...pipelineResults);

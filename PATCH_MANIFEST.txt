@@ -1,10 +1,19 @@
-PATCH16 - CI hardening: auto-initialize EAS project in workflow
+PATCH17 - Diagnostics AutoFix: add real fixes for pipeline warnings + align APK-only policy
 
 Changed files:
-- .github/workflows/k1w1-triggered-build.yml
+1) lib/diagnostics/buildPipelineDiagnostics.ts
+   - Adds structured `fix` patches to remote/pipeline diagnostics checks (so AutoFix works).
+   - BuildType(APK-only) warnings now include a one-click fix (eas.json jsonMerge).
+   - expo-dev-client warning includes a safe fix that converts development profile to an internal APK (no dev-client).
+   - app.config.js warning includes a fix that patches app.config.js to read projectId from eas-project.json.
+2) screens/DiagnosticScreen.tsx
+   - Maps pipeline diagnostic `fix` into PreflightCheckResult so the UI can apply AutoFix.
+3) lib/diagnostics/preflightChecks.ts
+   - Fixes EAS profile check: APK-only for all profiles, removes misleading 'aab is usual' warning.
+   - Adds AutoFix for missing/wrong buildType per profile (jsonMerge).
+   - Ensures eas.json template includes android.buildType='apk' for development too.
 
 Why:
-- You require zero manual terminal steps. EAS can fail in CI with:
-  'EAS project not configured. Must configure EAS project by running eas init ...'
-- This adds 'eas project:init --force --non-interactive' before the build step so fresh repos/branches still build.
+- Your screenshot shows WARNs with 'Kein Fix verfügbar' even though AutoFix exists.
+- Single-user APK builder requirement: Diagnostics should be able to repair issues in-app (no terminal).
 

@@ -7,8 +7,11 @@ import {
   triggerWorkflow,
 } from "../../contexts/githubService";
 import { ensureSupabaseClient } from "../supabase";
+import type { PreflightPatch } from "./preflightTypes";
 
 export type DiagnosticStatus = "pass" | "warn" | "fail" | "info";
+
+export type DiagnosticFix = { label?: string; patch: PreflightPatch };
 
 export type DiagnosticCheck = {
   id: string;
@@ -16,6 +19,7 @@ export type DiagnosticCheck = {
   status: DiagnosticStatus;
   details?: string;
   fixHint?: string;
+  fix?: DiagnosticFix;
 };
 
 const safeTrim = (v: string | null | undefined) => (v ?? "").trim();
@@ -191,11 +195,33 @@ export const runBuildPipelineDiagnostics = async (params: {
       id: `repo.easBuildType.${prof}`,
       title: `Android BuildType (APK-only): ${profileLabel(prof)}`,
       status: btOk ? (bt === "apk" ? "pass" : "warn") : "fail",
+      details: btOk
+        ? bt === "apk"
+          ? undefined
+          : `build.${prof}.android.buildType ist nicht gesetzt – bitte explizit "apk" setzen.`
+        : `BuildType ist "${btRaw}". Erwartet: "apk".`,
       fixHint: btOk
         ? bt === "apk"
           ? undefined
           : 'Setze in eas.json: build.' + prof + '.android.buildType = "apk".'
-        : `BuildType ist "${btRaw}". Erwartet: "apk".`,
+        : `Setze build.${prof}.android.buildType auf "apk".`,
+      fix:
+        bt === "apk"
+          ? undefined
+          : {
+              label: `Setze ${prof}.android.buildType auf "apk"`,
+              patch: {
+                jsonMerge: [
+                  {
+                    path: "eas.json",
+                    patch: { build: { [prof]: { android: { buildType: "apk" } } } },
+                    createIfMissing: true,
+                  },
+                ],
+                explanation:
+                  "APK-only: Der In-App Builder unterstützt ausschließlich installierbare APKs.",
+              },
+            },
     });
 
     if (prof === "development") {
@@ -206,7 +232,23 @@ export const runBuildPipelineDiagnostics = async (params: {
         status: devClient ? "pass" : "warn",
         fixHint: devClient
           ? undefined
-          : "Für Development Builds sollte developmentClient=true gesetzt sein (sonst kein Dev-Client APK).",
+          : "Für echte Development-Client Builds sollte developmentClient=true gesetzt sein.",
+        fix: devClient
+          ? undefined
+          : {
+              label: "Setze developmentClient=true (development)",
+              patch: {
+                jsonMerge: [
+                  {
+                    path: "eas.json",
+                    patch: { build: { development: { developmentClient: true } } },
+                    createIfMissing: true,
+                  },
+                ],
+                explanation:
+                  "Aktiviert den Development-Client Flow. Achtung: dafür wird meist expo-dev-client als Dependency benötigt.",
+              },
+            },
       });
     }
   }
@@ -223,7 +265,31 @@ export const runBuildPipelineDiagnostics = async (params: {
         status: hasDevClient ? "pass" : "warn",
         fixHint: hasDevClient
           ? undefined
-          : "Für development profile: expo-dev-client als dependency hinzufügen (sonst EAS dev-client Schritte failen).",
+          : "Ohne expo-dev-client können Development-Client Builds fehlschlagen. Alternativ: Development-Profil auf internes APK (ohne Dev-Client) umstellen.",
+        fix: hasDevClient
+          ? undefined
+          : {
+              label: "Stelle development Profil auf internes APK (ohne Dev-Client)",
+              patch: {
+                jsonMerge: [
+                  {
+                    path: "eas.json",
+                    patch: {
+                      build: {
+                        development: {
+                          developmentClient: false,
+                          distribution: "internal",
+                          android: { buildType: "apk" },
+                        },
+                      },
+                    },
+                    createIfMissing: true,
+                  },
+                ],
+                explanation:
+                  "Damit der Build ohne expo-dev-client zuverlässig läuft, wird das development Profil als normales internes APK konfiguriert.",
+              },
+            },
       });
     } catch {
       checks.push({
@@ -386,6 +452,41 @@ export const runBuildPipelineDiagnostics = async (params: {
         fixHint: usesEasProjectJson
           ? undefined
           : "Empfehlung: app.config.js sollte projectId aus eas-project.json lesen (damit CI nicht auf ENV angewiesen ist).",
+        fix: usesEasProjectJson
+          ? undefined
+          : {
+              label: "Patch app.config.js: projectId aus eas-project.json lesen",
+              patch: {
+                upsert: [
+                  {
+                    path: "app.config.js",
+                    content:
+                      "const fs = require('fs');\n" +
+                      "const path = require('path');\n\n" +
+                      "function readJson(rel) {\n" +
+                      "  try {\n" +
+                      "    const p = path.join(__dirname, rel);\n" +
+                      "    return JSON.parse(fs.readFileSync(p, 'utf8'));\n" +
+                      "  } catch (e) {\n" +
+                      "    return null;\n" +
+                      "  }\n" +
+                      "}\n\n" +
+                      "const eas = readJson('eas-project.json');\n" +
+                      "const easProjectId = eas && eas.projectId ? String(eas.projectId) : undefined;\n\n" +
+                      "module.exports = ({ config }) => {\n" +
+                      "  const base = config || readJson('app.json') || {};\n" +
+                      "  const extra = { ...(base.extra || {}) };\n" +
+                      "  const easExtra = { ...((extra.eas) || {}) };\n" +
+                      "  if (!easExtra.projectId && easProjectId) easExtra.projectId = easProjectId;\n" +
+                      "  extra.eas = easExtra;\n" +
+                      "  return { ...base, extra };\n" +
+                      "};\n",
+                  },
+                ],
+                explanation:
+                  "Sorgt dafür, dass Expo/EAS non-interactive Builds eine projectId aus eas-project.json finden können.",
+              },
+            },
       });
     } catch {
       // ignore

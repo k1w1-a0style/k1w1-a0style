@@ -1,6 +1,6 @@
 Apply:
-  unzip -o Mobile-APK-Builder-PATCH16.zip
-  rm Mobile-APK-Builder-PATCH16.zip
+  unzip -o Mobile-APK-Builder-PATCH17.zip
+  rm Mobile-APK-Builder-PATCH17.zip
 
 Verify:
   npm run typecheck
@@ -9,10 +9,10 @@ Verify:
 
 Commit + push:
   git add -A
-  git commit -m "fix(ci): auto-init EAS project before builds"
+  git commit -m "fix(diagnostics): provide autofix patches for warnings"
   git push origin build
 
-E2E verify:
-  - Trigger a build in-app against a repo/branch that has no prior EAS linkage.
-  - GH run should pass the init step and proceed to 'Run EAS Build (WAIT)'.
+Verify in app:
+  - Open Diagnostics → Run → you should see the same warnings BUT now with Fix available.
+  - Tap AutoFix → warnings should drop and eas.json/app.config.js should be patched.
 
