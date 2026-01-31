@@ -1,22 +1,32 @@
-Mobile APK Builder – PATCH30
+# PATCH: Fix EAS build failing due to partial android/ios folders
 
-Symptom
-- CI EAS build fails with:
-  "Failed to find 'build.gradle' file for project: .../android/app"
-- Sometimes also:
-  '"expo-dev-client" ... doesn't seem to be installed'
+## Problem (from your logs)
+- EAS detects an `android/` directory and switches to the **bare** workflow.
+- In your repo, `android/app/build.gradle` is missing, so the build aborts:
+  `Failed to find 'build.gradle' file for project: .../android/app`
+- Additionally, Expo can warn that `expo-dev-client` is "not installed" if CI installs only production deps.
 
-Root cause
-Your linked repo can end up containing an incomplete android/ (and/or ios/) directory.
-The moment an android/ folder exists, EAS treats the project as a native/bare build and expects full Gradle files.
-If only AndroidManifest.xml got synced, build.gradle is missing => hard fail.
+## What this patch changes
+1) **Do not push `android/` / `ios/` from the app into the linked repo**
+   - Applied in:
+     - `contexts/ProjectContext.tsx` (build trigger push)
+     - `screens/GitHubReposScreen.tsx` (manual push)
+   - This stops re-introducing the broken native folders.
 
-Fix (CI safety net)
-Before running EAS, the workflow now:
-1) Detects broken native dirs and removes android/ + ios/ on the runner (forces managed EAS build)
-2) Normalizes eas.json for APK-only behavior and disables dev-client requirement by default for development
-3) If expo-dev-client is declared in package.json, it ensures it is installed
+2) **CI safety net: strip incomplete native folders before EAS build**
+   - In `.github/workflows/k1w1-triggered-build.yml`
+   - If `android/` exists **but no Gradle files**, it removes `android/` (and `ios/` if incomplete) so EAS stays in the managed workflow.
 
-Files changed
-- .github/workflows/k1w1-triggered-build.yml
-- .github/workflows/eas-build.yml
+3) **Install devDependencies in CI**
+   - Forces `NODE_ENV=development` and uses `npm ci --include=dev`.
+   - Prevents the "expo-dev-client ... doesn't seem to be installed" error when the package lives in devDependencies.
+
+## How to verify
+- Push the patch, then trigger the build again.
+- In the build logs you should no longer see:
+  - `Specified value for "android.package" ... ignored because an android directory was detected`
+  - `Failed to find 'build.gradle' ... android/app`
+
+## Note
+If your target repo already contains `android/` / `ios/` from earlier pushes, this patch’s CI step removes them for the build automatically.
+If you also want the repo itself to be cleaned permanently, you can delete those folders in the repo once.

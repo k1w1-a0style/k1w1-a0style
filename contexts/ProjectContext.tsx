@@ -819,6 +819,24 @@ useEffect(() => {
           const localFiles = pd.files;
 
           if (owner && repo && localFiles?.length) {
+            // IMPORTANT: For managed EAS builds we must not push partial native folders.
+            // If an "android" / "ios" directory ends up in the target repo, EAS switches to the
+            // bare workflow and will fail unless a complete Gradle/Xcode project exists.
+            const filteredFiles = (localFiles as any[]).filter((f) => {
+              const p = String(f?.path ?? "").replace(/\\/g, "/");
+              if (!p) return false;
+              // Never sync node_modules or local caches
+              if (p.startsWith("node_modules/") || p.startsWith(".expo/") || p.startsWith(".git/")) return false;
+              // Prevent partial native folders from being pushed into linked repos
+              if (p === "android" || p.startsWith("android/")) return false;
+              if (p === "ios" || p.startsWith("ios/")) return false;
+              return true;
+            });
+
+            const skipped = (localFiles as any[]).length - filteredFiles.length;
+            if (skipped > 0) {
+              console.log(`🧹 GitHub Sync: ${skipped} Datei(en) übersprungen (android/ios/cache).`);
+            }
             // ✅ Branch: linkedBranch → repo default branch → fallback main
             if (!buildBranch) {
               try {
@@ -834,7 +852,7 @@ useEffect(() => {
 
             if (!buildBranch) buildBranch = "main";
 
-            await pushFilesToRepo(owner, repo, localFiles as any, buildBranch);
+            await pushFilesToRepo(owner, repo, filteredFiles as any, buildBranch);
           }
         } catch (e) {
           console.warn(

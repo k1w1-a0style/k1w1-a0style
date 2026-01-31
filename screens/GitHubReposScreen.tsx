@@ -313,10 +313,19 @@ export default function GitHubReposScreen() {
     setIsPushing(true);
     try {
       const branch = activeBranch ?? "main";
+
+      // Never push partial native folders. They make EAS treat the repo as a bare workflow and
+      // can break builds (e.g. missing android/app/build.gradle).
+      const safeFiles = (projectData.files as any[]).filter((f) => {
+        const p = String(f?.path ?? "").replace(/\\/g, "/");
+        if (!p) return false;
+        return !(p === "android" || p === "ios" || p.startsWith("android/") || p.startsWith("ios/"));
+      });
+
       await pushFilesToRepo(
         parsed.owner,
         parsed.repo,
-        withCoreFiles(projectData.files as any),
+        withCoreFiles(safeFiles as any),
         branch,
       );
       Alert.alert(

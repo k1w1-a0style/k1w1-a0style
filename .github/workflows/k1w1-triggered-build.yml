@@ -67,6 +67,43 @@ jobs:
           ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
 
+      - name: Ensure managed workflow (strip incomplete native folders)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Same reasoning as in the auto-fix job: do not let a partial android/ios folder
+          # switch EAS into the bare workflow.
+          if [ -d android ]; then
+            if [ ! -f android/app/build.gradle ] && [ ! -f android/build.gradle ]; then
+              echo "⚠️ Detected incomplete android/ folder (no build.gradle). Removing android/ and ios/ to force managed build."
+              rm -rf android || true
+              rm -rf ios || true
+            fi
+          fi
+          if [ -d ios ]; then
+            if [ ! -f ios/Podfile ] && ! ls ios/*.xcodeproj/project.pbxproj >/dev/null 2>&1; then
+              echo "⚠️ Detected incomplete ios/ folder (no Podfile / xcodeproj). Removing ios/ to force managed build."
+              rm -rf ios || true
+            fi
+          fi
+
+      - name: Ensure managed workflow (strip incomplete native folders)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -d android ]; then
+            if [ ! -f android/app/build.gradle ] && [ ! -f android/build.gradle ]; then
+              echo "⚠️ Detected incomplete android/ folder (no build.gradle). Removing to force managed EAS build." >&2
+              rm -rf android
+            fi
+          fi
+          if [ -d ios ]; then
+            if [ ! -f ios/Podfile ] && ! ls ios/*.xcodeproj/project.pbxproj >/dev/null 2>&1; then
+              echo "⚠️ Detected incomplete ios/ folder (no Podfile/Xcodeproj). Removing to force managed EAS build." >&2
+              rm -rf ios
+            fi
+          fi
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -76,78 +113,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Ensure devDependencies are installed (expo-dev-client warning otherwise)
+          export NODE_ENV=development
           if [ -f package-lock.json ]; then
             echo "Using npm ci..."
-            if npm ci; then
+            if npm ci --include=dev; then
               exit 0
             fi
             echo "npm ci failed - trying legacy-peer-deps..."
-            npm ci --legacy-peer-deps
+            npm ci --include=dev --legacy-peer-deps
             exit 0
           fi
 
           echo "No package-lock.json, using npm install..."
-          if npm install; then
+          if npm install --include=dev; then
             exit 0
           fi
           echo "npm install failed - trying legacy-peer-deps..."
-          npm install --legacy-peer-deps
-
-      - name: Normalize managed build state (remove broken native dirs, patch eas.json)
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "🔎 Checking for broken native directories..."
-          if [ -d android ]; then
-            if [ ! -f android/app/build.gradle ] && [ ! -f android/app/build.gradle.kts ]; then
-              echo "::warning::android/ exists but android/app/build.gradle(.kts) is missing. Removing android/ and ios/ to force managed workflow."
-              rm -rf android ios
-            fi
-          fi
-
-          echo "🧩 Ensuring eas.json is compatible with APK-only builds (no dev-client by default)..."
-          if [ -f eas.json ]; then
-            node <<'NODE'
-            const fs = require('fs');
-            const path = 'eas.json';
-            const raw = fs.readFileSync(path, 'utf8');
-            let cfg;
-            try { cfg = JSON.parse(raw); } catch (e) { console.error('Invalid eas.json:', e.message); process.exit(0); }
-
-            cfg.build = cfg.build || {};
-            const ensureProfile = (name) => (cfg.build[name] = cfg.build[name] || {});
-            const ensureAndroid = (p) => (p.android = p.android || {});
-
-            for (const name of ['development', 'preview', 'production']) {
-              const p = ensureProfile(name);
-              const a = ensureAndroid(p);
-              if (!a.buildType) a.buildType = 'apk';
-              if (name === 'development') {
-                if (p.developmentClient === true) p.developmentClient = false;
-                if (!p.distribution) p.distribution = 'internal';
-              }
-            }
-
-            const next = JSON.stringify(cfg, null, 2) + '\n';
-            if (next !== raw) {
-              fs.writeFileSync(path, next, 'utf8');
-              console.log('✅ Updated eas.json for APK-only managed builds.');
-            } else {
-              console.log('✅ eas.json already OK.');
-            }
-            NODE
-          else
-            echo "::notice::No eas.json found - skipping profile normalization."
-          fi
-
-          echo "📦 If expo-dev-client is declared, ensure it's installed (avoid EAS preflight error)..."
-          if [ -f package.json ]; then
-            HAS="$(node -e "const p=require('./package.json'); const d=Object.assign({},p.dependencies,p.devDependencies); process.stdout.write(d && d['expo-dev-client'] ? 'yes' : 'no');")"
-            if [ "${HAS}" = "yes" ]; then
-              npm ls expo-dev-client >/dev/null 2>&1 || npm install expo-dev-client --no-save
-            fi
-          fi
+          npm install --include=dev --legacy-peer-deps
 
       - name: Lint + Typecheck
         shell: bash
@@ -180,7 +163,7 @@ jobs:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-  SUPABASE_APK_BUCKET: ${{ secrets.SUPABASE_APK_BUCKET || 'apk-builds' }}
+      SUPABASE_APK_BUCKET: ${{ secrets.SUPABASE_APK_BUCKET }}
       JOB_ID: ${{ github.event.client_payload.job_id || github.event.inputs.job_id || '' }}
 
     steps:
@@ -242,22 +225,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          export NODE_ENV=development
           if [ -f package-lock.json ]; then
             echo "Using npm ci..."
-            if npm ci; then
+            if npm ci --include=dev; then
               exit 0
             fi
             echo "npm ci failed - trying legacy-peer-deps..."
-            npm ci --legacy-peer-deps
+            npm ci --include=dev --legacy-peer-deps
             exit 0
           fi
 
           echo "No package-lock.json, using npm install..."
-          if npm install; then
+          if npm install --include=dev; then
             exit 0
           fi
           echo "npm install failed - trying legacy-peer-deps..."
-          npm install --legacy-peer-deps
+          npm install --include=dev --legacy-peer-deps
 
       - name: Install EAS CLI
         shell: bash
@@ -271,14 +255,6 @@ jobs:
         run: |
           set -euo pipefail
           eas whoami
-
-      - name: Ensure EAS project is initialized (non-interactive)
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Auto-initialize/link EAS project without user terminal steps.
-          # This prevents: "EAS project not configured" in CI.
-          eas project:init --force --non-interactive
 
       - name: Update Supabase job: running
         if: ${{ env.JOB_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
@@ -305,6 +281,15 @@ jobs:
             "--data",json.dumps(body)
           ])
           PY
+
+
+      - name: Ensure EAS project is initialized (non-interactive)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Prevents: "EAS project not configured" in CI (no manual terminal steps required)
+          eas project:init --force --non-interactive
+
 
       - name: Run EAS Build (WAIT)
         id: eas
@@ -348,6 +333,52 @@ jobs:
           echo "ARTIFACT_SHA256=$(sha256sum "${OUT}" | awk '{print $1}')" >> "$GITHUB_ENV"
           echo "ARTIFACT_SIZE=$(wc -c < "${OUT}" | tr -d ' ')" >> "$GITHUB_ENV"
 
+      - name: Upload APK to Supabase Storage (download_url)
+        if: ${{ success() && env.EAS_BUILD_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APK_PATH="build/${ARTIFACT_NAME:-}"
+          if [ -z "${APK_PATH}" ] || [ ! -f "${APK_PATH}" ]; then
+            APK_PATH="$(ls -1 build/*.apk 2>/dev/null | head -n 1 || true)"
+          fi
+          if [ -z "${APK_PATH}" ] || [ ! -f "${APK_PATH}" ]; then
+            echo "No APK file found to upload"
+            exit 1
+          fi
+
+          BUCKET="${SUPABASE_APK_BUCKET:-apk-builds}"
+          OBJ_PATH="${GITHUB_REPOSITORY}/${CHECKOUT_REF}/${PROFILE}/apk-${GITHUB_RUN_ID}.apk"
+
+          echo "Uploading ${APK_PATH} to bucket=${BUCKET} path=${OBJ_PATH}"
+
+          curl -fsS -X POST "${SUPABASE_URL}/storage/v1/object/${BUCKET}/${OBJ_PATH}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/vnd.android.package-archive"             -H "x-upsert: true"             --data-binary "@${APK_PATH}"
+
+          SIGNED_JSON="$(curl -fsS -X POST "${SUPABASE_URL}/storage/v1/object/sign/${BUCKET}/${OBJ_PATH}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             --data '{"expiresIn":604800}')"
+
+          SIGNED_PATH="$(python - <<'PY'
+import json, sys
+data=json.loads(sys.stdin.read() or "{}")
+print(data.get("signedURL") or data.get("signedUrl") or "")
+PY
+<<< "${SIGNED_JSON}")"
+
+          if [ -z "${SIGNED_PATH}" ]; then
+            echo "Could not create signed URL"
+            echo "${SIGNED_JSON}"
+            exit 1
+          fi
+
+          if [[ "${SIGNED_PATH}" == http* ]]; then
+            DOWNLOAD_URL="${SIGNED_PATH}"
+          else
+            DOWNLOAD_URL="${SUPABASE_URL%/}${SIGNED_PATH}"
+          fi
+
+          echo "DOWNLOAD_URL=${DOWNLOAD_URL}" >> "$GITHUB_ENV"
+          echo "DOWNLOAD_URL=${DOWNLOAD_URL}"
+
       - name: Upload Artifacts (APK + EAS log)
         uses: actions/upload-artifact@v4
         with:
@@ -367,6 +398,9 @@ jobs:
           key=os.environ["SUPABASE_SERVICE_ROLE_KEY"]
           job=os.environ["JOB_ID"]
           body={"status":"succeeded"}
+          du=os.environ.get("DOWNLOAD_URL","").strip()
+          if du:
+            body["download_url"]=du
           bid=os.environ.get("EAS_BUILD_ID","").strip()
           if bid:
             body["eas_build_id"]=bid
@@ -406,7 +440,7 @@ jobs:
           log=""
           if log_path.exists():
             log=log_path.read_text(errors="ignore")[-5000:]
-          body={"status":"failed","error":log}
+          body={"status":"failed","error_message":log}
           bu=os.environ.get("EAS_BUILD_URL","").strip()
           if bu:
             body["build_url"]=bu
