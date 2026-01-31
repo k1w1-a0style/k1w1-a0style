@@ -29,7 +29,7 @@ permissions:
   contents: read
 
 env:
-  EAS_CLI_VERSION: "16.31.0"
+  EAS_CLI_VERSION: "16.0.0"
   ARTIFACT_EXT: "apk"
   ALLOWED_REF_REGEX: "^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$"
 
@@ -124,7 +124,7 @@ jobs:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      SUPABASE_APK_BUCKET: ${{ secrets.SUPABASE_APK_BUCKET }}
+  SUPABASE_APK_BUCKET: ${{ secrets.SUPABASE_APK_BUCKET || 'apk-builds' }}
       JOB_ID: ${{ github.event.client_payload.job_id || github.event.inputs.job_id || '' }}
 
     steps:
@@ -220,21 +220,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Create or link an EAS project without prompts. Safe to run on every CI build.
+          # Auto-initialize/link EAS project without user terminal steps.
+          # This prevents: "EAS project not configured" in CI.
           eas project:init --force --non-interactive
-
-      - name: Normalize build profile (avoid dev-client hard fail)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ "${PROFILE}" = "development" ]; then
-            if node -e "require.resolve('expo-dev-client/package.json')" >/dev/null 2>&1; then
-              echo "expo-dev-client present."
-            else
-              echo "⚠️ expo-dev-client missing; falling back to PROFILE=preview for APK build."
-              echo "PROFILE=preview" >> "$GITHUB_ENV"
-            fi
-          fi
 
       - name: Update Supabase job: running
         if: ${{ env.JOB_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
@@ -304,52 +292,6 @@ jobs:
           echo "ARTIFACT_SHA256=$(sha256sum "${OUT}" | awk '{print $1}')" >> "$GITHUB_ENV"
           echo "ARTIFACT_SIZE=$(wc -c < "${OUT}" | tr -d ' ')" >> "$GITHUB_ENV"
 
-      - name: Upload APK to Supabase Storage (download_url)
-        if: ${{ success() && env.EAS_BUILD_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          APK_PATH="build/${ARTIFACT_NAME:-}"
-          if [ -z "${APK_PATH}" ] || [ ! -f "${APK_PATH}" ]; then
-            APK_PATH="$(ls -1 build/*.apk 2>/dev/null | head -n 1 || true)"
-          fi
-          if [ -z "${APK_PATH}" ] || [ ! -f "${APK_PATH}" ]; then
-            echo "No APK file found to upload"
-            exit 1
-          fi
-
-          BUCKET="${SUPABASE_APK_BUCKET:-apk-builds}"
-          OBJ_PATH="${GITHUB_REPOSITORY}/${CHECKOUT_REF}/${PROFILE}/apk-${GITHUB_RUN_ID}.apk"
-
-          echo "Uploading ${APK_PATH} to bucket=${BUCKET} path=${OBJ_PATH}"
-
-          curl -fsS -X POST "${SUPABASE_URL}/storage/v1/object/${BUCKET}/${OBJ_PATH}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/vnd.android.package-archive"             -H "x-upsert: true"             --data-binary "@${APK_PATH}"
-
-          SIGNED_JSON="$(curl -fsS -X POST "${SUPABASE_URL}/storage/v1/object/sign/${BUCKET}/${OBJ_PATH}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             --data '{"expiresIn":604800}')"
-
-          SIGNED_PATH="$(python - <<'PY'
-import json, sys
-data=json.loads(sys.stdin.read() or "{}")
-print(data.get("signedURL") or data.get("signedUrl") or "")
-PY
-<<< "${SIGNED_JSON}")"
-
-          if [ -z "${SIGNED_PATH}" ]; then
-            echo "Could not create signed URL"
-            echo "${SIGNED_JSON}"
-            exit 1
-          fi
-
-          if [[ "${SIGNED_PATH}" == http* ]]; then
-            DOWNLOAD_URL="${SIGNED_PATH}"
-          else
-            DOWNLOAD_URL="${SUPABASE_URL%/}${SIGNED_PATH}"
-          fi
-
-          echo "DOWNLOAD_URL=${DOWNLOAD_URL}" >> "$GITHUB_ENV"
-          echo "DOWNLOAD_URL=${DOWNLOAD_URL}"
-
       - name: Upload Artifacts (APK + EAS log)
         uses: actions/upload-artifact@v4
         with:
@@ -369,9 +311,6 @@ PY
           key=os.environ["SUPABASE_SERVICE_ROLE_KEY"]
           job=os.environ["JOB_ID"]
           body={"status":"succeeded"}
-          du=os.environ.get("DOWNLOAD_URL","").strip()
-          if du:
-            body["download_url"]=du
           bid=os.environ.get("EAS_BUILD_ID","").strip()
           if bid:
             body["eas_build_id"]=bid
@@ -411,7 +350,7 @@ PY
           log=""
           if log_path.exists():
             log=log_path.read_text(errors="ignore")[-5000:]
-          body={"status":"failed","error_message":log}
+          body={"status":"failed","error":log}
           bu=os.environ.get("EAS_BUILD_URL","").strip()
           if bu:
             body["build_url"]=bu

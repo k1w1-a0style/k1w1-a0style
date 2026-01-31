@@ -347,8 +347,9 @@ export default function DiagnosticScreen() {
   // Restore upload cooldown (UX-only) across app restarts.
 
   // Tick cooldown UI and auto-clear when it expires.
-  const [results, setResults] = useState<PreflightCheckResult[]>([]);
+
   const [target, setTarget] = useState<PreflightTarget>({ mode: "expoGo" });
+  const [results, setResults] = useState<PreflightCheckResult[]>([]);
   const [running, setRunning] = useState(false);
   const runningRef = useRef(false);
 
@@ -518,26 +519,24 @@ export default function DiagnosticScreen() {
     try {
       const files = projectRef.current.files;
 
-      // Always validate all 3 EAS profiles (ANDROID APK-only):
-      // 1) development (dev-client)
-      // 2) preview (internal APK)
-      // 3) production ("full" flow in UI language, but still APK-only here)
-      const targets: Array<{ mode: "eas"; profile: "development" | "preview" | "production" }> = [
-        { mode: "eas", profile: "development" },
-        { mode: "eas", profile: "preview" },
-        { mode: "eas", profile: "production" },
-      ];
-
       const all: PreflightCheckResult[] = [];
+
+      // Always run checks for all 3 EAS profiles (your 3 build flows)
+      const targets = [
+        { mode: "eas" as const, profile: "development" as const },
+        { mode: "eas" as const, profile: "preview" as const },
+        { mode: "eas" as const, profile: "production" as const },
+      ];
 
       for (const t of targets) {
         setProgressStage(`Checks: ${t.mode}/${t.profile}`);
         const prog = runPreflightChecksProgressive(files, t);
 
-        // progressive generator yields batches
         for await (const stage of prog as any) {
           if (stage?.priority)
-            setProgressStage(`Checks: ${t.mode}/${t.profile} • ${String(stage.priority)}`);
+            setProgressStage(
+              `Checks: ${t.mode}/${t.profile} • ${String(stage.priority)}`,
+            );
           if (stage?.results?.length) {
             const decorated = (stage.results as PreflightCheckResult[]).map((r) => ({
               ...r,
@@ -598,7 +597,7 @@ export default function DiagnosticScreen() {
       runningRef.current = false;
       if (mountedRef.current) setRunning(false);
     }
-  }, [target]);
+  }, [linkedRepo, linkedBranch]);
 
   const openPreview = useCallback(
     async (label: string, patch: PreflightPatch) => {
@@ -1142,7 +1141,7 @@ export default function DiagnosticScreen() {
     const mode =
       target.mode === "expoGo" ? "Expo Go" : `EAS: ${target.profile ?? "?"}`;
     return { name, mode };
-  }, [target]);
+  }, [linkedRepo, linkedBranch]);
 
   const renderItem = useCallback(
     ({ item }: { item: PreflightCheckResult }) => {

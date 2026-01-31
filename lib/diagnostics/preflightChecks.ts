@@ -25,20 +25,6 @@ const has = (m: Map<string, ProjectFile>, p: string) => m.has(normalizePath(p));
 const getText = (m: Map<string, ProjectFile>, p: string) =>
   m.get(normalizePath(p))?.content ?? "";
 
-// Accept both Map and array forms (some callers provide ProjectFile[] instead of Map)
-const getTextAny = (
-  files: Map<string, ProjectFile> | ProjectFile[],
-  path: string,
-): string => {
-  if (Array.isArray(files)) {
-    const wanted = normalizePath(path);
-    const f = files.find((x) => normalizePath((x as any).path ?? (x as any).name ?? "") === wanted);
-    return (f as any)?.content ?? "";
-  }
-  return getText(files, path);
-};
-
-
 const ok = (
   res: Omit<PreflightCheckResult, "status"> & { status?: PreflightStatus },
 ): PreflightCheckResult => ({
@@ -289,26 +275,10 @@ const checkEasProfiles: PreflightCheck = {
 
     if (!has(m, "eas.json")) {
       const template = {
-        cli: {
-          // Prevent future warning about missing cli.appVersionSource
-          appVersionSource: "remote",
-        },
         build: {
-          // ANDROID APK-only for all flows
-          development: {
-            developmentClient: true,
-            distribution: "internal",
-            android: { buildType: "apk" },
-          },
-          preview: {
-            distribution: "internal",
-            android: { buildType: "apk" },
-          },
-          // "Full" flow in UI maps to production profile, still APK-only here
-          production: {
-            distribution: "internal",
-            android: { buildType: "apk" },
-          },
+          development: { developmentClient: true, distribution: "internal" },
+          preview: { distribution: "internal", android: { buildType: "apk" } },
+          production: { android: { buildType: "aab" } },
         },
       };
       return {
@@ -353,8 +323,7 @@ const checkEasProfiles: PreflightCheck = {
 
     const buildType = p?.android?.buildType;
 
-    // APK-only policy (this app is ANDROID APK-only)
-    // Enforce for ALL profiles: development / preview / production ("full")
+    // APK-only policy: this builder supports only installable APK artifacts for ALL profiles.
     if (!buildType) {
       return {
         id: this.id,
@@ -372,46 +341,43 @@ const checkEasProfiles: PreflightCheck = {
         severity: "high",
         status: "fail",
         message: `${profile}.android.buildType ist "${buildType}" – diese App unterstützt ausschließlich "apk".`,
-        fix: {
-          label: `Setze ${profile}.android.buildType auf "apk"`,
-          patch: {
-            jsonMerge: [
-              {
-                path: "eas.json",
-                patch: {
-                  build: {
-                    [profile]: { android: { buildType: "apk" } },
-                  },
-                },
-                createIfMissing: true,
-              },
-            ],
-            explanation:
-              "Für den In-App APK Builder muss EAS immer ein installierbares APK liefern (kein AAB).",
-          },
-        },
       };
     }
 
-    return ok({
-      id: this.id,
-      title: this.title,
-      severity: this.severity,
-      status: "pass",
-      message: `✅ ${profile}.android.buildType ist "apk".`,
-    });
+    return ok({ id: this.id, title: this.title, severity: this.severity });
+  },
+};
 
-    
-    // Read app config text for basic asset references (app.json / app.config.*)
-    const cfgText =
-      getTextAny(files, "app.json") ||
-      getTextAny(files, "app.config.js") ||
-      getTextAny(files, "app.config.ts") ||
-      getTextAny(files, "app.config.json") ||
-      "";
+const checkAssetsExist: PreflightCheck = {
+  id: "assets-exist",
+  title: "Assets referenced existieren",
+  severity: "normal",
+  run(files) {
+    const m = byPath(files);
+    const cfgPath = existsAny(m, [
+      "app.json",
+      "app.config.js",
+      "app.config.ts",
+      "app.config.json",
+    ]);
 
-    const iconMatches = [...cfgText.matchAll(/"icon"\s*:\s*"([^"]+)"/g)].map((mm) => mm[1]);
-const splashMatches = [...cfgText.matchAll(/"image"\s*:\s*"([^"]+)"/g)]
+    if (!cfgPath) {
+      return ok({
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        status: "warn",
+        message: "Keine app.json/app.config.* gefunden.",
+      });
+    }
+
+    const cfgText = getText(m, cfgPath);
+
+    const iconMatches = [...cfgText.matchAll(/"icon"\s*:\s*"([^"]+)"/g)]
+      .map((x) => x[1])
+      .filter(Boolean);
+
+    const splashMatches = [...cfgText.matchAll(/"image"\s*:\s*"([^"]+)"/g)]
       .map((x) => x[1])
       .filter(Boolean);
 
