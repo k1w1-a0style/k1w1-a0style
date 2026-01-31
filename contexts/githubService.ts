@@ -628,6 +628,11 @@ export const createOrUpdateFile = async (
   await githubLimiter.checkLimit();
 
   // ✅ FIX: SHA muss aus *dem gleichen Branch* kommen, sonst mismatch beim PUT
+  // 🔁 Retry on SHA mismatch (409) which can happen if another sync updates the file between GET and PUT.
+// We refetch the latest SHA from the same branch and retry once.
+let lastPutText: string | undefined;
+for (let attempt = 0; attempt < 2; attempt++) {
+  // ✅ FIX: SHA muss aus *dem gleichen Branch* kommen, sonst mismatch beim PUT
   const getUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}?ref=${encodeURIComponent(branch)}`;
   const getResp = await fetch(getUrl, {
     headers: {
@@ -639,7 +644,7 @@ export const createOrUpdateFile = async (
   let sha: string | undefined = undefined;
   if (getResp.ok) {
     const existing = await getResp.json();
-    sha = existing.sha;
+    sha = existing?.sha;
   }
 
   const body: any = {
@@ -665,26 +670,39 @@ export const createOrUpdateFile = async (
     },
   );
 
-  let json: any;
-  try {
-    json = await putResp.json();
-  } catch {
-    const text = await putResp.text();
+  // If conflict due to SHA mismatch, retry once after refetching SHA
+  if (putResp.status === 409) {
+    lastPutText = await putResp.text().catch(() => undefined);
+    if (attempt === 0) continue;
     throw new Error(
-      `create/update file failed (${putResp.status}): ${path} -> ${text}`,
+      `create/update file failed (409): ${path} -> ${lastPutText ?? "sha mismatch"}`,
     );
   }
+
+  const json = await putResp.json().catch(() => ({} as any));
 
   if (!putResp.ok) {
     const status = putResp.status;
     if (status === 401) throw new Error("GitHub Token ungültig.");
     if (status === 403) throw new Error("Keine Berechtigung für Datei-Upload.");
     if (status === 404) throw new Error("Repository nicht gefunden.");
-    throw new Error(json.message || `create/update file failed: ${path}`);
-  }
-  return json;
-};
 
+    // fallback: include response for debugging
+    const text = lastPutText ?? json?.message ?? "";
+    throw new Error(
+      json?.message
+        ? json.message
+        : `create/update file failed (${status}): ${path} -> ${text}`,
+    );
+  }
+
+  return json;
+}
+
+// should be unreachable
+throw new Error(`create/update file failed: ${path}`);
+
+};
 export const pushFilesToRepo = async (
   owner: string,
   repo: string,

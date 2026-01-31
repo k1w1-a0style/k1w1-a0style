@@ -1,6 +1,7 @@
 Apply:
-  unzip -o Mobile-APK-Builder-PATCH21.zip
-  rm Mobile-APK-Builder-PATCH21.zip
+  git restore lib/diagnostics/buildPipelineDiagnostics.ts contexts/githubService.ts
+  unzip -o Mobile-APK-Builder-PATCH24.zip
+  rm Mobile-APK-Builder-PATCH24.zip
 
 Verify:
   npm run typecheck
@@ -9,11 +10,10 @@ Verify:
 
 Commit + push:
   git add -A
-  git commit -m "fix(diagnostics): write back autofix changes to linked repo"
+  git commit -m "fix(diagnostics): pipeline fix typing + github sha-mismatch retry"
   git push origin build
 
 In-app verify:
-  - Open Diagnostics on a linked repo/branch
-  - Press Fix on a pipeline warning (e.g. eas.json buildType)
-  - Run Diagnostics again → warning must be gone (because repo file is updated).
+  - Diagnostics → apply Fix on eas.json related warning
+  - Should no longer log 'sha does not match ...' frequently; writeback should succeed.
 

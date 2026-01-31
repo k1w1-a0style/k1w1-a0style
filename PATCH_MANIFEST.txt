@@ -1,15 +1,12 @@
-PATCH21 - Autofix writeback: make Diagnostics fixes persist by updating the linked GitHub repo/branch
+PATCH24 - Diagnostics + GitHub writeback stability
 
 Changed files:
-- screens/DiagnosticScreen.tsx
+- lib/diagnostics/buildPipelineDiagnostics.ts
+- contexts/githubService.ts
 
 Why:
-- Your warnings are produced by 'pipeline diagnostics' which reads files from the linked GitHub repo/branch.
-- Previously, Fix applied only to the local in-app project files. On re-scan, remote files were unchanged → warnings reappeared.
-- This patch performs best-effort writeback via GitHub Contents API (createOrUpdateFile) for repo-relevant config files (eas.json, app.config.*, app.json, .github/workflows/*, eas-project.json).
-
-Behavior:
-- Fix still applies locally (undo works).
-- If a GitHub repo is linked, the same patched files are also pushed to the selected branch.
-- If token/permissions are missing, local apply still succeeds; writeback logs a warning.
+1) TypeScript fix: DiagnosticScreen expects pipeline checks to optionally include 'fix'.
+   buildPipelineDiagnostics.DiagnosticCheck type now includes optional fix {label, patch}.
+2) Repo writeback fix: createOrUpdateFile could fail with 409 SHA mismatch during concurrent repo sync.
+   Added one retry with refetch SHA to make diagnostics autofix writeback reliable.
 

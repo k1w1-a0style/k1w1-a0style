@@ -277,7 +277,7 @@ const checkEasProfiles: PreflightCheck = {
       const template = {
         cli: { appVersionSource: "remote" },
         build: {
-          development: { developmentClient: true, distribution: "internal" },
+          development: { distribution: "internal", android: { buildType: "apk" } },
           preview: { distribution: "internal", android: { buildType: "apk" } },
           production: { android: { buildType: "apk" } },
         },
@@ -323,54 +323,22 @@ const checkEasProfiles: PreflightCheck = {
     }
 
     const buildType = p?.android?.buildType;
-
-    // APK-only policy: for this app, ALL profiles must build installable APKs.
-    // Make it explicit; missing buildType is allowed but should be fixed.
-    if (!buildType) {
+    if (profile === "preview" && buildType && buildType !== "apk") {
       return {
         id: this.id,
         title: this.title,
         severity: this.severity,
         status: "warn",
-        message: `${profile}.android.buildType ist nicht gesetzt – bitte explizit "apk" setzen.`,
-        fix: {
-          label: `Setze ${profile}.android.buildType auf "apk"`,
-          patch: {
-            jsonMerge: [
-              {
-                path: "eas.json",
-                patch: { build: { [profile]: { android: { buildType: "apk" } } } },
-                createIfMissing: true,
-              },
-            ],
-            explanation:
-              "Der In-App APK Builder unterstützt ausschließlich APK (kein AAB).",
-          },
-        },
+        message: `preview.android.buildType ist "${buildType}" – für 1-Click Install ist "apk" oft besser.`,
       };
     }
-
-    if (buildType !== "apk") {
+    if (profile === "production" && buildType && buildType !== "aab") {
       return {
         id: this.id,
         title: this.title,
-        severity: "high",
-        status: "fail",
-        message: `${profile}.android.buildType ist "${buildType}" – diese App unterstützt ausschließlich "apk".`,
-        fix: {
-          label: `Setze ${profile}.android.buildType auf "apk"`,
-          patch: {
-            jsonMerge: [
-              {
-                path: "eas.json",
-                patch: { build: { [profile]: { android: { buildType: "apk" } } } },
-                createIfMissing: true,
-              },
-            ],
-            explanation:
-              "Der In-App APK Builder unterstützt ausschließlich APK (kein AAB).",
-          },
-        },
+        severity: this.severity,
+        status: "warn",
+        message: `production.android.buildType ist "${buildType}" – für Play Store ist "aab" üblich.`,
       };
     }
 
