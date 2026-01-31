@@ -101,6 +101,7 @@ export const runBuildPipelineDiagnostics = async (params: {
     hasAppJson,
     hasEasJson,
     hasEasProjectJson,
+    hasPackageJson,
     hasLinkWorkflow,
     hasTriggeredBuildWorkflow,
   ] = await Promise.all([
@@ -109,6 +110,7 @@ export const runBuildPipelineDiagnostics = async (params: {
     fileExists(params.owner, params.repo, "app.json", ref),
     fileExists(params.owner, params.repo, "eas.json", ref),
     fileExists(params.owner, params.repo, "eas-project.json", ref),
+    fileExists(params.owner, params.repo, "package.json", ref),
     fileExists(
       params.owner,
       params.repo,
@@ -143,30 +145,164 @@ export const runBuildPipelineDiagnostics = async (params: {
       : "eas.json fehlt → Template/Patch anwenden (sonst EAS Profiles fehlen).",
   });
 
-  // --- EAS projectId persistent ---
+  // --- EAS profiles (3 flows) & APK-only ---
+  let easJson: any = null;
+  if (hasEasJson) {
+    try {
+      easJson = await readJsonFile<any>(params.owner, params.repo, "eas.json", ref);
+    } catch (e: any) {
+      checks.push({
+        id: "repo.easJson.parse",
+        title: "eas.json ist parsebar",
+        status: "fail",
+        fixHint: e?.message || "eas.json konnte nicht gelesen/geparst werden.",
+      });
+    }
+  }
+
+  const profiles: Array<"development" | "preview" | "production"> = [
+    "development",
+    "preview",
+    "production",
+  ];
+
+  const profileLabel = (p: string) => (p === "production" ? "full (production)" : p);
+
+  for (const prof of profiles) {
+    const p = easJson?.build?.[prof];
+
+    if (!p) {
+      checks.push({
+        id: `repo.easProfile.${prof}`,
+        title: `EAS Profil vorhanden: ${profileLabel(prof)}`,
+        status: "fail",
+        fixHint:
+          "Profil fehlt in eas.json. In-App: Repo-Projektdateien aktualisieren (Templates/Push) oder CI AutoFix nutzen.",
+      });
+      continue;
+    }
+
+    // APK-only: enforce android.buildType=apk
+    const btRaw = p?.android?.buildType;
+    const bt = typeof btRaw === "string" ? btRaw.toLowerCase().trim() : "";
+    const btOk = bt === "apk" || bt === "";
+    // (empty means EAS default; we still prefer explicit apk)
+    checks.push({
+      id: `repo.easBuildType.${prof}`,
+      title: `Android BuildType (APK-only): ${profileLabel(prof)}`,
+      status: btOk ? (bt === "apk" ? "pass" : "warn") : "fail",
+      fixHint: btOk
+        ? bt === "apk"
+          ? undefined
+          : 'Setze in eas.json: build.' + prof + '.android.buildType = "apk".'
+        : `BuildType ist "${btRaw}". Erwartet: "apk".`,
+    });
+
+    if (prof === "development") {
+      const devClient = p?.developmentClient === true;
+      checks.push({
+        id: "repo.easDevClientFlag",
+        title: "Development Flow: developmentClient=true",
+        status: devClient ? "pass" : "warn",
+        fixHint: devClient
+          ? undefined
+          : "Für Development Builds sollte developmentClient=true gesetzt sein (sonst kein Dev-Client APK).",
+      });
+    }
+  }
+
+  // Development Flow: expo-dev-client dependency recommended/required
+  if (hasPackageJson) {
+    try {
+      const pkg = await readJsonFile<any>(params.owner, params.repo, "package.json", ref);
+      const deps = { ...(pkg?.dependencies ?? {}), ...(pkg?.devDependencies ?? {}) };
+      const hasDevClient = typeof deps["expo-dev-client"] === "string";
+      checks.push({
+        id: "repo.dep.expoDevClient",
+        title: "Dependency: expo-dev-client (für Development Flow)",
+        status: hasDevClient ? "pass" : "warn",
+        fixHint: hasDevClient
+          ? undefined
+          : "Für development profile: expo-dev-client als dependency hinzufügen (sonst EAS dev-client Schritte failen).",
+      });
+    } catch {
+      checks.push({
+        id: "repo.dep.expoDevClient",
+        title: "Dependency: expo-dev-client (für Development Flow)",
+        status: "warn",
+        fixHint: "package.json konnte nicht gelesen werden.",
+      });
+    }
+  }
+
+
+  // --- EAS projectId (needed for non-interactive builds) ---
   let projectId = "";
+  let projectIdSource: "eas-project.json" | "app.json" | "app.config" | "" = "";
   let projectIdOk = false;
 
   if (hasEasProjectJson) {
-    const data = await readJsonFile<{ projectId?: string }>(
-      params.owner,
-      params.repo,
-      "eas-project.json",
-      ref,
-    );
-    projectId = safeTrim(data?.projectId);
-    projectIdOk = projectId ? isUuid(projectId) : false;
+    try {
+      const data = await readJsonFile<{ projectId?: string }>(
+        params.owner,
+        params.repo,
+        "eas-project.json",
+        ref,
+      );
+      const candidate = safeTrim(data?.projectId);
+      if (candidate && isUuid(candidate)) {
+        projectId = candidate;
+        projectIdOk = true;
+        projectIdSource = "eas-project.json";
+      }
+    } catch {
+      // ignore; we'll try other sources
+    }
+  }
+
+  if (!projectIdOk && hasAppJson) {
+    try {
+      const appJson = await readJsonFile<any>(params.owner, params.repo, "app.json", ref);
+      const candidate = safeTrim(appJson?.expo?.extra?.eas?.projectId);
+      if (candidate && isUuid(candidate)) {
+        projectId = candidate;
+        projectIdOk = true;
+        projectIdSource = "app.json";
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  if (!projectIdOk && (hasAppConfigJs || hasAppConfigTs)) {
+    try {
+      const path = hasAppConfigJs ? "app.config.js" : "app.config.ts";
+      const text = await getRepoFileText({ owner: params.owner, repo: params.repo, path, ref });
+      const m1 = text.match(/projectId[^0-9a-fA-F]{0,64}([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/);
+      const m2 = !m1 ? text.match(/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/) : null;
+      const candidate = safeTrim((m1?.[1] ?? m2?.[1]) as any);
+      if (candidate && isUuid(candidate)) {
+        projectId = candidate;
+        projectIdOk = true;
+        projectIdSource = "app.config";
+      }
+    } catch {
+      // ignore
+    }
   }
 
   checks.push({
     id: "repo.easProjectId",
-    title: "EAS projectId persistent (eas-project.json)",
+    title: "EAS projectId vorhanden (non-interactive)",
     status: projectIdOk ? "pass" : "fail",
-    details: projectId ? `projectId: ${projectId}` : undefined,
+    details: projectIdOk
+      ? `projectId: ${projectId} (source: ${projectIdSource})`
+      : undefined,
     fixHint: projectIdOk
       ? undefined
-      : 'Button "EAS Projekt erstellen / verbinden" ausführen (committet projectId).',
+      : "EAS projectId fehlt → In-App: RepoScreen 'EAS Projekt erstellen/verbinden' ausführen oder Workflow 'eas-link.yml' starten.",
   });
+
 
   // --- Workflows ---
   checks.push({

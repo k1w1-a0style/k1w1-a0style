@@ -275,10 +275,15 @@ const checkEasProfiles: PreflightCheck = {
 
     if (!has(m, "eas.json")) {
       const template = {
+        cli: { version: "16.0.0", appVersionSource: "remote" },
         build: {
-          development: { developmentClient: true, distribution: "internal" },
+          development: {
+            developmentClient: true,
+            distribution: "internal",
+            android: { buildType: "apk" },
+          },
           preview: { distribution: "internal", android: { buildType: "apk" } },
-          production: { android: { buildType: "aab" } },
+          production: { android: { buildType: "apk" }, env: { PRECHECK: "true" } },
         },
       };
       return {
@@ -322,22 +327,27 @@ const checkEasProfiles: PreflightCheck = {
     }
 
     const buildType = p?.android?.buildType;
-    if (profile === "preview" && buildType && buildType !== "apk") {
-      return {
-        id: this.id,
-        title: this.title,
-        severity: this.severity,
-        status: "warn",
-        message: `preview.android.buildType ist "${buildType}" – für 1-Click Install ist "apk" oft besser.`,
+    // APK-only requirement: enforce android.buildType === "apk" for all profiles.
+    if (buildType && buildType !== "apk") {
+      const fixed = { ...eas };
+      fixed.build = { ...(fixed.build ?? {}) };
+      const current = fixed.build[profile] ?? {};
+      fixed.build[profile] = {
+        ...current,
+        android: { ...(current.android ?? {}), buildType: "apk" },
       };
-    }
-    if (profile === "production" && buildType && buildType !== "aab") {
+
       return {
         id: this.id,
         title: this.title,
         severity: this.severity,
-        status: "warn",
-        message: `production.android.buildType ist "${buildType}" – für Play Store ist "aab" üblich.`,
+        status: "fail",
+        message: `${profile}.android.buildType ist "${buildType}" – dieses Projekt ist APK-only (erwartet: "apk").`,
+        fix: {
+          patch: mkFix([
+            { path: "eas.json", content: JSON.stringify(fixed, null, 2) + "\n" },
+          ]),
+        },
       };
     }
 
@@ -768,6 +778,78 @@ const checkReactNativeCompatibility: PreflightCheck = {
   },
 };
 
+
+const checkEasCliAppVersionSource: PreflightCheck = {
+  id: "eas-cli-appversionsource",
+  title: "EAS CLI: appVersionSource gesetzt",
+  severity: "low",
+  run(files, target) {
+    if (target.mode !== "eas") {
+      return ok({
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        status: "pass",
+        message: "Nicht relevant (Expo Go).",
+      });
+    }
+
+    const m = byPath(files);
+    if (!has(m, "eas.json")) {
+      return ok({
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        status: "pass",
+        message: "eas.json wird separat geprüft.",
+      });
+    }
+
+    const eas = parseJson<any>(getText(m, "eas.json"));
+    if (!eas || typeof eas !== "object") {
+      return {
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        status: "warn",
+        message: "eas.json ist keine gültige JSON.",
+      };
+    }
+
+    const avs = eas?.cli?.appVersionSource;
+    if (typeof avs === "string" && avs.trim().length > 0) {
+      return ok({
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        status: "pass",
+        message: `appVersionSource = "${avs}"`,
+      });
+    }
+
+    const fixed = { ...eas, cli: { ...(eas.cli ?? {}), appVersionSource: "remote" } };
+    if (!fixed.cli.version) fixed.cli.version = "16.0.0";
+
+    return {
+      id: this.id,
+      title: this.title,
+      severity: this.severity,
+      status: "warn",
+      message:
+        'cli.appVersionSource fehlt. Das wird von EAS künftig vorausgesetzt.',
+      fix: {
+        patch: mkFix([
+          {
+            path: "eas.json",
+            content: JSON.stringify(fixed, null, 2) + "\n",
+          },
+        ]),
+      },
+    };
+  },
+};
+
+
 const checkSdkConsistency: PreflightCheck = {
   id: "expo-sdk-consistency",
   title: "Expo SDK Konsistenz (light)",
@@ -1101,6 +1183,7 @@ export const PREFLIGHT_CHECKS: PreflightCheck[] = [
   checkEntryPoint,
   checkExpoConfig,
   checkEasProfiles,
+  checkEasCliAppVersionSource,
   checkSdkConsistency,
   checkReactNativeCompatibility,
   checkWorkflowServiceRoleKeyLeak,

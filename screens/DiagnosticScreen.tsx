@@ -46,6 +46,11 @@ import {
   sanitizeDiagnosticUpload,
   safeTruncateText,
 } from "../lib/diagnostics/sanitize";
+import { runBuildPipelineDiagnostics, type DiagnosticCheck as PipelineCheck } from "../lib/diagnostics/buildPipelineDiagnostics";
+import { autoSyncRepoSecrets } from "../lib/autoSyncRepoSecrets";
+import { triggerWorkflow } from "../contexts/githubService";
+import { STORAGE_KEYS } from "../lib/storageKeys";
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
 import * as Crypto from "expo-crypto";
@@ -330,6 +335,86 @@ export default function DiagnosticScreen() {
     }
   }, [linkedRepo, linkedBranch]);
 
+  const runPipeline = useCallback(async () => {
+    const parsed = parseOwnerRepo(linkedRepo);
+    if (!parsed) {
+      Alert.alert(
+        "Remote Pipeline",
+        "Kein gültiges GitHub Repo verknüpft (erwartet: owner/repo).",
+      );
+      return;
+    }
+    const branch = (linkedBranch || "main").trim();
+
+    setPipelineRunning(true);
+    setPipelineError(null);
+
+    try {
+      const checks = await runBuildPipelineDiagnostics({
+        owner: parsed.owner,
+        repo: parsed.repo,
+        branch,
+      });
+      setPipelineChecks(checks as any);
+    } catch (e: any) {
+      setPipelineChecks([]);
+      setPipelineError(e?.message || "Remote Diagnostics fehlgeschlagen.");
+    } finally {
+      setPipelineRunning(false);
+    }
+  }, [linkedRepo, linkedBranch]);
+
+  const syncSecretsNow = useCallback(async () => {
+    if (!linkedRepo) {
+      Alert.alert("Secrets", "Kein Repo verknüpft.");
+      return;
+    }
+    try {
+      const res = await autoSyncRepoSecrets(linkedRepo);
+      Alert.alert(
+        "✓ Secrets Sync",
+        `Updated: ${res.updated.length ? res.updated.join(", ") : "—"}\nSkipped: ${
+          res.skipped.length ? res.skipped.join(", ") : "—"
+        }`,
+      );
+      await runPipeline();
+    } catch (e: any) {
+      Alert.alert("Secrets Sync fehlgeschlagen", e?.message || "Fehler");
+    }
+  }, [linkedRepo, runPipeline]);
+
+  const startEasLinkNow = useCallback(async () => {
+    const parsed = parseOwnerRepo(linkedRepo);
+    if (!parsed) {
+      Alert.alert("EAS Link", "Kein gültiges Repo verknüpft.");
+      return;
+    }
+    const branch = (linkedBranch || "main").trim();
+
+    try {
+      const easProjectId = (await AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID)) || "";
+      await triggerWorkflow(
+        parsed.owner,
+        parsed.repo,
+        "eas-link.yml",
+        branch,
+        {
+          ref: branch,
+          ...(easProjectId ? { eas_project_id: easProjectId } : {}),
+        } as any,
+      );
+      Alert.alert(
+        "✓ EAS Link gestartet",
+        "Workflow 'eas-link.yml' wurde getriggert. Check GitHub Actions Runs/Logs.",
+      );
+    } catch (e: any) {
+      Alert.alert("EAS Link fehlgeschlagen", e?.message || "Fehler");
+    } finally {
+      await runPipeline().catch(() => {});
+    }
+  }, [linkedRepo, linkedBranch, runPipeline]);
+
+
   const projectRef = useRef(projectData);
   useEffect(() => {
     projectRef.current = projectData;
@@ -356,6 +441,10 @@ export default function DiagnosticScreen() {
 
   const [ciFixing, setCiFixing] = useState(false);
   const [ciFixLog, setCiFixLog] = useState<string | null>(null);
+
+  const [pipelineChecks, setPipelineChecks] = useState<PipelineCheck[]>([]);
+  const [pipelineRunning, setPipelineRunning] = useState(false);
+  const [pipelineError, setPipelineError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const selectedCount = useMemo(
     () => Object.values(selected).filter(Boolean).length,
@@ -517,20 +606,63 @@ export default function DiagnosticScreen() {
 
     try {
       const files = projectRef.current.files;
-      const prog = runPreflightChecksProgressive(files, target);
       const all: PreflightCheckResult[] = [];
-      // progressive generator yields batches
-      for await (const stage of prog as any) {
-        if (stage?.priority)
-          setProgressStage(`Checks: ${String(stage.priority)}`);
-        if (stage?.results?.length) {
-          all.push(...stage.results);
-          if (mountedRef.current) setResults([...all]);
+
+      const targetsToRun: PreflightTarget[] =
+        target.mode === "eas"
+          ? [
+              { mode: "eas", profile: "development" },
+              { mode: "eas", profile: "preview" },
+              { mode: "eas", profile: "production" },
+            ]
+          : [target];
+
+      for (const t of targetsToRun) {
+        const flowLabel =
+          t.mode === "eas"
+            ? t.profile === "production"
+              ? "full (production)"
+              : t.profile
+            : "expoGo";
+        if (mountedRef.current) setProgressStage(`Checks: ${flowLabel}…`);
+
+        const prog = runPreflightChecksProgressive(files, t);
+        // progressive generator yields batches
+        for await (const stage of prog as any) {
+          if (stage?.priority) {
+            if (mountedRef.current)
+              setProgressStage(
+                `Checks: ${flowLabel} / ${String(stage.priority)}…`,
+              );
+          }
+
+          if (stage?.results?.length) {
+            const mapped: PreflightCheckResult[] = stage.results.map((r: any) => {
+              if (t.mode !== "eas") return r;
+              const id = `${t.profile}::${r.id}`;
+              const tags = Array.isArray(r.tags) ? r.tags : [];
+              return {
+                ...r,
+                id,
+                title: `[${flowLabel}] ${r.title}`,
+                tags: [...tags, `flow:${t.profile}`],
+              };
+            });
+
+            all.push(...mapped);
+            if (mountedRef.current) setResults([...all]);
+          }
         }
       }
+
       if (mountedRef.current) {
         setResults(all);
         setProgressStage(null);
+      }
+
+      // Optional but recommended: also check the remote pipeline when a repo is linked.
+      if (linkedRepo && parseOwnerRepo(linkedRepo)) {
+        await runPipeline().catch(() => {});
       }
     } catch (e: any) {
       Alert.alert(
@@ -542,7 +674,7 @@ export default function DiagnosticScreen() {
       runningRef.current = false;
       if (mountedRef.current) setRunning(false);
     }
-  }, [target]);
+  }, [target, linkedRepo, runPipeline]);
 
   const openPreview = useCallback(
     async (label: string, patch: PreflightPatch) => {
@@ -1086,7 +1218,7 @@ export default function DiagnosticScreen() {
     const mode =
       target.mode === "expoGo" ? "Expo Go" : `EAS: ${target.profile ?? "?"}`;
     return { name, mode };
-  }, [target]);
+  }, [target, linkedRepo, runPipeline]);
 
   const renderItem = useCallback(
     ({ item }: { item: PreflightCheckResult }) => {
@@ -1467,7 +1599,103 @@ export default function DiagnosticScreen() {
       </View>
 
       {/* Results */}
-      <FlatList
+      
+        <View style={styles.pipelineBox}>
+          <View style={styles.pipelineHeader}>
+            <Text style={styles.pipelineTitle}>
+              Remote Build-Pipeline (GitHub → EAS)
+            </Text>
+
+            <TouchableOpacity
+              style={[
+                styles.pipelineBtn,
+                pipelineRunning && { opacity: 0.6 },
+              ]}
+              onPress={runPipeline}
+              disabled={pipelineRunning}
+            >
+              {pipelineRunning ? (
+                <ActivityIndicator size="small" />
+              ) : (
+                <Ionicons
+                  name="refresh"
+                  size={16}
+                  color={theme.palette.text.primary}
+                />
+              )}
+              <Text style={styles.pipelineBtnText}>
+                {pipelineRunning ? "Checking…" : "Check"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.pipelineActions}>
+            <TouchableOpacity
+              style={styles.pipelineActionBtn}
+              onPress={syncSecretsNow}
+              disabled={pipelineRunning}
+            >
+              <Ionicons
+                name="key"
+                size={16}
+                color={theme.palette.text.primary}
+              />
+              <Text style={styles.pipelineActionText}>Secrets sync</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.pipelineActionBtn}
+              onPress={startEasLinkNow}
+              disabled={pipelineRunning}
+            >
+              <Ionicons
+                name="link"
+                size={16}
+                color={theme.palette.text.primary}
+              />
+              <Text style={styles.pipelineActionText}>EAS Link</Text>
+            </TouchableOpacity>
+          </View>
+
+          {pipelineError ? (
+            <Text style={styles.pipelineError}>{pipelineError}</Text>
+          ) : null}
+
+          {pipelineChecks.length ? (
+            <View style={styles.pipelineList}>
+              {pipelineChecks.map((c) => {
+                const st = (c.status ?? "info") as any;
+                const pill =
+                  st === "pass"
+                    ? "✅"
+                    : st === "warn"
+                      ? "⚠️"
+                      : st === "fail"
+                        ? "🛑"
+                        : "ℹ️";
+                return (
+                  <View key={c.id} style={styles.pipelineRow}>
+                    <Text style={styles.pipelineRowTitle}>
+                      {pill} {c.title}
+                    </Text>
+                    {c.details ? (
+                      <Text style={styles.pipelineRowDetails}>{c.details}</Text>
+                    ) : null}
+                    {c.fixHint ? (
+                      <Text style={styles.pipelineRowHint}>{c.fixHint}</Text>
+                    ) : null}
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <Text style={styles.pipelineEmpty}>
+              Noch keine Remote-Checks. (Repo/Branch verknüpfen → Check)
+            </Text>
+          )}
+        </View>
+
+<FlatList
         data={visibleResults}
         keyExtractor={(r) => r.id}
         renderItem={renderItem}
@@ -1828,4 +2056,99 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
+  pipelineBox: {
+    marginTop: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.palette.borderLight,
+    backgroundColor: theme.palette.card,
+    padding: 12,
+  },
+  pipelineHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  pipelineTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "800",
+    color: theme.palette.text.primary,
+  },
+  pipelineBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.palette.borderLight,
+    backgroundColor: theme.palette.card,
+  },
+  pipelineBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.palette.text.primary,
+  },
+  pipelineActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 10,
+  },
+  pipelineActionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.palette.borderLight,
+    backgroundColor: theme.palette.card,
+  },
+  pipelineActionText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: theme.palette.text.primary,
+  },
+  pipelineError: {
+    marginTop: 8,
+    color: theme.palette.error,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  pipelineEmpty: {
+    marginTop: 10,
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+  },
+  pipelineList: { marginTop: 10, gap: 10 },
+  pipelineRow: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.palette.borderLight,
+    backgroundColor: theme.palette.card,
+    padding: 10,
+  },
+  pipelineRowTitle: {
+    color: theme.palette.text.primary,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  pipelineRowDetails: {
+    marginTop: 2,
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+  },
+  pipelineRowHint: {
+    marginTop: 6,
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    fontStyle: "italic",
+  },
+
 });

@@ -1,14 +1,8 @@
-PATCH5 - Fully automated EAS init in CI (no local terminal) + resilient app.config
+PATCH7 - Fix diagnostics TypeScript error + UUID regex
 
 Changed files:
-1) app.config.js
-   - Make dotenv optional so CI can evaluate dynamic Expo config without crashing.
-2) .github/workflows/k1w1-triggered-build.yml
-   - Run `eas project:init --force --non-interactive` before build to auto-link/create EAS project in CI.
-   - If PROFILE=development but expo-dev-client is missing, auto-fallback to PROFILE=preview to still produce an APK.
-   - Bump EAS_CLI_VERSION to 16.31.0.
+- lib/diagnostics/buildPipelineDiagnostics.ts
 
 Why:
-- Fixes 'EAS project not configured' without requiring you to run `eas init` locally.
-- Prevents CI failures when dotenv isn't installed.
-- Avoids hard-failing on development profile when expo-dev-client isn't installed in the target project.
+- Fixes TS2554: getRepoFileText expects a single params object, not 4 positional args.
+- Fixes corrupted regex (literal '...') so projectId UUID detection works reliably.
