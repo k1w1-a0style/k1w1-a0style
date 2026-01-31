@@ -1,67 +1,45 @@
-name: K1W1 Triggered Build
+name: K1W1 Triggered EAS Build
 
 on:
   repository_dispatch:
-    types: [trigger-eas-build]
+    types: [k1w1-triggered-build]
   workflow_dispatch:
     inputs:
       ref:
-        description: "Branch/Ref to build (e.g. work, main, dev, feature-x)"
+        description: "Git ref to build (branch/tag/SHA)"
         required: false
         default: "main"
       profile:
-        description: "EAS build profile (development|preview|production)"
+        description: "EAS profile (development|preview|production)"
         required: false
-        default: "preview"
-      job_id:
-        description: "Optional build_jobs id to update in Supabase"
-        required: false
-        default: ""
-
-concurrency:
-  group: >-
-    ${{ github.workflow }}-${{ github.event_name }}-
-    ${{ github.event.client_payload.branch || github.event.client_payload.ref || inputs.ref || github.ref_name }}-
-    ${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || inputs.profile || 'preview' }}
-  cancel-in-progress: false
+        default: "development"
 
 permissions:
   contents: read
 
-env:
-  EAS_CLI_VERSION: "16.0.0"
-  ARTIFACT_EXT: "apk"
-  ALLOWED_REF_REGEX: "^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$"
-
 jobs:
-  autofix:
-    name: Autofix (optional)
+  build_android:
+    name: EAS Build (Android, WAIT)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: write
     env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      # Keep this pinned so CI is predictable.
+      EAS_CLI_VERSION: 16.32.0
+      CHECKOUT_REF: ${{ github.event.client_payload.ref || inputs.ref || 'main' }}
+      PROFILE: ${{ github.event.client_payload.profile || inputs.profile || 'development' }}
+      ARTIFACT_EXT: apk
+      JOB_ID: ${{ github.event.client_payload.job_id || '' }}
 
     steps:
-      - name: Determine checkout ref
+      - name: Validate EXPO_TOKEN
         shell: bash
         run: |
           set -euo pipefail
-          REF="${{ github.event.client_payload.branch }}"
-          if [ -z "$REF" ]; then REF="${{ github.event.client_payload.ref }}"; fi
-          if [ -z "$REF" ]; then REF="${{ github.event.inputs.ref }}"; fi
-          if [ -z "$REF" ]; then REF="${GITHUB_REF_NAME:-work}"; fi
-          if [ -z "$REF" ]; then REF="work"; fi
-          REF="$(printf '%s' "$REF" | tr -d '\r\n')"
-          if ! [[ "$REF" =~ $ALLOWED_REF_REGEX ]]; then
-            echo "❌ Ref not allowed: $REF"
+          if [ -z "${EXPO_TOKEN:-}" ]; then
+            echo "::error::Missing GitHub Secret EXPO_TOKEN"
             exit 1
           fi
-          echo "CHECKOUT_REF=$REF" >> "$GITHUB_ENV"
-          echo "CHECKOUT_REF=$REF"
 
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ env.CHECKOUT_REF }}
@@ -70,388 +48,141 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: 20
 
-
-      - name: Sanitize native folders (managed builds)
+      - name: Install dependencies
         shell: bash
         run: |
           set -euo pipefail
-          # If a previous sync left *partial* native folders, EAS/Expo switches to native mode and fails.
-          # We only delete when the folders are clearly incomplete.
-          ANDROID_INCOMPLETE=false
-          IOS_INCOMPLETE=false
-
-          if [ -d android ]; then
-            if [ ! -f android/build.gradle ] && [ ! -f android/app/build.gradle ]; then
-              ANDROID_INCOMPLETE=true
-            fi
-          fi
-
-          if [ -d ios ]; then
-            if [ ! -f ios/Podfile ] && ! ls ios/*.xcodeproj >/dev/null 2>&1; then
-              IOS_INCOMPLETE=true
-            fi
-          fi
-
-          if [ "$ANDROID_INCOMPLETE" = true ] || [ "$IOS_INCOMPLETE" = true ]; then
-            echo "⚠️ Removing incomplete native folders (android=$ANDROID_INCOMPLETE, ios=$IOS_INCOMPLETE)"
-            rm -rf android ios
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund --include=dev
           else
-            echo "✅ No incomplete native folders detected."
+            echo "::warning::No lockfile found -> npm install (non-reproducible)."
+            npm install --no-audit --no-fund --include=dev
           fi
-
-      - name: Install dependencies (robust)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -f package-lock.json ]; then
-            echo "Using npm ci..."
-            if npm ci; then
-              exit 0
-            fi
-            echo "npm ci failed - trying legacy-peer-deps..."
-            npm ci --legacy-peer-deps
-            exit 0
-          fi
-
-          echo "No package-lock.json, using npm install..."
-          if npm install; then
-            exit 0
-          fi
-          echo "npm install failed - trying legacy-peer-deps..."
-          npm install --legacy-peer-deps
-
-      - name: Lint + Typecheck
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm run typecheck
-          npm run lint:ci
-
-      - name: Commit autofix (if any)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git diff --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "chore(ci): autofix templates / lint"
-          git push
-
-  build:
-    name: Build APK (EAS)
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    permissions:
-      contents: write
-    env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      SUPABASE_APK_BUCKET: ${{ secrets.SUPABASE_APK_BUCKET }}
-      JOB_ID: ${{ github.event.client_payload.job_id || github.event.inputs.job_id || '' }}
-
-    steps:
-      - name: Determine checkout ref
-        shell: bash
-        run: |
-          set -euo pipefail
-          REF="${{ github.event.client_payload.branch }}"
-          if [ -z "$REF" ]; then REF="${{ github.event.client_payload.ref }}"; fi
-          if [ -z "$REF" ]; then REF="${{ github.event.inputs.ref }}"; fi
-          if [ -z "$REF" ]; then REF="${GITHUB_REF_NAME:-work}"; fi
-          if [ -z "$REF" ]; then REF="work"; fi
-          REF="$(printf '%s' "$REF" | tr -d '\r\n')"
-          if ! [[ "$REF" =~ $ALLOWED_REF_REGEX ]]; then
-            echo "❌ Ref not allowed: $REF"
-            exit 1
-          fi
-          echo "CHECKOUT_REF=$REF" >> "$GITHUB_ENV"
-          echo "CHECKOUT_REF=$REF"
-
-      - name: Validate JOB_ID
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -n "${JOB_ID:-}" ] && ! [[ "$JOB_ID" =~ ^[0-9]+$ ]]; then
-            echo "⚠️ Invalid JOB_ID from payload; clearing"
-            echo "JOB_ID=" >> "$GITHUB_ENV"
-          fi
-
-      - name: Determine build profile
-        shell: bash
-        run: |
-          set -euo pipefail
-          PROFILE="${{ github.event.client_payload.build_profile }}"
-          if [ -z "$PROFILE" ]; then PROFILE="${{ github.event.client_payload.buildProfile }}"; fi
-          if [ -z "$PROFILE" ]; then PROFILE="${{ github.event.inputs.profile }}"; fi
-          if [ -z "$PROFILE" ]; then PROFILE="preview"; fi
-
-          case "$PROFILE" in
-            development|preview|production) ;;
-            *) echo "Invalid profile: $PROFILE"; exit 1 ;;
-          esac
-
-          echo "PROFILE=$PROFILE" >> "$GITHUB_ENV"
-          echo "PROFILE=$PROFILE"
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ env.CHECKOUT_REF }}
-          fetch-depth: 0
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install dependencies (robust)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -f package-lock.json ]; then
-            echo "Using npm ci..."
-            if npm ci; then
-              exit 0
-            fi
-            echo "npm ci failed - trying legacy-peer-deps..."
-            npm ci --legacy-peer-deps
-            exit 0
-          fi
-
-          echo "No package-lock.json, using npm install..."
-          if npm install; then
-            exit 0
-          fi
-          echo "npm install failed - trying legacy-peer-deps..."
-          npm install --legacy-peer-deps
 
       - name: Install EAS CLI
         shell: bash
         run: |
           set -euo pipefail
-          npm i -g eas-cli@${EAS_CLI_VERSION}
+          npm i -g "eas-cli@${EAS_CLI_VERSION}"
           eas --version
 
-      - name: Verify EAS auth
+      - name: Cleanup incomplete native directories
         shell: bash
         run: |
           set -euo pipefail
-          eas whoami
+          # If android/ios exist but are incomplete, EAS treats the project as "prebuild/bare" and fails.
+          if [ -d android ] && [ ! -f android/app/build.gradle ] && [ ! -f android/app/build.gradle.kts ]; then
+            echo "🧹 Removing incomplete android/ directory (no android/app/build.gradle)."
+            rm -rf android
+          fi
+          if [ -d ios ] && [ ! -f ios/Podfile ]; then
+            echo "🧹 Removing incomplete ios/ directory (no ios/Podfile)."
+            rm -rf ios
+          fi
 
-      - name: Update Supabase job: running
-        if: ${{ env.JOB_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
+      - name: Prepare local Android keystore (non-production)
         shell: bash
         run: |
           set -euo pipefail
-          echo "Updating build_jobs (running) job_id=$JOB_ID"
-          python - <<'PY'
-          import os, json, subprocess
-          url=os.environ["SUPABASE_URL"].rstrip("/")
-          key=os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-          job=os.environ["JOB_ID"]
-          body={
-            "status":"running",
-            "github_repo": os.environ.get("GITHUB_REPOSITORY",""),
-            "github_run_id": os.environ.get("GITHUB_RUN_ID",""),
+
+          if [ "${PROFILE}" = "production" ]; then
+            echo "ℹ️ production profile -> expecting Android credentials to already exist on EAS (Expo server)."
+            echo "If this fails with a keystore error, run once locally: eas credentials -p android (interactive)"
+            exit 0
+          fi
+
+          if ! command -v keytool >/dev/null 2>&1; then
+            echo "::error::keytool not found (Java missing on runner)."
+            exit 1
+          fi
+
+          mkdir -p .eas/ci
+          KEYSTORE_PATH=".eas/ci/k1w1-ci.jks"
+          KEYSTORE_PASSWORD="k1w1-ci-pass"
+          KEY_ALIAS="k1w1"
+          KEY_PASSWORD="k1w1-ci-pass"
+
+          rm -f "${KEYSTORE_PATH}"
+          echo "🔐 Generating ephemeral keystore for ${PROFILE} build…"
+          keytool -genkeypair \
+            -storetype JKS \
+            -keystore "${KEYSTORE_PATH}" \
+            -storepass "${KEYSTORE_PASSWORD}" \
+            -alias "${KEY_ALIAS}" \
+            -keypass "${KEY_PASSWORD}" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 3650 \
+            -dname "CN=K1W1 CI, OU=CI, O=K1W1, L=Berlin, S=BE, C=DE" \
+            >/dev/null
+
+          echo "KEYSTORE_PATH=${KEYSTORE_PATH}" >> "$GITHUB_ENV"
+          echo "KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD}" >> "$GITHUB_ENV"
+          echo "KEY_ALIAS=${KEY_ALIAS}" >> "$GITHUB_ENV"
+          echo "KEY_PASSWORD=${KEY_PASSWORD}" >> "$GITHUB_ENV"
+
+          # Patch eas.json so THIS CI build uses local credentials + APK + no dev client requirement.
+          # (We don't commit back; it only affects the build upload.)
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = 'eas.json';
+          const profile = process.env.PROFILE || 'development';
+          const keystorePath = process.env.KEYSTORE_PATH;
+          const keystorePassword = process.env.KEYSTORE_PASSWORD;
+          const keyAlias = process.env.KEY_ALIAS;
+          const keyPassword = process.env.KEY_PASSWORD;
+
+          if (!fs.existsSync(path)) {
+            console.error('::error::eas.json not found.');
+            process.exit(1);
           }
-          subprocess.check_call([
-            "curl","-fsS","-X","PATCH",f"{url}/rest/v1/build_jobs?id=eq.{job}",
-            "-H",f"apikey: {key}",
-            "-H",f"Authorization: Bearer {key}",
-            "-H","Content-Type: application/json",
-            "-H","Prefer: return=minimal",
-            "--data",json.dumps(body)
-          ])
-          PY
 
+          const eas = JSON.parse(fs.readFileSync(path, 'utf8'));
+          eas.cli = eas.cli || {};
+          // Removes future warning and keeps versions consistent.
+          eas.cli.appVersionSource = eas.cli.appVersionSource || 'remote';
 
-      - name: Ensure EAS project is initialized (non-interactive)
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Prevents: "EAS project not configured" in CI (no manual terminal steps required)
-          eas project:init --force --non-interactive
+          eas.build = eas.build || {};
+          eas.build[profile] = eas.build[profile] || {};
+          const b = eas.build[profile];
 
+          b.distribution = b.distribution || 'internal';
+          b.developmentClient = false;
+          b.android = b.android || {};
+          b.android.buildType = b.android.buildType || 'apk';
+          b.android.credentialsSource = 'local';
+          b.android.keystore = {
+            keystorePath,
+            keystorePassword,
+            keyAlias,
+            keyPassword,
+          };
+
+          fs.writeFileSync(path, JSON.stringify(eas, null, 2) + '\n');
+          console.log(`✅ Patched eas.json for profile '${profile}' -> local keystore + apk + devClient=false`);
+          NODE
 
       - name: Run EAS Build (WAIT)
-        id: eas
         shell: bash
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           set -euo pipefail
-          echo "Starting EAS build (android, profile=${PROFILE}) with --wait..."
-          set +e
-          eas build --platform android --profile "${PROFILE}" --non-interactive --wait 2>&1 | tee /tmp/eas_build.log
-          EC=${PIPESTATUS[0]}
-          set -e
-
-          UUID_RE='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
-          BUILD_ID="$(grep -Eo "${UUID_RE}" /tmp/eas_build.log | head -n 1 || true)"
-          BUILD_URL="$(grep -Eo "https://expo\.dev/[^ ]+/builds/${UUID_RE}" /tmp/eas_build.log | tail -n 1 || true)"
-          if [ -n "${BUILD_ID:-}" ]; then
-            echo "EAS_BUILD_ID=$BUILD_ID" >> "$GITHUB_ENV"
-          fi
-          if [ -n "${BUILD_URL:-}" ]; then
-            echo "EAS_BUILD_URL=$BUILD_URL" >> "$GITHUB_ENV"
-          fi
-
-          exit $EC
-
-      - name: Download Android APK
-        if: ${{ success() && env.EAS_BUILD_ID != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p build
-          OUT="build/apk-${{ github.run_id }}-${PROFILE}.${ARTIFACT_EXT}"
-          for i in 1 2 3 4 5; do
-            if eas build:download --id "${EAS_BUILD_ID}" --output "${OUT}" --non-interactive; then
-              break
-            fi
-            echo "Retry download ($i/5)..." >&2
-            sleep 5
-          done
-          test -f "${OUT}"
-          echo "ARTIFACT_NAME=$(basename "${OUT}")" >> "$GITHUB_ENV"
-          echo "ARTIFACT_SHA256=$(sha256sum "${OUT}" | awk '{print $1}')" >> "$GITHUB_ENV"
-          echo "ARTIFACT_SIZE=$(wc -c < "${OUT}" | tr -d ' ')" >> "$GITHUB_ENV"
-
-      - name: Upload APK to Supabase Storage (download_url)
-        if: ${{ success() && env.EAS_BUILD_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          APK_PATH="build/${ARTIFACT_NAME:-}"
-          if [ -z "${APK_PATH}" ] || [ ! -f "${APK_PATH}" ]; then
-            APK_PATH="$(ls -1 build/*.apk 2>/dev/null | head -n 1 || true)"
-          fi
-          if [ -z "${APK_PATH}" ] || [ ! -f "${APK_PATH}" ]; then
-            echo "No APK file found to upload"
-            exit 1
-          fi
-
-          BUCKET="${SUPABASE_APK_BUCKET:-apk-builds}"
-          OBJ_PATH="${GITHUB_REPOSITORY}/${CHECKOUT_REF}/${PROFILE}/apk-${GITHUB_RUN_ID}.apk"
-
-          echo "Uploading ${APK_PATH} to bucket=${BUCKET} path=${OBJ_PATH}"
-
-          curl -fsS -X POST "${SUPABASE_URL}/storage/v1/object/${BUCKET}/${OBJ_PATH}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/vnd.android.package-archive"             -H "x-upsert: true"             --data-binary "@${APK_PATH}"
-
-          SIGNED_JSON="$(curl -fsS -X POST "${SUPABASE_URL}/storage/v1/object/sign/${BUCKET}/${OBJ_PATH}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             --data '{"expiresIn":604800}')"
-
-          SIGNED_PATH="$(python - <<'PY'
-import json, sys
-data=json.loads(sys.stdin.read() or "{}")
-print(data.get("signedURL") or data.get("signedUrl") or "")
-PY
-<<< "${SIGNED_JSON}")"
-
-          if [ -z "${SIGNED_PATH}" ]; then
-            echo "Could not create signed URL"
-            echo "${SIGNED_JSON}"
-            exit 1
-          fi
-
-          if [[ "${SIGNED_PATH}" == http* ]]; then
-            DOWNLOAD_URL="${SIGNED_PATH}"
-          else
-            DOWNLOAD_URL="${SUPABASE_URL%/}${SIGNED_PATH}"
-          fi
-
-          echo "DOWNLOAD_URL=${DOWNLOAD_URL}" >> "$GITHUB_ENV"
-          echo "DOWNLOAD_URL=${DOWNLOAD_URL}"
-
-      - name: Upload Artifacts (APK + EAS log)
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk-${{ github.repository }}-${{ env.CHECKOUT_REF }}-${{ env.PROFILE }}-${{ github.run_id }}
-          path: |
-            build/*
-            /tmp/eas_build.log
-
-      - name: "Update Supabase job: success"
-        if: ${{ success() && env.JOB_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import os, json, subprocess
-          url=os.environ["SUPABASE_URL"].rstrip("/")
-          key=os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-          job=os.environ["JOB_ID"]
-          body={"status":"succeeded"}
-          du=os.environ.get("DOWNLOAD_URL","").strip()
-          if du:
-            body["download_url"]=du
-          bid=os.environ.get("EAS_BUILD_ID","").strip()
-          if bid:
-            body["eas_build_id"]=bid
-          an=os.environ.get("ARTIFACT_NAME","").strip()
-          if an:
-            body["artifact_name"]=an
-          sh=os.environ.get("ARTIFACT_SHA256","").strip()
-          if sh:
-            body["artifact_sha256"]=sh
-          sz=os.environ.get("ARTIFACT_SIZE","").strip()
-          if sz.isdigit():
-            body["artifact_size"]=int(sz)
-          bu=os.environ.get("EAS_BUILD_URL","").strip()
-          if bu:
-            body["build_url"]=bu
-          subprocess.check_call([
-            "curl","-fsS","-X","PATCH",f"{url}/rest/v1/build_jobs?id=eq.{job}",
-            "-H",f"apikey: {key}",
-            "-H",f"Authorization: Bearer {key}",
-            "-H","Content-Type: application/json",
-            "-H","Prefer: return=minimal",
-            "--data",json.dumps(body)
-          ])
-          PY
-
-      - name: "Update Supabase job: failure"
-        if: ${{ failure() && env.JOB_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import os, json, subprocess, pathlib
-          url=os.environ["SUPABASE_URL"].rstrip("/")
-          key=os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-          job=os.environ["JOB_ID"]
-          log_path=pathlib.Path("/tmp/eas_build.log")
-          log=""
-          if log_path.exists():
-            log=log_path.read_text(errors="ignore")[-5000:]
-          body={"status":"failed","error_message":log}
-          bu=os.environ.get("EAS_BUILD_URL","").strip()
-          if bu:
-            body["build_url"]=bu
-          subprocess.check_call([
-            "curl","-fsS","-X","PATCH",f"{url}/rest/v1/build_jobs?id=eq.{job}",
-            "-H",f"apikey: {key}",
-            "-H",f"Authorization: Bearer {key}",
-            "-H","Content-Type: application/json",
-            "-H","Prefer: return=minimal",
-            "--data",json.dumps(body)
-          ])
-          PY
+          echo "🚀 Starting EAS build (android, profile=${PROFILE}) with --wait..."
+          eas build --platform android --profile "${PROFILE}" --non-interactive --wait
 
       - name: Summary
-        if: ${{ always() }}
+        if: always()
         shell: bash
         run: |
-          set -euo pipefail
-          echo "=== Build Summary ==="
-          echo "- Repo: ${GITHUB_REPOSITORY}"
-          echo "- Checkout ref: ${CHECKOUT_REF}"
-          echo "- Profile: ${PROFILE}"
-          echo "- Run ID: ${GITHUB_RUN_ID}"
-          echo "- EAS Build URL: ${EAS_BUILD_URL:-}"
-          echo "- EAS Build ID: ${EAS_BUILD_ID:-}"
+          {
+            echo "## Triggered Build Summary"
+            echo ""
+            echo "- Repo: ${{ github.repository }}"
+            echo "- Event: ${{ github.event_name }}"
+            echo "- Checkout ref: ${CHECKOUT_REF}"
+            echo "- Profile: ${PROFILE}"
+            echo "- Commit: $(git rev-parse HEAD)"
+          } >> "$GITHUB_STEP_SUMMARY"

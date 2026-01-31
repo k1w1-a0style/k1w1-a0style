@@ -1,7 +1,12 @@
-PATCH33 - Fix GitHubReposScreen cleanup dialog compile error
+PATCH37 - CI hard-fix for EAS Android builds
 
-Changed files:
-- screens/GitHubReposScreen.tsx
-  Reason: remove undefined variable ownerRepo in cleanup confirmation text; use owner/repo directly so TypeScript compiles.
+Replaces:
+- .github/workflows/k1w1-triggered-build.yml
+- .github/workflows/eas-build.yml
 
-No other files changed.
+What it does:
+- Removes fragile self-heal grep/commit logic.
+- Ensures dependencies are installed before running any Expo/EAS commands.
+- Deletes incomplete android/ios native directories that break managed EAS builds.
+- Generates a local CI keystore for non-production profiles to avoid the "Generating a new Keystore is not supported in --non-interactive mode" error.
+- Blocks production builds in CI unless real credentials are already configured.
