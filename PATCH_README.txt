@@ -1,6 +1,6 @@
 Apply:
-  unzip -o Mobile-APK-Builder-PATCH17.zip
-  rm Mobile-APK-Builder-PATCH17.zip
+  unzip -o Mobile-APK-Builder-PATCH18.zip
+  rm Mobile-APK-Builder-PATCH18.zip
 
 Verify:
   npm run typecheck
@@ -9,10 +9,6 @@ Verify:
 
 Commit + push:
   git add -A
-  git commit -m "fix(diagnostics): provide autofix patches for warnings"
+  git commit -m "chore(diagnostics): unique id for package.json read warn"
   git push origin build
-
-Verify in app:
-  - Open Diagnostics → Run → you should see the same warnings BUT now with Fix available.
-  - Tap AutoFix → warnings should drop and eas.json/app.config.js should be patched.
 

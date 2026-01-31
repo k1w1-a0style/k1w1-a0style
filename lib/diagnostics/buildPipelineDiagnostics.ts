@@ -293,7 +293,7 @@ export const runBuildPipelineDiagnostics = async (params: {
       });
     } catch {
       checks.push({
-        id: "repo.dep.expoDevClient",
+        id: "repo.dep.expoDevClient.read",
         title: "Dependency: expo-dev-client (für Development Flow)",
         status: "warn",
         fixHint: "package.json konnte nicht gelesen werden.",
