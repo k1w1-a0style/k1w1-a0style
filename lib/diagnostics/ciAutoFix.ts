@@ -31,1029 +31,1204 @@ export function parseOwnerRepo(
   return { owner: m[1], repo: m[2] };
 }
 
+const WORKFLOW_K1W1_TRIGGERED_BUILD = [
+  'name: K1W1 Triggered Build',
+  '',
+  'on:',
+  '  repository_dispatch:',
+  '    types: [trigger-eas-build]',
+  '  workflow_dispatch:',
+  '    inputs:',
+  '      ref:',
+  '        description: "Branch/Ref to build (e.g. work, main, dev, feature-x)"',
+  '        required: false',
+  '        default: "main"',
+  '      profile:',
+  '        description: "EAS build profile (development|preview|production)"',
+  '        required: false',
+  '        default: "preview"',
+  '      job_id:',
+  '        description: "Optional build_jobs id to update in Supabase"',
+  '        required: false',
+  '        default: ""',
+  '',
+  'concurrency:',
+  '  group: >-',
+  '    ${{ github.workflow }}-${{ github.event_name }}-',
+  '    ${{ github.event.client_payload.branch || github.event.client_payload.ref || inputs.ref || github.ref_name }}-',
+  '    ${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || inputs.profile || \'preview\' }}',
+  '  cancel-in-progress: false',
+  '',
+  'permissions:',
+  '  contents: read',
+  '',
+  'env:',
+  '  EAS_CLI_VERSION: "16.0.0"',
+  '  ARTIFACT_EXT: "apk"',
+  '  ALLOWED_REF_REGEX: "^(work|main|develop|dev|release\\\\/.*|feature\\\\/.*|hotfix\\\\/.*)$"',
+  '',
+  'jobs:',
+  '  autofix:',
+  '    name: Autofix (optional)',
+  '    runs-on: ubuntu-latest',
+  '    timeout-minutes: 15',
+  '    permissions:',
+  '      contents: write',
+  '    env:',
+  '      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}',
+  '',
+  '    steps:',
+  '      - name: Determine checkout ref',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          REF="${{ github.event.client_payload.branch }}"',
+  '          if [ -z "$REF" ]; then REF="${{ github.event.client_payload.ref }}"; fi',
+  '          if [ -z "$REF" ]; then REF="${{ github.event.inputs.ref }}"; fi',
+  '          if [ -z "$REF" ]; then REF="${GITHUB_REF_NAME:-work}"; fi',
+  '          if [ -z "$REF" ]; then REF="work"; fi',
+  '          REF="$(printf \'%s\' "$REF" | tr -d \'\\r\\n\')"',
+  '          if ! [[ "$REF" =~ $ALLOWED_REF_REGEX ]]; then',
+  '            echo "❌ Ref not allowed: $REF"',
+  '            exit 1',
+  '          fi',
+  '          echo "CHECKOUT_REF=$REF" >> "$GITHUB_ENV"',
+  '          echo "CHECKOUT_REF=$REF"',
+  '',
+  '      - name: Checkout repository',
+  '        uses: actions/checkout@v4',
+  '        with:',
+  '          ref: ${{ env.CHECKOUT_REF }}',
+  '          fetch-depth: 0',
+  '',
+  '      - name: Setup Node',
+  '        uses: actions/setup-node@v4',
+  '        with:',
+  '          node-version: "20"',
+  '',
+  '      - name: Install dependencies (robust)',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          if [ -f package-lock.json ]; then',
+  '            echo "Using npm ci..."',
+  '            if npm ci; then',
+  '              exit 0',
+  '            fi',
+  '            echo "npm ci failed - trying legacy-peer-deps..."',
+  '            npm ci --legacy-peer-deps',
+  '            exit 0',
+  '          fi',
+  '',
+  '          echo "No package-lock.json, using npm install..."',
+  '          if npm install; then',
+  '            exit 0',
+  '          fi',
+  '          echo "npm install failed - trying legacy-peer-deps..."',
+  '          npm install --legacy-peer-deps',
+  '',
+  '      - name: Lint + Typecheck',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          npm run typecheck',
+  '          npm run lint:ci',
+  '',
+  '      - name: Commit autofix (if any)',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          if git diff --quiet; then',
+  '            echo "No changes to commit."',
+  '            exit 0',
+  '          fi',
+  '          git config user.name "github-actions[bot]"',
+  '          git config user.email "github-actions[bot]@users.noreply.github.com"',
+  '          git add -A',
+  '          git commit -m "chore(ci): autofix templates / lint"',
+  '          git push',
+  '',
+  '  build:',
+  '    name: Build APK (EAS)',
+  '    runs-on: ubuntu-latest',
+  '    timeout-minutes: 45',
+  '    permissions:',
+  '      contents: write',
+  '    env:',
+  '      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}',
+  '      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}',
+  '      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}',
+  '      JOB_ID: ${{ github.event.client_payload.job_id || github.event.inputs.job_id || \'\' }}',
+  '',
+  '    steps:',
+  '      - name: Determine checkout ref',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          REF="${{ github.event.client_payload.branch }}"',
+  '          if [ -z "$REF" ]; then REF="${{ github.event.client_payload.ref }}"; fi',
+  '          if [ -z "$REF" ]; then REF="${{ github.event.inputs.ref }}"; fi',
+  '          if [ -z "$REF" ]; then REF="${GITHUB_REF_NAME:-work}"; fi',
+  '          if [ -z "$REF" ]; then REF="work"; fi',
+  '          REF="$(printf \'%s\' "$REF" | tr -d \'\\r\\n\')"',
+  '          if ! [[ "$REF" =~ $ALLOWED_REF_REGEX ]]; then',
+  '            echo "❌ Ref not allowed: $REF"',
+  '            exit 1',
+  '          fi',
+  '          echo "CHECKOUT_REF=$REF" >> "$GITHUB_ENV"',
+  '          echo "CHECKOUT_REF=$REF"',
+  '',
+  '      - name: Validate JOB_ID',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          if [ -n "${JOB_ID:-}" ] && ! [[ "$JOB_ID" =~ ^[0-9]+$ ]]; then',
+  '            echo "⚠️ Invalid JOB_ID from payload; clearing"',
+  '            echo "JOB_ID=" >> "$GITHUB_ENV"',
+  '          fi',
+  '',
+  '      - name: Determine build profile',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          PROFILE="${{ github.event.client_payload.build_profile }}"',
+  '          if [ -z "$PROFILE" ]; then PROFILE="${{ github.event.client_payload.buildProfile }}"; fi',
+  '          if [ -z "$PROFILE" ]; then PROFILE="${{ github.event.inputs.profile }}"; fi',
+  '          if [ -z "$PROFILE" ]; then PROFILE="preview"; fi',
+  '',
+  '          case "$PROFILE" in',
+  '            development|preview|production) ;;',
+  '            *) echo "Invalid profile: $PROFILE"; exit 1 ;;',
+  '          esac',
+  '',
+  '          echo "PROFILE=$PROFILE" >> "$GITHUB_ENV"',
+  '          echo "PROFILE=$PROFILE"',
+  '',
+  '      - name: Checkout repository',
+  '        uses: actions/checkout@v4',
+  '        with:',
+  '          ref: ${{ env.CHECKOUT_REF }}',
+  '          fetch-depth: 0',
+  '',
+  '      - name: Setup Node',
+  '        uses: actions/setup-node@v4',
+  '        with:',
+  '          node-version: "20"',
+  '',
+  '      - name: Install dependencies (robust)',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          if [ -f package-lock.json ]; then',
+  '            echo "Using npm ci..."',
+  '            if npm ci; then',
+  '              exit 0',
+  '            fi',
+  '            echo "npm ci failed - trying legacy-peer-deps..."',
+  '            npm ci --legacy-peer-deps',
+  '            exit 0',
+  '          fi',
+  '',
+  '          echo "No package-lock.json, using npm install..."',
+  '          if npm install; then',
+  '            exit 0',
+  '          fi',
+  '          echo "npm install failed - trying legacy-peer-deps..."',
+  '          npm install --legacy-peer-deps',
+  '',
+  '      - name: Install EAS CLI',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          npm i -g eas-cli@${EAS_CLI_VERSION}',
+  '          eas --version',
+  '',
+  '      - name: Verify EAS auth',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          eas whoami',
+  '',
+  '      - name: Update Supabase job: running',
+  '        if: ${{ env.JOB_ID != \'\' && env.SUPABASE_URL != \'\' && env.SUPABASE_SERVICE_ROLE_KEY != \'\' }}',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          echo "Updating build_jobs (running) job_id=$JOB_ID"',
+  '          python - <<\'PY\'',
+  '          import os, json, subprocess',
+  '          url=os.environ["SUPABASE_URL"].rstrip("/")',
+  '          key=os.environ["SUPABASE_SERVICE_ROLE_KEY"]',
+  '          job=os.environ["JOB_ID"]',
+  '          body={',
+  '            "status":"running",',
+  '            "github_repo": os.environ.get("GITHUB_REPOSITORY",""),',
+  '            "github_run_id": os.environ.get("GITHUB_RUN_ID",""),',
+  '          }',
+  '          subprocess.check_call([',
+  '            "curl","-fsS","-X","PATCH",f"{url}/rest/v1/build_jobs?id=eq.{job}",',
+  '            "-H",f"apikey: {key}",',
+  '            "-H",f"Authorization: Bearer {key}",',
+  '            "-H","Content-Type: application/json",',
+  '            "-H","Prefer: return=minimal",',
+  '            "--data",json.dumps(body)',
+  '          ])',
+  '          PY',
+  '',
+  '      - name: Run EAS Build (WAIT)',
+  '        id: eas',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          echo "Starting EAS build (android, profile=${PROFILE}) with --wait..."',
+  '          set +e',
+  '          eas build --platform android --profile "${PROFILE}" --non-interactive --wait 2>&1 | tee /tmp/eas_build.log',
+  '          EC=${PIPESTATUS[0]}',
+  '          set -e',
+  '',
+  '          UUID_RE=\'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\'',
+  '          BUILD_ID="$(grep -Eo "${UUID_RE}" /tmp/eas_build.log | head -n 1 || true)"',
+  '          BUILD_URL="$(grep -Eo "https://expo\\.dev/[^ ]+/builds/${UUID_RE}" /tmp/eas_build.log | tail -n 1 || true)"',
+  '          if [ -n "${BUILD_ID:-}" ]; then',
+  '            echo "EAS_BUILD_ID=$BUILD_ID" >> "$GITHUB_ENV"',
+  '          fi',
+  '          if [ -n "${BUILD_URL:-}" ]; then',
+  '            echo "EAS_BUILD_URL=$BUILD_URL" >> "$GITHUB_ENV"',
+  '          fi',
+  '',
+  '          exit $EC',
+  '',
+  '      - name: Download Android APK',
+  '        if: ${{ success() && env.EAS_BUILD_ID != \'\' }}',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          mkdir -p build',
+  '          OUT="build/apk-${{ github.run_id }}-${PROFILE}.${ARTIFACT_EXT}"',
+  '          for i in 1 2 3 4 5; do',
+  '            if eas build:download --id "${EAS_BUILD_ID}" --output "${OUT}" --non-interactive; then',
+  '              break',
+  '            fi',
+  '            echo "Retry download ($i/5)..." >&2',
+  '            sleep 5',
+  '          done',
+  '          test -f "${OUT}"',
+  '          echo "ARTIFACT_NAME=$(basename "${OUT}")" >> "$GITHUB_ENV"',
+  '          echo "ARTIFACT_SHA256=$(sha256sum "${OUT}" | awk \'{print $1}\')" >> "$GITHUB_ENV"',
+  '          echo "ARTIFACT_SIZE=$(wc -c < "${OUT}" | tr -d \' \')" >> "$GITHUB_ENV"',
+  '',
+  '      - name: Upload Artifacts (APK + EAS log)',
+  '        uses: actions/upload-artifact@v4',
+  '        with:',
+  '          name: apk-${{ github.repository }}-${{ env.CHECKOUT_REF }}-${{ env.PROFILE }}-${{ github.run_id }}',
+  '          path: |',
+  '            build/*',
+  '            /tmp/eas_build.log',
+  '',
+  '      - name: "Update Supabase job: success"',
+  '        if: ${{ success() && env.JOB_ID != \'\' && env.SUPABASE_URL != \'\' && env.SUPABASE_SERVICE_ROLE_KEY != \'\' }}',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          python - <<\'PY\'',
+  '          import os, json, subprocess',
+  '          url=os.environ["SUPABASE_URL"].rstrip("/")',
+  '          key=os.environ["SUPABASE_SERVICE_ROLE_KEY"]',
+  '          job=os.environ["JOB_ID"]',
+  '          body={"status":"succeeded"}',
+  '          bid=os.environ.get("EAS_BUILD_ID","").strip()',
+  '          if bid:',
+  '            body["eas_build_id"]=bid',
+  '          an=os.environ.get("ARTIFACT_NAME","").strip()',
+  '          if an:',
+  '            body["artifact_name"]=an',
+  '          sh=os.environ.get("ARTIFACT_SHA256","").strip()',
+  '          if sh:',
+  '            body["artifact_sha256"]=sh',
+  '          sz=os.environ.get("ARTIFACT_SIZE","").strip()',
+  '          if sz.isdigit():',
+  '            body["artifact_size"]=int(sz)',
+  '          bu=os.environ.get("EAS_BUILD_URL","").strip()',
+  '          if bu:',
+  '            body["build_url"]=bu',
+  '          subprocess.check_call([',
+  '            "curl","-fsS","-X","PATCH",f"{url}/rest/v1/build_jobs?id=eq.{job}",',
+  '            "-H",f"apikey: {key}",',
+  '            "-H",f"Authorization: Bearer {key}",',
+  '            "-H","Content-Type: application/json",',
+  '            "-H","Prefer: return=minimal",',
+  '            "--data",json.dumps(body)',
+  '          ])',
+  '          PY',
+  '',
+  '      - name: "Update Supabase job: failure"',
+  '        if: ${{ failure() && env.JOB_ID != \'\' && env.SUPABASE_URL != \'\' && env.SUPABASE_SERVICE_ROLE_KEY != \'\' }}',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          python - <<\'PY\'',
+  '          import os, json, subprocess, pathlib',
+  '          url=os.environ["SUPABASE_URL"].rstrip("/")',
+  '          key=os.environ["SUPABASE_SERVICE_ROLE_KEY"]',
+  '          job=os.environ["JOB_ID"]',
+  '          log_path=pathlib.Path("/tmp/eas_build.log")',
+  '          log=""',
+  '          if log_path.exists():',
+  '            log=log_path.read_text(errors="ignore")[-5000:]',
+  '          body={"status":"failed","error":log}',
+  '          bu=os.environ.get("EAS_BUILD_URL","").strip()',
+  '          if bu:',
+  '            body["build_url"]=bu',
+  '          subprocess.check_call([',
+  '            "curl","-fsS","-X","PATCH",f"{url}/rest/v1/build_jobs?id=eq.{job}",',
+  '            "-H",f"apikey: {key}",',
+  '            "-H",f"Authorization: Bearer {key}",',
+  '            "-H","Content-Type: application/json",',
+  '            "-H","Prefer: return=minimal",',
+  '            "--data",json.dumps(body)',
+  '          ])',
+  '          PY',
+  '',
+  '      - name: Summary',
+  '        if: ${{ always() }}',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          echo "=== Build Summary ==="',
+  '          echo "- Repo: ${GITHUB_REPOSITORY}"',
+  '          echo "- Checkout ref: ${CHECKOUT_REF}"',
+  '          echo "- Profile: ${PROFILE}"',
+  '          echo "- Run ID: ${GITHUB_RUN_ID}"',
+  '          echo "- EAS Build URL: ${EAS_BUILD_URL:-}"',
+  '          echo "- EAS Build ID: ${EAS_BUILD_ID:-}"'
+].join('\n') + '\n';
+
+const WORKFLOW_EAS_BUILD = [
+  'name: EAS Build',
+  '',
+  'on:',
+  '  workflow_dispatch:',
+  '    inputs:',
+  '      ref:',
+  '        description: "Branch/Tag/SHA to build"',
+  '        required: false',
+  '        default: "main"',
+  '      profile:',
+  '        description: "EAS build profile (development|preview|production)"',
+  '        required: false',
+  '        default: "preview"',
+  '      job_id:',
+  '        description: "Supabase build job id (optional)"',
+  '        required: false',
+  '        default: ""',
+  '      platform:',
+  '        description: "Platform"',
+  '        required: false',
+  '        type: choice',
+  '        options: [android]',
+  '        default: android',
+  '      autofix:',
+  '        description: "Allow workflow to write back fixes (lockfile/dev-client) to the branch"',
+  '        required: false',
+  '        type: boolean',
+  '        default: false',
+  '',
+  'permissions:',
+  '  contents: read',
+  '',
+  'concurrency:',
+  '  group: eas-build-${{ inputs.ref }}-${{ inputs.profile }}',
+  '  cancel-in-progress: false',
+  '',
+  'jobs:',
+  '  autofix:',
+  '    name: Auto-fix repo (optional writeback)',
+  '    if: ${{ inputs.autofix == true }}',
+  '    runs-on: ubuntu-latest',
+  '    timeout-minutes: 30',
+  '    permissions:',
+  '      contents: write',
+  '',
+  '    env:',
+  '      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}',
+  '      EAS_CLI_VERSION: "16.0.0"',
+  '',
+  '    steps:',
+  '      - name: Checkout',
+  '        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4',
+  '        with:',
+  '          ref: ${{ inputs.ref }}',
+  '          fetch-depth: 0',
+  '',
+  '      - name: Detect lockfile (for cache + install strategy)',
+  '        id: lock',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          if [ -f package-lock.json ]; then',
+  '            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"',
+  '            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"',
+  '          elif [ -f npm-shrinkwrap.json ]; then',
+  '            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"',
+  '            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"',
+  '          else',
+  '            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"',
+  '            echo "lockfile_path=" >> "$GITHUB_OUTPUT"',
+  '          fi',
+  '',
+  '      - name: Setup Node (with npm cache)',
+  '        if: steps.lock.outputs.has_lockfile == \'true\'',
+  '        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4',
+  '        with:',
+  '          node-version: 20',
+  '          cache: npm',
+  '          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}',
+  '',
+  '      - name: Setup Node (no cache - lockfile missing)',
+  '        if: steps.lock.outputs.has_lockfile != \'true\'',
+  '        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4',
+  '        with:',
+  '          node-version: 20',
+  '',
+  '      - name: Install dependencies (frozen if possible)',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then',
+  '            echo "Using npm ci (lockfile: ${{ steps.lock.outputs.lockfile_path }})"',
+  '            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps',
+  '          else',
+  '            echo "::warning::No lockfile found in repo. Falling back to npm install (non-reproducible)."',
+  '            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps',
+  '          fi',
+  '',
+  '      - name: Install EAS CLI (pinned)',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          npm i -g "eas-cli@${EAS_CLI_VERSION}"',
+  '          eas --version',
+  '',
+  '      - name: Verify EAS auth',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          if [ -z "${EXPO_TOKEN:-}" ]; then',
+  '            echo "::error::Missing GitHub Secret EXPO_TOKEN"',
+  '            exit 1',
+  '          fi',
+  '          eas whoami',
+  '',
+  '      - name: Auto-fix repo (lockfile + dev client) [optional writeback]',
+  '        shell: bash',
+  '        env:',
+  '          TARGET_BRANCH: ${{ inputs.ref }}',
+  '          PROFILE: ${{ inputs.profile }}',
+  '          ALLOWED_REF_REGEX: "^(work|dev|develop|feature/.+|hotfix/.+)$"',
+  '        run: |',
+  '          set -euo pipefail',
+  '',
+  '          echo "🧯 Auto-fix: lockfile + expo-dev-client (development only)."',
+  '          npm config set package-lock true',
+  '',
+  '          if [ "${PROFILE}" = "development" ]; then',
+  '            echo "📦 Ensuring expo-dev-client for development builds..."',
+  '            npx --yes expo install expo-dev-client --fix || npx --yes expo install expo-dev-client',
+  '          fi',
+  '',
+  '          if [ ! -f package-lock.json ]; then',
+  '            echo "::warning::No package-lock.json found. Generating one (best effort)."',
+  '            npm install --package-lock-only --no-audit --no-fund',
+  '          fi',
+  '',
+  '          if ! git status --porcelain | grep -qE \'^( M|\\?\\?) (package.json|package-lock.json|\\.npmrc)$\'; then',
+  '            echo "ℹ️ No CI auto-fix changes to write back."',
+  '            exit 0',
+  '          fi',
+  '',
+  '          BR="${TARGET_BRANCH:-}"',
+  '          if [ -z "$BR" ]; then',
+  '            echo "::warning::No TARGET_BRANCH provided; skipping writeback."',
+  '            exit 0',
+  '          fi',
+  '',
+  '          if echo "$BR" | grep -qE \'^[0-9a-fA-F]{7,40}$\'; then',
+  '            echo "::warning::Ref looks like a SHA ($BR). Skipping writeback."',
+  '            exit 0',
+  '          fi',
+  '          if echo "$BR" | grep -qE \'[: ]\'; then',
+  '            echo "::warning::Unsafe ref ($BR). Skipping writeback."',
+  '            exit 0',
+  '          fi',
+  '          if ! echo "$BR" | grep -qE "${ALLOWED_REF_REGEX}"; then',
+  '            echo "::warning::Writeback disabled for branch \'$BR\' (regex: ${ALLOWED_REF_REGEX})."',
+  '            exit 0',
+  '          fi',
+  '',
+  '          if ! git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then',
+  '            echo "::warning::Ref \'$BR\' is not a remote branch. Skipping writeback."',
+  '            exit 0',
+  '          fi',
+  '',
+  '          echo "✅ Auto-fix changes detected -> committing back to \'$BR\'."',
+  '          git config user.email "actions@users.noreply.github.com"',
+  '          git config user.name "github-actions[bot]"',
+  '          git add package.json package-lock.json .npmrc 2>/dev/null || true',
+  '          git commit -m "chore(ci): auto-fix lockfile/dev-client [skip ci]" || true',
+  '',
+  '          echo "🚀 Pushing to origin $BR (best effort)..."',
+  '          git push origin "HEAD:$BR" || echo "::warning::Could not push auto-fix commit (branch may be protected)."',
+  '',
+  '  build:',
+  '    needs: [autofix]',
+  '    if: ${{ always() && (needs.autofix.result == \'success\' || needs.autofix.result == \'skipped\') }}',
+  '    permissions:',
+  '      contents: read',
+  '',
+  '    runs-on: ubuntu-latest',
+  '    timeout-minutes: 60',
+  '',
+  '    env:',
+  '      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}',
+  '      EAS_CLI_VERSION: "16.0.0"',
+  '',
+  '      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}',
+  '      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}',
+  '      JOB_ID: ${{ inputs.job_id }}',
+  '',
+  '    steps:',
+  '      - name: Validate inputs',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '',
+  '          case "${{ inputs.profile }}" in',
+  '            development|preview|production) ;;',
+  '            *)',
+  '              echo "::error::Invalid profile: \'${{ inputs.profile }}\' (allowed: development|preview|production)"',
+  '              exit 1',
+  '              ;;',
+  '          esac',
+  '',
+  '          if [ -z "${EXPO_TOKEN:-}" ]; then',
+  '            echo "::error::Missing GitHub Secret EXPO_TOKEN"',
+  '            exit 1',
+  '          fi',
+  '',
+  '          if [ "${{ inputs.profile }}" = "production" ]; then',
+  '            echo "ARTIFACT_EXT=aab" >> "$GITHUB_ENV"',
+  '          else',
+  '            echo "ARTIFACT_EXT=apk" >> "$GITHUB_ENV"',
+  '          fi',
+  '',
+  '          if [ -z "${JOB_ID:-}" ]; then',
+  '            echo "has_job_id=false" >> "$GITHUB_ENV"',
+  '          else',
+  '            if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then',
+  '              echo "::warning::JOB_ID provided, but SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing -> status updates will be skipped."',
+  '              echo "has_job_id=false" >> "$GITHUB_ENV"',
+  '            else',
+  '              echo "has_job_id=true" >> "$GITHUB_ENV"',
+  '            fi',
+  '          fi',
+  '',
+  '      - name: Checkout',
+  '        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4',
+  '        with:',
+  '          ref: ${{ inputs.ref }}',
+  '          fetch-depth: 0',
+  '',
+  '      - name: Detect lockfile (for cache + install strategy)',
+  '        id: lock',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          if [ -f package-lock.json ]; then',
+  '            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"',
+  '            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"',
+  '          elif [ -f npm-shrinkwrap.json ]; then',
+  '            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"',
+  '            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"',
+  '          elif [ -f yarn.lock ]; then',
+  '            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"',
+  '            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"',
+  '          elif [ -f pnpm-lock.yaml ]; then',
+  '            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"',
+  '            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"',
+  '          else',
+  '            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"',
+  '            echo "lockfile_path=" >> "$GITHUB_OUTPUT"',
+  '          fi',
+  '          echo "Repo root: $(pwd)"',
+  '          echo "Files:"; ls -lah',
+  '',
+  '      - name: Setup Node (with npm cache)',
+  '        if: steps.lock.outputs.has_lockfile == \'true\'',
+  '        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4',
+  '        with:',
+  '          node-version: 20',
+  '          cache: npm',
+  '          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}',
+  '',
+  '      - name: Setup Node (no cache - lockfile missing)',
+  '        if: steps.lock.outputs.has_lockfile != \'true\'',
+  '        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4',
+  '        with:',
+  '          node-version: 20',
+  '',
+  '      - name: Install dependencies (frozen if possible)',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then',
+  '            echo "Using npm ci (lockfile: ${{ steps.lock.outputs.lockfile_path }})"',
+  '            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps',
+  '          else',
+  '            echo "::warning::No lockfile found in repo. Falling back to npm install (non-reproducible)."',
+  '            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps',
+  '          fi',
+  '',
+  '      - name: Install EAS CLI (pinned)',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          npm i -g "eas-cli@${EAS_CLI_VERSION}"',
+  '          eas --version',
+  '',
+  '      - name: Verify EAS auth',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          eas whoami',
+  '',
+  '      - name: Update Build Status - Building',
+  '        if: env.has_job_id == \'true\'',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"',
+  '          RUN_ID="${{ github.run_id }}"',
+  '          PROFILE="${{ inputs.profile }}"',
+  '',
+  '          JSON="$(node -e \'console.log(JSON.stringify({status:"building",build_profile:process.argv[1],github_run_id:process.argv[2],started_at:process.argv[3]}))\' "${PROFILE}" "${RUN_ID}" "${TS}")"',
+  '',
+  '          curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (building)"',
+  '',
+  '      - name: Run EAS Build (WAIT)',
+  '        id: eas',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          PROFILE="${{ inputs.profile }}"',
+  '          PLATFORM="${{ inputs.platform }}"',
+  '',
+  '          echo "🚀 Starting EAS build (platform=${PLATFORM}, profile=${PROFILE}) with --wait..."',
+  '          BUILD_OUTPUT="$(eas build --platform "${PLATFORM}" --profile "${PROFILE}" --non-interactive --wait 2>&1)" || {',
+  '            CODE=$?',
+  '            echo "${BUILD_OUTPUT}"',
+  '            echo "::error::EAS build failed (exit ${CODE})"',
+  '            exit "${CODE}"',
+  '          }',
+  '',
+  '          echo "${BUILD_OUTPUT}"',
+  '',
+  '          UUID_RE=\'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\'',
+  '          BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oE "${UUID_RE}" | head -n1 || true)"',
+  '          if [ -z "${BUILD_ID}" ]; then BUILD_ID="unknown"; fi',
+  '          echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"',
+  '',
+  '          BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oE "https://expo.dev[^[:space:]]*/builds/${UUID_RE}" | head -n1 || true)"',
+  '          echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"',
+  '      - name: Download Android Artifact',
+  '        if: steps.eas.outputs.build_id != \'unknown\' && steps.eas.outputs.build_id != \'\'',
+  '        continue-on-error: true',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          mkdir -p build',
+  '          OUT="build/k1w1-${{ inputs.profile }}.${ARTIFACT_EXT}"',
+  '          eas build:download             --id "${{ steps.eas.outputs.build_id }}"             --output "${OUT}" || {',
+  '              echo "::warning::Failed to download artifact"',
+  '              exit 0',
+  '            }',
+  '          ls -lah build || true',
+  '',
+  '      - name: Upload Artifact',
+  '        if: always()',
+  '        continue-on-error: true',
+  '        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4',
+  '        with:',
+  '          name: eas-${{ inputs.platform }}-${{ inputs.profile }}-${{ github.run_number }}',
+  '          path: build/*',
+  '          retention-days: 30',
+  '          if-no-files-found: warn',
+  '',
+  '      - name: Summary',
+  '        if: always()',
+  '        shell: bash',
+  '        run: |',
+  '          cat >> "$GITHUB_STEP_SUMMARY" << EOF',
+  '          ## EAS Build Summary',
+  '',
+  '          - Repo: ${{ github.repository }}',
+  '          - Input ref: ${{ inputs.ref }}',
+  '          - Input profile: ${{ inputs.profile }}',
+  '          - Platform: ${{ inputs.platform }}',
+  '          - Checked out: $(git rev-parse HEAD)',
+  '          - Lockfile present: ${{ steps.lock.outputs.has_lockfile }}',
+  '          - Lockfile path: ${{ steps.lock.outputs.lockfile_path }}',
+  '          - EAS CLI: $(eas --version 2>/dev/null || echo "unknown")',
+  '          - Build ID: ${{ steps.eas.outputs.build_id }}',
+  '          - Build URL: ${{ steps.eas.outputs.build_url }}',
+  '',
+  '          Artifacts: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}',
+  '          EOF',
+  '',
+  '      - name: Update Build Status - Success',
+  '        if: success() && env.has_job_id == \'true\'',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"',
+  '          RUN_ID="${{ github.run_id }}"',
+  '          BUILD_ID="${{ steps.eas.outputs.build_id }}"',
+  '          BUILD_URL="${{ steps.eas.outputs.build_url }}"',
+  '',
+  '          JSON="$(node -e \'console.log(JSON.stringify({status:"completed",github_run_id:process.argv[1],eas_build_id:process.argv[2],build_url:(process.argv[3]||null),completed_at:process.argv[4]}))\' "${RUN_ID}" "${BUILD_ID}" "${BUILD_URL}" "${TS}")"',
+  '',
+  '          curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (success)"',
+  '',
+  '      - name: Update Build Status - Failed',
+  '        if: failure() && env.has_job_id == \'true\'',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"',
+  '          RUN_ID="${{ github.run_id }}"',
+  '          ERR="Build failed. Check logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"',
+  '',
+  '          JSON="$(node -e \'console.log(JSON.stringify({status:"error",github_run_id:process.argv[1],error_message:process.argv[2],completed_at:process.argv[3]}))\' "${RUN_ID}" "${ERR}" "${TS}")"',
+  '',
+  '          curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (failed)"'
+].join('\n') + '\n';
+
+const WORKFLOW_RELEASE_BUILD = [
+  'name: Release Build (WAIT)',
+  '',
+  'on:',
+  '  workflow_dispatch:',
+  '    inputs:',
+  '      profile:',
+  '        description: "EAS build profile"',
+  '        required: true',
+  '        type: choice',
+  '        options: [production, preview, development]',
+  '        default: production',
+  '      ref:',
+  '        description: "Branch/Tag/SHA (optional)"',
+  '        required: false',
+  '        default: "main"',
+  '',
+  'permissions:',
+  '  contents: write',
+  '',
+  'concurrency:',
+  '  group: ${{ github.workflow }}-${{ inputs.ref }}-${{ inputs.profile }}',
+  '  cancel-in-progress: false',
+  '',
+  'jobs:',
+  '  build:',
+  '    name: Android Release Build',
+  '    runs-on: ubuntu-latest',
+  '    timeout-minutes: 60',
+  '',
+  '    env:',
+  '      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}',
+  '      EAS_CLI_VERSION: "16.0.0"',
+  '',
+  '    steps:',
+  '      - name: Checkout repository',
+  '        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4',
+  '        with:',
+  '          ref: ${{ inputs.ref }}',
+  '          fetch-depth: 0',
+  '          persist-credentials: true',
+  '',
+  '      - name: Detect lockfile (for cache + install strategy)',
+  '        id: lock',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          if [ -f package-lock.json ]; then',
+  '            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"',
+  '            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"',
+  '          elif [ -f npm-shrinkwrap.json ]; then',
+  '            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"',
+  '            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"',
+  '          elif [ -f yarn.lock ]; then',
+  '            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"',
+  '            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"',
+  '          elif [ -f pnpm-lock.yaml ]; then',
+  '            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"',
+  '            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"',
+  '          else',
+  '            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"',
+  '            echo "lockfile_path=" >> "$GITHUB_OUTPUT"',
+  '          fi',
+  '          echo "Repo root: $(pwd)"',
+  '          echo "Files:"; ls -lah',
+  '',
+  '      - name: Setup Node (with npm cache)',
+  '        if: steps.lock.outputs.has_lockfile == \'true\'',
+  '        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4',
+  '        with:',
+  '          node-version: 20',
+  '          cache: npm',
+  '          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}',
+  '',
+  '      - name: Setup Node (no cache - lockfile missing)',
+  '        if: steps.lock.outputs.has_lockfile != \'true\'',
+  '        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4',
+  '        with:',
+  '          node-version: 20',
+  '',
+  '      - name: Validate secrets',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          if [ -z "${EXPO_TOKEN:-}" ]; then',
+  '            echo "::error::Missing GitHub Secret EXPO_TOKEN"',
+  '            exit 1',
+  '          fi',
+  '          echo "✅ EXPO_TOKEN present (len=${#EXPO_TOKEN})"',
+  '          echo "Using profile=\'${{ inputs.profile }}\', ref=\'${{ inputs.ref }}\'"',
+  '',
+  '      - name: Install deps (reproducible when possible)',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then',
+  '            echo "Using npm ci (lockfile: ${{ steps.lock.outputs.lockfile_path }})"',
+  '            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps',
+  '          else',
+  '            echo "::warning::No lockfile found. Falling back to npm install."',
+  '            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps',
+  '            if [ ! -f package-lock.json ]; then',
+  '              npm install --package-lock-only --no-audit --no-fund || true',
+  '            fi',
+  '          fi',
+  '',
+  '      - name: Ensure expo-dev-client for development builds',
+  '        if: inputs.profile == \'development\'',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          if node -e \'const p=require("./package.json"); const d={...(p.dependencies||{}),...(p.devDependencies||{})}; process.exit(d["expo-dev-client"]?0:1)\'; then',
+  '            echo "expo-dev-client already present."',
+  '          else',
+  '            echo "::warning::expo-dev-client missing -> installing via expo install"',
+  '            npx --yes expo install expo-dev-client',
+  '          fi',
+  '',
+  '      - name: Install EAS CLI (pinned)',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          npm i -g "eas-cli@${EAS_CLI_VERSION}"',
+  '          eas --version',
+  '',
+  '      - name: Verify EAS authentication',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          eas whoami',
+  '',
+  '      - name: Run EAS build (WAIT)',
+  '        id: eas',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '',
+  '          PROFILE="${{ inputs.profile }}"',
+  '          if [ "$PROFILE" = "production" ]; then EXT="aab"; else EXT="apk"; fi',
+  '          echo "artifact_ext=${EXT}" >> "${GITHUB_OUTPUT}"',
+  '',
+  '          echo "🚀 Starting EAS build (platform=android, profile=${PROFILE}) with --wait..."',
+  '          BUILD_OUTPUT="$(eas build --platform android --profile "${PROFILE}" --non-interactive --wait 2>&1)" || {',
+  '            CODE=$?',
+  '            echo "${BUILD_OUTPUT}"',
+  '            echo "::error::EAS build failed (exit ${CODE})"',
+  '            exit "${CODE}"',
+  '          }',
+  '',
+  '          echo "${BUILD_OUTPUT}"',
+  '',
+  '          UUID_RE=\'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\'',
+  '          BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oE "${UUID_RE}" | head -n1 || true)"',
+  '          if [ -z "${BUILD_ID}" ]; then BUILD_ID="unknown"; fi',
+  '          echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"',
+  '',
+  '          BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oE "https://expo.dev[^[:space:]]*/builds/${UUID_RE}" | head -n1 || true)"',
+  '          echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"',
+  '',
+  '      - name: Download Android Artifact',
+  '        if: steps.eas.outputs.build_id != \'unknown\' && steps.eas.outputs.build_id != \'\'',
+  '        continue-on-error: true',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          mkdir -p build',
+  '          OUT="build/k1w1-${{ inputs.profile }}.${{ steps.eas.outputs.artifact_ext }}"',
+  '          eas build:download --id "${{ steps.eas.outputs.build_id }}" --output "${OUT}" || {',
+  '            echo "::warning::Failed to download artifact"',
+  '            exit 0',
+  '          }',
+  '          ls -lah build || true',
+  '',
+  '      - name: Upload Android Artifact',
+  '        if: always()',
+  '        continue-on-error: true',
+  '        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb0d8b62a3 # v4',
+  '        with:',
+  '          name: k1w1-android-${{ inputs.profile }}-${{ github.run_number }}',
+  '          path: build/*',
+  '          retention-days: 30',
+  '          if-no-files-found: warn',
+  '',
+  '      - name: Persist generated lockfile / dev-client changes (optional)',
+  '        if: always()',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          if [ -z "$(git status --porcelain)" ]; then',
+  '            echo "No repo changes to persist."',
+  '            exit 0',
+  '          fi',
+  '',
+  '          BRANCH="$(git symbolic-ref --short -q HEAD || true)"',
+  '          if [ -z "$BRANCH" ]; then',
+  '            echo "::warning::Detached HEAD -> not pushing changes."',
+  '            exit 0',
+  '          fi',
+  '',
+  '          git config user.name "github-actions[bot]"',
+  '          git config user.email "github-actions[bot]@users.noreply.github.com"',
+  '          git add package.json package-lock.json eas-project.json 2>/dev/null || true',
+  '          git commit -m "chore(ci): persist build deps [skip ci]" || true',
+  '          git push origin "$BRANCH" || true',
+  '',
+  '      - name: Summary',
+  '        if: always()',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          {',
+  '            echo "## Release Build Summary"',
+  '            echo ""',
+  '            echo "- Ref: ${{ inputs.ref }}"',
+  '            echo "- Profile: ${{ inputs.profile }}"',
+  '            echo "- Checked out: $(git rev-parse HEAD)"',
+  '            echo "- Lockfile present: ${{ steps.lock.outputs.has_lockfile }}"',
+  '            echo "- EAS CLI: $(eas --version 2>/dev/null || echo unknown)"',
+  '            echo "- Build ID: ${{ steps.eas.outputs.build_id }}"',
+  '            echo "- Build URL: ${{ steps.eas.outputs.build_url }}"',
+  '            echo ""',
+  '            echo "Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"',
+  '          } >> "$GITHUB_STEP_SUMMARY"'
+].join('\n') + '\n';
+
+const WORKFLOW_EAS_LINK = [
+  'name: EAS Link / Init',
+  '',
+  'on:',
+  '  workflow_dispatch:',
+  '    inputs:',
+  '      ref:',
+  '        description: "Branch/Tag/SHA (optional)"',
+  '        required: false',
+  '        default: "main"',
+  '      eas_project_id:',
+  '        description: "Existing EAS Project ID (optional)"',
+  '        required: false',
+  '        type: string',
+  '      expo_owner:',
+  '        description: "Expo account/organization (optional)"',
+  '        required: false',
+  '        type: string',
+  '',
+  'permissions:',
+  '  contents: write',
+  '',
+  'concurrency:',
+  '  group: ${{ github.workflow }}-${{ inputs.ref }}',
+  '  cancel-in-progress: false',
+  '',
+  'jobs:',
+  '  link:',
+  '    runs-on: ubuntu-latest',
+  '    timeout-minutes: 20',
+  '',
+  '    env:',
+  '      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}',
+  '      EAS_CLI_VERSION: "16.0.0"',
+  '      EAS_PROJECT_ID_INPUT: ${{ inputs.eas_project_id }}',
+  '      EXPO_OWNER_INPUT: ${{ inputs.expo_owner }}',
+  '',
+  '    steps:',
+  '      - name: Checkout',
+  '        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4',
+  '        with:',
+  '          ref: ${{ inputs.ref }}',
+  '          fetch-depth: 0',
+  '          persist-credentials: true',
+  '',
+  '      - name: Setup Node',
+  '        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4',
+  '        with:',
+  '          node-version: 20',
+  '',
+  '      - name: Validate secrets',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          if [ -z "${EXPO_TOKEN:-}" ]; then',
+  '            echo "::error::Missing GitHub Secret EXPO_TOKEN"',
+  '            exit 1',
+  '          fi',
+  '          echo "✅ EXPO_TOKEN present (len=${#EXPO_TOKEN})"',
+  '          echo "Ref: ${{ inputs.ref }}"',
+  '          echo "EAS_PROJECT_ID_INPUT: ${EAS_PROJECT_ID_INPUT:-<empty>}"',
+  '          echo "EXPO_OWNER_INPUT: ${EXPO_OWNER_INPUT:-<empty>}"',
+  '',
+  '      - name: Detect lockfile',
+  '        id: lock',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          if [ -f package-lock.json ]; then',
+  '            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"',
+  '            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"',
+  '          elif [ -f npm-shrinkwrap.json ]; then',
+  '            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"',
+  '            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"',
+  '          elif [ -f yarn.lock ]; then',
+  '            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"',
+  '            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"',
+  '          elif [ -f pnpm-lock.yaml ]; then',
+  '            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"',
+  '            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"',
+  '          else',
+  '            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"',
+  '            echo "lockfile_path=" >> "$GITHUB_OUTPUT"',
+  '          fi',
+  '',
+  '      - name: Install deps (reproducible when possible)',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then',
+  '            echo "Using npm ci (lockfile: ${{ steps.lock.outputs.lockfile_path }})"',
+  '            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps',
+  '          else',
+  '            echo "::warning::No lockfile found. Falling back to npm install."',
+  '            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps',
+  '            if [ ! -f package-lock.json ]; then',
+  '              npm install --package-lock-only --no-audit --no-fund || true',
+  '            fi',
+  '          fi',
+  '',
+  '      - name: Install EAS CLI (pinned)',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          npm i -g "eas-cli@${EAS_CLI_VERSION}"',
+  '          eas --version',
+  '',
+  '      - name: Verify EAS auth (whoami)',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          eas whoami',
+  '',
+  '      - name: EAS project:init (link/create)',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '',
+  '          OWNER_ARGS=()',
+  '          if [ -n "${EXPO_OWNER_INPUT:-}" ]; then',
+  '            OWNER_ARGS=(--owner "${EXPO_OWNER_INPUT}")',
+  '          fi',
+  '',
+  '          if [ -n "${EAS_PROJECT_ID_INPUT:-}" ]; then',
+  '            echo "Linking with EAS Project ID: ${EAS_PROJECT_ID_INPUT}"',
+  '            eas project:init --id "${EAS_PROJECT_ID_INPUT}" --non-interactive --force "${OWNER_ARGS[@]}"',
+  '            node -e \'const fs=require("fs"); fs.writeFileSync("eas-project.json", JSON.stringify({projectId: process.argv[1]}, null, 2)+"\\n");\' "${EAS_PROJECT_ID_INPUT}"',
+  '          else',
+  '            echo "No EAS Project ID provided. Running project:init and keeping generated eas-project.json..."',
+  '            eas project:init --non-interactive --force "${OWNER_ARGS[@]}"',
+  '            if [ ! -f eas-project.json ]; then',
+  '              echo "::warning::eas-project.json not found after project:init. Trying to read projectId from expo config..."',
+  '              npx --yes expo config --json > /tmp/expo-config.json',
+  '              PROJECT_ID="$(node -e \'const c=require("/tmp/expo-config.json"); process.stdout.write(String(c?.expo?.extra?.eas?.projectId||""));\')"',
+  '              if [ -z "${PROJECT_ID}" ]; then',
+  '                echo "::error::Could not determine EAS projectId. Provide eas_project_id input (UUID) and re-run."',
+  '                exit 1',
+  '              fi',
+  '              node -e \'const fs=require("fs"); fs.writeFileSync("eas-project.json", JSON.stringify({projectId: process.argv[1]}, null, 2)+"\\n");\' "${PROJECT_ID}"',
+  '            fi',
+  '          fi',
+  '',
+  '          echo "eas-project.json:"',
+  '          cat eas-project.json || true',
+  '',
+  '      - name: Commit changes (if any)',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '',
+  '          if [ -z "$(git status --porcelain)" ]; then',
+  '            echo "No changes to commit."',
+  '            exit 0',
+  '          fi',
+  '',
+  '          BRANCH="$(git symbolic-ref --short -q HEAD || true)"',
+  '          if [ -z "$BRANCH" ]; then',
+  '            echo "::warning::Detached HEAD -> not pushing changes."',
+  '            exit 0',
+  '          fi',
+  '',
+  '          git config user.name "github-actions[bot]"',
+  '          git config user.email "github-actions[bot]@users.noreply.github.com"',
+  '          git add -A',
+  '          git commit -m "chore(eas): link/init projectId [skip ci]" || true',
+  '          git push origin "$BRANCH" || true',
+  '',
+  '      - name: Summary',
+  '        if: always()',
+  '        shell: bash',
+  '        run: |',
+  '          set -euo pipefail',
+  '          {',
+  '            echo "## EAS Link / Init Summary"',
+  '            echo ""',
+  '            echo "- Ref: ${{ inputs.ref }}"',
+  '            echo "- SHA: ${GITHUB_SHA}"',
+  '            echo "- Checked out: $(git rev-parse HEAD)"',
+  '            echo "- EAS CLI: $(eas --version 2>/dev/null || echo unknown)"',
+  '            echo "- Has EXPO_TOKEN: $([ -n "${EXPO_TOKEN:-}" ] && echo yes || echo no)"',
+  '            echo ""',
+  '            echo "Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"',
+  '          } >> "$GITHUB_STEP_SUMMARY"'
+].join('\n') + '\n';
+
 const WORKFLOWS: Record<string, string> = {
-  "k1w1-triggered-build.yml": `name: K1W1 Triggered Build
-
-on:
-  repository_dispatch:
-    types: [k1w1_build]
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: "Branch/Ref to build"
-        required: false
-        default: "main"
-      profile:
-        description: "EAS profile (development | preview | production)"
-        required: false
-        default: "development"
-
-permissions:
-  contents: write
-
-concurrency:
-  group: k1w1-triggered-\${{ github.repository }}-\${{ github.event.client_payload.ref || inputs.ref || 'main' }}-\${{ github.event.client_payload.profile || inputs.profile || 'development' }}
-  cancel-in-progress: false
-
-jobs:
-  build:
-    name: EAS Build (Android, WAIT)
-    runs-on: ubuntu-latest
-    env:
-      EXPO_TOKEN: \${{ secrets.EXPO_TOKEN }}
-      EAS_CLI_VERSION: 16.32.0
-      SUPABASE_URL: \${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: \${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      JOB_ID: \${{ github.event.client_payload.job_id || '' }}
-      CHECKOUT_REF: \${{ github.event.client_payload.ref || inputs.ref || 'main' }}
-      PROFILE: \${{ github.event.client_payload.profile || inputs.profile || 'development' }}
-      TARGET_BRANCH: \${{ github.event.client_payload.target_branch || github.ref_name }}
-
-    steps:
-      - name: Validate secrets
-        run: |
-          set -euo pipefail
-          if [ -z "\${EXPO_TOKEN:-}" ]; then
-            echo "::error::Missing GitHub Secret EXPO_TOKEN"
-            exit 1
-          fi
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: \${{ env.CHECKOUT_REF }}
-          fetch-depth: 0
-
-      - name: Detect lockfile (for cache + install strategy)
-        id: lockfile
-        run: |
-          set -euo pipefail
-          if [ -f package-lock.json ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
-          elif [ -f npm-shrinkwrap.json ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
-          elif [ -f yarn.lock ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
-          elif [ -f pnpm-lock.yaml ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Setup Node (with cache)
-        if: steps.lockfile.outputs.has_lockfile == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: \${{ steps.lockfile.outputs.lockfile_path }}
-
-      - name: Setup Node (no cache - lockfile missing)
-        if: steps.lockfile.outputs.has_lockfile != 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install dependencies (frozen if possible)
-        run: |
-          set -euo pipefail
-          if [ "\${{ steps.lockfile.outputs.has_lockfile }}" = "true" ]; then
-            echo "Using npm ci (lockfile: \${{ steps.lockfile.outputs.lockfile_path }})"
-            npm ci --no-audit --no-fund
-          else
-            echo "::warning::No lockfile found in repo. Falling back to npm install (non-reproducible)."
-            npm install --no-audit --no-fund
-          fi
-
-      - name: Clean incomplete native directories (managed build guard)
-        run: |
-          set -euo pipefail
-          if [ -d android ] && [ ! -f android/app/build.gradle ] && [ ! -f android/app/build.gradle.kts ]; then
-            echo "::warning::android/ exists but android/app/build.gradle is missing -> removing android/ (and ios/) before EAS build."
-            rm -rf android ios || true
-          fi
-          if [ -d ios ] && [ ! -f ios/Podfile ]; then
-            echo "::warning::ios/ exists but ios/Podfile is missing -> removing ios/ before EAS build."
-            rm -rf ios || true
-          fi
-
-      - name: CI config sanity (eas.json)
-        run: |
-          set -euo pipefail
-          node - <<'NODE'
-          const fs = require('fs');
-          const path = 'eas.json';
-          if (!fs.existsSync(path)) {
-            console.log('No eas.json found -> skipping.');
-            process.exit(0);
-          }
-          const eas = JSON.parse(fs.readFileSync(path, 'utf8'));
-          eas.cli = eas.cli || {};
-          if (!eas.cli.appVersionSource) {
-            // avoids future required-field warning
-            eas.cli.appVersionSource = "remote";
-          }
-          eas.build = eas.build || {};
-          const profile = process.env.PROFILE || 'development';
-          eas.build[profile] = eas.build[profile] || {};
-          eas.build[profile].android = eas.build[profile].android || {};
-          if (profile !== 'production') {
-            // unsigned debug builds don't need Android Keystore on EAS
-            eas.build[profile].android.withoutCredentials = true;
-          }
-          fs.writeFileSync(path, JSON.stringify(eas, null, 2) + '\n');
-          console.log("Updated eas.json for profile=" + profile);
-          NODE
-
-      - name: Self-heal: ensure lockfile (best effort)
-        run: |
-          set -euo pipefail
-
-          if [ ! -f package-lock.json ]; then
-            echo "📌 Generating package-lock.json..."
-            npm install --package-lock-only --no-audit --no-fund
-          fi
-
-          if git status --porcelain | grep -qE '^( M|\?\?) (package.json|package-lock.json|\.npmrc)$'; then
-            echo "✅ Changes detected -> committing back to repo."
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git config user.name "github-actions[bot]"
-            git add package.json package-lock.json .npmrc 2>/dev/null || true
-            git commit -m "chore(ci): self-heal lockfile" || true
-            BR="\${TARGET_BRANCH:-}"
-            if [ -z "$BR" ]; then BR="$(git rev-parse --abbrev-ref HEAD)"; fi
-            echo "🚀 Pushing to origin $BR (best effort)..."
-            git push origin "HEAD:$BR" || echo "::warning::Could not push self-heal commit (branch may be protected or ref is not a branch)."
-          else
-            echo "ℹ️ No relevant changes to commit."
-          fi
-
-      - name: Install EAS CLI
-        run: |
-          set -euo pipefail
-          npm i -g eas-cli@\${EAS_CLI_VERSION}
-          eas --version
-
-      - name: Run EAS Build (WAIT)
-        id: eas
-        run: |
-          set -euo pipefail
-          echo "🚀 Starting EAS build (android, profile=\${PROFILE}) with --wait..."
-          BUILD_OUTPUT="$(eas build --platform android --profile "\${PROFILE}" --non-interactive --wait 2>&1)" || {
-            CODE=$?
-            echo "\${BUILD_OUTPUT}"
-            echo "::error::EAS build failed (exit \${CODE})"
-            exit "\${CODE}"
-          }
-
-          echo "\${BUILD_OUTPUT}"
-
-          BUILD_ID="$(echo "\${BUILD_OUTPUT}" | grep -oE "Build ID:[[:space:]]*[a-fA-F0-9-]+" | head -n1 | awk '{print $3}' || true)"
-          if [ -z "\${BUILD_ID}" ]; then BUILD_ID="unknown"; fi
-          echo "build_id=\${BUILD_ID}" >> "\${GITHUB_OUTPUT}"
-
-          BUILD_URL="$(echo "\${BUILD_OUTPUT}" | grep -oE "https?://[^[:space:]]+" | grep -E "/projects/[^/]+/builds/[a-fA-F0-9-]+" | head -n1 || true)"
-          echo "build_url=\${BUILD_URL}" >> "\${GITHUB_OUTPUT}"
-
-      - name: Summary
-        if: always()
-        run: |
-          cat >> "$GITHUB_STEP_SUMMARY" << EOF
-          ## Triggered Build Summary
-
-          - Repo: \${{ github.repository }}
-          - Event: \${{ github.event_name }}
-          - Checkout ref: \${CHECKOUT_REF}
-          - Profile: \${PROFILE}
-          - Commit: $(git rev-parse HEAD)
-          - Lockfile present: \${{ steps.lockfile.outputs.has_lockfile }}
-          - Lockfile path: \${{ steps.lockfile.outputs.lockfile_path }}
-          - EAS CLI: $(eas --version 2>/dev/null || echo "unknown")
-          - Build ID: \${{ steps.eas.outputs.build_id }}
-          - Build URL: \${{ steps.eas.outputs.build_url }}
-          EOF
-`,
-  "eas-build.yml": `name: EAS Build
-
-on:
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: "Branch/Tag/SHA to build"
-        required: false
-        default: "main"
-      profile:
-        description: "EAS build profile (development|preview|production)"
-        required: false
-        default: "preview"
-      job_id:
-        description: "Supabase build job id (optional)"
-        required: false
-        default: ""
-      platform:
-        description: "Platform"
-        required: false
-        type: choice
-        options: [android]
-        default: android
-      autofix:
-        description: "Allow workflow to write back fixes (lockfile/dev-client) to the branch"
-        required: false
-        type: boolean
-        default: false
-
-permissions:
-  contents: read
-
-concurrency:
-  group: eas-build-\${{ inputs.ref }}-\${{ inputs.profile }}
-  cancel-in-progress: false
-
-jobs:
-  autofix:
-    name: Auto-fix repo (optional writeback)
-    if: \${{ inputs.autofix == true }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: write
-
-    env:
-      EXPO_TOKEN: \${{ secrets.EXPO_TOKEN }}
-      EAS_CLI_VERSION: "16.0.0"
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          ref: \${{ inputs.ref }}
-          fetch-depth: 0
-
-      - name: Detect lockfile (for cache + install strategy)
-        id: lock
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -f package-lock.json ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
-          elif [ -f npm-shrinkwrap.json ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Setup Node (with npm cache)
-        if: steps.lock.outputs.has_lockfile == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: \${{ steps.lock.outputs.lockfile_path }}
-
-      - name: Setup Node (no cache - lockfile missing)
-        if: steps.lock.outputs.has_lockfile != 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 20
-
-      - name: Install dependencies (frozen if possible)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ "\${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
-            echo "Using npm ci (lockfile: \${{ steps.lock.outputs.lockfile_path }})"
-            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
-          else
-            echo "::warning::No lockfile found in repo. Falling back to npm install (non-reproducible)."
-            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
-          fi
-
-      - name: Install EAS CLI (pinned)
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm i -g "eas-cli@\${EAS_CLI_VERSION}"
-          eas --version
-
-      - name: Verify EAS auth
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -z "\${EXPO_TOKEN:-}" ]; then
-            echo "::error::Missing GitHub Secret EXPO_TOKEN"
-            exit 1
-          fi
-          eas whoami
-
-      - name: Auto-fix repo (lockfile + dev client) [optional writeback]
-        shell: bash
-        env:
-          TARGET_BRANCH: \${{ inputs.ref }}
-          PROFILE: \${{ inputs.profile }}
-          ALLOWED_REF_REGEX: "^(work|dev|develop|feature/.+|hotfix/.+)$"
-        run: |
-          set -euo pipefail
-
-          echo "🧯 Auto-fix: lockfile + expo-dev-client (development only)."
-          npm config set package-lock true
-
-          if [ "\${PROFILE}" = "development" ]; then
-            echo "📦 Ensuring expo-dev-client for development builds..."
-            npx --yes expo install expo-dev-client --fix || npx --yes expo install expo-dev-client
-          fi
-
-          if [ ! -f package-lock.json ]; then
-            echo "::warning::No package-lock.json found. Generating one (best effort)."
-            npm install --package-lock-only --no-audit --no-fund
-          fi
-
-          if ! git status --porcelain | grep -qE '^( M|\?\?) (package.json|package-lock.json|\.npmrc)$'; then
-            echo "ℹ️ No CI auto-fix changes to write back."
-            exit 0
-          fi
-
-          BR="\${TARGET_BRANCH:-}"
-          if [ -z "$BR" ]; then
-            echo "::warning::No TARGET_BRANCH provided; skipping writeback."
-            exit 0
-          fi
-
-          if echo "$BR" | grep -qE '^[0-9a-fA-F]{7,40}$'; then
-            echo "::warning::Ref looks like a SHA ($BR). Skipping writeback."
-            exit 0
-          fi
-          if echo "$BR" | grep -qE '[: ]'; then
-            echo "::warning::Unsafe ref ($BR). Skipping writeback."
-            exit 0
-          fi
-          if ! echo "$BR" | grep -qE "\${ALLOWED_REF_REGEX}"; then
-            echo "::warning::Writeback disabled for branch '$BR' (regex: \${ALLOWED_REF_REGEX})."
-            exit 0
-          fi
-
-          if ! git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
-            echo "::warning::Ref '$BR' is not a remote branch. Skipping writeback."
-            exit 0
-          fi
-
-          echo "✅ Auto-fix changes detected -> committing back to '$BR'."
-          git config user.email "actions@users.noreply.github.com"
-          git config user.name "github-actions[bot]"
-          git add package.json package-lock.json .npmrc 2>/dev/null || true
-          git commit -m "chore(ci): auto-fix lockfile/dev-client [skip ci]" || true
-
-          echo "🚀 Pushing to origin $BR (best effort)..."
-          git push origin "HEAD:$BR" || echo "::warning::Could not push auto-fix commit (branch may be protected)."
-
-  build:
-    needs: [autofix]
-    if: \${{ always() && (needs.autofix.result == 'success' || needs.autofix.result == 'skipped') }}
-    permissions:
-      contents: read
-
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-
-    env:
-      EXPO_TOKEN: \${{ secrets.EXPO_TOKEN }}
-      EAS_CLI_VERSION: "16.0.0"
-
-      SUPABASE_URL: \${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: \${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      JOB_ID: \${{ inputs.job_id }}
-
-    steps:
-      - name: Validate inputs
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          case "\${{ inputs.profile }}" in
-            development|preview|production) ;;
-            *)
-              echo "::error::Invalid profile: '\${{ inputs.profile }}' (allowed: development|preview|production)"
-              exit 1
-              ;;
-          esac
-
-          if [ -z "\${EXPO_TOKEN:-}" ]; then
-            echo "::error::Missing GitHub Secret EXPO_TOKEN"
-            exit 1
-          fi
-
-          if [ "\${{ inputs.profile }}" = "production" ]; then
-            echo "ARTIFACT_EXT=aab" >> "$GITHUB_ENV"
-          else
-            echo "ARTIFACT_EXT=apk" >> "$GITHUB_ENV"
-          fi
-
-          if [ -z "\${JOB_ID:-}" ]; then
-            echo "has_job_id=false" >> "$GITHUB_ENV"
-          else
-            if [ -z "\${SUPABASE_URL:-}" ] || [ -z "\${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
-              echo "::warning::JOB_ID provided, but SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY missing -> status updates will be skipped."
-              echo "has_job_id=false" >> "$GITHUB_ENV"
-            else
-              echo "has_job_id=true" >> "$GITHUB_ENV"
-            fi
-          fi
-
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          ref: \${{ inputs.ref }}
-          fetch-depth: 0
-
-      - name: Detect lockfile (for cache + install strategy)
-        id: lock
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -f package-lock.json ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
-          elif [ -f npm-shrinkwrap.json ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
-          elif [ -f yarn.lock ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
-          elif [ -f pnpm-lock.yaml ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
-          fi
-          echo "Repo root: $(pwd)"
-          echo "Files:"; ls -lah
-
-      - name: Setup Node (with npm cache)
-        if: steps.lock.outputs.has_lockfile == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: \${{ steps.lock.outputs.lockfile_path }}
-
-      - name: Setup Node (no cache - lockfile missing)
-        if: steps.lock.outputs.has_lockfile != 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 20
-
-      - name: Install dependencies (frozen if possible)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ "\${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
-            echo "Using npm ci (lockfile: \${{ steps.lock.outputs.lockfile_path }})"
-            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
-          else
-            echo "::warning::No lockfile found in repo. Falling back to npm install (non-reproducible)."
-            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
-          fi
-
-      - name: Install EAS CLI (pinned)
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm i -g "eas-cli@\${EAS_CLI_VERSION}"
-          eas --version
-
-      - name: Verify EAS auth
-        shell: bash
-        run: |
-          set -euo pipefail
-          eas whoami
-
-      - name: Update Build Status - Building
-        if: env.has_job_id == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          RUN_ID="\${{ github.run_id }}"
-          PROFILE="\${{ inputs.profile }}"
-
-          JSON="$(node -e 'console.log(JSON.stringify({status:"building",build_profile:process.argv[1],github_run_id:process.argv[2],started_at:process.argv[3]}))' "\${PROFILE}" "\${RUN_ID}" "\${TS}")"
-
-          curl --fail-with-body --silent --show-error             -X PATCH "\${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.\${JOB_ID}"             -H "apikey: \${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer \${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "\${JSON}"             || echo "::warning::Failed to update Supabase status (building)"
-
-      - name: Run EAS Build (WAIT)
-        id: eas
-        shell: bash
-        run: |
-          set -euo pipefail
-          PROFILE="\${{ inputs.profile }}"
-          PLATFORM="\${{ inputs.platform }}"
-
-          echo "🚀 Starting EAS build (platform=\${PLATFORM}, profile=\${PROFILE}) with --wait..."
-          BUILD_OUTPUT="$(eas build --platform "\${PLATFORM}" --profile "\${PROFILE}" --non-interactive --wait 2>&1)" || {
-            CODE=$?
-            echo "\${BUILD_OUTPUT}"
-            echo "::error::EAS build failed (exit \${CODE})"
-            exit "\${CODE}"
-          }
-
-          echo "\${BUILD_OUTPUT}"
-
-          UUID_RE='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
-          BUILD_ID="$(echo "\${BUILD_OUTPUT}" | grep -oE "\${UUID_RE}" | head -n1 || true)"
-          if [ -z "\${BUILD_ID}" ]; then BUILD_ID="unknown"; fi
-          echo "build_id=\${BUILD_ID}" >> "\${GITHUB_OUTPUT}"
-
-          BUILD_URL="$(echo "\${BUILD_OUTPUT}" | grep -oE "https://expo.dev[^[:space:]]*/builds/\${UUID_RE}" | head -n1 || true)"
-          echo "build_url=\${BUILD_URL}" >> "\${GITHUB_OUTPUT}"
-      - name: Download Android Artifact
-        if: steps.eas.outputs.build_id != 'unknown' && steps.eas.outputs.build_id != ''
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p build
-          OUT="build/k1w1-\${{ inputs.profile }}.\${ARTIFACT_EXT}"
-          eas build:download             --id "\${{ steps.eas.outputs.build_id }}"             --output "\${OUT}" || {
-              echo "::warning::Failed to download artifact"
-              exit 0
-            }
-          ls -lah build || true
-
-      - name: Upload Artifact
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
-        with:
-          name: eas-\${{ inputs.platform }}-\${{ inputs.profile }}-\${{ github.run_number }}
-          path: build/*
-          retention-days: 30
-          if-no-files-found: warn
-
-      - name: Summary
-        if: always()
-        shell: bash
-        run: |
-          cat >> "$GITHUB_STEP_SUMMARY" << EOF
-          ## EAS Build Summary
-
-          - Repo: \${{ github.repository }}
-          - Input ref: \${{ inputs.ref }}
-          - Input profile: \${{ inputs.profile }}
-          - Platform: \${{ inputs.platform }}
-          - Checked out: $(git rev-parse HEAD)
-          - Lockfile present: \${{ steps.lock.outputs.has_lockfile }}
-          - Lockfile path: \${{ steps.lock.outputs.lockfile_path }}
-          - EAS CLI: $(eas --version 2>/dev/null || echo "unknown")
-          - Build ID: \${{ steps.eas.outputs.build_id }}
-          - Build URL: \${{ steps.eas.outputs.build_url }}
-
-          Artifacts: https://github.com/\${{ github.repository }}/actions/runs/\${{ github.run_id }}
-          EOF
-
-      - name: Update Build Status - Success
-        if: success() && env.has_job_id == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          RUN_ID="\${{ github.run_id }}"
-          BUILD_ID="\${{ steps.eas.outputs.build_id }}"
-          BUILD_URL="\${{ steps.eas.outputs.build_url }}"
-
-          JSON="$(node -e 'console.log(JSON.stringify({status:"completed",github_run_id:process.argv[1],eas_build_id:process.argv[2],build_url:(process.argv[3]||null),completed_at:process.argv[4]}))' "\${RUN_ID}" "\${BUILD_ID}" "\${BUILD_URL}" "\${TS}")"
-
-          curl --fail-with-body --silent --show-error             -X PATCH "\${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.\${JOB_ID}"             -H "apikey: \${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer \${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "\${JSON}"             || echo "::warning::Failed to update Supabase status (success)"
-
-      - name: Update Build Status - Failed
-        if: failure() && env.has_job_id == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-          RUN_ID="\${{ github.run_id }}"
-          ERR="Build failed. Check logs: https://github.com/\${{ github.repository }}/actions/runs/\${{ github.run_id }}"
-
-          JSON="$(node -e 'console.log(JSON.stringify({status:"error",github_run_id:process.argv[1],error_message:process.argv[2],completed_at:process.argv[3]}))' "\${RUN_ID}" "\${ERR}" "\${TS}")"
-
-          curl --fail-with-body --silent --show-error             -X PATCH "\${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.\${JOB_ID}"             -H "apikey: \${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer \${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "\${JSON}"             || echo "::warning::Failed to update Supabase status (failed)"
-`,
-  "release-build.yml": `name: Release Build (WAIT)
-
-on:
-  workflow_dispatch:
-    inputs:
-      profile:
-        description: "EAS build profile"
-        required: true
-        type: choice
-        options: [production, preview, development]
-        default: production
-      ref:
-        description: "Branch/Tag/SHA (optional)"
-        required: false
-        default: "main"
-
-permissions:
-  contents: write
-
-concurrency:
-  group: \${{ github.workflow }}-\${{ inputs.ref }}-\${{ inputs.profile }}
-  cancel-in-progress: false
-
-jobs:
-  build:
-    name: Android Release Build
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-
-    env:
-      EXPO_TOKEN: \${{ secrets.EXPO_TOKEN }}
-      EAS_CLI_VERSION: "16.0.0"
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          ref: \${{ inputs.ref }}
-          fetch-depth: 0
-          persist-credentials: true
-
-      - name: Detect lockfile (for cache + install strategy)
-        id: lock
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -f package-lock.json ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
-          elif [ -f npm-shrinkwrap.json ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
-          elif [ -f yarn.lock ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
-          elif [ -f pnpm-lock.yaml ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
-          fi
-          echo "Repo root: $(pwd)"
-          echo "Files:"; ls -lah
-
-      - name: Setup Node (with npm cache)
-        if: steps.lock.outputs.has_lockfile == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: \${{ steps.lock.outputs.lockfile_path }}
-
-      - name: Setup Node (no cache - lockfile missing)
-        if: steps.lock.outputs.has_lockfile != 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 20
-
-      - name: Validate secrets
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -z "\${EXPO_TOKEN:-}" ]; then
-            echo "::error::Missing GitHub Secret EXPO_TOKEN"
-            exit 1
-          fi
-          echo "✅ EXPO_TOKEN present (len=\${#EXPO_TOKEN})"
-          echo "Using profile='\${{ inputs.profile }}', ref='\${{ inputs.ref }}'"
-
-      - name: Install deps (reproducible when possible)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ "\${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
-            echo "Using npm ci (lockfile: \${{ steps.lock.outputs.lockfile_path }})"
-            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
-          else
-            echo "::warning::No lockfile found. Falling back to npm install."
-            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
-            if [ ! -f package-lock.json ]; then
-              npm install --package-lock-only --no-audit --no-fund || true
-            fi
-          fi
-
-      - name: Ensure expo-dev-client for development builds
-        if: inputs.profile == 'development'
-        shell: bash
-        run: |
-          set -euo pipefail
-          if node -e 'const p=require("./package.json"); const d={...(p.dependencies||{}),...(p.devDependencies||{})}; process.exit(d["expo-dev-client"]?0:1)'; then
-            echo "expo-dev-client already present."
-          else
-            echo "::warning::expo-dev-client missing -> installing via expo install"
-            npx --yes expo install expo-dev-client
-          fi
-
-      - name: Install EAS CLI (pinned)
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm i -g "eas-cli@\${EAS_CLI_VERSION}"
-          eas --version
-
-      - name: Verify EAS authentication
-        shell: bash
-        run: |
-          set -euo pipefail
-          eas whoami
-
-      - name: Run EAS build (WAIT)
-        id: eas
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          PROFILE="\${{ inputs.profile }}"
-          if [ "$PROFILE" = "production" ]; then EXT="aab"; else EXT="apk"; fi
-          echo "artifact_ext=\${EXT}" >> "\${GITHUB_OUTPUT}"
-
-          echo "🚀 Starting EAS build (platform=android, profile=\${PROFILE}) with --wait..."
-          BUILD_OUTPUT="$(eas build --platform android --profile "\${PROFILE}" --non-interactive --wait 2>&1)" || {
-            CODE=$?
-            echo "\${BUILD_OUTPUT}"
-            echo "::error::EAS build failed (exit \${CODE})"
-            exit "\${CODE}"
-          }
-
-          echo "\${BUILD_OUTPUT}"
-
-          UUID_RE='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
-          BUILD_ID="$(echo "\${BUILD_OUTPUT}" | grep -oE "\${UUID_RE}" | head -n1 || true)"
-          if [ -z "\${BUILD_ID}" ]; then BUILD_ID="unknown"; fi
-          echo "build_id=\${BUILD_ID}" >> "\${GITHUB_OUTPUT}"
-
-          BUILD_URL="$(echo "\${BUILD_OUTPUT}" | grep -oE "https://expo.dev[^[:space:]]*/builds/\${UUID_RE}" | head -n1 || true)"
-          echo "build_url=\${BUILD_URL}" >> "\${GITHUB_OUTPUT}"
-
-      - name: Download Android Artifact
-        if: steps.eas.outputs.build_id != 'unknown' && steps.eas.outputs.build_id != ''
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p build
-          OUT="build/k1w1-\${{ inputs.profile }}.\${{ steps.eas.outputs.artifact_ext }}"
-          eas build:download --id "\${{ steps.eas.outputs.build_id }}" --output "\${OUT}" || {
-            echo "::warning::Failed to download artifact"
-            exit 0
-          }
-          ls -lah build || true
-
-      - name: Upload Android Artifact
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb0d8b62a3 # v4
-        with:
-          name: k1w1-android-\${{ inputs.profile }}-\${{ github.run_number }}
-          path: build/*
-          retention-days: 30
-          if-no-files-found: warn
-
-      - name: Persist generated lockfile / dev-client changes (optional)
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -z "$(git status --porcelain)" ]; then
-            echo "No repo changes to persist."
-            exit 0
-          fi
-
-          BRANCH="$(git symbolic-ref --short -q HEAD || true)"
-          if [ -z "$BRANCH" ]; then
-            echo "::warning::Detached HEAD -> not pushing changes."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json eas-project.json 2>/dev/null || true
-          git commit -m "chore(ci): persist build deps [skip ci]" || true
-          git push origin "$BRANCH" || true
-
-      - name: Summary
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          {
-            echo "## Release Build Summary"
-            echo ""
-            echo "- Ref: \${{ inputs.ref }}"
-            echo "- Profile: \${{ inputs.profile }}"
-            echo "- Checked out: $(git rev-parse HEAD)"
-            echo "- Lockfile present: \${{ steps.lock.outputs.has_lockfile }}"
-            echo "- EAS CLI: $(eas --version 2>/dev/null || echo unknown)"
-            echo "- Build ID: \${{ steps.eas.outputs.build_id }}"
-            echo "- Build URL: \${{ steps.eas.outputs.build_url }}"
-            echo ""
-            echo "Run: https://github.com/\${GITHUB_REPOSITORY}/actions/runs/\${GITHUB_RUN_ID}"
-          } >> "$GITHUB_STEP_SUMMARY"
-`,
-  "eas-link.yml": `name: EAS Link / Init
-
-on:
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: "Branch/Tag/SHA (optional)"
-        required: false
-        default: "main"
-      eas_project_id:
-        description: "Existing EAS Project ID (optional)"
-        required: false
-        type: string
-      expo_owner:
-        description: "Expo account/organization (optional)"
-        required: false
-        type: string
-
-permissions:
-  contents: write
-
-concurrency:
-  group: \${{ github.workflow }}-\${{ inputs.ref }}
-  cancel-in-progress: false
-
-jobs:
-  link:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    env:
-      EXPO_TOKEN: \${{ secrets.EXPO_TOKEN }}
-      EAS_CLI_VERSION: "16.0.0"
-      EAS_PROJECT_ID_INPUT: \${{ inputs.eas_project_id }}
-      EXPO_OWNER_INPUT: \${{ inputs.expo_owner }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          ref: \${{ inputs.ref }}
-          fetch-depth: 0
-          persist-credentials: true
-
-      - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 20
-
-      - name: Validate secrets
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -z "\${EXPO_TOKEN:-}" ]; then
-            echo "::error::Missing GitHub Secret EXPO_TOKEN"
-            exit 1
-          fi
-          echo "✅ EXPO_TOKEN present (len=\${#EXPO_TOKEN})"
-          echo "Ref: \${{ inputs.ref }}"
-          echo "EAS_PROJECT_ID_INPUT: \${EAS_PROJECT_ID_INPUT:-<empty>}"
-          echo "EXPO_OWNER_INPUT: \${EXPO_OWNER_INPUT:-<empty>}"
-
-      - name: Detect lockfile
-        id: lock
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -f package-lock.json ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
-          elif [ -f npm-shrinkwrap.json ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
-          elif [ -f yarn.lock ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
-          elif [ -f pnpm-lock.yaml ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Install deps (reproducible when possible)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ "\${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
-            echo "Using npm ci (lockfile: \${{ steps.lock.outputs.lockfile_path }})"
-            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
-          else
-            echo "::warning::No lockfile found. Falling back to npm install."
-            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
-            if [ ! -f package-lock.json ]; then
-              npm install --package-lock-only --no-audit --no-fund || true
-            fi
-          fi
-
-      - name: Install EAS CLI (pinned)
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm i -g "eas-cli@\${EAS_CLI_VERSION}"
-          eas --version
-
-      - name: Verify EAS auth (whoami)
-        shell: bash
-        run: |
-          set -euo pipefail
-          eas whoami
-
-      - name: EAS project:init (link/create)
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          OWNER_ARGS=()
-          if [ -n "\${EXPO_OWNER_INPUT:-}" ]; then
-            OWNER_ARGS=(--owner "\${EXPO_OWNER_INPUT}")
-          fi
-
-          if [ -n "\${EAS_PROJECT_ID_INPUT:-}" ]; then
-            echo "Linking with EAS Project ID: \${EAS_PROJECT_ID_INPUT}"
-            eas project:init --id "\${EAS_PROJECT_ID_INPUT}" --non-interactive --force "\${OWNER_ARGS[@]}"
-            node -e 'const fs=require("fs"); fs.writeFileSync("eas-project.json", JSON.stringify({projectId: process.argv[1]}, null, 2)+"
-");' "\${EAS_PROJECT_ID_INPUT}"
-          else
-            echo "No EAS Project ID provided. Running project:init and keeping generated eas-project.json..."
-            eas project:init --non-interactive --force "\${OWNER_ARGS[@]}"
-            if [ ! -f eas-project.json ]; then
-              echo "::warning::eas-project.json not found after project:init. Trying to read projectId from expo config..."
-              npx --yes expo config --json > /tmp/expo-config.json
-              PROJECT_ID="$(node -e 'const c=require("/tmp/expo-config.json"); process.stdout.write(String(c?.expo?.extra?.eas?.projectId||""));')"
-              if [ -z "\${PROJECT_ID}" ]; then
-                echo "::error::Could not determine EAS projectId. Provide eas_project_id input (UUID) and re-run."
-                exit 1
-              fi
-              node -e 'const fs=require("fs"); fs.writeFileSync("eas-project.json", JSON.stringify({projectId: process.argv[1]}, null, 2)+"
-");' "\${PROJECT_ID}"
-            fi
-          fi
-
-          echo "eas-project.json:"
-          cat eas-project.json || true
-
-      - name: Commit changes (if any)
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [ -z "$(git status --porcelain)" ]; then
-            echo "No changes to commit."
-            exit 0
-          fi
-
-          BRANCH="$(git symbolic-ref --short -q HEAD || true)"
-          if [ -z "$BRANCH" ]; then
-            echo "::warning::Detached HEAD -> not pushing changes."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "chore(eas): link/init projectId [skip ci]" || true
-          git push origin "$BRANCH" || true
-
-      - name: Summary
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          {
-            echo "## EAS Link / Init Summary"
-            echo ""
-            echo "- Ref: \${{ inputs.ref }}"
-            echo "- SHA: \${GITHUB_SHA}"
-            echo "- Checked out: $(git rev-parse HEAD)"
-            echo "- EAS CLI: $(eas --version 2>/dev/null || echo unknown)"
-            echo "- Has EXPO_TOKEN: $([ -n "\${EXPO_TOKEN:-}" ] && echo yes || echo no)"
-            echo ""
-            echo "Run: https://github.com/\${GITHUB_REPOSITORY}/actions/runs/\${GITHUB_RUN_ID}"
-          } >> "$GITHUB_STEP_SUMMARY"
-`,
+  "k1w1-triggered-build.yml": WORKFLOW_K1W1_TRIGGERED_BUILD,
+  "eas-build.yml": WORKFLOW_EAS_BUILD,
+  "release-build.yml": WORKFLOW_RELEASE_BUILD,
+  "eas-link.yml": WORKFLOW_EAS_LINK,
 };
+
 
 export const REQUIRED_SECRETS = ["EXPO_TOKEN"];
 
