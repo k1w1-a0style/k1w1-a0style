@@ -29,6 +29,7 @@ import { useGitHub } from "../contexts/GitHubContext";
 import { useProject, getGitHubToken } from "../contexts/ProjectContext";
 import {
   createRepo,
+  cleanupNativeDirsInRepo,
   pushFilesToRepo,
   deleteRepo as deleteGitHubRepo,
   renameRepo as renameGitHubRepo,
@@ -143,6 +144,7 @@ export default function GitHubReposScreen() {
   const [isCreating, setIsCreating] = useState(false);
   const [isPulling, setIsPulling] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [pullProgress, setPullProgress] = useState("");
 
   const [easProjectId, setEasProjectId] = useState<string>("");
@@ -303,7 +305,51 @@ export default function GitHubReposScreen() {
     [effectiveTemplateId],
   );
 
-  const handlePush = useCallback(async () => {
+  
+  const handleCleanupNative = useCallback(async () => {
+    if (!activeRepo) {
+      Alert.alert("Kein Repo ausgewählt", "Bitte wähle zuerst ein Repository aus.");
+      return;
+    }
+    const parsed = splitFullName(activeRepo);
+    if (!parsed) return;
+    const { owner, repo } = parsed;
+    const branch = activeBranch || "main";
+    if (!owner || !repo) {
+      Alert.alert("Ungültiges Repo", "Konnte owner/repo nicht auflösen.");
+      return;
+    }
+
+    Alert.alert(
+      "Native Ordner entfernen?",
+      `Ich lösche android/ und ios/ aus ${owner}/${repo}@${branch}.
+
+Das ist nötig für managed EAS builds (sonst sucht EAS build.gradle).`,
+      [
+        { text: "Abbrechen", style: "cancel" },
+        {
+          text: "Löschen",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setBusy(true);
+              const res = await cleanupNativeDirsInRepo({ owner, repo, branch });
+              Alert.alert(
+                "Cleanup fertig",
+                `Gelöscht: ${res.deleted}\nÜbersprungen: ${res.skipped}\n\nDanach am besten nochmal Push/Build starten.`
+              );
+            } catch (e: any) {
+              Alert.alert("Cleanup fehlgeschlagen", e?.message ?? String(e));
+            } finally {
+              setBusy(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [activeRepo, activeBranch]);
+
+const handlePush = useCallback(async () => {
     if (!activeRepo || !projectData?.files?.length) {
       Alert.alert("⚠️", "Kein Repo/Projekt ausgewählt oder keine Dateien.");
       return;
@@ -313,19 +359,10 @@ export default function GitHubReposScreen() {
     setIsPushing(true);
     try {
       const branch = activeBranch ?? "main";
-
-      // Never push partial native folders. They make EAS treat the repo as a bare workflow and
-      // can break builds (e.g. missing android/app/build.gradle).
-      const safeFiles = (projectData.files as any[]).filter((f) => {
-        const p = String(f?.path ?? "").replace(/\\/g, "/");
-        if (!p) return false;
-        return !(p === "android" || p === "ios" || p.startsWith("android/") || p.startsWith("ios/"));
-      });
-
       await pushFilesToRepo(
         parsed.owner,
         parsed.repo,
-        withCoreFiles(safeFiles as any),
+        withCoreFiles(projectData.files as any),
         branch,
       );
       Alert.alert(
@@ -640,6 +677,7 @@ export default function GitHubReposScreen() {
 
     const buttons: any[] = [
       { text: "Sync Secrets", onPress: handleSyncSecrets },
+      { text: "Cleanup native (android/ios)", onPress: handleCleanupNative },
       { text: "Repo umbenennen", onPress: handleRenameRepo },
       { text: "Repo löschen", style: "destructive", onPress: handleDeleteRepo },
       { text: "Branch erstellen", onPress: handleCreateBranch },
@@ -661,6 +699,7 @@ export default function GitHubReposScreen() {
     handleRenameBranch,
     handleRenameRepo,
     handleSyncSecrets,
+    handleCleanupNative,
   ]);
 
   const openOnGitHub = useCallback(() => {

@@ -94,19 +94,15 @@ jobs:
           else
             echo "::warning::No lockfile found in repo. Falling back to npm install (non-reproducible)."
             npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
+          fi
 
       - name: Normalize managed build state (remove broken native dirs, patch eas.json)
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "🔎 Checking for broken native directories..."
-          if [ -d android ]; then
-            if [ ! -f android/app/build.gradle ] && [ ! -f android/app/build.gradle.kts ]; then
-              echo "::warning::android/ exists but android/app/build.gradle(.kts) is missing. Removing android/ and ios/ to force managed workflow."
-              rm -rf android ios
-            fi
-          fi
+          echo "🔎 Removing native directories to force managed EAS workflow (APK-only)…"
+          rm -rf android ios || true
 
           echo "🧩 Ensuring eas.json is compatible with APK-only builds (no dev-client by default)..."
           if [ -f eas.json ]; then
@@ -149,7 +145,6 @@ jobs:
             if [ "${HAS}" = "yes" ]; then
               npm ls expo-dev-client >/dev/null 2>&1 || npm install expo-dev-client --no-save
             fi
-          fi
           fi
 
       - name: Install EAS CLI (pinned)

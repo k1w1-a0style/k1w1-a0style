@@ -1,11 +1,7 @@
-Mobile-APK-Builder PATCH28a
+PATCH33 - Fix GitHubReposScreen cleanup dialog compile error
 
 Changed files:
-- contexts/ProjectContext.tsx
 - screens/GitHubReposScreen.tsx
-- .github/workflows/k1w1-triggered-build.yml
+  Reason: remove undefined variable ownerRepo in cleanup confirmation text; use owner/repo directly so TypeScript compiles.
 
-Purpose:
-- Prevent pushing partial native folders (android/ios) into linked repos.
-- Add CI safeguard to strip incomplete native folders before EAS build.
-- Ensure devDependencies are installed in CI to avoid expo-dev-client missing checks.
+No other files changed.
