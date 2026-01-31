@@ -109,7 +109,7 @@ export function BuildLogsModal({
       if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
       copiedTimeoutRef.current = setTimeout(() => setCopied(false), 1200);
     } catch (e) {
-      // eslint-disable-next-line no-console
+       
       console.error("Copy failed:", e);
     }
   };
