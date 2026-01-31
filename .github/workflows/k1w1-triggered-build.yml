@@ -31,7 +31,7 @@ permissions:
 env:
   EAS_CLI_VERSION: "16.31.0"
   ARTIFACT_EXT: "apk"
-  ALLOWED_REF_REGEX: "^(work|main|develop|dev|release\\/.*|feature\\/.*|hotfix\\/.*)$"
+  ALLOWED_REF_REGEX: "^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$"
 
 jobs:
   autofix:
