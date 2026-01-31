@@ -741,7 +741,16 @@ export default function DiagnosticScreen() {
           ([path, content]) => ({ path, content }),
         );
 
-        // Apply deletions through context if deleteFile exists (keeps storage consistent),
+        
+        // Ensure the in-memory ref is updated immediately so a re-run right after "Fix"
+        // uses the patched files even before React state propagation completes.
+        try {
+          projectRef.current = { ...projectRef.current, files: nextFiles };
+        } catch {
+          // ignore
+        }
+
+// Apply deletions through context if deleteFile exists (keeps storage consistent),
         // otherwise rely on updateProjectFiles result.
         try {
           // If deleteFile is supported, call it for the deletes.

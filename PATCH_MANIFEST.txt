@@ -1,10 +1,10 @@
-PATCH18 - Diagnostics polish: avoid duplicate check id
+PATCH19 - Diagnostics reliability: persist fixes immediately for re-scan
 
 Changed files:
-- lib/diagnostics/buildPipelineDiagnostics.ts
+- screens/DiagnosticScreen.tsx
 
 Why:
-- The expo-dev-client dependency check used the same id in both try and catch blocks.
-- This can cause duplicate rows / confusing Autofix selection in the UI.
-- Catch case now uses id 'repo.dep.expoDevClient.read'.
+- After applying a fix, some users can immediately re-run diagnostics and still see the old warnings.
+- Root cause: run() reads projectRef.current.files; React state propagation can lag briefly after updateProjectFiles().
+- Fix: update projectRef.current.files immediately with nextFiles before awaiting context persistence.
 
