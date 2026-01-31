@@ -289,10 +289,26 @@ const checkEasProfiles: PreflightCheck = {
 
     if (!has(m, "eas.json")) {
       const template = {
+        cli: {
+          // Prevent future warning about missing cli.appVersionSource
+          appVersionSource: "remote",
+        },
         build: {
-          development: { developmentClient: true, distribution: "internal" },
-          preview: { distribution: "internal", android: { buildType: "apk" } },
-          production: { android: { buildType: "aab" } },
+          // ANDROID APK-only for all flows
+          development: {
+            developmentClient: true,
+            distribution: "internal",
+            android: { buildType: "apk" },
+          },
+          preview: {
+            distribution: "internal",
+            android: { buildType: "apk" },
+          },
+          // "Full" flow in UI maps to production profile, still APK-only here
+          production: {
+            distribution: "internal",
+            android: { buildType: "apk" },
+          },
         },
       };
       return {

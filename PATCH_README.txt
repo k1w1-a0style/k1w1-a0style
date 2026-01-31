@@ -1,6 +1,6 @@
 Apply:
-  unzip -o Mobile-APK-Builder-PATCH11.zip
-  rm Mobile-APK-Builder-PATCH11.zip
+  unzip -o Mobile-APK-Builder-PATCH12.zip
+  rm Mobile-APK-Builder-PATCH12.zip
 
 Verify:
   npm run typecheck
@@ -9,6 +9,6 @@ Verify:
 
 Commit + push:
   git add -A
-  git commit -m "fix(diagnostics): support array files in preflight checks"
+  git commit -m "fix(diagnostics): APK-only eas.json template for all profiles"
   git push origin build
 

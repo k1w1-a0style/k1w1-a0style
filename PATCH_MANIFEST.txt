@@ -1,9 +1,10 @@
-PATCH11 - Fix diagnostics typecheck: support ProjectFile[] in app config lookup
+PATCH12 - Diagnostics template: APK-only for all EAS profiles
 
 Changed files:
 - lib/diagnostics/preflightChecks.ts
 
 Why:
-- In some preflight checks, `files` is a ProjectFile[] array, but getText() expects a Map.
-- Add getTextAny() to handle both Map and array, and use it for app config lookup.
+- When eas.json is missing, Diagnostics offers to create a template.
+- The previous template incorrectly set production buildType to AAB, which violates the APK-only requirement and would break the 'full' flow.
+- This patch makes the template APK-only for development/preview/production and adds cli.appVersionSource to avoid future EAS warnings.
 
