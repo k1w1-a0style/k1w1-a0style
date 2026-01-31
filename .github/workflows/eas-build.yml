@@ -101,8 +101,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "🔎 Removing native directories to force managed EAS workflow (APK-only)…"
-          rm -rf android ios || true
+          echo "🔎 Checking for broken native directories..."
+          if [ -d android ]; then
+            if [ ! -d android/app ] || { [ ! -f android/app/build.gradle ] && [ ! -f android/app/build.gradle.kts ]; }; then
+              echo "::warning::android/ exists but android/app/build.gradle(.kts) is missing. Removing android/ and ios/ to force managed workflow."
+              rm -rf android ios
+            fi
+          fi
 
           echo "🧩 Ensuring eas.json is compatible with APK-only builds (no dev-client by default)..."
           if [ -f eas.json ]; then
