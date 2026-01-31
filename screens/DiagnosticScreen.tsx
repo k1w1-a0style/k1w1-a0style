@@ -741,16 +741,7 @@ export default function DiagnosticScreen() {
           ([path, content]) => ({ path, content }),
         );
 
-        
-        // Ensure the in-memory ref is updated immediately so a re-run right after "Fix"
-        // uses the patched files even before React state propagation completes.
-        try {
-          projectRef.current = { ...projectRef.current, files: nextFiles };
-        } catch {
-          // ignore
-        }
-
-// Apply deletions through context if deleteFile exists (keeps storage consistent),
+        // Apply deletions through context if deleteFile exists (keeps storage consistent),
         // otherwise rely on updateProjectFiles result.
         try {
           // If deleteFile is supported, call it for the deletes.
@@ -763,6 +754,13 @@ export default function DiagnosticScreen() {
         }
 
         await updateProjectFiles(nextFiles);
+
+        // Make fixes immediately visible for a re-scan in the same render tick.
+        // React state/context updates can be async; this prevents 'fixed but still warns' on immediate re-run.
+        try {
+          projectRef.current = { ...projectRef.current, files: nextFiles };
+        } catch {}
+
 
         // Track history (undo only needs touched + created)
         setHistory((prev) => {

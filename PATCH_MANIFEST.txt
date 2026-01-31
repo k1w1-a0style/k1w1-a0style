@@ -1,10 +1,10 @@
-PATCH19 - Diagnostics reliability: persist fixes immediately for re-scan
+PATCH20 - Diagnostics: ensure applied fixes persist on immediate re-scan
 
 Changed files:
 - screens/DiagnosticScreen.tsx
 
 Why:
-- After applying a fix, some users can immediately re-run diagnostics and still see the old warnings.
-- Root cause: run() reads projectRef.current.files; React state propagation can lag briefly after updateProjectFiles().
-- Fix: update projectRef.current.files immediately with nextFiles before awaiting context persistence.
+- You previously observed: Fix shows 'applied' but warnings reappear on next scan.
+- Root cause: projectRef.current.files can lag behind updateProjectFiles() (async context/state).
+- This patch updates projectRef.current.files immediately after applying patches, so a re-run reads the new files.
 
