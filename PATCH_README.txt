@@ -1,6 +1,6 @@
 Apply:
-  unzip -o Mobile-APK-Builder-PATCH26.zip
-  rm Mobile-APK-Builder-PATCH26.zip
+  unzip -o Mobile-APK-Builder-PATCH27.zip
+  rm Mobile-APK-Builder-PATCH27.zip
 
 Verify:
   npm run typecheck
@@ -9,10 +9,10 @@ Verify:
 
 Commit + push:
   git add -A
-  git commit -m "fix(diagnostics): apk-only fixes + githubService repair"
+  git commit -m "fix(diagnostics): apk-only dev flow check + fix"
   git push origin build
 
 In-app verify:
   - Diagnostics → Run
-  - Warn cards should show Fix buttons and, once applied, stay gone (writeback + conflict-safe).
+  - The last warning should now be either PASS (internal APK) or offer a Fix (if developmentClient=true).
 

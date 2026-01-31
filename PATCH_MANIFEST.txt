@@ -1,18 +1,13 @@
-PATCH26 - Fix TS compile + make pipeline warnings actionable (APK-only) + repair githubService syntax
+PATCH27 - Diagnostics: make Development Flow check APK-only correct + provide Fix
 
 Changed files:
-- contexts/githubService.ts
 - lib/diagnostics/buildPipelineDiagnostics.ts
-- lib/diagnostics/preflightChecks.ts
 
 Why:
-- Your current working tree has a syntax-broken githubService.ts from Patch25, breaking typecheck/lint.
-- Remaining Diagnostics warnings had 'Kein Fix verfügbar' because checks only provided fixHint (no fix patch).
-- Dev-client checks were contradictory for an APK-only builder (warn loop).
+- Remaining warning 'Development Flow: developmentClient=true' was inverted and had no fix.
+- APK-only builder should default to internal APK (no dev-client).
 
-Key behavior:
-- APK-only: development defaults to internal APK (developmentClient=false).
-- If developmentClient=true is detected, Diagnostics warns and offers a Fix to switch back to internal APK.
-- expo-dev-client dependency is only required when developmentClient=true; otherwise PASS.
-- buildType checks now offer Fix patches to set android.buildType='apk' for development/preview/production.
+What changed:
+- Development flow check now PASSes when developmentClient is false/absent.
+- If developmentClient=true is detected, it becomes WARN with an actionable Fix patch to switch back to internal APK.
 

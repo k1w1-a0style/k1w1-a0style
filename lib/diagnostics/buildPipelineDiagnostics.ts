@@ -228,14 +228,47 @@ export const runBuildPipelineDiagnostics = async (params: {
 
     if (prof === "development") {
       const devClient = p?.developmentClient === true;
-      checks.push({
-        id: "repo.easDevClientFlag",
-        title: "Development Flow: developmentClient=true",
-        status: devClient ? "pass" : "warn",
-        fixHint: devClient
-          ? undefined
-          : "Für Development Builds sollte developmentClient=true gesetzt sein (sonst kein Dev-Client APK).",
-      });
+
+      // APK-only builder default: INTERNAL APK (no dev-client). Dev-client is optional and requires extra repo setup.
+      if (devClient) {
+        checks.push({
+          id: "repo.easDevClientFlag",
+          title: "Development Flow: internal APK (developmentClient=false)",
+          status: "warn",
+          details:
+            "developmentClient=true ist aktiv. Für diesen APK-Builder empfehlen wir internal APK ohne Dev-Client (developmentClient=false).",
+          fixHint:
+            'Setze in eas.json: build.development.developmentClient=false; distribution="internal"; android.buildType="apk".',
+          fix: {
+            label: "Stelle Development auf internal APK (kein Dev-Client)",
+            patch: {
+              jsonMerge: [
+                {
+                  path: "eas.json",
+                  patch: {
+                    build: {
+                      development: {
+                        developmentClient: false,
+                        distribution: "internal",
+                        android: { buildType: "apk" },
+                      },
+                    },
+                  },
+                  createIfMissing: true,
+                },
+              ],
+            },
+          },
+        });
+      } else {
+        checks.push({
+          id: "repo.easDevClientFlag",
+          title: "Development Flow: internal APK (developmentClient=false)",
+          status: "pass",
+          details:
+            "Development ist internal APK (ohne Dev-Client). OK für den APK-Builder.",
+        });
+      }
     }
   }
 
