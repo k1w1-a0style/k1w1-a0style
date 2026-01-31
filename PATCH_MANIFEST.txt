@@ -1,10 +1,15 @@
-PATCH20 - Diagnostics: ensure applied fixes persist on immediate re-scan
+PATCH21 - Autofix writeback: make Diagnostics fixes persist by updating the linked GitHub repo/branch
 
 Changed files:
 - screens/DiagnosticScreen.tsx
 
 Why:
-- You previously observed: Fix shows 'applied' but warnings reappear on next scan.
-- Root cause: projectRef.current.files can lag behind updateProjectFiles() (async context/state).
-- This patch updates projectRef.current.files immediately after applying patches, so a re-run reads the new files.
+- Your warnings are produced by 'pipeline diagnostics' which reads files from the linked GitHub repo/branch.
+- Previously, Fix applied only to the local in-app project files. On re-scan, remote files were unchanged → warnings reappeared.
+- This patch performs best-effort writeback via GitHub Contents API (createOrUpdateFile) for repo-relevant config files (eas.json, app.config.*, app.json, .github/workflows/*, eas-project.json).
+
+Behavior:
+- Fix still applies locally (undo works).
+- If a GitHub repo is linked, the same patched files are also pushed to the selected branch.
+- If token/permissions are missing, local apply still succeeds; writeback logs a warning.
 

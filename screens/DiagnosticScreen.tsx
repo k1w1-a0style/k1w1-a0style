@@ -22,6 +22,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../theme";
 import { useProject } from "../contexts/ProjectContext";
+import { createOrUpdateFile } from "../contexts/githubService";
 
 import {
   autoFixCIWorkflows,
@@ -760,6 +761,38 @@ export default function DiagnosticScreen() {
         try {
           projectRef.current = { ...projectRef.current, files: nextFiles };
         } catch {}
+
+// Push selected fixes back to GitHub repo/branch when they affect CI/EAS config.
+// Otherwise pipeline diagnostics (remote) will still warn, because builds run from GitHub state.
+try {
+  const parsedRepo = parseOwnerRepo(linkedRepo);
+  const branch = (linkedBranch || "main").trim() || "main";
+  if (parsedRepo) {
+    const repoRelevant = normalizedTouched.some((p) =>
+      /^(eas\.json|eas-project\.json|app\.json|app\.config\.(js|ts)|\.github\/workflows\/[^\s]+)$/.test(
+        p,
+      ),
+    );
+    if (repoRelevant) {
+      for (const p of normalizedTouched) {
+        // We only support upserts/merges (no remote delete via contents API here).
+        const content = nextMap.get(p);
+        if (typeof content !== "string") continue;
+        await createOrUpdateFile(
+          parsedRepo.owner,
+          parsedRepo.repo,
+          p,
+          content,
+          `chore: apply diagnostics fix (${label})`,
+          branch,
+        );
+      }
+    }
+  }
+} catch (e: any) {
+  // Don't fail the local apply; remote push is best-effort.
+  console.warn("⚠️ Repo writeback failed:", e?.message || e);
+}
 
 
         // Track history (undo only needs touched + created)

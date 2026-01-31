@@ -1,6 +1,6 @@
 Apply:
-  unzip -o Mobile-APK-Builder-PATCH20.zip
-  rm Mobile-APK-Builder-PATCH20.zip
+  unzip -o Mobile-APK-Builder-PATCH21.zip
+  rm Mobile-APK-Builder-PATCH21.zip
 
 Verify:
   npm run typecheck
@@ -9,11 +9,11 @@ Verify:
 
 Commit + push:
   git add -A
-  git commit -m "fix(diagnostics): make applied fixes sticky for immediate re-scan"
+  git commit -m "fix(diagnostics): write back autofix changes to linked repo"
   git push origin build
 
-Manual verification:
-  - Diagnostics → Run
-  - Apply a Fix
-  - Immediately press Run again → the fixed warn must not return.
+In-app verify:
+  - Open Diagnostics on a linked repo/branch
+  - Press Fix on a pipeline warning (e.g. eas.json buildType)
+  - Run Diagnostics again → warning must be gone (because repo file is updated).
 
