@@ -1,13 +1,10 @@
-PATCH15 - Final hardening: allow arbitrary safe branches + APK-only template for Full flow
+PATCH16 - CI hardening: auto-initialize EAS project in workflow
 
 Changed files:
-1) .github/workflows/k1w1-triggered-build.yml
-   - Relax ALLOWED_REF_REGEX to a safe generic pattern so in-app branch selection can't be blocked by an arbitrary whitelist.
-2) lib/diagnostics/preflightChecks.ts
-   - Fix generated eas.json template to keep production (Full) APK-only (no AAB).
-   - Add cli.appVersionSource: 'remote' in template to avoid future EAS warnings.
+- .github/workflows/k1w1-triggered-build.yml
 
 Why:
-- Requirements: repo/branch selection happens in-app, so CI must not reject valid branch names.
-- App is APK-only, including the 'Full' flow (production profile). Diagnostics template must not generate AAB.
+- You require zero manual terminal steps. EAS can fail in CI with:
+  'EAS project not configured. Must configure EAS project by running eas init ...'
+- This adds 'eas project:init --force --non-interactive' before the build step so fresh repos/branches still build.
 

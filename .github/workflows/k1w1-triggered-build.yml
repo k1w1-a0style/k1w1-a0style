@@ -242,6 +242,15 @@ jobs:
           ])
           PY
 
+
+      - name: Ensure EAS project is initialized (non-interactive)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Prevents: "EAS project not configured" in CI (no manual terminal steps required)
+          eas project:init --force --non-interactive
+
+
       - name: Run EAS Build (WAIT)
         id: eas
         shell: bash
