@@ -3,28 +3,40 @@ name: EAS Build (Android)
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: "Git ref to build (branch/tag/SHA)"
-        required: false
-        default: "main"
       profile:
         description: "EAS profile (development|preview|production)"
         required: false
-        default: "development"
+        default: "preview"
+      checkout_ref:
+        description: "Git ref (branch/tag/SHA)"
+        required: false
+        default: "main"
 
 permissions:
-  contents: read
+  contents: write
+  metadata: read
 
 jobs:
-  android:
+  build-android:
     runs-on: ubuntu-latest
-    env:
-      EAS_CLI_VERSION: 16.32.0
-      CHECKOUT_REF: ${{ inputs.ref || 'main' }}
-      PROFILE: ${{ inputs.profile || 'development' }}
-
     steps:
-      - name: Validate required secrets
+      - name: Set variables
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROFILE="${{ inputs.profile || 'preview' }}"
+          REF="${{ inputs.checkout_ref || 'main' }}"
+          case "$PROFILE" in
+            development|preview|production) ;;
+            *) echo "::warning::Invalid PROFILE='$PROFILE' -> defaulting to preview"; PROFILE="preview" ;;
+          esac
+          echo "PROFILE=$PROFILE" >> "$GITHUB_ENV"
+          echo "CHECKOUT_REF=$REF" >> "$GITHUB_ENV"
+
+      - name: Validate secrets
+        shell: bash
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           set -euo pipefail
           if [ -z "${EXPO_TOKEN:-}" ]; then
@@ -44,104 +56,105 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
+        shell: bash
         run: |
           set -euo pipefail
-          if [ -f package-lock.json ]; then
-            npm ci --no-audit --no-fund --include=dev
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            npm ci --no-audit --no-fund
           else
-            echo "::warning::No lockfile found in repo. Falling back to npm install (non-reproducible)."
-            npm install --no-audit --no-fund --include=dev
+            echo "::warning::No lockfile found -> npm install"
+            npm install --no-audit --no-fund
           fi
 
-      - name: Install EAS CLI
+      - name: Remove broken native dirs (if present)
+        shell: bash
         run: |
           set -euo pipefail
-          npm i -g "eas-cli@${EAS_CLI_VERSION}"
-          eas --version
-
-      - name: Cleanup incomplete native directories
-        run: |
-          set -euo pipefail
-          if [ -d android ] && [ ! -f android/app/build.gradle ] && [ ! -f android/app/build.gradle.kts ]; then
-            echo "🧹 Removing incomplete android/ directory (no android/app/build.gradle)."
+          if [ -d android ] && { [ ! -f android/app/build.gradle ] || [ ! -f android/build.gradle ]; }; then
+            echo "::warning::Incomplete android/ detected -> removing"
             rm -rf android
           fi
-          if [ -d ios ] && [ ! -f ios/Podfile ]; then
-            echo "🧹 Removing incomplete ios/ directory (no ios/Podfile)."
+          if [ -d ios ] && [ ! -f ios/Podfile ] && [ ! -f ios/Podfile.lock ]; then
+            echo "::warning::Incomplete ios/ detected -> removing"
             rm -rf ios
           fi
 
+      - name: Setup Java (for keystore generation)
+        if: env.PROFILE != 'production'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
       - name: Prepare local Android signing (non-production)
-        if: ${{ env.PROFILE != 'production' }}
+        if: env.PROFILE != 'production'
+        shell: bash
         run: |
           set -euo pipefail
-          if ! command -v keytool >/dev/null 2>&1; then
-            echo "::error::keytool not found. Install Java (JDK) on the runner."
-            exit 1
+          mkdir -p .eas/credentials
+          KEYSTORE_PATH=".eas/credentials/android.keystore"
+          if [ ! -f "$KEYSTORE_PATH" ]; then
+            keytool -genkeypair               -storetype JKS               -keystore "$KEYSTORE_PATH"               -storepass "android"               -keypass "android"               -alias "androiddebugkey"               -keyalg RSA               -keysize 2048               -validity 10000               -dname "CN=Android Debug,O=Android,C=US"
           fi
-
-          mkdir -p .eas
-          KEYSTORE_PATH=".eas/ci-debug.jks"
-          KEY_ALIAS="ci-debug"
-          KEYSTORE_PASSWORD="${KEYSTORE_PASSWORD:-$(openssl rand -hex 12)}"
-          KEY_PASSWORD="${KEY_PASSWORD:-${KEYSTORE_PASSWORD}}"
-
-          rm -f "$KEYSTORE_PATH"
-          keytool -genkeypair \
-            -keystore "$KEYSTORE_PATH" \
-            -alias "$KEY_ALIAS" \
-            -storepass "$KEYSTORE_PASSWORD" \
-            -keypass "$KEY_PASSWORD" \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 3650 \
-            -dname "CN=CI Debug, OU=CI, O=K1W1, L=CI, S=CI, C=DE" \
-            -noprompt
-
-          echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
-          echo "ANDROID_KEYSTORE_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
-          echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
-          echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
 
           node - <<'NODE'
           const fs = require('fs');
-          const path = require('path');
-          const profile = process.env.PROFILE || 'development';
-          const file = path.join(process.cwd(), 'eas.json');
-          const eas = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
+          const file = 'eas.json';
+          let eas = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file,'utf8')) : {};
           eas.cli = eas.cli || {};
           eas.cli.appVersionSource = eas.cli.appVersionSource || 'remote';
           eas.build = eas.build || {};
-          eas.build[profile] = eas.build[profile] || {};
-          const b = eas.build[profile];
-          b.distribution = b.distribution || 'internal';
-          b.developmentClient = false;
-          b.android = b.android || {};
-          b.android.buildType = b.android.buildType || (profile === 'production' ? 'aab' : 'apk');
-          b.android.credentialsSource = 'local';
-          b.android.keystore = {
-            keystorePath: process.env.ANDROID_KEYSTORE_PATH,
-            keystorePassword: process.env.ANDROID_KEYSTORE_PASSWORD,
-            keyAlias: process.env.ANDROID_KEYSTORE_ALIAS,
-            keyPassword: process.env.ANDROID_KEY_PASSWORD,
-          };
-          fs.writeFileSync(file, JSON.stringify(eas, null, 2));
-          console.log(`✅ Updated eas.json for local Android signing (profile=${profile}).`);
+          for (const profile of ['development','preview']) {
+            eas.build[profile] = eas.build[profile] || {};
+            eas.build[profile].android = eas.build[profile].android || {};
+            eas.build[profile].android.buildType = 'apk';
+            eas.build[profile].android.credentialsSource = 'local';
+            eas.build[profile].android.keystore = {
+              keystorePath: '.eas/credentials/android.keystore',
+              keystorePassword: 'android',
+              keyAlias: 'androiddebugkey',
+              keyPassword: 'android',
+            };
+          }
+          fs.writeFileSync(file, JSON.stringify(eas,null,2)+'\n');
+          console.log('✅ Patched eas.json for local signing (non-production).');
           NODE
 
-      - name: Guard production build requires preconfigured credentials
-        if: ${{ env.PROFILE == 'production' }}
+      - name: Install EAS CLI
+        shell: bash
         run: |
           set -euo pipefail
-          echo "::error::PROFILE=production requires a real Android keystore configured in EAS Credentials (non-interactive CI cannot generate a new keystore)."
-          echo "Run locally once: eas credentials -p android (or an interactive eas build) to generate/attach the keystore, then rerun CI."
-          exit 1
+          VER="${EAS_CLI_VERSION:-16.32.0}"
+          npm install -g "eas-cli@${VER}"
+          eas --version
 
-      - name: Run EAS Build (WAIT)
+      - name: Build (android)
+        shell: bash
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           set -euo pipefail
-          echo "🚀 Starting EAS build (android, profile=${PROFILE}) with --wait..."
-          eas whoami
-          eas build --platform android --profile "${PROFILE}" --non-interactive --wait
+          if [ "${PROFILE}" = "production" ]; then
+            echo "::error::Production builds are blocked in CI. Use EAS dashboard/local machine for production signing."
+            exit 1
+          fi
+          echo "🚀 Building (android, profile=${PROFILE}) ..."
+          BUILD_OUTPUT="$(eas build --platform android --profile "${PROFILE}" --non-interactive --wait 2>&1)" || {
+            CODE=$?
+            echo "${BUILD_OUTPUT}"
+            echo "::error::EAS build failed (exit ${CODE})"
+            exit "${CODE}"
+          }
+          echo "${BUILD_OUTPUT}"
+          BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oE "Build ID:[[:space:]]*[a-fA-F0-9-]+" | head -n1 | awk '{print $3}' || true)"
+          if [ -z "${BUILD_ID}" ]; then BUILD_ID="unknown"; fi
+          BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oE "https?://[^[:space:]]+" | grep -E "/projects/[^/]+/builds/[a-fA-F0-9-]+" | head -n1 || true)"
+          mkdir -p build
+          printf "build_id=%s\nbuild_url=%s\nprofile=%s\nref=%s\n" "$BUILD_ID" "$BUILD_URL" "$PROFILE" "${CHECKOUT_REF}" > build/eas-build-info.txt
+
+      - name: Upload build info
+        uses: actions/upload-artifact@v4
+        with:
+          name: eas-android-${{ env.PROFILE }}
+          path: build/eas-build-info.txt
+          retention-days: 30

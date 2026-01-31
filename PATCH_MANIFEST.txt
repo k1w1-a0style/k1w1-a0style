@@ -1,12 +1,7 @@
-PATCH37 - CI hard-fix for EAS Android builds
+PATCH 39 - "CI: local signing + robust self-heal + artifact info"
 
-Replaces:
+Files:
 - .github/workflows/k1w1-triggered-build.yml
 - .github/workflows/eas-build.yml
-
-What it does:
-- Removes fragile self-heal grep/commit logic.
-- Ensures dependencies are installed before running any Expo/EAS commands.
-- Deletes incomplete android/ios native directories that break managed EAS builds.
-- Generates a local CI keystore for non-production profiles to avoid the "Generating a new Keystore is not supported in --non-interactive mode" error.
-- Blocks production builds in CI unless real credentials are already configured.
+- PATCH_README.txt
+- PATCH_MANIFEST.txt
