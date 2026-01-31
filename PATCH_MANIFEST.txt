@@ -1,12 +1,18 @@
-PATCH24 - Diagnostics + GitHub writeback stability
+PATCH26 - Fix TS compile + make pipeline warnings actionable (APK-only) + repair githubService syntax
 
 Changed files:
-- lib/diagnostics/buildPipelineDiagnostics.ts
 - contexts/githubService.ts
+- lib/diagnostics/buildPipelineDiagnostics.ts
+- lib/diagnostics/preflightChecks.ts
 
 Why:
-1) TypeScript fix: DiagnosticScreen expects pipeline checks to optionally include 'fix'.
-   buildPipelineDiagnostics.DiagnosticCheck type now includes optional fix {label, patch}.
-2) Repo writeback fix: createOrUpdateFile could fail with 409 SHA mismatch during concurrent repo sync.
-   Added one retry with refetch SHA to make diagnostics autofix writeback reliable.
+- Your current working tree has a syntax-broken githubService.ts from Patch25, breaking typecheck/lint.
+- Remaining Diagnostics warnings had 'Kein Fix verfügbar' because checks only provided fixHint (no fix patch).
+- Dev-client checks were contradictory for an APK-only builder (warn loop).
+
+Key behavior:
+- APK-only: development defaults to internal APK (developmentClient=false).
+- If developmentClient=true is detected, Diagnostics warns and offers a Fix to switch back to internal APK.
+- expo-dev-client dependency is only required when developmentClient=true; otherwise PASS.
+- buildType checks now offer Fix patches to set android.buildType='apk' for development/preview/production.
 

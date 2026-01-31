@@ -197,6 +197,33 @@ export const runBuildPipelineDiagnostics = async (params: {
           ? undefined
           : 'Setze in eas.json: build.' + prof + '.android.buildType = "apk".'
         : `BuildType ist "${btRaw}". Erwartet: "apk".`,
+      fix: btOk
+        ? bt === "apk"
+          ? undefined
+          : {
+              label: `Setze build.${prof}.android.buildType auf "apk"`,
+              patch: {
+                jsonMerge: [
+                  {
+                    path: "eas.json",
+                    patch: { build: { [prof]: { android: { buildType: "apk" } } } },
+                    createIfMissing: true,
+                  },
+                ],
+              },
+            }
+        : {
+            label: `Setze build.${prof}.android.buildType auf "apk"`,
+            patch: {
+              jsonMerge: [
+                {
+                  path: "eas.json",
+                  patch: { build: { [prof]: { android: { buildType: "apk" } } } },
+                  createIfMissing: true,
+                },
+              ],
+            },
+          },
     });
 
     if (prof === "development") {
@@ -212,29 +239,73 @@ export const runBuildPipelineDiagnostics = async (params: {
     }
   }
 
-  // Development Flow: expo-dev-client dependency recommended/required
-  if (hasPackageJson) {
-    try {
-      const pkg = await readJsonFile<any>(params.owner, params.repo, "package.json", ref);
-      const deps = { ...(pkg?.dependencies ?? {}), ...(pkg?.devDependencies ?? {}) };
-      const hasDevClient = typeof deps["expo-dev-client"] === "string";
+  // Development Flow: expo-dev-client dependency required ONLY when developmentClient=true
+let devClientEnabled = false;
+try {
+  const eas = await readJsonFile<any>(params.owner, params.repo, "eas.json", ref);
+  devClientEnabled = eas?.build?.development?.developmentClient === true;
+} catch {
+  devClientEnabled = false;
+}
+
+if (hasPackageJson) {
+  try {
+    const pkg = await readJsonFile<any>(params.owner, params.repo, "package.json", ref);
+    const deps = { ...(pkg?.dependencies ?? {}), ...(pkg?.devDependencies ?? {}) };
+    const hasDevClient = typeof deps["expo-dev-client"] === "string";
+
+    if (devClientEnabled) {
       checks.push({
         id: "repo.dep.expoDevClient",
         title: "Dependency: expo-dev-client (für Development Flow)",
         status: hasDevClient ? "pass" : "warn",
+        details: hasDevClient
+          ? "expo-dev-client ist installiert. OK."
+          : "developmentClient=true ist aktiv, aber expo-dev-client fehlt. Dev-Client Builds können scheitern.",
         fixHint: hasDevClient
           ? undefined
-          : "Für development profile: expo-dev-client als dependency hinzufügen (sonst EAS dev-client Schritte failen).",
+          : "Empfohlen: Development auf internal APK umstellen (developmentClient=false).",
+        fix: hasDevClient
+          ? undefined
+          : {
+              label: "Stelle Development auf internal APK (kein Dev-Client)",
+              patch: {
+                jsonMerge: [
+                  {
+                    path: "eas.json",
+                    patch: {
+                      build: {
+                        development: {
+                          developmentClient: false,
+                          distribution: "internal",
+                          android: { buildType: "apk" },
+                        },
+                      },
+                    },
+                    createIfMissing: true,
+                  },
+                ],
+              },
+            },
       });
-    } catch {
+    } else {
       checks.push({
         id: "repo.dep.expoDevClient",
         title: "Dependency: expo-dev-client (für Development Flow)",
-        status: "warn",
-        fixHint: "package.json konnte nicht gelesen werden.",
+        status: "pass",
+        details: "Development ist internal APK (kein Dev-Client). expo-dev-client ist nicht erforderlich.",
       });
     }
+  } catch {
+    checks.push({
+      id: "repo.dep.expoDevClient",
+      title: "Dependency: expo-dev-client (für Development Flow)",
+      status: devClientEnabled ? "warn" : "pass",
+      fixHint: devClientEnabled ? "package.json konnte nicht gelesen werden." : undefined,
+    });
   }
+}
+
 
 
   // --- EAS projectId (needed for non-interactive builds) ---

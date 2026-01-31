@@ -323,22 +323,25 @@ const checkEasProfiles: PreflightCheck = {
     }
 
     const buildType = p?.android?.buildType;
-    if (profile === "preview" && buildType && buildType !== "apk") {
+    if (buildType && buildType !== "apk") {
       return {
         id: this.id,
         title: this.title,
         severity: this.severity,
         status: "warn",
-        message: `preview.android.buildType ist "${buildType}" – für 1-Click Install ist "apk" oft besser.`,
-      };
-    }
-    if (profile === "production" && buildType && buildType !== "aab") {
-      return {
-        id: this.id,
-        title: this.title,
-        severity: this.severity,
-        status: "warn",
-        message: `production.android.buildType ist "${buildType}" – für Play Store ist "aab" üblich.`,
+        message: `${profile}.android.buildType ist "${buildType}" – für den APK-Builder erwarten wir "apk".`,
+        fix: {
+          label: `Setze ${profile}.android.buildType auf "apk"`,
+          patch: {
+            jsonMerge: [
+              {
+                path: "eas.json",
+                patch: { build: { [profile]: { android: { buildType: "apk" } } } },
+                createIfMissing: true,
+              },
+            ],
+          },
+        },
       };
     }
 
