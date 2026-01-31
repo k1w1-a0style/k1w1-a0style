@@ -1,6 +1,6 @@
 Apply:
-  unzip -o Mobile-APK-Builder-PATCH7.zip
-  rm Mobile-APK-Builder-PATCH7.zip
+  unzip -o Mobile-APK-Builder-PATCH11.zip
+  rm Mobile-APK-Builder-PATCH11.zip
 
 Verify:
   npm run typecheck
@@ -9,5 +9,6 @@ Verify:
 
 Commit + push:
   git add -A
-  git commit -m "fix(diagnostics): repair repo file read + projectId detection"
+  git commit -m "fix(diagnostics): support array files in preflight checks"
   git push origin build
+

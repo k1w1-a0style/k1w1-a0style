@@ -1,8 +1,9 @@
-PATCH7 - Fix diagnostics TypeScript error + UUID regex
+PATCH11 - Fix diagnostics typecheck: support ProjectFile[] in app config lookup
 
 Changed files:
-- lib/diagnostics/buildPipelineDiagnostics.ts
+- lib/diagnostics/preflightChecks.ts
 
 Why:
-- Fixes TS2554: getRepoFileText expects a single params object, not 4 positional args.
-- Fixes corrupted regex (literal '...') so projectId UUID detection works reliably.
+- In some preflight checks, `files` is a ProjectFile[] array, but getText() expects a Map.
+- Add getTextAny() to handle both Map and array, and use it for app config lookup.
+

@@ -25,6 +25,20 @@ const has = (m: Map<string, ProjectFile>, p: string) => m.has(normalizePath(p));
 const getText = (m: Map<string, ProjectFile>, p: string) =>
   m.get(normalizePath(p))?.content ?? "";
 
+// Accept both Map and array forms (some callers provide ProjectFile[] instead of Map)
+const getTextAny = (
+  files: Map<string, ProjectFile> | ProjectFile[],
+  path: string,
+): string => {
+  if (Array.isArray(files)) {
+    const wanted = normalizePath(path);
+    const f = files.find((x) => normalizePath((x as any).path ?? (x as any).name ?? "") === wanted);
+    return (f as any)?.content ?? "";
+  }
+  return getText(files, path);
+};
+
+
 const ok = (
   res: Omit<PreflightCheckResult, "status"> & { status?: PreflightStatus },
 ): PreflightCheckResult => ({
@@ -275,15 +289,10 @@ const checkEasProfiles: PreflightCheck = {
 
     if (!has(m, "eas.json")) {
       const template = {
-        cli: { version: "16.0.0", appVersionSource: "remote" },
         build: {
-          development: {
-            developmentClient: true,
-            distribution: "internal",
-            android: { buildType: "apk" },
-          },
+          development: { developmentClient: true, distribution: "internal" },
           preview: { distribution: "internal", android: { buildType: "apk" } },
-          production: { android: { buildType: "apk" }, env: { PRECHECK: "true" } },
+          production: { android: { buildType: "aab" } },
         },
       };
       return {
@@ -327,64 +336,66 @@ const checkEasProfiles: PreflightCheck = {
     }
 
     const buildType = p?.android?.buildType;
-    // APK-only requirement: enforce android.buildType === "apk" for all profiles.
-    if (buildType && buildType !== "apk") {
-      const fixed = { ...eas };
-      fixed.build = { ...(fixed.build ?? {}) };
-      const current = fixed.build[profile] ?? {};
-      fixed.build[profile] = {
-        ...current,
-        android: { ...(current.android ?? {}), buildType: "apk" },
-      };
 
+    // APK-only policy (this app is ANDROID APK-only)
+    // Enforce for ALL profiles: development / preview / production ("full")
+    if (!buildType) {
       return {
         id: this.id,
         title: this.title,
         severity: this.severity,
+        status: "warn",
+        message: `${profile}.android.buildType ist nicht gesetzt – bitte explizit "apk" setzen.`,
+      };
+    }
+
+    if (buildType !== "apk") {
+      return {
+        id: this.id,
+        title: this.title,
+        severity: "high",
         status: "fail",
-        message: `${profile}.android.buildType ist "${buildType}" – dieses Projekt ist APK-only (erwartet: "apk").`,
+        message: `${profile}.android.buildType ist "${buildType}" – diese App unterstützt ausschließlich "apk".`,
         fix: {
-          patch: mkFix([
-            { path: "eas.json", content: JSON.stringify(fixed, null, 2) + "\n" },
-          ]),
+          label: `Setze ${profile}.android.buildType auf "apk"`,
+          patch: {
+            jsonMerge: [
+              {
+                path: "eas.json",
+                patch: {
+                  build: {
+                    [profile]: { android: { buildType: "apk" } },
+                  },
+                },
+                createIfMissing: true,
+              },
+            ],
+            explanation:
+              "Für den In-App APK Builder muss EAS immer ein installierbares APK liefern (kein AAB).",
+          },
         },
       };
     }
 
-    return ok({ id: this.id, title: this.title, severity: this.severity });
-  },
-};
+    return ok({
+      id: this.id,
+      title: this.title,
+      severity: this.severity,
+      status: "pass",
+      message: `✅ ${profile}.android.buildType ist "apk".`,
+    });
 
-const checkAssetsExist: PreflightCheck = {
-  id: "assets-exist",
-  title: "Assets referenced existieren",
-  severity: "normal",
-  run(files) {
-    const m = byPath(files);
-    const cfgPath = existsAny(m, [
-      "app.json",
-      "app.config.js",
-      "app.config.ts",
-      "app.config.json",
-    ]);
+    
+    // Read app config text for basic asset references (app.json / app.config.*)
+    const cfgText =
+      getTextAny(files, "app.json") ||
+      getTextAny(files, "app.config.js") ||
+      getTextAny(files, "app.config.ts") ||
+      getTextAny(files, "app.config.json") ||
+      "";
 
-    if (!cfgPath) {
-      return ok({
-        id: this.id,
-        title: this.title,
-        severity: this.severity,
-        status: "warn",
-        message: "Keine app.json/app.config.* gefunden.",
-      });
-    }
-
-    const cfgText = getText(m, cfgPath);
-
-    const iconMatches = [...cfgText.matchAll(/"icon"\s*:\s*"([^"]+)"/g)]
-      .map((x) => x[1])
-      .filter(Boolean);
-
-    const splashMatches = [...cfgText.matchAll(/"image"\s*:\s*"([^"]+)"/g)]
+    const iconMatches = [...cfgText.matchAll(/"icon"\s*:\s*"([^"]+)"/g)].map((mm) => mm[1]);
+const splashMatches = [...cfgText.matchAll(/"image"\s*:\s*"([^"]+)"/g)]
       .map((x) => x[1])
       .filter(Boolean);
 
@@ -778,78 +789,6 @@ const checkReactNativeCompatibility: PreflightCheck = {
   },
 };
 
-
-const checkEasCliAppVersionSource: PreflightCheck = {
-  id: "eas-cli-appversionsource",
-  title: "EAS CLI: appVersionSource gesetzt",
-  severity: "low",
-  run(files, target) {
-    if (target.mode !== "eas") {
-      return ok({
-        id: this.id,
-        title: this.title,
-        severity: this.severity,
-        status: "pass",
-        message: "Nicht relevant (Expo Go).",
-      });
-    }
-
-    const m = byPath(files);
-    if (!has(m, "eas.json")) {
-      return ok({
-        id: this.id,
-        title: this.title,
-        severity: this.severity,
-        status: "pass",
-        message: "eas.json wird separat geprüft.",
-      });
-    }
-
-    const eas = parseJson<any>(getText(m, "eas.json"));
-    if (!eas || typeof eas !== "object") {
-      return {
-        id: this.id,
-        title: this.title,
-        severity: this.severity,
-        status: "warn",
-        message: "eas.json ist keine gültige JSON.",
-      };
-    }
-
-    const avs = eas?.cli?.appVersionSource;
-    if (typeof avs === "string" && avs.trim().length > 0) {
-      return ok({
-        id: this.id,
-        title: this.title,
-        severity: this.severity,
-        status: "pass",
-        message: `appVersionSource = "${avs}"`,
-      });
-    }
-
-    const fixed = { ...eas, cli: { ...(eas.cli ?? {}), appVersionSource: "remote" } };
-    if (!fixed.cli.version) fixed.cli.version = "16.0.0";
-
-    return {
-      id: this.id,
-      title: this.title,
-      severity: this.severity,
-      status: "warn",
-      message:
-        'cli.appVersionSource fehlt. Das wird von EAS künftig vorausgesetzt.',
-      fix: {
-        patch: mkFix([
-          {
-            path: "eas.json",
-            content: JSON.stringify(fixed, null, 2) + "\n",
-          },
-        ]),
-      },
-    };
-  },
-};
-
-
 const checkSdkConsistency: PreflightCheck = {
   id: "expo-sdk-consistency",
   title: "Expo SDK Konsistenz (light)",
@@ -1183,7 +1122,6 @@ export const PREFLIGHT_CHECKS: PreflightCheck[] = [
   checkEntryPoint,
   checkExpoConfig,
   checkEasProfiles,
-  checkEasCliAppVersionSource,
   checkSdkConsistency,
   checkReactNativeCompatibility,
   checkWorkflowServiceRoleKeyLeak,
