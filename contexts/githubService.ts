@@ -127,15 +127,6 @@ export const getGitHubToken = async (): Promise<string | null> => {
 };
 
 /**
- * Lädt GitHub Token und wirft Fehler wenn nicht vorhanden.
- */
-export const getGitHubTokenOrThrow = async (): Promise<string> => {
-  const t = await getGitHubToken();
-  if (!t) throw new Error("GitHub Token fehlt. Bitte in Connections/Repo Screen setzen.");
-  return t;
-};
-
-/**
  * Speichert Expo Token (SecureStore - verschlüsselt)
  */
 export const saveExpoToken = async (token: string): Promise<void> => {
@@ -637,11 +628,6 @@ export const createOrUpdateFile = async (
   await githubLimiter.checkLimit();
 
   // ✅ FIX: SHA muss aus *dem gleichen Branch* kommen, sonst mismatch beim PUT
-  // 🔁 Retry on SHA mismatch (409) which can happen if another sync updates the file between GET and PUT.
-// We refetch the latest SHA from the same branch and retry once.
-let lastPutText: string | undefined;
-for (let attempt = 0; attempt < 2; attempt++) {
-  // ✅ FIX: SHA muss aus *dem gleichen Branch* kommen, sonst mismatch beim PUT
   const getUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}?ref=${encodeURIComponent(branch)}`;
   const getResp = await fetch(getUrl, {
     headers: {
@@ -653,7 +639,7 @@ for (let attempt = 0; attempt < 2; attempt++) {
   let sha: string | undefined = undefined;
   if (getResp.ok) {
     const existing = await getResp.json();
-    sha = existing?.sha;
+    sha = existing.sha;
   }
 
   const body: any = {
@@ -679,47 +665,24 @@ for (let attempt = 0; attempt < 2; attempt++) {
     },
   );
 
-  // If conflict due to SHA mismatch, retry once after refetching SHA
-  if (putResp.status === 409) {
-    lastPutText = await putResp.text().catch(() => undefined);
-    if (attempt === 0) continue;
+  let json: any;
+  try {
+    json = await putResp.json();
+  } catch {
+    const text = await putResp.text();
     throw new Error(
-      `create/update file failed (409): ${path} -> ${lastPutText ?? "sha mismatch"}`,
+      `create/update file failed (${putResp.status}): ${path} -> ${text}`,
     );
   }
-
-  const json = await putResp.json().catch(() => ({} as any));
 
   if (!putResp.ok) {
     const status = putResp.status;
     if (status === 401) throw new Error("GitHub Token ungültig.");
     if (status === 403) throw new Error("Keine Berechtigung für Datei-Upload.");
     if (status === 404) throw new Error("Repository nicht gefunden.");
-
-    // fallback: include response for debugging
-    const text = lastPutText ?? json?.message ?? "";
-    throw new Error(
-      json?.message
-        ? json.message
-        : `create/update file failed (${status}): ${path} -> ${text}`,
-    );
+    throw new Error(json.message || `create/update file failed: ${path}`);
   }
-
   return json;
-}
-
-// should be unreachable
-throw new Error(`create/update file failed: ${path}`);
-
-};
-
-const NATIVE_DIR_PREFIXES = ["android/", "ios/"];
-const PRIVATE_KEY_SUFFIXES = [".keystore", ".jks", ".p12", ".mobileprovision"];
-const shouldSkipRepoWritePath = (path: string) => {
-  const p = path.replace(/\\/g, "/");
-  if (NATIVE_DIR_PREFIXES.some((pre) => p.startsWith(pre))) return { skip: true, reason: "native" as const };
-  if (PRIVATE_KEY_SUFFIXES.some((s) => p.toLowerCase().endsWith(s))) return { skip: true, reason: "secret" as const };
-  return { skip: false as const, reason: undefined as unknown as never };
 };
 
 export const pushFilesToRepo = async (
@@ -747,11 +710,6 @@ export const pushFilesToRepo = async (
   const sortedFiles = [...files].sort((a, b) => a.path.localeCompare(b.path));
   for (const f of sortedFiles) {
     if (!f.path) continue;
-    const skipInfo = shouldSkipRepoWritePath(f.path);
-    if (skipInfo.skip) {
-      console.log(`[pushFilesToRepo] Skip ${skipInfo.reason}: ${f.path}`);
-      continue;
-    }
     console.log(`Pushing ${f.path}... (branch: ${targetBranch})`);
     await createOrUpdateFile(
       owner,
@@ -1027,106 +985,3 @@ export const listRepoSecretNames = async (
   const secrets = Array.isArray(json?.secrets) ? json.secrets : [];
   return secrets.map((s: any) => String(s?.name || "")).filter(Boolean);
 };
-export const cleanupNativeDirsInRepo = async (params: {
-  owner: string;
-  repo: string;
-  branch: string;
-  directories?: string[];
-}) => {
-  const dirs = params.directories?.length ? params.directories : ["android", "ios"];
-  const token = await getGitHubTokenOrThrow();
-
-  // Resolve branch ref -> commit sha
-  const refResp = await fetch(`https://api.github.com/repos/${params.owner}/${params.repo}/git/ref/heads/${encodeURIComponent(params.branch)}`, {
-    headers: {
-      Authorization: `token ${token}`,
-      Accept: "application/vnd.github+json",
-    },
-  });
-
-  if (!refResp.ok) {
-    const t = await refResp.text();
-    throw new Error(`Failed to resolve branch ref (${refResp.status}): ${t}`);
-  }
-
-  const refJson: any = await refResp.json();
-  const headSha = refJson?.object?.sha;
-  if (!headSha) throw new Error("Branch head SHA missing.");
-
-  // Get full tree for branch
-  const treeResp = await fetch(`https://api.github.com/repos/${params.owner}/${params.repo}/git/trees/${headSha}?recursive=1`, {
-    headers: {
-      Authorization: `token ${token}`,
-      Accept: "application/vnd.github+json",
-    },
-  });
-
-  if (!treeResp.ok) {
-    const t = await treeResp.text();
-    throw new Error(`Failed to load repo tree (${treeResp.status}): ${t}`);
-  }
-
-  const treeJson: any = await treeResp.json();
-  const tree: Array<{ path?: string; sha?: string; type?: string }> = treeJson?.tree ?? [];
-
-  const prefixes = dirs.map((d) => `${d.replace(/\/$/, "")}/`);
-  const candidates = tree
-    .filter((it) => it.type === "blob" && typeof it.path === "string" && prefixes.some((pre) => it.path!.startsWith(pre)))
-    .map((it) => ({ path: it.path as string, sha: it.sha as string | undefined }));
-
-  if (!candidates.length) {
-    return { deleted: 0, skipped: 0 };
-  }
-
-  let deleted = 0;
-  let skipped = 0;
-
-  for (const file of candidates) {
-    try {
-      // Contents API requires the file SHA; tree blob sha usually works, but we fallback to contents lookup.
-      let sha = file.sha;
-      if (!sha) {
-        const getResp = await fetch(`https://api.github.com/repos/${params.owner}/${params.repo}/contents/${encodeURIComponent(file.path)}?ref=${encodeURIComponent(params.branch)}`, {
-          headers: {
-            Authorization: `token ${token}`,
-            Accept: "application/vnd.github+json",
-          },
-        });
-        if (getResp.ok) {
-          const j: any = await getResp.json();
-          sha = j?.sha;
-        }
-      }
-      if (!sha) {
-        skipped++;
-        continue;
-      }
-
-      const delResp = await fetch(`https://api.github.com/repos/${params.owner}/${params.repo}/contents/${encodeURIComponent(file.path)}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `token ${token}`,
-          Accept: "application/vnd.github+json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: `chore(cleanup): remove native file ${file.path}`,
-          sha,
-          branch: params.branch,
-        }),
-      });
-
-      if (delResp.ok) {
-        deleted++;
-      } else {
-        skipped++;
-      }
-    } catch {
-      skipped++;
-    }
-  }
-
-  return { deleted, skipped };
-};
-
-

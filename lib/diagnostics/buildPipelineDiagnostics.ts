@@ -7,8 +7,11 @@ import {
   triggerWorkflow,
 } from "../../contexts/githubService";
 import { ensureSupabaseClient } from "../supabase";
+import type { PreflightPatch } from "./preflightTypes";
 
 export type DiagnosticStatus = "pass" | "warn" | "fail" | "info";
+
+export type DiagnosticFix = { label?: string; patch: PreflightPatch };
 
 export type DiagnosticCheck = {
   id: string;
@@ -16,7 +19,7 @@ export type DiagnosticCheck = {
   status: DiagnosticStatus;
   details?: string;
   fixHint?: string;
-  fix?: { label: string; patch: Record<string, unknown> };
+  fix?: DiagnosticFix;
 };
 
 const safeTrim = (v: string | null | undefined) => (v ?? "").trim();
@@ -192,16 +195,21 @@ export const runBuildPipelineDiagnostics = async (params: {
       id: `repo.easBuildType.${prof}`,
       title: `Android BuildType (APK-only): ${profileLabel(prof)}`,
       status: btOk ? (bt === "apk" ? "pass" : "warn") : "fail",
+      details: btOk
+        ? bt === "apk"
+          ? undefined
+          : `build.${prof}.android.buildType ist nicht gesetzt – bitte explizit "apk" setzen.`
+        : `BuildType ist "${btRaw}". Erwartet: "apk".`,
       fixHint: btOk
         ? bt === "apk"
           ? undefined
           : 'Setze in eas.json: build.' + prof + '.android.buildType = "apk".'
-        : `BuildType ist "${btRaw}". Erwartet: "apk".`,
-      fix: btOk
-        ? bt === "apk"
+        : `Setze build.${prof}.android.buildType auf "apk".`,
+      fix:
+        bt === "apk"
           ? undefined
           : {
-              label: `Setze build.${prof}.android.buildType auf "apk"`,
+              label: `Setze ${prof}.android.buildType auf "apk"`,
               patch: {
                 jsonMerge: [
                   {
@@ -210,98 +218,58 @@ export const runBuildPipelineDiagnostics = async (params: {
                     createIfMissing: true,
                   },
                 ],
+                explanation:
+                  "APK-only: Der In-App Builder unterstützt ausschließlich installierbare APKs.",
               },
-            }
-        : {
-            label: `Setze build.${prof}.android.buildType auf "apk"`,
-            patch: {
-              jsonMerge: [
-                {
-                  path: "eas.json",
-                  patch: { build: { [prof]: { android: { buildType: "apk" } } } },
-                  createIfMissing: true,
-                },
-              ],
             },
-          },
     });
 
     if (prof === "development") {
       const devClient = p?.developmentClient === true;
-
-      // APK-only builder default: INTERNAL APK (no dev-client). Dev-client is optional and requires extra repo setup.
-      if (devClient) {
-        checks.push({
-          id: "repo.easDevClientFlag",
-          title: "Development Flow: internal APK (developmentClient=false)",
-          status: "warn",
-          details:
-            "developmentClient=true ist aktiv. Für diesen APK-Builder empfehlen wir internal APK ohne Dev-Client (developmentClient=false).",
-          fixHint:
-            'Setze in eas.json: build.development.developmentClient=false; distribution="internal"; android.buildType="apk".',
-          fix: {
-            label: "Stelle Development auf internal APK (kein Dev-Client)",
-            patch: {
-              jsonMerge: [
-                {
-                  path: "eas.json",
-                  patch: {
-                    build: {
-                      development: {
-                        developmentClient: false,
-                        distribution: "internal",
-                        android: { buildType: "apk" },
-                      },
-                    },
+      checks.push({
+        id: "repo.easDevClientFlag",
+        title: "Development Flow: developmentClient=true",
+        status: devClient ? "pass" : "warn",
+        fixHint: devClient
+          ? undefined
+          : "Für echte Development-Client Builds sollte developmentClient=true gesetzt sein.",
+        fix: devClient
+          ? undefined
+          : {
+              label: "Setze developmentClient=true (development)",
+              patch: {
+                jsonMerge: [
+                  {
+                    path: "eas.json",
+                    patch: { build: { development: { developmentClient: true } } },
+                    createIfMissing: true,
                   },
-                  createIfMissing: true,
-                },
-              ],
+                ],
+                explanation:
+                  "Aktiviert den Development-Client Flow. Achtung: dafür wird meist expo-dev-client als Dependency benötigt.",
+              },
             },
-          },
-        });
-      } else {
-        checks.push({
-          id: "repo.easDevClientFlag",
-          title: "Development Flow: internal APK (developmentClient=false)",
-          status: "pass",
-          details:
-            "Development ist internal APK (ohne Dev-Client). OK für den APK-Builder.",
-        });
-      }
+      });
     }
   }
 
-  // Development Flow: expo-dev-client dependency required ONLY when developmentClient=true
-let devClientEnabled = false;
-try {
-  const eas = await readJsonFile<any>(params.owner, params.repo, "eas.json", ref);
-  devClientEnabled = eas?.build?.development?.developmentClient === true;
-} catch {
-  devClientEnabled = false;
-}
-
-if (hasPackageJson) {
-  try {
-    const pkg = await readJsonFile<any>(params.owner, params.repo, "package.json", ref);
-    const deps = { ...(pkg?.dependencies ?? {}), ...(pkg?.devDependencies ?? {}) };
-    const hasDevClient = typeof deps["expo-dev-client"] === "string";
-
-    if (devClientEnabled) {
+  // Development Flow: expo-dev-client dependency recommended/required
+  if (hasPackageJson) {
+    try {
+      const pkg = await readJsonFile<any>(params.owner, params.repo, "package.json", ref);
+      const deps = { ...(pkg?.dependencies ?? {}), ...(pkg?.devDependencies ?? {}) };
+      const hasDevClient = typeof deps["expo-dev-client"] === "string";
       checks.push({
         id: "repo.dep.expoDevClient",
         title: "Dependency: expo-dev-client (für Development Flow)",
         status: hasDevClient ? "pass" : "warn",
-        details: hasDevClient
-          ? "expo-dev-client ist installiert. OK."
-          : "developmentClient=true ist aktiv, aber expo-dev-client fehlt. Dev-Client Builds können scheitern.",
         fixHint: hasDevClient
           ? undefined
-          : "Empfohlen: Development auf internal APK umstellen (developmentClient=false).",
+          : "Ohne expo-dev-client können Development-Client Builds fehlschlagen. Alternativ: Development-Profil auf internes APK (ohne Dev-Client) umstellen.",
         fix: hasDevClient
           ? undefined
           : {
-              label: "Stelle Development auf internal APK (kein Dev-Client)",
+              label: "Stelle development Profil auf internes APK (ohne Dev-Client)",
               patch: {
                 jsonMerge: [
                   {
@@ -318,27 +286,20 @@ if (hasPackageJson) {
                     createIfMissing: true,
                   },
                 ],
+                explanation:
+                  "Damit der Build ohne expo-dev-client zuverlässig läuft, wird das development Profil als normales internes APK konfiguriert.",
               },
             },
       });
-    } else {
+    } catch {
       checks.push({
-        id: "repo.dep.expoDevClient",
+        id: "repo.dep.expoDevClient.read",
         title: "Dependency: expo-dev-client (für Development Flow)",
-        status: "pass",
-        details: "Development ist internal APK (kein Dev-Client). expo-dev-client ist nicht erforderlich.",
+        status: "warn",
+        fixHint: "package.json konnte nicht gelesen werden.",
       });
     }
-  } catch {
-    checks.push({
-      id: "repo.dep.expoDevClient",
-      title: "Dependency: expo-dev-client (für Development Flow)",
-      status: devClientEnabled ? "warn" : "pass",
-      fixHint: devClientEnabled ? "package.json konnte nicht gelesen werden." : undefined,
-    });
   }
-}
-
 
 
   // --- EAS projectId (needed for non-interactive builds) ---
@@ -491,6 +452,41 @@ if (hasPackageJson) {
         fixHint: usesEasProjectJson
           ? undefined
           : "Empfehlung: app.config.js sollte projectId aus eas-project.json lesen (damit CI nicht auf ENV angewiesen ist).",
+        fix: usesEasProjectJson
+          ? undefined
+          : {
+              label: "Patch app.config.js: projectId aus eas-project.json lesen",
+              patch: {
+                upsert: [
+                  {
+                    path: "app.config.js",
+                    content:
+                      "const fs = require('fs');\n" +
+                      "const path = require('path');\n\n" +
+                      "function readJson(rel) {\n" +
+                      "  try {\n" +
+                      "    const p = path.join(__dirname, rel);\n" +
+                      "    return JSON.parse(fs.readFileSync(p, 'utf8'));\n" +
+                      "  } catch (e) {\n" +
+                      "    return null;\n" +
+                      "  }\n" +
+                      "}\n\n" +
+                      "const eas = readJson('eas-project.json');\n" +
+                      "const easProjectId = eas && eas.projectId ? String(eas.projectId) : undefined;\n\n" +
+                      "module.exports = ({ config }) => {\n" +
+                      "  const base = config || readJson('app.json') || {};\n" +
+                      "  const extra = { ...(base.extra || {}) };\n" +
+                      "  const easExtra = { ...((extra.eas) || {}) };\n" +
+                      "  if (!easExtra.projectId && easProjectId) easExtra.projectId = easProjectId;\n" +
+                      "  extra.eas = easExtra;\n" +
+                      "  return { ...base, extra };\n" +
+                      "};\n",
+                  },
+                ],
+                explanation:
+                  "Sorgt dafür, dass Expo/EAS non-interactive Builds eine projectId aus eas-project.json finden können.",
+              },
+            },
       });
     } catch {
       // ignore

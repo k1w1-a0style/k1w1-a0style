@@ -277,7 +277,7 @@ const checkEasProfiles: PreflightCheck = {
       const template = {
         cli: { appVersionSource: "remote" },
         build: {
-          development: { distribution: "internal", android: { buildType: "apk" } },
+          development: { developmentClient: true, distribution: "internal" },
           preview: { distribution: "internal", android: { buildType: "apk" } },
           production: { android: { buildType: "apk" } },
         },
@@ -323,13 +323,16 @@ const checkEasProfiles: PreflightCheck = {
     }
 
     const buildType = p?.android?.buildType;
-    if (buildType && buildType !== "apk") {
+
+    // APK-only policy: for this app, ALL profiles must build installable APKs.
+    // Make it explicit; missing buildType is allowed but should be fixed.
+    if (!buildType) {
       return {
         id: this.id,
         title: this.title,
         severity: this.severity,
         status: "warn",
-        message: `${profile}.android.buildType ist "${buildType}" – für den APK-Builder erwarten wir "apk".`,
+        message: `${profile}.android.buildType ist nicht gesetzt – bitte explizit "apk" setzen.`,
         fix: {
           label: `Setze ${profile}.android.buildType auf "apk"`,
           patch: {
@@ -340,6 +343,32 @@ const checkEasProfiles: PreflightCheck = {
                 createIfMissing: true,
               },
             ],
+            explanation:
+              "Der In-App APK Builder unterstützt ausschließlich APK (kein AAB).",
+          },
+        },
+      };
+    }
+
+    if (buildType !== "apk") {
+      return {
+        id: this.id,
+        title: this.title,
+        severity: "high",
+        status: "fail",
+        message: `${profile}.android.buildType ist "${buildType}" – diese App unterstützt ausschließlich "apk".`,
+        fix: {
+          label: `Setze ${profile}.android.buildType auf "apk"`,
+          patch: {
+            jsonMerge: [
+              {
+                path: "eas.json",
+                patch: { build: { [profile]: { android: { buildType: "apk" } } } },
+                createIfMissing: true,
+              },
+            ],
+            explanation:
+              "Der In-App APK Builder unterstützt ausschließlich APK (kein AAB).",
           },
         },
       };
@@ -1095,6 +1124,91 @@ const checkForbiddenFiles: PreflightCheck = {
       message: "Potentiell gefährliche Dateien/Secrets gefunden.",
       details: hits.slice(0, 50),
     };
+  },
+};
+
+
+
+const checkNativeDirsManagedGuard: PreflightCheck = {
+  id: "native-dirs-managed-guard",
+  title: "android/ & ios/ Ordner (managed guard)",
+  severity: "normal",
+  run(files) {
+    const m = byPath(files);
+
+    const hasAndroidDir = files.some((f) => f.path === "android" || f.path.startsWith("android/"));
+    const hasIosDir = files.some((f) => f.path === "ios" || f.path.startsWith("ios/"));
+
+    const androidLooksIncomplete =
+      hasAndroidDir && !(has(m, "android/app/build.gradle") || has(m, "android/app/build.gradle.kts"));
+
+    const iosLooksIncomplete = hasIosDir && !has(m, "ios/Podfile");
+
+    if (androidLooksIncomplete || iosLooksIncomplete) {
+      const details: string[] = [];
+      if (androidLooksIncomplete) details.push("android/ vorhanden, aber android/app/build.gradle fehlt.");
+      if (iosLooksIncomplete) details.push("ios/ vorhanden, aber ios/Podfile fehlt.");
+
+      return {
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        status: "warn",
+        message:
+          "Unvollständige native Ordner können den EAS Build brechen (z.B. wenn android/ oder ios/ halb exportiert ist).",
+        details,
+      };
+    }
+
+    return ok({ id: this.id, title: this.title, severity: this.severity });
+  },
+};
+
+const checkEasWithoutCredentialsForDebug: PreflightCheck = {
+  id: "eas-withoutcredentials-debug",
+  title: "EAS Debug Builds ohne Keystore",
+  severity: "normal",
+  run(files) {
+    const m = byPath(files);
+    if (!has(m, "eas.json")) return ok({ id: this.id, title: this.title, severity: this.severity });
+
+    try {
+      const eas = JSON.parse(getText(m, "eas.json"));
+      const build = eas?.build || {};
+      const checkProfile = (name: string) => {
+        const v = build?.[name]?.android?.withoutCredentials;
+        return v === true;
+      };
+
+      const devOk = checkProfile("development");
+      const prevOk = checkProfile("preview");
+
+      if (!devOk || !prevOk) {
+        const missing: string[] = [];
+        if (!devOk) missing.push('eas.json: build.development.android.withoutCredentials=true fehlt');
+        if (!prevOk) missing.push('eas.json: build.preview.android.withoutCredentials=true fehlt');
+
+        return {
+          id: this.id,
+          title: this.title,
+          severity: this.severity,
+          status: "warn",
+          message:
+            "Ohne Keystore kann EAS in CI (--non-interactive) keinen neuen Keystore erzeugen. Für Debug/APK Builds sollte withoutCredentials=true gesetzt sein.",
+          details: missing,
+        };
+      }
+
+      return ok({ id: this.id, title: this.title, severity: this.severity });
+    } catch {
+      return {
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        status: "warn",
+        message: "eas.json konnte nicht geparst werden.",
+      };
+    }
   },
 };
 

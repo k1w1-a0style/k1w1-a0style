@@ -36,282 +36,56 @@ const WORKFLOWS: Record<string, string> = {
 
 on:
   repository_dispatch:
-    types: [trigger-eas-build]
+    types: [k1w1_build]
   workflow_dispatch:
     inputs:
       ref:
-        description: "Branch/Ref to build (e.g. work, main, dev, feature-x)"
+        description: "Branch/Ref to build"
         required: false
         default: "main"
       profile:
-        description: "EAS build profile (development|preview|production)"
+        description: "EAS profile (development | preview | production)"
         required: false
-        default: "preview"
-      job_id:
-        description: "Supabase build job id"
-        required: false
-        default: ""
-      autofix:
-        description: "Allow workflow to write back fixes (lockfile/dev-client) to the branch"
-        required: false
-        type: boolean
-        default: false
-
-concurrency:
-  group: >-
-    \${{ github.workflow }}-\${{ github.event_name }}-
-    \${{ github.event.client_payload.branch || github.event.client_payload.ref || inputs.ref || github.ref_name }}-
-    \${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || inputs.profile || 'preview' }}
-  cancel-in-progress: false
+        default: "development"
 
 permissions:
-  contents: read
+  contents: write
 
-env:
-  EAS_CLI_VERSION: "16.0.0"
+concurrency:
+  group: k1w1-triggered-\${{ github.repository }}-\${{ github.event.client_payload.ref || inputs.ref || 'main' }}-\${{ github.event.client_payload.profile || inputs.profile || 'development' }}
+  cancel-in-progress: false
 
 jobs:
-  autofix:
-    name: Auto-fix repo (optional writeback)
-    if: >-
-      \${{ (github.event_name == 'repository_dispatch' && (github.event.client_payload.autofix == true || github.event.client_payload.autoFix == true)) || (github.event_name == 'workflow_dispatch' && inputs.autofix == true) }}
+  build:
+    name: EAS Build (Android, WAIT)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: write
     env:
       EXPO_TOKEN: \${{ secrets.EXPO_TOKEN }}
+      EAS_CLI_VERSION: 16.32.0
+      SUPABASE_URL: \${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: \${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      JOB_ID: \${{ github.event.client_payload.job_id || '' }}
+      CHECKOUT_REF: \${{ github.event.client_payload.ref || inputs.ref || 'main' }}
+      PROFILE: \${{ github.event.client_payload.profile || inputs.profile || 'development' }}
+      TARGET_BRANCH: \${{ github.event.client_payload.target_branch || github.ref_name }}
 
     steps:
-      - name: Determine checkout ref
-        shell: bash
-        run: |
-          set -euo pipefail
-          REF="\${{ github.event.client_payload.branch }}"
-          if [ -z "$REF" ]; then REF="\${{ github.event.client_payload.ref }}"; fi
-          if [ -z "$REF" ]; then REF="\${{ github.event.inputs.ref }}"; fi
-          if [ -z "$REF" ]; then REF="\${GITHUB_REF_NAME:-work}"; fi
-          if [ -z "$REF" ]; then REF="work"; fi
-          echo "CHECKOUT_REF=$REF" >> "$GITHUB_ENV"
-          echo "CHECKOUT_REF=$REF"
-
-      - name: Determine build profile
-        shell: bash
-        run: |
-          set -euo pipefail
-          PROFILE="\${{ github.event.client_payload.build_profile }}"
-          if [ -z "$PROFILE" ]; then PROFILE="\${{ github.event.client_payload.buildProfile }}"; fi
-          if [ -z "$PROFILE" ]; then PROFILE="\${{ github.event.inputs.profile }}"; fi
-          if [ -z "$PROFILE" ]; then PROFILE="preview"; fi
-
-          case "$PROFILE" in
-            development|preview|production) ;;
-            *)
-              echo "::warning::Invalid PROFILE='$PROFILE', defaulting to preview"
-              PROFILE="preview"
-              ;;
-          esac
-
-          echo "PROFILE=$PROFILE" >> "$GITHUB_ENV"
-          echo "PROFILE=$PROFILE"
-
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          ref: \${{ env.CHECKOUT_REF }}
-          fetch-depth: 0
-
-      - name: Detect lockfile (for cache + install strategy)
-        id: lock
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -f package-lock.json ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
-          elif [ -f npm-shrinkwrap.json ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Setup Node (with npm cache)
-        if: steps.lock.outputs.has_lockfile == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: \${{ steps.lock.outputs.lockfile_path }}
-
-      - name: Setup Node (no cache - lockfile missing)
-        if: steps.lock.outputs.has_lockfile != 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 20
-
-      - name: Install dependencies (frozen if possible)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ "\${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
-            echo "Using npm ci"
-            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
-          else
-            echo "::warning::No lockfile found in repo. Falling back to npm install (non-reproducible)."
-            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
-          fi
-
-      - name: Install EAS CLI (pinned)
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm i -g "eas-cli@\${EAS_CLI_VERSION}"
-          eas --version
-
-      - name: Verify EAS auth
-        shell: bash
+      - name: Validate secrets
         run: |
           set -euo pipefail
           if [ -z "\${EXPO_TOKEN:-}" ]; then
             echo "::error::Missing GitHub Secret EXPO_TOKEN"
             exit 1
           fi
-          eas whoami
 
-      - name: Auto-fix repo (lockfile + dev client) [optional writeback]
-        shell: bash
-        env:
-          TARGET_BRANCH: \${{ env.CHECKOUT_REF }}
-          PROFILE: \${{ env.PROFILE }}
-          ALLOWED_REF_REGEX: "^(work|dev|develop|feature/.+|hotfix/.+)$"
-        run: |
-          set -euo pipefail
-          echo "🧯 Auto-fix: lockfile + expo-dev-client (development only)."
-          npm config set package-lock true
-
-          if [ "\${PROFILE}" = "development" ]; then
-            echo "📦 Ensuring expo-dev-client for development builds..."
-            npx --yes expo install expo-dev-client --fix || npx --yes expo install expo-dev-client
-          fi
-
-          if [ ! -f package-lock.json ]; then
-            echo "::warning::No package-lock.json found. Generating one (best effort)."
-            npm install --package-lock-only --no-audit --no-fund || npm install --package-lock-only --no-audit --no-fund --legacy-peer-deps
-          fi
-
-          if ! git status --porcelain | grep -qE '^( M|\?\?) (package\.json|package-lock\.json|\.npmrc)$'; then
-            echo "ℹ️ No CI auto-fix changes to write back."
-            exit 0
-          fi
-
-          BR="\${TARGET_BRANCH:-}"
-          if [ -z "$BR" ]; then
-            echo "::warning::No TARGET_BRANCH provided; skipping writeback."
-            exit 0
-          fi
-          if echo "$BR" | grep -qE '^[0-9a-fA-F]{7,40}$'; then
-            echo "::warning::Ref looks like a SHA ($BR). Skipping writeback."
-            exit 0
-          fi
-          if echo "$BR" | grep -qE '[: ]'; then
-            echo "::warning::Unsafe ref ($BR). Skipping writeback."
-            exit 0
-          fi
-          if ! echo "$BR" | grep -qE "\${ALLOWED_REF_REGEX}"; then
-            echo "::warning::Writeback disabled for branch '$BR' (regex: \${ALLOWED_REF_REGEX})."
-            exit 0
-          fi
-          if ! git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
-            echo "::warning::Ref '$BR' is not a remote branch. Skipping writeback."
-            exit 0
-          fi
-
-          echo "✅ Auto-fix changes detected -> committing back to '$BR'."
-          git config user.email "actions@users.noreply.github.com"
-          git config user.name "github-actions[bot]"
-          git add package.json package-lock.json .npmrc 2>/dev/null || true
-          git commit -m "chore(ci): auto-fix lockfile/dev-client [skip ci]" || true
-          git push origin "HEAD:$BR" || echo "::warning::Could not push auto-fix commit (branch may be protected)."
-
-  build:
-    needs: [autofix]
-    if: \${{ always() && (needs.autofix.result == 'success' || needs.autofix.result == 'skipped') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    permissions:
-      contents: read
-    env:
-      EXPO_TOKEN: \${{ secrets.EXPO_TOKEN }}
-      SUPABASE_URL: \${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: \${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      JOB_ID: \${{ github.event.client_payload.job_id || github.event.inputs.job_id || '' }}
-
-    steps:
-      - name: Determine checkout ref
-        shell: bash
-        run: |
-          set -euo pipefail
-          REF="\${{ github.event.client_payload.branch }}"
-          if [ -z "$REF" ]; then REF="\${{ github.event.client_payload.ref }}"; fi
-          if [ -z "$REF" ]; then REF="\${{ github.event.inputs.ref }}"; fi
-          if [ -z "$REF" ]; then REF="\${GITHUB_REF_NAME:-work}"; fi
-          if [ -z "$REF" ]; then REF="work"; fi
-          echo "CHECKOUT_REF=$REF" >> "$GITHUB_ENV"
-          echo "CHECKOUT_REF=$REF"
-
-      - name: Determine build profile
-        shell: bash
-        run: |
-          set -euo pipefail
-          PROFILE="\${{ github.event.client_payload.build_profile }}"
-          if [ -z "$PROFILE" ]; then PROFILE="\${{ github.event.client_payload.buildProfile }}"; fi
-          if [ -z "$PROFILE" ]; then PROFILE="\${{ github.event.inputs.profile }}"; fi
-          if [ -z "$PROFILE" ]; then PROFILE="preview"; fi
-
-          case "$PROFILE" in
-            development|preview|production) ;;
-            *)
-              echo "::warning::Invalid PROFILE='$PROFILE', defaulting to preview"
-              PROFILE="preview"
-              ;;
-          esac
-
-          echo "PROFILE=$PROFILE" >> "$GITHUB_ENV"
-          echo "PROFILE=$PROFILE"
-
-      - name: "Update Supabase job: running"
-        if: \${{ env.JOB_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Updating build_jobs (running) job_id=$JOB_ID"
-          python - <<'PY'
-          import os, json, subprocess
-          url=os.environ["SUPABASE_URL"].rstrip("/")
-          key=os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-          job=os.environ["JOB_ID"]
-          body=json.dumps({"status":"running","github_run_id": int(os.environ.get("GITHUB_RUN_ID","0") or "0")})
-          subprocess.check_call([
-            "curl","-fsS","-X","PATCH",f"{url}/rest/v1/build_jobs?id=eq.{job}",
-            "-H",f"apikey: {key}",
-            "-H",f"Authorization: Bearer {key}",
-            "-H","Content-Type: application/json",
-            "-H","Prefer: return=minimal",
-            "--data",body
-          ])
-          PY
-
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           ref: \${{ env.CHECKOUT_REF }}
           fetch-depth: 0
 
       - name: Detect lockfile (for cache + install strategy)
-        id: lock
-        shell: bash
+        id: lockfile
         run: |
           set -euo pipefail
           if [ -f package-lock.json ]; then
@@ -331,130 +105,138 @@ jobs:
             echo "lockfile_path=" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Setup Node (with npm cache)
-        if: steps.lock.outputs.has_lockfile == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - name: Setup Node (with cache)
+        if: steps.lockfile.outputs.has_lockfile == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: \${{ steps.lock.outputs.lockfile_path }}
+          cache-dependency-path: \${{ steps.lockfile.outputs.lockfile_path }}
 
       - name: Setup Node (no cache - lockfile missing)
-        if: steps.lock.outputs.has_lockfile != 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: steps.lockfile.outputs.has_lockfile != 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Install dependencies (frozen if possible)
-        shell: bash
         run: |
           set -euo pipefail
-          if [ "\${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
-            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
+          if [ "\${{ steps.lockfile.outputs.has_lockfile }}" = "true" ]; then
+            echo "Using npm ci (lockfile: \${{ steps.lockfile.outputs.lockfile_path }})"
+            npm ci --no-audit --no-fund
           else
             echo "::warning::No lockfile found in repo. Falling back to npm install (non-reproducible)."
-            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
+            npm install --no-audit --no-fund
           fi
 
-      - name: Install EAS CLI (pinned)
-        shell: bash
+      - name: Clean incomplete native directories (managed build guard)
         run: |
           set -euo pipefail
-          npm i -g "eas-cli@\${EAS_CLI_VERSION}"
-          eas --version
+          if [ -d android ] && [ ! -f android/app/build.gradle ] && [ ! -f android/app/build.gradle.kts ]; then
+            echo "::warning::android/ exists but android/app/build.gradle is missing -> removing android/ (and ios/) before EAS build."
+            rm -rf android ios || true
+          fi
+          if [ -d ios ] && [ ! -f ios/Podfile ]; then
+            echo "::warning::ios/ exists but ios/Podfile is missing -> removing ios/ before EAS build."
+            rm -rf ios || true
+          fi
 
-      - name: Verify EAS auth
-        shell: bash
+      - name: CI config sanity (eas.json)
         run: |
           set -euo pipefail
-          eas whoami
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = 'eas.json';
+          if (!fs.existsSync(path)) {
+            console.log('No eas.json found -> skipping.');
+            process.exit(0);
+          }
+          const eas = JSON.parse(fs.readFileSync(path, 'utf8'));
+          eas.cli = eas.cli || {};
+          if (!eas.cli.appVersionSource) {
+            // avoids future required-field warning
+            eas.cli.appVersionSource = "remote";
+          }
+          eas.build = eas.build || {};
+          const profile = process.env.PROFILE || 'development';
+          eas.build[profile] = eas.build[profile] || {};
+          eas.build[profile].android = eas.build[profile].android || {};
+          if (profile !== 'production') {
+            // unsigned debug builds don't need Android Keystore on EAS
+            eas.build[profile].android.withoutCredentials = true;
+          }
+          fs.writeFileSync(path, JSON.stringify(eas, null, 2) + '\n');
+          console.log("Updated eas.json for profile=" + profile);
+          NODE
+
+      - name: Self-heal: ensure lockfile (best effort)
+        run: |
+          set -euo pipefail
+
+          if [ ! -f package-lock.json ]; then
+            echo "📌 Generating package-lock.json..."
+            npm install --package-lock-only --no-audit --no-fund
+          fi
+
+          if git status --porcelain | grep -qE '^( M|\?\?) (package.json|package-lock.json|\.npmrc)$'; then
+            echo "✅ Changes detected -> committing back to repo."
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git config user.name "github-actions[bot]"
+            git add package.json package-lock.json .npmrc 2>/dev/null || true
+            git commit -m "chore(ci): self-heal lockfile" || true
+            BR="\${TARGET_BRANCH:-}"
+            if [ -z "$BR" ]; then BR="$(git rev-parse --abbrev-ref HEAD)"; fi
+            echo "🚀 Pushing to origin $BR (best effort)..."
+            git push origin "HEAD:$BR" || echo "::warning::Could not push self-heal commit (branch may be protected or ref is not a branch)."
+          else
+            echo "ℹ️ No relevant changes to commit."
+          fi
+
+      - name: Install EAS CLI
+        run: |
+          set -euo pipefail
+          npm i -g eas-cli@\${EAS_CLI_VERSION}
+          eas --version
 
       - name: Run EAS Build (WAIT)
         id: eas
-        shell: bash
         run: |
           set -euo pipefail
-          echo "Starting EAS build (android, profile=\${PROFILE}) with --wait..."
-          set +e
-          eas build --platform android --profile "\${PROFILE}" --non-interactive --wait 2>&1 | tee /tmp/eas_build.log
-          EC=\${PIPESTATUS[0]}
-          set -e
+          echo "🚀 Starting EAS build (android, profile=\${PROFILE}) with --wait..."
+          BUILD_OUTPUT="$(eas build --platform android --profile "\${PROFILE}" --non-interactive --wait 2>&1)" || {
+            CODE=$?
+            echo "\${BUILD_OUTPUT}"
+            echo "::error::EAS build failed (exit \${CODE})"
+            exit "\${CODE}"
+          }
 
-          BUILD_URL=$(grep -Eo 'https://expo\.dev/[^ ]+' /tmp/eas_build.log | tail -n 1 || true)
-          if [ -n "\${BUILD_URL:-}" ]; then
-            echo "EAS_BUILD_URL=$BUILD_URL" >> "$GITHUB_ENV"
-          fi
+          echo "\${BUILD_OUTPUT}"
 
-          exit $EC
+          BUILD_ID="$(echo "\${BUILD_OUTPUT}" | grep -oE "Build ID:[[:space:]]*[a-fA-F0-9-]+" | head -n1 | awk '{print $3}' || true)"
+          if [ -z "\${BUILD_ID}" ]; then BUILD_ID="unknown"; fi
+          echo "build_id=\${BUILD_ID}" >> "\${GITHUB_OUTPUT}"
 
-      - name: "Update Supabase job: success"
-        if: \${{ success() && env.JOB_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import os, json, subprocess
-          url=os.environ["SUPABASE_URL"].rstrip("/")
-          key=os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-          job=os.environ["JOB_ID"]
-          body={"status":"succeeded"}
-          bu=os.environ.get("EAS_BUILD_URL","").strip()
-          if bu:
-            body["build_url"]=bu
-          subprocess.check_call([
-            "curl","-fsS","-X","PATCH",f"{url}/rest/v1/build_jobs?id=eq.{job}",
-            "-H",f"apikey: {key}",
-            "-H",f"Authorization: Bearer {key}",
-            "-H","Content-Type: application/json",
-            "-H","Prefer: return=minimal",
-            "--data",json.dumps(body)
-          ])
-          PY
-
-      - name: "Update Supabase job: failure"
-        if: \${{ failure() && env.JOB_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import os, json, subprocess, pathlib
-          url=os.environ["SUPABASE_URL"].rstrip("/")
-          key=os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-          job=os.environ["JOB_ID"]
-          log_path=pathlib.Path("/tmp/eas_build.log")
-          msg=""
-          if log_path.exists():
-            txt=log_path.read_text(errors="ignore").replace("
-","").strip()
-            msg=txt[-3000:] if len(txt)>3000 else txt
-          body={"status":"failed","error_message":msg}
-          bu=os.environ.get("EAS_BUILD_URL","").strip()
-          if bu:
-            body["build_url"]=bu
-          subprocess.check_call([
-            "curl","-fsS","-X","PATCH",f"{url}/rest/v1/build_jobs?id=eq.{job}",
-            "-H",f"apikey: {key}",
-            "-H",f"Authorization: Bearer {key}",
-            "-H","Content-Type: application/json",
-            "-H","Prefer: return=minimal",
-            "--data",json.dumps(body)
-          ])
-          PY
+          BUILD_URL="$(echo "\${BUILD_OUTPUT}" | grep -oE "https?://[^[:space:]]+" | grep -E "/projects/[^/]+/builds/[a-fA-F0-9-]+" | head -n1 || true)"
+          echo "build_url=\${BUILD_URL}" >> "\${GITHUB_OUTPUT}"
 
       - name: Summary
         if: always()
-        shell: bash
         run: |
-          {
-            echo "## Triggered Build Summary"
-            echo "- Repo: \${{ github.repository }}"
-            echo "- Event: \${{ github.event_name }}"
-            echo "- Checkout ref: \${CHECKOUT_REF}"
-            echo "- Profile: \${PROFILE}"
-            if [ -n "\${EAS_BUILD_URL:-}" ]; then
-              echo "- Build URL: \${EAS_BUILD_URL}"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          ## Triggered Build Summary
+
+          - Repo: \${{ github.repository }}
+          - Event: \${{ github.event_name }}
+          - Checkout ref: \${CHECKOUT_REF}
+          - Profile: \${PROFILE}
+          - Commit: $(git rev-parse HEAD)
+          - Lockfile present: \${{ steps.lockfile.outputs.has_lockfile }}
+          - Lockfile path: \${{ steps.lockfile.outputs.lockfile_path }}
+          - EAS CLI: $(eas --version 2>/dev/null || echo "unknown")
+          - Build ID: \${{ steps.eas.outputs.build_id }}
+          - Build URL: \${{ steps.eas.outputs.build_url }}
+          EOF
 `,
   "eas-build.yml": `name: EAS Build
 
