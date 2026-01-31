@@ -1,13 +1,7 @@
-PATCH27 - Diagnostics: make Development Flow check APK-only correct + provide Fix
+Mobile-APK-Builder PATCH29
 
-Changed files:
-- lib/diagnostics/buildPipelineDiagnostics.ts
-
-Why:
-- Remaining warning 'Development Flow: developmentClient=true' was inverted and had no fix.
-- APK-only builder should default to internal APK (no dev-client).
-
-What changed:
-- Development flow check now PASSes when developmentClient is false/absent.
-- If developmentClient=true is detected, it becomes WARN with an actionable Fix patch to switch back to internal APK.
-
+Files:
+- .github/workflows/k1w1-triggered-build.yml
+- .github/workflows/eas-build.yml
+- PATCH_MANIFEST.txt
+- PATCH_README.txt

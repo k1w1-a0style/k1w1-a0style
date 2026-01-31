@@ -67,6 +67,33 @@ jobs:
           ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
 
+      - name: Ensure managed Expo project (remove broken native folders)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # If android/ exists but is incomplete (no Gradle files), it breaks EAS builds.
+          if [ -d android ]; then
+            if [ ! -f android/app/build.gradle ] && [ ! -f android/app/build.gradle.kts ]; then
+              echo "::warning::android/ directory detected but android/app/build.gradle is missing. Removing android/ to force managed workflow build."
+              rm -rf android
+            fi
+          fi
+          # Same idea for ios/ (avoid partially-checked-in native folders)
+          if [ -d ios ]; then
+            if [ ! -f ios/Podfile ]; then
+              echo "::warning::ios/ directory detected but Podfile is missing. Removing ios/ to force managed workflow build."
+              rm -rf ios
+            fi
+          fi
+
+      - name: Ensure package-lock.json matches package.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          # EAS build uses the lockfile to install deps on the builder. If it is missing/outdated,
+          # EAS can fail with "<pkg> is added ... but doesn't seem to be installed".
+          npm install --package-lock-only --no-audit --no-fund
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -176,6 +203,33 @@ jobs:
         with:
           ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
+
+      - name: Ensure managed Expo project (remove broken native folders)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # If android/ exists but is incomplete (no Gradle files), it breaks EAS builds.
+          if [ -d android ]; then
+            if [ ! -f android/app/build.gradle ] && [ ! -f android/app/build.gradle.kts ]; then
+              echo "::warning::android/ directory detected but android/app/build.gradle is missing. Removing android/ to force managed workflow build."
+              rm -rf android
+            fi
+          fi
+          # Same idea for ios/ (avoid partially-checked-in native folders)
+          if [ -d ios ]; then
+            if [ ! -f ios/Podfile ]; then
+              echo "::warning::ios/ directory detected but Podfile is missing. Removing ios/ to force managed workflow build."
+              rm -rf ios
+            fi
+          fi
+
+      - name: Ensure package-lock.json matches package.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          # EAS build uses the lockfile to install deps on the builder. If it is missing/outdated,
+          # EAS can fail with "<pkg> is added ... but doesn't seem to be installed".
+          npm install --package-lock-only --no-audit --no-fund
 
       - name: Setup Node
         uses: actions/setup-node@v4

@@ -1,18 +1,10 @@
-Apply:
-  unzip -o Mobile-APK-Builder-PATCH27.zip
-  rm Mobile-APK-Builder-PATCH27.zip
+PATCH29: Fix EAS build failures.
 
-Verify:
-  npm run typecheck
-  npm run lint:ci
-  npm run test:silent
+Changes
+1) Workflows remove incomplete native folders:
+   - delete android/ when android/app/build.gradle(.kts) is missing
+   - delete ios/ when ios/Podfile is missing
+2) k1w1-triggered-build.yml regenerates package-lock.json from package.json before calling eas build.
 
-Commit + push:
-  git add -A
-  git commit -m "fix(diagnostics): apk-only dev flow check + fix"
-  git push origin build
-
-In-app verify:
-  - Diagnostics → Run
-  - The last warning should now be either PASS (internal APK) or offer a Fix (if developmentClient=true).
-
+Apply
+unzip -o Mobile-APK-Builder-PATCH29.zip
