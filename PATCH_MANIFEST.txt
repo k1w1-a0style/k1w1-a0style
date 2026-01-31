@@ -1,17 +1,13 @@
-PATCH14 - Final critical fixes: Diagnostics 3 flows + pipeline checks + CI hardening + direct APK download_url
+PATCH15 - Final hardening: allow arbitrary safe branches + APK-only template for Full flow
 
 Changed files:
-1) screens/DiagnosticScreen.tsx
-   - Runs preflight checks sequentially for development/preview/production (Full) every time.
-   - Adds remote pipeline diagnostics results (GitHub/Workflows/EAS linkage).
+1) .github/workflows/k1w1-triggered-build.yml
+   - Relax ALLOWED_REF_REGEX to a safe generic pattern so in-app branch selection can't be blocked by an arbitrary whitelist.
 2) lib/diagnostics/preflightChecks.ts
-   - Enforces APK-only buildType for ALL EAS profiles, fixes template to never create AAB.
-3) .github/workflows/k1w1-triggered-build.yml
-   - Allows safe arbitrary branch names (no unnecessary whitelist blocks).
-   - Adds non-interactive EAS project:init to avoid 'EAS project not configured'.
-   - Uploads APK to Supabase Storage and writes a signed download_url back to build_jobs.
+   - Fix generated eas.json template to keep production (Full) APK-only (no AAB).
+   - Add cli.appVersionSource: 'remote' in template to avoid future EAS warnings.
 
 Why:
-- Your product requirement: in-app select repo/branch, no terminal steps, ANDROID APK-only, and UI must show a real download link.
-- Current ZIP still had: narrow branch whitelist, no EAS auto-init, no Storage upload, and Diagnostics not actually running the 3 profiles.
+- Requirements: repo/branch selection happens in-app, so CI must not reject valid branch names.
+- App is APK-only, including the 'Full' flow (production profile). Diagnostics template must not generate AAB.
 

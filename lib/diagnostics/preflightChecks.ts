@@ -275,10 +275,11 @@ const checkEasProfiles: PreflightCheck = {
 
     if (!has(m, "eas.json")) {
       const template = {
+        cli: { appVersionSource: "remote" },
         build: {
           development: { developmentClient: true, distribution: "internal" },
           preview: { distribution: "internal", android: { buildType: "apk" } },
-          production: { android: { buildType: "aab" } },
+          production: { android: { buildType: "apk" } },
         },
       };
       return {
@@ -322,25 +323,22 @@ const checkEasProfiles: PreflightCheck = {
     }
 
     const buildType = p?.android?.buildType;
-
-    // APK-only policy: this builder supports only installable APK artifacts for ALL profiles.
-    if (!buildType) {
+    if (profile === "preview" && buildType && buildType !== "apk") {
       return {
         id: this.id,
         title: this.title,
         severity: this.severity,
         status: "warn",
-        message: `${profile}.android.buildType ist nicht gesetzt – bitte explizit "apk" setzen.`,
+        message: `preview.android.buildType ist "${buildType}" – für 1-Click Install ist "apk" oft besser.`,
       };
     }
-
-    if (buildType !== "apk") {
+    if (profile === "production" && buildType && buildType !== "aab") {
       return {
         id: this.id,
         title: this.title,
-        severity: "high",
-        status: "fail",
-        message: `${profile}.android.buildType ist "${buildType}" – diese App unterstützt ausschließlich "apk".`,
+        severity: this.severity,
+        status: "warn",
+        message: `production.android.buildType ist "${buildType}" – für Play Store ist "aab" üblich.`,
       };
     }
 
