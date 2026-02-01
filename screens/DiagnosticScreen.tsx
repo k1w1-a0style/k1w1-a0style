@@ -1099,7 +1099,7 @@ useEffect(() => {
   const clearSelection = useCallback(() => setSelected({}), []);
 
   const openSigningWizard = useCallback(() => {
-    navigation.navigate("Credentials");
+    navigation.navigate("CredentialsWizard");
   }, [navigation]);
 
   const selectFails = useCallback(() => {

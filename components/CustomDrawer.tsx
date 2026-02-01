@@ -123,7 +123,7 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
 
         {renderSectionTitle("ANALYSE")}
         {renderItem("Diagnose", "Diagnostic", "bug-outline")}
-        {renderItem("Signing Wizard", "Credentials", "key-outline")}
+        {renderItem("Signing Wizard", "CredentialsWizard", "key-outline")}
         {renderItem("Vorschau", "Preview", "eye-outline")}
 
         {renderSectionTitle("INFO")}
