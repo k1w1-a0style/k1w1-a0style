@@ -19,6 +19,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 
 import { theme } from "../theme";
 import { useProject } from "../contexts/ProjectContext";
@@ -303,6 +304,7 @@ function FixRunModal(props: {
 }
 
 export default function DiagnosticScreen() {
+  const navigation = useNavigation<any>();
   const { projectData, updateProjectFiles, deleteFile, setPreferredBuildProfile } = useProject();
 
   const linkedRepo = (projectData as any)?.linkedRepo
@@ -1725,6 +1727,7 @@ ${safeTruncateText(r.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser 
     ({ item }: { item: PreflightCheckResult }) => {
       const st = (item.status ?? "pass") as Status;
       const hasFix = !!item.fix?.patch;
+      const isSigningCiSafe = String(item.id || "").includes("androidSigningCiSafe");
 
       return (
         <View style={styles.card}>
@@ -1784,6 +1787,21 @@ ${safeTruncateText(r.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser 
                   />
                   <Text style={styles.actionBtnText}>Preview</Text>
                 </TouchableOpacity>
+
+                {isSigningCiSafe && (
+                  <TouchableOpacity
+                    style={styles.actionBtn}
+                    onPress={() => navigation.navigate("CredentialsWizard")}
+                    disabled={running || applyBusy}
+                  >
+                    <Ionicons
+                      name="key"
+                      size={16}
+                      color={theme.palette.text.primary}
+                    />
+                    <Text style={styles.actionBtnText}>Wizard</Text>
+                  </TouchableOpacity>
+                )}
 
                 <TouchableOpacity
                   style={[
