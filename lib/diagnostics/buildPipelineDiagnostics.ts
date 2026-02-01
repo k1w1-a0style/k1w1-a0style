@@ -224,6 +224,75 @@ export const runBuildPipelineDiagnostics = async (params: {
             },
     });
 
+    // --- Android signing strategy (CI-safe) ---
+    // Hintergrund: In CI läuft `eas build --non-interactive`. Falls auf Expo/EAS noch
+    // kein Android Keystore existiert, schlägt der Build fehl (EAS kann in non-interactive
+    // keinen neuen Keystore generieren).
+    // Für development/preview (interne APKs) ist `android.withoutCredentials=true` der
+    // sauberste Weg, damit Builds ohne Keystore laufen.
+    // Production bleibt bewusst signiert (ohneCredentials=false).
+    const withoutCreds = p?.android?.withoutCredentials === true;
+
+    if (prof === "production") {
+      checks.push({
+        id: `repo.easAndroidWithoutCreds.${prof}`,
+        title: `Android Signierung: ${profileLabel(prof)}`,
+        status: withoutCreds ? "warn" : "pass",
+        details: withoutCreds
+          ? "android.withoutCredentials=true ist aktiv – Production Builds sollten signiert werden (Keystore nötig)."
+          : undefined,
+        fixHint: withoutCreds
+          ? "Entferne android.withoutCredentials oder setze es auf false, damit Production signiert ist."
+          : undefined,
+        fix: withoutCreds
+          ? {
+              label: "Deaktiviere withoutCredentials (production)",
+              patch: {
+                jsonMerge: [
+                  {
+                    path: "eas.json",
+                    patch: { build: { production: { android: { withoutCredentials: false } } } },
+                    createIfMissing: true,
+                  },
+                ],
+                explanation:
+                  "Production Builds benötigen Signing Credentials (Keystore). withoutCredentials ist nur für interne Builds gedacht.",
+              },
+            }
+          : undefined,
+      });
+    } else {
+      checks.push({
+        id: `repo.easAndroidWithoutCreds.${prof}`,
+        title: `Android Signierung (CI-safe): ${profileLabel(prof)}`,
+        status: withoutCreds ? "pass" : "warn",
+        details: withoutCreds
+          ? "withoutCredentials=true → kein Keystore nötig (ideal für CI / interne APKs)."
+          : "withoutCredentials fehlt → CI non-interactive kann beim ersten Build am Keystore scheitern.",
+        fixHint: withoutCreds
+          ? undefined
+          : "Empfohlen: build." +
+            prof +
+            ".android.withoutCredentials=true (wenn du keine signierten internen APKs brauchst).",
+        fix: withoutCreds
+          ? undefined
+          : {
+              label: `Setze ${prof}.android.withoutCredentials=true`,
+              patch: {
+                jsonMerge: [
+                  {
+                    path: "eas.json",
+                    patch: { build: { [prof]: { android: { withoutCredentials: true } } } },
+                    createIfMissing: true,
+                  },
+                ],
+                explanation:
+                  "Damit development/preview Builds in CI ohne vorherige Keystore-Erstellung zuverlässig laufen.",
+              },
+            },
+      });
+    }
+
     if (prof === "development") {
       const devClient = p?.developmentClient === true;
       const dist = typeof p?.distribution === "string" ? String(p.distribution).trim() : "";
