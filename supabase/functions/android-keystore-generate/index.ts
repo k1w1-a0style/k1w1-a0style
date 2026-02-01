@@ -1,138 +1,197 @@
 // supabase/functions/android-keystore-generate/index.ts
-// Generates an Android signing keystore (PKCS12) and stores it in Supabase Storage.
-//
-// NOTE:
-// - Runs on Supabase Edge Functions (Deno).
-// - Uses PKCS12 (.p12) because we can generate it purely in JS.
-// - The CI workflow will fetch the file and generate credentials.json for EAS (production builds).
-//
-// Env required:
-// - SUPABASE_URL
-// - SUPABASE_SERVICE_ROLE_KEY
-// - SIGNING_MASTER_KEY (32+ bytes string, used for AES-GCM to encrypt passwords)
-// - SIGNING_BUCKET (optional, default: "signing")
+// Generates an Android keystore server-side, stores it encrypted in Supabase Storage,
+// and persists metadata in the `signing_android` table.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import forge from "https://esm.sh/node-forge@1.3.1";
 
-function json(body: unknown, init: ResponseInit = {}) {
-  return new Response(JSON.stringify(body, null, 2), {
-    headers: { "content-type": "application/json; charset=utf-8" },
-    ...init,
-  });
+import { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
+import { rateLimit, requireAdminKey } from "../_shared/auth.ts";
+
+type Mode = "development" | "preview" | "production";
+
+function safeString(v: unknown): string {
+  return typeof v === "string" ? v.trim() : "";
 }
 
-function randomPassword(len = 24) {
-  const chars =
-    "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%_-";
-  const bytes = crypto.getRandomValues(new Uint8Array(len));
-  return Array.from(bytes)
-    .map((b) => chars[b % chars.length])
-    .join("");
+function repoOk(repo: string): boolean {
+  return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo);
 }
 
-async function encrypt(secret: string, plaintext: string) {
-  // AES-GCM with random IV, output base64(iv).base64(ciphertext)
-  const enc = new TextEncoder();
-  const keyData = enc.encode(secret.padEnd(32, "0").slice(0, 32));
+async function deriveAesKeyBytes(masterKey: string): Promise<Uint8Array> {
+  // Derive a stable 32-byte key from any masterKey string using SHA-256.
+  const input = new TextEncoder().encode(masterKey);
+  const hash = await crypto.subtle.digest("SHA-256", input);
+  return new Uint8Array(hash); // 32 bytes
+}
+
+function bytesToBinaryString(bytes: Uint8Array): string {
+  let out = "";
+  for (let i = 0; i < bytes.length; i++) out += String.fromCharCode(bytes[i]);
+  return out;
+}
+
+async function encryptWithAesCbc(payload: string, masterKey: string): Promise<string> {
+  const keyBytes = await deriveAesKeyBytes(masterKey);
+  const iv = crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey(
     "raw",
-    keyData,
-    "AES-GCM",
+    keyBytes,
+    { name: "AES-CBC" },
     false,
-    ["encrypt"]
-  );
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
-    key,
-    enc.encode(plaintext)
+    ["encrypt"],
   );
 
-  const b64 = (buf: ArrayBuffer | Uint8Array) =>
-    btoa(String.fromCharCode(...new Uint8Array(buf)));
+  const data = new TextEncoder().encode(payload);
+  const enc = await crypto.subtle.encrypt({ name: "AES-CBC", iv }, key, data);
+  const out = new Uint8Array(iv.length + enc.byteLength);
+  out.set(iv, 0);
+  out.set(new Uint8Array(enc), iv.length);
 
-  return `${b64(iv)}.${b64(ct)}`;
+  // base64
+  return btoa(bytesToBinaryString(out));
+}
+
+async function ensureBucketExists(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  bucket: string,
+): Promise<void> {
+  // Best-effort: try storage API, fallback to inserting into storage.buckets.
+  // Using service role key => allowed.
+  try {
+    const { error } = await supabase.storage.createBucket(bucket, {
+      public: false,
+      fileSizeLimit: "10mb",
+    });
+    if (!error) return;
+    // If it already exists, ignore.
+    if (String(error?.message || "").toLowerCase().includes("already")) return;
+  } catch {
+    // ignore, try fallback
+  }
+
+  // Fallback: insert directly into storage.buckets (works in Supabase Postgres).
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from("storage.buckets")
+      .insert({ id: bucket, name: bucket, public: false })
+      .select("id")
+      .maybeSingle();
+    if (error) {
+      // Duplicate => ok
+      const msg = String(error.message || "").toLowerCase();
+      if (msg.includes("duplicate") || msg.includes("already")) return;
+      throw error;
+    }
+  } catch (e) {
+    // If we can't ensure the bucket, fail loudly – upload will fail anyway.
+    throw new Error(`Could not ensure storage bucket '${bucket}': ${e?.message || String(e)}`);
+  }
 }
 
 Deno.serve(async (req) => {
+  const cors = handleCors(req);
+  if (cors) return cors;
+
+  const rl = rateLimit(req, "android-keystore-generate", 30, 60_000);
+  if (rl) return rl;
+  const auth = requireAdminKey(req);
+  if (auth) return auth;
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const masterKey = Deno.env.get("SIGNING_MASTER_KEY");
-    const bucket = Deno.env.get("SIGNING_BUCKET") || "signing";
 
     if (!supabaseUrl || !serviceKey) {
-      return json({ error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
+      return errorResponse("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY", req, 500);
     }
-    if (!masterKey || masterKey.length < 16) {
-      return json({ error: "Missing/weak SIGNING_MASTER_KEY" }, { status: 500 });
+    if (!masterKey || masterKey.trim().length < 24) {
+      return errorResponse(
+        "Missing SIGNING_MASTER_KEY (must be set as Supabase Edge Secret)",
+        req,
+        500,
+      );
     }
 
     const body = await req.json().catch(() => ({}));
-    const repo = String(body?.repo || "").trim(); // "owner/name"
-    const mode = String(body?.mode || "production").trim(); // development|preview|production
+    const repo = safeString(body?.repo);
+    const branch = safeString(body?.branch) || "main";
+    const mode = (safeString(body?.mode) as Mode) || "production";
 
-    if (!repo || !repo.includes("/")) {
-      return json({ error: "Invalid repo format. Expected 'owner/name'." }, { status: 400 });
+    if (!repoOk(repo)) {
+      return errorResponse("Invalid repo format. Expected 'owner/name'.", req, 400);
+    }
+    if (!/^[A-Za-z0-9_./-]{1,128}$/.test(branch)) {
+      return errorResponse("Invalid branch.", req, 400);
+    }
+    if (!(["development", "preview", "production"] as string[]).includes(mode)) {
+      return errorResponse("Invalid mode. Expected development|preview|production.", req, 400);
     }
 
-    const alias = `k1w1-${repo.replace("/", "-")}`;
-    const keystorePassword = randomPassword(28);
-    const keyPassword = randomPassword(28);
+    const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Generate RSA keypair + certificate
+    const bucket = "signing";
+    await ensureBucketExists(supabase, bucket);
+
+    // Create keystore
+    const alias = "upload";
+    const keystorePassword = forge.util.bytesToHex(forge.random.getBytesSync(16));
+    const keyPassword = forge.util.bytesToHex(forge.random.getBytesSync(16));
+
     const keys = forge.pki.rsa.generateKeyPair(2048);
     const cert = forge.pki.createCertificate();
     cert.publicKey = keys.publicKey;
     cert.serialNumber = String(Date.now());
     cert.validity.notBefore = new Date();
     cert.validity.notAfter = new Date();
-    cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 30);
-
-    const attrs = [
-      { name: "commonName", value: repo },
-      { name: "organizationName", value: "k1w1" },
-      { name: "countryName", value: "DE" },
-    ];
+    cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 25);
+    const attrs = [{ name: "commonName", value: "k1w1" }];
     cert.setSubject(attrs);
     cert.setIssuer(attrs);
+    cert.setExtensions([{ name: "basicConstraints", cA: true }]);
     cert.sign(keys.privateKey, forge.md.sha256.create());
 
-    // PKCS12 container (.p12)
     const p12Asn1 = forge.pkcs12.toPkcs12Asn1(
       keys.privateKey,
-      cert,
+      [cert],
       keystorePassword,
-      { algorithm: "3des", friendlyName: alias }
+      {
+        algorithm: "3des",
+        friendlyName: alias,
+        generateLocalKeyId: true,
+      },
     );
+
     const p12Der = forge.asn1.toDer(p12Asn1).getBytes();
-    const p12Bytes = new Uint8Array(p12Der.length);
-    for (let i = 0; i < p12Der.length; i++) p12Bytes[i] = p12Der.charCodeAt(i);
+    const p12Uint8 = new Uint8Array(p12Der.length);
+    for (let i = 0; i < p12Der.length; i++) p12Uint8[i] = p12Der.charCodeAt(i);
 
-    const storagePath = `${repo}/android/${alias}.p12`;
+    // Encrypt payload (includes raw keystore + passwords)
+    const payload = JSON.stringify({
+      keystoreBase64: btoa(bytesToBinaryString(p12Uint8)),
+      keystorePassword,
+      keyPassword,
+      alias,
+    });
+    const encrypted = await encryptWithAesCbc(payload, masterKey);
 
-    const supabase = createClient(supabaseUrl, serviceKey);
-
-    // Upload (upsert)
-    const uploadRes = await supabase.storage
+    const storagePath = `android/${repo.replace("/", "__")}/${branch}/keystore.enc`;
+    const { error: uploadErr } = await supabase.storage
       .from(bucket)
-      .upload(storagePath, p12Bytes, {
+      .upload(storagePath, new Blob([encrypted], { type: "text/plain" }), {
         upsert: true,
-        contentType: "application/x-pkcs12",
+        contentType: "text/plain",
       });
-
-    if (uploadRes.error) {
-      return json({ error: uploadRes.error.message }, { status: 500 });
+    if (uploadErr) {
+      return errorResponse("Storage upload failed", req, 500, { message: uploadErr.message });
     }
 
-    // Encrypt passwords before storing
-    const encKs = await encrypt(masterKey, keystorePassword);
-    const encKey = await encrypt(masterKey, keyPassword);
-
-    // Store metadata in table (best effort)
-    const upsert = await supabase
+    const now = new Date().toISOString();
+    const { error: dbErr } = await supabase
       .from("signing_android")
       .upsert(
         {
@@ -140,30 +199,28 @@ Deno.serve(async (req) => {
           alias,
           storage_bucket: bucket,
           storage_path: storagePath,
-          keystore_password_enc: encKs,
-          key_password_enc: encKey,
-          updated_at: new Date().toISOString(),
-          created_at: new Date().toISOString(),
           mode,
+          updated_at: now,
         },
-        { onConflict: "repo" }
+        { onConflict: "repo" },
       );
-
-    if (upsert.error) {
-      // Don't fail generation if DB insert fails; storage is the most important piece.
-      console.warn("DB upsert error:", upsert.error.message);
+    if (dbErr) {
+      return errorResponse("DB upsert failed", req, 500, { message: dbErr.message });
     }
 
-    return json({
-      ok: true,
-      repo,
-      mode,
-      alias,
-      storageBucket: bucket,
-      storagePath,
-      // DO NOT return raw passwords
-    });
+    return jsonResponse(
+      {
+        ok: true,
+        repo,
+        branch,
+        mode,
+        alias,
+        bucket,
+        path: storagePath,
+      },
+      req,
+    );
   } catch (e) {
-    return json({ error: e?.message || String(e) }, { status: 500 });
+    return errorResponse("Unhandled error", req, 500, { message: e?.message || String(e) });
   }
 });

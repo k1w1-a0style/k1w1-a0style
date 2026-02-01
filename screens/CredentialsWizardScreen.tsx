@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../theme";
 import { ensureSupabaseClient } from "../lib/supabase";
 import { useProject } from "../contexts/ProjectContext";
+import { getEdgeAdminKey } from "../contexts/githubService";
 
 
 function parseLinkedRepo(linkedRepo?: string | null): { owner: string; name: string; branch: string } | null {
@@ -108,6 +109,7 @@ export default function CredentialsWizardScreen() {
       }
 
       const supabase = await ensureSupabaseClient();
+      const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
 
       setStatusMsg("🔐 Keystore wird erzeugt…");
       const res = await supabase.functions.invoke("android-keystore-generate", {
@@ -116,6 +118,7 @@ export default function CredentialsWizardScreen() {
           branch: repo.branch || "main",
           mode: variant,
         },
+        ...(edgeAdminKey ? { headers: { "x-k1w1-admin-key": edgeAdminKey } } : {}),
       });
 
       if (res.error) {
@@ -156,10 +159,12 @@ export default function CredentialsWizardScreen() {
       }
 
       const supabase = await ensureSupabaseClient();
+      const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
       setStatusMsg("🔎 Prüfe Keystore Status…");
 
       const res = await supabase.functions.invoke("android-keystore-status", {
         body: { repo: `${repo.owner}/${repo.name}` },
+        ...(edgeAdminKey ? { headers: { "x-k1w1-admin-key": edgeAdminKey } } : {}),
       });
 
       if (res.error) throw new Error(res.error.message);
@@ -172,9 +177,11 @@ export default function CredentialsWizardScreen() {
       }
 
       setStatusMsg("✅ Keystore vorhanden.");
+      const alias = data?.record?.alias ?? data?.alias ?? "unknown";
+      const updatedAt = data?.record?.updatedAt ?? data?.updatedAt ?? data?.createdAt ?? "";
       Alert.alert(
         "Status ✅",
-        `Keystore vorhanden\nAlias: ${data.alias}\nCreated: ${data.createdAt}`
+        `Keystore vorhanden\nAlias: ${alias}${updatedAt ? `\nUpdated: ${updatedAt}` : ""}`
       );
     } catch (e: any) {
       console.error(e);
