@@ -7,6 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { useNavigation } from "@react-navigation/native";
 import {
   ActivityIndicator,
   Alert,
@@ -303,6 +304,8 @@ function FixRunModal(props: {
 }
 
 export default function DiagnosticScreen() {
+  // This screen is mounted inside React Navigation; use the hook instead of relying on implicit props.
+  const navigation = useNavigation<any>();
   const { projectData, updateProjectFiles, deleteFile, setPreferredBuildProfile } = useProject();
 
   const linkedRepo = (projectData as any)?.linkedRepo
