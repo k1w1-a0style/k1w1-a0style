@@ -1,34 +1,36 @@
-# Agent Instructions — Mobile APK Builder
+# Agent Instructions (Deutsch, Codex/Cloud-Agent freundlich)
 
-When working on this repo, assume:
-- This is an **automated APK builder** built around **Expo/EAS + GitHub Actions**.
-- The app chooses the **target repo and branch/ref at runtime**. Workflows/templates must **NOT hard-pin** a branch.
-- CI must stay **non-interactive**. Anything that requires prompts must be avoided or clearly documented as a one-time manual setup step.
+Du arbeitest in diesem Repo als automatisierter Coding-Agent.
+Ziel: **kleine, sichere Änderungen**, reproduzierbar, mit Tests.
 
-## WORKFLOW_CONTRACT (non-negotiable)
-1) The selected repo/ref comes from the app/user and must flow through provisioning + workflow dispatch.
-2) Secrets/tokens belong in GitHub Secrets/Variables (or the app’s secure storage), not committed.
-3) Provisioning must be idempotent (safe to run repeatedly).
-4) “Self-heal” logic may fix missing lockfiles/dev-client, but must never silently make destructive changes.
+## Goldene Regeln
 
-## Required engineering behavior
-- Prefer stable automation over clever shortcuts.
-- If you add or change workflow behavior, update:
-  - workflow templates,
-  - diagnostics/preflight checks,
-  - docs (AI_START_HERE.md / PROJECT_CONTEXT.md).
-- Keep the repo clean: avoid generating lots of patch-manifest files.
+1. **Arbeite in kleinen Commits**: erst minimale Änderung → Tests → dann nächste.
+2. **Keine Überraschungen**: keine Dependencies updaten, keine Format-Wipes ohne Grund.
+3. **Immer checken**: Typecheck + Lint + Tests müssen grün sein.
+4. **Security & Secrets**: niemals Tokens/Keys loggen oder in Dateien schreiben.
+5. **Erkläre kurz**: Was geändert, warum, wie testen.
 
-## Android signing (practical reality)
-- Android builds on EAS generally require signing credentials (keystore) to exist on EAS.
-- In GitHub Actions (`--non-interactive`), EAS cannot generate a new keystore for you.
-  If credentials are missing you’ll see: “Generating a new Keystore is not supported in --non-interactive mode”.
+## Standard-Workflow
 
-### What to do
-- Provision Android credentials **once** outside CI:
-  - run `eas credentials -p android` locally and generate/upload a keystore, OR
-  - configure credentials in the Expo dashboard for the project.
+1. Code lesen & Kontext verstehen (`PROJECT_CONTEXT.md`, `SYSTEM_README.md`).
+2. Änderung umsetzen.
+3. Lokale Checks laufen lassen:
 
-### Optional alternative
-You *can* experiment with unsigned debug builds (e.g. `android.withoutCredentials: true` in a build profile),
-…but do not assume it works across all SDK/CLI versions. If you use it, document the tradeoffs and keep production signed.
+```bash
+npm run typecheck
+npm run lint:ci
+npm run test:silent
+```
+
+## Qualität
+
+- Halte Funktionen klein.
+- Bevorzugt pure Functions in `lib/` und helper in `utils/`.
+- UI: konsistente Styles (siehe `styles/`).
+
+## Wenn etwas unklar ist
+
+- Erst Code + Docs durchsuchen.
+- Dann eine Hypothese formulieren und minimal testen.
+

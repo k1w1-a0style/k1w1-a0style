@@ -1,4 +1,7 @@
-# k1w1-a0style-restored
+# k1w1-a0style
+
+
+> Hinweis: Der Name "k1w1-a0style" ist wieder der normale Projektname. Falls du irgendwo noch "-restored" siehst, ist das ein Relikt aus einem Reparatur-Zip.
 
 React-Native/Expo App zum Bauen und Testen von Projekten/Flows mit **integriertem Preview-System**.
 
