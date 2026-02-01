@@ -53,6 +53,10 @@ async function encryptWithAesCbc(payload: string, masterKey: string): Promise<st
   return btoa(bytesToBinaryString(out));
 }
 
+async function encryptText(text: string, masterKey: string): Promise<string> {
+  return encryptWithAesCbc(text, masterKey);
+}
+
 async function ensureBucketExists(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
@@ -179,7 +183,7 @@ Deno.serve(async (req) => {
     });
     const encrypted = await encryptWithAesCbc(payload, masterKey);
 
-    const storagePath = `android/${repo.replace("/", "__")}/${branch}/keystore.enc`;
+    const storagePath = `android/${repo.replace("/", "__")}/keystore.enc`;
     const { error: uploadErr } = await supabase.storage
       .from(bucket)
       .upload(storagePath, new Blob([encrypted], { type: "text/plain" }), {
@@ -199,6 +203,11 @@ Deno.serve(async (req) => {
           alias,
           storage_bucket: bucket,
           storage_path: storagePath,
+          // Backward-compat: earlier schema had NOT NULL password columns.
+          // We don't rely on them (source of truth is the encrypted blob in Storage),
+          // but we fill them so inserts never fail.
+          keystore_password_enc: await encryptText(keystorePassword, masterKey),
+          key_password_enc: await encryptText(keyPassword, masterKey),
           mode,
           updated_at: now,
         },

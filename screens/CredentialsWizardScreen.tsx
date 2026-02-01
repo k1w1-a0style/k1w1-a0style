@@ -89,7 +89,7 @@ export default function CredentialsWizardScreen() {
 
   const explanation = useMemo(() => {
     if (variant === "production") {
-      return "Für Produce brauchst du Signing. Wir erzeugen den Android Keystore serverseitig über Supabase und speichern ihn sicher.";
+      return "Für Produce brauchst du Signing. Wir erzeugen den Android Keystore serverseitig über Supabase und speichern ihn sicher (Repo muss exakt matchen: owner/name).";
     }
     return "Dev/Preview können optional ohne Credentials laufen (CI-safe). Du kannst trotzdem später Signing hinzufügen.";
   }, [variant]);
@@ -122,7 +122,7 @@ export default function CredentialsWizardScreen() {
       });
 
       if (res.error) {
-        throw new Error(res.error.message || "Unknown function error");
+        throw new Error(res.error.message || (res.error as any)?.details || "Unknown function error");
       }
 
       const data: any = res.data;
