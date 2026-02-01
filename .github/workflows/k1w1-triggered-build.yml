@@ -55,7 +55,25 @@ jobs:
               PROFILE="preview"
               ;;
           esac
-          if [ "$PROFILE" = "production" ]; then EXT="aab"; else EXT="apk"; fi
+          # Determine artifact extension from eas.json buildType when possible
+EXT=""
+if [ -f eas.json ]; then
+  EXT="$(node - <<'NODE'
+const fs = require('fs');
+const prof = process.env.PROFILE;
+try {
+  const j = JSON.parse(fs.readFileSync('eas.json','utf8'));
+  const bt = j?.build?.[prof]?.android?.buildType;
+  if (bt === 'aab') process.stdout.write('aab');
+  else if (bt === 'apk') process.stdout.write('apk');
+} catch {}
+NODE
+)"
+fi
+if [ -z "$EXT" ]; then
+  # fallback: default to apk (including production) for your use-case
+  EXT="apk"
+fi
           echo "PROFILE=$PROFILE" >> "$GITHUB_ENV"
           echo "ARTIFACT_EXT=$EXT" >> "$GITHUB_ENV"
           echo "✅ Using build profile: $PROFILE (artifact: .$EXT)"
@@ -226,7 +244,86 @@ jobs:
             echo "✅ eas-project.json exists."
           fi
 
-      - name: Run EAS Build (WAIT)
+      
+- name: Fetch Android signing credentials from Supabase (production)
+  if: ${{ env.PROFILE == 'production' }}
+  shell: bash
+  run: |
+    set -euo pipefail
+    if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+      echo "::error::Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY secrets. Cannot fetch signing credentials."
+      exit 1
+    fi
+
+    REPO="${{ github.repository }}"
+    echo "🔐 Fetching signing credentials for $REPO from Supabase..."
+
+    CREDS_JSON="$(curl -fsSL             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -d "{"repo":"${REPO}"}"             "${SUPABASE_URL}/functions/v1/android-keystore-export" || true)"
+
+    if [ -z "${CREDS_JSON}" ]; then
+      echo "::error::Could not fetch credentials (empty response)."
+      exit 1
+    fi
+
+    EXISTS="$(echo "${CREDS_JSON}" | node -pe "try{const j=JSON.parse(fs.readFileSync(0,'utf8')); j.exists?'true':'false'}catch(e){'false'}")"
+    if [ "${EXISTS}" != "true" ]; then
+      echo "${CREDS_JSON}"
+      echo "::error::No Android signing credentials found in Supabase for ${REPO}. Use the in-app Credentials Wizard to generate them."
+      exit 1
+    fi
+
+    export BUCKET="$(echo "${CREDS_JSON}" | node -pe "const j=JSON.parse(fs.readFileSync(0,'utf8')); process.stdout.write(j.bucket||'')")"
+    export PATH_IN_BUCKET="$(echo "${CREDS_JSON}" | node -pe "const j=JSON.parse(fs.readFileSync(0,'utf8')); process.stdout.write(j.path||'')")"
+    export ALIAS="$(echo "${CREDS_JSON}" | node -pe "const j=JSON.parse(fs.readFileSync(0,'utf8')); process.stdout.write(j.alias||'')")"
+    export KSP="$(echo "${CREDS_JSON}" | node -pe "const j=JSON.parse(fs.readFileSync(0,'utf8')); process.stdout.write(j.keystorePassword||'')")"
+    export KPW="$(echo "${CREDS_JSON}" | node -pe "const j=JSON.parse(fs.readFileSync(0,'utf8')); process.stdout.write(j.keyPassword||'')")"
+
+    if [ -z "$BUCKET" ] || [ -z "$PATH_IN_BUCKET" ] || [ -z "$ALIAS" ] || [ -z "$KSP" ] || [ -z "$KPW" ]; then
+      echo "${CREDS_JSON}"
+      echo "::error::Incomplete credentials payload from Supabase."
+      exit 1
+    fi
+
+    echo "⬇️ Downloading keystore from Supabase Storage (bucket=$BUCKET)..."
+    mkdir -p .k1w1-signing
+    export KEYSTORE_PATH=".k1w1-signing/android-keystore.p12"
+    curl -fsSL             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             "${SUPABASE_URL}/storage/v1/object/${BUCKET}/${PATH_IN_BUCKET}"             -o "${KEYSTORE_PATH}"
+
+    if [ ! -s "${KEYSTORE_PATH}" ]; then
+      echo "::error::Downloaded keystore is missing/empty."
+      exit 1
+    fi
+
+    echo "🧾 Writing credentials.json (local credentials for EAS)..."
+    node - <<'NODE'
+    const fs = require('fs');
+    const out = {
+      android: {
+        keystore: {
+          keystorePath: process.env.KEYSTORE_PATH,
+          keystorePassword: process.env.KSP,
+          keyAlias: process.env.ALIAS,
+          keyPassword: process.env.KPW,
+        },
+      },
+    };
+    fs.writeFileSync('credentials.json', JSON.stringify(out, null, 2) + "\n");
+    NODE
+
+    echo "🧰 Ensuring eas.json production uses local credentials..."
+    node - <<'NODE'
+    const fs = require('fs');
+    const p = 'eas.json';
+    if (!fs.existsSync(p)) process.exit(0);
+    const j = JSON.parse(fs.readFileSync(p,'utf8'));
+    j.build = j.build || {};
+    j.build.production = j.build.production || {};
+    j.build.production.android = j.build.production.android || {};
+    j.build.production.android.credentialsSource = 'local';
+    fs.writeFileSync(p, JSON.stringify(j,null,2)+"\n");
+    NODE
+
+- name: Run EAS Build (WAIT)
         id: eas
         shell: bash
         run: |
@@ -253,6 +350,15 @@ jobs:
 
           BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oE "https?://[^[:space:]]+" | grep -E "/projects/[^/]+/builds/[a-fA-F0-9-]+" | head -n1 || true)"
           echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"
+
+      
+- name: Cleanup signing material
+  if: ${{ env.PROFILE == 'production' }}
+  shell: bash
+  run: |
+    set -euo pipefail
+    rm -f credentials.json || true
+    rm -rf .k1w1-signing || true
 
       - name: Download Android Artifact
         if: ${{ steps.eas.outputs.build_id != 'unknown' }}
