@@ -685,6 +685,72 @@ export const createOrUpdateFile = async (
   return json;
 };
 
+/**
+ * Deletes a file from a repo branch using the GitHub Contents API.
+ * NOTE: Each deletion creates its own commit (GitHub API limitation).
+ */
+export const deleteRepoFile = async (
+  owner: string,
+  repo: string,
+  path: string,
+  message = "Delete file",
+  branch = "main",
+) => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error("GitHub token fehlt.");
+
+  await githubLimiter.checkLimit();
+
+  const getUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}?ref=${encodeURIComponent(branch)}`;
+  const getResp = await fetch(getUrl, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!getResp.ok) {
+    if (getResp.status === 404) return { deleted: false, reason: "not_found" } as const;
+    if (getResp.status === 401) throw new Error("GitHub Token ungültig.");
+    if (getResp.status === 403) throw new Error("Keine Berechtigung für Datei-Löschung.");
+    const t = await getResp.text().catch(() => "");
+    throw new Error(`Delete get failed (${getResp.status}): ${t}`);
+  }
+
+  const existing: any = await getResp.json();
+  const sha: string | undefined = existing?.sha;
+  if (!sha) return { deleted: false, reason: "no_sha" } as const;
+
+  await githubLimiter.checkLimit();
+
+  const delResp = await fetch(
+    `https://api.github.com/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}`,
+    {
+      method: "DELETE",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message, sha, branch }),
+    },
+  );
+
+  if (delResp.ok) return { deleted: true } as const;
+
+  const status = delResp.status;
+  let j: any = null;
+  try {
+    j = await delResp.json();
+  } catch {
+    // ignore
+  }
+  if (status === 401) throw new Error("GitHub Token ungültig.");
+  if (status === 403) throw new Error("Keine Berechtigung für Datei-Löschung.");
+  if (status === 404) throw new Error("Repository oder Datei nicht gefunden.");
+  throw new Error(j?.message || `Delete failed (${status}): ${path}`);
+};
+
 export const pushFilesToRepo = async (
   owner: string,
   repo: string,

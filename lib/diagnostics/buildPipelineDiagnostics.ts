@@ -226,30 +226,76 @@ export const runBuildPipelineDiagnostics = async (params: {
 
     if (prof === "development") {
       const devClient = p?.developmentClient === true;
+      const dist = typeof p?.distribution === "string" ? String(p.distribution).trim() : "";
+      const internalOk = !devClient ? dist === "internal" || dist === "" : true;
+
+      // Development profile must be *coherent*, not necessarily dev-client.
+      // - If developmentClient=true: expect dev-client dependency in package.json (checked below)
+      // - If developmentClient=false: expect distribution=internal (or empty, but internal is preferred)
       checks.push({
-        id: "repo.easDevClientFlag",
-        title: "Development Flow: developmentClient=true",
-        status: devClient ? "pass" : "warn",
+        id: "repo.easDevelopmentCoherent",
+        title: "Development Profil konsistent (Dev-Client ODER internal APK)",
+        status: devClient || internalOk ? "pass" : "warn",
+        details: devClient
+          ? "Development-Client Flow aktiv (developmentClient=true)."
+          : internalOk
+            ? "Development ist als internal APK konfiguriert (ohne Dev-Client)."
+            : "developmentClient=false aber distribution ist nicht internal.",
         fixHint: devClient
           ? undefined
-          : "Für echte Development-Client Builds sollte developmentClient=true gesetzt sein.",
-        fix: devClient
-          ? undefined
-          : {
-              label: "Setze developmentClient=true (development)",
-              patch: {
-                jsonMerge: [
-                  {
-                    path: "eas.json",
-                    patch: { build: { development: { developmentClient: true } } },
-                    createIfMissing: true,
-                  },
-                ],
-                explanation:
-                  "Aktiviert den Development-Client Flow. Achtung: dafür wird meist expo-dev-client als Dependency benötigt.",
+          : internalOk
+            ? undefined
+            : "Wenn developmentClient=false ist, sollte distribution=internal gesetzt sein.",
+        fix:
+          devClient || internalOk
+            ? undefined
+            : {
+                label: "Setze distribution=internal (development)",
+                patch: {
+                  jsonMerge: [
+                    {
+                      path: "eas.json",
+                      patch: { build: { development: { distribution: "internal" } } },
+                      createIfMissing: true,
+                    },
+                  ],
+                  explanation:
+                    "Development ohne Dev-Client sollte als internes APK gebaut werden (distribution=internal).",
+                },
               },
-            },
       });
+
+      // Optional: offer a positive fix to enable dev-client flow (only if currently off)
+      if (!devClient) {
+        checks.push({
+          id: "repo.easEnableDevClientFlow",
+          title: "Optional: Development-Client Flow aktivieren",
+          status: "info",
+          details:
+            "Wenn du im Dev-Mode den echten Dev-Client nutzen willst, aktiviere developmentClient=true (und stelle sicher, dass expo-dev-client als Dependency existiert).",
+          fix: {
+            label: "Setze developmentClient=true (development)",
+            patch: {
+              jsonMerge: [
+                {
+                  path: "eas.json",
+                  patch: {
+                    build: {
+                      development: {
+                        developmentClient: true,
+                        // distribution is ignored by EAS when dev-client is on, but we keep it unset.
+                      },
+                    },
+                  },
+                  createIfMissing: true,
+                },
+              ],
+              explanation:
+                "Aktiviert den Development-Client Flow. Dafür wird in der Regel expo-dev-client als Dependency benötigt.",
+            },
+          },
+        });
+      }
     }
   }
 
@@ -259,37 +305,52 @@ export const runBuildPipelineDiagnostics = async (params: {
       const pkg = await readJsonFile<any>(params.owner, params.repo, "package.json", ref);
       const deps = { ...(pkg?.dependencies ?? {}), ...(pkg?.devDependencies ?? {}) };
       const hasDevClient = typeof deps["expo-dev-client"] === "string";
+
+      // Only required when developmentClient=true in eas.json
+      const devClientEnabled = easJson?.build?.development?.developmentClient === true;
+
       checks.push({
         id: "repo.dep.expoDevClient",
         title: "Dependency: expo-dev-client (für Development Flow)",
-        status: hasDevClient ? "pass" : "warn",
-        fixHint: hasDevClient
+        status: hasDevClient ? "pass" : devClientEnabled ? "warn" : "pass",
+        details: hasDevClient
           ? undefined
-          : "Ohne expo-dev-client können Development-Client Builds fehlschlagen. Alternativ: Development-Profil auf internes APK (ohne Dev-Client) umstellen.",
-        fix: hasDevClient
-          ? undefined
-          : {
-              label: "Stelle development Profil auf internes APK (ohne Dev-Client)",
-              patch: {
-                jsonMerge: [
-                  {
-                    path: "eas.json",
-                    patch: {
-                      build: {
-                        development: {
-                          developmentClient: false,
-                          distribution: "internal",
-                          android: { buildType: "apk" },
+          : devClientEnabled
+            ? "developmentClient=true ist aktiv, aber expo-dev-client fehlt im package.json."
+            : "developmentClient ist aus – expo-dev-client ist optional.",
+        fixHint:
+          hasDevClient
+            ? undefined
+            : devClientEnabled
+              ? "Entweder expo-dev-client hinzufügen ODER developmentClient=false verwenden (internal APK)."
+              : undefined,
+        fix:
+          hasDevClient
+            ? undefined
+            : devClientEnabled
+              ? {
+                  label: "Stelle development Profil auf internal APK (ohne Dev-Client)",
+                  patch: {
+                    jsonMerge: [
+                      {
+                        path: "eas.json",
+                        patch: {
+                          build: {
+                            development: {
+                              developmentClient: false,
+                              distribution: "internal",
+                              android: { buildType: "apk" },
+                            },
+                          },
                         },
+                        createIfMissing: true,
                       },
-                    },
-                    createIfMissing: true,
+                    ],
+                    explanation:
+                      "Damit Dev-Builds ohne expo-dev-client zuverlässig laufen, wird das development Profil als internes APK konfiguriert.",
                   },
-                ],
-                explanation:
-                  "Damit der Build ohne expo-dev-client zuverlässig läuft, wird das development Profil als normales internes APK konfiguriert.",
-              },
-            },
+                }
+              : undefined,
       });
     } catch {
       checks.push({

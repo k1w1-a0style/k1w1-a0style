@@ -28,6 +28,11 @@ import {
   checkRepoSecrets,
   parseOwnerRepo,
 } from "../lib/diagnostics/ciAutoFix";
+
+import {
+  createOrUpdateFile,
+  deleteRepoFile,
+} from "../contexts/githubService";
 import type { ProjectFile } from "../contexts/types";
 
 import { validateFileContent, validateFilePath } from "../lib/validators";
@@ -64,12 +69,24 @@ import * as SecureStore from "expo-secure-store";
 type Status = "pass" | "warn" | "fail";
 type FixStepStatus = "pending" | "running" | "done" | "failed" | "skipped";
 
+type BuildVariant = "all" | "development" | "preview" | "production";
+
 const ORDER: Record<Status, number> = { fail: 0, warn: 1, pass: 2 };
 const MAX_HISTORY = 10;
 const DEVICE_ID_KEY = "k1w1_device_id";
 const UPLOAD_COOLDOWN_MS = 30_000;
 const UPLOAD_RETRY_DELAY_MS = 3_000;
 const UPLOAD_COOLDOWN_KEY = "k1w1_upload_cooldown_until";
+
+// Diagnostics UI prefs
+const DIAG_PREF_PROFILE_FOCUS_KEY = "k1w1_diag_profile_focus";
+const DIAG_PREF_INCLUDE_LOCAL_KEY = "k1w1_diag_include_local";
+const DIAG_PREF_INCLUDE_PIPELINE_KEY = "k1w1_diag_include_pipeline";
+const DIAG_PREF_SYNC_FIXES_KEY = "k1w1_diag_sync_fixes";
+const DIAG_PREF_RERUN_AFTER_FIX_KEY = "k1w1_diag_rerun_after_fix";
+const DIAG_PREF_AUTOFIX_WARN_KEY = "k1w1_diag_autofix_include_warn";
+const DIAG_PREF_AUTOFIX_SCOPE_KEY = "k1w1_diag_autofix_scope";
+
 
 const MAX_DETAILS = 10;
 const AUTOFIX_MAX = 50; // safety: don't apply endless chains
@@ -114,6 +131,27 @@ function StatusPill({ status }: { status: Status }) {
       <Text style={[styles.statusPillText, { color: c }]}>
         {status.toUpperCase()}
       </Text>
+    </View>
+  );
+}
+
+function VariantPill({ variant }: { variant: Exclude<BuildVariant, "all"> }) {
+  const label =
+    variant === "development" ? "Dev" : variant === "preview" ? "Preview" : "Produce";
+  const c =
+    variant === "development"
+      ? theme.palette.success
+      : variant === "preview"
+        ? theme.palette.warning
+        : theme.palette.text.primary;
+  return (
+    <View
+      style={[
+        styles.variantPill,
+        { borderColor: c, backgroundColor: "rgba(0,0,0,0.25)" },
+      ]}
+    >
+      <Text style={[styles.variantPillText, { color: c }]}>{label}</Text>
     </View>
   );
 }
@@ -265,7 +303,7 @@ function FixRunModal(props: {
 }
 
 export default function DiagnosticScreen() {
-  const { projectData, updateProjectFiles, deleteFile } = useProject();
+  const { projectData, updateProjectFiles, deleteFile, setPreferredBuildProfile } = useProject();
 
   const linkedRepo = (projectData as any)?.linkedRepo
     ? String((projectData as any).linkedRepo)
@@ -462,6 +500,113 @@ export default function DiagnosticScreen() {
   // Filters
   const [filter, setFilter] = useState<"all" | Status>("all");
 
+  // Build-mode focus (your 3 build buttons)
+  const [profileFocus, setProfileFocus] = useState<
+    "all" | "development" | "preview" | "production"
+  >(() => ((projectData?.preferredBuildProfile as any) ?? "all"));
+
+  // Scope toggles (pro UX)
+const [includeLocalChecks, setIncludeLocalChecks] = useState(true);
+const [includePipelineChecks, setIncludePipelineChecks] = useState(true);
+
+// When a fix touches repo-relevant files we usually want to sync.
+const [syncFixesToGitHub, setSyncFixesToGitHub] = useState(() => !!linkedRepo);
+
+// Pro UX: after a fix, auto re-run diagnostics to verify ("grün werden").
+const [rerunAfterFix, setRerunAfterFix] = useState(true);
+
+// AutoFix options
+const [autoFixIncludeWarn, setAutoFixIncludeWarn] = useState(false);
+const [autoFixScope, setAutoFixScope] = useState<"visible" | "all">("visible");
+
+// Persist diagnostics preferences per project
+const prefKey = useCallback(
+  (base: string) => {
+    const pid = projectData?.id ? String(projectData.id) : "";
+    return pid ? `${base}:${pid}` : base;
+  },
+  [projectData?.id],
+);
+
+useEffect(() => {
+  let cancelled = false;
+  (async () => {
+    try {
+      const keys = [
+        prefKey(DIAG_PREF_PROFILE_FOCUS_KEY),
+        prefKey(DIAG_PREF_INCLUDE_LOCAL_KEY),
+        prefKey(DIAG_PREF_INCLUDE_PIPELINE_KEY),
+        prefKey(DIAG_PREF_SYNC_FIXES_KEY),
+        prefKey(DIAG_PREF_RERUN_AFTER_FIX_KEY),
+        prefKey(DIAG_PREF_AUTOFIX_WARN_KEY),
+        prefKey(DIAG_PREF_AUTOFIX_SCOPE_KEY),
+      ];
+      const pairs = await AsyncStorage.multiGet(keys);
+      const map = new Map(pairs);
+
+      const pf = map.get(prefKey(DIAG_PREF_PROFILE_FOCUS_KEY));
+      const il = map.get(prefKey(DIAG_PREF_INCLUDE_LOCAL_KEY));
+      const ip = map.get(prefKey(DIAG_PREF_INCLUDE_PIPELINE_KEY));
+      const sy = map.get(prefKey(DIAG_PREF_SYNC_FIXES_KEY));
+      const rr = map.get(prefKey(DIAG_PREF_RERUN_AFTER_FIX_KEY));
+      const aw = map.get(prefKey(DIAG_PREF_AUTOFIX_WARN_KEY));
+      const as = map.get(prefKey(DIAG_PREF_AUTOFIX_SCOPE_KEY));
+
+      if (cancelled) return;
+
+      if (pf === "all" || pf === "development" || pf === "preview" || pf === "production") {
+        setProfileFocus(pf);
+      }
+      if (il === "0" || il === "1") setIncludeLocalChecks(il === "1");
+      if (ip === "0" || ip === "1") setIncludePipelineChecks(ip === "1");
+      if (sy === "0" || sy === "1") setSyncFixesToGitHub(sy === "1");
+      if (rr === "0" || rr === "1") setRerunAfterFix(rr === "1");
+      if (aw === "0" || aw === "1") setAutoFixIncludeWarn(aw === "1");
+      if (as === "visible" || as === "all") setAutoFixScope(as);
+    } catch {
+      // ignore
+    }
+  })();
+  return () => {
+    cancelled = true;
+  };
+}, [prefKey]);
+
+useEffect(() => {
+  (async () => {
+    try {
+      await AsyncStorage.multiSet([
+        [prefKey(DIAG_PREF_PROFILE_FOCUS_KEY), profileFocus],
+        [prefKey(DIAG_PREF_INCLUDE_LOCAL_KEY), includeLocalChecks ? "1" : "0"],
+        [prefKey(DIAG_PREF_INCLUDE_PIPELINE_KEY), includePipelineChecks ? "1" : "0"],
+        [prefKey(DIAG_PREF_SYNC_FIXES_KEY), syncFixesToGitHub ? "1" : "0"],
+        [prefKey(DIAG_PREF_RERUN_AFTER_FIX_KEY), rerunAfterFix ? "1" : "0"],
+        [prefKey(DIAG_PREF_AUTOFIX_WARN_KEY), autoFixIncludeWarn ? "1" : "0"],
+        [prefKey(DIAG_PREF_AUTOFIX_SCOPE_KEY), autoFixScope],
+      ]);
+    } catch {
+      // ignore
+    }
+  })();
+}, [
+  autoFixIncludeWarn,
+  autoFixScope,
+  includeLocalChecks,
+  includePipelineChecks,
+  prefKey,
+  profileFocus,
+  rerunAfterFix,
+  syncFixesToGitHub,
+]);
+
+  // Keep the project's preferred build profile in sync (so Build Screen + Diagnostics agree).
+  useEffect(() => {
+    if (profileFocus === "all") return;
+    if (typeof setPreferredBuildProfile !== "function") return;
+    setPreferredBuildProfile(profileFocus);
+  }, [profileFocus, setPreferredBuildProfile]);
+
+
   const counts = useMemo(() => {
     const c = { pass: 0, warn: 0, fail: 0 };
     for (const r of results) {
@@ -502,7 +647,39 @@ export default function DiagnosticScreen() {
     setFixModalVisible(false);
   }, [fixDone]);
 
-  const run = useCallback(async () => {
+  const pipelineAppliesToFocus = useCallback(
+    (id: string): boolean => {
+      if (profileFocus === "all") return true;
+      const focus = profileFocus;
+
+      // Profile-specific ids in buildPipelineDiagnostics
+      const isFor = (p: "development" | "preview" | "production") => {
+        if (id.endsWith(`.${p}`)) return true;
+        if (id.includes(`.${p}.`)) return true;
+        if (id.includes(`easProfile.${p}`)) return true;
+        return false;
+      };
+
+      // Dev-only diagnostics
+      const devOnly =
+        id === "repo.easDevelopmentCoherent" ||
+        id === "repo.easEnableDevClientFlow" ||
+        id === "repo.dep.expoDevClient" ||
+        id === "repo.dep.expoDevClient.read";
+
+      if (devOnly) return focus === "development";
+
+      if (isFor("development")) return focus === "development";
+      if (isFor("preview")) return focus === "preview";
+      if (isFor("production")) return focus === "production";
+
+      // Otherwise: global checks (tokens, workflows, secrets, etc.)
+      return true;
+    },
+    [profileFocus],
+  );
+
+  const runDiagnostics = useCallback(async (opts?: { resetSelection?: boolean; resetHistory?: boolean }) => {
     if (!projectRef.current) {
       Alert.alert("Kein Projekt", "Bitte zuerst ein Projekt laden.");
       return;
@@ -511,9 +688,12 @@ export default function DiagnosticScreen() {
 
     runningRef.current = true;
     setRunning(true);
+    const resetSelection = opts?.resetSelection !== false;
+    const resetHistory = opts?.resetHistory !== false;
+
     setResults([]);
-    setSelected({});
-    setHistory([]);
+    if (resetSelection) setSelected({});
+    if (resetHistory) setHistory([]);
     setProgressStage("Checks starten…");
 
     try {
@@ -521,36 +701,39 @@ export default function DiagnosticScreen() {
 
       const all: PreflightCheckResult[] = [];
 
-      // Always run checks for all 3 EAS profiles (your 3 build flows)
-      const targets = [
-        { mode: "eas" as const, profile: "development" as const },
-        { mode: "eas" as const, profile: "preview" as const },
-        { mode: "eas" as const, profile: "production" as const },
-      ];
+      const focusedProfiles: Array<"development" | "preview" | "production"> =
+        profileFocus === "all"
+          ? ["development", "preview", "production"]
+          : [profileFocus];
 
-      for (const t of targets) {
-        setProgressStage(`Checks: ${t.mode}/${t.profile}`);
-        const prog = runPreflightChecksProgressive(files, t);
+      if (includeLocalChecks) {
+        for (const prof of focusedProfiles) {
+          const t = { mode: "eas" as const, profile: prof };
+          setProgressStage(`Checks: local/${t.profile}`);
+          const prog = runPreflightChecksProgressive(files, t);
 
-        for await (const stage of prog as any) {
-          if (stage?.priority)
-            setProgressStage(
-              `Checks: ${t.mode}/${t.profile} • ${String(stage.priority)}`,
-            );
-          if (stage?.results?.length) {
-            const decorated = (stage.results as PreflightCheckResult[]).map((r) => ({
-              ...r,
-              id: `${t.profile}::${r.id}`,
-              title: `${r.title} (${t.profile})`,
-            }));
-            all.push(...decorated);
-            if (mountedRef.current) setResults([...all]);
+          for await (const stage of prog as any) {
+            if (stage?.priority)
+              setProgressStage(
+                `Checks: local/${t.profile} • ${String(stage.priority)}`,
+              );
+            if (stage?.results?.length) {
+              const decorated = (stage.results as PreflightCheckResult[]).map(
+                (r) => ({
+                  ...r,
+                  id: `${t.profile}::${r.id}`,
+                  title: `${r.title} (${t.profile})`,
+                }),
+              );
+              all.push(...decorated);
+              if (mountedRef.current) setResults([...all]);
+            }
           }
         }
       }
 
       // Remote pipeline diagnostics (GitHub/Workflows/EAS linkage checks)
-      const parsed = parseOwnerRepo(linkedRepo);
+      const parsed = includePipelineChecks ? parseOwnerRepo(linkedRepo) : null;
       if (parsed) {
         try {
           setProgressStage("Checks: pipeline (GitHub/EAS)…");
@@ -560,11 +743,18 @@ export default function DiagnosticScreen() {
             branch: (linkedBranch || "main").trim(),
           });
 
-          const pipelineResults: PreflightCheckResult[] = checks.map((c) => ({
+          const pipelineResults: PreflightCheckResult[] = checks
+            .filter((c) => pipelineAppliesToFocus(c.id))
+            .map((c) => ({
             id: `pipeline::${c.id}`,
             title: c.title,
             severity: c.status === "fail" ? "high" : "normal",
-            status: c.status === "pass" ? "pass" : c.status === "fail" ? "fail" : "warn",
+            status:
+              c.status === "fail"
+                ? "fail"
+                : c.status === "warn"
+                  ? "warn"
+                  : "pass",
             message: c.details || undefined,
             details: c.fixHint ? [c.fixHint] : undefined,
             fix: c.fix ? { label: c.fix.label, patch: c.fix.patch } : undefined,
@@ -598,7 +788,16 @@ export default function DiagnosticScreen() {
       runningRef.current = false;
       if (mountedRef.current) setRunning(false);
     }
-  }, [linkedRepo, linkedBranch]);
+  }, [
+    includeLocalChecks,
+    includePipelineChecks,
+    linkedRepo,
+    linkedBranch,
+    pipelineAppliesToFocus,
+    profileFocus,
+  ]);
+
+  const run = useCallback(() => runDiagnostics(), [runDiagnostics]);
 
   const openPreview = useCallback(
     async (label: string, patch: PreflightPatch) => {
@@ -651,7 +850,11 @@ export default function DiagnosticScreen() {
   );
 
   const applyPatch = useCallback(
-    async (label: string, patch: PreflightPatch) => {
+    async (
+      label: string,
+      patch: PreflightPatch,
+      opts?: { syncToGitHub?: boolean },
+    ) => {
       if (!projectRef.current) throw new Error("Kein Projekt geladen.");
       if (applyBusyRef.current) return;
 
@@ -761,6 +964,45 @@ export default function DiagnosticScreen() {
           projectRef.current = { ...projectRef.current, files: nextFiles };
         } catch {}
 
+        // Optional: sync touched files to linked GitHub repo/branch.
+        // This is critical for Pipeline Diagnostics (they read from the repo, not local state).
+        const doSync = !!opts?.syncToGitHub;
+        if (doSync) {
+          const parsed = parseOwnerRepo(linkedRepo);
+          if (!parsed) throw new Error("Kein verknüpftes Repo gefunden (owner/repo).");
+          const branch = (linkedBranch || "main").trim() || "main";
+
+          // Upserts/merges -> push current content; deletes -> delete from repo (if exists).
+          const touchedSet = new Set(normalizedTouched);
+          const deletedSet = new Set(
+            (patch.delete ?? []).map((p) => {
+              const v = validateFilePath(p);
+              return v.valid && v.normalized ? v.normalized : p;
+            }),
+          );
+
+          const nextMapForPush = new Map(nextFiles.map((f) => [f.path, f.content] as const));
+
+          // Push changed/created files
+          const pushPaths = Array.from(touchedSet).filter((p) => !deletedSet.has(p));
+          for (const p of pushPaths) {
+            const content = nextMapForPush.get(p);
+            if (typeof content !== "string") continue;
+            await createOrUpdateFile(
+              parsed.owner,
+              parsed.repo,
+              p,
+              content,
+              `Diagnostics: ${label}`,
+              branch,
+            );
+          }
+
+          // Delete removed files (best-effort)
+          for (const p of Array.from(deletedSet)) {
+            await deleteRepoFile(parsed.owner, parsed.repo, p, `Diagnostics: ${label}`, branch);
+          }
+        }
 
         // Track history (undo only needs touched + created)
         setHistory((prev) => {
@@ -777,7 +1019,7 @@ export default function DiagnosticScreen() {
         if (mountedRef.current) setApplyBusy(false);
       }
     },
-    [deleteFile, updateProjectFiles],
+    [deleteFile, linkedBranch, linkedRepo, updateProjectFiles],
   );
 
   const undoLast = useCallback(async () => {
@@ -862,99 +1104,275 @@ export default function DiagnosticScreen() {
     setSelected(next);
   }, [sortedResults]);
 
-  const applySelected = useCallback(async () => {
-    if (!projectRef.current) return;
-    if (applyBusyRef.current) return;
+const patchTouchedPaths = useCallback((patch: PreflightPatch): string[] => {
+  const raw = [
+    ...(patch.upsert ?? []).map((u) => u.path),
+    ...(patch.delete ?? []).map((p) => p),
+    ...(patch.jsonMerge ?? []).map((j) => j.path),
+  ];
+  const out: string[] = [];
+  for (const p of raw) {
+    const v = validateFilePath(p);
+    if (v.valid && v.normalized) out.push(v.normalized);
+  }
+  // unique
+  return Array.from(new Set(out)).sort();
+}, []);
 
-    const chosen = sortedResults.filter((r) => selected[r.id] && r.fix?.patch);
-    if (!chosen.length) {
-      Alert.alert("Nichts ausgewählt", "Bitte wähle Fixes aus.");
-      return;
+const shouldSyncPatch = useCallback(
+  (patch: PreflightPatch): boolean => {
+    if (!syncFixesToGitHub) return false;
+    if (!parseOwnerRepo(linkedRepo)) return false;
+
+    const touched = patchTouchedPaths(patch);
+    return touched.some((p) => {
+      if (p === "eas.json") return true;
+      if (p === "eas-project.json") return true;
+      if (p === "package.json") return true;
+      if (p === "app.json" || p === "app.config.js" || p === "app.config.ts") return true;
+      if (p.startsWith(".github/workflows/")) return true;
+      return false;
+    });
+  },
+  [linkedRepo, patchTouchedPaths, syncFixesToGitHub],
+);
+
+const syncPatchToGitHub = useCallback(
+  async (label: string, patch: PreflightPatch) => {
+    const parsed = parseOwnerRepo(linkedRepo);
+    if (!parsed) throw new Error("Kein verknüpftes Repo gefunden (owner/repo).");
+
+    const branch = (linkedBranch || "main").trim() || "main";
+    const touched = patchTouchedPaths(patch);
+
+    const deletedSet = new Set(
+      (patch.delete ?? [])
+        .map((p) => {
+          const v = validateFilePath(p);
+          return v.valid && v.normalized ? v.normalized : null;
+        })
+        .filter(Boolean) as string[],
+    );
+
+    const filesNow = projectRef.current?.files ?? [];
+    const nowMap = new Map(filesNow.map((f) => [f.path, f.content] as const));
+
+    // Push touched files that are not deleted
+    for (const p of touched) {
+      if (deletedSet.has(p)) continue;
+      const content = nowMap.get(p);
+      if (typeof content !== "string") continue;
+      await createOrUpdateFile(
+        parsed.owner,
+        parsed.repo,
+        p,
+        content,
+        `Diagnostics: ${label}`,
+        branch,
+      );
     }
 
-    const steps = chosen.slice(0, AUTOFIX_MAX).map((r) => ({
-      key: r.id,
-      title: r.title,
-      status: "pending" as FixStepStatus,
-    }));
-
-    setFixModalTitle("Fix Selected");
-    setFixModalSubtitle(`${steps.length} Fix(es) werden angewendet…`);
-    setFixSteps(steps);
-    setFixStepIndex(0);
-    setFixDone(false);
-    setFixModalVisible(true);
-
-    for (let i = 0; i < steps.length; i++) {
-      if (!mountedRef.current) break;
-      setFixStepIndex(i);
-      setFixSteps((prev) =>
-        prev.map((s, idx) => (idx === i ? { ...s, status: "running" } : s)),
+    // Delete removed files (best-effort)
+    for (const p of Array.from(deletedSet)) {
+      await deleteRepoFile(
+        parsed.owner,
+        parsed.repo,
+        p,
+        `Diagnostics: ${label}`,
+        branch,
       );
+    }
+  },
+  [linkedRepo, linkedBranch, patchTouchedPaths],
+);
+  const applySelected = useCallback(async () => {
+  if (!projectRef.current) return;
+  if (applyBusyRef.current) return;
 
-      try {
-        const r = chosen[i];
-        await applyPatch(r.title, r.fix!.patch);
-        setFixSteps((prev) =>
-          prev.map((s, idx) => (idx === i ? { ...s, status: "done" } : s)),
-        );
-      } catch (e: any) {
+  const chosenAll = sortedResults.filter((r) => selected[r.id] && r.fix?.patch);
+  if (!chosenAll.length) {
+    Alert.alert("Nichts ausgewählt", "Bitte wähle Fixes aus.");
+    return;
+  }
+
+  const chosen = chosenAll.slice(0, AUTOFIX_MAX);
+  const baseSteps: FixStep[] = chosen.map((r) => ({
+    key: r.id,
+    title: r.title,
+    status: "pending" as FixStepStatus,
+  }));
+
+  const steps: FixStep[] = rerunAfterFix
+    ? [
+        ...baseSteps,
+        {
+          key: "__rerun__",
+          title: "Re-Run Diagnostics (Verify)",
+          status: "pending" as FixStepStatus,
+        },
+      ]
+    : baseSteps;
+
+  setFixModalTitle("Fix Selected");
+  setFixModalSubtitle(
+    `${chosen.length} Fix(es) werden angewendet${rerunAfterFix ? " + Verify-Run" : ""}…`,
+  );
+  setFixSteps(steps);
+  setFixStepIndex(0);
+  setFixDone(false);
+  setFixModalVisible(true);
+
+  let aborted = false;
+
+  for (let i = 0; i < baseSteps.length; i++) {
+    if (!mountedRef.current) break;
+    setFixStepIndex(i);
+    setFixSteps((prev) =>
+      prev.map((s, idx) => (idx === i ? { ...s, status: "running" } : s)),
+    );
+
+    try {
+      const r = chosen[i];
+      await applyPatch(r.title, r.fix!.patch, { syncToGitHub: false });
+
+      const doSync = shouldSyncPatch(r.fix!.patch);
+      if (doSync) {
+        await syncPatchToGitHub(r.title, r.fix!.patch);
         setFixSteps((prev) =>
           prev.map((s, idx) =>
-            idx === i
-              ? {
-                  ...s,
-                  status: "failed",
-                  message: safeTruncateText(e?.message || "Fehler", 160),
-                }
-              : s,
+            idx === i ? { ...s, status: "done", message: "applied + synced" } : s,
           ),
         );
-        // Stop on first error to avoid cascading inconsistencies between fixes.
-        break;
+      } else {
+        setFixSteps((prev) =>
+          prev.map((s, idx) =>
+            idx === i ? { ...s, status: "done", message: "applied" } : s,
+          ),
+        );
       }
+    } catch (e: any) {
+      setFixSteps((prev) =>
+        prev.map((s, idx) =>
+          idx === i
+            ? {
+                ...s,
+                status: "failed",
+                message: safeTruncateText(e?.message || "Fehler", 160),
+              }
+            : s,
+        ),
+      );
+      aborted = true;
+      // Stop on first error to avoid cascading inconsistencies between fixes.
+      break;
     }
+  }
 
-    setFixDone(true);
-    setFixStepIndex(steps.length);
-    setFixModalSubtitle("Fertig – bitte kurz prüfen.");
-  }, [applyPatch, selected, sortedResults]);
+  // Optional verify run as final step
+  if (rerunAfterFix && !aborted && mountedRef.current) {
+    const idx = baseSteps.length;
+    setFixStepIndex(idx);
+    setFixSteps((prev) =>
+      prev.map((s, i) => (i === idx ? { ...s, status: "running" } : s)),
+    );
+    try {
+      await runDiagnostics({ resetSelection: false, resetHistory: false });
+      setFixSteps((prev) =>
+        prev.map((s, i) => (i === idx ? { ...s, status: "done" } : s)),
+      );
+    } catch (e: any) {
+      setFixSteps((prev) =>
+        prev.map((s, i) =>
+          i === idx
+            ? {
+                ...s,
+                status: "failed",
+                message: safeTruncateText(e?.message || "Verify fehlgeschlagen", 160),
+              }
+            : s,
+        ),
+      );
+    }
+  }
 
-  const autoFix = useCallback(async () => {
+  setFixDone(true);
+  setFixStepIndex(steps.length);
+  setFixModalSubtitle(aborted ? "Abgebrochen – bitte prüfen." : "Fertig – bitte kurz prüfen.");
+}, [
+  applyPatch,
+  rerunAfterFix,
+  runDiagnostics,
+  selected,
+  shouldSyncPatch,
+  sortedResults,
+  syncPatchToGitHub,
+]);
+
+
+    const autoFix = useCallback(async () => {
     if (!projectRef.current) return;
     if (applyBusyRef.current) return;
 
-    const chosen = fixableResults.filter(
-      (r) => (r.status as Status) === "fail",
+    const baseList = (autoFixScope === "visible" ? visibleResults : fixableResults).filter(
+      (r) => !!r.fix?.patch,
     );
+
+    const chosen = baseList.filter((r) => {
+      const st = (r.status as Status) ?? "pass";
+      if (st === "fail") return true;
+      if (autoFixIncludeWarn && st === "warn") return true;
+      return false;
+    });
+
     if (!chosen.length) {
-      Alert.alert("Nichts zu fixen", "Keine fail-Fixes gefunden.");
+      Alert.alert(
+        "Nichts zu fixen",
+        autoFixIncludeWarn ? "Keine fail/warn Fixes gefunden." : "Keine fail Fixes gefunden.",
+      );
       return;
     }
+
+    const slice = chosen.slice(0, AUTOFIX_MAX);
 
     Alert.alert(
       "AutoFix starten?",
-      `Es werden ${Math.min(chosen.length, AUTOFIX_MAX)} Fix(es) automatisch angewendet.\n\nTipp: Danach einmal „Run“ drücken, um zu prüfen.`,
+      `Es werden ${slice.length} Fix(es) automatisch angewendet.
+Scope: ${autoFixScope}
+Includes warnings: ${autoFixIncludeWarn ? "ja" : "nein"}
+
+Tipp: Mit „Re-Run“ nach dem Fix wird automatisch gegengecheckt.`,
       [
         { text: "Abbrechen", style: "cancel" },
         {
           text: "AutoFix",
           onPress: async () => {
-            const slice = chosen.slice(0, AUTOFIX_MAX);
-            const steps: FixStep[] = slice.map((r) => ({
+            const baseSteps: FixStep[] = slice.map((r) => ({
               key: r.id,
               title: r.title,
               status: "pending",
             }));
 
+            const steps: FixStep[] = rerunAfterFix
+              ? [
+                  ...baseSteps,
+                  {
+                    key: "__rerun__",
+                    title: "Re-Run Diagnostics (Verify)",
+                    status: "pending",
+                  },
+                ]
+              : baseSteps;
+
             setFixModalTitle("AutoFix");
-            setFixModalSubtitle("Fails werden automatisch gefixt…");
+            setFixModalSubtitle("Fixes werden automatisch angewendet…");
             setFixSteps(steps);
             setFixStepIndex(0);
             setFixDone(false);
             setFixModalVisible(true);
 
-            for (let i = 0; i < steps.length; i++) {
+            let aborted = false;
+
+            for (let i = 0; i < baseSteps.length; i++) {
               if (!mountedRef.current) break;
               setFixStepIndex(i);
               setFixSteps((prev) =>
@@ -965,12 +1383,23 @@ export default function DiagnosticScreen() {
 
               try {
                 const r = slice[i];
-                await applyPatch(r.title, r.fix!.patch);
-                setFixSteps((prev) =>
-                  prev.map((s, idx) =>
-                    idx === i ? { ...s, status: "done" } : s,
-                  ),
-                );
+                await applyPatch(r.title, r.fix!.patch, { syncToGitHub: false });
+
+                const doSync = shouldSyncPatch(r.fix!.patch);
+                if (doSync) {
+                  await syncPatchToGitHub(r.title, r.fix!.patch);
+                  setFixSteps((prev) =>
+                    prev.map((s, idx) =>
+                      idx === i ? { ...s, status: "done", message: "applied + synced" } : s,
+                    ),
+                  );
+                } else {
+                  setFixSteps((prev) =>
+                    prev.map((s, idx) =>
+                      idx === i ? { ...s, status: "done", message: "applied" } : s,
+                    ),
+                  );
+                }
               } catch (e: any) {
                 setFixSteps((prev) =>
                   prev.map((s, idx) =>
@@ -986,50 +1415,191 @@ export default function DiagnosticScreen() {
                       : s,
                   ),
                 );
+                aborted = true;
                 break;
+              }
+            }
+
+            if (rerunAfterFix && !aborted && mountedRef.current) {
+              const idx = baseSteps.length;
+              setFixStepIndex(idx);
+              setFixSteps((prev) =>
+                prev.map((s, i) => (i === idx ? { ...s, status: "running" } : s)),
+              );
+              try {
+                await runDiagnostics({ resetSelection: false, resetHistory: false });
+                setFixSteps((prev) =>
+                  prev.map((s, i) => (i === idx ? { ...s, status: "done" } : s)),
+                );
+              } catch (e: any) {
+                setFixSteps((prev) =>
+                  prev.map((s, i) =>
+                    i === idx
+                      ? {
+                          ...s,
+                          status: "failed",
+                          message: safeTruncateText(e?.message || "Verify fehlgeschlagen", 160),
+                        }
+                      : s,
+                  ),
+                );
               }
             }
 
             setFixDone(true);
             setFixStepIndex(steps.length);
-            setFixModalSubtitle("Fertig – einmal kurz nachschauen.");
+            setFixModalSubtitle(aborted ? "Abgebrochen – bitte prüfen." : "Fertig – einmal kurz nachschauen.");
           },
         },
       ],
     );
-  }, [applyPatch, fixableResults]);
+  }, [
+    applyPatch,
+    autoFixIncludeWarn,
+    autoFixScope,
+    fixableResults,
+    rerunAfterFix,
+    runDiagnostics,
+    shouldSyncPatch,
+    syncPatchToGitHub,
+    visibleResults,
+  ]);
 
-  const applySingle = useCallback(
+
+    const applySingle = useCallback(
     (r: PreflightCheckResult) => {
       if (!r.fix?.patch) return;
+
+      const canSyncRepo = !!parseOwnerRepo(linkedRepo);
+      const syncWouldHelp = shouldSyncPatch(r.fix.patch);
+
+      const runOne = async (doSync: boolean) => {
+        const steps: FixStep[] = [
+          { key: "apply", title: "Apply patch (local)", status: "pending" },
+          ...(doSync
+            ? [{ key: "sync", title: "Sync to GitHub", status: "pending" as FixStepStatus }]
+            : []),
+          ...(rerunAfterFix
+            ? [{ key: "rerun", title: "Re-Run Diagnostics (Verify)", status: "pending" as FixStepStatus }]
+            : []),
+        ];
+
+        setFixModalTitle("Fix");
+        setFixModalSubtitle(r.title);
+        setFixSteps(steps);
+        setFixStepIndex(0);
+        setFixDone(false);
+        setFixModalVisible(true);
+
+        // Apply
+        setFixSteps((prev) =>
+          prev.map((s, i) => (i === 0 ? { ...s, status: "running" } : s)),
+        );
+        try {
+          await applyPatch(r.title, r.fix!.patch, { syncToGitHub: false });
+          setFixSteps((prev) =>
+            prev.map((s, i) => (i === 0 ? { ...s, status: "done" } : s)),
+          );
+        } catch (e: any) {
+          setFixSteps((prev) =>
+            prev.map((s, i) =>
+              i === 0
+                ? { ...s, status: "failed", message: safeTruncateText(e?.message || "Fehler", 160) }
+                : s,
+            ),
+          );
+          setFixDone(true);
+          return;
+        }
+
+        let stepCursor = 1;
+
+        // Sync
+        if (doSync) {
+          setFixStepIndex(stepCursor);
+          setFixSteps((prev) =>
+            prev.map((s, i) => (i === stepCursor ? { ...s, status: "running" } : s)),
+          );
+          try {
+            await syncPatchToGitHub(r.title, r.fix!.patch);
+            setFixSteps((prev) =>
+              prev.map((s, i) => (i === stepCursor ? { ...s, status: "done" } : s)),
+            );
+          } catch (e: any) {
+            setFixSteps((prev) =>
+              prev.map((s, i) =>
+                i === stepCursor
+                  ? { ...s, status: "failed", message: safeTruncateText(e?.message || "Sync fehlgeschlagen", 160) }
+                  : s,
+              ),
+            );
+            setFixDone(true);
+            return;
+          }
+          stepCursor++;
+        }
+
+        // Verify
+        if (rerunAfterFix) {
+          setFixStepIndex(stepCursor);
+          setFixSteps((prev) =>
+            prev.map((s, i) => (i === stepCursor ? { ...s, status: "running" } : s)),
+          );
+          try {
+            await runDiagnostics({ resetSelection: false, resetHistory: false });
+            setFixSteps((prev) =>
+              prev.map((s, i) => (i === stepCursor ? { ...s, status: "done" } : s)),
+            );
+          } catch (e: any) {
+            setFixSteps((prev) =>
+              prev.map((s, i) =>
+                i === stepCursor
+                  ? { ...s, status: "failed", message: safeTruncateText(e?.message || "Verify fehlgeschlagen", 160) }
+                  : s,
+              ),
+            );
+          }
+        }
+
+        setFixDone(true);
+        setFixStepIndex(steps.length);
+        setFixModalSubtitle("Fertig – bitte kurz prüfen.");
+      };
+
       Alert.alert(
         "Fix anwenden?",
-        `${r.title}\n\n${safeTruncateText(r.message ?? "", 240)}`,
+        `${r.title}
+
+${safeTruncateText(r.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser Fix betrifft Repo-Dateien → Sync macht Sinn." : ""}`,
         [
           { text: "Abbrechen", style: "cancel" },
-          {
-            text: "Preview",
-            onPress: () => openPreview(r.title, r.fix!.patch),
-          },
+          { text: "Preview", onPress: () => openPreview(r.title, r.fix!.patch) },
           {
             text: "Fix",
-            onPress: async () => {
-              try {
-                await applyPatch(r.title, r.fix!.patch);
-                Alert.alert("✓ Fix angewendet", r.title);
-              } catch (e: any) {
-                Alert.alert(
-                  "Fix fehlgeschlagen",
-                  e?.message || "Unbekannter Fehler",
-                );
-              }
-            },
+            onPress: () => runOne(false),
           },
+          ...(canSyncRepo
+            ? [
+                {
+                  text: "Fix + Sync",
+                  onPress: () => runOne(true),
+                },
+              ]
+            : []),
         ],
       );
     },
-    [applyPatch, openPreview],
+    [
+      applyPatch,
+      linkedRepo,
+      openPreview,
+      rerunAfterFix,
+      runDiagnostics,
+      shouldSyncPatch,
+      syncPatchToGitHub,
+    ],
   );
+
 
   const getOrCreateDeviceId = useCallback(async (): Promise<string> => {
     try {
@@ -1348,6 +1918,82 @@ export default function DiagnosticScreen() {
           </View>
         </View>
 
+        {/* Build focus + scopes */}
+        <View style={styles.modeRow}>
+          {([
+            { key: "all", label: "All" },
+            { key: "development", label: "Dev" },
+            { key: "preview", label: "Preview" },
+            { key: "production", label: "Produce" },
+          ] as const).map((m) => {
+            const on = profileFocus === m.key;
+            return (
+              <TouchableOpacity
+                key={m.key}
+                style={[styles.modeChip, on && styles.modeChipOn]}
+                onPress={() => setProfileFocus(m.key)}
+                disabled={busy}
+              >
+                <Text style={[styles.modeChipText, on && styles.modeChipTextOn]}>
+                  {m.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <View style={styles.toggleRow}>
+          <TouchableOpacity
+            style={[styles.toggleChip, includeLocalChecks && styles.toggleChipOn]}
+            onPress={() => setIncludeLocalChecks((v) => !v)}
+            disabled={busy}
+          >
+            <Text style={styles.toggleText}>Local</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.toggleChip, includePipelineChecks && styles.toggleChipOn]}
+            onPress={() => setIncludePipelineChecks((v) => !v)}
+            disabled={busy}
+          >
+            <Text style={styles.toggleText}>Pipeline</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.toggleChip, syncFixesToGitHub && styles.toggleChipOn]}
+            onPress={() => setSyncFixesToGitHub((v) => !v)}
+            disabled={busy || !linkedRepo}
+          >
+            <Text style={styles.toggleText}>Sync</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.toggleChip, rerunAfterFix && styles.toggleChipOn]}
+            onPress={() => setRerunAfterFix((v) => !v)}
+            disabled={busy}
+          >
+            <Text style={styles.toggleText}>Re-Run</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.toggleChip, autoFixIncludeWarn && styles.toggleChipOn]}
+            onPress={() => setAutoFixIncludeWarn((v) => !v)}
+            disabled={busy}
+          >
+            <Text style={styles.toggleText}>Fix Warn</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.toggleChip, autoFixScope === "all" && styles.toggleChipOn]}
+            onPress={() => setAutoFixScope((v) => (v === "all" ? "visible" : "all"))}
+            disabled={busy}
+          >
+            <Text style={styles.toggleText}>
+              AutoFix: {autoFixScope === "all" ? "All" : "Visible"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {progressStage ? (
           <Text style={styles.progressText}>{progressStage}</Text>
         ) : null}
@@ -1369,7 +2015,12 @@ export default function DiagnosticScreen() {
           <TouchableOpacity
             style={[styles.bigBtn, styles.bigBtnPrimary]}
             onPress={autoFix}
-            disabled={busy || counts.fail === 0}
+            disabled={
+              busy ||
+              (autoFixIncludeWarn
+                ? counts.fail === 0 && counts.warn === 0
+                : counts.fail === 0)
+            }
           >
             <Ionicons
               name="sparkles"
@@ -1598,6 +2249,37 @@ const styles = StyleSheet.create({
   statN: { fontSize: 18, fontWeight: "900", color: theme.palette.text.primary },
   statL: { marginTop: 2, fontSize: 12, color: theme.palette.text.muted },
 
+  modeRow: { flexDirection: "row", gap: 8, marginTop: 10, flexWrap: "wrap" },
+  modeChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.palette.borderLight,
+    backgroundColor: theme.palette.card,
+  },
+  modeChipOn: {
+    borderColor: theme.palette.primaryLight,
+    backgroundColor: "rgba(0,255,0,0.10)",
+  },
+  modeChipText: { color: theme.palette.text.muted, fontWeight: "700" },
+  modeChipTextOn: { color: theme.palette.text.primary },
+
+  toggleRow: { flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" },
+  toggleChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.palette.borderLight,
+    backgroundColor: theme.palette.card,
+  },
+  toggleChipOn: {
+    borderColor: theme.palette.success,
+    backgroundColor: "rgba(0,255,0,0.08)",
+  },
+  toggleText: { color: theme.palette.text.primary, fontWeight: "700" },
+
   progressText: {
     marginTop: 10,
     color: theme.palette.text.secondary,
@@ -1750,6 +2432,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statusPillText: { fontSize: 11, fontWeight: "900" },
+
+  variantPill: {
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  variantPillText: { fontSize: 11, fontWeight: "900" },
 
   empty: { paddingVertical: 30, alignItems: "center" },
   emptyTitle: {
