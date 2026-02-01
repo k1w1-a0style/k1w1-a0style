@@ -44,6 +44,7 @@ import DiagnosticScreen from "./screens/DiagnosticScreen";
 import AppStatusScreen from "./screens/AppStatusScreen";
 import PreviewScreen from "./screens/PreviewScreen";
 import EnhancedBuildScreen from "./screens/EnhancedBuildScreen";
+import CredentialsWizardScreen from "./screens/CredentialsWizardScreen";
 
 import PreviewFullscreenScreen from "./screens/PreviewFullscreenScreen";
 
@@ -153,7 +154,18 @@ const DrawerRoot = () => {
         options={{ title: "Verbindungen", drawerLabel: "🔌 Verbindungen" }}
       />
 
+      
       <Drawer.Screen
+        name="Credentials"
+        component={CredentialsWizardScreen}
+        options={{
+          drawerLabel: "Credentials Wizard",
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="key-outline" color={color} size={size} />
+          ),
+        }}
+      />
+<Drawer.Screen
         name="Settings"
         component={SettingsScreen}
         options={{ title: "Einstellungen", drawerLabel: "⚙️ Einstellungen" }}
