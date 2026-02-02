@@ -261,12 +261,12 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
-            echo "::error::Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY (required for production signing)."
+            echo "::error::Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY (required for signing)."
             exit 1
           fi
           echo "🔐 Fetching Android keystore for repo '${GITHUB_REPOSITORY}' from Supabase..."
           mkdir -p android/keystores
-          BODY="{\"repo\":\"${GITHUB_REPOSITORY}\"}"
+          BODY="{\"repo\":\"${GITHUB_REPOSITORY}\",\"profile\":\"${BUILD_PROFILE}\",\"mode\":\"${BUILD_PROFILE}\"}"
           RESP="$(curl -fsS -X POST "${SUPABASE_URL}/functions/v1/android-keystore-export" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \

@@ -6,7 +6,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
-import { rateLimit, requireAdminKey } from "../_shared/auth.ts";
+import { rateLimit, requireAdminKey, getServiceRoleKey } from "../_shared/auth.ts";
 
 function safeString(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const serviceKey = getServiceRoleKey(req);
     if (!supabaseUrl || !serviceKey) {
       return errorResponse("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY", req, 500);
     }
@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
     const { data, error } = await supabase
       .from("signing_android")
       .select("repo, alias, storage_bucket, storage_path, mode, updated_at")
-      .eq("repo", repo)
+      .eq("repo", repo).eq("mode", resolvedMode)
       .maybeSingle();
 
     if (error) return errorResponse("DB read failed", req, 500, { message: error.message });

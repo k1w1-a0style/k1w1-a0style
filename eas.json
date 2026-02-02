@@ -9,8 +9,7 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk",
-        "gradleCommand": ":app:assembleDebug",
-        "withoutCredentials": true
+        "credentialsSource": "local"
       },
       "env": {
         "NODE_ENV": "development"
@@ -19,7 +18,7 @@
     "preview": {
       "android": {
         "buildType": "apk",
-        "withoutCredentials": true
+        "credentialsSource": "local"
       },
       "env": {
         "NODE_ENV": "production"
@@ -27,7 +26,7 @@
     },
     "production": {
       "android": {
-        "buildType": "apk",
+        "buildType": "aab",
         "credentialsSource": "local"
       },
       "env": {

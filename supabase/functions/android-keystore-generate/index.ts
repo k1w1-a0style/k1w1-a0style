@@ -7,7 +7,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import forge from "https://esm.sh/node-forge@1.3.1";
 
 import { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
-import { rateLimit, requireAdminKey } from "../_shared/auth.ts";
+import { rateLimit, requireAdminKey, getServiceRoleKey } from "../_shared/auth.ts";
 
 type Mode = "development" | "preview" | "production";
 
@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const serviceKey = getServiceRoleKey(req);
     const masterKey = Deno.env.get("SIGNING_MASTER_KEY");
 
     if (!supabaseUrl || !serviceKey) {
@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const repo = safeString(body?.repo);
     const branch = safeString(body?.branch) || "main";
-    const mode = (safeString(body?.mode) as Mode) || "production";
+    const mode = ((safeString(body?.mode) || safeString(body?.profile)) as Mode) || "production";
 
     if (!repoOk(repo)) {
       return errorResponse("Invalid repo format. Expected 'owner/name'.", req, 400);
