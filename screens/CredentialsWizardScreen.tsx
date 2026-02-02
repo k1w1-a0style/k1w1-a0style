@@ -53,6 +53,82 @@ function formatEdgeInvokeError(err: any): string {
 }
 
 
+const RUNTIME_SUPABASE_URL =
+  (process.env.EXPO_PUBLIC_SUPABASE_URL as string | undefined) ?? "";
+const RUNTIME_SUPABASE_ANON_KEY =
+  (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY as string | undefined) ?? "";
+
+async function invokeEdgeJson<T>(
+  fnName: string,
+  payload: any,
+  adminKey?: string
+): Promise<T> {
+  const hasRuntime = Boolean(RUNTIME_SUPABASE_URL && RUNTIME_SUPABASE_ANON_KEY);
+
+  // Fallback: use supabase-js invoke if runtime env is not available (older builds / tests)
+  if (!hasRuntime) {
+    const sb = await ensureSupabaseClient();
+    const { data, error } = await sb.functions.invoke(fnName, {
+      body: payload,
+      headers: adminKey ? { "x-k1w1-admin-key": adminKey } : undefined,
+    } as any);
+
+    if (error) throw error;
+    return data as T;
+  }
+
+  const url =
+    RUNTIME_SUPABASE_URL.replace(/\/$/, "") + `/functions/v1/${fnName}`;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    apikey: RUNTIME_SUPABASE_ANON_KEY,
+    // Edge Functions accept anon key as bearer in many setups; if you require JWT, this will return 401 and we will show details.
+    Authorization: `Bearer ${RUNTIME_SUPABASE_ANON_KEY}`,
+  };
+  if (adminKey) headers["x-k1w1-admin-key"] = adminKey;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload ?? {}),
+  });
+
+  const text = await res.text();
+
+  if (!res.ok) {
+    let parsed: any = null;
+    try {
+      parsed = text ? JSON.parse(text) : null;
+    } catch {
+      parsed = null;
+    }
+
+    const err: any = new Error(
+      parsed?.error ||
+        parsed?.message ||
+        `Edge Function "${fnName}" failed with HTTP ${res.status}`
+    );
+    err.status = res.status;
+    err.details = parsed ?? text;
+    err.context = {
+      url,
+      status: res.status,
+      statusText: res.statusText,
+      body: text,
+    };
+    throw err;
+  }
+
+  if (!text) return {} as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    // Some functions may return plain text.
+    return text as any as T;
+  }
+}
+
 function parseLinkedRepo(linkedRepo?: string | null): { owner: string; name: string; branch: string } | null {
   if (!linkedRepo) return null;
 
@@ -146,24 +222,19 @@ export default function CredentialsWizardScreen() {
         return;
       }
 
-      const supabase = await ensureSupabaseClient();
       const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
 
       setStatusMsg("🔐 Keystore wird erzeugt…");
-      const res = await supabase.functions.invoke("android-keystore-generate", {
-        body: {
+      const data: any = await invokeEdgeJson<any>(
+        "android-keystore-generate",
+        {
           repo: `${repo.owner}/${repo.name}`,
           branch: repo.branch || "main",
           mode: variant,
         },
-        ...(edgeAdminKey ? { headers: { "x-k1w1-admin-key": edgeAdminKey } } : {}),
-      });
+        edgeAdminKey || undefined
+      );
 
-      if (res.error) {
-        throw new Error(res.error.message || (res.error as any)?.details || "Unknown function error");
-      }
-
-      const data: any = res.data;
       setStatusMsg("✅ Keystore erzeugt und gespeichert.");
 
       Alert.alert(
@@ -171,7 +242,6 @@ export default function CredentialsWizardScreen() {
         `Keystore ist jetzt in Supabase gespeichert.\n\nRepo: ${repo.owner}/${repo.name}\nAlias: ${data?.alias || "unknown"}`
       );
     } catch (e: any) {
-      console.error(e);
       setLastEdgeError(formatEdgeInvokeError(e));
       Alert.alert(
         "Keystore Fehler",
@@ -197,18 +267,15 @@ export default function CredentialsWizardScreen() {
         return;
       }
 
-      const supabase = await ensureSupabaseClient();
       const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
       setStatusMsg("🔎 Prüfe Keystore Status…");
 
-      const res = await supabase.functions.invoke("android-keystore-status", {
-        body: { repo: `${repo.owner}/${repo.name}` },
-        ...(edgeAdminKey ? { headers: { "x-k1w1-admin-key": edgeAdminKey } } : {}),
-      });
+      const data: any = await invokeEdgeJson<any>(
+        "android-keystore-status",
+        { repo: `${repo.owner}/${repo.name}` },
+        edgeAdminKey || undefined
+      );
 
-      if (res.error) throw new Error(res.error.message);
-
-      const data: any = res.data;
       if (!data?.exists) {
         setStatusMsg("⚠️ Kein Keystore gefunden.");
         Alert.alert("Status", "Keystore fehlt – bitte erzeugen.");
@@ -223,7 +290,6 @@ export default function CredentialsWizardScreen() {
         `Keystore vorhanden\nAlias: ${alias}${updatedAt ? `\nUpdated: ${updatedAt}` : ""}`
       );
     } catch (e: any) {
-      console.error(e);
       setLastEdgeError(formatEdgeInvokeError(e));
       setStatusMsg(`❌ ${e?.message || "Fehler"}`);
       Alert.alert("Status Fehler", e?.message || "Status konnte nicht geprüft werden.");
