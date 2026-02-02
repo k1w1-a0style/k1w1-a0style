@@ -1,539 +1,461 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-
+import React, { useEffect, useMemo, useState } from "react";
+import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { theme } from "../theme";
-import { ensureSupabaseClient } from "../lib/supabase";
 import { useProject } from "../contexts/ProjectContext";
-import { getEdgeAdminKey, getSupabaseServiceRoleKey } from "../contexts/githubService";
+import { ensureSupabaseClient } from "../lib/supabase";
+import { getEdgeAdminKey, saveEdgeAdminKey } from "../contexts/githubService";
 
-type BuildVariant = "development" | "preview" | "production";
+type ModeId = "dev" | "preview" | "production";
 
-type VariantMeta = {
-  id: BuildVariant;
-  title: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  note: string;
-};
-
-type VariantStatus = {
-  loading: boolean;
+type StatusResult = {
   exists: boolean;
-  updatedAt?: string | null;
-  storagePath?: string | null;
-  alias?: string | null;
-  fingerprint?: string | null;
+  record?: {
+    repo: string;
+    mode: ModeId;
+    alias: string;
+    storage_bucket: string;
+    storage_path: string;
+    updated_at: string;
+    created_at: string;
+  };
 };
 
-const VARIANTS: VariantMeta[] = [
-  {
-    id: "development",
-    title: "Dev",
-    icon: "construct-outline",
-    note: "Signed Dev-Build (intern). Gut für schnelle Tests, aber trotzdem reproduzierbar.",
-  },
-  {
-    id: "preview",
-    title: "Preview",
-    icon: "eye-outline",
-    note: "Signed Preview (intern). Wie Staging – gleiche Signatur-Logik wie Prod.",
-  },
-  {
-    id: "production",
-    title: "Production",
-    icon: "shield-checkmark-outline",
-    note: "Signed Production. Das ist dein „echtes“ Release-Signing.",
-  },
+type WizardHttpDebug = {
+  url: string;
+  status: number;
+  statusText: string;
+  bodyText: string;
+};
+
+const MODES: { id: ModeId; label: string; hint: string }[] = [
+  { id: "dev", label: "Dev", hint: "Schnell testen (signed)" },
+  { id: "preview", label: "Preview", hint: "Interne APK teilen (signed)" },
+  { id: "production", label: "Produce", hint: "Release/Store (signed)" },
 ];
 
-function safeString(v: unknown): string | null {
-  const s = typeof v === "string" ? v.trim() : "";
-  return s.length ? s : null;
+function paletteTextMuted() {
+  return theme.palette.text.muted;
 }
 
-function compactJson(obj: any, maxLen = 1200): string {
-  try {
-    const s = JSON.stringify(obj, null, 2);
-    if (s.length <= maxLen) return s;
-    return s.slice(0, maxLen) + "\n…(truncated)";
-  } catch {
-    return String(obj);
-  }
+function paletteSuccess() {
+  return theme.palette.success;
 }
 
-async function invokeEdgeJson<T>(
-  functionName: string,
-  payload: any,
-  adminKey: string | null,
-  serviceRoleKey: string | null
-): Promise<T> {
-  const supabase = ensureSupabaseClient();
+function paletteError() {
+  return theme.palette.error;
+}
 
-  // We call via raw fetch to always capture status/body (supabase-js hides it on non-2xx).
-  const supabaseUrl = supabase?.supabaseUrl;
-  if (!supabaseUrl) throw new Error("Supabase URL missing (client not initialized).");
-
-  const url = `${supabaseUrl}/functions/v1/${functionName}`;
-
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-  };
-
-  // Admin key is our own "tooling" gate.
-  if (adminKey) headers["x-k1w1-admin-key"] = adminKey;
-
-  // Service role key is needed by the Edge function to access DB/Storage.
-  // (Internal tooling only – do NOT ship this to public end-user apps.)
-  if (serviceRoleKey) {
-    headers["authorization"] = `Bearer ${serviceRoleKey}`;
-    headers["apikey"] = serviceRoleKey; // some gateways expect this
-  }
-
+async function invokeEdgeJson(
+  supabaseUrl: string,
+  fn: string,
+  adminKey: string,
+  payload: any
+): Promise<{ ok: true; data: any; debug: WizardHttpDebug } | { ok: false; error: string; debug: WizardHttpDebug }> {
+  const url = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/${fn}`;
   const res = await fetch(url, {
     method: "POST",
-    headers,
+    headers: {
+      "content-type": "application/json",
+      "x-k1w1-admin-key": adminKey,
+    },
     body: JSON.stringify(payload ?? {}),
   });
 
-  const text = await res.text();
-  let json: any = null;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = { raw: text };
-  }
+  const bodyText = await res.text();
+  const debug: WizardHttpDebug = { url, status: res.status, statusText: res.statusText ?? "", bodyText };
 
   if (!res.ok) {
-    const err: any = new Error("Edge Function returned a non-2xx status code");
-    err.name = "FunctionsHttpError";
-    err.context = {
-      status: res.status,
-      statusText: res.statusText,
-      url,
-      body: json,
-      headers: Object.fromEntries(res.headers.entries()),
-    };
-    throw err;
+    return { ok: false, error: `HTTP ${res.status} ${res.statusText || ""}`.trim(), debug };
   }
 
-  return json as T;
+  try {
+    const data = bodyText ? JSON.parse(bodyText) : null;
+    return { ok: true, data, debug };
+  } catch {
+    return { ok: true, data: bodyText, debug };
+  }
 }
 
-function VariantCard({
-  meta,
-  status,
-  onStatus,
-  onGenerate,
-  onExport,
-}: {
-  meta: VariantMeta;
-  status: VariantStatus;
-  onStatus: () => void;
-  onGenerate: () => void;
-  onExport: () => void;
-}) {
-  const badge = status.loading
-    ? { icon: "time-outline" as const, text: "prüfe…", color: theme.colors.textMuted }
-    : status.exists
-      ? { icon: "checkmark-circle-outline" as const, text: "Key vorhanden", color: theme.colors.success }
-      : { icon: "close-circle-outline" as const, text: "kein Key", color: theme.colors.error };
+export default function CredentialsWizardScreen() {
+  const project = useProject();
+
+  const repoFullName = project?.linkedRepo ?? "";
+  const branch = project?.linkedBranch ?? "";
+
+  const [selectedMode, setSelectedMode] = useState<ModeId>("production");
+
+  const [supabaseUrl, setSupabaseUrl] = useState<string>("");
+  const [adminKey, setAdminKey] = useState<string>("");
+  const [adminKeyLoaded, setAdminKeyLoaded] = useState(false);
+
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const [statusByMode, setStatusByMode] = useState<Record<ModeId, StatusResult | null>>({
+    dev: null,
+    preview: null,
+    production: null,
+  });
+
+  const [lastDebug, setLastDebug] = useState<WizardHttpDebug | null>(null);
+  const [lastError, setLastError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const client = await ensureSupabaseClient();
+        if (!mounted) return;
+        // supabase-js client exposes supabaseUrl
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const url = (client as any)?.supabaseUrl as string | undefined;
+        if (url) setSupabaseUrl(url);
+      } catch (e: any) {
+        if (!mounted) return;
+        setLastError(e?.message ?? String(e));
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const k = await getEdgeAdminKey();
+        if (!mounted) return;
+        if (k) setAdminKey(k);
+      } finally {
+        if (mounted) setAdminKeyLoaded(true);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const canRun = useMemo(() => {
+    return Boolean(supabaseUrl && adminKey && repoFullName);
+  }, [supabaseUrl, adminKey, repoFullName]);
+
+  const selectedStatus = statusByMode[selectedMode];
+
+  function metaForStatus(s: StatusResult | null) {
+    if (busy) return { icon: "time-outline" as const, text: "prüfe…", color: paletteTextMuted() };
+    if (s?.exists) return { icon: "checkmark-circle-outline" as const, text: "Key vorhanden", color: paletteSuccess() };
+    if (s && !s.exists) return { icon: "close-circle-outline" as const, text: "kein Key", color: paletteError() };
+    return { icon: "help-circle-outline" as const, text: "unbekannt", color: paletteTextMuted() };
+  }
+
+  async function refreshStatus(mode: ModeId) {
+    if (!canRun) {
+      Alert.alert("Fehlt was", "Supabase URL, Repo oder Admin-Key fehlen. Bitte erst oben setzen.");
+      return;
+    }
+    setBusy(`status:${mode}`);
+    setLastError(null);
+    setLastDebug(null);
+    try {
+      const r = await invokeEdgeJson(supabaseUrl, "android-keystore-status", adminKey, {
+        repo: repoFullName,
+        mode,
+      });
+
+      setLastDebug(r.debug);
+      if (!r.ok) {
+        setLastError(r.error);
+        setStatusByMode((prev) => ({ ...prev, [mode]: { exists: false } }));
+        return;
+      }
+      const data = r.data as StatusResult;
+      setStatusByMode((prev) => ({ ...prev, [mode]: data }));
+    } catch (e: any) {
+      setLastError(e?.message ?? String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function refreshAll() {
+    for (const m of MODES) {
+      // eslint-disable-next-line no-await-in-loop
+      await refreshStatus(m.id);
+    }
+  }
+
+  async function generate(mode: ModeId) {
+    if (!canRun) {
+      Alert.alert("Fehlt was", "Supabase URL, Repo oder Admin-Key fehlen. Bitte erst oben setzen.");
+      return;
+    }
+    setBusy(`generate:${mode}`);
+    setLastError(null);
+    setLastDebug(null);
+    try {
+      const r = await invokeEdgeJson(supabaseUrl, "android-keystore-generate", adminKey, {
+        repo: repoFullName,
+        mode,
+        // optional: branch rein, damit du später mehr Kontext hast (DB key bleibt repo+mode)
+        branch: branch || undefined,
+      });
+
+      setLastDebug(r.debug);
+      if (!r.ok) {
+        setLastError(r.error);
+        return;
+      }
+
+      if (r.data?.ok === false) {
+        setLastError(r.data?.error ?? "Generate fehlgeschlagen");
+        return;
+      }
+
+      Alert.alert("✅ Keystore erstellt", "Key wurde serverseitig erzeugt und gespeichert.");
+      await refreshStatus(mode);
+    } catch (e: any) {
+      setLastError(e?.message ?? String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function onSaveAdminKey() {
+    const trimmed = adminKey.trim();
+    setAdminKey(trimmed);
+    await saveEdgeAdminKey(trimmed);
+    Alert.alert("✅ gespeichert", "Admin-Key lokal gespeichert (SecureStore).");
+  }
 
   return (
-    <View style={styles.card}>
-      <View style={styles.rowBetween}>
-        <View style={styles.row}>
-          <Ionicons name={meta.icon} size={18} color={theme.colors.primary} />
-          <Text style={styles.cardTitle}>{meta.title}</Text>
-        </View>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <Text style={styles.h1}>Credentials Wizard</Text>
+      <Text style={styles.p}>Android Signing in‑App (Supabase + CI)</Text>
 
+      <View style={styles.box}>
+        <Text style={styles.boxTitle}>Projekt</Text>
+        <Text style={styles.boxLine}>Repo: {repoFullName || "— (nicht verlinkt)"}</Text>
+        <Text style={styles.boxLine}>Branch: {branch || "—"}</Text>
+        <Text style={styles.boxLine}>Supabase: {supabaseUrl ? supabaseUrl.replace(/https:\/\//, "") : "—"}</Text>
+      </View>
+
+      <View style={styles.box}>
+        <Text style={styles.boxTitle}>Edge Admin Key</Text>
+        <Text style={styles.note}>
+          Der Key wird **nicht** im Repo gespeichert. Du kannst ihn einmal hier setzen; er landet nur lokal im SecureStore.
+        </Text>
+        <TextInput
+          value={adminKey}
+          onChangeText={setAdminKey}
+          placeholder={adminKeyLoaded ? "SIGNING_ADMIN_KEY einfügen…" : "lade…"}
+          placeholderTextColor={paletteTextMuted()}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={styles.input}
+        />
         <View style={styles.row}>
-          <Ionicons name={badge.icon} size={16} color={badge.color} />
-          <Text style={[styles.badgeText, { color: badge.color }]}>{badge.text}</Text>
+          <Btn title="Save" onPress={onSaveAdminKey} primary />
+          <Btn title="Refresh All" onPress={refreshAll} />
         </View>
       </View>
 
-      <Text style={styles.note}>{meta.note}</Text>
+      <View style={styles.box}>
+        <Text style={styles.boxTitle}>Build‑Varianten</Text>
+        {MODES.map((m) => (
+          <TouchableOpacity
+            key={m.id}
+            style={[styles.modeRow, selectedMode === m.id && styles.modeRowActive]}
+            onPress={() => setSelectedMode(m.id)}
+            activeOpacity={0.8}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.modeLabel}>{m.label}</Text>
+              <Text style={styles.modeHint}>{m.hint}</Text>
+            </View>
+            <Ionicons
+              name={selectedMode === m.id ? "radio-button-on" : "radio-button-off"}
+              size={20}
+              color={selectedMode === m.id ? theme.palette.primary : paletteTextMuted()}
+            />
+          </TouchableOpacity>
+        ))}
+      </View>
 
-      {status.exists ? (
-        <View style={styles.metaBox}>
-          {!!status.updatedAt && (
-            <Text style={styles.metaLine}>Updated: {String(status.updatedAt)}</Text>
-          )}
-          {!!status.fingerprint && (
-            <Text style={styles.metaLine}>Fingerprint: {String(status.fingerprint).slice(0, 24)}…</Text>
-          )}
-          {!!status.storagePath && (
-            <Text style={styles.metaLine}>Storage: {String(status.storagePath)}</Text>
-          )}
+      <View style={styles.box}>
+        <View style={styles.cardHeader}>
+          <Ionicons name="key-outline" size={18} color={theme.palette.primary} />
+          <Text style={styles.cardTitle}>Keystore Status</Text>
+        </View>
+
+        {MODES.map((m) => {
+          const s = statusByMode[m.id];
+          const meta = metaForStatus(s);
+          const active = selectedMode === m.id;
+          const line1 = s?.exists ? `Alias: ${s.record?.alias}` : "—";
+          const line2 = s?.exists ? `Path: ${s.record?.storage_bucket}/${s.record?.storage_path}` : "—";
+
+          return (
+            <View key={m.id} style={[styles.statusRow, active && styles.statusRowActive]}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+                <Ionicons name={meta.icon} size={18} color={meta.color} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.statusTitle}>
+                    {m.label}: <Text style={{ color: meta.color }}>{meta.text}</Text>
+                  </Text>
+                  <Text style={styles.metaLine}>{line1}</Text>
+                  <Text style={styles.metaLine}>{line2}</Text>
+                </View>
+              </View>
+
+              <View style={{ gap: 8 }}>
+                <Btn title="Status" onPress={() => refreshStatus(m.id)} small />
+                <Btn title="Generate" onPress={() => generate(m.id)} small primary />
+              </View>
+            </View>
+          );
+        })}
+      </View>
+
+      {lastError ? <Text style={styles.warn}>❌ {lastError}</Text> : null}
+
+      {lastDebug ? (
+        <View style={styles.debugBox}>
+          <Text style={styles.boxTitle}>Edge Debug</Text>
+          <Text style={styles.debugText}>
+            {JSON.stringify(
+              { url: lastDebug.url, status: lastDebug.status, statusText: lastDebug.statusText, body: lastDebug.bodyText?.slice(0, 2500) },
+              null,
+              2
+            )}
+          </Text>
         </View>
       ) : null}
 
-      <View style={styles.actionsRow}>
-        <ActionButton
-          title="Status"
-          icon="pulse-outline"
-          onPress={onStatus}
-          variant="secondary"
-        />
-        <ActionButton
-          title="Key generieren"
-          icon="key-outline"
-          onPress={onGenerate}
-          variant="primary"
-        />
-        <ActionButton
-          title="Export (CI)"
-          icon="cloud-download-outline"
-          onPress={onExport}
-          variant="secondary"
-        />
-      </View>
-    </View>
+      {busy ? <Text style={styles.busyText}>⏳ {busy}</Text> : null}
+    </ScrollView>
   );
 }
 
-function ActionButton({
+function Btn({
   title,
-  icon,
   onPress,
-  variant,
+  primary,
+  small,
 }: {
   title: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  onPress: () => void;
-  variant: "primary" | "secondary";
+  onPress: () => void | Promise<void>;
+  primary?: boolean;
+  small?: boolean;
 }) {
-  const isPrimary = variant === "primary";
+  const isPrimary = Boolean(primary);
   return (
     <TouchableOpacity
-      style={[styles.btn, isPrimary ? styles.btnPrimary : styles.btnSecondary]}
-      onPress={onPress}
+      onPress={() => void onPress()}
+      style={[
+        styles.btn,
+        small && styles.btnSmall,
+        isPrimary ? styles.btnPrimary : styles.btnSecondary,
+      ]}
       activeOpacity={0.85}
     >
-      <Ionicons
-        name={icon}
-        size={16}
-        color={isPrimary ? theme.colors.textOnPrimary : theme.colors.text}
-      />
-      <Text style={[styles.btnText, { color: isPrimary ? theme.colors.textOnPrimary : theme.colors.text }]}>
+      <Text style={[styles.btnText, { color: isPrimary ? theme.palette.text.inverse : theme.palette.text.primary }]}>
         {title}
       </Text>
     </TouchableOpacity>
   );
 }
 
-export default function CredentialsWizardScreen() {
-  const project = useProject();
-
-  const repoFullName = project?.project?.github?.full_name ?? null;
-  const branch = project?.project?.github?.branch ?? null;
-
-  const [busy, setBusy] = useState(false);
-  const [adminKey, setAdminKey] = useState<string | null>(null);
-  const [serviceRoleKey, setServiceRoleKey] = useState<string | null>(null);
-
-  const [statusMap, setStatusMap] = useState<Record<BuildVariant, VariantStatus>>(() => ({
-    development: { loading: false, exists: false },
-    preview: { loading: false, exists: false },
-    production: { loading: false, exists: false },
-  }));
-
-  const [lastDebug, setLastDebug] = useState<string>("");
-
-  const canRun = useMemo(() => {
-    return !!repoFullName && !!adminKey && !!serviceRoleKey;
-  }, [repoFullName, adminKey, serviceRoleKey]);
-
-  const loadKeys = useCallback(async () => {
-    const k = await getEdgeAdminKey().catch(() => null);
-    const s = await getSupabaseServiceRoleKey().catch(() => null);
-    setAdminKey(safeString(k));
-    setServiceRoleKey(safeString(s));
-  }, []);
-
-  useEffect(() => {
-    loadKeys();
-  }, [loadKeys]);
-
-  const setVariantLoading = (variant: BuildVariant, loading: boolean) => {
-    setStatusMap((prev) => ({
-      ...prev,
-      [variant]: { ...prev[variant], loading },
-    }));
-  };
-
-  const setVariantData = (variant: BuildVariant, data: Partial<VariantStatus>) => {
-    setStatusMap((prev) => ({
-      ...prev,
-      [variant]: { ...prev[variant], ...data },
-    }));
-  };
-
-  const formatEdgeError = async (e: any) => {
-    const ctx = e?.context;
-    const minimal = {
-      name: e?.name,
-      message: e?.message,
-      status: ctx?.status,
-      url: ctx?.url,
-      body: ctx?.body,
-    };
-    setLastDebug(compactJson({ minimal, full: { context: ctx } }, 4000));
-    return compactJson(minimal, 1200);
-  };
-
-  const runStatus = useCallback(
-    async (variant: BuildVariant) => {
-      if (!repoFullName) {
-        Alert.alert("Repo fehlt", "Bitte zuerst ein GitHub Repo im Projekt verbinden.");
-        return;
-      }
-      setVariantLoading(variant, true);
-      try {
-        const data: any = await invokeEdgeJson(
-          "android-keystore-status",
-          { repo: repoFullName, branch, profile: variant, mode: variant },
-          adminKey,
-          serviceRoleKey
-        );
-        setVariantData(variant, {
-          loading: false,
-          exists: !!data?.exists,
-          updatedAt: data?.updated_at ?? data?.updatedAt ?? null,
-          storagePath: data?.storage_path ?? data?.storagePath ?? null,
-          alias: data?.key_alias ?? data?.alias ?? null,
-          fingerprint: data?.fingerprint ?? data?.keystore_fingerprint ?? null,
-        });
-      } catch (e: any) {
-        setVariantLoading(variant, false);
-        const msg = await formatEdgeError(e);
-        Alert.alert("Status fehlgeschlagen", msg);
-      }
-    },
-    [repoFullName, branch, adminKey, serviceRoleKey]
-  );
-
-  const runGenerate = useCallback(
-    async (variant: BuildVariant) => {
-      if (!repoFullName) {
-        Alert.alert("Repo fehlt", "Bitte zuerst ein GitHub Repo im Projekt verbinden.");
-        return;
-      }
-      setBusy(true);
-      setVariantLoading(variant, true);
-      try {
-        const data: any = await invokeEdgeJson(
-          "android-keystore-generate",
-          { repo: repoFullName, branch, profile: variant, mode: variant },
-          adminKey,
-          serviceRoleKey
-        );
-        setVariantData(variant, {
-          loading: false,
-          exists: true,
-          updatedAt: data?.updated_at ?? data?.updatedAt ?? null,
-          storagePath: data?.storage_path ?? data?.storagePath ?? null,
-          alias: data?.key_alias ?? data?.alias ?? null,
-          fingerprint: data?.fingerprint ?? data?.keystore_fingerprint ?? null,
-        });
-        Alert.alert("✅ Key generiert", `${variant} Key wurde erstellt und gespeichert.`);
-      } catch (e: any) {
-        setVariantLoading(variant, false);
-        const msg = await formatEdgeError(e);
-        Alert.alert("Generate fehlgeschlagen", msg);
-      } finally {
-        setBusy(false);
-      }
-    },
-    [repoFullName, branch, adminKey, serviceRoleKey]
-  );
-
-  const runExport = useCallback(
-    async (variant: BuildVariant) => {
-      if (!repoFullName) {
-        Alert.alert("Repo fehlt", "Bitte zuerst ein GitHub Repo im Projekt verbinden.");
-        return;
-      }
-      setBusy(true);
-      try {
-        const data: any = await invokeEdgeJson(
-          "android-keystore-export",
-          { repo: repoFullName, branch, profile: variant, mode: variant },
-          adminKey,
-          serviceRoleKey
-        );
-        // We don't write files on device here — CI will call this endpoint and create credentials.json.
-        setLastDebug(compactJson(data, 2500));
-        Alert.alert("✅ Export OK", "CI kann jetzt den Keystore ziehen (siehe Debug).");
-      } catch (e: any) {
-        const msg = await formatEdgeError(e);
-        Alert.alert("Export fehlgeschlagen", msg);
-      } finally {
-        setBusy(false);
-      }
-    },
-    [repoFullName, branch, adminKey, serviceRoleKey]
-  );
-
-  const refreshAll = useCallback(async () => {
-    setBusy(true);
-    try {
-      for (const v of VARIANTS) {
-        // eslint-disable-next-line no-await-in-loop
-        await runStatus(v.id);
-      }
-    } finally {
-      setBusy(false);
-    }
-  }, [runStatus]);
-
-  useEffect(() => {
-    if (repoFullName) refreshAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [repoFullName]);
-
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.h1}>🔑 Credentials Wizard</Text>
-
-      <Text style={styles.p}>
-        Ziel: alle 3 Profile signiert (Dev / Preview / Production) — ohne Terminal.
-      </Text>
-
-      <View style={styles.box}>
-        <Text style={styles.boxTitle}>Aktives Projekt</Text>
-        <Text style={styles.boxLine}>Repo: {repoFullName ?? "—"}</Text>
-        <Text style={styles.boxLine}>Branch: {branch ?? "—"}</Text>
-      </View>
-
-      <View style={styles.box}>
-        <Text style={styles.boxTitle}>Voraussetzungen (in-app)</Text>
-        <Text style={styles.boxLine}>
-          Admin-Key: {adminKey ? "✅ gesetzt" : "❌ fehlt"}
-        </Text>
-        <Text style={styles.boxLine}>
-          Supabase Service Role Key: {serviceRoleKey ? "✅ gesetzt" : "❌ fehlt"}
-        </Text>
-        {!canRun ? (
-          <Text style={styles.warn}>
-            Ohne beide Keys können die Edge-Funktionen nicht schreiben (DB/Storage). Setze sie
-            im Connection/Settings Screen.
-          </Text>
-        ) : null}
-
-        <View style={styles.actionsRow}>
-          <ActionButton
-            title="Refresh"
-            icon="refresh-outline"
-            onPress={refreshAll}
-            variant="secondary"
-          />
-        </View>
-      </View>
-
-      {VARIANTS.map((v) => (
-        <VariantCard
-          key={v.id}
-          meta={v}
-          status={statusMap[v.id]}
-          onStatus={() => runStatus(v.id)}
-          onGenerate={() => runGenerate(v.id)}
-          onExport={() => runExport(v.id)}
-        />
-      ))}
-
-      {!!lastDebug ? (
-        <View style={styles.debugBox}>
-          <Text style={styles.boxTitle}>Debug</Text>
-          <Text style={styles.debugText}>{lastDebug}</Text>
-        </View>
-      ) : null}
-
-      {busy ? (
-        <View style={styles.busyRow}>
-          <ActivityIndicator />
-          <Text style={styles.busyText}>arbeite…</Text>
-        </View>
-      ) : null}
-    </ScrollView>
-  );
-}
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.background },
-  content: { padding: 16, paddingBottom: 36 },
-  h1: { fontSize: 22, fontWeight: "700", color: theme.colors.text, marginBottom: 8 },
-  p: { color: theme.colors.text, marginBottom: 12 },
-  warn: { color: theme.colors.warning, marginTop: 8 },
-
-  row: { flexDirection: "row", alignItems: "center", gap: 8 },
-  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  container: { flex: 1, backgroundColor: theme.palette.background.default },
+  content: { padding: 16, paddingBottom: 40 },
+  h1: { fontSize: 22, fontWeight: "700", color: theme.palette.text.primary, marginBottom: 8 },
+  p: { color: theme.palette.text.primary, marginBottom: 12 },
+  warn: { color: theme.palette.warning, marginTop: 8 },
+  row: { flexDirection: "row", gap: 10, marginTop: 10, flexWrap: "wrap" },
 
   box: {
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
-    padding: 12,
-    borderRadius: 12,
+    borderColor: theme.palette.border.default,
+    backgroundColor: theme.palette.card.default,
+    borderRadius: 14,
+    padding: 14,
     marginBottom: 12,
   },
-  boxTitle: { fontWeight: "700", color: theme.colors.text, marginBottom: 6 },
-  boxLine: { color: theme.colors.textMuted, marginBottom: 2 },
+  boxTitle: { fontWeight: "700", color: theme.palette.text.primary, marginBottom: 6 },
+  boxLine: { color: theme.palette.text.muted, marginBottom: 2 },
+  note: { color: theme.palette.text.muted, marginTop: 4, marginBottom: 10 },
 
-  card: {
+  input: {
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  cardTitle: { fontWeight: "700", color: theme.colors.text, marginLeft: 8 },
-  note: { color: theme.colors.textMuted, marginTop: 6, marginBottom: 8 },
-
-  badgeText: { marginLeft: 6, fontSize: 12, fontWeight: "600" },
-
-  metaBox: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.background,
-    padding: 10,
+    borderColor: theme.palette.border.default,
+    backgroundColor: theme.palette.background.default,
     borderRadius: 10,
-    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: theme.palette.text.primary,
   },
-  metaLine: { color: theme.colors.textMuted, fontSize: 12, marginBottom: 2 },
 
-  actionsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
-  btn: {
+  modeRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.palette.border.default,
+    borderRadius: 12,
+    padding: 12,
+    backgroundColor: theme.palette.background.default,
+    marginBottom: 10,
   },
-  btnPrimary: { backgroundColor: theme.colors.primary },
-  btnSecondary: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border },
+  modeRowActive: {
+    borderColor: theme.palette.primary,
+    shadowColor: theme.palette.primary,
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+  },
+  modeLabel: { fontWeight: "700", color: theme.palette.text.primary, fontSize: 16 },
+  modeHint: { color: theme.palette.text.muted, marginTop: 2 },
+
+  cardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
+  cardTitle: { fontWeight: "700", color: theme.palette.text.primary, marginLeft: 8 },
+
+  statusRow: {
+    borderWidth: 1,
+    borderColor: theme.palette.border.default,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    backgroundColor: theme.palette.background.default,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  statusRowActive: {
+    borderColor: theme.palette.primary,
+  },
+  statusTitle: { color: theme.palette.text.primary, fontWeight: "700" },
+  metaLine: { color: theme.palette.text.muted, fontSize: 12, marginTop: 2 },
+
+  btn: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    minWidth: 110,
+    alignItems: "center",
+  },
+  btnSmall: { minWidth: 90, paddingVertical: 8 },
   btnText: { fontWeight: "700" },
+  btnPrimary: { backgroundColor: theme.palette.primary },
+  btnSecondary: { backgroundColor: theme.palette.card.default, borderWidth: 1, borderColor: theme.palette.border.default },
 
   debugBox: {
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
-    padding: 12,
-    borderRadius: 12,
-    marginTop: 8,
+    borderColor: theme.palette.border.default,
+    backgroundColor: theme.palette.card.default,
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 10,
   },
-  debugText: { fontFamily: "monospace", fontSize: 12, color: theme.colors.textMuted },
-
-  busyRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 6 },
-  busyText: { color: theme.colors.textMuted },
+  debugText: { fontFamily: "monospace", fontSize: 12, color: theme.palette.text.muted },
+  busyText: { color: theme.palette.text.muted, marginTop: 8 },
 });

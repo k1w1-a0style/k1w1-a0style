@@ -7,7 +7,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import forge from "https://esm.sh/node-forge@1.3.1";
 
 import { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
-import { rateLimit, requireAdminKey, getServiceRoleKey } from "../_shared/auth.ts";
+import { rateLimit, requireAdminKey } from "../_shared/auth.ts";
 
 type Mode = "development" | "preview" | "production";
 
@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceKey = getServiceRoleKey(req);
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const masterKey = Deno.env.get("SIGNING_MASTER_KEY");
 
     if (!supabaseUrl || !serviceKey) {
@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const repo = safeString(body?.repo);
     const branch = safeString(body?.branch) || "main";
-    const mode = ((safeString(body?.mode) || safeString(body?.profile)) as Mode) || "production";
+    const mode = (safeString(body?.mode) as Mode) || "production";
 
     if (!repoOk(repo)) {
       return errorResponse("Invalid repo format. Expected 'owner/name'.", req, 400);
@@ -146,21 +146,54 @@ Deno.serve(async (req) => {
     const keystorePassword = forge.util.bytesToHex(forge.random.getBytesSync(16));
     const keyPassword = forge.util.bytesToHex(forge.random.getBytesSync(16));
 
-    const keys = forge.pki.rsa.generateKeyPair(2048);
-    const cert = forge.pki.createCertificate();
-    cert.publicKey = keys.publicKey;
-    cert.serialNumber = String(Date.now());
-    cert.validity.notBefore = new Date();
-    cert.validity.notAfter = new Date();
-    cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 25);
-    const attrs = [{ name: "commonName", value: "k1w1" }];
-    cert.setSubject(attrs);
-    cert.setIssuer(attrs);
-    cert.setExtensions([{ name: "basicConstraints", cA: true }]);
-    cert.sign(keys.privateKey, forge.md.sha256.create());
+      // RSA generation in pure JS (forge) is slow and can hit Edge timeouts.
+  // Use WebCrypto (native) and convert to forge keys for certificate + PKCS#12.
+  const keyPair = await crypto.subtle.generateKey(
+    {
+      name: "RSASSA-PKCS1-v1_5",
+      modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]),
+      hash: "SHA-256",
+    },
+    true,
+    ["sign", "verify"]
+  );
+
+  const pkcs8 = new Uint8Array(await crypto.subtle.exportKey("pkcs8", keyPair.privateKey));
+  const spki = new Uint8Array(await crypto.subtle.exportKey("spki", keyPair.publicKey));
+
+  const u8ToBinary = (u8: Uint8Array) => {
+    let s = "";
+    for (let i = 0; i < u8.length; i += 0x8000) {
+      s += String.fromCharCode(...u8.slice(i, i + 0x8000));
+    }
+    return s;
+  };
+
+  const privateKey = forge.pki.privateKeyFromAsn1(forge.asn1.fromDer(u8ToBinary(pkcs8)));
+  const publicKey = forge.pki.publicKeyFromAsn1(forge.asn1.fromDer(u8ToBinary(spki)));
+
+  const cert = forge.pki.createCertificate();
+  cert.publicKey = publicKey;
+  cert.serialNumber = String(Math.floor(Math.random() * 1e16));
+  cert.validity.notBefore = new Date();
+  cert.validity.notAfter = new Date();
+  cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 25);
+
+  const attrs = [{ name: "commonName", value: alias }];
+  cert.setSubject(attrs);
+  cert.setIssuer(attrs);
+
+  cert.setExtensions([
+    { name: "basicConstraints", cA: true },
+    { name: "keyUsage", keyCertSign: true, digitalSignature: true, nonRepudiation: true, keyEncipherment: true },
+    { name: "subjectKeyIdentifier" },
+  ]);
+
+  cert.sign(privateKey, forge.md.sha256.create());
 
     const p12Asn1 = forge.pkcs12.toPkcs12Asn1(
-      keys.privateKey,
+      privateKey,
       [cert],
       keystorePassword,
       {
