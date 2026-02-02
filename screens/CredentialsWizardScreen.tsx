@@ -15,6 +15,43 @@ import { ensureSupabaseClient } from "../lib/supabase";
 import { useProject } from "../contexts/ProjectContext";
 import { getEdgeAdminKey } from "../contexts/githubService";
 
+function formatEdgeInvokeError(err: any): string {
+  try {
+    if (!err) return "Unknown error";
+
+    const out: any = {
+      name: err?.name,
+      message: err?.message,
+      status: err?.status,
+      stack: typeof err?.stack === "string" ? err.stack.split("\n").slice(0, 8).join("\n") : undefined,
+    };
+
+    // supabase-js FunctionsHttpError sometimes provides a Response-like context
+    const ctx: any = err?.context;
+    if (ctx) {
+      out.context = {
+        status: ctx?.status,
+        statusText: ctx?.statusText,
+        headers: ctx?.headers,
+        body: ctx?.body,
+      };
+      // If context is a Response, it won't be serializable; include minimal info.
+      if (typeof ctx === "object" && typeof ctx?.url === "string") out.context.url = ctx.url;
+    }
+
+    if (err?.details) out.details = err.details;
+    if (err?.hint) out.hint = err.hint;
+
+    return JSON.stringify(out, null, 2);
+  } catch {
+    try {
+      return String(err);
+    } catch {
+      return "Unknown error";
+    }
+  }
+}
+
 
 function parseLinkedRepo(linkedRepo?: string | null): { owner: string; name: string; branch: string } | null {
   if (!linkedRepo) return null;
@@ -80,6 +117,7 @@ export default function CredentialsWizardScreen() {
   const [variant, setVariant] = useState<BuildVariant>("production");
   const [busy, setBusy] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string>("");
+  const [lastEdgeError, setLastEdgeError] = useState<string>("");
 
   const title = useMemo(() => {
     if (variant === "development") return "Dev (APK) – schnell & locker";
@@ -134,6 +172,7 @@ export default function CredentialsWizardScreen() {
       );
     } catch (e: any) {
       console.error(e);
+      setLastEdgeError(formatEdgeInvokeError(e));
       Alert.alert(
         "Keystore Fehler",
         e?.message || "Keystore konnte nicht erstellt werden."
@@ -185,6 +224,7 @@ export default function CredentialsWizardScreen() {
       );
     } catch (e: any) {
       console.error(e);
+      setLastEdgeError(formatEdgeInvokeError(e));
       setStatusMsg(`❌ ${e?.message || "Fehler"}`);
       Alert.alert("Status Fehler", e?.message || "Status konnte nicht geprüft werden.");
     } finally {
@@ -252,6 +292,15 @@ export default function CredentialsWizardScreen() {
 
         {!!statusMsg && <Text style={styles.status}>{statusMsg}</Text>}
 
+        {!!lastEdgeError && (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorTitle}>Edge Fehler Details (Debug)</Text>
+            <Text selectable style={styles.errorText}>
+              {lastEdgeError}
+            </Text>
+          </View>
+        )}
+
         <View style={styles.noteBox}>
           <Text style={styles.noteTitle}>Wichtig</Text>
           <Text style={styles.noteText}>
@@ -294,6 +343,17 @@ const styles = StyleSheet.create({
   variantDesc: { marginTop: 6, color: theme.palette.text.muted },
 
   actionsRow: { marginTop: 12, flexDirection: "row", gap: 10 },
+
+  errorBox: {
+    marginTop: 12,
+    backgroundColor: theme.palette.cardHover,
+    borderColor: theme.palette.border,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+  },
+  errorTitle: { fontSize: 13, fontWeight: "800", color: theme.palette.text.primary },
+  errorText: { marginTop: 8, color: theme.palette.text.muted, fontFamily: "monospace" },
   btn: {
     flexDirection: "row",
     alignItems: "center",
