@@ -1,122 +1,38 @@
-// supabase/functions/_shared/auth.ts
-// ✅ SEC-020: Edge Function Auth + Rate Limit (pragmatisch)
+// Shared auth helpers for Supabase Edge Functions (Deno)
 //
-// Ziel:
-// - Edge Functions NICHT öffentlich offen lassen (Build/Workflow trigger kostet Geld)
-// - Trotzdem kompatibel mit Mobile App ohne Supabase Auth Login
+// Strategy:
+// - Public access may be allowed (verify_jwt can be disabled per-function).
+// - Sensitive operations are protected by a single admin key header.
 //
-// Mechanik:
-// - Optionaler Shared-Secret Header: `x-k1w1-admin-key`
-// - Wird nur erzwungen, wenn `K1W1_EDGE_ADMIN_KEY` (oder `K1W1_ADMIN_KEY`) als Secret gesetzt ist.
-//   => Safe rollout: erst Secret setzen, dann Client-Header ausrollen.
-//
-// Bonus:
-// - sehr simples In-Memory Rate Limiting pro IP + Funktion (Best-Effort; kann bei Cold Starts resetten)
+// NOTE: The app uses SIGNING_ADMIN_KEY, so we support that env name first.
 
-import { corsHeaders } from "./cors.ts";
+export function requireAdminKey(req: Request) {
+  const headerKey =
+    req.headers.get("x-k1w1-admin-key") ??
+    req.headers.get("x-k1w1-admin") ??
+    req.headers.get("x-admin-key") ??
+    req.headers.get("x-admin");
 
-const HEADER_NAME = "x-k1w1-admin-key";
-
-function getExpectedKey(): string | null {
-  return (
+  const adminKey =
+    Deno.env.get("SIGNING_ADMIN_KEY") ??
     Deno.env.get("K1W1_EDGE_ADMIN_KEY") ??
-    Deno.env.get("K1W1_ADMIN_KEY") ??
-    null
-  );
-}
+    Deno.env.get("K1W1_ADMIN_KEY");
 
-function getProvidedKey(req: Request): string | null {
-  const v = req.headers.get(HEADER_NAME);
-  return v && v.trim().length > 0 ? v.trim() : null;
-}
-
-function json(status: number, body: Record<string, unknown>): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
-/**
- * Returns Response when unauthorized; otherwise null
- */
-function timingSafeEqual(a: string, b: string): boolean {
-  // Constant-time string compare to reduce timing side-channel leakage.
-  if (a.length !== b.length) return false;
-  let out = 0;
-  for (let i = 0; i < a.length; i++) {
-    out |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return out === 0;
-}
-
-export function requireAdminKey(req: Request): Response | null {
-  const expected = getExpectedKey();
-  if (!expected) return null; // rollout-mode: Secret not set => do not enforce
-
-  const provided = getProvidedKey(req);
-  if (!provided || !timingSafeEqual(provided, expected)) {
-    return json(401, {
-      ok: false,
-      error: "Unauthorized",
-      hint: `Missing or invalid header: ${HEADER_NAME}`,
-    });
-  }
-
-  return null;
-}
-
-// ----------------------
-// Best-effort rate limit
-// ----------------------
-type Bucket = { count: number; resetAt: number };
-const buckets = new Map<string, Bucket>();
-
-function getClientIp(req: Request): string {
-  // Supabase puts client IP into x-forwarded-for (may contain multiple)
-  const xff = req.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0].trim();
-  return "unknown";
-}
-
-/**
- * Best-effort rate limiter. Returns Response when limited; otherwise null.
- */
-export function rateLimit(
-  req: Request,
-  namespace: string,
-  limit: number = 60,
-  windowMs: number = 60_000,
-): Response | null {
-  const now = Date.now();
-  const ip = getClientIp(req);
-  const key = `${namespace}:${ip}`;
-
-  const cur = buckets.get(key);
-  if (!cur || cur.resetAt <= now) {
-    buckets.set(key, { count: 1, resetAt: now + windowMs });
-    return null;
-  }
-
-  cur.count += 1;
-  buckets.set(key, cur);
-
-  if (cur.count > limit) {
-    const retryAfter = Math.max(1, Math.ceil((cur.resetAt - now) / 1000));
+  if (!adminKey) {
+    // If no admin key is configured server-side, we hard-fail to avoid accidental public exposure.
     return new Response(
       JSON.stringify({
         ok: false,
-        error: "Rate limited",
-        retryAfterSeconds: retryAfter,
+        error: "Server admin key not configured (SIGNING_ADMIN_KEY).",
       }),
-      {
-        status: 429,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-          "Retry-After": String(retryAfter),
-        },
-      },
+      { status: 500, headers: { "content-type": "application/json" } }
+    );
+  }
+
+  if (!headerKey || headerKey !== adminKey) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "Unauthorized (admin key)." }),
+      { status: 401, headers: { "content-type": "application/json" } }
     );
   }
 
