@@ -4,7 +4,7 @@ import type { ProjectFile } from "../../contexts/types";
 
 export type PreflightTarget =
   | { mode: "expoGo" }
-  | { mode: "eas"; profile: "development" | "preview" | "production" };
+  | { mode: "eas"; profile: "all" | "development" | "preview" | "production" };
 
 export type PreflightStatus = "pass" | "warn" | "fail";
 export type PreflightSeverity = "critical" | "high" | "normal" | "low";

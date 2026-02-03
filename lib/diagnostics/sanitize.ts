@@ -77,7 +77,7 @@ export function sanitizeJson(value: Json): Json {
     const out: Record<string, Json> = {};
     for (const [k, v] of Object.entries(value)) {
       const keyLooksSecret = SECRET_KEY_RE.test(k);
-      if (keyLooksSecret) {
+      if (keyLooksSecret && typeof v === "string") {
         out[k] = "[REDACTED]";
         continue;
       }

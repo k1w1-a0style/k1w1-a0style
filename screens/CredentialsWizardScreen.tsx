@@ -31,7 +31,7 @@ type WizardHttpDebug = {
 const MODES: { id: ModeId; label: string; hint: string }[] = [
   { id: "dev", label: "Dev", hint: "Schnell testen (signed)" },
   { id: "preview", label: "Preview", hint: "Interne APK teilen (signed)" },
-  { id: "production", label: "Produce", hint: "Release/Store (signed)" },
+  { id: "production", label: "Production", hint: "Release/Store (signed)" },
 ];
 
 function paletteTextMuted() {

@@ -190,7 +190,9 @@ function FixRunModal(props: {
       visible={visible}
       animationType="fade"
       transparent
-      onRequestClose={onClose}
+      onRequestClose={() => {
+        if (done) onClose();
+      }}
     >
       <View style={styles.modalBackdrop}>
         <View style={styles.modalCard}>
@@ -389,7 +391,6 @@ export default function DiagnosticScreen() {
 
   // Tick cooldown UI and auto-clear when it expires.
 
-  const [target, setTarget] = useState<PreflightTarget>({ mode: "expoGo" });
   const [results, setResults] = useState<PreflightCheckResult[]>([]);
   const [running, setRunning] = useState(false);
   const runningRef = useRef(false);
@@ -507,6 +508,14 @@ export default function DiagnosticScreen() {
   const [profileFocus, setProfileFocus] = useState<
     "all" | "development" | "preview" | "production"
   >(() => ((projectData?.preferredBuildProfile as any) ?? "all"));
+
+  const targetForUpload: PreflightTarget = useMemo(
+    () =>
+      profileFocus === "all"
+        ? ({ mode: "eas", profile: "all" } as const)
+        : ({ mode: "eas", profile: profileFocus } as const),
+    [profileFocus],
+  );
 
   // Scope toggles (pro UX)
 const [includeLocalChecks, setIncludeLocalChecks] = useState(true);
@@ -1063,25 +1072,29 @@ useEffect(() => {
           text: "Undo All",
           style: "destructive",
           onPress: async () => {
-            // Undo newest → oldest (history is newest-first)
+            // Undo everything in one shot: delete all created paths, then restore oldest snapshot
             let undone = 0;
-            for (const entry of history) {
-              try {
-                for (const p of entry.createdPaths ?? []) {
-                  await deleteFile(p);
-                }
-                if (entry.snapshot.length) {
-                  await updateProjectFiles(entry.snapshot);
-                }
-                undone++;
-              } catch (e: any) {
-                Alert.alert(
-                  "Undo All fehlgeschlagen",
-                  `Abgebrochen nach ${undone} Fix(es): ${e?.message || "Unbekannter Fehler"}`,
-                );
-                break;
+            try {
+              const toDelete = Array.from(
+                new Set(history.flatMap((h) => h.createdPaths ?? [])),
+              );
+              for (const p of toDelete) {
+                await deleteFile(p);
               }
+
+              const oldest = history[history.length - 1];
+              if (oldest?.snapshot?.length) {
+                await updateProjectFiles(oldest.snapshot);
+              }
+
+              undone = history.length;
+            } catch (e: any) {
+              Alert.alert(
+                "Undo All fehlgeschlagen",
+                `Abgebrochen nach ${undone} Fix(es): ${e?.message || "Unbekannter Fehler"}`,
+              );
             }
+
             if (mountedRef.current && undone > 0) {
               setHistory((prev) => prev.slice(undone));
               Alert.alert("✓ Undo", `${undone} Fix(es) rückgängig gemacht.`);
@@ -1656,7 +1669,7 @@ ${safeTruncateText(r.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser 
           clientRequestId: getOrCreateUploadClientRequestId(),
           deviceId,
           projectName: project.name,
-          target,
+          target: targetForUpload,
           results,
           files: project.files,
         }),
@@ -1689,7 +1702,7 @@ ${safeTruncateText(r.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser 
       uploadBusyRef.current = false;
       if (mountedRef.current) setUploadBusy(false);
     }
-  }, [getOrCreateDeviceId, results, target, uploadCooldownLeftSec]);
+  }, [getOrCreateDeviceId, getOrCreateUploadClientRequestId, results, targetForUpload, uploadCooldownLeftSec]);
 
   const copyReport = useCallback(async () => {
     const project = projectRef.current;
@@ -1705,7 +1718,7 @@ ${safeTruncateText(r.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser 
           clientRequestId: getOrCreateUploadClientRequestId(),
           deviceId,
           projectName: project.name,
-          target,
+          target: targetForUpload,
           results,
           files: project.files,
         }),
@@ -1719,14 +1732,12 @@ ${safeTruncateText(r.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser 
         e?.message || "Unbekannter Fehler",
       );
     }
-  }, [getOrCreateDeviceId, results, target]);
+  }, [getOrCreateDeviceId, getOrCreateUploadClientRequestId, results, targetForUpload]);
 
-  const headerStats = useMemo(() => {
-    const name = projectRef.current?.name ?? "–";
-    const mode =
-      target.mode === "expoGo" ? "Expo Go" : `EAS: ${target.profile ?? "?"}`;
-    return { name, mode };
-  }, [linkedRepo, linkedBranch]);
+  const headerStats = {
+    name: projectRef.current?.name ?? "–",
+    mode: profileFocus === "all" ? "EAS: all" : `EAS: ${profileFocus}`,
+  };
 
   const renderItem = useCallback(
     ({ item }: { item: PreflightCheckResult }) => {

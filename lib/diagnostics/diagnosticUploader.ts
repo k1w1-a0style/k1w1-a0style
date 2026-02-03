@@ -98,7 +98,11 @@ export async function uploadDiagnosticReport(
     app_version: input.appVersion ?? null,
     project_name: input.projectName ?? null,
     target:
-      input.target.mode === "expoGo" ? "expoGo" : `eas:${input.target.profile}`,
+      input.target.mode === "expoGo"
+        ? "expoGo"
+        : input.target.profile === "all"
+          ? "eas:all"
+          : `eas:${input.target.profile}`,
     summary,
     snapshots,
     notes: input.notes

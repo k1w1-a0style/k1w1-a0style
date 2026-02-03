@@ -582,41 +582,7 @@ export const runBuildPipelineDiagnostics = async (params: {
         fixHint: usesEasProjectJson
           ? undefined
           : "Empfehlung: app.config.js sollte projectId aus eas-project.json lesen (damit CI nicht auf ENV angewiesen ist).",
-        fix: usesEasProjectJson
-          ? undefined
-          : {
-              label: "Patch app.config.js: projectId aus eas-project.json lesen",
-              patch: {
-                upsert: [
-                  {
-                    path: "app.config.js",
-                    content:
-                      "const fs = require('fs');\n" +
-                      "const path = require('path');\n\n" +
-                      "function readJson(rel) {\n" +
-                      "  try {\n" +
-                      "    const p = path.join(__dirname, rel);\n" +
-                      "    return JSON.parse(fs.readFileSync(p, 'utf8'));\n" +
-                      "  } catch (e) {\n" +
-                      "    return null;\n" +
-                      "  }\n" +
-                      "}\n\n" +
-                      "const eas = readJson('eas-project.json');\n" +
-                      "const easProjectId = eas && eas.projectId ? String(eas.projectId) : undefined;\n\n" +
-                      "module.exports = ({ config }) => {\n" +
-                      "  const base = config || readJson('app.json') || {};\n" +
-                      "  const extra = { ...(base.extra || {}) };\n" +
-                      "  const easExtra = { ...((extra.eas) || {}) };\n" +
-                      "  if (!easExtra.projectId && easProjectId) easExtra.projectId = easProjectId;\n" +
-                      "  extra.eas = easExtra;\n" +
-                      "  return { ...base, extra };\n" +
-                      "};\n",
-                  },
-                ],
-                explanation:
-                  "Sorgt dafür, dass Expo/EAS non-interactive Builds eine projectId aus eas-project.json finden können.",
-              },
-            },
+        fix: undefined,
       });
     } catch {
       // ignore

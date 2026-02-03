@@ -1010,12 +1010,11 @@ function scanWorkflowServiceRoleUsage(text: string): {
     if (!looksSecret(valueRaw)) continue;
 
     leaks.push(`${key} (line ${i + 1})`);
-    // auto-fix single-line only
-    outLines[i] = `${indent}${key}: \${{ secrets.${key} }}`;
-  }
+    // auto-fix intentionally omitted: secret name mapping is user-specific
+}
 
   const fixed = outLines.join("\n");
-  return { leaks, fixed: leaks.length ? fixed : undefined };
+  return { leaks, fixed: undefined };
 }
 
 const checkWorkflowServiceRoleKeyLeak: PreflightCheck = {
@@ -1081,36 +1080,43 @@ const checkForbiddenFiles: PreflightCheck = {
   title: "Security: verbotene/gefährliche Dateien",
   severity: "high",
   run(files) {
-    const hits: string[] = [];
+    const hitsSet = new Set<string>();
 
     for (const f of files) {
       const p = normalizePath(f.path);
       const content = f.content ?? "";
 
       // fast path: forbidden by filename/extension
+      let matchedByName = false;
       for (const pat of FORBIDDEN_PATTERNS) {
         if (pat.re.test(p)) {
-          hits.push(`${p} (${pat.label})`);
+          hitsSet.add(`${p} (${pat.label})`);
+          matchedByName = true;
           break;
         }
       }
 
       // huge content heuristic BEFORE scanning content (perf)
       if (content.length > 2_000_000) {
-        hits.push(
+        hitsSet.add(
           `${p} (sehr groß: ${Math.round(content.length / 1024 / 1024)}MB in content)`,
         );
         continue;
       }
 
+      // if the filename already flagged it, don't add a duplicate from content scan
+      if (matchedByName) continue;
+
       // now scan content (safe size)
       for (const pat of FORBIDDEN_PATTERNS) {
         if (pat.re.test(content)) {
-          hits.push(`${p} (${pat.label})`);
+          hitsSet.add(`${p} (${pat.label})`);
           break;
         }
       }
     }
+
+    const hits = Array.from(hitsSet);
 
     if (!hits.length) {
       return ok({ id: this.id, title: this.title, severity: this.severity });
@@ -1218,6 +1224,10 @@ export const PREFLIGHT_CHECKS: PreflightCheck[] = [
   checkLockfileConsistency,
   checkEntryPoint,
   checkExpoConfig,
+  checkAssetsExist,
+  checkNativeDirsManagedGuard,
+  checkEasWithoutCredentialsForDebug,
+  checkQualityScriptsDeps,
   checkEasProfiles,
   checkSdkConsistency,
   checkReactNativeCompatibility,

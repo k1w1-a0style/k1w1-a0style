@@ -96,3 +96,27 @@ enabled = true
 verify_jwt = false
 import_map = "./import_map.json"
 entrypoint = "./functions/native-sync-report-ingest/index.ts"
+
+# ------------------------------------------------------------
+# Android signing keystore helpers
+# NOTE: Diese Functions werden aus der App ohne Supabase-Auth-JWT aufgerufen.
+# Schutz erfolgt über `x-k1w1-admin-key` (siehe functions/_shared/auth.ts).
+# ------------------------------------------------------------
+
+[functions.android-keystore-status]
+enabled = true
+verify_jwt = false
+import_map = "./import_map.json"
+entrypoint = "./functions/android-keystore-status/index.ts"
+
+[functions.android-keystore-generate]
+enabled = true
+verify_jwt = false
+import_map = "./import_map.json"
+entrypoint = "./functions/android-keystore-generate/index.ts"
+
+[functions.android-keystore-export]
+enabled = true
+verify_jwt = false
+import_map = "./import_map.json"
+entrypoint = "./functions/android-keystore-export/index.ts"
