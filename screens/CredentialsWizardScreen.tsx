@@ -80,8 +80,9 @@ async function invokeEdgeJson(
 export default function CredentialsWizardScreen() {
   const project = useProject();
 
-  const repoFullName = project?.linkedRepo ?? "";
-  const branch = project?.linkedBranch ?? "";
+  // Repo/Branch niemals "fest pinnen" – immer aus dem aktuell verlinkten Projekt holen.
+  const repoFullName = project?.projectData?.linkedRepo ?? "";
+  const branch = project?.projectData?.linkedBranch ?? "";
 
   const [selectedMode, setSelectedMode] = useState<ModeId>("production");
 
@@ -360,7 +361,15 @@ function Btn({
       ]}
       activeOpacity={0.85}
     >
-      <Text style={[styles.btnText, { color: isPrimary ? theme.palette.text.inverse : theme.palette.text.primary }]}>
+      <Text
+        style={[
+          styles.btnText,
+          {
+            // theme.palette.text hat kein "inverse" – auf Primary-Buttons lieber dunklen Text nehmen.
+            color: isPrimary ? "#06120a" : theme.palette.text.primary,
+          },
+        ]}
+      >
         {title}
       </Text>
     </TouchableOpacity>
@@ -368,7 +377,7 @@ function Btn({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.palette.background.default },
+  container: { flex: 1, backgroundColor: theme.palette.background },
   content: { padding: 16, paddingBottom: 40 },
   h1: { fontSize: 22, fontWeight: "700", color: theme.palette.text.primary, marginBottom: 8 },
   p: { color: theme.palette.text.primary, marginBottom: 12 },
@@ -377,8 +386,8 @@ const styles = StyleSheet.create({
 
   box: {
     borderWidth: 1,
-    borderColor: theme.palette.border.default,
-    backgroundColor: theme.palette.card.default,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
     borderRadius: 14,
     padding: 14,
     marginBottom: 12,
@@ -389,8 +398,8 @@ const styles = StyleSheet.create({
 
   input: {
     borderWidth: 1,
-    borderColor: theme.palette.border.default,
-    backgroundColor: theme.palette.background.default,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.background,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -401,10 +410,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: theme.palette.border.default,
+    borderColor: theme.palette.border,
     borderRadius: 12,
     padding: 12,
-    backgroundColor: theme.palette.background.default,
+    backgroundColor: theme.palette.background,
     marginBottom: 10,
   },
   modeRowActive: {
@@ -421,11 +430,11 @@ const styles = StyleSheet.create({
 
   statusRow: {
     borderWidth: 1,
-    borderColor: theme.palette.border.default,
+    borderColor: theme.palette.border,
     borderRadius: 12,
     padding: 12,
     marginBottom: 10,
-    backgroundColor: theme.palette.background.default,
+    backgroundColor: theme.palette.background,
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 12,
@@ -446,12 +455,12 @@ const styles = StyleSheet.create({
   btnSmall: { minWidth: 90, paddingVertical: 8 },
   btnText: { fontWeight: "700" },
   btnPrimary: { backgroundColor: theme.palette.primary },
-  btnSecondary: { backgroundColor: theme.palette.card.default, borderWidth: 1, borderColor: theme.palette.border.default },
+  btnSecondary: { backgroundColor: theme.palette.card, borderWidth: 1, borderColor: theme.palette.border },
 
   debugBox: {
     borderWidth: 1,
-    borderColor: theme.palette.border.default,
-    backgroundColor: theme.palette.card.default,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
     borderRadius: 14,
     padding: 14,
     marginTop: 10,
