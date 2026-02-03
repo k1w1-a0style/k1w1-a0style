@@ -1,6 +1,6 @@
 // Shared auth helpers for Supabase Edge Functions
 // Intended for internal tooling (wizard + CI).
-import { corsHeaders, errorResponse } from "./cors.ts";
+import { corsHeadersForRequest, errorResponse } from "./cors.ts";
 
 export function getBearerToken(req: Request): string | null {
   const h = req.headers.get("authorization") ?? req.headers.get("Authorization");
@@ -46,7 +46,7 @@ export function requireAdminKey(req: Request): Response | null {
       JSON.stringify({ error: "unauthorized", hint: "invalid admin key" }),
       {
         status: 401,
-        headers: { ...corsHeaders, "content-type": "application/json" },
+        headers: { ...corsHeadersForRequest(req), "content-type": "application/json" },
       }
     );
   }

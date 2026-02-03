@@ -8,6 +8,17 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
 import { rateLimit, requireAdminKey, getServiceRoleKey } from "../_shared/auth.ts";
 
+type Mode = "development" | "preview" | "production";
+
+function resolveMode(v: unknown): Mode {
+  const s = typeof v === "string" ? v.trim() : "";
+  const lower = s.toLowerCase();
+  if (lower === "dev") return "development";
+  if (lower === "development" || lower === "preview" || lower === "production") return lower as Mode;
+  return "production";
+}
+
+
 function safeString(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
 }
@@ -38,6 +49,8 @@ Deno.serve(async (req) => {
     if (!repoOk(repo)) {
       return errorResponse("Invalid repo format. Expected 'owner/name'.", req, 400);
     }
+    const resolvedMode = resolveMode(body?.mode);
+
 
     const supabase = createClient(supabaseUrl, serviceKey);
 

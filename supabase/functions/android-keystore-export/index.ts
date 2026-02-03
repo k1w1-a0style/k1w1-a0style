@@ -11,6 +11,17 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
 import { rateLimit, requireAdminKey, getServiceRoleKey, getBearerToken } from "../_shared/auth.ts";
 
+type Mode = "development" | "preview" | "production";
+
+function resolveMode(v: unknown): Mode {
+  const s = typeof v === "string" ? v.trim() : "";
+  const lower = s.toLowerCase();
+  if (lower === "dev") return "development";
+  if (lower === "development" || lower === "preview" || lower === "production") return lower as Mode;
+  return "production";
+}
+
+
 function safeString(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
 }
@@ -36,6 +47,21 @@ function getJwtRole(req: Request): string {
     const payload = JSON.parse(base64UrlToString(parts[1]));
     const role = typeof payload?.role === "string" ? payload.role : "";
     return role;
+  } catch {
+    return "";
+  }
+}
+
+function getJwtSub(req: Request): string {
+  const auth = req.headers.get("authorization") || "";
+  const m = auth.match(/^Bearer\s+(.+)$/i);
+  if (!m) return "";
+  const token = m[1].trim();
+  const parts = token.split(".");
+  if (parts.length < 2) return "";
+  try {
+    const payload = JSON.parse(base64UrlToString(parts[1]));
+    return typeof payload?.sub === "string" ? payload.sub : "";
   } catch {
     return "";
   }
@@ -113,6 +139,8 @@ Deno.serve(async (req) => {
     if (!repoOk(repo)) {
       return errorResponse("Invalid repo format. Expected 'owner/name'.", req, 400);
     }
+    const resolvedMode = resolveMode(body?.mode);
+
 
     const supabase = createClient(supabaseUrl, serviceKey);
 
@@ -141,7 +169,25 @@ Deno.serve(async (req) => {
     const parsed = JSON.parse(decrypted);
 
     // CI expects base64 JKS/P12 and passwords.
-    return jsonResponse(
+        // Best-effort audit logging (do not leak secrets without leaving a trace).
+    try {
+      const actor = getJwtSub(req) || "service_role";
+      const ip = (req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "").split(",")[0].trim();
+      const userAgent = req.headers.get("user-agent") || "";
+      await supabase.from("signing_audit_log").insert({
+        repo,
+        mode: resolvedMode,
+        action: "export",
+        actor,
+        ip,
+        user_agent: userAgent,
+      });
+    } catch {
+      // ignore audit failures to avoid breaking CI, but keep server logs.
+      console.warn("[signing_audit_log] insert failed");
+    }
+
+return jsonResponse(
       {
         ok: true,
         repo,

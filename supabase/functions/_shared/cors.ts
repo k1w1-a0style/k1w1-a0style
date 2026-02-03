@@ -62,6 +62,12 @@ export function getCorsHeaders(origin: string | null): Record<string, string> {
   };
 }
 
+// Helper: compute CORS headers for the given request (avoids using wildcard headers).
+export function corsHeadersForRequest(req: Request): Record<string, string> {
+  const origin = req.headers.get("origin");
+  return getCorsHeaders(origin);
+}
+
 /**
  * Legacy: Standard CORS Headers (für Entwicklung)
  * @deprecated Verwende getCorsHeaders(origin) für produktionsreife CORS

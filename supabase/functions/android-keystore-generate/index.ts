@@ -216,7 +216,7 @@ Deno.serve(async (req) => {
     });
     const encrypted = await encryptWithAesCbc(payload, masterKey);
 
-    const storagePath = `android/${repo.replace("/", "__")}/keystore.enc`;
+    const storagePath = `android/${repo.replace("/", "__")}/${mode}/keystore.enc`;
     const { error: uploadErr } = await supabase.storage
       .from(bucket)
       .upload(storagePath, new Blob([encrypted], { type: "text/plain" }), {
@@ -244,7 +244,7 @@ Deno.serve(async (req) => {
           mode,
           updated_at: now,
         },
-        { onConflict: "repo" },
+        { onConflict: "repo,mode" },
       );
     if (dbErr) {
       return errorResponse("DB upsert failed", req, 500, { message: dbErr.message });
