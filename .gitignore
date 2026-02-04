@@ -48,7 +48,7 @@ supabase/.temp/
 # scripts sollen nicht ins repo (aber signing helper schon)
 scripts/*
 !scripts/
-!scripts/signing_secrets.sh
+!scripts/*.sh
 
 # lokal generierte signing secrets (niemals committen)
 .signing_secrets.local
