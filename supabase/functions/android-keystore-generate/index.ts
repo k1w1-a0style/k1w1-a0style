@@ -6,6 +6,42 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import forge from "https://esm.sh/node-forge@1.3.1";
 
+// ---- forge RNG shim (Edge runtime compatibility) ----
+// esm.sh node-forge can pick a Node crypto adapter and expect crypto.randomBytes().
+// Supabase Edge runs on Deno/WebCrypto; we bridge forge's RNG to crypto.getRandomValues().
+function bytesToBinaryString(bytes: Uint8Array): string {
+  let out = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    out += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return out;
+}
+
+function webCryptoBytes(n: number): string {
+  if (!Number.isFinite(n) || n <= 0 || n > 1024 * 1024) {
+    throw new Error(`invalid random byte count: ${n}`);
+  }
+  const bytes = new Uint8Array(n);
+  crypto.getRandomValues(bytes);
+  return bytesToBinaryString(bytes);
+}
+
+try {
+  // @ts-expect-error forge.random exists at runtime
+  forge.random.getBytesSync = (count: number) => webCryptoBytes(count);
+  // @ts-expect-error forge.random exists at runtime
+  forge.random.getBytes = (count: number, cb: (err: unknown, bytes?: string) => void) => {
+    try {
+      cb(null, webCryptoBytes(count));
+    } catch (e) {
+      cb(e);
+    }
+  };
+} catch {
+  // ignore
+}
+
 import { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
 import { rateLimit, requireAdminKey } from "../_shared/auth.ts";
 
