@@ -50,31 +50,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          ref: ${{ inputs.ref }}
-          fetch-depth: 0
-
-      - name: 🧹 Preflight: clean incomplete native dirs
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Managed workflow guard:
-          # If android/ or ios/ exists but is incomplete, EAS can choke.
-          # Only delete when we detect it's clearly incomplete.
-
-          if [ -d android ]; then
-            if [ ! -f android/build.gradle ] || [ ! -f android/app/build.gradle ]; then
-              echo "::warning::Found incomplete android/ directory (missing build.gradle). Removing it so EAS can regenerate managed native project."
-              rm -rf android
-            fi
-          fi
-
-          if [ -d ios ]; then
-            if [ ! -f ios/Podfile ]; then
-              echo "::warning::Found incomplete ios/ directory (missing Podfile). Removing it so EAS can regenerate managed native project."
-              rm -rf ios
-            fi
-          fi
 
       - name: 🧹 Preflight: clean incomplete native dirs
         shell: bash
@@ -253,7 +228,11 @@ jobs:
             exit 1
           fi
 
-          echo "ARTIFACT_EXT=apk" >> "$GITHUB_ENV"
+          if [ "${{ inputs.profile }}" = "production" ]; then
+            echo "ARTIFACT_EXT=aab" >> "$GITHUB_ENV"
+          else
+            echo "ARTIFACT_EXT=apk" >> "$GITHUB_ENV"
+          fi
 
           if [ -z "${JOB_ID:-}" ]; then
             echo "has_job_id=false" >> "$GITHUB_ENV"
