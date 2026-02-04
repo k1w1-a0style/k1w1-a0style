@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import * as Clipboard from "expo-clipboard";
 import { theme } from "../theme";
 import { useProject } from "../contexts/ProjectContext";
 import { ensureSupabaseClient } from "../lib/supabase";
@@ -57,7 +58,8 @@ async function invokeEdgeJson(
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-k1w1-admin-key": adminKey,
+      // Defensive: trim to avoid accidental whitespace/newlines from copy/paste.
+      "x-k1w1-admin-key": adminKey.trim(),
     },
     body: JSON.stringify(payload ?? {}),
   });
@@ -142,6 +144,20 @@ export default function CredentialsWizardScreen() {
   }, [supabaseUrl, adminKey, repoFullName]);
 
   const selectedStatus = statusByMode[selectedMode];
+
+  const prettyDebug = useMemo(() => {
+    if (!lastDebug) return "";
+    try {
+      return JSON.stringify(lastDebug, null, 2);
+    } catch {
+      return String(lastDebug);
+    }
+  }, [lastDebug]);
+
+  const prettyError = useMemo(() => {
+    if (!lastError) return "";
+    return String(lastError);
+  }, [lastError]);
 
   function metaForStatus(s: StatusResult | null) {
     if (busy) return { icon: "time-outline" as const, text: "prüfe…", color: paletteTextMuted() };
@@ -319,18 +335,43 @@ export default function CredentialsWizardScreen() {
         })}
       </View>
 
-      {lastError ? <Text style={styles.warn}>❌ {lastError}</Text> : null}
+      {lastError ? (
+        <View style={styles.errorBox}>
+          <View style={styles.rowBetween}>
+            <Text style={styles.errorTitle}>❌ Fehler</Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              onPress={async () => {
+                await Clipboard.setStringAsync(prettyError);
+                Alert.alert("Kopiert", "Fehlertext wurde in die Zwischenablage kopiert.");
+              }}
+            >
+              <Text style={styles.copyBtn}>Copy</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.codeScroll} nestedScrollEnabled>
+            <Text selectable style={styles.errorText}>{prettyError}</Text>
+          </ScrollView>
+        </View>
+      ) : null}
 
       {lastDebug ? (
         <View style={styles.debugBox}>
-          <Text style={styles.boxTitle}>Edge Debug</Text>
-          <Text style={styles.debugText}>
-            {JSON.stringify(
-              { url: lastDebug.url, status: lastDebug.status, statusText: lastDebug.statusText, body: lastDebug.bodyText?.slice(0, 2500) },
-              null,
-              2
-            )}
-          </Text>
+          <View style={styles.rowBetween}>
+            <Text style={styles.boxTitle}>Edge Debug</Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              onPress={async () => {
+                await Clipboard.setStringAsync(prettyDebug);
+                Alert.alert("Kopiert", "Debug-JSON wurde in die Zwischenablage kopiert.");
+              }}
+            >
+              <Text style={styles.copyBtn}>Copy</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView style={styles.codeScroll} nestedScrollEnabled>
+            <Text selectable style={styles.debugText}>{prettyDebug}</Text>
+          </ScrollView>
         </View>
       ) : null}
 
@@ -378,11 +419,24 @@ function Btn({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.palette.background },
-  content: { padding: 16, paddingBottom: 40 },
+  // Extra bottom padding so the last debug/error box isn't hidden behind the bottom tab bar.
+  content: { padding: 16, paddingBottom: 140 },
   h1: { fontSize: 22, fontWeight: "700", color: theme.palette.text.primary, marginBottom: 8 },
   p: { color: theme.palette.text.primary, marginBottom: 12 },
   warn: { color: theme.palette.warning, marginTop: 8 },
+  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   row: { flexDirection: "row", gap: 10, marginTop: 10, flexWrap: "wrap" },
+
+  errorBox: {
+    borderWidth: 1,
+    borderColor: theme.palette.error,
+    backgroundColor: theme.palette.card,
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 10,
+  },
+  errorTitle: { fontWeight: "800", color: theme.palette.error },
+  errorText: { color: theme.palette.text.primary, marginTop: 8 },
 
   box: {
     borderWidth: 1,
@@ -466,5 +520,14 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   debugText: { fontFamily: "monospace", fontSize: 12, color: theme.palette.text.muted },
+  codeScroll: { maxHeight: 220, marginTop: 8 },
+  copyBtn: {
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.background,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
   busyText: { color: theme.palette.text.muted, marginTop: 8 },
 });
