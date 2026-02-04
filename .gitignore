@@ -45,8 +45,13 @@ project_src_*.zip
 # Supabase temp
 supabase/.temp/
 
-# scripts sollen nicht ins repo
-scripts/
+# scripts sollen nicht ins repo (aber signing helper schon)
+scripts/*
+!scripts/
+!scripts/signing_secrets.sh
+
+# lokal generierte signing secrets (niemals committen)
+.signing_secrets.local
 
 # Backups folder
 backups/
