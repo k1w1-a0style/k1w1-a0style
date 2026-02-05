@@ -9,6 +9,15 @@ import { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
 import { rateLimit, requireAdminKey } from "../_shared/auth.ts";
 
 type Mode = "development" | "preview" | "production";
+
+// Back-compat: older clients send "dev" instead of "development".
+function resolveMode(input: string): Mode {
+  const m = (input || "").trim().toLowerCase();
+  if (!m) return "production";
+  if (m === "dev") return "development";
+  if (m === "development" || m === "preview" || m === "production") return m;
+  throw new Error("Invalid mode. Expected dev|development|preview|production.");
+}
 // node-forge loader (lazy) + WebCrypto RNG patch
 let _forgePromise: Promise<any> | null = null;
 
@@ -180,7 +189,12 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const repo = safeString(body?.repo);
     const branch = safeString(body?.branch) || "main";
-    const mode = (safeString(body?.mode) as Mode) || "production";
+    let mode: Mode;
+    try {
+      mode = resolveMode(safeString(body?.mode));
+    } catch (e) {
+      return errorResponse(e?.message || "Invalid mode.", req, 400);
+    }
 
     if (!repoOk(repo)) {
       return errorResponse("Invalid repo format. Expected 'owner/name'.", req, 400);
@@ -188,9 +202,7 @@ Deno.serve(async (req) => {
     if (!/^[A-Za-z0-9_./-]{1,128}$/.test(branch)) {
       return errorResponse("Invalid branch.", req, 400);
     }
-    if (!(["development", "preview", "production"] as string[]).includes(mode)) {
-      return errorResponse("Invalid mode. Expected development|preview|production.", req, 400);
-    }
+    // `resolveMode` already normalizes/validates.
 
     const supabase = createClient(supabaseUrl, serviceKey);
 
