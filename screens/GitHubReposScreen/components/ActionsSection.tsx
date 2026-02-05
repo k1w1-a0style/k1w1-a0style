@@ -1,5 +1,6 @@
 import React, { memo } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../../../theme";
 import { styles } from "../styles";
 
@@ -33,8 +34,10 @@ export const ActionsSection = memo(function ActionsSection({
   onOpenManage,
   pullProgress,
 }: ActionsSectionProps) {
+  const busyPrimary = isPushing || isPulling;
+
   return (
-    <View style={styles.section}>
+    <View style={[styles.section, activeRepo && styles.sectionNeon]}>
       <Text style={styles.sectionTitle}>Actions</Text>
 
       {!activeRepo ? (
@@ -45,47 +48,74 @@ export const ActionsSection = memo(function ActionsSection({
         <>
           <View style={styles.actionsRow}>
             <TouchableOpacity
-              style={[styles.actionButton, (isPushing || isPulling) && styles.buttonDisabled]}
+              style={[
+                styles.actionButton,
+                styles.actionButtonPrimary,
+                busyPrimary && styles.buttonDisabled,
+              ]}
               onPress={onPush}
-              disabled={isPushing || isPulling}
+              disabled={busyPrimary}
             >
               {isPushing ? (
-                <ActivityIndicator size="small" color={theme.palette.primary} />
+                <ActivityIndicator size="small" color={theme.palette.background} />
               ) : (
-                <Text style={styles.actionButtonText}>Push</Text>
+                <View style={styles.actionButtonContent}>
+                  <Ionicons name="arrow-up" size={16} color={theme.palette.background} />
+                  <Text style={[styles.actionButtonText, styles.actionButtonTextPrimary]}>Push</Text>
+                </View>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.actionButton, (isPushing || isPulling) && styles.buttonDisabled]}
+              style={[
+                styles.actionButton,
+                styles.actionButtonPrimary,
+                busyPrimary && styles.buttonDisabled,
+              ]}
               onPress={onPull}
-              disabled={isPushing || isPulling}
+              disabled={busyPrimary}
             >
               {isPulling ? (
-                <ActivityIndicator size="small" color={theme.palette.primary} />
+                <ActivityIndicator size="small" color={theme.palette.background} />
               ) : (
-                <Text style={styles.actionButtonText}>Pull</Text>
+                <View style={styles.actionButtonContent}>
+                  <Ionicons name="arrow-down" size={16} color={theme.palette.background} />
+                  <Text style={[styles.actionButtonText, styles.actionButtonTextPrimary]}>Pull</Text>
+                </View>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.actionButton, (isSyncingSecrets || isPushing || isPulling) && styles.buttonDisabled]}
+              style={[
+                styles.actionButton,
+                styles.actionButtonOutline,
+                (isSyncingSecrets || busyPrimary) && styles.buttonDisabled,
+              ]}
               onPress={onSyncSecrets}
-              disabled={isSyncingSecrets || isPushing || isPulling}
+              disabled={isSyncingSecrets || busyPrimary}
             >
               {isSyncingSecrets ? (
                 <ActivityIndicator size="small" color={theme.palette.primary} />
               ) : (
-                <Text style={styles.actionButtonText}>Secrets</Text>
+                <View style={styles.actionButtonContent}>
+                  <Ionicons name="key" size={16} color={theme.palette.primary} />
+                  <Text style={styles.actionButtonText}>Sync Secrets</Text>
+                </View>
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.actionButton} onPress={onOpenRepoOnGitHub}>
-              <Text style={styles.actionButtonText}>GitHub</Text>
+            <TouchableOpacity style={[styles.actionButton, styles.actionButtonOutline]} onPress={onOpenRepoOnGitHub}>
+              <View style={styles.actionButtonContent}>
+                <Ionicons name="open-outline" size={16} color={theme.palette.primary} />
+                <Text style={styles.actionButtonText}>Open</Text>
+              </View>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.actionButton} onPress={onOpenManage}>
-              <Text style={styles.actionButtonText}>Manage</Text>
+            <TouchableOpacity style={[styles.actionButton, styles.actionButtonOutline]} onPress={onOpenManage}>
+              <View style={styles.actionButtonContent}>
+                <Ionicons name="settings-outline" size={16} color={theme.palette.primary} />
+                <Text style={styles.actionButtonText}>Manage</Text>
+              </View>
             </TouchableOpacity>
           </View>
 

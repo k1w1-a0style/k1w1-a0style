@@ -6,6 +6,15 @@ export const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.palette.background },
   content: { padding: 16, paddingBottom: 32 },
 
+  // Subtle neon (A): dark surfaces + primary accent with soft glow
+  neonGlow: {
+    shadowColor: theme.palette.primary,
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+
   center: {
     flex: 1,
     alignItems: "center",
@@ -41,6 +50,7 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     textAlign: "center",
     paddingTop: 2,
+    backgroundColor: theme.palette.card,
   },
   headerText: { flex: 1 },
   title: {
@@ -60,9 +70,9 @@ export const styles = StyleSheet.create({
     gap: 8,
   },
   iconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: theme.palette.secondary,
@@ -71,6 +81,34 @@ export const styles = StyleSheet.create({
   },
   iconBtnActive: {
     borderColor: theme.palette.primary,
+    backgroundColor: theme.palette.card,
+    shadowColor: theme.palette.primary,
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+
+  chipRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
+  chip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.secondary,
+  },
+  chipActive: {
+    borderColor: theme.palette.primary,
+  },
+  chipText: {
+    fontSize: 11,
+    color: theme.palette.text.secondary,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+  },
+  chipTextActive: {
+    color: theme.palette.primary,
   },
 
   section: {
@@ -80,6 +118,14 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.palette.border,
     marginBottom: 12,
+  },
+  sectionNeon: {
+    borderColor: theme.palette.primary,
+    shadowColor: theme.palette.primary,
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   sectionTitle: {
     fontSize: 13,
@@ -106,6 +152,14 @@ export const styles = StyleSheet.create({
     backgroundColor: theme.palette.secondary,
     borderColor: theme.palette.border,
   },
+  buttonGhost: {
+    backgroundColor: "transparent",
+    borderColor: theme.palette.primary,
+  },
+  buttonDanger: {
+    backgroundColor: theme.palette.secondary,
+    borderColor: theme.palette.error,
+  },
   buttonDisabled: { opacity: 0.55 },
   buttonText: {
     color: theme.palette.background,
@@ -115,6 +169,11 @@ export const styles = StyleSheet.create({
   buttonTextSecondary: {
     color: theme.palette.text.primary,
     fontWeight: "800",
+    fontSize: 13,
+  },
+  buttonTextGhost: {
+    color: theme.palette.primary,
+    fontWeight: "900",
     fontSize: 13,
   },
 
@@ -188,6 +247,7 @@ export const styles = StyleSheet.create({
   actionsLabel: { fontSize: 12, color: theme.palette.text.secondary, marginTop: 6 },
   actionsRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 8 },
 
+  
   actionButton: {
     backgroundColor: theme.palette.secondary,
     paddingHorizontal: 14,
@@ -198,12 +258,33 @@ export const styles = StyleSheet.create({
     minWidth: 76,
     alignItems: "center",
   },
+  actionButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  actionButtonPrimary: {
+    backgroundColor: theme.palette.primary,
+    borderColor: theme.palette.primary,
+    shadowColor: theme.palette.primary,
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  actionButtonOutline: {
+    backgroundColor: "transparent",
+    borderColor: theme.palette.primary,
+  },
   actionButtonText: {
     fontSize: 13,
     color: theme.palette.primary,
     fontWeight: "900",
     textAlign: "center",
     letterSpacing: 0.2,
+  },
+  actionButtonTextPrimary: {
+    color: theme.palette.background,
   },
   progressText: {
     fontSize: 11,
@@ -220,6 +301,11 @@ export const styles = StyleSheet.create({
     borderColor: theme.palette.primary,
     marginTop: 8,
     marginBottom: 4,
+    shadowColor: theme.palette.primary,
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   manageTitle: {
     fontSize: 13,
