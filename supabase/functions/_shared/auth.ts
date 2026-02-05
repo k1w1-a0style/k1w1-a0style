@@ -32,25 +32,38 @@ export function getServiceRoleKey(req: Request): string | null {
  * Returns Response on failure, null on success (backwards compatible).
  */
 export function requireAdminKey(req: Request): Response | null {
-  const expected = Deno.env.get("SIGNING_ADMIN_KEY");
-  if (!expected) {
+  const expected = Deno.env.get("SIGNING_ADMIN_KEY") ?? null;
+  const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? null;
+
+  const gotHeader = req.headers.get("x-k1w1-admin-key") ?? "";
+  const bearer = getBearerToken(req);
+
+  // Allow either:
+  // 1) x-k1w1-admin-key == SIGNING_ADMIN_KEY (strict admin secret), OR
+  // 2) Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY> (CI/internal automation)
+  const okByHeader = !!expected && gotHeader.length > 0 && gotHeader === expected;
+  const okByServiceRole = !!serviceRole && !!bearer && bearer === serviceRole;
+
+  if (okByHeader || okByServiceRole) return null;
+
+  if (!expected && !serviceRole) {
     return errorResponse(
       500,
-      "SIGNING_ADMIN_KEY is not configured for this Edge Function. Set it as a function secret.",
-      { missing: ["SIGNING_ADMIN_KEY"] }
+      "Missing admin auth secrets for this Edge Function. Set SIGNING_ADMIN_KEY and/or SUPABASE_SERVICE_ROLE_KEY as function secrets.",
+      { missing: ["SIGNING_ADMIN_KEY", "SUPABASE_SERVICE_ROLE_KEY"] },
+      req
     );
   }
-  const got = getAdminKeyHeader(req);
-  if (!got || got !== expected) {
-    return new Response(
-      JSON.stringify({ error: "unauthorized", hint: "invalid admin key" }),
-      {
-        status: 401,
-        headers: { ...corsHeadersForRequest(req), "content-type": "application/json" },
-      }
-    );
-  }
-  return null;
+
+  return errorResponse(
+    401,
+    "Unauthorized: missing or invalid admin credentials.",
+    {
+      required:
+        "Either x-k1w1-admin-key (SIGNING_ADMIN_KEY) OR Authorization: Bearer (SUPABASE_SERVICE_ROLE_KEY)",
+    },
+    req
+  );
 }
 
 /**
