@@ -6,7 +6,7 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
+  Pressable,
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -60,13 +60,20 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
   return (
     <View style={styles.header}>
       <View style={styles.left}>
-        <TouchableOpacity
+        <Pressable
           onPress={() => navigation.openDrawer()}
-          style={styles.iconBtn}
+          style={({ pressed }) => [
+            styles.iconBtn,
+            pressed && styles.iconBtnPressed,
+          ]}
           accessibilityLabel="Menü"
+          android_ripple={{
+            color: `${theme.palette.primary}22`,
+            borderless: true,
+          }}
         >
           <Ionicons name="menu" size={24} color={theme.palette.text.primary} />
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       <View style={styles.center}>
@@ -79,37 +86,58 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
       </View>
 
       <View style={styles.right}>
-        <TouchableOpacity
+        <Pressable
           onPress={() => navigation.navigate("GitHubRepos" as never)}
-          style={styles.iconBtn}
+          style={({ pressed }) => [
+            styles.iconBtn,
+            pressed && styles.iconBtnPressed,
+          ]}
           accessibilityLabel="GitHub Repos"
+          android_ripple={{
+            color: `${theme.palette.primary}22`,
+            borderless: true,
+          }}
         >
           <Ionicons
             name="logo-github"
             size={22}
             color={theme.palette.text.primary}
           />
-        </TouchableOpacity>
+        </Pressable>
 
-        <TouchableOpacity
+        <Pressable
           onPress={() => navigation.navigate("Connections" as never)}
-          style={styles.iconBtn}
+          style={({ pressed }) => [
+            styles.iconBtn,
+            pressed && styles.iconBtnPressed,
+          ]}
           accessibilityLabel="Connections"
+          android_ripple={{
+            color: `${theme.palette.primary}22`,
+            borderless: true,
+          }}
         >
           <Ionicons
             name="link-outline"
             size={22}
             color={theme.palette.text.primary}
           />
-        </TouchableOpacity>
+        </Pressable>
 
-        <TouchableOpacity
+        <Pressable
           onPress={onPressBuild}
-          style={styles.iconBtn}
+          style={({ pressed }) => [
+            styles.iconBtn,
+            pressed && styles.iconBtnPressed,
+          ]}
           accessibilityLabel="Build"
+          android_ripple={{
+            color: `${theme.palette.primary}22`,
+            borderless: true,
+          }}
         >
           {buildIcon()}
-        </TouchableOpacity>
+        </Pressable>
       </View>
     </View>
   );
@@ -125,7 +153,7 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.palette.border,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
+    paddingHorizontal: theme.spacing.sm,
   },
   left: { width: 46, alignItems: "flex-start" },
   center: { flex: 1, alignItems: "center", paddingHorizontal: 6 },
@@ -138,7 +166,10 @@ const styles = StyleSheet.create({
   iconBtn: {
     paddingHorizontal: 10,
     paddingVertical: 8,
-    borderRadius: 12,
+    borderRadius: theme.borderRadius.full,
+  },
+  iconBtnPressed: {
+    backgroundColor: theme.palette.cardHover,
   },
   title: {
     color: theme.palette.text.primary,

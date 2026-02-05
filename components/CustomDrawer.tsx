@@ -3,12 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
+  Pressable,
   ScrollView,
 } from "react-native";
 import { DrawerContentComponentProps } from "@react-navigation/drawer";
 import { Ionicons } from "@expo/vector-icons";
-import { theme, getNeonGlow } from "../theme";
+import { theme } from "../theme";
 
 export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
   props,
@@ -31,13 +31,21 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
   ) => {
     const active = isActive(screen);
     return (
-      <TouchableOpacity
+      <Pressable
         key={screen}
-        style={[styles.drawerItem, active && styles.drawerItemActive]}
+        style={({ pressed }) => [
+          styles.drawerItem,
+          active && styles.drawerItemActive,
+          pressed && styles.drawerItemPressed,
+        ]}
         onPress={() => navigateTo(screen)}
-        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityState={{ selected: active }}
+        android_ripple={{
+          color: `${theme.palette.primary}22`,
+          borderless: false,
+        }}
       >
-        {/* Neon Glow Indicator für aktives Item */}
         {active && <View style={styles.activeIndicator} />}
 
         <View
@@ -45,7 +53,7 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
         >
           <Ionicons
             name={iconName}
-            size={20}
+            size={19}
             color={
               active ? theme.palette.primary : theme.palette.text.secondary
             }
@@ -73,7 +81,7 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
             />
           </View>
         )}
-      </TouchableOpacity>
+      </Pressable>
     );
   };
 
@@ -81,18 +89,16 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
     <Text style={styles.sectionTitle}>{title}</Text>
   );
 
+  const renderSectionTitleFirst = (title: string) => (
+    <Text style={[styles.sectionTitle, styles.sectionTitleFirst]}>{title}</Text>
+  );
+
   return (
     <View style={styles.root}>
-      {/* Header mit Neon-Akzent */}
       <View style={styles.header}>
         <View style={styles.logoContainer}>
-          <View
-            style={[
-              styles.logoIcon,
-              getNeonGlow(theme.palette.primary, "subtle"),
-            ]}
-          >
-            <Text style={styles.logoEmoji}>⚡</Text>
+          <View style={styles.logoIcon}>
+            <Ionicons name="sparkles" size={18} color={theme.palette.primary} />
           </View>
           <View style={styles.logoText}>
             <Text style={styles.appTitle}>K1W1 AO-Style</Text>
@@ -112,16 +118,16 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {renderSectionTitle("HAUPTMENÜ")}
+        {renderSectionTitleFirst("HAUPTMENÜ")}
         {renderItem("Home", "Home", "home-outline")}
-        {renderItem("KI-Einstellungen", "Settings", "options-outline")}
         {renderItem("Verbindungen", "Connections", "link-outline")}
+        {renderItem("KI-Einstellungen", "Settings", "options-outline")}
 
         {renderSectionTitle("ENTWICKLUNG")}
         {renderItem("GitHub Repos", "GitHubRepos", "logo-github")}
         {renderItem("Build", "EnhancedBuild", "construct-outline")}
 
-        {renderSectionTitle("ANALYSE")}
+        {renderSectionTitle("TOOLS")}
         {renderItem("Diagnose", "Diagnostic", "bug-outline")}
         {renderItem("Signing Wizard", "CredentialsWizard", "key-outline")}
         {renderItem("Vorschau", "Preview", "eye-outline")}
@@ -150,9 +156,9 @@ const styles = StyleSheet.create({
     backgroundColor: theme.palette.background,
   },
   header: {
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 16,
+    paddingTop: 48,
+    paddingBottom: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: theme.palette.border,
     backgroundColor: theme.palette.card,
@@ -160,44 +166,41 @@ const styles = StyleSheet.create({
   logoContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: theme.spacing.sm,
   },
   logoIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: `${theme.palette.primary}15`,
+    width: 40,
+    height: 40,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.palette.cardHover,
     borderWidth: 1,
-    borderColor: theme.palette.primary,
+    borderColor: theme.palette.border,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
-  },
-  logoEmoji: {
-    fontSize: 22,
+    marginRight: theme.spacing.sm,
   },
   logoText: {
     flex: 1,
   },
   appTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: theme.palette.primary,
-    letterSpacing: 0.5,
+    fontSize: 16,
+    fontWeight: "700",
+    color: theme.palette.text.primary,
   },
   appSubTitle: {
     marginTop: 2,
     fontSize: 11,
     color: theme.palette.text.secondary,
-    letterSpacing: 0.3,
   },
   statusBar: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 6,
     paddingHorizontal: 10,
-    backgroundColor: `${theme.palette.primary}10`,
-    borderRadius: 20,
+    backgroundColor: theme.palette.cardHover,
+    borderRadius: theme.borderRadius.full,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
     alignSelf: "flex-start",
   },
   statusDot: {
@@ -209,58 +212,68 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 11,
-    color: theme.palette.primary,
+    color: theme.palette.text.secondary,
     fontWeight: "600",
   },
   scroll: {
     flex: 1,
   },
   scrollContent: {
-    paddingVertical: 12,
+    paddingVertical: theme.spacing.sm,
   },
   sectionTitle: {
     fontSize: 10,
     fontWeight: "700",
     color: theme.palette.text.disabled,
-    letterSpacing: 1.2,
-    marginTop: 16,
-    marginBottom: 8,
-    marginLeft: 16,
+    letterSpacing: 1.1,
+    marginTop: theme.spacing.lg,
+    marginBottom: theme.spacing.sm,
+    marginLeft: theme.spacing.md,
+  },
+  sectionTitleFirst: {
+    marginTop: theme.spacing.sm,
   },
   drawerItem: {
     flexDirection: "row",
     alignItems: "center",
+    minHeight: 48,
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginHorizontal: 8,
+    paddingHorizontal: theme.spacing.md,
+    marginHorizontal: theme.spacing.sm,
     marginVertical: 2,
-    borderRadius: 10,
+    borderRadius: theme.borderRadius.lg,
     position: "relative",
   },
   drawerItemActive: {
-    backgroundColor: `${theme.palette.primary}12`,
+    backgroundColor: theme.palette.cardHover,
+  },
+  drawerItemPressed: {
+    backgroundColor: `${theme.palette.primary}10`,
   },
   activeIndicator: {
     position: "absolute",
-    left: 0,
-    top: "25%",
-    bottom: "25%",
-    width: 3,
+    left: 8,
+    top: 12,
+    bottom: 12,
+    width: 2,
     backgroundColor: theme.palette.primary,
     borderRadius: 2,
-    ...getNeonGlow(theme.palette.primary, "subtle"),
+    opacity: 0.9,
   },
   iconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: theme.palette.card,
+    width: 34,
+    height: 34,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.palette.background,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginRight: theme.spacing.sm,
   },
   iconContainerActive: {
-    backgroundColor: `${theme.palette.primary}20`,
+    backgroundColor: `${theme.palette.primary}12`,
+    borderColor: `${theme.palette.primary}35`,
   },
   drawerItemText: {
     fontSize: 14,
@@ -269,7 +282,7 @@ const styles = StyleSheet.create({
   },
   drawerItemTextActive: {
     fontWeight: "600",
-    color: theme.palette.primary,
+    color: theme.palette.text.primary,
   },
   badge: {
     backgroundColor: theme.palette.error,
@@ -285,10 +298,11 @@ const styles = StyleSheet.create({
   },
   activeChevron: {
     marginLeft: 4,
+    opacity: 0.9,
   },
   footer: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.md,
     borderTopWidth: 1,
     borderTopColor: theme.palette.border,
     backgroundColor: theme.palette.card,
@@ -305,17 +319,17 @@ const styles = StyleSheet.create({
     color: theme.palette.text.primary,
   },
   versionBadge: {
-    backgroundColor: `${theme.palette.primary}15`,
+    backgroundColor: theme.palette.cardHover,
     borderWidth: 1,
-    borderColor: `${theme.palette.primary}30`,
-    borderRadius: 6,
+    borderColor: theme.palette.border,
+    borderRadius: theme.borderRadius.md,
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
   versionText: {
     fontSize: 10,
     fontWeight: "600",
-    color: theme.palette.primary,
+    color: theme.palette.text.secondary,
     fontFamily: "monospace",
   },
   footerSubtext: {

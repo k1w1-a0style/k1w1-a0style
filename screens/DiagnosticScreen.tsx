@@ -12,14 +12,29 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  LayoutAnimation,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
+  UIManager,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+
+import { SegmentedTabs, TabKey } from "../components/diagnostics/SegmentedTabs";
+import { ModeSelector, type BuildMode } from "../components/diagnostics/ModeSelector";
+import { IssueCard } from "../components/diagnostics/IssueCard";
+import {
+  IssueDetailSheet,
+  type IssueDetail,
+} from "../components/diagnostics/IssueDetailSheet";
+import { InlineToast } from "../components/diagnostics/InlineToast";
+import { useInlineToast } from "../components/diagnostics/useInlineToast";
+import { SectionCard } from "../components/diagnostics/SectionCard";
 
 import { theme } from "../theme";
 import { useProject } from "../contexts/ProjectContext";
@@ -81,6 +96,9 @@ const UPLOAD_COOLDOWN_KEY = "k1w1_upload_cooldown_until";
 
 // Diagnostics UI prefs
 const DIAG_PREF_PROFILE_FOCUS_KEY = "k1w1_diag_profile_focus";
+const DIAG_PREF_MODES_KEY = "k1w1_diag_modes";
+const DIAG_PREF_MODES_ALL_KEY = "k1w1_diag_modes_all";
+const DIAG_PREF_MODES_ADV_KEY = "k1w1_diag_modes_adv";
 const DIAG_PREF_INCLUDE_LOCAL_KEY = "k1w1_diag_include_local";
 const DIAG_PREF_INCLUDE_PIPELINE_KEY = "k1w1_diag_include_pipeline";
 const DIAG_PREF_SYNC_FIXES_KEY = "k1w1_diag_sync_fixes";
@@ -93,17 +111,6 @@ const MAX_DETAILS = 10;
 const AUTOFIX_MAX = 50; // safety: don't apply endless chains
 const FIX_MODAL_MAX_LINES = 7;
 
-function getStatusColor(s: Status): string {
-  if (s === "fail") return theme.palette.error;
-  if (s === "warn") return theme.palette.warning;
-  return theme.palette.success;
-}
-
-function getStatusIcon(s: Status) {
-  if (s === "fail") return "close-circle";
-  if (s === "warn") return "warning";
-  return "checkmark-circle";
-}
 
 type FixHistoryEntry = {
   label: string;
@@ -119,42 +126,11 @@ type FixStep = {
   message?: string;
 };
 
-function StatusPill({ status }: { status: Status }) {
-  const c = getStatusColor(status);
-  return (
-    <View
-      style={[
-        styles.statusPill,
-        { borderColor: c, backgroundColor: "rgba(0,0,0,0.25)" },
-      ]}
-    >
-      <Ionicons name={getStatusIcon(status)} size={14} color={c} />
-      <Text style={[styles.statusPillText, { color: c }]}>
-        {status.toUpperCase()}
-      </Text>
-    </View>
-  );
-}
-
-function VariantPill({ variant }: { variant: Exclude<BuildVariant, "all"> }) {
-  const label =
-    variant === "development" ? "Dev" : variant === "preview" ? "Preview" : "Produce";
-  const c =
-    variant === "development"
-      ? theme.palette.success
-      : variant === "preview"
-        ? theme.palette.warning
-        : theme.palette.text.primary;
-  return (
-    <View
-      style={[
-        styles.variantPill,
-        { borderColor: c, backgroundColor: "rgba(0,0,0,0.25)" },
-      ]}
-    >
-      <Text style={[styles.variantPillText, { color: c }]}>{label}</Text>
-    </View>
-  );
+function statusToSeverity(s: Status): "critical" | "warning" | "info" | "pass" {
+  if (s === "fail") return "critical";
+  if (s === "warn") return "warning";
+  // We treat passes as "info" only when the user explicitly filters to it.
+  return "pass";
 }
 
 function ProgressBar({ pct }: { pct: number }) {
@@ -385,6 +361,12 @@ export default function DiagnosticScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      UIManager.setLayoutAnimationEnabledExperimental?.(true);
+    }
+  }, []);
+
   // Restore upload cooldown (UX-only) across app restarts.
 
   // Tick cooldown UI and auto-clear when it expires.
@@ -395,6 +377,7 @@ export default function DiagnosticScreen() {
   const runningRef = useRef(false);
 
   const [progressStage, setProgressStage] = useState<string | null>(null);
+  const [lastRunAt, setLastRunAt] = useState<number | null>(null);
 
   const [ciFixing, setCiFixing] = useState(false);
   const [ciFixLog, setCiFixLog] = useState<string | null>(null);
@@ -500,13 +483,35 @@ export default function DiagnosticScreen() {
   const [fixStepIndex, setFixStepIndex] = useState(0);
   const [fixDone, setFixDone] = useState(false);
 
-  // Filters
-  const [filter, setFilter] = useState<"all" | Status>("all");
+  // UI: main tabs
+  const [tab, setTab] = useState<TabKey>("overview");
 
-  // Build-mode focus (your 3 build buttons)
-  const [profileFocus, setProfileFocus] = useState<
-    "all" | "development" | "preview" | "production"
-  >(() => ((projectData?.preferredBuildProfile as any) ?? "all"));
+const [advancedOpen, setAdvancedOpen] = useState(false);
+const [advancedFixesOpen, setAdvancedFixesOpen] = useState(false);
+
+const toggleAdvanced = useCallback(() => {
+  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  setAdvancedOpen((v) => !v);
+}, []);
+
+const toggleAdvancedFixes = useCallback(() => {
+  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  setAdvancedFixesOpen((v) => !v);
+}, []);
+
+
+  // UX (new): Recommended by default, Advanced optional multi-select
+  const recommendedMode = useMemo<BuildMode>(() => {
+    const preferred = String((projectData as any)?.preferredBuildProfile || "development");
+    if (preferred === "preview" || preferred === "production" || preferred === "development") {
+      return preferred;
+    }
+    return "development";
+  }, [projectData]);
+
+  const [modeAdvanced, setModeAdvanced] = useState(false);
+  const [modesAll, setModesAll] = useState(false);
+  const [selectedModes, setSelectedModes] = useState<BuildMode[]>([recommendedMode]);
 
   // Scope toggles (pro UX)
 const [includeLocalChecks, setIncludeLocalChecks] = useState(true);
@@ -536,7 +541,11 @@ useEffect(() => {
   (async () => {
     try {
       const keys = [
+        // legacy focus key is still read for migration
         prefKey(DIAG_PREF_PROFILE_FOCUS_KEY),
+        prefKey(DIAG_PREF_MODES_KEY),
+        prefKey(DIAG_PREF_MODES_ALL_KEY),
+        prefKey(DIAG_PREF_MODES_ADV_KEY),
         prefKey(DIAG_PREF_INCLUDE_LOCAL_KEY),
         prefKey(DIAG_PREF_INCLUDE_PIPELINE_KEY),
         prefKey(DIAG_PREF_SYNC_FIXES_KEY),
@@ -547,7 +556,10 @@ useEffect(() => {
       const pairs = await AsyncStorage.multiGet(keys);
       const map = new Map(pairs);
 
-      const pf = map.get(prefKey(DIAG_PREF_PROFILE_FOCUS_KEY));
+      const legacyPf = map.get(prefKey(DIAG_PREF_PROFILE_FOCUS_KEY));
+      const modesRaw = map.get(prefKey(DIAG_PREF_MODES_KEY));
+      const allRaw = map.get(prefKey(DIAG_PREF_MODES_ALL_KEY));
+      const advRaw = map.get(prefKey(DIAG_PREF_MODES_ADV_KEY));
       const il = map.get(prefKey(DIAG_PREF_INCLUDE_LOCAL_KEY));
       const ip = map.get(prefKey(DIAG_PREF_INCLUDE_PIPELINE_KEY));
       const sy = map.get(prefKey(DIAG_PREF_SYNC_FIXES_KEY));
@@ -557,8 +569,32 @@ useEffect(() => {
 
       if (cancelled) return;
 
-      if (pf === "all" || pf === "development" || pf === "preview" || pf === "production") {
-        setProfileFocus(pf);
+      // Mode persistence (new)
+      if (advRaw === "0" || advRaw === "1") setModeAdvanced(advRaw === "1");
+      if (allRaw === "0" || allRaw === "1") setModesAll(allRaw === "1");
+      if (modesRaw) {
+        const parts = modesRaw
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const filtered = parts.filter(
+          (m): m is BuildMode => m === "development" || m === "preview" || m === "production",
+        );
+        if (filtered.length) setSelectedModes(filtered);
+      } else if (
+        legacyPf === "all" ||
+        legacyPf === "development" ||
+        legacyPf === "preview" ||
+        legacyPf === "production"
+      ) {
+        // Migration: old single/all focus -> new modes
+        if (legacyPf === "all") {
+          setModeAdvanced(true);
+          setModesAll(true);
+          setSelectedModes(["development", "preview", "production"]);
+        } else {
+          setSelectedModes([legacyPf]);
+        }
       }
       if (il === "0" || il === "1") setIncludeLocalChecks(il === "1");
       if (ip === "0" || ip === "1") setIncludePipelineChecks(ip === "1");
@@ -579,7 +615,9 @@ useEffect(() => {
   (async () => {
     try {
       await AsyncStorage.multiSet([
-        [prefKey(DIAG_PREF_PROFILE_FOCUS_KEY), profileFocus],
+        [prefKey(DIAG_PREF_MODES_KEY), selectedModes.join(",")],
+        [prefKey(DIAG_PREF_MODES_ALL_KEY), modesAll ? "1" : "0"],
+        [prefKey(DIAG_PREF_MODES_ADV_KEY), modeAdvanced ? "1" : "0"],
         [prefKey(DIAG_PREF_INCLUDE_LOCAL_KEY), includeLocalChecks ? "1" : "0"],
         [prefKey(DIAG_PREF_INCLUDE_PIPELINE_KEY), includePipelineChecks ? "1" : "0"],
         [prefKey(DIAG_PREF_SYNC_FIXES_KEY), syncFixesToGitHub ? "1" : "0"],
@@ -597,17 +635,22 @@ useEffect(() => {
   includeLocalChecks,
   includePipelineChecks,
   prefKey,
-  profileFocus,
+  modeAdvanced,
+  modesAll,
+  selectedModes,
   rerunAfterFix,
   syncFixesToGitHub,
 ]);
 
   // Keep the project's preferred build profile in sync (so Build Screen + Diagnostics agree).
+  // Only sync when user is in Recommended mode (single selection).
   useEffect(() => {
-    if (profileFocus === "all") return;
     if (typeof setPreferredBuildProfile !== "function") return;
-    setPreferredBuildProfile(profileFocus);
-  }, [profileFocus, setPreferredBuildProfile]);
+    if (modeAdvanced) return;
+    if (modesAll) return;
+    const only = selectedModes[0] ?? recommendedMode;
+    setPreferredBuildProfile(only);
+  }, [modeAdvanced, modesAll, recommendedMode, selectedModes, setPreferredBuildProfile]);
 
 
   const counts = useMemo(() => {
@@ -629,10 +672,32 @@ useEffect(() => {
     return list;
   }, [results]);
 
+  const [issuesFilter, setIssuesFilter] = useState<
+    "all" | "critical" | "warning" | "info"
+  >("all");
+
+  const toSeverity = useCallback((s: Status): IssueDetail["severity"] => {
+    if (s === "fail") return "critical";
+    if (s === "warn") return "warning";
+    return "info";
+  }, []);
+
+  // "Visible" is the Issues tab filter result (used by Smart Fix scope)
   const visibleResults = useMemo(() => {
-    if (filter === "all") return sortedResults;
-    return sortedResults.filter((r) => (r.status as Status) === filter);
-  }, [filter, sortedResults]);
+  const nonPass = sortedResults.filter(
+    (r) => ((r.status ?? "pass") as Status) !== "pass",
+  );
+
+  if (issuesFilter === "all") return nonPass;
+  if (issuesFilter === "critical")
+    return nonPass.filter((r) => ((r.status ?? "pass") as Status) === "fail");
+  if (issuesFilter === "warning")
+    return nonPass.filter((r) => ((r.status ?? "pass") as Status) === "warn");
+
+  // "info" is intentionally minimal in this project: we don't show passing checks as issues.
+  return [];
+}, [issuesFilter, sortedResults]);
+
 
   const fixableResults = useMemo(() => {
     const list = sortedResults.filter((r) => !!r.fix?.patch);
@@ -652,8 +717,11 @@ useEffect(() => {
 
   const pipelineAppliesToFocus = useCallback(
     (id: string): boolean => {
-      if (profileFocus === "all") return true;
-      const focus = profileFocus;
+      if (modesAll) return true;
+
+      const enabled = new Set<BuildMode>(
+        selectedModes.length ? selectedModes : [recommendedMode],
+      );
 
       // Profile-specific ids in buildPipelineDiagnostics
       const isFor = (p: "development" | "preview" | "production") => {
@@ -670,16 +738,16 @@ useEffect(() => {
         id === "repo.dep.expoDevClient" ||
         id === "repo.dep.expoDevClient.read";
 
-      if (devOnly) return focus === "development";
+      if (devOnly) return enabled.has("development");
 
-      if (isFor("development")) return focus === "development";
-      if (isFor("preview")) return focus === "preview";
-      if (isFor("production")) return focus === "production";
+      if (isFor("development")) return enabled.has("development");
+      if (isFor("preview")) return enabled.has("preview");
+      if (isFor("production")) return enabled.has("production");
 
       // Otherwise: global checks (tokens, workflows, secrets, etc.)
       return true;
     },
-    [profileFocus],
+    [modesAll, recommendedMode, selectedModes],
   );
 
   const runDiagnostics = useCallback(async (opts?: { resetSelection?: boolean; resetHistory?: boolean }) => {
@@ -705,9 +773,11 @@ useEffect(() => {
       const all: PreflightCheckResult[] = [];
 
       const focusedProfiles: Array<"development" | "preview" | "production"> =
-        profileFocus === "all"
+        modesAll
           ? ["development", "preview", "production"]
-          : [profileFocus];
+          : (selectedModes.length
+              ? (selectedModes as Array<"development" | "preview" | "production">)
+              : ([recommendedMode] as Array<"development" | "preview" | "production">));
 
       if (includeLocalChecks) {
         for (const prof of focusedProfiles) {
@@ -779,6 +849,7 @@ useEffect(() => {
 
       if (mountedRef.current) {
         setResults(all);
+        setLastRunAt(Date.now());
         setProgressStage(null);
       }
 } catch (e: any) {
@@ -797,7 +868,9 @@ useEffect(() => {
     linkedRepo,
     linkedBranch,
     pipelineAppliesToFocus,
-    profileFocus,
+    modesAll,
+    recommendedMode,
+    selectedModes,
   ]);
 
   const run = useCallback(() => runDiagnostics(), [runDiagnostics]);
@@ -1752,116 +1825,278 @@ ${safeTruncateText(r.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser 
     return { name, mode };
   }, [linkedRepo, linkedBranch]);
 
-  const renderItem = useCallback(
-    ({ item }: { item: PreflightCheckResult }) => {
-      const st = (item.status ?? "pass") as Status;
-      const hasFix = !!item.fix?.patch;
 
-      return (
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <StatusPill status={st} />
-            <Text style={styles.cardTitle} numberOfLines={2}>
-              {item.title}
-            </Text>
-          </View>
+  const toast = useInlineToast();
+  const [reportVisible, setReportVisible] = useState(false);
 
-          {item.message ? (
-            <Text style={styles.cardMsg} numberOfLines={4}>
-              {item.message}
-            </Text>
-          ) : null}
+  const [issueSheetVisible, setIssueSheetVisible] = useState(false);
+  const [activeIssue, setActiveIssue] = useState<PreflightCheckResult | null>(null);
 
-          {item.details?.length ? (
-            <View style={styles.detailsBox}>
-              {item.details.slice(0, MAX_DETAILS).map((d, i) => (
-                <Text key={`${item.id}_${i}`} style={styles.detailLine}>
-                  • {safeTruncateText(d, 180)}
-                </Text>
-              ))}
-              {item.details.length > MAX_DETAILS ? (
-                <Text style={styles.moreText}>
-                  … +{item.details.length - MAX_DETAILS} weitere
-                </Text>
-              ) : null}
-            </View>
-          ) : null}
+  const openIssue = useCallback((r: PreflightCheckResult) => {
+    setActiveIssue(r);
+    setIssueSheetVisible(true);
+  }, []);
 
-          <View style={styles.cardActions}>
-            {hasFix ? (
-              <>
-                <TouchableOpacity
-                  style={[styles.actionBtn, styles.actionBtnPrimary]}
-                  onPress={() => applySingle(item)}
-                  disabled={running || applyBusy}
-                >
-                  <Ionicons
-                    name="flash"
-                    size={16}
-                    color={theme.palette.text.primary}
-                  />
-                  <Text style={styles.actionBtnText}>Fix</Text>
-                </TouchableOpacity>
+  const closeIssue = useCallback(() => setIssueSheetVisible(false), []);
 
-                <TouchableOpacity
-                  style={styles.actionBtn}
-                  onPress={() => openPreview(item.title, item.fix!.patch)}
-                  disabled={running || applyBusy}
-                >
-                  <Ionicons
-                    name="eye"
-                    size={16}
-                    color={theme.palette.text.primary}
-                  />
-                  <Text style={styles.actionBtnText}>Preview</Text>
-                </TouchableOpacity>
+  const activeIssueDetail = useMemo<IssueDetail | null>(() => {
+    if (!activeIssue) return null;
+    const st = ((activeIssue.status ?? "pass") as Status) ?? "pass";
+    return {
+      title: activeIssue.title,
+      message: activeIssue.message,
+      details: activeIssue.details,
+      severity: toSeverity(st),
+      hasFix: !!activeIssue.fix?.patch,
+    };
+  }, [activeIssue, toSeverity]);
 
-                <TouchableOpacity
-                  style={[
-                    styles.actionBtn,
-                    styles.checkboxBtn,
-                    selected[item.id] && styles.checkboxOn,
-                  ]}
-                  onPress={() => toggleSelected(item.id)}
-                  disabled={running || applyBusy}
-                >
-                  <Ionicons
-                    name={selected[item.id] ? "checkbox" : "square-outline"}
-                    size={18}
-                    color={
-                      selected[item.id]
-                        ? theme.palette.success
-                        : theme.palette.text.muted
-                    }
-                  />
-                  <Text style={styles.actionBtnText}>Select</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                <Text style={styles.noFixText}>Kein Fix verfügbar</Text>
-              </View>
-            )}
-          </View>
-        </View>
-      );
+  const applyIssueFix = useCallback(
+    async (r: PreflightCheckResult) => {
+      if (!r.fix?.patch) return;
+
+      const doSync = shouldSyncPatch(r.fix.patch);
+
+      const steps: FixStep[] = [
+        { key: "apply", title: "Apply patch (local)", status: "pending" },
+        ...(doSync
+          ? [{ key: "sync", title: "Sync to GitHub", status: "pending" as FixStepStatus }]
+          : []),
+        ...(rerunAfterFix
+          ? [{ key: "rerun", title: "Re-Run Diagnostics (Verify)", status: "pending" as FixStepStatus }]
+          : []),
+      ];
+
+      setFixModalTitle("Fix");
+      setFixModalSubtitle(r.title);
+      setFixSteps(steps);
+      setFixStepIndex(0);
+      setFixDone(false);
+      setFixModalVisible(true);
+
+      // Apply
+      setFixSteps((prev) => prev.map((s, i) => (i === 0 ? { ...s, status: "running" } : s)));
+      try {
+        await applyPatch(r.title, r.fix.patch, { syncToGitHub: false });
+        setFixSteps((prev) => prev.map((s, i) => (i === 0 ? { ...s, status: "done" } : s)));
+      } catch (e: any) {
+        setFixSteps((prev) =>
+          prev.map((s, i) =>
+            i === 0
+              ? { ...s, status: "failed", message: safeTruncateText(e?.message || "Fehler", 160) }
+              : s,
+          ),
+        );
+        setFixDone(true);
+        return;
+      }
+
+      let cursor = 1;
+
+      if (doSync) {
+        setFixStepIndex(cursor);
+        setFixSteps((prev) => prev.map((s, i) => (i === cursor ? { ...s, status: "running" } : s)));
+        try {
+          await syncPatchToGitHub(r.title, r.fix.patch);
+          setFixSteps((prev) => prev.map((s, i) => (i === cursor ? { ...s, status: "done" } : s)));
+        } catch (e: any) {
+          setFixSteps((prev) =>
+            prev.map((s, i) =>
+              i === cursor
+                ? { ...s, status: "failed", message: safeTruncateText(e?.message || "Sync fehlgeschlagen", 160) }
+                : s,
+            ),
+          );
+          setFixDone(true);
+          return;
+        }
+        cursor++;
+      }
+
+      if (rerunAfterFix) {
+        setFixStepIndex(cursor);
+        setFixSteps((prev) => prev.map((s, i) => (i === cursor ? { ...s, status: "running" } : s)));
+        try {
+          await runDiagnostics({ resetSelection: false, resetHistory: false });
+          setFixSteps((prev) => prev.map((s, i) => (i === cursor ? { ...s, status: "done" } : s)));
+        } catch (e: any) {
+          setFixSteps((prev) =>
+            prev.map((s, i) =>
+              i === cursor
+                ? { ...s, status: "failed", message: safeTruncateText(e?.message || "Verify fehlgeschlagen", 160) }
+                : s,
+            ),
+          );
+        }
+      }
+
+      setFixDone(true);
+      setFixStepIndex(steps.length);
+      toast.show("Fix applied");
     },
-    [applyBusy, applySingle, openPreview, running, selected, toggleSelected],
+    [applyPatch, rerunAfterFix, runDiagnostics, shouldSyncPatch, syncPatchToGitHub, toast],
   );
+
+  const applyFixList = useCallback(
+  async (items: PreflightCheckResult[], label: string) => {
+    if (!projectRef.current) return;
+    if (!items.length) return;
+
+    const steps: FixStep[] = [];
+    for (const r of items) {
+      if (!r.fix?.patch) continue;
+      steps.push({
+        key: `apply:${r.id}`,
+        title: `Apply: ${r.title}`,
+        status: "pending",
+      });
+      if (shouldSyncPatch(r.fix.patch)) {
+        steps.push({
+          key: `sync:${r.id}`,
+          title: `Sync: ${r.title}`,
+          status: "pending",
+        });
+      }
+    }
+    if (rerunAfterFix) {
+      steps.push({
+        key: "rerun",
+        title: "Re-Run Diagnostics (Verify)",
+        status: "pending",
+      });
+    }
+
+    setFixModalTitle(label);
+    setFixModalSubtitle(`${items.length} Fixes`);
+    setFixSteps(steps);
+    setFixStepIndex(0);
+    setFixDone(false);
+    setFixModalVisible(true);
+
+    let cursor = 0;
+
+    const mark = (idx: number, patch: Partial<FixStep>) => {
+      setFixSteps((prev) =>
+        prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)),
+      );
+    };
+
+    for (const r of items) {
+      if (!r.fix?.patch) continue;
+
+      mark(cursor, { status: "running" });
+      try {
+        await applyPatch(r.title, r.fix.patch, { syncToGitHub: false });
+        mark(cursor, { status: "done" });
+      } catch (e: any) {
+        mark(cursor, {
+          status: "failed",
+          message: safeTruncateText(e?.message || "Apply fehlgeschlagen", 160),
+        });
+        setFixDone(true);
+        return;
+      }
+      cursor++;
+
+      if (shouldSyncPatch(r.fix.patch)) {
+        setFixStepIndex(cursor);
+        mark(cursor, { status: "running" });
+        try {
+          await syncPatchToGitHub(r.title, r.fix.patch);
+          mark(cursor, { status: "done" });
+        } catch (e: any) {
+          mark(cursor, {
+            status: "failed",
+            message: safeTruncateText(e?.message || "Sync fehlgeschlagen", 160),
+          });
+          setFixDone(true);
+          return;
+        }
+        cursor++;
+      }
+    }
+
+    if (rerunAfterFix) {
+      setFixStepIndex(cursor);
+      mark(cursor, { status: "running" });
+      try {
+        await runDiagnostics({ resetSelection: false, resetHistory: false });
+        mark(cursor, { status: "done" });
+      } catch (e: any) {
+        mark(cursor, {
+          status: "failed",
+          message: safeTruncateText(e?.message || "Verify fehlgeschlagen", 160),
+        });
+        setFixDone(true);
+        return;
+      }
+    }
+
+    setFixStepIndex(steps.length);
+    setFixDone(true);
+    toast.show("Fix applied");
+  },
+  [applyPatch, rerunAfterFix, runDiagnostics, shouldSyncPatch, syncPatchToGitHub, toast],
+);
+
+const smartFix = useCallback(async () => {
+  if (!projectRef.current) return;
+  if (applyBusyRef.current) return;
+
+  const recommended = fixableResults.filter(
+    (r) => ((r.status ?? "pass") as Status) === "fail" && !!r.fix?.patch,
+  );
+
+  if (!recommended.length) {
+    Alert.alert("Nichts zu fixen", "Keine empfohlenen Fixes (Critical) gefunden.");
+    return;
+  }
+
+  const total = recommended.length;
+  const slice = recommended.slice(0, AUTOFIX_MAX);
+
+  if (total > AUTOFIX_MAX) {
+    const proceed = await new Promise<boolean>((resolve) => {
+      Alert.alert(
+        "Smart Fix Limit",
+        `Es werden nur ${AUTOFIX_MAX}/${total} empfohlenen Fixes angewendet. Filtere oder führe erneut aus, um weitere anzuwenden.`,
+        [
+          { text: "Abbrechen", style: "cancel", onPress: () => resolve(false) },
+          { text: `Apply ${AUTOFIX_MAX}`, onPress: () => resolve(true) },
+        ],
+      );
+    });
+    if (!proceed) return;
+  }
+
+  await applyFixList(slice, "Smart Fix");
+}, [applyFixList, fixableResults]);
+
+
+  const tabDefs = useMemo(
+    () => [
+      { key: "overview" as const, label: "Overview" },
+      { key: "issues" as const, label: "Issues", badge: counts.fail + counts.warn },
+      { key: "fixes" as const, label: "Fixes", badge: fixableResults.length },
+    ],
+    [counts.fail, counts.warn, fixableResults.length],
+  );
+
+  const issueList = useMemo(() => visibleResults, [visibleResults]);
+
+  const busy = running || applyBusy;
 
   if (!projectData) {
     return (
       <View style={styles.center}>
-        <Text style={styles.h1}>Diagnostics</Text>
+        <Text style={styles.title}>Diagnostics</Text>
         <Text style={styles.muted}>Bitte ein Projekt laden.</Text>
       </View>
     );
   }
 
-  const busy = running || applyBusy;
-
   return (
-    <View style={styles.container}>
+    <View style={styles.screen}>
       <FixRunModal
         visible={fixModalVisible}
         title={fixModalTitle}
@@ -1872,30 +2107,36 @@ ${safeTruncateText(r.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser 
         onClose={closeFixModal}
       />
 
+      <IssueDetailSheet
+        visible={issueSheetVisible}
+        issue={activeIssueDetail}
+        onClose={closeIssue}
+        busy={busy}
+        onPreview={() => {
+          if (!activeIssue?.fix?.patch) return;
+          closeIssue();
+          openPreview(activeIssue.title, activeIssue.fix.patch);
+        }}
+        onApplyFix={() => {
+          if (!activeIssue) return;
+          closeIssue();
+          applyIssueFix(activeIssue);
+        }}
+      />
+
       {/* Preview Modal */}
-      <Modal
-        visible={previewVisible}
-        animationType="slide"
-        onRequestClose={() => setPreviewVisible(false)}
-      >
+      <Modal visible={previewVisible} animationType="slide" onRequestClose={() => setPreviewVisible(false)}>
         <View style={styles.previewWrap}>
           <View style={styles.previewHeader}>
             <Text style={styles.previewTitle} numberOfLines={1}>
               {previewLabel}
             </Text>
-            <TouchableOpacity
-              style={styles.iconBtn}
-              onPress={() => setPreviewVisible(false)}
-            >
-              <Ionicons
-                name="close"
-                size={18}
-                color={theme.palette.text.primary}
-              />
+            <TouchableOpacity style={styles.iconBtn} onPress={() => setPreviewVisible(false)}>
+              <Ionicons name="close" size={18} color={theme.palette.text.primary} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={{ flex: 1 }}>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: theme.spacing.lg }}>
             {previewEntries.map((e) => (
               <View key={e.path} style={styles.previewCard}>
                 <Text style={styles.previewPath}>{e.path}</Text>
@@ -1916,297 +2157,87 @@ ${safeTruncateText(r.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser 
       </Modal>
 
       {/* Header */}
-      <View style={styles.hero}>
-        <View style={styles.heroTop}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.h1}>Diagnostics</Text>
-            <Text style={styles.sub}>
-              {headerStats.name} • {headerStats.mode}
-            </Text>
-          </View>
-          {busy ? (
-            <View style={styles.busyChip}>
-              <ActivityIndicator size="small" />
-              <Text style={styles.busyText}>
-                {running ? "Running…" : "Applying…"}
-              </Text>
-            </View>
-          ) : null}
+      <View style={styles.header}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Diagnostics</Text>
+          <Text style={styles.subtitle}>
+            {headerStats.name} • {headerStats.mode}
+          </Text>
         </View>
 
-        <View style={styles.statsRow}>
-          <View style={[styles.stat, { borderColor: theme.palette.success }]}>
-            <Text style={styles.statN}>{counts.pass}</Text>
-            <Text style={styles.statL}>Pass</Text>
+        {busy ? (
+          <View style={styles.busyPill}>
+            <ActivityIndicator size="small" />
+            <Text style={styles.busyText}>{running ? "Running…" : "Applying…"}</Text>
           </View>
-          <View style={[styles.stat, { borderColor: theme.palette.warning }]}>
-            <Text style={styles.statN}>{counts.warn}</Text>
-            <Text style={styles.statL}>Warn</Text>
-          </View>
-          <View style={[styles.stat, { borderColor: theme.palette.error }]}>
-            <Text style={styles.statN}>{counts.fail}</Text>
-            <Text style={styles.statL}>Fail</Text>
-          </View>
-        </View>
-
-        {/* Build focus + scopes */}
-        <View style={styles.modeRow}>
-          {([
-            { key: "all", label: "All" },
-            { key: "development", label: "Dev" },
-            { key: "preview", label: "Preview" },
-            { key: "production", label: "Produce" },
-          ] as const).map((m) => {
-            const on = profileFocus === m.key;
-            return (
-              <TouchableOpacity
-                key={m.key}
-                style={[styles.modeChip, on && styles.modeChipOn]}
-                onPress={() => setProfileFocus(m.key)}
-                disabled={busy}
-              >
-                <Text style={[styles.modeChipText, on && styles.modeChipTextOn]}>
-                  {m.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        <View style={styles.toggleRow}>
-          <TouchableOpacity
-            style={[styles.toggleChip, includeLocalChecks && styles.toggleChipOn]}
-            onPress={() => setIncludeLocalChecks((v) => !v)}
-            disabled={busy}
-          >
-            <Text style={styles.toggleText}>Local</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.toggleChip, includePipelineChecks && styles.toggleChipOn]}
-            onPress={() => setIncludePipelineChecks((v) => !v)}
-            disabled={busy}
-          >
-            <Text style={styles.toggleText}>Pipeline</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.toggleChip, syncFixesToGitHub && styles.toggleChipOn]}
-            onPress={() => setSyncFixesToGitHub((v) => !v)}
-            disabled={busy || !linkedRepo}
-          >
-            <Text style={styles.toggleText}>Sync</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.toggleChip, rerunAfterFix && styles.toggleChipOn]}
-            onPress={() => setRerunAfterFix((v) => !v)}
-            disabled={busy}
-          >
-            <Text style={styles.toggleText}>Re-Run</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.toggleChip, autoFixIncludeWarn && styles.toggleChipOn]}
-            onPress={() => setAutoFixIncludeWarn((v) => !v)}
-            disabled={busy}
-          >
-            <Text style={styles.toggleText}>Fix Warn</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.toggleChip, autoFixScope === "all" && styles.toggleChipOn]}
-            onPress={() => setAutoFixScope((v) => (v === "all" ? "visible" : "all"))}
-            disabled={busy}
-          >
-            <Text style={styles.toggleText}>
-              AutoFix: {autoFixScope === "all" ? "All" : "Visible"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {progressStage ? (
-          <Text style={styles.progressText}>{progressStage}</Text>
         ) : null}
+      </View>
 
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={[styles.bigBtn, styles.bigBtnGhost]}
-            onPress={run}
-            disabled={busy}
-          >
-            <Ionicons
-              name="play"
-              size={18}
-              color={theme.palette.text.primary}
-            />
-            <Text style={styles.bigBtnText}>Run</Text>
-          </TouchableOpacity>
+      <SegmentedTabs value={tab} onChange={setTab} tabs={tabDefs} />
 
-          <TouchableOpacity
-            style={[styles.bigBtn, styles.bigBtnPrimary]}
-            onPress={autoFix}
-            disabled={
-              busy ||
-              (autoFixIncludeWarn
-                ? counts.fail === 0 && counts.warn === 0
-                : counts.fail === 0)
-            }
-          >
-            <Ionicons
-              name="sparkles"
-              size={18}
-              color={theme.palette.text.primary}
-            />
-            <Text style={styles.bigBtnText}>AutoFix</Text>
-          </TouchableOpacity>
+      <InlineToast message={toast.message} anim={toast.anim} />
 
-          <TouchableOpacity
-            style={[
-              styles.bigBtn,
-              styles.bigBtnGhost,
-              (busy ||
-                uploadBusy ||
-                uploadCooldownLeftSec > 0 ||
-                !results.length) && { opacity: 0.5 },
-            ]}
-            onPress={upload}
-            disabled={
-              busy || uploadBusy || uploadCooldownLeftSec > 0 || !results.length
-            }
-          >
-            <Ionicons
-              name="cloud-upload"
-              size={20}
-              color={theme.palette.text.primary}
-            />
-            <Text style={styles.bigBtnText}>
-              {uploadBusy
-                ? "Uploading…"
-                : uploadCooldownLeftSec > 0
-                  ? `Upload (${uploadCooldownLeftSec}s)`
-                  : "Upload"}
-            </Text>
-          </TouchableOpacity>
+      {tab === "issues" ? (
+  <FlatList
+    data={issueList}
+    keyExtractor={(item) => item.id}
+    contentContainerStyle={styles.content}
+    ItemSeparatorComponent={() => <View style={{ height: theme.spacing.sm }} />}
+    renderItem={({ item }) => {
+      const st = ((item.status ?? "pass") as Status) ?? "pass";
+      const severity = toSeverity(st);
+      return (
+        <IssueCard
+          title={item.title}
+          message={item.message}
+          severity={severity}
+          hasFix={!!item.fix?.patch}
+          onPress={() => openIssue(item)}
+        />
+      );
+    }}
+    ListHeaderComponent={
+      <View style={styles.stack}>
+        <ModeSelector
+          isAdvanced={modeAdvanced}
+          onToggleAdvanced={() => {
+                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                  setModeAdvanced((prev) => {
+                    const next = !prev;
+                    if (next) {
+                      // When entering advanced, seed selection with the recommended mode.
+                      setSelectedModes((p) => (p.length ? p : [recommendedMode]));
+                    }
+                    return next;
+                  });
+                }}
+          recommendedMode={recommendedMode}
+          selectedModes={selectedModes}
+          onChangeSelected={setSelectedModes}
+          allowAll
+          allSelected={modesAll}
+          onToggleAll={() => {
+                  setModesAll((prev) => {
+                    const next = !prev;
+                    if (next) setSelectedModes(["development", "preview", "production"]);
+                    return next;
+                  });
+                }}
+          disabled={busy}
+        />
 
-          <TouchableOpacity
-            style={[
-              styles.bigBtn,
-              styles.bigBtnGhost,
-              (busy || !results.length) && { opacity: 0.5 },
-            ]}
-            onPress={copyReport}
-            disabled={busy || !results.length}
-          >
-            <Ionicons
-              name="copy"
-              size={20}
-              color={theme.palette.text.primary}
-            />
-            <Text style={styles.bigBtnText}>Copy</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.actionsRow2}>
-          <TouchableOpacity style={styles.smallBtn} onPress={openSigningWizard}>
-            <Ionicons name="key-outline" size={16} color={theme.palette.text.primary} />
-            <Text style={styles.smallBtnText}>Wizard</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.smallBtn, selectedCount === 0 && styles.btnDisabled]}
-            onPress={applySelected}
-            disabled={busy || selectedCount === 0}
-          >
-            <Ionicons
-              name="flash"
-              size={16}
-              color={theme.palette.text.primary}
-            />
-            <Text style={styles.smallBtnText}>
-              Fix Selected ({selectedCount})
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.smallBtn,
-              history.length === 0 && styles.btnDisabled,
-            ]}
-            onPress={undoLast}
-            disabled={busy || history.length === 0}
-          >
-            <Ionicons
-              name="return-down-back"
-              size={16}
-              color={theme.palette.text.primary}
-            />
-            <Text style={styles.smallBtnText}>Undo</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.smallBtn, history.length < 2 && styles.btnDisabled]}
-            onPress={undoAll}
-            disabled={busy || history.length < 2}
-          >
-            <Ionicons
-              name="repeat"
-              size={16}
-              color={theme.palette.text.primary}
-            />
-            <Text style={styles.smallBtnText}>Undo All</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.smallBtn]}
-            onPress={selectFails}
-            disabled={busy || counts.fail === 0}
-          >
-            <Ionicons
-              name="alert-circle"
-              size={16}
-              color={theme.palette.text.primary}
-            />
-            <Text style={styles.smallBtnText}>Select fails</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.smallBtn}
-            onPress={clearSelection}
-            disabled={busy || selectedCount === 0}
-          >
-            <Ionicons
-              name="close"
-              size={16}
-              color={theme.palette.text.primary}
-            />
-            <Text style={styles.smallBtnText}>Clear</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.filterRow}>
-          {(["all", "fail", "warn", "pass"] as const).map((k) => {
-            const on = filter === k;
-            const label =
-              k === "all"
-                ? `All (${results.length})`
-                : k === "fail"
-                  ? `Fail (${counts.fail})`
-                  : k === "warn"
-                    ? `Warn (${counts.warn})`
-                    : `Pass (${counts.pass})`;
+        <View style={styles.filtersRow}>
+          {(["all", "critical", "warning"] as const).map((k) => {
+            const active = issuesFilter === k;
+            const label = k === "all" ? "All" : k === "critical" ? "Critical" : "Warning";
             return (
               <TouchableOpacity
                 key={k}
-                style={[styles.filterPill, on && styles.filterPillOn]}
-                onPress={() => setFilter(k as any)}
+                style={[styles.filterChip, active && styles.filterChipOn, busy && styles.disabled]}
+                onPress={() => setIssuesFilter(k)}
                 disabled={busy}
               >
-                <Text
-                  style={[
-                    styles.filterText,
-                    on && { color: theme.palette.text.primary },
-                  ]}
-                >
+                <Text style={[styles.filterChipText, active && styles.filterChipTextOn]}>
                   {label}
                 </Text>
               </TouchableOpacity>
@@ -2214,342 +2245,682 @@ ${safeTruncateText(r.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser 
           })}
         </View>
       </View>
-
-      {/* Results */}
-      <FlatList
-        data={visibleResults}
-        keyExtractor={(r) => r.id}
-        renderItem={renderItem}
-        contentContainerStyle={{
-          padding: 14,
-          paddingBottom: 24,
+    }
+    ListEmptyComponent={
+      <SectionCard title="No issues" subtitle="Alles sieht gut aus." icon="checkmark-circle">
+        <Text style={styles.muted}>
+          Starte eine Diagnose oder wechsle den Mode, falls du andere Profile prüfen willst.
+        </Text>
+        <View style={{ height: theme.spacing.sm }} />
+        <TouchableOpacity style={styles.btnPrimary} onPress={() => runDiagnostics()} disabled={busy}>
+          <Ionicons name="play" size={16} color={theme.palette.background} />
+          <Text style={styles.btnPrimaryText}>Run Diagnostics</Text>
+        </TouchableOpacity>
+      </SectionCard>
+    }
+  />
+) : (
+  <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
+    <View style={styles.stack}>
+      <ModeSelector
+        isAdvanced={modeAdvanced}
+        onToggleAdvanced={() => {
+          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+          setModeAdvanced((prev) => {
+            const next = !prev;
+            if (next) setSelectedModes((p) => (p.length ? p : [recommendedMode]));
+            return next;
+          });
         }}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>Noch kein Report</Text>
-            <Text style={styles.muted}>
-              Drück „Run“, dann siehst du hier die Checks.
-            </Text>
-          </View>
-        }
+        recommendedMode={recommendedMode}
+        selectedModes={selectedModes}
+        onChangeSelected={setSelectedModes}
+        allowAll
+        allSelected={modesAll}
+        onToggleAll={() => {
+                  setModesAll((prev) => {
+                    const next = !prev;
+                    if (next) setSelectedModes(["development", "preview", "production"]);
+                    return next;
+                  });
+                }}
+        disabled={busy}
       />
+
+      {tab === "overview" ? (
+        <>
+          <SectionCard
+            title="Status"
+            subtitle={lastRunAt ? `Last run: ${new Date(lastRunAt).toLocaleString()}` : "Noch keine Diagnose"}
+            icon="pulse"
+            right={
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={styles.countBig}>{counts.fail + counts.warn}</Text>
+                <Text style={styles.countLabel}>Issues</Text>
+              </View>
+            }
+          >
+            <View style={styles.countRow}>
+              <View style={styles.countPill}>
+                <Text style={styles.countPillNum}>{counts.fail}</Text>
+                <Text style={styles.countPillLabel}>Critical</Text>
+              </View>
+              <View style={styles.countPill}>
+                <Text style={styles.countPillNum}>{counts.warn}</Text>
+                <Text style={styles.countPillLabel}>Warning</Text>
+              </View>
+            </View>
+
+            <View style={styles.btnRow}>
+              <TouchableOpacity style={styles.btnPrimary} onPress={() => runDiagnostics()} disabled={busy}>
+                <Ionicons name="play" size={16} color={theme.palette.background} />
+                <Text style={styles.btnPrimaryText}>Run Diagnostics</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.btnSecondary}
+                onPress={() => setReportVisible(true)}
+                disabled={!results.length}
+              >
+                <Ionicons name="document-text" size={16} color={theme.palette.text.primary} />
+                <Text style={styles.btnSecondaryText}>View Report</Text>
+              </TouchableOpacity>
+            </View>
+          </SectionCard>
+
+          <SectionCard
+            title="Advanced"
+            subtitle="Nur wenn du’s wirklich brauchst"
+            icon="options"
+            right={
+              <TouchableOpacity style={styles.ghostBtn} onPress={toggleAdvanced}>
+                <Ionicons
+                  name={advancedOpen ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color={theme.palette.text.primary}
+                />
+              </TouchableOpacity>
+            }
+          >
+            {advancedOpen ? (
+              <View style={{ gap: theme.spacing.md }}>
+                <View style={styles.switchRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.switchTitle}>Local checks</Text>
+                    <Text style={styles.switchHint}>Checks auf deinen Projektdateien</Text>
+                  </View>
+                  <Switch value={includeLocalChecks} onValueChange={setIncludeLocalChecks} />
+                </View>
+
+                <View style={styles.switchRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.switchTitle}>Pipeline checks</Text>
+                    <Text style={styles.switchHint}>GitHub/EAS linkage & Workflows</Text>
+                  </View>
+                  <Switch value={includePipelineChecks} onValueChange={setIncludePipelineChecks} />
+                </View>
+
+                <View style={styles.switchRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.switchTitle}>Sync fixes to GitHub</Text>
+                    <Text style={styles.switchHint}>Nur wenn Repo verknüpft ist</Text>
+                  </View>
+                  <Switch value={syncFixesToGitHub} onValueChange={setSyncFixesToGitHub} />
+                </View>
+
+                <View style={styles.switchRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.switchTitle}>Re-run after fix</Text>
+                    <Text style={styles.switchHint}>Verifizieren, dass es “grün” ist</Text>
+                  </View>
+                  <Switch value={rerunAfterFix} onValueChange={setRerunAfterFix} />
+                </View>
+
+                <View style={styles.btnRow}>
+                  <TouchableOpacity style={styles.btnSecondary} onPress={copyReport} disabled={busy || !results.length}>
+                    <Ionicons name="copy" size={16} color={theme.palette.text.primary} />
+                    <Text style={styles.btnSecondaryText}>Copy debug info</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.btnSecondary} onPress={upload} disabled={busy || uploadBusy || uploadCooldownLeftSec > 0}>
+                    <Ionicons name="cloud-upload" size={16} color={theme.palette.text.primary} />
+                    <Text style={styles.btnSecondaryText}>
+                      {uploadCooldownLeftSec > 0 ? `Upload (${uploadCooldownLeftSec}s)` : "Upload"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity style={styles.btnTertiary} onPress={runCiAutofix} disabled={ciFixing || !linkedRepo}>
+                  <Ionicons name="build" size={16} color={theme.palette.text.primary} />
+                  <Text style={styles.btnTertiaryText}>
+                    {ciFixing ? "Fixing CI…" : "Fix CI Workflows"}
+                  </Text>
+                </TouchableOpacity>
+
+                {ciFixLog ? (
+                  <TouchableOpacity
+                    style={styles.btnTertiary}
+                    onPress={() => {
+                      setPreviewLabel("CI/Workflows Log");
+                      setPreviewEntries([{ path: "CI_AUTOFIX", oldText: null, newText: ciFixLog }]);
+                      setPreviewVisible(true);
+                    }}
+                  >
+                    <Ionicons name="eye" size={16} color={theme.palette.text.primary} />
+                    <Text style={styles.btnTertiaryText}>View CI Log</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : (
+              <Text style={styles.muted}>
+                Versteckt, damit’s ruhig bleibt. Aufklappen nur bei Bedarf.
+              </Text>
+            )}
+          </SectionCard>
+        </>
+      ) : (
+        <>
+          {/* Fixes tab */}
+          <SectionCard
+            title="Smart Fix"
+            subtitle="Wendet nur empfohlene Fixes an (Critical)"
+            icon="sparkles"
+            right={
+              <Text style={styles.pill}>
+                {fixableResults.filter((r) => ((r.status ?? "pass") as Status) === "fail").length}
+              </Text>
+            }
+          >
+            <TouchableOpacity style={styles.btnPrimary} onPress={smartFix} disabled={busy || !fixableResults.length}>
+              <Ionicons name="flash" size={16} color={theme.palette.background} />
+              <Text style={styles.btnPrimaryText}>Apply Smart Fix</Text>
+            </TouchableOpacity>
+
+            <View style={{ height: theme.spacing.sm }} />
+
+            <TouchableOpacity style={styles.advRow} onPress={toggleAdvancedFixes}>
+              <Text style={styles.advRowText}>Advanced selection</Text>
+              <Ionicons
+                name={advancedFixesOpen ? "chevron-up" : "chevron-down"}
+                size={18}
+                color={theme.palette.text.primary}
+              />
+            </TouchableOpacity>
+
+            {advancedFixesOpen ? (
+              <View style={{ marginTop: theme.spacing.md, gap: theme.spacing.sm }}>
+                <View style={styles.switchRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.switchTitle}>Include warnings</Text>
+                    <Text style={styles.switchHint}>sonst nur Critical</Text>
+                  </View>
+                  <Switch value={autoFixIncludeWarn} onValueChange={setAutoFixIncludeWarn} />
+                </View>
+
+                <View style={styles.switchRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.switchTitle}>Scope</Text>
+                    <Text style={styles.switchHint}>
+                      {autoFixScope === "visible" ? "nur gefilterte Issues" : "alle Fixes"}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.scopeBtn}
+                    onPress={() =>
+                      setAutoFixScope((v) => (v === "visible" ? "all" : "visible"))
+                    }
+                  >
+                    <Text style={styles.scopeBtnText}>
+                      {autoFixScope === "visible" ? "Visible" : "All"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <SectionCard title="Manual picks" subtitle="Optional" icon="list">
+                  {fixableResults.length ? (
+                    fixableResults.slice(0, MAX_DETAILS).map((r) => {
+                      const checked = !!selected[r.id];
+                      const st = ((r.status ?? "pass") as Status) ?? "pass";
+                      const severity = toSeverity(st);
+                      return (
+                        <TouchableOpacity
+                          key={r.id}
+                          style={styles.pickRow}
+                          onPress={() =>
+                            setSelected((prev) => ({ ...prev, [r.id]: !checked }))
+                          }
+                        >
+                          <Ionicons
+                            name={checked ? "checkbox" : "square-outline"}
+                            size={18}
+                            color={checked ? theme.palette.primaryLight : theme.palette.text.muted}
+                          />
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.pickTitle}>{r.title}</Text>
+                            <Text style={styles.pickHint} numberOfLines={2}>
+                              {r.message || "—"}
+                            </Text>
+                          </View>
+                          <View style={{ marginLeft: theme.spacing.sm }}>
+                            <Text style={styles.pickSeverity}>{severity}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })
+                  ) : (
+                    <Text style={styles.muted}>Keine fixbaren Issues.</Text>
+                  )}
+
+                  {fixableResults.length > MAX_DETAILS ? (
+                    <Text style={styles.muted}>
+                      … und {fixableResults.length - MAX_DETAILS} weitere (filtere in Issues).
+                    </Text>
+                  ) : null}
+
+                  <View style={{ height: theme.spacing.sm }} />
+
+                  <TouchableOpacity
+                    style={styles.btnSecondary}
+                    disabled={busy || !selectedCount}
+                    onPress={async () => {
+                      const chosen = fixableResults.filter((r) => selected[r.id]);
+                      const scoped =
+                        autoFixScope === "visible"
+                          ? chosen.filter((r) => issueList.some((i) => i.id === r.id))
+                          : chosen;
+
+                      const final =
+                        autoFixIncludeWarn
+                          ? scoped
+                          : scoped.filter((r) => ((r.status ?? "pass") as Status) === "fail");
+
+                      if (!final.length) {
+                        Alert.alert("Nichts gewählt", "Deine Auswahl enthält keine empfohlenen Fixes.");
+                        return;
+                      }
+
+                      const slice = final.slice(0, AUTOFIX_MAX);
+                      if (final.length > AUTOFIX_MAX) {
+                        Alert.alert(
+                          "Limit",
+                          `Es werden nur ${AUTOFIX_MAX}/${final.length} angewendet. Filtere oder erneut ausführen.`,
+                        );
+                      }
+                      await applyFixList(slice, "Advanced Fixes");
+                    }}
+                  >
+                    <Ionicons name="checkmark" size={16} color={theme.palette.text.primary} />
+                    <Text style={styles.btnSecondaryText}>
+                      Apply selected ({selectedCount})
+                    </Text>
+                  </TouchableOpacity>
+                </SectionCard>
+              </View>
+            ) : null}
+          </SectionCard>
+        </>
+      )}
+    </View>
+  </ScrollView>
+)}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.palette.background },
-  center: {
+  screen: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
     backgroundColor: theme.palette.background,
   },
-  h1: { fontSize: 22, fontWeight: "800", color: theme.palette.text.primary },
-  sub: { marginTop: 2, color: theme.palette.text.muted },
-  muted: { color: theme.palette.text.muted, marginTop: 8, textAlign: "center" },
-
-  hero: {
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.palette.border,
-    backgroundColor: theme.palette.backgroundDark,
-  },
-  heroTop: { flexDirection: "row", alignItems: "center", gap: 12 },
-  busyChip: {
+  header: {
+    paddingHorizontal: theme.layout.screenPadding,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.md,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: theme.palette.borderLight,
-    backgroundColor: theme.palette.card,
+    gap: theme.spacing.sm,
   },
-  busyText: { color: theme.palette.text.secondary, fontSize: 12 },
-
-  statsRow: { flexDirection: "row", gap: 10, marginTop: 10 },
-  stat: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    backgroundColor: theme.palette.card,
-    alignItems: "center",
+  title: {
+    color: theme.palette.text.primary,
+    fontSize: 22,
+    fontWeight: "900",
+    letterSpacing: 0.2,
   },
-  statN: { fontSize: 18, fontWeight: "900", color: theme.palette.text.primary },
-  statL: { marginTop: 2, fontSize: 12, color: theme.palette.text.muted },
-
-  modeRow: { flexDirection: "row", gap: 8, marginTop: 10, flexWrap: "wrap" },
-  modeChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: theme.palette.borderLight,
-    backgroundColor: theme.palette.card,
-  },
-  modeChipOn: {
-    borderColor: theme.palette.primaryLight,
-    backgroundColor: "rgba(0,255,0,0.10)",
-  },
-  modeChipText: { color: theme.palette.text.muted, fontWeight: "700" },
-  modeChipTextOn: { color: theme.palette.text.primary },
-
-  toggleRow: { flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" },
-  toggleChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: theme.palette.borderLight,
-    backgroundColor: theme.palette.card,
-  },
-  toggleChipOn: {
-    borderColor: theme.palette.success,
-    backgroundColor: "rgba(0,255,0,0.08)",
-  },
-  toggleText: { color: theme.palette.text.primary, fontWeight: "700" },
-
-  progressText: {
-    marginTop: 10,
+  subtitle: {
     color: theme.palette.text.secondary,
     fontSize: 12,
+    marginTop: 4,
   },
-
-  actionsRow: { flexDirection: "row", gap: 10, marginTop: 12 },
-  bigBtn: {
-    flex: 1,
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
+  busyPill: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     gap: 8,
-    borderWidth: 1,
-  },
-  bigBtnText: { color: theme.palette.text.primary, fontWeight: "800" },
-  bigBtnPrimary: {
-    borderColor: theme.palette.primaryLight,
-    backgroundColor: "rgba(0,255,0,0.10)",
-  },
-  bigBtnGhost: {
-    borderColor: theme.palette.borderLight,
-    backgroundColor: theme.palette.card,
-  },
-
-  actionsRow2: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginTop: 10,
-  },
-  smallBtn: {
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: theme.palette.borderLight,
+    borderRadius: theme.borderRadius.full,
     backgroundColor: theme.palette.card,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  smallBtnText: {
-    color: theme.palette.text.primary,
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  btnDisabled: { opacity: 0.45 },
-
-  filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 10 },
-  filterPill: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: theme.palette.borderLight,
-    backgroundColor: theme.palette.card,
-  },
-  filterPillOn: {
-    borderColor: theme.palette.primaryLight,
-    backgroundColor: "rgba(0,255,0,0.08)",
-  },
-  filterText: {
-    color: theme.palette.text.secondary,
-    fontWeight: "700",
-    fontSize: 12,
-  },
-
-  card: {
-    borderRadius: 18,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: theme.palette.border,
-    backgroundColor: theme.palette.card,
-    padding: 14,
-    marginBottom: 12,
   },
-  cardHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
-  cardTitle: {
-    flex: 1,
-    color: theme.palette.text.primary,
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  cardMsg: {
-    marginTop: 8,
+  busyText: {
     color: theme.palette.text.secondary,
+    fontWeight: "800",
+    fontSize: 12,
+  },
+
+  content: {
+    paddingHorizontal: theme.layout.screenPadding,
+    paddingBottom: theme.spacing.xl,
+    paddingTop: theme.spacing.sm,
+  },
+  stack: {
+    gap: theme.spacing.sm,
+  },
+
+  muted: {
+    color: theme.palette.text.secondary,
+    fontSize: 13,
     lineHeight: 18,
   },
 
-  detailsBox: {
-    marginTop: 10,
-    padding: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: theme.palette.borderLight,
-    backgroundColor: theme.palette.backgroundDark,
-  },
-  detailLine: { color: theme.palette.text.secondary, marginBottom: 4 },
-
-  cardActions: {
+  // Buttons
+  btnRow: {
+    marginTop: theme.spacing.md,
     flexDirection: "row",
+    gap: theme.spacing.sm,
     flexWrap: "wrap",
-    gap: 10,
-    marginTop: 12,
-    alignItems: "center",
   },
-  actionBtn: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: theme.palette.borderLight,
-    backgroundColor: "rgba(255,255,255,0.03)",
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+  btnPrimary: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 8,
-  },
-  actionBtnPrimary: {
-    borderColor: theme.palette.primaryLight,
-    backgroundColor: "rgba(0,255,0,0.10)",
-  },
-  actionBtnText: {
-    color: theme.palette.text.primary,
-    fontWeight: "800",
-    fontSize: 12,
-  },
-
-  noFixText: {
-    color: theme.palette.text.muted,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-
-  checkboxBtn: { borderColor: theme.palette.borderLight },
-  checkboxOn: {
-    borderColor: theme.palette.success,
-    backgroundColor: "rgba(0,255,0,0.06)",
-  },
-
-  statusPill: {
-    flexDirection: "row",
-    gap: 6,
-    alignItems: "center",
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  statusPillText: { fontSize: 11, fontWeight: "900" },
-
-  variantPill: {
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  variantPillText: { fontSize: 11, fontWeight: "900" },
-
-  empty: { paddingVertical: 30, alignItems: "center" },
-  emptyTitle: {
-    color: theme.palette.text.primary,
-    fontWeight: "800",
-    fontSize: 16,
-  },
-
-  // Preview
-  previewWrap: { flex: 1, backgroundColor: theme.palette.background },
-  previewHeader: {
-    paddingTop: 18,
     paddingHorizontal: 14,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.palette.border,
+    paddingVertical: 12,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.palette.primary,
+    minHeight: 44,
+    flexGrow: 1,
+  },
+  btnPrimaryText: {
+    color: theme.palette.background,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  btnSecondary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.palette.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.palette.border,
+    minHeight: 44,
+    flexGrow: 1,
+  },
+  btnSecondaryText: {
+    color: theme.palette.text.primary,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  btnTertiary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: theme.borderRadius.full,
     backgroundColor: theme.palette.backgroundDark,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.palette.border,
+    minHeight: 44,
+  },
+  btnTertiaryText: {
+    color: theme.palette.text.primary,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  ghostBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.palette.backgroundDark,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.palette.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  disabled: { opacity: 0.5 },
+
+  // Counts
+  countRow: {
+    flexDirection: "row",
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.sm,
+  },
+  countPill: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.palette.backgroundDark,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.palette.border,
+  },
+  countPillNum: {
+    color: theme.palette.text.primary,
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  countPillLabel: {
+    marginTop: 2,
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  countBig: {
+    color: theme.palette.text.primary,
+    fontSize: 20,
+    fontWeight: "900",
+  },
+  countLabel: {
+    color: theme.palette.text.secondary,
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  pill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.palette.backgroundDark,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.palette.border,
+    color: theme.palette.text.primary,
+    fontWeight: "900",
+    overflow: "hidden",
+  },
+
+  // Issues filter chips
+  filtersRow: {
+    flexDirection: "row",
+    gap: theme.spacing.sm,
+    flexWrap: "wrap",
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.palette.backgroundDark,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.palette.border,
+  },
+  filterChipOn: {
+    backgroundColor: "rgba(0,255,0,0.10)",
+    borderColor: "rgba(0,255,0,0.25)",
+  },
+  filterChipText: {
+    color: theme.palette.text.secondary,
+    fontWeight: "900",
+    fontSize: 13,
+  },
+  filterChipTextOn: {
+    color: theme.palette.text.primary,
+  },
+
+  // Advanced toggles
+  switchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.md,
+    paddingVertical: 6,
+  },
+  switchTitle: {
+    color: theme.palette.text.primary,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  switchHint: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    marginTop: 2,
+  },
+
+  advRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 10,
+    paddingVertical: 8,
   },
-  previewTitle: {
-    flex: 1,
+  advRowText: {
     color: theme.palette.text.primary,
     fontWeight: "900",
   },
-  previewCard: {
-    margin: 14,
-    marginBottom: 0,
-    padding: 12,
-    borderRadius: 16,
-    borderWidth: 1,
+  scopeBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.palette.backgroundDark,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: theme.palette.border,
+  },
+  scopeBtnText: {
+    color: theme.palette.text.primary,
+    fontWeight: "900",
+  },
+
+  // Manual pick list
+  pickRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingVertical: 10,
+  },
+  pickTitle: {
+    color: theme.palette.text.primary,
+    fontWeight: "900",
+    fontSize: 13,
+  },
+  pickHint: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  pickSeverity: {
+    color: theme.palette.text.muted,
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+
+  // Preview modal
+  previewWrap: {
+    flex: 1,
+    backgroundColor: theme.palette.background,
+  },
+  previewHeader: {
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.md,
+    paddingHorizontal: theme.layout.screenPadding,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.palette.border,
+  },
+  previewTitle: {
+    color: theme.palette.text.primary,
+    fontSize: 16,
+    fontWeight: "900",
+    flex: 1,
+    marginRight: theme.spacing.sm,
+  },
+  previewCard: {
+    marginTop: theme.spacing.sm,
     backgroundColor: theme.palette.card,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.palette.border,
+    padding: theme.spacing.md,
   },
   previewPath: {
     color: theme.palette.text.primary,
     fontWeight: "900",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   previewLabel: {
-    color: theme.palette.text.muted,
+    marginTop: theme.spacing.sm,
+    color: theme.palette.text.secondary,
     fontSize: 12,
-    marginTop: 8,
-    marginBottom: 4,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
   },
   previewText: {
-    color: theme.palette.text.secondary,
-    fontFamily: "monospace",
+    marginTop: 6,
+    color: theme.palette.text.primary,
+    fontFamily: theme.typography.monoFamily,
     fontSize: 12,
     lineHeight: 16,
   },
 
-  // Modal
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    justifyContent: "center",
-    padding: 18,
-  },
-  modalCard: {
-    borderRadius: 18,
+  iconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: theme.borderRadius.full,
     borderWidth: 1,
     borderColor: theme.palette.borderLight,
-    backgroundColor: theme.palette.backgroundDark,
-    padding: 14,
+    backgroundColor: theme.palette.card,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Fix run modal
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: theme.spacing.lg,
+  },
+  modalCard: {
+    width: "100%",
+    backgroundColor: theme.palette.card,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.palette.border,
+    padding: theme.spacing.md,
   },
   modalHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 10,
+    gap: theme.spacing.sm,
   },
   modalHeaderLeft: {
     flexDirection: "row",
@@ -2559,26 +2930,31 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     color: theme.palette.text.primary,
+    fontSize: 14,
     fontWeight: "900",
-    fontSize: 16,
   },
-  modalSubtitle: { color: theme.palette.text.secondary, marginTop: 6 },
-  modalHint: { color: theme.palette.text.muted, marginTop: 8, fontSize: 12 },
-
+  modalSubtitle: {
+    marginTop: 6,
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+  },
+  modalHint: {
+    marginTop: 8,
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+  },
   progressOuter: {
-    height: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: theme.palette.borderLight,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    height: 8,
+    backgroundColor: theme.palette.backgroundDark,
+    borderRadius: theme.borderRadius.full,
     overflow: "hidden",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.palette.border,
   },
   progressInner: {
-    height: "100%",
-    borderRadius: 999,
-    backgroundColor: "rgba(0,255,0,0.35)",
+    height: 8,
+    backgroundColor: theme.palette.primary,
   },
-
   stepRow: {
     flexDirection: "row",
     gap: 10,
@@ -2598,7 +2974,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: "center",
   },
-
   modalFooter: {
     marginTop: 14,
     flexDirection: "row",
@@ -2608,14 +2983,11 @@ const styles = StyleSheet.create({
   },
   modalFooterText: { color: theme.palette.text.secondary, fontWeight: "700" },
 
-  iconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: theme.palette.borderLight,
-    backgroundColor: theme.palette.card,
-    alignItems: "center",
+  center: {
+    flex: 1,
     justifyContent: "center",
+    alignItems: "center",
+    padding: theme.spacing.lg,
+    backgroundColor: theme.palette.background,
   },
 });
