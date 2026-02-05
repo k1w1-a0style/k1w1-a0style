@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -6,13 +6,11 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../../theme";
-import { useAI } from "../../contexts/AIContext";
 import type {
   AllAIProviders,
   ModelInfo,
@@ -20,7 +18,8 @@ import type {
   QualityMode,
 } from "../../contexts/AIContext";
 import { AVAILABLE_MODELS, PROVIDER_METADATA } from "../../contexts/AIContext";
-import { useNotifications } from "../../hooks/useNotifications";
+
+import { useSettingsScreen } from "./hooks/useSettingsScreen";
 
 const PROVIDER_IDS: AllAIProviders[] = [
   "groq",
@@ -125,173 +124,11 @@ const ModeList: React.FC<ModeListProps> = ({
 };
 
 export default function SettingsScreen() {
-  const {
-    config,
-    setSelectedChatProvider,
-    setSelectedChatMode,
-    setSelectedAgentProvider,
-    setSelectedAgentMode,
-    setQualityMode,
-    addApiKey,
-    removeApiKey,
-    rotateApiKey,
-    moveApiKeyToFront,
-    setAgentEnabled,
-    providerStatus,
-  } = useAI();
+  const s = useSettingsScreen();
 
-  const [newKey, setNewKey] = useState("");
-  const [selectedKeyProvider, setSelectedKeyProvider] =
-    useState<ProviderId>("groq");
-
-  // Notifications
-  const { isInitialized, hasPermissions, requestPermissions, pushToken } =
-    useNotifications();
-
-  // ✅ bulletproof falls config/apiKeys mal kurz kaputt wären
-  const apiKeys = (config as any)?.apiKeys ?? {};
-  const generatorProvider = ((config as any)?.selectedChatProvider ??
-    "groq") as ProviderId;
-  const agentProvider = ((config as any)?.selectedAgentProvider ??
-    "anthropic") as ProviderId;
-  const selectedChatMode = (config as any)?.selectedChatMode ?? "auto";
-  const selectedAgentMode = (config as any)?.selectedAgentMode ?? "auto";
-  const qualityMode = ((config as any)?.qualityMode ?? "speed") as QualityMode;
-  const agentEnabled = !!(config as any)?.agentEnabled;
-
-  const isQualityMode = qualityMode === "quality";
-  const allKeys = (apiKeys?.[selectedKeyProvider] ?? []) as string[];
-  const hasMultipleKeys = allKeys.length > 1;
-
-  // ✅ robust: providerStatus can be Record<provider, status> OR an array of entries
-  const getProviderStatus = (provider: ProviderId) => {
-    const ps: any = providerStatus as any;
-    const fallback = {
-      limitReached: false,
-      status: "ok",
-      message: "",
-      lastRotation: undefined as any,
-    };
-
-    if (!ps) return fallback;
-
-    if (Array.isArray(ps)) {
-      const hit = ps.find(
-        (x: any) => x?.provider === provider || x?.id === provider,
-      );
-      if (!hit) return fallback;
-      const status = hit.status ?? (hit.limitReached ? "rate_limited" : "ok");
-      return {
-        ...fallback,
-        ...hit,
-        status,
-        limitReached: hit.limitReached ?? status === "rate_limited",
-      };
-    }
-
-    if (typeof ps === "object") {
-      const hit = ps[provider];
-      if (!hit) return fallback;
-      const status = hit.status ?? (hit.limitReached ? "rate_limited" : "ok");
-      return {
-        ...fallback,
-        ...hit,
-        status,
-        limitReached: hit.limitReached ?? status === "rate_limited",
-      };
-    }
-
-    return fallback;
-  };
-
-  const limitStatus = getProviderStatus(selectedKeyProvider);
-
+  const isQualityMode = s.qualityMode === "quality";
   const generatorHighlightPersona = isQualityMode ? "quality" : "speed";
   const agentHighlightPersona: "speed" | "quality" = "quality";
-
-  const limitInfo = useMemo(() => {
-    if (!limitStatus?.limitReached) {
-      return "Alles grün – aktueller Key liefert noch freie Tokens.";
-    }
-    const ts = (limitStatus as any).lastRotation
-      ? new Date((limitStatus as any).lastRotation).toLocaleTimeString()
-      : "gerade eben";
-    return `Limit erreicht (Free/Quota). Automatisch rotiert um ${ts}.`;
-  }, [limitStatus]);
-
-  const handleSetQuality = (mode: QualityMode) => {
-    setQualityMode(mode);
-    Alert.alert("Quality Mode", `Quality Mode wurde gesetzt auf: ${mode}`);
-  };
-
-  const handleAddKey = async () => {
-    const trimmed = newKey.trim();
-    if (!trimmed) return;
-
-    try {
-      await addApiKey(selectedKeyProvider, trimmed);
-      setNewKey("");
-      Alert.alert("OK", "API Key hinzugefügt.");
-    } catch (error: any) {
-      Alert.alert(
-        "Fehler",
-        error?.message || "Key konnte nicht hinzugefügt werden.",
-      );
-    }
-  };
-
-  const handleRemoveKey = async (key: string) => {
-    Alert.alert("Key löschen", "Möchtest du diesen Key wirklich entfernen?", [
-      { text: "Abbrechen", style: "cancel" },
-      {
-        text: "Löschen",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await removeApiKey(selectedKeyProvider, key);
-          } catch (error: any) {
-            Alert.alert(
-              "Fehler",
-              error?.message || "Key konnte nicht entfernt werden.",
-            );
-          }
-        },
-      },
-    ]);
-  };
-
-  const handleRotateKey = async () => {
-    if (!hasMultipleKeys) {
-      Alert.alert("Rotation", "Du brauchst mindestens 2 Keys für Rotation.");
-      return;
-    }
-
-    Alert.alert("Key Rotation", "Soll der nächste Key aktiviert werden?", [
-      { text: "Abbrechen", style: "cancel" },
-      {
-        text: "Rotieren",
-        onPress: async () => {
-          try {
-            await rotateApiKey(selectedKeyProvider);
-          } catch (error: any) {
-            Alert.alert("Fehler", error?.message || "Rotation fehlgeschlagen.");
-          }
-        },
-      },
-    ]);
-  };
-
-  const handleMoveKeyToFront = async (key: string, index: number) => {
-    try {
-      await moveApiKeyToFront(selectedKeyProvider, key);
-      return;
-    } catch {}
-    try {
-      await moveApiKeyToFront(selectedKeyProvider, index);
-    } catch (error: any) {
-      Alert.alert("Fehler", error?.message || "Konnte Key nicht aktiv setzen.");
-    }
-  };
 
   const renderProviderTiles = (
     selectedProvider: ProviderId,
@@ -302,8 +139,8 @@ export default function SettingsScreen() {
         const meta = PROVIDER_METADATA?.[id];
         if (!meta) return null;
 
-        const status = getProviderStatus(id);
-        const keyCount = (apiKeys?.[id] ?? []).length;
+        const status = s.getProviderStatus(id);
+        const keyCount = (s.apiKeys?.[id] ?? []).length;
         const isSelected = id === selectedProvider;
 
         const lampStyle = status.limitReached
@@ -357,14 +194,12 @@ export default function SettingsScreen() {
 
         <View style={styles.card}>
           <Text style={styles.h2}>Generator (Chat)</Text>
-          {renderProviderTiles(generatorProvider, (p) =>
-            setSelectedChatProvider(p),
-          )}
+          {renderProviderTiles(s.generatorProvider, (p) => s.setSelectedChatProvider(p))}
           <Text style={styles.h3}>Model</Text>
           <ModeList
-            provider={generatorProvider}
-            selectedMode={selectedChatMode}
-            onSelect={(modeId) => setSelectedChatMode(modeId)}
+            provider={s.generatorProvider}
+            selectedMode={s.selectedChatMode}
+            onSelect={(modeId) => s.setSelectedChatMode(modeId)}
             highlightPersona={generatorHighlightPersona}
           />
         </View>
@@ -378,15 +213,15 @@ export default function SettingsScreen() {
               <TouchableOpacity
                 style={[
                   styles.agentTogglePill,
-                  agentEnabled && styles.agentTogglePillActive,
+                  s.agentEnabled && styles.agentTogglePillActive,
                 ]}
-                onPress={() => setAgentEnabled(true)}
+                onPress={() => s.setAgentEnabled(true)}
                 activeOpacity={0.85}
               >
                 <Text
                   style={[
                     styles.agentTogglePillText,
-                    agentEnabled && styles.agentTogglePillTextActive,
+                    s.agentEnabled && styles.agentTogglePillTextActive,
                   ]}
                 >
                   An
@@ -396,15 +231,15 @@ export default function SettingsScreen() {
               <TouchableOpacity
                 style={[
                   styles.agentTogglePill,
-                  !agentEnabled && styles.agentTogglePillActiveOff,
+                  !s.agentEnabled && styles.agentTogglePillActiveOff,
                 ]}
-                onPress={() => setAgentEnabled(false)}
+                onPress={() => s.setAgentEnabled(false)}
                 activeOpacity={0.85}
               >
                 <Text
                   style={[
                     styles.agentTogglePillText,
-                    !agentEnabled && styles.agentTogglePillTextActiveOff,
+                    !s.agentEnabled && styles.agentTogglePillTextActiveOff,
                   ]}
                 >
                   Aus
@@ -418,14 +253,12 @@ export default function SettingsScreen() {
             Review-Pass).
           </Text>
 
-          {renderProviderTiles(agentProvider, (p) =>
-            setSelectedAgentProvider(p),
-          )}
+          {renderProviderTiles(s.agentProvider, (p) => s.setSelectedAgentProvider(p))}
           <Text style={styles.h3}>Model</Text>
           <ModeList
-            provider={agentProvider}
-            selectedMode={selectedAgentMode}
-            onSelect={(modeId) => setSelectedAgentMode(modeId)}
+            provider={s.agentProvider}
+            selectedMode={s.selectedAgentMode}
+            onSelect={(modeId) => s.setSelectedAgentMode(modeId)}
             highlightPersona={agentHighlightPersona}
           />
         </View>
@@ -435,13 +268,13 @@ export default function SettingsScreen() {
           <View style={styles.qualityRow}>
             {(["speed", "balanced", "quality", "review"] as QualityMode[]).map(
               (m) => {
-                const isActive = qualityMode === m;
+                const isActive = s.qualityMode === m;
                 const tok = (personaTokens as any)[m] || personaTokens.balanced;
 
                 return (
                   <TouchableOpacity
                     key={m}
-                    onPress={() => handleSetQuality(m)}
+                    onPress={() => s.handleSetQuality(m)}
                     activeOpacity={0.85}
                     style={[
                       styles.qualityBtn,
@@ -463,7 +296,7 @@ export default function SettingsScreen() {
             )}
           </View>
 
-          <Text style={styles.note}>{limitInfo}</Text>
+          <Text style={styles.note}>{s.limitInfo}</Text>
         </View>
 
         <View style={styles.card}>
@@ -471,12 +304,12 @@ export default function SettingsScreen() {
 
           <View style={styles.providerPickerRow}>
             {PROVIDER_IDS.map((p) => {
-              const isActive = p === selectedKeyProvider;
+              const isActive = p === s.selectedKeyProvider;
               const meta = PROVIDER_METADATA[p];
               return (
                 <TouchableOpacity
                   key={p}
-                  onPress={() => setSelectedKeyProvider(p)}
+                  onPress={() => s.setSelectedKeyProvider(p)}
                   style={[
                     styles.providerChip,
                     isActive && styles.providerChipActive,
@@ -497,8 +330,8 @@ export default function SettingsScreen() {
 
           <View style={styles.keyRow}>
             <TextInput
-              value={newKey}
-              onChangeText={setNewKey}
+              value={s.newKey}
+              onChangeText={s.setNewKey}
               placeholder="API Key einfügen…"
               placeholderTextColor={theme.palette.text.secondary}
               style={styles.keyInput}
@@ -508,7 +341,7 @@ export default function SettingsScreen() {
             />
             <TouchableOpacity
               style={styles.keyAddBtn}
-              onPress={handleAddKey}
+              onPress={s.handleAddKey}
               activeOpacity={0.85}
             >
               <Ionicons name="add" size={18} color="#000" />
@@ -517,19 +350,19 @@ export default function SettingsScreen() {
           </View>
 
           <View style={styles.keyList}>
-            {allKeys.length === 0 ? (
+            {s.allKeys.length === 0 ? (
               <Text style={styles.emptyText}>Noch keine Keys gespeichert.</Text>
             ) : (
-              allKeys.map((k, i) => (
+              s.allKeys.map((k, i) => (
                 <View key={`${k}-${i}`} style={styles.keyItem}>
                   <Text style={styles.keyText} numberOfLines={1}>
                     {k}
                   </Text>
 
                   <View style={styles.keyActions}>
-                    {hasMultipleKeys && i !== 0 && (
+                    {s.hasMultipleKeys && i !== 0 && (
                       <TouchableOpacity
-                        onPress={() => handleMoveKeyToFront(k, i)}
+                        onPress={() => s.handleMoveKeyToFront(k, i)}
                         style={styles.keyActionBtn}
                         activeOpacity={0.85}
                       >
@@ -542,7 +375,7 @@ export default function SettingsScreen() {
                     )}
 
                     <TouchableOpacity
-                      onPress={() => handleRemoveKey(k)}
+                      onPress={() => s.handleRemoveKey(k)}
                       style={[styles.keyActionBtn, styles.keyActionDanger]}
                       activeOpacity={0.85}
                     >
@@ -560,7 +393,7 @@ export default function SettingsScreen() {
 
           <TouchableOpacity
             style={styles.rotateBtn}
-            onPress={handleRotateKey}
+            onPress={s.handleRotateKey}
             activeOpacity={0.85}
           >
             <Ionicons name="refresh" size={18} color="#000" />
@@ -578,24 +411,24 @@ export default function SettingsScreen() {
           <Text style={styles.note}>
             Status:{" "}
             <Text style={styles.noteStrong}>
-              {isInitialized ? "Initialisiert" : "Nicht initialisiert"}
+              {s.isInitialized ? "Initialisiert" : "Nicht initialisiert"}
             </Text>
             {"\n"}
             Permissions:{" "}
             <Text style={styles.noteStrong}>
-              {hasPermissions ? "OK" : "Fehlt"}
+              {s.hasPermissions ? "OK" : "Fehlt"}
             </Text>
             {"\n"}
             Token:{" "}
             <Text style={styles.noteStrong}>
-              {pushToken ? "Vorhanden" : "—"}
+              {s.pushToken ? "Vorhanden" : "—"}
             </Text>
           </Text>
 
-          {!hasPermissions && (
+          {!s.hasPermissions && (
             <TouchableOpacity
               style={styles.notifyBtn}
-              onPress={requestPermissions}
+              onPress={s.requestPermissions}
               activeOpacity={0.85}
             >
               <Ionicons name="notifications" size={18} color="#000" />
