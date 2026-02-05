@@ -27,9 +27,11 @@ export function useSettingsScreen() {
   const [selectedKeyProvider, setSelectedKeyProvider] =
     useState<ProviderId>("groq");
 
+  // Notifications
   const { isInitialized, hasPermissions, requestPermissions, pushToken } =
     useNotifications();
 
+  // Bulletproof falls config/apiKeys mal kurz kaputt wären
   const apiKeys = (config as any)?.apiKeys ?? {};
   const generatorProvider = ((config as any)?.selectedChatProvider ??
     "groq") as ProviderId;
@@ -43,6 +45,7 @@ export function useSettingsScreen() {
   const allKeys = (apiKeys?.[selectedKeyProvider] ?? []) as string[];
   const hasMultipleKeys = allKeys.length > 1;
 
+  // Robust: providerStatus can be Record<provider, status> OR an array of entries
   const getProviderStatus = (provider: ProviderId) => {
     const ps: any = providerStatus as any;
     const fallback = {
@@ -109,7 +112,10 @@ export function useSettingsScreen() {
       setNewKey("");
       Alert.alert("OK", "API Key hinzugefügt.");
     } catch (error: any) {
-      Alert.alert("Fehler", error?.message || "Key konnte nicht hinzugefügt werden.");
+      Alert.alert(
+        "Fehler",
+        error?.message || "Key konnte nicht hinzugefügt werden.",
+      );
     }
   };
 
@@ -123,7 +129,10 @@ export function useSettingsScreen() {
           try {
             await removeApiKey(selectedKeyProvider, key);
           } catch (error: any) {
-            Alert.alert("Fehler", error?.message || "Key konnte nicht entfernt werden.");
+            Alert.alert(
+              "Fehler",
+              error?.message || "Key konnte nicht entfernt werden.",
+            );
           }
         },
       },
@@ -144,7 +153,10 @@ export function useSettingsScreen() {
           try {
             await rotateApiKey(selectedKeyProvider);
           } catch (error: any) {
-            Alert.alert("Fehler", error?.message || "Rotation fehlgeschlagen.");
+            Alert.alert(
+              "Fehler",
+              error?.message || "Rotation fehlgeschlagen.",
+            );
           }
         },
       },
@@ -159,12 +171,14 @@ export function useSettingsScreen() {
     try {
       await moveApiKeyToFront(selectedKeyProvider, index);
     } catch (error: any) {
-      Alert.alert("Fehler", error?.message || "Konnte Key nicht aktiv setzen.");
+      Alert.alert(
+        "Fehler",
+        error?.message || "Konnte Key nicht aktiv setzen.",
+      );
     }
   };
 
   return {
-    // context
     config,
     setSelectedChatProvider,
     setSelectedChatMode,
@@ -172,19 +186,16 @@ export function useSettingsScreen() {
     setSelectedAgentMode,
     setAgentEnabled,
 
-    // ui state
     newKey,
     setNewKey,
     selectedKeyProvider,
     setSelectedKeyProvider,
 
-    // notifications
     isInitialized,
     hasPermissions,
     requestPermissions,
     pushToken,
 
-    // derived
     apiKeys,
     generatorProvider,
     agentProvider,
@@ -195,12 +206,10 @@ export function useSettingsScreen() {
     allKeys,
     hasMultipleKeys,
 
-    // helpers
     getProviderStatus,
     limitStatus,
     limitInfo,
 
-    // handlers
     handleSetQuality,
     handleAddKey,
     handleRemoveKey,
