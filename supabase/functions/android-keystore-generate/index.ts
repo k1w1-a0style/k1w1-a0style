@@ -42,12 +42,20 @@ async function getForge(): Promise<any> {
     };
 
     forge.random.getBytesSync = (count: number) => rngBytes(count);
-    forge.random.getBytes = (count: number, cb: any) => {
-      try {
-        cb(null, rngBytes(count));
-      } catch (e) {
-        cb(e, "");
+    forge.random.getBytes = (count: number, cb?: any) => {
+      const out = rngBytes(count);
+      // node-forge supports BOTH forms:
+      //   getBytes(n) -> string
+      //   getBytes(n, cb) -> void (cb(err, string))
+      if (typeof cb === "function") {
+        try {
+          cb(null, out);
+        } catch (e) {
+          cb(e, "");
+        }
+        return;
       }
+      return out;
     };
 
     return forge;
