@@ -4,48 +4,60 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import forge from "https://esm.sh/node-forge@1.3.1";
-
-// ---- forge RNG shim (Edge runtime compatibility) ----
-// esm.sh node-forge can pick a Node crypto adapter and expect crypto.randomBytes().
-// Supabase Edge runs on Deno/WebCrypto; we bridge forge's RNG to crypto.getRandomValues().
-function bytesToBinaryString(bytes: Uint8Array): string {
-  let out = "";
-  const CHUNK = 0x8000;
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    out += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-  }
-  return out;
-}
-
-function webCryptoBytes(n: number): string {
-  if (!Number.isFinite(n) || n <= 0 || n > 1024 * 1024) {
-    throw new Error(`invalid random byte count: ${n}`);
-  }
-  const bytes = new Uint8Array(n);
-  crypto.getRandomValues(bytes);
-  return bytesToBinaryString(bytes);
-}
-
-try {
-  // @ts-expect-error forge.random exists at runtime
-  forge.random.getBytesSync = (count: number) => webCryptoBytes(count);
-  // @ts-expect-error forge.random exists at runtime
-  forge.random.getBytes = (count: number, cb: (err: unknown, bytes?: string) => void) => {
-    try {
-      cb(null, webCryptoBytes(count));
-    } catch (e) {
-      cb(e);
-    }
-  };
-} catch {
-  // ignore
-}
 
 import { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
 import { rateLimit, requireAdminKey } from "../_shared/auth.ts";
 
 type Mode = "development" | "preview" | "production";
+// node-forge loader (lazy) + WebCrypto RNG patch
+let _forgePromise: Promise<any> | null = null;
+
+function bytesToBinaryStringChunked(bytes: Uint8Array): string {
+  const chunk = 0x8000;
+  let out = "";
+  for (let i = 0; i < bytes.length; i += chunk) {
+    out += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return out;
+}
+
+async function getForge(): Promise<any> {
+  if (_forgePromise) return _forgePromise;
+
+  _forgePromise = (async () => {
+    // If your Edge runtime blocks esm.sh at runtime, vendor forge or use an allowed host.
+    const mod: any = await import(
+      "https://esm.sh/node-forge@1.3.1?pin=v135&target=deno",
+    );
+    const forge: any = mod?.default ?? mod;
+
+    if (!globalThis.crypto?.getRandomValues) {
+      throw new Error("WebCrypto not available: crypto.getRandomValues is missing");
+    }
+
+    const rngBytes = (count: number) => {
+      const buf = new Uint8Array(count);
+      globalThis.crypto.getRandomValues(buf);
+      return bytesToBinaryStringChunked(buf);
+    };
+
+    forge.random.getBytesSync = (count: number) => rngBytes(count);
+    forge.random.getBytes = (count: number, cb: any) => {
+      try {
+        cb(null, rngBytes(count));
+      } catch (e) {
+        cb(e, "");
+      }
+    };
+
+    return forge;
+  })().catch((e) => {
+    _forgePromise = null;
+    throw e;
+  });
+
+  return _forgePromise;
+}
 
 function safeString(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
@@ -176,6 +188,10 @@ Deno.serve(async (req) => {
 
     const bucket = "signing";
     await ensureBucketExists(supabase, bucket);
+
+    // Lazy-load forge (gives us real error output instead of BOOT_ERROR)
+    const forge = await getForge();
+
 
     // Create keystore
     const alias = "upload";
