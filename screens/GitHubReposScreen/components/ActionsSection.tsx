@@ -5,11 +5,19 @@ import { styles } from "../styles";
 
 interface ActionsSectionProps {
   activeRepo: string | null;
+
   isPushing: boolean;
   onPush: () => void;
+
   isPulling: boolean;
   onPull: () => void;
-  onOpenActions: () => void;
+
+  isSyncingSecrets: boolean;
+  onSyncSecrets: () => void;
+
+  onOpenRepoOnGitHub: () => void;
+  onOpenManage: () => void;
+
   pullProgress: string;
 }
 
@@ -19,48 +27,70 @@ export const ActionsSection = memo(function ActionsSection({
   onPush,
   isPulling,
   onPull,
-  onOpenActions,
+  isSyncingSecrets,
+  onSyncSecrets,
+  onOpenRepoOnGitHub,
+  onOpenManage,
   pullProgress,
 }: ActionsSectionProps) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Aktionen für aktives Repo</Text>
-      <Text style={styles.actionsLabel}>
-        Aktives Repo: {activeRepo || "– keins –"}
-      </Text>
+      <Text style={styles.sectionTitle}>Actions</Text>
 
-      <View style={styles.actionsRow}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={onPush}
-          disabled={isPushing}
-        >
-          {isPushing ? (
-            <ActivityIndicator size="small" color={theme.palette.primary} />
-          ) : (
-            <Text style={styles.actionButtonText}>Push</Text>
-          )}
-        </TouchableOpacity>
+      {!activeRepo ? (
+        <Text style={styles.smallLabel}>
+          Wähle zuerst ein Repo aus, dann kannst du push/pull/secrets nutzen.
+        </Text>
+      ) : (
+        <>
+          <View style={styles.actionsRow}>
+            <TouchableOpacity
+              style={[styles.actionButton, (isPushing || isPulling) && styles.buttonDisabled]}
+              onPress={onPush}
+              disabled={isPushing || isPulling}
+            >
+              {isPushing ? (
+                <ActivityIndicator size="small" color={theme.palette.primary} />
+              ) : (
+                <Text style={styles.actionButtonText}>Push</Text>
+              )}
+            </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={onPull}
-          disabled={isPulling}
-        >
-          {isPulling ? (
-            <ActivityIndicator size="small" color={theme.palette.primary} />
-          ) : (
-            <Text style={styles.actionButtonText}>Pull</Text>
-          )}
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, (isPushing || isPulling) && styles.buttonDisabled]}
+              onPress={onPull}
+              disabled={isPushing || isPulling}
+            >
+              {isPulling ? (
+                <ActivityIndicator size="small" color={theme.palette.primary} />
+              ) : (
+                <Text style={styles.actionButtonText}>Pull</Text>
+              )}
+            </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton} onPress={onOpenActions}>
-          <Text style={styles.actionButtonText}>Actions</Text>
-        </TouchableOpacity>
-      </View>
+            <TouchableOpacity
+              style={[styles.actionButton, (isSyncingSecrets || isPushing || isPulling) && styles.buttonDisabled]}
+              onPress={onSyncSecrets}
+              disabled={isSyncingSecrets || isPushing || isPulling}
+            >
+              {isSyncingSecrets ? (
+                <ActivityIndicator size="small" color={theme.palette.primary} />
+              ) : (
+                <Text style={styles.actionButtonText}>Secrets</Text>
+              )}
+            </TouchableOpacity>
 
-      {!!pullProgress && (
-        <Text style={styles.progressText}>{pullProgress}</Text>
+            <TouchableOpacity style={styles.actionButton} onPress={onOpenRepoOnGitHub}>
+              <Text style={styles.actionButtonText}>GitHub</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.actionButton} onPress={onOpenManage}>
+              <Text style={styles.actionButtonText}>Manage</Text>
+            </TouchableOpacity>
+          </View>
+
+          {!!pullProgress && <Text style={styles.progressText}>{pullProgress}</Text>}
+        </>
       )}
     </View>
   );
