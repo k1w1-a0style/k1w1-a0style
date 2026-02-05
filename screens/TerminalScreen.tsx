@@ -1,2 +1,1 @@
-import TerminalScreen from "./TerminalScreen/TerminalScreen";
-export default TerminalScreen;
+export { default } from "./TerminalScreen/index";
