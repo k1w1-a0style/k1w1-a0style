@@ -7,18 +7,31 @@ import { useProject } from "../contexts/ProjectContext";
 import { ensureSupabaseClient } from "../lib/supabase";
 import { getEdgeAdminKey, saveEdgeAdminKey } from "../contexts/githubService";
 
-type ModeId = "dev" | "preview" | "production";
+// UI nennt es "dev" – Backend erwartet "development".
+type UiModeId = "dev" | "preview" | "production";
+type ApiModeId = "development" | "preview" | "production";
 
 type StatusResult = {
   exists: boolean;
+  // NOTE: Backend-Response wurde geändert. Wir unterstützen beides (neu + legacy),
+  // damit die App auch nach Edge-Deploys stabil bleibt.
   record?: {
-    repo: string;
-    mode: ModeId;
-    alias: string;
-    storage_bucket: string;
-    storage_path: string;
-    updated_at: string;
-    created_at: string;
+    repo?: string;
+    // Backend liefert z.B. "development"; UI arbeitet mit "dev".
+    mode?: UiModeId | ApiModeId;
+    alias?: string;
+    // legacy
+    storage_bucket?: string;
+    storage_path?: string;
+    updated_at?: string;
+    created_at?: string;
+    // new
+    updatedAt?: string;
+    storage?: {
+      bucket?: string;
+      path?: string;
+      exists?: boolean;
+    };
   };
 };
 
@@ -29,11 +42,34 @@ type WizardHttpDebug = {
   bodyText: string;
 };
 
-const MODES: { id: ModeId; label: string; hint: string }[] = [
+const MODES: { id: UiModeId; label: string; hint: string }[] = [
   { id: "dev", label: "Dev", hint: "Schnell testen (signed)" },
   { id: "preview", label: "Preview", hint: "Interne APK teilen (signed)" },
   { id: "production", label: "Production", hint: "Release/Store (signed)" },
 ];
+
+function normalizeModeForApi(mode: UiModeId): ApiModeId {
+  return mode === "dev" ? "development" : mode;
+}
+
+function normalizeModeForUi(mode?: string): UiModeId | undefined {
+  if (!mode) return undefined;
+  if (mode === "development") return "dev";
+  if (mode === "preview" || mode === "production" || mode === "dev") return mode as UiModeId;
+  return undefined;
+}
+
+function pickStorageBucket(record?: StatusResult["record"]) {
+  return record?.storage?.bucket ?? record?.storage_bucket;
+}
+
+function pickStoragePath(record?: StatusResult["record"]) {
+  return record?.storage?.path ?? record?.storage_path;
+}
+
+function pickUpdatedAt(record?: StatusResult["record"]) {
+  return record?.updatedAt ?? record?.updated_at;
+}
 
 function paletteTextMuted() {
   return theme.palette.text.muted;
@@ -86,7 +122,7 @@ export default function CredentialsWizardScreen() {
   const repoFullName = project?.projectData?.linkedRepo ?? "";
   const branch = project?.projectData?.linkedBranch ?? "";
 
-  const [selectedMode, setSelectedMode] = useState<ModeId>("production");
+  const [selectedMode, setSelectedMode] = useState<UiModeId>("production");
 
   const [supabaseUrl, setSupabaseUrl] = useState<string>("");
   const [adminKey, setAdminKey] = useState<string>("");
@@ -94,7 +130,7 @@ export default function CredentialsWizardScreen() {
 
   const [busy, setBusy] = useState<string | null>(null);
 
-  const [statusByMode, setStatusByMode] = useState<Record<ModeId, StatusResult | null>>({
+  const [statusByMode, setStatusByMode] = useState<Record<UiModeId, StatusResult | null>>({
     dev: null,
     preview: null,
     production: null,
@@ -166,7 +202,7 @@ export default function CredentialsWizardScreen() {
     return { icon: "help-circle-outline" as const, text: "unbekannt", color: paletteTextMuted() };
   }
 
-  async function refreshStatus(mode: ModeId) {
+  async function refreshStatus(mode: UiModeId) {
     if (!canRun) {
       Alert.alert("Fehlt was", "Supabase URL, Repo oder Admin-Key fehlen. Bitte erst oben setzen.");
       return;
@@ -175,9 +211,10 @@ export default function CredentialsWizardScreen() {
     setLastError(null);
     setLastDebug(null);
     try {
+      const apiMode = normalizeModeForApi(mode);
       const r = await invokeEdgeJson(supabaseUrl, "android-keystore-status", adminKey, {
         repo: repoFullName,
-        mode,
+        mode: apiMode,
       });
 
       setLastDebug(r.debug);
@@ -202,7 +239,7 @@ export default function CredentialsWizardScreen() {
     }
   }
 
-  async function generate(mode: ModeId) {
+  async function generate(mode: UiModeId) {
     if (!canRun) {
       Alert.alert("Fehlt was", "Supabase URL, Repo oder Admin-Key fehlen. Bitte erst oben setzen.");
       return;
@@ -211,9 +248,10 @@ export default function CredentialsWizardScreen() {
     setLastError(null);
     setLastDebug(null);
     try {
+      const apiMode = normalizeModeForApi(mode);
       const r = await invokeEdgeJson(supabaseUrl, "android-keystore-generate", adminKey, {
         repo: repoFullName,
-        mode,
+        mode: apiMode,
         // optional: branch rein, damit du später mehr Kontext hast (DB key bleibt repo+mode)
         branch: branch || undefined,
       });
@@ -310,8 +348,16 @@ export default function CredentialsWizardScreen() {
           const s = statusByMode[m.id];
           const meta = metaForStatus(s);
           const active = selectedMode === m.id;
-          const line1 = s?.exists ? `Alias: ${s.record?.alias}` : "—";
-          const line2 = s?.exists ? `Path: ${s.record?.storage_bucket}/${s.record?.storage_path}` : "—";
+          const alias = s?.record?.alias ?? "—";
+          const bucket = s?.record?.storage?.bucket ?? s?.record?.storage_bucket;
+          const path = s?.record?.storage?.path ?? s?.record?.storage_path;
+          const updated = s?.record?.updatedAt ?? s?.record?.updated_at;
+
+          const line1 = s?.exists ? `Alias: ${alias}` : "—";
+          const line2 = s?.exists
+            ? `Path: ${bucket && path ? `${bucket}/${path}` : path || bucket || "—"}`
+            : "—";
+          const line3 = s?.exists && updated ? `Updated: ${new Date(updated).toLocaleString()}` : "";
 
           return (
             <View key={m.id} style={[styles.statusRow, active && styles.statusRowActive]}>
@@ -323,6 +369,7 @@ export default function CredentialsWizardScreen() {
                   </Text>
                   <Text style={styles.metaLine}>{line1}</Text>
                   <Text style={styles.metaLine}>{line2}</Text>
+                  {!!line3 && <Text style={styles.metaLine}>{line3}</Text>}
                 </View>
               </View>
 
