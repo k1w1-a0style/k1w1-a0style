@@ -70,3 +70,6 @@ k1w1-*-hotfix*.zip
 mnt/
 apply_ui_polish_fix_dev_toggle_v2.sh
 k1w1_ui_polish_templates.sh
+.signing_secrets.local
+.signing_secrets.backup
+.env.signing.backup
