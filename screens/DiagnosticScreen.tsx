@@ -190,9 +190,7 @@ function FixRunModal(props: {
       visible={visible}
       animationType="fade"
       transparent
-      onRequestClose={() => {
-        if (done) onClose();
-      }}
+      onRequestClose={onClose}
     >
       <View style={styles.modalBackdrop}>
         <View style={styles.modalCard}>
@@ -391,6 +389,7 @@ export default function DiagnosticScreen() {
 
   // Tick cooldown UI and auto-clear when it expires.
 
+  const [target, setTarget] = useState<PreflightTarget>({ mode: "expoGo" });
   const [results, setResults] = useState<PreflightCheckResult[]>([]);
   const [running, setRunning] = useState(false);
   const runningRef = useRef(false);
@@ -508,14 +507,6 @@ export default function DiagnosticScreen() {
   const [profileFocus, setProfileFocus] = useState<
     "all" | "development" | "preview" | "production"
   >(() => ((projectData?.preferredBuildProfile as any) ?? "all"));
-
-  const targetForUpload: PreflightTarget = useMemo(
-    () =>
-      profileFocus === "all"
-        ? ({ mode: "eas", profile: "all" } as const)
-        : ({ mode: "eas", profile: profileFocus } as const),
-    [profileFocus],
-  );
 
   // Scope toggles (pro UX)
 const [includeLocalChecks, setIncludeLocalChecks] = useState(true);
@@ -1072,29 +1063,25 @@ useEffect(() => {
           text: "Undo All",
           style: "destructive",
           onPress: async () => {
-            // Undo everything in one shot: delete all created paths, then restore oldest snapshot
+            // Undo newest → oldest (history is newest-first)
             let undone = 0;
-            try {
-              const toDelete = Array.from(
-                new Set(history.flatMap((h) => h.createdPaths ?? [])),
-              );
-              for (const p of toDelete) {
-                await deleteFile(p);
+            for (const entry of history) {
+              try {
+                for (const p of entry.createdPaths ?? []) {
+                  await deleteFile(p);
+                }
+                if (entry.snapshot.length) {
+                  await updateProjectFiles(entry.snapshot);
+                }
+                undone++;
+              } catch (e: any) {
+                Alert.alert(
+                  "Undo All fehlgeschlagen",
+                  `Abgebrochen nach ${undone} Fix(es): ${e?.message || "Unbekannter Fehler"}`,
+                );
+                break;
               }
-
-              const oldest = history[history.length - 1];
-              if (oldest?.snapshot?.length) {
-                await updateProjectFiles(oldest.snapshot);
-              }
-
-              undone = history.length;
-            } catch (e: any) {
-              Alert.alert(
-                "Undo All fehlgeschlagen",
-                `Abgebrochen nach ${undone} Fix(es): ${e?.message || "Unbekannter Fehler"}`,
-              );
             }
-
             if (mountedRef.current && undone > 0) {
               setHistory((prev) => prev.slice(undone));
               Alert.alert("✓ Undo", `${undone} Fix(es) rückgängig gemacht.`);
@@ -1213,6 +1200,30 @@ const syncPatchToGitHub = useCallback(
   if (!chosenAll.length) {
     Alert.alert("Nichts ausgewählt", "Bitte wähle Fixes aus.");
     return;
+  }
+
+  // Heads-up: we cap how many fixes can be applied in one go.
+  // Without this warning it can look like "alles grün", even though we only applied a subset.
+  if (chosenAll.length > AUTOFIX_MAX) {
+    const proceed = await new Promise<boolean>((resolve) => {
+      Alert.alert(
+        "Zu viele Fixes",
+        `Es sind ${chosenAll.length} Fixes ausgewählt, aber maximal ${AUTOFIX_MAX} können auf einmal angewendet werden.\n\nTipp: Nutze Filter (z.B. fail-only), oder führe AutoFix mehrfach aus.`,
+        [
+          {
+            text: "Abbrechen",
+            style: "cancel",
+            onPress: () => resolve(false),
+          },
+          {
+            text: `Weiter (${AUTOFIX_MAX}/${chosenAll.length})`,
+            style: "default",
+            onPress: () => resolve(true),
+          },
+        ]
+      );
+    });
+    if (!proceed) return;
   }
 
   const chosen = chosenAll.slice(0, AUTOFIX_MAX);
@@ -1669,7 +1680,7 @@ ${safeTruncateText(r.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser 
           clientRequestId: getOrCreateUploadClientRequestId(),
           deviceId,
           projectName: project.name,
-          target: targetForUpload,
+          target,
           results,
           files: project.files,
         }),
@@ -1702,7 +1713,7 @@ ${safeTruncateText(r.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser 
       uploadBusyRef.current = false;
       if (mountedRef.current) setUploadBusy(false);
     }
-  }, [getOrCreateDeviceId, getOrCreateUploadClientRequestId, results, targetForUpload, uploadCooldownLeftSec]);
+  }, [getOrCreateDeviceId, results, target, uploadCooldownLeftSec]);
 
   const copyReport = useCallback(async () => {
     const project = projectRef.current;
@@ -1718,7 +1729,7 @@ ${safeTruncateText(r.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser 
           clientRequestId: getOrCreateUploadClientRequestId(),
           deviceId,
           projectName: project.name,
-          target: targetForUpload,
+          target,
           results,
           files: project.files,
         }),
@@ -1732,12 +1743,14 @@ ${safeTruncateText(r.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser 
         e?.message || "Unbekannter Fehler",
       );
     }
-  }, [getOrCreateDeviceId, getOrCreateUploadClientRequestId, results, targetForUpload]);
+  }, [getOrCreateDeviceId, results, target]);
 
-  const headerStats = {
-    name: projectRef.current?.name ?? "–",
-    mode: profileFocus === "all" ? "EAS: all" : `EAS: ${profileFocus}`,
-  };
+  const headerStats = useMemo(() => {
+    const name = projectRef.current?.name ?? "–";
+    const mode =
+      target.mode === "expoGo" ? "Expo Go" : `EAS: ${target.profile ?? "?"}`;
+    return { name, mode };
+  }, [linkedRepo, linkedBranch]);
 
   const renderItem = useCallback(
     ({ item }: { item: PreflightCheckResult }) => {
