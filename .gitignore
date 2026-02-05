@@ -73,3 +73,5 @@ k1w1_ui_polish_templates.sh
 .signing_secrets.local
 .signing_secrets.backup
 .env.signing.backup
+credentials.json
+android-upload-keystore.p12

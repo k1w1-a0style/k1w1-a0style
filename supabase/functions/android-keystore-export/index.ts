@@ -100,13 +100,15 @@ Deno.serve(async (req) => {
   const rl = rateLimit(req, "android-keystore-export", 30, 60_000);
   if (rl) return rl;
 
-  // Optional enforcement via secret
-  const admin = requireAdminKey(req);
-  if (admin) return admin;
-
-  // Hard block: only service_role JWT may export secrets
+  // CI path: allow service_role JWT WITHOUT admin key
   const role = getJwtRole(req);
-  if (role !== "service_role") {
+  if (role === "service_role") {
+    // ok
+  } else {
+    // Dev / manual path: require admin key (if configured)
+    const admin = requireAdminKey(req);
+    if (admin) return admin;
+
     return errorResponse(
       "Forbidden",
       req,

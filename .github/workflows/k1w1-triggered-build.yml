@@ -266,8 +266,7 @@ jobs:
           fi
           echo "🔐 Fetching Android keystore for repo '${GITHUB_REPOSITORY}' from Supabase..."
           mkdir -p android/keystores
-          # IMPORTANT: the keystore endpoints accept mode: development|preview|production
-          BODY="{\"repo\":\"${GITHUB_REPOSITORY}\",\"mode\":\"${PROFILE}\"}"
+          BODY="{\"repo\":\"${GITHUB_REPOSITORY}\",\"profile\":\"${BUILD_PROFILE}\",\"mode\":\"${BUILD_PROFILE}\"}"
           RESP="$(curl -fsS -X POST "${SUPABASE_URL}/functions/v1/android-keystore-export" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
@@ -296,6 +295,51 @@ jobs:
           fs.writeFileSync('credentials.json', JSON.stringify(credentials, null, 2));
           console.log(`✅ Wrote credentials.json (alias=${resp.alias})`);
           NODE
+      - name: Fetch Android keystore (CI-only)
+        if: ${{ env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
+        run: |
+          set -euo pipefail
+          echo "🔑 Fetching Android keystore from Supabase (CI-only)..."
+          PROFILE="${PROFILE:-production}"
+          # Map EAS profile -> signing mode expected by edge function
+          MODE="$PROFILE"
+          case "$MODE" in
+            dev|development) MODE="development" ;;
+            preview) MODE="preview" ;;
+            production) MODE="production" ;;
+            *) MODE="production" ;;
+          esac
+
+          REPO="${GITHUB_REPOSITORY}"
+          BODY="{\"repo\":\"${REPO}\",\"mode\":\"${MODE}\"}"
+
+          RESP="$(curl -fsS -X POST "${SUPABASE_URL}/functions/v1/android-keystore-export" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            --data "${BODY}")"
+
+          echo "$RESP" | node - <<'NODE'
+          const fs = require("fs");
+          const resp = JSON.parse(fs.readFileSync(0, "utf8"));
+          if (!resp.ok) {
+            console.error("❌ export failed:", resp);
+            process.exit(1);
+          }
+          fs.writeFileSync("android-upload-keystore.p12", Buffer.from(resp.keystoreBase64, "base64"));
+          const creds = {
+            android: {
+              keystore: {
+                keystorePath: "android-upload-keystore.p12",
+                keystorePassword: resp.keystorePassword,
+                keyAlias: resp.alias,
+                keyPassword: resp.keyPassword
+              }
+            }
+          };
+          fs.writeFileSync("credentials.json", JSON.stringify(creds, null, 2));
+          console.log("✅ wrote android-upload-keystore.p12 + credentials.json (alias=" + resp.alias + ")");
+NODE
+
       - name: Run EAS Build (WAIT)
         id: eas
         shell: bash
