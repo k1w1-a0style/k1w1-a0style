@@ -266,7 +266,8 @@ jobs:
           fi
           echo "🔐 Fetching Android keystore for repo '${GITHUB_REPOSITORY}' from Supabase..."
           mkdir -p android/keystores
-          BODY="{\"repo\":\"${GITHUB_REPOSITORY}\",\"profile\":\"${BUILD_PROFILE}\",\"mode\":\"${BUILD_PROFILE}\"}"
+          # IMPORTANT: the keystore endpoints accept mode: development|preview|production
+          BODY="{\"repo\":\"${GITHUB_REPOSITORY}\",\"mode\":\"${PROFILE}\"}"
           RESP="$(curl -fsS -X POST "${SUPABASE_URL}/functions/v1/android-keystore-export" \
             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
