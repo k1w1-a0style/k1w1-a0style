@@ -25,7 +25,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { SegmentedTabs, TabKey } from "../../components/diagnostics/SegmentedTabs";
+import { SegmentedTabs } from "../../components/diagnostics/SegmentedTabs";
 import { ModeSelector, type BuildMode } from "../../components/diagnostics/ModeSelector";
 import { IssueCard } from "../../components/diagnostics/IssueCard";
 import {
@@ -292,6 +292,17 @@ export default function DiagnosticScreen() {
     ciFixing,
     ciFixLog,
     runCiAutofix,
+    tab,
+    setTab,
+    advancedOpen,
+    advancedFixesOpen,
+    toggleAdvanced,
+    toggleAdvancedFixes,
+    issuesFilter,
+    setIssuesFilter,
+    selected,
+    setSelected,
+    selectedCount,
   } = useDiagnosticScreen({ projectData, linkedRepo, linkedBranch, setPreferredBuildProfile });
 
   const [target, setTarget] = useState<PreflightTarget>({ mode: "expoGo" });
@@ -301,12 +312,6 @@ export default function DiagnosticScreen() {
 
   const [progressStage, setProgressStage] = useState<string | null>(null);
   const [lastRunAt, setLastRunAt] = useState<number | null>(null);
-
-  const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const selectedCount = useMemo(
-    () => Object.values(selected).filter(Boolean).length,
-    [selected],
-  );
 
   const [history, setHistory] = useState<FixHistoryEntry[]>([]);
 
@@ -331,21 +336,6 @@ export default function DiagnosticScreen() {
   const [fixStepIndex, setFixStepIndex] = useState(0);
   const [fixDone, setFixDone] = useState(false);
 
-  // UI: main tabs
-  const [tab, setTab] = useState<TabKey>("overview");
-
-const [advancedOpen, setAdvancedOpen] = useState(false);
-const [advancedFixesOpen, setAdvancedFixesOpen] = useState(false);
-
-const toggleAdvanced = useCallback(() => {
-  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-  setAdvancedOpen((v) => !v);
-}, []);
-
-const toggleAdvancedFixes = useCallback(() => {
-  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-  setAdvancedFixesOpen((v) => !v);
-}, []);
 
   const counts = useMemo(() => {
     const c = { pass: 0, warn: 0, fail: 0 };
@@ -365,10 +355,6 @@ const toggleAdvancedFixes = useCallback(() => {
     );
     return list;
   }, [results]);
-
-  const [issuesFilter, setIssuesFilter] = useState<
-    "all" | "critical" | "warning" | "info"
-  >("all");
 
   const toSeverity = useCallback((s: Status): IssueDetail["severity"] => {
     if (s === "fail") return "critical";

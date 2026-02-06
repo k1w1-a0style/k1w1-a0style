@@ -1,9 +1,10 @@
 import { v4 as uuidv4 } from "uuid";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Platform, UIManager } from "react-native";
+import { Alert, LayoutAnimation, Platform, UIManager } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { ProjectData } from "../../../contexts/types";
 import type { BuildMode } from "../../../components/diagnostics/ModeSelector";
+import type { TabKey } from "../../../components/diagnostics/SegmentedTabs";
 import {
   autoFixCIWorkflows,
   checkRepoSecrets,
@@ -124,6 +125,32 @@ export function useDiagnosticScreen(opts: {
     uploadClientRequestIdRef.current = null;
     uploadClientRequestIdExpiresAtRef.current = 0;
   }, []);
+
+  // UI: main tabs + accordions
+  const [tab, setTab] = useState<TabKey>("overview");
+
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [advancedFixesOpen, setAdvancedFixesOpen] = useState(false);
+
+  const toggleAdvanced = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setAdvancedOpen((v) => !v);
+  }, []);
+
+  const toggleAdvancedFixes = useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setAdvancedFixesOpen((v) => !v);
+  }, []);
+
+  const [issuesFilter, setIssuesFilter] = useState<
+    "all" | "critical" | "warning" | "info"
+  >("all");
+
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const selectedCount = useMemo(
+    () => Object.values(selected).filter(Boolean).length,
+    [selected],
+  );
 
 
   // UX (new): Recommended by default, Advanced optional multi-select
@@ -339,7 +366,17 @@ export function useDiagnosticScreen(opts: {
   }, [linkedRepo, linkedBranch]);
 
   return {
-
+    tab,
+    setTab,
+    advancedOpen,
+    advancedFixesOpen,
+    toggleAdvanced,
+    toggleAdvancedFixes,
+    issuesFilter,
+    setIssuesFilter,
+    selected,
+    setSelected,
+    selectedCount,
     recommendedMode,
     modeAdvanced,
     setModeAdvanced,
