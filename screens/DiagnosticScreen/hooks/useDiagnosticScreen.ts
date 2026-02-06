@@ -1,9 +1,14 @@
 import { v4 as uuidv4 } from "uuid";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Platform, UIManager } from "react-native";
+import { Alert, Platform, UIManager } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { ProjectData } from "../../../contexts/types";
 import type { BuildMode } from "../../../components/diagnostics/ModeSelector";
+import {
+  autoFixCIWorkflows,
+  checkRepoSecrets,
+  parseOwnerRepo,
+} from "../../../lib/diagnostics/ciAutoFix";
 
 const UPLOAD_COOLDOWN_KEY = "k1w1_upload_cooldown_until";
 // Diagnostics UI prefs
@@ -22,9 +27,10 @@ const DIAG_PREF_AUTOFIX_SCOPE_KEY = "k1w1_diag_autofix_scope";
 export function useDiagnosticScreen(opts: {
   projectData: ProjectData | null;
   linkedRepo: string;
+  linkedBranch?: string;
   setPreferredBuildProfile?: (mode: BuildMode) => void;
 }) {
-  const { projectData, linkedRepo, setPreferredBuildProfile } = opts;
+  const { projectData, linkedRepo, linkedBranch, setPreferredBuildProfile } = opts;
 
   const projectRef = useRef<ProjectData | null>(projectData);
   useEffect(() => {
@@ -271,6 +277,67 @@ export function useDiagnosticScreen(opts: {
     const only = selectedModes[0] ?? recommendedMode;
     setPreferredBuildProfile(only);
   }, [modeAdvanced, modesAll, recommendedMode, selectedModes, setPreferredBuildProfile]);
+
+  const [ciFixing, setCiFixing] = useState(false);
+  const [ciFixLog, setCiFixLog] = useState<string | null>(null);
+
+  const runCiAutofix = useCallback(async () => {
+    const parsed = parseOwnerRepo(linkedRepo);
+    if (!parsed) {
+      Alert.alert(
+        "CI/Workflows",
+        "Kein gültiges GitHub Repo verknüpft (erwartet: owner/repo).",
+      );
+      return;
+    }
+    const branch = ((linkedBranch || "main") as string).trim();
+
+    setCiFixing(true);
+    setCiFixLog(null);
+    try {
+      const secrets = await checkRepoSecrets(parsed.owner, parsed.repo);
+      const changes = await autoFixCIWorkflows({
+        owner: parsed.owner,
+        repo: parsed.repo,
+        branch,
+      });
+
+      const changedCount = changes.filter((c) => c.changed).length;
+      const missing = secrets.missing;
+
+      const summaryLines: string[] = [
+        `Repo: ${parsed.owner}/${parsed.repo}`,
+        `Branch: ${branch}`,
+        `Workflow-Files aktualisiert: ${changedCount}/${changes.length}`,
+        missing.length
+          ? `❗ Fehlende Secrets: ${missing.join(", ")}`
+          : `✅ Secrets: OK`,
+        "",
+        "Details:",
+        ...changes.map(
+          (c) => `${c.changed ? "🛠️" : "✅"} ${c.path} — ${c.message}`,
+        ),
+      ];
+
+      const summary = summaryLines.join("\n");
+      setCiFixLog(summary);
+      Alert.alert(
+        "CI/Workflows",
+        missing.length
+          ? "Workflows gefixt. Es fehlen noch Secrets."
+          : "Workflows sind gefixt & Secrets sehen gut aus.",
+      );
+    } catch (e: any) {
+      setCiFixLog(String(e?.message || e));
+      Alert.alert(
+        "CI/Workflows",
+        "Fehler beim Fixen: " + String(e?.message || e),
+      );
+    } finally {
+      setCiFixing(false);
+    }
+  }, [linkedRepo, linkedBranch]);
+
   return {
 
     recommendedMode,
@@ -292,6 +359,9 @@ export function useDiagnosticScreen(opts: {
     setAutoFixIncludeWarn,
     autoFixScope,
     setAutoFixScope,
+    ciFixing,
+    ciFixLog,
+    runCiAutofix,
     projectRef,
     mountedRef,
     uploadBusyRef,
