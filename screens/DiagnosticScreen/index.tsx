@@ -248,7 +248,6 @@ function FixRunModal(props: {
   );
 }
 
-
 export default function DiagnosticScreen() {
   // This screen is mounted inside React Navigation; use the hook instead of relying on implicit props.
   const navigation = useNavigation<any>();
@@ -261,12 +260,7 @@ export default function DiagnosticScreen() {
     ? String((projectData as any).linkedBranch)
     : "";
 
-
-  const toast = useInlineToast();
-
-
   const {
-    // refs & upload idempotency
     projectRef,
     mountedRef,
     uploadBusyRef,
@@ -276,8 +270,6 @@ export default function DiagnosticScreen() {
     uploadCooldownLeftSec,
     getOrCreateUploadClientRequestId,
     resetUploadClientRequestId,
-
-    // prefs / modes
     recommendedMode,
     modeAdvanced,
     setModeAdvanced,
@@ -297,13 +289,9 @@ export default function DiagnosticScreen() {
     setAutoFixIncludeWarn,
     autoFixScope,
     setAutoFixScope,
-
-    // pipeline CI helper
     ciFixing,
     ciFixLog,
     runCiAutofix,
-
-    // UI state
     tab,
     setTab,
     advancedOpen,
@@ -316,57 +304,28 @@ export default function DiagnosticScreen() {
     setSelected,
     selectedCount,
 
-    // diagnostics run + derived
+    toast,
+    tabDefs,
+    issueList,
+    busy,
+
+    // workflow (moved to hook)
     target,
     setTarget,
     results,
+    setResults,
     running,
     progressStage,
     lastRunAt,
-	    runDiagnostics,
-    counts,
-    sortedResults,
-    visibleResults,
-    fixableResults,
-
-	    // helpers
-	    toSeverity,
-
-    // preview / apply / history
     history,
     previewVisible,
     setPreviewVisible,
     previewLabel,
-	    setPreviewLabel,
     previewEntries,
-	    setPreviewEntries,
+    setPreviewLabel,
+    setPreviewEntries,
     applyBusy,
     uploadBusy,
-    openPreview,
-    applyPatch,
-    undoLast,
-    undoAll,
-    toggleSelected,
-    clearSelection,
-    selectFails,
-
-    // automation flows
-    applySelected,
-    autoFix,
-    applySingle,
-    smartFix,
-
-	    // bulk helpers
-	    applyFixList,
-
-    // upload / report
-    reportVisible,
-    setReportVisible,
-    upload,
-    copyReport,
-    headerStats,
-
-    // fix modal
     fixModalVisible,
     fixModalTitle,
     fixModalSubtitle,
@@ -374,48 +333,43 @@ export default function DiagnosticScreen() {
     fixStepIndex,
     fixDone,
     closeFixModal,
-
-    // issue sheet
+    counts,
+    sortedResults,
+    toSeverity,
+    visibleResults,
+    fixableResults,
+    pipelineAppliesToFocus,
+    runDiagnostics,
+    openPreview,
+    applyPatch,
+    undoLast,
+    undoAll,
+    applySingle,
+    autoFix,
+    applySelected,
+    smartFix,
+    reportVisible,
+    setReportVisible,
     issueSheetVisible,
-	    activeIssue,
+    activeIssue,
     activeIssueDetail,
     openIssue,
     closeIssue,
     applyIssueFix,
-  } = useDiagnosticScreen({
-    projectData,
-    linkedRepo,
-    linkedBranch,
-    setPreferredBuildProfile,
-    updateProjectFiles,
-    deleteFile,
-    toast,
-    navigation,
-  });
+    applyFixList,
+    upload,
+    copyReport,
+    headerStats,
+  } = useDiagnosticScreen({ projectData, linkedRepo, linkedBranch, setPreferredBuildProfile, navigation, updateProjectFiles, deleteFile });
 
-  const busy = running || applyBusy;
-
-  const issueList = useMemo(() => visibleResults, [visibleResults]);
-
-  const tabDefs = useMemo(
-    () => [
-      { key: "overview" as const, label: "Overview" },
-      { key: "issues" as const, label: "Issues", badge: counts.fail + counts.warn },
-      { key: "fixes" as const, label: "Fixes", badge: fixableResults.length },
-    ],
-    [counts.fail, counts.warn, fixableResults.length],
-  );
-
-    if (!projectData) {
-      return (
-        <View style={styles.center}>
-          <Text style={styles.title}>Diagnostics</Text>
-          <Text style={styles.muted}>Bitte ein Projekt laden.</Text>
-        </View>
-      );
-    }
-
-
+  if (!projectData) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.title}>Diagnostics</Text>
+        <Text style={styles.muted}>Bitte ein Projekt laden.</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.screen}>
