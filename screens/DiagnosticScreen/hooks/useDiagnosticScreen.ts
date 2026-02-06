@@ -23,7 +23,7 @@ import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import { useInlineToast } from "../../../components/diagnostics/useInlineToast";
 import type { IssueDetail } from "../../../components/diagnostics/IssueDetailSheet";
-import type { FixHistoryEntry, FixStep, Status } from "../types";
+import type { FixHistoryEntry, FixStep, FixStepStatus, Status } from "../types";
 
 
 const ORDER: Record<Status, number> = { fail: 0, warn: 1, pass: 2 };
@@ -1078,7 +1078,7 @@ const syncPatchToGitHub = useCallback(
   const baseSteps: FixStep[] = chosen.map((r) => ({
     key: r.id,
     title: r.title,
-    status: "pending" as FixStep["status"],
+    status: "pending" as FixStepStatus,
   }));
 
   const steps: FixStep[] = rerunAfterFix
@@ -1087,7 +1087,7 @@ const syncPatchToGitHub = useCallback(
         {
           key: "__rerun__",
           title: "Re-Run Diagnostics (Verify)",
-          status: "pending" as FixStep["status"],
+          status: "pending" as FixStepStatus,
         },
       ]
     : baseSteps;
@@ -1356,10 +1356,10 @@ Tipp: Mit „Re-Run“ nach dem Fix wird automatisch gegengecheckt.`,
         const steps: FixStep[] = [
           { key: "apply", title: "Apply patch (local)", status: "pending" },
           ...(doSync
-            ? [{ key: "sync", title: "Sync to GitHub", status: "pending" as FixStep["status"] }]
+            ? [{ key: "sync", title: "Sync to GitHub", status: "pending" as FixStepStatus }]
             : []),
           ...(rerunAfterFix
-            ? [{ key: "rerun", title: "Re-Run Diagnostics (Verify)", status: "pending" as FixStep["status"] }]
+            ? [{ key: "rerun", title: "Re-Run Diagnostics (Verify)", status: "pending" as FixStepStatus }]
             : []),
         ];
 
@@ -1635,10 +1635,10 @@ ${safeTruncateText(r.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser 
       const steps: FixStep[] = [
         { key: "apply", title: "Apply patch (local)", status: "pending" },
         ...(doSync
-          ? [{ key: "sync", title: "Sync to GitHub", status: "pending" as FixStep["status"] }]
+          ? [{ key: "sync", title: "Sync to GitHub", status: "pending" as FixStepStatus }]
           : []),
         ...(rerunAfterFix
-          ? [{ key: "rerun", title: "Re-Run Diagnostics (Verify)", status: "pending" as FixStep["status"] }]
+          ? [{ key: "rerun", title: "Re-Run Diagnostics (Verify)", status: "pending" as FixStepStatus }]
           : []),
       ];
 
