@@ -6,6 +6,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import type { ProjectData } from "../contexts/types";
 import { buildSandpackHtml } from "../lib/sandpackBuilder";
 import { ensureSupabaseClient } from "../lib/supabase";
+import { getEdgeAdminKey } from "../contexts/githubService";
 import type { PreviewFiles, PreviewResponse } from "../types/preview";
 
 function promiseWithTimeout<T>(
@@ -70,7 +71,7 @@ function sanitizePreviewPath(raw: string): string | null {
   if (segs.some((s) => s === "..")) return null;
 
   // Collapse multiple slashes
-  p = p.replace(/\/+/g, "/");
+  p = p.replace(/\/+/, "/");
   if (!p.startsWith("/")) p = "/" + p;
   return p;
 }
@@ -123,6 +124,7 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
 
   const fileMap = useMemo(() => {
     const files: Record<string, string> = {};
+
     const rawFiles = projectData?.files;
     const list: ProjectFile[] = Array.isArray(rawFiles)
       ? (rawFiles.filter((f: any) => {
@@ -143,6 +145,7 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
 
       const key = sanitizePreviewPath(p);
       if (!key) continue;
+
       const content = String(f?.content ?? "");
       total += content.length;
 
@@ -186,21 +189,24 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
       if (typeof v === "string") out[key] = v;
     }
 
+    // Default minimal web deps
     if (!out.react) out.react = "^19.1.0";
     if (!out["react-dom"]) out["react-dom"] = "^19.1.0";
 
-        const needsRNW = Object.values(fileMap ?? {}).some((c) =>
+    // If project code imports react-native, include RNW.
+    const needsRNW = Object.values(fileMap ?? {}).some((c) =>
       typeof c === "string" &&
-      (c.includes("from \"react-native\"") ||
+      (c.includes('from "react-native"') ||
         c.includes("from 'react-native'") ||
-        c.includes("require(\"react-native\")") ||
-        c.includes("require('react-native')"))
+        c.includes('require("react-native")') ||
+        c.includes("require('react-native')")),
     );
+
     if (needsRNW && !out["react-native-web"]) {
       out["react-native-web"] = "^0.21.1";
     }
 
-return Object.keys(out).length ? out : undefined;
+    return Object.keys(out).length ? out : undefined;
   }, [fileMap]);
 
   const ensureMinimumFiles = useCallback(
@@ -258,30 +264,6 @@ export default function App() {
       </p>
     </div>
   );
-
-  const normalizeForWebPreview = useCallback(
-    (files: Record<string, string>): Record<string, string> => {
-      const out: Record<string, string> = { ...files };
-
-      const replaceImports = (s: string) => {
-        let x = s;
-        // Web Sandpack kann kein RN-Bundler-Alias: ersetze react-native -> react-native-web (Preview-only).
-        x = x.replace(/from\s+['"]react-native['"]/g, 'from "react-native-web"');
-        x = x.replace(/require\(\s*['"]react-native['"]\s*\)/g, 'require("react-native-web")');
-        return x;
-      };
-
-      for (const [p, c] of Object.entries(out)) {
-        if (typeof c !== "string") continue;
-        if (!/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(p)) continue;
-        out[p] = replaceImports(c);
-      }
-
-      return out;
-    },
-    [],
-  );
-
 }`;
       }
 
@@ -309,13 +291,39 @@ if (container) {
             version: "1.0.0",
             private: true,
             dependencies: {
-              react: "^18.2.0",
-              "react-dom": "^18.2.0",
+              react: "^19.1.0",
+              "react-dom": "^19.1.0",
             },
           },
           null,
           2,
         );
+      }
+
+      return out;
+    },
+    [],
+  );
+
+  const normalizeForWebPreview = useCallback(
+    (files: Record<string, string>): Record<string, string> => {
+      const out: Record<string, string> = { ...files };
+
+      const replaceImports = (s: string) => {
+        let x = s;
+        // Web Sandpack kann kein RN-Bundler-Alias: ersetze react-native -> react-native-web (Preview-only).
+        x = x.replace(/from\s+['"]react-native['"]/g, 'from "react-native-web"');
+        x = x.replace(
+          /require\(\s*['"]react-native['"]\s*\)/g,
+          'require("react-native-web")',
+        );
+        return x;
+      };
+
+      for (const [p, c] of Object.entries(out)) {
+        if (typeof c !== "string") continue;
+        if (!/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(p)) continue;
+        out[p] = replaceImports(c);
       }
 
       return out;
@@ -338,6 +346,7 @@ if (container) {
       // 1) Prefer Supabase-hosted preview
       try {
         const supabase = await ensureSupabaseClient();
+        const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
 
         const snackFiles: PreviewFiles = {};
         for (const [path, content] of Object.entries(files)) {
@@ -345,16 +354,22 @@ if (container) {
           snackFiles[path] = { contents: text };
         }
 
+        const invokeOpts: any = {
+          body: {
+            projectId: projectData.id,
+            name: projectData.name || "Preview",
+            files: snackFiles,
+            dependencies,
+            meta: { template: "react" },
+          },
+        };
+
+        if (edgeAdminKey) {
+          invokeOpts.headers = { "x-k1w1-admin-key": edgeAdminKey };
+        }
+
         const { data, error: fnError } = await promiseWithTimeout(
-          supabase.functions.invoke("save_preview", {
-            body: {
-              projectId: projectData.id,
-              name: projectData.name || "Preview",
-              files: snackFiles,
-              dependencies,
-              meta: { template: "react" },
-            },
-          }),
+          supabase.functions.invoke("save_preview", invokeOpts),
           12_000,
           "Supabase Preview Timeout (12s)",
         );
@@ -362,8 +377,7 @@ if (container) {
         if (fnError) throw fnError;
 
         const resp = data as PreviewResponse;
-        const previewUrl =
-          typeof resp?.previewUrl === "string" ? resp.previewUrl : null;
+        const previewUrl = typeof resp?.previewUrl === "string" ? resp.previewUrl : null;
 
         if (resp?.ok && previewUrl) {
           const result: PreviewResult = {
@@ -385,7 +399,7 @@ if (container) {
         );
       }
 
-      // 2) Fallback: Local HTML (best-effort). If this fails too, return a clear error.
+      // 2) Fallback: Local HTML (best-effort)
       let html: string;
       try {
         html = buildSandpackHtml({
@@ -414,15 +428,14 @@ if (container) {
       setLastCreatedAt(Date.now());
       return fallback;
     } catch (e: unknown) {
-      const message =
-        e instanceof Error ? e.message : "Unbekannter Fehler beim Erstellen.";
+      const message = e instanceof Error ? e.message : "Unbekannter Fehler beim Erstellen.";
       console.error("[usePreview] ❌ Fehler:", message);
       setError(message);
       throw new Error(message);
     } finally {
       setIsCreating(false);
     }
-  }, [projectData, fileMap, dependencies, ensureMinimumFiles]);
+  }, [projectData, fileMap, dependencies, ensureMinimumFiles, normalizeForWebPreview]);
 
   const reset = useCallback(() => {
     lastPreviewRef.current = null;
@@ -436,10 +449,7 @@ if (container) {
       lastCreatedAt,
       error,
       fileCount: Object.keys(fileMap).length,
-      totalSize: Object.values(fileMap).reduce(
-        (sum, content) => sum + content.length,
-        0,
-      ),
+      totalSize: Object.values(fileMap).reduce((sum, content) => sum + content.length, 0),
     }),
     [isCreating, lastCreatedAt, error, fileMap],
   );
@@ -452,21 +462,4 @@ if (container) {
     createPreview,
     reset,
   };
-}
-
-function normalizeForWebPreview(fileMap: Record<string, string>): Record<string, string> {
-  // Web preview can't handle `react-native` runtime; map imports to react-native-web when present.
-  const out: Record<string, string> = {};
-  for (const [p, c] of Object.entries(fileMap)) {
-    if (typeof c !== "string") {
-      out[p] = String((c as any) ?? "");
-      continue;
-    }
-    let next = c;
-    // Simple import rewrites
-    next = next.replace(/from\s+['"]react-native['"]/g, "from 'react-native-web'");
-    next = next.replace(/require\(['"]react-native['"]\)/g, "require('react-native-web')");
-    out[p] = next;
-  }
-  return out;
 }

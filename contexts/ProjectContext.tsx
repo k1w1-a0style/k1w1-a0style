@@ -319,6 +319,76 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, [projectData]);
 
+  const exportTextFilesAsZip = useCallback(async () => {
+    if (!projectData) {
+      Alert.alert(
+        "Export Fehlgeschlagen",
+        "Kein Projekt zum Exportieren vorhanden.",
+      );
+      return;
+    }
+
+    // Filter out binary/assets so the ZIP is shareable without leaking heavy files.
+    const BINARY_EXT = new Set([
+      "png",
+      "jpg",
+      "jpeg",
+      "webp",
+      "gif",
+      "bmp",
+      "ico",
+      "mp3",
+      "wav",
+      "m4a",
+      "mp4",
+      "mov",
+      "mkv",
+      "zip",
+      "jar",
+      "keystore",
+      "jks",
+      "cer",
+      "der",
+      "p12",
+      "ttf",
+      "otf",
+      "woff",
+      "woff2",
+    ]);
+
+    const isBinaryPath = (p: string) => {
+      const n = String(p || "").toLowerCase();
+      const ext = n.includes(".") ? n.split(".").pop() || "" : "";
+      return BINARY_EXT.has(ext);
+    };
+
+    const filtered = (projectData.files || []).filter((f) => {
+      if (!f?.path || typeof f.path !== "string") return false;
+      const content = typeof (f as any).content === "string" ? (f as any).content : "";
+      if (content.startsWith("base64:")) return false;
+      if (isBinaryPath(f.path)) return false;
+      return true;
+    });
+
+    try {
+      const clone = {
+        ...projectData,
+        files: filtered,
+      };
+      const result = await exportProjectAsZipFile(clone as any);
+      Alert.alert(
+        "Export erfolgreich",
+        `${result.fileCount} Textdateien als ZIP gespeichert.`,
+      );
+    } catch (error: any) {
+      console.error("Fehler beim Text-ZIP-Export:", error);
+      Alert.alert(
+        "Export Fehlgeschlagen",
+        error.message || "Ein unbekannter Fehler ist aufgetreten.",
+      );
+    }
+  }, [projectData]);
+
   const importProjectFromZip = useCallback(async () => {
     Alert.alert(
       "Import aus ZIP",
@@ -934,6 +1004,7 @@ useEffect(() => {
     renameFile,
     setPackageName,
     exportProjectAsZip,
+    exportTextFilesAsZip,
     importProjectFromZip,
     createNewProject,
     setTemplateId,

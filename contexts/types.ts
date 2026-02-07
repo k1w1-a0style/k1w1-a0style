@@ -122,6 +122,8 @@ export interface ProjectContextProps {
 
   exportAndBuild: () => Promise<{ owner: string; repo: string } | null>;
   exportProjectAsZip: () => Promise<void>;
+  /** Exportiert NUR Textdateien als ZIP (ohne Assets/Binaries). */
+  exportTextFilesAsZip?: () => Promise<void>;
   importProjectFromZip: () => Promise<void>;
 
   getGitHubToken: () => Promise<string | null>;

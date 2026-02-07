@@ -58,7 +58,7 @@ function corsHeaders(origin: string | null) {
   return {
     "Access-Control-Allow-Origin": origin ?? "*",
     "Access-Control-Allow-Headers":
-      "authorization, x-client-info, apikey, content-type",
+      "authorization, x-client-info, apikey, content-type, x-k1w1-admin-key",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
   };
 }
@@ -107,9 +107,6 @@ serve(async (req) => {
       { status: 405, headers: cors },
     );
   }
-
-  const auth = requireAdminKey(req);
-  if (auth) return auth;
 
   const PREVIEW_SUPABASE_URL = Deno.env.get("PREVIEW_SUPABASE_URL") ?? "";
   const PREVIEW_SERVICE_ROLE_KEY =
