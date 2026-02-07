@@ -100,16 +100,10 @@ export function IssuesTabSection(props: {
           />
 
           <View style={styles.filtersRow}>
-            {(["all", "critical", "warning", "info"] as const).map((k) => {
+            {(["all", "critical", "warning"] as const).map((k) => {
               const active = issuesFilter === k;
               const label =
-                k === "all"
-                  ? "All"
-                  : k === "critical"
-                    ? "Critical"
-                    : k === "warning"
-                      ? "Warning"
-                      : "Info";
+                k === "all" ? "All" : k === "critical" ? "Critical" : "Warning";
               return (
                 <TouchableOpacity
                   key={k}

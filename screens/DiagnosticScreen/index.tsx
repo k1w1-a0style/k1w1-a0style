@@ -1,113 +1,26 @@
-import "react-native-get-random-values";
-import { v4 as uuidv4 } from "uuid";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React from "react";
 import { useNavigation } from "@react-navigation/native";
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  LayoutAnimation,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TouchableOpacity,
-  UIManager,
-  View,
-} from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { StyleSheet, Text, View } from "react-native";
 
-import { SegmentedTabs } from "../../components/diagnostics/SegmentedTabs";
-import { ModeSelector, type BuildMode } from "../../components/diagnostics/ModeSelector";
-import { IssueCard } from "../../components/diagnostics/IssueCard";
-import {
-  IssueDetailSheet,
-  type IssueDetail,
-} from "../../components/diagnostics/IssueDetailSheet";
-import { InlineToast } from "../../components/diagnostics/InlineToast";
-import { useInlineToast } from "../../components/diagnostics/useInlineToast";
-import { SectionCard } from "../../components/diagnostics/SectionCard";
+import { IssueDetailSheet } from "../../components/diagnostics/IssueDetailSheet";
 
 import { theme } from "../../theme";
+
 import { useProject } from "../../contexts/ProjectContext";
 
-import { parseOwnerRepo } from "../../lib/diagnostics/ciAutoFix";
-
-
-import {
-  createOrUpdateFile,
-  deleteRepoFile,
-} from "../../contexts/githubService";
-
-import type { ProjectFile } from "../../contexts/types";
-
-import { validateFileContent, validateFilePath } from "../../lib/validators";
-
-import type {
-  PreflightCheckResult,
-  PreflightPatch,
-  PreflightTarget,
-} from "../../lib/diagnostics/preflightTypes";
-
-import { runPreflightChecksProgressive } from "../../lib/diagnostics/preflightRunner";
-import { runBuildPipelineDiagnostics } from "../../lib/diagnostics/buildPipelineDiagnostics";
-import {
-  formatDiagnosticUpload,
-  uploadDiagnosticToSupabase,
-} from "../../lib/diagnostics/diagnosticUploader";
-import {
-  sanitizeDiagnosticUpload,
-  safeTruncateText,
-} from "../../lib/diagnostics/sanitize";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Clipboard from "expo-clipboard";
-import * as Crypto from "expo-crypto";
-import * as SecureStore from "expo-secure-store";
-import type { BuildVariant, FixHistoryEntry, FixStep, FixStepStatus, Status } from "./types";
 import { useDiagnosticScreen } from "./hooks/useDiagnosticScreen";
 import { FixRunModal } from "./components/FixRunModal";
+import { HeaderSection } from "./components/HeaderSection";
+import { PreviewModal } from "./components/PreviewModal";
+import { IssuesTabSection } from "./components/IssuesTabSection";
+import { NonIssuesTabSection } from "./components/NonIssuesTabSection";
 
-/**
- * Diagnostics Screen (v8.10)
- * - Cleaner, more "pro" UI
- * - Per-result Fix button
- * - AutoFix with a nice progress modal
- *
- * NOTE: This file is intentionally self-contained (no new deps).
- */
-
-const ORDER: Record<Status, number> = { fail: 0, warn: 1, pass: 2 };
-const MAX_HISTORY = 10;
-const DEVICE_ID_KEY = "k1w1_device_id";
-const UPLOAD_COOLDOWN_MS = 30_000;
-const UPLOAD_RETRY_DELAY_MS = 3_000;
-const UPLOAD_COOLDOWN_KEY = "k1w1_upload_cooldown_until";
-
-
-const MAX_DETAILS = 10;
-const AUTOFIX_MAX = 50; // safety: don't apply endless chains
 const FIX_MODAL_MAX_LINES = 7;
 
-function statusToSeverity(s: Status): "critical" | "warning" | "info" | "pass" {
-  if (s === "fail") return "critical";
-  if (s === "warn") return "warning";
-  // We treat passes as "info" only when the user explicitly filters to it.
-  return "pass";
-}
-
-
 export default function DiagnosticScreen() {
-  // This screen is mounted inside React Navigation; use the hook instead of relying on implicit props.
   const navigation = useNavigation<any>();
-  const { projectData, updateProjectFiles, deleteFile, setPreferredBuildProfile } = useProject();
+  const { projectData, updateProjectFiles, deleteFile, setPreferredBuildProfile } =
+    useProject();
 
   const linkedRepo = (projectData as any)?.linkedRepo
     ? String((projectData as any).linkedRepo)
@@ -117,22 +30,43 @@ export default function DiagnosticScreen() {
     : "";
 
   const {
-    projectRef,
-    mountedRef,
-    uploadBusyRef,
-    uploadCooldownUntil,
-    setUploadCooldownUntil,
-    setCooldownNow,
-    uploadCooldownLeftSec,
-    getOrCreateUploadClientRequestId,
-    resetUploadClientRequestId,
-    recommendedMode,
+    // header + tabs
+    headerStats,
+    toast,
+    tab,
+    setTab,
+    tabDefs,
+    busy,
+    running,
+
+    // preview
+    previewVisible,
+    setPreviewVisible,
+    previewLabel,
+    previewEntries,
+
+    // issues list
+    issueList,
+    issuesFilter,
+    setIssuesFilter,
     modeAdvanced,
     setModeAdvanced,
-    modesAll,
-    setModesAll,
+    recommendedMode,
     selectedModes,
     setSelectedModes,
+    modesAll,
+    setModesAll,
+    toSeverity,
+    openIssue,
+    runDiagnostics,
+
+    // non-issues tabs (overview/fixes)
+    lastRunAt,
+    counts,
+    results,
+    setReportVisible,
+    advancedOpen,
+    toggleAdvanced,
     includeLocalChecks,
     setIncludeLocalChecks,
     includePipelineChecks,
@@ -141,47 +75,29 @@ export default function DiagnosticScreen() {
     setSyncFixesToGitHub,
     rerunAfterFix,
     setRerunAfterFix,
+    copyReport,
+    upload,
+    uploadBusy,
+    uploadCooldownLeftSec,
+    runCiAutofix,
+    ciFixing,
+    ciFixLog,
+    setPreviewLabel,
+    setPreviewEntries,
+    fixableResults,
+    smartFix,
+    advancedFixesOpen,
+    toggleAdvancedFixes,
     autoFixIncludeWarn,
     setAutoFixIncludeWarn,
     autoFixScope,
     setAutoFixScope,
-    ciFixing,
-    ciFixLog,
-    runCiAutofix,
-    tab,
-    setTab,
-    advancedOpen,
-    advancedFixesOpen,
-    toggleAdvanced,
-    toggleAdvancedFixes,
-    issuesFilter,
-    setIssuesFilter,
     selected,
     setSelected,
     selectedCount,
+    applyFixList,
 
-    toast,
-    tabDefs,
-    issueList,
-    busy,
-
-    // workflow (moved to hook)
-    target,
-    setTarget,
-    results,
-    setResults,
-    running,
-    progressStage,
-    lastRunAt,
-    history,
-    previewVisible,
-    setPreviewVisible,
-    previewLabel,
-    previewEntries,
-    setPreviewLabel,
-    setPreviewEntries,
-    applyBusy,
-    uploadBusy,
+    // fix progress modal
     fixModalVisible,
     fixModalTitle,
     fixModalSubtitle,
@@ -189,34 +105,23 @@ export default function DiagnosticScreen() {
     fixStepIndex,
     fixDone,
     closeFixModal,
-    counts,
-    sortedResults,
-    toSeverity,
-    visibleResults,
-    fixableResults,
-    pipelineAppliesToFocus,
-    runDiagnostics,
-    openPreview,
-    applyPatch,
-    undoLast,
-    undoAll,
-    applySingle,
-    autoFix,
-    applySelected,
-    smartFix,
-    reportVisible,
-    setReportVisible,
+
+    // issue sheet
     issueSheetVisible,
     activeIssue,
     activeIssueDetail,
-    openIssue,
     closeIssue,
+    openPreview,
     applyIssueFix,
-    applyFixList,
-    upload,
-    copyReport,
-    headerStats,
-  } = useDiagnosticScreen({ projectData, linkedRepo, linkedBranch, setPreferredBuildProfile, navigation, updateProjectFiles, deleteFile });
+  } = useDiagnosticScreen({
+    projectData,
+    linkedRepo,
+    linkedBranch,
+    setPreferredBuildProfile,
+    navigation,
+    updateProjectFiles,
+    deleteFile,
+  });
 
   if (!projectData) {
     return (
@@ -229,7 +134,9 @@ export default function DiagnosticScreen() {
 
   return (
     <View style={styles.screen}>
-      <FixRunModal styles={styles} maxLines={FIX_MODAL_MAX_LINES} 
+      <FixRunModal
+        styles={styles}
+        maxLines={FIX_MODAL_MAX_LINES}
         visible={fixModalVisible}
         title={fixModalTitle}
         subtitle={fixModalSubtitle}
@@ -256,445 +163,97 @@ export default function DiagnosticScreen() {
         }}
       />
 
-      {/* Preview Modal */}
-      <Modal visible={previewVisible} animationType="slide" onRequestClose={() => setPreviewVisible(false)}>
-        <View style={styles.previewWrap}>
-          <View style={styles.previewHeader}>
-            <Text style={styles.previewTitle} numberOfLines={1}>
-              {previewLabel}
-            </Text>
-            <TouchableOpacity style={styles.iconBtn} onPress={() => setPreviewVisible(false)}>
-              <Ionicons name="close" size={18} color={theme.palette.text.primary} />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: theme.spacing.lg }}>
-            {previewEntries.map((e) => (
-              <View key={e.path} style={styles.previewCard}>
-                <Text style={styles.previewPath}>{e.path}</Text>
-
-                <Text style={styles.previewLabel}>Before</Text>
-                <Text style={styles.previewText} selectable>
-                  {safeTruncateText(e.oldText ?? "", 6000)}
-                </Text>
-
-                <Text style={styles.previewLabel}>After</Text>
-                <Text style={styles.previewText} selectable>
-                  {safeTruncateText(e.newText ?? "", 6000)}
-                </Text>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-      </Modal>
-
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Diagnostics</Text>
-          <Text style={styles.subtitle}>
-            {headerStats.name} • {headerStats.mode}
-          </Text>
-        </View>
-
-        {busy ? (
-          <View style={styles.busyPill}>
-            <ActivityIndicator size="small" />
-            <Text style={styles.busyText}>{running ? "Running…" : "Applying…"}</Text>
-          </View>
-        ) : null}
-      </View>
-
-      <SegmentedTabs value={tab} onChange={setTab} tabs={tabDefs} />
-
-      <InlineToast message={toast.message} anim={toast.anim} />
-
-      {tab === "issues" ? (
-  <FlatList
-    data={issueList}
-    keyExtractor={(item) => item.id}
-    contentContainerStyle={styles.content}
-    ItemSeparatorComponent={() => <View style={{ height: theme.spacing.sm }} />}
-    renderItem={({ item }) => {
-      const st = ((item.status ?? "pass") as Status) ?? "pass";
-      const severity = toSeverity(st);
-      return (
-        <IssueCard
-          title={item.title}
-          message={item.message}
-          severity={severity}
-          hasFix={!!item.fix?.patch}
-          onPress={() => openIssue(item)}
-        />
-      );
-    }}
-    ListHeaderComponent={
-      <View style={styles.stack}>
-        <ModeSelector
-          isAdvanced={modeAdvanced}
-          onToggleAdvanced={() => {
-                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                  setModeAdvanced((prev) => {
-                    const next = !prev;
-                    if (next) {
-                      // When entering advanced, seed selection with the recommended mode.
-                      setSelectedModes((p) => (p.length ? p : [recommendedMode]));
-                    }
-                    return next;
-                  });
-                }}
-          recommendedMode={recommendedMode}
-          selectedModes={selectedModes}
-          onChangeSelected={setSelectedModes}
-          allowAll
-          allSelected={modesAll}
-          onToggleAll={() => {
-                  setModesAll((prev) => {
-                    const next = !prev;
-                    if (next) setSelectedModes(["development", "preview", "production"]);
-                    return next;
-                  });
-                }}
-          disabled={busy}
-        />
-
-        <View style={styles.filtersRow}>
-          {(["all", "critical", "warning"] as const).map((k) => {
-            const active = issuesFilter === k;
-            const label = k === "all" ? "All" : k === "critical" ? "Critical" : "Warning";
-            return (
-              <TouchableOpacity
-                key={k}
-                style={[styles.filterChip, active && styles.filterChipOn, busy && styles.disabled]}
-                onPress={() => setIssuesFilter(k)}
-                disabled={busy}
-              >
-                <Text style={[styles.filterChipText, active && styles.filterChipTextOn]}>
-                  {label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
-    }
-    ListEmptyComponent={
-      <SectionCard title="No issues" subtitle="Alles sieht gut aus." icon="checkmark-circle">
-        <Text style={styles.muted}>
-          Starte eine Diagnose oder wechsle den Mode, falls du andere Profile prüfen willst.
-        </Text>
-        <View style={{ height: theme.spacing.sm }} />
-        <TouchableOpacity style={styles.btnPrimary} onPress={() => runDiagnostics()} disabled={busy}>
-          <Ionicons name="play" size={16} color={theme.palette.background} />
-          <Text style={styles.btnPrimaryText}>Run Diagnostics</Text>
-        </TouchableOpacity>
-      </SectionCard>
-    }
-  />
-) : (
-  <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
-    <View style={styles.stack}>
-      <ModeSelector
-        isAdvanced={modeAdvanced}
-        onToggleAdvanced={() => {
-          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-          setModeAdvanced((prev) => {
-            const next = !prev;
-            if (next) setSelectedModes((p) => (p.length ? p : [recommendedMode]));
-            return next;
-          });
-        }}
-        recommendedMode={recommendedMode}
-        selectedModes={selectedModes}
-        onChangeSelected={setSelectedModes}
-        allowAll
-        allSelected={modesAll}
-        onToggleAll={() => {
-                  setModesAll((prev) => {
-                    const next = !prev;
-                    if (next) setSelectedModes(["development", "preview", "production"]);
-                    return next;
-                  });
-                }}
-        disabled={busy}
+      <PreviewModal
+        styles={styles}
+        visible={previewVisible}
+        label={previewLabel}
+        entries={previewEntries}
+        onClose={() => setPreviewVisible(false)}
       />
 
-      {tab === "overview" ? (
-        <>
-          <SectionCard
-            title="Status"
-            subtitle={lastRunAt ? `Last run: ${new Date(lastRunAt).toLocaleString()}` : "Noch keine Diagnose"}
-            icon="pulse"
-            right={
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={styles.countBig}>{counts.fail + counts.warn}</Text>
-                <Text style={styles.countLabel}>Issues</Text>
-              </View>
-            }
-          >
-            <View style={styles.countRow}>
-              <View style={styles.countPill}>
-                <Text style={styles.countPillNum}>{counts.fail}</Text>
-                <Text style={styles.countPillLabel}>Critical</Text>
-              </View>
-              <View style={styles.countPill}>
-                <Text style={styles.countPillNum}>{counts.warn}</Text>
-                <Text style={styles.countPillLabel}>Warning</Text>
-              </View>
-            </View>
+      <HeaderSection
+        styles={styles}
+        headerStats={headerStats}
+        busy={busy}
+        running={running}
+        tab={tab}
+        setTab={setTab}
+        tabDefs={tabDefs}
+        toast={toast}
+      />
 
-            <View style={styles.btnRow}>
-              <TouchableOpacity style={styles.btnPrimary} onPress={() => runDiagnostics()} disabled={busy}>
-                <Ionicons name="play" size={16} color={theme.palette.background} />
-                <Text style={styles.btnPrimaryText}>Run Diagnostics</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.btnSecondary}
-                onPress={() => setReportVisible(true)}
-                disabled={!results.length}
-              >
-                <Ionicons name="document-text" size={16} color={theme.palette.text.primary} />
-                <Text style={styles.btnSecondaryText}>View Report</Text>
-              </TouchableOpacity>
-            </View>
-          </SectionCard>
-
-          <SectionCard
-            title="Advanced"
-            subtitle="Nur wenn du’s wirklich brauchst"
-            icon="options"
-            right={
-              <TouchableOpacity style={styles.ghostBtn} onPress={toggleAdvanced}>
-                <Ionicons
-                  name={advancedOpen ? "chevron-up" : "chevron-down"}
-                  size={18}
-                  color={theme.palette.text.primary}
-                />
-              </TouchableOpacity>
-            }
-          >
-            {advancedOpen ? (
-              <View style={{ gap: theme.spacing.md }}>
-                <View style={styles.switchRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.switchTitle}>Local checks</Text>
-                    <Text style={styles.switchHint}>Checks auf deinen Projektdateien</Text>
-                  </View>
-                  <Switch value={includeLocalChecks} onValueChange={setIncludeLocalChecks} />
-                </View>
-
-                <View style={styles.switchRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.switchTitle}>Pipeline checks</Text>
-                    <Text style={styles.switchHint}>GitHub/EAS linkage & Workflows</Text>
-                  </View>
-                  <Switch value={includePipelineChecks} onValueChange={setIncludePipelineChecks} />
-                </View>
-
-                <View style={styles.switchRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.switchTitle}>Sync fixes to GitHub</Text>
-                    <Text style={styles.switchHint}>Nur wenn Repo verknüpft ist</Text>
-                  </View>
-                  <Switch value={syncFixesToGitHub} onValueChange={setSyncFixesToGitHub} />
-                </View>
-
-                <View style={styles.switchRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.switchTitle}>Re-run after fix</Text>
-                    <Text style={styles.switchHint}>Verifizieren, dass es “grün” ist</Text>
-                  </View>
-                  <Switch value={rerunAfterFix} onValueChange={setRerunAfterFix} />
-                </View>
-
-                <View style={styles.btnRow}>
-                  <TouchableOpacity style={styles.btnSecondary} onPress={copyReport} disabled={busy || !results.length}>
-                    <Ionicons name="copy" size={16} color={theme.palette.text.primary} />
-                    <Text style={styles.btnSecondaryText}>Copy debug info</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.btnSecondary} onPress={upload} disabled={busy || uploadBusy || uploadCooldownLeftSec > 0}>
-                    <Ionicons name="cloud-upload" size={16} color={theme.palette.text.primary} />
-                    <Text style={styles.btnSecondaryText}>
-                      {uploadCooldownLeftSec > 0 ? `Upload (${uploadCooldownLeftSec}s)` : "Upload"}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity style={styles.btnTertiary} onPress={runCiAutofix} disabled={ciFixing || !linkedRepo}>
-                  <Ionicons name="build" size={16} color={theme.palette.text.primary} />
-                  <Text style={styles.btnTertiaryText}>
-                    {ciFixing ? "Fixing CI…" : "Fix CI Workflows"}
-                  </Text>
-                </TouchableOpacity>
-
-                {ciFixLog ? (
-                  <TouchableOpacity
-                    style={styles.btnTertiary}
-                    onPress={() => {
-                      setPreviewLabel("CI/Workflows Log");
-                      setPreviewEntries([{ path: "CI_AUTOFIX", oldText: null, newText: ciFixLog }]);
-                      setPreviewVisible(true);
-                    }}
-                  >
-                    <Ionicons name="eye" size={16} color={theme.palette.text.primary} />
-                    <Text style={styles.btnTertiaryText}>View CI Log</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            ) : (
-              <Text style={styles.muted}>
-                Versteckt, damit’s ruhig bleibt. Aufklappen nur bei Bedarf.
-              </Text>
-            )}
-          </SectionCard>
-        </>
+      {tab === "issues" ? (
+        <IssuesTabSection
+          styles={styles}
+          issueList={issueList}
+          modeAdvanced={modeAdvanced}
+          setModeAdvanced={setModeAdvanced}
+          recommendedMode={recommendedMode}
+          selectedModes={selectedModes}
+          setSelectedModes={setSelectedModes}
+          modesAll={modesAll}
+          setModesAll={setModesAll}
+          busy={busy}
+          issuesFilter={issuesFilter}
+          setIssuesFilter={setIssuesFilter}
+          toSeverity={toSeverity}
+          openIssue={openIssue}
+          runDiagnostics={runDiagnostics}
+        />
       ) : (
-        <>
-          {/* Fixes tab */}
-          <SectionCard
-            title="Smart Fix"
-            subtitle="Wendet nur empfohlene Fixes an (Critical)"
-            icon="sparkles"
-            right={
-              <Text style={styles.pill}>
-                {fixableResults.filter((r) => ((r.status ?? "pass") as Status) === "fail").length}
-              </Text>
-            }
-          >
-            <TouchableOpacity style={styles.btnPrimary} onPress={smartFix} disabled={busy || !fixableResults.length}>
-              <Ionicons name="flash" size={16} color={theme.palette.background} />
-              <Text style={styles.btnPrimaryText}>Apply Smart Fix</Text>
-            </TouchableOpacity>
-
-            <View style={{ height: theme.spacing.sm }} />
-
-            <TouchableOpacity style={styles.advRow} onPress={toggleAdvancedFixes}>
-              <Text style={styles.advRowText}>Advanced selection</Text>
-              <Ionicons
-                name={advancedFixesOpen ? "chevron-up" : "chevron-down"}
-                size={18}
-                color={theme.palette.text.primary}
-              />
-            </TouchableOpacity>
-
-            {advancedFixesOpen ? (
-              <View style={{ marginTop: theme.spacing.md, gap: theme.spacing.sm }}>
-                <View style={styles.switchRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.switchTitle}>Include warnings</Text>
-                    <Text style={styles.switchHint}>sonst nur Critical</Text>
-                  </View>
-                  <Switch value={autoFixIncludeWarn} onValueChange={setAutoFixIncludeWarn} />
-                </View>
-
-                <View style={styles.switchRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.switchTitle}>Scope</Text>
-                    <Text style={styles.switchHint}>
-                      {autoFixScope === "visible" ? "nur gefilterte Issues" : "alle Fixes"}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.scopeBtn}
-                    onPress={() =>
-                      setAutoFixScope((v) => (v === "visible" ? "all" : "visible"))
-                    }
-                  >
-                    <Text style={styles.scopeBtnText}>
-                      {autoFixScope === "visible" ? "Visible" : "All"}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                <SectionCard title="Manual picks" subtitle="Optional" icon="list">
-                  {fixableResults.length ? (
-                    fixableResults.slice(0, MAX_DETAILS).map((r) => {
-                      const checked = !!selected[r.id];
-                      const st = ((r.status ?? "pass") as Status) ?? "pass";
-                      const severity = toSeverity(st);
-                      return (
-                        <TouchableOpacity
-                          key={r.id}
-                          style={styles.pickRow}
-                          onPress={() =>
-                            setSelected((prev) => ({ ...prev, [r.id]: !checked }))
-                          }
-                        >
-                          <Ionicons
-                            name={checked ? "checkbox" : "square-outline"}
-                            size={18}
-                            color={checked ? theme.palette.primaryLight : theme.palette.text.muted}
-                          />
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.pickTitle}>{r.title}</Text>
-                            <Text style={styles.pickHint} numberOfLines={2}>
-                              {r.message || "—"}
-                            </Text>
-                          </View>
-                          <View style={{ marginLeft: theme.spacing.sm }}>
-                            <Text style={styles.pickSeverity}>{severity}</Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })
-                  ) : (
-                    <Text style={styles.muted}>Keine fixbaren Issues.</Text>
-                  )}
-
-                  {fixableResults.length > MAX_DETAILS ? (
-                    <Text style={styles.muted}>
-                      … und {fixableResults.length - MAX_DETAILS} weitere (filtere in Issues).
-                    </Text>
-                  ) : null}
-
-                  <View style={{ height: theme.spacing.sm }} />
-
-                  <TouchableOpacity
-                    style={styles.btnSecondary}
-                    disabled={busy || !selectedCount}
-                    onPress={async () => {
-                      const chosen = fixableResults.filter((r) => selected[r.id]);
-                      const scoped =
-                        autoFixScope === "visible"
-                          ? chosen.filter((r) => issueList.some((i) => i.id === r.id))
-                          : chosen;
-
-                      const final =
-                        autoFixIncludeWarn
-                          ? scoped
-                          : scoped.filter((r) => ((r.status ?? "pass") as Status) === "fail");
-
-                      if (!final.length) {
-                        Alert.alert("Nichts gewählt", "Deine Auswahl enthält keine empfohlenen Fixes.");
-                        return;
-                      }
-
-                      const slice = final.slice(0, AUTOFIX_MAX);
-                      if (final.length > AUTOFIX_MAX) {
-                        Alert.alert(
-                          "Limit",
-                          `Es werden nur ${AUTOFIX_MAX}/${final.length} angewendet. Filtere oder erneut ausführen.`,
-                        );
-                      }
-                      await applyFixList(slice, "Advanced Fixes");
-                    }}
-                  >
-                    <Ionicons name="checkmark" size={16} color={theme.palette.text.primary} />
-                    <Text style={styles.btnSecondaryText}>
-                      Apply selected ({selectedCount})
-                    </Text>
-                  </TouchableOpacity>
-                </SectionCard>
-              </View>
-            ) : null}
-          </SectionCard>
-        </>
+        <NonIssuesTabSection
+          styles={styles}
+          tab={tab}
+          modeAdvanced={modeAdvanced}
+          setModeAdvanced={setModeAdvanced}
+          recommendedMode={recommendedMode}
+          selectedModes={selectedModes}
+          setSelectedModes={setSelectedModes}
+          modesAll={modesAll}
+          setModesAll={setModesAll}
+          busy={busy}
+          lastRunAt={lastRunAt}
+          counts={counts}
+          results={results}
+          setReportVisible={setReportVisible}
+          advancedOpen={advancedOpen}
+          toggleAdvanced={toggleAdvanced}
+          includeLocalChecks={includeLocalChecks}
+          setIncludeLocalChecks={setIncludeLocalChecks}
+          includePipelineChecks={includePipelineChecks}
+          setIncludePipelineChecks={setIncludePipelineChecks}
+          syncFixesToGitHub={syncFixesToGitHub}
+          setSyncFixesToGitHub={setSyncFixesToGitHub}
+          rerunAfterFix={rerunAfterFix}
+          setRerunAfterFix={setRerunAfterFix}
+          copyReport={copyReport}
+          upload={upload}
+          uploadBusy={uploadBusy}
+          uploadCooldownLeftSec={uploadCooldownLeftSec}
+          runCiAutofix={runCiAutofix}
+          ciFixing={ciFixing}
+          linkedRepo={linkedRepo}
+          ciFixLog={ciFixLog}
+          setPreviewLabel={setPreviewLabel}
+          setPreviewEntries={setPreviewEntries}
+          setPreviewVisible={setPreviewVisible}
+          fixableResults={fixableResults}
+          smartFix={smartFix}
+          advancedFixesOpen={advancedFixesOpen}
+          toggleAdvancedFixes={toggleAdvancedFixes}
+          autoFixIncludeWarn={autoFixIncludeWarn}
+          setAutoFixIncludeWarn={setAutoFixIncludeWarn}
+          autoFixScope={autoFixScope}
+          setAutoFixScope={setAutoFixScope}
+          selected={selected}
+          setSelected={setSelected}
+          selectedCount={selectedCount}
+          issueList={issueList}
+          applyFixList={applyFixList}
+          toSeverity={toSeverity}
+          runDiagnostics={runDiagnostics}
+        />
       )}
-    </View>
-  </ScrollView>
-)}
     </View>
   );
 }
