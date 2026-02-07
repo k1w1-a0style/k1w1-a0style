@@ -7,6 +7,9 @@ import { BuildHistoryEntry } from '../contexts/types';
 const BUILD_HISTORY_KEY = 'k1w1_build_history';
 const MAX_HISTORY_ENTRIES = 50; // Maximal 50 Einträge speichern
 
+// Verhindert Log-Spam wenn die Historie während eines aktiven Pollings geleert wurde
+const missingBuildWarned = new Set<number>();
+
 /**
  * Lädt die Build-Historie aus dem Storage
  */
@@ -90,7 +93,13 @@ export const updateBuildInHistory = async (
       await saveBuildHistory(history);
       console.log(`📝 Build #${jobId} aktualisiert`);
     } else {
-      console.warn(`[buildHistoryStorage] Build #${jobId} nicht in Historie gefunden`);
+      // Häufiger Fall: User hat "Build-Historie löschen" gedrückt, während Polling noch läuft.
+      // Dann kommen Update-Events rein, obwohl der Eintrag weg ist. Das ist kein Fehler.
+      if (!missingBuildWarned.has(jobId)) {
+        console.warn(`[buildHistoryStorage] Build #${jobId} nicht in Historie gefunden (ignoriert)`);
+        missingBuildWarned.add(jobId);
+      }
+      return;
     }
   } catch (error) {
     console.error('❌ Fehler beim Aktualisieren der Build-Historie:', error);

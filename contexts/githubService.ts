@@ -776,6 +776,14 @@ export const pushFilesToRepo = async (
   const sortedFiles = [...files].sort((a, b) => a.path.localeCompare(b.path));
   for (const f of sortedFiles) {
     if (!f.path) continue;
+    const p = f.path.trim();
+    // 🛑 Workflows sind Teil des Build-Orchestrators und sollen nicht pro Projekt überschrieben werden.
+    // Das verhindert SHA-Mismatch (409) und Sicherheitsprobleme.
+    if (p.startsWith(".github/workflows/")) {
+      console.log(`[pushFilesToRepo] Skip workflow file: ${p}`);
+      continue;
+    }
+
     console.log(`Pushing ${f.path}... (branch: ${targetBranch})`);
     await createOrUpdateFile(
       owner,
