@@ -1,4 +1,4 @@
-import { Platform, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 
 import { theme } from "../../theme";
 
@@ -79,7 +79,7 @@ export const styles = StyleSheet.create({
     backgroundColor: theme.palette.backgroundDark,
     borderRadius: theme.borderRadius.lg,
     paddingHorizontal: theme.spacing.md,
-    paddingVertical: Platform.OS === "ios" ? 12 : 10,
+    paddingVertical: 10,
     color: theme.palette.text.primary,
     fontSize: 14,
   },

@@ -45,6 +45,13 @@ export interface AutoFixRequest {
   timestamp: string;
 }
 
+export interface LastPreviewMeta {
+  url: string | null;
+  source: "supabase" | "local";
+  createdAt: string;
+  expiresAt?: string | null;
+}
+
 export interface ProjectData {
   id?: string;
   name: string;
@@ -67,6 +74,8 @@ files: ProjectFile[];
   preferredBuildProfile?: "development" | "preview" | "production" | null;
   /** Dev: Manuelles Template-Override/Picker anzeigen (default: false). */
   advancedTemplatePickerEnabled?: boolean;
+  /** Letzte Preview (für schnelles Umschalten) */
+  lastPreview?: LastPreviewMeta | null;
 }
 
 export interface ProjectContextProps {
@@ -92,6 +101,9 @@ export interface ProjectContextProps {
   messages: ChatMessage[];
 
   clearChatHistory: () => void;
+
+  /** Persistiert die letzte Preview (für Header-Schnellzugriff). */
+  setLastPreview: (preview: LastPreviewMeta | null) => Promise<void>;
 
   autoFixRequest: AutoFixRequest | null;
   triggerAutoFix: (message: string) => void;

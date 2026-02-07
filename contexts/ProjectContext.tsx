@@ -19,6 +19,7 @@ import {
   ChatMessage,
   ProjectContextProps,
   AutoFixRequest,
+  LastPreviewMeta,
 } from "./types";
 
 import type { TemplateId, CoreTemplateId } from "./types";
@@ -238,6 +239,17 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     }));
   }, [updateProject]);
 
+  const setLastPreview = useCallback(
+    async (preview: LastPreviewMeta | null) => {
+      await updateProject((prev) => ({
+        ...prev,
+        lastPreview: preview ?? null,
+      }));
+    },
+    [updateProject],
+  );
+
+
   const setPackageName = useCallback(
     async (packageName: string) => {
       await updateProject((prev) => ({ ...prev, packageName }));
@@ -270,6 +282,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
                 chatHistory: [],
                 createdAt: new Date().toISOString(),
                 lastModified: new Date().toISOString(),
+                lastPreview: null,
               };
 
               const release = await mutexRef.current.acquire();
@@ -997,6 +1010,7 @@ useEffect(() => {
     updateProjectFiles,
     addChatMessage,
     clearChatHistory,
+    setLastPreview,
     getGitHubToken,
     getWorkflowRuns,
     createFile,

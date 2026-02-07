@@ -2,8 +2,9 @@
 // Preview creation: prefer Supabase-hosted preview (save_preview -> preview_page).
 // Fallback: local HTML via buildSandpackHtml (best-effort).
 
-import { useCallback, useMemo, useRef, useState } from "react";
-import type { ProjectData } from "../contexts/types";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ProjectData, LastPreviewMeta } from "../contexts/types";
+import { useProject } from "../contexts/ProjectContext";
 import { buildSandpackHtml } from "../lib/sandpackBuilder";
 import { ensureSupabaseClient } from "../lib/supabase";
 import { getEdgeAdminKey } from "../contexts/githubService";
@@ -71,7 +72,7 @@ function sanitizePreviewPath(raw: string): string | null {
   if (segs.some((s) => s === "..")) return null;
 
   // Collapse multiple slashes
-  p = p.replace(/\/+/, "/");
+  p = p.replace(/\/+/g, "/");
   if (!p.startsWith("/")) p = "/" + p;
   return p;
 }
@@ -120,7 +121,24 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
   const [isCreating, setIsCreating] = useState(false);
   const [lastCreatedAt, setLastCreatedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const lastPreviewRef = useRef<PreviewResult | null>(null);
+  const { setLastPreview } = useProject();
+  const [lastPreview, setLastPreviewState] = useState<PreviewResult | null>(null);
+
+  // Restore last preview from persisted project data (fast toggle from header)
+  useEffect(() => {
+    const persisted = projectData?.lastPreview ?? null;
+    if (!persisted) return;
+    setLastPreviewState((prev) => {
+      if (prev) return prev;
+      return {
+        url: persisted.url ?? null,
+        html: null,
+        expiresAt: persisted.expiresAt ?? null,
+        source: persisted.source,
+      };
+    });
+  }, [projectData?.lastPreview?.url, projectData?.lastPreview?.source]);
+
 
   const fileMap = useMemo(() => {
     const files: Record<string, string> = {};
@@ -386,7 +404,13 @@ if (container) {
             expiresAt: resp?.expiresAt ?? null,
             source: "supabase",
           };
-          lastPreviewRef.current = result;
+          setLastPreviewState(result);
+          await setLastPreview({
+            url: result.url,
+            source: result.source,
+            createdAt: new Date().toISOString(),
+            expiresAt: result.expiresAt,
+          } as LastPreviewMeta);
           setLastCreatedAt(Date.now());
           return result;
         }
@@ -424,7 +448,13 @@ if (container) {
         expiresAt: null,
         source: "local",
       };
-      lastPreviewRef.current = fallback;
+      setLastPreviewState(fallback);
+      await setLastPreview({
+        url: fallback.url,
+        source: fallback.source,
+        createdAt: new Date().toISOString(),
+        expiresAt: fallback.expiresAt,
+      } as LastPreviewMeta);
       setLastCreatedAt(Date.now());
       return fallback;
     } catch (e: unknown) {
@@ -437,11 +467,12 @@ if (container) {
     }
   }, [projectData, fileMap, dependencies, ensureMinimumFiles, normalizeForWebPreview]);
 
-  const reset = useCallback(() => {
-    lastPreviewRef.current = null;
+    const reset = useCallback(() => {
+    setLastPreviewState(null);
+    void setLastPreview(null);
     setLastCreatedAt(null);
     setError(null);
-  }, []);
+  }, [setLastPreview]);
 
   const state: PreviewState = useMemo(
     () => ({
@@ -458,7 +489,7 @@ if (container) {
     state,
     fileMap,
     dependencies,
-    lastPreview: lastPreviewRef.current,
+    lastPreview,
     createPreview,
     reset,
   };

@@ -3,32 +3,75 @@
 
 import React, { useMemo } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerHeaderProps } from "@react-navigation/drawer";
 
 import { theme, HEADER_HEIGHT } from "../theme";
 import { useGitHub } from "../contexts/GitHubContext";
+import { useProject } from "../contexts/ProjectContext";
 import ChatHeaderActions from "./ChatHeaderActions";
 
 const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
   const title = options.title ?? "k1w1";
   const { activeRepo, activeBranch } = useGitHub();
+  const { projectData } = useProject();
+  const insets = useSafeAreaInsets();
 
   const repoLine = useMemo(() => {
     if (!activeRepo) return "Kein Repo ausgewählt";
     return `${activeRepo}${activeBranch ? `  (${activeBranch})` : ""}`;
   }, [activeRepo, activeBranch]);
 
+  const handlePreviewPress = () => {
+    const last = projectData?.lastPreview ?? null;
+    const expiresAt = last?.expiresAt ? Date.parse(last.expiresAt) : null;
+    const isExpired =
+      typeof expiresAt === "number" && !Number.isNaN(expiresAt)
+        ? expiresAt <= Date.now()
+        : false;
+
+    // If we have a valid last preview URL, jump directly to fullscreen.
+    if (last?.url && !isExpired) {
+      // Drawer header props are typed to drawer routes; fullscreen preview is on a parent stack.
+      // Cast to any to avoid the 'never' navigation type trap.
+      const parentNav = navigation.getParent() as any;
+      parentNav?.navigate?.("PreviewFullscreen", {
+        url: last.url,
+        title: projectData?.name || "Preview",
+      });
+      return;
+    }
+
+    // Otherwise open the normal preview screen (it can generate a new preview).
+    (navigation as any).navigate?.("Preview");
+  };
+
   return (
-    <View style={styles.header}>
+    <View
+      style={[
+        styles.header,
+        { paddingTop: insets.top, height: HEADER_HEIGHT + insets.top },
+      ]}
+    >
       <View style={styles.left}>
         <Pressable
           onPress={() => navigation.openDrawer()}
-          style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
+          style={({ pressed }) => [
+            styles.iconBtn,
+            pressed && styles.iconBtnPressed,
+          ]}
           accessibilityLabel="Menü"
-          android_ripple={{ color: `${theme.palette.primary}22`, borderless: true }}
+          android_ripple={{
+            color: `${theme.palette.primary}22`,
+            borderless: true,
+          }}
         >
-          <Ionicons name="menu" size={24} color={theme.palette.text.primary} />
+          <Ionicons
+            name="menu"
+            size={24}
+            color={theme.palette.text.primary}
+          />
         </Pressable>
       </View>
 
@@ -43,15 +86,25 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
 
       <View style={styles.right}>
         <Pressable
-          onPress={() => navigation.navigate("Preview" as never)}
-          style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
+          onPress={handlePreviewPress}
+          style={({ pressed }) => [
+            styles.iconBtn,
+            pressed && styles.iconBtnPressed,
+          ]}
           accessibilityLabel="Preview"
-          android_ripple={{ color: `${theme.palette.primary}22`, borderless: true }}
+          android_ripple={{
+            color: `${theme.palette.primary}22`,
+            borderless: true,
+          }}
         >
-          <Ionicons name="eye-outline" size={22} color={theme.palette.text.primary} />
+          <Ionicons
+            name="eye-outline"
+            size={22}
+            color={theme.palette.text.primary}
+          />
         </Pressable>
 
-        <ChatHeaderActions />
+        <ChatHeaderActions topOffset={HEADER_HEIGHT + insets.top} />
       </View>
     </View>
   );

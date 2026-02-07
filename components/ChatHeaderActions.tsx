@@ -14,10 +14,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../theme";
 import { useProject } from "../contexts/ProjectContext";
 
-const ChatHeaderActions: React.FC = () => {
+type Props = { topOffset?: number };
+
+const ChatHeaderActions: React.FC<Props> = ({ topOffset }) => {
   const { clearChatHistory, exportProjectAsZip, importProjectFromZip, createNewProject } = useProject();
 
   const [menuVisible, setMenuVisible] = useState(false);
+  const computedTopOffset = typeof topOffset === "number" ? topOffset : 56;
 
   const toggleMenu = () => setMenuVisible((prev) => !prev);
   const closeMenu = () => setMenuVisible(false);
@@ -56,7 +59,7 @@ const ChatHeaderActions: React.FC = () => {
 
       <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={toggleMenu}>
         <TouchableWithoutFeedback onPress={toggleMenu}>
-          <View style={styles.modalOverlay}>
+          <View style={[styles.modalOverlay, { paddingTop: computedTopOffset }]}>
             <TouchableWithoutFeedback>
               <View style={styles.menuCard}>
                 <Text style={styles.menuTitle}>Projekt</Text>
@@ -111,9 +114,7 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     justifyContent: "flex-start",
-    alignItems: "flex-end",
-    paddingTop: 56,
-    paddingRight: 8,
+    alignItems: "flex-end",    paddingRight: 8,
     backgroundColor: "rgba(0,0,0,0.25)",
   },
 
