@@ -33,9 +33,7 @@ const UPLOAD_COOLDOWN_MS = 30_000;
 const UPLOAD_RETRY_DELAY_MS = 3_000;
 const UPLOAD_COOLDOWN_KEY = "k1w1_upload_cooldown_until";
 
-const MAX_DETAILS = 10;
 const AUTOFIX_MAX = 50; // safety: don't apply endless chains
-const FIX_MODAL_MAX_LINES = 7;
 
 function statusToSeverity(s: Status): "critical" | "warning" | "info" | "pass" {
   if (s === "fail") return "critical";
