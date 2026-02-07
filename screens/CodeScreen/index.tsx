@@ -12,7 +12,7 @@ import { ImageViewer } from "./components/ImageViewer";
 import { LoadingView } from "./components/LoadingView";
 import { SyntaxErrorBar } from "./components/SyntaxErrorBar";
 import { styles } from "./styles";
-import { useCodeScreen } from "./useCodeScreen";
+import { useCodeScreen } from "./hooks/useCodeScreen";
 
 const CodeScreen: React.FC = () => {
   const {
