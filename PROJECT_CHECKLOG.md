@@ -261,3 +261,23 @@ Next suggested patch areas:
 - Falls etwas schief läuft, betrifft es nur die Diagnostic-Ausgabe, nicht den Buildflow.
 
 **Next (Patch 12):** DiagnosticScreen Phase 4: verbleibende "UI-State-Klumpen" (Tabs/Filter/Selection) weiter entkoppeln + gezieltes Typing/Tests für die neuen Helpers.
+
+## Patch 12 — DiagnosticScreen Phase 4: UI-State Split (Selection + Issue Filter)
+
+**Ziel:** Die letzten UI-State-Klumpen (Selection + Issue Filter) aus dem großen Screen-Hook herauslösen, damit weitere Refactors weniger Risko haben und Code besser testbar/lesbar wird.
+
+**Änderungen:**
+- Neu: `screens/DiagnosticScreen/hooks/useDiagnosticSelection.ts`
+  - kapselt `selected`, `selectedCount` und helpers (`clearSelection`, `toggleSelectedId`, `setSelectedIds`)
+  - Externe Form bleibt **kompatibel** (`Record<string, boolean>`), damit FixRunner/Screen keine API-Brüche haben.
+- Neu: `screens/DiagnosticScreen/hooks/useDiagnosticIssueFiltering.ts`
+  - kapselt `issuesFilter` State und berechnet `visibleResults` (Semantik identisch zu vorher)
+- `useDiagnosticScreen.ts`
+  - nutzt die neuen Hooks statt inline State/Memos
+  - `runDiagnostics()` nutzt jetzt `clearSelection()` beim Reset
+
+**Risiko-Check:**
+- Keine Verhaltensänderung beabsichtigt (reine Auslagerung + 1:1 Logik).
+- Haupt-Risiko wäre ein verlorener Dependency/Closure-Bug → wird durch Typecheck/Jest schnell sichtbar.
+
+**Next (Patch 13):** DiagnosticScreen Phase 5: optionaler Split der CI-Autofix-Logik + kleine Test-Utility Functions (Selection/Filter) mit Unit-Tests.

@@ -23,6 +23,8 @@ import type { Status } from "../types";
 import { useDiagnosticPreferences } from "./useDiagnosticPreferences";
 import { useDiagnosticUpload } from "./useDiagnosticUpload";
 import { useDiagnosticFixRunner } from "./useDiagnosticFixRunner";
+import { useDiagnosticSelection } from "./useDiagnosticSelection";
+import { useDiagnosticIssueFiltering } from "./useDiagnosticIssueFiltering";
 
 const ORDER: Record<Status, number> = { fail: 0, warn: 1, pass: 2 };
 
@@ -79,15 +81,7 @@ export function useDiagnosticScreen(opts: {
     setAdvancedFixesOpen((v) => !v);
   }, []);
 
-  const [issuesFilter, setIssuesFilter] = useState<
-    "all" | "critical" | "warning" | "info"
-  >("all");
 
-  const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const selectedCount = useMemo(
-    () => Object.values(selected).filter(Boolean).length,
-    [selected],
-  );
 
   // Used to reset undo history from inside runDiagnostics without circular dependencies.
   const clearHistoryRef = useRef<null | (() => void)>(null);
@@ -212,23 +206,16 @@ export function useDiagnosticScreen(opts: {
     return list;
   }, [results]);
 
+  const { selected, setSelected, selectedCount, clearSelection } = useDiagnosticSelection();
+
+  const { issuesFilter, setIssuesFilter, visibleResults } = useDiagnosticIssueFiltering(sortedResults);
+
   const toSeverity = useCallback((s: Status): IssueDetail["severity"] => {
     if (s === "fail") return "critical";
     if (s === "warn") return "warning";
     return "info";
   }, []);
 
-  const visibleResults = useMemo(() => {
-    const nonPass = sortedResults.filter(
-      (r) => ((r.status ?? "pass") as Status) !== "pass",
-    );
-    if (issuesFilter === "all") return nonPass;
-    if (issuesFilter === "critical")
-      return nonPass.filter((r) => ((r.status ?? "pass") as Status) === "fail");
-    if (issuesFilter === "warning")
-      return nonPass.filter((r) => ((r.status ?? "pass") as Status) === "warn");
-    return [];
-  }, [issuesFilter, sortedResults]);
 
   const fixableResults = useMemo(() => {
     const list = sortedResults.filter((r) => !!r.fix?.patch);
@@ -284,7 +271,7 @@ export function useDiagnosticScreen(opts: {
       const resetSelection = opts?.resetSelection !== false;
       const resetHistory = opts?.resetHistory !== false;
       setResults([]);
-      if (resetSelection) setSelected({});
+      if (resetSelection) clearSelection();
       if (resetHistory) clearHistoryRef.current?.();
       setProgressStage("Checks starten…");
 
