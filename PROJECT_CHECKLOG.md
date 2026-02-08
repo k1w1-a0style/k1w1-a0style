@@ -281,3 +281,40 @@ Next suggested patch areas:
 - Haupt-Risiko wäre ein verlorener Dependency/Closure-Bug → wird durch Typecheck/Jest schnell sichtbar.
 
 **Next (Patch 13):** DiagnosticScreen Phase 5: optionaler Split der CI-Autofix-Logik + kleine Test-Utility Functions (Selection/Filter) mit Unit-Tests.
+
+
+## Patch 13 — DiagnosticScreen Phase 5: CI-Autofix Hook Split
+
+**Ziel:** Die GitHub CI/Workflows Auto-Fix Logik aus `useDiagnosticScreen.ts` herausziehen, damit der Orchestrator nicht noch zusätzlich Repo-Fixing/Secrets-Checks enthält.
+
+**Änderungen:**
+- Neu: `screens/DiagnosticScreen/hooks/useDiagnosticCiAutofix.ts`
+  - kapselt `ciFixing`, `ciFixLog`, `runCiAutofix()`
+  - nutzt weiterhin `lib/diagnostics/ciAutoFix` (`parseOwnerRepo`, `checkRepoSecrets`, `autoFixCIWorkflows`)
+- `useDiagnosticScreen.ts`
+  - entfernt lokale CI-Autofix States/Callback
+  - holt die Werte nun über `useDiagnosticCiAutofix({ linkedRepo, linkedBranch })`
+  - Return-API bleibt identisch (Screen muss nichts ändern)
+
+**Risiko-Check:**
+- Reiner Split (keine neue Logik).
+- Wenn etwas schief läuft, betrifft es nur den CI-Autofix Button/Log im DiagnosticScreen.
+
+**Next:** Optional: Unit-Tests für Selection/IssueFiltering helper, damit weitere Refactors praktisch regressionsfrei sind.
+
+
+## Patch 14 — Fix CI-Autofix Parse Import + Unit-Tests für Selection/Filter
+
+**Ziel:**
+- Build grün halten: fehlenden Import `parseOwnerRepo` in `useDiagnosticScreen.ts` nach dem Split fixen.
+- Regression-Schutz: kleine Unit-Tests für die neuen Hooks `useDiagnosticSelection` und `useDiagnosticIssueFiltering`.
+
+**Änderungen:**
+- `useDiagnosticScreen.ts`: `parseOwnerRepo` Import ergänzt (Quelle: `lib/diagnostics/ciAutoFix`).
+- Neu: `__tests__/diagnosticSelection.test.tsx`
+- Neu: `__tests__/diagnosticIssueFiltering.test.tsx`
+
+**Risiko-Check:**
+- Import-Fix ist risikoarm.
+- Tests sind rein logisch (kein RN UI) und laufen schnell.
+

@@ -9,12 +9,9 @@ import type { TabKey } from "../../../components/diagnostics/SegmentedTabs";
 import type { PreflightCheckResult, PreflightTarget } from "../../../lib/diagnostics/preflightTypes";
 import { runPreflightChecksProgressive } from "../../../lib/diagnostics/preflightRunner";
 import { runBuildPipelineDiagnostics } from "../../../lib/diagnostics/buildPipelineDiagnostics";
+import { parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
 
-import {
-  autoFixCIWorkflows,
-  checkRepoSecrets,
-  parseOwnerRepo,
-} from "../../../lib/diagnostics/ciAutoFix";
+import { useDiagnosticCiAutofix } from "./useDiagnosticCiAutofix";
 
 import { useInlineToast } from "../../../components/diagnostics/useInlineToast";
 import type { IssueDetail } from "../../../components/diagnostics/IssueDetailSheet";
@@ -124,60 +121,10 @@ export function useDiagnosticScreen(opts: {
   } = prefs;
 
   // CI/Workflow autofix (GitHub repo)
-  const [ciFixing, setCiFixing] = useState(false);
-  const [ciFixLog, setCiFixLog] = useState<string | null>(null);
-
-  const runCiAutofix = useCallback(async () => {
-    const parsed = parseOwnerRepo(linkedRepo);
-    if (!parsed) {
-      Alert.alert(
-        "CI/Workflows",
-        "Kein gültiges GitHub Repo verknüpft (erwartet: owner/repo).",
-      );
-      return;
-    }
-    const branch = ((linkedBranch || "main") as string).trim();
-
-    setCiFixing(true);
-    setCiFixLog(null);
-    try {
-      const secrets = await checkRepoSecrets(parsed.owner, parsed.repo);
-      const changes = await autoFixCIWorkflows({
-        owner: parsed.owner,
-        repo: parsed.repo,
-        branch,
-      });
-
-      const changedCount = changes.filter((c) => c.changed).length;
-      const missing = secrets.missing;
-
-      const summaryLines: string[] = [
-        `Repo: ${parsed.owner}/${parsed.repo}`,
-        `Branch: ${branch}`,
-        `Workflow-Files aktualisiert: ${changedCount}/${changes.length}`,
-        missing.length ? `❗ Fehlende Secrets: ${missing.join(", ")}` : `✅ Secrets: OK`,
-        "",
-        "Details:",
-        ...changes.map(
-          (c) => `${c.changed ? "🛠️" : "✅"} ${c.path} — ${c.message}`,
-        ),
-      ];
-
-      const summary = summaryLines.join("\n");
-      setCiFixLog(summary);
-      Alert.alert(
-        "CI/Workflows",
-        missing.length
-          ? "Workflows gefixt. Es fehlen noch Secrets."
-          : "Workflows sind gefixt & Secrets sehen gut aus.",
-      );
-    } catch (e: any) {
-      setCiFixLog(String(e?.message || e));
-      Alert.alert("CI/Workflows", "Fehler beim Fixen: " + String(e?.message || e));
-    } finally {
-      setCiFixing(false);
-    }
-  }, [linkedRepo, linkedBranch]);
+  const { ciFixing, ciFixLog, runCiAutofix } = useDiagnosticCiAutofix({
+    linkedRepo,
+    linkedBranch,
+  });
 
   // Diagnostics run
   const [target, setTarget] = useState<PreflightTarget>({ mode: "expoGo" });
