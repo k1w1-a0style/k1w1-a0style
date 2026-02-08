@@ -208,3 +208,37 @@ Next suggested patch areas:
 - Wenn irgendwas schief läuft, betrifft es zuerst Diagnostics UX (nicht App-Core) → kontrolliertes Risiko.
 
 **Next:** Phase 2 Split: Fix-Runner + AutoFix + Patch-Sync als eigene Hooks (macht die verbleibenden ~1500 Zeilen deutlich kleiner).
+
+
+## Patch 09 — DiagnosticScreen Hook Split (Phase 2: Fix Runner)
+
+**Ziel:** Den verbleibenden größten Side-Effect Block aus `useDiagnosticScreen.ts` auslagern: **Apply Patch / Undo / AutoFix / Fix Selected / Fix Modal / Preview**.
+
+**Änderungen:**
+- Neu: `screens/DiagnosticScreen/hooks/useDiagnosticFixRunner.ts`
+  - Ownt `history` (Undo-Snapshots), Preview-State (PreviewModal), FixRunModal-State
+  - Implementiert: `applyPatch`, `undoLast`, `undoAll`, `applySingle`, `applyIssueFix`, `applyFixList`, `smartFix`, `autoFix`, `applySelected`
+  - GitHub-Sync bleibt bewusst *best-effort* (nur wenn `syncFixesToGitHub` aktiv und Repo gültig).
+  - Optionales `clearHistoryRef`: erlaubt `runDiagnostics()` weiterhin, die Undo-History bei einem Fresh-Run zu resetten, ohne zirkuläre Abhängigkeit.
+- `useDiagnosticScreen.ts`
+  - Stark verkleinert: läuft jetzt als Orchestrator (Prefs + Upload + Run + FixRunner Komposition)
+  - Return-API bleibt kompatibel (Screens/Sections brauchen keine Änderungen)
+
+**Risiko-Check:**
+- Behavior soll gleich bleiben (reiner Split + minimale Plumbing).
+- Kritischster Punkt ist History-Reset: ist über `clearHistoryRef` weiterhin an `runDiagnostics()` gekoppelt.
+- Wenn hier etwas schief läuft, betrifft es Diagnostics-Fixes/UX → schnell sichtbar, aber nicht App-Core.
+
+**Next (Patch 10):** DiagnosticScreen Phase 3: Runner/Preflight Orchestrator weiter splitten (Pipeline/local checks), plus gezieltes Cleanup von ungenutzten States.
+
+
+## Patch 10 — TypeScript Fixes nach Patch 09
+
+**Ziel:** Build wieder grün machen (Typecheck + Husky), ohne Verhalten zu ändern.
+
+**Fixes:**
+- `useDiagnosticFixRunner.ts`: TS-Narrowing über Closure war weg → Patch wird jetzt einmal in `const patch = ...` gecached und dann in allen Callbacks verwendet.
+- `useDiagnosticScreen.ts`: Dependency Array hat `target.profile` direkt referenziert (Union-Typ) → dependency ist jetzt `target.mode === "eas" ? target.profile : undefined`.
+
+**Risiko-Check:**
+- Reiner Typ-/Refactor-Fix. Keine Logikänderung beabsichtigt.
