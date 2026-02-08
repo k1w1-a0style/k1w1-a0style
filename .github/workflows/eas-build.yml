@@ -235,11 +235,8 @@ jobs:
             fi
           fi
 
-          if [ "${{ inputs.profile }}" = "production" ]; then
-            echo "ARTIFACT_EXT=aab" >> "$GITHUB_ENV"
-          else
-            echo "ARTIFACT_EXT=apk" >> "$GITHUB_ENV"
-          fi
+          # APK-only for all profiles (installable artifact)
+          echo "ARTIFACT_EXT=apk" >> "$GITHUB_ENV"
 
           if [ -z "${JOB_ID:-}" ]; then
             echo "has_job_id=false" >> "$GITHUB_ENV"

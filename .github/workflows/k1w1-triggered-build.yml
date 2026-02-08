@@ -172,13 +172,9 @@ jobs:
           echo "PROFILE=$PROFILE" >> "$GITHUB_ENV"
           echo "PROFILE=$PROFILE"
 
-          if [ "$PROFILE" = "production" ]; then
-            echo "ARTIFACT_EXT=aab" >> "$GITHUB_ENV"
-            echo "ARTIFACT_MIME=application/octet-stream" >> "$GITHUB_ENV"
-          else
-            echo "ARTIFACT_EXT=apk" >> "$GITHUB_ENV"
-            echo "ARTIFACT_MIME=application/vnd.android.package-archive" >> "$GITHUB_ENV"
-          fi
+          # APK-only for all profiles (installable artifact)
+          echo "ARTIFACT_EXT=apk" >> "$GITHUB_ENV"
+          echo "ARTIFACT_MIME=application/vnd.android.package-archive" >> "$GITHUB_ENV"
 
 
           if [ "$PROFILE" = "production" ]; then

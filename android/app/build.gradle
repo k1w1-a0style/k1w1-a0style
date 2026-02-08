@@ -103,6 +103,13 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        // IMPORTANT:
+        // - Do NOT sign release builds with the debug keystore.
+        // - EAS Build injects the proper release signing config at build time when using remote/local credentials.
+        // - For local release builds you can provide signing via credentials.json (EAS local credentials) or Gradle properties.
+        release {
+            // Intentionally empty. Filled by EAS or local signing setup.
+        }
     }
     buildTypes {
         debug {
@@ -111,7 +118,7 @@ android {
         release {
             // Caution! In production, you need to generate your own keystore file.
             // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
