@@ -169,6 +169,38 @@ export const styles = StyleSheet.create({
     fontWeight: "900",
     fontSize: 15,
   },
+
+  // Link-Block (Build Ergebnis direkt kopierbar)
+  buildLinkWrap: {
+    marginTop: 10,
+    gap: 10,
+  },
+  buildLinkText: {
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    fontFamily: "monospace",
+  },
+
+  secondaryBtn: {
+    backgroundColor: theme.palette.card,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    borderRadius: 12,
+    minHeight: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  secondaryBtnText: {
+    color: theme.palette.text.primary,
+    fontSize: 14,
+    fontWeight: "600",
+  },
   btnDisabled: { opacity: 0.5 },
 
   warningBox: {

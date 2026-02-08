@@ -1,5 +1,6 @@
 import React from "react";
 import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
+import * as Clipboard from "expo-clipboard";
 
 import { BuildTimelineCard } from "../../../components/build/BuildTimelineCard";
 import { styles } from "../../../styles/enhancedBuildScreenStyles";
@@ -77,22 +78,40 @@ export function BuildStatusSection({
       )}
 
       {!!currentBuild?.urls?.buildUrl && (
-        <TouchableOpacity
-          style={styles.primaryBtn}
-          onPress={() => openRun(currentBuild.urls?.buildUrl || "")}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.primaryBtnText}>
-            {(() => {
-              const u = currentBuild?.urls?.buildUrl || "";
-              const isApk =
-                u.toLowerCase().endsWith(".apk") ||
-                u.includes("/storage/v1/object/") ||
-                u.includes("/storage/v1/object/sign/");
-              return isApk ? "⬇️ APK Download" : "🔗 Build Ergebnis";
-            })()}
-          </Text>
-        </TouchableOpacity>
+        <>
+          <TouchableOpacity
+            style={styles.primaryBtn}
+            onPress={() => openRun(currentBuild.urls?.buildUrl || "")}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.primaryBtnText}>
+              {(() => {
+                const u = currentBuild?.urls?.buildUrl || "";
+                const isApk =
+                  u.toLowerCase().endsWith(".apk") ||
+                  u.includes("/storage/v1/object/") ||
+                  u.includes("/storage/v1/object/sign/");
+                return isApk ? "⬇️ APK Download" : "🔗 Build Ergebnis";
+              })()}
+            </Text>
+          </TouchableOpacity>
+
+          <View style={styles.buildLinkWrap}>
+            <Text style={styles.buildLinkText} selectable>
+              {currentBuild.urls?.buildUrl || ""}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.secondaryBtn}
+              onPress={() =>
+                Clipboard.setStringAsync(currentBuild.urls?.buildUrl || "")
+              }
+              activeOpacity={0.8}
+            >
+              <Text style={styles.secondaryBtnText}>📋 Link kopieren</Text>
+            </TouchableOpacity>
+          </View>
+        </>
       )}
 
       <TouchableOpacity
