@@ -221,6 +221,8 @@ export function useDiagnosticScreen(opts: {
     [projectData?.id],
   );
 
+  const prefSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -297,6 +299,10 @@ export function useDiagnosticScreen(opts: {
   }, [prefKey]);
 
   useEffect(() => {
+  // Debounce preference writes to avoid AsyncStorage spam on rapid toggles.
+  if (prefSaveTimer.current) clearTimeout(prefSaveTimer.current);
+
+  prefSaveTimer.current = setTimeout(() => {
     (async () => {
       try {
         await AsyncStorage.multiSet([
@@ -314,20 +320,26 @@ export function useDiagnosticScreen(opts: {
         // ignore
       }
     })();
-  }, [
-    autoFixIncludeWarn,
-    autoFixScope,
-    includeLocalChecks,
-    includePipelineChecks,
-    prefKey,
-    modeAdvanced,
-    modesAll,
-    selectedModes,
-    rerunAfterFix,
-    syncFixesToGitHub,
-  ]);
+  }, 500);
 
-  // Keep the project's preferred build profile in sync (so Build Screen + Diagnostics agree).
+  return () => {
+    if (prefSaveTimer.current) clearTimeout(prefSaveTimer.current);
+    prefSaveTimer.current = null;
+  };
+}, [
+  autoFixIncludeWarn,
+  autoFixScope,
+  includeLocalChecks,
+  includePipelineChecks,
+  prefKey,
+  modeAdvanced,
+  modesAll,
+  selectedModes,
+  rerunAfterFix,
+  syncFixesToGitHub,
+]);
+
+// Keep the project's preferred build profile in sync (so Build Screen + Diagnostics agree).
   // Only sync when user is in Recommended mode (single selection).
   useEffect(() => {
     if (typeof setPreferredBuildProfile !== "function") return;

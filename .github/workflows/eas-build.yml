@@ -235,7 +235,6 @@ jobs:
             fi
           fi
 
-          # APK-only for all profiles (installable artifact)
           echo "ARTIFACT_EXT=apk" >> "$GITHUB_ENV"
 
           if [ -z "${JOB_ID:-}" ]; then
@@ -358,26 +357,37 @@ jobs:
             --data "${BODY}")"
       
           echo "$RESP" | node - <<'NODE'
-          const fs = require("fs");
-          const resp = JSON.parse(fs.readFileSync(0, "utf8"));
-          if (!resp.ok) {
-            console.error("❌ export failed:", resp);
-            process.exit(1);
-          }
-          fs.writeFileSync("android-upload-keystore.p12", Buffer.from(resp.keystoreBase64, "base64"));
-          const creds = {
-            android: {
-              keystore: {
-                keystorePath: "android-upload-keystore.p12",
-                keystorePassword: resp.keystorePassword,
-                keyAlias: resp.alias,
-                keyPassword: resp.keyPassword,
-              },
-            },
-          };
-          fs.writeFileSync("credentials.json", JSON.stringify(creds, null, 2));
-          console.log("✅ wrote android-upload-keystore.p12 + credentials.json (alias=" + resp.alias + ")");
-          NODE
+const fs = require("fs");
+
+function mask(s) {
+  if (!s) return "";
+  if (typeof s !== "string") s = String(s);
+  if (s.length <= 6) return "***";
+  return s.slice(0, 2) + "***" + s.slice(-2);
+}
+
+const resp = JSON.parse(fs.readFileSync(0, "utf8"));
+if (!resp.ok) {
+  console.error("❌ export failed:", resp.error || "unknown error");
+  process.exit(1);
+}
+
+fs.writeFileSync("android-upload-keystore.p12", Buffer.from(resp.keystoreBase64, "base64"), { mode: 0o600 });
+
+const creds = {
+  android: {
+    keystore: {
+      keystorePath: "android-upload-keystore.p12",
+      keystorePassword: resp.keystorePassword,
+      keyAlias: resp.alias,
+      keyPassword: resp.keyPassword,
+    },
+  },
+};
+
+fs.writeFileSync("credentials.json", JSON.stringify(creds, null, 2), { mode: 0o600 });
+console.log("✅ wrote signing files (alias=" + (resp.alias || "unknown") + ", pw=" + mask(resp.keystorePassword) + ")");
+NODE
 
       - name: Update Build Status - Building
         if: env.has_job_id == 'true'

@@ -30,58 +30,36 @@ jobs:
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_CLI_VERSION: "16.32.0"
+
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       K1W1_EDGE_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ADMIN_KEY }}
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Detect lockfile (for cache + install strategy)
-        id: lock
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -f package-lock.json ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
-          elif [ -f npm-shrinkwrap.json ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
-          elif [ -f yarn.lock ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
-          elif [ -f pnpm-lock.yaml ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Setup Node (with npm cache)
-        if: steps.lock.outputs.has_lockfile == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
+          cache-dependency-path: package-lock.json
 
-      - name: Setup Node (no cache - lockfile missing)
-        if: steps.lock.outputs.has_lockfile != 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 20
-
-      - name: Validate secrets
+      - name: Validate secrets + inputs
         shell: bash
         run: |
           set -euo pipefail
+
+          case "${{ inputs.profile }}" in
+            development|preview|production) ;;
+            *) echo "::error::Invalid profile: '${{ inputs.profile }}'"; exit 1 ;;
+          esac
+
           if [ -z "${EXPO_TOKEN:-}" ]; then
             echo "::error::Missing GitHub Secret EXPO_TOKEN"
             exit 1
@@ -94,61 +72,57 @@ jobs:
             fi
           fi
 
-          echo "Using profile='${{ inputs.profile }}', ref='${{ inputs.ref }}'"
-
       - name: Install deps (reproducible when possible)
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
+          if [ -f package-lock.json ]; then
             npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
           else
-            echo "::warning::No lockfile found. Falling back to npm install."
             npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
           fi
 
-      - name: Ensure expo-dev-client for development builds
-        if: inputs.profile == 'development'
+      - name: Install EAS CLI
         shell: bash
         run: |
           set -euo pipefail
-          if node -e 'const p=require("./package.json"); const d={...(p.dependencies||{}),...(p.devDependencies||{})}; process.exit(d["expo-dev-client"]?0:1)'; then
-            echo "expo-dev-client already present."
-          else
-            npx --yes expo install expo-dev-client
-          fi
-
-      - name: Install EAS CLI (pinned)
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm i -g "eas-cli@${EAS_CLI_VERSION}"
+          npm i -g eas-cli@${EAS_CLI_VERSION}
           eas --version
-
-      - name: Verify EAS authentication
-        shell: bash
-        run: |
-          set -euo pipefail
           eas whoami
 
-      - name: Fetch Android keystore (production only)
+      - name: Export Android signing files (production only)
         if: inputs.profile == 'production'
         shell: bash
         run: |
           set -euo pipefail
-          echo "🔑 Fetching Android keystore from Supabase (production)..."
-          BODY="{"repo":"${GITHUB_REPOSITORY}","mode":"production"}"
 
-          RESP="$(curl -fsS -X POST "${SUPABASE_URL}/functions/v1/android-keystore-export"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             ${K1W1_EDGE_ADMIN_KEY:+-H "x-k1w1-admin-key: ${K1W1_EDGE_ADMIN_KEY}"}             --data "${BODY}")"
+          BODY="$(node - <<'NODE'
+          const payload = { repo: process.env.GITHUB_REPOSITORY, mode: "production" };
+          process.stdout.write(JSON.stringify(payload));
+          NODE
+          )"
+
+          RESP="$(curl -fsS -X POST "${SUPABASE_URL%/}/functions/v1/android-keystore-export"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             ${K1W1_EDGE_ADMIN_KEY:+-H "x-k1w1-admin-key: ${K1W1_EDGE_ADMIN_KEY}"}             --data "${BODY}")"
 
           echo "$RESP" | node - <<'NODE'
           const fs = require("fs");
+
+          function mask(s) {
+            if (!s) return "";
+            if (typeof s !== "string") s = String(s);
+            if (s.length <= 6) return "***";
+            return s.slice(0, 2) + "***" + s.slice(-2);
+          }
+
           const resp = JSON.parse(fs.readFileSync(0, "utf8"));
           if (!resp.ok) {
-            console.error("❌ export failed:", resp);
+            // Don't dump full response (may include secrets).
+            console.error("❌ export failed:", resp.error || "unknown error");
             process.exit(1);
           }
-          fs.writeFileSync("android-upload-keystore.p12", Buffer.from(resp.keystoreBase64, "base64"));
+
+          fs.writeFileSync("android-upload-keystore.p12", Buffer.from(resp.keystoreBase64, "base64"), { mode: 0o600 });
+
           const creds = {
             android: {
               keystore: {
@@ -159,8 +133,9 @@ jobs:
               },
             },
           };
-          fs.writeFileSync("credentials.json", JSON.stringify(creds, null, 2));
-          console.log("✅ wrote android-upload-keystore.p12 + credentials.json (alias=" + resp.alias + ")");
+
+          fs.writeFileSync("credentials.json", JSON.stringify(creds, null, 2), { mode: 0o600 });
+          console.log("✅ wrote signing files (alias=" + (resp.alias || "unknown") + ", pw=" + mask(resp.keystorePassword) + ")");
           NODE
 
       - name: Run EAS build (WAIT)
@@ -168,18 +143,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
           PROFILE="${{ inputs.profile }}"
-          echo "artifact_ext=apk" >> "${GITHUB_OUTPUT}"
+          EXT="apk"
+          echo "artifact_ext=${EXT}" >> "${GITHUB_OUTPUT}"
 
           echo "🚀 Starting EAS build (platform=android, profile=${PROFILE}) with --wait..."
-          eas build --platform android --profile "${PROFILE}" --non-interactive --wait 2>&1 | tee /tmp/eas_build.log
+          BUILD_OUTPUT="$(eas build --platform android --profile "${PROFILE}" --non-interactive --wait 2>&1)" || {
+            CODE=$?
+            echo "${BUILD_OUTPUT}"
+            echo "::error::EAS build failed (exit ${CODE})"
+            exit "${CODE}"
+          }
+
+          echo "${BUILD_OUTPUT}"
 
           UUID_RE='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
-          BUILD_ID="$(grep -Eo "${UUID_RE}" /tmp/eas_build.log | head -n 1 || true)"
-          BUILD_URL="$(grep -Eo "https://expo\.dev/[^ ]+/builds/${UUID_RE}" /tmp/eas_build.log | tail -n 1 || true)"
+          BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oE "${UUID_RE}" | head -n1 || true)"
+          if [ -z "${BUILD_ID}" ]; then BUILD_ID="unknown"; fi
+          echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
 
-          echo "build_id=${BUILD_ID:-unknown}" >> "${GITHUB_OUTPUT}"
-          echo "build_url=${BUILD_URL:-}" >> "${GITHUB_OUTPUT}"
+          BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oE "https://expo.dev[^[:space:]]*/builds/${UUID_RE}" | head -n1 || true)"
+          echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"
 
       - name: Download Android Artifact
         if: steps.eas.outputs.build_id != 'unknown' && steps.eas.outputs.build_id != ''
@@ -188,24 +173,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build
-          OUT="build/k1w1-${{ inputs.profile }}.apk"
-          eas build:download --id "${{ steps.eas.outputs.build_id }}" --output "${OUT}" --non-interactive || {
+          OUT="build/k1w1-${{ inputs.profile }}.${{ steps.eas.outputs.artifact_ext }}"
+          eas build:download --id "${{ steps.eas.outputs.build_id }}" --output "${OUT}" || {
             echo "::warning::Failed to download artifact"
             exit 0
           }
           ls -lah build || true
-
-      - name: Upload Android Artifact
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb0d8b62a3 # v4.6.0
-        with:
-          name: k1w1-android-${{ inputs.profile }}-${{ github.run_number }}
-          path: |
-            build/*
-            /tmp/eas_build.log
-          retention-days: 30
-          if-no-files-found: warn
 
       - name: Cleanup signing files
         if: always()
@@ -213,21 +186,20 @@ jobs:
         run: |
           rm -f credentials.json android-upload-keystore.p12 || true
 
+      - name: Upload Android Artifact
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb0d8b62a3 # v4
+        with:
+          name: k1w1-android-${{ inputs.profile }}-${{ github.run_number }}
+          path: build/*
+          retention-days: 30
+          if-no-files-found: warn
+
       - name: Summary
         if: always()
         shell: bash
         run: |
-          set -euo pipefail
-          {
-            echo "## Release Build Summary"
-            echo ""
-            echo "- Ref: ${{ inputs.ref }}"
-            echo "- Profile: ${{ inputs.profile }}"
-            echo "- Commit: $(git rev-parse HEAD)"
-            echo "- Lockfile present: ${{ steps.lock.outputs.has_lockfile }}"
-            echo "- EAS CLI: $(eas --version 2>/dev/null || echo unknown)"
-            echo "- Build ID: ${{ steps.eas.outputs.build_id }}"
-            echo "- Build URL: ${{ steps.eas.outputs.build_url }}"
-            echo ""
-            echo "Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Profile: ${{ inputs.profile }}"
+          echo "Build URL: ${{ steps.eas.outputs.build_url }}"
+          echo "Build ID: ${{ steps.eas.outputs.build_id }}"

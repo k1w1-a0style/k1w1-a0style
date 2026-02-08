@@ -1,0 +1,58 @@
+name: Determine Checkout Ref
+description: Pick a safe git ref to checkout from workflow inputs / repository_dispatch payload.
+inputs:
+  payload_branch:
+    description: repository_dispatch client_payload.branch
+    required: false
+    default: ""
+  payload_ref:
+    description: repository_dispatch client_payload.ref
+    required: false
+    default: ""
+  input_ref:
+    description: workflow_dispatch inputs.ref
+    required: false
+    default: ""
+  github_ref_name:
+    description: github.ref_name
+    required: false
+    default: ""
+  default_ref:
+    description: Fallback ref if everything else is empty
+    required: false
+    default: "main"
+  allowed_ref_regex:
+    description: Bash regex for allowed refs (defense against injection)
+    required: false
+    default: "^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$"
+
+outputs:
+  checkout_ref:
+    description: The chosen ref to checkout
+    value: ${{ steps.pick.outputs.checkout_ref }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: pick
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        REF="${{ inputs.payload_branch }}"
+        if [ -z "$REF" ]; then REF="${{ inputs.payload_ref }}"; fi
+        if [ -z "$REF" ]; then REF="${{ inputs.input_ref }}"; fi
+        if [ -z "$REF" ]; then REF="${{ inputs.github_ref_name }}"; fi
+        if [ -z "$REF" ]; then REF="${{ inputs.default_ref }}"; fi
+
+        # Trim CR/LF (copy/paste + payload weirdness)
+        REF="$(printf '%s' "$REF" | tr -d '\r\n')"
+
+        ALLOWED="${{ inputs.allowed_ref_regex }}"
+        if ! [[ "$REF" =~ $ALLOWED ]]; then
+          echo "❌ Ref not allowed: $REF"
+          exit 1
+        fi
+
+        echo "checkout_ref=$REF" >> "$GITHUB_OUTPUT"
+        echo "CHECKOUT_REF=$REF"

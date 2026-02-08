@@ -114,6 +114,7 @@ export function useCredentialsWizardScreen() {
   const [showError, setShowError] = useState(false);
 
   const runningRef = useRef(false);
+  const runningAllRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -179,65 +180,81 @@ export function useCredentialsWizardScreen() {
     return { icon: "help-circle-outline" as const, text: "unbekannt", color: paletteTextMuted() };
   }
 
-  async function refreshStatus(mode: UiModeId) {
-    if (!canRun) {
-      Alert.alert("Fehlt was", "Supabase URL, Repo oder Admin-Key fehlen. Bitte erst oben setzen.");
+  async function refreshStatusCore(mode: UiModeId, opts?: { setBusy?: boolean }) {
+  const setBusyFlag = opts?.setBusy !== false;
+
+  setLastError(null);
+  setLastDebug(null);
+  if (setBusyFlag) setBusy(`status:${mode}`);
+
+  try {
+    const apiMode = normalizeModeForApi(mode);
+    const r = await invokeEdgeJson(supabaseUrl, "android-keystore-status", adminKey, {
+      repo: repoFullName,
+      mode: apiMode,
+    });
+
+    setLastDebug(r.debug);
+    if (!r.ok) {
+      setLastError(r.error);
+      setStatusByMode((prev) => ({ ...prev, [mode]: { exists: false } }));
       return;
     }
 
-    // Prevent stacked calls on bad networks.
-    if (runningRef.current) return;
-    runningRef.current = true;
-
-    setBusy(`status:${mode}`);
-    setLastError(null);
-    setLastDebug(null);
-
-    try {
-      const apiMode = normalizeModeForApi(mode);
-      const r = await invokeEdgeJson(supabaseUrl, "android-keystore-status", adminKey, {
-        repo: repoFullName,
-        mode: apiMode,
-      });
-
-      setLastDebug(r.debug);
-      if (!r.ok) {
-        setLastError(r.error);
-        setStatusByMode((prev) => ({ ...prev, [mode]: { exists: false } }));
-        return;
-      }
-
-      const data = r.data as StatusResult;
-      setStatusByMode((prev) => ({ ...prev, [mode]: data }));
-    } catch (e: any) {
-      setLastError(e?.message ?? String(e));
-    } finally {
-      runningRef.current = false;
-      setBusy(null);
-    }
+    const data = r.data as StatusResult;
+    setStatusByMode((prev) => ({ ...prev, [mode]: data }));
+  } catch (e: any) {
+    setLastError(e?.message ?? String(e));
+  } finally {
+    if (setBusyFlag) setBusy(null);
   }
+}
+
+  async function refreshStatus(mode: UiModeId) {
+  if (!canRun) {
+    Alert.alert("Fehlt was", "Supabase URL, Repo oder Admin-Key fehlen. Bitte erst oben setzen.");
+    return;
+  }
+
+  // Prevent stacked calls on bad networks.
+  if (runningRef.current) return;
+  runningRef.current = true;
+
+  try {
+    await refreshStatusCore(mode, { setBusy: true });
+  } finally {
+    runningRef.current = false;
+  }
+}
 
   async function refreshAll() {
-    if (!canRun) {
-      Alert.alert("Fehlt was", "Supabase URL, Repo oder Admin-Key fehlen. Bitte erst oben setzen.");
-      return;
-    }
-    setBusy("status:all");
-    setLastError(null);
-    setLastDebug(null);
-
-    try {
-      // sequential, stable, avoids rate-limit bursts
-      // eslint-disable-next-line no-restricted-syntax
-      for (const m of MODES) {
-        // eslint-disable-next-line no-await-in-loop
-        await refreshStatus(m.id);
-      }
-      toast.show("Status aktualisiert");
-    } finally {
-      setBusy(null);
-    }
+  if (!canRun) {
+    Alert.alert("Fehlt was", "Supabase URL, Repo oder Admin-Key fehlen. Bitte erst oben setzen.");
+    return;
   }
+
+  // Separate guard so refreshAll doesn't deadlock with refreshStatus' guard.
+  if (runningAllRef.current) return;
+  runningAllRef.current = true;
+
+  setBusy("status:all");
+  setLastError(null);
+  setLastDebug(null);
+
+  try {
+    // Sequential to avoid rate-limit bursts (stable).
+    // eslint-disable-next-line no-restricted-syntax
+    for (const m of MODES) {
+      // eslint-disable-next-line no-await-in-loop
+      await refreshStatusCore(m.id, { setBusy: false });
+    }
+    toast.show("Status aktualisiert");
+  } finally {
+    runningAllRef.current = false;
+    setBusy(null);
+  }
+}
+
 
   async function generate(mode: UiModeId) {
     if (!canRun) {
