@@ -29,8 +29,9 @@ permissions:
   contents: read
 
 env:
-  EAS_CLI_VERSION: "16.0.0"
+  EAS_CLI_VERSION: "16.32.0"
   ARTIFACT_EXT: "apk"
+  ARTIFACT_MIME: "application/vnd.android.package-archive"
   ALLOWED_REF_REGEX: "^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$"
 
 jobs:
@@ -62,13 +63,13 @@ jobs:
           echo "CHECKOUT_REF=$REF"
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
 
@@ -115,7 +116,7 @@ jobs:
           git push
 
   build:
-    name: Build APK (EAS)
+    name: Build Android Artifact (EAS)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -171,14 +172,30 @@ jobs:
           echo "PROFILE=$PROFILE" >> "$GITHUB_ENV"
           echo "PROFILE=$PROFILE"
 
+          if [ "$PROFILE" = "production" ]; then
+            echo "ARTIFACT_EXT=aab" >> "$GITHUB_ENV"
+            echo "ARTIFACT_MIME=application/octet-stream" >> "$GITHUB_ENV"
+          else
+            echo "ARTIFACT_EXT=apk" >> "$GITHUB_ENV"
+            echo "ARTIFACT_MIME=application/vnd.android.package-archive" >> "$GITHUB_ENV"
+          fi
+
+
+          if [ "$PROFILE" = "production" ]; then
+            if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+              echo "::error::Production build requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (for local keystore injection)."
+              exit 1
+            fi
+          fi
+
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
 
@@ -216,7 +233,7 @@ jobs:
           set -euo pipefail
           eas whoami
 
-      - name: Update Supabase job: running
+      - name: "Update Supabase job: running"
         if: ${{ env.JOB_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
         shell: bash
         run: |
@@ -249,54 +266,8 @@ jobs:
           set -euo pipefail
           # Prevents: "EAS project not configured" in CI (no manual terminal steps required)
           eas project:init --force --non-interactive
-
-
-      - name: Prepare production signing (Supabase keystore export)
-        if: env.PROFILE == 'production'
-        shell: bash
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          K1W1_EDGE_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ADMIN_KEY }}
-        run: |
-          set -euo pipefail
-          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
-            echo "::error::Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY (required for signing)."
-            exit 1
-          fi
-          echo "🔐 Fetching Android keystore for repo '${GITHUB_REPOSITORY}' from Supabase..."
-          mkdir -p android/keystores
-          BODY="{\"repo\":\"${GITHUB_REPOSITORY}\",\"profile\":\"${BUILD_PROFILE}\",\"mode\":\"${BUILD_PROFILE}\"}"
-          RESP="$(curl -fsS -X POST "${SUPABASE_URL}/functions/v1/android-keystore-export" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Content-Type: application/json" \
-            ${K1W1_EDGE_ADMIN_KEY:+-H "x-k1w1-admin-key: ${K1W1_EDGE_ADMIN_KEY}"} \
-            --data "${BODY}")"
-          export RESP
-          node - <<'NODE'
-          const fs = require('fs');
-          const resp = JSON.parse(process.env.RESP || '{}');
-          if (!resp.ok) {
-            console.error('Keystore export failed:', resp);
-            process.exit(1);
-          }
-          fs.writeFileSync('android/keystores/release.keystore', Buffer.from(resp.keystoreBase64, 'base64'));
-          const credentials = {
-            android: {
-              keystore: {
-                keystorePath: 'android/keystores/release.keystore',
-                keystorePassword: resp.keystorePassword,
-                keyAlias: resp.alias,
-                keyPassword: resp.keyPassword,
-              },
-            },
-          };
-          fs.writeFileSync('credentials.json', JSON.stringify(credentials, null, 2));
-          console.log(`✅ Wrote credentials.json (alias=${resp.alias})`);
-          NODE
       - name: Fetch Android keystore (CI-only)
-        if: ${{ env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
+        if: ${{ env.PROFILE == 'production' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
         run: |
           set -euo pipefail
           echo "🔑 Fetching Android keystore from Supabase (CI-only)..."
@@ -338,7 +309,8 @@ jobs:
           };
           fs.writeFileSync("credentials.json", JSON.stringify(creds, null, 2));
           console.log("✅ wrote android-upload-keystore.p12 + credentials.json (alias=" + resp.alias + ")");
-NODE
+          NODE
+
 
       - name: Run EAS Build (WAIT)
         id: eas
@@ -363,13 +335,13 @@ NODE
 
           exit $EC
 
-      - name: Download Android APK
+      - name: Download Android Artifact
         if: ${{ success() && env.EAS_BUILD_ID != '' }}
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p build
-          OUT="build/apk-${{ github.run_id }}-${PROFILE}.${ARTIFACT_EXT}"
+          OUT="build/android-${{ github.run_id }}-${PROFILE}.${ARTIFACT_EXT}"
           for i in 1 2 3 4 5; do
             if eas build:download --id "${EAS_BUILD_ID}" --output "${OUT}" --non-interactive; then
               break
@@ -383,40 +355,35 @@ NODE
           echo "ARTIFACT_SIZE=$(wc -c < "${OUT}" | tr -d ' ')" >> "$GITHUB_ENV"
 
       - name: Cleanup signing files
-        if: env.PROFILE == 'production'
+        if: always()
         shell: bash
         run: |
-          rm -f credentials.json android/keystores/release.keystore || true
-      - name: Upload APK to Supabase Storage (download_url)
+          rm -f credentials.json android-upload-keystore.p12 keystore_export.json || true
+      - name: Upload Android Artifact to Supabase Storage (download_url)
         if: ${{ success() && env.EAS_BUILD_ID != '' && env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' }}
         shell: bash
         run: |
           set -euo pipefail
 
-          APK_PATH="build/${ARTIFACT_NAME:-}"
-          if [ -z "${APK_PATH}" ] || [ ! -f "${APK_PATH}" ]; then
-            APK_PATH="$(ls -1 build/*.apk 2>/dev/null | head -n 1 || true)"
+          ART_PATH="build/${ARTIFACT_NAME:-}"
+          if [ -z "${ART_PATH}" ] || [ ! -f "${ART_PATH}" ]; then
+            ART_PATH="$(ls -1 build/*.${ARTIFACT_EXT} 2>/dev/null | head -n 1 || true)"
           fi
-          if [ -z "${APK_PATH}" ] || [ ! -f "${APK_PATH}" ]; then
-            echo "No APK file found to upload"
+          if [ -z "${ART_PATH}" ] || [ ! -f "${ART_PATH}" ]; then
+            echo "No Android artifact file found to upload"
             exit 1
           fi
 
           BUCKET="${SUPABASE_APK_BUCKET:-apk-builds}"
-          OBJ_PATH="${GITHUB_REPOSITORY}/${CHECKOUT_REF}/${PROFILE}/apk-${GITHUB_RUN_ID}.apk"
+          OBJ_PATH="${GITHUB_REPOSITORY}/${CHECKOUT_REF}/${PROFILE}/artifact-${GITHUB_RUN_ID}.${ARTIFACT_EXT}"
 
-          echo "Uploading ${APK_PATH} to bucket=${BUCKET} path=${OBJ_PATH}"
+          echo "Uploading ${ART_PATH} to bucket=${BUCKET} path=${OBJ_PATH}"
 
-          curl -fsS -X POST "${SUPABASE_URL}/storage/v1/object/${BUCKET}/${OBJ_PATH}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/vnd.android.package-archive"             -H "x-upsert: true"             --data-binary "@${APK_PATH}"
+          curl -fsS -X POST "${SUPABASE_URL}/storage/v1/object/${BUCKET}/${OBJ_PATH}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: ${ARTIFACT_MIME}"             -H "x-upsert: true"             --data-binary "@${ART_PATH}"
 
           SIGNED_JSON="$(curl -fsS -X POST "${SUPABASE_URL}/storage/v1/object/sign/${BUCKET}/${OBJ_PATH}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             --data '{"expiresIn":604800}')"
 
-          SIGNED_PATH="$(python - <<'PY'
-import json, sys
-data=json.loads(sys.stdin.read() or "{}")
-print(data.get("signedURL") or data.get("signedUrl") or "")
-PY
-<<< "${SIGNED_JSON}")"
+          SIGNED_PATH="$(node -e 'const d=JSON.parse(process.argv[1]||"{}"); process.stdout.write(String(d.signedURL||d.signedUrl||""))' "${SIGNED_JSON}")"
 
           if [ -z "${SIGNED_PATH}" ]; then
             echo "Could not create signed URL"
@@ -434,9 +401,9 @@ PY
           echo "DOWNLOAD_URL=${DOWNLOAD_URL}"
 
       - name: Upload Artifacts (APK + EAS log)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb0d8b62a3 # v4.6.0
         with:
-          name: apk-${{ github.repository }}-${{ env.CHECKOUT_REF }}-${{ env.PROFILE }}-${{ github.run_id }}
+          name: android-${{ github.repository }}-${{ env.CHECKOUT_REF }}-${{ env.PROFILE }}-${{ github.run_id }}
           path: |
             build/*
             /tmp/eas_build.log

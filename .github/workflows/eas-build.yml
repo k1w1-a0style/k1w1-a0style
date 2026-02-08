@@ -51,7 +51,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: 🧹 Preflight: clean incomplete native dirs
+      - name: "🧹 Preflight: clean incomplete native dirs"
         shell: bash
         run: |
           set -euo pipefail
@@ -229,6 +229,13 @@ jobs:
           fi
 
           if [ "${{ inputs.profile }}" = "production" ]; then
+            if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+              echo "::error::Production build requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (local Android keystore)."
+              exit 1
+            fi
+          fi
+
+          if [ "${{ inputs.profile }}" = "production" ]; then
             echo "ARTIFACT_EXT=aab" >> "$GITHUB_ENV"
           else
             echo "ARTIFACT_EXT=apk" >> "$GITHUB_ENV"
@@ -251,7 +258,7 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
 
-      - name: 🧹 Preflight: clean incomplete native dirs
+      - name: "🧹 Preflight: clean incomplete native dirs"
         shell: bash
         run: |
           set -euo pipefail
@@ -336,6 +343,45 @@ jobs:
           set -euo pipefail
           eas whoami
 
+      - name: Fetch Android keystore (production only)
+        if: ${{ inputs.profile == 'production' }}
+        shell: bash
+        env:
+          K1W1_EDGE_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ADMIN_KEY }}
+        run: |
+          set -euo pipefail
+          echo "🔑 Fetching Android keystore from Supabase (production)..."
+          BODY="{\"repo\":\"${GITHUB_REPOSITORY}\",\"mode\":\"production\"}"
+      
+          RESP="$(curl -fsS -X POST "${SUPABASE_URL}/functions/v1/android-keystore-export" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            ${K1W1_EDGE_ADMIN_KEY:+-H "x-k1w1-admin-key: ${K1W1_EDGE_ADMIN_KEY}"} \
+            --data "${BODY}")"
+      
+          echo "$RESP" | node - <<'NODE'
+          const fs = require("fs");
+          const resp = JSON.parse(fs.readFileSync(0, "utf8"));
+          if (!resp.ok) {
+            console.error("❌ export failed:", resp);
+            process.exit(1);
+          }
+          fs.writeFileSync("android-upload-keystore.p12", Buffer.from(resp.keystoreBase64, "base64"));
+          const creds = {
+            android: {
+              keystore: {
+                keystorePath: "android-upload-keystore.p12",
+                keystorePassword: resp.keystorePassword,
+                keyAlias: resp.alias,
+                keyPassword: resp.keyPassword,
+              },
+            },
+          };
+          fs.writeFileSync("credentials.json", JSON.stringify(creds, null, 2));
+          console.log("✅ wrote android-upload-keystore.p12 + credentials.json (alias=" + resp.alias + ")");
+          NODE
+
       - name: Update Build Status - Building
         if: env.has_job_id == 'true'
         shell: bash
@@ -394,6 +440,15 @@ jobs:
               exit 0
             }
           ls -lah build || true
+
+      
+
+
+      - name: Cleanup signing files
+        if: always()
+        shell: bash
+        run: |
+          rm -f credentials.json android-upload-keystore.p12 || true
 
       - name: Upload Artifact
         if: always()

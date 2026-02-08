@@ -81,9 +81,6 @@ export const validateFilePath = (path: string): { valid: boolean; errors: string
   if (normalized === 'node_modules' || normalized.startsWith('node_modules/')) {
     errors.push('node_modules ist nicht erlaubt');
   }
-  if (normalized === 'android' || normalized.startsWith('android/')) {
-    errors.push('android ist nicht erlaubt');
-  }
   if (normalized === 'ios' || normalized.startsWith('ios/')) {
     errors.push('ios ist nicht erlaubt');
   }

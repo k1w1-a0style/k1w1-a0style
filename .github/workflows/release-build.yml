@@ -29,7 +29,11 @@ jobs:
 
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-      EAS_CLI_VERSION: "16.0.0"
+      EAS_CLI_VERSION: "16.32.0"
+
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      K1W1_EDGE_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ADMIN_KEY }}
 
     steps:
       - name: Checkout repository
@@ -86,6 +90,14 @@ jobs:
             exit 1
           fi
           echo "✅ EXPO_TOKEN present (len=${#EXPO_TOKEN})"
+
+          if [ "${{ inputs.profile }}" = "production" ]; then
+            if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+              echo "::error::Production profile uses local Android credentials. Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY."
+              exit 1
+            fi
+          fi
+
           echo "Using profile='${{ inputs.profile }}', ref='${{ inputs.ref }}'"
 
       - name: Install deps (reproducible when possible)
@@ -127,6 +139,43 @@ jobs:
         run: |
           set -euo pipefail
           eas whoami
+
+      - name: Fetch Android keystore (production only)
+        if: inputs.profile == 'production'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "🔑 Fetching Android keystore from Supabase (production)..."
+          BODY="{\"repo\":\"${GITHUB_REPOSITORY}\",\"mode\":\"production\"}"
+      
+          RESP="$(curl -fsS -X POST "${SUPABASE_URL}/functions/v1/android-keystore-export" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            ${K1W1_EDGE_ADMIN_KEY:+-H "x-k1w1-admin-key: ${K1W1_EDGE_ADMIN_KEY}"} \
+            --data "${BODY}")"
+      
+          echo "$RESP" | node - <<'NODE'
+          const fs = require("fs");
+          const resp = JSON.parse(fs.readFileSync(0, "utf8"));
+          if (!resp.ok) {
+            console.error("❌ export failed:", resp);
+            process.exit(1);
+          }
+          fs.writeFileSync("android-upload-keystore.p12", Buffer.from(resp.keystoreBase64, "base64"));
+          const creds = {
+            android: {
+              keystore: {
+                keystorePath: "android-upload-keystore.p12",
+                keystorePassword: resp.keystorePassword,
+                keyAlias: resp.alias,
+                keyPassword: resp.keyPassword,
+              },
+            },
+          };
+          fs.writeFileSync("credentials.json", JSON.stringify(creds, null, 2));
+          console.log("✅ wrote android-upload-keystore.p12 + credentials.json (alias=" + resp.alias + ")");
+          NODE
 
       - name: Run EAS build (WAIT)
         id: eas
@@ -170,53 +219,59 @@ jobs:
           }
           ls -lah build || true
 
-      - name: Upload Android Artifact
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb0d8b62a3 # v4
-        with:
-          name: k1w1-android-${{ inputs.profile }}-${{ github.run_number }}
-          path: build/*
-          retention-days: 30
-          if-no-files-found: warn
+      
 
-      - name: Persist generated lockfile / dev-client changes (optional)
+      - name: Cleanup signing files
         if: always()
         shell: bash
         run: |
-          set -euo pipefail
-          if [ -z "$(git status --porcelain)" ]; then
-            echo "No repo changes to persist."
-            exit 0
-          fi
-
-          BRANCH="$(git symbolic-ref --short -q HEAD || true)"
-          if [ -z "$BRANCH" ]; then
-            echo "::warning::Detached HEAD -> not pushing changes."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json eas-project.json 2>/dev/null || true
-          git commit -m "chore(ci): persist build deps [skip ci]" || true
-          git push origin "$BRANCH" || true
-
-      - name: Summary
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          {
-            echo "## Release Build Summary"
-            echo ""
-            echo "- Ref: ${{ inputs.ref }}"
-            echo "- Profile: ${{ inputs.profile }}"
-            echo "- Checked out: $(git rev-parse HEAD)"
-            echo "- Lockfile present: ${{ steps.lock.outputs.has_lockfile }}"
-            echo "- EAS CLI: $(eas --version 2>/dev/null || echo unknown)"
-            echo "- Build ID: ${{ steps.eas.outputs.build_id }}"
-            echo "- Build URL: ${{ steps.eas.outputs.build_url }}"
-            echo ""
-            echo "Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          } >> "$GITHUB_STEP_SUMMARY"
+          rm -f credentials.json android-upload-keystore.p12 || true- name: Upload Android Artifact
+              if: always()
+              continue-on-error: true
+              uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb0d8b62a3 # v4
+              with:
+                name: k1w1-android-${{ inputs.profile }}-${{ github.run_number }}
+                path: build/*
+                retention-days: 30
+                if-no-files-found: warn
+      
+            - name: Persist generated lockfile / dev-client changes (optional)
+              if: always()
+              shell: bash
+              run: |
+                set -euo pipefail
+                if [ -z "$(git status --porcelain)" ]; then
+                  echo "No repo changes to persist."
+                  exit 0
+                fi
+      
+                BRANCH="$(git symbolic-ref --short -q HEAD || true)"
+                if [ -z "$BRANCH" ]; then
+                  echo "::warning::Detached HEAD -> not pushing changes."
+                  exit 0
+                fi
+      
+                git config user.name "github-actions[bot]"
+                git config user.email "github-actions[bot]@users.noreply.github.com"
+                git add package.json package-lock.json eas-project.json 2>/dev/null || true
+                git commit -m "chore(ci): persist build deps [skip ci]" || true
+                git push origin "$BRANCH" || true
+      
+            - name: Summary
+              if: always()
+              shell: bash
+              run: |
+                set -euo pipefail
+                {
+                  echo "## Release Build Summary"
+                  echo ""
+                  echo "- Ref: ${{ inputs.ref }}"
+                  echo "- Profile: ${{ inputs.profile }}"
+                  echo "- Checked out: $(git rev-parse HEAD)"
+                  echo "- Lockfile present: ${{ steps.lock.outputs.has_lockfile }}"
+                  echo "- EAS CLI: $(eas --version 2>/dev/null || echo unknown)"
+                  echo "- Build ID: ${{ steps.eas.outputs.build_id }}"
+                  echo "- Build URL: ${{ steps.eas.outputs.build_url }}"
+                  echo ""
+                  echo "Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+                } >> "$GITHUB_STEP_SUMMARY"

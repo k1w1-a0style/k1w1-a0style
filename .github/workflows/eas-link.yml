@@ -30,7 +30,7 @@ jobs:
 
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-      EAS_CLI_VERSION: "16.0.0"
+      EAS_CLI_VERSION: "16.32.0"
       EAS_PROJECT_ID_INPUT: ${{ inputs.eas_project_id }}
       EXPO_OWNER_INPUT: ${{ inputs.expo_owner }}
 
