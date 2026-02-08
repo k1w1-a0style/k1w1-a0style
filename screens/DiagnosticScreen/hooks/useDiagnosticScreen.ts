@@ -1,7 +1,5 @@
-import { v4 as uuidv4 } from "uuid";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, LayoutAnimation, Platform, UIManager } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { ProjectData } from "../../../contexts/types";
 import type { BuildMode } from "../../../components/diagnostics/ModeSelector";
 import type { TabKey } from "../../../components/diagnostics/SegmentedTabs";
@@ -14,45 +12,20 @@ import type { ProjectFile } from "../../../contexts/types";
 import type { PreflightCheckResult, PreflightPatch, PreflightTarget } from "../../../lib/diagnostics/preflightTypes";
 import { runPreflightChecksProgressive } from "../../../lib/diagnostics/preflightRunner";
 import { runBuildPipelineDiagnostics } from "../../../lib/diagnostics/buildPipelineDiagnostics";
-import { formatDiagnosticUpload, uploadDiagnosticToSupabase } from "../../../lib/diagnostics/diagnosticUploader";
-import { sanitizeDiagnosticUpload, safeTruncateText } from "../../../lib/diagnostics/sanitize";
+import { safeTruncateText } from "../../../lib/diagnostics/sanitize";
 import { validateFileContent, validateFilePath } from "../../../lib/validators";
 import { createOrUpdateFile, deleteRepoFile } from "../../../contexts/githubService";
-import * as Clipboard from "expo-clipboard";
-import * as Crypto from "expo-crypto";
-import * as SecureStore from "expo-secure-store";
 import { useInlineToast } from "../../../components/diagnostics/useInlineToast";
 import type { IssueDetail } from "../../../components/diagnostics/IssueDetailSheet";
 import type { FixHistoryEntry, FixStep, FixStepStatus, Status } from "../types";
 
+import { useDiagnosticPreferences } from "./useDiagnosticPreferences";
+import { useDiagnosticUpload } from "./useDiagnosticUpload";
+
 
 const ORDER: Record<Status, number> = { fail: 0, warn: 1, pass: 2 };
 const MAX_HISTORY = 10;
-const DEVICE_ID_KEY = "k1w1_device_id";
-const UPLOAD_COOLDOWN_MS = 30_000;
-const UPLOAD_RETRY_DELAY_MS = 3_000;
-const UPLOAD_COOLDOWN_KEY = "k1w1_upload_cooldown_until";
-
 const AUTOFIX_MAX = 50; // safety: don't apply endless chains
-
-function statusToSeverity(s: Status): "critical" | "warning" | "info" | "pass" {
-  if (s === "fail") return "critical";
-  if (s === "warn") return "warning";
-  return "pass";
-}
-
-// Diagnostics UI prefs
-const DIAG_PREF_PROFILE_FOCUS_KEY = "k1w1_diag_profile_focus";
-const DIAG_PREF_MODES_KEY = "k1w1_diag_modes";
-const DIAG_PREF_MODES_ALL_KEY = "k1w1_diag_modes_all";
-const DIAG_PREF_MODES_ADV_KEY = "k1w1_diag_modes_adv";
-const DIAG_PREF_INCLUDE_LOCAL_KEY = "k1w1_diag_include_local";
-const DIAG_PREF_INCLUDE_PIPELINE_KEY = "k1w1_diag_include_pipeline";
-const DIAG_PREF_SYNC_FIXES_KEY = "k1w1_diag_sync_fixes";
-const DIAG_PREF_RERUN_AFTER_FIX_KEY = "k1w1_diag_rerun_after_fix";
-const DIAG_PREF_AUTOFIX_WARN_KEY = "k1w1_diag_autofix_include_warn";
-const DIAG_PREF_AUTOFIX_SCOPE_KEY = "k1w1_diag_autofix_scope";
-
 
 export function useDiagnosticScreen(opts: {
   projectData: ProjectData | null;
@@ -82,80 +55,6 @@ export function useDiagnosticScreen(opts: {
     if (Platform.OS === "android") {
       UIManager.setLayoutAnimationEnabledExperimental?.(true);
     }
-  }, []);
-
-  const [uploadCooldownUntil, setUploadCooldownUntil] = useState(0);
-  const [cooldownNow, setCooldownNow] = useState(() => Date.now());
-
-  const uploadCooldownLeftSec = useMemo(() => {
-    if (!uploadCooldownUntil) return 0;
-    const left = uploadCooldownUntil - cooldownNow;
-    return left > 0 ? Math.ceil(left / 1000) : 0;
-  }, [uploadCooldownUntil, cooldownNow]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(UPLOAD_COOLDOWN_KEY);
-        if (!raw) return;
-        const until = Number(raw);
-        if (!Number.isFinite(until) || until <= 0) {
-          await AsyncStorage.removeItem(UPLOAD_COOLDOWN_KEY);
-          return;
-        }
-        const now = Date.now();
-        if (until <= now) {
-          await AsyncStorage.removeItem(UPLOAD_COOLDOWN_KEY);
-          return;
-        }
-        if (cancelled) return;
-        setUploadCooldownUntil(until);
-        setCooldownNow(now);
-      } catch {
-        // ignore
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!uploadCooldownUntil) return;
-    const tick = () => {
-      const now = Date.now();
-      if (!mountedRef.current) return;
-      setCooldownNow(now);
-      if (uploadCooldownUntil <= now) {
-        setUploadCooldownUntil(0);
-        AsyncStorage.removeItem(UPLOAD_COOLDOWN_KEY).catch(() => {});
-      }
-    };
-    tick();
-    if (uploadCooldownUntil <= Date.now()) return;
-    const t = setInterval(tick, 1000);
-    return () => clearInterval(t);
-  }, [uploadCooldownUntil]);
-
-  const uploadBusyRef = useRef(false);
-  const uploadClientRequestIdRef = useRef<string | null>(null);
-  const uploadClientRequestIdExpiresAtRef = useRef<number>(0);
-
-  const getOrCreateUploadClientRequestId = useCallback((): string => {
-    const now = Date.now();
-    const cur = uploadClientRequestIdRef.current;
-    const exp = uploadClientRequestIdExpiresAtRef.current;
-    if (cur && exp && now < exp) return cur;
-    const next = uuidv4();
-    uploadClientRequestIdRef.current = next;
-    uploadClientRequestIdExpiresAtRef.current = now + 30_000; // 30s window
-    return next;
-  }, []);
-
-  const resetUploadClientRequestId = useCallback(() => {
-    uploadClientRequestIdRef.current = null;
-    uploadClientRequestIdExpiresAtRef.current = 0;
   }, []);
 
   // UI: main tabs + accordions
@@ -194,160 +93,33 @@ export function useDiagnosticScreen(opts: {
     return "development";
   }, [projectData]);
 
-  const [modeAdvanced, setModeAdvanced] = useState(false);
-  const [modesAll, setModesAll] = useState(false);
-  const [selectedModes, setSelectedModes] = useState<BuildMode[]>([recommendedMode]);
+  const prefs = useDiagnosticPreferences({
+    projectData,
+    linkedRepo,
+    recommendedMode,
+    setPreferredBuildProfile,
+  });
 
-  // Scope toggles (pro UX)
-  const [includeLocalChecks, setIncludeLocalChecks] = useState(true);
-  const [includePipelineChecks, setIncludePipelineChecks] = useState(true);
-
-  // When a fix touches repo-relevant files we usually want to sync.
-  const [syncFixesToGitHub, setSyncFixesToGitHub] = useState(() => !!linkedRepo);
-
-  // Pro UX: after a fix, auto re-run diagnostics to verify ("grün werden").
-  const [rerunAfterFix, setRerunAfterFix] = useState(true);
-
-  // AutoFix options
-  const [autoFixIncludeWarn, setAutoFixIncludeWarn] = useState(false);
-  const [autoFixScope, setAutoFixScope] = useState<"visible" | "all">("visible");
-
-  // Persist diagnostics preferences per project
-  const prefKey = useCallback(
-    (base: string) => {
-      const pid = projectData?.id ? String(projectData.id) : "";
-      return pid ? `${base}:${pid}` : base;
-    },
-    [projectData?.id],
-  );
-
-  const prefSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const keys = [
-          // legacy focus key is still read for migration
-          prefKey(DIAG_PREF_PROFILE_FOCUS_KEY),
-          prefKey(DIAG_PREF_MODES_KEY),
-          prefKey(DIAG_PREF_MODES_ALL_KEY),
-          prefKey(DIAG_PREF_MODES_ADV_KEY),
-          prefKey(DIAG_PREF_INCLUDE_LOCAL_KEY),
-          prefKey(DIAG_PREF_INCLUDE_PIPELINE_KEY),
-          prefKey(DIAG_PREF_SYNC_FIXES_KEY),
-          prefKey(DIAG_PREF_RERUN_AFTER_FIX_KEY),
-          prefKey(DIAG_PREF_AUTOFIX_WARN_KEY),
-          prefKey(DIAG_PREF_AUTOFIX_SCOPE_KEY),
-        ];
-        const pairs = await AsyncStorage.multiGet(keys);
-        const map = new Map(pairs);
-
-        const legacyPf = map.get(prefKey(DIAG_PREF_PROFILE_FOCUS_KEY));
-        const modesRaw = map.get(prefKey(DIAG_PREF_MODES_KEY));
-        const allRaw = map.get(prefKey(DIAG_PREF_MODES_ALL_KEY));
-        const advRaw = map.get(prefKey(DIAG_PREF_MODES_ADV_KEY));
-        const il = map.get(prefKey(DIAG_PREF_INCLUDE_LOCAL_KEY));
-        const ip = map.get(prefKey(DIAG_PREF_INCLUDE_PIPELINE_KEY));
-        const sy = map.get(prefKey(DIAG_PREF_SYNC_FIXES_KEY));
-        const rr = map.get(prefKey(DIAG_PREF_RERUN_AFTER_FIX_KEY));
-        const aw = map.get(prefKey(DIAG_PREF_AUTOFIX_WARN_KEY));
-        const as = map.get(prefKey(DIAG_PREF_AUTOFIX_SCOPE_KEY));
-
-        if (cancelled) return;
-
-        // Mode persistence (new)
-        if (advRaw === "0" || advRaw === "1") setModeAdvanced(advRaw === "1");
-        if (allRaw === "0" || allRaw === "1") setModesAll(allRaw === "1");
-        if (modesRaw) {
-          const parts = modesRaw
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean);
-          const filtered = parts.filter(
-            (m): m is BuildMode => m === "development" || m === "preview" || m === "production",
-          );
-          if (filtered.length) setSelectedModes(filtered);
-        } else if (
-          legacyPf === "all" ||
-          legacyPf === "development" ||
-          legacyPf === "preview" ||
-          legacyPf === "production"
-        ) {
-          // Migration: old single/all focus -> new modes
-          if (legacyPf === "all") {
-            setModeAdvanced(true);
-            setModesAll(true);
-            setSelectedModes(["development", "preview", "production"]);
-          } else {
-            setSelectedModes([legacyPf]);
-          }
-        }
-        if (il === "0" || il === "1") setIncludeLocalChecks(il === "1");
-        if (ip === "0" || ip === "1") setIncludePipelineChecks(ip === "1");
-        if (sy === "0" || sy === "1") setSyncFixesToGitHub(sy === "1");
-        if (rr === "0" || rr === "1") setRerunAfterFix(rr === "1");
-        if (aw === "0" || aw === "1") setAutoFixIncludeWarn(aw === "1");
-        if (as === "visible" || as === "all") setAutoFixScope(as);
-      } catch {
-        // ignore
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [prefKey]);
-
-  useEffect(() => {
-  // Debounce preference writes to avoid AsyncStorage spam on rapid toggles.
-  if (prefSaveTimer.current) clearTimeout(prefSaveTimer.current);
-
-  prefSaveTimer.current = setTimeout(() => {
-    (async () => {
-      try {
-        await AsyncStorage.multiSet([
-          [prefKey(DIAG_PREF_MODES_KEY), selectedModes.join(",")],
-          [prefKey(DIAG_PREF_MODES_ALL_KEY), modesAll ? "1" : "0"],
-          [prefKey(DIAG_PREF_MODES_ADV_KEY), modeAdvanced ? "1" : "0"],
-          [prefKey(DIAG_PREF_INCLUDE_LOCAL_KEY), includeLocalChecks ? "1" : "0"],
-          [prefKey(DIAG_PREF_INCLUDE_PIPELINE_KEY), includePipelineChecks ? "1" : "0"],
-          [prefKey(DIAG_PREF_SYNC_FIXES_KEY), syncFixesToGitHub ? "1" : "0"],
-          [prefKey(DIAG_PREF_RERUN_AFTER_FIX_KEY), rerunAfterFix ? "1" : "0"],
-          [prefKey(DIAG_PREF_AUTOFIX_WARN_KEY), autoFixIncludeWarn ? "1" : "0"],
-          [prefKey(DIAG_PREF_AUTOFIX_SCOPE_KEY), autoFixScope],
-        ]);
-      } catch {
-        // ignore
-      }
-    })();
-  }, 500);
-
-  return () => {
-    if (prefSaveTimer.current) clearTimeout(prefSaveTimer.current);
-    prefSaveTimer.current = null;
-  };
-}, [
-  autoFixIncludeWarn,
-  autoFixScope,
-  includeLocalChecks,
-  includePipelineChecks,
-  prefKey,
-  modeAdvanced,
-  modesAll,
-  selectedModes,
-  rerunAfterFix,
-  syncFixesToGitHub,
-]);
-
-// Keep the project's preferred build profile in sync (so Build Screen + Diagnostics agree).
-  // Only sync when user is in Recommended mode (single selection).
-  useEffect(() => {
-    if (typeof setPreferredBuildProfile !== "function") return;
-    if (modeAdvanced) return;
-    if (modesAll) return;
-    const only = selectedModes[0] ?? recommendedMode;
-    setPreferredBuildProfile(only);
-  }, [modeAdvanced, modesAll, recommendedMode, selectedModes, setPreferredBuildProfile]);
+  const {
+    modeAdvanced,
+    setModeAdvanced,
+    modesAll,
+    setModesAll,
+    selectedModes,
+    setSelectedModes,
+    includeLocalChecks,
+    setIncludeLocalChecks,
+    includePipelineChecks,
+    setIncludePipelineChecks,
+    syncFixesToGitHub,
+    setSyncFixesToGitHub,
+    rerunAfterFix,
+    setRerunAfterFix,
+    autoFixIncludeWarn,
+    setAutoFixIncludeWarn,
+    autoFixScope,
+    setAutoFixScope,
+  } = prefs;
 
   const [ciFixing, setCiFixing] = useState(false);
   const [ciFixLog, setCiFixLog] = useState<string | null>(null);
@@ -427,10 +199,24 @@ export function useDiagnosticScreen(opts: {
   >([]);
 
   const [applyBusy, setApplyBusy] = useState(false);
-  const [uploadBusy, setUploadBusy] = useState(false);
+  // upload state managed by useDiagnosticUpload
 
 
   const applyBusyRef = useRef(false);
+
+  const uploadState = useDiagnosticUpload({ projectRef, mountedRef, results, target });
+  const {
+    uploadBusyRef,
+    uploadBusy,
+    uploadCooldownUntil,
+    setUploadCooldownUntil,
+    setCooldownNow,
+    uploadCooldownLeftSec,
+    getOrCreateUploadClientRequestId,
+    resetUploadClientRequestId,
+    upload,
+    copyReport,
+  } = uploadState;
 
   const [fixModalVisible, setFixModalVisible] = useState(false);
   const [fixModalTitle, setFixModalTitle] = useState("AutoFix");
@@ -1488,121 +1274,6 @@ ${safeTruncateText(r.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser 
       syncPatchToGitHub,
     ],
   );
-
-
-  const getOrCreateDeviceId = useCallback(async (): Promise<string> => {
-    try {
-      const existing = await SecureStore.getItemAsync(DEVICE_ID_KEY);
-      if (existing) return existing;
-    } catch {
-      // ignore
-    }
-    let rand = "";
-    try {
-      const bytes = await Crypto.getRandomBytesAsync(16);
-      rand = Array.from(bytes)
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
-    } catch {
-      rand = Math.random().toString(16).slice(2);
-    }
-    const id = `dev_${rand}`;
-    try {
-      await SecureStore.setItemAsync(DEVICE_ID_KEY, id);
-    } catch {
-      // ignore
-    }
-    return id;
-  }, []);
-
-  const upload = useCallback(async () => {
-    const project = projectRef.current;
-    if (!project) return;
-    if (uploadBusyRef.current) return;
-
-    if (uploadCooldownLeftSec > 0) {
-      Alert.alert("■ Cooldown", `Bitte warte noch ${uploadCooldownLeftSec}s.`);
-      return;
-    }
-    if (!results.length) {
-      Alert.alert("Kein Report", "Erst „Run“ ausführen, dann Upload.");
-      return;
-    }
-
-    uploadBusyRef.current = true;
-    if (mountedRef.current) setUploadBusy(true);
-    try {
-      const deviceId = await getOrCreateDeviceId();
-      const payload = sanitizeDiagnosticUpload(
-        formatDiagnosticUpload({
-          clientRequestId: getOrCreateUploadClientRequestId(),
-          deviceId,
-          projectName: project.name,
-          target,
-          results,
-          files: project.files,
-        }),
-      );
-
-      const id = await uploadDiagnosticToSupabase(payload);
-      if (!id) throw new Error("Upload fehlgeschlagen");
-
-      if (mountedRef.current) {
-        const until = Date.now() + UPLOAD_COOLDOWN_MS;
-        setUploadCooldownUntil(until);
-        setCooldownNow(Date.now());
-        AsyncStorage.setItem(UPLOAD_COOLDOWN_KEY, String(until)).catch(
-          () => {},
-        );
-      }
-
-      Alert.alert("■ Upload OK", `ID: ${id.id}`);
-    } catch (e: any) {
-      if (mountedRef.current) {
-        const until = Date.now() + UPLOAD_RETRY_DELAY_MS;
-        setUploadCooldownUntil(until);
-        setCooldownNow(Date.now());
-        AsyncStorage.setItem(UPLOAD_COOLDOWN_KEY, String(until)).catch(
-          () => {},
-        );
-      }
-      Alert.alert("Upload fehlgeschlagen", e?.message || "Unbekannter Fehler");
-    } finally {
-      uploadBusyRef.current = false;
-      if (mountedRef.current) setUploadBusy(false);
-    }
-  }, [getOrCreateDeviceId, results, target, uploadCooldownLeftSec]);
-
-  const copyReport = useCallback(async () => {
-    const project = projectRef.current;
-    if (!project) return;
-    if (!results.length) {
-      Alert.alert("Kein Report", "Erst „Run“ ausführen, dann kopieren.");
-      return;
-    }
-    try {
-      const deviceId = await getOrCreateDeviceId();
-      const payload = sanitizeDiagnosticUpload(
-        formatDiagnosticUpload({
-          clientRequestId: getOrCreateUploadClientRequestId(),
-          deviceId,
-          projectName: project.name,
-          target,
-          results,
-          files: project.files,
-        }),
-      );
-      const json = JSON.stringify(payload, null, 2);
-      await Clipboard.setStringAsync(safeTruncateText(json, 80_000));
-      Alert.alert("✓ Kopiert", "Report wurde in die Zwischenablage kopiert.");
-    } catch (e: any) {
-      Alert.alert(
-        "Kopieren fehlgeschlagen",
-        e?.message || "Unbekannter Fehler",
-      );
-    }
-  }, [getOrCreateDeviceId, results, target]);
-
   const headerStats = useMemo(() => {
     const name = projectRef.current?.name ?? "–";
     const mode =

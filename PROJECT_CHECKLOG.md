@@ -183,3 +183,28 @@ Next suggested patch areas:
 
 **Ergebnis:** `npm run lint:ci` bleibt sauber (ohne Zukunfts-Footgun).
 
+
+
+## Patch 08 — DiagnosticScreen Hook Split (Phase 1: Prefs + Upload)
+
+**Ziel:** `useDiagnosticScreen.ts` war ein Hook-Monolith (~2000 Zeilen). Phase 1 extrahiert die **zwei riskantesten Side-Effect Blöcke** (AsyncStorage Prefs + Upload/Cooldown) in eigene Hooks, ohne Verhalten zu ändern.
+
+**Änderungen:**
+- Neu: `screens/DiagnosticScreen/hooks/useDiagnosticPreferences.ts`
+  - Lädt + speichert Diagnostics-Prefs pro Projekt (AsyncStorage `multiGet/multiSet`)
+  - Enthält den Debounce (500ms) gegen AsyncStorage-Spam
+  - Synchronisiert optional `preferredBuildProfile` (nur wenn nicht Advanced/All)
+- Neu: `screens/DiagnosticScreen/hooks/useDiagnosticUpload.ts`
+  - Cooldown Persistenz + Countdown Tick
+  - Upload + Copy-to-Clipboard mit sanitized Payload
+  - ClientRequestId Handling + DeviceId via SecureStore
+- `useDiagnosticScreen.ts`
+  - Entfernt AsyncStorage/UUID/Clipboard/Crypto/SecureStore aus dem Monolith
+  - Composed die neuen Hooks und returned dieselben Props weiter (Backwards kompatibel)
+
+**Risiko-Check:**
+- Keine Logikänderung beabsichtigt: nur Extraktion/Komposition.
+- Upload-/Prefs-Keys bleiben identisch.
+- Wenn irgendwas schief läuft, betrifft es zuerst Diagnostics UX (nicht App-Core) → kontrolliertes Risiko.
+
+**Next:** Phase 2 Split: Fix-Runner + AutoFix + Patch-Sync als eigene Hooks (macht die verbleibenden ~1500 Zeilen deutlich kleiner).
