@@ -1,0 +1,43 @@
+name: Setup Node + Install (npm)
+description: Setup Node.js with npm cache and install dependencies robustly.
+
+inputs:
+  node_version:
+    description: Node.js version
+    required: false
+    default: "20"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      with:
+        node-version: ${{ inputs.node_version }}
+        cache: npm
+        cache-dependency-path: |
+          package-lock.json
+
+    - name: Install dependencies (robust)
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        if [ -f package-lock.json ]; then
+          echo "Using npm ci..."
+          if npm ci; then
+            exit 0
+          fi
+
+          echo "npm ci failed - trying legacy-peer-deps..."
+          npm ci --legacy-peer-deps
+          exit 0
+        fi
+
+        echo "No package-lock.json, using npm install..."
+        if npm install; then
+          exit 0
+        fi
+
+        echo "npm install failed - trying legacy-peer-deps..."
+        npm install --legacy-peer-deps

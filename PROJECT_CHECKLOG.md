@@ -103,3 +103,71 @@ This patch bundle implements the highest-priority fixes identified in the checkl
 - **Credentials wizard**: fixed busy-state / refreshAll concurrency edge case.
 
 Pending items remain documented in the TODO sections (workflow refactor beyond determine-ref, DiagnosticScreen hook split, CodeScreen editor scalability, Preview WebView hardening, etc.).
+
+
+## Patch 05 (workflows: reusable build + YAML fixes)
+
+This patch focuses on **CI correctness and maintainability**:
+
+- **Fixed broken YAML** in `k1w1-triggered-build.yml` and `eas-build.yml` (they would fail to parse in GitHub Actions).
+- **Reusable workflow refactor**: `k1w1-triggered-build.yml` is now a thin wrapper that forwards payload/inputs into `eas-build.yml` via `workflow_call`.
+- **Secrets-safe keystore export**: moved inline Node heredoc into `scripts/ci/writeAndroidSigningFilesFromExport.js` to avoid YAML indentation foot-guns and to ensure secrets are never logged.
+- Added composite action `.github/actions/setup-node-npm` (ready for broader workflow de-duplication; currently used as a building block for future patches).
+
+Next suggested patch areas:
+- Further de-dup in workflows (setup/install/test blocks).
+- Optional: switch EAS build step to `--no-wait --json` and poll status to reduce CI minutes and improve resilience.
+
+
+---
+
+## Screen Deep Dive 01: EnhancedBuildScreen
+
+**Files checked:**
+- `screens/EnhancedBuildScreen/index.tsx`
+- `screens/EnhancedBuildScreen/hooks/useEnhancedBuildScreen.ts`
+
+### Was gut ist
+- **UI ist sauber getrennt** (Header/Status/Repo/Profile/Logs/History als Sections).
+- Hook ist **moderat groß (423 Zeilen)** und deutlich wartbarer als der große Diagnostic-Hook.
+- **Race-Condition Schutz** bei `fetchRuns()` via `runsReqIdRef` (Request-ID Pattern) → verhindert “alte Antworten überschreiben neue”.
+- **Logs werden nur geladen wenn nötig** (`shouldLoadLogs`) + Auto-Refresh toggelbar.
+- `withTimeout()` begrenzt “hängende” Requests.
+
+### Kritische Punkte / Risiken
+- **Workflow-Dateiname hart kodiert:** `getWorkflowRuns(..., "k1w1-triggered-build.yml")`. Das ist ok solange wir den Wrapper-Workflow behalten (Patch 05), aber sollte als Konstante zentral sein.
+- **Log Rendering:** `toLocaleTimeString()` pro Log-Line kann bei sehr vielen Logs zäh werden (Modal + lange Builds). Cap/Virtualization wäre sauberer.
+- **Type Safety:** `preferredBuildProfile as any` → besser sauber validieren (ist klein, aber unnötig riskant).
+- **Timeout vs. Abbruch:** `withTimeout()` bricht den Fetch nicht wirklich ab (kein AbortController). Ist ok, aber kann “hängende” Promises im Hintergrund lassen.
+
+### Konkrete TODOs
+- [ ] `WORKFLOW_FILE` als gemeinsame Konstante (z.B. `CONFIG.BUILD.WORKFLOW_FILE`).
+- [ ] Log-UI: maximal N Zeilen anzeigen (z.B. 2000), “Load more” optional.
+- [ ] `preferredBuildProfile` ohne `any` validieren.
+
+
+## Screen Deep Dive 02: CodeScreen
+
+**Files checked:**
+- `screens/CodeScreen/index.tsx`
+- `screens/CodeScreen/components/EditorBody.tsx`
+
+### Was gut ist
+- Explorer/Editor/ImageViewer sauber getrennt.
+- **Dirty-Check** + Save/Discard Dialog beim Zurückgehen ist korrekt.
+- Preview-Modus nutzt `SyntaxHighlighter` (Edit bleibt “raw”).
+
+### Kritische Punkte / Risiken
+- **TextInput als Code-Editor** (`EditorBody.tsx`) → bei großen Dateien (500+ Zeilen) schnell zäh, bei 2k+ Zeilen quasi unbrauchbar. Das ist genau der Kernpunkt aus SONETs Aussage.
+- **Edit ohne Syntax Highlighting** (nur Preview). Das ist UX-okay, aber “CodeScreen” wirkt dann wie Notepad.
+- Kein Undo/Redo, kein Autosave / Crash-Recovery.
+
+### Konkrete TODOs
+- [ ] Für große Dateien: entweder Editor-Library (z.B. Monaco-ähnlich) oder “Read-only ab X KB” + extern bearbeiten.
+- [ ] Autosave debounce (z.B. 500ms) + manuelles Save bleibt.
+- [ ] Optional: simple Undo/Redo Stack (limit 50 states).
+
+
+## Patch 06
+- Fix: `scripts/ci/writeAndroidSigningFilesFromExport.js` ESLint `no-undef` for `Buffer` by enabling Node env and importing Buffer from `buffer`.
+- Notes: This unblocks pre-commit hooks (`lint:ci`) so Patch 05 can be committed and pushed cleanly.
