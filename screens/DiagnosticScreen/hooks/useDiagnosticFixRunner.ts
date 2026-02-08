@@ -8,6 +8,7 @@ import type {
   PreflightPatch,
 } from "../../../lib/diagnostics/preflightTypes";
 import { safeTruncateText } from "../../../lib/diagnostics/sanitize";
+import { patchFingerprint, summarizeBatchRisk } from "../../../lib/diagnostics/fixSafety";
 import { validateFileContent, validateFilePath } from "../../../lib/validators";
 import { createOrUpdateFile, deleteRepoFile } from "../../../contexts/githubService";
 import { parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
@@ -460,11 +461,47 @@ export function useDiagnosticFixRunner(opts: {
       if (!projectRef.current) return;
       if (!items.length) return;
 
+      // --- Safety gate for batch runs ---
+      // In batch mode it's easy to "silently" apply changes that touch CI / build plumbing.
+      // We do one extra confirmation if any patch looks risky.
+      const batch = items
+        .filter((r) => !!r.fix?.patch)
+        .map((r) => ({ title: r.title, patch: r.fix!.patch }));
+
+      const riskSummary = summarizeBatchRisk(batch);
+      if (riskSummary.hasRisk) {
+        const proceed = await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            "Risky batch fix",
+            `Einige Fixes betreffen CI/Build/Infra Dateien.\n\nBetroffene Pfade:\n- ${riskSummary.shortPaths.join(
+              "\n- ",
+            )}${riskSummary.more}\n\nWillst du wirklich fortfahren?`,
+            [
+              { text: "Abbrechen", style: "cancel", onPress: () => resolve(false) },
+              { text: "Weiter", onPress: () => resolve(true) },
+            ],
+          );
+        });
+        if (!proceed) return;
+      }
+
       const steps: FixStep[] = [];
+
+      // De-dup patches in batch mode: prevents repeated apply of identical patch sets.
+      const seen = new Set<string>();
+      const deduped: Array<{ r: PreflightCheckResult; patch: PreflightPatch }> = [];
       for (const r of items) {
         if (!r.fix?.patch) continue;
+        const patch = r.fix.patch;
+        const fp = patchFingerprint(patch);
+        if (seen.has(fp)) continue;
+        seen.add(fp);
+        deduped.push({ r, patch });
+      }
+
+      for (const { r, patch } of deduped) {
         steps.push({ key: `apply:${r.id}`, title: `Apply: ${r.title}`, status: "pending" });
-        if (shouldSyncPatch(r.fix.patch)) {
+        if (shouldSyncPatch(patch)) {
           steps.push({ key: `sync:${r.id}`, title: `Sync: ${r.title}`, status: "pending" });
         }
       }
@@ -472,8 +509,9 @@ export function useDiagnosticFixRunner(opts: {
         steps.push({ key: "rerun", title: "Re-Run Diagnostics (Verify)", status: "pending" });
       }
 
+      const skipped = Math.max(0, items.filter((r) => !!r.fix?.patch).length - deduped.length);
       setFixModalTitle(label);
-      setFixModalSubtitle(`${items.length} Fixes`);
+      setFixModalSubtitle(`${deduped.length} Fixes${skipped ? ` (skipped ${skipped} dup)` : ""}`);
       setFixSteps(steps);
       setFixStepIndex(0);
       setFixDone(false);
@@ -484,12 +522,10 @@ export function useDiagnosticFixRunner(opts: {
         setFixSteps((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
       };
 
-      for (const r of items) {
-        if (!r.fix?.patch) continue;
-
+      for (const { r, patch } of deduped) {
         mark(cursor, { status: "running" });
         try {
-          await applyPatch(r.title, r.fix.patch);
+          await applyPatch(r.title, patch);
           mark(cursor, { status: "done" });
         } catch (e: any) {
           mark(cursor, { status: "failed", message: safeTruncateText(e?.message || "Apply fehlgeschlagen", 160) });
@@ -498,11 +534,11 @@ export function useDiagnosticFixRunner(opts: {
         }
         cursor++;
 
-        if (shouldSyncPatch(r.fix.patch)) {
+        if (shouldSyncPatch(patch)) {
           setFixStepIndex(cursor);
           mark(cursor, { status: "running" });
           try {
-            await syncPatchToGitHub(r.title, r.fix.patch);
+            await syncPatchToGitHub(r.title, patch);
             mark(cursor, { status: "done" });
           } catch (e: any) {
             mark(cursor, { status: "failed", message: safeTruncateText(e?.message || "Sync fehlgeschlagen", 160) });

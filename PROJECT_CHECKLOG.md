@@ -318,3 +318,23 @@ Next suggested patch areas:
 - Import-Fix ist risikoarm.
 - Tests sind rein logisch (kein RN UI) und laufen schnell.
 
+
+---
+
+## Patch 15
+
+**Goal:** Batch-fix flows (AutoFix / Smart Fix / Apply Selected) sicherer machen und Regressionen verhindern.
+
+### Changes
+- Added `lib/diagnostics/fixSafety.ts`:
+  - `patchFingerprint()` for de-duplication in batch mode
+  - `analyzePatchRisk()` flags deletes, high-impact paths (CI/build/infra), and large patches
+  - `summarizeBatchRisk()` aggregates risky paths across a batch
+- Updated `screens/DiagnosticScreen/hooks/useDiagnosticFixRunner.ts`:
+  - batch runs do an extra confirmation if risky patches are detected
+  - duplicate patches are skipped (fingerprint-based)
+- Added unit tests: `lib/__tests__/fixSafety.test.ts`
+
+### Risk / Notes
+- No behavior change for single-fix flow (Apply/Preview).
+- Batch mode now prompts once when risky paths are involved.
