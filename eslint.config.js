@@ -27,6 +27,22 @@ module.exports = [
 
   ...expoConfig,
 
+
+  // Node-Skripte (CI) sollen Node-Globals kennen (flat config => kein eslint-env Kommentar)
+  {
+    files: ['scripts/ci/**/*.js', 'scripts/ci/**/*.cjs'],
+    languageOptions: {
+      globals: {
+        Buffer: 'readonly',
+        process: 'readonly',
+        require: 'readonly',
+        module: 'readonly',
+        __dirname: 'readonly',
+        console: 'readonly',
+      },
+    },
+  },
+
   // Projekt-spezifische Lockerungen
   {
     rules: {

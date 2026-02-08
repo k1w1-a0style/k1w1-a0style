@@ -171,3 +171,15 @@ Next suggested patch areas:
 ## Patch 06
 - Fix: `scripts/ci/writeAndroidSigningFilesFromExport.js` ESLint `no-undef` for `Buffer` by enabling Node env and importing Buffer from `buffer`.
 - Notes: This unblocks pre-commit hooks (`lint:ci`) so Patch 05 can be committed and pushed cleanly.
+
+
+## Patch 07 — ESLint Flat Config: Node globals for CI scripts
+
+**Problem:** ESLint (Flat Config) warnt, dass `/* eslint-env */` Kommentare künftig als Fehler behandelt werden. In `scripts/ci/writeAndroidSigningFilesFromExport.js` führte das bereits zu Warnungen; vorher sogar zu `Buffer is not defined`.
+
+**Fix:**
+- Entfernt `/* eslint-env node */` Kommentar aus dem Script.
+- `eslint.config.js` bekommt ein Override für `scripts/ci/**`, das Node-Globals (`Buffer`, `process`, `require`, `module`, `__dirname`) explizit setzt.
+
+**Ergebnis:** `npm run lint:ci` bleibt sauber (ohne Zukunfts-Footgun).
+
