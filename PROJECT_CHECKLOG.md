@@ -242,3 +242,22 @@ Next suggested patch areas:
 
 **Risiko-Check:**
 - Reiner Typ-/Refactor-Fix. Keine Logikänderung beabsichtigt.
+
+
+## Patch 11 — DiagnosticScreen Phase 3: Runner Split (Local/Pipeline)
+
+**Ziel:** Den letzten großen Block in `runDiagnostics()` (Local-Preflight + Pipeline-Checks) aus dem Orchestrator ziehen, ohne Verhalten zu ändern.
+
+**Änderungen:**
+- `useDiagnosticScreen.ts`
+  - `runDiagnostics()` ruft jetzt zwei interne Helper auf:
+    - `runLocalChecks(...)` (progressive local preflight pro Profile)
+    - `runPipelineChecks(...)` (GitHub/EAS Pipeline Diagnostics)
+  - Orchestrator-Teil ist jetzt deutlich lesbarer; Side Effects sind thematisch gekapselt.
+  - Return-API bleibt unverändert.
+
+**Risiko-Check:**
+- Reiner Split (keine neue Logik). Identische Fehlerbehandlung/Progress-Updates wie vorher.
+- Falls etwas schief läuft, betrifft es nur die Diagnostic-Ausgabe, nicht den Buildflow.
+
+**Next (Patch 12):** DiagnosticScreen Phase 4: verbleibende "UI-State-Klumpen" (Tabs/Filter/Selection) weiter entkoppeln + gezieltes Typing/Tests für die neuen Helpers.

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { MutableRefObject } from "react";
 import { Alert, LayoutAnimation, Platform, UIManager } from "react-native";
 
 import type { ProjectData } from "../../../contexts/types";
@@ -298,67 +299,25 @@ export function useDiagnosticScreen(opts: {
                 ? (selectedModes as Array<"development" | "preview" | "production">)
                 : ([recommendedMode] as Array<"development" | "preview" | "production">));
 
-        if (includeLocalChecks) {
-          for (const prof of focusedProfiles) {
-            const t = { mode: "eas" as const, profile: prof };
-            setProgressStage(`Checks: local/${t.profile}`);
-            const prog = runPreflightChecksProgressive(files, t);
-            for await (const stage of prog as any) {
-              if (stage?.priority)
-                setProgressStage(`Checks: local/${t.profile} • ${String(stage.priority)}`);
-              if (stage?.results?.length) {
-                const decorated = (stage.results as PreflightCheckResult[]).map((r) => ({
-                  ...r,
-                  id: `${t.profile}::${r.id}`,
-                  title: `${r.title} (${t.profile})`,
-                }));
-                all.push(...decorated);
-                if (mountedRef.current) setResults([...all]);
-              }
-            }
-          }
-        }
-
-        const parsed = includePipelineChecks ? parseOwnerRepo(linkedRepo) : null;
-        if (parsed) {
-          try {
-            setProgressStage("Checks: pipeline (GitHub/EAS)…");
-            const { checks } = await runBuildPipelineDiagnostics({
-              owner: parsed.owner,
-              repo: parsed.repo,
-              branch: (linkedBranch || "main").trim(),
-            });
-
-            const pipelineResults: PreflightCheckResult[] = checks
-              .filter((c) => pipelineAppliesToFocus(c.id))
-              .map((c) => ({
-                id: `pipeline::${c.id}`,
-                title: c.title,
-                severity: c.status === "fail" ? "high" : "normal",
-                status:
-                  c.status === "fail"
-                    ? "fail"
-                    : c.status === "warn"
-                      ? "warn"
-                      : "pass",
-                message: c.details || undefined,
-                details: c.fixHint ? [c.fixHint] : undefined,
-                fix: c.fix ? { label: c.fix.label, patch: c.fix.patch } : undefined,
-              }));
-
-            all.push(...pipelineResults);
-            if (mountedRef.current) setResults([...all]);
-          } catch (e: any) {
-            all.push({
-              id: "pipeline::error",
-              title: "Pipeline Diagnostics",
-              severity: "high",
-              status: "fail",
-              message: e?.message || "Pipeline Diagnostics fehlgeschlagen",
-            });
-            if (mountedRef.current) setResults([...all]);
-          }
-        }
+        await runLocalChecks({
+          includeLocalChecks,
+          focusedProfiles,
+          files,
+          all,
+          mountedRef,
+          setResults,
+          setProgressStage,
+        });
+        await runPipelineChecks({
+          includePipelineChecks,
+          linkedRepo,
+          linkedBranch,
+          pipelineAppliesToFocus,
+          all,
+          mountedRef,
+          setResults,
+          setProgressStage,
+        });
 
         if (mountedRef.current) {
           setResults(all);
@@ -595,4 +554,110 @@ export function useDiagnosticScreen(opts: {
     copyReport,
     headerStats,
   };
+}
+
+
+async function runLocalChecks(params: {
+  includeLocalChecks: boolean;
+  focusedProfiles: Array<"development" | "preview" | "production">;
+  files: any;
+  all: PreflightCheckResult[];
+  mountedRef: MutableRefObject<boolean>;
+  setResults: (v: PreflightCheckResult[]) => void;
+  setProgressStage: (v: string | null) => void;
+}) {
+  const {
+    includeLocalChecks,
+    focusedProfiles,
+    files,
+    all,
+    mountedRef,
+    setResults,
+    setProgressStage,
+  } = params;
+
+  if (!includeLocalChecks) return;
+
+  for (const prof of focusedProfiles) {
+    const t = { mode: "eas" as const, profile: prof };
+    setProgressStage(`Checks: local/${t.profile}`);
+    const prog = runPreflightChecksProgressive(files, t);
+    for await (const stage of prog as any) {
+      if (stage?.priority) {
+        setProgressStage(`Checks: local/${t.profile} • ${String(stage.priority)}`);
+      }
+      if (stage?.results?.length) {
+        const decorated = (stage.results as PreflightCheckResult[]).map((r) => ({
+          ...r,
+          id: `${t.profile}::${r.id}`,
+          title: `${r.title} (${t.profile})`,
+        }));
+        all.push(...decorated);
+        if (mountedRef.current) setResults([...all]);
+      }
+    }
+  }
+}
+
+async function runPipelineChecks(params: {
+  includePipelineChecks: boolean;
+  linkedRepo: string;
+  linkedBranch?: string;
+  pipelineAppliesToFocus: (id: string) => boolean;
+  all: PreflightCheckResult[];
+  mountedRef: MutableRefObject<boolean>;
+  setResults: (v: PreflightCheckResult[]) => void;
+  setProgressStage: (v: string | null) => void;
+}) {
+  const {
+    includePipelineChecks,
+    linkedRepo,
+    linkedBranch,
+    pipelineAppliesToFocus,
+    all,
+    mountedRef,
+    setResults,
+    setProgressStage,
+  } = params;
+
+  const parsed = includePipelineChecks ? parseOwnerRepo(linkedRepo) : null;
+  if (!parsed) return;
+
+  try {
+    setProgressStage("Checks: pipeline (GitHub/EAS)…");
+    const { checks } = await runBuildPipelineDiagnostics({
+      owner: parsed.owner,
+      repo: parsed.repo,
+      branch: (linkedBranch || "main").trim(),
+    });
+
+    const pipelineResults: PreflightCheckResult[] = checks
+      .filter((c) => pipelineAppliesToFocus(c.id))
+      .map((c) => ({
+        id: `pipeline::${c.id}`,
+        title: c.title,
+        severity: c.status === "fail" ? "high" : "normal",
+        status:
+          c.status === "fail"
+            ? "fail"
+            : c.status === "warn"
+              ? "warn"
+              : "pass",
+        message: c.details || undefined,
+        details: c.fixHint ? [c.fixHint] : undefined,
+        fix: c.fix ? { label: c.fix.label, patch: c.fix.patch } : undefined,
+      }));
+
+    all.push(...pipelineResults);
+    if (mountedRef.current) setResults([...all]);
+  } catch (e: any) {
+    all.push({
+      id: "pipeline::error",
+      title: "Pipeline Diagnostics",
+      severity: "high",
+      status: "fail",
+      message: e?.message || "Pipeline Diagnostics fehlgeschlagen",
+    });
+    if (mountedRef.current) setResults([...all]);
+  }
 }
