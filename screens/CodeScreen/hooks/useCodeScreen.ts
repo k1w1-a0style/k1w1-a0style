@@ -1,5 +1,5 @@
 // screens/CodeScreen/hooks/useCodeScreen.ts
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { Alert } from "react-native";
 
@@ -72,47 +72,19 @@ export interface UseCodeScreenReturn {
   handleCopy: (content: string) => void;
 }
 
-// ---- Large file guardrails (no UI changes) ----
-// Keep the editor responsive by reducing expensive validation work on huge files.
-const LARGE_FILE_MAX_CHARS = 200_000; // ~200k chars
-const LARGE_FILE_MAX_LINES = 5_000;   // stop counting after this
-const HUGE_FILE_MAX_CHARS = 600_000;  // beyond this, skip all live validation
-
-const countLinesUpTo = (text: string, maxLines: number): number => {
-  // Fast-ish newline counter with early bailout.
-  let lines = 1;
-  for (let i = 0; i < text.length; i += 1) {
-    if (text.charCodeAt(i) === 10) {
-      lines += 1;
-      if (lines >= maxLines) return lines;
-    }
-  }
-  return lines;
+const toContentString = (file: ProjectFile): string => {
+  return typeof file.content === "string"
+    ? file.content
+    : JSON.stringify(file.content, null, 2);
 };
 
-const getValidationPolicy = (text: string): {
-  debounceMs: number;
-  runSyntax: boolean;
-  runQuality: boolean;
-} => {
-  const charCount = text.length;
-
-  if (charCount >= HUGE_FILE_MAX_CHARS) {
-    return { debounceMs: 0, runSyntax: false, runQuality: false };
+const countLines = (s: string): number => {
+  // Fast-ish line counting
+  let n = 1;
+  for (let i = 0; i < s.length; i += 1) {
+    if (s.charCodeAt(i) === 10) n += 1; // \n
   }
-
-  // Avoid splitting into an array for very large files.
-  const lines = charCount >= LARGE_FILE_MAX_CHARS
-    ? countLinesUpTo(text, LARGE_FILE_MAX_LINES + 1)
-    : countLinesUpTo(text, LARGE_FILE_MAX_LINES + 1);
-
-  const isLarge = charCount >= LARGE_FILE_MAX_CHARS || lines > LARGE_FILE_MAX_LINES;
-
-  return {
-    debounceMs: isLarge ? 1500 : 500,
-    runSyntax: true,
-    runQuality: !isLarge,
-  };
+  return n;
 };
 
 export const useCodeScreen = (): UseCodeScreenReturn => {
@@ -141,6 +113,20 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
     null,
   );
 
+  const lastSelectedPathRef = useRef<string | null>(null);
+
+  const selectedOriginalContent = useMemo(() => {
+    return selectedFile ? toContentString(selectedFile) : "";
+  }, [selectedFile]);
+
+  const isDirty = useMemo(() => {
+    if (!selectedFile) return false;
+    if (viewMode !== "edit") return false;
+    // If user opens a file and we set editingContent from file content,
+    // this simple compare works (and we also update selectedFile content on save).
+    return editingContent !== selectedOriginalContent;
+  }, [editingContent, selectedFile, selectedOriginalContent, viewMode]);
+
   const fileTree = useMemo(() => {
     if (projectData?.files) return buildFileTree(projectData.files);
     return [];
@@ -166,31 +152,46 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
     return folders;
   }, [fileTree]);
 
+  // Live validation — gets expensive on huge files.
   useEffect(() => {
-    if (!selectedFile || viewMode !== "edit" || !editingContent.trim()) {
+    if (!selectedFile || viewMode !== "edit") {
+      setSyntaxErrors([]);
+      return;
+    }
+    if (!editingContent.trim()) {
       setSyntaxErrors([]);
       return;
     }
 
-    const policy = getValidationPolicy(editingContent);
+    const len = editingContent.length;
+    const lines = countLines(editingContent);
 
-    // Huge files: keep typing smooth; skip live validation entirely.
-    if (!policy.runSyntax && !policy.runQuality) {
+    // Heuristics: keep editor smooth. No UI changes, just reduces background work.
+    const huge = len > 600_000;
+    const large = len > 200_000 || lines > 5_000;
+
+    if (huge) {
+      // Skip live validation entirely.
       setSyntaxErrors([]);
       return;
     }
+
+    const debounceMs = large ? 1500 : 500;
+    const includeQuality = !large;
 
     const timeoutId = setTimeout(() => {
       try {
         const errors = [
-          ...(policy.runSyntax ? validateSyntax(editingContent, selectedFile.path) : []),
-          ...(policy.runQuality ? validateCodeQuality(editingContent, selectedFile.path) : []),
+          ...validateSyntax(editingContent, selectedFile.path),
+          ...(includeQuality
+            ? validateCodeQuality(editingContent, selectedFile.path)
+            : []),
         ];
         setSyntaxErrors(errors);
       } catch {
         setSyntaxErrors([]);
       }
-    }, policy.debounceMs);
+    }, debounceMs);
 
     return () => clearTimeout(timeoutId);
   }, [editingContent, selectedFile, viewMode]);
@@ -238,10 +239,7 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
       content += `\n${"=".repeat(80)}\n\n`;
 
       files.forEach((file, index) => {
-        const fileContent =
-          typeof file.content === "string"
-            ? file.content
-            : JSON.stringify(file.content, null, 2);
+        const fileContent = toContentString(file);
 
         content += `\n### DATEI ${index + 1}: ${file.path}\n`;
         content += `${"─".repeat(80)}\n\n`;
@@ -261,13 +259,11 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
         throw new Error("Kein schreibbares Verzeichnis (document/cache) gefunden");
       }
 
-      const normalizedBase = String(baseDir).endsWith("/")
-        ? String(baseDir)
-        : `${String(baseDir)}/`;
+      // Ensure exactly one trailing slash.
+      const normalized = String(baseDir).endsWith("/") ? String(baseDir) : `${String(baseDir)}/`;
+      const fileUri = `${normalized}${fileName}`;
 
-      const fileUri = `${normalizedBase}${fileName}`;
-
-      // UTF-8 is default; avoid EncodingType to keep typings compatible
+      // UTF-8 is default; avoid EncodingType to keep typings compatible.
       await FS.writeAsStringAsync(fileUri, content);
 
       if (await Sharing.isAvailableAsync()) {
@@ -289,6 +285,73 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
     }
   }, [projectData?.files, projectData?.name, selectedFiles]);
 
+  const handleSaveFile = useCallback(() => {
+    if (!selectedFile) return;
+
+    try {
+      const errors = validateSyntax(editingContent, selectedFile.path);
+      const criticalErrors = errors.filter((e) => e.severity === "error");
+
+      const doSave = (): void => {
+        updateProjectFiles([
+          { path: selectedFile.path, content: editingContent },
+        ]);
+        setSelectedFile((prev) =>
+          prev ? { ...prev, content: editingContent } : null,
+        );
+        Alert.alert("✅ Gespeichert", selectedFile.path);
+      };
+
+      if (criticalErrors.length > 0) {
+        const errorList = criticalErrors
+          .map((e) => `• ${e.message}`)
+          .join("\n");
+        Alert.alert(
+          "Syntax-Fehler",
+          `Die folgenden Fehler wurden gefunden:\n\n${errorList}\n\nTrotzdem speichern?`,
+          [
+            { text: "Abbrechen", style: "cancel" },
+            { text: "Trotzdem speichern", style: "destructive", onPress: doSave },
+          ],
+        );
+        return;
+      }
+
+      doSave();
+    } catch {
+      Alert.alert("Fehler", "Datei konnte nicht gespeichert werden.");
+    }
+  }, [editingContent, selectedFile, updateProjectFiles]);
+
+  const confirmLoseChanges = useCallback(
+    (next: () => void) => {
+      if (!isDirty) {
+        next();
+        return;
+      }
+      Alert.alert(
+        "Ungespeicherte Änderungen",
+        "Du hast Änderungen, die noch nicht gespeichert sind. Was soll passieren?",
+        [
+          { text: "Abbrechen", style: "cancel" },
+          {
+            text: "Verwerfen",
+            style: "destructive",
+            onPress: next,
+          },
+          {
+            text: "Speichern",
+            onPress: () => {
+              handleSaveFile();
+              next();
+            },
+          },
+        ],
+      );
+    },
+    [handleSaveFile, isDirty],
+  );
+
   const handleItemPress = useCallback(
     (node: TreeNode) => {
       if (selectionMode && node.type === "file" && node.file) {
@@ -296,61 +359,86 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
         return;
       }
 
-      if (node.type === "folder") {
-        setCurrentFolderPath(node.path);
-      } else if (node.file) {
-        const contentString =
-          typeof node.file.content === "string"
-            ? node.file.content
-            : JSON.stringify(node.file.content, null, 2);
+      // Guard: prevent accidental loss when switching items while editing.
+      const proceed = (): void => {
+        if (node.type === "folder") {
+          setCurrentFolderPath(node.path);
+          return;
+        }
 
-        setSelectedFile(node.file);
-        setEditingContent(contentString);
-        setViewMode("preview");
-        setSyntaxErrors([]);
-      }
+        if (node.file) {
+          const nextPath = node.file.path;
+          // Avoid useless re-select (reduces state churn & potential WebView race)
+          if (lastSelectedPathRef.current === nextPath && selectedFile) {
+            return;
+          }
+          lastSelectedPathRef.current = nextPath;
+
+          const contentString = toContentString(node.file);
+
+          setSelectedFile(node.file);
+          setEditingContent(contentString);
+          setViewMode("preview");
+          setSyntaxErrors([]);
+        }
+      };
+
+      confirmLoseChanges(proceed);
     },
-    [selectionMode, toggleFileSelection],
+    [
+      confirmLoseChanges,
+      selectionMode,
+      selectedFile,
+      toggleFileSelection,
+    ],
   );
 
   const handleItemLongPress = useCallback(
     (node: TreeNode) => {
       if (selectionMode) return;
 
-      if (node.type === "folder") {
-        Alert.alert(node.name, "Ordner-Aktion wählen:", [
-          {
-            text: "Löschen",
-            style: "destructive",
-            onPress: () => {
-              Alert.alert(
-                "Ordner löschen",
-                `Ordner "${node.name}" und alle Inhalte wirklich löschen?`,
-                [
-                  { text: "Abbrechen", style: "cancel" },
-                  {
-                    text: "Löschen",
-                    style: "destructive",
-                    onPress: () => {
-                      const filesToDelete =
-                        projectData?.files.filter((f) =>
-                          f.path.startsWith(node.path + "/"),
-                        ) || [];
-                      filesToDelete.forEach((f) => deleteFile(f.path));
+      // Guard: don't open action menu while dirty without a decision.
+      const proceed = (): void => {
+        if (node.type === "folder") {
+          Alert.alert(node.name, "Ordner-Aktion wählen:", [
+            {
+              text: "Löschen",
+              style: "destructive",
+              onPress: () => {
+                Alert.alert(
+                  "Ordner löschen",
+                  `Ordner "${node.name}" und alle Inhalte wirklich löschen?`,
+                  [
+                    { text: "Abbrechen", style: "cancel" },
+                    {
+                      text: "Löschen",
+                      style: "destructive",
+                      onPress: () => {
+                        const filesToDelete =
+                          projectData?.files.filter((f) =>
+                            f.path.startsWith(node.path + "/"),
+                          ) || [];
+                        filesToDelete.forEach((f) => deleteFile(f.path));
+                      },
                     },
-                  },
-                ],
-              );
+                  ],
+                );
+              },
             },
-          },
-          { text: "Abbrechen", style: "cancel" },
-        ]);
-      } else if (node.file) {
-        setActionTargetFile(node.file);
-        setShowActionsModal(true);
-      }
+            { text: "Abbrechen", style: "cancel" },
+          ]);
+          return;
+        }
+
+        if (node.file) {
+          setActionTargetFile(node.file);
+          setShowActionsModal(true);
+        }
+      };
+
+      confirmLoseChanges(proceed);
     },
-    [selectionMode, projectData?.files, deleteFile],
+    [confirmLoseChanges, deleteFile, projectData?.files, selectionMode],
   );
 
   const handleRenameFile = useCallback(
@@ -440,52 +528,6 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
     },
     [createFile, currentFolderPath],
   );
-
-  const handleSaveFile = useCallback(() => {
-    if (!selectedFile) return;
-
-    try {
-      const errors = validateSyntax(editingContent, selectedFile.path);
-      const criticalErrors = errors.filter((e) => e.severity === "error");
-
-      if (criticalErrors.length > 0) {
-        const errorList = criticalErrors
-          .map((e) => `• ${e.message}`)
-          .join("\n");
-        Alert.alert(
-          "Syntax-Fehler",
-          `Die folgenden Fehler wurden gefunden:\n\n${errorList}\n\nTrotzdem speichern?`,
-          [
-            { text: "Abbrechen", style: "cancel" },
-            {
-              text: "Trotzdem speichern",
-              style: "destructive",
-              onPress: () => {
-                updateProjectFiles([
-                  { path: selectedFile.path, content: editingContent },
-                ]);
-                setSelectedFile((prev) =>
-                  prev ? { ...prev, content: editingContent } : null,
-                );
-                Alert.alert("✅ Gespeichert", selectedFile.path);
-              },
-            },
-          ],
-        );
-        return;
-      }
-
-      updateProjectFiles([
-        { path: selectedFile.path, content: editingContent },
-      ]);
-      setSelectedFile((prev) =>
-        prev ? { ...prev, content: editingContent } : null,
-      );
-      Alert.alert("✅ Gespeichert", selectedFile.path);
-    } catch {
-      Alert.alert("Fehler", "Datei konnte nicht gespeichert werden.");
-    }
-  }, [editingContent, selectedFile, updateProjectFiles]);
 
   const handleCopy = useCallback((content: string) => {
     Clipboard.setStringAsync(content);
