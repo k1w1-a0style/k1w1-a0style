@@ -1,73 +1,55 @@
 /* global __dirname */
 /**
- * app.config.js – Expo App Config (Android-only)
+ * app.config.js
  *
- * WICHTIG:
- * - expo.extra.eas.projectId MUSS deterministisch sein (CI + EAS Cloud Build).
- * - Deshalb wird projectId primär aus ./eas-project.json gelesen.
- * - ENV bleibt als Override erlaubt.
+ * Goal: ensure expo.extra.eas.projectId is set deterministically (CI + local).
+ * Source of truth:
+ *  1) ./eas-project.json (committed)
+ *  2) env: EAS_PROJECT_ID / EXPO_PUBLIC_EAS_PROJECT_ID
  */
-try {
-  require("dotenv").config();
-} catch (e) {
-  // dotenv is optional in CI; config must not crash if it is missing
-}
-
 const fs = require("fs");
 const path = require("path");
 
-function readEasProjectIdFromFile() {
-  // Prefer __dirname so this works even if Expo CLI evaluates config with a different cwd.
-  const candidates = [
-    path.join(__dirname, "eas-project.json"),
-    path.join(process.cwd(), "eas-project.json"),
-  ];
-
-  for (const p of candidates) {
-    try {
-      if (!fs.existsSync(p)) continue;
-      const raw = fs.readFileSync(p, "utf8");
-      const json = JSON.parse(raw);
-      const id = typeof (json && json.projectId) === "string" ? json.projectId.trim() : "";
-      if (id) return id;
-    } catch {
-      // ignore and try next
-    }
+function readJson(p) {
+  try {
+    return JSON.parse(fs.readFileSync(p, "utf8"));
+  } catch {
+    return null;
   }
-  return "";
 }
 
-const EAS_PROJECT_ID =
-  String(process.env.EAS_PROJECT_ID || "").trim() || readEasProjectIdFromFile();
+function getEasProjectId() {
+  // Prefer repo-root eas-project.json (same dir as this file)
+  try {
+    const p = path.join(__dirname, "eas-project.json");
+    if (fs.existsSync(p)) {
+      const j = readJson(p);
+      if (j && typeof j.projectId === "string" && j.projectId.trim()) return j.projectId.trim();
+    }
+  } catch {
+    // ignore
+  }
 
-module.exports = {
-  expo: {
-    jsEngine: "hermes",
-    name: "k1w1-a0style",
-    slug: "k1w1-a0style",
-    version: "1.0.0",
-    scheme: "k1w1a0",
-    orientation: "portrait",
-    userInterfaceStyle: "automatic",
-    platforms: ["android"],
-    plugins: ["expo-font"],
-    assetBundlePatterns: ["**/*"],
-    android: {
-      package: "com.k1w1.a0style",
-      adaptiveIcon: {
-        foregroundImage: "./assets/adaptive-icon.png",
-        backgroundColor: "#FFFFFF",
-      },
-      softwareKeyboardLayoutMode: "pan",
-    },
-    extra: {
-      eas: {
-        ...(EAS_PROJECT_ID ? { projectId: EAS_PROJECT_ID } : {}),
-      },
+  // Fallback: CI/env
+  const envId = process.env.EAS_PROJECT_ID || process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
+  if (typeof envId === "string" && envId.trim()) return envId.trim();
 
-      // Supabase (public)
-      EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL || "",
-      EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
-    },
-  },
+  return undefined;
+}
+
+module.exports = ({ config }) => {
+  const projectId = getEasProjectId();
+
+  // Preserve existing extra fields
+  const extra = { ...(config.extra || {}) };
+  const easExtra = { ...(extra.eas || {}) };
+
+  if (projectId) easExtra.projectId = projectId;
+
+  extra.eas = easExtra;
+
+  return {
+    ...config,
+    extra,
+  };
 };
