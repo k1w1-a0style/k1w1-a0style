@@ -1,10 +1,11 @@
 // screens/CodeScreen/components/EditorBody.tsx
 import React from "react";
-import { ScrollView, TextInput } from "react-native";
+import { ScrollView, TextInput, View } from "react-native";
 import { theme } from "../../../theme";
 import { SyntaxHighlighter } from "../../../components/SyntaxHighlighter";
 import type { SyntaxError as ValidationError } from "../../../utils/syntaxValidator";
 import { styles } from "../styles";
+import WebCodeEditor from "./WebCodeEditor";
 
 interface EditorBodyProps {
   viewMode: "edit" | "preview";
@@ -19,23 +20,18 @@ export const EditorBody: React.FC<EditorBodyProps> = ({
   syntaxErrors,
   onChangeText,
 }) => {
+  const hasErrors = syntaxErrors.some((e) => e.severity === "error");
+
   return viewMode === "edit" ? (
-    <TextInput
-      style={[
-        styles.codeEditor,
-        syntaxErrors.some((e) => e.severity === "error") &&
-          styles.codeEditorError,
-      ]}
-      value={content}
-      onChangeText={onChangeText}
-      multiline
-      autoCapitalize="none"
-      autoCorrect={false}
-      spellCheck={false}
-      textAlignVertical="top"
-      placeholder="// Code eingeben..."
-      placeholderTextColor={theme.palette.text.secondary}
-    />
+    <View style={{ flex: 1 }}>
+      <WebCodeEditor
+        value={content}
+        onChangeText={onChangeText}
+        hasErrors={hasErrors}
+        placeholder="// Code eingeben..."
+        placeholderColor={theme.palette.text.secondary}
+      />
+    </View>
   ) : (
     <ScrollView style={styles.previewContainer}>
       <SyntaxHighlighter code={content} />

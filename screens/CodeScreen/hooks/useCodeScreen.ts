@@ -4,7 +4,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { Alert } from "react-native";
 
 import * as Clipboard from "expo-clipboard";
-import * as FileSystem from "expo-file-system/legacy";
+import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
 
 import {
@@ -200,16 +200,21 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
 
       const fileName = `${projectData?.name || "export"}_${Date.now()}.txt`;
 
-      const baseDir =
-        (FileSystem as any).documentDirectory ??
-        (FileSystem as any).cacheDirectory ??
-        "";
-      const fileUri = `${baseDir}${fileName}`;
-      const encoding = (FileSystem as any).EncodingType?.UTF8 ?? "utf8";
+      // NOTE: expo-file-system typings in this repo don't expose these members,
+      // and eslint(import/namespace) checks namespace members strictly.
+      // Use a local alias typed as any to satisfy TS + ESLint.
+      const FS: any = FileSystem;
 
-      await (FileSystem as any).writeAsStringAsync(fileUri, content, {
-        encoding,
-      });
+      const baseDir: string | undefined = FS.documentDirectory ?? FS.cacheDirectory;
+      if (!baseDir) {
+        throw new Error("Kein schreibbares Verzeichnis (document/cache) gefunden");
+      }
+
+      // Ensure exactly one slash between directory and filename.
+      const fileUri = baseDir.endsWith("/") ? `${baseDir}${fileName}` : `${baseDir}/${fileName}`;
+
+      // UTF-8 is default; avoid EncodingType to keep typings compatible
+      await FS.writeAsStringAsync(fileUri, content);
 
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(fileUri, {
