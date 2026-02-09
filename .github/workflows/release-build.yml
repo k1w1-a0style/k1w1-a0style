@@ -30,7 +30,6 @@ jobs:
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_CLI_VERSION: "16.32.0"
-
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       K1W1_EDGE_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ADMIN_KEY }}
@@ -76,6 +75,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
           if [ -f package-lock.json ]; then
             npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
           else
@@ -86,7 +86,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm i -g eas-cli@${EAS_CLI_VERSION}
+          npm i -g "eas-cli@${EAS_CLI_VERSION}"
           eas --version
           eas whoami
 
@@ -99,12 +99,17 @@ jobs:
           BODY="$(node - <<'NODE'
           const payload = { repo: process.env.GITHUB_REPOSITORY, mode: "production" };
           process.stdout.write(JSON.stringify(payload));
-          NODE
+NODE
           )"
 
-          RESP="$(curl -fsS -X POST "${SUPABASE_URL%/}/functions/v1/android-keystore-export"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             ${K1W1_EDGE_ADMIN_KEY:+-H "x-k1w1-admin-key: ${K1W1_EDGE_ADMIN_KEY}"}             --data "${BODY}")"
+          RESP="$(curl -fsS -X POST "${SUPABASE_URL%/}/functions/v1/android-keystore-export" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            ${K1W1_EDGE_ADMIN_KEY:+-H "x-k1w1-admin-key: ${K1W1_EDGE_ADMIN_KEY}"} \
+            --data "${BODY}")"
 
-          echo "$RESP" | node - <<'NODE'
+          RESP_JSON="$RESP" node - <<'NODE'
           const fs = require("fs");
 
           function mask(s) {
@@ -114,14 +119,17 @@ jobs:
             return s.slice(0, 2) + "***" + s.slice(-2);
           }
 
-          const resp = JSON.parse(fs.readFileSync(0, "utf8"));
+          const resp = JSON.parse(process.env.RESP_JSON || "{}");
           if (!resp.ok) {
-            // Don't dump full response (may include secrets).
             console.error("❌ export failed:", resp.error || "unknown error");
             process.exit(1);
           }
 
-          fs.writeFileSync("android-upload-keystore.p12", Buffer.from(resp.keystoreBase64, "base64"), { mode: 0o600 });
+          fs.writeFileSync(
+            "android-upload-keystore.p12",
+            Buffer.from(resp.keystoreBase64, "base64"),
+            { mode: 0o600 }
+          );
 
           const creds = {
             android: {
@@ -135,8 +143,15 @@ jobs:
           };
 
           fs.writeFileSync("credentials.json", JSON.stringify(creds, null, 2), { mode: 0o600 });
-          console.log("✅ wrote signing files (alias=" + (resp.alias || "unknown") + ", pw=" + mask(resp.keystorePassword) + ")");
-          NODE
+
+          console.log(
+            "✅ wrote signing files (alias=" +
+              (resp.alias || "unknown") +
+              ", pw=" +
+              mask(resp.keystorePassword) +
+              ")"
+          );
+NODE
 
       - name: Run EAS build (WAIT)
         id: eas
@@ -146,25 +161,35 @@ jobs:
 
           PROFILE="${{ inputs.profile }}"
           EXT="apk"
-          echo "artifact_ext=${EXT}" >> "${GITHUB_OUTPUT}"
 
-          echo "🚀 Starting EAS build (platform=android, profile=${PROFILE}) with --wait..."
-          BUILD_OUTPUT="$(eas build --platform android --profile "${PROFILE}" --non-interactive --wait 2>&1)" || {
+          echo " Starting EAS build (platform=android, profile=${PROFILE}) with --wait..."
+
+          {
+            echo "artifact_ext=${EXT}"
+          } >> "${GITHUB_OUTPUT}"
+
+          BUILD_OUTPUT=""
+          if ! BUILD_OUTPUT="$(eas build --platform android --profile "${PROFILE}" --non-interactive --wait 2>&1)"; then
             CODE=$?
             echo "${BUILD_OUTPUT}"
             echo "::error::EAS build failed (exit ${CODE})"
             exit "${CODE}"
-          }
+          fi
 
           echo "${BUILD_OUTPUT}"
 
           UUID_RE='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
           BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oE "${UUID_RE}" | head -n1 || true)"
-          if [ -z "${BUILD_ID}" ]; then BUILD_ID="unknown"; fi
-          echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
+          if [ -z "${BUILD_ID}" ]; then
+            BUILD_ID="unknown"
+          fi
 
           BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oE "https://expo.dev[^[:space:]]*/builds/${UUID_RE}" | head -n1 || true)"
-          echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"
+
+          {
+            echo "build_id=${BUILD_ID}"
+            echo "build_url=${BUILD_URL}"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Download Android Artifact
         if: steps.eas.outputs.build_id != 'unknown' && steps.eas.outputs.build_id != ''
