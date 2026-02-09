@@ -1,7 +1,7 @@
 // screens/CodeScreen/components/WebCodeEditor.tsx
-import React, { useMemo } from "react";
+import React, { useMemo, useRef } from "react";
 import { View, StyleSheet } from "react-native";
-import { WebView } from "react-native-webview";
+import { WebView, type WebViewMessageEvent } from "react-native-webview";
 
 type Props = {
   value: string;
@@ -16,7 +16,12 @@ type Props = {
 
 /**
  * Offline-safe WebView textarea editor.
- * Keeps CodeScreen UI unchanged while avoiding RN TextInput perf issues on large files.
+ * Goal: keep CodeScreen UI basically the same, but avoid RN TextInput perf issues on large files.
+ *
+ * Notes:
+ * - We don't inline `value` into HTML directly (escaping + perf). We send it via injected JS.
+ * - We use the *official* RN WebView bridge: window.ReactNativeWebView.postMessage(...)
+ * - We avoid cursor-jumps by only applying incoming value if it differs.
  */
 export const WebCodeEditor: React.FC<Props> = ({
   value,
@@ -28,149 +33,146 @@ export const WebCodeEditor: React.FC<Props> = ({
   tabSize = 2,
   changeThrottleMs = 120,
 }) => {
+  const lastSentFromRN = useRef<string | null>(null);
+
   const html = useMemo(() => {
     const editorBg = "#0f0f10";
-    const gutterBg = "#141416";
     const fg = "#e8e8e8";
     const border = hasErrors ? "#ff4d4f" : "#2a2a2e";
     const ro = readOnly ? "true" : "false";
+    const throttle = Math.max(0, Math.floor(changeThrottleMs));
+    const tabs = Math.max(1, Math.floor(tabSize));
 
-    // NOTE: We intentionally do NOT inline `value` into HTML to avoid massive escaping.
-    // We send it via injected JS after load.
+    // IMPORTANT: keep this HTML fully self-contained (no external assets).
     return `<!doctype html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <style>
-    html, body { height: 100%; margin: 0; padding: 0; background: ${editorBg}; }
-    .wrap { height: 100%; display: flex; flex-direction: row; border: 1px solid ${border}; border-radius: 8px; overflow: hidden; }
-    .gutter {
-      width: 52px;
-      background: ${gutterBg};
-      color: rgba(232,232,232,0.55);
-      font: 13px/18px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      padding: 10px 6px;
-      text-align: right;
-      user-select: none;
-      overflow: hidden;
-    }
-    textarea {
-      width: 100%;
-      height: 100%;
-      resize: none;
-      border: 0;
-      outline: none;
-      margin: 0;
-      padding: 10px 10px;
-      background: ${editorBg};
-      color: ${fg};
-      caret-color: ${fg};
-      font: 13px/18px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      tab-size: ${tabSize};
-      -moz-tab-size: ${tabSize};
-      white-space: pre;
-      overflow: auto;
-      box-sizing: border-box;
-    }
-    textarea::placeholder { color: ${placeholderColor}; }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<style>
+  html, body { height: 100%; margin: 0; padding: 0; background: ${editorBg}; }
+  * { box-sizing: border-box; }
+  #wrap { height: 100%; padding: 0; }
+  textarea {
+    width: 100%;
+    height: 100%;
+    padding: 14px 12px;
+    border: 1px solid ${border};
+    background: ${editorBg};
+    color: ${fg};
+    outline: none;
+    resize: none;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 13px;
+    line-height: 18px;
+    tab-size: ${tabs};
+    -webkit-text-size-adjust: 100%;
+  }
+  textarea::placeholder { color: ${placeholderColor}; opacity: 1; }
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <div id="gutter" class="gutter"></div>
-    <textarea id="ta" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" placeholder=${JSON.stringify(
-      placeholder
-    )}></textarea>
+  <div id="wrap">
+    <textarea id="ta" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"
+      placeholder="${placeholder.replace(/"/g, "&quot;")}"></textarea>
   </div>
 
-  <script>
-    const ta = document.getElementById("ta");
-    const gutter = document.getElementById("gutter");
-    ta.readOnly = ${ro};
+<script>
+(function(){
+  const ta = document.getElementById("ta");
+  if (!ta) return;
 
-    function updateGutter(text) {
-      let lines = 1;
-      for (let i = 0; i < text.length; i++) if (text.charCodeAt(i) === 10) lines++;
-      let out = "";
-      for (let i = 1; i <= lines; i++) out += i + "\n";
-      gutter.textContent = out;
-    }
-    function syncScroll() { gutter.scrollTop = ta.scrollTop; }
+  ta.readOnly = (${ro} === true);
 
-    let t = null;
-    function postChange(v) {
-      if (${ro}) return;
-      if (t) clearTimeout(t);
-      t = setTimeout(() => {
-        try { window.ReactNativeWebView && window.ReactNativeWebView.postMessage(v); } catch (e) {}
-      }, ${changeThrottleMs});
-    }
+  // throttle helper
+  let t = null;
+  const emit = () => {
+    if (!window.ReactNativeWebView || !window.ReactNativeWebView.postMessage) return;
+    try { window.ReactNativeWebView.postMessage(ta.value); } catch(e) {}
+  };
+  const scheduleEmit = () => {
+    if (${ro} === true) return;
+    if (t) return;
+    t = setTimeout(() => { t = null; emit(); }, ${throttle});
+  };
 
-    ta.addEventListener("input", () => {
-      updateGutter(ta.value);
-      postChange(ta.value);
-    });
-    ta.addEventListener("scroll", syncScroll);
+  ta.addEventListener("input", scheduleEmit);
 
-    ta.addEventListener("keydown", (e) => {
-      if (e.key === "Tab") {
-        e.preventDefault();
-        if (${ro}) return;
-        const start = ta.selectionStart;
-        const end = ta.selectionEnd;
-        const ins = " ".repeat(${tabSize});
-        ta.value = ta.value.substring(0, start) + ins + ta.value.substring(end);
-        ta.selectionStart = ta.selectionEnd = start + ins.length;
-        updateGutter(ta.value);
-        postChange(ta.value);
-      }
-    });
+  // Apply value coming from RN (initial load + file switch).
+  // Try hard to keep cursor stable.
+  const applyIncoming = (next) => {
+    try {
+      if (typeof next !== "string") return;
+      if (ta.value === next) return;
 
-    function setValue(v) {
-      if (typeof v !== "string") return;
-      if (ta.value === v) return;
-      const prevScroll = ta.scrollTop;
-      ta.value = v;
-      updateGutter(v);
-      ta.scrollTop = prevScroll;
-      syncScroll();
-    }
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const prevLen = ta.value.length;
 
-    window.addEventListener("message", (evt) => { try { setValue(evt.data); } catch (e) {} });
-    document.addEventListener("message", (evt) => { try { setValue(evt.data); } catch (e) {} });
+      ta.value = next;
 
-    updateGutter("");
-  </script>
+      // best-effort selection restore
+      const delta = next.length - prevLen;
+      const ns = Math.max(0, Math.min(next.length, start + delta));
+      const ne = Math.max(0, Math.min(next.length, end + delta));
+      ta.setSelectionRange(ns, ne);
+    } catch(e) {}
+  };
+
+  const onMsg = (e) => {
+    const data = e && e.data;
+    applyIncoming(data);
+  };
+
+  document.addEventListener("message", onMsg);
+  window.addEventListener("message", onMsg);
+
+  // focus on load (keeps current UX similar to TextInput edit mode)
+  setTimeout(() => { try { ta.focus(); } catch(e) {} }, 0);
+})();
+</script>
 </body>
 </html>`;
   }, [readOnly, placeholder, placeholderColor, hasErrors, tabSize, changeThrottleMs]);
 
-  const injectedJavaScript = useMemo(() => {
-    // Push current value into webview
+  const injectedJavaScriptBeforeContentLoaded = useMemo(() => {
+    // Send initial content into the webview without causing a full reload.
+    // We dispatch a message event that the HTML listens to.
+    // NOTE: JSON.stringify handles escaping safely.
+    const v = JSON.stringify(value ?? "");
+    lastSentFromRN.current = value ?? "";
     return `
       (function(){
         try {
-          const v = ${JSON.stringify(value ?? "")};
-          window.postMessage(v, "*");
+          var v = ${v};
           document.dispatchEvent(new MessageEvent("message", { data: v }));
-        } catch (e) {}
+          window.dispatchEvent(new MessageEvent("message", { data: v }));
+        } catch(e) {}
       })();
       true;
     `;
   }, [value]);
+
+  const handleMessage = (e: WebViewMessageEvent) => {
+    const next = String(e?.nativeEvent?.data ?? "");
+    // ignore echo caused by RN sending same value
+    if (lastSentFromRN.current !== null && next === lastSentFromRN.current) return;
+    onChangeText(next);
+  };
 
   return (
     <View style={styles.container}>
       <WebView
         originWhitelist={["*"]}
         source={{ html }}
-        javaScriptEnabled
-        injectedJavaScript={injectedJavaScript}
-        onMessage={(e) => onChangeText(String(e?.nativeEvent?.data ?? ""))}
+        onMessage={handleMessage}
+        injectedJavaScriptBeforeContentLoaded={injectedJavaScriptBeforeContentLoaded}
+        // keep scroll behavior controlled by parent container; textarea handles its own scroll
+        scrollEnabled={false}
         keyboardDisplayRequiresUserAction={false}
         setSupportMultipleWindows={false}
-        scrollEnabled={false}
+        // safety: block navigation
+        onShouldStartLoadWithRequest={() => false}
       />
     </View>
   );
