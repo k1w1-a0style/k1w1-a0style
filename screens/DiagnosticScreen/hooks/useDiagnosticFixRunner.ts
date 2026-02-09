@@ -8,7 +8,13 @@ import type {
   PreflightPatch,
 } from "../../../lib/diagnostics/preflightTypes";
 import { safeTruncateText } from "../../../lib/diagnostics/sanitize";
-import { patchFingerprint, summarizeBatchRisk } from "../../../lib/diagnostics/fixSafety";
+import {
+  DEFAULT_PATCH_LIMITS,
+  checkPatchLimits,
+  patchFingerprint,
+  summarizeBatchLimits,
+  summarizeBatchRisk,
+} from "../../../lib/diagnostics/fixSafety";
 import { validateFileContent, validateFilePath } from "../../../lib/validators";
 import { createOrUpdateFile, deleteRepoFile } from "../../../contexts/githubService";
 import { parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
@@ -468,14 +474,33 @@ export function useDiagnosticFixRunner(opts: {
         .filter((r) => !!r.fix?.patch)
         .map((r) => ({ title: r.title, patch: r.fix!.patch }));
 
+      // --- Size/complexity guard ---
+      // Even if paths are not "risky", very large patches can slow devices and raise regression risk.
+      const limitSummary = summarizeBatchLimits(batch, DEFAULT_PATCH_LIMITS);
+      if (limitSummary.hasHard) {
+        const lines = limitSummary.hardLines.join("\n");
+        Alert.alert(
+          "Patch too large",
+          `Mindestens ein Fix ist zu groß/komplex und wird aus Sicherheitsgründen blockiert.\n\n${lines}`,
+        );
+        return;
+      }
+
       const riskSummary = summarizeBatchRisk(batch);
-      if (riskSummary.hasRisk) {
+      if (riskSummary.hasRisk || limitSummary.hasSoft) {
+        const softNote = limitSummary.hasSoft
+          ? `\n\nGroße Fixes (Bestätigung nötig):\n${limitSummary.softLines.join("\n")}`
+          : "";
         const proceed = await new Promise<boolean>((resolve) => {
+          const header = riskSummary.hasRisk
+            ? "Einige Fixes betreffen CI/Build/Infra Dateien."
+            : "Einige Fixes sind sehr groß/komplex.";
+          const pathsBlock = riskSummary.hasRisk
+            ? `\n\nBetroffene Pfade:\n- ${riskSummary.shortPaths.join("\n- ")}${riskSummary.more}`
+            : "";
           Alert.alert(
             "Risky batch fix",
-            `Einige Fixes betreffen CI/Build/Infra Dateien.\n\nBetroffene Pfade:\n- ${riskSummary.shortPaths.join(
-              "\n- ",
-            )}${riskSummary.more}\n\nWillst du wirklich fortfahren?`,
+            `${header}${pathsBlock}${softNote}\n\nWillst du wirklich fortfahren?`,
             [
               { text: "Abbrechen", style: "cancel", onPress: () => resolve(false) },
               { text: "Weiter", onPress: () => resolve(true) },
@@ -678,6 +703,19 @@ export function useDiagnosticFixRunner(opts: {
       // Capture once so we can safely reference inside callbacks.
       const patch = r.fix.patch;
 
+      const sizeCheck = checkPatchLimits(patch, DEFAULT_PATCH_LIMITS);
+      if (sizeCheck.hardFail) {
+        Alert.alert(
+          "Patch too large",
+          "Dieser Fix ist zu groß/komplex und wird aus Sicherheitsgründen blockiert.\n\n" +
+            sizeCheck.reasons.join("\n"),
+        );
+        return;
+      }
+      const sizeNote = sizeCheck.softWarn
+        ? `\n\n⚠ Größe/Komplexität: ${sizeCheck.reasons.join(", ")}`
+        : "";
+
       const canSyncRepo = !!parseOwnerRepo(linkedRepo);
       const syncWouldHelp = shouldSyncPatch(patch);
 
@@ -760,7 +798,7 @@ export function useDiagnosticFixRunner(opts: {
 
       Alert.alert(
         "Fix anwenden?",
-        `${r.title}\n\n${safeTruncateText(r.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser Fix betrifft Repo-Dateien → Sync macht Sinn." : ""}`,
+        `${r.title}\n\n${safeTruncateText(r.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser Fix betrifft Repo-Dateien → Sync macht Sinn." : ""}${sizeNote}`,
         [
           { text: "Abbrechen", style: "cancel" },
           { text: "Preview", onPress: () => openPreview(r.title, patch) },

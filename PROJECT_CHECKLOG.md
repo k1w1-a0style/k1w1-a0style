@@ -338,3 +338,23 @@ Next suggested patch areas:
 ### Risk / Notes
 - No behavior change for single-fix flow (Apply/Preview).
 - Batch mode now prompts once when risky paths are involved.
+
+
+---
+
+## Patch 16
+
+**Goal:** FixRunner weiter härten: große/komplexe Patches nicht "still" anwenden.
+
+### Changes
+- `lib/diagnostics/fixSafety.ts` erweitert:
+  - `DEFAULT_PATCH_LIMITS` + `checkPatchLimits()` + `summarizeBatchLimits()`
+  - char-count + op-count + touched-file-count Bewertung (soft warn vs. hard block)
+- `useDiagnosticFixRunner.ts`:
+  - batch: hard-block, wenn ein Fix extreme Limits überschreitet; soft-warn erfordert Bestätigung
+  - single fix: hard-block bei extremen Patches; soft-warn als Hinweis im Dialog
+- Tests: `lib/__tests__/fixSafety.test.ts` erweitert
+
+### Risk / Notes
+- Behavior bleibt gleich für normale Fixes.
+- Extrem große Patches werden jetzt bewusst blockiert statt das Gerät/Repo zu riskieren.
