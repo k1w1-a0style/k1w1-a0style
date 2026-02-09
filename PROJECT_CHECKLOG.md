@@ -89,23 +89,104 @@ Wir gehen **screenweise** vor, aber in **2 Durchläufen**:
 - 2026-02-08: Dokument angelegt, Inventar erstellt, erste Red Flags notiert.
 
 
-## Patch Bundle 01–04 (applied in this ZIP)
+---
 
-This patch bundle implements the highest-priority fixes identified in the checklist:
+## Merged Append-Logs (Patches 18/20/21)
 
-- **Android release signing**: Release builds no longer force debug signing (`android/app/build.gradle`).
-- **EAS profiles**: `production.android.buildType` is now **apk** (artifact type consistent with the in-app flow).
-- **GitHub Actions workflows hardening**:
-  - `release-build.yml` rewritten (it was YAML-broken) and the keystore export step no longer dumps secrets in error paths.
-  - `eas-build.yml` keystore export step hardened (no secret dumps, files written with restrictive permissions).
-  - `k1w1-triggered-build.yml` now always produces APK and uses a composite action to de-duplicate the “determine checkout ref” logic.
-- **Diagnostics preferences**: debounced writes to AsyncStorage (reduces “write spam” during rapid toggles).
-- **Credentials wizard**: fixed busy-state / refreshAll concurrency edge case.
+_Diese Sektion wurde aus den `PROJECT_CHECKLOG_APPEND_PATCH_*.md` Dateien zusammengeführt. Nach Commit kann man die Append-Dateien löschen, damit es nur noch **eine** Checklog-Datei gibt._
 
-Pending items remain documented in the TODO sections (workflow refactor beyond determine-ref, DiagnosticScreen hook split, CodeScreen editor scalability, Preview WebView hardening, etc.).
+### Patch 18
 
-## Patch 17 (CI)
+#### Patch 18 – Notes / Manual Append for PROJECT_CHECKLOG.md
 
-- Fix: make CI failure actionable when `expo.extra.eas.projectId` is missing by printing diagnostics and pointing to `eas-link.yml` / `eas-project.json`.
-- Reminder: `app.config.js` reads `./eas-project.json` to set `extra.eas.projectId` deterministically; ensure `eas-project.json` stays committed.
+Date: 2026-02-09
+
+##### What was fixed
+- CI failure: `expo.extra.eas.projectId` was `undefined` in `npx expo config --json` (GitHub Actions).
+  - Root cause: `app.config.js` relied on `process.cwd()`; Expo CLI can evaluate config with a different cwd.
+  - Fix: read `eas-project.json` via `__dirname` first (fallback to `process.cwd()`).
+- Workflow Lint (actionlint/shellcheck) failures:
+  - `k1w1-diagnostics.yml`: fixed SC2129 by grouping writes to `$GITHUB_STEP_SUMMARY` and `$GITHUB_OUTPUT`.
+  - `release-build.yml`: fixed SC2259 by removing `echo "$RESP" | node - <<'NODE'` (pipe + heredoc conflict). Pass JSON via env instead.
+  - Also cleaned up quoting and output appends for robustness.
+
+##### How to verify
+- Local:
+  - `npx expo config --json | node -e 'const c=require("fs").readFileSync(0,"utf8"); const j=JSON.parse(c); console.log(j?.expo?.extra?.eas?.projectId)'`
+    → should print a UUID.
+- CI:
+  - `CI / ci / ci` should pass the “Expo config smoke test (projectId present)” step.
+  - `Workflow Lint (dry)` should pass actionlint.
+
+##### Commit message suggestion
+fix(ci): make expo projectId deterministic; fix workflow-lint shellcheck warnings
+
+### Patch 20
+
+##### Patch 20 — Fix expo.extra.eas.projectId locally + in CI
+
+**Problem:** `npx expo config --json` returned `expo.extra.eas.projectId = undefined` even though `eas-project.json` existed.
+
+**Root cause:** `app.config.js` was not reliably setting `extra.eas.projectId` (CWD differences / merge logic).
+
+**Fix:** `app.config.js` now:
+- reads `./eas-project.json` using `__dirname` (repo root)
+- merges `config.extra` safely
+- falls back to `EAS_PROJECT_ID` / `EXPO_PUBLIC_EAS_PROJECT_ID` in CI
+
+**Verification (Soll-Ziel):**
+- `npx expo config --json | ...` sollte eine UUID liefern
+- GitHub CI Step “Expo config smoke test (projectId present)” sollte grün sein
+
+**Ist-Stand (laut aktuellem Log):**
+- `npx expo config --json | ...` liefert derzeit noch `undefined` → Follow-up nötig
+
+### Patch 21
+
+##### Patch 21
+- **Fix (CI/local):** Make `expo.extra.eas.projectId` deterministic by:
+  - Reading `eas-project.json` via absolute path (`__dirname`)
+  - Supporting env overrides (`EAS_PROJECT_ID` / `EXPO_PUBLIC_EAS_PROJECT_ID`)
+  - Throwing a clear error when missing (instead of silently returning undefined)
+- **CI improvement:** Export `EAS_PROJECT_ID` from `eas-project.json` before running `expo config` to avoid CWD quirks.
+- **New helper:** `scripts/getEasProjectId.js` for debugging/CI.
+
+
+---
+
+## SONET Screen-Reviews (kritisch gegengeprüft)
+
+Quelle: SONET PDFs (ChatScreen / Preview Screens / Repos Screen). Ich habe die Punkte nicht 1:1 übernommen, sondern nach **Impact**, **Reproduzierbarkeit** und **Fix-Aufwand** eingeordnet.
+
+### ChatScreen
+
+- **Hoch:** `useChatAIFlow` ist sehr groß (Hook-Monolith) → erhöht Risiko für State-Chaos, doppelte Requests und schwer testbaren Code.
+- **Hoch:** mögliche **Race-Conditions** (gleichzeitige Requests / Stream + UI-Events) → Bedarf an `requestId`/Abort + zentralem Gate.
+- **Mittel:** „Memory Leak“ ist meist **State-Update-nach-Unmount** (Warnungen/Side-Effects), kein echter Leak – trotzdem sauber mit `AbortController` + Cleanup lösen.
+- **Mittel:** Performance bei langen Chats: Parsing/Regex/Mapping in Render-Pfaden → memoization, derived state vorrechnen, MessageItem stärker `memo`isieren.
+
+**Empfohlene Fix-Reihenfolge:** Hook splitten (Messages/Streaming/Attachments/Persistence) → Request-Abbruch → Render-Optimierung (Virtualisierung/Memoization) → Tests für Race-Cases.
+
+### Preview Screens (PreviewScreen + PreviewFullscreen)
+
+- **Hoch:** fehlende **Error Boundary** / harte Crash-Pfade bei Preview-Generation.
+- **Hoch:** **Race Condition** in `createPreview` möglich (parallel triggerbar) → Singleflight/Mutex + Abort auf Screen-Leave.
+- **Mittel:** veraltetes „mounted guard“ Pattern – funktioniert, aber besser: Abort/Cancellation + zentraler Helper.
+- **Mittel:** Performance bei großen Projekten (Preview build/scan) → chunking, progressive UI, cancellation.
+- **Niedrig/Mittel:** string-basierte Import-Replacement Logik ist fragil → mind. Unit-Tests + defensive parsing.
+
+### Repos Screen
+
+- **Hoch:** Hook-Komplexität + fehlende klare Trennung zwischen: Auth, Repo-Listing, Branch/Tree, File-Pull.
+- **Hoch:** Rate-Limit / Fehlerbehandlung (GitHub API) → Backoff + Retry + klare UI-States.
+- **Mittel:** ineffizientes File-Pull (viele Einzelrequests) → Tree-Endpoints nutzen, batching, caching/ETag.
+- **Mittel:** UI-Performance (lange Listen) → Virtualisierung + stabile Keys + memo.
+
+
+---
+
+## Offene Punkte / Status
+
+- **CI (Expo config smoke test):** `expo.extra.eas.projectId` ist in CI weiterhin manchmal `undefined`. Die lokale Repro (`npx expo config --json`) zeigt ebenfalls `undefined` → deutet darauf hin, dass Expo CLI den `app.config.js` nicht wie erwartet auswertet oder ein anderes Config-File Vorrang hat. **Nächster Schritt:** CI sollte `scripts/getEasProjectId.js` direkt auslesen und/oder `app.json` als Fallback mit `extra.eas.projectId` versehen.
+- **Workflow Lint (actionlint/shellcheck):** wurde in Patch 18 adressiert; bitte in Actions prüfen ob noch Findings offen sind.
 
