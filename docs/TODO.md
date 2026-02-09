@@ -2,6 +2,21 @@
 
 ## ✅ Aktueller Stand (funktioniert / vorhanden)
 
+## CodeScreen
+
+### ✅ Erledigt
+- Editor: Wechsel auf WebView-Editor (Optik bleibt gleich)
+- Export: TXT-Dump robust (expo-file-system, TS/ESLint-kompatibel)
+- Guard: große Dateien (Performance/Read-only Fallback)
+- Guard: Warnung bei ungespeicherten Änderungen
+- Stabilität: WebView-Bridge gehärtet + Mini-Toolbar (Undo/Redo)
+
+### 🔜 Offen / Optional
+- Suchen/Ersetzen im Code (Find/Replace)
+- „Go to line“ / schnelle Navigation
+- Syntax-Highlighting (nur wenn Performance ok; optional)
+
+
 - Expo/React Native App startet, Typecheck/Lint/Tests laufen durch.
 - Preview-System (Supabase-Flow):
   - `save_preview` Edge Function nimmt Files + Dependencies entgegen und speichert in DB.
@@ -19,9 +34,7 @@
 
 ### Security / Abuse
 
-- [x] **save_preview ist **nicht** öffentlich (Admin-Key Pflicht).**
-  - **Status:** Die Edge Function nutzt `requireAdminKey` (Header `x-k1w1-admin-key`). Ohne Key gibt es 401.
-  - **Patch:** Die App ruft `save_preview` jetzt nur noch auf, wenn ein Admin-Key konfiguriert ist.
+- [ ] **save_preview ist faktisch öffentlich (anon key ist public).**
       → Entscheiden: nur logged-in Users? Rate limiting? Captcha? Token?
 - [ ] Payload Limits serverseitig nochmal hart prüfen: - max files - max file size - max total size - allowed file types
 - [ ] Optional: Blocklist für offensichtliche Secrets im Code (z.B. Service Role, private keys).
