@@ -45,10 +45,11 @@ project_src_*.zip
 # Supabase temp
 supabase/.temp/
 
-# scripts sollen nicht ins repo (aber signing helper schon)
-scripts/*
-!scripts/
-!scripts/*.sh
+# scripts are part of the repo; do not ignore by default
+# Ignore only local/temp artifacts:
+scripts/**/.env
+scripts/**/.env.*
+scripts/**/.DS_Store
 
 # lokal generierte signing secrets (niemals committen)
 .signing_secrets.local
@@ -61,6 +62,13 @@ debug.log
 
 
 # --- k1w1 apk-builder: ignore patch zips ---
+# temporary patch helper docs (keep repo clean)
+PATCH_*_NOTES.md
+USE_*_PATCH*.md
+PATCH_*.diff
+PROJECT_CHECKLOG_APPEND_*.md
+README_PATCH*.md
+
 k1w1-*.zip
 *_patch*.zip
 project_src_*.zip

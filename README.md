@@ -1,6 +1,14 @@
 # k1w1-a0style
 
 
+## Docs & Workflow
+
+- Einstieg: `docs/INDEX.md`
+- Offene Punkte: `docs/TODO.md`
+- Patch-Ablauf: `docs/WORKFLOW_PATCHING.md`
+
+
+
 > Hinweis: Der Name "k1w1-a0style" ist wieder der normale Projektname. Falls du irgendwo noch "-restored" siehst, ist das ein Relikt aus einem Reparatur-Zip.
 
 React-Native/Expo App zum Bauen und Testen von Projekten/Flows mit **integriertem Preview-System**.
