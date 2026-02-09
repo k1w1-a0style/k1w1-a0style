@@ -1,55 +1,66 @@
 /* global __dirname */
-/**
- * app.config.js
- *
- * Goal: ensure expo.extra.eas.projectId is set deterministically (CI + local).
- * Source of truth:
- *  1) ./eas-project.json (committed)
- *  2) env: EAS_PROJECT_ID / EXPO_PUBLIC_EAS_PROJECT_ID
- */
 const fs = require("fs");
 const path = require("path");
 
-function readJson(p) {
+/**
+ * Deterministically derive EAS projectId for Expo config.
+ * Priority:
+ *  1) EAS_PROJECT_ID / EXPO_PUBLIC_EAS_PROJECT_ID env (CI-safe)
+ *  2) ./eas-project.json at repo root (local + CI)
+ *  3) existing config.extra.eas.projectId (if already present)
+ *
+ * If we still can't find a projectId, we throw with a clear error.
+ */
+function readEasProjectIdFromFile() {
   try {
-    return JSON.parse(fs.readFileSync(p, "utf8"));
+    const p = path.join(__dirname, "eas-project.json");
+    if (!fs.existsSync(p)) return undefined;
+    const raw = fs.readFileSync(p, "utf8");
+    const j = JSON.parse(raw);
+    return typeof j?.projectId === "string" ? j.projectId : undefined;
   } catch {
-    return null;
+    return undefined;
   }
 }
 
-function getEasProjectId() {
-  // Prefer repo-root eas-project.json (same dir as this file)
-  try {
-    const p = path.join(__dirname, "eas-project.json");
-    if (fs.existsSync(p)) {
-      const j = readJson(p);
-      if (j && typeof j.projectId === "string" && j.projectId.trim()) return j.projectId.trim();
-    }
-  } catch {
-    // ignore
-  }
+function pickProjectId(config) {
+  const fromEnv =
+    process.env.EAS_PROJECT_ID ||
+    process.env.EXPO_PUBLIC_EAS_PROJECT_ID ||
+    process.env.EXPO_PUBLIC_PROJECT_ID;
 
-  // Fallback: CI/env
-  const envId = process.env.EAS_PROJECT_ID || process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
-  if (typeof envId === "string" && envId.trim()) return envId.trim();
+  if (typeof fromEnv === "string" && fromEnv.trim()) return fromEnv.trim();
+
+  const fromFile = readEasProjectIdFromFile();
+  if (typeof fromFile === "string" && fromFile.trim()) return fromFile.trim();
+
+  const existing = config?.extra?.eas?.projectId;
+  if (typeof existing === "string" && existing.trim()) return existing.trim();
 
   return undefined;
 }
 
 module.exports = ({ config }) => {
-  const projectId = getEasProjectId();
+  const projectId = pickProjectId(config);
 
-  // Preserve existing extra fields
-  const extra = { ...(config.extra || {}) };
-  const easExtra = { ...(extra.eas || {}) };
+  if (!projectId) {
+    throw new Error(
+      "expo.extra.eas.projectId missing. Fix: commit eas-project.json (with projectId) " +
+        "or set EAS_PROJECT_ID / EXPO_PUBLIC_EAS_PROJECT_ID in the environment."
+    );
+  }
 
-  if (projectId) easExtra.projectId = projectId;
-
-  extra.eas = easExtra;
+  const extra = config?.extra ?? {};
+  const eas = extra?.eas ?? {};
 
   return {
     ...config,
-    extra,
+    extra: {
+      ...extra,
+      eas: {
+        ...eas,
+        projectId,
+      },
+    },
   };
 };
