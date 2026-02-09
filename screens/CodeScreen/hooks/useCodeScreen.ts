@@ -72,6 +72,49 @@ export interface UseCodeScreenReturn {
   handleCopy: (content: string) => void;
 }
 
+// ---- Large file guardrails (no UI changes) ----
+// Keep the editor responsive by reducing expensive validation work on huge files.
+const LARGE_FILE_MAX_CHARS = 200_000; // ~200k chars
+const LARGE_FILE_MAX_LINES = 5_000;   // stop counting after this
+const HUGE_FILE_MAX_CHARS = 600_000;  // beyond this, skip all live validation
+
+const countLinesUpTo = (text: string, maxLines: number): number => {
+  // Fast-ish newline counter with early bailout.
+  let lines = 1;
+  for (let i = 0; i < text.length; i += 1) {
+    if (text.charCodeAt(i) === 10) {
+      lines += 1;
+      if (lines >= maxLines) return lines;
+    }
+  }
+  return lines;
+};
+
+const getValidationPolicy = (text: string): {
+  debounceMs: number;
+  runSyntax: boolean;
+  runQuality: boolean;
+} => {
+  const charCount = text.length;
+
+  if (charCount >= HUGE_FILE_MAX_CHARS) {
+    return { debounceMs: 0, runSyntax: false, runQuality: false };
+  }
+
+  // Avoid splitting into an array for very large files.
+  const lines = charCount >= LARGE_FILE_MAX_CHARS
+    ? countLinesUpTo(text, LARGE_FILE_MAX_LINES + 1)
+    : countLinesUpTo(text, LARGE_FILE_MAX_LINES + 1);
+
+  const isLarge = charCount >= LARGE_FILE_MAX_CHARS || lines > LARGE_FILE_MAX_LINES;
+
+  return {
+    debounceMs: isLarge ? 1500 : 500,
+    runSyntax: true,
+    runQuality: !isLarge,
+  };
+};
+
 export const useCodeScreen = (): UseCodeScreenReturn => {
   const {
     projectData,
@@ -129,17 +172,25 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
       return;
     }
 
+    const policy = getValidationPolicy(editingContent);
+
+    // Huge files: keep typing smooth; skip live validation entirely.
+    if (!policy.runSyntax && !policy.runQuality) {
+      setSyntaxErrors([]);
+      return;
+    }
+
     const timeoutId = setTimeout(() => {
       try {
         const errors = [
-          ...validateSyntax(editingContent, selectedFile.path),
-          ...validateCodeQuality(editingContent, selectedFile.path),
+          ...(policy.runSyntax ? validateSyntax(editingContent, selectedFile.path) : []),
+          ...(policy.runQuality ? validateCodeQuality(editingContent, selectedFile.path) : []),
         ];
         setSyntaxErrors(errors);
       } catch {
         setSyntaxErrors([]);
       }
-    }, 500);
+    }, policy.debounceMs);
 
     return () => clearTimeout(timeoutId);
   }, [editingContent, selectedFile, viewMode]);
@@ -200,9 +251,9 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
 
       const fileName = `${projectData?.name || "export"}_${Date.now()}.txt`;
 
-      // NOTE: expo-file-system typings in this repo don't expose these members,
-      // and eslint(import/namespace) checks namespace members strictly.
-      // Use a local alias typed as any to satisfy TS + ESLint.
+      // NOTE: expo-file-system typings in this repo don't expose these fields,
+      // and eslint(import/namespace) validates exported members strictly.
+      // Use a local alias typed as any to keep TS + ESLint happy.
       const FS: any = FileSystem;
 
       const baseDir: string | undefined = FS.documentDirectory ?? FS.cacheDirectory;
@@ -210,8 +261,11 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
         throw new Error("Kein schreibbares Verzeichnis (document/cache) gefunden");
       }
 
-      // Ensure exactly one slash between directory and filename.
-      const fileUri = baseDir.endsWith("/") ? `${baseDir}${fileName}` : `${baseDir}/${fileName}`;
+      const normalizedBase = String(baseDir).endsWith("/")
+        ? String(baseDir)
+        : `${String(baseDir)}/`;
+
+      const fileUri = `${normalizedBase}${fileName}`;
 
       // UTF-8 is default; avoid EncodingType to keep typings compatible
       await FS.writeAsStringAsync(fileUri, content);
