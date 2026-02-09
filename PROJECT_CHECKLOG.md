@@ -268,3 +268,20 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - Was ich **nicht blind übernehmen** würde: konkrete Zeit-Schätzungen (“2 Tage”) und pauschale Library-Empfehlungen ohne Kontext.
 - Nächster Schritt: **Code-Check gegen diese Hypothesen** (1 Screen nach dem anderen) + ggf. Profiling auf echten Worst-Case Daten.
 
+---
+
+## Checklog Housekeeping
+
+Stand: 2026-02-09
+
+- Dieses Dokument ist der **Single Source of Truth**.
+- Folgende temporäre/Meta-Dateien sind nach dem Merge **entbehrlich** und können gelöscht werden (falls vorhanden):
+  - `PROJECT_CHECKLOG_APPEND_PATCH_18.md`
+  - `PROJECT_CHECKLOG_APPEND_PATCH_20.md`
+  - `PROJECT_CHECKLOG_APPEND_PATCH_21.md`
+  - `CHECKLOG_MERGE_NOTE.md`
+  - `CHECKLOG_SONET_NOTE.md`
+
+Optional:
+- `PATCH_21_CI_CORE_SNIPPET.md` ist **nur eine Copy/Paste-Hilfe** für `ci-core.yml`. Wenn du den Fix bereits übernommen hast, kannst du sie löschen.
+
