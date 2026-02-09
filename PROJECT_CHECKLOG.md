@@ -190,3 +190,81 @@ Quelle: SONET PDFs (ChatScreen / Preview Screens / Repos Screen). Ich habe die P
 - **CI (Expo config smoke test):** `expo.extra.eas.projectId` ist in CI weiterhin manchmal `undefined`. Die lokale Repro (`npx expo config --json`) zeigt ebenfalls `undefined` → deutet darauf hin, dass Expo CLI den `app.config.js` nicht wie erwartet auswertet oder ein anderes Config-File Vorrang hat. **Nächster Schritt:** CI sollte `scripts/getEasProjectId.js` direkt auslesen und/oder `app.json` als Fallback mit `extra.eas.projectId` versehen.
 - **Workflow Lint (actionlint/shellcheck):** wurde in Patch 18 adressiert; bitte in Actions prüfen ob noch Findings offen sind.
 
+---
+
+## Screen-Audit (SONET PDFs) – kritisch eingeordnet
+
+Quelle: die drei PDFs von SONET (ChatScreen, PreviewScreens, ReposScreen).  
+Wichtig: Das ist **kein Ersatz** für einen Code-/Runtime-Check, aber ein guter “Red-Flag”-Scanner.  
+Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Code-Check braucht, was evtl. übertrieben ist).
+
+### 1) ChatScreen (SONET: 33 Seiten)
+
+**Kernaussage (plausibel):** Der Hook `useChatAIFlow` ist zu groß/zu “allwissend” (≈695 Zeilen) und mischt viele Verantwortlichkeiten → schwer testbar, hoher Bug-Surface.  
+**Meine Bewertung:** **Sehr plausibel**. Das Muster (“God Hook”) ist ein Klassiker und erzeugt genau die Probleme, die SONET beschreibt.
+
+**Haupt-Risiken laut SONET (mit meiner Einstufung):**
+- 🔴 **Architektur/Komplexität:** Splitting in mehrere Hooks/Services empfohlen. → **Ja, höchste Priorität**, weil Wartbarkeit/Testbarkeit.
+- 🔴 **Rendering-Performance:** MessageParts/Code-Blöcke werden oft teuer gerendert; fehlende Virtualization für große Code-Blöcke. → **Sehr plausibel**, besonders bei langen Chats/Code.
+- 🟡 **Parsing-Performance:** Regex/Parsing im Render-Loop. → **Plausibel**, muss aber im Code verifiziert werden.
+- 🟡 **Keyboard Offset Workarounds:** “Nudges” sind fragil. → **Plausibel**, aber manchmal pragmatisch ok.
+
+**Konkrete ToDos (geordnet):**
+1. Split `useChatAIFlow` in klar getrennte Units:
+   - state/store (chat state)
+   - orchestrator/streaming
+   - file ops / patch apply
+   - parsing/normalization
+2. Message Rendering härten:
+   - heavy parts memoizen
+   - Code-Blocks: lazy render / virtualization / collapsible
+   - Parsing cachen (z.B. memoized per message id)
+3. Tests: Smoke + 2–3 targeted unit tests für Parser/Reducer/Orchestrator.
+
+### 2) PreviewScreen + PreviewFullscreenScreen (SONET: 23 Seiten)
+
+**Kernaussage:** Insgesamt solide, aber ein paar typische Stabilitäts-/Perf-Lücken.
+**Meine Bewertung:** Klingt **realistisch** (nicht “Drama”), gute Trefferquote.
+
+**Auffälligkeiten laut SONET:**
+- 🟡 **Keine lokale ErrorBoundary** für PreviewScreen. → **Sinnvoll** (Preview ist anfällig).
+- 🟡 **Fehlende Retry-Logik** für Preview-Erstellung. → **Nice-to-have**, abhängig von UX.
+- 🟡 **useEffect/Async Cleanup**: potentieller Memory Leak / veraltete Mounted-Guards. → **Sehr plausibel**.
+- 🟡 **Race Condition** beim `createPreview`. → **Plausibel**, sollte mit AbortController/Request-Id fixbar sein.
+- 🟡 **String/Regex Import Replacement** (RN → RN-Web) kann falsch matchen. → **Echte Gefahr**, wenn es breit eingesetzt wird.
+
+**Konkrete ToDos:**
+1. PreviewScreen: lokale ErrorBoundary + “Reset preview” CTA.
+2. createPreview: Abort/Request-Id + “disable while running”.
+3. Import-Rewrite: entweder AST-basiert (Babel) oder engere/safer Regex + Tests gegen Edge-Cases.
+4. Große Projekte: Profiling (Dateianzahl, Preview build time), ggf. chunking.
+
+### 3) GitHubReposScreen (SONET: 32 Seiten)
+
+**Kernaussage:** Hook/Screen zu groß (≈630 Zeilen, 50+ states), Re-render/Async-Race/Ineffiziente Pull-Logik.
+**Meine Bewertung:** **Sehr plausibel**. “Viele States + viele Effects” → Re-render Storms & Race Conditions sind fast garantiert.
+
+**Auffälligkeiten laut SONET:**
+- 🔴 **Komplexität:** “God Hook” (`useGitHubReposScreen`). → **Priorität hoch** (wie Chat).
+- 🟡 **Race conditions / Abort fehlend** (refresh mehrfach, unmount). → **Wichtig**, aber meist schnell fixbar.
+- 🔴 **Ineffizientes Pulling**: pro Datei viele API calls (Rate limits). → **Sehr wichtig**, wenn real.
+- 🟡 **Input Validation** (Repo/Branch). → **Schneller Win**.
+- 🟡 **Hardcoded Template Loading**. → Kontextabhängig, aber besser konfigurierbar.
+
+**Konkrete ToDos:**
+1. Split Hook:
+   - token/session
+   - repo list + pagination
+   - pull/download strategy
+   - create repo + validation
+2. Pull Strategy prüfen:
+   - wenn möglich “archive/tarball” statt 1 API call pro file
+   - Cache / ETag / conditional requests
+3. Concurrency/Race: AbortController oder requestId, disable refresh while pending.
+4. Validation + user feedback.
+
+### Fazit zu SONET
+- SONET trifft bei **“God Hook” + Performance + Async-Races** sehr wahrscheinlich ins Schwarze.
+- Was ich **nicht blind übernehmen** würde: konkrete Zeit-Schätzungen (“2 Tage”) und pauschale Library-Empfehlungen ohne Kontext.
+- Nächster Schritt: **Code-Check gegen diese Hypothesen** (1 Screen nach dem anderen) + ggf. Profiling auf echten Worst-Case Daten.
+
