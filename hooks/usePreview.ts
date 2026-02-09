@@ -366,6 +366,12 @@ if (container) {
         const supabase = await ensureSupabaseClient();
         const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
 
+        // Security: save_preview is protected by an admin key. If it's not configured,
+        // skip the remote preview path immediately to avoid unnecessary 401 calls.
+        if (!edgeAdminKey) {
+          throw new Error("Missing Edge Admin Key");
+        }
+
         const snackFiles: PreviewFiles = {};
         for (const [path, content] of Object.entries(files)) {
           const text = typeof content === "string" ? content : String((content as any) ?? "");

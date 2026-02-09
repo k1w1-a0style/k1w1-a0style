@@ -269,19 +269,17 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - Nächster Schritt: **Code-Check gegen diese Hypothesen** (1 Screen nach dem anderen) + ggf. Profiling auf echten Worst-Case Daten.
 
 ---
+## Patch 26 — TODO#1 save_preview access clarification + client-side guard
 
-## Checklog Housekeeping
+**Files**
+- `hooks/usePreview.ts`
+- `docs/TODO.md`
 
-Stand: 2026-02-09
+**Changes**
+- Skip calling `supabase/functions/v1/save_preview` when no Edge Admin Key is configured (avoids unnecessary 401s; local preview still works).
+- Update TODO to reflect that `save_preview` is admin-key protected (not public) and document the behavior.
 
-- Dieses Dokument ist der **Single Source of Truth**.
-- Folgende temporäre/Meta-Dateien sind nach dem Merge **entbehrlich** und können gelöscht werden (falls vorhanden):
-  - `PROJECT_CHECKLOG_APPEND_PATCH_18.md`
-  - `PROJECT_CHECKLOG_APPEND_PATCH_20.md`
-  - `PROJECT_CHECKLOG_APPEND_PATCH_21.md`
-  - `CHECKLOG_MERGE_NOTE.md`
-  - `CHECKLOG_SONET_NOTE.md`
-
-Optional:
-- `PATCH_21_CI_CORE_SNIPPET.md` ist **nur eine Copy/Paste-Hilfe** für `ci-core.yml`. Wenn du den Fix bereits übernommen hast, kannst du sie löschen.
-
+**Checks**
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
