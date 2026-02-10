@@ -18,19 +18,8 @@ Stand: **2026-02-10**
 
 ## 🔧 Optional / Tech-Debt (CodeScreen)
 - `useCodeScreen` später in kleinere Hooks splitten (Lesbarkeit/Testbarkeit).
-- Type-Cleanup:
-  - `gap` RN-Types per global `.d.ts` ergänzen statt überall `as any`.
-  - expo-file-system Typen ggf. lokal ergänzen (statt `any`).
 - Performance (nur falls spürbar): Syntax-Validation weiter optimieren/auslagern.
-
-## ➡️ Next: Preview
-1) **PreviewScreen** komplett fertig machen (Funktionalität vor UI/Polish).
-2) **PreviewFullscreen** danach.
-
-## UI/UX Polish (ganz zum Schluss)
-- Einheitliche Optik über alle Screens + kleine Grafik-/Spacing-Fixes.
-
----
+- WebView Editor: nur wenn nötig – Undo/Redo UX weiter polishen (Icons/States), ohne großes Layout-Redo.
 
 ## PATCH 37 (cleanup + handoff)
 
@@ -44,4 +33,14 @@ Stand: **2026-02-10**
 - `useCodeScreen` is a large “god hook” (refactor optional)
 - Validator false positives / bracket counting improvements
 - Syntax validation still runs on JS thread (acceptable for now)
-- `expo-file-system` typing cleanup (remove `any`) + RN `gap` typing polish
+
+## PATCH 38 (typing + docs hygiene)
+
+✅ Fixes applied:
+- CodeScreen: `gap: ... as any` entfernt (nutzt jetzt `types/react-native-gap.d.ts`).
+- Docs: stray `docs_PATCH_28_NOTES.md` → `docs/patches/PATCH_28_NOTES.md` verschoben.
+- Docs: unnötiges ZIP aus `docs/patches/artifacts/` entfernt.
+
+🟡 Still open (optional tech-debt):
+- `useCodeScreen` ist groß (Refactor in kleinere Hooks optional).
+- Syntax-Validation läuft im JS-Thread (ok, solange keine UI-Lags).

@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10 as any,
+    gap: 10,
     borderBottomWidth: 1,
   },
   toolBtn: {

@@ -39,7 +39,7 @@ export const styles = StyleSheet.create({
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12 as any,
+    gap: 12,
   },
   iconButton: {
     width: 40,
@@ -62,7 +62,7 @@ export const styles = StyleSheet.create({
   selectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16 as any,
+    gap: 16,
   },
   selectionCount: {
     fontSize: 18,
@@ -72,7 +72,7 @@ export const styles = StyleSheet.create({
   selectionActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8 as any,
+    gap: 8,
   },
   selectionButton: {
     paddingHorizontal: 12,
@@ -90,7 +90,7 @@ export const styles = StyleSheet.create({
   exportButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6 as any,
+    gap: 6,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -137,7 +137,7 @@ export const styles = StyleSheet.create({
   editorActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8 as any,
+    gap: 8,
   },
   actionButton: {
     width: 40,
@@ -166,7 +166,7 @@ export const styles = StyleSheet.create({
   errorBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6 as any,
+    gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 6,
