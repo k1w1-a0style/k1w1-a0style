@@ -48,7 +48,8 @@ Stand: **2026-02-10**
 
 ### Preview – aktuelle Restpunkte (funktional first)
 - PreviewScreen: Flows/Fehler/Retry + Restore-Guards ✅ (Patch 45). UI/Polish bleibt offen.
-- Fullscreen: Navigation-Guards & Edgecases weiter härten.
+- Fullscreen: Navigation-Guards ✅ (bereits drin) + WebView-Prozess-Guards ✅ (Patch 53).
+- Offene Preview-Restpunkte: UI/Polish + optional strengere URL-Allowlist je nach Bedarf.
 
 ## UI/UX Polish (ganz zum Schluss)
 - Einheitliche Optik über alle Screens + kleine Grafik-/Spacing-Fixes.

@@ -285,60 +285,6 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - `npm run test:silent`
 
 ---
-## Merged Append-Logs (Patches 36/37/39/39_HOTFIX1/40)
-
-_Diese Sektion wurde aus den `PROJECT_CHECKLOG_APPEND_PATCH_*.md` Dateien zusammengeführt, damit es nur noch **eine** Checklog-Datei gibt._
-
-### Patch 36
-
-## Ziel
-Kleiner Fix im CodeScreen WebView-Editor: Theme-Textfarbe korrekt nutzen (keine `[object Object]`-Interpolation), ohne UI-/Layout-Änderung.
-
-## Änderungen
-- `screens/CodeScreen/components/WebCodeEditor.tsx`
-  - `theme.palette.text` wird jetzt als `textColor = theme.palette.text.primary` verwendet (CSS bekommt eine echte Farbe).
-  - `textSecondary` als `theme.palette.text.secondary` (für Toolbar/Labels).
-  - HTML/CSS Template nutzt `${textColor}` statt `${text}`.
-
-- `docs/TODO.md`
-  - CodeScreen Done-Liste ergänzt.
-
-## Checks
-- `npm run typecheck`
-- `npm run lint:ci`
-- `npm run test:silent`
-
-### Patch 37
-
-- CodeScreen cleanup: removed dead import, expanded extensionless allowlist, reduced WebCodeEditor dep churn.
-- Docs: added new-chat handoff prompt, appended patch status to TODO.
-
-### Patch 39
-
-- Entfernt verbliebene `gap: X as any` Stellen in CodeScreen Styles/WebCodeEditor.
-- Ergänzt/aktualisiert `types/react-native-gap.d.ts`.
-- Docs/TODO aktualisiert.
-
-### Patch 39 HOTFIX 1
-
-- Fixes TS explosions after PATCH 39 where `react-native` exports appeared missing.
-- Adjusts `types/react-native-gap.d.ts` to augment internal StyleSheetTypes instead of shadowing the public module.
-
-Status: ready to apply.
-
-### Patch 40
-
-## Changes
-- Move `EXTENSIONLESS_ALLOWLIST` to module scope (avoid re-allocations).
-- Normalize `handleCreateFile` base name trimming and extension handling.
-- Update `docs/TODO.md` + `docs/notes/NEW_CHAT_PROMPT.md`.
-
-## Verification
-- `npm run typecheck` ✔
-- `npm run lint:ci` ✔
-- `npm run test:silent` ✔
-
-
 ## Patch 41 — CodeScreen save-flow hardening (unsaved changes)
 
 **Files**
@@ -491,7 +437,19 @@ Status: ready to apply.
 
 **Checks**
 - GitHub Actions: Workflow Lint (actionlint)
+## 2026-02-10 – Patch 53 (PreviewFullscreen WebView Process Guards)
+- Handle WebView process termination/crash:
+  - Android: `onRenderProcessGone` → setzt Error-State und verhindert Crash (return true).
+  - iOS: `onContentProcessDidTerminate` → setzt Error-State.
+- Reload/LoadStart resetten den Termination-Guard.
 
-## 2026-02-10 – Patch 52 (Docs: merge checklog append files)
-- Merge legacy `PROJECT_CHECKLOG_APPEND_PATCH_36/37/39/39_HOTFIX1/40.md` into `PROJECT_CHECKLOG.md`.
-- Mark append files as merged (safe to delete later).
+**Files**
+- `screens/PreviewFullscreenScreen.tsx`
+- `docs/TODO.md`
+- `docs/patches/PATCH_53_NOTES.md`
+- `PROJECT_CHECKLOG.md`
+
+**Checks**
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`

@@ -34,6 +34,10 @@ type WebViewHttpErrorEvent = {
   nativeEvent?: { statusCode?: number; description?: string };
 };
 
+type WebViewContentProcessDidTerminateEvent = { nativeEvent?: unknown };
+type WebViewRenderProcessGoneEvent = { nativeEvent?: { didCrash?: boolean } };
+
+
 type PreviewFullscreenRouteProp = RouteProp<
   RootStackParamList,
   "PreviewFullscreen"
@@ -62,6 +66,8 @@ export default function PreviewFullscreenScreen() {
 
   const webViewRef = useRef<WebView>(null);
   const isMountedRef = useRef(true);
+  const processTerminatedRef = useRef(false);
+
 
   const mode = useMemo<"html" | "url" | "none">(() => {
     if (html.trim().length > 0) return "html";
@@ -100,6 +106,7 @@ export default function PreviewFullscreenScreen() {
   }, [canGoForward]);
 
   const handleReload = useCallback(() => {
+    processTerminatedRef.current = false;
     webViewRef.current?.reload();
     setError(null);
   }, []);
@@ -149,6 +156,7 @@ export default function PreviewFullscreenScreen() {
 
   const handleLoadStart = useCallback(() => {
     if (!isMountedRef.current) return;
+    processTerminatedRef.current = false;
     setLoading(true);
     setError(null);
   }, []);
@@ -157,6 +165,38 @@ export default function PreviewFullscreenScreen() {
     if (!isMountedRef.current) return;
     setLoading(false);
   }, []);
+
+  const handleContentProcessDidTerminate = useCallback(
+    (_evt: WebViewContentProcessDidTerminateEvent) => {
+      if (!isMountedRef.current) return;
+      if (processTerminatedRef.current) return;
+      processTerminatedRef.current = true;
+
+      setLoading(false);
+      setError("WebView-Prozess wurde beendet. Bitte neu laden.");
+    },
+    [],
+  );
+
+  const handleRenderProcessGone = useCallback(
+    (evt: WebViewRenderProcessGoneEvent): boolean => {
+      if (!isMountedRef.current) return true;
+      if (processTerminatedRef.current) return true;
+      processTerminatedRef.current = true;
+
+      const didCrash = Boolean(evt?.nativeEvent?.didCrash);
+      setLoading(false);
+      setError(
+        didCrash
+          ? "WebView ist abgestürzt. Bitte neu laden."
+          : "WebView wurde beendet. Bitte neu laden.",
+      );
+
+      // Return true -> we handled it (avoid app crash on Android)
+      return true;
+    },
+    [],
+  );
 
   const handleNavigationStateChange = useCallback(
     (navState: WebViewNavigation) => {
@@ -456,6 +496,8 @@ export default function PreviewFullscreenScreen() {
           onLoadEnd={handleLoadEnd}
           onError={handleError}
           onHttpError={handleHttpError}
+          onContentProcessDidTerminate={handleContentProcessDidTerminate}
+          onRenderProcessGone={handleRenderProcessGone}
           startInLoadingState
           style={styles.webView}
           mixedContentMode="always"
