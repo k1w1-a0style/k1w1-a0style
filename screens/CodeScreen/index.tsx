@@ -52,7 +52,8 @@ const CodeScreen: React.FC = () => {
     handleDuplicateFile,
     handleSaveFile,
     handleCopy,
-  } = useCodeScreen();
+    isDirty,
+} = useCodeScreen();
 
   if (isLoading && !projectData) {
     return <LoadingView />;
@@ -75,7 +76,6 @@ const CodeScreen: React.FC = () => {
 
   // ==================== CODE EDITOR (FULLSCREEN) ====================
   if (selectedFile) {
-    const isDirty = selectedFile.content !== editingContent;
     const isCodeFile =
       /\.(tsx?|jsx?|json|md|css|scss|html|xml|yaml|yml)$/i.test(
         selectedFile.path,

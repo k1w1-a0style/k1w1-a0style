@@ -9,6 +9,7 @@
 - Export: TXT-Dump robust (expo-file-system, TS/ESLint-kompatibel)
 - Guard: große Dateien (Performance/Read-only Fallback)
 - Guard: Warnung bei ungespeicherten Änderungen
+- isDirty: einheitlich (Hook + UI), gilt auch im Preview-Modus
 - Stabilität: WebView-Bridge gehärtet + Mini-Toolbar (Undo/Redo)
 
 ### 🔜 Offen / Optional

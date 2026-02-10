@@ -70,6 +70,12 @@ export interface UseCodeScreenReturn {
 
   handleSaveFile: () => void;
   handleCopy: (content: string) => void;
+
+  /** True when the currently selected file has unsaved edits (unified across UI + hook). */
+  isDirty: boolean;
+
+  /** Helper that shows a confirmation dialog if there are unsaved changes. */
+  confirmLoseChanges: (onDiscard: () => void) => void;
 }
 
 const toContentString = (file: ProjectFile): string => {
@@ -113,20 +119,6 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
     null,
   );
 
-  const lastSelectedPathRef = useRef<string | null>(null);
-
-  const selectedOriginalContent = useMemo(() => {
-    return selectedFile ? toContentString(selectedFile) : "";
-  }, [selectedFile]);
-
-  const isDirty = useMemo(() => {
-    if (!selectedFile) return false;
-    if (viewMode !== "edit") return false;
-    // If user opens a file and we set editingContent from file content,
-    // this simple compare works (and we also update selectedFile content on save).
-    return editingContent !== selectedOriginalContent;
-  }, [editingContent, selectedFile, selectedOriginalContent, viewMode]);
-
   const fileTree = useMemo(() => {
     if (projectData?.files) return buildFileTree(projectData.files);
     return [];
@@ -152,49 +144,23 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
     return folders;
   }, [fileTree]);
 
-  // Live validation — gets expensive on huge files.
-  useEffect(() => {
-    if (!selectedFile || viewMode !== "edit") {
-      setSyntaxErrors([]);
-      return;
-    }
-    if (!editingContent.trim()) {
-      setSyntaxErrors([]);
-      return;
-    }
 
-    const len = editingContent.length;
-    const lines = countLines(editingContent);
+  const lastSelectedPathRef = useRef<string | null>(null);
 
-    // Heuristics: keep editor smooth. No UI changes, just reduces background work.
-    const huge = len > 600_000;
-    const large = len > 200_000 || lines > 5_000;
+  const selectedOriginalContent = useMemo(() => {
+    return selectedFile ? toContentString(selectedFile) : "";
+  }, [selectedFile]);
 
-    if (huge) {
-      // Skip live validation entirely.
-      setSyntaxErrors([]);
-      return;
-    }
+  const isDirty = useMemo(() => {
+    if (!selectedFile) return false;
 
-    const debounceMs = large ? 1500 : 500;
-    const includeQuality = !large;
+    const original =
+      typeof selectedFile.content === "string"
+        ? selectedFile.content
+        : JSON.stringify(selectedFile.content, null, 2);
 
-    const timeoutId = setTimeout(() => {
-      try {
-        const errors = [
-          ...validateSyntax(editingContent, selectedFile.path),
-          ...(includeQuality
-            ? validateCodeQuality(editingContent, selectedFile.path)
-            : []),
-        ];
-        setSyntaxErrors(errors);
-      } catch {
-        setSyntaxErrors([]);
-      }
-    }, debounceMs);
-
-    return () => clearTimeout(timeoutId);
-  }, [editingContent, selectedFile, viewMode]);
+    return original !== editingContent;
+  }, [editingContent, selectedFile]);
 
   const toggleFileSelection = useCallback((filePath: string) => {
     setSelectedFiles((prev) => {
@@ -537,6 +503,9 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
   return {
     projectData,
     isLoading,
+
+    confirmLoseChanges,
+    isDirty,
     selectedFile,
     setSelectedFile,
     editingContent,
