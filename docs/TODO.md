@@ -16,6 +16,11 @@ Stand: **2026-02-10**
   - Clipboard `await` + Fehlerhandling
   - SyntaxErrorBar stabile Keys (ohne fileName/column)
 - Unsaved-Changes Flow hardened: "Speichern" navigiert nur weiter, wenn wirklich gespeichert wurde
+- Wartbarkeit/Perf:
+  - `useCodeScreen` in kleinere Hooks gesplittet (Explorer/Editor/Actions)
+  - Validation debounced + per `InteractionManager.runAfterInteractions` deferred
+- Security:
+  - Bridge Message-Schema strikter validiert + Unit-Tests
 - Typing-Hygiene:
   - `gap` RN-Types per global `.d.ts` ergänzt (kein `as any` mehr nötig)
   - `expo-file-system` Typen lokal ergänzt (kein `any`-Cast)
@@ -28,15 +33,11 @@ Stand: **2026-02-10**
 - Fullscreen: WebView Callback Typing gehärtet (kompatibel mit `react-native-webview@13.15.x`).
 
 ## 🔧 Optional / Tech-Debt (CodeScreen)
-- `useCodeScreen` später in kleinere Hooks splitten (Lesbarkeit/Testbarkeit).
-- Type-Cleanup:
-  - `gap` RN-Types per global `.d.ts` ergänzen statt überall `as any`.
-  - expo-file-system Typen ggf. lokal ergänzen (statt `any`).
-- Performance (nur falls spürbar): Syntax-Validation weiter optimieren/auslagern.
+- Performance (nur falls spürbar): Syntax-Validation/Quality-Checks weiter auslagern (Worker/Task) oder „progressive validation“.
+- WebView/Bridge Paranoia: CSP / striktere WebView Settings (soweit Plattform zulässt).
 
 ## ⏭️ Next (CodeScreen)
 - Nichts Kritisches offen.
-- Optional (nur wenn es in der Praxis wehtut): Syntax-Validation/Quality-Checks in Worker/Task auslagern.
 
 ## ➡️ Next: Preview
 1) **PreviewScreen** komplett fertig machen (Funktionalität vor UI/Polish).

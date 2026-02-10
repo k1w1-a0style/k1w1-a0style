@@ -25,9 +25,55 @@ type OutboundMsg =
   | { t: "set"; value: string }
   | { t: "cmd"; cmd: "undo" | "redo" };
 
-function safeJsonParse(input: string): any {
+// ---------------------------------------------------------------------------
+// Bridge message validation
+// ---------------------------------------------------------------------------
+
+/** Maximum payload size (characters) we accept from the WebView to prevent memory bombs. */
+const MAX_BRIDGE_PAYLOAD = 5_000_000; // ~5MB
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  if (v === null || typeof v !== "object") return false;
+  const proto = Object.getPrototypeOf(v);
+  return proto === Object.prototype || proto === null;
+}
+
+function isInboundMsg(v: unknown): v is InboundMsg {
+  if (!isPlainObject(v)) return false;
+  const obj = v as Record<string, unknown>;
+
+  switch (obj.t) {
+    case "ready":
+      return true;
+    case "value":
+      return typeof obj.value === "string" && obj.value.length <= MAX_BRIDGE_PAYLOAD;
+    case "focus":
+      return typeof obj.focused === "boolean";
+    default:
+      return false;
+  }
+}
+
+function sanitizeInboundMsg(v: InboundMsg): InboundMsg {
+  // Strip unknown fields (including any proto-ish keys).
+  switch (v.t) {
+    case "ready":
+      return { t: "ready" };
+    case "value":
+      return { t: "value", value: v.value };
+    case "focus":
+      return { t: "focus", focused: v.focused };
+  }
+}
+
+function parseBridgeMessage(raw: unknown): InboundMsg | null {
+  if (typeof raw !== "string" || !raw) return null;
+  if (raw.length > MAX_BRIDGE_PAYLOAD) return null;
+
   try {
-    return JSON.parse(input);
+    const parsed: unknown = JSON.parse(raw);
+    if (!isInboundMsg(parsed)) return null;
+    return sanitizeInboundMsg(parsed);
   } catch {
     return null;
   }
@@ -43,10 +89,9 @@ export const WebCodeEditor = ({
   changeThrottleMs = 60,
   tabSize = 2,
 }: Props) => {
-  // NOTE: Using static theme (no hook) for testability.
   const webRef = useRef<WebView>(null);
 
-  // Bridge state (kept in refs to avoid re-render loops)
+  // Bridge state (refs to avoid rerenders)
   const isFocusedRef = useRef(false);
   const isReadyRef = useRef(false);
   const lastSentToWebRef = useRef<string>("");
@@ -56,11 +101,10 @@ export const WebCodeEditor = ({
 
   const bg = theme.palette.background;
   const textColor = theme.palette.text.primary;
-const textSecondary = theme.palette.text.secondary;
-const border = hasErrors ? theme.palette.error : theme.palette.border;
+  const border = hasErrors ? theme.palette.error : theme.palette.border;
 
   const html = useMemo(() => {
-    // IMPORTANT: do NOT embed `value` into HTML (avoids injection + quoting edge cases).
+    // IMPORTANT: do NOT embed `value` into HTML.
     // We always send content via postMessage after the WebView signals {t:'ready'}.
     const tabSpaces = " ".repeat(Math.max(1, tabSize));
 
@@ -71,7 +115,7 @@ const border = hasErrors ? theme.palette.error : theme.palette.border;
       textarea {
         width: 100%; height: 100%;
         border: 0; outline: 0; resize: none;
-        padding: 14px 14px 14px 14px;
+        padding: 14px;
         background: ${bg};
         color: ${textColor};
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -83,7 +127,6 @@ const border = hasErrors ? theme.palette.error : theme.palette.border;
       textarea::placeholder { color: ${placeholderColor}; opacity: 1; }
     `;
 
-    // Web-side script
     const js = `
       (function() {
         var ta = document.getElementById('ta');
@@ -104,7 +147,6 @@ const border = hasErrors ? theme.palette.error : theme.palette.border;
           var start = ta.selectionStart;
           var end = ta.selectionEnd;
           ta.value = v;
-          // Keep cursor reasonably stable when not focused; when focused RN won't push updates.
           try { ta.setSelectionRange(start, end); } catch (e) {}
         }
 
@@ -121,7 +163,6 @@ const border = hasErrors ? theme.palette.error : theme.palette.border;
         }
 
         ta.readOnly = READONLY;
-
         ta.addEventListener('input', scheduleSend);
         ta.addEventListener('focus', function(){ post({ t: 'focus', focused: true }); });
         ta.addEventListener('blur', function(){ post({ t: 'focus', focused: false }); });
@@ -161,7 +202,6 @@ const border = hasErrors ? theme.palette.error : theme.palette.border;
           }
         }
 
-        // RN->Web message delivery differs between iOS/Android.
         window.addEventListener('message', function(e){ handleMessage(e.data); });
         document.addEventListener('message', function(e){ handleMessage(e.data); });
 
@@ -183,15 +223,17 @@ const border = hasErrors ? theme.palette.error : theme.palette.border;
           <script>${js}</script>
         </body>
       </html>`;
-  }, [bg, changeThrottleMs, placeholder, placeholderColor, readOnly, tabSize, textColor, textSecondary]);
+  }, [bg, changeThrottleMs, placeholder, placeholderColor, readOnly, tabSize, textColor]);
 
   const postToWeb = useCallback((msg: OutboundMsg) => {
     const data = JSON.stringify(msg);
     const postMessageFn: undefined | ((d: string) => void) = (webRef.current as any)?.postMessage;
+
     if (typeof postMessageFn === "function") {
       postMessageFn(data);
       return;
     }
+
     // Fallback: inject JS to dispatch a message event
     webRef.current?.injectJavaScript(
       `window.dispatchEvent(new MessageEvent('message',{data:${JSON.stringify(data)}}));true;`,
@@ -200,28 +242,26 @@ const border = hasErrors ? theme.palette.error : theme.palette.border;
 
   const handleMessage = useCallback(
     (event: WebViewMessageEvent) => {
-      const data = event.nativeEvent.data;
-      const parsed = safeJsonParse(data) as InboundMsg | null;
-      if (!parsed || typeof parsed !== "object") return;
+      const raw = event.nativeEvent.data;
+      const msg = parseBridgeMessage(raw);
+      if (!msg) return;
 
-      if (parsed.t === "ready") {
+      if (msg.t === "ready") {
         isReadyRef.current = true;
         setReadyUi(true);
-        // Send current value once the editor is ready.
         lastSentToWebRef.current = value;
         postToWeb({ t: "set", value });
         return;
       }
 
-      if (parsed.t === "focus") {
-        isFocusedRef.current = !!parsed.focused;
+      if (msg.t === "focus") {
+        isFocusedRef.current = msg.focused;
         return;
       }
 
-      if (parsed.t === "value") {
-        const v = parsed.value ?? "";
-        lastSentFromWebRef.current = v;
-        onChangeText(v);
+      if (msg.t === "value") {
+        lastSentFromWebRef.current = msg.value;
+        onChangeText(msg.value);
       }
     },
     [onChangeText, postToWeb, value],
@@ -230,13 +270,8 @@ const border = hasErrors ? theme.palette.error : theme.palette.border;
   // Push external value changes into the WebView when it isn't actively focused.
   useEffect(() => {
     if (!isReadyRef.current) return;
-
-    // If the change came from the editor itself, don't echo it back.
     if (value === lastSentFromWebRef.current) return;
-
-    // Avoid stomping the cursor while typing.
     if (isFocusedRef.current) return;
-
     if (value === lastSentToWebRef.current) return;
 
     lastSentToWebRef.current = value;
@@ -252,9 +287,8 @@ const border = hasErrors ? theme.palette.error : theme.palette.border;
   );
 
   return (
-    <View style={[styles.container, { borderColor: border, backgroundColor: bg }]}> 
-      {/* Mini toolbar: tiny & unobtrusive (no split-screen) */}
-      <View style={[styles.toolbar, { borderBottomColor: theme.palette.border }]}> 
+    <View style={[styles.container, { borderColor: border, backgroundColor: bg }]}>
+      <View style={[styles.toolbar, { borderBottomColor: theme.palette.border }]}>
         <Pressable
           accessibilityRole="button"
           onPress={() => runCmd("undo")}
@@ -289,7 +323,6 @@ const border = hasErrors ? theme.palette.error : theme.palette.border;
           return false;
         }}
         setSupportMultipleWindows={false}
-        // Make it look like a native editor area.
         style={{ backgroundColor: bg }}
       />
     </View>
@@ -297,6 +330,9 @@ const border = hasErrors ? theme.palette.error : theme.palette.border;
 };
 
 export default WebCodeEditor;
+
+// Exported for unit testing.
+export { parseBridgeMessage, isInboundMsg, MAX_BRIDGE_PAYLOAD };
 
 const styles = StyleSheet.create({
   container: {

@@ -337,3 +337,28 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - `npm run typecheck`
 - `npm run lint:ci`
 - `npm run test:silent`
+
+---
+## Patch 44 — CodeScreen hook split + validation deferral + bridge hardening
+
+**Files**
+- `screens/CodeScreen/hooks/types.ts`
+- `screens/CodeScreen/hooks/useCodeScreen.ts`
+- `screens/CodeScreen/hooks/useFileEditor.ts`
+- `screens/CodeScreen/hooks/useFileExplorer.ts`
+- `screens/CodeScreen/hooks/useFileActions.ts`
+- `screens/CodeScreen/components/WebCodeEditor.tsx`
+- `__tests__/bridgeValidation.test.ts`
+- `docs/TODO.md`
+- `docs/patches/PATCH_44_NOTES.md`
+
+**Changes**
+- Refactor: `useCodeScreen` split into focused hooks (`useFileEditor`, `useFileExplorer`, `useFileActions`), public interface unchanged.
+- Validation: debounced and deferred via `InteractionManager.runAfterInteractions` to avoid UI stalls.
+- Bridge: stricter message validation + payload size cap; parser returns sanitized messages (drops unknown fields).
+- Tests: add unit tests for bridge validation and payload limits.
+
+**Checks**
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
