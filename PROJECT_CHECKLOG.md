@@ -426,8 +426,14 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - `npm run lint:ci`
 - `npm run test:silent`
 
+## 2026-02-10 – Patch 51 (CI Workflow YAML Fix)
+- Fix actionlint YAML parse errors caused by unindented heredoc terminators (`NODE`) in workflow scripts.
 
----
+**Files**
+- `.github/workflows/k1w1-diagnostics.yml`
+- `.github/workflows/release-build.yml`
+- `docs/patches/PATCH_51_NOTES.md`
+- `PROJECT_CHECKLOG.md`
 
-## Patch 50 (CI)
-- CI: expo config smoke test now reads `(c.expo ?? c).extra.eas.projectId`.
+**Checks**
+- GitHub Actions: Workflow Lint (actionlint)

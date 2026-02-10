@@ -99,7 +99,7 @@ jobs:
           BODY="$(node - <<'NODE'
           const payload = { repo: process.env.GITHUB_REPOSITORY, mode: "production" };
           process.stdout.write(JSON.stringify(payload));
-NODE
+          NODE
           )"
 
           RESP="$(curl -fsS -X POST "${SUPABASE_URL%/}/functions/v1/android-keystore-export" \
@@ -151,7 +151,7 @@ NODE
               mask(resp.keystorePassword) +
               ")"
           );
-NODE
+          NODE
 
       - name: Run EAS build (WAIT)
         id: eas
