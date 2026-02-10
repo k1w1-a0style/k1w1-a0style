@@ -409,3 +409,19 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - `npm run typecheck`
 - `npm run lint:ci`
 - `npm run test:silent`
+
+
+## 2026-02-10 – Patch 49 (CodeScreen FileActions Consistency)
+- UI-Pre-Validation + Collision-Checks in `useFileActions` für Create/Rename/Move.
+- `await` auf `renameFile/createFile`, bevor `selectedFile` umgestellt wird (kein Ghost-Selection).
+
+**Files**
+- `screens/CodeScreen/hooks/useFileActions.ts`
+- `docs/TODO.md`
+- `docs/patches/PATCH_49_NOTES.md`
+- `PROJECT_CHECKLOG.md`
+
+**Checks**
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`

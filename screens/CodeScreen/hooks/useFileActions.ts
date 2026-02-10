@@ -11,6 +11,8 @@ import type { TreeNode } from "../../../components/FileTree";
 import { useProject } from "../../../contexts/ProjectContext";
 import type { ProjectFile } from "../../../contexts/types";
 
+import { validateFilePath } from "../../../lib/validators";
+
 import type { ViewMode } from "./useFileEditor";
 import { toContentString } from "./useFileEditor";
 
@@ -22,6 +24,13 @@ const EXTENSIONLESS_ALLOWLIST = new Set<string>([
   "LICENSE",
   "CHANGELOG",
 ]);
+
+const validatePathOrAlert = (path: string): boolean => {
+  const res = validateFilePath(path);
+  if (res.valid) return true;
+  Alert.alert("Ungültiger Dateipfad", res.errors.join("\n"));
+  return false;
+};
 
 export interface UseFileActionsReturn {
   showCreationDialog: boolean;
@@ -169,7 +178,7 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
   );
 
   const handleRenameFile = useCallback(
-    (newName: string) => {
+    async (newName: string) => {
       if (!actionTargetFile) return;
 
       const oldPath = actionTargetFile.path;
@@ -177,29 +186,52 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
       parts[parts.length - 1] = newName;
       const newPath = parts.join("/");
 
-      renameFile(oldPath, newPath);
+      if (!validatePathOrAlert(newPath)) return;
+
+      const files = projectData?.files ?? [];
+      if (files.some((f) => f.path === newPath)) {
+        Alert.alert(
+          "Datei existiert bereits",
+          `Es gibt bereits eine Datei mit dem Pfad:\n${newPath}`,
+        );
+        return;
+      }
+
+      await renameFile(oldPath, newPath);
 
       if (selectedFile?.path === oldPath) {
         setSelectedFile({ ...actionTargetFile, path: newPath });
       }
     },
-    [actionTargetFile, renameFile, selectedFile, setSelectedFile],
+    [actionTargetFile, projectData?.files, renameFile, selectedFile, setSelectedFile],
   );
 
   const handleMoveFile = useCallback(
-    (targetFolder: string) => {
+    async (targetFolder: string) => {
       if (!actionTargetFile) return;
 
       const fileName = actionTargetFile.path.split("/").pop() ?? "";
       const newPath = targetFolder ? `${targetFolder}/${fileName}` : fileName;
 
-      renameFile(actionTargetFile.path, newPath);
+      if (!validatePathOrAlert(newPath)) return;
 
-      if (selectedFile?.path === actionTargetFile.path) {
+      const files = projectData?.files ?? [];
+      if (files.some((f) => f.path === newPath)) {
+        Alert.alert(
+          "Datei existiert bereits",
+          `Es gibt bereits eine Datei mit dem Pfad:\n${newPath}`,
+        );
+        return;
+      }
+
+      const oldPath = actionTargetFile.path;
+      await renameFile(oldPath, newPath);
+
+      if (selectedFile?.path === oldPath) {
         setSelectedFile({ ...actionTargetFile, path: newPath });
       }
     },
-    [actionTargetFile, renameFile, selectedFile, setSelectedFile],
+    [actionTargetFile, projectData?.files, renameFile, selectedFile, setSelectedFile],
   );
 
   const handleDeleteFile = useCallback(() => {
@@ -246,7 +278,7 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
   }, [actionTargetFile, createFile, projectData?.files]);
 
   const handleCreateFile = useCallback(
-    (name: string) => {
+    async (name: string) => {
       const baseName = name.trim();
       if (!baseName) return;
 
@@ -260,17 +292,27 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
         !EXTENSIONLESS_ALLOWLIST.has(baseName);
       const finalPath = needsExt ? `${fullPath}.tsx` : fullPath;
 
-      createFile(finalPath, `// ${finalPath}\n`);
+      if (!validatePathOrAlert(finalPath)) return;
 
-      const newFile: ProjectFile = {
-        path: finalPath,
-        content: `// ${finalPath}\n`,
-      };
+      const files = projectData?.files ?? [];
+      if (files.some((f) => f.path === finalPath)) {
+        Alert.alert(
+          "Datei existiert bereits",
+          `Es gibt bereits eine Datei mit dem Pfad:\n${finalPath}`,
+        );
+        return;
+      }
+
+      const initialContent = `// ${finalPath}\n`;
+      await createFile(finalPath, initialContent);
+
+      // Optimistic selection is safe now (path validated + no collision).
+      const newFile: ProjectFile = { path: finalPath, content: initialContent };
       setSelectedFile(newFile);
-      setEditingContent(`// ${finalPath}\n`);
+      setEditingContent(initialContent);
       setViewMode("edit");
     },
-    [createFile, currentFolderPath, setEditingContent, setSelectedFile, setViewMode],
+    [createFile, currentFolderPath, projectData?.files, setEditingContent, setSelectedFile, setViewMode],
   );
 
   const handleCreateFolder = useCallback(

@@ -17,6 +17,7 @@ Stand: **2026-02-10**
   - SyntaxErrorBar stabile Keys (ohne fileName/column)
 - Unsaved-Changes Flow hardened: "Speichern" navigiert nur weiter, wenn wirklich gespeichert wurde
 - A11y: Undo/Redo im Editor mit Accessibility-Labels/Hints
+- File-Actions: UI-Pre-Validation + Collision-Check (kein Ghost-Selection bei failed create/rename/move)
 - Wartbarkeit/Perf:
   - `useCodeScreen` in kleinere Hooks gesplittet (Explorer/Editor/Actions)
   - Validation debounced + per `InteractionManager.runAfterInteractions` deferred
