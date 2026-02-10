@@ -183,7 +183,7 @@ const border = hasErrors ? theme.palette.error : theme.palette.border;
           <script>${js}</script>
         </body>
       </html>`;
-  }, [bg, changeThrottleMs, placeholder, placeholderColor, readOnly, tabSize, textColor]);
+  }, [bg, changeThrottleMs, placeholder, placeholderColor, readOnly, tabSize, textColor, textSecondary]);
 
   const postToWeb = useCallback((msg: OutboundMsg) => {
     const data = JSON.stringify(msg);

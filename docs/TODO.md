@@ -7,7 +7,7 @@ Stand: **2026-02-10**
 - RN↔WebView Bridge stabilisiert
 - Focus-Tracking + Sync-Fix (keine Cursor-Sprünge durch externe Updates)
 - Injection-Härtung beim Initialisieren des Editor-Inhalts
- - WebCodeEditor CSS Textfarbe fix (kein [object Object])
+- WebCodeEditor CSS Textfarbe fix (kein [object Object])
 - `isDirty` vereinheitlicht (Hook + UI, inkl. Preview)
 - TXT-Export stabil (expo-file-system typings kompatibel)
 - QoL:
@@ -18,29 +18,17 @@ Stand: **2026-02-10**
 
 ## 🔧 Optional / Tech-Debt (CodeScreen)
 - `useCodeScreen` später in kleinere Hooks splitten (Lesbarkeit/Testbarkeit).
+- Type-Cleanup:
+  - `gap` RN-Types per global `.d.ts` ergänzen statt überall `as any`.
+  - expo-file-system Typen ggf. lokal ergänzen (statt `any`).
 - Performance (nur falls spürbar): Syntax-Validation weiter optimieren/auslagern.
-- WebView Editor: nur wenn nötig – Undo/Redo UX weiter polishen (Icons/States), ohne großes Layout-Redo.
 
-## PATCH 37 (cleanup + handoff)
+## ⏭️ Next (CodeScreen)
+- **PATCH 39**: letzte `gap: X as any` Stellen entfernen (Types sind jetzt per `.d.ts` erweitert), ohne UI-Änderung.
 
-✅ Fixes applied:
-- CodeScreen: removed unused `TextInput` import in `EditorBody.tsx`
-- CodeScreen: expanded extensionless allowlist for new files (Dockerfile/Makefile + LICENSE/NOTICE/README)
-- CodeScreen: removed optional `textSecondary` dep churn in `WebCodeEditor.tsx` (no UI change)
-- Docs: added new-chat handoff prompt + patch notes
+## ➡️ Next: Preview
+1) **PreviewScreen** komplett fertig machen (Funktionalität vor UI/Polish).
+2) **PreviewFullscreen** danach.
 
-🟡 Still open (CodeScreen tech-debt):
-- `useCodeScreen` is a large “god hook” (refactor optional)
-- Validator false positives / bracket counting improvements
-- Syntax validation still runs on JS thread (acceptable for now)
-
-## PATCH 38 (typing + docs hygiene)
-
-✅ Fixes applied:
-- CodeScreen: `gap: ... as any` entfernt (nutzt jetzt `types/react-native-gap.d.ts`).
-- Docs: stray `docs_PATCH_28_NOTES.md` → `docs/patches/PATCH_28_NOTES.md` verschoben.
-- Docs: unnötiges ZIP aus `docs/patches/artifacts/` entfernt.
-
-🟡 Still open (optional tech-debt):
-- `useCodeScreen` ist groß (Refactor in kleinere Hooks optional).
-- Syntax-Validation läuft im JS-Thread (ok, solange keine UI-Lags).
+## UI/UX Polish (ganz zum Schluss)
+- Einheitliche Optik über alle Screens + kleine Grafik-/Spacing-Fixes.
