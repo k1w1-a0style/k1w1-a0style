@@ -367,3 +367,13 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 ## 2026-02-10 – Patch 45 (PreviewScreen Flow Hardening)
 - PreviewScreen: Retry-Button bei Errors + Guards für "Reopen/Copy" wenn lokale Preview nach Neustart nicht restorable ist.
 - UX: Buttons während Create disabled, null-Result von createPreview wird sichtbar.
+
+## 2026-02-10 – Patch 46 (PreviewFullscreen Navigation Guards)
+- WebView: strictere `originWhitelist` (http/https/data/about/blob).
+- External Links: Preview bleibt „contained“ – Links, die nicht zur Preview-Origin gehören (oder im HTML-Mode), werden im System-Browser geöffnet (mit Confirm-Dialog).
+- Custom Schemes: `mailto:`/`tel:` etc. werden an das OS delegiert (best-effort).
+
+**Checks**
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`

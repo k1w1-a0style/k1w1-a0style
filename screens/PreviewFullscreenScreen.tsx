@@ -70,6 +70,17 @@ export default function PreviewFullscreenScreen() {
     return "none";
   }, [html, url]);
 
+  const baseOrigin = useMemo<string | null>(() => {
+    if (mode !== "url" || !url) return null;
+    try {
+      const u = new URL(url);
+      return `${u.protocol}//${u.host}`;
+    } catch {
+      return null;
+    }
+  }, [mode, url]);
+
+
   const headerSubtitle = useMemo(() => {
     if (mode === "html") return "Local HTML Preview";
     if (mode === "url" && url) return truncateUrl(url, 60);
@@ -153,7 +164,7 @@ export default function PreviewFullscreenScreen() {
       setCanGoBack(navState.canGoBack);
       setCanGoForward(navState.canGoForward);
     },
-    [],
+    [mode, baseOrigin],
   );
 
   const handleShouldStartLoad = useCallback(
@@ -174,18 +185,76 @@ export default function PreviewFullscreenScreen() {
         return true;
       }
 
+      if (requestUrl.startsWith("blob:")) {
+        return true;
+      }
+
       if (!isHttpUrl(requestUrl)) {
+        // Try to hand off to the OS for custom schemes (mailto:, tel:, etc.)
+        setTimeout(() => {
+          Linking.openURL(requestUrl).catch(() => {
+            Alert.alert(
+              "Navigation blockiert",
+              `Dieser Link kann nicht geöffnet werden:\n\n${truncateUrl(requestUrl, 90)}`,
+              [{ text: "OK" }],
+            );
+          });
+        }, 0);
+        return false;
+      }
+
+      // Keep preview "contained": open external links in the system browser.
+      if (mode === "html") {
         Alert.alert(
-          "Navigation blockiert",
-          `Dieser Link kann nicht geöffnet werden:\n\n${truncateUrl(requestUrl, 90)}`,
-          [{ text: "OK" }],
+          "Externen Link öffnen?",
+          truncateUrl(requestUrl, 160),
+          [
+            { text: "Abbrechen", style: "cancel" },
+            {
+              text: "Öffnen",
+              onPress: () => {
+                void Linking.openURL(requestUrl);
+              },
+            },
+          ],
         );
         return false;
       }
 
+      if (mode === "url" && baseOrigin) {
+        try {
+          const u = new URL(requestUrl);
+          const origin = `${u.protocol}//${u.host}`;
+          if (origin !== baseOrigin) {
+            Alert.alert(
+              "Externen Link öffnen?",
+              truncateUrl(requestUrl, 160),
+              [
+                { text: "Abbrechen", style: "cancel" },
+                {
+                  text: "Öffnen",
+                  onPress: () => {
+                    void Linking.openURL(requestUrl);
+                  },
+                },
+              ],
+            );
+            return false;
+          }
+        } catch {
+          // If parsing fails, be conservative.
+          Alert.alert(
+            "Navigation blockiert",
+            `Dieser Link kann nicht geöffnet werden:\n\n${truncateUrl(requestUrl, 90)}`,
+            [{ text: "OK" }],
+          );
+          return false;
+        }
+      }
+
       return true;
     },
-    [],
+    [mode, baseOrigin],
   );
 
   const handleError = useCallback((syntheticEvent: WebViewErrorEvent) => {
@@ -378,7 +447,7 @@ export default function PreviewFullscreenScreen() {
       <View style={styles.webViewContainer}>
         <WebView
           ref={webViewRef}
-          originWhitelist={["*"]}
+          originWhitelist={["https://*", "http://*", "data:*", "about:*", "blob:*"]}
           setSupportMultipleWindows={false}
           javaScriptCanOpenWindowsAutomatically={false}
           onShouldStartLoadWithRequest={handleShouldStartLoad}

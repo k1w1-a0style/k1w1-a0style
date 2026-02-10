@@ -31,6 +31,7 @@ Stand: **2026-02-10**
 ## ✅ Done (Preview)
 - Hardening: `createPreview` singleflight (kein Doppelklick-Race) + keine State-Updates nach Unmount.
 - Fullscreen: WebView Callback Typing gehärtet (kompatibel mit `react-native-webview@13.15.x`).
+- Fullscreen: Externe Navigation wird im System-Browser geöffnet (Origin-Guard + strictere `originWhitelist`).
 
 ## 🔧 Optional / Tech-Debt (CodeScreen)
 - Performance (nur falls spürbar): Syntax-Validation/Quality-Checks weiter auslagern (Worker/Task) oder „progressive validation“.
