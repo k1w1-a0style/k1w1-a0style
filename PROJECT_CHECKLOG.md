@@ -425,3 +425,9 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - `npm run typecheck`
 - `npm run lint:ci`
 - `npm run test:silent`
+
+
+---
+
+## Patch 50 (CI)
+- CI: expo config smoke test now reads `(c.expo ?? c).extra.eas.projectId`.
