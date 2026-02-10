@@ -44,7 +44,7 @@ Stand: **2026-02-10**
 2) **PreviewFullscreen** danach.
 
 ### Preview – aktuelle Restpunkte (funktional first)
-- PreviewScreen: Funktionalität komplett machen (Flows/Fehler/Retry), erst danach UI/Polish.
+- PreviewScreen: Flows/Fehler/Retry + Restore-Guards ✅ (Patch 45). UI/Polish bleibt offen.
 - Fullscreen: Navigation-Guards & Edgecases weiter härten.
 
 ## UI/UX Polish (ganz zum Schluss)

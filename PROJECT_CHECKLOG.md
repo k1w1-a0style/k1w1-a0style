@@ -362,3 +362,8 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - `npm run typecheck`
 - `npm run lint:ci`
 - `npm run test:silent`
+
+
+## 2026-02-10 – Patch 45 (PreviewScreen Flow Hardening)
+- PreviewScreen: Retry-Button bei Errors + Guards für "Reopen/Copy" wenn lokale Preview nach Neustart nicht restorable ist.
+- UX: Buttons während Create disabled, null-Result von createPreview wird sichtbar.

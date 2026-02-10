@@ -32,6 +32,15 @@ export default function PreviewScreen() {
   const { state, dependencies, lastPreview, createPreview, reset } =
     usePreview(projectData);
 
+  const canUseLastPreview = useMemo(() => {
+    const url = lastPreview?.url?.trim();
+    const html = lastPreview?.html?.trim();
+    return Boolean(url || html);
+  }, [lastPreview?.url, lastPreview?.html]);
+
+  const isLocalPreviewNotRestorable =
+    lastPreview?.source === "local" && !lastPreview?.html;
+
   const openFullscreen = useCallback(
     (preview: { url: string | null; html: string | null }) => {
       navigation.navigate("PreviewFullscreen", {
@@ -43,10 +52,17 @@ export default function PreviewScreen() {
     [navigation, projectData?.name],
   );
 
-  const handleCreateAndOpen = useCallback(async () => {
+    const handleCreateAndOpen = useCallback(async () => {
     try {
       const result = await createPreview();
-      if (result) openFullscreen(result);
+      if (!result) {
+        Alert.alert(
+          "⚠️ Keine Preview",
+          "Preview konnte nicht erzeugt werden. Bitte erneut versuchen.",
+        );
+        return;
+      }
+      openFullscreen(result);
     } catch (e: unknown) {
       const msg =
         e instanceof Error
@@ -56,17 +72,27 @@ export default function PreviewScreen() {
     }
   }, [createPreview, openFullscreen]);
 
-  const handleReopenLast = useCallback(() => {
-    if (!lastPreview) {
-      Alert.alert("⚠️ Keine Preview", "Erstelle zuerst eine neue Preview.");
+    const handleReopenLast = useCallback(() => {
+    if (!lastPreview || !canUseLastPreview) {
+      Alert.alert(
+        "⚠️ Preview nicht verfügbar",
+        isLocalPreviewNotRestorable
+          ? "Lokale HTML-Previews können nach App-Neustart nicht wieder geöffnet werden. Bitte eine neue Preview erstellen."
+          : "Erstelle zuerst eine neue Preview.",
+      );
       return;
     }
     openFullscreen(lastPreview);
-  }, [lastPreview, openFullscreen]);
+  }, [lastPreview, canUseLastPreview, isLocalPreviewNotRestorable, openFullscreen]);
 
-  const handleCopy = useCallback(async () => {
-    if (!lastPreview) {
-      Alert.alert("⚠️ Keine Preview", "Erstelle zuerst eine Preview.");
+    const handleCopy = useCallback(async () => {
+    if (!lastPreview || !canUseLastPreview) {
+      Alert.alert(
+        "⚠️ Nichts zu kopieren",
+        isLocalPreviewNotRestorable
+          ? "Diese lokale HTML-Preview ist nach App-Neustart nicht mehr verfügbar. Bitte neue Preview erstellen."
+          : "Erstelle zuerst eine Preview.",
+      );
       return;
     }
     const textToCopy = lastPreview.url || lastPreview.html || "";
@@ -81,7 +107,7 @@ export default function PreviewScreen() {
     } catch {
       Alert.alert("❌ Fehler", "Konnte nicht kopieren.");
     }
-  }, [lastPreview]);
+  }, [lastPreview, canUseLastPreview, isLocalPreviewNotRestorable]);
 
   const lastCreatedText = useMemo(() => {
     if (!state.lastCreatedAt) return null;
@@ -211,8 +237,22 @@ export default function PreviewScreen() {
               </View>
             )}
 
+            {isLocalPreviewNotRestorable && (
+              <Text style={styles.localHint}>
+                Hinweis: Lokale Previews sind nach App-Neustart nicht wieder verfügbar –
+                bitte neu erstellen.
+              </Text>
+            )}
+
             <View style={styles.statusActions}>
-              <Pressable style={styles.statusBtn} onPress={handleReopenLast}>
+              <Pressable
+                style={[
+                  styles.statusBtn,
+                  (!canUseLastPreview || state.isCreating) && styles.btnDisabled,
+                ]}
+                onPress={handleReopenLast}
+                disabled={!canUseLastPreview || state.isCreating}
+              >
                 <Ionicons
                   name="expand-outline"
                   size={16}
@@ -221,7 +261,14 @@ export default function PreviewScreen() {
                 <Text style={styles.statusBtnText}>Öffnen</Text>
               </Pressable>
 
-              <Pressable style={styles.statusBtn} onPress={handleCopy}>
+              <Pressable
+                style={[
+                  styles.statusBtn,
+                  (!canUseLastPreview || state.isCreating) && styles.btnDisabled,
+                ]}
+                onPress={handleCopy}
+                disabled={!canUseLastPreview || state.isCreating}
+              >
                 <Ionicons
                   name="copy-outline"
                   size={16}
@@ -230,7 +277,11 @@ export default function PreviewScreen() {
                 <Text style={styles.statusBtnText}>Kopieren</Text>
               </Pressable>
 
-              <Pressable style={styles.statusBtn} onPress={reset}>
+              <Pressable
+                style={[styles.statusBtn, state.isCreating && styles.btnDisabled]}
+                onPress={reset}
+                disabled={state.isCreating}
+              >
                 <Ionicons
                   name="refresh-outline"
                   size={16}
@@ -253,6 +304,14 @@ export default function PreviewScreen() {
           <View style={styles.errorCard}>
             <Ionicons name="warning" size={20} color={theme.palette.error} />
             <Text style={styles.errorText}>{state.error}</Text>
+            <Pressable
+              style={[styles.errorBtn, state.isCreating && styles.btnDisabled]}
+              onPress={handleCreateAndOpen}
+              disabled={state.isCreating}
+            >
+              <Ionicons name="refresh" size={16} color={theme.palette.error} />
+              <Text style={styles.errorBtnText}>Retry</Text>
+            </Pressable>
           </View>
         )}
 
@@ -444,6 +503,28 @@ const styles = StyleSheet.create({
     flex: 1,
     color: theme.palette.error,
     fontSize: 13,
+    fontWeight: "600",
+  },
+  errorBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    columnGap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.palette.error,
+    backgroundColor: "rgba(255, 100, 100, 0.08)",
+  },
+  errorBtnText: {
+    color: theme.palette.error,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  localHint: {
+    marginTop: 8,
+    color: theme.palette.text.secondary,
+    fontSize: 12,
     fontWeight: "600",
   },
 
