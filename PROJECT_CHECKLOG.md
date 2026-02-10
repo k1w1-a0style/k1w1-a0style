@@ -377,3 +377,35 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - `npm run typecheck`
 - `npm run lint:ci`
 - `npm run test:silent`
+## 2026-02-10 – Patch 47 (CodeScreen Mini-Hardening)
+- WebCodeEditor: Focus-Tracking als State → externe `value`-Updates werden nach `blur` zuverlässig in den WebView gepusht.
+- WebCodeEditor: Undo/Redo Buttons mit `accessibilityLabel`/`accessibilityHint` + disabled-State solange der Editor nicht ready ist.
+- Export (Selection Mode): `expo-file-system` ohne `any`-Cast verwendet (`FileSystem.writeAsStringAsync` direkt).
+
+**Files**
+- `screens/CodeScreen/components/WebCodeEditor.tsx`
+- `screens/CodeScreen/hooks/useFileExplorer.ts`
+- `docs/TODO.md`
+- `docs/patches/PATCH_47_NOTES.md`
+- `PROJECT_CHECKLOG.md`
+
+**Checks**
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
+
+## 2026-02-10 – Patch 48 (CodeScreen Mini-Hardening Hotfix)
+- WebCodeEditor: fehlender `toolBtnDisabled` Style ergänzt (Typecheck-Fix).
+- Export (Selection Mode): `expo-file-system` Zugriff auf `documentDirectory/cacheDirectory` über named imports (eslint `import/namespace` Fix), weiterhin ohne `any`.
+
+**Files**
+- `screens/CodeScreen/components/WebCodeEditor.tsx`
+- `screens/CodeScreen/hooks/useFileExplorer.ts`
+- `docs/patches/PATCH_48_NOTES.md`
+- `PROJECT_CHECKLOG.md`
+
+**Checks**
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`

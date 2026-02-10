@@ -5,7 +5,7 @@ Stand: **2026-02-10**
 ## ✅ Done (CodeScreen)
 - WebView-Editor (ohne gravierende UI-Änderung)
 - RN↔WebView Bridge stabilisiert
-- Focus-Tracking + Sync-Fix (keine Cursor-Sprünge durch externe Updates)
+- Focus-Tracking + Sync-Fix (inkl. Resync nach Blur, keine State-Drifts)
 - Injection-Härtung beim Initialisieren des Editor-Inhalts
 - WebCodeEditor CSS Textfarbe fix (kein [object Object])
 - `isDirty` vereinheitlicht (Hook + UI, inkl. Preview)
@@ -16,6 +16,7 @@ Stand: **2026-02-10**
   - Clipboard `await` + Fehlerhandling
   - SyntaxErrorBar stabile Keys (ohne fileName/column)
 - Unsaved-Changes Flow hardened: "Speichern" navigiert nur weiter, wenn wirklich gespeichert wurde
+- A11y: Undo/Redo im Editor mit Accessibility-Labels/Hints
 - Wartbarkeit/Perf:
   - `useCodeScreen` in kleinere Hooks gesplittet (Explorer/Editor/Actions)
   - Validation debounced + per `InteractionManager.runAfterInteractions` deferred

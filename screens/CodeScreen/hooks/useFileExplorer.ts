@@ -4,7 +4,11 @@ import { useCallback, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { Alert } from "react-native";
 
-import * as FileSystem from "expo-file-system";
+import {
+  cacheDirectory,
+  documentDirectory,
+  writeAsStringAsync,
+} from "expo-file-system";
 import * as Sharing from "expo-sharing";
 
 import {
@@ -118,22 +122,15 @@ export const useFileExplorer = (): UseFileExplorerReturn => {
 
       const fileName = `${projectData?.name ?? "export"}_${Date.now()}.txt`;
 
-      // expo-file-system typing workaround (existing approach)
-      const FS: any = FileSystem;
-      const baseDir: string | undefined =
-        FS.documentDirectory ?? FS.cacheDirectory;
+      const baseDir = documentDirectory ?? cacheDirectory;
       if (!baseDir) {
-        throw new Error(
-          "Kein schreibbares Verzeichnis (document/cache) gefunden",
-        );
+        throw new Error("Kein schreibbares Verzeichnis (document/cache) gefunden");
       }
 
-      const normalized = String(baseDir).endsWith("/")
-        ? String(baseDir)
-        : `${String(baseDir)}/`;
+      const normalized = baseDir.endsWith("/") ? baseDir : `${baseDir}/`;
       const fileUri = `${normalized}${fileName}`;
 
-      await FS.writeAsStringAsync(fileUri, content);
+      await writeAsStringAsync(fileUri, content);
 
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(fileUri, {

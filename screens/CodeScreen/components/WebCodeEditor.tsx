@@ -91,13 +91,13 @@ export const WebCodeEditor = ({
 }: Props) => {
   const webRef = useRef<WebView>(null);
 
-  // Bridge state (refs to avoid rerenders)
-  const isFocusedRef = useRef(false);
+  // Bridge state
   const isReadyRef = useRef(false);
   const lastSentToWebRef = useRef<string>("");
   const lastSentFromWebRef = useRef<string>("");
 
   const [readyUi, setReadyUi] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   const bg = theme.palette.background;
   const textColor = theme.palette.text.primary;
@@ -255,7 +255,7 @@ export const WebCodeEditor = ({
       }
 
       if (msg.t === "focus") {
-        isFocusedRef.current = msg.focused;
+        setIsFocused(msg.focused);
         return;
       }
 
@@ -271,12 +271,12 @@ export const WebCodeEditor = ({
   useEffect(() => {
     if (!isReadyRef.current) return;
     if (value === lastSentFromWebRef.current) return;
-    if (isFocusedRef.current) return;
+    if (isFocused) return;
     if (value === lastSentToWebRef.current) return;
 
     lastSentToWebRef.current = value;
     postToWeb({ t: "set", value });
-  }, [postToWeb, value]);
+  }, [postToWeb, value, isFocused]);
 
   const runCmd = useCallback(
     (cmd: "undo" | "redo") => {
@@ -291,15 +291,29 @@ export const WebCodeEditor = ({
       <View style={[styles.toolbar, { borderBottomColor: theme.palette.border }]}>
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="Undo"
+          accessibilityHint="Macht die letzte Änderung rückgängig"
+          disabled={!readyUi}
           onPress={() => runCmd("undo")}
-          style={({ pressed }) => [styles.toolBtn, pressed && styles.toolBtnPressed]}
+          style={({ pressed }) => [
+            styles.toolBtn,
+            pressed && styles.toolBtnPressed,
+            !readyUi && styles.toolBtnDisabled,
+          ]}
         >
           <Text style={[styles.toolText, { color: theme.palette.text.secondary }]}>↶</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="Redo"
+          accessibilityHint="Stellt die zuletzt rückgängig gemachte Änderung wieder her"
+          disabled={!readyUi}
           onPress={() => runCmd("redo")}
-          style={({ pressed }) => [styles.toolBtn, pressed && styles.toolBtnPressed]}
+          style={({ pressed }) => [
+            styles.toolBtn,
+            pressed && styles.toolBtnPressed,
+            !readyUi && styles.toolBtnDisabled,
+          ]}
         >
           <Text style={[styles.toolText, { color: theme.palette.text.secondary }]}>↷</Text>
         </Pressable>
@@ -359,6 +373,9 @@ const styles = StyleSheet.create({
   },
   toolBtnPressed: {
     opacity: 0.75,
+  },
+  toolBtnDisabled: {
+    opacity: 0.4,
   },
   toolText: {
     fontSize: 16,
