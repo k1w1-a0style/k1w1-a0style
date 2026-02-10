@@ -2,23 +2,6 @@
 
 ## ✅ Aktueller Stand (funktioniert / vorhanden)
 
-## CodeScreen
-
-### ✅ Erledigt
-- Editor: Wechsel auf WebView-Editor (Optik bleibt gleich)
-- Export: TXT-Dump robust (expo-file-system, TS/ESLint-kompatibel)
-- Guard: große Dateien (Performance/Read-only Fallback)
-- Guard: Warnung bei ungespeicherten Änderungen
-- isDirty: einheitlich (Hook + UI), gilt auch im Preview-Modus
-- Stabilität: WebView-Bridge gehärtet + Mini-Toolbar (Undo/Redo)
-- Security: WebView Init ohne HTML-Embedding (Injection-Hardening)
-
-### 🔜 Offen / Optional
-- Suchen/Ersetzen im Code (Find/Replace)
-- „Go to line“ / schnelle Navigation
-- Syntax-Highlighting (nur wenn Performance ok; optional)
-
-
 - Expo/React Native App startet, Typecheck/Lint/Tests laufen durch.
 - Preview-System (Supabase-Flow):
   - `save_preview` Edge Function nimmt Files + Dependencies entgegen und speichert in DB.
@@ -30,13 +13,32 @@
     - Manual Code Editor → Preview erstellen
 - “Option B” (unhandledrejection) in `preview_page` ist drin.
 
+
+## 🧩 CodeScreen (Editor) – Stand
+
+✅ Erledigt
+- WebView-basierter Editor (kein Split-Screen, Optik weitgehend gleich)
+- TXT-Export (expo-file-system kompatibel mit TS/ESLint)
+- Unsaved-Changes Guard (Dialog beim Verlassen/File-Wechsel)
+- Huge-File Guard (Warnung/Block bei sehr großen Dateien)
+- isDirty vereinheitlicht (Hook + UI, inkl. Preview-Modus)
+- WebView Init gegen Injection gehärtet
+
+🔜 Offen/nächste Schritte
+- Focus-Tracking im WebView Editor (damit keine Cursor-Sprünge bei externen Updates)
+- Bridge: Wert-Updates ausschließlich via postMessage (kein Rebuild von injected JS pro Keypress)
+- Optional: Duplicate-Datei Namenskollisionen abfangen; CreateFile-Endung smarter
+- Optional: gap-Typen sauber via .d.ts (statt `as any`)
+
 ---
 
 ## 🔥 Kritische Issues (solltest du als nächstes machen)
 
 ### Security / Abuse
 
-- [ ] **save_preview ist faktisch öffentlich (anon key ist public).**
+- [x] **save_preview ist **nicht** öffentlich (Admin-Key Pflicht).**
+  - **Status:** Die Edge Function nutzt `requireAdminKey` (Header `x-k1w1-admin-key`). Ohne Key gibt es 401.
+  - **Patch:** Die App ruft `save_preview` jetzt nur noch auf, wenn ein Admin-Key konfiguriert ist.
       → Entscheiden: nur logged-in Users? Rate limiting? Captcha? Token?
 - [ ] Payload Limits serverseitig nochmal hart prüfen: - max files - max file size - max total size - allowed file types
 - [ ] Optional: Blocklist für offensichtliche Secrets im Code (z.B. Service Role, private keys).

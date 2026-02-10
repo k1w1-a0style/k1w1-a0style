@@ -1,332 +1,334 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, StyleSheet, Pressable } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
+
+import theme from "../../../theme";
 
 type Props = {
   value: string;
   onChangeText: (text: string) => void;
+  hasErrors?: boolean;
   placeholder?: string;
   placeholderColor?: string;
-  hasErrors?: boolean;
   readOnly?: boolean;
-
-  /**
-   * Keeps the visual layout unchanged by default.
-   * If you want a tiny, optional editor toolbar (undo/redo), enable this.
-   */
-  enableToolbar?: boolean;
+  /** milliseconds: throttle outbound value messages */
+  changeThrottleMs?: number;
+  tabSize?: number;
 };
 
-type IncomingMessage =
-  | string
-  | {
-      __t: "value";
-      value: string;
-    }
-  | {
-      __t: "cmd";
-      cmd: "undo" | "redo";
-    };
+type InboundMsg =
+  | { t: "ready" }
+  | { t: "value"; value: string }
+  | { t: "focus"; focused: boolean };
 
-const safeParse = (raw: string): IncomingMessage => {
-  // Most messages are just raw text (content updates).
-  // We only parse JSON if it looks like it.
-  const t = raw.trim();
-  if (!t.startsWith("{") || !t.endsWith("}")) return raw;
+type OutboundMsg =
+  | { t: "set"; value: string }
+  | { t: "cmd"; cmd: "undo" | "redo" };
+
+function safeJsonParse(input: string): any {
   try {
-    return JSON.parse(t) as IncomingMessage;
+    return JSON.parse(input);
   } catch {
-    return raw;
+    return null;
   }
-};
+}
 
-const makeCmd = (cmd: "undo" | "redo"): string =>
-  JSON.stringify({ __t: "cmd", cmd });
-
-export function WebCodeEditor({
+export const WebCodeEditor = ({
   value,
   onChangeText,
-  placeholder = "",
-  placeholderColor = "#8892a6",
   hasErrors = false,
+  placeholder = "",
+  placeholderColor = "#888",
   readOnly = false,
-  enableToolbar = false,
-}: Props) {
-  const webViewRef = useRef<WebView>(null);
+  changeThrottleMs = 60,
+  tabSize = 2,
+}: Props) => {
+  // NOTE: Using static theme (no hook) for testability.
+  const webRef = useRef<WebView>(null);
 
-  // We keep a local copy so we can apply external updates from RN -> WebView safely.
-  const [localValue, setLocalValue] = useState(value);
+  // Bridge state (kept in refs to avoid re-render loops)
+  const isFocusedRef = useRef(false);
+  const isReadyRef = useRef(false);
+  const lastSentToWebRef = useRef<string>("");
+  const lastSentFromWebRef = useRef<string>("");
 
-  // Track focus so we don't fight the user's typing with incoming props.
-  const [isFocused, setIsFocused] = useState(false);
+  const [readyUi, setReadyUi] = useState(false);
 
-  // Whenever the parent value changes and the editor isn't focused, sync it.
-  useEffect(() => {
-    if (!isFocused) setLocalValue(value);
-  }, [value, isFocused]);
+  const bg = theme.palette.background;
+  const text = theme.palette.text;
+  const border = hasErrors ? theme.palette.error : theme.palette.border;
 
-  const sendCommand = useCallback((cmd: "undo" | "redo") => {
-    webViewRef.current?.postMessage(makeCmd(cmd));
-  }, []);
+  const html = useMemo(() => {
+    // IMPORTANT: do NOT embed `value` into HTML (avoids injection + quoting edge cases).
+    // We always send content via postMessage after the WebView signals {t:'ready'}.
+    const tabSpaces = " ".repeat(Math.max(1, tabSize));
 
-  // Send external value changes into the WebView.
-  // We do this via postMessage to a small bridge in the HTML.
-  useEffect(() => {
-    if (isFocused) return;
-    try {
-      webViewRef.current?.postMessage(
-        JSON.stringify({ __t: "value", value: localValue }),
-      );
-    } catch {
-      // no-op
-    }
-  }, [localValue, isFocused]);
-
-  const handleMessage = useCallback(
-    (event: WebViewMessageEvent) => {
-      const msg = safeParse(String(event.nativeEvent.data ?? ""));
-
-      // The WebView sends us raw value updates (string), or structured messages.
-      if (typeof msg === "string") {
-        setLocalValue(msg);
-        onChangeText(msg);
-        return;
+    const css = `
+      html, body { height: 100%; width: 100%; margin: 0; padding: 0; background: ${bg}; }
+      * { box-sizing: border-box; }
+      #root { height: 100%; width: 100%; }
+      textarea {
+        width: 100%; height: 100%;
+        border: 0; outline: 0; resize: none;
+        padding: 14px 14px 14px 14px;
+        background: ${bg};
+        color: ${text};
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 13px;
+        line-height: 19px;
+        caret-color: ${text};
+        -webkit-text-size-adjust: 100%;
       }
+      textarea::placeholder { color: ${placeholderColor}; opacity: 1; }
+    `;
 
-      if (msg && typeof msg === "object" && "__t" in msg) {
-        if (msg.__t === "value") {
-          const next = msg.value ?? "";
-          setLocalValue(next);
-          onChangeText(next);
-          return;
-        }
-
-        // commands are handled inside the WebView; nothing to do here
-      }
-    },
-    [onChangeText],
-  );
-
-  const injectedJavaScript = useMemo(() => {
-    // IMPORTANT:
-    // - Use a plain textarea for performance.
-    // - Keep layout stable (no split views, no heavy libs).
-    // - Provide a small bridge to:
-    //    * receive external value updates from RN
-    //    * execute commands like undo/redo
-    //    * report changes back to RN
-
-    // IMPORTANT: Avoid embedding user content into JS string literals.
-    // Use JSON literals instead to prevent injection/breakouts.
-    const initialValueJson = JSON.stringify(localValue);
-    const placeholderJson = JSON.stringify(placeholder);
-
-    return `
+    // Web-side script
+    const js = `
       (function() {
-        const INITIAL_VALUE = ${initialValueJson};
-        const PLACEHOLDER_TEXT = ${placeholderJson};
+        var ta = document.getElementById('ta');
+        var THROTTLE = ${Math.max(10, Math.floor(changeThrottleMs))};
+        var READONLY = ${readOnly ? "true" : "false"};
+        var lastSent = '';
+        var timer = null;
 
-        const rn = window.ReactNativeWebView;
-
-        function safeParse(raw) {
-          if (!raw || typeof raw !== 'string') return raw;
-          const t = raw.trim();
-          if (!t.startsWith('{') || !t.endsWith('}')) return raw;
-          try { return JSON.parse(t); } catch (e) { return raw; }
+        function post(obj) {
+          try {
+            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify(obj));
+          } catch (e) {}
         }
 
-        function applyIncoming(data) {
-          const msg = safeParse(data);
-
-          // External value update from RN
-          if (msg && typeof msg === 'object' && msg.__t === 'value') {
-            const next = String(msg.value ?? '');
-            if (ta.value !== next) {
-              const start = ta.selectionStart;
-              const end = ta.selectionEnd;
-              ta.value = next;
-              // best-effort: keep cursor in range
-              try {
-                ta.selectionStart = Math.min(start, ta.value.length);
-                ta.selectionEnd = Math.min(end, ta.value.length);
-              } catch (e) {}
-            }
-            return;
-          }
-
-          // Commands
-          if (msg && typeof msg === 'object' && msg.__t === 'cmd') {
-            const cmd = String(msg.cmd || '');
-            try {
-              ta.focus();
-              if (cmd === 'undo' || cmd === 'redo') {
-                document.execCommand(cmd);
-              }
-            } catch (e) {}
-            return;
-          }
-
-          // Raw string fallback: treat as full value replacement.
-          const next = (typeof msg === 'string') ? msg : String(msg ?? '');
-          if (ta.value !== next) ta.value = next;
-        }
-
-        const html = 
-          '<!doctype html>'+
-          '<html><head>'+
-            '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />'+
-            '<style>'+
-              'html,body{height:100%;margin:0;padding:0;background:transparent;}' +
-              '#wrap{height:100%;padding:0;margin:0;}' +
-              'textarea{' +
-                'width:100%;height:100%;border:0;outline:none;resize:none;' +
-                'background:transparent;color:${hasErrors ? "#ff6b6b" : "#e5e7eb"};' +
-                'font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;' +
-                'font-size:14px;line-height:20px;' +
-                'padding:14px 14px 14px 14px;box-sizing:border-box;' +
-              '}' +
-              'textarea::placeholder{color:${placeholderColor};}' +
-            '</style>'+
-          '</head><body>'+
-            '<div id="wrap">' +
-              '<textarea id="ta" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>' +
-            '</div>' +
-          '</body></html>';
-
-        document.open();
-        document.write(html);
-        document.close();
-
-        const ta = document.getElementById('ta');
-        if (!ta) return;
-
-	        // Set placeholder + initial value via JSON literals (no HTML embedding).
-	        try { ta.placeholder = PLACEHOLDER_TEXT || ''; } catch (e) {}
-	        try { ta.value = INITIAL_VALUE || ''; } catch (e) {}
-
-        ta.readOnly = ${readOnly ? "true" : "false"};
-
-	        let lastSent = ta.value;
-        let sendTimer = null;
-
-        function sendValueIfChanged() {
-          const v = ta.value;
-          if (v === lastSent) return;
-          lastSent = v;
-          try { rn.postMessage(v); } catch (e) {}
+        function setValue(v) {
+          if (typeof v !== 'string') v = '';
+          if (ta.value === v) return;
+          var start = ta.selectionStart;
+          var end = ta.selectionEnd;
+          ta.value = v;
+          // Keep cursor reasonably stable when not focused; when focused RN won't push updates.
+          try { ta.setSelectionRange(start, end); } catch (e) {}
         }
 
         function scheduleSend() {
-          if (sendTimer) return;
-          sendTimer = setTimeout(function(){
-            sendTimer = null;
-            sendValueIfChanged();
-          }, 120);
+          if (READONLY) return;
+          if (timer) return;
+          timer = setTimeout(function() {
+            timer = null;
+            var v = ta.value;
+            if (v === lastSent) return;
+            lastSent = v;
+            post({ t: 'value', value: v });
+          }, THROTTLE);
         }
 
+        ta.readOnly = READONLY;
+
         ta.addEventListener('input', scheduleSend);
-        ta.addEventListener('blur', function(){ try { rn.postMessage(JSON.stringify({__t:'focus', focused:false})); } catch(e) {} });
-        ta.addEventListener('focus', function(){ try { rn.postMessage(JSON.stringify({__t:'focus', focused:true})); } catch(e) {} });
+        ta.addEventListener('focus', function(){ post({ t: 'focus', focused: true }); });
+        ta.addEventListener('blur', function(){ post({ t: 'focus', focused: false }); });
 
-        // Bridge for RN -> WebView updates.
-        document.addEventListener('message', function(ev) { applyIncoming(ev.data); });
-        window.addEventListener('message', function(ev) { applyIncoming(ev.data); });
+        ta.addEventListener('keydown', function(e){
+          if (READONLY) return;
+          if (e.key === 'Tab') {
+            e.preventDefault();
+            var start = ta.selectionStart;
+            var end = ta.selectionEnd;
+            var v = ta.value;
+            ta.value = v.substring(0, start) + ${JSON.stringify(tabSpaces)} + v.substring(end);
+            ta.selectionStart = ta.selectionEnd = start + ${tabSpaces.length};
+            scheduleSend();
+          }
+        });
 
-        // Initial focus state / initial sync.
-        try { rn.postMessage(JSON.stringify({__t:'ready'})); } catch(e) {}
+        function handleMessage(data) {
+          if (!data) return;
+          var msg = null;
+          try { msg = JSON.parse(data); } catch (e) { return; }
+          if (!msg || !msg.t) return;
+
+          if (msg.t === 'set') {
+            setValue(String(msg.value || ''));
+            return;
+          }
+          if (msg.t === 'cmd') {
+            if (msg.cmd === 'undo') {
+              document.execCommand('undo');
+              scheduleSend();
+            }
+            if (msg.cmd === 'redo') {
+              document.execCommand('redo');
+              scheduleSend();
+            }
+          }
+        }
+
+        // RN->Web message delivery differs between iOS/Android.
+        window.addEventListener('message', function(e){ handleMessage(e.data); });
+        document.addEventListener('message', function(e){ handleMessage(e.data); });
+
+        post({ t: 'ready' });
       })();
-      true;
     `;
-  }, [hasErrors, localValue, placeholder, placeholderColor, readOnly]);
 
-  const toolbar = enableToolbar ? (
-    <View pointerEvents="box-none" style={styles.toolbarWrap}>
-      <View style={styles.toolbar}>
-        <Pressable
-          accessibilityLabel="Undo"
-          onPress={() => sendCommand("undo")}
-          style={({ pressed }) => [styles.toolBtn, pressed && styles.toolBtnPressed]}
-        >
-          <Ionicons name="arrow-undo" size={18} color="#e5e7eb" />
-        </Pressable>
-        <Pressable
-          accessibilityLabel="Redo"
-          onPress={() => sendCommand("redo")}
-          style={({ pressed }) => [styles.toolBtn, pressed && styles.toolBtnPressed]}
-        >
-          <Ionicons name="arrow-redo" size={18} color="#e5e7eb" />
-        </Pressable>
-      </View>
-    </View>
-  ) : null;
+    return `<!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+          <style>${css}</style>
+        </head>
+        <body>
+          <div id="root">
+            <textarea id="ta" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" placeholder=${JSON.stringify(placeholder)}></textarea>
+          </div>
+          <script>${js}</script>
+        </body>
+      </html>`;
+  }, [bg, changeThrottleMs, placeholder, placeholderColor, readOnly, tabSize, text]);
+
+  const postToWeb = useCallback((msg: OutboundMsg) => {
+    const data = JSON.stringify(msg);
+    const postMessageFn: undefined | ((d: string) => void) = (webRef.current as any)?.postMessage;
+    if (typeof postMessageFn === "function") {
+      postMessageFn(data);
+      return;
+    }
+    // Fallback: inject JS to dispatch a message event
+    webRef.current?.injectJavaScript(
+      `window.dispatchEvent(new MessageEvent('message',{data:${JSON.stringify(data)}}));true;`,
+    );
+  }, []);
+
+  const handleMessage = useCallback(
+    (event: WebViewMessageEvent) => {
+      const data = event.nativeEvent.data;
+      const parsed = safeJsonParse(data) as InboundMsg | null;
+      if (!parsed || typeof parsed !== "object") return;
+
+      if (parsed.t === "ready") {
+        isReadyRef.current = true;
+        setReadyUi(true);
+        // Send current value once the editor is ready.
+        lastSentToWebRef.current = value;
+        postToWeb({ t: "set", value });
+        return;
+      }
+
+      if (parsed.t === "focus") {
+        isFocusedRef.current = !!parsed.focused;
+        return;
+      }
+
+      if (parsed.t === "value") {
+        const v = parsed.value ?? "";
+        lastSentFromWebRef.current = v;
+        onChangeText(v);
+      }
+    },
+    [onChangeText, postToWeb, value],
+  );
+
+  // Push external value changes into the WebView when it isn't actively focused.
+  useEffect(() => {
+    if (!isReadyRef.current) return;
+
+    // If the change came from the editor itself, don't echo it back.
+    if (value === lastSentFromWebRef.current) return;
+
+    // Avoid stomping the cursor while typing.
+    if (isFocusedRef.current) return;
+
+    if (value === lastSentToWebRef.current) return;
+
+    lastSentToWebRef.current = value;
+    postToWeb({ t: "set", value });
+  }, [postToWeb, value]);
+
+  const runCmd = useCallback(
+    (cmd: "undo" | "redo") => {
+      if (!isReadyRef.current) return;
+      postToWeb({ t: "cmd", cmd });
+    },
+    [postToWeb],
+  );
 
   return (
-    <View style={[styles.container, hasErrors && styles.containerError]}>
+    <View style={[styles.container, { borderColor: border, backgroundColor: bg }]}> 
+      {/* Mini toolbar: tiny & unobtrusive (no split-screen) */}
+      <View style={[styles.toolbar, { borderBottomColor: theme.palette.border }]}> 
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => runCmd("undo")}
+          style={({ pressed }) => [styles.toolBtn, pressed && styles.toolBtnPressed]}
+        >
+          <Text style={[styles.toolText, { color: theme.palette.text.secondary }]}>↶</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => runCmd("redo")}
+          style={({ pressed }) => [styles.toolBtn, pressed && styles.toolBtnPressed]}
+        >
+          <Text style={[styles.toolText, { color: theme.palette.text.secondary }]}>↷</Text>
+        </Pressable>
+        {!readyUi ? (
+          <Text style={[styles.readyText, { color: theme.palette.text.secondary }]}>Editor…</Text>
+        ) : null}
+      </View>
+
       <WebView
-        ref={webViewRef}
+        ref={webRef}
         originWhitelist={["*"]}
-        javaScriptEnabled
+        source={{ html }}
         onMessage={handleMessage}
-        injectedJavaScript={injectedJavaScript}
-        // Avoid any navigation.
-        onShouldStartLoadWithRequest={() => false}
-        // keep background transparent so it matches existing UI
-        style={styles.webview}
-        automaticallyAdjustContentInsets={false}
-        scrollEnabled={true}
-        keyboardDisplayRequiresUserAction={false}
-        onLoadEnd={() => {
-          // when loaded, ensure we push current value once
-          try {
-            webViewRef.current?.postMessage(
-              JSON.stringify({ __t: "value", value: localValue }),
-            );
-          } catch {
-            // no-op
-          }
+        javaScriptEnabled
+        domStorageEnabled
+        // Allow initial load, block external navigations.
+        onShouldStartLoadWithRequest={(req) => {
+          const url = req.url || "";
+          if (url === "about:blank") return true;
+          if (url.startsWith("data:text/html")) return true;
+          return false;
         }}
+        setSupportMultipleWindows={false}
+        // Make it look like a native editor area.
+        style={{ backgroundColor: bg }}
       />
-      {toolbar}
     </View>
   );
-}
+};
+
+export default WebCodeEditor;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    borderWidth: 1,
     borderRadius: 12,
     overflow: "hidden",
-    backgroundColor: "#111827",
-  },
-  containerError: {
-    borderWidth: 1,
-    borderColor: "#ef4444",
-  },
-  webview: {
-    flex: 1,
-    backgroundColor: "transparent",
-  },
-  toolbarWrap: {
-    position: "absolute",
-    top: 8,
-    right: 8,
   },
   toolbar: {
+    height: 34,
+    paddingHorizontal: 10,
     flexDirection: "row",
-    borderRadius: 10,
-    backgroundColor: "rgba(17,24,39,0.92)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    overflow: "hidden",
+    alignItems: "center",
+    gap: 10 as any,
+    borderBottomWidth: 1,
   },
   toolBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    height: 26,
+    minWidth: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
   },
   toolBtnPressed: {
-    opacity: 0.8,
+    opacity: 0.75,
+  },
+  toolText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  readyText: {
+    marginLeft: 6,
+    fontSize: 12,
   },
 });
-
-export default WebCodeEditor;
