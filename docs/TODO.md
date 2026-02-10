@@ -11,6 +11,7 @@
 - Guard: Warnung bei ungespeicherten Änderungen
 - isDirty: einheitlich (Hook + UI), gilt auch im Preview-Modus
 - Stabilität: WebView-Bridge gehärtet + Mini-Toolbar (Undo/Redo)
+- Security: WebView Init ohne HTML-Embedding (Injection-Hardening)
 
 ### 🔜 Offen / Optional
 - Suchen/Ersetzen im Code (Find/Replace)

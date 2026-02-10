@@ -117,19 +117,16 @@ export function WebCodeEditor({
     //    * execute commands like undo/redo
     //    * report changes back to RN
 
-    // eslint-disable-next-line no-useless-escape
-    const esc = (s: string) =>
-      s
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/\"/g, "&quot;");
-
-    // Escape value for initial HTML render.
-    const initialValue = esc(localValue);
+    // IMPORTANT: Avoid embedding user content into JS string literals.
+    // Use JSON literals instead to prevent injection/breakouts.
+    const initialValueJson = JSON.stringify(localValue);
+    const placeholderJson = JSON.stringify(placeholder);
 
     return `
       (function() {
+        const INITIAL_VALUE = ${initialValueJson};
+        const PLACEHOLDER_TEXT = ${placeholderJson};
+
         const rn = window.ReactNativeWebView;
 
         function safeParse(raw) {
@@ -193,7 +190,7 @@ export function WebCodeEditor({
             '</style>'+
           '</head><body>'+
             '<div id="wrap">' +
-              '<textarea id="ta" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" placeholder="${esc(placeholder)}">${initialValue}</textarea>' +
+              '<textarea id="ta" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>' +
             '</div>' +
           '</body></html>';
 
@@ -204,9 +201,13 @@ export function WebCodeEditor({
         const ta = document.getElementById('ta');
         if (!ta) return;
 
+	        // Set placeholder + initial value via JSON literals (no HTML embedding).
+	        try { ta.placeholder = PLACEHOLDER_TEXT || ''; } catch (e) {}
+	        try { ta.value = INITIAL_VALUE || ''; } catch (e) {}
+
         ta.readOnly = ${readOnly ? "true" : "false"};
 
-        let lastSent = ta.value;
+	        let lastSent = ta.value;
         let sendTimer = null;
 
         function sendValueIfChanged() {
