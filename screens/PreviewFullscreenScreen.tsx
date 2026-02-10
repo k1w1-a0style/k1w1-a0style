@@ -24,6 +24,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../theme";
 import { isHttpUrl, truncateUrl } from "../utils/url";
+import { decidePreviewNavigation } from "../utils/previewNavigation";
 import type { RootStackParamList } from "../types/preview";
 
 // NOTE: react-native-webview@13.15.x exportiert diese Event-Typen nicht sauber.
@@ -69,11 +70,10 @@ export default function PreviewFullscreenScreen() {
   const processTerminatedRef = useRef(false);
 
 
-  const mode = useMemo<"html" | "url" | "none">(() => {
+  const mode = useMemo<"html" | "url" | null>(() => {
     if (html.trim().length > 0) return "html";
-    if (typeof url === "string" && url.length > 0 && isHttpUrl(url))
-      return "url";
-    return "none";
+    if (typeof url === "string" && url.length > 0 && isHttpUrl(url)) return "url";
+    return null;
   }, [html, url]);
 
   const baseOrigin = useMemo<string | null>(() => {
@@ -210,32 +210,41 @@ export default function PreviewFullscreenScreen() {
   const handleShouldStartLoad = useCallback(
     (request: WebViewShouldStartLoadRequest): boolean => {
       const requestUrl = String(request?.url || "");
+      if (!mode) {
+        // No preview loaded -> block navigation.
+        return false;
+      }
+      const decision = decidePreviewNavigation({
+        mode,
+        baseOrigin,
+        requestUrl,
+      });
 
-      // Block navigation to local.preview (legacy placeholder that requires DNS)
-      if (requestUrl.includes("local.preview")) {
+      if (decision.action === "allow") return true;
+
+      if (decision.action === "block") {
+        // Keep this non-blocking to avoid WebView re-entrancy issues.
+        setTimeout(() => {
+          Alert.alert(
+            "Navigation blockiert",
+            `Dieser Link kann nicht geöffnet werden:
+
+${truncateUrl(requestUrl, 90)}`,
+            [{ text: "OK" }],
+          );
+        }, 0);
         return false;
       }
 
-      // Allow data: URLs and about:blank for HTML mode
-      if (
-        requestUrl.startsWith("data:") ||
-        requestUrl === "about:blank" ||
-        requestUrl.startsWith("about:")
-      ) {
-        return true;
-      }
-
-      if (requestUrl.startsWith("blob:")) {
-        return true;
-      }
-
-      if (!isHttpUrl(requestUrl)) {
-        // Try to hand off to the OS for custom schemes (mailto:, tel:, etc.)
+      if (decision.action === "external_direct") {
+        // Custom scheme (mailto:, tel:, etc.) → try OS hand-off directly.
         setTimeout(() => {
-          Linking.openURL(requestUrl).catch(() => {
+          Linking.openURL(decision.url).catch(() => {
             Alert.alert(
               "Navigation blockiert",
-              `Dieser Link kann nicht geöffnet werden:\n\n${truncateUrl(requestUrl, 90)}`,
+              `Dieser Link kann nicht geöffnet werden:
+
+${truncateUrl(decision.url, 90)}`,
               [{ text: "OK" }],
             );
           });
@@ -243,59 +252,25 @@ export default function PreviewFullscreenScreen() {
         return false;
       }
 
-      // Keep preview "contained": open external links in the system browser.
-      if (mode === "html") {
-        Alert.alert(
-          "Externen Link öffnen?",
-          truncateUrl(requestUrl, 160),
-          [
-            { text: "Abbrechen", style: "cancel" },
-            {
-              text: "Öffnen",
-              onPress: () => {
-                void Linking.openURL(requestUrl);
-              },
+      // external_confirm
+      Alert.alert(
+        "Externen Link öffnen?",
+        truncateUrl(decision.url, 160),
+        [
+          { text: "Abbrechen", style: "cancel" },
+          {
+            text: "Öffnen",
+            onPress: () => {
+              void Linking.openURL(decision.url);
             },
-          ],
-        );
-        return false;
-      }
-
-      if (mode === "url" && baseOrigin) {
-        try {
-          const u = new URL(requestUrl);
-          const origin = `${u.protocol}//${u.host}`;
-          if (origin !== baseOrigin) {
-            Alert.alert(
-              "Externen Link öffnen?",
-              truncateUrl(requestUrl, 160),
-              [
-                { text: "Abbrechen", style: "cancel" },
-                {
-                  text: "Öffnen",
-                  onPress: () => {
-                    void Linking.openURL(requestUrl);
-                  },
-                },
-              ],
-            );
-            return false;
-          }
-        } catch {
-          // If parsing fails, be conservative.
-          Alert.alert(
-            "Navigation blockiert",
-            `Dieser Link kann nicht geöffnet werden:\n\n${truncateUrl(requestUrl, 90)}`,
-            [{ text: "OK" }],
-          );
-          return false;
-        }
-      }
-
-      return true;
+          },
+        ],
+      );
+      return false;
     },
     [mode, baseOrigin],
   );
+
 
   const handleError = useCallback((syntheticEvent: WebViewErrorEvent) => {
     const { nativeEvent } = syntheticEvent;
@@ -357,7 +332,7 @@ export default function PreviewFullscreenScreen() {
     };
   }, []);
 
-  if (mode === "none") {
+  if (!mode) {
     return (
       <SafeAreaView style={styles.screen}>
         <View style={styles.topBar}>

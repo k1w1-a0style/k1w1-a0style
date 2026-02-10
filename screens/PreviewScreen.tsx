@@ -19,6 +19,37 @@ import { useProject } from "../contexts/ProjectContext";
 import { usePreview } from "../hooks/usePreview";
 import { theme } from "../theme";
 
+function formatDateTime(value: string): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString("de-DE", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function formatRelativeTime(value: string): string | null {
+  const d = new Date(value);
+  const ts = d.getTime();
+  if (Number.isNaN(ts)) return null;
+  const diffMs = Date.now() - ts;
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 0) return null;
+  if (diffSec < 5) return "gerade eben";
+  if (diffSec < 60) return `vor ${diffSec}s`;
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `vor ${diffMin}min`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `vor ${diffH}h`;
+  const diffD = Math.floor(diffH / 24);
+  return `vor ${diffD}d`;
+}
+
+
 /**
  * PreviewScreen
  * - Erstellt bevorzugt Supabase-Preview (URL)
@@ -110,13 +141,21 @@ export default function PreviewScreen() {
   }, [lastPreview, canUseLastPreview, isLocalPreviewNotRestorable]);
 
   const lastCreatedText = useMemo(() => {
-    if (!state.lastCreatedAt) return null;
-    return new Date(state.lastCreatedAt).toLocaleTimeString("de-DE", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
+    const raw = state.lastCreatedAt;
+    if (!raw) return null;
+    const iso = new Date(raw).toISOString();
+    const abs = formatDateTime(iso);
+    const rel = formatRelativeTime(iso);
+    return rel ? `${abs} (${rel})` : abs;
   }, [state.lastCreatedAt]);
+
+  const expiresText = useMemo(() => {
+    const exp = lastPreview?.expiresAt;
+    if (!exp) return null;
+    const abs = formatDateTime(exp);
+    const rel = formatRelativeTime(exp);
+    return rel ? `${abs} (${rel})` : abs;
+  }, [lastPreview?.expiresAt]);
 
   const fileStats = useMemo(() => {
     const count = state.fileCount;
@@ -210,7 +249,7 @@ export default function PreviewScreen() {
                 color={theme.palette.primary}
               />
               <Text style={styles.statusText}>
-                Zuletzt erstellt: {lastCreatedText}
+                Zuletzt erstellt: {lastCreatedText ?? "—"}
               </Text>
             </View>
 
@@ -237,7 +276,11 @@ export default function PreviewScreen() {
               </View>
             )}
 
-            {isLocalPreviewNotRestorable && (
+            
+            {!!expiresText && lastPreview?.source === "supabase" && (
+              <Text style={styles.expiresText}>Gültig bis: {expiresText}</Text>
+            )}
+{isLocalPreviewNotRestorable && (
               <Text style={styles.localHint}>
                 Hinweis: Lokale Previews sind nach App-Neustart nicht wieder verfügbar –
                 bitte neu erstellen.
@@ -278,11 +321,28 @@ export default function PreviewScreen() {
               </Pressable>
 
               <Pressable
-                style={[styles.statusBtn, state.isCreating && styles.btnDisabled]}
-                onPress={reset}
-                disabled={state.isCreating}
-              >
-                <Ionicons
+                style={[
+                  styles.statusBtn,
+                  (!canUseLastPreview || state.isCreating) && styles.btnDisabled,
+                ]}
+                onPress={() => {
+                  Alert.alert(
+                    "Letzte Preview löschen?",
+                    "Dadurch wird die gespeicherte Preview-Info entfernt. Du kannst danach jederzeit eine neue Preview erstellen.",
+                    [
+                      { text: "Abbrechen", style: "cancel" },
+                      {
+                        text: "Löschen",
+                        style: "destructive",
+                        onPress: () => {
+                          reset();
+                        },
+                      },
+                    ],
+                  );
+                }}
+                disabled={!canUseLastPreview || state.isCreating}
+              ><Ionicons
                   name="refresh-outline"
                   size={16}
                   color={theme.palette.text.secondary}
@@ -293,7 +353,7 @@ export default function PreviewScreen() {
                     { color: theme.palette.text.secondary },
                   ]}
                 >
-                  Reset
+                  Löschen
                 </Text>
               </Pressable>
             </View>
@@ -527,6 +587,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
+  expiresText: { fontSize: 12, color: theme.palette.text.secondary, marginTop: 6 },
 
   card: {
     borderWidth: 1,

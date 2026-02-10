@@ -453,3 +453,19 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - `npm run typecheck`
 - `npm run lint:ci`
 - `npm run test:silent`
+
+
+---
+
+## Patch 54 (2026-02-10)
+- PreviewFullscreen: extracted navigation guard decision logic into a pure helper and added unit tests.
+- PreviewScreen: added "Letzte Preview löschen" (confirm) and improved display for source + created/expires timestamps.
+- Docs updated (TODO + patch notes).
+
+
+## Patch 55
+- Hotfix: Preview typing fixes (PreviewMode nullable; timestamp uses lastCreatedAt only)
+
+## Patch 56
+- Hotfix: remove unreachable 'none' preview mode branch in PreviewFullscreen.
+- Hotfix: format created timestamp via ISO string (lastCreatedAt ms → ISO) for date helpers.
