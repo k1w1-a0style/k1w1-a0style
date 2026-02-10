@@ -50,6 +50,7 @@ const CodeScreen: React.FC = () => {
     handleMoveFile,
     handleDeleteFile,
     handleDuplicateFile,
+    saveSelectedFile,
     handleSaveFile,
     handleCopy,
     isDirty,
@@ -104,8 +105,10 @@ const CodeScreen: React.FC = () => {
                       {
                         text: "Speichern",
                         onPress: () => {
-                          handleSaveFile();
-                          setSelectedFile(null);
+                          void (async () => {
+                            const saved = await saveSelectedFile();
+                            if (saved) setSelectedFile(null);
+                          })();
                         },
                       },
                       { text: "Abbrechen", style: "cancel" },

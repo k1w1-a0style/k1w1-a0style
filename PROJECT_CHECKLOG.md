@@ -283,3 +283,21 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - `npm run typecheck`
 - `npm run lint:ci`
 - `npm run test:silent`
+
+---
+## Patch 41 — CodeScreen save-flow hardening (unsaved changes)
+
+**Files**
+- `screens/CodeScreen/hooks/useCodeScreen.ts`
+- `screens/CodeScreen/index.tsx`
+- `docs/TODO.md`
+- `docs/patches/PATCH_41_NOTES.md`
+
+**Changes**
+- "Speichern" in Unsaved-Changes Dialogen navigiert/closed nur noch weiter, wenn der Save tatsächlich passiert ist.
+- Promise-basiertes Alert-Handling (`alertAsync`) um Save-Flows deterministisch zu machen.
+
+**Checks**
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`

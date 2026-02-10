@@ -70,9 +70,48 @@ export interface UseCodeScreenReturn {
   handleDeleteFile: () => void;
   handleDuplicateFile: () => void;
 
+  /** Save the selected file and resolve to true only if it was actually saved. */
+  saveSelectedFile: () => Promise<boolean>;
   handleSaveFile: () => void;
   handleCopy: (content: string) => void;
 }
+
+type AlertChoice<T extends string> = {
+  text: string;
+  value: T;
+  style?: "default" | "cancel" | "destructive";
+};
+
+const alertAsync = <T extends string>(
+  title: string,
+  message: string,
+  choices: ReadonlyArray<AlertChoice<T>>,
+  fallback: T,
+): Promise<T> => {
+  return new Promise((resolve) => {
+    let resolved = false;
+
+    const safeResolve = (v: T): void => {
+      if (resolved) return;
+      resolved = true;
+      resolve(v);
+    };
+
+    Alert.alert(
+      title,
+      message,
+      choices.map((c) => ({
+        text: c.text,
+        style: c.style,
+        onPress: () => safeResolve(c.value),
+      })),
+      {
+        cancelable: true,
+        onDismiss: () => safeResolve(fallback),
+      },
+    );
+  });
+};
 
 const toContentString = (file: ProjectFile): string => {
   return typeof file.content === "string"
@@ -136,7 +175,7 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
     // If user opens a file and we set editingContent from file content,
     // this simple compare works (and we also update selectedFile content on save).
     return editingContent !== selectedOriginalContent;
-	}, [editingContent, selectedFile, selectedOriginalContent]);
+  }, [editingContent, selectedFile, selectedOriginalContent]);
 
   const fileTree = useMemo(() => {
     if (projectData?.files) return buildFileTree(projectData.files);
@@ -296,43 +335,50 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
     }
   }, [projectData?.files, projectData?.name, selectedFiles]);
 
-  const handleSaveFile = useCallback(() => {
-    if (!selectedFile) return;
+  const saveSelectedFile = useCallback(async (): Promise<boolean> => {
+    if (!selectedFile) return false;
 
     try {
       const errors = validateSyntax(editingContent, selectedFile.path);
       const criticalErrors = errors.filter((e) => e.severity === "error");
 
-      const doSave = (): void => {
-        updateProjectFiles([
-          { path: selectedFile.path, content: editingContent },
-        ]);
-        setSelectedFile((prev) =>
-          prev ? { ...prev, content: editingContent } : null,
-        );
-        Alert.alert("✅ Gespeichert", selectedFile.path);
-      };
-
       if (criticalErrors.length > 0) {
         const errorList = criticalErrors
           .map((e) => `• ${e.message}`)
           .join("\n");
-        Alert.alert(
+
+        const choice = await alertAsync(
           "Syntax-Fehler",
           `Die folgenden Fehler wurden gefunden:\n\n${errorList}\n\nTrotzdem speichern?`,
           [
-            { text: "Abbrechen", style: "cancel" },
-            { text: "Trotzdem speichern", style: "destructive", onPress: doSave },
+            { text: "Abbrechen", value: "cancel", style: "cancel" },
+            {
+              text: "Trotzdem speichern",
+              value: "save",
+              style: "destructive",
+            },
           ],
+          "cancel",
         );
-        return;
+
+        if (choice !== "save") return false;
       }
 
-      doSave();
+      updateProjectFiles([{ path: selectedFile.path, content: editingContent }]);
+      setSelectedFile((prev) =>
+        prev ? { ...prev, content: editingContent } : null,
+      );
+      Alert.alert("✅ Gespeichert", selectedFile.path);
+      return true;
     } catch {
       Alert.alert("Fehler", "Datei konnte nicht gespeichert werden.");
+      return false;
     }
   }, [editingContent, selectedFile, updateProjectFiles]);
+
+  const handleSaveFile = useCallback(() => {
+    void saveSelectedFile();
+  }, [saveSelectedFile]);
 
   const confirmLoseChanges = useCallback(
     (next: () => void) => {
@@ -353,14 +399,16 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
           {
             text: "Speichern",
             onPress: () => {
-              handleSaveFile();
-              next();
+              void (async () => {
+                const saved = await saveSelectedFile();
+                if (saved) next();
+              })();
             },
           },
         ],
       );
     },
-    [handleSaveFile, isDirty],
+    [isDirty, saveSelectedFile],
   );
 
   const handleItemPress = useCallback(
@@ -586,7 +634,7 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
     setSelectedFile,
     editingContent,
     setEditingContent,
-	  isDirty,
+    isDirty,
     viewMode,
     setViewMode,
     syntaxErrors,
@@ -616,6 +664,7 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
     handleMoveFile,
     handleDeleteFile,
     handleDuplicateFile,
+    saveSelectedFile,
     handleSaveFile,
     handleCopy,
   };

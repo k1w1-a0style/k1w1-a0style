@@ -15,6 +15,7 @@ Stand: **2026-02-10**
   - Dateiendung-Regeln (kein blindes `.tsx` für `Dockerfile`, `.env`, usw.)
   - Clipboard `await` + Fehlerhandling
   - SyntaxErrorBar stabile Keys (ohne fileName/column)
+- Unsaved-Changes Flow hardened: "Speichern" navigiert nur weiter, wenn wirklich gespeichert wurde
 - Typing-Hygiene:
   - `gap` RN-Types per global `.d.ts` ergänzt (kein `as any` mehr nötig)
   - `expo-file-system` Typen lokal ergänzt (kein `any`-Cast)
