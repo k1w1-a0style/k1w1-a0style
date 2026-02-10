@@ -44,7 +44,7 @@ Wir gehen **screenweise** vor, aber in **2 Durchläufen**:
 | AppInfoScreen | screens/AppInfoScreen/index.tsx | 79 |  |  | 0 | useAppInfoScreen | not checked |  |
 | AppStatusScreen | screens/AppStatusScreen/index.tsx | 102 |  |  | 0 | useAppStatusScreen | not checked |  |
 | ChatScreen | screens/ChatScreen/index.tsx | 151 |  |  | 0 | useChatScreen | not checked |  |
-| CodeScreen | screens/CodeScreen/index.tsx | 197 |  |  | 0 | useCodeScreen | not checked |  |
+| CodeScreen | screens/CodeScreen/index.tsx | 197 | WebView editor + bridge hardened | isDirty unified, focus sync, injection hardening, txt export, QoL fixes | 0 | useCodeScreen | done | Deep-dive patches 27-34 |
 | ConnectionsScreen | screens/ConnectionsScreen/index.tsx | 243 |  | yes | 0 | useConnectionsScreen | not checked | network |
 | CredentialsWizardScreen | screens/CredentialsWizardScreen/index.tsx | 111 |  | yes | 0 | useCredentialsWizardScreen | not checked | network |
 | DiagnosticScreen | screens/DiagnosticScreen/index.tsx | 684 |  |  | 0 | useDiagnosticScreen, useNavigation, useProject | not checked |  |

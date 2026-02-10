@@ -31,3 +31,10 @@ git status
 - Wenn **typecheck/lint/tests rot** sind: **nicht** committen. Erst fixen.
 - Patch-Hilfsdateien (Diffs, Notes) **nicht** committen. Wenn du sie behalten willst: nach `docs/patches/` verschieben.
 - Commit-Messages: klein, klar, thematisch (ein Patch = ein Thema).
+
+## Nach jedem Patch
+- `docs/TODO.md` aktualisieren (✅ done / 🔜 next).
+- Wenn es ein größerer Block war: `PROJECT_CHECKLOG.md` kurz ergänzen.
+
+## Neuen Chat starten
+Wenn der Chat zu groß wird: den Inhalt aus `docs/HANDOFF_NEXT_CHAT.md` in den ersten Prompt vom neuen Chat kopieren.
