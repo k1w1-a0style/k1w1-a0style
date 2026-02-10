@@ -29,3 +29,19 @@ Stand: **2026-02-10**
 
 ## UI/UX Polish (ganz zum Schluss)
 - Einheitliche Optik über alle Screens + kleine Grafik-/Spacing-Fixes.
+
+---
+
+## PATCH 37 (cleanup + handoff)
+
+✅ Fixes applied:
+- CodeScreen: removed unused `TextInput` import in `EditorBody.tsx`
+- CodeScreen: expanded extensionless allowlist for new files (Dockerfile/Makefile + LICENSE/NOTICE/README)
+- CodeScreen: removed optional `textSecondary` dep churn in `WebCodeEditor.tsx` (no UI change)
+- Docs: added new-chat handoff prompt + patch notes
+
+🟡 Still open (CodeScreen tech-debt):
+- `useCodeScreen` is a large “god hook” (refactor optional)
+- Validator false positives / bracket counting improvements
+- Syntax validation still runs on JS thread (acceptable for now)
+- `expo-file-system` typing cleanup (remove `any`) + RN `gap` typing polish

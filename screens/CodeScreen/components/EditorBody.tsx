@@ -1,6 +1,6 @@
 // screens/CodeScreen/components/EditorBody.tsx
 import React from "react";
-import { ScrollView, TextInput, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { theme } from "../../../theme";
 import { SyntaxHighlighter } from "../../../components/SyntaxHighlighter";
 import type { SyntaxError as ValidationError } from "../../../utils/syntaxValidator";

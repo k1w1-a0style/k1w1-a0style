@@ -524,11 +524,12 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
       const fullPath = currentFolderPath
         ? `${currentFolderPath}/${name}`
         : name;
-      const needsExt =
-        !name.includes(".") &&
-        !name.startsWith(".") &&
-        name !== "Dockerfile" &&
-        name !== "Makefile";
+      const EXTENSIONLESS_ALLOWLIST = new Set(["Dockerfile", "Makefile", "LICENSE", "NOTICE", "README"]);
+
+  const needsExt =
+    !name.includes(".") &&
+    !name.startsWith(".") &&
+    !EXTENSIONLESS_ALLOWLIST.has(name);
       const finalPath = needsExt ? `${fullPath}.tsx` : fullPath;
 
       createFile(finalPath, `// ${finalPath}\n`);
