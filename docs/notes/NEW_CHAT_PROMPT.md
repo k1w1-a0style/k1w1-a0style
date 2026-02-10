@@ -15,10 +15,10 @@ Du bist mein Repo-Assistent für **k1w1-a0style** (React Native / Expo). Bitte a
 
 ## Aktueller Stand
 - CodeScreen ist funktional stabil (WebView-Editor Bridge hardened + focus tracking + isDirty unified).
-- Letzte Fixes: QoL in useCodeScreen, SyntaxErrorBar key stabil, Theme text colors im WebView.
+- Typing/Docs-Hygiene ist erledigt (gap/expo-file-system Typen via `types/*.d.ts`, Patch-Docs/Handoff gepflegt).
 
 ## Was als Nächstes passieren soll
-1) CodeScreen: offene Tech-Debt Punkte aus `docs/TODO.md` abarbeiten (priorisiert, ohne große UI-Änderungen).
-2) Danach: Preview Screen fortsetzen.
+1) CodeScreen: nur noch kleine Tech-Debt Punkte aus `docs/TODO.md` (ohne große UI-Änderungen).
+2) Danach: Preview/Fullscreen Preview weiter stabilisieren.
 
 Wichtig: Nach jedem Patch bitte `docs/TODO.md` aktualisieren (was erledigt ist / was offen ist).

@@ -89,6 +89,16 @@ const countLines = (s: string): number => {
   return n;
 };
 
+// Files that are commonly extensionless and should stay that way.
+// (This avoids surprising users by turning e.g. "Dockerfile" into "Dockerfile.tsx".)
+const EXTENSIONLESS_ALLOWLIST = new Set<string>([
+  "Dockerfile",
+  "Makefile",
+  "README",
+  "LICENSE",
+  "CHANGELOG",
+]);
+
 export const useCodeScreen = (): UseCodeScreenReturn => {
   const {
     projectData,
@@ -521,15 +531,17 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
   }, [actionTargetFile, createFile, projectData?.files]);
   const handleCreateFile = useCallback(
     (name: string) => {
+      const baseName = name.trim();
+      if (!baseName) return;
       const fullPath = currentFolderPath
-        ? `${currentFolderPath}/${name}`
-        : name;
-      const EXTENSIONLESS_ALLOWLIST = new Set(["Dockerfile", "Makefile", "LICENSE", "NOTICE", "README"]);
+        ? `${currentFolderPath}/${baseName}`
+        : baseName;
 
-  const needsExt =
-    !name.includes(".") &&
-    !name.startsWith(".") &&
-    !EXTENSIONLESS_ALLOWLIST.has(name);
+      // If the user provides any dot, keep as-is (covers ".env", ".gitignore", "README.md", ...).
+      const needsExt =
+        !baseName.includes(".") &&
+        !baseName.startsWith(".") &&
+        !EXTENSIONLESS_ALLOWLIST.has(baseName);
       const finalPath = needsExt ? `${fullPath}.tsx` : fullPath;
 
       createFile(finalPath, `// ${finalPath}\n`);

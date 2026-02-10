@@ -15,6 +15,12 @@ Stand: **2026-02-10**
   - Dateiendung-Regeln (kein blindes `.tsx` für `Dockerfile`, `.env`, usw.)
   - Clipboard `await` + Fehlerhandling
   - SyntaxErrorBar stabile Keys (ohne fileName/column)
+- Typing-Hygiene:
+  - `gap` RN-Types per global `.d.ts` ergänzt (kein `as any` mehr nötig)
+  - `expo-file-system` Typen lokal ergänzt (kein `any`-Cast)
+
+## ✅ Done (Maintenance)
+- Patch-Skripte/Docs bereinigt und Handoff-Prompt angelegt.
 
 ## 🔧 Optional / Tech-Debt (CodeScreen)
 - `useCodeScreen` später in kleinere Hooks splitten (Lesbarkeit/Testbarkeit).
@@ -24,7 +30,8 @@ Stand: **2026-02-10**
 - Performance (nur falls spürbar): Syntax-Validation weiter optimieren/auslagern.
 
 ## ⏭️ Next (CodeScreen)
-- **PATCH 39**: letzte `gap: X as any` Stellen entfernen (Types sind jetzt per `.d.ts` erweitert), ohne UI-Änderung.
+- Nichts Kritisches offen.
+- Optional (nur wenn es in der Praxis wehtut): Syntax-Validation/Quality-Checks in Worker/Task auslagern.
 
 ## ➡️ Next: Preview
 1) **PreviewScreen** komplett fertig machen (Funktionalität vor UI/Polish).
