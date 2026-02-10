@@ -55,8 +55,9 @@ export const WebCodeEditor = ({
   const [readyUi, setReadyUi] = useState(false);
 
   const bg = theme.palette.background;
-  const text = theme.palette.text;
-  const border = hasErrors ? theme.palette.error : theme.palette.border;
+  const textColor = theme.palette.text.primary;
+const textSecondary = theme.palette.text.secondary;
+const border = hasErrors ? theme.palette.error : theme.palette.border;
 
   const html = useMemo(() => {
     // IMPORTANT: do NOT embed `value` into HTML (avoids injection + quoting edge cases).
@@ -72,11 +73,11 @@ export const WebCodeEditor = ({
         border: 0; outline: 0; resize: none;
         padding: 14px 14px 14px 14px;
         background: ${bg};
-        color: ${text};
+        color: ${textColor};
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
         font-size: 13px;
         line-height: 19px;
-        caret-color: ${text};
+        caret-color: ${textColor};
         -webkit-text-size-adjust: 100%;
       }
       textarea::placeholder { color: ${placeholderColor}; opacity: 1; }
@@ -182,7 +183,7 @@ export const WebCodeEditor = ({
           <script>${js}</script>
         </body>
       </html>`;
-  }, [bg, changeThrottleMs, placeholder, placeholderColor, readOnly, tabSize, text]);
+  }, [bg, changeThrottleMs, placeholder, placeholderColor, readOnly, tabSize, textColor, textSecondary]);
 
   const postToWeb = useCallback((msg: OutboundMsg) => {
     const data = JSON.stringify(msg);

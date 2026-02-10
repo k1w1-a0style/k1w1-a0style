@@ -7,6 +7,7 @@ Stand: **2026-02-10**
 - RN↔WebView Bridge stabilisiert
 - Focus-Tracking + Sync-Fix (keine Cursor-Sprünge durch externe Updates)
 - Injection-Härtung beim Initialisieren des Editor-Inhalts
+ - WebCodeEditor CSS Textfarbe fix (kein [object Object])
 - `isDirty` vereinheitlicht (Hook + UI, inkl. Preview)
 - TXT-Export stabil (expo-file-system typings kompatibel)
 - QoL:
