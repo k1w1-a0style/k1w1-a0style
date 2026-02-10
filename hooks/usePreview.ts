@@ -2,7 +2,7 @@
 // Preview creation: prefer Supabase-hosted preview (save_preview -> preview_page).
 // Fallback: local HTML via buildSandpackHtml (best-effort).
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ProjectData, LastPreviewMeta } from "../contexts/types";
 import { useProject } from "../contexts/ProjectContext";
 import { buildSandpackHtml } from "../lib/sandpackBuilder";
@@ -124,6 +124,30 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
   const { setLastPreview } = useProject();
   const [lastPreview, setLastPreviewState] = useState<PreviewResult | null>(null);
 
+  // Hardening: prevent concurrent preview creation and avoid state updates after unmount.
+  const isAliveRef = useRef(true);
+  const inFlightRef = useRef<Promise<PreviewResult | null> | null>(null);
+
+  const safeSetIsCreating = useCallback((v: boolean) => {
+    if (!isAliveRef.current) return;
+    setIsCreating(v);
+  }, []);
+
+  const safeSetError = useCallback((v: string | null) => {
+    if (!isAliveRef.current) return;
+    setError(v);
+  }, []);
+
+  const safeSetLastCreatedAt = useCallback((v: number | null) => {
+    if (!isAliveRef.current) return;
+    setLastCreatedAt(v);
+  }, []);
+
+  const safeSetLastPreviewState = useCallback((v: PreviewResult | null) => {
+    if (!isAliveRef.current) return;
+    setLastPreviewState(v);
+  }, []);
+
   // Restore last preview from persisted project data (fast toggle from header)
   useEffect(() => {
     const persisted = projectData?.lastPreview ?? null;
@@ -138,6 +162,13 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
       };
     });
   }, [projectData?.lastPreview?.url, projectData?.lastPreview?.source]);
+
+  useEffect(() => {
+    isAliveRef.current = true;
+    return () => {
+      isAliveRef.current = false;
+    };
+  }, []);
 
 
   const fileMap = useMemo(() => {
@@ -350,135 +381,157 @@ if (container) {
   );
 
   const createPreview = useCallback(async (): Promise<PreviewResult | null> => {
-    if (!projectData) {
-      setError("Kein Projekt geladen.");
-      return null;
-    }
+    // Singleflight: reuse the in-flight promise (prevents double-tap races).
+    if (inFlightRef.current) return inFlightRef.current;
 
-    setIsCreating(true);
-    setError(null);
+    const run = (async (): Promise<PreviewResult | null> => {
+      if (!projectData) {
+        safeSetError("Kein Projekt geladen.");
+        return null;
+      }
 
-    try {
-      const files = normalizeForWebPreview(ensureMinimumFiles(fileMap));
+      safeSetIsCreating(true);
+      safeSetError(null);
 
-      // 1) Prefer Supabase-hosted preview
       try {
-        const supabase = await ensureSupabaseClient();
-        const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+        const files = normalizeForWebPreview(ensureMinimumFiles(fileMap));
 
-        // Security: save_preview is protected by an admin key. If it's not configured,
-        // skip the remote preview path immediately to avoid unnecessary 401 calls.
-        if (!edgeAdminKey) {
-          throw new Error("Missing Edge Admin Key");
+        // 1) Prefer Supabase-hosted preview
+        try {
+          const supabase = await ensureSupabaseClient();
+          const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+
+          // Security: save_preview is protected by an admin key. If it's not configured,
+          // skip the remote preview path immediately to avoid unnecessary 401 calls.
+          if (!edgeAdminKey) {
+            throw new Error("Missing Edge Admin Key");
+          }
+
+          const snackFiles: PreviewFiles = {};
+          for (const [path, content] of Object.entries(files)) {
+            snackFiles[path] = { contents: String(content ?? "") };
+          }
+
+          const invokeOpts: any = {
+            body: {
+              projectId: projectData.id,
+              name: projectData.name || "Preview",
+              files: snackFiles,
+              dependencies,
+              meta: { template: "react" },
+            },
+            headers: { "x-k1w1-admin-key": edgeAdminKey },
+          };
+
+          const { data, error: fnError } = await promiseWithTimeout(
+            supabase.functions.invoke("save_preview", invokeOpts),
+            12_000,
+            "Supabase Preview Timeout (12s)",
+          );
+
+          if (fnError) throw fnError;
+
+          const resp = data as PreviewResponse;
+          const previewUrl =
+            typeof resp?.previewUrl === "string" ? resp.previewUrl : null;
+
+          if (resp?.ok && previewUrl) {
+            const result: PreviewResult = {
+              url: previewUrl,
+              html: null,
+              expiresAt: resp?.expiresAt ?? null,
+              source: "supabase",
+            };
+
+            safeSetLastPreviewState(result);
+            await setLastPreview({
+              url: result.url,
+              source: result.source,
+              createdAt: new Date().toISOString(),
+              expiresAt: result.expiresAt,
+            } as LastPreviewMeta);
+            safeSetLastCreatedAt(Date.now());
+            return result;
+          }
+
+          throw new Error(resp?.error || "Preview konnte nicht erstellt werden");
+        } catch (supErr: unknown) {
+          console.warn(
+            "[usePreview] ⚠️ Supabase Preview fehlgeschlagen, fallback auf Local HTML:",
+            supErr,
+          );
         }
 
-        const snackFiles: PreviewFiles = {};
-        for (const [path, content] of Object.entries(files)) {
-          const text = typeof content === "string" ? content : String((content as any) ?? "");
-          snackFiles[path] = { contents: text };
-        }
-
-        const invokeOpts: any = {
-          body: {
-            projectId: projectData.id,
-            name: projectData.name || "Preview",
-            files: snackFiles,
+        // 2) Fallback: Local HTML (best-effort)
+        let html: string;
+        try {
+          html = buildSandpackHtml({
+            title: projectData.name || "Preview",
+            files,
             dependencies,
-            meta: { template: "react" },
-          },
+          });
+        } catch (e) {
+          console.error("[usePreview] ❌ buildSandpackHtml failed:", e);
+          safeSetError("Local Preview konnte nicht erzeugt werden.");
+          return null;
+        }
+
+        if (!html || typeof html !== "string") {
+          safeSetError("Local Preview konnte nicht erzeugt werden.");
+          return null;
+        }
+
+        const fallback: PreviewResult = {
+          url: null,
+          html,
+          expiresAt: null,
+          source: "local",
         };
 
-        if (edgeAdminKey) {
-          invokeOpts.headers = { "x-k1w1-admin-key": edgeAdminKey };
-        }
-
-        const { data, error: fnError } = await promiseWithTimeout(
-          supabase.functions.invoke("save_preview", invokeOpts),
-          12_000,
-          "Supabase Preview Timeout (12s)",
-        );
-
-        if (fnError) throw fnError;
-
-        const resp = data as PreviewResponse;
-        const previewUrl = typeof resp?.previewUrl === "string" ? resp.previewUrl : null;
-
-        if (resp?.ok && previewUrl) {
-          const result: PreviewResult = {
-            url: previewUrl,
-            html: null,
-            expiresAt: resp?.expiresAt ?? null,
-            source: "supabase",
-          };
-          setLastPreviewState(result);
-          await setLastPreview({
-            url: result.url,
-            source: result.source,
-            createdAt: new Date().toISOString(),
-            expiresAt: result.expiresAt,
-          } as LastPreviewMeta);
-          setLastCreatedAt(Date.now());
-          return result;
-        }
-
-        throw new Error(resp?.error || "Preview konnte nicht erstellt werden");
-      } catch (supErr: unknown) {
-        console.warn(
-          "[usePreview] ⚠️ Supabase Preview fehlgeschlagen, fallback auf Local HTML:",
-          supErr,
-        );
+        safeSetLastPreviewState(fallback);
+        await setLastPreview({
+          url: fallback.url,
+          source: fallback.source,
+          createdAt: new Date().toISOString(),
+          expiresAt: fallback.expiresAt,
+        } as LastPreviewMeta);
+        safeSetLastCreatedAt(Date.now());
+        return fallback;
+      } catch (e: unknown) {
+        const message =
+          e instanceof Error ? e.message : "Unbekannter Fehler beim Erstellen.";
+        console.error("[usePreview] ❌ Fehler:", message);
+        safeSetError(message);
+        throw new Error(message);
+      } finally {
+        safeSetIsCreating(false);
       }
+    })();
 
-      // 2) Fallback: Local HTML (best-effort)
-      let html: string;
-      try {
-        html = buildSandpackHtml({
-          title: projectData.name || "Preview",
-          files,
-          dependencies,
-        });
-      } catch (e) {
-        console.error("[usePreview] ❌ buildSandpackHtml failed:", e);
-        setError("Local Preview konnte nicht erzeugt werden.");
-        return null;
-      }
+    inFlightRef.current = run;
+    return run.finally(() => {
+      // Ensure the lock is released even if the component unmounted.
+      inFlightRef.current = null;
+    });
+  }, [
+    projectData,
+    fileMap,
+    dependencies,
+    ensureMinimumFiles,
+    normalizeForWebPreview,
+    safeSetError,
+    safeSetIsCreating,
+    safeSetLastCreatedAt,
+    safeSetLastPreviewState,
+    setLastPreview,
+  ]);
 
-      if (!html || typeof html !== "string") {
-        setError("Local Preview konnte nicht erzeugt werden.");
-        return null;
-      }
-
-      const fallback: PreviewResult = {
-        url: null,
-        html,
-        expiresAt: null,
-        source: "local",
-      };
-      setLastPreviewState(fallback);
-      await setLastPreview({
-        url: fallback.url,
-        source: fallback.source,
-        createdAt: new Date().toISOString(),
-        expiresAt: fallback.expiresAt,
-      } as LastPreviewMeta);
-      setLastCreatedAt(Date.now());
-      return fallback;
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "Unbekannter Fehler beim Erstellen.";
-      console.error("[usePreview] ❌ Fehler:", message);
-      setError(message);
-      throw new Error(message);
-    } finally {
-      setIsCreating(false);
-    }
-  }, [projectData, fileMap, dependencies, ensureMinimumFiles, normalizeForWebPreview]);
-
-    const reset = useCallback(() => {
-    setLastPreviewState(null);
+  const reset = useCallback(() => {
+    safeSetLastPreviewState(null);
     void setLastPreview(null);
-    setLastCreatedAt(null);
-    setError(null);
-  }, [setLastPreview]);
+    safeSetLastCreatedAt(null);
+    safeSetError(null);
+  }, [setLastPreview, safeSetError, safeSetLastCreatedAt, safeSetLastPreviewState]);
 
   const state: PreviewState = useMemo(
     () => ({

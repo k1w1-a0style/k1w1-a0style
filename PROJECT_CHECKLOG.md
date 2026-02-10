@@ -301,3 +301,39 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - `npm run typecheck`
 - `npm run lint:ci`
 - `npm run test:silent`
+
+---
+## Patch 42 — Preview hardening (singleflight + unmount-safety)
+
+**Files**
+- `hooks/usePreview.ts`
+- `screens/PreviewFullscreenScreen.tsx`
+- `docs/TODO.md`
+- `docs/patches/PATCH_42_NOTES.md`
+
+**Changes**
+- `usePreview.createPreview` ist jetzt **singleflight** (kein Doppelklick-Race).
+- `usePreview` vermeidet **State-Updates nach Unmount** (safe-set wrapper).
+- PreviewFullscreen WebView-Callbacks sind stärker typisiert (kein `any`).
+
+**Checks**
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
+---
+## Patch 43 — PreviewFullscreen typing fix (react-native-webview compat)
+
+**Files**
+- `screens/PreviewFullscreenScreen.tsx`
+- `docs/TODO.md`
+- `docs/patches/PATCH_43_NOTES.md`
+
+**Changes**
+- Fix: `react-native-webview@13.15.x` exportiert die Event-Typen (`WebViewErrorEvent`, etc.) nicht als Named Exports.
+- Stattdessen: minimale lokale Typen für WebView Requests/Events → keine `any` und wieder `tsc`-grün.
+
+**Checks**
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`

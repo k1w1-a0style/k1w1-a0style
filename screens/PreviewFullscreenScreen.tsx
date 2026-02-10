@@ -26,6 +26,14 @@ import { theme } from "../theme";
 import { isHttpUrl, truncateUrl } from "../utils/url";
 import type { RootStackParamList } from "../types/preview";
 
+// NOTE: react-native-webview@13.15.x exportiert diese Event-Typen nicht sauber.
+// Wir nutzen hier minimale lokale Typen, um "any" zu vermeiden und trotzdem kompatibel zu bleiben.
+type WebViewShouldStartLoadRequest = { url?: string };
+type WebViewErrorEvent = { nativeEvent?: { description?: string } };
+type WebViewHttpErrorEvent = {
+  nativeEvent?: { statusCode?: number; description?: string };
+};
+
 type PreviewFullscreenRouteProp = RouteProp<
   RootStackParamList,
   "PreviewFullscreen"
@@ -148,36 +156,39 @@ export default function PreviewFullscreenScreen() {
     [],
   );
 
-  const handleShouldStartLoad = useCallback((request: any): boolean => {
-    const requestUrl = String(request?.url || "");
+  const handleShouldStartLoad = useCallback(
+    (request: WebViewShouldStartLoadRequest): boolean => {
+      const requestUrl = String(request?.url || "");
 
-    // Block navigation to local.preview (legacy placeholder that requires DNS)
-    if (requestUrl.includes("local.preview")) {
-      return false;
-    }
+      // Block navigation to local.preview (legacy placeholder that requires DNS)
+      if (requestUrl.includes("local.preview")) {
+        return false;
+      }
 
-    // Allow data: URLs and about:blank for HTML mode
-    if (
-      requestUrl.startsWith("data:") ||
-      requestUrl === "about:blank" ||
-      requestUrl.startsWith("about:")
-    ) {
+      // Allow data: URLs and about:blank for HTML mode
+      if (
+        requestUrl.startsWith("data:") ||
+        requestUrl === "about:blank" ||
+        requestUrl.startsWith("about:")
+      ) {
+        return true;
+      }
+
+      if (!isHttpUrl(requestUrl)) {
+        Alert.alert(
+          "Navigation blockiert",
+          `Dieser Link kann nicht geöffnet werden:\n\n${truncateUrl(requestUrl, 90)}`,
+          [{ text: "OK" }],
+        );
+        return false;
+      }
+
       return true;
-    }
+    },
+    [],
+  );
 
-    if (!isHttpUrl(requestUrl)) {
-      Alert.alert(
-        "Navigation blockiert",
-        `Dieser Link kann nicht geöffnet werden:\n\n${truncateUrl(requestUrl, 90)}`,
-        [{ text: "OK" }],
-      );
-      return false;
-    }
-
-    return true;
-  }, []);
-
-  const handleError = useCallback((syntheticEvent: any) => {
+  const handleError = useCallback((syntheticEvent: WebViewErrorEvent) => {
     const { nativeEvent } = syntheticEvent;
     const errorMessage =
       nativeEvent?.description || "Unbekannter WebView-Fehler";
@@ -190,7 +201,7 @@ export default function PreviewFullscreenScreen() {
   }, []);
 
   const handleHttpError = useCallback(
-    (syntheticEvent: any) => {
+    (syntheticEvent: WebViewHttpErrorEvent) => {
       const { nativeEvent } = syntheticEvent;
       const statusCode = nativeEvent?.statusCode;
       const description = nativeEvent?.description || "";

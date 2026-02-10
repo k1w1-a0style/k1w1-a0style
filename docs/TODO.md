@@ -23,6 +23,10 @@ Stand: **2026-02-10**
 ## ✅ Done (Maintenance)
 - Patch-Skripte/Docs bereinigt und Handoff-Prompt angelegt.
 
+## ✅ Done (Preview)
+- Hardening: `createPreview` singleflight (kein Doppelklick-Race) + keine State-Updates nach Unmount.
+- Fullscreen: WebView Callback Typing gehärtet (kompatibel mit `react-native-webview@13.15.x`).
+
 ## 🔧 Optional / Tech-Debt (CodeScreen)
 - `useCodeScreen` später in kleinere Hooks splitten (Lesbarkeit/Testbarkeit).
 - Type-Cleanup:
@@ -37,6 +41,10 @@ Stand: **2026-02-10**
 ## ➡️ Next: Preview
 1) **PreviewScreen** komplett fertig machen (Funktionalität vor UI/Polish).
 2) **PreviewFullscreen** danach.
+
+### Preview – aktuelle Restpunkte (funktional first)
+- PreviewScreen: Funktionalität komplett machen (Flows/Fehler/Retry), erst danach UI/Polish.
+- Fullscreen: Navigation-Guards & Edgecases weiter härten.
 
 ## UI/UX Polish (ganz zum Schluss)
 - Einheitliche Optik über alle Screens + kleine Grafik-/Spacing-Fixes.
