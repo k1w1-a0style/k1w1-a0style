@@ -25,7 +25,9 @@ export const SyntaxErrorBar: React.FC<SyntaxErrorBarProps> = ({
     >
       {errors.map((error, index) => (
         <View
-          key={index}
+          // No fileName is available in this component; build a key from error content.
+          // Include index as a last resort to avoid collisions when two errors match.
+          key={`${error.line ?? 0}:${error.severity}:${error.message}:${index}`}
           style={[
             styles.errorBadge,
             error.severity === "error"

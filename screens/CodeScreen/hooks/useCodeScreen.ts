@@ -30,6 +30,8 @@ export interface UseCodeScreenReturn {
   setSelectedFile: Dispatch<SetStateAction<ProjectFile | null>>;
   editingContent: string;
   setEditingContent: Dispatch<SetStateAction<string>>;
+  /** True when the selected file has unsaved changes. */
+  isDirty: boolean;
   viewMode: ViewMode;
   setViewMode: Dispatch<SetStateAction<ViewMode>>;
   syntaxErrors: ValidationError[];
@@ -70,12 +72,6 @@ export interface UseCodeScreenReturn {
 
   handleSaveFile: () => void;
   handleCopy: (content: string) => void;
-
-  /** True when the currently selected file has unsaved edits (unified across UI + hook). */
-  isDirty: boolean;
-
-  /** Helper that shows a confirmation dialog if there are unsaved changes. */
-  confirmLoseChanges: (onDiscard: () => void) => void;
 }
 
 const toContentString = (file: ProjectFile): string => {
@@ -119,6 +115,19 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
     null,
   );
 
+  const lastSelectedPathRef = useRef<string | null>(null);
+
+  const selectedOriginalContent = useMemo(() => {
+    return selectedFile ? toContentString(selectedFile) : "";
+  }, [selectedFile]);
+
+  const isDirty = useMemo(() => {
+    if (!selectedFile) return false;
+    // If user opens a file and we set editingContent from file content,
+    // this simple compare works (and we also update selectedFile content on save).
+    return editingContent !== selectedOriginalContent;
+	}, [editingContent, selectedFile, selectedOriginalContent]);
+
   const fileTree = useMemo(() => {
     if (projectData?.files) return buildFileTree(projectData.files);
     return [];
@@ -144,23 +153,49 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
     return folders;
   }, [fileTree]);
 
+  // Live validation — gets expensive on huge files.
+  useEffect(() => {
+    if (!selectedFile || viewMode !== "edit") {
+      setSyntaxErrors([]);
+      return;
+    }
+    if (!editingContent.trim()) {
+      setSyntaxErrors([]);
+      return;
+    }
 
-  const lastSelectedPathRef = useRef<string | null>(null);
+    const len = editingContent.length;
+    const lines = countLines(editingContent);
 
-  const selectedOriginalContent = useMemo(() => {
-    return selectedFile ? toContentString(selectedFile) : "";
-  }, [selectedFile]);
+    // Heuristics: keep editor smooth. No UI changes, just reduces background work.
+    const huge = len > 600_000;
+    const large = len > 200_000 || lines > 5_000;
 
-  const isDirty = useMemo(() => {
-    if (!selectedFile) return false;
+    if (huge) {
+      // Skip live validation entirely.
+      setSyntaxErrors([]);
+      return;
+    }
 
-    const original =
-      typeof selectedFile.content === "string"
-        ? selectedFile.content
-        : JSON.stringify(selectedFile.content, null, 2);
+    const debounceMs = large ? 1500 : 500;
+    const includeQuality = !large;
 
-    return original !== editingContent;
-  }, [editingContent, selectedFile]);
+    const timeoutId = setTimeout(() => {
+      try {
+        const errors = [
+          ...validateSyntax(editingContent, selectedFile.path),
+          ...(includeQuality
+            ? validateCodeQuality(editingContent, selectedFile.path)
+            : []),
+        ];
+        setSyntaxErrors(errors);
+      } catch {
+        setSyntaxErrors([]);
+      }
+    }, debounceMs);
+
+    return () => clearTimeout(timeoutId);
+  }, [editingContent, selectedFile, viewMode]);
 
   const toggleFileSelection = useCallback((filePath: string) => {
     setSelectedFiles((prev) => {
@@ -455,21 +490,46 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
   const handleDuplicateFile = useCallback(() => {
     if (!actionTargetFile) return;
 
-    const ext = actionTargetFile.path.split(".").pop() || "";
-    const baseName = actionTargetFile.path.replace(`.${ext}`, "");
-    const newPath = `${baseName}_copy.${ext}`;
+    const files = projectData?.files ?? [];
+    const existing = new Set(files.map((f) => f.path));
 
-    createFile(newPath, actionTargetFile.content);
-    Alert.alert("✅ Dupliziert", `Neue Datei erstellt: ${newPath}`);
-  }, [actionTargetFile, createFile]);
+    const parts = actionTargetFile.path.split("/");
+    const fileName = parts.pop() ?? actionTargetFile.path;
+    const dir = parts.join("/");
 
+    const dotIdx = fileName.lastIndexOf(".");
+    const stem = dotIdx > 0 ? fileName.slice(0, dotIdx) : fileName;
+    const ext = dotIdx > 0 ? fileName.slice(dotIdx) : "";
+
+    // Choose a non-colliding name: _copy, _copy2, _copy3, ...
+    let candidate = `${stem}_copy${ext}`;
+    if (dir) candidate = `${dir}/${candidate}`;
+
+    if (existing.has(candidate)) {
+      for (let i = 2; i < 1000; i++) {
+        let next = `${stem}_copy${i}${ext}`;
+        if (dir) next = `${dir}/${next}`;
+        if (!existing.has(next)) {
+          candidate = next;
+          break;
+        }
+      }
+    }
+
+    createFile(candidate, actionTargetFile.content);
+    Alert.alert("✅ Dupliziert", `Neue Datei erstellt: ${candidate}`);
+  }, [actionTargetFile, createFile, projectData?.files]);
   const handleCreateFile = useCallback(
     (name: string) => {
       const fullPath = currentFolderPath
         ? `${currentFolderPath}/${name}`
         : name;
-      const ext = name.includes(".") ? "" : ".tsx";
-      const finalPath = fullPath + ext;
+      const needsExt =
+        !name.includes(".") &&
+        !name.startsWith(".") &&
+        name !== "Dockerfile" &&
+        name !== "Makefile";
+      const finalPath = needsExt ? `${fullPath}.tsx` : fullPath;
 
       createFile(finalPath, `// ${finalPath}\n`);
 
@@ -496,20 +556,24 @@ export const useCodeScreen = (): UseCodeScreenReturn => {
   );
 
   const handleCopy = useCallback((content: string) => {
-    Clipboard.setStringAsync(content);
-    Alert.alert("✅ Kopiert", "Code in Zwischenablage kopiert");
+    // Clipboard can fail on some Android setups; keep UX smooth.
+    Clipboard.setStringAsync(content)
+      .then(() => {
+        Alert.alert("✅ Kopiert", "Code in Zwischenablage kopiert");
+      })
+      .catch(() => {
+        Alert.alert("Fehler", "Kopieren fehlgeschlagen.");
+      });
   }, []);
 
   return {
     projectData,
     isLoading,
-
-    confirmLoseChanges,
-    isDirty,
     selectedFile,
     setSelectedFile,
     editingContent,
     setEditingContent,
+	  isDirty,
     viewMode,
     setViewMode,
     syntaxErrors,
