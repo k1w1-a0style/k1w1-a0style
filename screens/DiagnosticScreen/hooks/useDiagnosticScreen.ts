@@ -512,14 +512,36 @@ async function runLocalChecks(params: {
 
   if (!includeLocalChecks) return;
 
+  // Throttle progressive updates: avoids excessive re-renders on large projects.
+  let lastUpdateMs = 0;
+  const MIN_UPDATE_INTERVAL_MS = 300;
+
+  const maybeSetResults = () => {
+    const now = Date.now();
+    if (now - lastUpdateMs < MIN_UPDATE_INTERVAL_MS) return;
+    lastUpdateMs = now;
+    if (mountedRef.current) setResults([...all]);
+  };
+
   for (const prof of focusedProfiles) {
+    if (!mountedRef.current) break;
+
     const t = { mode: "eas" as const, profile: prof };
-    setProgressStage(`Checks: local/${t.profile}`);
+
+    if (mountedRef.current) {
+      setProgressStage(`Checks: local/${t.profile}`);
+    }
+
     const prog = runPreflightChecksProgressive(files, t);
     for await (const stage of prog as any) {
+      if (!mountedRef.current) break;
+
       if (stage?.priority) {
-        setProgressStage(`Checks: local/${t.profile} • ${String(stage.priority)}`);
+        if (mountedRef.current) {
+          setProgressStage(`Checks: local/${t.profile} • ${String(stage.priority)}`);
+        }
       }
+
       if (stage?.results?.length) {
         const decorated = (stage.results as PreflightCheckResult[]).map((r) => ({
           ...r,
@@ -527,11 +549,15 @@ async function runLocalChecks(params: {
           title: `${r.title} (${t.profile})`,
         }));
         all.push(...decorated);
-        if (mountedRef.current) setResults([...all]);
+        maybeSetResults();
       }
     }
   }
+
+  // Final update (ensures last chunk is shown).
+  if (mountedRef.current) setResults([...all]);
 }
+
 
 async function runPipelineChecks(params: {
   includePipelineChecks: boolean;
@@ -558,12 +584,16 @@ async function runPipelineChecks(params: {
   if (!parsed) return;
 
   try {
-    setProgressStage("Checks: pipeline (GitHub/EAS)…");
+    if (!mountedRef.current) return;
+    if (mountedRef.current) setProgressStage("Checks: pipeline (GitHub/EAS)…");
+
     const { checks } = await runBuildPipelineDiagnostics({
       owner: parsed.owner,
       repo: parsed.repo,
       branch: (linkedBranch || "main").trim(),
     });
+
+    if (!mountedRef.current) return;
 
     const pipelineResults: PreflightCheckResult[] = checks
       .filter((c) => pipelineAppliesToFocus(c.id))
@@ -577,14 +607,16 @@ async function runPipelineChecks(params: {
             : c.status === "warn"
               ? "warn"
               : "pass",
-        message: c.details || undefined,
-        details: c.fixHint ? [c.fixHint] : undefined,
+        message: c.fixHint || c.details,
+        details: c.fixHint && c.details ? [c.details] : undefined,
         fix: c.fix ? { label: c.fix.label, patch: c.fix.patch } : undefined,
       }));
 
     all.push(...pipelineResults);
     if (mountedRef.current) setResults([...all]);
   } catch (e: any) {
+    if (!mountedRef.current) return;
+
     all.push({
       id: "pipeline::error",
       title: "Pipeline Diagnostics",
@@ -595,3 +627,4 @@ async function runPipelineChecks(params: {
     if (mountedRef.current) setResults([...all]);
   }
 }
+

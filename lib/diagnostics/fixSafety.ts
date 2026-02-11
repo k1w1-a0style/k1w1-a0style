@@ -75,15 +75,66 @@ export function patchTouchedPaths(patch: PreflightPatch): string[] {
   return Array.from(paths).sort();
 }
 
+function stableStringify(value: unknown): string {
+  // Deterministic JSON stringify (sorted object keys) for hashing.
+  if (value === null) return "null";
+  const t = typeof value;
+  if (t === "string") return JSON.stringify(value);
+  if (t === "number" || t === "boolean") return String(value);
+  if (t === "undefined") return "undefined";
+  if (Array.isArray(value)) {
+    return `[${value.map((v) => stableStringify(v)).join(",")}]`;
+  }
+  if (t === "object") {
+    const obj = value as Record<string, unknown>;
+    const keys = Object.keys(obj).sort();
+    return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(",")}}`;
+  }
+  // symbol / function etc.
+  return t;
+}
+
+function hash32(input: string): string {
+  // Fast, deterministic 32-bit hash (FNV-1a-ish).
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    // h *= 16777619 (as uint32)
+    h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+  }
+  // Convert to unsigned and compact.
+  return (h >>> 0).toString(36);
+}
+
 export function patchFingerprint(patch: PreflightPatch): string {
-  // Short stable fingerprint for de-duplication in batch mode.
-  // We intentionally avoid including full content to keep it cheap.
+  // Content-sensitive fingerprint for accurate de-duplication in batch mode.
+  // Must remain cheap, but correctness > performance: two different fixes may touch the same file(s)
+  // with the same op-shape.
   const upsert = patch.upsert?.length ?? 0;
   const del = patch.delete?.length ?? 0;
   const jm = patch.jsonMerge?.length ?? 0;
   const touched = patchTouchedPaths(patch);
-  return `${upsert}:${del}:${jm}:${touched.join("|")}`;
+
+  const parts: string[] = [];
+
+  for (const u of patch.upsert ?? []) {
+    parts.push(`u:${u.path}:${hash32(u.content ?? "")}`);
+  }
+  for (const d of patch.delete ?? []) {
+    parts.push(`d:${d}`);
+  }
+  for (const j of patch.jsonMerge ?? []) {
+    parts.push(`m:${j.path}:${hash32(stableStringify(j.patch ?? null))}`);
+  }
+
+  // Stable ordering so fingerprints are deterministic.
+  parts.sort();
+
+  // Keep the final fingerprint compact but content-aware.
+  const contentSig = hash32(parts.join("|"));
+  return `${upsert}:${del}:${jm}:${touched.join("|")}::${contentSig}`;
 }
+
 
 export function analyzePatchRisk(patch: PreflightPatch): PatchRisk {
   const touched = patchTouchedPaths(patch);

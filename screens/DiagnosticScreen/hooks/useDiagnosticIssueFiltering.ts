@@ -3,8 +3,7 @@ import { useMemo, useState } from "react";
 import type { PreflightCheckResult } from "../../../lib/diagnostics/preflightTypes";
 import type { Status } from "../types";
 
-export type IssuesFilter = "all" | "critical" | "warning" | "info";
-
+export type IssuesFilter = "all" | "critical" | "warning";
 /**
  * Holds the issues filter state and computes the visible issue list.
  *
@@ -22,7 +21,7 @@ export function useDiagnosticIssueFiltering(sortedResults: PreflightCheckResult[
       return nonPass.filter((r) => ((r.status ?? "pass") as Status) === "fail");
     if (issuesFilter === "warning")
       return nonPass.filter((r) => ((r.status ?? "pass") as Status) === "warn");
-    return [];
+    return nonPass;
   }, [issuesFilter, sortedResults]);
 
   return {

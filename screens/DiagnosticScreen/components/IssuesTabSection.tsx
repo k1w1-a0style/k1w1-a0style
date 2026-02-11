@@ -13,6 +13,7 @@ import { IssueCard } from "../../../components/diagnostics/IssueCard";
 import { SectionCard } from "../../../components/diagnostics/SectionCard";
 import { theme } from "../../../theme";
 import type { Status } from "../types";
+import type { IssuesFilter } from "../hooks/useDiagnosticIssueFiltering";
 import type { PreflightCheckResult } from "../../../lib/diagnostics/preflightTypes";
 
 export function IssuesTabSection(props: {
@@ -26,8 +27,8 @@ export function IssuesTabSection(props: {
   modesAll: boolean;
   setModesAll: React.Dispatch<React.SetStateAction<boolean>>;
   busy: boolean;
-  issuesFilter: "all" | "critical" | "warning" | "info";
-  setIssuesFilter: (v: "all" | "critical" | "warning" | "info") => void;
+  issuesFilter: IssuesFilter;
+  setIssuesFilter: React.Dispatch<React.SetStateAction<IssuesFilter>>;
   toSeverity: (s: Status) => any;
   openIssue: (item: PreflightCheckResult) => void;
   runDiagnostics: () => void;

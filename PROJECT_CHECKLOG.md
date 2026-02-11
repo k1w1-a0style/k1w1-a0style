@@ -1,5 +1,10 @@
 # k1w1-a0style – Projekt-Diagnose Log (living doc)
 
+## PATCH 62 (2026-02-11)
+- DiagnosticScreen: Typecheck Fix (Pipeline message mapping) + IssuesFilter Contract Cleanup (kein "info")
+- Docs: Patch Notes + Review Verification aktualisiert
+
+
 Datum: 2026-02-08  
 Ziel: **Vollständiger, kritischer Check** (Screens → Funktionen → Build/Infra).  
 Dieses Dokument ist dafür gedacht, dass wir **nach jedem Check neue Erkenntnisse anhängen**, damit nichts verloren geht.
@@ -469,3 +474,15 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 ## Patch 56
 - Hotfix: remove unreachable 'none' preview mode branch in PreviewFullscreen.
 - Hotfix: format created timestamp via ISO string (lastCreatedAt ms → ISO) for date helpers.
+
+---
+
+## 2026-02-11 – DiagnosticScreen Review umgesetzt (Patch 61)
+
+- Correctness: Batch-Fix Dedupe ist jetzt content-sensitiv (keine false-dups bei gleicher Struktur).
+- State Restore: Preferences Hydration-Gate verhindert Load/Save Race.
+- Async Safety: Progress Updates guarded (kein setState nach Unmount).
+- Contract Cleanup: IssuesFilter konsistent ("info" entfernt).
+- Performance: progressive Results Updates throttled.
+- Tests: gezielte Regression-Tests für F-001/F-002.
+

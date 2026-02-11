@@ -38,6 +38,14 @@ Stand: **2026-02-11**
 - Tests: `previewNavigationGuards` um kritische Negativfälle ergänzt
 - Cleanup: unnötige `useCallback` Dependencies entfernt
 
+## ✅ Done (Diagnostic)
+- Batch-Fix Dedupe: content-sensitiver Fingerprint (kein false-dup)
+- Preferences: Hydration-Gate gegen Load/Save Race
+- Async Safety: Progress-Stage Guards (kein setState nach Unmount)
+- Filter Contract Cleanup ("info" entfernt, UI/Hook konsistent)
+- Performance: progressive Results throttled (300ms) + final flush
+- Tests: patchFingerprint + Preferences Hydration
+
 ## 🔧 Optional / Tech-Debt (CodeScreen)
 - Performance (nur falls spürbar): Syntax-Validation/Quality-Checks weiter auslagern (Worker/Task) oder „progressive validation“.
 - WebView/Bridge Paranoia: CSP / striktere WebView Settings (soweit Plattform zulässt).

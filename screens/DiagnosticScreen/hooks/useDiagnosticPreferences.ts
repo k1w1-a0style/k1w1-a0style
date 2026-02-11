@@ -52,6 +52,7 @@ export function useDiagnosticPreferences(opts: {
   );
 
   const prefSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,8 +121,10 @@ export function useDiagnosticPreferences(opts: {
         if (rr === "0" || rr === "1") setRerunAfterFix(rr === "1");
         if (aw === "0" || aw === "1") setAutoFixIncludeWarn(aw === "1");
         if (as === "visible" || as === "all") setAutoFixScope(as);
+        setHydrated(true);
       } catch {
         // ignore
+        setHydrated(true);
       }
     })();
     return () => {
@@ -131,6 +134,7 @@ export function useDiagnosticPreferences(opts: {
 
   useEffect(() => {
     // Debounce preference writes to avoid AsyncStorage spam on rapid toggles.
+    if (!hydrated) return;
     if (prefSaveTimer.current) clearTimeout(prefSaveTimer.current);
 
     prefSaveTimer.current = setTimeout(() => {
@@ -161,6 +165,7 @@ export function useDiagnosticPreferences(opts: {
       prefSaveTimer.current = null;
     };
   }, [
+    hydrated,
     autoFixIncludeWarn,
     autoFixScope,
     includeLocalChecks,
