@@ -68,6 +68,8 @@ export default function PreviewFullscreenScreen() {
   const webViewRef = useRef<WebView>(null);
   const isMountedRef = useRef(true);
   const processTerminatedRef = useRef(false);
+  const autoReloadAttemptedRef = useRef(false);
+  const recoveryReloadInFlightRef = useRef(false);
 
 
   const mode = useMemo<"html" | "url" | null>(() => {
@@ -85,6 +87,20 @@ export default function PreviewFullscreenScreen() {
       return null;
     }
   }, [mode, url]);
+
+  const webViewOriginWhitelist = useMemo(() => {
+    if (mode === "html") {
+      return ["data:*", "about:*", "blob:*"];
+    }
+
+    if (mode === "url" && baseOrigin) {
+      return [baseOrigin, `${baseOrigin}/*`, "data:*", "about:*", "blob:*"];
+    }
+
+    // Fallback: internal schemes only
+    return ["data:*", "about:*", "blob:*"];
+  }, [mode, baseOrigin]);
+
 
 
   const headerSubtitle = useMemo(() => {
@@ -107,6 +123,9 @@ export default function PreviewFullscreenScreen() {
 
   const handleReload = useCallback(() => {
     processTerminatedRef.current = false;
+    autoReloadAttemptedRef.current = false;
+    recoveryReloadInFlightRef.current = false;
+
     webViewRef.current?.reload();
     setError(null);
   }, []);
@@ -164,6 +183,13 @@ export default function PreviewFullscreenScreen() {
   const handleLoadEnd = useCallback(() => {
     if (!isMountedRef.current) return;
     setLoading(false);
+
+    if (recoveryReloadInFlightRef.current) {
+      // Recovery reload succeeded (or at least completed a load cycle) → reset one-shot recovery
+      recoveryReloadInFlightRef.current = false;
+      autoReloadAttemptedRef.current = false;
+      processTerminatedRef.current = false;
+    }
   }, []);
 
   const handleContentProcessDidTerminate = useCallback(
@@ -173,6 +199,20 @@ export default function PreviewFullscreenScreen() {
       processTerminatedRef.current = true;
 
       setLoading(false);
+
+      // One-shot soft recovery to reduce user friction on low-memory devices.
+      if (!autoReloadAttemptedRef.current) {
+        autoReloadAttemptedRef.current = true;
+        recoveryReloadInFlightRef.current = true;
+
+        setError("WebView-Prozess wurde beendet. Neustart…");
+        setTimeout(() => {
+          if (!isMountedRef.current) return;
+          webViewRef.current?.reload();
+        }, 1000);
+        return;
+      }
+
       setError("WebView-Prozess wurde beendet. Bitte neu laden.");
     },
     [],
@@ -186,6 +226,22 @@ export default function PreviewFullscreenScreen() {
 
       const didCrash = Boolean(evt?.nativeEvent?.didCrash);
       setLoading(false);
+
+      // One-shot soft recovery to reduce user friction on low-memory devices.
+      if (!autoReloadAttemptedRef.current) {
+        autoReloadAttemptedRef.current = true;
+        recoveryReloadInFlightRef.current = true;
+
+        setError(didCrash ? "WebView ist abgestürzt. Neustart…" : "WebView wurde beendet. Neustart…");
+        setTimeout(() => {
+          if (!isMountedRef.current) return;
+          webViewRef.current?.reload();
+        }, 1000);
+
+        // Return true -> we handled it (avoid app crash on Android)
+        return true;
+      }
+
       setError(
         didCrash
           ? "WebView ist abgestürzt. Bitte neu laden."
@@ -204,7 +260,7 @@ export default function PreviewFullscreenScreen() {
       setCanGoBack(navState.canGoBack);
       setCanGoForward(navState.canGoForward);
     },
-    [mode, baseOrigin],
+    [],
   );
 
   const handleShouldStartLoad = useCallback(
@@ -375,6 +431,38 @@ ${truncateUrl(decision.url, 90)}`,
         </View>
       </SafeAreaView>
     );
+  if (mode === "url" && url && !baseOrigin) {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <View style={styles.topBar}>
+          <Pressable style={styles.backButton} onPress={handleGoBack}>
+            <Ionicons name="chevron-back" size={24} color={theme.palette.text.primary} />
+          </Pressable>
+
+          <View style={styles.titleContainer}>
+            <Text style={styles.topTitle} numberOfLines={1}>
+              {title}
+            </Text>
+            <Text style={styles.topSubtitle} numberOfLines={1}>
+              Ungültige URL
+            </Text>
+          </View>
+
+          <View style={{ width: 80 }} />
+        </View>
+
+        <View style={styles.errorState}>
+          <Ionicons name="alert-circle" size={64} color={theme.palette.error} />
+          <Text style={styles.errorStateTitle}>Ungültige Preview-URL</Text>
+          <Text style={styles.errorStateText}>
+            Die angegebene URL konnte nicht verarbeitet werden. Bitte prüfe das Format (http/https) und versuche es erneut.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+
   }
 
   return (
@@ -462,7 +550,7 @@ ${truncateUrl(decision.url, 90)}`,
       <View style={styles.webViewContainer}>
         <WebView
           ref={webViewRef}
-          originWhitelist={["https://*", "http://*", "data:*", "about:*", "blob:*"]}
+          originWhitelist={webViewOriginWhitelist}
           setSupportMultipleWindows={false}
           javaScriptCanOpenWindowsAutomatically={false}
           onShouldStartLoadWithRequest={handleShouldStartLoad}

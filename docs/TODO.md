@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-02-10**
+Stand: **2026-02-11**
 
 ## ✅ Done (CodeScreen)
 - WebView-Editor (ohne gravierende UI-Änderung)
@@ -31,9 +31,12 @@ Stand: **2026-02-10**
 - Patch-Skripte/Docs bereinigt und Handoff-Prompt angelegt.
 
 ## ✅ Done (Preview)
-- Hardening: `createPreview` singleflight (kein Doppelklick-Race) + keine State-Updates nach Unmount.
-- Fullscreen: WebView Callback Typing gehärtet (kompatibel mit `react-native-webview@13.15.x`).
-- Fullscreen: Externe Navigation wird im System-Browser geöffnet (Origin-Guard + strictere `originWhitelist`).
+- Guard: Scheme-Allowlist (nur sichere Schemes extern, dangerous schemes geblockt)
+- Guard: Fail-closed wenn `mode="url"` und `baseOrigin=null`
+- Fullscreen: `originWhitelist` mode-spezifisch verengt (Defense-in-Depth)
+- Fullscreen: One-shot Auto-Recovery bei WebView Prozessabbruch (Loop-Schutz)
+- Tests: `previewNavigationGuards` um kritische Negativfälle ergänzt
+- Cleanup: unnötige `useCallback` Dependencies entfernt
 
 ## 🔧 Optional / Tech-Debt (CodeScreen)
 - Performance (nur falls spürbar): Syntax-Validation/Quality-Checks weiter auslagern (Worker/Task) oder „progressive validation“.
@@ -47,10 +50,9 @@ Stand: **2026-02-10**
 2) **PreviewFullscreen** danach.
 
 ### Preview – aktuelle Restpunkte (funktional first)
-- PreviewScreen: Flows/Fehler/Retry + Restore-Guards ✅ (Patch 45). UI/Polish bleibt offen.
-- Fullscreen: Navigation-Guards ✅ (bereits drin) + WebView-Prozess-Guards ✅ (Patch 53).
-- Offene Preview-Restpunkte: UI/Polish + optional strengere URL-Allowlist je nach Bedarf.
-- Preview QoL: Clear-last-preview + nicer timestamps + guard tests ✅ (Patch 54).
+- UI/Polish bleibt offen (spacing, labels, nicer timestamps).
+- Optional: strengere HTTPS-only Policy, wenn Preview nur für sichere Quellen gedacht ist.
+
 
 ## UI/UX Polish (ganz zum Schluss)
 - Einheitliche Optik über alle Screens + kleine Grafik-/Spacing-Fixes.

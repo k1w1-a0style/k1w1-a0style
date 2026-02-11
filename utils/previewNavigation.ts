@@ -12,6 +12,13 @@ export type PreviewNavDecision =
 
 const SAFE_INTERNAL_SCHEMES = ["data:", "about:", "blob:"] as const;
 
+const SAFE_EXTERNAL_SCHEMES = ["mailto:", "tel:", "sms:", "geo:", "maps:"] as const;
+
+function isSafeExternalScheme(url: string): boolean {
+  const lower = url.toLowerCase();
+  return SAFE_EXTERNAL_SCHEMES.some((scheme) => lower.startsWith(scheme));
+}
+
 export function getOrigin(url: string): string | null {
   try {
     const u = new URL(url);
@@ -48,23 +55,37 @@ export function decidePreviewNavigation(args: {
   if (requestUrl === "about:blank") return { action: "allow" };
   if (startsWithAny(requestUrl, SAFE_INTERNAL_SCHEMES)) return { action: "allow" };
 
-  // Hand off custom schemes (mailto:, tel:, etc.) to OS directly.
+  // Non-http(s) schemes: allowlist only (defense-in-depth)
   if (!isHttpLikeUrl(requestUrl)) {
-    return { action: "external_direct", url: requestUrl };
+    if (isSafeExternalScheme(requestUrl)) {
+      return { action: "external_direct", url: requestUrl };
+    }
+    return { action: "block", reason: "unsupported_scheme" };
   }
 
   // Keep preview "contained": open external links in the system browser.
   if (args.mode === "html") {
+    // In html preview mode we always open http(s) navigation externally.
     return { action: "external_confirm", url: requestUrl };
   }
 
-  if (args.mode === "url" && args.baseOrigin) {
+  // url mode: only allow same-origin navigation inside the WebView.
+  if (args.mode === "url") {
+    // Fail-closed: if we can't establish a base origin, don't allow http(s) navigation.
+    if (!args.baseOrigin) {
+      return { action: "block", reason: "invalid_url" };
+    }
+
     const origin = getOrigin(requestUrl);
     if (!origin) return { action: "block", reason: "invalid_url" };
+
     if (origin !== args.baseOrigin) {
       return { action: "external_confirm", url: requestUrl };
     }
+
+    return { action: "allow" };
   }
 
-  return { action: "allow" };
+  // Exhaustive fallback
+  return { action: "block", reason: "invalid_url" };
 }

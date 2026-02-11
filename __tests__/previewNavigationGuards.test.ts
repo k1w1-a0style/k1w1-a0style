@@ -21,7 +21,11 @@ describe("previewNavigation guards", () => {
     ).toEqual({ action: "allow" });
 
     expect(
-      decidePreviewNavigation({ mode: "html", baseOrigin: null, requestUrl: "data:text/html;base64,AA==" }),
+      decidePreviewNavigation({
+        mode: "html",
+        baseOrigin: null,
+        requestUrl: "data:text/html;base64,AA==",
+      }),
     ).toEqual({ action: "allow" });
 
     expect(
@@ -54,12 +58,59 @@ describe("previewNavigation guards", () => {
     expect(cross).toEqual({ action: "external_confirm", url: "https://b.com/page" });
   });
 
-  test("custom schemes are handed off directly", () => {
+  test("url mode: fails closed when baseOrigin is null", () => {
+    const d = decidePreviewNavigation({
+      mode: "url",
+      baseOrigin: null,
+      requestUrl: "https://example.com/page",
+    });
+    expect(d).toEqual({ action: "block", reason: "invalid_url" });
+  });
+
+  test("safe external schemes are handed off directly", () => {
+    const cases = [
+      "mailto:test@example.com",
+      "tel:+49123456789",
+      "sms:+49123456789",
+      "geo:52.5200,13.4050",
+      "maps:0,0?q=Berlin",
+    ];
+
+    for (const url of cases) {
+      const d = decidePreviewNavigation({
+        mode: "url",
+        baseOrigin: "https://a.com",
+        requestUrl: url,
+      });
+      expect(d).toEqual({ action: "external_direct", url });
+    }
+  });
+
+  test("dangerous/unknown schemes are blocked", () => {
+    const cases = [
+      "javascript:alert(1)",
+      "file:///etc/passwd",
+      "intent://evil#Intent;scheme=malicious;end",
+      "ftp://example.com",
+      "customapp://open?x=1",
+    ];
+
+    for (const url of cases) {
+      const d = decidePreviewNavigation({
+        mode: "url",
+        baseOrigin: "https://a.com",
+        requestUrl: url,
+      });
+      expect(d).toEqual({ action: "block", reason: "unsupported_scheme" });
+    }
+  });
+
+  test("requestUrl is trimmed", () => {
     const d = decidePreviewNavigation({
       mode: "url",
       baseOrigin: "https://a.com",
-      requestUrl: "mailto:test@example.com",
+      requestUrl: "  https://a.com/page  ",
     });
-    expect(d).toEqual({ action: "external_direct", url: "mailto:test@example.com" });
+    expect(d).toEqual({ action: "allow" });
   });
 });
