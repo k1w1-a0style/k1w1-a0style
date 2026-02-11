@@ -25,10 +25,10 @@ interface FileActionsModalProps {
   fileName: string;
   filePath: string;
   onClose: () => void;
-  onRename: (newName: string) => void;
-  onMove: (newPath: string) => void;
-  onDelete: () => void;
-  onDuplicate: () => void;
+  onRename: (newName: string) => void | Promise<void>;
+  onMove: (newPath: string) => void | Promise<void>;
+  onDelete: () => void | Promise<void>;
+  onDuplicate: () => void | Promise<void>;
   folders?: string[];
 }
 
@@ -48,7 +48,7 @@ export const FileActionsModal: React.FC<FileActionsModalProps> = ({
   const [newName, setNewName] = useState(fileName);
   const [selectedFolder, setSelectedFolder] = useState<string>('');
 
-  const handleRename = () => {
+  const handleRename = async () => {
     if (!newName.trim()) {
       Alert.alert('Fehler', 'Bitte einen Namen eingeben');
       return;
@@ -57,22 +57,22 @@ export const FileActionsModal: React.FC<FileActionsModalProps> = ({
       setShowRename(false);
       return;
     }
-    onRename(newName);
+    await Promise.resolve(onRename(newName));
     setShowRename(false);
     onClose();
   };
 
-  const handleMove = () => {
+  const handleMove = async () => {
     if (!selectedFolder && selectedFolder !== '') {
       Alert.alert('Fehler', 'Bitte einen Ordner auswählen');
       return;
     }
-    onMove(selectedFolder);
+    await Promise.resolve(onMove(selectedFolder));
     setShowMove(false);
     onClose();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     Alert.alert(
       'Löschen bestätigen',
       `"${fileName}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`,
@@ -82,16 +82,21 @@ export const FileActionsModal: React.FC<FileActionsModalProps> = ({
           text: 'Löschen',
           style: 'destructive',
           onPress: () => {
-            onDelete();
-            onClose();
+            void (async () => {
+              try {
+                await Promise.resolve(onDelete());
+              } finally {
+                onClose();
+              }
+            })();
           },
         },
       ]
     );
   };
 
-  const handleDuplicate = () => {
-    onDuplicate();
+  const handleDuplicate = async () => {
+    await Promise.resolve(onDuplicate());
     onClose();
   };
 

@@ -7,8 +7,8 @@ interface CreationDialogProps {
   visible: boolean;
   currentPath: string;
   onClose: () => void;
-  onCreateFile: (name: string) => void;
-  onCreateFolder: (name: string) => void;
+  onCreateFile: (name: string) => void | Promise<void>;
+  onCreateFolder: (name: string) => void | Promise<void>;
 }
 
 // ✅ ADDED: Filename validation
@@ -28,7 +28,7 @@ export const CreationDialog: React.FC<CreationDialogProps> = ({
   const [type, setType] = useState<'file' | 'folder'>('file');
   const [error, setError] = useState<string>('');
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     const trimmedName = name.trim();
     
     if (!trimmedName) {
@@ -43,9 +43,9 @@ export const CreationDialog: React.FC<CreationDialogProps> = ({
     }
 
     if (type === 'file') {
-      onCreateFile(trimmedName);
+      await Promise.resolve(onCreateFile(trimmedName));
     } else {
-      onCreateFolder(trimmedName);
+      await Promise.resolve(onCreateFolder(trimmedName));
     }
 
     setName('');

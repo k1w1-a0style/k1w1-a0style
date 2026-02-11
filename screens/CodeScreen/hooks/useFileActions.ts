@@ -90,6 +90,8 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
 
   const lastSelectedPathRef = useRef<string | null>(null);
 
+  const actionInFlightRef = useRef(false);
+
   const handleItemPress = useCallback(
     (node: TreeNode) => {
       if (selectionMode && node.type === "file" && node.file) {
@@ -245,36 +247,47 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
     }
   }, [actionTargetFile, deleteFile, selectedFile, setEditingContent, setSelectedFile]);
 
-  const handleDuplicateFile = useCallback(() => {
+  const handleDuplicateFile = useCallback(async () => {
     if (!actionTargetFile) return;
 
-    const files = projectData?.files ?? [];
-    const existing = new Set(files.map((f) => f.path));
+    if (actionInFlightRef.current) return;
+    actionInFlightRef.current = true;
 
-    const parts = actionTargetFile.path.split("/");
-    const fileName = parts.pop() ?? actionTargetFile.path;
-    const dir = parts.join("/");
+    try {
+      const files = projectData?.files ?? [];
+      const existing = new Set(files.map((f) => f.path));
 
-    const dotIdx = fileName.lastIndexOf(".");
-    const stem = dotIdx > 0 ? fileName.slice(0, dotIdx) : fileName;
-    const ext = dotIdx > 0 ? fileName.slice(dotIdx) : "";
+      const parts = actionTargetFile.path.split("/");
+      const fileName = parts.pop() ?? actionTargetFile.path;
+      const dir = parts.join("/");
 
-    let candidate = `${stem}_copy${ext}`;
-    if (dir) candidate = `${dir}/${candidate}`;
+      const dot = fileName.lastIndexOf(".");
+      const stem = dot > 0 ? fileName.slice(0, dot) : fileName;
+      const ext = dot > 0 ? fileName.slice(dot) : "";
 
-    if (existing.has(candidate)) {
-      for (let i = 2; i < 1000; i++) {
-        let next = `${stem}_copy${i}${ext}`;
-        if (dir) next = `${dir}/${next}`;
-        if (!existing.has(next)) {
-          candidate = next;
-          break;
+      let candidate = `${stem}_copy${ext}`;
+      if (dir) candidate = `${dir}/${candidate}`;
+
+      if (existing.has(candidate)) {
+        for (let i = 2; i < 1000; i++) {
+          let next = `${stem}_copy${i}${ext}`;
+          if (dir) next = `${dir}/${next}`;
+          if (!existing.has(next)) {
+            candidate = next;
+            break;
+          }
         }
       }
-    }
 
-    createFile(candidate, actionTargetFile.content);
-    Alert.alert("✅ Dupliziert", `Neue Datei erstellt: ${candidate}`);
+      if (!validatePathOrAlert(candidate)) return;
+
+      await createFile(candidate, toContentString(actionTargetFile));
+      Alert.alert("✅ Dupliziert", `Neue Datei erstellt: ${candidate}`);
+    } catch {
+      Alert.alert("Fehler", "Duplizieren fehlgeschlagen.");
+    } finally {
+      actionInFlightRef.current = false;
+    }
   }, [actionTargetFile, createFile, projectData?.files]);
 
   const handleCreateFile = useCallback(
@@ -316,17 +329,36 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
   );
 
   const handleCreateFolder = useCallback(
-    (name: string) => {
+    async (name: string) => {
       const folderName = name.trim();
       if (!folderName) return;
-      const fullPath = currentFolderPath
-        ? `${currentFolderPath}/${folderName}`
-        : folderName;
 
-      createFile(`${fullPath}/.gitkeep`, "");
-      Alert.alert("✅ Erfolg", `Ordner "${folderName}" erstellt`);
+      if (actionInFlightRef.current) return;
+      actionInFlightRef.current = true;
+
+      try {
+        const fullPath = currentFolderPath
+          ? `${currentFolderPath}/${folderName}`
+          : folderName;
+
+        const gitkeepPath = `${fullPath}/.gitkeep`;
+        if (!validatePathOrAlert(gitkeepPath)) return;
+
+        const existing = new Set((projectData?.files ?? []).map((f) => f.path));
+        if (existing.has(gitkeepPath)) {
+          Alert.alert("Fehler", `Ordner "${folderName}" existiert bereits.`);
+          return;
+        }
+
+        await createFile(gitkeepPath, "");
+        Alert.alert("✅ Erfolg", `Ordner "${folderName}" erstellt`);
+      } catch {
+        Alert.alert("Fehler", "Ordner konnte nicht erstellt werden.");
+      } finally {
+        actionInFlightRef.current = false;
+      }
     },
-    [createFile, currentFolderPath],
+    [createFile, currentFolderPath, projectData?.files],
   );
 
   const handleCopy = useCallback((content: string) => {

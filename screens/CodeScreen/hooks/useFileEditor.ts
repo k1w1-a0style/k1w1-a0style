@@ -81,6 +81,8 @@ export interface UseFileEditorReturn {
   confirmLoseChanges: (next: () => void) => void;
 }
 
+const MAX_SAVE_VALIDATE_CHARS = 200_000;
+
 export const useFileEditor = (): UseFileEditorReturn => {
   const { updateProjectFiles } = useProject();
 
@@ -153,19 +155,15 @@ export const useFileEditor = (): UseFileEditorReturn => {
     if (!selectedFile) return false;
 
     try {
-      const errors = validateSyntax(editingContent, selectedFile.path);
-      const critical = errors.filter((e) => e.severity === "error");
 
-      if (critical.length > 0) {
-        const list = critical.map((e) => `• ${e.message}`).join("\n");
-
+      if (editingContent.length > MAX_SAVE_VALIDATE_CHARS) {
         const choice = await alertAsync(
-          "Syntax-Fehler",
-          `Die folgenden Fehler wurden gefunden:\n\n${list}\n\nTrotzdem speichern?`,
+          "Datei sehr groß",
+          "Diese Datei ist sehr groß. Ein Syntax-Check kann auf Android kurz hängen oder langsam sein. Ohne Syntax-Check speichern?",
           [
             { text: "Abbrechen", value: "cancel" as const, style: "cancel" },
             {
-              text: "Trotzdem speichern",
+              text: "Ohne Check speichern",
               value: "save" as const,
               style: "destructive",
             },
@@ -176,7 +174,31 @@ export const useFileEditor = (): UseFileEditorReturn => {
         if (choice !== "save") return false;
       }
 
-      updateProjectFiles([
+      if (editingContent.length <= MAX_SAVE_VALIDATE_CHARS) {
+        const errors = validateSyntax(editingContent, selectedFile.path);
+        const critical = errors.filter((e) => e.severity === "error");
+
+        if (critical.length > 0) {
+          const list = critical.map((e) => `• ${e.message}`).join("\n");
+
+          const choice = await alertAsync(
+            "Syntax-Fehler",
+            `Die folgenden Fehler wurden gefunden:\n\n${list}\n\nTrotzdem speichern?`,
+            [
+              { text: "Abbrechen", value: "cancel" as const, style: "cancel" },
+              {
+                text: "Trotzdem speichern",
+                value: "save" as const,
+                style: "destructive",
+              },
+            ],
+            "cancel",
+          );
+
+          if (choice !== "save") return false;
+        }
+      }
+updateProjectFiles([
         { path: selectedFile.path, content: editingContent },
       ]);
       setSelectedFile((prev) =>

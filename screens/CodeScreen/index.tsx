@@ -1,7 +1,8 @@
 // screens/CodeScreen/index.tsx
-import React from "react";
-import { Alert, KeyboardAvoidingView, View } from "react-native";
+import React, { useCallback, useEffect } from "react";
+import { Alert, BackHandler, KeyboardAvoidingView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { CreationDialog } from "../../components/CreationDialog";
 import { FileActionsModal } from "../../components/FileActionsModal";
 import { EditorBody } from "./components/EditorBody";
@@ -55,6 +56,83 @@ const CodeScreen: React.FC = () => {
     handleCopy,
     isDirty,
 } = useCodeScreen();
+
+  const navigation = useNavigation();
+
+  // Guard against leaving the screen with unsaved edits (Drawer/Tab nav, etc.).
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("beforeRemove", (e: any) => {
+      if (!selectedFile || !isDirty) return;
+
+      e.preventDefault();
+
+      Alert.alert(
+        "Ungespeicherte Änderungen",
+        "Du hast Änderungen, die noch nicht gespeichert sind. Was soll passieren?",
+        [
+          { text: "Bleiben", style: "cancel" },
+          {
+            text: "Verwerfen & verlassen",
+            style: "destructive",
+            onPress: () => navigation.dispatch(e.data.action),
+          },
+          {
+            text: "Speichern & verlassen",
+            onPress: () => {
+              void (async () => {
+                const saved = await saveSelectedFile();
+                if (saved) navigation.dispatch(e.data.action);
+              })();
+            },
+          },
+        ],
+      );
+    });
+
+    return unsubscribe;
+  }, [isDirty, navigation, saveSelectedFile, selectedFile]);
+
+  // Android: map hardware back to "close file", with dirty guard.
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = (): boolean => {
+        if (!selectedFile) return false;
+
+        if (!isDirty) {
+          setSelectedFile(null);
+          return true;
+        }
+
+        Alert.alert(
+          "Ungespeicherte Änderungen",
+          "Möchtest du speichern oder verwerfen?",
+          [
+            { text: "Abbrechen", style: "cancel" },
+            {
+              text: "Verwerfen",
+              style: "destructive",
+              onPress: () => setSelectedFile(null),
+            },
+            {
+              text: "Speichern",
+              onPress: () => {
+                void (async () => {
+                  const saved = await saveSelectedFile();
+                  if (saved) setSelectedFile(null);
+                })();
+              },
+            },
+          ],
+        );
+
+        return true;
+      };
+
+      const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+      return () => sub.remove();
+    }, [isDirty, saveSelectedFile, selectedFile, setSelectedFile]),
+  );
+
 
   if (isLoading && !projectData) {
     return <LoadingView />;

@@ -24,6 +24,18 @@ const toContentString = (file: ProjectFile): string =>
     ? file.content
     : JSON.stringify(file.content, null, 2);
 
+const MAX_EXPORT_BYTES = 2 * 1024 * 1024; // ~2 MiB safety cap to avoid OOM on low-end Android
+const estimateUtf8Bytes = (text: string): number => {
+  try {
+    // TextEncoder is available in modern RN; fallback keeps it safe.
+    return new TextEncoder().encode(text).length;
+  } catch {
+    // Worst-case-ish heuristic: 2 bytes per char (very rough, but safe enough).
+    return text.length * 2;
+  }
+};
+
+
 export interface UseFileExplorerReturn {
   currentFolderItems: TreeNode[];
   allFolders: string[];
@@ -107,20 +119,55 @@ export const useFileExplorer = (): UseFileExplorerReturn => {
       const files =
         projectData?.files.filter((f) => selectedFiles.has(f.path)) ?? [];
 
-      let content = `# ${projectData?.name ?? "Project"} - Code Export\n`;
-      content += `# Erstellt am: ${new Date().toLocaleString("de-DE")}\n`;
-      content += `# Anzahl Dateien: ${files.length}\n`;
-      content += `\n${"=".repeat(80)}\n\n`;
+      const parts: string[] = [];
+      let totalBytes = 0;
 
-      files.forEach((file, index) => {
+      const safeAppend = (chunk: string): boolean => {
+        totalBytes += estimateUtf8Bytes(chunk);
+        if (totalBytes > MAX_EXPORT_BYTES) return false;
+        parts.push(chunk);
+        return true;
+      };
+
+      const header =
+        `# ${projectData?.name ?? "Project"} - Code Export\n` +
+        `# Erstellt am: ${new Date().toLocaleString("de-DE")}\n` +
+        `# Anzahl Dateien: ${files.length}\n` +
+        `\n${"=".repeat(80)}\n\n`;
+
+      if (!safeAppend(header)) {
+        Alert.alert(
+          "Export zu groß",
+          "Die Auswahl ist zu groß zum Exportieren. Bitte weniger Dateien auswählen.",
+        );
+        return;
+      }
+
+      for (let index = 0; index < files.length; index++) {
+        const file = files[index];
         const fileContent = toContentString(file);
-        content += `\n### DATEI ${index + 1}: ${file.path}\n`;
-        content += `${"─".repeat(80)}\n\n`;
-        content += fileContent;
-        content += `\n\n${"=".repeat(80)}\n`;
-      });
 
-      const fileName = `${projectData?.name ?? "export"}_${Date.now()}.txt`;
+        const blockHeader =
+          `\n### DATEI ${index + 1}: ${file.path}\n` +
+          `${"─".repeat(80)}\n\n`;
+
+        const blockFooter = `\n\n${"=".repeat(80)}\n`;
+
+        if (
+          !safeAppend(blockHeader) ||
+          !safeAppend(fileContent) ||
+          !safeAppend(blockFooter)
+        ) {
+          Alert.alert(
+            "Export zu groß",
+            "Die Auswahl ist zu groß zum Exportieren. Bitte weniger Dateien auswählen.",
+          );
+          return;
+        }
+      }
+
+      const content = parts.join("");
+const fileName = `${projectData?.name ?? "export"}_${Date.now()}.txt`;
 
       const baseDir = documentDirectory ?? cacheDirectory;
       if (!baseDir) {

@@ -12,6 +12,8 @@ import type { SyntaxError as ValidationError } from "../../../utils/syntaxValida
 
 export type ViewMode = "edit" | "preview";
 
+
+export type MaybePromise<T> = T | Promise<T>;
 export interface UseCodeScreenReturn {
   // Project
   projectData: ReturnType<typeof useProject>["projectData"];
@@ -28,7 +30,7 @@ export interface UseCodeScreenReturn {
   syntaxErrors: ValidationError[];
 
   saveSelectedFile: () => Promise<boolean>;
-  handleSaveFile: () => void;
+  handleSaveFile: () => MaybePromise<void>;
   handleCopy: (content: string) => void;
 
   // Explorer
@@ -56,14 +58,14 @@ export interface UseCodeScreenReturn {
   deselectAllFiles: () => void;
   exportSelectedFilesAsTxt: () => Promise<void>;
 
-  handleItemPress: (node: TreeNode) => void;
-  handleItemLongPress: (node: TreeNode) => void;
+  handleItemPress: (node: TreeNode) => MaybePromise<void>;
+  handleItemLongPress: (node: TreeNode) => MaybePromise<void>;
 
-  handleCreateFile: (name: string) => void;
-  handleCreateFolder: (name: string) => void;
+  handleCreateFile: (name: string) => MaybePromise<void>;
+  handleCreateFolder: (name: string) => MaybePromise<void>;
 
-  handleRenameFile: (newName: string) => void;
-  handleMoveFile: (targetFolder: string) => void;
-  handleDeleteFile: () => void;
-  handleDuplicateFile: () => void;
+  handleRenameFile: (newName: string) => MaybePromise<void>;
+  handleMoveFile: (targetFolder: string) => MaybePromise<void>;
+  handleDeleteFile: () => MaybePromise<void>;
+  handleDuplicateFile: () => MaybePromise<void>;
 }

@@ -324,7 +324,7 @@ export const WebCodeEditor = ({
 
       <WebView
         ref={webRef}
-        originWhitelist={["*"]}
+        originWhitelist={["about:blank", "data:*"]}
         source={{ html }}
         onMessage={handleMessage}
         javaScriptEnabled
