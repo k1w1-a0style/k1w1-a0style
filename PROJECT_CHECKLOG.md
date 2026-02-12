@@ -528,3 +528,22 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 ## Patch 70
 - Hotfix: align AppInfo backup sanitizer with `AIConfig` + stricter backup validation.
 - Notes: docs/patches/PATCH_70_NOTES.md
+
+## Patch 71
+- CredentialsWizardScreen: privacy redaction for debug/errors + validation guards + single-flight generate + async unmount safety.
+- Tests: credentials wizard security helpers.
+- Notes: docs/patches/PATCH_71_NOTES.md
+- Verification: docs/reviews/CREDENTIALS_WIZARD_SCREEN_VERIFICATION.md
+
+## Patch 72
+- Hotfix: CredentialsWizardScreen typings (WizardHttpDebug.method + missing useCallback import).
+- Hotfix: security sanitizer now redacts quoted apiKey assignments and always emits a "<truncated>" marker when the original text exceeded caps.
+- Notes: docs/patches/PATCH_72_NOTES.md
+
+## Patch 73
+- Hotfix: CredentialsWizardScreen typing alignment for tests (`WizardHttpDebug.ms?: number`).
+- Notes: docs/patches/PATCH_73_NOTES.md
+
+## Patch 74
+- Hotfix: CredentialsWizardScreen WizardHttpDebug typing made more flexible for tests (status/statusText optional) + sanitizer forwards ms.
+- Notes: docs/patches/PATCH_74_NOTES.md

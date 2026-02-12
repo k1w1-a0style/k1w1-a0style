@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "react-native";
 import * as Clipboard from "expo-clipboard";
 
@@ -10,6 +10,14 @@ import { useInlineToast } from "../../../components/diagnostics/useInlineToast";
 import { theme } from "../../../theme";
 
 import type { ApiModeId, ModeDef, StatusResult, UiModeId, WizardHttpDebug } from "../types";
+
+import {
+  isLikelyValidAdminKey,
+  isLikelyValidRepoFullName,
+  isLikelyValidSupabaseUrl,
+  sanitizeErrorForUi,
+  sanitizeWizardHttpDebug,
+} from "../utils/security";
 
 const MODES: ModeDef[] = [
   { id: "dev", label: "Dev", hint: "Schnell testen (signed)" },
@@ -56,8 +64,11 @@ async function invokeEdgeJson(
   supabaseUrl: string,
   fn: string,
   adminKey: string,
-  payload: any,
-): Promise<{ ok: true; data: any; debug: WizardHttpDebug } | { ok: false; error: string; debug: WizardHttpDebug }> {
+  payload: Record<string, unknown> | null,
+): Promise<
+  | { ok: true; data: unknown; debug: WizardHttpDebug }
+  | { ok: false; error: string; debug: WizardHttpDebug }
+> {
   const url = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/${fn}`;
   const res = await fetch(url, {
     method: "POST",
@@ -70,14 +81,19 @@ async function invokeEdgeJson(
   });
 
   const bodyText = await res.text();
-  const debug: WizardHttpDebug = { url, status: res.status, statusText: res.statusText ?? "", bodyText };
+  const debug: WizardHttpDebug = sanitizeWizardHttpDebug({
+    url,
+    status: res.status,
+    statusText: res.statusText ?? "",
+    bodyText,
+  });
 
   if (!res.ok) {
     return { ok: false, error: `HTTP ${res.status} ${res.statusText || ""}`.trim(), debug };
   }
 
   try {
-    const data = bodyText ? JSON.parse(bodyText) : null;
+    const data: unknown = bodyText ? JSON.parse(bodyText) : null;
     return { ok: true, data, debug };
   } catch {
     return { ok: true, data: bodyText, debug };
@@ -115,45 +131,98 @@ export function useCredentialsWizardScreen() {
 
   const runningRef = useRef(false);
   const runningAllRef = useRef(false);
+  const generateRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  const safeSetLastError = useCallback(
+    (err: unknown) => {
+      if (!isMountedRef.current) return;
+      const text = err instanceof Error ? err.message : String(err ?? "");
+      setLastError(sanitizeErrorForUi(text));
+    },
+    [setLastError]
+  );
+
+  const safeSetLastDebug = useCallback(
+    (dbg: WizardHttpDebug | null) => {
+      if (!isMountedRef.current) return;
+      setLastDebug(dbg ? sanitizeWizardHttpDebug(dbg) : null);
+    },
+    [setLastDebug]
+  );
 
   useEffect(() => {
-    let mounted = true;
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
     (async () => {
       try {
         const client = await ensureSupabaseClient();
-        if (!mounted) return;
+        if (!isMountedRef.current) return;
         // supabase-js client exposes supabaseUrl
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const url = (client as any)?.supabaseUrl as string | undefined;
-        if (url) setSupabaseUrl(url);
-      } catch (e: any) {
-        if (!mounted) return;
-        setLastError(e?.message ?? String(e));
+        if (url && isMountedRef.current) setSupabaseUrl(url);
+      } catch (e) {
+        safeSetLastError(e);
       }
     })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  }, [safeSetLastError]);
 
   useEffect(() => {
-    let mounted = true;
     (async () => {
       try {
         const k = await getEdgeAdminKey();
-        if (!mounted) return;
-        if (k) setAdminKey(k);
+        if (!isMountedRef.current) return;
+        if (k && isMountedRef.current) setAdminKey(k);
       } finally {
-        if (mounted) setAdminKeyLoaded(true);
+        if (isMountedRef.current) setAdminKeyLoaded(true);
       }
     })();
-    return () => {
-      mounted = false;
-    };
   }, []);
 
   const canRun = useMemo(() => {
-    return Boolean(supabaseUrl && adminKey && repoFullName);
+    return (
+      Boolean(supabaseUrl && adminKey && repoFullName) &&
+      isLikelyValidSupabaseUrl(supabaseUrl) &&
+      isLikelyValidAdminKey(adminKey) &&
+      isLikelyValidRepoFullName(repoFullName)
+    );
+  }, [supabaseUrl, adminKey, repoFullName]);
+
+  const ensureCanRunOrAlert = useCallback((): boolean => {
+    const url = (supabaseUrl || "").trim();
+    const key = (adminKey || "").trim();
+    const repo = (repoFullName || "").trim();
+
+    if (!url || !key || !repo) {
+      Alert.alert("Fehlt was", "Supabase URL, Repo oder Admin-Key fehlen. Bitte erst oben setzen.");
+      return false;
+    }
+
+    if (!isLikelyValidSupabaseUrl(url)) {
+      Alert.alert(
+        "Supabase URL ungültig",
+        "Bitte eine HTTPS URL angeben (z.B. https://<project>.supabase.co) und keine Leerzeichen."
+      );
+      return false;
+    }
+
+    if (!isLikelyValidRepoFullName(repo)) {
+      Alert.alert("Repo ungültig", "Repo muss im Format owner/repo sein (z.B. k1w1-a0style/k1w1-a0style).");
+      return false;
+    }
+
+    if (!isLikelyValidAdminKey(key)) {
+      Alert.alert("Admin-Key wirkt ungültig", "Admin-Key ist zu kurz oder enthält Leerzeichen.");
+      return false;
+    }
+
+    return true;
   }, [supabaseUrl, adminKey, repoFullName]);
 
   const selectedStatus = statusByMode[selectedMode];
@@ -181,90 +250,86 @@ export function useCredentialsWizardScreen() {
   }
 
   async function refreshStatusCore(mode: UiModeId, opts?: { setBusy?: boolean }) {
-  const setBusyFlag = opts?.setBusy !== false;
+    const setBusyFlag = opts?.setBusy !== false;
 
-  setLastError(null);
-  setLastDebug(null);
-  if (setBusyFlag) setBusy(`status:${mode}`);
+    safeSetLastError(null);
+    safeSetLastDebug(null);
+    if (setBusyFlag && isMountedRef.current) setBusy(`status:${mode}`);
 
-  try {
-    const apiMode = normalizeModeForApi(mode);
-    const r = await invokeEdgeJson(supabaseUrl, "android-keystore-status", adminKey, {
-      repo: repoFullName,
-      mode: apiMode,
-    });
+    try {
+      const apiMode = normalizeModeForApi(mode);
+      const r = await invokeEdgeJson(supabaseUrl, "android-keystore-status", adminKey, {
+        repo: repoFullName,
+        mode: apiMode,
+      });
 
-    setLastDebug(r.debug);
-    if (!r.ok) {
-      setLastError(r.error);
-      setStatusByMode((prev) => ({ ...prev, [mode]: { exists: false } }));
-      return;
+      safeSetLastDebug(r.debug);
+      if (!r.ok) {
+        safeSetLastError(r.error);
+        if (isMountedRef.current) setStatusByMode((prev) => ({ ...prev, [mode]: { exists: false } }));
+        return;
+      }
+
+      const data = r.data as StatusResult;
+      if (isMountedRef.current) setStatusByMode((prev) => ({ ...prev, [mode]: data }));
+    } catch (e: unknown) {
+      safeSetLastError(e);
+    } finally {
+      if (setBusyFlag && isMountedRef.current) setBusy(null);
     }
-
-    const data = r.data as StatusResult;
-    setStatusByMode((prev) => ({ ...prev, [mode]: data }));
-  } catch (e: any) {
-    setLastError(e?.message ?? String(e));
-  } finally {
-    if (setBusyFlag) setBusy(null);
   }
-}
 
   async function refreshStatus(mode: UiModeId) {
-  if (!canRun) {
-    Alert.alert("Fehlt was", "Supabase URL, Repo oder Admin-Key fehlen. Bitte erst oben setzen.");
-    return;
-  }
+    if (!ensureCanRunOrAlert()) return;
 
-  // Prevent stacked calls on bad networks.
-  if (runningRef.current) return;
-  runningRef.current = true;
+    // Prevent stacked calls on bad networks.
+    if (runningRef.current) return;
+    runningRef.current = true;
 
-  try {
-    await refreshStatusCore(mode, { setBusy: true });
-  } finally {
-    runningRef.current = false;
+    try {
+      await refreshStatusCore(mode, { setBusy: true });
+    } finally {
+      runningRef.current = false;
+    }
   }
-}
 
   async function refreshAll() {
-  if (!canRun) {
-    Alert.alert("Fehlt was", "Supabase URL, Repo oder Admin-Key fehlen. Bitte erst oben setzen.");
-    return;
-  }
+    if (!ensureCanRunOrAlert()) return;
 
-  // Separate guard so refreshAll doesn't deadlock with refreshStatus' guard.
-  if (runningAllRef.current) return;
-  runningAllRef.current = true;
+    // Separate guard so refreshAll doesn't deadlock with refreshStatus' guard.
+    if (runningAllRef.current) return;
+    runningAllRef.current = true;
 
-  setBusy("status:all");
-  setLastError(null);
-  setLastDebug(null);
-
-  try {
-    // Sequential to avoid rate-limit bursts (stable).
-    // eslint-disable-next-line no-restricted-syntax
-    for (const m of MODES) {
-      // eslint-disable-next-line no-await-in-loop
-      await refreshStatusCore(m.id, { setBusy: false });
+    if (isMountedRef.current) {
+      setBusy("status:all");
+      setLastError(null);
+      setLastDebug(null);
     }
-    toast.show("Status aktualisiert");
-  } finally {
-    runningAllRef.current = false;
-    setBusy(null);
-  }
-}
 
+    try {
+      // Sequential to avoid rate-limit bursts (stable + gentle on Edge functions)
+      // eslint-disable-next-line no-restricted-syntax
+      for (const m of MODES) {
+        // eslint-disable-next-line no-await-in-loop
+        await refreshStatusCore(m.id, { setBusy: false });
+      }
+      toast.show("Status aktualisiert");
+    } finally {
+      runningAllRef.current = false;
+      if (isMountedRef.current) setBusy(null);
+    }
+  }
 
   async function generate(mode: UiModeId) {
-    if (!canRun) {
-      Alert.alert("Fehlt was", "Supabase URL, Repo oder Admin-Key fehlen. Bitte erst oben setzen.");
-      return;
-    }
+    if (!ensureCanRunOrAlert()) return;
+    if (generateRef.current) return;
+    generateRef.current = true;
 
-    setBusy(`generate:${mode}`);
-    setLastError(null);
-    setLastDebug(null);
+    if (isMountedRef.current) {
+      setBusy(`generate:${mode}`);
+      setLastError(null);
+      setLastDebug(null);
+    }
 
     try {
       const apiMode = normalizeModeForApi(mode);
@@ -275,23 +340,25 @@ export function useCredentialsWizardScreen() {
         branch: branch || undefined,
       });
 
-      setLastDebug(r.debug);
+      safeSetLastDebug(r.debug);
       if (!r.ok) {
-        setLastError(r.error);
+        safeSetLastError(r.error);
         return;
       }
 
-      if ((r.data as any)?.ok === false) {
-        setLastError((r.data as any)?.error ?? "Generate fehlgeschlagen");
+      const data = r.data as { ok?: boolean; error?: string } | null;
+      if (data?.ok === false) {
+        safeSetLastError(data.error ?? "Generate fehlgeschlagen");
         return;
       }
 
       toast.show("Keystore erstellt");
       await refreshStatus(mode);
-    } catch (e: any) {
-      setLastError(e?.message ?? String(e));
+    } catch (e: unknown) {
+      safeSetLastError(e);
     } finally {
-      setBusy(null);
+      generateRef.current = false;
+      if (isMountedRef.current) setBusy(null);
     }
   }
 

@@ -28,8 +28,10 @@ export type StatusResult = {
 
 export type WizardHttpDebug = {
   url: string;
-  status: number;
-  statusText: string;
+  method?: string;
+  ms?: number;
+  status?: number;
+  statusText?: string;
   bodyText: string;
 };
 

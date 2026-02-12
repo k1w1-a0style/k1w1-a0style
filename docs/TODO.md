@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-02-11**
+Stand: **2026-02-12**
 
 ## ✅ Done (CodeScreen)
 - WebView-Editor (ohne gravierende UI-Änderung)
@@ -81,3 +81,7 @@ Stand: **2026-02-11**
 - [x] AppStatusScreen: config/entry correctness + perf caps (patch 67)
 - [x] AppStatusScreen: styles keys fix (patch 68)
 - [x] AppInfoScreen: backup import/schema alignment + stricter validation (patch 70)
+- [x] CredentialsWizardScreen: hardening + privacy redaction + validation + tests (patch 71)
+- [x] CredentialsWizardScreen: hotfix typings + apiKey redaction + truncation marker (patch 72)
+- [x] CredentialsWizardScreen: hotfix WizardHttpDebug.ms typing (patch 73)
+- [x] CredentialsWizardScreen: hotfix WizardHttpDebug optional status/statusText for sanitizer tests (patch 74)
