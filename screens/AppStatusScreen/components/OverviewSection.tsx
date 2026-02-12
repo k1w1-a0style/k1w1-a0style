@@ -89,7 +89,7 @@ export function OverviewSection({ buildConfig, projectStats, projectData }: Prop
             size={20}
             color={projectStats?.hasAppConfig ? theme.palette.success : theme.palette.error}
           />
-          <Text style={styles.checklistText}>app.config.js vorhanden</Text>
+          <Text style={styles.checklistText}>Expo Config vorhanden (app.json / app.config.*)</Text>
         </View>
         <View style={styles.checklistItem}>
           <Ionicons
@@ -97,7 +97,7 @@ export function OverviewSection({ buildConfig, projectStats, projectData }: Prop
             size={20}
             color={projectStats?.hasAppTsx ? theme.palette.success : theme.palette.error}
           />
-          <Text style={styles.checklistText}>App.tsx vorhanden</Text>
+          <Text style={styles.checklistText}>Entry-Point vorhanden (package.json main / App.*)</Text>
         </View>
       </View>
     </View>

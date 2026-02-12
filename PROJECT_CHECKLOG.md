@@ -506,3 +506,13 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 
 ## Patch 66
 - Hotfix: fix orchestrator TS scope errors (resolvedModel/keysRotated) after patch 65.
+
+
+## Patch 67
+- AppStatusScreen: korrektes Config-/Entry-Detection + Performance-Caps + stable keys.
+- Notes: docs/patches/PATCH_67_NOTES.md
+- Verification: docs/reviews/APP_STATUS_SCREEN_VERIFICATION.md
+
+## Patch 68
+- Hotfix: fehlende Style-Keys für AppStatusScreen/FilesSection (Typecheck-Fix nach patch 67).
+- Notes: docs/patches/PATCH_68_NOTES.md

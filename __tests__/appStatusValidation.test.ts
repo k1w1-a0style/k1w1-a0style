@@ -1,0 +1,36 @@
+import type { ProjectFile } from '../contexts/types';
+import { parseExpoConfig, resolveEntryPoint } from '../screens/AppStatusScreen/hooks/useAppStatusScreen';
+
+describe('AppStatusScreen validation helpers', () => {
+  const f = (path: string, content: string): ProjectFile => ({ path, content });
+
+  test('parseExpoConfig prefers app.json and extracts android package', () => {
+    const files: ProjectFile[] = [
+      f('app.json', JSON.stringify({ expo: { name: 'X', android: { package: 'com.example.x' }, owner: 'me' } })),
+      f('app.config.ts', `export default { name: 'Y', android: { package: 'com.example.y' } }`),
+    ];
+
+    const parsed = parseExpoConfig(files);
+    expect(parsed.source).toBe('app.json');
+    expect(parsed.config?.name).toBe('X');
+    expect(parsed.config?.android?.package).toBe('com.example.x');
+    expect(parsed.config?.owner).toBe('me');
+  });
+
+  test('resolveEntryPoint accepts expo-router module entry if /app exists', () => {
+    const files: ProjectFile[] = [f('app/_layout.tsx', 'export default function Layout() { return null; }')];
+    const pkg = { main: 'expo-router/entry' };
+
+    const res = resolveEntryPoint(files, pkg);
+    expect(res.ok).toBe(true);
+  });
+
+  test('resolveEntryPoint fails when main points to missing file', () => {
+    const files: ProjectFile[] = [f('index.js', 'console.log("hi")')];
+    const pkg = { main: 'missing.js' };
+
+    const res = resolveEntryPoint(files, pkg);
+    expect(res.ok).toBe(false);
+    expect(res.missingPath).toBe('missing.js');
+  });
+});

@@ -1,46 +1,48 @@
 import React from 'react';
-import { Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { ScrollView, Text, View } from 'react-native';
 
-import { theme } from '../../../theme';
 import { styles } from '../styles';
 import type { FileTree } from '../types';
 
 type Props = {
   fileTree: FileTree;
+  totalDirs?: number;
+  fileCountsByDir?: Record<string, number>;
 };
 
-export function FilesSection({ fileTree }: Props) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>📁 Dateistruktur</Text>
+export function FilesSection({ fileTree, totalDirs, fileCountsByDir }: Props) {
+  const hiddenDirs = Math.max(0, (totalDirs ?? fileTree.length) - fileTree.length);
 
-      {fileTree.length === 0 ? (
-        <View style={styles.card}>
-          <Text style={styles.emptyText}>Keine Dateien im Projekt</Text>
-        </View>
-      ) : (
-        fileTree.map(([dir, files], index) => (
-          <View key={index} style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Ionicons name="folder" size={20} color={theme.palette.primary} />
-              <Text style={styles.cardTitle}>
-                {dir} ({files.length})
-              </Text>
-            </View>
-            {files.map((file, fileIndex) => (
-              <View key={fileIndex} style={styles.fileItem}>
-                <Ionicons
-                  name="document"
-                  size={14}
-                  color={theme.palette.text.secondary}
-                />
-                <Text style={styles.fileName}>{file}</Text>
+  return (
+    <View style={styles.sectionContent}>
+      <Text style={styles.sectionSubtitle}>Projektstruktur</Text>
+
+      <ScrollView style={styles.fileTree} showsVerticalScrollIndicator={false}>
+        {fileTree.map(([dir, files]) => {
+          const totalFiles = fileCountsByDir?.[dir] ?? files.length;
+          const hiddenFiles = Math.max(0, totalFiles - files.length);
+
+          return (
+            <View key={dir} style={styles.card}>
+              <Text style={styles.cardTitle}>{dir}</Text>
+
+              <View style={styles.fileList}>
+                {files.map(file => (
+                  <Text key={`${dir}/${file}`} style={styles.fileItem}>
+                    • {file}
+                  </Text>
+                ))}
               </View>
-            ))}
-          </View>
-        ))
-      )}
+
+              {hiddenFiles > 0 && (
+                <Text style={styles.fileStats}>… +{hiddenFiles} weitere Dateien</Text>
+              )}
+            </View>
+          );
+        })}
+
+        {hiddenDirs > 0 && <Text style={styles.fileStats}>… +{hiddenDirs} weitere Ordner</Text>}
+      </ScrollView>
     </View>
   );
 }

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Alert } from 'react-native';
 
+import type { ProjectFile } from '../../../contexts/types';
 import { useProject } from '../../../contexts/ProjectContext';
 import type {
   BuildConfig,
@@ -11,45 +12,200 @@ import type {
   ValidationIssue,
 } from '../types';
 
+type PackageJson = {
+  name?: string;
+  version?: string;
+  main?: string;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+};
+
+type ExpoConfigJson = {
+  name?: string;
+  owner?: string;
+  android?: {
+    package?: string;
+  };
+};
+
+type ExpoConfigParseResult = {
+  config: ExpoConfigJson | null;
+  source: 'app.json' | 'app.config.js' | 'app.config.ts' | null;
+  error?: string;
+};
+
+function readText(file: ProjectFile | undefined): string {
+  return String(file?.content ?? '');
+}
+
+function safeJsonParse<T>(text: string): { ok: true; value: T } | { ok: false; error: string } {
+  try {
+    return { ok: true, value: JSON.parse(text) as T };
+  } catch {
+    return { ok: false, error: 'JSON Parse Error' };
+  }
+}
+
+function countLinesSafe(content: string, maxChars = 200_000): number {
+  if (!content) return 0;
+  const slice = content.length > maxChars ? content.slice(0, maxChars) : content;
+  // Count '\n' without allocating split arrays.
+  let lines = 1;
+  for (let i = 0; i < slice.length; i++) {
+    if (slice.charCodeAt(i) === 10) lines++;
+  }
+  // If truncated, signal approximation by adding a small constant (avoid lying too hard).
+  if (slice.length !== content.length) lines += 1;
+  return lines;
+}
+
+function extractWithRegex(content: string): ExpoConfigJson {
+  const nameMatch = content.match(/name:\s*["']([^"']+)["']/);
+  const ownerMatch = content.match(/owner:\s*["']([^"']+)["']/);
+
+  // Supports both:
+  //   android: { package: "..." }
+  // and legacy/simpler:
+  //   package: "..."
+  const packageMatch = content.match(
+    /android\s*:\s*\{[\s\S]*?package\s*:\s*["']([^"']+)["']|package\s*:\s*["']([^"']+)["']/
+  );
+
+  return {
+    name: nameMatch?.[1],
+    owner: ownerMatch?.[1],
+    android: {
+      package: packageMatch?.[1] || packageMatch?.[2],
+    },
+  };
+}
+
+export function parseExpoConfig(files: ProjectFile[]): ExpoConfigParseResult {
+  // Priority: app.json (common & easy) -> app.config.ts -> app.config.js
+  const appJson = files.find(f => f.path === 'app.json');
+  if (appJson) {
+    const parsed = safeJsonParse<any>(readText(appJson));
+    if (!parsed.ok) {
+      return { config: null, source: 'app.json', error: parsed.error };
+    }
+    const expo = parsed.value?.expo ?? parsed.value;
+    const config: ExpoConfigJson = {
+      name: expo?.name,
+      owner: expo?.owner,
+      android: { package: expo?.android?.package },
+    };
+    return { config, source: 'app.json' };
+  }
+
+  const appConfigTs = files.find(f => f.path === 'app.config.ts');
+  if (appConfigTs) {
+    return { config: extractWithRegex(readText(appConfigTs)), source: 'app.config.ts' };
+  }
+
+  const appConfigJs = files.find(f => f.path === 'app.config.js');
+  if (appConfigJs) {
+    return { config: extractWithRegex(readText(appConfigJs)), source: 'app.config.js' };
+  }
+
+  return { config: null, source: null };
+}
+
+type EntryPointCheck = {
+  entryLabel: string;
+  ok: boolean;
+  missingPath?: string;
+};
+
+export function resolveEntryPoint(files: ProjectFile[], pkg: PackageJson | null): EntryPointCheck {
+  const fileExists = (p: string) => files.some(f => f.path === p);
+
+  const main = (pkg?.main ?? 'index.js').trim();
+
+  // expo-router uses "expo-router/entry" (module, not a project file).
+  if (main === 'expo-router/entry') {
+    const hasLayout = fileExists('app/_layout.tsx') || fileExists('app/_layout.js');
+    const hasAppDir = files.some(f => f.path.startsWith('app/'));
+    const ok = hasLayout || hasAppDir;
+    return {
+      entryLabel: 'expo-router/entry',
+      ok,
+      missingPath: ok ? undefined : 'app/_layout.tsx',
+    };
+  }
+
+  // If main looks like a path, it should exist.
+  if (main.includes('/') || main.endsWith('.js') || main.endsWith('.ts') || main.endsWith('.tsx')) {
+    if (fileExists(main)) {
+      return { entryLabel: main, ok: true };
+    }
+    // Some projects use index.ts.
+    if (main === 'index.js' && fileExists('index.ts')) {
+      return { entryLabel: 'index.ts', ok: true };
+    }
+    return { entryLabel: main, ok: false, missingPath: main };
+  }
+
+  // Unknown module: can't validate file existence.
+  return { entryLabel: main, ok: true };
+}
+
+const MAX_DEP_ITEMS = 250;
+const MAX_DIRS = 80;
+const MAX_FILES_PER_DIR = 250;
+
+type DerivedState = {
+  buildConfig: BuildConfig | null;
+  projectStats: ProjectStats | null;
+  validationIssues: ValidationIssue[];
+  dependencies: DependencyItem[];
+  dependenciesTotal: number;
+  fileTree: FileTree;
+  fileDirsTotal: number;
+  fileTreeCounts: Record<string, number>;
+};
+
 export function useAppStatusScreen() {
   const { projectData, isLoading, exportProjectAsZip } = useProject();
   const [activeSection, setActiveSection] = useState<SectionType>('overview');
 
-  const { buildConfig, projectStats, validationIssues, dependencies, fileTree } = useMemo(() => {
-
+  const derived = useMemo<DerivedState>(() => {
     if (!projectData) {
       return {
         buildConfig: null,
         projectStats: null,
         validationIssues: [],
         dependencies: [],
+        dependenciesTotal: 0,
         fileTree: [],
+        fileDirsTotal: 0,
+        fileTreeCounts: {},
       };
     }
 
     const files = projectData.files || [];
     const issues: ValidationIssue[] = [];
 
-    // Parse package.json
+    // package.json
     const pkgFile = files.find(f => f.path === 'package.json');
-    let pkgData: any = null;
+    let pkg: PackageJson | null = null;
     let pkgName = projectData.name || 'Unknown Project';
     let pkgVersion = '1.0.0';
-    let deps: any = {};
-    let devDeps: any = {};
+    let deps: Record<string, string> = {};
+    let devDeps: Record<string, string> = {};
 
     if (pkgFile) {
-      try {
-        pkgData = JSON.parse(String(pkgFile.content));
-        pkgName = pkgData.name || pkgName;
-        pkgVersion = pkgData.version || pkgVersion;
-        deps = pkgData.dependencies || {};
-        devDeps = pkgData.devDependencies || {};
-      } catch (error) {
+      const parsed = safeJsonParse<PackageJson>(readText(pkgFile));
+      if (parsed.ok) {
+        pkg = parsed.value;
+        pkgName = parsed.value.name || pkgName;
+        pkgVersion = parsed.value.version || pkgVersion;
+        deps = parsed.value.dependencies || {};
+        devDeps = parsed.value.devDependencies || {};
+      } else {
         issues.push({
           type: 'error',
           message: 'package.json ist fehlerhaft',
-          details: 'JSON Parse Fehler',
+          details: parsed.error,
         });
       }
     } else {
@@ -60,114 +216,102 @@ export function useAppStatusScreen() {
       });
     }
 
-    // Parse app.config.js
-    const appConfigFile = files.find(f => f.path === 'app.config.js');
+    // Expo config (app.json / app.config.*)
+    const expoParse = parseExpoConfig(files);
     let appName = pkgName;
     let packageName = '';
     let owner = '';
-    let expoVersion = '';
-    let sdkVersion = '';
 
-    if (appConfigFile) {
-      try {
-        const content = String(appConfigFile.content);
-        // Extract values using regex (simple parsing)
-        const nameMatch = content.match(/name:\s*["']([^"']+)["']/);
-        const packageMatch = content.match(/package:\s*["']([^"']+)["']/);
-        const ownerMatch = content.match(/owner:\s*["']([^"']+)["']/);
-        
-        if (nameMatch) appName = nameMatch[1];
-        if (packageMatch) packageName = packageMatch[1];
-        if (ownerMatch) owner = ownerMatch[1];
+    const hasAnyAppConfig = expoParse.source !== null;
+    if (!hasAnyAppConfig) {
+      issues.push({
+        type: 'error',
+        message: 'Expo Config fehlt',
+        details: 'app.json oder app.config.(js|ts) ist für den Build erforderlich',
+      });
+    } else if (!expoParse.config) {
+      issues.push({
+        type: 'warning',
+        message: `${expoParse.source} konnte nicht gelesen werden`,
+        details: expoParse.error,
+      });
+    } else {
+      appName = expoParse.config.name || appName;
+      packageName = expoParse.config.android?.package || '';
+      owner = expoParse.config.owner || '';
+    }
 
-        if (!packageName) {
-          issues.push({
-            type: 'error',
-            message: 'Android Package Name fehlt',
-            details: 'android.package muss in app.config.js definiert sein',
-          });
-        }
-      } catch (error) {
+    if (hasAnyAppConfig && !packageName && !projectData.packageName) {
+      issues.push({
+        type: 'error',
+        message: 'Android Package Name fehlt',
+        details: 'expo.android.package muss in der Expo Config definiert sein',
+      });
+    }
+
+    // Entry point validation (package.json main or known defaults)
+    const entryCheck = resolveEntryPoint(files, pkg);
+    if (!entryCheck.ok) {
+      issues.push({
+        type: 'error',
+        message: 'Entry-Point fehlt',
+        details: entryCheck.missingPath
+          ? `package.json main zeigt auf fehlende Datei: ${entryCheck.missingPath}`
+          : 'Entry-Point konnte nicht gefunden werden',
+      });
+    }
+
+    // Required deps (check both deps and devDeps to avoid false positives)
+    const combinedDeps = { ...deps, ...devDeps };
+    const requiredDeps = ['expo', 'react', 'react-native'];
+    requiredDeps.forEach(dep => {
+      if (!combinedDeps[dep]) {
         issues.push({
-          type: 'warning',
-          message: 'app.config.js konnte nicht gelesen werden',
+          type: 'error',
+          message: `Fehlende Dependency: ${dep}`,
+          details: 'Diese Dependency ist erforderlich',
         });
       }
-    } else {
-      issues.push({
-        type: 'error',
-        message: 'app.config.js fehlt',
-        details: 'Diese Datei ist für den Build erforderlich',
-      });
+    });
+
+    // Expo version / SDK
+    const expoVersion = combinedDeps.expo || '';
+    let sdkVersion = 'Unknown';
+    if (expoVersion) {
+      const versionMatch = expoVersion.match(/~?(\d+)\./);
+      if (versionMatch) sdkVersion = `SDK ${versionMatch[1]}`;
     }
 
-    // Check for App.tsx
-    const appTsxFile = files.find(f => f.path === 'App.tsx');
-    if (!appTsxFile) {
-      issues.push({
-        type: 'error',
-        message: 'App.tsx fehlt',
-        details: 'Entry-Point der App fehlt',
-      });
-    }
+    // Statistics (avoid heavy work for huge files)
+    const totalLines = files.reduce((sum, f) => sum + countLinesSafe(String(f.content)), 0);
 
-    // Check for required dependencies
-    if (pkgData) {
-      const requiredDeps = ['expo', 'react', 'react-native'];
-      requiredDeps.forEach(dep => {
-        if (!deps[dep]) {
-          issues.push({
-            type: 'error',
-            message: `Fehlende Dependency: ${dep}`,
-            details: 'Diese Dependency ist erforderlich',
-          });
-        }
-      });
-
-      if (deps['expo']) {
-        expoVersion = deps['expo'];
-        // Extract SDK version from expo version
-        const versionMatch = expoVersion.match(/~?(\d+)\./);
-        if (versionMatch) {
-          sdkVersion = `SDK ${versionMatch[1]}`;
-        }
-      }
-    }
-
-    // Calculate statistics
-    const totalLines = files.reduce((sum, f) => {
-      return sum + String(f.content).split('\n').length;
-    }, 0);
-
-    // Build config object
     const config: BuildConfig = {
       appName,
       packageName: packageName || projectData.packageName || 'nicht gesetzt',
       version: pkgVersion,
       expoVersion,
-      sdkVersion: sdkVersion || 'Unknown',
+      sdkVersion,
       owner: owner || 'nicht gesetzt',
     };
 
-    // Project statistics
     const stats: ProjectStats = {
       totalFiles: files.length,
       totalLines,
       dependencies: Object.keys(deps).length,
       devDependencies: Object.keys(devDeps).length,
-      hasAppConfig: !!appConfigFile,
+      // Reuse existing fields, but broaden meaning:
+      // - hasAppConfig: any Expo config source
+      // - hasAppTsx: resolved entry point exists
+      hasAppConfig: hasAnyAppConfig,
       hasPackageJson: !!pkgFile,
-      hasAppTsx: !!appTsxFile,
+      hasAppTsx: entryCheck.ok,
     };
 
-    // Dependencies list
-    const dependenciesList = Object.entries(deps).map(([name, version]) => ({
-      name,
-      version: String(version),
-    }));
+    const dependenciesList = Object.entries(deps)
+      .map(([name, version]) => ({ name, version: String(version) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
 
-    // File tree (group by directory)
-    const fileGroups: { [key: string]: string[] } = {};
+    const fileGroups: Record<string, string[]> = {};
     files.forEach(file => {
       const parts = file.path.split('/');
       const dir = parts.length > 1 ? parts[0] : 'root';
@@ -175,7 +319,16 @@ export function useAppStatusScreen() {
       fileGroups[dir].push(file.path);
     });
 
-    // Add info messages
+    const fileTree: FileTree = Object.entries(fileGroups)
+      .map(([dir, list]) => [dir, list.sort((a, b) => a.localeCompare(b))] as [string, string[]])
+      .sort((a, b) => a[0].localeCompare(b[0]));
+
+    const fileTreeCounts: Record<string, number> = {};
+    fileTree.forEach(([dir, list]) => {
+      fileTreeCounts[dir] = list.length;
+    });
+
+    // Info message only if no errors/warnings
     if (issues.length === 0) {
       issues.push({
         type: 'info',
@@ -188,13 +341,15 @@ export function useAppStatusScreen() {
       buildConfig: config,
       projectStats: stats,
       validationIssues: issues,
-      dependencies: dependenciesList,
-      fileTree: Object.entries(fileGroups),
+      dependencies: dependenciesList.slice(0, MAX_DEP_ITEMS),
+      dependenciesTotal: dependenciesList.length,
+      fileTree: fileTree.slice(0, MAX_DIRS).map(([dir, list]) => [dir, list.slice(0, MAX_FILES_PER_DIR)]),
+      fileDirsTotal: fileTree.length,
+      fileTreeCounts,
     };
   }, [projectData]);
 
   const handleExport = useCallback(() => {
-
     Alert.alert(
       'Projekt exportieren',
       'Möchten Sie das Projekt als ZIP-Datei exportieren?',
@@ -213,11 +368,14 @@ export function useAppStatusScreen() {
     isLoading,
     activeSection,
     setActiveSection,
-    buildConfig: buildConfig as BuildConfig | null,
-    projectStats: projectStats as ProjectStats | null,
-    validationIssues: validationIssues as ValidationIssue[],
-    dependencies: dependencies as DependencyItem[],
-    fileTree: fileTree as FileTree,
+    buildConfig: derived.buildConfig,
+    projectStats: derived.projectStats,
+    validationIssues: derived.validationIssues,
+    dependencies: derived.dependencies,
+    fileTree: derived.fileTree,
+    dependenciesTotal: derived.dependenciesTotal,
+    fileDirsTotal: derived.fileDirsTotal,
+    fileTreeCounts: derived.fileTreeCounts,
     handleExport,
   };
 }

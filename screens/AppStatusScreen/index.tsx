@@ -31,7 +31,10 @@ const AppStatusScreen: React.FC = () => {
     projectStats,
     validationIssues,
     dependencies,
+    dependenciesTotal,
     fileTree,
+    fileDirsTotal,
+    fileTreeCounts,
     handleExport,
   } = useAppStatusScreen();
 
@@ -82,12 +85,12 @@ const AppStatusScreen: React.FC = () => {
 
         {/* Dependencies Section */}
         {activeSection === 'dependencies' && (
-          <DependenciesSection dependencies={dependencies} />
+          <DependenciesSection dependencies={dependencies} totalCount={dependenciesTotal} />
         )}
 
         {/* Files Section */}
         {activeSection === 'files' && (
-          <FilesSection fileTree={fileTree} />
+          <FilesSection fileTree={fileTree} totalDirs={fileDirsTotal} fileCountsByDir={fileTreeCounts} />
         )}
 
         {/* Validation Section */}

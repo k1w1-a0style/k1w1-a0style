@@ -70,3 +70,6 @@ Stand: **2026-02-11**
 - [x] Patch 65: fix orchestrator parse error after patch 64 (patch 65)
 
 - [x] ChatScreen: hotfix orchestrator TS scope errors after patch 65 (patch 66)
+
+- [x] AppStatusScreen: config/entry correctness + perf caps (patch 67)
+- [x] AppStatusScreen: styles keys fix (patch 68)

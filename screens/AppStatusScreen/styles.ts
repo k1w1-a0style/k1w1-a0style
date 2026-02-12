@@ -95,6 +95,15 @@ export const styles = StyleSheet.create({
     color: theme.palette.text.primary,
     marginBottom: 16,
   },
+  sectionContent: {
+    marginTop: 8,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+    fontWeight: '500',
+    marginBottom: 12,
+  },
   card: {
     backgroundColor: theme.palette.card,
     borderRadius: 12,
@@ -226,6 +235,18 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     paddingVertical: 4,
+  },
+  fileTree: {
+    marginTop: 8,
+    maxHeight: 360,
+  },
+  fileList: {
+    paddingLeft: 4,
+  },
+  fileStats: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+    marginTop: 8,
   },
   fileName: {
     fontSize: 13,

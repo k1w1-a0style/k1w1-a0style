@@ -8,9 +8,11 @@ import type { DependencyItem } from '../types';
 
 type Props = {
   dependencies: DependencyItem[];
+  totalCount?: number;
 };
 
-export function DependenciesSection({ dependencies }: Props) {
+export function DependenciesSection({ dependencies, totalCount }: Props) {
+  const hidden = Math.max(0, (totalCount ?? dependencies.length) - dependencies.length);
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>📦 Dependencies</Text>
@@ -18,13 +20,15 @@ export function DependenciesSection({ dependencies }: Props) {
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Ionicons name="cube" size={20} color={theme.palette.primary} />
-          <Text style={styles.cardTitle}>Installierte Pakete ({dependencies.length})</Text>
+          <Text style={styles.cardTitle}>
+            Installierte Pakete ({totalCount ?? dependencies.length})
+          </Text>
         </View>
         {dependencies.length === 0 ? (
           <Text style={styles.emptyText}>Keine Dependencies gefunden</Text>
         ) : (
-          dependencies.map((dep, index) => (
-            <View key={index} style={styles.depItem}>
+          dependencies.map(dep => (
+            <View key={dep.name} style={styles.depItem}>
               <View style={styles.depDot} />
               <View style={styles.depContent}>
                 <Text style={styles.depName}>{dep.name}</Text>
@@ -33,6 +37,9 @@ export function DependenciesSection({ dependencies }: Props) {
             </View>
           ))
         )}
+        {hidden > 0 ? (
+          <Text style={styles.emptyText}>… und {hidden} weitere (Anzeige ist limitiert)</Text>
+        ) : null}
       </View>
 
       <View style={styles.infoCard}>
