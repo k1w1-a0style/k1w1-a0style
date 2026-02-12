@@ -1,5 +1,7 @@
 # TerminalScreen – Verification (Patch 75)
 
+
+> Hinweis: Gemeinsame Übersicht aller Verifikationen: `docs/reviews/SCREENS_VERIFICATION.md`
 Stand: 2026-02-12
 
 ## 1) Review-Check: Was stimmt, was nicht?
@@ -113,12 +115,3 @@ No TerminalScreen UI changes. `lib/secretRedaction` is now also used to sanitize
 
 ## Patch 87
 - No TerminalScreen changes. (Supabase/migration + Edge error sanitization only.)
-
----
-
-## Hinweis
-
-- Gemeinsame Übersicht: `docs/reviews/SCREENS_VERIFICATION.md`
-
-Dieses Dokument bleibt bewusst **Terminal-spezifisch**.
-Die zentrale Abnahme-/Status-Übersicht über *alle* Screens + Supabase liegt in `SCREENS_VERIFICATION.md`.

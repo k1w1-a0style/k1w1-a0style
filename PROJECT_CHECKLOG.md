@@ -624,14 +624,8 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - Notes: docs/patches/PATCH_87_NOTES.md
 - Verification: docs/reviews/SUPABASE_MIGRATION_VERIFICATION.md
 
-## Patch 88
-- Docs/Reviews: add unified verification index `docs/reviews/SCREENS_VERIFICATION.md`.
-- Docs/Reviews: add missing GitHubReposScreen verification doc.
-- Docs/Reviews: add CodeScreen verification placeholder (pending) to track remaining screen.
-- Notes: docs/patches/PATCH_88_NOTES.md
 
-## Patch 88
-- Docs: merge Screen-Verifikationen in eine gemeinsame Übersicht (`docs/reviews/SCREENS_VERIFICATION.md`).
-- Docs: add missing GitHubReposScreen verification doc.
-- Docs: add CodeScreen verification placeholder (pending) to keep coverage complete.
-- Notes: docs/patches/PATCH_88_NOTES.md
+## Patch 89
+- Docs/Reviews: gemeinsame Übersicht `docs/reviews/SCREENS_VERIFICATION.md` hinzugefügt (Merge aus Einzel-Verifikationen + Supabase enthalten).
+- Docs/Reviews: fehlende Verifikationen ergänzt: CodeScreen + GitHubReposScreen.
+- Notes: docs/patches/PATCH_89_NOTES.md

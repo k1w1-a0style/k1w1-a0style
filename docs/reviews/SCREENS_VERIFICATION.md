@@ -1,57 +1,28 @@
-# Screen & Backend Verification – Übersicht (Single Source of Truth)
+# Screens & Modules – Verification Index
 
 Stand: **2026-02-12**
 
-Diese Datei ist die **gemeinsame Übersicht** über alle Screen-/Backend-Verifikationen.
+Dieses Dokument ist die **gemeinsame Übersicht** über alle vorhandenen Verifikations-Dokumente unter `docs/reviews/`.
+Einzelne Screen-Verifikationen bleiben bestehen – hier ist nur der **Index / Merge**.
 
-- Einzelne Verifikationen bleiben als Detail-Dokumente bestehen.
-- Diese Übersicht ist das „Index-Dokument“ und soll **immer aktuell** bleiben.
+## Status-Übersicht
 
----
+| Bereich | Datei | Status | Hinweis |
+|---|---|---|---|
+| AppInfoScreen | `APP_INFO_SCREEN_VERIFICATION.md` | ✅ verified | Privacy/Backup hardening |
+| AppStatusScreen | `APP_STATUS_SCREEN_VERIFICATION.md` | ✅ verified | status validation + tests |
+| ChatScreen | `CHAT_SCREEN_VERIFICATION.md` | ✅ verified | timer cleanup (Jest open handles) |
+| CodeScreen | `CODE_SCREEN_VERIFICATION.md` | ✅ verified | P1/P2 fixes aus Review umgesetzt |
+| ConnectionsScreen | `CONNECTIONS_SCREEN_VERIFICATION.md` | ✅ verified | input masking + validation + sanitization |
+| CredentialsWizardScreen | `CREDENTIALS_WIZARD_SCREEN_VERIFICATION.md` | ✅ verified | security tests passing |
+| DiagnosticScreen | `DIAGNOSTIC_SCREEN_VERIFICATION.md` | ✅ verified | filter contract + throttle + tests |
+| EnhancedBuildScreen | `BUILD_SCREEN_VERIFICATION.md` | ✅ verified | reentrancy/unmount guards + logs redaction |
+| GitHubReposScreen | `GITHUB_REPOS_SCREEN_VERIFICATION.md` | ✅ verified | selection consistency + race guards |
+| Preview Screens | `PREVIEW_SCREENS_VERIFICATION.md` | ✅ verified | navigation/url guards + fullscreen hardening |
+| SettingsScreen | `SETTINGS_SCREEN_VERIFICATION.md` | ✅ verified | API key masking + validation |
+| TerminalScreen | `TERMINAL_SCREEN_VERIFICATION.md` | ✅ verified | secret redaction + perf hardening |
+| Supabase (Functions + Migration) | `SUPABASE_MIGRATION_VERIFICATION.md` | ✅ verified | RLS + Edge error sanitization |
 
-## 1) Abdeckung: Sind alle Screens vorhanden?
-
-Aus `/screens` ergeben sich aktuell folgende Haupt-Screens:
-
-| Bereich | Screen/Scope | Status | Detail-Doku |
-|---|---|---:|---|
-| App | AppInfoScreen | ✅ verified | `docs/reviews/APP_INFO_SCREEN_VERIFICATION.md` |
-| App | AppStatusScreen | ✅ verified | `docs/reviews/APP_STATUS_SCREEN_VERIFICATION.md` |
-| App | ChatScreen | ✅ verified | `docs/reviews/CHAT_SCREEN_VERIFICATION.md` |
-| App | CredentialsWizardScreen | ✅ verified | `docs/reviews/CREDENTIALS_WIZARD_SCREEN_VERIFICATION.md` |
-| App | DiagnosticScreen | ✅ verified | `docs/reviews/DIAGNOSTIC_SCREEN_VERIFICATION.md` |
-| App | EnhancedBuildScreen | ✅ verified | `docs/reviews/BUILD_SCREEN_VERIFICATION.md` |
-| App | GitHubReposScreen | ✅ verified | `docs/reviews/GITHUB_REPOS_SCREEN_VERIFICATION.md` |
-| App | SettingsScreen | ✅ verified | `docs/reviews/SETTINGS_SCREEN_VERIFICATION.md` |
-| App | TerminalScreen | ✅ verified | `docs/reviews/TERMINAL_SCREEN_VERIFICATION.md` |
-| App | PreviewScreen + PreviewFullscreenScreen | ✅ verified | `docs/reviews/PREVIEW_SCREENS_VERIFICATION.md` |
-| App | CodeScreen | ⏳ pending | `docs/reviews/CODE_SCREEN_VERIFICATION.md` |
-
-**Ergebnis:**
-- ✅ Alle *bekannten* Screens sind in der Übersicht erfasst.
-- ⚠️ **CodeScreen** ist als einziger Screen noch **nicht** formal verifiziert (pending).
-
----
-
-## 2) Backend / Supabase (auch Teil der Abnahme)
-
-| Bereich | Scope | Status | Detail-Doku |
-|---|---|---:|---|
-| Supabase | Functions + Migrations (RLS/Policies) | ✅ verified | `docs/reviews/SUPABASE_MIGRATION_VERIFICATION.md` |
-
----
-
-## 3) Regeln
-
-### Optik / UI
-- Jede Verification muss explizit sagen: **„Ändert sich was an der Optik?“**
-- Wenn ja: genau benennen **wo** und **wie** (z.B. Eye-Icons, Disabled Buttons, Masking).
-
-### Privacy/Security
-- Secrets dürfen nicht in UI/Alerts/Logs auftauchen.
-- Error-Messages: **sanitize + truncate**.
-- Clipboard/Export: **redact + cap** (defense-in-depth).
-
-### Konsistenz
-- Fixes sollen Single-Source-of-Truth nutzen (kein „zweiter Codepfad“ für denselben Flow).
-- Async Flows: **unmount + stale guards**.
+## Regeln (damit wir nicht wieder doppelt führen)
+- **Einzel-Dokumente** bleiben die Quelle der Details.
+- Dieser Index wird bei neuen Screens/Modulen **mitgezogen** (damit nichts “verschwindet”).
