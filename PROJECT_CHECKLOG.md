@@ -91,6 +91,7 @@ Wir gehen **screenweise** vor, aber in **2 Durchläufen**:
 ---
 
 ## Changelog
+- 2026-02-12: Patch 83 – Hotfix ConnectionsScreen: validateBeforeSave call signature (TypeScript TS2554) korrigiert.
 - 2026-02-12: Patch 80 – Jest worker exit warning behoben (ChatScreen: unref + cleanup für fire-and-forget timeouts).
 - 2026-02-08: Dokument angelegt, Inventar erstellt, erste Red Flags notiert.
 
@@ -579,3 +580,21 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 ## Patch 81
 - SettingsScreen: mask API keys by default + secure input toggle; sanitize key errors; basic key format validation.
 - UI: **Keys are now masked by default** (opt-in reveal via eye icon).
+
+## Patch 82
+- ConnectionsScreen: Supabase ANON + Service Role inputs now have Eye-Toggles (consistent with GitHub/Expo/Edge).
+- ConnectionsScreen: GitHub test success alert no longer reveals username.
+- ConnectionsScreen: sanitize error messages in alerts (best-effort secret redaction + truncation).
+- ConnectionsScreen: basic token/url format validation before save (fast fail with clear message).
+- Notes: docs/patches/PATCH_82_NOTES.md
+- Verification: docs/reviews/CONNECTIONS_SCREEN_VERIFICATION.md
+
+## Patch 83
+- ConnectionsScreen: hotfix – correct usage of validateBeforeSave (signature mismatch fix).
+- Notes: docs/patches/PATCH_83_NOTES.md
+- Verification: docs/reviews/CONNECTIONS_SCREEN_VERIFICATION.md
+
+## Patch 84
+- ConnectionsScreen: hotfix – normalize validateBeforeSave (supports both memo-object and callback forms) to restore typecheck.
+- Notes: docs/patches/PATCH_84_NOTES.md
+- Verification: docs/reviews/CONNECTIONS_SCREEN_VERIFICATION.md

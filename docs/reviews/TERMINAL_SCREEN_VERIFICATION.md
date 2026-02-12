@@ -99,3 +99,6 @@ Was sich ändert:
 
 ## Patch 81
 No TerminalScreen changes in this patch. Previous verification remains valid.
+
+## Patch 82 / 83 / 84
+No TerminalScreen changes in these patches (ConnectionsScreen hardening + hotfixes only). Previous verification remains valid.

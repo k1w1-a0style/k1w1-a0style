@@ -21,6 +21,100 @@ import {
   deleteSupabaseServiceRoleKey,
 } from "../../../contexts/githubService";
 
+import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction";
+
+const MAX_ALERT_CHARS = 180;
+
+const safeAlertText = (value: unknown, fallback = "Fehler"): string => {
+  const raw = typeof value === "string" ? value : (value as any)?.message;
+  const msg = String(raw || fallback);
+  return truncateWithMarker(redactSecrets(msg), MAX_ALERT_CHARS, "…<gekürzt>");
+};
+
+const looksLikeJwt = (token: string): boolean => {
+  // Minimal check only. We don't decode here to avoid atob / platform edge cases.
+  return /^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token);
+};
+
+type ValidationResult = { ok: true } | { ok: false; title: string; message: string };
+
+const validateBeforeSave = (p: {
+  githubToken: string;
+  expoToken: string;
+  edgeAdminKey: string;
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  supabaseServiceRoleKey: string;
+}): ValidationResult => {
+  const gh = p.githubToken.trim();
+  if (gh) {
+    const okPrefix =
+      gh.startsWith("ghp_") || gh.startsWith("github_pat_") || gh.startsWith("gho_");
+    const okLength = gh.length >= 30;
+    if (!okPrefix || !okLength) {
+      return {
+        ok: false,
+        title: "Ungültiger GitHub Token",
+        message: 'GitHub PAT muss typischerweise mit "ghp_" oder "github_pat_" beginnen.',
+      };
+    }
+  }
+
+  const ex = p.expoToken.trim();
+  if (ex) {
+    // Expo tokens vary; we only prevent obvious junk (too short / whitespace).
+    if (ex.length < 20 || /\s/.test(ex)) {
+      return {
+        ok: false,
+        title: "Ungültiger Expo/EAS Token",
+        message: "Token ist zu kurz oder enthält Leerzeichen.",
+      };
+    }
+  }
+
+  const edge = p.edgeAdminKey.trim();
+  if (edge) {
+    if (edge.length < 20 || /\s/.test(edge)) {
+      return {
+        ok: false,
+        title: "Ungültiger Edge Admin Key",
+        message: "Key ist zu kurz oder enthält Leerzeichen.",
+      };
+    }
+  }
+
+  const sbUrl = p.supabaseUrl.trim();
+  if (sbUrl) {
+    if (!/^https:\/\//i.test(sbUrl) || !/\.supabase\.co\b/i.test(sbUrl)) {
+      return {
+        ok: false,
+        title: "Ungültige Supabase URL",
+        message: "URL muss https://<project>.supabase.co sein.",
+      };
+    }
+  }
+
+  const anon = p.supabaseAnonKey.trim();
+  if (anon && !looksLikeJwt(anon)) {
+    return {
+      ok: false,
+      title: "Ungültiger Supabase ANON Key",
+      message: "Key muss wie ein JWT aussehen (eyJ... . eyJ... . ...).",
+    };
+  }
+
+  const srv = p.supabaseServiceRoleKey.trim();
+  if (srv && !looksLikeJwt(srv)) {
+    return {
+      ok: false,
+      title: "Ungültiger Supabase Service Role Key",
+      message: "Key muss wie ein JWT aussehen (eyJ... . eyJ... . ...).",
+    };
+  }
+
+  return { ok: true };
+};
+
 const deriveSupabaseUrl = (raw: string): { projectId: string; url: string } => {
   const trimmed = (raw || "").trim();
 
@@ -60,6 +154,9 @@ export function useConnectionsScreen() {
   const [supabaseUrl, setSupabaseUrl] = useState("");
   const [supabaseAnonKey, setSupabaseAnonKey] = useState("");
   const [supabaseServiceRoleKey, setSupabaseServiceRoleKey] = useState("");
+
+  const [showSupabaseAnon, setShowSupabaseAnon] = useState(false);
+  const [showSupabaseServiceRole, setShowSupabaseServiceRole] = useState(false);
 
   // EAS
   const [easProjectId, setEasProjectId] = useState("");
@@ -132,7 +229,81 @@ export function useConnectionsScreen() {
     if (d.url) setSupabaseUrl(d.url);
   }, [supabaseRaw]);
 
+  const safeAlertMessage = useCallback((msg: unknown, max = 220) => {
+    const raw = typeof msg === "string" ? msg : (msg as any)?.message || String(msg || "");
+    return truncateWithMarker(redactSecrets(String(raw || "")), max, "…<truncated>");
+  }, []);
+
+  const validateBeforeSave = useCallback((): { ok: true } | { ok: false; title: string; message: string } => {
+    const gh = githubToken.trim();
+    const ex = expoToken.trim();
+    const edge = edgeAdminKey.trim();
+    const sbUrl = supabaseUrl.trim();
+    const sbAnon = supabaseAnonKey.trim();
+    const sbSrv = supabaseServiceRoleKey.trim();
+
+    // GitHub PATs are typically ghp_ / github_pat_ / gho_ / ghu_ / ghs_ / ghr_
+    if (gh && !/^(ghp_|github_pat_|gho_|ghu_|ghs_|ghr_)[A-Za-z0-9_]{10,}$/i.test(gh) && gh.length < 30) {
+      return {
+        ok: false,
+        title: "Ungültiger GitHub Token",
+        message: "Der GitHub Token sieht nicht wie ein PAT aus (z.B. ghp_…, github_pat_…).",
+      };
+    }
+
+    // Expo tokens are long and often start with expo_
+    if (ex && !/^expo_[A-Za-z0-9_-]{10,}$/i.test(ex) && ex.length < 30) {
+      return {
+        ok: false,
+        title: "Ungültiger Expo / EAS Token",
+        message: "Der Expo Token sieht nicht korrekt aus (oft expo_… und deutlich länger).",
+      };
+    }
+
+    // Edge admin key - just sanity check length to catch obvious mistakes
+    if (edge && edge.length < 16) {
+      return {
+        ok: false,
+        title: "Ungültiger Edge Admin Key",
+        message: "Der Edge Admin Key ist sehr kurz – bitte prüfen.",
+      };
+    }
+
+    if (sbUrl) {
+      try {
+        const u = new URL(sbUrl);
+        if (u.protocol !== "https:" || !/\.supabase\.co$/i.test(u.hostname)) {
+          return {
+            ok: false,
+            title: "Ungültige Supabase URL",
+            message: "Supabase URL muss https://<project>.supabase.co sein.",
+          };
+        }
+      } catch {
+        return { ok: false, title: "Ungültige Supabase URL", message: "Supabase URL ist keine gültige URL." };
+      }
+    }
+
+    const looksJwt = (v: string) => /^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(v);
+    if (sbAnon && !looksJwt(sbAnon)) {
+      return { ok: false, title: "Ungültiger Supabase ANON Key", message: "Der ANON Key sollte wie ein JWT aussehen (eyJ…eyJ….…)." };
+    }
+    if (sbSrv && !looksJwt(sbSrv)) {
+      return { ok: false, title: "Ungültiger Service Role Key", message: "Der Service Role Key sollte wie ein JWT aussehen (eyJ…eyJ….…)." };
+    }
+
+    return { ok: true };
+  }, [githubToken, expoToken, edgeAdminKey, supabaseUrl, supabaseAnonKey, supabaseServiceRoleKey]);
+
   const saveAll = useCallback(async () => {
+    // validateBeforeSave can be either a memoized object OR a callback returning that object
+    // (depending on earlier refactors). Normalize it to a plain result here.
+    const vAny: any = validateBeforeSave;
+    const v = typeof vAny === "function" ? vAny() : vAny;
+    if (!v.ok) {
+      Alert.alert(v.title, v.message);
+      return;
+    }
     setBusy(true);
     try {
       const gh = githubToken.trim();
@@ -165,7 +336,7 @@ export function useConnectionsScreen() {
 
       Alert.alert("✅ Gespeichert", "Tokens & Verbindungen wurden gespeichert.");
     } catch (e: any) {
-      Alert.alert("❌ Speichern fehlgeschlagen", e?.message || "Unbekannter Fehler");
+      Alert.alert("❌ Speichern fehlgeschlagen", safeAlertText(e));
     } finally {
       setBusy(false);
     }
@@ -192,23 +363,14 @@ export function useConnectionsScreen() {
         },
       });
       if (!resp.ok) throw new Error(`GitHub Test failed (${resp.status})`);
-      const j = await resp.json().catch(() => ({}));
-      Alert.alert("✅ GitHub OK", `User: ${j?.login || "ok"}`);
+      await resp.json().catch(() => ({}));
+      Alert.alert("✅ GitHub OK", "Token ist gültig und hat User-Zugriff.");
     } catch (e: any) {
-      Alert.alert("❌ GitHub Test", e?.message || "Fehler");
+      Alert.alert("❌ GitHub Test", safeAlertText(e));
     } finally {
       setBusy(false);
     }
-  }, [
-    githubToken,
-    expoToken,
-    edgeAdminKey,
-    supabaseRaw,
-    supabaseUrl,
-    supabaseAnonKey,
-    supabaseServiceRoleKey,
-    easProjectId,
-  ]);
+  }, [githubToken]);
 
   const testSupabase = useCallback(async () => {
     const url = supabaseUrl.trim();
@@ -236,7 +398,7 @@ export function useConnectionsScreen() {
 
       Alert.alert("✅ Supabase OK", "REST + build_jobs erreichbar.");
     } catch (e: any) {
-      Alert.alert("❌ Supabase Test", e?.message || "Fehler");
+      Alert.alert("❌ Supabase Test", safeAlertText(e));
     } finally {
       setBusy(false);
     }
@@ -288,6 +450,11 @@ export function useConnectionsScreen() {
     setShowExpo,
     showEdge,
     setShowEdge,
+
+    showSupabaseAnon,
+    setShowSupabaseAnon,
+    showSupabaseServiceRole,
+    setShowSupabaseServiceRole,
 
     // Supabase
     supabaseRaw,

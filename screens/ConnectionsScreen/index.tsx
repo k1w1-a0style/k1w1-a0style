@@ -36,6 +36,11 @@ export default function ConnectionsScreen() {
     showEdge,
     setShowEdge,
 
+    showSupabaseAnon,
+    setShowSupabaseAnon,
+    showSupabaseServiceRole,
+    setShowSupabaseServiceRole,
+
     // Supabase
     supabaseRaw,
     setSupabaseRaw,
@@ -103,6 +108,12 @@ export default function ConnectionsScreen() {
           onChangeSupabaseAnonKey={setSupabaseAnonKey}
           supabaseServiceRoleKey={supabaseServiceRoleKey}
           onChangeSupabaseServiceRoleKey={setSupabaseServiceRoleKey}
+          showSupabaseAnon={showSupabaseAnon}
+          onToggleShowSupabaseAnon={() => setShowSupabaseAnon((p) => !p)}
+          showSupabaseServiceRole={showSupabaseServiceRole}
+          onToggleShowSupabaseServiceRole={() =>
+            setShowSupabaseServiceRole((p) => !p)
+          }
           onSave={saveAll}
           onTestSupabase={testSupabase}
         />

@@ -17,6 +17,10 @@ export function SupabaseCard(props: {
   onChangeSupabaseAnonKey: (v: string) => void;
   supabaseServiceRoleKey: string;
   onChangeSupabaseServiceRoleKey: (v: string) => void;
+  showSupabaseAnon: boolean;
+  onToggleShowSupabaseAnon: () => void;
+  showSupabaseServiceRole: boolean;
+  onToggleShowSupabaseServiceRole: () => void;
   onSave: () => void;
   onTestSupabase: () => void;
 }) {
@@ -31,6 +35,10 @@ export function SupabaseCard(props: {
     onChangeSupabaseAnonKey,
     supabaseServiceRoleKey,
     onChangeSupabaseServiceRoleKey,
+    showSupabaseAnon,
+    onToggleShowSupabaseAnon,
+    showSupabaseServiceRole,
+    onToggleShowSupabaseServiceRole,
     onSave,
     onTestSupabase,
   } = props;
@@ -69,7 +77,9 @@ export function SupabaseCard(props: {
         onChangeText={onChangeSupabaseAnonKey}
         placeholder="eyJhbGciOi..."
         secure
-        showToggle={false}
+        showToggle
+        isShown={showSupabaseAnon}
+        onToggleShow={onToggleShowSupabaseAnon}
       />
 
       <InputRow
@@ -79,7 +89,10 @@ export function SupabaseCard(props: {
         onChangeText={onChangeSupabaseServiceRoleKey}
         placeholder="eyJhbGciOi... (service role)"
         secure
-        showToggle={false}
+        showToggle
+        isShown={showSupabaseServiceRole}
+        onToggleShow={onToggleShowSupabaseServiceRole}
+        rightHint="⚠️ Admin-Rechte"
       />
 
       <View style={styles.row}>

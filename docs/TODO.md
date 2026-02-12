@@ -15,6 +15,14 @@ Stand: **2026-02-12**
 - [ ] RS-006: Repo-Liste virtualisieren (FlatList) falls viele Repos.
 - [ ] RS-008: Tests für kritische Repo/Branch/Modal-Flows ergänzen.
 
+## ConnectionsScreen
+- [x] CS-001: Supabase ANON + Service Role Keys mit Eye-Toggle (konsistent zu GitHub/Expo/Edge).
+- [x] CS-002: testGitHub() zeigt keinen User-Login mehr (nur generische OK-Meldung).
+- [x] CS-003: Error-Alerts sanitizen (redactSecrets + truncate).
+- [x] CS-004: Basic Token/URL Format-Validation vor SaveAll.
+- [x] CS-007: Hotfix Typecheck (validateBeforeSave call signature).
+- [ ] CS-006: Tests für Security-Flows (Toggle/Validation/Sanitization) ergänzen.
+
 ## ✅ Done (CodeScreen)
 - WebView-Editor (ohne gravierende UI-Änderung)
 - RN↔WebView Bridge stabilisiert
@@ -108,3 +116,5 @@ Stand: **2026-02-12**
 ### Done
 - [x] SettingsScreen: mask stored API keys + secureTextEntry input with reveal toggle (Patch 81)
 - [x] SettingsScreen: sanitize API key errors + basic key validation (Patch 81)
+- [x] ConnectionsScreen: Supabase ANON + Service Role eye toggles + safe alerts + basic validation (Patch 82)
+- [x] ConnectionsScreen: validateBeforeSave typecheck hotfix (Patch 84)
