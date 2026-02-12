@@ -96,3 +96,6 @@ Was sich ändert:
 
 - Patch 79: no TerminalScreen changes (GitHubReposScreen only).
 - Patch 80: no TerminalScreen changes (ChatScreen/Jest cleanup only).
+
+## Patch 81
+No TerminalScreen changes in this patch. Previous verification remains valid.

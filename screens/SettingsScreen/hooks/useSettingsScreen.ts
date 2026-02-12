@@ -5,8 +5,51 @@ import { useAI } from "../../../contexts/AIContext";
 import type { AllAIProviders, QualityMode } from "../../../contexts/AIContext";
 import { useNotifications } from "../../../hooks/useNotifications";
 import { loadChatHistorySettings, setChatHistoryPersistence } from "../../../lib/chatPrivacySettings";
+import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction";
 
 type ProviderId = AllAIProviders;
+
+
+function sanitizeSettingsError(error: unknown): string {
+  const msg =
+    error && typeof error === "object" && "message" in (error as any)
+      ? String((error as any).message)
+      : typeof error === "string"
+        ? error
+        : "Unbekannter Fehler";
+
+  // Best-effort: remove tokens/keys if they appear in error messages.
+  const redacted = redactSecrets(msg);
+  return truncateWithMarker(redacted, 280, "…");
+}
+
+function validateApiKeyInput(provider: ProviderId, key: string): string | null {
+  const trimmed = key.trim();
+  if (!trimmed) return "Key darf nicht leer sein.";
+  if (/\s/.test(trimmed)) return "Key darf keine Leerzeichen enthalten.";
+  if (trimmed.length < 20) return "Key ist zu kurz (min. 20 Zeichen).";
+
+  // Provider-aware prefix checks (best-effort).
+  if (provider === "openai" && !trimmed.startsWith("sk-")) {
+    return 'OpenAI Keys starten typischerweise mit "sk-".';
+  }
+  if (provider === "anthropic" && !trimmed.startsWith("sk-ant-")) {
+    return 'Anthropic Keys starten typischerweise mit "sk-ant-".';
+  }
+  if (provider === "groq" && !trimmed.startsWith("gsk_")) {
+    return 'Groq Keys starten typischerweise mit "gsk_".';
+  }
+  if (provider === "huggingface" && !trimmed.startsWith("hf_")) {
+    return 'HuggingFace Tokens starten typischerweise mit "hf_".';
+  }
+
+  // Basic allowed chars (avoid obvious paste issues)
+  if (!/^[A-Za-z0-9_\-\.]+$/.test(trimmed)) {
+    return "Key enthält ungültige Zeichen.";
+  }
+
+  return null;
+}
 
 export function useSettingsScreen() {
   const {
@@ -140,6 +183,12 @@ export function useSettingsScreen() {
     const trimmed = newKey.trim();
     if (!trimmed) return;
 
+    const validationError = validateApiKeyInput(selectedKeyProvider, trimmed);
+    if (validationError) {
+      Alert.alert("Ungültiger Key", validationError);
+      return;
+    }
+
     try {
       await addApiKey(selectedKeyProvider, trimmed);
       setNewKey("");
@@ -147,7 +196,7 @@ export function useSettingsScreen() {
     } catch (error: any) {
       Alert.alert(
         "Fehler",
-        error?.message || "Key konnte nicht hinzugefügt werden.",
+        sanitizeSettingsError(error),
       );
     }
   };
@@ -164,7 +213,7 @@ export function useSettingsScreen() {
           } catch (error: any) {
             Alert.alert(
               "Fehler",
-              error?.message || "Key konnte nicht entfernt werden.",
+              sanitizeSettingsError(error),
             );
           }
         },
@@ -188,7 +237,7 @@ export function useSettingsScreen() {
           } catch (error: any) {
             Alert.alert(
               "Fehler",
-              error?.message || "Rotation fehlgeschlagen.",
+              sanitizeSettingsError(error),
             );
           }
         },

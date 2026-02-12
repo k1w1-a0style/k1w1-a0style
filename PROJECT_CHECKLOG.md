@@ -575,3 +575,7 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - GitHubReposScreen: BranchSelector request-staleness guard (race-safe on fast repo switching).
 - GitHubReposScreen: Manage modal busy-lock + disabled inputs/buttons during async action (prevents double-submit).
 - Notes: docs/patches/PATCH_79_NOTES.md
+
+## Patch 81
+- SettingsScreen: mask API keys by default + secure input toggle; sanitize key errors; basic key format validation.
+- UI: **Keys are now masked by default** (opt-in reveal via eye icon).

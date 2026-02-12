@@ -104,3 +104,7 @@ Stand: **2026-02-12**
 - [x] Patch 76: TerminalScreen hotfix (LogRow imports + redaction markers + truncation test alignment)
 
 - [x] Patch 77: TerminalScreen hotfix (LogRow typing/palette + preserve "Bearer" scheme)
+
+### Done
+- [x] SettingsScreen: mask stored API keys + secureTextEntry input with reveal toggle (Patch 81)
+- [x] SettingsScreen: sanitize API key errors + basic key validation (Patch 81)

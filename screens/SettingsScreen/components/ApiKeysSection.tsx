@@ -2,6 +2,8 @@ import React from "react";
 import { View, Text, TouchableOpacity, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+import { maskApiKey } from "../utils/keyMasking";
+
 import type { AllAIProviders } from "../../../contexts/AIContext";
 import { PROVIDER_METADATA } from "../../../contexts/AIContext";
 import { theme } from "../../../theme";
@@ -42,6 +44,24 @@ export const ApiKeysSection: React.FC<Props> = ({
   onRotateKey,
   onMoveKeyToFront,
 }) => {
+  const [revealedKeys, setRevealedKeys] = React.useState<Set<number>>(new Set());
+  const [isInputRevealed, setIsInputRevealed] = React.useState(false);
+
+  React.useEffect(() => {
+    // Reset reveal state when switching provider or key list changes.
+    setRevealedKeys(new Set());
+    setIsInputRevealed(false);
+  }, [selectedProvider, keys.length]);
+
+  const toggleRevealKey = (index: number) => {
+    setRevealedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  };
+
   return (
     <View style={styles.card}>
       <Text style={styles.h2}>API Keys</Text>
@@ -76,20 +96,49 @@ export const ApiKeysSection: React.FC<Props> = ({
       </View>
 
       <View style={styles.keyRow}>
-        <TextInput
-          value={newKey}
-          onChangeText={setNewKey}
-          placeholder="API Key einfügen…"
-          placeholderTextColor={theme.palette.text.secondary}
-          style={styles.keyInput}
-          autoCapitalize="none"
-          autoCorrect={false}
-          multiline={false}
-        />
+        <View style={{ flex: 1, position: "relative" }}>
+          <TextInput
+            value={newKey}
+            onChangeText={setNewKey}
+            placeholder="API Key einfügen…"
+            placeholderTextColor={theme.palette.text.secondary}
+            style={[styles.keyInput, { paddingRight: 44 }]}
+            autoCapitalize="none"
+            autoCorrect={false}
+            multiline={false}
+            secureTextEntry={!isInputRevealed}
+            autoComplete="off"
+            textContentType="none"
+          />
+
+          <TouchableOpacity
+            onPress={() => setIsInputRevealed((v) => !v)}
+            style={{
+              position: "absolute",
+              right: 8,
+              top: 0,
+              bottom: 0,
+              width: 36,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            activeOpacity={0.85}
+            accessibilityLabel={isInputRevealed ? "Hide API key input" : "Show API key input"}
+          >
+            <Ionicons
+              name={isInputRevealed ? "eye-off" : "eye"}
+              size={18}
+              color={theme.palette.text.secondary}
+            />
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           style={styles.keyAddBtn}
-          onPress={() => onAddKey()}
+          onPress={() => {
+            setIsInputRevealed(false);
+            void onAddKey();
+          }}
           activeOpacity={0.85}
         >
           <Ionicons name="add" size={18} color="#000" />
@@ -103,9 +152,28 @@ export const ApiKeysSection: React.FC<Props> = ({
         ) : (
           keys.map((k, i) => (
             <View key={`${k}-${i}`} style={styles.keyItem}>
-              <Text style={styles.keyText} numberOfLines={1}>
-                {k}
-              </Text>
+              <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text
+                  style={styles.keyText}
+                  numberOfLines={1}
+                  accessibilityLabel="API key display"
+                >
+                  {revealedKeys.has(i) ? k : maskApiKey(k)}
+                </Text>
+
+                <TouchableOpacity
+                  onPress={() => toggleRevealKey(i)}
+                  style={styles.keyActionBtn}
+                  activeOpacity={0.85}
+                  accessibilityLabel={revealedKeys.has(i) ? "Hide API key" : "Show API key"}
+                >
+                  <Ionicons
+                    name={revealedKeys.has(i) ? "eye-off" : "eye"}
+                    size={16}
+                    color={theme.palette.text.secondary}
+                  />
+                </TouchableOpacity>
+              </View>
 
               <View style={styles.keyActions}>
                 {hasMultipleKeys && i !== 0 && (
