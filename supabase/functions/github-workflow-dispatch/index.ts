@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 import { githubHeaders, getGithubToken } from "../_shared/github.ts";
+import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
 import {
   parseJsonBody,
   validateGithubWorkflowDispatchRequest,
@@ -96,17 +97,18 @@ serve(async (req) => {
 
     if (!r.ok) {
       const txt = await r.text();
-      return errorResponse("GitHub workflow dispatch failed", req, 502, {
-        status: r.status,
-        body: txt.slice(0, 4000),
-        url,
-      });
+      return errorResponse(
+        "GitHub workflow dispatch failed",
+        req,
+        502,
+        sanitizeGitHubFailure(r, txt),
+      );
     }
 
     return jsonResponse({ ok: true }, req, 200);
   } catch (e) {
     return errorResponse("Unexpected error", req, 500, {
-      message: e?.message ?? String(e),
+      message: sanitizeErrorText(e?.message ?? String(e)),
     });
   }
 });

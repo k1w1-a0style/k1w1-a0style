@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 import { githubHeaders, getGithubToken } from "../_shared/github.ts";
+import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
 
 /**
  * Lists GitHub Actions workflow runs.
@@ -121,9 +122,7 @@ serve(async (req) => {
         JSON.stringify({
           ok: false,
           error: "GitHub API failed",
-          status: r.status,
-          body: txt.slice(0, 4000),
-          url,
+          details: sanitizeGitHubFailure(r, txt),
         }),
         {
           status: 502,
@@ -137,7 +136,7 @@ serve(async (req) => {
       json = JSON.parse(txt);
     } catch {
       return new Response(
-        JSON.stringify({ ok: false, error: "Invalid JSON from GitHub", url }),
+        JSON.stringify({ ok: false, error: "Invalid JSON from GitHub" }),
         {
           status: 502,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -151,7 +150,11 @@ serve(async (req) => {
     });
   } catch (e) {
     return new Response(
-      JSON.stringify({ ok: false, error: "Unexpected error", message: e?.message ?? String(e) }),
+      JSON.stringify({
+        ok: false,
+        error: "Unexpected error",
+        message: sanitizeErrorText(e?.message ?? String(e)),
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { validateCheckBuildRequest, parseJsonBody } from "../_shared/validation.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -67,12 +68,15 @@ serve(async (req) => {
         ? job.build_url.trim()
         : null;
 
-    const errorMessage =
+    const errorMessageRaw =
       typeof job.error_message === "string" && job.error_message.trim()
         ? job.error_message.trim()
         : typeof job.error === "string" && job.error.trim()
           ? job.error.trim()
           : null;
+
+    // Never leak secrets via job error payloads.
+    const errorMessage = errorMessageRaw ? sanitizeErrorText(errorMessageRaw) : null;
 
     const artifact =
       typeof job.artifact_name === "string" && job.artifact_name.trim()
@@ -120,7 +124,7 @@ serve(async (req) => {
     );
   } catch (e) {
     return errorResponse("Unexpected error", req, 500, {
-      message: e?.message ?? String(e),
+      message: sanitizeErrorText(e?.message ?? String(e)),
     });
   }
 });

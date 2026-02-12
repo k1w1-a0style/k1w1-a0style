@@ -615,3 +615,11 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 ## Patch 86
 - EnhancedBuildScreen: hotfix – remove invalid BuildStatus comparison ("running" is not part of unified BuildStatus).
 - Notes: docs/patches/PATCH_86_NOTES.md
+
+## Patch 87
+- Supabase: remove console logging that could leak URL/key presence during client init.
+- Supabase migrations: harden `build_jobs` RLS (remove anon public read + revoke anon/auth privileges).
+- Edge Functions: sanitize GitHub/EAS error bodies and exception messages (no raw bodies/URLs in client responses).
+- UI: no visual changes (security/backend hardening only).
+- Notes: docs/patches/PATCH_87_NOTES.md
+- Verification: docs/reviews/SUPABASE_MIGRATION_VERIFICATION.md

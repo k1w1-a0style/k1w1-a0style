@@ -89,6 +89,12 @@ Stand: **2026-02-12**
 - UI/Polish bleibt offen (spacing, labels, nicer timestamps).
 - Optional: strengere HTTPS-only Policy, wenn Preview nur für sichere Quellen gedacht ist.
 
+## ➡️ Next: Supabase & Migration
+- [ ] **RLS + Policies audit**: alle Tabellen durchgehen, `using (true)` entfernen wo Privacy relevant.
+- [ ] **Edge Functions**: einheitliche Error-Sanitization (done for GitHub/EAS flows), dann auf alle Functions ausrollen.
+- [ ] **Rate limiting**: in-memory → DB-backed (falls Abuse-Realität).
+- [ ] **Edge Tests**: minimal Security-Tests (redaction + RLS smoke) ergänzen.
+
 
 ## UI/UX Polish (ganz zum Schluss)
 - Einheitliche Optik über alle Screens + kleine Grafik-/Spacing-Fixes.
@@ -119,3 +125,5 @@ Stand: **2026-02-12**
 - [x] ConnectionsScreen: Supabase ANON + Service Role eye toggles + safe alerts + basic validation (Patch 82)
 - [x] ConnectionsScreen: validateBeforeSave typecheck hotfix (Patch 84)
 - [x] EnhancedBuildScreen: build start reentrancy-guard + unmount guards + live ETA + safe run link + log redaction/caps (Patch 85)
+- [x] Supabase/Migrations: remove Supabase init secret-logging + harden build_jobs RLS + sanitize Edge error bodies (Patch 87)
+- [x] Supabase: remove sensitive init logging + harden build_jobs RLS + sanitize Edge error bodies/messages (Patch 87)

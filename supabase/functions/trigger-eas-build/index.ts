@@ -7,6 +7,7 @@ import {
   validateTriggerBuildRequest,
 } from "../_shared/validation.ts";
 import { githubHeaders, getGithubToken } from "../_shared/github.ts";
+import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
 
 function parseCsvEnv(name: string): string[] {
   const raw = (Deno.env.get(name) ?? "").trim();
@@ -102,7 +103,10 @@ serve(async (req) => {
       .single();
 
     if (insertRes.error) {
-      return errorResponse("Failed to create build job", req, 500, insertRes.error);
+      return errorResponse("Failed to create build job", req, 500, {
+        message: sanitizeErrorText(insertRes.error.message),
+        code: insertRes.error.code,
+      });
     }
 
     const jobId = insertRes.data.id;
@@ -129,10 +133,7 @@ serve(async (req) => {
 
     if (!r.ok) {
       const txt = await r.text();
-      return errorResponse("GitHub dispatch failed", req, 502, {
-        status: r.status,
-        body: txt.slice(0, 2000),
-      });
+      return errorResponse("GitHub dispatch failed", req, 502, sanitizeGitHubFailure(r, txt));
     }
 
     return jsonResponse(
@@ -148,7 +149,7 @@ serve(async (req) => {
     );
   } catch (e) {
     return errorResponse("Unexpected error", req, 500, {
-      message: e?.message ?? String(e),
+      message: sanitizeErrorText(e?.message ?? String(e)),
     });
   }
 });
