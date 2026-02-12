@@ -1,5 +1,5 @@
 import React from "react";
-import { ActivityIndicator, Linking, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../../../theme";
@@ -59,7 +59,7 @@ export function LogsAnalysisSection({
           {workflowRun?.html_url ? (
             <TouchableOpacity
               style={styles.inlineLink}
-              onPress={() => Linking.openURL(workflowRun.html_url)}
+              onPress={() => openRun(workflowRun.html_url)}
             >
               <Ionicons
                 name="open-outline"

@@ -12,6 +12,7 @@ import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../theme";
+import { redactSecrets, truncateWithMarker } from "../lib/secretRedaction";
 
 export type BuildLogsModalProps = {
   visible: boolean;
@@ -32,6 +33,12 @@ export type BuildLogsModalProps = {
 };
 
 const ERROR_RE = /(error|failed|exception|traceback|fatal|cannot|undefined)/i;
+const MAX_CLIPBOARD_CHARS = 200_000;
+const CLIP_TRUNC_MARK = "\n…<truncated>";
+
+function sanitizeUiText(input: string): string {
+  return truncateWithMarker(redactSecrets(input || ""), 800, "…");
+}
 
 function isErrorLine(line: string): boolean {
   return ERROR_RE.test(line);
@@ -102,15 +109,21 @@ export function BuildLogsModal({
 
   const copyToClipboard = async (): Promise<void> => {
     try {
-      const content = filtered.join("\n");
+      const joined = filtered.join("\n");
+      // Double-sanitize as defense-in-depth (even though hook already redacts).
+      const content = truncateWithMarker(
+        redactSecrets(joined),
+        MAX_CLIPBOARD_CHARS,
+        CLIP_TRUNC_MARK,
+      );
       await Clipboard.setStringAsync(content || "(leer)");
       setCopied(true);
 
       if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
       copiedTimeoutRef.current = setTimeout(() => setCopied(false), 1200);
     } catch (e) {
-       
-      console.error("Copy failed:", e);
+      // Avoid leaking potential secrets via console.
+      console.error("Copy failed");
     }
   };
 
@@ -204,7 +217,7 @@ export function BuildLogsModal({
           ) : error ? (
             <View style={styles.logsCenter}>
               <Text style={styles.logsErrorTitle}>Fehler</Text>
-              <Text style={styles.logsErrorText}>{error}</Text>
+              <Text style={styles.logsErrorText}>{sanitizeUiText(error)}</Text>
             </View>
           ) : logEntries.length === 0 ? (
             <View style={styles.logsCenter}>

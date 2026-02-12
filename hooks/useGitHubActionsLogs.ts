@@ -4,6 +4,7 @@ import { CONFIG } from "../config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { STORAGE_KEYS } from "../lib/storageKeys";
 import { getEdgeAdminKey } from "../contexts/githubService";
+import { redactSecrets, truncateWithMarker } from "../lib/secretRedaction";
 
 export interface LogEntry {
   timestamp: string;
@@ -39,6 +40,15 @@ interface UseGitHubActionsLogsResult {
 
 const POLL_INTERVAL_MS = 5000; // 5 seconds
 const MAX_LOG_ENTRIES = 500;
+
+// Keep UI + clipboard safe: cap per-line length and redact secrets before exposing logs.
+const MAX_LOG_LINE_LEN = 4_000;
+const TRUNC_MARK = "…<truncated>";
+
+function sanitizeLogLine(line: string): string {
+  const redacted = redactSecrets(line || "");
+  return truncateWithMarker(redacted, MAX_LOG_LINE_LEN, TRUNC_MARK);
+}
 
 async function getSupabaseEdgeUrl(): Promise<string> {
   // ✅ Prefer runtime-configured Supabase URL (ConnectionsScreen)
@@ -161,7 +171,8 @@ export function useGitHubActionsLogs({
            .filter((l) => l != null && l !== "")
            .map((message) => ({
              timestamp: "",
-             message,
+             // IMPORTANT: never expose raw CI logs to UI/clipboard without redaction.
+             message: sanitizeLogLine(message),
              level: "raw" as const,
            }));
 

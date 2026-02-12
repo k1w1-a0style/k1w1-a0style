@@ -118,3 +118,4 @@ Stand: **2026-02-12**
 - [x] SettingsScreen: sanitize API key errors + basic key validation (Patch 81)
 - [x] ConnectionsScreen: Supabase ANON + Service Role eye toggles + safe alerts + basic validation (Patch 82)
 - [x] ConnectionsScreen: validateBeforeSave typecheck hotfix (Patch 84)
+- [x] EnhancedBuildScreen: build start reentrancy-guard + unmount guards + live ETA + safe run link + log redaction/caps (Patch 85)

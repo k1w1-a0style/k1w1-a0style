@@ -577,6 +577,10 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - GitHubReposScreen: Manage modal busy-lock + disabled inputs/buttons during async action (prevents double-submit).
 - Notes: docs/patches/PATCH_79_NOTES.md
 
+## Patch 80
+- Fix Jest warning "A worker process has failed to exit gracefully" by cleaning up/unref-ing timers in ChatScreen hook.
+- Notes: docs/patches/PATCH_80_NOTES.md
+
 ## Patch 81
 - SettingsScreen: mask API keys by default + secure input toggle; sanitize key errors; basic key format validation.
 - UI: **Keys are now masked by default** (opt-in reveal via eye icon).
@@ -598,3 +602,16 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - ConnectionsScreen: hotfix – normalize validateBeforeSave (supports both memo-object and callback forms) to restore typecheck.
 - Notes: docs/patches/PATCH_84_NOTES.md
 - Verification: docs/reviews/CONNECTIONS_SCREEN_VERIFICATION.md
+
+## Patch 85
+- EnhancedBuildScreen: reentrancy guard on build start (blocks double-tap duplicate triggers).
+- EnhancedBuildScreen: unmount guards for all async flows (no setState/alerts after unmount).
+- EnhancedBuildScreen: ETA now updates live while build is running.
+- Build logs: redact secrets + cap log line length before UI/clipboard (defense-in-depth also in BuildLogsModal).
+- LogsAnalysisSection: Run link uses guarded open (canOpenURL).
+- Notes: docs/patches/PATCH_85_NOTES.md
+- Verification: docs/reviews/BUILD_SCREEN_VERIFICATION.md
+
+## Patch 86
+- EnhancedBuildScreen: hotfix – remove invalid BuildStatus comparison ("running" is not part of unified BuildStatus).
+- Notes: docs/patches/PATCH_86_NOTES.md

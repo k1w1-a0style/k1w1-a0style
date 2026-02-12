@@ -13,6 +13,7 @@ import {
   formatDuration,
   getStatusIcon,
 } from "../../../utils/buildScreenUtils";
+import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction";
 
 import type {
   BuildProfile,
@@ -23,6 +24,56 @@ import type {
 
 const FETCH_TIMEOUT_MS = 15_000;
 export const MAX_RUNS_DISPLAY = 10;
+const MAX_ALERT_MESSAGE_LEN = 600;
+
+function sanitizeUiMessage(input: string): string {
+  const redacted = redactSecrets(input || "");
+  return truncateWithMarker(redacted, MAX_ALERT_MESSAGE_LEN, "…");
+}
+
+type RepoValidation =
+  | { valid: true; owner: string; repo: string; normalized: string }
+  | { valid: false; error: string; normalized: string };
+
+function validateRepoFullName(input: string): RepoValidation {
+  const normalized = (input || "").trim();
+  if (!normalized) {
+    return { valid: false, error: "Repo darf nicht leer sein.", normalized };
+  }
+  const parts = normalized.split("/");
+  if (parts.length !== 2) {
+    return {
+      valid: false,
+      error: 'Format muss "owner/repo" sein (genau ein /).',
+      normalized,
+    };
+  }
+  const [owner, repo] = parts;
+  if (!owner || !repo) {
+    return {
+      valid: false,
+      error: "Owner und Repo dürfen nicht leer sein.",
+      normalized,
+    };
+  }
+  // GitHub naming rules (pragmatic): letters, numbers, dots, underscores, hyphens.
+  const re = /^[A-Za-z0-9._-]+$/;
+  if (!re.test(owner)) {
+    return {
+      valid: false,
+      error: "Ungültige Zeichen im Owner.",
+      normalized,
+    };
+  }
+  if (!re.test(repo)) {
+    return {
+      valid: false,
+      error: "Ungültige Zeichen im Repo-Namen.",
+      normalized,
+    };
+  }
+  return { valid: true, owner, repo, normalized };
+}
 
 async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -38,6 +89,18 @@ async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 export function useEnhancedBuildScreen() {
   const runsReqIdRef = useRef(0); // verhindert Race-Conditions bei mehrfachen fetchRuns()
+
+  // P1: Prevent duplicate build triggers on double-tap.
+  const buildInFlightRef = useRef(false);
+
+  // P1: Avoid state updates / alerts after unmount.
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const projectContext = useProject();
   const { activeBranch, setActiveRepo, setActiveBranch } = useGitHub();
@@ -101,6 +164,7 @@ export function useEnhancedBuildScreen() {
   const [buildLoading, setBuildLoading] = useState(false);
   const [savingRepo, setSavingRepo] = useState(false);
   const [buildStartTime, setBuildStartTime] = useState<number | null>(null);
+  const [nowTick, setNowTick] = useState<number>(0);
   const [logModalVisible, setLogModalVisible] = useState(false);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
 
@@ -116,7 +180,8 @@ export function useEnhancedBuildScreen() {
   } = useBuildHistory();
 
   const jobId = currentBuild?.jobId ?? null;
-  const normalizedRepo = repoFullName.trim();
+  const repoValidation = useMemo(() => validateRepoFullName(repoFullName), [repoFullName]);
+  const normalizedRepo = repoValidation.normalized;
   const runId = currentBuild?.runId ?? null;
   const status: BuildStatus = (currentBuild?.status as any) ?? "idle";
 
@@ -147,6 +212,10 @@ export function useEnhancedBuildScreen() {
     return BuildErrorAnalyzer.analyzeLogs(logs);
   }, [logs]);
 
+  const logsErrorSafe = useMemo(() => {
+    return logsError ? sanitizeUiMessage(logsError) : null;
+  }, [logsError]);
+
   const logLines = useMemo(() => {
     if (!logs || logs.length === 0) return [];
     return logs.map((entry) => {
@@ -161,18 +230,9 @@ export function useEnhancedBuildScreen() {
     });
   }, [logs]);
 
-  const canFetch = useMemo(
-    () => normalizedRepo.length > 0 && normalizedRepo.includes("/"),
-    [normalizedRepo],
-  );
-  const owner = useMemo(
-    () => normalizedRepo.split("/")[0] || "",
-    [normalizedRepo],
-  );
-  const repo = useMemo(
-    () => normalizedRepo.split("/")[1] || "",
-    [normalizedRepo],
-  );
+  const canFetch = repoValidation.valid;
+  const owner = repoValidation.valid ? repoValidation.owner : "";
+  const repo = repoValidation.valid ? repoValidation.repo : "";
 
   const hasGetWorkflowRuns = typeof getWorkflowRuns === "function";
   const hasStartBuild = typeof startBuild === "function";
@@ -182,8 +242,12 @@ export function useEnhancedBuildScreen() {
     const reqId = ++runsReqIdRef.current;
     if (!canFetch) {
       Alert.alert(
-        "Repo fehlt",
-        "Bitte Repo als owner/repo eintragen (z.B. a0style/mein-repo).",
+        "Ungültiges Repo",
+        sanitizeUiMessage(
+          repoValidation.valid
+            ? "Unbekannter Fehler"
+            : repoValidation.error || "Bitte Repo als owner/repo eintragen.",
+        ),
       );
       return;
     }
@@ -195,8 +259,10 @@ export function useEnhancedBuildScreen() {
       return;
     }
 
-    setLoadingRuns(true);
-    setError(null);
+    if (isMountedRef.current) {
+      setLoadingRuns(true);
+      setError(null);
+    }
 
     try {
       const res = await withTimeout(
@@ -207,23 +273,26 @@ export function useEnhancedBuildScreen() {
       );
       const list = res?.workflow_runs ?? [];
       if (reqId !== runsReqIdRef.current) return;
+      if (!isMountedRef.current) return;
       setRuns(Array.isArray(list) ? list : []);
       if (!list || list.length === 0) setError("Keine Workflow Runs gefunden.");
     } catch (e) {
-      setRuns([]);
-      setError(e instanceof Error ? e.message : "Konnte Runs nicht laden");
+      if (isMountedRef.current) {
+        setRuns([]);
+        setError(e instanceof Error ? sanitizeUiMessage(e.message) : "Konnte Runs nicht laden");
+      }
     } finally {
-      if (reqId === runsReqIdRef.current) setLoadingRuns(false);
+      if (reqId === runsReqIdRef.current && isMountedRef.current) setLoadingRuns(false);
     }
-  }, [canFetch, getWorkflowRuns, hasGetWorkflowRuns, owner, repo]);
+  }, [canFetch, getWorkflowRuns, hasGetWorkflowRuns, owner, repo, repoValidation, sanitizeUiMessage]);
 
   const onRefresh = useCallback(async () => {
     if (!canFetch || !hasGetWorkflowRuns) return;
-    setRefreshing(true);
+    if (isMountedRef.current) setRefreshing(true);
     try {
       await fetchRuns();
     } finally {
-      setRefreshing(false);
+      if (isMountedRef.current) setRefreshing(false);
     }
   }, [canFetch, fetchRuns, hasGetWorkflowRuns]);
 
@@ -235,22 +304,35 @@ export function useEnhancedBuildScreen() {
       );
       return;
     }
-    setBuildLoading(true);
-    setBuildStartTime(Date.now());
+    if (buildInFlightRef.current) {
+      // Sync guard: blocks double-tap before the UI has a chance to disable.
+      return;
+    }
+    buildInFlightRef.current = true;
+
+    if (isMountedRef.current) {
+      setBuildLoading(true);
+      setBuildStartTime(Date.now());
+    }
     try {
       await startBuild(buildProfile);
-      Alert.alert(
-        "✅ Build gestartet",
-        `Der Build wurde angestoßen (${buildProfile}).`,
-      );
+      if (isMountedRef.current) {
+        Alert.alert(
+          "✅ Build gestartet",
+          `Der Build wurde angestoßen (${buildProfile}).`,
+        );
+      }
     } catch (e) {
-      setBuildStartTime(null);
-      Alert.alert(
-        "❌ Fehler",
-        e instanceof Error ? e.message : "Build fehlgeschlagen",
-      );
+      if (isMountedRef.current) {
+        setBuildStartTime(null);
+        Alert.alert(
+          "❌ Fehler",
+          sanitizeUiMessage(e instanceof Error ? e.message : "Build fehlgeschlagen"),
+        );
+      }
     } finally {
-      setBuildLoading(false);
+      if (isMountedRef.current) setBuildLoading(false);
+      buildInFlightRef.current = false;
     }
   }, [buildProfile, hasStartBuild, startBuild]);
 
@@ -260,32 +342,37 @@ export function useEnhancedBuildScreen() {
       return;
     }
     const v = repoFullName.trim();
-    if (!v || !v.includes("/")) {
-      Alert.alert("Ungültig", "Bitte Repo im Format owner/repo eintragen.");
+    const vRes = validateRepoFullName(v);
+    if (!vRes.valid) {
+      Alert.alert("Ungültig", sanitizeUiMessage(vRes.error));
       return;
     }
-    setSavingRepo(true);
+    if (isMountedRef.current) setSavingRepo(true);
     try {
       await setLinkedRepo(v, projectData?.linkedBranch ?? null);
-      Alert.alert("✅ Gespeichert", `Repo verknüpft: ${v}`);
+      if (isMountedRef.current) {
+        Alert.alert("✅ Gespeichert", `Repo verknüpft: ${v}`);
+      }
     } catch (e) {
-      Alert.alert(
-        "❌ Fehler",
-        e instanceof Error ? e.message : "Konnte Repo nicht speichern",
-      );
+      if (isMountedRef.current) {
+        Alert.alert(
+          "❌ Fehler",
+          sanitizeUiMessage(
+            e instanceof Error ? e.message : "Konnte Repo nicht speichern",
+          ),
+        );
+      }
     } finally {
-      setSavingRepo(false);
+      if (isMountedRef.current) setSavingRepo(false);
     }
   }, [hasSetLinkedRepo, projectData?.linkedBranch, repoFullName, setLinkedRepo]);
 
   const onSaveRepoBranch = useCallback(async () => {
     const repoValue = repoFullName.trim();
     const br = branchName.trim();
-    if (!repoValue || !repoValue.includes("/")) {
-      Alert.alert(
-        "Ungültiges Repo",
-        'Bitte ein Repo im Format "owner/repo" eingeben.',
-      );
+    const vRes = validateRepoFullName(repoValue);
+    if (!vRes.valid) {
+      Alert.alert("Ungültiges Repo", sanitizeUiMessage(vRes.error));
       return;
     }
     if (!br || br.length > 100 || br.includes("..") || br.startsWith("/") || br.endsWith("/")) {
@@ -294,13 +381,23 @@ export function useEnhancedBuildScreen() {
     }
     try {
       if (setLinkedRepo) await setLinkedRepo(repoValue, br);
-      setActiveRepo(repoValue);
-      setActiveBranch(br);
-      Alert.alert("✅ Gespeichert", `Repo/Branch verknüpft: ${repoValue} (${br})`);
+      if (isMountedRef.current) {
+        setActiveRepo(repoValue);
+        setActiveBranch(br);
+        Alert.alert(
+          "✅ Gespeichert",
+          `Repo/Branch verknüpft: ${repoValue} (${br})`,
+        );
+      }
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error("[Build] Repo/Branch speichern fehlgeschlagen:", e);
-      Alert.alert("Fehler", "Repo/Branch konnte nicht gespeichert werden.");
+      if (isMountedRef.current) {
+        Alert.alert(
+          "Fehler",
+          sanitizeUiMessage("Repo/Branch konnte nicht gespeichert werden."),
+        );
+      }
     }
   }, [branchName, repoFullName, setActiveBranch, setActiveRepo, setLinkedRepo]);
 
@@ -321,11 +418,25 @@ export function useEnhancedBuildScreen() {
   const message = currentBuild?.message ?? "";
   const progress = currentBuild?.progress;
 
+  // P2: make ETA feel alive by ticking while a build is active.
+  useEffect(() => {
+    const active =
+      !!buildStartTime &&
+      (status === "queued" || status === "building");
+    if (!active) return;
+
+    const t = setInterval(() => {
+      // Only update if still mounted.
+      if (isMountedRef.current) setNowTick(Date.now());
+    }, 1_000);
+    return () => clearInterval(t);
+  }, [buildStartTime, status]);
+
   // ETA berechnen wenn Build läuft
   const elapsedMs = useMemo(() => {
     if (!buildStartTime) return 0;
     return Date.now() - buildStartTime;
-  }, [buildStartTime]);
+  }, [buildStartTime, nowTick]);
 
   const etaMs = useMemo(() => {
     if (status === "idle" || status === "success" || status === "failed" || status === "error") {
@@ -396,7 +507,7 @@ export function useEnhancedBuildScreen() {
     logLines,
     analyses,
     logsLoading,
-    logsError,
+    logsError: logsErrorSafe,
     refreshLogs,
     workflowRun,
     shouldLoadLogs,

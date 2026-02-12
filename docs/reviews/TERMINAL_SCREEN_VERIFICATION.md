@@ -102,3 +102,11 @@ No TerminalScreen changes in this patch. Previous verification remains valid.
 
 ## Patch 82 / 83 / 84
 No TerminalScreen changes in these patches (ConnectionsScreen hardening + hotfixes only). Previous verification remains valid.
+
+## Patch 85
+No TerminalScreen UI changes. `lib/secretRedaction` is now also used to sanitize **Build logs** (defense-in-depth), but Terminal behavior stays the same.
+
+---
+
+## Patch 86
+- No changes in TerminalScreen behavior or UI (file kept current).
