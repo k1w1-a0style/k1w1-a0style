@@ -29,6 +29,9 @@ export function splitFullName(
   const trimmed = fullName.trim();
   if (!trimmed) return null;
 
+  // Keine Whitespace irgendwo im Identifier (z.B. "a /b", "a/ b")
+  if (/\s/.test(trimmed)) return null;
+
   // exakt ein '/'
   const parts = trimmed.split("/");
   if (parts.length !== 2) return null;

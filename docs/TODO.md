@@ -50,3 +50,5 @@ Stand: **2026-02-12**
 - **Patch 82–84**: ConnectionsScreen masking/validation/sanitization  
 - **Patch 85–86**: EnhancedBuildScreen hardening (Status union + guards)  
 - **Patch 87**: Supabase hardening (RLS + Edge error sanitization + migration)
+
+- [x] Patch 92: GitHubReposScreen splitFullName rejects whitespace around '/'

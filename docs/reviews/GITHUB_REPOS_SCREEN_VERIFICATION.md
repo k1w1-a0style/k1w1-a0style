@@ -26,3 +26,5 @@ Keine sichtbaren Änderungen.
 - Typecheck: ✅
 - Lint: ✅
 - Jest: ✅
+
+Patch 92: Parsing hardening — rejects whitespace around '/', tests cover these cases.

@@ -641,3 +641,5 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - Docs/Reviews: gemeinsame Übersicht `docs/reviews/SCREENS_VERIFICATION.md` hinzugefügt (Merge aus Einzel-Verifikationen + Supabase enthalten).
 - Docs/Reviews: fehlende Verifikationen ergänzt: CodeScreen + GitHubReposScreen.
 - Notes: docs/patches/PATCH_89_NOTES.md
+
+2026-02-13  Patch 92  GitHubReposScreen repo parsing hotfix (whitespace around '/')
