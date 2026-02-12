@@ -46,6 +46,13 @@ Stand: **2026-02-11**
 - Performance: progressive Results throttled (300ms) + final flush
 - Tests: patchFingerprint + Preferences Hydration
 
+## ✅ Done (AppInfo)
+- Privacy: API keys masked by default + short reveal action (auto-hide)
+- Import correctness: API config import is **Replace** (not merge/append)
+- Backup validation: stricter schema checks + sanitization
+- Perf: memoized template resolution
+- Tests: appInfo backup/privacy unit tests
+
 ## 🔧 Optional / Tech-Debt (CodeScreen)
 - Performance (nur falls spürbar): Syntax-Validation/Quality-Checks weiter auslagern (Worker/Task) oder „progressive validation“.
 - WebView/Bridge Paranoia: CSP / striktere WebView Settings (soweit Plattform zulässt).
@@ -73,3 +80,4 @@ Stand: **2026-02-11**
 
 - [x] AppStatusScreen: config/entry correctness + perf caps (patch 67)
 - [x] AppStatusScreen: styles keys fix (patch 68)
+- [x] AppInfoScreen: backup import/schema alignment + stricter validation (patch 70)

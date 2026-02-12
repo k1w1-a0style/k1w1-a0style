@@ -9,6 +9,11 @@ import * as Sharing from "expo-sharing";
 
 import { useProject } from "../../../contexts/ProjectContext";
 import { useAI, type AllAIProviders } from "../../../contexts/AIContext";
+import {
+  sanitizeAiConfigFromBackup,
+  safeFormatBackupDate,
+  validateApiBackupJson,
+} from "../../../lib/appInfoBackup";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { useGitHub } from "../../../contexts/GitHubContext";
 import {
@@ -84,11 +89,7 @@ const importAPIConfig = async () => {
       },
     );
 
-    const importData = JSON.parse(fileContent);
-
-    if (!importData.config || !importData.version) {
-      throw new Error("Ungültiges Backup-Format");
-    }
+    const importData = validateApiBackupJson(JSON.parse(fileContent));
 
     return {
       success: true,
@@ -178,7 +179,7 @@ export function useAppInfoScreen() {
   // Keep a local typed view to avoid implicit-any in array callbacks while
   // preserving runtime behavior.
   const typedProjectData = projectData as any;
-const { config, addApiKey, setConfig } = useAI();
+  const { config, setConfig } = useAI();
   const {
     activeRepo,
     activeBranch,
@@ -366,9 +367,9 @@ const { config, addApiKey, setConfig } = useAI();
           onPress: async () => {
             try {
               const result = await importAPIConfig();
+              const nextConfig = sanitizeAiConfigFromBackup(result.config, config);
+              setConfig(nextConfig);
 
-              // Importiere alle Keys
-              const importedConfig = result.config;
               const providers: AllAIProviders[] = [
                 "groq",
                 "gemini",
@@ -376,27 +377,16 @@ const { config, addApiKey, setConfig } = useAI();
                 "anthropic",
                 "huggingface",
               ];
+              const totalKeysImported = providers.reduce(
+                (sum, p) => sum + (nextConfig.apiKeys?.[p]?.length || 0),
+                0,
+              );
 
-              let totalKeysImported = 0;
-              for (const provider of providers) {
-                const keys = importedConfig.apiKeys?.[provider] || [];
-                for (const key of keys) {
-                  try {
-                    await addApiKey(provider, key);
-                    totalKeysImported++;
-                  } catch (e) {
-                    // Key existiert bereits, überspringen
-                  }
-                }
-              }
-
-              const exportDate = result.exportDate
-                ? new Date(result.exportDate).toLocaleString("de-DE")
-                : "Unbekannt";
+              const exportDate = safeFormatBackupDate(result.exportDate);
 
               Alert.alert(
                 "✅ Import erfolgreich",
-                `${totalKeysImported} API-Keys wurden importiert.\n\nBackup-Datum: ${exportDate}\n\nBitte überprüfe die geladenen Keys in der Liste unten.`,
+                `${totalKeysImported} API-Keys wurden geladen (ersetzen die bisherigen).\n\nBackup-Datum: ${exportDate}`,
               );
             } catch (error: any) {
               if (!error.message.includes("abgebrochen")) {
@@ -410,7 +400,7 @@ const { config, addApiKey, setConfig } = useAI();
         },
       ],
     );
-  }, [addApiKey]);
+  }, [config, setConfig]);
 
   const handleExportFullBackup = useCallback(async () => {
     Alert.alert(
@@ -508,9 +498,9 @@ const { config, addApiKey, setConfig } = useAI();
               const data = result.data;
               if (!data) throw new Error("Ungültiges Backup (data fehlt)");
 
-              // 1) AI Config (inkl. apiKeys)
+              // 1) AI Config (inkl. apiKeys) - sanitize to avoid weird backups
               if (data.aiConfig) {
-                setConfig(data.aiConfig);
+                setConfig(sanitizeAiConfigFromBackup(data.aiConfig, config));
               }
 
               // 2) Connections (AsyncStorage)
@@ -576,9 +566,7 @@ const { config, addApiKey, setConfig } = useAI();
               if (typeof g.activeBranch === "string")
                 setActiveBranch(g.activeBranch || null);
 
-              const exportDate = result.exportDate
-                ? new Date(result.exportDate).toLocaleString("de-DE")
-                : "Unbekannt";
+              const exportDate = safeFormatBackupDate(result.exportDate);
 
               Alert.alert(
                 "✅ Import erfolgreich",
@@ -600,7 +588,7 @@ Tipp: App einmal neu öffnen, wenn irgendwas noch nicht sofort sichtbar ist.`,
         },
       ],
     );
-  }, [setConfig, clearRecentRepos, addRecentRepo, setActiveRepo, setActiveBranch]);
+  }, [config, setConfig, clearRecentRepos, addRecentRepo, setActiveRepo, setActiveBranch]);
 
 
   const fileCount = useMemo(

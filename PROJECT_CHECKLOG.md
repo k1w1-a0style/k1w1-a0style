@@ -516,3 +516,15 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 ## Patch 68
 - Hotfix: fehlende Style-Keys für AppStatusScreen/FilesSection (Typecheck-Fix nach patch 67).
 - Notes: docs/patches/PATCH_68_NOTES.md
+
+## Patch 69
+- AppInfoScreen: API keys masked by default + temporary reveal action.
+- Import correctness: API config import is Replace + stricter validation/sanitization.
+- Perf: memoized template resolution.
+- Tests: appInfo backup/privacy helpers.
+- Notes: docs/patches/PATCH_69_NOTES.md
+- Verification: docs/reviews/APP_INFO_SCREEN_VERIFICATION.md
+
+## Patch 70
+- Hotfix: align AppInfo backup sanitizer with `AIConfig` + stricter backup validation.
+- Notes: docs/patches/PATCH_70_NOTES.md

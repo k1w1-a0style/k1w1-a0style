@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text } from "react-native";
 
 import type { TemplateId } from "../../../contexts/types";
@@ -13,9 +13,10 @@ type Props = {
 
 export function TemplateInfoSection({ styles, projectData, fileCount }: Props) {
   const templateId = (projectData?.templateId || "auto") as TemplateId;
-  const { mode, effective } = resolveEffectiveTemplateId(
-    templateId,
-    projectData?.files || []
+  const files = projectData?.files || [];
+  const { mode, effective } = useMemo(
+    () => resolveEffectiveTemplateId(templateId, files),
+    [templateId, fileCount, files]
   );
 
   const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
@@ -53,7 +54,8 @@ export function TemplateInfoSection({ styles, projectData, fileCount }: Props) {
         </View>
 
         <Text style={styles.infoHint}>
-          ℹ️ Auto (Full) ist Standard – es wird immer das <Text style={styles.inlineCode}>Full</Text>-Template verwendet.
+          ℹ️ <Text style={styles.inlineCode}>Auto</Text> wählt das Template anhand deiner Projektdateien. Du kannst auch ein
+          Template manuell festsetzen.
         </Text>
       </View>
     </>

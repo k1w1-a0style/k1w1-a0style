@@ -1,10 +1,12 @@
-import React from "react";
-import { View, Text } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { View, Text, Pressable } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import {
   PROVIDER_METADATA,
   type AllAIProviders,
 } from "../../../contexts/AIContext";
+import { maskApiKey } from "../../../lib/apiKeyMasking";
 
 type Props = {
   styles: any;
@@ -13,7 +15,45 @@ type Props = {
   };
 };
 
+const PROVIDERS: AllAIProviders[] = [
+  "groq",
+  "gemini",
+  "openai",
+  "anthropic",
+  "huggingface",
+];
+
+const AUTO_HIDE_MS = 10_000;
+
 export function ActiveApiKeysSection({ styles, config }: Props) {
+  const [revealedKeys, setRevealedKeys] = useState<Record<string, boolean>>({});
+  const timeoutRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  useEffect(() => {
+    return () => {
+      const refs = timeoutRefs.current;
+      Object.keys(refs).forEach((k) => clearTimeout(refs[k]));
+    };
+  }, []);
+
+  const toggleReveal = (provider: AllAIProviders) => {
+    setRevealedKeys((prev) => {
+      const next = { ...prev, [provider]: !prev[provider] };
+
+      // Auto-hide nach kurzer Zeit (sicherer bei Screenshots/Support)
+      if (next[provider]) {
+        if (timeoutRefs.current[provider]) {
+          clearTimeout(timeoutRefs.current[provider]);
+        }
+        timeoutRefs.current[provider] = setTimeout(() => {
+          setRevealedKeys((p) => ({ ...p, [provider]: false }));
+        }, AUTO_HIDE_MS);
+      }
+
+      return next;
+    });
+  };
+
   return (
     <>
       {/* AKTIVE API KEYS */}
@@ -24,11 +64,10 @@ export function ActiveApiKeysSection({ styles, config }: Props) {
           verwendet):
         </Text>
 
-        {(
-          ["groq", "gemini", "openai", "anthropic", "huggingface"] as AllAIProviders[]
-        ).map((provider) => {
-          const keys = config.apiKeys[provider] || [];
+        {PROVIDERS.map((provider) => {
+          const keys = config.apiKeys?.[provider] || [];
           const metadata = PROVIDER_METADATA[provider];
+          const isRevealed = Boolean(revealedKeys[provider]);
 
           return (
             <View key={provider} style={styles.providerKeySection}>
@@ -38,6 +77,25 @@ export function ActiveApiKeysSection({ styles, config }: Props) {
                 <View style={styles.keyCountBadge}>
                   <Text style={styles.keyCountText}>{keys.length}</Text>
                 </View>
+
+                {keys.length > 0 && (
+                  <Pressable
+                    onPress={() => toggleReveal(provider)}
+                    style={styles.revealButton}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      isRevealed
+                        ? `API-Keys für ${metadata.label} ausblenden`
+                        : `API-Keys für ${metadata.label} anzeigen`
+                    }
+                  >
+                    <Ionicons
+                      name={isRevealed ? "eye-off" : "eye"}
+                      size={18}
+                      color="#666"
+                    />
+                  </Pressable>
+                )}
               </View>
 
               {keys.length === 0 ? (
@@ -52,7 +110,7 @@ export function ActiveApiKeysSection({ styles, config }: Props) {
                         </Text>
                       </View>
                       <Text style={styles.keyText} numberOfLines={1}>
-                        {key}
+                        {isRevealed ? key : maskApiKey(key)}
                       </Text>
                     </View>
                   ))}

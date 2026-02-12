@@ -231,6 +231,14 @@ export const styles = StyleSheet.create({
     fontWeight: "bold",
     color: theme.palette.background,
   },
+  revealButton: {
+    marginLeft: 8,
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: theme.palette.card,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
   noKeysText: {
     fontSize: 13,
     color: theme.palette.text.disabled,
