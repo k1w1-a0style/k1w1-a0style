@@ -3,7 +3,9 @@ import { Alert, Platform, ToastAndroid } from "react-native";
 import { v4 as uuidv4 } from "uuid";
 
 import { ChatMessage, ProjectFile } from "../contexts/types";
+import type { AllAIProviders, QualityMode } from "../contexts/AIContext";
 import { runOrchestrator } from "../lib/orchestrator";
+import type { OrchestratorResult } from "../lib/orchestrator";
 import { normalizeAiResponse } from "../lib/normalizer";
 import { applyFilesToProject } from "../lib/fileWriter";
 import {
@@ -26,8 +28,8 @@ export type PendingChange = {
   created: string[];
   updated: string[];
   skipped: string[];
-  aiResponse: any;
-  agentResponse?: any;
+  aiResponse: OrchestratorResult;
+  agentResponse?: OrchestratorResult;
 };
 
 export type PendingPlan = {
@@ -89,12 +91,13 @@ export function useChatAIFlow({
 
   const inFlightRef = useRef(false);
   const isMountedRef = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const processAIRequestRef = useRef<((m: string, isAutoFix?: boolean, forceBuilder?: boolean) => Promise<boolean>) | null>(null);
 
   const streamingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ✅ AutoFix: keine Busy-Wait Schleife mehr -> Queue + Drain
-  const queuedAutoFixRef = useRef<string | null>(null);
-
+  // ✅ AutoFix: keine Busy-Wait Schleife mehr -> FIFO Queue + Drain
+  const queuedAutoFixRef = useRef<string[]>([]);
   const safe = useCallback(<T>(fn: () => T): T | undefined => {
     if (!isMountedRef.current) return undefined;
     return fn();
@@ -114,6 +117,8 @@ export function useChatAIFlow({
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
       cleanupStreamingTimer();
       inFlightRef.current = false;
     };
@@ -147,7 +152,7 @@ export function useChatAIFlow({
           }
 
           streamingTimerRef.current = setTimeout(tick, delay);
-          return;
+          return true;
         }
 
         cleanupStreamingTimer();
@@ -174,12 +179,9 @@ export function useChatAIFlow({
   const drainAutoFixQueue = useCallback(() => {
     if (inFlightRef.current) return;
 
-    const msg = queuedAutoFixRef.current;
+    const msg = queuedAutoFixRef.current.shift();
     if (!msg) return;
 
-    queuedAutoFixRef.current = null;
-
-    // AutoFix Message im Chat loggen
     addChatMessage({
       id: uuidv4(),
       role: "user",
@@ -189,15 +191,16 @@ export function useChatAIFlow({
     });
 
     // Request starten (ohne Planner)
-    void processAIRequest(msg, true, true);
+    const runner = processAIRequestRef.current;
+    if (runner) void runner(msg, true, true);
   }, [addChatMessage]);
 
-  // AutoFix kommt rein -> in Queue packen, clearen, drain versuchen
+  // AutoFix kommt rein -> in FIFO Queue packen, clearen, drain versuchen
   useEffect(() => {
     const msg = autoFixRequest?.message;
     if (!msg) return;
 
-    queuedAutoFixRef.current = msg;
+    queuedAutoFixRef.current.push(msg);
     clearAutoFixRequest();
     drainAutoFixQueue();
   }, [autoFixRequest, clearAutoFixRequest, drainAutoFixQueue]);
@@ -205,11 +208,12 @@ export function useChatAIFlow({
 
 
 const notifyKeyRotation = useCallback(
-  (res: any) => {
-    const count = Number(res?.keysRotated ?? 0);
+  (res: OrchestratorResult | unknown) => {
+    const r: any = res as any;
+    const count = Number(r?.keysRotated ?? 0);
     if (!count || count <= 0) return;
 
-    const provider = String(res?.provider ?? "unbekannt");
+    const provider = String(r?.provider ?? "unbekannt");
     const msg = `🔑 Key rotiert (${count}x) wegen 429/Rate-Limit • Provider: ${provider}`;
 
     // Android-first: Toast + zusätzlich Log-Row im Chat (system)
@@ -232,11 +236,16 @@ const notifyKeyRotation = useCallback(
 
   const processAIRequest = useCallback(
     async (userContent: string, isAutoFix = false, forceBuilder = false) => {
-      if (inFlightRef.current) return;
+      if (inFlightRef.current) return false;
 
       inFlightRef.current = true;
       safe(() => setIsAiLoading(true));
       safe(() => setError(null));
+
+      const controller = new AbortController();
+      // falls ein alter Request hängt, abbrechen
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = controller;
 
       try {
         const historyAsLlm = messages
@@ -263,6 +272,7 @@ const notifyKeyRotation = useCallback(
               config.selectedChatMode,
               "speed",
               plannerMsgs,
+              controller.signal,
             );
 
             notifyKeyRotation(planRes);
@@ -293,7 +303,7 @@ const notifyKeyRotation = useCallback(
                 }),
               );
 
-              return;
+              return true;
             }
           }
         }
@@ -310,6 +320,7 @@ const notifyKeyRotation = useCallback(
           config.selectedChatMode,
           config.qualityMode,
           llmMessages,
+          controller.signal,
         );
 
         // Hinweis: Auto-Key-Rotation (429) sichtbar machen
@@ -327,6 +338,7 @@ const notifyKeyRotation = useCallback(
               config.selectedChatMode,
               config.qualityMode,
               llmMessages,
+              controller.signal,
             );
 
             notifyKeyRotation(ai);
@@ -383,6 +395,7 @@ const notifyKeyRotation = useCallback(
               (config as any)?.selectedAgentMode ?? config.selectedChatMode,
               "quality",
               validatorMsgs,
+              controller.signal,
             );
 
             notifyKeyRotation(agentRes);
@@ -426,6 +439,7 @@ const notifyKeyRotation = useCallback(
               config.selectedChatMode,
               "speed",
               explainMsgs,
+              controller.signal,
             );
 
             notifyKeyRotation(explainRes);
@@ -493,7 +507,13 @@ const notifyKeyRotation = useCallback(
           );
           safe(() => setShowConfirmModal(true));
         });
+
+        return true;
       } catch (e: any) {
+        if (!isMountedRef.current) return false;
+        if (e?.name === "AbortError" || String(e?.message || "").toLowerCase().includes("abgebrochen")) {
+          return false;
+        }
         const msg = `⚠️ ${e?.message || "Es ist ein Fehler im Builder-Flow aufgetreten."}`;
         safe(() => setError(msg));
 
@@ -504,9 +524,14 @@ const notifyKeyRotation = useCallback(
           timestamp: new Date().toISOString(),
           meta: { error: true },
         });
+
+        return false;
       } finally {
         safe(() => setIsAiLoading(false));
         inFlightRef.current = false;
+        if (abortControllerRef.current === controller) {
+          abortControllerRef.current = null;
+        }
 
         // ✅ Wenn AutoFix queued ist: nach dem Call abarbeiten
         setTimeout(() => {
@@ -528,6 +553,9 @@ const notifyKeyRotation = useCallback(
       simulateStreaming,
     ],
   );
+
+  // keep latest runner for AutoFix queue
+  processAIRequestRef.current = processAIRequest;
 
   const applyChanges = useCallback(async () => {
     if (!pendingChange) return;
@@ -617,12 +645,12 @@ const notifyKeyRotation = useCallback(
   }, [addChatMessage, safe, setShowConfirmModal]);
 
   const handleSendWithMeta = useCallback(
-    async (rawInput: string, selectedFileName?: string) => {
+    async (rawInput: string, selectedFileName?: string): Promise<boolean> => {
       const userContent =
         rawInput.trim() ||
         (selectedFileName ? `Datei gesendet: ${selectedFileName}` : "");
 
-      if (!userContent.trim()) return;
+      if (!userContent.trim()) return false;
 
       addChatMessage({
         id: uuidv4(),
@@ -634,7 +662,7 @@ const notifyKeyRotation = useCallback(
       const metaResult = handleMetaCommand(rawInput.trim(), projectFiles);
       if (metaResult.handled && metaResult.message) {
         addChatMessage(metaResult.message);
-        return;
+        return true;
       }
 
       if (pendingPlan) {
@@ -654,7 +682,7 @@ const notifyKeyRotation = useCallback(
               'Alles klar. Wenn du willst, kann ich das direkt umsetzen – sag einfach **„weiter"** oder nenn die Features.',
             timestamp: new Date().toISOString(),
           });
-          return;
+          return true;
         }
 
         const combined =
@@ -666,10 +694,11 @@ const notifyKeyRotation = useCallback(
 
         safe(() => setPendingPlan(null));
         await processAIRequest(combined, false, true);
-        return;
+        return true;
       }
 
-      await processAIRequest(userContent, false, false);
+      const ok = await processAIRequest(userContent, false, false);
+      return ok;
     },
     [addChatMessage, pendingPlan, processAIRequest, projectFiles, safe],
   );

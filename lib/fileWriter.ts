@@ -108,7 +108,7 @@ function isReferencedByAnyOtherIncoming(newPath: string, incoming: ProjectFile[]
     const content = typeof f?.content === 'string' ? f.content : String(f?.content ?? '');
     const specs = candidatesByFrom.get(fromPath) ?? [];
 
-    // schnell: wenn absoluter Pfad ohne Extension drin ist, ist das oft schon genug
+    // quick check
     if (content.includes(stripExt(newPathNorm))) return true;
 
     for (const spec of specs) {
@@ -116,7 +116,8 @@ function isReferencedByAnyOtherIncoming(newPath: string, incoming: ProjectFile[]
     }
   }
 
-  
+  return false;
+}
 
 function isReferencedByAnyExisting(newPath: string, existing: ProjectFile[]): boolean {
   const newPathNorm = normalizePath(newPath);
@@ -131,7 +132,6 @@ function isReferencedByAnyExisting(newPath: string, existing: ProjectFile[]): bo
     const content = typeof f?.content === 'string' ? f.content : String(f?.content ?? '');
     if (!content) continue;
 
-    // quick check
     if (content.includes(stripExt(newPathNorm))) return true;
 
     const specs = buildImportSpecifiers(fromPath, newPathNorm);
@@ -140,8 +140,6 @@ function isReferencedByAnyExisting(newPath: string, existing: ProjectFile[]): bo
     }
   }
   return false;
-}
-return false;
 }
 
 export function applyFilesToProject(existing: ProjectFile[], incoming: ProjectFile[]): ApplyFilesResult {
@@ -193,7 +191,11 @@ export function applyFilesToProject(existing: ProjectFile[], incoming: ProjectFi
     // NEW FILE: block "phantom" files unless they are also used/linked in the same change-set
     if (!already) {
       const needsReference = isLikelyCodeFile(path);
-      const referenced = !needsReference || isBootstrap ? true : isReferencedByAnyOtherIncoming(path, incoming);
+      const referenced =
+        !needsReference || isBootstrap
+          ? true
+          : isReferencedByAnyOtherIncoming(path, incoming) ||
+            isReferencedByAnyExisting(path, existing ?? []);
 
       if (!referenced) {
         skipped.push(path);

@@ -18,25 +18,35 @@ type RawFile = {
 };
 
 // ---- Parser / Fallbacks ----
-function extractJsonArrayFallback(input: string): string | null {
+function extractJsonFallback(input: string): string | null {
   if (!input) return null;
 
   const s = String(input);
-  const block = s.match(/```json\s*([\s\S]*?)\s*```/i);
-  if (block?.[1] != null) return block[1];
 
-  const generic = s.match(/```\s*([\s\S]*?)\s*```/);
-  if (generic?.[1] != null) return generic[1];
+  const jsonFence = s.match(/```json\s*([\s\S]*?)\s*```/i);
+  if (jsonFence?.[1] != null) return jsonFence[1];
 
-  // einfache balanced-[]-Suche
+  const genericFence = s.match(/```\s*([\s\S]*?)\s*```/);
+  if (genericFence?.[1] != null) return genericFence[1];
+
+  const firstBrace = s.indexOf("{");
+  const firstBracket = s.indexOf("[");
+
   let start = -1;
-  for (let i = 0; i < s.length; i++) {
-    if (s[i] === '[') {
-      start = i;
-      break;
-    }
+  let open = "";
+  let close = "";
+
+  if (firstBrace >= 0 && (firstBracket < 0 || firstBrace < firstBracket)) {
+    start = firstBrace;
+    open = "{";
+    close = "}";
+  } else if (firstBracket >= 0) {
+    start = firstBracket;
+    open = "[";
+    close = "]";
+  } else {
+    return null;
   }
-  if (start < 0) return null;
 
   let depth = 0;
   let inStr = false;
@@ -50,7 +60,7 @@ function extractJsonArrayFallback(input: string): string | null {
         esc = false;
         continue;
       }
-      if (ch === '\\') {
+      if (ch === "\\") {
         esc = true;
         continue;
       }
@@ -63,8 +73,8 @@ function extractJsonArrayFallback(input: string): string | null {
       continue;
     }
 
-    if (ch === '[') depth++;
-    if (ch === ']') {
+    if (ch === open) depth++;
+    if (ch === close) {
       depth--;
       if (depth === 0) return s.slice(start, i + 1);
     }
@@ -125,18 +135,18 @@ function unwrapToParsable(raw: unknown): unknown {
 
   if (typeof raw === 'object' && raw && typeof (raw as any).text === 'string') {
     const s = String((raw as any).text);
-    const jsonBlock = extractJsonArrayFallback(s) ?? s;
+    const jsonBlock = extractJsonFallback(s) ?? s;
     return safeJsonParseSilent(jsonBlock) ?? raw;
   }
 
   if (typeof raw === 'object' && raw && typeof (raw as any).output_text === 'string') {
     const s = String((raw as any).output_text);
-    const jsonBlock = extractJsonArrayFallback(s) ?? s;
+    const jsonBlock = extractJsonFallback(s) ?? s;
     return safeJsonParseSilent(jsonBlock) ?? raw;
   }
 
   if (typeof raw === 'string') {
-    const jsonBlock = extractJsonArrayFallback(raw) ?? raw;
+    const jsonBlock = extractJsonFallback(raw) ?? raw;
     return safeJsonParseSilent(jsonBlock);
   }
 

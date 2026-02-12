@@ -85,8 +85,9 @@ export async function runValidatorOrchestrator(
   provider: AllAIProviders,
   model: string,
   messages: LlmMessage[],
+  signal?: AbortSignal,
 ): Promise<OrchestratorResult> {
-  return runOrchestrator(provider, model, 'quality', messages);
+  return runOrchestrator(provider, model, 'quality', messages, signal);
 }
 
 export async function runOrchestrator(
@@ -94,13 +95,16 @@ export async function runOrchestrator(
   model: string,
   quality: Quality,
   messages: LlmMessage[],
+  signal?: AbortSignal,
 ): Promise<OrchestratorResult> {
   const startMs = Date.now();
+  const resolvedModel = resolveModel(provider, model, quality);
+  let keysRotated = 0;
+
 
   try {
     await providerRateLimiter.checkLimit(provider);
 
-    const resolvedModel = resolveModel(provider, model, quality);
 
     const isRateLimit = (r: OrchestratorResult): boolean => {
       const parts: string[] = [];
@@ -121,36 +125,46 @@ export async function runOrchestrator(
       return false;
     };
 
-    let keysRotated = 0;
     const maxRotations = 2;
 
     let lastResult: OrchestratorResult = {
       ok: false,
       error: `Kein API-Key für ${provider} gefunden. Bitte in Einstellungen konfigurieren.`,
-      provider,
       model: resolvedModel,
     };
 
     for (let attempt = 0; attempt <= maxRotations; attempt++) {
+      if (signal?.aborted) {
+        const endMs = Date.now();
+        return {
+          ok: false,
+          error: "Request abgebrochen",
+          provider,
+          model: resolvedModel,
+          keysRotated: keysRotated || undefined,
+          timing: { startMs, endMs, durationMs: endMs - startMs },
+        };
+      }
+
       const apiKey = SecureKeyManager.getCurrentKey(provider);
       if (!apiKey) break;
 
       let result: OrchestratorResult;
       switch (provider) {
         case 'groq':
-          result = await callGroq(apiKey, resolvedModel, messages, quality);
+          result = await callGroq(apiKey, resolvedModel, messages, quality, signal);
           break;
         case 'openai':
-          result = await callOpenAI(apiKey, resolvedModel, messages, quality);
+          result = await callOpenAI(apiKey, resolvedModel, messages, quality, signal);
           break;
         case 'anthropic':
-          result = await callAnthropic(apiKey, resolvedModel, messages, quality);
+          result = await callAnthropic(apiKey, resolvedModel, messages, quality, signal);
           break;
         case 'gemini':
-          result = await callGemini(apiKey, resolvedModel, messages, quality);
+          result = await callGemini(apiKey, resolvedModel, messages, quality, signal);
           break;
         case 'huggingface':
-          result = await callHuggingFace(apiKey, resolvedModel, messages, quality);
+          result = await callHuggingFace(apiKey, resolvedModel, messages, quality, signal);
           break;
         default:
           result = { ok: false, error: `Unbekannter Provider: ${provider}` };
@@ -179,22 +193,36 @@ export async function runOrchestrator(
     };
   } catch (error: any) {
     const endMs = Date.now();
+    if (error?.name === "AbortError" || signal?.aborted) {
+      return {
+        ok: false,
+        error: "Request abgebrochen",
+        provider,
+        model: resolvedModel,
+        keysRotated: keysRotated || undefined,
+        timing: { startMs, endMs, durationMs: endMs - startMs },
+      };
+    }
+
     return {
       ok: false,
       error: `Orchestrator Fehler: ${error?.message ?? String(error)}`,
       provider,
-      model,
+      model: resolvedModel,
+      keysRotated: keysRotated || undefined,
       timing: { startMs, endMs, durationMs: endMs - startMs },
     };
   }
 }
 
 // ---- Groq ----
-async function callGroq(apiKey: string, model: string, messages: LlmMessage[], quality: Quality): Promise<OrchestratorResult> {
+async function callGroq(apiKey: string, model: string, messages: LlmMessage[], quality: Quality, signal?: AbortSignal): Promise<OrchestratorResult> {
   try {
     const temperature = quality === 'quality' ? 0.7 : 0.3;
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    signal,
+
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -217,17 +245,22 @@ async function callGroq(apiKey: string, model: string, messages: LlmMessage[], q
 
     return { ok: true, text: cleaned };
   } catch (error: any) {
-    return { ok: false, error: `Groq Netzwerkfehler: ${error?.message ?? String(error)}` };
+    if (error?.name === "AbortError" || signal?.aborted) {
+      return { ok: false, error: "Request abgebrochen" };
+    }
+return { ok: false, error: `Groq Netzwerkfehler: ${error?.message ?? String(error)}` };
   }
 }
 
 // ---- OpenAI (Responses API) ----
-async function callOpenAI(apiKey: string, model: string, messages: LlmMessage[], quality: Quality): Promise<OrchestratorResult> {
+async function callOpenAI(apiKey: string, model: string, messages: LlmMessage[], quality: Quality, signal?: AbortSignal): Promise<OrchestratorResult> {
   try {
     const temperature = quality === 'quality' ? 0.7 : 0.2;
     const max_output_tokens = quality === 'quality' ? 8192 : 4096;
 
     const response = await fetch('https://api.openai.com/v1/responses', {
+    signal,
+
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -259,7 +292,10 @@ async function callOpenAI(apiKey: string, model: string, messages: LlmMessage[],
 
     return { ok: true, text };
   } catch (error: any) {
-    return { ok: false, error: `OpenAI Netzwerkfehler: ${error?.message ?? String(error)}` };
+    if (error?.name === "AbortError" || signal?.aborted) {
+      return { ok: false, error: "Request abgebrochen" };
+    }
+return { ok: false, error: `OpenAI Netzwerkfehler: ${error?.message ?? String(error)}` };
   }
 }
 
@@ -269,6 +305,7 @@ async function callAnthropic(
   model: string,
   messages: LlmMessage[],
   quality: Quality,
+  signal?: AbortSignal,
 ): Promise<OrchestratorResult> {
   try {
     const { system, rest } = splitSystem(messages);
@@ -296,6 +333,8 @@ async function callAnthropic(
     const temperature = quality === 'quality' ? 0.6 : 0.2;
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
+    signal,
+
       method: 'POST',
       headers: {
         'x-api-key': apiKey,
@@ -328,12 +367,15 @@ async function callAnthropic(
 
     return { ok: true, text: cleaned };
   } catch (error: any) {
-    return { ok: false, error: `Anthropic Netzwerkfehler: ${error?.message ?? String(error)}` };
+    if (error?.name === "AbortError" || signal?.aborted) {
+      return { ok: false, error: "Request abgebrochen" };
+    }
+return { ok: false, error: `Anthropic Netzwerkfehler: ${error?.message ?? String(error)}` };
   }
 }
 
 // ---- Gemini ----
-async function callGemini(apiKey: string, model: string, messages: LlmMessage[], quality: Quality): Promise<OrchestratorResult> {
+async function callGemini(apiKey: string, model: string, messages: LlmMessage[], quality: Quality, signal?: AbortSignal): Promise<OrchestratorResult> {
   try {
     const prompt = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
     const temperature = quality === 'quality' ? 0.7 : 0.3;
@@ -341,6 +383,8 @@ async function callGemini(apiKey: string, model: string, messages: LlmMessage[],
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
       {
+    signal,
+
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -365,17 +409,22 @@ async function callGemini(apiKey: string, model: string, messages: LlmMessage[],
 
     return { ok: true, text: cleaned };
   } catch (error: any) {
-    return { ok: false, error: `Gemini Netzwerkfehler: ${error?.message ?? String(error)}` };
+    if (error?.name === "AbortError" || signal?.aborted) {
+      return { ok: false, error: "Request abgebrochen" };
+    }
+return { ok: false, error: `Gemini Netzwerkfehler: ${error?.message ?? String(error)}` };
   }
 }
 
 // ---- HuggingFace (Router / OpenAI-compatible) ----
-async function callHuggingFace(apiKey: string, model: string, messages: LlmMessage[], quality: Quality): Promise<OrchestratorResult> {
+async function callHuggingFace(apiKey: string, model: string, messages: LlmMessage[], quality: Quality, signal?: AbortSignal): Promise<OrchestratorResult> {
   try {
     const temperature = quality === 'quality' ? 0.7 : 0.3;
 
     const tryOnce = async (modelId: string) => {
       const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
+    signal,
+
         method: 'POST',
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -411,6 +460,9 @@ async function callHuggingFace(apiKey: string, model: string, messages: LlmMessa
 
     return { ok: false, error: `HF API Fehler (${r1.status}): ${r1.body}` };
   } catch (error: any) {
-    return { ok: false, error: `HF Netzwerkfehler: ${error?.message ?? String(error)}` };
+    if (error?.name === "AbortError" || signal?.aborted) {
+      return { ok: false, error: "Request abgebrochen" };
+    }
+return { ok: false, error: `HF Netzwerkfehler: ${error?.message ?? String(error)}` };
   }
 }

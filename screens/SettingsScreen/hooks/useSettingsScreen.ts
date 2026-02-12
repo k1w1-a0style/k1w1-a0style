@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
-import { Alert } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { Alert, Platform, ToastAndroid } from "react-native";
 
 import { useAI } from "../../../contexts/AIContext";
 import type { AllAIProviders, QualityMode } from "../../../contexts/AIContext";
 import { useNotifications } from "../../../hooks/useNotifications";
+import { loadChatHistorySettings, setChatHistoryPersistence } from "../../../lib/chatPrivacySettings";
 
 type ProviderId = AllAIProviders;
 
@@ -26,6 +27,38 @@ export function useSettingsScreen() {
   const [newKey, setNewKey] = useState("");
   const [selectedKeyProvider, setSelectedKeyProvider] =
     useState<ProviderId>("groq");
+
+  const [persistChatHistory, setPersistChatHistory] = useState(true);
+  const [retentionLimit, setRetentionLimit] = useState(200);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const s = await loadChatHistorySettings();
+        if (!alive) return;
+        setPersistChatHistory(!!s.persist);
+        setRetentionLimit(Number.isFinite(s.retention) ? s.retention : 200);
+      } catch {
+        // best-effort
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const handleTogglePersistChat = async (v: boolean) => {
+    setPersistChatHistory(v);
+    try {
+      await setChatHistoryPersistence(v);
+      if (Platform.OS === "android") {
+        ToastAndroid.show("Privacy gespeichert", ToastAndroid.SHORT);
+      }
+    } catch (error: any) {
+      Alert.alert("Fehler", error?.message || "Konnte nicht speichern.");
+    }
+  };
 
   // Notifications
   const { isInitialized, hasPermissions, requestPermissions, pushToken } =
@@ -190,6 +223,10 @@ export function useSettingsScreen() {
     setNewKey,
     selectedKeyProvider,
     setSelectedKeyProvider,
+
+    persistChatHistory,
+    retentionLimit,
+    handleTogglePersistChat,
 
     isInitialized,
     hasPermissions,

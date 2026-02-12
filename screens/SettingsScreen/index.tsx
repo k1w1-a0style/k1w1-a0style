@@ -10,6 +10,7 @@ import { ApiKeysSection } from "./components/ApiKeysSection";
 import { GeneratorSection } from "./components/GeneratorSection";
 import { NotificationsSection } from "./components/NotificationsSection";
 import { QualitySection } from "./components/QualitySection";
+import { PrivacySection } from "./components/PrivacySection";
 
 export default function SettingsScreen() {
   const s = useSettingsScreen();
@@ -71,6 +72,14 @@ export default function SettingsScreen() {
           }}
           onMoveKeyToFront={(k, idx) => {
             void s.handleMoveKeyToFront(k, idx);
+          }}
+        />
+
+        <PrivacySection
+          persistChatHistory={s.persistChatHistory}
+          retentionLimit={s.retentionLimit}
+          onTogglePersist={(v) => {
+            void s.handleTogglePersistChat(v);
           }}
         />
 

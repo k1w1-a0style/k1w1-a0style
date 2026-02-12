@@ -486,3 +486,23 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - Performance: progressive Results Updates throttled.
 - Tests: gezielte Regression-Tests für F-001/F-002.
 
+## 2026-02-12
+- PATCH 63: ChatScreen hardening + privacy + cancellation + parsing fixes
+  - Notes: docs/patches/PATCH_63_NOTES.md
+  - Verification: docs/reviews/CHAT_SCREEN_VERIFICATION.md
+
+
+## Patch 64
+- ChatScreen follow-up: typecheck fixes + orchestrator abort wiring cleanup.
+
+
+## Patch 65
+- Hotfix: fix orchestrator parse error (missing brace) + hardened runOrchestrator abort/error returns.
+
+
+## Patch 65
+- Hotfix: fix orchestrator parse error (missing closing brace) + fail-safe abort/error return.
+
+
+## Patch 66
+- Hotfix: fix orchestrator TS scope errors (resolvedModel/keysRotated) after patch 65.

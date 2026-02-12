@@ -64,3 +64,9 @@ Stand: **2026-02-11**
 
 ## UI/UX Polish (ganz zum Schluss)
 - Einheitliche Optik über alle Screens + kleine Grafik-/Spacing-Fixes.
+
+- [x] ChatScreen: follow-up typecheck fixes after patch 63 (patch 64)
+- [x] ChatScreen: hotfix orchestrator parse error after patch 64 (patch 65)
+- [x] Patch 65: fix orchestrator parse error after patch 64 (patch 65)
+
+- [x] ChatScreen: hotfix orchestrator TS scope errors after patch 65 (patch 66)

@@ -196,6 +196,17 @@ export const styles = StyleSheet.create({
   },
   noteStrong: { color: theme.palette.text.primary, fontWeight: "900" },
 
+  privacyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  privacyTextCol: { flex: 1, minWidth: 0 },
+  privacyLabel: { color: theme.palette.text.primary, fontWeight: "900", fontSize: 13 },
+  privacyHint: { color: theme.palette.text.secondary, fontSize: 12, marginTop: 4, lineHeight: 18 },
+
+
   providerPickerRow: {
     flexDirection: "row",
     flexWrap: "wrap",

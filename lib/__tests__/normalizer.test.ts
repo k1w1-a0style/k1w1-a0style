@@ -86,6 +86,24 @@ describe('normalizer', () => {
       expect(result).not.toBeNull();
     });
 
+    
+    it('should parse JSON object embedded in text', () => {
+      const embedded = `Hier ist dein Patch:\n\n{ "files": [{ "path": "App.tsx", "content": "ok" }] }\nDanke`;
+      const result = normalizeAiResponse(embedded);
+      expect(result).not.toBeNull();
+      expect(result).toHaveLength(1);
+      expect(result![0].path).toBe('App.tsx');
+    });
+
+    it('should parse fenced JSON object', () => {
+      const embedded = "```json\n{\n  \"files\": [{ \"path\": \"a.ts\", \"content\": \"x\" }]\n}\n```";
+      const result = normalizeAiResponse(embedded);
+      expect(result).not.toBeNull();
+      expect(result).toHaveLength(1);
+      expect(result![0].path).toBe('a.ts');
+    });
+
+
     it('should return null for invalid JSON string', () => {
       const input = 'not valid json {{{';
 

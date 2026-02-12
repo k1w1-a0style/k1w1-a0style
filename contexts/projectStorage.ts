@@ -6,6 +6,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Sharing from 'expo-sharing';
 import { v4 as uuidv4 } from 'uuid';
 import { materializeProjectFiles } from "../lib/projectMaterializer";
+import { loadChatHistorySettings } from "../lib/chatPrivacySettings";
 
 // ✅ Phase 1 Step 3: normalizePath aus lib/validators statt utils/chatUtils
 import { normalizePath, Validators, validateFilePath, validateFileContent, validateZipImport } from '../lib/validators';
@@ -31,6 +32,28 @@ function isBinaryFilePath(p: string): boolean {
 function stripBase64Prefix(s: string): string {
   return s.startsWith("base64:") ? s.slice("base64:".length) : s;
 }
+
+function trimChatHistory<T extends { timestamp?: string }>(
+  history: T[],
+  limit: number,
+): T[] {
+  if (!Array.isArray(history)) return [];
+  const max = Number.isFinite(limit) && limit >= 0 ? Math.floor(limit) : 0;
+  if (max === 0) return [];
+  if (history.length <= max) return history;
+
+  // Keep the newest entries (timestamp best-effort)
+  const copy = [...history];
+  copy.sort((a, b) => {
+    const ta = Date.parse(String(a?.timestamp ?? "")) || 0;
+    const tb = Date.parse(String(b?.timestamp ?? "")) || 0;
+    return ta - tb;
+  });
+
+  return copy.slice(-max);
+}
+
+
 
 
 // === HELPER: Verzeichnis rekursiv lesen (wird für ZIP-Import benötigt) ===
@@ -106,7 +129,13 @@ const readDirectoryRecursive = async (dirUri: string, basePath = ''): Promise<Pr
 // === PROJEKT SPEICHERN/LADEN (Unverändert) ===
 export const saveProjectToStorage = async (project: ProjectData): Promise<void> => {
   try {
-    const projectString = JSON.stringify(project);
+    const { persist: persistChat, retention } = await loadChatHistorySettings();
+
+    const projectToSave: ProjectData = {
+      ...project,
+      chatHistory: persistChat ? trimChatHistory(project.chatHistory ?? [], retention) : [],
+    };
+    const projectString = JSON.stringify(projectToSave);
     await AsyncStorage.setItem(PROJECT_STORAGE_KEY, projectString);
     console.log('💾 Projekt gespeichert:', project.name);
   } catch (error) {
@@ -139,6 +168,16 @@ export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
       console.log('🔧 chatHistory Array repariert');
     }
 
+
+
+    try {
+      const { persist: persistChat, retention } = await loadChatHistorySettings();
+      project.chatHistory = persistChat
+        ? trimChatHistory(project.chatHistory ?? [], retention)
+        : [];
+    } catch {
+      // best-effort
+    }
     return project;
   } catch (error) {
     console.error('❌ Fehler beim Laden:', error);
