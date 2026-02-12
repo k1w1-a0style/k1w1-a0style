@@ -89,12 +89,20 @@ Stand: **2026-02-12**
 - UI/Polish bleibt offen (spacing, labels, nicer timestamps).
 - Optional: strengere HTTPS-only Policy, wenn Preview nur für sichere Quellen gedacht ist.
 
+## ➡️ Next: Reviews/Docs
+- [ ] **Screens Verification merge**: `docs/reviews/SCREENS_VERIFICATION.md` als Index pflegen (inkl. Supabase).
+- [ ] **CodeScreen**: Critical Review + Verification ergänzen (P1/P2 Checks + Tests).
+
 ## ➡️ Next: Supabase & Migration
 - [ ] **RLS + Policies audit**: alle Tabellen durchgehen, `using (true)` entfernen wo Privacy relevant.
 - [ ] **Edge Functions**: einheitliche Error-Sanitization (done for GitHub/EAS flows), dann auf alle Functions ausrollen.
 - [ ] **Rate limiting**: in-memory → DB-backed (falls Abuse-Realität).
 - [ ] **Edge Tests**: minimal Security-Tests (redaction + RLS smoke) ergänzen.
 
+
+## 📄 Docs/Reviews
+- [x] Merge Screen-Verifikationen in gemeinsame Übersicht (`docs/reviews/SCREENS_VERIFICATION.md`) (Patch 88)
+- [ ] CodeScreen: vollständige Meta+Critical Review erstellen + Verification von pending→verified
 
 ## UI/UX Polish (ganz zum Schluss)
 - Einheitliche Optik über alle Screens + kleine Grafik-/Spacing-Fixes.
