@@ -562,3 +562,15 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - TerminalScreen: fix LogRow typing/palette usage; keep `Bearer` scheme visible while redacting token.
 - Notes: docs/patches/PATCH_77_NOTES.md
 - Verification: docs/reviews/TERMINAL_SCREEN_VERIFICATION.md
+
+## Patch 78
+- TerminalScreen: fix missing useMemo import; preserve `Bearer` scheme while redacting token.
+- Secret redaction: keep JWT marker + Bearer marker stable.
+- Notes: docs/patches/PATCH_78_NOTES.md
+- Verification: docs/reviews/TERMINAL_SCREEN_VERIFICATION.md
+
+## Patch 79
+- GitHubReposScreen: recent repo pills now use the same selection flow as list selection (state stays consistent).
+- GitHubReposScreen: BranchSelector request-staleness guard (race-safe on fast repo switching).
+- GitHubReposScreen: Manage modal busy-lock + disabled inputs/buttons during async action (prevents double-submit).
+- Notes: docs/patches/PATCH_79_NOTES.md

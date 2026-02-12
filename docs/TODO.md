@@ -2,6 +2,16 @@
 
 Stand: **2026-02-12**
 
+
+## GitHubReposScreen
+- [x] RS-001: Recent-Pills nutzen zentralen Repo-Select-Flow (kein inkonsistenter State).
+- [x] RS-002: BranchSelector race-safe (stale requests ignorieren).
+- [x] RS-003: Manage-Modal Busy-Lock (kein Double-Submit, Input/Button disabled während Request).
+- [ ] RS-004: Refresh Unmount-Guard (setState-after-unmount verhindern).
+- [ ] RS-005: splitFullName strikt validieren (genau owner/repo).
+- [ ] RS-006: Repo-Liste virtualisieren (FlatList) falls viele Repos.
+- [ ] RS-008: Tests für kritische Repo/Branch/Modal-Flows ergänzen.
+
 ## ✅ Done (CodeScreen)
 - WebView-Editor (ohne gravierende UI-Änderung)
 - RN↔WebView Bridge stabilisiert
@@ -91,4 +101,3 @@ Stand: **2026-02-12**
 - [x] Patch 76: TerminalScreen hotfix (LogRow imports + redaction markers + truncation test alignment)
 
 - [x] Patch 77: TerminalScreen hotfix (LogRow typing/palette + preserve "Bearer" scheme)
-

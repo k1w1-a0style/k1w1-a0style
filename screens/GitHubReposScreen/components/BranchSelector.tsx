@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useState } from "react";
+import React, { memo, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -29,6 +29,9 @@ export const BranchSelector = memo(function BranchSelector({
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
+  // Guard against stale async responses when switching repos quickly
+  const generationRef = useRef(0);
+
   useEffect(() => {
     if (!activeRepo) {
       setBranches([]);
@@ -38,6 +41,10 @@ export const BranchSelector = memo(function BranchSelector({
     const [owner, repo] = activeRepo.split("/");
     if (!owner || !repo) return;
 
+
+    generationRef.current += 1;
+    const currentGen = generationRef.current;
+
     const load = async () => {
       setLoading(true);
       try {
@@ -45,6 +52,12 @@ export const BranchSelector = memo(function BranchSelector({
           loadBranches(owner, repo),
           loadDefaultBranch(owner, repo),
         ]);
+
+        if (currentGen !== generationRef.current) {
+          // Ignore stale response
+          return;
+        }
+
         setBranches(branchList);
 
         // Wenn noch kein Branch gewählt, Default setzen
@@ -52,9 +65,14 @@ export const BranchSelector = memo(function BranchSelector({
           onSelectBranch(defaultBranch);
         }
       } catch (e) {
+        if (currentGen !== generationRef.current) {
+          return;
+        }
         console.error("[BranchSelector] Fehler:", e);
       } finally {
-        setLoading(false);
+        if (currentGen === generationRef.current) {
+          setLoading(false);
+        }
       }
     };
 

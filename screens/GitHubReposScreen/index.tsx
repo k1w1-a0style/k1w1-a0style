@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -104,6 +104,14 @@ export default function GitHubReposScreen() {
     loadWorkflowRuns,
   } = vm;
 
+  const [manageModalBusy, setManageModalBusy] = useState(false);
+
+  const closeManageModalSafe = useCallback(() => {
+    setManageModalBusy(false);
+    setManageValue("");
+    closeManageModal();
+  }, [closeManageModal, setManageValue]);
+
   const onToggleRepoList = useCallback(() => setShowRepoList((v) => !v), [setShowRepoList]);
   const onToggleNewRepo = useCallback(() => setShowNewRepo((v) => !v), [setShowNewRepo]);
   const onToggleAdvanced = useCallback(() => setShowAdvanced((v) => !v), [setShowAdvanced]);
@@ -175,7 +183,7 @@ export default function GitHubReposScreen() {
           setFilterType={setFilterType}
           recentRepos={recentRepos}
           activeRepo={activeRepo}
-          setActiveRepo={vm.setActiveRepo}
+          onSelectRecentRepo={vm.handleSelectRepo}
           clearRecentRepos={clearRecentRepos}
         />
 
@@ -249,27 +257,42 @@ export default function GitHubReposScreen() {
               placeholderTextColor={theme.palette.text.secondary}
               value={manageValue}
               onChangeText={setManageValue}
+              editable={!manageModalBusy}
               autoCapitalize="none"
               autoCorrect={false}
             />
 
             <View style={s.manageRow}>
-              <TouchableOpacity style={[s.button, s.buttonSecondary]} onPress={closeManageModal}>
+              <TouchableOpacity
+                  style={[s.button, s.buttonSecondary, manageModalBusy && s.buttonDisabled]}
+                  onPress={closeManageModalSafe}
+                  disabled={manageModalBusy}
+                >
                 <Text style={s.buttonTextSecondary}>Abbrechen</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={s.button}
-                onPress={async () => {
-                  try {
-                    await manageModal.action(manageValue);
-                  } catch (e: any) {
-                    Alert.alert("❌ Fehler", e?.message ?? "");
-                  }
-                }}
-              >
-                <Text style={s.buttonText}>{manageModal.confirmText ?? "OK"}</Text>
-              </TouchableOpacity>
+  style={[s.button, manageModalBusy && s.buttonDisabled]}
+  disabled={manageModalBusy}
+  onPress={async () => {
+    if (manageModalBusy) return;
+    setManageModalBusy(true);
+    try {
+      await manageModal.action(manageValue);
+      closeManageModalSafe();
+    } catch (e: any) {
+      Alert.alert("❌ Fehler", e?.message ?? "");
+    } finally {
+      setManageModalBusy(false);
+    }
+  }}
+>
+  {manageModalBusy ? (
+    <ActivityIndicator size="small" />
+  ) : (
+    <Text style={s.buttonText}>{manageModal.confirmText ?? "OK"}</Text>
+  )}
+</TouchableOpacity>
             </View>
           </View>
         )}

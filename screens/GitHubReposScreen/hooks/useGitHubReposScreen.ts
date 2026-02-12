@@ -213,18 +213,21 @@ export function useGitHubReposScreen() {
     setRefreshing(false);
   }, [token, loadRepos]);
 
-  const handleSelectRepo = useCallback((repo: GitHubRepo) => {
-    setActiveRepo(repo.full_name);
-    addRecentRepo(repo.full_name);
-    setLinkedRepo(repo.full_name, null);
-    setActiveBranch(null);
-    setShowRepoList(false);
-    setShowRenameRepo(false);
-    setShowNewRepo(false);
-    setPullProgress("");
-  }, [setActiveRepo, addRecentRepo, setLinkedRepo, setActiveBranch]);
+  const handleSelectRepo = useCallback((repoOrString: GitHubRepo | string) => {
+  const fullName =
+    typeof repoOrString === "string" ? repoOrString : repoOrString.full_name;
 
-  const handleSelectBranch = useCallback((branch: string) => {
+  // Single source of truth for ALL repo selections (list + recent)
+  setActiveRepo(fullName);
+  addRecentRepo(fullName);
+  setLinkedRepo(fullName, null);
+  setActiveBranch(null);
+  setShowRepoList(false);
+  setShowRenameRepo(false);
+  setShowNewRepo(false);
+  setPullProgress("");
+}, [setActiveRepo, addRecentRepo, setLinkedRepo, setActiveBranch]);
+const handleSelectBranch = useCallback((branch: string) => {
     setActiveBranch(branch);
     if (activeRepo) setLinkedRepo(activeRepo, branch);
   }, [setActiveBranch, activeRepo, setLinkedRepo]);

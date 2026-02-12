@@ -11,7 +11,7 @@ interface FilterSectionProps {
   setFilterType: (type: RepoFilterType) => void;
   recentRepos: string[];
   activeRepo: string | null;
-  setActiveRepo: (repo: string | null) => void;
+  onSelectRecentRepo: (repoFullName: string) => void;
   clearRecentRepos: () => void;
 }
 
@@ -22,13 +22,10 @@ export const FilterSection = memo(function FilterSection({
   setFilterType,
   recentRepos,
   activeRepo,
-  setActiveRepo,
+  onSelectRecentRepo,
   clearRecentRepos,
 }: FilterSectionProps) {
-  const onPressRecent = useCallback(
-    (r: string) => setActiveRepo(r),
-    [setActiveRepo],
-  );
+  const onPressRecent = useCallback((r: string) => onSelectRecentRepo(r), [onSelectRecentRepo]);
 
   const renderRecentRepos = () => {
     if (!recentRepos.length)
