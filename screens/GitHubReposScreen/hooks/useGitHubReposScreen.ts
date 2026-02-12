@@ -101,6 +101,15 @@ export function useGitHubReposScreen() {
   const hasAutoLoaded = useRef(false);
   const hasRestoredLink = useRef(false);
 
+  const isMountedRef = useRef(true);
+  const refreshGen = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const [showRepoList, setShowRepoList] = useState(false);
   const [showNewRepo, setShowNewRepo] = useState(false);
   const [showRenameRepo, setShowRenameRepo] = useState(false);
@@ -208,9 +217,17 @@ export function useGitHubReposScreen() {
 
   const handleRefresh = useCallback(async () => {
     if (!token) return;
-    setRefreshing(true);
-    await loadRepos();
-    setRefreshing(false);
+
+    const gen = ++refreshGen.current;
+    if (isMountedRef.current) setRefreshing(true);
+
+    try {
+      await loadRepos();
+    } finally {
+      if (!isMountedRef.current) return;
+      if (gen !== refreshGen.current) return; // newer refresh took over
+      setRefreshing(false);
+    }
   }, [token, loadRepos]);
 
   const handleSelectRepo = useCallback((repoOrString: GitHubRepo | string) => {

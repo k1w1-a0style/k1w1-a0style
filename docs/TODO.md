@@ -18,9 +18,9 @@ Stand: **2026-02-12**
 
 ### GitHubReposScreen
 
-- [ ] **RS-004 (P2)** Unmount-Guard / Abort für `onRefresh` (Race: setState nach unmount)  
+- [x] **RS-004 (P2)** Unmount-Guard / Abort für `onRefresh` (Race: setState nach unmount)  ✅ *(patch 91)*
   _Ort_: `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`
-- [ ] **RS-005 (P2)** Striktere `owner/repo`-Validierung + Tests (`splitFullName`/Parsing)  
+- [x] **RS-005 (P2)** Striktere `owner/repo`-Validierung + Tests (`splitFullName`/Parsing)  ✅ *(patch 91)*
   _Ort_: `screens/GitHubReposScreen/utils/repos.ts` (+ Tests in `__tests__/`)
 - [ ] **RS-006 (P3)** Repo-Liste virtualisieren (FlatList) ohne VirtualizedList-Warnungen  
   _Ort_: `screens/GitHubReposScreen/components/RepoListSection.tsx` / ggf. Screen-Layout
@@ -50,4 +50,3 @@ Stand: **2026-02-12**
 - **Patch 82–84**: ConnectionsScreen masking/validation/sanitization  
 - **Patch 85–86**: EnhancedBuildScreen hardening (Status union + guards)  
 - **Patch 87**: Supabase hardening (RLS + Edge error sanitization + migration)
-

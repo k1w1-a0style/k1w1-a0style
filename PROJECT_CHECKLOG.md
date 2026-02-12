@@ -1,6 +1,11 @@
 # k1w1-a0style – Projekt-Diagnose Log (living doc)
 
 
+## PATCH 91 (2026-02-12)
+- GitHubReposScreen: Refresh unmount/race guard (kein setState nach unmount / stale refresh)
+- GitHubReposScreen: Strikte owner/repo Parsing-Validierung (exactly one '/', owner+repo pattern/length)
+- Tests: splitFullName Parsing/Validation Unit-Tests ergänzt
+
 ## PATCH 90 (2026-02-12)
 - Docs: TODO konsolidiert (Backlog klar getrennt) + Verification-Index bestätigt
 - Docs: TerminalScreen Verification Header aktualisiert (Patch 78)

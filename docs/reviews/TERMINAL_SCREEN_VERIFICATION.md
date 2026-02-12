@@ -2,6 +2,10 @@
 > Hinweis: Gemeinsame Übersicht aller Verifikationen: `docs/reviews/SCREENS_VERIFICATION.md`
 Stand: 2026-02-12
 
+## Patch 91 Hinweis
+- Patch 91 hat **keine** TerminalScreen-Änderungen gemacht (nur GitHubReposScreen Parsing/Refresh Hardening + Tests).
+
+
 ## 1) Review-Check: Was stimmt, was nicht?
 
 ### ✅ Zutreffend (im Code wirklich so gefunden)

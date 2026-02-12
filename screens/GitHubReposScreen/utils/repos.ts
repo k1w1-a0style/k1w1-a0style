@@ -1,15 +1,54 @@
 import type { RepoFilterType } from "../types";
 import type { GitHubRepo } from "../../../hooks/useGitHubRepos";
 
+export function isValidOwnerName(name: string): { valid: boolean; error?: string } {
+  const trimmed = name.trim();
+
+  if (!trimmed) return { valid: false, error: "Owner darf nicht leer sein." };
+
+  // GitHub username/org: 1-39 chars, alphanumerisch oder '-', kein '-' am Anfang/Ende
+  if (trimmed.length > 39) {
+    return { valid: false, error: "Owner darf maximal 39 Zeichen haben." };
+  }
+
+  const pattern = /^[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?$/;
+  if (!pattern.test(trimmed)) {
+    return {
+      valid: false,
+      error:
+        "Owner darf nur Buchstaben, Zahlen und Bindestrich enthalten und muss mit Buchstabe/Zahl beginnen und enden.",
+    };
+  }
+
+  return { valid: true };
+}
+
 export function splitFullName(
   fullName: string,
 ): { owner: string; repo: string } | null {
-  const parts = fullName.split("/");
+  const trimmed = fullName.trim();
+  if (!trimmed) return null;
+
+  // exakt ein '/'
+  const parts = trimmed.split("/");
+  if (parts.length !== 2) return null;
+
   const owner = parts[0]?.trim();
   const repo = parts[1]?.trim();
   if (!owner || !repo) return null;
+
+  // keine whitespace in den Segmenten
+  if (/\s/.test(owner) || /\s/.test(repo)) return null;
+
+  const ownerV = isValidOwnerName(owner);
+  if (!ownerV.valid) return null;
+
+  const repoV = isValidRepoName(repo);
+  if (!repoV.valid) return null;
+
   return { owner, repo };
 }
+
 
 /**
  * Prüft ob ein Repo-Name gültig ist nach GitHub-Regeln:
