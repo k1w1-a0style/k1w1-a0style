@@ -547,3 +547,18 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 ## Patch 74
 - Hotfix: CredentialsWizardScreen WizardHttpDebug typing made more flexible for tests (status/statusText optional) + sanitizer forwards ms.
 - Notes: docs/patches/PATCH_74_NOTES.md
+
+## Patch 75
+- TerminalScreen: secret redaction + log size caps + safe copy/export/share/autofix.
+- Safer log batching (cancel RAF on unmount).
+- Tests: terminal secret redaction helper.
+- Notes: docs/patches/PATCH_75_NOTES.md
+- Verification: docs/reviews/TERMINAL_SCREEN_VERIFICATION.md
+
+## Patch 76
+- TerminalScreen: fix LogRow imports (no missing theming hooks), redaction markers (`Bearer <redacted>`, `<redacted-jwt>`), truncation helper behavior + test alignment.
+
+## Patch 77
+- TerminalScreen: fix LogRow typing/palette usage; keep `Bearer` scheme visible while redacting token.
+- Notes: docs/patches/PATCH_77_NOTES.md
+- Verification: docs/reviews/TERMINAL_SCREEN_VERIFICATION.md

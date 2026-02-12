@@ -85,3 +85,10 @@ Stand: **2026-02-12**
 - [x] CredentialsWizardScreen: hotfix typings + apiKey redaction + truncation marker (patch 72)
 - [x] CredentialsWizardScreen: hotfix WizardHttpDebug.ms typing (patch 73)
 - [x] CredentialsWizardScreen: hotfix WizardHttpDebug optional status/statusText for sanitizer tests (patch 74)
+
+- [x] TerminalScreen: privacy redaction + log caps + safer batching + docs/tests (patch 75)
+
+- [x] Patch 76: TerminalScreen hotfix (LogRow imports + redaction markers + truncation test alignment)
+
+- [x] Patch 77: TerminalScreen hotfix (LogRow typing/palette + preserve "Bearer" scheme)
+

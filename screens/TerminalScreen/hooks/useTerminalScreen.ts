@@ -10,6 +10,27 @@ import { useTerminal, LogEntry } from "../../../contexts/TerminalContext";
 import { useProject } from "../../../contexts/ProjectContext";
 import type { Filter } from "../types";
 import { getLogLabel } from "../utils/logPresentation";
+import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction";
+
+const MAX_CLIPBOARD_LOGS = 500;
+const MAX_EXPORT_LOGS = 2000;
+const MAX_AI_LOGS = 250;
+
+// hard caps for perf / share limits
+const MAX_CLIPBOARD_CHARS = 100_000;
+const MAX_EXPORT_CHARS = 200_000;
+const MAX_AI_CHARS = 15_000;
+
+function safeDir(dir: string | null | undefined): string {
+  // expo-file-system returns null in some envs; fall back to cache.
+  return dir ?? FileSystem.cacheDirectory ?? "";
+}
+
+type ToTextOptions = {
+  maxLogs?: number;
+  maxChars?: number;
+  redact?: boolean;
+};
 
 export function useTerminalScreen() {
   const navigation = useNavigation();
@@ -26,6 +47,7 @@ export function useTerminalScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<Filter>("all");
   const [autoScroll, setAutoScroll] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
 
   const flatListRef = useRef<FlatList<LogEntry>>(null);
 
@@ -54,13 +76,25 @@ export function useTerminalScreen() {
     return list;
   }, [logs, activeFilter, searchQuery]);
 
-  const toText = useCallback((list: LogEntry[]) => {
-    return list
-      .slice()
-      .reverse()
-      .map((l) => `[${l.timestamp}] [${getLogLabel(l.type)}] ${l.message}`)
-      .join("\n");
-  }, []);
+  const toText = useCallback(
+    (list: LogEntry[], opts: ToTextOptions = {}) => {
+      const { maxLogs, maxChars, redact = true } = opts;
+      const limited = (maxLogs ? list.slice(0, maxLogs) : list)
+        .slice()
+        .reverse();
+
+      let out = limited
+        .map((l) => {
+          const msg = redact ? redactSecrets(l.message) : l.message;
+          return `[${l.timestamp}] [${getLogLabel(l.type)}] ${msg}`;
+        })
+        .join("\n");
+
+      if (maxChars) out = truncateWithMarker(out, maxChars);
+      return out;
+    },
+    [],
+  );
 
   const confirmClear = useCallback(() => {
     Alert.alert("Logs löschen", "Wirklich alle Logs löschen?", [
@@ -74,8 +108,17 @@ export function useTerminalScreen() {
       Alert.alert("Hinweis", "Keine Logs zum Kopieren.");
       return;
     }
-    await Clipboard.setStringAsync(toText(filteredLogs));
-    Alert.alert("✅ Kopiert", `${filteredLogs.length} Logs in Zwischenablage.`);
+
+    const text = toText(filteredLogs, {
+      maxLogs: MAX_CLIPBOARD_LOGS,
+      maxChars: MAX_CLIPBOARD_CHARS,
+      redact: true,
+    });
+
+    await Clipboard.setStringAsync(text);
+
+    const suffix = filteredLogs.length > MAX_CLIPBOARD_LOGS ? " (gekürzt)" : "";
+    Alert.alert("✅ Kopiert", `${Math.min(filteredLogs.length, MAX_CLIPBOARD_LOGS)} Logs in Zwischenablage${suffix}.`);
   }, [filteredLogs, toText]);
 
   const shareVisibleLogsTxt = useCallback(async () => {
@@ -84,9 +127,19 @@ export function useTerminalScreen() {
       return;
     }
 
+    if (isExporting) return;
+    setIsExporting(true);
+
     try {
-      const uri = `${FileSystem.documentDirectory}terminal_logs_${Date.now()}.txt`;
-      await FileSystem.writeAsStringAsync(uri, toText(filteredLogs), {
+      const base = safeDir(FileSystem.documentDirectory) || safeDir(FileSystem.cacheDirectory);
+      const uri = `${base}terminal_logs_${Date.now()}.txt`;
+      const text = toText(filteredLogs, {
+        maxLogs: MAX_EXPORT_LOGS,
+        maxChars: MAX_EXPORT_CHARS,
+        redact: true,
+      });
+
+      await FileSystem.writeAsStringAsync(uri, text, {
         encoding: FileSystem.EncodingType.UTF8,
       });
 
@@ -103,8 +156,10 @@ export function useTerminalScreen() {
     } catch (e) {
       console.error("[TerminalScreen] shareVisibleLogsTxt failed", e);
       Alert.alert("Fehler", "TXT Export fehlgeschlagen.");
+    } finally {
+      setIsExporting(false);
     }
-  }, [filteredLogs, toText]);
+  }, [filteredLogs, toText, isExporting]);
 
   const exportDebugZip = useCallback(async () => {
     if (filteredLogs.length === 0) {
@@ -112,24 +167,34 @@ export function useTerminalScreen() {
       return;
     }
 
+    if (isExporting) return;
+    setIsExporting(true);
+
     try {
-      const baseDir = `${FileSystem.cacheDirectory}debug_dump_${Date.now()}`;
+      const cacheBase = safeDir(FileSystem.cacheDirectory);
+      if (!cacheBase) throw new Error("No cacheDirectory available");
+
+      const baseDir = `${cacheBase}debug_dump_${Date.now()}`;
       await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
 
       const logsTxt = `${baseDir}/terminal_logs.txt`;
       const statsJson = `${baseDir}/terminal_stats.json`;
       const metaJson = `${baseDir}/meta.json`;
 
-      await FileSystem.writeAsStringAsync(logsTxt, toText(filteredLogs), {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
+      await FileSystem.writeAsStringAsync(
+        logsTxt,
+        toText(filteredLogs, {
+          maxLogs: MAX_EXPORT_LOGS,
+          maxChars: MAX_EXPORT_CHARS,
+          redact: true,
+        }),
+        { encoding: FileSystem.EncodingType.UTF8 },
+      );
 
       await FileSystem.writeAsStringAsync(
         statsJson,
         JSON.stringify(stats, null, 2),
-        {
-          encoding: FileSystem.EncodingType.UTF8,
-        },
+        { encoding: FileSystem.EncodingType.UTF8 },
       );
 
       await FileSystem.writeAsStringAsync(
@@ -141,6 +206,7 @@ export function useTerminalScreen() {
             searchQuery,
             visibleCount: filteredLogs.length,
             consoleOverride: isConsoleOverrideEnabled,
+            note: "Logs are redacted + truncated for privacy/perf.",
           },
           null,
           2,
@@ -148,7 +214,8 @@ export function useTerminalScreen() {
         { encoding: FileSystem.EncodingType.UTF8 },
       );
 
-      const zipPath = `${FileSystem.documentDirectory}debug_dump_${Date.now()}.zip`;
+      const outBase = safeDir(FileSystem.documentDirectory) || cacheBase;
+      const zipPath = `${outBase}debug_dump_${Date.now()}.zip`;
       await zip(baseDir, zipPath);
 
       const available = await Sharing.isAvailableAsync();
@@ -164,6 +231,8 @@ export function useTerminalScreen() {
     } catch (e) {
       console.error("[TerminalScreen] exportDebugZip failed", e);
       Alert.alert("Fehler", "Debug ZIP Export fehlgeschlagen.");
+    } finally {
+      setIsExporting(false);
     }
   }, [
     filteredLogs,
@@ -172,6 +241,7 @@ export function useTerminalScreen() {
     activeFilter,
     searchQuery,
     isConsoleOverrideEnabled,
+    isExporting,
   ]);
 
   const sendLogsToAiAutoFix = useCallback(() => {
@@ -180,13 +250,20 @@ export function useTerminalScreen() {
       return;
     }
 
+    const logsText = toText(filteredLogs, {
+      maxLogs: MAX_AI_LOGS,
+      maxChars: MAX_AI_CHARS,
+      redact: true,
+    });
+
     const payload =
       `🧠 Terminal Log Analyse (Auto-Fix)\n\n` +
       `Filter: ${activeFilter}\n` +
       `Suche: ${searchQuery || "-"}\n` +
-      `Visible Logs: ${filteredLogs.length}\n\n` +
+      `Visible Logs: ${filteredLogs.length}\n` +
+      `Sent Logs: ${Math.min(filteredLogs.length, MAX_AI_LOGS)} (redacted)\n\n` +
       `--- LOGS START ---\n` +
-      toText(filteredLogs).slice(-15000) +
+      logsText +
       `\n--- LOGS END ---\n\n` +
       `Bitte:\n` +
       `1) Erkläre die wahrscheinlichste Ursache.\n` +
@@ -199,7 +276,7 @@ export function useTerminalScreen() {
 
     Alert.alert(
       "🤖 Auto-Fix gestartet",
-      "Die KI analysiert die Logs im Chat und liefert Fix-Dateien.",
+      "Die KI analysiert die Logs im Chat und liefert Fix-Dateien. (Secrets werden redacted)",
       [{ text: "OK" }],
     );
   }, [
@@ -211,11 +288,16 @@ export function useTerminalScreen() {
     navigation,
   ]);
 
+  const scrollRafRef = useRef<number | null>(null);
   const onContentSizeChange = useCallback(() => {
     if (!autoScroll) return;
-    if (flatListRef.current && filteredLogs.length > 0) {
-      flatListRef.current.scrollToOffset({ offset: 0, animated: true });
-    }
+    if (filteredLogs.length === 0) return;
+
+    if (scrollRafRef.current != null) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    });
   }, [autoScroll, filteredLogs.length]);
 
   return {
@@ -238,5 +320,6 @@ export function useTerminalScreen() {
     exportDebugZip,
     sendLogsToAiAutoFix,
     onContentSizeChange,
+    isExporting,
   };
 }

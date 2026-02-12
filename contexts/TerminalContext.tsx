@@ -8,6 +8,8 @@ import React, {
   ReactNode,
 } from 'react';
 
+import { redactSecrets, truncateWithMarker } from '../lib/secretRedaction';
+
 export type LogEntry = {
   id: number;
   timestamp: string;
@@ -35,6 +37,11 @@ const MAX_LOG_COUNTER = 2147483647;
 
 // ✅ Default: ON (damit Build-Logs etc. automatisch auftauchen)
 const DEFAULT_CONSOLE_OVERRIDE = true;
+
+// Hard caps for performance + privacy
+const MAX_BUFFERED_LOGS = 600;
+const TRIMMED_LOGS = 500;
+const MAX_ENTRY_CHARS = 5000;
 
 // Filter: Noise / Spam
 const NOISE_PATTERNS: (string | RegExp)[] = [
@@ -69,7 +76,8 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   // batch flush for performance
   const logBatchRef = useRef<LogEntry[]>([]);
-  const flushScheduledRef = useRef(false);
+  const rafIdRef = useRef<number | null>(null);
+  const isMountedRef = useRef(true);
 
   // keep original console refs
   const originalsRef = useRef<{
@@ -78,55 +86,74 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     error: typeof console.error;
   } | null>(null);
 
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (rafIdRef.current != null) cancelAnimationFrame(rafIdRef.current);
+    };
+  }, []);
+
   const flushBatch = useCallback(() => {
     setLogs((prev) => {
       const next = [...logBatchRef.current, ...prev];
 
       // cleanup threshold
-      if (next.length > 600) {
-        return next.slice(0, 500);
+      if (next.length > MAX_BUFFERED_LOGS) {
+        return next.slice(0, TRIMMED_LOGS);
       }
       return next;
     });
 
     logBatchRef.current = [];
-    flushScheduledRef.current = false;
   }, []);
 
-  const addLog = useCallback((message: string, type: 'log' | 'warn' | 'error' = 'log') => {
-    const now = new Date();
-    const timestamp = now.toLocaleTimeString('de-DE', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      fractionalSecondDigits: 3,
+  const scheduleFlush = useCallback(() => {
+    if (rafIdRef.current != null) return;
+    rafIdRef.current = requestAnimationFrame(() => {
+      rafIdRef.current = null;
+      if (!isMountedRef.current) return;
+      flushBatch();
     });
-
-    if (logCounter >= MAX_LOG_COUNTER) {
-      logCounter = 0;
-    }
-
-    const msg = String(message ?? '');
-    if (shouldIgnore(msg)) return;
-
-    const entry: LogEntry = {
-      id: logCounter++,
-      timestamp,
-      message: msg,
-      type,
-    };
-
-    logBatchRef.current.push(entry);
-
-    if (!flushScheduledRef.current) {
-      flushScheduledRef.current = true;
-      requestAnimationFrame(flushBatch);
-    }
   }, [flushBatch]);
+
+  const addLog = useCallback(
+    (message: string, type: 'log' | 'warn' | 'error' = 'log') => {
+      const now = new Date();
+      const timestamp = now.toLocaleTimeString('de-DE', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        fractionalSecondDigits: 3,
+      });
+
+      if (logCounter >= MAX_LOG_COUNTER) {
+        logCounter = 0;
+      }
+
+      const raw = String(message ?? '');
+      if (shouldIgnore(raw)) return;
+
+      // privacy: redact likely secrets before UI/clipboard/export
+      let msg = redactSecrets(raw);
+      msg = truncateWithMarker(msg, MAX_ENTRY_CHARS, '… <truncated>');
+
+      const entry: LogEntry = {
+        id: logCounter++,
+        timestamp,
+        message: msg,
+        type,
+      };
+
+      logBatchRef.current.push(entry);
+      scheduleFlush();
+    },
+    [scheduleFlush]
+  );
 
   const clearLogs = useCallback(() => {
     setLogs([]);
     logCounter = 0;
+    logBatchRef.current = [];
   }, []);
 
   const getLogsByType = useCallback(
@@ -183,12 +210,9 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     addLog('🛑 Terminal Console Override deaktiviert', 'warn');
   }, [addLog]);
 
-  const setConsoleOverride = useCallback(
-    (enabled: boolean) => {
-      setIsConsoleOverrideEnabled(enabled);
-    },
-    []
-  );
+  const setConsoleOverride = useCallback((enabled: boolean) => {
+    setIsConsoleOverrideEnabled(enabled);
+  }, []);
 
   useEffect(() => {
     if (isConsoleOverrideEnabled) applyConsoleOverride();
