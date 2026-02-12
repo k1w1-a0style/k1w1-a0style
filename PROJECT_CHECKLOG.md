@@ -91,6 +91,7 @@ Wir gehen **screenweise** vor, aber in **2 Durchläufen**:
 ---
 
 ## Changelog
+- 2026-02-12: Patch 80 – Jest worker exit warning behoben (ChatScreen: unref + cleanup für fire-and-forget timeouts).
 - 2026-02-08: Dokument angelegt, Inventar erstellt, erste Red Flags notiert.
 
 

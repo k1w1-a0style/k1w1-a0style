@@ -45,6 +45,25 @@ export const useChatScreen = () => {
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
 
+  // Track short-lived timers created by scroll helpers so Jest workers can exit cleanly.
+  // In Node (Jest), we .unref() timers so they don't keep the event loop alive.
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const scheduleTimeout = useCallback((fn: () => void, ms: number) => {
+    const id = setTimeout(fn, ms);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (id as any)?.unref?.();
+    timersRef.current.push(id);
+    return id;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach((t) => clearTimeout(t));
+      timersRef.current = [];
+    };
+  }, []);
+
+
   const [textInput, setTextInput] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +113,7 @@ export const useChatScreen = () => {
       try {
         flatListRef.current?.scrollToEnd({ animated });
       } catch {}
-      setTimeout(() => {
+      scheduleTimeout(() => {
         try {
           flatListRef.current?.scrollToEnd({ animated });
         } catch {}
@@ -319,20 +338,20 @@ export const useChatScreen = () => {
   const scrollButtonPress = useCallback(() => {
     setAtBottom(true);
     hardScrollToBottom(true);
-    setTimeout(() => hardScrollToBottom(true), 160);
+    scheduleTimeout(() => hardScrollToBottom(true), 160);
     setShowScrollButton(false);
-  }, [hardScrollToBottom, setAtBottom]);
+  }, [hardScrollToBottom, setAtBottom, scheduleTimeout]);
 
   const handleContentSizeChange = useCallback(() => {
     if (!didInitialScrollRef.current && messages.length > 0) {
       didInitialScrollRef.current = true;
       setAtBottom(true);
       hardScrollToBottom(false);
-      setTimeout(() => hardScrollToBottom(false), 160);
+      scheduleTimeout(() => hardScrollToBottom(false), 160);
       return;
     }
     if (isAtBottomRef.current) hardScrollToBottom(false);
-  }, [hardScrollToBottom, isAtBottomRef, messages.length, setAtBottom]);
+  }, [hardScrollToBottom, isAtBottomRef, messages.length, setAtBottom, scheduleTimeout]);
 
   return {
     insets,

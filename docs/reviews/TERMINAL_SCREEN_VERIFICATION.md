@@ -77,3 +77,22 @@ Was sich ändert:
 - `LogRow`: derive `tsLabel` from `timestamp`, map `level` from `type`, and use `theme.palette.text.primary/muted`.
 
 **Result:** `npm run typecheck`, `npm run lint:ci`, and `npm run test:silent` should be green.
+
+---
+
+## Patch 78 Follow-up
+
+**Why:** Patch 77 still had (1) `useMemo` not imported in `LogRow` and (2) `Bearer` redaction still overridden in some cases.
+
+**Fixes:**
+- `LogRow`: import `useMemo` correctly.
+- `secretRedaction`: ensure `Authorization: Bearer <token>` becomes `Authorization: Bearer <redacted>` (scheme preserved, token removed).
+
+**Result:** `npm run typecheck`, `npm run lint:ci`, and `npm run test:silent` are green.
+
+---
+
+## Patch 79 / 80 Note
+
+- Patch 79: no TerminalScreen changes (GitHubReposScreen only).
+- Patch 80: no TerminalScreen changes (ChatScreen/Jest cleanup only).

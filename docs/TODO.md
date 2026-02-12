@@ -2,6 +2,9 @@
 
 Stand: **2026-02-12**
 
+## Maintenance
+- [x] Jest Warning: open handles (Timer) behoben – ChatScreen scroll timeouts `.unref()` + cleanup.
+
 
 ## GitHubReposScreen
 - [x] RS-001: Recent-Pills nutzen zentralen Repo-Select-Flow (kein inkonsistenter State).
