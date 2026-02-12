@@ -1,5 +1,11 @@
 # k1w1-a0style – Projekt-Diagnose Log (living doc)
 
+
+## PATCH 90 (2026-02-12)
+- Docs: TODO konsolidiert (Backlog klar getrennt) + Verification-Index bestätigt
+- Docs: TerminalScreen Verification Header aktualisiert (Patch 78)
+- Checklog: Screen-Inventar Status auf "done" für verifizierte Screens gesetzt
+
 ## PATCH 62 (2026-02-11)
 - DiagnosticScreen: Typecheck Fix (Pipeline message mapping) + IssuesFilter Contract Cleanup (kein "info")
 - Docs: Patch Notes + Review Verification aktualisiert
@@ -46,19 +52,20 @@ Wir gehen **screenweise** vor, aber in **2 Durchläufen**:
 
 | Screen | File | LOC | WebView | Network | Console | Hooks | Status | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| AppInfoScreen | screens/AppInfoScreen/index.tsx | 79 |  |  | 0 | useAppInfoScreen | not checked |  |
-| AppStatusScreen | screens/AppStatusScreen/index.tsx | 102 |  |  | 0 | useAppStatusScreen | not checked |  |
-| ChatScreen | screens/ChatScreen/index.tsx | 151 |  |  | 0 | useChatScreen | not checked |  |
+| AppInfoScreen | screens/AppInfoScreen/index.tsx | 79 |  |  | 0 | useAppInfoScreen | done | Privacy/Backup hardening |
+| AppStatusScreen | screens/AppStatusScreen/index.tsx | 102 |  |  | 0 | useAppStatusScreen | done | status validation + tests |
+| ChatScreen | screens/ChatScreen/index.tsx | 151 |  |  | 0 | useChatScreen | done | Jest timer cleanup |
 | CodeScreen | screens/CodeScreen/index.tsx | 197 | WebView editor + bridge hardened | isDirty unified, focus sync, injection hardening, txt export, QoL fixes | 0 | useCodeScreen | done | Deep-dive patches 27-34 |
-| ConnectionsScreen | screens/ConnectionsScreen/index.tsx | 243 |  | yes | 0 | useConnectionsScreen | not checked | network |
-| CredentialsWizardScreen | screens/CredentialsWizardScreen/index.tsx | 111 |  | yes | 0 | useCredentialsWizardScreen | not checked | network |
-| DiagnosticScreen | screens/DiagnosticScreen/index.tsx | 684 |  |  | 0 | useDiagnosticScreen, useNavigation, useProject | not checked |  |
-| EnhancedBuildScreen | screens/EnhancedBuildScreen/index.tsx | 111 |  |  | 0 | useEnhancedBuildScreen | not checked |  |
-| GitHubReposScreen | screens/GitHubReposScreen/index.tsx | 279 |  |  | 0 | useGitHubReposScreen | not checked |  |
-| SettingsScreen | screens/SettingsScreen/index.tsx | 86 |  |  | 0 | useSettingsScreen | not checked |  |
-| TerminalScreen | screens/TerminalScreen/index.tsx | 91 |  |  | 0 | useTerminalScreen | not checked |  |
-| PreviewScreen.tsx | screens/PreviewScreen.tsx | 569 |  | yes | 0 | useNavigation, usePreview, useProject | not checked | network |
+| ConnectionsScreen | screens/ConnectionsScreen/index.tsx | 243 |  | yes | 0 | useConnectionsScreen | done | patches 82-84 + verification |
+| CredentialsWizardScreen | screens/CredentialsWizardScreen/index.tsx | 111 |  | yes | 0 | useCredentialsWizardScreen | done | security tests passing |
+| DiagnosticScreen | screens/DiagnosticScreen/index.tsx | 684 |  |  | 0 | useDiagnosticScreen, useNavigation, useProject | done | filter contract + throttle + tests |
+| EnhancedBuildScreen | screens/EnhancedBuildScreen/index.tsx | 111 |  |  | 0 | useEnhancedBuildScreen | done | patches 85-86 + verification |
+| GitHubReposScreen | screens/GitHubReposScreen/index.tsx | 279 |  |  | 0 | useGitHubReposScreen | done | patch 79 + verification |
+| SettingsScreen | screens/SettingsScreen/index.tsx | 86 |  |  | 0 | useSettingsScreen | done | patch 81 + verification |
+| TerminalScreen | screens/TerminalScreen/index.tsx | 91 |  |  | 0 | useTerminalScreen | done | patches 75-78 + verification |
+| PreviewScreen.tsx | screens/PreviewScreen.tsx | 569 |  | yes | 0 | useNavigation, usePreview, useProject | done | url/navigation guards + hardening |
 | PreviewFullscreenScreen.tsx | screens/PreviewFullscreenScreen.tsx | 520 | yes |  | 3 | useNavigation, useRoute | not checked | webview |
+| Supabase (Functions+DB) | supabase/ (functions+migrations) | - | - | yes | - | - | done | patch 87 + verification |
 
 
 ---

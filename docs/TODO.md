@@ -2,129 +2,52 @@
 
 Stand: **2026-02-12**
 
-## Maintenance
-- [x] Jest Warning: open handles (Timer) behoben – ChatScreen scroll timeouts `.unref()` + cleanup.
-- [x] Docs/Reviews: SCREENS_VERIFICATION Index + fehlende CodeScreen/GitHubRepos Verifikationen ergänzt.
+> Dieses Dokument ist die **laufende Restliste**.  
+> Alle Security-/Privacy-P1-Fixes aus den Screen-Reviews sind umgesetzt und Tests sind grün.  
+> Unten stehen nur noch **Restpunkte / Quality-Backlog** (meist P2/P3).
 
+## Status
 
-## GitHubReposScreen
-- [x] RS-001: Recent-Pills nutzen zentralen Repo-Select-Flow (kein inkonsistenter State).
-- [x] RS-002: BranchSelector race-safe (stale requests ignorieren).
-- [x] RS-003: Manage-Modal Busy-Lock (kein Double-Submit, Input/Button disabled während Request).
-- [ ] RS-004: Refresh Unmount-Guard (setState-after-unmount verhindern).
-- [ ] RS-005: splitFullName strikt validieren (genau owner/repo).
-- [ ] RS-006: Repo-Liste virtualisieren (FlatList) falls viele Repos.
-- [ ] RS-008: Tests für kritische Repo/Branch/Modal-Flows ergänzen.
+- ✅ Screens/Reviews sind vollständig unter `docs/reviews/*_VERIFICATION.md` dokumentiert (siehe Index: `docs/reviews/SCREENS_VERIFICATION.md`).
+- ✅ Supabase Edge Functions & DB-Migration wurden gehärtet (RLS + Error-Sanitization), siehe `docs/reviews/SUPABASE_MIGRATION_VERIFICATION.md`.
 
-## ConnectionsScreen
-- [x] CS-001: Supabase ANON + Service Role Keys mit Eye-Toggle (konsistent zu GitHub/Expo/Edge).
-- [x] CS-002: testGitHub() zeigt keinen User-Login mehr (nur generische OK-Meldung).
-- [x] CS-003: Error-Alerts sanitizen (redactSecrets + truncate).
-- [x] CS-004: Basic Token/URL Format-Validation vor SaveAll.
-- [x] CS-007: Hotfix Typecheck (validateBeforeSave call signature).
-- [ ] CS-006: Tests für Security-Flows (Toggle/Validation/Sanitization) ergänzen.
+## Backlog (noch offen)
 
-## ✅ Done (CodeScreen)
-- WebView-Editor (ohne gravierende UI-Änderung)
-- RN↔WebView Bridge stabilisiert
-- Focus-Tracking + Sync-Fix (inkl. Resync nach Blur, keine State-Drifts)
-- Injection-Härtung beim Initialisieren des Editor-Inhalts
-- WebCodeEditor CSS Textfarbe fix (kein [object Object])
-- `isDirty` vereinheitlicht (Hook + UI, inkl. Preview)
-- TXT-Export stabil (expo-file-system typings kompatibel)
-- QoL:
-  - Duplicate-Kollisionen verhindern
-  - Dateiendung-Regeln (kein blindes `.tsx` für `Dockerfile`, `.env`, usw.)
-  - Clipboard `await` + Fehlerhandling
-  - SyntaxErrorBar stabile Keys (ohne fileName/column)
-- Unsaved-Changes Flow hardened: "Speichern" navigiert nur weiter, wenn wirklich gespeichert wurde
-- A11y: Undo/Redo im Editor mit Accessibility-Labels/Hints
-- File-Actions: UI-Pre-Validation + Collision-Check (kein Ghost-Selection bei failed create/rename/move)
-- Wartbarkeit/Perf:
-  - `useCodeScreen` in kleinere Hooks gesplittet (Explorer/Editor/Actions)
-  - Validation debounced + per `InteractionManager.runAfterInteractions` deferred
-- Security:
-  - Bridge Message-Schema strikter validiert + Unit-Tests
-- Typing-Hygiene:
-  - `gap` RN-Types per global `.d.ts` ergänzt (kein `as any` mehr nötig)
-  - `expo-file-system` Typen lokal ergänzt (kein `any`-Cast)
+> Quelle: kritisches Review (zusammengeführt).  
+> **P2 = sollte**, **P3 = nice-to-have**.
 
-## ✅ Done (Maintenance)
-- Patch-Skripte/Docs bereinigt und Handoff-Prompt angelegt.
+### GitHubReposScreen
 
-## ✅ Done (Preview)
-- Guard: Scheme-Allowlist (nur sichere Schemes extern, dangerous schemes geblockt)
-- Guard: Fail-closed wenn `mode="url"` und `baseOrigin=null`
-- Fullscreen: `originWhitelist` mode-spezifisch verengt (Defense-in-Depth)
-- Fullscreen: One-shot Auto-Recovery bei WebView Prozessabbruch (Loop-Schutz)
-- Tests: `previewNavigationGuards` um kritische Negativfälle ergänzt
-- Cleanup: unnötige `useCallback` Dependencies entfernt
+- [ ] **RS-004 (P2)** Unmount-Guard / Abort für `onRefresh` (Race: setState nach unmount)  
+  _Ort_: `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`
+- [ ] **RS-005 (P2)** Striktere `owner/repo`-Validierung + Tests (`splitFullName`/Parsing)  
+  _Ort_: `screens/GitHubReposScreen/utils/repos.ts` (+ Tests in `__tests__/`)
+- [ ] **RS-006 (P3)** Repo-Liste virtualisieren (FlatList) ohne VirtualizedList-Warnungen  
+  _Ort_: `screens/GitHubReposScreen/components/RepoListSection.tsx` / ggf. Screen-Layout
+- [ ] **RS-008 (P2/P3)** Tests: Selection-Consistency, Branch-Race, Modal-Idempotency  
+  _Ort_: `__tests__/` (Screen-/Hook-Tests)
 
-## ✅ Done (Diagnostic)
-- Batch-Fix Dedupe: content-sensitiver Fingerprint (kein false-dup)
-- Preferences: Hydration-Gate gegen Load/Save Race
-- Async Safety: Progress-Stage Guards (kein setState nach Unmount)
-- Filter Contract Cleanup ("info" entfernt, UI/Hook konsistent)
-- Performance: progressive Results throttled (300ms) + final flush
-- Tests: patchFingerprint + Preferences Hydration
+### ConnectionsScreen
 
-## ✅ Done (AppInfo)
-- Privacy: API keys masked by default + short reveal action (auto-hide)
-- Import correctness: API config import is **Replace** (not merge/append)
-- Backup validation: stricter schema checks + sanitization
-- Perf: memoized template resolution
-- Tests: appInfo backup/privacy unit tests
+- [ ] **CS-006 (P2)** Security-/Regression-Tests für Masking/Validation (Tokens/Keys)  
+  _Ort_: `screens/ConnectionsScreen/*` + `__tests__/`
 
-## 🔧 Optional / Tech-Debt (CodeScreen)
-- Performance (nur falls spürbar): Syntax-Validation/Quality-Checks weiter auslagern (Worker/Task) oder „progressive validation“.
-- WebView/Bridge Paranoia: CSP / striktere WebView Settings (soweit Plattform zulässt).
+### Supabase (Audit / Ops)
 
-## ⏭️ Next (CodeScreen)
-- Nichts Kritisches offen.
+- [ ] **SB-RLS-002 (P2)** RLS/Policies auditieren (z. B. Zugriffsmatrix dokumentieren, “least privilege”)  
+  _Ort_: `supabase/migrations/*` + `docs/reviews/SUPABASE_MIGRATION_VERIFICATION.md`
+- [ ] **SB-FN-003 (P2)** Edge error sanitization: sicherstellen, dass **alle** Functions den shared sanitizer nutzen  
+  _Ort_: `supabase/functions/*`
+- [ ] **SB-MIG-001 (P2)** Migration-Runbook ergänzen (Roll-forward/Rollback, smoke checks)  
+  _Ort_: `docs/reviews/SUPABASE_MIGRATION_VERIFICATION.md` / `docs/reviews/SCREENS_VERIFICATION.md`
 
-## ➡️ Next: Preview
-1) **PreviewScreen** komplett fertig machen (Funktionalität vor UI/Polish).
-2) **PreviewFullscreen** danach.
+## Abgeschlossen (Kurzlog)
 
-### Preview – aktuelle Restpunkte (funktional first)
-- UI/Polish bleibt offen (spacing, labels, nicer timestamps).
-- Optional: strengere HTTPS-only Policy, wenn Preview nur für sichere Quellen gedacht ist.
+- **Patch 75–78**: TerminalScreen privacy/perf + Secret-Redaction + Tests  
+- **Patch 79**: GitHubReposScreen selection consistency + race guard  
+- **Patch 80**: Jest open handles fix (ChatScreen cleanup/unref)  
+- **Patch 81**: SettingsScreen API-Key masking + validation  
+- **Patch 82–84**: ConnectionsScreen masking/validation/sanitization  
+- **Patch 85–86**: EnhancedBuildScreen hardening (Status union + guards)  
+- **Patch 87**: Supabase hardening (RLS + Edge error sanitization + migration)
 
-## ➡️ Next: Supabase & Migration
-- [ ] **RLS + Policies audit**: alle Tabellen durchgehen, `using (true)` entfernen wo Privacy relevant.
-- [ ] **Edge Functions**: einheitliche Error-Sanitization (done for GitHub/EAS flows), dann auf alle Functions ausrollen.
-- [ ] **Rate limiting**: in-memory → DB-backed (falls Abuse-Realität).
-- [ ] **Edge Tests**: minimal Security-Tests (redaction + RLS smoke) ergänzen.
-
-
-## UI/UX Polish (ganz zum Schluss)
-- Einheitliche Optik über alle Screens + kleine Grafik-/Spacing-Fixes.
-
-- [x] ChatScreen: follow-up typecheck fixes after patch 63 (patch 64)
-- [x] ChatScreen: hotfix orchestrator parse error after patch 64 (patch 65)
-- [x] Patch 65: fix orchestrator parse error after patch 64 (patch 65)
-
-- [x] ChatScreen: hotfix orchestrator TS scope errors after patch 65 (patch 66)
-
-- [x] AppStatusScreen: config/entry correctness + perf caps (patch 67)
-- [x] AppStatusScreen: styles keys fix (patch 68)
-- [x] AppInfoScreen: backup import/schema alignment + stricter validation (patch 70)
-- [x] CredentialsWizardScreen: hardening + privacy redaction + validation + tests (patch 71)
-- [x] CredentialsWizardScreen: hotfix typings + apiKey redaction + truncation marker (patch 72)
-- [x] CredentialsWizardScreen: hotfix WizardHttpDebug.ms typing (patch 73)
-- [x] CredentialsWizardScreen: hotfix WizardHttpDebug optional status/statusText for sanitizer tests (patch 74)
-
-- [x] TerminalScreen: privacy redaction + log caps + safer batching + docs/tests (patch 75)
-
-- [x] Patch 76: TerminalScreen hotfix (LogRow imports + redaction markers + truncation test alignment)
-
-- [x] Patch 77: TerminalScreen hotfix (LogRow typing/palette + preserve "Bearer" scheme)
-
-### Done
-- [x] SettingsScreen: mask stored API keys + secureTextEntry input with reveal toggle (Patch 81)
-- [x] SettingsScreen: sanitize API key errors + basic key validation (Patch 81)
-- [x] ConnectionsScreen: Supabase ANON + Service Role eye toggles + safe alerts + basic validation (Patch 82)
-- [x] ConnectionsScreen: validateBeforeSave typecheck hotfix (Patch 84)
-- [x] EnhancedBuildScreen: build start reentrancy-guard + unmount guards + live ETA + safe run link + log redaction/caps (Patch 85)
-- [x] Supabase/Migrations: remove Supabase init secret-logging + harden build_jobs RLS + sanitize Edge error bodies (Patch 87)
-- [x] Supabase: remove sensitive init logging + harden build_jobs RLS + sanitize Edge error bodies/messages (Patch 87)

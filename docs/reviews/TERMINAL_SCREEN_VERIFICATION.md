@@ -1,6 +1,4 @@
-# TerminalScreen – Verification (Patch 75)
-
-
+# TerminalScreen – Verification (Patch 78)
 > Hinweis: Gemeinsame Übersicht aller Verifikationen: `docs/reviews/SCREENS_VERIFICATION.md`
 Stand: 2026-02-12
 
