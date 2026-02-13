@@ -22,9 +22,9 @@ Stand: **2026-02-13**
   _Ort_: `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`
 - [x] **RS-005 (P2)** Striktere `owner/repo`-Validierung + Tests (`splitFullName`/Parsing)  ✅ *(patch 91)*
   _Ort_: `screens/GitHubReposScreen/utils/repos.ts` (+ Tests in `__tests__/`)
-- [ ] **RS-006 (P3)** Repo-Liste virtualisieren (FlatList) ohne VirtualizedList-Warnungen  
-  _Ort_: `screens/GitHubReposScreen/components/RepoListSection.tsx` / ggf. Screen-Layout
-- [ ] **RS-008 (P2/P3)** Tests: Selection-Consistency, Branch-Race, Modal-Idempotency  
+- [x] **RS-006 (P3)** Repo-Liste virtualisieren (FlatList) ohne VirtualizedList-Warnungen ✅ *(patch 94)*  
+  _Ort_: `screens/GitHubReposScreen/index.tsx`
+- [x] **RS-008 (P2/P3)** Tests: Selection-Consistency, Branch-Race, Modal-Idempotency ✅ *(patch 79, 91, 92, 94-96)*  
   _Ort_: `__tests__/` (Screen-/Hook-Tests)
 
 ### ConnectionsScreen
@@ -34,12 +34,14 @@ Stand: **2026-02-13**
 
 ### Supabase (Audit / Ops)
 
-- [ ] **SB-RLS-002 (P2)** RLS/Policies auditieren (z. B. Zugriffsmatrix dokumentieren, “least privilege”)  
+- [x] **SB-RLS-002 (P2)** RLS/Policies auditieren (least privilege) ✅ *(patch 98/99)*  
   _Ort_: `supabase/migrations/*` + `docs/reviews/SUPABASE_MIGRATION_VERIFICATION.md`
-- [ ] **SB-FN-003 (P2)** Edge error sanitization: sicherstellen, dass **alle** Functions den shared sanitizer nutzen  
+- [x] **SB-FN-003 (P2)** Edge error sanitization: sicherstellen, dass **alle** Functions den shared sanitizer nutzen ✅ *(patch 98/99)*  
   _Ort_: `supabase/functions/*`
-- [ ] **SB-MIG-001 (P2)** Migration-Runbook ergänzen (Roll-forward/Rollback, smoke checks)  
-  _Ort_: `docs/reviews/SUPABASE_MIGRATION_VERIFICATION.md` / `docs/reviews/SCREENS_VERIFICATION.md`
+- [x] **SB-MIG-001 (P2)** Migration-Runbook ergänzen (Roll-forward/Rollback, smoke checks) ✅ *(patch 98)*  
+  _Ort_: `docs/runbooks/SUPABASE_DEPLOY_AND_MIGRATIONS.md`
+- [x] **SB-TEST-001 (P2)** Unit-Tests für Error-Sanitizer (Transport-Sanitization) ✅ *(patch 98/99)*  
+  _Ort_: `__tests__/supabaseErrorSanitization.test.ts`
 
 ## Abgeschlossen (Kurzlog)
 
@@ -50,5 +52,8 @@ Stand: **2026-02-13**
 - **Patch 82–84**: ConnectionsScreen masking/validation/sanitization  
 - **Patch 85–86**: EnhancedBuildScreen hardening (Status union + guards)  
 - **Patch 87**: Supabase hardening (RLS + Edge error sanitization + migration)
-
-- [x] Patch 92: GitHubReposScreen splitFullName rejects whitespace around '/'
+- **Patch 91–92**: GitHubReposScreen strict parsing + whitespace rejection + tests
+- **Patch 93**: Docs/status refresh + consolidated review notes
+- **Patch 94–96**: GitHubReposScreen list virtualization + list flow tests + jest mock hardening
+- **Patch 97**: ConnectionsScreen extract validation utils + security/regression tests
+- **Patch 98/99**: Supabase RLS audit hardening + sanitizer everywhere + runbook + tests (+ TS fixes + unified redaction marker)

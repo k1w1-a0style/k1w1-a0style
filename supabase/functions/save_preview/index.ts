@@ -2,6 +2,7 @@ import { serve } from "std/http/server.ts";
 import { createClient } from "@supabase/supabase-js";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 import { parseJsonBody } from "../_shared/validation.ts";
+import { sanitizeErrorText } from "../_shared/errorSanitization";
 
 type SnackFiles = Record<string, { type?: string; contents: string }>;
 type Payload = {
@@ -203,7 +204,8 @@ serve(async (req) => {
       { status: 200, headers: cors },
     );
   } catch (e) {
-    console.error("[save_preview] error:", e);
+    const msg = sanitizeErrorText(e instanceof Error ? e.message : String(e));
+    console.error("[save_preview] error:", msg);
     return json(
       { ok: false, error: "Internal Server Error" },
       { status: 500, headers: cors },

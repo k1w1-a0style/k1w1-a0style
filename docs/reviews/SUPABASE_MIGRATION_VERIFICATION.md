@@ -1,8 +1,8 @@
 # Supabase & Migration Verification
 
-**Datum:** 2026-02-12  
+**Datum:** 2026-02-13  
 **Scope:** Supabase Client Init, Edge Functions (GitHub/EAS), RLS/Migrations  
-**Patch:** 87
+**Patch:** 87, 98, 99
 
 ## Ergebnis
 
@@ -62,3 +62,33 @@
 3. `npm run test:silent` ✅
 4. Edge Functions: Fehlerantworten prüfen
    - enthalten keine Tokens / keine URLs / keine raw bodies.
+
+---
+
+## 4) RLS: zusätzlicher Audit & Storage-Hardening
+
+**Patch 98** ergänzt ein Audit-Hardening für Tabellen ohne User-Scoping:
+
+- Neue Migration: `20260213000000_rls_audit_hardening.sql`
+  - `diagnostic_uploads`: entfernt breite `SELECT` Policy → **deny** für `anon`/`authenticated`
+  - `diagnostics_reports`: entfernt breite `SELECT` Policy → **deny** für `anon`/`authenticated`
+  - Storage Bucket `signing`: explizite deny-Policies auf `storage.objects` (read/write)
+
+**Begründung:** Ohne `user_id`/`auth.uid()`-Bindung wäre jeder Auth-User in der Lage, fremde Daten zu lesen.
+
+---
+
+## 5) Edge Functions: Sanitizer überall für Fehlerpfade
+
+**Patch 98** macht Error Sanitization zum Default:
+
+- `errorResponse(...)` in `supabase/functions/_shared/cors.ts` sanitizet `error` + `details` automatisch (Tokens -> `[REDACTED_TOKEN]`).
+- `create_codesandbox` sanitizet alle returned error strings.
+- `save_preview` sanitizet server-side logging.
+- Jest Coverage: `__tests__/supabaseErrorSanitization.test.ts`.
+
+---
+
+## Runbook
+
+Siehe: `docs/runbooks/SUPABASE_DEPLOY_AND_MIGRATIONS.md`

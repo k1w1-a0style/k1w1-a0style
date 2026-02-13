@@ -1,4 +1,5 @@
 import { serve } from "std/http/server.ts";
+import { sanitizeErrorText, sanitizeUnknownForTransport } from "../_shared/errorSanitization";
 
 // CodeSandbox "define" API
 const CODESANDBOX_DEFINE_URL =
@@ -32,6 +33,19 @@ function json(data: unknown, init: ResponseInit = {}) {
       ...(init.headers ?? {}),
     },
   });
+}
+
+function safeErrorMessage(err: unknown): string {
+  if (typeof err === "string") return sanitizeErrorText(err);
+  if (err && typeof err === "object" && "message" in err) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return sanitizeErrorText(String((err as any).message));
+    } catch {
+      return "Unknown error";
+    }
+  }
+  return "Unknown error";
 }
 
 function safeName(name: string) {
@@ -343,7 +357,10 @@ serve(async (req) => {
     const parsedBody = await parseJsonBody(req, 2_000_000);
     if (!parsedBody.ok) {
       const status = parsedBody.error.includes("too large") ? 413 : 400;
-      return json({ ok: false, error: parsedBody.error }, { status });
+      return json(
+        { ok: false, error: sanitizeErrorText(parsedBody.error) },
+        { status, headers: cors(origin) },
+      );
     }
     const body = parsedBody.body as RequestBody;
 
@@ -396,10 +413,14 @@ serve(async (req) => {
       { headers: cors(origin) },
     );
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = safeErrorMessage(e);
     console.error("[create_codesandbox]", msg);
     return json(
-      { ok: false, error: msg },
+      {
+        ok: false,
+        error: "Internal error",
+        details: sanitizeUnknownForTransport(msg),
+      },
       { status: 500, headers: cors(origin) },
     );
   }

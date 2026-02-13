@@ -1,6 +1,8 @@
 // supabase/functions/_shared/cors.ts
 // ✅ SEC-009: CORS Hardening
 
+import { sanitizeErrorText, sanitizeUnknownForTransport } from "./errorSanitization";
+
 /**
  * Erlaubte Origins für CORS
  * In Produktion: Nur spezifische Domains erlauben
@@ -115,11 +117,13 @@ export function errorResponse(
   status: number = 400,
   details?: unknown,
 ): Response {
+  const safeError = sanitizeErrorText(error);
+  const safeDetails = details === undefined ? undefined : sanitizeUnknownForTransport(details);
   return jsonResponse(
     {
       ok: false,
-      error,
-      ...(details && { details }),
+      error: safeError,
+      ...(safeDetails !== undefined && { details: safeDetails }),
     },
     req,
     status,

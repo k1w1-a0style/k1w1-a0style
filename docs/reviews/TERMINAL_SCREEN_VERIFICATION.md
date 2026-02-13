@@ -122,3 +122,6 @@ No TerminalScreen UI changes. `lib/secretRedaction` is now also used to sanitize
 - No TerminalScreen changes. (Supabase/migration + Edge error sanitization only.)
 
 Note (Patch 92): No changes to TerminalScreen; verification remains valid.
+
+## Patch 98 / 99
+- No TerminalScreen changes. (Supabase RLS audit hardening + Edge error sanitization + hotfix.)

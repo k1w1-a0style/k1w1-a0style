@@ -644,4 +644,14 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 
 2026-02-13  Patch 92  GitHubReposScreen repo parsing hotfix (whitespace around '/')
 
+2026-02-13  Patch 91  GitHubReposScreen: refresh unmount guard + strict owner/repo parsing + tests
+
+2026-02-13  Patch 93  Docs: update TODO + add status reports + refresh verification notes
+
+2026-02-13  Patch 94–96  GitHubReposScreen: list virtualization + list flow tests + jest mock factory hardening
+
 2026-02-13  Patch 97  ConnectionsScreen: extract validation helpers + add security/regression tests (no UI change)
+
+2026-02-13  Patch 98  Supabase: RLS audit hardening (diagnostics + signing bucket) + sanitize Edge errors everywhere + runbook + tests
+
+2026-02-13  Patch 99  Supabase: hotfix sanitizer typings + unify redaction marker ([REDACTED_TOKEN])
