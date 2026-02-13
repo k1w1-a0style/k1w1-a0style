@@ -75,4 +75,19 @@ Stand: **2026-02-13**
 - [x] **CODE-105 (P1/P2)** CodeScreen: Save await + Folder-Delete deterministisch + selectedFile cleanup ✅ *(patch 105)*  
   _Ort_: `screens/CodeScreen/hooks/useFileEditor.ts`, `screens/CodeScreen/hooks/useFileActions.ts`  
 - [x] **CODE-105 (P2/P3)** CodeScreen UX/Consistency: Modal/Dialog reset, selectAll scoped, ImageViewer size fix, FileTree empty-folder fix ✅ *(patch 105)*  
-  _Ort_: `components/*`, `screens/CodeScreen/*`, `utils/syntaxValidator.ts`  
+  _Ort_: `components/*`, `screens/CodeScreen/*`, `utils/syntaxValidator.ts`
+
+### DiagnosticScreen
+
+- [x] **DIAG-106 (P1)** `applyPatch`: Delete-Fehler nicht schlucken (keine File-Leichen / kein projectRef-Phantom-State) ✅ *(patch 106)*  
+  _Ort_: `screens/DiagnosticScreen/hooks/useDiagnosticFixRunner.ts`
+- [x] **DIAG-106 (P2)** Batch-Progress: `setFixStepIndex` auch für Apply-Steps ✅ *(patch 106)*  
+  _Ort_: `screens/DiagnosticScreen/hooks/useDiagnosticFixRunner.ts`
+- [x] **DIAG-106 (P2)** `undoAll`: Busy-Guard + `finally` Cleanup (kein Doppel-Undo) ✅ *(patch 106)*  
+  _Ort_: `screens/DiagnosticScreen/hooks/useDiagnosticFixRunner.ts`
+- [x] **DIAG-106 (P2)** HeaderStats: Projektname hängt von `projectData?.name` ab (kein stale Name) ✅ *(patch 106)*  
+  _Ort_: `screens/DiagnosticScreen/hooks/useDiagnosticScreen.ts`
+- [x] **DIAG-106 (P3)** Preferences: AsyncStorage Fehler loggen statt still schlucken ✅ *(patch 106)*  
+  _Ort_: `screens/DiagnosticScreen/hooks/useDiagnosticPreferences.ts`
+- [x] **DIAG-106 (P3)** `AUTOFIX_MAX` Single-Source (kein Duplikat in UI) ✅ *(patch 106)*  
+  _Ort_: `screens/DiagnosticScreen/hooks/useDiagnosticFixRunner.ts`, `screens/DiagnosticScreen/components/NonIssuesTabSection.tsx`

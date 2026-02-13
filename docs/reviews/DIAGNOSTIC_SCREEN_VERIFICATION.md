@@ -52,3 +52,30 @@ Patch 61 ist ausschließlich Correctness/Robustness/Performance + Tests.
 ## Patch 62 Follow-up
 
 - Typecheck-Fixes (message Mapping + IssuesFilter Contract konsistent, ohne `info`).
+---
+
+## Patch 106 Follow-up (2026-02-13)
+
+Dieses Follow-up setzt bestätigte Findings aus dem DiagnosticScreen-Review um (Fokus: **Correctness der Patch-Anwendung**, **State-Kohärenz**, **Progress/Undo Robustheit**).
+
+### Fixes
+
+- **applyPatch (Delete + Upsert)**: Delete-Fehler werden nicht mehr geschluckt (UPSERT löscht nicht). Damit keine “File-Leichen” mehr und keine Divergenz `projectRef` vs. `projectData`.  
+  _Ort_: `screens/DiagnosticScreen/hooks/useDiagnosticFixRunner.ts`
+- **projectRef Shadow-State**: `projectRef.current.files` wird nur nach erfolgreichem Delete+Upsert aktualisiert (kein Phantom-State für Folgepatches im Batch).  
+  _Ort_: `screens/DiagnosticScreen/hooks/useDiagnosticFixRunner.ts`
+- **Batch Progress**: `setFixStepIndex` wird in `applyFixList` jetzt auch für Apply-Steps gesetzt (ProgressBar zählt wieder schrittweise).  
+  _Ort_: `screens/DiagnosticScreen/hooks/useDiagnosticFixRunner.ts`
+- **Undo All**: Busy-Guard + `finally` Cleanup (kein Doppel-Undo / keine parallel laufenden Undo-Ketten).  
+  _Ort_: `screens/DiagnosticScreen/hooks/useDiagnosticFixRunner.ts`
+- **HeaderStats**: Projektname wird aus `projectData?.name` abgeleitet (kein stale Name über `projectRef`).  
+  _Ort_: `screens/DiagnosticScreen/hooks/useDiagnosticScreen.ts`
+- **Preferences**: AsyncStorage Read/Write Fehler werden geloggt (Warnung statt stilles Schlucken).  
+  _Ort_: `screens/DiagnosticScreen/hooks/useDiagnosticPreferences.ts`
+- **AUTOFIX_MAX**: Single-Source Constant (Export aus FixRunner, Import in UI) – kein divergendes Limit.  
+  _Ort_: `screens/DiagnosticScreen/hooks/useDiagnosticFixRunner.ts`, `screens/DiagnosticScreen/components/NonIssuesTabSection.tsx`
+
+### Verifikation
+- `npm run typecheck` ✅
+- `npm run lint:ci` ✅
+- `npm run test:silent` ✅

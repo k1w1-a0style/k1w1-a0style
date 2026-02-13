@@ -16,8 +16,9 @@ import { theme } from "../../../theme";
 import type { PreflightCheckResult } from "../../../lib/diagnostics/preflightTypes";
 import type { Status } from "../types";
 
+import { AUTOFIX_MAX } from "../hooks/useDiagnosticFixRunner";
+
 const MAX_DETAILS = 10;
-const AUTOFIX_MAX = 50;
 
 export function NonIssuesTabSection(props: {
   styles: any;

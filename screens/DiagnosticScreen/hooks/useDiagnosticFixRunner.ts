@@ -27,7 +27,7 @@ import type {
 } from "../types";
 
 const MAX_HISTORY = 10;
-const AUTOFIX_MAX = 50; // safety: don't apply endless chains
+export const AUTOFIX_MAX = 50; // safety: don't apply endless chains
 
 type ToastLike = { show: (msg: string) => void };
 
@@ -294,20 +294,26 @@ export function useDiagnosticFixRunner(opts: {
           content,
         }));
 
-        try {
-          for (const p of patch.delete ?? []) {
+        // Delete files first. If any delete fails we must NOT silently continue,
+        // because updateProjectFiles is an UPSERT/merge — it won't remove files.
+        // A swallowed error here causes projectRef vs projectData divergence.
+        const deletePaths = (patch.delete ?? [])
+          .map((p) => {
             const pv = validateFilePath(p);
-            if (pv.valid && pv.normalized) await deleteFile(pv.normalized);
-          }
-        } catch {
-          // ignore – updateProjectFiles will still update in-memory state
+            return pv.valid && pv.normalized ? pv.normalized : null;
+          })
+          .filter(Boolean) as string[];
+
+        for (const p of deletePaths) {
+          await deleteFile(p);
         }
 
         await updateProjectFiles(nextFiles);
 
-        try {
-          projectRef.current = { ...projectRef.current, files: nextFiles };
-        } catch {}
+        // Only update the shadow ref after both delete + upsert succeeded.
+        // This keeps projectRef consistent with projectData for subsequent
+        // batch patches that read from projectRef.current.
+        projectRef.current = { ...projectRef.current, files: nextFiles };
 
         setHistory((prev) => {
           const entry: FixHistoryEntry = { label, at: Date.now(), snapshot, createdPaths };
@@ -333,8 +339,9 @@ export function useDiagnosticFixRunner(opts: {
       for (const p of last.createdPaths ?? []) await deleteFile(p);
       if (last.snapshot.length) await updateProjectFiles(last.snapshot);
       setHistory((prev) => prev.slice(1));
-    } catch (e: any) {
-      Alert.alert("Undo fehlgeschlagen", e?.message || "Unbekannter Fehler");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unbekannter Fehler";
+      Alert.alert("Undo fehlgeschlagen", msg);
     } finally {
       applyBusyRef.current = false;
       if (mountedRef.current) setApplyBusy(false);
@@ -343,6 +350,7 @@ export function useDiagnosticFixRunner(opts: {
 
   const undoAll = useCallback(async () => {
     if (!history.length) return;
+    if (applyBusyRef.current) return;
 
     Alert.alert("Alle Fixes rückgängig machen?", `${history.length} Fix(es) werden zurückgesetzt.`, [
       { text: "Abbrechen", style: "cancel" },
@@ -350,23 +358,32 @@ export function useDiagnosticFixRunner(opts: {
         text: "Undo All",
         style: "destructive",
         onPress: async () => {
+          applyBusyRef.current = true;
+          if (mountedRef.current) setApplyBusy(true);
+
           let undone = 0;
-          for (const entry of history) {
-            try {
-              for (const p of entry.createdPaths ?? []) await deleteFile(p);
-              if (entry.snapshot.length) await updateProjectFiles(entry.snapshot);
-              undone++;
-            } catch (e: any) {
-              Alert.alert(
-                "Undo All fehlgeschlagen",
-                `Abgebrochen nach ${undone} Fix(es): ${e?.message || "Unbekannter Fehler"}`,
-              );
-              break;
+          try {
+            for (const entry of history) {
+              try {
+                for (const p of entry.createdPaths ?? []) await deleteFile(p);
+                if (entry.snapshot.length) await updateProjectFiles(entry.snapshot);
+                undone++;
+              } catch (e: unknown) {
+                const msg = e instanceof Error ? e.message : "Unbekannter Fehler";
+                Alert.alert(
+                  "Undo All fehlgeschlagen",
+                  `Abgebrochen nach ${undone} Fix(es): ${msg}`,
+                );
+                break;
+              }
             }
-          }
-          if (mountedRef.current && undone > 0) {
-            setHistory((prev) => prev.slice(undone));
-            Alert.alert("✓ Undo", `${undone} Fix(es) rückgängig gemacht.`);
+            if (mountedRef.current && undone > 0) {
+              setHistory((prev) => prev.slice(undone));
+              Alert.alert("✓ Undo", `${undone} Fix(es) rückgängig gemacht.`);
+            }
+          } finally {
+            applyBusyRef.current = false;
+            if (mountedRef.current) setApplyBusy(false);
           }
         },
       },
@@ -548,6 +565,7 @@ export function useDiagnosticFixRunner(opts: {
       };
 
       for (const { r, patch } of deduped) {
+        setFixStepIndex(cursor);
         mark(cursor, { status: "running" });
         try {
           await applyPatch(r.title, patch);

@@ -356,7 +356,7 @@ export function useDiagnosticScreen(opts: {
     [counts.fail, counts.warn, fixableResults.length],
   );
 
-  const issueList = useMemo(() => visibleResults, [visibleResults]);
+  const issueList = visibleResults;
   const busy = running || applyBusy;
 
   const [issueSheetVisible, setIssueSheetVisible] = useState(false);
@@ -382,11 +382,11 @@ export function useDiagnosticScreen(opts: {
   }, [activeIssue, toSeverity]);
 
   const headerStats = useMemo(() => {
-    const name = projectRef.current?.name ?? "–";
+    const name = projectData?.name ?? "–";
     const easProfile = target.mode === "eas" ? target.profile : undefined;
     const mode = target.mode === "expoGo" ? "Expo Go" : `EAS: ${easProfile ?? "?"}`;
     return { name, mode };
-  }, [target.mode, target.mode === "eas" ? target.profile : undefined]);
+  }, [projectData?.name, target]);
 
   return {
     toast,

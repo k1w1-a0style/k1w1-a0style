@@ -675,3 +675,6 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 2026-02-13  Patch 103  Fix default chat retention parsing (missing AsyncStorage key no longer becomes 0) + restore ChatScreen history + tests
 
 2026-02-13  Patch 104  ChatScreen: AI-flow stale-closure fix (refs), bounded AutoFix queue, debounced scroll with single retry, modal summary truncation, confirm dialogs
+
+2026-02-13  Patch 105  CodeScreen hardening (await save, folder delete deterministisch + selectedFile cleanup, modal/dialog reset, selectAll scoped, ImageViewer size fix, FileTree empty-folder fix)
+2026-02-13  Patch 106  DiagnosticScreen: applyPatch delete-error propagation + projectRef sync safety, undoAll busy guard, batch progress index, prefs warn logs, unify AUTOFIX_MAX, headerStats project name dep

@@ -122,8 +122,8 @@ export function useDiagnosticPreferences(opts: {
         if (aw === "0" || aw === "1") setAutoFixIncludeWarn(aw === "1");
         if (as === "visible" || as === "all") setAutoFixScope(as);
         setHydrated(true);
-      } catch {
-        // ignore
+      } catch (e) {
+        console.warn("[DiagnosticPrefs] Failed to load preferences:", e);
         setHydrated(true);
       }
     })();
@@ -154,8 +154,8 @@ export function useDiagnosticPreferences(opts: {
             [prefKey(DIAG_PREF_AUTOFIX_WARN_KEY), autoFixIncludeWarn ? "1" : "0"],
             [prefKey(DIAG_PREF_AUTOFIX_SCOPE_KEY), autoFixScope],
           ]);
-        } catch {
-          // ignore
+        } catch (e) {
+          console.warn("[DiagnosticPrefs] Failed to persist preferences:", e);
         }
       })();
     }, 500);
