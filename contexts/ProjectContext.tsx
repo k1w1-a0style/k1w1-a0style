@@ -49,6 +49,7 @@ import {
 } from "../lib/buildHistoryStorage";
 import { CONFIG } from "../config";
 import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../lib/templateChecklist";
+import { autoSyncRepoSecrets } from "../lib/autoSyncRepoSecrets";
 
 const loadTemplateFromFile = async (templateId: TemplateId = "base"): Promise<ProjectFile[]> => {
   try {
@@ -878,13 +879,32 @@ useEffect(() => {
         const startedAt = new Date().toISOString();
         setCurrentBuild({
           status: "queued",
-          message: "🚀 Build wird gestartet…",
+          message: "🚀 Build wird gestartet (Secrets werden synchronisiert)…",
           jobId: null,
           githubRepo,
           buildProfile: profile,
           startedAt,
           lastUpdatedAt: startedAt,
         });
+
+        // ✅ Automatisch Secrets aus den In-App Connections in das Ziel-Repo spiegeln.
+        // Damit Build/Profile unabhängig vom zuletzt manuell ausgeführten Sync korrekt laufen.
+        try {
+          if (!githubRepo || !githubRepo.includes("/")) {
+            throw new Error(
+              'Kein GitHub-Repo verbunden. Bitte in "Connections" ein Repo verknüpfen.',
+            );
+          }
+          const syncResult = await autoSyncRepoSecrets(githubRepo);
+          if (syncResult.skipped.length > 0) {
+            console.warn(
+              "⚠️ Secrets Auto-Sync: teilweise unvollständig:",
+              syncResult.skipped,
+            );
+          }
+        } catch (syncError) {
+          console.warn("⚠️ Secrets Auto-Sync fehlgeschlagen:", syncError);
+        }
 
         // ✅ Build läuft auf GitHub. Damit wirklich der aktuelle Stand gebaut wird,
         // pushen wir (best-effort) die lokalen Projektdateien ins Repo.
