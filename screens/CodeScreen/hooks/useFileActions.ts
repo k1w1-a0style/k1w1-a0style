@@ -152,11 +152,26 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
                       text: "Löschen",
                       style: "destructive",
                       onPress: () => {
+                        const folderPrefix = node.path + "/";
                         const filesToDelete =
                           projectData?.files.filter((f) =>
-                            f.path.startsWith(node.path + "/"),
+                            f.path.startsWith(folderPrefix),
                           ) ?? [];
-                        filesToDelete.forEach((f) => deleteFile(f.path));
+
+                        // Clean up editor if the open file lives inside the deleted folder.
+                        if (selectedFile?.path.startsWith(folderPrefix)) {
+                          setSelectedFile(null);
+                          setEditingContent("");
+                        }
+
+                        // Note: deleteFile is mutex-serialized in ProjectContext,
+                        // so these run sequentially. A batch-delete API would avoid
+                        // N re-renders, but correctness is guaranteed.
+                        void (async () => {
+                          for (const f of filesToDelete) {
+                            await deleteFile(f.path);
+                          }
+                        })();
                       },
                     },
                   ],
@@ -176,7 +191,7 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
 
       confirmLoseChanges(proceed);
     },
-    [confirmLoseChanges, deleteFile, projectData?.files, selectionMode],
+    [confirmLoseChanges, deleteFile, projectData?.files, selectedFile, selectionMode, setEditingContent, setSelectedFile],
   );
 
   const handleRenameFile = useCallback(

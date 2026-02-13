@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Modal, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
@@ -27,6 +27,15 @@ export const CreationDialog: React.FC<CreationDialogProps> = ({
   const [name, setName] = useState('');
   const [type, setType] = useState<'file' | 'folder'>('file');
   const [error, setError] = useState<string>('');
+
+  // Reset fields every time the dialog opens.
+  useEffect(() => {
+    if (visible) {
+      setName('');
+      setType('file');
+      setError('');
+    }
+  }, [visible]);
 
   const handleCreate = async () => {
     const trimmedName = name.trim();

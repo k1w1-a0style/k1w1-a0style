@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -47,6 +47,16 @@ export const FileActionsModal: React.FC<FileActionsModalProps> = ({
   const [showMove, setShowMove] = useState(false);
   const [newName, setNewName] = useState(fileName);
   const [selectedFolder, setSelectedFolder] = useState<string>('');
+
+  // Reset internal state whenever the modal opens or targets a different file.
+  useEffect(() => {
+    if (visible) {
+      setNewName(fileName);
+      setSelectedFolder('');
+      setShowRename(false);
+      setShowMove(false);
+    }
+  }, [visible, fileName]);
 
   const handleRename = async () => {
     if (!newName.trim()) {

@@ -198,7 +198,7 @@ export const useFileEditor = (): UseFileEditorReturn => {
           if (choice !== "save") return false;
         }
       }
-updateProjectFiles([
+      await updateProjectFiles([
         { path: selectedFile.path, content: editingContent },
       ]);
       setSelectedFile((prev) =>

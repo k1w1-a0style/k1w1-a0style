@@ -24,6 +24,12 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
     ? base64Content
     : `data:image/png;base64,${base64Content}`;
 
+  // Strip data URI prefix for size approximation (base64 → binary ≈ ×0.75).
+  const rawBase64 = base64Content.includes(",")
+    ? base64Content.slice(base64Content.indexOf(",") + 1)
+    : base64Content;
+  const approxKB = (rawBase64.length * 0.75 / 1024).toFixed(1);
+
   return (
     <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
       <View style={styles.editorHeader}>
@@ -58,7 +64,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
             resizeMode="contain"
           />
           <Text style={styles.imageInfo}>
-            {filePath} • {(base64Content.length / 1024).toFixed(1)} KB
+            {filePath} • {approxKB} KB
           </Text>
         </View>
       </ScrollView>

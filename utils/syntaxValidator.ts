@@ -140,9 +140,10 @@ export const validateSyntax = (code: string, filePath: string): SyntaxError[] =>
   if (extension === 'json') {
     try {
       JSON.parse(code);
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
       errors.push({
-        message: `JSON Syntax-Fehler: ${e.message}`,
+        message: `JSON Syntax-Fehler: ${msg}`,
         severity: 'error',
       });
     }

@@ -1,6 +1,15 @@
 # k1w1-a0style – Projekt-Diagnose Log (living doc)
 
 
+## PATCH 105 (2026-02-13)
+- CodeScreen: Save `await updateProjectFiles` (kein false-positive "Gespeichert")
+- CodeScreen: Folder-Delete: deletes sequentially awaited (Performance/Determinismus), plus `selectedFile` cleanup
+- CodeScreen: FileTree: leere Ordner korrekt finden ("nicht gefunden" vs "gefunden, leer")
+- CodeScreen: Modals/Dialogs: State-Reset bei reopen (Rename/Move + CreationDialog)
+- CodeScreen: Explorer: `selectAllFiles` scoped auf aktuellen Ordner + remove `toContentString` Duplikat
+- CodeScreen: ImageViewer Dateigröße korrekt (base64 overhead + prefix strip)
+- Utils: syntaxValidator `unknown` catch
+
 ## PATCH 91 (2026-02-12)
 - GitHubReposScreen: Refresh unmount/race guard (kein setState nach unmount / stale refresh)
 - GitHubReposScreen: Strikte owner/repo Parsing-Validierung (exactly one '/', owner+repo pattern/length)

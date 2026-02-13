@@ -68,3 +68,11 @@ Stand: **2026-02-13**
 - **Patch 103**: ChatScreen/Privacy: Fix default Retention (missing setting key no longer wipes Chat-History)
 - **Patch 104**: ChatScreen Hardening (AI-flow stale-closure fix via refs, bounded AutoFix queue, debounced scroll+one retry, modal summary truncation, confirm dialogs)
 
+
+
+### CodeScreen
+
+- [x] **CODE-105 (P1/P2)** CodeScreen: Save await + Folder-Delete deterministisch + selectedFile cleanup ✅ *(patch 105)*  
+  _Ort_: `screens/CodeScreen/hooks/useFileEditor.ts`, `screens/CodeScreen/hooks/useFileActions.ts`  
+- [x] **CODE-105 (P2/P3)** CodeScreen UX/Consistency: Modal/Dialog reset, selectAll scoped, ImageViewer size fix, FileTree empty-folder fix ✅ *(patch 105)*  
+  _Ort_: `components/*`, `screens/CodeScreen/*`, `utils/syntaxValidator.ts`  

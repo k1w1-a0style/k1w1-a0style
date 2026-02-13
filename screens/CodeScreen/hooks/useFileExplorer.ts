@@ -18,11 +18,7 @@ import {
 } from "../../../components/FileTree";
 import { useProject } from "../../../contexts/ProjectContext";
 import type { ProjectFile } from "../../../contexts/types";
-
-const toContentString = (file: ProjectFile): string =>
-  typeof file.content === "string"
-    ? file.content
-    : JSON.stringify(file.content, null, 2);
+import { toContentString } from "./useFileEditor";
 
 const MAX_EXPORT_BYTES = 2 * 1024 * 1024; // ~2 MiB safety cap to avoid OOM on low-end Android
 const estimateUtf8Bytes = (text: string): number => {
@@ -95,12 +91,14 @@ export const useFileExplorer = (): UseFileExplorerReturn => {
   }, []);
 
   const selectAllFiles = useCallback(() => {
-    const all =
-      projectData?.files
-        .filter((f) => !f.path.includes("node_modules"))
-        .map((f) => f.path) ?? [];
+    // Only select files visible in the current folder view.
+    const all = currentFolderItems
+      .filter((item): item is TreeNode & { file: ProjectFile } =>
+        item.type === "file" && item.file != null,
+      )
+      .map((item) => item.file.path);
     setSelectedFiles(new Set(all));
-  }, [projectData?.files]);
+  }, [currentFolderItems]);
 
   const deselectAllFiles = useCallback(() => {
     setSelectedFiles(new Set());

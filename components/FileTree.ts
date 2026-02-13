@@ -88,17 +88,21 @@ export const buildFileTree = (files: ProjectFile[]): TreeNode[] => {
   return rootNodes;
 };
 
-export const findFolderContent = (nodes: TreeNode[], path: string): TreeNode[] => {
-  if (!path) return nodes;
-
+// Internal: returns null when the folder isn't found (vs [] for "found, empty").
+const findFolderContentInner = (nodes: TreeNode[], path: string): TreeNode[] | null => {
   for (const node of nodes) {
     if (node.path === path && node.type === 'folder') {
       return node.children || [];
     }
     if (node.children) {
-      const result = findFolderContent(node.children, path);
-      if (result.length > 0) return result;
+      const result = findFolderContentInner(node.children, path);
+      if (result !== null) return result;
     }
   }
-  return [];
+  return null;
+};
+
+export const findFolderContent = (nodes: TreeNode[], path: string): TreeNode[] => {
+  if (!path) return nodes;
+  return findFolderContentInner(nodes, path) ?? [];
 };

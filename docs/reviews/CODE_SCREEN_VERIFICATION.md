@@ -1,6 +1,6 @@
 # CodeScreen – Verification
 
-Stand: **2026-02-12**
+Stand: **2026-02-13**
 
 ## Scope
 Verifikation der CodeScreen-Fixes basierend auf:
@@ -49,3 +49,13 @@ Verifikation der CodeScreen-Fixes basierend auf:
 - Typecheck: ✅
 - Lint: ✅
 - Jest: ✅
+
+## Patch 105 – Addendum (2026-02-13)
+Verifiziert nach kritischem Review/Gegenprüfung:
+- Save: `await updateProjectFiles` → Alert nur nach erfolgreichem Persist.
+- Folder-Delete: deletes werden awaited (kein UI-Spam) + `selectedFile` wird bei Treffer geräumt.
+- FileTree: leere Ordner werden korrekt als "gefunden, leer" behandelt.
+- Modals/Dialogs: State reset bei reopen (Rename/Move + Create).
+- Explorer: `selectAllFiles` scoped auf aktuellen Ordner; `toContentString` Duplikat entfernt.
+- ImageViewer: Dateigröße korrigiert (Base64 overhead + Prefix strip).
+- syntaxValidator: `unknown` catch.
