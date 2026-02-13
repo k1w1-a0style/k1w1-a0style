@@ -12,13 +12,13 @@ on:
       ref:
         description: "Branch/Tag/SHA (optional)"
         required: false
-        default: "main"
+        default: ""
 
 permissions:
   contents: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ inputs.ref }}-${{ inputs.profile }}
+  group: ${{ github.workflow }}-${{ inputs.ref || github.ref_name }}-${{ inputs.profile }}
   cancel-in-progress: false
 
 jobs:
@@ -38,7 +38,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.ref || github.ref_name }}
           fetch-depth: 0
           persist-credentials: true
 
