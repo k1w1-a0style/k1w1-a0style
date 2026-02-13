@@ -173,7 +173,7 @@ jobs:
       - name: Auto-fix repo (lockfile + dev client) [optional writeback]
         shell: bash
         env:
-          TARGET_BRANCH: ${{ inputs.ref }}
+          TARGET_BRANCH: ${{ inputs.ref || github.ref_name }}
           PROFILE: ${{ inputs.profile }}
           ALLOWED_REF_REGEX: "^(work|dev|develop|feature/.+|hotfix/.+)$"
         run: |
