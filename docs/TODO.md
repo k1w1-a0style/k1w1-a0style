@@ -22,15 +22,15 @@ Stand: **2026-02-13**
   _Ort_: `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`
 - [x] **RS-005 (P2)** Striktere `owner/repo`-Validierung + Tests (`splitFullName`/Parsing)  ✅ *(patch 91)*
   _Ort_: `screens/GitHubReposScreen/utils/repos.ts` (+ Tests in `__tests__/`)
-- [x] **RS-006 (P3)** Repo-Liste virtualisiert (Root-FlatList), keine VirtualizedList-in-ScrollView Warnungen  ✅ *(patch 94 + hotfix 96)*
-  _Ort_: `screens/GitHubReposScreen/index.tsx`
-- [x] **RS-008 (P2/P3)** Tests: Repo-List Flows (show/hide + selection)  ✅ *(patch 94 + hotfix 96)*
-  _Ort_: `__tests__/githubReposScreen.list.test.tsx`
+- [ ] **RS-006 (P3)** Repo-Liste virtualisieren (FlatList) ohne VirtualizedList-Warnungen  
+  _Ort_: `screens/GitHubReposScreen/components/RepoListSection.tsx` / ggf. Screen-Layout
+- [ ] **RS-008 (P2/P3)** Tests: Selection-Consistency, Branch-Race, Modal-Idempotency  
+  _Ort_: `__tests__/` (Screen-/Hook-Tests)
 
 ### ConnectionsScreen
 
-- [ ] **CS-006 (P2)** Security-/Regression-Tests für Masking/Validation (Tokens/Keys)  
-  _Ort_: `screens/ConnectionsScreen/*` + `__tests__/`
+- [x] **CS-006 (P2)** Security-/Regression-Tests für Masking/Validation (Tokens/Keys) ✅ *(patch 97)*  
+  _Ort_: `screens/ConnectionsScreen/utils/validation.ts` + `__tests__/connectionsScreen.validation.test.ts`
 
 ### Supabase (Audit / Ops)
 
@@ -52,5 +52,3 @@ Stand: **2026-02-13**
 - **Patch 87**: Supabase hardening (RLS + Edge error sanitization + migration)
 
 - [x] Patch 92: GitHubReposScreen splitFullName rejects whitespace around '/'
-- [x] Patch 94: GitHubReposScreen RepoList virtualized + basic flow tests
-- [x] Patch 95: Hotfix for Hook order (eslint) + Jest mock scope in list tests

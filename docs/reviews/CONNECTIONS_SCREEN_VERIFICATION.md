@@ -1,6 +1,6 @@
 # ConnectionsScreen Verification
 
-Stand: **2026-02-12**
+Stand: **2026-02-13**
 
 ## Ziel
 ConnectionsScreen verwaltet hochsensitive Tokens/Keys (GitHub/Expo/Edge/Supabase). Der Screen soll:
@@ -41,6 +41,20 @@ Patch 82 ist ein Hardening ohne Layout-Umbruch:
 **Fix:** `saveAll()` nutzt jetzt das memoized Result direkt (`const v = validateBeforeSave;`).
 
 **Optik-Änderung:** Nein.
+
+---
+
+## Patch 97 (Tests + Refactor)
+
+### ✅ CS-006 (P2): Security-/Regression-Tests für Validation & Sanitization
+**Was:** Die Validierungs- und Sanitization-Logik ist jetzt als reine Utils ausgelagert (`screens/ConnectionsScreen/utils/validation.ts`) und wird in `__tests__/connectionsScreen.validation.test.ts` abgedeckt.
+
+**Getestet:**
+- Supabase URL: Project-ID/URL Normalisierung + Reject bei invalid host/protocol.
+- Keys: JWT-Shape requirement + Reject bei Whitespaces.
+- Alerts: `safeAlertText()` redacted Tokens/JWT + Truncation Marker.
+
+**Optik-Änderung:** Nein (nur Test + interne Logik-Reuse).
 
 ## Patch 84 (Hotfix)
 
