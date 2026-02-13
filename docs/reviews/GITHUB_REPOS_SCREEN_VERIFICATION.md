@@ -31,7 +31,8 @@ Keine sichtbaren Änderungen (Layout bleibt gleich; nur Scroll-Container/Renderi
 Patch 92: Parsing hardening — rejects whitespace around '/', tests cover these cases.
 
 
-## Hotfix (Patch 95)
-- ✅ ESLint Hooks-Regel: keine bedingten Hooks (useMemo/useCallback) mehr
-- ✅ Jest: list flow tests mocken RN Komponenten ohne out-of-scope factory refs
+## Hotfix (Patch 95 + Patch 96)
+- ✅ ESLint Hooks-Regel: keine bedingten Hooks (useMemo/useCallback) mehr (Patch 95)
+- ✅ Jest: list flow tests mocken RN Komponenten ohne out-of-scope factory refs (Patch 95)
+- ✅ Jest: fix out-of-scope var im useGitHubReposScreen mock (Patch 96)
 - 🎨 Optik: keine Änderungen

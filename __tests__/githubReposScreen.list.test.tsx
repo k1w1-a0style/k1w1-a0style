@@ -53,9 +53,11 @@ jest.mock("../components/RepoListItem", () => {
   };
 });
 
-const useGitHubReposScreenMock = jest.fn();
+// NOTE: Jest forbids referencing out-of-scope vars inside jest.mock() factories
+// unless the identifier is prefixed with "mock". Keep this name.
+const mockUseGitHubReposScreen = jest.fn();
 jest.mock("../screens/GitHubReposScreen/hooks/useGitHubReposScreen", () => ({
-  useGitHubReposScreen: () => useGitHubReposScreenMock(),
+  useGitHubReposScreen: () => mockUseGitHubReposScreen(),
 }));
 
 const baseVM = (overrides: any = {}) => ({
@@ -139,7 +141,7 @@ describe("GitHubReposScreen repo list", () => {
   });
 
   test("renders FlatList and empty state when repo list is enabled but empty", () => {
-    useGitHubReposScreenMock.mockReturnValue(
+    mockUseGitHubReposScreen.mockReturnValue(
       baseVM({ showRepoList: true, filteredRepos: [], loadingRepos: false }),
     );
 
@@ -152,7 +154,7 @@ describe("GitHubReposScreen repo list", () => {
     const repos = [
       { id: 1, name: "a", full_name: "x/a", description: "", updated_at: new Date().toISOString() },
     ];
-    useGitHubReposScreenMock.mockReturnValue(
+    mockUseGitHubReposScreen.mockReturnValue(
       baseVM({ showRepoList: false, filteredRepos: repos }),
     );
 
@@ -167,7 +169,7 @@ describe("GitHubReposScreen repo list", () => {
     ];
     const handleSelectRepo = jest.fn();
 
-    useGitHubReposScreenMock.mockReturnValue(
+    mockUseGitHubReposScreen.mockReturnValue(
       baseVM({ showRepoList: true, filteredRepos: repos, handleSelectRepo }),
     );
 

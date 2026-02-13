@@ -647,3 +647,5 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 2026-02-13  Patch 94  GitHubReposScreen RepoList virtualization + flow tests
 
 2026-02-13  Patch 95  GitHubReposScreen: fix conditional hooks + jest list test mock scope
+
+2026-02-13  Patch 96  GitHubReposScreen: fix jest mock factory out-of-scope var (list tests)

@@ -22,9 +22,9 @@ Stand: **2026-02-13**
   _Ort_: `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`
 - [x] **RS-005 (P2)** Striktere `owner/repo`-Validierung + Tests (`splitFullName`/Parsing)  ✅ *(patch 91)*
   _Ort_: `screens/GitHubReposScreen/utils/repos.ts` (+ Tests in `__tests__/`)
-- [x] **RS-006 (P3)** Repo-Liste virtualisiert (Root-FlatList), keine VirtualizedList-in-ScrollView Warnungen  ✅ *(patch 94 + hotfix 95)*
+- [x] **RS-006 (P3)** Repo-Liste virtualisiert (Root-FlatList), keine VirtualizedList-in-ScrollView Warnungen  ✅ *(patch 94 + hotfix 96)*
   _Ort_: `screens/GitHubReposScreen/index.tsx`
-- [x] **RS-008 (P2/P3)** Tests: Repo-List Flows (show/hide + selection)  ✅ *(patch 94 + hotfix 95)*
+- [x] **RS-008 (P2/P3)** Tests: Repo-List Flows (show/hide + selection)  ✅ *(patch 94 + hotfix 96)*
   _Ort_: `__tests__/githubReposScreen.list.test.tsx`
 
 ### ConnectionsScreen
