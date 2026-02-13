@@ -53,7 +53,6 @@ import { autoSyncRepoSecrets } from "../lib/autoSyncRepoSecrets";
 
 const loadTemplateFromFile = async (templateId: TemplateId = "base"): Promise<ProjectFile[]> => {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const template =
       templateId === "navigation"
         ? require("../templates/expo-sdk54-navigation.json")
@@ -308,7 +307,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         },
       ],
     );
-  }, []);
+  }, [projectData]);
 
   const exportProjectAsZip = useCallback(async () => {
     if (!projectData) {
@@ -688,23 +687,49 @@ const pauseBuildPolling = useCallback(() => {
 
         // check-eas-build returns { ok, job: {...} }.
         // Keep backwards-compat with older shapes by probing multiple fields.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const anyData: any = data ?? {};
-        const job = anyData?.job ?? anyData?.data?.job ?? null;
+        type BuildJobResponse = {
+          status?: string;
+          github_run_id?: number | string;
+          build_url?: string;
+          download_url?: string;
+          urls?: {
+            githubRun?: string;
+            html?: string;
+            run?: string;
+            runUrl?: string;
+            artifacts?: string;
+            artifact?: string;
+            buildUrl?: string;
+          };
+        };
+        type BuildStatusResponse = {
+          job?: BuildJobResponse;
+          data?: { job?: BuildJobResponse };
+          status?: string;
+          job_status?: string;
+          runId?: number | string;
+          run_id?: number | string;
+          github_run_id?: number | string;
+          urls?: BuildJobResponse["urls"];
+          build_url?: string;
+          buildUrl?: string;
+          download_url?: string;
+          downloadUrl?: string;
+        };
+
+        const response = (data ?? null) as BuildStatusResponse | null;
+        const job = response?.job ?? response?.data?.job ?? null;
 
         const rawStatus: string | undefined =
-          (job?.status as string | undefined) ??
-          (anyData?.status as string | undefined) ??
-          (anyData?.job_status as string | undefined) ??
-          undefined;
+          job?.status ?? response?.status ?? response?.job_status ?? undefined;
 
         const mapped: BuildStatus = mapBuildStatus(rawStatus);
 
         const runIdRaw =
           job?.github_run_id ??
-          anyData?.runId ??
-          anyData?.run_id ??
-          anyData?.github_run_id ??
+          response?.runId ??
+          response?.run_id ??
+          response?.github_run_id ??
           null;
 
         const runId: number | null =
@@ -714,7 +739,7 @@ const pauseBuildPolling = useCallback(() => {
               ? Number(runIdRaw)
               : null;
 
-        const urls = job?.urls ?? anyData?.urls ?? {};
+        const urls = job?.urls ?? response?.urls ?? {};
         const htmlUrl =
           urls?.githubRun ?? urls?.html ?? urls?.run ?? urls?.runUrl ?? null;
         const artifactsUrl = urls?.artifacts ?? urls?.artifact ?? null;
@@ -722,14 +747,14 @@ const pauseBuildPolling = useCallback(() => {
         const buildUrl =
           urls?.buildUrl ??
           job?.build_url ??
-          anyData?.build_url ??
-          anyData?.buildUrl ??
+          response?.build_url ??
+          response?.buildUrl ??
           null;
 
         const downloadUrl =
           job?.download_url ??
-          anyData?.download_url ??
-          anyData?.downloadUrl ??
+          response?.download_url ??
+          response?.downloadUrl ??
           null;
 
         const nowIso = new Date().toISOString();
