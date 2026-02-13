@@ -56,6 +56,39 @@ function trimChatHistory<T extends { timestamp?: string }>(
 
 
 
+function ensureChatHistoryHasIds(history: any[]): ChatMessage[] {
+  if (!Array.isArray(history)) return [];
+  return history
+    .filter((m) => m && typeof m === "object")
+    .map((m) => {
+      const role =
+        m.role === "user" || m.role === "assistant" || m.role === "system"
+          ? m.role
+          : "assistant";
+      const content =
+        typeof m.content === "string"
+          ? m.content
+          : m.content != null
+            ? String(m.content)
+            : "";
+      const timestamp =
+        typeof m.timestamp === "string" && m.timestamp
+          ? m.timestamp
+          : new Date().toISOString();
+      const id =
+        typeof m.id === "string" && m.id
+          ? m.id
+          : uuidv4(); // Migration for old chat entries
+      const meta =
+        m.meta && typeof m.meta === "object"
+          ? (m.meta as ChatMessage["meta"])
+          : undefined;
+
+      return { id, role, content, timestamp, meta };
+    })
+    .filter((m) => m.content.length > 0);
+}
+
 // === HELPER: Verzeichnis rekursiv lesen (wird für ZIP-Import benötigt) ===
 const readDirectoryRecursive = async (dirUri: string, basePath = ''): Promise<ProjectFile[]> => {
   let files: ProjectFile[] = [];
@@ -169,6 +202,9 @@ export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
     }
 
 
+
+    // Migration/Repair: older chat entries may miss id/timestamp
+    project.chatHistory = ensureChatHistoryHasIds(project.chatHistory);
 
     try {
       const { persist: persistChat, retention } = await loadChatHistorySettings();

@@ -659,3 +659,6 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 2026-02-13  Patch 100  Supabase: fix Edge deploy (Deno import extensions) + migration guard for storage.objects ownership
 
 2026-02-13  Patch 101  Supabase: preview_page safe logging (sanitize error logs) + create_codesandbox template fix + docs refresh
+
+
+2026-02-13  Patch 102  ChatScreen: legacy chatHistory migration (add missing ids/timestamps) + tolerant keyExtractor + tests

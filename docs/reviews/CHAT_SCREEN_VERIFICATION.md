@@ -107,3 +107,19 @@ Was sich ändert ist Verhalten:
 
 ## Patch 66 follow-up
 - Fixed orchestrator TS scope errors (`resolvedModel`, `keysRotated`) by moving them to outer scope so abort/error return paths compile.
+
+
+## Patch 102 hotfix (Legacy Chat-Verlauf sichtbar)
+Problem: alte Speicherstände konnten Chat-Einträge ohne `id` enthalten (früher nicht benötigt).  
+Seitdem ChatScreen/Context strikt nach `msg.id` filtern, wurde der Verlauf dadurch **leer angezeigt**.
+
+Fix:
+- Storage-Migration ergänzt: `loadProjectFromStorage()` ergänzt fehlende `id`/`timestamp` (UUID + now).
+- ProjectContext liefert Messages tolerant aus (fallback `timestamp`).
+- ChatScreen `keyExtractor` nutzt `id || timestamp || index`.
+
+➡️ Betroffene Files:
+- `contexts/projectStorage.ts`
+- `contexts/ProjectContext.tsx`
+- `screens/ChatScreen/index.tsx`
+- Tests: `__tests__/chatHistoryMigration.test.ts`

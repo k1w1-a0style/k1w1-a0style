@@ -64,3 +64,4 @@ Stand: **2026-02-13**
 - **Patch 98/99**: Supabase RLS audit hardening + sanitizer everywhere + runbook + tests (+ TS fixes + unified redaction marker)
 - **Patch 100**: Supabase deploy fix (Deno import extensions) + migration guard for `storage.objects` privileges
 - **Patch 101**: Supabase preview_page safe logging (sanitize alle Error-Logs) + create_codesandbox Template-Fix + Docs (TODO/Verification/Checklog)
+- **Patch 102**: ChatScreen: Legacy Chat-History Migration (fehlende `id`/`timestamp`) + tolerant keyExtractor + Tests

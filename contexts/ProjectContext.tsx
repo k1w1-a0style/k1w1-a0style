@@ -1023,7 +1023,11 @@ useEffect(() => {
     createNewProject,
     setTemplateId,
     setProjectName,
-    messages: projectData?.chatHistory?.filter((msg) => msg && msg.id) || [],
+    // Be tolerant: older persisted chat entries might miss `id` (migration will repair on load)
+    messages:
+      projectData?.chatHistory?.filter(
+        (msg) => msg && (msg.id || msg.timestamp) && typeof msg.content === "string",
+      ) || [],
     autoFixRequest,
     triggerAutoFix,
     clearAutoFixRequest,

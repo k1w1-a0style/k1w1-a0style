@@ -83,7 +83,7 @@ const ChatScreen: React.FC = () => {
               ref={flatListRef}
               data={messages}
               renderItem={renderItem}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item, index) => item.id || item.timestamp || String(index)}
               contentContainerStyle={[
                 styles.listContent,
                 { paddingBottom: listBottomPadding },
