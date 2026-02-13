@@ -214,7 +214,7 @@ jobs:
       - name: Upload Android Artifact
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb0d8b62a3 # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v4
         with:
           name: k1w1-android-${{ inputs.profile }}-${{ github.run_number }}
           path: build/*
