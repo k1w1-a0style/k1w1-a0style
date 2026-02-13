@@ -83,3 +83,6 @@ k1w1_ui_polish_templates.sh
 .env.signing.backup
 credentials.json
 android-upload-keystore.p12
+
+# local/derived
+supabase/schema.sql
