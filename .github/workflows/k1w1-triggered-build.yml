@@ -8,7 +8,7 @@ on:
       ref:
         description: "Branch/Ref to build (e.g. work, main, dev, feature-x)"
         required: false
-        default: "main"
+        default: ""
       profile:
         description: "EAS build profile (development|preview|production)"
         required: false
@@ -24,7 +24,7 @@ permissions:
 concurrency:
   group: >-
     k1w1-triggered-build-
-    ${{ github.event.client_payload.branch || github.event.client_payload.ref || github.event.inputs.ref || 'main' }}-
+    ${{ github.event.client_payload.branch || github.event.client_payload.ref || github.event.inputs.ref || github.ref_name }}-
     ${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || github.event.inputs.profile || 'preview' }}
   cancel-in-progress: false
 
@@ -33,7 +33,7 @@ jobs:
     name: Dispatch → EAS Build (reusable)
     uses: ./.github/workflows/eas-build.yml
     with:
-      ref: ${{ github.event.client_payload.branch || github.event.client_payload.ref || github.event.inputs.ref || 'main' }}
+      ref: ${{ github.event.client_payload.branch || github.event.client_payload.ref || github.event.inputs.ref || github.ref_name }}
       profile: ${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || github.event.inputs.profile || 'preview' }}
       job_id: ${{ github.event.client_payload.job_id || github.event.inputs.job_id || '' }}
       platform: android

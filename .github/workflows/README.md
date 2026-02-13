@@ -6,13 +6,14 @@ Dieses Projekt verwendet optimierte GitHub Actions Workflows für CI/CD und Buil
 
 | Workflow                     | Trigger               | Zweck                                   | Build-Zeit | Artifacts |
 | ---------------------------- | --------------------- | --------------------------------------- | ---------- | --------- |
-| **ci-build.yml**             | Push/PR zu main       | Schnelle CI Validierung                 | ~5-8 min   | ❌        |
+| **ci.yml**                  | Push/PR zu main/master | Standard CI (Lint + Typecheck + Tests) | ~5-8 min   | ❌        |
+| **ci-build.yml**             | K1W1 App oder manuell | App-getriggerte CI (reusable CI Core)   | ~5-8 min   | ❌        |
 | **k1w1-triggered-build.yml** | K1W1 App oder manuell | Vollständiger Build mit Status-Tracking | ~5-10 min  | ❌        |
 | **release-build.yml**        | Manuell               | Production Builds mit Download          | ~10-15 min | ✅        |
 
 ---
 
-## 🔄 ci-build.yml - Continuous Integration
+## 🔄 ci.yml - Continuous Integration
 
 **Trigger:** Automatisch bei Push/PR zu `main` oder `master` Branch
 
@@ -45,7 +46,7 @@ git push origin main
 **Trigger:**
 
 1. Via Supabase Function (`trigger-eas-build`)
-2. Manuell über GitHub UI
+2. Manuell über GitHub UI (Ref standardmäßig aktueller Branch, kein hartes `main`)
 
 **Zweck:**
 
