@@ -35,7 +35,12 @@ export async function setChatHistoryPersistence(enabled: boolean): Promise<void>
 export async function getChatHistoryRetentionLimit(): Promise<number> {
   try {
     const raw = await AsyncStorage.getItem(KEY_CHAT_RETENTION);
-    const n = Number(raw);
+    // IMPORTANT: missing key => null. Number(null) === 0 would wipe history.
+    if (raw == null) return DEFAULT_RETENTION;
+    const trimmed = raw.trim();
+    if (trimmed.length === 0) return DEFAULT_RETENTION;
+
+    const n = Number(trimmed);
     if (Number.isFinite(n) && n >= 0) return Math.floor(n);
     return DEFAULT_RETENTION;
   } catch {

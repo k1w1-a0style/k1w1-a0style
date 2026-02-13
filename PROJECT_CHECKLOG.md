@@ -662,3 +662,5 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 
 
 2026-02-13  Patch 102  ChatScreen: legacy chatHistory migration (add missing ids/timestamps) + tolerant keyExtractor + tests
+
+2026-02-13  Patch 103  Fix default chat retention parsing (missing AsyncStorage key no longer becomes 0) + restore ChatScreen history + tests

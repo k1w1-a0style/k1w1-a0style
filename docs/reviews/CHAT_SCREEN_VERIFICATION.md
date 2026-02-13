@@ -123,3 +123,15 @@ Fix:
 - `contexts/ProjectContext.tsx`
 - `screens/ChatScreen/index.tsx`
 - Tests: `__tests__/chatHistoryMigration.test.ts`
+
+
+## Patch 103 hotfix (Chatverlauf wurde trotzdem leer, wenn Retention-Key fehlte)
+Root cause: `getChatHistoryRetentionLimit()` hat bei fehlendem AsyncStorage-Key `null` gelesen.
+`Number(null) === 0` → Retention wurde **0** → `trimChatHistory()` hat konsequent alles gelöscht.
+
+Fix:
+- `getChatHistoryRetentionLimit()` behandelt `null` / "" als **DEFAULT_RETENTION (200)**.
+- Damit bleiben bestehende Chat-Historien standardmäßig erhalten (so wie vorgesehen).
+
+➡️ Betroffene Files:
+- `lib/chatPrivacySettings.ts`

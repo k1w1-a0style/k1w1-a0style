@@ -65,3 +65,4 @@ Stand: **2026-02-13**
 - **Patch 100**: Supabase deploy fix (Deno import extensions) + migration guard for `storage.objects` privileges
 - **Patch 101**: Supabase preview_page safe logging (sanitize alle Error-Logs) + create_codesandbox Template-Fix + Docs (TODO/Verification/Checklog)
 - **Patch 102**: ChatScreen: Legacy Chat-History Migration (fehlende `id`/`timestamp`) + tolerant keyExtractor + Tests
+- **Patch 103**: ChatScreen/Privacy: Fix default Retention (missing setting key no longer wipes Chat-History)
