@@ -19,7 +19,7 @@ const ChatLoadingOverlay: React.FC<Props> = ({
   if (!visible) return null;
 
   return (
-    <View style={styles.loadingOverlay}>
+    <View style={styles.loadingOverlay} accessibilityRole="progressbar" accessibilityLabel="Projekt wird geladen">
       <Animated.View
         style={{
           opacity: thinkingOpacity,

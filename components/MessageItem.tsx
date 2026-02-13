@@ -13,18 +13,7 @@ import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { theme, getNeonGlow } from "../theme";
 import { SyntaxHighlighter } from "./SyntaxHighlighter";
-
-interface ChatMessage {
-  id: string;
-  role: "user" | "assistant" | "system";
-  content: string;
-  timestamp: string;
-  meta?: {
-    provider?: string;
-    error?: boolean;
-    planner?: boolean;
-  };
-}
+import { ChatMessage } from "../contexts/types";
 
 type MessagePart =
   | { type: "text"; content: string }
@@ -152,6 +141,8 @@ const MessageItem = memo(({ message }: MessageItemProps) => {
         isUser ? styles.messageRowUser : styles.messageRowOther,
         { opacity: fadeAnim, transform: [{ translateX: slideAnim }] },
       ]}
+      accessibilityRole="text"
+      accessibilityLabel={`${isUser ? "Eigene Nachricht" : isSystem ? "System-Nachricht" : "KI-Nachricht"}: ${messageTextTrim.slice(0, 200)}`}
     >
       <Pressable
         style={({ pressed }) => [
@@ -162,6 +153,7 @@ const MessageItem = memo(({ message }: MessageItemProps) => {
           hasCodeBlocks && styles.messageBubbleWithCode,
         ]}
         onLongPress={handleLongPress}
+        accessibilityHint="Lange drücken zum Kopieren"
       >
         <View style={styles.messageContent}>
           {icon()}

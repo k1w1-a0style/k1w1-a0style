@@ -135,3 +135,25 @@ Fix:
 
 ➡️ Betroffene Files:
 - `lib/chatPrivacySettings.ts`
+
+
+## Patch 104 (ChatScreen Hardening & UX/Perf)
+
+Ziel: kritisches Review-Follow-up (Race/Queue/Scroll/Modal/UX) ohne Keyboard-/iOS-Refactor.
+
+Änderungen:
+- **AI-Flow Race-Fix**: `processAIRequest` liest `messages` / `projectFiles` / `pendingPlan` aus Refs statt aus potenziell stale Closures (wichtig bei AutoFix-Queue via `processAIRequestRef.current`).
+- **AutoFix Queue bounded**: Queue-Limit (Default: 5) + Drop-Warnung, um Endlosschleifen/RAM-Spikes zu vermeiden.
+- **Scroll entkoppelt**: `hardScrollToBottom` ist debounced und macht genau **einen** Retry nach 150ms (Retry ohne Animation; Timer wird bei Unmount und vor neuem Call gecleart).
+- **ConfirmChangesModal robust**: Summary ist scrollbar und wird ab 15k Zeichen gekürzt („… (Text gekürzt)“), um UI-Lag durch oversized LLM-Output zu verhindern.
+- **Destructive Actions**: Bestätigungs-Dialoge vor „Chat leeren“ / „Neues Projekt“.
+- **Scroll/Keyboard UX**: `TouchableWithoutFeedback`-Wrapper entfernt, Keyboard-Dismiss läuft über FlatList (reduziert Scroll-Gesture-Probleme auf Android).
+- **Typ-Konsistenz**: `MessageItem` nutzt den zentralen `ChatMessage`-Typ (keine lokale Drift).
+
+➡️ Betroffene Files (Auszug):
+- `hooks/useChatAIFlow.ts`
+- `screens/ChatScreen/hooks/useChatScreen.ts`
+- `screens/ChatScreen/index.tsx`
+- `components/chat/ConfirmChangesModal.tsx`
+- `components/ChatHeaderActions.tsx`
+- `components/MessageItem.tsx`

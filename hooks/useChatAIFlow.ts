@@ -3,11 +3,12 @@ import { Alert, Platform, ToastAndroid } from "react-native";
 import { v4 as uuidv4 } from "uuid";
 
 import { ChatMessage, ProjectFile } from "../contexts/types";
-import type { AllAIProviders, QualityMode } from "../contexts/AIContext";
+import type { AIConfig } from "../contexts/AIContext";
 import { runOrchestrator } from "../lib/orchestrator";
 import type { OrchestratorResult } from "../lib/orchestrator";
 import { normalizeAiResponse } from "../lib/normalizer";
 import { applyFilesToProject } from "../lib/fileWriter";
+import type { ApplyFilesResult } from "../lib/fileWriter";
 import {
   buildBuilderMessages,
   buildPlannerMessages,
@@ -38,24 +39,22 @@ export type PendingPlan = {
   mode: "advice" | "build";
 };
 
-type ConfigLike = {
-  selectedChatProvider: any;
-  selectedChatMode: any;
-  qualityMode: any;
-  agentEnabled?: boolean;
-  selectedAgentProvider?: any;
-  selectedAgentMode?: any;
+/** Extended orchestrator result that may include file arrays or raw data */
+type ExtendedOrchestratorResult = OrchestratorResult & {
+  files?: unknown[];
+  raw?: unknown;
 };
 
-type AutoFixRequestLike = { message: string } | null;
+/** Max queued AutoFix requests to prevent infinite loops */
+const MAX_AUTOFIX_QUEUE = 5;
 
 type UseChatAIFlowArgs = {
-  config: ConfigLike;
+  config: AIConfig;
   messages: ChatMessage[];
   projectFiles: ProjectFile[];
   addChatMessage: (m: ChatMessage) => void;
   updateProjectFiles: (files: ProjectFile[]) => Promise<void>;
-  autoFixRequest: AutoFixRequestLike;
+  autoFixRequest: { message: string } | null;
   clearAutoFixRequest: () => void;
 
   hardScrollToBottom: (animated: boolean) => void;
@@ -92,12 +91,25 @@ export function useChatAIFlow({
   const inFlightRef = useRef(false);
   const isMountedRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const processAIRequestRef = useRef<((m: string, isAutoFix?: boolean, forceBuilder?: boolean) => Promise<boolean>) | null>(null);
+  const processAIRequestRef = useRef<
+    ((m: string, isAutoFix?: boolean, forceBuilder?: boolean) => Promise<boolean>) | null
+  >(null);
 
   const streamingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ✅ AutoFix: keine Busy-Wait Schleife mehr -> FIFO Queue + Drain
+  // ✅ FIX #1: Keep fresh references to avoid stale closures in AutoFix queue
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+
+  const projectFilesRef = useRef(projectFiles);
+  projectFilesRef.current = projectFiles;
+
+  const pendingPlanRef = useRef(pendingPlan);
+  pendingPlanRef.current = pendingPlan;
+
+  // ✅ FIX #3: AutoFix FIFO Queue with max limit
   const queuedAutoFixRef = useRef<string[]>([]);
+
   const safe = useCallback(<T>(fn: () => T): T | undefined => {
     if (!isMountedRef.current) return undefined;
     return fn();
@@ -114,6 +126,7 @@ export function useChatAIFlow({
     }
   }, []);
 
+  // ✅ FIX #2: Cleanup streaming timer on unmount
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
@@ -136,7 +149,10 @@ export function useChatAIFlow({
       const delay = 18;
 
       const tick = () => {
-        if (!isMountedRef.current) return;
+        if (!isMountedRef.current) {
+          cleanupStreamingTimer();
+          return;
+        }
 
         if (currentIndex < fullText.length) {
           const nextChunk = fullText.slice(
@@ -152,7 +168,7 @@ export function useChatAIFlow({
           }
 
           streamingTimerRef.current = setTimeout(tick, delay);
-          return true;
+          return;
         }
 
         cleanupStreamingTimer();
@@ -190,49 +206,63 @@ export function useChatAIFlow({
       meta: { autoFix: true },
     });
 
-    // Request starten (ohne Planner)
     const runner = processAIRequestRef.current;
     if (runner) void runner(msg, true, true);
   }, [addChatMessage]);
 
-  // AutoFix kommt rein -> in FIFO Queue packen, clearen, drain versuchen
+  // AutoFix → FIFO Queue + drain
   useEffect(() => {
     const msg = autoFixRequest?.message;
     if (!msg) return;
+
+    // ✅ FIX #3: Prevent unbounded queue growth
+    if (queuedAutoFixRef.current.length >= MAX_AUTOFIX_QUEUE) {
+      console.warn(
+        `[useChatAIFlow] AutoFix queue full (${MAX_AUTOFIX_QUEUE}), dropping: ${msg.slice(0, 80)}`,
+      );
+      clearAutoFixRequest();
+      return;
+    }
 
     queuedAutoFixRef.current.push(msg);
     clearAutoFixRequest();
     drainAutoFixQueue();
   }, [autoFixRequest, clearAutoFixRequest, drainAutoFixQueue]);
 
+  const notifyKeyRotation = useCallback(
+    (res: OrchestratorResult | null | undefined) => {
+      if (!res) return;
+      const count = res.keysRotated ?? 0;
+      if (count <= 0) return;
 
+      const provider = res.provider ?? "unbekannt";
+      const msg = `🔑 Key rotiert (${count}x) wegen 429/Rate-Limit • Provider: ${provider}`;
 
-const notifyKeyRotation = useCallback(
-  (res: OrchestratorResult | unknown) => {
-    const r: any = res as any;
-    const count = Number(r?.keysRotated ?? 0);
-    if (!count || count <= 0) return;
-
-    const provider = String(r?.provider ?? "unbekannt");
-    const msg = `🔑 Key rotiert (${count}x) wegen 429/Rate-Limit • Provider: ${provider}`;
-
-    // Android-first: Toast + zusätzlich Log-Row im Chat (system)
-    try {
-      if (Platform.OS === "android") {
-        ToastAndroid.show(msg, ToastAndroid.LONG);
+      try {
+        if (Platform.OS === "android") {
+          ToastAndroid.show(msg, ToastAndroid.LONG);
+        }
+      } catch (e) {
+        console.warn("[notifyKeyRotation] Toast failed:", e);
       }
-    } catch {}
 
-    addChatMessage({
-      id: uuidv4(),
-      role: "system",
-      content: msg,
-      timestamp: new Date().toISOString(),
-      meta: { keyRotation: true, provider },
-    });
-  },
-  [addChatMessage],
-);
+      addChatMessage({
+        id: uuidv4(),
+        role: "system",
+        content: msg,
+        timestamp: new Date().toISOString(),
+        meta: { keyRotation: true, provider },
+      });
+    },
+    [addChatMessage],
+  );
+
+  /** Helper to extract raw data from orchestrator result for normalizer */
+  const extractRaw = (res: ExtendedOrchestratorResult): unknown => {
+    if (res.files && Array.isArray(res.files)) return res.files;
+    if (res.text) return res.text;
+    return res.raw;
+  };
 
   const processAIRequest = useCallback(
     async (userContent: string, isAutoFix = false, forceBuilder = false) => {
@@ -243,17 +273,21 @@ const notifyKeyRotation = useCallback(
       safe(() => setError(null));
 
       const controller = new AbortController();
-      // falls ein alter Request hängt, abbrechen
       abortControllerRef.current?.abort();
       abortControllerRef.current = controller;
 
       try {
-        const historyAsLlm = messages
+        // ✅ FIX #1: Read from refs to avoid stale closures
+        const currentMessages = messagesRef.current;
+        const currentProjectFiles = projectFilesRef.current;
+        const currentPendingPlan = pendingPlanRef.current;
+
+        const historyAsLlm = currentMessages
           .map((m) => ({ role: m.role, content: m.content }))
           .filter((m) => String(m.content ?? "").trim().length > 0);
 
-        // ✅ CALL 1: Planner (nur wenn nicht AutoFix / nicht forced / kein pendingPlan)
-        if (!isAutoFix && !forceBuilder && !pendingPlan) {
+        // CALL 1: Planner (nur wenn nicht AutoFix / nicht forced / kein pendingPlan)
+        if (!isAutoFix && !forceBuilder && !currentPendingPlan) {
           const advice = looksLikeAdviceRequest(userContent);
           const shouldPlanner =
             advice ||
@@ -264,7 +298,7 @@ const notifyKeyRotation = useCallback(
             const plannerMsgs = buildPlannerMessages(
               historyAsLlm,
               userContent,
-              projectFiles,
+              currentProjectFiles,
             );
 
             const planRes = await runOrchestrator(
@@ -308,14 +342,14 @@ const notifyKeyRotation = useCallback(
           }
         }
 
-        // ✅ CALL 2: Builder
+        // CALL 2: Builder
         const llmMessages = buildBuilderMessages(
           historyAsLlm,
           userContent,
-          projectFiles,
+          currentProjectFiles,
         );
 
-        let ai = await runOrchestrator(
+        let ai: OrchestratorResult | null = await runOrchestrator(
           config.selectedChatProvider,
           config.selectedChatMode,
           config.qualityMode,
@@ -323,11 +357,10 @@ const notifyKeyRotation = useCallback(
           controller.signal,
         );
 
-        // Hinweis: Auto-Key-Rotation (429) sichtbar machen
         notifyKeyRotation(ai);
 
         if (!ai?.ok) {
-          const errText = String((ai as any)?.error ?? "");
+          const errText = String(ai?.error ?? "");
           const shouldRetry =
             /\b429\b|\brate\s*limit\b|\b503\b|overloaded|timeout|timed\s*out|ECONNRESET|network/i.test(
               errText,
@@ -347,26 +380,20 @@ const notifyKeyRotation = useCallback(
 
         if (!ai || !ai.ok) {
           const details =
-            (ai as any)?.error ||
-            (ai as any)?.errors?.join?.("\n") ||
+            ai?.error ||
+            ai?.errors?.join?.("\n") ||
             "Kein ok=true (unbekannter Fehler).";
           throw new Error(`KI-Request fehlgeschlagen: ${details}`);
         }
 
-        const rawForNormalizer =
-          (ai as any).files && Array.isArray((ai as any).files)
-            ? (ai as any).files
-            : (ai as any).text
-              ? (ai as any).text
-              : (ai as any).raw;
+        // ✅ FIX #7: Type-safe extraction of raw data
+        const rawForNormalizer = extractRaw(ai as ExtendedOrchestratorResult);
 
         const normalized = normalizeAiResponse(rawForNormalizer);
         if (!normalized) {
           const preview =
-            typeof (ai as any).text === "string"
-              ? String((ai as any).text)
-                  .slice(0, 600)
-                  .replace(/\s+/g, " ")
+            typeof ai.text === "string"
+              ? ai.text.slice(0, 600).replace(/\s+/g, " ")
               : "";
           throw new Error(
             "Normalizer/Validator konnte die Dateien nicht verarbeiten." +
@@ -374,25 +401,21 @@ const notifyKeyRotation = useCallback(
           );
         }
 
-        // ✅ Optional Agent (Validator)
+        // Optional Agent (Validator)
         let finalFiles = normalized;
-        let agentMeta: any = null;
+        let agentMeta: OrchestratorResult | null = null;
 
-        if ((config as any)?.agentEnabled) {
+        if (config.agentEnabled) {
           try {
             const validatorMsgs = buildValidatorMessages(
               userContent,
-              normalized.map((f: any) => ({
-                path: f.path,
-                content: f.content,
-              })),
-              projectFiles,
+              normalized.map((f) => ({ path: f.path, content: f.content })),
+              currentProjectFiles,
             );
 
             const agentRes = await runOrchestrator(
-              (config as any)?.selectedAgentProvider ??
-                config.selectedChatProvider,
-              (config as any)?.selectedAgentMode ?? config.selectedChatMode,
+              config.selectedAgentProvider ?? config.selectedChatProvider,
+              config.selectedAgentMode ?? config.selectedChatMode,
               "quality",
               validatorMsgs,
               controller.signal,
@@ -400,27 +423,26 @@ const notifyKeyRotation = useCallback(
 
             notifyKeyRotation(agentRes);
 
-            if (agentRes && agentRes.ok) {
-              const agentRaw =
-                (agentRes as any).files &&
-                Array.isArray((agentRes as any).files)
-                  ? (agentRes as any).files
-                  : agentRes.text
-                    ? agentRes.text
-                    : (agentRes as any).raw;
-
+            if (agentRes?.ok) {
+              const agentRaw = extractRaw(agentRes as ExtendedOrchestratorResult);
               const normalizedAgent = normalizeAiResponse(agentRaw);
               if (normalizedAgent && normalizedAgent.length > 0) {
                 finalFiles = normalizedAgent;
                 agentMeta = agentRes;
               }
             }
-          } catch {}
+          } catch (e) {
+            // ✅ FIX #8: Log agent errors instead of silently swallowing
+            console.warn("[useChatAIFlow] Agent/Validator call failed:", e);
+          }
         }
 
-        const mergeResult = applyFilesToProject(projectFiles, finalFiles);
+        const mergeResult: ApplyFilesResult = applyFilesToProject(
+          currentProjectFiles,
+          finalFiles,
+        );
 
-        // ✅ Explain-Call
+        // Explain-Call
         let explainText = "";
         if (
           !isAutoFix &&
@@ -428,7 +450,7 @@ const notifyKeyRotation = useCallback(
         ) {
           try {
             const digest = buildChangeDigest(
-              projectFiles,
+              currentProjectFiles,
               mergeResult.files,
               mergeResult.created,
               mergeResult.updated,
@@ -446,7 +468,10 @@ const notifyKeyRotation = useCallback(
             if (explainRes?.ok && typeof explainRes.text === "string") {
               explainText = explainRes.text.trim();
             }
-          } catch {}
+          } catch (e) {
+            // ✅ FIX #8: Log explain errors instead of silently swallowing
+            console.warn("[useChatAIFlow] Explain call failed:", e);
+          }
         }
 
         const prefix = isAutoFix
@@ -501,7 +526,7 @@ const notifyKeyRotation = useCallback(
               created: mergeResult.created,
               updated: mergeResult.updated,
               skipped: mergeResult.skipped,
-              aiResponse: ai,
+              aiResponse: ai!,
               agentResponse: agentMeta ?? undefined,
             }),
           );
@@ -509,12 +534,15 @@ const notifyKeyRotation = useCallback(
         });
 
         return true;
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!isMountedRef.current) return false;
-        if (e?.name === "AbortError" || String(e?.message || "").toLowerCase().includes("abgebrochen")) {
+
+        const error = e instanceof Error ? e : new Error(String(e));
+        if (error.name === "AbortError" || /abgebrochen/i.test(error.message)) {
           return false;
         }
-        const msg = `⚠️ ${e?.message || "Es ist ein Fehler im Builder-Flow aufgetreten."}`;
+
+        const msg = `⚠️ ${error.message || "Es ist ein Fehler im Builder-Flow aufgetreten."}`;
         safe(() => setError(msg));
 
         addChatMessage({
@@ -533,7 +561,7 @@ const notifyKeyRotation = useCallback(
           abortControllerRef.current = null;
         }
 
-        // ✅ Wenn AutoFix queued ist: nach dem Call abarbeiten
+        // Drain queued AutoFix after this call completes
         setTimeout(() => {
           if (isMountedRef.current) drainAutoFixQueue();
         }, 0);
@@ -543,9 +571,8 @@ const notifyKeyRotation = useCallback(
       addChatMessage,
       config,
       drainAutoFixQueue,
-      messages,
-      pendingPlan,
-      projectFiles,
+      extractRaw,
+      notifyKeyRotation,
       safe,
       setError,
       setIsAiLoading,
@@ -554,7 +581,7 @@ const notifyKeyRotation = useCallback(
     ],
   );
 
-  // keep latest runner for AutoFix queue
+  // Keep latest runner for AutoFix queue
   processAIRequestRef.current = processAIRequest;
 
   const applyChanges = useCallback(async () => {
@@ -609,15 +636,16 @@ const notifyKeyRotation = useCallback(
       });
 
       requestAnimationFrame(() => hardScrollToBottom(true));
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error(String(e));
       Alert.alert(
         "Fehler beim Anwenden",
-        e?.message || "Änderungen konnten nicht angewendet werden.",
+        error.message || "Änderungen konnten nicht angewendet werden.",
       );
       addChatMessage({
         id: uuidv4(),
         role: "system",
-        content: `⚠️ Fehler beim Anwenden der Änderungen: ${e?.message || "Unbekannt"}`,
+        content: `⚠️ Fehler beim Anwenden der Änderungen: ${error.message || "Unbekannt"}`,
         timestamp: new Date().toISOString(),
         meta: { error: true },
       });
@@ -659,13 +687,16 @@ const notifyKeyRotation = useCallback(
         timestamp: new Date().toISOString(),
       });
 
-      const metaResult = handleMetaCommand(rawInput.trim(), projectFiles);
+      // ✅ FIX #1: Use ref for fresh projectFiles
+      const metaResult = handleMetaCommand(rawInput.trim(), projectFilesRef.current);
       if (metaResult.handled && metaResult.message) {
         addChatMessage(metaResult.message);
         return true;
       }
 
-      if (pendingPlan) {
+      // ✅ FIX #1: Use ref for fresh pendingPlan
+      const currentPlan = pendingPlanRef.current;
+      if (currentPlan) {
         const lower = userContent.trim().toLowerCase();
         const wantsProceed =
           lower === "weiter" ||
@@ -674,7 +705,7 @@ const notifyKeyRotation = useCallback(
           lower === "ja" ||
           lower === "go";
 
-        if (pendingPlan.mode === "advice" && !wantsProceed) {
+        if (currentPlan.mode === "advice" && !wantsProceed) {
           addChatMessage({
             id: uuidv4(),
             role: "assistant",
@@ -686,9 +717,9 @@ const notifyKeyRotation = useCallback(
         }
 
         const combined =
-          pendingPlan.originalRequest +
+          currentPlan.originalRequest +
           "\n\n---\nPlaner-Ausgabe:\n" +
-          pendingPlan.planText +
+          currentPlan.planText +
           "\n\n---\nNutzer-Antwort/Details:\n" +
           (wantsProceed ? "(User sagt: weiter)" : userContent);
 
@@ -700,7 +731,7 @@ const notifyKeyRotation = useCallback(
       const ok = await processAIRequest(userContent, false, false);
       return ok;
     },
-    [addChatMessage, pendingPlan, processAIRequest, projectFiles, safe],
+    [addChatMessage, processAIRequest, safe],
   );
 
   return useMemo(

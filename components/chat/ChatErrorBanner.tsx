@@ -14,7 +14,7 @@ const ChatErrorBanner: React.FC<Props> = ({ message }) => {
   if (!message) return null;
 
   return (
-    <View style={styles.errorContainer}>
+    <View style={styles.errorContainer} accessibilityRole="alert" accessibilityLabel={`Fehler: ${message}`}>
       <Ionicons name="warning" size={16} color={theme.palette.error} />
       <Text style={styles.errorText}>{message}</Text>
     </View>

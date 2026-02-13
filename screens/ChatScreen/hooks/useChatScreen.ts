@@ -6,6 +6,8 @@ import {
   FlatList,
   InteractionManager,
   Keyboard,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { useFocusEffect } from "@react-navigation/native";
@@ -24,7 +26,7 @@ type DocumentResultAsset = NonNullable<
 
 const INPUT_BAR_MIN_H = 56;
 
-// ✅ Mini-Fix Android: Composer 1–2px näher an die Tastatur (wenn offen)
+// Composer 1–2px näher an die Tastatur (wenn offen)
 const KEYBOARD_NUDGE = 4;
 
 const FOOTER_LIFT_WHEN_BUSY = 72;
@@ -45,13 +47,12 @@ export const useChatScreen = () => {
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
 
-  // Track short-lived timers created by scroll helpers so Jest workers can exit cleanly.
-  // In Node (Jest), we .unref() timers so they don't keep the event loop alive.
+  // ✅ FIX #17/#18: Removed .unref() — it doesn't exist in React Native runtime.
+  // Track short-lived timers so cleanup can clear them on unmount.
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const scrollRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduleTimeout = useCallback((fn: () => void, ms: number) => {
     const id = setTimeout(fn, ms);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (id as any)?.unref?.();
     timersRef.current.push(id);
     return id;
   }, []);
@@ -60,9 +61,12 @@ export const useChatScreen = () => {
     return () => {
       timersRef.current.forEach((t) => clearTimeout(t));
       timersRef.current = [];
+      if (scrollRetryRef.current) {
+        clearTimeout(scrollRetryRef.current);
+        scrollRetryRef.current = null;
+      }
     };
   }, []);
-
 
   const [textInput, setTextInput] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -77,10 +81,10 @@ export const useChatScreen = () => {
   const [showScrollButton, setShowScrollButton] = useState(false);
   const didInitialScrollRef = useRef(false);
 
-  // ✅ neu: echte Composer-Höhe (damit Bilder nicht hinterm Eingabefeld verschwinden)
+  // Echte Composer-Höhe (damit Inhalte nicht hinterm Eingabefeld verschwinden)
   const [composerHeight, setComposerHeight] = useState<number>(INPUT_BAR_MIN_H);
 
-  // Keyboard (Offset bleibt 1:1)
+  // Keyboard
   const keyboardHeight = useKeyboardHeight();
 
   // Animations
@@ -101,25 +105,53 @@ export const useChatScreen = () => {
 
   const busyLift = combinedIsLoading || isStreaming ? FOOTER_LIFT_WHEN_BUSY : 0;
 
-  // ✅ statt Konstanten: echte Composer-Höhe nutzen
   const bottomBarVisualH = Math.max(INPUT_BAR_MIN_H, composerHeight);
 
   const listBottomPadding =
     bottomBarVisualH + keyboardOffsetInScreen + 14 + busyLift;
   const scrollBtnBottom = bottomBarVisualH + keyboardOffsetInScreen + 14;
 
+  // ✅ FIX #5: Debounced scroll-to-bottom to prevent 10+ calls in 300ms
+  // Single retry if first scroll didn't reach bottom (layout not yet final)
+  const scrollPendingRef = useRef(false);
+  const scrollAnimatedRef = useRef(false);
+
   const hardScrollToBottom = useCallback((animated: boolean) => {
-    const doIt = () => {
+    if (animated) scrollAnimatedRef.current = true;
+
+    if (scrollPendingRef.current) return;
+    scrollPendingRef.current = true;
+
+    // Clear any pending retry from a previous call
+    if (scrollRetryRef.current) {
+      clearTimeout(scrollRetryRef.current);
+      scrollRetryRef.current = null;
+    }
+
+    requestAnimationFrame(() => {
+      const shouldAnimate = scrollAnimatedRef.current;
+      scrollPendingRef.current = false;
+      scrollAnimatedRef.current = false;
+
       try {
-        flatListRef.current?.scrollToEnd({ animated });
-      } catch {}
-      scheduleTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: shouldAnimate });
+      } catch {
+        // FlatList may throw if not yet mounted
+      }
+
+      // One retry after 150ms — covers cases where the list layout
+      // wasn't final yet when the first scrollToEnd fired.
+      // Always retries once; scrollToEnd at bottom is a no-op.
+      scrollRetryRef.current = setTimeout(() => {
+        scrollRetryRef.current = null;
         try {
-          flatListRef.current?.scrollToEnd({ animated });
-        } catch {}
-      }, 140);
-    };
-    requestAnimationFrame(doIt);
+          // Retry without animation to avoid a visible double-scroll.
+          flatListRef.current?.scrollToEnd({ animated: false });
+        } catch {
+          // FlatList may throw if not yet mounted / measured.
+        }
+      }, 150);
+    });
   }, []);
 
   const {
@@ -152,12 +184,11 @@ export const useChatScreen = () => {
       const task = InteractionManager.runAfterInteractions(() => {
         hardScrollToBottom(false);
       });
-      const t1 = setTimeout(() => hardScrollToBottom(false), 90);
-      const t2 = setTimeout(() => hardScrollToBottom(false), 260);
+      // Single follow-up instead of two separate timers
+      const t1 = setTimeout(() => hardScrollToBottom(false), 200);
       return () => {
         task?.cancel?.();
         clearTimeout(t1);
-        clearTimeout(t2);
       };
     }, [hardScrollToBottom]),
   );
@@ -277,8 +308,9 @@ export const useChatScreen = () => {
       } else {
         setSelectedFileAsset(null);
       }
-    } catch (e: any) {
-      Alert.alert("Fehler", e?.message || "Dateiauswahl fehlgeschlagen");
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      Alert.alert("Fehler", error.message || "Dateiauswahl fehlgeschlagen");
       setSelectedFileAsset(null);
     }
   }, []);
@@ -321,8 +353,9 @@ export const useChatScreen = () => {
     handleSendWithMeta,
   ]);
 
+  // ✅ FIX #11: Properly typed scroll handler
   const handleScroll = useCallback(
-    (event: any) => {
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       const { contentOffset, contentSize, layoutMeasurement } =
         event.nativeEvent;
       const distanceFromBottom =
@@ -338,20 +371,18 @@ export const useChatScreen = () => {
   const scrollButtonPress = useCallback(() => {
     setAtBottom(true);
     hardScrollToBottom(true);
-    scheduleTimeout(() => hardScrollToBottom(true), 160);
     setShowScrollButton(false);
-  }, [hardScrollToBottom, setAtBottom, scheduleTimeout]);
+  }, [hardScrollToBottom, setAtBottom]);
 
   const handleContentSizeChange = useCallback(() => {
     if (!didInitialScrollRef.current && messages.length > 0) {
       didInitialScrollRef.current = true;
       setAtBottom(true);
       hardScrollToBottom(false);
-      scheduleTimeout(() => hardScrollToBottom(false), 160);
       return;
     }
     if (isAtBottomRef.current) hardScrollToBottom(false);
-  }, [hardScrollToBottom, isAtBottomRef, messages.length, setAtBottom, scheduleTimeout]);
+  }, [hardScrollToBottom, isAtBottomRef, messages.length, setAtBottom]);
 
   return {
     insets,

@@ -37,6 +37,8 @@ const ChatLoadingFooter: React.FC<Props> = ({
           transform: [{ scale: thinkingScale }],
         },
       ]}
+      accessibilityRole="progressbar"
+      accessibilityLabel={isStreaming ? "KI schreibt" : "KI denkt nach"}
     >
       <ActivityIndicator size="small" color={theme.palette.primary} />
 

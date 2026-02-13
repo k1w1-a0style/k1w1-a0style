@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Modal,
   TouchableWithoutFeedback,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../theme";
@@ -25,9 +26,19 @@ const ChatHeaderActions: React.FC<Props> = ({ topOffset }) => {
   const toggleMenu = () => setMenuVisible((prev) => !prev);
   const closeMenu = () => setMenuVisible(false);
 
-  const handleNewProject = async () => {
+  const handleNewProject = () => {
     closeMenu();
-    await createNewProject();
+    Alert.alert(
+      "Neues Projekt erstellen?",
+      "Das aktuelle Projekt wird ersetzt. Nicht gespeicherte Änderungen gehen verloren.",
+      [
+        { text: "Abbrechen", style: "cancel" },
+        {
+          text: "Neues Projekt",
+          onPress: () => createNewProject(),
+        },
+      ],
+    );
   };
 
   const handleExportZip = async () => {
@@ -40,9 +51,20 @@ const ChatHeaderActions: React.FC<Props> = ({ topOffset }) => {
     await importProjectFromZip();
   };
 
-  const handleClearChat = async () => {
+  const handleClearChat = () => {
     closeMenu();
-    await clearChatHistory();
+    Alert.alert(
+      "Chat leeren?",
+      "Alle Nachrichten werden unwiderruflich gelöscht.",
+      [
+        { text: "Abbrechen", style: "cancel" },
+        {
+          text: "Leeren",
+          style: "destructive",
+          onPress: () => clearChatHistory(),
+        },
+      ],
+    );
   };
 
   return (

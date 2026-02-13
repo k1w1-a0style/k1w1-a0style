@@ -24,6 +24,8 @@ const ChatScrollToBottomButton: React.FC<Props> = ({
       style={[styles.scrollToBottomButton, { bottom }]}
       onPress={onPress}
       activeOpacity={0.8}
+      accessibilityLabel="Zum Ende scrollen"
+      accessibilityRole="button"
     >
       <Ionicons name="arrow-down" size={20} color={theme.palette.background} />
     </TouchableOpacity>

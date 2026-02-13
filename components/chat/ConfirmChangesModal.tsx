@@ -3,6 +3,7 @@ import {
   Modal,
   View,
   Text,
+  ScrollView,
   TouchableOpacity,
   Animated,
   Easing,
@@ -19,6 +20,9 @@ type Props = {
   onAccept: () => void;
   onReject: () => void;
 };
+
+/** Max characters for the summary display. Prevents UI lag from oversized LLM output. */
+const SUMMARY_MAX_CHARS = 15_000;
 
 const ConfirmChangesModal: React.FC<Props> = ({
   visible,
@@ -58,6 +62,7 @@ const ConfirmChangesModal: React.FC<Props> = ({
       transparent
       animationType="none"
       onRequestClose={onReject}
+      accessibilityViewIsModal
     >
       <Animated.View style={[styles.modalOverlay, { opacity: modalOpacity }]}>
         <Animated.View
@@ -65,6 +70,8 @@ const ConfirmChangesModal: React.FC<Props> = ({
             styles.modalContent,
             { transform: [{ scale: modalScale }], opacity: modalOpacity },
           ]}
+          accessibilityRole="alert"
+          accessibilityLabel="Änderungen bestätigen"
         >
           <View style={styles.modalHeader}>
             <Ionicons
@@ -75,15 +82,26 @@ const ConfirmChangesModal: React.FC<Props> = ({
             <Text style={styles.modalTitle}>Änderungen bestätigen</Text>
           </View>
 
-          <View style={styles.modalBody}>
-            <Text style={styles.modalText}>{summary}</Text>
-          </View>
+          {/* ✅ FIX #9: Wrap summary in ScrollView so long LLM outputs are scrollable */}
+          <ScrollView
+            style={styles.modalBody}
+            showsVerticalScrollIndicator
+            bounces={false}
+          >
+            <Text style={styles.modalText}>
+              {summary.length > SUMMARY_MAX_CHARS
+                ? summary.slice(0, SUMMARY_MAX_CHARS) + "\n\n… (Text gekürzt)"
+                : summary}
+            </Text>
+          </ScrollView>
 
           <View style={styles.modalFooter}>
             <TouchableOpacity
               style={[styles.modalButton, styles.modalButtonReject]}
               onPress={onReject}
               activeOpacity={0.85}
+              accessibilityLabel="Änderungen ablehnen"
+              accessibilityRole="button"
             >
               <Ionicons
                 name="close-circle"
@@ -97,6 +115,8 @@ const ConfirmChangesModal: React.FC<Props> = ({
               style={[styles.modalButton, styles.modalButtonAccept]}
               onPress={onAccept}
               activeOpacity={0.85}
+              accessibilityLabel="Änderungen bestätigen und anwenden"
+              accessibilityRole="button"
             >
               <Ionicons name="checkmark-circle" size={20} color="#000" />
               <Text style={styles.modalButtonTextAccept}>Bestätigen</Text>

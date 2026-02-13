@@ -14,20 +14,19 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../../theme";
 import { styles } from "../../styles/chatComposerStyles";
+import type { PendingPlan } from "../../hooks/useChatAIFlow";
 
 type Props = {
   textInput: string;
   onChangeText: (t: string) => void;
-  pendingPlan: any | null;
-  selectedFileAsset: any | null;
+  pendingPlan: PendingPlan | null;
+  selectedFileAsset: { name: string } | null;
   onPickDocument: () => void;
   onClearSelectedFile: () => void;
   onSend: () => void | Promise<void>;
   combinedIsLoading: boolean;
   keyboardOffsetInScreen: number;
   sendButtonScale: Animated.Value;
-
-  // ✅ neu: Composer-Höhe an ChatScreen melden (damit nichts hinterm Input verschwindet)
   onHeightChange?: (h: number) => void;
 };
 
@@ -64,7 +63,6 @@ const ChatComposer: React.FC<Props> = ({
         const h = Math.round(e.nativeEvent.layout.height);
         if (!onHeightChange) return;
 
-        // nur melden wenn wirklich Änderung (verhindert Render-Spam)
         if (Math.abs(h - lastH.current) >= 1) {
           lastH.current = h;
           onHeightChange(h);
@@ -82,12 +80,20 @@ const ChatComposer: React.FC<Props> = ({
       )}
 
       {selectedFileAsset && (
-        <View style={styles.selectedFileBox}>
+        <View
+          style={styles.selectedFileBox}
+          accessibilityLabel={`Ausgewählte Datei: ${selectedFileAsset.name}`}
+        >
           <Ionicons name="document" size={16} color={theme.palette.primary} />
           <Text style={styles.selectedFileText} numberOfLines={1}>
             {selectedFileAsset.name}
           </Text>
-          <TouchableOpacity onPress={onClearSelectedFile} activeOpacity={0.7}>
+          <TouchableOpacity
+            onPress={onClearSelectedFile}
+            activeOpacity={0.7}
+            accessibilityLabel="Dateiauswahl entfernen"
+            accessibilityRole="button"
+          >
             <Ionicons
               name="close-circle"
               size={20}
@@ -105,6 +111,9 @@ const ChatComposer: React.FC<Props> = ({
           ]}
           onPress={onPickDocument}
           activeOpacity={0.7}
+          accessibilityLabel="Datei anhängen"
+          accessibilityRole="button"
+          accessibilityHint="Öffnet die Dateiauswahl"
         >
           <Ionicons
             name="attach-outline"
@@ -127,6 +136,8 @@ const ChatComposer: React.FC<Props> = ({
           blurOnSubmit={false}
           multiline
           maxLength={2000}
+          accessibilityLabel="Nachricht eingeben"
+          accessibilityHint={placeholder}
         />
 
         <Animated.View style={{ transform: [{ scale: sendButtonScale }] }}>
@@ -138,6 +149,9 @@ const ChatComposer: React.FC<Props> = ({
             onPress={onSend}
             disabled={combinedIsLoading}
             activeOpacity={0.8}
+            accessibilityLabel={combinedIsLoading ? "Wird verarbeitet" : "Nachricht senden"}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: combinedIsLoading }}
           >
             {combinedIsLoading ? (
               <ActivityIndicator
