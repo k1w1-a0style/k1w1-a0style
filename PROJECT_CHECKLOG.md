@@ -1,6 +1,11 @@
 # k1w1-a0style – Projekt-Diagnose Log (living doc)
 
 
+## PATCH 107 (2026-02-14)
+- GitHub Workflows: `ref`-Fallback auf aktuellen Branch (inputs.ref leer → `github.ref_name`), konsistente Concurrency-Keys
+- Templates: expo-sdk54 base/full enthalten die aktualisierten Workflows
+- PR-Template + Workflow-README aktualisiert (Checks + Build-Flow)
+
 ## PATCH 105 (2026-02-13)
 - CodeScreen: Save `await updateProjectFiles` (kein false-positive "Gespeichert")
 - CodeScreen: Folder-Delete: deletes sequentially awaited (Performance/Determinismus), plus `selectedFile` cleanup
@@ -678,3 +683,4 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 
 2026-02-13  Patch 105  CodeScreen hardening (await save, folder delete deterministisch + selectedFile cleanup, modal/dialog reset, selectAll scoped, ImageViewer size fix, FileTree empty-folder fix)
 2026-02-13  Patch 106  DiagnosticScreen: applyPatch delete-error propagation + projectRef sync safety, undoAll busy guard, batch progress index, prefs warn logs, unify AUTOFIX_MAX, headerStats project name dep
+2026-02-14  Patch 107  Workflows/Templates: ref-fallback (branch), PR template + README konsistent

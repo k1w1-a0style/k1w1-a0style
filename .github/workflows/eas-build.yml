@@ -6,7 +6,7 @@ on:
       ref:
         description: "Branch/Tag/SHA to build"
         required: false
-        default: "main"
+        default: ""
       profile:
         description: "EAS build profile (development|preview|production)"
         required: false
@@ -33,7 +33,7 @@ on:
         description: "Branch/Tag/SHA to build"
         required: false
         type: string
-        default: "main"
+        default: ""
       profile:
         description: "EAS build profile (development|preview|production)"
         required: false
@@ -70,7 +70,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: eas-build-${{ inputs.ref }}-${{ inputs.profile }}
+  group: eas-build-${{ inputs.ref || github.ref_name }}-${{ inputs.profile }}
   cancel-in-progress: false
 
 jobs:
@@ -173,7 +173,7 @@ jobs:
       - name: Auto-fix repo (lockfile + dev client) [optional writeback]
         shell: bash
         env:
-          TARGET_BRANCH: ${{ inputs.ref }}
+          TARGET_BRANCH: ${{ inputs.ref || github.ref_name }}
           PROFILE: ${{ inputs.profile }}
           ALLOWED_REF_REGEX: "^(work|dev|develop|feature/.+|hotfix/.+)$"
         run: |

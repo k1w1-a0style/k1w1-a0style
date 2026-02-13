@@ -67,3 +67,12 @@ Layout/Spacing/Buttons bleiben gleich.
 ## Patch 86 Hotfix
 - Removed `status === "running"` check (unified `BuildStatus` type does not include `running`).
 - No UI/behavior change besides fixing typecheck.
+
+## Patch 107 — GitHub Actions ref Verhalten
+- Manuelle Workflow-Ausführung ohne `ref` nutzt jetzt den aktuellen Branch (`github.ref_name`).
+- Wenn `ref` explizit gesetzt ist, wird genau dieser Ref gebaut.
+- Concurrency-Group nutzt denselben Ref-Fallback (kein Cross-Branch Cancel durch default "main").
+
+### Schnelltest
+1. Workflow manuell starten, `ref` leer lassen → Logs zeigen Checkout von `github.ref_name`.
+2. Workflow manuell starten, `ref` = `main` → Checkout `main`.

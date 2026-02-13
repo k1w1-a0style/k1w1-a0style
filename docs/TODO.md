@@ -8,6 +8,12 @@ Stand: **2026-02-13**
 
 ## Status
 
+### Patch 107 — Workflows/Templates
+- [x] Workflows: `ref`-Fallback auf aktuellen Branch (manueller Run ohne `ref` baut den aktiven Branch)
+- [x] Templates (sdk54 base/full) mit den korrigierten Workflows synchronisiert
+- [ ] Optional: Entscheiden ob „auto-sync GitHub Secrets vor Build“ überhaupt gewünscht ist (opt-in Toggle), **nicht** default
+
+
 - ✅ Screens/Reviews sind vollständig unter `docs/reviews/*_VERIFICATION.md` dokumentiert (siehe Index: `docs/reviews/SCREENS_VERIFICATION.md`).
 - ✅ Supabase Edge Functions & DB-Migration wurden gehärtet (RLS + Error-Sanitization), siehe `docs/reviews/SUPABASE_MIGRATION_VERIFICATION.md`.
 
