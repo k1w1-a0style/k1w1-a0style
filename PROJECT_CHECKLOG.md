@@ -1,6 +1,13 @@
 # k1w1-a0style – Projekt-Diagnose Log (living doc)
 
 
+## PATCH 93 (2026-02-13)
+- Docs: TODO aktualisiert (Restpunkte nach Patch 92) + Status-Reports hinzugefügt (`docs/status/*`)
+- Docs: Review-Verweise aktualisiert (Terminal + GitHubRepos)
+
+## PATCH 92 (2026-02-12)
+- GitHubReposScreen: owner/repo Identifier strikt – whitespace wird abgelehnt (Fix für Parsing-Test)
+
 ## PATCH 91 (2026-02-12)
 - GitHubReposScreen: Refresh unmount/race guard (kein setState nach unmount / stale refresh)
 - GitHubReposScreen: Strikte owner/repo Parsing-Validierung (exactly one '/', owner+repo pattern/length)

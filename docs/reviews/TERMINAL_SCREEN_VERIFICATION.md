@@ -1,9 +1,13 @@
 # TerminalScreen – Verification (Patch 78)
 > Hinweis: Gemeinsame Übersicht aller Verifikationen: `docs/reviews/SCREENS_VERIFICATION.md`
-Stand: 2026-02-12
+Stand: 2026-02-13
 
 ## Patch 91 Hinweis
 - Patch 91 hat **keine** TerminalScreen-Änderungen gemacht (nur GitHubReposScreen Parsing/Refresh Hardening + Tests).
+- Patch 92 hat **keine** TerminalScreen-Änderungen gemacht (nur GitHubReposScreen whitespace-Guard).
+
+## Patch 93 Hinweis
+- Patch 93 ist Docs/Reports (TODO + Status-Docs), **keine** TerminalScreen-Änderungen.
 
 
 ## 1) Review-Check: Was stimmt, was nicht?

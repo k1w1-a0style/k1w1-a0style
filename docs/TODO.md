@@ -1,54 +1,52 @@
 # TODO
 
-Stand: **2026-02-12**
+Stand: **2026-02-13** (Post-Patch 92)
 
 > Dieses Dokument ist die **laufende Restliste**.  
-> Alle Security-/Privacy-P1-Fixes aus den Screen-Reviews sind umgesetzt und Tests sind grün.  
-> Unten stehen nur noch **Restpunkte / Quality-Backlog** (meist P2/P3).
+> **Alle P1-Findings sind gefixt**, Tests sind grün, Supabase Functions + Migration sind deployed.
 
-## Status
+## Aktueller Stand
 
-- ✅ Screens/Reviews sind vollständig unter `docs/reviews/*_VERIFICATION.md` dokumentiert (siehe Index: `docs/reviews/SCREENS_VERIFICATION.md`).
-- ✅ Supabase Edge Functions & DB-Migration wurden gehärtet (RLS + Error-Sanitization), siehe `docs/reviews/SUPABASE_MIGRATION_VERIFICATION.md`.
+- ✅ Screens: verifiziert (Index: `docs/reviews/SCREENS_VERIFICATION.md`)
+- ✅ Supabase: Edge Functions deployed (`supabase functions deploy`) + DB-Migration gepusht (`supabase db push`)
+- ✅ GitHubReposScreen RS-004/RS-005 erledigt (Patch 91/92)
 
-## Backlog (noch offen)
-
-> Quelle: kritisches Review (zusammengeführt).  
-> **P2 = sollte**, **P3 = nice-to-have**.
+## Backlog (offen)
 
 ### GitHubReposScreen
-
-- [x] **RS-004 (P2)** Unmount-Guard / Abort für `onRefresh` (Race: setState nach unmount)  ✅ *(patch 91)*
-  _Ort_: `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`
-- [x] **RS-005 (P2)** Striktere `owner/repo`-Validierung + Tests (`splitFullName`/Parsing)  ✅ *(patch 91)*
-  _Ort_: `screens/GitHubReposScreen/utils/repos.ts` (+ Tests in `__tests__/`)
-- [ ] **RS-006 (P3)** Repo-Liste virtualisieren (FlatList) ohne VirtualizedList-Warnungen  
-  _Ort_: `screens/GitHubReposScreen/components/RepoListSection.tsx` / ggf. Screen-Layout
-- [ ] **RS-008 (P2/P3)** Tests: Selection-Consistency, Branch-Race, Modal-Idempotency  
-  _Ort_: `__tests__/` (Screen-/Hook-Tests)
+- [ ] **RS-006 (P3)** Repo-Liste virtualisieren (Performance bei vielen Repos)  
+  _Scope_: nur UI-Perf, keine Optikänderung geplant  
+  _Aufwand_: ~2h
+- [ ] **RS-008 (P2)** Kritische Screen-Flows testen (Select/Refresh/Branch)  
+  _Aufwand_: ~2h
 
 ### ConnectionsScreen
+- [ ] **CS-006 (P2)** Security-Tests (Eye-toggle / Validation / Sanitization Regression)  
+  _Aufwand_: ~2h
 
-- [ ] **CS-006 (P2)** Security-/Regression-Tests für Masking/Validation (Tokens/Keys)  
-  _Ort_: `screens/ConnectionsScreen/*` + `__tests__/`
-
-### Supabase (Audit / Ops)
-
-- [ ] **SB-RLS-002 (P2)** RLS/Policies auditieren (z. B. Zugriffsmatrix dokumentieren, “least privilege”)  
-  _Ort_: `supabase/migrations/*` + `docs/reviews/SUPABASE_MIGRATION_VERIFICATION.md`
-- [ ] **SB-FN-003 (P2)** Edge error sanitization: sicherstellen, dass **alle** Functions den shared sanitizer nutzen  
-  _Ort_: `supabase/functions/*`
-- [ ] **SB-MIG-001 (P2)** Migration-Runbook ergänzen (Roll-forward/Rollback, smoke checks)  
-  _Ort_: `docs/reviews/SUPABASE_MIGRATION_VERIFICATION.md` / `docs/reviews/SCREENS_VERIFICATION.md`
+### Supabase (Functions + DB)
+- [ ] **SB-RLS (P2)** RLS Audit (Tables/Policies/Grants einmal komplett durchgehen + dokumentieren)  
+  _Aufwand_: ~2h
+- [ ] **SB-Tests (P2)** Edge Security-Tests (Sanitization/Auth/RLS assumptions)  
+  _Aufwand_: ~2h
+- [ ] **SB-Rate (P3)** DB-backed Rate-Limiting für kritische Functions  
+  _Aufwand_: ~3h
+- [ ] **SB-MIG-001 (P2)** Migration-Runbook ergänzen (Roll-forward/Rollback + Smoke Checks)  
+  _Aufwand_: ~1h
 
 ## Abgeschlossen (Kurzlog)
 
-- **Patch 75–78**: TerminalScreen privacy/perf + Secret-Redaction + Tests  
-- **Patch 79**: GitHubReposScreen selection consistency + race guard  
-- **Patch 80**: Jest open handles fix (ChatScreen cleanup/unref)  
-- **Patch 81**: SettingsScreen API-Key masking + validation  
-- **Patch 82–84**: ConnectionsScreen masking/validation/sanitization  
-- **Patch 85–86**: EnhancedBuildScreen hardening (Status union + guards)  
-- **Patch 87**: Supabase hardening (RLS + Edge error sanitization + migration)
+- Patch 75–78: TerminalScreen privacy/perf + Secret-Redaction + Tests
+- Patch 79: GitHubReposScreen selection consistency + race guard
+- Patch 80: Jest open handles fix (ChatScreen cleanup/unref)
+- Patch 81: SettingsScreen API-Key masking + validation
+- Patch 82–84: ConnectionsScreen masking/validation/sanitization
+- Patch 85–86: EnhancedBuildScreen hardening (guards + status union fix)
+- Patch 87: Supabase hardening (RLS + Edge error sanitization + migration)
+- Patch 91: GitHubReposScreen refresh unmount guard + stricter owner/repo parsing + tests
+- Patch 92: GitHubReposScreen reject whitespace in owner/repo identifier
 
-- [x] Patch 92: GitHubReposScreen splitFullName rejects whitespace around '/'
+## Reports (neu)
+
+- `docs/status/EXECUTIVE_SUMMARY.md`
+- `docs/status/COMPLETE_PROJECT_STATUS_REPORT.md`
