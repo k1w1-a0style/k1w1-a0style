@@ -45,8 +45,8 @@ Stand: **2026-02-13**
 - [x] **SB-TEST-001 (P2)** Unit-Tests für Error-Sanitizer (Transport-Sanitization) ✅ *(patch 98/99)*  
   _Ort_: `__tests__/supabaseErrorSanitization.test.ts`
 
-- [ ] **SB-STORAGE-005 (P2, optional)** Storage Bucket `signing`: falls Migration-Role nicht Owner von `storage.objects`, Hardening einmalig als `postgres` im Dashboard ausführen.
-  _Ort_: `docs/runbooks/SUPABASE_DEPLOY_AND_MIGRATIONS.md` (Troubleshooting)
+- [x] **SB-STORAGE-005 (P2)** Storage Bucket `signing`: Migration hat Guard für `insufficient_privilege`, Runbook dokumentiert Troubleshooting ✅ *(bereits implementiert)*
+  _Ort_: `supabase/migrations/20260213000000_rls_audit_hardening.sql` (Zeilen 75-78) + `docs/runbooks/SUPABASE_DEPLOY_AND_MIGRATIONS.md` (Zeilen 82-88)
 
 ## Abgeschlossen (Kurzlog)
 
@@ -63,3 +63,4 @@ Stand: **2026-02-13**
 - **Patch 97**: ConnectionsScreen extract validation utils + security/regression tests
 - **Patch 98/99**: Supabase RLS audit hardening + sanitizer everywhere + runbook + tests (+ TS fixes + unified redaction marker)
 - **Patch 100**: Supabase deploy fix (Deno import extensions) + migration guard for `storage.objects` privileges
+- **Patch 101**: Supabase preview_page safe logging (sanitize alle Error-Logs) + create_codesandbox Template-Fix + Docs (TODO/Verification/Checklog)

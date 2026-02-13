@@ -278,8 +278,6 @@ AppRegistry.runApplication("app", {
       files["src/App.tsx"] = {
         content: `import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
-import { parseJsonBody } from "../_shared/validation.ts";
 
 export default function App() {
   return (

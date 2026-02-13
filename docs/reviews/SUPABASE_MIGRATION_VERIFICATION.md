@@ -2,7 +2,7 @@
 
 **Datum:** 2026-02-13  
 **Scope:** Supabase Client Init, Edge Functions (GitHub/EAS), RLS/Migrations  
-**Patch:** 87, 98, 99
+**Patch:** 87, 98, 99, 100, 101
 
 ## Ergebnis
 
@@ -89,6 +89,18 @@ In dem Fall werden die Storage-Policies in der Migration **mit NOTICE übersprun
 - `create_codesandbox` sanitizet alle returned error strings.
 - `save_preview` sanitizet server-side logging.
 - Jest Coverage: `__tests__/supabaseErrorSanitization.test.ts`.
+
+---
+
+## 6) Patch 100–101 Follow-ups (Deploy + Preview)
+
+**Patch 100:**
+- Edge Deploy Stabilität: Deno-Imports nutzen `.ts` Endungen (verhindert "Module not found" bei `supabase functions deploy`).
+- Migration Guard: Storage-Hardening für `storage.objects` wird bei fehlenden Privileges sauber abgefangen (NOTICE + Runbook-Troubleshooting).
+
+**Patch 101:**
+- `preview_page`: konsistentes Safe-Logging – alle `console.error(..., e)` Pfade loggen nur noch sanitizierte Error-Texte (Defense-in-depth gegen Secret-Leaks über Error-Messages).
+- `create_codesandbox`: generiertes React-Template enthält keine falschen Edge-Imports mehr (Copy-Paste Bugfix).
 
 ---
 

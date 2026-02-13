@@ -4,6 +4,8 @@
 
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { rateLimit } from "../_shared/auth.ts";
+// NOTE: Supabase Edge (Deno) bundler requires explicit file extensions for local imports.
+import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 
 type SnackFiles = Record<string, { type?: string; contents: string }>;
 
@@ -166,14 +168,20 @@ async function fetchPreviewRecord(
     try {
       arr = await res.json();
     } catch (e) {
-      console.error("preview_page: failed to parse JSON:", e);
+      console.error(
+        "preview_page: failed to parse JSON:",
+        sanitizeErrorText(e instanceof Error ? e.message : String(e)),
+      );
       return null;
     }
 
     if (!Array.isArray(arr) || arr.length === 0) return null;
     return arr[0] as PreviewRecord;
   } catch (e) {
-    console.error("fetchPreviewRecord error:", e);
+    console.error(
+      "fetchPreviewRecord error:",
+      sanitizeErrorText(e instanceof Error ? e.message : String(e)),
+    );
     return null;
   } finally {
     t.cancel();
@@ -194,7 +202,10 @@ async function deletePreviewRecord(secret: string): Promise<void> {
       signal: t.signal,
     });
   } catch (e) {
-    console.error("deletePreviewRecord error:", e);
+    console.error(
+      "deletePreviewRecord error:",
+      sanitizeErrorText(e instanceof Error ? e.message : String(e)),
+    );
   } finally {
     t.cancel();
   }
@@ -439,7 +450,8 @@ serve(async (req) => {
 
     return html(page, nonce, 200);
   } catch (e) {
-    console.error("[preview_page] error:", e);
+    const safeError = sanitizeErrorText(e instanceof Error ? e.message : String(e));
+    console.error("[preview_page] error:", safeError);
     return json({ ok: false, error: "Internal Server Error" }, 500);
   }
 });
