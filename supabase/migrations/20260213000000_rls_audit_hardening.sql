@@ -72,4 +72,8 @@ begin
 exception
   when undefined_table then
     raise notice 'storage.objects not found, skipping';
+  when insufficient_privilege then
+    -- On some Supabase projects the migration role is not the owner of storage.objects.
+    -- We still want the rest of the RLS audit hardening to apply.
+    raise notice 'insufficient privilege for storage.objects (not owner), skipping storage bucket hardening';
 end $$;

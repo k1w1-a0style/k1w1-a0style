@@ -655,3 +655,5 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 2026-02-13  Patch 98  Supabase: RLS audit hardening (diagnostics + signing bucket) + sanitize Edge errors everywhere + runbook + tests
 
 2026-02-13  Patch 99  Supabase: hotfix sanitizer typings + unify redaction marker ([REDACTED_TOKEN])
+
+2026-02-13  Patch 100  Supabase: fix Edge deploy (Deno import extensions) + migration guard for storage.objects ownership

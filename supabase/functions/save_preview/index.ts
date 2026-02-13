@@ -2,7 +2,8 @@ import { serve } from "std/http/server.ts";
 import { createClient } from "@supabase/supabase-js";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 import { parseJsonBody } from "../_shared/validation.ts";
-import { sanitizeErrorText } from "../_shared/errorSanitization";
+// NOTE: Supabase Edge (Deno) bundler requires explicit file extensions for local imports.
+import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 
 type SnackFiles = Record<string, { type?: string; contents: string }>;
 type Payload = {

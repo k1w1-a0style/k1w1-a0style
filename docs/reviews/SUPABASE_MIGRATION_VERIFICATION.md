@@ -76,6 +76,9 @@
 
 **Begründung:** Ohne `user_id`/`auth.uid()`-Bindung wäre jeder Auth-User in der Lage, fremde Daten zu lesen.
 
+**Operational Note:** Auf manchen Supabase-Projekten ist der Migration-Role **nicht owner** von `storage.objects`.
+In dem Fall werden die Storage-Policies in der Migration **mit NOTICE übersprungen** und müssen einmalig via Dashboard SQL Editor als Owner/Admin applied werden (siehe Runbook).
+
 ---
 
 ## 5) Edge Functions: Sanitizer überall für Fehlerpfade

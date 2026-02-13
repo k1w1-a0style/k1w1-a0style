@@ -63,11 +63,29 @@ supabase status
 - Für **Remote Deploy** ist das in der Regel ok.
 - Du brauchst Docker nur für lokale Supabase-Instanzen.
 
+### Deploy schlägt fehl: "Module not found .../_shared/errorSanitization"
+
+Das ist fast immer ein **Deno import extension** Thema.
+
+- In Supabase Edge Functions müssen lokale Imports die Dateiendung enthalten:
+  - ✅ `../_shared/errorSanitization.ts`
+  - ❌ `../_shared/errorSanitization`
+
+Fix: Imports auf `.ts` umstellen, dann erneut `supabase functions deploy`.
+
 ### Migration schlägt fehl
 
 1) Fehlertext lesen
 2) Prüfen ob es bereits alte Policies/Objekte gibt (idempotent-Migrationen sollten das abfangen)
 3) Notfalls: `supabase db reset` nur lokal (Achtung: löscht lokale DB!)
+
+#### Spezialfall: "must be owner of table storage.objects"
+
+Auf manchen Projekten ist die Migration-Rolle **nicht Owner** von `storage.objects`.
+
+- Empfehlung: Storage-Hardening entweder
+  - (A) in der Migration **nur best-effort** (mit `EXCEPTION when insufficient_privilege`) laufen lassen, oder
+  - (B) als **manueller Schritt** im Dashboard → SQL Editor mit einer Owner-Rolle ausführen.
 
 ## Rollback-Strategie (pragmatisch)
 

@@ -1,7 +1,8 @@
 // supabase/functions/_shared/cors.ts
 // ✅ SEC-009: CORS Hardening
 
-import { sanitizeErrorText, sanitizeUnknownForTransport } from "./errorSanitization";
+// NOTE: Supabase Edge (Deno) bundler requires explicit file extensions for local imports.
+import { sanitizeErrorText, sanitizeUnknownForTransport } from "./errorSanitization.ts";
 
 /**
  * Erlaubte Origins für CORS

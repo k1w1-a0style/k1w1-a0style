@@ -40,8 +40,13 @@ Stand: **2026-02-13**
   _Ort_: `supabase/functions/*`
 - [x] **SB-MIG-001 (P2)** Migration-Runbook ergänzen (Roll-forward/Rollback, smoke checks) ✅ *(patch 98)*  
   _Ort_: `docs/runbooks/SUPABASE_DEPLOY_AND_MIGRATIONS.md`
+- [x] **SB-DEPLOY-004 (P1/P2)** Edge Deploy: Deno-Imports müssen `.ts` haben (sonst "Module not found" bei `supabase functions deploy`) ✅ *(patch 100)*
+  _Ort_: `supabase/functions/_shared/cors.ts` + Functions, die `errorSanitization` importieren
 - [x] **SB-TEST-001 (P2)** Unit-Tests für Error-Sanitizer (Transport-Sanitization) ✅ *(patch 98/99)*  
   _Ort_: `__tests__/supabaseErrorSanitization.test.ts`
+
+- [ ] **SB-STORAGE-005 (P2, optional)** Storage Bucket `signing`: falls Migration-Role nicht Owner von `storage.objects`, Hardening einmalig als `postgres` im Dashboard ausführen.
+  _Ort_: `docs/runbooks/SUPABASE_DEPLOY_AND_MIGRATIONS.md` (Troubleshooting)
 
 ## Abgeschlossen (Kurzlog)
 
@@ -57,3 +62,4 @@ Stand: **2026-02-13**
 - **Patch 94–96**: GitHubReposScreen list virtualization + list flow tests + jest mock hardening
 - **Patch 97**: ConnectionsScreen extract validation utils + security/regression tests
 - **Patch 98/99**: Supabase RLS audit hardening + sanitizer everywhere + runbook + tests (+ TS fixes + unified redaction marker)
+- **Patch 100**: Supabase deploy fix (Deno import extensions) + migration guard for `storage.objects` privileges

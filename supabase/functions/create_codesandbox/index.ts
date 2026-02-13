@@ -1,5 +1,6 @@
 import { serve } from "std/http/server.ts";
-import { sanitizeErrorText, sanitizeUnknownForTransport } from "../_shared/errorSanitization";
+// NOTE: Supabase Edge (Deno) bundler requires explicit file extensions for local imports.
+import { sanitizeErrorText, sanitizeUnknownForTransport } from "../_shared/errorSanitization.ts";
 
 // CodeSandbox "define" API
 const CODESANDBOX_DEFINE_URL =
