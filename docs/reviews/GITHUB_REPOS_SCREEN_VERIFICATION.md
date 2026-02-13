@@ -16,11 +16,12 @@ Stand: **2026-02-13**
 - `splitFullName`: strikt validiert (exakt ein `/`, Owner-Pattern/Length, Repo-Pattern/Length).
 - Tests: Unit-Tests für Parsing/Validation ergänzt.
 
-## Offene Punkte (aus TODO)
-- Virtualisierung/Tests bei sehr großen Repo-Listen (P2/P3)
+## Patch 94 Follow-up (Perf/Test)
+- Repo-Liste ist jetzt **root-virtualized** über `FlatList` (keine VirtualizedList-in-ScrollView Warnungen, besser bei vielen Repos).
+- Tests ergänzt: show/hide + selection flow für Repo-Liste.
 
 ## Optik
-Keine sichtbaren Änderungen.
+Keine sichtbaren Änderungen (Layout bleibt gleich; nur Scroll-Container/Rendering intern angepasst).
 
 ## Checks
 - Typecheck: ✅
@@ -28,3 +29,9 @@ Keine sichtbaren Änderungen.
 - Jest: ✅
 
 Patch 92: Parsing hardening — rejects whitespace around '/', tests cover these cases.
+
+
+## Hotfix (Patch 95)
+- ✅ ESLint Hooks-Regel: keine bedingten Hooks (useMemo/useCallback) mehr
+- ✅ Jest: list flow tests mocken RN Komponenten ohne out-of-scope factory refs
+- 🎨 Optik: keine Änderungen

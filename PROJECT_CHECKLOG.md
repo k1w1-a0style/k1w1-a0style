@@ -1,13 +1,6 @@
 # k1w1-a0style – Projekt-Diagnose Log (living doc)
 
 
-## PATCH 93 (2026-02-13)
-- Docs: TODO aktualisiert (Restpunkte nach Patch 92) + Status-Reports hinzugefügt (`docs/status/*`)
-- Docs: Review-Verweise aktualisiert (Terminal + GitHubRepos)
-
-## PATCH 92 (2026-02-12)
-- GitHubReposScreen: owner/repo Identifier strikt – whitespace wird abgelehnt (Fix für Parsing-Test)
-
 ## PATCH 91 (2026-02-12)
 - GitHubReposScreen: Refresh unmount/race guard (kein setState nach unmount / stale refresh)
 - GitHubReposScreen: Strikte owner/repo Parsing-Validierung (exactly one '/', owner+repo pattern/length)
@@ -650,3 +643,7 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - Notes: docs/patches/PATCH_89_NOTES.md
 
 2026-02-13  Patch 92  GitHubReposScreen repo parsing hotfix (whitespace around '/')
+
+2026-02-13  Patch 94  GitHubReposScreen RepoList virtualization + flow tests
+
+2026-02-13  Patch 95  GitHubReposScreen: fix conditional hooks + jest list test mock scope

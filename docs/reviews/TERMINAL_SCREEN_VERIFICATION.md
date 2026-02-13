@@ -1,13 +1,9 @@
 # TerminalScreen – Verification (Patch 78)
 > Hinweis: Gemeinsame Übersicht aller Verifikationen: `docs/reviews/SCREENS_VERIFICATION.md`
-Stand: 2026-02-13
+Stand: 2026-02-12
 
 ## Patch 91 Hinweis
 - Patch 91 hat **keine** TerminalScreen-Änderungen gemacht (nur GitHubReposScreen Parsing/Refresh Hardening + Tests).
-- Patch 92 hat **keine** TerminalScreen-Änderungen gemacht (nur GitHubReposScreen whitespace-Guard).
-
-## Patch 93 Hinweis
-- Patch 93 ist Docs/Reports (TODO + Status-Docs), **keine** TerminalScreen-Änderungen.
 
 
 ## 1) Review-Check: Was stimmt, was nicht?
@@ -123,3 +119,9 @@ No TerminalScreen UI changes. `lib/secretRedaction` is now also used to sanitize
 - No TerminalScreen changes. (Supabase/migration + Edge error sanitization only.)
 
 Note (Patch 92): No changes to TerminalScreen; verification remains valid.
+
+Note (Patch 94): No changes to TerminalScreen; verification remains valid.
+
+
+## Hinweis (Patch 95)
+- Keine Änderungen am TerminalScreen – Patch 95 betrifft nur GitHubReposScreen (lint/test hotfix).
