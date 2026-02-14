@@ -76,3 +76,13 @@ Layout/Spacing/Buttons bleiben gleich.
 ### Schnelltest
 1. Workflow manuell starten, `ref` leer lassen → Logs zeigen Checkout von `github.ref_name`.
 2. Workflow manuell starten, `ref` = `main` → Checkout `main`.
+
+
+## Patch 109 — GitHub Actions Logs Diagnose
+- `useGitHubActionsLogs` zeigt jetzt status-genaue Fehler (401/403/404/429/5xx) inkl. Hint (fehlender Admin Key, Function nicht deployed, RateLimit, fehlende Secrets).
+- Edge Function `github-workflow-logs` nutzt jetzt `requireAdminKey` korrekt (Response wird returned) und korrektes `rateLimit` Bucket/Window.
+
+### Schnelltest
+1. Ohne Admin-Key: Logs abrufen → Fehlermeldung enthält 401 + Hinweis auf K1W1_EDGE_ADMIN_KEY.
+2. Mit falscher Supabase URL / Function nicht deployed: 404 Hinweis.
+3. Mit gültigem Key: Logs abrufbar.

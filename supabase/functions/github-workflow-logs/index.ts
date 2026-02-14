@@ -214,8 +214,11 @@ serve(async (req) => {
   if (cors) return cors;
 
   try {
-    rateLimit(req, { limit: 60, windowMs: 60_000 });
-    requireAdminKey(req);
+    const auth = requireAdminKey(req);
+    if (auth) return auth;
+
+    const rl = rateLimit(req, "github-workflow-logs", 60, 60_000);
+    if (rl) return rl;
 
     const parsedBody = await parseJsonBody(req, 50_000);
     if (!parsedBody.ok) {

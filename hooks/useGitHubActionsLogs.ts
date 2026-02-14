@@ -49,6 +49,78 @@ function sanitizeLogLine(line: string): string {
   const redacted = redactSecrets(line || "");
   return truncateWithMarker(redacted, MAX_LOG_LINE_LEN, TRUNC_MARK);
 }
+async function describeEdgeFailure(opts: {
+  fnName: string;
+  res: Response;
+  edgeUrl: string;
+  hasAdminKey: boolean;
+}): Promise<string> {
+  const { fnName, res, edgeUrl, hasAdminKey } = opts;
+  const status = res.status;
+  let bodyText = "";
+  try {
+    bodyText = await res.text();
+  } catch {
+    bodyText = "";
+  }
+
+  let bodyJson: any = null;
+  try {
+    bodyJson = bodyText ? JSON.parse(bodyText) : null;
+  } catch {
+    bodyJson = null;
+  }
+
+  const err =
+    String(
+      bodyJson?.error ??
+        bodyJson?.message ??
+        bodyJson?.details?.error ??
+        bodyJson?.details?.message ??
+        "",
+    ).trim();
+
+  const missing = bodyJson?.missing ?? bodyJson?.details?.missing;
+  const required = bodyJson?.required ?? bodyJson?.details?.required;
+  const ghDetails = bodyJson?.details ?? null;
+
+  const safeBody = truncateWithMarker(
+    redactSecrets(bodyText || ""),
+    2_000,
+    "…<truncated>",
+  );
+
+  let hint = "";
+  if (status === 404) {
+    hint = `Edge Function '${fnName}' nicht deployed (edgeUrl: ${edgeUrl}).`;
+  } else if (status === 401) {
+    hint = hasAdminKey
+      ? "Edge Admin Key wurde abgelehnt (x-k1w1-admin-key). Prüfe K1W1_EDGE_ADMIN_KEY / SIGNING_ADMIN_KEY."
+      : "Edge Admin Key fehlt (x-k1w1-admin-key). Setze K1W1_EDGE_ADMIN_KEY in der App oder nutze Bearer (Service Role) in CI.";
+  } else if (status === 429) {
+    hint = "Rate limit aktiv – bitte kurz warten.";
+  } else if (status >= 500) {
+    // Common: missing secrets on the Edge Function.
+    if (Array.isArray(missing) && missing.length) {
+      hint = `Edge Function Secrets fehlen: ${missing.join(", ")}`;
+    } else if (required) {
+      hint = String(required);
+    } else if (ghDetails?.status) {
+      hint = `GitHub API Status: ${String(ghDetails.status)}`;
+    } else {
+      hint = "Edge Function Fehler – bitte Logs/Deployment prüfen.";
+    }
+  }
+
+  const base = `[${fnName}] ${status}`;
+  const msg = err || res.statusText || "Request failed";
+  const extra = hint ? ` | ${hint}` : "";
+  // include a small redacted body snippet for debugging
+  const snippet =
+    !err && safeBody ? ` | body: ${safeBody}` : !err ? "" : "";
+  return `${base}: ${msg}${extra}${snippet}`;
+}
+
 
 async function getSupabaseEdgeUrl(): Promise<string> {
   // ✅ Prefer runtime-configured Supabase URL (ConnectionsScreen)
@@ -120,7 +192,14 @@ export function useGitHubActionsLogs({
         });
 
         if (!runsResponse.ok) {
-          throw new Error("Workflow runs konnten nicht abgerufen werden");
+          throw new Error(
+            await describeEdgeFailure({
+              fnName: "github-workflow-runs",
+              res: runsResponse,
+              edgeUrl,
+              hasAdminKey: !!edgeAdminKey,
+            }),
+          );
         }
 
         const runsData = await runsResponse.json();
@@ -156,7 +235,14 @@ export function useGitHubActionsLogs({
       });
 
       if (!logsResponse.ok) {
-        throw new Error("Logs konnten nicht abgerufen werden");
+        throw new Error(
+          await describeEdgeFailure({
+            fnName: "github-workflow-logs",
+            res: logsResponse,
+            edgeUrl,
+            hasAdminKey: !!edgeAdminKey,
+          }),
+        );
       }
 
       const logsData = await logsResponse.json();
