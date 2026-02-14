@@ -25,14 +25,16 @@ const MODES: ModeDef[] = [
   { id: "production", label: "Production", hint: "Release/Store (signed)" },
 ];
 
-function normalizeModeForApi(mode: UiModeId): ApiModeId {
+export function normalizeModeForApi(mode: UiModeId): ApiModeId {
   return mode === "dev" ? "development" : mode;
 }
 
-function normalizeModeForUi(mode?: string): UiModeId | undefined {
+export function normalizeModeForUi(mode?: string | null): UiModeId | undefined {
   if (!mode) return undefined;
-  if (mode === "development") return "dev";
-  if (mode === "preview" || mode === "production" || mode === "dev") return mode as UiModeId;
+  const lower = String(mode).toLowerCase();
+  if (lower === "development" || lower === "dev") return "dev";
+  if (lower === "preview") return "preview";
+  if (lower === "production" || lower === "prod") return "production";
   return undefined;
 }
 
@@ -108,7 +110,25 @@ export function useCredentialsWizardScreen() {
   const repoFullName = project?.projectData?.linkedRepo ?? "";
   const branch = project?.projectData?.linkedBranch ?? "";
 
-  const [selectedMode, setSelectedMode] = useState<UiModeId>("production");
+  const initialMode: UiModeId =
+    normalizeModeForUi(project?.projectData?.preferredBuildProfile) ?? "dev";
+  const [selectedMode, setSelectedMode] = useState<UiModeId>(initialMode);
+
+  // If Build Screen / other parts change the preferred profile, mirror it here.
+  useEffect(() => {
+    const next = normalizeModeForUi(project?.projectData?.preferredBuildProfile) ?? "dev";
+    setSelectedMode((prev) => (prev === next ? prev : next));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.projectData?.preferredBuildProfile]);
+
+  // Persist selection back to the project (single source of truth).
+  useEffect(() => {
+    const apiMode = normalizeModeForApi(selectedMode);
+    if (apiMode && apiMode !== project?.projectData?.preferredBuildProfile) {
+      if (project?.setPreferredBuildProfile) void project.setPreferredBuildProfile(apiMode);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMode]);
 
   const [supabaseUrl, setSupabaseUrl] = useState<string>("");
   const [adminKey, setAdminKey] = useState<string>("");
