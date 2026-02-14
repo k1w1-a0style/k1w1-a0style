@@ -15,7 +15,10 @@ export type TabKey = "overview" | "issues" | "fixes";
 
 type Tab = { key: TabKey; label: string; badge?: number };
 
-if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+// NOTE: In der New Architecture ist setLayoutAnimationEnabledExperimental ein No-Op (warn spam).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const isNewArch = !!(global as any)?.nativeFabricUIManager;
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental && !isNewArch) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 

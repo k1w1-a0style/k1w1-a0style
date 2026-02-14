@@ -220,15 +220,33 @@ export function useConnectionsScreen() {
       if (!resp.ok) throw new Error(`REST Ping failed (${resp.status})`);
 
       // build_jobs table check (wichtig fürs Build-System)
+// Hinweis: In gehärteten Setups blockt RLS den anon-Key (401/403). Das ist OK,
+// solange CI/Edge mit Service-Role arbeitet. Wenn ein Service-Role-Key vorhanden ist,
+// nutzen wir ihn für den Check.
+      const checkKey = (supabaseServiceRoleKey || "").trim() || anon;
+
       const tableRes = await fetch(`${url}/rest/v1/build_jobs?select=id&limit=1`, {
         method: "GET",
-        headers: { apikey: anon, Authorization: `Bearer ${anon}` },
+        headers: { apikey: checkKey, Authorization: `Bearer ${checkKey}` },
       });
+
       if (!tableRes.ok) {
-        throw new Error(`Tabelle build_jobs fehlt (${tableRes.status}).`);
+        if ((tableRes.status === 401 || tableRes.status === 403) && checkKey === anon) {
+          Alert.alert(
+            "✅ Supabase OK",
+            "REST erreichbar. build_jobs ist durch RLS geschützt (401/403) – das ist ok. CI/Edge nutzt Service-Role.",
+          );
+          return;
+        }
+        throw new Error(`build_jobs Check fehlgeschlagen (${tableRes.status}).`);
       }
 
-      Alert.alert("✅ Supabase OK", "REST + build_jobs erreichbar.");
+      Alert.alert(
+        "✅ Supabase OK",
+        checkKey === anon
+          ? "REST + build_jobs erreichbar."
+          : "REST + build_jobs (Service-Role) erreichbar.",
+      );
     } catch (e: any) {
       Alert.alert("❌ Supabase Test", safeAlertText(e));
     } finally {

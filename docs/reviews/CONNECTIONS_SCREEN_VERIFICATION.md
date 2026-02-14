@@ -70,3 +70,8 @@ Das führte zu TS-Errors, wenn `saveAll()` die falsche Variante annimmt.
 - sonst → wird direkt als Objekt genutzt
 
 **Optik-Änderung:** Nein.
+
+## Patch 108 Verification
+- Supabase Test:
+  - Mit **anon key** und gehärteter RLS (`build_jobs` nicht öffentlich) darf der Table-Check **401/403** liefern – wird jetzt als *OK (RLS geschützt)* bewertet.
+  - Wenn ein **Service-Role-Key** hinterlegt ist, wird dieser für den Table-Check genutzt und muss **200** liefern.

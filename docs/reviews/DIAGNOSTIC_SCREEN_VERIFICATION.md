@@ -79,3 +79,6 @@ Dieses Follow-up setzt bestätigte Findings aus dem DiagnosticScreen-Review um (
 - `npm run typecheck` ✅
 - `npm run lint:ci` ✅
 - `npm run test:silent` ✅
+
+## Patch 108 Verification
+- Android (New Architecture/Fabric): Keine Warnungen mehr durch `setLayoutAnimationEnabledExperimental` (Call wird im New-Arch unterdrückt).
