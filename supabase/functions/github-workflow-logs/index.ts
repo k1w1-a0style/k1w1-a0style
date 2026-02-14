@@ -149,37 +149,33 @@ async function fetchLogsZip(
 
         // If the run is still executing, logs zip may not exist yet.
         if (runStatus && runStatus !== "completed") {
-          return new Response(
-            JSON.stringify({
+          throw {
+            status: 200,
+            notReady: true,
+            body: {
               ok: true,
               status: "not_ready",
               runStatus,
               runConclusion,
               retryAfterMs: 5000,
               message: "Logs not ready (run still in progress).",
-            }),
-            {
-              status: 200,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
             },
-          );
+          };
         }
 
         // Completed but logs endpoint still 404 – treat as transient.
-        return new Response(
-          JSON.stringify({
+        throw {
+          status: 200,
+          notReady: true,
+          body: {
             ok: true,
             status: "not_ready",
             runStatus: runStatus || "completed",
             runConclusion,
             retryAfterMs: 8000,
             message: "Logs not found yet (GitHub may still be preparing the archive).",
-          }),
-          {
-            status: 200,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
-        );
+        };
       }
 
       // If the run itself is 404, it's likely an invalid runId or missing permissions.
@@ -341,6 +337,10 @@ serve(async (req) => {
     });
   } catch (e) {
     const anyE = e as any;
+    // Handle "not ready" signals from fetchLogsZip (logs still being prepared)
+    if (anyE && anyE.notReady === true && anyE.body) {
+      return jsonOk(anyE.body, anyE.status ?? 200);
+    }
     if (anyE && typeof anyE.status === "number") {
       return jsonErr(
         "GitHub workflow logs fetch failed",

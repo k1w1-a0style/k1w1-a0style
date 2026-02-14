@@ -102,3 +102,8 @@ Stand: **2026-02-13**
 - [x] **BUILD-110 (P1)** GitHub Actions Logs: 404 (logs zip) wird als "not ready" behandelt + klarer Hinweis run-id vs run-number ✅ *(patch 110)*
   _Ort_: `supabase/functions/github-workflow-logs`, `hooks/useGitHubActionsLogs.ts`
 
+
+## DONE (Patch 111)
+- Build Logs: Edge Function github-workflow-logs 500 fix (404/202 -> not-ready) + auth errorResponse arg order fix.
+- Templates/Checklist: Production buildType = apk; Preflight auto-fix for EAS profiles.
+

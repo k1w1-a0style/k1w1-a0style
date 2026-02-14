@@ -1194,6 +1194,10 @@ const checkEasWithoutCredentialsForDebug: PreflightCheck = {
         if (!devOk) missing.push('eas.json: build.development.android.withoutCredentials=true fehlt');
         if (!prevOk) missing.push('eas.json: build.preview.android.withoutCredentials=true fehlt');
 
+        const patchObj: Record<string, any> = {};
+        if (!devOk) patchObj.development = { android: { withoutCredentials: true } };
+        if (!prevOk) patchObj.preview = { android: { withoutCredentials: true } };
+
         return {
           id: this.id,
           title: this.title,
@@ -1202,6 +1206,19 @@ const checkEasWithoutCredentialsForDebug: PreflightCheck = {
           message:
             "Ohne Keystore kann EAS in CI (--non-interactive) keinen neuen Keystore erzeugen. Für Debug/APK Builds sollte withoutCredentials=true gesetzt sein.",
           details: missing,
+          fix: {
+            patch: mkJsonFix(
+              [
+                {
+                  path: "eas.json",
+                  patch: { build: patchObj },
+                  createIfMissing: false,
+                },
+              ],
+              [],
+              "withoutCredentials=true für development/preview setzen",
+            ),
+          },
         };
       }
 

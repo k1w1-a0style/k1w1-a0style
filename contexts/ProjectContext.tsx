@@ -822,10 +822,6 @@ const pauseBuildPolling = useCallback(() => {
             lastUpdatedAt: new Date().toISOString(),
           };
         });
-
-        if (buildPollErrorCountRef.current >= 5) {
-          stopBuildPolling();
-        }
       }
     },
     [stopBuildPolling],

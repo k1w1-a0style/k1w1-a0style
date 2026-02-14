@@ -48,21 +48,21 @@ export function requireAdminKey(req: Request): Response | null {
 
   if (!expected && !serviceRole) {
     return errorResponse(
-      500,
       "Missing admin auth secrets for this Edge Function. Set SIGNING_ADMIN_KEY and/or SUPABASE_SERVICE_ROLE_KEY as function secrets.",
+      req,
+      500,
       { missing: ["SIGNING_ADMIN_KEY", "SUPABASE_SERVICE_ROLE_KEY"] },
-      req
     );
   }
 
   return errorResponse(
-    401,
     "Unauthorized: missing or invalid admin credentials.",
+    req,
+    401,
     {
       required:
         "Either x-k1w1-admin-key (SIGNING_ADMIN_KEY) OR Authorization: Bearer (SUPABASE_SERVICE_ROLE_KEY)",
     },
-    req
   );
 }
 
@@ -91,7 +91,7 @@ export function rateLimit(
   }
   v.c += 1;
   if (v.c > max) {
-    return errorResponse(429, "rate_limited", { windowMs, max });
+    return errorResponse("rate_limited", req, 429, { windowMs, max });
   }
   return null;
 }

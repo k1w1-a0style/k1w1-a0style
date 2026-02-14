@@ -1,5 +1,16 @@
 # EnhancedBuildScreen – Verification (Patch 85)
 
+## Patch 111 Follow-up
+- github-workflow-logs: 404/202 -> not-ready (kein 500)
+- auth.ts: errorResponse() args korrigiert
+- EAS/Templates: production APK + Preflight Auto-Fix
+
+## Patch 111 Follow-up
+- GitHub Actions „Live in App“ Logs: Edge `github-workflow-logs` liefert bei 404/202 (Logs noch nicht bereit) kein 500 mehr, sondern ein sauberes not-ready.
+- `_shared/auth.ts` nutzt `errorResponse()` korrekt (verhindert versteckte 500er bei Auth/RateLimit-Fehlern).
+- EAS/Templates auf **APK** ausgerichtet; Preflight kann `withoutCredentials`/`buildType` automatisch fixen.
+
+
 Stand: 2026-02-12
 
 ## 1) Review-Check: Was stimmt, was nicht?

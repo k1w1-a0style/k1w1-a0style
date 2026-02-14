@@ -654,7 +654,7 @@ function patchEasJson(
     // Required profiles: preview + production
     const needProfiles = [
       { name: "preview", defaults: { android: { buildType: "apk" } } },
-      { name: "production", defaults: { android: { buildType: "app-bundle" } } },
+      { name: "production", defaults: { android: { buildType: "apk" } } },
     ] as const;
 
     for (const p of needProfiles) {
@@ -677,7 +677,7 @@ function patchEasJson(
       cli: { appVersionSource: "remote" },
       build: {
         preview: { android: { buildType: "apk" } },
-        production: { android: { buildType: "app-bundle" } },
+        production: { android: { buildType: "apk" } },
       },
     };
     return {
@@ -740,7 +740,7 @@ export default function App(){
           cli: { appVersionSource: "remote" },
           build: {
             preview: { android: { buildType: "apk" } },
-            production: { android: { buildType: "app-bundle" } },
+            production: { android: { buildType: "apk" } },
           },
         },
         null,
