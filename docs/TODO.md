@@ -103,7 +103,5 @@ Stand: **2026-02-13**
   _Ort_: `supabase/functions/github-workflow-logs`, `hooks/useGitHubActionsLogs.ts`
 
 
-## DONE (Patch 111)
-- Build Logs: Edge Function github-workflow-logs 500 fix (404/202 -> not-ready) + auth errorResponse arg order fix.
-- Templates/Checklist: Production buildType = apk; Preflight auto-fix for EAS profiles.
-
+- [x] Patch 112: Workflow YAML fix + managed workflow updates
+- [x] Patch 112: Managed workflow updates + YAML colon-in-name fix for k1w1-triggered-build

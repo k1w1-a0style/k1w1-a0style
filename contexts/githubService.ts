@@ -751,6 +751,14 @@ export const deleteRepoFile = async (
   throw new Error(j?.message || `Delete failed (${status}): ${path}`);
 };
 
+const MANAGED_WORKFLOWS = new Set([
+  ".github/workflows/deploy-supabase-functions.yml",
+  ".github/workflows/eas-build.yml",
+  ".github/workflows/eas-link.yml",
+  ".github/workflows/k1w1-triggered-build.yml",
+  ".github/workflows/release-build.yml",
+]);
+
 export const pushFilesToRepo = async (
   owner: string,
   repo: string,
@@ -777,10 +785,9 @@ export const pushFilesToRepo = async (
   for (const f of sortedFiles) {
     if (!f.path) continue;
     const p = f.path.trim();
-    // 🛑 Workflows sind Teil des Build-Orchestrators und sollen nicht pro Projekt überschrieben werden.
-    // Das verhindert SHA-Mismatch (409) und Sicherheitsprobleme.
-    if (p.startsWith(".github/workflows/")) {
-      console.log(`[pushFilesToRepo] Skip workflow file: ${p}`);
+    // 🛑 Workflows: standardmäßig nicht überschreiben, aber unsere "managed" Workflows dürfen aktualisiert werden.
+    if (p.startsWith(".github/workflows/") && !MANAGED_WORKFLOWS.has(p)) {
+      console.log(`[pushFilesToRepo] Skip unmanaged workflow file: ${p}`);
       continue;
     }
 

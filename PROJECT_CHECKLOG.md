@@ -689,5 +689,6 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 2026-02-14  Patch 109  Build logs: actionable GitHub Actions log errors (status-specific) + fix Edge github-workflow-logs auth/rate-limit
 2026-02-14  Patch 110  Build logs: handle GitHub 404 logs as 'not ready' + better hint for run-id vs run-number
 
-2026-02-14  Patch 111  Build logs: fix Edge 500 (logs zip 404/202 handling), fix auth errorResponse arg order, align EAS/templates for APK + withoutCredentials checks
-
+- Patch 112: Fix invalid workflow YAML (colon in step name) + allow managed workflow updates
+2026-02-14  Patch 111  GitHub workflow logs: fix 500 (404/202 not-ready) + auth errorResponse order + APK alignment
+2026-02-14  Patch 112  Workflows: fix invalid YAML (colon in name) + allow managed workflow updates
