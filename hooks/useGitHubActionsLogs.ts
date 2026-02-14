@@ -247,10 +247,26 @@ export function useGitHubActionsLogs({
 
       const logsData = await logsResponse.json();
 
-       if (isMountedRef.current) {
-         // logs function returns logsText (string). Convert to LogEntry[].
-         const text: string =
-           typeof logsData?.logsText === "string" ? logsData.logsText : "";
+      if (isMountedRef.current) {
+        // If GitHub hasn't prepared the logs archive yet, treat it as a "soft" state (no red error).
+        if (logsData?.ok === true && logsData?.status === "not_ready") {
+          setError(null);
+          const now = new Date().toISOString();
+          const runStatus = String(logsData?.runStatus ?? "unknown");
+          const runConclusion =
+            logsData?.runConclusion != null ? String(logsData.runConclusion) : null;
+          const hint = runConclusion
+            ? `Logs noch nicht verfügbar (${runStatus}/${runConclusion}).`
+            : `Logs noch nicht verfügbar (${runStatus}).`;
+
+          setLogs([{ timestamp: now, message: hint, level: "info" }]);
+          setIsLoading(false);
+          return;
+        }
+
+        // logs function returns logsText (string). Convert to LogEntry[].
+        const text: string =
+          typeof logsData?.logsText === "string" ? logsData.logsText : "";
          const lines = text.split(/\r?\n/);
 
          const rawLogs: LogEntry[] = lines

@@ -687,3 +687,4 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 
 2026-02-14  Patch 108  Connections/Supabase: RLS-aware table test + suppress LayoutAnimation warnings on New Architecture
 2026-02-14  Patch 109  Build logs: actionable GitHub Actions log errors (status-specific) + fix Edge github-workflow-logs auth/rate-limit
+2026-02-14  Patch 110  Build logs: handle GitHub 404 logs as 'not ready' + better hint for run-id vs run-number

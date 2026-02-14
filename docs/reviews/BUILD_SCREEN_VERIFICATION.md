@@ -86,3 +86,18 @@ Layout/Spacing/Buttons bleiben gleich.
 1. Ohne Admin-Key: Logs abrufen → Fehlermeldung enthält 401 + Hinweis auf K1W1_EDGE_ADMIN_KEY.
 2. Mit falscher Supabase URL / Function nicht deployed: 404 Hinweis.
 3. Mit gültigem Key: Logs abrufbar.
+
+---
+
+## Patch 110 – GitHub Actions Logs 404 / "not ready"
+
+### Beobachtung
+- GitHub liefert bei `GET /actions/runs/{run_id}/logs` gelegentlich **404**, wenn der Run noch läuft oder der Logs-Zip noch nicht erstellt ist.
+- Zusätzlich kann 404 auch "kein Zugriff" oder "falsche ID" bedeuten (Run-Number statt Run-ID).
+
+### Fix-Check
+- Edge-Function behandelt 404 jetzt als **soft state**:
+  - Wenn Run existiert und `status != completed` ⇒ `status: "not_ready"` + Retry-After.
+  - Wenn Run completed aber Zip noch nicht verfügbar ⇒ ebenfalls soft + Retry.
+- App zeigt das als **Info** (kein roter Error) und lässt Auto-Refresh weiterlaufen.
+

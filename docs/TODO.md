@@ -99,3 +99,6 @@ Stand: **2026-02-13**
   _Ort_: `screens/DiagnosticScreen/hooks/useDiagnosticPreferences.ts`
 - [x] **DIAG-106 (P3)** `AUTOFIX_MAX` Single-Source (kein Duplikat in UI) ✅ *(patch 106)*  
   _Ort_: `screens/DiagnosticScreen/hooks/useDiagnosticFixRunner.ts`, `screens/DiagnosticScreen/components/NonIssuesTabSection.tsx`
+- [x] **BUILD-110 (P1)** GitHub Actions Logs: 404 (logs zip) wird als "not ready" behandelt + klarer Hinweis run-id vs run-number ✅ *(patch 110)*
+  _Ort_: `supabase/functions/github-workflow-logs`, `hooks/useGitHubActionsLogs.ts`
+

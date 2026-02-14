@@ -126,6 +126,72 @@ async function fetchLogsZip(
   });
 
   if (r1.status !== 302) {
+    // GitHub returns 404 in two common cases:
+    // 1) Logs are not ready yet (run still in_progress/queued)
+    // 2) The token has no access to Actions/logs (private repo) OR runId is invalid
+    if (r1.status === 404) {
+      const runApi = `https://api.github.com/repos/${owner}/${repo}/actions/runs/${runId}`;
+      const rr = await fetch(runApi, {
+        method: "GET",
+        headers: githubHeaders(undefined, "Bearer"),
+      });
+
+      if (rr.status === 200) {
+        let runJson: any = null;
+        try {
+          runJson = await rr.json();
+        } catch {
+          runJson = null;
+        }
+
+        const runStatus = String(runJson?.status ?? "");
+        const runConclusion = runJson?.conclusion != null ? String(runJson.conclusion) : null;
+
+        // If the run is still executing, logs zip may not exist yet.
+        if (runStatus && runStatus !== "completed") {
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              status: "not_ready",
+              runStatus,
+              runConclusion,
+              retryAfterMs: 5000,
+              message: "Logs not ready (run still in progress).",
+            }),
+            {
+              status: 200,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        // Completed but logs endpoint still 404 – treat as transient.
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            status: "not_ready",
+            runStatus: runStatus || "completed",
+            runConclusion,
+            retryAfterMs: 8000,
+            message: "Logs not found yet (GitHub may still be preparing the archive).",
+          }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      // If the run itself is 404, it's likely an invalid runId or missing permissions.
+      const body = await r1.text().catch(() => "");
+      throw {
+        status: 404,
+        body:
+          body ||
+          "GitHub returned 404. Hint: ensure you pass a workflow *run id* (not run number) and the token has Actions read access for this repo.",
+      };
+    }
+
     const body = await r1.text().catch(() => "");
     throw { status: r1.status, body };
   }
