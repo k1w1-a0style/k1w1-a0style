@@ -759,6 +759,9 @@ const MANAGED_WORKFLOWS = new Set([
   ".github/workflows/release-build.yml",
 ]);
 
+const normalizeRepoPath = (p: string) =>
+  String(p ?? "").replace(/\\/g, "/").replace(/^\.?\//, "");
+
 export const pushFilesToRepo = async (
   owner: string,
   repo: string,
@@ -784,18 +787,18 @@ export const pushFilesToRepo = async (
   const sortedFiles = [...files].sort((a, b) => a.path.localeCompare(b.path));
   for (const f of sortedFiles) {
     if (!f.path) continue;
-    const p = f.path.trim();
+    const p = normalizeRepoPath(f.path.trim());
     // 🛑 Workflows: standardmäßig nicht überschreiben, aber unsere "managed" Workflows dürfen aktualisiert werden.
     if (p.startsWith(".github/workflows/") && !MANAGED_WORKFLOWS.has(p)) {
       console.log(`[pushFilesToRepo] Skip unmanaged workflow file: ${p}`);
       continue;
     }
 
-    console.log(`Pushing ${f.path}... (branch: ${targetBranch})`);
+    console.log(`Pushing ${p}... (branch: ${targetBranch})`);
     await createOrUpdateFile(
       owner,
       repo,
-      f.path,
+      p,
       f.content,
       `Add ${f.path}`,
       targetBranch,

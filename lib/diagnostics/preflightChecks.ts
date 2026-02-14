@@ -1152,10 +1152,11 @@ const checkWorkflowYamlNameColonQuoting: PreflightCheck = {
       });
     }
 
-    return fail({
+    return {
       id: this.id,
       title: this.title,
       severity: this.severity,
+      status: "fail",
       message:
         `Gefunden: ${touchedLines} unquoted name-Werte mit ': ' in ${touchedFiles} Workflow-Datei(en). ` +
         "Das kann YAML/Actions kaputt parsen (Build startet dann nicht).",
@@ -1163,7 +1164,7 @@ const checkWorkflowYamlNameColonQuoting: PreflightCheck = {
         label: "Auto-Fix: Quote Workflow 'name' und step 'name' Werte",
         patch: mkFix(upserts, [], "Quote Workflow 'name' und step 'name' Werte"),
       },
-    });
+    };
   },
 };
 
