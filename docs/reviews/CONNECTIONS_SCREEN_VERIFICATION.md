@@ -75,3 +75,15 @@ Das führte zu TS-Errors, wenn `saveAll()` die falsche Variante annimmt.
 - Supabase Test:
   - Mit **anon key** und gehärteter RLS (`build_jobs` nicht öffentlich) darf der Table-Check **401/403** liefern – wird jetzt als *OK (RLS geschützt)* bewertet.
   - Wenn ein **Service-Role-Key** hinterlegt ist, wird dieser für den Table-Check genutzt und muss **200** liefern.
+
+## Patch 134 (Hotfix)
+
+### ✅ CS-009 (P1): Build/Tests brachen durch doppelte `effectiveRepo`-Deklaration
+**Problem:** `useConnectionsScreen.ts` deklarierte `effectiveRepo` zweimal → `TS2451` + Jest/Babel Parse-Failure.
+
+**Fix:** zweite Deklaration entfernt, alle späteren Stellen nutzen die eine `effectiveRepo`-Quelle.
+
+**Optik-Änderung:** Nein.
+
+**Verifiziert:** `npm run typecheck`, `npm run lint:ci`, `npm run test:silent` ✅
+

@@ -1,9 +1,10 @@
 # Patch Log
 
-This repo previously accumulated many auto-generated `PATCH_MANIFEST_*.txt` files.
-They were removed to keep the repo clean.
+Diese Datei ist ein kurzer Index (Meta) für Patch-Notizen unter `docs/patches/`.
 
-## Current baseline
-- This full-patch bundle includes all updates up to **FULLPATCH41**.
-- If you are applying from an older state, you only need the latest full-patch.
+## Aktueller Stand
+- Letzter angewendeter Patch: **Patch 134**
+- Letzte Patch-Notiz: `docs/patches/patch_134.md`
 
+## Hinweis
+Die Patch-Notizen sind nur Dokumentation und werden zur Laufzeit nicht benötigt.

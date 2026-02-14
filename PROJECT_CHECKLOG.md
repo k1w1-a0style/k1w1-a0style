@@ -1,6 +1,11 @@
 # k1w1-a0style – Projekt-Diagnose Log (living doc)
 
 
+
+## PATCH 134 (2026-02-14)
+- ConnectionsScreen: Hotfix – doppelte `effectiveRepo`-Deklaration entfernt (TS2451 + Jest/Babel Parse-Fail).
+- Verifiziert: `typecheck`, `lint:ci`, `test:silent` grün.
+
 ## PATCH 107 (2026-02-14)
 - GitHub Workflows: `ref`-Fallback auf aktuellen Branch (inputs.ref leer → `github.ref_name`), konsistente Concurrency-Keys
 - Templates: expo-sdk54 base/full enthalten die aktualisierten Workflows
