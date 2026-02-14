@@ -87,6 +87,13 @@ export default function GitHubReposScreen() {
     isSyncingSecrets,
     handleSyncSecrets,
 
+    // EAS link (im Repo-Screen)
+    easProjectId,
+    isEasLinking,
+    easLinkStatus,
+    handleEasLinkStatusCheck,
+    handleEasLink,
+
     handleOpenRepoOnGitHub,
 
     loadBranches,
@@ -269,6 +276,48 @@ export default function GitHubReposScreen() {
         onOpenManage={handleOpenManage}
         pullProgress={pullProgress}
       />
+
+      {activeRepo && (
+        <View style={[s.section, s.sectionNeon]}>
+          <Text style={s.sectionTitle}>EAS Link</Text>
+
+          <Text style={{ fontSize: 12, color: theme.palette.text.secondary, lineHeight: 18 }}>
+            Project ID: {easProjectId ? easProjectId : "(nicht gesetzt)"}
+          </Text>
+
+          <Text style={{ fontSize: 12, color: theme.palette.text.secondary, marginTop: 6 }}>
+            Status: {easLinkStatus === "ok" ? "OK" : easLinkStatus === "missing" ? "fehlt" : "unbekannt"}
+          </Text>
+
+          <View style={s.actionsRow}>
+            <TouchableOpacity
+              style={[s.button, s.buttonSecondary, isEasLinking && s.buttonDisabled]}
+              onPress={handleEasLinkStatusCheck}
+              disabled={isEasLinking}
+            >
+              <Text style={s.buttonTextSecondary}>Check</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[s.button, (!easProjectId || isEasLinking) && s.buttonDisabled]}
+              onPress={handleEasLink}
+              disabled={!easProjectId || isEasLinking}
+            >
+              {isEasLinking ? (
+                <ActivityIndicator size="small" color={theme.palette.background} />
+              ) : (
+                <Text style={s.buttonText}>Link</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {!easProjectId && (
+            <Text style={{ fontSize: 11, color: theme.palette.text.muted, marginTop: 8, lineHeight: 16 }}>
+              Setz die EAS Project ID im Verbindungen-Screen (EAS Card). Danach hier “Link” drücken.
+            </Text>
+          )}
+        </View>
+      )}
 
       {activeRepo && (
         <BranchSelector
