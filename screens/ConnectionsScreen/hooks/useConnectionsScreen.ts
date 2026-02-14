@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { autoFixCIWorkflows, parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
 import { useGitHub } from "../../../contexts/GitHubContext";
 import { useProject } from "../../../contexts/ProjectContext";
 import {
@@ -19,6 +20,7 @@ import {
   getSupabaseServiceRoleKey,
   saveSupabaseServiceRoleKey,
   deleteSupabaseServiceRoleKey,
+  triggerWorkflow,
 } from "../../../contexts/githubService";
 
 import {
@@ -33,6 +35,7 @@ export function useConnectionsScreen() {
   const { projectData } = useProject();
 
   const [busy, setBusy] = useState(false);
+  const [isEasInitRunning, setIsEasInitRunning] = useState(false);
 
   // Tokens
   const [githubToken, setGithubToken] = useState("");
@@ -66,6 +69,12 @@ export function useConnectionsScreen() {
     projectData?.linkedRepo,
     projectData?.linkedBranch,
   ]);
+
+  const effectiveRepo = useMemo(() => {
+    const repo = (activeRepo || projectData?.linkedRepo || "").trim();
+    return repo ? repo : null;
+  }, [activeRepo, projectData?.linkedRepo]);
+
 
   // Load stored settings on mount
   useEffect(() => {
@@ -277,9 +286,126 @@ export function useConnectionsScreen() {
     easProjectId,
   ]);
 
+  const githubConnected = !!githubToken.trim();
+
+  const onLinkExisting = useCallback(async () => {
+    if (isEasInitRunning) return;
+
+    const token = githubToken.trim();
+    if (!token) {
+      Alert.alert("Fehler", "GitHub Token fehlt (oder ist leer).");
+      return;
+    }
+
+    const repoSlug = (effectiveRepo || "").trim();
+    if (!repoSlug) {
+      Alert.alert("Fehler", "Kein Repo ausgewählt.");
+      return;
+    }
+
+    const branch =
+      (activeBranch || projectData?.linkedBranch || "main").trim() || "main";
+
+    const parsed = parseOwnerRepo(repoSlug);
+    if (!parsed) {
+      Alert.alert("Fehler", "Repo-Format ist ungültig. Erwartet: owner/repo");
+      return;
+    }
+
+    const easId = easProjectId.trim();
+    if (!easId) {
+      Alert.alert("Fehler", "Bitte zuerst eine EAS Project ID eingeben.");
+      return;
+    }
+
+    setIsEasInitRunning(true);
+    try {
+      // Persist token + EAS id so andere Teile der App die gleichen Werte nutzen
+      await saveGitHubToken(token);
+      await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, easId).catch(
+        () => null,
+      );
+
+      await autoFixCIWorkflows({ owner: parsed.owner, repo: parsed.repo, branch });
+
+      await triggerWorkflow(parsed.owner, parsed.repo, "eas-link.yml", branch, {
+        ref: branch,
+        eas_project_id: easId,
+      });
+
+      Alert.alert(
+        "OK",
+        "EAS Link-Workflow gestartet. Check GitHub Actions (eas-link).",
+      );
+    } catch (e: any) {
+      Alert.alert("Fehler", safeAlertText(e));
+    } finally {
+      setIsEasInitRunning(false);
+    }
+  }, [
+    isEasInitRunning,
+    githubToken,
+    effectiveRepo,
+    activeBranch,
+    projectData?.linkedBranch,
+    easProjectId,
+  ]);
+
+  const onCreateAndLink = useCallback(async () => {
+    if (isEasInitRunning) return;
+
+    const token = githubToken.trim();
+    if (!token) {
+      Alert.alert("Fehler", "GitHub Token fehlt (oder ist leer).");
+      return;
+    }
+
+    const repoSlug = (effectiveRepo || "").trim();
+    if (!repoSlug) {
+      Alert.alert("Fehler", "Kein Repo ausgewählt.");
+      return;
+    }
+
+    const branch =
+      (activeBranch || projectData?.linkedBranch || "main").trim() || "main";
+
+    const parsed = parseOwnerRepo(repoSlug);
+    if (!parsed) {
+      Alert.alert("Fehler", "Repo-Format ist ungültig. Erwartet: owner/repo");
+      return;
+    }
+
+    setIsEasInitRunning(true);
+    try {
+      await saveGitHubToken(token);
+
+      await autoFixCIWorkflows({ owner: parsed.owner, repo: parsed.repo, branch });
+
+      // eas_project_id leer => Workflow macht 'eas init' und erzeugt eine neue Project ID
+      await triggerWorkflow(parsed.owner, parsed.repo, "eas-link.yml", branch, {
+        ref: branch,
+      });
+
+      Alert.alert(
+        "OK",
+        "EAS Create+Link Workflow gestartet. Check GitHub Actions (eas-link) und danach Repo commit/push abwarten.",
+      );
+    } catch (e: any) {
+      Alert.alert("Fehler", safeAlertText(e));
+    } finally {
+      setIsEasInitRunning(false);
+    }
+  }, [isEasInitRunning, githubToken, effectiveRepo, activeBranch, projectData?.linkedBranch]);
+
+
   return {
     navigation,
     busy,
+    githubConnected,
+    isEasInitRunning,
+    activeRepo: effectiveRepo,
+    onLinkExisting,
+    onCreateAndLink,
 
     // Repo/status
     status,
