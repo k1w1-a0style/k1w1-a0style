@@ -1070,6 +1070,104 @@ const checkWorkflowServiceRoleKeyLeak: PreflightCheck = {
   },
 };
 
+
+
+const checkWorkflowYamlNameColonQuoting: PreflightCheck = {
+  id: "workflow-yaml-name-colon-quoting",
+  title: "Workflow YAML: quote names containing ': '",
+  severity: "critical",
+  run(files) {
+    const fileMap = byPath(files);
+    const workflowFiles = files.filter(
+      (f) =>
+        f.path.startsWith(".github/workflows/") &&
+        (f.path.endsWith(".yml") || f.path.endsWith(".yaml")),
+    );
+
+    if (workflowFiles.length === 0) {
+      return ok({
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        message: "Keine Workflow-Dateien gefunden.",
+      });
+    }
+
+    const stepNameRe = /^(\s*-\s*name:\s*)(.+?)\s*$/;
+    const workflowNameRe = /^(\s*name:\s*)(.+?)\s*$/;
+
+    let touchedFiles = 0;
+    let touchedLines = 0;
+
+    const upserts: Array<{ path: string; content: string }> = [];
+
+    for (const wf of workflowFiles) {
+      // fileMap is a Map created by byPath(files)
+      const original = fileMap.get(wf.path)?.content ?? "";
+      if (!original.trim()) continue;
+
+      const lines = original.split(/\r?\n/);
+      let changed = false;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        const stepMatch = line.match(stepNameRe);
+        const nameMatch = stepMatch ? null : line.match(workflowNameRe);
+
+        const match = stepMatch ?? nameMatch;
+        if (!match) continue;
+
+        const prefix = match[1];
+        const rawValue = match[2].trim();
+
+        // Already quoted => fine
+        if (rawValue.startsWith("'") || rawValue.startsWith("\"")) continue;
+
+        // YAML pitfall: plain scalars containing ": " can be parsed unexpectedly.
+        if (!rawValue.includes(": ")) continue;
+
+        const quoted = JSON.stringify(rawValue);
+        const nextLine = `${prefix}${quoted}`;
+
+        if (nextLine !== line) {
+          lines[i] = nextLine;
+          changed = true;
+          touchedLines++;
+        }
+      }
+
+      if (changed) {
+        touchedFiles++;
+        upserts.push({ path: wf.path, content: lines.join("\n") });
+      }
+    }
+
+    if (touchedFiles === 0) {
+      return ok({
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        message: "Keine kritischen YAML-Fallen gefunden.",
+      });
+    }
+
+    return fail({
+      id: this.id,
+      title: this.title,
+      severity: this.severity,
+      message:
+        `Gefunden: ${touchedLines} unquoted name-Werte mit ': ' in ${touchedFiles} Workflow-Datei(en). ` +
+        "Das kann YAML/Actions kaputt parsen (Build startet dann nicht).",
+      fix: {
+        label: "Auto-Fix: Quote Workflow 'name' und step 'name' Werte",
+        patch: mkFix(upserts, [], "Quote Workflow 'name' und step 'name' Werte"),
+      },
+    });
+  },
+};
+
+
 const FORBIDDEN_PATTERNS: Array<{ label: string; re: RegExp }> = [
   { label: "Private Keys", re: /BEGIN (RSA|EC|OPENSSH|DSA) PRIVATE KEY/ },
   { label: "Android Keystore", re: /\.jks$|\.keystore$/i },
@@ -1249,6 +1347,7 @@ export const PREFLIGHT_CHECKS: PreflightCheck[] = [
   checkSdkConsistency,
   checkReactNativeCompatibility,
   checkWorkflowServiceRoleKeyLeak,
+  checkWorkflowYamlNameColonQuoting,
   checkForbiddenFiles,
 ];
 
