@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -8,12 +8,34 @@ import {
 } from "react-native";
 import { DrawerContentComponentProps } from "@react-navigation/drawer";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+
+import { useGitHub } from "../contexts/GitHubContext";
+import { useProject } from "../contexts/ProjectContext";
 import { theme } from "../theme";
 
 export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
   props,
 ) => {
   const { navigation, state } = props;
+
+  const { activeRepo, activeBranch } = useGitHub();
+  const { projectData } = useProject();
+
+  const repoChip = useMemo(() => {
+    const r = (activeRepo ?? "").trim();
+    if (!r) return "Kein Repo";
+    const b = (activeBranch ?? "").trim();
+    return b ? `${r} • ${b}` : r;
+  }, [activeRepo, activeBranch]);
+
+  const profileChip = useMemo(() => {
+    const p = (projectData as any)?.preferredBuildProfile ?? (projectData as any)?.buildProfile;
+    return p ? `Profil: ${String(p)}` : "Profil: auto";
+  }, [projectData]);
+
+  const statusOk = useMemo(() => Boolean((activeRepo ?? "").trim()), [activeRepo]);
+  const statusLabel = statusOk ? "Bereit" : "Repo wählen";
 
   const navigateTo = (screen: string) => {
     navigation.navigate(screen as never);
@@ -47,6 +69,13 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
         }}
       >
         {active && <View style={styles.activeIndicator} />}
+
+        <View
+          style={[
+            styles.lampDot,
+            active ? styles.lampDotActive : styles.lampDotIdle,
+          ]}
+        />
 
         <View
           style={[styles.iconContainer, active && styles.iconContainerActive]}
@@ -95,7 +124,12 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
 
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
+      <LinearGradient
+        colors={[theme.palette.backgroundDark, theme.palette.card, theme.palette.background]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
         <View style={styles.logoContainer}>
           <View style={styles.logoIcon}>
             <Ionicons name="sparkles" size={18} color={theme.palette.primary} />
@@ -108,10 +142,40 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
 
         {/* Status Indicator */}
         <View style={styles.statusBar}>
-          <View style={styles.statusDot} />
-          <Text style={styles.statusText}>Bereit</Text>
+          <View style={[styles.statusDot, statusOk ? styles.statusDotOk : styles.statusDotIdle]} />
+          <Text style={styles.statusText}>{statusLabel}</Text>
         </View>
-      </View>
+
+
+        <View style={styles.chipRow}>
+          <View style={[styles.chip, statusOk && styles.chipGlow]}>
+            <Ionicons name="git-branch-outline" size={12} color={theme.palette.primary} />
+            <Text style={styles.chipText} numberOfLines={1}>{repoChip}</Text>
+          </View>
+
+          <View style={styles.chip}>
+            <Ionicons name="rocket-outline" size={12} color={theme.palette.text.secondary} />
+            <Text style={styles.chipText} numberOfLines={1}>{profileChip}</Text>
+          </View>
+        </View>
+
+        <View style={styles.quickRow}>
+          <Pressable style={styles.quickAction} onPress={() => navigateTo("GitHubRepos")}>
+            <Ionicons name="logo-github" size={18} color={theme.palette.primary} />
+            <Text style={styles.quickActionText}>Repos</Text>
+          </Pressable>
+          <Pressable style={styles.quickAction} onPress={() => navigateTo("EnhancedBuild")}>
+            <Ionicons name="construct-outline" size={18} color={theme.palette.primary} />
+            <Text style={styles.quickActionText}>Build</Text>
+          </Pressable>
+          <Pressable style={styles.quickAction} onPress={() => navigateTo("Diagnostic")}>
+            <Ionicons name="bug-outline" size={18} color={theme.palette.primary} />
+            <Text style={styles.quickActionText}>Diagnose</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.neonDivider} />
+      </LinearGradient>
 
       <ScrollView
         style={styles.scroll}
@@ -160,8 +224,8 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.md,
     paddingHorizontal: theme.spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: theme.palette.border,
-    backgroundColor: theme.palette.card,
+    borderBottomColor: `${theme.palette.primary}18`,
+    backgroundColor: "transparent",
   },
   logoContainer: {
     flexDirection: "row",
@@ -172,9 +236,10 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: theme.borderRadius.md,
-    backgroundColor: theme.palette.cardHover,
+    backgroundColor: "rgba(0,255,0,0.08)",
     borderWidth: 1,
-    borderColor: theme.palette.border,
+    borderColor: "rgba(0,255,0,0.22)",
+    ...(theme.glow.primarySubtle as any),
     alignItems: "center",
     justifyContent: "center",
     marginRight: theme.spacing.sm,
@@ -197,10 +262,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 6,
     paddingHorizontal: 10,
-    backgroundColor: theme.palette.cardHover,
+    backgroundColor: "rgba(0,255,0,0.08)",
     borderRadius: theme.borderRadius.full,
     borderWidth: 1,
-    borderColor: theme.palette.border,
+    borderColor: "rgba(0,255,0,0.22)",
     alignSelf: "flex-start",
   },
   statusDot: {
@@ -214,6 +279,73 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: theme.palette.text.secondary,
     fontWeight: "600",
+  },
+  statusDotOk: {
+    backgroundColor: theme.palette.primary,
+    shadowColor: theme.palette.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  statusDotIdle: {
+    backgroundColor: theme.palette.text.disabled,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+
+  chipRow: {
+    gap: 8,
+    marginTop: 10,
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: "transparent",
+    borderRadius: theme.borderRadius.full,
+    borderWidth: 1,
+    borderColor: `${theme.palette.primary}1a`,
+  },
+  chipGlow: {
+    borderColor: `${theme.palette.primary}33`,
+    ...(theme.glow.primarySubtle as any),
+  },
+  chipText: {
+    flex: 1,
+    fontSize: 11,
+    color: theme.palette.text.secondary,
+  },
+
+  quickRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 10,
+  },
+  quickAction: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: `${theme.palette.primary}22`,
+    backgroundColor: "transparent",
+  },
+  quickActionText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: theme.palette.text.secondary,
+  },
+
+  neonDivider: {
+    height: 1,
+    marginTop: theme.spacing.md,
+    backgroundColor: `${theme.palette.primary}33`,
+    opacity: 0.85,
   },
   scroll: {
     flex: 1,
@@ -242,14 +374,37 @@ const styles = StyleSheet.create({
     marginHorizontal: theme.spacing.sm,
     marginVertical: 2,
     borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: "transparent",
     position: "relative",
   },
   drawerItemActive: {
-    backgroundColor: theme.palette.cardHover,
+    backgroundColor: "rgba(0,255,0,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(0,255,0,0.28)",
+    ...(theme.glow.primarySubtle as any),
   },
   drawerItemPressed: {
     backgroundColor: `${theme.palette.primary}10`,
   },
+  lampDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: `${theme.palette.primary}18`,
+  },
+  lampDotActive: {
+    backgroundColor: theme.palette.primary,
+    borderColor: `${theme.palette.primary}55`,
+    ...(theme.glow.primarySubtle as any),
+  },
+  lampDotIdle: {
+    backgroundColor: `${theme.palette.text.disabled}66`,
+    borderColor: `${theme.palette.border}`,
+  },
+
   activeIndicator: {
     position: "absolute",
     left: 8,
@@ -266,7 +421,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.md,
     backgroundColor: theme.palette.background,
     borderWidth: 1,
-    borderColor: theme.palette.border,
+    borderColor: "rgba(0,255,0,0.22)",
     alignItems: "center",
     justifyContent: "center",
     marginRight: theme.spacing.sm,
@@ -305,7 +460,7 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.md,
     borderTopWidth: 1,
     borderTopColor: theme.palette.border,
-    backgroundColor: theme.palette.card,
+    backgroundColor: "transparent",
   },
   footerContent: {
     flexDirection: "row",
@@ -319,9 +474,10 @@ const styles = StyleSheet.create({
     color: theme.palette.text.primary,
   },
   versionBadge: {
-    backgroundColor: theme.palette.cardHover,
+    backgroundColor: "rgba(0,255,0,0.08)",
     borderWidth: 1,
-    borderColor: theme.palette.border,
+    borderColor: "rgba(0,255,0,0.22)",
+    ...(theme.glow.primarySubtle as any),
     borderRadius: theme.borderRadius.md,
     paddingHorizontal: 8,
     paddingVertical: 2,
