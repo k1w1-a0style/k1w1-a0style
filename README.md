@@ -7,7 +7,7 @@
 - Offene Punkte: `docs/TODO.md`
 - Patch-Ablauf: `docs/WORKFLOW_PATCHING.md`
 
-- CI Lite (in-app): Globaler Header-Button **✅** triggert GitHub Actions für `npm run typecheck` + `npm run lint:ci`.
+- CI Lite (in-app): Globaler Header-Button **✅** triggert GitHub Actions für ESLint + TypeScript (robust mit Fallbacks). Im Modal kannst du Logs kopieren und optional ein **Apply Patch (JSON)** ausführen.
 
 
 

@@ -718,3 +718,4 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 2026-02-14  Patch 112  Workflows: fix invalid YAML (colon in name) + allow managed workflow updates
 
 2026-02-15  Patch 138  CI Lite: global header button → GitHub Actions Lint+Typecheck logs in-app (+ optional ESLint autofix)
+2026-02-15  Patch 139  CI Lite: robust workflow (npx fallbacks + artifact logs) + in-app Apply Patch (JSON) panel

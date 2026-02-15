@@ -2,9 +2,19 @@
 // Global header button: run a lightweight GitHub CI (lint + typecheck) and show logs in-app.
 
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View, Linking } from "react-native";
+import {
+  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  Linking,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { v4 as uuidv4 } from "uuid";
+
+import * as Clipboard from "expo-clipboard";
 
 import { theme } from "../theme";
 import { ensureSupabaseClient } from "../lib/supabase";
@@ -15,6 +25,10 @@ import { getDefaultBranch, getEdgeAdminKey, pushFilesToRepo } from "../contexts/
 import { BuildLogsModal } from "./BuildLogsModal";
 import { useGitHubActionsLogs } from "../hooks/useGitHubActionsLogs";
 import { redactSecrets, truncateWithMarker } from "../lib/secretRedaction";
+
+import type { PreflightPatch } from "../lib/diagnostics/preflightTypes";
+import { validateFileContent, validateFilePath } from "../lib/validators";
+import { checkPatchLimits, analyzePatchRisk, patchTouchedPaths } from "../lib/diagnostics/fixSafety";
 
 const WORKFLOW_FILE = "k1w1-ci-lite.yml";
 
@@ -67,6 +81,25 @@ function inferStepStates(lines: string[]): {
   return { lint, typecheck, eslintErrors, tsErrors };
 }
 
+function normalizePreflightPatch(input: any): PreflightPatch {
+  if (!input || typeof input !== "object") throw new Error("Patch JSON ist leer oder ungültig.");
+
+  // Accept either a plain patch or { patch: ... }
+  const p =
+    (input as any).patch && typeof (input as any).patch === "object" ? (input as any).patch : input;
+
+  const out: PreflightPatch = {};
+  if (Array.isArray((p as any).upsert)) out.upsert = (p as any).upsert;
+  if (Array.isArray((p as any).delete)) out.delete = (p as any).delete;
+  if (Array.isArray((p as any).jsonMerge)) out.jsonMerge = (p as any).jsonMerge;
+  if (typeof (p as any).explanation === "string") out.explanation = (p as any).explanation;
+
+  if (!out.upsert?.length && !out.delete?.length && !out.jsonMerge?.length) {
+    throw new Error("Patch hat keine Operationen (upsert/delete/jsonMerge).");
+  }
+  return out;
+}
+
 function StepPill({ label, state }: { label: string; state: StepState }) {
   const icon =
     state === "success"
@@ -93,7 +126,7 @@ function StepPill({ label, state }: { label: string; state: StepState }) {
 
 export default function CiLiteHeaderButton(): React.ReactElement {
   const { activeRepo, activeBranch } = useGitHub();
-  const { projectData } = useProject();
+  const { projectData, updateProjectFiles, deleteFile } = useProject();
 
   const [visible, setVisible] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -102,6 +135,12 @@ export default function CiLiteHeaderButton(): React.ReactElement {
   const [targetRef, setTargetRef] = useState<string | null>(null);
   const [dispatching, setDispatching] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+
+  // Optional: apply a JSON patch produced by the AI (PreflightPatch format).
+  const [patchPanelOpen, setPatchPanelOpen] = useState(false);
+  const [patchText, setPatchText] = useState<string>("{");
+  const [patchBusy, setPatchBusy] = useState(false);
+  const [patchInfo, setPatchInfo] = useState<string | null>(null);
 
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -145,6 +184,181 @@ export default function CiLiteHeaderButton(): React.ReactElement {
 
   const stepInfo = useMemo(() => inferStepStates(logLines), [logLines]);
 
+  const stopPolling = useCallback(() => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  }, []);
+
+  const pastePatchFromClipboard = useCallback(async () => {
+    try {
+      const t = await Clipboard.getStringAsync();
+      if (!t) return;
+      setPatchText(t);
+      setPatchInfo(null);
+      setPatchPanelOpen(true);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const validatePatchText = useCallback((): { patch: PreflightPatch; summary: string } => {
+    const raw = patchText?.trim();
+    if (!raw) throw new Error("Patch JSON ist leer.");
+    let parsed: any;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (e: any) {
+      throw new Error(`JSON Parse Fehler: ${e?.message || "invalid"}`);
+    }
+
+    const patch = normalizePreflightPatch(parsed);
+    const touched = patchTouchedPaths(patch);
+    const limits = checkPatchLimits(patch);
+    const risk = analyzePatchRisk(patch);
+
+    const parts: string[] = [];
+    parts.push(
+      `ops=${limits.magnitude.opCount}, files=${limits.magnitude.touchedCount}, chars=${limits.magnitude.charCount}`,
+    );
+    if (touched.length)
+      parts.push(
+        `touched: ${touched.slice(0, 8).join(", ")}${touched.length > 8 ? ` (+${touched.length - 8})` : ""}`,
+      );
+    if (risk.reasons.length) parts.push(`risk: ${risk.reasons.join(", ")}`);
+    if (limits.hardFail) parts.push(`HARD-BLOCK: ${limits.reasons.join("; ")}`);
+    else if (limits.softWarn) parts.push(`WARN: ${limits.reasons.join("; ")}`);
+
+    return { patch, summary: parts.join("\n") };
+  }, [patchText]);
+
+  const validatePatchAndShow = useCallback(() => {
+    try {
+      const v = validatePatchText();
+      setPatchInfo(v.summary);
+    } catch (e: any) {
+      const msg = e?.message || String(e);
+      setPatchInfo(msg);
+      Alert.alert("Apply Patch", msg);
+    }
+  }, [validatePatchText]);
+
+  const applyPatchFromText = useCallback(
+    async () => {
+      if (!projectData) {
+        Alert.alert("Apply Patch", "Kein Projekt geladen.");
+        return;
+      }
+      if (patchBusy) return;
+
+      let patch: PreflightPatch;
+      let summary = "";
+      try {
+        const v = validatePatchText();
+        patch = v.patch;
+        summary = v.summary;
+      } catch (e: any) {
+        const msg = e?.message || String(e);
+        setPatchInfo(msg);
+        Alert.alert("Apply Patch", msg);
+        return;
+      }
+
+      const limits = checkPatchLimits(patch);
+      const risk = analyzePatchRisk(patch);
+      if (limits.hardFail) {
+        Alert.alert("Apply Patch", `Blockiert: ${limits.reasons.join("; ")}`);
+        return;
+      }
+
+      const needsConfirm = limits.softWarn || risk.reasons.length > 0;
+
+      const doApply = async () => {
+        setPatchBusy(true);
+        try {
+          const filesNow = projectData.files || [];
+          const nowMap = new Map(filesNow.map((f) => [f.path, f.content] as const));
+
+          const touchedPaths = patchTouchedPaths(patch);
+          for (const p of touchedPaths) {
+            const v = validateFilePath(p);
+            if (!v.valid || !v.normalized) throw new Error(`Ungültiger Pfad im Patch: ${p}`);
+          }
+
+          const nextMap = new Map(nowMap);
+
+          for (const u of patch.upsert ?? []) {
+            const pv = validateFilePath(u.path);
+            if (!pv.valid || !pv.normalized) throw new Error(`Ungültiger Pfad im Patch: ${u.path}`);
+            const cv = validateFileContent(u.content ?? "");
+            if (!cv.valid)
+              throw new Error(`Ungültiger File-Content für ${u.path}: ${cv.error ?? "invalid"}`);
+            nextMap.set(pv.normalized, u.content ?? "");
+          }
+
+          const deletePaths = (patch.delete ?? [])
+            .map((p) => {
+              const pv = validateFilePath(p);
+              return pv.valid && pv.normalized ? pv.normalized : null;
+            })
+            .filter(Boolean) as string[];
+
+          for (const p of deletePaths) nextMap.delete(p);
+
+          if (patch.jsonMerge?.length) {
+            const { applyJsonMergePatchSafe } = await import("../lib/diagnostics/smartPatch");
+            const merged = await applyJsonMergePatchSafe(
+              Array.from(nextMap.entries()).map(([path, content]) => ({ path, content })),
+              patch.jsonMerge,
+            );
+            nextMap.clear();
+            for (const f of merged) nextMap.set(f.path, f.content);
+          }
+
+          for (const p of deletePaths) {
+            await deleteFile(p);
+          }
+
+          const nextFiles = Array.from(nextMap.entries()).map(([path, content]) => ({ path, content }));
+          await updateProjectFiles(nextFiles);
+
+          setPatchInfo(`✅ Patch applied.\n${summary}`);
+        } catch (e: any) {
+          const msg = e?.message || String(e);
+          setPatchInfo(msg);
+          Alert.alert("Apply Patch", msg);
+        } finally {
+          setPatchBusy(false);
+        }
+      };
+
+      if (!needsConfirm) {
+        await doApply();
+        return;
+      }
+
+      return new Promise<void>((resolve) => {
+        Alert.alert(
+          "Apply Patch",
+          `Patch wirkt riskant/umfangreich.\n\n${summary}\n\nTrotzdem anwenden?`,
+          [
+            { text: "Abbrechen", style: "cancel", onPress: () => resolve() },
+            {
+              text: "Anwenden",
+              style: "destructive",
+              onPress: async () => {
+                await doApply();
+                resolve();
+              },
+            },
+          ],
+        );
+      });
+    },
+    [projectData, patchBusy, validatePatchText, deleteFile, updateProjectFiles],
+  );
+
   const topContent = useMemo(() => {
     return (
       <View style={styles.summaryBox}>
@@ -178,16 +392,93 @@ export default function CiLiteHeaderButton(): React.ReactElement {
             {workflowRun.conclusion ? ` / ${workflowRun.conclusion}` : ""}
           </Text>
         ) : null}
+
+        {patchPanelOpen ? (
+          <View style={styles.patchPanel}>
+            <View style={styles.patchHeadRow}>
+              <Text style={styles.patchTitle}>Apply Patch (JSON)</Text>
+              <Pressable
+                onPress={pastePatchFromClipboard}
+                style={({ pressed }) => [styles.patchMiniBtn, pressed && styles.patchMiniBtnPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Paste patch from clipboard"
+              >
+                <Text style={styles.patchMiniBtnText}>Paste</Text>
+              </Pressable>
+            </View>
+
+            <TextInput
+              value={patchText}
+              onChangeText={setPatchText}
+              placeholder='{"upsert":[{"path":"...","content":"..."}]}'
+              placeholderTextColor={theme.palette.text.secondary}
+              multiline
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.patchInput}
+            />
+
+            <View style={styles.patchActionsRow}>
+              <Pressable
+                onPress={validatePatchAndShow}
+                style={({ pressed }) => [styles.patchBtn, pressed && styles.patchBtnPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Validate patch"
+              >
+                <Text style={styles.patchBtnText}>Validate</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={applyPatchFromText}
+                disabled={patchBusy}
+                style={({ pressed }) => [
+                  styles.patchBtn,
+                  styles.patchBtnPrimary,
+                  (pressed && !patchBusy) && styles.patchBtnPressed,
+                  patchBusy && styles.patchBtnDisabled,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Apply patch"
+                accessibilityState={{ disabled: patchBusy }}
+              >
+                <Text style={styles.patchBtnText}>{patchBusy ? "Applying…" : "Apply"}</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setPatchPanelOpen(false)}
+                style={({ pressed }) => [styles.patchBtn, pressed && styles.patchBtnPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Close patch panel"
+              >
+                <Text style={styles.patchBtnText}>Close</Text>
+              </Pressable>
+            </View>
+
+            {patchInfo ? (
+              <Text style={styles.patchInfo} numberOfLines={8}>
+                {safeUi(patchInfo)}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
       </View>
     );
-  }, [githubRepo, branch, targetRef, jobId, stepInfo, workflowRun?.status, workflowRun?.conclusion]);
-
-  const stopPolling = useCallback(() => {
-    if (pollTimerRef.current) {
-      clearInterval(pollTimerRef.current);
-      pollTimerRef.current = null;
-    }
-  }, []);
+  }, [
+    githubRepo,
+    branch,
+    targetRef,
+    jobId,
+    stepInfo,
+    workflowRun?.status,
+    workflowRun?.conclusion,
+    patchPanelOpen,
+    patchText,
+    patchBusy,
+    patchInfo,
+    pastePatchFromClipboard,
+    validatePatchAndShow,
+    applyPatchFromText,
+  ]);
 
   const findRunByJobId = useCallback(
     async (opts: { githubRepo: string; branch: string; jobId: string }) => {
@@ -356,12 +647,21 @@ export default function CiLiteHeaderButton(): React.ReactElement {
         disabled: !(runUrl || workflowRun?.html_url),
       },
       {
+        label: patchPanelOpen ? "Hide Patch" : "Apply Patch",
+        onPress: () => {
+          setPatchPanelOpen((v) => !v);
+          // Keep modal open and show latest validation info if present.
+          if (!patchPanelOpen) setPatchInfo(null);
+        },
+        disabled: false,
+      },
+      {
         label: dispatching ? "Autofix…" : "Autofix ESLint",
         onPress: () => dispatchCiLite(true),
         disabled: dispatching,
       },
     ];
-  }, [runUrl, workflowRun?.html_url, dispatching, dispatchCiLite]);
+  }, [runUrl, workflowRun?.html_url, dispatching, dispatchCiLite, patchPanelOpen]);
 
   const showError = safeUi(localError || logsError || "");
 
@@ -481,6 +781,87 @@ const styles = StyleSheet.create({
   },
   summaryHint: {
     marginTop: 2,
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+  },
+
+  patchPanel: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.background,
+    borderRadius: 14,
+    padding: 10,
+  },
+  patchHeadRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  patchTitle: {
+    color: theme.palette.text.primary,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  patchMiniBtn: {
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  patchMiniBtnPressed: {
+    opacity: 0.85,
+  },
+  patchMiniBtnText: {
+    color: theme.palette.text.primary,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  patchInput: {
+    minHeight: 120,
+    maxHeight: 220,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
+    borderRadius: 12,
+    padding: 10,
+    color: theme.palette.text.primary,
+    fontSize: 12,
+  },
+  patchActionsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 10,
+  },
+  patchBtn: {
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  patchBtnPrimary: {
+    borderColor: theme.palette.primary,
+  },
+  patchBtnPressed: {
+    opacity: 0.85,
+  },
+  patchBtnDisabled: {
+    opacity: 0.55,
+  },
+  patchBtnText: {
+    color: theme.palette.text.primary,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  patchInfo: {
+    marginTop: 6,
     color: theme.palette.text.secondary,
     fontSize: 12,
   },

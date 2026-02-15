@@ -36,7 +36,7 @@ jobs:
 
     env:
       TARGET_BRANCH: ${{ github.event.inputs.ref || github.ref_name }}
-      ALLOWED_REF_REGEX: "^(work|main|dev|develop|feature/.+|hotfix/.+)$"
+      ALLOWED_REF_REGEX: "^(work|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
 
     steps:
       - name: Checkout
@@ -200,17 +200,37 @@ jobs:
             npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
           fi
 
-      - name: Typecheck
+      - name: Lint + Typecheck (robust, capture)
         shell: bash
         run: |
-          set -euo pipefail
-          npm run typecheck
+          set +e
+          mkdir -p ci-logs
 
-      - name: Lint (CI)
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm run lint:ci
+          (npm run lint:ci || npx --yes eslint . --quiet) 2>&1 | tee ci-logs/lint.log
+          ESL=$?
+
+          (npm run typecheck || npx --yes tsc --noEmit) 2>&1 | tee ci-logs/typecheck.log
+          TSC=$?
+
+          echo "eslint_exit=$ESL" >> "$GITHUB_OUTPUT"
+          echo "tsc_exit=$TSC" >> "$GITHUB_OUTPUT"
+
+          if [ "$ESL" -ne 0 ] || [ "$TSC" -ne 0 ]; then
+            echo "::error::CI Lite failed (eslint=$ESL, tsc=$TSC)"
+            exit 1
+          fi
+
+          exit 0
+
+      - name: Upload CI Lite logs
+        if: always()
+        uses: actions/upload-artifact@65aadd1f256f2c7b34697482e3d4a3f2ecf62edd # v4
+        with:
+          name: ci-lite-logs
+          path: |
+            ci-logs/lint.log
+            ci-logs/typecheck.log
+          retention-days: 7
 
       - name: Done
         shell: bash

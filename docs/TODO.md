@@ -10,6 +10,10 @@ Stand: **2026-02-15**
 
 ### Patch 138 — CI Lite (Lint + Typecheck)
 - [x] Globaler Header-Button (✅) zum Triggern von GitHub CI Lite + Logs in-app
+
+### Patch 139 — CI Lite Upgrade
+- [x] Workflow robuster (Fallback auf `npx eslint` / `npx tsc`) + Log-Artifact
+- [x] In-App: Apply Patch (JSON) Panel im CI Lite Modal
 - [x] Neuer Workflow `.github/workflows/k1w1-ci-lite.yml` (optional ESLint-Autofix)
 
 ### Patch 107 — Workflows/Templates
