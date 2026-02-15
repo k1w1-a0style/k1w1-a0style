@@ -8,7 +8,7 @@ const BUILD_HISTORY_KEY = 'k1w1_build_history';
 const MAX_HISTORY_ENTRIES = 50; // Maximal 50 Einträge speichern
 
 // Verhindert Log-Spam wenn die Historie während eines aktiven Pollings geleert wurde
-const missingBuildWarned = new Set<number>();
+const missingBuildWarned = new Set<string>();
 
 /**
  * Lädt die Build-Historie aus dem Storage
@@ -81,7 +81,7 @@ export const addBuildToHistory = async (entry: BuildHistoryEntry): Promise<void>
  * Aktualisiert einen bestehenden Build-Eintrag
  */
 export const updateBuildInHistory = async (
-  jobId: number, 
+  jobId: string,
   updates: Partial<BuildHistoryEntry>
 ): Promise<void> => {
   try {
@@ -110,7 +110,7 @@ export const updateBuildInHistory = async (
 /**
  * Löscht einen Build-Eintrag aus der Historie
  */
-export const deleteBuildFromHistory = async (jobId: number): Promise<void> => {
+export const deleteBuildFromHistory = async (jobId: string): Promise<void> => {
   try {
     const history = await loadBuildHistory();
     const filtered = history.filter(e => e.jobId !== jobId);

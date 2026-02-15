@@ -24,7 +24,7 @@ const BUILD_HISTORY_KEY = 'k1w1_build_history';
 
 const createMockEntry = (overrides: Partial<BuildHistoryEntry> = {}): BuildHistoryEntry => ({
   id: 'test-id-1',
-  jobId: 123,
+  jobId: '00000000-0000-0000-0000-000000000123',
   repoName: 'user/test-repo',
   status: 'success',
   startedAt: '2025-12-09T10:00:00.000Z',
@@ -98,7 +98,7 @@ describe('buildHistoryStorage', () => {
 
     it('should trim history to max 50 entries', async () => {
       const history = Array.from({ length: 60 }, (_, i) => 
-        createMockEntry({ id: `id-${i}`, jobId: i })
+        createMockEntry({ id: `id-${i}`, jobId: `00000000-0000-0000-0000-${String(i).padStart(12, '0')}` })
       );
       (AsyncStorage.setItem as jest.Mock).mockResolvedValue(undefined);
 
@@ -121,8 +121,8 @@ describe('buildHistoryStorage', () => {
 
   describe('addBuildToHistory', () => {
     it('should add new entry to beginning of history', async () => {
-      const existingEntry = createMockEntry({ id: 'existing', jobId: 100 });
-      const newEntry = createMockEntry({ id: 'new', jobId: 200 });
+      const existingEntry = createMockEntry({ id: 'existing', jobId: '00000000-0000-0000-0000-000000000100' });
+      const newEntry = createMockEntry({ id: 'new', jobId: '00000000-0000-0000-0000-000000000200' });
       
       (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify([existingEntry]));
       (AsyncStorage.setItem as jest.Mock).mockResolvedValue(undefined);
@@ -132,8 +132,8 @@ describe('buildHistoryStorage', () => {
       const savedData = JSON.parse(
         (AsyncStorage.setItem as jest.Mock).mock.calls[0][1]
       );
-      expect(savedData[0].jobId).toBe(200);
-      expect(savedData[1].jobId).toBe(100);
+      expect(savedData[0].jobId).toBe('00000000-0000-0000-0000-000000000200');
+      expect(savedData[1].jobId).toBe('00000000-0000-0000-0000-000000000100');
     });
 
     it('should update existing entry with same jobId', async () => {
@@ -160,7 +160,7 @@ describe('buildHistoryStorage', () => {
       (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify([existingEntry]));
       (AsyncStorage.setItem as jest.Mock).mockResolvedValue(undefined);
 
-      await updateBuildInHistory(123, { status: 'success', durationMs: 500000 });
+      await updateBuildInHistory('00000000-0000-0000-0000-000000000123', { status: 'success', durationMs: 500000 });
 
       const savedData = JSON.parse(
         (AsyncStorage.setItem as jest.Mock).mock.calls[0][1]
@@ -173,7 +173,7 @@ describe('buildHistoryStorage', () => {
       (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify([createMockEntry()]));
 
       const consoleSpy = jest.spyOn(console, 'warn').mockImplementation();
-      await updateBuildInHistory(999, { status: 'success' });
+      await updateBuildInHistory('00000000-0000-0000-0000-000000000999', { status: 'success' });
 
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('nicht in Historie gefunden')
@@ -186,20 +186,20 @@ describe('buildHistoryStorage', () => {
   describe('deleteBuildFromHistory', () => {
     it('should remove entry with matching jobId', async () => {
       const entries = [
-        createMockEntry({ id: 'a', jobId: 100 }),
-        createMockEntry({ id: 'b', jobId: 200 }),
+        createMockEntry({ id: 'a', jobId: '00000000-0000-0000-0000-000000000100' }),
+        createMockEntry({ id: 'b', jobId: '00000000-0000-0000-0000-000000000200' }),
       ];
       
       (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(entries));
       (AsyncStorage.setItem as jest.Mock).mockResolvedValue(undefined);
 
-      await deleteBuildFromHistory(100);
+      await deleteBuildFromHistory('00000000-0000-0000-0000-000000000100');
 
       const savedData = JSON.parse(
         (AsyncStorage.setItem as jest.Mock).mock.calls[0][1]
       );
       expect(savedData).toHaveLength(1);
-      expect(savedData[0].jobId).toBe(200);
+      expect(savedData[0].jobId).toBe('00000000-0000-0000-0000-000000000200');
     });
 
     it('should not modify history if entry not found', async () => {
@@ -207,7 +207,7 @@ describe('buildHistoryStorage', () => {
       
       (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(entries));
 
-      await deleteBuildFromHistory(999);
+      await deleteBuildFromHistory('00000000-0000-0000-0000-000000000999');
 
       expect(AsyncStorage.setItem).not.toHaveBeenCalled();
     });
@@ -232,12 +232,12 @@ describe('buildHistoryStorage', () => {
   describe('getBuildStats', () => {
     it('should return correct stats for mixed history', async () => {
       const entries = [
-        createMockEntry({ jobId: 1, status: 'success' }),
-        createMockEntry({ jobId: 2, status: 'success' }),
-        createMockEntry({ jobId: 3, status: 'failed' }),
-        createMockEntry({ jobId: 4, status: 'error' }),
-        createMockEntry({ jobId: 5, status: 'building' }),
-        createMockEntry({ jobId: 6, status: 'queued' }),
+        createMockEntry({ jobId: '00000000-0000-0000-0000-000000000001', status: 'success' }),
+        createMockEntry({ jobId: '00000000-0000-0000-0000-000000000002', status: 'success' }),
+        createMockEntry({ jobId: '00000000-0000-0000-0000-000000000003', status: 'failed' }),
+        createMockEntry({ jobId: '00000000-0000-0000-0000-000000000004', status: 'error' }),
+        createMockEntry({ jobId: '00000000-0000-0000-0000-000000000005', status: 'building' }),
+        createMockEntry({ jobId: '00000000-0000-0000-0000-000000000006', status: 'queued' }),
       ];
       
       (AsyncStorage.getItem as jest.Mock).mockResolvedValue(JSON.stringify(entries));

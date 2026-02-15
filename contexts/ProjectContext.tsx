@@ -641,7 +641,8 @@ const setPreferredBuildProfile = useCallback(
     null,
   );
   const buildPollErrorCountRef = useRef(0);
-  const activeBuildJobIdRef = useRef<number | null>(null);
+  // Supabase build_jobs.id is UUID
+  const activeBuildJobIdRef = useRef<string | null>(null);
 
   const stopBuildPolling = useCallback(() => {
     if (buildPollIntervalRef.current) {
@@ -668,7 +669,7 @@ const pauseBuildPolling = useCallback(() => {
   }, [stopBuildPolling]);
 
   const pollBuildStatusOnce = useCallback(
-    async (jobId: number) => {
+    async (jobId: string) => {
       try {
         const supabase = await ensureSupabaseClient();
 
@@ -936,18 +937,25 @@ useEffect(() => {
 
         if (error) throw error;
 
-        const jobId: number | null =
-          typeof data?.jobId === "number"
+        const jobId: string | null =
+          typeof data?.jobId === "string"
             ? data.jobId
-            : typeof data?.job_id === "number"
+            : typeof data?.job_id === "string"
               ? data.job_id
-              : typeof data?.job?.id === "number"
+              : typeof data?.job?.id === "string"
                 ? data.job.id
                 : null;
 
         if (!jobId) {
           throw new Error(
             "❌ trigger-eas-build lieferte keine gültige Job-ID zurück.",
+          );
+        }
+
+        // Extra guard: Supabase build_jobs.id must be UUID
+        if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(jobId)) {
+          throw new Error(
+            `❌ trigger-eas-build lieferte eine ungültige Job-ID (UUID erwartet): ${jobId}`,
           );
         }
 

@@ -13,7 +13,8 @@ export interface ProjectFile {
 
 export interface BuildHistoryEntry {
   id: string;
-  jobId: number;
+  /** Supabase build_jobs.id (UUID) */
+  jobId: string;
   repoName: string;
   status: BuildStatus;
   startedAt: string;
@@ -118,7 +119,8 @@ export interface ProjectContextProps {
     status: BuildStatus;
     message?: string;
     progress?: number; // 0..1 (optional UI-Hilfe)
-    jobId?: number | null;
+    /** Supabase build_jobs.id (UUID) */
+    jobId?: string | null;
     githubRepo?: string | null;
     buildProfile?: string;
     runId?: number | null;

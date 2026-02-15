@@ -76,7 +76,7 @@ export interface UseBuildStatusCallbacks {
 // HOOK
 // ============================================
 export function useBuildStatus(
-  jobIdFromScreen?: number | null,
+  jobIdFromScreen?: string | null,
   callbacks?: UseBuildStatusCallbacks,
 ) {
   const [status, setStatus] = useState<BuildStatus>("idle");

@@ -117,14 +117,17 @@ export function validateTriggerBuildRequest(body: unknown): Ok<{
   };
 }
 
-export function validateCheckBuildRequest(body: unknown): Ok<{ jobId: number }> | Err {
+export function validateCheckBuildRequest(body: unknown): Ok<{ jobId: string }> | Err {
   if (!isObject(body)) return { ok: false, errors: { error: "body must be an object" } };
   const jobId = body.jobId ?? body.job_id ?? body.id;
-  const n = Number(jobId);
-  if (!Number.isFinite(n) || n <= 0) {
-    return { ok: false, errors: { jobId: "jobId must be a positive number" } };
+  if (!isString(jobId)) {
+    return { ok: false, errors: { jobId: "jobId must be a UUID string" } };
   }
-  return { ok: true, data: { jobId: n } };
+  const uuid = String(jobId).trim();
+  if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(uuid)) {
+    return { ok: false, errors: { jobId: "jobId must be a UUID" } };
+  }
+  return { ok: true, data: { jobId: uuid } };
 }
 
 export function validateGithubWorkflowDispatchRequest(body: unknown): Ok<{

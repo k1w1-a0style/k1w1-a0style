@@ -23,9 +23,9 @@ export interface UseBuildHistoryResult {
     building: number;
   };
   // Actions
-  startBuild: (jobId: number, repoName: string, buildProfile?: string) => Promise<void>;
+  startBuild: (jobId: string, repoName: string, buildProfile?: string) => Promise<void>;
   completeBuild: (
-    jobId: number, 
+    jobId: string,
     status: 'success' | 'failed' | 'error',
     details?: {
       artifactUrl?: string | null;
@@ -33,7 +33,7 @@ export interface UseBuildHistoryResult {
       errorMessage?: string;
     }
   ) => Promise<void>;
-  deleteEntry: (jobId: number) => Promise<void>;
+  deleteEntry: (jobId: string) => Promise<void>;
   clearHistory: () => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -72,7 +72,7 @@ export function useBuildHistory(): UseBuildHistoryResult {
 
   // Neuen Build starten
   const startBuild = useCallback(async (
-    jobId: number, 
+    jobId: string,
     repoName: string,
     buildProfile: string = 'preview'
   ) => {
@@ -91,7 +91,7 @@ export function useBuildHistory(): UseBuildHistoryResult {
 
   // Build abschließen
   const completeBuild = useCallback(async (
-    jobId: number,
+    jobId: string,
     status: 'success' | 'failed' | 'error',
     details?: {
       artifactUrl?: string | null;
@@ -122,7 +122,7 @@ export function useBuildHistory(): UseBuildHistoryResult {
   }, [history, loadHistory]);
 
   // Eintrag löschen
-  const deleteEntry = useCallback(async (jobId: number) => {
+  const deleteEntry = useCallback(async (jobId: string) => {
     await deleteBuildFromHistory(jobId);
     await loadHistory();
   }, [loadHistory]);

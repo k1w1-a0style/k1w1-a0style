@@ -9,7 +9,8 @@ import { BuildStatus, mapBuildStatus } from "./buildStatusMapper";
  * Build Details aus Supabase
  */
 export interface BuildDetails {
-  id: number;
+  /** Supabase build_jobs.id (UUID) */
+  id: string;
   github_repo?: string;
   build_profile?: string;
   build_type?: string;
@@ -28,7 +29,7 @@ export interface BuildDetails {
  * Build Status Details mit unified Status
  */
 export interface BuildStatusDetails {
-  jobId: number;
+  jobId: string;
   status: BuildStatus;
   urls?: {
     html?: string | null;
@@ -89,7 +90,7 @@ export function isBuildDetails(data: any): data is BuildDetails {
   return (
     data &&
     typeof data === "object" &&
-    typeof data.id === "number" &&
+    typeof data.id === "string" &&
     typeof data.status === "string"
   );
 }
@@ -98,7 +99,7 @@ export function isBuildDetails(data: any): data is BuildDetails {
  * Konvertiert CheckBuildResponse zu BuildStatusDetails
  */
 export function toBuildStatusDetails(
-  jobId: number,
+  jobId: string,
   response: CheckBuildResponse,
 ): BuildStatusDetails {
   return {

@@ -2,6 +2,21 @@
 
 
 
+
+
+## PATCH 136 (2026-02-15)
+- Supabase `build_jobs.id` = UUID → JobId überall als **string (UUID)**.
+- Workflow-Templates: Supabase Status-PATCH ist **non-fatal** (nur Warning, kein Abbruch).
+- Tests/Mocks: Build-History angepasst (jobId UUID).
+
+- Verifiziert: `typecheck`, `lint:ci`, `test:silent` grün.
+
+## PATCH 135 (2026-02-15)
+- BuildJobs: `build_jobs.id` ist UUID → App/Types/Historie auf `jobId: string` umgestellt (keine integer-Matches mehr).
+- Supabase Edge: `check-eas-build` Validation auf UUID angepasst.
+- Workflow Templates: `JOB_ID` UUID-Validierung + Supabase Status-Updates non-fatal (Build soll nicht durch Status-Webhook kippen).
+- Tests: BuildHistoryStorage Tests auf UUID umgestellt.
+
 ## PATCH 134 (2026-02-14)
 - ConnectionsScreen: Hotfix – doppelte `effectiveRepo`-Deklaration entfernt (TS2451 + Jest/Babel Parse-Fail).
 - Verifiziert: `typecheck`, `lint:ci`, `test:silent` grün.
