@@ -716,3 +716,5 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 - Patch 112: Fix invalid workflow YAML (colon in step name) + allow managed workflow updates
 2026-02-14  Patch 111  GitHub workflow logs: fix 500 (404/202 not-ready) + auth errorResponse order + APK alignment
 2026-02-14  Patch 112  Workflows: fix invalid YAML (colon in name) + allow managed workflow updates
+
+2026-02-15  Patch 138  CI Lite: global header button → GitHub Actions Lint+Typecheck logs in-app (+ optional ESLint autofix)

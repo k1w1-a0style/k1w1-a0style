@@ -1,12 +1,16 @@
 # TODO
 
-Stand: **2026-02-14**
+Stand: **2026-02-15**
 
 > Dieses Dokument ist die **laufende Restliste**.  
 > Alle Security-/Privacy-P1-Fixes aus den Screen-Reviews sind umgesetzt und Tests sind grün.  
 > Unten stehen nur noch **Restpunkte / Quality-Backlog** (meist P2/P3).
 
 ## Status
+
+### Patch 138 — CI Lite (Lint + Typecheck)
+- [x] Globaler Header-Button (✅) zum Triggern von GitHub CI Lite + Logs in-app
+- [x] Neuer Workflow `.github/workflows/k1w1-ci-lite.yml` (optional ESLint-Autofix)
 
 ### Patch 107 — Workflows/Templates
 - [x] Workflows: `ref`-Fallback auf aktuellen Branch (manueller Run ohne `ref` baut den aktiven Branch)

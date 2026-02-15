@@ -1,10 +1,8 @@
 // hooks/useGitHubActionsLogs.ts - Real-time GitHub Actions log streaming
 import { useEffect, useState, useCallback, useRef } from "react";
-import { CONFIG } from "../config";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { STORAGE_KEYS } from "../lib/storageKeys";
 import { getEdgeAdminKey } from "../contexts/githubService";
 import { redactSecrets, truncateWithMarker } from "../lib/secretRedaction";
+import { getSupabaseEdgeUrl } from "../lib/supabaseEdge";
 
 export interface LogEntry {
   timestamp: string;
@@ -26,6 +24,8 @@ export interface WorkflowRun {
 interface UseGitHubActionsLogsOptions {
   githubRepo: string | null;
   runId?: number | null;
+  /** Workflow file name (e.g. "k1w1-triggered-build.yml"). Used when runId is omitted. */
+  workflowId?: string;
   autoRefresh?: boolean;
   refreshInterval?: number;
 }
@@ -122,26 +122,7 @@ async function describeEdgeFailure(opts: {
 }
 
 
-async function getSupabaseEdgeUrl(): Promise<string> {
-  // ✅ Prefer runtime-configured Supabase URL (ConnectionsScreen)
-  const storedUrl = await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).catch(
-    () => null,
-  );
-  const runtimeUrl =
-    storedUrl ||
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ((typeof process !== "undefined"
-      ? (process as any).env?.EXPO_PUBLIC_SUPABASE_URL
-      : null) as string | null) ||
-    null;
-
-  if (runtimeUrl) {
-    return `${runtimeUrl.replace(/\/$/, "")}/functions/v1`;
-  }
-
-  // Fallback: static config
-  return CONFIG.API.SUPABASE_EDGE_URL;
-}
+// getSupabaseEdgeUrl moved to lib/supabaseEdge.ts (shared across UI + hooks)
 
 /**
  * Hook to stream GitHub Actions logs in real-time
@@ -150,6 +131,7 @@ async function getSupabaseEdgeUrl(): Promise<string> {
 export function useGitHubActionsLogs({
   githubRepo,
   runId,
+  workflowId = "k1w1-triggered-build.yml",
   autoRefresh = true,
   refreshInterval = POLL_INTERVAL_MS,
 }: UseGitHubActionsLogsOptions): UseGitHubActionsLogsResult {
@@ -188,7 +170,7 @@ export function useGitHubActionsLogs({
             "Content-Type": "application/json",
             ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
           },
-          body: JSON.stringify({ githubRepo, workflowId: "k1w1-triggered-build.yml" }),
+          body: JSON.stringify({ githubRepo, workflowId }),
         });
 
         if (!runsResponse.ok) {

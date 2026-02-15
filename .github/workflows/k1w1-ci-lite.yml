@@ -1,0 +1,223 @@
+name: K1W1 CI Lite (Lint + Typecheck)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch/Ref to check (e.g. work, main, dev)"
+        required: false
+        default: ""
+      job_id:
+        description: "Client job id (UUID) for log correlation"
+        required: false
+        default: ""
+      autofix:
+        description: "Allow ESLint --fix writeback to the branch (best effort)"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: >-
+    k1w1-ci-lite-
+    ${{ github.event.inputs.ref || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  autofix:
+    name: Auto-fix ESLint (optional)
+    if: ${{ github.event.inputs.autofix == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+
+    env:
+      TARGET_BRANCH: ${{ github.event.inputs.ref || github.ref_name }}
+      ALLOWED_REF_REGEX: "^(work|main|dev|develop|feature/.+|hotfix/.+)$"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref_name }}
+
+      - name: Detect lockfile
+        id: lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
+          elif [ -f npm-shrinkwrap.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node (with npm cache)
+        if: steps.lock.outputs.has_lockfile == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
+
+      - name: Setup Node (no cache - lockfile missing)
+        if: steps.lock.outputs.has_lockfile != 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies (frozen if possible)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
+            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
+          else
+            echo "::warning::No lockfile found. Falling back to npm install (non-reproducible)."
+            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
+          fi
+
+      - name: ESLint --fix (best effort)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Prefer the repo script if present, else fallback to npx.
+          if npm run -s | grep -q "lint:fix"; then
+            npm run lint:fix
+          else
+            npx --yes eslint . --fix
+          fi
+
+      - name: Commit writeback (guarded)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BR="${TARGET_BRANCH:-}"
+          if [ -z "$BR" ]; then
+            echo "::warning::No TARGET_BRANCH provided; skipping writeback."
+            exit 0
+          fi
+
+          if echo "$BR" | grep -qE '^[0-9a-fA-F]{7,40}$'; then
+            echo "::warning::Ref looks like a SHA ($BR). Skipping writeback."
+            exit 0
+          fi
+          if echo "$BR" | grep -qE '[: ]'; then
+            echo "::warning::Unsafe ref ($BR). Skipping writeback."
+            exit 0
+          fi
+          if ! echo "$BR" | grep -qE "${ALLOWED_REF_REGEX}"; then
+            echo "::warning::Writeback disabled for branch '$BR' (regex: ${ALLOWED_REF_REGEX})."
+            exit 0
+          fi
+          if ! git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
+            echo "::warning::Ref '$BR' is not a remote branch. Skipping writeback."
+            exit 0
+          fi
+
+          if ! git status --porcelain | grep -q .; then
+            echo "ℹ️ No autofix changes."
+            exit 0
+          fi
+
+          git config user.email "actions@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add -A
+          git commit -m "chore(ci): eslint autofix [skip ci]" || true
+          git push origin "HEAD:$BR" || echo "::warning::Could not push autofix commit (branch may be protected)."
+
+  checks:
+    name: Lint + Typecheck
+    needs: [autofix]
+    if: ${{ always() && (needs.autofix.result == 'success' || needs.autofix.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    env:
+      JOB_ID: ${{ github.event.inputs.job_id }}
+
+    steps:
+      - name: "Run info"
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "CI Lite start (job_id=${JOB_ID:-})"
+
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref_name }}
+
+      - name: Detect lockfile
+        id: lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
+          elif [ -f npm-shrinkwrap.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node (with npm cache)
+        if: steps.lock.outputs.has_lockfile == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
+
+      - name: Setup Node (no cache - lockfile missing)
+        if: steps.lock.outputs.has_lockfile != 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies (frozen if possible)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
+            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
+          else
+            echo "::warning::No lockfile found. Falling back to npm install (non-reproducible)."
+            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
+          fi
+
+      - name: Typecheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run typecheck
+
+      - name: Lint (CI)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run lint:ci
+
+      - name: Done
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "✅ CI Lite passed (job_id=${JOB_ID:-})"
+
+run-name: >-
+  CI Lite${{ github.event.inputs.job_id && format(' [{0}]', github.event.inputs.job_id) || '' }}
+  • ${{ github.event.inputs.ref || github.ref_name }}

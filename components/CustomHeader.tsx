@@ -11,6 +11,7 @@ import { theme, HEADER_HEIGHT } from "../theme";
 import { useGitHub } from "../contexts/GitHubContext";
 import { useProject } from "../contexts/ProjectContext";
 import ChatHeaderActions from "./ChatHeaderActions";
+import CiLiteHeaderButton from "./CiLiteHeaderButton";
 
 const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
   const title = options.title ?? "k1w1";
@@ -104,6 +105,8 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
           />
         </Pressable>
 
+        <CiLiteHeaderButton />
+
         <ChatHeaderActions topOffset={HEADER_HEIGHT + insets.top} />
       </View>
     </View>
@@ -125,7 +128,7 @@ const styles = StyleSheet.create({
   left: { width: 46, alignItems: "flex-start" },
   center: { flex: 1, alignItems: "center", paddingHorizontal: 6 },
   right: {
-    width: 98,
+    width: 140,
     flexDirection: "row",
     justifyContent: "flex-end",
     alignItems: "center",

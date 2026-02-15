@@ -7,6 +7,8 @@
 - Offene Punkte: `docs/TODO.md`
 - Patch-Ablauf: `docs/WORKFLOW_PATCHING.md`
 
+- CI Lite (in-app): Globaler Header-Button **✅** triggert GitHub Actions für `npm run typecheck` + `npm run lint:ci`.
+
 
 
 > Hinweis: Der Name "k1w1-a0style" ist wieder der normale Projektname. Falls du irgendwo noch "-restored" siehst, ist das ein Relikt aus einem Reparatur-Zip.

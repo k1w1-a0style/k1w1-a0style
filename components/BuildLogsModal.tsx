@@ -21,6 +21,19 @@ export type BuildLogsModalProps = {
   isLoading: boolean;
   error: string | null;
 
+  /** Optional modal title (default: "Build Logs"). */
+  title?: string;
+
+  /** Optional content rendered above the log output (e.g. summary, progress). */
+  topContent?: React.ReactNode;
+
+  /** Optional extra pill buttons (besides the built-in ones). */
+  extraPills?: Array<{
+    label: string;
+    onPress: () => void | Promise<void>;
+    disabled?: boolean;
+  }>;
+
   /** Auto-refresh state is controlled by parent (hook in screen) */
   autoRefreshEnabled: boolean;
   onToggleAutoRefresh: (enabled: boolean) => void;
@@ -50,6 +63,9 @@ export function BuildLogsModal({
   logs,
   isLoading,
   error,
+  title = "Build Logs",
+  topContent,
+  extraPills,
   autoRefreshEnabled,
   onToggleAutoRefresh,
   onManualRefresh,
@@ -131,7 +147,7 @@ export function BuildLogsModal({
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalContainer}>
         <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Build Logs</Text>
+          <Text style={styles.modalTitle}>{title}</Text>
 
           <TouchableOpacity
             onPress={onClose}
@@ -206,7 +222,25 @@ export function BuildLogsModal({
               {copied ? "Kopiert ✓" : "Copy Logs"}
             </Text>
           </TouchableOpacity>
+
+          {Array.isArray(extraPills)
+            ? extraPills.map((p) => (
+                <TouchableOpacity
+                  key={p.label}
+                  style={[styles.pill, p.disabled && styles.pillDisabled]}
+                  onPress={p.onPress}
+                  disabled={!!p.disabled}
+                  accessibilityRole="button"
+                  accessibilityLabel={p.label}
+                  accessibilityState={{ disabled: !!p.disabled }}
+                >
+                  <Text style={styles.pillText}>{p.label}</Text>
+                </TouchableOpacity>
+              ))
+            : null}
         </View>
+
+        {topContent ? <View style={styles.topContent}>{topContent}</View> : null}
 
         <View style={styles.logsBody}>
           {isLoading ? (
@@ -280,6 +314,10 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.palette.border,
     backgroundColor: theme.palette.background,
   },
+  topContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+  },
   pill: {
     flexDirection: "row",
     alignItems: "center",
@@ -299,6 +337,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: theme.palette.text.primary,
+  },
+  pillDisabled: {
+    opacity: 0.5,
   },
   logsBody: {
     flex: 1,
