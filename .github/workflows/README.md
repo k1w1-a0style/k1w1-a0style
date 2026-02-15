@@ -10,6 +10,8 @@ Dieses Projekt verwendet optimierte GitHub Actions Workflows für CI/CD und Buil
 | **ci-build.yml**             | K1W1 App oder manuell | App-getriggerte CI (reusable CI Core)   | ~5-8 min   | ❌        |
 | **k1w1-triggered-build.yml** | K1W1 App oder manuell | Vollständiger Build mit Status-Tracking | ~5-10 min  | ❌        |
 | **release-build.yml**        | Manuell               | Production Builds mit Download          | ~10-15 min | ✅        |
+| **k1w1-ci-lite.yml**         | Manuell / K1W1 App     | Read-only CI Lite (ESLint + Typecheck)  | ~2-5 min   | ✅        |
+| **k1w1-ci-lite-autofix.yml** | Manuell / K1W1 App     | ESLint --fix + verify + optional writeback | ~3-7 min | ✅        |
 
 ---
 
@@ -40,6 +42,15 @@ git push origin main
 ```
 
 ---
+
+## ✅ CI Lite (Lint + Typecheck) + Autofix
+
+Diese beiden Workflows sind für den **APK-Builder Flow** gedacht:
+
+- `k1w1-ci-lite.yml`: Read-only Checks (robust: fallback auf `npx eslint`/`npx tsc`, speichert Logs als Artifact)
+- `k1w1-ci-lite-autofix.yml`: ESLint `--fix` + guarded commit/push auf erlaubte Branches + Verify (Lint+Typecheck)
+
+**Chain-run:** Wenn Autofix erfolgreich ist, dispatcht der Workflow automatisch einen nachfolgenden CI Lite Run (gleiches `job_id`).
 
 ## 🚀 k1w1-triggered-build.yml - App-getriggerte Builds
 
@@ -141,6 +152,20 @@ Nach erfolgreichem Build:
 2. Scrolle zu "Artifacts"
 3. Download `k1w1-android-production.zip`
 4. Entpacke die APK
+
+---
+
+## ✅ CI Lite Workflows (`k1w1-ci-lite*.yml`)
+
+Diese Workflows sind für den **APK-Builder In-App Check** gedacht:
+
+- `k1w1-ci-lite.yml`: Read-only **ESLint + Typecheck** (robust: `npm run ...` → fallback `npx`) + Logs als Artifact
+- `k1w1-ci-lite-autofix.yml`: **ESLint --fix** + verify + optionaler Writeback (nur erlaubte Branches)
+
+### Chain-Run
+
+Wenn `k1w1-ci-lite-autofix.yml` erfolgreich endet, dispatcht er automatisch **CI Lite** auf derselben Branch.
+Korrelation/Anzeige in der App läuft über dieselbe `job_id` im `run-name`.
 
 ---
 

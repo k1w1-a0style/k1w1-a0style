@@ -20,6 +20,15 @@ Stand: **2026-02-15**
 - [x] Neuer Workflow `.github/workflows/k1w1-ci-lite-autofix.yml` (ESLint --fix + guarded writeback + verify)
 - [x] In-App Autofix Button triggert separaten Workflow
 
+### Patch 141 — CI Lite Chain-Run + UI Polish
+- [x] Autofix → automatisch CI Lite Chain-Run (gleiche `job_id`)
+- [x] Header-Optik/Neon-Dark: Status-Lämpchen + Running-Pulse
+
+### Patch 142 — Selection Sync + Glow (WICHTIG)
+- [x] **Single Source of Truth**: `projectData.linkedRepo/linkedBranch` wird in `GitHubContext` gespiegelt
+- [x] **Selection Glow**: ausgewähltes Repo/Branch/Profile bekommt Neon-Rand/Glow + Lamp
+- [x] Fix: Patch 141 TypeScript-Order (`stopPolling`/`findRunByJobId`) – Typecheck wieder grün
+
 ### Patch 107 — Workflows/Templates
 - [x] Workflows: `ref`-Fallback auf aktuellen Branch (manueller Run ohne `ref` baut den aktiven Branch)
 - [x] Templates (sdk54 base/full) mit den korrigierten Workflows synchronisiert

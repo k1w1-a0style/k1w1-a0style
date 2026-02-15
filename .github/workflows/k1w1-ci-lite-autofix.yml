@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: >-
@@ -202,6 +203,44 @@ jobs:
             ci-logs/lint.log
             ci-logs/typecheck.log
           retention-days: 7
+
+      - name: Trigger CI Lite (chain-run)
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BR="${TARGET_BRANCH:-}"
+          if [ -z "$BR" ]; then
+            echo "::warning::No TARGET_BRANCH; skipping CI Lite chain-run."
+            exit 0
+          fi
+          if echo "$BR" | grep -qE '^[0-9a-fA-F]{7,40}$'; then
+            echo "::warning::Ref looks like a SHA ($BR); skipping CI Lite chain-run."
+            exit 0
+          fi
+          if echo "$BR" | grep -qE '[: ]'; then
+            echo "::warning::Unsafe ref ($BR); skipping CI Lite chain-run."
+            exit 0
+          fi
+          if ! echo "$BR" | grep -qE "${ALLOWED_REF_REGEX}"; then
+            echo "::warning::CI Lite chain-run disabled for '$BR' (regex: ${ALLOWED_REF_REGEX})."
+            exit 0
+          fi
+          if ! git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
+            echo "::warning::Ref '$BR' is not a remote branch; skipping CI Lite chain-run."
+            exit 0
+          fi
+
+          echo "Dispatching CI Lite chain-run for '$BR' (job_id=${JOB_ID:-})"
+          gh api \
+            -X POST \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/k1w1-ci-lite.yml/dispatches" \
+            -f ref="$BR" \
+            -f inputs[ref]="$BR" \
+            -f inputs[job_id]="${JOB_ID:-}" \
+            >/dev/null
 
       - name: Done
         shell: bash

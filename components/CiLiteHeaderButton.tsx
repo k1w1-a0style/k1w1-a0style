@@ -1,9 +1,10 @@
 // components/CiLiteHeaderButton.tsx
 // Global header button: run a lightweight GitHub CI (lint + typecheck) and show logs in-app.
 
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  Animated,
   Pressable,
   StyleSheet,
   Text,
@@ -102,26 +103,86 @@ function normalizePreflightPatch(input: any): PreflightPatch {
 }
 
 function StepPill({ label, state }: { label: string; state: StepState }) {
-  const icon =
-    state === "success"
-      ? "checkmark-circle"
-      : state === "failure"
-        ? "close-circle"
-        : state === "running"
-          ? "time"
-          : "ellipse";
+  return (
+    <View style={styles.stepPill}>
+      <StatusLamp state={state} size={10} />
+      <Text style={styles.stepText}>{label}</Text>
+    </View>
+  );
+}
+
+function StatusLamp({
+  state,
+  size = 10,
+}: {
+  state: StepState;
+  size?: number;
+}) {
+  const pulse = useRef(new Animated.Value(0)).current;
+
   const color =
     state === "success"
       ? theme.palette.success
       : state === "failure"
         ? theme.palette.error
-        : theme.palette.text.secondary;
+        : state === "running"
+          ? theme.palette.primary
+          : theme.palette.borderLight;
+
+  useEffect(() => {
+    pulse.stopAnimation();
+    pulse.setValue(0);
+
+    if (state !== "running") return;
+
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 550,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 550,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [state, pulse]);
+
+  const scale =
+    state === "running"
+      ? pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.45] })
+      : 1;
+  const opacity =
+    state === "running"
+      ? pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] })
+      : 1;
+
+  const glowStyle =
+    state === "success" || state === "running"
+      ? theme.glow.primarySubtle
+      : state === "failure"
+        ? theme.glow.error
+        : undefined;
 
   return (
-    <View style={styles.stepPill}>
-      <Ionicons name={icon as any} size={14} color={color} />
-      <Text style={styles.stepText}>{label}</Text>
-    </View>
+    <Animated.View
+      style={[
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: color,
+          transform: [{ scale }],
+          opacity,
+        },
+        glowStyle as any,
+      ]}
+    />
   );
 }
 
@@ -138,6 +199,12 @@ export default function CiLiteHeaderButton(): React.ReactElement {
   const [dispatching, setDispatching] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
+  // Header indicator (remembers last conclusion even after modal close).
+  const [headerState, setHeaderState] = useState<StepState>("idle");
+
+  // When an autofix run succeeds, we expect a chained CI Lite run to appear.
+  const [chainWaiting, setChainWaiting] = useState(false);
+
   // Optional: apply a JSON patch produced by the AI (PreflightPatch format).
   const [patchPanelOpen, setPatchPanelOpen] = useState(false);
   const [patchText, setPatchText] = useState<string>("{");
@@ -145,6 +212,66 @@ export default function CiLiteHeaderButton(): React.ReactElement {
   const [patchInfo, setPatchInfo] = useState<string | null>(null);
 
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = useCallback(() => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  }, []);
+
+  const findRunByJobId = useCallback(
+    async (opts: { githubRepo: string; branch: string; jobId: string; workflow: string }) => {
+      const { githubRepo, branch, jobId, workflow } = opts;
+      const edgeUrl = await getSupabaseEdgeUrl();
+      const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+
+      const r = await fetch(`${edgeUrl}/github-workflow-runs`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
+        },
+        body: JSON.stringify({
+          githubRepo,
+          workflowId: workflow,
+          ref: branch,
+          perPage: 30,
+        }),
+      });
+
+      if (!r.ok) {
+        const t = await r.text().catch(() => "");
+        throw new Error(
+          `github-workflow-runs failed (${r.status}): ${safeUi(t || r.statusText)}`,
+        );
+      }
+
+      const json = await r.json();
+      const runs =
+        json?.data?.workflow_runs ??
+        json?.workflow_runs ??
+        json?.runs ??
+        [];
+
+      if (!Array.isArray(runs)) return null;
+
+      // Prefer exact match in display_title/name where we embed job_id.
+      const match = runs.find((x: any) => {
+        const title = String(x?.display_title ?? x?.name ?? "");
+        return title.includes(jobId);
+      });
+      return match ?? null;
+    },
+    [],
+  );
+
+  // Helpers must be declared before effects that reference them (TS strict).
+
+
+
+
+
 
   const githubRepo = useMemo(() => {
     return (
@@ -175,23 +302,94 @@ export default function CiLiteHeaderButton(): React.ReactElement {
     if (!visible) return [];
     if (!runId) {
       return [
-        jobId
-          ? `Warte auf GitHub Run… (job_id: ${jobId})`
-          : "Warte auf GitHub Run…",
+        chainWaiting && workflowId === WORKFLOW_CI_LITE
+          ? `Autofix fertig – starte CI Lite (chain-run)… (job_id: ${jobId || ""})`
+          : jobId
+            ? `Warte auf GitHub Run… (job_id: ${jobId})`
+            : "Warte auf GitHub Run…",
       ];
     }
     if (!logs || logs.length === 0) return [];
     return logs.map((e) => e.message);
-  }, [visible, runId, logs, jobId]);
+  }, [visible, runId, logs, jobId, chainWaiting, workflowId]);
 
   const stepInfo = useMemo(() => inferStepStates(logLines), [logLines]);
 
-  const stopPolling = useCallback(() => {
-    if (pollTimerRef.current) {
-      clearInterval(pollTimerRef.current);
-      pollTimerRef.current = null;
+  // Chain-run: if the Autofix workflow succeeded, automatically switch to the CI Lite run.
+  useEffect(() => {
+    if (!visible) return;
+    if (workflowId !== WORKFLOW_CI_LITE_AUTOFIX) return;
+    if (!workflowRun) return;
+    if (workflowRun.status !== "completed" || workflowRun.conclusion !== "success") return;
+    if (!jobId || !githubRepo) return;
+
+    const b = (targetRef || branch || "").trim();
+    if (!b) return;
+    if (chainWaiting) return;
+
+    setChainWaiting(true);
+    setWorkflowId(WORKFLOW_CI_LITE);
+    setRunId(null);
+    setRunUrl(null);
+    stopPolling();
+
+    const start = Date.now();
+    const poll = async () => {
+      try {
+        const found = await findRunByJobId({
+          githubRepo,
+          branch: b,
+          jobId,
+          workflow: WORKFLOW_CI_LITE,
+        });
+        if (found?.id) {
+          setRunId(Number(found.id));
+          setRunUrl(typeof found?.html_url === "string" ? found.html_url : null);
+          setChainWaiting(false);
+          stopPolling();
+          return;
+        }
+      } catch (e: any) {
+        setLocalError(e?.message || String(e));
+      }
+
+      if (Date.now() - start > 75_000) {
+        setChainWaiting(false);
+        stopPolling();
+      }
+    };
+
+    void poll();
+    pollTimerRef.current = setInterval(poll, 2500);
+  }, [
+    visible,
+    workflowId,
+    workflowRun,
+    jobId,
+    githubRepo,
+    targetRef,
+    branch,
+    chainWaiting,
+    stopPolling,
+    findRunByJobId,
+  ]);
+
+  // Keep a small "lamp" in the header.
+  useEffect(() => {
+    if (dispatching) {
+      setHeaderState("running");
+      return;
     }
-  }, []);
+    if (!workflowRun?.status) return;
+    if (workflowRun.status !== "completed") {
+      setHeaderState("running");
+      return;
+    }
+    if (workflowRun.conclusion === "success") setHeaderState("success");
+    else if (workflowRun.conclusion === "failure" || workflowRun.conclusion === "cancelled")
+      setHeaderState("failure");
+  }, [workflowRun?.status, workflowRun?.conclusion, dispatching]);
+
 
   const pastePatchFromClipboard = useCallback(async () => {
     try {
@@ -482,51 +680,6 @@ export default function CiLiteHeaderButton(): React.ReactElement {
     applyPatchFromText,
   ]);
 
-  const findRunByJobId = useCallback(
-    async (opts: { githubRepo: string; branch: string; jobId: string; workflow: string }) => {
-      const { githubRepo, branch, jobId, workflow } = opts;
-      const edgeUrl = await getSupabaseEdgeUrl();
-      const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
-
-      const r = await fetch(`${edgeUrl}/github-workflow-runs`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
-        },
-        body: JSON.stringify({
-          githubRepo,
-          workflowId: workflow,
-          ref: branch,
-          perPage: 30,
-        }),
-      });
-
-      if (!r.ok) {
-        const t = await r.text().catch(() => "");
-        throw new Error(
-          `github-workflow-runs failed (${r.status}): ${safeUi(t || r.statusText)}`,
-        );
-      }
-
-      const json = await r.json();
-      const runs =
-        json?.data?.workflow_runs ??
-        json?.workflow_runs ??
-        json?.runs ??
-        [];
-
-      if (!Array.isArray(runs)) return null;
-
-      // Prefer exact match in display_title/name where we embed job_id.
-      const match = runs.find((x: any) => {
-        const title = String(x?.display_title ?? x?.name ?? "");
-        return title.includes(jobId);
-      });
-      return match ?? null;
-    },
-    [],
-  );
 
   const dispatchWorkflow = useCallback(
     async (workflowFile: string) => {
@@ -546,6 +699,7 @@ export default function CiLiteHeaderButton(): React.ReactElement {
       setRunId(null);
       setRunUrl(null);
       setWorkflowId(workflowFile);
+      setChainWaiting(false);
 
       stopPolling();
 
@@ -676,7 +830,9 @@ export default function CiLiteHeaderButton(): React.ReactElement {
         onPress={() => dispatchWorkflow(WORKFLOW_CI_LITE)}
         style={({ pressed }) => [
           styles.iconBtn,
+          styles.ciBtn,
           pressed && styles.iconBtnPressed,
+          (headerState === "running") && styles.ciBtnRunning,
         ]}
         accessibilityLabel="CI Lite (Lint + Typecheck)"
         android_ripple={{
@@ -684,11 +840,16 @@ export default function CiLiteHeaderButton(): React.ReactElement {
           borderless: true,
         }}
       >
-        <Ionicons
-          name="checkmark-done-outline"
-          size={22}
-          color={theme.palette.text.primary}
-        />
+        <View style={styles.ciBtnInner}>
+          <Ionicons
+            name="checkmark-done-outline"
+            size={22}
+            color={theme.palette.primary}
+          />
+          <View style={styles.ciLampWrap}>
+            <StatusLamp state={headerState === "idle" ? "waiting" : headerState} size={8} />
+          </View>
+        </View>
       </Pressable>
 
       <BuildLogsModal
@@ -742,6 +903,26 @@ const styles = StyleSheet.create({
   },
   iconBtnPressed: {
     backgroundColor: theme.palette.cardHover,
+  },
+  ciBtn: {
+    borderWidth: 1,
+    borderColor: `${theme.palette.primary}66`,
+    backgroundColor: theme.palette.backgroundDark,
+    ...theme.glow.primarySubtle,
+  },
+  ciBtnRunning: {
+    borderColor: theme.palette.primary,
+    ...theme.glow.primary,
+  },
+  ciBtnInner: {
+    position: "relative",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  ciLampWrap: {
+    position: "absolute",
+    right: -2,
+    top: -2,
   },
   summaryBox: {
     borderWidth: 1,

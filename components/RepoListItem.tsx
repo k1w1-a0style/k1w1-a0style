@@ -14,6 +14,12 @@ type Props = {
 export const RepoListItem = React.memo<Props>(({ repo, isActive, onPress, onDelete }) => {
   return (
     <View style={[styles.container, isActive && styles.containerActive]}>
+      <View
+        style={[
+          styles.lamp,
+          isActive ? styles.lampOn : styles.lampOff,
+        ]}
+      />
       <TouchableOpacity style={styles.info} onPress={() => onPress(repo)}>
         <Text style={styles.name}>{repo.name}</Text>
         <Text style={styles.fullName}>{repo.full_name}</Text>
@@ -39,12 +45,35 @@ RepoListItem.displayName = 'RepoListItem';
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.palette.border,
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.background,
+    marginBottom: 10,
   },
   containerActive: {
-    backgroundColor: theme.palette.card,
+    borderColor: theme.palette.primary,
+    backgroundColor: 'rgba(0, 255, 0, 0.06)',
+    ...theme.glow.primarySubtle,
+  },
+  lamp: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    marginRight: 10,
+    borderWidth: 1,
+  },
+  lampOff: {
+    backgroundColor: theme.palette.border,
+    borderColor: theme.palette.borderLight,
+  },
+  lampOn: {
+    backgroundColor: theme.palette.primary,
+    borderColor: theme.palette.primaryLight,
+    ...theme.glow.primarySubtle,
   },
   info: {
     flex: 1,

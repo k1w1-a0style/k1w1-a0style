@@ -199,8 +199,9 @@ const styles = StyleSheet.create({
     backgroundColor: theme.palette.background,
   },
   branchPillActive: {
-    backgroundColor: theme.palette.secondary,
+    backgroundColor: "rgba(0, 255, 0, 0.10)",
     borderColor: theme.palette.primary,
+    ...theme.glow.primarySubtle,
   },
   branchPillText: {
     fontSize: 12,

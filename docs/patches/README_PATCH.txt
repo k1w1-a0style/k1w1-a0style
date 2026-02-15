@@ -1,15 +1,21 @@
-K1W1 A0STYLE - PATCH v2
+K1W1 A0STYLE - PATCH ZIP Anleitung
 
-Enthält:
-1) Header minimalisiert: nur Preview-Icon + 3-Punkte-Menü (Projekt/Zip/Chat). Alle anderen Header-Icons entfernt.
-2) Preview-Fixes (usePreview + save_preview Edge Function) aus Patch v1.
+Jeder Patch kommt als ZIP: `k1w1-a0style_patch_<PATCHNUM>.zip`.
 
 Anwenden:
-- ZIP in den Projekt-Root legen
-- entpacken mit: unzip -o k1w1-a0style_patch_v2.zip -d .
+1) ZIP in den Projekt-Root legen
+2) Entpacken + ZIP löschen:
 
-Danach (wie von dir gewünscht):
+  unzip -o k1w1-a0style_patch_<PATCHNUM>.zip -d .
+  rm -f k1w1-a0style_patch_<PATCHNUM>.zip
+
+3) Danach (Pflicht):
   npm run typecheck
   npm run lint:ci
   npm run test:silent
+
+Wenn alles grün ist:
+  git add -A
+  git commit -m "Patch <PATCHNUM>: <kurzer Titel>"
+  git push origin main
 

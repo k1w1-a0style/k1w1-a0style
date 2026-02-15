@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     height: HEADER_HEIGHT,
     backgroundColor: theme.palette.background,
     borderBottomWidth: 1,
-    borderBottomColor: theme.palette.border,
+    borderBottomColor: `${theme.palette.primary}22`,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: theme.spacing.sm,
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   left: { width: 46, alignItems: "flex-start" },
   center: { flex: 1, alignItems: "center", paddingHorizontal: 6 },
   right: {
-    width: 140,
+    width: 156,
     flexDirection: "row",
     justifyContent: "flex-end",
     alignItems: "center",

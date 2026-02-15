@@ -320,6 +320,7 @@ export const styles = StyleSheet.create({
   profileBtnActive: {
     borderColor: theme.palette.primary,
     backgroundColor: withOpacity(theme.palette.primary, 0.1),
+    ...theme.glow.primarySubtle,
   },
   profileBtnText: {
     color: theme.palette.text.secondary,

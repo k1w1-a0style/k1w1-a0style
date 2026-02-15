@@ -7,6 +7,8 @@ import React, {
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { useProject } from "./ProjectContext";
+
 type GitHubContextValue = {
   activeRepo: string | null;
   setActiveRepo: (repo: string | null) => void;
@@ -26,9 +28,12 @@ const GitHubContext = createContext<GitHubContextValue | undefined>(undefined);
 export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const { projectData } = useProject();
   const [activeRepo, setActiveRepoState] = useState<string | null>(null);
   const [activeBranch, setActiveBranchState] = useState<string | null>(null);
   const [recentRepos, setRecentRepos] = useState<string[]>([]);
+
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -49,6 +54,8 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
         if (storedBranch) setActiveBranchState(storedBranch);
       } catch (e) {
         console.error("[GitHubContext] Fehler beim Laden:", e);
+      } finally {
+        setHydrated(true);
       }
     };
     load();
@@ -90,6 +97,25 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
       AsyncStorage.removeItem(ACTIVE_BRANCH_KEY).catch(() => {});
     }
   }, []);
+
+  // Single source of truth: mirror the project's linked repo/branch into this context.
+  // This guarantees that the selection is consistent across screens (Header, Diagnostics, Wizard, Build, etc.).
+  useEffect(() => {
+    if (!hydrated) return;
+
+    const linkedRepo = (projectData?.linkedRepo ?? "").trim() || null;
+    const linkedBranch = (projectData?.linkedBranch ?? "").trim() || null;
+
+    // If project has a linked repo, prefer it over local storage.
+    if (linkedRepo !== activeRepo) {
+      setActiveRepo(linkedRepo);
+    }
+
+    // Branch should follow the linked branch (even to null).
+    if (linkedBranch !== activeBranch) {
+      setActiveBranch(linkedBranch);
+    }
+  }, [hydrated, projectData?.linkedRepo, projectData?.linkedBranch, activeRepo, activeBranch, setActiveRepo, setActiveBranch]);
 
   const addRecentRepo = useCallback(
     (repo: string) => {
