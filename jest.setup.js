@@ -1,5 +1,6 @@
 /* eslint-env jest */
 import "react-native-gesture-handler/jestSetup";
+import { cleanup } from "@testing-library/react-native";
 
 jest.mock("react-native-reanimated", () =>
   require("react-native-reanimated/mock"),
@@ -46,3 +47,17 @@ jest.mock("expo-notifications", () => ({
   // constants
   AndroidImportance: { MAX: 5 },
 }));
+
+
+// ✅ Global teardown to prevent Jest worker leaks (timers / listeners)
+afterEach(() => {
+  cleanup();
+  jest.clearAllMocks();
+  jest.clearAllTimers();
+  jest.useRealTimers();
+});
+
+afterAll(() => {
+  jest.clearAllTimers();
+  jest.useRealTimers();
+});

@@ -4,6 +4,10 @@
 
 
 
+## PATCH 137 (2026-02-15)
+- Jest Worker-Warnung (`worker process failed to exit gracefully`) entschärft durch globales Test-Teardown.
+- `jest.setup.js`: `cleanup()` + `clearAllMocks/Timers` + `useRealTimers` nach jedem Test.
+
 ## PATCH 136 (2026-02-15)
 - Supabase `build_jobs.id` = UUID → JobId überall als **string (UUID)**.
 - Workflow-Templates: Supabase Status-PATCH ist **non-fatal** (nur Warning, kein Abbruch).
