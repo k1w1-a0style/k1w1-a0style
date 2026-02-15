@@ -30,7 +30,8 @@ import type { PreflightPatch } from "../lib/diagnostics/preflightTypes";
 import { validateFileContent, validateFilePath } from "../lib/validators";
 import { checkPatchLimits, analyzePatchRisk, patchTouchedPaths } from "../lib/diagnostics/fixSafety";
 
-const WORKFLOW_FILE = "k1w1-ci-lite.yml";
+const WORKFLOW_CI_LITE = "k1w1-ci-lite.yml";
+const WORKFLOW_CI_LITE_AUTOFIX = "k1w1-ci-lite-autofix.yml";
 
 type StepState = "idle" | "waiting" | "running" | "success" | "failure";
 
@@ -132,6 +133,7 @@ export default function CiLiteHeaderButton(): React.ReactElement {
   const [jobId, setJobId] = useState<string | null>(null);
   const [runId, setRunId] = useState<number | null>(null);
   const [runUrl, setRunUrl] = useState<string | null>(null);
+  const [workflowId, setWorkflowId] = useState<string>(WORKFLOW_CI_LITE);
   const [targetRef, setTargetRef] = useState<string | null>(null);
   const [dispatching, setDispatching] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -165,7 +167,7 @@ export default function CiLiteHeaderButton(): React.ReactElement {
   } = useGitHubActionsLogs({
     githubRepo: visible ? githubRepo || null : null,
     runId,
-    workflowId: WORKFLOW_FILE,
+    workflowId,
     autoRefresh: visible,
   });
 
@@ -481,8 +483,8 @@ export default function CiLiteHeaderButton(): React.ReactElement {
   ]);
 
   const findRunByJobId = useCallback(
-    async (opts: { githubRepo: string; branch: string; jobId: string }) => {
-      const { githubRepo, branch, jobId } = opts;
+    async (opts: { githubRepo: string; branch: string; jobId: string; workflow: string }) => {
+      const { githubRepo, branch, jobId, workflow } = opts;
       const edgeUrl = await getSupabaseEdgeUrl();
       const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
 
@@ -494,7 +496,7 @@ export default function CiLiteHeaderButton(): React.ReactElement {
         },
         body: JSON.stringify({
           githubRepo,
-          workflowId: WORKFLOW_FILE,
+          workflowId: workflow,
           ref: branch,
           perPage: 30,
         }),
@@ -526,8 +528,8 @@ export default function CiLiteHeaderButton(): React.ReactElement {
     [],
   );
 
-  const dispatchCiLite = useCallback(
-    async (autofix: boolean) => {
+  const dispatchWorkflow = useCallback(
+    async (workflowFile: string) => {
       if (!githubRepo || !githubRepo.includes("/")) {
         Alert.alert("CI Lite", "Kein gültiges Repo (owner/repo) ausgewählt.");
         return;
@@ -543,6 +545,7 @@ export default function CiLiteHeaderButton(): React.ReactElement {
       setDispatching(true);
       setRunId(null);
       setRunUrl(null);
+      setWorkflowId(workflowFile);
 
       stopPolling();
 
@@ -571,12 +574,11 @@ export default function CiLiteHeaderButton(): React.ReactElement {
         const invokeOpts: { body: any; headers?: Record<string, string> } = {
           body: {
             githubRepo,
-            workflow: WORKFLOW_FILE,
+            workflow: workflowFile,
             ref: targetBranch,
             inputs: {
               ref: targetBranch,
               job_id: newJobId,
-              autofix: autofix ? "true" : "false",
             },
           },
         };
@@ -596,6 +598,7 @@ export default function CiLiteHeaderButton(): React.ReactElement {
               githubRepo,
               branch: targetBranch,
               jobId: newJobId,
+              workflow: workflowFile,
             });
             if (found?.id) {
               setRunId(Number(found.id));
@@ -630,6 +633,8 @@ export default function CiLiteHeaderButton(): React.ReactElement {
     ],
   );
 
+  const isAutofix = workflowId === WORKFLOW_CI_LITE_AUTOFIX;
+
   const extraPills = useMemo(() => {
     return [
       {
@@ -657,18 +662,18 @@ export default function CiLiteHeaderButton(): React.ReactElement {
       },
       {
         label: dispatching ? "Autofix…" : "Autofix ESLint",
-        onPress: () => dispatchCiLite(true),
+        onPress: () => dispatchWorkflow(WORKFLOW_CI_LITE_AUTOFIX),
         disabled: dispatching,
       },
     ];
-  }, [runUrl, workflowRun?.html_url, dispatching, dispatchCiLite, patchPanelOpen]);
+  }, [runUrl, workflowRun?.html_url, dispatching, dispatchWorkflow, patchPanelOpen]);
 
   const showError = safeUi(localError || logsError || "");
 
   return (
     <>
       <Pressable
-        onPress={() => dispatchCiLite(false)}
+        onPress={() => dispatchWorkflow(WORKFLOW_CI_LITE)}
         style={({ pressed }) => [
           styles.iconBtn,
           pressed && styles.iconBtnPressed,
@@ -692,7 +697,7 @@ export default function CiLiteHeaderButton(): React.ReactElement {
           setVisible(false);
           stopPolling();
         }}
-        title="CI: Lint + Typecheck"
+        title={isAutofix ? "CI: Autofix ESLint" : "CI: Lint + Typecheck"}
         topContent={topContent}
         extraPills={extraPills}
         logs={logLines}
@@ -703,7 +708,12 @@ export default function CiLiteHeaderButton(): React.ReactElement {
           if (!runId && jobId && githubRepo) {
             try {
               const b = (targetRef || branch || "").trim();
-              const found = await findRunByJobId({ githubRepo, branch: b, jobId });
+              const found = await findRunByJobId({
+                githubRepo,
+                branch: b,
+                jobId,
+                workflow: workflowId,
+              });
               if (found?.id) {
                 setRunId(Number(found.id));
                 setRunUrl(typeof found?.html_url === "string" ? found.html_url : null);

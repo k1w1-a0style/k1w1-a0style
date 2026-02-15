@@ -719,3 +719,4 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 
 2026-02-15  Patch 138  CI Lite: global header button → GitHub Actions Lint+Typecheck logs in-app (+ optional ESLint autofix)
 2026-02-15  Patch 139  CI Lite: robust workflow (npx fallbacks + artifact logs) + in-app Apply Patch (JSON) panel
+2026-02-15  Patch 140  CI Lite: separate autofix workflow + in-app trigger

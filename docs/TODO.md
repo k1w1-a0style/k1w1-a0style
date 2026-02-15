@@ -14,7 +14,11 @@ Stand: **2026-02-15**
 ### Patch 139 — CI Lite Upgrade
 - [x] Workflow robuster (Fallback auf `npx eslint` / `npx tsc`) + Log-Artifact
 - [x] In-App: Apply Patch (JSON) Panel im CI Lite Modal
-- [x] Neuer Workflow `.github/workflows/k1w1-ci-lite.yml` (optional ESLint-Autofix)
+- [x] Neuer Workflow `.github/workflows/k1w1-ci-lite.yml` (read-only checks)
+
+### Patch 140 — CI Lite Autofix Split
+- [x] Neuer Workflow `.github/workflows/k1w1-ci-lite-autofix.yml` (ESLint --fix + guarded writeback + verify)
+- [x] In-App Autofix Button triggert separaten Workflow
 
 ### Patch 107 — Workflows/Templates
 - [x] Workflows: `ref`-Fallback auf aktuellen Branch (manueller Run ohne `ref` baut den aktiven Branch)
