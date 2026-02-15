@@ -29,6 +29,15 @@ Stand: **2026-02-15**
 - [x] **Selection Glow**: ausgewähltes Repo/Branch/Profile bekommt Neon-Rand/Glow + Lamp
 - [x] Fix: Patch 141 TypeScript-Order (`stopPolling`/`findRunByJobId`) – Typecheck wieder grün
 
+### Patch 143 — Drawer UI Neon Polish
+- [x] Drawer/Sidebar optisch angepasst (Neon Dark + Quick Actions + Chips)
+- [x] Cleanup-Note: Backup-Dateien nicht im Repo lassen
+
+### Patch 144 — Drawer UI Grafisch Rund
+- [x] Grafische Overlays + Section Icons/Lines
+- [x] Pulse-Lämpchen + aktiver Gradient-Rail
+- [x] Remove old backup file (`components/ChatHeaderActions.tsx.bak.ui-polish`)
+
 ### Patch 107 — Workflows/Templates
 - [x] Workflows: `ref`-Fallback auf aktuellen Branch (manueller Run ohne `ref` baut den aktiven Branch)
 - [x] Templates (sdk54 base/full) mit den korrigierten Workflows synchronisiert

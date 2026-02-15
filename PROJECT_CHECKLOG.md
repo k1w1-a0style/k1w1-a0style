@@ -722,4 +722,5 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 2026-02-15  Patch 140  CI Lite: separate autofix workflow + in-app trigger
 2026-02-15  Patch 141  CI Lite: Autofix chain-runs CI Lite + header neon lamp + running pulse
 2026-02-15  Patch 142  Selection sync (project linkedRepo/linkedBranch → GitHubContext) + selection glow + Patch 141 TS hotfix
-2026-02-16  Patch 143  Drawer UI revamp (Neon/Dark): status lamp + repo/branch/profile chips + quick actions + active glow
+2026-02-15  Patch 143  Drawer UI: neon polish + quick actions + cleanup note
+2026-02-15  Patch 144  Drawer UI: grafisches Neon-Polish (pulse lamps, rails, section icons) + remove backup file

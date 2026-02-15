@@ -50,6 +50,10 @@ Jeder Patch aktualisiert:
 - `PROJECT_CHECKLOG.md`
 - ggf. `README.md` / `docs/TODO.md` (wenn relevant)
 
+## Cleanup
+
+- Backup-/Rest-Dateien (z.B. `*.bak*`, `*.orig`, `*.rej`, `*~`) nicht im Repo lassen – bei Bedarf entfernen.
+
 ## UI Style-Konventionen
 
 - **Neon Giftgrün + Dark** als Default-Look (`theme.palette.primary` als Akzent)
