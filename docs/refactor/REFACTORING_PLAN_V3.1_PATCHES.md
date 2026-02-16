@@ -24,6 +24,7 @@ This is a patchable version of the Refactoring Plan V3, adjusted to avoid duplic
 - Create `infra/github/*`
 - Keep `contexts/githubService.ts` as facade until all callers migrated
   - ✅ PR-4 stage 1 implemented by Patch 150 (move + facade)
+  - ✅ PR-4 stage 2 implemented by Patch 151 (split into modules; barrel exports)
 
 ## PR-5: ProjectContext slimming
 - Move pure domain logic into `project/domain/*`
@@ -41,3 +42,7 @@ This is a patchable version of the Refactoring Plan V3, adjusted to avoid duplic
 
 ## Patch 150
 - PR-4 stage 1: Move `contexts/githubService.ts` → `infra/github/githubService.ts` + keep `contexts/githubService.ts` as facade.
+
+## Patch 151
+- PR-4 stage 2: Split `infra/github/githubService.ts` into focused modules (`tokenStore`, `repos`, `files`, `secrets`, `workflows`, plus shared helpers).
+- Keep the public API stable through re-exports.
