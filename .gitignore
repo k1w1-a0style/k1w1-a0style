@@ -86,3 +86,7 @@ android-upload-keystore.p12
 
 # local/derived
 supabase/schema.sql
+
+# Refactor baseline outputs
+/refactor-baseline/
+/docs/refactor/baseline/
