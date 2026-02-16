@@ -22,7 +22,7 @@ import {
   LastPreviewMeta,
 } from "./types";
 
-import type { TemplateId, CoreTemplateId } from "./types";
+import type { TemplateId } from "./types";
 
 import {
   saveProjectToStorage,
@@ -39,6 +39,9 @@ import {
   getDefaultBranch,
 } from "./githubService";
 
+import { loadTemplateFromFile } from "../project/services/templateLoader";
+import { applyProjectFileUpdates, mergeProjectFiles } from "../project/domain/projectFileMutations";
+
 // ✅ FIX: Einheitlicher Validator-Wrapper
 import { validateFilePath, validateFileContent } from "../lib/validators";
 import { BuildStatus, mapBuildStatus } from "../lib/buildStatusMapper";
@@ -48,84 +51,9 @@ import {
   updateBuildInHistory,
 } from "../lib/buildHistoryStorage";
 import { CONFIG } from "../config";
-import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../lib/templateChecklist";
-
-const loadTemplateFromFile = async (templateId: TemplateId = "base"): Promise<ProjectFile[]> => {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const template =
-      templateId === "navigation"
-        ? require("../templates/expo-sdk54-navigation.json")
-        : templateId === "crud"
-          ? require("../templates/expo-sdk54-crud.json")
-          : templateId === "full"
-            ? require("../templates/expo-sdk54-full.json")
-            : require("../templates/expo-sdk54-base.json");
-    if (!Array.isArray(template) || template.length === 0) {
-      throw new Error("Template ist ungültig");
-    }
-    const mapped = template.map((file: any) => ({
-      ...file,
-      content:
-        typeof file.content === "string"
-          ? file.content
-          : JSON.stringify(file.content ?? "", null, 2),
-    })) as ProjectFile[];
-
-    // ✅ Harte Template-Checkliste (Autofix aktiv): verhindert "halbkaputte" New-Projects
-    const firstPass = runTemplateHardChecklist(mapped, { autofix: true });
-    const secondPass = runTemplateHardChecklist(firstPass.files, { autofix: false });
-
-    if (!secondPass.report.ok) {
-      const issues = secondPass.report.issues
-        .map((i) => `- [${i.severity}] ${i.file ?? "(global)"}: ${i.reason}${i.fix ? ` → FIX: ${i.fix}` : ""}`)
-        .join("\n");
-
-      // Wir lassen das Projekt trotzdem entstehen (autofix hat schon viel repariert),
-      // aber legen einen Report ab, damit du sofort siehst, was noch fehlt.
-      const reportFile: ProjectFile = {
-        path: "TEMPLATE_CHECKLIST_REPORT.md",
-        content: `# Template Checklist Report\n\n${secondPass.report.summary}\n\n${issues}\n`,
-      };
-
-      return [reportFile, ...firstPass.files];
-    }
-
-    return firstPass.files;
-  } catch (error) {
-    console.error("X Template Fehler:", error);
-    return [{ path: "README.md", content: "# Template Fehler" }];
-  }
-};
+import { resolveEffectiveTemplateId } from "../lib/templateChecklist";
 
 const SAVE_DEBOUNCE_MS = 500;
-
-const TEMPLATE_CATALOG: Record<CoreTemplateId, { id: CoreTemplateId; label: string; description: string; files: any[] }> = {
-  base: {
-    id: "base",
-    label: "Base (Blank)",
-    description: "Expo SDK 54 blank scaffold (Android-only) with EAS profiles (dev/preview/prod).",
-    files: require("../templates/expo-sdk54-base.json"),
-  },
-  navigation: {
-    id: "navigation",
-    label: "Navigation",
-    description: "Blank + React Navigation stack + basic screens (Android-only).",
-    files: require("../templates/expo-sdk54-navigation.json"),
-  },
-  crud: {
-    id: "crud",
-    label: "CRUD",
-    description: "Blank + simple CRUD sample + storage (Android-only).",
-    files: require("../templates/expo-sdk54-crud.json"),
-  },
-  full: {
-    id: "full",
-    label: "Full",
-    description: "Blank + React Navigation + CRUD sample (Android-only).",
-    files: require("../templates/expo-sdk54-full.json"),
-  },
-};
 
 const ProjectContext = createContext<ProjectContextProps | undefined>(
   undefined,
@@ -197,19 +125,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   const updateProjectFiles = useCallback(
     async (files: ProjectFile[], newName?: string) => {
       await updateProject((prev) => {
-        const fileMap = new Map(prev.files.map((f) => [f.path, f]));
-        files.forEach((file) => {
-          fileMap.set(file.path, file);
-        });
-        const mergedFiles = Array.from(fileMap.values());
+        const mergedFiles = mergeProjectFiles(prev.files, files);
         console.log(
           `📝 Dateien aktualisiert: ${files.length} geändert, ${mergedFiles.length} gesamt`,
         );
-        return {
-          ...prev,
-          files: mergedFiles,
-          name: newName || prev.name,
-        };
+        return applyProjectFileUpdates(prev, files, newName);
       });
     },
     [updateProject],
@@ -248,7 +168,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     },
     [updateProject],
   );
-
 
   const setPackageName = useCallback(
     async (packageName: string) => {
@@ -555,7 +474,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     [updateProject],
   );
 
-
   const setAdvancedTemplatePickerEnabled = useCallback(async (enabled: boolean) => {
     await updateProject((prev) => ({
       ...prev,
@@ -652,7 +570,6 @@ const setPreferredBuildProfile = useCallback(
     buildPollErrorCountRef.current = 0;
     activeBuildJobIdRef.current = null;
   }, []);
-
 
 const pauseBuildPolling = useCallback(() => {
   if (buildPollIntervalRef.current) {
@@ -847,7 +764,6 @@ useEffect(() => {
   });
   return () => sub.remove();
 }, [pauseBuildPolling, pollBuildStatusOnce]);
-
 
   const startBuild = useCallback(
     async (buildProfile?: string) => {

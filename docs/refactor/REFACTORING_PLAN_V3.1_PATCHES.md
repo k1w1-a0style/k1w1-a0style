@@ -29,6 +29,7 @@ This is a patchable version of the Refactoring Plan V3, adjusted to avoid duplic
 ## PR-5: ProjectContext slimming
 - Move pure domain logic into `project/domain/*`
 - Side-effects into `project/services/*`
+  - ✅ PR-5 stage 1 implemented by Patch 152 (template loader + file mutations)
 
 ## PR-6: Diagnostics + templateChecklist split
 - Split `lib/templateChecklist.ts` into smaller check modules under `lib/diagnostics/templates/*`
@@ -46,3 +47,7 @@ This is a patchable version of the Refactoring Plan V3, adjusted to avoid duplic
 ## Patch 151
 - PR-4 stage 2: Split `infra/github/githubService.ts` into focused modules (`tokenStore`, `repos`, `files`, `secrets`, `workflows`, plus shared helpers).
 - Keep the public API stable through re-exports.
+
+## Patch 152
+- PR-5 stage 1: Extract template loading (`project/services/templateLoader.ts`) and pure file update helpers (`project/domain/projectFileMutations.ts`) out of `contexts/ProjectContext.tsx`.
+- Keep behavior stable; ProjectContext remains the single state/persistence coordinator.
