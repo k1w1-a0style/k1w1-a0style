@@ -1,7 +1,6 @@
 # Project Checklog
 
-- Patch 147 applied: V3.1 scaffolding added (shared/types + docs/refactor + scripts/refactor)
-- Patch 148 applied: storage persistence moved to infra/storage with contexts facade
-- Patch 149 applied: build polling extracted to project/services with useBuildStatus as single hook
-- Patch 149 applied: polling logic extracted to project/services and useBuildStatus uses the service
-- Patch 149 applied: build polling extracted to project/services with useBuildStatus calling the service
+- Patch 147 (2026-02-16): V3.1 scaffolding (shared/types + docs/refactor + scripts/refactor)
+- Patch 148 (2026-02-16): Storage persistence moved to infra/storage with contexts facade (PR-2)
+- Patch 149 (2026-02-16): Build polling extracted to project/services; useBuildStatus remains single hook (PR-3)
+- Patch 150 (2026-02-16): GitHub service moved to infra/github with contexts facade (PR-4 stage 1)

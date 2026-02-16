@@ -23,6 +23,7 @@ This is a patchable version of the Refactoring Plan V3, adjusted to avoid duplic
 ## PR-4: GitHub infra split
 - Create `infra/github/*`
 - Keep `contexts/githubService.ts` as facade until all callers migrated
+  - ✅ PR-4 stage 1 implemented by Patch 150 (move + facade)
 
 ## PR-5: ProjectContext slimming
 - Move pure domain logic into `project/domain/*`
@@ -36,3 +37,7 @@ This is a patchable version of the Refactoring Plan V3, adjusted to avoid duplic
 - Remove facades when no longer used
 - Tighten lint rules
 - Keep docs + changelog updated
+
+
+## Patch 150
+- PR-4 stage 1: Move `contexts/githubService.ts` → `infra/github/githubService.ts` + keep `contexts/githubService.ts` as facade.
