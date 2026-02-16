@@ -22,6 +22,11 @@ Stand: **2026-02-15**
 
 ### Patch 141 — CI Lite Chain-Run + UI Polish
 - [x] Autofix → automatisch CI Lite Chain-Run (gleiche `job_id`)
+
+### Patch 145 — CI Lite Compact Modal + Drawer Cleanup
+- [x] CI Lite als zentriertes Modal (errors-only, minimal Actions)
+- [x] Header Icons konsistent neon
+- [x] Drawer: keine doppelten Menüs, Card/Plate Look
 - [x] Header-Optik/Neon-Dark: Status-Lämpchen + Running-Pulse
 
 ### Patch 142 — Selection Sync + Glow (WICHTIG)

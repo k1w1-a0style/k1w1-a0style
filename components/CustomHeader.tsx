@@ -71,7 +71,7 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
           <Ionicons
             name="menu"
             size={24}
-            color={theme.palette.text.primary}
+            color={theme.palette.primary}
           />
         </Pressable>
       </View>
@@ -101,7 +101,7 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
           <Ionicons
             name="eye-outline"
             size={22}
-            color={theme.palette.text.primary}
+            color={theme.palette.primary}
           />
         </Pressable>
 
@@ -118,9 +118,9 @@ export default CustomHeader;
 const styles = StyleSheet.create({
   header: {
     height: HEADER_HEIGHT,
-    backgroundColor: theme.palette.background,
+    backgroundColor: theme.palette.backgroundDark,
     borderBottomWidth: 1,
-    borderBottomColor: `${theme.palette.primary}22`,
+    borderBottomColor: `${theme.palette.primary}33`,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: theme.spacing.sm,
@@ -137,9 +137,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: theme.borderRadius.full,
+    borderWidth: 1,
+    borderColor: `${theme.palette.primary}22`,
+    backgroundColor: theme.palette.background,
   },
   iconBtnPressed: {
-    backgroundColor: theme.palette.cardHover,
+    backgroundColor: `${theme.palette.primary}10`,
   },
   title: {
     color: theme.palette.text.primary,

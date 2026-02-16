@@ -724,3 +724,5 @@ Ich habe die Aussagen **kritisch** bewertet (was plausibel ist, was nachweis/Cod
 2026-02-15  Patch 142  Selection sync (project linkedRepo/linkedBranch → GitHubContext) + selection glow + Patch 141 TS hotfix
 2026-02-15  Patch 143  Drawer UI: neon polish + quick actions + cleanup note
 2026-02-15  Patch 144  Drawer UI: grafisches Neon-Polish (pulse lamps, rails, section icons) + remove backup file
+2026-02-16  Patch 145  CI Lite: compact modal (errors-only) + header icons neon unify + drawer plates/no-duplicates + better Edge error hints
+2026-02-16  Patch 146  CI Lite: TS hotfix (restore missing StyleSheet keys for StepPill/Patch panel)

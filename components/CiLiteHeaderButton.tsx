@@ -5,7 +5,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Alert,
   Animated,
+  ActivityIndicator,
+  Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -18,12 +21,10 @@ import { v4 as uuidv4 } from "uuid";
 import * as Clipboard from "expo-clipboard";
 
 import { theme } from "../theme";
-import { ensureSupabaseClient } from "../lib/supabase";
 import { getSupabaseEdgeUrl } from "../lib/supabaseEdge";
 import { useGitHub } from "../contexts/GitHubContext";
 import { useProject } from "../contexts/ProjectContext";
 import { getDefaultBranch, getEdgeAdminKey, pushFilesToRepo } from "../contexts/githubService";
-import { BuildLogsModal } from "./BuildLogsModal";
 import { useGitHubActionsLogs } from "../hooks/useGitHubActionsLogs";
 import { redactSecrets, truncateWithMarker } from "../lib/secretRedaction";
 
@@ -186,6 +187,25 @@ function StatusLamp({
   );
 }
 
+function AnimatedDots({ active }: { active: boolean }) {
+  const [dots, setDots] = useState<string>("");
+
+  useEffect(() => {
+    if (!active) {
+      setDots("");
+      return;
+    }
+    let n = 0;
+    const t = setInterval(() => {
+      n = (n + 1) % 4;
+      setDots(".".repeat(n));
+    }, 350);
+    return () => clearInterval(t);
+  }, [active]);
+
+  return <Text style={styles.dots}>{dots}</Text>;
+}
+
 export default function CiLiteHeaderButton(): React.ReactElement {
   const { activeRepo, activeBranch } = useGitHub();
   const { projectData, updateProjectFiles, deleteFile } = useProject();
@@ -290,7 +310,6 @@ export default function CiLiteHeaderButton(): React.ReactElement {
     workflowRun,
     isLoading: logsLoading,
     error: logsError,
-    refreshLogs,
   } = useGitHubActionsLogs({
     githubRepo: visible ? githubRepo || null : null,
     runId,
@@ -723,26 +742,46 @@ export default function CiLiteHeaderButton(): React.ReactElement {
         await pushFilesToRepo(owner, repo, projectData.files as any, targetBranch);
 
         // 2) Dispatch workflow via Edge (server-side token).
-        const supabase = await ensureSupabaseClient();
+        // Use direct fetch instead of supabase.functions.invoke so we can show richer error details.
         const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
-        const invokeOpts: { body: any; headers?: Record<string, string> } = {
-          body: {
-            githubRepo,
-            workflow: workflowFile,
+        if (!edgeAdminKey) {
+          throw new Error(
+            "Edge Admin Key fehlt. Bitte im Verbindungen/Credentials Wizard setzen (Supabase Edge Admin Key).",
+          );
+        }
+
+        const edgeUrl = await getSupabaseEdgeUrl();
+        const dispatchBody = {
+          githubRepo,
+          workflow: workflowFile,
+          ref: targetBranch,
+          inputs: {
             ref: targetBranch,
-            inputs: {
-              ref: targetBranch,
-              job_id: newJobId,
-            },
+            job_id: newJobId,
           },
         };
-        if (edgeAdminKey) invokeOpts.headers = { "x-k1w1-admin-key": edgeAdminKey };
 
-        const { error } = await supabase.functions.invoke(
-          "github-workflow-dispatch",
-          invokeOpts,
-        );
-        if (error) throw error;
+        const r = await fetch(`${edgeUrl}/github-workflow-dispatch`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-k1w1-admin-key": edgeAdminKey,
+          },
+          body: JSON.stringify(dispatchBody),
+        });
+
+        if (!r.ok) {
+          const t = await r.text().catch(() => "");
+          const hint =
+            r.status === 404
+              ? " (Edge Function nicht deployed?)"
+              : r.status === 401 || r.status === 403
+                ? " (Admin-Key falsch/fehlt)"
+                : "";
+          throw new Error(
+            `github-workflow-dispatch failed (${r.status}): ${safeUi(t || r.statusText)}${hint}`,
+          );
+        }
 
         // 3) Poll until run appears.
         const start = Date.now();
@@ -788,46 +827,60 @@ export default function CiLiteHeaderButton(): React.ReactElement {
   );
 
   const isAutofix = workflowId === WORKFLOW_CI_LITE_AUTOFIX;
-
-  const extraPills = useMemo(() => {
-    return [
-      {
-        label: "Open Run",
-        onPress: async () => {
-          const url = runUrl || workflowRun?.html_url;
-          if (!url) return;
-          try {
-            const can = await Linking.canOpenURL(url);
-            if (can) await Linking.openURL(url);
-          } catch {
-            // ignore
-          }
-        },
-        disabled: !(runUrl || workflowRun?.html_url),
-      },
-      {
-        label: patchPanelOpen ? "Hide Patch" : "Apply Patch",
-        onPress: () => {
-          setPatchPanelOpen((v) => !v);
-          // Keep modal open and show latest validation info if present.
-          if (!patchPanelOpen) setPatchInfo(null);
-        },
-        disabled: false,
-      },
-      {
-        label: dispatching ? "Autofix…" : "Autofix ESLint",
-        onPress: () => dispatchWorkflow(WORKFLOW_CI_LITE_AUTOFIX),
-        disabled: dispatching,
-      },
-    ];
-  }, [runUrl, workflowRun?.html_url, dispatching, dispatchWorkflow, patchPanelOpen]);
-
   const showError = safeUi(localError || logsError || "");
+
+  const onlyErrors = useMemo(() => {
+    const lines = logLines || [];
+    const out: string[] = [];
+    for (const l of lines) {
+      if (/error\s+TS\d+:/i.test(l)) out.push(l);
+      else if (/\serror\s{2,}/i.test(l) && !/error\s+TS\d+:/i.test(l)) out.push(l);
+      else if (/JSX element .* has no corresponding closing tag/i.test(l)) out.push(l);
+      else if (/Process completed with exit code\s+(?!0)\d+/i.test(l)) out.push(l);
+    }
+    return out;
+  }, [logLines]);
+
+  const done = useMemo(() => {
+    if (workflowRun?.status === "completed") return true;
+    if (logLines?.some((l) => /Process completed with exit code/i.test(l))) return true;
+    return false;
+  }, [workflowRun?.status, logLines]);
+
+  const ok = useMemo(() => {
+    if (!done) return false;
+    const concl = (workflowRun?.conclusion || "").toLowerCase();
+    if (concl === "success") return true;
+    // fallback: no errors detected
+    return onlyErrors.length === 0 && !showError;
+  }, [done, workflowRun?.conclusion, onlyErrors.length, showError]);
+
+  const busy = dispatching || logsLoading || (workflowRun?.status === "in_progress");
+
+  const statusText = useMemo(() => {
+    if (busy) {
+      if (stepInfo.typecheck === "waiting" || stepInfo.typecheck === "idle") return "Lint-Check läuft";
+      return "TypeScript-Check läuft";
+    }
+    if (done && ok) return "Alles grün";
+    if (done && !ok) return "Fehler gefunden";
+    return "Bereit";
+  }, [busy, stepInfo.typecheck, done, ok]);
+
+  const statusLamp: StepState = useMemo(() => {
+    if (busy) return "running";
+    if (done && ok) return "success";
+    if (done && !ok) return "failure";
+    return "waiting";
+  }, [busy, done, ok]);
 
   return (
     <>
       <Pressable
-        onPress={() => dispatchWorkflow(WORKFLOW_CI_LITE)}
+        onPress={() => {
+          setVisible(true);
+          dispatchWorkflow(WORKFLOW_CI_LITE);
+        }}
         style={({ pressed }) => [
           styles.iconBtn,
           styles.ciBtn,
@@ -852,45 +905,236 @@ export default function CiLiteHeaderButton(): React.ReactElement {
         </View>
       </Pressable>
 
-      <BuildLogsModal
+      <Modal
         visible={visible}
-        onClose={() => {
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
           setVisible(false);
           stopPolling();
         }}
-        title={isAutofix ? "CI: Autofix ESLint" : "CI: Lint + Typecheck"}
-        topContent={topContent}
-        extraPills={extraPills}
-        logs={logLines}
-        isLoading={dispatching || logsLoading}
-        error={showError ? showError : null}
-        onManualRefresh={async () => {
-          // If we still don't have a runId, re-poll quickly.
-          if (!runId && jobId && githubRepo) {
-            try {
-              const b = (targetRef || branch || "").trim();
-              const found = await findRunByJobId({
-                githubRepo,
-                branch: b,
-                jobId,
-                workflow: workflowId,
-              });
-              if (found?.id) {
-                setRunId(Number(found.id));
-                setRunUrl(typeof found?.html_url === "string" ? found.html_url : null);
-              }
-            } catch (e: any) {
-              setLocalError(e?.message || String(e));
-            }
-          }
-          await refreshLogs();
-        }}
-        autoRefreshEnabled={visible}
-        onToggleAutoRefresh={() => {
-          // controlled by visibility (keep it simple)
-        }}
-        defaultOnlyErrors={true}
-      />
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => {
+            setVisible(false);
+            stopPolling();
+          }}
+        >
+          <Pressable style={styles.modalCard} onPress={() => {}}>
+            <View style={styles.modalHeaderRow}>
+              <View style={styles.modalTitleRow}>
+                <StatusLamp state={statusLamp} size={10} />
+                <Text style={styles.modalTitle}>
+                  {isAutofix ? "Autofix ESLint" : "CI Lite"}
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={() => {
+                  setVisible(false);
+                  stopPolling();
+                }}
+                style={({ pressed }) => [styles.closeBtn, pressed && styles.closeBtnPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Schließen"
+              >
+                <Ionicons name="close" size={18} color={theme.palette.primary} />
+              </Pressable>
+            </View>
+
+            <View style={styles.statusRow}>
+              <Text style={styles.statusText}>{statusText}</Text>
+              <AnimatedDots active={busy} />
+              {busy ? (
+                <ActivityIndicator size="small" color={theme.palette.primary} style={{ marginLeft: 8 }} />
+              ) : null}
+            </View>
+
+            <View style={styles.metaBox}>
+              <Text style={styles.metaLine} numberOfLines={1}>
+                Repo: {githubRepo || "(kein Repo)"}
+              </Text>
+              <Text style={styles.metaLine} numberOfLines={1}>
+                Branch: {targetRef || branch || "(auto)"}
+              </Text>
+              {jobId ? (
+                <Text style={styles.metaLine} numberOfLines={1}>
+                  job_id: {jobId}
+                </Text>
+              ) : null}
+
+              <View style={styles.stepsCompactRow}>
+                <View style={styles.stepCompact}>
+                  <StatusLamp state={stepInfo.lint} size={9} />
+                  <Text style={styles.stepCompactText}>ESLint</Text>
+                </View>
+                <View style={styles.stepCompact}>
+                  <StatusLamp state={stepInfo.typecheck} size={9} />
+                  <Text style={styles.stepCompactText}>Typecheck</Text>
+                </View>
+              </View>
+            </View>
+
+            {showError ? (
+              <View style={styles.errorBox}>
+                <Ionicons name="alert-circle" size={16} color={theme.palette.error} />
+                <Text style={styles.errorText}>{showError}</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.resultsHead}>
+              <Text style={styles.resultsTitle}>Ergebnisse</Text>
+              {done ? (
+                ok ? (
+                  <Text style={styles.okText}>✅ OK</Text>
+                ) : (
+                  <Text style={styles.badText}>❌ Fehler</Text>
+                )
+              ) : (
+                <Text style={styles.waitText}>…</Text>
+              )}
+            </View>
+
+            <View style={styles.resultsBox}>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {done && ok && onlyErrors.length === 0 ? (
+                  <Text style={styles.okHint}>Keine Fehler gefunden.</Text>
+                ) : null}
+
+                {onlyErrors.map((l, idx) => (
+                  <Text key={`${idx}-${l.slice(0, 24)}`} style={styles.logLine}>
+                    {safeUi(l)}
+                  </Text>
+                ))}
+              </ScrollView>
+            </View>
+
+            {patchPanelOpen ? (
+              <View style={styles.patchPanelCompact}>
+                <View style={styles.patchTopRow}>
+                  <Text style={styles.patchTitleCompact}>Apply Patch (JSON)</Text>
+                  <Pressable
+                    onPress={pastePatchFromClipboard}
+                    style={({ pressed }) => [styles.tinyBtn, pressed && styles.tinyBtnPressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Paste"
+                  >
+                    <Text style={styles.tinyBtnText}>Paste</Text>
+                  </Pressable>
+                </View>
+                <TextInput
+                  value={patchText}
+                  onChangeText={setPatchText}
+                  placeholder='{"upsert":[{"path":"...","content":"..."}]}'
+                  placeholderTextColor={theme.palette.text.secondary}
+                  multiline
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={styles.patchInputCompact}
+                />
+                <View style={styles.patchBtnRow}>
+                  <Pressable
+                    onPress={validatePatchAndShow}
+                    style={({ pressed }) => [styles.tinyBtn, pressed && styles.tinyBtnPressed]}
+                  >
+                    <Text style={styles.tinyBtnText}>Validate</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={applyPatchFromText}
+                    disabled={patchBusy}
+                    style={({ pressed }) => [
+                      styles.tinyBtn,
+                      styles.tinyBtnPrimary,
+                      pressed && !patchBusy && styles.tinyBtnPressed,
+                      patchBusy && styles.tinyBtnDisabled,
+                    ]}
+                  >
+                    <Text style={styles.tinyBtnText}>{patchBusy ? "Applying…" : "Apply"}</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setPatchPanelOpen(false)}
+                    style={({ pressed }) => [styles.tinyBtn, pressed && styles.tinyBtnPressed]}
+                  >
+                    <Text style={styles.tinyBtnText}>Close</Text>
+                  </Pressable>
+                </View>
+                {patchInfo ? (
+                  <Text style={styles.patchInfoCompact} numberOfLines={8}>
+                    {safeUi(patchInfo)}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            <View style={styles.actionsRow}>
+              <Pressable
+                onPress={async () => {
+                  try {
+                    const joined = safeUi(onlyErrors.join("\n"));
+                    await Clipboard.setStringAsync(joined || "(keine Fehler)");
+                  } catch {
+                    // ignore
+                  }
+                }}
+                style={({ pressed }) => [styles.actionBtn, pressed && styles.actionBtnPressed]}
+              >
+                <Ionicons name="copy-outline" size={16} color={theme.palette.primary} />
+                <Text style={styles.actionBtnText}>Copy</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={async () => {
+                  const url = runUrl || workflowRun?.html_url;
+                  if (!url) return;
+                  try {
+                    const can = await Linking.canOpenURL(url);
+                    if (can) await Linking.openURL(url);
+                  } catch {
+                    // ignore
+                  }
+                }}
+                disabled={!(runUrl || workflowRun?.html_url)}
+                style={({ pressed }) => [
+                  styles.actionBtn,
+                  !(runUrl || workflowRun?.html_url) && styles.actionBtnDisabled,
+                  pressed && (runUrl || workflowRun?.html_url) && styles.actionBtnPressed,
+                ]}
+              >
+                <Ionicons name="open-outline" size={16} color={theme.palette.primary} />
+                <Text style={styles.actionBtnText}>Run</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => {
+                  setPatchPanelOpen(true);
+                  setPatchInfo(null);
+                }}
+                style={({ pressed }) => [styles.actionBtn, pressed && styles.actionBtnPressed]}
+              >
+                <Ionicons name="hammer-outline" size={16} color={theme.palette.primary} />
+                <Text style={styles.actionBtnText}>Patch</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => dispatchWorkflow(WORKFLOW_CI_LITE_AUTOFIX)}
+                disabled={dispatching}
+                style={({ pressed }) => [
+                  styles.actionBtn,
+                  styles.actionBtnPrimary,
+                  dispatching && styles.actionBtnDisabled,
+                  pressed && !dispatching && styles.actionBtnPressed,
+                ]}
+              >
+                <Ionicons name="flash-outline" size={16} color={theme.palette.background} />
+                <Text style={[styles.actionBtnText, styles.actionBtnTextPrimary]}>
+                  {dispatching ? "…" : "Autofix"}
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </>
   );
 }
@@ -924,64 +1168,163 @@ const styles = StyleSheet.create({
     right: -2,
     top: -2,
   },
-  summaryBox: {
+
+  // --- Compact modal UI (center card) ---
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 14,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 520,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: `${theme.palette.primary}2a`,
+    backgroundColor: theme.palette.card,
+    padding: 14,
+    ...(theme.glow.primarySubtle as any),
+  },
+  modalHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  modalTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  modalTitle: {
+    color: theme.palette.text.primary,
+    fontSize: 15,
+    fontWeight: "900",
+    letterSpacing: 0.2,
+  },
+  closeBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: `${theme.palette.primary}22`,
+    backgroundColor: theme.palette.background,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closeBtnPressed: {
+    opacity: 0.85,
+  },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  statusText: {
+    color: theme.palette.text.secondary,
+    fontWeight: "800",
+    fontSize: 12,
+  },
+  dots: {
+    color: theme.palette.text.secondary,
+    fontWeight: "900",
+    fontSize: 12,
+    marginLeft: 2,
+  },
+  metaBox: {
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.background,
+    borderRadius: 16,
+    padding: 12,
+  },
+  metaLine: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    marginBottom: 3,
+  },
+  stepsCompactRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 8,
+  },
+  stepCompact: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     borderWidth: 1,
     borderColor: theme.palette.border,
     backgroundColor: theme.palette.card,
-    borderRadius: 14,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  stepCompactText: {
+    color: theme.palette.text.primary,
+    fontWeight: "800",
+    fontSize: 12,
+  },
+
+  // --- Legacy/compat style keys (kept to avoid TS errors after UI refactors) ---
+  // These map older names used by helper components (StepPill / Patch panel) to
+  // the current compact modal style system.
+  stepPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  stepText: {
+    color: theme.palette.text.primary,
+    fontWeight: "800",
+    fontSize: 12,
+  },
+  summaryBox: {
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.background,
+    borderRadius: 16,
     padding: 12,
   },
   summaryTitle: {
     color: theme.palette.text.primary,
-    fontWeight: "800",
-    marginBottom: 4,
+    fontWeight: "900",
+    fontSize: 13,
+    marginBottom: 6,
   },
   summaryLine: {
     color: theme.palette.text.secondary,
     fontSize: 12,
-    marginBottom: 2,
+    marginBottom: 3,
   },
   stepsRow: {
     flexDirection: "row",
+    gap: 10,
     marginTop: 8,
-    flexWrap: "wrap",
-  },
-  stepPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    backgroundColor: theme.palette.background,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  stepText: {
-    color: theme.palette.text.primary,
-    fontSize: 12,
-    fontWeight: "700",
-    marginLeft: 6,
   },
   findings: {
-    marginTop: 2,
-    color: theme.palette.text.primary,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  summaryHint: {
-    marginTop: 2,
     color: theme.palette.text.secondary,
     fontSize: 12,
+    fontWeight: "800",
   },
-
+  summaryHint: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    marginTop: 6,
+  },
   patchPanel: {
-    marginTop: 10,
+    marginTop: 12,
     borderWidth: 1,
     borderColor: theme.palette.border,
     backgroundColor: theme.palette.background,
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 10,
   },
   patchHeadRow: {
@@ -992,8 +1335,8 @@ const styles = StyleSheet.create({
   },
   patchTitle: {
     color: theme.palette.text.primary,
+    fontWeight: "900",
     fontSize: 12,
-    fontWeight: "800",
   },
   patchMiniBtn: {
     borderWidth: 1,
@@ -1001,19 +1344,19 @@ const styles = StyleSheet.create({
     backgroundColor: theme.palette.card,
     borderRadius: 999,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 7,
   },
   patchMiniBtnPressed: {
     opacity: 0.85,
   },
   patchMiniBtnText: {
     color: theme.palette.text.primary,
+    fontWeight: "900",
     fontSize: 12,
-    fontWeight: "700",
   },
   patchInput: {
-    minHeight: 120,
-    maxHeight: 220,
+    minHeight: 90,
+    maxHeight: 180,
     borderWidth: 1,
     borderColor: theme.palette.border,
     backgroundColor: theme.palette.card,
@@ -1025,6 +1368,7 @@ const styles = StyleSheet.create({
   patchActionsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
+    gap: 8,
     marginTop: 10,
   },
   patchBtn: {
@@ -1032,13 +1376,13 @@ const styles = StyleSheet.create({
     borderColor: theme.palette.border,
     backgroundColor: theme.palette.card,
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginRight: 8,
-    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
   },
   patchBtnPrimary: {
     borderColor: theme.palette.primary,
+    backgroundColor: theme.palette.primary,
+    ...(theme.glow.primarySubtle as any),
   },
   patchBtnPressed: {
     opacity: 0.85,
@@ -1048,12 +1392,175 @@ const styles = StyleSheet.create({
   },
   patchBtnText: {
     color: theme.palette.text.primary,
+    fontWeight: "900",
     fontSize: 12,
-    fontWeight: "800",
   },
   patchInfo: {
-    marginTop: 6,
+    marginTop: 10,
     color: theme.palette.text.secondary,
+    fontSize: 12,
+  },
+  errorBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: `${theme.palette.error}44`,
+    backgroundColor: "rgba(255,68,68,0.08)",
+  },
+  errorText: {
+    flex: 1,
+    color: theme.palette.text.primary,
+    fontSize: 12,
+  },
+  resultsHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  resultsTitle: {
+    color: theme.palette.text.primary,
+    fontWeight: "900",
+    fontSize: 13,
+  },
+  okText: {
+    color: theme.palette.primary,
+    fontWeight: "900",
+  },
+  badText: {
+    color: theme.palette.error,
+    fontWeight: "900",
+  },
+  waitText: {
+    color: theme.palette.text.secondary,
+    fontWeight: "900",
+  },
+  resultsBox: {
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.background,
+    borderRadius: 16,
+    padding: 10,
+    maxHeight: 260,
+  },
+  okHint: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    paddingVertical: 6,
+  },
+  logLine: {
+    color: theme.palette.text.primary,
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 6,
+  },
+
+  patchPanelCompact: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.background,
+    borderRadius: 16,
+    padding: 10,
+  },
+  patchTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  patchTitleCompact: {
+    color: theme.palette.text.primary,
+    fontWeight: "900",
+    fontSize: 12,
+  },
+  patchInputCompact: {
+    minHeight: 90,
+    maxHeight: 180,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
+    borderRadius: 12,
+    padding: 10,
+    color: theme.palette.text.primary,
+    fontSize: 12,
+  },
+  patchBtnRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 10,
+  },
+  patchInfoCompact: {
+    marginTop: 10,
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+  },
+
+  actionsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+  },
+  actionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: `${theme.palette.primary}22`,
+    backgroundColor: theme.palette.background,
+    minWidth: 92,
+  },
+  actionBtnPrimary: {
+    backgroundColor: theme.palette.primary,
+    borderColor: theme.palette.primary,
+    ...(theme.glow.primarySubtle as any),
+  },
+  actionBtnPressed: {
+    opacity: 0.85,
+  },
+  actionBtnDisabled: {
+    opacity: 0.45,
+  },
+  actionBtnText: {
+    color: theme.palette.text.primary,
+    fontWeight: "900",
+    fontSize: 12,
+  },
+  actionBtnTextPrimary: {
+    color: theme.palette.background,
+  },
+
+  tinyBtn: {
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  tinyBtnPrimary: {
+    borderColor: theme.palette.primary,
+  },
+  tinyBtnPressed: {
+    opacity: 0.85,
+  },
+  tinyBtnDisabled: {
+    opacity: 0.55,
+  },
+  tinyBtnText: {
+    color: theme.palette.text.primary,
+    fontWeight: "900",
     fontSize: 12,
   },
 });

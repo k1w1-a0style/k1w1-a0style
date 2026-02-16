@@ -156,6 +156,31 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
   ) => {
     const active = isActive(screen);
 
+    const accent = (() => {
+      switch (screen) {
+        case "Home":
+          return theme.palette.info;
+        case "Connections":
+          return theme.palette.warning;
+        case "Settings":
+          return theme.palette.info;
+        case "GitHubRepos":
+          return theme.palette.primary;
+        case "EnhancedBuild":
+          return theme.palette.primary;
+        case "Diagnostic":
+          return theme.palette.error;
+        case "CredentialsWizard":
+          return theme.palette.warning;
+        case "Preview":
+          return theme.palette.info;
+        case "AppInfo":
+          return theme.palette.info;
+        default:
+          return theme.palette.text.secondary;
+      }
+    })();
+
     return (
       <Pressable
         key={screen}
@@ -189,11 +214,17 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
           pulse={active}
         />
 
-        <View style={[styles.iconContainer, active && styles.iconContainerActive]}>
+        <View
+          style={[
+            styles.iconContainer,
+            active && styles.iconContainerActive,
+            !active && { borderColor: `${accent}33` },
+          ]}
+        >
           <Ionicons
             name={iconName}
             size={19}
-            color={active ? theme.palette.primary : theme.palette.text.secondary}
+            color={active ? theme.palette.primary : accent}
           />
         </View>
 
@@ -292,30 +323,6 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
               {profileChip}
             </Text>
           </View>
-        </View>
-
-        {/* Quick actions */}
-        <View style={styles.quickRow}>
-          <Pressable style={styles.quickAction} onPress={() => navigateTo("GitHubRepos")}>
-            <View style={styles.quickIconWrap}>
-              <Ionicons name="logo-github" size={18} color={theme.palette.primary} />
-            </View>
-            <Text style={styles.quickActionText}>Repos</Text>
-          </Pressable>
-
-          <Pressable style={styles.quickAction} onPress={() => navigateTo("EnhancedBuild")}>
-            <View style={styles.quickIconWrap}>
-              <Ionicons name="construct-outline" size={18} color={theme.palette.primary} />
-            </View>
-            <Text style={styles.quickActionText}>Build</Text>
-          </Pressable>
-
-          <Pressable style={styles.quickAction} onPress={() => navigateTo("Diagnostic")}>
-            <View style={styles.quickIconWrap}>
-              <Ionicons name="bug-outline" size={18} color={theme.palette.primary} />
-            </View>
-            <Text style={styles.quickActionText}>Diagnose</Text>
-          </Pressable>
         </View>
 
         <LinearGradient
@@ -469,40 +476,6 @@ const styles = StyleSheet.create({
     color: theme.palette.text.secondary,
   },
 
-  quickRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 10,
-  },
-  quickAction: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: theme.borderRadius.lg,
-    borderWidth: 1,
-    borderColor: `${theme.palette.primary}22`,
-    backgroundColor: "transparent",
-  },
-  quickIconWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: `${theme.palette.primary}22`,
-    backgroundColor: "rgba(0,255,0,0.06)",
-    ...(theme.glow.primarySubtle as any),
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  quickActionText: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: theme.palette.text.secondary,
-    letterSpacing: 0.2,
-  },
-
   neonDivider: {
     height: 1,
     marginTop: theme.spacing.md,
@@ -558,7 +531,8 @@ const styles = StyleSheet.create({
     marginVertical: 2,
     borderRadius: theme.borderRadius.lg,
     borderWidth: 1,
-    borderColor: "transparent",
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
     position: "relative",
     overflow: "hidden",
   },
@@ -569,7 +543,7 @@ const styles = StyleSheet.create({
     ...(theme.glow.primarySubtle as any),
   },
   drawerItemPressed: {
-    backgroundColor: `${theme.palette.primary}10`,
+    backgroundColor: theme.palette.cardHover,
   },
 
   activeRail: {
@@ -590,9 +564,9 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: theme.borderRadius.md,
-    backgroundColor: theme.palette.background,
+    backgroundColor: theme.palette.backgroundDark,
     borderWidth: 1,
-    borderColor: "rgba(0,255,0,0.22)",
+    borderColor: `${theme.palette.primary}22`,
     alignItems: "center",
     justifyContent: "center",
     marginRight: theme.spacing.sm,
