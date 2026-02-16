@@ -4,6 +4,10 @@
 
 
 
+## PATCH 147 (2026-02-16)
+- Vollständigen Sourcecode-Dump als PDF im Repo-Root erzeugt: `full_sourcecode_dump.pdf`.
+- Verifiziert: `typecheck`, `lint:ci`, `test:silent` grün.
+
 ## PATCH 137 (2026-02-15)
 - Jest Worker-Warnung (`worker process failed to exit gracefully`) entschärft durch globales Test-Teardown.
 - `jest.setup.js`: `cleanup()` + `clearAllMocks/Timers` + `useRealTimers` nach jedem Test.
