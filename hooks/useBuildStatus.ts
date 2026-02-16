@@ -7,60 +7,16 @@
 // ✅ Kein Race Condition durch errorCount in Dependencies
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { CONFIG } from "../config";
-import { BuildStatus, mapBuildStatus } from "../lib/buildStatusMapper";
+import { BuildStatus } from "../lib/buildStatusMapper";
 import { BuildStatusDetails } from "../lib/supabaseTypes";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { STORAGE_KEYS } from "../lib/storageKeys";
-import { getEdgeAdminKey } from "../contexts/githubService";
+import {
+  pollBuildStatusOnce,
+  isFinalStatus,
+} from "../project/services/buildPollingService";
 
 const POLL_INTERVAL_MS = 6000; // 6 Sekunden
 const MAX_ERRORS = 5; // Nach 5 Fehlern stoppen
 const REQUEST_TIMEOUT_MS = 10000; // 10 Sekunden Timeout pro Request
-
-async function getSupabaseEdgeUrl(): Promise<string> {
-  const storedUrl = await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).catch(
-    () => null,
-  );
-  const runtimeUrl =
-    storedUrl ||
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ((typeof process !== "undefined"
-      ? (process as any).env?.EXPO_PUBLIC_SUPABASE_URL
-      : null) as string | null) ||
-    null;
-
-  if (runtimeUrl) {
-    return `${runtimeUrl.replace(/\/$/, "")}/functions/v1`;
-  }
-
-  return CONFIG.API.SUPABASE_EDGE_URL;
-}
-
-// ✅ Timeout-Helper für Fetch
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit,
-  timeoutMs: number,
-): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error: any) {
-    clearTimeout(timeoutId);
-    if (error?.name === "AbortError") {
-      throw new Error("Request timeout - Keine Antwort vom Server");
-    }
-    throw error;
-  }
-}
 
 // ============================================
 // CALLBACK TYPES
@@ -133,39 +89,16 @@ export function useBuildStatus(
         `[useBuildStatus] 🔄 Polling Job ${jobIdFromScreen}. (Fehler: ${errorCountRef.current}/${MAX_ERRORS})`,
       );
 
-      const edgeUrl = await getSupabaseEdgeUrl();
-      const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
-      const res = await fetchWithTimeout(
-        `${edgeUrl}/check-eas-build`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
-          },
-          body: JSON.stringify({ jobId: jobIdFromScreen }),
-        },
-        REQUEST_TIMEOUT_MS,
-      );
+      const result = await pollBuildStatusOnce(jobIdFromScreen, {
+        timeoutMs: REQUEST_TIMEOUT_MS,
+      });
 
       if (!isMountedRef.current) return;
 
-      // ✅ Response parsen (mit Fallback)
-      let json: any = null;
-      try {
-        json = await res.json();
-      } catch (e) {
-        console.warn("[useBuildStatus] JSON Parse fehlgeschlagen:", e);
-        errorCountRef.current += 1;
-        setErrorCount(errorCountRef.current);
-        setLastError("Ungültige Server-Antwort");
-        return;
-      }
-
       // ✅ Fehlerfall
-      if (!res.ok || !json || json.ok === false) {
-        console.log("[useBuildStatus] ❌ Error Response:", json);
-        const errorMsg = json?.error || `HTTP ${res.status}`;
+      if (!result.ok) {
+        console.log("[useBuildStatus] ❌ Error Response:", result.raw);
+        const errorMsg = result.error;
         errorCountRef.current += 1;
         setErrorCount(errorCountRef.current);
         setLastError(errorMsg);
@@ -194,16 +127,10 @@ export function useBuildStatus(
       setErrorCount(0);
       setLastError(null);
 
-      const mapped = mapBuildStatus(json.status);
+      const mapped = result.status;
       setStatus(mapped);
 
-      const newDetails: BuildStatusDetails = {
-        jobId: jobIdFromScreen,
-        status: mapped,
-        urls: json.urls ?? undefined,
-        raw: json,
-        runId: json.runId || json.run_id || null,
-      };
+      const newDetails: BuildStatusDetails = result.details;
 
       setDetails(newDetails);
       latestDetailsRef.current = newDetails;
@@ -211,7 +138,7 @@ export function useBuildStatus(
       console.log("[useBuildStatus] ✅ Status:", mapped);
 
       // ✅ Polling bei finalen Status stoppen
-      if (["success", "failed", "error"].includes(mapped)) {
+      if (isFinalStatus(mapped)) {
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;

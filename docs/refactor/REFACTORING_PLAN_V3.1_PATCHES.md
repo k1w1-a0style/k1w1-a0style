@@ -13,10 +13,12 @@ This is a patchable version of the Refactoring Plan V3, adjusted to avoid duplic
 ## PR-2: Storage consolidation (NO rewrite)
 - Move `contexts/projectStorage.ts` to `infra/storage/projectPersistence.ts`
 - Keep `contexts/projectStorage.ts` as a facade re-export
+  - ✅ Implemented by Patch 148
 
 ## PR-3: Polling consolidation (NO parallel poller)
 - Extract pure polling functions into `project/services/buildPollingService.ts`
 - Keep `hooks/useBuildStatus.ts` as the single hook and call the service
+  - ✅ Implemented by Patch 149
 
 ## PR-4: GitHub infra split
 - Create `infra/github/*`
