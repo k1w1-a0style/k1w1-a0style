@@ -1,5 +1,7 @@
 # Patch Log
 
+- Patch 153: `docs/patches/patch_153.md` (PR-5 stage 2: ProjectContext slimming — archive + build trigger services)
+
 - Patch 152: `docs/patches/patch_152.md` (PR-5 stage 1: ProjectContext slimming — template loader + file mutations)
 - Patch 151: `docs/patches/patch_151.md` (GitHub infra split into modules; barrel exports)
 - Patch 150: `docs/patches/patch_150.md` (GitHub service moved to infra; contexts facade)

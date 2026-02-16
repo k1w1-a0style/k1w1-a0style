@@ -30,6 +30,7 @@ This is a patchable version of the Refactoring Plan V3, adjusted to avoid duplic
 - Move pure domain logic into `project/domain/*`
 - Side-effects into `project/services/*`
   - ✅ PR-5 stage 1 implemented by Patch 152 (template loader + file mutations)
+  - ✅ PR-5 stage 2 implemented by Patch 153 (archive + build trigger services)
 
 ## PR-6: Diagnostics + templateChecklist split
 - Split `lib/templateChecklist.ts` into smaller check modules under `lib/diagnostics/templates/*`
@@ -51,3 +52,8 @@ This is a patchable version of the Refactoring Plan V3, adjusted to avoid duplic
 ## Patch 152
 - PR-5 stage 1: Extract template loading (`project/services/templateLoader.ts`) and pure file update helpers (`project/domain/projectFileMutations.ts`) out of `contexts/ProjectContext.tsx`.
 - Keep behavior stable; ProjectContext remains the single state/persistence coordinator.
+
+## Patch 153
+- PR-5 stage 2: Extract ZIP import/export helpers (`project/services/projectArchiveService.ts`) and build trigger orchestration (`project/services/buildStartService.ts`) out of `contexts/ProjectContext.tsx`.
+- Keep behavior stable; ProjectContext still owns build polling + state.
+

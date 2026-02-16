@@ -27,20 +27,22 @@ import type { TemplateId } from "./types";
 import {
   saveProjectToStorage,
   loadProjectFromStorage,
-  exportProjectAsZipFile,
-  importProjectFromZipFile,
 } from "./projectStorage";
 
 import {
   getGitHubToken,
   getEdgeAdminKey,
   getWorkflowRuns,
-  pushFilesToRepo,
-  getDefaultBranch,
 } from "./githubService";
 
 import { loadTemplateFromFile } from "../project/services/templateLoader";
 import { applyProjectFileUpdates, mergeProjectFiles } from "../project/domain/projectFileMutations";
+import {
+  exportProjectZip,
+  exportTextFilesZip,
+  importProjectZip,
+} from "../project/services/projectArchiveService";
+import { startBuildJob } from "../project/services/buildStartService";
 
 // ✅ FIX: Einheitlicher Validator-Wrapper
 import { validateFilePath, validateFileContent } from "../lib/validators";
@@ -237,7 +239,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       return;
     }
     try {
-      const result = await exportProjectAsZipFile(projectData);
+      const result = await exportProjectZip(projectData);
       Alert.alert(
         "Export erfolgreich",
         `${result.fileCount} Dateien als ZIP gespeichert.`,
@@ -260,54 +262,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       return;
     }
 
-    // Filter out binary/assets so the ZIP is shareable without leaking heavy files.
-    const BINARY_EXT = new Set([
-      "png",
-      "jpg",
-      "jpeg",
-      "webp",
-      "gif",
-      "bmp",
-      "ico",
-      "mp3",
-      "wav",
-      "m4a",
-      "mp4",
-      "mov",
-      "mkv",
-      "zip",
-      "jar",
-      "keystore",
-      "jks",
-      "cer",
-      "der",
-      "p12",
-      "ttf",
-      "otf",
-      "woff",
-      "woff2",
-    ]);
-
-    const isBinaryPath = (p: string) => {
-      const n = String(p || "").toLowerCase();
-      const ext = n.includes(".") ? n.split(".").pop() || "" : "";
-      return BINARY_EXT.has(ext);
-    };
-
-    const filtered = (projectData.files || []).filter((f) => {
-      if (!f?.path || typeof f.path !== "string") return false;
-      const content = typeof (f as any).content === "string" ? (f as any).content : "";
-      if (content.startsWith("base64:")) return false;
-      if (isBinaryPath(f.path)) return false;
-      return true;
-    });
-
     try {
-      const clone = {
-        ...projectData,
-        files: filtered,
-      };
-      const result = await exportProjectAsZipFile(clone as any);
+      const result = await exportTextFilesZip(projectData);
       Alert.alert(
         "Export erfolgreich",
         `${result.fileCount} Textdateien als ZIP gespeichert.`,
@@ -332,9 +288,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           onPress: async () => {
             setIsLoading(true);
             try {
-              const result = await importProjectFromZipFile();
-              result.project.chatHistory = [];
-
+              const result = await importProjectZip();
+              
               const release = await mutexRef.current.acquire();
               try {
                 setProjectData(result.project);
@@ -799,81 +754,14 @@ useEffect(() => {
           lastUpdatedAt: startedAt,
         });
 
-        // ✅ Build läuft auf GitHub. Damit wirklich der aktuelle Stand gebaut wird,
-        // pushen wir (best-effort) die lokalen Projektdateien ins Repo.
-        // ✅ Branch: nutze Projekt-Branch, sonst Default-Branch des Repos (wichtig wenn Repo nicht 'main' nutzt)
-        let buildBranch =
-          typeof pd.linkedBranch === "string" ? pd.linkedBranch.trim() : "";
+        // Build runs on GitHub. Best-effort push local files to repo, then trigger build via Supabase.
+        const started = await startBuildJob({
+          project: pd,
+          buildProfile: profile,
+        });
 
-        try {
-          if (!githubRepo || !githubRepo.includes("/")) {
-            throw new Error(
-              'Kein GitHub-Repo verbunden. Bitte in "Connections" ein Repo verknüpfen.',
-            );
-          }
-          const [owner, repo] = githubRepo.split("/");
-          const localFiles = pd.files;
-
-          if (owner && repo && localFiles?.length) {
-            // ✅ Branch: linkedBranch → repo default branch → fallback main
-            if (!buildBranch) {
-              try {
-                buildBranch = (await getDefaultBranch(owner, repo)).trim();
-              } catch (err) {
-                console.warn(
-                  "⚠️ Default-Branch konnte nicht ermittelt werden, fallback auf 'main':",
-                  err,
-                );
-                buildBranch = "main";
-              }
-            }
-
-            if (!buildBranch) buildBranch = "main";
-
-            await pushFilesToRepo(owner, repo, localFiles as any, buildBranch);
-          }
-        } catch (e) {
-          console.warn(
-            "⚠️ Auto-Push nach GitHub fehlgeschlagen. Build nutzt evtl. alten Repo-Stand:",
-            e,
-          );
-        }
-
-        const supabase = await ensureSupabaseClient();
-        const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
-        const invokeOpts: { body: any; headers?: Record<string, string> } = {
-          body: { githubRepo, buildProfile: profile, branch: buildBranch },
-        };
-        if (edgeAdminKey)
-          invokeOpts.headers = { "x-k1w1-admin-key": edgeAdminKey };
-        const { data, error } = await supabase.functions.invoke(
-          "trigger-eas-build",
-          invokeOpts,
-        );
-
-        if (error) throw error;
-
-        const jobId: string | null =
-          typeof data?.jobId === "string"
-            ? data.jobId
-            : typeof data?.job_id === "string"
-              ? data.job_id
-              : typeof data?.job?.id === "string"
-                ? data.job.id
-                : null;
-
-        if (!jobId) {
-          throw new Error(
-            "❌ trigger-eas-build lieferte keine gültige Job-ID zurück.",
-          );
-        }
-
-        // Extra guard: Supabase build_jobs.id must be UUID
-        if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(jobId)) {
-          throw new Error(
-            `❌ trigger-eas-build lieferte eine ungültige Job-ID (UUID erwartet): ${jobId}`,
-          );
-        }
+        const jobId = started.jobId;
+        const githubRepoResolved = started.githubRepo;
 
         activeBuildJobIdRef.current = jobId;
 
@@ -882,7 +770,7 @@ useEffect(() => {
           status: "queued",
           message: "✅ Build gestartet. Warte auf GitHub Actions…",
           jobId,
-          githubRepo,
+          githubRepo: githubRepoResolved,
           buildProfile: profile,
           lastUpdatedAt: new Date().toISOString(),
         }));
@@ -891,7 +779,7 @@ useEffect(() => {
           await addBuildToHistory({
             id: uuidv4(),
             jobId,
-            repoName: githubRepo,
+            repoName: githubRepoResolved,
             status: "queued",
             startedAt,
             buildProfile: profile,
