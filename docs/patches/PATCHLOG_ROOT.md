@@ -2,6 +2,9 @@
 
 Most recent first.
 
+- Patch 174: `docs/patches/patch_174.md` (Fix import drift audit script: regex + executable)
+- Patch 173: `docs/patches/patch_173.md` (Normalize import drift audit + preflight:fast + docs)
+
 - Patch 166: `docs/patches/patch_166.md` (PR-8 kickoff: post-PR-7 verification + docs/script cleanup)
 - Patch 165: `docs/patches/patch_165.md` (Fix Patch 164 docs + update refactor scripts after facade removal)
 - Patch 164: `docs/patches/patch_164.md` (PR-7 Stage 5: remove facades after migration)
