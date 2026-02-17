@@ -10,7 +10,7 @@ import {
   getSupabaseServiceRoleKey,
   saveSupabaseServiceRoleKey,
   syncRepoSecrets,
-} from "../contexts/githubService";
+} from "../infra/github/githubService";
 
 type AutoSyncResult = {
   updated: string[];

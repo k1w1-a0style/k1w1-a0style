@@ -1,5 +1,7 @@
 # Project Checklog
 
+- Patch 160 (2026-02-17): PR-7 Stage 2 – migrate internal imports away from facades (infra + diagnostics)
+- Patch 160 (2026-02-17): PR-7 Stage 2 – migrate internal imports away from facades (infra/github, infra/storage, diagnostics/templates)
 - Patch 159 (2026-02-17): PR-7 Stage 1 – add warn-only ESLint guardrails to discourage new facade imports
 - Patch 158 (2026-02-17): PR-6 Stage 4 – move checklist runner into diagnostics; templateChecklist becomes a thin facade
 - Patch 157 (2026-02-17): PR-6 Stage 3 – extract template checklist patchers/defaults into dedicated modules (templateChecklist as facade)

@@ -27,7 +27,7 @@ import type { TemplateId } from "./types";
 import {
   saveProjectToStorage,
   loadProjectFromStorage,
-} from "./projectStorage";
+} from "../infra/storage/projectPersistence";
 
 import {
   getGitHubToken,
@@ -52,7 +52,7 @@ import {
   updateBuildInHistory,
 } from "../lib/buildHistoryStorage";
 import { CONFIG } from "../config";
-import { resolveEffectiveTemplateId } from "../lib/templateChecklist";
+import { resolveEffectiveTemplateId } from "../lib/diagnostics/templates";
 
 const SAVE_DEBOUNCE_MS = 500;
 

@@ -6,7 +6,7 @@ import type { ProjectData } from "../../contexts/types";
 import {
   exportProjectAsZipFile,
   importProjectFromZipFile,
-} from "../../contexts/projectStorage";
+} from "../../infra/storage/projectPersistence";
 
 export type ZipExportResult = {
   fileCount: number;

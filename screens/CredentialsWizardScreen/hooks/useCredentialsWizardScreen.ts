@@ -4,7 +4,7 @@ import * as Clipboard from "expo-clipboard";
 
 import { useProject } from "../../../contexts/ProjectContext";
 import { ensureSupabaseClient } from "../../../lib/supabase";
-import { getEdgeAdminKey, saveEdgeAdminKey } from "../../../contexts/githubService";
+import { getEdgeAdminKey, saveEdgeAdminKey } from "../../../infra/github/githubService";
 
 import { useInlineToast } from "../../../components/diagnostics/useInlineToast";
 import { theme } from "../../../theme";

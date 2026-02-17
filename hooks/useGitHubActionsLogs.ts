@@ -1,6 +1,6 @@
 // hooks/useGitHubActionsLogs.ts - Real-time GitHub Actions log streaming
 import { useEffect, useState, useCallback, useRef } from "react";
-import { getEdgeAdminKey } from "../contexts/githubService";
+import { getEdgeAdminKey } from "../infra/github/githubService";
 import { redactSecrets, truncateWithMarker } from "../lib/secretRedaction";
 import { getSupabaseEdgeUrl } from "../lib/supabaseEdge";
 

@@ -29,7 +29,7 @@ import {
   getSupabaseServiceRoleKey,
   saveSupabaseServiceRoleKey,
   deleteSupabaseServiceRoleKey,
-} from "../../../contexts/githubService";
+} from "../../../infra/github/githubService";
 
 import { TEMPLATE_INFO, type FullBackupV1 } from "../types";
 

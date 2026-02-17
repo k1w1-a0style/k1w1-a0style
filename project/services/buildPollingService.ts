@@ -8,7 +8,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { CONFIG } from "../../config";
-import { getEdgeAdminKey } from "../../contexts/githubService";
+import { getEdgeAdminKey } from "../../infra/github/githubService";
 import { BuildStatus, mapBuildStatus } from "../../lib/buildStatusMapper";
 import { STORAGE_KEYS } from "../../lib/storageKeys";
 import { BuildStatusDetails } from "../../lib/supabaseTypes";

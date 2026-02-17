@@ -9,7 +9,7 @@ import {
   getDefaultBranch as apiDefaultBranch,
   GitHubBranch,
   WorkflowRun,
-} from "../contexts/githubService";
+} from "../infra/github/githubService";
 
 export type { GitHubBranch, WorkflowRun };
 

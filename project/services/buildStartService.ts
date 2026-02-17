@@ -10,7 +10,7 @@ import {
   getEdgeAdminKey,
   getDefaultBranch,
   pushFilesToRepo,
-} from "../../contexts/githubService";
+} from "../../infra/github/githubService";
 
 export type StartBuildProfile = "development" | "preview" | "production";
 

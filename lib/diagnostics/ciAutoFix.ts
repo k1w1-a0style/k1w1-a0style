@@ -8,7 +8,7 @@ import {
   createOrUpdateFile,
   getRepoFileText,
   listRepoSecretNames,
-} from "../../contexts/githubService";
+} from "../../infra/github/githubService";
 
 export type CiFixChange = {
   path: string;

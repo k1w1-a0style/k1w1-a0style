@@ -5,7 +5,7 @@ import {
   getRepoFileText,
   listRepoSecretNames,
   triggerWorkflow,
-} from "../../contexts/githubService";
+} from "../../infra/github/githubService";
 import { ensureSupabaseClient } from "../supabase";
 import type { PreflightPatch } from "./preflightTypes";
 

@@ -21,7 +21,7 @@ import {
   saveSupabaseServiceRoleKey,
   deleteSupabaseServiceRoleKey,
   triggerWorkflow,
-} from "../../../contexts/githubService";
+} from "../../../infra/github/githubService";
 
 import {
   deriveSupabaseUrl,

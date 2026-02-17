@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import { View, Text } from "react-native";
 
 import type { TemplateId } from "../../../contexts/types";
-import { resolveEffectiveTemplateId } from "../../../lib/templateChecklist";
+import { resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
 import { TEMPLATE_INFO } from "../types";
 
 type Props = {

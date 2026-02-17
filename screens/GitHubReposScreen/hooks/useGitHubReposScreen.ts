@@ -15,11 +15,11 @@ import {
   createOrUpdateFile,
   getRepoFileText,
   getGitHubToken,
-} from "../../../contexts/githubService";
+} from "../../../infra/github/githubService";
 import { autoSyncRepoSecrets } from "../../../lib/autoSyncRepoSecrets";
 import { useGitHubRepos, GitHubRepo, WorkflowRun } from "../../../hooks/useGitHubRepos";
 import { combineRepos, splitFullName, isValidRepoName } from "../utils/repos";
-import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../../../lib/templateChecklist";
+import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
 import type { TemplateId, CoreTemplateId } from "../../../contexts/types";
 
 type TemplateFile = { path: string; content: string };

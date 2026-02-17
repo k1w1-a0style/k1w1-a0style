@@ -16,7 +16,7 @@ import {
   summarizeBatchRisk,
 } from "../../../lib/diagnostics/fixSafety";
 import { validateFileContent, validateFilePath } from "../../../lib/validators";
-import { createOrUpdateFile, deleteRepoFile } from "../../../contexts/githubService";
+import { createOrUpdateFile, deleteRepoFile } from "../../../infra/github/githubService";
 import { parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
 
 import type {

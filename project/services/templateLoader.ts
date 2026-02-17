@@ -3,7 +3,7 @@
 // No behavioral changes intended.
 
 import type { CoreTemplateId, ProjectFile, TemplateId } from '../../shared/types/project';
-import { runTemplateHardChecklist } from '../../lib/templateChecklist';
+import { runTemplateHardChecklist } from '../../lib/diagnostics/templates';
 
 export const loadTemplateFromFile = async (templateId: TemplateId = "base"): Promise<ProjectFile[]> => {
   try {

@@ -90,3 +90,15 @@ This is a patchable version of the Refactoring Plan V3, adjusted to avoid duplic
 
 ## Patch 159
 - PR-7 Stage 1: Add warn-only ESLint guardrails (`no-restricted-imports`) to discourage new imports from facade modules (templateChecklist, contexts/githubService, contexts/projectStorage).
+
+## Patch 160
+- PR-7 Stage 2: Migrate internal imports away from facade modules:
+  - `contexts/githubService` → `infra/github/githubService`
+  - `contexts/projectStorage` → `infra/storage/projectPersistence`
+  - `lib/templateChecklist` → `lib/diagnostics/templates`
+
+## Patch 160
+- PR-7 Stage 2: Migrate internal imports away from facade modules:
+  - `contexts/githubService` → `infra/github/githubService`
+  - `contexts/projectStorage` → `infra/storage/projectPersistence`
+  - `lib/templateChecklist` → `lib/diagnostics/templates`
