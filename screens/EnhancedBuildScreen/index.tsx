@@ -8,10 +8,11 @@ import { styles } from "../../styles/enhancedBuildScreenStyles";
 import { HeaderSection } from "./components/HeaderSection";
 import { BuildStatusSection } from "./components/BuildStatusSection";
 import { RepoProfileSection } from "./components/RepoProfileSection";
-import { GitHubActionsSection } from "./components/GitHubActionsSection";
 import { LogsAnalysisSection } from "./components/LogsAnalysisSection";
-import { BuildHistorySection } from "./components/BuildHistorySection";
-import { useEnhancedBuildScreen, MAX_RUNS_DISPLAY } from "./hooks/useEnhancedBuildScreen";
+import { ChecklistSection } from "./components/ChecklistSection";
+import { BuildProgressSection } from "./components/BuildProgressSection";
+import { DiffSection } from "./components/DiffSection";
+import { useEnhancedBuildScreen } from "./hooks/useEnhancedBuildScreen";
 
 export default function EnhancedBuildScreen(): React.ReactElement {
   const s = useEnhancedBuildScreen();
@@ -32,6 +33,20 @@ export default function EnhancedBuildScreen(): React.ReactElement {
         keyboardShouldPersistTaps="handled"
       >
         <HeaderSection projectName={s.projectData?.name} />
+
+        {/* Pre-Build Checklist */}
+        <ChecklistSection items={s.checklistItems} />
+
+        {/* Build Progress Bar */}
+        <BuildProgressSection
+          status={s.status}
+          statusLabel={s.statusLabel}
+          message={s.message}
+          jobId={s.jobId}
+          etaMs={s.etaMs}
+          formatDuration={s.formatDuration}
+          progress={s.progress}
+        />
 
         <BuildStatusSection
           status={s.status}
@@ -61,16 +76,11 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           onSaveLinkedRepo={s.onSaveLinkedRepo}
         />
 
-        <GitHubActionsSection
-          hasGetWorkflowRuns={s.hasGetWorkflowRuns}
-          canFetch={s.canFetch}
-          loadingRuns={s.loadingRuns}
-          error={s.error}
-          runs={s.runs}
-          moreCount={s.moreCount}
-          maxRunsDisplay={MAX_RUNS_DISPLAY}
-          fetchRuns={s.fetchRuns}
-          openRun={s.openRun}
+        {/* Diff-Anzeige statt GitHub Actions */}
+        <DiffSection
+          oldText={s.diffOldText}
+          newText={s.diffNewText}
+          title="Letzte Aenderungen"
         />
 
         <LogsAnalysisSection
@@ -83,14 +93,6 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           analyses={s.analyses}
           workflowRun={s.workflowRun}
           onOpenModal={() => s.setLogModalVisible(true)}
-          openRun={s.openRun}
-        />
-
-        <BuildHistorySection
-          historyLoading={s.historyLoading}
-          stats={s.stats}
-          history={s.history}
-          clearHistory={s.clearHistory}
           openRun={s.openRun}
         />
       </ScrollView>
