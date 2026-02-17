@@ -155,8 +155,8 @@ export const styles = StyleSheet.create({
   },
 
   primaryBtn: {
-    backgroundColor: theme.palette.primary,
-    borderWidth: 1,
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
     borderColor: theme.palette.primary,
     borderRadius: 12,
     minHeight: 50,
@@ -165,7 +165,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   primaryBtnText: {
-    color: theme.palette.secondary,
+    color: theme.palette.primary,
     fontWeight: "900",
     fontSize: 15,
   },
