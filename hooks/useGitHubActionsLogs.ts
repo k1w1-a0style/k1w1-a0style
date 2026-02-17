@@ -106,7 +106,13 @@ async function describeEdgeFailure(opts: {
     } else if (required) {
       hint = String(required);
     } else if (ghDetails?.status) {
-      hint = `GitHub API Status: ${String(ghDetails.status)}`;
+      const ghStatus = String(ghDetails.status);
+      if (ghStatus === "404") {
+        hint =
+          "GitHub API Status: 404 (Repo/Workflow nicht gefunden ODER Token hat keinen Zugriff). Prüfe owner/repo, Branch und GitHub Token-Rechte.";
+      } else {
+        hint = `GitHub API Status: ${ghStatus}`;
+      }
     } else {
       hint = "Edge Function Fehler – bitte Logs/Deployment prüfen.";
     }

@@ -262,8 +262,11 @@ export default function CiLiteHeaderButton(): React.ReactElement {
 
       if (!r.ok) {
         const t = await r.text().catch(() => "");
+        const hint = /GitHub API Status:\s*404/i.test(t)
+          ? " (Repo/Workflow nicht gefunden ODER Token hat keinen Zugriff – prüfe owner/repo + GitHub PAT)"
+          : "";
         throw new Error(
-          `github-workflow-runs failed (${r.status}): ${safeUi(t || r.statusText)}`,
+          `github-workflow-runs failed (${r.status}): ${safeUi(t || r.statusText)}${hint}`,
         );
       }
 
@@ -294,15 +297,17 @@ export default function CiLiteHeaderButton(): React.ReactElement {
 
 
   const githubRepo = useMemo(() => {
-    return (
-      projectData?.linkedRepo?.trim() || activeRepo?.trim() || ""
-    ).trim();
+    // Prefer the actively selected repo from GitHubRepos screen.
+    // linkedRepo may be stale (e.g. old project name) and can cause GitHub 404.
+    const ar = (activeRepo ?? "").trim();
+    const lr = (projectData?.linkedRepo ?? "").trim();
+    return (ar || lr || "").trim();
   }, [projectData?.linkedRepo, activeRepo]);
 
   const branch = useMemo(() => {
-    return (
-      projectData?.linkedBranch?.trim() || activeBranch?.trim() || ""
-    ).trim();
+    const ab = (activeBranch ?? "").trim();
+    const lb = (projectData?.linkedBranch ?? "").trim();
+    return (ab || lb || "").trim();
   }, [projectData?.linkedBranch, activeBranch]);
 
   const {

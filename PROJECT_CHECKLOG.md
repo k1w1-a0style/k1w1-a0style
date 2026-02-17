@@ -1,5 +1,7 @@
 # Project Checklog
 
+- Patch 177 (2026-02-17): Sidebar polish (thin, theme-matched green accents) + CI Lite header uses active repo/branch + better GitHub 404 hint
+
 - Patch 175 (2026-02-17): AppInfoScreen Key Backup — include signing keys + token bundle (SIGNING_MASTER_KEY / SIGNING_ADMIN_KEY)
 
 - Patch 173 (2026-02-17): PR-8 Stage 7 — normalize blocking import audit + add preflight:fast + docs alignment

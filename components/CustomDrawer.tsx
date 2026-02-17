@@ -298,7 +298,7 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
         {/* Chips */}
         <View style={styles.chipRow}>
           <LinearGradient
-            colors={["rgba(0,255,0,0.10)", "rgba(0,0,0,0.00)"]}
+            colors={[`${theme.palette.primary}14`, `${theme.palette.primary}00`]}
             start={{ x: 0, y: 0.5 }}
             end={{ x: 1, y: 0.5 }}
             style={[styles.chip, statusOk && styles.chipGlow]}
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.md,
     paddingHorizontal: theme.spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: `${theme.palette.primary}18`,
+    borderBottomColor: `${theme.palette.primary}14`,
     backgroundColor: "transparent",
     overflow: "hidden",
   },
@@ -394,7 +394,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: "rgba(0,255,0,0.08)",
+    borderColor: `${theme.palette.primary}14`,
   },
 
   logoContainer: {
@@ -406,9 +406,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: theme.borderRadius.md,
-    backgroundColor: "rgba(0,255,0,0.10)",
-    borderWidth: 1,
-    borderColor: "rgba(0,255,0,0.28)",
+    backgroundColor: `${theme.palette.primary}12`,
+    borderWidth: 0.75,
+    borderColor: `${theme.palette.primary}2a`,
     ...(theme.glow.primarySubtle as any),
     alignItems: "center",
     justifyContent: "center",
@@ -433,10 +433,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 7,
     paddingHorizontal: 10,
-    backgroundColor: "rgba(0,255,0,0.08)",
+    backgroundColor: `${theme.palette.primary}0f`,
     borderRadius: theme.borderRadius.full,
-    borderWidth: 1,
-    borderColor: "rgba(0,255,0,0.22)",
+    borderWidth: 0.75,
+    borderColor: `${theme.palette.primary}22`,
     alignSelf: "flex-start",
     gap: 8,
   },
@@ -504,7 +504,7 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     borderWidth: 1,
     borderColor: `${theme.palette.primary}12`,
-    backgroundColor: "rgba(0,255,0,0.05)",
+    backgroundColor: `${theme.palette.primary}0a`,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -537,9 +537,9 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   drawerItemActive: {
-    backgroundColor: "rgba(0,255,0,0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(0,255,0,0.28)",
+    backgroundColor: `${theme.palette.primary}0b`,
+    borderWidth: 0.75,
+    borderColor: `${theme.palette.primary}2a`,
     ...(theme.glow.primarySubtle as any),
   },
   drawerItemPressed: {
@@ -551,7 +551,7 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    width: 10,
+    width: 8,
     opacity: 0.9,
   },
 
@@ -623,9 +623,9 @@ const styles = StyleSheet.create({
     color: theme.palette.text.primary,
   },
   versionBadge: {
-    backgroundColor: "rgba(0,255,0,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(0,255,0,0.22)",
+    backgroundColor: `${theme.palette.primary}0f`,
+    borderWidth: 0.75,
+    borderColor: `${theme.palette.primary}22`,
     ...(theme.glow.primarySubtle as any),
     borderRadius: theme.borderRadius.md,
     paddingHorizontal: 8,
