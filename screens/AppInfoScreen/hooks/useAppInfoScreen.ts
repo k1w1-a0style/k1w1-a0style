@@ -29,6 +29,9 @@ import {
   getSupabaseServiceRoleKey,
   saveSupabaseServiceRoleKey,
   deleteSupabaseServiceRoleKey,
+  getSigningMasterKey,
+  saveSigningMasterKey,
+  deleteSigningMasterKey,
 } from "../../../infra/github/githubService";
 
 import { TEMPLATE_INFO, type FullBackupV1 } from "../types";
@@ -413,10 +416,11 @@ export function useAppInfoScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              const [githubToken, expoToken, edgeAdminKey] = await Promise.all([
+              const [githubToken, expoToken, edgeAdminKey, signingMasterKey] = await Promise.all([
                 getGitHubToken().catch(() => null),
                 getExpoToken().catch(() => null),
                 getEdgeAdminKey().catch(() => null),
+                getSigningMasterKey().catch(() => null),
               ]);
 
               const srvSecure = await getSupabaseServiceRoleKey().catch(() => null);
@@ -456,6 +460,22 @@ export function useAppInfoScreen() {
                   githubToken,
                   expoToken,
                   edgeAdminKey,
+                  // Convenience duplication so "4tokens" are always in one place.
+                  supabaseServiceRoleKey: supabaseServiceRoleKey ? supabaseServiceRoleKey : null,
+                  signingMasterKey,
+                },
+                ciSecrets: {
+                  // GitHub Actions / CI
+                  GITHUB_TOKEN: githubToken ?? "",
+                  EXPO_TOKEN: expoToken ?? "",
+                  SUPABASE_URL: supabaseUrl ?? "",
+                  SUPABASE_ANON_KEY: supabaseAnonKey ?? "",
+                  SUPABASE_SERVICE_ROLE_KEY: supabaseServiceRoleKey ?? "",
+                  EAS_PROJECT_ID: easProjectId ?? "",
+                  // Our naming variants used across docs/scripts
+                  K1W1_EDGE_ADMIN_KEY: edgeAdminKey ?? "",
+                  SIGNING_ADMIN_KEY: edgeAdminKey ?? "",
+                  SIGNING_MASTER_KEY: signingMasterKey ?? "",
                 },
                 github: {
                   activeRepo,
@@ -518,10 +538,17 @@ export function useAppInfoScreen() {
                 ops.push(
                   AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_KEY, c.supabaseAnonKey),
                 );
+              // Service Role Key can live in connections (legacy) OR tokens OR ciSecrets.
               const roleKeyToSet =
-                typeof c.supabaseServiceRoleKey === "string"
+                typeof c.supabaseServiceRoleKey === "string" && c.supabaseServiceRoleKey.trim()
                   ? c.supabaseServiceRoleKey.trim()
-                  : "";
+                  : typeof (data as any)?.tokens?.supabaseServiceRoleKey === "string" &&
+                      (data as any).tokens.supabaseServiceRoleKey.trim()
+                    ? (data as any).tokens.supabaseServiceRoleKey.trim()
+                    : typeof (data as any)?.ciSecrets?.SUPABASE_SERVICE_ROLE_KEY === "string" &&
+                        (data as any).ciSecrets.SUPABASE_SERVICE_ROLE_KEY.trim()
+                      ? (data as any).ciSecrets.SUPABASE_SERVICE_ROLE_KEY.trim()
+                      : "";
 
               if (typeof c.easProjectId === "string")
                 ops.push(
@@ -537,18 +564,47 @@ export function useAppInfoScreen() {
               ).catch(() => {});
 
               // 3) Tokens (SecureStore via helpers)
-              const t = data.tokens || ({} as any);
-              if (typeof t.githubToken === "string" && t.githubToken.trim())
-                await saveGitHubToken(t.githubToken.trim());
+              // Prefer explicit fields in data.tokens; fall back to ciSecrets map.
+              const t = (data as any).tokens || ({} as any);
+              const cs = (data as any).ciSecrets || ({} as any);
+
+              const ghTok =
+                typeof t.githubToken === "string" && t.githubToken.trim()
+                  ? t.githubToken.trim()
+                  : typeof cs.GITHUB_TOKEN === "string" && cs.GITHUB_TOKEN.trim()
+                    ? cs.GITHUB_TOKEN.trim()
+                    : "";
+              if (ghTok) await saveGitHubToken(ghTok);
               else await deleteGitHubToken();
 
-              if (typeof t.expoToken === "string" && t.expoToken.trim())
-                await saveExpoToken(t.expoToken.trim());
+              const expoTok =
+                typeof t.expoToken === "string" && t.expoToken.trim()
+                  ? t.expoToken.trim()
+                  : typeof cs.EXPO_TOKEN === "string" && cs.EXPO_TOKEN.trim()
+                    ? cs.EXPO_TOKEN.trim()
+                    : "";
+              if (expoTok) await saveExpoToken(expoTok);
               else await deleteExpoToken();
 
-              if (typeof t.edgeAdminKey === "string" && t.edgeAdminKey.trim())
-                await saveEdgeAdminKey(t.edgeAdminKey.trim());
+              const edgeKey =
+                typeof t.edgeAdminKey === "string" && t.edgeAdminKey.trim()
+                  ? t.edgeAdminKey.trim()
+                  : typeof cs.K1W1_EDGE_ADMIN_KEY === "string" && cs.K1W1_EDGE_ADMIN_KEY.trim()
+                    ? cs.K1W1_EDGE_ADMIN_KEY.trim()
+                    : typeof cs.SIGNING_ADMIN_KEY === "string" && cs.SIGNING_ADMIN_KEY.trim()
+                      ? cs.SIGNING_ADMIN_KEY.trim()
+                      : "";
+              if (edgeKey) await saveEdgeAdminKey(edgeKey);
               else await deleteEdgeAdminKey();
+
+              const signingMaster =
+                typeof t.signingMasterKey === "string" && t.signingMasterKey.trim()
+                  ? t.signingMasterKey.trim()
+                  : typeof cs.SIGNING_MASTER_KEY === "string" && cs.SIGNING_MASTER_KEY.trim()
+                    ? cs.SIGNING_MASTER_KEY.trim()
+                    : "";
+              if (signingMaster) await saveSigningMasterKey(signingMaster);
+              else await deleteSigningMasterKey();
 
               // 4) GitHub context (sofort aktiv setzen)
               const g = data.github || ({} as any);

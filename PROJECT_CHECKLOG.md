@@ -1,5 +1,7 @@
 # Project Checklog
 
+- Patch 175 (2026-02-17): AppInfoScreen Key Backup — include signing keys + token bundle (SIGNING_MASTER_KEY / SIGNING_ADMIN_KEY)
+
 - Patch 173 (2026-02-17): PR-8 Stage 7 — normalize blocking import audit + add preflight:fast + docs alignment
 - Patch 172 (2026-02-17): PR-8 Stage 6 — make import drift audit blocking (preflight enforced)
 - Patch 171 (2026-02-17): PR-8 Stage 5 — add import drift audit (contexts/types Build* imports)

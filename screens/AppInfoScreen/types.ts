@@ -26,7 +26,15 @@ export type FullBackupV1 = {
     githubToken: string | null;
     expoToken: string | null;
     edgeAdminKey: string | null;
+    /** aka SUPABASE_SERVICE_ROLE_KEY (stored in SecureStore) */
+    supabaseServiceRoleKey?: string | null;
+    /** optional, used by signing edge functions */
+    signingMasterKey?: string | null;
   };
+  /** Convenience map of CI/Repo secret names (e.g. EXPO_TOKEN) to values.
+   *  Helps when migrating to a new device without hunting everything down.
+   */
+  ciSecrets?: Record<string, string>;
   github: {
     activeRepo: string | null;
     activeBranch: string | null;

@@ -2,6 +2,8 @@
 
 Most recent first.
 
+- Patch 175: `docs/patches/patch_175.md` (AppInfoScreen Key Backup: signing keys + token bundle)
+
 - Patch 174: `docs/patches/patch_174.md` (Fix import drift audit script: regex + executable)
 - Patch 173: `docs/patches/patch_173.md` (Normalize import drift audit + preflight:fast + docs)
 

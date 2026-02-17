@@ -5,6 +5,10 @@ const EXPO_TOKEN_KEY = "expo_token_v1";
 const EDGE_ADMIN_KEY = "edge_admin_key_v1";
 const SUPABASE_SERVICE_ROLE_KEY = "supabase_service_role_key_v1";
 
+// Optional: used by Supabase Edge Functions to encrypt/decrypt signing blobs.
+// Not required for normal app usage, but useful for full backup / device migration.
+const SIGNING_MASTER_KEY = "signing_master_key_v1";
+
 // ✅ FIX: SecureStore Wrapper-Funktionen (verschlüsselt!)
 const saveSecureToken = async (key: string, value: string): Promise<void> => {
   try {
@@ -114,4 +118,24 @@ export const saveSupabaseServiceRoleKey = async (key: string): Promise<void> => 
 
 export const deleteSupabaseServiceRoleKey = async (): Promise<void> => {
   await SecureStore.deleteItemAsync(SUPABASE_SERVICE_ROLE_KEY);
+};
+
+// ----------------------
+// Signing Master Key (optional)
+// ----------------------
+export const getSigningMasterKey = async (): Promise<string | null> => {
+  return await SecureStore.getItemAsync(SIGNING_MASTER_KEY);
+};
+
+export const saveSigningMasterKey = async (key: string): Promise<void> => {
+  const v = (key ?? "").trim();
+  if (!v) {
+    await SecureStore.deleteItemAsync(SIGNING_MASTER_KEY);
+    return;
+  }
+  await SecureStore.setItemAsync(SIGNING_MASTER_KEY, v);
+};
+
+export const deleteSigningMasterKey = async (): Promise<void> => {
+  await SecureStore.deleteItemAsync(SIGNING_MASTER_KEY);
 };

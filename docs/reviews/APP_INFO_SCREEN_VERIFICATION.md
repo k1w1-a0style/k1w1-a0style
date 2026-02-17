@@ -43,3 +43,17 @@ Fixes after first integration:
 - **Validation:** backup JSON validation rejects invalid `apiKeys` shapes (must be an object when present).
 
 UI remains unchanged.
+
+---
+
+## Patch 175 follow-up
+
+Key Backup/Restore was extended to cover new secret surfaces that appeared in the project:
+
+- **Signing keys:** supports optional `SIGNING_MASTER_KEY` (SecureStore) and maps `SIGNING_ADMIN_KEY` from the stored Edge admin key.
+- **Token bundle:** export includes a normalized `tokens` object and a `ciSecrets` map (import accepts both shapes).
+- **No UI change required:** existing AppInfoScreen "Full Backup" action is enough; the additional fields are purely structural.
+
+Recommended verification:
+- Export Full Backup and confirm the JSON contains `tokens` and `ciSecrets`.
+- Re-import and confirm tokens/keys persist and the app stays stable.
