@@ -1,89 +1,31 @@
 // contexts/types.ts
+//
+// ⚠️ Compatibility shim
+// Historically, many parts of the app imported shared domain types from this file.
+// PR-8 Stage 2 moves those types to shared/types/* and re-exports them here so
+// existing imports keep working while avoiding type drift.
 
-import type { BuildStatus } from "../lib/buildStatusMapper";
+import type { BuildStatus } from "../shared/types/build";
 
-// Which scaffold template the user prefers for newly created projects
-export type CoreTemplateId = "base" | "navigation" | "crud" | "full";
-export type TemplateId = CoreTemplateId | "auto";
-
-export interface ProjectFile {
-  path: string;
-  content: string;
-}
-
-export interface BuildHistoryEntry {
-  id: string;
-  /** Supabase build_jobs.id (UUID) */
-  jobId: string;
-  repoName: string;
-  status: BuildStatus;
-  startedAt: string;
-  completedAt?: string;
-  durationMs?: number;
-  buildProfile?: string;
-  artifactUrl?: string | null;
-  htmlUrl?: string | null;
-  errorMessage?: string;
-}
-
-export interface ChatMessage {
-  id: string;
-  role: "user" | "assistant" | "system";
-  content: string;
-  timestamp: string;
-  meta?: {
-    provider?: string;
-    error?: boolean;
-    autoFix?: boolean;
-    planner?: boolean;
-    keyRotation?: boolean;
-  };
-}
-
-export interface AutoFixRequest {
-  id: string;
-  message: string;
-  timestamp: string;
-}
-
-export interface LastPreviewMeta {
-  url: string | null;
-  source: "supabase" | "local";
-  createdAt: string;
-  expiresAt?: string | null;
-}
-
-export interface ProjectData {
-  id?: string;
-  name: string;
-  slug?: string;
-  packageName?: string;
-  /** Selected template for the project (also used as default for next scaffolds). */
-  templateId?: TemplateId;
-    /** If templateId is "auto", this stores the last detected core template. */
-  effectiveTemplateId?: CoreTemplateId;
-files: ProjectFile[];
-  chatHistory: ChatMessage[];
-  messages?: ChatMessage[];
-  createdAt: string;
-  lastModified: string;
-  /** Verknüpftes GitHub Repo (full_name: owner/repo) */
-  linkedRepo?: string | null;
-  /** Verknüpfter Branch (z.B. "main") */
-  linkedBranch?: string | null;
-  /** Bevorzugtes EAS Build-Profil (persistiert) */
-  preferredBuildProfile?: "development" | "preview" | "production" | null;
-  /** Dev: Manuelles Template-Override/Picker anzeigen (default: false). */
-  advancedTemplatePickerEnabled?: boolean;
-  /** Letzte Preview (für schnelles Umschalten) */
-  lastPreview?: LastPreviewMeta | null;
-}
+export type { BuildStatus, BuildStatusDetails, BuildHistoryEntry } from "../shared/types/build";
+export type { ChatMessage } from "../shared/types/chat";
+export type {
+  CoreTemplateId,
+  TemplateId,
+  ProjectFile,
+  AutoFixRequest,
+  LastPreviewMeta,
+  ProjectData,
+} from "../shared/types/project";
 
 export interface ProjectContextProps {
-  projectData: ProjectData | null;
+  projectData: import("../shared/types/project").ProjectData | null;
   isLoading: boolean;
 
-  updateProjectFiles: (files: ProjectFile[], newName?: string) => Promise<void>;
+  updateProjectFiles: (
+    files: import("../shared/types/project").ProjectFile[],
+    newName?: string,
+  ) => Promise<void>;
   createFile: (path: string, content: string) => Promise<void>;
   deleteFile: (path: string) => Promise<void>;
   renameFile: (oldPath: string, newPath: string) => Promise<void>;
@@ -93,32 +35,34 @@ export interface ProjectContextProps {
   createNewProject: () => Promise<void>;
 
   /** Persist preferred template id (used for next new project / repo scaffold). */
-  setTemplateId?: (templateId: TemplateId) => Promise<void>;
+  setTemplateId?: (templateId: import("../shared/types/project").TemplateId) => Promise<void>;
 
-
-  /** Dev: zeigt/versteckt den manuellen Template-Picker (Advanced). */
+  /** Dev: shows/hides manual template picker (Advanced). */
   setAdvancedTemplatePickerEnabled?: (enabled: boolean) => Promise<void>;
-  addChatMessage: (message: ChatMessage) => void;
-  messages: ChatMessage[];
+
+  addChatMessage: (message: import("../shared/types/chat").ChatMessage) => void;
+  messages: import("../shared/types/chat").ChatMessage[];
 
   clearChatHistory: () => void;
 
-  /** Persistiert die letzte Preview (für Header-Schnellzugriff). */
-  setLastPreview: (preview: LastPreviewMeta | null) => Promise<void>;
+  /** Persist last preview (for header quick switch). */
+  setLastPreview: (
+    preview: import("../shared/types/project").LastPreviewMeta | null,
+  ) => Promise<void>;
 
-  autoFixRequest: AutoFixRequest | null;
+  autoFixRequest: import("../shared/types/project").AutoFixRequest | null;
   triggerAutoFix: (message: string) => void;
   clearAutoFixRequest: () => void;
 
   /**
-   * Startet einen EAS Build über Supabase (trigger-eas-build).
-   * Optional mit Build-Profile (development|preview|production).
+   * Starts an EAS build via Supabase (trigger-eas-build).
+   * Optional with build profile (development|preview|production).
    */
   startBuild?: (buildProfile?: string) => Promise<void>;
   currentBuild?: {
     status: BuildStatus;
     message?: string;
-    progress?: number; // 0..1 (optional UI-Hilfe)
+    progress?: number; // 0..1 (optional UI helper)
     /** Supabase build_jobs.id (UUID) */
     jobId?: string | null;
     githubRepo?: string | null;
@@ -136,7 +80,7 @@ export interface ProjectContextProps {
 
   exportAndBuild: () => Promise<{ owner: string; repo: string } | null>;
   exportProjectAsZip: () => Promise<void>;
-  /** Exportiert NUR Textdateien als ZIP (ohne Assets/Binaries). */
+  /** Export ONLY text files as ZIP (without assets/binaries). */
   exportTextFilesAsZip?: () => Promise<void>;
   importProjectFromZip: () => Promise<void>;
 
@@ -157,7 +101,7 @@ export interface ProjectContextProps {
     }>;
   }>;
 
-  /** Verknüpft Repo+Branch mit dem Projekt (persistent) */
+  /** Link repo+branch with project (persistent) */
   setLinkedRepo: (repo: string | null, branch?: string | null) => Promise<void>;
   setPreferredBuildProfile?: (
     profile: "development" | "preview" | "production",

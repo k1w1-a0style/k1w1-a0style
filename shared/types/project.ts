@@ -3,7 +3,6 @@
 // Safe to import from any layer.
 
 import type { ChatMessage } from './chat';
-import type { BuildStatus } from './build';
 
 // Which scaffold template the user prefers for newly created projects
 export type CoreTemplateId = "base" | "navigation" | "crud" | "full";
@@ -14,20 +13,8 @@ export interface ProjectFile {
   content: string;
 }
 
-export interface BuildHistoryEntry {
-  id: string;
-  /** Supabase build_jobs.id (UUID) */
-  jobId: string;
-  repoName: string;
-  status: BuildStatus;
-  startedAt: string;
-  completedAt?: string;
-  durationMs?: number;
-  buildProfile?: string;
-  artifactUrl?: string | null;
-  htmlUrl?: string | null;
-  errorMessage?: string;
-}
+// BuildHistoryEntry lives in shared/types/build.ts (single source of truth)
+export type { BuildHistoryEntry } from './build';
 
 export interface AutoFixRequest {
   id: string;
