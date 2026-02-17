@@ -108,7 +108,7 @@ export function BuildStatusSection({
               }
               activeOpacity={0.8}
             >
-              <Text style={styles.secondaryBtnText}>📋 Link kopieren</Text>
+              <Text style={styles.secondaryBtnText}>Link kopieren</Text>
             </TouchableOpacity>
           </View>
         </>
