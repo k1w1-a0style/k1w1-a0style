@@ -75,3 +75,6 @@ This is a patchable version of the Refactoring Plan V3, adjusted to avoid duplic
 
 ## Patch 156
 - PR-6 Stage 2: Add `lib/diagnostics/templates/index.ts` barrel export and update `lib/templateChecklist.ts` imports/re-exports.
+
+## Patch 157
+- PR-6 Stage 3: Extract patchers/defaults/helpers from `lib/templateChecklist.ts` into `lib/diagnostics/templates/` modules.
