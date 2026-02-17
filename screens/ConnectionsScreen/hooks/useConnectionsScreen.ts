@@ -441,6 +441,12 @@ export function useConnectionsScreen() {
     onLinkExisting,
     onCreateAndLink,
 
+    // Connection lights (persistent)
+    githubOk,
+    githubUser,
+    supabaseOk,
+    expoOk,
+
     // Repo/status
     status,
     repoLine,
