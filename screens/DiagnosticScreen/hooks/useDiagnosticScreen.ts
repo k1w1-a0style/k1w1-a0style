@@ -261,6 +261,9 @@ export function useDiagnosticScreen(opts: {
           setResults(all);
           setLastRunAt(Date.now());
           setProgressStage(null);
+          // Persist diagnostic status
+          const hasFails = all.some((r) => r.status === "fail");
+          await AsyncStorage.setItem("diagnostic_last_ok", hasFails ? "false" : "true").catch(() => {});
         }
       } catch (e: any) {
         Alert.alert("Diagnostics fehlgeschlagen", e?.message || "Unbekannter Fehler");
