@@ -6,7 +6,10 @@ import {
   ActivityIndicator,
   StyleSheet,
   ScrollView,
+  Animated,
+  Easing,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../../../theme";
 import { GitHubBranch } from "../../../hooks/useGitHubRepos";
 
@@ -28,9 +31,18 @@ export const BranchSelector = memo(function BranchSelector({
   const [branches, setBranches] = useState<GitHubBranch[]>([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const rotateAnim = useRef(new Animated.Value(0)).current;
 
-  // Guard against stale async responses when switching repos quickly
   const generationRef = useRef(0);
+
+  useEffect(() => {
+    Animated.timing(rotateAnim, {
+      toValue: expanded ? 1 : 0,
+      duration: 200,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  }, [expanded, rotateAnim]);
 
   useEffect(() => {
     if (!activeRepo) {
@@ -40,7 +52,6 @@ export const BranchSelector = memo(function BranchSelector({
 
     const [owner, repo] = activeRepo.split("/");
     if (!owner || !repo) return;
-
 
     generationRef.current += 1;
     const currentGen = generationRef.current;
@@ -53,87 +64,76 @@ export const BranchSelector = memo(function BranchSelector({
           loadDefaultBranch(owner, repo),
         ]);
 
-        if (currentGen !== generationRef.current) {
-          // Ignore stale response
-          return;
-        }
+        if (currentGen !== generationRef.current) return;
 
         setBranches(branchList);
-
-        // Wenn noch kein Branch gewählt, Default setzen
         if (!activeBranch && defaultBranch) {
           onSelectBranch(defaultBranch);
         }
       } catch (e) {
-        if (currentGen !== generationRef.current) {
-          return;
-        }
+        if (currentGen !== generationRef.current) return;
         console.error("[BranchSelector] Fehler:", e);
       } finally {
-        if (currentGen === generationRef.current) {
-          setLoading(false);
-        }
+        if (currentGen === generationRef.current) setLoading(false);
       }
     };
 
     load();
-  }, [
-    activeRepo,
-    loadBranches,
-    loadDefaultBranch,
-    activeBranch,
-    onSelectBranch,
-  ]);
+  }, [activeRepo, loadBranches, loadDefaultBranch, activeBranch, onSelectBranch]);
 
-  if (!activeRepo) {
-    return null;
-  }
+  if (!activeRepo) return null;
+
+  const rotation = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "180deg"],
+  });
 
   return (
-    <View style={styles.container}>
+    <View style={s.container}>
       <TouchableOpacity
-        style={styles.header}
+        style={s.selector}
         onPress={() => setExpanded(!expanded)}
         activeOpacity={0.7}
       >
-        <Text style={styles.label}>🌿 Branch:</Text>
-        <View style={styles.currentBranch}>
+        <Ionicons name="git-branch-outline" size={16} color={theme.palette.primary} />
+        <View style={s.selectorTextWrap}>
+          <Text style={s.selectorLabel}>Branch</Text>
           {loading ? (
             <ActivityIndicator size="small" color={theme.palette.primary} />
           ) : (
-            <Text style={styles.branchName}>{activeBranch || "–"}</Text>
+            <Text style={s.selectorValue}>{activeBranch || "Waehlen..."}</Text>
           )}
-          <Text style={styles.chevron}>{expanded ? "▲" : "▼"}</Text>
         </View>
+        <Animated.View style={{ transform: [{ rotate: rotation }] }}>
+          <Ionicons name="chevron-down" size={18} color={theme.palette.text.secondary} />
+        </Animated.View>
       </TouchableOpacity>
 
       {expanded && branches.length > 0 && (
         <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.branchList}
-          contentContainerStyle={styles.branchListContent}
+          style={s.dropdown}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={false}
         >
           {branches.map((branch) => {
             const isActive = branch.name === activeBranch;
             return (
               <TouchableOpacity
                 key={branch.name}
-                style={[styles.branchPill, isActive && styles.branchPillActive]}
+                style={[s.dropdownItem, isActive && s.dropdownItemActive]}
                 onPress={() => {
                   onSelectBranch(branch.name);
                   setExpanded(false);
                 }}
                 activeOpacity={0.7}
               >
-                <Text
-                  style={[
-                    styles.branchPillText,
-                    isActive && styles.branchPillTextActive,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {branch.protected && "🔒 "}
+                {isActive && (
+                  <Ionicons name="checkmark" size={14} color={theme.palette.primary} />
+                )}
+                {branch.protected && (
+                  <Ionicons name="lock-closed" size={12} color={theme.palette.warning} />
+                )}
+                <Text style={[s.dropdownText, isActive && s.dropdownTextActive]} numberOfLines={1}>
                   {branch.name}
                 </Text>
               </TouchableOpacity>
@@ -143,76 +143,72 @@ export const BranchSelector = memo(function BranchSelector({
       )}
 
       {expanded && branches.length === 0 && !loading && (
-        <Text style={styles.noBranches}>Keine Branches gefunden</Text>
+        <Text style={s.empty}>Keine Branches gefunden</Text>
       )}
     </View>
   );
 });
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   container: {
     marginBottom: 12,
-    padding: 12,
-    borderRadius: 12,
+    borderRadius: 14,
     backgroundColor: theme.palette.card,
     borderWidth: 1,
     borderColor: theme.palette.border,
+    overflow: "hidden",
   },
-  header: {
+  selector: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 10,
+    padding: 14,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: theme.palette.text.primary,
+  selectorTextWrap: {
+    flex: 1,
+    gap: 2,
   },
-  currentBranch: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  branchName: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: theme.palette.primary,
-  },
-  chevron: {
+  selectorLabel: {
     fontSize: 10,
-    color: theme.palette.text.secondary,
+    fontWeight: "800",
+    color: theme.palette.text.muted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-  branchList: {
-    marginTop: 12,
-    maxHeight: 40,
-  },
-  branchListContent: {
-    gap: 8,
-    paddingRight: 8,
-  },
-  branchPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    backgroundColor: theme.palette.background,
-  },
-  branchPillActive: {
-    backgroundColor: "rgba(0, 255, 0, 0.10)",
-    borderColor: theme.palette.primary,
-    ...theme.glow.primarySubtle,
-  },
-  branchPillText: {
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-  },
-  branchPillTextActive: {
-    color: theme.palette.primary,
+  selectorValue: {
+    fontSize: 14,
     fontWeight: "700",
+    color: theme.palette.primary,
   },
-  noBranches: {
-    marginTop: 8,
+  dropdown: {
+    maxHeight: 200,
+    borderTopWidth: 1,
+    borderTopColor: theme.palette.border,
+  },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.palette.border,
+  },
+  dropdownItemActive: {
+    backgroundColor: "rgba(0,255,0,0.06)",
+  },
+  dropdownText: {
+    fontSize: 13,
+    color: theme.palette.text.primary,
+    fontWeight: "600",
+    flex: 1,
+  },
+  dropdownTextActive: {
+    color: theme.palette.primary,
+    fontWeight: "800",
+  },
+  empty: {
+    padding: 14,
     fontSize: 12,
     color: theme.palette.text.secondary,
     textAlign: "center",
