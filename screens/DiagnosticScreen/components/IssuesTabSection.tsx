@@ -141,8 +141,8 @@ export function IssuesTabSection(props: {
             onPress={() => runDiagnostics()}
             disabled={busy}
           >
-            <Ionicons name="play" size={16} color={theme.palette.background} />
-            <Text style={styles.btnPrimaryText}>Run Diagnostics</Text>
+            <Ionicons name="play" size={16} color={theme.palette.primary} />
+            <Text style={styles.btnPrimaryText}>Diagnostik starten</Text>
           </TouchableOpacity>
         </SectionCard>
       }
