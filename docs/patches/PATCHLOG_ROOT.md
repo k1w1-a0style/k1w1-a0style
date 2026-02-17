@@ -2,6 +2,9 @@
 
 Most recent first.
 
+- Patch 166: `docs/patches/patch_166.md` (PR-8 kickoff: post-PR-7 verification + docs/script cleanup)
+- Patch 165: `docs/patches/patch_165.md` (Fix Patch 164 docs + update refactor scripts after facade removal)
+- Patch 164: `docs/patches/patch_164.md` (PR-7 Stage 5: remove facades after migration)
 - Patch 163: `docs/patches/patch_163.md` (PR-7 Stage 4: enforce facade import bans via ESLint errors)
 - Patch 162: `docs/patches/patch_162.md` (PR-7 Stage 3.1: tighten facade audit + fix remaining imports)
 - Patch 161: `docs/patches/patch_161.md` (PR-7 Stage 3: deprecate facades + add audit script)

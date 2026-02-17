@@ -3,12 +3,15 @@
 Recent changes, most recent first.
 
 - Patch 163 (2026-02-17): PR-7 Stage 4 — enforce facade import bans via ESLint errors (guardrail now fails CI)
+- Patch 166 (2026-02-17): PR-8 kickoff — post-PR-7 verification: hardened facade-removal audit + doc alignment
+- Patch 165 (2026-02-17): Patch 164 follow-up — fix docs + update refactor scripts after facade removal
+- Patch 164 (2026-02-17): PR-7 Stage 5 — remove legacy facades after all imports migrated
 - Patch 162 (2026-02-17): PR-7 Stage 3.1 — tighten facade audit + fix remaining facade imports
 - Patch 161 (2026-02-17): PR-7 Stage 3 — deprecate facades + add facade import audit script
 - Patch 160 (2026-02-17): PR-7 Stage 2 — migrate internal imports away from facades (infra + diagnostics)
 - Patch 159 (2026-02-17): PR-7 Stage 1 — add warn-only ESLint guardrails to discourage new facade imports
 
-- Patch 158 (2026-02-17): PR-6 Stage 4 — move checklist runner into diagnostics; templateChecklist becomes a thin facade
+- Patch 158 (2026-02-17): PR-6 Stage 4 — move checklist runner into diagnostics (facade removed later in Patch 164)
 - Patch 157 (2026-02-17): PR-6 Stage 3 — extract template checklist patchers/defaults into dedicated modules
 - Patch 156 (2026-02-17): PR-6 Stage 2 — templates barrel exports; templateChecklist imports simplified
 - Patch 155.1 (2026-02-17): Hotfix — PR-6 Stage 1 type fixes (Toolchain typing + TemplateFileMap)

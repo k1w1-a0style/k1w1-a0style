@@ -31,8 +31,9 @@ git push
 
 ### PR-2: Storage consolidation (NO rewrite)
 - Move `contexts/projectStorage.ts` → `infra/storage/projectPersistence.ts`
-- Keep `contexts/projectStorage.ts` as a facade re-export  
-✅ Implemented by Patch 148
+- Keep `contexts/projectStorage.ts` as a facade re-export (temporary)  
+✅ Stage 1 implemented by Patch 148
+✅ Facade removed by Patch 164
 
 ### PR-3: Polling consolidation (NO parallel poller)
 - Extract pure polling functions into `project/services/buildPollingService.ts`
@@ -41,9 +42,10 @@ git push
 
 ### PR-4: GitHub infra split
 - Create `infra/github/*`
-- Keep `contexts/githubService.ts` as facade until callers migrated  
+- Keep `contexts/githubService.ts` as facade until callers migrated (temporary)  
 ✅ Stage 1 implemented by Patch 150  
 ✅ Stage 2 implemented by Patch 151
+✅ Facade removed by Patch 164
 
 ### PR-5: ProjectContext slimming
 - Move pure domain logic into `project/domain/*`
@@ -54,11 +56,12 @@ git push
 
 ### PR-6: Diagnostics + templateChecklist split
 - Split `lib/templateChecklist.ts` into modules under `lib/diagnostics/templates/*`
-- Keep old entrypoint as facade if needed  
+- Keep old entrypoint as facade if needed (temporary)  
 ✅ Stage 1 implemented by Patch 155 (+ hotfix 155.1)  
 ✅ Stage 2 implemented by Patch 156  
 ✅ Stage 3 implemented by Patch 157  
 ✅ Stage 4 implemented by Patch 158
+✅ Facade removed by Patch 164
 
 ### PR-7: Quality / cleanup
 - Remove facades when no longer used
@@ -68,6 +71,13 @@ git push
 ✅ Stage 2 implemented by Patch 160  
 ✅ Stage 3 implemented by Patch 161 (+ hotfix 162)  
 ✅ Stage 4 implemented by Patch 163 (facade imports are now lint errors)
+✅ Stage 5 implemented by Patch 164 (remove facades)
+✅ Stage 5.1 implemented by Patch 165 (docs + scripts follow-up)
+
+### PR-8: Next
+- Kick off next cleanup/refactor tranche now that facades are removed
+- Prefer small verification patches over large rewrites
+✅ Kickoff patch 166: harden post-removal audit + align docs/plan
 
 ## Patch index
 - Patch 147 — V3.1 scaffolding (shared types + docs + scripts)
@@ -89,3 +99,6 @@ git push
 - Patch 161 — PR-7 stage 3: deprecate remaining facades + add audit script
 - Patch 162 — PR-7 stage 3.1: tighten facade audit + fix remaining imports
 - Patch 163 — PR-7 stage 4: enforce facade import bans via ESLint errors
+- Patch 164 — PR-7 stage 5: remove facades (githubService, projectStorage, templateChecklist)
+- Patch 165 — PR-7 stage 5.1: fix Patch 164 docs + update refactor scripts
+- Patch 166 — PR-8 kickoff: post-PR-7 verification + docs/script cleanup
