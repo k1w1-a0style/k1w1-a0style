@@ -279,13 +279,17 @@ export function useConnectionsScreen() {
       }
 
       Alert.alert(
-        "✅ Supabase OK",
+        "Supabase OK",
         checkKey === anon
           ? "REST + build_jobs erreichbar."
           : "REST + build_jobs (Service-Role) erreichbar.",
       );
+      setSupabaseOk(true);
+      await AsyncStorage.setItem(STORAGE_KEYS.CONN_SUPABASE_OK, "true").catch(() => {});
     } catch (e: any) {
-      Alert.alert("❌ Supabase Test", safeAlertText(e));
+      setSupabaseOk(false);
+      await AsyncStorage.setItem(STORAGE_KEYS.CONN_SUPABASE_OK, "false").catch(() => {});
+      Alert.alert("Supabase Test", safeAlertText(e));
     } finally {
       setBusy(false);
     }
