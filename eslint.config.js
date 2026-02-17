@@ -60,8 +60,8 @@ module.exports = [
       // Hooks-Warnungen abschalten (Code läuft ja)
       'react-hooks/exhaustive-deps': 'off',
 
-      // Refactor guardrails (warn-only; CI uses --quiet so this won't fail)
-      'no-restricted-imports': ['warn', {
+      // Refactor guardrails (strict; fail CI when a facade import slips in)
+      'no-restricted-imports': ['error', {
         paths: [
           { name: 'lib/templateChecklist', message: 'Import from lib/diagnostics/templates instead (templateChecklist is facade).' },
           { name: './lib/templateChecklist', message: 'Import from lib/diagnostics/templates instead (templateChecklist is facade).' },

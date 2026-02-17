@@ -1,25 +1,26 @@
 # Patch Log
 
-- Patch 160: `docs/patches/patch_160.md` (PR-7 Stage 2: migrate internal imports away from facades)
+Most recent first.
+
+- Patch 163: `docs/patches/patch_163.md` (PR-7 Stage 4: enforce facade import bans via ESLint errors)
+- Patch 162: `docs/patches/patch_162.md` (PR-7 Stage 3.1: tighten facade audit + fix remaining imports)
+- Patch 161: `docs/patches/patch_161.md` (PR-7 Stage 3: deprecate facades + add audit script)
 - Patch 160: `docs/patches/patch_160.md` (PR-7 Stage 2: migrate internal imports away from facades)
 - Patch 159: `docs/patches/patch_159.md` (PR-7 Stage 1: warn-only lint guardrails for facade imports)
+
 - Patch 158: `docs/patches/patch_158.md` (PR-6 Stage 4: move runner into diagnostics; templateChecklist as thin facade)
 - Patch 157: `docs/patches/patch_157.md` (PR-6 Stage 3: extract patchers + defaults into modules)
 - Patch 156: `docs/patches/patch_156.md` (PR-6 Stage 2: templates barrel exports)
-
 - Patch 155.1: `docs/patches/patch_155_1.md` (Hotfix: TypeScript types for PR-6 Stage 1)
-
 - Patch 155: `docs/patches/patch_155.md` (PR-6 Stage 1: template checklist modularization)
-- patch_154_1.md — Hotfix (remove duplicate useBuildStatus import)
 
-- patch_154.md — PR-5 Stage 3 (polling out of ProjectContext)
+- Patch 154.1: `docs/patches/patch_154_1.md` (Hotfix: remove duplicate useBuildStatus import)
+- Patch 154: `docs/patches/patch_154.md` (PR-5 Stage 3: polling out of ProjectContext)
+- Patch 153: `docs/patches/patch_153.md` (PR-5 Stage 2: archive + build trigger services)
+- Patch 152: `docs/patches/patch_152.md` (PR-5 Stage 1: template loader + file mutations)
 
-- Patch 153: `docs/patches/patch_153.md` (PR-5 stage 2: ProjectContext slimming — archive + build trigger services)
-
-- Patch 152: `docs/patches/patch_152.md` (PR-5 stage 1: ProjectContext slimming — template loader + file mutations)
-- Patch 151: `docs/patches/patch_151.md` (GitHub infra split into modules; barrel exports)
-- Patch 150: `docs/patches/patch_150.md` (GitHub service moved to infra; contexts facade)
-- Patch 149: V3.1 PR-3 polling extract + single poller
-- Patch 148: V3.1 PR-2 storage move + facade
-- Patch 147: V3.1 scaffolding (shared types + docs + scripts)
-- patch_162.md
+- Patch 151: `docs/patches/patch_151.md` (PR-4 Stage 2: GitHub infra split into modules)
+- Patch 150: `docs/patches/patch_150.md` (PR-4 Stage 1: GitHub service moved to infra; contexts facade)
+- Patch 149: `docs/patches/patch_149.md` (PR-3: polling extract + single poller)
+- Patch 148: `docs/patches/patch_148.md` (PR-2: storage move + facade)
+- Patch 147: `docs/patches/patch_147.md` (V3.1 scaffolding)

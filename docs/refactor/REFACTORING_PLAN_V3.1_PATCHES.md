@@ -66,7 +66,8 @@ git push
 - Keep docs + changelog updated  
 ✅ Stage 1 implemented by Patch 159  
 ✅ Stage 2 implemented by Patch 160  
-✅ Stage 3 implemented by Patch 161
+✅ Stage 3 implemented by Patch 161 (+ hotfix 162)  
+✅ Stage 4 implemented by Patch 163 (facade imports are now lint errors)
 
 ## Patch index
 - Patch 147 — V3.1 scaffolding (shared types + docs + scripts)
@@ -86,5 +87,5 @@ git push
 - Patch 159 — PR-7 stage 1: warn-only lint guardrails for facade imports
 - Patch 160 — PR-7 stage 2: migrate internal imports away from facades
 - Patch 161 — PR-7 stage 3: deprecate remaining facades + add audit script
-
-- Patch 162: PR-7 Stage 3.1 — tighten facade audit + fix remaining imports
+- Patch 162 — PR-7 stage 3.1: tighten facade audit + fix remaining imports
+- Patch 163 — PR-7 stage 4: enforce facade import bans via ESLint errors
