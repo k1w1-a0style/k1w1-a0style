@@ -187,7 +187,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   btnPrimary: {
-    backgroundColor: theme.palette.primary,
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
+    borderColor: theme.palette.primary,
   },
   btnGhost: {
     backgroundColor: "transparent",
@@ -197,7 +199,7 @@ const styles = StyleSheet.create({
   btnText: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#000",
+    color: theme.palette.primary,
   },
 
   dot: { width: 10, height: 10, borderRadius: 999, marginRight: 8 },
