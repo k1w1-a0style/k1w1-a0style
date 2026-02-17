@@ -74,6 +74,10 @@ export default function ConnectionsScreen() {
           repoLine={repoLine}
           supabaseUrl={supabaseUrl}
           easProjectId={easProjectId}
+          githubOk={githubOk}
+          githubUser={githubUser}
+          supabaseOk={supabaseOk}
+          expoOk={expoOk}
           onNavigateRepos={() => navigation.navigate("GitHubRepos")}
           onNavigateDiagnostic={() => navigation.navigate("Diagnostic")}
         />
