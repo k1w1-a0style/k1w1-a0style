@@ -32,7 +32,7 @@ import {
 import {
   getGitHubToken,
   getWorkflowRuns,
-} from "./githubService";
+} from "../infra/github/githubService";
 
 import { loadTemplateFromFile } from "../project/services/templateLoader";
 import { applyProjectFileUpdates, mergeProjectFiles } from "../project/domain/projectFileMutations";
@@ -71,7 +71,7 @@ export {
   getEdgeAdminKey,
   saveEdgeAdminKey,
   deleteEdgeAdminKey,
-} from "./githubService";
+} from "../infra/github/githubService";
 
 export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   children,
