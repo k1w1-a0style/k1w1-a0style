@@ -71,7 +71,7 @@ export function RepoProfileSection({
       <View style={styles.profileRow}>
         {(["development", "preview", "production"] as const).map((p) => {
           const active = buildProfile === p;
-          const emoji = p === "development" ? "🔧" : p === "preview" ? "👁️" : "🚀";
+          const emoji = p === "development" ? "" : p === "preview" ? "" : "";
           return (
             <TouchableOpacity
               key={p}
@@ -87,7 +87,7 @@ export function RepoProfileSection({
                   active && styles.profileBtnTextActive,
                 ]}
               >
-                {emoji} {p}
+                {p}
               </Text>
             </TouchableOpacity>
           );
