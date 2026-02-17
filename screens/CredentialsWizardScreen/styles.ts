@@ -111,7 +111,9 @@ export const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   btnPrimary: {
-    backgroundColor: theme.palette.primary,
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
+    borderColor: theme.palette.primary,
   },
   btnSecondary: {
     backgroundColor: theme.palette.card,
