@@ -102,6 +102,14 @@ export function useConnectionsScreen() {
         AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID).catch(() => ""),
       ]);
 
+      // Load persistent connection lights
+      const [ghOk, ghUserStored, sbOk, exOk] = await Promise.all([
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_OK).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_USER).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_SUPABASE_OK).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_EXPO_OK).catch(() => null),
+      ]);
+
       // Legacy migration: AsyncStorage -> SecureStore
       let srv = srvSecure;
       if (!srv) {
@@ -125,6 +133,12 @@ export function useConnectionsScreen() {
       setSupabaseAnonKey(anon || "");
       setSupabaseServiceRoleKey(srv || "");
       setEasProjectId(eas || "");
+
+      // Restore persistent lights
+      if (ghOk === "true") setGithubOk(true);
+      if (ghUserStored) setGithubUser(ghUserStored);
+      if (sbOk === "true") setSupabaseOk(true);
+      if (exOk === "true") setExpoOk(true);
     })();
 
     return () => {
