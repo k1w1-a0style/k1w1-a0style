@@ -115,13 +115,14 @@ async function fetchLogsZip(
   owner: string,
   repo: string,
   runId: number,
+  token?: string,
 ): Promise<Uint8Array> {
   const api = `https://api.github.com/repos/${owner}/${repo}/actions/runs/${runId}/logs`;
 
   // First request: get the signed URL (302 Location).
   const r1 = await fetch(api, {
     method: "GET",
-    headers: githubHeaders(undefined, "Bearer"),
+    headers: githubHeaders(token, "Bearer"),
     redirect: "manual",
   });
 
@@ -133,7 +134,7 @@ async function fetchLogsZip(
       const runApi = `https://api.github.com/repos/${owner}/${repo}/actions/runs/${runId}`;
       const rr = await fetch(runApi, {
         method: "GET",
-        headers: githubHeaders(undefined, "Bearer"),
+        headers: githubHeaders(token, "Bearer"),
       });
 
       if (rr.status === 200) {
@@ -289,6 +290,10 @@ serve(async (req) => {
     }
     const body = parsedBody.body as Json;
 
+    const tokenFromBody = String(
+      (body as any).githubToken ?? (body as any).ghToken ?? (body as any).token ?? (body as any).github_token ?? "",
+    ).trim();
+
     const repoObj = parseGithubRepo(body.githubRepo);
     if (!repoObj) {
       return jsonErr(
@@ -316,6 +321,7 @@ serve(async (req) => {
       repoObj.owner,
       repoObj.repo,
       Math.trunc(runId),
+      tokenFromBody || undefined,
     );
     const parsed = zipToText(zipBytes);
 

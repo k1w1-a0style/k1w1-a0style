@@ -1,6 +1,6 @@
 # Project Checklog
 
-- Patch 177 (2026-02-17): Sidebar polish (thin, theme-matched green accents) + CI Lite header uses active repo/branch + better GitHub 404 hint
+- Patch 178 (2026-02-17): Sidebar/Header theme align — hairline borders + color unify; CI Lite GitHub logs token passthrough + edge fallback
 
 - Patch 175 (2026-02-17): AppInfoScreen Key Backup — include signing keys + token bundle (SIGNING_MASTER_KEY / SIGNING_ADMIN_KEY)
 

@@ -115,12 +115,14 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
 
 export default CustomHeader;
 
+const HAIRLINE = StyleSheet.hairlineWidth;
+
 const styles = StyleSheet.create({
   header: {
     height: HEADER_HEIGHT,
-    backgroundColor: theme.palette.backgroundDark,
-    borderBottomWidth: 1,
-    borderBottomColor: `${theme.palette.primary}33`,
+    backgroundColor: theme.palette.card,
+    borderBottomWidth: HAIRLINE,
+    borderBottomColor: `${theme.palette.primary}22`,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: theme.spacing.sm,
@@ -137,12 +139,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: theme.borderRadius.full,
-    borderWidth: 1,
+    borderWidth: HAIRLINE,
     borderColor: `${theme.palette.primary}22`,
-    backgroundColor: theme.palette.background,
+    backgroundColor: theme.palette.cardHover,
   },
   iconBtnPressed: {
-    backgroundColor: `${theme.palette.primary}10`,
+    backgroundColor: `${theme.palette.primary}12`,
   },
   title: {
     color: theme.palette.text.primary,

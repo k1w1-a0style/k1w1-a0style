@@ -10,11 +10,17 @@ import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSaniti
  * Input (JSON body) supports multiple aliases:
  * - githubRepo: "owner/repo"  (aliases: github_repo, repoFullName, fullName, repository, githubRepository)
  * - owner + repo (fallback)
+ *
+ * Optional:
  * - workflowId: workflow filename (e.g. "k1w1-triggered-build.yml") OR numeric workflow id
  *   aliases: workflow_id, workflowFile, workflow_file, workflow, path
+ *   If omitted, falls back to listing *all* workflow runs for the repo.
  * - perPage (aliases: per_page)
  * - ref/branch (aliases: branch)
  * - status (optional)
+ *
+ * Optional auth passthrough (for private repos):
+ * - githubToken / ghToken / token: client-provided PAT (only accepted if admin key is valid)
  */
 serve(async (req) => {
   if (handleCors(req)) return handleCors(req);
@@ -61,7 +67,7 @@ serve(async (req) => {
       );
     }
 
-    const workflowId =
+    const workflowIdRaw =
       body.workflowId ??
       body.workflow_id ??
       body.workflowFile ??
@@ -70,15 +76,7 @@ serve(async (req) => {
       body.path ??
       "";
 
-    if (!workflowId || typeof workflowId !== "string") {
-      return new Response(
-        JSON.stringify({ ok: false, error: "Missing/invalid workflowId" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
+    const workflowId = (typeof workflowIdRaw === "string" ? workflowIdRaw : "").trim();
 
     const perPageRaw = body.perPage ?? body.per_page ?? 20;
     const perPage = Math.max(1, Math.min(100, Number(perPageRaw) || 20));
@@ -86,13 +84,16 @@ serve(async (req) => {
     const ref = (body.ref ?? body.branch ?? "").toString().trim();
     const status = (body.status ?? "").toString().trim();
 
-    const token = getGithubToken();
+    const tokenFromBody = String(
+      body.githubToken ?? body.ghToken ?? body.token ?? body.github_token ?? "",
+    ).trim();
+    const token = tokenFromBody || getGithubToken();
     if (!token) {
       return new Response(
         JSON.stringify({
           ok: false,
           error: "Missing GitHub token",
-          expected: ["GITHUB_TOKEN", "GH_TOKEN", "GITHUB_API_TOKEN"],
+          expected: ["GITHUB_TOKEN", "GH_TOKEN", "GITHUB_API_TOKEN", "githubToken (body)"],
         }),
         {
           status: 500,
@@ -107,16 +108,70 @@ serve(async (req) => {
     if (ref) params.set("branch", ref);
     if (status) params.set("status", status);
 
-    const url =
-      `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowId)}/runs?` +
-      params.toString();
+    const repoRunsUrl =
+      `https://api.github.com/repos/${owner}/${repo}/actions/runs?` + params.toString();
 
-    const r = await fetch(url, {
+    const workflowRunsUrl =
+      workflowId
+        ? `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowId)}/runs?` +
+          params.toString()
+        : repoRunsUrl;
+
+    // Primary fetch: workflow-specific (if workflowId given) else repo-wide.
+    const r = await fetch(workflowRunsUrl, {
       method: "GET",
       headers: githubHeaders(token),
     });
 
     const txt = await r.text();
+
+    // If workflow file/id is not found, fall back to repo-wide runs to keep UI usable.
+    if (!r.ok && r.status === 404 && workflowId) {
+      const r2 = await fetch(repoRunsUrl, {
+        method: "GET",
+        headers: githubHeaders(token),
+      });
+      const txt2 = await r2.text();
+      if (!r2.ok) {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error: "GitHub API failed",
+            details: sanitizeGitHubFailure(r2, txt2),
+          }),
+          {
+            status: 502,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      let json2: any;
+      try {
+        json2 = JSON.parse(txt2);
+      } catch {
+        return new Response(
+          JSON.stringify({ ok: false, error: "Invalid JSON from GitHub" }),
+          {
+            status: 502,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          data: json2,
+          note: "workflowId not found; returned repo-wide workflow runs instead",
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
     if (!r.ok) {
       return new Response(
         JSON.stringify({

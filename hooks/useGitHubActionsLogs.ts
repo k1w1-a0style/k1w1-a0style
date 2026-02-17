@@ -1,6 +1,7 @@
 // hooks/useGitHubActionsLogs.ts - Real-time GitHub Actions log streaming
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getEdgeAdminKey } from "../infra/github/githubService";
+import { getGitHubToken } from "../infra/github/tokenStore";
 import { redactSecrets, truncateWithMarker } from "../lib/secretRedaction";
 import { getSupabaseEdgeUrl } from "../lib/supabaseEdge";
 
@@ -106,13 +107,7 @@ async function describeEdgeFailure(opts: {
     } else if (required) {
       hint = String(required);
     } else if (ghDetails?.status) {
-      const ghStatus = String(ghDetails.status);
-      if (ghStatus === "404") {
-        hint =
-          "GitHub API Status: 404 (Repo/Workflow nicht gefunden ODER Token hat keinen Zugriff). Prüfe owner/repo, Branch und GitHub Token-Rechte.";
-      } else {
-        hint = `GitHub API Status: ${ghStatus}`;
-      }
+      hint = `GitHub API Status: ${String(ghDetails.status)}`;
     } else {
       hint = "Edge Function Fehler – bitte Logs/Deployment prüfen.";
     }
@@ -168,6 +163,7 @@ export function useGitHubActionsLogs({
       let targetRunId = runId;
       const edgeUrl = await getSupabaseEdgeUrl();
       const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+      const clientGithubToken = await getGitHubToken().catch(() => null);
 
       if (!targetRunId) {
         const runsResponse = await fetch(`${edgeUrl}/github-workflow-runs`, {
@@ -176,7 +172,7 @@ export function useGitHubActionsLogs({
             "Content-Type": "application/json",
             ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
           },
-          body: JSON.stringify({ githubRepo, workflowId }),
+          body: JSON.stringify({ githubRepo, workflowId, githubToken: clientGithubToken ?? undefined }),
         });
 
         if (!runsResponse.ok) {
@@ -219,6 +215,7 @@ export function useGitHubActionsLogs({
           githubRepo,
           runId: targetRunId,
           mode: "raw",
+          githubToken: clientGithubToken ?? undefined,
         }),
       });
 

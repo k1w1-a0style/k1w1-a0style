@@ -298,7 +298,7 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
         {/* Chips */}
         <View style={styles.chipRow}>
           <LinearGradient
-            colors={[`${theme.palette.primary}14`, `${theme.palette.primary}00`]}
+            colors={[theme.palette.userBubble.background, `${theme.palette.primary}00`]}
             start={{ x: 0, y: 0.5 }}
             end={{ x: 1, y: 0.5 }}
             style={[styles.chip, statusOk && styles.chipGlow]}
@@ -369,6 +369,8 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
   );
 };
 
+const HAIRLINE = StyleSheet.hairlineWidth;
+
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -380,7 +382,7 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.md,
     paddingHorizontal: theme.spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: `${theme.palette.primary}14`,
+    borderBottomColor: `${theme.palette.primary}18`,
     backgroundColor: "transparent",
     overflow: "hidden",
   },
@@ -394,7 +396,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: `${theme.palette.primary}14`,
+    borderColor: `${theme.palette.primary}12`,
   },
 
   logoContainer: {
@@ -406,10 +408,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: theme.borderRadius.md,
-    backgroundColor: `${theme.palette.primary}12`,
-    borderWidth: 0.75,
-    borderColor: `${theme.palette.primary}2a`,
-    ...(theme.glow.primarySubtle as any),
+    backgroundColor: `${theme.palette.primary}14`,
+    borderWidth: HAIRLINE,
+    borderColor: `${theme.palette.primary}24`,
     alignItems: "center",
     justifyContent: "center",
     marginRight: theme.spacing.sm,
@@ -433,10 +434,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 7,
     paddingHorizontal: 10,
-    backgroundColor: `${theme.palette.primary}0f`,
+    backgroundColor: theme.palette.userBubble.background,
     borderRadius: theme.borderRadius.full,
-    borderWidth: 0.75,
-    borderColor: `${theme.palette.primary}22`,
+    borderWidth: HAIRLINE,
+    borderColor: `${theme.palette.primary}18`,
     alignSelf: "flex-start",
     gap: 8,
   },
@@ -462,13 +463,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     backgroundColor: "transparent",
     borderRadius: theme.borderRadius.full,
-    borderWidth: 1,
+    borderWidth: HAIRLINE,
     borderColor: `${theme.palette.primary}1a`,
     overflow: "hidden",
   },
   chipGlow: {
     borderColor: `${theme.palette.primary}33`,
-    ...(theme.glow.primarySubtle as any),
   },
   chipText: {
     flex: 1,
@@ -502,9 +502,9 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    borderWidth: 1,
+    borderWidth: HAIRLINE,
     borderColor: `${theme.palette.primary}12`,
-    backgroundColor: `${theme.palette.primary}0a`,
+    backgroundColor: `${theme.palette.primary}0d`,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -530,17 +530,16 @@ const styles = StyleSheet.create({
     marginHorizontal: theme.spacing.sm,
     marginVertical: 2,
     borderRadius: theme.borderRadius.lg,
-    borderWidth: 1,
+    borderWidth: HAIRLINE,
     borderColor: theme.palette.border,
     backgroundColor: theme.palette.card,
     position: "relative",
     overflow: "hidden",
   },
   drawerItemActive: {
-    backgroundColor: `${theme.palette.primary}0b`,
-    borderWidth: 0.75,
-    borderColor: `${theme.palette.primary}2a`,
-    ...(theme.glow.primarySubtle as any),
+    backgroundColor: theme.palette.userBubble.background,
+    borderWidth: HAIRLINE,
+    borderColor: `${theme.palette.primary}24`,
   },
   drawerItemPressed: {
     backgroundColor: theme.palette.cardHover,
@@ -551,12 +550,12 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    width: 8,
+    width: 6,
     opacity: 0.9,
   },
 
   pulseDot: {
-    borderWidth: 1,
+    borderWidth: HAIRLINE,
     marginRight: 8,
   },
 
@@ -565,8 +564,8 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: theme.borderRadius.md,
     backgroundColor: theme.palette.backgroundDark,
-    borderWidth: 1,
-    borderColor: `${theme.palette.primary}22`,
+    borderWidth: HAIRLINE,
+    borderColor: `${theme.palette.primary}18`,
     alignItems: "center",
     justifyContent: "center",
     marginRight: theme.spacing.sm,
@@ -623,10 +622,9 @@ const styles = StyleSheet.create({
     color: theme.palette.text.primary,
   },
   versionBadge: {
-    backgroundColor: `${theme.palette.primary}0f`,
-    borderWidth: 0.75,
-    borderColor: `${theme.palette.primary}22`,
-    ...(theme.glow.primarySubtle as any),
+    backgroundColor: theme.palette.userBubble.background,
+    borderWidth: HAIRLINE,
+    borderColor: `${theme.palette.primary}18`,
     borderRadius: theme.borderRadius.md,
     paddingHorizontal: 8,
     paddingVertical: 2,

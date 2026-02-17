@@ -2,7 +2,9 @@
 
 Most recent first.
 
-- Patch 177: `docs/patches/patch_177.md` (Sidebar polish: finer green + match theme; CI Lite header uses active repo + better 404 hint)
+- Patch 178: `docs/patches/patch_178.md` (Sidebar/Header theme align + CI Lite GitHub token passthrough)
+
+- Patch 177: `docs/patches/patch_177.md` (Sidebar polish + CI Lite header repo fix)
 
 - Patch 175: `docs/patches/patch_175.md` (AppInfoScreen Key Backup: signing keys + token bundle)
 
