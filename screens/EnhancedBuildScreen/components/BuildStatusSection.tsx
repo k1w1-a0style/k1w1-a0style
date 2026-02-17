@@ -123,9 +123,9 @@ export function BuildStatusSection({
         disabled={!hasStartBuild || buildLoading}
       >
         {buildLoading ? (
-          <ActivityIndicator color="#1a1a1a" />
+          <ActivityIndicator color="#00FF00" />
         ) : (
-          <Text style={styles.primaryBtnText}>🚀 Build starten</Text>
+          <Text style={styles.primaryBtnText}>Build starten</Text>
         )}
       </TouchableOpacity>
 
