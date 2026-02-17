@@ -84,6 +84,21 @@ module.exports = [
           { group: ['**/contexts/projectStorage'], message: 'Prefer infra/storage/projectPersistence for new code.' },
         ],
       }],
+
+
+      // Architecture boundaries (prevent cross-layer dependency drift)
+      // - shared/* must not import from contexts/* or screens/* or components/* (UI / state layer)
+      // - shared/types/* should stay pure (no lib/* runtime deps)
+      'import/no-restricted-paths': ['error', {
+        zones: [
+          { target: './shared', from: './contexts', message: 'shared/* must not import from contexts/* (layering boundary).' },
+          { target: './shared', from: './screens', message: 'shared/* must not import from screens/* (layering boundary).' },
+          { target: './shared', from: './components', message: 'shared/* must not import from components/* (layering boundary).' },
+          { target: './shared/types', from: './lib', message: 'shared/types/* must not import from lib/* (keep shared types pure).' },
+          { target: './shared/types', from: './infra', message: 'shared/types/* must not import from infra/* (keep shared types pure).' },
+        ],
+      }],
+
     },
   },
 ];
