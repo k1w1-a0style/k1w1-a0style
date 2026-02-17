@@ -15,8 +15,28 @@ export interface BuildStatusDetails {
   urls?: {
     html?: string | null;
     artifacts?: string | null;
+    /** Optional: direct artifact/build download URL (UI convenience) */
+    buildUrl?: string | null;
   };
   raw?: any;
   errorMessage?: string;
   runId?: number | null;
+}
+
+/**
+ * Persisted build history entry (local storage / UI history).
+ * Kept in shared/types so the UI + lib storage use the exact same shape.
+ */
+export interface BuildHistoryEntry {
+  id: string;
+  jobId: string;
+  repoName: string;
+  status: BuildStatus;
+  startedAt: string;
+  completedAt?: string;
+  durationMs?: number;
+  buildProfile?: string;
+  artifactUrl?: string | null;
+  htmlUrl?: string | null;
+  errorMessage?: string;
 }

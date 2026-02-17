@@ -3,7 +3,13 @@
  * Type-Definitionen und Type Guards für Supabase API Responses
  */
 
-import { BuildStatus, mapBuildStatus } from "./buildStatusMapper";
+import type { BuildStatus } from "./buildStatusMapper";
+import { mapBuildStatus } from "./buildStatusMapper";
+
+import type { BuildStatusDetails } from "../shared/types/build";
+
+// Re-export to keep existing imports working (single source of truth in shared/types).
+export type { BuildStatusDetails } from "../shared/types/build";
 
 /**
  * Build Details aus Supabase
@@ -25,22 +31,7 @@ export interface BuildDetails {
   [key: string]: any;
 }
 
-/**
- * Build Status Details mit unified Status
- */
-export interface BuildStatusDetails {
-  jobId: string;
-  status: BuildStatus;
-  urls?: {
-    html?: string | null;
-    artifacts?: string | null;
-    /** Optional: direct artifact/build download URL (UI convenience) */
-    buildUrl?: string | null;
-  };
-  raw?: any;
-  errorMessage?: string;
-  runId?: number | null;
-}
+// NOTE: BuildStatusDetails is defined in shared/types/build.ts
 
 /**
  * Supabase Function Response für check-eas-build

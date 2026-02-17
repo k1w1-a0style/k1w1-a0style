@@ -3,17 +3,11 @@
  * Zentralisiert die BuildStatus Type Definition und Mapping-Logik
  */
 
-/**
- * Unified BuildStatus Type
- * Wird von allen Hooks verwendet
- */
-export type BuildStatus =
-  | 'idle'
-  | 'queued'
-  | 'building'
-  | 'success'
-  | 'failed'
-  | 'error';
+// Single source of truth for BuildStatus lives in shared/types/build.
+// We re-export here to keep older imports working while preventing type drift.
+import type { BuildStatus } from "../shared/types/build";
+
+export type { BuildStatus } from "../shared/types/build";
 
 /**
  * Mappt rohe Status-Strings zu unserem unified BuildStatus Type
