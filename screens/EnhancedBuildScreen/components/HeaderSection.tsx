@@ -10,9 +10,9 @@ export function HeaderSection({
 }): React.ReactElement {
   return (
     <View style={styles.header}>
-      <Text style={styles.title}>🛠️ Build</Text>
+      <Text style={styles.title}>Build</Text>
       <Text style={styles.subtitle}>
-        {projectName ? `Projekt: ${projectName}` : "Build-Status & GitHub Actions"}
+        {projectName ? `Projekt: ${projectName}` : "APK Builder"}
       </Text>
     </View>
   );
