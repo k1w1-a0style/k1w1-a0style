@@ -2,6 +2,14 @@
 
 Most recent first.
 
+- Patch 182: `docs/patches/patch_182.md` (CI Lite progress hotfix: TS palette + missing styles)
+
+- Patch 181: `docs/patches/patch_181.md` (CI Lite progress bar + shimmer + step feedback)
+
+- Patch 180: `docs/patches/patch_180.md` (CI Lite UX: pulsing ring + no auto-push; branch outline/glow; dispatch token fix)
+
+- Patch 179: `docs/patches/patch_179.md` (CI Lite dispatch reliability + header buttons theming)
+
 - Patch 178: `docs/patches/patch_178.md` (Sidebar/Header theme align + CI Lite GitHub token passthrough)
 
 - Patch 177: `docs/patches/patch_177.md` (Sidebar polish + CI Lite header repo fix)
@@ -36,4 +44,3 @@ Most recent first.
 - Patch 149: `docs/patches/patch_149.md` (PR-3: polling extract + single poller)
 - Patch 148: `docs/patches/patch_148.md` (PR-2: storage move + facade)
 - Patch 147: `docs/patches/patch_147.md` (V3.1 scaffolding)
-- Patch 179: CI Lite dispatch reliability + header buttons theming

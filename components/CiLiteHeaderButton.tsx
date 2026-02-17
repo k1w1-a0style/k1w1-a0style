@@ -25,7 +25,7 @@ import { getGitHubToken } from "../infra/github/tokenStore";
 import { getSupabaseEdgeUrl } from "../lib/supabaseEdge";
 import { useGitHub } from "../contexts/GitHubContext";
 import { useProject } from "../contexts/ProjectContext";
-import { getDefaultBranch, getEdgeAdminKey, pushFilesToRepo } from "../infra/github/githubService";
+import { deleteRepoFile, getDefaultBranch, getEdgeAdminKey, pushFilesToRepo } from "../infra/github/githubService";
 import { useGitHubActionsLogs } from "../hooks/useGitHubActionsLogs";
 import { redactSecrets, truncateWithMarker } from "../lib/secretRedaction";
 
@@ -236,6 +236,45 @@ export default function CiLiteHeaderButton(): React.ReactElement {
 
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const ringAnim = useRef(new Animated.Value(0)).current;
+  const ringLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  // Progress bar (0..100)
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+  const shimmerLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  useEffect(() => {
+    if (headerState === "running") {
+      ringLoopRef.current?.stop();
+      ringAnim.setValue(0);
+      ringLoopRef.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(ringAnim, {
+            toValue: 1,
+            duration: 900,
+            useNativeDriver: true,
+          }),
+          Animated.timing(ringAnim, {
+            toValue: 0,
+            duration: 900,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+      ringLoopRef.current.start();
+    } else {
+      ringLoopRef.current?.stop();
+      ringLoopRef.current = null;
+      ringAnim.setValue(0);
+    }
+
+    return () => {
+      ringLoopRef.current?.stop();
+    };
+  }, [headerState, ringAnim]);
+
+
   const stopPolling = useCallback(() => {
     if (pollTimerRef.current) {
       clearInterval(pollTimerRef.current);
@@ -319,6 +358,30 @@ export default function CiLiteHeaderButton(): React.ReactElement {
     workflowId,
     autoRefresh: visible,
   });
+
+
+// Progress shimmer while busy.
+useEffect(() => {
+  shimmerLoopRef.current?.stop();
+  shimmerLoopRef.current = null;
+  shimmerAnim.setValue(0);
+
+  if (!visible) return;
+  if (!(dispatching || logsLoading || workflowRun?.status === "in_progress")) return;
+
+  shimmerLoopRef.current = Animated.loop(
+    Animated.sequence([
+      Animated.timing(shimmerAnim, { toValue: 1, duration: 1100, useNativeDriver: true }),
+      Animated.timing(shimmerAnim, { toValue: 0, duration: 1100, useNativeDriver: true }),
+    ]),
+  );
+  shimmerLoopRef.current.start();
+
+  return () => {
+    shimmerLoopRef.current?.stop();
+    shimmerLoopRef.current = null;
+  };
+}, [visible, dispatching, logsLoading, workflowRun?.status, shimmerAnim]);
 
   const logLines = useMemo(() => {
     if (!visible) return [];
@@ -545,6 +608,49 @@ export default function CiLiteHeaderButton(): React.ReactElement {
           const nextFiles = Array.from(nextMap.entries()).map(([path, content]) => ({ path, content }));
           await updateProjectFiles(nextFiles);
 
+          // Auto-Sync: after applying a patch locally, mirror touched files to the selected repo/branch.
+          // This keeps "lokal" and "Repo" in sync without extra manual steps.
+          try {
+            if (githubRepo && githubRepo.includes("/")) {
+              const [owner, repo] = githubRepo.split("/");
+              let targetBranch = branch;
+              if (!targetBranch) {
+                try {
+                  targetBranch = (await getDefaultBranch(owner, repo)).trim();
+                } catch {
+                  targetBranch = "main";
+                }
+              }
+              if (!targetBranch) targetBranch = "main";
+
+              // Ensure we have a token configured in-app (same token used for normal pushes).
+              const tok = await getGitHubToken().catch(() => null);
+              if (!tok) throw new Error("GitHub Token fehlt (Auto-Sync nach Patch).");
+
+              const touched = patchTouchedPaths(patch);
+              const toDelete = new Set(deletePaths);
+
+              // Upserts / changed files (exclude deleted)
+              const upserts = touched
+                .filter((p) => !toDelete.has(p))
+                .map((p) => ({ path: p, content: nextMap.get(p) ?? "" }))
+                .filter((f) => typeof f.content === "string");
+
+              if (upserts.length) {
+                await pushFilesToRepo(owner, repo, upserts as any, targetBranch);
+              }
+
+              // Deletions
+              for (const p of deletePaths) {
+                await deleteRepoFile(owner, repo, p, `Delete ${p}`, targetBranch);
+              }
+            }
+          } catch (syncErr: any) {
+            // Don't fail patch apply if sync fails – show a clear hint instead.
+            console.warn("[CI Lite] Auto-Sync failed:", syncErr);
+            setPatchInfo((prev) => `${prev || ""}\n\n⚠️ Auto-Sync fehlgeschlagen: ${syncErr?.message || String(syncErr)}`);
+          }
+
           setPatchInfo(`✅ Patch applied.\n${summary}`);
         } catch (e: any) {
           const msg = e?.message || String(e);
@@ -710,11 +816,6 @@ export default function CiLiteHeaderButton(): React.ReactElement {
         return;
       }
 
-      if (!projectData?.files || projectData.files.length === 0) {
-        Alert.alert("CI Lite", "Projekt ist leer – keine Files zum Pushen.");
-        return;
-      }
-
       setLocalError(null);
       setVisible(true);
       setDispatching(true);
@@ -729,7 +830,7 @@ export default function CiLiteHeaderButton(): React.ReactElement {
       setJobId(newJobId);
 
       try {
-        // 1) Best-effort: push current project files to the target branch.
+        // 1) Determine target branch (selected branch > default branch > main).
         const [owner, repo] = githubRepo.split("/");
         let targetBranch = branch;
         if (!targetBranch) {
@@ -739,10 +840,9 @@ export default function CiLiteHeaderButton(): React.ReactElement {
             targetBranch = "main";
           }
         }
-
+        if (!targetBranch) targetBranch = "main";
         setTargetRef(targetBranch);
 
-        await pushFilesToRepo(owner, repo, projectData.files as any, targetBranch);
 
         // 2) Dispatch workflow via Edge (server-side token).
         // Use direct fetch instead of supabase.functions.invoke so we can show richer error details.
@@ -861,6 +961,32 @@ export default function CiLiteHeaderButton(): React.ReactElement {
 
   const busy = dispatching || logsLoading || (workflowRun?.status === "in_progress");
 
+
+const progressTarget = useMemo(() => {
+  // Heuristic progress mapping for UX (not exact, but stable and readable)
+  if (dispatching) return { pct: 10, label: "Dispatch…" };
+  if (!runId && !done) return { pct: 18, label: "Warte auf Run…" };
+
+  // If we have logs, infer which step is active
+  if (stepInfo.lint === "running") return { pct: 35, label: "ESLint läuft…" };
+  if (stepInfo.lint === "success" && stepInfo.typecheck === "waiting")
+    return { pct: 55, label: "Starte Typecheck…" };
+  if (stepInfo.typecheck === "running") return { pct: 78, label: "Typecheck läuft…" };
+
+  if (done) return { pct: 100, label: ok ? "Fertig" : "Fertig (Fehler)" };
+
+  // fallback
+  return { pct: 25, label: "Initialisiere…" };
+}, [dispatching, runId, done, stepInfo.lint, stepInfo.typecheck, ok]);
+
+useEffect(() => {
+  Animated.timing(progressAnim, {
+    toValue: progressTarget.pct,
+    duration: 420,
+    useNativeDriver: false,
+  }).start();
+}, [progressTarget.pct, progressAnim]);
+
   const statusText = useMemo(() => {
     if (busy) {
       if (stepInfo.typecheck === "waiting" || stepInfo.typecheck === "idle") return "Lint-Check läuft";
@@ -887,9 +1013,8 @@ export default function CiLiteHeaderButton(): React.ReactElement {
         }}
         style={({ pressed }) => [
           styles.iconBtn,
-          styles.ciBtn,
           pressed && styles.iconBtnPressed,
-          (headerState === "running") && styles.ciBtnRunning,
+          headerState === "running" && styles.ciBtnRunning,
         ]}
         accessibilityLabel="CI Lite (Lint + Typecheck)"
         android_ripple={{
@@ -897,15 +1022,41 @@ export default function CiLiteHeaderButton(): React.ReactElement {
           borderless: true,
         }}
       >
-        <View style={styles.ciBtnInner}>
+        <View style={styles.ciIconWrap}>
+          {headerState === "running" ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.pulseRing,
+                {
+                  opacity: ringAnim.interpolate({
+                    inputRange: [0, 0.4, 1],
+                    outputRange: [0.9, 0.45, 0.1],
+                  }),
+                  transform: [
+                    {
+                      scale: ringAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 1.35],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            />
+          ) : null}
+
           <Ionicons
-            name="checkmark-done-outline"
+            name={
+              headerState === "success"
+                ? "checkmark-circle"
+                : headerState === "failure"
+                  ? "close-circle"
+                  : "checkmark-circle-outline"
+            }
             size={22}
-            color={theme.palette.primary}
+            color={headerState === "failure" ? theme.palette.error : theme.palette.primary}
           />
-          <View style={styles.ciLampWrap}>
-            <StatusLamp state={headerState === "idle" ? "waiting" : headerState} size={8} />
-          </View>
         </View>
       </Pressable>
 
@@ -953,6 +1104,45 @@ export default function CiLiteHeaderButton(): React.ReactElement {
               {busy ? (
                 <ActivityIndicator size="small" color={theme.palette.primary} style={{ marginLeft: 8 }} />
               ) : null}
+
+
+<View style={styles.progressWrap}>
+  <View style={styles.progressMetaRow}>
+    <Text style={styles.progressLabel}>{progressTarget.label}</Text>
+    <Text style={styles.progressPct}>{Math.round(progressTarget.pct)}%</Text>
+  </View>
+  <View style={styles.progressTrack}>
+    <Animated.View
+      style={[
+        styles.progressFill,
+        {
+          width: progressAnim.interpolate({
+            inputRange: [0, 100],
+            outputRange: ["0%", "100%"],
+          }),
+        },
+      ]}
+    />
+    {busy ? (
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.progressShimmer,
+          {
+            transform: [
+              {
+                translateX: shimmerAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-60, 260],
+                }),
+              },
+            ],
+          },
+        ]}
+      />
+    ) : null}
+  </View>
+</View>
             </View>
 
             <View style={styles.metaBox}>
@@ -1145,9 +1335,14 @@ export default function CiLiteHeaderButton(): React.ReactElement {
 
 const styles = StyleSheet.create({
   iconBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: theme.borderRadius.full,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.palette.background,
+    borderWidth: HAIRLINE,
+    borderColor: `${theme.palette.primary}22`,
   },
   iconBtnPressed: {
     backgroundColor: theme.palette.userBubble.background,
@@ -1162,15 +1357,19 @@ const styles = StyleSheet.create({
     borderColor: theme.palette.primary,
     ...theme.glow.primary,
   },
-  ciBtnInner: {
+  ciIconWrap: {
     position: "relative",
     justifyContent: "center",
     alignItems: "center",
   },
-  ciLampWrap: {
+  pulseRing: {
     position: "absolute",
-    right: -2,
-    top: -2,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: HAIRLINE,
+    borderColor: `${theme.palette.primary}66`,
+    ...theme.glow.primary,
   },
 
   // --- Compact modal UI (center card) ---
@@ -1236,6 +1435,51 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     fontSize: 12,
     marginLeft: 2,
+  },
+  progressWrap: {
+    marginTop: 8,
+    marginBottom: 2,
+    width: "100%",
+  },
+  progressMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  progressLabel: {
+    color: theme.palette.text.secondary,
+    fontWeight: "800",
+    fontSize: 12,
+  },
+  progressPct: {
+    color: theme.palette.text.secondary,
+    fontWeight: "900",
+    fontSize: 12,
+  },
+  progressTrack: {
+    position: "relative",
+    height: 8,
+    borderRadius: 999,
+    overflow: "hidden",
+    backgroundColor: `${theme.palette.primary}1a`,
+    borderWidth: HAIRLINE,
+    borderColor: `${theme.palette.primary}22`,
+  },
+  progressFill: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: theme.palette.primary,
+    opacity: 0.75,
+  },
+  progressShimmer: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: 60,
+    borderRadius: 999,
+    backgroundColor: `${theme.palette.primary}55`,
+    opacity: 0.35,
   },
   metaBox: {
     borderWidth: 1,

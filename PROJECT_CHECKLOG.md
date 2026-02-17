@@ -1,5 +1,7 @@
 # Project Checklog
 
+- Patch 182 (2026-02-18): CI Lite progress hotfix — fix TS palette key + add missing StyleSheet keys
+
 - Patch 178 (2026-02-17): Sidebar/Header theme align — hairline borders + color unify; CI Lite GitHub logs token passthrough + edge fallback
 
 - Patch 175 (2026-02-17): AppInfoScreen Key Backup — include signing keys + token bundle (SIGNING_MASTER_KEY / SIGNING_ADMIN_KEY)
@@ -42,3 +44,14 @@ Recent changes, most recent first.
 ## Patch 179
 - CI Lite workflow dispatch uses device GitHub token and CI Lite workflows are allowlisted for repo sync.
 - Header action buttons use chat-like green tint and hairline borders.
+
+## Patch 180
+- CI Lite header button: unified header styling + pulsing ring while checks run; success icon stays green without heavy fill.
+- CI Lite no longer auto-pushes before dispatch (prevents unexpected build triggers).
+- Auto-sync after applying a CI Lite patch: touched files are mirrored to repo/branch (and deletions removed).
+- github-workflow-dispatch edge function now accepts `githubToken` from request body (fixes 'githubToken is not defined').
+- Drawer selected branch + active item uses thin neon outline + soft glow.
+
+## Patch 181
+- CI Lite Modal: Progress-Bar + Prozent (heuristisch) und Shimmer-Animation während Checks laufen.
+- Besseres Live-Feedback ohne Einfluss auf die bestehende CI-Lite Logik (Dispatch/Polling/Results/Patch-Apply).
