@@ -269,9 +269,11 @@ export function useConnectionsScreen() {
 
       if (!tableRes.ok) {
         if ((tableRes.status === 401 || tableRes.status === 403) && checkKey === anon) {
+          setSupabaseOk(true);
+          await AsyncStorage.setItem(STORAGE_KEYS.CONN_SUPABASE_OK, "true").catch(() => {});
           Alert.alert(
-            "✅ Supabase OK",
-            "REST erreichbar. build_jobs ist durch RLS geschützt (401/403) – das ist ok. CI/Edge nutzt Service-Role.",
+            "Supabase OK",
+            "REST erreichbar. build_jobs ist durch RLS geschuetzt (401/403) - das ist ok. CI/Edge nutzt Service-Role.",
           );
           return;
         }
