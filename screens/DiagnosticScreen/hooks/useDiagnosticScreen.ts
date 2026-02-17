@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { Alert, LayoutAnimation, Platform, UIManager } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import type { ProjectData } from "../../../contexts/types";
 import type { BuildMode } from "../../../components/diagnostics/ModeSelector";
