@@ -224,10 +224,18 @@ export function useConnectionsScreen() {
         },
       });
       if (!resp.ok) throw new Error(`GitHub Test failed (${resp.status})`);
-      await resp.json().catch(() => ({}));
-      Alert.alert("✅ GitHub OK", "Token ist gültig und hat User-Zugriff.");
+      const userData = await resp.json().catch(() => ({}));
+      const login = userData?.login || "";
+      // Persist connection status
+      setGithubOk(true);
+      setGithubUser(login);
+      await AsyncStorage.setItem(STORAGE_KEYS.CONN_GITHUB_OK, "true").catch(() => {});
+      await AsyncStorage.setItem(STORAGE_KEYS.CONN_GITHUB_USER, login).catch(() => {});
+      Alert.alert("GitHub OK", `Verbunden als: ${login || "OK"}`);
     } catch (e: any) {
-      Alert.alert("❌ GitHub Test", safeAlertText(e));
+      setGithubOk(false);
+      await AsyncStorage.setItem(STORAGE_KEYS.CONN_GITHUB_OK, "false").catch(() => {});
+      Alert.alert("GitHub Test", safeAlertText(e));
     } finally {
       setBusy(false);
     }
