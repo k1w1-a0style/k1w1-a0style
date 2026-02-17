@@ -27,4 +27,6 @@ export const MANAGED_WORKFLOWS = new Set([
   ".github/workflows/eas-link.yml",
   ".github/workflows/k1w1-triggered-build.yml",
   ".github/workflows/release-build.yml",
+  ".github/workflows/k1w1-ci-lite.yml",
+  ".github/workflows/k1w1-ci-lite-autofix.yml",
 ]);

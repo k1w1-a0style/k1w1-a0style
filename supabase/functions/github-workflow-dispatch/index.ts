@@ -64,7 +64,7 @@ serve(async (req) => {
     if (!val.ok) return errorResponse("Invalid request", req, 400, val.errors);
 
     const { githubRepo, workflow, ref, inputs } = val.data!;
-    const token = getGithubToken();
+    const token = (githubToken ?? getGithubToken()).trim();
 
     if (!token) {
       return errorResponse("Missing GitHub token", req, 500, {
@@ -86,16 +86,37 @@ serve(async (req) => {
 
     const [owner, repo] = githubRepo.split("/");
 
-    const url = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflow}/dispatches`;
-    const body = { ref, inputs: inputs ?? {} };
+const body = { ref, inputs: inputs ?? {} };
 
-    const r = await fetch(url, {
-      method: "POST",
-      headers: githubHeaders(token),
-      body: JSON.stringify(body),
-    });
+// `workflow` can be id, filename, or a short alias. Some repos don’t have the CI Lite workflows yet.
+// Try a few candidates before failing.
+const candidates: string[] = [];
+const w = (workflow ?? "").trim();
+if (w) candidates.push(w);
+if (w && !w.includes(".") && !/^[0-9]+$/.test(w)) {
+  candidates.push(`${w}.yml`);
+  candidates.push(`${w}.yaml`);
+}
 
-    if (!r.ok) {
+let lastResp: Response | null = null;
+for (const wf of candidates) {
+  const url = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${wf}/dispatches`;
+  const r = await fetch(url, {
+    method: "POST",
+    headers: githubHeaders(token),
+    body: JSON.stringify(body),
+  });
+  if (r.ok) {
+    return jsonResponse({ ok: true, workflow: wf }, req, 200);
+  }
+  lastResp = r;
+  // Only retry on workflow-not-found.
+  if (r.status !== 404) break;
+}
+
+// If still not ok, bubble the last response.
+const r = lastResp!;
+if (!r.ok) {
       const txt = await r.text();
       return errorResponse(
         "GitHub workflow dispatch failed",

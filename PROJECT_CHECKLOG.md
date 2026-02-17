@@ -38,3 +38,7 @@ Recent changes, most recent first.
 - Patch 149 (2026-02-16): PR-3 — build polling extracted to project/services; useBuildStatus remains single hook
 - Patch 148 (2026-02-16): PR-2 — storage persistence moved to infra/storage with contexts facade
 - Patch 147 (2026-02-16): V3.1 scaffolding (shared/types + docs/refactor + scripts/refactor)
+
+## Patch 179
+- CI Lite workflow dispatch uses device GitHub token and CI Lite workflows are allowlisted for repo sync.
+- Header action buttons use chat-like green tint and hairline borders.

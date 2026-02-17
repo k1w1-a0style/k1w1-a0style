@@ -21,6 +21,7 @@ import { v4 as uuidv4 } from "uuid";
 import * as Clipboard from "expo-clipboard";
 
 import { theme } from "../theme";
+import { getGitHubToken } from "../infra/github/tokenStore";
 import { getSupabaseEdgeUrl } from "../lib/supabaseEdge";
 import { useGitHub } from "../contexts/GitHubContext";
 import { useProject } from "../contexts/ProjectContext";
@@ -36,6 +37,8 @@ const WORKFLOW_CI_LITE = "k1w1-ci-lite.yml";
 const WORKFLOW_CI_LITE_AUTOFIX = "k1w1-ci-lite-autofix.yml";
 
 type StepState = "idle" | "waiting" | "running" | "success" | "failure";
+
+const HAIRLINE = StyleSheet.hairlineWidth;
 
 function safeUi(s: string): string {
   return truncateWithMarker(redactSecrets(s || ""), 900, "…");
@@ -262,11 +265,8 @@ export default function CiLiteHeaderButton(): React.ReactElement {
 
       if (!r.ok) {
         const t = await r.text().catch(() => "");
-        const hint = /GitHub API Status:\s*404/i.test(t)
-          ? " (Repo/Workflow nicht gefunden ODER Token hat keinen Zugriff – prüfe owner/repo + GitHub PAT)"
-          : "";
         throw new Error(
-          `github-workflow-runs failed (${r.status}): ${safeUi(t || r.statusText)}${hint}`,
+          `github-workflow-runs failed (${r.status}): ${safeUi(t || r.statusText)}`,
         );
       }
 
@@ -297,17 +297,15 @@ export default function CiLiteHeaderButton(): React.ReactElement {
 
 
   const githubRepo = useMemo(() => {
-    // Prefer the actively selected repo from GitHubRepos screen.
-    // linkedRepo may be stale (e.g. old project name) and can cause GitHub 404.
-    const ar = (activeRepo ?? "").trim();
-    const lr = (projectData?.linkedRepo ?? "").trim();
-    return (ar || lr || "").trim();
+    return (
+      projectData?.linkedRepo?.trim() || activeRepo?.trim() || ""
+    ).trim();
   }, [projectData?.linkedRepo, activeRepo]);
 
   const branch = useMemo(() => {
-    const ab = (activeBranch ?? "").trim();
-    const lb = (projectData?.linkedBranch ?? "").trim();
-    return (ab || lb || "").trim();
+    return (
+      projectData?.linkedBranch?.trim() || activeBranch?.trim() || ""
+    ).trim();
   }, [projectData?.linkedBranch, activeBranch]);
 
   const {
@@ -758,6 +756,7 @@ export default function CiLiteHeaderButton(): React.ReactElement {
         const edgeUrl = await getSupabaseEdgeUrl();
         const dispatchBody = {
           githubRepo,
+          githubToken: await getGitHubToken().catch(() => null),
           workflow: workflowFile,
           ref: targetBranch,
           inputs: {
@@ -1151,12 +1150,12 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.full,
   },
   iconBtnPressed: {
-    backgroundColor: theme.palette.cardHover,
+    backgroundColor: theme.palette.userBubble.background,
   },
   ciBtn: {
-    borderWidth: 1,
+    borderWidth: HAIRLINE,
     borderColor: `${theme.palette.primary}66`,
-    backgroundColor: theme.palette.backgroundDark,
+    backgroundColor: theme.palette.userBubble.background,
     ...theme.glow.primarySubtle,
   },
   ciBtnRunning: {

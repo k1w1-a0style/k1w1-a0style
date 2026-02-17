@@ -36,3 +36,4 @@ Most recent first.
 - Patch 149: `docs/patches/patch_149.md` (PR-3: polling extract + single poller)
 - Patch 148: `docs/patches/patch_148.md` (PR-2: storage move + facade)
 - Patch 147: `docs/patches/patch_147.md` (V3.1 scaffolding)
+- Patch 179: CI Lite dispatch reliability + header buttons theming

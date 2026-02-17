@@ -135,6 +135,7 @@ export function validateGithubWorkflowDispatchRequest(body: unknown): Ok<{
   workflow: string;
   ref: string;
   inputs?: Record<string, string>;
+  githubToken?: string;
 }> | Err {
   if (!isObject(body)) return { ok: false, errors: { error: "body must be an object" } };
 
@@ -142,6 +143,7 @@ export function validateGithubWorkflowDispatchRequest(body: unknown): Ok<{
   const workflow = body.workflow ?? body.workflowId ?? body.workflow_id ?? body.path;
   const ref = body.ref ?? body.branch ?? "main";
   const inputs = body.inputs;
+  const githubToken = body.githubToken ?? body.github_token ?? body.token ?? null;
 
   const errors: any = {};
 
@@ -151,6 +153,10 @@ export function validateGithubWorkflowDispatchRequest(body: unknown): Ok<{
 
   if (!isString(workflow) || workflow.length < 1 || workflow.length > 200) {
     errors.workflow = "workflow must be a string (filename or id)";
+  }
+
+  if (githubToken !== null && githubToken !== undefined && !isString(githubToken)) {
+    errors.githubToken = "githubToken must be a string";
   }
 
   const br = validateBranch(ref);
