@@ -24,7 +24,7 @@ import { theme } from "../theme";
 import { getSupabaseEdgeUrl } from "../lib/supabaseEdge";
 import { useGitHub } from "../contexts/GitHubContext";
 import { useProject } from "../contexts/ProjectContext";
-import { getDefaultBranch, getEdgeAdminKey, pushFilesToRepo } from "../contexts/githubService";
+import { getDefaultBranch, getEdgeAdminKey, pushFilesToRepo } from "../infra/github/githubService";
 import { useGitHubActionsLogs } from "../hooks/useGitHubActionsLogs";
 import { redactSecrets, truncateWithMarker } from "../lib/secretRedaction";
 

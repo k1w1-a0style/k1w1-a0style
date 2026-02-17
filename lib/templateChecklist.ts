@@ -1,7 +1,8 @@
-// lib/templateChecklist.ts
-// Legacy entrypoint / facade for the template hard checklist.
-// The implementation lives under lib/diagnostics/templates/*.
-
+/**
+ * @deprecated Legacy entrypoint / facade for the template hard checklist.
+ * Prefer importing from: lib/diagnostics/templates
+ * This file will be removed once all external callers are migrated.
+ */
 export type {
   CoreTemplateId,
   TemplateId,

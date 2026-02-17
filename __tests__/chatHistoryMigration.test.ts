@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { loadProjectFromStorage } from "../contexts/projectStorage";
+import { loadProjectFromStorage } from "../infra/storage/projectPersistence";
 
 describe("chat history migration", () => {
   beforeEach(() => {

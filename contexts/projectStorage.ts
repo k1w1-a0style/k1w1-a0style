@@ -1,5 +1,6 @@
-// contexts/projectStorage.ts
-// Facade re-export (moved implementation to infra/storage/projectPersistence.ts)
-// Keep this file to avoid breaking imports during refactor.
-
+/**
+ * @deprecated Facade kept for backwards-compatible imports.
+ * Prefer importing from: infra/storage/projectPersistence
+ * This file will be removed once all external callers are migrated.
+ */
 export * from "../infra/storage/projectPersistence";
