@@ -107,9 +107,9 @@ export function RepoProfileSection({
         accessibilityLabel="Repo speichern"
       >
         {savingRepo ? (
-          <ActivityIndicator color="#1a1a1a" />
+          <ActivityIndicator color="#00FF00" />
         ) : (
-          <Text style={styles.primaryBtnText}>💾 Repo speichern</Text>
+          <Text style={styles.primaryBtnText}>Repo speichern</Text>
         )}
       </TouchableOpacity>
 
