@@ -72,3 +72,6 @@ This is a patchable version of the Refactoring Plan V3, adjusted to avoid duplic
 
 ## Patch 155.1
 - Hotfix: Fix TypeScript regressions from Patch 155 (toolchain typing + missing `TemplateFileMap`).
+
+## Patch 156
+- PR-6 Stage 2: Add `lib/diagnostics/templates/index.ts` barrel export and update `lib/templateChecklist.ts` imports/re-exports.

@@ -8,24 +8,26 @@ import type {
   ChecklistItem,
   TemplateChecklistOptions,
   TemplateChecklistReport,
-} from "./diagnostics/templates/templateChecklistTypes";
-import type { TemplateFileMap } from "./diagnostics/templates/templateChecklistTypes";
-import { DEFAULT_TOOLCHAIN, type Toolchain } from "./diagnostics/templates/toolchain";
-import { PNG_1x1_BASE64 } from "./diagnostics/templates/assets";
+  TemplateFileMap,
+} from "./diagnostics/templates";
 import {
+  DEFAULT_TOOLCHAIN,
+  PNG_1x1_BASE64,
   REQUIRED_ASSETS_P0,
   REQUIRED_FILES_P0,
   REQUIRED_WORKFLOWS_P1,
-} from "./diagnostics/templates/requiredFiles";
+  type Toolchain,
+} from "./diagnostics/templates";
 
-export type { CoreTemplateId, TemplateId } from "./diagnostics/templates/templateSelection";
-export { detectCoreTemplateId, resolveEffectiveTemplateId } from "./diagnostics/templates/templateSelection";
 export type {
+  CoreTemplateId,
+  TemplateId,
   ChecklistSeverity,
   ChecklistItem,
   TemplateChecklistReport,
   TemplateChecklistOptions,
-} from "./diagnostics/templates/templateChecklistTypes";
+} from "./diagnostics/templates";
+export { detectCoreTemplateId, resolveEffectiveTemplateId } from "./diagnostics/templates";
 
 
 export function runTemplateHardChecklist(

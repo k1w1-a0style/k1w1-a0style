@@ -1,5 +1,7 @@
 # Project Checklog
 
+- Patch 156 (2026-02-17): PR-6 Stage 2 – templates barrel exports; templateChecklist imports simplified
+
 - Patch 155.1 (2026-02-17): Hotfix — PR-6 Stage 1 type fixes (Toolchain typing + TemplateFileMap)
 
 - Patch 155 (2026-02-17): PR-6 Stage 1 – modularize template checklist building blocks
