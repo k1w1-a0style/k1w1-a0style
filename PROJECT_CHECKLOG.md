@@ -1,5 +1,12 @@
 # Project Checklog
 
+- Patch 173 (2026-02-17): PR-8 Stage 7 — normalize blocking import audit + add preflight:fast + docs alignment
+- Patch 172 (2026-02-17): PR-8 Stage 6 — make import drift audit blocking (preflight enforced)
+- Patch 171 (2026-02-17): PR-8 Stage 5 — add import drift audit (contexts/types Build* imports)
+- Patch 170 (2026-02-17): PR-8 Stage 4 — prefer shared build type imports (no alias)
+- Patch 169 (2026-02-17): PR-8 Stage 3 — type drift guardrails (eslint boundaries + audit)
+- Patch 168 (2026-02-17): PR-8 Stage 2 — unify project/context types via shared types + shim exports
+- Patch 167 (2026-02-17): PR-8 Stage 1 — unify build types (single source of truth in shared/types)
 Recent changes, most recent first.
 
 - Patch 163 (2026-02-17): PR-7 Stage 4 — enforce facade import bans via ESLint errors (guardrail now fails CI)

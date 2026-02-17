@@ -5,12 +5,11 @@ echo "== PR-8 Stage 6: Context import drift audit (blocking) =="
 echo "Repo: $(pwd)"
 echo
 
-# Block new drift: domain build types must NOT be imported from contexts/types.
+# Block drift: domain build types must NOT be imported from contexts/types.
 # Prefer shared/types/build directly.
-
 matches=$(
   rg -n --hidden --glob '!.git' --glob '!node_modules' --glob '*.ts' --glob '*.tsx' \
-    'import\s+type\s+\{[^}]*\b(BuildStatusDetails|BuildStatus|BuildHistoryEntry)\b[^}]*\}\s+from\s+["'\''](\.\./)*contexts/types["'\'']' . \
+    'import\s+type\s+\{[^}]*\b(BuildStatusDetails|BuildStatus|BuildHistoryEntry)\b[^}]*\}\s+from\s+["\'\'](\.\./)*contexts/types["\'\']' . \
     || true
 )
 
