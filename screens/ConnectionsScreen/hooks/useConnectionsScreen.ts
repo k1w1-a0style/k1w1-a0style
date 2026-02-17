@@ -37,6 +37,12 @@ export function useConnectionsScreen() {
   const [busy, setBusy] = useState(false);
   const [isEasInitRunning, setIsEasInitRunning] = useState(false);
 
+  // Persistent connection lights
+  const [githubOk, setGithubOk] = useState(false);
+  const [githubUser, setGithubUser] = useState("");
+  const [supabaseOk, setSupabaseOk] = useState(false);
+  const [expoOk, setExpoOk] = useState(false);
+
   // Tokens
   const [githubToken, setGithubToken] = useState("");
   const [expoToken, setExpoToken] = useState("");
