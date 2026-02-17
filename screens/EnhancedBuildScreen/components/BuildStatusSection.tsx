@@ -59,21 +59,21 @@ export function BuildStatusSection({
 
       {!!currentBuild?.urls?.html && (
         <TouchableOpacity
-          style={styles.primaryBtn}
+          style={styles.secondaryBtn}
           onPress={() => openRun(currentBuild.urls?.html || "")}
           activeOpacity={0.8}
         >
-          <Text style={styles.primaryBtnText}>🔎 GitHub Run öffnen</Text>
+          <Text style={styles.secondaryBtnText}>GitHub Run oeffnen</Text>
         </TouchableOpacity>
       )}
 
       {!!currentBuild?.urls?.artifacts && (
         <TouchableOpacity
-          style={styles.primaryBtn}
+          style={styles.secondaryBtn}
           onPress={() => openRun(currentBuild.urls?.artifacts || "")}
           activeOpacity={0.8}
         >
-          <Text style={styles.primaryBtnText}>📦 Artifacts öffnen</Text>
+          <Text style={styles.secondaryBtnText}>Artifacts oeffnen</Text>
         </TouchableOpacity>
       )}
 
@@ -91,7 +91,7 @@ export function BuildStatusSection({
                   u.toLowerCase().endsWith(".apk") ||
                   u.includes("/storage/v1/object/") ||
                   u.includes("/storage/v1/object/sign/");
-                return isApk ? "⬇️ APK Download" : "🔗 Build Ergebnis";
+                return isApk ? "APK Download" : "Build Ergebnis";
               })()}
             </Text>
           </TouchableOpacity>
