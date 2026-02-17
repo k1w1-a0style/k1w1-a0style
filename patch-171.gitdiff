@@ -1,0 +1,61 @@
+diff --git a/package.json b/package.json
+index 4b6c3af..6a6f0a5 100644
+--- a/package.json
++++ b/package.json
+@@ -37,6 +37,7 @@
+     "typecheck": "tsc --noEmit",
+     "lint:ci": "eslint . --quiet",
+     "test:silent": "jest --silent",
++    "audit:imports": "bash scripts/refactor/pr8-context-import-audit.sh",
+     "audit:types": "bash scripts/refactor/pr8-type-audit.sh",
+     "preflight": "npm run typecheck && npm run lint:ci && npm run test:silent && npm run audit:types",
+     "start": "expo start",
+diff --git a/scripts/refactor/pr8-context-import-audit.sh b/scripts/refactor/pr8-context-import-audit.sh
+new file mode 100755
+index 0000000..f91d3b2
+--- /dev/null
++++ b/scripts/refactor/pr8-context-import-audit.sh
+@@ -0,0 +1,49 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++echo "== PR-8 Stage 5: Context import drift audit (informational) =="
++echo "Repo: $(pwd)"
++echo
++
++# We intentionally keep this audit non-blocking (exit 0) to avoid breaking builds
++# while the codebase is gradually migrated off of contexts/types re-exports.
++#
++# Goal: domain build types should be imported from shared/types/build:
++#   - BuildStatus
++#   - BuildStatusDetails
++#   - BuildHistoryEntry
++#
++# This script prints any remaining imports from contexts/types that include these names.
++
++PATTERN='from\s+["'\''](\.\.\/)*contexts\/types["'\'']'
++TYPE_PATTERN='(BuildStatusDetails|BuildStatus|BuildHistoryEntry)'
++
++matches=$(
++  rg -n --hidden --glob '!.git' --glob '!node_modules' \
++    "$TYPE_PATTERN" . \
++    | rg -n "$PATTERN" \
++    || true
++)
++
++if [[ -z "${matches}" ]]; then
++  echo "✅ No remaining Build* imports from contexts/types found."
++  echo "   (Good. Prefer shared/types/build directly for domain build types.)"
++  exit 0
++fi
++
++echo "⚠️  Found remaining imports of Build* types from contexts/types:"
++echo
++echo "${matches}"
++echo
++echo "Suggested fix (example):"
++echo "  - Replace: import type { BuildStatusDetails } from \"../contexts/types\""
++echo "  - With:    import type { BuildStatusDetails } from \"../shared/types/build\""
++echo
++echo "Note: This audit is informational and does not fail."
++exit 0
