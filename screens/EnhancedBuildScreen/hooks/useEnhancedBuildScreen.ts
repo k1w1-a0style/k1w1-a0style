@@ -478,6 +478,81 @@ export function useEnhancedBuildScreen() {
     [setPreferredBuildProfile],
   );
 
+  // === Checklist Items ===
+  const [hasSigningKey, setHasSigningKey] = useState(false);
+  const [hasTokens, setHasTokens] = useState(false);
+  const [hasDiagOk, setHasDiagOk] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const gh = await getGitHubToken().catch(() => "");
+        const expo = await getExpoToken().catch(() => "");
+        if (isMountedRef.current) setHasTokens(!!(gh && expo));
+      } catch { /* ignore */ }
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const keyMode = buildProfile === "development" ? "dev" : buildProfile;
+        const credKey = `cred_key_exists_${keyMode}`;
+        const val = await AsyncStorage.getItem(credKey).catch(() => null);
+        if (isMountedRef.current) setHasSigningKey(val === "true");
+      } catch { /* ignore */ }
+    })();
+  }, [buildProfile]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const diagVal = await AsyncStorage.getItem("diagnostic_last_ok").catch(() => null);
+        if (isMountedRef.current) setHasDiagOk(diagVal === "true");
+      } catch { /* ignore */ }
+    })();
+  }, []);
+
+  const checklistItems: CheckItem[] = useMemo(() => {
+    const hasRepo = !!repoFullName.trim();
+    return [
+      {
+        id: "signing_key",
+        label: "Signing Key vorhanden",
+        status: hasSigningKey ? "ok" : "fail",
+        detail: hasSigningKey ? buildProfile : "Key fehlt - im Wizard generieren",
+      },
+      {
+        id: "tokens",
+        label: "Tokens vorhanden (GitHub + Expo)",
+        status: hasTokens ? "ok" : "fail",
+        detail: hasTokens ? undefined : "Im Verbindungen-Screen setzen",
+      },
+      {
+        id: "diagnostic",
+        label: "Diagnostik gruen",
+        status: hasDiagOk ? "ok" : "pending",
+        detail: hasDiagOk ? "Letzte Diagnostik OK" : "Diagnostik ausfuehren",
+      },
+      {
+        id: "repo",
+        label: "Repo gewaehlt",
+        status: hasRepo ? "ok" : "fail",
+        detail: hasRepo ? repoFullName : "Repo oben verknuepfen",
+      },
+      {
+        id: "build_mode",
+        label: `Build = ${buildProfile}`,
+        status: "ok",
+        detail: `Profil: ${buildProfile}`,
+      },
+    ];
+  }, [hasSigningKey, hasTokens, hasDiagOk, repoFullName, buildProfile]);
+
+  // === Diff text (placeholder - can be populated by git diff later) ===
+  const [diffOldText] = useState<string | null>(null);
+  const [diffNewText] = useState<string | null>(null);
+
   return {
     projectData,
     currentBuild,
@@ -521,10 +596,12 @@ export function useEnhancedBuildScreen() {
     logModalVisible,
     setLogModalVisible,
 
-    history,
-    stats,
-    historyLoading,
-    clearHistory,
+    // Checklist
+    checklistItems,
+
+    // Diff
+    diffOldText,
+    diffNewText,
 
     fetchRuns,
     onRefresh,
