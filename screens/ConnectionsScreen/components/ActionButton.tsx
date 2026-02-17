@@ -28,16 +28,21 @@ export function ActionButton(props: {
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={isPrimary ? "#000" : theme.palette.text.primary}
+          color={isPrimary ? theme.palette.primary : theme.palette.text.primary}
         />
       ) : (
         <Ionicons
           name={icon}
           size={18}
-          color={isPrimary ? "#000" : theme.palette.text.primary}
+          color={isPrimary ? theme.palette.primary : theme.palette.text.primary}
         />
       )}
-      <Text style={[styles.btnText, isPrimary ? { color: "#000" } : null]}>
+      <Text
+        style={[
+          styles.btnText,
+          isPrimary ? { color: theme.palette.primary } : { color: theme.palette.text.primary },
+        ]}
+      >
         {label}
       </Text>
     </TouchableOpacity>
