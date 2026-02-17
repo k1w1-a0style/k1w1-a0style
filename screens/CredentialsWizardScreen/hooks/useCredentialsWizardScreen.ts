@@ -292,6 +292,9 @@ export function useCredentialsWizardScreen() {
 
       const data = r.data as StatusResult;
       if (isMountedRef.current) setStatusByMode((prev) => ({ ...prev, [mode]: data }));
+      // Persist key status
+      const credKey = `cred_key_exists_${mode}`;
+      await AsyncStorage.setItem(credKey, data.exists ? "true" : "false").catch(() => {});
     } catch (e: unknown) {
       safeSetLastError(e);
     } finally {
