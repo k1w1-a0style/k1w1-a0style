@@ -64,9 +64,11 @@ This is a patchable version of the Refactoring Plan V3, adjusted to avoid duplic
 - ProjectContext syncs `currentBuild` from the hook and updates build history best-effort.
 
 ## Patch 154.1
-- Hotfix: remove duplicate `useBuildStatus` import introduced by Patch 154.
-
-
-
-## Patch 154.1
 - Hotfix: Remove duplicate `useBuildStatus` import in `contexts/ProjectContext.tsx` (fixes TypeScript + Jest parse errors).
+
+
+## Patch 155
+- PR-6 Stage 1: Template checklist modularization (move selection/types/constants out of `lib/templateChecklist.ts` into `lib/diagnostics/templates/`).
+
+## Patch 155.1
+- Hotfix: Fix TypeScript regressions from Patch 155 (toolchain typing + missing `TemplateFileMap`).

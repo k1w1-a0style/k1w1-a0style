@@ -1,4 +1,8 @@
 # Patch Log
+
+- Patch 155.1: `docs/patches/patch_155_1.md` (Hotfix: TypeScript types for PR-6 Stage 1)
+
+- Patch 155: `docs/patches/patch_155.md` (PR-6 Stage 1: template checklist modularization)
 - patch_154_1.md — Hotfix (remove duplicate useBuildStatus import)
 
 - patch_154.md — PR-5 Stage 3 (polling out of ProjectContext)

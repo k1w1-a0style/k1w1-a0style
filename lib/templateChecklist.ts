@@ -4,132 +4,40 @@
 
 import type { ProjectFile } from "../contexts/types";
 import { normalizePath } from "./validators";
+import type {
+  ChecklistItem,
+  TemplateChecklistOptions,
+  TemplateChecklistReport,
+} from "./diagnostics/templates/templateChecklistTypes";
+import type { TemplateFileMap } from "./diagnostics/templates/templateChecklistTypes";
+import { DEFAULT_TOOLCHAIN, type Toolchain } from "./diagnostics/templates/toolchain";
+import { PNG_1x1_BASE64 } from "./diagnostics/templates/assets";
+import {
+  REQUIRED_ASSETS_P0,
+  REQUIRED_FILES_P0,
+  REQUIRED_WORKFLOWS_P1,
+} from "./diagnostics/templates/requiredFiles";
 
-// Template selection (auto mode)
-export type CoreTemplateId = "base" | "navigation" | "crud" | "full";
-export type TemplateId = CoreTemplateId | "auto";
-
-export function detectCoreTemplateId(files: ProjectFile[]): CoreTemplateId {
-  const paths = files.map((f) => f.path);
-  const pathSet = new Set(paths);
-  const hasPath = (re: RegExp) => paths.some((p) => re.test(p));
-
-  // Strong navigation signals
-  const nav =
-    hasPath(/^src\/navigation\//) ||
-    hasPath(/^src\/screens\/.*Screen\.tsx$/) ||
-    hasPath(/^src\/screens\/navigation\//) ||
-    hasPath(/^src\/routes\//) ||
-    files.some((f) => /@react-navigation\//.test(f.content ?? "")) ||
-    files.some((f) => /NavigationContainer/.test(f.content ?? ""));
-
-  // CRUD-ish / "app already has a shared theme / data layer" signals
-  const crud =
-    pathSet.has("theme.ts") ||
-    hasPath(/^src\/(services|store|data|api|db)\//) ||
-    hasPath(/^src\/features\//) ||
-    files.some((f) => {
-      const c = f.content ?? "";
-      return /\bCRUD\b/i.test(c) || /create\s*read\s*update\s*delete/i.test(c) || /AsyncStorage/.test(c);
-    });
-
-  if (nav && crud) return "full";
-  if (crud) return "crud";
-  if (nav) return "navigation";
-  // Safe default: Full (läuft in allen Fällen und spart Auswahl-Stress)
-  return "full";
-}
-
-export function resolveEffectiveTemplateId(
-  templateId: TemplateId | undefined,
-  files: ProjectFile[]
-): { mode: TemplateId; effective: CoreTemplateId } {
-  const mode: TemplateId = templateId ?? "auto";
-  // Auto-Mode soll **immer** "full" als Default nehmen.
-  // (Auch wenn die Files eher nach "navigation" oder "crud" aussehen,
-  //  weil "full" beides abdeckt und damit 0 Auswahl/0 Fehlklick-Drama.)
-  if (mode === "auto") return { mode, effective: "full" };
-  return { mode, effective: mode };
-}
+export type { CoreTemplateId, TemplateId } from "./diagnostics/templates/templateSelection";
+export { detectCoreTemplateId, resolveEffectiveTemplateId } from "./diagnostics/templates/templateSelection";
+export type {
+  ChecklistSeverity,
+  ChecklistItem,
+  TemplateChecklistReport,
+  TemplateChecklistOptions,
+} from "./diagnostics/templates/templateChecklistTypes";
 
 
-export type ChecklistSeverity = "P0" | "P1" | "P2";
-
-export type ChecklistItem = {
-  severity: ChecklistSeverity;
-  file?: string;
-  reason: string;
-  fix?: string;
-};
-
-// Internal helper map for quick lookup/mutation during autofix.
-type TemplateFileMap = Record<string, string>;
-
-export type TemplateChecklistReport = {
-  ok: boolean;
-  issues: ChecklistItem[];
-  summary: string;
-};
-
-export type TemplateChecklistOptions = {
-  autofix?: boolean;
-  toolchain?: {
-    expo: string;       // e.g. "~54.0.32"
-    react: string;      // e.g. "19.1.0"
-    reactDom: string;   // e.g. "19.1.0"
-    reactNative: string;// e.g. "0.81.5"
-    jestExpo?: string;  // e.g. "~54.0.16"
-  };
-};
-
-const DEFAULT_TOOLCHAIN = {
-  expo: "~54.0.32",
-  react: "19.1.0",
-  reactDom: "19.1.0",
-  reactNative: "0.81.5",
-  jestExpo: "~54.0.16",
-};
-
-// 1x1 PNG (transparent) – real binary, tiny, valid for Expo asset existence checks
-const PNG_1x1_BASE64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/6Xgmf8AAAAASUVORK5CYII=";
-
-const REQUIRED_FILES_P0 = [
-  "package.json",
-  "babel.config.js",
-  "metro.config.js",
-  "tsconfig.json",
-  "App.tsx",
-  "index.js",
-  "eas.json",
-] as const;
-
-const REQUIRED_ASSETS_P0 = [
-  "assets/icon.png",
-  "assets/adaptive-icon.png",
-  "assets/splash.png",
-] as const;
-
-const REQUIRED_WORKFLOWS_P1 = [
-  ".github/workflows/eas-build.yml",
-  ".github/workflows/eas-link.yml",
-] as const;
-
-/**
- * ✅ Harte Checkliste für Templates / frisch generierte Projekte.
- * - Prüft required files
- * - erzwingt Android-only Expo config
- * - pinned Toolchain (Expo SDK 54 / React 19 / RN 0.81)
- * - EAS Profiles vorhanden
- * - minimale Assets vorhanden
- *
- * Wenn autofix=true: fügt fehlende Dateien/Defaults hinzu und patched package/app/eas config.
- */
 export function runTemplateHardChecklist(
   files: ProjectFile[],
   options: TemplateChecklistOptions = {},
 ): { files: ProjectFile[]; report: TemplateChecklistReport } {
-  const toolchain = { ...DEFAULT_TOOLCHAIN, ...(options.toolchain ?? {}) };
+  const toolchain: Toolchain = {
+    ...DEFAULT_TOOLCHAIN,
+    ...(options.toolchain ?? {}),
+    // ensure required fields even if caller omits optional ones
+    jestExpo: (options.toolchain?.jestExpo ?? DEFAULT_TOOLCHAIN.jestExpo) as string,
+  };
 
   const issues: ChecklistItem[] = [];
   const autofix = !!options.autofix;
@@ -284,7 +192,7 @@ export function runTemplateHardChecklist(
 
 function patchPackageJson(
   raw: string,
-  toolchain: typeof DEFAULT_TOOLCHAIN,
+  toolchain: Toolchain,
 ): {
   next: string;
   changed: boolean;
