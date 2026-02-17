@@ -175,13 +175,6 @@ export function useEnhancedBuildScreen() {
     setRepoFullName(initialRepo);
   }, [initialRepo]);
 
-  const {
-    history,
-    stats,
-    isLoading: historyLoading,
-    clearHistory,
-  } = useBuildHistory();
-
   const jobId = currentBuild?.jobId ?? null;
   const repoValidation = useMemo(() => validateRepoFullName(repoFullName), [repoFullName]);
   const normalizedRepo = repoValidation.normalized;
