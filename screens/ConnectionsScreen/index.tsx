@@ -21,6 +21,12 @@ export default function ConnectionsScreen() {
     supabaseUrl,
     easProjectId,
 
+    // Connection lights
+    githubOk,
+    githubUser,
+    supabaseOk,
+    expoOk,
+
     // Tokens
     githubToken,
     setGithubToken,
