@@ -36,6 +36,10 @@ This is a patchable version of the Refactoring Plan V3, adjusted to avoid duplic
 ## PR-6: Diagnostics + templateChecklist split
 - Split `lib/templateChecklist.ts` into smaller check modules under `lib/diagnostics/templates/*`
 - Keep old entrypoint as facade if needed
+  - ✅ PR-6 stage 1 implemented by Patch 155 (+ hotfix 155.1)
+  - ✅ PR-6 stage 2 implemented by Patch 156
+  - ✅ PR-6 stage 3 implemented by Patch 157
+  - ✅ PR-6 stage 4 implemented by Patch 158
 
 ## PR-7+: Quality / cleanup
 - Remove facades when no longer used
@@ -78,3 +82,8 @@ This is a patchable version of the Refactoring Plan V3, adjusted to avoid duplic
 
 ## Patch 157
 - PR-6 Stage 3: Extract patchers/defaults/helpers from `lib/templateChecklist.ts` into `lib/diagnostics/templates/` modules.
+
+## Patch 158
+- PR-6 Stage 4: Move the checklist runner (`runTemplateHardChecklist`) into `lib/diagnostics/templates/runHardChecklist.ts`.
+- Export the runner from `lib/diagnostics/templates/index.ts`.
+- Rewrite `lib/templateChecklist.ts` as a thin facade re-exporting from the diagnostics barrel.
