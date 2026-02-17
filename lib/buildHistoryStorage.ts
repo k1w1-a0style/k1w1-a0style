@@ -2,7 +2,7 @@
 // Build-Historie speichern und laden mit AsyncStorage
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BuildHistoryEntry } from '../contexts/types';
+import type { BuildHistoryEntry } from '../shared/types/build';
 
 const BUILD_HISTORY_KEY = 'k1w1_build_history';
 const MAX_HISTORY_ENTRIES = 50; // Maximal 50 Einträge speichern

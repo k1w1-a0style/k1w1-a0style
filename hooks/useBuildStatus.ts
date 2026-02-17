@@ -8,8 +8,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { AppState } from "react-native";
-import { BuildStatus } from "../lib/buildStatusMapper";
-import { BuildStatusDetails } from "../lib/supabaseTypes";
+import type { BuildStatus, BuildStatusDetails } from "../shared/types/build";
 import {
   pollBuildStatusOnce,
   isFinalStatus,

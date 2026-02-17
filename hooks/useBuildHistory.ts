@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { BuildHistoryEntry } from '../contexts/types';
+import type { BuildHistoryEntry } from '../shared/types/build';
 import {
   loadBuildHistory,
   addBuildToHistory,

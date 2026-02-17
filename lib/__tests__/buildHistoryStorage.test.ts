@@ -11,7 +11,7 @@ import {
   clearBuildHistory,
   getBuildStats,
 } from '../buildHistoryStorage';
-import { BuildHistoryEntry } from '../../contexts/types';
+import type { BuildHistoryEntry } from '../../shared/types/build';
 
 // Mock AsyncStorage
 jest.mock('@react-native-async-storage/async-storage', () => ({

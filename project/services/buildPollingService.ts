@@ -9,9 +9,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { CONFIG } from "../../config";
 import { getEdgeAdminKey } from "../../infra/github/githubService";
-import { BuildStatus, mapBuildStatus } from "../../lib/buildStatusMapper";
+import { mapBuildStatus } from "../../lib/buildStatusMapper";
 import { STORAGE_KEYS } from "../../lib/storageKeys";
-import { BuildStatusDetails } from "../../lib/supabaseTypes";
+import type { BuildStatus, BuildStatusDetails } from "../../shared/types/build";
 
 export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 
