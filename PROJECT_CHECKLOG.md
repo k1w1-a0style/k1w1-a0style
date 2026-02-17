@@ -1,5 +1,6 @@
 # Project Checklog
 
+- Patch 159 (2026-02-17): PR-7 Stage 1 – add warn-only ESLint guardrails to discourage new facade imports
 - Patch 158 (2026-02-17): PR-6 Stage 4 – move checklist runner into diagnostics; templateChecklist becomes a thin facade
 - Patch 157 (2026-02-17): PR-6 Stage 3 – extract template checklist patchers/defaults into dedicated modules (templateChecklist as facade)
 - Patch 156 (2026-02-17): PR-6 Stage 2 – templates barrel exports; templateChecklist imports simplified

@@ -1,5 +1,6 @@
 # Patch Log
 
+- Patch 159: `docs/patches/patch_159.md` (PR-7 Stage 1: warn-only lint guardrails for facade imports)
 - Patch 158: `docs/patches/patch_158.md` (PR-6 Stage 4: move runner into diagnostics; templateChecklist as thin facade)
 - Patch 157: `docs/patches/patch_157.md` (PR-6 Stage 3: extract patchers + defaults into modules)
 - Patch 156: `docs/patches/patch_156.md` (PR-6 Stage 2: templates barrel exports)

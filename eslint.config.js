@@ -59,6 +59,31 @@ module.exports = [
 
       // Hooks-Warnungen abschalten (Code läuft ja)
       'react-hooks/exhaustive-deps': 'off',
+
+      // Refactor guardrails (warn-only; CI uses --quiet so this won't fail)
+      'no-restricted-imports': ['warn', {
+        paths: [
+          { name: 'lib/templateChecklist', message: 'Import from lib/diagnostics/templates instead (templateChecklist is facade).' },
+          { name: './lib/templateChecklist', message: 'Import from lib/diagnostics/templates instead (templateChecklist is facade).' },
+          { name: '../lib/templateChecklist', message: 'Import from lib/diagnostics/templates instead (templateChecklist is facade).' },
+          { name: '../../lib/templateChecklist', message: 'Import from lib/diagnostics/templates instead (templateChecklist is facade).' },
+
+          { name: 'contexts/githubService', message: 'Prefer infra/github/* (contexts/githubService is facade).' },
+          { name: './contexts/githubService', message: 'Prefer infra/github/* (contexts/githubService is facade).' },
+          { name: '../contexts/githubService', message: 'Prefer infra/github/* (contexts/githubService is facade).' },
+          { name: '../../contexts/githubService', message: 'Prefer infra/github/* (contexts/githubService is facade).' },
+
+          { name: 'contexts/projectStorage', message: 'Prefer infra/storage/projectPersistence (contexts/projectStorage is facade).' },
+          { name: './contexts/projectStorage', message: 'Prefer infra/storage/projectPersistence (contexts/projectStorage is facade).' },
+          { name: '../contexts/projectStorage', message: 'Prefer infra/storage/projectPersistence (contexts/projectStorage is facade).' },
+          { name: '../../contexts/projectStorage', message: 'Prefer infra/storage/projectPersistence (contexts/projectStorage is facade).' },
+        ],
+        patterns: [
+          { group: ['**/templateChecklist'], message: 'Prefer importing from lib/diagnostics/templates/* for new code.' },
+          { group: ['**/contexts/githubService'], message: 'Prefer infra/github/* for new code.' },
+          { group: ['**/contexts/projectStorage'], message: 'Prefer infra/storage/projectPersistence for new code.' },
+        ],
+      }],
     },
   },
 ];

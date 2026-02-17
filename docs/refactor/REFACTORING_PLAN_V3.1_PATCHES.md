@@ -87,3 +87,6 @@ This is a patchable version of the Refactoring Plan V3, adjusted to avoid duplic
 - PR-6 Stage 4: Move the checklist runner (`runTemplateHardChecklist`) into `lib/diagnostics/templates/runHardChecklist.ts`.
 - Export the runner from `lib/diagnostics/templates/index.ts`.
 - Rewrite `lib/templateChecklist.ts` as a thin facade re-exporting from the diagnostics barrel.
+
+## Patch 159
+- PR-7 Stage 1: Add warn-only ESLint guardrails (`no-restricted-imports`) to discourage new imports from facade modules (templateChecklist, contexts/githubService, contexts/projectStorage).
