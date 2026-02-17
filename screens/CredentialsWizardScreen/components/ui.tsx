@@ -113,8 +113,8 @@ export function PrimaryButton({
       activeOpacity={0.86}
       style={[styles.btn, small && styles.btnSmall, styles.btnPrimary, disabled && styles.btnDisabled]}
     >
-      {leftIcon ? <Ionicons name={leftIcon} size={16} color="#06120a" /> : null}
-      <Text style={[styles.btnText, { color: "#06120a" }]}>{title}</Text>
+      {leftIcon ? <Ionicons name={leftIcon} size={16} color={theme.palette.primary} /> : null}
+      <Text style={[styles.btnText, { color: theme.palette.primary }]}>{title}</Text>
     </TouchableOpacity>
   );
 }
