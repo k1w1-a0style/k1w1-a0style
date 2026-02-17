@@ -7,10 +7,11 @@ echo
 
 # Block drift: domain build types must NOT be imported from contexts/types.
 # Prefer shared/types/build directly.
+
+PATTERN=$'import\\s+type\\s+\\{[^}]*\\b(BuildStatusDetails|BuildStatus|BuildHistoryEntry)\\b[^}]*\\}\\s+from\\s+["\\\'](\\.\\./)*contexts/types["\\\']'
+
 matches=$(
-  rg -n --hidden --glob '!.git' --glob '!node_modules' --glob '*.ts' --glob '*.tsx' \
-    'import\s+type\s+\{[^}]*\b(BuildStatusDetails|BuildStatus|BuildHistoryEntry)\b[^}]*\}\s+from\s+["\'\'](\.\./)*contexts/types["\'\']' . \
-    || true
+  rg -n --hidden --glob '!.git' --glob '!node_modules' --glob '*.ts' --glob '*.tsx'     "$PATTERN" .     || true
 )
 
 if [[ -z "${matches}" ]]; then
