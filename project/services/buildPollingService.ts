@@ -118,14 +118,65 @@ export async function pollBuildStatusOnce(
     };
   }
 
-  const mapped = mapBuildStatus(json.status);
+  // Backwards-compat: support newer and older response shapes
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const anyData: any = json ?? {};
+  const job = anyData?.job ?? anyData?.data?.job ?? null;
+
+  const rawStatus: string | undefined =
+    (job?.status as string | undefined) ??
+    (anyData?.status as string | undefined) ??
+    (anyData?.job_status as string | undefined) ??
+    undefined;
+
+  const mapped = mapBuildStatus(rawStatus);
+
+  const runIdRaw =
+    job?.github_run_id ??
+    anyData?.runId ??
+    anyData?.run_id ??
+    anyData?.github_run_id ??
+    null;
+
+  const runId: number | null =
+    typeof runIdRaw === "number"
+      ? runIdRaw
+      : typeof runIdRaw === "string" && /^\d+$/.test(runIdRaw)
+        ? Number(runIdRaw)
+        : null;
+
+  const urls = job?.urls ?? anyData?.urls ?? {};
+  const htmlUrl = urls?.githubRun ?? urls?.html ?? urls?.run ?? urls?.runUrl ?? null;
+  const artifactsUrl = urls?.artifacts ?? urls?.artifact ?? null;
+
+  const buildUrl =
+    urls?.buildUrl ??
+    job?.build_url ??
+    anyData?.build_url ??
+    anyData?.buildUrl ??
+    null;
+
+  const downloadUrl =
+    job?.download_url ??
+    anyData?.download_url ??
+    anyData?.downloadUrl ??
+    null;
 
   const details: BuildStatusDetails = {
     jobId,
     status: mapped,
-    urls: json.urls ?? undefined,
+    urls: {
+      html: htmlUrl,
+      artifacts: artifactsUrl,
+      // Priority: direct download_url → artifacts page → EAS build url
+      buildUrl:
+        (typeof downloadUrl === "string" && downloadUrl.trim() ? downloadUrl : null) ??
+        (typeof artifactsUrl === "string" && artifactsUrl.trim() ? artifactsUrl : null) ??
+        (typeof buildUrl === "string" && buildUrl.trim() ? buildUrl : null) ??
+        null,
+    },
     raw: json,
-    runId: json.runId || json.run_id || null,
+    runId: runId ?? null,
   };
 
   return {

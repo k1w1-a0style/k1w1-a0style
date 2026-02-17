@@ -1,4 +1,7 @@
 # Patch Log
+- patch_154_1.md — Hotfix (remove duplicate useBuildStatus import)
+
+- patch_154.md — PR-5 Stage 3 (polling out of ProjectContext)
 
 - Patch 153: `docs/patches/patch_153.md` (PR-5 stage 2: ProjectContext slimming — archive + build trigger services)
 

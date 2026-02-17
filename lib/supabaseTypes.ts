@@ -34,6 +34,8 @@ export interface BuildStatusDetails {
   urls?: {
     html?: string | null;
     artifacts?: string | null;
+    /** Optional: direct artifact/build download URL (UI convenience) */
+    buildUrl?: string | null;
   };
   raw?: any;
   errorMessage?: string;
@@ -49,6 +51,7 @@ export interface CheckBuildResponse {
   urls?: {
     html?: string | null;
     artifacts?: string | null;
+    buildUrl?: string | null;
   };
   runId?: number | null;
   run_id?: number | null;

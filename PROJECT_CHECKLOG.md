@@ -1,7 +1,8 @@
 # Project Checklog
 
+- Patch 154.1 (2026-02-17): Hotfix — remove duplicate useBuildStatus import in ProjectContext (restores typecheck + tests)
+- Patch 154 (2026-02-17): PR-5 stage 3 — build polling moved out of ProjectContext (useBuildStatus + buildPollingService)
 - Patch 153 (2026-02-16): PR-5 stage 2 — extract archive + build trigger services; ProjectContext slimmer
-
 - Patch 152 (2026-02-16): PR-5 stage 1 — extract template loader + file mutations; ProjectContext slimmer
 - Patch 151 (2026-02-16): GitHub infra split into modules; public API preserved via barrel exports (PR-4 stage 2)
 - Patch 150 (2026-02-16): GitHub service moved to infra/github with contexts facade (PR-4 stage 1)

@@ -31,6 +31,7 @@ This is a patchable version of the Refactoring Plan V3, adjusted to avoid duplic
 - Side-effects into `project/services/*`
   - ✅ PR-5 stage 1 implemented by Patch 152 (template loader + file mutations)
   - ✅ PR-5 stage 2 implemented by Patch 153 (archive + build trigger services)
+  - ✅ PR-5 stage 3 implemented by Patch 154 (build polling moved to useBuildStatus + buildPollingService)
 
 ## PR-6: Diagnostics + templateChecklist split
 - Split `lib/templateChecklist.ts` into smaller check modules under `lib/diagnostics/templates/*`
@@ -57,3 +58,15 @@ This is a patchable version of the Refactoring Plan V3, adjusted to avoid duplic
 - PR-5 stage 2: Extract ZIP import/export helpers (`project/services/projectArchiveService.ts`) and build trigger orchestration (`project/services/buildStartService.ts`) out of `contexts/ProjectContext.tsx`.
 - Keep behavior stable; ProjectContext still owns build polling + state.
 
+## Patch 154
+- PR-5 stage 3: Remove build polling from `contexts/ProjectContext.tsx`.
+- `hooks/useBuildStatus.ts` now owns interval + AppState pause/resume.
+- ProjectContext syncs `currentBuild` from the hook and updates build history best-effort.
+
+## Patch 154.1
+- Hotfix: remove duplicate `useBuildStatus` import introduced by Patch 154.
+
+
+
+## Patch 154.1
+- Hotfix: Remove duplicate `useBuildStatus` import in `contexts/ProjectContext.tsx` (fixes TypeScript + Jest parse errors).

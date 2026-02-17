@@ -7,6 +7,7 @@
 // ✅ Kein Race Condition durch errorCount in Dependencies
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import { AppState } from "react-native";
 import { BuildStatus } from "../lib/buildStatusMapper";
 import { BuildStatusDetails } from "../lib/supabaseTypes";
 import {
@@ -211,18 +212,45 @@ export function useBuildStatus(
 
     // ✅ Sofort einmal pollen, dann Intervall
     poll();
-    // NOTE: Polling interval is handled globally by ProjectContext to avoid duplicate polling.
-    // We only do a single immediate poll here.
+
+    // Start interval polling
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    intervalRef.current = setInterval(() => {
+      poll();
+    }, POLL_INTERVAL_MS);
+
+    // Pause/Resume on AppState (Android background reliability)
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+        return;
+      }
+
+      // Resume if still relevant and not final
+      if (jobIdFromScreen && !intervalRef.current && !isFinalStatus(status)) {
+        poll();
+        intervalRef.current = setInterval(() => {
+          poll();
+        }, POLL_INTERVAL_MS);
+      }
+    });
 
     return () => {
       isMountedRef.current = false;
+      sub.remove();
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
         console.log("[useBuildStatus] 🛑 Hook unmounted, Polling gestoppt");
       }
     };
-  }, [jobIdFromScreen, poll]);
+  }, [jobIdFromScreen, poll, status]);
 
   return {
     status,

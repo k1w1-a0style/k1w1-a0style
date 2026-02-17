@@ -31,7 +31,6 @@ import {
 
 import {
   getGitHubToken,
-  getEdgeAdminKey,
   getWorkflowRuns,
 } from "./githubService";
 
@@ -43,11 +42,11 @@ import {
   importProjectZip,
 } from "../project/services/projectArchiveService";
 import { startBuildJob } from "../project/services/buildStartService";
+import { useBuildStatus } from "../hooks/useBuildStatus";
 
 // ✅ FIX: Einheitlicher Validator-Wrapper
 import { validateFilePath, validateFileContent } from "../lib/validators";
-import { BuildStatus, mapBuildStatus } from "../lib/buildStatusMapper";
-import { ensureSupabaseClient } from "../lib/supabase";
+import { BuildStatus } from "../lib/buildStatusMapper";
 import {
   addBuildToHistory,
   updateBuildInHistory,
@@ -82,6 +81,22 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   const [currentBuild, setCurrentBuild] = useState<CurrentBuildState | null>(
     null,
   );
+
+  // Centralized polling (single source of truth)
+  const activeJobId = currentBuild?.jobId ?? null;
+  const buildPoll = useBuildStatus(activeJobId, {
+    onMaxErrors: (lastError) => {
+      setCurrentBuild((prev) => {
+        const base: CurrentBuildState = prev ?? { status: "error" };
+        return {
+          ...base,
+          status: "error",
+          message: `🛑 Polling abgebrochen (zu viele Fehler). Letzter Fehler: ${lastError}`,
+          lastUpdatedAt: new Date().toISOString(),
+        };
+      });
+    },
+  });
 
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mutexRef = useRef(new Mutex());
@@ -510,215 +525,76 @@ const setPreferredBuildProfile = useCallback(
     return () => subscription.remove();
   }, [projectData]);
 
-  const buildPollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
-    null,
-  );
-  const buildPollErrorCountRef = useRef(0);
-  // Supabase build_jobs.id is UUID
-  const activeBuildJobIdRef = useRef<string | null>(null);
+  const lastHistoryStatusRef = useRef<{ jobId: string; status: BuildStatus } | null>(null);
 
-  const stopBuildPolling = useCallback(() => {
-    if (buildPollIntervalRef.current) {
-      clearInterval(buildPollIntervalRef.current);
-      buildPollIntervalRef.current = null;
-    }
-    buildPollErrorCountRef.current = 0;
-    activeBuildJobIdRef.current = null;
-  }, []);
-
-const pauseBuildPolling = useCallback(() => {
-  if (buildPollIntervalRef.current) {
-    clearInterval(buildPollIntervalRef.current);
-    buildPollIntervalRef.current = null;
-  }
-  // keep activeBuildJobIdRef for resume
-}, []);
-
+  // Keep ProjectContext.currentBuild in sync with centralized polling hook
   useEffect(() => {
-    return () => {
-      stopBuildPolling();
-    };
-  }, [stopBuildPolling]);
+    if (!activeJobId) return;
 
-  const pollBuildStatusOnce = useCallback(
-    async (jobId: string) => {
-      try {
-        const supabase = await ensureSupabaseClient();
+    const mapped = buildPoll.status;
+    const urls = buildPoll.details?.urls;
+    const nowIso = new Date().toISOString();
 
-        const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
-        const invokeOpts: { body: any; headers?: Record<string, string> } = {
-          body: { jobId },
-        };
-        if (edgeAdminKey)
-          invokeOpts.headers = { "x-k1w1-admin-key": edgeAdminKey };
-        const { data, error } = await supabase.functions.invoke(
-          "check-eas-build",
-          invokeOpts,
-        );
+    const msg =
+      mapped === "queued"
+        ? "⏳ Build ist in der Warteschlange…"
+        : mapped === "building"
+          ? "🔨 Build läuft…"
+          : mapped === "success"
+            ? "✅ Build erfolgreich!"
+            : mapped === "failed"
+              ? "❌ Build fehlgeschlagen."
+              : mapped === "error"
+                ? `⚠️ Fehler beim Status-Abruf${buildPoll.lastError ? ": " + buildPoll.lastError : "."}`
+                : "⏸️ Kein aktiver Build.";
 
-        if (error) throw error;
+    setCurrentBuild((prev) => {
+      const base: CurrentBuildState = prev ?? { status: "idle" };
+      return {
+        ...base,
+        status: mapped,
+        jobId: activeJobId,
+        runId: buildPoll.details?.runId ?? base.runId ?? null,
+        urls: {
+          html: urls?.html ?? base.urls?.html ?? null,
+          artifacts: urls?.artifacts ?? base.urls?.artifacts ?? null,
+          buildUrl: urls?.buildUrl ?? base.urls?.buildUrl ?? null,
+        },
+        message: msg,
+        lastUpdatedAt: nowIso,
+        completedAt: ["success", "failed", "error"].includes(mapped)
+          ? nowIso
+          : base.completedAt,
+      };
+    });
+  }, [activeJobId, buildPoll.details, buildPoll.lastError, buildPoll.status]);
 
-        // check-eas-build returns { ok, job: {...} }.
-        // Keep backwards-compat with older shapes by probing multiple fields.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const anyData: any = data ?? {};
-        const job = anyData?.job ?? anyData?.data?.job ?? null;
+  // Update build history as statuses arrive (best-effort)
+  useEffect(() => {
+    if (!activeJobId) return;
+    if (!buildPoll.details) return;
 
-        const rawStatus: string | undefined =
-          (job?.status as string | undefined) ??
-          (anyData?.status as string | undefined) ??
-          (anyData?.job_status as string | undefined) ??
-          undefined;
-
-        const mapped: BuildStatus = mapBuildStatus(rawStatus);
-
-        const runIdRaw =
-          job?.github_run_id ??
-          anyData?.runId ??
-          anyData?.run_id ??
-          anyData?.github_run_id ??
-          null;
-
-        const runId: number | null =
-          typeof runIdRaw === "number"
-            ? runIdRaw
-            : typeof runIdRaw === "string" && /^\d+$/.test(runIdRaw)
-              ? Number(runIdRaw)
-              : null;
-
-        const urls = job?.urls ?? anyData?.urls ?? {};
-        const htmlUrl =
-          urls?.githubRun ?? urls?.html ?? urls?.run ?? urls?.runUrl ?? null;
-        const artifactsUrl = urls?.artifacts ?? urls?.artifact ?? null;
-
-        const buildUrl =
-          urls?.buildUrl ??
-          job?.build_url ??
-          anyData?.build_url ??
-          anyData?.buildUrl ??
-          null;
-
-        const downloadUrl =
-          job?.download_url ??
-          anyData?.download_url ??
-          anyData?.downloadUrl ??
-          null;
-
-        const nowIso = new Date().toISOString();
-
-        setCurrentBuild((prev) => {
-          const base: CurrentBuildState = prev ?? { status: "idle" };
-          return {
-            ...base,
-            status: mapped,
-            jobId,
-            runId: runId ?? base.runId ?? null,
-            urls: {
-              html: htmlUrl ?? base.urls?.html ?? null,
-              artifacts: artifactsUrl ?? base.urls?.artifacts ?? null,
-              // Priority: direct download_url → artifacts page → EAS build url
-              buildUrl:
-                (typeof downloadUrl === "string" && downloadUrl.trim()
-                  ? downloadUrl
-                  : null) ??
-                (typeof artifactsUrl === "string" && artifactsUrl.trim()
-                  ? artifactsUrl
-                  : null) ??
-                (typeof buildUrl === "string" && buildUrl.trim()
-                  ? buildUrl
-                  : null) ??
-                base.urls?.buildUrl ??
-                null,
-            },
-            message:
-              mapped === "queued"
-                ? "⏳ Build ist in der Warteschlange…"
-                : mapped === "building"
-                  ? "🔨 Build läuft…"
-                  : mapped === "success"
-                    ? "✅ Build erfolgreich!"
-                    : mapped === "failed"
-                      ? "❌ Build fehlgeschlagen."
-                      : mapped === "error"
-                        ? "⚠️ Fehler beim Status-Abruf."
-                        : "⏸️ Kein aktiver Build.",
-            lastUpdatedAt: nowIso,
-            completedAt: ["success", "failed", "error"].includes(mapped)
-              ? nowIso
-              : base.completedAt,
-          };
-        });
-
-        try {
-          await updateBuildInHistory(jobId, {
-            status: mapped,
-            htmlUrl: htmlUrl ?? null,
-            artifactUrl: artifactsUrl ?? null,
-          });
-        } catch (historyError) {
-          console.warn(
-            "⚠️ Build-Historie konnte nicht aktualisiert werden:",
-            historyError,
-          );
-        }
-
-        if (["success", "failed", "error"].includes(mapped)) {
-          stopBuildPolling();
-        }
-
-        buildPollErrorCountRef.current = 0;
-      } catch (e: any) {
-        buildPollErrorCountRef.current += 1;
-        if (buildPollErrorCountRef.current >= 8) {
-          const msg = e?.message || String(e);
-          stopBuildPolling();
-          setCurrentBuild((prev) => ({
-            ...(prev ?? { status: "error" }),
-            status: "error",
-            message: `🛑 Polling abgebrochen (zu viele Fehler). Letzter Fehler: ${msg}`,
-            lastUpdatedAt: new Date().toISOString(),
-          }));
-          return;
-        }
-        const msg = e?.message || String(e);
-        console.warn(
-          `⚠️ check-eas-build Polling Fehler (${buildPollErrorCountRef.current}):`,
-          msg,
-        );
-
-        setCurrentBuild((prev) => {
-          const base: CurrentBuildState = prev ?? { status: "idle" };
-          return {
-            ...base,
-            status: base.status === "idle" ? "error" : base.status,
-            message: `⚠️ Status konnte nicht aktualisiert werden: ${msg}`,
-            lastUpdatedAt: new Date().toISOString(),
-          };
-        });
-      }
-    },
-    [stopBuildPolling],
-  );
-
-// Pause/Resume build polling on AppState (Android background reliability)
-useEffect(() => {
-  const sub = AppState.addEventListener("change", (state) => {
-    if (state !== "active") {
-      pauseBuildPolling();
+    const status = buildPoll.status;
+    if (
+      lastHistoryStatusRef.current?.jobId === activeJobId &&
+      lastHistoryStatusRef.current?.status === status
+    ) {
       return;
     }
-    const activeId = activeBuildJobIdRef.current;
-    if (activeId && !buildPollIntervalRef.current) {
-      pollBuildStatusOnce(activeId).catch(() => {});
-      buildPollIntervalRef.current = setInterval(() => {
-        const id = activeBuildJobIdRef.current;
-        if (!id) return;
-        pollBuildStatusOnce(id).catch(() => {});
-      }, 6000);
-    }
-  });
-  return () => sub.remove();
-}, [pauseBuildPolling, pollBuildStatusOnce]);
+
+    lastHistoryStatusRef.current = { jobId: activeJobId, status };
+
+    updateBuildInHistory(activeJobId, {
+      status,
+      htmlUrl: buildPoll.details.urls?.html ?? null,
+      artifactUrl: buildPoll.details.urls?.artifacts ?? null,
+    }).catch((historyError) => {
+      console.warn(
+        "⚠️ Build-Historie konnte nicht aktualisiert werden:",
+        historyError,
+      );
+    });
+  }, [activeJobId, buildPoll.details, buildPoll.status]);
 
   const startBuild = useCallback(
     async (buildProfile?: string) => {
@@ -741,8 +617,6 @@ useEffect(() => {
             ? buildProfile
             : "preview";
 
-        stopBuildPolling();
-
         const startedAt = new Date().toISOString();
         setCurrentBuild({
           status: "queued",
@@ -762,8 +636,6 @@ useEffect(() => {
 
         const jobId = started.jobId;
         const githubRepoResolved = started.githubRepo;
-
-        activeBuildJobIdRef.current = jobId;
 
         setCurrentBuild((prev) => ({
           ...(prev ?? { status: "queued" }),
@@ -791,14 +663,7 @@ useEffect(() => {
           );
         }
 
-        await pollBuildStatusOnce(jobId);
-        buildPollIntervalRef.current = setInterval(() => {
-          const activeId = activeBuildJobIdRef.current;
-          if (!activeId) return;
-          pollBuildStatusOnce(activeId).catch(() => {});
-        }, 6000);
       } catch (e: any) {
-        stopBuildPolling();
         setCurrentBuild({
           status: "error",
           message: e?.message || String(e),
@@ -807,7 +672,7 @@ useEffect(() => {
         throw e;
       }
     },
-    [pollBuildStatusOnce, projectData, stopBuildPolling],
+    [projectData],
   );
 
   const value: ProjectContextProps = {
