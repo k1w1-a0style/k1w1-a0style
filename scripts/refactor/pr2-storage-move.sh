@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "PR-2 (Patch 148): storage move + facade"
-if [[ -f "infra/storage/projectPersistence.ts" && -f "contexts/projectStorage.ts" ]]; then
-  echo "✅ infra/storage/projectPersistence.ts exists"
-  echo "✅ contexts/projectStorage.ts facade exists"
-else
-  echo "❌ Expected files not found. Did you apply Patch 148?"
+echo "== PR-2: Storage move sanity check =="
+
+if [ ! -f "infra/storage/projectPersistence.ts" ]; then
+  echo "❌ Missing infra/storage/projectPersistence.ts (apply Patch 148+)"
   exit 1
 fi
 
-echo "Tip: run baseline checks:"
-echo "  npm run typecheck"
-echo "  npm run lint:ci"
-echo "  npm run test:silent"
+echo "✅ infra/storage/projectPersistence.ts present"
+
+# Facade file existed in earlier patches; it was removed in PR-7 Stage 5.
+if [ -f "contexts/projectStorage.ts" ]; then
+  echo "⚠️  contexts/projectStorage.ts still exists (legacy branch)."
+  echo "   Prefer importing from infra/storage/projectPersistence."
+else
+  echo "ℹ️  contexts/projectStorage.ts not present (expected after Patch 164)"
+fi
