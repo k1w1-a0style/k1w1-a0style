@@ -140,16 +140,16 @@ export const styles = StyleSheet.create({
   errorText: { fontSize: 12, color: theme.palette.error, marginTop: 8 },
 
   button: {
-    backgroundColor: theme.palette.primary,
+    backgroundColor: "transparent",
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
     alignItems: "center",
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: theme.palette.primary,
   },
   buttonSecondary: {
-    backgroundColor: theme.palette.secondary,
+    backgroundColor: "transparent",
     borderColor: theme.palette.border,
   },
   buttonGhost: {
@@ -157,12 +157,12 @@ export const styles = StyleSheet.create({
     borderColor: theme.palette.primary,
   },
   buttonDanger: {
-    backgroundColor: theme.palette.secondary,
+    backgroundColor: "transparent",
     borderColor: theme.palette.error,
   },
   buttonDisabled: { opacity: 0.55 },
   buttonText: {
-    color: theme.palette.background,
+    color: theme.palette.primary,
     fontWeight: "900",
     fontSize: 13,
   },
