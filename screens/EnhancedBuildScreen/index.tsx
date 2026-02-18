@@ -1,38 +1,57 @@
 import React from "react";
-import { RefreshControl, ScrollView } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
 import { BuildLogsModal } from "../../components/BuildLogsModal";
-import { styles } from "../../styles/enhancedBuildScreenStyles";
+import { theme } from "../../theme";
 
-import { HeaderSection } from "./components/HeaderSection";
-import { BuildStatusSection } from "./components/BuildStatusSection";
-import { RepoProfileSection } from "./components/RepoProfileSection";
-import { LogsAnalysisSection } from "./components/LogsAnalysisSection";
 import { ChecklistSection } from "./components/ChecklistSection";
 import { BuildProgressSection } from "./components/BuildProgressSection";
+import { BuildStatusSection } from "./components/BuildStatusSection";
+import { BuildModeDropdown, RepoInfoBadge } from "./components/RepoProfileSection";
 import { DiffSection } from "./components/DiffSection";
+import { LogsAnalysisSection } from "./components/LogsAnalysisSection";
 import { useEnhancedBuildScreen } from "./hooks/useEnhancedBuildScreen";
 
 export default function EnhancedBuildScreen(): React.ReactElement {
   const s = useEnhancedBuildScreen();
 
   return (
-    <SafeAreaView style={styles.root} edges={["top"]}>
+    <SafeAreaView style={st.root} edges={["top"]}>
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
+        style={st.scroll}
+        contentContainerStyle={st.content}
         refreshControl={
           <RefreshControl
             refreshing={s.refreshing}
             onRefresh={s.onRefresh}
-            tintColor="#00FF00"
-            colors={["#00FF00"]}
+            tintColor={theme.palette.primary}
+            colors={[theme.palette.primary]}
           />
         }
         keyboardShouldPersistTaps="handled"
       >
-        <HeaderSection projectName={s.projectData?.name} />
+        {/* Header */}
+        <View style={st.header}>
+          <Ionicons name="construct-outline" size={20} color={theme.palette.primary} />
+          <View style={st.headerText}>
+            <Text style={st.title}>Build</Text>
+            <Text style={st.subtitle}>
+              {s.projectData?.name || "APK Builder"}
+            </Text>
+          </View>
+        </View>
+
+        {/* Repo Info (read-only) */}
+        <View style={st.section}>
+          <RepoInfoBadge repoFullName={s.repoFullName} branchName={s.branchName} />
+        </View>
+
+        {/* Build Mode Dropdown */}
+        <View style={st.section}>
+          <BuildModeDropdown value={s.buildProfile} onChange={s.onSelectBuildProfile} />
+        </View>
 
         {/* Pre-Build Checklist */}
         <ChecklistSection items={s.checklistItems} />
@@ -48,6 +67,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           progress={s.progress}
         />
 
+        {/* Build Status + Actions */}
         <BuildStatusSection
           status={s.status}
           statusEmoji={s.statusEmoji}
@@ -63,26 +83,14 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           openRun={s.openRun}
         />
 
-        <RepoProfileSection
-          repoFullName={s.repoFullName}
-          onChangeRepoFullName={s.setRepoFullName}
-          branchName={s.branchName}
-          onChangeBranchName={s.setBranchName}
-          onSaveRepoBranch={s.onSaveRepoBranch}
-          buildProfile={s.buildProfile}
-          onSelectBuildProfile={s.onSelectBuildProfile}
-          hasSetLinkedRepo={s.hasSetLinkedRepo}
-          savingRepo={s.savingRepo}
-          onSaveLinkedRepo={s.onSaveLinkedRepo}
-        />
-
-        {/* Diff-Anzeige statt GitHub Actions */}
+        {/* Diff-Anzeige */}
         <DiffSection
           oldText={s.diffOldText}
           newText={s.diffNewText}
           title="Letzte Aenderungen"
         />
 
+        {/* Logs */}
         <LogsAnalysisSection
           status={s.status}
           shouldLoadLogs={s.shouldLoadLogs}
@@ -95,6 +103,8 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           onOpenModal={() => s.setLogModalVisible(true)}
           openRun={s.openRun}
         />
+
+        <View style={{ height: 40 }} />
       </ScrollView>
 
       <BuildLogsModal
@@ -111,3 +121,33 @@ export default function EnhancedBuildScreen(): React.ReactElement {
     </SafeAreaView>
   );
 }
+
+const st = StyleSheet.create({
+  root: { flex: 1, backgroundColor: theme.palette.background },
+  scroll: { flex: 1 },
+  content: { paddingBottom: 40 },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
+  },
+  headerText: { flex: 1 },
+  title: {
+    color: theme.palette.text.primary,
+    fontSize: 20,
+    fontWeight: "900",
+  },
+  subtitle: {
+    color: theme.palette.text.secondary,
+    fontSize: 13,
+  },
+  section: {
+    marginTop: 14,
+    marginHorizontal: 16,
+  },
+});
