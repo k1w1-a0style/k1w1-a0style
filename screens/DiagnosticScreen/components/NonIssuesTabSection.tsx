@@ -128,30 +128,7 @@ export function NonIssuesTabSection(props: {
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
       <View style={styles.stack}>
-        <ModeSelector
-          isAdvanced={modeAdvanced}
-          onToggleAdvanced={() => {
-            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-            setModeAdvanced((prev) => {
-              const next = !prev;
-              if (next) setSelectedModes((p: any[]) => (p.length ? p : [recommendedMode]));
-              return next;
-            });
-          }}
-          recommendedMode={recommendedMode}
-          selectedModes={selectedModes}
-          onChangeSelected={setSelectedModes}
-          allowAll
-          allSelected={modesAll}
-          onToggleAll={() => {
-            setModesAll((prev) => {
-              const next = !prev;
-              if (next) setSelectedModes(["development", "preview", "production"]);
-              return next;
-            });
-          }}
-          disabled={busy}
-        />
+        {/* Mode is auto from build screen - no selector */}
 
         {tab === "overview" ? (
           <>
