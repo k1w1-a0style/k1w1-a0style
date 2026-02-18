@@ -264,13 +264,9 @@ export const styles = StyleSheet.create({
     gap: 8,
   },
   actionButtonPrimary: {
-    backgroundColor: theme.palette.primary,
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
     borderColor: theme.palette.primary,
-    shadowColor: theme.palette.primary,
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
   },
   actionButtonOutline: {
     backgroundColor: "transparent",
