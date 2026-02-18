@@ -243,14 +243,16 @@ export const styles = StyleSheet.create({
   },
   keyAddBtn: {
     borderRadius: 16,
-    backgroundColor: theme.palette.primary,
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
+    borderColor: theme.palette.primary,
     paddingHorizontal: 12,
     paddingVertical: 10,
     flexDirection: "row",
     gap: 6,
     alignItems: "center",
   },
-  keyAddBtnText: { fontWeight: "900", color: "#000" },
+  keyAddBtnText: { fontWeight: "900", color: theme.palette.primary },
 
   keyList: { marginTop: 12, gap: 10 },
   keyItem: {
