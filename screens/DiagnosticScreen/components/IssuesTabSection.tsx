@@ -1,5 +1,7 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
+  Animated,
+  Easing,
   FlatList,
   LayoutAnimation,
   Text,
@@ -8,13 +10,66 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { ModeSelector } from "../../../components/diagnostics/ModeSelector";
 import { IssueCard } from "../../../components/diagnostics/IssueCard";
 import { SectionCard } from "../../../components/diagnostics/SectionCard";
 import { theme } from "../../../theme";
 import type { Status } from "../types";
 import type { IssuesFilter } from "../hooks/useDiagnosticIssueFiltering";
 import type { PreflightCheckResult } from "../../../lib/diagnostics/preflightTypes";
+
+function AnimatedIssueRow({
+  item,
+  index,
+  toSeverity,
+  openIssue,
+}: {
+  item: PreflightCheckResult;
+  index: number;
+  toSeverity: (s: Status) => any;
+  openIssue: (item: PreflightCheckResult) => void;
+}) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 350,
+        delay: index * 60,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 350,
+        delay: index * 60,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, slideAnim, index]);
+
+  const st = ((item.status ?? "pass") as Status) ?? "pass";
+  const severity = toSeverity(st);
+
+  return (
+    <Animated.View
+      style={{
+        opacity: fadeAnim,
+        transform: [{ translateY: slideAnim }],
+      }}
+    >
+      <IssueCard
+        title={item.title}
+        message={item.message}
+        severity={severity}
+        hasFix={!!item.fix?.patch}
+        onPress={() => openIssue(item)}
+      />
+    </Animated.View>
+  );
+}
 
 export function IssuesTabSection(props: {
   styles: any;
@@ -36,13 +91,6 @@ export function IssuesTabSection(props: {
   const {
     styles,
     issueList,
-    modeAdvanced,
-    setModeAdvanced,
-    recommendedMode,
-    selectedModes,
-    setSelectedModes,
-    modesAll,
-    setModesAll,
     busy,
     issuesFilter,
     setIssuesFilter,
@@ -57,54 +105,22 @@ export function IssuesTabSection(props: {
       keyExtractor={(item) => item.id}
       contentContainerStyle={styles.content}
       ItemSeparatorComponent={() => <View style={{ height: theme.spacing.sm }} />}
-      renderItem={({ item }) => {
-        const st = ((item.status ?? "pass") as Status) ?? "pass";
-        const severity = toSeverity(st);
-        return (
-          <IssueCard
-            title={item.title}
-            message={item.message}
-            severity={severity}
-            hasFix={!!item.fix?.patch}
-            onPress={() => openIssue(item)}
-          />
-        );
-      }}
+      renderItem={({ item, index }) => (
+        <AnimatedIssueRow
+          item={item}
+          index={index}
+          toSeverity={toSeverity}
+          openIssue={openIssue}
+        />
+      )}
       ListHeaderComponent={
         <View style={styles.stack}>
-          <ModeSelector
-            isAdvanced={modeAdvanced}
-            onToggleAdvanced={() => {
-              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-              setModeAdvanced((prev) => {
-                const next = !prev;
-                if (next) {
-                  // When entering advanced, seed selection with the recommended mode.
-                  setSelectedModes((p: any[]) => (p.length ? p : [recommendedMode]));
-                }
-                return next;
-              });
-            }}
-            recommendedMode={recommendedMode}
-            selectedModes={selectedModes}
-            onChangeSelected={setSelectedModes}
-            allowAll
-            allSelected={modesAll}
-            onToggleAll={() => {
-              setModesAll((prev) => {
-                const next = !prev;
-                if (next) setSelectedModes(["development", "preview", "production"]);
-                return next;
-              });
-            }}
-            disabled={busy}
-          />
+          {/* No ModeSelector - mode is auto from build screen */}
 
           <View style={styles.filtersRow}>
             {(["all", "critical", "warning"] as const).map((k) => {
               const active = issuesFilter === k;
-              const label =
-                k === "all" ? "All" : k === "critical" ? "Critical" : "Warning";
+              const label = k === "all" ? "Alle" : k === "critical" ? "Kritisch" : "Warnung";
               return (
                 <TouchableOpacity
                   key={k}
@@ -131,13 +147,13 @@ export function IssuesTabSection(props: {
         </View>
       }
       ListEmptyComponent={
-        <SectionCard title="No issues" subtitle="Alles sieht gut aus." icon="checkmark-circle">
+        <SectionCard title="Keine Issues" subtitle="Alles sieht gut aus." icon="checkmark-circle">
           <Text style={styles.muted}>
-            Starte eine Diagnose oder wechsle den Mode, falls du andere Profile prüfen willst.
+            Starte eine Diagnostik um den aktuellen Modus zu pruefen.
           </Text>
           <View style={{ height: theme.spacing.sm }} />
           <TouchableOpacity
-            style={styles.btnPrimary}
+            style={[styles.btnPrimary, busy && styles.disabled]}
             onPress={() => runDiagnostics()}
             disabled={busy}
           >
