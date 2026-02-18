@@ -203,7 +203,7 @@ export default function PreviewScreen() {
         clearTimeout(hotReloadTimerRef.current);
       }
     };
-  }, [filesFingerprint, hotReloadEnabled, previewSource, phase, handleCreate, blinkHotDot]);
+  }, [filesFingerprint, hotReloadEnabled, previewSource, phase, handleCreate, blinkHotDot, flashBorder]);
 
   const handleReload = useCallback(() => {
     setWebError(null);
