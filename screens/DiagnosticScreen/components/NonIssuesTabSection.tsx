@@ -167,7 +167,7 @@ export function NonIssuesTabSection(props: {
                   <Ionicons
                     name="play"
                     size={16}
-                    color={theme.palette.background}
+                    color={theme.palette.primary}
                   />
                   <Text style={styles.btnPrimaryText}>Run Diagnostics</Text>
                 </TouchableOpacity>
