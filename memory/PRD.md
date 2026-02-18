@@ -1,7 +1,8 @@
 # PRD - K1W1 APK Builder
 
 ## Problem Statement
-UI/UX Polish fuer den automatischen APK Builder. Neon/Giftgruen/Dark Optik mit vielen Animationen.
+UI/UX Polish fuer den automatischen APK Builder. Neon/Giftgruen/Dark Optik mit Animationen.
+Outlined Buttons statt voll-gruen. Mode automatisch vom BuildScreen in alle Screens.
 
 ## Architecture
 - React Native / Expo (TypeScript)
@@ -9,85 +10,73 @@ UI/UX Polish fuer den automatischen APK Builder. Neon/Giftgruen/Dark Optik mit v
 - GitHub Integration (Actions, Repos, Branches)
 - EAS Build System
 
-## Core Requirements (Static)
-1. Neon-Gruen/Dark Design - Outlined Buttons (nicht voll-gefaerbt)
-2. Persistenter Build-Modus (dev/preview/production) ueber alle Screens
-3. ConnectionsScreen mit Laempchen (Indicator Lights) + GitHub Account Name
-4. CredentialsWizardScreen - automatischer Mode vom Build-Screen
-5. DiagnosticScreen - automatisch Build-Mode verwenden, animierte Testliste
-6. EnhancedBuildScreen - History raus, Checkliste + Fortschrittsbalken rein
-7. GitHubReposScreen - Dropdown-Menues fuer Repo und Branch
-8. Persistenz via AsyncStorage (gruene Lights bleiben nach Neustart)
+## Core Requirements
+1. **Buttons**: Gruene Raender, NICHT voll-gruen (outlined)
+2. **Build-Screen**: Repo-Info read-only, Dropdown fuer Build-Mode, Progress-Balken
+3. **Credential Wizard**: Kein Mode-Auswahl - automatisch vom Build-Screen
+4. **Diagnostic Screen**: Kein Mode-Auswahl - automatisch vom Build-Screen, animierte Testliste
+5. **Connections Screen**: Laempchen mit persistentem Status
+6. **Repos Screen**: Dropdown fuer Repo/Branch
 
 ## What's Been Implemented (Jan 2026)
 
-### Aenderung 1: StorageKeys erweitert
-- Neue Keys fuer persistente Verbindungsstatus (CONN_GITHUB_OK, CONN_GITHUB_USER, etc.)
-- Neue Keys fuer Credential-Status (CRED_KEY_EXISTS_DEV/PREVIEW/PRODUCTION)
+### Session 1: Initiale Aenderungen
+- StorageKeys erweitert (persistent connection + credential status)
+- ConnectionsScreen: Laempchen + GitHub Account Name + Persistenz
+- EnhancedBuildScreen: History/Actions entfernt, Checklist + Progress Bar
+- CredentialsWizard: Auto-Mode, keine Auswahl
+- DiagnosticScreen: Persistent Ergebnis-Status
+- BranchSelector als Dropdown
 
-### Aenderung 2: ConnectionsScreen - Laempchen
-- StatusCard komplett ueberarbeitet mit animierten Connection Lights
-- Gruene pulsierende Laempchen fuer verbundene Services
-- GitHub Account Name (@username) wird angezeigt
-- Persistenter Status via AsyncStorage (bleibt nach Neustart gruen)
-- Outlined Buttons statt voll-gefaerbte
+### Session 2: Button-Overhaul + Screen-Redesign
+- **ALLE Buttons global auf outlined umgestellt:**
+  - EnhancedBuildScreen (Build starten, URLs, Download)
+  - CredentialsWizardScreen (Generieren, Status pruefen)
+  - DiagnosticScreen (Diagnostik starten, Autofix)
+  - SettingsScreen (Key hinzufuegen, Rotieren, Notify)
+  - GitHubReposScreen (Action Buttons)
+  - PreviewScreen (Preview Buttons)
+  - ChatScreen (Accept/Reject, Send, Scroll-to-bottom)
+  - ChatComposer (Send Button)
 
-### Aenderung 3: EnhancedBuildScreen - Komplett-Umbau
-- BuildHistorySection ENTFERNT
-- GitHubActionsSection ENTFERNT
-- NEU: ChecklistSection - Animierte Pre-Build Checkliste
-  - Signing Key vorhanden
-  - Tokens vorhanden (GitHub + Expo)
-  - Diagnostik gruen
-  - Repo gewaehlt
-  - Build-Modus angezeigt
-- NEU: BuildProgressSection - Animierter Fortschrittsbalken mit Prozent
-  - Step Indicators (Warteschlange -> Build -> Fertig)
-  - Glow-Animation waehrend Build
-  - ETA-Anzeige
-- NEU: DiffSection - Aufklappbare Diff-Anzeige (ersetzt GitHub Actions)
-- Alle Buttons auf outlined umgestellt
-- Emojis durch Ionicons ersetzt
+- **BuildScreen komplett neu:**
+  - Repo-Info nur als Badge (read-only, kein Input)
+  - Build-Mode als Dropdown statt Segment-Buttons
+  - Integrierter Header
+  - Saubere Sektion-Trennung
 
-### Aenderung 4: CredentialsWizardScreen - Auto-Mode
-- ModeSection ueberarbeitet - zeigt nur noch aktiven Modus als Badge
-- Keine manuelle Modus-Auswahl mehr noetig
-- Mode wird automatisch vom Build-Screen uebernommen
-- Key-Status wird persistent gespeichert
+- **BuildStatusSection neu:**
+  - Eigene Card mit Ionicons statt Emojis
+  - Outlined Action-Buttons (GitHub Run, Artifacts, Download)
+  - Outlined Start-Button
+  - Timeline-Integration
 
-### Aenderung 5: DiagnosticScreen - Build-Mode Integration
-- Diagnostik-Ergebnis wird persistent gespeichert (diagnostic_last_ok)
-- Buttons auf outlined umgestellt
-- Button-Text auf Deutsch
+- **CredentialsWizard ModeSection:**
+  - Kein Mode-Selektor mehr
+  - Mode-Badge zeigt aktiven Modus (read-only)
+  - Info-Text "Vom Build-Screen uebernommen"
 
-### Aenderung 6: GitHubReposScreen - Dropdown
-- BranchSelector komplett als Dropdown ueberarbeitet
-- Animierte Chevron-Rotation beim Oeffnen
-- Schoene Dropdown-Liste mit aktiver Branch Markierung
-- Buttons auf outlined umgestellt
+- **DiagnosticScreen:**
+  - HeaderSection: Mode-Badge statt Selektor
+  - IssuesTabSection: ModeSelector entfernt, animierte Issue-Rows
+  - NonIssuesTabSection: ModeSelector entfernt
+  - Button-Icons auf primary umgestellt
 
 ## Prioritized Backlog
 
-### P0 (Critical)
+### P0 (Done)
 - [x] Outlined Buttons global
-- [x] Connection Lights (Laempchen) persistent
-- [x] Pre-Build Checklist
-- [x] Build Progress Bar
+- [x] Mode-Auswahl entfernt aus Credential + Diagnostic
+- [x] Build-Screen vereinfacht (read-only Repo, Dropdown Mode)
+- [x] Connection Lights persistent
 
-### P1 (Important)
-- [ ] Auto-Fix Logic im Build-Screen (wenn nicht alles gruen, automatisch fixen)
-- [ ] EAS ID erstellen und linken automatisch
+### P1 (Next)
+- [ ] Auto-Fix Logic (Pre-Build automatisch alles fixen)
+- [ ] EAS ID automatisch erstellen/linken
 - [ ] Secrets automatisch pushen
-- [ ] Typecheck automatisch ausfuehren
 - [ ] Push vor Build automatisch
 
-### P2 (Nice to have)
-- [ ] Diff-Anzeige mit echten Git-Diffs fuellen
-- [ ] Animierte Testliste in Diagnostik mit gruenen Haken
-- [ ] Mehr Micro-Animations
+### P2 (Future)
+- [ ] Git Diff Integration fuer DiffSection
+- [ ] Erweiterte Animationen
 - [ ] Custom Loading Spinners
-
-## Next Tasks
-1. Auto-Fix Logic implementieren (Pre-Build Steps automatisch durchfuehren)
-2. Git Diff Integration fuer DiffSection
-3. Erweiterte Diagnostik-Animationen
