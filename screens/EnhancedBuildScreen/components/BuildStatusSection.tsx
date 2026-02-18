@@ -1,9 +1,16 @@
 import React from "react";
-import { ActivityIndicator, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 
 import { BuildTimelineCard } from "../../../components/build/BuildTimelineCard";
-import { styles } from "../../../styles/enhancedBuildScreenStyles";
+import { theme } from "../../../theme";
 import type { BuildStatus } from "../../../lib/buildStatusMapper";
 import type { CurrentBuildLike } from "../types";
 
@@ -35,105 +42,204 @@ export function BuildStatusSection({
   openRun: (url: string) => void;
 }): React.ReactElement {
   return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle}>Build Status</Text>
+    <View style={s.card}>
+      <View style={s.header}>
+        <Ionicons
+          name={status === "success" ? "checkmark-circle" : status === "failed" || status === "error" ? "alert-circle" : "radio-button-on"}
+          size={18}
+          color={status === "success" ? theme.palette.success : status === "failed" || status === "error" ? theme.palette.error : theme.palette.primary}
+        />
+        <Text style={s.title}>Build Status</Text>
+      </View>
 
-      <View style={styles.statusRow}>
-        <Text style={styles.statusEmoji}>{statusEmoji}</Text>
-        <View style={styles.statusTextWrap}>
-          <Text style={styles.statusLabel}>{statusLabel}</Text>
-          {!!message && <Text style={styles.statusMessage}>{message}</Text>}
-          {!!jobId && (
-            <Text style={styles.statusMessage}>Job ID: #{jobId}</Text>
-          )}
+      <View style={s.statusRow}>
+        <View style={s.statusTextWrap}>
+          <Text style={s.statusLabel}>{statusLabel}</Text>
+          {!!message && <Text style={s.statusMsg}>{message}</Text>}
+          {!!jobId && <Text style={s.statusMsg}>Job #{jobId}</Text>}
           {etaMs > 0 && (
-            <Text style={styles.statusMessage}>
-              ⏱️ Geschätzte Restzeit: {formatDuration(etaMs)}
-            </Text>
+            <Text style={s.eta}>Restzeit: ~{formatDuration(etaMs)}</Text>
           )}
         </View>
       </View>
 
-      {/* Timeline (unified BuildStatus) */}
       <BuildTimelineCard status={status} />
 
-      {!!currentBuild?.urls?.html && (
-        <TouchableOpacity
-          style={styles.secondaryBtn}
-          onPress={() => openRun(currentBuild.urls?.html || "")}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.secondaryBtnText}>GitHub Run oeffnen</Text>
-        </TouchableOpacity>
-      )}
-
-      {!!currentBuild?.urls?.artifacts && (
-        <TouchableOpacity
-          style={styles.secondaryBtn}
-          onPress={() => openRun(currentBuild.urls?.artifacts || "")}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.secondaryBtnText}>Artifacts oeffnen</Text>
-        </TouchableOpacity>
-      )}
-
-      {!!currentBuild?.urls?.buildUrl && (
-        <>
+      {/* Action Buttons - Outlined Style */}
+      <View style={s.actions}>
+        {!!currentBuild?.urls?.html && (
           <TouchableOpacity
-            style={styles.primaryBtn}
-            onPress={() => openRun(currentBuild.urls?.buildUrl || "")}
-            activeOpacity={0.8}
+            style={s.outlineBtn}
+            onPress={() => openRun(currentBuild.urls?.html || "")}
+            activeOpacity={0.7}
           >
-            <Text style={styles.primaryBtnText}>
-              {(() => {
-                const u = currentBuild?.urls?.buildUrl || "";
-                const isApk =
-                  u.toLowerCase().endsWith(".apk") ||
-                  u.includes("/storage/v1/object/") ||
-                  u.includes("/storage/v1/object/sign/");
-                return isApk ? "APK Download" : "Build Ergebnis";
-              })()}
-            </Text>
+            <Ionicons name="open-outline" size={14} color={theme.palette.text.primary} />
+            <Text style={s.outlineBtnText}>GitHub Run</Text>
           </TouchableOpacity>
+        )}
 
-          <View style={styles.buildLinkWrap}>
-            <Text style={styles.buildLinkText} selectable>
-              {currentBuild.urls?.buildUrl || ""}
-            </Text>
+        {!!currentBuild?.urls?.artifacts && (
+          <TouchableOpacity
+            style={s.outlineBtn}
+            onPress={() => openRun(currentBuild.urls?.artifacts || "")}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="cube-outline" size={14} color={theme.palette.text.primary} />
+            <Text style={s.outlineBtnText}>Artifacts</Text>
+          </TouchableOpacity>
+        )}
+
+        {!!currentBuild?.urls?.buildUrl && (
+          <>
+            <TouchableOpacity
+              style={s.greenOutlineBtn}
+              onPress={() => openRun(currentBuild.urls?.buildUrl || "")}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="download-outline" size={14} color={theme.palette.primary} />
+              <Text style={s.greenOutlineBtnText}>
+                {currentBuild.urls.buildUrl.toLowerCase().endsWith(".apk") ||
+                currentBuild.urls.buildUrl.includes("/storage/v1/object/")
+                  ? "APK Download"
+                  : "Build Ergebnis"}
+              </Text>
+            </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.secondaryBtn}
-              onPress={() =>
-                Clipboard.setStringAsync(currentBuild.urls?.buildUrl || "")
-              }
-              activeOpacity={0.8}
+              style={s.outlineBtn}
+              onPress={() => Clipboard.setStringAsync(currentBuild.urls?.buildUrl || "")}
+              activeOpacity={0.7}
             >
-              <Text style={styles.secondaryBtnText}>Link kopieren</Text>
+              <Ionicons name="copy-outline" size={14} color={theme.palette.text.primary} />
+              <Text style={s.outlineBtnText}>Link kopieren</Text>
             </TouchableOpacity>
-          </View>
-        </>
-      )}
+          </>
+        )}
+      </View>
 
+      {/* Start Build Button */}
       <TouchableOpacity
-        style={[
-          styles.primaryBtn,
-          (!hasStartBuild || buildLoading) && styles.btnDisabled,
-        ]}
+        style={[s.startBtn, (!hasStartBuild || buildLoading) && s.disabled]}
         onPress={onStartBuild}
         disabled={!hasStartBuild || buildLoading}
+        activeOpacity={0.7}
       >
         {buildLoading ? (
-          <ActivityIndicator color="#00FF00" />
+          <ActivityIndicator color={theme.palette.primary} size="small" />
         ) : (
-          <Text style={styles.primaryBtnText}>Build starten</Text>
+          <>
+            <Ionicons name="play-outline" size={18} color={theme.palette.primary} />
+            <Text style={s.startBtnText}>Build starten</Text>
+          </>
         )}
       </TouchableOpacity>
-
-      {!hasStartBuild && (
-        <Text style={styles.warningText}>
-          Implementiere startBuild() in deinem ProjectContext
-        </Text>
-      )}
     </View>
   );
 }
+
+const s = StyleSheet.create({
+  card: {
+    marginTop: 14,
+    marginHorizontal: 16,
+    backgroundColor: theme.palette.card,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    borderRadius: 16,
+    padding: 16,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 14,
+  },
+  title: {
+    color: theme.palette.text.primary,
+    fontWeight: "900",
+    fontSize: 15,
+  },
+  statusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 14,
+    padding: 12,
+    backgroundColor: theme.palette.background,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  statusTextWrap: { flex: 1 },
+  statusLabel: {
+    color: theme.palette.text.primary,
+    fontWeight: "800",
+    fontSize: 14,
+  },
+  statusMsg: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  eta: {
+    color: theme.palette.warning,
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+  actions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+  },
+  outlineBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: "transparent",
+  },
+  outlineBtnText: {
+    color: theme.palette.text.primary,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  greenOutlineBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: theme.palette.primary,
+    backgroundColor: "transparent",
+  },
+  greenOutlineBtnText: {
+    color: theme.palette.primary,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  startBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 14,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: theme.palette.primary,
+    backgroundColor: "transparent",
+  },
+  startBtnText: {
+    color: theme.palette.primary,
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  disabled: { opacity: 0.4 },
+});
