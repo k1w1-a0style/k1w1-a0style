@@ -20,9 +20,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { useProject } from "../contexts/ProjectContext";
 import { usePreview } from "../hooks/usePreview";
 import { theme } from "../theme";
-import { isHttpUrl, truncateUrl } from "../utils/url";
+import { isHttpUrl } from "../utils/url";
 import { decidePreviewNavigation } from "../utils/previewNavigation";
-import * as Linking from "expo-linking";
+import { Linking } from "react-native";
 
 type PreviewPhase = "idle" | "creating" | "loading" | "ready" | "error";
 
