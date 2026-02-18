@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, ActivityIndicator, TouchableOpacity } from "react-native";
+import { View, Text, ActivityIndicator, TouchableOpacity, Alert, Linking } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../../../theme";
 import { styles } from "../styles";
@@ -13,6 +14,23 @@ function statusEmoji(status?: string) {
   if (s === "removed") return "🗑️";
   if (s === "renamed") return "🔁";
   return "•";
+}
+
+function safeOpenUrl(url: string) {
+  if (!url) return;
+  Linking.openURL(url).catch(() => {});
+}
+
+function buildCompareUrl(owner: string, repo: string, base: string, head: string) {
+  const b = encodeURIComponent(base);
+  const h = encodeURIComponent(head);
+  return `https://github.com/${owner}/${repo}/compare/${b}...${h}`;
+}
+
+function buildBlobUrl(owner: string, repo: string, ref: string, filename: string) {
+  const r = encodeURIComponent(ref);
+  // filename already includes slashes; keep as is
+  return `https://github.com/${owner}/${repo}/blob/${r}/${filename}`;
 }
 
 export function DiffFilesSection(props: {
@@ -82,7 +100,7 @@ export function DiffFilesSection(props: {
     load();
   }, [load]);
 
-  const filesPreview = useMemo(() => files.slice(0, 12), [files]);
+  const filesPreview = useMemo(() => files.slice(0, 16), [files]);
 
   return (
     <View style={styles.section}>
@@ -113,6 +131,45 @@ export function DiffFilesSection(props: {
           {(aheadBy || behindBy) ? ` • +${aheadBy} / -${behindBy}` : ""}
         </Text>
       ) : null}
+      {activeRepo && parsed ? (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+          <TouchableOpacity
+            style={[styles.chip, { flexDirection: "row", alignItems: "center", gap: 6 }]}
+            onPress={() => safeOpenUrl(buildCompareUrl(parsed.owner, parsed.repo, defaultBranch || "main", headBranch || (defaultBranch || "main")))}
+          >
+            <Ionicons name="open-outline" size={14} color={theme.palette.text.secondary} />
+            <Text style={{ fontSize: 12, color: theme.palette.text.secondary }}>Compare öffnen</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.chip, { flexDirection: "row", alignItems: "center", gap: 6 }]}
+            onPress={async () => {
+              const list = files.map((f) => `${statusEmoji(f.status)} ${f.filename}`).join("\n");
+              await Clipboard.setStringAsync(list);
+            }}
+            disabled={!files.length}
+          >
+            <Ionicons name="copy-outline" size={14} color={files.length ? theme.palette.text.secondary : theme.palette.text.muted} />
+            <Text style={{ fontSize: 12, color: files.length ? theme.palette.text.secondary : theme.palette.text.muted }}>
+              Liste kopieren
+            </Text>
+          </TouchableOpacity>
+
+          {files.length > filesPreview.length ? (
+            <TouchableOpacity
+              style={[styles.chip, { flexDirection: "row", alignItems: "center", gap: 6 }]}
+              onPress={() => {
+                Alert.alert("Diff Dateien", files.map((f) => `${statusEmoji(f.status)} ${f.filename}`).join("\n"));
+              }}
+            >
+              <Ionicons name="list-outline" size={14} color={theme.palette.text.secondary} />
+              <Text style={{ fontSize: 12, color: theme.palette.text.secondary }}>Alle anzeigen</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
+
+
 
       {!!error ? (
         <Text style={{ fontSize: 12, color: theme.palette.error, marginTop: 6, lineHeight: 18 }}>
@@ -122,26 +179,43 @@ export function DiffFilesSection(props: {
 
       {activeRepo ? (
         <View style={{ marginTop: 10, gap: 6 }}>
-          {filesPreview.length ? (
-            filesPreview.map((f) => (
-              <View key={f.filename} style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-                <Text style={{ width: 22, textAlign: "center" }}>{statusEmoji(f.status)}</Text>
-                <Text
-                  style={{ flex: 1, fontSize: 12, color: theme.palette.text.secondary }}
-                  numberOfLines={1}
+	        {filesPreview.length ? (
+	          filesPreview.map((f) => {
+              const baseRef = (defaultBranch || "main").trim();
+              const headRef = (headBranch || baseRef).trim();
+              const refForFile = (String(f.status || "").toLowerCase() === "removed") ? baseRef : headRef;
+              const url = parsed ? buildBlobUrl(parsed.owner, parsed.repo, refForFile, f.filename) : "";
+
+              return (
+                <TouchableOpacity
+                  key={f.filename}
+                  onPress={() => safeOpenUrl(url)}
+                  style={{ flexDirection: "row", gap: 8, alignItems: "center", paddingVertical: 2 }}
+                  disabled={!parsed}
                 >
-                  {f.filename}
-                </Text>
-                {Number.isFinite(f.changes as any) ? (
-                  <Text style={{ fontSize: 11, color: theme.palette.text.muted }}>{f.changes}</Text>
-                ) : null}
-              </View>
-            ))
-          ) : (
-            <Text style={{ fontSize: 12, color: theme.palette.text.secondary }}>
-              Keine Änderungen.
-            </Text>
-          )}
+                  <Text style={{ width: 22, textAlign: "center" }}>{statusEmoji(f.status)}</Text>
+
+                  <Text
+                    style={{ flex: 1, fontSize: 12, color: theme.palette.text.secondary }}
+                    numberOfLines={1}
+                  >
+                    {f.filename}
+                  </Text>
+
+                  {Number.isFinite(f.additions as any) ? (
+                    <Text style={{ fontSize: 11, color: theme.palette.primary }}>{`+${f.additions}`}</Text>
+                  ) : null}
+                  {Number.isFinite(f.deletions as any) ? (
+                    <Text style={{ fontSize: 11, color: theme.palette.error }}>{`-${f.deletions}`}</Text>
+                  ) : null}
+                </TouchableOpacity>
+              );
+	            })
+	          ) : (
+	            <Text style={{ fontSize: 12, color: theme.palette.text.secondary }}>
+	              Keine Änderungen.
+	            </Text>
+	          )}
 
           {files.length > filesPreview.length ? (
             <Text style={{ fontSize: 11, color: theme.palette.text.muted }}>

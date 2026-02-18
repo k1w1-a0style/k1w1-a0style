@@ -2,6 +2,7 @@ import React, { useCallback, useMemo } from "react";
 import {
   View,
   Text,
+  TouchableOpacity,
   FlatList,
   RefreshControl,
   TextInput,
@@ -24,6 +25,7 @@ import { BranchSelector } from "./components/BranchSelector";
 import type { GitHubRepo } from "../../hooks/useGitHubRepos";
 
 import { RepoMetaSection } from "./components/RepoMetaSection";
+import { FilterSection } from "./components/FilterSection";
 import { SecretsSection } from "./components/SecretsSection";
 import { DiffFilesSection } from "./components/DiffFilesSection";
 
@@ -55,11 +57,16 @@ export default function GitHubReposScreen() {
     showRenameRepo,
     setShowRenameRepo,
 
+    // filters
     searchTerm,
     setSearchTerm,
+    filterType,
+    setFilterType,
+    recentRepos,
+    clearRecentRepos,
+    handleSelectRepo,
 
     filteredRepos,
-    handleSelectRepo,
 
     newRepoName,
     setNewRepoName,
@@ -95,7 +102,15 @@ export default function GitHubReposScreen() {
     vm.handleDeleteRepo(activeRepoObj);
   }, [activeRepoObj, vm]);
 
-  const repoData: GitHubRepo[] = useMemo(
+  
+  const handleSelectRecentRepo = useCallback(
+    (repoFullName: string) => {
+      handleSelectRepo(repoFullName);
+    },
+    [handleSelectRepo],
+  );
+
+const repoData: GitHubRepo[] = useMemo(
     () => (showRepoList ? filteredRepos : []),
     [showRepoList, filteredRepos],
   );
@@ -152,16 +167,35 @@ export default function GitHubReposScreen() {
 
       {showRepoList ? (
         <View style={s.section}>
-          <Text style={s.sectionTitle}>Repo wählen</Text>
-          <TextInput
-            value={searchTerm}
-            onChangeText={setSearchTerm}
-            placeholder="Suchen... (owner/repo)"
-            placeholderTextColor={theme.palette.text.muted}
-            style={s.searchInput}
-            autoCapitalize="none"
-            autoCorrect={false}
+          <View style={s.rowBetween}>
+            <Text style={s.sectionTitle}>Repo Auswahl</Text>
+            <TouchableOpacity
+              style={s.iconBtn}
+              onPress={onToggleRepoList}
+              accessibilityRole="button"
+              accessibilityLabel="Repo Auswahl schließen"
+            >
+              <Ionicons name="close" size={18} color={theme.palette.text.secondary} />
+            </TouchableOpacity>
+          </View>
+
+          <FilterSection
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            filterType={filterType}
+            setFilterType={setFilterType}
+            recentRepos={recentRepos}
+            activeRepo={activeRepo}
+            onSelectRecentRepo={handleSelectRecentRepo}
+            clearRecentRepos={clearRecentRepos}
           />
+
+          <View style={[s.rowBetween, { marginTop: 10 }]}>
+            <Text style={[s.sectionTitle, { marginBottom: 0 }]}>Repos</Text>
+            {loadingRepos ? (
+              <ActivityIndicator size="small" color={theme.palette.primary} />
+            ) : null}
+          </View>
         </View>
       ) : null}
 

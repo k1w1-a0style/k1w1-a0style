@@ -6,11 +6,15 @@ import { styles } from "../styles";
 import { splitFullName } from "../utils/repos";
 import { listRepoSecretNames } from "../../../infra/github/githubService";
 
-const EXPECTED_SECRETS = [
+const REQUIRED_SECRETS = [
   "EXPO_TOKEN",
   "SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
   "EAS_PROJECT_ID",
+] as const;
+
+const OPTIONAL_SECRETS = [
+  // Nice-to-have; not required for basic build/test flows
   "K1W1_EDGE_ADMIN_KEY",
 ] as const;
 
@@ -46,10 +50,18 @@ export function SecretsSection(props: { activeRepo: string | null }) {
     load();
   }, [load]);
 
-  const expectedStatus = useMemo(() => {
+  const requiredStatus = useMemo(() => {
     const set = new Set(names);
-    return EXPECTED_SECRETS.map((n) => ({ name: n, ok: set.has(n) }));
+    return REQUIRED_SECRETS.map((n) => ({ name: n, ok: set.has(n) }));
   }, [names]);
+
+  const optionalStatus = useMemo(() => {
+    const set = new Set(names);
+    return OPTIONAL_SECRETS.map((n) => ({ name: n, ok: set.has(n) }));
+  }, [names]);
+
+  const requiredMissing = useMemo(() => requiredStatus.some((s) => !s.ok), [requiredStatus]);
+
 
   return (
     <View style={styles.section}>
@@ -81,16 +93,44 @@ export function SecretsSection(props: { activeRepo: string | null }) {
 
       {activeRepo ? (
         <View style={{ marginTop: 8, gap: 6 }}>
-          {expectedStatus.map((s) => (
+          <Text
+            style={{
+              fontSize: 12,
+              fontWeight: "800",
+              color: requiredMissing ? theme.palette.error : theme.palette.text.secondary,
+            }}
+          >
+            Required
+          </Text>
+
+          {requiredStatus.map((s) => (
             <View key={s.name} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Ionicons
                 name={s.ok ? "checkmark-circle" : "close-circle"}
                 size={16}
-                color={s.ok ? theme.palette.primary : theme.palette.text.muted}
+                color={s.ok ? theme.palette.primary : theme.palette.error}
               />
               <Text style={{ fontSize: 12, color: theme.palette.text.secondary }}>{s.name}</Text>
             </View>
           ))}
+
+          {optionalStatus.length ? (
+            <View style={{ marginTop: 10, gap: 6 }}>
+              <Text style={{ fontSize: 12, fontWeight: "800", color: theme.palette.text.secondary }}>
+                Optional
+              </Text>
+              {optionalStatus.map((s) => (
+                <View key={s.name} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Ionicons
+                    name={s.ok ? "checkmark-circle" : "ellipse-outline"}
+                    size={16}
+                    color={s.ok ? theme.palette.primary : theme.palette.text.muted}
+                  />
+                  <Text style={{ fontSize: 12, color: theme.palette.text.secondary }}>{s.name}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
       ) : null}
 

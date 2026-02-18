@@ -64,6 +64,15 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.palette.text.secondary,
   },
+
+  subtitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingTop: 2,
+    paddingBottom: 2,
+  },
+
   headerActions: {
     flexDirection: "row",
     alignItems: "center",

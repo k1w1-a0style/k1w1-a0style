@@ -63,3 +63,5 @@ Recent changes, most recent first.
 ## Patch 181
 - CI Lite Modal: Progress-Bar + Prozent (heuristisch) und Shimmer-Animation während Checks laufen.
 - Besseres Live-Feedback ohne Einfluss auf die bestehende CI-Lite Logik (Dispatch/Polling/Results/Patch-Apply).
+- 2026-02-18: Patch 188 prepared — RepoScreen polish + ignore cleanup.
+- 2026-02-18: Patch 189 hotfix — fix Patch 188 build blockers (JSX syntax + duplicate searchTerm + missing TouchableOpacity import).

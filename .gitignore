@@ -47,3 +47,10 @@ coverage/
 # Refactor baselines / generated docs
 /refactor-baseline/
 /docs/refactor/baseline/
+
+# Local tools / temp
+supabase/.temp/
+# Backups / artifacts
+backups/
+.signing_secrets.local
+*.zip

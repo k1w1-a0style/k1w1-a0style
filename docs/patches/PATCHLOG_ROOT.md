@@ -2,6 +2,8 @@
 
 Most recent first.
 
+- Patch 189: `docs/patches/patch_189.md` (Hotfix: Patch 188 build blockers — JSX syntax + duplicate var + missing import)
+- Patch 188: `docs/patches/patch_188.md` (RepoScreen polish: dropdown/filter UX + diff/secrets usability + ignore cleanup)
 - Patch 187: `docs/patches/patch_187.md` (Hotfix: Repo screen TS palette + missing hook exports)
 
 - Patch 186: `docs/patches/patch_186.md` (Diagnostic: remove tabs, simplify to Scan/Fix + checklist)

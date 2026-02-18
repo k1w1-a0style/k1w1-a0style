@@ -35,25 +35,27 @@ export const HeaderSection = memo(function HeaderSection({
 
       <View style={styles.headerText}>
         <Text style={styles.title}>GitHub Repos</Text>
-        <Text style={styles.subtitle} numberOfLines={1}>
-          {userLogin ? `${userLogin} • ` : ""}
-          {activeRepo ? activeRepo : "Kein Repo gewählt"}
-          {activeBranch ? ` • ${activeBranch}` : ""}
-        </Text>
+
+        <TouchableOpacity
+          style={styles.subtitleRow}
+          onPress={onToggleRepoList}
+          accessibilityRole="button"
+          accessibilityLabel="Repo Auswahl öffnen"
+        >
+          <Text style={styles.subtitle} numberOfLines={1}>
+            {userLogin ? `${userLogin} • ` : ""}
+            {activeRepo ? activeRepo : "Kein Repo gewählt"}
+            {activeBranch ? ` • ${activeBranch}` : ""}
+          </Text>
+          <Ionicons
+            name={showRepoList ? "chevron-up" : "chevron-down"}
+            size={16}
+            color={theme.palette.text.secondary}
+          />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.headerActions}>
-        <TouchableOpacity
-          style={[styles.iconBtn, showRepoList && styles.iconBtnActive]}
-          onPress={onToggleRepoList}
-        >
-          <Ionicons
-            name={showRepoList ? "chevron-up" : "chevron-down"}
-            size={18}
-            color={theme.palette.primary}
-          />
-        </TouchableOpacity>
-
         <TouchableOpacity style={styles.iconBtn} onPress={onNewRepo}>
           <Ionicons name="add" size={18} color={theme.palette.primary} />
         </TouchableOpacity>
