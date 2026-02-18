@@ -655,14 +655,15 @@ const styles = StyleSheet.create({
     minWidth: 100,
   },
   btnPrimary: {
-    backgroundColor: theme.palette.primary,
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
     borderColor: theme.palette.primary,
   },
   btnDisabled: {
     opacity: 0.6,
   },
   btnPrimaryText: {
-    color: theme.palette.secondary,
+    color: theme.palette.primary,
     fontWeight: "800",
     fontSize: 14,
   },
