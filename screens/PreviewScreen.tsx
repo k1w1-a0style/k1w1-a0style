@@ -193,6 +193,7 @@ export default function PreviewScreen() {
     hotReloadTimerRef.current = setTimeout(() => {
       lastFingerprintRef.current = filesFingerprint;
       blinkHotDot();
+      flashBorder();
       setHotReloadCount((c) => c + 1);
       handleCreate();
     }, HOT_RELOAD_DEBOUNCE_MS);
