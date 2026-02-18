@@ -588,6 +588,9 @@ export function useEnhancedBuildScreen() {
     logModalVisible,
     setLogModalVisible,
 
+    // One-Click Deploy needs the raw startBuild
+    startBuildFn: startBuild,
+
     // Checklist
     checklistItems,
 
