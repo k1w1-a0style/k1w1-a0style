@@ -43,6 +43,7 @@ export default function PreviewScreen() {
   const pulseAnim = useRef(new Animated.Value(0.3)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const hotDotAnim = useRef(new Animated.Value(1)).current;
+  const flashBorderAnim = useRef(new Animated.Value(0)).current;
 
   // Track the fingerprint for hot reload
   const lastFingerprintRef = useRef(filesFingerprint);
