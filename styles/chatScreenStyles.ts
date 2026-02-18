@@ -86,7 +86,8 @@ export const styles = StyleSheet.create({
     borderColor: theme.palette.error,
   },
   modalButtonAccept: {
-    backgroundColor: theme.palette.primary,
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
     borderColor: theme.palette.primary,
   },
   modalButtonTextReject: {
@@ -94,7 +95,7 @@ export const styles = StyleSheet.create({
     fontWeight: "600",
     color: theme.palette.error,
   },
-  modalButtonTextAccept: { fontSize: 14, fontWeight: "600", color: "#000" },
+  modalButtonTextAccept: { fontSize: 14, fontWeight: "600", color: theme.palette.primary },
 
   scrollToBottomButton: {
     position: "absolute",
@@ -102,7 +103,9 @@ export const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: theme.palette.primary,
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
+    borderColor: theme.palette.primary,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: theme.palette.primary,
