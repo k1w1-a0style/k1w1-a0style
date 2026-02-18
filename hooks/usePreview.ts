@@ -93,6 +93,15 @@ function safeJson<T>(s: string): T | null {
   }
 }
 
+/** Simple DJB2 string hash for fingerprinting. */
+function simpleHash(str: string): number {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0;
+  }
+  return hash >>> 0;
+}
+
 export interface PreviewState {
   isCreating: boolean;
   lastCreatedAt: number | null;
