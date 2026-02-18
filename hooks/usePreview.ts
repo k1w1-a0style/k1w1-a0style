@@ -115,6 +115,8 @@ export interface UsePreviewReturn {
   lastPreview: PreviewResult | null;
   createPreview: () => Promise<PreviewResult | null>;
   reset: () => void;
+  /** Changes whenever project files change (for hot-reload detection). */
+  filesFingerprint: string;
 }
 
 export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
