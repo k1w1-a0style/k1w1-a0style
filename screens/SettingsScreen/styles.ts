@@ -283,7 +283,9 @@ export const styles = StyleSheet.create({
   rotateBtn: {
     marginTop: 12,
     borderRadius: 16,
-    backgroundColor: theme.palette.primary,
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
+    borderColor: theme.palette.primary,
     paddingVertical: 12,
     paddingHorizontal: 12,
     flexDirection: "row",
@@ -291,7 +293,7 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  rotateBtnText: { fontWeight: "900", color: "#000" },
+  rotateBtnText: { fontWeight: "900", color: theme.palette.primary },
 
   agentToggleRow: {
     flexDirection: "row",
