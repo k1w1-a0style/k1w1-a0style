@@ -280,7 +280,7 @@ export const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   actionButtonTextPrimary: {
-    color: theme.palette.background,
+    color: theme.palette.primary,
   },
   progressText: {
     fontSize: 11,
