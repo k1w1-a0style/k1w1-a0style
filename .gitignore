@@ -90,3 +90,7 @@ supabase/schema.sql
 # Refactor baseline outputs
 /refactor-baseline/
 /docs/refactor/baseline/
+-e 
+# Environment files
+*.env
+*.env.*
