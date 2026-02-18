@@ -546,6 +546,15 @@ if (container) {
     [isCreating, lastCreatedAt, error, fileMap],
   );
 
+  // Lightweight fingerprint: count + total size + sorted keys hash
+  const filesFingerprint = useMemo(() => {
+    const keys = Object.keys(fileMap).sort();
+    const totalLen = Object.values(fileMap).reduce((s, c) => s + c.length, 0);
+    // Simple hash: join key lengths + total size
+    const keyHash = keys.map((k) => `${k}:${(fileMap[k] || "").length}`).join("|");
+    return `${keys.length}-${totalLen}-${simpleHash(keyHash)}`;
+  }, [fileMap]);
+
   return {
     state,
     fileMap,
@@ -553,5 +562,6 @@ if (container) {
     lastPreview,
     createPreview,
     reset,
+    filesFingerprint,
   };
 }
