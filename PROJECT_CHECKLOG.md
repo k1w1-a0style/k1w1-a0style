@@ -1,5 +1,9 @@
 # Project Checklog
 
+- Patch 186 (2026-02-18): Diagnostic UX — tabs removed; scan/fix-only flow; checklist + issues list
+
+- Patch 185 (2026-02-18): Repo screen UX — dropdown repo picker, secrets list, diff file preview; Build screen removes GitHub Actions UI; Diagnostic adds profile headline + debug-to-chat
+
 - Patch 184 (2026-02-18): Hotfix — fix Patch 183 typecheck/lint regressions (hook ordering, missing styles, WorkflowRun typing, FileSystem imports)
 
 - Patch 183 (2026-02-18): Flow unification — repo/branch+profile persistence; Enhanced Build actions/history; turbo checklist chips

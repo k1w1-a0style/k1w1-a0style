@@ -2,6 +2,12 @@
 
 Most recent first.
 
+- Patch 187: `docs/patches/patch_187.md` (Hotfix: Repo screen TS palette + missing hook exports)
+
+- Patch 186: `docs/patches/patch_186.md` (Diagnostic: remove tabs, simplify to Scan/Fix + checklist)
+
+- Patch 185: `docs/patches/patch_185.md` (Repo screen: secrets + diff + dropdown; Build actions UI removed; Diagnostic debug-to-chat)
+
 - Patch 184: `docs/patches/patch_184.md` (Hotfix Patch 183: typecheck/lint fixes)
 
 - Patch 183: `docs/patches/patch_183.md` (Flow unification + Build UX + Turbo checklist chips)

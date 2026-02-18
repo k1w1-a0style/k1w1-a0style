@@ -7,3 +7,5 @@ export * from "./secrets";
 export * from "./repos";
 export * from "./files";
 export * from "./workflows";
+export * from "./compare";
+export * from "./user";

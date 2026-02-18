@@ -1,11 +1,10 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo } from "react";
 import {
   View,
   Text,
   FlatList,
   RefreshControl,
   TextInput,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
 } from "react-native";
@@ -18,15 +17,15 @@ import { useGitHubReposScreen } from "./hooks/useGitHubReposScreen";
 
 import { HeaderSection } from "./components/HeaderSection";
 import { TokenStatusSection } from "./components/TokenStatusSection";
-import { FilterSection } from "./components/FilterSection";
 import { RepoListItem } from "../../components/RepoListItem";
-import { ActionsSection } from "./components/ActionsSection";
 import { NewRepoSection } from "./components/NewRepoSection";
 import { RenameRepoSection } from "./components/RenameRepoSection";
 import { BranchSelector } from "./components/BranchSelector";
-import { WorkflowRunsSection } from "./components/WorkflowRunsSection";
-import { splitFullName } from "./utils/repos";
 import type { GitHubRepo } from "../../hooks/useGitHubRepos";
+
+import { RepoMetaSection } from "./components/RepoMetaSection";
+import { SecretsSection } from "./components/SecretsSection";
+import { DiffFilesSection } from "./components/DiffFilesSection";
 
 export default function GitHubReposScreen() {
   const s = styles;
@@ -38,6 +37,8 @@ export default function GitHubReposScreen() {
     tokenLoading,
     tokenError,
 
+    userLogin,
+
     loadingRepos,
     loadRepos,
     refreshing,
@@ -45,6 +46,7 @@ export default function GitHubReposScreen() {
 
     activeRepo,
     activeBranch,
+    activeRepoObj,
 
     showRepoList,
     setShowRepoList,
@@ -52,16 +54,9 @@ export default function GitHubReposScreen() {
     setShowNewRepo,
     showRenameRepo,
     setShowRenameRepo,
-    showAdvanced,
-    setShowAdvanced,
 
     searchTerm,
     setSearchTerm,
-    filterType,
-    setFilterType,
-
-    recentRepos,
-    clearRecentRepos,
 
     filteredRepos,
     handleSelectRepo,
@@ -78,72 +73,27 @@ export default function GitHubReposScreen() {
     isRenaming,
     handleRenameRepo,
 
-    isPushing,
-    handlePush,
-    isPulling,
-    handlePull,
-    pullProgress,
-
-    isSyncingSecrets,
-    handleSyncSecrets,
-
-    // EAS link (im Repo-Screen)
-    easProjectId,
-    isEasLinking,
-    easLinkStatus,
-    handleEasLinkStatusCheck,
-    handleEasLink,
-
     handleOpenRepoOnGitHub,
 
     loadBranches,
     loadDefaultBranch,
     handleSelectBranch,
 
-    manageModal,
-    manageValue,
-    setManageValue,
-    closeManageModal,
-
-    handleCreateBranch,
-    handleRenameBranch,
-    handleDeleteBranch,
-
-    loadWorkflowRuns,
   } = vm;
 
-  const [manageModalBusy, setManageModalBusy] = useState(false);
-
-  const closeManageModalSafe = useCallback(() => {
-    setManageModalBusy(false);
-    setManageValue("");
-    closeManageModal();
-  }, [closeManageModal, setManageValue]);
-
   const onToggleRepoList = useCallback(() => setShowRepoList((v) => !v), [setShowRepoList]);
-  const onToggleNewRepo = useCallback(() => setShowNewRepo((v) => !v), [setShowNewRepo]);
-  const onToggleAdvanced = useCallback(() => setShowAdvanced((v) => !v), [setShowAdvanced]);
-
-  const handleOpenManage = useCallback(() => {
-    if (!activeRepo) {
+  const onNewRepo = useCallback(() => setShowNewRepo(true), [setShowNewRepo]);
+  const onRenameRepo = useCallback(() => {
+    if (!activeRepo) return;
+    setShowRenameRepo(true);
+  }, [activeRepo, setShowRenameRepo]);
+  const onDeleteRepo = useCallback(() => {
+    if (!activeRepoObj) {
       Alert.alert("⚠️", "Kein Repo ausgewählt.");
       return;
     }
-    Alert.alert(
-      "Manage",
-      activeRepo,
-      [
-        { text: "Repo umbenennen", onPress: () => setShowRenameRepo(true) },
-        { text: "Branch erstellen", onPress: handleCreateBranch },
-        { text: "Branch umbenennen", onPress: handleRenameBranch },
-        { text: "Branch löschen", style: "destructive", onPress: handleDeleteBranch },
-        { text: "Abbrechen", style: "cancel" },
-      ],
-    );
-  }, [activeRepo, setShowRenameRepo, handleCreateBranch, handleRenameBranch, handleDeleteBranch]);
-
-
-  const parsed = activeRepo ? splitFullName(activeRepo) : null;
+    vm.handleDeleteRepo(activeRepoObj);
+  }, [activeRepoObj, vm]);
 
   const repoData: GitHubRepo[] = useMemo(
     () => (showRepoList ? filteredRepos : []),
@@ -181,12 +131,14 @@ export default function GitHubReposScreen() {
   const listHeader = (
     <>
       <HeaderSection
+        userLogin={userLogin}
+        activeRepo={activeRepo}
+        activeBranch={activeBranch}
         showRepoList={showRepoList}
         onToggleRepoList={onToggleRepoList}
-        showNewRepo={showNewRepo}
-        onToggleNewRepo={onToggleNewRepo}
-        showAdvanced={showAdvanced}
-        onToggleAdvanced={onToggleAdvanced}
+        onNewRepo={onNewRepo}
+        onRenameRepo={onRenameRepo}
+        onDeleteRepo={onDeleteRepo}
         onRefresh={handleRefresh}
       />
 
@@ -198,27 +150,31 @@ export default function GitHubReposScreen() {
         loadRepos={loadRepos}
       />
 
-      <FilterSection
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        filterType={filterType}
-        setFilterType={setFilterType}
-        recentRepos={recentRepos}
-        activeRepo={activeRepo}
-        onSelectRecentRepo={vm.handleSelectRepo}
-        clearRecentRepos={clearRecentRepos}
-      />
+      {showRepoList ? (
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Repo wählen</Text>
+          <TextInput
+            value={searchTerm}
+            onChangeText={setSearchTerm}
+            placeholder="Suchen... (owner/repo)"
+            placeholderTextColor={theme.palette.text.muted}
+            style={s.searchInput}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
+      ) : null}
 
-      {showRepoList && (
+      {showRepoList ? (
         <View style={s.section}>
           <View style={s.rowBetween}>
-            <Text style={s.sectionTitle}>Repositories</Text>
-            {loadingRepos && (
+            <Text style={s.sectionTitle}>Liste</Text>
+            {loadingRepos ? (
               <ActivityIndicator size="small" color={theme.palette.primary} />
-            )}
+            ) : null}
           </View>
         </View>
-      )}
+      ) : null}
     </>
   );
 
@@ -264,61 +220,6 @@ export default function GitHubReposScreen() {
         />
       )}
 
-      <ActionsSection
-        activeRepo={activeRepo}
-        isPushing={isPushing}
-        onPush={handlePush}
-        isPulling={isPulling}
-        onPull={handlePull}
-        isSyncingSecrets={isSyncingSecrets}
-        onSyncSecrets={handleSyncSecrets}
-        onOpenRepoOnGitHub={handleOpenRepoOnGitHub}
-        onOpenManage={handleOpenManage}
-        pullProgress={pullProgress}
-      />
-
-      {activeRepo && (
-        <View style={[s.section, s.sectionNeon]}>
-          <Text style={s.sectionTitle}>EAS Link</Text>
-
-          <Text style={{ fontSize: 12, color: theme.palette.text.secondary, lineHeight: 18 }}>
-            Project ID: {easProjectId ? easProjectId : "(nicht gesetzt)"}
-          </Text>
-
-          <Text style={{ fontSize: 12, color: theme.palette.text.secondary, marginTop: 6 }}>
-            Status: {easLinkStatus === "ok" ? "OK" : easLinkStatus === "missing" ? "fehlt" : "unbekannt"}
-          </Text>
-
-          <View style={s.actionsRow}>
-            <TouchableOpacity
-              style={[s.button, s.buttonSecondary, isEasLinking && s.buttonDisabled]}
-              onPress={handleEasLinkStatusCheck}
-              disabled={isEasLinking}
-            >
-              <Text style={s.buttonTextSecondary}>Check</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[s.button, (!easProjectId || isEasLinking) && s.buttonDisabled]}
-              onPress={handleEasLink}
-              disabled={!easProjectId || isEasLinking}
-            >
-              {isEasLinking ? (
-                <ActivityIndicator size="small" color={theme.palette.background} />
-              ) : (
-                <Text style={s.buttonText}>Link</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {!easProjectId && (
-            <Text style={{ fontSize: 11, color: theme.palette.text.muted, marginTop: 8, lineHeight: 16 }}>
-              Setz die EAS Project ID im Verbindungen-Screen (EAS Card). Danach hier “Link” drücken.
-            </Text>
-          )}
-        </View>
-      )}
-
       {activeRepo && (
         <BranchSelector
           activeRepo={activeRepo}
@@ -329,58 +230,19 @@ export default function GitHubReposScreen() {
         />
       )}
 
-      {activeRepo && showAdvanced && (
-        <WorkflowRunsSection activeRepo={activeRepo} loadWorkflowRuns={loadWorkflowRuns} />
-      )}
+      <RepoMetaSection
+        userLogin={userLogin}
+        activeRepo={activeRepo}
+        onOpenRepoOnGitHub={handleOpenRepoOnGitHub}
+      />
 
-      {manageModal && (
-        <View style={s.manageCard}>
-          <Text style={s.manageTitle}>{manageModal.title}</Text>
-          <TextInput
-            style={s.manageInput}
-            placeholder={manageModal.placeholder}
-            placeholderTextColor={theme.palette.text.secondary}
-            value={manageValue}
-            onChangeText={setManageValue}
-            editable={!manageModalBusy}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
+      <SecretsSection activeRepo={activeRepo} />
 
-          <View style={s.manageRow}>
-            <TouchableOpacity
-              style={[s.button, s.buttonSecondary, manageModalBusy && s.buttonDisabled]}
-              onPress={closeManageModalSafe}
-              disabled={manageModalBusy}
-            >
-              <Text style={s.buttonTextSecondary}>Abbrechen</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[s.button, manageModalBusy && s.buttonDisabled]}
-              disabled={manageModalBusy}
-              onPress={async () => {
-                if (manageModalBusy) return;
-                setManageModalBusy(true);
-                try {
-                  await manageModal.action(manageValue);
-                  closeManageModalSafe();
-                } catch (e: any) {
-                  Alert.alert("❌ Fehler", e?.message ?? "");
-                } finally {
-                  setManageModalBusy(false);
-                }
-              }}
-            >
-              {manageModalBusy ? (
-                <ActivityIndicator size="small" />
-              ) : (
-                <Text style={s.buttonText}>{manageModal.confirmText ?? "OK"}</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+      <DiffFilesSection
+        activeRepo={activeRepo}
+        activeBranch={activeBranch}
+        loadDefaultBranch={loadDefaultBranch}
+      />
     </>
   );
 

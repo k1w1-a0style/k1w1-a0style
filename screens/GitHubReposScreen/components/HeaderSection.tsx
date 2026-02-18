@@ -5,22 +5,26 @@ import { theme } from "../../../theme";
 import { styles } from "../styles";
 
 type HeaderSectionProps = {
+  userLogin: string;
+  activeRepo: string | null;
+  activeBranch: string | null;
   showRepoList: boolean;
   onToggleRepoList: () => void;
-  showNewRepo: boolean;
-  onToggleNewRepo: () => void;
-  showAdvanced: boolean;
-  onToggleAdvanced: () => void;
+  onNewRepo: () => void;
+  onRenameRepo: () => void;
+  onDeleteRepo: () => void;
   onRefresh: () => void;
 };
 
 export const HeaderSection = memo(function HeaderSection({
+  userLogin,
+  activeRepo,
+  activeBranch,
   showRepoList,
   onToggleRepoList,
-  showNewRepo,
-  onToggleNewRepo,
-  showAdvanced,
-  onToggleAdvanced,
+  onNewRepo,
+  onRenameRepo,
+  onDeleteRepo,
   onRefresh,
 }: HeaderSectionProps) {
   return (
@@ -31,46 +35,55 @@ export const HeaderSection = memo(function HeaderSection({
 
       <View style={styles.headerText}>
         <Text style={styles.title}>GitHub Repos</Text>
-        <Text style={styles.subtitle}>Repo- & Branch-Management</Text>
-
-        <View style={styles.chipRow}>
-          <TouchableOpacity
-            style={[styles.chip, showRepoList && styles.chipActive]}
-            onPress={onToggleRepoList}
-          >
-            <Text style={[styles.chipText, showRepoList && styles.chipTextActive]}>Liste</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.chip, showNewRepo && styles.chipActive]}
-            onPress={onToggleNewRepo}
-          >
-            <Text style={[styles.chipText, showNewRepo && styles.chipTextActive]}>Neu</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.chip, showAdvanced && styles.chipActive]}
-            onPress={onToggleAdvanced}
-          >
-            <Text style={[styles.chipText, showAdvanced && styles.chipTextActive]}>Advanced</Text>
-          </TouchableOpacity>
-        </View>
+        <Text style={styles.subtitle} numberOfLines={1}>
+          {userLogin ? `${userLogin} • ` : ""}
+          {activeRepo ? activeRepo : "Kein Repo gewählt"}
+          {activeBranch ? ` • ${activeBranch}` : ""}
+        </Text>
       </View>
 
       <View style={styles.headerActions}>
-        <TouchableOpacity style={styles.iconBtn} onPress={onRefresh}>
-          <Ionicons name="refresh" size={18} color={theme.palette.primary} />
-        </TouchableOpacity>
-
         <TouchableOpacity
-          style={[styles.iconBtn, showAdvanced && styles.iconBtnActive]}
-          onPress={onToggleAdvanced}
+          style={[styles.iconBtn, showRepoList && styles.iconBtnActive]}
+          onPress={onToggleRepoList}
         >
           <Ionicons
-            name={showAdvanced ? "sparkles" : "sparkles-outline"}
+            name={showRepoList ? "chevron-up" : "chevron-down"}
             size={18}
             color={theme.palette.primary}
           />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.iconBtn} onPress={onNewRepo}>
+          <Ionicons name="add" size={18} color={theme.palette.primary} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={onRenameRepo}
+          disabled={!activeRepo}
+        >
+          <Ionicons
+            name="pencil"
+            size={18}
+            color={activeRepo ? theme.palette.primary : theme.palette.text.muted}
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={onDeleteRepo}
+          disabled={!activeRepo}
+        >
+          <Ionicons
+            name="trash"
+            size={18}
+            color={activeRepo ? theme.palette.error : theme.palette.text.muted}
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.iconBtn} onPress={onRefresh}>
+          <Ionicons name="refresh" size={18} color={theme.palette.primary} />
         </TouchableOpacity>
       </View>
     </View>

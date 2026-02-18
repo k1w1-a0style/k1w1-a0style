@@ -10,7 +10,6 @@ import { theme } from "../../theme";
 import { ChecklistSection, type CheckActionChip } from "./components/ChecklistSection";
 import { BuildProgressSection } from "./components/BuildProgressSection";
 import { BuildStatusSection } from "./components/BuildStatusSection";
-import { GitHubActionsSection } from "./components/GitHubActionsSection";
 import { BuildHistorySection } from "./components/BuildHistorySection";
 import { WorkflowRunDetailModal } from "./components/WorkflowRunDetailModal";
 import { BuildModeDropdown, RepoInfoBadge } from "./components/RepoProfileSection";
@@ -175,21 +174,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           openRun={s.openRun}
         />
 
-                {/* GitHub Actions */}
-        <GitHubActionsSection
-          hasGetWorkflowRuns={s.hasGetWorkflowRuns}
-          canFetch={s.canFetch}
-          loadingRuns={s.loadingRuns}
-          error={s.error}
-          runs={s.runs}
-          moreCount={s.moreCount}
-          maxRunsDisplay={MAX_RUNS_DISPLAY}
-          fetchRuns={s.fetchRuns}
-          openRun={s.openRun}
-          openRunDetails={s.openRunDetails}
-          actionsFilter={s.actionsFilter}
-          setActionsFilter={s.setActionsFilter}
-        />
+        {/* GitHub Actions moved to Repo Screen (Diff/Repo management). */}
 
         {/* Build History */}
         <BuildHistorySection

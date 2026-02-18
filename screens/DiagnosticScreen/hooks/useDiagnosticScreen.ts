@@ -392,8 +392,13 @@ export function useDiagnosticScreen(opts: {
     const name = projectData?.name ?? "–";
     const easProfile = target.mode === "eas" ? target.profile : undefined;
     const mode = target.mode === "expoGo" ? "Expo Go" : `EAS: ${easProfile ?? "?"}`;
-    return { name, mode };
-  }, [projectData?.name, target]);
+    const prof = (() => {
+      if (modesAll) return "all";
+      if (selectedModes.length > 1) return `${selectedModes.length} profiles`;
+      return selectedModes[0] ?? recommendedMode;
+    })();
+    return { name, mode, profileLabel: prof };
+  }, [modesAll, projectData?.name, recommendedMode, selectedModes, target]);
 
   return {
     toast,

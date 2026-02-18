@@ -10,7 +10,7 @@ import {
   NativeScrollEvent,
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useProject } from "../../../contexts/ProjectContext";
@@ -32,6 +32,8 @@ const KEYBOARD_NUDGE = 4;
 const FOOTER_LIFT_WHEN_BUSY = 72;
 
 export const useChatScreen = () => {
+  const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const insets = useSafeAreaInsets();
   const {
     projectData,
@@ -73,6 +75,22 @@ export const useChatScreen = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedFileAsset, setSelectedFileAsset] =
     useState<DocumentResultAsset | null>(null);
+
+  // Allow other screens to prefill the composer (e.g. Diagnostic -> Debug)
+  useFocusEffect(
+    useCallback(() => {
+      const prefill = route?.params?.prefillText;
+      if (typeof prefill === "string" && prefill.trim()) {
+        setTextInput((prev) => (prev ? prev : prefill));
+        try {
+          navigation.setParams({ prefillText: undefined });
+        } catch {
+          // ignore
+        }
+      }
+      return () => {};
+    }, [navigation, route?.params?.prefillText]),
+  );
 
   const [streamingMessage, setStreamingMessage] = useState<string>("");
   const [isStreaming, setIsStreaming] = useState(false);

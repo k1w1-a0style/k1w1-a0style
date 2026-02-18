@@ -16,6 +16,7 @@ import {
   getRepoFileText,
   getGitHubToken,
 } from "../../../infra/github/githubService";
+import { getGitHubUser } from "../../../infra/github/user";
 import { autoSyncRepoSecrets } from "../../../lib/autoSyncRepoSecrets";
 import { useGitHubRepos, GitHubRepo, WorkflowRun } from "../../../hooks/useGitHubRepos";
 import { combineRepos, splitFullName, isValidRepoName } from "../utils/repos";
@@ -96,6 +97,9 @@ export function useGitHubReposScreen() {
   const [token, setToken] = useState<string | null>(null);
   const [tokenLoading, setTokenLoading] = useState(false);
   const [tokenError, setTokenError] = useState<string | null>(null);
+
+  const [userLogin, setUserLogin] = useState<string>("" );
+  const [userLoading, setUserLoading] = useState(false);
 
   const [refreshing, setRefreshing] = useState(false);
   const hasAutoLoaded = useRef(false);
@@ -188,6 +192,29 @@ export function useGitHubReposScreen() {
     })();
     return () => { mounted = false; };
   }, []);
+
+  // User info (best-effort)
+  useEffect(() => {
+    let mounted = true;
+    if (!token) {
+      setUserLogin("");
+      return () => { mounted = false; };
+    }
+    setUserLoading(true);
+    getGitHubUser()
+      .then((u) => {
+        if (!mounted) return;
+        setUserLogin(String(u?.login || "").trim());
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setUserLogin("");
+      })
+      .finally(() => {
+        if (mounted) setUserLoading(false);
+      });
+    return () => { mounted = false; };
+  }, [token]);
 
   // Load EAS project ID
   useEffect(() => {
@@ -626,6 +653,11 @@ export function useGitHubReposScreen() {
 
   const combinedRepos = useMemo(() => combineRepos(repos, localRepos), [repos, localRepos]);
 
+  const activeRepoObj = useMemo(() => {
+    if (!activeRepo) return null;
+    return combinedRepos.find((r) => r.full_name === activeRepo) ?? null;
+  }, [activeRepo, combinedRepos]);
+
   const filteredRepos = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     let list = combinedRepos;
@@ -650,6 +682,7 @@ export function useGitHubReposScreen() {
   return {
     // token
     token, tokenLoading, tokenError,
+    userLogin, userLoading,
 
     // repos
     loadingRepos, loadRepos, refreshing, handleRefresh,
@@ -657,6 +690,7 @@ export function useGitHubReposScreen() {
 
     // selection + recent
     activeRepo, setActiveRepo,
+    activeRepoObj,
     activeBranch, setActiveBranch,
     recentRepos, addRecentRepo, clearRecentRepos,
 
