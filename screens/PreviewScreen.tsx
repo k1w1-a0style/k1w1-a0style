@@ -376,9 +376,31 @@ export default function PreviewScreen() {
         )}
       </View>
 
-      {/* Main Content - Device Frame */}
+      {/* Main Content - Device Frame with Flash Border */}
       <View style={s.previewArea}>
-        <View style={s.deviceFrame}>
+        <Animated.View
+          style={[
+            s.deviceFrame,
+            {
+              borderColor: flashBorderAnim.interpolate({
+                inputRange: [0, 0.5, 1],
+                outputRange: [theme.palette.border, theme.palette.primary, theme.palette.primary],
+              }),
+              shadowOpacity: flashBorderAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.3, 0.9],
+              }),
+              shadowColor: flashBorderAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: ["#000", theme.palette.primary],
+              }),
+              shadowRadius: flashBorderAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [12, 24],
+              }),
+            },
+          ]}
+        >
           <View style={s.deviceNotch} />
 
           {previewSource ? (
