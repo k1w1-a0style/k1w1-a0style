@@ -10,7 +10,6 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { ModeSelector } from "../../../components/diagnostics/ModeSelector";
 import { SectionCard } from "../../../components/diagnostics/SectionCard";
 import { theme } from "../../../theme";
 import type { PreflightCheckResult } from "../../../lib/diagnostics/preflightTypes";
