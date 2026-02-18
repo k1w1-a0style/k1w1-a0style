@@ -10,12 +10,21 @@ import { ChecklistSection } from "./components/ChecklistSection";
 import { BuildProgressSection } from "./components/BuildProgressSection";
 import { BuildStatusSection } from "./components/BuildStatusSection";
 import { BuildModeDropdown, RepoInfoBadge } from "./components/RepoProfileSection";
+import { OneClickDeployCard } from "./components/OneClickDeployCard";
 import { DiffSection } from "./components/DiffSection";
 import { LogsAnalysisSection } from "./components/LogsAnalysisSection";
 import { useEnhancedBuildScreen } from "./hooks/useEnhancedBuildScreen";
+import { useOneClickDeploy } from "./hooks/useOneClickDeploy";
 
 export default function EnhancedBuildScreen(): React.ReactElement {
   const s = useEnhancedBuildScreen();
+
+  const deploy = useOneClickDeploy(
+    s.buildProfile,
+    s.repoFullName,
+    s.branchName,
+    s.hasStartBuild ? (s as any).startBuildFn : undefined,
+  );
 
   return (
     <SafeAreaView style={st.root} edges={["top"]}>
@@ -53,10 +62,20 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           <BuildModeDropdown value={s.buildProfile} onChange={s.onSelectBuildProfile} />
         </View>
 
+        {/* One-Click Deploy */}
+        <OneClickDeployCard
+          steps={deploy.steps}
+          isDeploying={deploy.isDeploying}
+          deployDone={deploy.deployDone}
+          onDeploy={deploy.runDeploy}
+          onReset={deploy.resetSteps}
+          onAbort={deploy.abort}
+        />
+
         {/* Pre-Build Checklist */}
         <ChecklistSection items={s.checklistItems} />
 
-        {/* Build Progress Bar */}
+        {/* Build Progress */}
         <BuildProgressSection
           status={s.status}
           statusLabel={s.statusLabel}
@@ -83,7 +102,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           openRun={s.openRun}
         />
 
-        {/* Diff-Anzeige */}
+        {/* Diff */}
         <DiffSection
           oldText={s.diffOldText}
           newText={s.diffNewText}
