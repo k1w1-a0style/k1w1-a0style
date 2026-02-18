@@ -1,5 +1,5 @@
 // screens/PreviewScreen.tsx
-// Echter Live-Preview mit eingebetteter WebView - zeigt die App direkt an
+// Echter Live-Preview mit Hot-Reload
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -7,6 +7,7 @@ import {
   Alert,
   Animated,
   Easing,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -22,24 +23,33 @@ import { usePreview } from "../hooks/usePreview";
 import { theme } from "../theme";
 import { isHttpUrl } from "../utils/url";
 import { decidePreviewNavigation } from "../utils/previewNavigation";
-import { Linking } from "react-native";
 
 type PreviewPhase = "idle" | "creating" | "loading" | "ready" | "error";
+
+const HOT_RELOAD_DEBOUNCE_MS = 1200;
 
 export default function PreviewScreen() {
   const navigation = useNavigation<any>();
   const { projectData, isLoading } = useProject();
-  const { state, lastPreview, createPreview, reset } = usePreview(projectData);
+  const { state, lastPreview, createPreview, reset, filesFingerprint } = usePreview(projectData);
 
   const [phase, setPhase] = useState<PreviewPhase>("idle");
   const [webError, setWebError] = useState<string | null>(null);
   const [autoCreated, setAutoCreated] = useState(false);
+  const [hotReloadEnabled, setHotReloadEnabled] = useState(true);
+  const [hotReloadCount, setHotReloadCount] = useState(0);
   const webViewRef = useRef<WebView>(null);
 
   const pulseAnim = useRef(new Animated.Value(0.3)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const hotDotAnim = useRef(new Animated.Value(1)).current;
 
-  // Pulse animation for loading state
+  // Track the fingerprint for hot reload
+  const lastFingerprintRef = useRef(filesFingerprint);
+  const hotReloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isCreatingRef = useRef(false);
+
+  // Pulse animation for loading
   useEffect(() => {
     if (phase === "creating" || phase === "loading") {
       const loop = Animated.loop(
@@ -77,7 +87,23 @@ export default function PreviewScreen() {
     }
   }, [phase, fadeAnim]);
 
-  // Determine what we can show
+  // Hot dot blink when hot reload fires
+  const blinkHotDot = useCallback(() => {
+    Animated.sequence([
+      Animated.timing(hotDotAnim, {
+        toValue: 0,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(hotDotAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [hotDotAnim]);
+
+  // Preview source
   const previewSource = useMemo(() => {
     if (lastPreview?.url && isHttpUrl(lastPreview.url)) {
       return { type: "url" as const, uri: lastPreview.url };
@@ -98,17 +124,10 @@ export default function PreviewScreen() {
     }
   }, [previewSource]);
 
-  // Auto-create preview on mount if we don't have one
-  useEffect(() => {
-    if (autoCreated) return;
-    if (isLoading || !projectData) return;
-    if (previewSource) return; // Already have one
-
-    setAutoCreated(true);
-    handleCreate();
-  }, [isLoading, projectData, previewSource, autoCreated]);
-
+  // Create preview
   const handleCreate = useCallback(async () => {
+    if (isCreatingRef.current) return;
+    isCreatingRef.current = true;
     setPhase("creating");
     setWebError(null);
     try {
@@ -119,11 +138,52 @@ export default function PreviewScreen() {
         return;
       }
       setPhase("loading");
+      lastFingerprintRef.current = filesFingerprint;
     } catch (e: any) {
       setPhase("error");
       setWebError(e?.message || "Unbekannter Fehler");
+    } finally {
+      isCreatingRef.current = false;
     }
-  }, [createPreview]);
+  }, [createPreview, filesFingerprint]);
+
+  // Auto-create on mount
+  useEffect(() => {
+    if (autoCreated) return;
+    if (isLoading || !projectData) return;
+    if (previewSource) {
+      lastFingerprintRef.current = filesFingerprint;
+      return;
+    }
+    setAutoCreated(true);
+    handleCreate();
+  }, [isLoading, projectData, previewSource, autoCreated, handleCreate, filesFingerprint]);
+
+  // === HOT RELOAD: Watch fingerprint changes ===
+  useEffect(() => {
+    if (!hotReloadEnabled) return;
+    if (!previewSource) return;
+    if (phase === "creating") return;
+    if (filesFingerprint === lastFingerprintRef.current) return;
+
+    // Fingerprint changed - debounce and recreate
+    if (hotReloadTimerRef.current) {
+      clearTimeout(hotReloadTimerRef.current);
+    }
+
+    hotReloadTimerRef.current = setTimeout(() => {
+      lastFingerprintRef.current = filesFingerprint;
+      blinkHotDot();
+      setHotReloadCount((c) => c + 1);
+      handleCreate();
+    }, HOT_RELOAD_DEBOUNCE_MS);
+
+    return () => {
+      if (hotReloadTimerRef.current) {
+        clearTimeout(hotReloadTimerRef.current);
+      }
+    };
+  }, [filesFingerprint, hotReloadEnabled, previewSource, phase, handleCreate, blinkHotDot]);
 
   const handleReload = useCallback(() => {
     setWebError(null);
@@ -133,11 +193,12 @@ export default function PreviewScreen() {
     }
   }, []);
 
-  const handleReset = useCallback(async () => {
+  const handleReset = useCallback(() => {
     reset();
     setAutoCreated(false);
     setPhase("idle");
     setWebError(null);
+    setHotReloadCount(0);
   }, [reset]);
 
   const handleCopy = useCallback(async () => {
@@ -188,7 +249,8 @@ export default function PreviewScreen() {
     [previewSource, baseOrigin],
   );
 
-  // Loading / no project state
+  // === RENDER ===
+
   if (isLoading) {
     return (
       <SafeAreaView style={s.root} edges={["top"]}>
@@ -222,12 +284,24 @@ export default function PreviewScreen() {
             <Text style={s.title}>Live Preview</Text>
             <Text style={s.subtitle} numberOfLines={1}>
               {projectData.name}
-              {lastPreview?.source === "supabase" ? " (Cloud)" : lastPreview?.source === "local" ? " (Lokal)" : ""}
             </Text>
           </View>
         </View>
 
         <View style={s.toolbarActions}>
+          {/* Hot Reload Toggle */}
+          <Pressable
+            style={[s.hotReloadBtn, hotReloadEnabled && s.hotReloadBtnOn]}
+            onPress={() => setHotReloadEnabled((v) => !v)}
+          >
+            <Animated.View style={{ opacity: hotDotAnim }}>
+              <View style={[s.hotDot, hotReloadEnabled && s.hotDotOn]} />
+            </Animated.View>
+            <Text style={[s.hotReloadLabel, hotReloadEnabled && s.hotReloadLabelOn]}>
+              Hot
+            </Text>
+          </Pressable>
+
           <Pressable style={s.toolBtn} onPress={handleReload}>
             <Ionicons name="refresh-outline" size={18} color={theme.palette.text.primary} />
           </Pressable>
@@ -249,24 +323,41 @@ export default function PreviewScreen() {
 
       {/* Status Bar */}
       <View style={s.statusBar}>
-        <View style={[s.statusDot, phase === "ready" && s.statusDotOk, phase === "error" && s.statusDotError]} />
+        <View
+          style={[
+            s.statusDot,
+            phase === "ready" && s.statusDotOk,
+            phase === "error" && s.statusDotError,
+            (phase === "creating" || phase === "loading") && s.statusDotLoading,
+          ]}
+        />
         <Text style={s.statusText}>
-          {phase === "idle" ? "Bereit" :
-           phase === "creating" ? "Preview wird erstellt..." :
-           phase === "loading" ? "Wird geladen..." :
-           phase === "ready" ? "Live" :
-           "Fehler"}
+          {phase === "idle"
+            ? "Bereit"
+            : phase === "creating"
+              ? "Preview wird erstellt..."
+              : phase === "loading"
+                ? "Wird geladen..."
+                : phase === "ready"
+                  ? "Live"
+                  : "Fehler"}
         </Text>
+
         {(phase === "creating" || phase === "loading") && (
           <Animated.View style={{ opacity: pulseAnim }}>
             <ActivityIndicator size="small" color={theme.palette.primary} />
           </Animated.View>
         )}
+
+        {hotReloadEnabled && hotReloadCount > 0 && (
+          <View style={s.hotBadge}>
+            <Text style={s.hotBadgeText}>{hotReloadCount}x reloaded</Text>
+          </View>
+        )}
       </View>
 
-      {/* Main Content Area */}
+      {/* Main Content - Device Frame */}
       <View style={s.previewArea}>
-        {/* Phone Frame */}
         <View style={s.deviceFrame}>
           <View style={s.deviceNotch} />
 
@@ -284,7 +375,10 @@ export default function PreviewScreen() {
                 setSupportMultipleWindows={false}
                 javaScriptCanOpenWindowsAutomatically={false}
                 onShouldStartLoadWithRequest={handleShouldStartLoad}
-                onLoadStart={() => { setPhase("loading"); setWebError(null); }}
+                onLoadStart={() => {
+                  setPhase("loading");
+                  setWebError(null);
+                }}
                 onLoadEnd={() => setPhase("ready")}
                 onError={(e) => {
                   setPhase("error");
@@ -335,7 +429,9 @@ export default function PreviewScreen() {
       {(webError || state.error) && (
         <View style={s.errorBar}>
           <Ionicons name="alert-circle" size={16} color={theme.palette.error} />
-          <Text style={s.errorText} numberOfLines={2}>{webError || state.error}</Text>
+          <Text style={s.errorText} numberOfLines={2}>
+            {webError || state.error}
+          </Text>
           <Pressable style={s.errorRetryBtn} onPress={handleCreate}>
             <Text style={s.errorRetryText}>Retry</Text>
           </Pressable>
@@ -352,12 +448,11 @@ export default function PreviewScreen() {
           <Ionicons name="refresh-outline" size={16} color={theme.palette.primary} />
           <Text style={s.bottomBtnText}>Neu erstellen</Text>
         </Pressable>
-        <Pressable
-          style={s.bottomBtn}
-          onPress={handleReset}
-        >
+        <Pressable style={s.bottomBtn} onPress={handleReset}>
           <Ionicons name="trash-outline" size={16} color={theme.palette.text.secondary} />
-          <Text style={[s.bottomBtnText, { color: theme.palette.text.secondary }]}>Zuruecksetzen</Text>
+          <Text style={[s.bottomBtnText, { color: theme.palette.text.secondary }]}>
+            Zuruecksetzen
+          </Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -392,7 +487,7 @@ const s = StyleSheet.create({
   toolbarTitle: { flex: 1, minWidth: 0 },
   title: { color: theme.palette.text.primary, fontSize: 18, fontWeight: "900" },
   subtitle: { color: theme.palette.text.secondary, fontSize: 12 },
-  toolbarActions: { flexDirection: "row", gap: 6 },
+  toolbarActions: { flexDirection: "row", gap: 6, alignItems: "center" },
   toolBtn: {
     width: 36,
     height: 36,
@@ -402,6 +497,45 @@ const s = StyleSheet.create({
     backgroundColor: theme.palette.background,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  // Hot Reload Toggle
+  hotReloadBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.background,
+  },
+  hotReloadBtnOn: {
+    borderColor: theme.palette.primary,
+    backgroundColor: "rgba(0,255,0,0.06)",
+  },
+  hotDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.palette.text.disabled,
+  },
+  hotDotOn: {
+    backgroundColor: theme.palette.primary,
+    shadowColor: theme.palette.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+  },
+  hotReloadLabel: {
+    fontSize: 11,
+    fontWeight: "900",
+    color: theme.palette.text.muted,
+    letterSpacing: 0.3,
+  },
+  hotReloadLabelOn: {
+    color: theme.palette.primary,
   },
 
   // Status Bar
@@ -421,13 +555,33 @@ const s = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: theme.palette.text.disabled,
   },
-  statusDotOk: { backgroundColor: theme.palette.success },
+  statusDotOk: {
+    backgroundColor: theme.palette.success,
+    shadowColor: theme.palette.success,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 4,
+  },
   statusDotError: { backgroundColor: theme.palette.error },
+  statusDotLoading: { backgroundColor: theme.palette.warning },
   statusText: {
     flex: 1,
     color: theme.palette.text.secondary,
     fontSize: 12,
     fontWeight: "700",
+  },
+  hotBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(0,255,0,0.2)",
+    backgroundColor: "rgba(0,255,0,0.06)",
+  },
+  hotBadgeText: {
+    color: theme.palette.primary,
+    fontSize: 10,
+    fontWeight: "800",
   },
 
   // Preview Area
@@ -442,7 +596,7 @@ const s = StyleSheet.create({
     flex: 1,
     width: "100%",
     maxWidth: 400,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: "#111",
     borderRadius: 24,
     borderWidth: 2,
     borderColor: theme.palette.border,
@@ -455,7 +609,7 @@ const s = StyleSheet.create({
   },
   deviceNotch: {
     height: 6,
-    backgroundColor: "#111",
+    backgroundColor: "#0a0a0a",
     borderBottomLeftRadius: 8,
     borderBottomRightRadius: 8,
     marginHorizontal: "30%",
@@ -463,7 +617,7 @@ const s = StyleSheet.create({
   },
   deviceBottom: {
     height: 4,
-    backgroundColor: "#111",
+    backgroundColor: "#0a0a0a",
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
     marginHorizontal: "40%",
@@ -473,7 +627,7 @@ const s = StyleSheet.create({
   webView: { flex: 1, backgroundColor: "#fff" },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.8)",
+    backgroundColor: "rgba(0,0,0,0.85)",
     alignItems: "center",
     justifyContent: "center",
     gap: 12,
