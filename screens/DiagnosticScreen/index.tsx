@@ -1,5 +1,5 @@
-import React from "react";
-import { useNavigation } from "@react-navigation/native";
+import React, { useEffect, useRef } from "react";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { StyleSheet, Text, View } from "react-native";
 
 import { IssueDetailSheet } from "../../components/diagnostics/IssueDetailSheet";
@@ -19,6 +19,8 @@ const FIX_MODAL_MAX_LINES = 7;
 
 export default function DiagnosticScreen() {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const autoRunDoneRef = useRef(false);
   const { projectData, updateProjectFiles, deleteFile, setPreferredBuildProfile } =
     useProject();
 
@@ -122,6 +124,31 @@ export default function DiagnosticScreen() {
     updateProjectFiles,
     deleteFile,
   });
+
+  // Optional: Auto-run diagnostics when navigated from Build Checklist.
+  useEffect(() => {
+    const wantsAutoRun = !!route?.params?.autoRun;
+    if (!wantsAutoRun) return;
+    if (autoRunDoneRef.current) return;
+    if (busy || running) return;
+
+    autoRunDoneRef.current = true;
+    // Prefer the issues tab so the user immediately sees what's up.
+    try {
+      setTab("issues" as any);
+    } catch {
+      // ignore
+    }
+    // Kick off with the current (already persisted) mode selection.
+    runDiagnostics();
+
+    // Prevent repeated auto-runs if user comes back.
+    try {
+      navigation.setParams({ autoRun: false });
+    } catch {
+      // ignore
+    }
+  }, [route?.params?.autoRun, busy, running, runDiagnostics, navigation, setTab]);
 
   if (!projectData) {
     return (

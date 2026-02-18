@@ -25,6 +25,8 @@ export function BuildStatusSection({
   currentBuild,
   hasStartBuild,
   buildLoading,
+  startDisabled,
+  startDisabledReason,
   onStartBuild,
   openRun,
 }: {
@@ -38,6 +40,8 @@ export function BuildStatusSection({
   currentBuild: CurrentBuildLike | null;
   hasStartBuild: boolean;
   buildLoading: boolean;
+  startDisabled?: boolean;
+  startDisabledReason?: string | null;
   onStartBuild: () => void;
   openRun: (url: string) => void;
 }): React.ReactElement {
@@ -118,10 +122,16 @@ export function BuildStatusSection({
       </View>
 
       {/* Start Build Button */}
+      {!!startDisabledReason && !!startDisabled ? (
+        <Text style={s.blockReason} numberOfLines={3}>
+          {startDisabledReason}
+        </Text>
+      ) : null}
+
       <TouchableOpacity
-        style={[s.startBtn, (!hasStartBuild || buildLoading) && s.disabled]}
+        style={[s.startBtn, (!hasStartBuild || buildLoading || startDisabled) && s.disabled]}
         onPress={onStartBuild}
-        disabled={!hasStartBuild || buildLoading}
+        disabled={!hasStartBuild || buildLoading || !!startDisabled}
         activeOpacity={0.7}
       >
         {buildLoading ? (
@@ -223,6 +233,12 @@ const s = StyleSheet.create({
     color: theme.palette.primary,
     fontSize: 12,
     fontWeight: "800",
+  },
+  blockReason: {
+    marginTop: 10,
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    lineHeight: 16,
   },
   startBtn: {
     flexDirection: "row",

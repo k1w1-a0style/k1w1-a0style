@@ -2,6 +2,10 @@
 
 Most recent first.
 
+- Patch 184: `docs/patches/patch_184.md` (Hotfix Patch 183: typecheck/lint fixes)
+
+- Patch 183: `docs/patches/patch_183.md` (Flow unification + Build UX + Turbo checklist chips)
+
 - Patch 182: `docs/patches/patch_182.md` (CI Lite progress hotfix: TS palette + missing styles)
 
 - Patch 181: `docs/patches/patch_181.md` (CI Lite progress bar + shimmer + step feedback)

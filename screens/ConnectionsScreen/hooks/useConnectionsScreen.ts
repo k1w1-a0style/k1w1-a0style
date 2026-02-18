@@ -46,6 +46,12 @@ export function useConnectionsScreen() {
   // Tokens
   const [githubToken, setGithubToken] = useState("");
   const [expoToken, setExpoToken] = useState("");
+
+  // Expo connection light is derived from the current token (no stale persistence).
+  useEffect(() => {
+    setExpoOk(!!expoToken.trim());
+  }, [expoToken]);
+
   const [edgeAdminKey, setEdgeAdminKeyState] = useState("");
 
   const [showGitHub, setShowGitHub] = useState(false);
@@ -103,11 +109,10 @@ export function useConnectionsScreen() {
       ]);
 
       // Load persistent connection lights
-      const [ghOk, ghUserStored, sbOk, exOk] = await Promise.all([
+      const [ghOk, ghUserStored, sbOk] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_OK).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_USER).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_SUPABASE_OK).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CONN_EXPO_OK).catch(() => null),
       ]);
 
       // Legacy migration: AsyncStorage -> SecureStore
@@ -127,6 +132,7 @@ export function useConnectionsScreen() {
       if (!mounted) return;
       setGithubToken(gh || "");
       setExpoToken(ex || "");
+      setExpoOk(!!(ex || "").trim());
       setEdgeAdminKeyState(edge || "");
       setSupabaseRaw(raw || "");
       setSupabaseUrl(url || "");
@@ -138,7 +144,6 @@ export function useConnectionsScreen() {
       if (ghOk === "true") setGithubOk(true);
       if (ghUserStored) setGithubUser(ghUserStored);
       if (sbOk === "true") setSupabaseOk(true);
-      if (exOk === "true") setExpoOk(true);
     })();
 
     return () => {

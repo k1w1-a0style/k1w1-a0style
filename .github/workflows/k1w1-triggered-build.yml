@@ -1,4 +1,5 @@
 name: K1W1 Triggered Build
+run-name: "EAS ${{ github.event.client_payload.build_profile || github.event.inputs.profile || 'preview' }} • ${{ github.event.client_payload.branch || github.event.client_payload.ref || github.event.inputs.ref || github.ref_name }}"
 
 on:
   repository_dispatch:

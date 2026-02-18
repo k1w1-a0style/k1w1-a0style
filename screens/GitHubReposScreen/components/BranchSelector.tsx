@@ -8,9 +8,12 @@ import {
   ScrollView,
   Animated,
   Easing,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../../../theme";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { GitHubBranch } from "../../../hooks/useGitHubRepos";
 
 interface BranchSelectorProps {
@@ -31,6 +34,8 @@ export const BranchSelector = memo(function BranchSelector({
   const [branches, setBranches] = useState<GitHubBranch[]>([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [search, setSearch] = useState("");
+  const [recent, setRecent] = useState<string[]>([]);
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
   const generationRef = useRef(0);
@@ -81,6 +86,30 @@ export const BranchSelector = memo(function BranchSelector({
     load();
   }, [activeRepo, loadBranches, loadDefaultBranch, activeBranch, onSelectBranch]);
 
+  // Load recent branches (best-effort) when opening or repo changes
+  useEffect(() => {
+    if (!activeRepo) {
+      setRecent([]);
+      return;
+    }
+    let mounted = true;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEYS.RECENT_BRANCHES_BY_REPO).catch(
+          () => null,
+        );
+        const map = raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
+        const list = Array.isArray(map[activeRepo]) ? map[activeRepo] : [];
+        if (mounted) setRecent(list.slice(0, 6));
+      } catch {
+        if (mounted) setRecent([]);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [activeRepo, expanded]);
+
   if (!activeRepo) return null;
 
   const rotation = rotateAnim.interpolate({
@@ -115,30 +144,87 @@ export const BranchSelector = memo(function BranchSelector({
           nestedScrollEnabled
           showsVerticalScrollIndicator={false}
         >
-          {branches.map((branch) => {
-            const isActive = branch.name === activeBranch;
-            return (
+          <View style={s.searchWrap}>
+            <Ionicons name="search" size={14} color={theme.palette.text.secondary} />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Branch suchen…"
+              placeholderTextColor={theme.palette.text.secondary}
+              autoCorrect={false}
+              autoCapitalize="none"
+              style={s.searchInput}
+            />
+            {search.length > 0 && (
               <TouchableOpacity
-                key={branch.name}
-                style={[s.dropdownItem, isActive && s.dropdownItemActive]}
-                onPress={() => {
-                  onSelectBranch(branch.name);
-                  setExpanded(false);
-                }}
-                activeOpacity={0.7}
+                onPress={() => setSearch("")}
+                style={s.clearBtn}
+                accessibilityLabel="Branch-Suche löschen"
               >
-                {isActive && (
-                  <Ionicons name="checkmark" size={14} color={theme.palette.primary} />
-                )}
-                {branch.protected && (
-                  <Ionicons name="lock-closed" size={12} color={theme.palette.warning} />
-                )}
-                <Text style={[s.dropdownText, isActive && s.dropdownTextActive]} numberOfLines={1}>
-                  {branch.name}
-                </Text>
+                <Ionicons name="close" size={16} color={theme.palette.text.secondary} />
               </TouchableOpacity>
-            );
-          })}
+            )}
+          </View>
+
+          {search.length === 0 && recent.length > 0 && (
+            <View style={s.recentWrap}>
+              <Text style={s.recentTitle}>Zuletzt genutzt</Text>
+              <View style={s.recentRow}>
+                {recent.map((br) => (
+                  <TouchableOpacity
+                    key={br}
+                    onPress={() => {
+                      onSelectBranch(br);
+                      setExpanded(false);
+                    }}
+                    style={s.recentPill}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={s.recentPillText} numberOfLines={1}>
+                      {br}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {(() => {
+            const needle = search.trim().toLowerCase();
+            const list = needle
+              ? branches.filter((b) => b.name.toLowerCase().includes(needle))
+              : branches;
+            if (needle && list.length === 0) {
+              return <Text style={s.empty}>Keine Treffer</Text>;
+            }
+            return list.map((branch) => {
+              const isActive = branch.name === activeBranch;
+              return (
+                <TouchableOpacity
+                  key={branch.name}
+                  style={[s.dropdownItem, isActive && s.dropdownItemActive]}
+                  onPress={() => {
+                    onSelectBranch(branch.name);
+                    setExpanded(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  {isActive && (
+                    <Ionicons name="checkmark" size={14} color={theme.palette.primary} />
+                  )}
+                  {branch.protected && (
+                    <Ionicons name="lock-closed" size={12} color={theme.palette.warning} />
+                  )}
+                  <Text
+                    style={[s.dropdownText, isActive && s.dropdownTextActive]}
+                    numberOfLines={1}
+                  >
+                    {branch.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            });
+          })()}
         </ScrollView>
       )}
 
@@ -184,6 +270,63 @@ const s = StyleSheet.create({
     maxHeight: 200,
     borderTopWidth: 1,
     borderTopColor: theme.palette.border,
+  },
+  searchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: theme.palette.text.primary,
+    paddingVertical: 4,
+  },
+  clearBtn: {
+    padding: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  recentWrap: {
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.palette.border,
+  },
+  recentTitle: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: theme.palette.text.muted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  recentRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  recentPill: {
+    maxWidth: "100%",
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.background,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  recentPillText: {
+    fontSize: 12,
+    color: theme.palette.primary,
+    fontWeight: "700",
+    maxWidth: 220,
   },
   dropdownItem: {
     flexDirection: "row",

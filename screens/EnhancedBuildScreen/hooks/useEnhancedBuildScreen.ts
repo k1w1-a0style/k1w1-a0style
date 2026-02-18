@@ -4,11 +4,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useProject } from "../../../contexts/ProjectContext";
 import { useGitHub } from "../../../contexts/GitHubContext";
+import { useBuildHistory } from "../../../hooks/useBuildHistory";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
 import { BuildErrorAnalyzer } from "../../../lib/buildErrorAnalyzer";
 import { CONFIG } from "../../../config";
-import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { getGitHubToken, getExpoToken } from "../../../infra/github/githubService";
+import { getWorkflowRunDetails, getWorkflowRunJobs } from "../../../infra/github/workflows";
 import type { BuildStatus } from "../../../lib/buildStatusMapper";
 import type { CheckItem } from "../components/ChecklistSection";
 import {
@@ -106,7 +107,7 @@ export function useEnhancedBuildScreen() {
   }, []);
 
   const projectContext = useProject();
-  const { activeBranch, setActiveRepo, setActiveBranch } = useGitHub();
+  const { activeBranch } = useGitHub();
   const projectData = projectContext?.projectData ?? null;
 
   const startBuild = projectContext?.startBuild as
@@ -122,33 +123,104 @@ export function useEnhancedBuildScreen() {
         repo: string,
         workflowFileName?: string,
       ) => Promise<WorkflowRunsResponse>);
-  const setLinkedRepo = projectContext?.setLinkedRepo as
-    | undefined
-    | ((repo: string | null, branch?: string | null) => Promise<void>);
   const setPreferredBuildProfile = projectContext?.setPreferredBuildProfile as
     | undefined
     | ((profile: BuildProfile) => Promise<void>);
 
-  const initialRepo = useMemo(() => {
+  // Single Source of Truth:
+  // - Repo/Branch comes from ProjectContext (Repo-Screen persists it).
+  // - Build-Screen is read-only for repo/branch.
+  const repoFullName = useMemo(() => {
     return (
       projectData?.linkedRepo?.trim() ||
       (currentBuild?.githubRepo ?? "").trim() ||
-      CONFIG.BUILD.GITHUB_REPO
+      (CONFIG.BUILD.GITHUB_REPO ?? "").trim()
     );
-  }, [currentBuild?.githubRepo, projectData?.linkedRepo]);
+  }, [projectData?.linkedRepo, currentBuild?.githubRepo]);
 
-  const initialBranch = useMemo(() => {
-    return projectData?.linkedBranch?.trim() || activeBranch?.trim() || "work";
-  }, [projectData?.linkedBranch, activeBranch]);
-
-  const [repoFullName, setRepoFullName] = useState(initialRepo);
-  const [branchName, setBranchName] = useState(initialBranch);
+  const branchName = useMemo(() => {
+    const fromBuild = String((currentBuild as any)?.branch ?? "").trim();
+    return (
+      projectData?.linkedBranch?.trim() ||
+      activeBranch?.trim() ||
+      fromBuild ||
+      "main"
+    );
+  }, [projectData?.linkedBranch, activeBranch, (currentBuild as any)?.branch]);
   const [buildProfile, setBuildProfile] = useState<BuildProfile>(
     (projectData?.preferredBuildProfile as any) || "preview",
   );
   const [loadingRuns, setLoadingRuns] = useState(false);
 
-  // Sync persisted profile/branch when project loads or changes
+  // Runs & UI state
+  const [runs, setRuns] = useState<WorkflowRun[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [buildLoading, setBuildLoading] = useState(false);
+  const [buildStartTime, setBuildStartTime] = useState<number | null>(null);
+  const [nowTick, setNowTick] = useState<number>(0);
+  const [logModalVisible, setLogModalVisible] = useState(false);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+
+  // Preconditions for "idiotensicher" build
+  const [hasTokens, setHasTokens] = useState(false);
+  const [hasSigningKey, setHasSigningKey] = useState(false);
+  const [hasDiagOk, setHasDiagOk] = useState(false);
+
+
+  type ModeFilter = "all" | BuildProfile;
+
+  const [actionsFilter, setActionsFilter] = useState<ModeFilter>(
+    (projectData?.preferredBuildProfile as any) || "preview",
+  );
+  const [historyFilter, setHistoryFilter] = useState<ModeFilter>(
+    (projectData?.preferredBuildProfile as any) || "preview",
+  );
+
+  // When the global preferred profile changes, keep filters aligned unless user explicitly chose "all".
+  useEffect(() => {
+    setActionsFilter((prev) => (prev === "all" ? prev : buildProfile));
+    setHistoryFilter((prev) => (prev === "all" ? prev : buildProfile));
+  }, [buildProfile]);
+
+	const buildHistory = useBuildHistory();
+
+	const filteredRuns = useMemo(() => {
+	  if (actionsFilter === "all") return runs;
+	  const needle = String(actionsFilter).toLowerCase();
+	  const re = new RegExp(`\\b${needle}\\b`, "i");
+	  const list = runs.filter((r) => {
+	    const title = String((r as any)?.display_title || "");
+	    const name = String((r as any)?.name || "");
+	    return re.test(title) || re.test(name);
+	  });
+	  // Backwards-compatible: older runs may not have a profile in the title yet.
+	  return list.length > 0 ? list : runs;
+	}, [runs, actionsFilter]);
+
+	const filteredHistory = useMemo(() => {
+	  const all = buildHistory.history ?? [];
+	  if (historyFilter === "all") return all;
+	  const needle = String(historyFilter).toLowerCase();
+	  return all.filter(
+	    (h) => String((h as any)?.buildProfile || "").toLowerCase() === needle,
+	  );
+	}, [buildHistory.history, historyFilter]);
+
+	const filteredStats = useMemo(() => {
+	  const list = filteredHistory ?? [];
+	  return {
+	    total: list.length,
+	    success: list.filter((e) => e.status === "success").length,
+	    failed: list.filter((e) => e.status === "failed" || e.status === "error").length,
+	    building: list.filter(
+	      (e) => e.status === "building" || e.status === "queued",
+	    ).length,
+	  };
+	}, [filteredHistory]);
+
+
+  // Sync persisted profile when project loads or changes
   useEffect(() => {
     const p = projectData?.preferredBuildProfile;
     if (p === "development" || p === "preview" || p === "production") {
@@ -156,30 +228,56 @@ export function useEnhancedBuildScreen() {
     }
   }, [projectData?.preferredBuildProfile]);
 
-  useEffect(() => {
-    const b = initialBranch?.trim();
-    if (b) setBranchName(b);
-  }, [initialBranch]);
-
-  const [runs, setRuns] = useState<WorkflowRun[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [buildLoading, setBuildLoading] = useState(false);
-  const [savingRepo, setSavingRepo] = useState(false);
-  const [buildStartTime, setBuildStartTime] = useState<number | null>(null);
-  const [nowTick, setNowTick] = useState<number>(0);
-  const [logModalVisible, setLogModalVisible] = useState(false);
-  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
-
-  useEffect(() => {
-    setRepoFullName(initialRepo);
-  }, [initialRepo]);
+  // === Luxus: Run Detail Modal (Jobs/Details) ===
+  const [runDetailVisible, setRunDetailVisible] = useState(false);
+  const [selectedRun, setSelectedRun] = useState<WorkflowRun | null>(null);
+  const [runDetails, setRunDetails] = useState<any | null>(null);
+  const [runJobs, setRunJobs] = useState<any[]>([]);
+  const [runDetailLoading, setRunDetailLoading] = useState(false);
+  const [runDetailError, setRunDetailError] = useState<string | null>(null);
+  const runDetailReqId = useRef(0);
 
   const jobId = currentBuild?.jobId ?? null;
   const repoValidation = useMemo(() => validateRepoFullName(repoFullName), [repoFullName]);
   const normalizedRepo = repoValidation.normalized;
   const runId = currentBuild?.runId ?? null;
   const status: BuildStatus = (currentBuild?.status as any) ?? "idle";
+
+  // === Checklist + Build-Preconditions ===
+  const refreshPreconditions = useCallback(async () => {
+    try {
+      // Tokens
+      const [gh, expo] = await Promise.all([
+        getGitHubToken().catch(() => ""),
+        getExpoToken().catch(() => ""),
+      ]);
+      if (isMountedRef.current) setHasTokens(!!(gh && expo));
+
+      // Signing key (profile-aware)
+      const keyMode = buildProfile === "development" ? "dev" : buildProfile;
+      const credKey = `cred_key_exists_${keyMode}`;
+      const val = await AsyncStorage.getItem(credKey).catch(() => null);
+      if (isMountedRef.current) setHasSigningKey(val === "true");
+
+      // Diagnostic
+      const diagVal = await AsyncStorage.getItem("diagnostic_last_ok").catch(() => null);
+      if (isMountedRef.current) setHasDiagOk(diagVal === "true");
+    } catch {
+      // ignore
+    }
+  }, [buildProfile]);
+
+  useEffect(() => {
+    refreshPreconditions().catch(() => {});
+  }, [refreshPreconditions]);
+
+  const buildBlockedReason = useMemo(() => {
+    if (!repoValidation.valid) return "Repo fehlt (im Repo-Screen verknuepfen)";
+    if (!hasTokens) return "Tokens fehlen (GitHub + Expo) – im Verbindungen-Screen setzen";
+    if (!hasDiagOk) return "Diagnostik nicht gruen – im Diagnostic-Screen ausfuehren";
+    if (!hasSigningKey) return "Signing Key fehlt – im Wizard generieren";
+    return null;
+  }, [repoValidation.valid, hasTokens, hasDiagOk, hasSigningKey]);
 
   // Logs nur laden wenn ein aktiver Build läuft oder eine runId existiert
   const shouldLoadLogs =
@@ -232,7 +330,7 @@ export function useEnhancedBuildScreen() {
 
   const hasGetWorkflowRuns = typeof getWorkflowRuns === "function";
   const hasStartBuild = typeof startBuild === "function";
-  const hasSetLinkedRepo = typeof setLinkedRepo === "function";
+  // Build-Screen does not mutate repo/branch anymore.
 
   const fetchRuns = useCallback(async () => {
     const reqId = ++runsReqIdRef.current;
@@ -287,12 +385,28 @@ export function useEnhancedBuildScreen() {
     if (isMountedRef.current) setRefreshing(true);
     try {
       await fetchRuns();
+      await buildHistory.refresh().catch(() => {});
+      await refreshPreconditions().catch(() => {});
     } finally {
       if (isMountedRef.current) setRefreshing(false);
     }
-  }, [canFetch, fetchRuns, hasGetWorkflowRuns]);
+  }, [canFetch, fetchRuns, hasGetWorkflowRuns, buildHistory, refreshPreconditions]);
 
   const onStartBuild = useCallback(async () => {
+    if (!repoValidation.valid) {
+      Alert.alert(
+        "Repo fehlt",
+        sanitizeUiMessage(
+          "Bitte zuerst im Repo-Screen ein Repo (owner/repo) verknuepfen.",
+        ),
+      );
+      return;
+    }
+    if (buildBlockedReason) {
+      Alert.alert("Nicht bereit", sanitizeUiMessage(buildBlockedReason));
+      return;
+    }
+
     if (!hasStartBuild || !startBuild) {
       Alert.alert(
         "Nicht verfügbar",
@@ -330,72 +444,7 @@ export function useEnhancedBuildScreen() {
       if (isMountedRef.current) setBuildLoading(false);
       buildInFlightRef.current = false;
     }
-  }, [buildProfile, hasStartBuild, startBuild]);
-
-  const onSaveLinkedRepo = useCallback(async () => {
-    if (!hasSetLinkedRepo || !setLinkedRepo) {
-      Alert.alert("Nicht verfügbar", "setLinkedRepo() ist nicht verfügbar.");
-      return;
-    }
-    const v = repoFullName.trim();
-    const vRes = validateRepoFullName(v);
-    if (!vRes.valid) {
-      Alert.alert("Ungültig", sanitizeUiMessage(vRes.error));
-      return;
-    }
-    if (isMountedRef.current) setSavingRepo(true);
-    try {
-      await setLinkedRepo(v, projectData?.linkedBranch ?? null);
-      if (isMountedRef.current) {
-        Alert.alert("✅ Gespeichert", `Repo verknüpft: ${v}`);
-      }
-    } catch (e) {
-      if (isMountedRef.current) {
-        Alert.alert(
-          "❌ Fehler",
-          sanitizeUiMessage(
-            e instanceof Error ? e.message : "Konnte Repo nicht speichern",
-          ),
-        );
-      }
-    } finally {
-      if (isMountedRef.current) setSavingRepo(false);
-    }
-  }, [hasSetLinkedRepo, projectData?.linkedBranch, repoFullName, setLinkedRepo]);
-
-  const onSaveRepoBranch = useCallback(async () => {
-    const repoValue = repoFullName.trim();
-    const br = branchName.trim();
-    const vRes = validateRepoFullName(repoValue);
-    if (!vRes.valid) {
-      Alert.alert("Ungültiges Repo", sanitizeUiMessage(vRes.error));
-      return;
-    }
-    if (!br || br.length > 100 || br.includes("..") || br.startsWith("/") || br.endsWith("/")) {
-      Alert.alert("Ungültiger Branch", "Bitte einen gültigen Branch-Namen eingeben.");
-      return;
-    }
-    try {
-      if (setLinkedRepo) await setLinkedRepo(repoValue, br);
-      if (isMountedRef.current) {
-        setActiveRepo(repoValue);
-        setActiveBranch(br);
-        Alert.alert(
-          "✅ Gespeichert",
-          `Repo/Branch verknüpft: ${repoValue} (${br})`,
-        );
-      }
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error("[Build] Repo/Branch speichern fehlgeschlagen:", e);
-      if (isMountedRef.current) {
-        Alert.alert(
-          "Fehler",
-          sanitizeUiMessage("Repo/Branch konnte nicht gespeichert werden."),
-        );
-      }
-    }
-  }, [branchName, repoFullName, setActiveBranch, setActiveRepo, setLinkedRepo]);
+  }, [repoValidation.valid, buildBlockedReason, buildProfile, hasStartBuild, startBuild, sanitizeUiMessage]);
 
   const openRun = useCallback(async (url: string) => {
     if (!url) return;
@@ -410,6 +459,122 @@ export function useEnhancedBuildScreen() {
       Alert.alert("Fehler", "Konnte URL nicht öffnen.");
     }
   }, []);
+
+  const findHistoryMatchForRun = useCallback(
+    (run: WorkflowRun) => {
+      const all = buildHistory.history ?? [];
+      const runUrl = String(run?.html_url || "");
+      const runIdStr = String(run?.id || "");
+      const hit = all.find((h: any) => {
+        const html = String(h?.htmlUrl || "");
+        if (html && runUrl && html === runUrl) return true;
+        // Fallback: some sources store a shortened/redirected URL
+        return html.includes(`/actions/runs/${runIdStr}`);
+      });
+      if (!hit) return null;
+      return {
+        jobId: hit.jobId ?? null,
+        buildProfile: hit.buildProfile ?? null,
+        branch: (hit as any).branch ?? null,
+        repoName: hit.repoName ?? null,
+      };
+    },
+    [buildHistory.history],
+  );
+
+  const openRunDetails = useCallback(
+    async (run: WorkflowRun) => {
+      if (!run || !repoValidation.valid) {
+        if (run?.html_url) openRun(run.html_url);
+        return;
+      }
+      setSelectedRun(run);
+      setRunDetailVisible(true);
+      setRunDetails(null);
+      setRunJobs([]);
+      setRunDetailError(null);
+      setRunDetailLoading(true);
+
+      const reqId = ++runDetailReqId.current;
+      try {
+        const [d, j] = await Promise.all([
+          withTimeout(getWorkflowRunDetails(owner.trim(), repo.trim(), run.id), FETCH_TIMEOUT_MS),
+          withTimeout(getWorkflowRunJobs(owner.trim(), repo.trim(), run.id), FETCH_TIMEOUT_MS),
+        ]);
+        if (reqId !== runDetailReqId.current) return;
+        if (!isMountedRef.current) return;
+        setRunDetails(d as any);
+        setRunJobs(Array.isArray(j) ? (j as any) : []);
+      } catch (e) {
+        if (!isMountedRef.current) return;
+        if (reqId !== runDetailReqId.current) return;
+        setRunDetailError(
+          e instanceof Error ? sanitizeUiMessage(e.message) : "Konnte Run-Details nicht laden",
+        );
+      } finally {
+        if (!isMountedRef.current) return;
+        if (reqId !== runDetailReqId.current) return;
+        setRunDetailLoading(false);
+      }
+    },
+    [repoValidation.valid, owner, repo, openRun, runDetailReqId, isMountedRef, sanitizeUiMessage],
+  );
+
+  const refreshRunDetails = useCallback(async () => {
+    if (!selectedRun) return;
+    await openRunDetails(selectedRun);
+  }, [selectedRun, openRunDetails]);
+
+  const runMatch = useMemo(() => {
+    return selectedRun ? findHistoryMatchForRun(selectedRun) : null;
+  }, [selectedRun, findHistoryMatchForRun]);
+
+  const loadRunDetailsAndJobs = useCallback(
+    async (run: WorkflowRun) => {
+      if (!repoValidation.valid) {
+        setRunDetailError("Ungültiges Repo.");
+        return;
+      }
+      const reqId = ++runDetailReqId.current;
+      setRunDetailLoading(true);
+      setRunDetailError(null);
+      try {
+        const [d, j] = await Promise.all([
+          withTimeout(getWorkflowRunDetails(owner.trim(), repo.trim(), run.id), FETCH_TIMEOUT_MS),
+          withTimeout(getWorkflowRunJobs(owner.trim(), repo.trim(), run.id), FETCH_TIMEOUT_MS),
+        ]);
+        if (!isMountedRef.current) return;
+        if (reqId !== runDetailReqId.current) return;
+        setRunDetails(d);
+        setRunJobs(Array.isArray(j) ? j : []);
+      } catch (e) {
+        if (!isMountedRef.current) return;
+        if (reqId !== runDetailReqId.current) return;
+        setRunDetails(null);
+        setRunJobs([]);
+        setRunDetailError(e instanceof Error ? sanitizeUiMessage(e.message) : "Konnte Run nicht laden");
+      } finally {
+        if (!isMountedRef.current) return;
+        if (reqId === runDetailReqId.current) setRunDetailLoading(false);
+      }
+    },
+    [owner, repo, repoValidation.valid, sanitizeUiMessage],
+  );
+
+  const openRunDetail = useCallback(
+    (run: WorkflowRun) => {
+      setSelectedRun(run);
+      setRunDetailVisible(true);
+      // fire & forget (but guarded)
+      loadRunDetailsAndJobs(run);
+    },
+    [loadRunDetailsAndJobs],
+  );
+
+  const refreshRunDetail = useCallback(() => {
+    if (!selectedRun) return;
+    loadRunDetailsAndJobs(selectedRun);
+  }, [selectedRun, loadRunDetailsAndJobs]);
 
   const message = currentBuild?.message ?? "";
   const progress = currentBuild?.progress;
@@ -468,42 +633,16 @@ export function useEnhancedBuildScreen() {
       }
     },
     [setPreferredBuildProfile],
-  );
+	);
 
-  // === Checklist Items ===
-  const [hasSigningKey, setHasSigningKey] = useState(false);
-  const [hasTokens, setHasTokens] = useState(false);
-  const [hasDiagOk, setHasDiagOk] = useState(false);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const gh = await getGitHubToken().catch(() => "");
-        const expo = await getExpoToken().catch(() => "");
-        if (isMountedRef.current) setHasTokens(!!(gh && expo));
-      } catch { /* ignore */ }
-    })();
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const keyMode = buildProfile === "development" ? "dev" : buildProfile;
-        const credKey = `cred_key_exists_${keyMode}`;
-        const val = await AsyncStorage.getItem(credKey).catch(() => null);
-        if (isMountedRef.current) setHasSigningKey(val === "true");
-      } catch { /* ignore */ }
-    })();
-  }, [buildProfile]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const diagVal = await AsyncStorage.getItem("diagnostic_last_ok").catch(() => null);
-        if (isMountedRef.current) setHasDiagOk(diagVal === "true");
-      } catch { /* ignore */ }
-    })();
-  }, []);
+	const canStartBuildUi = useMemo(() => {
+	  return (
+	    hasStartBuild &&
+	    !buildLoading &&
+	    !buildInFlightRef.current &&
+	    !buildBlockedReason
+	  );
+	}, [hasStartBuild, buildLoading, buildBlockedReason]);
 
   const checklistItems: CheckItem[] = useMemo(() => {
     const hasRepo = !!repoFullName.trim();
@@ -530,7 +669,7 @@ export function useEnhancedBuildScreen() {
         id: "repo",
         label: "Repo gewaehlt",
         status: hasRepo ? "ok" : "fail",
-        detail: hasRepo ? repoFullName : "Repo oben verknuepfen",
+        detail: hasRepo ? repoFullName : "Im Repo-Screen verknuepfen",
       },
       {
         id: "build_mode",
@@ -541,9 +680,6 @@ export function useEnhancedBuildScreen() {
     ];
   }, [hasSigningKey, hasTokens, hasDiagOk, repoFullName, buildProfile]);
 
-  // === Diff text (placeholder - can be populated by git diff later) ===
-  const [diffOldText] = useState<string | null>(null);
-  const [diffNewText] = useState<string | null>(null);
 
   return {
     projectData,
@@ -557,20 +693,27 @@ export function useEnhancedBuildScreen() {
     statusLabel,
 
     repoFullName,
-    setRepoFullName,
     branchName,
-    setBranchName,
     buildProfile,
-
-    runs,
+    runs: filteredRuns,
+    actionsFilter,
+    setActionsFilter,
     error,
     refreshing,
+
+    historyLoading: buildHistory.isLoading,
+    history: filteredHistory,
+    stats: filteredStats,
+    historyFilter,
+    setHistoryFilter,
+    clearHistory: buildHistory.clearHistory,
+    deleteHistoryEntry: buildHistory.deleteEntry,
     loadingRuns,
-    savingRepo,
     buildLoading,
     hasGetWorkflowRuns,
     hasStartBuild,
-    hasSetLinkedRepo,
+    canStartBuildUi,
+    buildBlockedReason,
     canFetch,
     moreCount,
 
@@ -594,17 +737,22 @@ export function useEnhancedBuildScreen() {
     // Checklist
     checklistItems,
 
-    // Diff
-    diffOldText,
-    diffNewText,
-
     fetchRuns,
     onRefresh,
     onStartBuild,
-    onSaveLinkedRepo,
-    onSaveRepoBranch,
     onSelectBuildProfile,
     openRun,
+    // Run detail modal
+    runDetailVisible,
+    setRunDetailVisible,
+    selectedRun,
+    runDetails,
+    runJobs,
+    runDetailLoading,
+    runDetailError,
+    openRunDetails,
+    refreshRunDetails,
+    runMatch: selectedRun ? findHistoryMatchForRun(selectedRun) : null,
     formatDuration,
   };
 }

@@ -19,6 +19,9 @@ export function GitHubActionsSection({
   maxRunsDisplay,
   fetchRuns,
   openRun,
+  openRunDetails,
+  actionsFilter,
+  setActionsFilter,
 }: {
   hasGetWorkflowRuns: boolean;
   canFetch: boolean;
@@ -29,6 +32,9 @@ export function GitHubActionsSection({
   maxRunsDisplay: number;
   fetchRuns: () => void;
   openRun: (url: string) => void;
+  openRunDetails: (run: WorkflowRun) => void;
+  actionsFilter: "all" | "development" | "preview" | "production";
+  setActionsFilter: (v: "all" | "development" | "preview" | "production") => void;
 }): React.ReactElement {
   return (
     <View style={styles.card}>
@@ -63,6 +69,31 @@ export function GitHubActionsSection({
         </View>
       )}
 
+{runs.length > 0 && (
+  <View style={styles.filterRow}>
+    {([
+      ["all", "Alle"],
+      ["development", "Dev"],
+      ["preview", "Preview"],
+      ["production", "Prod"],
+    ] as const).map(([k, label]) => {
+      const active = actionsFilter === k;
+      return (
+        <TouchableOpacity
+          key={k}
+          style={[styles.filterPill, active && styles.filterPillActive]}
+          onPress={() => setActionsFilter(k)}
+          activeOpacity={0.75}
+        >
+          <Text style={[styles.filterPillText, active && styles.filterPillTextActive]}>
+            {label}
+          </Text>
+        </TouchableOpacity>
+      );
+    })}
+  </View>
+)}
+
       {runs.length > 0 && (
         <View style={styles.runList}>
           {runs.slice(0, maxRunsDisplay).map((run) => {
@@ -74,15 +105,26 @@ export function GitHubActionsSection({
               <TouchableOpacity
                 key={run.id}
                 style={styles.runItem}
-                onPress={() => openRun(run.html_url)}
+                onPress={() => openRunDetails(run)}
                 activeOpacity={0.7}
               >
                 <View style={styles.runHeader}>
                   <View style={[styles.statusDot, { backgroundColor: c }]} />
                   <Text style={styles.runTitle} numberOfLines={1}>
-                    {run.name || "Workflow"}
+                    {(run as any).display_title || run.name || "Workflow"}
                   </Text>
                 </View>
+
+                {!!run.html_url && (
+                  <TouchableOpacity
+                    onPress={() => openRun(run.html_url)}
+                    style={styles.inlineLink}
+                    activeOpacity={0.75}
+                    accessibilityLabel="Run in GitHub öffnen"
+                  >
+                    <Text style={styles.inlineLinkText}>Open</Text>
+                  </TouchableOpacity>
+                )}
 
                 <View style={styles.runMeta}>
                   <Text style={[styles.runStatus, { color: c }]}>{t}</Text>
@@ -110,7 +152,7 @@ export function GitHubActionsSection({
       {runs.length === 0 && !loadingRuns && !error && (
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>
-            Trage ein Repo (owner/repo) ein, um Workflow Runs zu laden.
+            Kein Repo verknuepft. Bitte im Repo-Screen ein Repo (owner/repo) auswaehlen.
           </Text>
         </View>
       )}

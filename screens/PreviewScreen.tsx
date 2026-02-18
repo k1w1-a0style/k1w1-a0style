@@ -413,7 +413,7 @@ export default function PreviewScreen() {
                     ? { uri: previewSource.uri }
                     : { html: previewSource.html }
                 }
-                originWhitelist={["*"]}
+                originWhitelist={["https://*", "http://*", "data:*", "about:*", "blob:*"]}
                 setSupportMultipleWindows={false}
                 javaScriptCanOpenWindowsAutomatically={false}
                 onShouldStartLoadWithRequest={handleShouldStartLoad}

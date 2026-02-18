@@ -4,6 +4,8 @@ import { getGitHubToken } from "./tokenStore";
 export interface WorkflowRun {
   id: number;
   name: string;
+  display_title?: string;
+  event?: string;
   head_branch: string;
   status: "queued" | "in_progress" | "completed" | "waiting";
   conclusion: "success" | "failure" | "cancelled" | "skipped" | null;
@@ -12,6 +14,95 @@ export interface WorkflowRun {
   html_url: string;
   run_number: number;
 }
+
+// === Run Details / Jobs (Luxus) ===
+// Minimal typing for GitHub Actions APIs:
+// GET /repos/{owner}/{repo}/actions/runs/{run_id}
+// GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs
+
+export interface WorkflowRunDetails {
+  id: number;
+  event?: string;
+  status?: string;
+  conclusion?: string | null;
+  html_url?: string;
+  actor?: { login?: string } | null;
+  triggering_actor?: { login?: string } | null;
+  repository?: { full_name?: string } | null;
+}
+
+export interface WorkflowJobStep {
+  name: string;
+  status: string;
+  conclusion?: string | null;
+}
+
+export interface WorkflowJob {
+  id: number;
+  name: string;
+  status: string;
+  conclusion?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  html_url?: string | null;
+  steps?: WorkflowJobStep[];
+}
+
+export const getWorkflowRunDetails = async (
+  owner: string,
+  repo: string,
+  runId: number,
+): Promise<WorkflowRunDetails> => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error("GitHub token fehlt.");
+  await githubLimiter.checkLimit();
+
+  const url = `https://api.github.com/repos/${owner}/${repo}/actions/runs/${runId}`;
+  const resp = await fetch(url, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const status = resp.status;
+    if (status === 401) throw new Error("GitHub Token ungültig.");
+    if (status === 403) throw new Error("Keine Berechtigung für Run-Details.");
+    if (status === 404) throw new Error("Run oder Repository nicht gefunden.");
+    throw new Error(json.message || `Run-Details Fehler (${status})`);
+  }
+  return json as WorkflowRunDetails;
+};
+
+export const getWorkflowRunJobs = async (
+  owner: string,
+  repo: string,
+  runId: number,
+): Promise<WorkflowJob[]> => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error("GitHub token fehlt.");
+  await githubLimiter.checkLimit();
+
+  const url = `https://api.github.com/repos/${owner}/${repo}/actions/runs/${runId}/jobs?per_page=100`;
+  const resp = await fetch(url, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const status = resp.status;
+    if (status === 401) throw new Error("GitHub Token ungültig.");
+    if (status === 403) throw new Error("Keine Berechtigung für Jobs.");
+    if (status === 404) throw new Error("Run oder Repository nicht gefunden.");
+    throw new Error(json.message || `Jobs Fehler (${status})`);
+  }
+  return (json.jobs || []) as WorkflowJob[];
+};
 
 export const triggerWorkflow = async (
   owner: string,

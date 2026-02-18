@@ -6,7 +6,6 @@ import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useProject } from "../../../contexts/ProjectContext";
-import { useGitHub } from "../../../contexts/GitHubContext";
 import {
   getGitHubToken,
   getExpoToken,

@@ -164,6 +164,8 @@ export function OneClickDeployCard({
   steps,
   isDeploying,
   deployDone,
+  disabled,
+  disabledReason,
   onDeploy,
   onReset,
   onAbort,
@@ -171,12 +173,15 @@ export function OneClickDeployCard({
   steps: DeployStep[];
   isDeploying: boolean;
   deployDone: boolean;
+  disabled?: boolean;
+  disabledReason?: string | null;
   onDeploy: () => void;
   onReset: () => void;
   onAbort: () => void;
 }) {
   const allOk = steps.every((st) => st.status === "ok" || st.status === "skip");
   const hasFail = steps.some((st) => st.status === "fail");
+  const deployBlocked = !!disabled && !isDeploying;
 
   return (
     <View style={s.card}>
@@ -210,7 +215,11 @@ export function OneClickDeployCard({
             <Text style={s.abortBtnText}>Abbrechen</Text>
           </Pressable>
         ) : hasFail ? (
-          <Pressable style={s.retryBtn} onPress={onDeploy}>
+          <Pressable
+            style={[s.retryBtn, deployBlocked && s.disabledBtn]}
+            onPress={onDeploy}
+            disabled={deployBlocked}
+          >
             <Ionicons name="refresh-outline" size={16} color={theme.palette.warning} />
             <Text style={s.retryBtnText}>Erneut versuchen</Text>
           </Pressable>
@@ -220,12 +229,22 @@ export function OneClickDeployCard({
             <Text style={s.resetBtnText}>Zuruecksetzen</Text>
           </Pressable>
         ) : (
-          <Pressable style={s.deployBtn} onPress={onDeploy}>
+          <Pressable
+            style={[s.deployBtn, deployBlocked && s.disabledBtn]}
+            onPress={onDeploy}
+            disabled={deployBlocked}
+          >
             <Ionicons name="rocket-outline" size={18} color={theme.palette.primary} />
             <Text style={s.deployBtnText}>Deploy starten</Text>
           </Pressable>
         )}
       </View>
+
+      {deployBlocked && !!disabledReason ? (
+        <Text style={s.disabledReason} numberOfLines={3}>
+          {disabledReason}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -385,5 +404,12 @@ const s = StyleSheet.create({
     color: theme.palette.text.secondary,
     fontSize: 14,
     fontWeight: "700",
+  },
+  disabledBtn: { opacity: 0.4 },
+  disabledReason: {
+    marginTop: 10,
+    color: theme.palette.text.muted,
+    fontSize: 12,
+    lineHeight: 16,
   },
 });

@@ -87,34 +87,49 @@ export function useDiagnosticPreferences(opts: {
 
         if (cancelled) return;
 
-        // Mode persistence (new)
-        if (advRaw === "0" || advRaw === "1") setModeAdvanced(advRaw === "1");
-        if (allRaw === "0" || allRaw === "1") setModesAll(allRaw === "1");
-        if (modesRaw) {
-          const parts = modesRaw
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean);
-          const filtered = parts.filter(
-            (m): m is BuildMode =>
-              m === "development" || m === "preview" || m === "production",
-          );
-          if (filtered.length) setSelectedModes(filtered);
-        } else if (
-          legacyPf === "all" ||
-          legacyPf === "development" ||
-          legacyPf === "preview" ||
-          legacyPf === "production"
-        ) {
-          // Migration: old single/all focus -> new modes
-          if (legacyPf === "all") {
-            setModeAdvanced(true);
-            setModesAll(true);
-            setSelectedModes(["development", "preview", "production"]);
+        // Mode persistence (single source of truth):
+        // - If user enabled Advanced/All, restore the stored multi-mode selection.
+        // - Otherwise ALWAYS follow the project's preferred build profile (recommendedMode).
+        const advStored = advRaw === "1";
+        const allStored = allRaw === "1";
+
+        if (advRaw === "0" || advRaw === "1") setModeAdvanced(advStored);
+        if (allRaw === "0" || allRaw === "1") setModesAll(allStored);
+
+        if (advStored || allStored) {
+          if (modesRaw) {
+            const parts = modesRaw
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean);
+            const filtered = parts.filter(
+              (m): m is BuildMode =>
+                m === "development" || m === "preview" || m === "production",
+            );
+            if (filtered.length) setSelectedModes(filtered);
+          } else if (
+            legacyPf === "all" ||
+            legacyPf === "development" ||
+            legacyPf === "preview" ||
+            legacyPf === "production"
+          ) {
+            // Migration: old single/all focus -> new modes
+            if (legacyPf === "all") {
+              setModeAdvanced(true);
+              setModesAll(true);
+              setSelectedModes(["development", "preview", "production"]);
+            } else {
+              setSelectedModes([legacyPf]);
+            }
           } else {
-            setSelectedModes([legacyPf]);
+            setSelectedModes([recommendedMode]);
           }
+        } else {
+          // Recommended mode always follows global preferredBuildProfile
+          setSelectedModes([recommendedMode]);
         }
+
+
         if (il === "0" || il === "1") setIncludeLocalChecks(il === "1");
         if (ip === "0" || ip === "1") setIncludePipelineChecks(ip === "1");
         if (sy === "0" || sy === "1") setSyncFixesToGitHub(sy === "1");
@@ -178,7 +193,20 @@ export function useDiagnosticPreferences(opts: {
     syncFixesToGitHub,
   ]);
 
-  // Keep the project's preferred build profile in sync (so Build Screen + Diagnostics agree).
+  
+  // Single source of truth: if the global preferred profile changes, follow it
+  // immediately unless user explicitly enabled Advanced/All modes.
+  useEffect(() => {
+    if (!hydrated) return;
+    if (modeAdvanced) return;
+    if (modesAll) return;
+    setSelectedModes((prev) => {
+      const only = recommendedMode;
+      return prev.length === 1 && prev[0] === only ? prev : [only];
+    });
+  }, [hydrated, modeAdvanced, modesAll, recommendedMode]);
+
+// Keep the project's preferred build profile in sync (so Build Screen + Diagnostics agree).
   // Only sync when user is in Recommended mode (single selection).
   useEffect(() => {
     if (typeof setPreferredBuildProfile !== "function") return;

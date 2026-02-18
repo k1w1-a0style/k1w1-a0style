@@ -366,4 +366,32 @@ export const styles = StyleSheet.create({
   historyBtnSpacing: {
     marginTop: 12,
   },
+  filterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 10,
+    flexWrap: "wrap",
+  },
+  filterPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: withOpacity(theme.palette.text.secondary, 0.35),
+    backgroundColor: withOpacity(theme.palette.card, 0.6),
+  },
+  filterPillActive: {
+    borderColor: withOpacity(theme.palette.primary, 0.9),
+    backgroundColor: withOpacity(theme.palette.primary, 0.12),
+  },
+  filterPillText: {
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+    fontWeight: "600",
+  },
+  filterPillTextActive: {
+    color: theme.palette.primary,
+  },
+
 });

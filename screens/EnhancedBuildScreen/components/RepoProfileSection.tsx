@@ -2,7 +2,6 @@ import React, { useRef, useState } from "react";
 import {
   Animated,
   Easing,
-  FlatList,
   StyleSheet,
   Text,
   TouchableOpacity,

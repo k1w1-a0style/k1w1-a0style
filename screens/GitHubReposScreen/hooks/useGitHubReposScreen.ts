@@ -103,6 +103,7 @@ export function useGitHubReposScreen() {
 
   const isMountedRef = useRef(true);
   const refreshGen = useRef(0);
+  const selectRepoGen = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -234,20 +235,79 @@ export function useGitHubReposScreen() {
   const fullName =
     typeof repoOrString === "string" ? repoOrString : repoOrString.full_name;
 
+  // Prefer default branch from the repo list payload (fast), fallback to API if needed.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const defaultBranch: string | null =
+    typeof repoOrString === "string"
+      ? null
+      : String((repoOrString as any)?.default_branch || "").trim() || null;
+
   // Single source of truth for ALL repo selections (list + recent)
   setActiveRepo(fullName);
   addRecentRepo(fullName);
-  setLinkedRepo(fullName, null);
-  setActiveBranch(null);
+
+  if (defaultBranch) {
+    setActiveBranch(defaultBranch);
+    setLinkedRepo(fullName, defaultBranch);
+  } else {
+    setActiveBranch(null);
+    setLinkedRepo(fullName, null);
+  }
+
   setShowRepoList(false);
   setShowRenameRepo(false);
   setShowNewRepo(false);
   setPullProgress("");
-}, [setActiveRepo, addRecentRepo, setLinkedRepo, setActiveBranch]);
-const handleSelectBranch = useCallback((branch: string) => {
-    setActiveBranch(branch);
-    if (activeRepo) setLinkedRepo(activeRepo, branch);
-  }, [setActiveBranch, activeRepo, setLinkedRepo]);
+
+  // If we don't have a default branch yet (e.g. recent repo string), fetch it async.
+  if (!defaultBranch) {
+    const parsed = splitFullName(fullName);
+    if (!parsed) return;
+
+    const gen = ++selectRepoGen.current;
+    loadDefaultBranch(parsed.owner, parsed.repo)
+      .then((b) => String(b || "").trim())
+      .then((b) => {
+        if (!b) return;
+        if (!isMountedRef.current) return;
+        if (gen !== selectRepoGen.current) return;
+        setActiveBranch(activeBranch || b);
+        setLinkedRepo(fullName, b);
+      })
+      .catch(() => {
+        // non-fatal: user can still pick a branch manually
+      });
+  }
+}, [setActiveRepo, addRecentRepo, setLinkedRepo, setActiveBranch, loadDefaultBranch, activeBranch]);
+
+  const rememberRecentBranch = useCallback(async (repoFullName: string, branch: string) => {
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEYS.RECENT_BRANCHES_BY_REPO).catch(
+        () => null,
+      );
+      const map = raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
+      const prev = Array.isArray(map[repoFullName]) ? map[repoFullName] : [];
+      const next = [branch, ...prev.filter((b) => b !== branch)].slice(0, 6);
+      map[repoFullName] = next;
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.RECENT_BRANCHES_BY_REPO,
+        JSON.stringify(map),
+      ).catch(() => null);
+    } catch {
+      // best-effort
+    }
+  }, []);
+
+  const handleSelectBranch = useCallback(
+    (branch: string) => {
+      setActiveBranch(branch);
+      if (activeRepo) {
+        setLinkedRepo(activeRepo, branch);
+        rememberRecentBranch(activeRepo, branch);
+      }
+    },
+    [setActiveBranch, activeRepo, setLinkedRepo, rememberRecentBranch],
+  );
 
   const withCoreFiles = useCallback((files: any[]): any[] => {
     // Ensure core workflow files exist and are valid. Only applies for core templates.

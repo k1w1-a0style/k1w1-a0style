@@ -1,5 +1,9 @@
 # Project Checklog
 
+- Patch 184 (2026-02-18): Hotfix — fix Patch 183 typecheck/lint regressions (hook ordering, missing styles, WorkflowRun typing, FileSystem imports)
+
+- Patch 183 (2026-02-18): Flow unification — repo/branch+profile persistence; Enhanced Build actions/history; turbo checklist chips
+
 - Patch 182 (2026-02-18): CI Lite progress hotfix — fix TS palette key + add missing StyleSheet keys
 
 - Patch 178 (2026-02-17): Sidebar/Header theme align — hairline borders + color unify; CI Lite GitHub logs token passthrough + edge fallback

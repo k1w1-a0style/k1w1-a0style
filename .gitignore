@@ -1,7 +1,7 @@
 # Dependencies
 node_modules/
 
-# Expo / RN build
+# Expo / React Native
 .expo/
 .expo-shared/
 web-build/
@@ -11,90 +11,39 @@ android/app/build/
 ios/Pods/
 ios/build/
 
-# Cursor / IDE
-.cursor/
-.vscode/
-.idea/
+# Metro / bundler
+*.map
 
 # Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+*.log
 
-# Env (niemals pushen)
-.env
-.env.*
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.cursor/
 
-# Local dumps / backups
-project_code_dump.txt
-debug_dump_latest.txt
-project_dump_*.txt
-project_src_*.zip
+# Tooling / misc
+.emergent/
+.gitconfig
 
-# Backup/Temp files (z.B. normalizer.ts.bak_2025-12-18_...)
-*.bak
-*.bak_*
-*.bak-*
-*.BAK*
-*.BACKUP*
-*~
-*.swp
-*.swo
+# Environment files (never commit secrets)
+*.env
+*.env.*
+.env.local
+.env.*.local
 
-# Supabase temp
-supabase/.temp/
-
-# scripts are part of the repo; do not ignore by default
-# Ignore only local/temp artifacts:
-scripts/**/.env
-scripts/**/.env.*
-scripts/**/.DS_Store
-
-# lokal generierte signing secrets (niemals committen)
-.signing_secrets.local
-
-# Backups folder
-backups/
-.vercel
-.env*.local
-debug.log
-
-
-# --- k1w1 apk-builder: ignore patch zips ---
-# temporary patch helper docs (keep repo clean)
-PATCH_*_NOTES.md
-USE_*_PATCH*.md
-PATCH_*.diff
-PROJECT_CHECKLOG_APPEND_*.md
-README_PATCH*.md
-
-k1w1-*.zip
-*_patch*.zip
-project_src_*.zip
-project_dump_*.zip
-k1w1-*-patch.zip
-k1w1-*-hotfix*.zip
-mnt/
-apply_ui_polish_fix_dev_toggle_v2.sh
-k1w1_ui_polish_templates.sh
-.signing_secrets.local
-.signing_secrets.backup
-.env.signing.backup
-credentials.json
-android-upload-keystore.p12
-
-# local/derived
+# Local/derived
 supabase/schema.sql
 
-# Refactor baseline outputs
+# Test coverage
+coverage/
+
+# Refactor baselines / generated docs
 /refactor-baseline/
 /docs/refactor/baseline/
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment files
-*.env
-*.env.*

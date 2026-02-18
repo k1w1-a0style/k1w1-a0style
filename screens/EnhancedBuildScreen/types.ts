@@ -5,6 +5,8 @@ export type BuildProfile = "development" | "preview" | "production";
 export interface WorkflowRun {
   id: number;
   name: string;
+  display_title?: string;
+  run_number?: number;
   status: string;
   conclusion: string | null;
   created_at: string;
