@@ -104,6 +104,24 @@ export default function PreviewScreen() {
     ]).start();
   }, [hotDotAnim]);
 
+  // Flash green border around device frame on hot reload
+  const flashBorder = useCallback(() => {
+    flashBorderAnim.setValue(1);
+    Animated.sequence([
+      Animated.timing(flashBorderAnim, {
+        toValue: 1,
+        duration: 50,
+        useNativeDriver: false,
+      }),
+      Animated.timing(flashBorderAnim, {
+        toValue: 0,
+        duration: 800,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: false,
+      }),
+    ]).start();
+  }, [flashBorderAnim]);
+
   // Preview source
   const previewSource = useMemo(() => {
     if (lastPreview?.url && isHttpUrl(lastPreview.url)) {
