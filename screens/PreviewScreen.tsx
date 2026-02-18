@@ -464,7 +464,7 @@ export default function PreviewScreen() {
           )}
 
           <View style={s.deviceBottom} />
-        </View>
+        </Animated.View>
       </View>
 
       {/* Error Bar */}
