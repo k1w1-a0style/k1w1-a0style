@@ -1,185 +1,200 @@
 // screens/PreviewScreen.tsx
-// Moderner Preview-Screen für App-Builder
+// Echter Live-Preview mit eingebetteter WebView - zeigt die App direkt an
 
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { WebView } from "react-native-webview";
 import { useNavigation } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { useProject } from "../contexts/ProjectContext";
 import { usePreview } from "../hooks/usePreview";
 import { theme } from "../theme";
+import { isHttpUrl, truncateUrl } from "../utils/url";
+import { decidePreviewNavigation } from "../utils/previewNavigation";
+import * as Linking from "expo-linking";
 
-function formatDateTime(value: string): string {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString("de-DE", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
-
-function formatRelativeTime(value: string): string | null {
-  const d = new Date(value);
-  const ts = d.getTime();
-  if (Number.isNaN(ts)) return null;
-  const diffMs = Date.now() - ts;
-  const diffSec = Math.floor(diffMs / 1000);
-  if (diffSec < 0) return null;
-  if (diffSec < 5) return "gerade eben";
-  if (diffSec < 60) return `vor ${diffSec}s`;
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `vor ${diffMin}min`;
-  const diffH = Math.floor(diffMin / 60);
-  if (diffH < 24) return `vor ${diffH}h`;
-  const diffD = Math.floor(diffH / 24);
-  return `vor ${diffD}d`;
-}
-
-
-/**
- * PreviewScreen
- * - Erstellt bevorzugt Supabase-Preview (URL)
- * - Fallback: Local HTML
- */
+type PreviewPhase = "idle" | "creating" | "loading" | "ready" | "error";
 
 export default function PreviewScreen() {
   const navigation = useNavigation<any>();
   const { projectData, isLoading } = useProject();
+  const { state, lastPreview, createPreview, reset } = usePreview(projectData);
 
-  const { state, dependencies, lastPreview, createPreview, reset } =
-    usePreview(projectData);
+  const [phase, setPhase] = useState<PreviewPhase>("idle");
+  const [webError, setWebError] = useState<string | null>(null);
+  const [autoCreated, setAutoCreated] = useState(false);
+  const webViewRef = useRef<WebView>(null);
 
-  const canUseLastPreview = useMemo(() => {
-    const url = lastPreview?.url?.trim();
-    const html = lastPreview?.html?.trim();
-    return Boolean(url || html);
-  }, [lastPreview?.url, lastPreview?.html]);
+  const pulseAnim = useRef(new Animated.Value(0.3)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  const isLocalPreviewNotRestorable =
-    lastPreview?.source === "local" && !lastPreview?.html;
+  // Pulse animation for loading state
+  useEffect(() => {
+    if (phase === "creating" || phase === "loading") {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 800,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 0.3,
+            duration: 800,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+      loop.start();
+      return () => loop.stop();
+    }
+  }, [phase, pulseAnim]);
 
-  const openFullscreen = useCallback(
-    (preview: { url: string | null; html: string | null }) => {
-      navigation.navigate("PreviewFullscreen", {
-        url: preview.url ?? undefined,
-        html: preview.html ?? undefined,
-        title: projectData?.name || "Preview",
-      });
-    },
-    [navigation, projectData?.name],
-  );
+  // Fade in when ready
+  useEffect(() => {
+    if (phase === "ready") {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }).start();
+    } else {
+      fadeAnim.setValue(0);
+    }
+  }, [phase, fadeAnim]);
 
-    const handleCreateAndOpen = useCallback(async () => {
+  // Determine what we can show
+  const previewSource = useMemo(() => {
+    if (lastPreview?.url && isHttpUrl(lastPreview.url)) {
+      return { type: "url" as const, uri: lastPreview.url };
+    }
+    if (lastPreview?.html) {
+      return { type: "html" as const, html: lastPreview.html };
+    }
+    return null;
+  }, [lastPreview]);
+
+  const baseOrigin = useMemo(() => {
+    if (previewSource?.type !== "url") return null;
+    try {
+      const u = new URL(previewSource.uri);
+      return `${u.protocol}//${u.host}`;
+    } catch {
+      return null;
+    }
+  }, [previewSource]);
+
+  // Auto-create preview on mount if we don't have one
+  useEffect(() => {
+    if (autoCreated) return;
+    if (isLoading || !projectData) return;
+    if (previewSource) return; // Already have one
+
+    setAutoCreated(true);
+    handleCreate();
+  }, [isLoading, projectData, previewSource, autoCreated]);
+
+  const handleCreate = useCallback(async () => {
+    setPhase("creating");
+    setWebError(null);
     try {
       const result = await createPreview();
       if (!result) {
-        Alert.alert(
-          "⚠️ Keine Preview",
-          "Preview konnte nicht erzeugt werden. Bitte erneut versuchen.",
-        );
+        setPhase("error");
+        setWebError("Preview konnte nicht erstellt werden.");
         return;
       }
-      openFullscreen(result);
-    } catch (e: unknown) {
-      const msg =
-        e instanceof Error
-          ? e.message
-          : "Unbekannter Fehler beim Erstellen der Preview.";
-      Alert.alert("❌ Preview-Fehler", msg);
+      setPhase("loading");
+    } catch (e: any) {
+      setPhase("error");
+      setWebError(e?.message || "Unbekannter Fehler");
     }
-  }, [createPreview, openFullscreen]);
+  }, [createPreview]);
 
-    const handleReopenLast = useCallback(() => {
-    if (!lastPreview || !canUseLastPreview) {
-      Alert.alert(
-        "⚠️ Preview nicht verfügbar",
-        isLocalPreviewNotRestorable
-          ? "Lokale HTML-Previews können nach App-Neustart nicht wieder geöffnet werden. Bitte eine neue Preview erstellen."
-          : "Erstelle zuerst eine neue Preview.",
-      );
-      return;
+  const handleReload = useCallback(() => {
+    setWebError(null);
+    if (webViewRef.current) {
+      setPhase("loading");
+      webViewRef.current.reload();
     }
-    openFullscreen(lastPreview);
-  }, [lastPreview, canUseLastPreview, isLocalPreviewNotRestorable, openFullscreen]);
+  }, []);
 
-    const handleCopy = useCallback(async () => {
-    if (!lastPreview || !canUseLastPreview) {
-      Alert.alert(
-        "⚠️ Nichts zu kopieren",
-        isLocalPreviewNotRestorable
-          ? "Diese lokale HTML-Preview ist nach App-Neustart nicht mehr verfügbar. Bitte neue Preview erstellen."
-          : "Erstelle zuerst eine Preview.",
-      );
-      return;
+  const handleReset = useCallback(async () => {
+    reset();
+    setAutoCreated(false);
+    setPhase("idle");
+    setWebError(null);
+  }, [reset]);
+
+  const handleCopy = useCallback(async () => {
+    if (lastPreview?.url) {
+      await Clipboard.setStringAsync(lastPreview.url);
+      Alert.alert("Kopiert", "Preview-URL in Zwischenablage.");
     }
-    const textToCopy = lastPreview.url || lastPreview.html || "";
-    try {
-      await Clipboard.setStringAsync(textToCopy);
-      Alert.alert(
-        "✅ Kopiert",
-        lastPreview.url
-          ? "Preview-URL wurde kopiert."
-          : "HTML wurde in die Zwischenablage kopiert.",
-      );
-    } catch {
-      Alert.alert("❌ Fehler", "Konnte nicht kopieren.");
+  }, [lastPreview]);
+
+  const handleOpenExternal = useCallback(async () => {
+    if (lastPreview?.url) {
+      try {
+        await Linking.openURL(lastPreview.url);
+      } catch {
+        Alert.alert("Fehler", "Browser konnte nicht geoeffnet werden.");
+      }
     }
-  }, [lastPreview, canUseLastPreview, isLocalPreviewNotRestorable]);
+  }, [lastPreview]);
 
-  const lastCreatedText = useMemo(() => {
-    const raw = state.lastCreatedAt;
-    if (!raw) return null;
-    const iso = new Date(raw).toISOString();
-    const abs = formatDateTime(iso);
-    const rel = formatRelativeTime(iso);
-    return rel ? `${abs} (${rel})` : abs;
-  }, [state.lastCreatedAt]);
+  const handleFullscreen = useCallback(() => {
+    if (!lastPreview) return;
+    navigation.navigate("PreviewFullscreen", {
+      url: lastPreview.url ?? undefined,
+      html: lastPreview.html ?? undefined,
+      title: projectData?.name || "Preview",
+    });
+  }, [navigation, lastPreview, projectData?.name]);
 
-  const expiresText = useMemo(() => {
-    const exp = lastPreview?.expiresAt;
-    if (!exp) return null;
-    const abs = formatDateTime(exp);
-    const rel = formatRelativeTime(exp);
-    return rel ? `${abs} (${rel})` : abs;
-  }, [lastPreview?.expiresAt]);
+  const handleShouldStartLoad = useCallback(
+    (request: { url?: string }): boolean => {
+      const requestUrl = String(request?.url || "");
+      const mode = previewSource?.type ?? null;
+      if (!mode) return false;
+      const decision = decidePreviewNavigation({
+        mode,
+        baseOrigin,
+        requestUrl,
+      });
+      if (decision.action === "allow") return true;
+      if (decision.action === "external_direct") {
+        setTimeout(() => {
+          Linking.openURL(decision.url).catch(() => {});
+        }, 0);
+        return false;
+      }
+      return false;
+    },
+    [previewSource, baseOrigin],
+  );
 
-  const fileStats = useMemo(() => {
-    const count = state.fileCount;
-    const sizeKb = (state.totalSize / 1024).toFixed(1);
-    return `${count} Datei${count !== 1 ? "en" : ""} (${sizeKb} KB)`;
-  }, [state.fileCount, state.totalSize]);
-
-  const depsList = useMemo(() => {
-    if (!dependencies) return null;
-    const entries = Object.entries(dependencies);
-    const shown = entries.slice(0, 5);
-    const remaining = entries.length - shown.length;
-    return {
-      items: shown.map(([name, version]) => `${name}@${version}`),
-      remaining,
-    };
-  }, [dependencies]);
-
+  // Loading / no project state
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.screen}>
-        <View style={styles.center}>
+      <SafeAreaView style={s.root} edges={["top"]}>
+        <View style={s.center}>
           <ActivityIndicator size="large" color={theme.palette.primary} />
-          <Text style={styles.infoText}>Projekt wird geladen…</Text>
+          <Text style={s.loadingText}>Projekt wird geladen...</Text>
         </View>
       </SafeAreaView>
     );
@@ -187,487 +202,170 @@ export default function PreviewScreen() {
 
   if (!projectData) {
     return (
-      <SafeAreaView style={styles.screen}>
-        <View style={styles.center}>
-          <Text style={styles.emptyIcon}>📁</Text>
-          <Text style={styles.emptyTitle}>Kein Projekt geladen</Text>
-          <Text style={styles.emptyText}>
-            Bitte zuerst ein Projekt öffnen oder erstellen.
-          </Text>
+      <SafeAreaView style={s.root} edges={["top"]}>
+        <View style={s.center}>
+          <Ionicons name="folder-open-outline" size={48} color={theme.palette.text.muted} />
+          <Text style={s.emptyTitle}>Kein Projekt geladen</Text>
+          <Text style={s.emptyText}>Oeffne oder erstelle zuerst ein Projekt.</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Ionicons
-            name="eye-outline"
-            size={24}
-            color={theme.palette.primary}
-          />
-          <View style={styles.headerText}>
-            <Text style={styles.title}>Preview</Text>
-            <Text style={styles.subtitle} numberOfLines={1}>
+    <SafeAreaView style={s.root} edges={["top"]}>
+      {/* Toolbar */}
+      <View style={s.toolbar}>
+        <View style={s.toolbarLeft}>
+          <Ionicons name="eye-outline" size={20} color={theme.palette.primary} />
+          <View style={s.toolbarTitle}>
+            <Text style={s.title}>Live Preview</Text>
+            <Text style={s.subtitle} numberOfLines={1}>
               {projectData.name}
+              {lastPreview?.source === "supabase" ? " (Cloud)" : lastPreview?.source === "local" ? " (Lokal)" : ""}
             </Text>
           </View>
         </View>
 
-        <Pressable
-          style={[
-            styles.btn,
-            styles.btnPrimary,
-            state.isCreating && styles.btnDisabled,
-          ]}
-          onPress={handleCreateAndOpen}
-          disabled={state.isCreating}
-        >
-          {state.isCreating ? (
-            <ActivityIndicator size="small" color={theme.palette.secondary} />
-          ) : (
-            <>
-              <Ionicons name="play" size={16} color={theme.palette.secondary} />
-              <Text style={styles.btnPrimaryText}>Starten</Text>
-            </>
+        <View style={s.toolbarActions}>
+          <Pressable style={s.toolBtn} onPress={handleReload}>
+            <Ionicons name="refresh-outline" size={18} color={theme.palette.text.primary} />
+          </Pressable>
+          {lastPreview?.url && (
+            <Pressable style={s.toolBtn} onPress={handleCopy}>
+              <Ionicons name="copy-outline" size={16} color={theme.palette.text.primary} />
+            </Pressable>
           )}
-        </Pressable>
+          {lastPreview?.url && (
+            <Pressable style={s.toolBtn} onPress={handleOpenExternal}>
+              <Ionicons name="open-outline" size={16} color={theme.palette.primary} />
+            </Pressable>
+          )}
+          <Pressable style={s.toolBtn} onPress={handleFullscreen}>
+            <Ionicons name="expand-outline" size={16} color={theme.palette.text.primary} />
+          </Pressable>
+        </View>
       </View>
 
-      <ScrollView
-        style={styles.body}
-        contentContainerStyle={styles.bodyContent}
-      >
-        {lastCreatedText && (
-          <View style={styles.statusCard}>
-            <View style={styles.statusRow}>
-              <Ionicons
-                name="checkmark-circle"
-                size={20}
-                color={theme.palette.primary}
-              />
-              <Text style={styles.statusText}>
-                Zuletzt erstellt: {lastCreatedText ?? "—"}
-              </Text>
-            </View>
+      {/* Status Bar */}
+      <View style={s.statusBar}>
+        <View style={[s.statusDot, phase === "ready" && s.statusDotOk, phase === "error" && s.statusDotError]} />
+        <Text style={s.statusText}>
+          {phase === "idle" ? "Bereit" :
+           phase === "creating" ? "Preview wird erstellt..." :
+           phase === "loading" ? "Wird geladen..." :
+           phase === "ready" ? "Live" :
+           "Fehler"}
+        </Text>
+        {(phase === "creating" || phase === "loading") && (
+          <Animated.View style={{ opacity: pulseAnim }}>
+            <ActivityIndicator size="small" color={theme.palette.primary} />
+          </Animated.View>
+        )}
+      </View>
 
-            {!!lastPreview?.source && (
-              <View style={styles.sourceRow}>
-                <Ionicons
-                  name={
-                    lastPreview.source === "supabase"
-                      ? "cloud-done-outline"
-                      : "flask-outline"
-                  }
-                  size={16}
-                  color={
-                    lastPreview.source === "supabase"
-                      ? theme.palette.primary
-                      : theme.palette.text.secondary
-                  }
-                />
-                <Text style={styles.sourceText}>
-                  {lastPreview.source === "supabase"
-                    ? "Quelle: Supabase Preview (stabil)"
-                    : "Quelle: Local Preview (experimentell)"}
-                </Text>
-              </View>
-            )}
+      {/* Main Content Area */}
+      <View style={s.previewArea}>
+        {/* Phone Frame */}
+        <View style={s.deviceFrame}>
+          <View style={s.deviceNotch} />
 
-            
-            {!!expiresText && lastPreview?.source === "supabase" && (
-              <Text style={styles.expiresText}>Gültig bis: {expiresText}</Text>
-            )}
-{isLocalPreviewNotRestorable && (
-              <Text style={styles.localHint}>
-                Hinweis: Lokale Previews sind nach App-Neustart nicht wieder verfügbar –
-                bitte neu erstellen.
-              </Text>
-            )}
-
-            <View style={styles.statusActions}>
-              <Pressable
-                style={[
-                  styles.statusBtn,
-                  (!canUseLastPreview || state.isCreating) && styles.btnDisabled,
-                ]}
-                onPress={handleReopenLast}
-                disabled={!canUseLastPreview || state.isCreating}
-              >
-                <Ionicons
-                  name="expand-outline"
-                  size={16}
-                  color={theme.palette.primary}
-                />
-                <Text style={styles.statusBtnText}>Öffnen</Text>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.statusBtn,
-                  (!canUseLastPreview || state.isCreating) && styles.btnDisabled,
-                ]}
-                onPress={handleCopy}
-                disabled={!canUseLastPreview || state.isCreating}
-              >
-                <Ionicons
-                  name="copy-outline"
-                  size={16}
-                  color={theme.palette.primary}
-                />
-                <Text style={styles.statusBtnText}>Kopieren</Text>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.statusBtn,
-                  (!canUseLastPreview || state.isCreating) && styles.btnDisabled,
-                ]}
-                onPress={() => {
-                  Alert.alert(
-                    "Letzte Preview löschen?",
-                    "Dadurch wird die gespeicherte Preview-Info entfernt. Du kannst danach jederzeit eine neue Preview erstellen.",
-                    [
-                      { text: "Abbrechen", style: "cancel" },
-                      {
-                        text: "Löschen",
-                        style: "destructive",
-                        onPress: () => {
-                          reset();
-                        },
-                      },
-                    ],
-                  );
+          {previewSource ? (
+            <Animated.View style={[s.webViewWrap, { opacity: phase === "ready" ? fadeAnim : 0.3 }]}>
+              <WebView
+                ref={webViewRef}
+                style={s.webView}
+                source={
+                  previewSource.type === "url"
+                    ? { uri: previewSource.uri }
+                    : { html: previewSource.html }
+                }
+                originWhitelist={["*"]}
+                setSupportMultipleWindows={false}
+                javaScriptCanOpenWindowsAutomatically={false}
+                onShouldStartLoadWithRequest={handleShouldStartLoad}
+                onLoadStart={() => { setPhase("loading"); setWebError(null); }}
+                onLoadEnd={() => setPhase("ready")}
+                onError={(e) => {
+                  setPhase("error");
+                  setWebError(e.nativeEvent?.description || "WebView Fehler");
                 }}
-                disabled={!canUseLastPreview || state.isCreating}
-              ><Ionicons
-                  name="refresh-outline"
-                  size={16}
-                  color={theme.palette.text.secondary}
-                />
-                <Text
-                  style={[
-                    styles.statusBtnText,
-                    { color: theme.palette.text.secondary },
-                  ]}
-                >
-                  Löschen
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        )}
-
-        {state.error && (
-          <View style={styles.errorCard}>
-            <Ionicons name="warning" size={20} color={theme.palette.error} />
-            <Text style={styles.errorText}>{state.error}</Text>
-            <Pressable
-              style={[styles.errorBtn, state.isCreating && styles.btnDisabled]}
-              onPress={handleCreateAndOpen}
-              disabled={state.isCreating}
-            >
-              <Ionicons name="refresh" size={16} color={theme.palette.error} />
-              <Text style={styles.errorBtnText}>Retry</Text>
-            </Pressable>
-          </View>
-        )}
-
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Ionicons
-              name="document-text-outline"
-              size={20}
-              color={theme.palette.primary}
-            />
-            <Text style={styles.cardTitle}>Projekt-Dateien</Text>
-          </View>
-          <Text style={styles.statsText}>{fileStats}</Text>
-          {state.fileCount === 0 && (
-            <Text style={styles.cardText}>
-              Keine Preview-fähigen Dateien gefunden.
-            </Text>
-          )}
-        </View>
-
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Ionicons
-              name="information-circle-outline"
-              size={20}
-              color={theme.palette.primary}
-            />
-            <Text style={styles.cardTitle}>Hinweis</Text>
-          </View>
-          <Text style={styles.cardText}>
-            • Preview ist eine Sandbox: keine Secrets/Keys in Dateien{"\n"}• Für
-            “echte” Vorschau wird Supabase-Preview (URL) bevorzugt{"\n"}•
-            Fallback ist Local HTML (best-effort){"\n"}• Internet wird für
-            Module benötigt
-          </Text>
-        </View>
-
-        {depsList && (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Ionicons
-                name="cube-outline"
-                size={20}
-                color={theme.palette.primary}
+                onHttpError={(e) => {
+                  setPhase("error");
+                  setWebError(`HTTP ${e.nativeEvent?.statusCode || "?"}`);
+                }}
+                mixedContentMode="always"
+                startInLoadingState={false}
               />
-              <Text style={styles.cardTitle}>Dependencies</Text>
-            </View>
-            <View style={styles.depsList}>
-              {depsList.items.map((dep, i) => (
-                <View key={i} style={styles.depPill}>
-                  <Text style={styles.depPillText}>{dep}</Text>
-                </View>
-              ))}
-              {depsList.remaining > 0 && (
-                <View style={[styles.depPill, styles.depPillMore]}>
-                  <Text style={styles.depPillText}>
-                    +{depsList.remaining} weitere
+
+              {(phase === "loading" || phase === "creating") && (
+                <View style={s.loadingOverlay}>
+                  <ActivityIndicator size="large" color={theme.palette.primary} />
+                  <Text style={s.loadingOverlayText}>
+                    {phase === "creating" ? "Preview wird generiert..." : "Laden..."}
                   </Text>
                 </View>
               )}
+            </Animated.View>
+          ) : (
+            <View style={s.emptyPreview}>
+              {phase === "creating" ? (
+                <>
+                  <ActivityIndicator size="large" color={theme.palette.primary} />
+                  <Text style={s.emptyPreviewText}>Preview wird erstellt...</Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="phone-portrait-outline" size={48} color={theme.palette.text.muted} />
+                  <Text style={s.emptyPreviewText}>Noch keine Preview</Text>
+                  <Pressable style={s.createBtn} onPress={handleCreate}>
+                    <Ionicons name="play-outline" size={16} color={theme.palette.primary} />
+                    <Text style={s.createBtnText}>Preview erstellen</Text>
+                  </Pressable>
+                </>
+              )}
             </View>
-          </View>
-        )}
+          )}
 
-        <View style={styles.hint}>
-          <Ionicons
-            name="bulb-outline"
-            size={16}
-            color={theme.palette.text.secondary}
-          />
-          <Text style={styles.hintText}>
-            Wenn du im Vollbild nur “weiß” siehst: meist CSP oder Netzwerk. Mit
-            Supabase-URL-Preview bist du i.d.R. stabiler.
-          </Text>
+          <View style={s.deviceBottom} />
         </View>
-      </ScrollView>
+      </View>
+
+      {/* Error Bar */}
+      {(webError || state.error) && (
+        <View style={s.errorBar}>
+          <Ionicons name="alert-circle" size={16} color={theme.palette.error} />
+          <Text style={s.errorText} numberOfLines={2}>{webError || state.error}</Text>
+          <Pressable style={s.errorRetryBtn} onPress={handleCreate}>
+            <Text style={s.errorRetryText}>Retry</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {/* Bottom Bar */}
+      <View style={s.bottomBar}>
+        <Pressable
+          style={[s.bottomBtn, state.isCreating && s.disabled]}
+          onPress={handleCreate}
+          disabled={state.isCreating}
+        >
+          <Ionicons name="refresh-outline" size={16} color={theme.palette.primary} />
+          <Text style={s.bottomBtnText}>Neu erstellen</Text>
+        </Pressable>
+        <Pressable
+          style={s.bottomBtn}
+          onPress={handleReset}
+        >
+          <Ionicons name="trash-outline" size={16} color={theme.palette.text.secondary} />
+          <Text style={[s.bottomBtnText, { color: theme.palette.text.secondary }]}>Zuruecksetzen</Text>
+        </Pressable>
+      </View>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: theme.palette.background,
-  },
-
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.palette.border,
-    backgroundColor: theme.palette.card,
-  },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    columnGap: 12,
-    flex: 1,
-    minWidth: 0,
-  },
-  headerText: {
-    flex: 1,
-    minWidth: 0,
-  },
-  title: {
-    color: theme.palette.text.primary,
-    fontSize: 20,
-    fontWeight: "900",
-    letterSpacing: -0.4,
-  },
-  subtitle: {
-    color: theme.palette.text.secondary,
-    fontSize: 13,
-    marginTop: 2,
-  },
-
-  body: {
-    flex: 1,
-  },
-  bodyContent: {
-    padding: 16,
-    gap: 14,
-  },
-
-  statusCard: {
-    backgroundColor: theme.palette.card,
-    borderWidth: 1,
-    borderColor: theme.palette.primary,
-    borderRadius: 14,
-    padding: 14,
-  },
-  statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    columnGap: 8,
-  },
-  statusText: {
-    color: theme.palette.text.primary,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  sourceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    columnGap: 8,
-    marginTop: 10,
-  },
-  sourceText: {
-    color: theme.palette.text.secondary,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  statusActions: {
-    flexDirection: "row",
-    marginTop: 12,
-    columnGap: 8,
-  },
-  statusBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    columnGap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: theme.palette.background,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-  },
-  statusBtnText: {
-    color: theme.palette.primary,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-
-  errorCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    columnGap: 10,
-    padding: 14,
-    backgroundColor: "rgba(255, 100, 100, 0.1)",
-    borderWidth: 1,
-    borderColor: theme.palette.error,
-    borderRadius: 14,
-  },
-  errorText: {
-    flex: 1,
-    color: theme.palette.error,
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  errorBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    columnGap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.palette.error,
-    backgroundColor: "rgba(255, 100, 100, 0.08)",
-  },
-  errorBtnText: {
-    color: theme.palette.error,
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  localHint: {
-    marginTop: 8,
-    color: theme.palette.text.secondary,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  expiresText: { fontSize: 12, color: theme.palette.text.secondary, marginTop: 6 },
-
-  card: {
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    backgroundColor: theme.palette.card,
-    borderRadius: 14,
-    padding: 14,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    columnGap: 8,
-    marginBottom: 10,
-  },
-  cardTitle: {
-    color: theme.palette.text.primary,
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  cardText: {
-    color: theme.palette.text.secondary,
-    fontSize: 13,
-    lineHeight: 20,
-  },
-  statsText: {
-    color: theme.palette.text.primary,
-    fontSize: 14,
-    fontWeight: "800",
-  },
-
-  depsList: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: 4,
-    gap: 6,
-  },
-  depPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: theme.palette.background,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-  },
-  depPillMore: {
-    borderColor: theme.palette.primary,
-  },
-  depPillText: {
-    color: theme.palette.text.secondary,
-    fontSize: 11,
-    fontWeight: "600",
-  },
-
-  btn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    columnGap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    backgroundColor: theme.palette.card,
-    minWidth: 100,
-  },
-  btnPrimary: {
-    backgroundColor: "transparent",
-    borderWidth: 1.5,
-    borderColor: theme.palette.primary,
-  },
-  btnDisabled: {
-    opacity: 0.6,
-  },
-  btnPrimaryText: {
-    color: theme.palette.primary,
-    fontWeight: "800",
-    fontSize: 14,
-  },
-
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: theme.palette.background },
   center: {
     flex: 1,
     alignItems: "center",
@@ -675,38 +373,188 @@ const styles = StyleSheet.create({
     padding: 24,
     gap: 12,
   },
-  infoText: {
-    color: theme.palette.text.secondary,
-    fontWeight: "700",
-    fontSize: 14,
+  loadingText: { color: theme.palette.text.secondary, fontWeight: "700", fontSize: 14 },
+  emptyTitle: { color: theme.palette.text.primary, fontSize: 18, fontWeight: "900" },
+  emptyText: { color: theme.palette.text.secondary, fontSize: 14, textAlign: "center" },
+
+  // Toolbar
+  toolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
   },
-  emptyIcon: {
-    fontSize: 56,
-    marginBottom: 8,
-  },
-  emptyTitle: {
-    color: theme.palette.text.primary,
-    fontSize: 18,
-    fontWeight: "900",
-  },
-  emptyText: {
-    color: theme.palette.text.secondary,
-    fontSize: 14,
-    textAlign: "center",
-    lineHeight: 20,
+  toolbarLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  toolbarTitle: { flex: 1, minWidth: 0 },
+  title: { color: theme.palette.text.primary, fontSize: 18, fontWeight: "900" },
+  subtitle: { color: theme.palette.text.secondary, fontSize: 12 },
+  toolbarActions: { flexDirection: "row", gap: 6 },
+  toolBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.background,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
-  hint: {
+  // Status Bar
+  statusBar: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    columnGap: 8,
-    paddingHorizontal: 4,
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
     paddingVertical: 8,
+    backgroundColor: theme.palette.backgroundDark,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
   },
-  hintText: {
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.palette.text.disabled,
+  },
+  statusDotOk: { backgroundColor: theme.palette.success },
+  statusDotError: { backgroundColor: theme.palette.error },
+  statusText: {
     flex: 1,
     color: theme.palette.text.secondary,
     fontSize: 12,
-    lineHeight: 18,
+    fontWeight: "700",
   },
+
+  // Preview Area
+  previewArea: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+    backgroundColor: theme.palette.backgroundDark,
+  },
+  deviceFrame: {
+    flex: 1,
+    width: "100%",
+    maxWidth: 400,
+    backgroundColor: "#1a1a1a",
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: theme.palette.border,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  deviceNotch: {
+    height: 6,
+    backgroundColor: "#111",
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
+    marginHorizontal: "30%",
+    marginBottom: 2,
+  },
+  deviceBottom: {
+    height: 4,
+    backgroundColor: "#111",
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    marginHorizontal: "40%",
+    marginTop: 2,
+  },
+  webViewWrap: { flex: 1 },
+  webView: { flex: 1, backgroundColor: "#fff" },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.8)",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  loadingOverlayText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+
+  emptyPreview: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+    padding: 24,
+  },
+  emptyPreviewText: {
+    color: theme.palette.text.muted,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  createBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: theme.palette.primary,
+  },
+  createBtnText: {
+    color: theme.palette.primary,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+
+  // Error Bar
+  errorBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "rgba(255,68,68,0.08)",
+    borderTopWidth: 1,
+    borderTopColor: theme.palette.error,
+  },
+  errorText: { flex: 1, color: theme.palette.error, fontSize: 12, fontWeight: "600" },
+  errorRetryBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.palette.error,
+  },
+  errorRetryText: { color: theme.palette.error, fontSize: 12, fontWeight: "800" },
+
+  // Bottom Bar
+  bottomBar: {
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
+  },
+  bottomBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: "transparent",
+  },
+  bottomBtnText: {
+    color: theme.palette.primary,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  disabled: { opacity: 0.5 },
 });
