@@ -341,7 +341,9 @@ export const styles = StyleSheet.create({
   notifyBtn: {
     marginTop: 10,
     borderRadius: 16,
-    backgroundColor: theme.palette.primary,
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
+    borderColor: theme.palette.primary,
     paddingVertical: 12,
     paddingHorizontal: 12,
     flexDirection: "row",
@@ -349,7 +351,7 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  notifyBtnText: { fontWeight: "900", color: "#000" },
+  notifyBtnText: { fontWeight: "900", color: theme.palette.primary },
 
   tokenPreview: {
     marginTop: 8,
