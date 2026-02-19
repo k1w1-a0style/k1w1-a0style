@@ -20,6 +20,38 @@ Stand: **2026-02-19**
 
 > Ziel: **alles was zu tun ist steht hier**, so dass man es stumpf abhaken kann.
 
+### Patch 218 Detail-Tasks
+
+**218-1 — GitHub Scopes persistieren & anzeigen (best-effort)**
+- [ ] Datei: `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`
+- [ ] Beim Laden (mount) `CONN_GITHUB_SCOPES` aus `AsyncStorage` laden und in State setzen.
+- [ ] Beim GitHub-Test: wenn Header fehlt → Scopes als „unknown“ anzeigen (nicht leer/verschluckt).
+- [ ] Akzeptanz: nach App-Restart bleiben Username + Scopes sichtbar (oder „unknown“).
+
+**218-2 — Connection-Lampen korrekt zurücksetzen wenn Token gelöscht wird**
+- [ ] Datei: `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`
+- [ ] Wenn GitHub Token gelöscht wird: `CONN_GITHUB_OK/USER/SCOPES` löschen + Repo/EAS-Flags zurücksetzen (weil GitHub-Actions ohne Token nicht nutzbar).
+- [ ] Wenn Expo Token gelöscht wird: `CONN_EXPO_OK/USER` löschen.
+- [ ] Wenn Supabase URL oder ANON Key geleert wird: `CONN_SUPABASE_OK/REF` zurücksetzen.
+- [ ] Akzeptanz: Token leeren → Lampen gehen aus und bleiben nach Restart aus.
+
+**218-3 — Stale-Closure Fix: `testSupabase` deps**
+- [ ] Datei: `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`
+- [ ] `testSupabase` nutzt `supabaseServiceRoleKey` → muss in deps.
+- [ ] Akzeptanz: Service-Role nachträglich setzen → Test nutzt sicher den aktuellen Key.
+
+**218-4 — StatusCard: Scopes-Detail auch ohne Header**
+- [ ] Datei: `screens/ConnectionsScreen/components/StatusCard.tsx`
+- [ ] Wenn GitHub verbunden aber keine Scopes geliefert: `Scopes: unknown` anzeigen.
+- [ ] Akzeptanz: UI zeigt immer einen klaren Zustand, kein “leerer” Detailtext.
+
+**218-5 — Docs Alignment**
+- [ ] `docs/patches/patch_218.md` anlegen (Commands wie im Screenshot)
+- [ ] `docs/patches/PATCHLOG_ROOT.md`, `PROJECT_CHECKLOG.md`, `README.md` aktualisieren
+- [ ] Akzeptanz: Doku spiegelt realen Stand wider (217 done, 218 next).
+
+---
+
 ### Patch A — CI Lite Bugfix (🔥 zuerst)
 
 **A1 — Dead Code entfernen: `topContent` wird nie gerendert**

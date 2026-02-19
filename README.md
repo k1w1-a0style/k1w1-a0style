@@ -130,4 +130,6 @@ npx expo start -c
 
 ## Aktueller Patch-Status
 - Zuletzt: Patch 216
-- Nächster: Patch 217 (siehe `docs/patches/patch_217.md`)
+- Nächster: Patch 217 (done)
+
+Next: Patch 218 (siehe `docs/patches/patch_217.md`)

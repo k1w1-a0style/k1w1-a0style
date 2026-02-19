@@ -122,9 +122,10 @@ export function useConnectionsScreen() {
       ]);
 
       // Load persistent connection lights
-      const [ghOk, ghUserStored, sbOk, sbRefStored, exOk, exUserStored, easOkStored, repoOkStored, repoSlug, repoBranch] = await Promise.all([
+      const [ghOk, ghUserStored, ghScopesStored, sbOk, sbRefStored, exOk, exUserStored, easOkStored, repoOkStored, repoSlug, repoBranch] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_OK).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_USER).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_SCOPES).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_SUPABASE_OK).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_SUPABASE_REF).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_EXPO_OK).catch(() => null),
@@ -162,6 +163,7 @@ export function useConnectionsScreen() {
       // Restore persistent lights
       if (ghOk === "true") setGithubOk(true);
       if (ghUserStored) setGithubUser(ghUserStored);
+      if (ghScopesStored) setGithubScopes(ghScopesStored);
       if (sbOk === "true") setSupabaseOk(true);
       if (sbRefStored) setSupabaseRef(sbRefStored);
       if (exOk === "true") setExpoOk(true);
@@ -203,10 +205,34 @@ export function useConnectionsScreen() {
       const edge = edgeAdminKey.trim();
 
       if (gh) await saveGitHubToken(gh);
-      else await deleteGitHubToken();
+      else {
+        await deleteGitHubToken();
+        // If GitHub token is removed, clear dependent connection states
+        setGithubOk(false);
+        setGithubUser("");
+        setGithubScopes("");
+        await AsyncStorage.setItem(STORAGE_KEYS.CONN_GITHUB_OK, "false").catch(() => {});
+        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_GITHUB_USER).catch(() => {});
+        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_GITHUB_SCOPES).catch(() => {});
+
+        setRepoOk(false);
+        setRepoOkLine("");
+        await AsyncStorage.setItem(STORAGE_KEYS.CONN_REPO_OK, "false").catch(() => {});
+        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_REPO_SLUG).catch(() => {});
+        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_REPO_BRANCH).catch(() => {});
+
+        setEasOk(false);
+        await AsyncStorage.setItem(STORAGE_KEYS.CONN_EAS_OK, "false").catch(() => {});
+      }
 
       if (ex) await saveExpoToken(ex);
-      else await deleteExpoToken();
+      else {
+        await deleteExpoToken();
+        setExpoOk(false);
+        setExpoUser("");
+        await AsyncStorage.setItem(STORAGE_KEYS.CONN_EXPO_OK, "false").catch(() => {});
+        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_EXPO_USER).catch(() => {});
+      }
 
       if (edge) await saveEdgeAdminKey(edge);
       else await deleteEdgeAdminKey();
@@ -225,6 +251,14 @@ export function useConnectionsScreen() {
         STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
       ).catch(() => {});
       await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, easProjectId.trim());
+
+      // If Supabase base settings are cleared, reset connection status
+      if (!supabaseUrl.trim() || !supabaseAnonKey.trim()) {
+        setSupabaseOk(false);
+        setSupabaseRef("");
+        await AsyncStorage.setItem(STORAGE_KEYS.CONN_SUPABASE_OK, "false").catch(() => {});
+        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_SUPABASE_REF).catch(() => {});
+      }
 
       Alert.alert("✅ Gespeichert", "Tokens & Verbindungen wurden gespeichert.");
     } catch (e: any) {
@@ -273,7 +307,11 @@ export function useConnectionsScreen() {
       Alert.alert("GitHub OK", `Verbunden als: ${login || "OK"}${scopes ? `\nScopes: ${scopes}` : ""}`);
     } catch (e: any) {
       setGithubOk(false);
+      setGithubUser("");
+      setGithubScopes("");
       await AsyncStorage.setItem(STORAGE_KEYS.CONN_GITHUB_OK, "false").catch(() => {});
+      await AsyncStorage.removeItem(STORAGE_KEYS.CONN_GITHUB_USER).catch(() => {});
+      await AsyncStorage.removeItem(STORAGE_KEYS.CONN_GITHUB_SCOPES).catch(() => {});
       Alert.alert("GitHub Test", safeAlertText(e));
     } finally {
       setBusy(false);
@@ -376,7 +414,7 @@ export function useConnectionsScreen() {
     } finally {
       setBusy(false);
     }
-  }, [supabaseUrl, supabaseAnonKey]);
+  }, [supabaseUrl, supabaseAnonKey, supabaseServiceRoleKey]);
 
   // Status flags
   const status = useMemo(() => {

@@ -31,3 +31,6 @@
 ## Patch 217 (geplant/ausstehend)
 - CI Lite Bugfixes + SoT Edge Functions + SoT Storage Keys
 - Connection Screen: persistenter Verbunden-Status (inkl. EAS Init+Link Warn-Dialog)
+
+## Patch 218 (pending)
+- Connections Screen SoT Edge-Cases: reset flags on token deletion, GitHub scopes persist/unknown, deps fix

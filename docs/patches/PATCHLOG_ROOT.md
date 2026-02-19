@@ -16,3 +16,6 @@ This file is append-only. Each patch adds a short entry.
 
 ## Patch 217
 - CI Lite bugfixes (dead code + stale closures + polling cleanup) + Supabase edge SoT expansion + Storage key SoT + tokenStore consistency + Connection Screen SoT (persistenter Verbunden-Status, EAS init/link prompt) + optional GitHub token scopes.
+
+## Patch 218
+- Connections/SoT Feinschliff (Scopes persist + reset rules + deps fix)

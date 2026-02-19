@@ -145,7 +145,7 @@ export function StatusCard(props: {
         label="GitHub"
         ok={githubOk ?? status.gh}
         accountName={githubUser || undefined}
-        detail={githubScopes ? `Scopes: ${githubScopes}` : undefined}
+        detail={(githubOk ?? status.gh) ? (githubScopes ? `Scopes: ${githubScopes}` : "Scopes: unknown") : undefined}
       />
       <StatusRow
         label="Expo"
