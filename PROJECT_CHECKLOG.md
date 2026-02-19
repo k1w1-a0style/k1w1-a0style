@@ -1,5 +1,12 @@
 # Project Checklog
 
+- Patch 193 (2026-02-19): EnhancedBuildScreen — extract run-details fetch helper; reduce duplication
+- Patch 192.1 (2026-02-19): Hotfix — fix Jest module mock paths in One-Click Deploy tests
+- Patch 192 (2026-02-19): One-Click Deploy — check Signing Key before tokens; fix Jest mocks for One-Click Deploy tests
+- Patch 191 (2026-02-19): EnhancedBuildScreen cleanup — remove dead run-detail loader; add One-Click Deploy tests
+- Patch 190 (2026-02-19): One-Click Deploy — enforce Signing Key (no skip) + whitespace cleanup
+
+
 - Patch 186 (2026-02-18): Diagnostic UX — tabs removed; scan/fix-only flow; checklist + issues list
 
 - Patch 185 (2026-02-18): Repo screen UX — dropdown repo picker, secrets list, diff file preview; Build screen removes GitHub Actions UI; Diagnostic adds profile headline + debug-to-chat

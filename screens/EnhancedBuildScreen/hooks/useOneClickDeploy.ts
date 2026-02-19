@@ -15,8 +15,8 @@ import { autoSyncRepoSecrets } from "../../../lib/autoSyncRepoSecrets";
 import type { BuildProfile } from "../types";
 
 export type DeployStepId =
-  | "tokens"
   | "signing_key"
+  | "tokens"
   | "secrets_sync"
   | "push_files"
   | "build";
@@ -31,8 +31,8 @@ export type DeployStep = {
 };
 
 const INITIAL_STEPS: DeployStep[] = [
-  { id: "tokens", label: "Tokens pruefen", status: "pending" },
   { id: "signing_key", label: "Signing Key pruefen", status: "pending" },
+  { id: "tokens", label: "Tokens pruefen", status: "pending" },
   { id: "secrets_sync", label: "Secrets synchronisieren", status: "pending" },
   { id: "push_files", label: "Dateien pushen", status: "pending" },
   { id: "build", label: "Build starten", status: "pending" },
@@ -73,7 +73,28 @@ export function useOneClickDeploy(
     resetSteps();
 
     try {
-      // === Step 1: Tokens pruefen ===
+      // === Step 1: Signing Key pruefen ===
+      updateStep("signing_key", "running");
+      const keyMode = buildProfile === "development" ? "dev" : buildProfile;
+      const credKey = `cred_key_exists_${keyMode}`;
+      const keyExists = await AsyncStorage.getItem(credKey).catch(() => null);
+      if (abortRef.current) return;
+
+      if (keyExists !== "true") {
+        updateStep(
+          "signing_key",
+          "fail",
+          "Signing Key fehlt – bitte im Credentials Wizard generieren",
+        );
+        Alert.alert(
+          "Signing Key fehlt",
+          "Bitte erst im Credentials Wizard einen Signing Key erzeugen. Danach One-Click Deploy erneut starten.",
+        );
+        return;
+      }
+      updateStep("signing_key", "ok", `Key fuer ${buildProfile} vorhanden`);
+
+      // === Step 2: Tokens pruefen ===
       updateStep("tokens", "running");
       const [ghToken, expoToken] = await Promise.all([
         getGitHubToken().catch(() => null),
@@ -87,19 +108,6 @@ export function useOneClickDeploy(
         return;
       }
       updateStep("tokens", "ok", "GitHub + Expo OK");
-
-      // === Step 2: Signing Key pruefen ===
-      updateStep("signing_key", "running");
-      const keyMode = buildProfile === "development" ? "dev" : buildProfile;
-      const credKey = `cred_key_exists_${keyMode}`;
-      const keyExists = await AsyncStorage.getItem(credKey).catch(() => null);
-      if (abortRef.current) return;
-
-      if (keyExists !== "true") {
-        updateStep("signing_key", "skip", "Kein Key - wird beim Build generiert");
-      } else {
-        updateStep("signing_key", "ok", `Key fuer ${buildProfile} vorhanden`);
-      }
 
       // === Step 3: Secrets synchronisieren ===
       updateStep("secrets_sync", "running");

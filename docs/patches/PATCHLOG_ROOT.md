@@ -2,6 +2,14 @@
 
 Most recent first.
 
+- Patch 193: `docs/patches/patch_193.md` (EnhancedBuildScreen: extract run-details fetch helper; reduce duplication)
+
+- Patch 192.1: `docs/patches/patch_192_1.md` (Hotfix: fix Jest module mock paths in One-Click Deploy tests)
+
+- Patch 192: `docs/patches/patch_192.md` (Fix One-Click Deploy tests; check Signing Key before tokens)
+- Patch 191: `docs/patches/patch_191.md` (Refactor: remove dead run-detail loader; add One-Click Deploy tests)
+- Patch 190: `docs/patches/patch_190.md` (Hotfix: enforce Signing Key in One-Click Deploy; whitespace cleanup)
+
 - Patch 189: `docs/patches/patch_189.md` (Hotfix: Patch 188 build blockers — JSX syntax + duplicate var + missing import)
 - Patch 188: `docs/patches/patch_188.md` (RepoScreen polish: dropdown/filter UX + diff/secrets usability + ignore cleanup)
 - Patch 187: `docs/patches/patch_187.md` (Hotfix: Repo screen TS palette + missing hook exports)

@@ -35,6 +35,21 @@ function sanitizeUiMessage(input: string): string {
   return truncateWithMarker(redacted, MAX_ALERT_MESSAGE_LEN, "…");
 }
 
+async function fetchRunDetailsBundle(
+  owner: string,
+  repo: string,
+  runId: number,
+): Promise<{ details: any; jobs: any[] }> {
+  const [details, jobs] = await Promise.all([
+    withTimeout(getWorkflowRunDetails(owner.trim(), repo.trim(), runId), FETCH_TIMEOUT_MS),
+    withTimeout(getWorkflowRunJobs(owner.trim(), repo.trim(), runId), FETCH_TIMEOUT_MS),
+  ]);
+  return {
+    details,
+    jobs: Array.isArray(jobs) ? (jobs as any) : [],
+  };
+}
+
 type RepoValidation =
   | { valid: true; owner: string; repo: string; normalized: string }
   | { valid: false; error: string; normalized: string };
@@ -167,7 +182,6 @@ export function useEnhancedBuildScreen() {
   const [hasSigningKey, setHasSigningKey] = useState(false);
   const [hasDiagOk, setHasDiagOk] = useState(false);
 
-
   type ModeFilter = "all" | BuildProfile;
 
   const [actionsFilter, setActionsFilter] = useState<ModeFilter>(
@@ -183,42 +197,41 @@ export function useEnhancedBuildScreen() {
     setHistoryFilter((prev) => (prev === "all" ? prev : buildProfile));
   }, [buildProfile]);
 
-	const buildHistory = useBuildHistory();
+  const buildHistory = useBuildHistory();
 
-	const filteredRuns = useMemo(() => {
-	  if (actionsFilter === "all") return runs;
-	  const needle = String(actionsFilter).toLowerCase();
-	  const re = new RegExp(`\\b${needle}\\b`, "i");
-	  const list = runs.filter((r) => {
-	    const title = String((r as any)?.display_title || "");
-	    const name = String((r as any)?.name || "");
-	    return re.test(title) || re.test(name);
-	  });
-	  // Backwards-compatible: older runs may not have a profile in the title yet.
-	  return list.length > 0 ? list : runs;
-	}, [runs, actionsFilter]);
+  const filteredRuns = useMemo(() => {
+    if (actionsFilter === "all") return runs;
+    const needle = String(actionsFilter).toLowerCase();
+    const re = new RegExp(`\\b${needle}\\b`, "i");
+    const list = runs.filter((r) => {
+      const title = String((r as any)?.display_title || "");
+      const name = String((r as any)?.name || "");
+      return re.test(title) || re.test(name);
+    });
+    // Backwards-compatible: older runs may not have a profile in the title yet.
+    return list.length > 0 ? list : runs;
+  }, [runs, actionsFilter]);
 
-	const filteredHistory = useMemo(() => {
-	  const all = buildHistory.history ?? [];
-	  if (historyFilter === "all") return all;
-	  const needle = String(historyFilter).toLowerCase();
-	  return all.filter(
-	    (h) => String((h as any)?.buildProfile || "").toLowerCase() === needle,
-	  );
-	}, [buildHistory.history, historyFilter]);
+  const filteredHistory = useMemo(() => {
+    const all = buildHistory.history ?? [];
+    if (historyFilter === "all") return all;
+    const needle = String(historyFilter).toLowerCase();
+    return all.filter(
+      (h) => String((h as any)?.buildProfile || "").toLowerCase() === needle,
+    );
+  }, [buildHistory.history, historyFilter]);
 
-	const filteredStats = useMemo(() => {
-	  const list = filteredHistory ?? [];
-	  return {
-	    total: list.length,
-	    success: list.filter((e) => e.status === "success").length,
-	    failed: list.filter((e) => e.status === "failed" || e.status === "error").length,
-	    building: list.filter(
-	      (e) => e.status === "building" || e.status === "queued",
-	    ).length,
-	  };
-	}, [filteredHistory]);
-
+  const filteredStats = useMemo(() => {
+    const list = filteredHistory ?? [];
+    return {
+      total: list.length,
+      success: list.filter((e) => e.status === "success").length,
+      failed: list.filter((e) => e.status === "failed" || e.status === "error").length,
+      building: list.filter(
+        (e) => e.status === "building" || e.status === "queued",
+      ).length,
+    };
+  }, [filteredHistory]);
 
   // Sync persisted profile when project loads or changes
   useEffect(() => {
@@ -497,14 +510,11 @@ export function useEnhancedBuildScreen() {
 
       const reqId = ++runDetailReqId.current;
       try {
-        const [d, j] = await Promise.all([
-          withTimeout(getWorkflowRunDetails(owner.trim(), repo.trim(), run.id), FETCH_TIMEOUT_MS),
-          withTimeout(getWorkflowRunJobs(owner.trim(), repo.trim(), run.id), FETCH_TIMEOUT_MS),
-        ]);
+        const { details, jobs } = await fetchRunDetailsBundle(owner, repo, run.id);
         if (reqId !== runDetailReqId.current) return;
         if (!isMountedRef.current) return;
-        setRunDetails(d as any);
-        setRunJobs(Array.isArray(j) ? (j as any) : []);
+        setRunDetails(details as any);
+        setRunJobs(jobs);
       } catch (e) {
         if (!isMountedRef.current) return;
         if (reqId !== runDetailReqId.current) return;
@@ -525,56 +535,6 @@ export function useEnhancedBuildScreen() {
     await openRunDetails(selectedRun);
   }, [selectedRun, openRunDetails]);
 
-  const runMatch = useMemo(() => {
-    return selectedRun ? findHistoryMatchForRun(selectedRun) : null;
-  }, [selectedRun, findHistoryMatchForRun]);
-
-  const loadRunDetailsAndJobs = useCallback(
-    async (run: WorkflowRun) => {
-      if (!repoValidation.valid) {
-        setRunDetailError("Ungültiges Repo.");
-        return;
-      }
-      const reqId = ++runDetailReqId.current;
-      setRunDetailLoading(true);
-      setRunDetailError(null);
-      try {
-        const [d, j] = await Promise.all([
-          withTimeout(getWorkflowRunDetails(owner.trim(), repo.trim(), run.id), FETCH_TIMEOUT_MS),
-          withTimeout(getWorkflowRunJobs(owner.trim(), repo.trim(), run.id), FETCH_TIMEOUT_MS),
-        ]);
-        if (!isMountedRef.current) return;
-        if (reqId !== runDetailReqId.current) return;
-        setRunDetails(d);
-        setRunJobs(Array.isArray(j) ? j : []);
-      } catch (e) {
-        if (!isMountedRef.current) return;
-        if (reqId !== runDetailReqId.current) return;
-        setRunDetails(null);
-        setRunJobs([]);
-        setRunDetailError(e instanceof Error ? sanitizeUiMessage(e.message) : "Konnte Run nicht laden");
-      } finally {
-        if (!isMountedRef.current) return;
-        if (reqId === runDetailReqId.current) setRunDetailLoading(false);
-      }
-    },
-    [owner, repo, repoValidation.valid, sanitizeUiMessage],
-  );
-
-  const openRunDetail = useCallback(
-    (run: WorkflowRun) => {
-      setSelectedRun(run);
-      setRunDetailVisible(true);
-      // fire & forget (but guarded)
-      loadRunDetailsAndJobs(run);
-    },
-    [loadRunDetailsAndJobs],
-  );
-
-  const refreshRunDetail = useCallback(() => {
-    if (!selectedRun) return;
-    loadRunDetailsAndJobs(selectedRun);
-  }, [selectedRun, loadRunDetailsAndJobs]);
 
   const message = currentBuild?.message ?? "";
   const progress = currentBuild?.progress;
@@ -633,16 +593,16 @@ export function useEnhancedBuildScreen() {
       }
     },
     [setPreferredBuildProfile],
-	);
+  );
 
-	const canStartBuildUi = useMemo(() => {
-	  return (
-	    hasStartBuild &&
-	    !buildLoading &&
-	    !buildInFlightRef.current &&
-	    !buildBlockedReason
-	  );
-	}, [hasStartBuild, buildLoading, buildBlockedReason]);
+  const canStartBuildUi = useMemo(() => {
+    return (
+      hasStartBuild &&
+      !buildLoading &&
+      !buildInFlightRef.current &&
+      !buildBlockedReason
+    );
+  }, [hasStartBuild, buildLoading, buildBlockedReason]);
 
   const checklistItems: CheckItem[] = useMemo(() => {
     const hasRepo = !!repoFullName.trim();

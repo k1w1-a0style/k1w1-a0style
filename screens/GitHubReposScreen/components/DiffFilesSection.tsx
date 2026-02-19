@@ -168,9 +168,6 @@ export function DiffFilesSection(props: {
           ) : null}
         </View>
       ) : null}
-
-
-
       {!!error ? (
         <Text style={{ fontSize: 12, color: theme.palette.error, marginTop: 6, lineHeight: 18 }}>
           {error}
@@ -179,8 +176,9 @@ export function DiffFilesSection(props: {
 
       {activeRepo ? (
         <View style={{ marginTop: 10, gap: 6 }}>
-	        {filesPreview.length ? (
-	          filesPreview.map((f) => {
+
+          {filesPreview.length ? (
+            filesPreview.map((f) => {
               const baseRef = (defaultBranch || "main").trim();
               const headRef = (headBranch || baseRef).trim();
               const refForFile = (String(f.status || "").toLowerCase() === "removed") ? baseRef : headRef;
@@ -210,12 +208,13 @@ export function DiffFilesSection(props: {
                   ) : null}
                 </TouchableOpacity>
               );
-	            })
-	          ) : (
-	            <Text style={{ fontSize: 12, color: theme.palette.text.secondary }}>
-	              Keine Änderungen.
-	            </Text>
-	          )}
+
+            })
+          ) : (
+            <Text style={{ fontSize: 12, color: theme.palette.text.secondary }}>
+              Keine Änderungen.
+            </Text>
+          )}
 
           {files.length > filesPreview.length ? (
             <Text style={{ fontSize: 11, color: theme.palette.text.muted }}>
