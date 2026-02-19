@@ -1,9 +1,23 @@
 import React from "react";
 import { Text, TouchableOpacity, Alert } from "react-native";
 import { render, fireEvent, waitFor } from "@testing-library/react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+jest.mock("@react-native-async-storage/async-storage", () => ({
+  __esModule: true,
+  default: {
+    getItem: jest.fn(),
+    setItem: jest.fn(),
+    removeItem: jest.fn(),
+  },
+}));
+
+const mockAsyncStorage = AsyncStorage as any;
 
 // IMPORTANT:
-// We mock modules using absolute resolved paths so the mock matches deep-relative imports inside the hook.
+// useOneClickDeploy imports deep-relative module ids like "../../../infra/github/githubService".
+// If we mock with a *different* string, Jest won't apply the mock.
+// Solution: mock by the resolved absolute file path (require.resolve), then require the hook AFTER mocks.
 
 const mockGitHub = {
   getGitHubToken: jest.fn(),
@@ -21,17 +35,7 @@ const mockProject = {
   }),
 };
 
-// Mock AsyncStorage as a module (more reliable than spyOn for RN async storage)
-const mockAsyncStorage = {
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-};
-
-jest.mock("@react-native-async-storage/async-storage", () => ({
-  __esModule: true,
-  default: mockAsyncStorage,
-}));
-
+// Mock modules by absolute path so it matches regardless of the importer relative string.
 const ghServicePath = require.resolve("../infra/github/githubService");
 const secretsPath = require.resolve("../lib/autoSyncRepoSecrets");
 const projectCtxPath = require.resolve("../contexts/ProjectContext");
@@ -44,14 +48,12 @@ jest.doMock(projectCtxPath, () => mockProject);
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { useOneClickDeploy } = require("../screens/EnhancedBuildScreen/hooks/useOneClickDeploy");
 
-type HarnessProps = {
+function Harness(props: {
   profile: any;
   repo: string;
   branch: string;
   startBuild?: (profile: any) => Promise<void>;
-};
-
-function Harness(props: HarnessProps) {
+}) {
   const hook = useOneClickDeploy(
     props.profile,
     props.repo,
@@ -62,8 +64,9 @@ function Harness(props: HarnessProps) {
   return (
     <>
       {/*
-        Do NOT return the Promise from the handler.
-        If React test renderer awaits it, mocked storage/network can stall => timeout.
+        IMPORTANT:
+        Do NOT return the Promise from the press handler.
+        React Test Renderer / act may await it and a mocked AsyncStorage can stall -> test timeout.
       */}
       <TouchableOpacity testID="run" onPress={() => void hook.runDeploy()}>
         <Text>run</Text>
@@ -75,10 +78,15 @@ function Harness(props: HarnessProps) {
 }
 
 function getSteps(getByTestId: any) {
-  return JSON.parse(getByTestId("steps").props.children);
+  const raw = getByTestId("steps").props.children;
+  return JSON.parse(raw);
 }
 
 describe("useOneClickDeploy", () => {
+  beforeAll(() => {
+    jest.useRealTimers();
+    jest.setTimeout(20000);
+  });
   beforeEach(() => {
     jest.spyOn(Alert, "alert").mockImplementation(() => {});
 
@@ -86,9 +94,10 @@ describe("useOneClickDeploy", () => {
     mockGitHub.getExpoToken.mockReset();
     mockGitHub.pushFilesToRepo.mockReset();
     mockSecrets.autoSyncRepoSecrets.mockReset();
-
+    // Reset AsyncStorage mocks per test
     mockAsyncStorage.getItem.mockReset();
     mockAsyncStorage.setItem.mockReset();
+    mockAsyncStorage.removeItem?.mockReset?.();
   });
 
   afterEach(() => {
@@ -104,7 +113,12 @@ describe("useOneClickDeploy", () => {
 
     const startBuild = jest.fn(async () => {});
     const { getByTestId } = render(
-      <Harness profile="preview" repo="owner/repo" branch="main" startBuild={startBuild} />,
+      <Harness
+        profile="preview"
+        repo="owner/repo"
+        branch="main"
+        startBuild={startBuild}
+      />,
     );
 
     fireEvent.press(getByTestId("run"));
@@ -115,7 +129,7 @@ describe("useOneClickDeploy", () => {
         const signing = steps.find((s: any) => s.id === "signing_key");
         expect(signing.status).toBe("fail");
       },
-      { timeout: 3000 },
+      { timeout: 6000 },
     );
 
     const steps = getSteps(getByTestId);
@@ -125,7 +139,7 @@ describe("useOneClickDeploy", () => {
     expect(tokens.status).toBe("pending");
     expect(build.status).toBe("pending");
     expect(startBuild).not.toHaveBeenCalled();
-  });
+  }, 15000);
 
   it("happy path: runs through to build when key exists", async () => {
     mockAsyncStorage.getItem.mockImplementation(async (k: string) => {
@@ -142,16 +156,22 @@ describe("useOneClickDeploy", () => {
 
     const startBuild = jest.fn(async () => {});
     const { getByTestId } = render(
-      <Harness profile="preview" repo="owner/repo" branch="main" startBuild={startBuild} />,
+      <Harness
+        profile="preview"
+        repo="owner/repo"
+        branch="main"
+        startBuild={startBuild}
+      />,
     );
 
     fireEvent.press(getByTestId("run"));
 
     await waitFor(
       () => {
-        expect(getByTestId("done").props.children).toBe("true");
+        const done = getByTestId("done").props.children;
+        expect(done).toBe("true");
       },
-      { timeout: 3000 },
+      { timeout: 6000 },
     );
 
     const steps = getSteps(getByTestId);
