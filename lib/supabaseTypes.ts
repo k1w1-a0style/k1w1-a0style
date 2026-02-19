@@ -3,7 +3,7 @@
  * Type-Definitionen und Type Guards für Supabase API Responses
  */
 
-import type { BuildStatus } from "./buildStatusMapper";
+import type { BuildStatus } from "../shared/types/build";
 import { mapBuildStatus } from "./buildStatusMapper";
 
 import type { BuildStatusDetails } from "../shared/types/build";

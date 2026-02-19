@@ -2,8 +2,12 @@
 
 - Patch 200 (2026-02-19): PR-9 Stage 1 — Preview Screens Refactoring: extract hooks, shared WebView utils, fix critical dead-code bug in PreviewFullscreenScreen
 - Patch 201 (2026-02-19): Guardrails — deprecate legacy type shims (contexts/types, buildStatusMapper re-export)
+- Patch 202 (2026-02-19): Migrate imports off contexts/types to shared/types/*
+- Patch 202.1 (2026-02-19): Hotfix — fix broken type-only import blocks from Patch 202
 - Patch 202.2 (2026-02-19): Hotfix — repair malformed `import type` blocks from Patch 202 (restore TS/Jest parsing)
 - Patch 202.3 (2026-02-19): Hotfix — restore missing `ProjectFile` type imports (fix TS2304 compile errors)
+- Patch 203 (2026-02-19): Cleanup — remove dead files (contexts/types, logger, unused keyMasking) + finish BuildStatus import migration
+- Patch 204 (2026-02-19): Fix — Patch 203 cleanup was too aggressive; restore `contexts/types.ts` + `lib/logger.ts` and make cleanup script safe
 - Patch 199 (2026-02-19): Test infra — set global Jest timeout to reduce flakiness
 - Patch 194 (2026-02-19): EnhancedBuildScreen — split helpers + preconditions hook (no behavior change)
 - Patch 193 (2026-02-19): EnhancedBuildScreen — extract run-details fetch helper; reduce duplication

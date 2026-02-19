@@ -2,9 +2,17 @@
 
 Most recent first.
 
-- Patch 202.2: `docs/patches/patch_202_2.md` (Hotfix: repair malformed `import type` blocks from Patch 202)
+- Patch 204: `docs/patches/patch_204.md` (Fix: revert over-aggressive Patch 203 cleanup; keep contexts/types + lib/logger)
+
+- Patch 203: `docs/patches/patch_203.md` (Cleanup: remove dead files + finish BuildStatus import migration)
 
 - Patch 202.3: `docs/patches/patch_202_3.md` (Hotfix: restore missing `ProjectFile` type imports after Patch 202)
+
+- Patch 202.2: `docs/patches/patch_202_2.md` (Hotfix: repair malformed `import type` blocks from Patch 202)
+
+- Patch 202.1: `docs/patches/patch_202_1.md` (Hotfix: fix broken type-only import blocks from Patch 202)
+
+- Patch 202: `docs/patches/patch_202.md` (Migrate imports off contexts/types to shared/types/*)
 
 - Patch 201: `docs/patches/patch_201.md` (Guardrails: deprecate legacy type shims to prevent future import drift)
 
