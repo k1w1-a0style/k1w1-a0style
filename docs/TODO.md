@@ -1,10 +1,71 @@
 # TODO
 
-Stand: **2026-02-15**
+Stand: **2026-02-19**
 
 > Dieses Dokument ist die **laufende Restliste**.  
 > Alle Security-/Privacy-P1-Fixes aus den Screen-Reviews sind umgesetzt und Tests sind grün.  
 > Unten stehen nur noch **Restpunkte / Quality-Backlog** (meist P2/P3).
+
+## Aktuell (als Nächstes abarbeiten)
+
+> Ziel: **alles was zu tun ist steht hier**, so dass man es stumpf abhaken kann.
+
+### Patch A — CI Lite Bugfix (🔥 zuerst)
+
+**A1 — Dead Code entfernen: `topContent` wird nie gerendert**
+- [ ] Datei: `components/CiLiteHeaderButton.tsx`
+- [ ] Entferne `const topContent = useMemo(...)` komplett **oder** rendere es bewusst (aktuell: nicht benutzt).
+- [ ] Entferne zugehörige ungenutzte Styles (mindestens `styles.ciBtn`).
+- [ ] Akzeptanz: Typecheck/Lint grün, kein `{topContent}` missing (weil es nirgendwo existiert), kein unnötiges Memo.
+
+**A2 — Stale-Closure Fix: `applyPatchFromText` Dependencies**
+- [ ] Datei: `components/CiLiteHeaderButton.tsx`
+- [ ] `applyPatchFromText` nutzt u.a. `githubRepo`, `branch`, `getDefaultBranch`, `pushFilesToRepo`, `deleteRepoFile`, `getGitHubToken`.
+- [ ] Lösung (minimal): fehlende Werte in deps aufnehmen.
+- [ ] Lösung (robuster): `useRef` für `githubRepo/branch` oder für „current selection“ und Callback deps schlank halten.
+- [ ] Akzeptanz: Repo/Branch wechseln → Apply Patch pusht garantiert in das aktuelle Ziel.
+
+**A3 — Unmount Cleanup: Polling Timer**
+- [ ] Datei: `components/CiLiteHeaderButton.tsx`
+- [ ] Ergänze `useEffect(() => () => stopPolling(), [stopPolling])` (oder äquivalenter Cleanup).
+- [ ] Akzeptanz: Navigation/unmount während Polling → kein weiterlaufender Timer, keine setState-after-unmount Warnungen.
+
+### Patch B — Supabase Edge Function Names: echte SoT (🟠 danach)
+
+**B1 — Constants vervollständigen**
+- [ ] Datei: `shared/constants/supabase.ts`
+- [ ] Ergänze fehlende Functions:
+  - [ ] `CHECK_EAS_BUILD` (`check-eas-build`)
+  - [ ] `SAVE_PREVIEW` (`save_preview`)
+
+**B2 — Hardcodes entfernen (alle Call-Sites)**
+- [ ] `components/CiLiteHeaderButton.tsx`: `github-workflow-runs`, `github-workflow-dispatch` → Constants
+- [ ] `project/services/buildStartService.ts`: `trigger-eas-build` → Constant
+- [ ] `project/services/buildPollingService.ts`: `check-eas-build` → Constant
+- [ ] `hooks/usePreview.ts`: `save_preview` → Constant
+- [ ] Akzeptanz: keine `fetch(.../github-workflow-...)` oder `invoke("trigger-eas-build")` Strings mehr.
+
+**B3 — Duplicate Helper entfernen**
+- [ ] Datei: `project/services/buildPollingService.ts`
+- [ ] Entferne lokale `getSupabaseEdgeUrl()` (Duplikat)
+- [ ] Nutze `lib/supabaseEdge.ts` als einzige Quelle.
+
+### Patch C — Storage Keys: kleine, aber echte Drift-Fallen (🟡 optional / clean)
+
+**C1 — `diagnostic_last_ok` zentralisieren**
+- [ ] Datei: `shared/constants/storage.ts` oder `shared/constants/diagnostics.ts` (je nach bestehender Struktur)
+- [ ] Update:
+  - [ ] `screens/EnhancedBuildScreen/hooks/useBuildPreconditions.ts`
+  - [ ] `screens/DiagnosticScreen/hooks/useDiagnosticScreen.ts`
+
+### Patch D — TokenStore Konsistenz (🟡 robustness)
+
+**D1 — SecureStore Error-Handling vereinheitlichen**
+- [ ] Datei: `infra/github/tokenStore.ts`
+- [ ] Admin/Signing/ServiceRole Keys nutzen aktuell direkte `SecureStore.*Async` Calls.
+- [ ] Umstellen auf die gleichen Wrapper/Pattern wie GitHub/Expo (try/catch + konsistente Fehlermeldung).
+
+---
 
 ## Status
 

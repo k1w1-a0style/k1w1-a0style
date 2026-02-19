@@ -43,6 +43,28 @@
 
 ## 🚧 Nächste sinnvolle Schritte
 
+### CI Lite / Build / SoT (Patch 216+)
+
+> Diese Liste ist bewusst „exekutierbar“ geschrieben: Datei → Änderung → Done.
+
+- [ ] **Patch A (Bugfix):** `components/CiLiteHeaderButton.tsx`
+  - [ ] Dead code: `topContent` useMemo entfernen (oder bewusst rendern)
+  - [ ] `applyPatchFromText` deps fixen (stale-closure vermeiden)
+  - [ ] Polling unmount-cleanup (`stopPolling` in cleanup)
+
+- [ ] **Patch B (SoT Supabase Functions):** `shared/constants/supabase.ts`
+  - [ ] `CHECK_EAS_BUILD` + `SAVE_PREVIEW` ergänzen
+  - [ ] Alle Hardcodes auf Constants umstellen:
+    - [ ] `components/CiLiteHeaderButton.tsx` (github-workflow-*)
+    - [ ] `project/services/buildStartService.ts` (trigger-eas-build)
+    - [ ] `project/services/buildPollingService.ts` (check-eas-build)
+    - [ ] `hooks/usePreview.ts` (save_preview)
+  - [ ] Duplicate Helper löschen: `project/services/buildPollingService.ts` → `lib/supabaseEdge.ts`
+
+- [ ] **Patch C (Storage Keys):** `diagnostic_last_ok` zentralisieren und beide Call-Sites umstellen
+
+- [ ] **Patch D (Robustness):** `infra/github/tokenStore.ts` SecureStore Error-Handling vereinheitlichen
+
 ### PR-9 (Preview — weitere Stages)
 - [ ] `PreviewScreen` Komponente weiter splitten: `DeviceFrame.tsx`, `PreviewToolbar.tsx`, `PreviewStatusBar.tsx`
 - [x] `useWebViewCrashRecovery` auch in `PreviewScreen` (usePreviewScreen) einbinden

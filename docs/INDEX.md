@@ -7,6 +7,7 @@ Dieser Ordner ist der **zentrale Einstiegspunkt** für Dokumente, Notizen, Proto
 - **Chat-Handoff (neuer Chat):** `docs/HANDOFF_NEXT_CHAT.md`
 - **Offene Punkte / Roadmap:** `docs/TODO.md`
 - **Arbeitsablauf (Patch-Zips):** `docs/WORKFLOW_PATCHING.md`
+- **Letztes kritisches Review (verifiziert):** `docs/notes/FULL_REVIEW_2026-02-19.md`
 
 ## Empfohlene Ablage
 

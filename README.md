@@ -6,6 +6,9 @@
 - Einstieg: `docs/INDEX.md`
 - Offene Punkte: `docs/TODO.md`
 - Patch-Ablauf: `docs/WORKFLOW_PATCHING.md`
+- Projekt-Roadmap (gröber): `docs/PROJECT_TODO.md`
+- Patchlog (append-only): `docs/patches/PATCHLOG_ROOT.md`
+- Checklog (laufend, kurz): `PROJECT_CHECKLOG.md`
 
 - CI Lite (in-app): Globaler Header-Button **✅** triggert GitHub Actions für ESLint + TypeScript (robust mit Fallbacks). Im Modal kannst du Logs kopieren, ein **Apply Patch (JSON)** ausführen und optional **Autofix ESLint** (separater Workflow, guarded writeback). **Nach erfolgreichem Autofix** folgt automatisch ein **Chain-Run** (CI Lite) auf derselben Branch; der Header zeigt den Status über ein kleines Lämpchen.
 
@@ -14,6 +17,18 @@
 > Hinweis: Der Name "k1w1-a0style" ist wieder der normale Projektname. Falls du irgendwo noch "-restored" siehst, ist das ein Relikt aus einem Reparatur-Zip.
 
 React-Native/Expo App zum Bauen und Testen von Projekten/Flows mit **integriertem Preview-System**.
+
+## Aktueller Stand / Nächste Schritte
+
+- Letzter Stand im Repo: **Patch 215** (SoT-Strings: GitHub Storage Keys + erste Supabase Edge Function Names).
+- Vor dem nächsten Code-Patch: **Docs/TODO ist der Single Source of Truth** für alle offenen Punkte.
+
+Wenn du Patches als ZIP einspielst:
+
+1) ZIP ins Projektroot legen
+2) `unzip -o <patch>.zip -d .`
+3) Tests laufen lassen (`npm run typecheck`, `npm run lint:ci`, `npm run test:silent`)
+4) Commit + Push
 
 ## Was das Preview-System kann
 
