@@ -8,7 +8,8 @@ export const STORAGE_KEYS = {
 
   // NOTE: Service Role Key is migrated to SecureStore; this constant remains as legacy AsyncStorage key name.
   SUPABASE_SERVICE_ROLE_KEY: "supabase_service_role_key",
-  SUPABASE_SERVICE_ROLE_KEY_LEGACY: "supabase_service_role_key",
+  // Legacy alias removed: historically we stored the same AsyncStorage key name. Keep a single source of truth.
+
 
   EAS_PROJECT_ID: "eas_project_id",
 

@@ -69,3 +69,5 @@ Most recent first.
 - Patch 148: `docs/patches/patch_148.md` (PR-2: storage move + facade)
 - Patch 147: `docs/patches/patch_147.md` (V3.1 scaffolding)
 - Patch 194.1: hotfix build screen hook parse error
+
+- Patch 195: `docs/patches/patch_195.md` (Storage key cleanup + API key masking unification)

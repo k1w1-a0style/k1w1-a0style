@@ -37,13 +37,13 @@ export const autoSyncRepoSecrets = async (
   // Legacy migration fallback
   if (!supabaseServiceRole) {
     const legacy = await AsyncStorage.getItem(
-      STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY_LEGACY,
+      STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
     ).catch(() => "");
     if (legacy) {
       supabaseServiceRole = legacy;
       await saveSupabaseServiceRoleKey(legacy);
       await AsyncStorage.removeItem(
-        STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY_LEGACY,
+        STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
       ).catch(() => {});
     }
   }

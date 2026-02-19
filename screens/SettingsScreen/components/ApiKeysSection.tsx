@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, TouchableOpacity, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { maskApiKey } from "../utils/keyMasking";
+import { maskApiKey } from "../../../lib/apiKeyMasking";
 
 import type { AllAIProviders } from "../../../contexts/AIContext";
 import { PROVIDER_METADATA } from "../../../contexts/AIContext";

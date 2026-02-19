@@ -76,3 +76,5 @@ Recent changes, most recent first.
 - 2026-02-18: Patch 188 prepared — RepoScreen polish + ignore cleanup.
 - 2026-02-18: Patch 189 hotfix — fix Patch 188 build blockers (JSX syntax + duplicate searchTerm + missing TouchableOpacity import).
 - Patch 194.1: hotfix build screen hook parse error
+
+- Patch 195 (2026-02-19): Fix Supabase service-role AsyncStorage key drift; unify API key masking across Settings/AppInfo.

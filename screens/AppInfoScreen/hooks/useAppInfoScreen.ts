@@ -425,13 +425,13 @@ export function useAppInfoScreen() {
 
               const srvSecure = await getSupabaseServiceRoleKey().catch(() => null);
               const srvLegacy = await AsyncStorage.getItem(
-                STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY_LEGACY,
+                STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
               ).catch(() => "");
               const supabaseServiceRoleKey = (srvSecure || srvLegacy || "").trim();
               if (!srvSecure && srvLegacy) {
                 await saveSupabaseServiceRoleKey(srvLegacy);
                 await AsyncStorage.removeItem(
-                  STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY_LEGACY,
+                  STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
                 ).catch(() => {});
               }
 
@@ -560,7 +560,7 @@ export function useAppInfoScreen() {
               if (roleKeyToSet) await saveSupabaseServiceRoleKey(roleKeyToSet);
               else await deleteSupabaseServiceRoleKey();
               await AsyncStorage.removeItem(
-                STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY_LEGACY,
+                STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
               ).catch(() => {});
 
               // 3) Tokens (SecureStore via helpers)

@@ -119,12 +119,12 @@ export function useConnectionsScreen() {
       let srv = srvSecure;
       if (!srv) {
         const legacy = await AsyncStorage.getItem(
-          STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY_LEGACY,
+          STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
         ).catch(() => "");
         if (legacy) {
           await saveSupabaseServiceRoleKey(legacy);
           await AsyncStorage.removeItem(
-            STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY_LEGACY,
+            STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
           ).catch(() => {});
           srv = legacy;
         }
@@ -196,7 +196,7 @@ export function useConnectionsScreen() {
       else await deleteSupabaseServiceRoleKey();
       // Remove legacy value if it exists
       await AsyncStorage.removeItem(
-        STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY_LEGACY,
+        STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
       ).catch(() => {});
       await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, easProjectId.trim());
 
