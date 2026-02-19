@@ -2,7 +2,7 @@ import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "react-native";
 
-import type { ProjectData, ProjectFile } from "../../../contexts/types";
+import type { ProjectData, ProjectFile } from "../../../shared/types/project";
 import type {
   PreflightCheckResult,
   PreflightPatch,

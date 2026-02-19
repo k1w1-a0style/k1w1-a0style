@@ -1,9 +1,10 @@
 // lib/promptEngine.ts
 // Zentrale Prompt-Logik für den k1w1 APK-Builder
 
-import { ProjectFile } from '../contexts/types';
+
 import { CONFIG } from '../config';
 
+import type { ProjectFile } from "../shared/types/project";
 export type LlmMessageRole = 'system' | 'user' | 'assistant';
 
 export interface LlmMessage {

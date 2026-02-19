@@ -3,13 +3,14 @@
 // Fallback: local HTML via buildSandpackHtml (best-effort).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ProjectData, LastPreviewMeta } from "../contexts/types";
+
 import { useProject } from "../contexts/ProjectContext";
 import { buildSandpackHtml } from "../lib/sandpackBuilder";
 import { ensureSupabaseClient } from "../lib/supabase";
 import { getEdgeAdminKey } from "../infra/github/githubService";
 import type { PreviewFiles, PreviewResponse } from "../types/preview";
 
+import type { ProjectData, LastPreviewMeta } from "../shared/types/project";
 function promiseWithTimeout<T>(
   promise: Promise<T>,
   ms: number,

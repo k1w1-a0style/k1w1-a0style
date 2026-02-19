@@ -1,7 +1,8 @@
 // lib/projectMaterializer.ts
-import type { ProjectFile, ProjectData } from "../contexts/types";
+
 import { normalizePath } from "./validators";
 
+import type { ProjectFile, ProjectData } from "../shared/types/project";
 export type MaterializeOptions = {
   name?: string;
   slug?: string;

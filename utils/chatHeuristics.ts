@@ -1,9 +1,11 @@
+import type { ProjectFile } from '../shared/types/project';
+
 /**
  * Chat Heuristics
  * Pure helper functions for ChatScreen request classification and change explanation
  */
 
-import { ProjectFile } from '../contexts/types';
+
 import { LlmMessage } from '../lib/promptEngine';
 
 // ─────────────────────────────────────────────────────────────

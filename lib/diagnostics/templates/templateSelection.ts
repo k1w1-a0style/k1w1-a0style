@@ -1,9 +1,9 @@
 // lib/diagnostics/templates/templateSelection.ts
 // Template selection heuristics and "auto" resolution.
 
-import type { ProjectFile } from "../../../contexts/types";
 
 // Template selection (auto mode)
+import type { ProjectFile } from "../../../shared/types/project";
 export type CoreTemplateId = "base" | "navigation" | "crud" | "full";
 export type TemplateId = CoreTemplateId | "auto";
 

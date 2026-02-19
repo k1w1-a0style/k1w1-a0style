@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Alert } from 'react-native';
 
-import type { ProjectFile } from '../../../contexts/types';
+import type { ProjectFile } from '../../../shared/types/project';
 import { useProject } from '../../../contexts/ProjectContext';
 import type {
   BuildConfig,

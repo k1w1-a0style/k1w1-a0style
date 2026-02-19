@@ -1,3 +1,5 @@
+import type { ProjectFile } from '../../shared/types/project';
+
 /**
  * FileWriter Tests
  *
@@ -7,7 +9,6 @@
  */
 
 import { applyFilesToProject } from '../fileWriter';
-import { ProjectFile } from '../../contexts/types';
 
 describe('FileWriter', () => {
   describe('applyFilesToProject', () => {

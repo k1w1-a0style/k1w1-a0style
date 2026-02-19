@@ -1,6 +1,6 @@
 // lib/diagnostics/preflightRunner.ts
 
-import type { ProjectFile } from "../../contexts/types";
+import type { ProjectFile } from "../../shared/types/project";
 import type {
   PreflightCheck,
   PreflightCheckResult,

@@ -9,11 +9,11 @@ import {
   ScrollView,
   TouchableOpacity,
 } from "react-native";
+import type { ChatMessage } from "../shared/types/chat";
 import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import { theme, getNeonGlow } from "../theme";
 import { SyntaxHighlighter } from "./SyntaxHighlighter";
-import { ChatMessage } from "../contexts/types";
 
 type MessagePart =
   | { type: "text"; content: string }

@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, ToastAndroid } from "react-native";
 import { v4 as uuidv4 } from "uuid";
-
-import { ChatMessage, ProjectFile } from "../contexts/types";
 import type { AIConfig } from "../contexts/AIContext";
-import { runOrchestrator } from "../lib/orchestrator";
 import type { OrchestratorResult } from "../lib/orchestrator";
+import type { ApplyFilesResult } from "../lib/fileWriter";
+import type { ChatMessage } from "../shared/types/chat";
+import type { ProjectFile } from "../shared/types/project";
+
+
+import { runOrchestrator } from "../lib/orchestrator";
 import { normalizeAiResponse } from "../lib/normalizer";
 import { applyFilesToProject } from "../lib/fileWriter";
-import type { ApplyFilesResult } from "../lib/fileWriter";
 import {
   buildBuilderMessages,
   buildPlannerMessages,

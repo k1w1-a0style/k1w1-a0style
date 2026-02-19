@@ -1,10 +1,11 @@
 import React, { useMemo } from "react";
 import { View, Text } from "react-native";
 
-import type { TemplateId } from "../../../contexts/types";
+
 import { resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
 import { TEMPLATE_INFO } from "../types";
 
+import type { TemplateId } from "../../../shared/types/project";
 type Props = {
   styles: any;
   projectData: any;

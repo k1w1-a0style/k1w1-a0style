@@ -1,7 +1,8 @@
+import type { Dispatch, SetStateAction } from "react";
+import type { ProjectFile } from "../../../shared/types/project";
 // screens/CodeScreen/hooks/useFileExplorer.ts
 // Handles: folder navigation, file tree derivation, selection mode, and export.
 import { useCallback, useMemo, useState } from "react";
-import type { Dispatch, SetStateAction } from "react";
 import { Alert } from "react-native";
 
 import {
@@ -17,7 +18,7 @@ import {
   type TreeNode,
 } from "../../../components/FileTree";
 import { useProject } from "../../../contexts/ProjectContext";
-import type { ProjectFile } from "../../../contexts/types";
+
 import { toContentString } from "./useFileEditor";
 
 const MAX_EXPORT_BYTES = 2 * 1024 * 1024; // ~2 MiB safety cap to avoid OOM on low-end Android

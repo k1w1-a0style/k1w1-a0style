@@ -1,5 +1,5 @@
-import type { ProjectFile } from "../../contexts/types";
 
+import type { ProjectFile } from "../../shared/types/project";
 export type Status = "pass" | "warn" | "fail";
 export type FixStepStatus = "pending" | "running" | "done" | "failed" | "skipped";
 

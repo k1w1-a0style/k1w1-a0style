@@ -1,8 +1,9 @@
 import { jsonrepair } from 'jsonrepair';
-import { ProjectFile } from '../contexts/types';
+
 import { CONFIG } from '../config';
 import { normalizePath as libNormalizePath, validateFilePath as libValidateFilePath } from '../lib/validators';
 
+import type { ProjectFile } from "../shared/types/project";
 type ErrorStat = {
   count: number;
   last: string;

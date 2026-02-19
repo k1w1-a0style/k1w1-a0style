@@ -1,8 +1,8 @@
+import type { ProjectData, ProjectFile } from "../../shared/types/project";
 // project/services/buildStartService.ts
 // Extracted from ProjectContext.startBuild to keep ProjectContext lean.
 // Behavior is intentionally kept the same.
 
-import type { ProjectData, ProjectFile } from "../../contexts/types";
 
 import { CONFIG } from "../../config";
 import { ensureSupabaseClient } from "../../lib/supabase";

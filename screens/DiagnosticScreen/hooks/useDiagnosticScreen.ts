@@ -3,7 +3,7 @@ import type { MutableRefObject } from "react";
 import { Alert, LayoutAnimation, Platform, UIManager } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import type { ProjectData } from "../../../contexts/types";
+
 import type { BuildMode } from "../../../components/diagnostics/ModeSelector";
 import type { TabKey } from "../../../components/diagnostics/SegmentedTabs";
 
@@ -24,6 +24,7 @@ import { useDiagnosticFixRunner } from "./useDiagnosticFixRunner";
 import { useDiagnosticSelection } from "./useDiagnosticSelection";
 import { useDiagnosticIssueFiltering } from "./useDiagnosticIssueFiltering";
 
+import type { ProjectData } from "../../../shared/types/project";
 const ORDER: Record<Status, number> = { fail: 0, warn: 1, pass: 2 };
 
 export function useDiagnosticScreen(opts: {

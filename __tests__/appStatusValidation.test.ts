@@ -1,6 +1,7 @@
-import type { ProjectFile } from '../contexts/types';
+
 import { parseExpoConfig, resolveEntryPoint } from '../screens/AppStatusScreen/hooks/useAppStatusScreen';
 
+import type { ProjectFile } from "../shared/types/project";
 describe('AppStatusScreen validation helpers', () => {
   const f = (path: string, content: string): ProjectFile => ({ path, content });
 

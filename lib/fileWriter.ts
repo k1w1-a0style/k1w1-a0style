@@ -1,6 +1,8 @@
 // lib/fileWriter.ts
-import { ProjectFile } from '../contexts/types';
+
 import { validateFileContent, validateFilePath, normalizePath } from './validators';
+
+import type { ProjectFile } from '../shared/types/project';
 
 /**
  * FileWriter System

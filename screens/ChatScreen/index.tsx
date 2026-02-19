@@ -2,7 +2,7 @@ import React, { useCallback } from "react";
 import { View, FlatList, Keyboard } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ChatMessage } from "../../contexts/types";
+
 import MessageItem from "../../components/MessageItem";
 
 import ConfirmChangesModal from "../../components/chat/ConfirmChangesModal";
@@ -16,6 +16,7 @@ import { styles } from "../../styles/chatScreenStyles";
 
 import { useChatScreen } from "./hooks/useChatScreen";
 
+import type { ChatMessage } from "../../shared/types/chat";
 const ChatScreen: React.FC = () => {
   const {
     messages,

@@ -9,7 +9,6 @@ import * as Clipboard from "expo-clipboard";
 
 import type { TreeNode } from "../../../components/FileTree";
 import { useProject } from "../../../contexts/ProjectContext";
-import type { ProjectFile } from "../../../contexts/types";
 
 import { validateFilePath } from "../../../lib/validators";
 
@@ -17,6 +16,7 @@ import type { ViewMode } from "./useFileEditor";
 import { toContentString } from "./useFileEditor";
 
 // Files that are commonly extensionless and should stay that way.
+import type { ProjectFile } from "../../../shared/types/project";
 const EXTENSIONLESS_ALLOWLIST = new Set<string>([
   "Dockerfile",
   "Makefile",

@@ -1,8 +1,9 @@
 // hooks/useGitHubRepos.ts - Custom hook for GitHub repository management
 import { useState, useCallback } from "react";
 import { Buffer } from "buffer";
-import { ProjectFile } from "../contexts/types";
+
 import { fetchWithBackoff } from "../lib/retryWithBackoff";
+import type { ProjectFile } from "../shared/types/project";
 import {
   getBranches as apiBranches,
   getAllWorkflowRuns as apiWorkflowRuns,

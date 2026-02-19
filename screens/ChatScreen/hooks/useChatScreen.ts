@@ -14,7 +14,8 @@ import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/nativ
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useProject } from "../../../contexts/ProjectContext";
-import { ChatMessage, ProjectFile } from "../../../contexts/types";
+import type { ChatMessage } from "../../../shared/types/chat";
+import type { ProjectFile } from "../../../shared/types/project";
 import { useAI } from "../../../contexts/AIContext";
 
 import { useKeyboardHeight } from "../../../hooks/useKeyboardHeight";

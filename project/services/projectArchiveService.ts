@@ -1,7 +1,7 @@
+import type { ProjectData } from "../../shared/types/project";
 // project/services/projectArchiveService.ts
 // Zip import/export helpers extracted from ProjectContext.
 
-import type { ProjectData } from "../../contexts/types";
 
 import {
   exportProjectAsZipFile,

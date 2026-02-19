@@ -1,11 +1,12 @@
 // lib/diagnostics/diagnosticUploader.ts
 import "react-native-get-random-values";
 import { v4 as uuidv4 } from "uuid";
-import type { ProjectFile } from "../../contexts/types";
+
 import { ensureSupabaseClient } from "../supabase";
 import type { PreflightCheckResult, PreflightTarget } from "./preflightTypes";
 import { safeTruncate, sanitizeJsonString, sanitizeText } from "./sanitize";
 
+import type { ProjectFile } from "../../shared/types/project";
 const SNAPSHOT_PATHS = [
   "package.json",
   "app.json",

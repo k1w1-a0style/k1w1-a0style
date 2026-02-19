@@ -7,11 +7,12 @@ import * as Clipboard from "expo-clipboard";
 import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 
-import type { ProjectData } from "../../../contexts/types";
+
 import type { PreflightCheckResult, PreflightTarget } from "../../../lib/diagnostics/preflightTypes";
 import { formatDiagnosticUpload, uploadDiagnosticToSupabase } from "../../../lib/diagnostics/diagnosticUploader";
 import { sanitizeDiagnosticUpload, safeTruncateText } from "../../../lib/diagnostics/sanitize";
 
+import type { ProjectData } from "../../../shared/types/project";
 const DEVICE_ID_KEY = "k1w1_device_id";
 const UPLOAD_COOLDOWN_MS = 30_000;
 const UPLOAD_RETRY_DELAY_MS = 3_000;

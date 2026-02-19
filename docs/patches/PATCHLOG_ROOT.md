@@ -2,6 +2,10 @@
 
 Most recent first.
 
+- Patch 202.2: `docs/patches/patch_202_2.md` (Hotfix: repair malformed `import type` blocks from Patch 202)
+
+- Patch 202.3: `docs/patches/patch_202_3.md` (Hotfix: restore missing `ProjectFile` type imports after Patch 202)
+
 - Patch 201: `docs/patches/patch_201.md` (Guardrails: deprecate legacy type shims to prevent future import drift)
 
 - Patch 200: `docs/patches/patch_200.md` (PR-9 Stage 1: Preview Screens Refactoring + critical bug fix in PreviewFullscreenScreen)

@@ -1,5 +1,5 @@
-import { ProjectFile } from '../contexts/types';
 
+import type { ProjectFile } from "../shared/types/project";
 export type TreeNode = {
   id: string;
   name: string;

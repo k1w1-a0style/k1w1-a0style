@@ -2,7 +2,7 @@
 // Extracted from lib/templateChecklist.ts (PR-6 Stage 4).
 // No behavior changes intended.
 
-import type { ProjectFile } from "../../../contexts/types";
+
 import { normalizePath } from "../../validators";
 
 import type { ChecklistItem, TemplateChecklistOptions, TemplateChecklistReport } from "./templateChecklistTypes";
@@ -15,6 +15,7 @@ import { patchAppJson } from "./patchers/appJson";
 import { patchAppConfigJs } from "./patchers/appConfigJs";
 import { patchEasJson } from "./patchers/easJson";
 
+import type { ProjectFile } from "../../../shared/types/project";
 export function runTemplateHardChecklist(
   files: ProjectFile[],
   options: TemplateChecklistOptions = {},

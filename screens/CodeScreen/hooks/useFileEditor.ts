@@ -6,12 +6,10 @@ import type { Dispatch, SetStateAction } from "react";
 import { Alert, InteractionManager } from "react-native";
 
 import { useProject } from "../../../contexts/ProjectContext";
-import type { ProjectFile } from "../../../contexts/types";
-import {
-  validateCodeQuality,
-  validateSyntax,
-  type SyntaxError as ValidationError,
-} from "../../../utils/syntaxValidator";
+import type { ProjectFile } from "../../../shared/types/project";
+import { validateCodeQuality, validateSyntax } from "../../../utils/syntaxValidator";
+import type { SyntaxError as ValidationError } from "../../../utils/syntaxValidator";
+
 
 export type ViewMode = "edit" | "preview";
 

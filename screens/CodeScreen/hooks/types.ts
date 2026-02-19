@@ -7,9 +7,10 @@ import type { Dispatch, SetStateAction } from "react";
 
 import type { TreeNode } from "../../../components/FileTree";
 import type { useProject } from "../../../contexts/ProjectContext";
-import type { ProjectFile } from "../../../contexts/types";
+
 import type { SyntaxError as ValidationError } from "../../../utils/syntaxValidator";
 
+import type { ProjectFile } from "../../../shared/types/project";
 export type ViewMode = "edit" | "preview";
 
 

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { ProjectData } from "../../../contexts/types";
+
 import type { BuildMode } from "../../../components/diagnostics/ModeSelector";
 
 // Diagnostics UI prefs
+import type { ProjectData } from "../../../shared/types/project";
 const DIAG_PREF_PROFILE_FOCUS_KEY = "k1w1_diag_profile_focus";
 const DIAG_PREF_MODES_KEY = "k1w1_diag_modes";
 const DIAG_PREF_MODES_ALL_KEY = "k1w1_diag_modes_all";

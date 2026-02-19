@@ -1,7 +1,7 @@
 // lib/diagnostics/preflightTypes.ts
 
-import type { ProjectFile } from "../../contexts/types";
 
+import type { ProjectFile } from "../../shared/types/project";
 export type PreflightTarget =
   | { mode: "expoGo" }
   | { mode: "eas"; profile: "all" | "development" | "preview" | "production" };
