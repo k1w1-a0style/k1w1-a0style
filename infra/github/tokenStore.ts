@@ -103,58 +103,58 @@ export const hasValidExpoToken = async (): Promise<boolean> => {
 // Edge Admin Key (optional)
 // ----------------------
 export const getEdgeAdminKey = async (): Promise<string | null> => {
-  return await SecureStore.getItemAsync(EDGE_ADMIN_KEY);
+  return getSecureToken(EDGE_ADMIN_KEY);
 };
 
 export const saveEdgeAdminKey = async (key: string): Promise<void> => {
   const v = (key ?? "").trim();
   if (!v) {
-    await SecureStore.deleteItemAsync(EDGE_ADMIN_KEY);
+    await deleteSecureToken(EDGE_ADMIN_KEY);
     return;
   }
-  await SecureStore.setItemAsync(EDGE_ADMIN_KEY, v);
+  await saveSecureToken(EDGE_ADMIN_KEY, v);
 };
 
 export const deleteEdgeAdminKey = async (): Promise<void> => {
-  await SecureStore.deleteItemAsync(EDGE_ADMIN_KEY);
+  await deleteSecureToken(EDGE_ADMIN_KEY);
 };
 
 // ----------------------
 // Supabase Service Role Key (HIGHLY SENSITIVE) -> SecureStore
 // ----------------------
 export const getSupabaseServiceRoleKey = async (): Promise<string | null> => {
-  return await SecureStore.getItemAsync(SUPABASE_SERVICE_ROLE_KEY);
+  return getSecureToken(SUPABASE_SERVICE_ROLE_KEY);
 };
 
 export const saveSupabaseServiceRoleKey = async (key: string): Promise<void> => {
   const v = (key ?? "").trim();
   if (!v) {
-    await SecureStore.deleteItemAsync(SUPABASE_SERVICE_ROLE_KEY);
+    await deleteSecureToken(SUPABASE_SERVICE_ROLE_KEY);
     return;
   }
-  await SecureStore.setItemAsync(SUPABASE_SERVICE_ROLE_KEY, v);
+  await saveSecureToken(SUPABASE_SERVICE_ROLE_KEY, v);
 };
 
 export const deleteSupabaseServiceRoleKey = async (): Promise<void> => {
-  await SecureStore.deleteItemAsync(SUPABASE_SERVICE_ROLE_KEY);
+  await deleteSecureToken(SUPABASE_SERVICE_ROLE_KEY);
 };
 
 // ----------------------
 // Signing Master Key (optional)
 // ----------------------
 export const getSigningMasterKey = async (): Promise<string | null> => {
-  return await SecureStore.getItemAsync(SIGNING_MASTER_KEY);
+  return getSecureToken(SIGNING_MASTER_KEY);
 };
 
 export const saveSigningMasterKey = async (key: string): Promise<void> => {
   const v = (key ?? "").trim();
   if (!v) {
-    await SecureStore.deleteItemAsync(SIGNING_MASTER_KEY);
+    await deleteSecureToken(SIGNING_MASTER_KEY);
     return;
   }
-  await SecureStore.setItemAsync(SIGNING_MASTER_KEY, v);
+  await saveSecureToken(SIGNING_MASTER_KEY, v);
 };
 
 export const deleteSigningMasterKey = async (): Promise<void> => {
-  await SecureStore.deleteItemAsync(SIGNING_MASTER_KEY);
+  await deleteSecureToken(SIGNING_MASTER_KEY);
 };

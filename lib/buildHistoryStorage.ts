@@ -3,8 +3,8 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { BuildHistoryEntry } from '../shared/types/build';
+import { STORAGE_KEYS } from './storageKeys';
 
-const BUILD_HISTORY_KEY = 'k1w1_build_history';
 const MAX_HISTORY_ENTRIES = 50; // Maximal 50 Einträge speichern
 
 // Verhindert Log-Spam wenn die Historie während eines aktiven Pollings geleert wurde
@@ -15,7 +15,7 @@ const missingBuildWarned = new Set<string>();
  */
 export const loadBuildHistory = async (): Promise<BuildHistoryEntry[]> => {
   try {
-    const historyString = await AsyncStorage.getItem(BUILD_HISTORY_KEY);
+    const historyString = await AsyncStorage.getItem(STORAGE_KEYS.BUILD_HISTORY);
     if (!historyString) {
       return [];
     }
@@ -42,7 +42,7 @@ export const saveBuildHistory = async (history: BuildHistoryEntry[]): Promise<vo
     // Auf maximale Anzahl begrenzen (neueste zuerst)
     const trimmedHistory = history.slice(0, MAX_HISTORY_ENTRIES);
     const historyString = JSON.stringify(trimmedHistory);
-    await AsyncStorage.setItem(BUILD_HISTORY_KEY, historyString);
+    await AsyncStorage.setItem(STORAGE_KEYS.BUILD_HISTORY, historyString);
     console.log(`💾 Build-Historie gespeichert: ${trimmedHistory.length} Einträge`);
   } catch (error) {
     console.error('❌ Fehler beim Speichern der Build-Historie:', error);
@@ -130,7 +130,7 @@ export const deleteBuildFromHistory = async (jobId: string): Promise<void> => {
  */
 export const clearBuildHistory = async (): Promise<void> => {
   try {
-    await AsyncStorage.removeItem(BUILD_HISTORY_KEY);
+    await AsyncStorage.removeItem(STORAGE_KEYS.BUILD_HISTORY);
     console.log('🗑️ Build-Historie gelöscht');
   } catch (error) {
     console.error('❌ Fehler beim Löschen der Build-Historie:', error);

@@ -24,8 +24,11 @@ export default function ConnectionsScreen() {
     // Connection lights
     githubOk,
     githubUser,
+    githubScopes,
     supabaseOk,
     expoOk,
+    expoUser,
+    easOk,
 
     // Tokens
     githubToken,
@@ -63,6 +66,7 @@ export default function ConnectionsScreen() {
     saveAll,
     testGitHub,
     testSupabase,
+    testExpo,
   } = useConnectionsScreen();
 
   return (
@@ -82,8 +86,11 @@ export default function ConnectionsScreen() {
           easProjectId={easProjectId}
           githubOk={githubOk}
           githubUser={githubUser}
+          githubScopes={githubScopes}
           supabaseOk={supabaseOk}
           expoOk={expoOk}
+          expoUser={expoUser}
+          easOk={easOk}
           onNavigateRepos={() => navigation.navigate("GitHubRepos")}
           onNavigateDiagnostic={() => navigation.navigate("Diagnostic")}
         />
@@ -105,6 +112,7 @@ export default function ConnectionsScreen() {
           onToggleShowEdge={() => setShowEdge((p) => !p)}
           onSave={saveAll}
           onTestGitHub={testGitHub}
+          onTestExpo={testExpo}
         />
 
         <SupabaseCard

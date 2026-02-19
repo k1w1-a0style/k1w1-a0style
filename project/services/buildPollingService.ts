@@ -5,12 +5,10 @@
 // - Normalizes HTTP and JSON-parse errors into a simple result type.
 // - Network/timeout errors are thrown (so callers can handle retry/backoff).
 
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-import { CONFIG } from "../../config";
 import { getEdgeAdminKey } from "../../infra/github/githubService";
 import { mapBuildStatus } from "../../lib/buildStatusMapper";
-import { STORAGE_KEYS } from "../../lib/storageKeys";
+import { getSupabaseEdgeUrl } from "../../lib/supabaseEdge";
+import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
 import type { BuildStatus, BuildStatusDetails } from "../../shared/types/build";
 
 export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
@@ -28,26 +26,6 @@ export type PollBuildResult =
       statusCode?: number;
       raw?: unknown;
     };
-
-export async function getSupabaseEdgeUrl(): Promise<string> {
-  const storedUrl = await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).catch(
-    () => null,
-  );
-
-  const runtimeUrl =
-    storedUrl ||
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ((typeof process !== "undefined"
-      ? (process as any).env?.EXPO_PUBLIC_SUPABASE_URL
-      : null) as string | null) ||
-    null;
-
-  if (runtimeUrl) {
-    return `${runtimeUrl.replace(/\/$/, "")}/functions/v1`;
-  }
-
-  return CONFIG.API.SUPABASE_EDGE_URL;
-}
 
 export async function fetchWithTimeout(
   url: string,
@@ -89,7 +67,7 @@ export async function pollBuildStatusOnce(
   const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
 
   const res = await fetchWithTimeout(
-    `${edgeUrl}/check-eas-build`,
+    `${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.CHECK_EAS_BUILD}`,
     {
       method: "POST",
       headers: {

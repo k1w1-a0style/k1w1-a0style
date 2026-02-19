@@ -127,3 +127,7 @@ npx expo start -c
 - `supabase/functions/preview_page/*`
 - `supabase/functions/create_codesandbox/*`
 - `supabase/migrations/*previews*.sql`
+
+## Aktueller Patch-Status
+- Zuletzt: Patch 216
+- Nächster: Patch 217 (siehe `docs/patches/patch_217.md`)

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useProject } from "../contexts/ProjectContext";
 import { buildSandpackHtml } from "../lib/sandpackBuilder";
 import { ensureSupabaseClient } from "../lib/supabase";
+import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
 import { getEdgeAdminKey } from "../infra/github/githubService";
 import type { PreviewFiles, PreviewResponse } from "../types/preview";
 
@@ -436,7 +437,7 @@ if (container) {
           };
 
           const { data, error: fnError } = await promiseWithTimeout(
-            supabase.functions.invoke("save_preview", invokeOpts),
+            supabase.functions.invoke(SUPABASE_EDGE_FUNCTIONS.SAVE_PREVIEW, invokeOpts),
             12_000,
             "Supabase Preview Timeout (12s)",
           );

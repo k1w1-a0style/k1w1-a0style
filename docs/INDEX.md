@@ -24,3 +24,6 @@ Im Root sollten nur die wichtigsten Einstiegspunkte liegen:
 - `AGENTS.md`, `AI_START_HERE.md` (Arbeits- / KI-Startpunkte)
 
 Alles andere: bitte nach `docs/` verschieben (oder löschen, wenn es nur temporäre Patch-Hilfsdateien waren).
+- Patch 217 (pending/apply): `docs/patches/patch_217.md`
+
+## Patches

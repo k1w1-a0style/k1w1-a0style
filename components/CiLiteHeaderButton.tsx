@@ -23,6 +23,7 @@ import * as Clipboard from "expo-clipboard";
 import { theme } from "../theme";
 import { getGitHubToken } from "../infra/github/tokenStore";
 import { getSupabaseEdgeUrl } from "../lib/supabaseEdge";
+import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
 import { useGitHub } from "../contexts/GitHubContext";
 import { useProject } from "../contexts/ProjectContext";
 import { deleteRepoFile, getDefaultBranch, getEdgeAdminKey, pushFilesToRepo } from "../infra/github/githubService";
@@ -282,13 +283,20 @@ export default function CiLiteHeaderButton(): React.ReactElement {
     }
   }, []);
 
+  // Cleanup: stop poll interval on component unmount (prevents memory leak)
+  useEffect(() => {
+    return () => {
+      stopPolling();
+    };
+  }, [stopPolling]);
+
   const findRunByJobId = useCallback(
     async (opts: { githubRepo: string; branch: string; jobId: string; workflow: string }) => {
       const { githubRepo, branch, jobId, workflow } = opts;
       const edgeUrl = await getSupabaseEdgeUrl();
       const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
 
-      const r = await fetch(`${edgeUrl}/github-workflow-runs`, {
+      const r = await fetch(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_RUNS}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -682,129 +690,9 @@ useEffect(() => {
         );
       });
     },
-    [projectData, patchBusy, validatePatchText, deleteFile, updateProjectFiles],
+    // Added githubRepo + branch: used for auto-sync push inside applyPatchFromText
+    [projectData, patchBusy, validatePatchText, deleteFile, updateProjectFiles, githubRepo, branch],
   );
-
-  const topContent = useMemo(() => {
-    return (
-      <View style={styles.summaryBox}>
-        <Text style={styles.summaryTitle}>CI Lite</Text>
-        <Text style={styles.summaryLine} numberOfLines={2}>
-          Repo: {githubRepo || "(kein Repo)"}
-        </Text>
-        <Text style={styles.summaryLine} numberOfLines={1}>
-          Branch: {targetRef || branch || "(auto)"}
-        </Text>
-        {jobId ? (
-          <Text style={styles.summaryLine} numberOfLines={1}>
-            job_id: {jobId}
-          </Text>
-        ) : null}
-
-        <View style={styles.stepsRow}>
-          <StepPill label="ESLint" state={stepInfo.lint} />
-          <StepPill label="Typecheck" state={stepInfo.typecheck} />
-        </View>
-
-        {(stepInfo.eslintErrors > 0 || stepInfo.tsErrors > 0) ? (
-          <Text style={styles.findings}>
-            Funde: ESLint {stepInfo.eslintErrors} | TS {stepInfo.tsErrors}
-          </Text>
-        ) : null}
-
-        {workflowRun?.status ? (
-          <Text style={styles.summaryHint}>
-            Status: {workflowRun.status}
-            {workflowRun.conclusion ? ` / ${workflowRun.conclusion}` : ""}
-          </Text>
-        ) : null}
-
-        {patchPanelOpen ? (
-          <View style={styles.patchPanel}>
-            <View style={styles.patchHeadRow}>
-              <Text style={styles.patchTitle}>Apply Patch (JSON)</Text>
-              <Pressable
-                onPress={pastePatchFromClipboard}
-                style={({ pressed }) => [styles.patchMiniBtn, pressed && styles.patchMiniBtnPressed]}
-                accessibilityRole="button"
-                accessibilityLabel="Paste patch from clipboard"
-              >
-                <Text style={styles.patchMiniBtnText}>Paste</Text>
-              </Pressable>
-            </View>
-
-            <TextInput
-              value={patchText}
-              onChangeText={setPatchText}
-              placeholder='{"upsert":[{"path":"...","content":"..."}]}'
-              placeholderTextColor={theme.palette.text.secondary}
-              multiline
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={styles.patchInput}
-            />
-
-            <View style={styles.patchActionsRow}>
-              <Pressable
-                onPress={validatePatchAndShow}
-                style={({ pressed }) => [styles.patchBtn, pressed && styles.patchBtnPressed]}
-                accessibilityRole="button"
-                accessibilityLabel="Validate patch"
-              >
-                <Text style={styles.patchBtnText}>Validate</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={applyPatchFromText}
-                disabled={patchBusy}
-                style={({ pressed }) => [
-                  styles.patchBtn,
-                  styles.patchBtnPrimary,
-                  (pressed && !patchBusy) && styles.patchBtnPressed,
-                  patchBusy && styles.patchBtnDisabled,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Apply patch"
-                accessibilityState={{ disabled: patchBusy }}
-              >
-                <Text style={styles.patchBtnText}>{patchBusy ? "Applying…" : "Apply"}</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => setPatchPanelOpen(false)}
-                style={({ pressed }) => [styles.patchBtn, pressed && styles.patchBtnPressed]}
-                accessibilityRole="button"
-                accessibilityLabel="Close patch panel"
-              >
-                <Text style={styles.patchBtnText}>Close</Text>
-              </Pressable>
-            </View>
-
-            {patchInfo ? (
-              <Text style={styles.patchInfo} numberOfLines={8}>
-                {safeUi(patchInfo)}
-              </Text>
-            ) : null}
-          </View>
-        ) : null}
-      </View>
-    );
-  }, [
-    githubRepo,
-    branch,
-    targetRef,
-    jobId,
-    stepInfo,
-    workflowRun?.status,
-    workflowRun?.conclusion,
-    patchPanelOpen,
-    patchText,
-    patchBusy,
-    patchInfo,
-    pastePatchFromClipboard,
-    validatePatchAndShow,
-    applyPatchFromText,
-  ]);
 
 
   const dispatchWorkflow = useCallback(
@@ -863,7 +751,7 @@ useEffect(() => {
           },
         };
 
-        const r = await fetch(`${edgeUrl}/github-workflow-dispatch`, {
+        const r = await fetch(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_DISPATCH}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -922,7 +810,6 @@ useEffect(() => {
     [
       githubRepo,
       branch,
-      projectData?.files,
       stopPolling,
       findRunByJobId,
     ],
@@ -1345,12 +1232,7 @@ const styles = StyleSheet.create({
   iconBtnPressed: {
     backgroundColor: theme.palette.userBubble.background,
   },
-  ciBtn: {
-    borderWidth: HAIRLINE,
-    borderColor: `${theme.palette.primary}66`,
-    backgroundColor: theme.palette.userBubble.background,
-    ...theme.glow.primarySubtle,
-  },
+  // ciBtn: removed – was defined but never used in JSX
   ciBtnRunning: {
     borderColor: theme.palette.primary,
     ...theme.glow.primary,
@@ -1530,120 +1412,6 @@ const styles = StyleSheet.create({
   stepText: {
     color: theme.palette.text.primary,
     fontWeight: "800",
-    fontSize: 12,
-  },
-  summaryBox: {
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    backgroundColor: theme.palette.background,
-    borderRadius: 16,
-    padding: 12,
-  },
-  summaryTitle: {
-    color: theme.palette.text.primary,
-    fontWeight: "900",
-    fontSize: 13,
-    marginBottom: 6,
-  },
-  summaryLine: {
-    color: theme.palette.text.secondary,
-    fontSize: 12,
-    marginBottom: 3,
-  },
-  stepsRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 8,
-  },
-  findings: {
-    color: theme.palette.text.secondary,
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  summaryHint: {
-    color: theme.palette.text.secondary,
-    fontSize: 12,
-    marginTop: 6,
-  },
-  patchPanel: {
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    backgroundColor: theme.palette.background,
-    borderRadius: 16,
-    padding: 10,
-  },
-  patchHeadRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  patchTitle: {
-    color: theme.palette.text.primary,
-    fontWeight: "900",
-    fontSize: 12,
-  },
-  patchMiniBtn: {
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    backgroundColor: theme.palette.card,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-  },
-  patchMiniBtnPressed: {
-    opacity: 0.85,
-  },
-  patchMiniBtnText: {
-    color: theme.palette.text.primary,
-    fontWeight: "900",
-    fontSize: 12,
-  },
-  patchInput: {
-    minHeight: 90,
-    maxHeight: 180,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    backgroundColor: theme.palette.card,
-    borderRadius: 12,
-    padding: 10,
-    color: theme.palette.text.primary,
-    fontSize: 12,
-  },
-  patchActionsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 10,
-  },
-  patchBtn: {
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    backgroundColor: theme.palette.card,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-  },
-  patchBtnPrimary: {
-    borderColor: theme.palette.primary,
-    backgroundColor: theme.palette.primary,
-    ...(theme.glow.primarySubtle as any),
-  },
-  patchBtnPressed: {
-    opacity: 0.85,
-  },
-  patchBtnDisabled: {
-    opacity: 0.55,
-  },
-  patchBtnText: {
-    color: theme.palette.text.primary,
-    fontWeight: "900",
-    fontSize: 12,
-  },
-  patchInfo: {
-    marginTop: 10,
-    color: theme.palette.text.secondary,
     fontSize: 12,
   },
   errorBox: {

@@ -1,7 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const KEY_PERSIST_CHAT = "k1w1_chat_persist_history";
-const KEY_CHAT_RETENTION = "k1w1_chat_retention_limit";
+import { STORAGE_KEYS } from "./storageKeys";
 
 const DEFAULT_PERSIST = true;
 const DEFAULT_RETENTION = 200;
@@ -16,7 +15,7 @@ function parseBool(value: string | null): boolean | null {
 
 export async function getChatHistoryPersistence(): Promise<boolean> {
   try {
-    const raw = await AsyncStorage.getItem(KEY_PERSIST_CHAT);
+    const raw = await AsyncStorage.getItem(STORAGE_KEYS.CHAT_PERSIST_HISTORY);
     const parsed = parseBool(raw);
     return parsed ?? DEFAULT_PERSIST;
   } catch {
@@ -26,7 +25,7 @@ export async function getChatHistoryPersistence(): Promise<boolean> {
 
 export async function setChatHistoryPersistence(enabled: boolean): Promise<void> {
   try {
-    await AsyncStorage.setItem(KEY_PERSIST_CHAT, enabled ? "1" : "0");
+    await AsyncStorage.setItem(STORAGE_KEYS.CHAT_PERSIST_HISTORY, enabled ? "1" : "0");
   } catch {
     // best-effort (privacy toggle should never crash)
   }
@@ -34,7 +33,7 @@ export async function setChatHistoryPersistence(enabled: boolean): Promise<void>
 
 export async function getChatHistoryRetentionLimit(): Promise<number> {
   try {
-    const raw = await AsyncStorage.getItem(KEY_CHAT_RETENTION);
+    const raw = await AsyncStorage.getItem(STORAGE_KEYS.CHAT_RETENTION_LIMIT);
     // IMPORTANT: missing key => null. Number(null) === 0 would wipe history.
     if (raw == null) return DEFAULT_RETENTION;
     const trimmed = raw.trim();
@@ -52,7 +51,7 @@ export async function setChatHistoryRetentionLimit(limit: number): Promise<void>
   const safeLimit =
     Number.isFinite(limit) && limit >= 0 ? Math.floor(limit) : DEFAULT_RETENTION;
   try {
-    await AsyncStorage.setItem(KEY_CHAT_RETENTION, String(safeLimit));
+    await AsyncStorage.setItem(STORAGE_KEYS.CHAT_RETENTION_LIMIT, String(safeLimit));
   } catch {}
 }
 

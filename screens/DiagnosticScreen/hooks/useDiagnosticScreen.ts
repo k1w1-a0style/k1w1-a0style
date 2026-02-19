@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { Alert, LayoutAnimation, Platform, UIManager } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 
 import type { BuildMode } from "../../../components/diagnostics/ModeSelector";
@@ -264,7 +265,7 @@ export function useDiagnosticScreen(opts: {
           setProgressStage(null);
           // Persist diagnostic status
           const hasFails = all.some((r) => r.status === "fail");
-          await AsyncStorage.setItem("diagnostic_last_ok", hasFails ? "false" : "true").catch(() => {});
+          await AsyncStorage.setItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK, hasFails ? "false" : "true").catch(() => {});
         }
       } catch (e: any) {
         Alert.alert("Diagnostics fehlgeschlagen", e?.message || "Unbekannter Fehler");

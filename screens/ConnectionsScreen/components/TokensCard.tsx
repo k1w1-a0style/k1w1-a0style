@@ -23,6 +23,7 @@ export function TokensCard(props: {
   onToggleShowEdge: () => void;
   onSave: () => void;
   onTestGitHub: () => void;
+  onTestExpo: () => void;
 }) {
   const {
     styles,
@@ -41,6 +42,7 @@ export function TokensCard(props: {
     onToggleShowEdge,
     onSave,
     onTestGitHub,
+    onTestExpo,
   } = props;
 
   return (
@@ -95,13 +97,24 @@ export function TokensCard(props: {
           icon="save-outline"
           onPress={onSave}
         />
+      </View>
+
+      <View style={styles.row}>
         <ActionButton
           styles={styles}
           busy={busy}
           label="GitHub testen"
-          icon="checkmark-done-outline"
+          icon="logo-github"
           variant="ghost"
           onPress={onTestGitHub}
+        />
+        <ActionButton
+          styles={styles}
+          busy={busy}
+          label="Expo testen"
+          icon="checkmark-circle-outline"
+          variant="ghost"
+          onPress={onTestExpo}
         />
       </View>
     </View>

@@ -11,6 +11,7 @@ import {
   getDefaultBranch,
   pushFilesToRepo,
 } from "../../infra/github/githubService";
+import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
 
 export type StartBuildProfile = "development" | "preview" | "production";
 
@@ -103,7 +104,7 @@ export async function startBuildJob(params: {
   }
 
   const { data, error } = await supabase.functions.invoke(
-    "trigger-eas-build",
+    SUPABASE_EDGE_FUNCTIONS.TRIGGER_EAS_BUILD,
     invokeOpts,
   );
 
@@ -119,12 +120,12 @@ export async function startBuildJob(params: {
           : null;
 
   if (!jobId) {
-    throw new Error("trigger-eas-build lieferte keine gueltige Job-ID zurueck.");
+    throw new Error(`${SUPABASE_EDGE_FUNCTIONS.TRIGGER_EAS_BUILD} lieferte keine gueltige Job-ID zurueck.`);
   }
 
   if (!isUuid(jobId)) {
     throw new Error(
-      `trigger-eas-build lieferte eine ungueltige Job-ID (UUID erwartet): ${jobId}`,
+      `${SUPABASE_EDGE_FUNCTIONS.TRIGGER_EAS_BUILD} lieferte eine ungueltige Job-ID (UUID erwartet): ${jobId}`,
     );
   }
 

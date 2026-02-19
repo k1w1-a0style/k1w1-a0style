@@ -60,8 +60,9 @@ function StatusRow(props: {
   ok: boolean;
   value?: string;
   accountName?: string;
+  detail?: string;
 }) {
-  const { label, ok, value, accountName } = props;
+  const { label, ok, value, accountName, detail } = props;
   return (
     <View style={s.statusRow}>
       <ConnectionLight ok={ok} />
@@ -69,6 +70,11 @@ function StatusRow(props: {
         <Text style={s.statusLabel}>{label}</Text>
         {accountName ? (
           <Text style={s.accountName}>@{accountName}</Text>
+        ) : null}
+        {detail ? (
+          <Text style={s.detailLine} numberOfLines={2}>
+            {detail}
+          </Text>
         ) : null}
       </View>
       {value ? (
@@ -102,8 +108,11 @@ export function StatusCard(props: {
   easProjectId: string;
   githubOk?: boolean;
   githubUser?: string;
+  githubScopes?: string;
   supabaseOk?: boolean;
   expoOk?: boolean;
+  expoUser?: string;
+  easOk?: boolean;
   onNavigateRepos: () => void;
   onNavigateDiagnostic: () => void;
 }) {
@@ -116,8 +125,11 @@ export function StatusCard(props: {
     easProjectId,
     githubOk,
     githubUser,
+    githubScopes,
     supabaseOk,
     expoOk,
+    expoUser,
+    easOk,
     onNavigateRepos,
     onNavigateDiagnostic,
   } = props;
@@ -133,10 +145,12 @@ export function StatusCard(props: {
         label="GitHub"
         ok={githubOk ?? status.gh}
         accountName={githubUser || undefined}
+        detail={githubScopes ? `Scopes: ${githubScopes}` : undefined}
       />
       <StatusRow
-        label="Expo / EAS"
+        label="Expo"
         ok={expoOk ?? status.ex}
+        accountName={expoUser || undefined}
       />
       <StatusRow
         label="Supabase"
@@ -150,7 +164,7 @@ export function StatusCard(props: {
       />
       <StatusRow
         label="EAS Project"
-        ok={status.eas}
+        ok={easOk ?? status.eas}
         value={status.eas ? easProjectId : undefined}
       />
 
@@ -233,6 +247,13 @@ const s = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
+  detailLine: {
+    marginTop: 2,
+    color: theme.palette.text.muted,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
   accountName: {
     color: theme.palette.primary,
     fontSize: 11,

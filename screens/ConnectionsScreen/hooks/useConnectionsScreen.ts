@@ -41,16 +41,28 @@ export function useConnectionsScreen() {
   // Persistent connection lights
   const [githubOk, setGithubOk] = useState(false);
   const [githubUser, setGithubUser] = useState("");
+  const [githubScopes, setGithubScopes] = useState("");
   const [supabaseOk, setSupabaseOk] = useState(false);
+  const [supabaseRef, setSupabaseRef] = useState("" );
   const [expoOk, setExpoOk] = useState(false);
+  const [expoUser, setExpoUser] = useState("" );
+  const [easOk, setEasOk] = useState(false);
+  const [repoOk, setRepoOk] = useState(false);
+  const [repoOkLine, setRepoOkLine] = useState("" );
 
   // Tokens
   const [githubToken, setGithubToken] = useState("");
   const [expoToken, setExpoToken] = useState("");
 
-  // Expo connection light is derived from the current token (no stale persistence).
+  // Expo connection light is persisted (set by explicit "Test Expo"),
+  // but we force it OFF if the token is cleared.
   useEffect(() => {
-    setExpoOk(!!expoToken.trim());
+    if (!expoToken.trim()) {
+      setExpoOk(false);
+      setExpoUser("");
+      AsyncStorage.setItem(STORAGE_KEYS.CONN_EXPO_OK, "false").catch(() => {});
+      AsyncStorage.removeItem(STORAGE_KEYS.CONN_EXPO_USER).catch(() => {});
+    }
   }, [expoToken]);
 
   const [edgeAdminKey, setEdgeAdminKeyState] = useState("");
@@ -110,10 +122,17 @@ export function useConnectionsScreen() {
       ]);
 
       // Load persistent connection lights
-      const [ghOk, ghUserStored, sbOk] = await Promise.all([
+      const [ghOk, ghUserStored, sbOk, sbRefStored, exOk, exUserStored, easOkStored, repoOkStored, repoSlug, repoBranch] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_OK).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_USER).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_SUPABASE_OK).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_SUPABASE_REF).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_EXPO_OK).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_EXPO_USER).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_EAS_OK).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_REPO_OK).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_REPO_SLUG).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_REPO_BRANCH).catch(() => null),
       ]);
 
       // Legacy migration: AsyncStorage -> SecureStore
@@ -133,7 +152,6 @@ export function useConnectionsScreen() {
       if (!mounted) return;
       setGithubToken(gh || "");
       setExpoToken(ex || "");
-      setExpoOk(!!(ex || "").trim());
       setEdgeAdminKeyState(edge || "");
       setSupabaseRaw(raw || "");
       setSupabaseUrl(url || "");
@@ -145,6 +163,13 @@ export function useConnectionsScreen() {
       if (ghOk === "true") setGithubOk(true);
       if (ghUserStored) setGithubUser(ghUserStored);
       if (sbOk === "true") setSupabaseOk(true);
+      if (sbRefStored) setSupabaseRef(sbRefStored);
+      if (exOk === "true") setExpoOk(true);
+      if (exUserStored) setExpoUser(exUserStored);
+      if (easOkStored === "true") setEasOk(true);
+      if (repoOkStored === "true") setRepoOk(true);
+      const repoLineStored = [repoSlug || "", repoBranch || ""].filter(Boolean).join(" (") + (repoBranch ? ")" : "");
+      if (repoSlug) setRepoOkLine(repoLineStored);
     })();
 
     return () => {
@@ -232,12 +257,20 @@ export function useConnectionsScreen() {
       if (!resp.ok) throw new Error(`GitHub Test failed (${resp.status})`);
       const userData = await resp.json().catch(() => ({}));
       const login = userData?.login || "";
+      const scopesHeader = resp.headers.get("x-oauth-scopes") || resp.headers.get("X-OAuth-Scopes") || "";
+      const scopes = String(scopesHeader || "").trim();
       // Persist connection status
       setGithubOk(true);
       setGithubUser(login);
       await AsyncStorage.setItem(STORAGE_KEYS.CONN_GITHUB_OK, "true").catch(() => {});
       await AsyncStorage.setItem(STORAGE_KEYS.CONN_GITHUB_USER, login).catch(() => {});
-      Alert.alert("GitHub OK", `Verbunden als: ${login || "OK"}`);
+      setGithubScopes(scopes);
+      if (scopes) {
+        await AsyncStorage.setItem(STORAGE_KEYS.CONN_GITHUB_SCOPES, scopes).catch(() => {});
+      } else {
+        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_GITHUB_SCOPES).catch(() => {});
+      }
+      Alert.alert("GitHub OK", `Verbunden als: ${login || "OK"}${scopes ? `\nScopes: ${scopes}` : ""}`);
     } catch (e: any) {
       setGithubOk(false);
       await AsyncStorage.setItem(STORAGE_KEYS.CONN_GITHUB_OK, "false").catch(() => {});
@@ -246,6 +279,39 @@ export function useConnectionsScreen() {
       setBusy(false);
     }
   }, [githubToken]);
+
+  const testExpo = useCallback(async () => {
+    const ex = expoToken.trim();
+    if (!ex) return Alert.alert("Fehlt", "Expo / EAS Token fehlt.");
+    setBusy(true);
+    try {
+      // Expo token verification (best-effort).
+      // We keep this defensive: if Expo changes endpoints, we show a clear error.
+      const resp = await fetch("https://exp.host/--/api/v2/auth/user", {
+        headers: { Authorization: `Bearer ${ex}` },
+      });
+      if (!resp.ok) throw new Error(`Expo Test failed (${resp.status})`);
+      const data = await resp.json().catch(() => ({}));
+      const username = data?.data?.username || data?.username || data?.data?.user?.username || "";
+      setExpoOk(true);
+      setExpoUser(username || "");
+      await AsyncStorage.setItem(STORAGE_KEYS.CONN_EXPO_OK, "true").catch(() => {});
+      if (username) {
+        await AsyncStorage.setItem(STORAGE_KEYS.CONN_EXPO_USER, username).catch(() => {});
+      } else {
+        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_EXPO_USER).catch(() => {});
+      }
+      Alert.alert("Expo OK", username ? `Verbunden als: ${username}` : "Token ist gueltig.");
+    } catch (e: any) {
+      setExpoOk(false);
+      setExpoUser("");
+      await AsyncStorage.setItem(STORAGE_KEYS.CONN_EXPO_OK, "false").catch(() => {});
+      await AsyncStorage.removeItem(STORAGE_KEYS.CONN_EXPO_USER).catch(() => {});
+      Alert.alert("Expo Test", safeAlertText(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [expoToken]);
 
   const testSupabase = useCallback(async () => {
     const url = supabaseUrl.trim();
@@ -294,6 +360,15 @@ export function useConnectionsScreen() {
       );
       setSupabaseOk(true);
       await AsyncStorage.setItem(STORAGE_KEYS.CONN_SUPABASE_OK, "true").catch(() => {});
+      // Store project ref (subdomain) for UX display
+      try {
+        const host = url.replace(/^https?:\/\//, "").split("/")[0] || "";
+        const ref = host.endsWith(".supabase.co") ? host.split(".")[0] : "";
+        if (ref) {
+          setSupabaseRef(ref);
+          await AsyncStorage.setItem(STORAGE_KEYS.CONN_SUPABASE_REF, ref).catch(() => {});
+        }
+      } catch {}
     } catch (e: any) {
       setSupabaseOk(false);
       await AsyncStorage.setItem(STORAGE_KEYS.CONN_SUPABASE_OK, "false").catch(() => {});
@@ -353,35 +428,65 @@ export function useConnectionsScreen() {
     }
 
     const easId = easProjectId.trim();
+
+    const runLink = async (projectId: string) => {
+      setIsEasInitRunning(true);
+      try {
+        // Persist token + (optional) EAS id so andere Teile der App die gleichen Werte nutzen
+        await saveGitHubToken(token);
+        if (projectId) {
+          await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, projectId).catch(() => null);
+        } else {
+          // We are creating a new EAS Project ID in the workflow.
+          // The generated id will be committed to eas-project.json in the repo.
+          await AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID).catch(() => null);
+        }
+
+        await autoFixCIWorkflows({ owner: parsed.owner, repo: parsed.repo, branch });
+
+        await triggerWorkflow(parsed.owner, parsed.repo, "eas-link.yml", branch, {
+          ref: branch,
+          eas_project_id: projectId,
+        });
+
+        Alert.alert(
+          "OK",
+          projectId
+            ? "EAS Link-Workflow gestartet. Check GitHub Actions (eas-link)."
+            : "Keine EAS ID vorhanden. Init+Link Workflow gestartet (erstellt eine neue Project ID).\n\nNach Abschluss: Sync drücken, damit die App die neue ID aus dem Repo übernimmt.",
+        );
+
+        // Persist UX lights (best-effort): token saved above
+        setEasOk(true);
+        await AsyncStorage.setItem(STORAGE_KEYS.CONN_EAS_OK, "true").catch(() => {});
+
+        if (repoSlug) {
+          setRepoOk(true);
+          setRepoOkLine(`${repoSlug}${branch ? ` (${branch})` : ""}`);
+          await AsyncStorage.setItem(STORAGE_KEYS.CONN_REPO_OK, "true").catch(() => {});
+          await AsyncStorage.setItem(STORAGE_KEYS.CONN_REPO_SLUG, repoSlug).catch(() => {});
+          await AsyncStorage.setItem(STORAGE_KEYS.CONN_REPO_BRANCH, branch).catch(() => {});
+        }
+      } catch (e: any) {
+        Alert.alert("Fehler", safeAlertText(e));
+      } finally {
+        setIsEasInitRunning(false);
+      }
+    };
+
     if (!easId) {
-      Alert.alert("Fehler", "Bitte zuerst eine EAS Project ID eingeben.");
+      Alert.alert(
+        "Keine EAS ID vorhanden!",
+        "Soll eine erstellt werden?",
+        [
+          { text: "Abbrechen", style: "cancel" },
+          { text: "OK", onPress: () => void runLink("") },
+        ],
+      );
       return;
     }
 
-    setIsEasInitRunning(true);
-    try {
-      // Persist token + EAS id so andere Teile der App die gleichen Werte nutzen
-      await saveGitHubToken(token);
-      await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, easId).catch(
-        () => null,
-      );
-
-      await autoFixCIWorkflows({ owner: parsed.owner, repo: parsed.repo, branch });
-
-      await triggerWorkflow(parsed.owner, parsed.repo, "eas-link.yml", branch, {
-        ref: branch,
-        eas_project_id: easId,
-      });
-
-      Alert.alert(
-        "OK",
-        "EAS Link-Workflow gestartet. Check GitHub Actions (eas-link).",
-      );
-    } catch (e: any) {
-      Alert.alert("Fehler", safeAlertText(e));
-    } finally {
-      setIsEasInitRunning(false);
-    }
+    await runLink(easId);
   }, [
     isEasInitRunning,
     githubToken,
@@ -450,8 +555,14 @@ export function useConnectionsScreen() {
     // Connection lights (persistent)
     githubOk,
     githubUser,
+    githubScopes,
     supabaseOk,
     expoOk,
+    expoUser,
+    easOk,
+    repoOk,
+    repoOkLine,
+    supabaseRef,
 
     // Repo/status
     status,
@@ -494,5 +605,6 @@ export function useConnectionsScreen() {
     saveAll,
     testGitHub,
     testSupabase,
+    testExpo,
   };
 }

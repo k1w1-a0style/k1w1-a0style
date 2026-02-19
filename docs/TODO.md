@@ -8,6 +8,16 @@ Stand: **2026-02-19**
 
 ## Aktuell (als Nächstes abarbeiten)
 
+> **Nächster Schritt:** Patch **217** anwenden (`k1w1-a0style_patch_217_FIXED.zip`) – setzt **Patch A+B+C** aus dieser Liste um.
+> Danach können die Checkboxen A/B/C unten abgehakt werden.
+
+### Patch 217 — Apply `k1w1-a0style_patch_217_FIXED.zip`
+- [ ] Patch anwenden: `k1w1-a0style_patch_217_FIXED.zip` (enthält Code + Docs (MD) Updates)
+- [ ] Danach laufen lassen: `npm run typecheck && npm run lint:ci && npm run test:silent`
+- [ ] Wenn grün: TODO-Items **A1–A3**, **B1–B3**, **C1–C3** unten abhaken
+- [ ] Wenn rot: Fehlerlog ins Issue / Checklog kopieren (1:1), dann fixen
+
+
 > Ziel: **alles was zu tun ist steht hier**, so dass man es stumpf abhaken kann.
 
 ### Patch A — CI Lite Bugfix (🔥 zuerst)
@@ -202,3 +212,22 @@ Stand: **2026-02-19**
 
 - [x] Patch 112: Workflow YAML fix + managed workflow updates
 - [x] Patch 112: Managed workflow updates + YAML colon-in-name fix for k1w1-triggered-build
+
+
+### Patch 217 — Connection Screen SoT (Teil von Patch 217)
+
+**E1 — EAS Link Workflow = Source of Truth (persistent)**
+- [ ] Screen: `screens/ConnectionsScreen/*`
+- [ ] Wenn EAS Project ID leer: Confirm-Dialog "Keine EAS ID vorhanden! Soll eine erstellt werden?" mit `[Abbrechen] [OK]`
+- [ ] Bei OK: starte `eas-link.yml` ohne `eas_project_id` (Workflow erstellt/verlinkt und committed `eas-project.json`)
+- [ ] Akzeptanz: Nach erfolgreichem Workflow wird Status-Lampe **grün** und bleibt persistent (`STORAGE_KEYS.CONN_EAS_OK`).
+
+**E2 — Repo/Supabase/Expo Status persistent**
+- [ ] Persistente Lampen über `lib/storageKeys.ts` (`CONN_REPO_*`, `CONN_SUPABASE_OK`, `CONN_SUPABASE_REF`, `CONN_EXPO_OK`, `CONN_EXPO_USER`)
+- [ ] Akzeptanz: App neu starten → Status bleibt korrekt.
+
+**E3 — GitHub: Username + optional Scopes anzeigen**
+- [ ] Nach GitHub-Test: Username speichern + anzeigen (`CONN_GITHUB_USER`)
+- [ ] Optional: Token-Scopes aus `x-oauth-scopes` speichern + anzeigen (`CONN_GITHUB_SCOPES`)
+- [ ] Akzeptanz: Wenn Header fehlt → UI zeigt nichts kaputt, nur keine Scopes.
+

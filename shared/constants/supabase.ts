@@ -6,6 +6,8 @@ export const SUPABASE_EDGE_FUNCTIONS = {
   GITHUB_WORKFLOW_LOGS: "github-workflow-logs",
   GITHUB_WORKFLOW_DISPATCH: "github-workflow-dispatch",
   TRIGGER_EAS_BUILD: "trigger-eas-build",
+  CHECK_EAS_BUILD: "check-eas-build",
+  SAVE_PREVIEW: "save_preview",
 } as const;
 
 export type SupabaseEdgeFunctionName =

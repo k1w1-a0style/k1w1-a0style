@@ -86,3 +86,7 @@
 ### TypeScript-Hygiene
 - [ ] `any`-Annotationen reduzieren: Start mit `lib/orchestrator.ts` und `contexts/AIContext.tsx`
 - [ ] `contexts/types.ts` Shim-Migration: 36 Imports schrittweise auf `shared/types/*` umstellen
+
+## Patch 217 (pending)
+- Apply `k1w1-a0style_patch_217_FIXED.zip`: CI Lite bugfixes + Supabase edge SoT expansion + Storage key SoT + tokenStore consistency + Connection Screen SoT.
+- Danach: optional Performance-Cleanup in `useBuildStatus` (statusRef) wenn gewünscht.

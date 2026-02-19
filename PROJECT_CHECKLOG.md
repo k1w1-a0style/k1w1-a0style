@@ -23,3 +23,11 @@
 - `buildPollingService`: dupliziert `getSupabaseEdgeUrl` statt `lib/supabaseEdge.ts` zu nutzen.
 - Storage-Key SoT: `diagnostic_last_ok` zentralisieren.
 - TokenStore: SecureStore Error-Handling vereinheitlichen.
+
+## Pending
+- Patch 217: apply `k1w1-a0style_patch_217_FIXED.zip` (CI Lite bugfix + SoT Edge/Storage + Connection Screen SoT). Danach typecheck/lint/tests und TODO abhaken.
+
+
+## Patch 217 (geplant/ausstehend)
+- CI Lite Bugfixes + SoT Edge Functions + SoT Storage Keys
+- Connection Screen: persistenter Verbunden-Status (inkl. EAS Init+Link Warn-Dialog)

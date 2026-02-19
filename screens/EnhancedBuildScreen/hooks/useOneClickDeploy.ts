@@ -12,6 +12,7 @@ import {
   pushFilesToRepo,
 } from "../../../infra/github/githubService";
 import { autoSyncRepoSecrets } from "../../../lib/autoSyncRepoSecrets";
+import { credKeyForProfile } from "../../../lib/storageKeys";
 import type { BuildProfile } from "../types";
 
 export type DeployStepId =
@@ -76,7 +77,9 @@ export function useOneClickDeploy(
       // === Step 1: Signing Key pruefen ===
       updateStep("signing_key", "running");
       const keyMode = buildProfile === "development" ? "dev" : buildProfile;
-      const credKey = `cred_key_exists_${keyMode}`;
+      const credKey = credKeyForProfile(
+        keyMode === "dev" ? "development" : (keyMode as "preview" | "production"),
+      );
       const keyExists = await AsyncStorage.getItem(credKey).catch(() => null);
       if (abortRef.current) return;
 
