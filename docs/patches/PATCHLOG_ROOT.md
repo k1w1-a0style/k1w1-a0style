@@ -7,3 +7,6 @@ This file is append-only. Each patch adds a short entry.
 
 ## Patch 214
 - Fix GitHub repo/branch source-of-truth drift (backup import + CI Lite precedence).
+
+## Patch 215
+- Centralize GitHub AsyncStorage keys + Supabase Edge function names to prevent SoT drift.

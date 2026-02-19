@@ -7,6 +7,8 @@ import React, {
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { GITHUB_STORAGE_KEYS } from "../shared/constants/github";
+
 import { useProject } from "./ProjectContext";
 
 type GitHubContextValue = {
@@ -19,9 +21,9 @@ type GitHubContextValue = {
   clearRecentRepos: () => void;
 };
 
-const RECENT_REPOS_KEY = "k1w1_github_recent_repos";
-const ACTIVE_REPO_KEY = "k1w1_github_active_repo";
-const ACTIVE_BRANCH_KEY = "k1w1_github_active_branch";
+const RECENT_REPOS_KEY = GITHUB_STORAGE_KEYS.RECENT_REPOS;
+const ACTIVE_REPO_KEY = GITHUB_STORAGE_KEYS.ACTIVE_REPO;
+const ACTIVE_BRANCH_KEY = GITHUB_STORAGE_KEYS.ACTIVE_BRANCH;
 
 const GitHubContext = createContext<GitHubContextValue | undefined>(undefined);
 

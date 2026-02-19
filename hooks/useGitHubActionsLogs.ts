@@ -4,6 +4,7 @@ import { getEdgeAdminKey } from "../infra/github/githubService";
 import { getGitHubToken } from "../infra/github/tokenStore";
 import { redactSecrets, truncateWithMarker } from "../lib/secretRedaction";
 import { getSupabaseEdgeUrl } from "../lib/supabaseEdge";
+import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
 
 export interface LogEntry {
   timestamp: string;
@@ -166,19 +167,22 @@ export function useGitHubActionsLogs({
       const clientGithubToken = await getGitHubToken().catch(() => null);
 
       if (!targetRunId) {
-        const runsResponse = await fetch(`${edgeUrl}/github-workflow-runs`, {
+      const runsResponse = await fetch(
+        `${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_RUNS}`,
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
           },
           body: JSON.stringify({ githubRepo, workflowId, githubToken: clientGithubToken ?? undefined }),
-        });
+        },
+      );
 
         if (!runsResponse.ok) {
           throw new Error(
             await describeEdgeFailure({
-              fnName: "github-workflow-runs",
+            fnName: SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_RUNS,
               res: runsResponse,
               edgeUrl,
               hasAdminKey: !!edgeAdminKey,
@@ -205,7 +209,9 @@ export function useGitHubActionsLogs({
       }
 
       // Fetch logs for the workflow run
-      const logsResponse = await fetch(`${edgeUrl}/github-workflow-logs`, {
+      const logsResponse = await fetch(
+        `${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_LOGS}`,
+        {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -217,12 +223,13 @@ export function useGitHubActionsLogs({
           mode: "raw",
           githubToken: clientGithubToken ?? undefined,
         }),
-      });
+        },
+      );
 
       if (!logsResponse.ok) {
         throw new Error(
           await describeEdgeFailure({
-            fnName: "github-workflow-logs",
+            fnName: SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_LOGS,
             res: logsResponse,
             edgeUrl,
             hasAdminKey: !!edgeAdminKey,
