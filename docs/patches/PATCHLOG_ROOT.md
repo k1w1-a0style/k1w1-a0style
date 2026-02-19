@@ -2,6 +2,13 @@
 
 Most recent first.
 
+- Patch 196: `docs/patches/patch_196.md` (Safe cleanup: remove dead files via script)
+
+- Patch 195: `docs/patches/patch_195.md` (Unify Supabase service-role storage key + API key masking)
+
+- Patch 194.1: `docs/patches/patch_194_1.md` (Hotfix: build screen hook parse error)
+
+
 - Patch 194: `docs/patches/patch_194.md` (EnhancedBuildScreen: split helpers + preconditions hook; no behavior change)
 
 - Patch 193: `docs/patches/patch_193.md` (EnhancedBuildScreen: extract run-details fetch helper; reduce duplication)
@@ -68,6 +75,3 @@ Most recent first.
 - Patch 149: `docs/patches/patch_149.md` (PR-3: polling extract + single poller)
 - Patch 148: `docs/patches/patch_148.md` (PR-2: storage move + facade)
 - Patch 147: `docs/patches/patch_147.md` (V3.1 scaffolding)
-- Patch 194.1: hotfix build screen hook parse error
-
-- Patch 195: `docs/patches/patch_195.md` (Storage key cleanup + API key masking unification)
