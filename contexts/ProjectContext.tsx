@@ -13,16 +13,10 @@ import { Alert, AppState, AppStateStatus } from "react-native";
 import { v4 as uuidv4 } from "uuid";
 import { Mutex } from "async-mutex";
 
-import {
-  ProjectData,
-  ProjectFile,
-  ChatMessage,
-  ProjectContextProps,
-  AutoFixRequest,
-  LastPreviewMeta,
-} from "./types";
-
-import type { TemplateId } from "./types";
+import type { ChatMessage } from "../shared/types/chat";
+import type { BuildHistoryEntry } from "../shared/types/build";
+import type { ProjectData, ProjectFile, TemplateId } from "../shared/types/project";
+import type { AutoFixRequest, LastPreviewMeta, ProjectContextProps } from "./types";
 
 import {
   saveProjectToStorage,

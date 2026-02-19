@@ -2,7 +2,11 @@
 
 Most recent first.
 
+- Patch 209: `docs/patches/patch_209.md` (Types: ProjectContext imports shared types directly; shrink contexts/types shim)
 - Patch 208: `docs/patches/patch_208.md` (Docs: refresh handoff + TODO to match current patch state)
+- Patch 207: `docs/patches/patch_207.md` (Tests: stop mocking deleted GitHubReposScreen legacy sections)
+- Patch 206: `docs/patches/patch_206.md` (Cleanup: remove unused legacy screen sections)
+- Patch 205: `docs/patches/patch_205.md` (Cleanup: remove leftover dead-code shims)
 
 - Patch 204: `docs/patches/patch_204.md` (Fix: revert over-aggressive Patch 203 cleanup; keep contexts/types + lib/logger)
 
