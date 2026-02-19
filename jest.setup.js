@@ -2,6 +2,9 @@
 import "react-native-gesture-handler/jestSetup";
 import { cleanup } from "@testing-library/react-native";
 
+// Increase Jest timeout to reduce flakiness in slower CI / RN tests
+jest.setTimeout(20000);
+
 jest.mock("react-native-reanimated", () =>
   require("react-native-reanimated/mock"),
 );

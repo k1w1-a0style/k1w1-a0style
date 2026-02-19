@@ -2,6 +2,8 @@
 
 Most recent first.
 
+- Patch 199: `docs/patches/patch_199.md` (Test infra: set global Jest timeout to reduce flakiness)
+
 - Patch 194: `docs/patches/patch_194.md` (EnhancedBuildScreen: split helpers + preconditions hook; no behavior change)
 
 - Patch 193: `docs/patches/patch_193.md` (EnhancedBuildScreen: extract run-details fetch helper; reduce duplication)
@@ -69,4 +71,3 @@ Most recent first.
 - Patch 148: `docs/patches/patch_148.md` (PR-2: storage move + facade)
 - Patch 147: `docs/patches/patch_147.md` (V3.1 scaffolding)
 - Patch 194.1: hotfix build screen hook parse error
-- Patch 198: `docs/patches/patch_198.md` (Build types import cleanup — use shared/types/build)

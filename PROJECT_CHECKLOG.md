@@ -1,5 +1,6 @@
 # Project Checklog
 
+- Patch 199 (2026-02-19): Test infra — set global Jest timeout to reduce flakiness
 - Patch 194 (2026-02-19): EnhancedBuildScreen — split helpers + preconditions hook (no behavior change)
 - Patch 193 (2026-02-19): EnhancedBuildScreen — extract run-details fetch helper; reduce duplication
 - Patch 192.3 (2026-02-19): Hotfix — stabilize One-Click Deploy tests (prevent hang/timeout)
@@ -76,4 +77,3 @@ Recent changes, most recent first.
 - 2026-02-18: Patch 188 prepared — RepoScreen polish + ignore cleanup.
 - 2026-02-18: Patch 189 hotfix — fix Patch 188 build blockers (JSX syntax + duplicate searchTerm + missing TouchableOpacity import).
 - Patch 194.1: hotfix build screen hook parse error
-- 2026-02-19: Patch 198 — BuildStatus imports moved to `shared/types/build` (reduces re-export drift; no behavior change).
