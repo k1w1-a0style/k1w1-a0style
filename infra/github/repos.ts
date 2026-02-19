@@ -1,4 +1,5 @@
 import { githubLimiter } from "./rateLimit";
+import { githubApiUrl } from "../../shared/constants/github";
 import { getGitHubToken } from "./tokenStore";
 
 export interface GitHubBranch {
@@ -13,7 +14,7 @@ export const createRepo = async (repoName: string, isPrivate = true) => {
 
   await githubLimiter.checkLimit();
 
-  const resp = await fetch("https://api.github.com/user/repos", {
+  const resp = await fetch(githubApiUrl("/user/repos"), {
     method: "POST",
     headers: {
       Accept: "application/vnd.github+json",
@@ -52,7 +53,7 @@ export const createRepo = async (repoName: string, isPrivate = true) => {
     if (status === 422 && alreadyExistsError) {
       console.warn(`Repo '${repoName}' existiert bereits, verwende es.`);
       await githubLimiter.checkLimit();
-      const userResp = await fetch("https://api.github.com/user", {
+      const userResp = await fetch(githubApiUrl("/user"), {
         headers: {
           Accept: "application/vnd.github+json",
           Authorization: `Bearer ${token}`,
@@ -87,7 +88,7 @@ export const deleteRepo = async (
 
   await githubLimiter.checkLimit();
 
-  const resp = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+  const resp = await fetch(githubApiUrl(`/repos/${owner}/${repo}`), {
     method: "DELETE",
     headers: {
       Accept: "application/vnd.github+json",
@@ -118,7 +119,7 @@ export const renameRepo = async (
 
   await githubLimiter.checkLimit();
 
-  const resp = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+  const resp = await fetch(githubApiUrl(`/repos/${owner}/${repo}`), {
     method: "PATCH",
     headers: {
       Accept: "application/vnd.github+json",
@@ -162,8 +163,7 @@ export const createBranch = async (
   await githubLimiter.checkLimit();
 
   const refResp = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(fromBranch)}`,
-    {
+    githubApiUrl(`/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(fromBranch)}`), {
       headers: {
         Accept: "application/vnd.github+json",
         Authorization: `token ${token}`,
@@ -187,8 +187,7 @@ export const createBranch = async (
   await githubLimiter.checkLimit();
 
   const createResp = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/git/refs`,
-    {
+    githubApiUrl(`/repos/${owner}/${repo}/git/refs`), {
       method: "POST",
       headers: {
         Accept: "application/vnd.github+json",
@@ -227,8 +226,7 @@ export const deleteBranch = async (
   await githubLimiter.checkLimit();
 
   const resp = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(b)}`,
-    {
+    githubApiUrl(`/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(b)}`), {
       method: "DELETE",
       headers: {
         Accept: "application/vnd.github+json",
@@ -266,8 +264,7 @@ export const renameBranch = async (
   await githubLimiter.checkLimit();
 
   const resp = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/branches/${encodeURIComponent(from)}/rename`,
-    {
+    githubApiUrl(`/repos/${owner}/${repo}/branches/${encodeURIComponent(from)}/rename`), {
       method: "POST",
       headers: {
         Accept: "application/vnd.github+json",
@@ -304,7 +301,7 @@ export const getBranches = async (
 
   await githubLimiter.checkLimit();
 
-  const url = `https://api.github.com/repos/${owner}/${repo}/branches?per_page=100`;
+  const url = githubApiUrl(`/repos/${owner}/${repo}/branches?per_page=100`);
   const resp = await fetch(url, {
     headers: {
       Accept: "application/vnd.github+json",
@@ -333,7 +330,7 @@ export const getDefaultBranch = async (
 
   await githubLimiter.checkLimit();
 
-  const url = `https://api.github.com/repos/${owner}/${repo}`;
+  const url = githubApiUrl(`/repos/${owner}/${repo}`);
   const resp = await fetch(url, {
     headers: {
       Accept: "application/vnd.github+json",

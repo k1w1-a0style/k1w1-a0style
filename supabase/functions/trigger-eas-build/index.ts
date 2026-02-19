@@ -8,6 +8,7 @@ import {
 } from "../_shared/validation.ts";
 import { githubHeaders, getGithubToken } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
+import { GITHUB_API_BASE } from "../../../shared/constants/github.ts";
 
 function parseCsvEnv(name: string): string[] {
   const raw = (Deno.env.get(name) ?? "").trim();
@@ -125,7 +126,7 @@ serve(async (req) => {
       },
     };
 
-    const r = await fetch(`https://api.github.com/repos/${owner}/${repo}/dispatches`, {
+    const r = await fetch(`${GITHUB_API_BASE}/repos/${owner}/${repo}/dispatches`, {
       method: "POST",
       headers: githubHeaders(GITHUB_TOKEN),
       body: JSON.stringify(payload),

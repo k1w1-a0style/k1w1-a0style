@@ -2,6 +2,7 @@ import { githubLimiter } from "./rateLimit";
 import { encryptSecret } from "./crypto";
 import { ensureGitHubRepoParts } from "./utils";
 import { getGitHubToken } from "./tokenStore";
+import { githubApiUrl } from "../../shared/constants/github";
 
 export type RepoSecretsPayload = Partial<{
   expoToken: string | null | undefined;
@@ -43,7 +44,7 @@ export const syncRepoSecrets = async (
   await githubLimiter.checkLimit();
 
   const keyRes = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/actions/secrets/public-key`,
+    githubApiUrl(`/repos/${owner}/${repo}/actions/secrets/public-key`),
     { headers },
   );
 
@@ -80,7 +81,7 @@ export const syncRepoSecrets = async (
     await githubLimiter.checkLimit();
 
     const putRes = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/actions/secrets/${secretName}`,
+      githubApiUrl(`/repos/${owner}/${repo}/actions/secrets/${secretName}`),
       {
         method: "PUT",
         headers,
@@ -110,7 +111,7 @@ export const listRepoSecretNames = async (
 
   await githubLimiter.checkLimit();
 
-  const url = `https://api.github.com/repos/${owner}/${repo}/actions/secrets?per_page=100`;
+  const url = githubApiUrl(`/repos/${owner}/${repo}/actions/secrets?per_page=100`);
   const resp = await fetch(url, {
     headers: {
       Accept: "application/vnd.github+json",

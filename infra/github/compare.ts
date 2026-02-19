@@ -1,5 +1,6 @@
 import { githubLimiter } from "./rateLimit";
 import { getGitHubToken } from "./tokenStore";
+import { githubApiUrl } from "../../shared/constants/github";
 
 export type GitHubCompareFile = {
   filename: string;
@@ -29,9 +30,11 @@ export async function compareBranches(params: {
 
   await githubLimiter.checkLimit();
 
-  const url = `https://api.github.com/repos/${owner}/${repo}/compare/${encodeURIComponent(
-    base,
-  )}...${encodeURIComponent(head)}?per_page=${perPage}`;
+  const url = githubApiUrl(
+    `/repos/${owner}/${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(
+      head,
+    )}?per_page=${perPage}`,
+  );
 
   const resp = await fetch(url, {
     headers: {

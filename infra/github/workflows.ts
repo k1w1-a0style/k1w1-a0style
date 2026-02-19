@@ -1,5 +1,6 @@
 import { githubLimiter } from "./rateLimit";
 import { getGitHubToken } from "./tokenStore";
+import { githubApiUrl } from "../../shared/constants/github";
 
 export interface WorkflowRun {
   id: number;
@@ -57,7 +58,7 @@ export const getWorkflowRunDetails = async (
   if (!token) throw new Error("GitHub token fehlt.");
   await githubLimiter.checkLimit();
 
-  const url = `https://api.github.com/repos/${owner}/${repo}/actions/runs/${runId}`;
+  const url = githubApiUrl(`/repos/${owner}/${repo}/actions/runs/${runId}`);
   const resp = await fetch(url, {
     headers: {
       Accept: "application/vnd.github+json",
@@ -85,7 +86,7 @@ export const getWorkflowRunJobs = async (
   if (!token) throw new Error("GitHub token fehlt.");
   await githubLimiter.checkLimit();
 
-  const url = `https://api.github.com/repos/${owner}/${repo}/actions/runs/${runId}/jobs?per_page=100`;
+  const url = githubApiUrl(`/repos/${owner}/${repo}/actions/runs/${runId}/jobs?per_page=100`);
   const resp = await fetch(url, {
     headers: {
       Accept: "application/vnd.github+json",
@@ -116,7 +117,7 @@ export const triggerWorkflow = async (
 
   await githubLimiter.checkLimit();
 
-  const url = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowFileName)}/dispatches`;
+  const url = githubApiUrl(`/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowFileName)}/dispatches`);
   const resp = await fetch(url, {
     method: "POST",
     headers: {
@@ -152,7 +153,7 @@ export const getWorkflowRuns = async (
 
   await githubLimiter.checkLimit();
 
-  const url = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowFileName)}/runs?per_page=5`;
+  const url = githubApiUrl(`/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowFileName)}/runs?per_page=5`);
   const resp = await fetch(url, {
     headers: {
       Accept: "application/vnd.github+json",
@@ -193,7 +194,7 @@ export const getAllWorkflowRuns = async (
 
   await githubLimiter.checkLimit();
 
-  const url = `https://api.github.com/repos/${owner}/${repo}/actions/runs?per_page=${perPage}`;
+  const url = githubApiUrl(`/repos/${owner}/${repo}/actions/runs?per_page=${perPage}`);
   const resp = await fetch(url, {
     headers: {
       Accept: "application/vnd.github+json",

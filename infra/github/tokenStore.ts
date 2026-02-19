@@ -1,22 +1,24 @@
 import * as SecureStore from "expo-secure-store";
 
-const GH_TOKEN_KEY = "github_pat_v1";
-const EXPO_TOKEN_KEY = "expo_token_v1";
+import { TOKEN_KEYS } from "../../shared/constants/tokens";
+
+// Legacy keys (kept for one-time migration)
+const LEGACY_GH_TOKEN_KEY = "github_pat_v1";
+const LEGACY_EXPO_TOKEN_KEY = "expo_token_v1";
+
+// These are intentionally versioned because they are optional / power-user inputs.
 const EDGE_ADMIN_KEY = "edge_admin_key_v1";
 const SUPABASE_SERVICE_ROLE_KEY = "supabase_service_role_key_v1";
-
-// Optional: used by Supabase Edge Functions to encrypt/decrypt signing blobs.
-// Not required for normal app usage, but useful for full backup / device migration.
 const SIGNING_MASTER_KEY = "signing_master_key_v1";
 
-// ✅ FIX: SecureStore Wrapper-Funktionen (verschlüsselt!)
 const saveSecureToken = async (key: string, value: string): Promise<void> => {
   try {
     await SecureStore.setItemAsync(key, value);
   } catch (error: any) {
+    // eslint-disable-next-line no-console
     console.error(`[SecureStore] Fehler beim Speichern von ${key}:`, error);
     throw new Error(
-      `Token konnte nicht sicher gespeichert werden: ${error.message}`,
+      `Token konnte nicht sicher gespeichert werden: ${error?.message ?? String(error)}`,
     );
   }
 };
@@ -25,6 +27,7 @@ const getSecureToken = async (key: string): Promise<string | null> => {
   try {
     return await SecureStore.getItemAsync(key);
   } catch (error: any) {
+    // eslint-disable-next-line no-console
     console.error(`[SecureStore] Fehler beim Laden von ${key}:`, error);
     return null;
   }
@@ -34,24 +37,39 @@ const deleteSecureToken = async (key: string): Promise<void> => {
   try {
     await SecureStore.deleteItemAsync(key);
   } catch (error: any) {
+    // eslint-disable-next-line no-console
     console.error(`[SecureStore] Fehler beim Löschen von ${key}:`, error);
   }
 };
+
+async function migrateLegacyToken(legacyKey: string, newKey: string): Promise<void> {
+  const legacy = await getSecureToken(legacyKey);
+  if (!legacy) return;
+
+  const current = await getSecureToken(newKey);
+  if (!current) {
+    await saveSecureToken(newKey, legacy);
+  }
+
+  // Always clear legacy after we successfully read it.
+  await deleteSecureToken(legacyKey);
+}
 
 // ----------------------
 // GitHub token
 // ----------------------
 export const saveGitHubToken = async (token: string): Promise<void> => {
-  await saveSecureToken(GH_TOKEN_KEY, token);
-  console.log("✅ GitHub Token sicher gespeichert (SecureStore).");
+  await saveSecureToken(TOKEN_KEYS.github, token);
 };
 
 export const getGitHubToken = async (): Promise<string | null> => {
-  return getSecureToken(GH_TOKEN_KEY);
+  await migrateLegacyToken(LEGACY_GH_TOKEN_KEY, TOKEN_KEYS.github);
+  return getSecureToken(TOKEN_KEYS.github);
 };
 
 export const deleteGitHubToken = async (): Promise<void> => {
-  await deleteSecureToken(GH_TOKEN_KEY);
+  await deleteSecureToken(TOKEN_KEYS.github);
+  await deleteSecureToken(LEGACY_GH_TOKEN_KEY);
 };
 
 export const hasValidGitHubToken = async (): Promise<boolean> => {
@@ -63,16 +81,17 @@ export const hasValidGitHubToken = async (): Promise<boolean> => {
 // Expo token
 // ----------------------
 export const saveExpoToken = async (token: string): Promise<void> => {
-  await saveSecureToken(EXPO_TOKEN_KEY, token);
-  console.log("✅ Expo Token sicher gespeichert (SecureStore).");
+  await saveSecureToken(TOKEN_KEYS.expo, token);
 };
 
 export const getExpoToken = async (): Promise<string | null> => {
-  return getSecureToken(EXPO_TOKEN_KEY);
+  await migrateLegacyToken(LEGACY_EXPO_TOKEN_KEY, TOKEN_KEYS.expo);
+  return getSecureToken(TOKEN_KEYS.expo);
 };
 
 export const deleteExpoToken = async (): Promise<void> => {
-  await deleteSecureToken(EXPO_TOKEN_KEY);
+  await deleteSecureToken(TOKEN_KEYS.expo);
+  await deleteSecureToken(LEGACY_EXPO_TOKEN_KEY);
 };
 
 export const hasValidExpoToken = async (): Promise<boolean> => {

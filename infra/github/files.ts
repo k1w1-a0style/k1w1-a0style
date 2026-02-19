@@ -1,4 +1,5 @@
 import { ProjectFile } from "../../shared/types/project";
+import { githubApiUrl } from "../../shared/constants/github";
 import { Buffer } from "buffer";
 import { githubLimiter } from "./rateLimit";
 import { encodeGitHubFileContent, ensureBuffer } from "./crypto";
@@ -19,7 +20,7 @@ export const createOrUpdateFile = async (
 
   await githubLimiter.checkLimit();
 
-  const getUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}?ref=${encodeURIComponent(branch)}`;
+  const getUrl = githubApiUrl(`/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}?ref=${encodeURIComponent(branch)}`);
   const getResp = await fetch(getUrl, {
     headers: {
       Accept: "application/vnd.github+json",
@@ -43,8 +44,7 @@ export const createOrUpdateFile = async (
   await githubLimiter.checkLimit();
 
   const putResp = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}`,
-    {
+    githubApiUrl(`/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}`), {
       method: "PUT",
       headers: {
         Accept: "application/vnd.github+json",
@@ -91,7 +91,7 @@ export const deleteRepoFile = async (
 
   await githubLimiter.checkLimit();
 
-  const getUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}?ref=${encodeURIComponent(branch)}`;
+  const getUrl = githubApiUrl(`/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}?ref=${encodeURIComponent(branch)}`);
   const getResp = await fetch(getUrl, {
     headers: {
       Accept: "application/vnd.github+json",
@@ -116,8 +116,7 @@ export const deleteRepoFile = async (
   await githubLimiter.checkLimit();
 
   const delResp = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}`,
-    {
+    githubApiUrl(`/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}`), {
       method: "DELETE",
       headers: {
         Accept: "application/vnd.github+json",
@@ -190,9 +189,7 @@ export const getRepoFileText = async (params: {
   await githubLimiter.checkLimit();
 
   const ref = params.ref?.trim();
-  const url =
-    `https://api.github.com/repos/${params.owner}/${params.repo}/contents/${encodeGitHubPath(params.path)}` +
-    (ref ? `?ref=${encodeURIComponent(ref)}` : "");
+  const url = githubApiUrl(`/repos/${params.owner}/${params.repo}/contents/${encodeGitHubPath(params.path)}${ref ? `?ref=${encodeURIComponent(ref)}` : ''}`);
 
   const resp = await fetch(url, {
     headers: {

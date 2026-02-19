@@ -3,6 +3,7 @@ import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 import { githubHeaders, getGithubToken } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
+import { GITHUB_API_BASE } from "../../../shared/constants/github.ts";
 
 /**
  * Lists GitHub Actions workflow runs.
@@ -109,11 +110,11 @@ serve(async (req) => {
     if (status) params.set("status", status);
 
     const repoRunsUrl =
-      `https://api.github.com/repos/${owner}/${repo}/actions/runs?` + params.toString();
+      `${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/runs?` + params.toString();
 
     const workflowRunsUrl =
       workflowId
-        ? `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowId)}/runs?` +
+        ? `${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowId)}/runs?` +
           params.toString()
         : repoRunsUrl;
 

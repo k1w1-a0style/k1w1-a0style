@@ -14,6 +14,7 @@ import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 import { parseJsonBody } from "../_shared/validation.ts";
 import { githubHeaders } from "../_shared/github.ts";
 import { unzipSync, strFromU8 } from "npm:fflate@0.8.2";
+import { GITHUB_API_BASE } from "../../../shared/constants/github.ts";
 
 type Json = Record<string, unknown>;
 
@@ -117,7 +118,7 @@ async function fetchLogsZip(
   runId: number,
   token?: string,
 ): Promise<Uint8Array> {
-  const api = `https://api.github.com/repos/${owner}/${repo}/actions/runs/${runId}/logs`;
+  const api = `${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/runs/${runId}/logs`;
 
   // First request: get the signed URL (302 Location).
   const r1 = await fetch(api, {
@@ -131,7 +132,7 @@ async function fetchLogsZip(
     // 1) Logs are not ready yet (run still in_progress/queued)
     // 2) The token has no access to Actions/logs (private repo) OR runId is invalid
     if (r1.status === 404) {
-      const runApi = `https://api.github.com/repos/${owner}/${repo}/actions/runs/${runId}`;
+      const runApi = `${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/runs/${runId}`;
       const rr = await fetch(runApi, {
         method: "GET",
         headers: githubHeaders(token, "Bearer"),

@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { githubApiUrl } from "../../../shared/constants/github";
 import { autoFixCIWorkflows, parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
 import { useGitHub } from "../../../contexts/GitHubContext";
 import { useProject } from "../../../contexts/ProjectContext";
@@ -222,7 +223,7 @@ export function useConnectionsScreen() {
     if (!gh) return Alert.alert("Fehlt", "GitHub Token fehlt.");
     setBusy(true);
     try {
-      const resp = await fetch("https://api.github.com/user", {
+      const resp = await fetch(githubApiUrl("/user"), {
         headers: {
           Accept: "application/vnd.github+json",
           Authorization: `Bearer ${gh}`,

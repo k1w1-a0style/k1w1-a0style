@@ -2,6 +2,7 @@
 // Token storage wrapper for expo-secure-store with metadata + obfuscation (test aligned).
 
 import * as SecureStore from 'expo-secure-store';
+import { KNOWN_TOKEN_KEYS } from "../shared/constants/tokens";
 import { Buffer } from 'buffer';
 
 export type TokenMetadata = {
@@ -19,7 +20,6 @@ type StoredTokenV1 = {
 };
 
 // Tests expect these known keys to be wiped by clearAllTokens()
-const KNOWN_TOKEN_KEYS = ['github_token', 'expo_token'];
 
 function optionsForSecureStore() {
   // ✅ Tests expect keychainAccessible: 4

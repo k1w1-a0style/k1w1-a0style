@@ -3,6 +3,7 @@ import { useState, useCallback } from "react";
 import { Buffer } from "buffer";
 
 import { fetchWithBackoff } from "../lib/retryWithBackoff";
+import { githubApiUrl } from "../shared/constants/github";
 import type { ProjectFile } from "../shared/types/project";
 import {
   getBranches as apiBranches,
@@ -61,7 +62,7 @@ export const useGitHubRepos = (
       setError(null);
 
       const res = await fetchWithBackoff(
-        "https://api.github.com/user/repos?per_page=100&sort=updated",
+        githubApiUrl("/user/repos?per_page=100&sort=updated"),
         {
           headers: {
             Accept: "application/vnd.github+json",
@@ -93,7 +94,7 @@ export const useGitHubRepos = (
 
       try {
         const res = await fetchWithBackoff(
-          `https://api.github.com/repos/${repo.full_name}`,
+          githubApiUrl(`/repos/${repo.full_name}`),
           {
             method: "DELETE",
             headers: {
@@ -130,7 +131,7 @@ export const useGitHubRepos = (
 
       try {
         const res = await fetchWithBackoff(
-          `https://api.github.com/repos/${currentFullName}`,
+          githubApiUrl(`/repos/${currentFullName}`),
           {
             method: "PATCH",
             headers: {
@@ -184,7 +185,7 @@ export const useGitHubRepos = (
         onProgress?.("Lade Repo-Info...");
 
         const infoRes = await fetchWithBackoff(
-          `https://api.github.com/repos/${owner}/${repo}`,
+          githubApiUrl(`/repos/${owner}/${repo}`),
           { headers },
         );
 
@@ -198,7 +199,7 @@ export const useGitHubRepos = (
         onProgress?.(`Lade Dateibaum (Branch: ${branch})...`);
 
         const treeRes = await fetchWithBackoff(
-          `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
+          githubApiUrl(`/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`),
           { headers },
         );
 
@@ -257,7 +258,7 @@ export const useGitHubRepos = (
               try {
                 const encodedPath = encodePathSegments(path);
                 const res = await fetchWithBackoff(
-                  `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPath}`,
+                  githubApiUrl(`/repos/${owner}/${repo}/contents/${encodedPath}`),
                   { headers },
                 );
 

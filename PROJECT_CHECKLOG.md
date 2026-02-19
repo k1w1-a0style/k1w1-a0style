@@ -1,7 +1,5 @@
-- Patch 205 prepared: remove leftover dead-code shims (supabaseTypes + legacy keyMasking + unused shared github types).
+# Project Checklog
 
-- Patch 208 prepared: docs refresh (handoff + TODO) to reflect current patch state after cleanup/migrations.
-
-## Patch 209
-- Migrated contexts/ProjectContext shared-type imports off contexts/types -> shared/types/*
-- Updated HANDOFF notes accordingly
+## Patch 213
+- Fixed missing `githubApiUrl` import in `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`.
+- Typecheck/lint/tests should pass again after patch 211/212 changes.
