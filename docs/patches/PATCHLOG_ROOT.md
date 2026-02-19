@@ -2,6 +2,8 @@
 
 Most recent first.
 
+- Patch 200: `docs/patches/patch_200.md` (PR-9 Stage 1: Preview Screens Refactoring + critical bug fix in PreviewFullscreenScreen)
+
 - Patch 199: `docs/patches/patch_199.md` (Test infra: set global Jest timeout to reduce flakiness)
 
 - Patch 194: `docs/patches/patch_194.md` (EnhancedBuildScreen: split helpers + preconditions hook; no behavior change)
@@ -45,6 +47,12 @@ Most recent first.
 - Patch 174: `docs/patches/patch_174.md` (Fix import drift audit script: regex + executable)
 - Patch 173: `docs/patches/patch_173.md` (Normalize import drift audit + preflight:fast + docs)
 
+- Patch 172: `docs/patches/patch_172.md` (PR-8 Stage 6: make import drift audit blocking)
+- Patch 171: `docs/patches/patch_171.md` (PR-8 Stage 5: add import drift audit)
+- Patch 170: `docs/patches/patch_170.md` (PR-8 Stage 4: prefer shared build type imports)
+- Patch 169: `docs/patches/patch_169.md` (PR-8 Stage 3: type drift guardrails)
+- Patch 168: `docs/patches/patch_168.md` (PR-8 Stage 2: unify project/context types via shared types)
+- Patch 167: `docs/patches/patch_167.md` (PR-8 Stage 1: unify build types)
 - Patch 166: `docs/patches/patch_166.md` (PR-8 kickoff: post-PR-7 verification + docs/script cleanup)
 - Patch 165: `docs/patches/patch_165.md` (Fix Patch 164 docs + update refactor scripts after facade removal)
 - Patch 164: `docs/patches/patch_164.md` (PR-7 Stage 5: remove facades after migration)
@@ -70,4 +78,3 @@ Most recent first.
 - Patch 149: `docs/patches/patch_149.md` (PR-3: polling extract + single poller)
 - Patch 148: `docs/patches/patch_148.md` (PR-2: storage move + facade)
 - Patch 147: `docs/patches/patch_147.md` (V3.1 scaffolding)
-- Patch 194.1: hotfix build screen hook parse error

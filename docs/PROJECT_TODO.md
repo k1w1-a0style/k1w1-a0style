@@ -1,43 +1,69 @@
-# PROJECT TODO (aktualisiert)
+# PROJECT TODO
 
-> Stand: 2025-12-27
+> Stand: 2026-02-19
 
-## ✅ Bereits erledigt
+## ✅ Erledigt (aktueller Stand)
 
+### Preview-System
 - [x] Supabase `previews` Tabelle + Indizes + Expiry Support
-- [x] `secret` **NOT NULL** + Unique Index
-- [x] `cleanup_expired_previews()` Function + `service_role` grant
 - [x] Edge Function `save_preview` deployed
-- [x] Edge Function `preview_page` deployed (inkl. **Option B**: `unhandledrejection` + `error` listener)
-- [x] `PreviewScreen` kann Preview URL laden (WebView)
+- [x] Edge Function `preview_page` deployed
+- [x] `PreviewScreen` lädt Preview URL (WebView + Hot-Reload)
+- [x] `PreviewFullscreenScreen` mit Crash-Recovery, Navigation-Guards, Share
+- [x] Gemeinsame WebView-Logik extrahiert (`useWebViewNavigation`, `useWebViewCrashRecovery`)
+- [x] Kritischer Bug in `PreviewFullscreenScreen` behoben (dead-code Guard, Patch 200)
 
-## ✅ Neu implementiert (dieses Patch)
+### Architektur / Refactoring
+- [x] PR-2: Storage-Persistence → `infra/storage`
+- [x] PR-3: Build-Polling → `project/services`
+- [x] PR-4: GitHub-Service → `infra/github` (barrel exports)
+- [x] PR-5: ProjectContext-Splits (template loader, archive, build trigger, polling)
+- [x] PR-6: Template-Checklist modularisiert (patchers, defaults, barrel)
+- [x] PR-7: Legacy-Facades entfernt, ESLint-Guardrails enforced
+- [x] PR-8: Build-Typen vereinheitlicht (`shared/types/build` als single source of truth)
+- [x] PR-9 Stage 1: PreviewScreen + PreviewFullscreenScreen refactored (Patch 200)
+- [x] EnhancedBuildScreen: Helpers + Preconditions Hook extrahiert
+- [x] Dead Code entfernt: `lib/previewBuild.ts`, `lib/previewSettings.ts`, `styles/previewScreenStyles.ts`
+- [x] `lib/logger.ts` erstellt (zentraler Logger)
+- [x] `contexts/types.ts` als Compatibility-Shim mit Deprecation-Kommentar
 
-- [x] Edge Function `create_codesandbox` (CodeSandbox define API)
-- [x] `PreviewScreen` hat neuen Modus **🧪 Sandbox**
-- [x] `supabase/config.toml` erweitert um `functions.create_codesandbox`
+### Test-Infra
+- [x] Jest global timeout auf 20s erhöht (Patch 199)
+- [x] One-Click Deploy Tests stabilisiert
 
-## 🔥 Kritische Punkte / Bugs / Risiken
+---
 
-- [ ] **Security/Privacy:** CodeSandbox Previews sind öffentlich → niemals sensible Inhalte
-- [ ] **Edge Function Rate Limits:** CodeSandbox API kann limitieren; Fehlerhandling UI ggf. verbessern
-- [ ] **Dependency Kompatibilität:** RN/Expo Packages können Browser-Preview killen → Filter ist best-effort
-- [ ] **WebView Cookies/CSP:** Einige Sandboxes/Embeds können in WebView blocken (je nach Plattform)
+## 🔥 Offene Bugs / Tech-Debt
+
+- [ ] **`lib/logger.ts` wird nicht verwendet** — existiert, hat 0 Imports; entweder aktiv migrieren oder löschen
+- [ ] **`screens/SettingsScreen/utils/keyMasking.ts`** — separate Impl. von `lib/apiKeyMasking.ts` (unterschiedliche Längen-Schwellwerte), Konsolidierung ausstehend
+- [ ] **`contexts/types.ts` Shim** — 36 Imports zeigen noch auf den Shim statt auf `shared/types/*`; schrittweise Migration offen
+- [ ] **382 `: any` Annotationen** — systematischer TS-Safety-Debt, besonders in `contexts/`, `lib/orchestrator.ts`
+- [ ] **70 `console.log` Calls** — sollten zu `logger.log` migriert werden (nach logger-Migration)
+
+---
 
 ## 🚧 Nächste sinnvolle Schritte
 
-### Preview-Qualität
+### PR-9 (Preview — weitere Stages)
+- [ ] `PreviewScreen` Komponente weiter splitten: `DeviceFrame.tsx`, `PreviewToolbar.tsx`, `PreviewStatusBar.tsx`
+- [ ] `useWebViewCrashRecovery` auch in `PreviewScreen` (usePreviewScreen) einbinden
+- [ ] In `preview_page` Edge Function: optionaler Toggle für „raw logs" / „runtime errors"
+- [ ] In `PreviewScreen`: Anzeige von fileCount/size/skipped (was wurde gesendet)
+- [ ] Auto-Cleanup-Cron in Supabase: `cleanup_expired_previews()` regelmäßig triggern
 
-- [ ] In `preview_page`: optionaler Toggle „raw logs“ / „runtime errors“ in UI anzeigen
-- [ ] In `PreviewScreen`: bessere Anzeige von _was_ gesendet wurde (fileCount/size/skipped)
-- [ ] Auto-Cleanup Job (cron) in Supabase einrichten, der `cleanup_expired_previews()` regelmäßig ausführt
+### Logger-Migration
+- [ ] `lib/logger.ts` aktiv nutzen: console.log in `contexts/ProjectContext.tsx` (13x), `infra/storage/projectPersistence.ts` (10x), `lib/buildHistoryStorage.ts` (7x) ersetzen
+- [ ] ESLint `no-console` Rule aktivieren (warn für bestehende, error für neue)
+
+### API Key Masking
+- [ ] `lib/apiKeyMasking.ts` und `screens/SettingsScreen/utils/keyMasking.ts` konsolidieren
+- [ ] Canonical: `looksLikeApiKey` Helper aus SettingsScreen-Version übernehmen
 
 ### Stabilität
+- [ ] Server-side Payload Limits (save_preview): harte max bytes + max files enforced
+- [ ] Observability: Edge Function Logs + optionales `meta.debug` (minimal)
 
-- [ ] Server-side Payload Limits (save_preview + create_codesandbox): harte max bytes + max files enforced
-- [ ] Observability: Logs + optionales `meta.debug` speichern (nur minimal)
-
-### UX
-
-- [ ] „Open in external browser“ immer anbieten, wenn WebView Probleme macht
-- [ ] Beim Switch der Modi: optionaler Hinweis, dass URLs/Preview getrennt sind
+### TypeScript-Hygiene
+- [ ] `any`-Annotationen reduzieren: Start mit `lib/orchestrator.ts` und `contexts/AIContext.tsx`
+- [ ] `contexts/types.ts` Shim-Migration: 36 Imports schrittweise auf `shared/types/*` umstellen

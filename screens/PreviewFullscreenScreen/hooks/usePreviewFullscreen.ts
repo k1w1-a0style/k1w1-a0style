@@ -1,0 +1,204 @@
+// screens/PreviewFullscreenScreen/hooks/usePreviewFullscreen.ts
+//
+// Extrahiert aus PreviewFullscreenScreen.tsx (Patch 200).
+//
+// CRITICAL BUG FIX:
+//   Vorher: if(!mode) { return (...); if(mode==="url"&&!baseOrigin) { ... } }
+//   → Der zweite Guard war dead code (nach return, kein schließendes })
+//   Nachher: hasUrlParseError-Flag → Komponente rendert beide Guards korrekt als separate ifs.
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Linking, Share } from 'react-native';
+import type { WebView, WebViewNavigation } from 'react-native-webview';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { isHttpUrl, truncateUrl } from '../../../utils/url';
+import { useWebViewNavigation } from '../../shared/preview/useWebViewNavigation';
+import { useWebViewCrashRecovery } from '../../shared/preview/useWebViewCrashRecovery';
+import { logger } from '../../../lib/logger';
+import type { RootStackParamList } from '../../../types/preview';
+
+type PreviewFullscreenRouteProp = RouteProp<RootStackParamList, 'PreviewFullscreen'>;
+type PreviewFullscreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'PreviewFullscreen'>;
+
+export function usePreviewFullscreen() {
+  const navigation = useNavigation<PreviewFullscreenNavigationProp>();
+  const route = useRoute<PreviewFullscreenRouteProp>();
+
+  const title = route.params?.title ?? 'Preview';
+  const url = route.params?.url;
+  const html = route.params?.html ?? '';
+  // FIX: keine baseUrl — verhindert ERR_CONNECTION_REFUSED
+  const baseUrl = route.params?.baseUrl ?? undefined;
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [canGoBack, setCanGoBack] = useState(false);
+  const [canGoForward, setCanGoForward] = useState(false);
+
+  const webViewRef = useRef<WebView>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
+
+  // ─── Mode ─────────────────────────────────────────────────────────────────
+  const mode = useMemo<'html' | 'url' | null>(() => {
+    if (html.trim().length > 0) return 'html';
+    if (typeof url === 'string' && url.length > 0 && isHttpUrl(url)) return 'url';
+    return null;
+  }, [html, url]);
+
+  // ─── BUG FIX: URL-Parse-Error als separates Flag ──────────────────────────
+  // War vorher dead code innerhalb des if(!mode)-Blocks nach einem return.
+  // Jetzt: hasUrlParseError wird an Komponente weitergegeben → korrekte Guards.
+  const hasUrlParseError = useMemo<boolean>(() => {
+    if (mode !== 'url' || !url) return false;
+    try { new URL(url); return false; } catch { return true; }
+  }, [mode, url]);
+
+  // ─── Shared WebView navigation ─────────────────────────────────────────────
+  const { baseOrigin, originWhitelist, handleShouldStartLoad } = useWebViewNavigation({
+    mode,
+    url,
+    confirmExternalLinks: true,
+  });
+
+  // ─── Crash recovery ────────────────────────────────────────────────────────
+  const { handleContentProcessDidTerminate, handleRenderProcessGone, resetRecoveryState } =
+    useWebViewCrashRecovery({
+      webViewRef,
+      isMountedRef,
+      onError: setError,
+      onLoadingChange: setLoading,
+    });
+
+  // ─── Derived ───────────────────────────────────────────────────────────────
+  const headerSubtitle = useMemo(() => {
+    if (mode === 'html') return 'Local HTML Preview';
+    if (mode === 'url' && url) return truncateUrl(url, 60);
+    return 'Keine Preview';
+  }, [mode, url]);
+
+  // ─── Handlers ──────────────────────────────────────────────────────────────
+  const handleGoBack = useCallback(() => navigation.goBack(), [navigation]);
+
+  const handleWebViewGoBack = useCallback(() => {
+    if (canGoBack) webViewRef.current?.goBack();
+  }, [canGoBack]);
+
+  const handleWebViewGoForward = useCallback(() => {
+    if (canGoForward) webViewRef.current?.goForward();
+  }, [canGoForward]);
+
+  const handleReload = useCallback(() => {
+    resetRecoveryState();
+    webViewRef.current?.reload();
+    setError(null);
+  }, [resetRecoveryState]);
+
+  const handleShare = useCallback(async () => {
+    try {
+      if (mode === 'url' && url) {
+        await Share.share({ message: `Schau dir diese Preview an: ${url}`, url, title });
+      } else {
+        await Share.share({ message: `Preview: ${title}`, title });
+      }
+    } catch (err) {
+      logger.error('PreviewFullscreen', 'Share failed', err);
+    }
+  }, [mode, url, title]);
+
+  const handleOpenExternal = useCallback(async () => {
+    if (mode === 'url' && url) {
+      try {
+        const canOpen = await Linking.canOpenURL(url);
+        if (canOpen) {
+          await Linking.openURL(url);
+        } else {
+          Alert.alert('❌ Fehler', 'Diese URL kann nicht im Browser geöffnet werden.');
+        }
+      } catch (err) {
+        logger.error('PreviewFullscreen', 'External open failed', err);
+        Alert.alert('❌ Fehler', 'Browser konnte nicht geöffnet werden.');
+      }
+    } else {
+      Alert.alert('ℹ️ Hinweis', 'Diese lokale HTML-Preview kann nicht im externen Browser geöffnet werden.');
+    }
+  }, [mode, url]);
+
+  const handleLoadStart = useCallback(() => {
+    if (!isMountedRef.current) return;
+    setLoading(true);
+    setError(null);
+  }, []);
+
+  const handleLoadEnd = useCallback(() => {
+    if (!isMountedRef.current) return;
+    setLoading(false);
+  }, []);
+
+  const handleNavigationStateChange = useCallback((navState: WebViewNavigation) => {
+    if (!isMountedRef.current) return;
+    setCanGoBack(navState.canGoBack);
+    setCanGoForward(navState.canGoForward);
+  }, []);
+
+  const handleError = useCallback((syntheticEvent: { nativeEvent?: { description?: string } }) => {
+    if (!isMountedRef.current) return;
+    const msg = syntheticEvent.nativeEvent?.description || 'Unbekannter WebView-Fehler';
+    setError(msg);
+    setLoading(false);
+    logger.error('PreviewFullscreen', 'WebView Error', syntheticEvent.nativeEvent);
+  }, []);
+
+  const handleHttpError = useCallback(
+    (syntheticEvent: { nativeEvent?: { statusCode?: number; description?: string } }) => {
+      if (!isMountedRef.current) return;
+      const { nativeEvent } = syntheticEvent;
+      const statusCode = nativeEvent?.statusCode;
+      const description = nativeEvent?.description || '';
+
+      if (statusCode === 404) {
+        setError('HTTP 404: Preview abgelaufen oder nicht gefunden');
+        setLoading(false);
+        Alert.alert(
+          'Preview nicht gefunden',
+          'Die Preview ist abgelaufen oder ungültig. Bitte neu erstellen.',
+          [
+            { text: 'Zurück', onPress: handleGoBack, style: 'cancel' },
+            { text: 'Neu laden', onPress: handleReload },
+          ],
+        );
+        return;
+      }
+
+      setError(`HTTP ${statusCode}${description ? `: ${description}` : ''}`);
+      setLoading(false);
+    },
+    [handleGoBack, handleReload],
+  );
+
+  return {
+    title, url, html, baseUrl,
+    mode,
+    hasUrlParseError,
+    baseOrigin,
+    originWhitelist,
+    loading, error,
+    canGoBack, canGoForward,
+    webViewRef,
+    handleGoBack,
+    handleWebViewGoBack, handleWebViewGoForward,
+    handleReload, handleShare, handleOpenExternal,
+    handleLoadStart, handleLoadEnd,
+    handleNavigationStateChange,
+    handleShouldStartLoad,
+    handleError, handleHttpError,
+    handleContentProcessDidTerminate,
+    handleRenderProcessGone,
+    headerSubtitle,
+  };
+}
