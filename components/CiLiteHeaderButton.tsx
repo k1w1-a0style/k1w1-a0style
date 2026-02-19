@@ -336,16 +336,14 @@ export default function CiLiteHeaderButton(): React.ReactElement {
 
 
   const githubRepo = useMemo(() => {
-    return (
-      projectData?.linkedRepo?.trim() || activeRepo?.trim() || ""
-    ).trim();
-  }, [projectData?.linkedRepo, activeRepo]);
+    // GitHubContext's active selections are the in-memory SoT.
+    // ProjectContext persists them, but can be stale during hydration/migrations.
+    return (activeRepo?.trim() || projectData?.linkedRepo?.trim() || "").trim();
+  }, [activeRepo, projectData?.linkedRepo]);
 
   const branch = useMemo(() => {
-    return (
-      projectData?.linkedBranch?.trim() || activeBranch?.trim() || ""
-    ).trim();
-  }, [projectData?.linkedBranch, activeBranch]);
+    return (activeBranch?.trim() || projectData?.linkedBranch?.trim() || "").trim();
+  }, [activeBranch, projectData?.linkedBranch]);
 
   const {
     logs,

@@ -176,8 +176,13 @@ const importFullBackup = async () => {
 };
 
 export function useAppInfoScreen() {
-  const { projectData, setProjectName, updateProjectFiles, setPackageName } =
-    useProject();
+  const {
+    projectData,
+    setProjectName,
+    updateProjectFiles,
+    setPackageName,
+    setLinkedRepo,
+  } = useProject();
 
   // Keep a local typed view to avoid implicit-any in array callbacks while
   // preserving runtime behavior.
@@ -617,10 +622,16 @@ export function useAppInfoScreen() {
                   } catch {}
                 }
               }
-              if (typeof g.activeRepo === "string")
-                setActiveRepo(g.activeRepo || null);
-              if (typeof g.activeBranch === "string")
-                setActiveBranch(g.activeBranch || null);
+              const nextRepo = typeof g.activeRepo === "string" ? g.activeRepo || null : null;
+              const nextBranch =
+                typeof g.activeBranch === "string" ? g.activeBranch || null : null;
+
+              setActiveRepo(nextRepo);
+              setActiveBranch(nextBranch);
+
+              // Persist selection so the rest of the app doesn't snap back to an old linkedRepo.
+              // (GitHubContext syncs from ProjectContext during hydration.)
+              setLinkedRepo(nextRepo, nextBranch);
 
               const exportDate = safeFormatBackupDate(result.exportDate);
 
