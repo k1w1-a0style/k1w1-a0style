@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../../../theme";
-import type { BuildStatus } from "../../../lib/buildStatusMapper";
+import type { BuildStatus } from "../../../shared/types/build";
 
 type Props = {
   status: BuildStatus;

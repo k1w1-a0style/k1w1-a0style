@@ -10,7 +10,7 @@ import {
   getWorkflowStatusText,
 } from "../../../utils/buildScreenUtils";
 import { styles } from "../../../styles/enhancedBuildScreenStyles";
-import type { BuildStatus } from "../../../lib/buildStatusMapper";
+import type { BuildStatus } from "../../../shared/types/build";
 
 export function LogsAnalysisSection({
   status,

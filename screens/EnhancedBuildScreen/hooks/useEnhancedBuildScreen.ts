@@ -7,7 +7,7 @@ import { useBuildHistory } from "../../../hooks/useBuildHistory";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
 import { BuildErrorAnalyzer } from "../../../lib/buildErrorAnalyzer";
 import { CONFIG } from "../../../config";
-import type { BuildStatus } from "../../../lib/buildStatusMapper";
+import type { BuildStatus } from "../../../shared/types/build";
 import type { CheckItem } from "../components/ChecklistSection";
 import {
   computeEta,

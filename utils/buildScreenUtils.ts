@@ -3,7 +3,7 @@
  * Pure helper functions, types and constants for EnhancedBuildScreen
  */
 
-import { BuildStatus } from "../lib/buildStatusMapper";
+import type { BuildStatus } from "../shared/types/build";
 import { theme } from "../theme";
 
 // ─────────────────────────────────────────────────────────────

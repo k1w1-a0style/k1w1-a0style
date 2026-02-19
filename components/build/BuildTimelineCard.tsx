@@ -5,7 +5,7 @@
 
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { BuildStatus } from "../../lib/buildStatusMapper";
+import type { BuildStatus } from "../../shared/types/build";
 import { TIMELINE_STEPS, getStepState } from "../../utils/buildScreenUtils";
 import { theme } from "../../theme";
 

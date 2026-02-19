@@ -75,6 +75,5 @@ Recent changes, most recent first.
 - Besseres Live-Feedback ohne Einfluss auf die bestehende CI-Lite Logik (Dispatch/Polling/Results/Patch-Apply).
 - 2026-02-18: Patch 188 prepared — RepoScreen polish + ignore cleanup.
 - 2026-02-18: Patch 189 hotfix — fix Patch 188 build blockers (JSX syntax + duplicate searchTerm + missing TouchableOpacity import).
-
-- 2026-02-19: Patch 195 — unify Supabase service-role storage key + canonical API key masking.
-- 2026-02-19: Patch 196 — safe cleanup script for dead files (previewBuild + unused screen shims).
+- Patch 194.1: hotfix build screen hook parse error
+- 2026-02-19: Patch 198 — BuildStatus imports moved to `shared/types/build` (reduces re-export drift; no behavior change).

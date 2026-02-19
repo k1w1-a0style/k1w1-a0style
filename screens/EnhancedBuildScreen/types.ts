@@ -1,4 +1,4 @@
-import type { BuildStatus } from "../../lib/buildStatusMapper";
+import type { BuildStatus } from "../../shared/types/build";
 
 export type BuildProfile = "development" | "preview" | "production";
 

@@ -46,7 +46,7 @@ import { useBuildStatus } from "../hooks/useBuildStatus";
 
 // ✅ FIX: Einheitlicher Validator-Wrapper
 import { validateFilePath, validateFileContent } from "../lib/validators";
-import { BuildStatus } from "../lib/buildStatusMapper";
+import type { BuildStatus } from "../shared/types/build";
 import {
   addBuildToHistory,
   updateBuildInHistory,

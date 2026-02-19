@@ -11,7 +11,7 @@ import * as Clipboard from "expo-clipboard";
 
 import { BuildTimelineCard } from "../../../components/build/BuildTimelineCard";
 import { theme } from "../../../theme";
-import type { BuildStatus } from "../../../lib/buildStatusMapper";
+import type { BuildStatus } from "../../../shared/types/build";
 import type { CurrentBuildLike } from "../types";
 
 export function BuildStatusSection({
