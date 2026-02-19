@@ -7,11 +7,11 @@ Stand: **2026-02-19** (Europe/Berlin)
 - Branch: `work`
 
 ## Letzter Patch
-**Patch 200 — PR-9 Stage 1: Preview Screens Refactoring**
+**Patch 207 — Fix Test-Mocks nach Cleanup (Patch 206)**
 
 ## Aktueller Status
 
-### ✅ Gerade fertig: Preview Screens (Patch 200)
+### ✅ Gerade fertig: Preview Screens (Patch 200) + Cleanup
 - `PreviewScreen` und `PreviewFullscreenScreen` sind jetzt modular aufgebaut
 - Logik in eigene Hooks extrahiert (`usePreviewScreen`, `usePreviewFullscreen`)
 - Gemeinsame WebView-Logik in `screens/shared/preview/`:
@@ -20,18 +20,22 @@ Stand: **2026-02-19** (Europe/Berlin)
   - `webViewTypes.ts` — lokale Event-Typen (kein `any`)
 - **Bug gefixt:** `if (!mode)` Guard in PreviewFullscreenScreen war strukturell kaputt (dead code nach return)
 - Dead Code gelöscht: `styles/previewScreenStyles.ts`, `lib/previewSettings.ts`
+- Weitere Shims/Dead Code entfernt (Patches 205–206):
+  - `lib/supabaseTypes.ts`
+  - `shared/types/github.ts`
+  - Diverse ungenutzte UI-Sektionen in Diagnostic/GitHubRepos/EnhancedBuild
 - Flat-Shims (`screens/PreviewScreen.tsx`, `screens/PreviewFullscreenScreen.tsx`) bleiben als 1-Zeiler Re-exports → `App.tsx` unverändert
 
 ## Offene Punkte (Priorität)
 
 ### Sofort machbar (kleine Patches)
-1. **logger.ts aktivieren** — existiert seit Patch ~199 aber hat 0 Imports. `console.log` in ProjectContext (13x), projectPersistence (10x), buildHistoryStorage (7x) → `logger.log` migrieren. Dann ESLint `no-console` warn aktivieren.
-2. **apiKeyMasking konsolidieren** — `lib/apiKeyMasking.ts` und `screens/SettingsScreen/utils/keyMasking.ts` haben unterschiedliche Implementierungen. SettingsScreen-Version hat `looksLikeApiKey` Helper → in lib übernehmen, SettingsScreen re-exportiert.
-3. **contexts/types.ts Shim-Migration** — 36 Imports zeigen noch auf den Shim. Schrittweise auf `shared/types/*` umstellen, dann Shim löschen.
+1. **Docs/Checklogs aufräumen** — Hand-off/ToDo enthalten teils alte Punkte (logger/keyMasking/github types).
+2. **contexts/types.ts Shim-Migration** — `contexts/ProjectContext.tsx` nutzt noch `contexts/types.ts`. Ziel: alles nach `shared/types/*` und Shim löschen.
+3. **Console → logger** (optional) — logger existiert und ist in Preview-Hooks nutzbar; bei Bedarf weitere Hotspots migrieren und ESLint `no-console` schärfen.
 
 ### Mittelfristig
-4. **PR-9 Stage 2** — PreviewScreen Komponente weiter splitten: `DeviceFrame.tsx`, `PreviewToolbar.tsx`, `PreviewStatusBar.tsx` (optional, Screen ist jetzt schon lesbar)
-5. **any-Annotationen** — 382 Stück. Start mit `lib/orchestrator.ts` (größter Offender)
+4. **PR-9 Stage 2** — Preview UI weiter splitten (optional, bereits ok lesbar)
+5. **any-Annotationen** — schrittweise reduzieren (Start: größte Offender)
 
 ## Patch-Workflow
 ```bash
@@ -74,5 +78,4 @@ shared/types/
   build.ts                       ← Single source of truth für Build-Typen
   chat.ts
   project.ts
-  github.ts
 ```

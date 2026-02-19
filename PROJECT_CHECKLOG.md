@@ -1,2 +1,3 @@
-- Patch 206 prepared: remove leftover dead UI section components (Diagnostic/Build/GitHub).
 - Patch 205 prepared: remove leftover dead-code shims (supabaseTypes + legacy keyMasking + unused shared github types).
+
+- Patch 208 prepared: docs refresh (handoff + TODO) to reflect current patch state after cleanup/migrations.

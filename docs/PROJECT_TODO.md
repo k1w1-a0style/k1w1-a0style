@@ -35,11 +35,9 @@
 
 ## 🔥 Offene Bugs / Tech-Debt
 
-- [ ] **`lib/logger.ts` wird nicht verwendet** — existiert, hat 0 Imports; entweder aktiv migrieren oder löschen
-- [ ] **`screens/SettingsScreen/utils/keyMasking.ts`** — separate Impl. von `lib/apiKeyMasking.ts` (unterschiedliche Längen-Schwellwerte), Konsolidierung ausstehend
-- [ ] **`contexts/types.ts` Shim** — 36 Imports zeigen noch auf den Shim statt auf `shared/types/*`; schrittweise Migration offen
+- [ ] **Logger / no-console (optional)** — `lib/logger.ts` existiert; wenn wir strengere Logs wollen: Hotspots von `console.*` → `logger` migrieren und ESLint `no-console` schärfen
+- [ ] **`contexts/types.ts` Shim** — noch in Nutzung; schrittweise Migration auf `shared/types/*`, danach Shim löschen
 - [ ] **382 `: any` Annotationen** — systematischer TS-Safety-Debt, besonders in `contexts/`, `lib/orchestrator.ts`
-- [ ] **70 `console.log` Calls** — sollten zu `logger.log` migriert werden (nach logger-Migration)
 
 ---
 
@@ -47,7 +45,7 @@
 
 ### PR-9 (Preview — weitere Stages)
 - [ ] `PreviewScreen` Komponente weiter splitten: `DeviceFrame.tsx`, `PreviewToolbar.tsx`, `PreviewStatusBar.tsx`
-- [ ] `useWebViewCrashRecovery` auch in `PreviewScreen` (usePreviewScreen) einbinden
+- [x] `useWebViewCrashRecovery` auch in `PreviewScreen` (usePreviewScreen) einbinden
 - [ ] In `preview_page` Edge Function: optionaler Toggle für „raw logs" / „runtime errors"
 - [ ] In `PreviewScreen`: Anzeige von fileCount/size/skipped (was wurde gesendet)
 - [ ] Auto-Cleanup-Cron in Supabase: `cleanup_expired_previews()` regelmäßig triggern
@@ -57,8 +55,7 @@
 - [ ] ESLint `no-console` Rule aktivieren (warn für bestehende, error für neue)
 
 ### API Key Masking
-- [ ] `lib/apiKeyMasking.ts` und `screens/SettingsScreen/utils/keyMasking.ts` konsolidieren
-- [ ] Canonical: `looksLikeApiKey` Helper aus SettingsScreen-Version übernehmen
+- [ ] `lib/apiKeyMasking.ts` Review: sicherstellen, dass alle UI-Callsites die lib-Implementierung nutzen (SettingsScreen keyMasking wurde entfernt)
 
 ### Stabilität
 - [ ] Server-side Payload Limits (save_preview): harte max bytes + max files enforced
