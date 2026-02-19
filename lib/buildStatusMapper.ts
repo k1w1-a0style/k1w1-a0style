@@ -7,6 +7,9 @@
 // We re-export here to keep older imports working while preventing type drift.
 import type { BuildStatus } from "../shared/types/build";
 
+/**
+ * @deprecated Import BuildStatus from "shared/types/build" directly.
+ */
 export type { BuildStatus } from "../shared/types/build";
 
 /**

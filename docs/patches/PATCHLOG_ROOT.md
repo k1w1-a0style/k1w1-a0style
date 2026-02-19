@@ -2,6 +2,8 @@
 
 Most recent first.
 
+- Patch 201: `docs/patches/patch_201.md` (Guardrails: deprecate legacy type shims to prevent future import drift)
+
 - Patch 200: `docs/patches/patch_200.md` (PR-9 Stage 1: Preview Screens Refactoring + critical bug fix in PreviewFullscreenScreen)
 
 - Patch 199: `docs/patches/patch_199.md` (Test infra: set global Jest timeout to reduce flakiness)

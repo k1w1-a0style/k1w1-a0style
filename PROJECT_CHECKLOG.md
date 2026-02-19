@@ -1,6 +1,7 @@
 # Project Checklog
 
 - Patch 200 (2026-02-19): PR-9 Stage 1 — Preview Screens Refactoring: extract hooks, shared WebView utils, fix critical dead-code bug in PreviewFullscreenScreen
+- Patch 201 (2026-02-19): Guardrails — deprecate legacy type shims (contexts/types, buildStatusMapper re-export)
 - Patch 199 (2026-02-19): Test infra — set global Jest timeout to reduce flakiness
 - Patch 194 (2026-02-19): EnhancedBuildScreen — split helpers + preconditions hook (no behavior change)
 - Patch 193 (2026-02-19): EnhancedBuildScreen — extract run-details fetch helper; reduce duplication

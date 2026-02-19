@@ -4,6 +4,8 @@
 // Historically, many parts of the app imported shared domain types from this file.
 // PR-8 Stage 2 moves those types to shared/types/* and re-exports them here so
 // existing imports keep working while avoiding type drift.
+//
+// @deprecated Import types from "shared/types/*" directly.
 
 import type { BuildStatus } from "../shared/types/build";
 
