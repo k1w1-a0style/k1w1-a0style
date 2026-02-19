@@ -9,9 +9,13 @@ jest.mock("../screens/GitHubReposScreen/components/HeaderSection", () => ({
 jest.mock("../screens/GitHubReposScreen/components/TokenStatusSection", () => ({
   TokenStatusSection: () => null,
 }));
-jest.mock("../screens/GitHubReposScreen/components/ActionsSection", () => ({
-  ActionsSection: () => null,
-}));
+// These components were removed as part of cleanup patches, but older tests
+// still mock them. Mark as `virtual` so Jest won't try to resolve files.
+jest.mock(
+  "../screens/GitHubReposScreen/components/ActionsSection",
+  () => ({ ActionsSection: () => null }),
+  { virtual: true },
+);
 jest.mock("../screens/GitHubReposScreen/components/NewRepoSection", () => ({
   NewRepoSection: () => null,
 }));
@@ -21,9 +25,11 @@ jest.mock("../screens/GitHubReposScreen/components/RenameRepoSection", () => ({
 jest.mock("../screens/GitHubReposScreen/components/BranchSelector", () => ({
   BranchSelector: () => null,
 }));
-jest.mock("../screens/GitHubReposScreen/components/WorkflowRunsSection", () => ({
-  WorkflowRunsSection: () => null,
-}));
+jest.mock(
+  "../screens/GitHubReposScreen/components/WorkflowRunsSection",
+  () => ({ WorkflowRunsSection: () => null }),
+  { virtual: true },
+);
 
 jest.mock("../screens/GitHubReposScreen/components/FilterSection", () => {
   const React = require("react");

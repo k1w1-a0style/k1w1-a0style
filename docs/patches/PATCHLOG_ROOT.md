@@ -1,5 +1,10 @@
 # Patch Log
 
+## Patch 206: remove leftover dead UI section components
+
+- Removes unused section components left behind after refactors (DiagnosticScreen / EnhancedBuildScreen / GitHubReposScreen).
+
+
 Most recent first.
 
 - Patch 204: `docs/patches/patch_204.md` (Fix: revert over-aggressive Patch 203 cleanup; keep contexts/types + lib/logger)
