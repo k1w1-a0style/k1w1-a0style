@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Linking } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useProject } from "../../../contexts/ProjectContext";
 import { useGitHub } from "../../../contexts/GitHubContext";
@@ -8,8 +7,6 @@ import { useBuildHistory } from "../../../hooks/useBuildHistory";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
 import { BuildErrorAnalyzer } from "../../../lib/buildErrorAnalyzer";
 import { CONFIG } from "../../../config";
-import { getGitHubToken, getExpoToken } from "../../../infra/github/githubService";
-import { getWorkflowRunDetails, getWorkflowRunJobs } from "../../../infra/github/workflows";
 import type { BuildStatus } from "../../../lib/buildStatusMapper";
 import type { CheckItem } from "../components/ChecklistSection";
 import {
@@ -17,7 +14,6 @@ import {
   formatDuration,
   getStatusIcon,
 } from "../../../utils/buildScreenUtils";
-import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction";
 
 import type {
   BuildProfile,
@@ -26,85 +22,10 @@ import type {
   WorkflowRunsResponse,
 } from "../types";
 
-const FETCH_TIMEOUT_MS = 15_000;
+import { FETCH_TIMEOUT_MS, fetchRunDetailsBundle, sanitizeUiMessage, validateRepoFullName, withTimeout } from "./buildScreenHelpers";
+import { useBuildPreconditions } from "./useBuildPreconditions";
+
 export const MAX_RUNS_DISPLAY = 10;
-const MAX_ALERT_MESSAGE_LEN = 600;
-
-function sanitizeUiMessage(input: string): string {
-  const redacted = redactSecrets(input || "");
-  return truncateWithMarker(redacted, MAX_ALERT_MESSAGE_LEN, "…");
-}
-
-async function fetchRunDetailsBundle(
-  owner: string,
-  repo: string,
-  runId: number,
-): Promise<{ details: any; jobs: any[] }> {
-  const [details, jobs] = await Promise.all([
-    withTimeout(getWorkflowRunDetails(owner.trim(), repo.trim(), runId), FETCH_TIMEOUT_MS),
-    withTimeout(getWorkflowRunJobs(owner.trim(), repo.trim(), runId), FETCH_TIMEOUT_MS),
-  ]);
-  return {
-    details,
-    jobs: Array.isArray(jobs) ? (jobs as any) : [],
-  };
-}
-
-type RepoValidation =
-  | { valid: true; owner: string; repo: string; normalized: string }
-  | { valid: false; error: string; normalized: string };
-
-function validateRepoFullName(input: string): RepoValidation {
-  const normalized = (input || "").trim();
-  if (!normalized) {
-    return { valid: false, error: "Repo darf nicht leer sein.", normalized };
-  }
-  const parts = normalized.split("/");
-  if (parts.length !== 2) {
-    return {
-      valid: false,
-      error: 'Format muss "owner/repo" sein (genau ein /).',
-      normalized,
-    };
-  }
-  const [owner, repo] = parts;
-  if (!owner || !repo) {
-    return {
-      valid: false,
-      error: "Owner und Repo dürfen nicht leer sein.",
-      normalized,
-    };
-  }
-  // GitHub naming rules (pragmatic): letters, numbers, dots, underscores, hyphens.
-  const re = /^[A-Za-z0-9._-]+$/;
-  if (!re.test(owner)) {
-    return {
-      valid: false,
-      error: "Ungültige Zeichen im Owner.",
-      normalized,
-    };
-  }
-  if (!re.test(repo)) {
-    return {
-      valid: false,
-      error: "Ungültige Zeichen im Repo-Namen.",
-      normalized,
-    };
-  }
-  return { valid: true, owner, repo, normalized };
-}
-
-async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error("Timeout")), ms);
-  });
-  try {
-    return await Promise.race([promise, timeoutPromise]);
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
-  }
-}
 
 export function useEnhancedBuildScreen() {
   const runsReqIdRef = useRef(0); // verhindert Race-Conditions bei mehrfachen fetchRuns()
@@ -178,9 +99,6 @@ export function useEnhancedBuildScreen() {
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
 
   // Preconditions for "idiotensicher" build
-  const [hasTokens, setHasTokens] = useState(false);
-  const [hasSigningKey, setHasSigningKey] = useState(false);
-  const [hasDiagOk, setHasDiagOk] = useState(false);
 
   type ModeFilter = "all" | BuildProfile;
 
@@ -257,32 +175,8 @@ export function useEnhancedBuildScreen() {
   const status: BuildStatus = (currentBuild?.status as any) ?? "idle";
 
   // === Checklist + Build-Preconditions ===
-  const refreshPreconditions = useCallback(async () => {
-    try {
-      // Tokens
-      const [gh, expo] = await Promise.all([
-        getGitHubToken().catch(() => ""),
-        getExpoToken().catch(() => ""),
-      ]);
-      if (isMountedRef.current) setHasTokens(!!(gh && expo));
-
-      // Signing key (profile-aware)
-      const keyMode = buildProfile === "development" ? "dev" : buildProfile;
-      const credKey = `cred_key_exists_${keyMode}`;
-      const val = await AsyncStorage.getItem(credKey).catch(() => null);
-      if (isMountedRef.current) setHasSigningKey(val === "true");
-
-      // Diagnostic
-      const diagVal = await AsyncStorage.getItem("diagnostic_last_ok").catch(() => null);
-      if (isMountedRef.current) setHasDiagOk(diagVal === "true");
-    } catch {
-      // ignore
-    }
-  }, [buildProfile]);
-
-  useEffect(() => {
-    refreshPreconditions().catch(() => {});
-  }, [refreshPreconditions]);
+  const { hasTokens, hasSigningKey, hasDiagOk, refreshPreconditions } =
+    useBuildPreconditions(buildProfile);
 
   const buildBlockedReason = useMemo(() => {
     if (!repoValidation.valid) return "Repo fehlt (im Repo-Screen verknuepfen)";

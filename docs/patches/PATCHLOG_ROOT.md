@@ -2,8 +2,12 @@
 
 Most recent first.
 
+- Patch 194: `docs/patches/patch_194.md` (EnhancedBuildScreen: split helpers + preconditions hook; no behavior change)
+
 - Patch 193: `docs/patches/patch_193.md` (EnhancedBuildScreen: extract run-details fetch helper; reduce duplication)
 
+- Patch 192.3: `docs/patches/patch_192_3.md` (Hotfix: stabilize One-Click Deploy tests; prevent hanging/timeout)
+- Patch 192.2: `docs/patches/patch_192_2.md` (Hotfix: fix Jest mocks using require.resolve + deterministic imports)
 - Patch 192.1: `docs/patches/patch_192_1.md` (Hotfix: fix Jest module mock paths in One-Click Deploy tests)
 
 - Patch 192: `docs/patches/patch_192.md` (Fix One-Click Deploy tests; check Signing Key before tokens)
@@ -64,3 +68,4 @@ Most recent first.
 - Patch 149: `docs/patches/patch_149.md` (PR-3: polling extract + single poller)
 - Patch 148: `docs/patches/patch_148.md` (PR-2: storage move + facade)
 - Patch 147: `docs/patches/patch_147.md` (V3.1 scaffolding)
+- Patch 194.1: hotfix build screen hook parse error
