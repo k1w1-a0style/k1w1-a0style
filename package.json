@@ -72,7 +72,7 @@
     "react-native-zip-archive": "^7.0.2",
     "tweetsodium": "^0.0.4",
     "uuid": "^13.0.0",
-    "zod": "^3.25.76"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@babel/core": "^7.28.4",
