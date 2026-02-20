@@ -5,6 +5,7 @@ import { Buffer } from "buffer";
 import { fetchWithBackoff } from "../lib/retryWithBackoff";
 import { githubApiUrl } from "../shared/constants/github";
 import type { ProjectFile } from "../shared/types/project";
+import { logger } from "../lib/logger";
 import {
   getBranches as apiBranches,
   getAllWorkflowRuns as apiWorkflowRuns,
@@ -79,7 +80,7 @@ export const useGitHubRepos = (
       const json = (await res.json()) as GitHubRepo[];
       setRepos(json);
     } catch (e: any) {
-      console.error("[useGitHubRepos] Error:", e);
+      logger.error("[useGitHubRepos] Error:", e);
       const errorMsg = e?.message ?? "Fehler beim Laden der Repos";
       setError(errorMsg);
       callbacks?.onLoadError?.(errorMsg);
@@ -116,7 +117,7 @@ export const useGitHubRepos = (
         setRepos((prev) => prev.filter((r) => r.full_name !== repo.full_name));
         return true;
       } catch (e: any) {
-        console.error("[useGitHubRepos] Delete error:", e);
+        logger.error("[useGitHubRepos] Delete error:", e);
         const errorMsg = e?.message ?? "Repo konnte nicht gelöscht werden.";
         callbacks?.onDeleteError?.(errorMsg, repo);
         return false;
@@ -159,7 +160,7 @@ export const useGitHubRepos = (
 
         return newFullName;
       } catch (e: any) {
-        console.error("[useGitHubRepos] Rename error:", e);
+        logger.error("[useGitHubRepos] Rename error:", e);
         const errorMsg = e?.message ?? "Repo konnte nicht umbenannt werden.";
         callbacks?.onRenameError?.(errorMsg, currentFullName, newName);
         return null;
@@ -251,7 +252,7 @@ export const useGitHubRepos = (
               const ext = path.match(/\.[^.]+$/)?.[0]?.toLowerCase() || "";
 
               if (!textExtensions.includes(ext)) {
-                console.log(`[useGitHubRepos] Skip binary: ${path}`);
+                if (__DEV__) logger.debug(`[useGitHubRepos] Skip binary: ${path}`);
                 return null;
               }
 
@@ -294,7 +295,7 @@ export const useGitHubRepos = (
 
         return files;
       } catch (e: any) {
-        console.error("[useGitHubRepos] Pull error:", e);
+        logger.error("[useGitHubRepos] Pull error:", e);
         const errorMsg = e?.message ?? "Fehler beim Laden der Dateien.";
         callbacks?.onPullError?.(errorMsg);
         return null;
@@ -309,7 +310,7 @@ export const useGitHubRepos = (
       try {
         return await apiBranches(owner, repo);
       } catch (e: any) {
-        console.error("[useGitHubRepos] Branches error:", e);
+        logger.error("[useGitHubRepos] Branches error:", e);
         return [];
       }
     },
@@ -326,7 +327,7 @@ export const useGitHubRepos = (
       try {
         return await apiWorkflowRuns(owner, repo, perPage);
       } catch (e: any) {
-        console.error("[useGitHubRepos] WorkflowRuns error:", e);
+        logger.error("[useGitHubRepos] WorkflowRuns error:", e);
         return [];
       }
     },

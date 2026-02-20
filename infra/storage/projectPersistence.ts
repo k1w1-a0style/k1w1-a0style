@@ -13,6 +13,7 @@ import { loadChatHistorySettings } from "../../lib/chatPrivacySettings";
 import { normalizePath, Validators, validateFilePath, validateFileContent, validateZipImport } from '../../lib/validators';
 
 import { zip, unzip } from 'react-native-zip-archive';
+import { logger } from "../../lib/logger";
 
 const PROJECT_STORAGE_KEY = 'k1w1_project_data';
 const CACHE_DIR = FileSystem.cacheDirectory + 'zip_temp/';
@@ -102,7 +103,7 @@ const readDirectoryRecursive = async (dirUri: string, basePath = ''): Promise<Pr
     for (const item of items) {
       // ✅ FIX: Prüfe Dateianzahl NACH dem Hinzufügen, nicht vorher
       if (files.length >= MAX_TOTAL_FILES) {
-        console.warn(`[projectStorage] Maximale Dateianzahl erreicht: ${MAX_TOTAL_FILES}`);
+        logger.warn(`[projectStorage] Maximale Dateianzahl erreicht: ${MAX_TOTAL_FILES}`);
         return files;
       }
 
@@ -117,7 +118,7 @@ const readDirectoryRecursive = async (dirUri: string, basePath = ''): Promise<Pr
           // ✅ SICHERHEIT: Dateigröße prüfen
           const fileInfo = info as { exists: true; size?: number; isDirectory: boolean; uri: string };
           if (fileInfo.size && fileInfo.size > MAX_FILE_SIZE) {
-            console.warn(
+            logger.warn(
               `[projectStorage] Datei zu groß, übersprungen: ${relativePath}`,
               `Größe: ${(fileInfo.size / (1024 * 1024)).toFixed(2)}MB`,
             );
@@ -133,13 +134,13 @@ const readDirectoryRecursive = async (dirUri: string, basePath = ''): Promise<Pr
           // ✅ SICHERHEIT: Pfad UND Content validieren
           const pathValidation = validateFilePath(relativePath);
           if (!pathValidation.valid) {
-            console.warn(`[projectStorage] Ungültiger Pfad übersprungen: ${relativePath}`, pathValidation.errors);
+            logger.warn(`[projectStorage] Ungültiger Pfad übersprungen: ${relativePath}`, pathValidation.errors);
             continue;
           }
 
           const contentValidation = validateFileContent(content);
           if (!contentValidation.valid) {
-            console.warn(
+            logger.warn(
               `[projectStorage] Ungültiger Content übersprungen: ${relativePath}`,
               contentValidation.error,
             );
@@ -149,7 +150,7 @@ const readDirectoryRecursive = async (dirUri: string, basePath = ''): Promise<Pr
           const normalizedPath = pathValidation.normalized || normalizePath(relativePath);
           files.push({ path: normalizedPath, content });
         } catch (error) {
-          console.warn(`[projectStorage] Konnte nicht lesen: ${relativePath}`, error);
+          logger.warn(`[projectStorage] Konnte nicht lesen: ${relativePath}`, error);
         }
       }
     }
@@ -171,7 +172,7 @@ export const saveProjectToStorage = async (project: ProjectData): Promise<void> 
     };
     const projectString = JSON.stringify(projectToSave);
     await AsyncStorage.setItem(PROJECT_STORAGE_KEY, projectString);
-    console.log('💾 Projekt gespeichert:', project.name);
+    logger.info('💾 Projekt gespeichert:', project.name);
   } catch (error) {
     console.error('❌ Fehler beim Speichern:', error);
     throw new Error('Projekt konnte nicht gespeichert werden');
@@ -182,16 +183,16 @@ export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
   try {
     const projectString = await AsyncStorage.getItem(PROJECT_STORAGE_KEY);
     if (!projectString) {
-      console.log('📂 Kein gespeichertes Projekt gefunden');
+      logger.info('📂 Kein gespeichertes Projekt gefunden');
       return null;
     }
 
     const project = JSON.parse(projectString);
-    console.log('📖 Projekt geladen:', project.name);
+    logger.info('📖 Projekt geladen:', project.name);
 
     if (!project.files) {
       project.files = [];
-      console.log('🔧 files Array repariert');
+      logger.info('🔧 files Array repariert');
     }
 
     if (!project.chatHistory) {
@@ -199,7 +200,7 @@ export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
       // Migration: Alte 'messages' Property zu 'chatHistory'
       const projectWithMessages = project as ProjectData & { messages?: ChatMessage[] };
       project.chatHistory = projectWithMessages.messages || [];
-      console.log('🔧 chatHistory Array repariert');
+      logger.info('🔧 chatHistory Array repariert');
     }
 
 
@@ -225,7 +226,7 @@ export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
 export const clearProjectFromStorage = async (): Promise<void> => {
   try {
     await AsyncStorage.removeItem(PROJECT_STORAGE_KEY);
-    console.log('🗑️ Projekt aus Storage gelöscht');
+    logger.info('🗑️ Projekt aus Storage gelöscht');
   } catch (error) {
     console.error('❌ Fehler beim Löschen:', error);
     throw new Error('Projekt konnte nicht gelöscht werden');
@@ -240,7 +241,7 @@ export const exportProjectAsZipFile = async (
   fileCount: number;
   messageCount: number;
 }> => {
-  console.log('🎯 Export-Anfrage für:', project.name);
+  logger.info('🎯 Export-Anfrage für:', project.name);
   const projectFiles = materializeProjectFiles(project.files, { name: project.name, slug: project.slug ?? project.name, packageName: project.packageName });
   const projectName = project.name.replace(/[\s\/]+/g, '_') || 'projekt';
 
@@ -326,14 +327,14 @@ export const importProjectFromZipFile = async (): Promise<{
     await FileSystem.deleteAsync(CACHE_DIR, { idempotent: true });
     await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
 
-    console.log('📦 Entpacke...');
+    logger.info('📦 Entpacke...');
     await unzip(zipAsset.uri, CACHE_DIR);
 
     const newFiles = await readDirectoryRecursive(CACHE_DIR);
     if (newFiles.length === 0) throw new Error('ZIP enthält keine Dateien');
 
     // ✅ SICHERHEIT: Zusätzliche ZIP-Validierung
-    console.log('🔍 Validiere ZIP-Inhalte...');
+    logger.info('🔍 Validiere ZIP-Inhalte...');
     const zipValidation = validateZipImport(newFiles);
 
     if (!zipValidation.valid) {
@@ -348,7 +349,7 @@ export const importProjectFromZipFile = async (): Promise<{
     }
 
     if (zipValidation.invalidFiles.length > 0) {
-      console.warn(
+      logger.warn(
         `[projectStorage] ${zipValidation.invalidFiles.length} ungültige Dateien übersprungen:`,
         zipValidation.invalidFiles.map((f: { path: string; reason: string }) => `${f.path}: ${f.reason}`),
       );
@@ -366,7 +367,7 @@ export const importProjectFromZipFile = async (): Promise<{
       lastModified: new Date().toISOString(),
     };
 
-    console.log(`✅ ZIP-Import erfolgreich: ${validatedFiles.length} Dateien validiert`);
+    logger.info(`✅ ZIP-Import erfolgreich: ${validatedFiles.length} Dateien validiert`);
 
     return {
       project: newProject,

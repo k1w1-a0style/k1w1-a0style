@@ -6,6 +6,7 @@ import { encodeGitHubFileContent, ensureBuffer } from "./crypto";
 import { encodeGitHubPath, MANAGED_WORKFLOWS, normalizeRepoPath } from "./utils";
 import { getGitHubToken } from "./tokenStore";
 import { getDefaultBranch } from "./repos";
+import { logger } from "../../lib/logger";
 
 export const createOrUpdateFile = async (
   owner: string,
@@ -154,10 +155,7 @@ export const pushFilesToRepo = async (
     try {
       targetBranch = (await getDefaultBranch(owner, repo)).trim();
     } catch (e) {
-      console.warn(
-        "⚠️ Default-Branch konnte nicht ermittelt werden, fallback auf 'main':",
-        e,
-      );
+      logger.warn("⚠️ Default-Branch konnte nicht ermittelt werden, fallback auf 'main':", e);
       targetBranch = "main";
     }
   }
@@ -168,11 +166,11 @@ export const pushFilesToRepo = async (
     if (!f.path) continue;
     const p = normalizeRepoPath(f.path.trim());
     if (p.startsWith(".github/workflows/") && !MANAGED_WORKFLOWS.has(p)) {
-      console.log(`[pushFilesToRepo] Skip unmanaged workflow file: ${p}`);
+      logger.debug(`[pushFilesToRepo] Skip unmanaged workflow file: ${p}`);
       continue;
     }
 
-    console.log(`Pushing ${p}... (branch: ${targetBranch})`);
+    logger.info(`Pushing ${p}... (branch: ${targetBranch})`);
     await createOrUpdateFile(owner, repo, p, f.content, `Add ${f.path}`, targetBranch);
   }
 };

@@ -42,8 +42,15 @@ This file is append-only. Each patch adds a short entry.
 - Repo Hygiene: OpenAI NPM dependency entfernt (unused) + App.tsx Tab/Space Cleanup.
 
 ## Patch 225
-- Gemini guard: niemals leeres contents[] senden (Fallback auf user message).
-- Supabase Edge URL SoT: remove hardcoded project ref in config; derive from env.
-- Logger cleanup: console.* hotspots → lib/logger.
-- Remove legacy ProjectContext API: exportAndBuild entfernt.
+- Fix Gemini: guard gegen leere `contents` (400 vermeiden).
+- Supabase Edge URL: kein Hardcode mehr, sondern ENV/derived.
+- Logger: Hotspots statt `console.log` (prod-clean).
+- Remove legacy `exportAndBuild` aus ProjectContext API.
+
+## Patch 225.1
+- Logger: keine gebundenen console-methods (Jest spy friendly).
+
+## Patch 226
+- Replace remaining noisy `console.log/warn` in core runtime code mit `logger` (GitHub/Storage Hooks).
+- GitHub repo pull: binary-skip logs nur noch in dev.
 
