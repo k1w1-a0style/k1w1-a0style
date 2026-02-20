@@ -16,10 +16,14 @@ const safe = (fn: LogFn): LogFn => {
   };
 };
 
+// IMPORTANT:
+// Do NOT bind console methods here. Tests often spyOn(console, 'warn'/'info'/...)
+// and binding would bypass the spy. Using dynamic console access keeps logging
+// mockable and predictable.
 export const logger = {
-  debug: safe(console.debug ? console.debug.bind(console) : console.log.bind(console)),
-  info: safe(console.info ? console.info.bind(console) : console.log.bind(console)),
-  log: safe(console.log.bind(console)),
-  warn: safe(console.warn.bind(console)),
-  error: safe(console.error.bind(console)),
+  debug: safe((...args: any[]) => (console.debug ?? console.log)(...args)),
+  info: safe((...args: any[]) => (console.info ?? console.log)(...args)),
+  log: safe((...args: any[]) => console.log(...args)),
+  warn: safe((...args: any[]) => console.warn(...args)),
+  error: safe((...args: any[]) => console.error(...args)),
 };
