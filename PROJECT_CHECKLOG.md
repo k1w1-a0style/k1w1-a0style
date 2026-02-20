@@ -23,6 +23,7 @@
 - Patch 221: Connections UX polish (Scopes Badges + Missing-Warnung) + Build/CI Shortcut + Supabase Ref/Host Anzeige + TODO/Docs Alignment.
 - Patch 222: Android-only cleanup + kleine Connections/Repo Robustness.
 - Patch 223: CI Lite Status persistieren + CI Lite Checklist Item im EnhancedBuildScreen.
+- Patch 224: CI Lite Details (Run Meta + „in Chat übernehmen") + Connections Sync Summary + Repo Hygiene (openai removed + App.tsx format).
 
 ## Offene Punkte
 

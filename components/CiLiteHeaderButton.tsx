@@ -215,7 +215,7 @@ function AnimatedDots({ active }: { active: boolean }) {
 
 export default function CiLiteHeaderButton(): React.ReactElement {
   const { activeRepo, activeBranch } = useGitHub();
-  const { projectData, updateProjectFiles, deleteFile } = useProject();
+  const { projectData, updateProjectFiles, deleteFile, addChatMessage } = useProject();
 
   const [visible, setVisible] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -915,6 +915,24 @@ useEffect(() => {
     return "waiting";
   }, [busy, done, ok]);
 
+  const runMeta = useMemo(() => {
+    if (!workflowRun?.created_at) return null;
+    const created = Date.parse(workflowRun.created_at);
+    const updated = Date.parse(workflowRun.updated_at || workflowRun.created_at);
+    const durMs = Number.isFinite(created) && Number.isFinite(updated) ? Math.max(0, updated - created) : 0;
+    const durSec = Math.round(durMs / 1000);
+    const dur = durSec ? `${durSec}s` : "—";
+    return {
+      id: workflowRun.id,
+      runNumber: workflowRun.run_number,
+      status: workflowRun.status,
+      conclusion: workflowRun.conclusion || "—",
+      duration: dur,
+      url: runUrl || workflowRun.html_url,
+      updatedAt: workflowRun.updated_at,
+    };
+  }, [workflowRun, runUrl]);
+
   return (
     <>
       <Pressable
@@ -1079,6 +1097,14 @@ useEffect(() => {
                   <Text style={styles.stepCompactText}>Typecheck</Text>
                 </View>
               </View>
+
+              {runMeta ? (
+                <View style={styles.runMetaRow}>
+                  <Text style={styles.metaLine} numberOfLines={1}>
+                    Run #{runMeta.runNumber} · {runMeta.status} · {String(runMeta.conclusion)} · {runMeta.duration}
+                  </Text>
+                </View>
+              ) : null}
             </View>
 
             {showError ? (
@@ -1173,6 +1199,32 @@ useEffect(() => {
             ) : null}
 
             <View style={styles.actionsRow}>
+              <Pressable
+                onPress={async () => {
+                  const joined = safeUi(onlyErrors.join("\n"));
+                  if (!joined.trim()) {
+                    Alert.alert("CI Lite", "Keine Fehler gefunden – nichts an den Chat zu schicken.");
+                    return;
+                  }
+                  try {
+                    await addChatMessage({
+                      id: uuidv4(),
+                      role: "user",
+                      timestamp: new Date().toISOString(),
+                      content: `CI Lite Fehler (ESLint/Typecheck)\n\n${joined}`,
+                      meta: { error: true },
+                    });
+                    Alert.alert("In Chat übernommen", "Fehler wurden als Nachricht in den Chat eingefügt.");
+                  } catch {
+                    Alert.alert("Fehler", "Konnte die Nachricht nicht in den Chat schreiben.");
+                  }
+                }}
+                style={({ pressed }) => [styles.actionBtn, pressed && styles.actionBtnPressed]}
+              >
+                <Ionicons name="chatbubble-ellipses-outline" size={16} color={theme.palette.primary} />
+                <Text style={styles.actionBtnText}>Chat</Text>
+              </Pressable>
+
               <Pressable
                 onPress={async () => {
                   try {
@@ -1398,6 +1450,9 @@ const styles = StyleSheet.create({
     color: theme.palette.text.secondary,
     fontSize: 12,
     marginBottom: 3,
+  },
+  runMetaRow: {
+    marginTop: 6,
   },
   stepsCompactRow: {
     flexDirection: "row",

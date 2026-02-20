@@ -1,6 +1,8 @@
-import React from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../../theme";
 
@@ -11,6 +13,7 @@ import { SupabaseCard } from "./components/SupabaseCard";
 import { EasCard } from "./components/EasCard";
 
 export default function ConnectionsScreen() {
+  const [showSyncSummary, setShowSyncSummary] = useState(false);
   const {
     navigation,
     busy,
@@ -72,13 +75,48 @@ export default function ConnectionsScreen() {
     testExpo,
   } = useConnectionsScreen();
 
+  const syncSummaryLines = useMemo(() => {
+    const lines: string[] = [];
+    lines.push(`Repo: ${repoLine || "(kein Repo)"}`);
+    lines.push(`GitHub: ${githubOk ? "✅" : "❌"}${githubUser ? ` (${githubUser})` : ""}`);
+    if (githubScopes) lines.push(`GitHub Scopes: ${githubScopes}`);
+
+    lines.push(`Supabase URL: ${supabaseUrl || "(leer)"}`);
+    lines.push(`Supabase Ref: ${supabaseRef || "(leer)"}`);
+    lines.push(`Supabase Status: ${supabaseOk ? "✅" : "❌"}`);
+
+    lines.push(`Expo: ${expoOk ? "✅" : "❌"}${expoUser ? ` (${expoUser})` : ""}`);
+    lines.push(`EAS Project ID: ${easProjectId || "(leer)"}`);
+    lines.push(`EAS Status: ${easOk ? "✅" : "❌"}`);
+
+    lines.push("");
+    lines.push("Wird beim Sync ins Repo/Supabase geschrieben (Namen, keine Werte):");
+    lines.push("- GITHUB_TOKEN");
+    lines.push("- EXPO_TOKEN");
+    lines.push("- EDGE_ADMIN_KEY");
+    lines.push("- SUPABASE_SERVICE_ROLE_KEY");
+    lines.push("- SUPABASE_ANON_KEY");
+    lines.push("- EAS_PROJECT_ID");
+    return lines;
+  }, [repoLine, githubOk, githubUser, githubScopes, supabaseUrl, supabaseRef, supabaseOk, expoOk, expoUser, easProjectId, easOk]);
+
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.h1}>Verbindungen</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.h1}>Verbindungen</Text>
+          <Pressable
+            onPress={() => setShowSyncSummary(true)}
+            style={({ pressed }) => [styles.summaryBtn, pressed && styles.summaryBtnPressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Sync Summary"
+          >
+            <Ionicons name="list-outline" size={18} color={theme.palette.primary} />
+          </Pressable>
+        </View>
 
         <StatusCard
           styles={styles}
@@ -151,6 +189,37 @@ export default function ConnectionsScreen() {
 
         <View style={{ height: 20 }} />
       </ScrollView>
+
+      <Modal
+        visible={showSyncSummary}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSyncSummary(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowSyncSummary(false)}>
+          <Pressable style={styles.modalCard} onPress={() => {}}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Sync Summary</Text>
+              <Pressable
+                onPress={() => setShowSyncSummary(false)}
+                style={({ pressed }) => [styles.modalClose, pressed && styles.modalClosePressed]}
+              >
+                <Ionicons name="close" size={18} color={theme.palette.primary} />
+              </Pressable>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+              {syncSummaryLines.map((l, idx) => (
+                <Text key={`${idx}-${l.slice(0, 12)}`} style={styles.modalLine}>
+                  {l}
+                </Text>
+              ))}
+            </ScrollView>
+            <Text style={styles.modalHint}>
+              Tipp: Wenn du Keys/IDs änderst, danach immer einmal „Speichern“ und dann „Sync“ drücken.
+            </Text>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -159,11 +228,80 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.palette.background },
   content: { padding: 16, paddingBottom: 40 },
 
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  summaryBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  summaryBtnPressed: {
+    backgroundColor: theme.palette.userBubble.background,
+  },
+
   h1: {
     fontSize: 22,
     fontWeight: "800",
     color: theme.palette.text.primary,
-    marginBottom: 12,
+    marginBottom: 6,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 560,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.card,
+    padding: 14,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  modalTitle: {
+    color: theme.palette.text.primary,
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  modalClose: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  modalClosePressed: {
+    backgroundColor: theme.palette.userBubble.background,
+  },
+  modalLine: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    marginBottom: 6,
+  },
+  modalHint: {
+    marginTop: 10,
+    color: theme.palette.text.secondary,
+    fontSize: 12,
   },
 
   card: {

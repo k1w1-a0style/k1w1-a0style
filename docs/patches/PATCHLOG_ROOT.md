@@ -35,3 +35,8 @@ This file is append-only. Each patch adds a short entry.
 
 ## Patch 223
 - CI Lite: Persistenter OK-Status (TS + ESLint) + Anzeige als Checklist-Item im EnhancedBuildScreen.
+
+## Patch 224
+- CI Lite: “Send to Chat” (Fehler als Chat-Message) + Run-Meta Anzeige (Run#, Status, Conclusion, Duration).
+- Connections: Sync Summary Modal (zeigt was beim Sync passiert / welche Secrets-Keys betroffen sind).
+- Repo Hygiene: OpenAI NPM dependency entfernt (unused) + App.tsx Tab/Space Cleanup.

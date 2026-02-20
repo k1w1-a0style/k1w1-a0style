@@ -20,7 +20,7 @@ React-Native/Expo App zum Bauen und Testen von Projekten/Flows mit **integrierte
 
 ## Aktueller Stand / Nächste Schritte
 
-- Letzter Stand im Repo: **Patch 221** (kein AI-Model "Auto" mehr; Settings speichern nur noch konkrete Modelle).
+- Letzter Stand im Repo: **Patch 224** (CI Lite Details + Sync Summary + Repo Hygiene).
 - Vor dem nächsten Code-Patch: **Docs/TODO ist der Single Source of Truth** für alle offenen Punkte.
 
 Wenn du Patches als ZIP einspielst:
@@ -135,4 +135,4 @@ npx expo start -c
 Next: Patch 218 (siehe `docs/patches/patch_217.md`)
 
 
-Latest: Patch 223 ✅
+Latest: Patch 224 ✅

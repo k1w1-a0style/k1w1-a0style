@@ -155,18 +155,20 @@ const DrawerRoot = () => {
       />
 
       
-	      <Drawer.Screen
-	        name="CredentialsWizard"
-	        component={CredentialsWizardScreen}
-	        options={{
-	          title: "🔑 Credentials Wizard",
-	          drawerLabel: "🔑 Credentials Wizard",
-	          drawerIcon: ({ color, size }) => (
-	            <Ionicons name="key-outline" color={color} size={size} />
-	          ),
-	        }}
-	      />
-<Drawer.Screen
+
+      <Drawer.Screen
+        name="CredentialsWizard"
+        component={CredentialsWizardScreen}
+        options={{
+          title: "🔑 Credentials Wizard",
+          drawerLabel: "🔑 Credentials Wizard",
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="key-outline" color={color} size={size} />
+          ),
+        }}
+      />
+
+      <Drawer.Screen
         name="Settings"
         component={SettingsScreen}
         options={{ title: "Einstellungen", drawerLabel: "⚙️ Einstellungen" }}

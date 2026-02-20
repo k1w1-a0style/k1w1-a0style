@@ -38,6 +38,14 @@ Akzeptanz:
 
 **221-4 — Docs / TODO Alignment**
 - [x] `docs/TODO.md`: alte Patch-A/B/C Aufgaben (bereits erledigt) als ✅ markieren
+
+### Patch 224 — CI Lite Details + Sync Summary + Repo Hygiene ✅
+
+- [x] CI Lite Modal: Run-Meta anzeigen (Run#, Status, Conclusion, Duration)
+- [x] CI Lite Modal: Button „Chat“ (Error-Lines als Chat-Message übernehmen)
+- [x] Connections Screen: Sync Summary Modal (klar anzeigen was Sync schreibt)
+- [x] Repo Hygiene: `openai` npm package entfernen (unused)
+- [x] Format-Altlast: Tabs/Spaces in `App.tsx` bereinigt
 - [x] `docs/patches/patch_221.md` anlegen (Commands wie im Screenshot)
 - [x] `docs/patches/PATCHLOG_ROOT.md`, `PROJECT_CHECKLOG.md`, `README.md` aktualisieren
 - [x] Akzeptanz: niemand sucht mehr nach bereits gefixten TODOs
