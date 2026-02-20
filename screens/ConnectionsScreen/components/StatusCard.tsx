@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -55,24 +55,35 @@ function ConnectionLight({ ok, label }: { ok: boolean; label?: string }) {
   );
 }
 
+function ScopeBadge({ text, warn }: { text: string; warn?: boolean }) {
+  return (
+    <View style={[s.badgePill, warn ? s.badgeWarn : s.badgeNeutral]}>
+      <Text style={[s.badgePillText, warn ? s.badgeWarnText : s.badgeNeutralText]}>
+        {text}
+      </Text>
+    </View>
+  );
+}
+
 function StatusRow(props: {
   label: string;
   ok: boolean;
   value?: string;
   accountName?: string;
   detail?: string;
+  detailNode?: React.ReactNode;
 }) {
-  const { label, ok, value, accountName, detail } = props;
+  const { label, ok, value, accountName, detail, detailNode } = props;
   return (
     <View style={s.statusRow}>
       <ConnectionLight ok={ok} />
       <View style={s.statusTextWrap}>
         <Text style={s.statusLabel}>{label}</Text>
-        {accountName ? (
-          <Text style={s.accountName}>@{accountName}</Text>
-        ) : null}
-        {detail ? (
-          <Text style={s.detailLine} numberOfLines={2}>
+        {accountName ? <Text style={s.accountName}>@{accountName}</Text> : null}
+        {detailNode ? (
+          <View style={s.detailNodeWrap}>{detailNode}</View>
+        ) : detail ? (
+          <Text style={s.detailLine} numberOfLines={3}>
             {detail}
           </Text>
         ) : null}
@@ -90,25 +101,41 @@ function StatusRow(props: {
   );
 }
 
-
-
-function formatGitHubScopes(scopesRaw?: string): { display: string; missing: string[] } {
-  const raw = (scopesRaw || '').trim();
-  if (!raw) return { display: 'unknown', missing: [] };
+function formatGitHubScopes(scopesRaw?: string): { scopes: string[]; missing: string[]; unknown: boolean } {
+  const raw = (scopesRaw || "").trim();
+  if (!raw) return { scopes: [], missing: [], unknown: true };
   const scopes = raw
-    .split(/[,\s]+/)
+    .split(/[\s,]+/)
     .map((s) => s.trim())
     .filter(Boolean);
 
   const uniq = Array.from(new Set(scopes)).sort((a, b) => a.localeCompare(b));
 
   // Classic PAT scopes we typically need for dispatch/reading workflows
-  const required = ['repo', 'workflow'];
+  const required = ["repo", "workflow"];
   const missing = required.filter((r) => !uniq.includes(r));
 
+  return { scopes: uniq, missing, unknown: false };
+}
+
+function formatSupabaseDisplay(url: string, ref?: string): { value?: string; detail?: string } {
+  const u = (url || "").trim();
+  if (!u) return {};
+  const host = u.replace(/^https?:\/\//i, "").split("/")[0] || u;
+
+  const detectedRef = (ref || "").trim();
+  if (detectedRef) {
+    return {
+      value: detectedRef,
+      detail: `Host: ${host}`,
+    };
+  }
+
+  // Should not normally happen (we validate .supabase.co), but keep it robust.
+  const isSupabaseCo = /\.supabase\.co$/i.test(host);
   return {
-    display: uniq.join(' • '),
-    missing,
+    value: host,
+    detail: isSupabaseCo ? "Ref konnte nicht erkannt werden." : "Custom Domain (Ref unbekannt).",
   };
 }
 
@@ -136,8 +163,10 @@ export function StatusCard(props: {
   expoOk?: boolean;
   expoUser?: string;
   easOk?: boolean;
+  easInitRunning?: boolean;
   onNavigateRepos: () => void;
   onNavigateDiagnostic: () => void;
+  onNavigateBuild: () => void;
 }) {
   const {
     styles: parentStyles,
@@ -154,9 +183,20 @@ export function StatusCard(props: {
     expoOk,
     expoUser,
     easOk,
+    easInitRunning,
     onNavigateRepos,
     onNavigateDiagnostic,
+    onNavigateBuild,
   } = props;
+
+  const ghIsOk = githubOk ?? status.gh;
+  const scopesInfo = useMemo(() => formatGitHubScopes(githubScopes), [githubScopes]);
+
+  const supaIsOk = supabaseOk ?? status.sbUrl;
+  const supaDisplay = useMemo(
+    () => (supaIsOk ? formatSupabaseDisplay(supabaseUrl, supabaseRef) : {}),
+    [supaIsOk, supabaseUrl, supabaseRef],
+  );
 
   return (
     <View style={parentStyles.card}>
@@ -167,30 +207,51 @@ export function StatusCard(props: {
 
       <StatusRow
         label="GitHub"
-        ok={githubOk ?? status.gh}
+        ok={ghIsOk}
         accountName={githubUser || undefined}
-        detail={(githubOk ?? status.gh) ? (githubScopes ? `Scopes: ${githubScopes}` : "Scopes: unknown") : undefined}
+        detailNode={
+          ghIsOk ? (
+            <View>
+              <View style={s.scopesRow}>
+                <Text style={s.detailLineLabel}>Scopes:</Text>
+                {scopesInfo.unknown ? (
+                  <ScopeBadge text="unknown" warn />
+                ) : (
+                  <View style={s.scopesWrap}>
+                    {scopesInfo.scopes.slice(0, 8).map((sc) => (
+                      <ScopeBadge key={sc} text={sc} />
+                    ))}
+                    {scopesInfo.scopes.length > 8 ? <ScopeBadge text={`+${scopesInfo.scopes.length - 8}`} /> : null}
+                  </View>
+                )}
+              </View>
+              {(!scopesInfo.unknown && scopesInfo.missing.length > 0) ? (
+                <View style={s.missingRow}>
+                  <Ionicons name="warning-outline" size={14} color={theme.palette.warning} />
+                  <Text style={s.missingText}>Fehlen: {scopesInfo.missing.join(", ")} (PAT)</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : undefined
+        }
       />
-      <StatusRow
-        label="Expo"
-        ok={expoOk ?? status.ex}
-        accountName={expoUser || undefined}
-      />
+
+      <StatusRow label="Expo" ok={expoOk ?? status.ex} accountName={expoUser || undefined} />
+
       <StatusRow
         label="Supabase"
-        ok={supabaseOk ?? status.sbUrl}
-        value={(supabaseOk ?? status.sbUrl) ? (supabaseRef || supabaseUrl) : undefined}
-        detail={(supabaseOk ?? status.sbUrl) && supabaseRef ? `Ref: ${supabaseRef}` : undefined}
+        ok={supaIsOk}
+        value={supaDisplay.value}
+        detail={supaDisplay.detail}
       />
-      <StatusRow
-        label="Repo verknuepft"
-        ok={status.linked}
-        value={repoLine || undefined}
-      />
+
+      <StatusRow label="Repo verknuepft" ok={status.linked} value={repoLine || undefined} />
+
       <StatusRow
         label="EAS Project"
         ok={easOk ?? status.eas}
         value={status.eas ? easProjectId : undefined}
+        detail={easInitRunning ? "Workflow läuft… (GitHub Actions: eas-link)" : undefined}
       />
 
       <View style={parentStyles.row}>
@@ -200,6 +261,14 @@ export function StatusCard(props: {
           label="Repos"
           icon="logo-github"
           onPress={onNavigateRepos}
+        />
+        <ActionButton
+          styles={parentStyles}
+          busy={busy}
+          label="Build/CI"
+          icon="construct-outline"
+          variant="ghost"
+          onPress={onNavigateBuild}
         />
         <ActionButton
           styles={parentStyles}
@@ -218,97 +287,152 @@ const s = StyleSheet.create({
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 10,
     gap: 8,
   },
   cardTitle: {
     color: theme.palette.text.primary,
     fontSize: 15,
-    fontWeight: "900",
+    fontWeight: "800",
   },
-  lightRow: {
+
+  statusRow: {
     flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.borderLight,
+  },
+
+  lightRow: {
+    width: 18,
     alignItems: "center",
-    gap: 6,
+    paddingTop: 2,
   },
   light: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: theme.palette.text.disabled,
-    borderWidth: 1.5,
-    borderColor: theme.palette.border,
+    width: 10,
+    height: 10,
+    borderRadius: 10,
+    backgroundColor: theme.palette.border,
   },
   lightOn: {
     backgroundColor: theme.palette.success,
-    borderColor: theme.palette.success,
     shadowColor: theme.palette.success,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
+    shadowOpacity: 0.6,
     shadowRadius: 6,
-    elevation: 4,
   },
   lightLabel: {
-    color: theme.palette.text.muted,
+    marginTop: 4,
     fontSize: 11,
-    fontWeight: "700",
+    color: theme.palette.text.muted,
   },
   lightLabelOk: {
     color: theme.palette.success,
   },
-  statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.palette.border,
-    gap: 10,
-  },
+
   statusTextWrap: {
     flex: 1,
+    paddingRight: 8,
   },
   statusLabel: {
     color: theme.palette.text.primary,
     fontSize: 13,
-    fontWeight: "700",
-  },
-  detailLine: {
-    marginTop: 2,
-    color: theme.palette.text.muted,
-    fontSize: 12,
-    lineHeight: 16,
-  },
-
-  accountName: {
-    color: theme.palette.primary,
-    fontSize: 11,
     fontWeight: "800",
-    marginTop: 2,
   },
-  statusValue: {
+  accountName: {
+    marginTop: 2,
     color: theme.palette.text.secondary,
     fontSize: 12,
-    maxWidth: "45%",
+    fontWeight: "700",
   },
-  statusBadge: {
+
+  detailNodeWrap: {
+    marginTop: 6,
+  },
+  detailLineLabel: {
+    color: theme.palette.text.muted,
+    fontSize: 11,
+    fontWeight: "700",
+    marginRight: 6,
+  },
+  detailLine: {
+    marginTop: 6,
+    color: theme.palette.text.muted,
+    fontSize: 11,
+  },
+
+  scopesRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  scopesWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    flex: 1,
+  },
+
+  badgePill: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
-    fontSize: 10,
+    borderWidth: 1,
+  },
+  badgeNeutral: {
+    backgroundColor: theme.palette.cardHover,
+    borderColor: theme.palette.border,
+  },
+  badgeNeutralText: {
+    color: theme.palette.text.secondary,
+  },
+  badgeWarn: {
+    backgroundColor: theme.palette.warning + "22",
+    borderColor: theme.palette.warning,
+  },
+  badgeWarnText: {
+    color: theme.palette.warning,
+  },
+  badgePillText: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+
+  missingRow: {
+    marginTop: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  missingText: {
+    color: theme.palette.warning,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+
+  statusValue: {
+    color: theme.palette.text.primary,
+    fontSize: 12,
+    fontWeight: "800",
+    maxWidth: 150,
+  },
+
+  statusBadge: {
+    fontSize: 11,
     fontWeight: "900",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
     overflow: "hidden",
-    letterSpacing: 0.5,
   },
   badgeOk: {
+    backgroundColor: theme.palette.success + "22",
     color: theme.palette.success,
-    borderWidth: 1,
-    borderColor: "rgba(0,255,0,0.3)",
-    backgroundColor: "rgba(0,255,0,0.08)",
   },
   badgeFail: {
+    backgroundColor: theme.palette.error + "22",
     color: theme.palette.error,
-    borderWidth: 1,
-    borderColor: "rgba(255,68,68,0.3)",
-    backgroundColor: "rgba(255,68,68,0.08)",
   },
 });

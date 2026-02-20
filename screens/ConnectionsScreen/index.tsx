@@ -15,6 +15,8 @@ export default function ConnectionsScreen() {
     navigation,
     busy,
 
+    isEasInitRunning,
+
     // Repo/Status
     status,
     repoLine,
@@ -81,6 +83,7 @@ export default function ConnectionsScreen() {
         <StatusCard
           styles={styles}
           busy={busy}
+          easInitRunning={isEasInitRunning}
           status={status}
           repoLine={repoLine}
           supabaseUrl={supabaseUrl}
@@ -95,6 +98,7 @@ export default function ConnectionsScreen() {
           easOk={easOk}
           onNavigateRepos={() => navigation.navigate("GitHubRepos")}
           onNavigateDiagnostic={() => navigation.navigate("Diagnostic")}
+          onNavigateBuild={() => navigation.navigate("EnhancedBuild")}
         />
 
         <TokensCard

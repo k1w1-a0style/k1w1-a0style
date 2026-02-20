@@ -70,7 +70,7 @@ export function SupabaseCard(props: {
 
       <InputRow
         styles={styles}
-        label="Supabase URL (auto)"
+        label="Supabase URL (abgeleitet)"
         value={supabaseUrl}
         onChangeText={onChangeSupabaseUrl}
         placeholder="https://xxxxx.supabase.co"

@@ -10,16 +10,40 @@ Stand: **2026-02-20**
 
 > Ziel: **alles was zu tun ist steht hier**, so dass man es stumpf abhaken kann.
 
-### Patch 220 — KI-Model "Auto" entfernen (Verwirrung killen)
+### Patch 220 — KI-Model "Auto" entfernen ✅
 
-- [ ] Settings/AI: kein "Auto"-Model mehr anzeigen (bei allen Providern)
-- [ ] Migration: alte Config-Werte `selectedChatMode/selectedAgentMode = auto|auto-*` beim Laden auf konkrete Default-Modelle mappen
-- [ ] Defaults: neue Installationen starten direkt mit konkreten Default-Models (kein Auto)
-- [ ] Tests: AIContext Integration Test anpassen (Auto nicht mehr erwartet)
+- [x] Settings/AI: kein "Auto"-Model mehr anzeigen (bei allen Providern)
+- [x] Migration: alte Config-Werte `selectedChatMode/selectedAgentMode = auto|auto-*` beim Laden auf konkrete Default-Modelle mappen
+- [x] Defaults: neue Installationen starten direkt mit konkreten Default-Models (kein Auto)
+- [x] Tests: AIContext Integration Test anpassen (Auto nicht mehr erwartet)
 
 Akzeptanz:
-- [ ] In Settings taucht nirgends "Auto (...)" als Model auf
-- [ ] Bestehende Nutzer mit gespeicherter Auto-Config landen nach App-Start automatisch auf einem konkreten Model
+- [x] In Settings taucht nirgends "Auto (...)" als Model auf
+- [x] Bestehende Nutzer mit gespeicherter Auto-Config landen nach App-Start automatisch auf einem konkreten Model
+
+### Patch 221 — Connections UX + Docs SoT-Polish (next)
+
+**221-1 — GitHub Scopes UX verbessern**
+- [ ] StatusCard: Scopes als Badges anzeigen (statt Fließtext)
+- [ ] Missing required scopes klar markieren (mind. `repo`, `workflow`)
+- [ ] Akzeptanz: Verbunden + Scopes → sofort erkennbar, ob PAT Rechte reichen
+
+**221-2 — Shortcuts / Next Steps**
+- [ ] StatusCard: Button `Build/CI` (Drawer Route `EnhancedBuild`) hinzufügen
+- [ ] EAS Init/Link running: Hinweistext + "Check GitHub Actions (eas-link)"
+
+**221-3 — Supabase Ref/Host Anzeige aufräumen**
+- [ ] StatusCard: `supabaseRef` prominent anzeigen + Host in Detail
+- [ ] SupabaseCard: Label `Supabase URL (auto)` → `Supabase URL (abgeleitet)`
+
+**221-4 — Docs / TODO Alignment**
+- [ ] `docs/TODO.md`: alte Patch-A/B/C Aufgaben (bereits erledigt) als ✅ markieren
+- [ ] `docs/patches/patch_221.md` anlegen (Commands wie im Screenshot)
+- [ ] `docs/patches/PATCHLOG_ROOT.md`, `PROJECT_CHECKLOG.md`, `README.md` aktualisieren
+- [ ] Akzeptanz: niemand sucht mehr nach bereits gefixten TODOs
+
+---
+
 
 ### Patch 217 — Connection Screen SoT ✅
 - [x] Patch anwenden: `k1w1-a0style_patch_217_FIXED.zip` (enthält Code + Docs (MD) Updates)
@@ -40,12 +64,12 @@ Akzeptanz:
 
 **218-3 — Stale-Closure Fix: `testSupabase` deps**
 - [x] deps ergänzt
-- [ ] Akzeptanz: Service-Role nachträglich setzen → Test nutzt sicher den aktuellen Key.
+- [x] Akzeptanz: Service-Role nachträglich setzen → Test nutzt sicher den aktuellen Key.
 
-**218-4 — StatusCard: Scopes-Detail auch ohne Header**
-- [ ] Datei: `screens/ConnectionsScreen/components/StatusCard.tsx`
-- [ ] Wenn GitHub verbunden aber keine Scopes geliefert: `Scopes: unknown` anzeigen.
-- [ ] Akzeptanz: UI zeigt immer einen klaren Zustand, kein “leerer” Detailtext.
+**218-4 — StatusCard: Scopes-Detail auch ohne Header ✅**
+- [x] Datei: `screens/ConnectionsScreen/components/StatusCard.tsx`
+- [x] Wenn GitHub verbunden aber keine Scopes geliefert: `Scopes: unknown` anzeigen.
+- [x] Akzeptanz: UI zeigt immer einen klaren Zustand, kein “leerer” Detailtext.
 
 **218-5 — Docs Alignment**
 - [ ] `docs/patches/patch_218.md` anlegen (Commands wie im Screenshot)
@@ -54,60 +78,56 @@ Akzeptanz:
 
 ---
 
-### Patch A — CI Lite Bugfix (🔥 zuerst)
-
+### Patch A — CI Lite Bugfix ✅ (Patch 217)
 **A1 — Dead Code entfernen: `topContent` wird nie gerendert**
-- [ ] Datei: `components/CiLiteHeaderButton.tsx`
-- [ ] Entferne `const topContent = useMemo(...)` komplett **oder** rendere es bewusst (aktuell: nicht benutzt).
-- [ ] Entferne zugehörige ungenutzte Styles (mindestens `styles.ciBtn`).
-- [ ] Akzeptanz: Typecheck/Lint grün, kein `{topContent}` missing (weil es nirgendwo existiert), kein unnötiges Memo.
+- [x] Datei: `components/CiLiteHeaderButton.tsx`
+- [x] Entferne `const topContent = useMemo(...)` komplett **oder** rendere es bewusst (aktuell: nicht benutzt).
+- [x] Entferne zugehörige ungenutzte Styles (mindestens `styles.ciBtn`).
+- [x] Akzeptanz: Typecheck/Lint grün, kein `{topContent}` missing (weil es nirgendwo existiert), kein unnötiges Memo.
 
 **A2 — Stale-Closure Fix: `applyPatchFromText` Dependencies**
-- [ ] Datei: `components/CiLiteHeaderButton.tsx`
-- [ ] `applyPatchFromText` nutzt u.a. `githubRepo`, `branch`, `getDefaultBranch`, `pushFilesToRepo`, `deleteRepoFile`, `getGitHubToken`.
-- [ ] Lösung (minimal): fehlende Werte in deps aufnehmen.
-- [ ] Lösung (robuster): `useRef` für `githubRepo/branch` oder für „current selection“ und Callback deps schlank halten.
-- [ ] Akzeptanz: Repo/Branch wechseln → Apply Patch pusht garantiert in das aktuelle Ziel.
+- [x] Datei: `components/CiLiteHeaderButton.tsx`
+- [x] `applyPatchFromText` nutzt u.a. `githubRepo`, `branch`, `getDefaultBranch`, `pushFilesToRepo`, `deleteRepoFile`, `getGitHubToken`.
+- [x] Lösung (minimal): fehlende Werte in deps aufnehmen.
+- [x] Lösung (robuster): `useRef` für `githubRepo/branch` oder für „current selection“ und Callback deps schlank halten.
+- [x] Akzeptanz: Repo/Branch wechseln → Apply Patch pusht garantiert in das aktuelle Ziel.
 
 **A3 — Unmount Cleanup: Polling Timer**
-- [ ] Datei: `components/CiLiteHeaderButton.tsx`
-- [ ] Ergänze `useEffect(() => () => stopPolling(), [stopPolling])` (oder äquivalenter Cleanup).
-- [ ] Akzeptanz: Navigation/unmount während Polling → kein weiterlaufender Timer, keine setState-after-unmount Warnungen.
+- [x] Datei: `components/CiLiteHeaderButton.tsx`
+- [x] Ergänze `useEffect(() => () => stopPolling(), [stopPolling])` (oder äquivalenter Cleanup).
+- [x] Akzeptanz: Navigation/unmount während Polling → kein weiterlaufender Timer, keine setState-after-unmount Warnungen.
 
-### Patch B — Supabase Edge Function Names: echte SoT (🟠 danach)
-
+### Patch B — Supabase Edge Function Names: echte SoT ✅ (Patch 217)
 **B1 — Constants vervollständigen**
-- [ ] Datei: `shared/constants/supabase.ts`
-- [ ] Ergänze fehlende Functions:
-  - [ ] `CHECK_EAS_BUILD` (`check-eas-build`)
-  - [ ] `SAVE_PREVIEW` (`save_preview`)
+- [x] Datei: `shared/constants/supabase.ts`
+- [x] Ergänze fehlende Functions:
+  - [x] `CHECK_EAS_BUILD` (`check-eas-build`)
+  - [x] `SAVE_PREVIEW` (`save_preview`)
 
 **B2 — Hardcodes entfernen (alle Call-Sites)**
-- [ ] `components/CiLiteHeaderButton.tsx`: `github-workflow-runs`, `github-workflow-dispatch` → Constants
-- [ ] `project/services/buildStartService.ts`: `trigger-eas-build` → Constant
-- [ ] `project/services/buildPollingService.ts`: `check-eas-build` → Constant
-- [ ] `hooks/usePreview.ts`: `save_preview` → Constant
-- [ ] Akzeptanz: keine `fetch(.../github-workflow-...)` oder `invoke("trigger-eas-build")` Strings mehr.
+- [x] `components/CiLiteHeaderButton.tsx`: `github-workflow-runs`, `github-workflow-dispatch` → Constants
+- [x] `project/services/buildStartService.ts`: `trigger-eas-build` → Constant
+- [x] `project/services/buildPollingService.ts`: `check-eas-build` → Constant
+- [x] `hooks/usePreview.ts`: `save_preview` → Constant
+- [x] Akzeptanz: keine `fetch(.../github-workflow-...)` oder `invoke("trigger-eas-build")` Strings mehr.
 
 **B3 — Duplicate Helper entfernen**
-- [ ] Datei: `project/services/buildPollingService.ts`
-- [ ] Entferne lokale `getSupabaseEdgeUrl()` (Duplikat)
-- [ ] Nutze `lib/supabaseEdge.ts` als einzige Quelle.
+- [x] Datei: `project/services/buildPollingService.ts`
+- [x] Entferne lokale `getSupabaseEdgeUrl()` (Duplikat)
+- [x] Nutze `lib/supabaseEdge.ts` als einzige Quelle.
 
-### Patch C — Storage Keys: kleine, aber echte Drift-Fallen (🟡 optional / clean)
-
+### Patch C — Storage Keys: SoT ✅ (Patch 217)
 **C1 — `diagnostic_last_ok` zentralisieren**
-- [ ] Datei: `shared/constants/storage.ts` oder `shared/constants/diagnostics.ts` (je nach bestehender Struktur)
-- [ ] Update:
-  - [ ] `screens/EnhancedBuildScreen/hooks/useBuildPreconditions.ts`
-  - [ ] `screens/DiagnosticScreen/hooks/useDiagnosticScreen.ts`
+- [x] Datei: `shared/constants/storage.ts` oder `shared/constants/diagnostics.ts` (je nach bestehender Struktur)
+- [x] Update:
+  - [x] `screens/EnhancedBuildScreen/hooks/useBuildPreconditions.ts`
+  - [x] `screens/DiagnosticScreen/hooks/useDiagnosticScreen.ts`
 
-### Patch D — TokenStore Konsistenz (🟡 robustness)
-
+### Patch D — TokenStore Konsistenz ✅ (Patch 217)
 **D1 — SecureStore Error-Handling vereinheitlichen**
-- [ ] Datei: `infra/github/tokenStore.ts`
-- [ ] Admin/Signing/ServiceRole Keys nutzen aktuell direkte `SecureStore.*Async` Calls.
-- [ ] Umstellen auf die gleichen Wrapper/Pattern wie GitHub/Expo (try/catch + konsistente Fehlermeldung).
+- [x] Datei: `infra/github/tokenStore.ts`
+- [x] Admin/Signing/ServiceRole Keys nutzen aktuell direkte `SecureStore.*Async` Calls.
+- [x] Umstellen auf die gleichen Wrapper/Pattern wie GitHub/Expo (try/catch + konsistente Fehlermeldung).
 
 ---
 

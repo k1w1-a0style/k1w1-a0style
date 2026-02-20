@@ -26,3 +26,6 @@ This file is append-only. Each patch adds a short entry.
 ## Patch 220
 - Remove KI-Model “auto” option (kein Auto-Mode mehr in Settings/UI). Legacy-Configs werden beim Laden sauber auf konkrete Default-Modelle gemappt.
 
+
+## Patch 221
+- Connections UX polish (GitHub scopes as badges + missing-scope warning) + Build/CI shortcut + Supabase ref/host display cleanup + docs/todo alignment.
