@@ -80,7 +80,7 @@
     "@testing-library/react-native": "^13.3.3",
     "@types/jest": "^29.5.14",
     "@types/react": "~19.1.10",
-    "@types/uuid": "^10.0.0",
+    "@types/uuid": "^11.0.0",
     "babel-preset-expo": "~54.0.9",
     "depcheck": "^1.4.7",
     "eslint": "^9.0.0",
