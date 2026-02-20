@@ -34,3 +34,11 @@
 > Referenz: `docs/TODO.md` (Single Source of Truth).
 - Refactor: `components/CiLiteHeaderButton.tsx` in kleinere Teile (Hook + UI Komponenten) aufsplitten.
 
+
+## Patch 228 (2026-02-20)
+- Added docs/DEV_COMMANDS.md and updated docs/INDEX.md + README for search commands without rg.
+
+
+## Patch 229 (2026-02-20)
+- CI Lite: extracted helpers into `components/ciLite/ciLiteUtils.ts` and aligned usages.
+- CI Lite: minor robustness/UX improvements + docs alignment.

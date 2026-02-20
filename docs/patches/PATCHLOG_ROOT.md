@@ -61,3 +61,10 @@ This file is append-only. Each patch adds a short entry.
 - CI Lite: `applyPatchFromText` deps vollständig (stale-closure Guard bei Repo/Branch-Wechsel).
 - Docs: Patchnote + Patchlog/Checklog synchronisiert.
 
+## Patch 228 (2026-02-20)
+- Docs: added `docs/DEV_COMMANDS.md` (Commands/Shortcuts) and updated docs index + README to work without `rg`/ripgrep.
+
+## Patch 229 (2026-02-20)
+- CI Lite: extracted shared helpers into components/ciLite/ciLiteUtils.ts (SoT).
+- CI Lite: applyPatchFromText/selection deps hardened further + minor UX polish.
+- Docs: patchnote + patchlog/checklog/readme alignment.

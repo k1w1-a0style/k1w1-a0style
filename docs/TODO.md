@@ -107,6 +107,18 @@ Akzeptanz:
 - [x] `applyPatchFromText` deps vollständig (kein stale-closure bei Repo/Branch-Wechsel)
 - [x] Doku: Patchnote + Patchlog/Checklog aktualisiert
 
+
+### Patch 228 — Dev Commands + Index/README ✅
+
+- [x] `docs/DEV_COMMANDS.md` hinzufügen (Commands/Shortcuts, ohne `rg`)
+- [x] `docs/INDEX.md` aktualisieren (inkl. DEV_COMMANDS + Patchlinks)
+- [x] `README.md` Hinweis auf DEV_COMMANDS ergänzen
+
+### Patch 229 — CI Lite utils SoT + Docs ✅
+
+- [x] Shared Helper nach `components/ciLite/ciLiteUtils.ts` (einmalige Quelle)
+- [x] CI Lite nutzt Helper konsistent (kein Drift zwischen Dateien)
+- [x] Patchnote + Patchlog/Checklog/README aktualisiert
 ---
 
 ### Patch A — CI Lite Bugfix ✅ (Patch 217)
@@ -331,3 +343,5 @@ Akzeptanz:
 ## Patch 226 (Cleanup)
 - [ ] Logger sweep: remaining console logs in GitHub/Storage hooks
 
+
+- [x] Add DEV_COMMANDS.md (git grep / grep alternatives when rg is missing)

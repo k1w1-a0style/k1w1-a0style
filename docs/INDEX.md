@@ -24,6 +24,11 @@ Im Root sollten nur die wichtigsten Einstiegspunkte liegen:
 - `AGENTS.md`, `AI_START_HERE.md` (Arbeits- / KI-Startpunkte)
 
 Alles andere: bitte nach `docs/` verschieben (oder löschen, wenn es nur temporäre Patch-Hilfsdateien waren).
-- Patch 217 (pending/apply): `docs/patches/patch_217.md`
 
 ## Patches
+
+## Dev quick refs
+
+- [Developer commands](./DEV_COMMANDS.md)
+- Patch 228: DEV Commands + Index/README adjustments (2026-02-20) — docs/patches/patch_228.md
+- Patch 229: CI Lite utils SoT + docs alignment (2026-02-20) — docs/patches/patch_229.md

@@ -20,7 +20,7 @@ React-Native/Expo App zum Bauen und Testen von Projekten/Flows mit **integrierte
 
 ## Aktueller Stand / Nächste Schritte
 
-- Letzter Stand im Repo: **Patch 227** (CI Lite Closure-Hardening + Docs alignment).
+- Letzter Stand im Repo: **Patch 229** (CI Lite utils SoT + docs alignment).
 - Vor dem nächsten Code-Patch: **Docs/TODO ist der Single Source of Truth** für alle offenen Punkte.
 
 Wenn du Patches als ZIP einspielst:
@@ -138,4 +138,6 @@ npx expo start -c
 Next: Patch 218 (siehe `docs/patches/patch_217.md`)
 
 
-Latest: Patch 224 ✅
+
+## Dev Commands
+Siehe `docs/DEV_COMMANDS.md` (Commands/Shortcuts, ohne rg/ripgrep).
