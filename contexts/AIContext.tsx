@@ -21,7 +21,6 @@ export type ModelInfo = {
 };
 
 export type ProviderDefaults = {
-  auto?: string; // ✅ überall nur "auto"
   speed: string;
   quality: string;
 };
@@ -74,13 +73,12 @@ export type AIContextProps = {
   acknowledgeProviderStatus: (provider: AllAIProviders) => void;
 };
 
-// ✅ Auto überall nur "auto"
 export const PROVIDER_DEFAULTS: Record<AllAIProviders, ProviderDefaults> = {
-  groq: { auto: 'auto', speed: 'groq/compound-mini', quality: 'llama-3.3-70b-versatile' },
-  openai: { auto: 'auto', speed: 'gpt-4o-mini', quality: 'gpt-4o' },
-  anthropic: { auto: 'auto', speed: 'claude-3-5-haiku-20241022', quality: 'claude-3-5-sonnet-20241022' },
-  gemini: { auto: 'auto', speed: 'gemini-2.5-flash-lite', quality: 'gemini-2.5-flash' },
-  huggingface: { auto: 'auto', speed: 'Qwen/Qwen2.5-7B-Instruct', quality: 'Qwen/Qwen2.5-Coder-32B-Instruct' },
+  groq: { speed: 'groq/compound-mini', quality: 'llama-3.3-70b-versatile' },
+  openai: { speed: 'gpt-4o-mini', quality: 'gpt-4o' },
+  anthropic: { speed: 'claude-3-5-haiku-20241022', quality: 'claude-3-5-sonnet-20241022' },
+  gemini: { speed: 'gemini-2.5-flash-lite', quality: 'gemini-2.5-flash' },
+  huggingface: { speed: 'Qwen/Qwen2.5-7B-Instruct', quality: 'Qwen/Qwen2.5-Coder-32B-Instruct' },
 };
 
 export const PROVIDER_METADATA: Record<AllAIProviders, ProviderMetadata> = {
@@ -136,7 +134,6 @@ export const PROVIDER_METADATA: Record<AllAIProviders, ProviderMetadata> = {
 
 export const AVAILABLE_MODELS: Record<AllAIProviders, ModelInfo[]> = {
   groq: [
-    { id: 'auto', label: 'Auto (Groq)', description: 'Nimmt je nach Speed/Quality dein Default.', tier: 'free', persona: 'balanced', bestFor: 'Einfach läuft', contextWindow: '—', isAuto: true },
     { id: 'groq/compound-mini', label: 'Compound Mini', description: 'Sehr schnell & günstig.', tier: 'free', persona: 'speed', bestFor: 'Chat / UI Text', contextWindow: '—' },
     { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant', description: 'Schnell, stabil.', tier: 'free', persona: 'speed', bestFor: 'Alltag', contextWindow: '—' },
     { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile', description: 'Mehr Qualität für komplexere Prompts.', tier: 'paid', persona: 'quality', bestFor: 'Qualität', contextWindow: '—' },
@@ -145,7 +142,6 @@ export const AVAILABLE_MODELS: Record<AllAIProviders, ModelInfo[]> = {
     { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B (Groq)', description: 'Großes OSS Modell über Groq.', tier: 'credit', persona: 'quality', bestFor: 'Qualität', contextWindow: '—' },
   ],
   openai: [
-    { id: 'auto', label: 'Auto (OpenAI)', description: 'Nimmt je nach Speed/Quality dein Default.', tier: 'credit', persona: 'balanced', bestFor: 'Einfach läuft', contextWindow: '—', isAuto: true },
     { id: 'gpt-4o', label: 'GPT-4o', description: 'Starker Allrounder.', tier: 'credit', persona: 'quality', bestFor: 'Allround', contextWindow: '—' },
     { id: 'gpt-4o-mini', label: 'GPT-4o mini', description: 'Schnell & günstig.', tier: 'free', persona: 'speed', bestFor: 'Speed', contextWindow: '—' },
     { id: 'gpt-4.1', label: 'GPT-4.1', description: 'Sehr gut für Code/Reasoning.', tier: 'credit', persona: 'quality', bestFor: 'Code', contextWindow: '—' },
@@ -153,19 +149,16 @@ export const AVAILABLE_MODELS: Record<AllAIProviders, ModelInfo[]> = {
     { id: 'gpt-4.1-nano', label: 'GPT-4.1 nano', description: 'Extrem schnell.', tier: 'free', persona: 'speed', bestFor: 'Mini-Tasks', contextWindow: '—' },
   ],
   anthropic: [
-    { id: 'auto', label: 'Auto (Anthropic)', description: 'Nimmt je nach Speed/Quality dein Default.', tier: 'credit', persona: 'balanced', bestFor: 'Einfach läuft', contextWindow: '—', isAuto: true },
     { id: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku', description: 'Schnell, solide.', tier: 'credit', persona: 'speed', bestFor: 'Speed', contextWindow: '—' },
     { id: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', description: 'Schnell + besser.', tier: 'credit', persona: 'speed', bestFor: 'Speed+Qualität', contextWindow: '—' },
-    { id: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', description: 'Starkes Reasoning & Textqualität.', tier: 'credit', persona: 'quality', bestFor: 'Qualität/Review', contextWindow: '—' },
+    { id: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', description: 'Höhere Qualität (Reasoning/Writing).', tier: 'credit', persona: 'quality', bestFor: 'Quality/Review', contextWindow: '—' },
   ],
   gemini: [
-    { id: 'auto', label: 'Auto (Gemini)', description: 'Auto Auswahl nach Speed/Quality.', tier: 'free', persona: 'balanced', bestFor: 'Einfach läuft', contextWindow: '1M', isAuto: true },
     // ✅ Test wants at least one model with "1M" or "2M"
     { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite', description: 'Sehr schnell & günstig.', tier: 'free', persona: 'speed', bestFor: 'Speed', contextWindow: '1M' },
     { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', description: 'Daily Driver.', tier: 'credit', persona: 'balanced', bestFor: 'Daily', contextWindow: '1M' },
   ],
   huggingface: [
-    { id: 'auto', label: 'Auto (HF)', description: 'Auto Router auf OSS Modelle.', tier: 'free', persona: 'balanced', bestFor: 'Open Models', contextWindow: '—', isAuto: true },
     { id: 'Qwen/Qwen2.5-Coder-32B-Instruct', label: 'Qwen2.5 Coder 32B', description: 'Stark für Code.', tier: 'free', persona: 'quality', bestFor: 'Code', contextWindow: '—' },
     { id: 'Qwen/Qwen2.5-7B-Instruct', label: 'Qwen2.5 7B', description: 'Schnell für Chat.', tier: 'free', persona: 'speed', bestFor: 'Chat', contextWindow: '—' },
     { id: 'meta-llama/Llama-3.1-8B-Instruct', label: 'Llama 3.1 8B Instruct', description: 'OSS Chat.', tier: 'free', persona: 'speed', bestFor: 'Chat', contextWindow: '—' },
@@ -180,9 +173,9 @@ const STORAGE_FALLBACK_KEYS = ['ai_config_v3', 'ai_config_v2', 'ai_config_v1'];
 const DEFAULT_CONFIG: AIConfig = {
   version: 4,
   selectedChatProvider: 'groq',
-  selectedChatMode: 'auto',
+  selectedChatMode: PROVIDER_DEFAULTS.groq.speed,
   selectedAgentProvider: 'anthropic',
-  selectedAgentMode: 'auto',
+  selectedAgentMode: PROVIDER_DEFAULTS.anthropic.quality,
   qualityMode: 'speed',
   agentEnabled: true,
   apiKeys: { groq: [], gemini: [], openai: [], anthropic: [], huggingface: [] },
@@ -190,10 +183,15 @@ const DEFAULT_CONFIG: AIConfig = {
 
 const AIContext = createContext<AIContextProps | undefined>(undefined);
 
-function normalizeAuto(mode: string | undefined | null): string {
-  if (!mode) return 'auto';
-  const m = String(mode);
-  return m.startsWith('auto-') ? 'auto' : (m.trim() || 'auto');
+function resolveLegacyAutoMode(provider: AllAIProviders, qualityMode: QualityMode, mode: unknown): string {
+  const raw = typeof mode === 'string' ? mode.trim() : '';
+  const isLegacyAuto = raw === '' || raw === 'auto' || raw.startsWith('auto-');
+  if (!isLegacyAuto) return raw;
+
+  const defs = PROVIDER_DEFAULTS[provider];
+  // balanced -> speed default, review -> quality default
+  if (qualityMode === 'quality' || qualityMode === 'review') return defs.quality;
+  return defs.speed;
 }
 
 
@@ -236,17 +234,25 @@ async function loadConfig(): Promise<AIConfig | null> {
       const parsed = JSON.parse(raw) as Partial<AIConfig>;
       if (!parsed || typeof parsed !== 'object') continue;
 
-      const fixed: AIConfig = {
+      const base: AIConfig = {
         ...DEFAULT_CONFIG,
         ...parsed,
         version: DEFAULT_CONFIG.version,
-        selectedChatMode: normalizeAuto((parsed as any).selectedChatMode),
-        selectedAgentMode: normalizeAuto((parsed as any).selectedAgentMode),
         apiKeys: {
           ...DEFAULT_CONFIG.apiKeys,
           ...((parsed as any).apiKeys ?? {}),
         },
         agentEnabled: typeof (parsed as any).agentEnabled === 'boolean' ? !!(parsed as any).agentEnabled : DEFAULT_CONFIG.agentEnabled,
+      };
+
+      const chatProvider = (base.selectedChatProvider as AllAIProviders) || DEFAULT_CONFIG.selectedChatProvider;
+      const agentProvider = (base.selectedAgentProvider as AllAIProviders) || DEFAULT_CONFIG.selectedAgentProvider;
+      const qm: QualityMode = (base.qualityMode as QualityMode) || DEFAULT_CONFIG.qualityMode;
+
+      const fixed: AIConfig = {
+        ...base,
+        selectedChatMode: resolveLegacyAutoMode(chatProvider, qm, (parsed as any).selectedChatMode ?? base.selectedChatMode),
+        selectedAgentMode: resolveLegacyAutoMode(agentProvider, qm, (parsed as any).selectedAgentMode ?? base.selectedAgentMode),
       };
 
       if (k !== CONFIG_STORAGE_KEY) {

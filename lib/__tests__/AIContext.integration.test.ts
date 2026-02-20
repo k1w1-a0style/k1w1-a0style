@@ -69,14 +69,9 @@ describe('AIContext Integration', () => {
           });
         });
 
-        it(`sollte ein Auto-Modell für ${provider} haben`, () => {
+        it(`sollte kein Auto-Modell für ${provider} anbieten (verhindert Verwirrung)`, () => {
           const models = AVAILABLE_MODELS[provider];
-          const autoModel = models.find(m => m.isAuto === true);
-          
-          expect(autoModel).toBeDefined();
-          if (autoModel) {
-            expect(autoModel.label.toLowerCase()).toContain('auto');
-          }
+          expect(models.some(m => m.id === 'auto' || m.isAuto === true)).toBe(false);
         });
       });
 

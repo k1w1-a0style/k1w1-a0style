@@ -5,9 +5,9 @@ import { sanitizeAiConfigFromBackup, validateApiBackupJson } from "../lib/appInf
 const baseConfig: any = {
   version: 1,
   selectedChatProvider: "openai",
-  selectedChatMode: "auto",
+  selectedChatMode: "groq/compound-mini",
   selectedAgentProvider: "openai",
-  selectedAgentMode: "auto",
+  selectedAgentMode: "claude-3-5-sonnet-20241022",
   qualityMode: "balanced",
   agentEnabled: true,
   apiKeys: {

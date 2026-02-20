@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Platform, ToastAndroid } from "react-native";
 
-import { useAI } from "../../../contexts/AIContext";
+import { PROVIDER_DEFAULTS, useAI } from "../../../contexts/AIContext";
 import type { AllAIProviders, QualityMode } from "../../../contexts/AIContext";
 import { useNotifications } from "../../../hooks/useNotifications";
 import { loadChatHistorySettings, setChatHistoryPersistence } from "../../../lib/chatPrivacySettings";
@@ -113,8 +113,8 @@ export function useSettingsScreen() {
     "groq") as ProviderId;
   const agentProvider = ((config as any)?.selectedAgentProvider ??
     "anthropic") as ProviderId;
-  const selectedChatMode = (config as any)?.selectedChatMode ?? "auto";
-  const selectedAgentMode = (config as any)?.selectedAgentMode ?? "auto";
+  const selectedChatMode = (config as any)?.selectedChatMode ?? PROVIDER_DEFAULTS[generatorProvider].speed;
+  const selectedAgentMode = (config as any)?.selectedAgentMode ?? PROVIDER_DEFAULTS[agentProvider].quality;
   const qualityMode = ((config as any)?.qualityMode ?? "speed") as QualityMode;
   const agentEnabled = !!(config as any)?.agentEnabled;
 

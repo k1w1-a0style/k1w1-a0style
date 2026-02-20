@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-02-19**
+Stand: **2026-02-20**
 
 > Dieses Dokument ist die **laufende Restliste**.  
 > Alle Security-/Privacy-P1-Fixes aus den Screen-Reviews sind umgesetzt und Tests sind grün.  
@@ -8,8 +8,18 @@ Stand: **2026-02-19**
 
 ## Aktuell (als Nächstes abarbeiten)
 
-> **Nächster Schritt:** Patch **217** anwenden (`k1w1-a0style_patch_217_FIXED.zip`) – setzt **Patch A+B+C** aus dieser Liste um.
-> Danach können die Checkboxen A/B/C unten abgehakt werden.
+> Ziel: **alles was zu tun ist steht hier**, so dass man es stumpf abhaken kann.
+
+### Patch 220 — KI-Model "Auto" entfernen (Verwirrung killen)
+
+- [ ] Settings/AI: kein "Auto"-Model mehr anzeigen (bei allen Providern)
+- [ ] Migration: alte Config-Werte `selectedChatMode/selectedAgentMode = auto|auto-*` beim Laden auf konkrete Default-Modelle mappen
+- [ ] Defaults: neue Installationen starten direkt mit konkreten Default-Models (kein Auto)
+- [ ] Tests: AIContext Integration Test anpassen (Auto nicht mehr erwartet)
+
+Akzeptanz:
+- [ ] In Settings taucht nirgends "Auto (...)" als Model auf
+- [ ] Bestehende Nutzer mit gespeicherter Auto-Config landen nach App-Start automatisch auf einem konkreten Model
 
 ### Patch 217 — Connection Screen SoT ✅
 - [x] Patch anwenden: `k1w1-a0style_patch_217_FIXED.zip` (enthält Code + Docs (MD) Updates)
@@ -20,24 +30,16 @@ Stand: **2026-02-19**
 
 > Ziel: **alles was zu tun ist steht hier**, so dass man es stumpf abhaken kann.
 
-### Patch 218 Detail-Tasks
+### Patch 218 — Connections/SoT Feinschliff ✅
 
 **218-1 — GitHub Scopes persistieren & anzeigen (best-effort)**
-- [ ] Datei: `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`
-- [ ] Beim Laden (mount) `CONN_GITHUB_SCOPES` aus `AsyncStorage` laden und in State setzen.
-- [ ] Beim GitHub-Test: wenn Header fehlt → Scopes als „unknown“ anzeigen (nicht leer/verschluckt).
-- [ ] Akzeptanz: nach App-Restart bleiben Username + Scopes sichtbar (oder „unknown“).
+- [x] Laden (mount) liest `CONN_GITHUB_SCOPES` und zeigt „unknown“ wenn nicht verfügbar.
 
 **218-2 — Connection-Lampen korrekt zurücksetzen wenn Token gelöscht wird**
-- [ ] Datei: `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`
-- [ ] Wenn GitHub Token gelöscht wird: `CONN_GITHUB_OK/USER/SCOPES` löschen + Repo/EAS-Flags zurücksetzen (weil GitHub-Actions ohne Token nicht nutzbar).
-- [ ] Wenn Expo Token gelöscht wird: `CONN_EXPO_OK/USER` löschen.
-- [ ] Wenn Supabase URL oder ANON Key geleert wird: `CONN_SUPABASE_OK/REF` zurücksetzen.
-- [ ] Akzeptanz: Token leeren → Lampen gehen aus und bleiben nach Restart aus.
+- [x] Resets implementiert (GitHub/Expo/Supabase)
 
 **218-3 — Stale-Closure Fix: `testSupabase` deps**
-- [ ] Datei: `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`
-- [ ] `testSupabase` nutzt `supabaseServiceRoleKey` → muss in deps.
+- [x] deps ergänzt
 - [ ] Akzeptanz: Service-Role nachträglich setzen → Test nutzt sicher den aktuellen Key.
 
 **218-4 — StatusCard: Scopes-Detail auch ohne Header**

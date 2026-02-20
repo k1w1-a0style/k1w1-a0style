@@ -14,25 +14,13 @@
   - GitHub AsyncStorage keys live in `shared/constants/github.ts`.
   - Supabase Edge function names live in `shared/constants/supabase.ts`.
 
-## Offene Punkte (noch nicht gepatcht)
+## Patch 216–220 (Summary)
+
+- Patch 216: Docs/TODO/Workflow aufgeräumt.
+- Patch 217–218: CI Lite Bugfixes + Supabase Edge SoT + Storage/Connection SoT + Robustness.
+- Patch 219: Provider Hardening + Docs/Examples SoT polish + Connections status polish.
+- Patch 220: Entfernt AI-Model "Auto" (UI) + Migration von Legacy-Configs auf konkrete Default-Modelle.
+
+## Offene Punkte
 
 > Referenz: `docs/TODO.md` (Single Source of Truth).
-
-- CI Lite Bugfixes (CiLiteHeaderButton): Dead code `topContent`, stale-closure in `applyPatchFromText`, unmount cleanup für Polling.
-- Supabase Edge function SoT: fehlende Constants (`check-eas-build`, `save_preview`) + Hardcodes entfernen.
-- `buildPollingService`: dupliziert `getSupabaseEdgeUrl` statt `lib/supabaseEdge.ts` zu nutzen.
-- Storage-Key SoT: `diagnostic_last_ok` zentralisieren.
-- TokenStore: SecureStore Error-Handling vereinheitlichen.
-
-## Pending
-- Patch 217: apply `k1w1-a0style_patch_217_FIXED.zip` (CI Lite bugfix + SoT Edge/Storage + Connection Screen SoT). Danach typecheck/lint/tests und TODO abhaken.
-
-
-## Patch 217 (geplant/ausstehend)
-- CI Lite Bugfixes + SoT Edge Functions + SoT Storage Keys
-- Connection Screen: persistenter Verbunden-Status (inkl. EAS Init+Link Warn-Dialog)
-
-## Patch 218 (pending)
-- Connections Screen SoT Edge-Cases: reset flags on token deletion, GitHub scopes persist/unknown, deps fix
-
-- 2026-02-19: Patch 219 (AI provider hardening + docs/examples SoT polish + Connections status polish)

@@ -23,3 +23,6 @@ This file is append-only. Each patch adds a short entry.
 ## Patch 219
 - AI Provider hardening (remove phantom model defaults, fix OpenAI request payload, proper Gemini multi-turn) + SecureKeyManager rotation listener (no monkey-patch) + file reference check precision + logger cleanup + Docs/Examples SoT polish + nicer Connections status (scopes + Supabase ref).
 
+## Patch 220
+- Remove KI-Model “auto” option (kein Auto-Mode mehr in Settings/UI). Legacy-Configs werden beim Laden sauber auf konkrete Default-Modelle gemappt.
+

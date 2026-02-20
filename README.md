@@ -20,7 +20,7 @@ React-Native/Expo App zum Bauen und Testen von Projekten/Flows mit **integrierte
 
 ## Aktueller Stand / Nächste Schritte
 
-- Letzter Stand im Repo: **Patch 215** (SoT-Strings: GitHub Storage Keys + erste Supabase Edge Function Names).
+- Letzter Stand im Repo: **Patch 220** (kein AI-Model "Auto" mehr; Settings speichern nur noch konkrete Modelle).
 - Vor dem nächsten Code-Patch: **Docs/TODO ist der Single Source of Truth** für alle offenen Punkte.
 
 Wenn du Patches als ZIP einspielst:
@@ -135,4 +135,4 @@ npx expo start -c
 Next: Patch 218 (siehe `docs/patches/patch_217.md`)
 
 
-Latest: Patch 219 ✅
+Latest: Patch 220 ✅
