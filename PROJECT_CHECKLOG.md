@@ -14,7 +14,7 @@
   - GitHub AsyncStorage keys live in `shared/constants/github.ts`.
   - Supabase Edge function names live in `shared/constants/supabase.ts`.
 
-## Patch 216–223 (Summary)
+## Patch 216–227 (Summary)
 
 - Patch 216: Docs/TODO/Workflow aufgeräumt.
 - Patch 217–218: CI Lite Bugfixes + Supabase Edge SoT + Storage/Connection SoT + Robustness.
@@ -24,9 +24,13 @@
 - Patch 222: Android-only cleanup + kleine Connections/Repo Robustness.
 - Patch 223: CI Lite Status persistieren + CI Lite Checklist Item im EnhancedBuildScreen.
 - Patch 224: CI Lite Details (Run Meta + „in Chat übernehmen") + Connections Sync Summary + Repo Hygiene (openai removed + App.tsx format).
+- Patch 225: Gemini Guard + Supabase Edge URL SoT + Logger Cleanup + Remove legacy `exportAndBuild`.
+- Patch 226: Logger Sweep in GitHub/Storage Hooks.
+- Patch 226.2: Hotfix für kaputten Import-Block in `hooks/useGitHubRepos.ts`.
+- Patch 227: CI Lite `applyPatchFromText` deps hardening + Docs alignment.
 
 ## Offene Punkte
 
 > Referenz: `docs/TODO.md` (Single Source of Truth).
-- Patch 226: Logger sweep (GitHub/Storage hooks)
+- Refactor: `components/CiLiteHeaderButton.tsx` in kleinere Teile (Hook + UI Komponenten) aufsplitten.
 

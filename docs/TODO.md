@@ -90,9 +90,22 @@ Akzeptanz:
 - [x] Akzeptanz: UI zeigt immer einen klaren Zustand, kein “leerer” Detailtext.
 
 **218-5 — Docs Alignment**
-- [ ] `docs/patches/patch_218.md` anlegen (Commands wie im Screenshot)
-- [ ] `docs/patches/PATCHLOG_ROOT.md`, `PROJECT_CHECKLOG.md`, `README.md` aktualisieren
-- [ ] Akzeptanz: Doku spiegelt realen Stand wider (217 done, 218 next).
+- [x] `docs/patches/patch_218.md` vorhanden
+- [x] `docs/patches/PATCHLOG_ROOT.md`, `PROJECT_CHECKLOG.md`, `README.md` aktualisiert
+- [x] Akzeptanz: Doku spiegelt realen Stand wider
+
+---
+
+### Patch 226 — Logger Sweep + GitHub Import Fix ✅
+
+- [x] Logger-Sweep: GitHub/Storage Hooks auf `logger.*` statt `console.*`
+- [x] Hotfix: kaputtes Import-Block-Format in `hooks/useGitHubRepos.ts` repariert
+- [x] Doku: Patchnote + Patchlog/Checklog aktualisiert
+
+### Patch 227 — CI Lite Closure-Hardening + Docs ✅
+
+- [x] `applyPatchFromText` deps vollständig (kein stale-closure bei Repo/Branch-Wechsel)
+- [x] Doku: Patchnote + Patchlog/Checklog aktualisiert
 
 ---
 

@@ -20,14 +20,15 @@ React-Native/Expo App zum Bauen und Testen von Projekten/Flows mit **integrierte
 
 ## Aktueller Stand / Nächste Schritte
 
-- Letzter Stand im Repo: **Patch 224** (CI Lite Details + Sync Summary + Repo Hygiene).
+- Letzter Stand im Repo: **Patch 227** (CI Lite Closure-Hardening + Docs alignment).
 - Vor dem nächsten Code-Patch: **Docs/TODO ist der Single Source of Truth** für alle offenen Punkte.
 
 Wenn du Patches als ZIP einspielst:
 
 1) ZIP ins Projektroot legen
 2) `unzip -o <patch>.zip -d .`
-3) Tests laufen lassen (`npm run typecheck`, `npm run lint:ci`, `npm run test:silent`)
+3) Tests laufen lassen (`npm run test:silent`)
+   - Hinweis: Husky/CI deckt `typecheck` + `lint:ci` ohnehin ab.
 4) Commit + Push
 
 ## Was das Preview-System kann

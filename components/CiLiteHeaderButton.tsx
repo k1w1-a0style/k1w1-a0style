@@ -717,7 +717,7 @@ useEffect(() => {
       });
     },
     // Added githubRepo + branch: used for auto-sync push inside applyPatchFromText
-    [projectData, patchBusy, validatePatchText, deleteFile, updateProjectFiles, githubRepo, branch],
+    [projectData, patchBusy, validatePatchText, deleteFile, updateProjectFiles, githubRepo, branch, getDefaultBranch, pushFilesToRepo, deleteRepoFile, getGitHubToken],
   );
 
 

@@ -54,3 +54,10 @@ This file is append-only. Each patch adds a short entry.
 - Replace remaining noisy `console.log/warn` in core runtime code mit `logger` (GitHub/Storage Hooks).
 - GitHub repo pull: binary-skip logs nur noch in dev.
 
+## Patch 226.2
+- Hotfix: kaputtes Import-Block-Format in `hooks/useGitHubRepos.ts` repariert (TS/Jest Parser wieder grün).
+
+## Patch 227
+- CI Lite: `applyPatchFromText` deps vollständig (stale-closure Guard bei Repo/Branch-Wechsel).
+- Docs: Patchnote + Patchlog/Checklog synchronisiert.
+

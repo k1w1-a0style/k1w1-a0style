@@ -27,3 +27,7 @@ npm run typecheck
 npm run lint:ci
 npm run test:silent
 ```
+
+## Hotfix 226.2
+
+**Fix:** `hooks/useGitHubRepos.ts` hatte ein kaputtes Import-Block-Format (TS/Jest Parser Error). Import-Block ist wieder syntaktisch korrekt.
