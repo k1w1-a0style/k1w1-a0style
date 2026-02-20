@@ -22,8 +22,7 @@ export function useBuildPreconditions(buildProfile: BuildProfile) {
   const [hasTokens, setHasTokens] = useState(false);
   const [hasSigningKey, setHasSigningKey] = useState(false);
   const [hasDiagOk, setHasDiagOk] = useState(false);
-  const [hasCiLintOk, setHasCiLintOk] = useState(false);
-  const [hasCiTypecheckOk, setHasCiTypecheckOk] = useState(false);
+  const [hasCiLiteOk, setHasCiLiteOk] = useState(false);
 
   const refreshPreconditions = useCallback(async () => {
     try {
@@ -46,15 +45,12 @@ export function useBuildPreconditions(buildProfile: BuildProfile) {
       const diagVal = await AsyncStorage.getItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null);
       if (isMountedRef.current) setHasDiagOk(diagVal === "true");
 
-      // CI Lite (optional, but nice: green check persists after CI Lite run)
+      // CI Lite (non-blocking, but nice to see)
       const [lintOk, typeOk] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_LINT_OK).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_TYPECHECK_OK).catch(() => null),
       ]);
-      if (isMountedRef.current) {
-        setHasCiLintOk(lintOk === "true");
-        setHasCiTypecheckOk(typeOk === "true");
-      }
+      if (isMountedRef.current) setHasCiLiteOk(lintOk === "true" && typeOk === "true");
     } catch {
       // ignore
     }
@@ -68,8 +64,7 @@ export function useBuildPreconditions(buildProfile: BuildProfile) {
     hasTokens,
     hasSigningKey,
     hasDiagOk,
-    hasCiLintOk,
-    hasCiTypecheckOk,
+    hasCiLiteOk,
     refreshPreconditions,
   };
 }

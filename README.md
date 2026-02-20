@@ -135,4 +135,4 @@ npx expo start -c
 Next: Patch 218 (siehe `docs/patches/patch_217.md`)
 
 
-Latest: Patch 221 ✅
+Latest: Patch 223 ✅

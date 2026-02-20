@@ -14,13 +14,15 @@
   - GitHub AsyncStorage keys live in `shared/constants/github.ts`.
   - Supabase Edge function names live in `shared/constants/supabase.ts`.
 
-## Patch 216–220 (Summary)
+## Patch 216–223 (Summary)
 
 - Patch 216: Docs/TODO/Workflow aufgeräumt.
 - Patch 217–218: CI Lite Bugfixes + Supabase Edge SoT + Storage/Connection SoT + Robustness.
 - Patch 219: Provider Hardening + Docs/Examples SoT polish + Connections status polish.
 - Patch 220: Entfernt AI-Model "Auto" (UI) + Migration von Legacy-Configs auf konkrete Default-Modelle.
 - Patch 221: Connections UX polish (Scopes Badges + Missing-Warnung) + Build/CI Shortcut + Supabase Ref/Host Anzeige + TODO/Docs Alignment.
+- Patch 222: Android-only cleanup + kleine Connections/Repo Robustness.
+- Patch 223: CI Lite Status persistieren + CI Lite Checklist Item im EnhancedBuildScreen.
 
 ## Offene Punkte
 

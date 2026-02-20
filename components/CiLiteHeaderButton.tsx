@@ -15,9 +15,10 @@ import {
   View,
   Linking,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { v4 as uuidv4 } from "uuid";
+
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import * as Clipboard from "expo-clipboard";
 
@@ -30,11 +31,11 @@ import { useProject } from "../contexts/ProjectContext";
 import { deleteRepoFile, getDefaultBranch, getEdgeAdminKey, pushFilesToRepo } from "../infra/github/githubService";
 import { useGitHubActionsLogs } from "../hooks/useGitHubActionsLogs";
 import { redactSecrets, truncateWithMarker } from "../lib/secretRedaction";
+import { STORAGE_KEYS } from "../lib/storageKeys";
 
 import type { PreflightPatch } from "../lib/diagnostics/preflightTypes";
 import { validateFileContent, validateFilePath } from "../lib/validators";
 import { checkPatchLimits, analyzePatchRisk, patchTouchedPaths } from "../lib/diagnostics/fixSafety";
-import { STORAGE_KEYS } from "../lib/storageKeys";
 
 const WORKFLOW_CI_LITE = "k1w1-ci-lite.yml";
 const WORKFLOW_CI_LITE_AUTOFIX = "k1w1-ci-lite-autofix.yml";
@@ -408,22 +409,6 @@ useEffect(() => {
 
   const stepInfo = useMemo(() => inferStepStates(logLines), [logLines]);
 
-  // Persist CI Lite results so other screens (e.g. Build checklist) can show a stable green state.
-  useEffect(() => {
-    if (workflowId !== WORKFLOW_CI_LITE) return;
-    if (!workflowRun || workflowRun.status !== "completed") return;
-
-    // Prefer parsed step states; fall back to workflow conclusion.
-    const lintOk = stepInfo.lint === "success" || workflowRun.conclusion === "success";
-    const typeOk = stepInfo.typecheck === "success" || workflowRun.conclusion === "success";
-
-    AsyncStorage.multiSet([
-      [STORAGE_KEYS.CI_LITE_LINT_OK, lintOk ? "true" : "false"],
-      [STORAGE_KEYS.CI_LITE_TYPECHECK_OK, typeOk ? "true" : "false"],
-      [STORAGE_KEYS.CI_LITE_LAST_RUN_AT, String(Date.now())],
-    ]).catch(() => {});
-  }, [workflowId, workflowRun?.status, workflowRun?.conclusion, stepInfo.lint, stepInfo.typecheck]);
-
   // Chain-run: if the Autofix workflow succeeded, automatically switch to the CI Lite run.
   useEffect(() => {
     if (!visible) return;
@@ -498,6 +483,29 @@ useEffect(() => {
     else if (workflowRun.conclusion === "failure" || workflowRun.conclusion === "cancelled")
       setHeaderState("failure");
   }, [workflowRun?.status, workflowRun?.conclusion, dispatching]);
+
+  // Persist CI Lite results for other screens (e.g. Build checklist).
+  useEffect(() => {
+    if (!workflowRun) return;
+    if (workflowId !== WORKFLOW_CI_LITE) return;
+    if (workflowRun.status !== "completed") return;
+
+    const conclusion = (workflowRun.conclusion || "").toLowerCase();
+    const isSuccess = conclusion === "success";
+
+    // Prefer workflow conclusion; otherwise fall back to inferred step states.
+    const lintOk = isSuccess ? true : stepInfo.lint === "success";
+    const typeOk = isSuccess ? true : stepInfo.typecheck === "success";
+    const ts = String(Date.now());
+
+    void AsyncStorage.multiSet([
+      [STORAGE_KEYS.CI_LITE_LINT_OK, lintOk ? "true" : "false"],
+      [STORAGE_KEYS.CI_LITE_TYPECHECK_OK, typeOk ? "true" : "false"],
+      [STORAGE_KEYS.CI_LITE_LAST_RUN_AT, ts],
+    ]).catch(() => {
+      // ignore persistence failures (non-critical)
+    });
+  }, [workflowRun, workflowId, stepInfo.lint, stepInfo.typecheck]);
 
 
   const pastePatchFromClipboard = useCallback(async () => {

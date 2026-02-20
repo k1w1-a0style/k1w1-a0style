@@ -21,26 +21,36 @@ Akzeptanz:
 - [x] In Settings taucht nirgends "Auto (...)" als Model auf
 - [x] Bestehende Nutzer mit gespeicherter Auto-Config landen nach App-Start automatisch auf einem konkreten Model
 
-### Patch 221 — Connections UX + Docs SoT-Polish (next)
+### Patch 221 — Connections UX + Docs SoT-Polish ✅
 
 **221-1 — GitHub Scopes UX verbessern**
-- [ ] StatusCard: Scopes als Badges anzeigen (statt Fließtext)
-- [ ] Missing required scopes klar markieren (mind. `repo`, `workflow`)
-- [ ] Akzeptanz: Verbunden + Scopes → sofort erkennbar, ob PAT Rechte reichen
+- [x] StatusCard: Scopes als Badges anzeigen (statt Fließtext)
+- [x] Missing required scopes klar markieren (mind. `repo`, `workflow`)
+- [x] Akzeptanz: Verbunden + Scopes → sofort erkennbar, ob PAT Rechte reichen
 
 **221-2 — Shortcuts / Next Steps**
-- [ ] StatusCard: Button `Build/CI` (Drawer Route `EnhancedBuild`) hinzufügen
-- [ ] EAS Init/Link running: Hinweistext + "Check GitHub Actions (eas-link)"
+- [x] StatusCard: Button `Build/CI` (Drawer Route `EnhancedBuild`) hinzufügen
+- [x] EAS Init/Link running: Hinweistext + "Check GitHub Actions (eas-link)"
 
 **221-3 — Supabase Ref/Host Anzeige aufräumen**
-- [ ] StatusCard: `supabaseRef` prominent anzeigen + Host in Detail
-- [ ] SupabaseCard: Label `Supabase URL (auto)` → `Supabase URL (abgeleitet)`
+- [x] StatusCard: `supabaseRef` prominent anzeigen + Host in Detail
+- [x] SupabaseCard: Label `Supabase URL (auto)` → `Supabase URL (abgeleitet)`
 
 **221-4 — Docs / TODO Alignment**
-- [ ] `docs/TODO.md`: alte Patch-A/B/C Aufgaben (bereits erledigt) als ✅ markieren
-- [ ] `docs/patches/patch_221.md` anlegen (Commands wie im Screenshot)
-- [ ] `docs/patches/PATCHLOG_ROOT.md`, `PROJECT_CHECKLOG.md`, `README.md` aktualisieren
-- [ ] Akzeptanz: niemand sucht mehr nach bereits gefixten TODOs
+- [x] `docs/TODO.md`: alte Patch-A/B/C Aufgaben (bereits erledigt) als ✅ markieren
+- [x] `docs/patches/patch_221.md` anlegen (Commands wie im Screenshot)
+- [x] `docs/patches/PATCHLOG_ROOT.md`, `PROJECT_CHECKLOG.md`, `README.md` aktualisieren
+- [x] Akzeptanz: niemand sucht mehr nach bereits gefixten TODOs
+
+### Patch 223 — CI Lite Status persistieren + Build Checklist ✅
+
+- [x] CI Lite: Ergebnis (Lint/Typecheck OK + Timestamp) nach Workflow-Completion in AsyncStorage persistieren
+- [x] BuildScreen: Checklist Item "CI Lite gruen (TS + ESLint)" anzeigen (non-blocking)
+- [x] StorageKeys: CI Lite Keys zentralisiert (kein Drift)
+
+Akzeptanz:
+- [x] Nach einem erfolgreichen CI Lite Run bleibt der Status nach App-Restart sichtbar
+- [x] EnhancedBuildScreen zeigt CI Lite als Checklist-Item und führt den User klar zum Header-Button
 
 ---
 
@@ -271,35 +281,29 @@ Akzeptanz:
 ### Patch 217 — Connection Screen SoT ✅
 
 **E1 — EAS Link Workflow = Source of Truth (persistent)**
-- [x] Screen: `screens/ConnectionsScreen/*`
-- [x] Wenn EAS Project ID leer: Confirm-Dialog "Keine EAS ID vorhanden! Soll eine erstellt werden?" mit `[Abbrechen] [OK]`
-- [x] Bei OK: starte `eas-link.yml` ohne `eas_project_id` (Workflow erstellt/verlinkt und committed `eas-project.json`)
-- [x] Akzeptanz: Nach erfolgreichem Workflow wird Status-Lampe **grün** und bleibt persistent (`STORAGE_KEYS.CONN_EAS_OK`).
+- [ ] Screen: `screens/ConnectionsScreen/*`
+- [ ] Wenn EAS Project ID leer: Confirm-Dialog "Keine EAS ID vorhanden! Soll eine erstellt werden?" mit `[Abbrechen] [OK]`
+- [ ] Bei OK: starte `eas-link.yml` ohne `eas_project_id` (Workflow erstellt/verlinkt und committed `eas-project.json`)
+- [ ] Akzeptanz: Nach erfolgreichem Workflow wird Status-Lampe **grün** und bleibt persistent (`STORAGE_KEYS.CONN_EAS_OK`).
 
 **E2 — Repo/Supabase/Expo Status persistent**
-- [x] Persistente Lampen über `lib/storageKeys.ts` (`CONN_REPO_*`, `CONN_SUPABASE_OK`, `CONN_SUPABASE_REF`, `CONN_EXPO_OK`, `CONN_EXPO_USER`)
-- [x] Akzeptanz: App neu starten → Status bleibt korrekt.
+- [ ] Persistente Lampen über `lib/storageKeys.ts` (`CONN_REPO_*`, `CONN_SUPABASE_OK`, `CONN_SUPABASE_REF`, `CONN_EXPO_OK`, `CONN_EXPO_USER`)
+- [ ] Akzeptanz: App neu starten → Status bleibt korrekt.
 
 **E3 — GitHub: Username + optional Scopes anzeigen**
-- [x] Nach GitHub-Test: Username speichern + anzeigen (`CONN_GITHUB_USER`)
-- [x] Optional: Token-Scopes aus `x-oauth-scopes` speichern + anzeigen (`CONN_GITHUB_SCOPES`)
-- [x] Akzeptanz: Wenn Header fehlt → UI zeigt nichts kaputt, nur keine Scopes.
+- [ ] Nach GitHub-Test: Username speichern + anzeigen (`CONN_GITHUB_USER`)
+- [ ] Optional: Token-Scopes aus `x-oauth-scopes` speichern + anzeigen (`CONN_GITHUB_SCOPES`)
+- [ ] Akzeptanz: Wenn Header fehlt → UI zeigt nichts kaputt, nur keine Scopes.
 
 
 ### Patch 219 — AI Provider Hardening + Docs/Examples SoT + Connections Polish
 
-- [x] Remove phantom model defaults (OpenAI/Anthropic) → use real model IDs
-- [x] OpenAI request payload: remove unsupported fields (verbosity)
-- [x] Gemini: send multi-turn contents + systemInstruction (no flat prompt string)
-- [x] SecureKeyManager: rotation listener instead of monkey-patching in AIContext
-- [x] FileWriter: remove overly-aggressive substring reference check (avoid false positives)
-- [x] ProjectContext: replace console.log spam with logger
-- [x] Docs: update .github/workflows/README.md examples to use SUPABASE_EDGE_FUNCTIONS constants
-- [x] Connections: show GitHub scopes cleaner + show Supabase ref (if available)
-
-
-### Patch 222 — Android-only + CI Lite Persistence
-
-- [x] Diagnostics/Preflight: Text auf Android-only umstellen; `ios/` bleibt als Risiko-Guard.
-- [x] CI Lite: Lint/Typecheck Ergebnis persistieren (AsyncStorage) + Build Checklist zeigt optionalen grünen Status.
+- [ ] Remove phantom model defaults (OpenAI/Anthropic) → use real model IDs
+- [ ] OpenAI request payload: remove unsupported fields (verbosity)
+- [ ] Gemini: send multi-turn contents + systemInstruction (no flat prompt string)
+- [ ] SecureKeyManager: rotation listener instead of monkey-patching in AIContext
+- [ ] FileWriter: remove overly-aggressive substring reference check (avoid false positives)
+- [ ] ProjectContext: replace console.log spam with logger
+- [ ] Docs: update .github/workflows/README.md examples to use SUPABASE_EDGE_FUNCTIONS constants
+- [ ] Connections: show GitHub scopes cleaner + show Supabase ref (if available)
 
