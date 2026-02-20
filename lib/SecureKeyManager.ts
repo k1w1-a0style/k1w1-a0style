@@ -46,7 +46,29 @@ class SecureKeyManager {
 
     const rotated = [...keys.slice(1), keys[0]];
     this.keys.set(provider, rotated);
+    this.notifyRotation(provider);
     return true;
+  }
+
+
+  // --- rotation listeners (used by AIContext to persist key order) ---
+  private static rotationListeners = new Set<(provider: AllAIProviders) => void>();
+
+  static addRotationListener(fn: (provider: AllAIProviders) => void): () => void {
+    this.rotationListeners.add(fn);
+    return () => {
+      this.rotationListeners.delete(fn);
+    };
+  }
+
+  private static notifyRotation(provider: AllAIProviders): void {
+    for (const fn of Array.from(this.rotationListeners)) {
+      try {
+        fn(provider);
+      } catch {
+        // ignore
+      }
+    }
   }
 
   static getKeyCount(provider: AllAIProviders): number {

@@ -36,7 +36,8 @@ function resolveModel(provider: AllAIProviders, model: string, quality: Quality)
 
   if (quality === 'quality') return defs.quality;
   if (quality === 'speed') return defs.speed;
-  // balanced/review -> speed default
+  // balanced -> speed default (bewusst), review -> quality default
+  if (quality === 'review') return defs.quality;
   return defs.speed;
 }
 
@@ -268,7 +269,6 @@ async function callOpenAI(apiKey: string, model: string, messages: LlmMessage[],
         input: toOpenAIInput(messages),
         temperature,
         max_output_tokens,
-        text: { verbosity: quality === 'quality' ? 'high' : 'low' },
       }),
     });
 
@@ -377,23 +377,37 @@ return { ok: false, error: `Anthropic Netzwerkfehler: ${error?.message ?? String
 // ---- Gemini ----
 async function callGemini(apiKey: string, model: string, messages: LlmMessage[], quality: Quality, signal?: AbortSignal): Promise<OrchestratorResult> {
   try {
-    const prompt = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
+    const { system, rest } = splitSystem(messages);
     const temperature = quality === 'quality' ? 0.7 : 0.3;
+
+    // Gemini erwartet Multi-Turn-Konversationen als contents[] mit Rollen.
+    // system wird (wenn vorhanden) als systemInstruction gesetzt.
+    const contents = rest
+      .filter((m) => m.role !== 'system')
+      .map((m) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: String(m.content ?? '') }],
+      }));
+
+    const body: any = {
+      contents,
+      generationConfig: {
+        temperature,
+        maxOutputTokens: quality === 'quality' ? 8192 : 4096,
+      },
+    };
+
+    if (system) {
+      body.systemInstruction = { parts: [{ text: system }] };
+    }
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
       {
-    signal,
-
+        signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature,
-            maxOutputTokens: quality === 'quality' ? 8192 : 4096,
-          },
-        }),
+        body: JSON.stringify(body),
       },
     );
 
@@ -402,17 +416,17 @@ async function callGemini(apiKey: string, model: string, messages: LlmMessage[],
     }
 
     const data = await response.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text).filter(Boolean).join('\n');
 
     const cleaned = stripThinking(String(text || ''));
     if (!cleaned) return { ok: false, error: 'Keine Antwort von Gemini erhalten' };
 
     return { ok: true, text: cleaned };
   } catch (error: any) {
-    if (error?.name === "AbortError" || signal?.aborted) {
-      return { ok: false, error: "Request abgebrochen" };
+    if (error?.name === 'AbortError' || signal?.aborted) {
+      return { ok: false, error: 'Request abgebrochen' };
     }
-return { ok: false, error: `Gemini Netzwerkfehler: ${error?.message ?? String(error)}` };
+    return { ok: false, error: `Gemini Netzwerkfehler: ${error?.message ?? String(error)}` };
   }
 }
 

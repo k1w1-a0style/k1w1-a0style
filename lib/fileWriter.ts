@@ -110,9 +110,6 @@ function isReferencedByAnyOtherIncoming(newPath: string, incoming: ProjectFile[]
     const content = typeof f?.content === 'string' ? f.content : String(f?.content ?? '');
     const specs = candidatesByFrom.get(fromPath) ?? [];
 
-    // quick check
-    if (content.includes(stripExt(newPathNorm))) return true;
-
     for (const spec of specs) {
       if (quotedRe(spec).test(content)) return true;
     }
@@ -133,8 +130,6 @@ function isReferencedByAnyExisting(newPath: string, existing: ProjectFile[]): bo
 
     const content = typeof f?.content === 'string' ? f.content : String(f?.content ?? '');
     if (!content) continue;
-
-    if (content.includes(stripExt(newPathNorm))) return true;
 
     const specs = buildImportSpecifiers(fromPath, newPathNorm);
     for (const spec of specs) {

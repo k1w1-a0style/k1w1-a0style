@@ -12,6 +12,7 @@ export function SupabaseCard(props: {
   supabaseRaw: string;
   onChangeSupabaseRaw: (v: string) => void;
   supabaseUrl: string;
+  supabaseRef?: string;
   onChangeSupabaseUrl: (v: string) => void;
   supabaseAnonKey: string;
   onChangeSupabaseAnonKey: (v: string) => void;
@@ -22,7 +23,7 @@ export function SupabaseCard(props: {
   showSupabaseServiceRole: boolean;
   onToggleShowSupabaseServiceRole: () => void;
   onSave: () => void;
-  onTestSupabase: () => void;
+  onTestSupabase: () => void | Promise<void>;
 }) {
   const {
     styles,
@@ -30,6 +31,7 @@ export function SupabaseCard(props: {
     supabaseRaw,
     onChangeSupabaseRaw,
     supabaseUrl,
+    supabaseRef,
     onChangeSupabaseUrl,
     supabaseAnonKey,
     onChangeSupabaseAnonKey,
@@ -53,6 +55,10 @@ export function SupabaseCard(props: {
         />
         <Text style={styles.cardTitle}>Supabase</Text>
       </View>
+
+      {supabaseRef ? (
+        <Text style={[styles.hint, { marginBottom: 10 }]}>Ref: {supabaseRef}</Text>
+      ) : null}
 
       <InputRow
         styles={styles}

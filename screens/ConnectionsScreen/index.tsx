@@ -26,6 +26,7 @@ export default function ConnectionsScreen() {
     githubUser,
     githubScopes,
     supabaseOk,
+    supabaseRef,
     expoOk,
     expoUser,
     easOk,
@@ -83,6 +84,7 @@ export default function ConnectionsScreen() {
           status={status}
           repoLine={repoLine}
           supabaseUrl={supabaseUrl}
+          supabaseRef={supabaseRef}
           easProjectId={easProjectId}
           githubOk={githubOk}
           githubUser={githubUser}
@@ -121,6 +123,7 @@ export default function ConnectionsScreen() {
           supabaseRaw={supabaseRaw}
           onChangeSupabaseRaw={setSupabaseRaw}
           supabaseUrl={supabaseUrl}
+          supabaseRef={supabaseRef}
           onChangeSupabaseUrl={setSupabaseUrl}
           supabaseAnonKey={supabaseAnonKey}
           onChangeSupabaseAnonKey={setSupabaseAnonKey}

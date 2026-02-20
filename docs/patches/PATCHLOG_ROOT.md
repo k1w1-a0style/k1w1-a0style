@@ -19,3 +19,7 @@ This file is append-only. Each patch adds a short entry.
 
 ## Patch 218
 - Connections/SoT Feinschliff (Scopes persist + reset rules + deps fix)
+
+## Patch 219
+- AI Provider hardening (remove phantom model defaults, fix OpenAI request payload, proper Gemini multi-turn) + SecureKeyManager rotation listener (no monkey-patch) + file reference check precision + logger cleanup + Docs/Examples SoT polish + nicer Connections status (scopes + Supabase ref).
+

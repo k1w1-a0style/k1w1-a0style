@@ -90,6 +90,28 @@ function StatusRow(props: {
   );
 }
 
+
+
+function formatGitHubScopes(scopesRaw?: string): { display: string; missing: string[] } {
+  const raw = (scopesRaw || '').trim();
+  if (!raw) return { display: 'unknown', missing: [] };
+  const scopes = raw
+    .split(/[,\s]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const uniq = Array.from(new Set(scopes)).sort((a, b) => a.localeCompare(b));
+
+  // Classic PAT scopes we typically need for dispatch/reading workflows
+  const required = ['repo', 'workflow'];
+  const missing = required.filter((r) => !uniq.includes(r));
+
+  return {
+    display: uniq.join(' • '),
+    missing,
+  };
+}
+
 export function StatusCard(props: {
   styles: any;
   busy: boolean;
@@ -105,6 +127,7 @@ export function StatusCard(props: {
   };
   repoLine: string;
   supabaseUrl: string;
+  supabaseRef?: string;
   easProjectId: string;
   githubOk?: boolean;
   githubUser?: string;
@@ -122,6 +145,7 @@ export function StatusCard(props: {
     status,
     repoLine,
     supabaseUrl,
+    supabaseRef,
     easProjectId,
     githubOk,
     githubUser,
@@ -155,7 +179,8 @@ export function StatusCard(props: {
       <StatusRow
         label="Supabase"
         ok={supabaseOk ?? status.sbUrl}
-        value={status.sbUrl ? supabaseUrl : undefined}
+        value={(supabaseOk ?? status.sbUrl) ? (supabaseRef || supabaseUrl) : undefined}
+        detail={(supabaseOk ?? status.sbUrl) && supabaseRef ? `Ref: ${supabaseRef}` : undefined}
       />
       <StatusRow
         label="Repo verknuepft"

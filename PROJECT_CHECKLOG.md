@@ -34,3 +34,5 @@
 
 ## Patch 218 (pending)
 - Connections Screen SoT Edge-Cases: reset flags on token deletion, GitHub scopes persist/unknown, deps fix
+
+- 2026-02-19: Patch 219 (AI provider hardening + docs/examples SoT polish + Connections status polish)

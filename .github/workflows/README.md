@@ -56,7 +56,7 @@ Diese beiden Workflows sind für den **APK-Builder Flow** gedacht:
 
 **Trigger:**
 
-1. Via Supabase Function (`trigger-eas-build`)
+1. Via Supabase Function (`SUPABASE_EDGE_FUNCTIONS.TRIGGER_EAS_BUILD`)
 2. Manuell über GitHub UI (Ref standardmäßig aktueller Branch, kein hartes `main`)
 
 **Zweck:**
@@ -78,7 +78,7 @@ Diese beiden Workflows sind für den **APK-Builder Flow** gedacht:
 
 ```typescript
 // K1W1 App triggert Build via Supabase Function:
-const { data } = await supabase.functions.invoke("trigger-eas-build", {
+const { data } = await supabase.functions.invoke(SUPABASE_EDGE_FUNCTIONS.TRIGGER_EAS_BUILD, {
   body: { githubRepo: "your-username/k1w1-a0style" },
 });
 
@@ -241,7 +241,7 @@ Alle Workflows benötigen folgende GitHub Secrets:
 
 ```bash
 # Supabase Function Logs:
-supabase functions logs trigger-eas-build
+supabase functions logs <edge-function-name>  # z.B. trigger-eas-build
 
 # GitHub Actions Payload:
 # Actions → Workflow Run → View workflow file → Check client_payload

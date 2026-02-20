@@ -7,6 +7,12 @@ import type { ApplyFilesResult } from "../lib/fileWriter";
 import type { ChatMessage } from "../shared/types/chat";
 import type { ProjectFile } from "../shared/types/project";
 
+function extractRawOrchestratorResult(res: any): unknown {
+  if (res?.files && Array.isArray(res.files)) return res.files;
+  if (res?.text) return res.text;
+  return res?.raw;
+}
+
 
 import { runOrchestrator } from "../lib/orchestrator";
 import { normalizeAiResponse } from "../lib/normalizer";
@@ -259,13 +265,6 @@ export function useChatAIFlow({
     [addChatMessage],
   );
 
-  /** Helper to extract raw data from orchestrator result for normalizer */
-  const extractRaw = (res: ExtendedOrchestratorResult): unknown => {
-    if (res.files && Array.isArray(res.files)) return res.files;
-    if (res.text) return res.text;
-    return res.raw;
-  };
-
   const processAIRequest = useCallback(
     async (userContent: string, isAutoFix = false, forceBuilder = false) => {
       if (inFlightRef.current) return false;
@@ -389,7 +388,7 @@ export function useChatAIFlow({
         }
 
         // ✅ FIX #7: Type-safe extraction of raw data
-        const rawForNormalizer = extractRaw(ai as ExtendedOrchestratorResult);
+        const rawForNormalizer = extractRawOrchestratorResult(ai as ExtendedOrchestratorResult);
 
         const normalized = normalizeAiResponse(rawForNormalizer);
         if (!normalized) {
@@ -426,7 +425,7 @@ export function useChatAIFlow({
             notifyKeyRotation(agentRes);
 
             if (agentRes?.ok) {
-              const agentRaw = extractRaw(agentRes as ExtendedOrchestratorResult);
+              const agentRaw = extractRawOrchestratorResult(agentRes as ExtendedOrchestratorResult);
               const normalizedAgent = normalizeAiResponse(agentRaw);
               if (normalizedAgent && normalizedAgent.length > 0) {
                 finalFiles = normalizedAgent;
@@ -573,7 +572,6 @@ export function useChatAIFlow({
       addChatMessage,
       config,
       drainAutoFixQueue,
-      extractRaw,
       notifyKeyRotation,
       safe,
       setError,

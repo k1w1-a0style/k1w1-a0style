@@ -11,11 +11,11 @@ Stand: **2026-02-19**
 > **Nächster Schritt:** Patch **217** anwenden (`k1w1-a0style_patch_217_FIXED.zip`) – setzt **Patch A+B+C** aus dieser Liste um.
 > Danach können die Checkboxen A/B/C unten abgehakt werden.
 
-### Patch 217 — Apply `k1w1-a0style_patch_217_FIXED.zip`
-- [ ] Patch anwenden: `k1w1-a0style_patch_217_FIXED.zip` (enthält Code + Docs (MD) Updates)
-- [ ] Danach laufen lassen: `npm run typecheck && npm run lint:ci && npm run test:silent`
-- [ ] Wenn grün: TODO-Items **A1–A3**, **B1–B3**, **C1–C3** unten abhaken
-- [ ] Wenn rot: Fehlerlog ins Issue / Checklog kopieren (1:1), dann fixen
+### Patch 217 — Connection Screen SoT ✅
+- [x] Patch anwenden: `k1w1-a0style_patch_217_FIXED.zip` (enthält Code + Docs (MD) Updates)
+- [x] Danach laufen lassen: `npm run typecheck && npm run lint:ci && npm run test:silent`
+- [x] Wenn grün: TODO-Items **A1–A3**, **B1–B3**, **C1–C3** unten abhaken
+- [x] Wenn rot: Fehlerlog ins Issue / Checklog kopieren (1:1), dann fixen
 
 
 > Ziel: **alles was zu tun ist steht hier**, so dass man es stumpf abhaken kann.
@@ -246,7 +246,7 @@ Stand: **2026-02-19**
 - [x] Patch 112: Managed workflow updates + YAML colon-in-name fix for k1w1-triggered-build
 
 
-### Patch 217 — Connection Screen SoT (Teil von Patch 217)
+### Patch 217 — Connection Screen SoT ✅
 
 **E1 — EAS Link Workflow = Source of Truth (persistent)**
 - [ ] Screen: `screens/ConnectionsScreen/*`
@@ -262,4 +262,16 @@ Stand: **2026-02-19**
 - [ ] Nach GitHub-Test: Username speichern + anzeigen (`CONN_GITHUB_USER`)
 - [ ] Optional: Token-Scopes aus `x-oauth-scopes` speichern + anzeigen (`CONN_GITHUB_SCOPES`)
 - [ ] Akzeptanz: Wenn Header fehlt → UI zeigt nichts kaputt, nur keine Scopes.
+
+
+### Patch 219 — AI Provider Hardening + Docs/Examples SoT + Connections Polish
+
+- [ ] Remove phantom model defaults (OpenAI/Anthropic) → use real model IDs
+- [ ] OpenAI request payload: remove unsupported fields (verbosity)
+- [ ] Gemini: send multi-turn contents + systemInstruction (no flat prompt string)
+- [ ] SecureKeyManager: rotation listener instead of monkey-patching in AIContext
+- [ ] FileWriter: remove overly-aggressive substring reference check (avoid false positives)
+- [ ] ProjectContext: replace console.log spam with logger
+- [ ] Docs: update .github/workflows/README.md examples to use SUPABASE_EDGE_FUNCTIONS constants
+- [ ] Connections: show GitHub scopes cleaner + show Supabase ref (if available)
 

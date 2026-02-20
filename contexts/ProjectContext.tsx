@@ -13,6 +13,8 @@ import { Alert, AppState, AppStateStatus } from "react-native";
 import { v4 as uuidv4 } from "uuid";
 import { Mutex } from "async-mutex";
 
+import { logger } from "../lib/logger";
+
 import type { ChatMessage } from "../shared/types/chat";
 import type { BuildHistoryEntry } from "../shared/types/build";
 import type { ProjectData, ProjectFile, TemplateId } from "../shared/types/project";
@@ -137,7 +139,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     async (files: ProjectFile[], newName?: string) => {
       await updateProject((prev) => {
         const mergedFiles = mergeProjectFiles(prev.files, files);
-        console.log(
+        logger.info(
           `📝 Dateien aktualisiert: ${files.length} geändert, ${mergedFiles.length} gesamt`,
         );
         return applyProjectFileUpdates(prev, files, newName);
@@ -224,7 +226,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
               }
 
               Alert.alert("Erfolg", "Neues Projekt wurde erstellt!");
-              console.log("✅ Neues Projekt erstellt und gespeichert.");
+              logger.info("✅ Neues Projekt erstellt und gespeichert.");
             } catch (error: any) {
               Alert.alert(
                 "Fehler",
@@ -407,12 +409,12 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       timestamp: new Date().toISOString(),
     };
     setAutoFixRequest(request);
-    console.log("[ProjectContext] Auto-Fix Request getriggert:", request.id);
+    logger.info("[ProjectContext] Auto-Fix Request getriggert:", request.id);
   }, []);
 
   const clearAutoFixRequest = useCallback(() => {
     setAutoFixRequest(null);
-    console.log("[ProjectContext] Auto-Fix Request gelöscht");
+    logger.info("[ProjectContext] Auto-Fix Request gelöscht");
   }, []);
 
   const setLinkedRepo = useCallback(
@@ -422,7 +424,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         linkedRepo: repo,
         linkedBranch: branch ?? prev.linkedBranch ?? null,
       }));
-      console.log(
+      logger.info(
         `🔗 Projekt verknüpft mit: ${repo ?? "–"} (Branch: ${branch ?? "–"})`,
       );
     },
@@ -433,7 +435,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     async (templateId: TemplateId) => {
       if (!templateId) return;
       await updateProject((prev) => ({ ...prev, templateId }));
-      console.log(`🧩 Template gespeichert: ${templateId}`);
+      logger.info(`🧩 Template gespeichert: ${templateId}`);
     },
     [updateProject],
   );
@@ -451,7 +453,7 @@ const setPreferredBuildProfile = useCallback(
         ...prev,
         preferredBuildProfile: profile,
       }));
-      console.log(`⚙️ Preferred Build-Profile gespeichert: ${profile}`);
+      logger.info(`⚙️ Preferred Build-Profile gespeichert: ${profile}`);
     },
     [updateProject],
   );
@@ -459,16 +461,16 @@ const setPreferredBuildProfile = useCallback(
   useEffect(() => {
     const initializeProject = async () => {
       try {
-        console.log("APP START (Context V15 - ALL CRITICAL FIXES APPLIED)");
+        logger.info("APP START (Context V15 - ALL CRITICAL FIXES APPLIED)");
         const savedProject = await loadProjectFromStorage();
 
         if (savedProject) {
-          console.log("📖 Projekt geladen:", savedProject.name);
+          logger.info("📖 Projekt geladen:", savedProject.name);
           if (!savedProject.files) savedProject.files = [];
           if (!savedProject.chatHistory) savedProject.chatHistory = [];
           setProjectData(savedProject);
         } else {
-          console.log("Kein Projekt gefunden, lade neues Template...");
+          logger.info("Kein Projekt gefunden, lade neues Template...");
           const templateFiles = await loadTemplateFromFile();
           const newProject: ProjectData = {
             id: uuidv4(),
@@ -481,7 +483,7 @@ const setPreferredBuildProfile = useCallback(
           };
           setProjectData(newProject);
           await saveProjectToStorage(newProject);
-          console.log("Neues Template-Projekt erstellt und gespeichert.");
+          logger.info("Neues Template-Projekt erstellt und gespeichert.");
         }
       } catch (error) {
         console.error("Fehler beim Laden:", error);
@@ -496,7 +498,7 @@ const setPreferredBuildProfile = useCallback(
   useEffect(() => {
     const handleAppStateChange = async (nextState: AppStateStatus) => {
       if (nextState === "background" || nextState === "inactive") {
-        console.log("🔄 App geht in Background, flushe ausstehende Saves...");
+        logger.info("🔄 App geht in Background, flushe ausstehende Saves...");
         if (saveTimeoutRef.current) {
           clearTimeout(saveTimeoutRef.current);
           saveTimeoutRef.current = null;
@@ -504,7 +506,7 @@ const setPreferredBuildProfile = useCallback(
         if (projectData) {
           try {
             await saveProjectToStorage(projectData);
-            console.log("✅ Background-Save erfolgreich");
+            logger.info("✅ Background-Save erfolgreich");
           } catch (error) {
             console.error("❌ Background-Save fehlgeschlagen:", error);
           }

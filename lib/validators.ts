@@ -228,8 +228,9 @@ export const Validators = {
       if (Number.isFinite(mb) && mb > 0) return Math.floor(mb * 1024 * 1024);
       return 10 * 1024 * 1024;
     })(),
+    // Back-compat alias
     MAX_FILE_SIZE: (() => {
-      const cfg = CONFIG?.VALIDATION as any;
+      const cfg: any = CONFIG?.VALIDATION;
       const b = Number(cfg?.MAX_FILE_SIZE_BYTES);
       if (Number.isFinite(b) && b > 0) return b;
       const mb = Number(cfg?.MAX_FILE_SIZE_MB);

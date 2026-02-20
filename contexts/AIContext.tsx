@@ -77,8 +77,8 @@ export type AIContextProps = {
 // ✅ Auto überall nur "auto"
 export const PROVIDER_DEFAULTS: Record<AllAIProviders, ProviderDefaults> = {
   groq: { auto: 'auto', speed: 'groq/compound-mini', quality: 'llama-3.3-70b-versatile' },
-  openai: { auto: 'auto', speed: 'gpt-4.1-mini', quality: 'gpt-5.2' },
-  anthropic: { auto: 'auto', speed: 'claude-3-5-haiku-20241022', quality: 'claude-sonnet-4-5-20250929' },
+  openai: { auto: 'auto', speed: 'gpt-4o-mini', quality: 'gpt-4o' },
+  anthropic: { auto: 'auto', speed: 'claude-3-5-haiku-20241022', quality: 'claude-3-5-sonnet-20241022' },
   gemini: { auto: 'auto', speed: 'gemini-2.5-flash-lite', quality: 'gemini-2.5-flash' },
   huggingface: { auto: 'auto', speed: 'Qwen/Qwen2.5-7B-Instruct', quality: 'Qwen/Qwen2.5-Coder-32B-Instruct' },
 };
@@ -146,8 +146,6 @@ export const AVAILABLE_MODELS: Record<AllAIProviders, ModelInfo[]> = {
   ],
   openai: [
     { id: 'auto', label: 'Auto (OpenAI)', description: 'Nimmt je nach Speed/Quality dein Default.', tier: 'credit', persona: 'balanced', bestFor: 'Einfach läuft', contextWindow: '—', isAuto: true },
-    { id: 'gpt-5.2', label: 'GPT-5.2', description: 'Max Quality / komplex.', tier: 'paid', persona: 'quality', bestFor: 'Max Quality', contextWindow: '—' },
-    { id: 'gpt-5.1', label: 'GPT-5.1', description: 'Sehr starkes Reasoning.', tier: 'paid', persona: 'quality', bestFor: 'Reasoning', contextWindow: '—' },
     { id: 'gpt-4o', label: 'GPT-4o', description: 'Starker Allrounder.', tier: 'credit', persona: 'quality', bestFor: 'Allround', contextWindow: '—' },
     { id: 'gpt-4o-mini', label: 'GPT-4o mini', description: 'Schnell & günstig.', tier: 'free', persona: 'speed', bestFor: 'Speed', contextWindow: '—' },
     { id: 'gpt-4.1', label: 'GPT-4.1', description: 'Sehr gut für Code/Reasoning.', tier: 'credit', persona: 'quality', bestFor: 'Code', contextWindow: '—' },
@@ -158,8 +156,7 @@ export const AVAILABLE_MODELS: Record<AllAIProviders, ModelInfo[]> = {
     { id: 'auto', label: 'Auto (Anthropic)', description: 'Nimmt je nach Speed/Quality dein Default.', tier: 'credit', persona: 'balanced', bestFor: 'Einfach läuft', contextWindow: '—', isAuto: true },
     { id: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku', description: 'Schnell, solide.', tier: 'credit', persona: 'speed', bestFor: 'Speed', contextWindow: '—' },
     { id: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', description: 'Schnell + besser.', tier: 'credit', persona: 'speed', bestFor: 'Speed+Qualität', contextWindow: '—' },
-    { id: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5', description: 'Sehr gut für Code/Text.', tier: 'paid', persona: 'quality', bestFor: 'Qualität', contextWindow: '—' },
-    { id: 'claude-opus-4-5-20251101', label: 'Claude Opus 4.5', description: 'Max Qualität.', tier: 'paid', persona: 'quality', bestFor: 'Max Quality', contextWindow: '—' },
+    { id: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', description: 'Starkes Reasoning & Textqualität.', tier: 'credit', persona: 'quality', bestFor: 'Qualität/Review', contextWindow: '—' },
   ],
   gemini: [
     { id: 'auto', label: 'Auto (Gemini)', description: 'Auto Auswahl nach Speed/Quality.', tier: 'free', persona: 'balanced', bestFor: 'Einfach läuft', contextWindow: '1M', isAuto: true },
@@ -268,7 +265,6 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
   const [config, setConfigState] = useState<AIConfig>(DEFAULT_CONFIG);
   const [providerStatus, setProviderStatus] = useState<ProviderLimitStatus[]>([]);
   const didLoad = useRef(false);
-  const rotateKeyInterceptorInstalled = useRef(false);
   const persistRotationInProgress = useRef(false);
 
   
@@ -305,17 +301,9 @@ useEffect(() => {
 useEffect(() => {
   // Persistente Rotation: wenn SecureKeyManager wegen 429 rotiert, spiegeln wir das in config.apiKeys,
   // damit es nach App-Neustart/Backup erhalten bleibt.
-  if (rotateKeyInterceptorInstalled.current) return;
-  rotateKeyInterceptorInstalled.current = true;
-
-  const originalRotate = SecureKeyManager.rotateKey.bind(SecureKeyManager);
-
-  SecureKeyManager.rotateKey = (provider: AllAIProviders): boolean => {
-    const rotated = originalRotate(provider);
-    if (!rotated) return false;
-
+  const unsubscribe = SecureKeyManager.addRotationListener((provider: AllAIProviders) => {
     // Nur persistieren, wenn Config bereits geladen ist und wir nicht gerade selbst persistieren
-    if (!didLoad.current || persistRotationInProgress.current) return true;
+    if (!didLoad.current || persistRotationInProgress.current) return;
 
     persistRotationInProgress.current = true;
     try {
@@ -326,17 +314,14 @@ useEffect(() => {
         return { ...prev, apiKeys: { ...prev.apiKeys, [provider]: next } };
       });
     } finally {
-      // Reset in next tick so state update can flush
       setTimeout(() => {
         persistRotationInProgress.current = false;
       }, 0);
     }
-    return true;
-  };
+  });
 
   return () => {
-    // Best effort restore (hot reload / unmount)
-    (SecureKeyManager as any).rotateKey = originalRotate;
+    unsubscribe();
   };
 }, []);
 
