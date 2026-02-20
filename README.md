@@ -84,6 +84,8 @@ EXPO_PUBLIC_SUPABASE_URL=https://<dein-ref>.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=<dein anon key>
 
 # optional overrides
+EXPO_PUBLIC_SUPABASE_EDGE_URL=https://<dein-ref>.supabase.co/functions/v1
+
 EXPO_PUBLIC_SAVE_PREVIEW_URL=https://<dein-ref>.supabase.co/functions/v1/save_preview
 EXPO_PUBLIC_CREATE_CODESANDBOX_URL=https://<dein-ref>.supabase.co/functions/v1/create_codesandbox
 ```

@@ -80,7 +80,6 @@ export interface ProjectContextProps {
     lastUpdatedAt?: string;
   } | null;
 
-  exportAndBuild: () => Promise<{ owner: string; repo: string } | null>;
   exportProjectAsZip: () => Promise<void>;
   /** Export ONLY text files as ZIP (without assets/binaries). */
   exportTextFilesAsZip?: () => Promise<void>;

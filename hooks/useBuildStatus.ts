@@ -14,6 +14,8 @@ import {
   isFinalStatus,
 } from "../project/services/buildPollingService";
 
+import { logger } from "../lib/logger";
+
 const POLL_INTERVAL_MS = 6000; // 6 Sekunden
 const MAX_ERRORS = 5; // Nach 5 Fehlern stoppen
 const REQUEST_TIMEOUT_MS = 10000; // 10 Sekunden Timeout pro Request
@@ -85,7 +87,7 @@ export function useBuildStatus(
     isRequestPendingRef.current = true;
 
     try {
-      console.log(
+      logger.debug(
         `[useBuildStatus] 🔄 Polling Job ${jobIdFromScreen}. (Fehler: ${errorCountRef.current}/${MAX_ERRORS})`,
       );
 
@@ -97,7 +99,7 @@ export function useBuildStatus(
 
       // ✅ Fehlerfall
       if (!result.ok) {
-        console.log("[useBuildStatus] ❌ Error Response:", result.raw);
+        logger.debug("[useBuildStatus] ❌ Error Response:", result.raw);
         const errorMsg = result.error;
         errorCountRef.current += 1;
         setErrorCount(errorCountRef.current);
@@ -135,14 +137,14 @@ export function useBuildStatus(
       setDetails(newDetails);
       latestDetailsRef.current = newDetails;
 
-      console.log("[useBuildStatus] ✅ Status:", mapped);
+      logger.debug("[useBuildStatus] ✅ Status:", mapped);
 
       // ✅ Polling bei finalen Status stoppen
       if (isFinalStatus(mapped)) {
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
-          console.log("[useBuildStatus] ⏸ Polling gestoppt (finaler Status)");
+          logger.debug("[useBuildStatus] ⏸ Polling gestoppt (finaler Status)");
         }
 
         if (!hasAlertedRef.current) {
@@ -159,7 +161,7 @@ export function useBuildStatus(
     } catch (e: any) {
       if (!isMountedRef.current) return;
 
-      console.log("[useBuildStatus] ⚠️ Poll Error:", e?.message);
+      logger.debug("[useBuildStatus] ⚠️ Poll Error:", e?.message);
       const errorMsg = e?.message || "Netzwerkfehler";
       errorCountRef.current += 1;
       setErrorCount(errorCountRef.current);
@@ -246,7 +248,7 @@ export function useBuildStatus(
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
-        console.log("[useBuildStatus] 🛑 Hook unmounted, Polling gestoppt");
+        logger.debug("[useBuildStatus] 🛑 Hook unmounted, Polling gestoppt");
       }
     };
   }, [jobIdFromScreen, poll, status]);

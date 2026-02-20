@@ -585,7 +585,7 @@ const setPreferredBuildProfile = useCallback(
       htmlUrl: buildPoll.details.urls?.html ?? null,
       artifactUrl: buildPoll.details.urls?.artifacts ?? null,
     }).catch((historyError) => {
-      console.warn(
+      logger.warn(
         "⚠️ Build-Historie konnte nicht aktualisiert werden:",
         historyError,
       );
@@ -653,7 +653,7 @@ const setPreferredBuildProfile = useCallback(
             buildProfile: profile,
           });
         } catch (historyError) {
-          console.warn(
+          logger.warn(
             "⚠️ Build-Historie konnte nicht gespeichert werden:",
             historyError,
           );
@@ -700,10 +700,6 @@ const setPreferredBuildProfile = useCallback(
     autoFixRequest,
     triggerAutoFix,
     clearAutoFixRequest,
-    exportAndBuild: async () => {
-      Alert.alert("Fehler", "exportAndBuild ist veraltet.");
-      return null;
-    },
     setLinkedRepo,
     setPreferredBuildProfile,
     setAdvancedTemplatePickerEnabled,

@@ -40,3 +40,10 @@ This file is append-only. Each patch adds a short entry.
 - CI Lite: “Send to Chat” (Fehler als Chat-Message) + Run-Meta Anzeige (Run#, Status, Conclusion, Duration).
 - Connections: Sync Summary Modal (zeigt was beim Sync passiert / welche Secrets-Keys betroffen sind).
 - Repo Hygiene: OpenAI NPM dependency entfernt (unused) + App.tsx Tab/Space Cleanup.
+
+## Patch 225
+- Gemini guard: niemals leeres contents[] senden (Fallback auf user message).
+- Supabase Edge URL SoT: remove hardcoded project ref in config; derive from env.
+- Logger cleanup: console.* hotspots → lib/logger.
+- Remove legacy ProjectContext API: exportAndBuild entfernt.
+

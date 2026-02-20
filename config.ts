@@ -178,9 +178,19 @@ export const CONFIG = {
   },
 
   API: {
-    SUPABASE_EDGE_URL:
-      (process.env.EXPO_PUBLIC_SUPABASE_EDGE_URL as string | undefined) ||
-      "https://xfgnzpcljsuqqdjlxgul.supabase.co/functions/v1",
+    // Prefer explicit edge URL. If only SUPABASE_URL is set, derive /functions/v1.
+    SUPABASE_EDGE_URL: (() => {
+      const explicit = process.env.EXPO_PUBLIC_SUPABASE_EDGE_URL as string | undefined;
+      if (explicit && explicit.trim()) return explicit.trim();
+
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL as string | undefined;
+      if (supabaseUrl && supabaseUrl.trim()) {
+        return `${supabaseUrl.trim().replace(/\/+$/, "")}/functions/v1`;
+      }
+
+      // Intentionally empty: Connections/Supabase UI should guide the user to set env or paste URL.
+      return "";
+    })(),
   },
 
   BUILD: {

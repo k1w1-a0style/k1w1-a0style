@@ -8,6 +8,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import notificationService, { NotificationOptions } from '../lib/notificationService';
+import { logger } from '../lib/logger';
 
 export interface UseNotificationsReturn {
   isInitialized: boolean;
@@ -47,18 +48,18 @@ export function useNotifications(): UseNotificationsReturn {
     // Event Listeners registrieren
     notificationListener.current = notificationService.addNotificationReceivedListener(
       (notification) => {
-        console.log('📬 Notification received:', notification);
+        logger.debug('📬 Notification received:', notification);
         setLastNotification(notification);
       }
     );
 
     responseListener.current = notificationService.addNotificationResponseListener(
       (response) => {
-        console.log('👆 Notification tapped:', response);
+        logger.debug('👆 Notification tapped:', response);
         // Hier könnte Navigation zu BuildScreen erfolgen
         const buildId = response.notification.request.content.data?.buildId;
         if (buildId) {
-          console.log('📱 Navigate to build:', buildId);
+          logger.debug('📱 Navigate to build:', buildId);
         }
       }
     );

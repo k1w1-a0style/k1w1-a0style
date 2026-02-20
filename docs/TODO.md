@@ -50,6 +50,24 @@ Akzeptanz:
 - [x] `docs/patches/PATCHLOG_ROOT.md`, `PROJECT_CHECKLOG.md`, `README.md` aktualisieren
 - [x] Akzeptanz: niemand sucht mehr nach bereits gefixten TODOs
 
+### Patch 225 — Gemini Guard + Supabase Edge URL SoT + Logger Cleanup + Remove Legacy exportAndBuild
+
+- [ ] Gemini: Guard gegen leeres `contents[]` (Fallback), sonst 400 Bad Request
+  - Datei: `lib/orchestrator.ts`
+- [ ] Supabase Edge URL: Hardcoded Ref aus `config.ts` entfernen, nur noch ENV/Derived
+  - Datei: `config.ts`
+- [ ] Logging: `console.*` Hotspots → `lib/logger`
+  - Dateien: `hooks/useBuildStatus.ts`, `hooks/useNotifications.ts`, `lib/buildHistoryStorage.ts`
+- [ ] ProjectContext: Legacy `exportAndBuild` aus Types + Provider entfernen
+  - Dateien: `contexts/types.ts`, `contexts/ProjectContext.tsx`
+
+Akzeptanz:
+- [ ] `npm run typecheck` grün
+- [ ] `npm run lint:ci` grün
+- [ ] `npm run test:silent` grün
+
+---
+
 ### Patch 223 — CI Lite Status persistieren + Build Checklist ✅
 
 - [x] CI Lite: Ergebnis (Lint/Typecheck OK + Timestamp) nach Workflow-Completion in AsyncStorage persistieren

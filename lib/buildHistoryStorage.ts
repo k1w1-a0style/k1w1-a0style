@@ -4,6 +4,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { BuildHistoryEntry } from '../shared/types/build';
 import { STORAGE_KEYS } from './storageKeys';
+import { logger } from './logger';
 
 const MAX_HISTORY_ENTRIES = 50; // Maximal 50 Einträge speichern
 
@@ -22,14 +23,14 @@ export const loadBuildHistory = async (): Promise<BuildHistoryEntry[]> => {
     
     const history = JSON.parse(historyString);
     if (!Array.isArray(history)) {
-      console.warn('[buildHistoryStorage] Ungültiges Format, leere Historie zurückgeben');
+      logger.warn('[buildHistoryStorage] Ungültiges Format, leere Historie zurückgeben');
       return [];
     }
     
-    console.log(`📖 Build-Historie geladen: ${history.length} Einträge`);
+    logger.info(`📖 Build-Historie geladen: ${history.length} Einträge`);
     return history;
   } catch (error) {
-    console.error('❌ Fehler beim Laden der Build-Historie:', error);
+    logger.error('❌ Fehler beim Laden der Build-Historie:', error);
     return [];
   }
 };
@@ -43,9 +44,9 @@ export const saveBuildHistory = async (history: BuildHistoryEntry[]): Promise<vo
     const trimmedHistory = history.slice(0, MAX_HISTORY_ENTRIES);
     const historyString = JSON.stringify(trimmedHistory);
     await AsyncStorage.setItem(STORAGE_KEYS.BUILD_HISTORY, historyString);
-    console.log(`💾 Build-Historie gespeichert: ${trimmedHistory.length} Einträge`);
+    logger.info(`💾 Build-Historie gespeichert: ${trimmedHistory.length} Einträge`);
   } catch (error) {
-    console.error('❌ Fehler beim Speichern der Build-Historie:', error);
+    logger.error('❌ Fehler beim Speichern der Build-Historie:', error);
     throw new Error('Build-Historie konnte nicht gespeichert werden');
   }
 };
@@ -63,16 +64,16 @@ export const addBuildToHistory = async (entry: BuildHistoryEntry): Promise<void>
     if (existingIndex >= 0) {
       // Existierenden Eintrag aktualisieren
       history[existingIndex] = entry;
-      console.log(`📝 Build-Eintrag aktualisiert: Job #${entry.jobId}`);
+      logger.info(`📝 Build-Eintrag aktualisiert: Job #${entry.jobId}`);
     } else {
       // Neuen Eintrag am Anfang hinzufügen
       history.unshift(entry);
-      console.log(`➕ Neuer Build-Eintrag: Job #${entry.jobId}`);
+      logger.info(`➕ Neuer Build-Eintrag: Job #${entry.jobId}`);
     }
     
     await saveBuildHistory(history);
   } catch (error) {
-    console.error('❌ Fehler beim Hinzufügen zur Build-Historie:', error);
+    logger.error('❌ Fehler beim Hinzufügen zur Build-Historie:', error);
     throw error;
   }
 };
@@ -91,18 +92,18 @@ export const updateBuildInHistory = async (
     if (index >= 0) {
       history[index] = { ...history[index], ...updates };
       await saveBuildHistory(history);
-      console.log(`📝 Build #${jobId} aktualisiert`);
+      logger.info(`📝 Build #${jobId} aktualisiert`);
     } else {
       // Häufiger Fall: User hat "Build-Historie löschen" gedrückt, während Polling noch läuft.
       // Dann kommen Update-Events rein, obwohl der Eintrag weg ist. Das ist kein Fehler.
       if (!missingBuildWarned.has(jobId)) {
-        console.warn(`[buildHistoryStorage] Build #${jobId} nicht in Historie gefunden (ignoriert)`);
+        logger.warn(`[buildHistoryStorage] Build #${jobId} nicht in Historie gefunden (ignoriert)`);
         missingBuildWarned.add(jobId);
       }
       return;
     }
   } catch (error) {
-    console.error('❌ Fehler beim Aktualisieren der Build-Historie:', error);
+    logger.error('❌ Fehler beim Aktualisieren der Build-Historie:', error);
     throw error;
   }
 };
@@ -117,10 +118,10 @@ export const deleteBuildFromHistory = async (jobId: string): Promise<void> => {
     
     if (filtered.length < history.length) {
       await saveBuildHistory(filtered);
-      console.log(`🗑️ Build #${jobId} aus Historie gelöscht`);
+      logger.info(`🗑️ Build #${jobId} aus Historie gelöscht`);
     }
   } catch (error) {
-    console.error('❌ Fehler beim Löschen aus Build-Historie:', error);
+    logger.error('❌ Fehler beim Löschen aus Build-Historie:', error);
     throw error;
   }
 };
@@ -131,9 +132,9 @@ export const deleteBuildFromHistory = async (jobId: string): Promise<void> => {
 export const clearBuildHistory = async (): Promise<void> => {
   try {
     await AsyncStorage.removeItem(STORAGE_KEYS.BUILD_HISTORY);
-    console.log('🗑️ Build-Historie gelöscht');
+    logger.info('🗑️ Build-Historie gelöscht');
   } catch (error) {
-    console.error('❌ Fehler beim Löschen der Build-Historie:', error);
+    logger.error('❌ Fehler beim Löschen der Build-Historie:', error);
     throw error;
   }
 };

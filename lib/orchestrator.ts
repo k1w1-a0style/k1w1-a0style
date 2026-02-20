@@ -382,12 +382,21 @@ async function callGemini(apiKey: string, model: string, messages: LlmMessage[],
 
     // Gemini erwartet Multi-Turn-Konversationen als contents[] mit Rollen.
     // system wird (wenn vorhanden) als systemInstruction gesetzt.
-    const contents = rest
+    let contents = rest
       .filter((m) => m.role !== 'system')
-      .map((m) => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: String(m.content ?? '') }],
-      }));
+      .map((m) => {
+        const text = String(m.content ?? '').trim();
+        return {
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts: text ? [{ text }] : [],
+        };
+      })
+      .filter((c) => Array.isArray((c as any).parts) && (c as any).parts.length > 0);
+
+    // Gemini rejects empty contents[] with 400 (e.g. when only system messages exist).
+    if (contents.length === 0) {
+      contents = [{ role: 'user', parts: [{ text: 'Hallo' }] }];
+    }
 
     const body: any = {
       contents,

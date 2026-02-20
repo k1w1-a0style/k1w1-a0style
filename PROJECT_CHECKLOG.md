@@ -24,6 +24,7 @@
 - Patch 222: Android-only cleanup + kleine Connections/Repo Robustness.
 - Patch 223: CI Lite Status persistieren + CI Lite Checklist Item im EnhancedBuildScreen.
 - Patch 224: CI Lite Details (Run Meta + „in Chat übernehmen") + Connections Sync Summary + Repo Hygiene (openai removed + App.tsx format).
+- Patch 225: Gemini guard + Supabase Edge URL SoT (kein hardcoded Ref) + Logger cleanup + remove legacy exportAndBuild.
 
 ## Offene Punkte
 
