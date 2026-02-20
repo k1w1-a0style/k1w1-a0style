@@ -38,6 +38,11 @@ export const STORAGE_KEYS = {
   // Diagnostic run result (shared between DiagnosticScreen and BuildPreconditions)
   DIAGNOSTIC_LAST_OK: "diagnostic_last_ok",
 
+  // CI Lite (GitHub Actions) – persisted status so other screens can show a green check.
+  CI_LITE_LINT_OK: "ci_lite_lint_ok",
+  CI_LITE_TYPECHECK_OK: "ci_lite_typecheck_ok",
+  CI_LITE_LAST_RUN_AT: "ci_lite_last_run_at",
+
   // Chat privacy/retention settings
   CHAT_PERSIST_HISTORY: "k1w1_chat_persist_history",
   CHAT_RETENTION_LIMIT: "k1w1_chat_retention_limit",

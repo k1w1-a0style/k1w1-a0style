@@ -22,7 +22,7 @@ export type CheckActionChip = {
 
 type ChipsById = Record<string, CheckActionChip[]>;
 
-const FIX_ORDER = ["repo", "tokens", "signing_key", "diagnostic"] as const;
+const FIX_ORDER = ["repo", "tokens", "signing_key", "diagnostic", "ci_lite"] as const;
 const statusWeight: Record<CheckItem["status"], number> = {
   fail: 0,
   pending: 1,

@@ -1236,7 +1236,7 @@ const checkForbiddenFiles: PreflightCheck = {
 
 const checkNativeDirsManagedGuard: PreflightCheck = {
   id: "native-dirs-managed-guard",
-  title: "android/ & ios/ Ordner (managed guard)",
+  title: "Native Ordner Konsistenz (Android-only)",
   severity: "normal",
   run(files) {
     const m = byPath(files);
@@ -1252,7 +1252,7 @@ const checkNativeDirsManagedGuard: PreflightCheck = {
     if (androidLooksIncomplete || iosLooksIncomplete) {
       const details: string[] = [];
       if (androidLooksIncomplete) details.push("android/ vorhanden, aber android/app/build.gradle fehlt.");
-      if (iosLooksIncomplete) details.push("ios/ vorhanden, aber ios/Podfile fehlt.");
+      if (iosLooksIncomplete) details.push("ios/ vorhanden, aber ios/Podfile fehlt (iOS wird hier nicht genutzt).");
 
       return {
         id: this.id,
@@ -1260,7 +1260,7 @@ const checkNativeDirsManagedGuard: PreflightCheck = {
         severity: this.severity,
         status: "warn",
         message:
-          "Unvollständige native Ordner können den EAS Build brechen (z.B. wenn android/ oder ios/ halb exportiert ist).",
+          "Unvollständige native Ordner können den EAS Build brechen. Hinweis: Dieses Projekt ist Android-only – ein halb-existierendes ios/ ist besonders gefährlich.",
         details,
       };
     }

@@ -15,6 +15,7 @@ import {
   View,
   Linking,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { v4 as uuidv4 } from "uuid";
 
@@ -33,6 +34,7 @@ import { redactSecrets, truncateWithMarker } from "../lib/secretRedaction";
 import type { PreflightPatch } from "../lib/diagnostics/preflightTypes";
 import { validateFileContent, validateFilePath } from "../lib/validators";
 import { checkPatchLimits, analyzePatchRisk, patchTouchedPaths } from "../lib/diagnostics/fixSafety";
+import { STORAGE_KEYS } from "../lib/storageKeys";
 
 const WORKFLOW_CI_LITE = "k1w1-ci-lite.yml";
 const WORKFLOW_CI_LITE_AUTOFIX = "k1w1-ci-lite-autofix.yml";
@@ -405,6 +407,22 @@ useEffect(() => {
   }, [visible, runId, logs, jobId, chainWaiting, workflowId]);
 
   const stepInfo = useMemo(() => inferStepStates(logLines), [logLines]);
+
+  // Persist CI Lite results so other screens (e.g. Build checklist) can show a stable green state.
+  useEffect(() => {
+    if (workflowId !== WORKFLOW_CI_LITE) return;
+    if (!workflowRun || workflowRun.status !== "completed") return;
+
+    // Prefer parsed step states; fall back to workflow conclusion.
+    const lintOk = stepInfo.lint === "success" || workflowRun.conclusion === "success";
+    const typeOk = stepInfo.typecheck === "success" || workflowRun.conclusion === "success";
+
+    AsyncStorage.multiSet([
+      [STORAGE_KEYS.CI_LITE_LINT_OK, lintOk ? "true" : "false"],
+      [STORAGE_KEYS.CI_LITE_TYPECHECK_OK, typeOk ? "true" : "false"],
+      [STORAGE_KEYS.CI_LITE_LAST_RUN_AT, String(Date.now())],
+    ]).catch(() => {});
+  }, [workflowId, workflowRun?.status, workflowRun?.conclusion, stepInfo.lint, stepInfo.typecheck]);
 
   // Chain-run: if the Autofix workflow succeeded, automatically switch to the CI Lite run.
   useEffect(() => {

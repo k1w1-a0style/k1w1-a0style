@@ -175,7 +175,7 @@ export function useEnhancedBuildScreen() {
   const status: BuildStatus = (currentBuild?.status as any) ?? "idle";
 
   // === Checklist + Build-Preconditions ===
-  const { hasTokens, hasSigningKey, hasDiagOk, refreshPreconditions } =
+  const { hasTokens, hasSigningKey, hasDiagOk, hasCiLintOk, hasCiTypecheckOk, refreshPreconditions } =
     useBuildPreconditions(buildProfile);
 
   const buildBlockedReason = useMemo(() => {
@@ -520,6 +520,15 @@ export function useEnhancedBuildScreen() {
         detail: hasDiagOk ? "Letzte Diagnostik OK" : "Diagnostik ausfuehren",
       },
       {
+        id: "ci_lite",
+        label: "CI Lite (Lint + Typecheck) gruen",
+        status: hasCiLintOk && hasCiTypecheckOk ? "ok" : "pending",
+        detail:
+          hasCiLintOk && hasCiTypecheckOk
+            ? "Letzter Lauf OK"
+            : "Optional: CI Lite im Header starten (pulsierendes Icon)",
+      },
+      {
         id: "repo",
         label: "Repo gewaehlt",
         status: hasRepo ? "ok" : "fail",
@@ -532,7 +541,7 @@ export function useEnhancedBuildScreen() {
         detail: `Profil: ${buildProfile}`,
       },
     ];
-  }, [hasSigningKey, hasTokens, hasDiagOk, repoFullName, buildProfile]);
+  }, [hasSigningKey, hasTokens, hasDiagOk, hasCiLintOk, hasCiTypecheckOk, repoFullName, buildProfile]);
 
 
   return {

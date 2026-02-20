@@ -29,3 +29,7 @@ This file is append-only. Each patch adds a short entry.
 
 ## Patch 221
 - Connections UX polish (GitHub scopes as badges + missing-scope warning) + Build/CI shortcut + Supabase ref/host display cleanup + docs/todo alignment.
+
+## Patch 222
+- Android-only cleanup: remove iOS wording from diagnostics; keep guard that treats partial ios/ as risky.
+- CI Lite status persistence: CI Lite (lint/typecheck) now writes success flags to AsyncStorage and Build checklist shows it as an optional green check.
