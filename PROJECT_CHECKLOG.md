@@ -46,3 +46,6 @@
 ## Patch 230 (2026-02-21)
 - Bundle: Patch 227–229 als ein Apply-ZIP (CI Lite SoT + DEV_COMMANDS + Docs Alignment).
 - Patchlog/Index ergänzt (`docs/patches/patch_230.md`).
+
+- Patch 231: Android-only wording cleanup (remove iOS confusion)
+

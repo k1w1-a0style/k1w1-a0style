@@ -73,3 +73,8 @@ This file is append-only. Each patch adds a short entry.
 - **Bundle/Apply:** Ein Apply-ZIP, das Patch 227–229 zusammenfasst (CI Lite SoT + DEV_COMMANDS + Docs Alignment).
 - Datei: `docs/patches/patch_230.md`
 
+
+## Patch 231 — Android-only wording cleanup
+
+- Entfernt iOS-Wording aus user-facing Docs/Kommentaren, damit kein falscher Eindruck entsteht.
+- Datei: `docs/patches/patch_231.md`

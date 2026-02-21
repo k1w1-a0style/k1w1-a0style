@@ -173,7 +173,7 @@ Wenn Projektdateien generiert werden → IMMER gültige Struktur sicherstellen.
 
 ### KI DARF NICHT:
 
-- native Android/iOS Module hinzufügen
+- native Module hinzufügen (Android-only)
 - Expo Managed Workflow verlassen
 - Dateien außerhalb des Projektbaums referenzieren
 
@@ -241,7 +241,7 @@ UI: GitHubReposScreen.tsx enthält alle Funktionen.
 
 - ~~Eingabefeld hängt in der Mitte~~
 - ~~Wird komplett von der Tastatur verdeckt~~
-- **Fix:** KeyboardAvoidingView behavior='height' für Android, keyboardVerticalOffset für iOS
+- **Fix:** KeyboardAvoidingView behavior='height' für Android
 
 ### KI-Pflicht:
 
@@ -451,7 +451,6 @@ Vollständiges Notification-System für Build-Status-Updates mit lokalen Push-Be
 - **Build Failed**: "❌ Build Failed" Notification (mit Sound & Fehlerdetails)
 - **Permission Management**: Automatische Permission-Anforderung
 - **Android Channel**: Dedicated "Build Updates" Channel
-- **iOS Badge Support**: Badge-Count für iOS
 - **Expo Push Token**: Vorbereitet für Remote-Notifications
 
 ### API:
@@ -684,7 +683,6 @@ if (!validation.valid) {
 - ✅ Build-Status-Notifications (Start, Success, Failure)
 - ✅ Permission Management
 - ✅ Android Notification Channel
-- ✅ iOS Badge Support
 - ✅ Settings-Integration mit Toggle
 - ✅ 17 Unit Tests (100% bestanden)
 - **Dateien**:
