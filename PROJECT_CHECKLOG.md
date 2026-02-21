@@ -42,3 +42,7 @@
 ## Patch 229 (2026-02-20)
 - CI Lite: extracted helpers into `components/ciLite/ciLiteUtils.ts` and aligned usages.
 - CI Lite: minor robustness/UX improvements + docs alignment.
+
+## Patch 230 (2026-02-21)
+- Bundle: Patch 227–229 als ein Apply-ZIP (CI Lite SoT + DEV_COMMANDS + Docs Alignment).
+- Patchlog/Index ergänzt (`docs/patches/patch_230.md`).

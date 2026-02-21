@@ -68,3 +68,8 @@ This file is append-only. Each patch adds a short entry.
 - CI Lite: extracted shared helpers into components/ciLite/ciLiteUtils.ts (SoT).
 - CI Lite: applyPatchFromText/selection deps hardened further + minor UX polish.
 - Docs: patchnote + patchlog/checklog/readme alignment.
+## Patch 230 — Bundle 227–229 (CI Lite SoT + DEV_COMMANDS)
+
+- **Bundle/Apply:** Ein Apply-ZIP, das Patch 227–229 zusammenfasst (CI Lite SoT + DEV_COMMANDS + Docs Alignment).
+- Datei: `docs/patches/patch_230.md`
+

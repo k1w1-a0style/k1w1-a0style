@@ -32,3 +32,4 @@ Alles andere: bitte nach `docs/` verschieben (oder löschen, wenn es nur tempor�
 - [Developer commands](./DEV_COMMANDS.md)
 - Patch 228: DEV Commands + Index/README adjustments (2026-02-20) — docs/patches/patch_228.md
 - Patch 229: CI Lite utils SoT + docs alignment (2026-02-20) — docs/patches/patch_229.md
+- Patch 230: Bundle 227–229 (CI Lite SoT + DEV_COMMANDS) (2026-02-21) — docs/patches/patch_230.md
