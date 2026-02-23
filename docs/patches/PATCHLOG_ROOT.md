@@ -110,3 +110,8 @@ This file is append-only. Each patch adds a short entry.
 
 - UI/Metadata: removed placeholder model `contextWindow: '—'` (kept real values only).
 - Datei: `docs/patches/patch_237.md`
+
+## Patch 238 (2026-02-23)
+
+- Fix tests: add minimal `contextWindow` values per provider (use real sizes where known, otherwise `varies`).
+- Datei: `docs/patches/patch_238.md`

@@ -65,3 +65,4 @@
 - 2026-02-23: Patch 236 prepared (hotfix: broken import block in WorkflowRunDetailModal). Run `npm run test:silent` + `npm run typecheck` after apply. (post-234 cleanup). Run `npm run test:silent` after apply.
 
 - 2026-02-23: Patch 237 prepared (remove placeholder model contextWindow metadata).
+- 2026-02-23: Patch 238 prepared (contextWindow smoke values per provider to satisfy integration test).

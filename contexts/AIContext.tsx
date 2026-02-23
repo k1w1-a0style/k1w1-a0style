@@ -134,7 +134,7 @@ export const PROVIDER_METADATA: Record<AllAIProviders, ProviderMetadata> = {
 
 export const AVAILABLE_MODELS: Record<AllAIProviders, ModelInfo[]> = {
   groq: [
-    { id: 'groq/compound-mini', label: 'Compound Mini', description: 'Sehr schnell & günstig.', tier: 'free', persona: 'speed', bestFor: 'Chat / UI Text'},
+    { id: 'groq/compound-mini', label: 'Compound Mini', description: 'Sehr schnell & günstig.', tier: 'free', persona: 'speed', bestFor: 'Chat / UI Text', contextWindow: 'varies' },
     { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant', description: 'Schnell, stabil.', tier: 'free', persona: 'speed', bestFor: 'Alltag'},
     { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile', description: 'Mehr Qualität für komplexere Prompts.', tier: 'paid', persona: 'quality', bestFor: 'Qualität'},
     { id: 'qwen/qwen3-32b', label: 'Qwen 3 32B', description: 'Sehr gut für Code/Logik (manchmal mit <think>).', tier: 'credit', persona: 'balanced', bestFor: 'Code / Reasoning'},
@@ -142,7 +142,7 @@ export const AVAILABLE_MODELS: Record<AllAIProviders, ModelInfo[]> = {
     { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B (Groq)', description: 'Großes OSS Modell über Groq.', tier: 'credit', persona: 'quality', bestFor: 'Qualität'},
   ],
   openai: [
-    { id: 'gpt-4o', label: 'GPT-4o', description: 'Starker Allrounder.', tier: 'credit', persona: 'quality', bestFor: 'Allround'},
+    { id: 'gpt-4o', label: 'GPT-4o', description: 'Starker Allrounder.', tier: 'credit', persona: 'quality', bestFor: 'Allround', contextWindow: '128k' },
     { id: 'gpt-4o-mini', label: 'GPT-4o mini', description: 'Schnell & günstig.', tier: 'free', persona: 'speed', bestFor: 'Speed'},
     { id: 'gpt-4.1', label: 'GPT-4.1', description: 'Sehr gut für Code/Reasoning.', tier: 'credit', persona: 'quality', bestFor: 'Code'},
     { id: 'gpt-4.1-mini', label: 'GPT-4.1 mini', description: 'Top Preis/Leistung.', tier: 'credit', persona: 'speed', bestFor: 'Daily'},
@@ -151,7 +151,7 @@ export const AVAILABLE_MODELS: Record<AllAIProviders, ModelInfo[]> = {
   anthropic: [
     { id: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku', description: 'Schnell, solide.', tier: 'credit', persona: 'speed', bestFor: 'Speed'},
     { id: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', description: 'Schnell + besser.', tier: 'credit', persona: 'speed', bestFor: 'Speed+Qualität'},
-    { id: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', description: 'Höhere Qualität (Reasoning/Writing).', tier: 'credit', persona: 'quality', bestFor: 'Quality/Review'},
+    { id: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', description: 'Höhere Qualität (Reasoning/Writing).', tier: 'credit', persona: 'quality', bestFor: 'Quality/Review', contextWindow: '200k' },
   ],
   gemini: [
     // ✅ Test wants at least one model with "1M" or "2M"
@@ -159,7 +159,7 @@ export const AVAILABLE_MODELS: Record<AllAIProviders, ModelInfo[]> = {
     { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', description: 'Daily Driver.', tier: 'credit', persona: 'balanced', bestFor: 'Daily', contextWindow: '1M' },
   ],
   huggingface: [
-    { id: 'Qwen/Qwen2.5-Coder-32B-Instruct', label: 'Qwen2.5 Coder 32B', description: 'Stark für Code.', tier: 'free', persona: 'quality', bestFor: 'Code'},
+    { id: 'Qwen/Qwen2.5-Coder-32B-Instruct', label: 'Qwen2.5 Coder 32B', description: 'Stark für Code.', tier: 'free', persona: 'quality', bestFor: 'Code', contextWindow: 'varies' },
     { id: 'Qwen/Qwen2.5-7B-Instruct', label: 'Qwen2.5 7B', description: 'Schnell für Chat.', tier: 'free', persona: 'speed', bestFor: 'Chat'},
     { id: 'meta-llama/Llama-3.1-8B-Instruct', label: 'Llama 3.1 8B Instruct', description: 'OSS Chat.', tier: 'free', persona: 'speed', bestFor: 'Chat'},
     { id: 'google/gemma-2-9b-it', label: 'Gemma 2 9B', description: 'Kurzantworten / Hilfe.', tier: 'free', persona: 'speed', bestFor: 'Kurzantworten'},
