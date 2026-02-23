@@ -1,6 +1,7 @@
 import { githubLimiter } from "./rateLimit";
 import { githubApiUrl } from "../../shared/constants/github";
 import { getGitHubToken } from "./tokenStore";
+import { logger } from "../../lib/logger";
 
 export interface GitHubBranch {
   name: string;
@@ -51,7 +52,7 @@ export const createRepo = async (repoName: string, isPrivate = true) => {
     );
 
     if (status === 422 && alreadyExistsError) {
-      console.warn(`Repo '${repoName}' existiert bereits, verwende es.`);
+      logger.warn("Repo existiert bereits, verwende es", { repoName });
       await githubLimiter.checkLimit();
       const userResp = await fetch(githubApiUrl("/user"), {
         headers: {
@@ -70,7 +71,7 @@ export const createRepo = async (repoName: string, isPrivate = true) => {
     }
 
     const errorDetails = JSON.stringify(json, null, 2);
-    console.error("GitHub API Fehlerdetails:", errorDetails);
+    logger.error("GitHub API Fehlerdetails", { errorDetails });
     throw new Error(
       `GitHub API Fehler (Status ${status}): ${json.message || errorDetails}`,
     );

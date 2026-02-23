@@ -125,3 +125,12 @@ This file is append-only. Each patch adds a short entry.
 
 - P2 hygiene: migrate remaining console logs in sensitive paths to logger + OpenAI reasoning-model guard (o1/o3) for Responses API.
 - Datei: `docs/patches/patch_240.md`
+
+
+## Patch 241 (2026-02-24)
+
+- P2 hygiene: infra/logger sweep (GitHubContext + storage + tokenStore + github infra) + OpenAI reasoning guard supports versioned oN IDs.
+- Datei: `docs/patches/patch_241.md`
+
+## Patch 242
+- Fix missing logger import in infra/github/repos.ts (typecheck/jest).

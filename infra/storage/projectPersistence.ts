@@ -155,7 +155,7 @@ const readDirectoryRecursive = async (dirUri: string, basePath = ''): Promise<Pr
       }
     }
   } catch (error) {
-    console.error(`[projectStorage] Verzeichnis-Fehler ${dirUri}: `, error);
+    logger.error("[projectStorage] Verzeichnis-Fehler", { err: error });
   }
 
   return files;
@@ -174,7 +174,7 @@ export const saveProjectToStorage = async (project: ProjectData): Promise<void> 
     await AsyncStorage.setItem(PROJECT_STORAGE_KEY, projectString);
     logger.info('💾 Projekt gespeichert:', project.name);
   } catch (error) {
-    console.error('❌ Fehler beim Speichern:', error);
+    logger.error("[projectStorage] Fehler beim Speichern", { err: error });
     throw new Error('Projekt konnte nicht gespeichert werden');
   }
 };
@@ -218,7 +218,7 @@ export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
     }
     return project;
   } catch (error) {
-    console.error('❌ Fehler beim Laden:', error);
+    logger.error("[projectStorage] Fehler beim Laden", { err: error });
     return null;
   }
 };
@@ -228,7 +228,7 @@ export const clearProjectFromStorage = async (): Promise<void> => {
     await AsyncStorage.removeItem(PROJECT_STORAGE_KEY);
     logger.info('🗑️ Projekt aus Storage gelöscht');
   } catch (error) {
-    console.error('❌ Fehler beim Löschen:', error);
+    logger.error("[projectStorage] Fehler beim Löschen", { err: error });
     throw new Error('Projekt konnte nicht gelöscht werden');
   }
 };
@@ -301,7 +301,7 @@ export const exportProjectAsZipFile = async (
       messageCount: (project.chatHistory || []).length,
     };
   } catch (error: unknown) {
-    console.error('❌ Fehler beim ZIP-Export:', error);
+    logger.error("[projectStorage] Fehler beim ZIP-Export", { err: error });
     const errorMessage = error instanceof Error ? error.message : 'ZIP-Export fehlgeschlagen';
     throw new Error(errorMessage);
   }
@@ -344,7 +344,7 @@ export const importProjectFromZipFile = async (): Promise<{
         `Ungültige Dateien: ${zipValidation.invalidFiles.length}`,
       ].join('\n');
 
-      console.error('[projectStorage]', errorMsg);
+      logger.error("[projectStorage] Invalid ZIP content", { errorMsg });
       throw new Error(errorMsg);
     }
 
@@ -375,7 +375,7 @@ export const importProjectFromZipFile = async (): Promise<{
       messageCount: 0,
     };
   } catch (error: unknown) {
-    console.error('❌ Fehler beim ZIP-Import:', error);
+    logger.error("[projectStorage] Fehler beim ZIP-Import", { err: error });
 
     if (error instanceof Error) {
       if (error.message.includes('Import abgebrochen')) {

@@ -70,3 +70,7 @@
 - 2026-02-23: Patch 239 prepared (stability sweep: FileWriter no silent drops + disable broken build.js + rotateApiKeyOnError cleanup + targeted logger hygiene + Groq model fallback).
 
 - 2026-02-24: Patch 240 prepared (logger sweep: ProjectContext/useChatAIFlow/usePreview + OpenAI o1/o3 temperature guard + deprecate unused rotateApiKeyOnError). Run `npm run test:silent` + `npm run typecheck` after apply.
+
+- 2026-02-24: Patch 241 prepared (infra/logger sweep + OpenAI reasoning regex fix). Run `npm run test:silent` + `npm run typecheck` after apply.
+
+- Patch 242: logger import hotfix (repos.ts). Checks: tests/typecheck green.

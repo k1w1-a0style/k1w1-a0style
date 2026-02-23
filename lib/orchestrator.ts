@@ -279,7 +279,7 @@ async function callOpenAI(apiKey: string, model: string, messages: LlmMessage[],
     const temperature = quality === 'quality' ? 0.7 : 0.2;
     const max_output_tokens = quality === 'quality' ? 8192 : 4096;
 
-    const isReasoningModel = (m: string) => /^o[13](?:-(?:mini|preview))?$/i.test(m.trim());
+    const isReasoningModel = (m: string) => /^o\d/i.test(m.trim());
 
     const body: Record<string, unknown> = {
       model,

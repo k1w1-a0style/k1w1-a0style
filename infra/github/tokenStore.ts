@@ -1,4 +1,5 @@
 import * as SecureStore from "expo-secure-store";
+import { logger } from "../../lib/logger";
 
 import { TOKEN_KEYS } from "../../shared/constants/tokens";
 
@@ -16,7 +17,7 @@ const saveSecureToken = async (key: string, value: string): Promise<void> => {
     await SecureStore.setItemAsync(key, value);
   } catch (error: any) {
     // eslint-disable-next-line no-console
-    console.error(`[SecureStore] Fehler beim Speichern von ${key}:`, error);
+    logger.error("[SecureStore] Speichern fehlgeschlagen", { key, err: error });
     throw new Error(
       `Token konnte nicht sicher gespeichert werden: ${error?.message ?? String(error)}`,
     );
@@ -28,7 +29,7 @@ const getSecureToken = async (key: string): Promise<string | null> => {
     return await SecureStore.getItemAsync(key);
   } catch (error: any) {
     // eslint-disable-next-line no-console
-    console.error(`[SecureStore] Fehler beim Laden von ${key}:`, error);
+    logger.error("[SecureStore] Laden fehlgeschlagen", { key, err: error });
     return null;
   }
 };
@@ -38,7 +39,7 @@ const deleteSecureToken = async (key: string): Promise<void> => {
     await SecureStore.deleteItemAsync(key);
   } catch (error: any) {
     // eslint-disable-next-line no-console
-    console.error(`[SecureStore] Fehler beim Löschen von ${key}:`, error);
+    logger.error("[SecureStore] Löschen fehlgeschlagen", { key, err: error });
   }
 };
 

@@ -7,6 +7,8 @@ import React, {
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { logger } from "../lib/logger";
+
 import { GITHUB_STORAGE_KEYS } from "../shared/constants/github";
 
 import { useProject } from "./ProjectContext";
@@ -55,7 +57,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
         if (storedActiveRepo) setActiveRepoState(storedActiveRepo);
         if (storedBranch) setActiveBranchState(storedBranch);
       } catch (e) {
-        console.error("[GitHubContext] Fehler beim Laden:", e);
+        logger.error("[GitHubContext] Fehler beim Laden", { err: e });
       } finally {
         setHydrated(true);
       }
@@ -72,13 +74,13 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
       setActiveRepoState(repo);
       if (repo) {
         AsyncStorage.setItem(ACTIVE_REPO_KEY, repo).catch((e) => {
-          console.error("[GitHubContext] ActiveRepo persist failed:", e);
+          logger.error("[GitHubContext] ActiveRepo persist failed", { err: e });
         });
         setRecentRepos((prev) => {
           const filtered = prev.filter((r) => r !== repo);
           const next = [repo, ...filtered].slice(0, 10);
           persistRecent(next).catch((e) => {
-            console.error("[GitHubContext] RecentRepos persist failed:", e);
+            logger.error("[GitHubContext] RecentRepos persist failed", { err: e });
           });
           return next;
         });
@@ -93,7 +95,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
     setActiveBranchState(branch);
     if (branch) {
       AsyncStorage.setItem(ACTIVE_BRANCH_KEY, branch).catch((e) => {
-        console.error("[GitHubContext] ActiveBranch persist failed:", e);
+        logger.error("[GitHubContext] ActiveBranch persist failed", { err: e });
       });
     } else {
       AsyncStorage.removeItem(ACTIVE_BRANCH_KEY).catch(() => {});
@@ -126,7 +128,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
         const filtered = prev.filter((r) => r !== repo);
         const next = [repo, ...filtered].slice(0, 10);
         persistRecent(next).catch((e) => {
-          console.error("[GitHubContext] RecentRepos persist failed:", e);
+          logger.error("[GitHubContext] RecentRepos persist failed", { err: e });
         });
         return next;
       });
@@ -137,7 +139,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
   const clearRecentRepos = useCallback(() => {
     setRecentRepos([]);
     persistRecent([]).catch((e) =>
-      console.error("[GitHubContext] clear persist failed:", e),
+      logger.error("[GitHubContext] clear persist failed", { err: e }),
     );
   }, [persistRecent]);
 

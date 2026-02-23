@@ -1,6 +1,7 @@
 import { githubLimiter } from "./rateLimit";
 import { getGitHubToken } from "./tokenStore";
 import { githubApiUrl } from "../../shared/constants/github";
+import { logger } from "../../lib/logger";
 
 export interface WorkflowRun {
   id: number;
@@ -168,7 +169,7 @@ export const getWorkflowRuns = async (
     const resetDate = reset
       ? new Date(parseInt(reset) * 1000).toLocaleTimeString()
       : "unbekannt";
-    console.warn(
+    logger.warn(
       `⚠️ [GitHub API] Niedriges Rate Limit: ${remaining} Anfragen übrig. Reset: ${resetDate}`,
     );
   }
