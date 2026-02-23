@@ -5,6 +5,7 @@ import { getGitHubToken } from "../infra/github/tokenStore";
 import { redactSecrets, truncateWithMarker } from "../lib/secretRedaction";
 import { requireSupabaseEdgeUrl } from "../lib/supabaseEdge";
 import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
+import { logger } from '../lib/logger';
 
 export interface LogEntry {
   timestamp: string;
@@ -281,7 +282,7 @@ export function useGitHubActionsLogs({
     } catch (err: any) {
       // Nur einmal loggen (nicht bei jedem Poll-Versuch)
       if (isMountedRef.current && !loggedErrorRef.current) {
-        console.warn(
+        logger.warn(
           "[useGitHubActionsLogs] ⚠️ Logs nicht verfügbar:",
           err?.message,
         );

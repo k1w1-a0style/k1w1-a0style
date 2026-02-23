@@ -7,7 +7,7 @@
 
 import { getEdgeAdminKey } from "../../infra/github/githubService";
 import { mapBuildStatus } from "../../lib/buildStatusMapper";
-import { getSupabaseEdgeUrl } from "../../lib/supabaseEdge";
+import { getSupabaseEdgeUrl, SUPABASE_URL_MISSING_ERROR } from '../../lib/supabaseEdge';
 import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
 import type { BuildStatus, BuildStatusDetails } from "../../shared/types/build";
 
@@ -67,7 +67,7 @@ export async function pollBuildStatusOnce(
   if (!edgeUrl) {
     return {
       ok: false,
-      error: "Supabase URL fehlt. Bitte in Verbindungen/Credentials setzen (oder EXPO_PUBLIC_SUPABASE_URL als Env setzen).",
+      error: SUPABASE_URL_MISSING_ERROR,
     };
   }
   const edgeAdminKey = await getEdgeAdminKey().catch(() => null);

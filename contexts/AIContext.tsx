@@ -183,13 +183,13 @@ const DEFAULT_CONFIG: AIConfig = {
 
 const AIContext = createContext<AIContextProps | undefined>(undefined);
 
-function resolveLegacyAutoMode(provider: AllAIProviders, qualityMode: QualityMode, mode: unknown): string {
+function resolveLegacyAutoMode(provider: AllAIProviders, qualityMode: QualityMode, mode: unknown, fallback: string): string {
   const raw = typeof mode === 'string' ? mode.trim() : '';
   const isLegacyAuto = raw === '' || raw === 'auto' || raw.startsWith('auto-');
   if (!isLegacyAuto) return raw;
 
   const defs = (PROVIDER_DEFAULTS as any)?.[provider] as (typeof PROVIDER_DEFAULTS)[AllAIProviders] | undefined;
-  if (!defs) return DEFAULT_CONFIG.selectedChatMode;
+  if (!defs) return fallback;
   // balanced -> speed default, review -> quality default
   if (qualityMode === 'quality' || qualityMode === 'review') return defs.quality;
   return defs.speed;
@@ -260,8 +260,8 @@ async function loadConfig(): Promise<AIConfig | null> {
 
       const fixed: AIConfig = {
         ...base,
-        selectedChatMode: resolveLegacyAutoMode(chatProvider, qm, (parsed as any).selectedChatMode ?? base.selectedChatMode),
-        selectedAgentMode: resolveLegacyAutoMode(agentProvider, qm, (parsed as any).selectedAgentMode ?? base.selectedAgentMode),
+        selectedChatMode: resolveLegacyAutoMode(chatProvider, qm, (parsed as any).selectedChatMode ?? base.selectedChatMode, base.selectedChatMode),
+        selectedAgentMode: resolveLegacyAutoMode(agentProvider, qm, (parsed as any).selectedAgentMode ?? base.selectedAgentMode, base.selectedAgentMode),
       };
 
       if (k !== CONFIG_STORAGE_KEY) {

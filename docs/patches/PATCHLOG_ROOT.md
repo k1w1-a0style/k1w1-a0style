@@ -94,3 +94,14 @@ This file is append-only. Each patch adds a short entry.
 
 - Runtime robustness sweep: Gemini consecutive-role merge + Supabase Edge URL guard + legacy provider safety + logger cleanup.
 - Datei: `docs/patches/patch_234.md`
+
+## Patch 235 (2026-02-23)
+
+- Post-234 cleanup: HF indent + safer fallbacks + Supabase error const + logger hygiene.
+- Datei: `docs/patches/patch_235.md`
+
+## Patch 236 (2026-02-23)
+
+- Hotfix: fixed malformed import block in WorkflowRunDetailModal + replaced console log with logger.
+- Datei: `docs/patches/patch_236.md`
+

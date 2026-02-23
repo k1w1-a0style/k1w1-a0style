@@ -14,6 +14,8 @@ import { STORAGE_KEYS } from "./storageKeys";
  * 2) EXPO_PUBLIC_SUPABASE_URL (if set)
  * 3) Static config fallback
  */
+export const SUPABASE_URL_MISSING_ERROR = "Supabase URL fehlt. Bitte in Verbindungen/Credentials setzen (oder EXPO_PUBLIC_SUPABASE_URL als Env setzen).";
+
 export async function getSupabaseEdgeUrl(): Promise<string> {
   const storedUrl = await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).catch(
     () => null,
@@ -36,7 +38,7 @@ export async function requireSupabaseEdgeUrl(): Promise<string> {
   const url = await getSupabaseEdgeUrl();
   if (!url) {
     throw new Error(
-      "Supabase URL fehlt. Bitte in Verbindungen/Credentials setzen (oder EXPO_PUBLIC_SUPABASE_URL als Env setzen).",
+      SUPABASE_URL_MISSING_ERROR,
     );
   }
   return url;

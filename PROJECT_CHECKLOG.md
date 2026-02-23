@@ -60,3 +60,6 @@
 
 ## Patch 234 (2026-02-23)
 - Runtime robustness: Gemini consecutive-role merge + Supabase Edge URL guard + legacy provider safety + logger cleanup.
+
+- 2026-02-23: Patch 235 prepared
+- 2026-02-23: Patch 236 prepared (hotfix: broken import block in WorkflowRunDetailModal). Run `npm run test:silent` + `npm run typecheck` after apply. (post-234 cleanup). Run `npm run test:silent` after apply.

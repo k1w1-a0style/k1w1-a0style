@@ -13,6 +13,7 @@ import * as Clipboard from "expo-clipboard";
 
 import { theme } from "../../../theme";
 import { styles as base } from "../../../styles/enhancedBuildScreenStyles";
+import { logger } from "../../../lib/logger";
 import type { WorkflowRun } from "../types";
 import type {
   WorkflowJob,
@@ -59,8 +60,7 @@ export function WorkflowRunDetailModal({
     try {
       await Clipboard.setStringAsync(text);
       // lightweight feedback via title (no Alert spam)
-      // eslint-disable-next-line no-console
-      console.log(`[Clipboard] Copied: ${label}`);
+      logger.info(`[Clipboard] Copied: ${label}`);
     } catch {
       // ignore
     }

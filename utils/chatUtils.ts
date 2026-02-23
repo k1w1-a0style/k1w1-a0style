@@ -4,6 +4,7 @@ import { CONFIG } from '../config';
 import { normalizePath as libNormalizePath, validateFilePath as libValidateFilePath } from '../lib/validators';
 
 import type { ProjectFile } from "../shared/types/project";
+import { logger } from '../lib/logger';
 type ErrorStat = {
   count: number;
   last: string;
@@ -15,7 +16,7 @@ const errorStats: Record<string, ErrorStat> = {};
 const log = (level: 'INFO' | 'WARN' | 'ERROR', message: string, meta?: Record<string, unknown>) => {
   const timestamp = new Date().toISOString();
   const ctx = meta ? ` | ${JSON.stringify(meta)}` : '';
-  console.log(`[${level}] ${timestamp} - ${message}${ctx}`);
+  logger.debug(`[${level}] ${timestamp} - ${message}${ctx}`);
 };
 
 const logError = (key: string, meta?: Record<string, unknown>) => {

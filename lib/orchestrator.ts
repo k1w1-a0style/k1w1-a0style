@@ -459,7 +459,7 @@ async function callHuggingFace(apiKey: string, model: string, messages: LlmMessa
 
     const tryOnce = async (modelId: string) => {
       const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
-      signal,
+        signal,
 
         method: 'POST',
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
