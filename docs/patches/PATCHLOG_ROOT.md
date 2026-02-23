@@ -105,3 +105,8 @@ This file is append-only. Each patch adds a short entry.
 - Hotfix: fixed malformed import block in WorkflowRunDetailModal + replaced console log with logger.
 - Datei: `docs/patches/patch_236.md`
 
+
+## Patch 237 (2026-02-23)
+
+- UI/Metadata: removed placeholder model `contextWindow: '—'` (kept real values only).
+- Datei: `docs/patches/patch_237.md`
