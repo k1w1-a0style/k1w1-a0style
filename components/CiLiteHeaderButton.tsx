@@ -24,7 +24,7 @@ import * as Clipboard from "expo-clipboard";
 
 import { theme } from "../theme";
 import { getGitHubToken } from "../infra/github/tokenStore";
-import { getSupabaseEdgeUrl } from "../lib/supabaseEdge";
+import { requireSupabaseEdgeUrl } from "../lib/supabaseEdge";
 import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
 import { useGitHub } from "../contexts/GitHubContext";
 import { useProject } from "../contexts/ProjectContext";
@@ -230,7 +230,7 @@ export default function CiLiteHeaderButton(): React.ReactElement {
   const findRunByJobId = useCallback(
     async (opts: { githubRepo: string; branch: string; jobId: string; workflow: string }) => {
       const { githubRepo, branch, jobId, workflow } = opts;
-      const edgeUrl = await getSupabaseEdgeUrl();
+      const edgeUrl = await requireSupabaseEdgeUrl();
       const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
 
       const r = await fetch(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_RUNS}`, {
@@ -699,7 +699,7 @@ useEffect(() => {
           );
         }
 
-        const edgeUrl = await getSupabaseEdgeUrl();
+        const edgeUrl = await requireSupabaseEdgeUrl();
         const dispatchBody = {
           githubRepo,
           githubToken: await getGitHubToken().catch(() => null),

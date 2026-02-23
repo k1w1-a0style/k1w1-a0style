@@ -31,3 +31,13 @@ export async function getSupabaseEdgeUrl(): Promise<string> {
 
   return CONFIG.API.SUPABASE_EDGE_URL;
 }
+
+export async function requireSupabaseEdgeUrl(): Promise<string> {
+  const url = await getSupabaseEdgeUrl();
+  if (!url) {
+    throw new Error(
+      "Supabase URL fehlt. Bitte in Verbindungen/Credentials setzen (oder EXPO_PUBLIC_SUPABASE_URL als Env setzen).",
+    );
+  }
+  return url;
+}

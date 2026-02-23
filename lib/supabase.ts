@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { STORAGE_KEYS } from "./storageKeys";
+import { logger } from "./logger";
 
 let supabaseClient: SupabaseClient | null = null;
 let initPromise: Promise<SupabaseClient> | null = null;
@@ -71,7 +72,7 @@ export const ensureSupabaseClient = async (): Promise<SupabaseClient> => {
       setRuntimeEnvFromSupabase(supabaseUrl, supabaseAnonKey);
 
       if (__DEV__) {
-        console.log("✅ Supabase Client erstellt");
+        logger.info("✅ Supabase Client erstellt");
       }
 
       supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -102,6 +103,6 @@ export const resetSupabaseClient = () => {
   supabaseClient = null;
   initPromise = null;
   if (__DEV__) {
-    console.log("Supabase Client wurde zurückgesetzt.");
+    logger.info("Supabase Client wurde zurückgesetzt.");
   }
 };

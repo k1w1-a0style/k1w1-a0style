@@ -64,6 +64,12 @@ export async function pollBuildStatusOnce(
   opts?: { timeoutMs?: number },
 ): Promise<PollBuildResult> {
   const edgeUrl = await getSupabaseEdgeUrl();
+  if (!edgeUrl) {
+    return {
+      ok: false,
+      error: "Supabase URL fehlt. Bitte in Verbindungen/Credentials setzen (oder EXPO_PUBLIC_SUPABASE_URL als Env setzen).",
+    };
+  }
   const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
 
   const res = await fetchWithTimeout(

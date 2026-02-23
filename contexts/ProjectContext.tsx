@@ -447,7 +447,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     }));
   }, [updateProject]);
 
-const setPreferredBuildProfile = useCallback(
+  const setPreferredBuildProfile = useCallback(
     async (profile: "development" | "preview" | "production") => {
       await updateProject((prev) => ({
         ...prev,

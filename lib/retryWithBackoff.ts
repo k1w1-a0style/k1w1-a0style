@@ -1,3 +1,4 @@
+import { logger } from "./logger";
 /**
  * Retry with Backoff
  * Wiederholungslogik mit exponentiellem Backoff für API-Calls
@@ -44,7 +45,7 @@ export async function fetchWithBackoff(
       // Bei Server-Fehlern (5xx) wiederholen, außer beim letzten Versuch
       if (res.status >= 500 && i < maxRetries - 1) {
         const delay = calculateBackoff(i);
-        console.log(
+        logger.debug(
           `[retryWithBackoff] Server error ${res.status}, retry ${i + 1}/${maxRetries} in ${delay}ms`,
         );
         await sleep(delay);
@@ -57,7 +58,7 @@ export async function fetchWithBackoff(
       if (i === maxRetries - 1) throw e;
 
       const delay = calculateBackoff(i);
-      console.log(
+      logger.debug(
         `[retryWithBackoff] Network error, retry ${i + 1}/${maxRetries} in ${delay}ms`,
       );
       await sleep(delay);
@@ -90,7 +91,7 @@ export async function retryWithBackoff<T>(
       }
 
       const delay = calculateBackoff(i);
-      console.log(
+      logger.debug(
         `[retryWithBackoff] Retry ${i + 1}/${maxRetries} in ${delay}ms`,
       );
       await sleep(delay);

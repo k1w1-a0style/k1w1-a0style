@@ -57,3 +57,6 @@
 ## Patch 233 (2026-02-23)
 - Docs/History purge: removed remaining non-target platform wording from documentation/history (text-only).
 
+
+## Patch 234 (2026-02-23)
+- Runtime robustness: Gemini consecutive-role merge + Supabase Edge URL guard + legacy provider safety + logger cleanup.

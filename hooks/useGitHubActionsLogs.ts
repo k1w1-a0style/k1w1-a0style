@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { getEdgeAdminKey } from "../infra/github/githubService";
 import { getGitHubToken } from "../infra/github/tokenStore";
 import { redactSecrets, truncateWithMarker } from "../lib/secretRedaction";
-import { getSupabaseEdgeUrl } from "../lib/supabaseEdge";
+import { requireSupabaseEdgeUrl } from "../lib/supabaseEdge";
 import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
 
 export interface LogEntry {
@@ -162,7 +162,7 @@ export function useGitHubActionsLogs({
     try {
       // Fetch latest workflow run if no runId provided
       let targetRunId = runId;
-      const edgeUrl = await getSupabaseEdgeUrl();
+      const edgeUrl = await requireSupabaseEdgeUrl();
       const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
       const clientGithubToken = await getGitHubToken().catch(() => null);
 

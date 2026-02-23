@@ -8,6 +8,7 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
+import { logger } from "./logger";
 
 // Notification Handler Configuration
 Notifications.setNotificationHandler({
@@ -79,7 +80,7 @@ class NotificationService {
           projectId: projectId as string,
         });
         this.expoPushToken = tokenData.data;
-        console.log("📱 Expo Push Token:", this.expoPushToken);
+        logger.info("📱 Expo Push Token:", this.expoPushToken);
       } catch (error) {
         console.warn("⚠️ Could not get Expo Push Token (Dev-Mode?):", error);
       }
@@ -114,7 +115,7 @@ class NotificationService {
         trigger: null, // Sofort senden
       });
 
-      console.log("✅ Notification sent:", notificationId);
+      logger.info("✅ Notification sent:", notificationId);
       return notificationId;
     } catch (error) {
       console.error("❌ Failed to send notification:", error);
@@ -173,7 +174,7 @@ class NotificationService {
    */
   async clearAllNotifications(): Promise<void> {
     await Notifications.dismissAllNotificationsAsync();
-    console.log("🗑️ All notifications cleared");
+    logger.info("🗑️ All notifications cleared");
   }
   /**
    * Gibt zurück, ob Permissions gewährt wurden

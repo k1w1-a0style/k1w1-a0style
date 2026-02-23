@@ -89,3 +89,8 @@ This file is append-only. Each patch adds a short entry.
 - Docs/History: removed remaining non-target platform mentions (text-only hygiene).
 - Datei: `docs/patches/patch_233.md`
 
+
+## Patch 234 (2026-02-23)
+
+- Runtime robustness sweep: Gemini consecutive-role merge + Supabase Edge URL guard + legacy provider safety + logger cleanup.
+- Datei: `docs/patches/patch_234.md`

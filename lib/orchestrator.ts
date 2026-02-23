@@ -222,7 +222,7 @@ async function callGroq(apiKey: string, model: string, messages: LlmMessage[], q
     const temperature = quality === 'quality' ? 0.7 : 0.3;
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    signal,
+      signal,
 
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -260,7 +260,7 @@ async function callOpenAI(apiKey: string, model: string, messages: LlmMessage[],
     const max_output_tokens = quality === 'quality' ? 8192 : 4096;
 
     const response = await fetch('https://api.openai.com/v1/responses', {
-    signal,
+      signal,
 
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -333,7 +333,7 @@ async function callAnthropic(
     const temperature = quality === 'quality' ? 0.6 : 0.2;
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
-    signal,
+      signal,
 
       method: 'POST',
       headers: {
@@ -393,6 +393,19 @@ async function callGemini(apiKey: string, model: string, messages: LlmMessage[],
       })
       .filter((c) => Array.isArray((c as any).parts) && (c as any).parts.length > 0);
 
+    // Gemini rejects consecutive messages with the same role (user→user / model→model).
+    // Merge consecutive same-role entries by concatenating parts.
+    contents = contents.reduce((acc, cur) => {
+      const prev = acc[acc.length - 1];
+      if (prev && prev.role === cur.role) {
+        prev.parts.push(...cur.parts);
+      } else {
+        acc.push({ ...cur, parts: [...cur.parts] });
+      }
+      return acc;
+    }, [] as typeof contents);
+
+
     // Gemini rejects empty contents[] with 400 (e.g. when only system messages exist).
     if (contents.length === 0) {
       contents = [{ role: 'user', parts: [{ text: 'Hallo' }] }];
@@ -446,7 +459,7 @@ async function callHuggingFace(apiKey: string, model: string, messages: LlmMessa
 
     const tryOnce = async (modelId: string) => {
       const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
-    signal,
+      signal,
 
         method: 'POST',
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },

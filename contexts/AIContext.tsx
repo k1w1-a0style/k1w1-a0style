@@ -188,7 +188,8 @@ function resolveLegacyAutoMode(provider: AllAIProviders, qualityMode: QualityMod
   const isLegacyAuto = raw === '' || raw === 'auto' || raw.startsWith('auto-');
   if (!isLegacyAuto) return raw;
 
-  const defs = PROVIDER_DEFAULTS[provider];
+  const defs = (PROVIDER_DEFAULTS as any)?.[provider] as (typeof PROVIDER_DEFAULTS)[AllAIProviders] | undefined;
+  if (!defs) return DEFAULT_CONFIG.selectedChatMode;
   // balanced -> speed default, review -> quality default
   if (qualityMode === 'quality' || qualityMode === 'review') return defs.quality;
   return defs.speed;
@@ -225,6 +226,14 @@ async function saveSecureApiKeys(keys: Record<AllAIProviders, string[]>): Promis
   }
   await SecureStore.setItemAsync(AI_KEYS_SECURE_KEY, JSON.stringify(cleaned)).catch(() => undefined);
 }
+
+function coerceProvider(value: unknown, fallback: AllAIProviders): AllAIProviders {
+  if (typeof value !== "string") return fallback;
+  const v = value.trim();
+  return Object.prototype.hasOwnProperty.call(PROVIDER_DEFAULTS, v) ? (v as AllAIProviders) : fallback;
+}
+
+
 async function loadConfig(): Promise<AIConfig | null> {
   const keys = [CONFIG_STORAGE_KEY, ...STORAGE_FALLBACK_KEYS];
   for (const k of keys) {
@@ -245,8 +254,8 @@ async function loadConfig(): Promise<AIConfig | null> {
         agentEnabled: typeof (parsed as any).agentEnabled === 'boolean' ? !!(parsed as any).agentEnabled : DEFAULT_CONFIG.agentEnabled,
       };
 
-      const chatProvider = (base.selectedChatProvider as AllAIProviders) || DEFAULT_CONFIG.selectedChatProvider;
-      const agentProvider = (base.selectedAgentProvider as AllAIProviders) || DEFAULT_CONFIG.selectedAgentProvider;
+      const chatProvider = coerceProvider((base as any).selectedChatProvider, DEFAULT_CONFIG.selectedChatProvider);
+      const agentProvider = coerceProvider((base as any).selectedAgentProvider, DEFAULT_CONFIG.selectedAgentProvider);
       const qm: QualityMode = (base.qualityMode as QualityMode) || DEFAULT_CONFIG.qualityMode;
 
       const fixed: AIConfig = {
