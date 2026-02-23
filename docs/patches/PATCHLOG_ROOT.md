@@ -31,7 +31,7 @@ This file is append-only. Each patch adds a short entry.
 - Connections UX polish (GitHub scopes as badges + missing-scope warning) + Build/CI shortcut + Supabase ref/host display cleanup + docs/todo alignment.
 
 ## Patch 222
-- Android-only cleanup (keine iOS Pfade/UX-Annahmen) + Repo/Build UX Korrekturen (interner Patch).
+- Android-only cleanup (keine Nicht-Zielplattform-Pfade/UX-Annahmen) + Repo/Build UX Korrekturen (interner Patch).
 
 ## Patch 223
 - CI Lite: Persistenter OK-Status (TS + ESLint) + Anzeige als Checklist-Item im EnhancedBuildScreen.
@@ -76,10 +76,16 @@ This file is append-only. Each patch adds a short entry.
 
 ## Patch 231 — Android-only wording cleanup
 
-- Entfernt iOS-Wording aus user-facing Docs/Kommentaren, damit kein falscher Eindruck entsteht.
+- Entfernt Nicht-Zielplattform-Wording aus user-facing Docs/Kommentaren, damit kein falscher Eindruck entsteht.
 - Datei: `docs/patches/patch_231.md`
 
 ## Patch 232 — Android-only guard wording + workflow docs cleanup
 
 - Android-only wording sweep in workflow README + templates + ChatScreen comment.
 - Datei: `docs/patches/patch_232.md`
+
+## Patch 233 (2026-02-23)
+
+- Docs/History: removed remaining non-target platform mentions (text-only hygiene).
+- Datei: `docs/patches/patch_233.md`
+

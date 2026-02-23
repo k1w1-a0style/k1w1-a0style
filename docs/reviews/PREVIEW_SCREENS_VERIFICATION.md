@@ -38,7 +38,7 @@ Diese Datei dokumentiert die **kritische Prüfung** der Review-Findings (zutreff
 ➡️ **Stimmt.** Fix: Tests ergänzt für fail-closed + scheme-blocking + trim.
 
 ### ⚠️ Nicht als “Bug”, aber als Hinweis
-- In Android-only Kontext ist `onContentProcessDidTerminate` (iOS) weniger relevant – schadet aber nicht, weil es ohne iOS nicht triggert.
+- In Android-only Kontext ist `onContentProcessDidTerminate` weniger relevant – schadet aber nicht, weil es ohne die entsprechende Plattform nicht triggert.
 
 ---
 

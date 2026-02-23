@@ -47,12 +47,12 @@ Instead it orchestrates builds by:
 - “Auto-fix/self-heal” steps must never silently change the target repo in a destructive way.
 
 ## Known recurring failure modes (and how we handle them)
-### 1) Incomplete android/ or ios/ folders committed
+### 1) Incomplete native folders committed
 This often happens when someone runs a native prebuild locally and commits partial output.
 EAS (managed) can then fail when files like `android/app/build.gradle` are missing.
 
 Mitigation:
-- GitHub Actions workflow performs a preflight that deletes **incomplete** `android/` or `ios/` folders.
+- GitHub Actions workflow performs a preflight that deletes **incomplete** native folders (to let EAS regenerate them cleanly).
 - Diagnostic screen should warn when it detects native folders in the repo.
 
 ### 2) Missing Android keystore on EAS (CI cannot generate it)

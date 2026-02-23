@@ -1,12 +1,12 @@
 # PATCH 53 NOTES
 
 ## Summary
-PreviewFullscreen: WebView-Prozess-Abbrüche werden jetzt sauber abgefangen (Android Render Process Gone / iOS Content Process Termination) und der User bekommt einen klaren Reload-Pfad.
+PreviewFullscreen: WebView-Prozess-Abbrüche werden jetzt sauber abgefangen (Android Render Process Gone / content-process termination (non-Android)) und der User bekommt einen klaren Reload-Pfad.
 
 ## Changes
 - Added handlers for:
   - `onRenderProcessGone` (Android) → setzt Error-State + verhindert Crash (return true)
-  - `onContentProcessDidTerminate` (iOS) → setzt Error-State
+  - `onContentProcessDidTerminate` → setzt Error-State (non-Android callback)
 - Reload/LoadStart resetten den Termination-Guard, damit erneutes Laden sauber funktioniert.
 
 ## Files

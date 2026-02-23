@@ -53,3 +53,7 @@
 ## Patch 232 (2026-02-23)
 - Docs/Templates: Android-only wording sweep (workflow docs + templates) while keeping EAS safety guard rationale intact.
 - ChatScreen: comment wording cleanup (no iOS mention).
+
+## Patch 233 (2026-02-23)
+- Docs/History purge: removed remaining non-target platform wording from documentation/history (text-only).
+

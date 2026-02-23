@@ -2,7 +2,7 @@
 
 ## Ziele
 
-1) **Android-only**: iOS soll im Projekt **nicht als Zielplattform** auftauchen (keine iOS-Flows / keine iOS-Anleitung). Gleichzeitig bleibt der Safety-Guard bestehen: ein halb-existierendes `ios/` ist ein häufiger EAS-Build-Killer und wird weiterhin als Risiko markiert.
+1) **Android-only**: Nicht-Zielplattformen sollen im Projekt **nicht als Zielplattform** auftauchen (keine Flows/Anleitungen dafür). Gleichzeitig bleibt der Safety-Guard bestehen: halb-existierende **native Ordner** sind ein häufiger EAS-Build-Killer und werden weiterhin als Risiko markiert.
 
 2) **CI Lite = persistent grün**: Wenn du im Header den **CI Lite** Workflow startest (Lint + Typecheck), dann soll der "grün"-Status **persistieren**, damit er im Build-Checklist als abgehakt angezeigt werden kann.
 
@@ -11,7 +11,7 @@
 ### Android-only Cleanup
 - `lib/diagnostics/preflightChecks.ts`
   - Title/Text angepasst auf **Android-only**.
-  - Hinweis: `ios/` wird weiterhin geprüft (als *riskant*, falls halb vorhanden).
+  - Hinweis: Es wird weiterhin auf **halb vorhandene native Ordner** geprüft (als *riskant*).
 
 ### CI Lite Persistence
 - `lib/storageKeys.ts`
@@ -46,7 +46,7 @@
 
 3) **Diagnostics Text**
    - Diagnostic/Preflight laufen lassen.
-   - Erwartung: Kein iOS-Feature-Text, aber Warnung falls `ios/` halb vorhanden.
+   - Erwartung: Kein Nicht-Zielplattform-Feature-Text, aber Warnung falls **native Ordner** halb vorhanden.
 
 ## Apply
 

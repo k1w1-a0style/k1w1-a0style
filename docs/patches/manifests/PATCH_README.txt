@@ -6,8 +6,8 @@ What this patch fixes
      and force EAS to use it via eas.json (credentialsSource: local).
    - Result: CI no longer depends on remote Android credentials for dev builds.
 
-2) ✅ Broken android/ios folders blocking EAS
-   - If android/ or ios/ exist but look incomplete, they get removed before the EAS build.
+2) ✅ Broken native folders blocking EAS
+   - If android/ or any other native folder exists but looks incomplete, it gets removed before the EAS build.
 
 3) ✅ Self-heal regex bug (grep: Unmatched ( or \()
    - Fixed the grep pattern that checks for '??' lines from `git status --porcelain`.

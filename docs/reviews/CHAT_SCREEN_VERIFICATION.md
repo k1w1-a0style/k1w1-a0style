@@ -139,7 +139,7 @@ Fix:
 
 ## Patch 104 (ChatScreen Hardening & UX/Perf)
 
-Ziel: kritisches Review-Follow-up (Race/Queue/Scroll/Modal/UX) ohne Keyboard-/iOS-Refactor.
+Ziel: kritisches Review-Follow-up (Race/Queue/Scroll/Modal/UX) ohne Keyboard-/Plattform-Refactor.
 
 Änderungen:
 - **AI-Flow Race-Fix**: `processAIRequest` liest `messages` / `projectFiles` / `pendingPlan` aus Refs statt aus potenziell stale Closures (wichtig bei AutoFix-Queue via `processAIRequestRef.current`).
