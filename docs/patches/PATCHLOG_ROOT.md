@@ -120,3 +120,8 @@ This file is append-only. Each patch adds a short entry.
 
 - Stability sweep: FileWriter no silent drops + disable broken `build.js` + remove legacy `require()` + targeted console→logger + Groq model fallback.
 - Datei: `docs/patches/patch_239.md`
+
+## Patch 240 (2026-02-24)
+
+- P2 hygiene: migrate remaining console logs in sensitive paths to logger + OpenAI reasoning-model guard (o1/o3) for Responses API.
+- Datei: `docs/patches/patch_240.md`

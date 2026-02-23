@@ -471,6 +471,7 @@ export function useAI() {
   return ctx;
 }
 
+/** @deprecated Use SecureKeyManager.rotateKey(provider) directly (this helper is unused). */
 export const rotateApiKeyOnError = (provider: AllAIProviders): number => {
   try {
     if (SecureKeyManager && typeof SecureKeyManager.rotateKey === 'function') {

@@ -256,7 +256,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         `${result.fileCount} Dateien als ZIP gespeichert.`,
       );
     } catch (error: any) {
-      console.error("Fehler beim ZIP-Export:", error);
+      logger.error("[ProjectContext] ZIP-Export fehlgeschlagen", { error });
       Alert.alert(
         "Export Fehlgeschlagen",
         error.message || "Ein unbekannter Fehler ist aufgetreten.",
@@ -280,7 +280,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         `${result.fileCount} Textdateien als ZIP gespeichert.`,
       );
     } catch (error: any) {
-      console.error("Fehler beim Text-ZIP-Export:", error);
+      logger.error("[ProjectContext] Text-ZIP-Export fehlgeschlagen", { error });
       Alert.alert(
         "Export Fehlgeschlagen",
         error.message || "Ein unbekannter Fehler ist aufgetreten.",
@@ -486,7 +486,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           logger.info("Neues Template-Projekt erstellt und gespeichert.");
         }
       } catch (error) {
-        console.error("Fehler beim Laden:", error);
+        logger.error("[ProjectContext] App-Start Ladefehler", { error });
       } finally {
         setIsLoading(false);
       }
@@ -508,7 +508,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
             await saveProjectToStorage(projectData);
             logger.info("✅ Background-Save erfolgreich");
           } catch (error) {
-            console.error("❌ Background-Save fehlgeschlagen:", error);
+            logger.error("[ProjectContext] Background-Save fehlgeschlagen", { error });
           }
         }
       }

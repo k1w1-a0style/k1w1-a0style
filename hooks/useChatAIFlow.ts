@@ -16,6 +16,7 @@ function extractRawOrchestratorResult(res: any): unknown {
 
 import { runOrchestrator } from "../lib/orchestrator";
 import { normalizeAiResponse } from "../lib/normalizer";
+import { logger } from "../lib/logger";
 import { applyFilesToProject } from "../lib/fileWriter";
 import {
   buildBuilderMessages,
@@ -225,7 +226,7 @@ export function useChatAIFlow({
 
     // ✅ FIX #3: Prevent unbounded queue growth
     if (queuedAutoFixRef.current.length >= MAX_AUTOFIX_QUEUE) {
-      console.warn(
+      logger.warn(
         `[useChatAIFlow] AutoFix queue full (${MAX_AUTOFIX_QUEUE}), dropping: ${msg.slice(0, 80)}`,
       );
       clearAutoFixRequest();
@@ -251,7 +252,7 @@ export function useChatAIFlow({
           ToastAndroid.show(msg, ToastAndroid.LONG);
         }
       } catch (e) {
-        console.warn("[notifyKeyRotation] Toast failed:", e);
+        logger.warn("[notifyKeyRotation] Toast failed:", e);
       }
 
       addChatMessage({
@@ -434,7 +435,7 @@ export function useChatAIFlow({
             }
           } catch (e) {
             // ✅ FIX #8: Log agent errors instead of silently swallowing
-            console.warn("[useChatAIFlow] Agent/Validator call failed:", e);
+            logger.warn("[useChatAIFlow] Agent/Validator call failed:", e);
           }
         }
 
@@ -471,7 +472,7 @@ export function useChatAIFlow({
             }
           } catch (e) {
             // ✅ FIX #8: Log explain errors instead of silently swallowing
-            console.warn("[useChatAIFlow] Explain call failed:", e);
+            logger.warn("[useChatAIFlow] Explain call failed:", e);
           }
         }
 

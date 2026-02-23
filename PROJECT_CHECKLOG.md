@@ -68,3 +68,5 @@
 - 2026-02-23: Patch 238 prepared (contextWindow smoke values per provider to satisfy integration test).
 
 - 2026-02-23: Patch 239 prepared (stability sweep: FileWriter no silent drops + disable broken build.js + rotateApiKeyOnError cleanup + targeted logger hygiene + Groq model fallback).
+
+- 2026-02-24: Patch 240 prepared (logger sweep: ProjectContext/useChatAIFlow/usePreview + OpenAI o1/o3 temperature guard + deprecate unused rotateApiKeyOnError). Run `npm run test:silent` + `npm run typecheck` after apply.

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useProject } from "../contexts/ProjectContext";
 import { buildSandpackHtml } from "../lib/sandpackBuilder";
 import { ensureSupabaseClient } from "../lib/supabase";
+import { logger } from "../lib/logger";
 import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
 import { getEdgeAdminKey } from "../infra/github/githubService";
 import type { PreviewFiles, PreviewResponse } from "../types/preview";
@@ -212,7 +213,7 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
       total += content.length;
 
       if (total > MAX_SIZE) {
-        console.warn(
+        logger.warn(
           "[usePreview] ⚠️ Größen-Limit erreicht, weitere Dateien werden übersprungen",
         );
         break;
@@ -469,7 +470,7 @@ if (container) {
 
           throw new Error(resp?.error || "Preview konnte nicht erstellt werden");
         } catch (supErr: unknown) {
-          console.warn(
+          logger.warn(
             "[usePreview] ⚠️ Supabase Preview fehlgeschlagen, fallback auf Local HTML:",
             supErr,
           );
@@ -484,7 +485,7 @@ if (container) {
             dependencies,
           });
         } catch (e) {
-          console.error("[usePreview] ❌ buildSandpackHtml failed:", e);
+          logger.error("[usePreview] buildSandpackHtml failed", { err: e });
           safeSetError("Local Preview konnte nicht erzeugt werden.");
           return null;
         }
@@ -513,7 +514,7 @@ if (container) {
       } catch (e: unknown) {
         const message =
           e instanceof Error ? e.message : "Unbekannter Fehler beim Erstellen.";
-        console.error("[usePreview] ❌ Fehler:", message);
+        logger.error("[usePreview] Fehler", { message });
         safeSetError(message);
         throw new Error(message);
       } finally {
