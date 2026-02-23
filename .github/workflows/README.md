@@ -27,7 +27,7 @@ Dieses Projekt verwendet optimierte GitHub Actions Workflows für CI/CD und Buil
 
 **Optimierungen:**
 
-- ✅ Nur Android (schneller als iOS/Web)
+- ✅ Nur Android (schneller als Multi-Platform/Web)
 - ✅ `--no-wait` für schnelles Feedback
 - ✅ Nutzt EAS Cache (kein `--clear-cache`)
 - ✅ `npm ci` für deterministische Dependencies
@@ -122,7 +122,7 @@ queued → building → completed
 
 | Parameter  | Optionen                         | Default    | Beschreibung           |
 | ---------- | -------------------------------- | ---------- | ---------------------- |
-| `platform` | android, ios, all                | android    | Zu bauende Platform(s) |
+| `platform` | android                       | android    | Zu bauende Platform |
 | `profile`  | production, preview, development | production | EAS Build Profile      |
 
 **Features:**
@@ -286,7 +286,7 @@ git push
 
 ```
 build.yml:
-  - Platform: all (iOS + Android + Web)
+  - Platform: multi-platform (z.B. android + web)
   - Clear Cache: ja
   - npm: install
   - Node: 18
@@ -311,7 +311,7 @@ ci-build.yml:
 | Optimierung                         | Zeitersparnis | Warum?                                         |
 | ----------------------------------- | ------------- | ---------------------------------------------- |
 | `--no-wait` statt `--wait`          | ~5-10 min     | Workflow wartet nicht auf EAS Build Completion |
-| Android only statt `all`            | ~10-15 min    | iOS Builds benötigen macOS Runner (teurer)     |
+| Android only statt Multi-Platform   | ~10-15 min    | Multi-Platform Builds dauern deutlich länger     |
 | `npm ci` statt `npm install`        | ~1-2 min      | Deterministisch, kein dependency resolution    |
 | Node 20 statt 18                    | ~30 sec       | Bessere Performance, neuere V8 Engine          |
 | Cache nutzen (kein `--clear-cache`) | ~2-5 min      | Dependencies werden gecacht                    |

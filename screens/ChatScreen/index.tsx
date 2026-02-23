@@ -84,7 +84,7 @@ const ChatScreen: React.FC = () => {
             thinkingScale={thinkingScale}
           />
 
-          {/* FIX #16: removeClippedSubviews only on iOS — Android has blank area bugs with flex-end */}
+          {/* FIX #16: keep removeClippedSubviews off — prevents blank-area bugs with flex-end layouts */}
           <FlatList
             ref={flatListRef}
             data={messages}

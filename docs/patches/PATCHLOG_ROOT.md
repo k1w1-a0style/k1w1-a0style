@@ -78,3 +78,8 @@ This file is append-only. Each patch adds a short entry.
 
 - Entfernt iOS-Wording aus user-facing Docs/Kommentaren, damit kein falscher Eindruck entsteht.
 - Datei: `docs/patches/patch_231.md`
+
+## Patch 232 — Android-only guard wording + workflow docs cleanup
+
+- Android-only wording sweep in workflow README + templates + ChatScreen comment.
+- Datei: `docs/patches/patch_232.md`
