@@ -115,3 +115,8 @@ This file is append-only. Each patch adds a short entry.
 
 - Fix tests: add minimal `contextWindow` values per provider (use real sizes where known, otherwise `varies`).
 - Datei: `docs/patches/patch_238.md`
+
+## Patch 239 (2026-02-23)
+
+- Stability sweep: FileWriter no silent drops + disable broken `build.js` + remove legacy `require()` + targeted console→logger + Groq model fallback.
+- Datei: `docs/patches/patch_239.md`

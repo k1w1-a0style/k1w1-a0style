@@ -195,12 +195,12 @@ export function applyFilesToProject(existing: ProjectFile[], incoming: ProjectFi
             isReferencedByAnyExisting(path, existing ?? []);
 
       if (!referenced) {
-        skipped.push(path);
+        // ⚠️ Nicht mehr silent droppen: Datei wird geschrieben, aber wir warnen explizit.
+        // Hintergrund: Ein "silent drop" ist Debug-Hölle (Datei fehlt später ohne Hinweis).
         errors.push(
-          `Neue Datei wurde übersprungen (nicht eingebunden): ${path}. ` +
-            `Wenn du sie wirklich willst, muss eine bestehende Datei sie importieren/verwenden.`
+          `Neue Datei ist nicht eingebunden: ${path}. ` +
+            `Sie wurde trotzdem übernommen. Wenn das unerwünscht ist, entferne sie oder binde sie sauber ein.`
         );
-        continue;
       }
 
       resultMap.set(path, { path, content: rawContent });

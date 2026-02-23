@@ -221,18 +221,38 @@ async function callGroq(apiKey: string, model: string, messages: LlmMessage[], q
   try {
     const temperature = quality === 'quality' ? 0.7 : 0.3;
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      signal,
+    const primaryModel = model;
+    const fallbackModel = model.startsWith('groq/') ? model.slice('groq/'.length) : model;
 
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature,
-        max_tokens: quality === 'quality' ? 4096 : 2048,
-      }),
-    });
+    const doRequest = async (m: string) =>
+      fetch('https://api.groq.com/openai/v1/chat/completions', {
+        signal,
+
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: m,
+          messages,
+          temperature,
+          max_tokens: quality === 'quality' ? 4096 : 2048,
+        }),
+      });
+
+    let response = await doRequest(primaryModel);
+
+    if (!response.ok && fallbackModel !== primaryModel) {
+      const bodyTxt = await fetchTextSafe(response);
+      const looksLikeModelNotFound =
+        response.status === 404 ||
+        /model/i.test(bodyTxt) && /(not found|unknown|does not exist|invalid)/i.test(bodyTxt);
+
+      if (looksLikeModelNotFound) {
+        // Compat: some Groq deployments expect model id without the "groq/" prefix.
+        response = await doRequest(fallbackModel);
+      } else {
+        return { ok: false, error: `Groq API Fehler (${response.status}): ${bodyTxt}` };
+      }
+    }
 
     if (!response.ok) {
       return { ok: false, error: `Groq API Fehler (${response.status}): ${await fetchTextSafe(response)}` };

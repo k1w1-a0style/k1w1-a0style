@@ -1,15 +1,15 @@
-#!/usr/bin/env node
-const { runOrchestrator } = require("./dist/lib/orchestrator");
+/**
+ * build.js
+ *
+ * Deprecated / intentionally disabled.
+ *
+ * Hintergrund: Dieses Repo emittiert kein `dist/` (tsc --noEmit), daher war die frühere
+ * `require("./dist/...")`-Variante nicht lauffähig und hat in Reviews für Verwirrung gesorgt.
+ *
+ * Wenn du ein echtes Build-Script brauchst, füge einen Compile-Step hinzu (tsc emit nach dist/)
+ * und ersetze dieses Stub-Script.
+ */
 
-const prompt = process.argv.slice(2).join(" ");
-if (!prompt) {
-  console.error("❌ Kein Prompt angegeben");
-  process.exit(1);
-}
-
-(async () => {
-  const res = await runOrchestrator("groq", "llama-3.1-8b-instant", "speed", [
-    { role: "user", content: prompt },
-  ]);
-  console.log(res.ok ? "✅ Build gestartet" : "❌ Fehler:", res);
-})();
+// eslint-disable-next-line no-console
+console.error('[build.js] Dieses Script ist deaktiviert. Siehe Kommentar im File.');
+process.exitCode = 1;

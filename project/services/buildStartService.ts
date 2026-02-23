@@ -6,6 +6,7 @@ import type { ProjectData, ProjectFile } from "../../shared/types/project";
 
 import { CONFIG } from "../../config";
 import { ensureSupabaseClient } from "../../lib/supabase";
+import { logger } from "../../lib/logger";
 import {
   getEdgeAdminKey,
   getDefaultBranch,
@@ -50,7 +51,7 @@ async function bestEffortPushToGitHub(opts: {
     try {
       branch = (await getDefaultBranch(owner, repo)).trim();
     } catch (err) {
-      console.warn("Default-Branch konnte nicht ermittelt werden, fallback auf 'main':", err);
+      logger.warn("Default-Branch konnte nicht ermittelt werden, fallback auf 'main'", { err });
       branch = "main";
     }
   }
@@ -87,10 +88,7 @@ export async function startBuildJob(params: {
       files: project.files,
     });
   } catch (e) {
-    console.warn(
-      "Auto-Push nach GitHub fehlgeschlagen. Build nutzt evtl. alten Repo-Stand:",
-      e,
-    );
+    logger.warn("Auto-Push nach GitHub fehlgeschlagen. Build nutzt evtl. alten Repo-Stand", { err: e });
   }
 
   const supabase = await ensureSupabaseClient();

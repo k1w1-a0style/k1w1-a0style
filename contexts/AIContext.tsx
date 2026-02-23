@@ -473,10 +473,8 @@ export function useAI() {
 
 export const rotateApiKeyOnError = (provider: AllAIProviders): number => {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const SKM = require('../lib/SecureKeyManager').default;
-    if (SKM && typeof SKM.rotateKey === 'function') {
-      SKM.rotateKey(provider);
+    if (SecureKeyManager && typeof SecureKeyManager.rotateKey === 'function') {
+      SecureKeyManager.rotateKey(provider);
       return 1;
     }
   } catch {}

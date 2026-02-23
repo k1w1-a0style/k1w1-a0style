@@ -107,7 +107,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     saveTimeoutRef.current = setTimeout(() => {
       // ✅ FIX: error typed (noImplicitAny)
       saveProjectToStorage(project).catch((error: unknown) => {
-        console.error("[ProjectContext] Save error:", error);
+        logger.error("[ProjectContext] Save error", { error });
       });
     }, SAVE_DEBOUNCE_MS);
   }, []);
@@ -127,7 +127,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           return finalProject;
         });
       } catch (error) {
-        console.error("[ProjectContext] Update error:", error);
+        logger.error("[ProjectContext] Update error", { error });
       } finally {
         release();
       }

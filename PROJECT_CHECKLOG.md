@@ -66,3 +66,5 @@
 
 - 2026-02-23: Patch 237 prepared (remove placeholder model contextWindow metadata).
 - 2026-02-23: Patch 238 prepared (contextWindow smoke values per provider to satisfy integration test).
+
+- 2026-02-23: Patch 239 prepared (stability sweep: FileWriter no silent drops + disable broken build.js + rotateApiKeyOnError cleanup + targeted logger hygiene + Groq model fallback).
