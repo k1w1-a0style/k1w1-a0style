@@ -66,6 +66,20 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
   return proto === Object.prototype || proto === null;
 }
 
+function isSensitiveKeyName(key: string): boolean {
+  const k = key.toLowerCase();
+  // Keep this conservative: only redact obvious secret containers.
+  return (
+    k.includes("token") ||
+    k.includes("secret") ||
+    k.includes("apikey") ||
+    k.includes("api_key") ||
+    k.includes("authorization") ||
+    k.includes("service_role") ||
+    k.includes("password")
+  );
+}
+
 /**
  * Best-effort deep sanitization for error details that may contain secrets.
  * - Redacts known token/key patterns from strings
@@ -96,7 +110,13 @@ export function sanitizeUnknownForTransport(input: unknown, maxDepth = 4): JsonL
     if (isPlainObject(v)) {
       const out: Record<string, JsonLike> = {};
       const entries = Object.entries(v).slice(0, 50);
-      for (const [k, val] of entries) out[k] = walk(val, depth - 1);
+      for (const [k, val] of entries) {
+        if (isSensitiveKeyName(k)) {
+          out[k] = REDACTED_SECRET;
+        } else {
+          out[k] = walk(val, depth - 1);
+        }
+      }
       return out;
     }
 

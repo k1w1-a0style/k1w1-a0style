@@ -64,8 +64,9 @@ serve(async (req) => {
     const val = validateGithubWorkflowDispatchRequest(parsed.body);
     if (!val.ok) return errorResponse("Invalid request", req, 400, val.errors);
 
-    const { githubRepo, workflow, ref, inputs } = val.data!;
-    const token = getGithubToken().trim();
+    const { githubRepo, workflow, ref, inputs, githubToken } = val.data!;
+    // Prefer server-side secret; optionally allow a caller-provided token as fallback.
+    const token = (getGithubToken() || githubToken || "").trim();
 
     if (!token) {
       return errorResponse("Missing GitHub token", req, 500, {

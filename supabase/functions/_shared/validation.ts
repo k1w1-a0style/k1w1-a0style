@@ -185,6 +185,7 @@ export function validateGithubWorkflowDispatchRequest(body: unknown): Ok<{
       workflow: String(workflow),
       ref: br.value || "main",
       inputs: inputs as any,
+      githubToken: githubToken == null ? undefined : String(githubToken),
     },
   };
 }
