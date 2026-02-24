@@ -76,6 +76,17 @@ class NotificationService {
           (Constants as any).expoConfig?.owner ||
           "your-project-id"; // Fallback
 
+        // ✅ Android ohne FCM/Firebase: Push Token nicht abrufen (verhindert FirebaseApp-Init Warnungen)
+        const androidGoogleServices =
+          (Constants as any).expoConfig?.android?.googleServicesFile ||
+          (Constants as any).expoConfig?.android?.googleServicesPath;
+
+        if (Platform.OS === "android" && !androidGoogleServices) {
+          logger.info("📵 Push Token übersprungen (Android: FCM nicht konfiguriert)");
+          return true;
+        }
+
+
         const tokenData = await Notifications.getExpoPushTokenAsync({
           projectId: projectId as string,
         });

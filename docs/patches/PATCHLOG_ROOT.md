@@ -151,3 +151,13 @@ This file is append-only. Each patch adds a short entry.
 
 - Hotfix: fix `BuildHistoryEntry` optional fields (use `undefined` instead of `null`) to satisfy TypeScript.
 - Datei: `docs/patches/patch_245.md`
+
+## Patch 246 (2026-02-24)
+
+- Hotfix: prevent `githubToken is not defined` crash in GitHub workflow dispatch; skip Android Expo push-token fetch when FCM is not configured.
+- Datei: `docs/patches/patch_246.md`
+
+## Patch 247 (2026-02-24)
+
+- Ensure required GitHub workflow YAMLs are auto-provisioned in the linked project repo before triggering EAS build.
+- Datei: `docs/patches/patch_247.md`

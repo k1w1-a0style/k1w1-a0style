@@ -65,7 +65,7 @@ serve(async (req) => {
     if (!val.ok) return errorResponse("Invalid request", req, 400, val.errors);
 
     const { githubRepo, workflow, ref, inputs } = val.data!;
-    const token = (githubToken ?? getGithubToken()).trim();
+    const token = getGithubToken().trim();
 
     if (!token) {
       return errorResponse("Missing GitHub token", req, 500, {

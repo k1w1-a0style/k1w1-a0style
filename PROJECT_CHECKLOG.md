@@ -80,3 +80,5 @@
 - 2026-02-24: Patch 244 prepared (hotfix: useBuildHistory import syntax). Run `npm run test:silent` + `npm run typecheck` after apply.
 
 - 2026-02-24: Patch 245 prepared (hotfix: BuildHistoryEntry optional fields in useBuildHistory). Run `npm run test:silent` + `npm run typecheck` after apply.
+
+- 2026-02-24: Patch 246 prepared (hotfix: GitHub workflow dispatch token ReferenceError + suppress Android FCM push-token fetch when not configured). Run `npm run test:silent` + `npm run typecheck` after apply.

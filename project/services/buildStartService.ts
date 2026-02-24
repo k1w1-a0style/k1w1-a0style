@@ -13,6 +13,7 @@ import {
   pushFilesToRepo,
 } from "../../infra/github/githubService";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
+import { autoFixCIWorkflows } from "../../lib/diagnostics/ciAutoFix";
 
 export type StartBuildProfile = "development" | "preview" | "production";
 
@@ -60,6 +61,15 @@ async function bestEffortPushToGitHub(opts: {
 
   if (owner && repo && files?.length) {
     await pushFilesToRepo(owner, repo, files as any, branch);
+  }
+
+  // Ensure required CI/EAS workflows exist in the linked repo.
+  // This app is an APK builder: the linked repo (e.g. "musik-player") is the *target project repo*.
+  // Workflows must live there so we can trigger them reliably.
+  try {
+    await autoFixCIWorkflows({ owner, repo, branch });
+  } catch (err) {
+    logger.warn("CI/EAS Workflows konnten nicht automatisch gesetzt werden", { err });
   }
 
   return branch;
