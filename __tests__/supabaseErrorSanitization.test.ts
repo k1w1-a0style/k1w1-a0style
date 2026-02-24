@@ -30,4 +30,23 @@ describe("supabase edge error sanitization", () => {
     expect(JSON.stringify(outObj)).not.toContain("top.secret.value");
     expect(JSON.stringify(outObj)).toContain("[REDACTED_TOKEN]");
   });
+
+test("sanitizeUnknownForTransport redacts sensitive keys even for short values", () => {
+  const inObj = {
+    token: "abc123",
+    authorization: "Bearer short.token",
+    nested: {
+      apiKey: "k1w1",
+      service_role_key: "srk",
+      ok: "still-ok",
+    },
+  };
+  const outObj = sanitizeUnknownForTransport(inObj) as any;
+  expect(outObj.token).toBe("[REDACTED_SECRET]");
+  expect(outObj.authorization).toBe("[REDACTED_SECRET]");
+  expect(outObj.nested.apiKey).toBe("[REDACTED_SECRET]");
+  expect(outObj.nested.service_role_key).toBe("[REDACTED_SECRET]");
+  expect(outObj.nested.ok).toBe("still-ok");
+});
+
 });
