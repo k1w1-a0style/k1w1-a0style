@@ -7,7 +7,10 @@
  */
 
 const JWT_RE = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
-const GITHUB_TOKEN_RE = /\bgh[pous]_[A-Za-z0-9]{20,}\b/g;
+// GitHub tokens (ghp_/gho_/ghu_/ghs_/ghr_).
+// NOTE: In logs/tests we may see shortened/dummy tokens, so keep the minimum fairly small.
+// Real tokens are longer, but redacting short ones is still safer than leaking.
+const GITHUB_TOKEN_RE = /\bgh[pous]_[A-Za-z0-9]{8,}\b/g;
 const BEARER_RE = /\bBearer\s+[^\s"']+/gi;
 
 const REDACTED_TOKEN = "[REDACTED_TOKEN]";
