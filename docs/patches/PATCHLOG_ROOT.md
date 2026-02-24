@@ -1,7 +1,6 @@
 ## Patchlog Root
 
-- Patch 265: make edge CORS helpers Node/Jest-safe (avoid direct Deno global references)
-- Patch 263b: enable allowImportingTsExtensions to allow Supabase Edge `.ts` imports in repo typecheck
+- Patch 267: redact GitHub token prefixes more aggressively in error message sanitization
 - Patch 258: sanitize camelCase serviceRoleKey in nested arrays
 - Patch 255: harden error sanitization (redact sensitive keys in details)
 - Patch 253: fix notificationService Jest token (Platform.OS safe)
