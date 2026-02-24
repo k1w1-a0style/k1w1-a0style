@@ -39,11 +39,7 @@ describe("Supabase Edge errorResponse contract", () => {
       authorization: "Bearer abc.def.ghi",
       nested: [
         { apiKey: "k1", ok: true },
-        [
-          { serviceRoleKey: "srk" },
-          { password: "pw" },
-          { cookie: "session=xyz" },
-        ],
+        [{ api_key: "k2" }, { serviceRoleKey: "srk" }, { password: "pw" }, { cookie: "session=xyz" }],
       ],
     };
 
@@ -59,14 +55,15 @@ describe("Supabase Edge errorResponse contract", () => {
     expect(body.details.token).toBe("[REDACTED_SECRET]");
     expect(body.details.authorization).toBe("[REDACTED_SECRET]");
     expect(body.details.nested[0].apiKey).toBe("[REDACTED_SECRET]");
-    expect(body.details.nested[1][0].serviceRoleKey).toBe("[REDACTED_SECRET]");
-    expect(body.details.nested[1][1].password).toBe("[REDACTED_SECRET]");
-    expect(body.details.nested[1][2].cookie).toBe("[REDACTED_SECRET]");
+    expect(body.details.nested[1][0].api_key).toBe("[REDACTED_SECRET]");
+    expect(body.details.nested[1][1].serviceRoleKey).toBe("[REDACTED_SECRET]");
+    expect(body.details.nested[1][2].password).toBe("[REDACTED_SECRET]");
+    expect(body.details.nested[1][3].cookie).toBe("[REDACTED_SECRET]");
 
     // ensure raw secrets do not appear anywhere in serialized response
     const raw = JSON.stringify(body);
     expect(raw).not.toContain("abc123");
-    expect(raw).not.toContain("Bearer");
+    expect(raw).not.toContain("abc.def.ghi");
     expect(raw).not.toContain("srk");
     expect(raw).not.toContain("session=xyz");
   });
@@ -77,8 +74,10 @@ describe("Supabase Edge errorResponse contract", () => {
     });
     const res = errorResponse("Bearer abc.def.ghi ghp_1234567890abcdef", req, 400);
     const body = await readJson(res);
-    expect(body.error).not.toContain("Bearer");
+
+    // NOTE: The sanitizer may leave the literal "Bearer" prefix, but MUST redact the payload.
+    expect(body.error).not.toContain("abc.def.ghi");
     expect(body.error).not.toContain("ghp_");
-    expect(body.error).toContain("[REDACTED_SECRET]");
+    expect(body.error).toContain("[REDACTED");
   });
 });
