@@ -60,7 +60,18 @@ async function bestEffortPushToGitHub(opts: {
   if (!branch) branch = "main";
 
   if (owner && repo && files?.length) {
-    await pushFilesToRepo(owner, repo, files as any, branch);
+    try {
+      await pushFilesToRepo(owner, repo, files as any, branch);
+    } catch (err) {
+      // Best-effort: even if push fails (e.g. permissions, network),
+      // we still try to ensure workflows exist and proceed with the build using the linked branch.
+      logger.warn("Push nach GitHub fehlgeschlagen (best-effort). Fahre fort mit Workflow-Autofix.", {
+        owner,
+        repo,
+        branch,
+        err,
+      });
+    }
   }
 
   // Ensure required CI/EAS workflows exist in the linked repo.
