@@ -13,6 +13,43 @@ const BEARER_RE = /\bBearer\s+[^\s"']+/gi;
 const REDACTED_TOKEN = "[REDACTED_TOKEN]";
 const REDACTED_SECRET = "[REDACTED_SECRET]";
 
+// Keys that are likely to contain secrets. Used for key-based redaction to catch short tokens too.
+const SENSITIVE_KEY_EQ = new Set([
+  "authorization",
+  "password",
+  "passwd",
+  "passphrase",
+  "token",
+  "access_token",
+  "refresh_token",
+  "id_token",
+  "client_secret",
+  "secret",
+  "secret_key",
+  "api_key",
+  "apikey",
+  "x-api-key",
+  "x_api_key",
+  "service_role",
+  "service_role_key",
+  "supabase_service_role_key",
+  "private_key",
+  "cookie",
+  "set-cookie",
+]);
+
+function isSensitiveKey(key: string): boolean {
+  const k = key.toLowerCase();
+  if (SENSITIVE_KEY_EQ.has(k)) return true;
+  // Common suffixes/prefixes
+  if (k.endsWith("_token") || k.endsWith("-token")) return true;
+  if (k.endsWith("_secret") || k.endsWith("-secret")) return true;
+  // "key" is broad; only treat as sensitive when it looks like an actual credential key name.
+  if (k === "key") return true;
+  if (k.endsWith("_key") || k.endsWith("-key")) return true;
+  return false;
+}
+
 // Generic "long secret" heuristic (avoid nuking normal text too aggressively)
 // - requires at least one digit and one letter
 // - length >= 32
@@ -66,20 +103,6 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
   return proto === Object.prototype || proto === null;
 }
 
-function isSensitiveKeyName(key: string): boolean {
-  const k = key.toLowerCase();
-  // Keep this conservative: only redact obvious secret containers.
-  return (
-    k.includes("token") ||
-    k.includes("secret") ||
-    k.includes("apikey") ||
-    k.includes("api_key") ||
-    k.includes("authorization") ||
-    k.includes("service_role") ||
-    k.includes("password")
-  );
-}
-
 /**
  * Best-effort deep sanitization for error details that may contain secrets.
  * - Redacts known token/key patterns from strings
@@ -111,7 +134,7 @@ export function sanitizeUnknownForTransport(input: unknown, maxDepth = 4): JsonL
       const out: Record<string, JsonLike> = {};
       const entries = Object.entries(v).slice(0, 50);
       for (const [k, val] of entries) {
-        if (isSensitiveKeyName(k)) {
+        if (isSensitiveKey(k)) {
           out[k] = REDACTED_SECRET;
         } else {
           out[k] = walk(val, depth - 1);
