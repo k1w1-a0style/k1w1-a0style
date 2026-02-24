@@ -31,22 +31,44 @@ describe("supabase edge error sanitization", () => {
     expect(JSON.stringify(outObj)).toContain("[REDACTED_TOKEN]");
   });
 
-test("sanitizeUnknownForTransport redacts sensitive keys even for short values", () => {
-  const inObj = {
-    token: "abc123",
-    authorization: "Bearer short.token",
-    nested: {
-      apiKey: "k1w1",
-      service_role_key: "srk",
-      ok: "still-ok",
-    },
-  };
-  const outObj = sanitizeUnknownForTransport(inObj) as any;
-  expect(outObj.token).toBe("[REDACTED_SECRET]");
-  expect(outObj.authorization).toBe("[REDACTED_SECRET]");
-  expect(outObj.nested.apiKey).toBe("[REDACTED_SECRET]");
-  expect(outObj.nested.service_role_key).toBe("[REDACTED_SECRET]");
-  expect(outObj.nested.ok).toBe("still-ok");
-});
+  test("sanitizeUnknownForTransport redacts sensitive keys even for short values", () => {
+    const inObj = {
+      token: "abc123",
+      authorization: "Bearer short.token",
+      nested: {
+        apiKey: "k1w1",
+        service_role_key: "srk",
+        ok: "still-ok",
+      },
+    };
+    const outObj = sanitizeUnknownForTransport(inObj) as any;
+    expect(outObj.token).toBe("[REDACTED_SECRET]");
+    expect(outObj.authorization).toBe("[REDACTED_SECRET]");
+    expect(outObj.nested.apiKey).toBe("[REDACTED_SECRET]");
+    expect(outObj.nested.service_role_key).toBe("[REDACTED_SECRET]");
+    expect(outObj.nested.ok).toBe("still-ok");
+  });
 
+  test("sanitizeUnknownForTransport redacts sensitive keys inside nested arrays", () => {
+    const inObj = {
+      ok: true,
+      events: [
+        { type: "auth", token: "abc123" },
+        { type: "headers", authorization: "Bearer abc.def.ghi" },
+        [
+          { api_key: "short" },
+          { serviceRoleKey: "srk" },
+          { password: "p" },
+        ],
+      ],
+    };
+    const outObj = sanitizeUnknownForTransport(inObj) as any;
+
+    expect(outObj.ok).toBe(true);
+    expect(outObj.events[0].token).toBe("[REDACTED_SECRET]");
+    expect(outObj.events[1].authorization).toBe("[REDACTED_SECRET]");
+    expect(outObj.events[2][0].api_key).toBe("[REDACTED_SECRET]");
+    expect(outObj.events[2][1].serviceRoleKey).toBe("[REDACTED_SECRET]");
+    expect(outObj.events[2][2].password).toBe("[REDACTED_SECRET]");
+  });
 });
