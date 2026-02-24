@@ -81,11 +81,9 @@ class NotificationService {
           (Constants as any).expoConfig?.android?.googleServicesFile ||
           (Constants as any).expoConfig?.android?.googleServicesPath;
 
-        const isTestEnv =
-          process.env.NODE_ENV === "test" ||
-          typeof process.env.JEST_WORKER_ID !== "undefined";
+        const isJest = typeof process !== "undefined" && !!process.env.JEST_WORKER_ID;
 
-        if (Platform.OS === "android" && !androidGoogleServices && !isTestEnv) {
+        if (Platform.OS === "android" && !androidGoogleServices && !isJest) {
           logger.info("📵 Push Token übersprungen (Android: FCM nicht konfiguriert)");
           return true;
         }
