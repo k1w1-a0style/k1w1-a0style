@@ -25,7 +25,7 @@ const setRuntimeEnvFromSupabase = (url: string, anonKey: string) => {
   } catch (e) {
     // Do not leak details (URL/key) into logs.
     if (__DEV__) {
-      console.warn("⚠️ Konnte Supabase Runtime-Env nicht setzen.");
+      logger.warn("Could not set Supabase runtime env");
     }
   }
 };

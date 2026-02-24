@@ -1,3 +1,4 @@
+import { logger } from "./logger";
 // lib/RateLimiter.ts
 
 export interface RateLimitConfig {
@@ -75,7 +76,7 @@ export class RateLimiter {
       const resetAt = oldest + this.windowMs;
       const waitTime = Math.max(0, resetAt - now);
 
-      console.warn(
+      logger.warn(
         `[RateLimiter] Rate limit exceeded. Waiting ${waitTime}ms before proceeding.`,
       );
 
@@ -184,7 +185,7 @@ export class TokenBucketRateLimiter {
     let effective = tokensRequested;
 
     if (effective > this.burstLimit) {
-      console.warn(
+      logger.warn(
         `[TokenBucketRateLimiter] Burst-Limit: requested ${effective} tokens exceeds burst limit ${this.burstLimit}. Capping.`,
       );
       effective = this.burstLimit;

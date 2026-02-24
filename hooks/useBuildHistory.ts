@@ -3,6 +3,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+
+import { logger } from '../lib/logger';
 import type { BuildHistoryEntry } from '../shared/types/build';
 import {
   loadBuildHistory,
@@ -58,38 +60,37 @@ export function useBuildHistory(): UseBuildHistoryResult {
       ]);
       setHistory(loadedHistory);
       setStats(loadedStats);
-    } catch (error) {
-      console.error('[useBuildHistory] Fehler beim Laden:', error);
+    } catch (err) {
+      logger.error('Fehler beim Laden der Build-Historie', { err });
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // Initial laden
+  // Initial load
   useEffect(() => {
-    loadHistory();
+    void loadHistory();
   }, [loadHistory]);
 
-  // Neuen Build starten
-  const startBuild = useCallback(async (
-    jobId: string,
-    repoName: string,
-    buildProfile: string = 'preview'
-  ) => {
+  const startBuild = useCallback(async (jobId: string, repoName: string, buildProfile?: string) => {
     const entry: BuildHistoryEntry = {
       id: uuidv4(),
       jobId,
       repoName,
-      status: 'queued',
+      buildProfile: buildProfile ?? 'default',
+      status: 'building',
       startedAt: new Date().toISOString(),
-      buildProfile,
+      artifactUrl: null,
+      htmlUrl: null,
+      // Optional fields (keep undefined instead of null to match BuildHistoryEntry)
+      completedAt: undefined,
+      errorMessage: undefined,
     };
-    
+
     await addBuildToHistory(entry);
     await loadHistory();
   }, [loadHistory]);
 
-  // Build abschließen
   const completeBuild = useCallback(async (
     jobId: string,
     status: 'success' | 'failed' | 'error',
@@ -99,37 +100,27 @@ export function useBuildHistory(): UseBuildHistoryResult {
       errorMessage?: string;
     }
   ) => {
-    const entry = history.find(e => e.jobId === jobId);
-    if (!entry) {
-      console.warn(`[useBuildHistory] Build #${jobId} nicht gefunden`);
-      return;
-    }
-
-    const completedAt = new Date().toISOString();
-    const startedAt = new Date(entry.startedAt).getTime();
-    const durationMs = Date.now() - startedAt;
-
     await updateBuildInHistory(jobId, {
       status,
-      completedAt,
-      durationMs,
-      artifactUrl: details?.artifactUrl,
-      htmlUrl: details?.htmlUrl,
-      errorMessage: details?.errorMessage,
+      completedAt: new Date().toISOString(),
+      artifactUrl: details?.artifactUrl ?? null,
+      htmlUrl: details?.htmlUrl ?? null,
+      errorMessage: details?.errorMessage ?? undefined,
     });
-    
     await loadHistory();
-  }, [history, loadHistory]);
+  }, [loadHistory]);
 
-  // Eintrag löschen
   const deleteEntry = useCallback(async (jobId: string) => {
     await deleteBuildFromHistory(jobId);
     await loadHistory();
   }, [loadHistory]);
 
-  // Historie leeren
-  const clearHistoryAction = useCallback(async () => {
+  const clearHistory = useCallback(async () => {
     await clearBuildHistory();
+    await loadHistory();
+  }, [loadHistory]);
+
+  const refresh = useCallback(async () => {
     await loadHistory();
   }, [loadHistory]);
 
@@ -140,7 +131,7 @@ export function useBuildHistory(): UseBuildHistoryResult {
     startBuild,
     completeBuild,
     deleteEntry,
-    clearHistory: clearHistoryAction,
-    refresh: loadHistory,
+    clearHistory,
+    refresh,
   };
 }

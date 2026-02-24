@@ -50,7 +50,7 @@ class NotificationService {
       }
 
       if (finalStatus !== "granted") {
-        console.warn("⚠️ Notification permissions not granted");
+        logger.warn("Notification permissions not granted");
         this.permissionGranted = false;
         return false;
       }
@@ -82,12 +82,12 @@ class NotificationService {
         this.expoPushToken = tokenData.data;
         logger.info("📱 Expo Push Token:", this.expoPushToken);
       } catch (error) {
-        console.warn("⚠️ Could not get Expo Push Token (Dev-Mode?):", error);
+        logger.warn("Could not get Expo Push Token (Dev-Mode?)", { err: error });
       }
 
       return true;
     } catch (error) {
-      console.error("❌ Notification Service Initialization failed:", error);
+      logger.error("Notification Service Initialization failed", { err: error });
       return false;
     }
   }
@@ -99,7 +99,7 @@ class NotificationService {
     options: NotificationOptions,
   ): Promise<string | null> {
     if (!this.permissionGranted) {
-      console.warn("⚠️ Notifications not permitted, skipping...");
+      logger.warn("Notifications not permitted, skipping");
       return null;
     }
 
@@ -118,7 +118,7 @@ class NotificationService {
       logger.info("✅ Notification sent:", notificationId);
       return notificationId;
     } catch (error) {
-      console.error("❌ Failed to send notification:", error);
+      logger.error("Failed to send notification", { err: error });
       return null;
     }
   }

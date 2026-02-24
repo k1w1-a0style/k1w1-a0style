@@ -10,6 +10,7 @@ import { mapBuildStatus } from "../../lib/buildStatusMapper";
 import { getSupabaseEdgeUrl, SUPABASE_URL_MISSING_ERROR } from '../../lib/supabaseEdge';
 import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
 import type { BuildStatus, BuildStatusDetails } from "../../shared/types/build";
+import { logger } from "../../lib/logger";
 
 export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 
@@ -89,7 +90,7 @@ export async function pollBuildStatusOnce(
   try {
     json = await res.json();
   } catch (e) {
-    console.warn("[buildPollingService] JSON Parse fehlgeschlagen:", e);
+    logger.warn("[buildPollingService] JSON Parse fehlgeschlagen", { err: e });
     return { ok: false, error: "Ungültige Server-Antwort", statusCode: res.status };
   }
 

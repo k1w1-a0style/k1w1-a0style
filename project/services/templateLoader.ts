@@ -4,6 +4,7 @@
 
 import type { CoreTemplateId, ProjectFile, TemplateId } from '../../shared/types/project';
 import { runTemplateHardChecklist } from '../../lib/diagnostics/templates';
+import { logger } from "../../lib/logger";
 
 export const loadTemplateFromFile = async (templateId: TemplateId = "base"): Promise<ProjectFile[]> => {
   try {
@@ -48,7 +49,7 @@ export const loadTemplateFromFile = async (templateId: TemplateId = "base"): Pro
 
     return firstPass.files;
   } catch (error) {
-    console.error("X Template Fehler:", error);
+    logger.error("Template Fehler", { err: error });
     return [{ path: "README.md", content: "# Template Fehler" }];
   }
 };

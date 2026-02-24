@@ -132,5 +132,22 @@ This file is append-only. Each patch adds a short entry.
 - P2 hygiene: infra/logger sweep (GitHubContext + storage + tokenStore + github infra) + OpenAI reasoning guard supports versioned oN IDs.
 - Datei: `docs/patches/patch_241.md`
 
-## Patch 242
-- Fix missing logger import in infra/github/repos.ts (typecheck/jest).
+## Patch 242 (2026-02-24)
+
+- Hotfix: add missing `logger` import in `infra/github/repos.ts` (typecheck/jest).
+- Datei: `docs/patches/patch_242.md`
+
+## Patch 243 (2026-02-24)
+
+- P3 logger sweep: removed remaining `console.*` calls from lib services + build services/hooks.
+- Datei: `docs/patches/patch_243.md`
+
+## Patch 244 (2026-02-24)
+
+- Hotfix: fix malformed import block in hooks/useBuildHistory (Jest/tsc parse error).
+- Datei: `docs/patches/patch_244.md`
+
+## Patch 245 (2026-02-24)
+
+- Hotfix: fix `BuildHistoryEntry` optional fields (use `undefined` instead of `null`) to satisfy TypeScript.
+- Datei: `docs/patches/patch_245.md`

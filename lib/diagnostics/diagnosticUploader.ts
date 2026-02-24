@@ -7,6 +7,7 @@ import type { PreflightCheckResult, PreflightTarget } from "./preflightTypes";
 import { safeTruncate, sanitizeJsonString, sanitizeText } from "./sanitize";
 
 import type { ProjectFile } from "../../shared/types/project";
+import { logger } from "../logger";
 const SNAPSHOT_PATHS = [
   "package.json",
   "app.json",
@@ -70,7 +71,7 @@ export async function uploadDiagnosticReport(
   try {
     supabase = await ensureSupabaseClient();
   } catch (e) {
-    console.warn("[diagnostics] supabase init failed", e);
+    logger.warn("[diagnostics] supabase init failed", { err: e });
     return null;
   }
 
@@ -116,7 +117,7 @@ export async function uploadDiagnosticReport(
   });
 
   if (error) {
-    console.warn("[diagnostics] upload failed", error);
+    logger.warn("[diagnostics] upload failed", { err: error });
     return null;
   }
 

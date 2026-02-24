@@ -74,3 +74,9 @@
 - 2026-02-24: Patch 241 prepared (infra/logger sweep + OpenAI reasoning regex fix). Run `npm run test:silent` + `npm run typecheck` after apply.
 
 - Patch 242: logger import hotfix (repos.ts). Checks: tests/typecheck green.
+
+- 2026-02-24: Patch 243 prepared (P3 logger sweep: lib services + build services/hooks). Run `npm run test:silent` + `npm run typecheck` + `npm run lint:ci` after apply.
+
+- 2026-02-24: Patch 244 prepared (hotfix: useBuildHistory import syntax). Run `npm run test:silent` + `npm run typecheck` after apply.
+
+- 2026-02-24: Patch 245 prepared (hotfix: BuildHistoryEntry optional fields in useBuildHistory). Run `npm run test:silent` + `npm run typecheck` after apply.

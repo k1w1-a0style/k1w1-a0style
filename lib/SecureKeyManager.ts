@@ -9,6 +9,7 @@
  */
 
 import type { AllAIProviders } from '../contexts/AIContext';
+import { logger } from "./logger";
 
 class SecureKeyManager {
   private static keys = new Map<AllAIProviders, string[]>();
@@ -23,7 +24,7 @@ class SecureKeyManager {
 
       // nur einmal pro Provider warnen
       if (!this.warnedEmpty.has(provider)) {
-        console.warn(`[SecureKeyManager] ⚠️ Keine Keys für Provider "${provider}" gesetzt`);
+        logger.warn(`[SecureKeyManager] ⚠️ Keine Keys für Provider "${provider}" gesetzt`);
         this.warnedEmpty.add(provider);
       }
       return;
