@@ -4,6 +4,18 @@
 // NOTE: Supabase Edge (Deno) bundler requires explicit file extensions for local imports.
 import { sanitizeErrorText, sanitizeUnknownForTransport } from "./errorSanitization.ts";
 
+// NOTE: Supabase Edge runs on Deno, but our repo `tsc`/Jest runs on Node.
+// Avoid direct `Deno` references so local typecheck/tests don't fail.
+const getRuntimeEnv = (key: string): string | undefined => {
+  const deno = (globalThis as any)?.Deno;
+  const denoVal = deno?.env?.get?.(key);
+  if (typeof denoVal === "string") return denoVal;
+  // Node/Jest fallback
+  const proc = (globalThis as any)?.process;
+  const nodeVal = proc?.env?.[key];
+  return typeof nodeVal === "string" ? nodeVal : undefined;
+};
+
 /**
  * Erlaubte Origins für CORS
  * In Produktion: Nur spezifische Domains erlauben
@@ -29,7 +41,7 @@ function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
 
   // Entwicklungsmodus: Erlaube alle localhost und Expo-Origins
-  const isDev = Deno.env.get("ENVIRONMENT") !== "production";
+  const isDev = (getRuntimeEnv("ENVIRONMENT") ?? "development") !== "production";
   if (isDev) {
     if (origin.startsWith("http://localhost:")) return true;
     if (origin.startsWith("http://192.168.")) return true; // Lokales Netzwerk für Expo
