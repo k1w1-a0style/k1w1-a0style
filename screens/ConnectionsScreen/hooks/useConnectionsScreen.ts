@@ -323,14 +323,34 @@ export function useConnectionsScreen() {
     if (!ex) return Alert.alert("Fehlt", "Expo / EAS Token fehlt.");
     setBusy(true);
     try {
-      // Expo token verification (best-effort).
-      // We keep this defensive: if Expo changes endpoints, we show a clear error.
-      const resp = await fetch("https://exp.host/--/api/v2/auth/user", {
-        headers: { Authorization: `Bearer ${ex}` },
+      // Legacy endpoint (exp.host/--/api/v2/auth/user) is often 404 nowadays.
+      // Use Expo's GraphQL API and treat a 200 + data response as "token valid".
+      const resp = await fetch("https://api.expo.dev/graphql", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${ex}`,
+        },
+        body: JSON.stringify({
+          query: "query Me { me { id username } }",
+        }),
       });
+
       if (!resp.ok) throw new Error(`Expo Test failed (${resp.status})`);
-      const data = await resp.json().catch(() => ({}));
-      const username = data?.data?.username || data?.username || data?.data?.user?.username || "";
+      const payload: any = await resp.json().catch(() => ({}));
+
+      if (Array.isArray(payload?.errors) && payload.errors.length) {
+        const first = payload.errors[0];
+        const msg = first?.message ? String(first.message) : "Expo GraphQL error";
+        throw new Error(msg);
+      }
+
+      const username =
+        payload?.data?.me?.username ||
+        payload?.data?.viewer?.username ||
+        payload?.data?.user?.username ||
+        "";
+
       setExpoOk(true);
       setExpoUser(username || "");
       await AsyncStorage.setItem(STORAGE_KEYS.CONN_EXPO_OK, "true").catch(() => {});
@@ -339,6 +359,7 @@ export function useConnectionsScreen() {
       } else {
         await AsyncStorage.removeItem(STORAGE_KEYS.CONN_EXPO_USER).catch(() => {});
       }
+
       Alert.alert("Expo OK", username ? `Verbunden als: ${username}` : "Token ist gueltig.");
     } catch (e: any) {
       setExpoOk(false);
@@ -351,7 +372,7 @@ export function useConnectionsScreen() {
     }
   }, [expoToken]);
 
-  const testSupabase = useCallback(async () => {
+const testSupabase = useCallback(async () => {
     const url = supabaseUrl.trim();
     const anon = supabaseAnonKey.trim();
     if (!url) return Alert.alert("Fehlt", "Supabase URL fehlt.");

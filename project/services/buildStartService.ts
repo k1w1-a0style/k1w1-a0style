@@ -129,6 +129,14 @@ export async function startBuildJob(params: {
 
   if (error) throw error;
 
+  // Some edge functions might respond with HTTP 200 but an error-shaped payload.
+  // Normalize that to a thrown error so the UI shows the real reason (instead of 'no job id').
+  if ((data as any)?.ok === false) {
+    const details = (data as any)?.details;
+    const msg = (data as any)?.error || (details?.message ? String(details.message) : "Unbekannter Fehler");
+    throw new Error(msg);
+  }
+
   const jobId: string | null =
     typeof (data as any)?.jobId === "string"
       ? (data as any).jobId

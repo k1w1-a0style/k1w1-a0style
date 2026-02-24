@@ -195,6 +195,19 @@ function resolveLegacyAutoMode(provider: AllAIProviders, qualityMode: QualityMod
   return defs.speed;
 }
 
+function getDefaultMode(provider: AllAIProviders, qualityMode: QualityMode): string {
+  const defs = PROVIDER_DEFAULTS?.[provider];
+  if (!defs) return '';
+  // balanced -> speed default, review -> quality default
+  if (qualityMode === 'quality' || qualityMode === 'review') return defs.quality;
+  return defs.speed;
+}
+
+function isModeValidForProvider(provider: AllAIProviders, mode: string): boolean {
+  const list = AVAILABLE_MODELS?.[provider] ?? [];
+  return list.some((m) => m.id === mode);
+}
+
 
 
 async function loadSecureApiKeys(): Promise<Record<AllAIProviders, string[]>> {
@@ -258,10 +271,29 @@ async function loadConfig(): Promise<AIConfig | null> {
       const agentProvider = coerceProvider((base as any).selectedAgentProvider, DEFAULT_CONFIG.selectedAgentProvider);
       const qm: QualityMode = (base.qualityMode as QualityMode) || DEFAULT_CONFIG.qualityMode;
 
+      const rawChatMode = resolveLegacyAutoMode(
+        chatProvider,
+        qm,
+        (parsed as any).selectedChatMode ?? base.selectedChatMode,
+        base.selectedChatMode,
+      );
+      const rawAgentMode = resolveLegacyAutoMode(
+        agentProvider,
+        qm,
+        (parsed as any).selectedAgentMode ?? base.selectedAgentMode,
+        base.selectedAgentMode,
+      );
+
       const fixed: AIConfig = {
         ...base,
-        selectedChatMode: resolveLegacyAutoMode(chatProvider, qm, (parsed as any).selectedChatMode ?? base.selectedChatMode, base.selectedChatMode),
-        selectedAgentMode: resolveLegacyAutoMode(agentProvider, qm, (parsed as any).selectedAgentMode ?? base.selectedAgentMode, base.selectedAgentMode),
+        selectedChatProvider: chatProvider,
+        selectedAgentProvider: agentProvider,
+        selectedChatMode: isModeValidForProvider(chatProvider, rawChatMode)
+          ? rawChatMode
+          : getDefaultMode(chatProvider, qm) || base.selectedChatMode,
+        selectedAgentMode: isModeValidForProvider(agentProvider, rawAgentMode)
+          ? rawAgentMode
+          : getDefaultMode(agentProvider, qm) || base.selectedAgentMode,
       };
 
       if (k !== CONFIG_STORAGE_KEY) {
@@ -364,8 +396,22 @@ const setConfig = useCallback((next: AIConfig) => setConfigState(next), []);
     setConfigState((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  const setSelectedChatProvider = useCallback((provider: AllAIProviders) => updateConfig({ selectedChatProvider: provider }), [updateConfig]);
-  const setSelectedAgentProvider = useCallback((provider: AllAIProviders) => updateConfig({ selectedAgentProvider: provider }), [updateConfig]);
+  const setSelectedChatProvider = useCallback(
+    (provider: AllAIProviders) =>
+      updateConfig({
+        selectedChatProvider: provider,
+        selectedChatMode: getDefaultMode(provider, config.qualityMode) || PROVIDER_DEFAULTS[provider].speed,
+      }),
+    [updateConfig, config.qualityMode],
+  );
+  const setSelectedAgentProvider = useCallback(
+    (provider: AllAIProviders) =>
+      updateConfig({
+        selectedAgentProvider: provider,
+        selectedAgentMode: getDefaultMode(provider, config.qualityMode) || PROVIDER_DEFAULTS[provider].quality,
+      }),
+    [updateConfig, config.qualityMode],
+  );
   const setSelectedChatMode = useCallback((mode: string) => updateConfig({ selectedChatMode: mode }), [updateConfig]);
   const setSelectedAgentMode = useCallback((mode: string) => updateConfig({ selectedAgentMode: mode }), [updateConfig]);
   const setQualityMode = useCallback((mode: QualityMode) => updateConfig({ qualityMode: mode }), [updateConfig]);
