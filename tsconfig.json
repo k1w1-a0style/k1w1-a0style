@@ -6,11 +6,14 @@
     "noEmit": true,
     "isolatedModules": true,
     "allowJs": false,
-
     "noUncheckedIndexedAccess": false,
-    "exactOptionalPropertyTypes": false
+    "exactOptionalPropertyTypes": false,
+    "allowImportingTsExtensions": true
   },
-  "include": ["**/*.ts", "**/*.tsx"],
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ],
   "exclude": [
     "node_modules",
     "supabase/functions/**",

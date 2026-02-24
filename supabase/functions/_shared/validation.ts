@@ -1,10 +1,10 @@
+// @ts-ignore TS5097 -- Supabase Edge (Deno) requires explicit `.ts` extension; repo `tsc` disallows it.
 import {
   isSafePath,
   normalizePath,
   safeJsonForScript,
   escapeHtml,
 } from "./security.ts";
-
 /**
  * Central validation helpers for Edge Functions.
  *
@@ -37,8 +37,9 @@ export function parseJsonBody(
     try {
       const body = JSON.parse(t);
       return { ok: true, body };
-    } catch (e) {
-      return { ok: false, error: `Invalid JSON: ${e?.message ?? String(e)}` };
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { ok: false, error: `Invalid JSON: ${msg}` };
     }
   });
 }
@@ -106,6 +107,7 @@ export function validateTriggerBuildRequest(body: unknown): Ok<{
   if (!br.valid) errors.branch = br.error;
 
   if (Object.keys(errors).length) return { ok: false, errors };
+  if (!br.valid) return { ok: false, errors }; // extra narrowing for TS
 
   return {
     ok: true,
@@ -176,7 +178,8 @@ export function validateGithubWorkflowDispatchRequest(body: unknown): Ok<{
     }
   }
 
-  if (Object.keys(errors).length) return { ok: false, errors };
+    if (Object.keys(errors).length) return { ok: false, errors };
+  if (!br.valid) return { ok: false, errors }; // extra narrowing for TS
 
   return {
     ok: true,
