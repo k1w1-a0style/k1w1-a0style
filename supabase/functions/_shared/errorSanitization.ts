@@ -32,6 +32,7 @@ const SENSITIVE_KEY_EQ = new Set([
   "x_api_key",
   "service_role",
   "service_role_key",
+  "servicerolekey",
   "supabase_service_role_key",
   "private_key",
   "cookie",
