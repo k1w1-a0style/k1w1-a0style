@@ -1,6 +1,6 @@
 ## Patchlog Root
 
-- Patch 267: redact GitHub token prefixes more aggressively in error message sanitization
+- Patch 268: ensure GitHub tokens are sanitized in error *strings* (not only in details)
 - Patch 258: sanitize camelCase serviceRoleKey in nested arrays
 - Patch 255: harden error sanitization (redact sensitive keys in details)
 - Patch 253: fix notificationService Jest token (Platform.OS safe)
