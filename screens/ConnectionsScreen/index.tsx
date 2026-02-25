@@ -5,6 +5,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../../theme";
+import { clearDebugEntries } from "../../lib/debugOverlay";
+import { useDebugEntries } from "../../hooks/useDebugEntries";
 
 import { useConnectionsScreen } from "./hooks/useConnectionsScreen";
 import { StatusCard } from "./components/StatusCard";
@@ -14,6 +16,8 @@ import { EasCard } from "./components/EasCard";
 
 export default function ConnectionsScreen() {
   const [showSyncSummary, setShowSyncSummary] = useState(false);
+  const [debugOpen, setDebugOpen] = useState(false);
+  const debugEntries = useDebugEntries();
   const {
     navigation,
     busy,
@@ -108,14 +112,24 @@ export default function ConnectionsScreen() {
       >
         <View style={styles.titleRow}>
           <Text style={styles.h1}>Verbindungen</Text>
-          <Pressable
-            onPress={() => setShowSyncSummary(true)}
-            style={({ pressed }) => [styles.summaryBtn, pressed && styles.summaryBtnPressed]}
-            accessibilityRole="button"
-            accessibilityLabel="Sync Summary"
-          >
-            <Ionicons name="list-outline" size={18} color={theme.palette.primary} />
-          </Pressable>
+          <View style={styles.titleActions}>
+            <Pressable
+              onPress={() => setDebugOpen(true)}
+              style={({ pressed }) => [styles.summaryBtn, pressed && styles.summaryBtnPressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Debug overlay"
+            >
+              <Ionicons name="bug-outline" size={18} color={theme.palette.primary} />
+            </Pressable>
+            <Pressable
+              onPress={() => setShowSyncSummary(true)}
+              style={({ pressed }) => [styles.summaryBtn, pressed && styles.summaryBtnPressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Sync Summary"
+            >
+              <Ionicons name="list-outline" size={18} color={theme.palette.primary} />
+            </Pressable>
+          </View>
         </View>
 
         <StatusCard
@@ -191,6 +205,52 @@ export default function ConnectionsScreen() {
       </ScrollView>
 
       <Modal
+        visible={debugOpen}
+        animationType="slide"
+        onRequestClose={() => setDebugOpen(false)}
+      >
+        <SafeAreaView style={styles.debugWrap} edges={[]}> 
+          <View style={styles.debugHeader}>
+            <Text style={styles.debugTitle}>Debug Overlay</Text>
+            <View style={styles.debugHeaderActions}>
+              <Pressable
+                accessibilityLabel="Clear debug"
+                onPress={() => clearDebugEntries()}
+                style={({ pressed }) => [styles.debugAction, pressed && styles.debugActionPressed]}
+              >
+                <Ionicons name="trash-outline" size={18} color={theme.palette.text.primary} />
+              </Pressable>
+              <Pressable
+                accessibilityLabel="Close debug"
+                onPress={() => setDebugOpen(false)}
+                style={({ pressed }) => [styles.debugAction, pressed && styles.debugActionPressed]}
+              >
+                <Ionicons name="close" size={20} color={theme.palette.text.primary} />
+              </Pressable>
+            </View>
+          </View>
+
+          <ScrollView style={styles.debugList} contentContainerStyle={styles.debugListContent}>
+            {debugEntries.length === 0 ? (
+              <Text style={styles.debugEmpty}>Noch keine Logs…</Text>
+            ) : (
+              debugEntries.map((e, idx) => (
+                <View key={`${e.ts}-${idx}`} style={styles.debugItem}>
+                  <Text style={styles.debugMeta}>
+                    {new Date(e.ts).toLocaleTimeString()} • {e.scope}
+                  </Text>
+                  <Text style={styles.debugMsg}>{e.message}</Text>
+                  {e.data ? (
+                    <Text style={styles.debugData}>{JSON.stringify(e.data, null, 2)}</Text>
+                  ) : null}
+                </View>
+              ))
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      <Modal
         visible={showSyncSummary}
         transparent
         animationType="fade"
@@ -234,6 +294,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 6,
   },
+  titleActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   summaryBtn: {
     width: 38,
     height: 38,
@@ -252,6 +317,76 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: theme.palette.text.primary,
     marginBottom: 6,
+  },
+
+  debugWrap: {
+    flex: 1,
+    backgroundColor: theme.palette.background,
+  },
+  debugHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.palette.border,
+  },
+  debugTitle: {
+    color: theme.palette.text.primary,
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  debugHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  debugAction: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.palette.card,
+  },
+  debugActionPressed: {
+    backgroundColor: theme.palette.userBubble.background,
+  },
+  debugList: { flex: 1 },
+  debugListContent: {
+    padding: 16,
+    gap: 12,
+    paddingBottom: 40,
+  },
+  debugEmpty: {
+    color: theme.palette.text.muted,
+    fontSize: 13,
+  },
+  debugItem: {
+    backgroundColor: theme.palette.card,
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  debugMeta: {
+    color: theme.palette.text.muted,
+    fontSize: 11,
+    marginBottom: 4,
+  },
+  debugMsg: {
+    color: theme.palette.text.primary,
+    fontSize: 13,
+    fontWeight: "800",
+    marginBottom: 6,
+  },
+  debugData: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    fontFamily: "Courier",
   },
 
   modalOverlay: {

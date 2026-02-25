@@ -30,6 +30,9 @@ import {
   validateBeforeSave,
 } from "../utils/validation";
 
+import { debugLog } from "../../../lib/debugOverlay";
+import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction";
+
 export function useConnectionsScreen() {
   const navigation = useNavigation<any>();
   const { activeRepo, activeBranch } = useGitHub();
@@ -282,11 +285,19 @@ export function useConnectionsScreen() {
     if (!gh) return Alert.alert("Fehlt", "GitHub Token fehlt.");
     setBusy(true);
     try {
+      debugLog("connections:github", "GET /user", {
+        url: githubApiUrl("/user"),
+      });
       const resp = await fetch(githubApiUrl("/user"), {
         headers: {
           Accept: "application/vnd.github+json",
           Authorization: `Bearer ${gh}`,
         },
+      });
+      debugLog("connections:github", "Response", {
+        status: resp.status,
+        ok: resp.ok,
+        scopes: resp.headers.get("x-oauth-scopes") || resp.headers.get("X-OAuth-Scopes") || "",
       });
       if (!resp.ok) throw new Error(`GitHub Test failed (${resp.status})`);
       const userData = await resp.json().catch(() => ({}));
@@ -312,6 +323,9 @@ export function useConnectionsScreen() {
       await AsyncStorage.setItem(STORAGE_KEYS.CONN_GITHUB_OK, "false").catch(() => {});
       await AsyncStorage.removeItem(STORAGE_KEYS.CONN_GITHUB_USER).catch(() => {});
       await AsyncStorage.removeItem(STORAGE_KEYS.CONN_GITHUB_SCOPES).catch(() => {});
+      debugLog("connections:github", "GitHub ERROR", {
+        error: redactSecrets(truncateWithMarker(String(e?.message ?? e), 800)),
+      });
       Alert.alert("GitHub Test", safeAlertText(e));
     } finally {
       setBusy(false);
@@ -325,7 +339,9 @@ export function useConnectionsScreen() {
     try {
       // Legacy endpoint (exp.host/--/api/v2/auth/user) is often 404 nowadays.
       // Use Expo's GraphQL API and treat a 200 + data response as "token valid".
-      const resp = await fetch("https://api.expo.dev/graphql", {
+      const url = "https://api.expo.dev/graphql";
+      debugLog("connections:expo", "POST /graphql", { url });
+      const resp = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -336,8 +352,15 @@ export function useConnectionsScreen() {
         }),
       });
 
+      const raw = await resp.text();
+      debugLog("connections:expo", "Response", {
+        status: resp.status,
+        ok: resp.ok,
+        body: redactSecrets(truncateWithMarker(raw, 1000)),
+      });
+
       if (!resp.ok) throw new Error(`Expo Test failed (${resp.status})`);
-      const payload: any = await resp.json().catch(() => ({}));
+      const payload: any = JSON.parse(raw || "{}");
 
       if (Array.isArray(payload?.errors) && payload.errors.length) {
         const first = payload.errors[0];
@@ -366,6 +389,9 @@ export function useConnectionsScreen() {
       setExpoUser("");
       await AsyncStorage.setItem(STORAGE_KEYS.CONN_EXPO_OK, "false").catch(() => {});
       await AsyncStorage.removeItem(STORAGE_KEYS.CONN_EXPO_USER).catch(() => {});
+      debugLog("connections:expo", "Expo ERROR", {
+        error: redactSecrets(truncateWithMarker(String(e?.message ?? e), 800)),
+      });
       Alert.alert("Expo Test", safeAlertText(e));
     } finally {
       setBusy(false);

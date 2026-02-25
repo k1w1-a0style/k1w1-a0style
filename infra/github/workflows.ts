@@ -2,6 +2,8 @@ import { githubLimiter } from "./rateLimit";
 import { getGitHubToken } from "./tokenStore";
 import { githubApiUrl } from "../../shared/constants/github";
 import { logger } from "../../lib/logger";
+import { debugLog } from "../../lib/debugOverlay";
+import { redactSecrets, truncateWithMarker } from "../../lib/secretRedaction";
 
 export interface WorkflowRun {
   id: number;
@@ -119,6 +121,14 @@ export const triggerWorkflow = async (
   await githubLimiter.checkLimit();
 
   const url = githubApiUrl(`/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowFileName)}/dispatches`);
+  debugLog("github:workflow", "Dispatch workflow", {
+    url,
+    owner,
+    repo,
+    workflowFileName,
+    ref,
+    inputs: Object.keys(inputs || {}),
+  });
   const resp = await fetch(url, {
     method: "POST",
     headers: {
@@ -127,6 +137,13 @@ export const triggerWorkflow = async (
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ ref, inputs }),
+  });
+
+  const raw = await resp.text().catch(() => "");
+  debugLog("github:workflow", "Dispatch response", {
+    status: resp.status,
+    ok: resp.status === 204,
+    body: redactSecrets(truncateWithMarker(raw, 800)),
   });
 
   if (resp.status === 204) return { started: true };
@@ -140,7 +157,12 @@ export const triggerWorkflow = async (
     );
   }
 
-  const json = await resp.json().catch(() => ({}));
+  let json: any = {};
+  try {
+    json = raw ? JSON.parse(raw) : {};
+  } catch {
+    json = {};
+  }
   throw new Error(json.message || "workflow dispatch failed");
 };
 
