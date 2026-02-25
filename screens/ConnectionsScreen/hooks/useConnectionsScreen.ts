@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
@@ -57,16 +57,67 @@ export function useConnectionsScreen() {
   const [githubToken, setGithubToken] = useState("");
   const [expoToken, setExpoToken] = useState("");
 
+  // EAS
+  const [easProjectId, setEasProjectId] = useState("");
+  const [isTestingEas, setIsTestingEas] = useState(false);
+
+  // Prevent "token not loaded yet" from clearing persisted OK lights on first mount.
+  const [hydrated, setHydrated] = useState(false);
+  const didAutoTestEas = useRef(false);
+
+  const saveConnEasOk = useCallback(async (ok: boolean) => {
+    setEasOk(ok);
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.CONN_EAS_OK,
+      ok ? "true" : "false",
+    ).catch(() => {});
+  }, []);
+
+  const testEas = useCallback(async () => {
+    // No EAS Project ID -> nothing to test.
+    if (!easProjectId?.trim()) {
+      await saveConnEasOk(false);
+      return;
+    }
+
+    setIsTestingEas(true);
+    try {
+      const id = easProjectId.trim();
+      const resp = await fetch(
+        `https://exp.host/--/api/v2/projects/${encodeURIComponent(id)}`,
+      );
+
+      if (!resp.ok) {
+        await saveConnEasOk(false);
+        Alert.alert("EAS Test", `EAS Test failed (${resp.status})`);
+        return;
+      }
+
+      const json = (await resp.json()) as any;
+      const hasProject = Boolean(json?.data?.id || json?.data?.project?.id);
+      await saveConnEasOk(hasProject);
+      if (!hasProject) {
+        Alert.alert("EAS Test", "Projekt nicht gefunden oder keine Rechte");
+      }
+    } catch (e: any) {
+      await saveConnEasOk(false);
+      Alert.alert("EAS Test", `EAS Test failed (${String(e?.message || e)})`);
+    } finally {
+      setIsTestingEas(false);
+    }
+  }, [easProjectId, saveConnEasOk]);
+
   // Expo connection light is persisted (set by explicit "Test Expo"),
-  // but we force it OFF if the token is cleared.
+  // but we force it OFF if the token is cleared (after hydration).
   useEffect(() => {
+    if (!hydrated) return;
     if (!expoToken.trim()) {
       setExpoOk(false);
       setExpoUser("");
       AsyncStorage.setItem(STORAGE_KEYS.CONN_EXPO_OK, "false").catch(() => {});
       AsyncStorage.removeItem(STORAGE_KEYS.CONN_EXPO_USER).catch(() => {});
     }
-  }, [expoToken]);
+  }, [expoToken, hydrated]);
 
   const [edgeAdminKey, setEdgeAdminKeyState] = useState("");
 
@@ -82,9 +133,6 @@ export function useConnectionsScreen() {
 
   const [showSupabaseAnon, setShowSupabaseAnon] = useState(false);
   const [showSupabaseServiceRole, setShowSupabaseServiceRole] = useState(false);
-
-  // EAS
-  const [easProjectId, setEasProjectId] = useState("");
 
   const repoLine = useMemo(() => {
     const repo = activeRepo || projectData?.linkedRepo || "";
@@ -175,12 +223,26 @@ export function useConnectionsScreen() {
       if (repoOkStored === "true") setRepoOk(true);
       const repoLineStored = [repoSlug || "", repoBranch || ""].filter(Boolean).join(" (") + (repoBranch ? ")" : "");
       if (repoSlug) setRepoOkLine(repoLineStored);
+
+      // Hydration finished (prevents initial token empty state from clearing saved OK lights).
+      setHydrated(true);
     })();
 
     return () => {
       mounted = false;
     };
   }, []);
+
+  // Auto-Check: EAS Status einmalig im Hintergrund validieren,
+  // sobald Token + Project ID geladen sind.
+  useEffect(() => {
+    if (!hydrated) return;
+    if (didAutoTestEas.current) return;
+    if (!expoToken.trim()) return;
+    if (!easProjectId.trim()) return;
+    didAutoTestEas.current = true;
+    void testEas();
+  }, [hydrated, expoToken, easProjectId, testEas]);
 
   // Supabase URL derived from raw input
   useEffect(() => {
@@ -374,6 +436,14 @@ export function useConnectionsScreen() {
         payload?.data?.user?.username ||
         "";
 
+      // UX: Wenn der Token valide ist, persistieren wir ihn sofort.
+      // Viele Nutzer drücken erst "Test" und erwarten danach einen grünen Status nach Neustart.
+      try {
+        await saveExpoToken(ex);
+      } catch {
+        // ignore (SecureStore kann in manchen Umgebungen scheitern)
+      }
+
       setExpoOk(true);
       setExpoUser(username || "");
       await AsyncStorage.setItem(STORAGE_KEYS.CONN_EXPO_OK, "true").catch(() => {});
@@ -398,7 +468,7 @@ export function useConnectionsScreen() {
     }
   }, [expoToken]);
 
-const testSupabase = useCallback(async () => {
+  const testSupabase = useCallback(async () => {
     const url = supabaseUrl.trim();
     const anon = supabaseAnonKey.trim();
     if (!url) return Alert.alert("Fehlt", "Supabase URL fehlt.");
@@ -645,7 +715,6 @@ const testSupabase = useCallback(async () => {
     supabaseOk,
     expoOk,
     expoUser,
-    easOk,
     repoOk,
     repoOkLine,
     supabaseRef,
@@ -654,7 +723,6 @@ const testSupabase = useCallback(async () => {
     status,
     repoLine,
     supabaseUrl,
-    easProjectId,
 
     // Tokens
     githubToken,
@@ -685,6 +753,8 @@ const testSupabase = useCallback(async () => {
     setSupabaseServiceRoleKey,
 
     // EAS
+    easOk,
+    easProjectId,
     setEasProjectId,
 
     // Actions
@@ -692,5 +762,7 @@ const testSupabase = useCallback(async () => {
     testGitHub,
     testSupabase,
     testExpo,
+    testEas,
+    isTestingEas,
   };
 }

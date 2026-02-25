@@ -9,3 +9,6 @@
 - Patch 272: include AIContext provider-mode stability improvements (see docs/patches/patch_272.md)
 - Patch 273: add in-app debug overlay + structured logging for connection tests and workflow/build calls (see docs/patches/patch_273.md)
 - Patch 275: fix ChatComposer send button state (define canSend) + allow submit when file attached
+- Patch 276: unify chat/header buttons (filled) + persist Expo token on test + robust EAS status check (GraphQL fallback)
+- Patch 277: fix ConnectionsScreen EAS test TS regressions (missing helper, duplicate keys, hoist-safe callback order)
+- Patch 278: fix ConnectionsScreen EAS test compile errors (declare state, remove missing toast, remove duplicate return keys)

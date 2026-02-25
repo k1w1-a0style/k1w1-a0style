@@ -103,7 +103,7 @@ export const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "transparent",
+    backgroundColor: theme.palette.primary,
     borderWidth: 1.5,
     borderColor: theme.palette.primary,
     alignItems: "center",
