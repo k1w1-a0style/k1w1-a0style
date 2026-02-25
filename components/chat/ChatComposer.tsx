@@ -43,6 +43,9 @@ const ChatComposer: React.FC<Props> = ({
   sendButtonScale,
   onHeightChange,
 }) => {
+  const hasMessage = textInput.trim().length > 0;
+  const canSend = !combinedIsLoading && (hasMessage || !!selectedFileAsset);
+
   const placeholder = pendingPlan
     ? 'Antwort auf die Fragen... (oder "weiter")'
     : "Beschreibe deine App oder den nächsten Schritt ...";
@@ -51,9 +54,10 @@ const ChatComposer: React.FC<Props> = ({
 
   const handleSubmit = useCallback(
     (e: NativeSyntheticEvent<TextInputSubmitEditingEventData>) => {
-      if (e.nativeEvent?.text?.trim()) onSend();
+      const nextText = e.nativeEvent?.text ?? "";
+      if (nextText.trim().length > 0 || !!selectedFileAsset) onSend();
     },
-    [onSend],
+    [onSend, selectedFileAsset],
   );
 
   return (
@@ -144,14 +148,14 @@ const ChatComposer: React.FC<Props> = ({
           <TouchableOpacity
             style={[
               styles.sendButton,
-              combinedIsLoading && styles.sendButtonDisabled,
+              !canSend && styles.sendButtonDisabled,
             ]}
             onPress={onSend}
-            disabled={combinedIsLoading}
+            disabled={!canSend}
             activeOpacity={0.8}
             accessibilityLabel={combinedIsLoading ? "Wird verarbeitet" : "Nachricht senden"}
             accessibilityRole="button"
-            accessibilityState={{ disabled: combinedIsLoading }}
+            accessibilityState={{ disabled: !canSend }}
           >
             {combinedIsLoading ? (
               <ActivityIndicator

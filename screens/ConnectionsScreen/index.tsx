@@ -515,12 +515,16 @@ const styles = StyleSheet.create({
   inputHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "baseline",
+    alignItems: "flex-start",
+    flexWrap: "wrap",
   },
   label: {
     color: theme.palette.text.secondary,
     fontSize: 12,
     fontWeight: "700",
+    flexShrink: 1,
+    flexWrap: "wrap",
+    maxWidth: "75%",
   },
   hintInline: { color: theme.palette.text.muted, fontSize: 11 },
 

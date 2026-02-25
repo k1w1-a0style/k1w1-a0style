@@ -472,7 +472,8 @@ const testSupabase = useCallback(async () => {
     const sbAnon = !!supabaseAnonKey.trim();
     const sbSrv = !!supabaseServiceRoleKey.trim();
     const linked = !!(projectData?.linkedRepo || activeRepo);
-    const eas = !!easProjectId.trim();
+    const easId = easProjectId.trim();
+    const eas = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(easId);
     return { gh, ex, edge, sbUrl, sbAnon, sbSrv, linked, eas };
   }, [
     githubToken,

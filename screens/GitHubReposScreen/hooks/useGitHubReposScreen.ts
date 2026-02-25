@@ -115,7 +115,7 @@ export function useGitHubReposScreen() {
     };
   }, []);
 
-  const [showRepoList, setShowRepoList] = useState(false);
+  const [showRepoList, setShowRepoList] = useState(true);
   const [showNewRepo, setShowNewRepo] = useState(false);
   const [showRenameRepo, setShowRenameRepo] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);

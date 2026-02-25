@@ -982,6 +982,7 @@ useEffect(() => {
           width: progressAnim.interpolate({
             inputRange: [0, 100],
             outputRange: ["0%", "100%"],
+            extrapolate: "clamp",
           }),
         },
       ]}
