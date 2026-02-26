@@ -46,6 +46,8 @@ const ChatComposer: React.FC<Props> = ({
   const hasMessage = textInput.trim().length > 0;
   const canSend = !combinedIsLoading && (hasMessage || !!selectedFileAsset);
 
+  const sendColor = canSend ? theme.palette.primary : theme.palette.text.secondary;
+
   const placeholder = pendingPlan
     ? 'Antwort auf die Fragen... (oder "weiter")'
     : "Beschreibe deine App oder den nächsten Schritt ...";
@@ -160,13 +162,13 @@ const ChatComposer: React.FC<Props> = ({
             {combinedIsLoading ? (
               <ActivityIndicator
                 size="small"
-                color={theme.palette.background}
+                color={sendColor}
               />
             ) : (
               <Ionicons
                 name="send"
                 size={20}
-                color={theme.palette.background}
+                color={sendColor}
               />
             )}
           </TouchableOpacity>

@@ -93,15 +93,15 @@ export const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: theme.palette.primary,
+    backgroundColor: theme.palette.card,
     borderWidth: 1.5,
     borderColor: theme.palette.primary,
     alignItems: "center",
     justifyContent: "center",
-
-    elevation: 4,
+    elevation: 3,
   },
   sendButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.55,
+    borderColor: theme.palette.border,
   },
 });

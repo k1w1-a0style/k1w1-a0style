@@ -724,7 +724,7 @@ useEffect(() => {
           const t = await r.text().catch(() => "");
           const hint =
             r.status === 404
-              ? " (Edge Function nicht deployed?)"
+              ? " (Workflow-Datei auf diesem Branch nicht gefunden)"
               : r.status === 401 || r.status === 403
                 ? " (Admin-Key falsch/fehlt)"
                 : "";
@@ -824,13 +824,15 @@ const progressTarget = useMemo(() => {
   return { pct: 25, label: "Initialisiere…" };
 }, [dispatching, runId, done, stepInfo.lint, stepInfo.typecheck, ok]);
 
+  const progressPctClamped = Math.max(0, Math.min(100, progressTarget.pct));
+
 useEffect(() => {
   Animated.timing(progressAnim, {
-    toValue: progressTarget.pct,
+    toValue: progressPctClamped,
     duration: 420,
     useNativeDriver: false,
   }).start();
-}, [progressTarget.pct, progressAnim]);
+}, [progressPctClamped, progressAnim]);
 
   const statusText = useMemo(() => {
     if (busy) {
@@ -972,7 +974,7 @@ useEffect(() => {
 <View style={styles.progressWrap}>
   <View style={styles.progressMetaRow}>
     <Text style={styles.progressLabel}>{progressTarget.label}</Text>
-    <Text style={styles.progressPct}>{Math.round(progressTarget.pct)}%</Text>
+    <Text style={styles.progressPct}>{Math.round(progressPctClamped)}%</Text>
   </View>
   <View style={styles.progressTrack}>
     <Animated.View
@@ -1361,6 +1363,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: 8,
+    maxWidth: "100%",
     borderRadius: 999,
     backgroundColor: theme.palette.primary,
     opacity: 0.75,

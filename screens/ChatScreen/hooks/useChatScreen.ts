@@ -28,7 +28,7 @@ type DocumentResultAsset = NonNullable<
 const INPUT_BAR_MIN_H = 56;
 
 // Composer 1–2px näher an die Tastatur (wenn offen)
-const KEYBOARD_NUDGE = 0;
+const KEYBOARD_NUDGE = 2;
 
 const FOOTER_LIFT_WHEN_BUSY = 72;
 
