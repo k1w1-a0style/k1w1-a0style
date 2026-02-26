@@ -13,6 +13,7 @@ import type { ProjectFile } from "../shared/types/project";
 
 import { extractRawOrchestratorResult, MAX_AUTOFIX_QUEUE } from "./chatAIFlowTypes";
 import type { ExtendedOrchestratorResult, UseChatAIFlowArgs, PendingChange, PendingPlan } from "./chatAIFlowTypes";
+import { buildChangeConfirmationText } from "./chatChangeSummary";
 
 import { runOrchestrator } from "../lib/orchestrator";
 import { normalizeAiResponse } from "../lib/normalizer";
@@ -542,40 +543,7 @@ export function useChatAIFlow({
     try {
       await updateProjectFiles(pendingChange.files);
 
-      const timing = pendingChange.aiResponse?.timing?.durationMs
-        ? ` (${(pendingChange.aiResponse.timing.durationMs / 1000).toFixed(1)}s)`
-        : "";
-
-      const { created, updated, skipped } = pendingChange;
-
-      const summaryText =
-        `🤖 Provider: ${pendingChange.aiResponse?.provider || "unbekannt"}${
-          pendingChange.aiResponse?.keysRotated
-            ? ` (${pendingChange.aiResponse.keysRotated}x Key-Rotation)`
-            : ""
-        }\n` +
-        `🆕 Neue Dateien: ${created.length}\n` +
-        `✏️ Geänderte Dateien: ${updated.length}\n` +
-        `⏭️ Übersprungen: ${skipped.length}`;
-
-      const lines: string[] = [];
-      if (created.length) {
-        lines.push("🆕 Neue Dateien:");
-        created.forEach((p: string) => lines.push(`  • ${p}`));
-      }
-      if (updated.length) {
-        lines.push("✏️ Geänderte Dateien:");
-        updated.forEach((p: string) => lines.push(`  • ${p}`));
-      }
-      if (skipped.length) {
-        lines.push("⏭️ Übersprungene Dateien:");
-        skipped.forEach((p: string) => lines.push(`  • ${p}`));
-      }
-
-      const filesBlock = lines.length
-        ? `\n\n📂 Details:\n${lines.join("\n")}`
-        : "";
-      const confirmationText = `✅ Änderungen erfolgreich angewendet${timing}\n\n${summaryText}${filesBlock}`;
+      const confirmationText = buildChangeConfirmationText(pendingChange);
 
       addChatMessage({
         id: uuidv4(),

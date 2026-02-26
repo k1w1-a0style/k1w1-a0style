@@ -22,3 +22,6 @@
 - Patch 286: TS typecheck recovery + missing exports/imports (see docs/patches/patch_286.md)
 - Patch 287: fix syntax regressions (MessageItem, terminal helpers, usePreview) (see docs/patches/patch_287.md)
 - Patch 288: fix remaining TS/export issues + diagnostic runner duplication (see docs/patches/patch_288.md)
+
+- Patch 290: add regression test for change summary + extract builder helper
+
