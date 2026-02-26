@@ -80,11 +80,25 @@ export function useConnectionsScreen() {
       return;
     }
 
+    // EAS project validation requires an authenticated Expo request.
+    // exp.host expects @owner/slug and will return 400 for UUID project IDs.
+    if (!expoToken?.trim()) {
+      await saveConnEasOk(false);
+      Alert.alert("EAS Test", "Expo Token fehlt (für EAS Test erforderlich)");
+      return;
+    }
+
     setIsTestingEas(true);
     try {
       const id = easProjectId.trim();
       const resp = await fetch(
-        `https://exp.host/--/api/v2/projects/${encodeURIComponent(id)}`,
+        `https://api.expo.dev/v2/projects/${encodeURIComponent(id)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${expoToken.trim()}`,
+            Accept: "application/json",
+          },
+        },
       );
 
       if (!resp.ok) {
@@ -93,8 +107,14 @@ export function useConnectionsScreen() {
         return;
       }
 
-      const json = (await resp.json()) as any;
-      const hasProject = Boolean(json?.data?.id || json?.data?.project?.id);
+      const json = (await resp.json().catch(() => null)) as any;
+      const hasProject = Boolean(
+        json?.data?.id ||
+          json?.data?.project?.id ||
+          json?.data?.project?.slug ||
+          json?.data?.slug ||
+          json?.data?.name,
+      );
       await saveConnEasOk(hasProject);
       if (!hasProject) {
         Alert.alert("EAS Test", "Projekt nicht gefunden oder keine Rechte");
@@ -105,7 +125,7 @@ export function useConnectionsScreen() {
     } finally {
       setIsTestingEas(false);
     }
-  }, [easProjectId, saveConnEasOk]);
+  }, [easProjectId, expoToken, saveConnEasOk]);
 
   // Expo connection light is persisted (set by explicit "Test Expo"),
   // but we force it OFF if the token is cleared (after hydration).

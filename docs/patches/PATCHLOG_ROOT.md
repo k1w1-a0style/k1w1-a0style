@@ -12,3 +12,5 @@
 - Patch 276: unify chat/header buttons (filled) + persist Expo token on test + robust EAS status check (GraphQL fallback)
 - Patch 277: fix ConnectionsScreen EAS test TS regressions (missing helper, duplicate keys, hoist-safe callback order)
 - Patch 278: fix ConnectionsScreen EAS test compile errors (declare state, remove missing toast, remove duplicate return keys)
+
+- patch_280: fix CI Lite header palette key (danger -> error) + cleanup accidental root file note

@@ -76,7 +76,7 @@ const ChatHeaderActions: React.FC<Props> = ({ topOffset }) => {
         activeOpacity={0.8}
         accessibilityLabel="Projekt-Menü"
       >
-        <Ionicons name="ellipsis-vertical" size={20} color={theme.palette.primary} />
+        <Ionicons name="ellipsis-vertical" size={20} color={theme.palette.background} />
       </TouchableOpacity>
 
       <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={toggleMenu}>
@@ -87,26 +87,26 @@ const ChatHeaderActions: React.FC<Props> = ({ topOffset }) => {
                 <Text style={styles.menuTitle}>Projekt</Text>
 
                 <TouchableOpacity style={styles.menuItem} onPress={handleNewProject}>
-                  <Ionicons name="add-circle-outline" size={18} color={theme.palette.primary} />
+                  <Ionicons name="add-circle-outline" size={18} color={theme.palette.background} />
                   <Text style={styles.menuItemText}>Neues Projekt</Text>
                 </TouchableOpacity>
 
                 <View style={styles.menuDivider} />
 
                 <TouchableOpacity style={styles.menuItem} onPress={handleExportZip}>
-                  <Ionicons name="download-outline" size={18} color={theme.palette.primary} />
+                  <Ionicons name="download-outline" size={18} color={theme.palette.background} />
                   <Text style={styles.menuItemText}>Projekt als ZIP speichern</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.menuItem} onPress={handleImportZip}>
-                  <Ionicons name="cloud-upload-outline" size={18} color={theme.palette.primary} />
+                  <Ionicons name="cloud-upload-outline" size={18} color={theme.palette.background} />
                   <Text style={styles.menuItemText}>Projekt aus ZIP laden</Text>
                 </TouchableOpacity>
 
                 <View style={styles.menuDivider} />
 
                 <TouchableOpacity style={styles.menuItem} onPress={handleClearChat}>
-                  <Ionicons name="chatbubbles-outline" size={18} color={theme.palette.primary} />
+                  <Ionicons name="chatbubbles-outline" size={18} color={theme.palette.background} />
                   <Text style={styles.menuItemText}>Chat leeren</Text>
                 </TouchableOpacity>
               </View>
@@ -127,9 +127,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1.5,
-    borderColor: theme.palette.primary,
-    backgroundColor: theme.palette.card,
+    backgroundColor: theme.palette.primary,
     marginLeft: 8,
     ...(theme.glow.primarySubtle as any),
   },

@@ -116,17 +116,32 @@ for (const wf of candidates) {
   if (r.status !== 404) break;
 }
 
-// If still not ok, bubble the last response.
-const r = lastResp!;
-if (!r.ok) {
-      const txt = await r.text();
-      return errorResponse(
-        "GitHub workflow dispatch failed",
-        req,
-        502,
-        sanitizeGitHubFailure(r, txt),
-      );
-    }
+	// If still not ok, bubble the last response.
+	const r = lastResp!;
+	if (!r.ok) {
+	  const txt = await r.text();
+	  const details = sanitizeGitHubFailure(r, txt);
+
+	  // Don’t mask upstream status codes behind a generic 502.
+	  // The client can then clearly distinguish "workflow not found" (404)
+	  // from auth / permissions (401/403) or validation errors (422).
+	  const status = Math.max(400, Math.min(599, r.status || 502));
+
+	  if (status === 404) {
+	    return errorResponse(
+	      "GitHub workflow dispatch failed (workflow not found)",
+	      req,
+	      404,
+	      {
+	        ...details,
+	        hint:
+	          "Workflow not found in repo. Ensure the workflow file exists under .github/workflows and matches the name you dispatch (e.g. k1w1-diagnostics.yml).",
+	      },
+	    );
+	  }
+
+	  return errorResponse("GitHub workflow dispatch failed", req, status, details);
+	}
 
     return jsonResponse({ ok: true }, req, 200);
   } catch (e) {

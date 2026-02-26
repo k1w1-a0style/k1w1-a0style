@@ -68,11 +68,7 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
             borderless: true,
           }}
         >
-          <Ionicons
-            name="menu"
-            size={24}
-            color={theme.palette.primary}
-          />
+          <Ionicons name="menu" size={24} color={theme.palette.background} />
         </Pressable>
       </View>
 
@@ -98,11 +94,7 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
             borderless: true,
           }}
         >
-          <Ionicons
-            name="eye-outline"
-            size={22}
-            color={theme.palette.primary}
-          />
+          <Ionicons name="eye-outline" size={22} color={theme.palette.background} />
         </Pressable>
 
         <CiLiteHeaderButton />
@@ -139,12 +131,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: theme.borderRadius.full,
-    borderWidth: HAIRLINE,
-    borderColor: `${theme.palette.primary}22`,
-    backgroundColor: theme.palette.cardHover,
+    backgroundColor: theme.palette.primary,
   },
   iconBtnPressed: {
-    backgroundColor: `${theme.palette.primary}12`,
+    backgroundColor: `${theme.palette.primary}cc`,
   },
   title: {
     color: theme.palette.text.primary,
