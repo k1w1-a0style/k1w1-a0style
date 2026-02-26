@@ -14,3 +14,5 @@
 - Patch 278: fix ConnectionsScreen EAS test compile errors (declare state, remove missing toast, remove duplicate return keys)
 
 - patch_280: fix CI Lite header palette key (danger -> error) + cleanup accidental root file note
+
+- Patch 282: add app blueprint docs + enforce branch selection in Build screen (no silent main fallback)

@@ -80,7 +80,7 @@ export function useEnhancedBuildScreen() {
       projectData?.linkedBranch?.trim() ||
       activeBranch?.trim() ||
       fromBuild ||
-      "main"
+      ""
     );
   }, [projectData?.linkedBranch, activeBranch, (currentBuild as any)?.branch]);
   const [buildProfile, setBuildProfile] = useState<BuildProfile>(
@@ -180,11 +180,12 @@ export function useEnhancedBuildScreen() {
 
   const buildBlockedReason = useMemo(() => {
     if (!repoValidation.valid) return "Repo fehlt (im Repo-Screen verknuepfen)";
+    if (!branchName.trim()) return "Branch fehlt (im Repo-Screen auswaehlen)";
     if (!hasTokens) return "Tokens fehlen (GitHub + Expo) – im Verbindungen-Screen setzen";
     if (!hasDiagOk) return "Diagnostik nicht gruen – im Diagnostic-Screen ausfuehren";
     if (!hasSigningKey) return "Signing Key fehlt – im Wizard generieren";
     return null;
-  }, [repoValidation.valid, hasTokens, hasDiagOk, hasSigningKey]);
+  }, [repoValidation.valid, branchName, hasTokens, hasDiagOk, hasSigningKey]);
 
   // Logs nur laden wenn ein aktiver Build läuft oder eine runId existiert
   const shouldLoadLogs =
@@ -500,6 +501,7 @@ export function useEnhancedBuildScreen() {
 
   const checklistItems: CheckItem[] = useMemo(() => {
     const hasRepo = !!repoFullName.trim();
+    const hasBranch = !!branchName.trim();
     return [
       {
         id: "signing_key",
@@ -532,13 +534,19 @@ export function useEnhancedBuildScreen() {
         detail: hasRepo ? repoFullName : "Im Repo-Screen verknuepfen",
       },
       {
+        id: "branch",
+        label: "Branch gewaehlt",
+        status: hasBranch ? "ok" : "fail",
+        detail: hasBranch ? branchName : "Im Repo-Screen auswaehlen",
+      },
+      {
         id: "build_mode",
         label: `Build = ${buildProfile}`,
         status: "ok",
         detail: `Profil: ${buildProfile}`,
       },
     ];
-  }, [hasSigningKey, hasTokens, hasDiagOk, hasCiLiteOk, repoFullName, buildProfile]);
+  }, [hasSigningKey, hasTokens, hasDiagOk, hasCiLiteOk, repoFullName, branchName, buildProfile]);
 
 
   return {
