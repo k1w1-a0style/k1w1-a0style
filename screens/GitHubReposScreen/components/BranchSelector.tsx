@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   ActivityIndicator,
-  StyleSheet,
   ScrollView,
   Animated,
   Easing,
@@ -15,6 +14,8 @@ import { theme } from "../../../theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { GitHubBranch } from "../../../hooks/useGitHubRepos";
+
+import { s } from "./BranchSelector.styles";
 
 interface BranchSelectorProps {
   activeRepo: string | null;
@@ -235,125 +236,3 @@ export const BranchSelector = memo(function BranchSelector({
   );
 });
 
-const s = StyleSheet.create({
-  container: {
-    marginBottom: 12,
-    borderRadius: 14,
-    backgroundColor: theme.palette.card,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    overflow: "hidden",
-  },
-  selector: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    padding: 14,
-  },
-  selectorTextWrap: {
-    flex: 1,
-    gap: 2,
-  },
-  selectorLabel: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: theme.palette.text.muted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  selectorValue: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: theme.palette.primary,
-  },
-  dropdown: {
-    maxHeight: 200,
-    borderTopWidth: 1,
-    borderTopColor: theme.palette.border,
-  },
-  searchWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.palette.border,
-    backgroundColor: theme.palette.card,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 13,
-    color: theme.palette.text.primary,
-    paddingVertical: 4,
-  },
-  clearBtn: {
-    padding: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-  },
-  recentWrap: {
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 6,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.palette.border,
-  },
-  recentTitle: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: theme.palette.text.muted,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  recentRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  recentPill: {
-    maxWidth: "100%",
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    backgroundColor: theme.palette.background,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 999,
-  },
-  recentPillText: {
-    fontSize: 12,
-    color: theme.palette.primary,
-    fontWeight: "700",
-    maxWidth: 220,
-  },
-  dropdownItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.palette.border,
-  },
-  dropdownItemActive: {
-    backgroundColor: "rgba(0,255,0,0.06)",
-  },
-  dropdownText: {
-    fontSize: 13,
-    color: theme.palette.text.primary,
-    fontWeight: "600",
-    flex: 1,
-  },
-  dropdownTextActive: {
-    color: theme.palette.primary,
-    fontWeight: "800",
-  },
-  empty: {
-    padding: 14,
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-    textAlign: "center",
-  },
-});

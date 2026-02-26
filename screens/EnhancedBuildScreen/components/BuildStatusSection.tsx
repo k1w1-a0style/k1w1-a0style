@@ -1,7 +1,7 @@
 import React from "react";
 import {
   ActivityIndicator,
-  StyleSheet,
+
   Text,
   TouchableOpacity,
   View,
@@ -13,6 +13,8 @@ import { BuildTimelineCard } from "../../../components/build/BuildTimelineCard";
 import { theme } from "../../../theme";
 import type { BuildStatus } from "../../../shared/types/build";
 import type { CurrentBuildLike } from "../types";
+
+import { s } from "./BuildStatusSection.styles";
 
 export function BuildStatusSection({
   statusEmoji,
@@ -147,115 +149,3 @@ export function BuildStatusSection({
   );
 }
 
-const s = StyleSheet.create({
-  card: {
-    marginTop: 14,
-    marginHorizontal: 16,
-    backgroundColor: theme.palette.card,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    borderRadius: 16,
-    padding: 16,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 14,
-  },
-  title: {
-    color: theme.palette.text.primary,
-    fontWeight: "900",
-    fontSize: 15,
-  },
-  statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 14,
-    padding: 12,
-    backgroundColor: theme.palette.background,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-  },
-  statusTextWrap: { flex: 1 },
-  statusLabel: {
-    color: theme.palette.text.primary,
-    fontWeight: "800",
-    fontSize: 14,
-  },
-  statusMsg: {
-    color: theme.palette.text.secondary,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  eta: {
-    color: theme.palette.warning,
-    fontSize: 12,
-    fontWeight: "700",
-    marginTop: 4,
-  },
-  actions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 12,
-  },
-  outlineBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: theme.palette.border,
-    backgroundColor: "transparent",
-  },
-  outlineBtnText: {
-    color: theme.palette.text.primary,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  greenOutlineBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: theme.palette.primary,
-    backgroundColor: "transparent",
-  },
-  greenOutlineBtnText: {
-    color: theme.palette.primary,
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  blockReason: {
-    marginTop: 10,
-    color: theme.palette.text.secondary,
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  startBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginTop: 14,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: theme.palette.primary,
-    backgroundColor: "transparent",
-  },
-  startBtnText: {
-    color: theme.palette.primary,
-    fontSize: 15,
-    fontWeight: "900",
-  },
-  disabled: { opacity: 0.4 },
-});

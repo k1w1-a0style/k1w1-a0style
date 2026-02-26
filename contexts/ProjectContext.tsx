@@ -81,7 +81,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   // Centralized polling (single source of truth)
   const activeJobId = currentBuild?.jobId ?? null;
   const buildPoll = useBuildStatus(activeJobId, {
-    onMaxErrors: (lastError) => {
+    onMaxErrors: (lastError: unknown) => {
       setCurrentBuild((prev) => {
         const base: CurrentBuildState = prev ?? { status: "error" };
         return {

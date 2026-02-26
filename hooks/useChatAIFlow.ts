@@ -1,3 +1,6 @@
+// hooks/useChatAIFlow.ts
+// REFACTORED: types + helpers → chatAIFlowTypes.ts
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, ToastAndroid } from "react-native";
 import { v4 as uuidv4 } from "uuid";
@@ -7,73 +10,19 @@ import type { ApplyFilesResult } from "../lib/fileWriter";
 import type { ChatMessage } from "../shared/types/chat";
 import type { ProjectFile } from "../shared/types/project";
 
-function extractRawOrchestratorResult(res: any): unknown {
-  if (res?.files && Array.isArray(res.files)) return res.files;
-  if (res?.text) return res.text;
-  return res?.raw;
-}
 
+import { extractRawOrchestratorResult, MAX_AUTOFIX_QUEUE } from "./chatAIFlowTypes";
+import type { ExtendedOrchestratorResult, UseChatAIFlowArgs, PendingChange, PendingPlan } from "./chatAIFlowTypes";
 
 import { runOrchestrator } from "../lib/orchestrator";
 import { normalizeAiResponse } from "../lib/normalizer";
 import { logger } from "../lib/logger";
 import { applyFilesToProject } from "../lib/fileWriter";
-import {
-  buildBuilderMessages,
-  buildPlannerMessages,
-  buildValidatorMessages,
-} from "../lib/promptEngine";
-import {
-  looksLikeExplicitFileTask,
-  looksLikeAdviceRequest,
-  looksAmbiguousBuilderRequest,
-  buildChangeDigest,
-  buildExplainMessages,
-} from "../utils/chatHeuristics";
+import { buildBuilderMessages, buildPlannerMessages, buildValidatorMessages } from "../lib/promptEngine";
+import { looksLikeExplicitFileTask, looksLikeAdviceRequest, looksAmbiguousBuilderRequest, buildChangeDigest, buildExplainMessages } from "../utils/chatHeuristics";
 import { handleMetaCommand } from "../utils/metaCommands";
 
-export type PendingChange = {
-  files: ProjectFile[];
-  summary: string;
-  created: string[];
-  updated: string[];
-  skipped: string[];
-  aiResponse: OrchestratorResult;
-  agentResponse?: OrchestratorResult;
-};
-
-export type PendingPlan = {
-  originalRequest: string;
-  planText: string;
-  mode: "advice" | "build";
-};
-
-/** Extended orchestrator result that may include file arrays or raw data */
-type ExtendedOrchestratorResult = OrchestratorResult & {
-  files?: unknown[];
-  raw?: unknown;
-};
-
-/** Max queued AutoFix requests to prevent infinite loops */
-const MAX_AUTOFIX_QUEUE = 5;
-
-type UseChatAIFlowArgs = {
-  config: AIConfig;
-  messages: ChatMessage[];
-  projectFiles: ProjectFile[];
-  addChatMessage: (m: ChatMessage) => void;
-  updateProjectFiles: (files: ProjectFile[]) => Promise<void>;
-  autoFixRequest: { message: string } | null;
-  clearAutoFixRequest: () => void;
-
-  hardScrollToBottom: (animated: boolean) => void;
-
-  setIsStreaming: (v: boolean) => void;
-  setStreamingMessage: React.Dispatch<React.SetStateAction<string>>;
-  setIsAiLoading: (v: boolean) => void;
-  setError: (v: string | null) => void;
-  setShowConfirmModal: (v: boolean) => void;
-};
+export type { PendingChange, PendingPlan } from "./chatAIFlowTypes";
 
 export function useChatAIFlow({
   config,
@@ -411,7 +360,7 @@ export function useChatAIFlow({
           try {
             const validatorMsgs = buildValidatorMessages(
               userContent,
-              normalized.map((f) => ({ path: f.path, content: f.content })),
+              normalized.map((f: any) => ({ path: f.path, content: f.content })),
               currentProjectFiles,
             );
 
@@ -489,7 +438,7 @@ export function useChatAIFlow({
           (mergeResult.created.length
             ? mergeResult.created
                 .slice(0, 6)
-                .map((f) => `  • ${f}`)
+                .map((f: string) => `  • `)
                 .join("\n") +
               (mergeResult.created.length > 6
                 ? `\n  ... und ${mergeResult.created.length - 6} weitere`
@@ -500,7 +449,7 @@ export function useChatAIFlow({
           (mergeResult.updated.length
             ? mergeResult.updated
                 .slice(0, 6)
-                .map((f) => `  • ${f}`)
+                .map((f: string) => `  • `)
                 .join("\n") +
               (mergeResult.updated.length > 6
                 ? `\n  ... und ${mergeResult.updated.length - 6} weitere`
@@ -511,7 +460,7 @@ export function useChatAIFlow({
               (mergeResult.skipped.length
                 ? mergeResult.skipped
                     .slice(0, 3)
-                    .map((f) => `  • ${f}`)
+                    .map((f: string) => `  • `)
                     .join("\n") +
                   (mergeResult.skipped.length > 3
                     ? `\n  ... und ${mergeResult.skipped.length - 3} weitere`
@@ -612,15 +561,15 @@ export function useChatAIFlow({
       const lines: string[] = [];
       if (created.length) {
         lines.push("🆕 Neue Dateien:");
-        created.forEach((p) => lines.push(`  • ${p}`));
+        created.forEach((p: string) => lines.push(`  • ${p}`));
       }
       if (updated.length) {
         lines.push("✏️ Geänderte Dateien:");
-        updated.forEach((p) => lines.push(`  • ${p}`));
+        updated.forEach((p: string) => lines.push(`  • ${p}`));
       }
       if (skipped.length) {
         lines.push("⏭️ Übersprungene Dateien:");
-        skipped.forEach((p) => lines.push(`  • ${p}`));
+        skipped.forEach((p: string) => lines.push(`  • ${p}`));
       }
 
       const filesBlock = lines.length
@@ -754,4 +703,6 @@ export function useChatAIFlow({
       setAtBottom,
     ],
   );
+
 }
+

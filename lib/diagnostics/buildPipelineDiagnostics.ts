@@ -1,3 +1,6 @@
+// lib/diagnostics/buildPipelineDiagnostics.ts
+// REFACTORED: types/helpers → diagnosticTypes.ts, remote → remoteDiagnostics.ts
+
 import {
   getEdgeAdminKey,
   getExpoToken,
@@ -9,53 +12,11 @@ import {
 import { ensureSupabaseClient } from "../supabase";
 import type { PreflightPatch } from "./preflightTypes";
 
-export type DiagnosticStatus = "pass" | "warn" | "fail" | "info";
-
-export type DiagnosticFix = { label?: string; patch: PreflightPatch };
-
-export type DiagnosticCheck = {
-  id: string;
-  title: string;
-  status: DiagnosticStatus;
-  details?: string;
-  fixHint?: string;
-  fix?: DiagnosticFix;
-};
-
-const safeTrim = (v: string | null | undefined) => (v ?? "").trim();
-
-const isUuid = (value: string): boolean =>
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-    safeTrim(value),
-  );
-
-const fileExists = async (
-  owner: string,
-  repo: string,
-  path: string,
-  ref: string,
-) => {
-  try {
-    await getRepoFileText({ owner, repo, path, ref });
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const readJsonFile = async <T>(
-  owner: string,
-  repo: string,
-  path: string,
-  ref: string,
-): Promise<T | null> => {
-  try {
-    const text = await getRepoFileText({ owner, repo, path, ref });
-    return JSON.parse(text) as T;
-  } catch {
-    return null;
-  }
-};
+import { safeTrim, isUuid, fileExists, readJsonFile } from "./diagnosticTypes";
+import type { DiagnosticCheck } from "./diagnosticTypes";
+export type { DiagnosticStatus, DiagnosticFix, DiagnosticCheck } from "./diagnosticTypes";
+export { triggerRemoteDiagnostics, fetchLatestRemoteDiagnosticsReport } from "./remoteDiagnostics";
+export type { RemoteDiagnosticsReport } from "./remoteDiagnostics";
 
 export const runBuildPipelineDiagnostics = async (params: {
   owner: string;
@@ -592,54 +553,3 @@ export const runBuildPipelineDiagnostics = async (params: {
   return { ref, checks };
 };
 
-export const triggerRemoteDiagnostics = async (params: {
-  owner: string;
-  repo: string;
-  branch?: string | null;
-}) => {
-  const ref = safeTrim(params.branch) || "main";
-  await triggerWorkflow(
-    params.owner,
-    params.repo,
-    "k1w1-diagnostics.yml",
-    ref,
-    {
-      branch: ref,
-    },
-  );
-  return { ref };
-};
-
-export type RemoteDiagnosticsReport = {
-  id: number;
-  github_repo: string;
-  branch: string | null;
-  status: "pass" | "fail";
-  project_id: string | null;
-  workflow_run_id: string | null;
-  commit_sha: string | null;
-  errors: Array<{ code: string; message: string }>;
-  created_at: string;
-};
-
-export const fetchLatestRemoteDiagnosticsReport = async (params: {
-  githubRepo: string; // "owner/repo"
-  branch?: string | null;
-}) => {
-  const ref = safeTrim(params.branch) || "main";
-  const supabase = await ensureSupabaseClient();
-
-  const { data, error } = await supabase
-    .from("diagnostics_reports")
-    .select(
-      "id,github_repo,branch,status,project_id,workflow_run_id,commit_sha,errors,created_at",
-    )
-    .eq("github_repo", params.githubRepo)
-    .eq("branch", ref)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
-  return data as RemoteDiagnosticsReport | null;
-};

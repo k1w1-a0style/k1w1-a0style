@@ -1,0 +1,140 @@
+// supabase/functions/preview_page/helpers.ts
+// Extracted from preview_page/index.ts: utility functions.
+
+// supabase/functions/preview_page/index.ts
+// Serves a preview page for a previously "saved preview" (by secret).
+// NOTE: Preview runs in a sandbox. Do NOT put secrets/service keys into preview files.
+
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { rateLimit } from "../_shared/auth.ts";
+// NOTE: Supabase Edge (Deno) bundler requires explicit file extensions for local imports.
+import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
+
+
+export type SnackFiles = Record<string, { type?: string; contents: string }>;
+
+export type PreviewRecord = {
+  name: string;
+  secret: string;
+  created_at: string;
+  expires_at: string;
+  project_id?: string | null;
+  files: SnackFiles;
+  dependencies: Record<string, string> | null;
+  meta: Record<string, unknown> | null;
+};
+
+export const TABLE = "previews";
+
+// Limits
+export const MAX_FILES_BYTES = 1_500_000; // 1.5MB (aligned with save_preview)
+export const MAX_RESPONSE_BYTES = 5_000_000; // 5MB safety for generated HTML
+
+// Rate limiting (best-effort, in-memory; resets on cold start)
+export function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
+}
+
+export function escapeHtml(s: string) {
+  return s
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+export function safeJsonForScript(obj: unknown): string {
+  // Prevent </script> breakouts and other HTML/script parsing edge-cases when embedding JSON into <script>.
+  // This keeps the JSON valid while replacing characters that have special meaning in HTML parsing contexts.
+  return JSON.stringify(obj)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
+export function getSupabaseBaseUrl(): string {
+  // Keep consistent with your save_preview function (uses PREVIEW_SUPABASE_URL)
+  return Deno.env.get("PREVIEW_SUPABASE_URL") ?? "";
+}
+
+export function supabaseHeaders(): Record<string, string> {
+  // Keep consistent with your save_preview function (uses PREVIEW_SERVICE_ROLE_KEY)
+  const key = Deno.env.get("PREVIEW_SERVICE_ROLE_KEY") ?? "";
+  if (!key) throw new Error("Missing PREVIEW_SERVICE_ROLE_KEY");
+
+  return {
+    apikey: key,
+    authorization: `Bearer ${key}`,
+    "content-type": "application/json",
+  };
+}
+
+export function withTimeout(ms: number) {
+  const ac = new AbortController();
+  const id = setTimeout(() => ac.abort(), ms);
+  return { signal: ac.signal, cancel: () => clearTimeout(id) };
+}
+
+export function utf8Size(s: string): number {
+  return new TextEncoder().encode(s).length;
+}
+
+export function approxFilesPayloadSize(files: SnackFiles): number {
+  try {
+    return utf8Size(JSON.stringify(files));
+  } catch {
+    return Number.MAX_SAFE_INTEGER;
+  }
+}
+
+export function randomNonce(len = 16): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(len));
+  return btoa(String.fromCharCode(...bytes)).replace(/=+$/g, "");
+}
+
+export function buildCsp(nonce: string): string {
+  // Optional strict CSP test mode (disables eval; some sandpack/babel setups need eval)
+  const strict =
+    (Deno.env.get("TEST_STRICT_CSP") ?? "").toLowerCase() === "true";
+  const evalPart = strict ? "" : " 'unsafe-eval'";
+
+  return [
+    "default-src 'self' data: blob:",
+    "img-src 'self' https: data: blob:",
+    "media-src 'self' https: data: blob:",
+    "font-src 'self' https: data: blob:",
+    "style-src 'self' 'unsafe-inline' https: data: blob:",
+    `script-src 'self' 'nonce-${nonce}'${evalPart} https://esm.sh`,
+    "connect-src 'self' https: wss: data: blob:",
+    "frame-src 'self' https: data: blob:",
+    "base-uri 'self'",
+    "frame-ancestors 'none'",
+  ].join("; ");
+}
+
+export function html(body: string, nonce: string, status = 200) {
+  return new Response(body, {
+    status,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+      "X-Content-Type-Options": "nosniff",
+
+      // Supabase can inject a very strict CSP (default-src 'none'; sandbox),
+      // which breaks Sandpack/WebViews (white screen). Override it here.
+      "Content-Security-Policy": buildCsp(nonce),
+      "Referrer-Policy": "no-referrer",
+    },
+  });
+}
+

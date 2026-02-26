@@ -56,7 +56,7 @@ describe('FileWriter', () => {
 
         expect(result.updated).toContain('components/Button.tsx');
         expect(result.created).toHaveLength(0);
-        expect(result.files.find((f) => f.path === 'components/Button.tsx')?.content).toBe('new content');
+        expect(result.files.find((f: any) => f.path === 'components/Button.tsx')?.content).toBe('new content');
       });
 
       it('sollte unveränderte Dateien überspringen', () => {
@@ -91,7 +91,7 @@ describe('FileWriter', () => {
 
           expect(result.skipped).toContain(protectedFile);
           expect(result.updated).not.toContain(protectedFile);
-          expect(result.files.find((f) => f.path === protectedFile)?.content).toBe('original');
+          expect(result.files.find((f: any) => f.path === protectedFile)?.content).toBe('original');
         });
       });
     });
@@ -185,9 +185,9 @@ describe('FileWriter', () => {
         const result = applyFilesToProject(existing, incoming);
 
         expect(result.files).toHaveLength(3);
-        expect(result.files.find((f) => f.path === 'components/existing1.tsx')).toBeDefined();
-        expect(result.files.find((f) => f.path === 'components/existing2.tsx')).toBeDefined();
-        expect(result.files.find((f) => f.path === 'components/new.tsx')).toBeDefined();
+        expect(result.files.find((f: any) => f.path === 'components/existing1.tsx')).toBeDefined();
+        expect(result.files.find((f: any) => f.path === 'components/existing2.tsx')).toBeDefined();
+        expect(result.files.find((f: any) => f.path === 'components/new.tsx')).toBeDefined();
       });
 
       it('sollte gemischte Create/Update/Skip korrekt verarbeiten', () => {

@@ -1,3 +1,6 @@
+// hooks/useGitHubRepos.ts
+// REFACTORED: types → gitHubReposTypes.ts
+
 // hooks/useGitHubRepos.ts - Custom hook for GitHub repository management
 import { useState, useCallback } from "react";
 import { Buffer } from "buffer";
@@ -14,35 +17,10 @@ import {
   WorkflowRun,
 } from "../infra/github/githubService";
 
+import { encodePathSegments } from "./gitHubReposTypes";
+import type { GitHubRepo, UseGitHubReposCallbacks } from "./gitHubReposTypes";
+export type { GitHubRepo, UseGitHubReposCallbacks } from "./gitHubReposTypes";
 export type { GitHubBranch, WorkflowRun };
-
-export type GitHubRepo = {
-  id: number;
-  name: string;
-  full_name: string;
-  private: boolean;
-  description?: string | null;
-  updated_at: string;
-};
-
-// ============================================
-// CALLBACK TYPES
-// ============================================
-export interface UseGitHubReposCallbacks {
-  onLoadError?: (error: string) => void;
-  onDeleteError?: (error: string, repo: GitHubRepo) => void;
-  onDeleteNoPermission?: (repo: GitHubRepo) => void;
-  onRenameError?: (error: string, currentName: string, newName: string) => void;
-  onPullError?: (error: string) => void;
-  onPullNoFiles?: () => void;
-  onNoToken?: () => void;
-}
-
-const encodePathSegments = (path: string) =>
-  path
-    .split("/")
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
 
 export const useGitHubRepos = (
   token: string | null,

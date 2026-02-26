@@ -1,3 +1,6 @@
+// screens/ChatScreen/hooks/useChatScreen.ts
+// REFACTORED: types/constants → chatScreenTypes.ts
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -21,16 +24,9 @@ import { useAI } from "../../../contexts/AIContext";
 import { useKeyboardHeight } from "../../../hooks/useKeyboardHeight";
 import { useChatAIFlow } from "../../../hooks/useChatAIFlow";
 
-type DocumentResultAsset = NonNullable<
-  import("expo-document-picker").DocumentPickerResult["assets"]
->[0];
 
-const INPUT_BAR_MIN_H = 56;
-
-// Composer 1–2px näher an die Tastatur (wenn offen)
-const KEYBOARD_NUDGE = 2;
-
-const FOOTER_LIFT_WHEN_BUSY = 72;
+import { INPUT_BAR_MIN_H, KEYBOARD_NUDGE, FOOTER_LIFT_WHEN_BUSY } from "./chatScreenTypes";
+import type { DocumentResultAsset } from "./chatScreenTypes";
 
 export const useChatScreen = () => {
   const navigation = useNavigation<any>();

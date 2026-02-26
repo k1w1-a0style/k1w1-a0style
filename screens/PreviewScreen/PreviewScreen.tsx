@@ -6,7 +6,6 @@ import {
   ActivityIndicator,
   Animated,
   Pressable,
-  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -15,6 +14,8 @@ import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme';
 import { usePreviewScreen } from './hooks/usePreviewScreen';
+
+import { s } from "./PreviewScreen.styles";
 
 export default function PreviewScreen() {
   const webViewRef = useRef<WebView>(null);
@@ -234,124 +235,3 @@ export default function PreviewScreen() {
   );
 }
 
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.palette.background },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 },
-  loadingText: { color: theme.palette.text.secondary, fontWeight: '700', fontSize: 14 },
-  emptyTitle: { color: theme.palette.text.primary, fontSize: 18, fontWeight: '900' },
-  emptyText: { color: theme.palette.text.secondary, fontSize: 14, textAlign: 'center' },
-  toolbar: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: theme.palette.border,
-    backgroundColor: theme.palette.card,
-  },
-  toolbarLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  toolbarTitle: { flex: 1, minWidth: 0 },
-  title: { color: theme.palette.text.primary, fontSize: 18, fontWeight: '900' },
-  subtitle: { color: theme.palette.text.secondary, fontSize: 12 },
-  toolbarActions: { flexDirection: 'row', gap: 6, alignItems: 'center' },
-  toolBtn: {
-    width: 36, height: 36, borderRadius: 10, borderWidth: 1,
-    borderColor: theme.palette.border, backgroundColor: theme.palette.background,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  hotReloadBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 10, paddingVertical: 7,
-    borderRadius: 10, borderWidth: 1,
-    borderColor: theme.palette.border, backgroundColor: theme.palette.background,
-  },
-  hotReloadBtnOn: { borderColor: theme.palette.primary, backgroundColor: 'rgba(0,255,0,0.06)' },
-  hotDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.palette.text.disabled },
-  hotDotOn: {
-    backgroundColor: theme.palette.primary,
-    shadowColor: theme.palette.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8, shadowRadius: 4,
-  },
-  hotReloadLabel: { fontSize: 11, fontWeight: '900', color: theme.palette.text.muted, letterSpacing: 0.3 },
-  hotReloadLabelOn: { color: theme.palette.primary },
-  statusBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 14, paddingVertical: 8,
-    backgroundColor: theme.palette.backgroundDark,
-    borderBottomWidth: 1, borderBottomColor: theme.palette.border,
-  },
-  statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.palette.text.disabled },
-  statusDotOk: {
-    backgroundColor: theme.palette.success,
-    shadowColor: theme.palette.success,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6, shadowRadius: 4,
-  },
-  statusDotError: { backgroundColor: theme.palette.error },
-  statusDotLoading: { backgroundColor: theme.palette.warning },
-  statusText: { flex: 1, color: theme.palette.text.secondary, fontSize: 12, fontWeight: '700' },
-  hotBadge: {
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1,
-    borderColor: 'rgba(0,255,0,0.2)', backgroundColor: 'rgba(0,255,0,0.06)',
-  },
-  hotBadgeText: { color: theme.palette.primary, fontSize: 10, fontWeight: '800' },
-  previewArea: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    padding: 16, backgroundColor: theme.palette.backgroundDark,
-  },
-  deviceFrame: {
-    flex: 1, width: '100%', maxWidth: 400,
-    backgroundColor: '#111', borderRadius: 24, borderWidth: 2,
-    borderColor: theme.palette.border, overflow: 'hidden',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 12, elevation: 8,
-  },
-  deviceNotch: {
-    height: 6, backgroundColor: '#0a0a0a',
-    borderBottomLeftRadius: 8, borderBottomRightRadius: 8,
-    marginHorizontal: '30%', marginBottom: 2,
-  },
-  deviceBottom: {
-    height: 4, backgroundColor: '#0a0a0a',
-    borderTopLeftRadius: 8, borderTopRightRadius: 8,
-    marginHorizontal: '40%', marginTop: 2,
-  },
-  webViewWrap: { flex: 1 },
-  webView: { flex: 1, backgroundColor: '#fff' },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    alignItems: 'center', justifyContent: 'center', gap: 12,
-  },
-  loadingOverlayText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  emptyPreview: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
-  emptyPreviewText: { color: theme.palette.text.muted, fontSize: 14, fontWeight: '700' },
-  createBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 20, paddingVertical: 12,
-    borderRadius: 12, borderWidth: 1.5, borderColor: theme.palette.primary,
-  },
-  createBtnText: { color: theme.palette.primary, fontSize: 14, fontWeight: '800' },
-  errorBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 14, paddingVertical: 10,
-    backgroundColor: 'rgba(255,68,68,0.08)',
-    borderTopWidth: 1, borderTopColor: theme.palette.error,
-  },
-  errorText: { flex: 1, color: theme.palette.error, fontSize: 12, fontWeight: '600' },
-  errorRetryBtn: {
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 8, borderWidth: 1, borderColor: theme.palette.error,
-  },
-  errorRetryText: { color: theme.palette.error, fontSize: 12, fontWeight: '800' },
-  bottomBar: {
-    flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingVertical: 10,
-    borderTopWidth: 1, borderTopColor: theme.palette.border,
-    backgroundColor: theme.palette.card,
-  },
-  bottomBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1,
-    borderColor: theme.palette.border, backgroundColor: 'transparent',
-  },
-  bottomBtnText: { color: theme.palette.primary, fontSize: 13, fontWeight: '800' },
-  disabled: { opacity: 0.5 },
-});

@@ -4,7 +4,7 @@ import {
   Modal,
   Pressable,
   ScrollView,
-  StyleSheet,
+
   Text,
   TouchableOpacity,
   View,
@@ -13,6 +13,8 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../../theme";
 import { Severity, SeverityBadge } from "./SeverityBadge";
+
+import { styles } from "./IssueDetailSheet.styles";
 
 export type IssueDetail = {
   title: string;
@@ -139,129 +141,3 @@ export function IssueDetailSheet({
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  backdropShade: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.55)",
-  },
-  sheet: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: theme.palette.card,
-    borderTopLeftRadius: theme.borderRadius.xl,
-    borderTopRightRadius: theme.borderRadius.xl,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.palette.border,
-    padding: theme.spacing.md,
-  },
-  grab: {
-    alignSelf: "center",
-    width: 44,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: theme.palette.border,
-    marginBottom: theme.spacing.sm,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.palette.backgroundDark,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.palette.border,
-  },
-  title: {
-    marginTop: theme.spacing.sm,
-    color: theme.palette.text.primary,
-    fontSize: 18,
-    fontWeight: "900",
-    letterSpacing: 0.2,
-  },
-  message: {
-    marginTop: theme.spacing.sm,
-    color: theme.palette.text.secondary,
-    lineHeight: 20,
-  },
-  detailsBox: {
-    marginTop: theme.spacing.md,
-    padding: theme.spacing.md,
-    borderRadius: theme.borderRadius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.palette.border,
-    backgroundColor: theme.palette.backgroundDark,
-  },
-  detailsTitle: {
-    color: theme.palette.text.primary,
-    fontWeight: "900",
-    marginBottom: theme.spacing.sm,
-  },
-  detailLine: {
-    color: theme.palette.text.secondary,
-    lineHeight: 18,
-  },
-  actions: {
-    marginTop: theme.spacing.sm,
-    flexDirection: "row",
-    gap: theme.spacing.sm,
-  },
-  primaryBtn: {
-    flex: 1,
-    flexDirection: "row",
-    gap: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    borderRadius: theme.borderRadius.lg,
-    backgroundColor: theme.palette.primaryDark,
-  },
-  primaryText: {
-    color: theme.palette.text.primary,
-    fontWeight: "900",
-    fontSize: 14,
-  },
-  secondaryBtn: {
-    width: 120,
-    flexDirection: "row",
-    gap: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    borderRadius: theme.borderRadius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.palette.border,
-    backgroundColor: theme.palette.backgroundDark,
-  },
-  secondaryText: {
-    color: theme.palette.text.primary,
-    fontWeight: "900",
-    fontSize: 14,
-  },
-  noFixRow: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: theme.borderRadius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.palette.border,
-    backgroundColor: theme.palette.backgroundDark,
-  },
-  noFixText: {
-    color: theme.palette.text.secondary,
-    fontWeight: "800",
-  },
-});

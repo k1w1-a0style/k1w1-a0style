@@ -1,3 +1,6 @@
+// hooks/useBuildStatus.ts
+// REFACTORED: types → buildStatusTypes.ts
+
 // hooks/useBuildStatus.ts - OPTIMIZED VERSION
 // ✅ Timeout bei Netzwerkfehlern
 // ✅ Error-Counter stoppt Polling nach 5 Fehlern (mit useRef statt State)
@@ -16,23 +19,10 @@ import {
 
 import { logger } from "../lib/logger";
 
-const POLL_INTERVAL_MS = 6000; // 6 Sekunden
-const MAX_ERRORS = 5; // Nach 5 Fehlern stoppen
-const REQUEST_TIMEOUT_MS = 10000; // 10 Sekunden Timeout pro Request
+import { POLL_INTERVAL_MS, MAX_ERRORS, REQUEST_TIMEOUT_MS } from "./buildStatusTypes";
+import type { UseBuildStatusCallbacks } from "./buildStatusTypes";
+export type { UseBuildStatusCallbacks } from "./buildStatusTypes";
 
-// ============================================
-// CALLBACK TYPES
-// ============================================
-export interface UseBuildStatusCallbacks {
-  onSuccess?: (details: BuildStatusDetails) => void;
-  onFailed?: (details: BuildStatusDetails) => void;
-  onError?: (error: string, errorCount: number) => void;
-  onMaxErrors?: (lastError: string, maxErrors: number) => void;
-}
-
-// ============================================
-// HOOK
-// ============================================
 export function useBuildStatus(
   jobIdFromScreen?: string | null,
   callbacks?: UseBuildStatusCallbacks,

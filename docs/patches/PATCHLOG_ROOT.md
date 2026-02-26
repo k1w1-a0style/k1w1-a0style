@@ -16,3 +16,9 @@
 - patch_280: fix CI Lite header palette key (danger -> error) + cleanup accidental root file note
 
 - Patch 282: add app blueprint docs + enforce branch selection in Build screen (no silent main fallback)
+- Patch 283: apply full refactoring bundle + fix FileActionsModal theme import (see docs/patches/patch_283.md)
+- Patch 284: hotfix truncated refactor files + restore helper re-exports (see docs/patches/patch_284.md)
+- Patch 285: fix WorkflowRunDetailModal imports + remove invalid MessageItem.styles default export (see docs/patches/patch_285.md)
+- Patch 286: TS typecheck recovery + missing exports/imports (see docs/patches/patch_286.md)
+- Patch 287: fix syntax regressions (MessageItem, terminal helpers, usePreview) (see docs/patches/patch_287.md)
+- Patch 288: fix remaining TS/export issues + diagnostic runner duplication (see docs/patches/patch_288.md)

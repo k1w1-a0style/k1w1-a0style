@@ -1,3 +1,6 @@
+// screens/TerminalScreen/hooks/useTerminalScreen.ts
+// REFACTORED: constants → terminalHelpers.ts
+
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Alert, Animated, FlatList } from "react-native";
 import { useNavigation } from "@react-navigation/native";
@@ -12,25 +15,12 @@ import type { Filter } from "../types";
 import { getLogLabel } from "../utils/logPresentation";
 import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction";
 
-const MAX_CLIPBOARD_LOGS = 500;
-const MAX_EXPORT_LOGS = 2000;
-const MAX_AI_LOGS = 250;
-
-// hard caps for perf / share limits
-const MAX_CLIPBOARD_CHARS = 100_000;
-const MAX_EXPORT_CHARS = 200_000;
-const MAX_AI_CHARS = 15_000;
-
-function safeDir(dir: string | null | undefined): string {
-  // expo-file-system returns null in some envs; fall back to cache.
-  return dir ?? FileSystem.cacheDirectory ?? "";
-}
-
-type ToTextOptions = {
-  maxLogs?: number;
-  maxChars?: number;
-  redact?: boolean;
-};
+import {
+  MAX_CLIPBOARD_LOGS, MAX_EXPORT_LOGS, MAX_AI_LOGS,
+  MAX_CLIPBOARD_CHARS, MAX_EXPORT_CHARS, MAX_AI_CHARS,
+  safeDir,
+} from "./terminalHelpers";
+import type { ToTextOptions } from "./terminalHelpers";
 
 export function useTerminalScreen() {
   const navigation = useNavigation();

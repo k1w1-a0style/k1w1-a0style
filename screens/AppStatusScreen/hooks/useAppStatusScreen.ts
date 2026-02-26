@@ -1,3 +1,6 @@
+// screens/AppStatusScreen/hooks/useAppStatusScreen.ts
+// REFACTORED: helpers → appStatusHelpers.ts
+
 import { useCallback, useMemo, useState } from 'react';
 import { Alert } from 'react-native';
 
@@ -12,157 +15,15 @@ import type {
   ValidationIssue,
 } from '../types';
 
-type PackageJson = {
-  name?: string;
-  version?: string;
-  main?: string;
-  dependencies?: Record<string, string>;
-  devDependencies?: Record<string, string>;
-};
 
-type ExpoConfigJson = {
-  name?: string;
-  owner?: string;
-  android?: {
-    package?: string;
-  };
-};
+import {
+  readText, safeJsonParse, countLinesSafe, extractWithRegex,
+  parseExpoConfig, resolveEntryPoint,
+  MAX_DEP_ITEMS, MAX_DIRS, MAX_FILES_PER_DIR,
+} from "./appStatusHelpers";
+import type { PackageJson, DerivedState } from "./appStatusHelpers";
+export { parseExpoConfig, resolveEntryPoint } from "./appStatusHelpers";
 
-type ExpoConfigParseResult = {
-  config: ExpoConfigJson | null;
-  source: 'app.json' | 'app.config.js' | 'app.config.ts' | null;
-  error?: string;
-};
-
-function readText(file: ProjectFile | undefined): string {
-  return String(file?.content ?? '');
-}
-
-function safeJsonParse<T>(text: string): { ok: true; value: T } | { ok: false; error: string } {
-  try {
-    return { ok: true, value: JSON.parse(text) as T };
-  } catch {
-    return { ok: false, error: 'JSON Parse Error' };
-  }
-}
-
-function countLinesSafe(content: string, maxChars = 200_000): number {
-  if (!content) return 0;
-  const slice = content.length > maxChars ? content.slice(0, maxChars) : content;
-  // Count '\n' without allocating split arrays.
-  let lines = 1;
-  for (let i = 0; i < slice.length; i++) {
-    if (slice.charCodeAt(i) === 10) lines++;
-  }
-  // If truncated, signal approximation by adding a small constant (avoid lying too hard).
-  if (slice.length !== content.length) lines += 1;
-  return lines;
-}
-
-function extractWithRegex(content: string): ExpoConfigJson {
-  const nameMatch = content.match(/name:\s*["']([^"']+)["']/);
-  const ownerMatch = content.match(/owner:\s*["']([^"']+)["']/);
-
-  // Supports both:
-  //   android: { package: "..." }
-  // and legacy/simpler:
-  //   package: "..."
-  const packageMatch = content.match(
-    /android\s*:\s*\{[\s\S]*?package\s*:\s*["']([^"']+)["']|package\s*:\s*["']([^"']+)["']/
-  );
-
-  return {
-    name: nameMatch?.[1],
-    owner: ownerMatch?.[1],
-    android: {
-      package: packageMatch?.[1] || packageMatch?.[2],
-    },
-  };
-}
-
-export function parseExpoConfig(files: ProjectFile[]): ExpoConfigParseResult {
-  // Priority: app.json (common & easy) -> app.config.ts -> app.config.js
-  const appJson = files.find(f => f.path === 'app.json');
-  if (appJson) {
-    const parsed = safeJsonParse<any>(readText(appJson));
-    if (!parsed.ok) {
-      return { config: null, source: 'app.json', error: parsed.error };
-    }
-    const expo = parsed.value?.expo ?? parsed.value;
-    const config: ExpoConfigJson = {
-      name: expo?.name,
-      owner: expo?.owner,
-      android: { package: expo?.android?.package },
-    };
-    return { config, source: 'app.json' };
-  }
-
-  const appConfigTs = files.find(f => f.path === 'app.config.ts');
-  if (appConfigTs) {
-    return { config: extractWithRegex(readText(appConfigTs)), source: 'app.config.ts' };
-  }
-
-  const appConfigJs = files.find(f => f.path === 'app.config.js');
-  if (appConfigJs) {
-    return { config: extractWithRegex(readText(appConfigJs)), source: 'app.config.js' };
-  }
-
-  return { config: null, source: null };
-}
-
-type EntryPointCheck = {
-  entryLabel: string;
-  ok: boolean;
-  missingPath?: string;
-};
-
-export function resolveEntryPoint(files: ProjectFile[], pkg: PackageJson | null): EntryPointCheck {
-  const fileExists = (p: string) => files.some(f => f.path === p);
-
-  const main = (pkg?.main ?? 'index.js').trim();
-
-  // expo-router uses "expo-router/entry" (module, not a project file).
-  if (main === 'expo-router/entry') {
-    const hasLayout = fileExists('app/_layout.tsx') || fileExists('app/_layout.js');
-    const hasAppDir = files.some(f => f.path.startsWith('app/'));
-    const ok = hasLayout || hasAppDir;
-    return {
-      entryLabel: 'expo-router/entry',
-      ok,
-      missingPath: ok ? undefined : 'app/_layout.tsx',
-    };
-  }
-
-  // If main looks like a path, it should exist.
-  if (main.includes('/') || main.endsWith('.js') || main.endsWith('.ts') || main.endsWith('.tsx')) {
-    if (fileExists(main)) {
-      return { entryLabel: main, ok: true };
-    }
-    // Some projects use index.ts.
-    if (main === 'index.js' && fileExists('index.ts')) {
-      return { entryLabel: 'index.ts', ok: true };
-    }
-    return { entryLabel: main, ok: false, missingPath: main };
-  }
-
-  // Unknown module: can't validate file existence.
-  return { entryLabel: main, ok: true };
-}
-
-const MAX_DEP_ITEMS = 250;
-const MAX_DIRS = 80;
-const MAX_FILES_PER_DIR = 250;
-
-type DerivedState = {
-  buildConfig: BuildConfig | null;
-  projectStats: ProjectStats | null;
-  validationIssues: ValidationIssue[];
-  dependencies: DependencyItem[];
-  dependenciesTotal: number;
-  fileTree: FileTree;
-  fileDirsTotal: number;
-  fileTreeCounts: Record<string, number>;
-};
 
 export function useAppStatusScreen() {
   const { projectData, isLoading, exportProjectAsZip } = useProject();

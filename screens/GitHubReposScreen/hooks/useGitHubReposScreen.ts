@@ -1,3 +1,6 @@
+// screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts
+// REFACTORED: template data → templateFiles.ts
+
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Linking } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -23,59 +26,13 @@ import { combineRepos, splitFullName, isValidRepoName } from "../utils/repos";
 import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
 import type { TemplateId, CoreTemplateId } from "../../../shared/types/project";
 
-type TemplateFile = { path: string; content: string };
 
-type RepoFilterType = "all" | "activeOnly" | "recentOnly";
-
-const CORE_TEMPLATE_FILES: readonly string[] = [
-  ".github/workflows/eas-link.yml",
-  ".github/workflows/eas-build.yml",
-  ".github/workflows/k1w1-triggered-build.yml",
-  ".github/workflows/deploy-supabase-functions.yml",
-] as const;
-
-const loadCoreTemplateFiles = (templateId: CoreTemplateId = "navigation"): TemplateFile[] => {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const template = (
-      templateId === "full"
-        ? require("../../../templates/expo-sdk54-full.json")
-        : templateId === "navigation"
-          ? require("../../../templates/expo-sdk54-navigation.json")
-          : templateId === "crud"
-            ? require("../../../templates/expo-sdk54-crud.json")
-            : require("../../../templates/expo-sdk54-base.json")
-    ) as any[];
-    if (!Array.isArray(template)) return [];
-
-    const mapped = template
-      .filter((f) => f && typeof f.path === "string")
-      .map((f) => ({
-        path: String(f.path),
-        content:
-          typeof f.content === "string"
-            ? f.content
-            : JSON.stringify(f.content ?? "", null, 2),
-      }));
-
-    // Core-Template Dateien sollen nie "halbkaputt" sein.
-    // Autofix: wir nutzen hier nur die gefixten Inhalte als Quelle für Core-Workflows.
-    const checked = runTemplateHardChecklist(
-      mapped.map((f) => ({ path: f.path, content: f.content })),
-      { autofix: true },
-    );
-
-    return checked.files.map((f) => ({ path: f.path, content: f.content }));
-  } catch {
-    return [];
-  }
-};
-
-const getCoreFileContent = (path: string, templateId: CoreTemplateId = "base"): string | null => {
-  const files = loadCoreTemplateFiles(templateId);
-  const hit = files.find((f) => f.path === path);
-  return hit?.content ?? null;
-};
+import {
+  loadCoreTemplateFiles,
+  getCoreFileContent,
+  CORE_TEMPLATE_FILES,
+} from "./templateFiles";
+import type { TemplateFile, RepoFilterType } from "./templateFiles";
 
 export function useGitHubReposScreen() {
   const {
