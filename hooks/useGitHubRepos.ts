@@ -208,6 +208,18 @@ export const useGitHubRepos = (
           ".yaml",
           ".config.js",
         ];
+
+        // Some "dotfiles" are plain text but don't match the extension allowlist
+        // (e.g. ".gitignore" → ext is ".gitignore"). We explicitly allow the ones
+        // that are important for repo sync.
+        const textBasenames = new Set<string>([
+          ".gitignore",
+          ".easignore",
+          ".npmrc",
+          ".prettierrc",
+          ".prettierignore",
+          ".editorconfig",
+        ]);
         const files: ProjectFile[] = [];
 
         const treeEntries = treeJson.tree.filter(
@@ -232,8 +244,9 @@ export const useGitHubRepos = (
             batch.map(async (entry: any) => {
               const path = entry.path;
               const ext = path.match(/\.[^.]+$/)?.[0]?.toLowerCase() || "";
+              const base = String(path).split("/").pop() || "";
 
-              if (!textExtensions.includes(ext)) {
+              if (!textExtensions.includes(ext) && !textBasenames.has(base)) {
                 if (__DEV__) logger.debug(`[useGitHubRepos] Skip binary: ${path}`);
                 return null;
               }

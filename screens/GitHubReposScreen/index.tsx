@@ -23,7 +23,6 @@ import { BranchSelector } from "./components/BranchSelector";
 import type { GitHubRepo } from "../../hooks/useGitHubRepos";
 
 import { RepoMetaSection } from "./components/RepoMetaSection";
-import { FilterSection } from "./components/FilterSection";
 import { SecretsSection } from "./components/SecretsSection";
 // DiffFilesSection removed from this screen (Local↔Online Diff is the single view now)
 import { RepoSyncSection } from "./components/RepoSyncSection";
@@ -61,12 +60,6 @@ export default function GitHubReposScreen() {
     setShowRenameRepo,
 
     // filters
-    searchTerm,
-    setSearchTerm,
-    filterType,
-    setFilterType,
-    recentRepos,
-    clearRecentRepos,
     handleSelectRepo,
 
     filteredRepos,
@@ -122,8 +115,6 @@ export default function GitHubReposScreen() {
     setManageValue,
     closeManageModal,
 
-    showRepoList,
-
   } = vm;
 
   const onNewRepo = useCallback(() => setShowNewRepo(true), [setShowNewRepo]);
@@ -136,16 +127,7 @@ export default function GitHubReposScreen() {
     [handleSelectRepo, setShowRenameRepo],
   );
 
-  
-  const handleSelectRecentRepo = useCallback(
-    (repoFullName: string) => {
-      handleSelectRepo(repoFullName);
-    },
-    [handleSelectRepo],
-  );
-
-  // Respect "showRepoList" for tests + UX toggles (some flows hide the list).
-  const repoData: GitHubRepo[] = useMemo(() => (showRepoList ? filteredRepos : []), [filteredRepos, showRepoList]);
+  const repoData: GitHubRepo[] = useMemo(() => filteredRepos, [filteredRepos]);
 
   const renderRepoItem = useCallback(
     ({ item }: { item: GitHubRepo }) => (
@@ -195,18 +177,7 @@ export default function GitHubReposScreen() {
       />
 
       <View style={s.section}>
-        <FilterSection
-          searchTerm={searchTerm}
-          setSearchTerm={setSearchTerm}
-          filterType={filterType}
-          setFilterType={setFilterType}
-          recentRepos={recentRepos}
-          activeRepo={activeRepo}
-          onSelectRecentRepo={handleSelectRecentRepo}
-          clearRecentRepos={clearRecentRepos}
-        />
-
-        <View style={[s.rowBetween, { marginTop: 10 }]}>
+        <View style={[s.rowBetween, { marginTop: 0 }]}>
           <Text style={[s.sectionTitle, { marginBottom: 0 }]}>Repos</Text>
           {loadingRepos ? <ActivityIndicator size="small" color={theme.palette.primary} /> : null}
         </View>
@@ -315,7 +286,6 @@ export default function GitHubReposScreen() {
         activeRepo={activeRepo}
         activeBranch={activeBranch}
         projectFiles={projectFiles as any}
-        onPushSelected={(paths) => vm.openPushModalForPaths(paths)}
       />
 
       <ManageTextModal
