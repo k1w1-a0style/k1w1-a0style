@@ -82,6 +82,51 @@ function unifiedLineDiff(localText: string, remoteText: string, maxLinesOut = 60
   return out.join("\n");
 }
 
+// Reduce huge diffs by showing only context around changed lines.
+function compactUnifiedDiff(diffText: string, ctx = 3, maxOutLines = 260): string {
+  const lines = String(diffText ?? "").split("\n");
+  // If already small, return as-is.
+  if (lines.length <= maxOutLines) return diffText;
+
+  const keep = new Set<number>();
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i] ?? "";
+    const isChange = ln.startsWith("+") || ln.startsWith("-");
+    if (isChange) {
+      for (let j = Math.max(0, i - ctx); j <= Math.min(lines.length - 1, i + ctx); j++) keep.add(j);
+    }
+    // always keep hunk headers if any
+    if (ln.startsWith("@@")) keep.add(i);
+  }
+
+  const out: string[] = [];
+  let lastKept = -2;
+  for (let i = 0; i < lines.length; i++) {
+    if (!keep.has(i)) continue;
+    if (i > lastKept + 1) out.push("…");
+    out.push(lines[i]);
+    lastKept = i;
+    if (out.length >= maxOutLines) {
+      out.push("… (gekürzt)");
+      break;
+    }
+  }
+
+  // If we couldn't detect changes, just cut head.
+  if (!out.length) {
+    return lines.slice(0, maxOutLines).join("\n") + "\n… (gekürzt)";
+  }
+  return out.join("\n");
+}
+
+function diffLineStyle(line: string) {
+  if (line.startsWith("+")) return { color: theme.palette.success };
+  if (line.startsWith("-")) return { color: theme.palette.error };
+  if (line.startsWith("@@")) return { color: theme.palette.text.muted };
+  if (line.startsWith("…")) return { color: theme.palette.text.muted };
+  return { color: theme.palette.text.secondary };
+}
+
 export function LocalRemoteDiffSection(props: {
   activeRepo: string | null;
   activeBranch: string | null;
@@ -97,8 +142,13 @@ export function LocalRemoteDiffSection(props: {
   const [items, setItems] = useState<DiffItem[]>([]);
   const [note, setNote] = useState<string>("");
   const [showAll, setShowAll] = useState(false);
+  const [inlineMode, setInlineMode] = useState(true);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const genRef = useRef(0);
+
+  const previewCacheRef = useRef(new Map<string, { status: DiffItem["status"]; local: string; remote: string; diff: string }>());
+  const [inlineOpenPath, setInlineOpenPath] = useState<string | null>(null);
+  const [inlineLoading, setInlineLoading] = useState(false);
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewPath, setPreviewPath] = useState<string>("");
@@ -234,12 +284,12 @@ export function LocalRemoteDiffSection(props: {
   }, [local]);
 
   const openPreview = useCallback(
-    async (it: DiffItem) => {
+    async (it: DiffItem, opts?: { silent?: boolean }) => {
       if (!parsed) return;
       const p = normalizeRepoPath(it.path);
       if (!p) return;
 
-      setPreviewOpen(true);
+      if (!opts?.silent) setPreviewOpen(true);
       setPreviewPath(p);
       setPreviewStatus(it.status);
       setPreviewLoading(true);
@@ -262,12 +312,22 @@ export function LocalRemoteDiffSection(props: {
         setPreviewLocal(localText);
         setPreviewRemote(remoteText);
 
+        // cache for inline preview
+        previewCacheRef.current.set(p, { status: it.status, local: localText, remote: remoteText, diff: "" });
+
         if (it.status === "modified") {
-          setPreviewDiff(unifiedLineDiff(localText, remoteText));
+          const raw = unifiedLineDiff(localText, remoteText);
+          const compact = compactUnifiedDiff(raw);
+          setPreviewDiff(compact);
+          previewCacheRef.current.set(p, { status: it.status, local: localText, remote: remoteText, diff: compact });
         } else if (it.status === "localOnly") {
-          setPreviewDiff("(Nur lokal vorhanden)\n+ Datei wird beim Push erstellt.");
+          const msg = "(Nur lokal vorhanden)\n+ Datei wird beim Push erstellt.";
+          setPreviewDiff(msg);
+          previewCacheRef.current.set(p, { status: it.status, local: localText, remote: remoteText, diff: msg });
         } else if (it.status === "remoteOnly") {
-          setPreviewDiff("(Nur online vorhanden)\n- Datei fehlt lokal. Pull würde sie holen.");
+          const msg = "(Nur online vorhanden)\n- Datei fehlt lokal. Pull würde sie holen.";
+          setPreviewDiff(msg);
+          previewCacheRef.current.set(p, { status: it.status, local: localText, remote: remoteText, diff: msg });
         } else {
           setPreviewDiff("");
         }
@@ -450,9 +510,29 @@ export function LocalRemoteDiffSection(props: {
             const pushable = i.status === "modified" || i.status === "localOnly";
             const checked = !!selected[i.path];
             return (
+              <View key={`${i.status}:${i.path}`} style={{ marginBottom: 2 }}>
               <Pressable
-                key={`${i.status}:${i.path}`}
-                onPress={() => openPreview(i)}
+                onPress={async () => {
+                  if (!inlineMode) {
+                    openPreview(i);
+                    return;
+                  }
+                  const p = i.path;
+                  if (inlineOpenPath === p) {
+                    setInlineOpenPath(null);
+                    return;
+                  }
+                  setInlineOpenPath(p);
+                  const cached = previewCacheRef.current.get(p);
+                  if (!cached) {
+                    setInlineLoading(true);
+                    try {
+                      await openPreview(i, { silent: true });
+                    } finally {
+                      setInlineLoading(false);
+                    }
+                  }
+                }}
                 style={{ flexDirection: "row", gap: 8, alignItems: "center", paddingVertical: 6 }}
               >
                 <Pressable
@@ -494,6 +574,52 @@ export function LocalRemoteDiffSection(props: {
                   <Text style={{ color: theme.palette.text.muted, fontSize: 11 }}>pull</Text>
                 ) : null}
               </Pressable>
+
+              {inlineMode && inlineOpenPath === i.path ? (
+                <View style={{ marginLeft: 30, marginBottom: 8, marginTop: 4, borderLeftWidth: 2, borderLeftColor: theme.palette.border, paddingLeft: 10 }}>
+                  {inlineLoading ? (
+                    <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                      <ActivityIndicator size="small" />
+                      <Text style={{ color: theme.palette.text.muted, fontSize: 12 }}>Lade Diff…</Text>
+                    </View>
+                  ) : (
+                    <View style={{ borderWidth: 1, borderColor: theme.palette.border, borderRadius: 10, padding: 10, backgroundColor: theme.palette.backgroundDark }}>
+                      {(previewCacheRef.current.get(i.path)?.diff || "(keine Vorschau)")
+                        .split("\n")
+                        .slice(0, 220)
+                        .map((ln, idx) => (
+                          <Text key={idx} style={[{ fontFamily: "monospace", fontSize: 11, lineHeight: 16 }, diffLineStyle(ln)]}>
+                            {ln}
+                          </Text>
+                        ))}
+                    </View>
+                  )}
+
+                  <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
+                    <TouchableOpacity
+                      style={[styles.button, { flex: 1, paddingVertical: 8 }]}
+                      onPress={async () => {
+                        const cached = previewCacheRef.current.get(i.path);
+                        const t = cached?.diff || "";
+                        await Clipboard.setStringAsync(t);
+                        Alert.alert("✅", "Diff kopiert.");
+                      }}
+                    >
+                      <Ionicons name="copy-outline" size={16} color={theme.palette.text.secondary} />
+                      <Text style={styles.buttonText}>Diff kopieren</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.button, { flex: 1, paddingVertical: 8 }]}
+                      onPress={() => openPreview(i)}
+                    >
+                      <Ionicons name="open-outline" size={16} color={theme.palette.text.secondary} />
+                      <Text style={styles.buttonText}>Details</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : null}
+              </View>
             );
           })}
 
@@ -535,9 +661,11 @@ export function LocalRemoteDiffSection(props: {
                       Unified Diff
                     </Text>
                     <View style={{ borderWidth: 1, borderColor: theme.palette.border, borderRadius: 10, padding: 10 }}>
-                      <Text style={{ color: theme.palette.text.primary, fontFamily: "monospace", fontSize: 11 }}>
-                        {safeSliceLines(previewDiff, 700).text}
-                      </Text>
+                      {safeSliceLines(previewDiff, 700).text.split("\n").map((ln, idx) => (
+                        <Text key={idx} style={[{ fontFamily: "monospace", fontSize: 11, lineHeight: 16 }, diffLineStyle(ln)]}>
+                          {ln}
+                        </Text>
+                      ))}
                     </View>
                   </View>
                 ) : null}

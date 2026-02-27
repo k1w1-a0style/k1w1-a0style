@@ -34,3 +34,9 @@
 - Patch 294: RepoScreen Diff "git-like" (+/-) with file selection → push only changes + restore showRepoList behavior for tests (see docs/patches/patch_294.md)
 
 - Patch 295: RepoScreen per-file diff preview modal (unified +/-) + fix TS regressions in diff list + wire showRepoList from VM (see docs/patches/patch_295.md)
+
+- Patch 296: RepoScreen diff UX (inline expand, colored +/- diff lines, compact context view, inline copy + modal details) (see docs/patches/patch_296.md)
+
+- Patch 297: hotfix RepoScreen inline diff render (wrap item row in container to fix TSX parse) (see docs/patches/patch_297.md)
+
+- Patch 298: fix RepoScreen inline diff list key prop (react/jsx-key) (see docs/patches/patch_298.md)
