@@ -32,3 +32,5 @@
 - Patch 293: RepoScreen UI cleanup (no close panels, auto repos, per-repo actions, branch actions in dropdown, secrets sync button, single diff section) (see docs/patches/patch_293.md)
 
 - Patch 300: RepoScreen polish (remove filter UI) + Pull supports text dotfiles (.gitignore/.easignore/etc) (see docs/patches/patch_300.md)
+
+- Patch 301: RepoScreen restore showRepoList gating (fix repo list hidden test + optional flows) (see docs/patches/patch_301.md)

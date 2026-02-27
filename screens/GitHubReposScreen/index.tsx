@@ -53,7 +53,9 @@ export default function GitHubReposScreen() {
 
     projectFiles,
 
-    // repo list is always visible now
+    // Respect "showRepoList" for tests + optional UX flows that hide the list.
+    // Default: visible.
+    showRepoList,
     showNewRepo,
     setShowNewRepo,
     showRenameRepo,
@@ -127,7 +129,10 @@ export default function GitHubReposScreen() {
     [handleSelectRepo, setShowRenameRepo],
   );
 
-  const repoData: GitHubRepo[] = useMemo(() => filteredRepos, [filteredRepos]);
+  const repoData: GitHubRepo[] = useMemo(
+    () => ((showRepoList ?? true) ? filteredRepos : []),
+    [filteredRepos, showRepoList],
+  );
 
   const renderRepoItem = useCallback(
     ({ item }: { item: GitHubRepo }) => (
