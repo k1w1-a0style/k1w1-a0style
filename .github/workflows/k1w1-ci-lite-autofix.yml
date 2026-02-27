@@ -194,7 +194,7 @@ jobs:
 
       - name: Upload CI Lite Autofix logs
         if: always()
-        uses: actions/upload-artifact@65aadd1f256f2c7b34697482e3d4a3f2ecf62edd # v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v4
         with:
           name: ci-lite-autofix-logs
           path: |
