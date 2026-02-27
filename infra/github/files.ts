@@ -175,6 +175,116 @@ export const pushFilesToRepo = async (
   }
 };
 
+/**
+ * Advanced push: allows a custom commit message prefix and selective files.
+ * IMPORTANT: GitHub Contents API creates a commit per file.
+ */
+export const pushFilesToRepoAdvanced = async (
+  owner: string,
+  repo: string,
+  files: ProjectFile[],
+  options?: {
+    branch?: string;
+    message?: string;
+  },
+) => {
+  const messageBase = (options?.message || "").trim();
+  const branch = options?.branch;
+
+  let targetBranch = typeof branch === "string" ? branch.trim() : "";
+
+  if (!targetBranch) {
+    try {
+      targetBranch = (await getDefaultBranch(owner, repo)).trim();
+    } catch (e) {
+      logger.warn("⚠️ Default-Branch konnte nicht ermittelt werden, fallback auf 'main':", e);
+      targetBranch = "main";
+    }
+  }
+  if (!targetBranch) targetBranch = "main";
+
+  const sortedFiles = [...files].sort((a, b) => a.path.localeCompare(b.path));
+  for (const f of sortedFiles) {
+    if (!f.path) continue;
+    const p = normalizeRepoPath(f.path.trim());
+    if (p.startsWith(".github/workflows/") && !MANAGED_WORKFLOWS.has(p)) {
+      logger.debug(`[pushFilesToRepoAdvanced] Skip unmanaged workflow file: ${p}`);
+      continue;
+    }
+
+    const msg = messageBase ? `${messageBase}: ${p}` : `Add ${p}`;
+    logger.info(`Pushing ${p}... (branch: ${targetBranch})`);
+    await createOrUpdateFile(owner, repo, p, f.content, msg, targetBranch);
+  }
+};
+
+/**
+ * Lists blob paths of a repo at a given ref (branch/tag/sha).
+ * Uses the Git Trees API (recursive) and returns normalized repo paths.
+ */
+export const listRepoBlobPaths = async (params: {
+  owner: string;
+  repo: string;
+  ref?: string;
+}): Promise<string[]> => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error("GitHub token fehlt.");
+
+  await githubLimiter.checkLimit();
+
+  const ref = (params.ref || "").trim();
+  const treeRef = ref || (await getDefaultBranch(params.owner, params.repo)).trim() || "main";
+
+  const headers = {
+    Accept: "application/vnd.github+json",
+    Authorization: `Bearer ${token}`,
+  };
+
+  const tryFetchTree = async (treeShaOrRef: string) => {
+    await githubLimiter.checkLimit();
+    const treeUrl = githubApiUrl(
+      `/repos/${params.owner}/${params.repo}/git/trees/${encodeURIComponent(treeShaOrRef)}?recursive=1`,
+    );
+    const treeRes = await fetch(treeUrl, { headers });
+    if (!treeRes.ok) {
+      const text = await treeRes.text().catch(() => "");
+      throw new Error(`Tree-Abruf fehlgeschlagen (${treeRes.status}): ${text}`);
+    }
+    const treeJson: any = await treeRes.json().catch(() => ({}));
+    const tree = Array.isArray(treeJson?.tree) ? treeJson.tree : [];
+    return tree
+      .filter((e: any) => e?.type === "blob" && typeof e?.path === "string")
+      .map((e: any) => normalizeRepoPath(String(e.path)))
+      .filter((p: string) => !!p);
+  };
+
+  try {
+    return await tryFetchTree(treeRef);
+  } catch (e) {
+    // Resolve branch -> commit sha -> tree sha
+    await githubLimiter.checkLimit();
+    const branchUrl = githubApiUrl(
+      `/repos/${params.owner}/${params.repo}/branches/${encodeURIComponent(treeRef)}`,
+    );
+    const bRes = await fetch(branchUrl, { headers });
+    if (!bRes.ok) throw e;
+    const bJson: any = await bRes.json().catch(() => ({}));
+    const commitSha = String(bJson?.commit?.sha || "").trim();
+    if (!commitSha) throw e;
+
+    await githubLimiter.checkLimit();
+    const commitUrl = githubApiUrl(
+      `/repos/${params.owner}/${params.repo}/git/commits/${encodeURIComponent(commitSha)}`,
+    );
+    const cRes = await fetch(commitUrl, { headers });
+    if (!cRes.ok) throw e;
+    const cJson: any = await cRes.json().catch(() => ({}));
+    const treeSha = String(cJson?.tree?.sha || "").trim();
+    if (!treeSha) throw e;
+    return await tryFetchTree(treeSha);
+  }
+};
+
 export const getRepoFileText = async (params: {
   owner: string;
   repo: string;

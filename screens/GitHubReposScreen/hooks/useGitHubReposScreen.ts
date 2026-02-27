@@ -10,6 +10,7 @@ import { useProject } from "../../../contexts/ProjectContext";
 import {
   createRepo,
   pushFilesToRepo,
+  pushFilesToRepoAdvanced,
   deleteRepo as deleteGitHubRepo,
   renameRepo as renameGitHubRepo,
   createBranch,
@@ -17,6 +18,7 @@ import {
   renameBranch,
   createOrUpdateFile,
   getRepoFileText,
+  listRepoBlobPaths,
   getGitHubToken,
 } from "../../../infra/github/githubService";
 import { getGitHubUser } from "../../../infra/github/user";
@@ -25,6 +27,8 @@ import { useGitHubRepos, GitHubRepo, WorkflowRun } from "../../../hooks/useGitHu
 import { combineRepos, splitFullName, isValidRepoName } from "../utils/repos";
 import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
 import type { TemplateId, CoreTemplateId } from "../../../shared/types/project";
+
+import { MANAGED_WORKFLOWS, normalizeRepoPath } from "../../../infra/github/utils";
 
 
 import {
@@ -46,6 +50,13 @@ export function useGitHubReposScreen() {
   } = useGitHub();
 
   const { projectData, updateProjectFiles, setLinkedRepo } = useProject();
+
+  // Local project files are the source of truth for what exists "locally" inside the app.
+  // Expose them so the RepoScreen can show local↔remote diffs and wire push/pull UX.
+  const projectFiles = useMemo(() => {
+    const list = (projectData?.files ?? []) as any[];
+    return Array.isArray(list) ? list : [];
+  }, [projectData?.files]);
 
   const templateId: TemplateId = ((projectData?.templateId as TemplateId) || "auto");
   const effectiveTemplateId: CoreTemplateId =
@@ -92,6 +103,30 @@ export function useGitHubReposScreen() {
   const [isPushing, setIsPushing] = useState(false);
   const [pullProgress, setPullProgress] = useState("");
 
+  // Advanced sync UI state
+  const [pushModalVisible, setPushModalVisible] = useState(false);
+  const [pushCommitMessage, setPushCommitMessage] = useState("chore: sync");
+  const [pushSelectedPaths, setPushSelectedPaths] = useState<Record<string, boolean>>({});
+
+  const [pullModalVisible, setPullModalVisible] = useState(false);
+  const [pullPreviewLoading, setPullPreviewLoading] = useState(false);
+  const [pullPreview, setPullPreview] = useState<{
+    remote: any[];
+    conflicts: string[];
+    remoteOnly: string[];
+    updates: string[];
+  } | null>(null);
+
+  const [syncStatus, setSyncStatus] = useState<{
+    checking: boolean;
+    modified: number;
+    localOnly: number;
+    remoteOnly: number;
+    skipped: number;
+    error: number;
+    checkedAt: number | null;
+  }>({ checking: false, modified: 0, localOnly: 0, remoteOnly: 0, skipped: 0, error: 0, checkedAt: null });
+
   const [isSyncingSecrets, setIsSyncingSecrets] = useState(false);
 
   const [easProjectId, setEasProjectId] = useState<string>("");
@@ -125,6 +160,86 @@ export function useGitHubReposScreen() {
     loadWorkflowRuns,
     loadDefaultBranch,
   } = useGitHubRepos(token);
+
+  const normalizedLocalFiles = useMemo(() => {
+    const list = (projectFiles || []) as any[];
+    const out: { path: string; content: string }[] = [];
+    for (const f of list) {
+      const p = String((f as any)?.path || "").trim();
+      if (!p) continue;
+      out.push({ path: p, content: String((f as any)?.content ?? "") });
+    }
+    return out;
+  }, [projectFiles]);
+
+
+  const refreshSyncStatus = useCallback(async () => {
+    if (!activeRepo) {
+      setSyncStatus((s) => ({ ...s, checking: false, checkedAt: Date.now(), modified: 0, localOnly: 0, remoteOnly: 0, skipped: 0, error: 0 }));
+      return;
+    }
+    const parsed = splitFullName(activeRepo);
+    if (!parsed) return;
+
+    const branch = (activeBranch || "main").trim() || "main";
+    const local = normalizedLocalFiles;
+    if (!local.length) {
+      // remoteOnly still meaningful
+      setSyncStatus((s) => ({ ...s, checking: true }));
+      try {
+        const remotePaths = await listRepoBlobPaths({ owner: parsed.owner, repo: parsed.repo, ref: branch });
+        setSyncStatus({ checking: false, modified: 0, localOnly: 0, remoteOnly: remotePaths.length, skipped: 0, error: 0, checkedAt: Date.now() });
+      } catch {
+        setSyncStatus({ checking: false, modified: 0, localOnly: 0, remoteOnly: 0, skipped: 0, error: 1, checkedAt: Date.now() });
+      }
+      return;
+    }
+
+    const MAX = 40;
+    const slice = local.slice(0, MAX);
+
+    setSyncStatus((s) => ({ ...s, checking: true }));
+
+    let modified = 0;
+    let localOnly = 0;
+    let skipped = 0;
+    let error = 0;
+
+    const localPaths = new Set<string>();
+    for (const f of slice) {
+      const p = normalizeRepoPath(String(f.path || "").trim());
+      if (!p) continue;
+      localPaths.add(p);
+      if (p.startsWith(".github/workflows/") && !MANAGED_WORKFLOWS.has(p)) {
+        skipped++;
+        continue;
+      }
+      try {
+        const remote = await getRepoFileText({ owner: parsed.owner, repo: parsed.repo, path: p, ref: branch });
+        if (remote !== String(f.content ?? "")) modified++;
+      } catch (e: any) {
+        const msg = String(e?.message || "");
+        if (msg.includes("404") || msg.toLowerCase().includes("not found")) localOnly++;
+        else error++;
+      }
+    }
+
+    let remoteOnly = 0;
+    try {
+      const remotePaths = await listRepoBlobPaths({ owner: parsed.owner, repo: parsed.repo, ref: branch });
+      const remoteSet = new Set(remotePaths);
+      // Count remote paths not present in local slice
+      for (const rp of remoteSet) {
+        if (rp.startsWith(".github/workflows/") && !MANAGED_WORKFLOWS.has(rp)) continue;
+        if (!localPaths.has(rp)) remoteOnly++;
+      }
+    } catch {
+      // ignore, still show local-only/modified
+      error++;
+    }
+
+    setSyncStatus({ checking: false, modified, localOnly, remoteOnly, skipped, error, checkedAt: Date.now() });
+  }, [activeRepo, activeBranch, normalizedLocalFiles, listRepoBlobPaths]);
 
   // Token load
   useEffect(() => {
@@ -199,6 +314,17 @@ export function useGitHubReposScreen() {
     hasAutoLoaded.current = true;
     loadRepos();
   }, [token, loadRepos]);
+
+  // Keep a lightweight "dirty" indicator up to date when repo/branch changes.
+  useEffect(() => {
+    if (!activeRepo) {
+      setSyncStatus({ checking: false, modified: 0, localOnly: 0, remoteOnly: 0, skipped: 0, error: 0, checkedAt: null });
+      return;
+    }
+    // fire-and-forget (best-effort)
+    refreshSyncStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRepo, activeBranch]);
 
   const handleRefresh = useCallback(async () => {
     if (!token) return;
@@ -414,6 +540,7 @@ export function useGitHubReposScreen() {
   }, [token, activeRepo, setActiveRepo, setActiveBranch, setLinkedRepo, loadRepos]);
 
   const handlePull = useCallback(async () => {
+    // Pull now opens a preview modal (conflicts + strategy) to avoid silent overwrites.
     if (!activeRepo) {
       Alert.alert("⚠️", "Kein Repo ausgewählt.");
       return;
@@ -421,51 +548,179 @@ export function useGitHubReposScreen() {
     const parsed = splitFullName(activeRepo);
     if (!parsed) return;
 
-    setIsPulling(true);
+    if (pullPreviewLoading) return;
+    setPullModalVisible(true);
+    setPullPreviewLoading(true);
     setPullProgress("");
+    setPullPreview(null);
+
     try {
+      const branch = (activeBranch || "main").trim() || "main";
       const pulled = await pullFromRepo(
         parsed.owner,
         parsed.repo,
         (p: string) => setPullProgress(p),
+        branch,
       );
       if (!pulled) {
         Alert.alert("⚠️ Pull", "Keine Dateien geladen.");
+        setPullModalVisible(false);
         return;
       }
-      updateProjectFiles(pulled as any);
-      Alert.alert("✅ Pull erfolgreich", `${pulled.length} Dateien aktualisiert.`);
+
+      // Build preview vs local
+      const localMap = new Map<string, string>();
+      for (const lf of normalizedLocalFiles) localMap.set(lf.path, lf.content);
+
+      const conflicts: string[] = [];
+      const updates: string[] = [];
+      const remoteOnly: string[] = [];
+
+      for (const rf of pulled as any[]) {
+        const p = String((rf as any)?.path || "");
+        if (!p) continue;
+        const rContent = String((rf as any)?.content ?? "");
+        if (!localMap.has(p)) {
+          remoteOnly.push(p);
+        } else {
+          const lContent = localMap.get(p) ?? "";
+          if (lContent !== rContent) conflicts.push(p);
+          else updates.push(p);
+        }
+      }
+
+      setPullPreview({ remote: pulled as any[], conflicts, remoteOnly, updates });
     } catch (e: any) {
       Alert.alert("❌ Pull fehlgeschlagen", e?.message ?? "");
+      setPullModalVisible(false);
     } finally {
-      setIsPulling(false);
+      setPullPreviewLoading(false);
     }
-  }, [activeRepo, pullFromRepo, updateProjectFiles]);
+  }, [activeRepo, activeBranch, pullFromRepo, normalizedLocalFiles, pullPreviewLoading]);
 
   const handlePush = useCallback(async () => {
-    if (!activeRepo || !projectData?.files?.length) {
+    // Push now opens options (commit message + file selection).
+    if (!activeRepo || !projectFiles.length) {
       Alert.alert("⚠️", "Kein Repo/Projekt ausgewählt oder keine Dateien.");
       return;
     }
+    const initial: Record<string, boolean> = {};
+    for (const f of projectFiles as any[]) {
+      const p = String((f as any)?.path || "").trim();
+      if (!p) continue;
+      initial[p] = true;
+    }
+    setPushSelectedPaths(initial);
+    setPushModalVisible(true);
+  }, [activeRepo, projectFiles]);
+
+  const togglePushPath = useCallback((path: string) => {
+    setPushSelectedPaths((prev) => ({ ...prev, [path]: !prev[path] }));
+  }, []);
+
+  const setAllPushPaths = useCallback((on: boolean) => {
+    setPushSelectedPaths((prev) => {
+      const next: Record<string, boolean> = {};
+      for (const k of Object.keys(prev)) next[k] = on;
+      return next;
+    });
+  }, []);
+
+  const closePushModal = useCallback(() => setPushModalVisible(false), []);
+
+  const confirmPushSelected = useCallback(async () => {
+    if (!activeRepo) return;
     const parsed = splitFullName(activeRepo);
     if (!parsed) return;
 
+    const selectedPaths = Object.entries(pushSelectedPaths)
+      .filter(([, v]) => !!v)
+      .map(([k]) => k);
+
+    if (!selectedPaths.length) {
+      Alert.alert("⚠️", "Keine Dateien ausgewählt.");
+      return;
+    }
+
+    const selectedFiles = (projectFiles as any[])
+      .filter((f) => selectedPaths.includes(String((f as any)?.path || "").trim()))
+      .map((f) => ({ path: String((f as any)?.path || ""), content: String((f as any)?.content ?? "") }));
+
     setIsPushing(true);
     try {
-      const branch = activeBranch ?? "main";
-      await pushFilesToRepo(
+      const branch = (activeBranch || "main").trim() || "main";
+      await pushFilesToRepoAdvanced(
         parsed.owner,
         parsed.repo,
-        withCoreFiles(projectData.files as any),
-        branch
+        withCoreFiles(selectedFiles as any),
+        { branch, message: pushCommitMessage || "chore: sync" },
       );
-      Alert.alert("✅ Push erfolgreich", `${parsed.owner}/${parsed.repo}@${branch}`);
+      setPushModalVisible(false);
+      refreshSyncStatus();
+      Alert.alert(
+        "✅ Push erfolgreich",
+        `${parsed.owner}/${parsed.repo}@${branch}\nHinweis: GitHub erstellt hier pro Datei einen Commit (Contents API).`,
+      );
     } catch (e: any) {
       Alert.alert("❌ Push fehlgeschlagen", e?.message ?? "");
     } finally {
       setIsPushing(false);
     }
-  }, [activeRepo, activeBranch, projectData, withCoreFiles, token]);
+  }, [activeRepo, activeBranch, projectFiles, pushSelectedPaths, pushCommitMessage, withCoreFiles, refreshSyncStatus]);
+
+  const closePullModal = useCallback(() => {
+    if (pullPreviewLoading || isPulling) return;
+    setPullModalVisible(false);
+    setPullPreview(null);
+    setPullProgress("");
+  }, [pullPreviewLoading, isPulling]);
+
+  const applyPulledFiles = useCallback(async (strategy: "overwrite" | "skipConflicts") => {
+    if (!pullPreview?.remote) return;
+
+    setIsPulling(true);
+    try {
+      const localMap = new Map<string, any>();
+      for (const lf of normalizedLocalFiles) localMap.set(lf.path, { path: lf.path, content: lf.content });
+
+      const remoteList = pullPreview.remote as any[];
+      const remoteMap = new Map<string, any>();
+      for (const rf of remoteList) {
+        const p = String((rf as any)?.path || "");
+        if (!p) continue;
+        remoteMap.set(p, { path: p, content: String((rf as any)?.content ?? "") });
+      }
+
+      const out: any[] = [];
+      // Start with local-only files
+      for (const [p, lf] of localMap.entries()) {
+        if (!remoteMap.has(p)) out.push(lf);
+      }
+
+      // Add remote files (merge strategy)
+      for (const [p, rf] of remoteMap.entries()) {
+        const lf = localMap.get(p);
+        const isConflict = !!lf && String(lf.content ?? "") !== String(rf.content ?? "");
+        if (strategy === "skipConflicts" && isConflict) out.push(lf);
+        else out.push(rf);
+      }
+
+      updateProjectFiles(out as any);
+      setPullModalVisible(false);
+      setPullPreview(null);
+      refreshSyncStatus();
+      Alert.alert(
+        "✅ Pull angewendet",
+        strategy === "overwrite"
+          ? "Remote Stand wurde übernommen (Konflikte überschrieben)."
+          : "Konflikte wurden übersprungen (lokal behalten).",
+      );
+    } catch (e: any) {
+      Alert.alert("❌ Pull Anwenden fehlgeschlagen", e?.message ?? "");
+    } finally {
+      setIsPulling(false);
+    }
+  }, [pullPreview, normalizedLocalFiles, updateProjectFiles, refreshSyncStatus]);
 
   const handleOpenRepoOnGitHub = useCallback(async () => {
     if (!activeRepo) return;
@@ -637,6 +892,9 @@ export function useGitHubReposScreen() {
   }, [loadWorkflowRuns]);
 
   return {
+    // local project
+    projectFiles,
+
     // token
     token, tokenLoading, tokenError,
     userLogin, userLoading,
@@ -671,6 +929,25 @@ export function useGitHubReposScreen() {
     handleDeleteRepo, isDeletingRepo,
     handlePull, isPulling, pullProgress,
     handlePush, isPushing,
+    // advanced sync UI
+    pushModalVisible,
+    setPushModalVisible,
+    pushCommitMessage,
+    setPushCommitMessage,
+    pushSelectedPaths,
+    togglePushPath,
+    setAllPushPaths,
+    closePushModal,
+    confirmPushSelected,
+
+    pullModalVisible,
+    pullPreviewLoading,
+    pullPreview,
+    closePullModal,
+    applyPulledFiles,
+
+    syncStatus,
+    refreshSyncStatus,
     handleOpenRepoOnGitHub,
     handleSyncSecrets, isSyncingSecrets,
 

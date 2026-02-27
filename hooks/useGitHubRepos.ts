@@ -152,6 +152,7 @@ export const useGitHubRepos = (
       owner: string,
       repo: string,
       onProgress?: (message: string) => void,
+      branchOverride?: string | null,
     ): Promise<ProjectFile[] | null> => {
       if (!token) return null;
 
@@ -173,7 +174,10 @@ export const useGitHubRepos = (
         }
 
         const infoJson = await infoRes.json();
-        const branch = infoJson.default_branch || "main";
+        const branch =
+          (typeof branchOverride === "string" && branchOverride.trim())
+            ? branchOverride.trim()
+            : (infoJson.default_branch || "main");
 
         onProgress?.(`Lade Dateibaum (Branch: ${branch})...`);
 

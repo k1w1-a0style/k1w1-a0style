@@ -28,6 +28,12 @@ import { RepoMetaSection } from "./components/RepoMetaSection";
 import { FilterSection } from "./components/FilterSection";
 import { SecretsSection } from "./components/SecretsSection";
 import { DiffFilesSection } from "./components/DiffFilesSection";
+import { RepoSyncSection } from "./components/RepoSyncSection";
+import { BranchManageSection } from "./components/BranchManageSection";
+import { ManageTextModal } from "./components/ManageTextModal";
+import { LocalRemoteDiffSection } from "./components/LocalRemoteDiffSection";
+import { PushOptionsModal } from "./components/PushOptionsModal";
+import { PullPreviewModal } from "./components/PullPreviewModal";
 
 export default function GitHubReposScreen() {
   const s = styles;
@@ -49,6 +55,8 @@ export default function GitHubReposScreen() {
     activeRepo,
     activeBranch,
     activeRepoObj,
+
+    projectFiles,
 
     showRepoList,
     setShowRepoList,
@@ -85,6 +93,39 @@ export default function GitHubReposScreen() {
     loadBranches,
     loadDefaultBranch,
     handleSelectBranch,
+
+    handlePull,
+    isPulling,
+    pullProgress,
+    handlePush,
+    isPushing,
+
+    pushModalVisible,
+    pushCommitMessage,
+    setPushCommitMessage,
+    pushSelectedPaths,
+    togglePushPath,
+    setAllPushPaths,
+    closePushModal,
+    confirmPushSelected,
+
+    pullModalVisible,
+    pullPreviewLoading,
+    pullPreview,
+    closePullModal,
+    applyPulledFiles,
+
+    syncStatus,
+    refreshSyncStatus,
+
+    handleCreateBranch,
+    handleRenameBranch,
+    handleDeleteBranch,
+
+    manageModal,
+    manageValue,
+    setManageValue,
+    closeManageModal,
 
   } = vm;
 
@@ -155,6 +196,8 @@ const repoData: GitHubRepo[] = useMemo(
         onRenameRepo={onRenameRepo}
         onDeleteRepo={onDeleteRepo}
         onRefresh={handleRefresh}
+        syncStatus={syncStatus}
+        onCheckStatus={refreshSyncStatus}
       />
 
       <TokenStatusSection
@@ -264,6 +307,48 @@ const repoData: GitHubRepo[] = useMemo(
         />
       )}
 
+      <RepoSyncSection
+        activeRepo={activeRepo}
+        activeBranch={activeBranch}
+        hasLocalFiles={!!projectFiles?.length}
+        isPulling={isPulling}
+        isPushing={isPushing}
+        pullProgress={pullProgress}
+        onPull={handlePull}
+        onPush={handlePush}
+      />
+
+      <PushOptionsModal
+        visible={pushModalVisible}
+        commitMessage={pushCommitMessage}
+        setCommitMessage={setPushCommitMessage}
+        selected={pushSelectedPaths}
+        togglePath={togglePushPath}
+        setAll={setAllPushPaths}
+        onCancel={closePushModal}
+        onConfirm={confirmPushSelected}
+        busy={isPushing}
+      />
+
+      <PullPreviewModal
+        visible={pullModalVisible}
+        loading={pullPreviewLoading}
+        preview={pullPreview}
+        pullProgress={pullProgress}
+        onCancel={closePullModal}
+        onOverwrite={() => applyPulledFiles("overwrite")}
+        onSkipConflicts={() => applyPulledFiles("skipConflicts")}
+        busy={isPulling}
+      />
+
+      <BranchManageSection
+        activeRepo={activeRepo}
+        activeBranch={activeBranch}
+        onCreateBranch={handleCreateBranch}
+        onRenameBranch={handleRenameBranch}
+        onDeleteBranch={handleDeleteBranch}
+      />
+
       <RepoMetaSection
         userLogin={userLogin}
         activeRepo={activeRepo}
@@ -272,10 +357,34 @@ const repoData: GitHubRepo[] = useMemo(
 
       <SecretsSection activeRepo={activeRepo} />
 
+      <LocalRemoteDiffSection
+        activeRepo={activeRepo}
+        activeBranch={activeBranch}
+        projectFiles={projectFiles as any}
+      />
+
       <DiffFilesSection
         activeRepo={activeRepo}
         activeBranch={activeBranch}
         loadDefaultBranch={loadDefaultBranch}
+      />
+
+      <ManageTextModal
+        visible={!!manageModal}
+        title={manageModal?.title || ""}
+        placeholder={manageModal?.placeholder || ""}
+        confirmText={manageModal?.confirmText}
+        value={manageValue}
+        setValue={setManageValue}
+        onCancel={closeManageModal}
+        onConfirm={async () => {
+          if (!manageModal) return;
+          try {
+            await manageModal.action(manageValue);
+          } catch (e: any) {
+            Alert.alert("❌", e?.message ?? "Aktion fehlgeschlagen");
+          }
+        }}
       />
     </>
   );

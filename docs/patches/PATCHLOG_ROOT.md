@@ -25,3 +25,6 @@
 
 - Patch 290: add regression test for change summary + extract builder helper
 
+- Patch 291: RepoScreen overhaul (persistent repo/branch, sync, manage, diff, dirty, push/pull) (see docs/patches/patch_291.md)
+
+- Patch 292: fix TS hoist order in RepoScreen hook (refreshSyncStatus TDZ) (see docs/patches/patch_292.md)
