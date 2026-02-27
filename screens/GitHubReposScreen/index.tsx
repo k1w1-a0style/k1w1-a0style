@@ -2,10 +2,8 @@ import React, { useCallback, useMemo } from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   FlatList,
   RefreshControl,
-  TextInput,
   ActivityIndicator,
   Alert,
 } from "react-native";
@@ -27,9 +25,9 @@ import type { GitHubRepo } from "../../hooks/useGitHubRepos";
 import { RepoMetaSection } from "./components/RepoMetaSection";
 import { FilterSection } from "./components/FilterSection";
 import { SecretsSection } from "./components/SecretsSection";
-import { DiffFilesSection } from "./components/DiffFilesSection";
+// DiffFilesSection removed from this screen (Local↔Online Diff is the single view now)
 import { RepoSyncSection } from "./components/RepoSyncSection";
-import { BranchManageSection } from "./components/BranchManageSection";
+// Branch management is now integrated into the Branch dropdown actions
 import { ManageTextModal } from "./components/ManageTextModal";
 import { LocalRemoteDiffSection } from "./components/LocalRemoteDiffSection";
 import { PushOptionsModal } from "./components/PushOptionsModal";
@@ -48,18 +46,15 @@ export default function GitHubReposScreen() {
     userLogin,
 
     loadingRepos,
-    loadRepos,
     refreshing,
     handleRefresh,
 
     activeRepo,
     activeBranch,
-    activeRepoObj,
 
     projectFiles,
 
-    showRepoList,
-    setShowRepoList,
+    // repo list is always visible now
     showNewRepo,
     setShowNewRepo,
     showRenameRepo,
@@ -129,19 +124,15 @@ export default function GitHubReposScreen() {
 
   } = vm;
 
-  const onToggleRepoList = useCallback(() => setShowRepoList((v) => !v), [setShowRepoList]);
   const onNewRepo = useCallback(() => setShowNewRepo(true), [setShowNewRepo]);
-  const onRenameRepo = useCallback(() => {
-    if (!activeRepo) return;
-    setShowRenameRepo(true);
-  }, [activeRepo, setShowRenameRepo]);
-  const onDeleteRepo = useCallback(() => {
-    if (!activeRepoObj) {
-      Alert.alert("⚠️", "Kein Repo ausgewählt.");
-      return;
-    }
-    vm.handleDeleteRepo(activeRepoObj);
-  }, [activeRepoObj, vm]);
+
+  const onRenameRepoItem = useCallback(
+    (repo: GitHubRepo) => {
+      handleSelectRepo(repo);
+      setShowRenameRepo(true);
+    },
+    [handleSelectRepo, setShowRenameRepo],
+  );
 
   
   const handleSelectRecentRepo = useCallback(
@@ -151,10 +142,7 @@ export default function GitHubReposScreen() {
     [handleSelectRepo],
   );
 
-const repoData: GitHubRepo[] = useMemo(
-    () => (showRepoList ? filteredRepos : []),
-    [showRepoList, filteredRepos],
-  );
+  const repoData: GitHubRepo[] = useMemo(() => filteredRepos, [filteredRepos]);
 
   const renderRepoItem = useCallback(
     ({ item }: { item: GitHubRepo }) => (
@@ -162,10 +150,11 @@ const repoData: GitHubRepo[] = useMemo(
         repo={item}
         isActive={item.full_name === activeRepo}
         onPress={handleSelectRepo}
+        onRename={onRenameRepoItem}
         onDelete={vm.handleDeleteRepo}
       />
     ),
-    [activeRepo, handleSelectRepo, vm.handleDeleteRepo],
+    [activeRepo, handleSelectRepo, onRenameRepoItem, vm.handleDeleteRepo],
   );
 
   if (!token && !tokenLoading) {
@@ -190,11 +179,7 @@ const repoData: GitHubRepo[] = useMemo(
         userLogin={userLogin}
         activeRepo={activeRepo}
         activeBranch={activeBranch}
-        showRepoList={showRepoList}
-        onToggleRepoList={onToggleRepoList}
         onNewRepo={onNewRepo}
-        onRenameRepo={onRenameRepo}
-        onDeleteRepo={onDeleteRepo}
         onRefresh={handleRefresh}
         syncStatus={syncStatus}
         onCheckStatus={refreshSyncStatus}
@@ -204,58 +189,29 @@ const repoData: GitHubRepo[] = useMemo(
         tokenLoading={tokenLoading}
         token={token}
         tokenError={tokenError}
-        loadingRepos={loadingRepos}
-        loadRepos={loadRepos}
       />
 
-      {showRepoList ? (
-        <View style={s.section}>
-          <View style={s.rowBetween}>
-            <Text style={s.sectionTitle}>Repo Auswahl</Text>
-            <TouchableOpacity
-              style={s.iconBtn}
-              onPress={onToggleRepoList}
-              accessibilityRole="button"
-              accessibilityLabel="Repo Auswahl schließen"
-            >
-              <Ionicons name="close" size={18} color={theme.palette.text.secondary} />
-            </TouchableOpacity>
-          </View>
+      <View style={s.section}>
+        <FilterSection
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          filterType={filterType}
+          setFilterType={setFilterType}
+          recentRepos={recentRepos}
+          activeRepo={activeRepo}
+          onSelectRecentRepo={handleSelectRecentRepo}
+          clearRecentRepos={clearRecentRepos}
+        />
 
-          <FilterSection
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
-            filterType={filterType}
-            setFilterType={setFilterType}
-            recentRepos={recentRepos}
-            activeRepo={activeRepo}
-            onSelectRecentRepo={handleSelectRecentRepo}
-            clearRecentRepos={clearRecentRepos}
-          />
-
-          <View style={[s.rowBetween, { marginTop: 10 }]}>
-            <Text style={[s.sectionTitle, { marginBottom: 0 }]}>Repos</Text>
-            {loadingRepos ? (
-              <ActivityIndicator size="small" color={theme.palette.primary} />
-            ) : null}
-          </View>
+        <View style={[s.rowBetween, { marginTop: 10 }]}>
+          <Text style={[s.sectionTitle, { marginBottom: 0 }]}>Repos</Text>
+          {loadingRepos ? <ActivityIndicator size="small" color={theme.palette.primary} /> : null}
         </View>
-      ) : null}
-
-      {showRepoList ? (
-        <View style={s.section}>
-          <View style={s.rowBetween}>
-            <Text style={s.sectionTitle}>Liste</Text>
-            {loadingRepos ? (
-              <ActivityIndicator size="small" color={theme.palette.primary} />
-            ) : null}
-          </View>
-        </View>
-      ) : null}
+      </View>
     </>
   );
 
-  const listEmpty = showRepoList && !loadingRepos ? (
+  const listEmpty = !loadingRepos ? (
     <View style={[s.section, { alignItems: "center", paddingVertical: 24, gap: 8 }]}>
       <Text style={{ fontSize: 32, marginBottom: 4 }}>📁</Text>
       <Text style={{ fontSize: 14, fontWeight: "700", color: theme.palette.text.primary }}>
@@ -302,6 +258,9 @@ const repoData: GitHubRepo[] = useMemo(
           activeRepo={activeRepo}
           activeBranch={activeBranch}
           onSelectBranch={handleSelectBranch}
+          onCreateBranch={handleCreateBranch}
+          onRenameBranch={handleRenameBranch}
+          onDeleteBranch={handleDeleteBranch}
           loadBranches={loadBranches}
           loadDefaultBranch={loadDefaultBranch}
         />
@@ -341,32 +300,18 @@ const repoData: GitHubRepo[] = useMemo(
         busy={isPulling}
       />
 
-      <BranchManageSection
-        activeRepo={activeRepo}
-        activeBranch={activeBranch}
-        onCreateBranch={handleCreateBranch}
-        onRenameBranch={handleRenameBranch}
-        onDeleteBranch={handleDeleteBranch}
-      />
-
       <RepoMetaSection
         userLogin={userLogin}
         activeRepo={activeRepo}
         onOpenRepoOnGitHub={handleOpenRepoOnGitHub}
       />
 
-      <SecretsSection activeRepo={activeRepo} />
+      <SecretsSection activeRepo={activeRepo} onSyncSecrets={vm.handleSyncSecrets} syncing={vm.isSyncingSecrets} />
 
       <LocalRemoteDiffSection
         activeRepo={activeRepo}
         activeBranch={activeBranch}
         projectFiles={projectFiles as any}
-      />
-
-      <DiffFilesSection
-        activeRepo={activeRepo}
-        activeBranch={activeBranch}
-        loadDefaultBranch={loadDefaultBranch}
       />
 
       <ManageTextModal

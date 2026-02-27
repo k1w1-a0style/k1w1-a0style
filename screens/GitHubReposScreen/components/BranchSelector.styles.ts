@@ -33,6 +33,16 @@ export const s = StyleSheet.create({
     fontWeight: "700",
     color: theme.palette.primary,
   },
+  actionIconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.secondary,
+  },
   dropdown: {
     maxHeight: 200,
     borderTopWidth: 1,

@@ -1,6 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { View, Text, ActivityIndicator } from "react-native";
 import { theme } from "../../../theme";
 import { styles } from "../styles";
 
@@ -8,16 +7,12 @@ interface TokenStatusSectionProps {
   tokenLoading: boolean;
   token: string | null;
   tokenError: string | null;
-  loadingRepos: boolean;
-  loadRepos: () => void;
 }
 
 export function TokenStatusSection({
   tokenLoading,
   token,
   tokenError,
-  loadingRepos,
-  loadRepos,
 }: TokenStatusSectionProps) {
   return (
     <View style={styles.section}>
@@ -37,21 +32,6 @@ export function TokenStatusSection({
           {tokenError && <Text style={styles.errorText}>{tokenError}</Text>}
         </>
       )}
-
-      <TouchableOpacity
-        style={[styles.button, loadingRepos && styles.buttonDisabled]}
-        onPress={loadRepos}
-        disabled={loadingRepos}
-      >
-        {loadingRepos ? (
-          <ActivityIndicator size="small" color={theme.palette.primary} />
-        ) : (
-          <>
-            <Ionicons name="refresh" size={18} color={theme.palette.primary} />
-            <Text style={styles.buttonText}>Repos laden</Text>
-          </>
-        )}
-      </TouchableOpacity>
     </View>
   );
 }

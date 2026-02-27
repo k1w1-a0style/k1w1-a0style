@@ -28,3 +28,5 @@
 - Patch 291: RepoScreen overhaul (persistent repo/branch, sync, manage, diff, dirty, push/pull) (see docs/patches/patch_291.md)
 
 - Patch 292: fix TS hoist order in RepoScreen hook (refreshSyncStatus TDZ) (see docs/patches/patch_292.md)
+
+- Patch 293: RepoScreen UI cleanup (no close panels, auto repos, per-repo actions, branch actions in dropdown, secrets sync button, single diff section) (see docs/patches/patch_293.md)

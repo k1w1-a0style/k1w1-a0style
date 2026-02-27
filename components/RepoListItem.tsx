@@ -1,6 +1,7 @@
 // components/RepoListItem.tsx - Repository list item component
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
 import { theme } from '../theme';
 import { GitHubRepo } from '../hooks/useGitHubRepos';
 
@@ -8,10 +9,11 @@ type Props = {
   repo: GitHubRepo;
   isActive: boolean;
   onPress: (repo: GitHubRepo) => void;
+  onRename: (repo: GitHubRepo) => void;
   onDelete: (repo: GitHubRepo) => void;
 };
 
-export const RepoListItem = React.memo<Props>(({ repo, isActive, onPress, onDelete }) => {
+export const RepoListItem = React.memo<Props>(({ repo, isActive, onPress, onRename, onDelete }) => {
   return (
     <View style={[styles.container, isActive && styles.containerActive]}>
       <View
@@ -33,9 +35,24 @@ export const RepoListItem = React.memo<Props>(({ repo, isActive, onPress, onDele
         </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.deleteButton} onPress={() => onDelete(repo)}>
-        <Text style={styles.deleteButtonText}>🗑</Text>
-      </TouchableOpacity>
+      <View style={styles.actions}>
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={() => onRename(repo)}
+          accessibilityRole="button"
+          accessibilityLabel="Repo umbenennen"
+        >
+          <Ionicons name="pencil" size={16} color={theme.palette.primary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={() => onDelete(repo)}
+          accessibilityRole="button"
+          accessibilityLabel="Repo löschen"
+        >
+          <Ionicons name="trash" size={16} color={theme.palette.error} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 });
@@ -98,12 +115,19 @@ const styles = StyleSheet.create({
     color: theme.palette.text.secondary,
     marginTop: 4,
   },
-  deleteButton: {
-    width: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+  actions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
-  deleteButtonText: {
-    fontSize: 16,
+  actionBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.secondary,
   },
 });

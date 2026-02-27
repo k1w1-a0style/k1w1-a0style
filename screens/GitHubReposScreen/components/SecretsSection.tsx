@@ -18,8 +18,12 @@ const OPTIONAL_SECRETS = [
   "K1W1_EDGE_ADMIN_KEY",
 ] as const;
 
-export function SecretsSection(props: { activeRepo: string | null }) {
-  const { activeRepo } = props;
+export function SecretsSection(props: {
+  activeRepo: string | null;
+  onSyncSecrets?: () => void;
+  syncing?: boolean;
+}) {
+  const { activeRepo, onSyncSecrets, syncing } = props;
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -142,6 +146,23 @@ export function SecretsSection(props: { activeRepo: string | null }) {
           }}
         >
           <Text style={styles.buttonText}>Alle anzeigen ({names.length})</Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {activeRepo && onSyncSecrets ? (
+        <TouchableOpacity
+          style={[styles.button, { marginTop: 10 }, (syncing || !parsed) && styles.buttonDisabled]}
+          onPress={onSyncSecrets}
+          disabled={syncing || !parsed}
+        >
+          {syncing ? (
+            <ActivityIndicator size="small" color={theme.palette.primary} />
+          ) : (
+            <>
+              <Ionicons name="cloud-upload-outline" size={18} color={theme.palette.primary} />
+              <Text style={styles.buttonText}>Secrets synchronisieren</Text>
+            </>
+          )}
         </TouchableOpacity>
       ) : null}
     </View>

@@ -21,6 +21,9 @@ interface BranchSelectorProps {
   activeRepo: string | null;
   activeBranch: string | null;
   onSelectBranch: (branch: string) => void;
+  onCreateBranch?: () => void;
+  onRenameBranch?: () => void;
+  onDeleteBranch?: () => void;
   loadBranches: (owner: string, repo: string) => Promise<GitHubBranch[]>;
   loadDefaultBranch: (owner: string, repo: string) => Promise<string>;
 }
@@ -29,6 +32,9 @@ export const BranchSelector = memo(function BranchSelector({
   activeRepo,
   activeBranch,
   onSelectBranch,
+  onCreateBranch,
+  onRenameBranch,
+  onDeleteBranch,
   loadBranches,
   loadDefaultBranch,
 }: BranchSelectorProps) {
@@ -134,9 +140,61 @@ export const BranchSelector = memo(function BranchSelector({
             <Text style={s.selectorValue}>{activeBranch || "Waehlen..."}</Text>
           )}
         </View>
-        <Animated.View style={{ transform: [{ rotate: rotation }] }}>
-          <Ionicons name="chevron-down" size={18} color={theme.palette.text.secondary} />
-        </Animated.View>
+
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          {!!onCreateBranch && (
+            <TouchableOpacity
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onCreateBranch();
+              }}
+              style={[s.actionIconBtn]}
+              accessibilityLabel="Branch erstellen"
+            >
+              <Ionicons name="add" size={16} color={theme.palette.primary} />
+            </TouchableOpacity>
+          )}
+
+          {!!onRenameBranch && (
+            <TouchableOpacity
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onRenameBranch();
+              }}
+              style={[s.actionIconBtn]}
+              disabled={!activeBranch}
+              accessibilityLabel="Branch umbenennen"
+            >
+              <Ionicons
+                name="pencil"
+                size={16}
+                color={activeBranch ? theme.palette.primary : theme.palette.text.muted}
+              />
+            </TouchableOpacity>
+          )}
+
+          {!!onDeleteBranch && (
+            <TouchableOpacity
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onDeleteBranch();
+              }}
+              style={[s.actionIconBtn]}
+              disabled={!activeBranch}
+              accessibilityLabel="Branch löschen"
+            >
+              <Ionicons
+                name="trash"
+                size={16}
+                color={activeBranch ? theme.palette.error : theme.palette.text.muted}
+              />
+            </TouchableOpacity>
+          )}
+
+          <Animated.View style={{ transform: [{ rotate: rotation }] }}>
+            <Ionicons name="chevron-down" size={18} color={theme.palette.text.secondary} />
+          </Animated.View>
+        </View>
       </TouchableOpacity>
 
       {expanded && branches.length > 0 && (
