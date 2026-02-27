@@ -91,10 +91,17 @@ export const styles = StyleSheet.create({
 
   // --- Status row ---
   statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: "column",
+    alignItems: "stretch",
     marginBottom: 10,
   },
+
+  statusTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+  },
+
   statusText: {
     color: theme.palette.text.secondary,
     fontWeight: "800",

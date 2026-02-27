@@ -99,9 +99,12 @@ export function CiLiteModal(props: CiLiteModalProps) {
 
           {/* Status + Progress */}
           <View style={styles.statusRow}>
-            <Text style={styles.statusText}>{statusText}</Text>
-            <AnimatedDots active={busy} />
-            {busy ? <ActivityIndicator size="small" color={theme.palette.primary} style={{ marginLeft: 8 }} /> : null}
+            <View style={styles.statusTopRow}>
+              <Text style={styles.statusText}>{statusText}</Text>
+              <AnimatedDots active={busy} />
+              {busy ? <ActivityIndicator size="small" color={theme.palette.primary} style={{ marginLeft: 8 }} /> : null}
+            </View>
+
             <ProgressBar
               progressAnim={progressAnim}
               shimmerAnim={shimmerAnim}
