@@ -122,6 +122,8 @@ export default function GitHubReposScreen() {
     setManageValue,
     closeManageModal,
 
+    showRepoList,
+
   } = vm;
 
   const onNewRepo = useCallback(() => setShowNewRepo(true), [setShowNewRepo]);
@@ -142,7 +144,8 @@ export default function GitHubReposScreen() {
     [handleSelectRepo],
   );
 
-  const repoData: GitHubRepo[] = useMemo(() => filteredRepos, [filteredRepos]);
+  // Respect "showRepoList" for tests + UX toggles (some flows hide the list).
+  const repoData: GitHubRepo[] = useMemo(() => (showRepoList ? filteredRepos : []), [filteredRepos, showRepoList]);
 
   const renderRepoItem = useCallback(
     ({ item }: { item: GitHubRepo }) => (
@@ -312,6 +315,7 @@ export default function GitHubReposScreen() {
         activeRepo={activeRepo}
         activeBranch={activeBranch}
         projectFiles={projectFiles as any}
+        onPushSelected={(paths) => vm.openPushModalForPaths(paths)}
       />
 
       <ManageTextModal

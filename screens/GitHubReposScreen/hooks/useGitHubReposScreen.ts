@@ -614,6 +614,40 @@ export function useGitHubReposScreen() {
     setPushModalVisible(true);
   }, [activeRepo, projectFiles]);
 
+  /**
+   * Opens the Push options modal but preselects only specific local paths.
+   * Used by the Diff UI to push only changed files.
+   */
+  const openPushModalForPaths = useCallback(
+    (paths: string[]) => {
+      if (!activeRepo || !projectFiles.length) {
+        Alert.alert("⚠️", "Kein Repo/Projekt ausgewählt oder keine Dateien.");
+        return;
+      }
+      const wanted = new Set((paths || []).map((p) => String(p || "").trim()).filter(Boolean));
+      const initial: Record<string, boolean> = {};
+
+      for (const f of projectFiles as any[]) {
+        const p = String((f as any)?.path || "").trim();
+        if (!p) continue;
+        if (!wanted.size) initial[p] = true;
+        else if (wanted.has(p)) initial[p] = true;
+      }
+
+      if (wanted.size) {
+        const picked = Object.values(initial).filter(Boolean).length;
+        if (!picked) {
+          Alert.alert("⚠️", "Auswahl enthält keine lokalen Dateien (remote-only kann nicht gepusht werden).");
+          return;
+        }
+      }
+
+      setPushSelectedPaths(initial);
+      setPushModalVisible(true);
+    },
+    [activeRepo, projectFiles],
+  );
+
   const togglePushPath = useCallback((path: string) => {
     setPushSelectedPaths((prev) => ({ ...prev, [path]: !prev[path] }));
   }, []);
@@ -929,6 +963,7 @@ export function useGitHubReposScreen() {
     handleDeleteRepo, isDeletingRepo,
     handlePull, isPulling, pullProgress,
     handlePush, isPushing,
+    openPushModalForPaths,
     // advanced sync UI
     pushModalVisible,
     setPushModalVisible,

@@ -30,3 +30,7 @@
 - Patch 292: fix TS hoist order in RepoScreen hook (refreshSyncStatus TDZ) (see docs/patches/patch_292.md)
 
 - Patch 293: RepoScreen UI cleanup (no close panels, auto repos, per-repo actions, branch actions in dropdown, secrets sync button, single diff section) (see docs/patches/patch_293.md)
+
+- Patch 294: RepoScreen Diff "git-like" (+/-) with file selection → push only changes + restore showRepoList behavior for tests (see docs/patches/patch_294.md)
+
+- Patch 295: RepoScreen per-file diff preview modal (unified +/-) + fix TS regressions in diff list + wire showRepoList from VM (see docs/patches/patch_295.md)
