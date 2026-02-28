@@ -1,5 +1,9 @@
 # Project Checklog
 
+## Patch 309 (2026-02-28)
+- Synced TODO docs with current implementation status for Connections SoT / Patch 217.
+- Marked stale historical Patch A–D checklist in `docs/PROJECT_TODO.md` as done and removed pending drift.
+
 ## Patch 213
 - Fixed missing `githubApiUrl` import in `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`.
 - Typecheck/lint/tests should pass again after patch 211/212 changes.
