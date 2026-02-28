@@ -26,7 +26,7 @@ export function resolveLegacyAutoMode(provider: AllAIProviders, qualityMode: Qua
   const isLegacyAuto = raw === '' || raw === 'auto' || raw.startsWith('auto-');
   if (!isLegacyAuto) return raw;
 
-  const defs = (PROVIDER_DEFAULTS as any)?.[provider] as (typeof PROVIDER_DEFAULTS)[AllAIProviders] | undefined;
+  const defs = PROVIDER_DEFAULTS?.[provider];
   if (!defs) return fallback;
   // balanced -> speed default, review -> quality default
   if (qualityMode === 'quality' || qualityMode === 'review') return defs.quality;
@@ -55,7 +55,7 @@ export async function loadSecureApiKeys(): Promise<Record<AllAIProviders, string
     const parsed = JSON.parse(raw) as Partial<Record<AllAIProviders, unknown>>;
     const next: Record<AllAIProviders, string[]> = { ...DEFAULT_CONFIG.apiKeys };
     (Object.keys(next) as AllAIProviders[]).forEach((p) => {
-      const v = (parsed as any)?.[p];
+      const v = parsed?.[p];
       if (Array.isArray(v)) next[p] = v.map((k) => String(k ?? "").trim()).filter(Boolean);
     });
     return next;
@@ -67,7 +67,7 @@ export async function loadSecureApiKeys(): Promise<Record<AllAIProviders, string
 export async function saveSecureApiKeys(keys: Record<AllAIProviders, string[]>): Promise<void> {
   const cleaned: Record<AllAIProviders, string[]> = { ...DEFAULT_CONFIG.apiKeys };
   (Object.keys(cleaned) as AllAIProviders[]).forEach((p) => {
-    const v = (keys as any)?.[p];
+    const v = keys?.[p];
     cleaned[p] = Array.isArray(v) ? v.map((k) => String(k ?? "").trim()).filter(Boolean) : [];
   });
   const hasAny = (Object.keys(cleaned) as AllAIProviders[]).some((p) => cleaned[p].length > 0);
@@ -91,7 +91,12 @@ export async function loadConfig(): Promise<AIConfig | null> {
     const raw = await AsyncStorage.getItem(k);
     if (!raw) continue;
     try {
-      const parsed = JSON.parse(raw) as Partial<AIConfig>;
+      const parsed = JSON.parse(raw) as Partial<AIConfig> & {
+        apiKeys?: Partial<Record<AllAIProviders, unknown>>;
+        agentEnabled?: unknown;
+        selectedChatMode?: unknown;
+        selectedAgentMode?: unknown;
+      };
       if (!parsed || typeof parsed !== 'object') continue;
 
       const base: AIConfig = {
@@ -100,25 +105,25 @@ export async function loadConfig(): Promise<AIConfig | null> {
         version: DEFAULT_CONFIG.version,
         apiKeys: {
           ...DEFAULT_CONFIG.apiKeys,
-          ...((parsed as any).apiKeys ?? {}),
+          ...(parsed.apiKeys ?? {}),
         },
-        agentEnabled: typeof (parsed as any).agentEnabled === 'boolean' ? !!(parsed as any).agentEnabled : DEFAULT_CONFIG.agentEnabled,
+        agentEnabled: typeof parsed.agentEnabled === 'boolean' ? !!parsed.agentEnabled : DEFAULT_CONFIG.agentEnabled,
       };
 
-      const chatProvider = coerceProvider((base as any).selectedChatProvider, DEFAULT_CONFIG.selectedChatProvider);
-      const agentProvider = coerceProvider((base as any).selectedAgentProvider, DEFAULT_CONFIG.selectedAgentProvider);
+      const chatProvider = coerceProvider(base.selectedChatProvider, DEFAULT_CONFIG.selectedChatProvider);
+      const agentProvider = coerceProvider(base.selectedAgentProvider, DEFAULT_CONFIG.selectedAgentProvider);
       const qm: QualityMode = (base.qualityMode as QualityMode) || DEFAULT_CONFIG.qualityMode;
 
       const rawChatMode = resolveLegacyAutoMode(
         chatProvider,
         qm,
-        (parsed as any).selectedChatMode ?? base.selectedChatMode,
+        parsed.selectedChatMode ?? base.selectedChatMode,
         base.selectedChatMode,
       );
       const rawAgentMode = resolveLegacyAutoMode(
         agentProvider,
         qm,
-        (parsed as any).selectedAgentMode ?? base.selectedAgentMode,
+        parsed.selectedAgentMode ?? base.selectedAgentMode,
         base.selectedAgentMode,
       );
 
