@@ -1,5 +1,5 @@
 import React from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../../../theme";
@@ -7,10 +7,22 @@ import { InputRow } from "./InputRow";
 
 export function EasCard(props: {
   styles: any;
+  busy?: boolean;
   easProjectId: string;
   onChangeEasProjectId: (v: string) => void;
+  onTestEas?: () => void;
+  onLinkExisting?: () => void;
+  onCreateAndLink?: () => void;
 }) {
-  const { styles, easProjectId, onChangeEasProjectId } = props;
+  const {
+    styles,
+    busy = false,
+    easProjectId,
+    onChangeEasProjectId,
+    onTestEas,
+    onLinkExisting,
+    onCreateAndLink,
+  } = props;
 
   return (
     <View style={styles.card}>
@@ -31,6 +43,55 @@ export function EasCard(props: {
         placeholder="5e5a7791-8751-416b-9a1f-831adfffcb6c"
         rightHint="Wird beim EAS-Link genutzt"
       />
+
+
+
+      <View style={{ flexDirection: "row", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+        <Pressable
+          onPress={onTestEas}
+          disabled={busy || !onTestEas}
+          style={({ pressed }) => [
+            styles.summaryBtn,
+            pressed && styles.summaryBtnPressed,
+            (busy || !onTestEas) && { opacity: 0.5 },
+          ]}
+        >
+          <Ionicons name="flask-outline" size={16} color={theme.palette.primary} />
+          <Text style={{ color: theme.palette.primary, fontWeight: "800", fontSize: 12 }}>
+            EAS prüfen
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={onLinkExisting}
+          disabled={busy || !onLinkExisting}
+          style={({ pressed }) => [
+            styles.summaryBtn,
+            pressed && styles.summaryBtnPressed,
+            (busy || !onLinkExisting) && { opacity: 0.5 },
+          ]}
+        >
+          <Ionicons name="link-outline" size={16} color={theme.palette.primary} />
+          <Text style={{ color: theme.palette.primary, fontWeight: "800", fontSize: 12 }}>
+            Vorhandene ID verlinken
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={onCreateAndLink}
+          disabled={busy || !onCreateAndLink}
+          style={({ pressed }) => [
+            styles.summaryBtn,
+            pressed && styles.summaryBtnPressed,
+            (busy || !onCreateAndLink) && { opacity: 0.5 },
+          ]}
+        >
+          <Ionicons name="add-circle-outline" size={16} color={theme.palette.primary} />
+          <Text style={{ color: theme.palette.primary, fontWeight: "800", fontSize: 12 }}>
+            Neue ID erstellen + verlinken
+          </Text>
+        </Pressable>
+      </View>
 
       <Text style={styles.hint}>
         EAS-Link/Init ist im Repo-Screen (dort wird auch geprüft/auto-fix:

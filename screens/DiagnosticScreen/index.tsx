@@ -115,6 +115,26 @@ export default function DiagnosticScreen() {
     });
   };
 
+
+  const sendIssueToChat = (r: PreflightCheckResult | null) => {
+    if (!r) return;
+    const details = (r.details || []).slice(0, 10).map((d) => `- ${d}`).join("\n");
+    const msg =
+      `Bitte behebe dieses Diagnostic-Issue mit einem sicheren Minimal-Patch.\n` +
+      `Titel: ${r.title}\n` +
+      `Status: ${r.status}\n` +
+      (r.message ? `Beschreibung: ${r.message}\n` : "") +
+      (linkedRepo ? `Repo: ${linkedRepo}\n` : "") +
+      (linkedBranch ? `Branch: ${linkedBranch}\n` : "") +
+      (details ? `\nDetails:\n${details}\n` : "") +
+      `\nLiefere zuerst die betroffenen Dateien und dann einen minimalen Patch.`;
+
+    navigation.navigate("Home", {
+      screen: "Chat",
+      params: { prefillText: msg },
+    });
+  };
+
   const allChecks: PreflightCheckResult[] = useMemo(() => {
     const arr = (results || []) as PreflightCheckResult[];
     const score = (s: string) => (s === "fail" ? 0 : s === "warn" ? 1 : 2);
@@ -189,6 +209,10 @@ export default function DiagnosticScreen() {
           if (!activeIssue) return;
           closeIssue();
           applyIssueFix(activeIssue);
+        }}
+        onSendToChat={() => {
+          closeIssue();
+          sendIssueToChat(activeIssue);
         }}
       />
 
@@ -311,8 +335,18 @@ export default function DiagnosticScreen() {
                       <View style={{ alignItems: "flex-end", gap: 6 }}>
                         <SeverityBadge severity={sev as any} />
                         {hasFix ? (
-                          <Text style={styles.fixHint}>Fix verfuegbar</Text>
-                        ) : null}
+                          <Text style={styles.fixHint}>Auto-Fix verfuegbar</Text>
+                        ) : (
+                          <Text style={styles.fixHint}>KI-Fix verfuegbar</Text>
+                        )}
+                        <TouchableOpacity
+                          style={styles.chatFixBtn}
+                          onPress={() => sendIssueToChat(r)}
+                          disabled={busy || running}
+                        >
+                          <Ionicons name="chatbubble-ellipses-outline" size={12} color={theme.palette.primary} />
+                          <Text style={styles.chatFixText}>KI-Fix</Text>
+                        </TouchableOpacity>
                       </View>
                     </TouchableOpacity>
                   );

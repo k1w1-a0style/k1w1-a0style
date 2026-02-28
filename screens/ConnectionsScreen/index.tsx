@@ -73,6 +73,10 @@ export default function ConnectionsScreen() {
 
     // EAS
     setEasProjectId,
+    onLinkExisting,
+    onCreateAndLink,
+    testEas,
+    isTestingEas,
 
     // Actions
     saveAll,
@@ -199,8 +203,12 @@ export default function ConnectionsScreen() {
 
         <EasCard
           styles={styles}
+          busy={busy || isTestingEas || isEasInitRunning}
           easProjectId={easProjectId}
           onChangeEasProjectId={setEasProjectId}
+          onTestEas={() => void testEas()}
+          onLinkExisting={() => void onLinkExisting()}
+          onCreateAndLink={() => void onCreateAndLink()}
         />
 
         <View style={{ height: 20 }} />

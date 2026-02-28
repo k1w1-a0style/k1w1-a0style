@@ -38,3 +38,4 @@
 - Patch 302: Fix EAS/CI workflow-dispatch 404 (auto-resolve + bootstrap managed workflows) (see docs/patches/patch_302.md)
 
 - Patch 305: Fix CI/EAS workflow dispatch 404 robustly (resolve workflow id by path, auto-bootstrap managed workflows, retry until registered) (see docs/patches/patch_305.md)
+- Patch 306: CI-Lite parser hardening + Diagnostics KI-Fix-Flow + Connections EAS-Link-UX + Preview originWhitelist fix + Model/UX refresh (see docs/patches/patch_306.md)

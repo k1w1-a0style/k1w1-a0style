@@ -391,6 +391,7 @@ export function useDiagnosticScreen(opts: {
       details: activeIssue.details,
       severity: toSeverity(st),
       hasFix: !!activeIssue.fix?.patch,
+      fixLabel: activeIssue.fix?.label,
     };
   }, [activeIssue, toSeverity]);
 

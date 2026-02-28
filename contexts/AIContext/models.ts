@@ -142,6 +142,7 @@ export const AVAILABLE_MODELS: Record<AllAIProviders, ModelInfo[]> = {
     { id: 'gpt-4o', label: 'GPT-4o', description: 'Starker Allrounder.', tier: 'credit', persona: 'quality', bestFor: 'Allround', contextWindow: '128k' },
     { id: 'gpt-4o-mini', label: 'GPT-4o mini', description: 'Schnell & günstig.', tier: 'free', persona: 'speed', bestFor: 'Speed'},
     { id: 'gpt-4.1', label: 'GPT-4.1', description: 'Sehr gut für Code/Reasoning.', tier: 'credit', persona: 'quality', bestFor: 'Code'},
+    { id: 'gpt-5-mini', label: 'GPT-5 mini', description: 'Neuer schneller Reasoning-Mix.', tier: 'credit', persona: 'balanced', bestFor: 'Daily + Code'},
     { id: 'gpt-4.1-mini', label: 'GPT-4.1 mini', description: 'Top Preis/Leistung.', tier: 'credit', persona: 'speed', bestFor: 'Daily'},
     { id: 'gpt-4.1-nano', label: 'GPT-4.1 nano', description: 'Extrem schnell.', tier: 'free', persona: 'speed', bestFor: 'Mini-Tasks'},
   ],
@@ -149,11 +150,13 @@ export const AVAILABLE_MODELS: Record<AllAIProviders, ModelInfo[]> = {
     { id: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku', description: 'Schnell, solide.', tier: 'credit', persona: 'speed', bestFor: 'Speed'},
     { id: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', description: 'Schnell + besser.', tier: 'credit', persona: 'speed', bestFor: 'Speed+Qualität'},
     { id: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', description: 'Höhere Qualität (Reasoning/Writing).', tier: 'credit', persona: 'quality', bestFor: 'Quality/Review', contextWindow: '200k' },
+    { id: 'claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet', description: 'Aktuellere Sonnet-Generation für Coding/Reasoning.', tier: 'credit', persona: 'quality', bestFor: 'Code + Reasoning', contextWindow: '200k' },
   ],
   gemini: [
     // ✅ Test wants at least one model with "1M" or "2M"
     { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite', description: 'Sehr schnell & günstig.', tier: 'free', persona: 'speed', bestFor: 'Speed', contextWindow: '1M' },
     { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', description: 'Daily Driver.', tier: 'credit', persona: 'balanced', bestFor: 'Daily', contextWindow: '1M' },
+    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', description: 'Mehr Qualität für schwierige Aufgaben.', tier: 'paid', persona: 'quality', bestFor: 'Review/Analyse', contextWindow: '2M' },
   ],
   huggingface: [
     { id: 'Qwen/Qwen2.5-Coder-32B-Instruct', label: 'Qwen2.5 Coder 32B', description: 'Stark für Code.', tier: 'free', persona: 'quality', bestFor: 'Code', contextWindow: 'varies' },

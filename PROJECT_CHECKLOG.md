@@ -82,3 +82,10 @@
 - 2026-02-24: Patch 245 prepared (hotfix: BuildHistoryEntry optional fields in useBuildHistory). Run `npm run test:silent` + `npm run typecheck` after apply.
 
 - 2026-02-24: Patch 246 prepared (hotfix: GitHub workflow dispatch token ReferenceError + suppress Android FCM push-token fetch when not configured). Run `npm run test:silent` + `npm run typecheck` after apply.
+
+## Patch 306 (2026-02-28)
+- CI Lite Parser robuster für Header-Status (Lint/Typecheck).
+- Diagnostics: jeder Check jetzt mit klarer Fix-Route (Auto-Fix oder KI-Fix an Chat).
+- Connections: EAS prüfen/verlinken/neu erstellen direkt im EAS-Card-Block.
+- Preview: originWhitelist aus Hook korrekt im WebView genutzt (stabilere In-App Preview).
+- KI-Modelle um aktuelle Optionen ergänzt, Diagnostics/RepoScreen optisch überarbeitet.

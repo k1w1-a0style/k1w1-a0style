@@ -15,17 +15,17 @@ export function inferStepStates(lines: string[]): {
 } {
   const joined = lines.join("\n");
 
-  const lintStarted = /npm run lint:ci|eslint\s+\./i.test(joined);
-  const typecheckStarted = /npm run typecheck|tsc\s+--noEmit/i.test(joined);
+  const lintStarted = /npm run lint:ci|eslint\s+\.|\blint:ci\b|Lint \(CI\)/i.test(joined);
+  const typecheckStarted = /npm run typecheck|tsc\s+--noEmit|Typecheck/i.test(joined);
 
-  const tsErrors = lines.filter((l) => /error\s+TS\d+:/i.test(l)).length;
-  // ESLint (quiet) prints only errors; count typical lines containing " error  " but not TS errors.
+  const tsErrors = lines.filter((l) => /error\s+TS\d+:|Type \".*\" is not assignable/i.test(l)).length;
+  // ESLint (quiet) prints only errors; zähle typische Formate inkl. compact formatter.
   const eslintErrors = lines.filter(
-    (l) => !/error\s+TS\d+:/i.test(l) && /\serror\s{2,}/i.test(l),
+    (l) => !/error\s+TS\d+:/i.test(l) && (/\serror\s{2,}/i.test(l) || /\d+\s+problems?\s*\(\d+\s+errors?/i.test(l)),
   ).length;
 
   const hasFailure = /Process completed with exit code\s+(?!0)\d+/i.test(joined);
-  const hasSuccess = /✅\s*CI\s*Lite\s*passed|All checks passed|Done\s+in\s+\d/i.test(joined);
+  const hasSuccess = /✅\s*CI\s*Lite\s*passed|All checks passed|Done\s+in\s+\d|0\s+problems\s*\(0\s+errors|Typecheck\s*(ok|passed)/i.test(joined);
 
   const lint: StepState = lintStarted
     ? eslintErrors > 0

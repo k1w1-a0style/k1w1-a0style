@@ -4,7 +4,7 @@ import { theme } from "../../theme";
 export const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: theme.palette.background },
   container: { flex: 1, backgroundColor: theme.palette.background },
-  content: { padding: 16, paddingBottom: 32 },
+  content: { padding: 16, paddingBottom: 42, gap: 6 },
 
   // Subtle neon (A): dark surfaces + primary accent with soft glow
   neonGlow: {
@@ -86,7 +86,7 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: theme.palette.secondary,
     borderWidth: 1,
-    borderColor: theme.palette.border,
+    borderColor: `${theme.palette.primary}2e`,
   },
   iconBtnActive: {
     borderColor: theme.palette.primary,
@@ -104,7 +104,7 @@ export const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: theme.palette.border,
+    borderColor: `${theme.palette.primary}2e`,
     backgroundColor: theme.palette.secondary,
   },
   chipActive: {
@@ -122,10 +122,10 @@ export const styles = StyleSheet.create({
 
   section: {
     backgroundColor: theme.palette.card,
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: theme.palette.border,
+    borderColor: `${theme.palette.primary}2e`,
     marginBottom: 12,
   },
   sectionNeon: {
@@ -159,7 +159,7 @@ export const styles = StyleSheet.create({
   },
   buttonSecondary: {
     backgroundColor: "transparent",
-    borderColor: theme.palette.border,
+    borderColor: `${theme.palette.primary}2e`,
   },
   buttonGhost: {
     backgroundColor: "transparent",
@@ -194,7 +194,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: theme.palette.border,
+    borderColor: `${theme.palette.primary}2e`,
     color: theme.palette.text.primary,
   },
 
@@ -209,7 +209,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: theme.palette.border,
+    borderColor: `${theme.palette.primary}2e`,
     backgroundColor: theme.palette.secondary,
   },
   filterButtonActive: {
@@ -232,7 +232,7 @@ export const styles = StyleSheet.create({
     paddingVertical: 7,
     backgroundColor: theme.palette.secondary,
     borderWidth: 1,
-    borderColor: theme.palette.border,
+    borderColor: `${theme.palette.primary}2e`,
   },
   recentPillActive: {
     borderColor: theme.palette.primary,
@@ -263,7 +263,7 @@ export const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: theme.palette.border,
+    borderColor: `${theme.palette.primary}2e`,
     minWidth: 76,
     alignItems: "center",
   },
@@ -300,7 +300,7 @@ export const styles = StyleSheet.create({
 
   manageCard: {
     backgroundColor: theme.palette.card,
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 14,
     borderWidth: 1,
     borderColor: theme.palette.primary,
@@ -324,7 +324,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: theme.palette.border,
+    borderColor: `${theme.palette.primary}2e`,
     color: theme.palette.text.primary,
   },
   manageRow: { flexDirection: "row", gap: 10, marginTop: 12 },
