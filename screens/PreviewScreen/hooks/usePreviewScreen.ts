@@ -55,7 +55,7 @@ export function usePreviewScreen() {
   const url = previewSource?.type === 'url' ? previewSource.uri : null;
 
   // ─── Shared navigation (eliminiert Duplikat mit PreviewFullscreenScreen) ──
-  const { handleShouldStartLoad } = useWebViewNavigation({
+  const { originWhitelist, handleShouldStartLoad } = useWebViewNavigation({
     mode,
     url,
     confirmExternalLinks: false, // PreviewScreen öffnet externe Links direkt ohne Confirm
@@ -207,6 +207,7 @@ export function usePreviewScreen() {
     fadeAnim,
     hotDotAnim,
     flashBorderAnim,
+    originWhitelist,
     handleShouldStartLoad,
     handleCreate,
     handleReset,

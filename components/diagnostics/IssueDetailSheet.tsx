@@ -22,6 +22,7 @@ export type IssueDetail = {
   details?: string[];
   severity: Severity;
   hasFix: boolean;
+  fixLabel?: string;
 };
 
 export function IssueDetailSheet({
@@ -31,6 +32,7 @@ export function IssueDetailSheet({
   onApplyFix,
   onPreview,
   busy,
+  onSendToChat,
 }: {
   visible: boolean;
   issue: IssueDetail | null;
@@ -38,6 +40,7 @@ export function IssueDetailSheet({
   onApplyFix: () => void;
   onPreview: () => void;
   busy?: boolean;
+  onSendToChat?: () => void;
 }): React.ReactElement {
   const translate = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -117,7 +120,7 @@ export function IssueDetailSheet({
                 disabled={!!busy}
               >
                 <Ionicons name="flash" size={16} color={theme.palette.text.primary} />
-                <Text style={styles.primaryText}>Apply Fix</Text>
+                <Text style={styles.primaryText}>{issue.fixLabel || "Auto-Fix anwenden"}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -126,14 +129,33 @@ export function IssueDetailSheet({
                 disabled={!!busy}
               >
                 <Ionicons name="eye" size={16} color={theme.palette.text.primary} />
-                <Text style={styles.secondaryText}>Preview</Text>
+                <Text style={styles.secondaryText}>Patch Vorschau</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.secondaryBtn, busy && { opacity: 0.6 }]}
+                onPress={onSendToChat}
+                disabled={!!busy || !onSendToChat}
+              >
+                <Ionicons name="chatbubble-ellipses-outline" size={16} color={theme.palette.text.primary} />
+                <Text style={styles.secondaryText}>An KI senden</Text>
               </TouchableOpacity>
             </>
           ) : (
-            <View style={styles.noFixRow}>
-              <Ionicons name="information-circle" size={16} color={theme.palette.text.muted} />
-              <Text style={styles.noFixText}>No automatic fix available.</Text>
-            </View>
+            <>
+              <View style={styles.noFixRow}>
+                <Ionicons name="information-circle" size={16} color={theme.palette.text.muted} />
+                <Text style={styles.noFixText}>Kein Auto-Fix vorhanden.</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.primaryBtn, busy && { opacity: 0.6 }]}
+                onPress={onSendToChat}
+                disabled={!!busy || !onSendToChat}
+              >
+                <Ionicons name="sparkles-outline" size={16} color={theme.palette.text.primary} />
+                <Text style={styles.primaryText}>KI-Fix anfragen</Text>
+              </TouchableOpacity>
+            </>
           )}
         </View>
       </Animated.View>

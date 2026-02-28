@@ -37,6 +37,7 @@ export default function PreviewScreen() {
     fadeAnim,
     hotDotAnim,
     flashBorderAnim,
+    originWhitelist,
     handleShouldStartLoad,
     handleCreate,
     handleReset,
@@ -58,7 +59,7 @@ export default function PreviewScreen() {
       <SafeAreaView style={s.root} edges={['top']}>
         <View style={s.center}>
           <ActivityIndicator size="large" color={theme.palette.primary} />
-          <Text style={s.loadingText}>Projekt wird geladen...</Text>
+          <Text style={s.loadingText}>Projekt wird geladen…</Text>
         </View>
       </SafeAreaView>
     );
@@ -70,7 +71,7 @@ export default function PreviewScreen() {
         <View style={s.center}>
           <Ionicons name="folder-open-outline" size={48} color={theme.palette.text.muted} />
           <Text style={s.emptyTitle}>Kein Projekt geladen</Text>
-          <Text style={s.emptyText}>Oeffne oder erstelle zuerst ein Projekt.</Text>
+          <Text style={s.emptyText}>Öffne oder erstelle zuerst ein Projekt.</Text>
         </View>
       </SafeAreaView>
     );
@@ -95,7 +96,7 @@ export default function PreviewScreen() {
             <Animated.View style={{ opacity: hotDotAnim }}>
               <View style={[s.hotDot, hotReloadEnabled && s.hotDotOn]} />
             </Animated.View>
-            <Text style={[s.hotReloadLabel, hotReloadEnabled && s.hotReloadLabelOn]}>Hot</Text>
+            <Text style={[s.hotReloadLabel, hotReloadEnabled && s.hotReloadLabelOn]}>Hot-Reload</Text>
           </Pressable>
           <Pressable style={s.toolBtn} onPress={handleReload}>
             <Ionicons name="refresh-outline" size={18} color={theme.palette.text.primary} />
@@ -126,8 +127,8 @@ export default function PreviewScreen() {
         ]} />
         <Text style={s.statusText}>
           {phase === 'idle' ? 'Bereit'
-            : phase === 'creating' ? 'Preview wird erstellt...'
-            : phase === 'loading' ? 'Wird geladen...'
+            : phase === 'creating' ? 'Preview wird erstellt…'
+            : phase === 'loading' ? 'Wird geladen…'
             : phase === 'ready' ? 'Live'
             : 'Fehler'}
         </Text>
@@ -138,7 +139,7 @@ export default function PreviewScreen() {
         )}
         {hotReloadEnabled && hotReloadCount > 0 && (
           <View style={s.hotBadge}>
-            <Text style={s.hotBadgeText}>{hotReloadCount}x reloaded</Text>
+            <Text style={s.hotBadgeText}>{hotReloadCount}x neu geladen</Text>
           </View>
         )}
       </View>
@@ -165,7 +166,7 @@ export default function PreviewScreen() {
                 ref={webViewRef}
                 style={s.webView}
                 source={previewSource.type === 'url' ? { uri: previewSource.uri } : { html: previewSource.html }}
-                originWhitelist={['https://*', 'http://*', 'data:*', 'about:*', 'blob:*']}
+                originWhitelist={originWhitelist}
                 setSupportMultipleWindows={false}
                 javaScriptCanOpenWindowsAutomatically={false}
                 onShouldStartLoadWithRequest={handleShouldStartLoad}
@@ -180,7 +181,7 @@ export default function PreviewScreen() {
                 <View style={s.loadingOverlay}>
                   <ActivityIndicator size="large" color={theme.palette.primary} />
                   <Text style={s.loadingOverlayText}>
-                    {phase === 'creating' ? 'Preview wird generiert...' : 'Laden...'}
+                    {phase === 'creating' ? 'Preview wird generiert…' : 'Laden…'}
                   </Text>
                 </View>
               )}
@@ -190,7 +191,7 @@ export default function PreviewScreen() {
               {phase === 'creating' ? (
                 <>
                   <ActivityIndicator size="large" color={theme.palette.primary} />
-                  <Text style={s.emptyPreviewText}>Preview wird erstellt...</Text>
+                  <Text style={s.emptyPreviewText}>Preview wird erstellt…</Text>
                 </>
               ) : (
                 <>
@@ -215,7 +216,7 @@ export default function PreviewScreen() {
           <Ionicons name="alert-circle" size={16} color={theme.palette.error} />
           <Text style={s.errorText} numberOfLines={2}>{webError || state.error}</Text>
           <Pressable style={s.errorRetryBtn} onPress={handleCreate}>
-            <Text style={s.errorRetryText}>Retry</Text>
+            <Text style={s.errorRetryText}>Erneut versuchen</Text>
           </Pressable>
         </View>
       )}
@@ -228,7 +229,7 @@ export default function PreviewScreen() {
         </Pressable>
         <Pressable style={s.bottomBtn} onPress={handleReset}>
           <Ionicons name="trash-outline" size={16} color={theme.palette.text.secondary} />
-          <Text style={[s.bottomBtnText, { color: theme.palette.text.secondary }]}>Zuruecksetzen</Text>
+          <Text style={[s.bottomBtnText, { color: theme.palette.text.secondary }]}>Zurücksetzen</Text>
         </Pressable>
       </View>
     </SafeAreaView>
