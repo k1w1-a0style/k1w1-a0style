@@ -46,3 +46,5 @@
 - Patch 310: project audit for open tasks + checklog update (see docs/patches/patch_310.md)
 
 - Patch 311: tighten EnhancedBuildScreen typing (remove any-casts in hook/helpers + enrich CurrentBuildLike) (see docs/patches/patch_311.md)
+
+- Patch 312: make One-Click Deploy secret sync opt-in (default off) with persistent toggle + TODO closure (see docs/patches/patch_312.md)

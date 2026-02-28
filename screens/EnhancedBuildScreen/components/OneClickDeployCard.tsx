@@ -168,6 +168,8 @@ export function OneClickDeployCard({
   deployDone,
   disabled,
   disabledReason,
+  autoSyncSecrets,
+  onToggleAutoSyncSecrets,
   onDeploy,
   onReset,
   onAbort,
@@ -177,6 +179,8 @@ export function OneClickDeployCard({
   deployDone: boolean;
   disabled?: boolean;
   disabledReason?: string | null;
+  autoSyncSecrets: boolean;
+  onToggleAutoSyncSecrets: () => void;
   onDeploy: () => void;
   onReset: () => void;
   onAbort: () => void;
@@ -208,6 +212,17 @@ export function OneClickDeployCard({
           <StepRow key={step.id} step={step} index={idx} />
         ))}
       </View>
+
+
+      <Pressable style={s.optionRow} onPress={onToggleAutoSyncSecrets} disabled={isDeploying}>
+        <View style={s.optionTextWrap}>
+          <Text style={s.optionLabel}>Secrets vor Build auto-syncen</Text>
+          <Text style={s.optionHint}>Optional (empfohlen aus), manuell weiter in Repo/Connections möglich</Text>
+        </View>
+        <View style={[s.optionLamp, autoSyncSecrets ? s.optionLampOn : s.optionLampOff]}>
+          <Text style={s.optionLampText}>{autoSyncSecrets ? "AN" : "AUS"}</Text>
+        </View>
+      </Pressable>
 
       {/* Action Buttons */}
       <View style={s.actions}>

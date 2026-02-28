@@ -1,7 +1,7 @@
 // screens/EnhancedBuildScreen/hooks/useOneClickDeploy.ts
 // One-Click Deploy: Runs all pre-build steps automatically, then triggers build
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -12,7 +12,7 @@ import {
   pushFilesToRepo,
 } from "../../../infra/github/githubService";
 import { autoSyncRepoSecrets } from "../../../lib/autoSyncRepoSecrets";
-import { credKeyForProfile } from "../../../lib/storageKeys";
+import { STORAGE_KEYS, credKeyForProfile } from "../../../lib/storageKeys";
 import type { BuildProfile } from "../types";
 
 export type DeployStepId =
@@ -49,6 +49,34 @@ export function useOneClickDeploy(
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployDone, setDeployDone] = useState(false);
   const abortRef = useRef(false);
+  const [autoSyncSecrets, setAutoSyncSecrets] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    AsyncStorage.getItem(STORAGE_KEYS.ONE_CLICK_AUTO_SYNC_SECRETS)
+      .then((value) => {
+        if (cancelled) return;
+        setAutoSyncSecrets(value === "true");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAutoSyncSecrets(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const toggleAutoSyncSecrets = useCallback(() => {
+    setAutoSyncSecrets((prev) => {
+      const next = !prev;
+      AsyncStorage.setItem(STORAGE_KEYS.ONE_CLICK_AUTO_SYNC_SECRETS, next ? "true" : "false").catch(
+        () => {},
+      );
+      return next;
+    });
+  }, []);
 
   const { projectData } = useProject();
 
@@ -112,27 +140,31 @@ export function useOneClickDeploy(
       }
       updateStep("tokens", "ok", "GitHub + Expo OK");
 
-      // === Step 3: Secrets synchronisieren ===
-      updateStep("secrets_sync", "running");
-      if (!repoFullName.trim()) {
-        updateStep("secrets_sync", "fail", "Kein Repo verknuepft");
-        Alert.alert("Kein Repo", "Bitte zuerst ein Repo verknuepfen.");
-        return;
-      }
-      if (abortRef.current) return;
-
-      try {
-        const syncResult = await autoSyncRepoSecrets(repoFullName);
+      // === Step 3: Secrets synchronisieren (optional) ===
+      if (!autoSyncSecrets) {
+        updateStep("secrets_sync", "skip", "Auto-Sync deaktiviert");
+      } else {
+        updateStep("secrets_sync", "running");
+        if (!repoFullName.trim()) {
+          updateStep("secrets_sync", "fail", "Kein Repo verknuepft");
+          Alert.alert("Kein Repo", "Bitte zuerst ein Repo verknuepfen.");
+          return;
+        }
         if (abortRef.current) return;
-        const detail =
-          syncResult.updated.length > 0
-            ? `${syncResult.updated.length} Secrets synchronisiert`
-            : "Keine Aenderungen noetig";
-        updateStep("secrets_sync", "ok", detail);
-      } catch (e: any) {
-        updateStep("secrets_sync", "fail", e?.message || "Sync fehlgeschlagen");
-        Alert.alert("Secrets Sync Fehler", e?.message || "Unbekannter Fehler");
-        return;
+
+        try {
+          const syncResult = await autoSyncRepoSecrets(repoFullName);
+          if (abortRef.current) return;
+          const detail =
+            syncResult.updated.length > 0
+              ? `${syncResult.updated.length} Secrets synchronisiert`
+              : "Keine Aenderungen noetig";
+          updateStep("secrets_sync", "ok", detail);
+        } catch (e: any) {
+          updateStep("secrets_sync", "fail", e?.message || "Sync fehlgeschlagen");
+          Alert.alert("Secrets Sync Fehler", e?.message || "Unbekannter Fehler");
+          return;
+        }
       }
 
       // === Step 4: Dateien pushen ===
@@ -189,6 +221,7 @@ export function useOneClickDeploy(
     projectData,
     updateStep,
     resetSteps,
+    autoSyncSecrets,
   ]);
 
   const abort = useCallback(() => {
@@ -200,6 +233,8 @@ export function useOneClickDeploy(
     steps,
     isDeploying,
     deployDone,
+    autoSyncSecrets,
+    toggleAutoSyncSecrets,
     runDeploy,
     resetSteps,
     abort,

@@ -92,6 +92,53 @@ export const s = StyleSheet.create({
   connectorOk: {
     backgroundColor: theme.palette.success,
   },
+  optionRow: {
+    marginTop: 16,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  optionTextWrap: {
+    flex: 1,
+  },
+  optionLabel: {
+    color: theme.palette.text.primary,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  optionHint: {
+    marginTop: 2,
+    color: theme.palette.text.muted,
+    fontSize: 11,
+  },
+  optionLamp: {
+    minWidth: 44,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  optionLampOn: {
+    borderColor: theme.palette.success,
+    backgroundColor: "rgba(0,255,0,0.08)",
+  },
+  optionLampOff: {
+    borderColor: theme.palette.text.disabled,
+    backgroundColor: "rgba(255,255,255,0.03)",
+  },
+  optionLampText: {
+    color: theme.palette.text.secondary,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
   actions: {
     marginTop: 16,
   },

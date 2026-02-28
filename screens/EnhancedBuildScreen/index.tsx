@@ -141,6 +141,8 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           steps={deploy.steps}
           isDeploying={deploy.isDeploying}
           deployDone={deploy.deployDone}
+          autoSyncSecrets={deploy.autoSyncSecrets}
+          onToggleAutoSyncSecrets={deploy.toggleAutoSyncSecrets}
           onDeploy={deploy.runDeploy}
           onReset={deploy.resetSteps}
           onAbort={deploy.abort}
