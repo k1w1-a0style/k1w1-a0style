@@ -50,3 +50,5 @@
 - Patch 312: make One-Click Deploy secret sync opt-in (default off) with persistent toggle + TODO closure (see docs/patches/patch_312.md)
 
 - Patch 313: split PreviewScreen UI into DeviceFrame/PreviewToolbar/PreviewStatusBar + TODO sync (see docs/patches/patch_313.md)
+
+- Patch 314: add preview_page toggles for raw logs/runtime errors + PR-9 TODO sync (see docs/patches/patch_314.md)

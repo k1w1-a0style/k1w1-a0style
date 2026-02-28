@@ -4,7 +4,8 @@
 import {
   TABLE, MAX_FILES_BYTES, MAX_RESPONSE_BYTES,
   json, escapeHtml, safeJsonForScript, getSupabaseBaseUrl, supabaseHeaders,
-  withTimeout, utf8Size, approxFilesPayloadSize, randomNonce, buildCsp, html,
+  withTimeout, utf8Size, approxFilesPayloadSize, randomNonce, html,
+  serve, rateLimit, sanitizeErrorText,
 } from "./helpers";
 import type { SnackFiles, PreviewRecord } from "./helpers";
 
@@ -92,6 +93,24 @@ function isExpired(expiresAtIso: string | null | undefined): boolean {
   return t < Date.now();
 }
 
+function parseToggleParam(value: string | null): boolean {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
+}
+
+function withToggleUrl(params: {
+  baseUrl: URL;
+  showRawLogs: boolean;
+  showRuntimeErrors: boolean;
+}): string {
+  const { baseUrl, showRawLogs, showRuntimeErrors } = params;
+  const url = new URL(baseUrl.toString());
+  url.searchParams.set("logs", showRawLogs ? "1" : "0");
+  url.searchParams.set("runtime_errors", showRuntimeErrors ? "1" : "0");
+  return url.toString();
+}
+
 function renderPage(params: {
   name: string;
   createdAt: string;
@@ -100,9 +119,24 @@ function renderPage(params: {
   files: SnackFiles;
   dependencies?: Record<string, string>;
   template?: string;
+  showRawLogs: boolean;
+  showRuntimeErrors: boolean;
+  logsToggleUrl: string;
+  runtimeErrorsToggleUrl: string;
 }) {
-  const { name, createdAt, expiresAt, nonce, files, dependencies, template } =
-    params;
+  const {
+    name,
+    createdAt,
+    expiresAt,
+    nonce,
+    files,
+    dependencies,
+    template,
+    showRawLogs,
+    showRuntimeErrors,
+    logsToggleUrl,
+    runtimeErrorsToggleUrl,
+  } = params;
 
   const sandpackSetup = {
     files,
@@ -149,6 +183,8 @@ function renderPage(params: {
       </div>
     </div>
     <div class="header-actions">
+      <a class="btn" href="${escapeHtml(logsToggleUrl)}">Logs: ${showRawLogs ? "ON" : "OFF"}</a>
+      <a class="btn" href="${escapeHtml(runtimeErrorsToggleUrl)}">Runtime Errors: ${showRuntimeErrors ? "ON" : "OFF"}</a>
       <button class="btn" id="btn-reload">↻ Reload</button>
     </div>
   </div>
@@ -162,11 +198,22 @@ function renderPage(params: {
     <div class="overlay-text">Booting preview…</div>
   </div>
 
+  <pre id="raw-logs" style="display:${showRawLogs ? "block" : "none"}; position: fixed; left: 8px; right: 8px; bottom: 8px; max-height: 30vh; overflow: auto; padding: 8px; border: 1px solid #1c4d35; border-radius: 8px; background: rgba(0,0,0,0.75); color: #9cf8c9; font-size: 11px; line-height: 1.4; z-index: 99999;"></pre>
+
 <script type="module" nonce="${nonce}">
   const overlay = document.getElementById("overlay");
   const btnReload = document.getElementById("btn-reload");
+  const rawLogsEl = document.getElementById("raw-logs");
 
+  const SHOW_RAW_LOGS = ${showRawLogs ? "true" : "false"};
+  const SHOW_RUNTIME_ERRORS = ${showRuntimeErrors ? "true" : "false"};
   const setup = ${sandpackJson};
+
+  function appendLog(message) {
+    if (!SHOW_RAW_LOGS || !rawLogsEl) return;
+    const now = new Date().toISOString().slice(11, 19);
+    rawLogsEl.textContent = `${now} ${message}\n${rawLogsEl.textContent || ""}`.slice(0, 12000);
+  }
 
   import { SandpackClient } from "https://esm.sh/@codesandbox/sandpack-client@2.19.0";
 
@@ -175,6 +222,7 @@ function renderPage(params: {
   }
 
   function showError(err) {
+    appendLog(`[error] ${String(err?.message || err)}`);
     overlay?.classList.remove("hidden");
     overlay?.classList.add("error-overlay");
     overlay.innerHTML = \`
@@ -207,23 +255,39 @@ function renderPage(params: {
         else normalizedFiles[path] = String(v ?? "");
       }
 
+      appendLog(`[start] files=${Object.keys(normalizedFiles).length} template=${template}`);
+
       const client = new SandpackClient(root, normalizedFiles, {
         template,
         dependencies,
       });
 
       client.listen((msg) => {
+        if (SHOW_RAW_LOGS) {
+          if (msg.type === "console" && "method" in msg) {
+            appendLog(`[console:${msg.method}] ${JSON.stringify(msg.log ?? [])}`);
+          } else if (msg.type === "error") {
+            appendLog(`[sandpack:error] ${String(msg.error || "Unknown Sandpack error")}`);
+          }
+        }
+
         if (msg.type === "status" && (msg.status === "running" || msg.status === "idle")) {
           hideOverlay();
         }
         if (msg.type === "error") {
-          showError(msg.error || "Unknown Sandpack error");
+          if (SHOW_RUNTIME_ERRORS) {
+            showError(msg.error || "Unknown Sandpack error");
+          }
         }
       });
 
       setTimeout(() => hideOverlay(), 2500);
     } catch (e) {
-      showError(e);
+      if (SHOW_RUNTIME_ERRORS) {
+        showError(e);
+      } else {
+        appendLog(`[runtime-error suppressed] ${String(e?.message || e)}`);
+      }
     }
   }
 
@@ -246,6 +310,8 @@ serve(async (req) => {
   try {
     const url = new URL(req.url);
     const secret = url.searchParams.get("secret") ?? "";
+    const showRawLogs = parseToggleParam(url.searchParams.get("logs"));
+    const showRuntimeErrors = parseToggleParam(url.searchParams.get("runtime_errors"));
     const nonce = randomNonce();
 
     if (!secret) {
@@ -296,6 +362,17 @@ serve(async (req) => {
         ? (record.meta as any)?.template
         : undefined;
 
+    const logsToggleUrl = withToggleUrl({
+      baseUrl: url,
+      showRawLogs: !showRawLogs,
+      showRuntimeErrors,
+    });
+    const runtimeErrorsToggleUrl = withToggleUrl({
+      baseUrl: url,
+      showRawLogs,
+      showRuntimeErrors: !showRuntimeErrors,
+    });
+
     const page = renderPage({
       nonce,
       name: record.name || "Preview",
@@ -304,6 +381,10 @@ serve(async (req) => {
       files: record.files ?? {},
       dependencies: record.dependencies ?? undefined,
       template: typeof metaTemplate === "string" ? metaTemplate : undefined,
+      showRawLogs,
+      showRuntimeErrors,
+      logsToggleUrl,
+      runtimeErrorsToggleUrl,
     });
 
     // Response size check
@@ -319,7 +400,7 @@ serve(async (req) => {
     const ms = Date.now() - started;
     const fileCount = record.files ? Object.keys(record.files).length : 0;
     console.log(
-      `[preview_page] ip=${ip} name=${record.name ?? "?"} files=${fileCount} bytes=${fileBytes} ms=${ms}`,
+      `[preview_page] ip=${ip} name=${record.name ?? "?"} files=${fileCount} bytes=${fileBytes} logs=${showRawLogs ? "on" : "off"} runtimeErrors=${showRuntimeErrors ? "on" : "off"} ms=${ms}`,
     );
 
     return html(page, nonce, 200);
