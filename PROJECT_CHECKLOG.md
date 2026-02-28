@@ -1,5 +1,9 @@
 # Project Checklog
 
+## Patch 321 (2026-02-28)
+- Fix-Listenpunkt „Observability" umgesetzt: `usePreview` sendet jetzt minimales `meta.debug` (source + file/dependency count) an `save_preview`.
+- `docs/PROJECT_TODO.md` entsprechend synchronisiert (Observability als erledigt markiert).
+
 ## Patch 320 (2026-02-28)
 - Weitere Fix-Listen-Punkte abgeschlossen: Logger/no-console Follow-up und API-Key-Masking-Review in `docs/PROJECT_TODO.md` auf erledigt gesetzt.
 - Verifiziert: zentrale Masking-Calls laufen über `lib/apiKeyMasking.ts` (u.a. Settings/AppInfo) und die zuvor genannten Logger-Hotspots gelten als abgearbeitet.

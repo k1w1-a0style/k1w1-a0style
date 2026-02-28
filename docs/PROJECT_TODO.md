@@ -81,7 +81,7 @@
 
 ### Stabilität
 - [x] Server-side Payload Limits (save_preview): harte max bytes + max files enforced ✅ *(patch 317)*
-- [ ] Observability: Edge Function Logs + optionales `meta.debug` (minimal)
+- [x] Observability: Edge Function Logs + optionales `meta.debug` (minimal) ✅ *(patch 321)*
 
 ### TypeScript-Hygiene
 - [ ] `any`-Annotationen reduzieren: Start mit `lib/orchestrator.ts` und `contexts/AIContext.tsx`
