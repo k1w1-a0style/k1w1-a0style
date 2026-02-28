@@ -9,6 +9,7 @@ import { parseJsonBody } from "../_shared/validation.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 
 export type SnackFiles = Record<string, { type?: string; contents: string }>;
+type SnackFileInput = { type?: unknown; contents?: unknown };
 export type Payload = {
   projectId?: string;
   name?: string;
@@ -51,11 +52,15 @@ export function sanitizeFiles(files: SnackFiles): SnackFiles {
     const key = sanitizePath(rawPath);
     if (!key) continue;
 
-    const contents = String((val as any)?.contents ?? "");
+    const file = val as SnackFileInput;
+    const contents = String(file.contents ?? "");
     total += contents.length;
     if (total > MAX_PAYLOAD_BYTES) throw new Error("Payload too large");
 
-    out[key] = { type: (val as any)?.type, contents };
+    out[key] = {
+      type: typeof file.type === "string" ? file.type : undefined,
+      contents,
+    };
   }
 
   if (!Object.keys(out).length) throw new Error("No valid files");

@@ -29,6 +29,12 @@ function promiseWithTimeout<T>(
 
 type ProjectFile = { path?: string; content?: string };
 
+function isProjectFile(value: unknown): value is ProjectFile {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as ProjectFile;
+  return typeof candidate.path === "string" && typeof candidate.content === "string";
+}
+
 const ALLOWED_EXTENSIONS = new Set([
   ".ts",
   ".tsx",
@@ -191,12 +197,7 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
 
     const rawFiles = projectData?.files;
     const list: ProjectFile[] = Array.isArray(rawFiles)
-      ? (rawFiles.filter((f: any) => {
-          if (!f || typeof f !== "object") return false;
-          const p = (f as any).path;
-          const c = (f as any).content;
-          return typeof p === "string" && typeof c === "string";
-        }) as ProjectFile[])
+      ? rawFiles.filter(isProjectFile)
       : [];
 
     let total = 0;
@@ -444,7 +445,7 @@ if (container) {
             snackFiles[path] = { contents: String(content ?? "") };
           }
 
-          const invokeOpts: any = {
+          const invokeOpts = {
             body: {
               projectId: projectData.id,
               name: projectData.name || "Preview",

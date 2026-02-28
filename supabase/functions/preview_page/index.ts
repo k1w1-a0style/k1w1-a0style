@@ -9,6 +9,8 @@ import {
 } from "./helpers";
 import type { SnackFiles, PreviewRecord } from "./helpers";
 
+type PreviewMeta = { template?: unknown };
+
 async function fetchPreviewRecord(
   secret: string,
 ): Promise<PreviewRecord | null> {
@@ -359,7 +361,7 @@ serve(async (req) => {
 
     const metaTemplate =
       record?.meta && typeof record.meta === "object"
-        ? (record.meta as any)?.template
+        ? (record.meta as PreviewMeta).template
         : undefined;
 
     const logsToggleUrl = withToggleUrl({
