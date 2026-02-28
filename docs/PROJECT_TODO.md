@@ -68,7 +68,7 @@
 ### PR-9 (Preview — weitere Stages)
 - [x] `PreviewScreen` Komponente weiter splitten: `DeviceFrame.tsx`, `PreviewToolbar.tsx`, `PreviewStatusBar.tsx` ✅ *(patch 313)*
 - [x] `useWebViewCrashRecovery` auch in `PreviewScreen` (usePreviewScreen) einbinden
-- [ ] In `preview_page` Edge Function: optionaler Toggle für „raw logs" / „runtime errors"
+- [x] In `preview_page` Edge Function: optionaler Toggle für „raw logs" / „runtime errors" ✅ *(patch 314)*
 - [ ] In `PreviewScreen`: Anzeige von fileCount/size/skipped (was wurde gesendet)
 - [ ] Auto-Cleanup-Cron in Supabase: `cleanup_expired_previews()` regelmäßig triggern
 
