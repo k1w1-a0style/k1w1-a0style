@@ -196,12 +196,12 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
     const files: Record<string, string> = {};
 
     const rawFiles = projectData?.files;
-    const list: ProjectFile[] = Array.isArray(rawFiles)
-      ? rawFiles.filter(isProjectFile)
-      : [];
+    const sourceList: unknown[] = Array.isArray(rawFiles) ? rawFiles : [];
+    const list: ProjectFile[] = sourceList.filter(isProjectFile);
 
     let total = 0;
-    let skippedCount = 0;
+    // Count malformed entries as skipped (relevant for status feedback in PreviewScreen).
+    let skippedCount = sourceList.length - list.length;
     const MAX_SIZE = 1_500_000; // 1.5 MB local cap (aligned with save_preview)
 
     for (const [index, f] of list.entries()) {
