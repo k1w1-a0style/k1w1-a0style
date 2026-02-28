@@ -48,3 +48,5 @@
 - Patch 311: tighten EnhancedBuildScreen typing (remove any-casts in hook/helpers + enrich CurrentBuildLike) (see docs/patches/patch_311.md)
 
 - Patch 312: make One-Click Deploy secret sync opt-in (default off) with persistent toggle + TODO closure (see docs/patches/patch_312.md)
+
+- Patch 313: split PreviewScreen UI into DeviceFrame/PreviewToolbar/PreviewStatusBar + TODO sync (see docs/patches/patch_313.md)
