@@ -106,3 +106,9 @@
 ## Patch 310 (2026-02-28)
 - Projekt auf offene Aufgaben geprüft und TODO-Backlog aus SoT-Dokumenten konsolidiert.
 - Fokusbereiche bestätigt: Preview-Follow-ups, Logger-Migration, TypeScript-Hygiene, Payload-Limits/Observability.
+
+
+## Patch 311 (2026-02-28)
+- P1-Start umgesetzt: Type-Härtung im `EnhancedBuildScreen`-Flow (Hook + Helper + Types) ohne Verhaltensänderung.
+- `any`-Casts in den betroffenen Build-Screen-Dateien entfernt und durch konkrete Typen ersetzt.
+

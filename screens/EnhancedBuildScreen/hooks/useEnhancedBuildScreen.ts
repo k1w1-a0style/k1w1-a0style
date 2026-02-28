@@ -7,7 +7,7 @@ import { useBuildHistory } from "../../../hooks/useBuildHistory";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
 import { BuildErrorAnalyzer } from "../../../lib/buildErrorAnalyzer";
 import { CONFIG } from "../../../config";
-import type { BuildStatus } from "../../../shared/types/build";
+import type { BuildHistoryEntry, BuildStatus } from "../../../shared/types/build";
 import type { CheckItem } from "../components/ChecklistSection";
 import {
   computeEta,
@@ -21,11 +21,14 @@ import type {
   WorkflowRun,
   WorkflowRunsResponse,
 } from "../types";
+import type { WorkflowJob, WorkflowRunDetails } from "../../../infra/github/workflows";
 
 import { FETCH_TIMEOUT_MS, fetchRunDetailsBundle, sanitizeUiMessage, validateRepoFullName, withTimeout } from "./buildScreenHelpers";
 import { useBuildPreconditions } from "./useBuildPreconditions";
 
 export const MAX_RUNS_DISPLAY = 10;
+
+type BuildHistoryEntryWithBranch = BuildHistoryEntry & { branch?: string | null };
 
 export function useEnhancedBuildScreen() {
   const runsReqIdRef = useRef(0); // verhindert Race-Conditions bei mehrfachen fetchRuns()
@@ -75,16 +78,16 @@ export function useEnhancedBuildScreen() {
   }, [projectData?.linkedRepo, currentBuild?.githubRepo]);
 
   const branchName = useMemo(() => {
-    const fromBuild = String((currentBuild as any)?.branch ?? "").trim();
+    const fromBuild = String(currentBuild?.branch ?? "").trim();
     return (
       projectData?.linkedBranch?.trim() ||
       activeBranch?.trim() ||
       fromBuild ||
       ""
     );
-  }, [projectData?.linkedBranch, activeBranch, (currentBuild as any)?.branch]);
+  }, [projectData?.linkedBranch, activeBranch, currentBuild?.branch]);
   const [buildProfile, setBuildProfile] = useState<BuildProfile>(
-    (projectData?.preferredBuildProfile as any) || "preview",
+    projectData?.preferredBuildProfile || "preview",
   );
   const [loadingRuns, setLoadingRuns] = useState(false);
 
@@ -103,10 +106,10 @@ export function useEnhancedBuildScreen() {
   type ModeFilter = "all" | BuildProfile;
 
   const [actionsFilter, setActionsFilter] = useState<ModeFilter>(
-    (projectData?.preferredBuildProfile as any) || "preview",
+    projectData?.preferredBuildProfile || "preview",
   );
   const [historyFilter, setHistoryFilter] = useState<ModeFilter>(
-    (projectData?.preferredBuildProfile as any) || "preview",
+    projectData?.preferredBuildProfile || "preview",
   );
 
   // When the global preferred profile changes, keep filters aligned unless user explicitly chose "all".
@@ -122,8 +125,8 @@ export function useEnhancedBuildScreen() {
     const needle = String(actionsFilter).toLowerCase();
     const re = new RegExp(`\\b${needle}\\b`, "i");
     const list = runs.filter((r) => {
-      const title = String((r as any)?.display_title || "");
-      const name = String((r as any)?.name || "");
+      const title = String(r.display_title || "");
+      const name = String(r.name || "");
       return re.test(title) || re.test(name);
     });
     // Backwards-compatible: older runs may not have a profile in the title yet.
@@ -135,7 +138,7 @@ export function useEnhancedBuildScreen() {
     if (historyFilter === "all") return all;
     const needle = String(historyFilter).toLowerCase();
     return all.filter(
-      (h) => String((h as any)?.buildProfile || "").toLowerCase() === needle,
+      (h) => String(h.buildProfile || "").toLowerCase() === needle,
     );
   }, [buildHistory.history, historyFilter]);
 
@@ -162,8 +165,8 @@ export function useEnhancedBuildScreen() {
   // === Luxus: Run Detail Modal (Jobs/Details) ===
   const [runDetailVisible, setRunDetailVisible] = useState(false);
   const [selectedRun, setSelectedRun] = useState<WorkflowRun | null>(null);
-  const [runDetails, setRunDetails] = useState<any | null>(null);
-  const [runJobs, setRunJobs] = useState<any[]>([]);
+  const [runDetails, setRunDetails] = useState<WorkflowRunDetails | null>(null);
+  const [runJobs, setRunJobs] = useState<WorkflowJob[]>([]);
   const [runDetailLoading, setRunDetailLoading] = useState(false);
   const [runDetailError, setRunDetailError] = useState<string | null>(null);
   const runDetailReqId = useRef(0);
@@ -172,7 +175,7 @@ export function useEnhancedBuildScreen() {
   const repoValidation = useMemo(() => validateRepoFullName(repoFullName), [repoFullName]);
   const normalizedRepo = repoValidation.normalized;
   const runId = currentBuild?.runId ?? null;
-  const status: BuildStatus = (currentBuild?.status as any) ?? "idle";
+  const status: BuildStatus = currentBuild?.status ?? "idle";
 
   // === Checklist + Build-Preconditions ===
   const { hasTokens, hasSigningKey, hasDiagOk, hasCiLiteOk, refreshPreconditions } =
@@ -370,10 +373,10 @@ export function useEnhancedBuildScreen() {
 
   const findHistoryMatchForRun = useCallback(
     (run: WorkflowRun) => {
-      const all = buildHistory.history ?? [];
+      const all = (buildHistory.history ?? []) as BuildHistoryEntryWithBranch[];
       const runUrl = String(run?.html_url || "");
       const runIdStr = String(run?.id || "");
-      const hit = all.find((h: any) => {
+      const hit = all.find((h) => {
         const html = String(h?.htmlUrl || "");
         if (html && runUrl && html === runUrl) return true;
         // Fallback: some sources store a shortened/redirected URL
@@ -383,7 +386,7 @@ export function useEnhancedBuildScreen() {
       return {
         jobId: hit.jobId ?? null,
         buildProfile: hit.buildProfile ?? null,
-        branch: (hit as any).branch ?? null,
+        branch: hit.branch ?? null,
         repoName: hit.repoName ?? null,
       };
     },
@@ -408,7 +411,7 @@ export function useEnhancedBuildScreen() {
         const { details, jobs } = await fetchRunDetailsBundle(owner, repo, run.id);
         if (reqId !== runDetailReqId.current) return;
         if (!isMountedRef.current) return;
-        setRunDetails(details as any);
+        setRunDetails(details);
         setRunJobs(jobs);
       } catch (e) {
         if (!isMountedRef.current) return;
