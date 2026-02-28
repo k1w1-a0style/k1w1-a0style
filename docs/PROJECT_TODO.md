@@ -35,7 +35,7 @@
 
 ## 🔥 Offene Bugs / Tech-Debt
 
-- [ ] **Logger / no-console (optional)** — `lib/logger.ts` existiert; wenn wir strengere Logs wollen: Hotspots von `console.*` → `logger` migrieren und ESLint `no-console` schärfen
+- [x] **Logger / no-console (optional)** — `lib/logger.ts` existiert; Hotspots von `console.*` → `logger` migriert und ESLint `no-console` geschärft ✅ *(patch 315/320)*
 - [ ] **`contexts/types.ts` Shim** — noch in Nutzung; schrittweise Migration auf `shared/types/*`, danach Shim löschen
 - [ ] **382 `: any` Annotationen** — systematischer TS-Safety-Debt, besonders in `contexts/`, `lib/orchestrator.ts`
 
@@ -73,11 +73,11 @@
 - [x] Auto-Cleanup-Cron in Supabase: `cleanup_expired_previews()` regelmäßig triggern ✅ *(patch 317)*
 
 ### Logger-Migration
-- [ ] `lib/logger.ts` aktiv nutzen: console.log in `contexts/ProjectContext.tsx` (13x), `infra/storage/projectPersistence.ts` (10x), `lib/buildHistoryStorage.ts` (7x) ersetzen
+- [x] `lib/logger.ts` aktiv nutzen: frühere `console.log`-Hotspots in `contexts/ProjectContext.tsx`, `infra/storage/projectPersistence.ts`, `lib/buildHistoryStorage.ts` sind aufgeräumt/ersetzt ✅ *(patch 320 Review)*
 - [x] ESLint `no-console` Rule aktivieren (warn für bestehende, error für neue) ✅ *(patch 315)*
 
 ### API Key Masking
-- [ ] `lib/apiKeyMasking.ts` Review: sicherstellen, dass alle UI-Callsites die lib-Implementierung nutzen (SettingsScreen keyMasking wurde entfernt)
+- [x] `lib/apiKeyMasking.ts` Review: UI-Callsites nutzen die zentrale lib-Implementierung (`SettingsScreen`, `AppInfoScreen`) ✅ *(patch 320 Review)*
 
 ### Stabilität
 - [x] Server-side Payload Limits (save_preview): harte max bytes + max files enforced ✅ *(patch 317)*
