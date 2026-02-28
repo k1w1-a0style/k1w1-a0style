@@ -93,7 +93,8 @@ function isExpired(expiresAtIso: string | null | undefined): boolean {
   return t < Date.now();
 }
 
-function parseToggleParam(value: string | null): boolean {
+function parseToggleParam(value: string | null, defaultValue = false): boolean {
+  if (value == null) return defaultValue;
   if (!value) return false;
   const normalized = value.trim().toLowerCase();
   return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
@@ -310,8 +311,8 @@ serve(async (req) => {
   try {
     const url = new URL(req.url);
     const secret = url.searchParams.get("secret") ?? "";
-    const showRawLogs = parseToggleParam(url.searchParams.get("logs"));
-    const showRuntimeErrors = parseToggleParam(url.searchParams.get("runtime_errors"));
+    const showRawLogs = parseToggleParam(url.searchParams.get("logs"), false);
+    const showRuntimeErrors = parseToggleParam(url.searchParams.get("runtime_errors"), true);
     const nonce = randomNonce();
 
     if (!secret) {
