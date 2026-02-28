@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  Pressable,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -117,7 +119,21 @@ export default function GitHubReposScreen() {
     setManageValue,
     closeManageModal,
 
+    // EAS link
+    easProjectId,
+    setEasProjectId,
+    isEasLinking,
+    easLinkStatus,
+    handleEasLinkStatusCheck,
+    handleEasLink,
+
   } = vm;
+
+  // Keep EAS status reasonably fresh when switching repo/branch.
+  useEffect(() => {
+    if (!activeRepo) return;
+    void handleEasLinkStatusCheck();
+  }, [activeRepo, activeBranch, handleEasLinkStatusCheck]);
 
   const onNewRepo = useCallback(() => setShowNewRepo(true), [setShowNewRepo]);
 
@@ -243,6 +259,77 @@ export default function GitHubReposScreen() {
           loadBranches={loadBranches}
           loadDefaultBranch={loadDefaultBranch}
         />
+      )}
+
+      {activeRepo && (
+        <View style={[s.section, s.sectionNeon]} testID="eas-link-section">
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Text style={s.sectionTitle}>EAS Link</Text>
+            <View style={s.chipRow}>
+              <View
+                style={[
+                  s.chip,
+                  easLinkStatus === "ok" ? s.chipActive : null,
+                  easLinkStatus === "missing" ? { borderColor: theme.palette.error } : null,
+                ]}
+              >
+                <Text
+                  style={[
+                    s.chipText,
+                    easLinkStatus === "ok" ? s.chipTextActive : null,
+                    easLinkStatus === "missing" ? { color: theme.palette.error } : null,
+                  ]}
+                >
+                  {easLinkStatus === "ok" ? "OK" : easLinkStatus === "missing" ? "Fehlt" : "Unbekannt"}
+                </Text>
+              </View>
+
+              <Pressable
+                testID="eas-link-refresh"
+                onPress={() => void handleEasLinkStatusCheck()}
+                style={({ pressed }: { pressed: boolean }) => [s.iconBtn, pressed && { opacity: 0.7 }]}
+                accessibilityLabel="EAS Status prüfen"
+              >
+                <Ionicons name="refresh" size={18} color={theme.palette.primary} />
+              </Pressable>
+            </View>
+          </View>
+
+          <Text style={{ fontSize: 12, color: theme.palette.text.secondary, lineHeight: 18, marginTop: -2, marginBottom: 10 }}>
+            Erstellt/aktualisiert <Text style={{ fontFamily: "monospace", color: theme.palette.text.primary }}>eas-project.json</Text> und
+            stellt sicher, dass <Text style={{ fontFamily: "monospace", color: theme.palette.text.primary }}>eas-link.yml</Text> im Repo existiert.
+          </Text>
+
+          <TextInput
+            testID="eas-project-id"
+            value={easProjectId}
+            onChangeText={setEasProjectId}
+            placeholder="EAS Project ID (optional)"
+            placeholderTextColor={theme.palette.text.secondary}
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={s.searchInput}
+          />
+
+          <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
+            <Pressable
+              testID="eas-link-run"
+              onPress={() => void handleEasLink()}
+              disabled={isEasLinking}
+              style={({ pressed }: { pressed: boolean }) => [s.button, pressed && { opacity: 0.85 }, isEasLinking && s.buttonDisabled]}
+            >
+              <Text style={s.buttonText}>{isEasLinking ? "EAS Link läuft…" : "EAS Projekt erstellen/verbinden"}</Text>
+            </Pressable>
+
+            <Pressable
+              testID="eas-link-open"
+              onPress={() => activeRepo && handleOpenRepoOnGitHub()}
+              style={({ pressed }: { pressed: boolean }) => [s.button, s.buttonSecondary, pressed && { opacity: 0.85 }]}
+            >
+              <Text style={s.buttonTextSecondary}>Repo öffnen</Text>
+            </Pressable>
+          </View>
+        </View>
       )}
 
       <RepoSyncSection

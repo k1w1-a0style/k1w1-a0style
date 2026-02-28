@@ -36,3 +36,7 @@
 - Patch 301: RepoScreen restore showRepoList gating (fix repo list hidden test + optional flows) (see docs/patches/patch_301.md)
 
 - Patch 302: Fix EAS/CI workflow-dispatch 404 (auto-resolve + bootstrap managed workflows) (see docs/patches/patch_302.md)
+
+- Patch 303: Restore EAS-Link UI in RepoScreen + CI dispatch 404 auto-bootstrap from SoT workflow templates (see docs/patches/patch_303.md)
+
+- Patch 304: Fix RepoScreen EAS-Link UI TS regressions (missing imports + typed Pressable state + correct open handler) (see docs/patches/patch_304.md)

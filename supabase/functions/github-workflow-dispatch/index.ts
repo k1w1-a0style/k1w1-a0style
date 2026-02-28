@@ -4,6 +4,7 @@ import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 import { githubHeaders, getGithubToken } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
+import { WORKFLOW_TEMPLATES, isKnownWorkflowTemplate } from "../../../infra/github/workflowTemplates.ts";
 import {
   parseJsonBody,
   validateGithubWorkflowDispatchRequest,
@@ -34,6 +35,54 @@ function isAllowedRef(ref: string): boolean {
     return re.test(r);
   } catch {
     return false;
+  }
+}
+
+const toBase64 = (text: string) => {
+  const bytes = new TextEncoder().encode(text);
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary);
+};
+
+async function upsertWorkflowFile(args: {
+  owner: string;
+  repo: string;
+  branch: string;
+  token: string;
+  fileName: string;
+  content: string;
+}) {
+  const { owner, repo, branch, token, fileName, content } = args;
+  const path = `.github/workflows/${fileName}`;
+
+  // If file exists, fetch sha so we can update.
+  let sha: string | undefined;
+  const getRes = await fetch(
+    `${GITHUB_API_BASE}/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`,
+    { headers: githubHeaders(token) },
+  );
+  if (getRes.ok) {
+    const j = await getRes.json().catch(() => null);
+    if (j?.sha) sha = j.sha;
+  }
+
+  const putBody: any = {
+    message: `chore(workflows): ensure ${fileName}`,
+    content: toBase64(content.endsWith("\n") ? content : `${content}\n`),
+    branch,
+  };
+  if (sha) putBody.sha = sha;
+
+  const putRes = await fetch(`${GITHUB_API_BASE}/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`, {
+    method: "PUT",
+    headers: { ...githubHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify(putBody),
+  });
+
+  if (!putRes.ok) {
+    const t = await putRes.text();
+    throw new Error(`Failed to write workflow ${fileName}: ${putRes.status} ${t}`);
   }
 }
 
@@ -101,6 +150,7 @@ if (w && !w.includes(".") && !/^[0-9]+$/.test(w)) {
 }
 
 let lastResp: Response | null = null;
+let bootstrapped = false;
 for (const wf of candidates) {
   const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/workflows/${wf}/dispatches`;
   const r = await fetch(url, {
@@ -109,8 +159,29 @@ for (const wf of candidates) {
     body: JSON.stringify(body),
   });
   if (r.ok) {
-    return jsonResponse({ ok: true, workflow: wf }, req, 200);
+    return jsonResponse({ ok: true, workflow: wf, bootstrapped }, req, 200);
   }
+
+  // If workflow is missing, try to install it from templates (SoT) once, then retry dispatch.
+  if (r.status === 404 && !bootstrapped) {
+    const fileName = wf.includes("/") ? wf.split("/").pop()! : wf;
+    if (isKnownWorkflowTemplate(fileName)) {
+      bootstrapped = true;
+      await upsertWorkflowFile({ owner, repo, branch: ref, token, fileName, content: WORKFLOW_TEMPLATES[fileName] });
+      const retry = await fetch(url, {
+        method: "POST",
+        headers: githubHeaders(token),
+        body: JSON.stringify(body),
+      });
+      if (retry.ok) {
+        return jsonResponse({ ok: true, workflow: wf, bootstrapped }, req, 200);
+      }
+      lastResp = retry;
+      if (retry.status !== 404) break;
+      continue;
+    }
+  }
+
   lastResp = r;
   // Only retry on workflow-not-found.
   if (r.status !== 404) break;
