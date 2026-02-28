@@ -74,7 +74,7 @@
 
 ### Logger-Migration
 - [ ] `lib/logger.ts` aktiv nutzen: console.log in `contexts/ProjectContext.tsx` (13x), `infra/storage/projectPersistence.ts` (10x), `lib/buildHistoryStorage.ts` (7x) ersetzen
-- [ ] ESLint `no-console` Rule aktivieren (warn für bestehende, error für neue)
+- [x] ESLint `no-console` Rule aktivieren (warn für bestehende, error für neue) ✅ *(patch 315)*
 
 ### API Key Masking
 - [ ] `lib/apiKeyMasking.ts` Review: sicherstellen, dass alle UI-Callsites die lib-Implementierung nutzen (SettingsScreen keyMasking wurde entfernt)
