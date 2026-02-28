@@ -112,3 +112,5 @@
 - P1-Start umgesetzt: Type-Härtung im `EnhancedBuildScreen`-Flow (Hook + Helper + Types) ohne Verhaltensänderung.
 - `any`-Casts in den betroffenen Build-Screen-Dateien entfernt und durch konkrete Typen ersetzt.
 
+
+- Patch 312: EnhancedBuild one-click deploy now treats secrets auto-sync as opt-in (default off) with persistent toggle and explicit step skip state; TODO open item closed.

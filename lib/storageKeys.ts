@@ -49,6 +49,9 @@ export const STORAGE_KEYS = {
   CI_LITE_LINT_OK: "ci_lite_lint_ok",
   CI_LITE_TYPECHECK_OK: "ci_lite_typecheck_ok",
   CI_LITE_LAST_RUN_AT: "ci_lite_last_run_at",
+
+  // One-Click Deploy options
+  ONE_CLICK_AUTO_SYNC_SECRETS: "one_click_auto_sync_secrets",
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
