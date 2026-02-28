@@ -1,5 +1,10 @@
 import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction";
-import { getWorkflowRunDetails, getWorkflowRunJobs } from "../../../infra/github/workflows";
+import {
+  getWorkflowRunDetails,
+  getWorkflowRunJobs,
+  type WorkflowJob,
+  type WorkflowRunDetails,
+} from "../../../infra/github/workflows";
 
 export const FETCH_TIMEOUT_MS = 15_000;
 export const MAX_ALERT_MESSAGE_LEN = 600;
@@ -69,13 +74,13 @@ export async function fetchRunDetailsBundle(
   owner: string,
   repo: string,
   runId: number,
-): Promise<{ details: any; jobs: any[] }> {
+): Promise<{ details: WorkflowRunDetails; jobs: WorkflowJob[] }> {
   const [details, jobs] = await Promise.all([
     withTimeout(getWorkflowRunDetails(owner.trim(), repo.trim(), runId), FETCH_TIMEOUT_MS),
     withTimeout(getWorkflowRunJobs(owner.trim(), repo.trim(), runId), FETCH_TIMEOUT_MS),
   ]);
   return {
     details,
-    jobs: Array.isArray(jobs) ? (jobs as any) : [],
+    jobs: Array.isArray(jobs) ? jobs : [],
   };
 }

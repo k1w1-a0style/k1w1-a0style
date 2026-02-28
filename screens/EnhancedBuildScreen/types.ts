@@ -23,6 +23,8 @@ export interface WorkflowRunsResponse {
 export interface CurrentBuildLike {
   jobId?: string | number | null;
   githubRepo?: string | null;
+  branch?: string | null;
+  buildProfile?: BuildProfile | string | null;
   runId?: number | null;
   status?: BuildStatus;
   message?: string;

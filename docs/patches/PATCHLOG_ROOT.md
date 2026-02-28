@@ -44,3 +44,5 @@
 - Patch 307: remove remaining expo lint warnings in diagnostics components + sync README patch status (see docs/patches/patch_307.md)
 
 - Patch 310: project audit for open tasks + checklog update (see docs/patches/patch_310.md)
+
+- Patch 311: tighten EnhancedBuildScreen typing (remove any-casts in hook/helpers + enrich CurrentBuildLike) (see docs/patches/patch_311.md)
