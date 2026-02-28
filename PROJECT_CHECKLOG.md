@@ -1,5 +1,10 @@
 # Project Checklog
 
+## Patch 318 (2026-02-28)
+- Kritische Restwarnungen aus Patch 314/316/317 geprüft: nicht-autofixbare `any`-Casts in Preview-Pfad entfernt.
+- `hooks/usePreview.ts`: Type-Guard für Projektdateien + typisierte Invoke-Optionen ohne `any`.
+- `supabase/functions/save_preview/helpers.ts` und `supabase/functions/preview_page/index.ts`: interne Hilfstypen ergänzt, um Meta/File-Zugriffe ohne `any` zu typisieren.
+
 ## Patch 317 (2026-02-28)
 - Closed next TODO items from fix list: Supabase preview auto-cleanup cron and server-side payload limits for `save_preview`.
 - Added shared payload/file limit constants in `save_preview` helpers and explicit file-count guard in request handling.
