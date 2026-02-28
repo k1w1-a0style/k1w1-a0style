@@ -42,3 +42,5 @@
 - Patch 305: Fix CI/EAS workflow dispatch 404 robustly (resolve workflow id by path, auto-bootstrap managed workflows, retry until registered) (see docs/patches/patch_305.md)
 - Patch 306: CI-Lite parser hardening + Diagnostics KI-Fix-Flow + Connections EAS-Link-UX + Preview originWhitelist fix + Model/UX refresh (see docs/patches/patch_306.md)
 - Patch 307: remove remaining expo lint warnings in diagnostics components + sync README patch status (see docs/patches/patch_307.md)
+
+- Patch 310: project audit for open tasks + checklog update (see docs/patches/patch_310.md)
