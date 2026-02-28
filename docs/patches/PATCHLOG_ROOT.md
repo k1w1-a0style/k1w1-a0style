@@ -1,5 +1,6 @@
 ## Patchlog Root
 
+- Patch 320: sync fix-list status (logger/apiKeyMasking review) + PROJECT_TODO alignment (see docs/patches/patch_320.md)
 - Patch 319: fix preview skippedCount to include malformed file entries filtered by type guard (see docs/patches/patch_319.md)
 - Patch 318: remove non-autofixable `any` typing leftovers from preview patches (314/316/317) + checklog sync (see docs/patches/patch_318.md)
 - Patch 317: enforce save_preview server payload limits (max files/bytes constants) + schedule hourly cleanup_expired_previews cron + TODO/checklog sync (see docs/patches/patch_317.md)

@@ -1,5 +1,9 @@
 # Project Checklog
 
+## Patch 320 (2026-02-28)
+- Weitere Fix-Listen-Punkte abgeschlossen: Logger/no-console Follow-up und API-Key-Masking-Review in `docs/PROJECT_TODO.md` auf erledigt gesetzt.
+- Verifiziert: zentrale Masking-Calls laufen über `lib/apiKeyMasking.ts` (u.a. Settings/AppInfo) und die zuvor genannten Logger-Hotspots gelten als abgearbeitet.
+
 ## Patch 319 (2026-02-28)
 - Follow-up-Fix nach Patch 318: `hooks/usePreview.ts` zählt jetzt auch invalide/malformed `projectData.files`-Einträge als `skippedCount`.
 - Damit ist das Selection-/Status-Feedback in der Preview-Statusbar konsistent mit tatsächlich verworfenen Dateien.
