@@ -20,8 +20,14 @@ import { logger } from "../lib/logger";
 
 import type { ChatMessage } from "../shared/types/chat";
 import type { BuildHistoryEntry } from "../shared/types/build";
-import type { ProjectData, ProjectFile, TemplateId } from "../shared/types/project";
-import type { AutoFixRequest, LastPreviewMeta, ProjectContextProps } from "./types";
+import type {
+  AutoFixRequest,
+  LastPreviewMeta,
+  ProjectData,
+  ProjectFile,
+  TemplateId,
+} from "../shared/types/project";
+import type { ProjectContextProps } from "./types";
 
 import {
   saveProjectToStorage,
