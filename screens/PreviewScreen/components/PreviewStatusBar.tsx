@@ -9,6 +9,9 @@ type PreviewStatusBarProps = {
   pulseAnim: Animated.Value;
   hotReloadEnabled: boolean;
   hotReloadCount: number;
+  fileCount: number;
+  totalSize: number;
+  skippedCount: number;
 };
 
 function getStatusText(phase: PreviewPhase): string {
@@ -19,7 +22,15 @@ function getStatusText(phase: PreviewPhase): string {
   return 'Fehler';
 }
 
-export function PreviewStatusBar({ phase, pulseAnim, hotReloadEnabled, hotReloadCount }: PreviewStatusBarProps) {
+export function PreviewStatusBar({
+  phase,
+  pulseAnim,
+  hotReloadEnabled,
+  hotReloadCount,
+  fileCount,
+  totalSize,
+  skippedCount,
+}: PreviewStatusBarProps) {
   return (
     <View style={s.statusBar}>
       <View
@@ -36,6 +47,10 @@ export function PreviewStatusBar({ phase, pulseAnim, hotReloadEnabled, hotReload
           <ActivityIndicator size="small" color={theme.palette.primary} />
         </Animated.View>
       )}
+      <Text style={s.previewStatsText}>
+        {fileCount} Dateien · {(totalSize / 1024).toFixed(1)} KB
+        {skippedCount > 0 ? ` · ${skippedCount} übersprungen` : ""}
+      </Text>
       {hotReloadEnabled && hotReloadCount > 0 && (
         <View style={s.hotBadge}>
           <Text style={s.hotBadgeText}>{hotReloadCount}x neu geladen</Text>

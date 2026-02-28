@@ -56,6 +56,7 @@ export const s = StyleSheet.create({
   statusDotError: { backgroundColor: theme.palette.error },
   statusDotLoading: { backgroundColor: theme.palette.warning },
   statusText: { flex: 1, color: theme.palette.text.secondary, fontSize: 12, fontWeight: '700' },
+  previewStatsText: { color: theme.palette.text.muted, fontSize: 11, fontWeight: '700' },
   hotBadge: {
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1,
     borderColor: 'rgba(0,255,0,0.2)', backgroundColor: 'rgba(0,255,0,0.06)',

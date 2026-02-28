@@ -98,6 +98,9 @@ export default function PreviewScreen() {
         pulseAnim={pulseAnim}
         hotReloadEnabled={hotReloadEnabled}
         hotReloadCount={hotReloadCount}
+        fileCount={state.fileCount}
+        totalSize={state.totalSize}
+        skippedCount={state.skippedCount}
       />
 
       <DeviceFrame

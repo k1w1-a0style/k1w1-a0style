@@ -127,3 +127,9 @@
 ## Patch 315 (2026-02-28)
 - Next fix-list item umgesetzt: ESLint `no-console` als Warn-Baseline aktiviert (`warn`, `error` erlaubt).
 - TODO-Sync: `docs/PROJECT_TODO.md` Punkt „ESLint no-console Rule aktivieren“ als erledigt markiert.
+
+## Patch 316 (2026-02-28)
+- PR-9 Follow-up umgesetzt: PreviewScreen zeigt jetzt fileCount, Payload-Größe und skippedCount direkt in der Statusbar.
+- usePreview zählt übersprungene Dateien konsistent entlang aller Filterpfade inkl. Größenlimit-Abbruch.
+- `docs/PROJECT_TODO.md` Punkt zur Preview-Stat-Anzeige als erledigt markiert.
+
