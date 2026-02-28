@@ -17,8 +17,7 @@ import { styles } from "./ModeSelector.styles";
 export type BuildMode = "development" | "preview" | "production";
 
 // NOTE: In der New Architecture ist setLayoutAnimationEnabledExperimental ein No-Op (warn spam).
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const isNewArch = !!(global as any)?.nativeFabricUIManager;
+const isNewArch = !!(globalThis as { nativeFabricUIManager?: unknown }).nativeFabricUIManager;
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental && !isNewArch) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
@@ -132,4 +131,3 @@ export function ModeSelector({
     </View>
   );
 }
-

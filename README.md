@@ -20,7 +20,7 @@ React-Native/Expo App zum Bauen und Testen von Projekten/Flows mit **integrierte
 
 ## Aktueller Stand / Nächste Schritte
 
-- Letzter Stand im Repo: **Patch 230** (Bundle 227–229: CI Lite SoT + DEV_COMMANDS + docs alignment).
+- Letzter Stand im Repo: **Patch 307** (Lint-Warnungen bereinigt + README/Patch-Stand synchronisiert).
 - Vor dem nächsten Code-Patch: **Docs/TODO ist der Single Source of Truth** für alle offenen Punkte.
 
 Wenn du Patches als ZIP einspielst:
