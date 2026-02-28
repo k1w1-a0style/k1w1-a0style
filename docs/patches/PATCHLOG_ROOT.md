@@ -37,6 +37,4 @@
 
 - Patch 302: Fix EAS/CI workflow-dispatch 404 (auto-resolve + bootstrap managed workflows) (see docs/patches/patch_302.md)
 
-- Patch 303: Restore EAS-Link UI in RepoScreen + CI dispatch 404 auto-bootstrap from SoT workflow templates (see docs/patches/patch_303.md)
-
-- Patch 304: Fix RepoScreen EAS-Link UI TS regressions (missing imports + typed Pressable state + correct open handler) (see docs/patches/patch_304.md)
+- Patch 305: Fix CI/EAS workflow dispatch 404 robustly (resolve workflow id by path, auto-bootstrap managed workflows, retry until registered) (see docs/patches/patch_305.md)
