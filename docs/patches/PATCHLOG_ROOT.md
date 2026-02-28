@@ -1,5 +1,6 @@
 ## Patchlog Root
 
+- Patch 322: start contexts/types shim migration in ProjectContext imports (`AutoFixRequest`/`LastPreviewMeta` -> shared/types/project) + TODO/checklog sync (see docs/patches/patch_322.md)
 - Patch 321: add minimal preview observability via `meta.debug` in `usePreview` + PROJECT_TODO/checklog sync (see docs/patches/patch_321.md)
 - Patch 320: sync fix-list status (logger/apiKeyMasking review) + PROJECT_TODO alignment (see docs/patches/patch_320.md)
 - Patch 319: fix preview skippedCount to include malformed file entries filtered by type guard (see docs/patches/patch_319.md)

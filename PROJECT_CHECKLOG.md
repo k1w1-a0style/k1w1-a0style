@@ -155,3 +155,8 @@
 - usePreview zählt übersprungene Dateien konsistent entlang aller Filterpfade inkl. Größenlimit-Abbruch.
 - `docs/PROJECT_TODO.md` Punkt zur Preview-Stat-Anzeige als erledigt markiert.
 
+
+## Patch 322 (2026-02-28)
+- TypeScript-Hygiene: Shim-Migration für `contexts/types.ts` gestartet.
+- `ProjectContext` und `ProjectContext.types` importieren `AutoFixRequest`/`LastPreviewMeta` nun direkt aus `shared/types/project`.
+- TODO/Patchlog-Dokumentation auf den neuen Zwischenstand synchronisiert.

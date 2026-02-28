@@ -84,6 +84,7 @@
 - [x] Observability: Edge Function Logs + optionales `meta.debug` (minimal) ✅ *(patch 321)*
 
 ### TypeScript-Hygiene
+- [x] Shim-Migration gestartet: `ProjectContext`/`ProjectContext.types` importieren `AutoFixRequest`/`LastPreviewMeta` direkt aus `shared/types/project` ✅ *(patch 322)*
 - [ ] `any`-Annotationen reduzieren: Start mit `lib/orchestrator.ts` und `contexts/AIContext.tsx`
 - [ ] `contexts/types.ts` Shim-Migration: 36 Imports schrittweise auf `shared/types/*` umstellen
 
