@@ -1,5 +1,6 @@
 ## Patchlog Root
 
+- Patch 317: enforce save_preview server payload limits (max files/bytes constants) + schedule hourly cleanup_expired_previews cron + TODO/checklog sync (see docs/patches/patch_317.md)
 - Patch 316: add PreviewScreen payload stats (fileCount/size/skipped) in status bar + TODO sync (see docs/patches/patch_316.md)
 - Patch 315: activate ESLint `no-console` as warning baseline (allow warn/error) + TODO/checklog sync (see docs/patches/patch_315.md)
 - Patch 309: sync TODO/PROJECT_TODO with implemented Patch-217/SoT state + checklog update (see docs/patches/patch_309.md)

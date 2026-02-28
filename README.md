@@ -20,7 +20,7 @@ React-Native/Expo App zum Bauen und Testen von Projekten/Flows mit **integrierte
 
 ## Aktueller Stand / Nächste Schritte
 
-- Letzter Stand im Repo: **Patch 307** (Lint-Warnungen bereinigt + README/Patch-Stand synchronisiert).
+- Letzter Stand im Repo: **Patch 317** (Preview payload limits server-side + hourly cleanup cron).
 - Vor dem nächsten Code-Patch: **Docs/TODO ist der Single Source of Truth** für alle offenen Punkte.
 
 Wenn du Patches als ZIP einspielst:
