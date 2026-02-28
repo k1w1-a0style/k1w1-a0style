@@ -1,5 +1,9 @@
 # Project Checklog
 
+## Patch 319 (2026-02-28)
+- Follow-up-Fix nach Patch 318: `hooks/usePreview.ts` zählt jetzt auch invalide/malformed `projectData.files`-Einträge als `skippedCount`.
+- Damit ist das Selection-/Status-Feedback in der Preview-Statusbar konsistent mit tatsächlich verworfenen Dateien.
+
 ## Patch 318 (2026-02-28)
 - Kritische Restwarnungen aus Patch 314/316/317 geprüft: nicht-autofixbare `any`-Casts in Preview-Pfad entfernt.
 - `hooks/usePreview.ts`: Type-Guard für Projektdateien + typisierte Invoke-Optionen ohne `any`.
