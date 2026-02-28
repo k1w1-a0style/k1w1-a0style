@@ -314,19 +314,19 @@ Akzeptanz:
 ### Patch 217 — Connection Screen SoT ✅
 
 **E1 — EAS Link Workflow = Source of Truth (persistent)**
-- [ ] Screen: `screens/ConnectionsScreen/*`
-- [ ] Wenn EAS Project ID leer: Confirm-Dialog "Keine EAS ID vorhanden! Soll eine erstellt werden?" mit `[Abbrechen] [OK]`
-- [ ] Bei OK: starte `eas-link.yml` ohne `eas_project_id` (Workflow erstellt/verlinkt und committed `eas-project.json`)
-- [ ] Akzeptanz: Nach erfolgreichem Workflow wird Status-Lampe **grün** und bleibt persistent (`STORAGE_KEYS.CONN_EAS_OK`).
+- [x] Screen: `screens/ConnectionsScreen/*`
+- [x] Wenn EAS Project ID leer: Confirm-Dialog "Keine EAS ID vorhanden! Soll eine erstellt werden?" mit `[Abbrechen] [OK]`
+- [x] Bei OK: starte `eas-link.yml` ohne `eas_project_id` (Workflow erstellt/verlinkt und committed `eas-project.json`)
+- [x] Akzeptanz: Nach erfolgreichem Workflow wird Status-Lampe **grün** und bleibt persistent (`STORAGE_KEYS.CONN_EAS_OK`).
 
 **E2 — Repo/Supabase/Expo Status persistent**
-- [ ] Persistente Lampen über `lib/storageKeys.ts` (`CONN_REPO_*`, `CONN_SUPABASE_OK`, `CONN_SUPABASE_REF`, `CONN_EXPO_OK`, `CONN_EXPO_USER`)
-- [ ] Akzeptanz: App neu starten → Status bleibt korrekt.
+- [x] Persistente Lampen über `lib/storageKeys.ts` (`CONN_REPO_*`, `CONN_SUPABASE_OK`, `CONN_SUPABASE_REF`, `CONN_EXPO_OK`, `CONN_EXPO_USER`)
+- [x] Akzeptanz: App neu starten → Status bleibt korrekt.
 
 **E3 — GitHub: Username + optional Scopes anzeigen**
-- [ ] Nach GitHub-Test: Username speichern + anzeigen (`CONN_GITHUB_USER`)
-- [ ] Optional: Token-Scopes aus `x-oauth-scopes` speichern + anzeigen (`CONN_GITHUB_SCOPES`)
-- [ ] Akzeptanz: Wenn Header fehlt → UI zeigt nichts kaputt, nur keine Scopes.
+- [x] Nach GitHub-Test: Username speichern + anzeigen (`CONN_GITHUB_USER`)
+- [x] Optional: Token-Scopes aus `x-oauth-scopes` speichern + anzeigen (`CONN_GITHUB_SCOPES`)
+- [x] Akzeptanz: Wenn Header fehlt → UI zeigt nichts kaputt, nur keine Scopes.
 
 
 ### Patch 219 — AI Provider Hardening + Docs/Examples SoT + Connections Polish
@@ -341,7 +341,7 @@ Akzeptanz:
 - [ ] Connections: show GitHub scopes cleaner + show Supabase ref (if available)
 
 ## Patch 226 (Cleanup)
-- [ ] Logger sweep: remaining console logs in GitHub/Storage hooks
+- [x] Logger sweep: remaining console logs in GitHub/Storage hooks
 
 
 - [x] Add DEV_COMMANDS.md (git grep / grep alternatives when rg is missing)

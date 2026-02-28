@@ -89,3 +89,12 @@
 - Connections: EAS prüfen/verlinken/neu erstellen direkt im EAS-Card-Block.
 - Preview: originWhitelist aus Hook korrekt im WebView genutzt (stabilere In-App Preview).
 - KI-Modelle um aktuelle Optionen ergänzt, Diagnostics/RepoScreen optisch überarbeitet.
+
+## Patch 307 (2026-02-28)
+- Removed remaining expo-lint warnings in diagnostics components by replacing `global as any` checks with typed `globalThis` checks.
+- Synced README patch status line to current patch level to avoid docs drift.
+
+## Patch 308 (2026-02-28)
+- Verified and closed stale TODO items for Patch 217 (EAS link flow, persistent status lights, GitHub username/scopes persistence) based on current implementation.
+- Marked Patch 226 logger-sweep item done for GitHub/Storage hooks after code verification.
+- Synced README/Patchlog to current patch level.
