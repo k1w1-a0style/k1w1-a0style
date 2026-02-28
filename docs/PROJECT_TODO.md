@@ -43,27 +43,27 @@
 
 ## 🚧 Nächste sinnvolle Schritte
 
-### CI Lite / Build / SoT (Patch 216+)
+### CI Lite / Build / SoT (Historie, bereits umgesetzt)
 
 > Diese Liste ist bewusst „exekutierbar“ geschrieben: Datei → Änderung → Done.
 
-- [ ] **Patch A (Bugfix):** `components/CiLiteHeaderButton.tsx`
-  - [ ] Dead code: `topContent` useMemo entfernen (oder bewusst rendern)
-  - [ ] `applyPatchFromText` deps fixen (stale-closure vermeiden)
-  - [ ] Polling unmount-cleanup (`stopPolling` in cleanup)
+- [x] **Patch A (Bugfix):** `components/CiLiteHeaderButton.tsx`
+  - [x] Dead code: `topContent` useMemo entfernen (oder bewusst rendern)
+  - [x] `applyPatchFromText` deps fixen (stale-closure vermeiden)
+  - [x] Polling unmount-cleanup (`stopPolling` in cleanup)
 
-- [ ] **Patch B (SoT Supabase Functions):** `shared/constants/supabase.ts`
-  - [ ] `CHECK_EAS_BUILD` + `SAVE_PREVIEW` ergänzen
-  - [ ] Alle Hardcodes auf Constants umstellen:
-    - [ ] `components/CiLiteHeaderButton.tsx` (github-workflow-*)
-    - [ ] `project/services/buildStartService.ts` (trigger-eas-build)
-    - [ ] `project/services/buildPollingService.ts` (check-eas-build)
-    - [ ] `hooks/usePreview.ts` (save_preview)
-  - [ ] Duplicate Helper löschen: `project/services/buildPollingService.ts` → `lib/supabaseEdge.ts`
+- [x] **Patch B (SoT Supabase Functions):** `shared/constants/supabase.ts`
+  - [x] `CHECK_EAS_BUILD` + `SAVE_PREVIEW` ergänzen
+  - [x] Alle Hardcodes auf Constants umstellen:
+    - [x] `components/CiLiteHeaderButton.tsx` (github-workflow-*)
+    - [x] `project/services/buildStartService.ts` (trigger-eas-build)
+    - [x] `project/services/buildPollingService.ts` (check-eas-build)
+    - [x] `hooks/usePreview.ts` (save_preview)
+  - [x] Duplicate Helper löschen: `project/services/buildPollingService.ts` → `lib/supabaseEdge.ts`
 
-- [ ] **Patch C (Storage Keys):** `diagnostic_last_ok` zentralisieren und beide Call-Sites umstellen
+- [x] **Patch C (Storage Keys):** `diagnostic_last_ok` zentralisieren und beide Call-Sites umstellen
 
-- [ ] **Patch D (Robustness):** `infra/github/tokenStore.ts` SecureStore Error-Handling vereinheitlichen
+- [x] **Patch D (Robustness):** `infra/github/tokenStore.ts` SecureStore Error-Handling vereinheitlichen
 
 ### PR-9 (Preview — weitere Stages)
 - [ ] `PreviewScreen` Komponente weiter splitten: `DeviceFrame.tsx`, `PreviewToolbar.tsx`, `PreviewStatusBar.tsx`
@@ -87,6 +87,6 @@
 - [ ] `any`-Annotationen reduzieren: Start mit `lib/orchestrator.ts` und `contexts/AIContext.tsx`
 - [ ] `contexts/types.ts` Shim-Migration: 36 Imports schrittweise auf `shared/types/*` umstellen
 
-## Patch 217 (pending)
-- Apply `k1w1-a0style_patch_217_FIXED.zip`: CI Lite bugfixes + Supabase edge SoT expansion + Storage key SoT + tokenStore consistency + Connection Screen SoT.
-- Danach: optional Performance-Cleanup in `useBuildStatus` (statusRef) wenn gewünscht.
+## Patch 217 (done)
+- ✅ Applied historically: CI Lite bugfixes + Supabase edge SoT expansion + Storage key SoT + tokenStore consistency + Connection Screen SoT.
+- Optional weiterhin offen: Performance-Cleanup in `useBuildStatus` (statusRef), falls nötig.
