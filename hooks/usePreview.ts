@@ -445,13 +445,24 @@ if (container) {
             snackFiles[path] = { contents: String(content ?? "") };
           }
 
+          const resolvedDependencies = dependencies ?? {};
+          const dependencyCount = Object.keys(resolvedDependencies).length;
+          const fileCount = Object.keys(snackFiles).length;
+
           const invokeOpts = {
             body: {
               projectId: projectData.id,
               name: projectData.name || "Preview",
               files: snackFiles,
-              dependencies,
-              meta: { template: "react" },
+              dependencies: resolvedDependencies,
+              meta: {
+                template: "react",
+                debug: {
+                  source: "usePreview",
+                  fileCount,
+                  dependencyCount,
+                },
+              },
             },
             headers: { "x-k1w1-admin-key": edgeAdminKey },
           };
