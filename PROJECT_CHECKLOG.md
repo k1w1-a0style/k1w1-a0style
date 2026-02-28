@@ -102,3 +102,7 @@
 - Added OpenAI provider regression tests to prevent unsupported payload fields (`verbosity`) from creeping back in.
 - Added assertion coverage that reasoning models (`o*`) still omit `temperature`.
 - Synced TODO/Patchlog status for the finished Patch 219/226 items.
+
+## Patch 310 (2026-02-28)
+- Projekt auf offene Aufgaben geprüft und TODO-Backlog aus SoT-Dokumenten konsolidiert.
+- Fokusbereiche bestätigt: Preview-Follow-ups, Logger-Migration, TypeScript-Hygiene, Payload-Limits/Observability.
