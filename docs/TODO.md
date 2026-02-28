@@ -331,17 +331,17 @@ Akzeptanz:
 
 ### Patch 219 — AI Provider Hardening + Docs/Examples SoT + Connections Polish
 
-- [ ] Remove phantom model defaults (OpenAI/Anthropic) → use real model IDs
-- [ ] OpenAI request payload: remove unsupported fields (verbosity)
-- [ ] Gemini: send multi-turn contents + systemInstruction (no flat prompt string)
-- [ ] SecureKeyManager: rotation listener instead of monkey-patching in AIContext
-- [ ] FileWriter: remove overly-aggressive substring reference check (avoid false positives)
-- [ ] ProjectContext: replace console.log spam with logger
-- [ ] Docs: update .github/workflows/README.md examples to use SUPABASE_EDGE_FUNCTIONS constants
-- [ ] Connections: show GitHub scopes cleaner + show Supabase ref (if available)
+- [x] Remove phantom model defaults (OpenAI/Anthropic) → use real model IDs
+- [x] OpenAI request payload: remove unsupported fields (verbosity)
+- [x] Gemini: send multi-turn contents + systemInstruction (no flat prompt string)
+- [x] SecureKeyManager: rotation listener instead of monkey-patching in AIContext
+- [x] FileWriter: remove overly-aggressive substring reference check (avoid false positives)
+- [x] ProjectContext: replace console.log spam with logger
+- [x] Docs: update .github/workflows/README.md examples to use SUPABASE_EDGE_FUNCTIONS constants
+- [x] Connections: show GitHub scopes cleaner + show Supabase ref (if available)
 
 ## Patch 226 (Cleanup)
-- [ ] Logger sweep: remaining console logs in GitHub/Storage hooks
+- [x] Logger sweep: remaining console logs in GitHub/Storage hooks
 
 
 - [x] Add DEV_COMMANDS.md (git grep / grep alternatives when rg is missing)

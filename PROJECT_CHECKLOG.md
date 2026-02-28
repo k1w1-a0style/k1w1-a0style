@@ -93,3 +93,8 @@
 ## Patch 307 (2026-02-28)
 - Removed remaining expo-lint warnings in diagnostics components by replacing `global as any` checks with typed `globalThis` checks.
 - Synced README patch status line to current patch level to avoid docs drift.
+
+## Patch 308 (2026-02-28)
+- Added OpenAI provider regression tests to prevent unsupported payload fields (`verbosity`) from creeping back in.
+- Added assertion coverage that reasoning models (`o*`) still omit `temperature`.
+- Synced TODO/Patchlog status for the finished Patch 219/226 items.

@@ -1,5 +1,6 @@
 ## Patchlog Root
 
+- Patch 308: add OpenAI payload hardening regression tests + TODO/checklog sync (see docs/patches/patch_308.md)
 - Patch 258: sanitize camelCase serviceRoleKey in nested arrays
 - Patch 255: harden error sanitization (redact sensitive keys in details)
 - Patch 253: fix notificationService Jest token (Platform.OS safe)
