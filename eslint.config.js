@@ -60,6 +60,11 @@ module.exports = [
       // Hooks-Warnungen abschalten (Code läuft ja)
       'react-hooks/exhaustive-deps': 'off',
 
+      // Logging policy: new console usage should be visible in lint output.
+      // CI uses --quiet, therefore warnings stay non-blocking until we decide
+      // to tighten this rule further.
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
+
       // Refactor guardrails (strict; fail CI when a facade import slips in)
       'no-restricted-imports': ['error', {
         paths: [

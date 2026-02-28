@@ -123,3 +123,7 @@
 - PR-9 Follow-up umgesetzt: `preview_page` unterstützt jetzt optionale URL-Toggles für Raw-Logs (`logs`) und Runtime-Error-Overlay (`runtime_errors`).
 - Preview-HTML um Toggle-Actions und ein optionales Raw-Log-Panel erweitert.
 - `docs/PROJECT_TODO.md` PR-9 Punkt "raw logs/runtime errors" als erledigt markiert.
+
+## Patch 315 (2026-02-28)
+- Next fix-list item umgesetzt: ESLint `no-console` als Warn-Baseline aktiviert (`warn`, `error` erlaubt).
+- TODO-Sync: `docs/PROJECT_TODO.md` Punkt „ESLint no-console Rule aktivieren“ als erledigt markiert.
