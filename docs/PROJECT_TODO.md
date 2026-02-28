@@ -85,7 +85,7 @@
 
 ### TypeScript-Hygiene
 - [x] Shim-Migration gestartet: `ProjectContext`/`ProjectContext.types` importieren `AutoFixRequest`/`LastPreviewMeta` direkt aus `shared/types/project` ✅ *(patch 322)*
-- [ ] `any`-Annotationen reduzieren: Start mit `lib/orchestrator.ts` und `contexts/AIContext.tsx`
+- [ ] `any`-Annotationen reduzieren: AIContext-Teil erledigt (Patch 323); nächster Startpunkt `lib/orchestrator.ts` + weitere Hotspots
 - [ ] `contexts/types.ts` Shim-Migration: 36 Imports schrittweise auf `shared/types/*` umstellen
 
 ## Patch 217 (done)

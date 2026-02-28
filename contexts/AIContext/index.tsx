@@ -17,7 +17,7 @@ import { PROVIDER_DEFAULTS } from "./models";
 import {
   CONFIG_STORAGE_KEY, DEFAULT_CONFIG,
   loadConfig, loadSecureApiKeys, saveSecureApiKeys,
-  getDefaultMode, isModeValidForProvider,
+  getDefaultMode,
 } from "./helpers";
 
 const AIContext = createContext<AIContextProps | undefined>(undefined);
@@ -88,7 +88,7 @@ useEffect(() => {
 
 useEffect(() => {
   if (!didLoad.current) return;
-  const redacted = { ...(config as any), apiKeys: {} as any };
+  const redacted: AIConfig = { ...config, apiKeys: { ...DEFAULT_CONFIG.apiKeys } };
   AsyncStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(redacted)).catch(
     () => undefined,
   );
@@ -103,7 +103,7 @@ useEffect(() => {
   });
 
   // 2) Persist keys securely
-  saveSecureApiKeys(config.apiKeys as any).catch(() => undefined);
+  saveSecureApiKeys(config.apiKeys).catch(() => undefined);
 }, [config.apiKeys]);
 const setConfig = useCallback((next: AIConfig) => setConfigState(next), []);
   const updateConfig = useCallback((patch: Partial<AIConfig>) => {

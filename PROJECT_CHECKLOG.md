@@ -1,3 +1,4 @@
+- 2026-02-28: Patch 323 prepared: AIContext `any`-Cast cleanup in helpers/provider persistence, TODO status synced for TypeScript-hygiene progress.
 # Project Checklog
 
 ## Patch 321 (2026-02-28)
