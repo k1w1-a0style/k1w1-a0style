@@ -111,6 +111,7 @@ export interface PreviewState {
   error: string | null;
   fileCount: number;
   totalSize: number;
+  skippedCount: number;
 }
 
 export type PreviewResult = {
@@ -185,7 +186,7 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
   }, []);
 
 
-  const fileMap = useMemo(() => {
+  const previewFiles = useMemo(() => {
     const files: Record<string, string> = {};
 
     const rawFiles = projectData?.files;
@@ -199,20 +200,31 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
       : [];
 
     let total = 0;
+    let skippedCount = 0;
     const MAX_SIZE = 1_500_000; // 1.5 MB local cap (aligned with save_preview)
 
-    for (const f of list) {
+    for (const [index, f] of list.entries()) {
       const p = f?.path ? String(f.path) : "";
-      if (!p) continue;
-      if (!isAllowedFile(p)) continue;
+      if (!p) {
+        skippedCount += 1;
+        continue;
+      }
+      if (!isAllowedFile(p)) {
+        skippedCount += 1;
+        continue;
+      }
 
       const key = sanitizePreviewPath(p);
-      if (!key) continue;
+      if (!key) {
+        skippedCount += 1;
+        continue;
+      }
 
       const content = String(f?.content ?? "");
       total += content.length;
 
       if (total > MAX_SIZE) {
+        skippedCount += list.length - index;
         logger.warn(
           "[usePreview] ⚠️ Größen-Limit erreicht, weitere Dateien werden übersprungen",
         );
@@ -222,8 +234,14 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
       files[key] = content;
     }
 
-    return files;
+    return {
+      fileMap: files,
+      totalSize: total,
+      skippedCount,
+    };
   }, [projectData]);
+
+  const { fileMap, totalSize, skippedCount } = previewFiles;
 
   const dependencies = useMemo(() => {
     const pkgRaw =
@@ -553,9 +571,10 @@ if (container) {
       lastCreatedAt,
       error,
       fileCount: Object.keys(fileMap).length,
-      totalSize: Object.values(fileMap).reduce((sum, content) => sum + content.length, 0),
+      totalSize,
+      skippedCount,
     }),
-    [isCreating, lastCreatedAt, error, fileMap],
+    [isCreating, lastCreatedAt, error, fileMap, totalSize, skippedCount],
   );
 
   // Lightweight fingerprint: count + total size + sorted keys hash
