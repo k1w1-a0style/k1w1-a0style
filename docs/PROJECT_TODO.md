@@ -66,7 +66,7 @@
 - [x] **Patch D (Robustness):** `infra/github/tokenStore.ts` SecureStore Error-Handling vereinheitlichen
 
 ### PR-9 (Preview — weitere Stages)
-- [ ] `PreviewScreen` Komponente weiter splitten: `DeviceFrame.tsx`, `PreviewToolbar.tsx`, `PreviewStatusBar.tsx`
+- [x] `PreviewScreen` Komponente weiter splitten: `DeviceFrame.tsx`, `PreviewToolbar.tsx`, `PreviewStatusBar.tsx` ✅ *(patch 313)*
 - [x] `useWebViewCrashRecovery` auch in `PreviewScreen` (usePreviewScreen) einbinden
 - [ ] In `preview_page` Edge Function: optionaler Toggle für „raw logs" / „runtime errors"
 - [ ] In `PreviewScreen`: Anzeige von fileCount/size/skipped (was wurde gesendet)

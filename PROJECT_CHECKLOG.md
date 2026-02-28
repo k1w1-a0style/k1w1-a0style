@@ -114,3 +114,7 @@
 
 
 - Patch 312: EnhancedBuild one-click deploy now treats secrets auto-sync as opt-in (default off) with persistent toggle and explicit step skip state; TODO open item closed.
+
+## Patch 313 (2026-02-28)
+- PR-9 follow-up umgesetzt: PreviewScreen UI in `DeviceFrame`, `PreviewToolbar`, `PreviewStatusBar` aufgeteilt.
+- `docs/PROJECT_TODO.md` offenen Split-Task als erledigt markiert.

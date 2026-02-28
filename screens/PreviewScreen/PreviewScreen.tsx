@@ -4,7 +4,6 @@
 import React, { useRef } from 'react';
 import {
   ActivityIndicator,
-  Animated,
   Pressable,
   Text,
   View,
@@ -15,7 +14,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme';
 import { usePreviewScreen } from './hooks/usePreviewScreen';
 
-import { s } from "./PreviewScreen.styles";
+import { s } from './PreviewScreen.styles';
+import { DeviceFrame } from './components/DeviceFrame';
+import { PreviewToolbar } from './components/PreviewToolbar';
+import { PreviewStatusBar } from './components/PreviewStatusBar';
 
 export default function PreviewScreen() {
   const webViewRef = useRef<WebView>(null);
@@ -79,138 +81,49 @@ export default function PreviewScreen() {
 
   return (
     <SafeAreaView style={s.root} edges={['top']}>
-      {/* Toolbar */}
-      <View style={s.toolbar}>
-        <View style={s.toolbarLeft}>
-          <Ionicons name="eye-outline" size={20} color={theme.palette.primary} />
-          <View style={s.toolbarTitle}>
-            <Text style={s.title}>Live Preview</Text>
-            <Text style={s.subtitle} numberOfLines={1}>{projectData.name}</Text>
-          </View>
-        </View>
-        <View style={s.toolbarActions}>
-          <Pressable
-            style={[s.hotReloadBtn, hotReloadEnabled && s.hotReloadBtnOn]}
-            onPress={() => setHotReloadEnabled((v) => !v)}
-          >
-            <Animated.View style={{ opacity: hotDotAnim }}>
-              <View style={[s.hotDot, hotReloadEnabled && s.hotDotOn]} />
-            </Animated.View>
-            <Text style={[s.hotReloadLabel, hotReloadEnabled && s.hotReloadLabelOn]}>Hot-Reload</Text>
-          </Pressable>
-          <Pressable style={s.toolBtn} onPress={handleReload}>
-            <Ionicons name="refresh-outline" size={18} color={theme.palette.text.primary} />
-          </Pressable>
-          {lastPreview?.url && (
-            <Pressable style={s.toolBtn} onPress={handleCopy}>
-              <Ionicons name="copy-outline" size={16} color={theme.palette.text.primary} />
-            </Pressable>
-          )}
-          {lastPreview?.url && (
-            <Pressable style={s.toolBtn} onPress={handleOpenExternal}>
-              <Ionicons name="open-outline" size={16} color={theme.palette.primary} />
-            </Pressable>
-          )}
-          <Pressable style={s.toolBtn} onPress={handleFullscreen}>
-            <Ionicons name="expand-outline" size={16} color={theme.palette.text.primary} />
-          </Pressable>
-        </View>
-      </View>
+      <PreviewToolbar
+        projectName={projectData.name}
+        hotReloadEnabled={hotReloadEnabled}
+        hotDotAnim={hotDotAnim}
+        hasPreviewUrl={Boolean(lastPreview?.url)}
+        onToggleHotReload={() => setHotReloadEnabled((value) => !value)}
+        onReload={handleReload}
+        onCopy={handleCopy}
+        onOpenExternal={handleOpenExternal}
+        onFullscreen={handleFullscreen}
+      />
 
-      {/* Status Bar */}
-      <View style={s.statusBar}>
-        <View style={[
-          s.statusDot,
-          phase === 'ready' && s.statusDotOk,
-          phase === 'error' && s.statusDotError,
-          (phase === 'creating' || phase === 'loading') && s.statusDotLoading,
-        ]} />
-        <Text style={s.statusText}>
-          {phase === 'idle' ? 'Bereit'
-            : phase === 'creating' ? 'Preview wird erstellt…'
-            : phase === 'loading' ? 'Wird geladen…'
-            : phase === 'ready' ? 'Live'
-            : 'Fehler'}
-        </Text>
-        {(phase === 'creating' || phase === 'loading') && (
-          <Animated.View style={{ opacity: pulseAnim }}>
-            <ActivityIndicator size="small" color={theme.palette.primary} />
-          </Animated.View>
-        )}
-        {hotReloadEnabled && hotReloadCount > 0 && (
-          <View style={s.hotBadge}>
-            <Text style={s.hotBadgeText}>{hotReloadCount}x neu geladen</Text>
-          </View>
-        )}
-      </View>
+      <PreviewStatusBar
+        phase={phase}
+        pulseAnim={pulseAnim}
+        hotReloadEnabled={hotReloadEnabled}
+        hotReloadCount={hotReloadCount}
+      />
 
-      {/* Device Frame */}
-      <View style={s.previewArea}>
-        <Animated.View style={[
-          s.deviceFrame,
-          {
-            borderColor: flashBorderAnim.interpolate({
-              inputRange: [0, 0.5, 1],
-              outputRange: [theme.palette.border, theme.palette.primary, theme.palette.primary],
-            }),
-            shadowOpacity: flashBorderAnim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.9] }),
-            shadowColor: flashBorderAnim.interpolate({ inputRange: [0, 1], outputRange: ['#000', theme.palette.primary] }),
-            shadowRadius: flashBorderAnim.interpolate({ inputRange: [0, 1], outputRange: [12, 24] }),
-          },
-        ]}>
-          <View style={s.deviceNotch} />
+      <DeviceFrame
+        webViewRef={webViewRef}
+        previewSource={previewSource}
+        phase={phase}
+        fadeAnim={fadeAnim}
+        flashBorderAnim={flashBorderAnim}
+        originWhitelist={originWhitelist}
+        onShouldStartLoadWithRequest={handleShouldStartLoad}
+        onLoadStart={() => {
+          setPhase('loading');
+          setWebError(null);
+        }}
+        onLoadEnd={() => setPhase('ready')}
+        onError={(message) => {
+          setPhase('error');
+          setWebError(message);
+        }}
+        onHttpError={(statusCode) => {
+          setPhase('error');
+          setWebError(`HTTP ${statusCode ?? '?'}`);
+        }}
+        onCreate={handleCreate}
+      />
 
-          {previewSource ? (
-            <Animated.View style={[s.webViewWrap, { opacity: phase === 'ready' ? fadeAnim : 0.3 }]}>
-              <WebView
-                ref={webViewRef}
-                style={s.webView}
-                source={previewSource.type === 'url' ? { uri: previewSource.uri } : { html: previewSource.html }}
-                originWhitelist={originWhitelist}
-                setSupportMultipleWindows={false}
-                javaScriptCanOpenWindowsAutomatically={false}
-                onShouldStartLoadWithRequest={handleShouldStartLoad}
-                onLoadStart={() => { setPhase('loading'); setWebError(null); }}
-                onLoadEnd={() => setPhase('ready')}
-                onError={(e) => { setPhase('error'); setWebError(e.nativeEvent?.description || 'WebView Fehler'); }}
-                onHttpError={(e) => { setPhase('error'); setWebError(`HTTP ${e.nativeEvent?.statusCode || '?'}`); }}
-                mixedContentMode="always"
-                startInLoadingState={false}
-              />
-              {(phase === 'loading' || phase === 'creating') && (
-                <View style={s.loadingOverlay}>
-                  <ActivityIndicator size="large" color={theme.palette.primary} />
-                  <Text style={s.loadingOverlayText}>
-                    {phase === 'creating' ? 'Preview wird generiert…' : 'Laden…'}
-                  </Text>
-                </View>
-              )}
-            </Animated.View>
-          ) : (
-            <View style={s.emptyPreview}>
-              {phase === 'creating' ? (
-                <>
-                  <ActivityIndicator size="large" color={theme.palette.primary} />
-                  <Text style={s.emptyPreviewText}>Preview wird erstellt…</Text>
-                </>
-              ) : (
-                <>
-                  <Ionicons name="phone-portrait-outline" size={48} color={theme.palette.text.muted} />
-                  <Text style={s.emptyPreviewText}>Noch keine Preview</Text>
-                  <Pressable style={s.createBtn} onPress={handleCreate}>
-                    <Ionicons name="play-outline" size={16} color={theme.palette.primary} />
-                    <Text style={s.createBtnText}>Preview erstellen</Text>
-                  </Pressable>
-                </>
-              )}
-            </View>
-          )}
-
-          <View style={s.deviceBottom} />
-        </Animated.View>
-      </View>
-
-      {/* Error Bar */}
       {(webError || state.error) && (
         <View style={s.errorBar}>
           <Ionicons name="alert-circle" size={16} color={theme.palette.error} />
@@ -221,7 +134,6 @@ export default function PreviewScreen() {
         </View>
       )}
 
-      {/* Bottom Bar */}
       <View style={s.bottomBar}>
         <Pressable style={[s.bottomBtn, state.isCreating && s.disabled]} onPress={handleCreate} disabled={state.isCreating}>
           <Ionicons name="refresh-outline" size={16} color={theme.palette.primary} />
@@ -235,4 +147,3 @@ export default function PreviewScreen() {
     </SafeAreaView>
   );
 }
-
