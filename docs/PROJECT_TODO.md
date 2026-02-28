@@ -70,7 +70,7 @@
 - [x] `useWebViewCrashRecovery` auch in `PreviewScreen` (usePreviewScreen) einbinden
 - [x] In `preview_page` Edge Function: optionaler Toggle für „raw logs" / „runtime errors" ✅ *(patch 314)*
 - [x] In `PreviewScreen`: Anzeige von fileCount/size/skipped (was wurde gesendet) ✅ *(patch 316)*
-- [ ] Auto-Cleanup-Cron in Supabase: `cleanup_expired_previews()` regelmäßig triggern
+- [x] Auto-Cleanup-Cron in Supabase: `cleanup_expired_previews()` regelmäßig triggern ✅ *(patch 317)*
 
 ### Logger-Migration
 - [ ] `lib/logger.ts` aktiv nutzen: console.log in `contexts/ProjectContext.tsx` (13x), `infra/storage/projectPersistence.ts` (10x), `lib/buildHistoryStorage.ts` (7x) ersetzen
@@ -80,7 +80,7 @@
 - [ ] `lib/apiKeyMasking.ts` Review: sicherstellen, dass alle UI-Callsites die lib-Implementierung nutzen (SettingsScreen keyMasking wurde entfernt)
 
 ### Stabilität
-- [ ] Server-side Payload Limits (save_preview): harte max bytes + max files enforced
+- [x] Server-side Payload Limits (save_preview): harte max bytes + max files enforced ✅ *(patch 317)*
 - [ ] Observability: Edge Function Logs + optionales `meta.debug` (minimal)
 
 ### TypeScript-Hygiene

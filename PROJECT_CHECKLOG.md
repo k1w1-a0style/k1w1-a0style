@@ -1,5 +1,10 @@
 # Project Checklog
 
+## Patch 317 (2026-02-28)
+- Closed next TODO items from fix list: Supabase preview auto-cleanup cron and server-side payload limits for `save_preview`.
+- Added shared payload/file limit constants in `save_preview` helpers and explicit file-count guard in request handling.
+- Added migration to schedule `cleanup_expired_previews()` hourly via `pg_cron` (idempotent job replace).
+
 ## Patch 309 (2026-02-28)
 - Synced TODO docs with current implementation status for Connections SoT / Patch 217.
 - Marked stale historical Patch A–D checklist in `docs/PROJECT_TODO.md` as done and removed pending drift.

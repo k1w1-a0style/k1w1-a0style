@@ -17,6 +17,9 @@ export type Payload = {
   meta?: Record<string, unknown>;
 };
 
+export const MAX_FILES_COUNT = 250;
+export const MAX_PAYLOAD_BYTES = 1_500_000;
+
 export const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -43,14 +46,14 @@ export function sanitizeFiles(files: SnackFiles): SnackFiles {
 
   for (const [rawPath, val] of Object.entries(files)) {
     count++;
-    if (count > 250) throw new Error("Too many files");
+    if (count > MAX_FILES_COUNT) throw new Error("Too many files");
 
     const key = sanitizePath(rawPath);
     if (!key) continue;
 
     const contents = String((val as any)?.contents ?? "");
     total += contents.length;
-    if (total > 1_500_000) throw new Error("Payload too large");
+    if (total > MAX_PAYLOAD_BYTES) throw new Error("Payload too large");
 
     out[key] = { type: (val as any)?.type, contents };
   }
@@ -91,4 +94,3 @@ export function approxSize(obj: unknown): number {
     return 0;
   }
 }
-

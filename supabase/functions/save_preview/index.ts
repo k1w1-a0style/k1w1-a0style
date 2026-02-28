@@ -2,7 +2,22 @@
 // REFACTORED: helpers → helpers.ts
 
 import { serve } from "std/http/server.ts";
-import { SnackFiles,Payload,UUID_RE,sanitizePath,sanitizeFiles,corsHeaders,json,randomSecret,approxSize } from "./helpers";
+import { createClient } from "@supabase/supabase-js";
+import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { parseJsonBody } from "../_shared/validation.ts";
+import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
+import {
+  SnackFiles,
+  Payload,
+  UUID_RE,
+  sanitizeFiles,
+  corsHeaders,
+  json,
+  randomSecret,
+  approxSize,
+  MAX_FILES_COUNT,
+  MAX_PAYLOAD_BYTES,
+} from "./helpers";
 
 serve(async (req) => {
   const origin = req.headers.get("origin");
@@ -41,7 +56,7 @@ serve(async (req) => {
   }
 
   let body: Payload;
-  const parsed = await parseJsonBody(req, 2_000_000);
+  const parsed = await parseJsonBody(req, MAX_PAYLOAD_BYTES);
   if (!parsed.ok) {
     const status = parsed.error.toLowerCase().includes("too large") ? 413 : 400;
     return json({ ok: false, error: parsed.error }, { status, headers: cors });
@@ -72,8 +87,16 @@ serve(async (req) => {
       ? String(body.projectId)
       : null;
 
+  const fileCount = Object.keys(body.files).length;
+  if (fileCount > MAX_FILES_COUNT) {
+    return json(
+      { ok: false, error: `Too many files (${fileCount} > ${MAX_FILES_COUNT})` },
+      { status: 413, headers: cors },
+    );
+  }
+
   const bytes = approxSize(body);
-  if (bytes > 1_500_000) {
+  if (bytes > MAX_PAYLOAD_BYTES) {
     return json(
       { ok: false, error: `Payload zu groß (${bytes} bytes)` },
       { status: 413, headers: cors },
