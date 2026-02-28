@@ -25,6 +25,7 @@ export const MANAGED_WORKFLOWS = new Set([
   ".github/workflows/deploy-supabase-functions.yml",
   ".github/workflows/eas-build.yml",
   ".github/workflows/eas-link.yml",
+  ".github/workflows/k1w1-diagnostics.yml",
   ".github/workflows/k1w1-triggered-build.yml",
   ".github/workflows/release-build.yml",
   ".github/workflows/k1w1-ci-lite.yml",

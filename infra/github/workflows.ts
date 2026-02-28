@@ -4,6 +4,8 @@ import { githubApiUrl } from "../../shared/constants/github";
 import { logger } from "../../lib/logger";
 import { debugLog } from "../../lib/debugOverlay";
 import { redactSecrets, truncateWithMarker } from "../../lib/secretRedaction";
+import { createOrUpdateFile } from "./files";
+import { WORKFLOW_TEMPLATES } from "./workflowTemplates";
 
 export interface WorkflowRun {
   id: number;
@@ -51,6 +53,52 @@ export interface WorkflowJob {
   html_url?: string | null;
   steps?: WorkflowJobStep[];
 }
+
+type WorkflowListItem = {
+  id: number;
+  name?: string;
+  path?: string;
+  state?: string;
+};
+
+const resolveWorkflowId = async (
+  owner: string,
+  repo: string,
+  workflowFileName: string,
+): Promise<{ id: number; match: WorkflowListItem | null; available: string[] } | null> => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error("GitHub token fehlt.");
+
+  await githubLimiter.checkLimit();
+
+  const url = githubApiUrl(`/repos/${owner}/${repo}/actions/workflows?per_page=100`);
+  const resp = await fetch(url, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok) return null;
+
+  const workflows: WorkflowListItem[] = Array.isArray(json.workflows)
+    ? json.workflows
+    : [];
+
+  const available = workflows
+    .map((w) => w.path || w.name || String(w.id))
+    .filter(Boolean) as string[];
+
+  const target = workflowFileName.toLowerCase();
+  const match = workflows.find((w) => {
+    const p = (w.path || "").toLowerCase();
+    const n = (w.name || "").toLowerCase();
+    return p.endsWith(`/${target}`) || p.endsWith(target) || n === target;
+  }) || null;
+
+  return { id: match?.id || 0, match, available };
+};
 
 export const getWorkflowRunDetails = async (
   owner: string,
@@ -120,24 +168,77 @@ export const triggerWorkflow = async (
 
   await githubLimiter.checkLimit();
 
-  const url = githubApiUrl(`/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowFileName)}/dispatches`);
+  const dispatchByFileUrl = githubApiUrl(
+    `/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowFileName)}/dispatches`,
+  );
+
+  const doDispatch = async (url: string) =>
+    fetch(url, {
+      method: "POST",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ ref, inputs }),
+    });
+
   debugLog("github:workflow", "Dispatch workflow", {
-    url,
+    url: dispatchByFileUrl,
     owner,
     repo,
     workflowFileName,
     ref,
     inputs: Object.keys(inputs || {}),
   });
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ ref, inputs }),
-  });
+
+  // 1) Fast path: dispatch by file name.
+  let resp = await doDispatch(dispatchByFileUrl);
+
+  // 2) If not found: resolve workflow ID and dispatch by ID.
+  let resolved: Awaited<ReturnType<typeof resolveWorkflowId>> | null = null;
+  if (resp.status === 404) {
+    resolved = await resolveWorkflowId(owner, repo, workflowFileName).catch(
+      () => null,
+    );
+    if (resolved?.id) {
+      const dispatchByIdUrl = githubApiUrl(
+        `/repos/${owner}/${repo}/actions/workflows/${resolved.id}/dispatches`,
+      );
+      debugLog("github:workflow", "Dispatch workflow (resolved id)", {
+        url: dispatchByIdUrl,
+        owner,
+        repo,
+        workflowFileName,
+        ref,
+        resolved,
+      });
+      resp = await doDispatch(dispatchByIdUrl);
+    }
+  }
+
+  // 3) If still not found: bootstrap known workflow templates into the selected repo/branch.
+  if (resp.status === 404 && WORKFLOW_TEMPLATES[workflowFileName]) {
+    const path = `.github/workflows/${workflowFileName}`;
+    debugLog("github:workflow", "Bootstrap missing workflow from template", {
+      owner,
+      repo,
+      ref,
+      workflowFileName,
+      path,
+    });
+    await createOrUpdateFile(
+      owner,
+      repo,
+      path,
+      WORKFLOW_TEMPLATES[workflowFileName],
+      `Add ${workflowFileName} (K1W1)`,
+      ref,
+    );
+
+    // Retry dispatch after bootstrap.
+    resp = await doDispatch(dispatchByFileUrl);
+  }
 
   const raw = await resp.text().catch(() => "");
   debugLog("github:workflow", "Dispatch response", {
@@ -152,8 +253,20 @@ export const triggerWorkflow = async (
   if (status === 401) throw new Error("GitHub Token ungültig.");
   if (status === 403) throw new Error("Keine Berechtigung für Workflow-Trigger.");
   if (status === 404) {
+    // Best-effort context for the user.
+    if (!resolved) {
+      resolved = await resolveWorkflowId(owner, repo, workflowFileName).catch(
+        () => null,
+      );
+    }
+    const availableHint = resolved?.available?.length
+      ? `Verfügbar: ${resolved.available.slice(0, 8).join(", ")}${resolved.available.length > 8 ? " …" : ""}`
+      : "";
+    const bootstrapHint = WORKFLOW_TEMPLATES[workflowFileName]
+      ? "Der Workflow wurde versucht nachzuinstallieren, aber GitHub liefert weiterhin 404. Prüfe Repo/Branch-Rechte oder Branch-Name."
+      : "Die Workflow-Datei fehlt in diesem Repo/Branch. (Tipp: RepoScreen → Workflows/Core Files pushen oder Workflow hinzufügen.)";
     throw new Error(
-      `Workflow nicht gefunden. Stelle sicher, dass '${workflowFileName}' im '.github/workflows' Ordner auf GitHub (Branch '${ref}') existiert.`,
+      `Workflow nicht gefunden. '${workflowFileName}' existiert nicht unter '.github/workflows' auf Branch '${ref}'. ${bootstrapHint}${availableHint ? " " + availableHint : ""}`,
     );
   }
 

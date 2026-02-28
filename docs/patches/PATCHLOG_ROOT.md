@@ -34,3 +34,5 @@
 - Patch 300: RepoScreen polish (remove filter UI) + Pull supports text dotfiles (.gitignore/.easignore/etc) (see docs/patches/patch_300.md)
 
 - Patch 301: RepoScreen restore showRepoList gating (fix repo list hidden test + optional flows) (see docs/patches/patch_301.md)
+
+- Patch 302: Fix EAS/CI workflow-dispatch 404 (auto-resolve + bootstrap managed workflows) (see docs/patches/patch_302.md)
