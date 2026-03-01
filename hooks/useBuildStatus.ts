@@ -23,6 +23,12 @@ import { POLL_INTERVAL_MS, MAX_ERRORS, REQUEST_TIMEOUT_MS } from "./buildStatusT
 import type { UseBuildStatusCallbacks } from "./buildStatusTypes";
 export type { UseBuildStatusCallbacks } from "./buildStatusTypes";
 
+const getErrorMessage = (error: unknown, fallback = "Netzwerkfehler") => {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  return fallback;
+};
+
 export function useBuildStatus(
   jobIdFromScreen?: string | null,
   callbacks?: UseBuildStatusCallbacks,
@@ -148,11 +154,11 @@ export function useBuildStatus(
           }
         }
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (!isMountedRef.current) return;
 
-      logger.debug("[useBuildStatus] ⚠️ Poll Error:", e?.message);
-      const errorMsg = e?.message || "Netzwerkfehler";
+      const errorMsg = getErrorMessage(e);
+      logger.debug("[useBuildStatus] ⚠️ Poll Error:", errorMsg);
       errorCountRef.current += 1;
       setErrorCount(errorCountRef.current);
       setLastError(errorMsg);

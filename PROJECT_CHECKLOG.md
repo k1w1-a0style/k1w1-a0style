@@ -1,3 +1,4 @@
+- 2026-03-01: Patch 328 prepared: weitere TS-Hygiene-Fixlistenpunkte umgesetzt (`TerminalContext`/`useBuildStatus` ohne `any`, Catch auf `unknown`), TODO-Stand fortgeschrieben.
 - 2026-03-01: Patch 327 prepared: `contexts/ProjectContext.tsx` Catch-Pfade auf `unknown` umgestellt, zentrale Fehlertext-Hilfe ergänzt, TypeScript-Hygiene-Restpunkt fortgeschrieben.
 - 2026-03-01: Patch 325 prepared: Restliche Orchestrator-Provider (`gemini`/`groq`/`huggingface`) ohne `any` typisiert, Catch-Pfade auf `unknown` vereinheitlicht, TODO-Fixlistenpunkt aktualisiert.
 - 2026-03-01: Patch 324 prepared: Priorisierte Fix-Liste aus Projekt-Audit erstellt und erste Orchestrator-TS-Hardening-Punkte umgesetzt (openai/anthropic/index ohne `any` in zentralen Fehler-/Response-Pfaden).
