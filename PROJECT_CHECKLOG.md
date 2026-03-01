@@ -1,3 +1,4 @@
+- 2026-03-01: Patch 332 prepared: BuildPollingService ohne `any` in Kernpfaden gehärtet (`unknown` catches + sichere JSON-Accessor), dazu neue Regressionstests für non-JSON Antwort, Legacy-Feldauswertung und Abort-Timeout.
 - 2026-03-01: Patch 330 prepared: Expo GraphQL malformed-payload regression fixed (200/non-JSON now fails correctly), regression tests added, plus extra `useGitHubRepos` TS-hygiene (`unknown` catches + typed tree entries).
 - 2026-03-01: Patch 329 prepared: mehrere Fixlistenpunkte im Connections-Flow gebündelt (Props ohne `any`, Hook-Catches auf `unknown`, typisierte JSON-Responses).
 - 2026-03-01: Patch 328 prepared: weitere TS-Hygiene-Fixlistenpunkte umgesetzt (`TerminalContext`/`useBuildStatus` ohne `any`, Catch auf `unknown`), TODO-Stand fortgeschrieben.

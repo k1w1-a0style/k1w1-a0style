@@ -1,3 +1,4 @@
+- Patch 332: build polling TS-hygiene hardening (`unknown` catch + typed JSON accessors) plus new regression tests for malformed JSON/legacy fields/Abort timeout (see docs/patches/patch_332.md)
 - Patch 331: continue TS hygiene in EnhancedBuild BuildHistorySection (remove local any-history usage, typed CSV keys, filter-block cleanup) + full checks green (see docs/patches/patch_331.md)
 - Patch 330: fix Expo GraphQL malformed-payload regression (no false-positive success on non-JSON/empty payload) + add regression tests + continue TS hygiene in useGitHubRepos (unknown catches/typed tree entries) (see docs/patches/patch_330.md)
 - Patch 329: ConnectionsScreen TS hygiene bundle (component prop typing + useConnectionsScreen unknown-catch/json typings) + docs/checklog sync (see docs/patches/patch_329.md)
