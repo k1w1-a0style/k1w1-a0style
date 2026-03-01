@@ -1,3 +1,4 @@
+- Patch 329: ConnectionsScreen TS hygiene bundle (component prop typing + useConnectionsScreen unknown-catch/json typings) + docs/checklog sync (see docs/patches/patch_329.md)
 ## Patchlog Root
 
 - Patch 328: continue TypeScript hygiene by removing remaining `any` hotspots in `TerminalContext` + `useBuildStatus` catch hardening (`unknown` + helper) and sync TODO/checklog (see docs/patches/patch_328.md)

@@ -3,6 +3,7 @@ import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../../../theme";
+import type { ConnectionsStyles } from "./types";
 import { ActionButton } from "./ActionButton";
 
 import { s } from "./StatusCard.styles";
@@ -142,7 +143,7 @@ function formatSupabaseDisplay(url: string, ref?: string): { value?: string; det
 }
 
 export function StatusCard(props: {
-  styles: any;
+  styles: ConnectionsStyles;
   busy: boolean;
   status: {
     gh: boolean;

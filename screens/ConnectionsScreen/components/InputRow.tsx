@@ -3,9 +3,10 @@ import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../../../theme";
+import type { ConnectionsStyles } from "./types";
 
 export function InputRow(props: {
-  styles: any;
+  styles: ConnectionsStyles;
   label: string;
   value: string;
   onChangeText: (v: string) => void;

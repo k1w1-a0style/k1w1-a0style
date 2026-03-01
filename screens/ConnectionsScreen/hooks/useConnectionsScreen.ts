@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
+import type { NavigationProp, ParamListBase } from "@react-navigation/native";
 
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { githubApiUrl } from "../../../shared/constants/github";
@@ -33,8 +34,37 @@ import {
 import { debugLog } from "../../../lib/debugOverlay";
 import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction";
 
+type ExpoProjectResponse = {
+  data?: {
+    id?: string;
+    slug?: string;
+    name?: string;
+    project?: {
+      id?: string;
+      slug?: string;
+    };
+  };
+};
+
+type ExpoGraphQLResponse = {
+  data?: {
+    me?: { username?: string };
+    viewer?: { username?: string };
+    user?: { username?: string };
+  };
+  errors?: Array<{ message?: string }>;
+};
+
+function parseJsonSafe<T>(raw: string, fallback: T): T {
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
 export function useConnectionsScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NavigationProp<ParamListBase>>();
   const { activeRepo, activeBranch } = useGitHub();
   const { projectData } = useProject();
 
@@ -107,7 +137,7 @@ export function useConnectionsScreen() {
         return;
       }
 
-      const json = (await resp.json().catch(() => null)) as any;
+      const json = (await resp.json().catch(() => null)) as ExpoProjectResponse | null;
       const hasProject = Boolean(
         json?.data?.id ||
           json?.data?.project?.id ||
@@ -119,9 +149,9 @@ export function useConnectionsScreen() {
       if (!hasProject) {
         Alert.alert("EAS Test", "Projekt nicht gefunden oder keine Rechte");
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       await saveConnEasOk(false);
-      Alert.alert("EAS Test", `EAS Test failed (${String(e?.message || e)})`);
+      Alert.alert("EAS Test", `EAS Test failed (${safeAlertText(e)})`);
     } finally {
       setIsTestingEas(false);
     }
@@ -346,7 +376,7 @@ export function useConnectionsScreen() {
       }
 
       Alert.alert("✅ Gespeichert", "Tokens & Verbindungen wurden gespeichert.");
-    } catch (e: any) {
+    } catch (e: unknown) {
       Alert.alert("❌ Speichern fehlgeschlagen", safeAlertText(e));
     } finally {
       setBusy(false);
@@ -398,7 +428,7 @@ export function useConnectionsScreen() {
         await AsyncStorage.removeItem(STORAGE_KEYS.CONN_GITHUB_SCOPES).catch(() => {});
       }
       Alert.alert("GitHub OK", `Verbunden als: ${login || "OK"}${scopes ? `\nScopes: ${scopes}` : ""}`);
-    } catch (e: any) {
+    } catch (e: unknown) {
       setGithubOk(false);
       setGithubUser("");
       setGithubScopes("");
@@ -406,7 +436,7 @@ export function useConnectionsScreen() {
       await AsyncStorage.removeItem(STORAGE_KEYS.CONN_GITHUB_USER).catch(() => {});
       await AsyncStorage.removeItem(STORAGE_KEYS.CONN_GITHUB_SCOPES).catch(() => {});
       debugLog("connections:github", "GitHub ERROR", {
-        error: redactSecrets(truncateWithMarker(String(e?.message ?? e), 800)),
+        error: redactSecrets(truncateWithMarker(safeAlertText(e), 800)),
       });
       Alert.alert("GitHub Test", safeAlertText(e));
     } finally {
@@ -442,7 +472,7 @@ export function useConnectionsScreen() {
       });
 
       if (!resp.ok) throw new Error(`Expo Test failed (${resp.status})`);
-      const payload: any = JSON.parse(raw || "{}");
+      const payload = parseJsonSafe<ExpoGraphQLResponse>(raw || "{}", {});
 
       if (Array.isArray(payload?.errors) && payload.errors.length) {
         const first = payload.errors[0];
@@ -474,13 +504,13 @@ export function useConnectionsScreen() {
       }
 
       Alert.alert("Expo OK", username ? `Verbunden als: ${username}` : "Token ist gueltig.");
-    } catch (e: any) {
+    } catch (e: unknown) {
       setExpoOk(false);
       setExpoUser("");
       await AsyncStorage.setItem(STORAGE_KEYS.CONN_EXPO_OK, "false").catch(() => {});
       await AsyncStorage.removeItem(STORAGE_KEYS.CONN_EXPO_USER).catch(() => {});
       debugLog("connections:expo", "Expo ERROR", {
-        error: redactSecrets(truncateWithMarker(String(e?.message ?? e), 800)),
+        error: redactSecrets(truncateWithMarker(safeAlertText(e), 800)),
       });
       Alert.alert("Expo Test", safeAlertText(e));
     } finally {
@@ -544,7 +574,7 @@ export function useConnectionsScreen() {
           await AsyncStorage.setItem(STORAGE_KEYS.CONN_SUPABASE_REF, ref).catch(() => {});
         }
       } catch {}
-    } catch (e: any) {
+    } catch (e: unknown) {
       setSupabaseOk(false);
       await AsyncStorage.setItem(STORAGE_KEYS.CONN_SUPABASE_OK, "false").catch(() => {});
       Alert.alert("Supabase Test", safeAlertText(e));
@@ -643,7 +673,7 @@ export function useConnectionsScreen() {
           await AsyncStorage.setItem(STORAGE_KEYS.CONN_REPO_SLUG, repoSlug).catch(() => {});
           await AsyncStorage.setItem(STORAGE_KEYS.CONN_REPO_BRANCH, branch).catch(() => {});
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         Alert.alert("Fehler", safeAlertText(e));
       } finally {
         setIsEasInitRunning(false);
@@ -711,7 +741,7 @@ export function useConnectionsScreen() {
         "OK",
         "EAS Create+Link Workflow gestartet. Check GitHub Actions (eas-link) und danach Repo commit/push abwarten.",
       );
-    } catch (e: any) {
+    } catch (e: unknown) {
       Alert.alert("Fehler", safeAlertText(e));
     } finally {
       setIsEasInitRunning(false);
