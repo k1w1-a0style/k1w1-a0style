@@ -7,10 +7,7 @@ import {
   getGitHubToken,
   getRepoFileText,
   listRepoSecretNames,
-  triggerWorkflow,
 } from "../../infra/github/githubService";
-import { ensureSupabaseClient } from "../supabase";
-import type { PreflightPatch } from "./preflightTypes";
 
 import { safeTrim, isUuid, fileExists, readJsonFile } from "./diagnosticTypes";
 import type { DiagnosticCheck } from "./diagnosticTypes";
@@ -18,20 +15,45 @@ export type { DiagnosticStatus, DiagnosticFix, DiagnosticCheck } from "./diagnos
 export { triggerRemoteDiagnostics, fetchLatestRemoteDiagnosticsReport } from "./remoteDiagnostics";
 export type { RemoteDiagnosticsReport } from "./remoteDiagnostics";
 
-export const runBuildPipelineDiagnostics = async (params: {
-  owner: string;
-  repo: string;
-  branch?: string | null;
-}) => {
+
+export type BuildPipelineDiagnosticsDeps = {
+  getGitHubToken?: typeof getGitHubToken;
+  getExpoToken?: typeof getExpoToken;
+  getEdgeAdminKey?: typeof getEdgeAdminKey;
+  fileExists?: typeof fileExists;
+  readJsonFile?: typeof readJsonFile;
+  getRepoFileText?: typeof getRepoFileText;
+  listRepoSecretNames?: typeof listRepoSecretNames;
+};
+
+const DEFAULT_BUILD_PIPELINE_DIAGNOSTICS_DEPS: Required<BuildPipelineDiagnosticsDeps> = {
+  getGitHubToken,
+  getExpoToken,
+  getEdgeAdminKey,
+  fileExists,
+  readJsonFile,
+  getRepoFileText,
+  listRepoSecretNames,
+};
+
+export const runBuildPipelineDiagnostics = async (
+  params: {
+    owner: string;
+    repo: string;
+    branch?: string | null;
+  },
+  deps: BuildPipelineDiagnosticsDeps = {},
+) => {
+  const d = { ...DEFAULT_BUILD_PIPELINE_DIAGNOSTICS_DEPS, ...deps };
   const ref = safeTrim(params.branch) || "main";
 
   const checks: DiagnosticCheck[] = [];
 
   // --- Local prerequisites ---
   const [ghToken, expoToken, adminKey] = await Promise.all([
-    getGitHubToken(),
-    getExpoToken(),
-    getEdgeAdminKey(),
+    d.getGitHubToken(),
+    d.getExpoToken(),
+    d.getEdgeAdminKey(),
   ]);
 
   checks.push({
@@ -70,19 +92,19 @@ export const runBuildPipelineDiagnostics = async (params: {
     hasLinkWorkflow,
     hasTriggeredBuildWorkflow,
   ] = await Promise.all([
-    fileExists(params.owner, params.repo, "app.config.js", ref),
-    fileExists(params.owner, params.repo, "app.config.ts", ref),
-    fileExists(params.owner, params.repo, "app.json", ref),
-    fileExists(params.owner, params.repo, "eas.json", ref),
-    fileExists(params.owner, params.repo, "eas-project.json", ref),
-    fileExists(params.owner, params.repo, "package.json", ref),
-    fileExists(
+    d.fileExists(params.owner, params.repo, "app.config.js", ref),
+    d.fileExists(params.owner, params.repo, "app.config.ts", ref),
+    d.fileExists(params.owner, params.repo, "app.json", ref),
+    d.fileExists(params.owner, params.repo, "eas.json", ref),
+    d.fileExists(params.owner, params.repo, "eas-project.json", ref),
+    d.fileExists(params.owner, params.repo, "package.json", ref),
+    d.fileExists(
       params.owner,
       params.repo,
       ".github/workflows/eas-link.yml",
       ref,
     ),
-    fileExists(
+    d.fileExists(
       params.owner,
       params.repo,
       ".github/workflows/k1w1-triggered-build.yml",
@@ -113,7 +135,7 @@ export const runBuildPipelineDiagnostics = async (params: {
   // --- EAS profiles (3 flows) & APK-only ---
   let easJson: any = null;
   if (hasEasJson) {
-    easJson = await readJsonFile<any>(params.owner, params.repo, "eas.json", ref);
+    easJson = await d.readJsonFile<any>(params.owner, params.repo, "eas.json", ref);
     if (!easJson) {
       checks.push({
         id: "repo.easJson.parse",
@@ -331,7 +353,7 @@ export const runBuildPipelineDiagnostics = async (params: {
   // Development Flow: expo-dev-client dependency recommended/required
   if (hasPackageJson) {
     try {
-      const pkg = await readJsonFile<any>(params.owner, params.repo, "package.json", ref);
+      const pkg = await d.readJsonFile<any>(params.owner, params.repo, "package.json", ref);
       const deps = { ...(pkg?.dependencies ?? {}), ...(pkg?.devDependencies ?? {}) };
       const hasDevClient = typeof deps["expo-dev-client"] === "string";
 
@@ -399,7 +421,7 @@ export const runBuildPipelineDiagnostics = async (params: {
 
   if (hasEasProjectJson) {
     try {
-      const data = await readJsonFile<{ projectId?: string }>(
+      const data = await d.readJsonFile<{ projectId?: string }>(
         params.owner,
         params.repo,
         "eas-project.json",
@@ -418,7 +440,7 @@ export const runBuildPipelineDiagnostics = async (params: {
 
   if (!projectIdOk && hasAppJson) {
     try {
-      const appJson = await readJsonFile<any>(params.owner, params.repo, "app.json", ref);
+      const appJson = await d.readJsonFile<any>(params.owner, params.repo, "app.json", ref);
       const candidate = safeTrim(appJson?.expo?.extra?.eas?.projectId);
       if (candidate && isUuid(candidate)) {
         projectId = candidate;
@@ -433,7 +455,7 @@ export const runBuildPipelineDiagnostics = async (params: {
   if (!projectIdOk && (hasAppConfigJs || hasAppConfigTs)) {
     try {
       const path = hasAppConfigJs ? "app.config.js" : "app.config.ts";
-      const text = await getRepoFileText({ owner: params.owner, repo: params.repo, path, ref });
+      const text = await d.getRepoFileText({ owner: params.owner, repo: params.repo, path, ref });
       const m1 = text.match(/projectId[^0-9a-fA-F]{0,64}([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/);
       const m2 = !m1 ? text.match(/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/) : null;
       const candidate = safeTrim((m1?.[1] ?? m2?.[1]) as any);
@@ -481,7 +503,7 @@ export const runBuildPipelineDiagnostics = async (params: {
 
   // --- Secrets existence (names only) ---
   try {
-    const names = await listRepoSecretNames(params.owner, params.repo);
+    const names = await d.listRepoSecretNames(params.owner, params.repo);
     const hasExpoTokenSecret = names.includes("EXPO_TOKEN");
     const hasSupabaseUrlSecret = names.includes("SUPABASE_URL");
     const hasSupabaseServiceRoleSecret = names.includes(
@@ -528,7 +550,7 @@ export const runBuildPipelineDiagnostics = async (params: {
   // --- Optional: app.config.js should read eas-project.json ---
   if (hasAppConfigJs) {
     try {
-      const appConfig = await getRepoFileText({
+      const appConfig = await d.getRepoFileText({
         owner: params.owner,
         repo: params.repo,
         path: "app.config.js",

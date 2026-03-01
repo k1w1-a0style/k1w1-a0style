@@ -48,6 +48,8 @@ describe("build readiness gate - diagnostic_last_ok", () => {
       /Diagnostik nicht gruen/i,
     );
 
+    await expect(startBuildJob({ project: makeProject(), buildProfile: "preview" })).rejects.toThrow(/DIAGNOSTIC_NOT_GREEN/);
+
     expect(mockGitHub.pushFilesToRepo).not.toHaveBeenCalled();
     expect(mockAutoFix.autoFixCIWorkflows).not.toHaveBeenCalled();
     expect(mockInvoke).not.toHaveBeenCalled();

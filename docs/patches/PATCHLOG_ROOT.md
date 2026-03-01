@@ -80,3 +80,4 @@
 - Patch 337 (2026-03-01): Diagnostics/Fix Playbook + Test Matrix + Runbook (see docs/patches/patch_337.md and docs/patches/PATCH_337_NOTES.md)
 
 - Patch 338 (2026-03-01): Phase-2 Diagnostics Coverage (13 neue High/Med Tests) + eas.json parse-fail Fix + Patch-Engine Helper (see docs/patches/patch_338.md)
+- Patch 339 (2026-03-01): Phase-4 Testability DX (DI exports for readiness/pipeline/preflight/patch engine), stable readiness error codes, and 3 medium diagnostics tests (sorting, SmartFix fixable-only, runner resilience) (see docs/patches/patch_339.md)

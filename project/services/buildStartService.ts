@@ -15,6 +15,11 @@ import {
 import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
 import { autoFixCIWorkflows } from "../../lib/diagnostics/ciAutoFix";
 import { STORAGE_KEYS } from "../../lib/storageKeys";
+import {
+  BUILD_READINESS_ERROR_MESSAGES,
+  ERR_BRANCH_MISSING,
+  ERR_DIAGNOSTIC_NOT_GREEN,
+} from "../../lib/errors/buildReadinessErrors";
 
 export type StartBuildProfile = "development" | "preview" | "production";
 
@@ -35,15 +40,25 @@ function isUuid(id: string): boolean {
   return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
 }
 
-export async function assertBuildReadiness(project: ProjectData): Promise<void> {
+export type BuildReadinessDeps = {
+  storageGetItem?: (key: string) => Promise<string | null>;
+};
+
+export async function assertBuildReadiness(
+  project: ProjectData,
+  deps: BuildReadinessDeps = {},
+): Promise<void> {
+  const storageGetItem = deps.storageGetItem ?? ((key: string) => AsyncStorage.getItem(key));
   const linkedBranch = typeof project?.linkedBranch === "string" ? project.linkedBranch.trim() : "";
   if (!linkedBranch) {
-    throw new Error("Branch fehlt (im Repo-Screen auswaehlen)");
+    throw new Error(`${ERR_BRANCH_MISSING}: ${BUILD_READINESS_ERROR_MESSAGES[ERR_BRANCH_MISSING]}`);
   }
 
-  const diagVal = await AsyncStorage.getItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null);
+  const diagVal = await storageGetItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null);
   if (diagVal !== "true") {
-    throw new Error("Diagnostik nicht gruen – im Diagnostic-Screen ausfuehren");
+    throw new Error(
+      `${ERR_DIAGNOSTIC_NOT_GREEN}: ${BUILD_READINESS_ERROR_MESSAGES[ERR_DIAGNOSTIC_NOT_GREEN]}`,
+    );
   }
 }
 
@@ -90,14 +105,15 @@ async function bestEffortPushToGitHub(opts: {
 export async function startBuildJob(params: {
   project: ProjectData;
   buildProfile?: string;
+  deps?: BuildReadinessDeps;
 }): Promise<StartBuildJobResult> {
-  const { project, buildProfile } = params;
+  const { project, buildProfile, deps } = params;
 
   if (!project?.files || project.files.length === 0) {
     throw new Error("Projekt ist leer. Es gibt keine Dateien zum Bauen.");
   }
 
-  await assertBuildReadiness(project);
+  await assertBuildReadiness(project, deps);
 
   const githubRepo = (project.linkedRepo?.trim() || CONFIG.BUILD.GITHUB_REPO).trim();
   const profile = normalizeProfile(buildProfile);

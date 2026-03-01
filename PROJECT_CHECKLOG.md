@@ -210,3 +210,10 @@
 - Pipeline-Diagnostics-Fix: `repo.easJson.parse` markiert jetzt zuverlässig `fail`, wenn `eas.json` invalid ist.
 - Neue Helper-Funktion `applyPreflightPatch` (delete -> upsert -> jsonMerge) mit dedizierter Testabdeckung eingeführt.
 - Checks: `npm run typecheck`, `npm run lint:ci`, `npm run test:silent -- --runInBand` erfolgreich.
+
+## Patch 339 (2026-03-01)
+- Phase-4 Testability DX umgesetzt, ohne Produktlogik zu ändern: DI-Hooks/Exports für Build Readiness, Pipeline Diagnostics, Preflight Runner und Patch Engine.
+- Stabile Build-Readiness Error-Codes eingeführt (`BRANCH_MISSING`, `DIAGNOSTIC_NOT_GREEN`) für robuste Tests + Telemetry.
+- Diagnostics-Checkliste UI stabil nach Status sortiert (`fail -> warn -> pass`).
+- Neue Med-Tests: Sorting, SmartFix fixable-only, Runner-Resilience (throw-safe).
+- Checks: `npm run typecheck`, `npm run lint:ci`, `npm run test:silent`.

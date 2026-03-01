@@ -50,6 +50,8 @@ describe("build readiness gate - linkedBranch missing", () => {
       /Branch fehlt/i,
     );
 
+    await expect(startBuildJob({ project: makeProject(), buildProfile: "preview" })).rejects.toThrow(/BRANCH_MISSING/);
+
     expect(mockGitHub.getDefaultBranch).not.toHaveBeenCalled();
     expect(mockGitHub.pushFilesToRepo).not.toHaveBeenCalled();
     expect(mockAutoFix.autoFixCIWorkflows).not.toHaveBeenCalled();

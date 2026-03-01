@@ -310,7 +310,7 @@ export default function DiagnosticScreen() {
               </Text>
             ) : (
               <View style={{ gap: theme.spacing.sm }}>
-                {checklist.map((r) => {
+                {allChecks.map((r) => {
                   const sev = severityFor(r);
                   const hasFix = !!r.fix?.patch;
                   const clickable = r.status === "fail" || r.status === "warn";
