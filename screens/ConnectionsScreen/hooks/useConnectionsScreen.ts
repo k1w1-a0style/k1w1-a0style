@@ -33,6 +33,7 @@ import {
 
 import { debugLog } from "../../../lib/debugOverlay";
 import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction";
+import { parseExpoGraphQLUsername } from "../utils/expoGraphql";
 
 type ExpoProjectResponse = {
   data?: {
@@ -45,23 +46,6 @@ type ExpoProjectResponse = {
     };
   };
 };
-
-type ExpoGraphQLResponse = {
-  data?: {
-    me?: { username?: string };
-    viewer?: { username?: string };
-    user?: { username?: string };
-  };
-  errors?: Array<{ message?: string }>;
-};
-
-function parseJsonSafe<T>(raw: string, fallback: T): T {
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
 
 export function useConnectionsScreen() {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
@@ -472,19 +456,7 @@ export function useConnectionsScreen() {
       });
 
       if (!resp.ok) throw new Error(`Expo Test failed (${resp.status})`);
-      const payload = parseJsonSafe<ExpoGraphQLResponse>(raw || "{}", {});
-
-      if (Array.isArray(payload?.errors) && payload.errors.length) {
-        const first = payload.errors[0];
-        const msg = first?.message ? String(first.message) : "Expo GraphQL error";
-        throw new Error(msg);
-      }
-
-      const username =
-        payload?.data?.me?.username ||
-        payload?.data?.viewer?.username ||
-        payload?.data?.user?.username ||
-        "";
+      const username = parseExpoGraphQLUsername(raw || "");
 
       // UX: Wenn der Token valide ist, persistieren wir ihn sofort.
       // Viele Nutzer drücken erst "Test" und erwarten danach einen grünen Status nach Neustart.

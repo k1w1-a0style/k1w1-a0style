@@ -1,3 +1,4 @@
+- 2026-03-01: Patch 330 prepared: Expo GraphQL malformed-payload regression fixed (200/non-JSON now fails correctly), regression tests added, plus extra `useGitHubRepos` TS-hygiene (`unknown` catches + typed tree entries).
 - 2026-03-01: Patch 329 prepared: mehrere Fixlistenpunkte im Connections-Flow gebündelt (Props ohne `any`, Hook-Catches auf `unknown`, typisierte JSON-Responses).
 - 2026-03-01: Patch 328 prepared: weitere TS-Hygiene-Fixlistenpunkte umgesetzt (`TerminalContext`/`useBuildStatus` ohne `any`, Catch auf `unknown`), TODO-Stand fortgeschrieben.
 - 2026-03-01: Patch 327 prepared: `contexts/ProjectContext.tsx` Catch-Pfade auf `unknown` umgestellt, zentrale Fehlertext-Hilfe ergänzt, TypeScript-Hygiene-Restpunkt fortgeschrieben.

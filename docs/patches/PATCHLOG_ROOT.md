@@ -1,3 +1,4 @@
+- Patch 330: fix Expo GraphQL malformed-payload regression (no false-positive success on non-JSON/empty payload) + add regression tests + continue TS hygiene in useGitHubRepos (unknown catches/typed tree entries) (see docs/patches/patch_330.md)
 - Patch 329: ConnectionsScreen TS hygiene bundle (component prop typing + useConnectionsScreen unknown-catch/json typings) + docs/checklog sync (see docs/patches/patch_329.md)
 ## Patchlog Root
 
