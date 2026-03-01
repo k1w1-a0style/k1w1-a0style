@@ -173,4 +173,8 @@
 - Build-Screen TS-Härtung: `BuildHistorySection` nutzt jetzt `BuildHistoryEntry[]` statt `any[]`, inklusive key-safe CSV-Header (`keyof BuildHistoryEntry`).
 - Kleine JSX-Konsistenz: Filter-Block sauber eingerückt (ohne Verhaltensänderung).
 - Checks: `npm run typecheck`, `npm run lint:ci`, `npm run test:silent` erfolgreich.
+## Patch 333 (2026-03-01)
+- BuildPolling timeout handling fixed for AbortError plain-object rejections (`{ name: "AbortError" }`) to preserve normalized timeout message.
+- Added regression coverage in `__tests__/buildPollingService.test.ts` for object-shaped AbortError throws.
+- Checks: `npm run typecheck`, `npm run lint:ci`, `npm run test:silent` erfolgreich.
 

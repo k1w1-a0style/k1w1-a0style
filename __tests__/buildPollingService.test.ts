@@ -64,4 +64,14 @@ describe("buildPollingService", () => {
       "Request timeout - Keine Antwort vom Server",
     );
   });
+
+  it("converts object AbortError to timeout message", async () => {
+    global.fetch = jest.fn(async () => {
+      throw { name: "AbortError" };
+    }) as unknown as typeof fetch;
+
+    await expect(fetchWithTimeout("https://example.com", { method: "GET" }, 20)).rejects.toThrow(
+      "Request timeout - Keine Antwort vom Server",
+    );
+  });
 });
