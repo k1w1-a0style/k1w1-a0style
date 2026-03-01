@@ -1,0 +1,58 @@
+import type { ProjectData } from "../shared/types/project";
+
+const mockGetItem = jest.fn();
+
+jest.mock("@react-native-async-storage/async-storage", () => ({
+  getItem: (...args: any[]) => mockGetItem(...args),
+}));
+
+const mockGitHub = {
+  getDefaultBranch: jest.fn(),
+  pushFilesToRepo: jest.fn(),
+  getEdgeAdminKey: jest.fn(),
+};
+const mockAutoFix = { autoFixCIWorkflows: jest.fn() };
+const mockInvoke = jest.fn();
+
+jest.doMock(require.resolve("../infra/github/githubService"), () => mockGitHub);
+jest.doMock(require.resolve("../lib/diagnostics/ciAutoFix"), () => mockAutoFix);
+jest.doMock(require.resolve("../lib/supabase"), () => ({
+  ensureSupabaseClient: jest.fn(async () => ({ functions: { invoke: mockInvoke } })),
+}));
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { startBuildJob } = require("../project/services/buildStartService");
+
+function makeProject(overrides: Partial<ProjectData> = {}): ProjectData {
+  return {
+    id: "p1",
+    name: "test",
+    files: [{ path: "app.json", content: "{}", updatedAt: Date.now() } as any],
+    linkedRepo: "k1w1-a0style/musik-player",
+    linkedBranch: "",
+    ...overrides,
+  } as any;
+}
+
+describe("build readiness gate - linkedBranch missing", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGetItem.mockResolvedValue("true");
+    mockGitHub.getDefaultBranch.mockResolvedValue("main");
+    mockGitHub.pushFilesToRepo.mockResolvedValue(undefined);
+    mockGitHub.getEdgeAdminKey.mockResolvedValue("adminkey");
+    mockAutoFix.autoFixCIWorkflows.mockResolvedValue(undefined);
+    mockInvoke.mockResolvedValue({ data: { jobId: "11111111-1111-1111-1111-111111111111" }, error: null });
+  });
+
+  it("blocks before dispatch/push and does not use default-branch fallback", async () => {
+    await expect(startBuildJob({ project: makeProject(), buildProfile: "preview" })).rejects.toThrow(
+      /Branch fehlt/i,
+    );
+
+    expect(mockGitHub.getDefaultBranch).not.toHaveBeenCalled();
+    expect(mockGitHub.pushFilesToRepo).not.toHaveBeenCalled();
+    expect(mockAutoFix.autoFixCIWorkflows).not.toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalled();
+  });
+});

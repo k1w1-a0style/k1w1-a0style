@@ -5,6 +5,12 @@
  */
 import type { ProjectData } from "../../shared/types/project";
 
+const mockGetItem = jest.fn();
+
+jest.mock("@react-native-async-storage/async-storage", () => ({
+  getItem: (...args: any[]) => mockGetItem(...args),
+}));
+
 jest.mock("../../lib/logger", () => ({
   logger: {
     info: jest.fn(),
@@ -16,7 +22,6 @@ jest.mock("../../lib/logger", () => ({
 
 const mockGitHub = {
   getEdgeAdminKey: jest.fn(),
-  getDefaultBranch: jest.fn(),
   pushFilesToRepo: jest.fn(),
 };
 
@@ -56,7 +61,7 @@ function makeProject(overrides: Partial<ProjectData> = {}): ProjectData {
       { path: "src/index.ts", content: "export const x=1;", updatedAt: Date.now() } as any,
     ],
     linkedRepo: "k1w1-a0style/musik-player",
-    linkedBranch: "",
+    linkedBranch: "main",
     ...overrides,
   } as any;
 }
@@ -64,8 +69,8 @@ function makeProject(overrides: Partial<ProjectData> = {}): ProjectData {
 describe("startBuildJob (integration)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGetItem.mockResolvedValue("true");
     mockGitHub.getEdgeAdminKey.mockResolvedValue("adminkey");
-    mockGitHub.getDefaultBranch.mockResolvedValue("main");
     mockGitHub.pushFilesToRepo.mockResolvedValue(undefined);
     mockAutoFix.autoFixCIWorkflows.mockResolvedValue(undefined);
 
@@ -76,11 +81,10 @@ describe("startBuildJob (integration)", () => {
   });
 
   it("pushes files, ensures workflows, then invokes TRIGGER_EAS_BUILD with normalized profile", async () => {
-    const project = makeProject({ linkedBranch: "" });
+    const project = makeProject({ linkedBranch: "main" });
 
     const res = await startBuildJob({ project, buildProfile: "development" });
 
-    expect(mockGitHub.getDefaultBranch).toHaveBeenCalledWith("k1w1-a0style", "musik-player");
     expect(mockGitHub.pushFilesToRepo).toHaveBeenCalledTimes(1);
     expect(mockAutoFix.autoFixCIWorkflows).toHaveBeenCalledWith({
       owner: "k1w1-a0style",
@@ -108,7 +112,7 @@ describe("startBuildJob (integration)", () => {
     });
   });
 
-  it("falls back to existing linkedBranch when push fails", async () => {
+  it("uses linkedBranch when push fails", async () => {
     mockGitHub.pushFilesToRepo.mockRejectedValueOnce(new Error("push failed"));
     const project = makeProject({ linkedBranch: "dev" });
 

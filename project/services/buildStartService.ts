@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { ProjectData, ProjectFile } from "../../shared/types/project";
 // project/services/buildStartService.ts
 // Extracted from ProjectContext.startBuild to keep ProjectContext lean.
@@ -9,11 +10,11 @@ import { ensureSupabaseClient } from "../../lib/supabase";
 import { logger } from "../../lib/logger";
 import {
   getEdgeAdminKey,
-  getDefaultBranch,
   pushFilesToRepo,
 } from "../../infra/github/githubService";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
 import { autoFixCIWorkflows } from "../../lib/diagnostics/ciAutoFix";
+import { STORAGE_KEYS } from "../../lib/storageKeys";
 
 export type StartBuildProfile = "development" | "preview" | "production";
 
@@ -34,30 +35,30 @@ function isUuid(id: string): boolean {
   return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
 }
 
+export async function assertBuildReadiness(project: ProjectData): Promise<void> {
+  const linkedBranch = typeof project?.linkedBranch === "string" ? project.linkedBranch.trim() : "";
+  if (!linkedBranch) {
+    throw new Error("Branch fehlt (im Repo-Screen auswaehlen)");
+  }
+
+  const diagVal = await AsyncStorage.getItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null);
+  if (diagVal !== "true") {
+    throw new Error("Diagnostik nicht gruen – im Diagnostic-Screen ausfuehren");
+  }
+}
+
 async function bestEffortPushToGitHub(opts: {
   githubRepo: string;
-  branchHint?: string | null;
+  branch: string;
   files: ProjectFile[];
 }): Promise<string> {
-  const { githubRepo, branchHint, files } = opts;
+  const { githubRepo, branch, files } = opts;
 
   if (!githubRepo || !githubRepo.includes("/")) {
     throw new Error('Kein GitHub-Repo verbunden. Bitte in "Connections" ein Repo verknuepfen.');
   }
 
   const [owner, repo] = githubRepo.split("/");
-  let branch = typeof branchHint === "string" ? branchHint.trim() : "";
-
-  if (!branch) {
-    try {
-      branch = (await getDefaultBranch(owner, repo)).trim();
-    } catch (err) {
-      logger.warn("Default-Branch konnte nicht ermittelt werden, fallback auf 'main'", { err });
-      branch = "main";
-    }
-  }
-
-  if (!branch) branch = "main";
 
   if (owner && repo && files?.length) {
     try {
@@ -96,16 +97,16 @@ export async function startBuildJob(params: {
     throw new Error("Projekt ist leer. Es gibt keine Dateien zum Bauen.");
   }
 
+  await assertBuildReadiness(project);
+
   const githubRepo = (project.linkedRepo?.trim() || CONFIG.BUILD.GITHUB_REPO).trim();
   const profile = normalizeProfile(buildProfile);
-
-  let buildBranch =
-    typeof project.linkedBranch === "string" ? project.linkedBranch.trim() : "";
+  const buildBranch = (project.linkedBranch ?? "").trim();
 
   try {
-    buildBranch = await bestEffortPushToGitHub({
+    await bestEffortPushToGitHub({
       githubRepo,
-      branchHint: buildBranch,
+      branch: buildBranch,
       files: project.files,
     });
   } catch (e) {
@@ -159,7 +160,7 @@ export async function startBuildJob(params: {
   return {
     jobId,
     githubRepo,
-    branch: buildBranch || "main",
+    branch: buildBranch,
     buildProfile: profile,
   };
 }
