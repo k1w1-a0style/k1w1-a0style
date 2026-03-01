@@ -76,3 +76,5 @@
 - Patch 334: add verbindliche SoT-Dokumentation (State Contract + Build Pipeline + Screen Index + Risk Hotspots) (see docs/patches/patch_334.md)
 
 - Patch 335: Contract-Test Coverage Matrix + priorisierte Smoke/Invariant-Testvorschläge (siehe docs/patches/patch_335.md)
+
+- Patch 337: diagnostics→fix playbook + test coverage matrix + smoke plan sync (see docs/patches/patch_337.md)

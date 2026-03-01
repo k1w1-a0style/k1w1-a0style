@@ -194,3 +194,9 @@
 - Build Readiness Gate als verbindlichen Vertrag dokumentiert (profilabhängige Preconditions, Matrix, Blocker/Warnungen, AutoFix-Pfade).
 - `docs/02-build-pipeline.md` um Gate-Regeln + Single Entry Point (`startBuildJob`) erweitert.
 - Evidence pro Gate-Baustein ergänzt (Codefundstellen inkl. Ausschnitte).
+
+## Patch 337 (2026-03-01)
+- Diagnostics-Landkarte auf Basis `docs/06-build-readiness.md` vervollständigt: alle relevanten Check-IDs + Bedingungen + Zuordnung zu Readiness-Items dokumentiert (`docs/07-diagnostics-fix-playbook.md`).
+- Verbindliches „Diagnostics → Fix Playbook“ ergänzt (Blocker/Warnung, AutoFix-Aktion, Manual Steps, Re-Checks) inkl. Gap-Analyse für Blocker ohne robusten Fixpfad.
+- Testabdeckung neu gemappt (`docs/08-test-coverage-matrix.md`): vorhandene Tests vs Lücken, 18 priorisierte neue Tests (High/Med), plus Invariant-String-Guards.
+- `docs/04-testing-smoke-plan.md` auf Readiness/Diagnostics-Matrix aktualisiert (Smoke-Cases, Prioritäten, Exit-Kriterien).
