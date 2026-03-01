@@ -177,3 +177,18 @@ Ziel: verhindern, dass jemand “aus Versehen” Defaults/hardcodes reintroduzie
 10) **Workflow Validate inputs strings stable**
 - keep `Missing GitHub Secret EXPO_TOKEN` message stable to match gating.
 
+
+---
+
+## Update 2026-03-01 (Phase 4: Testability DX)
+
+- Testability exports ergänzt:
+  - `assertBuildReadiness(project, deps?)` mit optionalem `storageGetItem`-DI
+  - `runBuildPipelineDiagnostics(params, deps?)` mit optionalen Service-Dependencies
+  - `runPreflightChecks` Alias + `PRECHECKS_REGISTRY` + `getPreflightCheckById`
+  - `applyPatch` als kanonische Patch-Engine-Entry-Function (Alias: `applyPreflightPatch`)
+  - stabile Build-Readiness Error-Codes (`BRANCH_MISSING`, `DIAGNOSTIC_NOT_GREEN`)
+- Neue Med-Tests ergänzt:
+  - Diagnostics-UI Sortierung (`fail > warn > pass`)
+  - SmartFix wendet nur wirklich fixbare Issues an
+  - Runner-Resilience: einzelner throwender Check crasht den Gesamtscan nicht

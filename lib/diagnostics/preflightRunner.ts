@@ -7,7 +7,7 @@ import type {
   PreflightSeverity,
   PreflightTarget,
 } from "./preflightTypes";
-import { PREFLIGHT_CHECKS } from "./preflightChecks";
+import { PREFLIGHT_CHECKS, PRECHECKS_REGISTRY } from "./preflightChecks";
 
 const ORDER: PreflightSeverity[] = ["critical", "high", "normal", "low"];
 
@@ -44,9 +44,10 @@ function internalErrorResult(
 export async function* runPreflightChecksProgressive(
   files: ProjectFile[],
   target: PreflightTarget,
+  checks: ReadonlyArray<PreflightCheck> = PRECHECKS_REGISTRY,
 ): AsyncGenerator<ProgressiveUpdate, void, void> {
   for (const stage of ORDER) {
-    const stageChecks = PREFLIGHT_CHECKS.filter((c) => c.severity === stage);
+    const stageChecks = checks.filter((c) => c.severity === stage);
     const results: PreflightCheckResult[] = [];
     for (const check of stageChecks) {
       // keep UI responsive
@@ -65,8 +66,9 @@ export async function* runPreflightChecksProgressive(
 export function runPreflightChecksAll(
   files: ProjectFile[],
   target: PreflightTarget,
+  checks: ReadonlyArray<PreflightCheck> = PRECHECKS_REGISTRY,
 ): PreflightCheckResult[] {
-  return PREFLIGHT_CHECKS.map((c) => {
+  return checks.map((c) => {
     try {
       return c.run(files, target);
     } catch (e) {
@@ -74,3 +76,6 @@ export function runPreflightChecksAll(
     }
   });
 }
+
+
+export const runPreflightChecks = runPreflightChecksAll;

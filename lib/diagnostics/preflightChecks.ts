@@ -71,3 +71,10 @@ export function buildDiagnosticUploadSnapshot(
 
   return out;
 }
+
+
+export const PRECHECKS_REGISTRY: ReadonlyArray<PreflightCheck> = PREFLIGHT_CHECKS;
+
+export function getPreflightCheckById(id: string): PreflightCheck | undefined {
+  return PREFLIGHT_CHECKS.find((check) => check.id === id);
+}

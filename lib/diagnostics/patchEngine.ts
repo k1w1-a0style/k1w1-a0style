@@ -6,7 +6,7 @@ import { applyJsonMergePatchSafe } from "./smartPatch";
  * Applies a PreflightPatch in deterministic order:
  * delete -> upsert -> jsonMerge.
  */
-export async function applyPreflightPatch(
+export async function applyPatch(
   files: ProjectFile[],
   patch: PreflightPatch,
 ): Promise<ProjectFile[]> {
@@ -31,3 +31,6 @@ export async function applyPreflightPatch(
 
   return nextFiles;
 }
+
+
+export const applyPreflightPatch = applyPatch;

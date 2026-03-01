@@ -226,3 +226,13 @@ Build-Readiness Items (Kurz):
 
 Dann: Build Start Gate ist stabil.
 
+
+---
+
+## 7) Error-Codes (stabil für Tests/Telemetry)
+
+Build-Readiness nutzt jetzt stabile Code-Präfixe (zusätzlich zur UX-Message):
+- `BRANCH_MISSING`
+- `DIAGNOSTIC_NOT_GREEN`
+
+Hinweis: UI kann weiterhin menschenlesbare Texte anzeigen; Tests sollten bevorzugt auf Code-Präfixe assertieren.
