@@ -204,3 +204,9 @@
 - Added Product & Flows Overview (`docs/10-product-and-flows.md`).
 - Added QA/Operator Runbook (`docs/runbooks/APP_RUNBOOK.md`).
 - Added Patch Notes (`docs/patches/PATCH_337_NOTES.md`).
+
+## Patch 338 (2026-03-01)
+- Phase-2 Testabdeckung umgesetzt: 13 neue High/Med Tests für Pipeline Diagnostics, Local Preflight und Patch Apply Engine.
+- Pipeline-Diagnostics-Fix: `repo.easJson.parse` markiert jetzt zuverlässig `fail`, wenn `eas.json` invalid ist.
+- Neue Helper-Funktion `applyPreflightPatch` (delete -> upsert -> jsonMerge) mit dedizierter Testabdeckung eingeführt.
+- Checks: `npm run typecheck`, `npm run lint:ci`, `npm run test:silent -- --runInBand` erfolgreich.

@@ -113,14 +113,13 @@ export const runBuildPipelineDiagnostics = async (params: {
   // --- EAS profiles (3 flows) & APK-only ---
   let easJson: any = null;
   if (hasEasJson) {
-    try {
-      easJson = await readJsonFile<any>(params.owner, params.repo, "eas.json", ref);
-    } catch (e: any) {
+    easJson = await readJsonFile<any>(params.owner, params.repo, "eas.json", ref);
+    if (!easJson) {
       checks.push({
         id: "repo.easJson.parse",
         title: "eas.json ist parsebar",
         status: "fail",
-        fixHint: e?.message || "eas.json konnte nicht gelesen/geparst werden.",
+        fixHint: "eas.json konnte nicht gelesen/geparst werden.",
       });
     }
   }
@@ -552,4 +551,3 @@ export const runBuildPipelineDiagnostics = async (params: {
 
   return { ref, checks };
 };
-
