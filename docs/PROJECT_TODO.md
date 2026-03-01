@@ -85,7 +85,7 @@
 
 ### TypeScript-Hygiene
 - [x] Shim-Migration gestartet: `ProjectContext`/`ProjectContext.types` importieren `AutoFixRequest`/`LastPreviewMeta` direkt aus `shared/types/project` ✅ *(patch 322)*
-- [ ] `any`-Annotationen reduzieren: AIContext-Teil erledigt (Patch 323), Orchestrator-Startschritt erledigt (Patch 324: openai/anthropic/index); verbleibend: weitere Provider-Hotspots
+- [x] `any`-Annotationen reduzieren: AIContext-Teil (Patch 323), Orchestrator-Startschritt (Patch 324: openai/anthropic/index) und Provider-Hotspots (Patch 325: gemini/groq/huggingface) erledigt
 - [ ] `contexts/types.ts` Shim-Migration: 36 Imports schrittweise auf `shared/types/*` umstellen
 
 ## Patch 217 (done)
