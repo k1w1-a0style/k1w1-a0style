@@ -121,6 +121,13 @@ Akzeptanz:
 - [x] Patchnote + Patchlog/Checklog/README aktualisiert
 ---
 
+
+### Patch 332 — BuildPolling TS-Hardening + Regression-Test ✅
+
+- [x] `project/services/buildPollingService.ts`: `catch (error: unknown)` + sichere JSON-Accessor-Helfer statt `any`
+- [x] `__tests__/buildPollingService.test.ts`: neue Regressionstests (non-JSON Antwort, Legacy-Felder, Abort-Timeout)
+- [x] Standard-Checks grün (`typecheck`, `lint:ci`, `test:silent`)
+
 ### Patch A — CI Lite Bugfix ✅ (Patch 217)
 **A1 — Dead Code entfernen: `topContent` wird nie gerendert**
 - [x] Datei: `components/CiLiteHeaderButton.tsx`

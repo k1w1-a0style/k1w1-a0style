@@ -43,17 +43,28 @@ export async function fetchWithTimeout(
     });
     clearTimeout(timeoutId);
     return response;
-  } catch (error: any) {
+  } catch (error: unknown) {
     clearTimeout(timeoutId);
-    if (error?.name === "AbortError") {
+    if (error instanceof Error && error.name === "AbortError") {
       throw new Error("Request timeout - Keine Antwort vom Server");
     }
     throw error;
   }
 }
 
-function extractErrorMessage(json: any, statusCode: number): string {
-  return json?.error || `HTTP ${statusCode}`;
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+}
+
+function readString(record: Record<string, unknown> | null, key: string): string | null {
+  if (!record) return null;
+  const value = record[key];
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function extractErrorMessage(json: unknown, statusCode: number): string {
+  const obj = asRecord(json);
+  return readString(obj, "error") ?? `HTTP ${statusCode}`;
 }
 
 export function isFinalStatus(status: BuildStatus): boolean {
@@ -86,7 +97,7 @@ export async function pollBuildStatusOnce(
     opts?.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
   );
 
-  let json: any = null;
+  let json: unknown = null;
   try {
     json = await res.json();
   } catch (e) {
@@ -94,7 +105,8 @@ export async function pollBuildStatusOnce(
     return { ok: false, error: "Ungültige Server-Antwort", statusCode: res.status };
   }
 
-  if (!res.ok || !json || json.ok === false) {
+  const responseObject = asRecord(json);
+  if (!res.ok || !responseObject || responseObject.ok === false) {
     return {
       ok: false,
       error: extractErrorMessage(json, res.status),
@@ -104,23 +116,22 @@ export async function pollBuildStatusOnce(
   }
 
   // Backwards-compat: support newer and older response shapes
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const anyData: any = json ?? {};
-  const job = anyData?.job ?? anyData?.data?.job ?? null;
+  const dataRecord = asRecord(responseObject.data);
+  const job = asRecord(responseObject.job) ?? asRecord(dataRecord?.job) ?? null;
 
   const rawStatus: string | undefined =
-    (job?.status as string | undefined) ??
-    (anyData?.status as string | undefined) ??
-    (anyData?.job_status as string | undefined) ??
+    readString(job, "status") ??
+    readString(responseObject, "status") ??
+    readString(responseObject, "job_status") ??
     undefined;
 
   const mapped = mapBuildStatus(rawStatus);
 
   const runIdRaw =
     job?.github_run_id ??
-    anyData?.runId ??
-    anyData?.run_id ??
-    anyData?.github_run_id ??
+    responseObject.runId ??
+    responseObject.run_id ??
+    responseObject.github_run_id ??
     null;
 
   const runId: number | null =
@@ -130,21 +141,25 @@ export async function pollBuildStatusOnce(
         ? Number(runIdRaw)
         : null;
 
-  const urls = job?.urls ?? anyData?.urls ?? {};
-  const htmlUrl = urls?.githubRun ?? urls?.html ?? urls?.run ?? urls?.runUrl ?? null;
-  const artifactsUrl = urls?.artifacts ?? urls?.artifact ?? null;
+  const urls = asRecord(job?.urls) ?? asRecord(responseObject.urls) ?? null;
+  const htmlUrl =
+    readString(urls, "githubRun") ??
+    readString(urls, "html") ??
+    readString(urls, "run") ??
+    readString(urls, "runUrl");
+  const artifactsUrl = readString(urls, "artifacts") ?? readString(urls, "artifact");
 
   const buildUrl =
-    urls?.buildUrl ??
-    job?.build_url ??
-    anyData?.build_url ??
-    anyData?.buildUrl ??
+    readString(urls, "buildUrl") ??
+    readString(job, "build_url") ??
+    readString(responseObject, "build_url") ??
+    readString(responseObject, "buildUrl") ??
     null;
 
   const downloadUrl =
-    job?.download_url ??
-    anyData?.download_url ??
-    anyData?.downloadUrl ??
+    readString(job, "download_url") ??
+    readString(responseObject, "download_url") ??
+    readString(responseObject, "downloadUrl") ??
     null;
 
   const details: BuildStatusDetails = {
