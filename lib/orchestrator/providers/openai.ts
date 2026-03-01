@@ -2,6 +2,24 @@
 import type { Quality, LlmMessage, OrchestratorResult } from "../types";
 import { stripThinking, splitSystem, toOpenAIInput, fetchTextSafe } from "../helpers";
 
+type OpenAIOutputTextChunk = {
+  type?: string;
+  text?: string;
+};
+
+type OpenAIOutputItem = {
+  content?: OpenAIOutputTextChunk[];
+};
+
+function isAbortError(error: unknown): boolean {
+  return !!error && typeof error === 'object' && 'name' in error && (error as { name?: unknown }).name === 'AbortError';
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
 export async function callOpenAI(apiKey: string, model: string, messages: LlmMessage[], quality: Quality, signal?: AbortSignal): Promise<OrchestratorResult> {
   try {
     const temperature = quality === 'quality' ? 0.7 : 0.2;
@@ -32,14 +50,17 @@ export async function callOpenAI(apiKey: string, model: string, messages: LlmMes
       return { ok: false, error: `OpenAI API Fehler (${response.status}): ${await fetchTextSafe(response)}` };
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as {
+      output_text?: string;
+      output?: OpenAIOutputItem[];
+    };
 
     const textFromConvenience = typeof data?.output_text === 'string' ? data.output_text : '';
     const textFromOutput = Array.isArray(data?.output)
       ? data.output
-          .flatMap((o: any) => (Array.isArray(o?.content) ? o.content : []))
-          .filter((c: any) => c?.type === 'output_text' && typeof c?.text === 'string')
-          .map((c: any) => c.text)
+          .flatMap((o) => (Array.isArray(o?.content) ? o.content : []))
+          .filter((c) => c?.type === 'output_text' && typeof c?.text === 'string')
+          .map((c) => c.text as string)
           .join('\n')
       : '';
 
@@ -47,11 +68,11 @@ export async function callOpenAI(apiKey: string, model: string, messages: LlmMes
     if (!text) return { ok: false, error: 'Keine Antwort von OpenAI erhalten' };
 
     return { ok: true, text };
-  } catch (error: any) {
-    if (error?.name === "AbortError" || signal?.aborted) {
+  } catch (error: unknown) {
+    if (isAbortError(error) || signal?.aborted) {
       return { ok: false, error: "Request abgebrochen" };
     }
-return { ok: false, error: `OpenAI Netzwerkfehler: ${error?.message ?? String(error)}` };
+    return { ok: false, error: `OpenAI Netzwerkfehler: ${getErrorMessage(error)}` };
   }
 }
 
