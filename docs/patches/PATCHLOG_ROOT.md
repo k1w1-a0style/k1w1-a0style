@@ -73,3 +73,5 @@
 - Patch 327: ProjectContext error-handling hardening (`catch unknown` + zentraler Fehlertext-Helper), TODO/checklog sync (see docs/patches/patch_327.md)
 
 - Patch 334: add verbindliche SoT-Dokumentation (State Contract + Build Pipeline + Screen Index + Risk Hotspots) (see docs/patches/patch_334.md)
+
+- Patch 335: Contract-Test Coverage Matrix + priorisierte Smoke/Invariant-Testvorschläge (siehe docs/patches/patch_335.md)

@@ -188,3 +188,4 @@
   - `docs/04-risk-hotspots.md`
 - Evidence-Pflicht umgesetzt (Datei + Symbol + Codeauszug pro Kernaussage).
 - Risiken explizit markiert inkl. "UNSICHER" bei nicht belegbarem `ersId`.
+- 2026-03-01: Patch 335 prepared: Contract-Invarianten gegen bestehende Tests gemappt, High-Risk-Lücken priorisiert, 12 neue Smoke/Invariant-Testvorschläge + 5 Copy-Paste Stringchecks dokumentiert.
