@@ -36,7 +36,7 @@
 ## 🔥 Offene Bugs / Tech-Debt
 
 - [x] **Logger / no-console (optional)** — `lib/logger.ts` existiert; Hotspots von `console.*` → `logger` migriert und ESLint `no-console` geschärft ✅ *(patch 315/320)*
-- [ ] **`contexts/types.ts` Shim** — noch in Nutzung; schrittweise Migration auf `shared/types/*`, danach Shim löschen
+- [x] **`contexts/types.ts` Shim** — Migration abgeschlossen: Shim entfernt, `ProjectContextProps` nach `contexts/projectTypes.ts` ausgelagert ✅ *(patch 326)*
 - [ ] **382 `: any` Annotationen** — systematischer TS-Safety-Debt, besonders in `contexts/`, `lib/orchestrator.ts`
 
 ---
@@ -86,7 +86,7 @@
 ### TypeScript-Hygiene
 - [x] Shim-Migration gestartet: `ProjectContext`/`ProjectContext.types` importieren `AutoFixRequest`/`LastPreviewMeta` direkt aus `shared/types/project` ✅ *(patch 322)*
 - [x] `any`-Annotationen reduzieren: AIContext-Teil (Patch 323), Orchestrator-Startschritt (Patch 324: openai/anthropic/index) und Provider-Hotspots (Patch 325: gemini/groq/huggingface) erledigt
-- [ ] `contexts/types.ts` Shim-Migration: 36 Imports schrittweise auf `shared/types/*` umstellen
+- [x] `contexts/types.ts` Shim-Migration: abgeschlossen (keine Runtime-Imports mehr; Shim-Datei entfernt) ✅ *(patch 326)*
 
 ## Patch 217 (done)
 - ✅ Applied historically: CI Lite bugfixes + Supabase edge SoT expansion + Storage key SoT + tokenStore consistency + Connection Screen SoT.

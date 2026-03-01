@@ -24,7 +24,7 @@ import type {
   ProjectFile,
   TemplateId,
 } from "../shared/types/project";
-import type { ProjectContextProps } from "./types";
+import type { ProjectContextProps } from "./projectTypes";
 
 import {
   saveProjectToStorage,

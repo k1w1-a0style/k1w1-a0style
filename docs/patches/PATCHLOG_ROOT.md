@@ -1,5 +1,6 @@
 ## Patchlog Root
 
+- Patch 326: complete `contexts/types.ts` shim removal by extracting `ProjectContextProps` to `contexts/projectTypes.ts` and deleting legacy shim files (see docs/patches/patch_326.md)
 - Patch 325: remove remaining orchestrator provider `any` hotspots (gemini/groq/huggingface) + unify unknown-error handling + TODO sync (see docs/patches/patch_325.md)
 - Patch 324: create prioritized fix-list from project audit and complete first orchestrator typing hardening steps (openai/anthropic/index catch + response typing) (see docs/patches/patch_324.md)
 - Patch 323: reduce `any` usage in `contexts/AIContext` helpers/provider persistence + PROJECT_TODO sync (see docs/patches/patch_323.md)
