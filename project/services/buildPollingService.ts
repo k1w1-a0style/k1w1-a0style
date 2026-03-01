@@ -45,7 +45,13 @@ export async function fetchWithTimeout(
     return response;
   } catch (error: unknown) {
     clearTimeout(timeoutId);
-    if (error instanceof Error && error.name === "AbortError") {
+    const errorName =
+      error instanceof Error
+        ? error.name
+        : typeof error === "object" && error !== null && "name" in error
+          ? (error as { name?: unknown }).name
+          : null;
+    if (errorName === "AbortError") {
       throw new Error("Request timeout - Keine Antwort vom Server");
     }
     throw error;
