@@ -1,6 +1,32 @@
 // lib/orchestrator/providers/gemini.ts
 import type { Quality, LlmMessage, OrchestratorResult } from "../types";
-import { stripThinking, splitSystem, toOpenAIInput, fetchTextSafe } from "../helpers";
+import { stripThinking, splitSystem, fetchTextSafe } from "../helpers";
+
+type GeminiPart = {
+  text?: string;
+};
+
+type GeminiContent = {
+  role: 'user' | 'model';
+  parts: GeminiPart[];
+};
+
+type GeminiResponse = {
+  candidates?: Array<{
+    content?: {
+      parts?: GeminiPart[];
+    };
+  }>;
+};
+
+function isAbortError(error: unknown): boolean {
+  return !!error && typeof error === 'object' && 'name' in error && (error as { name?: unknown }).name === 'AbortError';
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
 
 export async function callGemini(apiKey: string, model: string, messages: LlmMessage[], quality: Quality, signal?: AbortSignal): Promise<OrchestratorResult> {
   try {
@@ -9,16 +35,17 @@ export async function callGemini(apiKey: string, model: string, messages: LlmMes
 
     // Gemini erwartet Multi-Turn-Konversationen als contents[] mit Rollen.
     // system wird (wenn vorhanden) als systemInstruction gesetzt.
-    let contents = rest
+    let contents: GeminiContent[] = rest
       .filter((m) => m.role !== 'system')
       .map((m) => {
         const text = String(m.content ?? '').trim();
+        const role: GeminiContent['role'] = m.role === 'assistant' ? 'model' : 'user';
         return {
-          role: m.role === 'assistant' ? 'model' : 'user',
+          role,
           parts: text ? [{ text }] : [],
         };
       })
-      .filter((c) => Array.isArray((c as any).parts) && (c as any).parts.length > 0);
+      .filter((c) => c.parts.length > 0);
 
     // Gemini rejects consecutive messages with the same role (user→user / model→model).
     // Merge consecutive same-role entries by concatenating parts.
@@ -38,7 +65,7 @@ export async function callGemini(apiKey: string, model: string, messages: LlmMes
       contents = [{ role: 'user', parts: [{ text: 'Hallo' }] }];
     }
 
-    const body: any = {
+    const body: Record<string, unknown> = {
       contents,
       generationConfig: {
         temperature,
@@ -64,18 +91,21 @@ export async function callGemini(apiKey: string, model: string, messages: LlmMes
       return { ok: false, error: `Gemini API Fehler (${response.status}): ${await fetchTextSafe(response)}` };
     }
 
-    const data = await response.json();
-    const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text).filter(Boolean).join('\n');
+    const data = (await response.json()) as GeminiResponse;
+    const text = data?.candidates?.[0]?.content?.parts
+      ?.filter((p): p is { text: string } => typeof p?.text === 'string' && p.text.length > 0)
+      .map((p) => p.text)
+      .join('\n');
 
     const cleaned = stripThinking(String(text || ''));
     if (!cleaned) return { ok: false, error: 'Keine Antwort von Gemini erhalten' };
 
     return { ok: true, text: cleaned };
-  } catch (error: any) {
-    if (error?.name === 'AbortError' || signal?.aborted) {
+  } catch (error: unknown) {
+    if (isAbortError(error) || signal?.aborted) {
       return { ok: false, error: 'Request abgebrochen' };
     }
-    return { ok: false, error: `Gemini Netzwerkfehler: ${error?.message ?? String(error)}` };
+    return { ok: false, error: `Gemini Netzwerkfehler: ${getErrorMessage(error)}` };
   }
 }
 

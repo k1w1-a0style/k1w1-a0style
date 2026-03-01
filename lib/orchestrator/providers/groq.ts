@@ -1,6 +1,23 @@
 // lib/orchestrator/providers/groq.ts
 import type { Quality, LlmMessage, OrchestratorResult } from "../types";
-import { stripThinking, splitSystem, toOpenAIInput, fetchTextSafe } from "../helpers";
+import { stripThinking, fetchTextSafe } from "../helpers";
+
+type GroqResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+};
+
+function isAbortError(error: unknown): boolean {
+  return !!error && typeof error === 'object' && 'name' in error && (error as { name?: unknown }).name === 'AbortError';
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
 
 export async function callGroq(apiKey: string, model: string, messages: LlmMessage[], quality: Quality, signal?: AbortSignal): Promise<OrchestratorResult> {
   try {
@@ -43,18 +60,18 @@ export async function callGroq(apiKey: string, model: string, messages: LlmMessa
       return { ok: false, error: `Groq API Fehler (${response.status}): ${await fetchTextSafe(response)}` };
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as GroqResponse;
     const text = data?.choices?.[0]?.message?.content;
 
     const cleaned = stripThinking(String(text || ''));
     if (!cleaned) return { ok: false, error: 'Keine Antwort von Groq erhalten' };
 
     return { ok: true, text: cleaned };
-  } catch (error: any) {
-    if (error?.name === "AbortError" || signal?.aborted) {
-      return { ok: false, error: "Request abgebrochen" };
+  } catch (error: unknown) {
+    if (isAbortError(error) || signal?.aborted) {
+      return { ok: false, error: 'Request abgebrochen' };
     }
-return { ok: false, error: `Groq Netzwerkfehler: ${error?.message ?? String(error)}` };
+    return { ok: false, error: `Groq Netzwerkfehler: ${getErrorMessage(error)}` };
   }
 }
 

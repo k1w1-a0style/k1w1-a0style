@@ -1,3 +1,4 @@
+- 2026-03-01: Patch 325 prepared: Restliche Orchestrator-Provider (`gemini`/`groq`/`huggingface`) ohne `any` typisiert, Catch-Pfade auf `unknown` vereinheitlicht, TODO-Fixlistenpunkt aktualisiert.
 - 2026-03-01: Patch 324 prepared: Priorisierte Fix-Liste aus Projekt-Audit erstellt und erste Orchestrator-TS-Hardening-Punkte umgesetzt (openai/anthropic/index ohne `any` in zentralen Fehler-/Response-Pfaden).
 - 2026-02-28: Patch 323 prepared: AIContext `any`-Cast cleanup in helpers/provider persistence, TODO status synced for TypeScript-hygiene progress.
 # Project Checklog

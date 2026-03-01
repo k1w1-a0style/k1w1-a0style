@@ -1,6 +1,23 @@
 // lib/orchestrator/providers/huggingface.ts
 import type { Quality, LlmMessage, OrchestratorResult } from "../types";
-import { stripThinking, splitSystem, toOpenAIInput, fetchTextSafe } from "../helpers";
+import { stripThinking, fetchTextSafe } from "../helpers";
+
+type HuggingFaceResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+};
+
+function isAbortError(error: unknown): boolean {
+  return !!error && typeof error === 'object' && 'name' in error && (error as { name?: unknown }).name === 'AbortError';
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
 
 export async function callHuggingFace(apiKey: string, model: string, messages: LlmMessage[], quality: Quality, signal?: AbortSignal): Promise<OrchestratorResult> {
   try {
@@ -25,7 +42,7 @@ export async function callHuggingFace(apiKey: string, model: string, messages: L
         return { ok: false as const, status: response.status, body: await fetchTextSafe(response) };
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as HuggingFaceResponse;
       const txt = data?.choices?.[0]?.message?.content;
       const cleaned = stripThinking(String(txt || ''));
       if (!cleaned) return { ok: false as const, status: 500, body: 'Keine Antwort von HuggingFace erhalten' };
@@ -44,12 +61,11 @@ export async function callHuggingFace(apiKey: string, model: string, messages: L
     }
 
     return { ok: false, error: `HF API Fehler (${r1.status}): ${r1.body}` };
-  } catch (error: any) {
-    if (error?.name === "AbortError" || signal?.aborted) {
-      return { ok: false, error: "Request abgebrochen" };
+  } catch (error: unknown) {
+    if (isAbortError(error) || signal?.aborted) {
+      return { ok: false, error: 'Request abgebrochen' };
     }
-    return { ok: false, error: `HF Netzwerkfehler: ${error?.message ?? String(error)}` };
+    return { ok: false, error: `HF Netzwerkfehler: ${getErrorMessage(error)}` };
   }
 
 }
-
