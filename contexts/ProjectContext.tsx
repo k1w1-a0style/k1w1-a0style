@@ -58,6 +58,12 @@ import { resolveEffectiveTemplateId } from "../lib/diagnostics/templates";
 
 const SAVE_DEBOUNCE_MS = 500;
 
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  return fallback;
+};
+
 const ProjectContext = createContext<ProjectContextProps | undefined>(
   undefined,
 );
@@ -233,10 +239,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
               Alert.alert("Erfolg", "Neues Projekt wurde erstellt!");
               logger.info("✅ Neues Projekt erstellt und gespeichert.");
-            } catch (error: any) {
+            } catch (error: unknown) {
               Alert.alert(
                 "Fehler",
-                error.message || "Projekt konnte nicht erstellt werden",
+                getErrorMessage(error, "Projekt konnte nicht erstellt werden"),
               );
             } finally {
               setIsLoading(false);
@@ -261,11 +267,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         "Export erfolgreich",
         `${result.fileCount} Dateien als ZIP gespeichert.`,
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error("[ProjectContext] ZIP-Export fehlgeschlagen", { error });
       Alert.alert(
         "Export Fehlgeschlagen",
-        error.message || "Ein unbekannter Fehler ist aufgetreten.",
+        getErrorMessage(error, "Ein unbekannter Fehler ist aufgetreten."),
       );
     }
   }, [projectData]);
@@ -285,11 +291,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         "Export erfolgreich",
         `${result.fileCount} Textdateien als ZIP gespeichert.`,
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error("[ProjectContext] Text-ZIP-Export fehlgeschlagen", { error });
       Alert.alert(
         "Export Fehlgeschlagen",
-        error.message || "Ein unbekannter Fehler ist aufgetreten.",
+        getErrorMessage(error, "Ein unbekannter Fehler ist aufgetreten."),
       );
     }
   }, [projectData]);
@@ -319,10 +325,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
                 "Import erfolgreich",
                 `Projekt "${result.project.name}" importiert (${result.fileCount} Dateien).`,
               );
-            } catch (error: any) {
+            } catch (error: unknown) {
               Alert.alert(
                 "Import fehlgeschlagen",
-                error.message || "Fehler beim Importieren",
+                getErrorMessage(error, "Fehler beim Importieren"),
               );
             } finally {
               setIsLoading(false);
@@ -665,10 +671,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           );
         }
 
-      } catch (e: any) {
+      } catch (e: unknown) {
         setCurrentBuild({
           status: "error",
-          message: e?.message || String(e),
+          message: getErrorMessage(e, String(e)),
           lastUpdatedAt: new Date().toISOString(),
         });
         throw e;
