@@ -1,69 +1,137 @@
-# 01 — State Contract
+# 01 — Global State & Persistence Contract (Single Source of Truth)
 
-## 1) Source of Truth (SoT)
+> Zielbild: **nicht screen-first**, sondern app-weite Zustandsregeln mit klarer Ownership, Persistenz und Hydration.
 
-### Verbindliche SoT-Werte
-1. **Repo/Branch (autoritativ):** `ProjectData.linkedRepo`, `ProjectData.linkedBranch`
-2. **Build Profile (autoritativ):** `ProjectData.preferredBuildProfile`
-3. **Diagnostik/CI Status (persistente Read-Model-Flags):**
-   - `STORAGE_KEYS.DIAGNOSTIC_LAST_OK`
-   - `STORAGE_KEYS.CI_LITE_LINT_OK`
-   - `STORAGE_KEYS.CI_LITE_TYPECHECK_OK`
-4. **EAS Project ID (persistente Build-Metadaten):** `STORAGE_KEYS.EAS_PROJECT_ID`
+## A) Global State Inventory
 
-### Mirror/Derived (nicht autoritativ)
-- `GitHubContext.activeRepo/activeBranch` sind Mirror-State für UX/Navigation und werden aus `ProjectData.linked*` synchronisiert.
+### A.1 Core Selection State (autoritativ für Repo/Branch/Profile)
 
----
+| Zustand | Typ | Default | Persistenz | SoT aktuell | Read/Write-Orte |
+|---|---|---|---|---|---|
+| `projectData.linkedRepo` | `string \| null \| undefined` | neues Projekt: `undefined` | im Projekt-Blob `k1w1_project_data` | `ProjectContext` / `ProjectData` | Schreiben: `setLinkedRepo(...)`; Lesen: Build/Diagnostic/Wizard/Connections über `projectData` |
+| `projectData.linkedBranch` | `string \| null \| undefined` | neues Projekt: `undefined` | im Projekt-Blob `k1w1_project_data` | `ProjectContext` / `ProjectData` | Schreiben: `setLinkedRepo(repo, branch)`; Lesen: Build/Diagnostic/Wizard/Connections |
+| `projectData.preferredBuildProfile` | `"development" \| "preview" \| "production" \| null` | initial meist UI-Fallback (`preview` oder `dev`) | im Projekt-Blob `k1w1_project_data` | `ProjectContext` / `ProjectData` | Schreiben: `setPreferredBuildProfile(...)`; Lesen: Build + Wizard + Drawer-Chip |
+| `activeRepo` (GitHubContext) | `string \| null` | aus `k1w1_github_active_repo` bzw. `null` | `k1w1_github_active_repo` | **Mirror-State** (nicht autoritativ) | Schreiben: GitHubContext + RepoScreen + Backup-Import; Lesen: Header/Drawer/Repo-Screen |
+| `activeBranch` (GitHubContext) | `string \| null` | aus `k1w1_github_active_branch` bzw. `null` | `k1w1_github_active_branch` | **Mirror-State** (nicht autoritativ) | Schreiben: GitHubContext + RepoScreen + Backup-Import; Lesen: Header/Drawer/Repo-Screen |
+| `recentRepos` (GitHubContext) | `string[]` | `[]` | `k1w1_github_recent_repos` | GitHubContext | Schreiben: `addRecentRepo`; Lesen: Repo-Screen |
+| `RECENT_BRANCHES_BY_REPO` | `Record<string,string[]>` (JSON) | `{}` | `recent_branches_by_repo` | AsyncStorage Read-Model | Schreiben: Repo-Screen branch selection; Lesen: BranchSelector |
 
-## 2) Ownership: Wer darf setzen?
+### A.2 Connection & Credential State (Persistente Lampen/Flags)
 
-## Verbindliches Zielbild (Soll-Contract)
-- **Single Writer Repo/Branch:** `ProjectContext.setLinkedRepo(...)`
-- **Single Writer BuildProfile:** `ProjectContext.setPreferredBuildProfile(...)`
-- **Readers:** alle Screens/Hooks lesen nur aus Context/Storage.
+| Zustand | Typ | Default | Persistenz-Key | SoT aktuell | Read/Write-Orte |
+|---|---|---|---|---|---|
+| GitHub-Lampe | `"true"/"false"` | `false` | `CONN_GITHUB_OK` | AsyncStorage | Schreiben: Connections test/save/reset |
+| GitHub User/Scopes | `string` | leer | `CONN_GITHUB_USER`, `CONN_GITHUB_SCOPES` | AsyncStorage | Schreiben: Connections test/save/reset |
+| Expo-Lampe/User | `"true"/"false"`, `string` | `false`, leer | `CONN_EXPO_OK`, `CONN_EXPO_USER` | AsyncStorage | Schreiben: Connections test/save/reset |
+| Supabase-Lampe/Ref | `"true"/"false"`, `string` | `false`, leer | `CONN_SUPABASE_OK`, `CONN_SUPABASE_REF` | AsyncStorage | Schreiben: Connections test/save/reset |
+| EAS-Lampe | `"true"/"false"` | `false` | `CONN_EAS_OK` | AsyncStorage | Schreiben: Connections EAS-Test/Link-Workflow |
+| Repo-Lampe/Slug/Branch | `"true"/"false"`, `string` | `false` | `CONN_REPO_OK`, `CONN_REPO_SLUG`, `CONN_REPO_BRANCH` | AsyncStorage (UX-Lampe) | Schreiben: Connections (workflow start) |
+| EAS Project ID | `string` | leer/fehlend | `EAS_PROJECT_ID` | AsyncStorage | Schreiben: Connections + AppInfo Import; Lesen: Connections/GitHubRepos/Backup |
+| Wizard Key Exists (pro Profil) | `"true"/"false"` | unknown (fehlender Key) | `CRED_KEY_EXISTS_DEV/PREVIEW/PRODUCTION` | AsyncStorage | Schreiben: CredentialsWizard status-refresh; Lesen: Build Preconditions / One-Click |
 
-## Ist-Zustand (Code-Evidence)
-- `GitHubReposScreen` setzt sowohl `active*` als auch `linked*` (dual write).
-- `AppInfo` Import setzt ebenfalls beide Ebenen.
-- `GitHubContext` persistiert `active*` separat und mirrored zusätzlich von `linked*`.
+### A.3 Diagnostics / CI Lite / Build / Chat
 
-➡️ **Bewertung:** Single-Writer ist teilweise umgesetzt, aber noch nicht vollständig strikt.
+| Zustand | Typ | Default | Persistenz-Key | SoT aktuell | Read/Write-Orte |
+|---|---|---|---|---|---|
+| Diagnostic letzter OK | `"true"/"false"` | unknown (fehlender Key) | `DIAGNOSTIC_LAST_OK` | AsyncStorage | Schreiben: Diagnostic Run-Ende; Lesen: Build Preconditions |
+| CI Lite Lint/Typecheck OK | `"true"/"false"` | unknown | `CI_LITE_LINT_OK`, `CI_LITE_TYPECHECK_OK` | AsyncStorage | Schreiben: CI Lite Hook bei completed run; Lesen: Build Preconditions |
+| CI Lite Last Run At | `string` (epoch ms) | fehlt | `CI_LITE_LAST_RUN_AT` | AsyncStorage | Schreiben: CI Lite Hook |
+| Build History | `BuildHistoryEntry[]` | `[]` | `BUILD_HISTORY` | AsyncStorage + Helper | Schreiben: `addBuildToHistory/update...`; Lesen: Build UI |
+| Chat Persist History | bool (als `1/0`) | `true` | `CHAT_PERSIST_HISTORY` | AsyncStorage + helper API | Lesen/Schreiben: `chatPrivacySettings` + Settings |
+| Chat Retention Limit | Zahl | `200` | `CHAT_RETENTION_LIMIT` | AsyncStorage + helper API | Lesen/Schreiben: `chatPrivacySettings` |
+| One Click Auto Sync | `"true"/"false"` | `false` | `ONE_CLICK_AUTO_SYNC_SECRETS` | AsyncStorage | Schreiben: OneClick toggle; Lesen: OneClick init |
 
----
+### A.4 Sensitive Secret State (SecureStore)
 
-## 3) Persistenz-Regeln
-
-### Projektweite Persistenz (`ProjectData`)
-- Read: beim App-Start über `loadProjectFromStorage()`.
-- Write: über `updateProject(...)` → debounced/flush gespeichert via `saveProjectToStorage(...)`.
-- Enthält `linkedRepo`, `linkedBranch`, `preferredBuildProfile`.
-
-### GitHub UX Persistenz
-- `k1w1_github_active_repo`, `k1w1_github_active_branch`, `k1w1_github_recent_repos` werden in `GitHubContext` gespeichert.
-- Diese Werte sind als UX-Mirror zu behandeln, nicht als primärer Build-Contract.
-
-### Status-Persistenz (Diagnostik/CI)
-- Diagnostic schreibt `DIAGNOSTIC_LAST_OK` nach Lauf.
-- Build-Preconditions lesen Diagnostic + CI-Lite Keys als Start-Guard.
-
----
-
-## 4) Invarianten (müssen immer gelten)
-1. Wenn `linkedRepo` geändert wird, muss die UI-Auswahl appweit konsistent sein.
-2. `preferredBuildProfile` darf nur `development|preview|production` sein.
-3. Build darf nur mit gültigem `owner/repo` und gesetztem Branch starten.
-4. Keine hartkodierte Branch-Fallbacks im kritischen Buildpfad.
-
-**UNSICHER:** In mehreren Side-Flows existiert `|| "main"` Fallback weiterhin; dieser Zustand verletzt Invariante 4 teilweise und muss bereinigt werden.
+| Zustand | Storage | SoT | Writer |
+|---|---|---|---|
+| GitHub Token, Expo Token | SecureStore | tokenStore helpers | `saveGitHubToken/saveExpoToken` |
+| Edge Admin Key | SecureStore | tokenStore helpers | `saveEdgeAdminKey` |
+| Supabase Service Role Key | SecureStore (legacy AsyncStorage migration) | tokenStore helpers | `saveSupabaseServiceRoleKey` |
+| Signing Master Key | SecureStore | tokenStore helpers | `saveSigningMasterKey` |
 
 ---
 
-## Evidence
+## B) SoT + Ownership (Single Writer Contract)
 
-### Evidence A — Setzer für SoT in ProjectContext
-**Datei:** `contexts/ProjectContext.tsx`  
-**Symbol:** `setLinkedRepo`, `setPreferredBuildProfile`
+## B.1 Verbindliche SoT-Entscheidung
+
+1. **Repo/Branch/BuildProfile SoT = `ProjectData`**
+   - `linkedRepo`, `linkedBranch`, `preferredBuildProfile` sind die autoritativen Werte.
+2. **GitHubContext `active*` = reiner Mirror/Read-Optimierung**
+   - darf UI bedienen, aber semantisch nie gegen `ProjectData.linked*` laufen.
+3. **Sensitive Keys SoT = SecureStore (über tokenStore/githubService APIs)**
+   - kein Klartext-SoT in AsyncStorage.
+4. **Status-Lampen/Read-Model-Flags SoT = AsyncStorage keys**
+   - Connection, Diagnostic, CI-Lite, Wizard-Exists, Build-History, Chat-Privacy.
+
+## B.2 Single Writer Regeln (Soll-Contract)
+
+- **Repo/Branch:** nur `ProjectContext.setLinkedRepo(...)` ist autoritativer Writer.
+- **Build Profile:** nur `ProjectContext.setPreferredBuildProfile(...)`.
+- **Tokens/Secrets:** nur `infra/github/tokenStore.ts` (`save*/delete*`).
+- **Connection-Lampen:** nur `useConnectionsScreen` schreibt `CONN_*` und `EAS_PROJECT_ID` (außer klar definierte Import-Flows).
+- **Wizard key-exists Flags:** nur `useCredentialsWizardScreen.refreshStatusCore(...)`.
+- **Diagnostic/CI Lite Flags:** nur Diagnostic-Run und CI-Lite Workflow Hook.
+
+## B.3 Aktuelle Abweichungen (Ist vs Soll)
+
+- **Dual-write bei Repo/Branch existiert noch:**
+  - Repo-Screen schreibt sowohl `setActive*` als auch `setLinkedRepo`.
+  - AppInfo Full-Backup-Import schreibt ebenfalls beides.
+- **Build/CI nutzt teilweise Branch-Fallbacks auf `"main"`** statt strikt aus SoT.
+
+---
+
+## C) Persistenz & Hydration
+
+## C.1 Reihenfolge (Boot + Laufzeit)
+
+1. `ProjectContext` lädt `k1w1_project_data` und setzt `projectData`.
+2. `GitHubContext` lädt eigene Keys (`active*`, `recentRepos`) und setzt danach Mirror-Effekt:
+   - `projectData.linked*` überschreibt `active*`.
+3. Feature-Hooks laden ihre Read-Model-Flags aus AsyncStorage:
+   - Connections Lampen,
+   - Build Preconditions (Wizard/Diagnostic/CI Lite),
+   - One-Click Optionen,
+   - Chat Privacy Settings.
+4. SecureStore-basierte Secrets werden über service/helper APIs geladen.
+
+## C.2 Persistenzgrenzen
+
+- **Projektweite Domäne** (`ProjectData`) wird als ein JSON-Blob gespeichert (`k1w1_project_data`).
+- **Feature-Flags/Lights** bleiben absichtlich als separate AsyncStorage Keys.
+- **Secrets** bleiben in SecureStore; Legacy AsyncStorage Service-Role-Key wird migriert und entfernt.
+
+---
+
+## D) Invarianten (MUST-Regeln)
+
+1. **Repo/Branch Konsistenz:** `projectData.linkedRepo/linkedBranch` sind app-weit verbindlich; Header, Drawer, Build, Diagnostic, Wizard müssen denselben Stand zeigen.
+2. **Profile Konsistenz:** `preferredBuildProfile` ist global eindeutig (`development|preview|production`) und Wizard/Build/Drawer spiegeln denselben Wert.
+3. **Credential Scope:** `CRED_KEY_EXISTS_*` wird immer profil-spezifisch gelesen/geschrieben (kein profilfremder Reuse).
+4. **Diagnostic Gate:** Build-Preconditions dürfen `DIAGNOSTIC_LAST_OK` nur als Read-Model lesen, nicht selbst schreiben.
+5. **CI Lite Gate:** CI-Lite-Flags werden ausschließlich durch CI-Lite Runabschluss gesetzt.
+6. **Secrets niemals Async SoT:** GitHub/Expo/Edge/Supabase Service Role/Signing Master sind SecureStore-first.
+7. **Restart-Stabilität Lampen:** `CONN_*` Status muss nach Restart erhalten bleiben, bis explizit neu getestet/überschrieben.
+8. **Keine stille Branch-Erfindung im kritischen Pfad:** kein implizites `"main"` als versteckter Hard-Fallback in Build-kritischen Entscheidungen.
+
+---
+
+## E) Anti-Patterns & verbotene Fallbacks
+
+1. **Dual Writer auf denselben fachlichen Zustand** (`active*` + `linked*` unabhängig setzen).
+2. **Silent Fallback auf `"main"`** in Build/CI-relevanten Flows ohne sichtbaren User-Intent.
+3. **Secrets in AsyncStorage als dauerhafte Wahrheit** (nur Migration erlaubt, danach entfernen).
+4. **Screen-lokale Wahrheit für globale Auswahl** (z. B. lokales Profil ohne Rückschreiben nach `ProjectData`).
+5. **Read-Model Keys als Business-SoT missbrauchen** (z. B. `CONN_REPO_*` statt `linkedRepo/linkedBranch` für Kernlogik).
+
+---
+
+## Evidence (Datei + Symbol + kurzer Auszug)
+
+### E1 — SoT Repo/Branch/Profile in ProjectContext
+**Datei:** `contexts/ProjectContext.tsx` — **Symbole:** `setLinkedRepo`, `setPreferredBuildProfile`
 ```ts
 const setLinkedRepo = useCallback(
   async (repo: string | null, branch?: string | null) => {
@@ -84,9 +152,23 @@ const setPreferredBuildProfile = useCallback(
 );
 ```
 
-### Evidence B — Project-Persistenz read/write
-**Datei:** `infra/storage/projectPersistence.ts`  
-**Symbol:** `saveProjectToStorage`, `loadProjectFromStorage`
+### E2 — GitHubContext als Mirror von `projectData.linked*`
+**Datei:** `contexts/GitHubContext.tsx` — **Symbol:** mirror `useEffect`
+```ts
+const linkedRepo = (projectData?.linkedRepo ?? "").trim() || null;
+const linkedBranch = (projectData?.linkedBranch ?? "").trim() || null;
+
+if (linkedRepo !== activeRepo) {
+  setActiveRepo(linkedRepo);
+}
+
+if (linkedBranch !== activeBranch) {
+  setActiveBranch(linkedBranch);
+}
+```
+
+### E3 — Persistenz von `ProjectData` als JSON-Blob
+**Datei:** `infra/storage/projectPersistence.ts` — **Symbole:** `saveProjectToStorage`, `loadProjectFromStorage`
 ```ts
 const projectString = JSON.stringify(projectToSave);
 await AsyncStorage.setItem(PROJECT_STORAGE_KEY, projectString);
@@ -96,24 +178,49 @@ if (!projectString) return null;
 const project = JSON.parse(projectString);
 ```
 
-### Evidence C — GitHub Mirror + persistente active Keys
-**Datei:** `contexts/GitHubContext.tsx`  
-**Symbol:** `setActiveRepo`, `setActiveBranch`, mirror-effect
+### E4 — Connection Lampen & EAS ID werden persistent geladen
+**Datei:** `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts` — **Symbol:** mount hydration
 ```ts
-if (repo) {
-  AsyncStorage.setItem(ACTIVE_REPO_KEY, repo).catch(() => {});
-} else {
-  AsyncStorage.removeItem(ACTIVE_REPO_KEY).catch(() => {});
-}
-
-if (linkedRepo !== activeRepo) {
-  setActiveRepo(linkedRepo);
-}
+const [ghOk, ghUserStored, ghScopesStored, sbOk, sbRefStored, exOk, exUserStored, easOkStored, repoOkStored, repoSlug, repoBranch] = await Promise.all([
+  AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_OK).catch(() => null),
+  AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_USER).catch(() => null),
+  AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_SCOPES).catch(() => null),
+  AsyncStorage.getItem(STORAGE_KEYS.CONN_SUPABASE_OK).catch(() => null),
+  AsyncStorage.getItem(STORAGE_KEYS.CONN_SUPABASE_REF).catch(() => null),
+  AsyncStorage.getItem(STORAGE_KEYS.CONN_EXPO_OK).catch(() => null),
+  AsyncStorage.getItem(STORAGE_KEYS.CONN_EXPO_USER).catch(() => null),
+  AsyncStorage.getItem(STORAGE_KEYS.CONN_EAS_OK).catch(() => null),
+  AsyncStorage.getItem(STORAGE_KEYS.CONN_REPO_OK).catch(() => null),
+]);
 ```
 
-### Evidence D — Diagnostic schreibt persistenten OK-Status
-**Datei:** `screens/DiagnosticScreen/hooks/useDiagnosticScreen.ts`  
-**Symbol:** Run-Abschluss
+### E5 — Credentials Wizard schreibt profil-spezifische `CRED_KEY_EXISTS_*`
+**Datei:** `screens/CredentialsWizardScreen/hooks/useCredentialsWizardScreen.ts` — **Symbol:** `refreshStatusCore`
+```ts
+const data = r.data as StatusResult;
+if (isMountedRef.current) setStatusByMode((prev) => ({ ...prev, [mode]: data }));
+// Persist key status
+const credKey = credKeyForUiMode(mode);
+await AsyncStorage.setItem(credKey, data.exists ? "true" : "false").catch(() => {});
+```
+
+### E6 — Build Preconditions lesen Wizard/Diagnostic/CI-Lite Flags
+**Datei:** `screens/EnhancedBuildScreen/hooks/useBuildPreconditions.ts` — **Symbol:** `refreshPreconditions`
+```ts
+const val = await AsyncStorage.getItem(credKey).catch(() => null);
+if (isMountedRef.current) setHasSigningKey(val === "true");
+
+const diagVal = await AsyncStorage.getItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null);
+if (isMountedRef.current) setHasDiagOk(diagVal === "true");
+
+const [lintOk, typeOk] = await Promise.all([
+  AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_LINT_OK).catch(() => null),
+  AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_TYPECHECK_OK).catch(() => null),
+]);
+```
+
+### E7 — Diagnostic schreibt `DIAGNOSTIC_LAST_OK`
+**Datei:** `screens/DiagnosticScreen/hooks/useDiagnosticScreen.ts` — **Symbol:** `runDiagnostics` Ende
 ```ts
 const hasFails = all.some((r) => r.status === "fail");
 await AsyncStorage
@@ -121,12 +228,66 @@ await AsyncStorage
   .catch(() => {});
 ```
 
-### Evidence E — CI/Diagnostic Keys zentral definiert
-**Datei:** `lib/storageKeys.ts`  
-**Symbol:** `STORAGE_KEYS`
+### E8 — CI Lite schreibt `CI_LITE_*`
+**Datei:** `components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts` — **Symbol:** persist effect
 ```ts
-DIAGNOSTIC_LAST_OK: "diagnostic_last_ok",
-CI_LITE_LINT_OK: "ci_lite_lint_ok",
-CI_LITE_TYPECHECK_OK: "ci_lite_typecheck_ok",
-EAS_PROJECT_ID: "eas_project_id",
+void AsyncStorage.multiSet([
+  [STORAGE_KEYS.CI_LITE_LINT_OK, lintOk ? "true" : "false"],
+  [STORAGE_KEYS.CI_LITE_TYPECHECK_OK, typeOk ? "true" : "false"],
+  [STORAGE_KEYS.CI_LITE_LAST_RUN_AT, String(Date.now())],
+]).catch(() => {});
+```
+
+### E9 — Chat Settings Defaults + Persistenz
+**Datei:** `lib/chatPrivacySettings.ts` — **Symbole:** `DEFAULT_*`, getter/setter
+```ts
+const DEFAULT_PERSIST = true;
+const DEFAULT_RETENTION = 200;
+
+const raw = await AsyncStorage.getItem(STORAGE_KEYS.CHAT_PERSIST_HISTORY);
+await AsyncStorage.setItem(STORAGE_KEYS.CHAT_PERSIST_HISTORY, enabled ? "1" : "0");
+
+const raw = await AsyncStorage.getItem(STORAGE_KEYS.CHAT_RETENTION_LIMIT);
+await AsyncStorage.setItem(STORAGE_KEYS.CHAT_RETENTION_LIMIT, String(safeLimit));
+```
+
+### E10 — Build History Persistenz
+**Datei:** `lib/buildHistoryStorage.ts` — **Symbole:** `loadBuildHistory`, `saveBuildHistory`
+```ts
+const historyString = await AsyncStorage.getItem(STORAGE_KEYS.BUILD_HISTORY);
+if (!historyString) {
+  return [];
+}
+
+const trimmedHistory = history.slice(0, MAX_HISTORY_ENTRIES);
+const historyString = JSON.stringify(trimmedHistory);
+await AsyncStorage.setItem(STORAGE_KEYS.BUILD_HISTORY, historyString);
+```
+
+### E11 — SecureStore als SoT für sensitive Keys
+**Datei:** `infra/github/tokenStore.ts` — **Symbole:** `saveSecureToken/getSecureToken`, Service Role section
+```ts
+await SecureStore.setItemAsync(key, value);
+return await SecureStore.getItemAsync(key);
+
+export const getSupabaseServiceRoleKey = async (): Promise<string | null> => {
+  return getSecureToken(SUPABASE_SERVICE_ROLE_KEY);
+};
+```
+
+### E12 — Aktuelle Abweichung: Dual-write bei Import
+**Datei:** `screens/AppInfoScreen/hooks/useAppInfoScreen.ts` — **Symbol:** `handleImportFullBackup`
+```ts
+setActiveRepo(nextRepo);
+setActiveBranch(nextBranch);
+
+// Persist selection so the rest of the app doesn't snap back to an old linkedRepo.
+setLinkedRepo(nextRepo, nextBranch);
+```
+
+### E13 — Aktuelle Abweichung: Branch-Fallback auf "main"
+**Datei:** `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts` — **Symbol:** EAS link flow branch resolution
+```ts
+const branch =
+  (activeBranch || projectData?.linkedBranch || "main").trim() || "main";
 ```
