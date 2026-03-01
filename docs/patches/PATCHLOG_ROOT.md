@@ -78,3 +78,5 @@
 - Patch 335: Contract-Test Coverage Matrix + priorisierte Smoke/Invariant-Testvorschläge (siehe docs/patches/patch_335.md)
 
 - Patch 337 (2026-03-01): Diagnostics/Fix Playbook + Test Matrix + Runbook (see docs/patches/patch_337.md and docs/patches/PATCH_337_NOTES.md)
+
+- Patch 338 (2026-03-01): Phase-2 Diagnostics Coverage (13 neue High/Med Tests) + eas.json parse-fail Fix + Patch-Engine Helper (see docs/patches/patch_338.md)
