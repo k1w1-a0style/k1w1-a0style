@@ -1,49 +1,98 @@
-# 04 — Testing Smoke Plan (Build Readiness + Diagnostics)
+# 04 — Testing & Smoke Plan (Buildflow + Diagnostics)
 
-## Ziel
-Schnelle, reproduzierbare Smoke-Ausführung für Build-Startbarkeit nach Diagnostics/Fixes.
+Stand: 2026-03-01
 
-## Smoke-Matrix (minimal, verbindlich)
+Dieses Smoke-Plan fokussiert auf **Build Startbarkeit** (Gate) und **Diagnostics/Fix-Loops**.
 
-| Smoke-Case | Fokus | Erwartung |
-|---|---|---|
-| S1: Readiness-Gate Blocker | Repo/Branch/Profile/Tokens/Diagnostics/Signing | Build startet **nicht**, klarer Blockertext |
-| S2: Diagnostics Full Run | Local + Pipeline Checks | Alle Checks laufen, IDs/Status stabil |
-| S3: AutoFix Batch + Re-Run | Fixbare Issues anwenden | Issue-Status verbessert sich, keine neuen Criticals |
-| S4: CI Workflow Readiness | Pflicht-Workflows + Secrets | Fehlende Workflows/Secrets werden klar als Fix/Manual ausgewiesen |
-| S5: Profile-Switch | development/preview/production | Profilabhängige Checks reagieren korrekt |
+> Definition “grün”:  
+> - Build Readiness Gate erfüllt (docs/06)  
+> - Diagnostics sind ausführbar, reproduzierbar und liefern konsistente Fix-Patches  
+> - Pipeline Checks schlagen nicht wegen fehlender Mocks/Permissions in Tests fehl
 
-## Smoke-Kommandos
+---
 
+## 1) Schnell-Smoke (lokal, < 5 Minuten)
+
+### 1.1 Jest / Typecheck / Lint (Fast)
 ```bash
-npm run typecheck
-npm run lint:ci
-npm run test:silent
+npm run preflight:fast
 ```
 
-## Priorisierte Smoke-Tests (aus Matrix 08)
+### 1.2 Full preflight (inkl. Tests)
+```bash
+npm run preflight
+```
 
-### High
-1. Build-Service blockiert ohne Branch (kein stiller `main` fallback).
-2. Build-Service blockiert bei ungültigem Repo/Profile.
-3. Pipeline-Diagnostics liefert stabile Kern-IDs (`repo.easProfile.*`, `repo.secret.expoToken`, `repo.easProjectId`).
-4. Workflow-Security-Checks schlagen bei Leak/YAML-Falle korrekt an.
-5. `autoFixCIWorkflows` (create/update/no-op) branch-sicher.
+Erwartung:
+- `typecheck` ok
+- `lint:ci` ok
+- `jest --silent` ok
+- `audit:types` ok
+- `audit:imports` ok
 
-### Medium
-1. `eas-withoutcredentials-debug` erzeugt zielgenauen Fix-Patch.
-2. `eas-profiles` failt bei AAB und bietet APK-Fix.
-3. `quality-scripts` meldet fehlende deps korrekt.
-4. Status-Mapping in `runPipelineChecks` bleibt konsistent.
+---
 
-## Invariant-String-Smoke (schnell, regressionssicher)
-- Kein harter `|| "main"`-Fallback im kritischen Buildstartpfad.
-- Check-IDs für kritische Security/Readiness-Checks bleiben unverändert.
-- `REQUIRED_SECRETS` enthält mindestens `EXPO_TOKEN`.
-- Production-Workflow validiert `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`.
+## 2) Diagnostics Smoke (In-App)
 
-## Exit-Kriterien
-- Typecheck/Lint/Tests grün.
-- Für jeden verbleibenden Diagnostic-Fail ist „AutoFix“ **oder** „Manual Steps“ eindeutig dokumentiert.
-- Buildflow ist mit explizit ausgewähltem Repo/Branch/Profile startbar.
+### 2.1 Local checks
+1. App starten → Projekt laden / anlegen  
+2. Diagnostics Screen → **Scannen**  
+3. Erwartung:  
+   - Keine Crashes (ein crashing check darf nicht die gesamte run abbrechen)  
+   - Fail/Warn/Pass Sortierung: fail zuerst
+
+### 2.2 AutoFix loop (min. 2 typische Fälle)
+- Case A: Entry-Point fehlt → AutoFix erzeugt `index.js` + setzt `package.json.main`
+- Case B: Workflow YAML name quoting → AutoFix quotet `name: "A: B"`
+
+Nach jedem Fix:
+- Erneut **Scannen** → der gefixte Check muss “pass” oder “warn → pass” werden.
+
+---
+
+## 3) Pipeline Diagnostics Smoke (GitHub)
+
+> Voraussetzung: Repo verknüpft + gültiger Branch
+
+1. Diagnostics Screen → Scannen (Pipeline aktiviert)
+2. Erwartung:
+   - `local.githubToken`/`local.expoToken` reagieren korrekt auf fehlende Tokens
+   - `repo.secret.expoToken` fail wenn Secret fehlt
+   - `repo.workflow.*` fail wenn Workflow fehlt
+
+---
+
+## 4) Build Readiness Gate Smoke (Service)
+
+### 4.1 Hard-Blocker müssen wirklich blocken
+- Repo fehlt/ungültig
+- Branch fehlt
+- Tokens fehlen
+- Diagnostics nicht grün (`DIAGNOSTIC_LAST_OK != "true"`)
+- Signing fehlt (profilbezogen)
+- Prod: Supabase Secrets fehlen
+
+Erwartung:
+- Build start wird **abgebrochen bevor** Git push / Workflow dispatch / Supabase invoke passiert.
+
+### 4.2 Negative test: Keine stillen Defaults
+- branch darf **nicht** automatisch auf defaultBranch/main fallen, wenn linkedBranch leer ist.
+- repo darf **nicht** auf CONFIG default fallen, wenn linkedRepo leer ist.
+
+---
+
+## 5) CI Smoke (minimal)
+
+- `npm ci` / `npm test` läuft in CI
+- `eas-prebuild` ruft `npm run preflight` (sollte schnell failen, wenn gating regressiert)
+
+---
+
+## 6) Regression Focus Areas
+
+- Patch Apply Engine (jsonMerge/upsert/delete)
+- Workflow Templates (YAML quoting, no leaked secrets)
+- Secret names / Storage keys / Profile names (Invariant String Tests)
+
+Siehe `docs/08-test-coverage-matrix.md` für konkrete neue Tests.
 

@@ -90,3 +90,12 @@ const started = await startBuildJob({
 const jobId = started.jobId;
 const githubRepoResolved = started.githubRepo;
 ```
+
+## Quick Links
+- Product overview: `docs/10-product-and-flows.md`
+- Operator/QA runbook: `docs/runbooks/APP_RUNBOOK.md`
+- Diagnostics → Fix: `docs/07-diagnostics-fix-playbook.md`
+- Test coverage: `docs/08-test-coverage-matrix.md`
+- Smoke plan: `docs/04-testing-smoke-plan.md`
+- Gap tickets: `docs/09-gap-tickets.md`
+

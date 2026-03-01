@@ -1,61 +1,228 @@
-# 07 — Diagnostics → Fix Playbook (Build-Readiness)
+# 07 — Diagnostics → Fix Playbook (Buildflow wasserdicht)
 
-## Ziel
-Für jede relevante Diagnostic-Meldung ist eindeutig geklärt:
-- Blocker vs Warnung
-- AutoFix vorhanden oder nicht
-- konkreter AutoFix-Auslöser (Funktion/Button/Screen)
-- Manual Steps
-- Re-Check nach dem Fix
+Stand: 2026-03-01 (Europe/Berlin)
 
-Basis: `docs/06-build-readiness.md`, `lib/diagnostics/buildPipelineDiagnostics.ts`, `lib/diagnostics/preflightChecks.ts`.
+Dieses Dokument verbindet **alle existierenden Diagnostic Checks** mit den **Build-Readiness Items** aus `docs/06-build-readiness.md` und liefert pro Check einen **Fix-Pfad** (AutoFix vs. Manual) inkl. “Was danach erneut prüfen”.
 
-## Diagnostic-Inventar (kompakt)
+> Scope:
+> - *Local Preflight Checks* (in-app, auf `project.files`)
+> - *Pipeline Checks* (GitHub Repo/Branch & Secrets)
+> - *CI AutoFix* (Workflows + .gitignore + Secret-Sync Hooks)
 
-### Pipeline Checks
-`local.githubToken`, `local.expoToken`, `local.edgeAdminKey`, `repo.expoConfig`, `repo.easJson`, `repo.easJson.parse`, `repo.easProfile.{development|preview|production}`, `repo.easBuildType.{profile}`, `repo.easAndroidWithoutCreds.{profile}`, `repo.easDevelopmentCoherent`, `repo.dep.expoDevClient`, `repo.easProjectId`, `repo.workflow.easLink`, `repo.workflow.triggeredBuild`, `repo.secret.expoToken`, `repo.secret.supabaseUrl`, `repo.secret.supabaseServiceRole`, `repo.secret.list`, `repo.appConfig.usesEasProjectJson`.
+---
 
-### Local Preflight Checks
-`core-package-json`, `gitignore-present`, `lockfile-consistency`, `entry-point`, `expo-config-validation`, `assets-exist`, `native-dirs-managed-guard`, `eas-withoutcredentials-debug`, `quality-scripts`, `eas-profiles`, `expo-sdk-consistency`, `rn-react-compat`, `security-workflow-service-role-key`, `workflow-yaml-name-colon-quoting`, `security-forbidden-files`.
+## 1) Wo kommen Diagnostics her?
 
-## Diagnostics → Fix Playbook
+### 1.1 Local Preflight (Project Files / In-App)
+Runner: `lib/diagnostics/preflightRunner.ts` + `lib/diagnostics/preflightChecks.ts`  
+Checks sind in Modulen unter `lib/diagnostics/checks/*` definiert.
+
+Ausführung über UI: **Diagnostic Screen → “Scannen”**  
+Fix-Ausführung über UI: **Issue Detail → “Auto-Fix”** oder **“Fixen” (Smart Fix)**.
+
+### 1.2 Pipeline Diagnostics (GitHub/EAS Repo-Side)
+Runner: `lib/diagnostics/buildPipelineDiagnostics.ts` (über `screens/DiagnosticScreen/hooks/diagnosticRunners.ts`)
+
+Ausführung über UI: **Diagnostic Screen → Scannen** (wenn Repo verknüpft)
+
+### 1.3 CI AutoFix (Workflows / .gitignore / Secret names)
+Implementation: `lib/diagnostics/ciAutoFix.ts` + `lib/autoSyncRepoSecrets.ts`
+
+UI Entry Points (aus Code ersichtlich, Bezeichnungen können leicht abweichen):
+- **Repo Screen**: “CI Workflows fixen / Sync Workflows”
+- **Repo/Secrets**: “Secrets syncen”
+
+---
+
+## 2) Inventory: Alle Checks (ID → Title → Bedingungen)
+
+> Notation:  
+> - **Status**: fail/warn/pass/info  
+> - **Ziel**: Local (Preflight) vs Pipeline vs CI AutoFix  
+> - **Build-Readiness Item**: Referenz auf Matrix aus `docs/06-build-readiness.md`
+
+### 2.1 Local Preflight Checks (project.files)
+
+| Check-ID | Title | Severity | Fail/Warn Bedingung (kurz) |
+|---|---|---:|---|
+| `core-package-json` | package.json vorhanden | critical | **fail** wenn `package.json` fehlt oder keine valide JSON |
+| `entry-point` | Entry-Point / main vorhanden | high | **fail** wenn `main`/`index.js`/`App.*` fehlt |
+| `expo-config-validation` | Expo Config Validation | high | **fail** wenn keine `app.json`/`app.config.js`; **fail** bei invalid JSON; **warn** bei missing required fields |
+| `eas-profiles` | EAS Profile Android (APK vs AAB) | normal | (nur EAS) **warn** wenn `eas.json` fehlt / Profil fehlt / buildType unset; **fail** wenn buildType != `apk` |
+| `expo-sdk-consistency` | Expo SDK Konsistenz (light) | low | **warn** wenn `expo` oder `react-native` dep fehlt oder Kombi “wirkt ungewöhnlich” |
+| `assets-exist` | Assets referenced existieren | normal | **warn** wenn in Config referenzierte Asset-Dateien fehlen |
+| `lockfile-consistency` | Lockfile Konsistenz | normal | **warn** wenn kein Lockfile und kein `.npmrc package-lock=true`; **warn** wenn mehrere Lockfiles |
+| `gitignore-present` | .gitignore vorhanden | normal | **fail** wenn `.gitignore` fehlt; **warn** wenn typische Einträge fehlen |
+| `security-forbidden-files` | Security: verbotene/gefährliche Dateien | high | **fail** wenn `.jks`/`keystore` oder Private-Key Marker gefunden oder riesige Inhalte |
+| `native-dirs-managed-guard` | Native Ordner Konsistenz (Android-only) | normal | **warn** wenn `android/` oder `ios/` “halb da” (gradle/Podfile fehlt) |
+| `eas-withoutcredentials-debug` | EAS Debug Builds ohne Keystore | normal | **warn** wenn `build.development` / `build.preview` kein `android.withoutCredentials=true` |
+| `rn-react-compat` | React / React Native Kompatibilität | high | **fail** bei `react>=18.3` und RN `<0.75` (heuristic) |
+| `quality-scripts` | Quality Scripts: TS/ESLint Dependencies | normal | **warn** wenn scripts `tsc`/`eslint` enthalten aber deps fehlen |
+| `security-workflow-service-role-key` | Security: Service Role Key Leak in Workflows | high | **fail** wenn Workflow YAML hardcoded `*_SERVICE_ROLE_*` value “secret-like” |
+| `workflow-yaml-name-colon-quoting` | Workflow YAML: quote names containing ': ' | critical | **fail** wenn Workflow/Step `name:` unquoted und `": "` enthält (YAML Pitfall) |
+
+### 2.2 Pipeline Checks (GitHub Repo/Branch/Secrets)
+
+| Check-ID | Title | Status-Regel (kurz) |
+|---|---|---|
+| `local.githubToken` | GitHub Token vorhanden | fail wenn Token leer |
+| `local.expoToken` | Expo Token vorhanden | fail wenn Token leer |
+| `local.edgeAdminKey` | Edge Admin-Key vorhanden | warn wenn leer (nicht blocker für Build) |
+| `repo.expoConfig` | Expo Config vorhanden (app.config.* / app.json) | fail wenn none |
+| `repo.easJson` | eas.json vorhanden | fail wenn fehlt |
+| `repo.easJson.parse` | eas.json ist parsebar | fail wenn parse/read error |
+| `repo.easProfile.development|preview|production` | EAS Profil vorhanden | fail wenn Profil fehlt |
+| `repo.easBuildType.<profile>` | Android BuildType (APK-only) | warn wenn unset, fail wenn != apk; bietet Fix |
+| `repo.easAndroidWithoutCreds.development|preview` | Android Signierung (CI-safe) | warn wenn withoutCreds fehlt; Fix vorhanden |
+| `repo.easAndroidWithoutCreds.production` | Android Signierung (production) | warn wenn `withoutCredentials=true`; Fix vorhanden |
+| `repo.easDevelopmentCoherent` | Development Profil konsistent | warn wenn `developmentClient=false` aber distribution != internal; Fix vorhanden |
+| `repo.easEnableDevClientFlow` | Optional: Development-Client Flow aktivieren | info (kein blocker) |
+| `repo.dep.expoDevClient` | Dependency: expo-dev-client | warn wenn developmentClient=true aber dep fehlt; Fix bietet “switch to internal APK” |
+| `repo.dep.expoDevClient.read` | expo-dev-client read | warn wenn package.json nicht lesbar |
+| `repo.easProjectId` | EAS projectId vorhanden (non-interactive) | fail wenn projectId nicht in eas-project.json/app.json/app.config gefunden |
+| `repo.workflow.easLink` | Workflow vorhanden: eas-link.yml | fail wenn fehlt |
+| `repo.workflow.triggeredBuild` | Workflow vorhanden: k1w1-triggered-build.yml | fail wenn fehlt |
+| `repo.secret.expoToken` | Repo Secret vorhanden: EXPO_TOKEN | fail wenn fehlt |
+| `repo.secret.supabaseUrl` | Repo Secret vorhanden: SUPABASE_URL | warn wenn fehlt |
+| `repo.secret.supabaseServiceRole` | Repo Secret vorhanden: SUPABASE_SERVICE_ROLE_KEY | warn wenn fehlt |
+| `repo.secret.list` | Repo Secrets abrufbar | warn wenn API call fail (permission) |
+| `repo.appConfig.usesEasProjectJson` | app.config.js nutzt eas-project.json | warn wenn app.config.js eas-project.json nicht referenziert |
+
+---
+
+## 3) Mapping: Checks → Build-Readiness Items (docs/06)
+
+Build-Readiness Items (Kurz):
+- **BR-1 Repo/Branch gewählt**
+- **BR-2 Build-Profil gültig**
+- **BR-3 Tokens vorhanden (GitHub+Expo)**
+- **BR-4 Diagnostics grün (`DIAGNOSTIC_LAST_OK`)**
+- **BR-5 Signing-Key Status (profilbezogen)**
+- **BR-6 Workflows vorhanden**
+- **BR-7 EAS Profile korrekt (apk/withoutCredentials/production signing)**
+- **BR-8 Secrets in GitHub (EXPO_TOKEN + prod Supabase)**
+- **BR-9 EAS Project Linking (projectId / eas-project.json)**
+- **BR-10 Project files exist (Projekt nicht leer)**
+
+| Check-ID | Build-Readiness Item(s) | Gate-Level |
+|---|---|---|
+| `local.githubToken`, `local.expoToken` | BR-3 | **Blocker** |
+| `repo.secret.expoToken` | BR-8 | **Blocker** |
+| `repo.secret.supabaseUrl`, `repo.secret.supabaseServiceRole` | BR-8 | **Warn (dev/preview)** / **Blocker (prod, per Workflow)** |
+| `repo.workflow.easLink`, `repo.workflow.triggeredBuild` | BR-6 | **Blocker** |
+| `repo.easJson`, `repo.easJson.parse`, `repo.easProfile.*` | BR-7 | **Blocker** |
+| `repo.easBuildType.*` | BR-7 | warn/fail abhängig |
+| `repo.easAndroidWithoutCreds.*` | BR-7 | warn |
+| `repo.easProjectId` | BR-9 | **Blocker** (non-interactive) |
+| `repo.expoConfig` / `expo-config-validation` | BR-10 (indirekt: Buildbares Projekt) | **Blocker** |
+| `core-package-json`, `entry-point` | BR-10 | **Blocker** |
+| `lockfile-consistency`, `gitignore-present` | BR-10 (stability) | warn/fail |
+| `security-forbidden-files` | BR-10 (security) | **Blocker** |
+| `native-dirs-managed-guard` | BR-10 | warn |
+| `eas-withoutcredentials-debug`, `eas-profiles` | BR-7 | warn/fail |
+| `workflow-yaml-name-colon-quoting`, `security-workflow-service-role-key` | BR-6/BR-8 | **Blocker** |
+| `repo.appConfig.usesEasProjectJson` | BR-9 | warn |
+| `local.edgeAdminKey`, `repo.secret.list` | (remote reporting) | warn |
+
+---
+
+## 4) Diagnostics → Fix Playbook (wichtigste Tabelle)
+
+**Spalten-Definitionen**
+- **Blocker?**: Muss für Build “grün” sein (in Service Gate)  
+- **AutoFix?**: Ist in Diagnose-Result ein Patch/Fix vorhanden ODER existiert ein dedizierter Button/Flow?  
+- **AutoFix Action**: Konkreter UI/Code Entry Point (Screen/Button/Funktion)  
+- **Manual Steps**: Wenn kein AutoFix oder wenn Tokens/Permissions fehlen  
+- **Re-Check**: Welche Checks danach erneut laufen müssen
+
+### 4.1 Playbook (Local Preflight)
 
 | Check-ID | Fail/Warn | Ursache | Blocker? | AutoFix? | AutoFix Action (konkret) | Manual Steps | Re-Check |
-|---|---|---|---|---|---|---|---|
-| `local.githubToken` | fail | GitHub Token lokal fehlt | Ja | Nein | — | Connections: GitHub Token speichern | Full diagnostics + Buildstart |
-| `local.expoToken` | fail | Expo Token lokal fehlt | Ja | Teilweise | Secret-Sync nutzt lokalen Token | Connections: Expo Token setzen | `repo.secret.expoToken` |
-| `repo.secret.expoToken` | fail | Repo Secret fehlt | Ja | Ja | One-Click Deploy / Secretsync (`autoSyncRepoSecrets`) | ggf. manuell in GitHub setzen | Pipeline rerun |
-| `repo.expoConfig` | fail | app config fehlt | Ja | Nein | — | `app.json` oder `app.config.js/ts` erstellen | Local rerun |
-| `repo.easJson` / `.parse` | fail | `eas.json` fehlt/kaputt | Ja | Teilweise | Issue-Fix Patch (`useDiagnosticFixRunner`) | JSON manuell korrigieren | `eas-profiles` |
-| `repo.easProfile.*` | fail | Profil fehlt | Ja | Ja | Issue-Fix (`jsonMerge` eas.json) | Profil-Policy prüfen | Pipeline rerun |
-| `repo.easBuildType.*` | fail/warn | `apk` policy verletzt | Ja bei fail | Ja | Issue-Fix „buildType=apk“ | — | Pipeline rerun |
-| `repo.easAndroidWithoutCreds.development/preview` | warn | CI-safe Flag fehlt | Indirekter Blocker | Ja | Issue-Fix setzt `withoutCredentials=true` | alternativ Keystore bereitstellen | Build smoke |
-| `repo.easAndroidWithoutCreds.production` | warn | prod ohneCredentials=true | Ja | Ja | Issue-Fix setzt false | prod signing sicherstellen | production rerun |
-| `repo.easProjectId` | fail | projectId fehlt | Ja | Teilweise | `eas-link.yml` Workflow triggern | ggf. `eas project:init` + commit | `repo.easProjectId` |
-| `repo.workflow.easLink` / `triggeredBuild` | fail | Workflow fehlt | Ja | Ja | Diagnostic CI AutoFix Button (`runCiAutofix`) | manuell commit bei fehlenden Rechten | Pipeline rerun |
-| `repo.secret.supabaseUrl` / `repo.secret.supabaseServiceRole` | warn | Prod secrets fehlen | Ja für prod | Teilweise | best-effort sync wenn lokal vorhanden | manuell GitHub Secrets setzen | Prod workflow validate |
-| `core-package-json` | fail | package.json fehlt/invalid | Ja | Ja | Issue-Fix erzeugt package.json | Inhalte validieren | Local rerun |
-| `entry-point` | fail | Entry fehlt | Ja | Ja | Issue-Fix: index.js + main | App-Importpfad prüfen | Local rerun |
-| `expo-config-validation` | fail/warn | app config unvollständig | Ja bei fail | Nein | — | fehlende Felder ergänzen | Local rerun |
-| `gitignore-present` | fail/warn | .gitignore fehlt/lückenhaft | Nein | Ja | Issue-Fix erzeugt/ergänzt .gitignore | — | Local rerun |
-| `lockfile-consistency` | warn | kein/mehrere Lockfiles | Nein | Ja | Issue-Fix `.npmrc`/Delete lockfiles | PM konsolidieren | install + rerun |
-| `eas-withoutcredentials-debug` | warn | dev/preview nicht CI-safe | Nein direkt | Ja | Issue-Fix json patch | alternativ Keystore Workflow | Build smoke |
-| `eas-profiles` | warn/fail | Profil/APK inkonsistent | Ja bei fail | Ja | Issue-Fix eas.json | — | rerun |
-| `rn-react-compat` | fail | React/RN inkompatibel | Ja | Nein | — | Dependency set manuell angleichen | install + tests |
-| `security-workflow-service-role-key` | fail | möglicher Key leak | Ja | Teilweise | patch wenn ableitbar | auf `secrets.*` umstellen + key rotieren | security rerun |
-| `workflow-yaml-name-colon-quoting` | fail | YAML `: ` unquoted | Ja | Ja | Issue-Fix quoted names | — | workflow rerun |
-| `security-forbidden-files` | fail | key/keystore im Projekt | Ja | Nein | — | Datei entfernen, secret rotieren | security rerun |
+|---|---|---|---:|---:|---|---|---|
+| `core-package-json` | fail | package.json fehlt/invalid | ✅ | ✅ | Diagnostic Screen → Issue → **Auto-Fix** (legt package.json Starter an) | package.json anlegen/validieren | `core-package-json`, `lockfile-consistency`, `quality-scripts`, `expo-sdk-consistency` |
+| `entry-point` | fail | kein index/App/main | ✅ | ✅ | Auto-Fix (legt `index.js` stub + setzt `package.json.main`) | `index.js` erstellen & `main` korrekt setzen | `entry-point` + ggf. `expo-config-validation` |
+| `expo-config-validation` | fail/warn | app.json/app.config fehlt/invalid/unvollständig | ✅ (fail) / ❌ (warn) | ❌ | — | app.json oder app.config.js erstellen; mind. expo.name/slug/version + android.package setzen | `expo-config-validation`, `assets-exist` |
+| `eas-profiles` | warn/fail | eas.json fehlt oder falscher buildType | ⚠️ (target=EAS) | ✅ (teilweise) | Auto-Fix für buildType; falls eas.json fehlt: Patch Template | eas.json manuell erstellen/Profiles ergänzen | `eas-profiles`, `eas-withoutcredentials-debug` |
+| `eas-withoutcredentials-debug` | warn | dev/preview ohne withoutCredentials | ⚠️ (CI stability) | ✅ | Auto-Fix (jsonMerge setzt withoutCredentials) | eas.json → build.development/preview.android.withoutCredentials=true | `eas-withoutcredentials-debug`, `repo.easAndroidWithoutCreds.*` |
+| `lockfile-consistency` | warn | kein Lockfile / mehrere Lockfiles | ❌ (meist) | ✅ | Auto-Fix (erstellt/patcht `.npmrc`, löscht extra Lockfiles) | 1 Package-Manager wählen; Lockfile commiten | `lockfile-consistency` |
+| `gitignore-present` | fail/warn | .gitignore fehlt oder unvollständig | ❌ | ✅ | Auto-Fix (Template / Append missing entries) | .gitignore ergänzen | `gitignore-present` |
+| `assets-exist` | warn | Asset-Refs zeigen auf fehlende Dateien | ❌ | ❌ | — | Fehlende Assets hinzufügen oder Config refs korrigieren | `assets-exist` |
+| `native-dirs-managed-guard` | warn | android/ios halbfertig im repo | ⚠️ | ❌ | — | Halb-Ordner entfernen oder komplettieren (android/app/build.gradle, ios/Podfile) | `native-dirs-managed-guard` |
+| `security-forbidden-files` | fail | Keystore/PrivateKey/hard secrets im Source | ✅ | ❌ | — | Entfernen + `.gitignore` + Git history bereinigen; Secrets rotieren | `security-forbidden-files` + Security review |
+| `rn-react-compat` | fail | react/rn mismatch (heuristic) | ✅ | ❌ | — | Versionset nach Expo SDK kompatibel setzen (Expo SDK docs) | `rn-react-compat`, `expo-sdk-consistency` |
+| `quality-scripts` | warn | scripts vorhanden, deps fehlen | ❌ | ✅ | Auto-Fix (fügt devDeps `typescript`/`eslint` mit `*` hinzu) | Versions pinnen, `npm i` | `quality-scripts`, `typecheck`, `lint` |
+| `expo-sdk-consistency` | warn | expo/rn missing/weird | ❌ | ❌ | — | Abgleich Expo SDK ↔ RN ↔ React | `expo-sdk-consistency`, `rn-react-compat` |
+| `security-workflow-service-role-key` | fail | hardcoded service role in workflows | ✅ | (selten) | Auto-Fix nur wenn eindeutiger replacement möglich (derzeit eher ❌) | Secrets in GitHub anlegen, Workflows auf `${{ secrets.* }}` umstellen; Keys rotieren | `security-workflow-service-role-key` |
+| `workflow-yaml-name-colon-quoting` | fail | YAML name mit `: ` unquoted | ✅ | ✅ | Auto-Fix: quote `name:` values in `.github/workflows/*` | Manuell quotes setzen | `workflow-yaml-name-colon-quoting` |
 
-## Gap (Blocker ohne robusten Fix)
-1. Token-Blocker (`local.githubToken`, `local.expoToken`): kein Direktlink/CTA in Issue-Detail.
-2. `repo.expoConfig`/`expo-config-validation` fail: kein Minimal-Config-Generator.
-3. `repo.easProjectId`: kein direkter One-Click-Fix aus dem Issue.
-4. Prod-Secrets (`repo.secret.supabase*`): kein dedizierter Production Secret Wizard.
-5. `rn-react-compat`: nur Manual Steps, kein version-set runbook verlinkt.
-6. `security-forbidden-files`: bewusst kein AutoFix, aber stärkeres Manual-Runbook sinnvoll.
+### 4.2 Playbook (Pipeline Checks)
 
-## Re-Check Standard nach jedem Fix-Batch
-1. Full diagnostics erneut ausführen (local + pipeline).  
-2. `DIAGNOSTIC_LAST_OK === "true"` validieren.  
-3. profile-spezifisch `development` / `preview` / `production` prüfen.  
-4. erst danach Buildstart triggern.
+| Check-ID | Fail/Warn | Ursache | Blocker? | AutoFix? | AutoFix Action (konkret) | Manual Steps | Re-Check |
+|---|---|---|---:|---:|---|---|---|
+| `local.githubToken` | fail | GitHub Token fehlt | ✅ | ❌ | — | Connections → GitHub Token speichern | Pipeline run |
+| `local.expoToken` | fail | Expo Token fehlt | ✅ | ❌ | — | Connections → Expo Token speichern | Pipeline run |
+| `repo.secret.expoToken` | fail | GitHub Secret EXPO_TOKEN fehlt | ✅ | ✅ | Repo/Secrets → **Secrets syncen** (`autoSyncRepoSecrets`) | GitHub Repo Settings → Secrets → Actions → EXPO_TOKEN setzen | `repo.secret.expoToken` + Workflow validate |
+| `repo.secret.supabaseUrl` | warn | SUPABASE_URL fehlt | ⚠️ (prod) | ✅ | Secrets syncen (wenn lokal vorhanden) | GitHub Secret setzen (prod Pflicht per Workflow) | `repo.secret.supabaseUrl` |
+| `repo.secret.supabaseServiceRole` | warn | SERVICE_ROLE fehlt | ⚠️ (prod) | ✅ | Secrets syncen (wenn lokal vorhanden) | GitHub Secret setzen (prod Pflicht per Workflow) | `repo.secret.supabaseServiceRole` |
+| `repo.secret.list` | warn | Token darf Secrets nicht lesen | ⚠️ | ❌ | — | Token scopes/permissions fixen (Repo admin / fine-grained “Actions secrets: read”) | Pipeline run |
+| `repo.workflow.easLink` | fail | Workflow fehlt | ✅ | ✅ | Repo Screen → **CI Workflows fixen** (`autoFixCIWorkflows`) | Datei manuell in `.github/workflows/` hinzufügen & commit | `repo.workflow.easLink`, `workflow-yaml-name-colon-quoting` |
+| `repo.workflow.triggeredBuild` | fail | Workflow fehlt | ✅ | ✅ | CI Workflows fixen | Manuell hinzufügen | `repo.workflow.triggeredBuild` |
+| `repo.easJson` | fail | eas.json fehlt | ✅ | ⚠️ (indirekt) | In-App Template/Push (falls vorhanden) / per Patch | eas.json im Repo anlegen | `repo.easJson`, `repo.easProfile.*` |
+| `repo.easJson.parse` | fail | eas.json kaputt | ✅ | ❌ | — | eas.json reparieren (valid JSON) | `repo.easJson.parse` |
+| `repo.easProfile.<p>` | fail | build.<p> fehlt | ✅ | ❌ (im pipeline check selbst) | — | eas.json ergänzen | `repo.easProfile.<p>` |
+| `repo.easBuildType.<p>` | warn/fail | buildType unset/!=apk | ✅ (fail) | ✅ | Auto-Fix (jsonMerge buildType=apk) | eas.json fixen | `repo.easBuildType.<p>` |
+| `repo.easAndroidWithoutCreds.development|preview` | warn | withoutCredentials fehlt | ⚠️ | ✅ | Auto-Fix (jsonMerge withoutCredentials=true) | eas.json fixen | `repo.easAndroidWithoutCreds.*` |
+| `repo.easAndroidWithoutCreds.production` | warn | production w/out creds | ⚠️ | ✅ | Auto-Fix (jsonMerge false) | eas.json fixen | `repo.easAndroidWithoutCreds.production` |
+| `repo.easDevelopmentCoherent` | warn | distribution nicht internal | ❌ | ✅ | Auto-Fix distribution=internal | eas.json fixen | `repo.easDevelopmentCoherent` |
+| `repo.dep.expoDevClient` | warn | dev-client flow ohne dep | ❌ | ✅ | Auto-Fix (switch to internal APK) | package.json deps ergänzen ODER dev-client aus | `repo.dep.expoDevClient` |
+| `repo.easProjectId` | fail | projectId fehlt | ✅ | ❌ (in check) | — | Repo Screen → “EAS Projekt erstellen/verbinden” (oder Workflow `eas-link.yml` triggern) | `repo.easProjectId`, `repo.workflow.easLink` |
+| `repo.appConfig.usesEasProjectJson` | warn | app.config.js nutzt eas-project.json nicht | ❌ | ❌ | — | app.config.js anpassen (projectId aus eas-project.json lesen) | `repo.appConfig.usesEasProjectJson` |
+| `repo.expoConfig` | fail | app.json/app.config fehlt | ✅ | ❌ | — | Repo: Config hinzufügen | `repo.expoConfig` |
+
+---
+
+## 5) Gaps: Blocker ohne Fix-Möglichkeit → Vorschläge
+
+### 5.1 Blocker ohne AutoFix (sollte es geben)
+1) **`repo.easProjectId` (FAIL)**  
+   - Problem: Check ist Blocker, aber hat keinen AutoFix-Patch.  
+   - **Vorschlag AutoFix Action (UI)**:  
+     - Button: “EAS Link ausführen”  
+     - Action: `triggerWorkflow(owner, repo, "eas-link.yml", { inputs: { profile: "development", EAS_PROJECT_ID_INPUT?: <optional> }})` *oder* direkt “RepoScreen link flow” (falls existiert).  
+   - **Nachlauf**: `repo.easProjectId`, `repo.workflow.easLink`, optional `repo.appConfig.usesEasProjectJson`.
+
+2) **`repo.easJson` / `repo.easProfile.<p>` (FAIL)**  
+   - Pipeline erkennt fehlende Profiles, aber Fix ist “manuell”.  
+   - **Vorschlag**: “Apply canonical eas.json” AutoFix (jsonMerge oder full upsert).  
+   - Dazu: `buildPipelineDiagnostics` kann bei `repo.easJson` ein Fix anbieten (Template upsert).
+
+3) **`expo-config-validation` (FAIL)**  
+   - **Vorschlag**: AutoFix “Minimal app.json” (name/slug/version/android.package placeholder).  
+   - Wichtig: android.package muss unique sein → default `com.example.app` + UI zwingt user to edit.
+
+4) **`security-workflow-service-role-key` (FAIL)**  
+   - AutoFix ist absichtlich konservativ (gut).  
+   - **Vorschlag**: “Safe Assist Fix”: ersetzt nur **eindeutig** hardcoded Werte durch `${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}` *wenn* KEY name genau passt und line single-scalar ist.  
+   - Zusätzlich: **Warn-Modal**: “Keys rotieren”.
+
+### 5.2 Manual Steps schärfen (DX)
+- Für `repo.secret.list` klarer: “Dein GitHub Token ist zu schwach: benötigte Permission = Actions secrets read / repo admin. Ohne das kann Diagnose nicht verifizieren, Build kann trotzdem später failen.”
+- Für `security-forbidden-files`: Kurz-Runbook (remove + rotate + history rewrite).
+
+---
+
+## 6) “Buildflow startbar” – Minimaler Green Path
+
+**Wenn du NUR starten willst (dev/preview):**
+1) Repo/Branch gesetzt (SoT, kein Fallback)
+2) Tokens: GitHub + Expo vorhanden
+3) Diagnostic run → **keine FAILs** bei:
+   - `core-package-json`, `entry-point`, `expo-config-validation`, `security-forbidden-files`
+4) Repo hat:
+   - `.github/workflows/eas-link.yml`, `k1w1-triggered-build.yml`, `eas-build.yml`, `release-build.yml` (via CI AutoFix)
+   - `EXPO_TOKEN` Secret
+   - `eas.json` mit `build.development` & `build.preview` (APK, withoutCredentials=true empfohlen)
+   - `eas-project.json` (projectId) oder equivalent.
+
+Dann: Build Start Gate ist stabil.
+

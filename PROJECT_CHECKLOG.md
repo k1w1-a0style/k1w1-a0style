@@ -200,3 +200,7 @@
 - Verbindliches „Diagnostics → Fix Playbook“ ergänzt (Blocker/Warnung, AutoFix-Aktion, Manual Steps, Re-Checks) inkl. Gap-Analyse für Blocker ohne robusten Fixpfad.
 - Testabdeckung neu gemappt (`docs/08-test-coverage-matrix.md`): vorhandene Tests vs Lücken, 18 priorisierte neue Tests (High/Med), plus Invariant-String-Guards.
 - `docs/04-testing-smoke-plan.md` auf Readiness/Diagnostics-Matrix aktualisiert (Smoke-Cases, Prioritäten, Exit-Kriterien).
+- Added issue-ready Gap Tickets inkl. Prio/Labels (`docs/09-gap-tickets.md`).
+- Added Product & Flows Overview (`docs/10-product-and-flows.md`).
+- Added QA/Operator Runbook (`docs/runbooks/APP_RUNBOOK.md`).
+- Added Patch Notes (`docs/patches/PATCH_337_NOTES.md`).

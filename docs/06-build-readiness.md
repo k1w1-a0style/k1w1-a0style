@@ -294,3 +294,10 @@ fi
 4. UI kann weiterhin `buildBlockedReason` für sofortiges Feedback nutzen; Service bleibt letzte harte Instanz.
 
 Damit wird der Buildflow „wasserdicht“ gegen Umgehungen außerhalb der Build-Screen-UI.
+
+## Related
+- Diagnostics → Fix Playbook: `docs/07-diagnostics-fix-playbook.md`
+- Test Coverage Matrix: `docs/08-test-coverage-matrix.md`
+- Smoke Plan: `docs/04-testing-smoke-plan.md`
+- Gap Tickets: `docs/09-gap-tickets.md`
+

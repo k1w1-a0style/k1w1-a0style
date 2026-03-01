@@ -33,3 +33,11 @@ Alles andere: bitte nach `docs/` verschieben (oder löschen, wenn es nur tempor�
 - Patch 228: DEV Commands + Index/README adjustments (2026-02-20) — docs/patches/patch_228.md
 - Patch 229: CI Lite utils SoT + docs alignment (2026-02-20) — docs/patches/patch_229.md
 - Patch 230: Bundle 227–229 (CI Lite SoT + DEV_COMMANDS) (2026-02-21) — docs/patches/patch_230.md
+
+- [06 — Build Readiness](06-build-readiness.md)
+- [07 — Diagnostics → Fix Playbook](07-diagnostics-fix-playbook.md)
+- [08 — Test Coverage Matrix](08-test-coverage-matrix.md)
+- [04 — Testing & Smoke Plan](04-testing-smoke-plan.md)
+- [09 — Gap Tickets](09-gap-tickets.md)
+- [10 — Product & Flows](10-product-and-flows.md)
+- [Runbook — QA/Operator](runbooks/APP_RUNBOOK.md)
