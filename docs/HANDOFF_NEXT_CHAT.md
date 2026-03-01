@@ -30,7 +30,7 @@ Stand: **2026-02-19** (Europe/Berlin)
 
 ### Sofort machbar (kleine Patches)
 1. **Docs/Checklogs aufräumen** — Hand-off/ToDo enthalten teils alte Punkte (logger/keyMasking/github types).
-2. **contexts/types.ts Aufräumen** — Shared-Type-Imports sind migriert. In `contexts/types.ts` sind jetzt nur noch Context-lokale Typen (z.B. `ProjectContextProps`) + deprecated Re-exports. Nächster Schritt: diese lokalen Typen in eine dedizierte Datei (z.B. `contexts/projectTypes.ts`) verschieben und dann `contexts/types.ts` entfernen.
+2. **contexts/types.ts Aufräumen** — ✅ abgeschlossen in Patch 326: `ProjectContextProps` liegt in `contexts/projectTypes.ts`, `contexts/types.ts` wurde entfernt.
 3. **Console → logger** (optional) — logger existiert und ist in Preview-Hooks nutzbar; bei Bedarf weitere Hotspots migrieren und ESLint `no-console` schärfen.
 
 ### Mittelfristig

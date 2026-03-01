@@ -163,3 +163,4 @@
 - TypeScript-Hygiene: Shim-Migration für `contexts/types.ts` gestartet.
 - `ProjectContext` und `ProjectContext.types` importieren `AutoFixRequest`/`LastPreviewMeta` nun direkt aus `shared/types/project`.
 - TODO/Patchlog-Dokumentation auf den neuen Zwischenstand synchronisiert.
+- Patch 326: `contexts/types.ts`-Shim vollständig entfernt, `ProjectContextProps` nach `contexts/projectTypes.ts` ausgelagert und Importe umgestellt.
