@@ -178,3 +178,13 @@
 - Added regression coverage in `__tests__/buildPollingService.test.ts` for object-shaped AbortError throws.
 - Checks: `npm run typecheck`, `npm run lint:ci`, `npm run test:silent` erfolgreich.
 
+
+## Patch 334 (2026-03-01)
+- Verbindliche Projektdoku als Single Source of Truth erstellt:
+  - `docs/00-overview.md`
+  - `docs/01-state-contract.md`
+  - `docs/02-build-pipeline.md`
+  - `docs/03-screen-index.md`
+  - `docs/04-risk-hotspots.md`
+- Evidence-Pflicht umgesetzt (Datei + Symbol + Codeauszug pro Kernaussage).
+- Risiken explizit markiert inkl. "UNSICHER" bei nicht belegbarem `ersId`.
