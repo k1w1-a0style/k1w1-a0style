@@ -1,6 +1,25 @@
 // lib/orchestrator/providers/anthropic.ts
 import type { Quality, LlmMessage, OrchestratorResult } from "../types";
-import { stripThinking, splitSystem, toOpenAIInput, fetchTextSafe } from "../helpers";
+import { stripThinking, splitSystem, fetchTextSafe } from "../helpers";
+
+type AnthropicContentBlock = {
+  type?: string;
+  text?: string;
+};
+
+type AnthropicTextBlock = {
+  type: 'text';
+  text: string;
+};
+
+function isAbortError(error: unknown): boolean {
+  return !!error && typeof error === 'object' && 'name' in error && (error as { name?: unknown }).name === 'AbortError';
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
 
 export async function callAnthropic(
   apiKey: string,
@@ -56,23 +75,25 @@ export async function callAnthropic(
       return { ok: false, error: `Anthropic API Fehler (${response.status}): ${await fetchTextSafe(response)}` };
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as {
+      content?: AnthropicContentBlock[];
+    };
     const text = Array.isArray(data?.content)
       ? data.content
-          .filter((b: any) => b?.type === 'text' && typeof b?.text === 'string')
-          .map((b: any) => b.text)
+          .filter((b): b is AnthropicTextBlock => b?.type === 'text' && typeof b?.text === 'string')
+          .map((b) => b.text)
           .join('\n')
-      : data?.content?.[0]?.text;
+      : '';
 
     const cleaned = stripThinking(String(text || ''));
     if (!cleaned) return { ok: false, error: 'Keine Antwort von Anthropic erhalten' };
 
     return { ok: true, text: cleaned };
-  } catch (error: any) {
-    if (error?.name === "AbortError" || signal?.aborted) {
+  } catch (error: unknown) {
+    if (isAbortError(error) || signal?.aborted) {
       return { ok: false, error: "Request abgebrochen" };
     }
-return { ok: false, error: `Anthropic Netzwerkfehler: ${error?.message ?? String(error)}` };
+    return { ok: false, error: `Anthropic Netzwerkfehler: ${getErrorMessage(error)}` };
   }
 }
 

@@ -18,6 +18,15 @@ import { callHuggingFace } from './providers/huggingface';
 // Re-export types so existing imports keep working
 export type { LlmMessage, OrchestratorResult } from './types';
 
+function isAbortError(error: unknown): boolean {
+  return !!error && typeof error === 'object' && 'name' in error && (error as { name?: unknown }).name === 'AbortError';
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
 export function parseFilesFromText(text: string): Array<{ path: string; content: string }> | null {
   return normalizeAiResponse(text);
 }
@@ -102,9 +111,9 @@ export async function runOrchestrator(
       keysRotated: keysRotated || undefined,
       timing: { startMs, endMs, durationMs: endMs - startMs },
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     const endMs = Date.now();
-    if (error?.name === "AbortError" || signal?.aborted) {
+    if (isAbortError(error) || signal?.aborted) {
       return {
         ok: false, error: "Request abgebrochen", provider, model: resolvedModel,
         keysRotated: keysRotated || undefined,
@@ -112,7 +121,7 @@ export async function runOrchestrator(
       };
     }
     return {
-      ok: false, error: `Orchestrator Fehler: ${error?.message ?? String(error)}`,
+      ok: false, error: `Orchestrator Fehler: ${getErrorMessage(error)}`,
       provider, model: resolvedModel,
       keysRotated: keysRotated || undefined,
       timing: { startMs, endMs, durationMs: endMs - startMs },

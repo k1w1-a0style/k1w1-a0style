@@ -1,5 +1,6 @@
 ## Patchlog Root
 
+- Patch 324: create prioritized fix-list from project audit and complete first orchestrator typing hardening steps (openai/anthropic/index catch + response typing) (see docs/patches/patch_324.md)
 - Patch 323: reduce `any` usage in `contexts/AIContext` helpers/provider persistence + PROJECT_TODO sync (see docs/patches/patch_323.md)
 - Patch 322: start contexts/types shim migration in ProjectContext imports (`AutoFixRequest`/`LastPreviewMeta` -> shared/types/project) + TODO/checklog sync (see docs/patches/patch_322.md)
 - Patch 321: add minimal preview observability via `meta.debug` in `usePreview` + PROJECT_TODO/checklog sync (see docs/patches/patch_321.md)
