@@ -77,4 +77,4 @@
 
 - Patch 335: Contract-Test Coverage Matrix + priorisierte Smoke/Invariant-Testvorschläge (siehe docs/patches/patch_335.md)
 
-- Patch 337 (2026-03-01): Diagnostics/Fix Playbook + Test Matrix + Runbook (see docs/patches/PATCH_337_NOTES.md)
+- Patch 337 (2026-03-01): Diagnostics/Fix Playbook + Test Matrix + Runbook (see docs/patches/patch_337.md and docs/patches/PATCH_337_NOTES.md)
