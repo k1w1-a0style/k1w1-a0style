@@ -10,6 +10,27 @@ import {
   getStatusIcon,
 } from "../../../utils/buildScreenUtils";
 import { styles } from "../../../styles/enhancedBuildScreenStyles";
+import type { BuildHistoryEntry } from "../../../shared/types/build";
+
+type HistoryFilter = "all" | "development" | "preview" | "production";
+
+type BuildHistoryStats = {
+  total: number;
+  success: number;
+  failed: number;
+  building: number;
+};
+
+type BuildHistorySectionProps = {
+  historyLoading: boolean;
+  stats: BuildHistoryStats;
+  history: BuildHistoryEntry[];
+  clearHistory: () => void;
+  deleteEntry: (jobId: string) => void;
+  openRun: (url: string) => void;
+  historyFilter: HistoryFilter;
+  setHistoryFilter: (v: HistoryFilter) => void;
+};
 
 export function BuildHistorySection({
   historyLoading,
@@ -20,20 +41,11 @@ export function BuildHistorySection({
   openRun,
   historyFilter,
   setHistoryFilter,
-}: {
-  historyLoading: boolean;
-  stats: { total: number; success: number; failed: number; building: number };
-  history: any[];
-  clearHistory: () => void;
-  deleteEntry: (jobId: string) => void;
-  openRun: (url: string) => void;
-  historyFilter: "all" | "development" | "preview" | "production";
-  setHistoryFilter: (v: "all" | "development" | "preview" | "production") => void;
-}): React.ReactElement {
+}: BuildHistorySectionProps): React.ReactElement {
   const grouped = useMemo(() => {
     const counts: Record<string, number> = { development: 0, preview: 0, production: 0 };
     for (const h of history) {
-      const p = String((h as any)?.buildProfile || "").toLowerCase();
+      const p = String(h.buildProfile || "").toLowerCase();
       if (p in counts) counts[p] += 1;
     }
     return counts;
@@ -68,8 +80,8 @@ export function BuildHistorySection({
         "htmlUrl",
         "artifactUrl",
         "errorMessage",
-      ];
-      const rows = history.map((h: any) =>
+      ] satisfies Array<keyof BuildHistoryEntry>;
+      const rows = history.map((h) =>
         headers
           .map((k) => escapeCsv(h?.[k]))
           .join(","),
@@ -146,28 +158,28 @@ export function BuildHistorySection({
             )}
           </View>
 
-<View style={styles.filterRow}>
-  {([
-    ["all", "Alle"],
-    ["development", "Dev"],
-    ["preview", "Preview"],
-    ["production", "Prod"],
-  ] as const).map(([k, label]) => {
-    const active = historyFilter === k;
-    return (
-      <TouchableOpacity
-        key={k}
-        style={[styles.filterPill, active && styles.filterPillActive]}
-        onPress={() => setHistoryFilter(k)}
-        activeOpacity={0.75}
-      >
-        <Text style={[styles.filterPillText, active && styles.filterPillTextActive]}>
-          {label}
-        </Text>
-      </TouchableOpacity>
-    );
-  })}
-</View>
+          <View style={styles.filterRow}>
+            {([
+              ["all", "Alle"],
+              ["development", "Dev"],
+              ["preview", "Preview"],
+              ["production", "Prod"],
+            ] as const).map(([k, label]) => {
+              const active = historyFilter === k;
+              return (
+                <TouchableOpacity
+                  key={k}
+                  style={[styles.filterPill, active && styles.filterPillActive]}
+                  onPress={() => setHistoryFilter(k)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.filterPillText, active && styles.filterPillTextActive]}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           {history.length > 0 && (
             <View style={styles.runList}>

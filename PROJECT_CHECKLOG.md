@@ -168,3 +168,8 @@
 - `ProjectContext` und `ProjectContext.types` importieren `AutoFixRequest`/`LastPreviewMeta` nun direkt aus `shared/types/project`.
 - TODO/Patchlog-Dokumentation auf den neuen Zwischenstand synchronisiert.
 - Patch 326: `contexts/types.ts`-Shim vollständig entfernt, `ProjectContextProps` nach `contexts/projectTypes.ts` ausgelagert und Importe umgestellt.
+## Patch 331 (2026-03-01)
+- Build-Screen TS-Härtung: `BuildHistorySection` nutzt jetzt `BuildHistoryEntry[]` statt `any[]`, inklusive key-safe CSV-Header (`keyof BuildHistoryEntry`).
+- Kleine JSX-Konsistenz: Filter-Block sauber eingerückt (ohne Verhaltensänderung).
+- Checks: `npm run typecheck`, `npm run lint:ci`, `npm run test:silent` erfolgreich.
+

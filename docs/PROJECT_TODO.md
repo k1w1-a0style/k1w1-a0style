@@ -37,7 +37,7 @@
 
 - [x] **Logger / no-console (optional)** — `lib/logger.ts` existiert; Hotspots von `console.*` → `logger` migriert und ESLint `no-console` geschärft ✅ *(patch 315/320)*
 - [x] **`contexts/types.ts` Shim** — Migration abgeschlossen: Shim entfernt, `ProjectContextProps` nach `contexts/projectTypes.ts` ausgelagert ✅ *(patch 326)*
-- [ ] **355 `: any` Annotationen** — systematischer TS-Safety-Debt, besonders in `contexts/` (Patch 327/328/329/330: weitere Catch-Pfade + Terminal/BuildStatus + ConnectionsScreen/useGitHubRepos-Hardening ohne zentrale `any`-Props)
+- [ ] **`: any` Annotationen reduzieren** — weiterhin systematischer TS-Safety-Debt, besonders in `contexts/` (Patch 327/328/329/330/331: Catch-Pfade + Terminal/BuildStatus + ConnectionsScreen/useGitHubRepos + EnhancedBuild BuildHistorySection-Hardening)
 
 ---
 
