@@ -57,7 +57,7 @@ const shouldIgnore = (msg: string) => {
   return NOISE_PATTERNS.some((p) => (typeof p === 'string' ? msg.includes(p) : p.test(msg)));
 };
 
-const formatArgs = (args: any[]) => {
+const formatArgs = (args: unknown[]) => {
   return args
     .map((a) => {
       if (typeof a === 'string') return a;
@@ -177,19 +177,19 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
 
     originalsRef.current = { log: originalLog, warn: originalWarn, error: originalError };
 
-    console.log = (...args: any[]) => {
+    console.log = (...args: unknown[]) => {
       const msg = formatArgs(args);
       addLog(msg, 'log');
       originalLog(...args);
     };
 
-    console.warn = (...args: any[]) => {
+    console.warn = (...args: unknown[]) => {
       const msg = formatArgs(args);
       addLog(msg, 'warn');
       originalWarn(...args);
     };
 
-    console.error = (...args: any[]) => {
+    console.error = (...args: unknown[]) => {
       const msg = formatArgs(args);
       addLog(msg, 'error');
       originalError(...args);
