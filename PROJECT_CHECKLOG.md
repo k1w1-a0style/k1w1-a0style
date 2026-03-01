@@ -189,3 +189,8 @@
 - Evidence-Pflicht umgesetzt (Datei + Symbol + Codeauszug pro Kernaussage).
 - Risiken explizit markiert inkl. "UNSICHER" bei nicht belegbarem `ersId`.
 - 2026-03-01: Patch 335 prepared: Contract-Invarianten gegen bestehende Tests gemappt, High-Risk-Lücken priorisiert, 12 neue Smoke/Invariant-Testvorschläge + 5 Copy-Paste Stringchecks dokumentiert.
+
+## Patch 336 (2026-03-01)
+- Build Readiness Gate als verbindlichen Vertrag dokumentiert (profilabhängige Preconditions, Matrix, Blocker/Warnungen, AutoFix-Pfade).
+- `docs/02-build-pipeline.md` um Gate-Regeln + Single Entry Point (`startBuildJob`) erweitert.
+- Evidence pro Gate-Baustein ergänzt (Codefundstellen inkl. Ausschnitte).
