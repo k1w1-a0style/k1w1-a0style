@@ -3,12 +3,13 @@ import { ActivityIndicator, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../../../theme";
+import type { ConnectionsStyles, IoniconName } from "./types";
 
 export function ActionButton(props: {
-  styles: any;
+  styles: ConnectionsStyles;
   busy: boolean;
   label: string;
-  icon: any;
+  icon: IoniconName;
   onPress: () => void;
   variant?: "primary" | "ghost";
   loading?: boolean;

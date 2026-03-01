@@ -3,11 +3,12 @@ import { Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../../../theme";
+import type { ConnectionsStyles } from "./types";
 import { ActionButton } from "./ActionButton";
 import { InputRow } from "./InputRow";
 
 export function TokensCard(props: {
-  styles: any;
+  styles: ConnectionsStyles;
   busy: boolean;
   githubToken: string;
   onChangeGitHubToken: (v: string) => void;

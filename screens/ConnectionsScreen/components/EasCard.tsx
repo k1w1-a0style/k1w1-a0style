@@ -3,10 +3,11 @@ import { Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../../../theme";
+import type { ConnectionsStyles } from "./types";
 import { InputRow } from "./InputRow";
 
 export function EasCard(props: {
-  styles: any;
+  styles: ConnectionsStyles;
   busy?: boolean;
   easProjectId: string;
   onChangeEasProjectId: (v: string) => void;
