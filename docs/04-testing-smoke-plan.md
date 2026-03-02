@@ -32,6 +32,18 @@ Erwartung:
 
 ---
 
+### 1.3 Docs-Lint (Doku-Konsistenz)
+```bash
+npm run docs:lint
+```
+
+Erwartung:
+- Links in `docs/INDEX.md` zeigen auf existierende Dateien
+- Patch-Referenzen in `docs/patches/PATCHLOG_ROOT.md` sind gültig
+- Check-IDs aus `docs/07-diagnostics-fix-playbook.md` sind in `lib/diagnostics` auffindbar
+
+---
+
 ## 2) Diagnostics Smoke (In-App)
 
 ### 2.1 Local checks

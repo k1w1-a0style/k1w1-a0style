@@ -59,7 +59,13 @@ if (exists(playbookFile)) {
   const playbook = read(playbookFile);
   const idMatches = playbook.match(/`([a-z][a-z0-9_.-]+)`/g) || [];
   const allowedPrefixes = ['local.', 'repo.', 'security-', 'workflow-', 'assets-', 'lockfile-', 'gitignore-', 'native-', 'eas-', 'core-', 'entry-', 'expo-', 'rn-', 'quality-'];
-  const ids = Array.from(new Set(idMatches.map((s) => s.slice(1, -1)).filter((s) => allowedPrefixes.some((p) => s.slice(1, -1).startsWith(p)))));
+  const ids = Array.from(
+    new Set(
+      idMatches
+        .map((s) => s.slice(1, -1))
+        .filter((id) => allowedPrefixes.some((p) => id.startsWith(p)))
+    )
+  );
 
   const diagDir = path.join(repoRoot, 'lib', 'diagnostics');
   let diagCorpus = '';

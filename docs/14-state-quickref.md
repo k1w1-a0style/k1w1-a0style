@@ -1,55 +1,44 @@
-# 14 — State Quick Reference
+# 14 — State Quick Reference (SoT + Persistenz)
 
 Stand: 2026-03-02
 
-## 1) Source of Truth (SoT)
-- **Global Project-SoT:** `projectData` in `ProjectContext`.
-- Autoritative Auswahlwerte:
-  - `projectData.linkedRepo`
-  - `projectData.linkedBranch`
-  - `projectData.preferredBuildProfile`
-- `GitHubContext.activeRepo/activeBranch` sind Mirror-States für UX, nicht primärer SoT.
+## 1) Source of Truth pro Domäne
 
-## 2) Persistente Keys (AsyncStorage)
-Quelle: `lib/storageKeys.ts`
+| Domäne | SoT | Mirror / Derived | Hinweise |
+|---|---|---|---|
+| Repo/Branch/Profile | `ProjectContext.projectData` (`linkedRepo`, `linkedBranch`, `preferredBuildProfile`) | `GitHubContext.activeRepo/activeBranch` | Mirror wird aus `projectData.linked*` synchronisiert |
+| Build-Start | `ProjectContext.startBuild` + `startBuildJob` | Build UI states (`useEnhancedBuildScreen`) | Gate: Branch vorhanden + `diagnostic_last_ok=true` |
+| Diagnostics Status | AsyncStorage `diagnostic_last_ok` + letzte Reports im Screen-State | Header counts / issue filter | Wird von Diagnose geschrieben, vom Build gelesen |
+| Connections | Token storage/services + `STORAGE_KEYS.CONN_*` | Lampen/Badges in Connections/GitHub Repos | Nur positiv getestete Zustände als `*_ok` |
 
-### Selection/Connection
-- `eas_project_id`
-- `conn_github_ok`, `conn_github_user`, `conn_github_scopes`
-- `conn_expo_ok`, `conn_expo_user`
-- `conn_supabase_ok`, `conn_supabase_ref`
-- `conn_eas_ok`, `conn_repo_ok`, `conn_repo_slug`, `conn_repo_branch`
-- `recent_branches_by_repo`
+## 2) Persistente Keys (Quickref)
 
-### Build/Diagnostics
-- `diagnostic_last_ok`
-- `cred_key_exists_dev`, `cred_key_exists_preview`, `cred_key_exists_production`
-- `ci_lite_lint_ok`, `ci_lite_typecheck_ok`, `ci_lite_last_run_at`
-- `k1w1_build_history`
-- `one_click_auto_sync_secrets`
+### Aus `lib/storageKeys.ts`
+- Supabase/Legacy: `supabase_raw`, `supabase_url`, `supabase_key`, `supabase_service_role_key` (legacy)
+- Connection: `conn_github_ok`, `conn_github_user`, `conn_github_scopes`, `conn_expo_ok`, `conn_expo_user`, `conn_supabase_ok`, `conn_supabase_ref`, `conn_eas_ok`
+- Repo-Connection: `conn_repo_ok`, `conn_repo_slug`, `conn_repo_branch`, `recent_branches_by_repo`
+- Diagnostics/Build: `diagnostic_last_ok`, `ci_lite_lint_ok`, `ci_lite_typecheck_ok`, `ci_lite_last_run_at`, `k1w1_build_history`
+- Signing/Profile: `cred_key_exists_dev`, `cred_key_exists_preview`, `cred_key_exists_production`
+- UX/Settings: `k1w1_chat_persist_history`, `k1w1_chat_retention_limit`, `one_click_auto_sync_secrets`, `eas_project_id`
 
-### Settings / Privacy
-- `k1w1_chat_persist_history`
-- `k1w1_chat_retention_limit`
+### Aus `shared/constants/github.ts` (GitHubContext)
+- `k1w1_github_recent_repos`
+- `k1w1_github_active_repo`
+- `k1w1_github_active_branch`
 
-### Legacy/Migration-sensitive
-- `supabase_service_role_key` ist als Legacy-Key benannt; Service Role wird Richtung SecureStore migriert.
+## 3) Ephemeral State (nur RAM)
+- Diagnose UI-State: Filter, offene Issue-Details, laufender Busy-Status.
+- Build UI-State: Polling/Modal/Progress-Komponenten.
+- Temporäre Screen-Selections und Toasts.
 
-## 3) Ephemeral (nicht persistent)
-- Laufende UI-Busy/Modal/Selection States in Screen-Hooks (z. B. Diagnostic Filter, open sheets).
-- Temporäre Polling-States im Buildscreen.
-- Terminal log runtime state (nur in Session, sofern nicht separat exportiert).
+## 4) Migration / Backups
+- `supabase_service_role_key` ist als Legacy-AsyncStorage-Key markiert; Ziel ist SecureStore-Nutzung.
+- Projektdaten werden als Projekt-Blob geladen/gespeichert (über Projekt-Persistenz in `infra/storage/projectPersistence`).
+- Import/Export-Flows können `linkedRepo/linkedBranch` ändern; danach immer Diagnostics + Build-Preconditions neu prüfen.
 
-## 4) State Contract Kurzregeln
-1. Repo/Branch immer über `projectData.linked*` als Business-SoT behandeln.
-2. Build-Gate liest `diagnostic_last_ok` + signing/token prerequisites.
-3. Keine stillen Branch-Erfindungen im Buildstart.
-4. Mirror-State darf UX verbessern, aber nicht SoT überschreiben ohne Intent.
+## 5) Persistenz-Tests / Invariants
+- `__tests__/invariants.strings.test.ts`: zentrale String-/Key-Invarianten.
+- `__tests__/buildReadiness.assert.test.ts`: Gate-Invarianten (`ERR_BRANCH_MISSING`, `ERR_DIAGNOSTIC_NOT_GREEN`).
+- `__tests__/buildStartService.startBuildJob.test.ts`: StartBuild Job-Verhalten inkl. Guardrails.
 
-## 5) Tests / Invariants
-- String-Invariants für zentrale Keys: `__tests__/invariants.strings.test.ts`.
-- Build-Gate Verhalten: Tests rund um `buildStartService`/preconditions.
-
-## 6) Backup/Migration Hinweise
-- Projektblob wird über Projekt-Persistenz geladen/gespeichert (`k1w1_project_data`).
-- Import/Export-Flows können linked Repo/Branch aktualisieren; danach immer Diagnostics/Buildscreen kurz rechecken.
+Siehe ausführlich: `docs/01-state-contract.md`.
