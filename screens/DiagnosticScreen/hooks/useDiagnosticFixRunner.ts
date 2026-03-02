@@ -16,7 +16,7 @@ import {
   summarizeBatchRisk,
 } from "../../../lib/diagnostics/fixSafety";
 import { validateFileContent, validateFilePath } from "../../../lib/validators";
-import { createOrUpdateFile, deleteRepoFile } from "../../../infra/github/githubService";
+import { createOrUpdateFile, deleteRepoFile, triggerWorkflow } from "../../../infra/github/githubService";
 import { parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
 
 import type {
@@ -392,12 +392,19 @@ export function useDiagnosticFixRunner(opts: {
 
   const applyIssueFix = useCallback(
     async (r: PreflightCheckResult) => {
-      if (!r.fix?.patch) return;
+      if (!r.fix?.patch && !r.fix?.workflowDispatch) return;
 
-      const doSync = shouldSyncPatch(r.fix.patch);
+      const patchForApply = r.fix?.patch;
+      const dispatch = r.fix?.workflowDispatch;
+      const doSync = patchForApply ? shouldSyncPatch(patchForApply) : false;
 
       const steps: FixStep[] = [
-        { key: "apply", title: "Apply patch (local)", status: "pending" },
+        ...(patchForApply
+          ? [{ key: "apply", title: "Apply patch (local)", status: "pending" as FixStepStatus }]
+          : []),
+        ...(dispatch
+          ? [{ key: "dispatch", title: "Trigger workflow dispatch", status: "pending" as FixStepStatus }]
+          : []),
         ...(doSync ? [{ key: "sync", title: "Sync to GitHub", status: "pending" as FixStepStatus }] : []),
         ...(rerunAfterFix
           ? [{ key: "rerun", title: "Re-Run Diagnostics (Verify)", status: "pending" as FixStepStatus }]
@@ -411,58 +418,80 @@ export function useDiagnosticFixRunner(opts: {
       setFixDone(false);
       setFixModalVisible(true);
 
-      setFixSteps((prev) => prev.map((s, i) => (i === 0 ? { ...s, status: "running" } : s)));
-      try {
-        await applyPatch(r.title, r.fix.patch);
-        setFixSteps((prev) => prev.map((s, i) => (i === 0 ? { ...s, status: "done" } : s)));
-      } catch (e: any) {
-        setFixSteps((prev) =>
-          prev.map((s, i) =>
-            i === 0
-              ? { ...s, status: "failed", message: safeTruncateText(e?.message || "Fehler", 160) }
-              : s,
-          ),
-        );
-        setFixDone(true);
-        return;
-      }
-
-      let cursor = 1;
-      if (doSync) {
+      let cursor = 0;
+      const runStep = async (fn: () => Promise<void>, failMsg: string) => {
         setFixStepIndex(cursor);
         setFixSteps((prev) => prev.map((s, i) => (i === cursor ? { ...s, status: "running" } : s)));
         try {
-          await syncPatchToGitHub(r.title, r.fix.patch);
+          await fn();
           setFixSteps((prev) => prev.map((s, i) => (i === cursor ? { ...s, status: "done" } : s)));
+          cursor++;
+          return true;
         } catch (e: any) {
           setFixSteps((prev) =>
             prev.map((s, i) =>
               i === cursor
-                ? { ...s, status: "failed", message: safeTruncateText(e?.message || "Sync fehlgeschlagen", 160) }
+                ? { ...s, status: "failed", message: safeTruncateText(e?.message || failMsg, 160) }
                 : s,
             ),
           );
           setFixDone(true);
+          return false;
+        }
+      };
+
+      if (patchForApply) {
+        const ok = await runStep(() => applyPatch(r.title, patchForApply), "Fehler");
+        if (!ok) return;
+      }
+
+      if (dispatch) {
+        const parsed = parseOwnerRepo(linkedRepo);
+        if (!parsed) {
+          setFixDone(true);
           return;
         }
-        cursor++;
+        const workflowRef = (dispatch.ref || linkedBranch || "main").trim() || "main";
+
+        const ok = await runStep(async () => {
+          try {
+            await triggerWorkflow(
+              parsed.owner,
+              parsed.repo,
+              dispatch.workflowFileName,
+              workflowRef,
+              dispatch.inputs || {},
+            );
+          } catch (e: any) {
+            const msg = String(e?.message || "");
+            if (/404|not found/i.test(msg) && dispatch.fallbackPatch) {
+              await applyPatch(`Bootstrap ${dispatch.workflowFileName}`, dispatch.fallbackPatch);
+              await triggerWorkflow(
+                parsed.owner,
+                parsed.repo,
+                dispatch.workflowFileName,
+                workflowRef,
+                dispatch.inputs || {},
+              );
+              return;
+            }
+            throw e;
+          }
+        }, "Workflow dispatch fehlgeschlagen");
+        if (!ok) return;
+      }
+
+      if (doSync && patchForApply) {
+        const ok = await runStep(() => syncPatchToGitHub(r.title, patchForApply), "Sync fehlgeschlagen");
+        if (!ok) return;
       }
 
       if (rerunAfterFix) {
-        setFixStepIndex(cursor);
-        setFixSteps((prev) => prev.map((s, i) => (i === cursor ? { ...s, status: "running" } : s)));
-        try {
-          await runDiagnostics({ resetSelection: false, resetHistory: false });
-          setFixSteps((prev) => prev.map((s, i) => (i === cursor ? { ...s, status: "done" } : s)));
-        } catch (e: any) {
-          setFixSteps((prev) =>
-            prev.map((s, i) =>
-              i === cursor
-                ? { ...s, status: "failed", message: safeTruncateText(e?.message || "Verify fehlgeschlagen", 160) }
-                : s,
-            ),
-          );
-        }
+        const ok = await runStep(
+          () => runDiagnostics({ resetSelection: false, resetHistory: false }),
+          "Verify fehlgeschlagen",
+        );
+        if (!ok) return;
       }
 
       setFixDone(true);
@@ -471,6 +500,8 @@ export function useDiagnosticFixRunner(opts: {
     },
     [
       applyPatch,
+      linkedBranch,
+      linkedRepo,
       rerunAfterFix,
       runDiagnostics,
       shouldSyncPatch,
@@ -489,7 +520,7 @@ export function useDiagnosticFixRunner(opts: {
       // We do one extra confirmation if any patch looks risky.
       const batch = items
         .filter((r) => !!r.fix?.patch)
-        .map((r) => ({ title: r.title, patch: r.fix!.patch }));
+        .map((r) => ({ title: r.title, patch: r.fix!.patch as PreflightPatch }));
 
       // --- Size/complexity guard ---
       // Even if paths are not "risky", very large patches can slow devices and raise regression risk.
@@ -534,7 +565,7 @@ export function useDiagnosticFixRunner(opts: {
       const deduped: Array<{ r: PreflightCheckResult; patch: PreflightPatch }> = [];
       for (const r of items) {
         if (!r.fix?.patch) continue;
-        const patch = r.fix.patch;
+        const patch = r.fix.patch as PreflightPatch;
         const fp = patchFingerprint(patch);
         if (seen.has(fp)) continue;
         seen.add(fp);
@@ -719,7 +750,7 @@ export function useDiagnosticFixRunner(opts: {
 
       // Note: TypeScript does not keep narrowing for r.fix across nested closures.
       // Capture once so we can safely reference inside callbacks.
-      const patch = r.fix.patch;
+      const patch = r.fix.patch as PreflightPatch;
 
       const sizeCheck = checkPatchLimits(patch, DEFAULT_PATCH_LIMITS);
       if (sizeCheck.hardFail) {

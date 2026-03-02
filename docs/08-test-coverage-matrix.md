@@ -192,3 +192,13 @@ Ziel: verhindern, dass jemand “aus Versehen” Defaults/hardcodes reintroduzie
   - Diagnostics-UI Sortierung (`fail > warn > pass`)
   - SmartFix wendet nur wirklich fixbare Issues an
   - Runner-Resilience: einzelner throwender Check crasht den Gesamtscan nicht
+
+## Update 2026-03-02 (Phase 5 P0 AutoFix)
+
+Neu abgedeckt (High):
+- `repo.easProjectId` FAIL liefert jetzt Workflow-Dispatch Fix-Metadaten (`eas-link.yml`).
+- `repo.easJson` FAIL liefert canonical upsert fix.
+- `repo.easProfile.*` FAIL liefert additive jsonMerge fix.
+- `expo-config-validation` FAIL liefert minimal `app.json` AutoFix.
+- `security-workflow-service-role-key` Safe Assist (strict pattern) mit Test für exact/non-exact Fälle.
+- Canonical eas-json Merge bewahrt vorhandene Sibling-Keys.

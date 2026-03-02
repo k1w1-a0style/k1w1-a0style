@@ -15,7 +15,16 @@ import type { PreflightPatch } from "./preflightTypes";
 
 export type DiagnosticStatus = "pass" | "warn" | "fail" | "info";
 
-export type DiagnosticFix = { label?: string; patch: PreflightPatch };
+export type DiagnosticFix = {
+  label?: string;
+  patch?: PreflightPatch;
+  workflowDispatch?: {
+    workflowFileName: string;
+    ref?: string;
+    inputs?: Record<string, string>;
+    fallbackPatch?: PreflightPatch;
+  };
+};
 
 export type DiagnosticCheck = {
   id: string;
@@ -60,4 +69,3 @@ export const readJsonFile = async <T>(
     return null;
   }
 };
-

@@ -26,6 +26,27 @@ export type BuildPipelineDiagnosticsDeps = {
   listRepoSecretNames?: typeof listRepoSecretNames;
 };
 
+
+const CANONICAL_EAS_JSON = {
+  cli: { version: ">= 10.0.0" },
+  build: {
+    development: {
+      distribution: "internal",
+      android: { buildType: "apk", withoutCredentials: true },
+    },
+    preview: {
+      distribution: "internal",
+      android: { buildType: "apk", withoutCredentials: true },
+    },
+    production: {
+      android: { buildType: "apk", withoutCredentials: false },
+    },
+  },
+};
+
+const canonicalEasJsonString = () => `${JSON.stringify(CANONICAL_EAS_JSON, null, 2)}
+`;
+
 const DEFAULT_BUILD_PIPELINE_DIAGNOSTICS_DEPS: Required<BuildPipelineDiagnosticsDeps> = {
   getGitHubToken,
   getExpoToken,
@@ -121,6 +142,23 @@ export const runBuildPipelineDiagnostics = async (
     fixHint: expoConfigOk
       ? undefined
       : "Im Repo muss app.config.js / app.config.ts oder app.json vorhanden sein.",
+    fix:
+      expoConfigOk || hasAppConfigJs || hasAppConfigTs
+        ? undefined
+        : {
+            label: "Create minimal Expo config",
+            patch: {
+              upsert: [
+                {
+                  path: "app.json",
+                  content: `${JSON.stringify({ expo: { name: "CHANGE_ME", slug: "change-me", version: "1.0.0", android: { package: "com.change.me" } } }, null, 2)}
+`,
+                },
+              ],
+              explanation:
+                "Minimales app.json erzeugt (TODO: name/slug/version/android.package auf reale Werte anpassen).",
+            },
+          },
   });
 
   checks.push({
@@ -130,6 +168,15 @@ export const runBuildPipelineDiagnostics = async (
     fixHint: hasEasJson
       ? undefined
       : "eas.json fehlt → Template/Patch anwenden (sonst EAS Profiles fehlen).",
+    fix: hasEasJson
+      ? undefined
+      : {
+          label: "Apply canonical EAS config",
+          patch: {
+            upsert: [{ path: "eas.json", content: canonicalEasJsonString() }],
+            explanation: "Legt eine kanonische eas.json mit development/preview/production Profilen an.",
+          },
+        },
   });
 
   // --- EAS profiles (3 flows) & APK-only ---
@@ -164,6 +211,19 @@ export const runBuildPipelineDiagnostics = async (
         status: "fail",
         fixHint:
           "Profil fehlt in eas.json. In-App: Repo-Projektdateien aktualisieren (Templates/Push) oder CI AutoFix nutzen.",
+        fix: {
+          label: "Apply canonical EAS config",
+          patch: {
+            jsonMerge: [
+              {
+                path: "eas.json",
+                patch: { build: { [prof]: (CANONICAL_EAS_JSON.build as any)[prof] } },
+                createIfMissing: true,
+              },
+            ],
+            explanation: `Ergänzt das fehlende build.${prof} Profil in eas.json (additiv).`,
+          },
+        },
       });
       continue;
     }
@@ -479,6 +539,26 @@ export const runBuildPipelineDiagnostics = async (
     fixHint: projectIdOk
       ? undefined
       : "EAS projectId fehlt → In-App: RepoScreen 'EAS Projekt erstellen/verbinden' ausführen oder Workflow 'eas-link.yml' starten.",
+    fix: projectIdOk
+      ? undefined
+      : {
+          label: "EAS Projekt verbinden (Auto)",
+          workflowDispatch: {
+            workflowFileName: "eas-link.yml",
+            ref,
+            fallbackPatch: {
+              upsert: [
+                {
+                  path: ".github/workflows/eas-link.yml",
+                  content:
+                    'name: EAS Link\non:\n  workflow_dispatch:\njobs:\n  link:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo "eas-link placeholder"\n',
+                },
+              ],
+              explanation:
+                "Fehlenden Workflow eas-link.yml anlegen, damit EAS-Link Auto-Fix dispatchbar ist.",
+            },
+          },
+        },
   });
 
 

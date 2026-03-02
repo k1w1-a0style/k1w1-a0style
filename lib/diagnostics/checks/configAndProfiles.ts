@@ -148,6 +148,20 @@ export const checkExpoConfig: PreflightCheck = {
         status: "fail",
         message:
           "Keine app.json oder app.config.js gefunden (Expo Config fehlt).",
+        fix: {
+          label: "Create minimal app.json",
+          patch: {
+            upsert: [
+              {
+                path: "app.json",
+                content: `${JSON.stringify({ expo: { name: "CHANGE_ME", slug: "change-me", version: "1.0.0", android: { package: "com.change.me" } } }, null, 2)}
+`,
+              },
+            ],
+            explanation:
+              "Minimales app.json erstellt. TODO: expo.name/slug/version/android.package auf echte Projektwerte setzen.",
+          },
+        },
       };
     }
 

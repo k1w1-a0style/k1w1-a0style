@@ -40,7 +40,13 @@ export type PreflightCheckResult = {
   /** optional auto-fix */
   fix?: {
     label?: string;
-    patch: PreflightPatch;
+    patch?: PreflightPatch;
+    workflowDispatch?: {
+      workflowFileName: string;
+      ref?: string;
+      inputs?: Record<string, string>;
+      fallbackPatch?: PreflightPatch;
+    };
   };
 };
 

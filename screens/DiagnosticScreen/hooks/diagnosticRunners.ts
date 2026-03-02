@@ -150,7 +150,13 @@ export async function runPipelineChecks(params: {
               : "pass",
         message: c.fixHint || c.details,
         details: c.fixHint && c.details ? [c.details] : undefined,
-        fix: c.fix ? { label: c.fix.label, patch: c.fix.patch } : undefined,
+        fix: c.fix
+          ? {
+              label: c.fix.label,
+              patch: c.fix.patch,
+              workflowDispatch: c.fix.workflowDispatch,
+            }
+          : undefined,
       }));
 
     all.push(...pipelineResults);
