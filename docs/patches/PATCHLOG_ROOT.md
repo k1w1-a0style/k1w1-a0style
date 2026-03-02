@@ -88,3 +88,5 @@
 - Patch 341 (2026-03-02): Stability Hardening – No-Network Jest guard + patch engine idempotency + diagnostics determinism tests (see docs/patches/patch_341.md)
 
 - Patch 342 (2026-03-02): Documentation hardening pass (product flows, operator runbook, screen-flow map, state quickref, docs lint + index consistency) (see docs/patches/patch_342.md)
+
+- Patch 343 (2026-03-02): Docs Finalization Pack (Runbook + Product Flows + Screen Map + SoT Quickref + Docs-Lint) (see docs/patches/patch_343.md)

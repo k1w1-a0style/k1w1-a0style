@@ -1,4 +1,4 @@
-- 2026-03-02: Patch 343 prepared: Statusmeldung zu „Offene TODO/Unknowns“ korrigiert (keine neuen Unknowns, aber bestehender offener TS-Tech-Debt-Punkt `: any` bleibt in `docs/PROJECT_TODO.md` bestehen).
+- 2026-03-02: Patch 343 prepared: Docs Finalization Pack abgeschlossen (Produkt-/Flow-Doku, Operator-Runbook, Screen-Flow-Map, SoT/Persistenz-Quickref, Release-/Index-Konsistenz, docs:lint Hardening).
 - 2026-03-01: Patch 332 prepared: BuildPollingService ohne `any` in Kernpfaden gehärtet (`unknown` catches + sichere JSON-Accessor), dazu neue Regressionstests für non-JSON Antwort, Legacy-Feldauswertung und Abort-Timeout.
 - 2026-03-01: Patch 330 prepared: Expo GraphQL malformed-payload regression fixed (200/non-JSON now fails correctly), regression tests added, plus extra `useGitHubRepos` TS-hygiene (`unknown` catches + typed tree entries).
 - 2026-03-01: Patch 329 prepared: mehrere Fixlistenpunkte im Connections-Flow gebündelt (Props ohne `any`, Hook-Catches auf `unknown`, typisierte JSON-Responses).

@@ -1,109 +1,103 @@
-# 10 — Product & Flows (Was ist die App? Wie benutzt man sie?)
+# 10 — Product & Flows (Executive + Operator View)
 
 Stand: 2026-03-02
 
-## One-liner
-Die App ist ein **Expo/React-Native Build-Orchestrator**, der Repo-Selection, Diagnostics/Fix-Loops und den Build-Start in einem UI-Flow bündelt.  
-Technisch läuft der Build-Start zentral über `ProjectContext.startBuild` → `startBuildJob`.
+## Was ist die App?
+Die App ist ein Expo/React-Native Build-Orchestrator für mobile Projekt-Repos: Sie bündelt Repo-/Branch-Selektion, Verbindungschecks, lokale + Pipeline-Diagnostics, AutoFix-Patches und den Build-Start in einen konsistenten Operator-Flow. Der Build-Start läuft zentral über `ProjectContext.startBuild` und `startBuildJob`, inklusive Build-Gate für Branch und `diagnostic_last_ok`. 
 
-## Was die App konkret tut
-- Verwaltet das aktuell verknüpfte Ziel-Repo + Branch (`projectData.linkedRepo`, `projectData.linkedBranch`).
-- Prüft Build-Readiness über lokale und Pipeline-Diagnostics.
-- Bietet AutoFix-Patches für häufige Build-Blocker (z. B. `eas.json`, Workflow-Quoting, Expo Config).
-- Startet den Build über Supabase Edge Function Trigger + zeigt Verlauf/Status im Build-Screen.
+## Kern-Journeys (Happy Path + reproduzierbare Operator-Schritte)
 
-## Kern-Journeys (Happy + Failure)
-
-### Journey 1 — Quick Happy Path: “Von Null zu erstem Build”
+### 1) First Build (Happy Path)
 **Preconditions**
-- GitHub Token und Expo Token gesetzt (`Connections`).
-- Repo und Branch gewählt (`GitHub Repos`).
+- GitHub Token + Expo Token gesetzt (Screen `Verbindungen`).
+- Repo + Branch gesetzt (Screen `GitHub Repos`, SoT: `projectData.linkedRepo` / `projectData.linkedBranch`).
 
-**Steps**
-1. **GitHub Repos**: Repo auswählen + Branch auswählen.
-2. **Diagnose**: `Run diagnostics` ausführen.
-3. Falls Issues vorhanden: `Smart Fix` (oder Issue öffnen → `Auto-Fix anwenden`) und danach nochmal `Run diagnostics`.
-4. **Build**: Build-Profil wählen und `Start Build`.
+**Schritte (Screens + Buttons)**
+1. `GitHub Repos`: Repo wählen und Branch wählen.
+2. `Diagnose`: `Scannen`.
+3. Falls Issues: `Fixen` (Smart Fix) oder Issue öffnen → `Auto-Fix anwenden`.
+4. `Diagnose`: erneut `Scannen` bis keine Blocker offen sind.
+5. `Build`: Profil wählen und `Build starten`.
 
-**Expected Output**
-- `diagnostic_last_ok` wird auf `true` gesetzt.
-- Build startet, `jobId` (UUID) kommt zurück.
-- Verlauf/Status im Build-Screen sichtbar.
+**Expected Result**
+- Build-Gate ist erfüllt (`diagnostic_last_ok = true`, Branch gesetzt).
+- Build-Job liefert `jobId` (UUID) und erscheint in Status/Historie.
 
 ---
 
-### Journey 2 — Failure Path: `repo.easProjectId` FAIL
+### 2) Repo EAS Link fehlt (`repo.easProjectId` FAIL)
 **Preconditions**
-- Repo/Branch gesetzt, Diagnostics erreichbar.
+- Repo/Branch gesetzt.
 
-**Steps**
-1. **Diagnose** ausführen.
-2. Bei Check `repo.easProjectId` in der Issue-Detailansicht `Auto-Fix anwenden` (EAS Link Workflow Dispatch).
-3. Optional in **GitHub Repos** Secrets/Workflow status prüfen.
-4. `Run diagnostics` erneut ausführen.
+**Schritte**
+1. `Diagnose`: `Scannen`.
+2. Bei `repo.easProjectId` Issue öffnen → `Auto-Fix anwenden`.
+3. Alternativ/ergänzend in `GitHub Repos`: `EAS Projekt erstellen/verbinden`.
+4. `Diagnose`: `Scannen` (Recheck).
 
-**Expected Output**
-- `repo.easProjectId` wird `pass` oder zumindest in einen klaren Manual-Next-Step überführt.
-- Danach kann Build-Gate wieder passieren.
+**Expected Result**
+- `repo.easProjectId` wird `pass` oder zeigt nur noch klaren manuellen Next Step.
 
 ---
 
-### Journey 3 — Failure Path: Workflow YAML quoting (`workflow-yaml-name-colon-quoting`)
+### 3) Fehlendes Repo Secret (`repo.secret.expoToken` FAIL)
+**Preconditions**
+- Lokaler Expo Token vorhanden.
+
+**Schritte**
+1. `Diagnose`: `Scannen`.
+2. `GitHub Repos` → Sektion `Secrets` → `Secrets synchronisieren`.
+3. Falls weiter FAIL: Secret in GitHub manuell prüfen/anlegen.
+4. `Diagnose`: Recheck mit `Scannen`.
+
+**Expected Result**
+- `repo.secret.expoToken` wird `pass`.
+
+---
+
+### 4) Workflow-Quoting-Fehler (`workflow-yaml-name-colon-quoting` FAIL)
 **Preconditions**
 - Workflow-Dateien im Repo vorhanden.
 
-**Steps**
-1. **Diagnose** ausführen.
-2. Betroffenes Issue öffnen.
+**Schritte**
+1. `Diagnose`: `Scannen`.
+2. Issue öffnen.
 3. `Patch Vorschau` prüfen.
 4. `Auto-Fix anwenden`.
-5. `Run diagnostics` erneut ausführen.
+5. `Diagnose`: Recheck.
 
-**Expected Output**
-- YAML-`name:` Zeilen mit `": "` sind gequotet.
-- Check wird `pass`.
-
----
-
-### Journey 4 — Failure Path: EXPO_TOKEN fehlt
-**Preconditions**
-- Repo existiert, GitHub Zugriff vorhanden.
-
-**Steps**
-1. **Diagnose** ausführen (`repo.secret.expoToken` fail).
-2. **GitHub Repos** → `Secrets synchronisieren` (falls Token lokal vorhanden), alternativ GitHub manuell setzen.
-3. `Run diagnostics` erneut ausführen.
-
-**Expected Output**
-- Check `repo.secret.expoToken` wird `pass`.
-- Build-Readiness für tokenbezogene Blocker ist erfüllt.
+**Expected Result**
+- Workflow `name:` mit `": "` sind korrekt gequotet, Check wird `pass`.
 
 ---
 
-### Journey 5 — Production Readiness Check
+### 5) Production Build Readiness
 **Preconditions**
 - Repo/Branch gesetzt.
-- Production-Profil gewählt.
+- Zielprofil `production`.
 
-**Steps**
-1. **Credentials Wizard**: Production-Key-Status prüfen.
-2. **Diagnose**: vollständigen Lauf starten.
-3. Fehlschläge fixen (Autofix oder Manual).
-4. **Build**: `production` auswählen, `Start Build`.
+**Schritte**
+1. `Credentials Wizard`: Signing-Status prüfen.
+2. `Diagnose`: `Scannen`.
+3. Offene FAIL/WARN Punkte fixen (AutoFix oder manuell).
+4. `Build`: Profil `production` setzen und `Build starten`.
 
-**Expected Output**
-- Keine offenen Blocker für Branch + Diagnostic state.
-- Buildtrigger läuft mit `profile=production`.
+**Expected Result**
+- Build mit `profile=production` startet ohne Gate-Blocker.
 
-## Non-goals (bewusst NICHT im Scope)
-- Kein Ersatz für vollständige GitOps/CI-Administration außerhalb der unterstützten Workflows.
-- Keine automatische Secret-Rotation bei Leak-Verdacht (nur Hinweise + sichere Defaults/Manual Steps).
-- Kein vollwertiger Ersatz für EAS/GitHub Debugging in deren nativen UIs (App zeigt Status/Checks, aber nicht jedes Low-Level-Detail).
-- Kein stilles Erraten von Repo/Branch im Startpfad; User-Selektion bleibt Pflicht.
+## Typische Failure Paths (Operator-Kurzlogik)
+- **Branch fehlt** → Build-Gate blockiert (`ERR_BRANCH_MISSING`) → in `GitHub Repos` Branch setzen → Diagnostics re-run.
+- **`diagnostic_last_ok != true`** → Build-Gate blockiert (`ERR_DIAGNOSTIC_NOT_GREEN`) → in `Diagnose` `Scannen` + Fix-Loop.
+- **Workflow Dispatch 404 / EAS-Link fail** → in `GitHub Repos` `EAS Projekt erstellen/verbinden`, ggf. Workflow-Dateien/Repo-Ref prüfen, danach Recheck.
 
-## Referenzen
-- State & Persistenz: `docs/01-state-contract.md`
-- Build pipeline: `docs/02-build-pipeline.md`
-- Screen-Map: `docs/03-screen-index.md`, `docs/13-screen-flow-map.md`
-- Diagnostics Fixes: `docs/07-diagnostics-fix-playbook.md`
-- Operator Runbook: `docs/runbooks/APP_RUNBOOK.md`
+## Non-goals (bewusst außerhalb Scope)
+- Kein vollständiger Ersatz für GitHub/EAS native Debugging-UIs.
+- Keine automatische Secret-Rotation/Incident-Forensik.
+- Kein stilles Erraten von Branch/Repo im Build-Startpfad.
+
+## Operator-Referenzen
+- Build-Gate/Readiness: `docs/06-build-readiness.md`
+- Diagnostics/Fix-Playbook: `docs/07-diagnostics-fix-playbook.md`
+- Testabdeckung: `docs/08-test-coverage-matrix.md`
+- Smoke-Ausführung: `docs/04-testing-smoke-plan.md`
+- Runbook (Schritt-für-Schritt): `docs/runbooks/APP_RUNBOOK.md`

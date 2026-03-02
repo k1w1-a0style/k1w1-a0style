@@ -1,6 +1,6 @@
 # 12 — Release Readiness Report (Phase 6 + 7)
 
-Stand: 2026-03-02 (Docs consistency pass)
+Stand: 2026-03-02 (Docs Finalization Pack)
 
 ## 1) Buildflow Gate Status
 
@@ -35,7 +35,7 @@ Manual-only (bewusst):
 
 ## 4) Test Summary
 
-- Aktueller Testbestand im Repo: ca. 62 Dateien unter `__tests__/` (Snapshot 2026-03-02).
+- Aktueller Testbestand (Snapshot 2026-03-02): 76 Test-Suites, 508 Tests total (davon 505 passed, 3 skipped) laut lokalem Jest-Lauf `npm run test:silent`.
 - Neue Testdateien Phase 6/7:
   - `__tests__/e2e.smoke.buildflow.test.ts`
   - `__tests__/e2e.smoke.diagnosticsResilience.test.ts`
@@ -64,7 +64,7 @@ npm test -- --runInBand __tests__/e2e.smoke.buildflow.test.ts __tests__/e2e.smok
 ```
 
 
-## 7) Phase 8 result (Real-world CI/EAS Smoke)
+## 7) Phase 8 Status (Real-world CI/EAS Smoke)
 
 - Datum/Zeit (UTC): 2026-03-02 00:24:48Z
 - Scope: Safe Checks (A1) ausgeführt, Real-Dispatch (A3/B1) blockiert durch fehlende GitHub-CLI/Auth im Runner.
@@ -82,12 +82,12 @@ Run IDs (falls vorhanden):
 - triggered-build: n/a (dispatch nicht möglich)
 
 Pass/Fail Gesamtstatus Phase 8:
-- **PARTIAL PASS**: Lokale Workflow-Validierung grün, aber Remote-Smoke nicht durchführbar.
+- **PARTIAL PASS**: Lokale Validierung ist grün; Remote-Dispatch bleibt environment-blocked (kein Repo-Remote/Auth im Runner).
 
-Remaining Blockers:
-1. GitHub CLI (`gh`) nicht installiert im Environment.
-2. Kein GitHub Auth-Token (`GH_TOKEN`/`GITHUB_TOKEN`) gesetzt.
-3. Kein `origin` Remote konfiguriert → keine direkte Repo-Dispatch-Adressierung.
+Remaining Blockers (operativ):
+1. GitHub CLI (`gh`) nicht installiert im Runner.
+2. Kein GitHub Auth-Token (`GH_TOKEN`/`GITHUB_TOKEN`) im Runner-Environment.
+3. Kein `origin` Remote für direkte Dispatch-Adressierung konfiguriert.
 
 
 ## 8) Documentation Consistency Snapshot
