@@ -88,11 +88,18 @@ function scanWorkflowServiceRoleUsage(text: string): {
     if (!looksSecret(valueRaw)) continue;
 
     leaks.push(`${key} (line ${i + 1})`);
-    // auto-fix intentionally omitted: secret name mapping is user-specific
+    const normalized = unquoteYamlScalar(stripInlineYamlComment(valueRaw)).trim();
+    const isQuoted = /^\s*["']/.test(valueRaw.trim());
+    const replacementExpr = "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}";
+    if (/^SUPABASE_SERVICE_ROLE_KEY$/i.test(key) && normalized !== replacementExpr) {
+      const replacementValue = isQuoted ? `"${replacementExpr}"` : replacementExpr;
+      outLines[i] = `${indent}${key}: ${replacementValue}`;
+    }
 }
 
   const fixed = outLines.join("\n");
-  return { leaks, fixed: undefined };
+  const changed = fixed !== (text ?? "");
+  return { leaks, fixed: changed ? fixed : undefined };
 }
 
 export const checkWorkflowServiceRoleKeyLeak: PreflightCheck = {
@@ -120,6 +127,7 @@ export const checkWorkflowServiceRoleKeyLeak: PreflightCheck = {
       if (!scan.leaks.length) continue;
 
       details.push(`${p}: ${scan.leaks.join(", ")}`);
+      details.push(`${p}: Manual: Schlüssel rotieren und auf secrets.SUPABASE_SERVICE_ROLE_KEY umstellen.`);
       if (scan.fixed) fixes.push({ path: p, content: scan.fixed });
     }
 

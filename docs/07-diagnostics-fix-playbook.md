@@ -141,7 +141,7 @@ Build-Readiness Items (Kurz):
 |---|---|---|---:|---:|---|---|---|
 | `core-package-json` | fail | package.json fehlt/invalid | ✅ | ✅ | Diagnostic Screen → Issue → **Auto-Fix** (legt package.json Starter an) | package.json anlegen/validieren | `core-package-json`, `lockfile-consistency`, `quality-scripts`, `expo-sdk-consistency` |
 | `entry-point` | fail | kein index/App/main | ✅ | ✅ | Auto-Fix (legt `index.js` stub + setzt `package.json.main`) | `index.js` erstellen & `main` korrekt setzen | `entry-point` + ggf. `expo-config-validation` |
-| `expo-config-validation` | fail/warn | app.json/app.config fehlt/invalid/unvollständig | ✅ (fail) / ❌ (warn) | ❌ | — | app.json oder app.config.js erstellen; mind. expo.name/slug/version + android.package setzen | `expo-config-validation`, `assets-exist` |
+| `expo-config-validation` | fail/warn | app.json/app.config fehlt/invalid/unvollständig | ✅ (fail) / ❌ (warn) | ✅ (fail) / ❌ (warn) | Auto-Fix „Create minimal app.json“ (nur wenn app.json + app.config.js fehlen) | app.json/app.config manuell vervollständigen; Placeholder anpassen | `expo-config-validation`, `assets-exist` |
 | `eas-profiles` | warn/fail | eas.json fehlt oder falscher buildType | ⚠️ (target=EAS) | ✅ (teilweise) | Auto-Fix für buildType; falls eas.json fehlt: Patch Template | eas.json manuell erstellen/Profiles ergänzen | `eas-profiles`, `eas-withoutcredentials-debug` |
 | `eas-withoutcredentials-debug` | warn | dev/preview ohne withoutCredentials | ⚠️ (CI stability) | ✅ | Auto-Fix (jsonMerge setzt withoutCredentials) | eas.json → build.development/preview.android.withoutCredentials=true | `eas-withoutcredentials-debug`, `repo.easAndroidWithoutCreds.*` |
 | `lockfile-consistency` | warn | kein Lockfile / mehrere Lockfiles | ❌ (meist) | ✅ | Auto-Fix (erstellt/patcht `.npmrc`, löscht extra Lockfiles) | 1 Package-Manager wählen; Lockfile commiten | `lockfile-consistency` |
@@ -152,7 +152,7 @@ Build-Readiness Items (Kurz):
 | `rn-react-compat` | fail | react/rn mismatch (heuristic) | ✅ | ❌ | — | Versionset nach Expo SDK kompatibel setzen (Expo SDK docs) | `rn-react-compat`, `expo-sdk-consistency` |
 | `quality-scripts` | warn | scripts vorhanden, deps fehlen | ❌ | ✅ | Auto-Fix (fügt devDeps `typescript`/`eslint` mit `*` hinzu) | Versions pinnen, `npm i` | `quality-scripts`, `typecheck`, `lint` |
 | `expo-sdk-consistency` | warn | expo/rn missing/weird | ❌ | ❌ | — | Abgleich Expo SDK ↔ RN ↔ React | `expo-sdk-consistency`, `rn-react-compat` |
-| `security-workflow-service-role-key` | fail | hardcoded service role in workflows | ✅ | (selten) | Auto-Fix nur wenn eindeutiger replacement möglich (derzeit eher ❌) | Secrets in GitHub anlegen, Workflows auf `${{ secrets.* }}` umstellen; Keys rotieren | `security-workflow-service-role-key` |
+| `security-workflow-service-role-key` | fail | hardcoded service role in workflows | ✅ | ✅ (safe-only) | Safe Assist: ersetzt nur exakte Zeile `SUPABASE_SERVICE_ROLE_KEY: "..."` durch `${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}` | Bei nicht eindeutigem Match: manuell ersetzen + Keys rotieren | `security-workflow-service-role-key` |
 | `workflow-yaml-name-colon-quoting` | fail | YAML name mit `: ` unquoted | ✅ | ✅ | Auto-Fix: quote `name:` values in `.github/workflows/*` | Manuell quotes setzen | `workflow-yaml-name-colon-quoting` |
 
 ### 4.2 Playbook (Pipeline Checks)
@@ -167,17 +167,17 @@ Build-Readiness Items (Kurz):
 | `repo.secret.list` | warn | Token darf Secrets nicht lesen | ⚠️ | ❌ | — | Token scopes/permissions fixen (Repo admin / fine-grained “Actions secrets: read”) | Pipeline run |
 | `repo.workflow.easLink` | fail | Workflow fehlt | ✅ | ✅ | Repo Screen → **CI Workflows fixen** (`autoFixCIWorkflows`) | Datei manuell in `.github/workflows/` hinzufügen & commit | `repo.workflow.easLink`, `workflow-yaml-name-colon-quoting` |
 | `repo.workflow.triggeredBuild` | fail | Workflow fehlt | ✅ | ✅ | CI Workflows fixen | Manuell hinzufügen | `repo.workflow.triggeredBuild` |
-| `repo.easJson` | fail | eas.json fehlt | ✅ | ⚠️ (indirekt) | In-App Template/Push (falls vorhanden) / per Patch | eas.json im Repo anlegen | `repo.easJson`, `repo.easProfile.*` |
+| `repo.easJson` | fail | eas.json fehlt | ✅ | ✅ | Auto-Fix „Apply canonical EAS config“ (upsert canonical eas.json) | — | `repo.easJson`, `repo.easProfile.*` |
 | `repo.easJson.parse` | fail | eas.json kaputt | ✅ | ❌ | — | eas.json reparieren (valid JSON) | `repo.easJson.parse` |
-| `repo.easProfile.<p>` | fail | build.<p> fehlt | ✅ | ❌ (im pipeline check selbst) | — | eas.json ergänzen | `repo.easProfile.<p>` |
+| `repo.easProfile.<p>` | fail | build.<p> fehlt | ✅ | ✅ | Auto-Fix „Apply canonical EAS config“ (additiver jsonMerge für fehlendes Profil) | eas.json manuell ergänzen (optional) | `repo.easProfile.<p>` |
 | `repo.easBuildType.<p>` | warn/fail | buildType unset/!=apk | ✅ (fail) | ✅ | Auto-Fix (jsonMerge buildType=apk) | eas.json fixen | `repo.easBuildType.<p>` |
 | `repo.easAndroidWithoutCreds.development|preview` | warn | withoutCredentials fehlt | ⚠️ | ✅ | Auto-Fix (jsonMerge withoutCredentials=true) | eas.json fixen | `repo.easAndroidWithoutCreds.*` |
 | `repo.easAndroidWithoutCreds.production` | warn | production w/out creds | ⚠️ | ✅ | Auto-Fix (jsonMerge false) | eas.json fixen | `repo.easAndroidWithoutCreds.production` |
 | `repo.easDevelopmentCoherent` | warn | distribution nicht internal | ❌ | ✅ | Auto-Fix distribution=internal | eas.json fixen | `repo.easDevelopmentCoherent` |
 | `repo.dep.expoDevClient` | warn | dev-client flow ohne dep | ❌ | ✅ | Auto-Fix (switch to internal APK) | package.json deps ergänzen ODER dev-client aus | `repo.dep.expoDevClient` |
-| `repo.easProjectId` | fail | projectId fehlt | ✅ | ❌ (in check) | — | Repo Screen → “EAS Projekt erstellen/verbinden” (oder Workflow `eas-link.yml` triggern) | `repo.easProjectId`, `repo.workflow.easLink` |
+| `repo.easProjectId` | fail | projectId fehlt | ✅ | ✅ | Auto-Fix „EAS Projekt verbinden (Auto)“ (workflow dispatch `eas-link.yml`, mit bootstrap fallback) | Manuell Repo Screen Link-Flow | `repo.easProjectId`, `repo.workflow.easLink` |
 | `repo.appConfig.usesEasProjectJson` | warn | app.config.js nutzt eas-project.json nicht | ❌ | ❌ | — | app.config.js anpassen (projectId aus eas-project.json lesen) | `repo.appConfig.usesEasProjectJson` |
-| `repo.expoConfig` | fail | app.json/app.config fehlt | ✅ | ❌ | — | Repo: Config hinzufügen | `repo.expoConfig` |
+| `repo.expoConfig` | fail | app.json/app.config fehlt | ✅ | ✅ | Auto-Fix „Create minimal Expo config“ (`app.json` placeholders) | Placeholder auf echte Werte setzen | `repo.expoConfig` |
 
 ---
 

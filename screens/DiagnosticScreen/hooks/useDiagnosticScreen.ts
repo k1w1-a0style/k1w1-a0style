@@ -390,7 +390,7 @@ export function useDiagnosticScreen(opts: {
       message: activeIssue.message,
       details: activeIssue.details,
       severity: toSeverity(st),
-      hasFix: !!activeIssue.fix?.patch,
+      hasFix: !!(activeIssue.fix?.patch || activeIssue.fix?.workflowDispatch),
       fixLabel: activeIssue.fix?.label,
     };
   }, [activeIssue, toSeverity]);

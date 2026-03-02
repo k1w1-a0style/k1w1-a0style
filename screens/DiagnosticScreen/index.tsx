@@ -312,7 +312,7 @@ export default function DiagnosticScreen() {
               <View style={{ gap: theme.spacing.sm }}>
                 {allChecks.map((r) => {
                   const sev = severityFor(r);
-                  const hasFix = !!r.fix?.patch;
+                  const hasFix = !!(r.fix?.patch || r.fix?.workflowDispatch);
                   const clickable = r.status === "fail" || r.status === "warn";
                   return (
                     <TouchableOpacity
