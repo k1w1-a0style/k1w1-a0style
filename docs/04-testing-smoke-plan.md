@@ -124,3 +124,70 @@ FAIL-Kriterien:
 - Runner crasht bei geworfenen Check-Fehlern.
 - Patches werden nicht angewendet oder überschreiben fremde Keys destruktiv.
 - Snapshot-Schema driftet in `id/status/severity` ohne beabsichtigte Änderung.
+
+---
+
+## 8) Phase 8: Real-world CI/EAS Smoke
+
+Ziel: GitHub Actions + EAS in **Safe Mode** verifizieren, ohne versehentlichen Production-Deploy.
+
+### A1) Workflow YAML Validierung (lokal)
+1. Prüfe alle `.github/workflows/*.yml` auf YAML-Parsebarkeit.
+2. Prüfe `name:`-Felder mit `:` auf korrektes Quoting.
+3. Prüfe `workflow_dispatch` für die dispatchbaren Build-Workflows (`eas-link.yml`, `k1w1-triggered-build.yml`, `eas-build.yml`, `release-build.yml`).
+
+Beispielcheck:
+
+```bash
+for f in .github/workflows/*.yml; do
+  ruby -e 'require "yaml"; YAML.load_file(ARGV[0]); puts "OK"' "$f"
+done
+```
+
+### A2) Secrets Sanity (Existenz, keine Werte)
+Pflicht:
+- `EXPO_TOKEN`
+
+Optional (abhängig von Guarding/Flow):
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+Report nur als `yes/no`, niemals Secret-Werte loggen.
+
+### A3) Dry Dispatch: `eas-link.yml`
+1. `workflow_dispatch` auf der Ziel-Branch (z. B. `codex`) auslösen.
+2. Verifizieren, dass Run mindestens `queued`/`in_progress` erreicht.
+3. Abschluss erfassen: `success` oder erwartbarer Fehler (z. B. Permissions).
+
+Output:
+- `run_id`
+- `run_url`
+- `conclusion`
+- bei Fail: kurzer Error-Excerpt ohne Secrets.
+
+### A4) projectId Verifikation nach Link
+Nach erfolgreichem EAS-Link:
+- `eas-project.json` vorhanden
+- `projectId` gesetzt
+
+Output:
+- `projectId exists: yes/no`
+- `file: eas-project.json`
+
+### B1) Optional: Triggered Preview Build (kleinster echter Build)
+1. Workflow `k1w1-triggered-build.yml` dispatchen.
+2. Inputs: `profile=preview` (oder `development`), `platform=android`.
+3. Erwartung: Build startet mindestens bis Queueing/Submission-Step.
+4. Optional: nach Queueing abbrechen (Kostenkontrolle).
+
+Output:
+- `run_id`
+- `run_url`
+- `status/conclusion`
+- ggf. EAS Build-ID/URL aus Log.
+
+### Exit Criteria (Phase 8)
+- Workflow dispatch funktioniert (kein 404/permission dead-end).
+- EAS Link schreibt valide `projectId`.
+- Triggered Build startet mindestens bis `queued`.
+- Keine Production-Dispatches im Smoke-Lauf.

@@ -61,3 +61,29 @@ Nur Smoke fokussiert:
 ```bash
 npm test -- --runInBand __tests__/e2e.smoke.buildflow.test.ts __tests__/e2e.smoke.diagnosticsResilience.test.ts __tests__/e2e.smoke.diagnosticsSchemaSnapshot.test.ts
 ```
+
+
+## 7) Phase 8 result (Real-world CI/EAS Smoke)
+
+- Datum/Zeit (UTC): 2026-03-02 00:24:48Z
+- Scope: Safe Checks (A1) ausgeführt, Real-Dispatch (A3/B1) blockiert durch fehlende GitHub-CLI/Auth im Runner.
+
+| Check | Ergebnis |
+|---|---|
+| A1 Workflow YAML Validierung | ✅ PASS (alle `.github/workflows/*.yml` parsebar; Dispatch-Workflows mit `workflow_dispatch`) |
+| A2 Secrets Existenzcheck | ⚠️ BLOCKED (kein GitHub API Zugriff/Token im Environment) |
+| A3 Dry Dispatch `eas-link.yml` | ⚠️ BLOCKED (kein `gh` + kein Remote/Auth) |
+| A4 projectId Verifikation nach Link | ⚠️ BLOCKED (A3 nicht ausführbar) |
+| B1 Triggered Preview Build | ⚠️ BLOCKED (optional; gleicher API/Auth Blocker) |
+
+Run IDs (falls vorhanden):
+- eas-link: n/a (dispatch nicht möglich)
+- triggered-build: n/a (dispatch nicht möglich)
+
+Pass/Fail Gesamtstatus Phase 8:
+- **PARTIAL PASS**: Lokale Workflow-Validierung grün, aber Remote-Smoke nicht durchführbar.
+
+Remaining Blockers:
+1. GitHub CLI (`gh`) nicht installiert im Environment.
+2. Kein GitHub Auth-Token (`GH_TOKEN`/`GITHUB_TOKEN`) gesetzt.
+3. Kein `origin` Remote konfiguriert → keine direkte Repo-Dispatch-Adressierung.
