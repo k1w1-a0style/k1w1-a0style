@@ -1,3 +1,4 @@
+- Patch 343: correct status wording for "Offene TODO/Unknowns" (no new unknowns, but existing `: any` tech-debt item remains) (see docs/patches/patch_343.md)
 - Patch 336: define verbindliches Build Readiness Gate (Matrix + Entry Point + Evidence) and update build pipeline contract (see docs/patches/patch_336.md)
 - Patch 333: fix BuildPolling timeout normalization for non-Error AbortError object rejections + add regression test (see docs/patches/patch_333.md)
 - Patch 332: build polling TS-hygiene hardening (`unknown` catch + typed JSON accessors) plus new regression tests for malformed JSON/legacy fields/Abort timeout (see docs/patches/patch_332.md)
