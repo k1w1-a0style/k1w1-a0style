@@ -35,13 +35,14 @@ Manual-only (bewusst):
 
 ## 4) Test Summary
 
-- Aktueller Testbestand (Snapshot 2026-03-02): 76 Test-Suites, 508 Tests total (davon 505 passed, 3 skipped) laut lokalem Jest-Lauf `npm run test:silent`.
+- Aktueller Testbestand (Snapshot 2026-03-02): Test Suites: **76 passed, 76 total**; Tests: **505 passed, 508 total** (3 skipped); Snapshots: **1 passed, 1 total** laut lokalem Jest-Lauf `npm run test:silent`.
 - Neue Testdateien Phase 6/7:
   - `__tests__/e2e.smoke.buildflow.test.ts`
   - `__tests__/e2e.smoke.diagnosticsResilience.test.ts`
   - `__tests__/e2e.smoke.diagnosticsSchemaSnapshot.test.ts`
   - `__tests__/helpers/testDeps.ts`
 - Enthält fixture-basierte Smoke-Läufe inkl. Re-Scan und Snapshot-Stabilität.
+- Verified locally (2026-03-02): `npm run test:silent`, `npm run typecheck`, `npm run lint:ci`, `npm run docs:lint`.
 
 ## 5) Risiken (Rot/Gelb)
 
