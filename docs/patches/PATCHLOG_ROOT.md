@@ -85,3 +85,5 @@
 - Patch 340 (2026-03-02): Phase 6+7 E2E smoke fixtures/tests + release-readiness hardening docs/report (see docs/patches/patch_340.md)
 
 - Patch 341 (2026-03-02): Stability Hardening – No-Network Jest guard + patch engine idempotency + diagnostics determinism tests (see docs/patches/patch_341.md)
+
+- Patch 342 (2026-03-02): Documentation hardening pass (product flows, operator runbook, screen-flow map, state quickref, docs lint + index consistency) (see docs/patches/patch_342.md)

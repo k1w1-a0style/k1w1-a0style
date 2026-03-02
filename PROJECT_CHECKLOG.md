@@ -234,3 +234,9 @@
   - `__tests__/patchEngine.idempotency.test.ts`
   - `__tests__/diagnostics.resultDeterminism.test.ts`
 - Verifikation erfolgreich: `npm run test:silent`, `npm test -- --runInBand --silent`, `npm test -- --detectOpenHandles --runInBand --silent`, `npm run typecheck`, `npm run lint:ci`.
+
+## Patch 342 (2026-03-02)
+- Documentation hardening umgesetzt: Product/Flows, Operator Runbook, Screen Index + neuer Screen Flow Map, State Quickref.
+- Konsistenzpass auf Overview/Index/Build-Pipeline/Release-Readiness durchgeführt.
+- `scripts/docsLint.js` eingeführt + `npm run docs:lint` hinzugefügt.
+- Checks: `npm run docs:lint`, `npm run typecheck`, `npm run lint:ci`, `npm run test:silent`.

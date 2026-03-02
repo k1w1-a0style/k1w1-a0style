@@ -5,7 +5,7 @@
 1. **UI Layer** (`EnhancedBuildScreen`) startet `onStartBuild`.
 2. **UI-Gate** prüft harte Preconditions (Repo, Branch, Tokens, Diagnostics, Signing).
 3. **Context Layer** (`ProjectContext.startBuild`) normalisiert Profil + delegiert an Service.
-4. **Service-Gate (Single Entry Point)** (`project/services/buildStartService.startBuildJob`) erzwingt dieselben Regeln servernah.
+4. **Service-Gate (Single Entry Point)** (`project/services/buildStartService.startBuildJob`) erzwingt Branch + Diagnostics-Readiness servernah.
 5. **Service Pipeline** macht erst danach:
    - Repo/Branch auflösen,
    - Best-effort Push,
@@ -20,12 +20,11 @@
 
 ### 2.1 Blocker
 Build MUSS blockiert werden bei:
-- ungültigem Repo (`owner/repo` fehlt),
+- ungültigem Repo (`owner/repo` fehlt) auf UI-Ebene,
 - leerem Branch,
-- ungültigem Profil (nicht development/preview/production),
-- fehlenden Tokens (GitHub+Expo),
-- fehlendem Signing Key für aktives Profil,
-- Diagnostic nicht grün,
+- ungültigem Profil (Service normalisiert sonst auf `preview`),
+- fehlender Branch-Selektion,
+- `DIAGNOSTIC_LAST_OK != "true"`,
 - `project.files` leer.
 
 Zusätzlich profilabhängig:
@@ -50,10 +49,10 @@ Zusätzlich profilabhängig:
 ## 3) Verbotene Patterns
 
 1. **Branch-Fallback im kritischen Pfad** (`|| "main"`) statt expliziter User-Selektion.
-2. **Hardcoded Repo/Branch** im Buildstart (außer bewusstem, dokumentiertem Bootstrap-Notfall).
+2. **Undokumentierte Repo-Fallbacks** im Buildstart ohne sichtbaren Hinweis.
 3. **Lokale Schattenkopien** von SoT-Werten, die ohne Sync weiterleben.
 
-**Ist-Risiko:** Der aktuelle Service enthält weiterhin `main`-Fallback im Push-Pfad und Repo-Config-Fallback; diese sind im Gate vorab als harte Fehler abzufangen.
+**Ist-Risiko:** Der Service enthält weiterhin Repo-Config-Fallback (`project.linkedRepo || CONFIG.BUILD.GITHUB_REPO`). Branch-Fallback auf `main` liegt aktuell im Pipeline-Diagnostics-Branch-Parameter, nicht im StartBuild-Service.
 
 ---
 
@@ -136,17 +135,10 @@ if [ "${{ inputs.profile }}" = "production" ]; then
 fi
 ```
 
-### Evidence F — Aktueller Branch-Fallback auf `main` (zu verhindern)
+### Evidence F — Repo-Fallback im Start-Service (sichtbar halten)
 **Datei:** `project/services/buildStartService.ts`  
-**Symbol:** `bestEffortPushToGitHub`
+**Symbol:** `startBuildJob`
 ```ts
-if (!branch) {
-  try {
-    branch = (await getDefaultBranch(owner, repo)).trim();
-  } catch (err) {
-    logger.warn("Default-Branch konnte nicht ermittelt werden, fallback auf 'main'", { err });
-    branch = "main";
-  }
-}
-if (!branch) branch = "main";
+const githubRepo = (project.linkedRepo?.trim() || CONFIG.BUILD.GITHUB_REPO).trim();
+const buildBranch = (project.linkedBranch ?? "").trim();
 ```

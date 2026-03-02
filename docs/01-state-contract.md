@@ -2,6 +2,8 @@
 
 > Zielbild: **nicht screen-first**, sondern app-weite Zustandsregeln mit klarer Ownership, Persistenz und Hydration.
 
+> Quick Reference (kompakt): `docs/14-state-quickref.md`
+
 ## A) Global State Inventory
 
 ### A.1 Core Selection State (autoritativ für Repo/Branch/Profile)

@@ -94,7 +94,10 @@ const githubRepoResolved = started.githubRepo;
 ## Quick Links
 - Product overview: `docs/10-product-and-flows.md`
 - Operator/QA runbook: `docs/runbooks/APP_RUNBOOK.md`
+- Screen/Flow map: `docs/03-screen-index.md`, `docs/13-screen-flow-map.md`
+- State quickref: `docs/14-state-quickref.md`
 - Diagnostics → Fix: `docs/07-diagnostics-fix-playbook.md`
+- Release readiness: `docs/12-release-readiness-report.md`
 - Test coverage: `docs/08-test-coverage-matrix.md`
 - Smoke plan: `docs/04-testing-smoke-plan.md`
 - Gap tickets: `docs/09-gap-tickets.md`

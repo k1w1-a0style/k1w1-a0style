@@ -1,43 +1,36 @@
-# Projekt-Dokumentation – k1w1-a0style
+# Docs Index — k1w1-a0style
 
-Dieser Ordner ist der **zentrale Einstiegspunkt** für Dokumente, Notizen, Protokolle und Arbeitsabläufe.
+Stand: 2026-03-02
 
-## Start hier
-
-- **Chat-Handoff (neuer Chat):** `docs/HANDOFF_NEXT_CHAT.md`
-- **Offene Punkte / Roadmap:** `docs/TODO.md`
-- **Arbeitsablauf (Patch-Zips):** `docs/WORKFLOW_PATCHING.md`
-- **Letztes kritisches Review (verifiziert):** `docs/notes/FULL_REVIEW_2026-02-19.md`
-
-## Empfohlene Ablage
-
-- `docs/notes/` – längere Notizen / Analysen (z.B. SONET-Auswertung)
-- `docs/snippets/` – kleine Snippets (z.B. CI YAML Ausschnitte)
-- `docs/patches/` – Patch-Notizen, die du *bewusst* archivieren willst
-
-## Was bleibt im Repo-Root?
-
-Im Root sollten nur die wichtigsten Einstiegspunkte liegen:
-
-- `README.md` (Projekt-Intro)
-- `PROJECT_CHECKLOG.md` (laufendes Protokoll)
-- `AGENTS.md`, `AI_START_HERE.md` (Arbeits- / KI-Startpunkte)
-
-Alles andere: bitte nach `docs/` verschieben (oder löschen, wenn es nur temporäre Patch-Hilfsdateien waren).
-
-## Patches
-
-## Dev quick refs
-
-- [Developer commands](./DEV_COMMANDS.md)
-- Patch 228: DEV Commands + Index/README adjustments (2026-02-20) — docs/patches/patch_228.md
-- Patch 229: CI Lite utils SoT + docs alignment (2026-02-20) — docs/patches/patch_229.md
-- Patch 230: Bundle 227–229 (CI Lite SoT + DEV_COMMANDS) (2026-02-21) — docs/patches/patch_230.md
-
+## Core Architecture / Contracts
+- [00 — Overview (SoT)](00-overview.md)
+- [01 — State Contract](01-state-contract.md)
+- [02 — Build Pipeline Contract](02-build-pipeline.md)
+- [03 — Screen Index](03-screen-index.md)
+- [04 — Testing & Smoke Plan](04-testing-smoke-plan.md)
+- [04 — Risk Hotspots](04-risk-hotspots.md)
+- [05 — Contract Test Coverage Matrix](05-contract-test-coverage-matrix.md)
 - [06 — Build Readiness](06-build-readiness.md)
 - [07 — Diagnostics → Fix Playbook](07-diagnostics-fix-playbook.md)
 - [08 — Test Coverage Matrix](08-test-coverage-matrix.md)
-- [04 — Testing & Smoke Plan](04-testing-smoke-plan.md)
 - [09 — Gap Tickets](09-gap-tickets.md)
 - [10 — Product & Flows](10-product-and-flows.md)
-- [Runbook — QA/Operator](runbooks/APP_RUNBOOK.md)
+- [11 — Issue Pack](11-issue-pack.md)
+- [12 — Release Readiness Report](12-release-readiness-report.md)
+- [13 — Screen Flow Map](13-screen-flow-map.md)
+- [14 — State Quick Reference](14-state-quickref.md)
+
+## Runbooks
+- [APP_RUNBOOK](runbooks/APP_RUNBOOK.md)
+
+## Operations / Maintenance
+- [DEV_COMMANDS](DEV_COMMANDS.md)
+- [WORKFLOW_PATCHING](WORKFLOW_PATCHING.md)
+- [TODO](TODO.md)
+
+## Patch History
+- [PATCHLOG_ROOT](patches/PATCHLOG_ROOT.md)
+- [Patches Folder](patches/README.md)
+
+## Docs Quality
+- `npm run docs:lint` prüft INDEX-Links + Patchlog-Links + optionale Check-ID Referenzen.
