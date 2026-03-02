@@ -217,3 +217,12 @@
 - Diagnostics-Checkliste UI stabil nach Status sortiert (`fail -> warn -> pass`).
 - Neue Med-Tests: Sorting, SmartFix fixable-only, Runner-Resilience (throw-safe).
 - Checks: `npm run typecheck`, `npm run lint:ci`, `npm run test:silent`.
+
+## Patch 340 (2026-03-02)
+- Phase 6 + 7 kombiniert umgesetzt: lokale E2E-Smoke-Buildflow-Tests mit Fixture-Repos und deterministischen Mocks eingeführt.
+- Neue Tests:
+  - `__tests__/e2e.smoke.buildflow.test.ts`
+  - `__tests__/e2e.smoke.diagnosticsResilience.test.ts`
+  - `__tests__/e2e.smoke.diagnosticsSchemaSnapshot.test.ts`
+- Neue Fixture-Struktur unter `test/fixtures/smokeRepos/` dokumentiert und genutzt.
+- Hardening/Doku ergänzt: `docs/12-release-readiness-report.md`, Updates in `docs/04-testing-smoke-plan.md`, `docs/07-diagnostics-fix-playbook.md`, `docs/08-test-coverage-matrix.md`.

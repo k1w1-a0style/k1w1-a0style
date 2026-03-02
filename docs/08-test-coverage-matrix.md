@@ -202,3 +202,20 @@ Neu abgedeckt (High):
 - `expo-config-validation` FAIL liefert minimal `app.json` AutoFix.
 - `security-workflow-service-role-key` Safe Assist (strict pattern) mit Test für exact/non-exact Fälle.
 - Canonical eas-json Merge bewahrt vorhandene Sibling-Keys.
+
+---
+
+## 3) Abdeckung ergänzt: E2E Smoke Buildflow (Phase 6/7)
+
+Neue direkte Coverage:
+- Fixture-basierter End-to-End Diagnosefluss: kaputt → Diagnose → AutoFix → Re-Scan → Gate-Simulation grün.
+- Pipeline-Secret-Check (`repo.secret.expoToken`) in isolierter Offline-Simulation.
+- Workflow YAML Colon Quoting AutoFix in realer Fixture-Datei.
+- Runner-Resilience: ein throwender Check blockiert keine Folgeläufe.
+- Stabiler Diagnostics-Schema-Snapshot (`id/status/severity` only).
+
+Neue Testdateien:
+- `__tests__/e2e.smoke.buildflow.test.ts`
+- `__tests__/e2e.smoke.diagnosticsResilience.test.ts`
+- `__tests__/e2e.smoke.diagnosticsSchemaSnapshot.test.ts`
+- `__tests__/helpers/testDeps.ts` (deterministische Mock-Factorys)

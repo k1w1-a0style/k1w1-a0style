@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "Fixture App",
+    "slug": "fixture-app",
+    "version": "1.0.0",
+    "android": { "package": "com.fixture.app" },
+    "extra": {
+      "eas": {
+        "projectId": "11111111-1111-1111-1111-111111111111"
+      }
+    }
+  }
+}

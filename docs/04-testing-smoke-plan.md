@@ -96,3 +96,31 @@ Erwartung:
 
 Siehe `docs/08-test-coverage-matrix.md` für konkrete neue Tests.
 
+
+---
+
+## 7) E2E Smoke (Fixtures, lokal & reproduzierbar)
+
+Fixture-Root: `test/fixtures/smokeRepos/`
+
+Vorhandene Fixtures:
+- `missing-all-minimum` → leerer Repo-Zustand (kein `eas.json`, kein Expo Config, keine Workflows)
+- `missing-easProfiles` → `eas.json` vorhanden, aber `build.preview` fehlt
+- `workflow-colon-quoting` → Workflow enthält unquoted `name: Foo: Bar`
+- `secrets-missing` → valide Dateien, aber Pipeline-Secretliste wird als leer simuliert
+
+E2E Smoke Tests:
+- `__tests__/e2e.smoke.buildflow.test.ts`
+- `__tests__/e2e.smoke.diagnosticsResilience.test.ts`
+- `__tests__/e2e.smoke.diagnosticsSchemaSnapshot.test.ts`
+
+PASS-Kriterien:
+- AutoFix erzeugt fehlendes `app.json` / `eas.json` und ergänzt canonical EAS Profile.
+- Workflow Quoting Fix ersetzt kritische `name: A: B` Werte durch quoted Strings.
+- Re-Scan nach Fixes enthält keine unerwarteten `fail` für den lokalen Green Path.
+- Secrets-Missing bleibt deterministisch als erwarteter `fail` (`repo.secret.expoToken`).
+
+FAIL-Kriterien:
+- Runner crasht bei geworfenen Check-Fehlern.
+- Patches werden nicht angewendet oder überschreiben fremde Keys destruktiv.
+- Snapshot-Schema driftet in `id/status/severity` ohne beabsichtigte Änderung.

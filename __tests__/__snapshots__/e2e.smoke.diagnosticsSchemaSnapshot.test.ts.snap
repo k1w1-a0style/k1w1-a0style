@@ -1,0 +1,81 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`e2e smoke diagnostics schema snapshot keeps stable diagnostics schema (id/status/severity) 1`] = `
+[
+  {
+    "id": "core-package-json",
+    "severity": "critical",
+    "status": "fail",
+  },
+  {
+    "id": "gitignore-present",
+    "severity": "normal",
+    "status": "fail",
+  },
+  {
+    "id": "lockfile-consistency",
+    "severity": "normal",
+    "status": "pass",
+  },
+  {
+    "id": "entry-point",
+    "severity": "high",
+    "status": "fail",
+  },
+  {
+    "id": "expo-config-validation",
+    "severity": "high",
+    "status": "fail",
+  },
+  {
+    "id": "assets-exist",
+    "severity": "normal",
+    "status": "warn",
+  },
+  {
+    "id": "native-dirs-managed-guard",
+    "severity": "normal",
+    "status": "pass",
+  },
+  {
+    "id": "eas-withoutcredentials-debug",
+    "severity": "normal",
+    "status": "pass",
+  },
+  {
+    "id": "quality-scripts",
+    "severity": "normal",
+    "status": "pass",
+  },
+  {
+    "id": "eas-profiles",
+    "severity": "normal",
+    "status": "warn",
+  },
+  {
+    "id": "expo-sdk-consistency",
+    "severity": "low",
+    "status": "pass",
+  },
+  {
+    "id": "rn-react-compat",
+    "severity": "high",
+    "status": "pass",
+  },
+  {
+    "id": "security-workflow-service-role-key",
+    "severity": "high",
+    "status": "pass",
+  },
+  {
+    "id": "workflow-yaml-name-colon-quoting",
+    "severity": "critical",
+    "status": "pass",
+  },
+  {
+    "id": "security-forbidden-files",
+    "severity": "high",
+    "status": "pass",
+  },
+]
+`;
