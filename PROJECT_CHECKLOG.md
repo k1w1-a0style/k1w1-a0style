@@ -226,3 +226,11 @@
   - `__tests__/e2e.smoke.diagnosticsSchemaSnapshot.test.ts`
 - Neue Fixture-Struktur unter `test/fixtures/smokeRepos/` dokumentiert und genutzt.
 - Hardening/Doku ergänzt: `docs/12-release-readiness-report.md`, Updates in `docs/04-testing-smoke-plan.md`, `docs/07-diagnostics-fix-playbook.md`, `docs/08-test-coverage-matrix.md`.
+
+## Patch 341 (2026-03-02)
+- Stability hardening ergänzt: globaler No-Network Guard in Jest (`fetch`/`XMLHttpRequest`/`WebSocket`) zur Vermeidung ungewollter realer Netzwerkanfragen in Tests.
+- Neue Guard-/Regressions-Tests ergänzt:
+  - `__tests__/guards.noNetwork.test.ts`
+  - `__tests__/patchEngine.idempotency.test.ts`
+  - `__tests__/diagnostics.resultDeterminism.test.ts`
+- Verifikation erfolgreich: `npm run test:silent`, `npm test -- --runInBand --silent`, `npm test -- --detectOpenHandles --runInBand --silent`, `npm run typecheck`, `npm run lint:ci`.

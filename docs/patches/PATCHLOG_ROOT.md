@@ -83,3 +83,5 @@
 - Patch 339 (2026-03-01): Phase-4 Testability DX (DI exports for readiness/pipeline/preflight/patch engine), stable readiness error codes, and 3 medium diagnostics tests (sorting, SmartFix fixable-only, runner resilience) (see docs/patches/patch_339.md)
 
 - Patch 340 (2026-03-02): Phase 6+7 E2E smoke fixtures/tests + release-readiness hardening docs/report (see docs/patches/patch_340.md)
+
+- Patch 341 (2026-03-02): Stability Hardening – No-Network Jest guard + patch engine idempotency + diagnostics determinism tests (see docs/patches/patch_341.md)

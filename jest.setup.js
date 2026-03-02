@@ -51,6 +51,36 @@ jest.mock("expo-notifications", () => ({
   AndroidImportance: { MAX: 5 },
 }));
 
+const originalFetch = global.fetch;
+const originalXMLHttpRequest = global.XMLHttpRequest;
+const originalWebSocket = global.WebSocket;
+
+const blockNetworkFactory = (apiName) => () => {
+  throw new Error(
+    `Unexpected real network call via ${apiName}. Mock the API in this test explicitly.`,
+  );
+};
+
+const BlockedXMLHttpRequest = class BlockedXMLHttpRequest {
+  constructor() {
+    throw new Error(
+      "Unexpected real network call via XMLHttpRequest. Mock the API in this test explicitly.",
+    );
+  }
+};
+
+const BlockedWebSocket = class BlockedWebSocket {
+  constructor() {
+    throw new Error(
+      "Unexpected real network call via WebSocket. Mock the API in this test explicitly.",
+    );
+  }
+};
+
+global.fetch = jest.fn(blockNetworkFactory("fetch"));
+global.XMLHttpRequest = BlockedXMLHttpRequest;
+global.WebSocket = BlockedWebSocket;
+
 
 // ✅ Global teardown to prevent Jest worker leaks (timers / listeners)
 afterEach(() => {
@@ -63,4 +93,7 @@ afterEach(() => {
 afterAll(() => {
   jest.clearAllTimers();
   jest.useRealTimers();
+  global.fetch = originalFetch;
+  global.XMLHttpRequest = originalXMLHttpRequest;
+  global.WebSocket = originalWebSocket;
 });
