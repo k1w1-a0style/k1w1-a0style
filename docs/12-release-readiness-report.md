@@ -1,6 +1,6 @@
 # 12 — Release Readiness Report (Phase 6 + 7)
 
-Stand: 2026-03-02
+Stand: 2026-03-02 (Docs consistency pass)
 
 ## 1) Buildflow Gate Status
 
@@ -35,6 +35,7 @@ Manual-only (bewusst):
 
 ## 4) Test Summary
 
+- Aktueller Testbestand im Repo: ca. 62 Dateien unter `__tests__/` (Snapshot 2026-03-02).
 - Neue Testdateien Phase 6/7:
   - `__tests__/e2e.smoke.buildflow.test.ts`
   - `__tests__/e2e.smoke.diagnosticsResilience.test.ts`
@@ -87,3 +88,10 @@ Remaining Blockers:
 1. GitHub CLI (`gh`) nicht installiert im Environment.
 2. Kein GitHub Auth-Token (`GH_TOKEN`/`GITHUB_TOKEN`) gesetzt.
 3. Kein `origin` Remote konfiguriert → keine direkte Repo-Dispatch-Adressierung.
+
+
+## 8) Documentation Consistency Snapshot
+
+- Produkt-/Flow-Doku erweitert (`10`, `13`, Runbook) und mit Screen-/Hook-Pfaden konkretisiert.
+- State-Quickref (`14`) ergänzt und auf `storageKeys.ts` / Invariant-Tests ausgerichtet.
+- `docs:lint` Script eingeführt, um Index- und Patchlog-Links regelmäßig zu prüfen.

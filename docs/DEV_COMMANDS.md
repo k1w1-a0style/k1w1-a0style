@@ -55,3 +55,10 @@ git add -A
 git commit -m "<message>"
 git push
 ```
+
+
+## Docs checks
+
+```bash
+npm run docs:lint
+```
