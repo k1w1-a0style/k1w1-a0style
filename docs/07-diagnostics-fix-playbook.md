@@ -236,3 +236,29 @@ Build-Readiness nutzt jetzt stabile Code-Präfixe (zusätzlich zur UX-Message):
 - `DIAGNOSTIC_NOT_GREEN`
 
 Hinweis: UI kann weiterhin menschenlesbare Texte anzeigen; Tests sollten bevorzugt auf Code-Präfixe assertieren.
+
+---
+
+## 8) Konkrete P0 Fix-Actions (Phase 5/6 Sync)
+
+Diese Fixes sind jetzt als konkrete Aktionen/Labels abgedeckt:
+
+1. **EAS projectId linking**
+   - Check: `repo.easProjectId`
+   - Action Label: **"EAS Projekt verbinden (Auto)"**
+   - Mechanik: `workflowDispatch` auf `eas-link.yml` (inkl. Fallback-Upsert, wenn Workflow fehlt)
+
+2. **Canonical `eas.json`**
+   - Checks: `repo.easJson`, `repo.easProfile.<profile>`
+   - Action Label: **"Apply canonical EAS config"**
+   - Mechanik: vollständiges Upsert bei fehlender Datei, additiver `jsonMerge` bei fehlenden Profilen
+
+3. **Minimale Expo Config**
+   - Check: `repo.expoConfig` / `expo-config-validation`
+   - Action Label: **"Create minimal Expo config"** bzw. **"Create minimal app.json"**
+   - Mechanik: `app.json` mit Placeholder-Werten (Name/Slug/Package) als sichere Minimalbasis
+
+### Manual-only bleibt bewusst manual-only
+- `security-forbidden-files` (Keystore/Private Keys entfernen + Rotation/History-Cleanup)
+- Secret-Rotation und Incident-Response bei Leak-Fällen
+- Berechtigungs-/Scope-Probleme auf GitHub Token Ebene (`repo.secret.list`)

@@ -1,0 +1,9 @@
+name: Foo: Bar
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build: APK
+        run: echo "build"
