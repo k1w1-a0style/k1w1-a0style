@@ -40,7 +40,7 @@ const AppStatusScreen: React.FC = () => {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom', 'left', 'right']}>
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={theme.palette.primary} />
           <Text style={styles.loadingText}>Projekt wird geladen...</Text>
@@ -51,7 +51,7 @@ const AppStatusScreen: React.FC = () => {
 
   if (!projectData) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom', 'left', 'right']}>
         <View style={styles.centered}>
           <Ionicons name="alert-circle-outline" size={64} color={theme.palette.error} />
           <Text style={styles.errorText}>Kein Projekt geladen</Text>
@@ -61,7 +61,7 @@ const AppStatusScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom', 'left', 'right']}>
       {/* Header */}
       <AppStatusHeader onExport={handleExport} />
 

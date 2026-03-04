@@ -19,7 +19,7 @@ export default function SettingsScreen() {
     s.qualityMode === "quality" ? "quality" : "speed";
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+    <SafeAreaView style={styles.safe} edges={["top", "bottom", "left", "right"]}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={{ paddingBottom: 30 }}

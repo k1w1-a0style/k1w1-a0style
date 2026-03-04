@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { IssueDetailSheet } from "../../components/diagnostics/IssueDetailSheet";
@@ -31,6 +32,7 @@ export default function DiagnosticScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const autoRunDoneRef = useRef(false);
+  const insets = useSafeAreaInsets();
   const { projectData, updateProjectFiles, deleteFile, setPreferredBuildProfile } =
     useProject();
 
@@ -182,7 +184,7 @@ export default function DiagnosticScreen() {
   }
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
       <FixRunModal
         styles={styles}
         maxLines={FIX_MODAL_MAX_LINES}
@@ -232,9 +234,13 @@ export default function DiagnosticScreen() {
         onDebug={onDebug}
         debugDisabled={busy || running || !(results && results.length)}
         toast={toast}
+        topInset={insets.top}
       />
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+      >
         <View style={styles.stack}>
           <SectionCard
             title="Aktionen"
@@ -420,6 +426,6 @@ export default function DiagnosticScreen() {
           ) : null}
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }

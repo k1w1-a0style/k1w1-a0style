@@ -72,7 +72,7 @@ const ChatScreen: React.FC = () => {
   );
 
   return (
-    <SafeAreaView style={styles.root} edges={["left", "right"]}>
+    <SafeAreaView style={styles.root} edges={["top", "bottom", "left", "right"]}>
       {/* ✅ FIX #4: Removed TouchableWithoutFeedback wrapper.
           Keyboard dismiss is handled by onScrollBeginDrag on the FlatList.
           The wrapper was blocking scroll gestures on some Android devices. */}

@@ -101,7 +101,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
   );
 
   return (
-    <SafeAreaView style={st.root} edges={["top"]}>
+    <SafeAreaView style={st.root} edges={["top", "bottom", "left", "right"]}>
       <ScrollView
         style={st.scroll}
         contentContainerStyle={st.content}
@@ -236,4 +236,3 @@ export default function EnhancedBuildScreen(): React.ReactElement {
     </SafeAreaView>
   );
 }
-

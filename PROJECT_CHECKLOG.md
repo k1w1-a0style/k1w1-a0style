@@ -241,3 +241,9 @@
 - Konsistenzpass auf Overview/Index/Build-Pipeline/Release-Readiness durchgeführt.
 - `scripts/docsLint.js` eingeführt + `npm run docs:lint` hinzugefügt.
 - Checks: `npm run docs:lint`, `npm run typecheck`, `npm run lint:ci`, `npm run test:silent`.
+
+## Patch 344 (2026-03-04)
+- Diagnostics-EAS-Link-Check robust gemacht: `repo.workflow.easLink` akzeptiert nun `.github/workflows/eas-link.yml` **oder** `.github/workflows/eas-link.yaml`.
+- SafeArea-Inset-Harmonisierung über mehrere Hauptscreens, inkl. DiagnosticScreen (Header-TopInset + Bottom-Padding für Fix/Toast-Sichtbarkeit).
+- Test-Härtung: `diagnosticScreen.sorting` mockt SafeArea-Context nach Einführung von `useSafeAreaInsets`.
+- Checks: `npm run typecheck`, `npm run lint:ci`, `npm run test:silent` erfolgreich.

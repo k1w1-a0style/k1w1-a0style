@@ -110,7 +110,8 @@ export const runBuildPipelineDiagnostics = async (
     hasEasJson,
     hasEasProjectJson,
     hasPackageJson,
-    hasLinkWorkflow,
+    hasLinkWorkflowYml,
+    hasLinkWorkflowYaml,
     hasTriggeredBuildWorkflow,
   ] = await Promise.all([
     d.fileExists(params.owner, params.repo, "app.config.js", ref),
@@ -128,10 +129,17 @@ export const runBuildPipelineDiagnostics = async (
     d.fileExists(
       params.owner,
       params.repo,
+      ".github/workflows/eas-link.yaml",
+      ref,
+    ),
+    d.fileExists(
+      params.owner,
+      params.repo,
       ".github/workflows/k1w1-triggered-build.yml",
       ref,
     ),
   ]);
+  const hasLinkWorkflow = hasLinkWorkflowYml || hasLinkWorkflowYaml;
 
   const expoConfigOk = hasAppConfigJs || hasAppConfigTs || hasAppJson;
   checks.push({
@@ -565,11 +573,11 @@ export const runBuildPipelineDiagnostics = async (
   // --- Workflows ---
   checks.push({
     id: "repo.workflow.easLink",
-    title: "Workflow vorhanden: eas-link.yml",
+    title: "Workflow vorhanden: eas-link.yml/.yaml",
     status: hasLinkWorkflow ? "pass" : "fail",
     fixHint: hasLinkWorkflow
       ? undefined
-      : "Workflow fehlt → Template/Patch anwenden (für 1-Click EAS Linking).",
+      : "Workflow fehlt (eas-link.yml/.yaml) → Template/Patch anwenden (für 1-Click EAS Linking).",
   });
 
   checks.push({

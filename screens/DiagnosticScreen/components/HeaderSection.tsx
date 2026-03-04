@@ -24,8 +24,9 @@ export function HeaderSection(props: {
   onDebug?: () => void;
   debugDisabled?: boolean;
   toast: ToastState;
+  topInset?: number;
 }) {
-  const { styles, headerStats, busy, running, toast } = props;
+  const { styles, headerStats, busy, running, toast, topInset = 0 } = props;
   const onDebug = props.onDebug;
   const debugDisabled = !!props.debugDisabled;
 
@@ -33,7 +34,7 @@ export function HeaderSection(props: {
 
   return (
     <>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(topInset, theme.spacing.sm) + theme.spacing.sm }] }>
         <View style={{ flex: 1 }}>
           <View style={s.titleRow}>
             <Ionicons name="flask-outline" size={20} color={theme.palette.primary} />

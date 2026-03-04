@@ -111,7 +111,7 @@ export default function ConnectionsScreen() {
   }, [repoLine, githubOk, githubUser, githubScopes, supabaseUrl, supabaseRef, supabaseOk, expoOk, expoUser, easProjectId, easOk]);
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]}>
+    <SafeAreaView style={styles.screen} edges={["top", "bottom", "left", "right"]}>
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
@@ -293,4 +293,3 @@ export default function ConnectionsScreen() {
     </SafeAreaView>
   );
 }
-

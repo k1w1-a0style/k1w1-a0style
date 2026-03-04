@@ -1,5 +1,6 @@
 import React from "react";
 import { Platform, ScrollView, UIManager, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { InlineToast } from "../../components/diagnostics/InlineToast";
 
@@ -27,7 +28,7 @@ export default function CredentialsWizardScreen() {
   const s = useCredentialsWizardScreen();
 
   return (
-    <View style={styles.root}>
+    <SafeAreaView style={styles.root} edges={["top", "bottom", "left", "right"]}>
       <InlineToast message={s.toast.message} anim={s.toast.anim} />
 
       <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -109,6 +110,6 @@ export default function CredentialsWizardScreen() {
 
         <View style={{ height: 140 }} />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }

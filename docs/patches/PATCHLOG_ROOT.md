@@ -90,3 +90,5 @@
 - Patch 342 (2026-03-02): Documentation hardening pass (product flows, operator runbook, screen-flow map, state quickref, docs lint + index consistency) (see docs/patches/patch_342.md)
 
 - Patch 343 (2026-03-02): Docs Finalization Pack (Runbook + Product Flows + Screen Map + SoT Quickref + Docs-Lint) (see docs/patches/patch_343.md)
+
+- Patch 344 (2026-03-04): Diagnostics EAS-link workflow detection accepts .yml/.yaml + SafeArea harmonization across key screens + DiagnosticScreen SafeArea test mock (see docs/patches/patch_344.md)
