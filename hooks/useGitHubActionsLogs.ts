@@ -157,10 +157,12 @@ export function useGitHubActionsLogs({
          const limitedLogs = rawLogs.slice(-MAX_LOG_ENTRIES);
          setLogs(limitedLogs);
 
-         // keep existing workflowRun unless the response includes one
-         if (logsData?.workflowRun) {
-           setWorkflowRun(logsData.workflowRun);
-         }
+        // backend versions may return run metadata under either `workflowRun` or `run`.
+        // normalize here so UI can always trust GitHub status/conclusion.
+        const runMeta = logsData?.workflowRun ?? logsData?.run;
+        if (runMeta) {
+          setWorkflowRun(runMeta);
+        }
        }
     } catch (err: any) {
       // Nur einmal loggen (nicht bei jedem Poll-Versuch)
