@@ -24,9 +24,9 @@ import { GITHUB_API_BASE } from "../../../shared/constants/github.ts";
  * - githubToken / ghToken / token: client-provided PAT (only accepted if admin key is valid)
  */
 serve(async (req) => {
-  if (handleCors(req)) return handleCors(req);
-
-  try {
+    const cors = handleCors(req);
+  if (cors) return cors;
+try {
     const auth = requireAdminKey(req);
     if (auth) return auth;
 

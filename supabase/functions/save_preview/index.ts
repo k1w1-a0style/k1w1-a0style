@@ -17,7 +17,7 @@ import {
   approxSize,
   MAX_FILES_COUNT,
   MAX_PAYLOAD_BYTES,
-} from "./helpers";
+} from "./helpers.ts";
 
 serve(async (req) => {
   const origin = req.headers.get("origin");

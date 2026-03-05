@@ -90,3 +90,5 @@
 - Patch 342 (2026-03-02): Documentation hardening pass (product flows, operator runbook, screen-flow map, state quickref, docs lint + index consistency) (see docs/patches/patch_342.md)
 
 - Patch 343 (2026-03-02): Docs Finalization Pack (Runbook + Product Flows + Screen Map + SoT Quickref + Docs-Lint) (see docs/patches/patch_343.md)
+- [patch_352.md](patch_352.md) — Fix preview_page bundling (remove nested template literals)
+- [patch_353.md](patch_353.md) — Fix preview_page helpers import for bundling

@@ -1,7 +1,7 @@
 // supabase/functions/android-keystore-export/index.ts
 // REFACTORED: helpers → helpers.ts
 
-import { Mode,resolveMode,safeString,repoOk,base64UrlToString,getJwtRole,getJwtSub,deriveAesKeyBytes,binaryStringToBytes,decryptWithAesCbc } from "./helpers";
+import { Mode,resolveMode,safeString,repoOk,base64UrlToString,getJwtRole,getJwtSub,deriveAesKeyBytes,binaryStringToBytes,decryptWithAesCbc } from "./helpers.ts";
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);

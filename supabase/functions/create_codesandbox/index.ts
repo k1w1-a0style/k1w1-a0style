@@ -4,8 +4,8 @@
 import {
   CODESANDBOX_DEFINE_URL, cors, json, safeErrorMessage, safeName,
   isObject, escapeHtml, transformRNtoWeb, pickEntry,
-} from "./helpers";
-import type { PreviewFile, RequestBody, JsonRecord } from "./helpers";
+} from "./helpers.ts";
+import type { PreviewFile, RequestBody, JsonRecord } from "./helpers.ts";
 
 function buildSandboxFiles(
   name: string,

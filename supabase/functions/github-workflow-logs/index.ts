@@ -5,7 +5,7 @@ import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import {
   jsonOk, jsonErr, asString, asNumber, parseGithubRepo,
   redactSecrets, fetchLogsZip, zipToText, MAX_CHARS, MAX_ZIP_BYTES,
-} from "./helpers";
+} from "./helpers.ts";
 
 serve(async (req) => {
   const cors = handleCors(req);

@@ -46,9 +46,9 @@ function isAllowedRef(ref: string | null | undefined): boolean {
  * - Output: { ok: true, jobId, githubRepo, branch, buildProfile }
  */
 serve(async (req) => {
-  if (handleCors(req)) return handleCors(req);
-
-  try {
+    const cors = handleCors(req);
+  if (cors) return cors;
+try {
     const auth = requireAdminKey(req);
     if (auth) return auth;
 

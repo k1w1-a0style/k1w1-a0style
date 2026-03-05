@@ -241,3 +241,7 @@
 - Konsistenzpass auf Overview/Index/Build-Pipeline/Release-Readiness durchgeführt.
 - `scripts/docsLint.js` eingeführt + `npm run docs:lint` hinzugefügt.
 - Checks: `npm run docs:lint`, `npm run typecheck`, `npm run lint:ci`, `npm run test:silent`.
+
+- Patch 352: Fix preview_page bundling (remove nested template literals in embedded script)
+
+- Patch 353: Fix preview_page bundling by importing ./helpers.ts explicitly

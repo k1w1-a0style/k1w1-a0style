@@ -6,8 +6,8 @@ import {
   json, escapeHtml, safeJsonForScript, getSupabaseBaseUrl, supabaseHeaders,
   withTimeout, utf8Size, approxFilesPayloadSize, randomNonce, html,
   serve, rateLimit, sanitizeErrorText,
-} from "./helpers";
-import type { SnackFiles, PreviewRecord } from "./helpers";
+} from "./helpers.ts";
+import type { SnackFiles, PreviewRecord } from "./helpers.ts";
 
 type PreviewMeta = { template?: unknown };
 
@@ -214,7 +214,7 @@ function renderPage(params: {
   function appendLog(message) {
     if (!SHOW_RAW_LOGS || !rawLogsEl) return;
     const now = new Date().toISOString().slice(11, 19);
-    rawLogsEl.textContent = `${now} ${message}\n${rawLogsEl.textContent || ""}`.slice(0, 12000);
+    rawLogsEl.textContent = (now + " " + message + "\n" + (rawLogsEl.textContent || "")).slice(0, 12000);
   }
 
   import { SandpackClient } from "https://esm.sh/@codesandbox/sandpack-client@2.19.0";
@@ -224,7 +224,7 @@ function renderPage(params: {
   }
 
   function showError(err) {
-    appendLog(`[error] ${String(err?.message || err)}`);
+    appendLog("[error] " + String(String(err?.message || err)));
     overlay?.classList.remove("hidden");
     overlay?.classList.add("error-overlay");
     overlay.innerHTML = \`
@@ -257,7 +257,7 @@ function renderPage(params: {
         else normalizedFiles[path] = String(v ?? "");
       }
 
-      appendLog(`[start] files=${Object.keys(normalizedFiles).length} template=${template}`);
+      appendLog("[start] files=" + String(Object.keys(normalizedFiles).length) + " template=" + String(template));
 
       const client = new SandpackClient(root, normalizedFiles, {
         template,
@@ -267,9 +267,9 @@ function renderPage(params: {
       client.listen((msg) => {
         if (SHOW_RAW_LOGS) {
           if (msg.type === "console" && "method" in msg) {
-            appendLog(`[console:${msg.method}] ${JSON.stringify(msg.log ?? [])}`);
+            appendLog("[console:" + String(msg.method) + "] " + String(JSON.stringify(msg.log ?? [])));
           } else if (msg.type === "error") {
-            appendLog(`[sandpack:error] ${String(msg.error || "Unknown Sandpack error")}`);
+            appendLog("[sandpack:error] " + String(String(msg.error || "Unknown Sandpack error")));
           }
         }
 
@@ -288,7 +288,7 @@ function renderPage(params: {
       if (SHOW_RUNTIME_ERRORS) {
         showError(e);
       } else {
-        appendLog(`[runtime-error suppressed] ${String(e?.message || e)}`);
+        appendLog("[runtime-error suppressed] " + String(String(e?.message || e)));
       }
     }
   }

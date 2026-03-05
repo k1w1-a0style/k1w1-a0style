@@ -4,8 +4,8 @@
 import {
   resolveMode, getForge, safeString, repoOk,
   bytesToBinaryStringChunked, encryptText, ensureBucketExists,
-} from "./helpers";
-import type { Mode } from "./helpers";
+} from "./helpers.ts";
+import type { Mode } from "./helpers.ts";
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
@@ -183,3 +183,4 @@ Deno.serve(async (req) => {
   } catch (e) {
     return errorResponse("Unhandled error", req, 500, { message: e?.message || String(e) });
   }
+});
