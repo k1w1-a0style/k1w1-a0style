@@ -12,7 +12,11 @@ import {
 // Minimal SoT workflow templates for bootstrapping when a repo is missing managed workflows.
 // Kept inside the edge function so it can run independently from the app bundle.
 const WORKFLOW_TEMPLATES: Record<string, string> = {
-  "k1w1-ci-lite.yml": `name: K1W1 CI Lite (Lint + Typecheck)
+  "k1w1-ci-lite.yml": `
+name: K1W1 CI Lite (Lint + Typecheck)
+
+run-name: >-
+  CI Lite\${{ inputs.job_id && format(' [{0}]', inputs.job_id) || '' }} • \${{ inputs.ref || github.ref_name }}
 
 on:
   workflow_dispatch:
@@ -30,9 +34,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: >-
-    k1w1-ci-lite-
-    \${{ github.ref_name }}
+  group: k1w1-ci-lite-\${{ inputs.ref || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -44,34 +46,143 @@ jobs:
       contents: read
 
     env:
-      JOB_ID: \${{ github.event.inputs.job_id }}
+      JOB_ID: \${{ inputs.job_id }}
+      TARGET_REF: \${{ inputs.ref || github.ref_name }}
 
     steps:
+      - name: Run info
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "CI Lite start (job_id=\${JOB_ID:-}, ref=\${TARGET_REF:-})"
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: \${{ github.ref_name }}
+          ref: \${{ env.TARGET_REF }}
+          fetch-depth: 0
 
-      - name: Setup Node
+      - name: Detect lockfile
+        id: lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
+          elif [ -f npm-shrinkwrap.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node (with npm cache)
+        if: steps.lock.outputs.has_lockfile == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: \${{ steps.lock.outputs.lockfile_path }}
 
-      - name: Install
-        run: npm ci
+      - name: Setup Node (no cache - lockfile missing)
+        if: steps.lock.outputs.has_lockfile != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-      - name: Typecheck
-        run: npm run typecheck
+      - name: Install dependencies (frozen if possible)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "\${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
+            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
+          else
+            echo "::warning::No lockfile found. Falling back to npm install (non-reproducible)."
+            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
+          fi
 
-      - name: Lint
-        run: npm run lint:ci
+      - name: Lint + Typecheck (robust, capture)
+        id: run
+        shell: bash
+        run: |
+          set +e
+          mkdir -p ci-logs
+
+          (npm run lint:ci || npx --yes eslint . --quiet) 2>&1 | tee ci-logs/lint.log
+          ESL=$?
+
+          (npm run typecheck || npx --yes tsc --noEmit) 2>&1 | tee ci-logs/typecheck.log
+          TSC=$?
+
+          echo "eslint_exit=$ESL" >> "$GITHUB_OUTPUT"
+          echo "tsc_exit=$TSC" >> "$GITHUB_OUTPUT"
+
+          cat > ci-logs/ci-lite-result.json <<EOF
+          {
+            "job_id": "\${JOB_ID:-}",
+            "ref": "\${TARGET_REF:-}",
+            "eslint_exit": $ESL,
+            "tsc_exit": $TSC,
+            "ok": $([ "$ESL" -eq 0 ] && [ "$TSC" -eq 0 ] && echo true || echo false)
+          }
+          EOF
+
+          if [ "$ESL" -ne 0 ] || [ "$TSC" -ne 0 ]; then
+            echo "::error::CI Lite failed (eslint=$ESL, tsc=$TSC)"
+            exit 1
+          fi
+          exit 0
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## CI Lite"
+            echo ""
+            echo "- ref: \`\${TARGET_REF}\`"
+            echo "- job_id: \`\${JOB_ID:-}\`"
+            echo "- eslint: \`\${{ steps.run.outputs.eslint_exit }}\`"
+            echo "- tsc: \`\${{ steps.run.outputs.tsc_exit }}\`"
+            echo ""
+            echo "Artifacts:"
+            echo "- \`ci-logs/ci-lite-result.json\` (für Header-Polling)"
+            echo "- \`ci-logs/lint.log\`, \`ci-logs/typecheck.log\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload CI Lite logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-lite-logs
+          path: |
+            ci-logs/ci-lite-result.json
+            ci-logs/lint.log
+            ci-logs/typecheck.log
+          retention-days: 7
+
+      - name: Done
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "✅ CI Lite passed (job_id=\${JOB_ID:-})"
 `,
-  "k1w1-ci-lite-autofix.yml": `name: K1W1 CI Lite Autofix (ESLint --fix)
+  "k1w1-ci-lite-autofix.yml": `
+name: K1W1 CI Lite Autofix (ESLint --fix)
+
+run-name: >-
+  CI Lite Autofix\${{ inputs.job_id && format(' [{0}]', inputs.job_id) || '' }} • \${{ inputs.ref || github.ref_name }}
 
 on:
   workflow_dispatch:
     inputs:
+      ref:
+        description: "Branch/Ref to autofix (must be a remote branch)"
+        required: false
+        default: ""
       job_id:
         description: "Client job id (UUID) for log correlation"
         required: false
@@ -79,94 +190,269 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
-  group: >-
-    k1w1-ci-lite-autofix-
-    \${{ github.ref_name }}
+  group: k1w1-ci-lite-autofix-\${{ inputs.ref || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   autofix:
+    name: ESLint --fix + verify
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
+
+    env:
+      JOB_ID: \${{ inputs.job_id }}
+      TARGET_BRANCH: \${{ inputs.ref || github.ref_name }}
+      ALLOWED_REF_REGEX: "^(work|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          ref: \${{ github.ref_name }}
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install
-        run: npm ci
-
-      - name: ESLint --fix
-        run: npm run lint:ci -- --fix
-
-      - name: Commit changes (if any)
+      - name: Run info
+        shell: bash
         run: |
-          if git diff --quiet; then
-            echo 'No changes to commit.'
-            exit 0
-          fi
-          git config user.name 'k1w1-ci-lite-bot'
-          git config user.email 'ci-lite@users.noreply.github.com'
-          git add -A
-          git commit -m "chore(ci-lite): eslint --fix"
-          git push
+          set -euo pipefail
+          echo "CI Lite Autofix start (job_id=\${JOB_ID:-}, ref=\${TARGET_BRANCH:-})"
 
-run-name: >-
-  CI Lite Autofix\${{ github.event.inputs.job_id && format(' [{0}]', github.event.inputs.job_id) || '' }}
-  • \${{ github.ref_name }}
-`,
-
-"k1w1-diagnostics.yml": `name: k1w1 diagnostics
-
-on:
-  workflow_dispatch:
-    inputs:
-      branch:
-        description: "Branch to diagnose"
-        required: false
-        default: "main"
-
-permissions:
-  contents: read
-
-jobs:
-  diagnose:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: \${{ inputs.branch }}
+          ref: \${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
 
-      - name: Setup Node
+      - name: Detect lockfile
+        id: lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
+          elif [ -f npm-shrinkwrap.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node (with npm cache)
+        if: steps.lock.outputs.has_lockfile == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: \${{ steps.lock.outputs.lockfile_path }}
 
-      - name: Install
-        run: npm ci
+      - name: Setup Node (no cache - lockfile missing)
+        if: steps.lock.outputs.has_lockfile != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-      - name: Expo config + basic checks
+      - name: Install dependencies (frozen if possible)
         shell: bash
         run: |
           set -euo pipefail
-          npx expo config --json > expo-config.json
-          PROJECT_ID="$(node -e 'const fs=require("fs"); const c=JSON.parse(fs.readFileSync("expo-config.json","utf8")); process.stdout.write(String(c?.expo?.extra?.eas?.projectId||""));')"
-          echo "project_id=$PROJECT_ID" >> "$GITHUB_OUTPUT"
-          if [ -z "$PROJECT_ID" ]; then
-            echo "Missing expo.extra.eas.projectId" >&2
+          if [ "\${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
+            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
+          else
+            echo "::warning::No lockfile found. Falling back to npm install (non-reproducible)."
+            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
+          fi
+
+      - name: ESLint --fix (best effort, capture)
+        id: fix
+        shell: bash
+        run: |
+          set +e
+          mkdir -p ci-logs
+
+          if npm run -s | grep -q "lint:fix"; then
+            (npm run lint:fix) 2>&1 | tee ci-logs/autofix.log
+            FIX=$?
+          else
+            (npx --yes eslint . --fix) 2>&1 | tee ci-logs/autofix.log
+            FIX=$?
+          fi
+
+          echo "eslint_fix_exit=$FIX" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Guarded writeback (commit + push)
+        id: writeback
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-logs
+
+          BR="\${TARGET_BRANCH:-}"
+          echo "pushed=false" >> "$GITHUB_OUTPUT"
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+
+          if [ -z "$BR" ]; then
+            echo "::warning::No TARGET_BRANCH provided; skipping writeback."
+            exit 0
+          fi
+
+          if echo "$BR" | grep -qE '^[0-9a-fA-F]{7,40}$'; then
+            echo "::warning::Ref looks like a SHA ($BR). Skipping writeback." | tee -a ci-logs/autofix.log
+            exit 0
+          fi
+
+          if echo "$BR" | grep -qE '[: ]'; then
+            echo "::warning::Unsafe ref ($BR). Skipping writeback." | tee -a ci-logs/autofix.log
+            exit 0
+          fi
+
+          if ! echo "$BR" | grep -qE "\${ALLOWED_REF_REGEX}"; then
+            echo "::warning::Writeback disabled for branch '$BR' (regex: \${ALLOWED_REF_REGEX})." | tee -a ci-logs/autofix.log
+            exit 0
+          fi
+
+          if ! git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
+            echo "::warning::Ref '$BR' is not a remote branch. Skipping writeback." | tee -a ci-logs/autofix.log
+            exit 0
+          fi
+
+          if ! git status --porcelain | grep -q .; then
+            echo "ℹ️ No autofix changes." | tee -a ci-logs/autofix.log
+            exit 0
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+          git config user.email "actions@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
+          git add -A
+          git commit -m "chore(ci): eslint autofix [skip ci]" || true
+
+          set +e
+          git push origin "HEAD:$BR" 2>&1 | tee -a ci-logs/autofix.log
+          RC=$?
+          set -e
+
+          if [ "$RC" -eq 0 ]; then
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Could not push autofix commit (branch may be protected)." | tee -a ci-logs/autofix.log
+            git diff --patch --no-color > ci-logs/autofix.patch || true
+          fi
+
+      - name: Lint + Typecheck (robust, capture)
+        id: verify
+        shell: bash
+        run: |
+          set +e
+          mkdir -p ci-logs
+
+          (npm run lint:ci || npx --yes eslint . --quiet) 2>&1 | tee ci-logs/lint.log
+          ESL=$?
+
+          (npm run typecheck || npx --yes tsc --noEmit) 2>&1 | tee ci-logs/typecheck.log
+          TSC=$?
+
+          echo "eslint_exit=$ESL" >> "$GITHUB_OUTPUT"
+          echo "tsc_exit=$TSC" >> "$GITHUB_OUTPUT"
+
+          cat > ci-logs/ci-lite-autofix-result.json <<EOF
+          {
+            "job_id": "\${JOB_ID:-}",
+            "ref": "\${TARGET_BRANCH:-}",
+            "eslint_fix_exit": \${{ steps.fix.outputs.eslint_fix_exit || 0 }},
+            "writeback_changed": \${{ steps.writeback.outputs.changed == 'true' && 'true' || 'false' }},
+            "writeback_pushed": \${{ steps.writeback.outputs.pushed == 'true' && 'true' || 'false' }},
+            "eslint_exit": $ESL,
+            "tsc_exit": $TSC,
+            "ok": $([ "$ESL" -eq 0 ] && [ "$TSC" -eq 0 ] && echo true || echo false)
+          }
+          EOF
+
+          if [ "$ESL" -ne 0 ] || [ "$TSC" -ne 0 ]; then
+            echo "::error::Autofix verification failed (eslint=$ESL, tsc=$TSC)"
             exit 1
           fi
+          exit 0
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## CI Lite Autofix"
+            echo ""
+            echo "- ref: \`\${TARGET_BRANCH}\`"
+            echo "- job_id: \`\${JOB_ID:-}\`"
+            echo "- eslint fix exit: \`\${{ steps.fix.outputs.eslint_fix_exit }}\`"
+            echo "- changed: \`\${{ steps.writeback.outputs.changed }}\`"
+            echo "- pushed: \`\${{ steps.writeback.outputs.pushed }}\`"
+            echo "- eslint verify: \`\${{ steps.verify.outputs.eslint_exit }}\`"
+            echo "- tsc verify: \`\${{ steps.verify.outputs.tsc_exit }}\`"
+            echo ""
+            echo "Artifacts:"
+            echo "- \`ci-logs/ci-lite-autofix-result.json\`"
+            echo "- \`ci-logs/autofix.log\` (+ optional \`ci-logs/autofix.patch\` if push fails)"
+            echo "- \`ci-logs/lint.log\`, \`ci-logs/typecheck.log\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload CI Lite Autofix logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-lite-autofix-logs
+          path: |
+            ci-logs/ci-lite-autofix-result.json
+            ci-logs/autofix.log
+            ci-logs/autofix.patch
+            ci-logs/lint.log
+            ci-logs/typecheck.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Trigger CI Lite (chain-run)
+        if: success()
+        env:
+          GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BR="\${TARGET_BRANCH:-}"
+
+          if [ -z "$BR" ]; then
+            echo "::warning::No TARGET_BRANCH; skipping CI Lite chain-run."
+            exit 0
+          fi
+
+          if echo "$BR" | grep -qE '^[0-9a-fA-F]{7,40}$'; then
+            echo "::warning::Ref looks like a SHA ($BR); skipping CI Lite chain-run."
+            exit 0
+          fi
+
+          if echo "$BR" | grep -qE '[: ]'; then
+            echo "::warning::Unsafe ref ($BR); skipping CI Lite chain-run."
+            exit 0
+          fi
+
+          if ! echo "$BR" | grep -qE "\${ALLOWED_REF_REGEX}"; then
+            echo "::warning::CI Lite chain-run disabled for '$BR' (regex: \${ALLOWED_REF_REGEX})."
+            exit 0
+          fi
+
+          if ! git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
+            echo "::warning::Ref '$BR' is not a remote branch; skipping CI Lite chain-run."
+            exit 0
+          fi
+
+          echo "Dispatching CI Lite chain-run for '$BR' (job_id=\${JOB_ID:-})"
+          gh api             -X POST             "repos/\${GITHUB_REPOSITORY}/actions/workflows/k1w1-ci-lite.yml/dispatches"             -f ref="$BR"             -f inputs[ref]="$BR"             -f inputs[job_id]="\${JOB_ID:-}"             >/dev/null
+
+      - name: Done
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "✅ CI Lite Autofix finished (job_id=\${JOB_ID:-})"
 `,
 };
 

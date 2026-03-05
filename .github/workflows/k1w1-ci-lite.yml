@@ -1,5 +1,8 @@
 name: K1W1 CI Lite (Lint + Typecheck)
 
+run-name: >-
+  CI Lite${{ inputs.job_id && format(' [{0}]', inputs.job_id) || '' }} • ${{ inputs.ref || github.ref_name }}
+
 on:
   workflow_dispatch:
     inputs:
@@ -16,9 +19,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: >-
-    k1w1-ci-lite-
-    ${{ github.event.inputs.ref || github.ref_name }}
+  group: k1w1-ci-lite-${{ inputs.ref || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -30,19 +31,21 @@ jobs:
       contents: read
 
     env:
-      JOB_ID: ${{ github.event.inputs.job_id }}
+      JOB_ID: ${{ inputs.job_id }}
+      TARGET_REF: ${{ inputs.ref || github.ref_name }}
 
     steps:
-      - name: "Run info"
+      - name: Run info
         shell: bash
         run: |
           set -euo pipefail
-          echo "CI Lite start (job_id=${JOB_ID:-})"
+          echo "CI Lite start (job_id=${JOB_ID:-}, ref=${TARGET_REF:-})"
 
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.ref || github.ref_name }}
+          ref: ${{ env.TARGET_REF }}
+          fetch-depth: 0
 
       - name: Detect lockfile
         id: lock
@@ -62,7 +65,7 @@ jobs:
 
       - name: Setup Node (with npm cache)
         if: steps.lock.outputs.has_lockfile == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
@@ -70,7 +73,7 @@ jobs:
 
       - name: Setup Node (no cache - lockfile missing)
         if: steps.lock.outputs.has_lockfile != 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
@@ -86,6 +89,7 @@ jobs:
           fi
 
       - name: Lint + Typecheck (robust, capture)
+        id: run
         shell: bash
         run: |
           set +e
@@ -100,29 +104,53 @@ jobs:
           echo "eslint_exit=$ESL" >> "$GITHUB_OUTPUT"
           echo "tsc_exit=$TSC" >> "$GITHUB_OUTPUT"
 
+          cat > ci-logs/ci-lite-result.json <<EOF
+          {
+            "job_id": "${JOB_ID:-}",
+            "ref": "${TARGET_REF:-}",
+            "eslint_exit": $ESL,
+            "tsc_exit": $TSC,
+            "ok": $([ "$ESL" -eq 0 ] && [ "$TSC" -eq 0 ] && echo true || echo false)
+          }
+          EOF
+
           if [ "$ESL" -ne 0 ] || [ "$TSC" -ne 0 ]; then
             echo "::error::CI Lite failed (eslint=$ESL, tsc=$TSC)"
             exit 1
           fi
-
           exit 0
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## CI Lite"
+            echo ""
+            echo "- ref: \`${TARGET_REF}\`"
+            echo "- job_id: \`${JOB_ID:-}\`"
+            echo "- eslint: \`${{ steps.run.outputs.eslint_exit }}\`"
+            echo "- tsc: \`${{ steps.run.outputs.tsc_exit }}\`"
+            echo ""
+            echo "Artifacts:"
+            echo "- \`ci-logs/ci-lite-result.json\` (für Header-Polling)"
+            echo "- \`ci-logs/lint.log\`, \`ci-logs/typecheck.log\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload CI Lite logs
         if: always()
-        uses: actions/upload-artifact@65aadd1f256f2c7b34697482e3d4a3f2ecf62edd # v4
+        uses: actions/upload-artifact@v4
         with:
           name: ci-lite-logs
           path: |
+            ci-logs/ci-lite-result.json
             ci-logs/lint.log
             ci-logs/typecheck.log
           retention-days: 7
 
       - name: Done
+        if: success()
         shell: bash
         run: |
           set -euo pipefail
           echo "✅ CI Lite passed (job_id=${JOB_ID:-})"
-
-run-name: >-
-  CI Lite${{ github.event.inputs.job_id && format(' [{0}]', github.event.inputs.job_id) || '' }}
-  • ${{ github.event.inputs.ref || github.ref_name }}
