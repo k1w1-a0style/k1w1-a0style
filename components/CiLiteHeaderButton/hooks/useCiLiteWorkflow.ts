@@ -13,7 +13,7 @@ import { getDefaultBranch, getEdgeAdminKey } from "../../../infra/github/githubS
 import { useGitHub } from "../../../contexts/GitHubContext";
 import { useProject } from "../../../contexts/ProjectContext";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
-import { inferStepStates, safeUi } from "../../ciLite/ciLiteUtils";
+import { computeCiLiteOk, inferStepStates, safeUi } from "../../ciLite/ciLiteUtils";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { WORKFLOW_CI_LITE, WORKFLOW_CI_LITE_AUTOFIX, type StepState } from "../types";
 
@@ -132,13 +132,28 @@ export function useCiLiteWorkflow() {
     return false;
   }, [workflowRun?.status, logLines]);
 
-  const showError = safeUi(localError || logsError || "");
+  // If the workflow run exists and completed with a non-success conclusion,
+  // always surface that as an error even if log parsing yields nothing.
+  const showError = safeUi(
+    localError ||
+      logsError ||
+      (workflowRun?.status === "completed" &&
+      workflowRun.conclusion &&
+      workflowRun.conclusion !== "success"
+        ? `Workflow failed (${workflowRun.conclusion}). Open the run for details.`
+        : ""),
+  );
 
-  const ok = useMemo(() => {
-    if (!done) return false;
-    if ((workflowRun?.conclusion || "").toLowerCase() === "success") return true;
-    return onlyErrors.length === 0 && !showError;
-  }, [done, workflowRun?.conclusion, onlyErrors.length, showError]);
+  const ok = useMemo(
+    () =>
+      computeCiLiteOk({
+        done,
+        workflowRun,
+        onlyErrorsCount: onlyErrors.length,
+        hasErrorText: Boolean(showError),
+      }),
+    [done, workflowRun, onlyErrors.length, showError],
+  );
 
   const busy = dispatching || logsLoading || workflowRun?.status === "in_progress";
   const isAutofix = workflowId === WORKFLOW_CI_LITE_AUTOFIX;
@@ -247,7 +262,9 @@ export function useCiLiteWorkflow() {
             githubToken: await getGitHubToken().catch(() => null),
             workflow: workflowFile,
             ref: targetBranch,
-            job_id: newJobId, inputs: {},
+            // `ref` is already provided as the top-level workflow_dispatch ref.
+            // `inputs` must match the workflow's declared `workflow_dispatch.inputs`.
+            inputs: { job_id: newJobId },
           }),
         });
 

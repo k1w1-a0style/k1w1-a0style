@@ -7,7 +7,6 @@
 - 2026-03-01: Patch 325 prepared: Restliche Orchestrator-Provider (`gemini`/`groq`/`huggingface`) ohne `any` typisiert, Catch-Pfade auf `unknown` vereinheitlicht, TODO-Fixlistenpunkt aktualisiert.
 - 2026-03-01: Patch 324 prepared: Priorisierte Fix-Liste aus Projekt-Audit erstellt und erste Orchestrator-TS-Hardening-Punkte umgesetzt (openai/anthropic/index ohne `any` in zentralen Fehler-/Response-Pfaden).
 - 2026-02-28: Patch 323 prepared: AIContext `any`-Cast cleanup in helpers/provider persistence, TODO status synced for TypeScript-hygiene progress.
-- 2026-03-05: Patch 357 prepared: CI Lite in-app Autofix dispatch fixed + Statuslogik an GitHub conclusion gebunden.
 # Project Checklog
 
 ## Patch 321 (2026-02-28)
@@ -247,7 +246,7 @@
 
 - Patch 353: Fix preview_page bundling by importing ./helpers.ts explicitly
 
-- Patch 357: CI Lite in-app Autofix bootstrap + dispatch (workflow template + dispatch endpoint + client hook)
-- Patch 358: Fix duplicate `k1w1-ci-lite-autofix.yml` key in workflowTemplates (TS1117)
-
-- Patch 359: CI Lite Autofix dispatch hardened (client stops sending ref/job_id as inputs; edge dispatch retries without inputs on 422).
+## Patch 361 (2026-03-05)
+- Fix: `supabase/functions/github-workflow-dispatch/index.ts` bundling error durch unescaped GitHub expressions in Template-Strings (`${{ ... }}`).
+- Lösung: alle `${{ ... }}` in Workflow-Templates als literalen Text escapen (`\${{ ... }}`), damit Deno/ESBuild beim Deploy nicht versucht, JS-Interpolation auszuführen.
+- Verifikation: `supabase functions deploy github-workflow-dispatch` bundelt wieder.

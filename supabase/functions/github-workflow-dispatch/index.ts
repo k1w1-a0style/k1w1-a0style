@@ -32,7 +32,7 @@ permissions:
 concurrency:
   group: >-
     k1w1-ci-lite-
-    \${{ github.event.inputs.ref || github.ref_name }}
+    \${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -50,7 +50,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: \${{ github.event.inputs.ref || github.ref_name }}
+          ref: \${{ github.ref_name }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -67,7 +67,64 @@ jobs:
       - name: Lint
         run: npm run lint:ci
 `,
-  "k1w1-diagnostics.yml": `name: k1w1 diagnostics
+  "k1w1-ci-lite-autofix.yml": `name: K1W1 CI Lite Autofix (ESLint --fix)
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: "Client job id (UUID) for log correlation"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: >-
+    k1w1-ci-lite-autofix-
+    \${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  autofix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: \${{ github.ref_name }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install
+        run: npm ci
+
+      - name: ESLint --fix
+        run: npm run lint:ci -- --fix
+
+      - name: Commit changes (if any)
+        run: |
+          if git diff --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git config user.name 'k1w1-ci-lite-bot'
+          git config user.email 'ci-lite@users.noreply.github.com'
+          git add -A
+          git commit -m "chore(ci-lite): eslint --fix"
+          git push
+
+run-name: >-
+  CI Lite Autofix\${{ github.event.inputs.job_id && format(' [{0}]', github.event.inputs.job_id) || '' }}
+  • \${{ github.ref_name }}
+`,
+
+"k1w1-diagnostics.yml": `name: k1w1 diagnostics
 
 on:
   workflow_dispatch:
@@ -286,40 +343,17 @@ try {
     };
     const normalized = aliasMap[raw] ?? raw;
 
-    
-const sanitizedInputs: Record<string, string> = (() => {
-  const rawInputs = (inputs ?? {}) as Record<string, unknown>;
-  const out: Record<string, string> = {};
-  if (!rawInputs || typeof rawInputs !== "object") return out;
-  for (const [k, v] of Object.entries(rawInputs)) {
-    // Prevent accidental GitHub `workflow_dispatch` input collisions.
-    if (k === "ref" || k === "job_id") continue;
-    if (v === undefined || v === null) continue;
-    out[k] = String(v);
-  }
-  return out;
-})();
-
-const dispatchByIdOrName = async (wf: string | number, includeInputs = true): Promise<Response> => {
+    const dispatchByIdOrName = async (wf: string | number): Promise<Response> => {
       const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/workflows/${wf}/dispatches`;
       return await ghFetch(url, token, {
         method: "POST",
-        body: JSON.stringify(includeInputs ? { ref, inputs: sanitizedInputs } : { ref }),
+        body: JSON.stringify(body),
       });
-    }
-
-const dispatchWithFallback = async (wf: string | number): Promise<Response> => {
-  const first = await dispatchByIdOrName(wf, true);
-  // GitHub returns 422 if workflow exists but doesn't declare the inputs we send.
-  if (first.ok || first.status !== 422) return first;
-  return await dispatchByIdOrName(wf, false);
-};
-
-;
+    };
 
     // 1) If numeric -> dispatch directly.
     if (/^[0-9]+$/.test(normalized)) {
-      const r = await dispatchWithFallback(normalized);
+      const r = await dispatchByIdOrName(normalized);
       if (r.ok) return jsonResponse({ ok: true, workflow: normalized }, req, 200);
       const txt = await r.text();
       const details = sanitizeGitHubFailure(r, txt);
@@ -343,7 +377,7 @@ const dispatchWithFallback = async (wf: string | number): Promise<Response> => {
     for (const wfFile of candidates) {
       const id = await findWorkflowIdByPath(owner, repo, token, wfFile);
       if (id) {
-        const r = await dispatchWithFallback(id);
+        const r = await dispatchByIdOrName(id);
         if (r.ok) return jsonResponse({ ok: true, workflow: wfFile, workflow_id: id }, req, 200);
       }
     }
@@ -351,7 +385,7 @@ const dispatchWithFallback = async (wf: string | number): Promise<Response> => {
     // 4) Fallback: direct dispatch by filename (GitHub supports this, but can 404 when missing).
     let lastResp: Response | null = null;
     for (const wfFile of candidates) {
-      const r = await dispatchWithFallback(wfFile);
+      const r = await dispatchByIdOrName(wfFile);
       if (r.ok) return jsonResponse({ ok: true, workflow: wfFile }, req, 200);
       lastResp = r;
       if (r.status !== 404) break;
@@ -370,7 +404,7 @@ const dispatchWithFallback = async (wf: string | number): Promise<Response> => {
             await sleep(wait);
             const id = await findWorkflowIdByPath(owner, repo, token, bootTarget);
             if (id) {
-              const r = await dispatchWithFallback(id);
+              const r = await dispatchByIdOrName(id);
               if (r.ok) {
                 return jsonResponse(
                   { ok: true, workflow: bootTarget, workflow_id: id, bootstrapped: ensured },
@@ -397,7 +431,7 @@ const dispatchWithFallback = async (wf: string | number): Promise<Response> => {
     }
 
     // If still not ok, bubble the last response.
-    const r = lastResp ?? (await dispatchWithFallback(candidates[0] ?? normalized));
+    const r = lastResp ?? (await dispatchByIdOrName(candidates[0] ?? normalized));
     if (!r.ok) {
       const txt = await r.text();
       const details = sanitizeGitHubFailure(r, txt);

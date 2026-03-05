@@ -3,6 +3,34 @@ import { redactSecrets, truncateWithMarker } from "../../lib/secretRedaction";
 
 export type StepState = "idle" | "waiting" | "running" | "success" | "failure";
 
+export type CiLiteRunMeta = {
+  status?: "queued" | "in_progress" | "completed";
+  conclusion?: string | null;
+} | null;
+
+/**
+ * Decide whether CI Lite should be shown as green.
+ *
+ * Rule:
+ * - If GitHub provides a completed run, trust its conclusion.
+ * - Otherwise, fall back to parsed output.
+ */
+export function computeCiLiteOk(args: {
+  done: boolean;
+  workflowRun: CiLiteRunMeta;
+  onlyErrorsCount: number;
+  hasErrorText: boolean;
+}): boolean {
+  const { done, workflowRun, onlyErrorsCount, hasErrorText } = args;
+  if (!done) return false;
+
+  if (workflowRun?.status === "completed") {
+    return (workflowRun.conclusion || "").toLowerCase() === "success";
+  }
+
+  return onlyErrorsCount == 0 && !hasErrorText;
+}
+
 export function safeUi(s: string): string {
   return truncateWithMarker(redactSecrets(s || ""), 900, "…");
 }

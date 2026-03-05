@@ -1,7 +1,3 @@
-- Patch 358 (2026-03-05): fix CI Lite Autofix template duplicate key (TS1117) (see docs/patches/patch_358.md)
-- Patch 359: CI Lite Autofix: fix 422 dispatch errors (don’t send ref/job_id as workflow inputs; edge dispatch retries without inputs).
-
-- Patch 357 (2026-03-05): CI Lite in-app Status/Autofix stabilisiert (Autofix Workflow Template + strict conclusion gating).
 - Patch 343: correct status wording for "Offene TODO/Unknowns" (no new unknowns, but existing `: any` tech-debt item remains) (see docs/patches/patch_343.md)
 - Patch 336: define verbindliches Build Readiness Gate (Matrix + Entry Point + Evidence) and update build pipeline contract (see docs/patches/patch_336.md)
 - Patch 333: fix BuildPolling timeout normalization for non-Error AbortError object rejections + add regression test (see docs/patches/patch_333.md)
@@ -96,3 +92,4 @@
 - Patch 343 (2026-03-02): Docs Finalization Pack (Runbook + Product Flows + Screen Map + SoT Quickref + Docs-Lint) (see docs/patches/patch_343.md)
 - [patch_352.md](patch_352.md) — Fix preview_page bundling (remove nested template literals)
 - [patch_353.md](patch_353.md) — Fix preview_page helpers import for bundling
+- Patch 361: Fix github-workflow-dispatch bundling (escape GitHub expressions in YAML templates)

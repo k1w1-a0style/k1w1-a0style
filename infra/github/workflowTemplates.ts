@@ -163,7 +163,7 @@ permissions:
 concurrency:
   group: >-
     k1w1-ci-lite-
-    \${{ github.event.inputs.ref || github.ref_name }}
+    \${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -187,7 +187,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          ref: \${{ github.event.inputs.ref || github.ref_name }}
+          ref: \${{ github.ref_name }}
 
       - name: Detect lockfile
         id: lock
@@ -270,18 +270,13 @@ jobs:
 
 run-name: >-
   CI Lite\${{ github.event.inputs.job_id && format(' [{0}]', github.event.inputs.job_id) || '' }}
-  • \${{ github.event.inputs.ref || github.ref_name }}
+  • \${{ github.ref_name }}
 `,
-
   "k1w1-ci-lite-autofix.yml": `name: K1W1 CI Lite Autofix (ESLint --fix)
 
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: "Branch/Ref to autofix (must be a remote branch)"
-        required: false
-        default: ""
       job_id:
         description: "Client job id (UUID) for log correlation"
         required: false
@@ -294,7 +289,7 @@ permissions:
 concurrency:
   group: >-
     k1w1-ci-lite-autofix-
-    \${{ github.event.inputs.ref || github.ref_name }}
+    \${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -305,7 +300,7 @@ jobs:
 
     env:
       JOB_ID: \${{ github.event.inputs.job_id }}
-      TARGET_BRANCH: \${{ github.event.inputs.ref || github.ref_name }}
+      TARGET_BRANCH: \${{ github.ref_name }}
       ALLOWED_REF_REGEX: "^(work|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
 
     steps:
@@ -318,7 +313,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          ref: \${{ github.event.inputs.ref || github.ref_name }}
+          ref: \${{ github.ref_name }}
 
       - name: Detect lockfile
         id: lock
@@ -525,7 +520,7 @@ jobs:
 
 run-name: >-
   CI Lite Autofix\${{ github.event.inputs.job_id && format(' [{0}]', github.event.inputs.job_id) || '' }}
-  • \${{ github.event.inputs.ref || github.ref_name }}`,
+  • \${{ github.ref_name }}`,
 };
 
 export const isKnownWorkflowTemplate = (fileName: string) => Boolean(WORKFLOW_TEMPLATES[fileName]);
