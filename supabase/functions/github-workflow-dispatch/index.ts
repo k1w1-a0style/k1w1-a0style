@@ -697,7 +697,11 @@ try {
 
     // 5) Auto-fix 404 (workflow missing): bootstrap known workflows, then retry.
     const last = lastResp;
-    if (last && last.status === 404) {
+
+      const unexpectedInputs =
+        !!last && !!lastDetails && last.status === 422 && /Unexpected inputs provided/i.test(lastDetails.message || "");
+
+    if (last && (last.status === 404 || unexpectedInputs)) {
       // Choose the first file candidate that we can bootstrap.
       const bootTarget = candidates.find((c) => !!WORKFLOW_TEMPLATES[c]) ?? null;
       if (bootTarget) {
