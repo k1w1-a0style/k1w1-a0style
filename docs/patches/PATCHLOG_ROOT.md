@@ -1,9 +1,10 @@
-- Patch 377: CI-Lite header artifact backchannel (adminKey await + zip import + github helpers)\n# Patchlog Root
+# Patchlog Root
 
 This file is the *index* of patch notes for this repo.
 
 ## Recent
 
+- Patch 379: Guard against flattened workflow YAML/templates + invariant test to catch newline loss
 - Patch 374: CI-Lite workflows produce deterministic result JSON artifact + checkout input ref
 - Patch 373: Metro blockList CI-lite env overlay + remove private metro-config import
 - Patch 372: Expo/Metro ignores CI-Lite env overlay files (fix dev bundler parse error)

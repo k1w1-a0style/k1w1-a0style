@@ -456,6 +456,19 @@ jobs:
 `,
 };
 
+function validateWorkflowTemplate(name: string, content: string): { ok: true } | { ok: false; reason: string } {
+  // Defensive: if a generator/patcher ever flattens YAML (removes newlines), we must NOT overwrite repo workflows.
+  const lines = content.split(/\r?\n/);
+  if (lines.length < 20) return { ok: false, reason: `too_few_lines:${lines.length}` };
+  if (!content.includes("\non:")) return { ok: false, reason: "missing_on_block" };
+  if (!content.includes("workflow_dispatch")) return { ok: false, reason: "missing_workflow_dispatch" };
+  if (!content.includes("\njobs:")) return { ok: false, reason: "missing_jobs_block" };
+  // Common flatten symptom: literal '\n' sequences rather than real newlines.
+  if (content.includes("\\n") && lines.length < 40) return { ok: false, reason: "looks_escaped_or_flattened" };
+  return { ok: true };
+}
+
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -505,6 +518,11 @@ async function ensureWorkflowFileExists(
 ): Promise<{ ok: boolean; created?: boolean; updated?: boolean; details?: unknown }> {
   const template = WORKFLOW_TEMPLATES[workflowFile];
   if (!template) return { ok: false, details: { reason: "no_template", workflowFile } };
+  const v = validateWorkflowTemplate(workflowFile, template);
+  if (!v.ok) {
+    return { ok: false, details: { reason: "template_invalid", workflowFile, why: v.reason } };
+  }
+
 
   const path = `.github/workflows/${workflowFile}`;
   const getUrl = `${GITHUB_API_BASE}/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(ref)}`;

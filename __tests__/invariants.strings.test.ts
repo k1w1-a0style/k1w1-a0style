@@ -116,4 +116,28 @@ describe("Invariant String Tests", () => {
     expect(patchLog).toContain("patch_337.md");
     expect(patchLog).toContain("PATCH_337_NOTES.md");
   });
+  test("I11 — CI-lite workflows and templates remain multiline (no flattening)", () => {
+    // Why it matters: flattened YAML breaks GitHub parsing and can be reintroduced by bootstrap templates.
+    const wf = read(".github/workflows/k1w1-ci-lite.yml");
+    const wfAuto = read(".github/workflows/k1w1-ci-lite-autofix.yml");
+
+    // Workflows must clearly be multiline YAML.
+    expect(wf.split(/\r?\n/).length).toBeGreaterThan(80);
+    expect(wf).toContain("\non:\n  workflow_dispatch:");
+    expect(wf).toContain("\njobs:\n");
+
+    expect(wfAuto.split(/\r?\n/).length).toBeGreaterThan(120);
+    expect(wfAuto).toContain("\non:\n  workflow_dispatch:");
+    expect(wfAuto).toContain("\njobs:\n");
+
+    // Template sources of truth must also be multiline-safe.
+    const edge = read("supabase/functions/github-workflow-dispatch/index.ts");
+    expect(edge).toContain("WORKFLOW_TEMPLATES");
+    expect(edge).toContain("k1w1-ci-lite.yml");
+    expect(edge).toContain("\non:\n  workflow_dispatch:");
+
+    const appTemplates = read("infra/github/workflowTemplates.ts");
+    expect(appTemplates).toContain("k1w1-ci-lite.yml");
+    expect(appTemplates).toContain("\non:\n  workflow_dispatch:");
+  });
 });
