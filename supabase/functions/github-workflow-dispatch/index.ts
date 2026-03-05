@@ -67,33 +67,6 @@ jobs:
       - name: Lint
         run: npm run lint:ci
 `,
-  "k1w1-ci-lite-autofix.yml": `
-name: K1W1 CI Lite Autofix (ESLint)
-
-on:
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-jobs:
-  lint_typecheck:
-    name: Lint + Typecheck
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      # "Autofix" in-app currently means: re-run checks and provide logs quickly.
-      # We intentionally do NOT commit changes from CI.
-      - name: ESLint
-        run: npm run lint:ci
-      - name: Typecheck
-        run: npm run typecheck
-`,
   "k1w1-diagnostics.yml": `name: k1w1 diagnostics
 
 on:
@@ -313,17 +286,40 @@ try {
     };
     const normalized = aliasMap[raw] ?? raw;
 
-    const dispatchByIdOrName = async (wf: string | number): Promise<Response> => {
+    
+const sanitizedInputs: Record<string, string> = (() => {
+  const rawInputs = (inputs ?? {}) as Record<string, unknown>;
+  const out: Record<string, string> = {};
+  if (!rawInputs || typeof rawInputs !== "object") return out;
+  for (const [k, v] of Object.entries(rawInputs)) {
+    // Prevent accidental GitHub `workflow_dispatch` input collisions.
+    if (k === "ref" || k === "job_id") continue;
+    if (v === undefined || v === null) continue;
+    out[k] = String(v);
+  }
+  return out;
+})();
+
+const dispatchByIdOrName = async (wf: string | number, includeInputs = true): Promise<Response> => {
       const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/workflows/${wf}/dispatches`;
       return await ghFetch(url, token, {
         method: "POST",
-        body: JSON.stringify(body),
+        body: JSON.stringify(includeInputs ? { ref, inputs: sanitizedInputs } : { ref }),
       });
-    };
+    }
+
+const dispatchWithFallback = async (wf: string | number): Promise<Response> => {
+  const first = await dispatchByIdOrName(wf, true);
+  // GitHub returns 422 if workflow exists but doesn't declare the inputs we send.
+  if (first.ok || first.status !== 422) return first;
+  return await dispatchByIdOrName(wf, false);
+};
+
+;
 
     // 1) If numeric -> dispatch directly.
     if (/^[0-9]+$/.test(normalized)) {
-      const r = await dispatchByIdOrName(normalized);
+      const r = await dispatchWithFallback(normalized);
       if (r.ok) return jsonResponse({ ok: true, workflow: normalized }, req, 200);
       const txt = await r.text();
       const details = sanitizeGitHubFailure(r, txt);
@@ -347,7 +343,7 @@ try {
     for (const wfFile of candidates) {
       const id = await findWorkflowIdByPath(owner, repo, token, wfFile);
       if (id) {
-        const r = await dispatchByIdOrName(id);
+        const r = await dispatchWithFallback(id);
         if (r.ok) return jsonResponse({ ok: true, workflow: wfFile, workflow_id: id }, req, 200);
       }
     }
@@ -355,7 +351,7 @@ try {
     // 4) Fallback: direct dispatch by filename (GitHub supports this, but can 404 when missing).
     let lastResp: Response | null = null;
     for (const wfFile of candidates) {
-      const r = await dispatchByIdOrName(wfFile);
+      const r = await dispatchWithFallback(wfFile);
       if (r.ok) return jsonResponse({ ok: true, workflow: wfFile }, req, 200);
       lastResp = r;
       if (r.status !== 404) break;
@@ -374,7 +370,7 @@ try {
             await sleep(wait);
             const id = await findWorkflowIdByPath(owner, repo, token, bootTarget);
             if (id) {
-              const r = await dispatchByIdOrName(id);
+              const r = await dispatchWithFallback(id);
               if (r.ok) {
                 return jsonResponse(
                   { ok: true, workflow: bootTarget, workflow_id: id, bootstrapped: ensured },
@@ -401,7 +397,7 @@ try {
     }
 
     // If still not ok, bubble the last response.
-    const r = lastResp ?? (await dispatchByIdOrName(candidates[0] ?? normalized));
+    const r = lastResp ?? (await dispatchWithFallback(candidates[0] ?? normalized));
     if (!r.ok) {
       const txt = await r.text();
       const details = sanitizeGitHubFailure(r, txt);

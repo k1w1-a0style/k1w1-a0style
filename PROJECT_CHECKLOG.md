@@ -249,3 +249,5 @@
 
 - Patch 357: CI Lite in-app Autofix bootstrap + dispatch (workflow template + dispatch endpoint + client hook)
 - Patch 358: Fix duplicate `k1w1-ci-lite-autofix.yml` key in workflowTemplates (TS1117)
+
+- Patch 359: CI Lite Autofix dispatch hardened (client stops sending ref/job_id as inputs; edge dispatch retries without inputs on 422).

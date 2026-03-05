@@ -135,17 +135,10 @@ export function useCiLiteWorkflow() {
   const showError = safeUi(localError || logsError || "");
 
   const ok = useMemo(() => {
-  if (!done) return false;
-
-  const conclusion = (workflowRun?.conclusion || "").toLowerCase();
-  // If GitHub says the run didn't succeed, we must not show green — even if we couldn't parse logs.
-  if (conclusion) return conclusion === "success";
-
-  // Fallback (rare): if we couldn't fetch run metadata, rely on parsed logs/errors.
-  if (showError) return false;
-  return onlyErrors.length === 0;
-}, [done, workflowRun?.conclusion, onlyErrors.length, showError]);
-
+    if (!done) return false;
+    if ((workflowRun?.conclusion || "").toLowerCase() === "success") return true;
+    return onlyErrors.length === 0 && !showError;
+  }, [done, workflowRun?.conclusion, onlyErrors.length, showError]);
 
   const busy = dispatching || logsLoading || workflowRun?.status === "in_progress";
   const isAutofix = workflowId === WORKFLOW_CI_LITE_AUTOFIX;
@@ -254,7 +247,7 @@ export function useCiLiteWorkflow() {
             githubToken: await getGitHubToken().catch(() => null),
             workflow: workflowFile,
             ref: targetBranch,
-            inputs: { ref: targetBranch, job_id: newJobId },
+            job_id: newJobId, inputs: {},
           }),
         });
 
