@@ -2,3 +2,9 @@
 # CI-Lite local env (DO NOT COMMIT)
 .env.ci-lite.local
 .env.ci-lite.*.local
+
+.env.local
+.expo/
+node_modules/
+supabase/.temp/
+*.zip
