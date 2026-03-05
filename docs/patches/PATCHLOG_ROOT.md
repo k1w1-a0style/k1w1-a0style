@@ -4,6 +4,7 @@ This file is the *index* of patch notes for this repo.
 
 ## Recent
 
+- Patch 372: Expo/Metro ignores CI-Lite env overlay files (fix dev bundler parse error)
 - Patch 369: CI-Lite in-app status uses GitHub truth (fix green/rot mismatch)
 - Patch 368: CI-Lite smoke diagnostics + gitignore
 
