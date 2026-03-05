@@ -236,7 +236,10 @@ jobs:
           set +e
           mkdir -p ci-logs
 
-          (npm run lint:ci || npx --yes eslint . --quiet) 2>&1 | tee ci-logs/lint.log
+          # NOTE: We intentionally pin ESLint v8 here.
+          # Many apps still use legacy .eslintrc.* configs; ESLint v9+ defaults to flat config (eslint.config.*)
+          # and will hard-fail if the flat config file isn't present.
+          (npm run lint:ci || npx --yes eslint@8.57.1 . --quiet) 2>&1 | tee ci-logs/lint.log
           ESL=$?
 
           (npm run typecheck || npx --yes tsc --noEmit) 2>&1 | tee ci-logs/typecheck.log
@@ -366,7 +369,8 @@ jobs:
             (npm run lint:fix) 2>&1 | tee ci-logs/autofix.log
             FIX=$?
           else
-            (npx --yes eslint . --fix) 2>&1 | tee ci-logs/autofix.log
+            # Pin ESLint v8 for legacy .eslintrc.* compatibility.
+            (npx --yes eslint@8.57.1 . --fix) 2>&1 | tee ci-logs/autofix.log
             FIX=$?
           fi
 
@@ -446,7 +450,8 @@ jobs:
           set +e
           mkdir -p ci-logs
 
-          (npm run lint:ci || npx --yes eslint . --quiet) 2>&1 | tee ci-logs/lint.log
+          # Pin ESLint v8 for legacy .eslintrc.* compatibility.
+          (npm run lint:ci || npx --yes eslint@8.57.1 . --quiet) 2>&1 | tee ci-logs/lint.log
           ESL=$?
 
           (npm run typecheck || npx --yes tsc --noEmit) 2>&1 | tee ci-logs/typecheck.log
