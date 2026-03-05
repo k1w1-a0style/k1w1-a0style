@@ -272,6 +272,7 @@ run-name: >-
   CI Lite\${{ github.event.inputs.job_id && format(' [{0}]', github.event.inputs.job_id) || '' }}
   • \${{ github.event.inputs.ref || github.ref_name }}
 `,
+
   "k1w1-ci-lite-autofix.yml": `name: K1W1 CI Lite Autofix (ESLint --fix)
 
 on:

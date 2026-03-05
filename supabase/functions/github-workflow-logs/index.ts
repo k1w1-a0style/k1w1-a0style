@@ -7,6 +7,10 @@ import {
   redactSecrets, fetchLogsZip, zipToText, MAX_CHARS, MAX_ZIP_BYTES,
 } from "./helpers.ts";
 
+import { handleCors } from "../_shared/cors.ts";
+import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { parseJsonBody } from "../_shared/validation.ts";
+
 serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
@@ -76,7 +80,7 @@ serve(async (req) => {
       truncated,
       logsText: text,
     });
-  } catch (e) {
+  } catch (e: unknown) {
     const anyE = e as any;
     // Handle "not ready" signals from fetchLogsZip (logs still being prepared)
     if (anyE && anyE.notReady === true && anyE.body) {

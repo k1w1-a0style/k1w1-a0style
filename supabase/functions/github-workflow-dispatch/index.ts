@@ -67,6 +67,33 @@ jobs:
       - name: Lint
         run: npm run lint:ci
 `,
+  "k1w1-ci-lite-autofix.yml": `
+name: K1W1 CI Lite Autofix (ESLint)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint_typecheck:
+    name: Lint + Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # "Autofix" in-app currently means: re-run checks and provide logs quickly.
+      # We intentionally do NOT commit changes from CI.
+      - name: ESLint
+        run: npm run lint:ci
+      - name: Typecheck
+        run: npm run typecheck
+`,
   "k1w1-diagnostics.yml": `name: k1w1 diagnostics
 
 on:

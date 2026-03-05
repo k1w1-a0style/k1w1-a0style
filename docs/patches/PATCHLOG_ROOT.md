@@ -1,3 +1,5 @@
+- Patch 358 (2026-03-05): fix CI Lite Autofix template duplicate key (TS1117) (see docs/patches/patch_358.md)
+- Patch 357 (2026-03-05): CI Lite in-app Status/Autofix stabilisiert (Autofix Workflow Template + strict conclusion gating).
 - Patch 343: correct status wording for "Offene TODO/Unknowns" (no new unknowns, but existing `: any` tech-debt item remains) (see docs/patches/patch_343.md)
 - Patch 336: define verbindliches Build Readiness Gate (Matrix + Entry Point + Evidence) and update build pipeline contract (see docs/patches/patch_336.md)
 - Patch 333: fix BuildPolling timeout normalization for non-Error AbortError object rejections + add regression test (see docs/patches/patch_333.md)
