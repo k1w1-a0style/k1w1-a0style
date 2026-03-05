@@ -2,14 +2,16 @@
 // REFACTORED: helpers → helpers.ts
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
+import { corsHeaders, handleCors } from "../_shared/cors.ts";
+import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { parseJsonBody } from "../_shared/validation.ts";
+import { getGithubToken, githubHeaders } from "../_shared/github.ts";
+import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
+import { GITHUB_API_BASE } from "../../../shared/constants/github.ts";
 import {
   jsonOk, jsonErr, asString, asNumber, parseGithubRepo,
   redactSecrets, fetchLogsZip, zipToText, MAX_CHARS, MAX_ZIP_BYTES,
 } from "./helpers.ts";
-
-import { handleCors } from "../_shared/cors.ts";
-import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
-import { parseJsonBody } from "../_shared/validation.ts";
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -56,11 +58,55 @@ serve(async (req) => {
       );
     }
 
+    const token = (tokenFromBody || getGithubToken() || "").trim();
+    if (!token) {
+      return jsonErr(
+        "Missing GitHub token",
+        { expected: ["GITHUB_TOKEN", "GH_TOKEN", "GITHUB_API_TOKEN"] },
+        500,
+      );
+    }
+
+    // Best-effort run metadata so UI can reflect real red/green reliably.
+    let run: Record<string, Json> | null = null;
+    try {
+      const runMetaUrl = `${GITHUB_API_BASE}/repos/${repoObj.owner}/${repoObj.repo}/actions/runs/${Math.trunc(runId)}`;
+      const runMetaRes = await fetch(runMetaUrl, { method: "GET", headers: githubHeaders(token, "Bearer") });
+      const runMetaTxt = await runMetaRes.text();
+      if (runMetaRes.ok) {
+        const raw = JSON.parse(runMetaTxt);
+        run = {
+          id: (raw?.id ?? Math.trunc(runId)) as Json,
+          status: (raw?.status ?? null) as Json,
+          conclusion: (raw?.conclusion ?? null) as Json,
+          html_url: (raw?.html_url ?? null) as Json,
+          name: (raw?.name ?? null) as Json,
+          event: (raw?.event ?? null) as Json,
+          created_at: (raw?.created_at ?? null) as Json,
+          updated_at: (raw?.updated_at ?? null) as Json,
+        };
+      } else {
+        run = {
+          id: Math.trunc(runId) as Json,
+          status: null,
+          conclusion: null,
+          html_url: null,
+          name: null,
+          event: null,
+          created_at: null,
+          updated_at: null,
+          meta_error: sanitizeGitHubFailure(runMetaTxt) as Json,
+        };
+      }
+    } catch {
+      run = null;
+    }
+
     const zipBytes = await fetchLogsZip(
       repoObj.owner,
       repoObj.repo,
       Math.trunc(runId),
-      tokenFromBody || undefined,
+      token,
     );
     const parsed = zipToText(zipBytes);
 
@@ -75,12 +121,13 @@ serve(async (req) => {
       ok: true,
       githubRepo: `${repoObj.owner}/${repoObj.repo}`,
       runId: Math.trunc(runId),
+      run,
       fileCount: parsed.fileCount,
       files: parsed.files,
       truncated,
       logsText: text,
     });
-  } catch (e: unknown) {
+  } catch (e) {
     const anyE = e as any;
     // Handle "not ready" signals from fetchLogsZip (logs still being prepared)
     if (anyE && anyE.notReady === true && anyE.body) {
