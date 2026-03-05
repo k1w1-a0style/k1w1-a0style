@@ -797,14 +797,20 @@ export function useGitHubReposScreen() {
     setIsEasLinking(true);
     try {
       const branch = activeBranch ?? "main";
-      const workflowPath = ".github/workflows/eas-link.yml";
-      const workflow = getCoreFileContent(workflowPath, effectiveTemplateId) ?? "";
-      const patched = workflow.replace(/EAS_PROJECT_ID:.*/g, `EAS_PROJECT_ID: ${id}`);
+      const easProjectJsonPath = "eas-project.json";
+      const content = JSON.stringify({ projectId: id }, null, 2) + "\n";
 
-      await createOrUpdateFile(parsed.owner, parsed.repo, workflowPath, patched, "chore: link EAS project", branch);
+      await createOrUpdateFile(
+        parsed.owner,
+        parsed.repo,
+        easProjectJsonPath,
+        content,
+        "chore(eas): write eas-project.json",
+        branch,
+      );
 
       setEasLinkStatus("ok");
-      Alert.alert("✅ EAS linked", `EAS Project ID eingebunden in ${workflowPath}`);
+      Alert.alert("✅ EAS linked", `EAS Project ID geschrieben nach ${easProjectJsonPath}`);
     } catch (e: any) {
       Alert.alert("❌ EAS link fehlgeschlagen", e?.message ?? "");
     } finally {

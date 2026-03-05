@@ -237,7 +237,26 @@ export const triggerWorkflow = async (
     );
 
     // Retry dispatch after bootstrap.
-    resp = await doDispatch(dispatchByFileUrl);
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    for (const wait of [500, 900, 1500, 2500, 4000]) {
+      await sleep(wait);
+
+      const resolvedAfterBootstrap = await resolveWorkflowId(owner, repo, workflowFileName).catch(
+        () => null,
+      );
+
+      if (resolvedAfterBootstrap?.id) {
+        const dispatchByIdUrl = githubApiUrl(
+          `/repos/${owner}/${repo}/actions/workflows/${resolvedAfterBootstrap.id}/dispatches`,
+        );
+        resp = await doDispatch(dispatchByIdUrl);
+      } else {
+        resp = await doDispatch(dispatchByFileUrl);
+      }
+
+      if (resp.status !== 404) break;
+    }
   }
 
   const raw = await resp.text().catch(() => "");
