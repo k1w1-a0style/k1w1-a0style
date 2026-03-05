@@ -20,8 +20,12 @@ export function computeCiLiteOk(args: {
   workflowRun: CiLiteRunMeta;
   onlyErrorsCount: number;
   hasErrorText: boolean;
+  resultOk?: boolean | null;
+  eslintExit?: number | null;
+  tscExit?: number | null;
 }): boolean {
-  const { done, workflowRun, onlyErrorsCount, hasErrorText } = args;
+  const { done, workflowRun, onlyErrorsCount, hasErrorText, resultOk } = args;
+  if (done && typeof resultOk === "boolean") return resultOk;
   if (!done) return false;
 
   if (workflowRun?.status === "completed") {

@@ -1,4 +1,4 @@
-# Patchlog Root
+- Patch 377: CI-Lite header artifact backchannel (adminKey await + zip import + github helpers)\n# Patchlog Root
 
 This file is the *index* of patch notes for this repo.
 

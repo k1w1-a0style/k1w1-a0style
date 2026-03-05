@@ -33,6 +33,13 @@ export function useCiLiteWorkflow() {
   const [headerState, setHeaderState] = useState<StepState>("idle");
   const [chainWaiting, setChainWaiting] = useState(false);
 
+  const [artifactResult, setArtifactResult] = useState<
+    | { ok: boolean; eslint_exit?: number; tsc_exit?: number }
+    | null
+  >(null);
+  const [artifactLoading, setArtifactLoading] = useState(false);
+  const [artifactError, setArtifactError] = useState<string | null>(null);
+
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ---- Derived repo/branch ----
@@ -96,6 +103,98 @@ export function useCiLiteWorkflow() {
     workflowId,
     autoRefresh: visible,
   });
+
+
+  // ---- Artifact result (deterministic header backchannel) ----
+  useEffect(() => {
+    if (!visible) return;
+    if (!githubRepo) return;
+    if (!workflowRun?.id) return;
+    if (workflowRun.status !== "completed") return;
+
+    // Reset any stale errors when a run completes.
+    setArtifactError(null);
+
+    // Avoid refetch loops
+    if (artifactLoading) return;
+    if (artifactResult) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setArtifactLoading(true);
+
+        const edgeUrl = requireSupabaseEdgeUrl();
+        const adminKey = await getEdgeAdminKey();
+        if (!adminKey) {
+          throw new Error(
+            "Missing SIGNING_ADMIN_KEY for CI-Lite (x-k1w1-admin-key). Configure it in app secrets/env.",
+          );
+        }
+
+        const resp = await fetch(`${edgeUrl}/github-run-artifact-json`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-k1w1-admin-key": adminKey,
+          },
+          body: JSON.stringify({
+            githubRepo,
+            runId: workflowRun.id,
+            artifactName: "ci-lite-logs",
+            filePath: "ci-logs/ci-lite-result.json",
+          }),
+        });
+
+        const data = await resp.json().catch(() => ({} as any));
+        if (!resp.ok) {
+          const msg = data?.error ? String(data.error) : `HTTP ${resp.status}`;
+          throw new Error(msg);
+        }
+
+        const json =
+          (data?.json && typeof data.json === "object" ? data.json : null) ??
+          (typeof data?.text === "string" ? JSON.parse(data.text) : null);
+
+        if (!json || typeof json !== "object") {
+          throw new Error("Artifact JSON missing or invalid");
+        }
+
+        const ok = Boolean((json as any).ok);
+        const eslint_exit =
+          typeof (json as any).eslint_exit === "number" ? (json as any).eslint_exit : undefined;
+        const tsc_exit =
+          typeof (json as any).tsc_exit === "number" ? (json as any).tsc_exit : undefined;
+
+        if (!cancelled) setArtifactResult({ ok, eslint_exit, tsc_exit });
+      } catch (e) {
+        if (!cancelled) setArtifactError(String(e instanceof Error ? e.message : e));
+      } finally {
+        if (!cancelled) setArtifactLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    visible,
+    githubRepo,
+    workflowRun?.id,
+    workflowRun?.status,
+    artifactLoading,
+    artifactResult,
+  ]);
+
+  // Clear artifact state when we start a new run (job id changes) or hide UI
+  useEffect(() => {
+    if (!visible) {
+      setArtifactResult(null);
+      setArtifactError(null);
+      setArtifactLoading(false);
+    }
+  }, [visible]);
 
   // ---- Derived log state ----
   const logLines = useMemo(() => {
@@ -210,8 +309,8 @@ export function useCiLiteWorkflow() {
   useEffect(() => {
     if (!workflowRun || workflowId !== WORKFLOW_CI_LITE || workflowRun.status !== "completed") return;
     const isSuccess = (workflowRun.conclusion || "").toLowerCase() === "success";
-    const lintOk = isSuccess || stepInfo.lint === "success";
-    const typeOk = isSuccess || stepInfo.typecheck === "success";
+    const lintOk = artifactResult ? artifactResult.eslint_exit === 0 : isSuccess || stepInfo.lint === "success";
+    const typeOk = artifactResult ? artifactResult.tsc_exit === 0 : isSuccess || stepInfo.typecheck === "success";
     void AsyncStorage.multiSet([
       [STORAGE_KEYS.CI_LITE_LINT_OK, lintOk ? "true" : "false"],
       [STORAGE_KEYS.CI_LITE_TYPECHECK_OK, typeOk ? "true" : "false"],

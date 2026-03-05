@@ -58,3 +58,44 @@ export async function githubFetch(
 
   return r1;
 }
+
+// --- New helpers for deterministic CI-Lite backchannel ---
+
+/**
+ * Like githubFetch, but allows the caller to supply a token explicitly.
+ * Useful when the token is resolved in a different layer.
+ */
+export async function githubFetchRaw(
+  url: string,
+  token: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const t = (token ?? "").trim();
+
+  // Primary attempt: Bearer
+  const h1 = new Headers(init.headers);
+  for (const [k, v] of Object.entries(githubHeaders(t, "Bearer"))) h1.set(k, v);
+  const r1 = await fetch(url, { ...init, headers: h1 });
+
+  // Fallback: classic token
+  if (r1.status === 401) {
+    const h2 = new Headers(init.headers);
+    for (const [k, v] of Object.entries(githubHeaders(t, "token"))) h2.set(k, v);
+    return await fetch(url, { ...init, headers: h2 });
+  }
+
+  return r1;
+}
+
+export async function githubFetchJson<T>(
+  url: string,
+  token: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const res = await githubFetchRaw(url, token, init);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`GitHub API ${res.status}: ${body}`);
+  }
+  return (await res.json()) as T;
+}
