@@ -2,19 +2,17 @@ import { corsHeaders, handleOptions } from "../_shared/cors.ts";
 import { requireAdminAuth } from "../_shared/auth.ts";
 import { withErrorSanitization } from "../_shared/errorSanitization.ts";
 import { githubFetchJson, githubFetchRaw } from "../_shared/github.ts";
-import { isSafeGitHubRepo, isSafeRef } from "../_shared/security.ts";
+import { isSafeGitHubRepo } from "../_shared/security.ts";
 
-// Deno std zip helper (extract to temp dir)
-// NOTE: Use a fully qualified URL import to avoid relying on per-function import maps.
-// Supabase Edge bundler requires bare specifiers to be resolved explicitly.
-import { unzip } from "https://deno.land/std@0.203.0/archive/zip.ts";
+// GitHub Artifacts are delivered as ZIP. The Deno std ZIP module moved around and
+// is often blocked by edge bundlers. Use a small, bundler-friendly unzipper.
+import { unzipSync, strFromU8 } from "https://esm.sh/fflate@0.8.2?deno";
 
 type ReqBody = {
   githubRepo: string; // "owner/repo"
   runId: number;
   artifactName: string; // e.g. "ci-lite-logs"
   filePath: string; // e.g. "ci-logs/ci-lite-result.json"
-  // Optional: allow passing workflow for extra validation/logging
   workflow?: string;
 };
 
@@ -24,6 +22,25 @@ type Artifact = {
   archive_download_url: string;
   expired: boolean;
 };
+
+function normalizeZipPath(p: string): string {
+  // GitHub zips usually store forward slashes. Normalize common variants.
+  return p.replace(/^\.\//, "").replace(/\\/g, "/");
+}
+
+function pickFileFromZip(files: Record<string, Uint8Array>, wanted: string): Uint8Array | null {
+  const target = normalizeZipPath(wanted);
+
+  // 1) Exact match
+  if (files[target]) return files[target];
+
+  // 2) Sometimes entries contain a leading folder (rare with GH artifacts, but safe)
+  const keys = Object.keys(files);
+  const suffixMatch = keys.find((k) => normalizeZipPath(k).endsWith("/" + target) || normalizeZipPath(k) === target);
+  if (suffixMatch) return files[suffixMatch];
+
+  return null;
+}
 
 Deno.serve(
   withErrorSanitization(async (req: Request) => {
@@ -87,7 +104,7 @@ Deno.serve(
       });
     }
 
-    // Download ZIP
+    // Download ZIP (GitHub requires auth header; githubFetchRaw already handles it)
     const zipRes = await githubFetchRaw(artifact.archive_download_url);
     if (!zipRes.ok) {
       return new Response(JSON.stringify({ error: `Failed to download artifact zip (${zipRes.status})`, runId }), {
@@ -96,43 +113,54 @@ Deno.serve(
       });
     }
 
-    const tmpDir = await Deno.makeTempDir({ prefix: "ci-lite-artifact-" });
+    const zipBytes = new Uint8Array(await zipRes.arrayBuffer());
+
+    // Unzip in-memory
+    let files: Record<string, Uint8Array>;
     try {
-      const zipPath = `${tmpDir}/artifact.zip`;
-      const bytes = new Uint8Array(await zipRes.arrayBuffer());
-      await Deno.writeFile(zipPath, bytes);
+      files = unzipSync(zipBytes);
+    } catch (e) {
+      return new Response(JSON.stringify({ error: `Failed to unzip artifact: ${String(e)}`, runId }), {
+        status: 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-      await unzip(zipPath, tmpDir);
-
-      const targetPath = `${tmpDir}/${filePath}`;
-      const text = await Deno.readTextFile(targetPath);
-
-      // If it's JSON, parse and return object too
-      let parsed: unknown = null;
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        parsed = null;
-      }
-
+    const found = pickFileFromZip(files, filePath);
+    if (!found) {
       return new Response(
         JSON.stringify({
-          ok: true,
+          error: `File not found in artifact zip: ${filePath}`,
           runId,
           artifactId: artifact.id,
           artifactName: artifact.name,
-          filePath,
-          text,
-          json: parsed,
+          availableFiles: Object.keys(files).slice(0, 50),
         }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
-    } finally {
-      try {
-        await Deno.remove(tmpDir, { recursive: true });
-      } catch {
-        // ignore cleanup failures
-      }
     }
+
+    const text = strFromU8(found);
+
+    // If it's JSON, parse and return object too
+    let parsed: unknown = null;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = null;
+    }
+
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        runId,
+        artifactId: artifact.id,
+        artifactName: artifact.name,
+        filePath,
+        text,
+        json: parsed,
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   })
 );
