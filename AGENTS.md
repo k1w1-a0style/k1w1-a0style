@@ -23,26 +23,37 @@ npm run lint:ci
 npm run test:silent
 ```
 
-## Patch-ZIP Workflow (so arbeiten wir hier)
+## Patch-Artifact Workflow (kanonisch)
 
-Wir liefern Änderungen als **Patch-ZIP** aus, damit sie lokal im Projekt-Root entpackt werden können.
+Wir liefern Änderungen als **`.patch`-Datei in einer ZIP** aus, damit sie im Projekt-Root
+per `git apply` geprüft und angewendet werden können.
 
 - ZIP-Name: `k1w1-a0style_patch_<PATCHNUM>.zip`
-- Inhalt: **nur** geänderte/neue Files (keine kompletten Repo-Dumps)
+- Inhalt:
+  - `k1w1-patch-<PATCHNUM>-<slug>.patch`
+  - `docs/patches/patch_<PATCHNUM>.md` (oder gleichnamige Notiz im Paket)
+  - kurze `README.md`
 - Anwendung:
 
 ```bash
-unzip -o k1w1-a0style_patch_<PATCHNUM>.zip -d .
-rm -f k1w1-a0style_patch_<PATCHNUM>.zip
-
+unzip k1w1-a0style_patch_<PATCHNUM>.zip -d k1w1-patch-<PATCHNUM>
+git apply --check k1w1-patch-<PATCHNUM>/**/*.patch
+git apply k1w1-patch-<PATCHNUM>/**/*.patch
+rm -rf k1w1-patch-<PATCHNUM>
 npm run typecheck
 npm run lint:ci
 npm run test:silent
-
 git add -A
 git commit -m "Patch <PATCHNUM>: <kurzer Titel>"
-git push origin main
+git push origin codex
 ```
+
+Vor Auslieferung eines Patch-Artefakts:
+- `git apply --check` muss lokal erfolgreich sein
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+- `bash scripts/check_patch_artifact.sh <patchfile>`
 
 Jeder Patch aktualisiert:
 - `docs/patches/patch_<PATCHNUM>.md`

@@ -7,7 +7,7 @@ import { getGitHubToken } from "./tokenStore";
 import { logger } from "../../lib/logger";
 
 export type { GitHubBranch } from "./branchOps";
-export { createBranch, deleteBranch, renameBranch, getBranches, getDefaultBranch } from "./branchOps";
+export { createBranch, deleteBranch, renameBranch, getBranches, getDefaultBranch, getBranchHeadSha } from "./branchOps";
 
 
 export const createRepo = async (repoName: string, isPrivate = true) => {

@@ -32,7 +32,7 @@ export function useCiLiteWorkflow() {
   const [chainWaiting, setChainWaiting] = useState(false);
 
   const [artifactResult, setArtifactResult] = useState<
-    | { ok: boolean; eslint_exit?: number; tsc_exit?: number }
+    | { ok: boolean; eslint_exit?: number; tsc_exit?: number; source_commit_sha?: string }
     | null
   >(null);
   const [artifactLoading, setArtifactLoading] = useState(false);
@@ -173,8 +173,12 @@ export function useCiLiteWorkflow() {
           typeof (json as any).eslint_exit === "number" ? (json as any).eslint_exit : undefined;
         const tsc_exit =
           typeof (json as any).tsc_exit === "number" ? (json as any).tsc_exit : undefined;
+        const source_commit_sha =
+          typeof (json as any).source_commit_sha === "string"
+            ? String((json as any).source_commit_sha).trim() || undefined
+            : undefined;
 
-        if (!cancelled) setArtifactResult({ ok, eslint_exit, tsc_exit });
+        if (!cancelled) setArtifactResult({ ok, eslint_exit, tsc_exit, source_commit_sha });
       } catch (e) {
         if (!cancelled) setArtifactError(String(e instanceof Error ? e.message : e));
       } finally {
@@ -320,12 +324,20 @@ export function useCiLiteWorkflow() {
     const isSuccess = (workflowRun.conclusion || "").toLowerCase() === "success";
     const lintOk = artifactResult ? artifactResult.eslint_exit === 0 : isSuccess || stepInfo.lint === "success";
     const typeOk = artifactResult ? artifactResult.tsc_exit === 0 : isSuccess || stepInfo.typecheck === "success";
+    const sourceCommitSha =
+      String(
+        artifactResult?.source_commit_sha ||
+        (workflowRun as any)?.head_sha ||
+        "",
+      ).trim();
+
     void AsyncStorage.multiSet([
       [STORAGE_KEYS.CI_LITE_LINT_OK, lintOk ? "true" : "false"],
       [STORAGE_KEYS.CI_LITE_TYPECHECK_OK, typeOk ? "true" : "false"],
       [STORAGE_KEYS.CI_LITE_LAST_RUN_AT, String(Date.now())],
       [STORAGE_KEYS.CI_LITE_LAST_REPO, githubRepo || ""],
       [STORAGE_KEYS.CI_LITE_LAST_BRANCH, (targetRef || branch || "").trim()],
+      [STORAGE_KEYS.CI_LITE_LAST_SHA, sourceCommitSha],
       [STORAGE_KEYS.CI_LITE_LAST_WORKFLOW, workflowId],
       [STORAGE_KEYS.CI_LITE_LAST_JOB_ID, jobId || ""],
       [STORAGE_KEYS.CI_LITE_LAST_RUN_ID, workflowRun?.id != null ? String(workflowRun.id) : ""],

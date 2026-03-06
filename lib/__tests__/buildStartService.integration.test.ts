@@ -23,6 +23,7 @@ jest.mock("../../lib/logger", () => ({
 
 const mockGitHub = {
   getEdgeAdminKey: jest.fn(),
+  getBranchHeadSha: jest.fn(),
   pushFilesToRepo: jest.fn(),
 };
 
@@ -80,6 +81,8 @@ describe("startBuildJob (integration)", () => {
           return "k1w1-a0style/musik-player";
         case STORAGE_KEYS.CI_LITE_LAST_BRANCH:
           return "main";
+        case STORAGE_KEYS.CI_LITE_LAST_SHA:
+          return "1111111111111111111111111111111111111111";
         case STORAGE_KEYS.CI_LITE_LAST_RUN_AT:
           return String(Date.now());
         default:
@@ -87,6 +90,7 @@ describe("startBuildJob (integration)", () => {
       }
     });
     mockGitHub.getEdgeAdminKey.mockResolvedValue("adminkey");
+    mockGitHub.getBranchHeadSha.mockResolvedValue("1111111111111111111111111111111111111111");
     mockGitHub.pushFilesToRepo.mockResolvedValue(undefined);
     mockAutoFix.autoFixCIWorkflows.mockResolvedValue(undefined);
 
@@ -141,6 +145,8 @@ describe("startBuildJob (integration)", () => {
           return "k1w1-a0style/musik-player";
         case STORAGE_KEYS.CI_LITE_LAST_BRANCH:
           return "dev";
+        case STORAGE_KEYS.CI_LITE_LAST_SHA:
+          return "1111111111111111111111111111111111111111";
         case STORAGE_KEYS.CI_LITE_LAST_RUN_AT:
           return String(Date.now());
         default:

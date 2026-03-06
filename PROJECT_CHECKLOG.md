@@ -6,3 +6,4 @@ Patch 373 applied: metro config blockList without metro-config internal imports.
 - 2026-03-06 Patch 382: Build screen CI Lite gating + stale transparency
 - 2026-03-06 Patch 383: Workflow hardening for explicit ref handling + manual-path transparency
 - 2026-03-06 Patch 385: Project-context SoT correction + CI Lite artifact/autofix hardening
+- 2026-03-06 Patch 386: SHA hardening phase 2 + workflow marker completion + patch artifact discipline

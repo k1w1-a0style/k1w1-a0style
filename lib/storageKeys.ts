@@ -51,6 +51,7 @@ export const STORAGE_KEYS = {
   CI_LITE_LAST_RUN_AT: "ci_lite_last_run_at",
   CI_LITE_LAST_REPO: "ci_lite_last_repo",
   CI_LITE_LAST_BRANCH: "ci_lite_last_branch",
+  CI_LITE_LAST_SHA: "ci_lite_last_sha",
   CI_LITE_LAST_WORKFLOW: "ci_lite_last_workflow",
   CI_LITE_LAST_JOB_ID: "ci_lite_last_job_id",
   CI_LITE_LAST_RUN_ID: "ci_lite_last_run_id",

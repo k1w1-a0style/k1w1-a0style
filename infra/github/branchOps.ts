@@ -211,3 +211,39 @@ export const getDefaultBranch = async (
   const json = await resp.json();
   return json.default_branch || "main";
 };
+
+
+export const getBranchHeadSha = async (
+  owner: string,
+  repo: string,
+  branch: string,
+): Promise<string> => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error("GitHub token fehlt.");
+
+  const b = branch.trim();
+  if (!b) throw new Error("Branch-Name ist leer.");
+
+  await githubLimiter.checkLimit();
+
+  const resp = await fetch(
+    githubApiUrl(`/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(b)}`), {
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+  const json: any = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    if (resp.status === 401) throw new Error("GitHub Token ungültig.");
+    if (resp.status === 403) throw new Error("Keine Berechtigung.");
+    if (resp.status === 404) throw new Error("Branch oder Repo nicht gefunden.");
+    throw new Error(json.message || `Branch-HEAD Fehler (${resp.status})`);
+  }
+
+  const sha = String(json?.object?.sha || "").trim();
+  if (!sha) throw new Error("Konnte Branch-HEAD-SHA nicht ermitteln.");
+  return sha;
+};
