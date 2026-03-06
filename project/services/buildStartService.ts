@@ -5,7 +5,6 @@ import type { ProjectData, ProjectFile } from "../../shared/types/project";
 // Behavior is intentionally kept the same.
 
 
-import { CONFIG } from "../../config";
 import { ensureSupabaseClient } from "../../lib/supabase";
 import { logger } from "../../lib/logger";
 import {
@@ -44,21 +43,56 @@ export type BuildReadinessDeps = {
   storageGetItem?: (key: string) => Promise<string | null>;
 };
 
+const CI_LITE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
 export async function assertBuildReadiness(
   project: ProjectData,
   deps: BuildReadinessDeps = {},
 ): Promise<void> {
   const storageGetItem = deps.storageGetItem ?? ((key: string) => AsyncStorage.getItem(key));
+  const linkedRepo = typeof project?.linkedRepo === "string" ? project.linkedRepo.trim() : "";
   const linkedBranch = typeof project?.linkedBranch === "string" ? project.linkedBranch.trim() : "";
+  if (!linkedRepo || !linkedRepo.includes("/")) {
+    throw new Error('Kein gültiges Ziel-Repo verknüpft. Bitte in "Connections" ein Repo auswählen.');
+  }
   if (!linkedBranch) {
     throw new Error(`${ERR_BRANCH_MISSING}: ${BUILD_READINESS_ERROR_MESSAGES[ERR_BRANCH_MISSING]}`);
   }
 
-  const diagVal = await storageGetItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null);
+  const [diagVal, lintVal, typeVal, lastRunAt, lastRepo, lastBranch] = await Promise.all([
+    storageGetItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null),
+    storageGetItem(STORAGE_KEYS.CI_LITE_LINT_OK).catch(() => null),
+    storageGetItem(STORAGE_KEYS.CI_LITE_TYPECHECK_OK).catch(() => null),
+    storageGetItem(STORAGE_KEYS.CI_LITE_LAST_RUN_AT).catch(() => null),
+    storageGetItem(STORAGE_KEYS.CI_LITE_LAST_REPO).catch(() => null),
+    storageGetItem(STORAGE_KEYS.CI_LITE_LAST_BRANCH).catch(() => null),
+  ]);
+
   if (diagVal !== "true") {
     throw new Error(
       `${ERR_DIAGNOSTIC_NOT_GREEN}: ${BUILD_READINESS_ERROR_MESSAGES[ERR_DIAGNOSTIC_NOT_GREEN]}`,
     );
+  }
+
+  if (lintVal !== "true" || typeVal !== "true") {
+    throw new Error("Build blockiert: CI Lite (Lint + Typecheck) ist für dieses Ziel noch nicht grün.");
+  }
+
+  if ((lastRepo ?? "").trim() !== linkedRepo) {
+    throw new Error("Build blockiert: Letzter CI-Lite-Run gehört zu einem anderen Repo.");
+  }
+
+  if ((lastBranch ?? "").trim() !== linkedBranch) {
+    throw new Error("Build blockiert: Letzter CI-Lite-Run gehört zu einem anderen Branch.");
+  }
+
+  const ts = Number(lastRunAt ?? "");
+  if (!Number.isFinite(ts) || ts <= 0) {
+    throw new Error("Build blockiert: Kein gültiger Zeitstempel für den letzten CI-Lite-Run vorhanden.");
+  }
+
+  if (Date.now() - ts > CI_LITE_MAX_AGE_MS) {
+    throw new Error("Build blockiert: Letzter CI-Lite-Run ist veraltet. Bitte erneut prüfen.");
   }
 }
 
@@ -115,7 +149,10 @@ export async function startBuildJob(params: {
 
   await assertBuildReadiness(project, deps);
 
-  const githubRepo = (project.linkedRepo?.trim() || CONFIG.BUILD.GITHUB_REPO).trim();
+  const githubRepo = (project.linkedRepo?.trim() || "").trim();
+  if (!githubRepo || !githubRepo.includes("/")) {
+    throw new Error('Kein gültiges Ziel-Repo verknüpft. Bitte in "Connections" ein Repo auswählen.');
+  }
   const profile = normalizeProfile(buildProfile);
   const buildBranch = (project.linkedBranch ?? "").trim();
 

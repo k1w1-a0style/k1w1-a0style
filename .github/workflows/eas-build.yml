@@ -1,3 +1,5 @@
+# managed-by: k1w1
+# workflow-version: 4
 name: EAS Build
 
 on:
@@ -89,6 +91,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.ref || github.ref_name }}
+          fetch-depth: 0
 
       - name: "🧹 Preflight: clean incomplete native dirs"
         shell: bash
@@ -175,7 +180,7 @@ jobs:
         env:
           TARGET_BRANCH: ${{ inputs.ref || github.ref_name }}
           PROFILE: ${{ inputs.profile }}
-          ALLOWED_REF_REGEX: "^(work|dev|develop|feature/.+|hotfix/.+)$"
+          ALLOWED_REF_REGEX: "^(work|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
         run: |
           set -euo pipefail
 
@@ -290,7 +295,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.ref || github.ref_name }}
           fetch-depth: 0
 
       - name: "🧹 Preflight: clean incomplete native dirs"
@@ -405,8 +410,9 @@ jobs:
           TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           RUN_ID="${{ github.run_id }}"
           PROFILE="${{ inputs.profile }}"
+          SOURCE_COMMIT_SHA="$(git rev-parse HEAD)"
 
-          JSON="$(node -e 'console.log(JSON.stringify({status:"building",build_profile:process.argv[1],github_run_id:process.argv[2],started_at:process.argv[3]}))' "${PROFILE}" "${RUN_ID}" "${TS}")"
+          JSON="$(node -e 'console.log(JSON.stringify({status:"building",build_profile:process.argv[1],github_run_id:process.argv[2],started_at:process.argv[3],source_commit_sha:process.argv[4]}))' "${PROFILE}" "${RUN_ID}" "${TS}" "${SOURCE_COMMIT_SHA}")"
 
           curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (building)"
 
@@ -505,8 +511,9 @@ jobs:
           RUN_ID="${{ github.run_id }}"
           BUILD_ID="${{ steps.eas.outputs.build_id }}"
           BUILD_URL="${{ steps.eas.outputs.build_url }}"
+          SOURCE_COMMIT_SHA="$(git rev-parse HEAD)"
 
-          JSON="$(node -e 'console.log(JSON.stringify({status:"completed",github_run_id:process.argv[1],eas_build_id:process.argv[2],build_url:(process.argv[3]||null),completed_at:process.argv[4]}))' "${RUN_ID}" "${BUILD_ID}" "${BUILD_URL}" "${TS}")"
+          JSON="$(node -e 'console.log(JSON.stringify({status:"completed",github_run_id:process.argv[1],eas_build_id:process.argv[2],build_url:(process.argv[3]||null),completed_at:process.argv[4],source_commit_sha:process.argv[5]}))' "${RUN_ID}" "${BUILD_ID}" "${BUILD_URL}" "${TS}" "${SOURCE_COMMIT_SHA}")"
 
           curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (success)"
 
@@ -518,7 +525,8 @@ jobs:
           TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           RUN_ID="${{ github.run_id }}"
           ERR="Build failed. Check logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          SOURCE_COMMIT_SHA="$(git rev-parse HEAD)"
 
-          JSON="$(node -e 'console.log(JSON.stringify({status:"error",github_run_id:process.argv[1],error_message:process.argv[2],completed_at:process.argv[3]}))' "${RUN_ID}" "${ERR}" "${TS}")"
+          JSON="$(node -e 'console.log(JSON.stringify({status:"error",github_run_id:process.argv[1],error_message:process.argv[2],completed_at:process.argv[3],source_commit_sha:process.argv[4]}))' "${RUN_ID}" "${ERR}" "${TS}" "${SOURCE_COMMIT_SHA}")"
 
           curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (failed)"

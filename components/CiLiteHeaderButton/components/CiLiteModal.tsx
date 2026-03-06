@@ -9,6 +9,7 @@ import { theme } from "../../../theme";
 import { safeUi } from "../../ciLite/ciLiteUtils";
 import { styles } from "../styles";
 import type { RunMeta, StepState } from "../types";
+import type { ChatMessage } from "../../../shared/types/chat";
 
 import { StatusLamp, AnimatedDots } from "./StatusIndicators";
 import { ProgressBar } from "./ProgressBar";
@@ -62,7 +63,7 @@ interface CiLiteModalProps {
   runUrl: string | null;
   workflowRunUrl: string | undefined;
   dispatching: boolean;
-  addChatMessage: (msg: any) => void | Promise<void>;
+  addChatMessage: (msg: ChatMessage) => void | Promise<void>;
   dispatchWorkflow: (workflowFile: string) => void;
 }
 

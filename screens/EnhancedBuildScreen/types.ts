@@ -26,6 +26,7 @@ export interface CurrentBuildLike {
   branch?: string | null;
   buildProfile?: BuildProfile | string | null;
   runId?: number | null;
+  sourceCommitSha?: string | null;
   status?: BuildStatus;
   message?: string;
   progress?: number;

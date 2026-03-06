@@ -53,6 +53,7 @@ export interface ProjectContextProps {
     githubRepo?: string | null;
     buildProfile?: string;
     runId?: number | null;
+    sourceCommitSha?: string | null;
     urls?: {
       html?: string | null;
       artifacts?: string | null;

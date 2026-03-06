@@ -21,6 +21,8 @@ export interface BuildStatusDetails {
   raw?: any;
   errorMessage?: string;
   runId?: number | null;
+  /** Exact commit SHA that the workflow checked out for this build job. */
+  sourceCommitSha?: string | null;
 }
 
 /**
@@ -39,4 +41,6 @@ export interface BuildHistoryEntry {
   artifactUrl?: string | null;
   htmlUrl?: string | null;
   errorMessage?: string;
+  /** Exact commit SHA that produced this history entry. */
+  sourceCommitSha?: string | null;
 }

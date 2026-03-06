@@ -563,6 +563,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         status: mapped,
         jobId: activeJobId,
         runId: buildPoll.details?.runId ?? base.runId ?? null,
+        sourceCommitSha: buildPoll.details?.sourceCommitSha ?? base.sourceCommitSha ?? null,
         urls: {
           html: urls?.html ?? base.urls?.html ?? null,
           artifacts: urls?.artifacts ?? base.urls?.artifacts ?? null,
@@ -596,6 +597,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       status,
       htmlUrl: buildPoll.details.urls?.html ?? null,
       artifactUrl: buildPoll.details.urls?.artifacts ?? null,
+      sourceCommitSha: buildPoll.details.sourceCommitSha ?? null,
     }).catch((historyError) => {
       logger.warn(
         "⚠️ Build-Historie konnte nicht aktualisiert werden:",

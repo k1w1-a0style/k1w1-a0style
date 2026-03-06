@@ -4,6 +4,7 @@
  * and Supabase Edge invoke payload/headers.
  */
 import type { ProjectData } from "../../shared/types/project";
+import { STORAGE_KEYS } from "../../lib/storageKeys";
 
 const mockGetItem = jest.fn();
 
@@ -69,7 +70,22 @@ function makeProject(overrides: Partial<ProjectData> = {}): ProjectData {
 describe("startBuildJob (integration)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockGetItem.mockResolvedValue("true");
+    mockGetItem.mockImplementation(async (key: string) => {
+      switch (key) {
+        case STORAGE_KEYS.DIAGNOSTIC_LAST_OK:
+        case STORAGE_KEYS.CI_LITE_LINT_OK:
+        case STORAGE_KEYS.CI_LITE_TYPECHECK_OK:
+          return "true";
+        case STORAGE_KEYS.CI_LITE_LAST_REPO:
+          return "k1w1-a0style/musik-player";
+        case STORAGE_KEYS.CI_LITE_LAST_BRANCH:
+          return "main";
+        case STORAGE_KEYS.CI_LITE_LAST_RUN_AT:
+          return String(Date.now());
+        default:
+          return null;
+      }
+    });
     mockGitHub.getEdgeAdminKey.mockResolvedValue("adminkey");
     mockGitHub.pushFilesToRepo.mockResolvedValue(undefined);
     mockAutoFix.autoFixCIWorkflows.mockResolvedValue(undefined);
@@ -115,6 +131,22 @@ describe("startBuildJob (integration)", () => {
   it("uses linkedBranch when push fails", async () => {
     mockGitHub.pushFilesToRepo.mockRejectedValueOnce(new Error("push failed"));
     const project = makeProject({ linkedBranch: "dev" });
+    mockGetItem.mockImplementation(async (key: string) => {
+      switch (key) {
+        case STORAGE_KEYS.DIAGNOSTIC_LAST_OK:
+        case STORAGE_KEYS.CI_LITE_LINT_OK:
+        case STORAGE_KEYS.CI_LITE_TYPECHECK_OK:
+          return "true";
+        case STORAGE_KEYS.CI_LITE_LAST_REPO:
+          return "k1w1-a0style/musik-player";
+        case STORAGE_KEYS.CI_LITE_LAST_BRANCH:
+          return "dev";
+        case STORAGE_KEYS.CI_LITE_LAST_RUN_AT:
+          return String(Date.now());
+        default:
+          return null;
+      }
+    });
 
     const res = await startBuildJob({ project, buildProfile: "preview" });
 

@@ -7,9 +7,14 @@ import { STORAGE_KEYS, credKeyForProfile } from "../../../lib/storageKeys";
 
 /**
  * Centralized precondition checks for Build Screen.
- * NOTE: Behavior intentionally matches the previous inline implementation.
  */
-export function useBuildPreconditions(buildProfile: BuildProfile) {
+const CI_LITE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+export function useBuildPreconditions(
+  buildProfile: BuildProfile,
+  repoFullName: string,
+  branchName: string,
+) {
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -23,6 +28,8 @@ export function useBuildPreconditions(buildProfile: BuildProfile) {
   const [hasSigningKey, setHasSigningKey] = useState(false);
   const [hasDiagOk, setHasDiagOk] = useState(false);
   const [hasCiLiteOk, setHasCiLiteOk] = useState(false);
+  const [ciLiteReason, setCiLiteReason] = useState<string | null>(null);
+  const [ciLiteStale, setCiLiteStale] = useState(false);
 
   const refreshPreconditions = useCallback(async () => {
     try {
@@ -45,16 +52,46 @@ export function useBuildPreconditions(buildProfile: BuildProfile) {
       const diagVal = await AsyncStorage.getItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null);
       if (isMountedRef.current) setHasDiagOk(diagVal === "true");
 
-      // CI Lite (non-blocking, but nice to see)
-      const [lintOk, typeOk] = await Promise.all([
+      // CI Lite must match current repo + branch and must not be stale.
+      const [lintOk, typeOk, lastRepo, lastBranch, lastRunAt] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_LINT_OK).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_TYPECHECK_OK).catch(() => null),
-      ]);
-      if (isMountedRef.current) setHasCiLiteOk(lintOk === "true" && typeOk === "true");
+        AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_LAST_REPO).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_LAST_BRANCH).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_LAST_RUN_AT).catch(() => null),
+      ] as const);
+
+      const repoMatches = (lastRepo ?? "").trim() === (repoFullName ?? "").trim();
+      const branchMatches = (lastBranch ?? "").trim() === (branchName ?? "").trim();
+      const runTs = Number(lastRunAt ?? "");
+      const stale = !Number.isFinite(runTs) || runTs <= 0 || Date.now() - runTs > CI_LITE_MAX_AGE_MS;
+
+      let reason: string | null = null;
+      if (lintOk !== "true" || typeOk !== "true") {
+        reason = "CI Lite ist nicht grün (Lint/Typecheck).";
+      } else if (!repoMatches) {
+        reason = "Letzter CI-Lite-Run gehört zu einem anderen Repo.";
+      } else if (!branchMatches) {
+        reason = "Letzter CI-Lite-Run gehört zu einem anderen Branch.";
+      } else if (stale) {
+        reason = "Letzter CI-Lite-Run ist veraltet. Bitte erneut prüfen.";
+      }
+
+      if (isMountedRef.current) {
+        setHasCiLiteOk(
+          lintOk === "true" &&
+          typeOk === "true" &&
+          repoMatches &&
+          branchMatches &&
+          !stale,
+        );
+        setCiLiteReason(reason);
+        setCiLiteStale(stale);
+      }
     } catch {
       // ignore
     }
-  }, [buildProfile]);
+  }, [branchName, buildProfile, repoFullName]);
 
   useEffect(() => {
     refreshPreconditions().catch(() => {});
@@ -65,6 +102,8 @@ export function useBuildPreconditions(buildProfile: BuildProfile) {
     hasSigningKey,
     hasDiagOk,
     hasCiLiteOk,
+    ciLiteReason,
+    ciLiteStale,
     refreshPreconditions,
   };
 }

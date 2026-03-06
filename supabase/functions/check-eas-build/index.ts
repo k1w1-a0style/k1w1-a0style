@@ -78,6 +78,11 @@ serve(async (req) => {
     // Never leak secrets via job error payloads.
     const errorMessage = errorMessageRaw ? sanitizeErrorText(errorMessageRaw) : null;
 
+    const sourceCommitSha =
+      typeof job.source_commit_sha === "string" && job.source_commit_sha.trim()
+        ? job.source_commit_sha.trim()
+        : null;
+
     const artifact =
       typeof job.artifact_name === "string" && job.artifact_name.trim()
         ? {
@@ -102,6 +107,7 @@ serve(async (req) => {
         runId: job.github_run_id ?? null,
         build_url: buildUrl,
         download_url: downloadUrl,
+        source_commit_sha: sourceCommitSha,
         urls,
         job: {
           id: job.id,
@@ -112,6 +118,7 @@ serve(async (req) => {
           branch: job.branch ?? null,
           build_url: buildUrl,
           download_url: downloadUrl,
+          source_commit_sha: sourceCommitSha,
           urls,
           artifact,
           error_message: errorMessage,

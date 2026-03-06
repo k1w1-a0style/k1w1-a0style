@@ -1,3 +1,6 @@
+# managed-by: k1w1
+# workflow-version: 4
+# manual-fallback-only: true
 name: Release Build (WAIT)
 
 on:
@@ -225,6 +228,13 @@ jobs:
         if: always()
         shell: bash
         run: |
-          echo "Profile: ${{ inputs.profile }}"
-          echo "Build URL: ${{ steps.eas.outputs.build_url }}"
-          echo "Build ID: ${{ steps.eas.outputs.build_id }}"
+          {
+            echo "## Release Build Summary"
+            echo ""
+            echo "- Profile: ${{ inputs.profile }}"
+            echo "- Ref: ${{ inputs.ref || github.ref_name }}"
+            echo "- Build URL: ${{ steps.eas.outputs.build_url }}"
+            echo "- Build ID: ${{ steps.eas.outputs.build_id }}"
+            echo ""
+            echo "> Hinweis: Dieser Workflow ist ein manueller Direktpfad und umgeht die App-seitige Single Source of Truth."
+          } >> "$GITHUB_STEP_SUMMARY"

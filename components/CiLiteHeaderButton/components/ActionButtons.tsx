@@ -11,6 +11,7 @@ import { theme } from "../../../theme";
 import { safeUi } from "../../ciLite/ciLiteUtils";
 import { styles } from "../styles";
 import { WORKFLOW_CI_LITE_AUTOFIX } from "../types";
+import type { ChatMessage } from "../../../shared/types/chat";
 
 interface ActionButtonsProps {
   onlyErrors: string[];
@@ -19,7 +20,7 @@ interface ActionButtonsProps {
   dispatching: boolean;
   // Some callers keep this synchronous (fire-and-forget).
   // `await` works for both sync + async functions.
-  addChatMessage: (msg: any) => void | Promise<void>;
+  addChatMessage: (msg: ChatMessage) => void | Promise<void>;
   dispatchWorkflow: (workflowFile: string) => void;
   onOpenPatchPanel: () => void;
 }

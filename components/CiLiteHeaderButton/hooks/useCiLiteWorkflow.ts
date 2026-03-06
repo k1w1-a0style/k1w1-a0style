@@ -125,13 +125,20 @@ export function useCiLiteWorkflow() {
       try {
         setArtifactLoading(true);
 
-        const edgeUrl = requireSupabaseEdgeUrl();
+        const edgeUrl = await requireSupabaseEdgeUrl();
         const adminKey = await getEdgeAdminKey();
         if (!adminKey) {
           throw new Error(
             "Missing SIGNING_ADMIN_KEY for CI-Lite (x-k1w1-admin-key). Configure it in app secrets/env.",
           );
         }
+
+        const artifactName =
+          workflowId === WORKFLOW_CI_LITE_AUTOFIX ? "ci-lite-autofix-logs" : "ci-lite-logs";
+        const filePath =
+          workflowId === WORKFLOW_CI_LITE_AUTOFIX
+            ? "ci-logs/ci-lite-autofix-result.json"
+            : "ci-logs/ci-lite-result.json";
 
         const resp = await fetch(`${edgeUrl}/github-run-artifact-json`, {
           method: "POST",
@@ -142,8 +149,8 @@ export function useCiLiteWorkflow() {
           body: JSON.stringify({
             githubRepo,
             runId: workflowRun.id,
-            artifactName: "ci-lite-logs",
-            filePath: "ci-logs/ci-lite-result.json",
+            artifactName,
+            filePath,
           }),
         });
 
@@ -181,20 +188,19 @@ export function useCiLiteWorkflow() {
   }, [
     visible,
     githubRepo,
+    workflowId,
     workflowRun?.id,
     workflowRun?.status,
     artifactLoading,
     artifactResult,
   ]);
 
-  // Clear artifact state when we start a new run (job id changes) or hide UI
+  // Clear artifact state when we start a new run or hide UI.
   useEffect(() => {
-    if (!visible) {
-      setArtifactResult(null);
-      setArtifactError(null);
-      setArtifactLoading(false);
-    }
-  }, [visible]);
+    setArtifactResult(null);
+    setArtifactError(null);
+    setArtifactLoading(false);
+  }, [visible, jobId, workflowId, runId]);
 
   // ---- Derived log state ----
   const logLines = useMemo(() => {
@@ -315,8 +321,24 @@ export function useCiLiteWorkflow() {
       [STORAGE_KEYS.CI_LITE_LINT_OK, lintOk ? "true" : "false"],
       [STORAGE_KEYS.CI_LITE_TYPECHECK_OK, typeOk ? "true" : "false"],
       [STORAGE_KEYS.CI_LITE_LAST_RUN_AT, String(Date.now())],
+      [STORAGE_KEYS.CI_LITE_LAST_REPO, githubRepo || ""],
+      [STORAGE_KEYS.CI_LITE_LAST_BRANCH, (targetRef || branch || "").trim()],
+      [STORAGE_KEYS.CI_LITE_LAST_WORKFLOW, workflowId],
+      [STORAGE_KEYS.CI_LITE_LAST_JOB_ID, jobId || ""],
+      [STORAGE_KEYS.CI_LITE_LAST_RUN_ID, workflowRun?.id != null ? String(workflowRun.id) : ""],
+      [STORAGE_KEYS.CI_LITE_LAST_CONCLUSION, String(workflowRun.conclusion || "")],
     ]).catch(() => {});
-  }, [workflowRun, workflowId, stepInfo.lint, stepInfo.typecheck]);
+  }, [
+    workflowRun,
+    workflowId,
+    stepInfo.lint,
+    stepInfo.typecheck,
+    artifactResult,
+    githubRepo,
+    targetRef,
+    branch,
+    jobId,
+  ]);
 
   // ---- Dispatch ----
   const dispatchWorkflow = useCallback(

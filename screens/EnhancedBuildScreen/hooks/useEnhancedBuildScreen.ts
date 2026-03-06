@@ -6,7 +6,6 @@ import { useGitHub } from "../../../contexts/GitHubContext";
 import { useBuildHistory } from "../../../hooks/useBuildHistory";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
 import { BuildErrorAnalyzer } from "../../../lib/buildErrorAnalyzer";
-import { CONFIG } from "../../../config";
 import type { BuildHistoryEntry, BuildStatus } from "../../../shared/types/build";
 import type { CheckItem } from "../components/ChecklistSection";
 import {
@@ -72,8 +71,7 @@ export function useEnhancedBuildScreen() {
   const repoFullName = useMemo(() => {
     return (
       projectData?.linkedRepo?.trim() ||
-      (currentBuild?.githubRepo ?? "").trim() ||
-      (CONFIG.BUILD.GITHUB_REPO ?? "").trim()
+      (currentBuild?.githubRepo ?? "").trim()
     );
   }, [projectData?.linkedRepo, currentBuild?.githubRepo]);
 
@@ -178,17 +176,27 @@ export function useEnhancedBuildScreen() {
   const status: BuildStatus = currentBuild?.status ?? "idle";
 
   // === Checklist + Build-Preconditions ===
-  const { hasTokens, hasSigningKey, hasDiagOk, hasCiLiteOk, refreshPreconditions } =
-    useBuildPreconditions(buildProfile);
+  const {
+    hasTokens,
+    hasSigningKey,
+    hasDiagOk,
+    hasCiLiteOk,
+    ciLiteReason,
+    ciLiteStale,
+    refreshPreconditions,
+  } = useBuildPreconditions(buildProfile, repoFullName, branchName);
 
   const buildBlockedReason = useMemo(() => {
     if (!repoValidation.valid) return "Repo fehlt (im Repo-Screen verknuepfen)";
     if (!branchName.trim()) return "Branch fehlt (im Repo-Screen auswaehlen)";
     if (!hasTokens) return "Tokens fehlen (GitHub + Expo) – im Verbindungen-Screen setzen";
     if (!hasDiagOk) return "Diagnostik nicht gruen – im Diagnostic-Screen ausfuehren";
+    if (!hasCiLiteOk) {
+      return ciLiteReason || "CI Lite nicht gruen oder nicht passend zu Repo/Branch – im Header ausfuehren";
+    }
     if (!hasSigningKey) return "Signing Key fehlt – im Wizard generieren";
     return null;
-  }, [repoValidation.valid, branchName, hasTokens, hasDiagOk, hasSigningKey]);
+  }, [repoValidation.valid, branchName, hasTokens, hasDiagOk, hasCiLiteOk, ciLiteReason, hasSigningKey]);
 
   // Logs nur laden wenn ein aktiver Build läuft oder eine runId existiert
   const shouldLoadLogs =
@@ -527,8 +535,10 @@ export function useEnhancedBuildScreen() {
       {
         id: "ci_lite",
         label: "CI Lite gruen (TS + ESLint)",
-        status: hasCiLiteOk ? "ok" : "pending",
-        detail: hasCiLiteOk ? "Letzter CI Lite Run OK" : "Header: CI Lite ausfuehren",
+        status: hasCiLiteOk ? "ok" : ciLiteStale ? "fail" : "pending",
+        detail: hasCiLiteOk
+          ? "Letzter CI Lite Run OK"
+          : (ciLiteReason || "Header: CI Lite ausfuehren"),
       },
       {
         id: "repo",

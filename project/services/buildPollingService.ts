@@ -168,6 +168,12 @@ export async function pollBuildStatusOnce(
     readString(responseObject, "downloadUrl") ??
     null;
 
+  const sourceCommitSha =
+    readString(job, "source_commit_sha") ??
+    readString(responseObject, "source_commit_sha") ??
+    readString(dataRecord, "source_commit_sha") ??
+    null;
+
   const details: BuildStatusDetails = {
     jobId,
     status: mapped,
@@ -183,6 +189,7 @@ export async function pollBuildStatusOnce(
     },
     raw: json,
     runId: runId ?? null,
+    sourceCommitSha,
   };
 
   return {

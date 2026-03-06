@@ -4,6 +4,9 @@ This file is the *index* of patch notes for this repo.
 
 ## Recent
 
+- Patch 383: Workflow hardening for explicit ref handling + manual-path transparency
+- Patch 382: Build screen CI Lite gating + stale transparency
+- Patch 381: CI Lite SoT hardening + build gate metadata persistence
 - Patch 379: Guard against flattened workflow YAML/templates + invariant test to catch newline loss
 - Patch 380: CI Lite dispatch robustness (ref input + auto-bootstrap on 422)
 - Patch 374: CI-Lite workflows produce deterministic result JSON artifact + checkout input ref

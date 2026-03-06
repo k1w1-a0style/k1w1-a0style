@@ -49,6 +49,12 @@ export const STORAGE_KEYS = {
   CI_LITE_LINT_OK: "ci_lite_lint_ok",
   CI_LITE_TYPECHECK_OK: "ci_lite_typecheck_ok",
   CI_LITE_LAST_RUN_AT: "ci_lite_last_run_at",
+  CI_LITE_LAST_REPO: "ci_lite_last_repo",
+  CI_LITE_LAST_BRANCH: "ci_lite_last_branch",
+  CI_LITE_LAST_WORKFLOW: "ci_lite_last_workflow",
+  CI_LITE_LAST_JOB_ID: "ci_lite_last_job_id",
+  CI_LITE_LAST_RUN_ID: "ci_lite_last_run_id",
+  CI_LITE_LAST_CONCLUSION: "ci_lite_last_conclusion",
 
   // One-Click Deploy options
   ONE_CLICK_AUTO_SYNC_SECRETS: "one_click_auto_sync_secrets",

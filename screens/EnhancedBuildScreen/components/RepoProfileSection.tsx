@@ -92,9 +92,11 @@ export function BuildModeDropdown({
 export function RepoInfoBadge({
   repoFullName,
   branchName,
+  sourceCommitSha,
 }: {
   repoFullName: string;
   branchName: string;
+  sourceCommitSha?: string | null;
 }) {
   if (!repoFullName) {
     return (
@@ -112,6 +114,12 @@ export function RepoInfoBadge({
         <>
           <Ionicons name="git-branch-outline" size={12} color={theme.palette.text.muted} />
           <Text style={s.infoBranch}>{branchName}</Text>
+        </>
+      )}
+      {!!sourceCommitSha && (
+        <>
+          <Ionicons name="git-commit-outline" size={12} color={theme.palette.text.muted} />
+          <Text style={s.infoBranch}>{sourceCommitSha.slice(0, 12)}</Text>
         </>
       )}
     </View>

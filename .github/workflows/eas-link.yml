@@ -6,7 +6,7 @@ on:
       ref:
         description: "Branch/Tag/SHA (optional)"
         required: false
-        default: "main"
+        default: ""
       eas_project_id:
         description: "Existing EAS Project ID (optional)"
         required: false
@@ -53,6 +53,10 @@ jobs:
           set -euo pipefail
           if [ -z "${EXPO_TOKEN:-}" ]; then
             echo "::error::Missing GitHub Secret EXPO_TOKEN"
+            exit 1
+          fi
+          if [ -z "${{ inputs.ref }}" ]; then
+            echo "::error::Missing ref. This workflow must target the selected app branch explicitly."
             exit 1
           fi
           echo "✅ EXPO_TOKEN present (len=${#EXPO_TOKEN})"

@@ -63,6 +63,9 @@ export function BuildStatusSection({
           <Text style={s.statusLabel}>{statusLabel}</Text>
           {!!message && <Text style={s.statusMsg}>{message}</Text>}
           {!!jobId && <Text style={s.statusMsg}>Job #{jobId}</Text>}
+          {!!currentBuild?.sourceCommitSha && (
+            <Text style={s.statusMsg}>Commit {currentBuild.sourceCommitSha.slice(0, 12)}</Text>
+          )}
           {etaMs > 0 && (
             <Text style={s.eta}>Restzeit: ~{formatDuration(etaMs)}</Text>
           )}

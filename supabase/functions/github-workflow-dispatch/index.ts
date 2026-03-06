@@ -688,18 +688,20 @@ try {
 
     // 4) Fallback: direct dispatch by filename (GitHub supports this, but can 404 when missing).
     let lastResp: Response | null = null;
+    let lastDetails: Record<string, unknown> | null = null;
     for (const wfFile of candidates) {
       const r = await dispatchByIdOrName(wfFile);
       if (r.ok) return jsonResponse({ ok: true, workflow: wfFile }, req, 200);
       lastResp = r;
+      const txt = await r.text();
+      lastDetails = sanitizeGitHubFailure(r, txt) as Record<string, unknown>;
       if (r.status !== 404) break;
     }
 
-    // 5) Auto-fix 404 (workflow missing): bootstrap known workflows, then retry.
+    // 5) Auto-fix 404 / stale workflow inputs: bootstrap known workflows, then retry.
     const last = lastResp;
-
-      const unexpectedInputs =
-        !!last && !!lastDetails && last.status === 422 && /Unexpected inputs provided/i.test(lastDetails.message || "");
+    const unexpectedInputs =
+      !!last && !!lastDetails && last.status === 422 && /Unexpected inputs provided/i.test(String(lastDetails.message || ""));
 
     if (last && (last.status === 404 || unexpectedInputs)) {
       // Choose the first file candidate that we can bootstrap.

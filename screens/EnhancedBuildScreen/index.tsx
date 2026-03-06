@@ -128,7 +128,11 @@ export default function EnhancedBuildScreen(): React.ReactElement {
 
         {/* Repo Info (read-only) */}
         <View style={st.section}>
-          <RepoInfoBadge repoFullName={s.repoFullName} branchName={s.branchName} />
+          <RepoInfoBadge
+            repoFullName={s.repoFullName}
+            branchName={s.branchName}
+            sourceCommitSha={s.currentBuild?.sourceCommitSha ?? null}
+          />
         </View>
 
         {/* Build Mode Dropdown */}
