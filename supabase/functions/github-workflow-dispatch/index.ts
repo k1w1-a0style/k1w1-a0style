@@ -13,6 +13,8 @@ import {
 // Kept inside the edge function so it can run independently from the app bundle.
 const WORKFLOW_TEMPLATES: Record<string, string> = {
   "k1w1-ci-lite.yml": `
+# managed-by: k1w1
+# workflow-version: 4
 name: K1W1 CI Lite (Lint + Typecheck)
 
 run-name: >-
@@ -118,11 +120,13 @@ jobs:
 
           echo "eslint_exit=$ESL" >> "$GITHUB_OUTPUT"
           echo "tsc_exit=$TSC" >> "$GITHUB_OUTPUT"
+          SOURCE_COMMIT_SHA="$(git rev-parse HEAD)"
 
           cat > ci-logs/ci-lite-result.json <<EOF
           {
             "job_id": "\${JOB_ID:-}",
             "ref": "\${TARGET_REF:-}",
+            "source_commit_sha": "${SOURCE_COMMIT_SHA:-}",
             "eslint_exit": $ESL,
             "tsc_exit": $TSC,
             "ok": $([ "$ESL" -eq 0 ] && [ "$TSC" -eq 0 ] && echo true || echo false)
@@ -171,6 +175,8 @@ jobs:
           echo "✅ CI Lite passed (job_id=\${JOB_ID:-})"
 `,
   "k1w1-ci-lite-autofix.yml": `
+# managed-by: k1w1
+# workflow-version: 4
 name: K1W1 CI Lite Autofix (ESLint --fix)
 
 run-name: >-
@@ -355,11 +361,13 @@ jobs:
 
           echo "eslint_exit=$ESL" >> "$GITHUB_OUTPUT"
           echo "tsc_exit=$TSC" >> "$GITHUB_OUTPUT"
+          SOURCE_COMMIT_SHA="$(git rev-parse HEAD)"
 
           cat > ci-logs/ci-lite-autofix-result.json <<EOF
           {
             "job_id": "\${JOB_ID:-}",
             "ref": "\${TARGET_BRANCH:-}",
+            "source_commit_sha": "${SOURCE_COMMIT_SHA:-}",
             "eslint_fix_exit": \${{ steps.fix.outputs.eslint_fix_exit || 0 }},
             "writeback_changed": \${{ steps.writeback.outputs.changed == 'true' && 'true' || 'false' }},
             "writeback_pushed": \${{ steps.writeback.outputs.pushed == 'true' && 'true' || 'false' }},
@@ -477,6 +485,18 @@ function b64(s: string): string {
   return btoa(unescape(encodeURIComponent(s)));
 }
 
+function unb64Utf8(s: string): string {
+  return decodeURIComponent(escape(atob(s)));
+}
+
+function parseManagedWorkflowMeta(content: string): { managedBy: string | null; workflowVersion: string | null } {
+  const managedBy =
+    content.match(/^# managed-by:\s*(.+)$/m)?.[1]?.trim() ?? null;
+  const workflowVersion =
+    content.match(/^# workflow-version:\s*(.+)$/m)?.[1]?.trim() ?? null;
+  return { managedBy, workflowVersion };
+}
+
 async function ghFetch(url: string, token: string, init: RequestInit): Promise<Response> {
   return await fetch(url, {
     ...init,
@@ -528,9 +548,18 @@ async function ensureWorkflowFileExists(
   const getUrl = `${GITHUB_API_BASE}/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(ref)}`;
   const getResp = await ghFetch(getUrl, token, { method: "GET" });
   let sha: string | undefined;
+  let currentMeta: { managedBy: string | null; workflowVersion: string | null } | null = null;
   if (getResp.ok) {
     const j = await getResp.json();
     sha = j?.sha;
+    const encoded = typeof j?.content === "string" ? j.content.replace(/\n/g, "") : "";
+    if (encoded) {
+      try {
+        currentMeta = parseManagedWorkflowMeta(unb64Utf8(encoded));
+      } catch {
+        currentMeta = { managedBy: null, workflowVersion: null };
+      }
+    }
   }
 
   const putUrl = `${GITHUB_API_BASE}/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`;
@@ -552,7 +581,16 @@ async function ensureWorkflowFileExists(
     const txt = await putResp.text();
     return { ok: false, details: sanitizeGitHubFailure(putResp, txt) };
   }
-  return { ok: true, created: !sha, updated: !!sha };
+  return {
+    ok: true,
+    created: !sha,
+    updated: !!sha,
+    details: {
+      currentMeta,
+      managedBy: "k1w1",
+      workflowVersion: "4",
+    },
+  };
 }
 
 function parseCsvEnv(name: string): string[] {

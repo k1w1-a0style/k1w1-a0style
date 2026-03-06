@@ -47,4 +47,18 @@ describe("Invariants: repo/branch selection is source of truth", () => {
     expect(src).toContain("eslintExit: artifactResult?.eslint_exit ?? null");
     expect(src).toContain("tscExit: artifactResult?.tsc_exit ?? null");
   });
+
+  it("keeps managed markers in embedded workflow templates", () => {
+    const src = read("supabase/functions/github-workflow-dispatch/index.ts");
+
+    expect(src).toContain('# managed-by: k1w1');
+    expect(src).toContain('# workflow-version: 4');
+  });
+
+  it("keeps source_commit_sha in CI-Lite template artifacts", () => {
+    const src = read("supabase/functions/github-workflow-dispatch/index.ts");
+
+    expect(src).toContain('"source_commit_sha": "${SOURCE_COMMIT_SHA:-}"');
+  });
+
 });

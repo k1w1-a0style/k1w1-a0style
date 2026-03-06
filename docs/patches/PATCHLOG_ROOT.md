@@ -4,6 +4,7 @@ This file is the *index* of patch notes for this repo.
 
 ## Recent
 
+- Patch 387: managed workflow drift hardening + CI-lite template SHA metadata + cleanup
 - Patch 386: SHA hardening phase 2 + workflow marker completion + patch artifact discipline
 - Patch 385: Project-context SoT correction + CI Lite artifact/autofix hardening
 - Patch 383: Workflow hardening for explicit ref handling + manual-path transparency
