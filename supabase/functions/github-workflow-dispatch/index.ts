@@ -59,7 +59,7 @@ jobs:
           echo "CI Lite start (job_id=\${JOB_ID:-}, ref=\${TARGET_REF:-})"
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: \${{ env.TARGET_REF }}
           fetch-depth: 0
@@ -82,7 +82,7 @@ jobs:
 
       - name: Setup Node (with npm cache)
         if: steps.lock.outputs.has_lockfile == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
@@ -90,7 +90,7 @@ jobs:
 
       - name: Setup Node (no cache - lockfile missing)
         if: steps.lock.outputs.has_lockfile != 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
 
@@ -158,7 +158,7 @@ jobs:
 
       - name: Upload CI Lite logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb0d8b62a3 # v4
         with:
           name: ci-lite-logs
           path: |
@@ -221,7 +221,7 @@ jobs:
           echo "CI Lite Autofix start (job_id=\${JOB_ID:-}, ref=\${TARGET_BRANCH:-})"
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: \${{ env.TARGET_BRANCH }}
           fetch-depth: 0
@@ -244,7 +244,7 @@ jobs:
 
       - name: Setup Node (with npm cache)
         if: steps.lock.outputs.has_lockfile == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
@@ -252,7 +252,7 @@ jobs:
 
       - name: Setup Node (no cache - lockfile missing)
         if: steps.lock.outputs.has_lockfile != 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
 
@@ -406,7 +406,7 @@ jobs:
 
       - name: Upload CI Lite Autofix logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb0d8b62a3 # v4
         with:
           name: ci-lite-autofix-logs
           path: |

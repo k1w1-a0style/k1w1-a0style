@@ -61,4 +61,13 @@ describe("Invariants: repo/branch selection is source of truth", () => {
     expect(src).toContain('"source_commit_sha": "${SOURCE_COMMIT_SHA:-}"');
   });
 
+
+  it("does not keep a default-branch fallback in CI-Lite header dispatch", () => {
+    const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
+
+    expect(src).toContain("CI Lite blockiert: Kein Branch verknüpft.");
+    expect(src).not.toContain("getDefaultBranch");
+    expect(src).not.toContain('targetBranch = "main"');
+  });
+
 });

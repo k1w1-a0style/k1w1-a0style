@@ -9,3 +9,4 @@ Patch 373 applied: metro config blockList without metro-config internal imports.
 - 2026-03-06 Patch 386: SHA hardening phase 2 + workflow marker completion + patch artifact discipline
 - 2026-03-06 Patch 387: managed workflow drift hardening + CI-lite template SHA metadata + cleanup
 - 2026-03-06 Patch 388: workflow drift validator + stronger patch artifact discipline
+- 2026-03-06 Patch 389: workflow template drift check + strict CI-Lite branch dispatch

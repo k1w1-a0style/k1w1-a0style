@@ -9,7 +9,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getGitHubToken } from "../../../infra/github/tokenStore";
 import { requireSupabaseEdgeUrl } from "../../../lib/supabaseEdge";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
-import { getDefaultBranch, getEdgeAdminKey } from "../../../infra/github/githubService";
+import { getEdgeAdminKey } from "../../../infra/github/githubService";
 import { useProject } from "../../../contexts/ProjectContext";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
 import { computeCiLiteOk, inferStepStates, safeUi } from "../../ciLite/ciLiteUtils";
@@ -380,12 +380,10 @@ export function useCiLiteWorkflow() {
       setJobId(newJobId);
 
       try {
-        const [owner, repo] = githubRepo.split("/");
-        let targetBranch = branch;
+        const targetBranch = branch.trim();
         if (!targetBranch) {
-          try { targetBranch = (await getDefaultBranch(owner, repo)).trim(); } catch { targetBranch = "main"; }
+          throw new Error("CI Lite blockiert: Kein Branch verknüpft. Bitte im Repo-Screen einen Branch auswählen.");
         }
-        if (!targetBranch) targetBranch = "main";
         setTargetRef(targetBranch);
 
         const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
