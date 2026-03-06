@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Linking } from "react-native";
 
 import { useProject } from "../../../contexts/ProjectContext";
-import { useGitHub } from "../../../contexts/GitHubContext";
 import { useBuildHistory } from "../../../hooks/useBuildHistory";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
 import { BuildErrorAnalyzer } from "../../../lib/buildErrorAnalyzer";
@@ -45,7 +44,6 @@ export function useEnhancedBuildScreen() {
   }, []);
 
   const projectContext = useProject();
-  const { activeBranch } = useGitHub();
   const projectData = projectContext?.projectData ?? null;
 
   const startBuild = projectContext?.startBuild as
@@ -69,21 +67,12 @@ export function useEnhancedBuildScreen() {
   // - Repo/Branch comes from ProjectContext (Repo-Screen persists it).
   // - Build-Screen is read-only for repo/branch.
   const repoFullName = useMemo(() => {
-    return (
-      projectData?.linkedRepo?.trim() ||
-      (currentBuild?.githubRepo ?? "").trim()
-    );
-  }, [projectData?.linkedRepo, currentBuild?.githubRepo]);
+    return projectData?.linkedRepo?.trim() || "";
+  }, [projectData?.linkedRepo]);
 
   const branchName = useMemo(() => {
-    const fromBuild = String(currentBuild?.branch ?? "").trim();
-    return (
-      projectData?.linkedBranch?.trim() ||
-      activeBranch?.trim() ||
-      fromBuild ||
-      ""
-    );
-  }, [projectData?.linkedBranch, activeBranch, currentBuild?.branch]);
+    return projectData?.linkedBranch?.trim() || "";
+  }, [projectData?.linkedBranch]);
   const [buildProfile, setBuildProfile] = useState<BuildProfile>(
     projectData?.preferredBuildProfile || "preview",
   );
@@ -204,9 +193,7 @@ export function useEnhancedBuildScreen() {
     status === "building" ||
     (runId !== null && status !== "idle");
 
-  const githubRepoForLogs = shouldLoadLogs
-    ? currentBuild?.githubRepo?.trim() || normalizedRepo || null
-    : null;
+  const githubRepoForLogs = shouldLoadLogs ? normalizedRepo || null : null;
 
   const {
     logs,
@@ -559,7 +546,17 @@ export function useEnhancedBuildScreen() {
         detail: `Profil: ${buildProfile}`,
       },
     ];
-  }, [hasSigningKey, hasTokens, hasDiagOk, hasCiLiteOk, repoFullName, branchName, buildProfile]);
+  }, [
+    hasSigningKey,
+    hasTokens,
+    hasDiagOk,
+    hasCiLiteOk,
+    ciLiteReason,
+    ciLiteStale,
+    repoFullName,
+    branchName,
+    buildProfile,
+  ]);
 
 
   return {

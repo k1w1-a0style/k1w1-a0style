@@ -10,7 +10,6 @@ import { getGitHubToken } from "../../../infra/github/tokenStore";
 import { requireSupabaseEdgeUrl } from "../../../lib/supabaseEdge";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
 import { getDefaultBranch, getEdgeAdminKey } from "../../../infra/github/githubService";
-import { useGitHub } from "../../../contexts/GitHubContext";
 import { useProject } from "../../../contexts/ProjectContext";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
 import { computeCiLiteOk, inferStepStates, safeUi } from "../../ciLite/ciLiteUtils";
@@ -18,7 +17,6 @@ import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { WORKFLOW_CI_LITE, WORKFLOW_CI_LITE_AUTOFIX, type StepState } from "../types";
 
 export function useCiLiteWorkflow() {
-  const { activeRepo, activeBranch } = useGitHub();
   const { projectData } = useProject();
 
   const [visible, setVisible] = useState(false);
@@ -41,15 +39,17 @@ export function useCiLiteWorkflow() {
   const [artifactError, setArtifactError] = useState<string | null>(null);
 
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const manualCiLiteSessionRef = useRef<string | null>(null);
+  const autoAutofixStartedForSessionRef = useRef<string | null>(null);
 
   // ---- Derived repo/branch ----
   const githubRepo = useMemo(
-    () => (activeRepo?.trim() || projectData?.linkedRepo?.trim() || "").trim(),
-    [activeRepo, projectData?.linkedRepo],
+    () => (projectData?.linkedRepo?.trim() || "").trim(),
+    [projectData?.linkedRepo],
   );
   const branch = useMemo(
-    () => (activeBranch?.trim() || projectData?.linkedBranch?.trim() || "").trim(),
-    [activeBranch, projectData?.linkedBranch],
+    () => (projectData?.linkedBranch?.trim() || "").trim(),
+    [projectData?.linkedBranch],
   );
 
   // ---- Polling helpers ----
@@ -256,8 +256,11 @@ export function useCiLiteWorkflow() {
         workflowRun,
         onlyErrorsCount: onlyErrors.length,
         hasErrorText: Boolean(showError),
+        resultOk: artifactResult?.ok ?? null,
+        eslintExit: artifactResult?.eslint_exit ?? null,
+        tscExit: artifactResult?.tsc_exit ?? null,
       }),
-    [done, workflowRun, onlyErrors.length, showError],
+    [done, workflowRun, onlyErrors.length, showError, artifactResult],
   );
 
   const busy = dispatching || logsLoading || workflowRun?.status === "in_progress";
@@ -358,6 +361,10 @@ export function useCiLiteWorkflow() {
       stopPolling();
 
       const newJobId = uuidv4();
+      if (workflowFile === WORKFLOW_CI_LITE) {
+        manualCiLiteSessionRef.current = newJobId;
+        autoAutofixStartedForSessionRef.current = null;
+      }
       setJobId(newJobId);
 
       try {
@@ -424,6 +431,24 @@ export function useCiLiteWorkflow() {
     },
     [githubRepo, branch, stopPolling, findRunByJobId],
   );
+
+
+  // ---- Auto chain (manual CI Lite failure -> Autofix once) ----
+  useEffect(() => {
+    if (!visible || workflowId !== WORKFLOW_CI_LITE || !workflowRun) return;
+    if (workflowRun.status !== "completed") return;
+
+    const conclusion = String(workflowRun.conclusion || "").toLowerCase();
+    if (conclusion !== "failure") return;
+
+    const manualSessionId = manualCiLiteSessionRef.current;
+    if (!manualSessionId || jobId !== manualSessionId) return;
+    if (autoAutofixStartedForSessionRef.current === manualSessionId) return;
+    if (!githubRepo || !branch) return;
+
+    autoAutofixStartedForSessionRef.current = manualSessionId;
+    void dispatchWorkflow(WORKFLOW_CI_LITE_AUTOFIX);
+  }, [visible, workflowId, workflowRun, jobId, githubRepo, branch, dispatchWorkflow]);
 
   // ---- Run metadata ----
   const runMeta = useMemo(() => {

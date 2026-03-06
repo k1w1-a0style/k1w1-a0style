@@ -22,4 +22,29 @@ describe("Invariants: repo/branch selection is source of truth", () => {
     // It should not quietly assume a branch.
     expect(src).not.toMatch(/\|\|\s*["']main["']/);
   });
+
+  it("uses project-context repo/branch as the only build-screen source of truth", () => {
+    const src = read("screens/EnhancedBuildScreen/hooks/useEnhancedBuildScreen.ts");
+
+    expect(src).not.toContain("currentBuild?.githubRepo?.trim() || normalizedRepo || null");
+    expect(src).not.toContain('projectData?.linkedRepo?.trim() ||\n      (currentBuild?.githubRepo ?? "").trim()');
+    expect(src).not.toContain("projectData?.linkedBranch?.trim() ||\n      activeBranch?.trim() ||");
+  });
+
+  it("uses project-context repo/branch as the only header CI-Lite source of truth", () => {
+    const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
+
+    expect(src).not.toContain("activeRepo?.trim() || projectData?.linkedRepo?.trim()");
+    expect(src).not.toContain("activeBranch?.trim() || projectData?.linkedBranch?.trim()");
+    expect(src).toContain('projectData?.linkedRepo?.trim() || ""');
+    expect(src).toContain('projectData?.linkedBranch?.trim() || ""');
+  });
+
+  it("passes deterministic artifact result into computeCiLiteOk", () => {
+    const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
+
+    expect(src).toContain("resultOk: artifactResult?.ok ?? null");
+    expect(src).toContain("eslintExit: artifactResult?.eslint_exit ?? null");
+    expect(src).toContain("tscExit: artifactResult?.tsc_exit ?? null");
+  });
 });

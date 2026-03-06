@@ -4,6 +4,7 @@ This file is the *index* of patch notes for this repo.
 
 ## Recent
 
+- Patch 385: Project-context SoT correction + CI Lite artifact/autofix hardening
 - Patch 383: Workflow hardening for explicit ref handling + manual-path transparency
 - Patch 382: Build screen CI Lite gating + stale transparency
 - Patch 381: CI Lite SoT hardening + build gate metadata persistence
