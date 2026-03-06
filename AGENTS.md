@@ -54,6 +54,7 @@ Vor Auslieferung eines Patch-Artefakts:
 - `npm run lint:ci`
 - `npm run test:silent`
 - `bash scripts/check_patch_artifact.sh <patchfile>`
+- `bash scripts/check_managed_workflows.sh`
 
 Jeder Patch aktualisiert:
 - `docs/patches/patch_<PATCHNUM>.md`
