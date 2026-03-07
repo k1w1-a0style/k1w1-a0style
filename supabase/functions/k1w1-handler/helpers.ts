@@ -18,7 +18,7 @@ export interface ChatMessage {
 }
 
 export interface HandlerRequestBody {
-  provider: "groq" | "gemini" | string;
+  provider: "groq" | "gemini" | "openai" | "anthropic" | "huggingface" | string;
   messages: ChatMessage[];
   mode?: string;
   model?: string;
@@ -37,6 +37,18 @@ export const DEFAULT_MODELS = {
   gemini: {
     speed: "gemini-1.5-flash",
     quality: "gemini-1.5-pro",
+  },
+  openai: {
+    speed: "gpt-4o-mini",
+    quality: "gpt-4o",
+  },
+  anthropic: {
+    speed: "claude-3-5-haiku-latest",
+    quality: "claude-3-5-sonnet-latest",
+  },
+  huggingface: {
+    speed: "mistralai/Mistral-7B-Instruct-v0.3",
+    quality: "meta-llama/Llama-3.1-70B-Instruct",
   },
 } as const;
 
@@ -163,3 +175,152 @@ export async function callGemini(
 
 // ----------------- Main Handler -----------------
 
+
+
+function toPlainPrompt(messages: ChatMessage[]): string {
+  return messages
+    .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+    .join("\n\n");
+}
+
+export async function callOpenAI(
+  body: HandlerRequestBody,
+): Promise<{ content: string; raw: unknown; model: string }> {
+  const apiKey = Deno.env.get("OPENAI_API_KEY");
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY not set in Edge env");
+  }
+
+  const qualityConfig = DEFAULT_MODELS.openai;
+  const model =
+    body.model ||
+    (body.quality === "quality" ? qualityConfig.quality : qualityConfig.speed);
+
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: body.messages,
+      temperature: 0.2,
+      max_tokens: 2048,
+    }),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`openai_http_${res.status}: ${txt}`);
+  }
+
+  const json = await res.json();
+  const content =
+    json?.choices?.[0]?.message?.content ??
+    json?.choices?.[0]?.delta?.content ??
+    "";
+
+  return { content, raw: json, model };
+}
+
+export async function callAnthropic(
+  body: HandlerRequestBody,
+): Promise<{ content: string; raw: unknown; model: string }> {
+  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY not set in Edge env");
+  }
+
+  const qualityConfig = DEFAULT_MODELS.anthropic;
+  const model =
+    body.model ||
+    (body.quality === "quality" ? qualityConfig.quality : qualityConfig.speed);
+
+  const system = body.messages
+    .filter((m) => m.role === "system")
+    .map((m) => m.content)
+    .join("\n\n")
+    .trim();
+
+  const messages = body.messages
+    .filter((m) => m.role !== "system")
+    .map((m) => ({
+      role: m.role === "assistant" ? "assistant" : "user",
+      content: m.content,
+    }));
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model,
+      system: system || undefined,
+      messages,
+      max_tokens: 2048,
+      temperature: 0.2,
+    }),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`anthropic_http_${res.status}: ${txt}`);
+  }
+
+  const json = await res.json();
+  const content = Array.isArray(json?.content)
+    ? json.content
+        .map((part: any) => (part?.type === "text" ? String(part.text || "") : ""))
+        .join("\n")
+    : "";
+
+  return { content, raw: json, model };
+}
+
+export async function callHuggingFace(
+  body: HandlerRequestBody,
+): Promise<{ content: string; raw: unknown; model: string }> {
+  const apiKey = Deno.env.get("HUGGINGFACE_API_KEY");
+  if (!apiKey) {
+    throw new Error("HUGGINGFACE_API_KEY not set in Edge env");
+  }
+
+  const qualityConfig = DEFAULT_MODELS.huggingface;
+  const model =
+    body.model ||
+    (body.quality === "quality" ? qualityConfig.quality : qualityConfig.speed);
+
+  const prompt = toPlainPrompt(body.messages);
+
+  const res = await fetch(`https://api-inference.huggingface.co/models/${encodeURIComponent(model)}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      inputs: prompt,
+      parameters: {
+        return_full_text: false,
+        max_new_tokens: 1024,
+        temperature: 0.2,
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`huggingface_http_${res.status}: ${txt}`);
+  }
+
+  const json = await res.json();
+  const content = Array.isArray(json)
+    ? String(json?.[0]?.generated_text || "")
+    : String(json?.generated_text || "");
+
+  return { content, raw: json, model };
+}

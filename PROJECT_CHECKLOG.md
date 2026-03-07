@@ -11,3 +11,4 @@ Patch 373 applied: metro config blockList without metro-config internal imports.
 - 2026-03-06 Patch 388: workflow drift validator + stronger patch artifact discipline
 - 2026-03-06 Patch 389: workflow template drift check + strict CI-Lite branch dispatch
 - 2026-03-07 Patch 390: fix edge-function helper visibility/reexports and add regression tests
+- 2026-03-07 Patch 391: restore 5-provider support in k1w1-handler and add provider invariants

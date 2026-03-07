@@ -2,7 +2,7 @@
 // REFACTORED: helpers → helpers.ts
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { Role,ChatMessage,HandlerRequestBody,DEFAULT_MODELS,parseRequestBody,toGeminiContents,callGroq,callGemini,corsHeaders,handleCors,parseJsonBody,rateLimit,requireAdminKey } from "./helpers.ts";
+import { Role,ChatMessage,HandlerRequestBody,DEFAULT_MODELS,parseRequestBody,toGeminiContents,callGroq,callGemini,callOpenAI,callAnthropic,callHuggingFace,corsHeaders,handleCors,parseJsonBody,rateLimit,requireAdminKey } from "./helpers.ts";
 
 serve(async (req: Request): Promise<Response> => {
   const corsResponse = handleCors(req);
@@ -54,6 +54,12 @@ serve(async (req: Request): Promise<Response> => {
       result = await callGroq(body);
     } else if (providerLower === "gemini") {
       result = await callGemini(body);
+    } else if (providerLower === "openai") {
+      result = await callOpenAI(body);
+    } else if (providerLower === "anthropic") {
+      result = await callAnthropic(body);
+    } else if (providerLower === "huggingface") {
+      result = await callHuggingFace(body);
     } else {
       throw new Error(`Unsupported provider: ${body.provider}`);
     }
