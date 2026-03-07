@@ -1,0 +1,92 @@
+import fs from "fs";
+import path from "path";
+
+const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "utf8");
+
+describe("Edge helper visibility invariants", () => {
+  const cases = [
+    {
+      name: "k1w1-handler",
+      index: "supabase/functions/k1w1-handler/index.ts",
+      helpers: "supabase/functions/k1w1-handler/helpers.ts",
+      imports: ["corsHeaders", "handleCors", "parseJsonBody", "rateLimit", "requireAdminKey"],
+      reexports: [
+        'export { corsHeaders, handleCors } from "../_shared/cors.ts";',
+        'export { requireAdminKey, rateLimit } from "../_shared/auth.ts";',
+        'export { parseJsonBody } from "../_shared/validation.ts";',
+      ],
+    },
+    {
+      name: "android-keystore-export",
+      index: "supabase/functions/android-keystore-export/index.ts",
+      helpers: "supabase/functions/android-keystore-export/helpers.ts",
+      imports: [
+        "createClient",
+        "errorResponse",
+        "getServiceRoleKey",
+        "handleCors",
+        "jsonResponse",
+        "rateLimit",
+        "requireAdminKey",
+      ],
+      reexports: [
+        'export { createClient } from "https://esm.sh/@supabase/supabase-js@2";',
+        'export { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";',
+        'export { rateLimit, requireAdminKey, getServiceRoleKey, getBearerToken } from "../_shared/auth.ts";',
+      ],
+    },
+    {
+      name: "android-keystore-generate",
+      index: "supabase/functions/android-keystore-generate/index.ts",
+      helpers: "supabase/functions/android-keystore-generate/helpers.ts",
+      imports: [
+        "bytesToBinaryString",
+        "createClient",
+        "encryptWithAesCbc",
+        "errorResponse",
+        "handleCors",
+        "jsonResponse",
+        "rateLimit",
+        "requireAdminKey",
+      ],
+      reexports: [
+        'export { createClient } from "https://esm.sh/@supabase/supabase-js@2";',
+        'export { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";',
+        'export { rateLimit, requireAdminKey } from "../_shared/auth.ts";',
+      ],
+    },
+    {
+      name: "create_codesandbox",
+      index: "supabase/functions/create_codesandbox/index.ts",
+      helpers: "supabase/functions/create_codesandbox/helpers.ts",
+      imports: [
+        "parseJsonBody",
+        "rateLimit",
+        "requireAdminKey",
+        "sanitizeUnknownForTransport",
+        "serve",
+      ],
+      reexports: [
+        'export { serve } from "std/http/server.ts";',
+        'export { sanitizeErrorText, sanitizeUnknownForTransport } from "../_shared/errorSanitization.ts";',
+        'export { parseJsonBody } from "../_shared/validation.ts";',
+        'export { requireAdminKey, rateLimit } from "../_shared/auth.ts";',
+      ],
+    },
+  ];
+
+  for (const c of cases) {
+    it(`${c.name} keeps helper reexports visible to index.ts`, () => {
+      const indexSrc = read(c.index);
+      const helperSrc = read(c.helpers);
+
+      for (const imported of c.imports) {
+        expect(indexSrc).toContain(imported);
+      }
+
+      for (const line of c.reexports) {
+        expect(helperSrc).toContain(line);
+      }
+    });
+  }
+});

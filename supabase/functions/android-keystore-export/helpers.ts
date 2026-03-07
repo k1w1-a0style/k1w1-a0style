@@ -9,10 +9,10 @@
 //   2) caller role == service_role (so the app's anon key cannot exfiltrate creds)
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+export { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-import { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
-import { rateLimit, requireAdminKey, getServiceRoleKey, getBearerToken } from "../_shared/auth.ts";
+export { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
+export { rateLimit, requireAdminKey, getServiceRoleKey, getBearerToken } from "../_shared/auth.ts";
 
 export type Mode = "development" | "preview" | "production";
 

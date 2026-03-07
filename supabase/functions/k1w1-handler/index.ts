@@ -2,7 +2,7 @@
 // REFACTORED: helpers → helpers.ts
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { Role,ChatMessage,HandlerRequestBody,DEFAULT_MODELS,parseRequestBody,toGeminiContents,callGroq,callGemini } from "./helpers.ts";
+import { Role,ChatMessage,HandlerRequestBody,DEFAULT_MODELS,parseRequestBody,toGeminiContents,callGroq,callGemini,corsHeaders,handleCors,parseJsonBody,rateLimit,requireAdminKey } from "./helpers.ts";
 
 serve(async (req: Request): Promise<Response> => {
   const corsResponse = handleCors(req);

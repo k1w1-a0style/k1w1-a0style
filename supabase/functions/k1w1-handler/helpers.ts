@@ -25,9 +25,9 @@ export interface HandlerRequestBody {
   quality?: "speed" | "quality";
 }
 
-import { corsHeaders, handleCors } from "../_shared/cors.ts";
-import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
-import { parseJsonBody } from "../_shared/validation.ts";
+export { corsHeaders, handleCors } from "../_shared/cors.ts";
+export { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+export { parseJsonBody } from "../_shared/validation.ts";
 
 export const DEFAULT_MODELS = {
   groq: {

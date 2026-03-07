@@ -1,9 +1,11 @@
 // supabase/functions/create_codesandbox/helpers.ts
 // Extracted from create_codesandbox/index.ts: utility functions.
 
-import { serve } from "std/http/server.ts";
+export { serve } from "std/http/server.ts";
 // NOTE: Supabase Edge (Deno) bundler requires explicit file extensions for local imports.
-import { sanitizeErrorText, sanitizeUnknownForTransport } from "../_shared/errorSanitization.ts";
+export { sanitizeErrorText, sanitizeUnknownForTransport } from "../_shared/errorSanitization.ts";
+export { parseJsonBody } from "../_shared/validation.ts";
+export { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 
 // CodeSandbox "define" API
 

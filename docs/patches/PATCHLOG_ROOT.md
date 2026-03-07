@@ -4,6 +4,7 @@ This file is the *index* of patch notes for this repo.
 
 ## Recent
 
+- Patch 390: fix edge-function helper visibility/reexports and add regression tests
 - Patch 389: workflow template drift check + strict CI-Lite branch dispatch
 - Patch 388: workflow drift validator + stronger patch artifact discipline
 - Patch 387: managed workflow drift hardening + CI-lite template SHA metadata + cleanup

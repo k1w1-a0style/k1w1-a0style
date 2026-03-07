@@ -56,6 +56,7 @@ Vor Auslieferung eines Patch-Artefakts:
 - `bash scripts/check_patch_artifact.sh <patchfile>`
 - `bash scripts/check_managed_workflows.sh`
 - `bash scripts/check_workflow_template_drift.sh`
+- `npm run test:silent -- --runInBand edgeHelperVisibility.invariants.test.ts`
 
 Jeder Patch aktualisiert:
 - `docs/patches/patch_<PATCHNUM>.md`

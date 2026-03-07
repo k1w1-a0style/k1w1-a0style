@@ -5,10 +5,10 @@
 // and persists metadata in the `signing_android` table.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+export { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-import { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
-import { rateLimit, requireAdminKey } from "../_shared/auth.ts";
+export { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
+export { rateLimit, requireAdminKey } from "../_shared/auth.ts";
 
 
 export type Mode = "development" | "preview" | "production";
