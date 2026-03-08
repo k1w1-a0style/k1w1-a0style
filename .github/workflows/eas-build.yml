@@ -1,5 +1,5 @@
 # managed-by: k1w1
-# workflow-version: 4
+# workflow-version: 403
 name: EAS Build
 
 on:
@@ -127,7 +127,7 @@ jobs:
             fi
           fi
 
-      - name: Detect lockfile (for cache + install strategy)
+      - name: Detect package manager / lockfile (for cache + install strategy)
         id: lock
         shell: bash
         run: |
@@ -135,12 +135,23 @@ jobs:
           if [ -f package-lock.json ]; then
             echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
             echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
+            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
           elif [ -f npm-shrinkwrap.json ]; then
             echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
             echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
+            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
+            echo "package_manager=yarn" >> "$GITHUB_OUTPUT"
+          elif [ -f pnpm-lock.yaml ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            echo "package_manager=pnpm" >> "$GITHUB_OUTPUT"
           else
             echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
             echo "lockfile_path=" >> "$GITHUB_OUTPUT"
+            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Determine strict lockfile policy
@@ -174,12 +185,28 @@ jobs:
               ;;
           esac
 
-      - name: Setup Node (with npm cache)
-        if: steps.lock.outputs.has_lockfile == 'true'
+      - name: Setup Node (npm cache)
+        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'npm'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
+
+      - name: Setup Node (yarn cache)
+        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'yarn'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
+
+      - name: Setup Node (pnpm cache)
+        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'pnpm'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: pnpm
           cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
 
       - name: Setup Node (no cache - lockfile missing)
@@ -195,11 +222,31 @@ jobs:
         run: |
           set -euo pipefail
           PROFILE="${{ inputs.profile }}"
+          PM="${{ steps.lock.outputs.package_manager }}"
+          LOCKFILE="${{ steps.lock.outputs.lockfile_path }}"
           if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
-            echo "Using npm ci (lockfile: ${{ steps.lock.outputs.lockfile_path }})"
-            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
+            case "$PM" in
+              npm)
+                echo "Using npm ci (lockfile: ${LOCKFILE})"
+                npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
+                ;;
+              yarn)
+                echo "Using yarn install --frozen-lockfile (lockfile: ${LOCKFILE})"
+                corepack enable || true
+                yarn install --frozen-lockfile || yarn install --immutable || yarn install
+                ;;
+              pnpm)
+                echo "Using pnpm install --frozen-lockfile (lockfile: ${LOCKFILE})"
+                corepack enable || true
+                pnpm install --frozen-lockfile || pnpm install
+                ;;
+              *)
+                echo "::error::Unknown package manager '$PM'"
+                exit 1
+                ;;
+            esac
           elif [ "${STRICT_LOCKFILE}" = "true" ]; then
-            echo "::error::Strict lockfile policy enabled for profile '${PROFILE}', but no lockfile was found. Commit package-lock.json or npm-shrinkwrap.json before running preview/production builds."
+            echo "::error::Strict lockfile policy enabled for profile '${PROFILE}', but no lockfile was found. Commit package-lock.json, npm-shrinkwrap.json, yarn.lock or pnpm-lock.yaml before running preview/production builds."
             exit 1
           else
             echo "::warning::No lockfile found in repo. Development profile allows fallback to npm install (non-reproducible)."
@@ -228,11 +275,20 @@ jobs:
         env:
           TARGET_BRANCH: ${{ inputs.ref || github.ref_name }}
           PROFILE: ${{ inputs.profile }}
+          PACKAGE_MANAGER: ${{ steps.lock.outputs.package_manager }}
+          HAS_LOCKFILE: ${{ steps.lock.outputs.has_lockfile }}
+          LOCKFILE_PATH: ${{ steps.lock.outputs.lockfile_path }}
           ALLOWED_REF_REGEX: "^(work|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
         run: |
           set -euo pipefail
 
+          PM="${PACKAGE_MANAGER:-npm}"
           echo "🧯 Auto-fix: lockfile + expo-dev-client (development only)."
+          if [ "$PM" != "npm" ]; then
+            echo "::notice::Auto-fix writeback currently supports npm-managed repos only. Detected package manager '$PM'; skipping writeback path."
+            exit 0
+          fi
+
           npm config set package-lock true
 
           if [ "${PROFILE}" = "development" ]; then
@@ -240,8 +296,8 @@ jobs:
             npx --yes expo install expo-dev-client --fix || npx --yes expo install expo-dev-client
           fi
 
-          if [ ! -f package-lock.json ]; then
-            echo "::warning::No package-lock.json found. Generating one (best effort)."
+          if [ "${HAS_LOCKFILE}" != "true" ] || [ ! -f "${LOCKFILE_PATH:-package-lock.json}" ]; then
+            echo "::warning::No npm lockfile found. Generating package-lock.json (best effort)."
             npm install --package-lock-only --no-audit --no-fund
           fi
 
@@ -374,7 +430,7 @@ jobs:
             fi
           fi
 
-      - name: Detect lockfile (for cache + install strategy)
+      - name: Detect package manager / lockfile (for cache + install strategy)
         id: lock
         shell: bash
         run: |
@@ -382,18 +438,23 @@ jobs:
           if [ -f package-lock.json ]; then
             echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
             echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
+            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
           elif [ -f npm-shrinkwrap.json ]; then
             echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
             echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
+            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
           elif [ -f yarn.lock ]; then
             echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
             echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
+            echo "package_manager=yarn" >> "$GITHUB_OUTPUT"
           elif [ -f pnpm-lock.yaml ]; then
             echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
             echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            echo "package_manager=pnpm" >> "$GITHUB_OUTPUT"
           else
             echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
             echo "lockfile_path=" >> "$GITHUB_OUTPUT"
+            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
           fi
           echo "Repo root: $(pwd)"
           echo "Files:"; ls -lah
@@ -429,12 +490,28 @@ jobs:
               ;;
           esac
 
-      - name: Setup Node (with npm cache)
-        if: steps.lock.outputs.has_lockfile == 'true'
+      - name: Setup Node (npm cache)
+        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'npm'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
+
+      - name: Setup Node (yarn cache)
+        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'yarn'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
+
+      - name: Setup Node (pnpm cache)
+        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'pnpm'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: pnpm
           cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
 
       - name: Setup Node (no cache - lockfile missing)
@@ -450,11 +527,31 @@ jobs:
         run: |
           set -euo pipefail
           PROFILE="${{ inputs.profile }}"
+          PM="${{ steps.lock.outputs.package_manager }}"
+          LOCKFILE="${{ steps.lock.outputs.lockfile_path }}"
           if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
-            echo "Using npm ci (lockfile: ${{ steps.lock.outputs.lockfile_path }})"
-            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
+            case "$PM" in
+              npm)
+                echo "Using npm ci (lockfile: ${LOCKFILE})"
+                npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
+                ;;
+              yarn)
+                echo "Using yarn install --frozen-lockfile (lockfile: ${LOCKFILE})"
+                corepack enable || true
+                yarn install --frozen-lockfile || yarn install --immutable || yarn install
+                ;;
+              pnpm)
+                echo "Using pnpm install --frozen-lockfile (lockfile: ${LOCKFILE})"
+                corepack enable || true
+                pnpm install --frozen-lockfile || pnpm install
+                ;;
+              *)
+                echo "::error::Unknown package manager '$PM'"
+                exit 1
+                ;;
+            esac
           elif [ "${STRICT_LOCKFILE}" = "true" ]; then
-            echo "::error::Strict lockfile policy enabled for profile '${PROFILE}', but no lockfile was found. Commit package-lock.json or npm-shrinkwrap.json before running preview/production builds."
+            echo "::error::Strict lockfile policy enabled for profile '${PROFILE}', but no lockfile was found. Commit package-lock.json, npm-shrinkwrap.json, yarn.lock or pnpm-lock.yaml before running preview/production builds."
             exit 1
           else
             echo "::warning::No lockfile found in repo. Development profile allows fallback to npm install (non-reproducible)."
@@ -474,96 +571,96 @@ jobs:
           set -euo pipefail
           eas whoami | tee ci-logs/eas-whoami.log
 
-- name: Production credential preflight
-  if: ${{ inputs.profile == 'production' }}
-  shell: bash
-  env:
-    K1W1_EDGE_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ADMIN_KEY }}
-  run: |
-    set -euo pipefail
-    echo "::add-mask::${SUPABASE_SERVICE_ROLE_KEY}"
-    if [ -n "${K1W1_EDGE_ADMIN_KEY:-}" ]; then
-      echo "::add-mask::${K1W1_EDGE_ADMIN_KEY}"
-    fi
-    node -e '
-      const fs = require("fs");
-      const payload = {
-        repo: process.env.GITHUB_REPOSITORY,
-        mode: "production",
-        run_id: process.env.GITHUB_RUN_ID,
-        ref: process.env.GITHUB_REF_NAME || "",
-        profile: "production"
-      };
-      fs.writeFileSync("ci-logs/keystore-request.json", JSON.stringify(payload, null, 2));
-    '
+      - name: Production credential preflight
+        if: ${{ inputs.profile == 'production' }}
+        shell: bash
+        env:
+          K1W1_EDGE_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ADMIN_KEY }}
+        run: |
+          set -euo pipefail
+          echo "::add-mask::${SUPABASE_SERVICE_ROLE_KEY}"
+          if [ -n "${K1W1_EDGE_ADMIN_KEY:-}" ]; then
+            echo "::add-mask::${K1W1_EDGE_ADMIN_KEY}"
+          fi
+          node -e '
+            const fs = require("fs");
+            const payload = {
+              repo: process.env.GITHUB_REPOSITORY,
+              mode: "production",
+              run_id: process.env.GITHUB_RUN_ID,
+              ref: process.env.GITHUB_REF_NAME || "",
+              profile: "production"
+            };
+            fs.mkdirSync("ci-logs", { recursive: true });
+            fs.writeFileSync("ci-logs/keystore-request.json", JSON.stringify(payload, null, 2));
+          '
 
-- name: Fetch Android keystore (production only)
-  if: ${{ inputs.profile == 'production' }}
-  shell: bash
-  env:
-    K1W1_EDGE_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ADMIN_KEY }}
-  run: |
-    set -euo pipefail
-    BODY="$(cat ci-logs/keystore-request.json)"
-    HTTP_CODE="$(
-      curl               --silent --show-error               --retry 3 --retry-delay 2 --connect-timeout 10 --max-time 60               -o ci-logs/keystore-response.raw.json               -w "%{http_code}"               -X POST "${SUPABASE_URL%/}/functions/v1/android-keystore-export"               -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"               -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"               -H "Content-Type: application/json"               ${K1W1_EDGE_ADMIN_KEY:+-H "x-k1w1-admin-key: ${K1W1_EDGE_ADMIN_KEY}"}               --data "${BODY}"
-    )"
-    echo "${HTTP_CODE}" > ci-logs/keystore-response.http_code
-    if [ "${HTTP_CODE}" -lt 200 ] || [ "${HTTP_CODE}" -ge 300 ]; then
-      node -e '
-        const fs = require("fs");
-        const raw = fs.existsSync("ci-logs/keystore-response.raw.json")
-          ? fs.readFileSync("ci-logs/keystore-response.raw.json","utf8")
-          : "";
-        const sanitized = raw
-          .replace(/[A-Za-z0-9+/=]{24,}/g, "[redacted]")
-          .replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer [redacted]");
-        fs.writeFileSync("ci-logs/keystore-response.sanitized.txt", sanitized);
-      '
-      echo "::error::Keystore export failed with HTTP ${HTTP_CODE}. See sanitized diagnostics artifact."
-      exit 1
-    fi
+      - name: Fetch Android keystore (production only)
+        if: ${{ inputs.profile == 'production' }}
+        shell: bash
+        env:
+          K1W1_EDGE_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ADMIN_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-logs
+          HTTP_CODE="$({
+            curl --silent --show-error               --retry 3               --retry-all-errors               --connect-timeout 10               --max-time 60               -o ci-logs/keystore-response.raw.json               -w "%{http_code}"               -X POST "${SUPABASE_URL%/}/functions/v1/export-android-credentials"               -H "Content-Type: application/json"               -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"               -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"               ${K1W1_EDGE_ADMIN_KEY:+-H "x-k1w1-admin-key: ${K1W1_EDGE_ADMIN_KEY}"}               -d @ci-logs/keystore-request.json;
+          })"
+          echo "$HTTP_CODE" > ci-logs/keystore-response.http_code
+          if [ "$HTTP_CODE" != "200" ]; then
+            node - <<'NODE'
+            const fs = require("fs");
+            const raw = fs.existsSync("ci-logs/keystore-response.raw.json")
+              ? fs.readFileSync("ci-logs/keystore-response.raw.json", "utf8")
+              : "";
+            const sanitized = raw
+              .replace(/[A-Za-z0-9+/=]{24,}/g, "[redacted]")
+              .replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer [redacted]");
+            fs.writeFileSync("ci-logs/keystore-response.sanitized.txt", sanitized);
+            NODE
+            echo "::error::Keystore export failed with HTTP ${HTTP_CODE}. See sanitized diagnostics artifact."
+            exit 1
+          fi
 
-- name: Validate keystore export structure
-  if: ${{ inputs.profile == 'production' }}
-  shell: bash
-  run: |
-    set -euo pipefail
-    node - <<'NODE'
-    const fs = require("fs");
-    const p = "ci-logs/keystore-response.raw.json";
-    const raw = fs.readFileSync(p, "utf8");
-    let data;
-    try {
-      data = JSON.parse(raw);
-    } catch (err) {
-      fs.writeFileSync("ci-logs/keystore-response.sanitized.txt", raw.slice(0, 4000));
-      console.error("Keystore export is not valid JSON");
-      process.exit(1);
-    }
+      - name: Validate keystore export structure
+        if: ${{ inputs.profile == 'production' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require("fs");
+          const p = "ci-logs/keystore-response.raw.json";
+          const raw = fs.readFileSync(p, "utf8");
+          let data;
+          try {
+            data = JSON.parse(raw);
+          } catch (err) {
+            fs.writeFileSync("ci-logs/keystore-response.sanitized.txt", raw.slice(0, 4000));
+            console.error("Keystore export is not valid JSON");
+            process.exit(1);
+          }
+          const summary = {
+            topLevelKeys: Object.keys(data || {}).slice(0, 20),
+            ok: data?.ok === true,
+            hasKeystoreBase64: typeof data?.keystoreBase64 === "string" && data.keystoreBase64.length > 0,
+            hasKeystorePassword: typeof data?.keystorePassword === "string" && data.keystorePassword.length > 0,
+            hasAlias: typeof data?.alias === "string" && data.alias.length > 0,
+            hasKeyPassword: typeof data?.keyPassword === "string" && data.keyPassword.length > 0
+          };
+          fs.writeFileSync("ci-logs/keystore-response.summary.json", JSON.stringify(summary, null, 2));
+          if (!summary.ok || !summary.hasKeystoreBase64 || !summary.hasKeystorePassword || !summary.hasAlias || !summary.hasKeyPassword) {
+            fs.writeFileSync("ci-logs/keystore-response.sanitized.txt", JSON.stringify(summary, null, 2));
+            console.error("Keystore export payload missing required fields");
+            process.exit(1);
+          }
+          NODE
 
-    const summary = {
-      topLevelKeys: Object.keys(data || {}).slice(0, 20),
-      ok: data?.ok === true,
-      hasKeystoreBase64: typeof data?.keystoreBase64 === "string" && data.keystoreBase64.length > 0,
-      hasKeystorePassword: typeof data?.keystorePassword === "string" && data.keystorePassword.length > 0,
-      hasAlias: typeof data?.alias === "string" && data.alias.length > 0,
-      hasKeyPassword: typeof data?.keyPassword === "string" && data.keyPassword.length > 0
-    };
-    fs.writeFileSync("ci-logs/keystore-response.summary.json", JSON.stringify(summary, null, 2));
-    if (!summary.ok || !summary.hasKeystoreBase64 || !summary.hasKeystorePassword || !summary.hasAlias || !summary.hasKeyPassword) {
-      fs.writeFileSync("ci-logs/keystore-response.sanitized.txt", JSON.stringify(summary, null, 2));
-      console.error("Keystore export payload missing required fields");
-      process.exit(1);
-    }
-    NODE
-
-- name: Write Android signing files
-  if: ${{ inputs.profile == 'production' }}
-  shell: bash
-  run: |
-    set -euo pipefail
-    node scripts/ci/writeAndroidSigningFilesFromExport.js < ci-logs/keystore-response.raw.json
+      - name: Write Android signing files
+        if: ${{ inputs.profile == 'production' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/ci/writeAndroidSigningFilesFromExport.js < ci-logs/keystore-response.raw.json
 
       - name: Update Build Status - Building
         if: env.has_job_id == 'true'
@@ -574,9 +671,7 @@ jobs:
           RUN_ID="${{ github.run_id }}"
           PROFILE="${{ inputs.profile }}"
           SOURCE_COMMIT_SHA="$(git rev-parse HEAD)"
-
           JSON="$(node -e 'console.log(JSON.stringify({status:"building",build_profile:process.argv[1],github_run_id:process.argv[2],started_at:process.argv[3],source_commit_sha:process.argv[4]}))' "${PROFILE}" "${RUN_ID}" "${TS}" "${SOURCE_COMMIT_SHA}")"
-
           curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (building)"
 
       - name: Run EAS Build (WAIT)
@@ -586,14 +681,12 @@ jobs:
           set -euo pipefail
           PROFILE="${{ inputs.profile }}"
           PLATFORM="${{ inputs.platform }}"
-
           echo "🚀 Starting EAS build (platform=${PLATFORM}, profile=${PROFILE}) with --wait..."
           BUILD_OUTPUT="$(eas build --platform "${PLATFORM}" --profile "${PROFILE}" --non-interactive --wait 2>&1)" || {
             CODE=$?
             echo "${BUILD_OUTPUT}" | tee ci-logs/eas-build.log
-            # More actionable errors for the two most common CI failures.
             if echo "${BUILD_OUTPUT}" | grep -q "Generating a new Keystore is not supported in --non-interactive mode"; then
-              echo "::error::Android signing keystore is missing on EAS. Fix: run 'eas credentials -p android' ONCE locally (interactive) to generate/upload a keystore, or configure Android credentials in the Expo dashboard, then rerun the workflow."
+              echo "::error::Android signing keystore is missing on EAS. Fix: run 'eas credentials -p android' once locally (interactive) to generate/upload a keystore, or configure Android credentials in the Expo dashboard, then rerun the workflow."
             fi
             if echo "${BUILD_OUTPUT}" | grep -qiE "build\.gradle|android/app"; then
               echo "::warning::Build mentions Android native files. If this is a managed Expo project, ensure no partial 'android/' folder is committed (or let the workflow preflight delete it)."
@@ -601,16 +694,14 @@ jobs:
             echo "::error::EAS build failed (exit ${CODE})"
             exit "${CODE}"
           }
-
           echo "${BUILD_OUTPUT}" | tee ci-logs/eas-build.log
-
           UUID_RE='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
           BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oE "${UUID_RE}" | head -n1 || true)"
           if [ -z "${BUILD_ID}" ]; then BUILD_ID="unknown"; fi
           echo "build_id=${BUILD_ID}" >> "${GITHUB_OUTPUT}"
-
           BUILD_URL="$(echo "${BUILD_OUTPUT}" | grep -oE "https://expo.dev[^[:space:]]*/builds/${UUID_RE}" | head -n1 || true)"
           echo "build_url=${BUILD_URL}" >> "${GITHUB_OUTPUT}"
+
       - name: Download Android Artifact
         if: steps.eas.outputs.build_id != 'unknown' && steps.eas.outputs.build_id != ''
         continue-on-error: true
@@ -625,24 +716,21 @@ jobs:
             }
           ls -lah build || true
 
-      
-
-
-- name: Upload build diagnostics
-  if: always()
-  uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
-  with:
-    name: eas-build-diagnostics-${{ github.run_number }}
-    path: |
-      ci-logs/eas-version.log
-      ci-logs/eas-whoami.log
-      ci-logs/eas-build.log
-      ci-logs/keystore-request.json
-      ci-logs/keystore-response.http_code
-      ci-logs/keystore-response.summary.json
-      ci-logs/keystore-response.sanitized.txt
-    retention-days: 7
-    if-no-files-found: ignore
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+        with:
+          name: eas-build-diagnostics-${{ github.run_number }}
+          path: |
+            ci-logs/eas-version.log
+            ci-logs/eas-whoami.log
+            ci-logs/eas-build.log
+            ci-logs/keystore-request.json
+            ci-logs/keystore-response.http_code
+            ci-logs/keystore-response.summary.json
+            ci-logs/keystore-response.sanitized.txt
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Cleanup signing files
         if: always()
@@ -676,6 +764,7 @@ jobs:
           - Input profile: ${{ inputs.profile }}
           - Platform: ${{ inputs.platform }}
           - Checked out: $(git rev-parse HEAD)
+          - Package manager: ${{ steps.lock.outputs.package_manager }}
           - Lockfile present: ${{ steps.lock.outputs.has_lockfile }}
           - Lockfile path: ${{ steps.lock.outputs.lockfile_path }}
           - Strict lockfile policy: ${{ steps.strict_lock.outputs.strict }}
@@ -697,9 +786,7 @@ jobs:
           BUILD_ID="${{ steps.eas.outputs.build_id }}"
           BUILD_URL="${{ steps.eas.outputs.build_url }}"
           SOURCE_COMMIT_SHA="$(git rev-parse HEAD)"
-
           JSON="$(node -e 'console.log(JSON.stringify({status:"completed",github_run_id:process.argv[1],eas_build_id:process.argv[2],build_url:(process.argv[3]||null),completed_at:process.argv[4],source_commit_sha:process.argv[5]}))' "${RUN_ID}" "${BUILD_ID}" "${BUILD_URL}" "${TS}" "${SOURCE_COMMIT_SHA}")"
-
           curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (success)"
 
       - name: Update Build Status - Failed
@@ -711,7 +798,5 @@ jobs:
           RUN_ID="${{ github.run_id }}"
           ERR="Build failed. Check logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           SOURCE_COMMIT_SHA="$(git rev-parse HEAD)"
-
           JSON="$(node -e 'console.log(JSON.stringify({status:"error",github_run_id:process.argv[1],error_message:process.argv[2],completed_at:process.argv[3],source_commit_sha:process.argv[4]}))' "${RUN_ID}" "${ERR}" "${TS}" "${SOURCE_COMMIT_SHA}")"
-
           curl --fail-with-body --silent --show-error             -X PATCH "${SUPABASE_URL%/}/rest/v1/build_jobs?id=eq.${JOB_ID}"             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"             -H "Content-Type: application/json"             -H "Prefer: return=minimal"             -d "${JSON}"             || echo "::warning::Failed to update Supabase status (failed)"

@@ -63,4 +63,27 @@ grep -q 'repository_dispatch:' "$EDGE_FILE" || fail "Edge CI Lite template missi
 grep -q 'source_sha' "$EDGE_FILE" || fail "Edge CI Lite templates missing source_sha provenance"
 grep -q 'expo preflight' "$EDGE_FILE" || fail "Edge CI Lite templates missing expo preflight"
 
+grep -q 'package_manager=yarn' "$DIAG_FILE" || fail "Diagnostics templates missing yarn package-manager handling"
+grep -q 'package_manager=pnpm' "$DIAG_FILE" || fail "Diagnostics templates missing pnpm package-manager handling"
+grep -q 'yarn install --frozen-lockfile' "$DIAG_FILE" || fail "Diagnostics templates missing yarn install path"
+grep -q 'pnpm install --frozen-lockfile' "$DIAG_FILE" || fail "Diagnostics templates missing pnpm install path"
+grep -q 'github.event.client_payload.autofix' "$DIAG_FILE" || fail "Diagnostics templates missing repository_dispatch autofix passthrough"
+grep -q 'github.event.client_payload.strict_lockfile' "$DIAG_FILE" || fail "Diagnostics templates missing repository_dispatch strict_lockfile passthrough"
+
+grep -q 'package_manager' .github/workflows/k1w1-ci-lite.yml || fail "Live CI Lite missing package_manager metadata"
+grep -q 'package_manager' .github/workflows/k1w1-ci-lite-autofix.yml || fail "Live CI Lite Autofix missing package_manager metadata"
+grep -q 'package_manager' "$INFRA_FILE" || fail "Infra templates missing package_manager metadata"
+grep -q 'package_manager' "$EDGE_FILE" || fail "Edge templates missing package_manager metadata"
+grep -q 'yarn install --immutable' .github/workflows/k1w1-ci-lite.yml || fail "Live CI Lite missing yarn install path"
+grep -q 'pnpm install --frozen-lockfile' .github/workflows/k1w1-ci-lite.yml || fail "Live CI Lite missing pnpm install path"
+grep -q 'yarn install --immutable' .github/workflows/k1w1-ci-lite-autofix.yml || fail "Live CI Lite Autofix missing yarn install path"
+grep -q 'pnpm install --frozen-lockfile' .github/workflows/k1w1-ci-lite-autofix.yml || fail "Live CI Lite Autofix missing pnpm install path"
+grep -q 'yarn install --immutable' "$INFRA_FILE" || fail "Infra templates missing yarn install path"
+grep -q 'pnpm install --frozen-lockfile' "$INFRA_FILE" || fail "Infra templates missing pnpm install path"
+grep -q 'yarn install --immutable' "$EDGE_FILE" || fail "Edge templates missing yarn install path"
+grep -q 'pnpm install --frozen-lockfile' "$EDGE_FILE" || fail "Edge templates missing pnpm install path"
+
+grep -q 'Auto-fix writeback currently supports npm-managed repos only' .github/workflows/eas-build.yml || fail "Live EAS workflow missing non-npm autofix guard"
+grep -q 'Auto-fix writeback currently supports npm-managed repos only' "$DIAG_FILE" || fail "Diagnostics templates missing non-npm autofix guard"
+
 echo "Workflow template drift check passed."

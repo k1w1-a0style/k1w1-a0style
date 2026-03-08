@@ -3,6 +3,7 @@
 This file is the *index* of patch notes for this repo.
 
 ## Recent
+- Patch 403: align workflow package-manager handling, target-ref deploy concurrency, repository-dispatch build flags, and EAS YAML structure
 - Patch 401: memoize provider values in Project/GitHub/Terminal contexts, extend direct helper visibility coverage, and sync AGENTS guard-script checklist
 - Patch 400: CI Lite SHA fallback polish + edge bootstrap metadata version alignment + real Supabase deploy metadata artifact
 - Patch 399: sync CI Lite managed workflow markers, align embedded workflow sources of truth, and fix drift validation scope

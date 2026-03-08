@@ -1,5 +1,5 @@
 # managed-by: k1w1
-# workflow-version: 4
+# workflow-version: 403
 name: EAS Link / Init
 
 on:

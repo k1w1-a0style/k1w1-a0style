@@ -87,7 +87,7 @@ jobs:
           ref: \${{ env.TARGET_REF }}
           fetch-depth: 0
 
-      - name: Detect lockfile
+      - name: Detect package manager + lockfile
         id: lock
         shell: bash
         run: |
@@ -95,20 +95,36 @@ jobs:
           if [ -f package-lock.json ]; then
             echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
             echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
+            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
+            echo "cache_kind=npm" >> "$GITHUB_OUTPUT"
           elif [ -f npm-shrinkwrap.json ]; then
             echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
             echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
+            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
+            echo "cache_kind=npm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
+            echo "package_manager=yarn" >> "$GITHUB_OUTPUT"
+            echo "cache_kind=yarn" >> "$GITHUB_OUTPUT"
+          elif [ -f pnpm-lock.yaml ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            echo "package_manager=pnpm" >> "$GITHUB_OUTPUT"
+            echo "cache_kind=pnpm" >> "$GITHUB_OUTPUT"
           else
             echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
             echo "lockfile_path=" >> "$GITHUB_OUTPUT"
+            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
+            echo "cache_kind=npm" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Setup Node (with npm cache)
+      - name: Setup Node (with package manager cache)
         if: steps.lock.outputs.has_lockfile == 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
-          cache: npm
+          cache: \${{ steps.lock.outputs.cache_kind }}
           cache-dependency-path: \${{ steps.lock.outputs.lockfile_path }}
 
       - name: Setup Node (no cache - lockfile missing)
@@ -116,6 +132,13 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
+
+      - name: Enable Corepack for Yarn / pnpm
+        if: steps.lock.outputs.package_manager == 'yarn' || steps.lock.outputs.package_manager == 'pnpm'
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
 
       - name: Capture environment metadata
         shell: bash
@@ -133,24 +156,41 @@ jobs:
             echo "job_id=\${JOB_ID:-}"
             echo "runner_os=\${RUNNER_OS}"
             echo "runner_arch=\${RUNNER_ARCH}"
+            echo "package_manager=\${{ steps.lock.outputs.package_manager }}"
             echo "trigger_mode=\${TRIGGER_MODE:-}"
             echo "source_workflow=\${SOURCE_WORKFLOW:-}"
             echo "source_run_id=\${SOURCE_RUN_ID:-}"
             echo "source_sha=\${SOURCE_SHA:-}"
+            echo "package_manager=\${{ steps.lock.outputs.package_manager }}"
           } > ci-logs/metadata.env
           node --version | tee ci-logs/node-version.log
           npm --version | tee ci-logs/npm-version.log
 
-      - name: Install dependencies (frozen if possible)
+      - name: Install dependencies (policy-aware)
         shell: bash
         run: |
           set -euo pipefail
-          if [ "\${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
-            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
-          else
+          if [ "\${{ steps.lock.outputs.has_lockfile }}" != "true" ]; then
             echo "::warning::No lockfile found. Falling back to npm install (non-reproducible)."
             npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
+            exit 0
           fi
+
+          case "\${{ steps.lock.outputs.package_manager }}" in
+            npm)
+              npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
+              ;;
+            yarn)
+              yarn install --immutable || yarn install --frozen-lockfile
+              ;;
+            pnpm)
+              pnpm install --frozen-lockfile
+              ;;
+            *)
+              echo "::error::Unsupported package manager '\${{ steps.lock.outputs.package_manager }}'"
+              exit 1
+              ;;
+          esac
 
       - name: Lint + Typecheck + Expo preflight (robust, capture)
         id: run
@@ -203,6 +243,7 @@ jobs:
             "source_workflow": "\${SOURCE_WORKFLOW:-}",
             "source_run_id": "\${SOURCE_RUN_ID:-}",
             "source_sha": "\${SOURCE_SHA:-}",
+            "package_manager": "\${{ steps.lock.outputs.package_manager }}",
             "ok": $([ "$ESL" -eq 0 ] && [ "$TSC" -eq 0 ] && [ "$EXPO" -eq 0 ] && echo true || echo false)
           }
           JSON
@@ -317,7 +358,7 @@ jobs:
           ref: \${{ env.TARGET_BRANCH }}
           fetch-depth: 0
 
-      - name: Detect lockfile
+      - name: Detect package manager + lockfile
         id: lock
         shell: bash
         run: |
@@ -325,20 +366,36 @@ jobs:
           if [ -f package-lock.json ]; then
             echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
             echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
+            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
+            echo "cache_kind=npm" >> "$GITHUB_OUTPUT"
           elif [ -f npm-shrinkwrap.json ]; then
             echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
             echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
+            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
+            echo "cache_kind=npm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
+            echo "package_manager=yarn" >> "$GITHUB_OUTPUT"
+            echo "cache_kind=yarn" >> "$GITHUB_OUTPUT"
+          elif [ -f pnpm-lock.yaml ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            echo "package_manager=pnpm" >> "$GITHUB_OUTPUT"
+            echo "cache_kind=pnpm" >> "$GITHUB_OUTPUT"
           else
             echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
             echo "lockfile_path=" >> "$GITHUB_OUTPUT"
+            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
+            echo "cache_kind=npm" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Setup Node (with npm cache)
+      - name: Setup Node (with package manager cache)
         if: steps.lock.outputs.has_lockfile == 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
-          cache: npm
+          cache: \${{ steps.lock.outputs.cache_kind }}
           cache-dependency-path: \${{ steps.lock.outputs.lockfile_path }}
 
       - name: Setup Node (no cache - lockfile missing)
@@ -346,6 +403,13 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
+
+      - name: Enable Corepack for Yarn / pnpm
+        if: steps.lock.outputs.package_manager == 'yarn' || steps.lock.outputs.package_manager == 'pnpm'
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
 
       - name: Capture environment metadata
         shell: bash
@@ -363,20 +427,36 @@ jobs:
             echo "job_id=\${JOB_ID:-}"
             echo "runner_os=\${RUNNER_OS}"
             echo "runner_arch=\${RUNNER_ARCH}"
+            echo "package_manager=\${{ steps.lock.outputs.package_manager }}"
           } > ci-logs/metadata.env
           node --version | tee ci-logs/node-version.log
           npm --version | tee ci-logs/npm-version.log
 
-      - name: Install dependencies (frozen if possible)
+      - name: Install dependencies (policy-aware)
         shell: bash
         run: |
           set -euo pipefail
-          if [ "\${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
-            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
-          else
+          if [ "\${{ steps.lock.outputs.has_lockfile }}" != "true" ]; then
             echo "::warning::No lockfile found. Falling back to npm install (non-reproducible)."
             npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
+            exit 0
           fi
+
+          case "\${{ steps.lock.outputs.package_manager }}" in
+            npm)
+              npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
+              ;;
+            yarn)
+              yarn install --immutable || yarn install --frozen-lockfile
+              ;;
+            pnpm)
+              pnpm install --frozen-lockfile
+              ;;
+            *)
+              echo "::error::Unsupported package manager '\${{ steps.lock.outputs.package_manager }}'"
+              exit 1
+              ;;
+          esac
 
       - name: ESLint --fix (best effort, capture)
         id: fix
@@ -506,6 +586,7 @@ jobs:
             "expo_exit": $EXPO,
             "writeback_changed": "\${{ steps.writeback.outputs.changed || 'false' }}",
             "writeback_pushed": "\${{ steps.writeback.outputs.pushed || 'false' }}",
+                "package_manager": "\${{ steps.lock.outputs.package_manager }}",
             "ok": $([ "$ESL" -eq 0 ] && [ "$TSC" -eq 0 ] && [ "$EXPO" -eq 0 ] && echo true || echo false)
           }
           JSON

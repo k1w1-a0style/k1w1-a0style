@@ -49,6 +49,6 @@ jobs:
       profile: ${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || github.event.inputs.profile || 'preview' }}
       job_id: ${{ github.event.client_payload.job_id || github.event.inputs.job_id || '' }}
       platform: android
-      autofix: ${{ github.event_name == 'workflow_dispatch' && inputs.autofix || false }}
-      strict_lockfile: ${{ github.event_name == 'workflow_dispatch' && inputs.strict_lockfile || 'auto' }}
+      autofix: ${{ github.event.client_payload.autofix || (github.event_name == 'workflow_dispatch' && inputs.autofix) || false }}
+      strict_lockfile: ${{ github.event.client_payload.strict_lockfile || (github.event_name == 'workflow_dispatch' && inputs.strict_lockfile) || 'auto' }}
     secrets: inherit
