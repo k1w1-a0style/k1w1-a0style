@@ -211,7 +211,7 @@ jobs:
         run: |
           set -euo pipefail
           npm i -g "eas-cli@${EAS_CLI_VERSION}"
-          eas --version
+          eas --version | tee ci-logs/eas-version.log
 
       - name: Verify EAS auth
         shell: bash
@@ -221,7 +221,7 @@ jobs:
             echo "::error::Missing GitHub Secret EXPO_TOKEN"
             exit 1
           fi
-          eas whoami
+          eas whoami | tee ci-logs/eas-whoami.log
 
       - name: Auto-fix repo (lockfile + dev client) [optional writeback]
         shell: bash
@@ -346,6 +346,12 @@ jobs:
           ref: ${{ inputs.ref || github.ref_name }}
           fetch-depth: 0
 
+      - name: Prepare build diagnostics dir
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-logs
+
       - name: "🧹 Preflight: clean incomplete native dirs"
         shell: bash
         run: |
@@ -460,32 +466,104 @@ jobs:
         run: |
           set -euo pipefail
           npm i -g "eas-cli@${EAS_CLI_VERSION}"
-          eas --version
+          eas --version | tee ci-logs/eas-version.log
 
       - name: Verify EAS auth
         shell: bash
         run: |
           set -euo pipefail
-          eas whoami
+          eas whoami | tee ci-logs/eas-whoami.log
 
-      - name: Fetch Android keystore (production only)
-        if: ${{ inputs.profile == 'production' }}
-        shell: bash
-        env:
-          K1W1_EDGE_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ADMIN_KEY }}
-        run: |
-          set -euo pipefail
-          echo "🔑 Fetching Android keystore from Supabase (production)..."
-          BODY="{\"repo\":\"${GITHUB_REPOSITORY}\",\"mode\":\"production\"}"
-      
-          RESP="$(curl -fsS -X POST "${SUPABASE_URL}/functions/v1/android-keystore-export" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Content-Type: application/json" \
-            ${K1W1_EDGE_ADMIN_KEY:+-H "x-k1w1-admin-key: ${K1W1_EDGE_ADMIN_KEY}"} \
-            --data "${BODY}")"
-      
-          echo "$RESP" | node scripts/ci/writeAndroidSigningFilesFromExport.js
+- name: Production credential preflight
+  if: ${{ inputs.profile == 'production' }}
+  shell: bash
+  env:
+    K1W1_EDGE_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ADMIN_KEY }}
+  run: |
+    set -euo pipefail
+    echo "::add-mask::${SUPABASE_SERVICE_ROLE_KEY}"
+    if [ -n "${K1W1_EDGE_ADMIN_KEY:-}" ]; then
+      echo "::add-mask::${K1W1_EDGE_ADMIN_KEY}"
+    fi
+    node -e '
+      const fs = require("fs");
+      const payload = {
+        repo: process.env.GITHUB_REPOSITORY,
+        mode: "production",
+        run_id: process.env.GITHUB_RUN_ID,
+        ref: process.env.GITHUB_REF_NAME || "",
+        profile: "production"
+      };
+      fs.writeFileSync("ci-logs/keystore-request.json", JSON.stringify(payload, null, 2));
+    '
+
+- name: Fetch Android keystore (production only)
+  if: ${{ inputs.profile == 'production' }}
+  shell: bash
+  env:
+    K1W1_EDGE_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ADMIN_KEY }}
+  run: |
+    set -euo pipefail
+    BODY="$(cat ci-logs/keystore-request.json)"
+    HTTP_CODE="$(
+      curl               --silent --show-error               --retry 3 --retry-delay 2 --connect-timeout 10 --max-time 60               -o ci-logs/keystore-response.raw.json               -w "%{http_code}"               -X POST "${SUPABASE_URL%/}/functions/v1/android-keystore-export"               -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"               -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"               -H "Content-Type: application/json"               ${K1W1_EDGE_ADMIN_KEY:+-H "x-k1w1-admin-key: ${K1W1_EDGE_ADMIN_KEY}"}               --data "${BODY}"
+    )"
+    echo "${HTTP_CODE}" > ci-logs/keystore-response.http_code
+    if [ "${HTTP_CODE}" -lt 200 ] || [ "${HTTP_CODE}" -ge 300 ]; then
+      node -e '
+        const fs = require("fs");
+        const raw = fs.existsSync("ci-logs/keystore-response.raw.json")
+          ? fs.readFileSync("ci-logs/keystore-response.raw.json","utf8")
+          : "";
+        const sanitized = raw
+          .replace(/[A-Za-z0-9+/=]{24,}/g, "[redacted]")
+          .replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer [redacted]");
+        fs.writeFileSync("ci-logs/keystore-response.sanitized.txt", sanitized);
+      '
+      echo "::error::Keystore export failed with HTTP ${HTTP_CODE}. See sanitized diagnostics artifact."
+      exit 1
+    fi
+
+- name: Validate keystore export structure
+  if: ${{ inputs.profile == 'production' }}
+  shell: bash
+  run: |
+    set -euo pipefail
+    node - <<'NODE'
+    const fs = require("fs");
+    const p = "ci-logs/keystore-response.raw.json";
+    const raw = fs.readFileSync(p, "utf8");
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (err) {
+      fs.writeFileSync("ci-logs/keystore-response.sanitized.txt", raw.slice(0, 4000));
+      console.error("Keystore export is not valid JSON");
+      process.exit(1);
+    }
+
+    const summary = {
+      topLevelKeys: Object.keys(data || {}).slice(0, 20),
+      ok: data?.ok === true,
+      hasKeystoreBase64: typeof data?.keystoreBase64 === "string" && data.keystoreBase64.length > 0,
+      hasKeystorePassword: typeof data?.keystorePassword === "string" && data.keystorePassword.length > 0,
+      hasAlias: typeof data?.alias === "string" && data.alias.length > 0,
+      hasKeyPassword: typeof data?.keyPassword === "string" && data.keyPassword.length > 0
+    };
+    fs.writeFileSync("ci-logs/keystore-response.summary.json", JSON.stringify(summary, null, 2));
+    if (!summary.ok || !summary.hasKeystoreBase64 || !summary.hasKeystorePassword || !summary.hasAlias || !summary.hasKeyPassword) {
+      fs.writeFileSync("ci-logs/keystore-response.sanitized.txt", JSON.stringify(summary, null, 2));
+      console.error("Keystore export payload missing required fields");
+      process.exit(1);
+    }
+    NODE
+
+- name: Write Android signing files
+  if: ${{ inputs.profile == 'production' }}
+  shell: bash
+  run: |
+    set -euo pipefail
+    node scripts/ci/writeAndroidSigningFilesFromExport.js < ci-logs/keystore-response.raw.json
 
       - name: Update Build Status - Building
         if: env.has_job_id == 'true'
@@ -512,7 +590,7 @@ jobs:
           echo "🚀 Starting EAS build (platform=${PLATFORM}, profile=${PROFILE}) with --wait..."
           BUILD_OUTPUT="$(eas build --platform "${PLATFORM}" --profile "${PROFILE}" --non-interactive --wait 2>&1)" || {
             CODE=$?
-            echo "${BUILD_OUTPUT}"
+            echo "${BUILD_OUTPUT}" | tee ci-logs/eas-build.log
             # More actionable errors for the two most common CI failures.
             if echo "${BUILD_OUTPUT}" | grep -q "Generating a new Keystore is not supported in --non-interactive mode"; then
               echo "::error::Android signing keystore is missing on EAS. Fix: run 'eas credentials -p android' ONCE locally (interactive) to generate/upload a keystore, or configure Android credentials in the Expo dashboard, then rerun the workflow."
@@ -524,7 +602,7 @@ jobs:
             exit "${CODE}"
           }
 
-          echo "${BUILD_OUTPUT}"
+          echo "${BUILD_OUTPUT}" | tee ci-logs/eas-build.log
 
           UUID_RE='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
           BUILD_ID="$(echo "${BUILD_OUTPUT}" | grep -oE "${UUID_RE}" | head -n1 || true)"
@@ -550,11 +628,31 @@ jobs:
       
 
 
+- name: Upload build diagnostics
+  if: always()
+  uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+  with:
+    name: eas-build-diagnostics-${{ github.run_number }}
+    path: |
+      ci-logs/eas-version.log
+      ci-logs/eas-whoami.log
+      ci-logs/eas-build.log
+      ci-logs/keystore-request.json
+      ci-logs/keystore-response.http_code
+      ci-logs/keystore-response.summary.json
+      ci-logs/keystore-response.sanitized.txt
+    retention-days: 7
+    if-no-files-found: ignore
+
       - name: Cleanup signing files
         if: always()
         shell: bash
         run: |
-          rm -f credentials.json android-upload-keystore.p12 || true
+          set +e
+          rm -f credentials.json android-upload-keystore.p12
+          rm -f android/keystore.jks android/app/keystore.jks android/keystore.properties
+          rm -f ci-logs/keystore-response.raw.json
+          true
 
       - name: Upload Artifact
         if: always()
@@ -584,6 +682,7 @@ jobs:
           - EAS CLI: $(eas --version 2>/dev/null || echo "unknown")
           - Build ID: ${{ steps.eas.outputs.build_id }}
           - Build URL: ${{ steps.eas.outputs.build_url }}
+          - Diagnostics artifact: eas-build-diagnostics-${{ github.run_number }}
 
           Artifacts: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EOF

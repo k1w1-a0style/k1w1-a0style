@@ -17,3 +17,5 @@ Patch 373 applied: metro config blockList without metro-config internal imports.
 - 2026-03-08 Patch 393A: CI Lite/Autofix pipefail + SHA pinning + Expo preflight parity + template/doc sync
 - 2026-03-08 Patch 393B: Supabase deploy workflow gains guarded single-function dispatch without regressing pinned CLI/login/link/_shared safeguards
 - 2026-03-08 Patch 393C: documentation/checklog/patchlog sync + patch workflow instructions tightened + guard script added
+
+- 2026-03-08 Patch 396: production credential hardening + sanitized diagnostics

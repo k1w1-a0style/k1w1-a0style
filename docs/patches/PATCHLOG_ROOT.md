@@ -3,6 +3,7 @@
 This file is the *index* of patch notes for this repo.
 
 ## Recent
+- Patch 396: production credential hardening + sanitized diagnostics
 
 - Patch 394B: EAS manual trigger controls (`autofix` + `strict_lockfile=auto|true|false`) + trigger/template/doc sync
 - Patch 394A: EAS Build strict lockfile policy for preview/production + development fallback retained + template/doc sync

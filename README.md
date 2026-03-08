@@ -160,3 +160,5 @@ Siehe `docs/patches/patch_393C.md` für Details.
 
 ## Dev Commands
 Siehe `docs/DEV_COMMANDS.md` (Commands/Shortcuts, ohne rg/ripgrep).
+
+- Patch 396: production EAS keystore export now writes sanitized diagnostics artifacts and always cleans up temporary signing files.

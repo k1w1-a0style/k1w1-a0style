@@ -387,3 +387,5 @@ Guardrails:
 
 **Letzte Aktualisierung:** 5. Dezember 2025  
 **Version:** 2.0 (Optimiert)
+
+- `eas-build.yml`: production keystore export now writes sanitized diagnostics artifacts and always cleans up temporary signing files.
