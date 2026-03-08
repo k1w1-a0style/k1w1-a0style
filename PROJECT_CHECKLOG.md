@@ -1,3 +1,4 @@
+- 2026-03-08 Patch 401: memoize Project/GitHub/Terminal provider values, extend edge helper visibility coverage, and sync AGENTS guard-script checklist
 - 2026-03-08 Patch 400: polish CI Lite artifact SHA fallback parsing, align edge bootstrap workflowVersion metadata with 399, and make Supabase deploy metadata artifact real
 - 2026-03-08 Patch 399: finalize CI Lite workflow SoT sync by aligning invariants.selection with workflow-version 399/source provenance fields and restoring patch_337 dual references in the patchlog
 - 2026-03-08 Patch 398: fix github-run-artifact-json runtime imports + restore CI Lite SHA compatibility across source_commit_sha/source_sha/github_sha

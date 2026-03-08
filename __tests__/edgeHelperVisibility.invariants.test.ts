@@ -90,3 +90,36 @@ describe("Edge helper visibility invariants", () => {
     });
   }
 });
+
+
+describe("Edge direct-import invariants", () => {
+  const directCases = [
+    {
+      name: "github-run-artifact-json",
+      index: "supabase/functions/github-run-artifact-json/index.ts",
+      imports: [
+        "handleCors",
+        "jsonResponse",
+        "errorResponse",
+        "requireAdminKey",
+        "githubFetchJson",
+        "githubFetchRaw",
+        "getGithubToken",
+      ],
+    },
+    {
+      name: "trigger-eas-build",
+      index: "supabase/functions/trigger-eas-build/index.ts",
+      imports: ["handleCors", "requireAdminKey", "rateLimit", "getGithubToken"],
+    },
+  ];
+
+  for (const c of directCases) {
+    it(`${c.name} imports required helpers directly`, () => {
+      const indexSrc = read(c.index);
+      for (const imported of c.imports) {
+        expect(indexSrc).toContain(imported);
+      }
+    });
+  }
+});

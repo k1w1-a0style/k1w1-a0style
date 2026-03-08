@@ -4,6 +4,7 @@ import React, {
   useState,
   useCallback,
   useEffect,
+  useMemo,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -143,21 +144,20 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
     );
   }, [persistRecent]);
 
-  return (
-    <GitHubContext.Provider
-      value={{
-        activeRepo,
-        setActiveRepo,
-        activeBranch,
-        setActiveBranch,
-        recentRepos,
-        addRecentRepo,
-        clearRecentRepos,
-      }}
-    >
-      {children}
-    </GitHubContext.Provider>
+  const value: GitHubContextValue = useMemo(
+    () => ({
+      activeRepo,
+      setActiveRepo,
+      activeBranch,
+      setActiveBranch,
+      recentRepos,
+      addRecentRepo,
+      clearRecentRepos,
+    }),
+    [activeRepo, setActiveRepo, activeBranch, setActiveBranch, recentRepos, addRecentRepo, clearRecentRepos],
   );
+
+  return <GitHubContext.Provider value={value}>{children}</GitHubContext.Provider>;
 };
 
 export const useGitHub = (): GitHubContextValue => {

@@ -3,6 +3,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   ReactNode,
@@ -224,15 +225,18 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
     };
   }, [isConsoleOverrideEnabled, applyConsoleOverride, removeConsoleOverride]);
 
-  const value: TerminalContextProps = {
-    logs,
-    addLog,
-    clearLogs,
-    getLogsByType,
-    getLogStats,
-    isConsoleOverrideEnabled,
-    setConsoleOverride,
-  };
+  const value: TerminalContextProps = useMemo(
+    () => ({
+      logs,
+      addLog,
+      clearLogs,
+      getLogsByType,
+      getLogStats,
+      isConsoleOverrideEnabled,
+      setConsoleOverride,
+    }),
+    [logs, addLog, clearLogs, getLogsByType, getLogStats, isConsoleOverrideEnabled, setConsoleOverride],
+  );
 
   return <TerminalContext.Provider value={value}>{children}</TerminalContext.Provider>;
 };

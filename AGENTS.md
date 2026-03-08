@@ -56,6 +56,13 @@ Vor Auslieferung eines Patch-Artefakts:
 - `bash scripts/check_patch_artifact.sh <patchfile>`
 - `bash scripts/check_managed_workflows.sh`
 - `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_eas_manual_trigger_controls.sh`
+- `bash scripts/check_eas_production_credentials.sh`
+- `bash scripts/check_eas_strict_lockfile_policy.sh`
+- `bash scripts/check_edge_helper_visibility.sh`
+- `bash scripts/check_k1w1_handler_providers.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `bash scripts/check_supabase_deploy_workflow.sh`
 - `npm run test:silent -- --runInBand edgeHelperVisibility.invariants.test.ts`
 - `npm run test:silent -- --runInBand k1w1Handler.providers.invariants.test.ts`
 
