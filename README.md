@@ -20,7 +20,7 @@ React-Native/Expo App zum Bauen und Testen von Projekten/Flows mit **integrierte
 
 ## Aktueller Stand / Nächste Schritte
 
-- Letzter Stand im Repo: **Patch 394B** (EAS Build manual trigger controls für `autofix` + `strict_lockfile=auto|true|false` + Trigger/Template/Doc sync).
+- Letzter Stand im Repo: **Patch 397** (workflow traceability polish für CI Lite, Autofix und Supabase deploy, ohne Regression der CI-Lite-Chain-Dispatch-Architektur aus Patch 395).
 - Vor dem nächsten Code-Patch: **Docs/TODO ist der Single Source of Truth** für alle offenen Punkte.
 
 Wenn du Patches als ZIP einspielst:
@@ -151,19 +151,20 @@ npx expo start -c
 - `supabase/migrations/*previews*.sql`
 
 ## Aktueller Patch-Status
-- Zuletzt: Patch 393C
+- Zuletzt: Patch 397
 - Nächster: TBD
 
-Siehe `docs/patches/patch_393C.md` für Details.
+Siehe `docs/patches/patch_397.md` für Details.
 
 
 
 ## Dev Commands
 Siehe `docs/DEV_COMMANDS.md` (Commands/Shortcuts, ohne rg/ripgrep).
 
-- Patch 396: production EAS keystore export now writes sanitized diagnostics artifacts and always cleans up temporary signing files.
-
-
-- Patch 395: hardened CI Lite chain-run dispatch against default-branch workflow staleness by switching chain-run to repository_dispatch and surfacing workflow provenance in CI Lite artifacts/summaries.
-
-- Patch 397: workflow traceability polish for CI Lite, Autofix and Supabase deploy metadata/artifacts.
+## Letzte Workflow-/Build-Patches
+- Patch 397: workflow traceability polish für CI Lite, Autofix und Supabase deploy metadata/artifacts.
+- Patch 396: production EAS keystore export writes sanitized diagnostics artifacts and always cleans up temporary signing files.
+- Patch 395: hardened CI Lite chain-run dispatch against default-branch workflow staleness by switching chain-run to `repository_dispatch` and surfacing workflow provenance in CI Lite artifacts/summaries.
+- Patch 394B: manual EAS trigger controls for `autofix` + `strict_lockfile=auto|true|false`.
+- Patch 394A: strict lockfile policy for preview/production with development fallback retained.
+- Patch 393C/393B/393A: split workflow hardening series covering docs sync, guarded Supabase deploy and CI Lite/Autofix preflight hardening.

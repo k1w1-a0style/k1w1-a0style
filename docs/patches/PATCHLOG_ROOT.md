@@ -3,8 +3,9 @@
 This file is the *index* of patch notes for this repo.
 
 ## Recent
+- Patch 397: workflow traceability polish for CI Lite, Autofix and Supabase deploy metadata/artifacts
 - Patch 396: production credential hardening + sanitized diagnostics
-
+- Patch 395: hardened CI Lite chain-run dispatch against default-branch workflow staleness by switching chain-run to repository_dispatch and surfacing workflow provenance in CI Lite artifacts/summaries
 - Patch 394B: EAS manual trigger controls (`autofix` + `strict_lockfile=auto|true|false`) + trigger/template/doc sync
 - Patch 394A: EAS Build strict lockfile policy for preview/production + development fallback retained + template/doc sync
 - Patch 393C: documentation/checklog/patchlog sync + patch workflow instructions tightened + guard script added
@@ -20,8 +21,8 @@ This file is the *index* of patch notes for this repo.
 - Patch 383: Workflow hardening for explicit ref handling + manual-path transparency
 - Patch 382: Build screen CI Lite gating + stale transparency
 - Patch 381: CI Lite SoT hardening + build gate metadata persistence
-- Patch 379: Guard against flattened workflow YAML/templates + invariant test to catch newline loss
 - Patch 380: CI Lite dispatch robustness (ref input + auto-bootstrap on 422)
+- Patch 379: Guard against flattened workflow YAML/templates + invariant test to catch newline loss
 - Patch 374: CI-Lite workflows produce deterministic result JSON artifact + checkout input ref
 - Patch 373: Metro blockList CI-lite env overlay + remove private metro-config import
 - Patch 372: Expo/Metro ignores CI-Lite env overlay files (fix dev bundler parse error)
@@ -38,5 +39,3 @@ This file is the *index* of patch notes for this repo.
 
 
 - Patch 395: hardened CI Lite chain-run dispatch against default-branch workflow staleness by switching chain-run to repository_dispatch and surfacing workflow provenance in CI Lite artifacts/summaries.
-
-- Patch 397: workflow traceability polish for CI Lite, Autofix and Supabase deploy metadata/artifacts
