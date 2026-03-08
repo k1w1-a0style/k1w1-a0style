@@ -20,7 +20,7 @@ React-Native/Expo App zum Bauen und Testen von Projekten/Flows mit **integrierte
 
 ## Aktueller Stand / Nächste Schritte
 
-- Letzter Stand im Repo: **Patch 393A** (CI Lite/Autofix mit pipefail, SHA pinning und Expo preflight parity).
+- Letzter Stand im Repo: **Patch 393B** (Supabase deploy workflow mit sicherem Single-Function-Deploy ohne Regression im bestehenden deploy_all-Flow).
 - Vor dem nächsten Code-Patch: **Docs/TODO ist der Single Source of Truth** für alle offenen Punkte.
 
 Wenn du Patches als ZIP einspielst:
@@ -30,6 +30,11 @@ Wenn du Patches als ZIP einspielst:
 3) Tests laufen lassen (`npm run test:silent`)
    - Hinweis: Husky/CI deckt `typecheck` + `lint:ci` ohnehin ab.
 4) Commit + Push
+
+### Supabase Workflow-Hinweis
+
+- `deploy-supabase-functions.yml` kann jetzt manuell entweder **alle** Edge Functions deployen (`deploy_all=true`) oder gezielt **eine** Function über `function_name`, wenn `deploy_all=false`.
+- Der bestehende Flow bleibt dabei absichtlich erhalten: gepinnte CLI, `supabase login`, `supabase link`, `_shared` wird weiter blockiert.
 
 ## Was das Preview-System kann
 
@@ -132,10 +137,10 @@ npx expo start -c
 - `supabase/migrations/*previews*.sql`
 
 ## Aktueller Patch-Status
-- Zuletzt: Patch 393A
-- Nächster: Patch 393B
+- Zuletzt: Patch 393B
+- Nächster: Patch 393C
 
-Siehe `docs/patches/patch_393A.md` für Details.
+Siehe `docs/patches/patch_393B.md` für Details.
 
 
 

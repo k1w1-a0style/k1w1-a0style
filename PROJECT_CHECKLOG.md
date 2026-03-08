@@ -13,3 +13,4 @@ Patch 373 applied: metro config blockList without metro-config internal imports.
 - 2026-03-07 Patch 390: fix edge-function helper visibility/reexports and add regression tests
 - 2026-03-07 Patch 391: restore 5-provider support in k1w1-handler and add provider invariants
 - 2026-03-08 Patch 393A: CI Lite/Autofix pipefail + SHA pinning + Expo preflight parity + template/doc sync
+- 2026-03-08 Patch 393B: Supabase deploy workflow gains guarded single-function dispatch without regressing pinned CLI/login/link/_shared safeguards

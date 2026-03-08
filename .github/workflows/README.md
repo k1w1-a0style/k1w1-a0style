@@ -338,6 +338,24 @@ ci-build.yml:
 
 ---
 
+### Deploy Supabase (Edge Functions)
+
+Der Workflow `deploy-supabase-functions.yml` bleibt bewusst **gepinned** und nutzt weiter `supabase login` + `supabase link`.
+
+Manuelle Eingaben bei `workflow_dispatch`:
+
+- `ref`: Branch/Ref zum Deployen
+- `deploy_all`: `true` deployt alle Functions außer `_shared`
+- `function_name`: deployed genau **eine** Function, wenn `deploy_all=false`
+
+Guardrails:
+
+- `_shared` wird nie deployed
+- `function_name` muss auf ein echtes Verzeichnis unter `supabase/functions/<name>` zeigen
+- der bisherige `deploy_all=true`-Pfad bleibt unverändert
+
+---
+
 ## 📚 Weitere Ressourcen
 
 - [EAS Build Documentation](https://docs.expo.dev/build/introduction/)
