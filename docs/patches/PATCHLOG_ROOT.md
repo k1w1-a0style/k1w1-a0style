@@ -35,3 +35,6 @@ This file is the *index* of patch notes for this repo.
 - Patch 337: (legacy) Keep dual references for patch 337:
   - docs/patches/patch_337.md
   - docs/patches/PATCH_337_NOTES.md
+
+
+- Patch 395: hardened CI Lite chain-run dispatch against default-branch workflow staleness by switching chain-run to repository_dispatch and surfacing workflow provenance in CI Lite artifacts/summaries.

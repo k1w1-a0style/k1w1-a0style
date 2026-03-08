@@ -18,9 +18,11 @@ const WORKFLOW_TEMPLATES: Record<string, string> = {
 name: K1W1 CI Lite (Lint + Typecheck)
 
 run-name: >-
-  CI Lite\${{ inputs.job_id && format(' [{0}]', inputs.job_id) || '' }} • \${{ inputs.ref || github.ref_name }}
+  CI Lite\${{ (github.event.client_payload.job_id || inputs.job_id) && format(' [{0}]', github.event.client_payload.job_id || inputs.job_id) || '' }} • \${{ github.event.client_payload.branch || github.event.client_payload.ref || inputs.ref || github.ref_name }}
 
 on:
+  repository_dispatch:
+    types: [trigger-ci-lite]
   workflow_dispatch:
     inputs:
       ref:
@@ -36,7 +38,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: k1w1-ci-lite-\${{ inputs.ref || github.ref_name }}
+  group: k1w1-ci-lite-\${{ github.event.client_payload.branch || github.event.client_payload.ref || inputs.ref || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -47,16 +49,34 @@ jobs:
     permissions:
       contents: read
 
-    env:
-      JOB_ID: \${{ inputs.job_id }}
-      TARGET_REF: \${{ inputs.ref || github.ref_name }}
-
     steps:
+      - name: Determine target ref
+        id: target_ref
+        uses: ./.github/actions/determine-ref
+        with:
+          payload_branch: \${{ github.event.client_payload.branch || '' }}
+          payload_ref: \${{ github.event.client_payload.ref || '' }}
+          input_ref: \${{ inputs.ref || '' }}
+          github_ref_name: \${{ github.ref_name || '' }}
+          default_ref: work
+          allowed_ref_regex: "^(work|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
+
+      - name: Export run metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "TARGET_REF=\${{ steps.target_ref.outputs.checkout_ref }}" >> "$GITHUB_ENV"
+          echo "JOB_ID=\${{ github.event.client_payload.job_id || inputs.job_id || '' }}" >> "$GITHUB_ENV"
+          echo "TRIGGER_MODE=\${{ github.event_name }}" >> "$GITHUB_ENV"
+          echo "SOURCE_WORKFLOW=\${{ github.event.client_payload.source_workflow || '' }}" >> "$GITHUB_ENV"
+          echo "SOURCE_RUN_ID=\${{ github.event.client_payload.source_run_id || '' }}" >> "$GITHUB_ENV"
+          echo "SOURCE_SHA=\${{ github.event.client_payload.source_sha || '' }}" >> "$GITHUB_ENV"
+
       - name: Run info
         shell: bash
         run: |
           set -euo pipefail
-          echo "CI Lite start (job_id=\${JOB_ID:-}, ref=\${TARGET_REF:-})"
+          echo "CI Lite start (job_id=\${JOB_ID:-}, ref=\${TARGET_REF:-}, trigger=\${TRIGGER_MODE:-})"
 
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -452,8 +472,18 @@ jobs:
             exit 0
           fi
 
-          echo "Dispatching CI Lite chain-run for '$BR' (job_id=\${JOB_ID:-})"
-          gh api             -X POST             "repos/\${GITHUB_REPOSITORY}/actions/workflows/k1w1-ci-lite.yml/dispatches"             -f ref="$BR"             -f inputs[ref]="$BR"             -f inputs[job_id]="\${JOB_ID:-}"             >/dev/null
+          HEAD_SHA="$(git rev-parse HEAD)"
+          echo "Dispatching CI Lite chain-run via repository_dispatch for '$BR' (job_id=\${JOB_ID:-}, sha=\${HEAD_SHA})"
+          gh api \
+            -X POST \
+            "repos/\${GITHUB_REPOSITORY}/dispatches" \
+            -f event_type="trigger-ci-lite" \
+            -f client_payload[branch]="$BR" \
+            -f client_payload[job_id]="\${JOB_ID:-}" \
+            -f client_payload[source_workflow]="k1w1-ci-lite-autofix.yml" \
+            -f client_payload[source_run_id]="\${GITHUB_RUN_ID}" \
+            -f client_payload[source_sha]="\${HEAD_SHA}" \
+            >/dev/null
 
       - name: Done
         if: success()

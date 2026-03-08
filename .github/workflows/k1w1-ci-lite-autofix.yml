@@ -294,13 +294,17 @@ jobs:
             exit 0
           fi
 
-          echo "Dispatching CI Lite chain-run for '$BR' (job_id=${JOB_ID:-})"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          echo "Dispatching CI Lite chain-run via repository_dispatch for '$BR' (job_id=${JOB_ID:-}, sha=${HEAD_SHA})"
           gh api \
             -X POST \
-            "repos/${GITHUB_REPOSITORY}/actions/workflows/k1w1-ci-lite.yml/dispatches" \
-            -f ref="$BR" \
-            -f inputs[ref]="$BR" \
-            -f inputs[job_id]="${JOB_ID:-}" \
+            "repos/${GITHUB_REPOSITORY}/dispatches" \
+            -f event_type="trigger-ci-lite" \
+            -f client_payload[branch]="$BR" \
+            -f client_payload[job_id]="${JOB_ID:-}" \
+            -f client_payload[source_workflow]="k1w1-ci-lite-autofix.yml" \
+            -f client_payload[source_run_id]="${GITHUB_RUN_ID}" \
+            -f client_payload[source_sha]="${HEAD_SHA}" \
             >/dev/null
 
       - name: Done

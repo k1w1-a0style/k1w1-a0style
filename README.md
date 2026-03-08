@@ -162,3 +162,6 @@ Siehe `docs/patches/patch_393C.md` für Details.
 Siehe `docs/DEV_COMMANDS.md` (Commands/Shortcuts, ohne rg/ripgrep).
 
 - Patch 396: production EAS keystore export now writes sanitized diagnostics artifacts and always cleans up temporary signing files.
+
+
+- Patch 395: hardened CI Lite chain-run dispatch against default-branch workflow staleness by switching chain-run to repository_dispatch and surfacing workflow provenance in CI Lite artifacts/summaries.

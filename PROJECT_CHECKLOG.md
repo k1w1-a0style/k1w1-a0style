@@ -19,3 +19,6 @@ Patch 373 applied: metro config blockList without metro-config internal imports.
 - 2026-03-08 Patch 393C: documentation/checklog/patchlog sync + patch workflow instructions tightened + guard script added
 
 - 2026-03-08 Patch 396: production credential hardening + sanitized diagnostics
+
+
+- Patch 395: hardened CI Lite chain-run dispatch against default-branch workflow staleness by switching chain-run to repository_dispatch and surfacing workflow provenance in CI Lite artifacts/summaries.

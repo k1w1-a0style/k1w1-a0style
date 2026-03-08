@@ -123,22 +123,33 @@ describe("Invariant String Tests", () => {
 
     // Workflows must clearly be multiline YAML.
     expect(wf.split(/\r?\n/).length).toBeGreaterThan(80);
-    expect(wf).toContain("\non:\n  workflow_dispatch:");
+    expect(wf).toContain("\non:");
+    expect(wf).toContain("\n  repository_dispatch:");
+    expect(wf).toContain("trigger-ci-lite");
+    expect(wf).toContain("\n  workflow_dispatch:");
+    expect(wf).toContain("workflow_ref");
+    expect(wf).toContain("source_workflow");
     expect(wf).toContain("\njobs:\n");
 
     expect(wfAuto.split(/\r?\n/).length).toBeGreaterThan(120);
-    expect(wfAuto).toContain("\non:\n  workflow_dispatch:");
+    expect(wfAuto).toContain("\non:");
+    expect(wfAuto).toContain("\n  workflow_dispatch:");
+    expect(wfAuto).toContain("repos/${GITHUB_REPOSITORY}/dispatches");
+    expect(wfAuto).toContain('event_type="trigger-ci-lite"');
     expect(wfAuto).toContain("\njobs:\n");
 
-    // Template sources of truth must also be multiline-safe.
     const edge = read("supabase/functions/github-workflow-dispatch/index.ts");
     expect(edge).toContain("WORKFLOW_TEMPLATES");
     expect(edge).toContain("k1w1-ci-lite.yml");
-    expect(edge).toContain("\non:\n  workflow_dispatch:");
+    expect(edge).toContain("\non:\n  repository_dispatch:");
+    expect(edge).toContain("trigger-ci-lite");
+    expect(edge).toContain("repos/\\${GITHUB_REPOSITORY}/dispatches");
 
     const appTemplates = read("infra/github/workflowTemplates.ts");
     expect(appTemplates).toContain("k1w1-ci-lite.yml");
-    expect(appTemplates).toContain("\non:\n  workflow_dispatch:");
+    expect(appTemplates).toContain("\non:\n  repository_dispatch:");
+    expect(appTemplates).toContain("trigger-ci-lite");
+    expect(appTemplates).toContain("repos/\\${GITHUB_REPOSITORY}/dispatches");
   });
   it("I12 — CI-lite workflows keep pipefail, pinned actions, and Expo preflight", () => {
     // Why it matters: tee without pipefail causes false-green header status, and Expo preflight guards build-readiness.

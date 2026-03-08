@@ -389,3 +389,8 @@ Guardrails:
 **Version:** 2.0 (Optimiert)
 
 - `eas-build.yml`: production keystore export now writes sanitized diagnostics artifacts and always cleans up temporary signing files.
+
+
+## CI Lite chain-run dispatch
+
+`k1w1-ci-lite-autofix.yml` chains into `k1w1-ci-lite.yml` via `repository_dispatch` (`event_type=trigger-ci-lite`). `k1w1-ci-lite.yml` records `workflow_ref`, `workflow_sha`, trigger mode and source workflow metadata in `ci-lite-result.json` to make default-branch workflow provenance visible during debugging.
