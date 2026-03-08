@@ -1,3 +1,5 @@
+- 2026-03-08 Patch 405: final workflow polish for endpoint assertions, workflow-version summaries, stricter managed drift checks, and root analysis artifact cleanup
+- 2026-03-08 Patch 404: finish workflow governance, fix android-keystore-export endpoint drift, sync managed guards, and update patch docs
 - 2026-03-08 Patch 403: align workflow package-manager handling, target-ref deploy concurrency, repository-dispatch build flags, and EAS YAML structure
 - 2026-03-08 Patch 401: memoize Project/GitHub/Terminal provider values, extend edge helper visibility coverage, and sync AGENTS guard-script checklist
 - 2026-03-08 Patch 400: polish CI Lite artifact SHA fallback parsing, align edge bootstrap workflowVersion metadata with 399, and make Supabase deploy metadata artifact real

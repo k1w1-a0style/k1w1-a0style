@@ -1,5 +1,5 @@
 # managed-by: k1w1
-# workflow-version: 403
+# workflow-version: 405
 # manual-fallback-only: true
 name: Release Build (WAIT)
 
@@ -18,7 +18,7 @@ on:
         default: ""
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ inputs.ref || github.ref_name }}-${{ inputs.profile }}
@@ -36,6 +36,7 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       K1W1_EDGE_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ADMIN_KEY }}
+      WORKFLOW_VERSION: "405"
 
     steps:
       - name: Checkout repository
@@ -49,8 +50,6 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: package-lock.json
 
       - name: Validate secrets + inputs
         shell: bash
@@ -74,13 +73,88 @@ jobs:
             fi
           fi
 
-      - name: Install deps (reproducible when possible)
+      - name: Detect package manager / lockfile
+        id: lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f package-lock.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
+            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
+          elif [ -f npm-shrinkwrap.json ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
+            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
+            echo "package_manager=yarn" >> "$GITHUB_OUTPUT"
+          elif [ -f pnpm-lock.yaml ]; then
+            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+            echo "package_manager=pnpm" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
+            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
+            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node (npm cache)
+        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'npm'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
+
+      - name: Setup Node (yarn cache)
+        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'yarn'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
+
+      - name: Setup Node (pnpm cache)
+        if: steps.lock.outputs.has_lockfile == 'true' && steps.lock.outputs.package_manager == 'pnpm'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: ${{ steps.lock.outputs.lockfile_path }}
+
+      - name: Setup Node (no cache - lockfile missing)
+        if: steps.lock.outputs.has_lockfile != 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+
+      - name: Install deps (package-manager-aware)
         shell: bash
         run: |
           set -euo pipefail
 
-          if [ -f package-lock.json ]; then
-            npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
+          PM="${{ steps.lock.outputs.package_manager }}"
+          LOCKFILE="${{ steps.lock.outputs.lockfile_path }}"
+          if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
+            case "$PM" in
+              npm)
+                npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
+                ;;
+              yarn)
+                corepack enable || true
+                yarn install --frozen-lockfile || yarn install --immutable || yarn install
+                ;;
+              pnpm)
+                corepack enable || true
+                pnpm install --frozen-lockfile || pnpm install
+                ;;
+              *)
+                echo "::error::Unknown package manager '$PM'"
+                exit 1
+                ;;
+            esac
           else
             npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
           fi
@@ -231,8 +305,11 @@ jobs:
           {
             echo "## Release Build Summary"
             echo ""
+            echo "- workflow version: `${WORKFLOW_VERSION}`"
             echo "- Profile: ${{ inputs.profile }}"
             echo "- Ref: ${{ inputs.ref || github.ref_name }}"
+            echo "- Package manager: ${{ steps.lock.outputs.package_manager }}"
+            echo "- Lockfile: ${{ steps.lock.outputs.lockfile_path || 'none' }}"
             echo "- Build URL: ${{ steps.eas.outputs.build_url }}"
             echo "- Build ID: ${{ steps.eas.outputs.build_id }}"
             echo ""

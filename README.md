@@ -10,8 +10,8 @@
 - Checklog (laufend, kurz): `PROJECT_CHECKLOG.md`
 
 ## Aktueller Patch-Stand
-- Zuletzt abgeschlossen: **Patch 403**
-- Workflow-/CI-Lite-SoT ist nach 393A–403 konsolidiert
+- Zuletzt abgeschlossen: **Patch 405**
+- Workflow-/CI-Lite-SoT ist nach 393A–405 konsolidiert
 - Vor dem nächsten Workflow-Patch immer zuerst: `bash scripts/check_workflow_template_drift.sh`
 
 ## Patch-Hinweis

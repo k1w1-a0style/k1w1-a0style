@@ -33,9 +33,10 @@ assert_managed_file .github/workflows/eas-link.yml
 assert_managed_file .github/workflows/release-build.yml
 assert_managed_file .github/workflows/k1w1-ci-lite.yml
 assert_managed_file .github/workflows/k1w1-ci-lite-autofix.yml
+assert_managed_file .github/workflows/deploy-supabase-functions.yml
 
 EAS_VERSION="$(extract_version .github/workflows/eas-build.yml)"
-for wf in .github/workflows/eas-link.yml .github/workflows/release-build.yml; do
+for wf in .github/workflows/eas-link.yml .github/workflows/release-build.yml .github/workflows/deploy-supabase-functions.yml; do
   V="$(extract_version "$wf")"
   [ "$V" = "$EAS_VERSION" ] || fail "Workflow version drift in $wf (expected $EAS_VERSION, got ${V:-<empty>})"
 done
@@ -85,5 +86,13 @@ grep -q 'pnpm install --frozen-lockfile' "$EDGE_FILE" || fail "Edge templates mi
 
 grep -q 'Auto-fix writeback currently supports npm-managed repos only' .github/workflows/eas-build.yml || fail "Live EAS workflow missing non-npm autofix guard"
 grep -q 'Auto-fix writeback currently supports npm-managed repos only' "$DIAG_FILE" || fail "Diagnostics templates missing non-npm autofix guard"
+
+
+grep -q 'android-keystore-export' .github/workflows/eas-build.yml || fail "Live EAS workflow missing android-keystore-export endpoint"
+grep -q 'android-keystore-export' .github/workflows/release-build.yml || fail "Release workflow missing android-keystore-export endpoint"
+grep -q 'android-keystore-export' "$DIAG_FILE" || fail "Diagnostics templates missing android-keystore-export endpoint"
+grep -q 'workflow version:' .github/workflows/deploy-supabase-functions.yml || fail "Supabase deploy summary missing workflow version line"
+grep -q 'workflow version:' .github/workflows/eas-link.yml || fail "EAS Link summary missing workflow version line"
+grep -q 'workflow version:' .github/workflows/release-build.yml || fail "Release Build summary missing workflow version line"
 
 echo "Workflow template drift check passed."

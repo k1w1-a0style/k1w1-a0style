@@ -1,5 +1,5 @@
 # managed-by: k1w1
-# workflow-version: 403
+# workflow-version: 405
 name: EAS Build
 
 on:
@@ -98,6 +98,7 @@ jobs:
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_CLI_VERSION: "16.32.0"
+      WORKFLOW_VERSION: "405"
 
     steps:
       - name: Checkout
@@ -604,7 +605,7 @@ jobs:
           set -euo pipefail
           mkdir -p ci-logs
           HTTP_CODE="$({
-            curl --silent --show-error               --retry 3               --retry-all-errors               --connect-timeout 10               --max-time 60               -o ci-logs/keystore-response.raw.json               -w "%{http_code}"               -X POST "${SUPABASE_URL%/}/functions/v1/export-android-credentials"               -H "Content-Type: application/json"               -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"               -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"               ${K1W1_EDGE_ADMIN_KEY:+-H "x-k1w1-admin-key: ${K1W1_EDGE_ADMIN_KEY}"}               -d @ci-logs/keystore-request.json;
+            curl --silent --show-error               --retry 3               --retry-all-errors               --connect-timeout 10               --max-time 60               -o ci-logs/keystore-response.raw.json               -w "%{http_code}"               -X POST "${SUPABASE_URL%/}/functions/v1/android-keystore-export"               -H "Content-Type: application/json"               -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"               -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"               ${K1W1_EDGE_ADMIN_KEY:+-H "x-k1w1-admin-key: ${K1W1_EDGE_ADMIN_KEY}"}               -d @ci-logs/keystore-request.json;
           })"
           echo "$HTTP_CODE" > ci-logs/keystore-response.http_code
           if [ "$HTTP_CODE" != "200" ]; then
@@ -759,6 +760,7 @@ jobs:
           cat >> "$GITHUB_STEP_SUMMARY" << EOF
           ## EAS Build Summary
 
+          - Workflow version: ${WORKFLOW_VERSION}
           - Repo: ${{ github.repository }}
           - Input ref: ${{ inputs.ref }}
           - Input profile: ${{ inputs.profile }}

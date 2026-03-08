@@ -3,6 +3,8 @@
 This file is the *index* of patch notes for this repo.
 
 ## Recent
+- Patch 405: final workflow polish for endpoint assertions, workflow-version summaries, stricter managed drift checks, and root analysis artifact cleanup
+- Patch 404: finish workflow governance, fix android-keystore-export endpoint drift, sync managed guards, and update patch docs
 - Patch 403: align workflow package-manager handling, target-ref deploy concurrency, repository-dispatch build flags, and EAS YAML structure
 - Patch 401: memoize provider values in Project/GitHub/Terminal contexts, extend direct helper visibility coverage, and sync AGENTS guard-script checklist
 - Patch 400: CI Lite SHA fallback polish + edge bootstrap metadata version alignment + real Supabase deploy metadata artifact
