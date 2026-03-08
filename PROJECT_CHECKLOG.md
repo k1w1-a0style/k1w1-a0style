@@ -1,3 +1,4 @@
+- 2026-03-08 Patch 406: add workflow↔edge contract guard, edge status docs, docs index sync, repo invariant coverage, enforce the new guards in workflow-lint CI, finalize workflow-lint trigger coverage, pin actionlint, and version-bind the installer script in workflow-lint
 - 2026-03-08 Patch 405: final workflow polish for endpoint assertions, workflow-version summaries, stricter managed drift checks, and root analysis artifact cleanup
 - 2026-03-08 Patch 404: finish workflow governance, fix android-keystore-export endpoint drift, sync managed guards, and update patch docs
 - 2026-03-08 Patch 403: align workflow package-manager handling, target-ref deploy concurrency, repository-dispatch build flags, and EAS YAML structure

@@ -400,3 +400,19 @@ Guardrails:
 - Supabase deploy now writes a small deploy metadata artifact plus a summary block for manual/manual-like runs.
 - Patch 395 dispatch architecture remains unchanged: `k1w1-ci-lite.yml` keeps `repository_dispatch`, `k1w1-ci-lite-autofix.yml` stays `workflow_dispatch` and dispatches CI Lite via repository dispatch.
 
+## Workflow ↔ Edge Contract Guard
+
+Zusätzlich zu den Drift-Guards gibt es `scripts/check_workflow_edge_contracts.sh`.
+
+Der Check stellt sicher, dass die operativen Verträge zwischen Workflows und Edge-Functions nicht still brechen, insbesondere:
+
+- `trigger-eas-build` dispatcht `event_type=trigger-eas-build` mit `job_id`, `branch/ref` und Profilfeldern
+- `k1w1-triggered-build.yml` reicht `job_id`, `autofix` und `strict_lockfile` an `eas-build.yml` weiter
+- `eas-build.yml` schreibt `source_commit_sha` und nutzt `android-keystore-export`
+- `check-eas-build` liefert `urls`, `source_commit_sha` und optionale Artifact-Metadaten
+- `github-run-artifact-json` liefert `text`, `json`, `artifactId`, `artifactName` und `filePath`
+- `github-workflow-logs` liefert `logsText`
+
+Zusätzlich führt `workflow-lint.yml` diese Guards jetzt ebenfalls in CI aus.
+
+Die Trigger-Pfade von `workflow-lint.yml` decken ab Patch 406 außerdem die neuen Guard-Skripte, `docs/WORKFLOW_PATCHING.md` sowie die zugehörige Patch-/Edge-Doku ab; doppelte Path-Einträge wurden entfernt und `actionlint` ist dort versionsgepinnt, inklusive versionsgebundenem Installer-Script.

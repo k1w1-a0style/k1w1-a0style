@@ -5,10 +5,24 @@ on:
     paths:
       - ".github/workflows/**"
       - ".github/scripts/**"
+      - "scripts/check_*.sh"
+      - "README.md"
+      - "PROJECT_CHECKLOG.md"
+      - "docs/INDEX.md"
+      - "docs/WORKFLOW_PATCHING.md"
+      - "docs/EDGE_FUNCTIONS_STATUS.md"
+      - "docs/patches/**"
   push:
     paths:
       - ".github/workflows/**"
       - ".github/scripts/**"
+      - "scripts/check_*.sh"
+      - "README.md"
+      - "PROJECT_CHECKLOG.md"
+      - "docs/INDEX.md"
+      - "docs/WORKFLOW_PATCHING.md"
+      - "docs/EDGE_FUNCTIONS_STATUS.md"
+      - "docs/patches/**"
   workflow_dispatch:
     inputs:
       ref:
@@ -39,14 +53,25 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install actionlint (binary via pip)
+      - name: Install actionlint (pinned)
+        env:
+          ACTIONLINT_VERSION: "1.7.7"
         run: |
-          python -m pip install --user --upgrade pip
-          python -m pip install --user "actionlint-py==1.7.7.24"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          set -euo pipefail
+          curl -sSfL "https://raw.githubusercontent.com/rhysd/actionlint/v${ACTIONLINT_VERSION}/scripts/download-actionlint.bash" | bash -s -- "${ACTIONLINT_VERSION}"
+          echo "$PWD" >> "$GITHUB_PATH"
 
       - name: actionlint (YAML/Actions dry validation)
         run: actionlint -color
 
-      - name: "alle Actions sind auf volle SHAs gepinnt"
+      - name: Run workflow guard scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/check_workflow_template_drift.sh
+          bash scripts/check_managed_workflows.sh
+          bash scripts/check_workflow_edge_contracts.sh
+          bash scripts/check_patch_docs_sync.sh
+
+      - name: Check actions are SHA pinned
         run: node .github/scripts/check-actions-pinned.mjs
