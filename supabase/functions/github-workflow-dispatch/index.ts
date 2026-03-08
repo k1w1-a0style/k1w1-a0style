@@ -14,8 +14,8 @@ import {
 const WORKFLOW_TEMPLATES: Record<string, string> = {
   "k1w1-ci-lite.yml": `
 # managed-by: k1w1
-# workflow-version: 4
-name: K1W1 CI Lite (Lint + Typecheck)
+# workflow-version: 399
+name: K1W1 CI Lite (Lint + Typecheck + Expo Preflight)
 
 run-name: >-
   CI Lite\${{ (github.event.client_payload.job_id || inputs.job_id) && format(' [{0}]', github.event.client_payload.job_id || inputs.job_id) || '' }} • \${{ github.event.client_payload.branch || github.event.client_payload.ref || inputs.ref || github.ref_name }}
@@ -43,11 +43,14 @@ concurrency:
 
 jobs:
   checks:
-    name: Lint + Typecheck
+    name: Lint + Typecheck + Expo preflight
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
+
+    env:
+      WORKFLOW_VERSION: "399"
 
     steps:
       - name: Determine target ref
@@ -79,7 +82,7 @@ jobs:
           echo "CI Lite start (job_id=\${JOB_ID:-}, ref=\${TARGET_REF:-}, trigger=\${TRIGGER_MODE:-})"
 
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: \${{ env.TARGET_REF }}
           fetch-depth: 0
@@ -102,7 +105,7 @@ jobs:
 
       - name: Setup Node (with npm cache)
         if: steps.lock.outputs.has_lockfile == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
           cache: npm
@@ -110,9 +113,33 @@ jobs:
 
       - name: Setup Node (no cache - lockfile missing)
         if: steps.lock.outputs.has_lockfile != 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
+
+      - name: Capture environment metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-logs
+          {
+            echo "timestamp_utc=$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            echo "workflow_version=\${WORKFLOW_VERSION}"
+            echo "github_repository=\${GITHUB_REPOSITORY}"
+            echo "github_run_id=\${GITHUB_RUN_ID}"
+            echo "github_run_attempt=\${GITHUB_RUN_ATTEMPT}"
+            echo "github_sha=\${GITHUB_SHA}"
+            echo "target_ref=\${TARGET_REF:-}"
+            echo "job_id=\${JOB_ID:-}"
+            echo "runner_os=\${RUNNER_OS}"
+            echo "runner_arch=\${RUNNER_ARCH}"
+            echo "trigger_mode=\${TRIGGER_MODE:-}"
+            echo "source_workflow=\${SOURCE_WORKFLOW:-}"
+            echo "source_run_id=\${SOURCE_RUN_ID:-}"
+            echo "source_sha=\${SOURCE_SHA:-}"
+          } > ci-logs/metadata.env
+          node --version | tee ci-logs/node-version.log
+          npm --version | tee ci-logs/npm-version.log
 
       - name: Install dependencies (frozen if possible)
         shell: bash
@@ -125,11 +152,12 @@ jobs:
             npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
           fi
 
-      - name: Lint + Typecheck (robust, capture)
+      - name: Lint + Typecheck + Expo preflight (robust, capture)
         id: run
         shell: bash
         run: |
           set +e
+          set -o pipefail
           mkdir -p ci-logs
 
           (npm run lint:ci || npx --yes eslint . --quiet) 2>&1 | tee ci-logs/lint.log
@@ -138,23 +166,49 @@ jobs:
           (npm run typecheck || npx --yes tsc --noEmit) 2>&1 | tee ci-logs/typecheck.log
           TSC=$?
 
+          (
+            npx --no-install expo config --json > ci-logs/expo-config.json &&
+            node -e '
+              const fs = require("fs");
+              const p = "ci-logs/expo-config.json";
+              const data = JSON.parse(fs.readFileSync(p, "utf8"));
+              const projectId = (data?.expo ?? data)?.extra?.eas?.projectId;
+              if (!projectId || typeof projectId !== "string" || !projectId.trim()) {
+                console.error("Missing expo.extra.eas.projectId");
+                process.exit(1);
+              }
+              console.log(\`expo.extra.eas.projectId OK: \${projectId}\`);
+            '
+          ) 2>&1 | tee ci-logs/expo-preflight.log
+          EXPO=$?
+
           echo "eslint_exit=$ESL" >> "$GITHUB_OUTPUT"
           echo "tsc_exit=$TSC" >> "$GITHUB_OUTPUT"
-          SOURCE_COMMIT_SHA="$(git rev-parse HEAD)"
+          echo "expo_exit=$EXPO" >> "$GITHUB_OUTPUT"
 
-          cat > ci-logs/ci-lite-result.json <<EOF
+          cat > ci-logs/ci-lite-result.json <<JSON
           {
+            "workflow_version": "\${WORKFLOW_VERSION}",
             "job_id": "\${JOB_ID:-}",
             "ref": "\${TARGET_REF:-}",
-            "source_commit_sha": "${SOURCE_COMMIT_SHA:-}",
+            "github_run_id": "\${GITHUB_RUN_ID}",
+            "github_run_attempt": "\${GITHUB_RUN_ATTEMPT}",
+            "github_sha": "\${GITHUB_SHA}",
             "eslint_exit": $ESL,
             "tsc_exit": $TSC,
-            "ok": $([ "$ESL" -eq 0 ] && [ "$TSC" -eq 0 ] && echo true || echo false)
+            "expo_exit": $EXPO,
+            "trigger_mode": "\${TRIGGER_MODE:-}",
+            "workflow_ref": "\${GITHUB_WORKFLOW_REF:-}",
+            "workflow_sha": "\${GITHUB_WORKFLOW_SHA:-}",
+            "source_workflow": "\${SOURCE_WORKFLOW:-}",
+            "source_run_id": "\${SOURCE_RUN_ID:-}",
+            "source_sha": "\${SOURCE_SHA:-}",
+            "ok": $([ "$ESL" -eq 0 ] && [ "$TSC" -eq 0 ] && [ "$EXPO" -eq 0 ] && echo true || echo false)
           }
-          EOF
+          JSON
 
-          if [ "$ESL" -ne 0 ] || [ "$TSC" -ne 0 ]; then
-            echo "::error::CI Lite failed (eslint=$ESL, tsc=$TSC)"
+          if [ "$ESL" -ne 0 ] || [ "$TSC" -ne 0 ] || [ "$EXPO" -ne 0 ]; then
+            echo "::error::CI Lite failed (eslint=$ESL, tsc=$TSC, expo=$EXPO)"
             exit 1
           fi
           exit 0
@@ -168,24 +222,40 @@ jobs:
             echo ""
             echo "- ref: \`\${TARGET_REF}\`"
             echo "- job_id: \`\${JOB_ID:-}\`"
+            echo "- workflow version: \`\${WORKFLOW_VERSION}\`"
+            echo "- run id: \`\${GITHUB_RUN_ID}\` / attempt \`\${GITHUB_RUN_ATTEMPT}\`"
+            echo "- sha: \`\${GITHUB_SHA}\`"
+            echo "- trigger: \`\${TRIGGER_MODE:-}\`"
+            echo "- workflow ref: \`\${GITHUB_WORKFLOW_REF:-}\`"
+            echo "- source workflow: \`\${SOURCE_WORKFLOW:-}\`"
+            echo "- source run: \`\${SOURCE_RUN_ID:-}\`"
+            echo "- source sha: \`\${SOURCE_SHA:-}\`"
             echo "- eslint: \`\${{ steps.run.outputs.eslint_exit }}\`"
             echo "- tsc: \`\${{ steps.run.outputs.tsc_exit }}\`"
+            echo "- expo preflight: \`\${{ steps.run.outputs.expo_exit }}\`"
             echo ""
             echo "Artifacts:"
             echo "- \`ci-logs/ci-lite-result.json\` (für Header-Polling)"
-            echo "- \`ci-logs/lint.log\`, \`ci-logs/typecheck.log\`"
+            echo "- \`ci-logs/lint.log\`, \`ci-logs/typecheck.log\`, \`ci-logs/expo-preflight.log\`"
+            echo "- \`ci-logs/metadata.env\`, \`ci-logs/node-version.log\`, \`ci-logs/npm-version.log\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload CI Lite logs
         if: always()
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb0d8b62a3 # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ci-lite-logs
+          name: ci-lite-logs-\${{ github.run_id }}-\${{ github.run_attempt }}
           path: |
             ci-logs/ci-lite-result.json
             ci-logs/lint.log
             ci-logs/typecheck.log
+            ci-logs/expo-preflight.log
+            ci-logs/expo-config.json
+            ci-logs/metadata.env
+            ci-logs/node-version.log
+            ci-logs/npm-version.log
           retention-days: 7
+          if-no-files-found: ignore
 
       - name: Done
         if: success()
@@ -196,7 +266,7 @@ jobs:
 `,
   "k1w1-ci-lite-autofix.yml": `
 # managed-by: k1w1
-# workflow-version: 4
+# workflow-version: 399
 name: K1W1 CI Lite Autofix (ESLint --fix)
 
 run-name: >-
@@ -232,6 +302,7 @@ jobs:
       JOB_ID: \${{ inputs.job_id }}
       TARGET_BRANCH: \${{ inputs.ref || github.ref_name }}
       ALLOWED_REF_REGEX: "^(work|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
+      WORKFLOW_VERSION: "399"
 
     steps:
       - name: Run info
@@ -241,7 +312,7 @@ jobs:
           echo "CI Lite Autofix start (job_id=\${JOB_ID:-}, ref=\${TARGET_BRANCH:-})"
 
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: \${{ env.TARGET_BRANCH }}
           fetch-depth: 0
@@ -264,7 +335,7 @@ jobs:
 
       - name: Setup Node (with npm cache)
         if: steps.lock.outputs.has_lockfile == 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
           cache: npm
@@ -272,9 +343,29 @@ jobs:
 
       - name: Setup Node (no cache - lockfile missing)
         if: steps.lock.outputs.has_lockfile != 'true'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
+
+      - name: Capture environment metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-logs
+          {
+            echo "timestamp_utc=$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            echo "workflow_version=\${WORKFLOW_VERSION}"
+            echo "github_repository=\${GITHUB_REPOSITORY}"
+            echo "github_run_id=\${GITHUB_RUN_ID}"
+            echo "github_run_attempt=\${GITHUB_RUN_ATTEMPT}"
+            echo "github_sha=\${GITHUB_SHA}"
+            echo "target_branch=\${TARGET_BRANCH:-}"
+            echo "job_id=\${JOB_ID:-}"
+            echo "runner_os=\${RUNNER_OS}"
+            echo "runner_arch=\${RUNNER_ARCH}"
+          } > ci-logs/metadata.env
+          node --version | tee ci-logs/node-version.log
+          npm --version | tee ci-logs/npm-version.log
 
       - name: Install dependencies (frozen if possible)
         shell: bash
@@ -292,13 +383,14 @@ jobs:
         shell: bash
         run: |
           set +e
+          set -o pipefail
           mkdir -p ci-logs
 
           if npm run -s | grep -q "lint:fix"; then
-            (npm run lint:fix) 2>&1 | tee ci-logs/autofix.log
+            npm run lint:fix 2>&1 | tee ci-logs/autofix.log
             FIX=$?
           else
-            (npx --yes eslint . --fix) 2>&1 | tee ci-logs/autofix.log
+            npx --yes eslint . --fix 2>&1 | tee ci-logs/autofix.log
             FIX=$?
           fi
 
@@ -366,11 +458,12 @@ jobs:
             git diff --patch --no-color > ci-logs/autofix.patch || true
           fi
 
-      - name: Lint + Typecheck (robust, capture)
+      - name: Lint + Typecheck + Expo preflight (robust, capture)
         id: verify
         shell: bash
         run: |
           set +e
+          set -o pipefail
           mkdir -p ci-logs
 
           (npm run lint:ci || npx --yes eslint . --quiet) 2>&1 | tee ci-logs/lint.log
@@ -379,26 +472,46 @@ jobs:
           (npm run typecheck || npx --yes tsc --noEmit) 2>&1 | tee ci-logs/typecheck.log
           TSC=$?
 
+          (
+            npx --no-install expo config --json > ci-logs/expo-config.json &&
+            node -e '
+              const fs = require("fs");
+              const p = "ci-logs/expo-config.json";
+              const data = JSON.parse(fs.readFileSync(p, "utf8"));
+              const projectId = (data?.expo ?? data)?.extra?.eas?.projectId;
+              if (!projectId || typeof projectId !== "string" || !projectId.trim()) {
+                console.error("Missing expo.extra.eas.projectId");
+                process.exit(1);
+              }
+              console.log(\`expo.extra.eas.projectId OK: \${projectId}\`);
+            '
+          ) 2>&1 | tee ci-logs/expo-preflight.log
+          EXPO=$?
+
           echo "eslint_exit=$ESL" >> "$GITHUB_OUTPUT"
           echo "tsc_exit=$TSC" >> "$GITHUB_OUTPUT"
-          SOURCE_COMMIT_SHA="$(git rev-parse HEAD)"
+          echo "expo_exit=$EXPO" >> "$GITHUB_OUTPUT"
 
-          cat > ci-logs/ci-lite-autofix-result.json <<EOF
+          cat > ci-logs/ci-lite-autofix-result.json <<JSON
           {
+            "workflow_version": "\${WORKFLOW_VERSION}",
             "job_id": "\${JOB_ID:-}",
             "ref": "\${TARGET_BRANCH:-}",
-            "source_commit_sha": "${SOURCE_COMMIT_SHA:-}",
-            "eslint_fix_exit": \${{ steps.fix.outputs.eslint_fix_exit || 0 }},
-            "writeback_changed": \${{ steps.writeback.outputs.changed == 'true' && 'true' || 'false' }},
-            "writeback_pushed": \${{ steps.writeback.outputs.pushed == 'true' && 'true' || 'false' }},
+            "github_run_id": "\${GITHUB_RUN_ID}",
+            "github_run_attempt": "\${GITHUB_RUN_ATTEMPT}",
+            "github_sha": "\${GITHUB_SHA}",
+            "eslint_fix_exit": \${{ steps.fix.outputs.eslint_fix_exit || '0' }},
             "eslint_exit": $ESL,
             "tsc_exit": $TSC,
-            "ok": $([ "$ESL" -eq 0 ] && [ "$TSC" -eq 0 ] && echo true || echo false)
+            "expo_exit": $EXPO,
+            "writeback_changed": "\${{ steps.writeback.outputs.changed || 'false' }}",
+            "writeback_pushed": "\${{ steps.writeback.outputs.pushed || 'false' }}",
+            "ok": $([ "$ESL" -eq 0 ] && [ "$TSC" -eq 0 ] && [ "$EXPO" -eq 0 ] && echo true || echo false)
           }
-          EOF
+          JSON
 
-          if [ "$ESL" -ne 0 ] || [ "$TSC" -ne 0 ]; then
-            echo "::error::Autofix verification failed (eslint=$ESL, tsc=$TSC)"
+          if [ "$ESL" -ne 0 ] || [ "$TSC" -ne 0 ] || [ "$EXPO" -ne 0 ]; then
+            echo "::error::Autofix verification failed (eslint=$ESL, tsc=$TSC, expo=$EXPO)"
             exit 1
           fi
           exit 0
@@ -412,29 +525,39 @@ jobs:
             echo ""
             echo "- ref: \`\${TARGET_BRANCH}\`"
             echo "- job_id: \`\${JOB_ID:-}\`"
+            echo "- workflow version: \`\${WORKFLOW_VERSION}\`"
+            echo "- run id: \`\${GITHUB_RUN_ID}\` / attempt \`\${GITHUB_RUN_ATTEMPT}\`"
+            echo "- sha: \`\${GITHUB_SHA}\`"
             echo "- eslint fix exit: \`\${{ steps.fix.outputs.eslint_fix_exit }}\`"
             echo "- changed: \`\${{ steps.writeback.outputs.changed }}\`"
             echo "- pushed: \`\${{ steps.writeback.outputs.pushed }}\`"
             echo "- eslint verify: \`\${{ steps.verify.outputs.eslint_exit }}\`"
             echo "- tsc verify: \`\${{ steps.verify.outputs.tsc_exit }}\`"
+            echo "- expo preflight: \`\${{ steps.verify.outputs.expo_exit }}\`"
             echo ""
             echo "Artifacts:"
             echo "- \`ci-logs/ci-lite-autofix-result.json\`"
             echo "- \`ci-logs/autofix.log\` (+ optional \`ci-logs/autofix.patch\` if push fails)"
-            echo "- \`ci-logs/lint.log\`, \`ci-logs/typecheck.log\`"
+            echo "- \`ci-logs/lint.log\`, \`ci-logs/typecheck.log\`, \`ci-logs/expo-preflight.log\`"
+            echo "- \`ci-logs/metadata.env\`, \`ci-logs/node-version.log\`, \`ci-logs/npm-version.log\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload CI Lite Autofix logs
         if: always()
-        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb0d8b62a3 # v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ci-lite-autofix-logs
+          name: ci-lite-autofix-logs-\${{ github.run_id }}-\${{ github.run_attempt }}
           path: |
             ci-logs/ci-lite-autofix-result.json
             ci-logs/autofix.log
             ci-logs/autofix.patch
             ci-logs/lint.log
             ci-logs/typecheck.log
+            ci-logs/expo-preflight.log
+            ci-logs/expo-config.json
+            ci-logs/metadata.env
+            ci-logs/node-version.log
+            ci-logs/npm-version.log
           retention-days: 7
           if-no-files-found: ignore
 

@@ -35,6 +35,6 @@ This file is the *index* of patch notes for this repo.
 - Patch 369: CI-Lite in-app status uses GitHub truth (fix green/rot mismatch)
 - Patch 368: CI-Lite smoke diagnostics + gitignore
 
-## Legacy patch-337 references
+## Legacy references preserved for invariant I10
 - docs/patches/patch_337.md
 - docs/patches/PATCH_337_NOTES.md

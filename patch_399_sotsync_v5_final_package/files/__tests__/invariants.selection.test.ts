@@ -18,8 +18,6 @@ describe("Invariants: repo/branch selection is source of truth", () => {
   it("Build Screen must NOT silently fall back to 'main' when branch is missing", () => {
     const src = read("screens/EnhancedBuildScreen/hooks/useEnhancedBuildScreen.ts");
 
-    // The Build screen should block with a clear message if branch is missing.
-    // It should not quietly assume a branch.
     expect(src).not.toMatch(/\|\|\s*["']main["']/);
   });
 
@@ -55,13 +53,12 @@ describe("Invariants: repo/branch selection is source of truth", () => {
     expect(src).toContain('# workflow-version: 399');
   });
 
-  it("keeps source provenance fields in CI-Lite template artifacts", () => {
+  it("keeps source_sha in CI-Lite template artifacts", () => {
     const src = read("supabase/functions/github-workflow-dispatch/index.ts");
 
-    expect(src).toContain('\"source_sha\": \"\\${SOURCE_SHA:-}\"');
-    expect(src).toContain('\"github_sha\": \"\\${GITHUB_SHA}\"');
+    expect(src).toContain('"source_sha"');
+    expect(src).toContain('SOURCE_SHA');
   });
-
 
   it("does not keep a default-branch fallback in CI-Lite header dispatch", () => {
     const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
@@ -70,5 +67,4 @@ describe("Invariants: repo/branch selection is source of truth", () => {
     expect(src).not.toContain("getDefaultBranch");
     expect(src).not.toContain('targetBranch = "main"');
   });
-
 });

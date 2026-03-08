@@ -1,3 +1,5 @@
+# managed-by: k1w1
+# workflow-version: 399
 name: K1W1 CI Lite (Lint + Typecheck + Expo Preflight)
 
 run-name: >-
@@ -31,6 +33,9 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+
+    env:
+      WORKFLOW_VERSION: "399"
 
     steps:
       - name: Determine target ref

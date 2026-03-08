@@ -7,29 +7,60 @@ fail() {
 }
 
 EDGE_FILE="supabase/functions/github-workflow-dispatch/index.ts"
+INFRA_FILE="infra/github/workflowTemplates.ts"
+DIAG_FILE="lib/diagnostics/workflowTemplates.ts"
+
 [ -f "$EDGE_FILE" ] || fail "Missing edge workflow source: $EDGE_FILE"
+[ -f "$INFRA_FILE" ] || fail "Missing infra workflow source: $INFRA_FILE"
+[ -f "$DIAG_FILE" ] || fail "Missing diagnostics workflow source: $DIAG_FILE"
 
 extract_version() {
   local file="$1"
   sed -n 's/^# workflow-version: //p' "$file" | head -n1
 }
 
-BASE_VERSION="$(extract_version .github/workflows/eas-build.yml)"
-[ -n "$BASE_VERSION" ] || fail "Could not read workflow-version from eas-build.yml"
+assert_managed_file() {
+  local file="$1"
+  [ -f "$file" ] || fail "Missing workflow file: $file"
+  grep -q '^# managed-by: k1w1' "$file" || fail "Missing managed-by marker in $file"
+  local v
+  v="$(extract_version "$file")"
+  [ -n "$v" ] || fail "Missing workflow-version in $file"
+}
 
-for wf in .github/workflows/eas-build.yml .github/workflows/eas-link.yml .github/workflows/release-build.yml; do
-  [ -f "$wf" ] || fail "Missing workflow file: $wf"
-  grep -q '^# managed-by: k1w1' "$wf" || fail "Missing managed-by marker in $wf"
+assert_managed_file .github/workflows/eas-build.yml
+assert_managed_file .github/workflows/eas-link.yml
+assert_managed_file .github/workflows/release-build.yml
+assert_managed_file .github/workflows/k1w1-ci-lite.yml
+assert_managed_file .github/workflows/k1w1-ci-lite-autofix.yml
+
+EAS_VERSION="$(extract_version .github/workflows/eas-build.yml)"
+for wf in .github/workflows/eas-link.yml .github/workflows/release-build.yml; do
   V="$(extract_version "$wf")"
-  [ "$V" = "$BASE_VERSION" ] || fail "Workflow version drift in $wf (expected $BASE_VERSION, got ${V:-<empty>})"
+  [ "$V" = "$EAS_VERSION" ] || fail "Workflow version drift in $wf (expected $EAS_VERSION, got ${V:-<empty>})"
 done
 
-grep -q '# managed-by: k1w1' "$EDGE_FILE" || fail "Embedded templates missing managed-by marker"
-grep -q "# workflow-version: $BASE_VERSION" "$EDGE_FILE" || fail "Embedded templates missing workflow-version $BASE_VERSION"
+grep -q '# managed-by: k1w1' "$DIAG_FILE" || fail "Diagnostics workflow templates missing managed-by marker"
+grep -q "# workflow-version: $EAS_VERSION" "$DIAG_FILE" || fail "Diagnostics workflow templates missing workflow-version $EAS_VERSION"
 
-grep -q 'actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4' "$EDGE_FILE" || fail "Embedded templates missing pinned actions/checkout"
-grep -q 'actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4' "$EDGE_FILE" || fail "Embedded templates missing pinned actions/setup-node"
-grep -q 'actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb0d8b62a3 # v4' "$EDGE_FILE" || fail "Embedded templates missing pinned actions/upload-artifact"
-grep -q '"source_commit_sha": "${SOURCE_COMMIT_SHA:-}"' "$EDGE_FILE" || fail "Embedded templates missing source_commit_sha"
+CI_VERSION="$(extract_version .github/workflows/k1w1-ci-lite.yml)"
+AF_VERSION="$(extract_version .github/workflows/k1w1-ci-lite-autofix.yml)"
+[ "$CI_VERSION" = "$AF_VERSION" ] || fail "CI Lite workflow version drift between live workflows"
+
+grep -q '"k1w1-ci-lite.yml": `' "$INFRA_FILE" || fail "Template source missing entry for k1w1-ci-lite.yml"
+grep -q '"k1w1-ci-lite-autofix.yml": `' "$INFRA_FILE" || fail "Template source missing entry for k1w1-ci-lite-autofix.yml"
+grep -q '# managed-by: k1w1' "$INFRA_FILE" || fail "Infra templates missing managed-by marker"
+grep -q "# workflow-version: $CI_VERSION" "$INFRA_FILE" || fail "Infra templates missing workflow-version $CI_VERSION"
+grep -q 'repository_dispatch:' "$INFRA_FILE" || fail "Infra CI Lite template missing repository_dispatch"
+grep -q 'source_sha' "$INFRA_FILE" || fail "Infra CI Lite templates missing source_sha provenance"
+grep -q 'expo preflight' "$INFRA_FILE" || fail "Infra CI Lite templates missing expo preflight"
+
+grep -q '"k1w1-ci-lite.yml": `' "$EDGE_FILE" || fail "Edge templates missing entry for k1w1-ci-lite.yml"
+grep -q '"k1w1-ci-lite-autofix.yml": `' "$EDGE_FILE" || fail "Edge templates missing entry for k1w1-ci-lite-autofix.yml"
+grep -q '# managed-by: k1w1' "$EDGE_FILE" || fail "Edge templates missing managed-by marker"
+grep -q "# workflow-version: $CI_VERSION" "$EDGE_FILE" || fail "Edge templates missing workflow-version $CI_VERSION"
+grep -q 'repository_dispatch:' "$EDGE_FILE" || fail "Edge CI Lite template missing repository_dispatch"
+grep -q 'source_sha' "$EDGE_FILE" || fail "Edge CI Lite templates missing source_sha provenance"
+grep -q 'expo preflight' "$EDGE_FILE" || fail "Edge CI Lite templates missing expo preflight"
 
 echo "Workflow template drift check passed."

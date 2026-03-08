@@ -1,3 +1,5 @@
+# managed-by: k1w1
+# workflow-version: 399
 name: K1W1 CI Lite Autofix (ESLint --fix)
 
 run-name: >-
@@ -33,7 +35,7 @@ jobs:
       JOB_ID: ${{ inputs.job_id }}
       TARGET_BRANCH: ${{ inputs.ref || github.ref_name }}
       ALLOWED_REF_REGEX: "^(work|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
-      WORKFLOW_VERSION: "397"
+      WORKFLOW_VERSION: "399"
 
     steps:
       - name: Run info

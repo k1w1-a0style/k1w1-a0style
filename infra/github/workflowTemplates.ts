@@ -144,6 +144,8 @@ jobs:
           exit 1
 `,
   "k1w1-ci-lite.yml": `
+# managed-by: k1w1
+# workflow-version: 399
 name: K1W1 CI Lite (Lint + Typecheck + Expo Preflight)
 
 run-name: >-
@@ -177,6 +179,9 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+
+    env:
+      WORKFLOW_VERSION: "399"
 
     steps:
       - name: Determine target ref
@@ -243,6 +248,30 @@ jobs:
         with:
           node-version: 20
 
+      - name: Capture environment metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-logs
+          {
+            echo "timestamp_utc=$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            echo "workflow_version=\${WORKFLOW_VERSION}"
+            echo "github_repository=\${GITHUB_REPOSITORY}"
+            echo "github_run_id=\${GITHUB_RUN_ID}"
+            echo "github_run_attempt=\${GITHUB_RUN_ATTEMPT}"
+            echo "github_sha=\${GITHUB_SHA}"
+            echo "target_ref=\${TARGET_REF:-}"
+            echo "job_id=\${JOB_ID:-}"
+            echo "runner_os=\${RUNNER_OS}"
+            echo "runner_arch=\${RUNNER_ARCH}"
+            echo "trigger_mode=\${TRIGGER_MODE:-}"
+            echo "source_workflow=\${SOURCE_WORKFLOW:-}"
+            echo "source_run_id=\${SOURCE_RUN_ID:-}"
+            echo "source_sha=\${SOURCE_SHA:-}"
+          } > ci-logs/metadata.env
+          node --version | tee ci-logs/node-version.log
+          npm --version | tee ci-logs/npm-version.log
+
       - name: Install dependencies (frozen if possible)
         shell: bash
         run: |
@@ -290,8 +319,12 @@ jobs:
 
           cat > ci-logs/ci-lite-result.json <<JSON
           {
+            "workflow_version": "\${WORKFLOW_VERSION}",
             "job_id": "\${JOB_ID:-}",
             "ref": "\${TARGET_REF:-}",
+            "github_run_id": "\${GITHUB_RUN_ID}",
+            "github_run_attempt": "\${GITHUB_RUN_ATTEMPT}",
+            "github_sha": "\${GITHUB_SHA}",
             "eslint_exit": $ESL,
             "tsc_exit": $TSC,
             "expo_exit": $EXPO,
@@ -320,6 +353,14 @@ jobs:
             echo ""
             echo "- ref: \`\${TARGET_REF}\`"
             echo "- job_id: \`\${JOB_ID:-}\`"
+            echo "- workflow version: \`\${WORKFLOW_VERSION}\`"
+            echo "- run id: \`\${GITHUB_RUN_ID}\` / attempt \`\${GITHUB_RUN_ATTEMPT}\`"
+            echo "- sha: \`\${GITHUB_SHA}\`"
+            echo "- trigger: \`\${TRIGGER_MODE:-}\`"
+            echo "- workflow ref: \`\${GITHUB_WORKFLOW_REF:-}\`"
+            echo "- source workflow: \`\${SOURCE_WORKFLOW:-}\`"
+            echo "- source run: \`\${SOURCE_RUN_ID:-}\`"
+            echo "- source sha: \`\${SOURCE_SHA:-}\`"
             echo "- eslint: \`\${{ steps.run.outputs.eslint_exit }}\`"
             echo "- tsc: \`\${{ steps.run.outputs.tsc_exit }}\`"
             echo "- expo preflight: \`\${{ steps.run.outputs.expo_exit }}\`"
@@ -327,19 +368,23 @@ jobs:
             echo "Artifacts:"
             echo "- \`ci-logs/ci-lite-result.json\` (für Header-Polling)"
             echo "- \`ci-logs/lint.log\`, \`ci-logs/typecheck.log\`, \`ci-logs/expo-preflight.log\`"
+            echo "- \`ci-logs/metadata.env\`, \`ci-logs/node-version.log\`, \`ci-logs/npm-version.log\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload CI Lite logs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ci-lite-logs
+          name: ci-lite-logs-\${{ github.run_id }}-\${{ github.run_attempt }}
           path: |
             ci-logs/ci-lite-result.json
             ci-logs/lint.log
             ci-logs/typecheck.log
             ci-logs/expo-preflight.log
             ci-logs/expo-config.json
+            ci-logs/metadata.env
+            ci-logs/node-version.log
+            ci-logs/npm-version.log
           retention-days: 7
           if-no-files-found: ignore
 
@@ -351,6 +396,8 @@ jobs:
           echo "✅ CI Lite passed (job_id=\${JOB_ID:-})"
 `,
   "k1w1-ci-lite-autofix.yml": `
+# managed-by: k1w1
+# workflow-version: 399
 name: K1W1 CI Lite Autofix (ESLint --fix)
 
 run-name: >-
@@ -386,6 +433,7 @@ jobs:
       JOB_ID: \${{ inputs.job_id }}
       TARGET_BRANCH: \${{ inputs.ref || github.ref_name }}
       ALLOWED_REF_REGEX: "^(work|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
+      WORKFLOW_VERSION: "399"
 
     steps:
       - name: Run info
@@ -429,6 +477,26 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
+
+      - name: Capture environment metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-logs
+          {
+            echo "timestamp_utc=$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            echo "workflow_version=\${WORKFLOW_VERSION}"
+            echo "github_repository=\${GITHUB_REPOSITORY}"
+            echo "github_run_id=\${GITHUB_RUN_ID}"
+            echo "github_run_attempt=\${GITHUB_RUN_ATTEMPT}"
+            echo "github_sha=\${GITHUB_SHA}"
+            echo "target_branch=\${TARGET_BRANCH:-}"
+            echo "job_id=\${JOB_ID:-}"
+            echo "runner_os=\${RUNNER_OS}"
+            echo "runner_arch=\${RUNNER_ARCH}"
+          } > ci-logs/metadata.env
+          node --version | tee ci-logs/node-version.log
+          npm --version | tee ci-logs/npm-version.log
 
       - name: Install dependencies (frozen if possible)
         shell: bash
@@ -557,8 +625,12 @@ jobs:
 
           cat > ci-logs/ci-lite-autofix-result.json <<JSON
           {
+            "workflow_version": "\${WORKFLOW_VERSION}",
             "job_id": "\${JOB_ID:-}",
             "ref": "\${TARGET_BRANCH:-}",
+            "github_run_id": "\${GITHUB_RUN_ID}",
+            "github_run_attempt": "\${GITHUB_RUN_ATTEMPT}",
+            "github_sha": "\${GITHUB_SHA}",
             "eslint_fix_exit": \${{ steps.fix.outputs.eslint_fix_exit || '0' }},
             "eslint_exit": $ESL,
             "tsc_exit": $TSC,
@@ -584,6 +656,9 @@ jobs:
             echo ""
             echo "- ref: \`\${TARGET_BRANCH}\`"
             echo "- job_id: \`\${JOB_ID:-}\`"
+            echo "- workflow version: \`\${WORKFLOW_VERSION}\`"
+            echo "- run id: \`\${GITHUB_RUN_ID}\` / attempt \`\${GITHUB_RUN_ATTEMPT}\`"
+            echo "- sha: \`\${GITHUB_SHA}\`"
             echo "- eslint fix exit: \`\${{ steps.fix.outputs.eslint_fix_exit }}\`"
             echo "- changed: \`\${{ steps.writeback.outputs.changed }}\`"
             echo "- pushed: \`\${{ steps.writeback.outputs.pushed }}\`"
@@ -595,13 +670,14 @@ jobs:
             echo "- \`ci-logs/ci-lite-autofix-result.json\`"
             echo "- \`ci-logs/autofix.log\` (+ optional \`ci-logs/autofix.patch\` if push fails)"
             echo "- \`ci-logs/lint.log\`, \`ci-logs/typecheck.log\`, \`ci-logs/expo-preflight.log\`"
+            echo "- \`ci-logs/metadata.env\`, \`ci-logs/node-version.log\`, \`ci-logs/npm-version.log\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload CI Lite Autofix logs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ci-lite-autofix-logs
+          name: ci-lite-autofix-logs-\${{ github.run_id }}-\${{ github.run_attempt }}
           path: |
             ci-logs/ci-lite-autofix-result.json
             ci-logs/autofix.log
@@ -610,6 +686,9 @@ jobs:
             ci-logs/typecheck.log
             ci-logs/expo-preflight.log
             ci-logs/expo-config.json
+            ci-logs/metadata.env
+            ci-logs/node-version.log
+            ci-logs/npm-version.log
           retention-days: 7
           if-no-files-found: ignore
 
