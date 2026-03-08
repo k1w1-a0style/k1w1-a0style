@@ -22,3 +22,5 @@ Patch 373 applied: metro config blockList without metro-config internal imports.
 
 
 - Patch 395: hardened CI Lite chain-run dispatch against default-branch workflow staleness by switching chain-run to repository_dispatch and surfacing workflow provenance in CI Lite artifacts/summaries.
+
+- 2026-03-08 Patch 397: workflow traceability polish for CI Lite / Autofix / Supabase deploy metadata and artifact naming

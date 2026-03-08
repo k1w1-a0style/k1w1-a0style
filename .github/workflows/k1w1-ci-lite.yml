@@ -97,6 +97,30 @@ jobs:
         with:
           node-version: 20
 
+      - name: Capture environment metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-logs
+          {
+            echo "timestamp_utc=$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            echo "workflow_version=${WORKFLOW_VERSION}"
+            echo "github_repository=${GITHUB_REPOSITORY}"
+            echo "github_run_id=${GITHUB_RUN_ID}"
+            echo "github_run_attempt=${GITHUB_RUN_ATTEMPT}"
+            echo "github_sha=${GITHUB_SHA}"
+            echo "target_ref=${TARGET_REF:-}"
+            echo "job_id=${JOB_ID:-}"
+            echo "runner_os=${RUNNER_OS}"
+            echo "runner_arch=${RUNNER_ARCH}"
+            echo "trigger_mode=${TRIGGER_MODE:-}"
+            echo "source_workflow=${SOURCE_WORKFLOW:-}"
+            echo "source_run_id=${SOURCE_RUN_ID:-}"
+            echo "source_sha=${SOURCE_SHA:-}"
+          } > ci-logs/metadata.env
+          node --version | tee ci-logs/node-version.log
+          npm --version | tee ci-logs/npm-version.log
+
       - name: Install dependencies (frozen if possible)
         shell: bash
         run: |
@@ -144,8 +168,12 @@ jobs:
 
           cat > ci-logs/ci-lite-result.json <<JSON
           {
+            "workflow_version": "${WORKFLOW_VERSION}",
             "job_id": "${JOB_ID:-}",
             "ref": "${TARGET_REF:-}",
+            "github_run_id": "${GITHUB_RUN_ID}",
+            "github_run_attempt": "${GITHUB_RUN_ATTEMPT}",
+            "github_sha": "${GITHUB_SHA}",
             "eslint_exit": $ESL,
             "tsc_exit": $TSC,
             "expo_exit": $EXPO,
@@ -174,10 +202,14 @@ jobs:
             echo ""
             echo "- ref: `${TARGET_REF}`"
             echo "- job_id: `${JOB_ID:-}`"
+            echo "- workflow version: `${WORKFLOW_VERSION}`"
+            echo "- run id: `${GITHUB_RUN_ID}` / attempt `${GITHUB_RUN_ATTEMPT}`"
+            echo "- sha: `${GITHUB_SHA}`"
             echo "- trigger: `${TRIGGER_MODE:-}`"
             echo "- workflow ref: `${GITHUB_WORKFLOW_REF:-}`"
             echo "- source workflow: `${SOURCE_WORKFLOW:-}`"
             echo "- source run: `${SOURCE_RUN_ID:-}`"
+            echo "- source sha: `${SOURCE_SHA:-}`"
             echo "- eslint: `${{ steps.run.outputs.eslint_exit }}`"
             echo "- tsc: `${{ steps.run.outputs.tsc_exit }}`"
             echo "- expo preflight: `${{ steps.run.outputs.expo_exit }}`"
@@ -185,19 +217,23 @@ jobs:
             echo "Artifacts:"
             echo "- `ci-logs/ci-lite-result.json` (für Header-Polling)"
             echo "- `ci-logs/lint.log`, `ci-logs/typecheck.log`, `ci-logs/expo-preflight.log`"
+            echo "- `ci-logs/metadata.env`, `ci-logs/node-version.log`, `ci-logs/npm-version.log`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload CI Lite logs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: ci-lite-logs
+          name: ci-lite-logs-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ci-logs/ci-lite-result.json
             ci-logs/lint.log
             ci-logs/typecheck.log
             ci-logs/expo-preflight.log
             ci-logs/expo-config.json
+            ci-logs/metadata.env
+            ci-logs/node-version.log
+            ci-logs/npm-version.log
           retention-days: 7
           if-no-files-found: ignore
 

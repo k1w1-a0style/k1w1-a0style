@@ -165,3 +165,5 @@ Siehe `docs/DEV_COMMANDS.md` (Commands/Shortcuts, ohne rg/ripgrep).
 
 
 - Patch 395: hardened CI Lite chain-run dispatch against default-branch workflow staleness by switching chain-run to repository_dispatch and surfacing workflow provenance in CI Lite artifacts/summaries.
+
+- Patch 397: workflow traceability polish for CI Lite, Autofix and Supabase deploy metadata/artifacts.

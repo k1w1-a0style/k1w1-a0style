@@ -394,3 +394,9 @@ Guardrails:
 ## CI Lite chain-run dispatch
 
 `k1w1-ci-lite-autofix.yml` chains into `k1w1-ci-lite.yml` via `repository_dispatch` (`event_type=trigger-ci-lite`). `k1w1-ci-lite.yml` records `workflow_ref`, `workflow_sha`, trigger mode and source workflow metadata in `ci-lite-result.json` to make default-branch workflow provenance visible during debugging.
+
+## Patch 397
+- CI Lite / Autofix now capture lightweight workflow metadata (`metadata.env`, Node version, npm version) and include run id + attempt in artifact names.
+- Supabase deploy now writes a small deploy metadata artifact plus a summary block for manual/manual-like runs.
+- Patch 395 dispatch architecture remains unchanged: `k1w1-ci-lite.yml` keeps `repository_dispatch`, `k1w1-ci-lite-autofix.yml` stays `workflow_dispatch` and dispatches CI Lite via repository dispatch.
+
