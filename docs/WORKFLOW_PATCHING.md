@@ -5,9 +5,18 @@ Dieser Ablauf ist die "Standard-Route" für jeden Patch.
 ## 1) Patch anwenden
 
 ```bash
+rm -rf <PATCH_PACKAGE_DIR>
 unzip -o <PATCH_ZIP> -d .
+chmod +x <PATCH_PACKAGE_DIR>/apply_patch_<ID>.sh
+./<PATCH_PACKAGE_DIR>/apply_patch_<ID>.sh
+rm -rf <PATCH_PACKAGE_DIR>
 rm -f <PATCH_ZIP>
 ```
+
+Hinweise:
+- Erst den alten **entpackten Patch-Ordner** löschen, nicht die ZIP-Datei.
+- Die ZIP kann nach erfolgreichem Anwenden gelöscht werden; sie muss aber bis dahin erhalten bleiben.
+- Wenn das Paket ein Guard-Script mitliefert, dieses vor `typecheck/lint/tests` zusätzlich ausführen.
 
 ## 2) Qualitäts-Checks (müssen grün sein)
 
@@ -34,7 +43,8 @@ git status
 
 ## Nach jedem Patch
 - `docs/TODO.md` aktualisieren (✅ done / 🔜 next).
-- Wenn es ein größerer Block war: `PROJECT_CHECKLOG.md` kurz ergänzen.
+- `PROJECT_CHECKLOG.md` kurz ergänzen.
+- `docs/patches/PATCHLOG_ROOT.md` und die neue `docs/patches/patch_<ID>.md` synchron halten.
 
 ## Neuen Chat starten
 Wenn der Chat zu groß wird: den Inhalt aus `docs/HANDOFF_NEXT_CHAT.md` in den ersten Prompt vom neuen Chat kopieren.

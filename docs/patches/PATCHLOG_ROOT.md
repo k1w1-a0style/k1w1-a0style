@@ -4,6 +4,7 @@ This file is the *index* of patch notes for this repo.
 
 ## Recent
 
+- Patch 393C: documentation/checklog/patchlog sync + patch workflow instructions tightened + guard script added
 - Patch 393B: Supabase deploy workflow gains guarded single-function dispatch without regressing deploy_all safeguards
 - Patch 393A: harden CI Lite / Autofix with pipefail, SHA pinning, and Expo preflight parity
 - Patch 391: restore 5-provider support in k1w1-handler and add provider invariants

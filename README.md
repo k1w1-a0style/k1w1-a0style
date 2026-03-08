@@ -20,7 +20,7 @@ React-Native/Expo App zum Bauen und Testen von Projekten/Flows mit **integrierte
 
 ## Aktueller Stand / Nächste Schritte
 
-- Letzter Stand im Repo: **Patch 393B** (Supabase deploy workflow mit sicherem Single-Function-Deploy ohne Regression im bestehenden deploy_all-Flow).
+- Letzter Stand im Repo: **Patch 393C** (Doku-/Patchlog-/Checklog-Sync, härtere Patch-Anleitung und Guard-Script für Patch-Konsistenz).
 - Vor dem nächsten Code-Patch: **Docs/TODO ist der Single Source of Truth** für alle offenen Punkte.
 
 Wenn du Patches als ZIP einspielst:
@@ -137,10 +137,10 @@ npx expo start -c
 - `supabase/migrations/*previews*.sql`
 
 ## Aktueller Patch-Status
-- Zuletzt: Patch 393B
-- Nächster: Patch 393C
+- Zuletzt: Patch 393C
+- Nächster: TBD
 
-Siehe `docs/patches/patch_393B.md` für Details.
+Siehe `docs/patches/patch_393C.md` für Details.
 
 
 
