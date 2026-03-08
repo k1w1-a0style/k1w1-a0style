@@ -326,7 +326,7 @@ ci-build.yml:
 | ------------------------------- | ----------------------------- | -------------------------- |
 | `build.yml`                     | ✅ `ci-build.yml`             | Optimiert für schnelle CI  |
 | `deploy-supabase-functions.yml` | ✅ `k1w1-triggered-build.yml` | Korrekter Name + Bug-Fixes |
-| `eas-build.yml`                 | ❌ Gelöscht                   | Redundant + Output-Bug     |
+| `eas-build.yml`                 | ✅ Aktiv                      | Reusable EAS build + stricter lockfile policy |
 
 ### Breaking Changes:
 
@@ -337,6 +337,12 @@ ci-build.yml:
 - ✅ EAS Build Konfiguration unverändert
 
 ---
+
+
+### EAS Build lockfile policy
+
+- `development`: darf weiter ohne Lockfile per `npm install` ausweichen (nicht reproduzierbar, aber hilfreich für Autofix/Bootstrap).
+- `preview` und `production`: verlangen jetzt ein vorhandenes `package-lock.json` oder `npm-shrinkwrap.json`. Ohne Lockfile bricht der Workflow bewusst mit Fehler ab.
 
 ### Deploy Supabase (Edge Functions)
 

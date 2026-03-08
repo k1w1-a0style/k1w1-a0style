@@ -20,7 +20,7 @@ React-Native/Expo App zum Bauen und Testen von Projekten/Flows mit **integrierte
 
 ## Aktueller Stand / Nächste Schritte
 
-- Letzter Stand im Repo: **Patch 393C** (Doku-/Patchlog-/Checklog-Sync, härtere Patch-Anleitung und Guard-Script für Patch-Konsistenz).
+- Letzter Stand im Repo: **Patch 394A** (EAS Build strict-lockfile policy für preview/production + Template/Doc sync + Guard-Script).
 - Vor dem nächsten Code-Patch: **Docs/TODO ist der Single Source of Truth** für alle offenen Punkte.
 
 Wenn du Patches als ZIP einspielst:
@@ -30,6 +30,12 @@ Wenn du Patches als ZIP einspielst:
 3) Tests laufen lassen (`npm run test:silent`)
    - Hinweis: Husky/CI deckt `typecheck` + `lint:ci` ohnehin ab.
 4) Commit + Push
+
+
+### EAS Build Lockfile-Policy
+
+- `development`: darf im EAS-Build-Workflow weiter ohne Lockfile auf `npm install` ausweichen.
+- `preview` und `production`: verlangen jetzt bewusst ein vorhandenes `package-lock.json` oder `npm-shrinkwrap.json`. Fehlt das Lockfile, bricht der Workflow mit Fehler ab statt still auf einen nicht reproduzierbaren Install-Fallback zu wechseln.
 
 ### Supabase Workflow-Hinweis
 

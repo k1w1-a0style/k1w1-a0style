@@ -4,6 +4,7 @@ This file is the *index* of patch notes for this repo.
 
 ## Recent
 
+- Patch 394A: EAS Build strict lockfile policy for preview/production + development fallback retained + template/doc sync
 - Patch 393C: documentation/checklog/patchlog sync + patch workflow instructions tightened + guard script added
 - Patch 393B: Supabase deploy workflow gains guarded single-function dispatch without regressing deploy_all safeguards
 - Patch 393A: harden CI Lite / Autofix with pipefail, SHA pinning, and Expo preflight parity
