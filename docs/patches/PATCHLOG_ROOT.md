@@ -3,6 +3,7 @@
 This file is the *index* of patch notes for this repo.
 
 ## Recent
+- Patch 400: CI Lite SHA fallback polish + edge bootstrap metadata version alignment + real Supabase deploy metadata artifact
 - Patch 399: sync CI Lite managed workflow markers, align embedded workflow sources of truth, and fix drift validation scope
 - Patch 398: fix github-run-artifact-json runtime imports + restore CI Lite SHA compatibility for artifact consumers
 - Patch 397: workflow traceability polish for CI Lite, Autofix and Supabase deploy metadata/artifacts

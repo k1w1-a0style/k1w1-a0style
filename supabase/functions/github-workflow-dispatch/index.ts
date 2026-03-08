@@ -741,7 +741,7 @@ async function ensureWorkflowFileExists(
     details: {
       currentMeta,
       managedBy: "k1w1",
-      workflowVersion: "4",
+      workflowVersion: "399",
     },
   };
 }

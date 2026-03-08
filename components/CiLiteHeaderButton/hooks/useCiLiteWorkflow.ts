@@ -177,8 +177,18 @@ export function useCiLiteWorkflow() {
           typeof (json as any).source_commit_sha === "string"
             ? String((json as any).source_commit_sha).trim() || undefined
             : undefined;
+        const source_sha =
+          typeof (json as any).source_sha === "string"
+            ? String((json as any).source_sha).trim() || undefined
+            : undefined;
+        const github_sha =
+          typeof (json as any).github_sha === "string"
+            ? String((json as any).github_sha).trim() || undefined
+            : undefined;
 
-        if (!cancelled) setArtifactResult({ ok, eslint_exit, tsc_exit, source_commit_sha });
+        if (!cancelled) {
+          setArtifactResult({ ok, eslint_exit, tsc_exit, source_commit_sha, source_sha, github_sha });
+        }
       } catch (e) {
         if (!cancelled) setArtifactError(String(e instanceof Error ? e.message : e));
       } finally {
@@ -327,6 +337,8 @@ export function useCiLiteWorkflow() {
     const sourceCommitSha =
       String(
         artifactResult?.source_commit_sha ||
+        artifactResult?.source_sha ||
+        artifactResult?.github_sha ||
         (workflowRun as any)?.head_sha ||
         "",
       ).trim();

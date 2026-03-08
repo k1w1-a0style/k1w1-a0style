@@ -131,6 +131,22 @@ jobs:
           echo "Deploying single function: $FUNCTION_NAME"
           supabase functions deploy "$FUNCTION_NAME"
 
+      - name: Write deploy metadata
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-logs
+          {
+            echo "workflow_version=${WORKFLOW_VERSION}"
+            echo "ref=${{ inputs.ref || github.ref_name }}"
+            echo "deploy_all=${{ github.event.inputs.deploy_all || 'true' }}"
+            echo "function_name=${{ github.event.inputs.function_name || '' }}"
+            echo "github_run_id=${GITHUB_RUN_ID}"
+            echo "github_run_attempt=${GITHUB_RUN_ATTEMPT}"
+            echo "github_sha=${GITHUB_SHA}"
+          } > ci-logs/deploy-metadata.env
+
       - name: Summary
         if: always()
         shell: bash
