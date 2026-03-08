@@ -18,6 +18,17 @@ on:
         description: "Optional build_jobs id to update in Supabase"
         required: false
         default: ""
+      autofix:
+        description: "Allow workflow to write back lockfile/dev-client fixes"
+        required: false
+        type: boolean
+        default: false
+      strict_lockfile:
+        description: "Lockfile policy override (auto|true|false)"
+        required: false
+        type: choice
+        options: [auto, "true", "false"]
+        default: auto
 
 permissions:
   contents: read
@@ -38,5 +49,6 @@ jobs:
       profile: ${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || github.event.inputs.profile || 'preview' }}
       job_id: ${{ github.event.client_payload.job_id || github.event.inputs.job_id || '' }}
       platform: android
-      autofix: false
+      autofix: ${{ github.event_name == 'workflow_dispatch' && inputs.autofix || false }}
+      strict_lockfile: ${{ github.event_name == 'workflow_dispatch' && inputs.strict_lockfile || 'auto' }}
     secrets: inherit

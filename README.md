@@ -20,7 +20,7 @@ React-Native/Expo App zum Bauen und Testen von Projekten/Flows mit **integrierte
 
 ## Aktueller Stand / Nächste Schritte
 
-- Letzter Stand im Repo: **Patch 394A** (EAS Build strict-lockfile policy für preview/production + Template/Doc sync + Guard-Script).
+- Letzter Stand im Repo: **Patch 394B** (EAS Build manual trigger controls für `autofix` + `strict_lockfile=auto|true|false` + Trigger/Template/Doc sync).
 - Vor dem nächsten Code-Patch: **Docs/TODO ist der Single Source of Truth** für alle offenen Punkte.
 
 Wenn du Patches als ZIP einspielst:
@@ -36,6 +36,14 @@ Wenn du Patches als ZIP einspielst:
 
 - `development`: darf im EAS-Build-Workflow weiter ohne Lockfile auf `npm install` ausweichen.
 - `preview` und `production`: verlangen jetzt bewusst ein vorhandenes `package-lock.json` oder `npm-shrinkwrap.json`. Fehlt das Lockfile, bricht der Workflow mit Fehler ab statt still auf einen nicht reproduzierbaren Install-Fallback zu wechseln.
+
+
+### Manuelle EAS-Trigger-Controls
+
+- `k1w1-triggered-build.yml` bietet jetzt bei manuellem Start zusätzlich:
+  - `autofix`
+  - `strict_lockfile` mit den Werten `auto`, `true`, `false`
+- `auto` bleibt der sichere Standard: `preview`/`production` strikt, `development` flexibel.
 
 ### Supabase Workflow-Hinweis
 

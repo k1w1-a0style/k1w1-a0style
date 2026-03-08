@@ -1,3 +1,4 @@
+- 2026-03-08 Patch 394B: EAS manual trigger controls add guarded autofix + strict_lockfile override passthrough and docs/guard sync
 - 2026-03-08 Patch 394A: EAS Build enforces strict lockfile policy for preview/production, keeps development fallback, updates workflow template/docs, and adds guard script
 Patch 373 applied: metro config blockList without metro-config internal imports.
 - 2026-03-05 Patch 374: CI-Lite workflows + templates emit deterministic result JSON artifact

@@ -71,6 +71,8 @@ Diese beiden Workflows sind für den **APK-Builder Flow** gedacht:
 - ✅ Status-Updates in Supabase `build_jobs` Tabelle
 - ✅ Funktioniert auch ohne Job ID (für manuelle Triggers)
 - ✅ Build URL wird extrahiert und gespeichert
+- ✅ Manuelle Trigger können `autofix` und `strict_lockfile` explizit setzen
+- ✅ `strict_lockfile=auto` bleibt standardmäßig profilabhängig (preview/production strikt, development flexibel)
 
 **Build-Zeit:** ~5-10 Minuten
 

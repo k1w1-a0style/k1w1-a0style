@@ -28,6 +28,12 @@ on:
         required: false
         type: boolean
         default: false
+      strict_lockfile:
+        description: "Lockfile policy override (auto|true|false)"
+        required: false
+        type: choice
+        options: [auto, "true", "false"]
+        default: auto
 
   workflow_call:
     inputs:
@@ -56,6 +62,11 @@ on:
         required: false
         type: boolean
         default: false
+      strict_lockfile:
+        description: "Lockfile policy override (auto|true|false)"
+        required: false
+        type: string
+        default: "auto"
     secrets:
       EXPO_TOKEN:
         required: true
@@ -138,15 +149,27 @@ jobs:
         run: |
           set -euo pipefail
           PROFILE="${{ inputs.profile }}"
-          case "$PROFILE" in
-            preview|production)
-              echo "strict=true" >> "$GITHUB_OUTPUT"
+          OVERRIDE="${{ inputs.strict_lockfile }}"
+          case "$OVERRIDE" in
+            true|false)
+              echo "strict=$OVERRIDE" >> "$GITHUB_OUTPUT"
               ;;
-            development)
-              echo "strict=false" >> "$GITHUB_OUTPUT"
+            ""|auto)
+              case "$PROFILE" in
+                preview|production)
+                  echo "strict=true" >> "$GITHUB_OUTPUT"
+                  ;;
+                development)
+                  echo "strict=false" >> "$GITHUB_OUTPUT"
+                  ;;
+                *)
+                  echo "::error::Unknown profile '$PROFILE' while computing strict lockfile policy"
+                  exit 1
+                  ;;
+              esac
               ;;
             *)
-              echo "::error::Unknown profile '$PROFILE' while computing strict lockfile policy"
+              echo "::error::Invalid strict_lockfile override '$OVERRIDE' (allowed: auto|true|false)"
               exit 1
               ;;
           esac
@@ -375,15 +398,27 @@ jobs:
         run: |
           set -euo pipefail
           PROFILE="${{ inputs.profile }}"
-          case "$PROFILE" in
-            preview|production)
-              echo "strict=true" >> "$GITHUB_OUTPUT"
+          OVERRIDE="${{ inputs.strict_lockfile }}"
+          case "$OVERRIDE" in
+            true|false)
+              echo "strict=$OVERRIDE" >> "$GITHUB_OUTPUT"
               ;;
-            development)
-              echo "strict=false" >> "$GITHUB_OUTPUT"
+            ""|auto)
+              case "$PROFILE" in
+                preview|production)
+                  echo "strict=true" >> "$GITHUB_OUTPUT"
+                  ;;
+                development)
+                  echo "strict=false" >> "$GITHUB_OUTPUT"
+                  ;;
+                *)
+                  echo "::error::Unknown profile '$PROFILE' while computing strict lockfile policy"
+                  exit 1
+                  ;;
+              esac
               ;;
             *)
-              echo "::error::Unknown profile '$PROFILE' while computing strict lockfile policy"
+              echo "::error::Invalid strict_lockfile override '$OVERRIDE' (allowed: auto|true|false)"
               exit 1
               ;;
           esac
