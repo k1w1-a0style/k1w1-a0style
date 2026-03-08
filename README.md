@@ -10,7 +10,7 @@
 - Patchlog (append-only): `docs/patches/PATCHLOG_ROOT.md`
 - Checklog (laufend, kurz): `PROJECT_CHECKLOG.md`
 
-- CI Lite (in-app): Globaler Header-Button **✅** triggert GitHub Actions für ESLint + TypeScript plus **Expo-Preflight** (`expo.extra.eas.projectId`). Die Result-JSONs bleiben header-kompatibel (`ok`, `eslint_exit`, `tsc_exit`) und ergänzen `expo_exit`. Im Modal kannst du Logs kopieren, ein **Apply Patch (JSON)** ausführen und optional **Autofix ESLint** (separater Workflow, guarded writeback). **Nach erfolgreichem Autofix** folgt automatisch ein **Chain-Run** (CI Lite) auf derselben Branch; der Header zeigt den Status über ein kleines Lämpchen.
+- CI Lite (in-app): Globaler Header-Button **✅** triggert GitHub Actions für ESLint + TypeScript (robust mit Fallbacks). Im Modal kannst du Logs kopieren, ein **Apply Patch (JSON)** ausführen und optional **Autofix ESLint** (separater Workflow, guarded writeback). **Nach erfolgreichem Autofix** folgt automatisch ein **Chain-Run** (CI Lite) auf derselben Branch; der Header zeigt den Status über ein kleines Lämpchen.
 
 
 
@@ -20,7 +20,7 @@ React-Native/Expo App zum Bauen und Testen von Projekten/Flows mit **integrierte
 
 ## Aktueller Stand / Nächste Schritte
 
-- Letzter Stand im Repo: **Patch 397** (workflow traceability polish für CI Lite, Autofix und Supabase deploy, ohne Regression der CI-Lite-Chain-Dispatch-Architektur aus Patch 395).
+- Letzter Stand im Repo: **Patch 317** (Preview payload limits server-side + hourly cleanup cron).
 - Vor dem nächsten Code-Patch: **Docs/TODO ist der Single Source of Truth** für alle offenen Punkte.
 
 Wenn du Patches als ZIP einspielst:
@@ -30,25 +30,6 @@ Wenn du Patches als ZIP einspielst:
 3) Tests laufen lassen (`npm run test:silent`)
    - Hinweis: Husky/CI deckt `typecheck` + `lint:ci` ohnehin ab.
 4) Commit + Push
-
-
-### EAS Build Lockfile-Policy
-
-- `development`: darf im EAS-Build-Workflow weiter ohne Lockfile auf `npm install` ausweichen.
-- `preview` und `production`: verlangen jetzt bewusst ein vorhandenes `package-lock.json` oder `npm-shrinkwrap.json`. Fehlt das Lockfile, bricht der Workflow mit Fehler ab statt still auf einen nicht reproduzierbaren Install-Fallback zu wechseln.
-
-
-### Manuelle EAS-Trigger-Controls
-
-- `k1w1-triggered-build.yml` bietet jetzt bei manuellem Start zusätzlich:
-  - `autofix`
-  - `strict_lockfile` mit den Werten `auto`, `true`, `false`
-- `auto` bleibt der sichere Standard: `preview`/`production` strikt, `development` flexibel.
-
-### Supabase Workflow-Hinweis
-
-- `deploy-supabase-functions.yml` kann jetzt manuell entweder **alle** Edge Functions deployen (`deploy_all=true`) oder gezielt **eine** Function über `function_name`, wenn `deploy_all=false`.
-- Der bestehende Flow bleibt dabei absichtlich erhalten: gepinnte CLI, `supabase login`, `supabase link`, `_shared` wird weiter blockiert.
 
 ## Was das Preview-System kann
 
@@ -151,20 +132,12 @@ npx expo start -c
 - `supabase/migrations/*previews*.sql`
 
 ## Aktueller Patch-Status
-- Zuletzt: Patch 397
-- Nächster: TBD
+- Zuletzt: Patch 216
+- Nächster: Patch 217 (done)
 
-Siehe `docs/patches/patch_397.md` für Details.
+Next: Patch 218 (siehe `docs/patches/patch_217.md`)
 
 
 
 ## Dev Commands
 Siehe `docs/DEV_COMMANDS.md` (Commands/Shortcuts, ohne rg/ripgrep).
-
-## Letzte Workflow-/Build-Patches
-- Patch 397: workflow traceability polish für CI Lite, Autofix und Supabase deploy metadata/artifacts.
-- Patch 396: production EAS keystore export writes sanitized diagnostics artifacts and always cleans up temporary signing files.
-- Patch 395: hardened CI Lite chain-run dispatch against default-branch workflow staleness by switching chain-run to `repository_dispatch` and surfacing workflow provenance in CI Lite artifacts/summaries.
-- Patch 394B: manual EAS trigger controls for `autofix` + `strict_lockfile=auto|true|false`.
-- Patch 394A: strict lockfile policy for preview/production with development fallback retained.
-- Patch 393C/393B/393A: split workflow hardening series covering docs sync, guarded Supabase deploy and CI Lite/Autofix preflight hardening.

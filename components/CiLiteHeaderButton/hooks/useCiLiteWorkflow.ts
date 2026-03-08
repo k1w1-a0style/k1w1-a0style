@@ -32,7 +32,7 @@ export function useCiLiteWorkflow() {
   const [chainWaiting, setChainWaiting] = useState(false);
 
   const [artifactResult, setArtifactResult] = useState<
-    | { ok: boolean; eslint_exit?: number; tsc_exit?: number; source_commit_sha?: string }
+    | { ok: boolean; eslint_exit?: number; tsc_exit?: number; source_commit_sha?: string; source_sha?: string; github_sha?: string }
     | null
   >(null);
   const [artifactLoading, setArtifactLoading] = useState(false);

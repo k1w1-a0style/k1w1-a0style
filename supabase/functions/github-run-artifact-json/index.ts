@@ -1,8 +1,6 @@
-import { corsHeaders, handleOptions } from "../_shared/cors.ts";
-import { requireAdminAuth } from "../_shared/auth.ts";
-import { withErrorSanitization } from "../_shared/errorSanitization.ts";
-import { githubFetchJson, githubFetchRaw } from "../_shared/github.ts";
-import { isSafeGitHubRepo } from "../_shared/security.ts";
+import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
+import { requireAdminKey } from "../_shared/auth.ts";
+import { githubFetchJson, githubFetchRaw, getGithubToken } from "../_shared/github.ts";
 
 // GitHub Artifacts are delivered as ZIP. The Deno std ZIP module moved around and
 // is often blocked by edge bundlers. Use a small, bundler-friendly unzipper.
@@ -24,125 +22,91 @@ type Artifact = {
 };
 
 function normalizeZipPath(p: string): string {
-  // GitHub zips usually store forward slashes. Normalize common variants.
-  return p.replace(/^\.\//, "").replace(/\\/g, "/");
+  return p.replace(/^\.\//, "").replace(/\/g, "/");
 }
 
 function pickFileFromZip(files: Record<string, Uint8Array>, wanted: string): Uint8Array | null {
   const target = normalizeZipPath(wanted);
-
-  // 1) Exact match
   if (files[target]) return files[target];
-
-  // 2) Sometimes entries contain a leading folder (rare with GH artifacts, but safe)
   const keys = Object.keys(files);
   const suffixMatch = keys.find((k) => normalizeZipPath(k).endsWith("/" + target) || normalizeZipPath(k) === target);
   if (suffixMatch) return files[suffixMatch];
-
   return null;
 }
 
-Deno.serve(
-  withErrorSanitization(async (req: Request) => {
-    const opt = handleOptions(req);
-    if (opt) return opt;
+function isSafeGitHubRepo(repo: string): boolean {
+  return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo);
+}
 
-    // Auth (admin-only)
-    await requireAdminAuth(req);
+Deno.serve(async (req: Request) => {
+  const cors = handleCors(req);
+  if (cors) return cors;
+
+  const authError = requireAdminKey(req);
+  if (authError) return authError;
+
+  try {
+    const token = getGithubToken();
+    if (!token) {
+      return errorResponse("Missing GitHub token for artifact lookup", req, 500);
+    }
 
     const body = (await req.json().catch(() => null)) as ReqBody | null;
-    if (!body) {
-      return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!body) return errorResponse("Invalid JSON body", req, 400);
 
     const { githubRepo, runId, artifactName, filePath } = body;
 
     if (!githubRepo || !isSafeGitHubRepo(githubRepo)) {
-      return new Response(JSON.stringify({ error: "Invalid githubRepo" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return errorResponse("Invalid githubRepo", req, 400);
     }
     if (!Number.isFinite(runId) || runId <= 0) {
-      return new Response(JSON.stringify({ error: "Invalid runId" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return errorResponse("Invalid runId", req, 400);
     }
     if (!artifactName || typeof artifactName !== "string") {
-      return new Response(JSON.stringify({ error: "Invalid artifactName" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return errorResponse("Invalid artifactName", req, 400);
     }
     if (!filePath || typeof filePath !== "string" || filePath.includes("..") || filePath.startsWith("/")) {
-      return new Response(JSON.stringify({ error: "Invalid filePath" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return errorResponse("Invalid filePath", req, 400);
     }
 
-    // Fetch artifacts for run
     const artifactsUrl = `https://api.github.com/repos/${githubRepo}/actions/runs/${runId}/artifacts`;
-    const artifactsResp = await githubFetchJson<{ artifacts: Artifact[] }>(artifactsUrl);
+    const artifactsResp = await githubFetchJson<{ artifacts: Artifact[] }>(artifactsUrl, token);
     const artifacts = artifactsResp?.artifacts ?? [];
     const artifact = artifacts.find((a) => a.name === artifactName);
 
     if (!artifact) {
-      return new Response(JSON.stringify({ error: `Artifact not found: ${artifactName}`, runId }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return errorResponse(`Artifact not found: ${artifactName}`, req, 404, { runId });
     }
     if (artifact.expired) {
-      return new Response(JSON.stringify({ error: `Artifact expired: ${artifactName}`, runId }), {
-        status: 410,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return errorResponse(`Artifact expired: ${artifactName}`, req, 410, { runId });
     }
 
-    // Download ZIP (GitHub requires auth header; githubFetchRaw already handles it)
-    const zipRes = await githubFetchRaw(artifact.archive_download_url);
+    const zipRes = await githubFetchRaw(artifact.archive_download_url, token);
     if (!zipRes.ok) {
-      return new Response(JSON.stringify({ error: `Failed to download artifact zip (${zipRes.status})`, runId }), {
-        status: 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return errorResponse(`Failed to download artifact zip (${zipRes.status})`, req, 502, { runId });
     }
 
     const zipBytes = new Uint8Array(await zipRes.arrayBuffer());
 
-    // Unzip in-memory
     let files: Record<string, Uint8Array>;
     try {
       files = unzipSync(zipBytes);
     } catch (e) {
-      return new Response(JSON.stringify({ error: `Failed to unzip artifact: ${String(e)}`, runId }), {
-        status: 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return errorResponse(`Failed to unzip artifact: ${String(e)}`, req, 502, { runId });
     }
 
     const found = pickFileFromZip(files, filePath);
     if (!found) {
-      return new Response(
-        JSON.stringify({
-          error: `File not found in artifact zip: ${filePath}`,
-          runId,
-          artifactId: artifact.id,
-          artifactName: artifact.name,
-          availableFiles: Object.keys(files).slice(0, 50),
-        }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return errorResponse(`File not found in artifact zip: ${filePath}`, req, 404, {
+        runId,
+        artifactId: artifact.id,
+        artifactName: artifact.name,
+        availableFiles: Object.keys(files).slice(0, 50),
+      });
     }
 
     const text = strFromU8(found);
 
-    // If it's JSON, parse and return object too
     let parsed: unknown = null;
     try {
       parsed = JSON.parse(text);
@@ -150,8 +114,8 @@ Deno.serve(
       parsed = null;
     }
 
-    return new Response(
-      JSON.stringify({
+    return jsonResponse(
+      {
         ok: true,
         runId,
         artifactId: artifact.id,
@@ -159,8 +123,11 @@ Deno.serve(
         filePath,
         text,
         json: parsed,
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      },
+      req,
+      200,
     );
-  })
-);
+  } catch (e) {
+    return errorResponse(String(e instanceof Error ? e.message : e), req, 500);
+  }
+});
