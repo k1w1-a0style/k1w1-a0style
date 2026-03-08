@@ -10,7 +10,7 @@ Dieses Projekt verwendet optimierte GitHub Actions Workflows für CI/CD und Buil
 | **ci-build.yml**             | K1W1 App oder manuell | App-getriggerte CI (reusable CI Core)   | ~5-8 min   | ❌        |
 | **k1w1-triggered-build.yml** | K1W1 App oder manuell | Vollständiger Build mit Status-Tracking | ~5-10 min  | ❌        |
 | **release-build.yml**        | Manuell               | Production Builds mit Download          | ~10-15 min | ✅        |
-| **k1w1-ci-lite.yml**         | Manuell / K1W1 App     | Read-only CI Lite (ESLint + Typecheck)  | ~2-5 min   | ✅        |
+| **k1w1-ci-lite.yml**         | Manuell / K1W1 App     | Read-only CI Lite (ESLint + Typecheck + Expo preflight) | ~2-5 min   | ✅        |
 | **k1w1-ci-lite-autofix.yml** | Manuell / K1W1 App     | ESLint --fix + verify + optional writeback | ~3-7 min | ✅        |
 
 ---
@@ -47,8 +47,8 @@ git push origin main
 
 Diese beiden Workflows sind für den **APK-Builder Flow** gedacht:
 
-- `k1w1-ci-lite.yml`: Read-only Checks (robust: fallback auf `npx eslint`/`npx tsc`, speichert Logs als Artifact)
-- `k1w1-ci-lite-autofix.yml`: ESLint `--fix` + guarded commit/push auf erlaubte Branches + Verify (Lint+Typecheck)
+- `k1w1-ci-lite.yml`: Read-only Checks (robust: fallback auf `npx eslint`/`npx tsc`, Expo-preflight auf `expo.extra.eas.projectId`, speichert Logs als Artifact)
+- `k1w1-ci-lite-autofix.yml`: ESLint `--fix` + guarded commit/push auf erlaubte Branches + Verify (Lint+Typecheck+Expo preflight)
 
 **Chain-run:** Wenn Autofix erfolgreich ist, dispatcht der Workflow automatisch einen nachfolgenden CI Lite Run (gleiches `job_id`).
 

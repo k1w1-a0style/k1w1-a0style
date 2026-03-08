@@ -10,7 +10,7 @@
 - Patchlog (append-only): `docs/patches/PATCHLOG_ROOT.md`
 - Checklog (laufend, kurz): `PROJECT_CHECKLOG.md`
 
-- CI Lite (in-app): Globaler Header-Button **✅** triggert GitHub Actions für ESLint + TypeScript (robust mit Fallbacks). Im Modal kannst du Logs kopieren, ein **Apply Patch (JSON)** ausführen und optional **Autofix ESLint** (separater Workflow, guarded writeback). **Nach erfolgreichem Autofix** folgt automatisch ein **Chain-Run** (CI Lite) auf derselben Branch; der Header zeigt den Status über ein kleines Lämpchen.
+- CI Lite (in-app): Globaler Header-Button **✅** triggert GitHub Actions für ESLint + TypeScript plus **Expo-Preflight** (`expo.extra.eas.projectId`). Die Result-JSONs bleiben header-kompatibel (`ok`, `eslint_exit`, `tsc_exit`) und ergänzen `expo_exit`. Im Modal kannst du Logs kopieren, ein **Apply Patch (JSON)** ausführen und optional **Autofix ESLint** (separater Workflow, guarded writeback). **Nach erfolgreichem Autofix** folgt automatisch ein **Chain-Run** (CI Lite) auf derselben Branch; der Header zeigt den Status über ein kleines Lämpchen.
 
 
 
@@ -20,7 +20,7 @@ React-Native/Expo App zum Bauen und Testen von Projekten/Flows mit **integrierte
 
 ## Aktueller Stand / Nächste Schritte
 
-- Letzter Stand im Repo: **Patch 317** (Preview payload limits server-side + hourly cleanup cron).
+- Letzter Stand im Repo: **Patch 393A** (CI Lite/Autofix mit pipefail, SHA pinning und Expo preflight parity).
 - Vor dem nächsten Code-Patch: **Docs/TODO ist der Single Source of Truth** für alle offenen Punkte.
 
 Wenn du Patches als ZIP einspielst:
@@ -132,10 +132,10 @@ npx expo start -c
 - `supabase/migrations/*previews*.sql`
 
 ## Aktueller Patch-Status
-- Zuletzt: Patch 216
-- Nächster: Patch 217 (done)
+- Zuletzt: Patch 393A
+- Nächster: Patch 393B
 
-Next: Patch 218 (siehe `docs/patches/patch_217.md`)
+Siehe `docs/patches/patch_393A.md` für Details.
 
 
 

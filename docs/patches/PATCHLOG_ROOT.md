@@ -4,6 +4,7 @@ This file is the *index* of patch notes for this repo.
 
 ## Recent
 
+- Patch 393A: harden CI Lite / Autofix with pipefail, SHA pinning, and Expo preflight parity
 - Patch 391: restore 5-provider support in k1w1-handler and add provider invariants
 - Patch 390: fix edge-function helper visibility/reexports and add regression tests
 - Patch 389: workflow template drift check + strict CI-Lite branch dispatch
