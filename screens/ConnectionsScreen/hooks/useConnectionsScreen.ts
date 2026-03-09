@@ -9,6 +9,7 @@ import { githubApiUrl } from "../../../shared/constants/github";
 import { autoFixCIWorkflows, parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
 import { useGitHub } from "../../../contexts/GitHubContext";
 import { useProject } from "../../../contexts/ProjectContext";
+import { resolveRepoBranchSelection } from "../../../lib/selection/repoBranch";
 import {
   getGitHubToken,
   saveGitHubToken,
@@ -168,22 +169,14 @@ export function useConnectionsScreen() {
   const [showSupabaseAnon, setShowSupabaseAnon] = useState(false);
   const [showSupabaseServiceRole, setShowSupabaseServiceRole] = useState(false);
 
-  const repoLine = useMemo(() => {
-    const repo = activeRepo || projectData?.linkedRepo || "";
-    const br = activeBranch || projectData?.linkedBranch || "";
-    if (!repo) return "";
-    return `${repo}${br ? ` (${br})` : ""}`;
-  }, [
-    activeRepo,
-    activeBranch,
-    projectData?.linkedRepo,
-    projectData?.linkedBranch,
-  ]);
+  const selection = useMemo(
+    () => resolveRepoBranchSelection({ projectData, activeRepo, activeBranch }),
+    [projectData, activeRepo, activeBranch],
+  );
 
-  const effectiveRepo = useMemo(() => {
-    const repo = (activeRepo || projectData?.linkedRepo || "").trim();
-    return repo ? repo : null;
-  }, [activeRepo, projectData?.linkedRepo]);
+  const repoLine = selection.repoLine;
+  const effectiveRepo = selection.repo || null;
+  const effectiveBranch = selection.branch || null;
 
 
   // Load stored settings on mount
@@ -596,8 +589,14 @@ export function useConnectionsScreen() {
       return;
     }
 
-    const branch =
-      (activeBranch || projectData?.linkedBranch || "main").trim() || "main";
+    const branch = (effectiveBranch || "").trim();
+    if (!branch) {
+      Alert.alert(
+        "Fehler",
+        "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen.",
+      );
+      return;
+    }
 
     const parsed = parseOwnerRepo(repoSlug);
     if (!parsed) {
@@ -669,8 +668,7 @@ export function useConnectionsScreen() {
     isEasInitRunning,
     githubToken,
     effectiveRepo,
-    activeBranch,
-    projectData?.linkedBranch,
+    effectiveBranch,
     easProjectId,
   ]);
 
@@ -689,8 +687,14 @@ export function useConnectionsScreen() {
       return;
     }
 
-    const branch =
-      (activeBranch || projectData?.linkedBranch || "main").trim() || "main";
+    const branch = (effectiveBranch || "").trim();
+    if (!branch) {
+      Alert.alert(
+        "Fehler",
+        "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen.",
+      );
+      return;
+    }
 
     const parsed = parseOwnerRepo(repoSlug);
     if (!parsed) {
@@ -718,7 +722,7 @@ export function useConnectionsScreen() {
     } finally {
       setIsEasInitRunning(false);
     }
-  }, [isEasInitRunning, githubToken, effectiveRepo, activeBranch, projectData?.linkedBranch]);
+  }, [isEasInitRunning, githubToken, effectiveRepo, effectiveBranch]);
 
 
   return {

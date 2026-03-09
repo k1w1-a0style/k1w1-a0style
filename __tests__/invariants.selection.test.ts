@@ -40,6 +40,25 @@ describe("Invariants: repo/branch selection is source of truth", () => {
     expect(src).toContain('projectData?.linkedBranch?.trim() || ""');
   });
 
+
+  it("does not silently fall back to 'main' in ConnectionsScreen EAS prep flows", () => {
+    const src = read("screens/ConnectionsScreen/hooks/useConnectionsScreen.ts");
+
+    expect(src).toContain("Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen.");
+    expect(src).not.toContain('projectData?.linkedBranch || "main"');
+    expect(src).not.toContain('activeBranch || projectData?.linkedBranch || "main"');
+  });
+
+  it("keeps repo/branch selection centralized in the shared helper", () => {
+    const src = read("screens/ConnectionsScreen/hooks/useConnectionsScreen.ts");
+    const helper = read("lib/selection/repoBranch.ts");
+
+    expect(src).toContain("resolveRepoBranchSelection");
+    expect(helper).toContain("projectData.linkedRepo exists");
+    expect(helper).toContain("We never mix project repo with GitHubContext branch");
+    expect(helper).toContain("We never invent a default branch here");
+  });
+
   it("passes deterministic artifact result into computeCiLiteOk", () => {
     const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
 

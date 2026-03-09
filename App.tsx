@@ -3,7 +3,7 @@ import "./polyfills";
 import "react-native-get-random-values";
 import "react-native-reanimated";
 
-import React, { useEffect } from "react";
+import React from "react";
 import {
   LogBox,
   StyleSheet,
@@ -31,7 +31,7 @@ import { theme } from "./theme";
 import { TerminalProvider } from "./contexts/TerminalContext";
 import { AIProvider } from "./contexts/AIContext";
 import { ProjectProvider, useProject } from "./contexts/ProjectContext";
-import { GitHubProvider, useGitHub } from "./contexts/GitHubContext";
+import { GitHubProvider } from "./contexts/GitHubContext";
 
 import ChatScreen from "./screens/ChatScreen";
 import CodeScreen from "./screens/CodeScreen";
@@ -190,22 +190,7 @@ const DrawerRoot = () => {
 };
 
 const AppNavigation = () => {
-  const { isLoading, projectData } = useProject();
-  const { setActiveRepo, setActiveBranch } = useGitHub();
-
-  // ✅ FIX: linkedRepo/linkedBranch aus ProjectContext in GitHubContext spiegeln
-  useEffect(() => {
-    const repo = projectData?.linkedRepo ?? null;
-    const branch = projectData?.linkedBranch ?? null;
-
-    if (repo) setActiveRepo(repo);
-    if (branch) setActiveBranch(branch);
-  }, [
-    projectData?.linkedRepo,
-    projectData?.linkedBranch,
-    setActiveRepo,
-    setActiveBranch,
-  ]);
+  const { isLoading } = useProject();
 
   if (isLoading) {
     return (
