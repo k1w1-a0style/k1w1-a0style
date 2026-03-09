@@ -1,6 +1,6 @@
 // Shared auth helpers for Supabase Edge Functions
 // Intended for internal tooling (wizard + CI).
-import { corsHeadersForRequest, errorResponse } from "./cors.ts";
+import { errorResponse } from "./cors.ts";
 
 export function getBearerToken(req: Request): string | null {
   const h = req.headers.get("authorization") ?? req.headers.get("Authorization");
@@ -17,52 +17,90 @@ export function getAdminKeyHeader(req: Request): string | null {
   )?.trim() || null;
 }
 
-/**
- * Returns the service role key to use for server-side Supabase operations.
- * Order:
- *  1) Authorization: Bearer <token> (recommended for CI / internal apps)
- *  2) SUPABASE_SERVICE_ROLE_KEY env (if configured as function secret)
- */
-export function getServiceRoleKey(req: Request): string | null {
-  return getBearerToken(req) || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || null;
+export function hasAdminKeySecretConfigured(): boolean {
+  return !!(
+    Deno.env.get("K1W1_EDGE_ADMIN_KEY") ||
+    Deno.env.get("SIGNING_ADMIN_KEY")
+  );
+}
+
+export function hasServiceRoleSecretConfigured(): boolean {
+  return !!(
+    Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+  );
 }
 
 /**
- * Verify x-k1w1-admin-key against SIGNING_ADMIN_KEY secret.
- * Returns Response on failure, null on success (backwards compatible).
+ * Returns the server-side service role key to use for Supabase operations.
+ * Important: this is looked up only from Edge Function secrets and never from
+ * the caller's Authorization header.
+ */
+export function getServiceRoleKey(_req: Request): string | null {
+  return (
+    Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
+    null
+  );
+}
+
+/**
+ * Verify x-k1w1-admin-key against K1W1_EDGE_ADMIN_KEY / SIGNING_ADMIN_KEY.
+ * Returns Response on failure, null on success.
  */
 export function requireAdminKey(req: Request): Response | null {
-  const expected = Deno.env.get("SIGNING_ADMIN_KEY") ?? null;
-  const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? null;
+  const expected =
+    Deno.env.get("K1W1_EDGE_ADMIN_KEY") ??
+    Deno.env.get("SIGNING_ADMIN_KEY") ??
+    null;
+  const got = getAdminKeyHeader(req) ?? "";
 
-  const gotHeader = req.headers.get("x-k1w1-admin-key") ?? "";
-  const bearer = getBearerToken(req);
-
-  // Allow either:
-  // 1) x-k1w1-admin-key == SIGNING_ADMIN_KEY (strict admin secret), OR
-  // 2) Authorization: Bearer <SUPABASE_SERVICE_ROLE_KEY> (CI/internal automation)
-  const okByHeader = !!expected && gotHeader.length > 0 && gotHeader === expected;
-  const okByServiceRole = !!serviceRole && !!bearer && bearer === serviceRole;
-
-  if (okByHeader || okByServiceRole) return null;
-
-  if (!expected && !serviceRole) {
+  if (!expected) {
     return errorResponse(
-      "Missing admin auth secrets for this Edge Function. Set SIGNING_ADMIN_KEY and/or SUPABASE_SERVICE_ROLE_KEY as function secrets.",
+      "Missing admin auth secret for this Edge Function.",
       req,
       500,
-      { missing: ["SIGNING_ADMIN_KEY", "SUPABASE_SERVICE_ROLE_KEY"] },
+      { missing: ["K1W1_EDGE_ADMIN_KEY|SIGNING_ADMIN_KEY"] },
     );
   }
 
+  if (got && got === expected) return null;
+
   return errorResponse(
-    "Unauthorized: missing or invalid admin credentials.",
+    "Unauthorized: missing or invalid admin key.",
     req,
     401,
-    {
-      required:
-        "Either x-k1w1-admin-key (SIGNING_ADMIN_KEY) OR Authorization: Bearer (SUPABASE_SERVICE_ROLE_KEY)",
-    },
+    { required: "x-k1w1-admin-key" },
+  );
+}
+
+/**
+ * Verify Authorization: Bearer <service-role-secret> for CI/internal callers.
+ * This is a caller-auth gate only. It does not supply the server-side DB key.
+ */
+export function requireServiceRoleBearer(req: Request): Response | null {
+  const expected =
+    Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY") ??
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
+    null;
+  const got = getBearerToken(req) ?? "";
+
+  if (!expected) {
+    return errorResponse(
+      "Missing service-role secret for CI bearer auth.",
+      req,
+      500,
+      { missing: ["K1W1_SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY"] },
+    );
+  }
+
+  if (got && got === expected) return null;
+
+  return errorResponse(
+    "Unauthorized: missing or invalid CI bearer token.",
+    req,
+    401,
+    { required: "Authorization: Bearer <service-role-secret>" },
   );
 }
 
@@ -76,7 +114,7 @@ export function rateLimit(
   req: Request,
   key: string,
   max = 10,
-  windowMs = 10_000
+  windowMs = 10_000,
 ): Response | null {
   const ip =
     req.headers.get("cf-connecting-ip") ||

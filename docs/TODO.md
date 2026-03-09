@@ -10,7 +10,8 @@ Stand: **2026-03-09**
 
 - [x] Patch 408 — build_jobs / Build-Job-ID-Vertrag glattziehen
 - [x] Patch 409 — Diagnostics Upload / RPC-Vertrag sauberziehen
-- [ ] Patch 410 — Service-Role-/Secret-Containment sauber trennen
+- [x] Patch 410A — Edge auth paths trennen (Admin-Key vs. CI service-role bearer)
+- [ ] Patch 410B — Client-side Service-Role-Key aus tokenStore/Secret-Sync eliminieren
 - [ ] Patch 411 — Supabase Deploy + DB-Migrations-Flow/Workflow härten
 - [ ] Patch 412 — RLS/Policies/Hardening + abschließende Doku-/Test-Sweeps
 - [ ] Patch 413 — SoT-Aufräumrunde für restliche Repo/Branch-/Fallback-Stellen
@@ -18,6 +19,7 @@ Stand: **2026-03-09**
 ### Erinnerungen / Nacharbeiten
 - [ ] Hardening-Follow-up: `Number(jobId)`-Thema für sehr große bigint-Werte später separat prüfen (aktueller Build-Job-Vertrag ist okay, aber JS-safe-integer Thema bleibt als Reminder offen)
 - [ ] Hardening-Follow-up: UUID-Kompatibilitätsregex in `normalizeDiagnosticUploadId()` später enger ziehen oder entfernen, sobald der Diagnostics-Vertrag endgültig nur noch einen ID-Typ nutzt
+- [ ] Hardening-Follow-up: Bearer-Admin-Ersatz aus übrigen Edge-Pfaden vollständig gegen explizite Admin-/CI-Guards prüfen
 
 ---
 

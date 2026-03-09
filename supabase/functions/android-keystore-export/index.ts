@@ -1,7 +1,23 @@
 // supabase/functions/android-keystore-export/index.ts
 // REFACTORED: helpers → helpers.ts
 
-import { Mode,resolveMode,safeString,repoOk,base64UrlToString,getJwtRole,getJwtSub,deriveAesKeyBytes,binaryStringToBytes,decryptWithAesCbc,createClient,errorResponse,getServiceRoleKey,handleCors,jsonResponse,rateLimit,requireAdminKey } from "./helpers.ts";
+import {
+  createClient,
+  decryptWithAesCbc,
+  errorResponse,
+  getJwtSub,
+  getServiceRoleKey,
+  handleCors,
+  hasAdminKeySecretConfigured,
+  hasServiceRoleSecretConfigured,
+  jsonResponse,
+  rateLimit,
+  repoOk,
+  requireAdminKey,
+  requireServiceRoleBearer,
+  resolveMode,
+  safeString,
+} from "./helpers.ts";
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
@@ -10,23 +26,44 @@ Deno.serve(async (req) => {
   const rl = rateLimit(req, "android-keystore-export", 30, 60_000);
   if (rl) return rl;
 
-  // CI path: allow service_role JWT WITHOUT admin key
-  const role = getJwtRole(req);
-  if (role === "service_role") {
-    // ok
-  } else {
-    // Dev / manual path: require admin key (if configured)
-    const admin = requireAdminKey(req);
-    if (admin) return admin;
+  const hasAdmin = hasAdminKeySecretConfigured();
+  const hasCi = hasServiceRoleSecretConfigured();
 
-    return errorResponse(
-      "Forbidden",
-      req,
-      403,
-      {
-        hint: "This endpoint is CI-only. Use SUPABASE_SERVICE_ROLE_KEY as Bearer token.",
-      },
-    );
+  const adminAuth = hasAdmin ? requireAdminKey(req) : null;
+  const ciAuth = hasCi ? requireServiceRoleBearer(req) : null;
+
+  if (adminAuth || ciAuth) {
+    const adminOk = adminAuth === null;
+    const ciOk = ciAuth === null;
+
+    if (!adminOk && !ciOk) {
+      if (hasAdmin && !hasCi) return adminAuth;
+      if (!hasAdmin && hasCi) return ciAuth;
+      if (!hasAdmin && !hasCi) {
+        return errorResponse(
+          "Missing auth configuration for android-keystore-export.",
+          req,
+          500,
+          {
+            missing: [
+              "K1W1_EDGE_ADMIN_KEY|SIGNING_ADMIN_KEY",
+              "K1W1_SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY",
+            ],
+          },
+        );
+      }
+      return errorResponse(
+        "Unauthorized: missing or invalid admin key / CI bearer token.",
+        req,
+        401,
+        {
+          accepted: [
+            "x-k1w1-admin-key",
+            "Authorization: Bearer <service-role-secret>",
+          ],
+        },
+      );
+    }
   }
 
   try {
@@ -35,7 +72,11 @@ Deno.serve(async (req) => {
     const masterKey = Deno.env.get("SIGNING_MASTER_KEY");
 
     if (!supabaseUrl || !serviceKey) {
-      return errorResponse("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY", req, 500);
+      return errorResponse(
+        "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY",
+        req,
+        500,
+      );
     }
     if (!masterKey || masterKey.trim().length < 24) {
       return errorResponse(
@@ -49,20 +90,26 @@ Deno.serve(async (req) => {
     const repo = safeString(body?.repo);
 
     if (!repoOk(repo)) {
-      return errorResponse("Invalid repo format. Expected 'owner/name'.", req, 400);
+      return errorResponse(
+        "Invalid repo format. Expected 'owner/name'.",
+        req,
+        400,
+      );
     }
     const resolvedMode = resolveMode(body?.mode);
-
 
     const supabase = createClient(supabaseUrl, serviceKey);
 
     const { data, error } = await supabase
       .from("signing_android")
       .select("repo, alias, storage_bucket, storage_path")
-      .eq("repo", repo).eq("mode", resolvedMode)
+      .eq("repo", repo)
+      .eq("mode", resolvedMode)
       .maybeSingle();
 
-    if (error) return errorResponse("DB read failed", req, 500, { message: error.message });
+    if (error) {
+      return errorResponse("DB read failed", req, 500, { message: error.message });
+    }
     if (!data) return errorResponse("No signing record for repo", req, 404, { repo });
 
     const bucket = String(data.storage_bucket || "").trim();
@@ -80,11 +127,11 @@ Deno.serve(async (req) => {
     const decrypted = await decryptWithAesCbc(encrypted, masterKey);
     const parsed = JSON.parse(decrypted);
 
-    // CI expects base64 JKS/P12 and passwords.
-        // Best-effort audit logging (do not leak secrets without leaving a trace).
     try {
       const actor = getJwtSub(req) || "service_role";
-      const ip = (req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "").split(",")[0].trim();
+      const ip = (req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "")
+        .split(",")[0]
+        .trim();
       const userAgent = req.headers.get("user-agent") || "";
       await supabase.from("signing_audit_log").insert({
         repo,
@@ -95,11 +142,10 @@ Deno.serve(async (req) => {
         user_agent: userAgent,
       });
     } catch {
-      // ignore audit failures to avoid breaking CI, but keep server logs.
       console.warn("[signing_audit_log] insert failed");
     }
 
-return jsonResponse(
+    return jsonResponse(
       {
         ok: true,
         repo,
@@ -111,6 +157,8 @@ return jsonResponse(
       req,
     );
   } catch (e) {
-    return errorResponse("Unhandled error", req, 500, { message: e?.message || String(e) });
+    return errorResponse("Unhandled error", req, 500, {
+      message: e instanceof Error ? e.message : String(e),
+    });
   }
 });
