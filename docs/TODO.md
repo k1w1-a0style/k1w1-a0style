@@ -1,14 +1,27 @@
 # TODO
 
-Stand: **2026-02-20**
+Stand: **2026-03-09**
 
 > Dieses Dokument ist die **laufende Restliste**.  
 > Alle Security-/Privacy-P1-Fixes aus den Screen-Reviews sind umgesetzt und Tests sind grün.  
 > Unten stehen nur noch **Restpunkte / Quality-Backlog** (meist P2/P3).
 
-## Aktuell (als Nächstes abarbeiten)
+## Aktuell (Supabase-Patchkette)
 
-> Ziel: **alles was zu tun ist steht hier**, so dass man es stumpf abhaken kann.
+- [x] Patch 408 — build_jobs / Build-Job-ID-Vertrag glattziehen
+- [x] Patch 409 — Diagnostics Upload / RPC-Vertrag sauberziehen
+- [ ] Patch 410 — Service-Role-/Secret-Containment sauber trennen
+- [ ] Patch 411 — Supabase Deploy + DB-Migrations-Flow/Workflow härten
+- [ ] Patch 412 — RLS/Policies/Hardening + abschließende Doku-/Test-Sweeps
+- [ ] Patch 413 — SoT-Aufräumrunde für restliche Repo/Branch-/Fallback-Stellen
+
+### Erinnerungen / Nacharbeiten
+- [ ] Hardening-Follow-up: `Number(jobId)`-Thema für sehr große bigint-Werte später separat prüfen (aktueller Build-Job-Vertrag ist okay, aber JS-safe-integer Thema bleibt als Reminder offen)
+- [ ] Hardening-Follow-up: UUID-Kompatibilitätsregex in `normalizeDiagnosticUploadId()` später enger ziehen oder entfernen, sobald der Diagnostics-Vertrag endgültig nur noch einen ID-Typ nutzt
+
+---
+
+## Historischer Backlog (bereits weitgehend abgearbeitet)
 
 ### Patch 220 — KI-Model "Auto" entfernen ✅
 

@@ -1,6 +1,6 @@
 # 10 — Product & Flows (Executive + Operator View)
 
-Stand: 2026-03-02
+Stand: 2026-03-09
 
 ## Was ist die App?
 Die App ist ein Expo/React-Native Build-Orchestrator für mobile Projekt-Repos: Sie bündelt Repo-/Branch-Selektion, Verbindungschecks, lokale + Pipeline-Diagnostics, AutoFix-Patches und den Build-Start in einen konsistenten Operator-Flow. Der Build-Start läuft zentral über `ProjectContext.startBuild` und `startBuildJob`, inklusive Build-Gate für Branch und `diagnostic_last_ok`. 
@@ -85,10 +85,25 @@ Die App ist ein Expo/React-Native Build-Orchestrator für mobile Projekt-Repos: 
 **Expected Result**
 - Build mit `profile=production` startet ohne Gate-Blocker.
 
+### 6) Diagnostics Upload
+**Preconditions**
+- Diagnostics-Resultate vorhanden.
+- Upload wird aus `Diagnose` gestartet.
+
+**Schritte**
+1. `Diagnose`: `Run`.
+2. `Diagnose`: `Upload`.
+3. Optional Retry innerhalb derselben `client_request_id`-Window.
+
+**Expected Result**
+- Upload-RPC liefert eine opake Upload-ID zurück.
+- Der Client behandelt diese ID nur noch als opaque string (bigint aktuell, uuid-artige Kompatibilität toleriert).
+
 ## Typische Failure Paths (Operator-Kurzlogik)
 - **Branch fehlt** → Build-Gate blockiert (`ERR_BRANCH_MISSING`) → in `GitHub Repos` Branch setzen → Diagnostics re-run.
 - **`diagnostic_last_ok != true`** → Build-Gate blockiert (`ERR_DIAGNOSTIC_NOT_GREEN`) → in `Diagnose` `Scannen` + Fix-Loop.
 - **Workflow Dispatch 404 / EAS-Link fail** → in `GitHub Repos` `EAS Projekt erstellen/verbinden`, ggf. Workflow-Dateien/Repo-Ref prüfen, danach Recheck.
+- **Diagnostics Upload driftet** → Patch 409 hält Client/RPC auf opaque upload ids zusammen; SQL-Vertrag bleibt aktuell bigint-backed.
 
 ## Non-goals (bewusst außerhalb Scope)
 - Kein vollständiger Ersatz für GitHub/EAS native Debugging-UIs.

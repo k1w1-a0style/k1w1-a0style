@@ -58,6 +58,30 @@ export type DiagnosticUploadInput = {
   clientRequestId?: string;
 };
 
+export type DiagnosticUploadResult = {
+  id: string;
+};
+
+export function normalizeDiagnosticUploadId(value: unknown): string | null {
+  if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) {
+    return String(value);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (/^[1-9]\d*$/.test(trimmed)) return trimmed;
+    // Transitional compatibility: tolerate uuid-like ids while the repo contracts settle.
+    if (/^[0-9a-fA-F-]{32,36}$/.test(trimmed)) return trimmed;
+    return null;
+  }
+
+  if (value && typeof value === "object" && "id" in value) {
+    return normalizeDiagnosticUploadId((value as { id?: unknown }).id);
+  }
+
+  return null;
+}
+
 /**
  * Upload via RPC:
  * - returns REAL db id
@@ -66,7 +90,7 @@ export type DiagnosticUploadInput = {
  */
 export async function uploadDiagnosticReport(
   input: DiagnosticUploadInput,
-): Promise<{ id: number } | null> {
+): Promise<DiagnosticUploadResult | null> {
   let supabase;
   try {
     supabase = await ensureSupabaseClient();
@@ -121,11 +145,10 @@ export async function uploadDiagnosticReport(
     return null;
   }
 
-  // RPC returns bigint -> JS number (ok für kleine ids)
-  const idNum = typeof data === "number" ? data : Number(data);
-  if (!Number.isFinite(idNum)) return null;
+  const normalizedId = normalizeDiagnosticUploadId(data);
+  if (!normalizedId) return null;
 
-  return { id: idNum };
+  return { id: normalizedId };
 }
 
 // ---------------------------------------------------------------------------
@@ -156,6 +179,6 @@ export function formatDiagnosticUpload(args: {
 
 export async function uploadDiagnosticToSupabase(
   payload: DiagnosticUploadInput,
-): Promise<{ id: number } | null> {
+): Promise<DiagnosticUploadResult | null> {
   return uploadDiagnosticReport(payload);
 }
