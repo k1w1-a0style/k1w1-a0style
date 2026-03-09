@@ -121,15 +121,21 @@ export function validateTriggerBuildRequest(body: unknown): Ok<{
 
 export function validateCheckBuildRequest(body: unknown): Ok<{ jobId: string }> | Err {
   if (!isObject(body)) return { ok: false, errors: { error: "body must be an object" } };
-  const jobId = body.jobId ?? body.job_id ?? body.id;
-  if (!isString(jobId)) {
-    return { ok: false, errors: { jobId: "jobId must be a UUID string" } };
+  const rawJobId = body.jobId ?? body.job_id ?? body.id;
+
+  let normalized: string | null = null;
+  if (typeof rawJobId === "number") {
+    normalized = Number.isInteger(rawJobId) && rawJobId > 0 ? String(rawJobId) : null;
+  } else if (isString(rawJobId)) {
+    const trimmed = rawJobId.trim();
+    normalized = /^[1-9]\d*$/.test(trimmed) ? trimmed : null;
   }
-  const uuid = String(jobId).trim();
-  if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(uuid)) {
-    return { ok: false, errors: { jobId: "jobId must be a UUID" } };
+
+  if (!normalized) {
+    return { ok: false, errors: { jobId: "jobId must be a positive integer id" } };
   }
-  return { ok: true, data: { jobId: uuid } };
+
+  return { ok: true, data: { jobId: normalized } };
 }
 
 export function validateGithubWorkflowDispatchRequest(body: unknown): Ok<{

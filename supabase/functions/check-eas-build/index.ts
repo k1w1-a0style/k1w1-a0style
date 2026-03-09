@@ -40,10 +40,14 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
     const { jobId } = validation.data!;
+    // build_jobs.id is currently bigint-backed in the database.
+    // Keep the edge contract explicit here: callers pass a positive integer id,
+    // but we still normalize to Number for the actual DB filter.
+    const jobIdNumber = Number(jobId);
     const res = await supabase
       .from("build_jobs")
       .select("*")
-      .eq("id", jobId)
+      .eq("id", jobIdNumber)
       .maybeSingle();
 
     if (res.error) return errorResponse("DB error", req, 500, res.error);

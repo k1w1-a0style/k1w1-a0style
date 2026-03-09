@@ -1,3 +1,4 @@
+- 2026-03-09 Patch 408 V5: align build job id contracts to the current bigint-backed build_jobs reality, normalize numeric edge job ids in app code, validate positive integer job ids in the edge layer, and update docs/regression coverage
 - 2026-03-09 Patch 407 V3: add the shared repo/branch selection helper file, keep project repo+branch paired as the winning source, remove silent main fallback in Connections/EAS prep flows, remove duplicate AppNavigation mirroring, and extend invariant coverage
 - 2026-03-08 Patch 406: add workflow↔edge contract guard, edge status docs, docs index sync, repo invariant coverage, enforce the new guards in workflow-lint CI, finalize workflow-lint trigger coverage, pin actionlint, and version-bind the installer script in workflow-lint
 - 2026-03-08 Patch 405: final workflow polish for endpoint assertions, workflow-version summaries, stricter managed drift checks, and root analysis artifact cleanup

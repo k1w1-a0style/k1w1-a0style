@@ -36,8 +36,15 @@ function normalizeProfile(profile?: string): StartBuildProfile {
     : "preview";
 }
 
-function isUuid(id: string): boolean {
-  return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
+function normalizeBuildJobId(raw: unknown): string | null {
+  if (typeof raw === "number") {
+    return Number.isInteger(raw) && raw > 0 ? String(raw) : null;
+  }
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    return /^[1-9]\d*$/.test(trimmed) ? trimmed : null;
+  }
+  return null;
 }
 
 export type BuildReadinessDeps = {
@@ -210,21 +217,13 @@ export async function startBuildJob(params: {
   }
 
   const jobId: string | null =
-    typeof (data as any)?.jobId === "string"
-      ? (data as any).jobId
-      : typeof (data as any)?.job_id === "string"
-        ? (data as any).job_id
-        : typeof (data as any)?.job?.id === "string"
-          ? (data as any).job.id
-          : null;
+    normalizeBuildJobId((data as any)?.jobId) ??
+    normalizeBuildJobId((data as any)?.job_id) ??
+    normalizeBuildJobId((data as any)?.job?.id);
 
   if (!jobId) {
-    throw new Error(`${SUPABASE_EDGE_FUNCTIONS.TRIGGER_EAS_BUILD} lieferte keine gueltige Job-ID zurueck.`);
-  }
-
-  if (!isUuid(jobId)) {
     throw new Error(
-      `${SUPABASE_EDGE_FUNCTIONS.TRIGGER_EAS_BUILD} lieferte eine ungueltige Job-ID (UUID erwartet): ${jobId}`,
+      `${SUPABASE_EDGE_FUNCTIONS.TRIGGER_EAS_BUILD} lieferte keine gueltige Job-ID (positive numerische ID erwartet) zurueck.`,
     );
   }
 

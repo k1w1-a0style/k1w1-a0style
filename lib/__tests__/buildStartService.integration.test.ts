@@ -95,7 +95,7 @@ describe("startBuildJob (integration)", () => {
     mockAutoFix.autoFixCIWorkflows.mockResolvedValue(undefined);
 
     mockInvoke.mockResolvedValue({
-      data: { jobId: "11111111-1111-1111-1111-111111111111" },
+      data: { jobId: 42 },
       error: null,
     });
   });
@@ -125,7 +125,7 @@ describe("startBuildJob (integration)", () => {
     });
 
     expect(res).toEqual({
-      jobId: "11111111-1111-1111-1111-111111111111",
+      jobId: "42",
       githubRepo: "k1w1-a0style/musik-player",
       branch: "main",
       buildProfile: "development",
@@ -168,14 +168,28 @@ describe("startBuildJob (integration)", () => {
     expect(res.branch).toBe("dev");
   });
 
-  it("throws when edge function returns a non-uuid job id", async () => {
+  it("normalizes numeric job ids from the edge function to string", async () => {
     mockInvoke.mockResolvedValueOnce({
-      data: { jobId: "not-a-uuid" },
+      data: { jobId: 7 },
+      error: null,
+    });
+
+    const res = await startBuildJob({
+      project: makeProject(),
+      buildProfile: "production",
+    });
+
+    expect(res.jobId).toBe("7");
+  });
+
+  it("throws when edge function returns an invalid non-numeric job id", async () => {
+    mockInvoke.mockResolvedValueOnce({
+      data: { jobId: "not-a-number" },
       error: null,
     });
 
     await expect(
       startBuildJob({ project: makeProject(), buildProfile: "production" }),
-    ).rejects.toThrow(/ungueltige Job-ID/i);
+    ).rejects.toThrow(/positive numerische ID erwartet/i);
   });
 });

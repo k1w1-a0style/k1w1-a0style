@@ -21,7 +21,7 @@ Die App ist ein Expo/React-Native Build-Orchestrator für mobile Projekt-Repos: 
 
 **Expected Result**
 - Build-Gate ist erfüllt (`diagnostic_last_ok = true`, Branch gesetzt).
-- Build-Job liefert `jobId` (UUID) und erscheint in Status/Historie.
+- Build-Job liefert aktuell eine positive numerische `jobId` (build_jobs bigint-backed) und erscheint in Status/Historie.
 
 ---
 
