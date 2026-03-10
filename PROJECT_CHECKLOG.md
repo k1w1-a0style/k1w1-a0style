@@ -1,3 +1,4 @@
+- 2026-03-10 Patch 412: harden privileged Supabase functions by setting an explicit search_path on `_diagnostic_upload_guard()`, revoking accidental PUBLIC execute on trigger/cleanup/upload helpers, and add guard-script + invariant coverage
 - 2026-03-10 Patch 410B V5: remove Supabase service-role handling from client token/Connections/AppInfo paths, keep GitHub/CI secrets manual-only, and add invariants against client-side reintroduction
 - 2026-03-10 Patch 411 V7: harden Supabase deploy workflow to workflow_dispatch-only with required ref, restore single-function/_shared guards, add migration apply policy + metadata artifacts, and sync runbook/guard/invariant coverage
 - 2026-03-09 Patch 410 final: separate admin auth from service-role lookup in Edge helpers, add an explicit CI service-role bearer guard, harden android-keystore-export auth fallback selection, and sync TODO/README/patchlog reminders

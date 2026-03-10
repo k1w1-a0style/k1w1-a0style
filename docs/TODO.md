@@ -13,7 +13,7 @@ Stand: **2026-03-09**
 - [x] Patch 410A — Edge auth paths trennen (Admin-Key vs. CI service-role bearer)
 - [x] Patch 410B — Client-side Service-Role-Key aus tokenStore/Secret-Sync eliminieren
 - [x] Patch 411 — Supabase Deploy + DB-Migrations-Flow/Workflow härten
-- [ ] Patch 412 — RLS/Policies/Hardening + abschließende Doku-/Test-Sweeps
+- [x] Patch 412 — RLS/Policies/Hardening + abschließende Doku-/Test-Sweeps
 - [ ] Patch 413 — SoT-Aufräumrunde für restliche Repo/Branch-/Fallback-Stellen
 
 ### Erinnerungen / Nacharbeiten
@@ -21,6 +21,7 @@ Stand: **2026-03-09**
 - [ ] Hardening-Follow-up: `Number(jobId)`-Thema für sehr große bigint-Werte später separat prüfen (aktueller Build-Job-Vertrag ist okay, aber JS-safe-integer Thema bleibt als Reminder offen)
 - [ ] Hardening-Follow-up: UUID-Kompatibilitätsregex in `normalizeDiagnosticUploadId()` später enger ziehen oder entfernen, sobald der Diagnostics-Vertrag endgültig nur noch einen ID-Typ nutzt
 - [ ] Hardening-Follow-up: Bearer-Admin-Ersatz aus übrigen Edge-Pfaden vollständig gegen explizite Admin-/CI-Guards prüfen
+- [ ] Hardening-Follow-up: CI/Workflows langfristig von breitem `SUPABASE_SERVICE_ROLE_KEY` auf schmalere interne Edge-/RPC-Pfade umstellen, damit privilegierte GitHub-Secrets weiter reduziert werden können
 
 ---
 
