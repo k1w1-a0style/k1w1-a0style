@@ -1,6 +1,6 @@
 # Supabase Deploy & Migrations Runbook
 
-Stand: 2026-02-13
+Stand: 2026-03-10
 
 ## Ziel
 
@@ -92,3 +92,20 @@ Auf manchen Projekten ist die Migration-Rolle **nicht Owner** von `storage.objec
 - **Edge Functions**: vorherige Version erneut deployen (Git revert + deploy)
 - **DB**: neue Migration möglichst so schreiben, dass sie rückgängig machbar ist (Down-Migrationen gibt es hier nicht automatisch)
   - In der Praxis: "Revert"-Migration schreiben (neue Datei), die Policies/Funktionen wiederherstellt
+
+
+## GitHub Workflow (`deploy-supabase-functions.yml`)
+
+Der Repo-Workflow deployt Supabase jetzt **nur noch manuell** per `workflow_dispatch`.
+
+Pflicht-/Steuerungsinputs:
+- `ref`: Branch/Tag/SHA, der ausgecheckt und deployed wird
+- `deploy_all`: alle Functions oder nur eine einzelne Function deployen
+- `function_name`: nur relevant bei `deploy_all=false`
+- `apply_migrations`: `auto|true|false`
+
+Regeln:
+- Kein automatischer `push`-Deploy mehr
+- `_shared` darf nie als Function deployed werden
+- `function_name` wird validiert
+- `apply_migrations=auto` nutzt die Änderungserkennung gegen `supabase/migrations/`

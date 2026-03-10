@@ -3,6 +3,7 @@
 This file is the *index* of patch notes for this repo.
 
 ## Recent
+- Patch 411: harden Supabase deploy workflow to workflow_dispatch-only with required ref, restore single-function/_shared guards, add apply_migrations policy + metadata artifacts, and sync runbook/guard/invariant coverage
 - Patch 410: separate Edge admin auth from service-role lookup, add an explicit CI service-role bearer guard, harden android-keystore-export auth fallback selection, and sync docs/TODO coverage
 - Patch 409: align diagnostics upload contracts, treat upload ids as opaque strings, restore the RPC to the real bigint-backed diagnostic_uploads schema, and sync TODO/README/checklog reminders
 - Patch 408: align build job id contracts to the current bigint-backed build_jobs reality, normalize numeric edge ids in app code, validate positive integer job ids in the edge layer, and sync docs/regression coverage

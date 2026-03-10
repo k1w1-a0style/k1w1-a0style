@@ -49,6 +49,6 @@ describe("patch 403 workflow contract invariants", () => {
 
   it("keeps target-ref concurrency for Supabase deploy", () => {
     const src = read(".github/workflows/deploy-supabase-functions.yml");
-    expect(src).toContain("${{ inputs.ref || github.ref_name }}");
+    expect(src).toContain("${{ github.workflow }}-${{ inputs.ref }}");
   });
 });

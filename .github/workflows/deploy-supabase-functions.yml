@@ -1,23 +1,17 @@
 # managed-by: k1w1
-# workflow-version: 405
+# workflow-version: 411
 name: Deploy Supabase (Edge Functions)
 
 run-name: >-
-  Supabase deploy • ${{ inputs.ref || github.ref_name }} •
+  Supabase deploy • ${{ inputs.ref }} •
   ${{ (github.event.inputs.deploy_all || 'true') == 'true' && 'all' || (github.event.inputs.function_name || 'single') }}
 
 on:
-  push:
-    branches: ["main", "work"]
-    paths:
-      - "supabase/functions/**"
-      - "supabase/config.toml"
   workflow_dispatch:
     inputs:
       ref:
-        description: "Branch/Ref to deploy from (default: work)"
-        required: false
-        default: "work"
+        description: "Branch/Ref to deploy from"
+        required: true
         type: string
       deploy_all:
         description: "Alle Edge Functions deployen (true/false)"
@@ -30,28 +24,34 @@ on:
         required: false
         default: ""
         type: string
+      apply_migrations:
+        description: "DB-Migrations anwenden (auto|true|false)"
+        required: false
+        default: "auto"
+        type: choice
+        options: ["auto", "true", "false"]
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ inputs.ref || github.ref_name }}
+  group: ${{ github.workflow }}-${{ inputs.ref }}
   cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-      WORKFLOW_VERSION: "405"
+      WORKFLOW_VERSION: "411"
 
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          ref: ${{ inputs.ref || github.ref_name }}
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
 
       - name: Setup Node
@@ -99,7 +99,6 @@ jobs:
 
           if [ "$DEPLOY_ALL" = "true" ]; then
             echo "Deploying all functions..."
-            # deploy everything (skip _shared)
             for d in functions/*; do
               name="$(basename "$d")"
               if [ -d "$d" ] && [ "$name" != "_shared" ]; then
@@ -133,6 +132,75 @@ jobs:
           echo "Deploying single function: $FUNCTION_NAME"
           supabase functions deploy "$FUNCTION_NAME"
 
+      - name: Detect migration changes / policy
+        shell: bash
+        env:
+          APPLY_MIGRATIONS_INPUT: ${{ github.event.inputs.apply_migrations || 'auto' }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-logs
+
+          INPUT="${APPLY_MIGRATIONS_INPUT:-auto}"
+          case "$INPUT" in
+            auto|true|false) ;;
+            *)
+              echo "::error::Invalid apply_migrations value: $INPUT"
+              exit 1
+              ;;
+          esac
+
+          APPLIED="false"
+          REASON="manual:false"
+
+          if [ "$INPUT" = "true" ]; then
+            APPLIED="true"
+            REASON="manual:true"
+          elif [ "$INPUT" = "false" ]; then
+            APPLIED="false"
+            REASON="manual:false"
+          else
+            if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+              if git diff --quiet HEAD^ HEAD -- supabase/migrations; then
+                APPLIED="false"
+                REASON="auto:no migration changes detected in HEAD"
+              else
+                APPLIED="true"
+                REASON="auto:migration changes detected in HEAD"
+              fi
+            else
+              APPLIED="false"
+              REASON="auto:no parent commit available for migration diff"
+            fi
+          fi
+
+          {
+            echo "apply_migrations_input=${INPUT}"
+            echo "apply_migrations=${APPLIED}"
+            echo "migration_reason=${REASON}"
+          } | tee ci-logs/deploy-db-policy.env
+
+          echo "APPLY_MIGRATIONS=${APPLIED}" >> "$GITHUB_ENV"
+          echo "MIGRATION_REASON=${REASON}" >> "$GITHUB_ENV"
+
+      - name: Apply DB migrations
+        if: env.APPLY_MIGRATIONS == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-logs
+          (
+            cd supabase
+            supabase db push
+          ) 2>&1 | tee ci-logs/db-push.log
+
+      - name: Note skipped DB migrations
+        if: env.APPLY_MIGRATIONS != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci-logs
+          printf 'DB push skipped: %s\n' "${MIGRATION_REASON:-unknown}" | tee ci-logs/db-push.log
+
       - name: Write deploy metadata
         if: always()
         shell: bash
@@ -141,9 +209,12 @@ jobs:
           mkdir -p ci-logs
           {
             echo "workflow_version=${WORKFLOW_VERSION}"
-            echo "ref=${{ inputs.ref || github.ref_name }}"
+            echo "ref=${{ inputs.ref }}"
             echo "deploy_all=${{ github.event.inputs.deploy_all || 'true' }}"
             echo "function_name=${{ github.event.inputs.function_name || '' }}"
+            echo "apply_migrations_input=${{ github.event.inputs.apply_migrations || 'auto' }}"
+            echo "apply_migrations=${APPLY_MIGRATIONS:-false}"
+            echo "migration_reason=${MIGRATION_REASON:-unknown}"
             echo "github_run_id=${GITHUB_RUN_ID}"
             echo "github_run_attempt=${GITHUB_RUN_ATTEMPT}"
             echo "github_sha=${GITHUB_SHA}"
@@ -157,14 +228,19 @@ jobs:
             echo "## Supabase Deploy"
             echo ""
             echo "- workflow version: `${WORKFLOW_VERSION}`"
-            echo "- ref: `${{ inputs.ref || github.ref_name }}`"
+            echo "- ref: `${{ inputs.ref }}`"
             echo "- deploy_all: `${{ github.event.inputs.deploy_all || 'true' }}`"
             echo "- function_name: `${{ github.event.inputs.function_name || '' }}`"
+            echo "- apply_migrations input: `${{ github.event.inputs.apply_migrations || 'auto' }}`"
+            echo "- apply_migrations effective: `${APPLY_MIGRATIONS:-false}`"
+            echo "- migration reason: `${MIGRATION_REASON:-unknown}`"
             echo "- run id: `${GITHUB_RUN_ID}` / attempt `${GITHUB_RUN_ATTEMPT}`"
             echo "- sha: `${GITHUB_SHA}`"
             echo ""
             echo "Artifacts:"
             echo "- `ci-logs/deploy-metadata.env`"
+            echo "- `ci-logs/deploy-db-policy.env`"
+            echo "- `ci-logs/db-push.log`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload deploy metadata
@@ -172,6 +248,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: supabase-deploy-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ci-logs/deploy-metadata.env
+          path: |
+            ci-logs/deploy-metadata.env
+            ci-logs/deploy-db-policy.env
+            ci-logs/db-push.log
           retention-days: 7
           if-no-files-found: ignore

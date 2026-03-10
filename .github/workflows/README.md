@@ -416,3 +416,10 @@ Der Check stellt sicher, dass die operativen Verträge zwischen Workflows und Ed
 Zusätzlich führt `workflow-lint.yml` diese Guards jetzt ebenfalls in CI aus.
 
 Die Trigger-Pfade von `workflow-lint.yml` decken ab Patch 406 außerdem die neuen Guard-Skripte, `docs/WORKFLOW_PATCHING.md` sowie die zugehörige Patch-/Edge-Doku ab; doppelte Path-Einträge wurden entfernt und `actionlint` ist dort versionsgepinnt, inklusive versionsgebundenem Installer-Script.
+
+## deploy-supabase-functions.yml
+
+- Trigger: nur `workflow_dispatch`
+- `ref` ist Pflicht und bestimmt explizit den auszucheckenden Stand
+- `apply_migrations` steuert, ob `supabase db push` nie / immer / nur bei erkannten Migrationsänderungen läuft
+- Single-Function-Deploys blocken `_shared` und validieren `function_name`
