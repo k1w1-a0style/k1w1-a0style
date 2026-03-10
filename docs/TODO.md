@@ -370,6 +370,8 @@ Akzeptanz:
 
 - [x] Add DEV_COMMANDS.md (git grep / grep alternatives when rg is missing)
 
+
+
 ## Offene Nacharbeiten nach Patch 413 / Gesamt-Checkup
 
 - [ ] Patch 413 vollständig finalisieren:
@@ -414,7 +416,6 @@ Akzeptanz:
     - [ ] `npm run lint:ci`
     - [ ] `npm run test:silent`
   - [ ] finalen Projektzustand dokumentieren
-
 
 ## Offene Nacharbeiten nach Patch 413 / Gesamt-Checkup
 
