@@ -29,9 +29,6 @@ import {
   getEdgeAdminKey,
   saveEdgeAdminKey,
   deleteEdgeAdminKey,
-  getSupabaseServiceRoleKey,
-  saveSupabaseServiceRoleKey,
-  deleteSupabaseServiceRoleKey,
   getSigningMasterKey,
   saveSigningMasterKey,
   deleteSigningMasterKey,
@@ -295,17 +292,9 @@ export function useAppInfoScreen() {
                 getSigningMasterKey().catch(() => null),
               ]);
 
-              const srvSecure = await getSupabaseServiceRoleKey().catch(() => null);
-              const srvLegacy = await AsyncStorage.getItem(
+              await AsyncStorage.removeItem(
                 STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
-              ).catch(() => "");
-              const supabaseServiceRoleKey = (srvSecure || srvLegacy || "").trim();
-              if (!srvSecure && srvLegacy) {
-                await saveSupabaseServiceRoleKey(srvLegacy);
-                await AsyncStorage.removeItem(
-                  STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
-                ).catch(() => {});
-              }
+              ).catch(() => {});
 
               const [supabaseRaw, supabaseUrl, supabaseAnonKey, easProjectId] =
                 await Promise.all([
@@ -325,15 +314,12 @@ export function useAppInfoScreen() {
                   supabaseRaw: supabaseRaw ?? "",
                   supabaseUrl: supabaseUrl ?? "",
                   supabaseAnonKey: supabaseAnonKey ?? "",
-                  supabaseServiceRoleKey: supabaseServiceRoleKey ?? "",
                   easProjectId: easProjectId ?? "",
                 },
                 tokens: {
                   githubToken,
                   expoToken,
                   edgeAdminKey,
-                  // Convenience duplication so "4tokens" are always in one place.
-                  supabaseServiceRoleKey: supabaseServiceRoleKey ? supabaseServiceRoleKey : null,
                   signingMasterKey,
                 },
                 ciSecrets: {
@@ -342,7 +328,6 @@ export function useAppInfoScreen() {
                   EXPO_TOKEN: expoToken ?? "",
                   SUPABASE_URL: supabaseUrl ?? "",
                   SUPABASE_ANON_KEY: supabaseAnonKey ?? "",
-                  SUPABASE_SERVICE_ROLE_KEY: supabaseServiceRoleKey ?? "",
                   EAS_PROJECT_ID: easProjectId ?? "",
                   // Our naming variants used across docs/scripts
                   K1W1_EDGE_ADMIN_KEY: edgeAdminKey ?? "",
@@ -410,30 +395,15 @@ export function useAppInfoScreen() {
                 ops.push(
                   AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_KEY, c.supabaseAnonKey),
                 );
-              // Service Role Key can live in connections (legacy) OR tokens OR ciSecrets.
-              const roleKeyToSet =
-                typeof c.supabaseServiceRoleKey === "string" && c.supabaseServiceRoleKey.trim()
-                  ? c.supabaseServiceRoleKey.trim()
-                  : typeof (data as any)?.tokens?.supabaseServiceRoleKey === "string" &&
-                      (data as any).tokens.supabaseServiceRoleKey.trim()
-                    ? (data as any).tokens.supabaseServiceRoleKey.trim()
-                    : typeof (data as any)?.ciSecrets?.SUPABASE_SERVICE_ROLE_KEY === "string" &&
-                        (data as any).ciSecrets.SUPABASE_SERVICE_ROLE_KEY.trim()
-                      ? (data as any).ciSecrets.SUPABASE_SERVICE_ROLE_KEY.trim()
-                      : "";
+              await AsyncStorage.removeItem(
+                STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
+              ).catch(() => {});
 
               if (typeof c.easProjectId === "string")
                 ops.push(
                   AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, c.easProjectId),
                 );
               await Promise.all(ops);
-
-              // Supabase Service Role Key -> SecureStore (and clear legacy AsyncStorage)
-              if (roleKeyToSet) await saveSupabaseServiceRoleKey(roleKeyToSet);
-              else await deleteSupabaseServiceRoleKey();
-              await AsyncStorage.removeItem(
-                STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
-              ).catch(() => {});
 
               // 3) Tokens (SecureStore via helpers)
               // Prefer explicit fields in data.tokens; fall back to ciSecrets map.

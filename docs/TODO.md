@@ -11,7 +11,7 @@ Stand: **2026-03-09**
 - [x] Patch 408 — build_jobs / Build-Job-ID-Vertrag glattziehen
 - [x] Patch 409 — Diagnostics Upload / RPC-Vertrag sauberziehen
 - [x] Patch 410A — Edge auth paths trennen (Admin-Key vs. CI service-role bearer)
-- [ ] Patch 410B — Client-side Service-Role-Key aus tokenStore/Secret-Sync eliminieren
+- [x] Patch 410B — Client-side Service-Role-Key aus tokenStore/Secret-Sync eliminieren
 - [x] Patch 411 — Supabase Deploy + DB-Migrations-Flow/Workflow härten
 - [ ] Patch 412 — RLS/Policies/Hardening + abschließende Doku-/Test-Sweeps
 - [ ] Patch 413 — SoT-Aufräumrunde für restliche Repo/Branch-/Fallback-Stellen

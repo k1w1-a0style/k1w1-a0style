@@ -20,9 +20,6 @@ import {
   getEdgeAdminKey,
   saveEdgeAdminKey,
   deleteEdgeAdminKey,
-  getSupabaseServiceRoleKey,
-  saveSupabaseServiceRoleKey,
-  deleteSupabaseServiceRoleKey,
   triggerWorkflow,
 } from "../../../infra/github/githubService";
 
@@ -164,10 +161,8 @@ export function useConnectionsScreen() {
   const [supabaseRaw, setSupabaseRaw] = useState("");
   const [supabaseUrl, setSupabaseUrl] = useState("");
   const [supabaseAnonKey, setSupabaseAnonKey] = useState("");
-  const [supabaseServiceRoleKey, setSupabaseServiceRoleKey] = useState("");
 
   const [showSupabaseAnon, setShowSupabaseAnon] = useState(false);
-  const [showSupabaseServiceRole, setShowSupabaseServiceRole] = useState(false);
 
   const selection = useMemo(
     () => resolveRepoBranchSelection({ projectData, activeRepo, activeBranch }),
@@ -188,9 +183,6 @@ export function useConnectionsScreen() {
         getExpoToken().catch(() => ""),
         getEdgeAdminKey().catch(() => ""),
       ]);
-
-      const srvSecure =
-        (await getSupabaseServiceRoleKey().catch(() => null)) || "";
 
       const [raw, url, anon, eas] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_RAW).catch(() => ""),
@@ -214,20 +206,7 @@ export function useConnectionsScreen() {
         AsyncStorage.getItem(STORAGE_KEYS.CONN_REPO_BRANCH).catch(() => null),
       ]);
 
-      // Legacy migration: AsyncStorage -> SecureStore
-      let srv = srvSecure;
-      if (!srv) {
-        const legacy = await AsyncStorage.getItem(
-          STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
-        ).catch(() => "");
-        if (legacy) {
-          await saveSupabaseServiceRoleKey(legacy);
-          await AsyncStorage.removeItem(
-            STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
-          ).catch(() => {});
-          srv = legacy;
-        }
-      }
+      await AsyncStorage.removeItem(STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY).catch(() => {});
       if (!mounted) return;
       setGithubToken(gh || "");
       setExpoToken(ex || "");
@@ -235,7 +214,6 @@ export function useConnectionsScreen() {
       setSupabaseRaw(raw || "");
       setSupabaseUrl(url || "");
       setSupabaseAnonKey(anon || "");
-      setSupabaseServiceRoleKey(srv || "");
       setEasProjectId(eas || "");
 
       // Restore persistent lights
@@ -284,7 +262,6 @@ export function useConnectionsScreen() {
       edgeAdminKey,
       supabaseUrl,
       supabaseAnonKey,
-      supabaseServiceRoleKey,
     });
     if (!v.ok) {
       Alert.alert(v.title, v.message);
@@ -335,13 +312,7 @@ export function useConnectionsScreen() {
         STORAGE_KEYS.SUPABASE_KEY,
         supabaseAnonKey.trim(),
       );
-      const srv = supabaseServiceRoleKey.trim();
-      if (srv) await saveSupabaseServiceRoleKey(srv);
-      else await deleteSupabaseServiceRoleKey();
-      // Remove legacy value if it exists
-      await AsyncStorage.removeItem(
-        STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
-      ).catch(() => {});
+      await AsyncStorage.removeItem(STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY).catch(() => {});
       await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, easProjectId.trim());
 
       // If Supabase base settings are cleared, reset connection status
@@ -365,7 +336,6 @@ export function useConnectionsScreen() {
     supabaseRaw,
     supabaseUrl,
     supabaseAnonKey,
-    supabaseServiceRoleKey,
     easProjectId,
   ]);
 
@@ -499,35 +469,26 @@ export function useConnectionsScreen() {
       if (!resp.ok) throw new Error(`REST Ping failed (${resp.status})`);
 
       // build_jobs table check (wichtig fürs Build-System)
-// Hinweis: In gehärteten Setups blockt RLS den anon-Key (401/403). Das ist OK,
-// solange CI/Edge mit Service-Role arbeitet. Wenn ein Service-Role-Key vorhanden ist,
-// nutzen wir ihn für den Check.
-      const checkKey = (supabaseServiceRoleKey || "").trim() || anon;
-
+      // In gehärteten Setups darf der ANON-Key durch RLS hier bewusst 401/403 liefern.
       const tableRes = await fetch(`${url}/rest/v1/build_jobs?select=id&limit=1`, {
         method: "GET",
-        headers: { apikey: checkKey, Authorization: `Bearer ${checkKey}` },
+        headers: { apikey: anon, Authorization: `Bearer ${anon}` },
       });
 
       if (!tableRes.ok) {
-        if ((tableRes.status === 401 || tableRes.status === 403) && checkKey === anon) {
+        if (tableRes.status === 401 || tableRes.status === 403) {
           setSupabaseOk(true);
           await AsyncStorage.setItem(STORAGE_KEYS.CONN_SUPABASE_OK, "true").catch(() => {});
           Alert.alert(
             "Supabase OK",
-            "REST erreichbar. build_jobs ist durch RLS geschuetzt (401/403) - das ist ok. CI/Edge nutzt Service-Role.",
+            "REST erreichbar. build_jobs ist durch RLS geschützt (401/403) – das ist okay. CI/Edge nutzt den Service-Role-Key serverseitig.",
           );
           return;
         }
         throw new Error(`build_jobs Check fehlgeschlagen (${tableRes.status}).`);
       }
 
-      Alert.alert(
-        "Supabase OK",
-        checkKey === anon
-          ? "REST + build_jobs erreichbar."
-          : "REST + build_jobs (Service-Role) erreichbar.",
-      );
+      Alert.alert("Supabase OK", "REST + build_jobs erreichbar.");
       setSupabaseOk(true);
       await AsyncStorage.setItem(STORAGE_KEYS.CONN_SUPABASE_OK, "true").catch(() => {});
       // Store project ref (subdomain) for UX display
@@ -546,7 +507,7 @@ export function useConnectionsScreen() {
     } finally {
       setBusy(false);
     }
-  }, [supabaseUrl, supabaseAnonKey, supabaseServiceRoleKey]);
+  }, [supabaseUrl, supabaseAnonKey]);
 
   // Status flags
   const status = useMemo(() => {
@@ -555,18 +516,16 @@ export function useConnectionsScreen() {
     const edge = !!edgeAdminKey.trim();
     const sbUrl = !!supabaseUrl.trim();
     const sbAnon = !!supabaseAnonKey.trim();
-    const sbSrv = !!supabaseServiceRoleKey.trim();
     const linked = !!(projectData?.linkedRepo || activeRepo);
     const easId = easProjectId.trim();
     const eas = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(easId);
-    return { gh, ex, edge, sbUrl, sbAnon, sbSrv, linked, eas };
+    return { gh, ex, edge, sbUrl, sbAnon, linked, eas };
   }, [
     githubToken,
     expoToken,
     edgeAdminKey,
     supabaseUrl,
     supabaseAnonKey,
-    supabaseServiceRoleKey,
     projectData?.linkedRepo,
     activeRepo,
     easProjectId,
@@ -766,17 +725,13 @@ export function useConnectionsScreen() {
 
     showSupabaseAnon,
     setShowSupabaseAnon,
-    showSupabaseServiceRole,
-    setShowSupabaseServiceRole,
-
+    
     // Supabase
     supabaseRaw,
     setSupabaseRaw,
     setSupabaseUrl,
     supabaseAnonKey,
     setSupabaseAnonKey,
-    supabaseServiceRoleKey,
-    setSupabaseServiceRoleKey,
 
     // EAS
     easOk,

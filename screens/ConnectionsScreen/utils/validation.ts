@@ -23,7 +23,6 @@ export const validateBeforeSave = (p: {
   edgeAdminKey: string;
   supabaseUrl: string;
   supabaseAnonKey: string;
-  supabaseServiceRoleKey: string;
 }): ValidationResult => {
   const gh = p.githubToken.trim();
   if (gh) {
@@ -82,14 +81,6 @@ export const validateBeforeSave = (p: {
     };
   }
 
-  const srv = p.supabaseServiceRoleKey.trim();
-  if (srv && !looksLikeJwt(srv)) {
-    return {
-      ok: false,
-      title: "Ungültiger Supabase Service Role Key",
-      message: "Key muss wie ein JWT aussehen (eyJ... . eyJ... . ...).",
-    };
-  }
 
   return { ok: true };
 };

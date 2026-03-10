@@ -151,7 +151,6 @@ export function StatusCard(props: {
     edge: boolean;
     sbUrl: boolean;
     sbAnon: boolean;
-    sbSrv: boolean;
     linked: boolean;
     eas: boolean;
   };

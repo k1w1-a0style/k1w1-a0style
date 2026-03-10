@@ -19,15 +19,12 @@ export type FullBackupV1 = {
     supabaseRaw: string;
     supabaseUrl: string;
     supabaseAnonKey: string;
-    supabaseServiceRoleKey: string;
     easProjectId: string;
   };
   tokens: {
     githubToken: string | null;
     expoToken: string | null;
     edgeAdminKey: string | null;
-    /** aka SUPABASE_SERVICE_ROLE_KEY (stored in SecureStore) */
-    supabaseServiceRoleKey?: string | null;
     /** optional, used by signing edge functions */
     signingMasterKey?: string | null;
   };

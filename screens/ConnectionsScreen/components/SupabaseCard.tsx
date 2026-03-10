@@ -17,12 +17,8 @@ export function SupabaseCard(props: {
   onChangeSupabaseUrl: (v: string) => void;
   supabaseAnonKey: string;
   onChangeSupabaseAnonKey: (v: string) => void;
-  supabaseServiceRoleKey: string;
-  onChangeSupabaseServiceRoleKey: (v: string) => void;
   showSupabaseAnon: boolean;
   onToggleShowSupabaseAnon: () => void;
-  showSupabaseServiceRole: boolean;
-  onToggleShowSupabaseServiceRole: () => void;
   onSave: () => void;
   onTestSupabase: () => void | Promise<void>;
 }) {
@@ -36,12 +32,8 @@ export function SupabaseCard(props: {
     onChangeSupabaseUrl,
     supabaseAnonKey,
     onChangeSupabaseAnonKey,
-    supabaseServiceRoleKey,
-    onChangeSupabaseServiceRoleKey,
     showSupabaseAnon,
     onToggleShowSupabaseAnon,
-    showSupabaseServiceRole,
-    onToggleShowSupabaseServiceRole,
     onSave,
     onTestSupabase,
   } = props;
@@ -89,18 +81,6 @@ export function SupabaseCard(props: {
         onToggleShow={onToggleShowSupabaseAnon}
       />
 
-      <InputRow
-        styles={styles}
-        label="Supabase Service Role Key (für Edge/Build-Jobs)"
-        value={supabaseServiceRoleKey}
-        onChangeText={onChangeSupabaseServiceRoleKey}
-        placeholder="eyJhbGciOi... (service role)"
-        secure
-        showToggle
-        isShown={showSupabaseServiceRole}
-        onToggleShow={onToggleShowSupabaseServiceRole}
-        rightHint="⚠️ Admin-Rechte"
-      />
 
       <View style={styles.row}>
         <ActionButton

@@ -9,7 +9,6 @@ const LEGACY_EXPO_TOKEN_KEY = "expo_token_v1";
 
 // These are intentionally versioned because they are optional / power-user inputs.
 const EDGE_ADMIN_KEY = "edge_admin_key_v1";
-const SUPABASE_SERVICE_ROLE_KEY = "supabase_service_role_key_v1";
 const SIGNING_MASTER_KEY = "signing_master_key_v1";
 
 const saveSecureToken = async (key: string, value: string): Promise<void> => {
@@ -120,25 +119,6 @@ export const deleteEdgeAdminKey = async (): Promise<void> => {
   await deleteSecureToken(EDGE_ADMIN_KEY);
 };
 
-// ----------------------
-// Supabase Service Role Key (HIGHLY SENSITIVE) -> SecureStore
-// ----------------------
-export const getSupabaseServiceRoleKey = async (): Promise<string | null> => {
-  return getSecureToken(SUPABASE_SERVICE_ROLE_KEY);
-};
-
-export const saveSupabaseServiceRoleKey = async (key: string): Promise<void> => {
-  const v = (key ?? "").trim();
-  if (!v) {
-    await deleteSecureToken(SUPABASE_SERVICE_ROLE_KEY);
-    return;
-  }
-  await saveSecureToken(SUPABASE_SERVICE_ROLE_KEY, v);
-};
-
-export const deleteSupabaseServiceRoleKey = async (): Promise<void> => {
-  await deleteSecureToken(SUPABASE_SERVICE_ROLE_KEY);
-};
 
 // ----------------------
 // Signing Master Key (optional)

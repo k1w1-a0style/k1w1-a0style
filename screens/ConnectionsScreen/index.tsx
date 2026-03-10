@@ -59,8 +59,6 @@ export default function ConnectionsScreen() {
 
     showSupabaseAnon,
     setShowSupabaseAnon,
-    showSupabaseServiceRole,
-    setShowSupabaseServiceRole,
 
     // Supabase
     supabaseRaw,
@@ -68,8 +66,6 @@ export default function ConnectionsScreen() {
     setSupabaseUrl,
     supabaseAnonKey,
     setSupabaseAnonKey,
-    supabaseServiceRoleKey,
-    setSupabaseServiceRoleKey,
 
     // EAS
     setEasProjectId,
@@ -104,7 +100,6 @@ export default function ConnectionsScreen() {
     lines.push("- GITHUB_TOKEN");
     lines.push("- EXPO_TOKEN");
     lines.push("- EDGE_ADMIN_KEY");
-    lines.push("- SUPABASE_SERVICE_ROLE_KEY");
     lines.push("- SUPABASE_ANON_KEY");
     lines.push("- EAS_PROJECT_ID");
     return lines;
@@ -189,14 +184,8 @@ export default function ConnectionsScreen() {
           onChangeSupabaseUrl={setSupabaseUrl}
           supabaseAnonKey={supabaseAnonKey}
           onChangeSupabaseAnonKey={setSupabaseAnonKey}
-          supabaseServiceRoleKey={supabaseServiceRoleKey}
-          onChangeSupabaseServiceRoleKey={setSupabaseServiceRoleKey}
           showSupabaseAnon={showSupabaseAnon}
           onToggleShowSupabaseAnon={() => setShowSupabaseAnon((p) => !p)}
-          showSupabaseServiceRole={showSupabaseServiceRole}
-          onToggleShowSupabaseServiceRole={() =>
-            setShowSupabaseServiceRole((p) => !p)
-          }
           onSave={saveAll}
           onTestSupabase={testSupabase}
         />

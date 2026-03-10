@@ -24,7 +24,6 @@ describe("ConnectionsScreen validation", () => {
       edgeAdminKey: "",
       supabaseUrl: "",
       supabaseAnonKey: "",
-      supabaseServiceRoleKey: "",
     });
     expect(res.ok).toBe(false);
   });
@@ -36,7 +35,6 @@ describe("ConnectionsScreen validation", () => {
       edgeAdminKey: "",
       supabaseUrl: "",
       supabaseAnonKey: "",
-      supabaseServiceRoleKey: "",
     });
     expect(res.ok).toBe(false);
   });
@@ -48,24 +46,22 @@ describe("ConnectionsScreen validation", () => {
       edgeAdminKey: "",
       supabaseUrl: "https://example.com",
       supabaseAnonKey: "",
-      supabaseServiceRoleKey: "",
     });
     expect(res.ok).toBe(false);
   });
 
-  test("validateBeforeSave rejects non-jwt Supabase keys", () => {
+  test("validateBeforeSave rejects non-jwt Supabase anon key", () => {
     const res = validateBeforeSave({
       githubToken: "",
       expoToken: "",
       edgeAdminKey: "",
       supabaseUrl: "https://abc123.supabase.co",
       supabaseAnonKey: "notjwt",
-      supabaseServiceRoleKey: "also-not-jwt",
     });
     expect(res.ok).toBe(false);
   });
 
-  test("validateBeforeSave accepts jwt-like Supabase keys", () => {
+  test("validateBeforeSave accepts jwt-like Supabase anon key", () => {
     const jwtLike =
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTYifQ.abcdefghijklmnopqrstuv";
     const res = validateBeforeSave({
@@ -74,7 +70,6 @@ describe("ConnectionsScreen validation", () => {
       edgeAdminKey: "",
       supabaseUrl: "https://abc123.supabase.co",
       supabaseAnonKey: jwtLike,
-      supabaseServiceRoleKey: jwtLike,
     });
     expect(res.ok).toBe(true);
   });
