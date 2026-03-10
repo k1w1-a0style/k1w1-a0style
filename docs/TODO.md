@@ -415,3 +415,49 @@ Akzeptanz:
     - [ ] `npm run test:silent`
   - [ ] finalen Projektzustand dokumentieren
 
+
+## Offene Nacharbeiten nach Patch 413 / Gesamt-Checkup
+
+- [ ] Patch 413 vollständig finalisieren:
+  - [ ] Restliche 413-Dateien committen/pushen:
+    - [ ] `PROJECT_CHECKLOG.md`
+    - [ ] `README.md`
+    - [ ] `components/CiLiteHeaderButton/hooks/useCiLitePatch.ts`
+    - [ ] `contexts/ProjectContext.tsx`
+    - [ ] `docs/TODO.md`
+    - [ ] `docs/patches/PATCHLOG_ROOT.md`
+    - [ ] `lib/diagnostics/buildPipelineDiagnostics.ts`
+    - [ ] `lib/diagnostics/remoteDiagnostics.ts`
+    - [ ] `screens/DiagnosticScreen/hooks/diagnosticRunners.ts`
+    - [ ] `screens/DiagnosticScreen/hooks/useDiagnosticCiAutofix.ts`
+    - [ ] `screens/DiagnosticScreen/hooks/useDiagnosticFixRunner.ts`
+    - [ ] `screens/GitHubReposScreen/components/LocalRemoteDiffSection.tsx`
+    - [ ] `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`
+    - [ ] `__tests__/patch413.repoBranchSot.invariants.test.ts`
+  - [ ] Danach `git status` prüfen: working tree clean
+
+- [ ] Gesamt-Checkup durchführen:
+  - [ ] Repo-/Branch-SoT repo-weit prüfen
+  - [ ] Versteckte Repo-Fallbacks prüfen
+  - [ ] Versteckte Branch-Fallbacks auf `main` prüfen
+  - [ ] Diff-/Diagnostics-/CI-/Build-Pfade auf SoT-Konformität prüfen
+  - [ ] Supabase/Edge/RPC/Policies/RLS nochmal querprüfen
+  - [ ] GitHub-/CI-Secrets gegen aktuelle Architektur prüfen
+  - [ ] Connections-/Backup-/Import-/Export-Flows gegen Secret-Leaks prüfen
+  - [ ] alle Invariant-Tests auf Drift-Lücken prüfen
+  - [ ] README / CHECKLOG / PATCHLOG / TODO auf Konsistenz prüfen
+  - [ ] Dateimodi (`100755`/`100644`) repo-weit prüfen
+  - [ ] trailing whitespace repo-weit prüfen
+
+- [ ] Hygiene / Aufräumen:
+  - [ ] `find . -type f -name "*.md" -exec chmod 644 {} +`
+  - [ ] trailing whitespace repo-weit entfernen
+  - [ ] unnötige temporäre Patch-/Zip-Reste ausschließen
+
+- [ ] Abschluss:
+  - [ ] vollständigen grünen Lauf machen:
+    - [ ] `npm run typecheck`
+    - [ ] `npm run lint:ci`
+    - [ ] `npm run test:silent`
+  - [ ] finalen Projektzustand dokumentieren
+
