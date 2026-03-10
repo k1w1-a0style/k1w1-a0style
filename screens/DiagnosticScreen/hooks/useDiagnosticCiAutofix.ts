@@ -26,7 +26,11 @@ export function useDiagnosticCiAutofix(opts: {
       return;
     }
 
-    const branch = ((linkedBranch || "main") as string).trim();
+    const branch = ((linkedBranch || "") as string).trim();
+    if (!branch) {
+      Alert.alert("CI-Autofix blockiert", "Kein Branch verknüpft.");
+      return;
+    }
 
     setCiFixing(true);
     setCiFixLog(null);

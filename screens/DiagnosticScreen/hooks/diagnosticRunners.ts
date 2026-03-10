@@ -123,6 +123,8 @@ export async function runPipelineChecks(params: {
 
   const parsed = includePipelineChecks ? parseOwnerRepo(linkedRepo) : null;
   if (!parsed) return;
+  const branch = (linkedBranch || "").trim();
+  if (!branch) return;
 
   try {
     if (!mountedRef.current) return;
@@ -131,7 +133,7 @@ export async function runPipelineChecks(params: {
     const { checks } = await runBuildPipelineDiagnostics({
       owner: parsed.owner,
       repo: parsed.repo,
-      branch: (linkedBranch || "main").trim(),
+      branch,
     });
 
     if (!mountedRef.current) return;

@@ -3,6 +3,7 @@
 This file is the *index* of patch notes for this repo.
 
 ## Recent
+- Patch 413: remove remaining silent repo/config + branch/main fallbacks across build, repo, diagnostics, diff, and CI-Lite patch-sync flows; add repo/branch SoT regression coverage
 - Patch 412: harden privileged Supabase DB functions by pinning `_diagnostic_upload_guard()` to an explicit search_path, revoking accidental `PUBLIC` execute on trigger/cleanup/upload helpers, and add guard-script + invariant coverage
 - Patch 410B: remove client-side Supabase service-role handling from token storage, Connections/AppInfo flows and repo-secret sync while keeping GitHub/CI secrets manual-only, plus guard coverage against drift
 - Patch 411: harden Supabase deploy workflow to workflow_dispatch-only with required ref, restore single-function/_shared guards, add apply_migrations policy + metadata artifacts, and sync runbook/guard/invariant coverage

@@ -54,7 +54,6 @@ import {
   addBuildToHistory,
   updateBuildInHistory,
 } from "../lib/buildHistoryStorage";
-import { CONFIG } from "../config";
 import { resolveEffectiveTemplateId } from "../lib/diagnostics/templates";
 
 const SAVE_DEBOUNCE_MS = 500;
@@ -615,10 +614,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           throw new Error("Projekt ist leer. Es gibt keine Dateien zum Bauen.");
         }
 
-        // Repo Quelle: Projekt-Link → Fallback Config
-        const githubRepo = (
-          pd.linkedRepo?.trim() || CONFIG.BUILD.GITHUB_REPO
-        ).trim();
+        const githubRepo = (pd.linkedRepo?.trim() || "").trim();
+        if (!githubRepo) {
+          throw new Error("Kein GitHub-Repo verknüpft. Bitte zuerst in GitHub Repos ein Repo auswählen und verknüpfen.");
+        }
 
         // Build Profile: nur erlaubte Werte (Default: preview)
         const profile =

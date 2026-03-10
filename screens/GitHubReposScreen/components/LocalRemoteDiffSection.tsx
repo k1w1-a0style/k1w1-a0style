@@ -136,7 +136,7 @@ export function LocalRemoteDiffSection(props: {
   const { activeRepo, activeBranch, projectFiles, onPushSelected } = props;
 
   const parsed = useMemo(() => (activeRepo ? splitFullName(activeRepo) : null), [activeRepo]);
-  const branch = useMemo(() => (activeBranch || "main").trim() || "main", [activeBranch]);
+  const branch = useMemo(() => (activeBranch || "").trim(), [activeBranch]);
 
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<DiffItem[]>([]);

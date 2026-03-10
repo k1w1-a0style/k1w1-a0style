@@ -66,7 +66,10 @@ export const runBuildPipelineDiagnostics = async (
   deps: BuildPipelineDiagnosticsDeps = {},
 ) => {
   const d = { ...DEFAULT_BUILD_PIPELINE_DIAGNOSTICS_DEPS, ...deps };
-  const ref = safeTrim(params.branch) || "main";
+  const ref = safeTrim(params.branch);
+  if (!ref) {
+    throw new Error("Kein Branch ausgewählt.");
+  }
 
   const checks: DiagnosticCheck[] = [];
 

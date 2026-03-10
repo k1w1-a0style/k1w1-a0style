@@ -14,7 +14,7 @@ Stand: **2026-03-09**
 - [x] Patch 410B — Client-side Service-Role-Key aus tokenStore/Secret-Sync eliminieren
 - [x] Patch 411 — Supabase Deploy + DB-Migrations-Flow/Workflow härten
 - [x] Patch 412 — RLS/Policies/Hardening + abschließende Doku-/Test-Sweeps
-- [ ] Patch 413 — SoT-Aufräumrunde für restliche Repo/Branch-/Fallback-Stellen
+- [x] Patch 413 — SoT-Aufräumrunde für restliche Repo/Branch-/Fallback-Stellen
 
 ### Erinnerungen / Nacharbeiten
 - [ ] Repo-weites SoT-Follow-up: zusätzliche Invariants/Jest-Guards für branch-/ref-gesteuerte Workflows festnageln, damit feste Branchlisten oder implizite Default-Deploypfade nicht wieder unbemerkt reinkommen

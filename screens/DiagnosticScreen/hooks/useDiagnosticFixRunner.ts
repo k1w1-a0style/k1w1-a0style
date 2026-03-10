@@ -189,7 +189,10 @@ export function useDiagnosticFixRunner(opts: {
       const parsed = parseOwnerRepo(linkedRepo);
       if (!parsed) throw new Error("Kein verknüpftes Repo gefunden (owner/repo).");
 
-      const branch = (linkedBranch || "main").trim() || "main";
+      const branch = (linkedBranch || "").trim();
+      if (!branch) {
+        throw new Error("Kein Branch verknüpft.");
+      }
       const touched = patchTouchedPaths(patch);
 
       const deletedSet = new Set(
@@ -451,7 +454,10 @@ export function useDiagnosticFixRunner(opts: {
           setFixDone(true);
           return;
         }
-        const workflowRef = (dispatch.ref || linkedBranch || "main").trim() || "main";
+        const workflowRef = (dispatch.ref || linkedBranch || "").trim();
+        if (!workflowRef) {
+          throw new Error("Kein Branch verknüpft.");
+        }
 
         const ok = await runStep(async () => {
           try {

@@ -181,7 +181,11 @@ export function useGitHubReposScreen() {
     const parsed = splitFullName(activeRepo);
     if (!parsed) return;
 
-    const branch = (activeBranch || "main").trim() || "main";
+    const branch = (activeBranch || "").trim();
+    if (!branch) {
+      setSyncStatus((s) => ({ ...s, checking: false, checkedAt: Date.now(), modified: 0, localOnly: 0, remoteOnly: 0, skipped: 0, error: 1 }));
+      return;
+    }
     const local = normalizedLocalFiles;
     if (!local.length) {
       // remoteOnly still meaningful
@@ -555,7 +559,12 @@ export function useGitHubReposScreen() {
     setPullPreview(null);
 
     try {
-      const branch = (activeBranch || "main").trim() || "main";
+      const branch = (activeBranch || "").trim();
+      if (!branch) {
+        Alert.alert("⚠️ Pull", "Kein Branch ausgewählt.");
+        setPullModalVisible(false);
+        return;
+      }
       const pulled = await pullFromRepo(
         parsed.owner,
         parsed.repo,
@@ -682,7 +691,11 @@ export function useGitHubReposScreen() {
 
     setIsPushing(true);
     try {
-      const branch = (activeBranch || "main").trim() || "main";
+      const branch = (activeBranch || "").trim();
+      if (!branch) {
+        Alert.alert("⚠️ Push", "Kein Branch ausgewählt.");
+        return;
+      }
       await pushFilesToRepoAdvanced(
         parsed.owner,
         parsed.repo,
@@ -796,7 +809,11 @@ export function useGitHubReposScreen() {
 
     setIsEasLinking(true);
     try {
-      const branch = activeBranch ?? "main";
+      const branch = (activeBranch || "").trim();
+      if (!branch) {
+        Alert.alert("⚠️", "Kein Branch ausgewählt.");
+        return;
+      }
       const easProjectJsonPath = "eas-project.json";
       const content = JSON.stringify({ projectId: id }, null, 2) + "\n";
 

@@ -9,7 +9,6 @@ import { useProject } from "../../../contexts/ProjectContext";
 import { getGitHubToken } from "../../../infra/github/tokenStore";
 import {
   deleteRepoFile,
-  getDefaultBranch,
   pushFilesToRepo,
 } from "../../../infra/github/githubService";
 import { normalizePreflightPatch, safeUi } from "../../ciLite/ciLiteUtils";
@@ -192,11 +191,10 @@ export function useCiLitePatch({ githubRepo, branch }: UseCiLitePatchOpts) {
       if (!githubRepo || !githubRepo.includes("/")) return;
 
       const [owner, repo] = githubRepo.split("/");
-      let targetBranch = branch;
+      const targetBranch = (branch || "").trim();
       if (!targetBranch) {
-        try { targetBranch = (await getDefaultBranch(owner, repo)).trim(); } catch { targetBranch = "main"; }
+        throw new Error("Kein Branch verknüpft (Auto-Sync nach Patch).");
       }
-      if (!targetBranch) targetBranch = "main";
 
       const tok = await getGitHubToken().catch(() => null);
       if (!tok) throw new Error("GitHub Token fehlt (Auto-Sync nach Patch).");

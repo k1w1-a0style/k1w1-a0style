@@ -19,7 +19,8 @@ export const triggerRemoteDiagnostics = async (params: {
   repo: string;
   branch?: string | null;
 }) => {
-  const ref = safeTrim(params.branch) || "main";
+  const ref = safeTrim(params.branch);
+  if (!ref) throw new Error("Kein Branch ausgewählt.");
   await triggerWorkflow(
     params.owner,
     params.repo,
@@ -48,7 +49,8 @@ export const fetchLatestRemoteDiagnosticsReport = async (params: {
   githubRepo: string; // "owner/repo"
   branch?: string | null;
 }) => {
-  const ref = safeTrim(params.branch) || "main";
+  const ref = safeTrim(params.branch);
+  if (!ref) throw new Error("Kein Branch ausgewählt.");
   const supabase = await ensureSupabaseClient();
 
   const { data, error } = await supabase
