@@ -70,10 +70,11 @@ export function DiffFilesSection(props: {
     setError(null);
     try {
       const def = await loadDefaultBranch(parsed.owner, parsed.repo);
-      const base = (def || "").trim() || "main";
+      const base = (def || "").trim();
+      if (!base) throw new Error("Kein Default-Branch gefunden.");
       setDefaultBranch(base);
 
-      const head = (activeBranch || base).trim();
+      const head = headBranch;
       const res = await compareBranches({
         owner: parsed.owner,
         repo: parsed.repo,
@@ -135,7 +136,12 @@ export function DiffFilesSection(props: {
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
           <TouchableOpacity
             style={[styles.chip, { flexDirection: "row", alignItems: "center", gap: 6 }]}
-            onPress={() => safeOpenUrl(buildCompareUrl(parsed.owner, parsed.repo, defaultBranch || "main", headBranch || (defaultBranch || "main")))}
+            onPress={() => {
+              const baseRef = (defaultBranch || "").trim();
+              const headRef = (headBranch || baseRef).trim();
+              if (!baseRef || !headRef) return;
+              safeOpenUrl(buildCompareUrl(parsed.owner, parsed.repo, baseRef, headRef));
+            }}
           >
             <Ionicons name="open-outline" size={14} color={theme.palette.text.secondary} />
             <Text style={{ fontSize: 12, color: theme.palette.text.secondary }}>Compare öffnen</Text>
@@ -179,7 +185,7 @@ export function DiffFilesSection(props: {
 
           {filesPreview.length ? (
             filesPreview.map((f) => {
-              const baseRef = (defaultBranch || "main").trim();
+              const baseRef = (defaultBranch || "").trim();
               const headRef = (headBranch || baseRef).trim();
               const refForFile = (String(f.status || "").toLowerCase() === "removed") ? baseRef : headRef;
               const url = parsed ? buildBlobUrl(parsed.owner, parsed.repo, refForFile, f.filename) : "";
