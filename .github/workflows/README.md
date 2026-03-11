@@ -52,12 +52,14 @@ Diese beiden Workflows sind für den **APK-Builder Flow** gedacht:
 
 **Chain-run:** Wenn Autofix erfolgreich ist, dispatcht der Workflow automatisch einen nachfolgenden CI Lite Run (gleiches `job_id`).
 
+**Wichtig:** CI-Lite-Chain bleibt bewusst branch-basiert, weil der nachgelagerte Read-only-CI-Lite-Workflow auf Remote-Branches arbeitet. Patch 414 härtet hier nur den manuellen Autofix-Einstieg auf explizites `ref`; die Chain-Dispatch-Ausnahme bleibt dokumentiert.
+
 ## 🚀 k1w1-triggered-build.yml - App-getriggerte Builds
 
 **Trigger:**
 
 1. Via Supabase Function (`SUPABASE_EDGE_FUNCTIONS.TRIGGER_EAS_BUILD`)
-2. Manuell über GitHub UI (Ref standardmäßig aktueller Branch, kein hartes `main`)
+2. Manuell über GitHub UI (explizites `ref` ist Pflicht, kein stiller Branch-/`github.ref_name`-Fallback)
 
 **Zweck:**
 
@@ -94,10 +96,10 @@ const { data } = await supabase.functions.invoke(SUPABASE_EDGE_FUNCTIONS.TRIGGER
 
 ```bash
 # Via GitHub CLI:
-gh workflow run k1w1-triggered-build.yml
+gh workflow run k1w1-triggered-build.yml -f ref=work
 
 # Mit Job ID:
-gh workflow run k1w1-triggered-build.yml -f job_id=123
+gh workflow run k1w1-triggered-build.yml -f ref=work -f job_id=123
 ```
 
 **Status Flow:**
@@ -122,10 +124,10 @@ queued → building → completed
 
 **Input-Parameter:**
 
-| Parameter  | Optionen                         | Default    | Beschreibung           |
-| ---------- | -------------------------------- | ---------- | ---------------------- |
-| `platform` | android                       | android    | Zu bauende Platform |
-| `profile`  | production, preview, development | production | EAS Build Profile      |
+| Parameter | Optionen                         | Default    | Beschreibung      |
+| --------- | -------------------------------- | ---------- | ----------------- |
+| `ref`     | Branch/Tag/SHA                   | —          | Expliziter Build-Ref |
+| `profile` | production, preview, development | production | EAS Build Profile |
 
 **Features:**
 
@@ -140,7 +142,7 @@ queued → building → completed
 
 ```bash
 # Via GitHub CLI:
-gh workflow run release-build.yml -f platform=android -f profile=production
+gh workflow run release-build.yml -f ref=work -f profile=production
 
 # Via GitHub UI:
 # Actions Tab → Release Build → Run workflow → Select options

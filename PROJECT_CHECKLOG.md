@@ -1,3 +1,4 @@
+- 2026-03-11 Patch 414 V13: finish the workflow ref invariant coverage by decoding escaped workflow template strings before the YAML ref-block scan, keep the V7 ref-SoT/keystore contract intact, and preserve the documented CI-Lite branch exception
 - 2026-03-10 Patch 413: harden repo/branch source-of-truth selection by removing remaining silent repo/config + branch/main fallbacks in build, repo, diagnostics, diff, and CI-Lite patch-sync flows; add regression invariant coverage
 - 2026-03-10 Patch 412: harden privileged Supabase functions by setting an explicit search_path on `_diagnostic_upload_guard()`, revoking accidental PUBLIC execute on trigger/cleanup/upload helpers, and add guard-script + invariant coverage
 - 2026-03-10 Patch 410B V5: remove Supabase service-role handling from client token/Connections/AppInfo paths, keep GitHub/CI secrets manual-only, and add invariants against client-side reintroduction

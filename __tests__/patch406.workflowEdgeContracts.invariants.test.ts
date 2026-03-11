@@ -8,11 +8,14 @@ function read(rel: string): string {
 }
 
 describe('patch406 workflow-edge contracts', () => {
-  test('trigger workflow forwards expected dispatch payload fields into eas-build', () => {
+  test('trigger workflow resolves dispatch payload fields before forwarding into eas-build', () => {
     const wf = read('.github/workflows/k1w1-triggered-build.yml');
-    expect(wf).toContain("job_id: ${{ github.event.client_payload.job_id || github.event.inputs.job_id || '' }}");
-    expect(wf).toContain("autofix: ${{ github.event.client_payload.autofix || (github.event_name == 'workflow_dispatch' && inputs.autofix) || false }}");
-    expect(wf).toContain("strict_lockfile: ${{ github.event.client_payload.strict_lockfile || (github.event_name == 'workflow_dispatch' && inputs.strict_lockfile) || 'auto' }}");
+    expect(wf).toContain('job_id: ${{ steps.resolve.outputs.job_id }}');
+    expect(wf).toContain('autofix: ${{ steps.resolve.outputs.autofix }}');
+    expect(wf).toContain('strict_lockfile: ${{ steps.resolve.outputs.strict_lockfile }}');
+    expect(wf).toContain('job_id: ${{ needs.resolve.outputs.job_id }}');
+    expect(wf).toContain('autofix: ${{ fromJSON(needs.resolve.outputs.autofix) }}');
+    expect(wf).toContain('strict_lockfile: ${{ needs.resolve.outputs.strict_lockfile }}');
   });
 
   test('eas-build uses android-keystore-export and status/source_commit_sha fields', () => {

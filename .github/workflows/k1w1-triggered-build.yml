@@ -1,5 +1,5 @@
 name: K1W1 Triggered Build
-run-name: "EAS ${{ github.event.client_payload.build_profile || github.event.inputs.profile || 'preview' }} • ${{ github.event.client_payload.branch || github.event.client_payload.ref || github.event.inputs.ref || github.ref_name }}"
+run-name: "EAS ${{ github.event.client_payload.build_profile || github.event.inputs.profile || 'preview' }} • ${{ github.event.client_payload.ref || github.event.inputs.ref }}"
 
 on:
   repository_dispatch:
@@ -7,9 +7,8 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Branch/Ref to build (e.g. work, main, dev, feature-x)"
-        required: false
-        default: ""
+        description: "Branch/Tag/SHA to build"
+        required: true
       profile:
         description: "EAS build profile (development|preview|production)"
         required: false
@@ -36,19 +35,53 @@ permissions:
 concurrency:
   group: >-
     k1w1-triggered-build-
-    ${{ github.event.client_payload.branch || github.event.client_payload.ref || github.event.inputs.ref || github.ref_name }}-
+    ${{ github.event.client_payload.ref || github.event.inputs.ref }}-
     ${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || github.event.inputs.profile || 'preview' }}
   cancel-in-progress: false
 
 jobs:
+  resolve:
+    name: Resolve explicit ref
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.resolve.outputs.ref }}
+      profile: ${{ steps.resolve.outputs.profile }}
+      job_id: ${{ steps.resolve.outputs.job_id }}
+      autofix: ${{ steps.resolve.outputs.autofix }}
+      strict_lockfile: ${{ steps.resolve.outputs.strict_lockfile }}
+    steps:
+      - name: Resolve inputs
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          REF="${{ github.event.client_payload.ref || github.event.inputs.ref || '' }}"
+          PROFILE="${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || github.event.inputs.profile || 'preview' }}"
+          JOB_ID="${{ github.event.client_payload.job_id || github.event.inputs.job_id || '' }}"
+          AUTOFIX="${{ github.event.client_payload.autofix || (github.event_name == 'workflow_dispatch' && inputs.autofix) || false }}"
+          STRICT_LOCKFILE="${{ github.event.client_payload.strict_lockfile || (github.event_name == 'workflow_dispatch' && inputs.strict_lockfile) || 'auto' }}"
+
+          if [ -z "$REF" ]; then
+            echo "::error::Missing required ref. Pass client_payload.ref for repository_dispatch or inputs.ref for workflow_dispatch."
+            exit 1
+          fi
+
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+          echo "profile=$PROFILE" >> "$GITHUB_OUTPUT"
+          echo "job_id=$JOB_ID" >> "$GITHUB_OUTPUT"
+          echo "autofix=$AUTOFIX" >> "$GITHUB_OUTPUT"
+          echo "strict_lockfile=$STRICT_LOCKFILE" >> "$GITHUB_OUTPUT"
+
   build:
     name: Dispatch → EAS Build (reusable)
+    needs: resolve
     uses: ./.github/workflows/eas-build.yml
     with:
-      ref: ${{ github.event.client_payload.branch || github.event.client_payload.ref || github.event.inputs.ref || github.ref_name }}
-      profile: ${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || github.event.inputs.profile || 'preview' }}
-      job_id: ${{ github.event.client_payload.job_id || github.event.inputs.job_id || '' }}
+      ref: ${{ needs.resolve.outputs.ref }}
+      profile: ${{ needs.resolve.outputs.profile }}
+      job_id: ${{ needs.resolve.outputs.job_id }}
       platform: android
-      autofix: ${{ github.event.client_payload.autofix || (github.event_name == 'workflow_dispatch' && inputs.autofix) || false }}
-      strict_lockfile: ${{ github.event.client_payload.strict_lockfile || (github.event_name == 'workflow_dispatch' && inputs.strict_lockfile) || 'auto' }}
+      autofix: ${{ fromJSON(needs.resolve.outputs.autofix) }}
+      strict_lockfile: ${{ needs.resolve.outputs.strict_lockfile }}
     secrets: inherit

@@ -7,8 +7,7 @@ on:
     inputs:
       ref:
         description: "Branch/Tag/SHA to build"
-        required: false
-        default: ""
+        required: true
       profile:
         description: "EAS build profile (development|preview|production)"
         required: false
@@ -39,9 +38,8 @@ on:
     inputs:
       ref:
         description: "Branch/Tag/SHA to build"
-        required: false
+        required: true
         type: string
-        default: ""
       profile:
         description: "EAS build profile (development|preview|production)"
         required: false
@@ -83,7 +81,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: eas-build-${{ inputs.ref || github.ref_name }}-${{ inputs.profile }}
+  group: eas-build-${{ inputs.ref }}-${{ inputs.profile }}
   cancel-in-progress: false
 
 jobs:
@@ -104,7 +102,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          ref: ${{ inputs.ref || github.ref_name }}
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
 
       - name: "🧹 Preflight: clean incomplete native dirs"
@@ -274,7 +272,7 @@ jobs:
       - name: Auto-fix repo (lockfile + dev client) [optional writeback]
         shell: bash
         env:
-          TARGET_BRANCH: ${{ inputs.ref || github.ref_name }}
+          TARGET_BRANCH: ${{ inputs.ref }}
           PROFILE: ${{ inputs.profile }}
           PACKAGE_MANAGER: ${{ steps.lock.outputs.package_manager }}
           HAS_LOCKFILE: ${{ steps.lock.outputs.has_lockfile }}
@@ -400,7 +398,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          ref: ${{ inputs.ref || github.ref_name }}
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
 
       - name: Prepare build diagnostics dir
@@ -577,6 +575,7 @@ jobs:
         shell: bash
         env:
           K1W1_EDGE_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ADMIN_KEY }}
+          WORKFLOW_REF: ${{ inputs.ref }}
         run: |
           set -euo pipefail
           echo "::add-mask::${SUPABASE_SERVICE_ROLE_KEY}"
@@ -589,7 +588,7 @@ jobs:
               repo: process.env.GITHUB_REPOSITORY,
               mode: "production",
               run_id: process.env.GITHUB_RUN_ID,
-              ref: process.env.GITHUB_REF_NAME || "",
+              ref: process.env.WORKFLOW_REF || "",
               profile: "production"
             };
             fs.mkdirSync("ci-logs", { recursive: true });

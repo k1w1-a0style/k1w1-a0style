@@ -3,15 +3,14 @@
 name: K1W1 CI Lite Autofix (ESLint --fix)
 
 run-name: >-
-  CI Lite Autofix${{ inputs.job_id && format(' [{0}]', inputs.job_id) || '' }} • ${{ inputs.ref || github.ref_name }}
+  CI Lite Autofix${{ inputs.job_id && format(' [{0}]', inputs.job_id) || '' }} • ${{ inputs.ref }}
 
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Branch/Ref to autofix (must be a remote branch)"
-        required: false
-        default: ""
+        description: "Branch to autofix (must be a remote branch)"
+        required: true
       job_id:
         description: "Client job id (UUID) for log correlation"
         required: false
@@ -22,7 +21,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: k1w1-ci-lite-autofix-${{ inputs.ref || github.ref_name }}
+  group: k1w1-ci-lite-autofix-${{ inputs.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -33,7 +32,7 @@ jobs:
 
     env:
       JOB_ID: ${{ inputs.job_id }}
-      TARGET_BRANCH: ${{ inputs.ref || github.ref_name }}
+      TARGET_BRANCH: ${{ inputs.ref }}
       ALLOWED_REF_REGEX: "^(work|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
       WORKFLOW_VERSION: "399"
 

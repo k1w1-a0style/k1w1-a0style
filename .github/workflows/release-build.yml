@@ -13,15 +13,14 @@ on:
         options: [production, preview, development]
         default: production
       ref:
-        description: "Branch/Tag/SHA (optional)"
-        required: false
-        default: ""
+        description: "Branch/Tag/SHA to build"
+        required: true
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ inputs.ref || github.ref_name }}-${{ inputs.profile }}
+  group: ${{ github.workflow }}-${{ inputs.ref }}-${{ inputs.profile }}
   cancel-in-progress: false
 
 jobs:
@@ -42,7 +41,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          ref: ${{ inputs.ref || github.ref_name }}
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
           persist-credentials: true
 
@@ -307,7 +306,7 @@ jobs:
             echo ""
             echo "- workflow version: `${WORKFLOW_VERSION}`"
             echo "- Profile: ${{ inputs.profile }}"
-            echo "- Ref: ${{ inputs.ref || github.ref_name }}"
+            echo "- Ref: ${{ inputs.ref }}"
             echo "- Package manager: ${{ steps.lock.outputs.package_manager }}"
             echo "- Lockfile: ${{ steps.lock.outputs.lockfile_path || 'none' }}"
             echo "- Build URL: ${{ steps.eas.outputs.build_url }}"

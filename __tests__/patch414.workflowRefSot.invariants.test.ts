@@ -1,0 +1,218 @@
+import fs from "fs";
+import path from "path";
+
+const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "utf8");
+
+const findRefBlocks = (src: string) => {
+  const lines = src.split("\n");
+  const blocks: string[] = [];
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (line.trim() !== "ref:") continue;
+
+    const refIndent = line.match(/^\s*/)?.[0].length ?? 0;
+    const blockLines = [line];
+    let j = i + 1;
+
+    while (j < lines.length) {
+      const nextLine = lines[j];
+      if (nextLine.trim() === "") {
+        blockLines.push(nextLine);
+        j += 1;
+        continue;
+      }
+
+      const nextIndent = nextLine.match(/^\s*/)?.[0].length ?? 0;
+      if (nextIndent <= refIndent) break;
+      blockLines.push(nextLine);
+      j += 1;
+    }
+
+    blocks.push(blockLines.join("\n"));
+    i = j - 1;
+  }
+
+  return blocks;
+};
+
+const decodeJsSingleQuoted = (escaped: string) => {
+  let out = "";
+
+  for (let i = 0; i < escaped.length; i += 1) {
+    const ch = escaped[i];
+    if (ch !== "\\") {
+      out += ch;
+      continue;
+    }
+
+    const next = escaped[i + 1];
+    if (next == null) {
+      out += "\\";
+      break;
+    }
+
+    switch (next) {
+      case "n":
+        out += "\n";
+        break;
+      case "r":
+        out += "\r";
+        break;
+      case "t":
+        out += "\t";
+        break;
+      case "b":
+        out += "\b";
+        break;
+      case "f":
+        out += "\f";
+        break;
+      case "v":
+        out += "\v";
+        break;
+      case "0":
+        out += "\0";
+        break;
+      case "'":
+        out += "'";
+        break;
+      case '"':
+        out += '"';
+        break;
+      case "\\":
+        out += "\\";
+        break;
+      default:
+        out += next;
+        break;
+    }
+
+    i += 1;
+  }
+
+  return out;
+};
+
+const extractTsConst = (src: string, name: string) => {
+  const marker = `export const ${name} = '`;
+  const start = src.indexOf(marker);
+  if (start === -1) return "";
+
+  let i = start + marker.length;
+  let out = "";
+  while (i < src.length) {
+    const ch = src[i];
+    if (ch === "\\") {
+      if (i + 1 < src.length) {
+        out += ch + src[i + 1];
+        i += 2;
+        continue;
+      }
+      out += ch;
+      break;
+    }
+    if (ch === "'") {
+      return decodeJsSingleQuoted(out);
+    }
+    out += ch;
+    i += 1;
+  }
+
+  return "";
+};
+
+const extractTemplateContent = (jsonSrc: string, workflowPath: string) => {
+  const entries = JSON.parse(jsonSrc) as Array<{ path: string; content: string }>;
+  return entries.find((entry) => entry.path === workflowPath)?.content ?? "";
+};
+
+const expectExplicitRefContract = (src: string) => {
+  expect(src).toContain("required: true");
+  expect(src).not.toContain("github.ref_name");
+  expect(src).not.toContain("client_payload.branch");
+};
+
+const expectRequiredRefBlocks = (src: string, expectedCount: number) => {
+  const blocks = findRefBlocks(src);
+  expect(blocks).toHaveLength(expectedCount);
+  for (const block of blocks) {
+    expect(block).toContain("required: true");
+    expect(block).not.toContain('default: ""');
+  }
+};
+
+describe("Patch 414 workflow ref SoT invariants", () => {
+  it("hardens live build workflows to explicit refs", () => {
+    const eas = read(".github/workflows/eas-build.yml");
+    const release = read(".github/workflows/release-build.yml");
+    const autofix = read(".github/workflows/k1w1-ci-lite-autofix.yml");
+    const triggered = read(".github/workflows/k1w1-triggered-build.yml");
+
+    expectRequiredRefBlocks(eas, 2);
+    expectRequiredRefBlocks(release, 1);
+    expectRequiredRefBlocks(autofix, 1);
+    expectRequiredRefBlocks(triggered, 1);
+
+    expectExplicitRefContract(eas);
+    expectExplicitRefContract(release);
+    expectExplicitRefContract(autofix);
+    expectExplicitRefContract(triggered);
+
+    expect(triggered).toContain("Missing required ref.");
+    expect(triggered).toContain("needs: resolve");
+    expect(triggered).toContain("ref: ${{ needs.resolve.outputs.ref }}");
+  });
+
+  it("keeps the production keystore request bound to the explicit workflow ref", () => {
+    const eas = read(".github/workflows/eas-build.yml");
+    expect(eas).toContain("WORKFLOW_REF: ${{ inputs.ref }}");
+    expect(eas).toContain('ref: process.env.WORKFLOW_REF || "",');
+    expect(eas).not.toContain('ref: process.env.INPUT_REF || "",');
+    expect(eas).not.toContain('ref: process.env.GITHUB_REF_NAME || "",');
+  });
+
+  it("keeps the embedded build workflow templates aligned with the live contract", () => {
+    const templatesTs = read("lib/diagnostics/workflowTemplates.ts");
+    const baseJson = read("templates/expo-sdk54-base.json");
+    const fullJson = read("templates/expo-sdk54-full.json");
+
+    const tsTriggered = extractTsConst(templatesTs, "WORKFLOW_K1W1_TRIGGERED_BUILD");
+    const tsEas = extractTsConst(templatesTs, "WORKFLOW_EAS_BUILD");
+    const tsRelease = extractTsConst(templatesTs, "WORKFLOW_RELEASE_BUILD");
+
+    const baseTriggered = extractTemplateContent(baseJson, ".github/workflows/k1w1-triggered-build.yml");
+    const baseEas = extractTemplateContent(baseJson, ".github/workflows/eas-build.yml");
+    const baseRelease = extractTemplateContent(baseJson, ".github/workflows/release-build.yml");
+
+    const fullEas = extractTemplateContent(fullJson, ".github/workflows/eas-build.yml");
+    const fullRelease = extractTemplateContent(fullJson, ".github/workflows/release-build.yml");
+
+    for (const src of [tsTriggered, tsEas, tsRelease, baseTriggered, baseEas, baseRelease, fullEas, fullRelease]) {
+      expect(src).toBeTruthy();
+      expectExplicitRefContract(src);
+    }
+
+    expectRequiredRefBlocks(tsEas, 2);
+    expectRequiredRefBlocks(baseEas, 2);
+    expectRequiredRefBlocks(fullEas, 2);
+    expectRequiredRefBlocks(tsRelease, 1);
+    expectRequiredRefBlocks(baseRelease, 1);
+    expectRequiredRefBlocks(fullRelease, 1);
+    expectRequiredRefBlocks(tsTriggered, 1);
+    expectRequiredRefBlocks(baseTriggered, 1);
+
+    expect(tsTriggered).toContain("Missing required ref.");
+    expect(baseTriggered).toContain("Missing required ref.");
+    expect(tsEas).toContain('process.env.WORKFLOW_REF || "",');
+    expect(baseEas).toContain('process.env.WORKFLOW_REF || "",');
+    expect(fullEas).toContain('process.env.WORKFLOW_REF || "",');
+  });
+
+  it("documents CI Lite as a branch-oriented exception instead of a ref-only path", () => {
+    const workflowReadme = read(".github/workflows/README.md");
+    const todo = read("docs/TODO.md");
+    expect(workflowReadme).toContain("CI-Lite-Chain bleibt bewusst branch-basiert");
+    expect(todo).toContain("CI-Lite-Chain bleibt bewusst branch-basiert");
+  });
+});
