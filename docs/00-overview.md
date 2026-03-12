@@ -1,104 +1,49 @@
-# 00 — Overview (Single Source of Truth)
+# 00 — Overview
 
-## Zweck
-Diese Doku definiert den **verbindlichen Contract** für:
-- globalen Zustand (Repo/Branch/BuildProfile + diagnostische Persistenz),
-- Build-Pipeline (UI → Context → Service → GitHub/Supabase),
-- Guardrails gegen Drift (Hardcoding/Fallbacks/lokale Schattenkopien).
+Stand: **2026-03-12**
 
-Screens sind **nur Navigationshilfe**; der eigentliche Vertrag steht in:
-- `01-state-contract.md`
-- `02-build-pipeline.md`
+## Zielbild (operativ)
 
----
+k1w1-a0style führt Operatoren durch eine stabile Kette:
 
-## High-Level Flows
+1. `GitHub Repos` — Repo + Branch explizit setzen
+2. `Verbindungen` — Tokens/Connectivity prüfen
+3. `Diagnose` — Checks ausführen und Fix-Loop schließen
+4. `Build` — nur bei grüner Readiness starten
+5. `Status/History` — Verlauf und Laufzeitstatus verfolgen
 
-### A) Selection-Flow (Repo/Branch/BuildProfile)
-1. User wählt Repo/Branch primär im Repo-Flow.
-2. Schreibpfad persistiert in `ProjectData.linkedRepo/linkedBranch`.
-3. `GitHubContext` spiegelt diese Werte (Mirror) in `activeRepo/activeBranch` + AsyncStorage Keys.
-4. Build/Diagnostics lesen aus den globalen Werten (kein screen-lokaler SoT).
+## Source-of-Truth (SoT)
 
-### B) Build-Flow (E2E)
-1. Build UI prüft Preconditions (Tokens, Signing, Diagnostics, Repo/Branch).
-2. Build startet über `ProjectContext.startBuild`.
-3. `startBuildJob` pusht Dateien (best effort), setzt Workflows, triggert Edge Function.
-4. Polling/Historie aktualisieren Build-Status im Context.
+- **Repo/Branch:** `projectData.linked*` ist die führende Auswahl; kein stilles Erraten.
+- **Workflow-Ref:** produktive Deploy-/Build-Pfade sind explizit ref-gesteuert.
+- **CI-Lite-Ausnahme:** branch-basierte Chain ist bewusst dokumentiert und begrenzt.
+- **Build-Job-ID:** positive numerische `jobId` (bigint-backed).
+- **Diagnostics-Upload-ID:** im Client opaque string; Backend bleibt bigint-backed.
 
----
+## Sicherheits- und Governance-Leitplanken
 
-## Glossar (Contract-Begriffe)
-- **SoT (Source of Truth):** Autoritative Datenquelle.
-- **Single Writer:** Exakt definierter Schreibpfad pro Vertragswert.
-- **Mirror State:** Abgeleiteter Zustand zur UX, nicht primäre Autorität.
-- **Guardrail:** Explizite technische Sperre gegen ungültigen Start/Fallback.
+- Keine Service-Role-Key-Nutzung mehr in Client-Pfaden.
+- Workflow-/Edge-Verträge bleiben über Guard-Skripte + Invariants gegen Drift abgesichert.
+- Legacy-/Retired-Edge-Funktionen bleiben explizit als deaktiviert dokumentiert.
 
----
+## Was dieses Dokument bewusst **nicht** ist
 
-## Evidence (Schlüsselstellen)
+- Kein vollständiges Incident-Runbook.
+- Keine Patch-Historie im Detail.
 
-### Evidence 1 — ProjectData enthält die persistenten Kernfelder
-**Datei:** `shared/types/project.ts`  
-**Symbol:** `interface ProjectData`
-```ts
-export interface ProjectData {
-  // ...
-  linkedRepo?: string | null;
-  linkedBranch?: string | null;
-  preferredBuildProfile?: "development" | "preview" | "production" | null;
-}
-```
+Für diese Bereiche:
+- Runbook: `docs/runbooks/APP_RUNBOOK.md`
+- Patch-Historie: `docs/patches/PATCHLOG_ROOT.md`
 
-### Evidence 2 — GitHubContext mirrort linked* als SoT-Mirror
-**Datei:** `contexts/GitHubContext.tsx`  
-**Symbol:** `useEffect` (mirror linkedRepo/linkedBranch)
-```ts
-const linkedRepo = (projectData?.linkedRepo ?? "").trim() || null;
-const linkedBranch = (projectData?.linkedBranch ?? "").trim() || null;
+## Operator-Kurzchecks
 
-if (linkedRepo !== activeRepo) {
-  setActiveRepo(linkedRepo);
-}
+Vor jedem Build:
+- Repo/Branch gesetzt
+- Diagnostics zuletzt grün (`diagnostic_last_ok = true`)
+- notwendige Secrets/Tokens vorhanden
+- Profil korrekt (z. B. `production`)
 
-if (linkedBranch !== activeBranch) {
-  setActiveBranch(linkedBranch);
-}
-```
+## Nächste Pflegepunkte
 
-### Evidence 3 — Build-Preconditions nutzen persistente Status-Keys
-**Datei:** `screens/EnhancedBuildScreen/hooks/useBuildPreconditions.ts`  
-**Symbol:** `refreshPreconditions`
-```ts
-const diagVal = await AsyncStorage.getItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null);
-// ...
-const [lintOk, typeOk] = await Promise.all([
-  AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_LINT_OK).catch(() => null),
-  AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_TYPECHECK_OK).catch(() => null),
-]);
-```
-
-### Evidence 4 — Build wird zentral über startBuildJob ausgelöst
-**Datei:** `contexts/ProjectContext.tsx`  
-**Symbol:** `startBuild`
-```ts
-const started = await startBuildJob({
-  project: pd,
-  buildProfile: profile,
-});
-
-const jobId = started.jobId;
-const githubRepoResolved = started.githubRepo;
-```
-
-## Quick Links
-- Product overview: `docs/10-product-and-flows.md`
-- Operator/QA runbook: `docs/runbooks/APP_RUNBOOK.md`
-- Screen/Flow map: `docs/03-screen-index.md`, `docs/13-screen-flow-map.md`
-- State quickref: `docs/14-state-quickref.md`
-- Diagnostics → Fix: `docs/07-diagnostics-fix-playbook.md`
-- Release readiness: `docs/12-release-readiness-report.md`
-- Test coverage: `docs/08-test-coverage-matrix.md`
-- Smoke plan: `docs/04-testing-smoke-plan.md`
-- Gap tickets: `docs/09-gap-tickets.md`
-
+- Kern-MDs weiterhin synchron halten (`README.md`, `docs/INDEX.md`, diese Übersicht, Screen-/Flow-Dokus).
+- Historienballast aus Kernflächen fernhalten; Details in Patchnotizen belassen.

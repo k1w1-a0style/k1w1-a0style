@@ -1,26 +1,16 @@
-# 03 — Screen Index (Screen → Zweck → Primäraktionen)
+# 03 — Screen Index
 
-Stand: 2026-03-12
+Stand: **2026-03-12**
 
-> Hinweis: Normative Contracts liegen in `docs/01-state-contract.md` und `docs/02-build-pipeline.md`.
+Kompakte Übersicht über die operativen Hauptscreens.
 
-| Screen | Purpose | Primary Actions (Buttons/Flows) | Related Contracts/Docs | Diagnostics touched |
-|---|---|---|---|---|
-| `GitHubReposScreen` | Repo/Branch selection + Repo sync ops | Repo auswählen, Branch auswählen, `Secrets synchronisieren`, branch tools | `01-state-contract`, `13-screen-flow-map` | Indirekt (liefert Repo/Branch Kontext für Pipeline-Checks) |
-| `ConnectionsScreen` | Tokens + Connection lights + EAS project link/create | Token speichern/testen, EAS Link/Create | `01-state-contract`, `06-build-readiness` | Pipeline prereqs (`local.githubToken`, `local.expoToken`) |
-| `DiagnosticScreen` | Local+Pipeline checks und Fix-Loops | `Run diagnostics`, `Smart Fix`, `Auto-Fix anwenden`, `Patch Vorschau` | `07-diagnostics-fix-playbook`, `06-build-readiness` | Direkt: alle Preflight/Pipeline checks |
-| `EnhancedBuildScreen` | Build gate + Build start + history/status | Profil wählen, `Start Build`, one-click deploy options | `02-build-pipeline`, `06-build-readiness` | Liest `diagnostic_last_ok`, Signing/Token flags |
-| `CredentialsWizardScreen` | Signing key status/flow je Modus | Mode wählen, Status refresh/generate | `01-state-contract`, `06-build-readiness` | Schreibt `CRED_KEY_EXISTS_*` für Build gate |
-| `AppStatusScreen` | Projekt-/Config-Überblick | Tabs/sections für overview/validation/files | `00-overview` | Keine direkten Fixes, nur Sichtbarkeit |
-| `AppInfoScreen` | Backup/Export/Import + Projekt-Meta | Backup export/import, API key sections | `01-state-contract` | Indirekt (Import kann linked Repo/Branch ändern) |
-| `PreviewScreen` | Laufzeit-Preview inkl. Statusbar | Device frame, toolbar actions, fullscreen | `10-product-and-flows` | Keine Build-Gate Checks |
-| `TerminalScreen` | Operative Logs/Filter | Filter/Search/Clear | `runbooks/APP_RUNBOOK.md` | Diagnose-/Buildfehler sichtbar machen |
+| Screen | Hauptzweck | Primäre Aktionen | Typische Ergebnisse |
+|---|---|---|---|
+| `GitHub Repos` | Repo/Branch-SoT + Repo-Operationen | Repo/Branch wählen, `EAS Projekt erstellen/verbinden`, `Secrets synchronisieren` | Konsistente Repo-/Branch-Basis für alle Folgeflows |
+| `Verbindungen` | Verbindungszustand und Tokens | Tokens testen/speichern (GitHub/Expo/Supabase) | Verbindungen grün, klare Fehlerhinweise bei fehlenden Rechten |
+| `Diagnose` | Check-Ausführung + Fix-Loop | `Scannen`, `Fixen`, `Auto-Fix anwenden`, `Patch Vorschau` | `diagnostic_last_ok = true` oder klarer Next Step |
+| `Build` | Readiness-Gate + Buildstart | Profil wählen, `Build starten`, Retry/Cancel | Build startet nur mit erfüllten Voraussetzungen |
+| `Credentials Wizard` | Signing-/Profil-Readiness | prüfen/wechseln/ergänzen | Production-Readiness für Signierung |
+| `Terminal` | Laufzeit-Logs/Debug | Logs lesen/filtern | Schnelle Incident-Einordnung |
 
-## Ergänzung
-- Detail-Flow inkl. Mermaid: `docs/13-screen-flow-map.md`
-
-
-## Post-417 operating notes
-- Repo-/Branch-SoT bleibt strikt explizit; Build-/Diagnostics-/Workflow-Pfade sollen kein stilles Repo/Branch-Erfinden mehr enthalten.
-- Workflow-/Template-Drift wird zusätzlich durch Shell-Guards und Invariant-Tests abgesichert; vor Workflow-Patches zuerst die dokumentierten Guard-Skripte laufen lassen.
-- Connections/Diagnostics/Build bleiben die tragende Operator-Kette; MD-Cleanup-Follow-up darf diese Kernorientierung nicht verwässern.
+Siehe Detailfluss: `docs/13-screen-flow-map.md`.

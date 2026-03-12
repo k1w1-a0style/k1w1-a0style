@@ -1,37 +1,36 @@
-# Docs Index — k1w1-a0style
+# Dokumentations-Index
 
-Stand: 2026-03-12
+Stand: **2026-03-12**
 
-## Core Architecture / Contracts
-- [00 — Overview (SoT)](00-overview.md)
-- [01 — State Contract](01-state-contract.md)
-- [02 — Build Pipeline Contract](02-build-pipeline.md)
-- [03 — Screen Index](03-screen-index.md)
-- [04 — Testing & Smoke Plan](04-testing-smoke-plan.md)
-- [04 — Risk Hotspots](04-risk-hotspots.md)
-- [05 — Contract Test Coverage Matrix](05-contract-test-coverage-matrix.md)
-- [06 — Build Readiness](06-build-readiness.md)
-- [07 — Diagnostics → Fix Playbook](07-diagnostics-fix-playbook.md)
-- [08 — Test Coverage Matrix](08-test-coverage-matrix.md)
-- [09 — Gap Tickets](09-gap-tickets.md)
-- [10 — Product & Flows](10-product-and-flows.md)
-- [11 — Issue Pack](11-issue-pack.md)
-- [12 — Release Readiness Report](12-release-readiness-report.md)
-- [13 — Screen Flow Map](13-screen-flow-map.md)
-- [14 — State Quick Reference](14-state-quickref.md)
+Dieser Index priorisiert operative Navigation. Historische Details bleiben im Patchlog.
 
-## Runbooks
-- [APP_RUNBOOK](runbooks/APP_RUNBOOK.md)
+## 1) Kern-Dokumente (zuerst lesen)
 
-## Operations / Maintenance
-- [DEV_COMMANDS](DEV_COMMANDS.md)
-- [WORKFLOW_PATCHING](WORKFLOW_PATCHING.md)
-- [EDGE_FUNCTIONS_STATUS](EDGE_FUNCTIONS_STATUS.md)
-- [TODO](TODO.md)
+1. `docs/00-overview.md` — Architektur, Verträge, SoT-Leitplanken
+2. `docs/10-product-and-flows.md` — Produktfluss, Operator-Journeys, erwartete Ergebnisse
+3. `docs/03-screen-index.md` — Screen-Zwecke + primäre Aktionen
+4. `docs/13-screen-flow-map.md` — kompakte End-to-End-Flow-Map
+5. `docs/TODO.md` — offene operative und technische Follow-ups
 
-## Patch History
-- [PATCHLOG_ROOT](patches/PATCHLOG_ROOT.md)
-- [Patches Folder](patches/README.md)
+## 2) Betrieb / Qualität
 
-## Docs Quality
-- `npm run docs:lint` prüft INDEX-Links + Patchlog-Links + optionale Check-ID Referenzen.
+- `docs/04-testing-smoke-plan.md` — Smoke-Plan
+- `docs/06-build-readiness.md` — Build-Gate/Readiness
+- `docs/07-diagnostics-fix-playbook.md` — Diagnostics-/Fix-Playbook
+- `docs/08-test-coverage-matrix.md` — Test-Matrix
+- `docs/09-gap-tickets.md` — offene Gap-/Ticket-Sammlung
+- `docs/runbooks/APP_RUNBOOK.md` — Schritt-für-Schritt-Runbook
+
+## 3) Patching / Historie
+
+- `docs/WORKFLOW_PATCHING.md` — verbindlicher Patch-Workflow
+- `docs/patches/PATCHLOG_ROOT.md` — append-only Patchübersicht
+- `docs/patches/patch_*.md` — einzelne Patchnotizen
+- `PROJECT_CHECKLOG.md` — kurzer laufender Checklog
+
+## 4) Verlässliche Referenzpunkte
+
+- Branch-basierte CI-Lite-Chain ist als dokumentierte Ausnahme erlaubt.
+- Produktive Deploy-/Workflow-Flows bleiben explizit ref-gesteuert (kein stiller Default-Branch-Fallback).
+- Build-Job-Vertrag: positive numerische `jobId`.
+- Diagnostics-Upload-ID: clientseitig opaque string.

@@ -1,46 +1,20 @@
-- 2026-03-12 Patch 418 V1: refresh the core architecture/docs index to the real post-417 repo state, collect all currently known open follow-ups into TODO, and explicitly queue the repo-wide MD/notes cleanup as the next documentation-hardening step
-- 2026-03-12 Patch 417 V18: keep the V17 CI utility workflow ref SoT / EAS-link drift lock intact, remove the accidentally committed repo-root delivery patch artifact, and ignore exported patch bundle directories + patch files so future deliveries do not get re-committed
-- 2026-03-12 Patch 417 V17: keep the V13 CI utility workflow ref SoT and EAS-link/template drift lock intact, restore the invariant test and patch_417.md dropped by V14, fix the (optional) assertion scope, and finalize the status-doc version references to V17 while keeping the restored invariant coverage intact
-- 2026-03-12 Patch 417 V13: harden CI utility workflow ref SoT for manual/repository_dispatch entry points, align embedded EAS Link templates 1:1 with the live workflow, add a fail-closed syntax invariant for `lib/diagnostics/workflowTemplates.ts`, make the new guard accept any plain string literal form via AST-based export reads, and fail closed on live-vs-template drift
-- Patch 415 V3: align workflow-/CI-facing edge functions on a shared admin-or-CI-bearer guard, keep wizard/keystore setup endpoints admin-only, update the workflow-edge guard script for the resolved trigger flow, and add dedicated invariant coverage.
-- 2026-03-11 Patch 414 V13: finish the workflow ref invariant coverage by decoding escaped workflow template strings before the YAML ref-block scan, keep the V7 ref-SoT/keystore contract intact, and preserve the documented CI-Lite branch exception
-- 2026-03-12 Patch 416: disable the intentionally retired lint/native-sync edge functions in `supabase/config.toml`, keep their 410 stubs as explicit legacy failsafes, and add guard/invariant coverage so config/docs do not drift back to deploy-enabled
-- 2026-03-10 Patch 413: harden repo/branch source-of-truth selection by removing remaining silent repo/config + branch/main fallbacks in build, repo, diagnostics, diff, and CI-Lite patch-sync flows; add regression invariant coverage
-- 2026-03-10 Patch 412: harden privileged Supabase functions by setting an explicit search_path on `_diagnostic_upload_guard()`, revoking accidental PUBLIC execute on trigger/cleanup/upload helpers, and add guard-script + invariant coverage
-- 2026-03-10 Patch 410B V5: remove Supabase service-role handling from client token/Connections/AppInfo paths, keep GitHub/CI secrets manual-only, and add invariants against client-side reintroduction
-- 2026-03-10 Patch 411 V7: harden Supabase deploy workflow to workflow_dispatch-only with required ref, restore single-function/_shared guards, add migration apply policy + metadata artifacts, and sync runbook/guard/invariant coverage
-- 2026-03-09 Patch 410 final: separate admin auth from service-role lookup in Edge helpers, add an explicit CI service-role bearer guard, harden android-keystore-export auth fallback selection, and sync TODO/README/patchlog reminders
-- 2026-03-09 Patch 409 V6: align diagnostics upload contracts, treat upload ids as opaque strings in app code, restore the RPC to the real bigint-backed diagnostic_uploads schema, and sync TODO/README/patchlog/checklog reminders
-- 2026-03-09 Patch 408 V5: align build job id contracts to the current bigint-backed build_jobs reality, normalize numeric edge job ids in app code, validate positive integer job ids in the edge layer, and update docs/regression coverage
-- 2026-03-09 Patch 407 V3: add the shared repo/branch selection helper file, keep project repo+branch paired as the winning source, remove silent main fallback in Connections/EAS prep flows, remove duplicate AppNavigation mirroring, and extend invariant coverage
-- 2026-03-08 Patch 406: add workflow↔edge contract guard, edge status docs, docs index sync, repo invariant coverage, enforce the new guards in workflow-lint CI, finalize workflow-lint trigger coverage, pin actionlint, and version-bind the installer script in workflow-lint
-- 2026-03-08 Patch 405: final workflow polish for endpoint assertions, workflow-version summaries, stricter managed drift checks, and root analysis artifact cleanup
-- 2026-03-08 Patch 404: finish workflow governance, fix android-keystore-export endpoint drift, sync managed guards, and update patch docs
-- 2026-03-08 Patch 403: align workflow package-manager handling, target-ref deploy concurrency, repository-dispatch build flags, and EAS YAML structure
-- 2026-03-08 Patch 401: memoize Project/GitHub/Terminal provider values, extend edge helper visibility coverage, and sync AGENTS guard-script checklist
-- 2026-03-08 Patch 400: polish CI Lite artifact SHA fallback parsing, align edge bootstrap workflowVersion metadata with 399, and make Supabase deploy metadata artifact real
-- 2026-03-08 Patch 399: finalize CI Lite workflow SoT sync by aligning invariants.selection with workflow-version 399/source provenance fields and restoring patch_337 dual references in the patchlog
-- 2026-03-08 Patch 398: fix github-run-artifact-json runtime imports + restore CI Lite SHA compatibility across source_commit_sha/source_sha/github_sha
-- 2026-03-08 Patch 397: workflow traceability polish for CI Lite / Autofix / Supabase deploy metadata and artifact naming
-- 2026-03-08 Patch 396: production credential hardening + sanitized diagnostics
-- 2026-03-08 Patch 395: hardened CI Lite chain-run dispatch against default-branch workflow staleness by switching chain-run to repository_dispatch and surfacing workflow provenance in CI Lite artifacts/summaries
-- 2026-03-08 Patch 394B: EAS manual trigger controls add guarded autofix + strict_lockfile override passthrough and docs/guard sync
-- 2026-03-08 Patch 394A: EAS Build enforces strict lockfile policy for preview/production, keeps development fallback, updates workflow template/docs, and adds guard script
-- 2026-03-08 Patch 393C: documentation/checklog/patchlog sync + patch workflow instructions tightened + guard script added
-- 2026-03-08 Patch 393B: Supabase deploy workflow gains guarded single-function dispatch without regressing pinned CLI/login/link/_shared safeguards
-- 2026-03-08 Patch 393A: CI Lite/Autofix pipefail + SHA pinning + Expo preflight parity + template/doc sync
+# PROJECT_CHECKLOG
 
-Patch 373 applied: metro config blockList without metro-config internal imports.
-- 2026-03-05 Patch 374: CI-Lite workflows + templates emit deterministic result JSON artifact
-- 2026-03-05 Patch 379: Prevent flattened CI-lite workflow YAML (invariants + edge guard)
-2026-03-05 - Applied patch 380: CI Lite dispatch robustness (ref input + auto-bootstrap on 422)
-- 2026-03-06 Patch 381: CI Lite SoT hardening + build gate metadata persistence
-- 2026-03-06 Patch 382: Build screen CI Lite gating + stale transparency
-- 2026-03-06 Patch 383: Workflow hardening for explicit ref handling + manual-path transparency
-- 2026-03-06 Patch 385: Project-context SoT correction + CI Lite artifact/autofix hardening
-- 2026-03-06 Patch 386: SHA hardening phase 2 + workflow marker completion + patch artifact discipline
-- 2026-03-06 Patch 387: managed workflow drift hardening + CI-lite template SHA metadata + cleanup
-- 2026-03-06 Patch 388: workflow drift validator + stronger patch artifact discipline
-- 2026-03-06 Patch 389: workflow template drift check + strict CI-Lite branch dispatch
-- 2026-03-07 Patch 390: fix edge-function helper visibility/reexports and add regression tests
-- 2026-03-07 Patch 391: restore 5-provider support in k1w1-handler and add provider invariants
+Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
+
+## Zuletzt geprüft / aktualisiert
+
+- 2026-03-12: Patch 418 V1 — Core-Doku auf Post-417-Realität gezogen, offene Restpunkte zentral in `docs/TODO.md` gesammelt, MD-/Notes-Cleanup als nächster Schritt fixiert.
+- 2026-03-12: Patch 417 V18 — versehentlich committetes Patch-Artefakt aus dem Repo-Root entfernt, Patch-Bundle-/Patch-Datei-Artefakte per `.gitignore` gegen Re-Commit abgesichert.
+- 2026-03-12: Patch 416 — stillgelegte Legacy-Lint-/Native-Sync-Edges auch in `supabase/config.toml` deaktiviert; Guard-/Invariant-Coverage ergänzt.
+- 2026-03-11: Patch 414 V13 — Ref-SoT-Invariant robust gemacht (inkl. escaped Template-Dekodierung); dokumentierte branch-basierte CI-Lite-Ausnahme bewusst beibehalten.
+- 2026-03-10: Patch 413 — restliche stille Repo-/Branch-Fallbacks in Build/Repo/Diagnostics/Diff/CI-Lite-Pfaden entfernt; Regression-Coverage ergänzt.
+- 2026-03-10: Patch 412 — privilegierte Supabase-Funktionen gehärtet (`search_path`, `PUBLIC`-Execute-Revoke) + Guard-/Invariant-Coverage.
+- 2026-03-10: Patch 411 V7 — Supabase-Deploy auf `workflow_dispatch` + expliziten `ref` gehärtet; `_shared`-/Single-Function-Guards und Migrations-Policy synchronisiert.
+- 2026-03-09: Patch 410/410B — Edge-Auth-Pfade getrennt, explizite CI-Bearer-Guards ergänzt, Service-Role-Handhabung aus Client-Pfaden entfernt.
+- 2026-03-09: Patch 409/408 — Upload-ID-Vertrag als opaque string stabilisiert; Build-Job-Vertrag auf positive numerische `jobId` ausgerichtet.
+
+## Hinweise
+
+- Vollständige Historie: `docs/patches/PATCHLOG_ROOT.md`.
+- Operative Restliste / Follow-ups: `docs/TODO.md`.

@@ -1,32 +1,33 @@
 # 13 — Screen / Flow Map
 
-Stand: 2026-03-02
+Stand: **2026-03-12**
 
-## Screen-Matrix (Operator Quick Nav)
+## Screen-Matrix (Quick Nav)
 
-| Screen | Purpose | Primary Actions (Buttons) | Related services / hooks | Diagnostics touched |
-|---|---|---|---|---|
-| `GitHub Repos` | Repo/Branch-SoT setzen + Repo Ops | `EAS Projekt erstellen/verbinden`, `Secrets synchronisieren`, `Repo öffnen`, Branch/Repo Auswahl | `useGitHubReposScreen`, `listRepoSecretNames`, EAS-Link Actions | indirekt: Preconditions für alle `repo.*` checks |
-| `Verbindungen` | Tokens/Connection-Status prüfen | Token testen/speichern (GitHub/Expo/Supabase) | Connection hooks + token services | `local.githubToken`, `local.expoToken`, `local.edgeAdminKey` |
-| `Diagnose` | Vollständige Check-Ausführung + Fix-Loop | `Scannen`, `Fixen`, Issue-Details, `Auto-Fix anwenden`, `Patch Vorschau`, `KI-Fix` | `useDiagnosticScreen`, `useDiagnosticFixRunner`, `runPreflightChecksAll`, pipeline diagnostics | preflight IDs + pipeline IDs |
-| `Build` | Build-Gate + Start + Verlauf | `Build starten`, One-Click `Deploy starten`, `Erneut versuchen`, `Abbrechen` | `useBuildPreconditions`, `useEnhancedBuildScreen`, `startBuildJob` | nutzt `diagnostic_last_ok`, Branch-Gate |
-| `Terminal` | Laufende Logs/Operator-Debug | Log-Ansicht/Analyse | Terminal context/hooks | indirekt für Incident-Analyse |
-| `Credentials Wizard` | Signing/Profil-Readiness | Profile wechseln/prüfen | Wizard hooks + storage helpers | beeinflusst Build-Readiness (Signing Keys) |
+| Screen | Zweck | Primäraktionen | Kritische Abhängigkeiten |
+|---|---|---|---|
+| `GitHub Repos` | Repo/Branch-SoT + Repo-Setup | Branch/Repo wählen, EAS-Link, Secret-Sync | Basis für `repo.*` Checks |
+| `Verbindungen` | Token-/Connectivity-Status | Tokens testen/speichern | `local.*` Checks |
+| `Diagnose` | Checklauf + Fix-Loop | `Scannen`, `Fixen`, `Auto-Fix` | Gate für Build-Freigabe |
+| `Build` | Readiness + Build-Ausführung | `Build starten`, Retry/Cancel | `diagnostic_last_ok`, Branch gesetzt |
+| `Credentials Wizard` | Signing/Profil-Readiness | prüfen/ergänzen | Production Build |
+| `Terminal` | Laufzeitbeobachtung | Logs lesen | Incident-/Debug-Pfad |
 
-## End-to-End Flow (Mermaid)
+## End-to-End Flow
+
 ```mermaid
 flowchart LR
   A[GitHub Repos\nRepo + Branch setzen] --> B[Verbindungen\nTokens prüfen]
   B --> C[Diagnose\nScannen]
   C --> D{FAIL/WARN offen?}
-  D -- Ja --> E[Fix\nFixen / Auto-Fix / Manuell]
+  D -- Ja --> E[Fix-Loop\nAuto-Fix / Manuell]
   E --> C
-  D -- Nein --> F[Build\nProfil wählen + Build starten]
+  D -- Nein --> F[Build\nProfil wählen + Start]
   F --> G[Status / History\nPolling + Verlauf]
 ```
 
-## Check-ID Gruppen (für schnelles Routing)
-- **Pipeline/Remote:** `local.*`, `repo.*`
-- **Preflight/Local Files:** `core-package-json`, `entry-point`, `eas-profiles`, `assets-exist`, `security-forbidden-files`, `workflow-yaml-name-colon-quoting`, etc.
+## Routing-Hinweise
 
-Siehe Detail-Mapping: `docs/07-diagnostics-fix-playbook.md`.
+- **`repo.*` / `local.*` rot:** zuerst Repo-/Token-Basis in `GitHub Repos`/`Verbindungen` korrigieren.
+- **Preflight-Dateichecks rot:** in `Diagnose` über Issue-Details + Patch-Vorschau bearbeiten.
+- **Build-Gate blockiert:** branch/diagnostic state prüfen, dann gezielt zurück in den passenden Screen.
