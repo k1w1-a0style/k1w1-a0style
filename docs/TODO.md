@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-03-11**
+Stand: **2026-03-12**
 
 > Dieses Dokument ist die **laufende Restliste**.  
 > Alle Security-/Privacy-P1-Fixes aus den Screen-Reviews sind umgesetzt und Tests sind grün.  
@@ -17,11 +17,22 @@ Stand: **2026-03-11**
 - [x] Patch 413 — SoT-Aufräumrunde für restliche Repo/Branch-/Fallback-Stellen
 
 ### Erinnerungen / Nacharbeiten
+### Nächster Fokus — MD-/Notes-Cleanup
+- [ ] Repo-weiten MD-Cleanup durchführen: redundante/überholte Notizen aus Kern-MDs entfernen, nur noch operative/entscheidungsrelevante Inhalte stehen lassen
+- [ ] Dokument-SoT klarziehen: festlegen, welche Kern-MDs normativ sind und welche Patch-/Historien-Dokumente nur Archivfunktion haben
+- [ ] Patch-/Status-Doku entschlacken: README / Checklog / Patchlog / Patchnotes so kürzen, dass der aktuelle Stand schnell lesbar bleibt und Historie trotzdem nachvollziehbar archiviert ist
+- [ ] Architektur-Docs einmal vollständig gegeneinander prüfen (`docs/INDEX.md`, `docs/00-overview.md`, `docs/03-screen-index.md`, `docs/10-product-and-flows.md`, `docs/13-screen-flow-map.md`) und unnötige Doppelungen markieren/abbauen
+- [ ] Offene Notes-/Runbook-Fragmente prüfen und entscheiden, was archiviert, zusammengeführt oder gelöscht werden kann
+- [ ] Clean-clone-/Freshness-Trust nach dem MD-Cleanup erneut gegen echte Repo-Basis prüfen
+
 - [x] Patch 414 — explizite Ref-SoT für Build-Workflows/Templates gehärtet; CI-Lite-Chain bleibt bewusst branch-basiert und ist als Ausnahme dokumentiert
 - [x] Patch 415 V3 — workflow-/CI-nahe Edge-Auth-Pfade auf gemeinsamen Admin-/CI-Bearer-Guard gezogen; Shared-Guard fail-closed ohne Secrets; Wizard-/Keystore-Setup bleibt bewusst admin-only
 - [x] Patch 416 — stillgelegte Legacy-Lint-/Native-Sync-Edges auch in `supabase/config.toml` deaktiviert; 410-Stubs bleiben als explizite Legacy-Failsafes; Guard-/Invariant-Coverage gegen Deploy-Drift ergänzt
 - [x] Patch 417 V18 — V17 inhaltlich beibehalten, den versehentlich ins Repo committeten Delivery-Patch aus dem Root wieder entfernt und Patch-Bundle-/Patch-Datei-Artefakte per `.gitignore` geblockt, damit zukünftige Lieferpakete nicht erneut eingecheckt werden
+- [x] Patch 418 V1 — Trust-/Docs-Konsolidierung: Kern-MDs auf den echten Post-417-Stand gezogen, offene Restbaustellen vollständig gesammelt und den nächsten repo-weiten MD-Cleanup als eigenes Arbeitspaket festgehalten
 - [ ] Repo-weites SoT-Follow-up: zusätzliche Invariants/Jest-Guards für branch-/ref-gesteuerte Workflows festnageln, damit feste Branchlisten oder implizite Default-Deploypfade nicht wieder unbemerkt reinkommen
+- [ ] Trust-Follow-up: frischen Checkout/saubere Arbeitskopie ohne Altlasten einmal explizit als dokumentierten Green-Path festnageln (`npm ci`/`typecheck`/`lint:ci`/`test:silent` + notwendige Voraussetzungen)
+- [ ] Freshness-Follow-up: Kern-Architektur-/Flow-Dokumente nach künftigen Workflow-/Screen-Patches bewusst mitziehen, damit `README.md` und die normativen MDs nicht wieder zeitlich auseinanderlaufen
 - [ ] Hardening-Follow-up: `Number(jobId)`-Thema für sehr große bigint-Werte später separat prüfen (aktueller Build-Job-Vertrag ist okay, aber JS-safe-integer Thema bleibt als Reminder offen)
 - [ ] Hardening-Follow-up: UUID-Kompatibilitätsregex in `normalizeDiagnosticUploadId()` später enger ziehen oder entfernen, sobald der Diagnostics-Vertrag endgültig nur noch einen ID-Typ nutzt
 - [ ] Hardening-Follow-up: Bearer-Admin-Ersatz aus übrigen Edge-Pfaden vollständig gegen explizite Admin-/CI-Guards prüfen

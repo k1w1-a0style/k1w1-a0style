@@ -1,6 +1,6 @@
 # Docs Index — k1w1-a0style
 
-Stand: 2026-03-02
+Stand: 2026-03-12
 
 ## Core Architecture / Contracts
 - [00 — Overview (SoT)](00-overview.md)

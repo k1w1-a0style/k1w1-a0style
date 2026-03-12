@@ -1,9 +1,9 @@
 # 10 — Product & Flows (Executive + Operator View)
 
-Stand: 2026-03-09
+Stand: 2026-03-12
 
 ## Was ist die App?
-Die App ist ein Expo/React-Native Build-Orchestrator für mobile Projekt-Repos: Sie bündelt Repo-/Branch-Selektion, Verbindungschecks, lokale + Pipeline-Diagnostics, AutoFix-Patches und den Build-Start in einen konsistenten Operator-Flow. Der Build-Start läuft zentral über `ProjectContext.startBuild` und `startBuildJob`, inklusive Build-Gate für Branch und `diagnostic_last_ok`. 
+Die App ist ein Expo/React-Native Build-Orchestrator für mobile Projekt-Repos: Sie bündelt Repo-/Branch-Selektion, Verbindungschecks, lokale + Pipeline-Diagnostics, AutoFix-/Patch-Flows und den Build-Start in einen konsistenten Operator-Flow. Der Build-Start läuft zentral über `ProjectContext.startBuild` und `startBuildJob`, inklusive Build-Gate für Branch und `diagnostic_last_ok`. Patch 417 hat die workflow-/template-seitigen Ref-/Drift-Verträge zusätzlich hart abgesichert; die App verlässt sich dabei bewusst auf explizite Repo-/Branch-/Ref-Quellen statt auf stille Fallbacks.
 
 ## Kern-Journeys (Happy Path + reproduzierbare Operator-Schritte)
 
@@ -116,3 +116,8 @@ Die App ist ein Expo/React-Native Build-Orchestrator für mobile Projekt-Repos: 
 - Testabdeckung: `docs/08-test-coverage-matrix.md`
 - Smoke-Ausführung: `docs/04-testing-smoke-plan.md`
 - Runbook (Schritt-für-Schritt): `docs/runbooks/APP_RUNBOOK.md`
+
+
+## Dokumentations-Follow-up
+- Die operative Kernkette bleibt: `GitHub Repos` → `Connections`/`Diagnostics` → `Build`.
+- Als nächster Wartungsschritt ist ein repo-weiter MD-/Notes-Cleanup geplant, der Redundanzen entfernt, aber diese Kern-Journeys und Verträge explizit erhalten muss.

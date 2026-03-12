@@ -1,6 +1,6 @@
 # 03 — Screen Index (Screen → Zweck → Primäraktionen)
 
-Stand: 2026-03-02
+Stand: 2026-03-12
 
 > Hinweis: Normative Contracts liegen in `docs/01-state-contract.md` und `docs/02-build-pipeline.md`.
 
@@ -18,3 +18,9 @@ Stand: 2026-03-02
 
 ## Ergänzung
 - Detail-Flow inkl. Mermaid: `docs/13-screen-flow-map.md`
+
+
+## Post-417 operating notes
+- Repo-/Branch-SoT bleibt strikt explizit; Build-/Diagnostics-/Workflow-Pfade sollen kein stilles Repo/Branch-Erfinden mehr enthalten.
+- Workflow-/Template-Drift wird zusätzlich durch Shell-Guards und Invariant-Tests abgesichert; vor Workflow-Patches zuerst die dokumentierten Guard-Skripte laufen lassen.
+- Connections/Diagnostics/Build bleiben die tragende Operator-Kette; MD-Cleanup-Follow-up darf diese Kernorientierung nicht verwässern.

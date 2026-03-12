@@ -3,6 +3,7 @@
 This file is the *index* of patch notes for this repo.
 
 ## Recent
+- Patch 418 V1: trust/docs consolidation sweep; refresh the core architecture docs to the real post-417 state, move all currently open follow-ups into TODO, and queue the repo-wide MD/notes cleanup as the next documentation pass
 - Patch 417 V18: keep the V17 CI utility workflow ref SoT / EAS-link drift lock intact, remove the accidentally committed repo-root delivery patch artifact, and ignore exported patch bundle directories + patch files so future deliveries do not get re-committed
 - Patch 416: disable intentionally retired lint/native-sync edge functions in `supabase/config.toml`, keep their 410 legacy stubs explicit, and add guard/invariant coverage against deploy drift
 - Patch 415 V3: align workflow-/CI-facing edge functions on a shared admin-or-CI-bearer guard, keep wizard/keystore setup routes admin-only, update the workflow-edge contract script for the resolved trigger flow, and add dedicated invariant coverage.
