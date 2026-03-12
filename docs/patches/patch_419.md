@@ -15,6 +15,7 @@ Bereinigt/gestrafft wurden:
 - `docs/13-screen-flow-map.md`
 - `docs/TODO.md`
 - `docs/patches/PATCHLOG_ROOT.md`
+- `docs/patches/patch_419.md`
 
 Ziel war eine kompaktere, operativere Navigation bei weniger Redundanz in den Kern-MDs.
 
@@ -29,6 +30,7 @@ Ziel war eine kompaktere, operativere Navigation bei weniger Redundanz in den Ke
 - `docs/13-screen-flow-map.md`
 - `docs/TODO.md`
 - `docs/patches/PATCHLOG_ROOT.md`
+- `docs/patches/patch_419.md`
 
 ## Notes
 
