@@ -425,3 +425,5 @@ Die Trigger-Pfade von `workflow-lint.yml` decken ab Patch 406 außerdem die neue
 - `ref` ist Pflicht und bestimmt explizit den auszucheckenden Stand
 - `apply_migrations` steuert, ob `supabase db push` nie / immer / nur bei erkannten Migrationsänderungen läuft
 - Single-Function-Deploys blocken `_shared` und validieren `function_name`
+
+Patch 415 V3 zieht die workflow-/CI-nahen Edge-Auth-Pfade auf einen gemeinsamen Admin-Key/CI-Bearer-Guard; Wizard-/Keystore-Setup-Routen bleiben absichtlich admin-only.

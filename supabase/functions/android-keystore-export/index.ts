@@ -1,6 +1,3 @@
-// supabase/functions/android-keystore-export/index.ts
-// REFACTORED: helpers → helpers.ts
-
 import {
   createClient,
   decryptWithAesCbc,
@@ -8,13 +5,10 @@ import {
   getJwtSub,
   getServiceRoleKey,
   handleCors,
-  hasAdminKeySecretConfigured,
-  hasServiceRoleSecretConfigured,
   jsonResponse,
   rateLimit,
   repoOk,
-  requireAdminKey,
-  requireServiceRoleBearer,
+  requireAdminKeyOrServiceRoleBearer,
   resolveMode,
   safeString,
 } from "./helpers.ts";
@@ -26,45 +20,8 @@ Deno.serve(async (req) => {
   const rl = rateLimit(req, "android-keystore-export", 30, 60_000);
   if (rl) return rl;
 
-  const hasAdmin = hasAdminKeySecretConfigured();
-  const hasCi = hasServiceRoleSecretConfigured();
-
-  const adminAuth = hasAdmin ? requireAdminKey(req) : null;
-  const ciAuth = hasCi ? requireServiceRoleBearer(req) : null;
-
-  if (adminAuth || ciAuth) {
-    const adminOk = adminAuth === null;
-    const ciOk = ciAuth === null;
-
-    if (!adminOk && !ciOk) {
-      if (hasAdmin && !hasCi) return adminAuth;
-      if (!hasAdmin && hasCi) return ciAuth;
-      if (!hasAdmin && !hasCi) {
-        return errorResponse(
-          "Missing auth configuration for android-keystore-export.",
-          req,
-          500,
-          {
-            missing: [
-              "K1W1_EDGE_ADMIN_KEY|SIGNING_ADMIN_KEY",
-              "K1W1_SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY",
-            ],
-          },
-        );
-      }
-      return errorResponse(
-        "Unauthorized: missing or invalid admin key / CI bearer token.",
-        req,
-        401,
-        {
-          accepted: [
-            "x-k1w1-admin-key",
-            "Authorization: Bearer <service-role-secret>",
-          ],
-        },
-      );
-    }
-  }
+  const auth = requireAdminKeyOrServiceRoleBearer(req);
+  if (auth) return auth;
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");

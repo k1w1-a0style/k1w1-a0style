@@ -16,6 +16,7 @@ export {
   rateLimit,
   requireAdminKey,
   requireServiceRoleBearer,
+  requireAdminKeyOrServiceRoleBearer,
   hasAdminKeySecretConfigured,
   hasServiceRoleSecretConfigured,
   getServiceRoleKey,

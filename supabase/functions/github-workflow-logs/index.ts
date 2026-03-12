@@ -3,7 +3,7 @@
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
-import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { requireAdminKeyOrServiceRoleBearer, rateLimit } from "../_shared/auth.ts";
 import { parseJsonBody } from "../_shared/validation.ts";
 import { getGithubToken, githubHeaders } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
@@ -18,7 +18,7 @@ serve(async (req) => {
   if (cors) return cors;
 
   try {
-    const auth = requireAdminKey(req);
+    const auth = requireAdminKeyOrServiceRoleBearer(req);
     if (auth) return auth;
 
     const rl = rateLimit(req, "github-workflow-logs", 60, 60_000);

@@ -3,7 +3,7 @@
 This file is the *index* of patch notes for this repo.
 
 ## Recent
-- Patch 414 V13: finish the workflow ref invariant coverage by decoding escaped workflow template strings before the YAML ref-block scan, keep the V7 explicit ref/keystore contract intact, and continue documenting CI-Lite chain runs as an intentional branch-based exception
+- Patch 415 V3: align workflow-/CI-facing edge functions on a shared admin-or-CI-bearer guard, keep wizard/keystore setup routes admin-only, update the workflow-edge contract script for the resolved trigger flow, and add dedicated invariant coverage.
 - Patch 413: remove remaining silent repo/config + branch/main fallbacks across build, repo, diagnostics, diff, and CI-Lite patch-sync flows; add repo/branch SoT regression coverage
 - Patch 412: harden privileged Supabase DB functions by pinning `_diagnostic_upload_guard()` to an explicit search_path, revoking accidental `PUBLIC` execute on trigger/cleanup/upload helpers, and add guard-script + invariant coverage
 - Patch 410B: remove client-side Supabase service-role handling from token storage, Connections/AppInfo flows and repo-secret sync while keeping GitHub/CI secrets manual-only, plus guard coverage against drift

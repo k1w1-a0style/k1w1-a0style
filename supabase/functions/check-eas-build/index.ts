@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { validateCheckBuildRequest, parseJsonBody } from "../_shared/validation.ts";
-import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { requireAdminKeyOrServiceRoleBearer, rateLimit } from "../_shared/auth.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 
 serve(async (req) => {
@@ -10,7 +10,7 @@ serve(async (req) => {
   if (cors) return cors;
 
   try {
-    const auth = requireAdminKey(req);
+    const auth = requireAdminKeyOrServiceRoleBearer(req);
     if (auth) return auth;
 
     const rl = rateLimit(req, "check-eas-build");

@@ -18,6 +18,7 @@ Stand: **2026-03-11**
 
 ### Erinnerungen / Nacharbeiten
 - [x] Patch 414 — explizite Ref-SoT für Build-Workflows/Templates gehärtet; CI-Lite-Chain bleibt bewusst branch-basiert und ist als Ausnahme dokumentiert
+- [x] Patch 415 V3 — workflow-/CI-nahe Edge-Auth-Pfade auf gemeinsamen Admin-/CI-Bearer-Guard gezogen; Shared-Guard fail-closed ohne Secrets; Wizard-/Keystore-Setup bleibt bewusst admin-only
 - [ ] Repo-weites SoT-Follow-up: zusätzliche Invariants/Jest-Guards für branch-/ref-gesteuerte Workflows festnageln, damit feste Branchlisten oder implizite Default-Deploypfade nicht wieder unbemerkt reinkommen
 - [ ] Hardening-Follow-up: `Number(jobId)`-Thema für sehr große bigint-Werte später separat prüfen (aktueller Build-Job-Vertrag ist okay, aber JS-safe-integer Thema bleibt als Reminder offen)
 - [ ] Hardening-Follow-up: UUID-Kompatibilitätsregex in `normalizeDiagnosticUploadId()` später enger ziehen oder entfernen, sobald der Diagnostics-Vertrag endgültig nur noch einen ID-Typ nutzt

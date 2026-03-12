@@ -27,7 +27,7 @@ describe("Edge helper visibility invariants", () => {
         "handleCors",
         "jsonResponse",
         "rateLimit",
-        "requireAdminKey",
+        "requireAdminKeyOrServiceRoleBearer",
       ],
       reexports: [
         'export { createClient } from "https://esm.sh/@supabase/supabase-js@2";',
@@ -35,6 +35,7 @@ describe("Edge helper visibility invariants", () => {
         'rateLimit',
         'requireAdminKey',
         'requireServiceRoleBearer',
+        'requireAdminKeyOrServiceRoleBearer',
         'hasAdminKeySecretConfigured',
         'hasServiceRoleSecretConfigured',
         'getServiceRoleKey',
@@ -97,7 +98,6 @@ describe("Edge helper visibility invariants", () => {
   }
 });
 
-
 describe("Edge direct-import invariants", () => {
   const directCases = [
     {
@@ -107,7 +107,7 @@ describe("Edge direct-import invariants", () => {
         "handleCors",
         "jsonResponse",
         "errorResponse",
-        "requireAdminKey",
+        "requireAdminKeyOrServiceRoleBearer",
         "githubFetchJson",
         "githubFetchRaw",
         "getGithubToken",
@@ -116,7 +116,7 @@ describe("Edge direct-import invariants", () => {
     {
       name: "trigger-eas-build",
       index: "supabase/functions/trigger-eas-build/index.ts",
-      imports: ["handleCors", "requireAdminKey", "rateLimit", "getGithubToken"],
+      imports: ["handleCors", "requireAdminKeyOrServiceRoleBearer", "rateLimit", "getGithubToken"],
     },
   ];
 

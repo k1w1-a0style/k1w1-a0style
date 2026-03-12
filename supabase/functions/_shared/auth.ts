@@ -105,6 +105,52 @@ export function requireServiceRoleBearer(req: Request): Response | null {
 }
 
 /**
+ * Accept either the explicit admin key (wizard/manual paths) or the CI
+ * service-role bearer token (workflow/internal CI callers). This is only for
+ * workflow-facing edge routes that are intentionally callable from CI.
+ */
+export function requireAdminKeyOrServiceRoleBearer(req: Request): Response | null {
+  const hasAdmin = hasAdminKeySecretConfigured();
+  const hasCi = hasServiceRoleSecretConfigured();
+
+  if (!hasAdmin && !hasCi) {
+    return errorResponse(
+      "Missing auth configuration for this Edge Function.",
+      req,
+      500,
+      {
+        missing: [
+          "K1W1_EDGE_ADMIN_KEY|SIGNING_ADMIN_KEY",
+          "K1W1_SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY",
+        ],
+      },
+    );
+  }
+
+  const adminAuth = hasAdmin ? requireAdminKey(req) : null;
+  const ciAuth = hasCi ? requireServiceRoleBearer(req) : null;
+  const adminOk = hasAdmin && adminAuth === null;
+  const ciOk = hasCi && ciAuth === null;
+
+  if (adminOk || ciOk) return null;
+
+  if (hasAdmin && !hasCi) return adminAuth;
+  if (!hasAdmin && hasCi) return ciAuth;
+
+  return errorResponse(
+    "Unauthorized: missing or invalid admin key / CI bearer token.",
+    req,
+    401,
+    {
+      accepted: [
+        "x-k1w1-admin-key",
+        "Authorization: Bearer <service-role-secret>",
+      ],
+    },
+  );
+}
+
+/**
  * Tiny in-memory rate limiter (best-effort, per edge instance).
  * key: a logical bucket e.g. "android-keystore-generate"
  * max: allowed calls within windowMs for an IP

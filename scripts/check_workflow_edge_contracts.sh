@@ -26,11 +26,13 @@ ARTIFACT_EDGE="supabase/functions/github-run-artifact-json/index.ts"
 RUNS_EDGE="supabase/functions/github-workflow-runs/index.ts"
 LOGS_EDGE="supabase/functions/github-workflow-logs/index.ts"
 KEYSTORE_EDGE="supabase/functions/android-keystore-export/index.ts"
+DISPATCH_EDGE="supabase/functions/github-workflow-dispatch/index.ts"
 TRIGGER_WF=".github/workflows/k1w1-triggered-build.yml"
 EAS_WF=".github/workflows/eas-build.yml"
 EDGE_STATUS_DOC="docs/EDGE_FUNCTIONS_STATUS.md"
+AUTH_SHARED="supabase/functions/_shared/auth.ts"
 
-for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC"; do
+for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$DISPATCH_EDGE" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$AUTH_SHARED"; do
   require_file "$f"
 done
 
@@ -40,10 +42,28 @@ require_fixed "$TRIGGER_EDGE" 'build_profile: buildProfile'
 require_fixed "$TRIGGER_EDGE" 'buildProfile: buildProfile'
 require_fixed "$TRIGGER_EDGE" 'ref: branch ?? null'
 require_fixed "$TRIGGER_EDGE" 'branch: branch ?? null'
+require_fixed "$TRIGGER_EDGE" 'requireAdminKeyOrServiceRoleBearer(req)'
+require_fixed "$CHECK_EDGE" 'requireAdminKeyOrServiceRoleBearer(req)'
+require_fixed "$ARTIFACT_EDGE" 'requireAdminKeyOrServiceRoleBearer(req)'
+require_fixed "$RUNS_EDGE" 'requireAdminKeyOrServiceRoleBearer(req)'
+require_fixed "$LOGS_EDGE" 'requireAdminKeyOrServiceRoleBearer(req)'
+require_fixed "$KEYSTORE_EDGE" 'requireAdminKeyOrServiceRoleBearer(req)'
+require_fixed "$DISPATCH_EDGE" 'requireAdminKeyOrServiceRoleBearer(req)'
 
-require_fixed "$TRIGGER_WF" "job_id: \${{ github.event.client_payload.job_id || github.event.inputs.job_id || '' }}"
-require_fixed "$TRIGGER_WF" "autofix: \${{ github.event.client_payload.autofix || (github.event_name == 'workflow_dispatch' && inputs.autofix) || false }}"
-require_fixed "$TRIGGER_WF" "strict_lockfile: \${{ github.event.client_payload.strict_lockfile || (github.event_name == 'workflow_dispatch' && inputs.strict_lockfile) || 'auto' }}"
+require_fixed "$AUTH_SHARED" 'export function requireAdminKeyOrServiceRoleBearer(req: Request)'
+require_fixed "$AUTH_SHARED" 'if (!hasAdmin && !hasCi) {'
+require_fixed "$AUTH_SHARED" '"Missing auth configuration for this Edge Function."'
+require_fixed "$AUTH_SHARED" 'const adminOk = hasAdmin && adminAuth === null;'
+require_fixed "$AUTH_SHARED" 'const ciOk = hasCi && ciAuth === null;'
+require_fixed "$AUTH_SHARED" 'if (adminOk || ciOk) return null;'
+require_fixed "$AUTH_SHARED" 'Unauthorized: missing or invalid admin key / CI bearer token.'
+
+require_fixed "$TRIGGER_WF" "job_id: \${{ steps.resolve.outputs.job_id }}"
+require_fixed "$TRIGGER_WF" "autofix: \${{ steps.resolve.outputs.autofix }}"
+require_fixed "$TRIGGER_WF" "strict_lockfile: \${{ steps.resolve.outputs.strict_lockfile }}"
+require_fixed "$TRIGGER_WF" "job_id: \${{ needs.resolve.outputs.job_id }}"
+require_fixed "$TRIGGER_WF" "autofix: \${{ fromJSON(needs.resolve.outputs.autofix) }}"
+require_fixed "$TRIGGER_WF" "strict_lockfile: \${{ needs.resolve.outputs.strict_lockfile }}"
 
 require_fixed "$EAS_WF" '/functions/v1/android-keystore-export'
 require_fixed "$EAS_WF" 'status:"building"'
@@ -77,7 +97,9 @@ require_fixed "$KEYSTORE_EDGE" 'keyPassword: parsed.keyPassword'
 
 require_fixed "$EDGE_STATUS_DOC" '`trigger-eas-build`'
 require_fixed "$EDGE_STATUS_DOC" '`check-eas-build`'
+require_fixed "$EDGE_STATUS_DOC" '`github-workflow-dispatch`'
 require_fixed "$EDGE_STATUS_DOC" '`github-run-artifact-json`'
 require_fixed "$EDGE_STATUS_DOC" '`android-keystore-export`'
+require_fixed "$EDGE_STATUS_DOC" 'Admin-Key oder CI-Bearer'
 
 echo "Workflow edge contracts look consistent."
