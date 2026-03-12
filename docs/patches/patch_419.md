@@ -2,19 +2,27 @@
 
 ## Summary
 
-Dokumentations-Follow-up zu PR #206: Der verpflichtende Link
-`[EDGE_FUNCTIONS_STATUS](EDGE_FUNCTIONS_STATUS.md)` wurde in `docs/INDEX.md`
-wiederhergestellt, damit `scripts/check_patch_docs_sync.sh` nicht mehr wegen
-fehlender Index-Referenz fehlschlägt. Zusätzlich wurden die zentralen
-Patch-Referenzen auf den aktuellen Stand `Patch 419` synchronisiert.
+Konservativer MD-/Notes-Cleanup der Kernflächen mit Fokus auf weniger Redundanz
+und bessere operative Navigation. `README.md` wurde kompakter und operativer
+strukturiert, `PROJECT_CHECKLOG.md` gekürzt, `docs/INDEX.md` operativer
+geordnet, und die Kern-Doku in `docs/00-overview.md`, `docs/03-screen-index.md`,
+`docs/10-product-and-flows.md` sowie `docs/13-screen-flow-map.md` bereinigt/
+gestrafft. `docs/TODO.md` wurde im oberen Bereich klarer strukturiert,
+`docs/patches/PATCHLOG_ROOT.md` kompakter gehalten; historische
+Sonderreferenzen bleiben erhalten.
 
 ## Included
 
-- `docs/INDEX.md` (EDGE_FUNCTIONS_STATUS-Link wieder ergänzt)
-- `README.md` (`Zuletzt abgeschlossen` auf `Patch 419` gesetzt)
-- `PROJECT_CHECKLOG.md` (neuer Top-Eintrag für Patch 419)
-- `docs/patches/PATCHLOG_ROOT.md` (neuer Recent-Eintrag für Patch 419)
-- `docs/patches/patch_419.md` (diese Patch-Notiz)
+- `README.md`
+- `PROJECT_CHECKLOG.md`
+- `docs/INDEX.md`
+- `docs/00-overview.md`
+- `docs/03-screen-index.md`
+- `docs/10-product-and-flows.md`
+- `docs/13-screen-flow-map.md`
+- `docs/TODO.md`
+- `docs/patches/PATCHLOG_ROOT.md`
+- `docs/patches/patch_419.md`
 
 ## Notes
 
