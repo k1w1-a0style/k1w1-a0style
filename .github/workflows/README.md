@@ -19,6 +19,8 @@ Dieses Projekt verwendet optimierte GitHub Actions Workflows für CI/CD und Buil
 
 **Trigger:** Automatisch bei Push/PR zu `main` oder `master` Branch
 
+**Manuell:** `workflow_dispatch` verlangt ab Patch 417 ebenfalls ein explizites `ref`, damit Checkout und Concurrency denselben Ziel-Ref verwenden.
+
 **Zweck:**
 
 - Schnelle Validierung bei Code-Changes
@@ -418,6 +420,7 @@ Der Check stellt sicher, dass die operativen Verträge zwischen Workflows und Ed
 Zusätzlich führt `workflow-lint.yml` diese Guards jetzt ebenfalls in CI aus.
 
 Die Trigger-Pfade von `workflow-lint.yml` decken ab Patch 406 außerdem die neuen Guard-Skripte, `docs/WORKFLOW_PATCHING.md` sowie die zugehörige Patch-/Edge-Doku ab; doppelte Path-Einträge wurden entfernt und `actionlint` ist dort versionsgepinnt, inklusive versionsgebundenem Installer-Script.
+Ab Patch 417 decken die Trigger-Pfade zusätzlich die eingebetteten Workflow-Template-Quellen `lib/diagnostics/workflowTemplates.ts` und `templates/expo-sdk54-base.json` ab, damit Ref-SoT-Änderungen dort nicht an `workflow-lint` vorbeidrücken.
 
 ## deploy-supabase-functions.yml
 

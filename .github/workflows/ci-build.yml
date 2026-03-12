@@ -6,16 +6,33 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Branch/Tag/SHA (leer = aktueller Ref)"
-        required: false
-        default: ""
+        description: "Branch/Tag/SHA to validate"
+        required: true
 
 concurrency:
-  group: ci-app-${{ github.event.client_payload.ref || inputs.ref || github.ref }}
+  group: ci-app-${{ github.event_name == 'repository_dispatch' && github.event.client_payload.ref || github.event_name == 'workflow_dispatch' && inputs.ref || 'missing-ref' }}
   cancel-in-progress: true
 
 jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.resolve.outputs.ref }}
+    steps:
+      - name: Resolve explicit ref
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          REF="${{ github.event_name == 'repository_dispatch' && github.event.client_payload.ref || github.event_name == 'workflow_dispatch' && inputs.ref || '' }}"
+          if [ -z "$REF" ]; then
+            echo "::error::Missing required ref. Pass client_payload.ref for repository_dispatch or inputs.ref for workflow_dispatch."
+            exit 1
+          fi
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
   ci:
+    needs: resolve
     uses: ./.github/workflows/ci-core.yml
     with:
-      ref: ${{ github.event.client_payload.ref || inputs.ref || github.ref }}
+      ref: ${{ needs.resolve.outputs.ref }}

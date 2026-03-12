@@ -6,9 +6,8 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Branch/Tag/SHA (optional)"
-        required: false
-        default: ""
+        description: "Branch/Tag/SHA to link/init"
+        required: true
       eas_project_id:
         description: "Existing EAS Project ID (optional)"
         required: false

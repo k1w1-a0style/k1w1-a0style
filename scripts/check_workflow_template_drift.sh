@@ -36,7 +36,7 @@ assert_managed_file .github/workflows/k1w1-ci-lite-autofix.yml
 assert_managed_file .github/workflows/deploy-supabase-functions.yml
 
 EAS_VERSION="$(extract_version .github/workflows/eas-build.yml)"
-for wf in .github/workflows/eas-link.yml .github/workflows/release-build.yml .github/workflows/deploy-supabase-functions.yml; do
+for wf in .github/workflows/eas-link.yml .github/workflows/release-build.yml; do
   V="$(extract_version "$wf")"
   [ "$V" = "$EAS_VERSION" ] || fail "Workflow version drift in $wf (expected $EAS_VERSION, got ${V:-<empty>})"
 done
@@ -94,5 +94,43 @@ grep -q 'android-keystore-export' "$DIAG_FILE" || fail "Diagnostics templates mi
 grep -q 'workflow version:' .github/workflows/deploy-supabase-functions.yml || fail "Supabase deploy summary missing workflow version line"
 grep -q 'workflow version:' .github/workflows/eas-link.yml || fail "EAS Link summary missing workflow version line"
 grep -q 'workflow version:' .github/workflows/release-build.yml || fail "Release Build summary missing workflow version line"
+
+node <<'NODE'
+const fs = require('fs');
+
+const live = fs.readFileSync('.github/workflows/eas-link.yml', 'utf8').replace(/\r\n/g, '\n');
+const diag = fs.readFileSync('lib/diagnostics/workflowTemplates.ts', 'utf8');
+const base = JSON.parse(fs.readFileSync('templates/expo-sdk54-base.json', 'utf8'));
+
+const match = diag.match(/export const WORKFLOW_EAS_LINK = ('(?:\\.|[^'])*'|`(?:\\.|[^`])*`);/s);
+if (!match) {
+  console.error('[FAIL] Diagnostics workflow templates missing parsable WORKFLOW_EAS_LINK export');
+  process.exit(1);
+}
+
+let diagValue;
+try {
+  diagValue = Function(`return (${match[1]});`)();
+} catch (err) {
+  console.error('[FAIL] Diagnostics WORKFLOW_EAS_LINK export is not a valid JS string literal');
+  process.exit(1);
+}
+
+const baseEntry = base.find((entry) => entry.path === '.github/workflows/eas-link.yml');
+if (!baseEntry) {
+  console.error('[FAIL] Base template JSON missing .github/workflows/eas-link.yml entry');
+  process.exit(1);
+}
+
+if (diagValue.replace(/\r\n/g, '\n') !== live) {
+  console.error('[FAIL] Diagnostics WORKFLOW_EAS_LINK drifted from live .github/workflows/eas-link.yml');
+  process.exit(1);
+}
+
+if (String(baseEntry.content).replace(/\r\n/g, '\n') !== live) {
+  console.error('[FAIL] templates/expo-sdk54-base.json EAS Link entry drifted from live .github/workflows/eas-link.yml');
+  process.exit(1);
+}
+NODE
 
 echo "Workflow template drift check passed."

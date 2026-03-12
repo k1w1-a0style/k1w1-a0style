@@ -12,6 +12,8 @@ on:
       - "docs/WORKFLOW_PATCHING.md"
       - "docs/EDGE_FUNCTIONS_STATUS.md"
       - "docs/patches/**"
+      - "lib/diagnostics/workflowTemplates.ts"
+      - "templates/expo-sdk54-base.json"
   push:
     paths:
       - ".github/workflows/**"
@@ -23,21 +25,50 @@ on:
       - "docs/WORKFLOW_PATCHING.md"
       - "docs/EDGE_FUNCTIONS_STATUS.md"
       - "docs/patches/**"
+      - "lib/diagnostics/workflowTemplates.ts"
+      - "templates/expo-sdk54-base.json"
   workflow_dispatch:
     inputs:
       ref:
-        description: "Branch/Tag/SHA (leer = aktueller Ref)"
-        required: false
-        default: ""
+        description: "Branch/Tag/SHA to lint"
+        required: true
   repository_dispatch:
     types: ["trigger-workflow-lint"]
 
 concurrency:
-  group: workflow-lint-${{ github.event.client_payload.ref || inputs.ref || github.ref }}
+  group: workflow-lint-${{ github.event_name == 'repository_dispatch' && github.event.client_payload.ref || github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.resolve.outputs.ref }}
+    steps:
+      - name: Resolve explicit ref
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            REF="${{ github.event.client_payload.ref || '' }}"
+            if [ -z "$REF" ]; then
+              echo "::error::Missing required ref. Pass client_payload.ref for repository_dispatch."
+              exit 1
+            fi
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            REF="${{ inputs.ref }}"
+            if [ -z "$REF" ]; then
+              echo "::error::Missing required ref. Pass inputs.ref for workflow_dispatch."
+              exit 1
+            fi
+          else
+            REF="${{ github.ref }}"
+          fi
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
   lint:
+    needs: resolve
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -45,7 +76,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ github.event.client_payload.ref || inputs.ref || github.ref }}
+          ref: ${{ needs.resolve.outputs.ref }}
           fetch-depth: 1
 
       - name: Setup Node.js (für Pin-Check Script)
