@@ -2,17 +2,21 @@
 
 ## Summary
 
-Follow-up zur Doku-Kompaktierung aus PR #206: der verpflichtende Index-Link `[EDGE_FUNCTIONS_STATUS](EDGE_FUNCTIONS_STATUS.md)` wurde in `docs/INDEX.md` wieder ergänzt, damit `scripts/check_patch_docs_sync.sh` wieder erfolgreich durchläuft.
+Dokumentations-Follow-up zu PR #206: Der verpflichtende Link
+`[EDGE_FUNCTIONS_STATUS](EDGE_FUNCTIONS_STATUS.md)` wurde in `docs/INDEX.md`
+wiederhergestellt, damit `scripts/check_patch_docs_sync.sh` nicht mehr wegen
+fehlender Index-Referenz fehlschlägt. Zusätzlich wurden die zentralen
+Patch-Referenzen auf den aktuellen Stand `Patch 419` synchronisiert.
 
 ## Included
 
-- `docs/INDEX.md`
-- `README.md`
-- `PROJECT_CHECKLOG.md`
-- `docs/patches/PATCHLOG_ROOT.md`
-- `docs/patches/patch_419.md`
+- `docs/INDEX.md` (EDGE_FUNCTIONS_STATUS-Link wieder ergänzt)
+- `README.md` (`Zuletzt abgeschlossen` auf `Patch 419` gesetzt)
+- `PROJECT_CHECKLOG.md` (neuer Top-Eintrag für Patch 419)
+- `docs/patches/PATCHLOG_ROOT.md` (neuer Recent-Eintrag für Patch 419)
+- `docs/patches/patch_419.md` (diese Patch-Notiz)
 
 ## Notes
 
-- Keine Änderungen an App-Code, Workflows, Edge-Functions oder Tests.
-- Fokus ist die Wiederherstellung des dokumentierten Patch-/Doku-Vertrags und konsistente Patch-Benennung auf **419**.
+- Scope ist rein dokumentarisch.
+- Keine Änderungen an App-Code, Workflows, Edge-Functions oder Testlogik.

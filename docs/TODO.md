@@ -15,7 +15,6 @@ Stand: **2026-03-12**
 ## Wichtige Vertrags-Reminder
 
 - CI-Lite-Chain bleibt bewusst branch-basiert (dokumentierte Ausnahme).
-- Branch-basierte CI-Lite-Chain bleibt als **bewusste Ausnahme** dokumentiert.
 - Produktive Deploy-/Build-Flows bleiben explizit ref-gesteuert.
 - Build-Job-Vertrag bleibt auf **positive numerische `jobId`** ausgerichtet.
 - Diagnostics-Upload-ID im Client bleibt opaque string.
