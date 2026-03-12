@@ -16,8 +16,7 @@ Stand: **2026-03-12**
 - [x] Patch 412 — RLS/Policies/Hardening + abschließende Doku-/Test-Sweeps
 - [x] Patch 413 — SoT-Aufräumrunde für restliche Repo/Branch-/Fallback-Stellen
 
-### Erinnerungen / Nacharbeiten
-### Nächster Fokus — MD-/Notes-Cleanup
+### Erinnerungen / Nacharbeiten (Nächster Fokus — MD-/Notes-Cleanup)
 - [ ] Repo-weiten MD-Cleanup durchführen: redundante/überholte Notizen aus Kern-MDs entfernen, nur noch operative/entscheidungsrelevante Inhalte stehen lassen
 - [ ] Dokument-SoT klarziehen: festlegen, welche Kern-MDs normativ sind und welche Patch-/Historien-Dokumente nur Archivfunktion haben
 - [ ] Patch-/Status-Doku entschlacken: README / Checklog / Patchlog / Patchnotes so kürzen, dass der aktuelle Stand schnell lesbar bleibt und Historie trotzdem nachvollziehbar archiviert ist
@@ -346,7 +345,6 @@ Akzeptanz:
   _Ort_: `supabase/functions/github-workflow-logs`, `hooks/useGitHubActionsLogs.ts`
 
 
-- [x] Patch 112: Workflow YAML fix + managed workflow updates
 - [x] Patch 112: Managed workflow updates + YAML colon-in-name fix for k1w1-triggered-build
 
 
