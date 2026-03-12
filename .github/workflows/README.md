@@ -404,7 +404,7 @@ Guardrails:
 
 ## Workflow ↔ Edge Contract Guard
 
-Zusätzlich zu den Drift-Guards gibt es `scripts/check_workflow_edge_contracts.sh`.
+Zusätzlich zu den Drift-Guards gibt es `scripts/check_workflow_edge_contracts.sh` sowie ab Patch 416 `scripts/check_legacy_disabled_edges.sh`.
 
 Der Check stellt sicher, dass die operativen Verträge zwischen Workflows und Edge-Functions nicht still brechen, insbesondere:
 
@@ -427,3 +427,4 @@ Die Trigger-Pfade von `workflow-lint.yml` decken ab Patch 406 außerdem die neue
 - Single-Function-Deploys blocken `_shared` und validieren `function_name`
 
 Patch 415 V3 zieht die workflow-/CI-nahen Edge-Auth-Pfade auf einen gemeinsamen Admin-Key/CI-Bearer-Guard; Wizard-/Keystore-Setup-Routen bleiben absichtlich admin-only.
+Patch 416 deaktiviert die absichtlich stillgelegten Legacy-Lint-/Native-Sync-Edges auch in `supabase/config.toml`; ihre 410-Stubs bleiben als explizite Legacy-Failsafes erhalten und werden per Guard-Script mitgeprüft.

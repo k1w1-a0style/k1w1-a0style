@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: 2026-03-12 (Patch 415 V3)
+Stand: 2026-03-12 (Patch 416)
 
 ## Aktiv und workflow-relevant
 
@@ -18,12 +18,12 @@ Stand: 2026-03-12 (Patch 415 V3)
 
 | Function | Status | Hinweis |
 |---|---|---|
-| `trigger-lint` | disabled | liefert 410 / stillgelegt |
-| `check-lint` | disabled | liefert 410 / stillgelegt |
-| `check-native-sync` | disabled | liefert 410 / stillgelegt |
-| `trigger-native-sync` | disabled | liefert 410 / stillgelegt |
-| `native-sync-report` | disabled | liefert 410 / stillgelegt |
-| `native-sync-report-ingest` | disabled | liefert 410 / stillgelegt |
+| `trigger-lint` | disabled | in `supabase/config.toml` deaktiviert; Stub liefert 410 / stillgelegt |
+| `check-lint` | disabled | in `supabase/config.toml` deaktiviert; Stub liefert 410 / stillgelegt |
+| `check-native-sync` | disabled | in `supabase/config.toml` deaktiviert; Stub liefert 410 / stillgelegt |
+| `trigger-native-sync` | disabled | in `supabase/config.toml` deaktiviert; Stub liefert 410 / stillgelegt |
+| `native-sync-report` | disabled | in `supabase/config.toml` deaktiviert; Stub liefert 410 / stillgelegt |
+| `native-sync-report-ingest` | disabled | in `supabase/config.toml` deaktiviert; Stub liefert 410 / stillgelegt |
 
 ## Hinweise
 

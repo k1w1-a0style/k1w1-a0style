@@ -71,6 +71,7 @@ jobs:
           bash scripts/check_workflow_template_drift.sh
           bash scripts/check_managed_workflows.sh
           bash scripts/check_workflow_edge_contracts.sh
+          bash scripts/check_legacy_disabled_edges.sh
           bash scripts/check_patch_docs_sync.sh
 
       - name: Check actions are SHA pinned

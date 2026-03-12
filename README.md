@@ -10,7 +10,7 @@
 - Checklog (laufend, kurz): `PROJECT_CHECKLOG.md`
 
 ## Aktueller Patch-Stand
-- Zuletzt abgeschlossen: **Patch 415 V3**
+- Zuletzt abgeschlossen: **Patch 416**
 - Workflow-/CI-Lite-SoT ist nach 393A–406 konsolidiert
 - Patch 407 V3 härtet die Repo-/Branch-SoT für Connections/EAS-Prep-Flows: projektgebundene Auswahl gewinnt als Paar, gemeinsame Auflösung über `lib/selection/repoBranch.ts`, kein stiller `main`-Fallback dort, doppelte Spiegelung in `App.tsx` entfernt
 - Patch 408 V5 glättet den Build-Job-ID-Vertrag auf die aktuelle `build_jobs`-Realität: positive numerische IDs statt UUID-Annahme, App-/Edge-Normalisierung für Number→String, ehrliche Docs + Regressionstests
@@ -22,6 +22,7 @@
 - Patch 413 entfernt die restlichen stillen Repo-/Branch-Fallbacks in Build-/Repo-/Diagnostics-/Diff-/CI-Lite-Pfaden und ergänzt Regression-Coverage gegen stilles Repo/Branch-Erfinden
 - Patch 414 V13 vervollständigt die Invariant-Coverage für die explizite Ref-SoT: robuste Extraktion plus Dekodierung der eingebetteten Workflow-Templates, stabile Prüfung aller relevanten ref-Input-Blöcke in EAS-Live-/Template-Workflows per Zeilen-/Indent-Scanner, unveränderte Live-/Template-Verträge aus V7 und dokumentierte branch-basierte CI-Lite-Chain als bewusste Ausnahme
 - Patch 415 V3 richtet workflow-/CI-nahe Edge-Funktionen auf einen gemeinsamen Admin-/CI-Bearer-Guard aus, lässt Wizard-/Keystore-Setup-Pfade bewusst admin-only und synchronisiert Guard-Script + Invariant-Coverage dafür
+- Patch 416 deaktiviert die absichtlich stillgelegten Legacy-Lint-/Native-Sync-Edge-Funktionen auch in `supabase/config.toml`, hält ihre 410-Stubs als explizite Legacy-Failsafes fest und ergänzt Guard-/Invariant-Coverage gegen erneuten Deploy-Drift
 - Vor dem nächsten Workflow-Patch immer zuerst: `bash scripts/check_workflow_template_drift.sh`
 - Für Workflow↔Edge-Verträge zusätzlich: `bash scripts/check_workflow_edge_contracts.sh` (wird ab Patch 406 V4 auch in `workflow-lint.yml` erzwungen)
 - Trigger-Abdeckung für die Guard-/Docs-Dateien ist ab Patch 406 in `workflow-lint.yml` enthalten (inkl. `docs/WORKFLOW_PATCHING.md`, ohne doppelte Path-Einträge); zusätzlich ist `actionlint` dort versionsgepinnt und das Installer-Script versionsgebunden geladen

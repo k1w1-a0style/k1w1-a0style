@@ -3,6 +3,7 @@
 This file is the *index* of patch notes for this repo.
 
 ## Recent
+- Patch 416: disable intentionally retired lint/native-sync edge functions in `supabase/config.toml`, keep their 410 legacy stubs explicit, and add guard/invariant coverage against deploy drift
 - Patch 415 V3: align workflow-/CI-facing edge functions on a shared admin-or-CI-bearer guard, keep wizard/keystore setup routes admin-only, update the workflow-edge contract script for the resolved trigger flow, and add dedicated invariant coverage.
 - Patch 413: remove remaining silent repo/config + branch/main fallbacks across build, repo, diagnostics, diff, and CI-Lite patch-sync flows; add repo/branch SoT regression coverage
 - Patch 412: harden privileged Supabase DB functions by pinning `_diagnostic_upload_guard()` to an explicit search_path, revoking accidental `PUBLIC` execute on trigger/cleanup/upload helpers, and add guard-script + invariant coverage
