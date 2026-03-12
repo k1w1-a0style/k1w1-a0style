@@ -3,7 +3,7 @@
 This file is the *index* of patch notes for this repo.
 
 ## Recent
-- Patch 417 V17: keep the V13 CI utility workflow ref SoT and EAS-link/template drift lock intact, add the missing invariant test and patch_417.md dropped by V14, and fix the (optional) assertion scope to avoid false failures on legitimately optional inputs
+- Patch 417 V18: keep the V17 CI utility workflow ref SoT / EAS-link drift lock intact, remove the accidentally committed repo-root delivery patch artifact, and ignore exported patch bundle directories + patch files so future deliveries do not get re-committed
 - Patch 416: disable intentionally retired lint/native-sync edge functions in `supabase/config.toml`, keep their 410 legacy stubs explicit, and add guard/invariant coverage against deploy drift
 - Patch 415 V3: align workflow-/CI-facing edge functions on a shared admin-or-CI-bearer guard, keep wizard/keystore setup routes admin-only, update the workflow-edge contract script for the resolved trigger flow, and add dedicated invariant coverage.
 - Patch 413: remove remaining silent repo/config + branch/main fallbacks across build, repo, diagnostics, diff, and CI-Lite patch-sync flows; add repo/branch SoT regression coverage

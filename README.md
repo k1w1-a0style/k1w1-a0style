@@ -10,7 +10,7 @@
 - Checklog (laufend, kurz): `PROJECT_CHECKLOG.md`
 
 ## Aktueller Patch-Stand
-- Zuletzt abgeschlossen: **Patch 417 V17**
+- Zuletzt abgeschlossen: **Patch 417 V18**
 - Workflow-/CI-Lite-SoT ist nach 393A–406 konsolidiert
 - Patch 407 V3 härtet die Repo-/Branch-SoT für Connections/EAS-Prep-Flows: projektgebundene Auswahl gewinnt als Paar, gemeinsame Auflösung über `lib/selection/repoBranch.ts`, kein stiller `main`-Fallback dort, doppelte Spiegelung in `App.tsx` entfernt
 - Patch 408 V5 glättet den Build-Job-ID-Vertrag auf die aktuelle `build_jobs`-Realität: positive numerische IDs statt UUID-Annahme, App-/Edge-Normalisierung für Number→String, ehrliche Docs + Regressionstests
@@ -23,7 +23,7 @@
 - Patch 414 V13 vervollständigt die Invariant-Coverage für die explizite Ref-SoT: robuste Extraktion plus Dekodierung der eingebetteten Workflow-Templates, stabile Prüfung aller relevanten ref-Input-Blöcke in EAS-Live-/Template-Workflows per Zeilen-/Indent-Scanner, unveränderte Live-/Template-Verträge aus V7 und dokumentierte branch-basierte CI-Lite-Chain als bewusste Ausnahme
 - Patch 415 V3 richtet workflow-/CI-nahe Edge-Funktionen auf einen gemeinsamen Admin-/CI-Bearer-Guard aus, lässt Wizard-/Keystore-Setup-Pfade bewusst admin-only und synchronisiert Guard-Script + Invariant-Coverage dafür
 - Patch 416 deaktiviert die absichtlich stillgelegten Legacy-Lint-/Native-Sync-Edge-Funktionen auch in `supabase/config.toml`, hält ihre 410-Stubs als explizite Legacy-Failsafes fest und ergänzt Guard-/Invariant-Coverage gegen erneuten Deploy-Drift
-- Patch 417 V17: keep the V13 CI utility ref SoT and EAS-link/template drift lock intact, add the missing invariant test and patch_417.md, and fix the (optional) assertion scope so legitimate optional inputs do not trigger false failures
+- Patch 417 V18: keep the V17 workflow/template/guard contract intact, remove the accidentally committed delivery patch artifact from the repo root, and ignore exported patch bundles/directories so future patch drops do not get re-committed
 - Vor dem nächsten Workflow-Patch immer zuerst: `bash scripts/check_workflow_template_drift.sh`
 - Für Workflow↔Edge-Verträge zusätzlich: `bash scripts/check_workflow_edge_contracts.sh` (wird ab Patch 406 V4 auch in `workflow-lint.yml` erzwungen)
 - Trigger-Abdeckung für die Guard-/Docs-Dateien ist ab Patch 406 in `workflow-lint.yml` enthalten (inkl. `docs/WORKFLOW_PATCHING.md`, ohne doppelte Path-Einträge); zusätzlich ist `actionlint` dort versionsgepinnt und das Installer-Script versionsgebunden geladen

@@ -20,7 +20,7 @@ Stand: **2026-03-11**
 - [x] Patch 414 — explizite Ref-SoT für Build-Workflows/Templates gehärtet; CI-Lite-Chain bleibt bewusst branch-basiert und ist als Ausnahme dokumentiert
 - [x] Patch 415 V3 — workflow-/CI-nahe Edge-Auth-Pfade auf gemeinsamen Admin-/CI-Bearer-Guard gezogen; Shared-Guard fail-closed ohne Secrets; Wizard-/Keystore-Setup bleibt bewusst admin-only
 - [x] Patch 416 — stillgelegte Legacy-Lint-/Native-Sync-Edges auch in `supabase/config.toml` deaktiviert; 410-Stubs bleiben als explizite Legacy-Failsafes; Guard-/Invariant-Coverage gegen Deploy-Drift ergänzt
-- [x] Patch 417 V17 — V13 inhaltlich beibehalten, den fehlenden Invariant-Test und patch_417.md (von V14 fallengelassen) ergänzt und die (optional)-Assertion auf die ref-Input-Beschreibung eingegrenzt, damit legitim optionale Inputs keine falschen Fehler auslösen
+- [x] Patch 417 V18 — V17 inhaltlich beibehalten, den versehentlich ins Repo committeten Delivery-Patch aus dem Root wieder entfernt und Patch-Bundle-/Patch-Datei-Artefakte per `.gitignore` geblockt, damit zukünftige Lieferpakete nicht erneut eingecheckt werden
 - [ ] Repo-weites SoT-Follow-up: zusätzliche Invariants/Jest-Guards für branch-/ref-gesteuerte Workflows festnageln, damit feste Branchlisten oder implizite Default-Deploypfade nicht wieder unbemerkt reinkommen
 - [ ] Hardening-Follow-up: `Number(jobId)`-Thema für sehr große bigint-Werte später separat prüfen (aktueller Build-Job-Vertrag ist okay, aber JS-safe-integer Thema bleibt als Reminder offen)
 - [ ] Hardening-Follow-up: UUID-Kompatibilitätsregex in `normalizeDiagnosticUploadId()` später enger ziehen oder entfernen, sobald der Diagnostics-Vertrag endgültig nur noch einen ID-Typ nutzt

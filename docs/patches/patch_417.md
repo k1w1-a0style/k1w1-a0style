@@ -1,4 +1,4 @@
-# Patch 417 (V17)
+# Patch 417 (V18)
 
 ## Summary
 
@@ -25,7 +25,8 @@ Hardens the remaining CI utility workflow ref contracts so manual and repository
 - The `not.toContain` assertion for `(optional)` is scoped to the exact ref-input description string, not a substring match against the full file, to avoid false failures on the legitimately optional `eas_project_id` and `expo_owner` inputs.
 
 
-## V17 follow-up
+## V18 follow-up
 
-- Keeps the restored workflow/test/template contract intact and finalizes the delivered patch status/docs to V17.
-- Marks `scripts/check_workflow_template_drift.sh` executable so the documented direct invocation works without needing `bash ...`.
+- Keeps the delivered workflow/test/template contract from V17 intact.
+- Removes the accidentally committed repo-root delivery patch artifact (`k1w1-patch-417-v17-final-doc-mode-sync.patch`).
+- Ignores exported patch bundle directories (`k1w1-patch-*/`) and exported patch files (`k1w1-patch-*.patch`) so future patch deliveries do not get re-committed from the repo root.
