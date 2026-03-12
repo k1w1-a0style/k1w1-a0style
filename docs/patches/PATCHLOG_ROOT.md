@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 419: follow-up auf PR #206; `EDGE_FUNCTIONS_STATUS`-Indexlink in `docs/INDEX.md` wiederhergestellt und Patch-Benennung konsistent gehalten
 - Patch 418 V1: trust/docs consolidation sweep; core architecture docs auf Post-417-Stand gezogen, offene Follow-ups zentral in TODO gesammelt, MD-/Notes-Cleanup als nächster Schritt verankert
 - Patch 417 V18: V17-Verträge beibehalten, versehentlich committetes Repo-Root-Patch-Artefakt entfernt, Patch-Bundles/-Dateien gegen Re-Commit ignoriert
 - Patch 416: retired lint/native-sync edge functions in `supabase/config.toml` deaktiviert, 410-legacy stubs explizit belassen, Guard-/Invariant-Coverage ergänzt

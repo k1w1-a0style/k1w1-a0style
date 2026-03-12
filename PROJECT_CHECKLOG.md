@@ -4,6 +4,7 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-12: Patch 419: Follow-up auf PR #206; `[EDGE_FUNCTIONS_STATUS](EDGE_FUNCTIONS_STATUS.md)` im Doku-Index wiederhergestellt und Patch-Benennung konsistent gehalten.
 - 2026-03-12: Patch 418 V1 — Core-Doku auf Post-417-Realität gezogen, offene Restpunkte zentral in `docs/TODO.md` gesammelt, MD-/Notes-Cleanup als nächster Schritt fixiert.
 - 2026-03-12: Patch 417 V18 — versehentlich committetes Patch-Artefakt aus dem Repo-Root entfernt, Patch-Bundle-/Patch-Datei-Artefakte per `.gitignore` gegen Re-Commit abgesichert.
 - 2026-03-12: Patch 416 — stillgelegte Legacy-Lint-/Native-Sync-Edges auch in `supabase/config.toml` deaktiviert; Guard-/Invariant-Coverage ergänzt.
