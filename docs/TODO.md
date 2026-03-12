@@ -26,7 +26,7 @@ Stand: **2026-03-12**
 - [x] Patch 417 V18 — Patch-Artefakt-Re-Commit im Repo-Root bereinigt und per Ignore-Regeln abgesichert.
 - [x] Patch 416 — stillgelegte Legacy-Edges auch auf Config-Ebene deaktiviert; Guard-/Invariant-Coverage ergänzt.
 - [x] Patch 415 V3 — workflow-/CI-nahe Edge-Auth-Pfade auf gemeinsamen Admin-/CI-Bearer-Guard ausgerichtet.
-- [x] Patch 414 V13 — explizite Ref-SoT-Invariants gehärtet; CI-Lite-Branch-Ausnahme bewusst dokumentiert.
+- [x] Patch 414 V13 — explizite Ref-SoT-Invariants gehärtet; Branch-Vertrag dokumentarisch nachgezogen.
 - [x] Patch 413 — restliche stille Repo-/Branch-Fallbacks entfernt; SoT-Regression-Coverage ergänzt.
 - [x] Patch 412 — Supabase-Function-Hardening (`search_path`, `PUBLIC`-Execute-Revoke) + Guards.
 - [x] Patch 411 V7 — Supabase-Deploy-Workflow auf `workflow_dispatch` + required `ref` gehärtet.
