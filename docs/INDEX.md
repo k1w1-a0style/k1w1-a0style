@@ -19,6 +19,7 @@ Dieser Index priorisiert operative Navigation. Historische Details bleiben im Pa
 - `docs/07-diagnostics-fix-playbook.md` — Diagnostics-/Fix-Playbook
 - `docs/08-test-coverage-matrix.md` — Test-Matrix
 - `docs/09-gap-tickets.md` — offene Gap-/Ticket-Sammlung
+- [EDGE_FUNCTIONS_STATUS](EDGE_FUNCTIONS_STATUS.md) — Edge-Functions-Statusübersicht
 - `docs/runbooks/APP_RUNBOOK.md` — Schritt-für-Schritt-Runbook
 
 ## 3) Patching / Historie
