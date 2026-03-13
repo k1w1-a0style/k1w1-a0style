@@ -41,6 +41,14 @@ describe("Invariants: repo/branch selection is source of truth", () => {
   });
 
 
+
+  it("marks context repo/branch selection as fallback-only in Connections status copy", () => {
+    const src = read("screens/ConnectionsScreen/components/StatusCard.tsx");
+
+    expect(src).toContain('? `${repoSelectionHint} · Maßgeblich für Build/Signing.`');
+    expect(src).toContain('? `${repoSelectionHint} · Nicht maßgeblich für Build/Signing, bis sie im Projekt verknüpft ist.`');
+  });
+
   it("does not silently fall back to 'main' in ConnectionsScreen EAS prep flows", () => {
     const src = read("screens/ConnectionsScreen/hooks/useConnectionsScreen.ts");
 
