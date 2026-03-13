@@ -55,30 +55,40 @@ jobs:
         run: |
           set -euo pipefail
           if [ -f package-lock.json ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
-            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
-            echo "cache_kind=npm" >> "$GITHUB_OUTPUT"
+            {
+              echo "has_lockfile=true"
+              echo "lockfile_path=package-lock.json"
+              echo "package_manager=npm"
+              echo "cache_kind=npm"
+            } >> "$GITHUB_OUTPUT"
           elif [ -f npm-shrinkwrap.json ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
-            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
-            echo "cache_kind=npm" >> "$GITHUB_OUTPUT"
+            {
+              echo "has_lockfile=true"
+              echo "lockfile_path=npm-shrinkwrap.json"
+              echo "package_manager=npm"
+              echo "cache_kind=npm"
+            } >> "$GITHUB_OUTPUT"
           elif [ -f yarn.lock ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
-            echo "package_manager=yarn" >> "$GITHUB_OUTPUT"
-            echo "cache_kind=yarn" >> "$GITHUB_OUTPUT"
+            {
+              echo "has_lockfile=true"
+              echo "lockfile_path=yarn.lock"
+              echo "package_manager=yarn"
+              echo "cache_kind=yarn"
+            } >> "$GITHUB_OUTPUT"
           elif [ -f pnpm-lock.yaml ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
-            echo "package_manager=pnpm" >> "$GITHUB_OUTPUT"
-            echo "cache_kind=pnpm" >> "$GITHUB_OUTPUT"
+            {
+              echo "has_lockfile=true"
+              echo "lockfile_path=pnpm-lock.yaml"
+              echo "package_manager=pnpm"
+              echo "cache_kind=pnpm"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
-            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
-            echo "cache_kind=npm" >> "$GITHUB_OUTPUT"
+            {
+              echo "has_lockfile=false"
+              echo "lockfile_path="
+              echo "package_manager=npm"
+              echo "cache_kind=npm"
+            } >> "$GITHUB_OUTPUT"
           fi
 
       - name: Setup Node (with package manager cache)
@@ -189,7 +199,7 @@ jobs:
             exit 0
           fi
 
-          if echo "$BR" | grep -qE '[: ]'; then
+          if echo "$BR" | grep -qE '[ :]'; then
             echo "::warning::Unsafe ref ($BR). Skipping writeback." | tee -a ci-logs/autofix.log
             exit 0
           fi
@@ -254,14 +264,16 @@ jobs:
                 console.error("Missing expo.extra.eas.projectId");
                 process.exit(1);
               }
-              console.log(`expo.extra.eas.projectId OK: ${projectId}`);
+              console.log("expo.extra.eas.projectId OK: " + projectId);
             '
           ) 2>&1 | tee ci-logs/expo-preflight.log
           EXPO=$?
 
-          echo "eslint_exit=$ESL" >> "$GITHUB_OUTPUT"
-          echo "tsc_exit=$TSC" >> "$GITHUB_OUTPUT"
-          echo "expo_exit=$EXPO" >> "$GITHUB_OUTPUT"
+          {
+            echo "eslint_exit=$ESL"
+            echo "tsc_exit=$TSC"
+            echo "expo_exit=$EXPO"
+          } >> "$GITHUB_OUTPUT"
 
           cat > ci-logs/ci-lite-autofix-result.json <<JSON
           {
@@ -294,23 +306,23 @@ jobs:
           {
             echo "## CI Lite Autofix"
             echo ""
-            echo "- ref: `${TARGET_BRANCH}`"
-            echo "- job_id: `${JOB_ID:-}`"
-            echo "- workflow version: `${WORKFLOW_VERSION}`"
-            echo "- run id: `${GITHUB_RUN_ID}` / attempt `${GITHUB_RUN_ATTEMPT}`"
-            echo "- sha: `${GITHUB_SHA}`"
-            echo "- eslint fix exit: `${{ steps.fix.outputs.eslint_fix_exit }}`"
-            echo "- changed: `${{ steps.writeback.outputs.changed }}`"
-            echo "- pushed: `${{ steps.writeback.outputs.pushed }}`"
-            echo "- eslint verify: `${{ steps.verify.outputs.eslint_exit }}`"
-            echo "- tsc verify: `${{ steps.verify.outputs.tsc_exit }}`"
-            echo "- expo preflight: `${{ steps.verify.outputs.expo_exit }}`"
+            echo "- ref: \`${TARGET_BRANCH}\`"
+            echo "- job_id: \`${JOB_ID:-}\`"
+            echo "- workflow version: \`${WORKFLOW_VERSION}\`"
+            echo "- run id: \`${GITHUB_RUN_ID}\` / attempt \`${GITHUB_RUN_ATTEMPT}\`"
+            echo "- sha: \`${GITHUB_SHA}\`"
+            echo "- eslint fix exit: \`${{ steps.fix.outputs.eslint_fix_exit }}\`"
+            echo "- changed: \`${{ steps.writeback.outputs.changed }}\`"
+            echo "- pushed: \`${{ steps.writeback.outputs.pushed }}\`"
+            echo "- eslint verify: \`${{ steps.verify.outputs.eslint_exit }}\`"
+            echo "- tsc verify: \`${{ steps.verify.outputs.tsc_exit }}\`"
+            echo "- expo preflight: \`${{ steps.verify.outputs.expo_exit }}\`"
             echo ""
             echo "Artifacts:"
-            echo "- `ci-logs/ci-lite-autofix-result.json`"
-            echo "- `ci-logs/autofix.log` (+ optional `ci-logs/autofix.patch` if push fails)"
-            echo "- `ci-logs/lint.log`, `ci-logs/typecheck.log`, `ci-logs/expo-preflight.log`"
-            echo "- `ci-logs/metadata.env`, `ci-logs/node-version.log`, `ci-logs/npm-version.log`"
+            echo "- \`ci-logs/ci-lite-autofix-result.json\`"
+            echo "- \`ci-logs/autofix.log\` (+ optional \`ci-logs/autofix.patch\` if push fails)"
+            echo "- \`ci-logs/lint.log\`, \`ci-logs/typecheck.log\`, \`ci-logs/expo-preflight.log\`"
+            echo "- \`ci-logs/metadata.env\`, \`ci-logs/node-version.log\`, \`ci-logs/npm-version.log\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload CI Lite Autofix logs
@@ -351,7 +363,7 @@ jobs:
             exit 0
           fi
 
-          if echo "$BR" | grep -qE '[: ]'; then
+          if echo "$BR" | grep -qE '[ :]'; then
             echo "::warning::Unsafe ref ($BR); skipping CI Lite chain-run."
             exit 0
           fi
@@ -372,11 +384,11 @@ jobs:
             -X POST \
             "repos/${GITHUB_REPOSITORY}/dispatches" \
             -f event_type="trigger-ci-lite" \
-            -f client_payload[branch]="$BR" \
-            -f client_payload[job_id]="${JOB_ID:-}" \
-            -f client_payload[source_workflow]="k1w1-ci-lite-autofix.yml" \
-            -f client_payload[source_run_id]="${GITHUB_RUN_ID}" \
-            -f client_payload[source_sha]="${HEAD_SHA}" \
+            -f "client_payload[branch]=$BR" \
+            -f "client_payload[job_id]=${JOB_ID:-}" \
+            -f "client_payload[source_workflow]=k1w1-ci-lite-autofix.yml" \
+            -f "client_payload[source_run_id]=${GITHUB_RUN_ID}" \
+            -f "client_payload[source_sha]=${HEAD_SHA}" \
             >/dev/null
 
       - name: Done
