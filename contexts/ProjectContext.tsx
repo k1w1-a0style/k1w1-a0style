@@ -64,6 +64,46 @@ const getErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
+const isBuildProfile = (
+  profile: unknown,
+): profile is "development" | "preview" | "production" => {
+  return (
+    profile === "development" ||
+    profile === "preview" ||
+    profile === "production"
+  );
+};
+
+export const resolveLinkedBranchForRepoSelection = (params: {
+  previousRepo?: string | null;
+  nextRepo?: string | null;
+  previousBranch?: string | null;
+  nextBranch?: string | null;
+}): string | null => {
+  const previousRepo = (params.previousRepo ?? "").trim();
+  const nextRepo = (params.nextRepo ?? "").trim();
+
+  if (typeof params.nextBranch !== "undefined") {
+    return params.nextBranch ?? null;
+  }
+
+  // Prevent stale branch carry-over when the user changed repo but did not pick a new branch yet.
+  if (previousRepo !== nextRepo) {
+    return null;
+  }
+
+  return params.previousBranch ?? null;
+};
+
+export const resolveBuildProfileForStart = (params: {
+  requestedProfile?: string;
+  preferredProfile?: string | null;
+}): "development" | "preview" | "production" => {
+  if (isBuildProfile(params.requestedProfile)) return params.requestedProfile;
+  if (isBuildProfile(params.preferredProfile)) return params.preferredProfile;
+  return "preview";
+};
+
 const ProjectContext = createContext<ProjectContextProps | undefined>(
   undefined,
 );
@@ -434,7 +474,12 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       await updateProject((prev) => ({
         ...prev,
         linkedRepo: repo,
-        linkedBranch: branch ?? prev.linkedBranch ?? null,
+        linkedBranch: resolveLinkedBranchForRepoSelection({
+          previousRepo: prev.linkedRepo,
+          nextRepo: repo,
+          previousBranch: prev.linkedBranch,
+          nextBranch: branch,
+        }),
       }));
       logger.info(
         `🔗 Projekt verknüpft mit: ${repo ?? "–"} (Branch: ${branch ?? "–"})`,
@@ -619,13 +664,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           throw new Error("Kein GitHub-Repo verknüpft. Bitte zuerst in GitHub Repos ein Repo auswählen und verknüpfen.");
         }
 
-        // Build Profile: nur erlaubte Werte (Default: preview)
-        const profile =
-          buildProfile === "development" ||
-          buildProfile === "preview" ||
-          buildProfile === "production"
-            ? buildProfile
-            : "preview";
+        // Build Profile: use explicit request first, otherwise keep the persisted project preference.
+        const profile = resolveBuildProfileForStart({
+          requestedProfile: buildProfile,
+          preferredProfile: pd.preferredBuildProfile,
+        });
 
         const startedAt = new Date().toISOString();
         setCurrentBuild({
