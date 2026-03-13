@@ -100,7 +100,8 @@ describe("Invariants: repo/branch selection is source of truth", () => {
 
     expect(wizard).toContain("resolveProjectCredentialScope");
     expect(wizard).toContain("credKeyForProjectUiMode");
-    expect(wizard).toContain("One-time migration into project-scoped key.");
+    expect(wizard).toContain("scopedKey !== legacyKey");
+    expect(wizard).not.toContain("One-time migration into project-scoped key.");
   });
 
 });
