@@ -3,7 +3,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import type { BuildProfile } from "../types";
 import { getExpoToken, getGitHubToken } from "../../../infra/github/githubService";
-import { STORAGE_KEYS, credKeyForProfile } from "../../../lib/storageKeys";
+import {
+  STORAGE_KEYS,
+  credKeyForProfile,
+  credKeyForProjectUiMode,
+  resolveProjectCredentialScope,
+} from "../../../lib/storageKeys";
 
 /**
  * Centralized precondition checks for Build Screen.
@@ -14,6 +19,7 @@ export function useBuildPreconditions(
   buildProfile: BuildProfile,
   repoFullName: string,
   branchName: string,
+  projectData?: { id?: string | null } | null,
 ) {
   const isMountedRef = useRef(true);
 
@@ -40,12 +46,21 @@ export function useBuildPreconditions(
       ]);
       if (isMountedRef.current) setHasTokens(!!(gh && expo));
 
-      // Signing key (profile-aware)
+      // Signing key (profile-aware + project-scoped with legacy fallback)
       const keyMode = buildProfile === "development" ? "dev" : buildProfile;
-      const credKey = credKeyForProfile(
+      const projectScope = resolveProjectCredentialScope({
+        projectId: projectData?.id,
+        linkedRepo: repoFullName,
+      });
+      const scopedKey = credKeyForProjectUiMode({
+        mode: keyMode === "dev" ? "dev" : (keyMode as "preview" | "production"),
+        projectScope,
+      });
+      const legacyKey = credKeyForProfile(
         keyMode === "dev" ? "development" : (keyMode as "preview" | "production"),
       );
-      const val = await AsyncStorage.getItem(credKey).catch(() => null);
+      const scopedVal = await AsyncStorage.getItem(scopedKey).catch(() => null);
+      const val = scopedVal ?? (scopedKey !== legacyKey ? await AsyncStorage.getItem(legacyKey).catch(() => null) : null);
       if (isMountedRef.current) setHasSigningKey(val === "true");
 
       // Diagnostic
@@ -91,7 +106,7 @@ export function useBuildPreconditions(
     } catch {
       // ignore
     }
-  }, [branchName, buildProfile, repoFullName]);
+  }, [branchName, buildProfile, projectData?.id, repoFullName]);
 
   useEffect(() => {
     refreshPreconditions().catch(() => {});
