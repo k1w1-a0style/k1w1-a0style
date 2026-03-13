@@ -111,4 +111,17 @@ describe("Patch 417 CI utility workflow ref SoT invariants", () => {
     expect(guard).toContain('Diagnostics WORKFLOW_EAS_LINK drifted from live .github/workflows/eas-link.yml');
     expect(guard).toContain('templates/expo-sdk54-base.json EAS Link entry drifted from live .github/workflows/eas-link.yml');
   });
+
+  it("keeps managed-workflow guardrails against implicit ref fallbacks", () => {
+    const managed = read("scripts/check_managed_workflows.sh");
+
+    expect(managed).toContain('forbid_fixed');
+    expect(managed).toContain('.github/workflows/k1w1-triggered-build.yml');
+    expect(managed).toContain("ref: ${{ github.ref }}");
+    expect(managed).toContain("ref: ${{ github.ref_name }}");
+    expect(managed).toContain("github.head_ref");
+    expect(managed).toContain("github.event.repository.default_branch");
+    expect(managed).toContain("workflow_dispatch' && inputs.ref || github.ref");
+    expect(managed).toContain('default_ref: work');
+  });
 });
