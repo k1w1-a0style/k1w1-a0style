@@ -36,6 +36,21 @@ import {
   normalizeModeForApi,
 } from "./credentialHelpers";
 
+const EMPTY_STATUS_BY_MODE: Record<UiModeId, StatusResult | null> = {
+  dev: null,
+  preview: null,
+  production: null,
+};
+
+export function mergePersistedStatusByMode(
+  next: Partial<Record<UiModeId, StatusResult>>,
+): Record<UiModeId, StatusResult | null> {
+  return {
+    ...EMPTY_STATUS_BY_MODE,
+    ...next,
+  };
+}
+
 export function useCredentialsWizardScreen() {
   const project = useProject();
   const toast = useInlineToast();
@@ -79,11 +94,9 @@ export function useCredentialsWizardScreen() {
     [project?.projectData?.id, project?.projectData?.linkedRepo],
   );
 
-  const [statusByMode, setStatusByMode] = useState<Record<UiModeId, StatusResult | null>>({
-    dev: null,
-    preview: null,
-    production: null,
-  });
+  const [statusByMode, setStatusByMode] = useState<Record<UiModeId, StatusResult | null>>(
+    EMPTY_STATUS_BY_MODE,
+  );
 
   const [lastDebug, setLastDebug] = useState<WizardHttpDebug | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
@@ -191,6 +204,10 @@ export function useCredentialsWizardScreen() {
   useEffect(() => {
     let cancelled = false;
 
+    // Scope changed (project/repo switch): clear old in-memory status immediately
+    // so another project's last-known state does not leak into this screen.
+    setStatusByMode(EMPTY_STATUS_BY_MODE);
+
     (async () => {
       const next: Partial<Record<UiModeId, StatusResult>> = {};
 
@@ -212,10 +229,7 @@ export function useCredentialsWizardScreen() {
       }
 
       if (cancelled) return;
-      setStatusByMode((prev) => ({
-        ...prev,
-        ...next,
-      }));
+      setStatusByMode(mergePersistedStatusByMode(next));
     })();
 
     return () => {
