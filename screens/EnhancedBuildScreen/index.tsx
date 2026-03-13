@@ -176,6 +176,9 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           etaMs={s.etaMs}
           formatDuration={s.formatDuration}
           currentBuild={s.currentBuild}
+          selectedRepo={s.repoFullName}
+          selectedBranch={s.branchName}
+          selectedBuildProfile={s.buildProfile}
           hasStartBuild={s.hasStartBuild}
           buildLoading={s.buildLoading}
           onStartBuild={s.onStartBuild}

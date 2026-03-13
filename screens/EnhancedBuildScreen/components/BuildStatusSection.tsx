@@ -25,6 +25,9 @@ export function BuildStatusSection({
   formatDuration,
   status,
   currentBuild,
+  selectedRepo,
+  selectedBranch,
+  selectedBuildProfile,
   hasStartBuild,
   buildLoading,
   startDisabled,
@@ -40,6 +43,9 @@ export function BuildStatusSection({
   etaMs: number;
   formatDuration: (ms: number) => string;
   currentBuild: CurrentBuildLike | null;
+  selectedRepo: string;
+  selectedBranch: string;
+  selectedBuildProfile: string;
   hasStartBuild: boolean;
   buildLoading: boolean;
   startDisabled?: boolean;
@@ -47,6 +53,13 @@ export function BuildStatusSection({
   onStartBuild: () => void;
   openRun: (url: string) => void;
 }): React.ReactElement {
+  const contextRepo = currentBuild?.githubRepo || selectedRepo;
+  const contextBranch = currentBuild?.branch || selectedBranch;
+  const contextProfile = currentBuild?.buildProfile || selectedBuildProfile;
+  const hasRuntimeContext = Boolean(
+    currentBuild?.githubRepo || currentBuild?.branch || currentBuild?.buildProfile || currentBuild?.sourceCommitSha,
+  );
+
   return (
     <View style={s.card}>
       <View style={s.header}>
@@ -63,17 +76,19 @@ export function BuildStatusSection({
           <Text style={s.statusLabel}>{statusLabel}</Text>
           {!!message && <Text style={s.statusMsg}>{message}</Text>}
           {!!jobId && <Text style={s.statusMsg}>Job #{jobId}</Text>}
-          {(currentBuild?.githubRepo || currentBuild?.branch || currentBuild?.buildProfile || currentBuild?.sourceCommitSha) ? (
+          {(contextRepo || contextBranch || contextProfile || currentBuild?.sourceCommitSha) ? (
             <View style={s.contextBox}>
-              <Text style={s.contextLabel}>Laufkontext (SoT)</Text>
-              {!!currentBuild?.githubRepo && (
-                <Text style={s.statusMsg}>Repo {currentBuild.githubRepo}</Text>
+              <Text style={s.contextLabel}>
+                {hasRuntimeContext ? "Laufkontext (aktueller Build)" : "Laufkontext (aktuelle Auswahl)"}
+              </Text>
+              {!!contextRepo && (
+                <Text style={s.statusMsg}>Repo {contextRepo}</Text>
               )}
-              {!!currentBuild?.branch && (
-                <Text style={s.statusMsg}>Branch {currentBuild.branch}</Text>
+              {!!contextBranch && (
+                <Text style={s.statusMsg}>Branch {contextBranch}</Text>
               )}
-              {!!currentBuild?.buildProfile && (
-                <Text style={s.statusMsg}>Profil {String(currentBuild.buildProfile)}</Text>
+              {!!contextProfile && (
+                <Text style={s.statusMsg}>Profil {String(contextProfile)}</Text>
               )}
               {!!currentBuild?.sourceCommitSha && (
                 <Text style={s.statusMsg}>Commit {currentBuild.sourceCommitSha.slice(0, 12)}</Text>
@@ -165,4 +180,3 @@ export function BuildStatusSection({
     </View>
   );
 }
-

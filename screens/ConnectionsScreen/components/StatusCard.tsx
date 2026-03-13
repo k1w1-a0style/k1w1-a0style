@@ -198,9 +198,9 @@ export function StatusCard(props: {
 
   const repoSelectionHint =
     selectionSource === "project"
-      ? "Aktive Projektauswahl"
+      ? "Aktive Projektauswahl (SoT)"
       : selectionSource === "context"
-        ? "Letzte Context-Auswahl"
+        ? "Letzte Context-Auswahl (Fallback)"
         : "Keine Auswahl";
 
   const supaIsOk = supabaseOk ?? status.sbUrl;
@@ -260,14 +260,14 @@ export function StatusCard(props: {
         label="Aktives Repo / Branch"
         ok={status.linked}
         value={repoLine || undefined}
-        detail={repoLine ? repoSelectionHint : "In GitHub Repos auswählen."}
+        detail={repoLine ? `${repoSelectionHint} · Maßgeblich für Build/Signing.` : "In GitHub Repos auswählen."}
       />
 
       <StatusRow
         label="EAS Project"
         ok={easOk ?? status.eas}
         value={status.eas ? easProjectId : undefined}
-        detail={easInitRunning ? "Workflow läuft… (GitHub Actions: eas-link)" : "Zuletzt gespeicherter Link-Status"}
+        detail={easInitRunning ? "Workflow läuft… (GitHub Actions: eas-link)" : "Zuletzt gespeicherter Link-Status (nicht automatisch frisch geprüft)"}
       />
 
       <View style={parentStyles.row}>
