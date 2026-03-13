@@ -71,6 +71,7 @@ jobs:
         with:
           ref: ${{ env.TARGET_REF }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Detect package manager + lockfile
         id: lock

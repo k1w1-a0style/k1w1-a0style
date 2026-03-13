@@ -1,5 +1,5 @@
 # managed-by: k1w1
-# workflow-version: 411
+# workflow-version: 405
 name: Deploy Supabase (Edge Functions)
 
 run-name: >-
@@ -53,6 +53,7 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
