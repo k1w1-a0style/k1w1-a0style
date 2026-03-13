@@ -67,11 +67,13 @@ jobs:
             exit 1
           fi
 
-          echo "ref=$REF" >> "$GITHUB_OUTPUT"
-          echo "profile=$PROFILE" >> "$GITHUB_OUTPUT"
-          echo "job_id=$JOB_ID" >> "$GITHUB_OUTPUT"
-          echo "autofix=$AUTOFIX" >> "$GITHUB_OUTPUT"
-          echo "strict_lockfile=$STRICT_LOCKFILE" >> "$GITHUB_OUTPUT"
+          {
+            echo "ref=$REF"
+            echo "profile=$PROFILE"
+            echo "job_id=$JOB_ID"
+            echo "autofix=$AUTOFIX"
+            echo "strict_lockfile=$STRICT_LOCKFILE"
+          } >> "$GITHUB_OUTPUT"
 
   build:
     name: Dispatch → EAS Build (reusable)
