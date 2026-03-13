@@ -30,14 +30,14 @@ describe("edge function request contracts", () => {
       expect(res.data.githubToken).toBe("ghp_TESTTOKEN");
     });
 
-    it("defaults ref to main when missing", () => {
+    it("rejects missing ref instead of defaulting to main", () => {
       const res = validateGithubWorkflowDispatchRequest({
         githubRepo: "k1w1-a0style/musik-player",
         workflow: "eas-link.yml",
       });
-      expect(res.ok).toBe(true);
-      if (!res.ok) return;
-      expect(res.data.ref).toBe("main");
+      expect(res.ok).toBe(false);
+      if (res.ok) return;
+      expect(res.errors.ref).toContain("non-empty branch");
     });
 
     it("rejects refs/* and 40-char sha", () => {
