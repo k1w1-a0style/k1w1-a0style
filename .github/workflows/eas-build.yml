@@ -631,16 +631,16 @@ jobs:
           echo "$HTTP_CODE" > ci-logs/keystore-response.http_code
 
           if [ "$HTTP_CODE" != "200" ]; then
-            node - <<'NODE'
-const fs = require("fs");
-const raw = fs.existsSync("ci-logs/keystore-response.raw.json")
-  ? fs.readFileSync("ci-logs/keystore-response.raw.json", "utf8")
-  : "";
-const sanitized = raw
-  .replace(/[A-Za-z0-9+/=]{24,}/g, "[redacted]")
-  .replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer [redacted]");
-fs.writeFileSync("ci-logs/keystore-response.sanitized.txt", sanitized);
-NODE
+            node -e '
+              const fs = require("fs");
+              const raw = fs.existsSync("ci-logs/keystore-response.raw.json")
+                ? fs.readFileSync("ci-logs/keystore-response.raw.json", "utf8")
+                : "";
+              const sanitized = raw
+                .replace(/[A-Za-z0-9+/=]{24,}/g, "[redacted]")
+                .replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer [redacted]");
+              fs.writeFileSync("ci-logs/keystore-response.sanitized.txt", sanitized);
+            '
             echo "::error::Keystore export failed with HTTP ${HTTP_CODE}. See sanitized diagnostics artifact."
             exit 1
           fi
@@ -649,33 +649,33 @@ NODE
         shell: bash
         run: |
           set -euo pipefail
-          node - <<'NODE'
-          const fs = require("fs");
-          const p = "ci-logs/keystore-response.raw.json";
-          const raw = fs.readFileSync(p, "utf8");
-          let data;
-          try {
-            data = JSON.parse(raw);
-          } catch (err) {
-            fs.writeFileSync("ci-logs/keystore-response.sanitized.txt", raw.slice(0, 4000));
-            console.error("Keystore export is not valid JSON");
-            process.exit(1);
-          }
-          const summary = {
-            topLevelKeys: Object.keys(data || {}).slice(0, 20),
-            ok: data?.ok === true,
-            hasKeystoreBase64: typeof data?.keystoreBase64 === "string" && data.keystoreBase64.length > 0,
-            hasKeystorePassword: typeof data?.keystorePassword === "string" && data.keystorePassword.length > 0,
-            hasAlias: typeof data?.alias === "string" && data.alias.length > 0,
-            hasKeyPassword: typeof data?.keyPassword === "string" && data.keyPassword.length > 0
-          };
-          fs.writeFileSync("ci-logs/keystore-response.summary.json", JSON.stringify(summary, null, 2));
-          if (!summary.ok || !summary.hasKeystoreBase64 || !summary.hasKeystorePassword || !summary.hasAlias || !summary.hasKeyPassword) {
-            fs.writeFileSync("ci-logs/keystore-response.sanitized.txt", JSON.stringify(summary, null, 2));
-            console.error("Keystore export payload missing required fields");
-            process.exit(1);
-          }
-          NODE
+          node -e '
+            const fs = require("fs");
+            const p = "ci-logs/keystore-response.raw.json";
+            const raw = fs.readFileSync(p, "utf8");
+            let data;
+            try {
+              data = JSON.parse(raw);
+            } catch (err) {
+              fs.writeFileSync("ci-logs/keystore-response.sanitized.txt", raw.slice(0, 4000));
+              console.error("Keystore export is not valid JSON");
+              process.exit(1);
+            }
+            const summary = {
+              topLevelKeys: Object.keys(data || {}).slice(0, 20),
+              ok: data?.ok === true,
+              hasKeystoreBase64: typeof data?.keystoreBase64 === "string" && data.keystoreBase64.length > 0,
+              hasKeystorePassword: typeof data?.keystorePassword === "string" && data.keystorePassword.length > 0,
+              hasAlias: typeof data?.alias === "string" && data.alias.length > 0,
+              hasKeyPassword: typeof data?.keyPassword === "string" && data.keyPassword.length > 0
+            };
+            fs.writeFileSync("ci-logs/keystore-response.summary.json", JSON.stringify(summary, null, 2));
+            if (!summary.ok || !summary.hasKeystoreBase64 || !summary.hasKeystorePassword || !summary.hasAlias || !summary.hasKeyPassword) {
+              fs.writeFileSync("ci-logs/keystore-response.sanitized.txt", JSON.stringify(summary, null, 2));
+              console.error("Keystore export payload missing required fields");
+              process.exit(1);
+            }
+          '
 
       - name: Write Android signing files
         if: ${{ inputs.profile == 'production' }}
