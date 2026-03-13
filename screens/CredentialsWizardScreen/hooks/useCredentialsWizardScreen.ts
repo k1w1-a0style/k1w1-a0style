@@ -204,11 +204,6 @@ export function useCredentialsWizardScreen() {
         if (exists === null && scopedKey !== legacyKey) {
           const legacyVal = await AsyncStorage.getItem(legacyKey).catch(() => null);
           exists = legacyVal === "true" ? true : legacyVal === "false" ? false : null;
-
-          // One-time migration into project-scoped key.
-          if (exists !== null) {
-            await AsyncStorage.setItem(scopedKey, exists ? "true" : "false").catch(() => {});
-          }
         }
 
         if (exists !== null) {
