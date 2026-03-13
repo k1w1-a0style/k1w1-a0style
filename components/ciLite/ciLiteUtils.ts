@@ -39,6 +39,31 @@ export function safeUi(s: string): string {
   return truncateWithMarker(redactSecrets(s || ""), 900, "…");
 }
 
+export function findWorkflowRunByJobId(runs: any[], jobId: string): any | null {
+  if (!Array.isArray(runs) || !jobId?.trim()) return null;
+  const jid = jobId.trim();
+
+  const exactPatterns = [
+    `[${jid}]`,
+    `(job_id=${jid})`,
+    `job_id=${jid}`,
+    `job_id: ${jid}`,
+  ];
+
+  const withTitle = runs
+    .map((r) => ({
+      run: r,
+      title: String(r?.display_title ?? r?.name ?? "").trim(),
+    }))
+    .filter((x) => x.title.length > 0);
+
+  const exact = withTitle.find(({ title }) => exactPatterns.some((p) => title.includes(p)));
+  if (exact) return exact.run;
+
+  const fallback = withTitle.find(({ title }) => title.includes(jid));
+  return fallback?.run ?? null;
+}
+
 export function inferStepStates(lines: string[]): {
   lint: StepState;
   typecheck: StepState;
