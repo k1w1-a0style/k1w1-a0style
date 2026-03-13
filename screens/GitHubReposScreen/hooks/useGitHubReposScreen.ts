@@ -385,14 +385,14 @@ export function useGitHubReposScreen() {
         if (!b) return;
         if (!isMountedRef.current) return;
         if (gen !== selectRepoGen.current) return;
-        setActiveBranch(activeBranch || b);
+        setActiveBranch(b);
         setLinkedRepo(fullName, b);
       })
       .catch(() => {
         // non-fatal: user can still pick a branch manually
       });
   }
-}, [setActiveRepo, addRecentRepo, setLinkedRepo, setActiveBranch, loadDefaultBranch, activeBranch]);
+}, [setActiveRepo, addRecentRepo, setLinkedRepo, setActiveBranch, loadDefaultBranch]);
 
   const rememberRecentBranch = useCallback(async (repoFullName: string, branch: string) => {
     try {
