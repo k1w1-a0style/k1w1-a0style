@@ -33,6 +33,7 @@ export interface BuildHistoryEntry {
   id: string;
   jobId: string;
   repoName: string;
+  branch?: string;
   status: BuildStatus;
   startedAt: string;
   completedAt?: string;

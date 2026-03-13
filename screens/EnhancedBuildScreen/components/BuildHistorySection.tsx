@@ -72,6 +72,7 @@ export function BuildHistorySection({
       const headers = [
         "jobId",
         "repoName",
+        "branch",
         "status",
         "buildProfile",
         "startedAt",
@@ -80,6 +81,7 @@ export function BuildHistorySection({
         "htmlUrl",
         "artifactUrl",
         "errorMessage",
+        "sourceCommitSha",
       ] satisfies Array<keyof BuildHistoryEntry>;
       const rows = history.map((h) =>
         headers
@@ -202,6 +204,12 @@ export function BuildHistorySection({
                     </View>
                     <View style={styles.runMeta}>
                       <Text style={styles.runTime}>{h.status.toUpperCase()}</Text>
+                      {!!h.branch && (
+                        <>
+                          <Text style={styles.runDivider}>•</Text>
+                          <Text style={styles.runTime}>branch: {h.branch}</Text>
+                        </>
+                      )}
                       {h.buildProfile && (
                         <>
                           <Text style={styles.runDivider}>•</Text>
@@ -220,6 +228,12 @@ export function BuildHistorySection({
                       <Text style={styles.runTime}>
                         {formatRelativeTime(h.startedAt)}
                       </Text>
+                      {!!h.sourceCommitSha && (
+                        <>
+                          <Text style={styles.runDivider}>•</Text>
+                          <Text style={styles.runTime}>sha: {h.sourceCommitSha.slice(0, 12)}</Text>
+                        </>
+                      )}
                     </View>
                     <View style={[styles.runMeta, { justifyContent: "space-between", marginTop: 10 }]}>
                       {!!h.htmlUrl && (

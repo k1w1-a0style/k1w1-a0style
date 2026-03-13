@@ -51,6 +51,7 @@ export interface ProjectContextProps {
     /** Supabase build_jobs.id (UUID) */
     jobId?: string | null;
     githubRepo?: string | null;
+    branch?: string | null;
     buildProfile?: string;
     runId?: number | null;
     sourceCommitSha?: string | null;

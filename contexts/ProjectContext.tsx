@@ -640,6 +640,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
     updateBuildInHistory(activeJobId, {
       status,
+      branch: currentBuild?.branch ?? undefined,
+      buildProfile: currentBuild?.buildProfile ?? undefined,
+      repoName: currentBuild?.githubRepo ?? undefined,
       htmlUrl: buildPoll.details.urls?.html ?? null,
       artifactUrl: buildPoll.details.urls?.artifacts ?? null,
       sourceCommitSha: buildPoll.details.sourceCommitSha ?? null,
@@ -649,7 +652,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         historyError,
       );
     });
-  }, [activeJobId, buildPoll.details, buildPoll.status]);
+  }, [activeJobId, buildPoll.details, buildPoll.status, currentBuild?.branch, currentBuild?.buildProfile, currentBuild?.githubRepo]);
 
   const startBuild = useCallback(
     async (buildProfile?: string) => {
@@ -671,11 +674,13 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         });
 
         const startedAt = new Date().toISOString();
+        const buildBranch = (pd.linkedBranch ?? "").trim();
         setCurrentBuild({
           status: "queued",
           message: "🚀 Build wird gestartet…",
           jobId: null,
           githubRepo,
+          branch: buildBranch,
           buildProfile: profile,
           startedAt,
           lastUpdatedAt: startedAt,
@@ -689,6 +694,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
         const jobId = started.jobId;
         const githubRepoResolved = started.githubRepo;
+        const branchResolved = started.branch;
 
         setCurrentBuild((prev) => ({
           ...(prev ?? { status: "queued" }),
@@ -696,6 +702,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           message: "✅ Build gestartet. Warte auf GitHub Actions…",
           jobId,
           githubRepo: githubRepoResolved,
+          branch: branchResolved,
           buildProfile: profile,
           lastUpdatedAt: new Date().toISOString(),
         }));
@@ -705,6 +712,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
             id: uuidv4(),
             jobId,
             repoName: githubRepoResolved,
+            branch: branchResolved,
             status: "queued",
             startedAt,
             buildProfile: profile,
