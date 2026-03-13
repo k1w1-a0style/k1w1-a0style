@@ -116,6 +116,9 @@ describe("Patch 417 CI utility workflow ref SoT invariants", () => {
     const managed = read("scripts/check_managed_workflows.sh");
 
     expect(managed).toContain('forbid_fixed');
+    expect(managed).toContain('require_ref_input_required_true');
+    expect(managed).toContain("Missing 'on.workflow_dispatch.inputs.ref.required: true' contract");
+    expect(managed).not.toContain("grep -Eq '^\\s+required:\\s*true\\s*$'");
     expect(managed).toContain('.github/workflows/k1w1-triggered-build.yml');
     expect(managed).toContain("ref: ${{ github.ref }}");
     expect(managed).toContain("ref: ${{ github.ref_name }}");

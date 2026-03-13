@@ -14,6 +14,39 @@ forbid_fixed() {
   fi
 }
 
+require_ref_input_required_true() {
+  local file="$1"
+  awk '
+    /^on:[[:space:]]*$/ { in_on=1; next }
+    in_on && /^[^[:space:]]/ { in_on=0 }
+
+    in_on && /^[[:space:]]+workflow_dispatch:[[:space:]]*$/ { in_dispatch=1; dispatch_indent=match($0, /[^[:space:]]/) - 1; next }
+    in_dispatch && /^[[:space:]]*$/ { next }
+    in_dispatch {
+      indent=match($0, /[^[:space:]]/) - 1
+      if (indent <= dispatch_indent && $0 !~ /^[[:space:]]*#/) { in_dispatch=0 }
+    }
+
+    in_dispatch && /^[[:space:]]+inputs:[[:space:]]*$/ { in_inputs=1; inputs_indent=match($0, /[^[:space:]]/) - 1; next }
+    in_inputs && /^[[:space:]]*$/ { next }
+    in_inputs {
+      indent=match($0, /[^[:space:]]/) - 1
+      if (indent <= inputs_indent && $0 !~ /^[[:space:]]*#/) { in_inputs=0 }
+    }
+
+    in_inputs && /^[[:space:]]+ref:[[:space:]]*$/ { in_ref=1; ref_indent=match($0, /[^[:space:]]/) - 1; next }
+    in_ref && /^[[:space:]]*$/ { next }
+    in_ref {
+      if ($0 ~ /^[[:space:]]+required:[[:space:]]*true[[:space:]]*$/) { found=1; exit }
+
+      indent=match($0, /[^[:space:]]/) - 1
+      if (indent <= ref_indent && $0 !~ /^[[:space:]]*#/) { in_ref=0 }
+    }
+
+    END { if (!found) exit 1 }
+  ' "$file" || fail "Missing 'on.workflow_dispatch.inputs.ref.required: true' contract in $file"
+}
+
 check_file_markers() {
   local file="$1"
   [ -f "$file" ] || fail "Missing file: $file"
@@ -54,7 +87,7 @@ grep -q 'repository_dispatch:' "$EDGE_FILE" || fail "Embedded templates missing 
 
 for wf in .github/workflows/eas-build.yml .github/workflows/eas-link.yml .github/workflows/release-build.yml .github/workflows/deploy-supabase-functions.yml .github/workflows/k1w1-triggered-build.yml; do
   grep -Eq '^\s+ref:\s*$' "$wf" || fail "Missing explicit ref input block in $wf"
-  grep -Eq '^\s+required:\s*true\s*$' "$wf" || fail "Missing required ref contract in $wf"
+  require_ref_input_required_true "$wf"
   forbid_fixed "$wf" 'ref: ${{ inputs.ref || github.ref }}'
   forbid_fixed "$wf" 'ref: ${{ inputs.ref || github.ref_name }}'
   forbid_fixed "$wf" 'ref: ${{ github.ref }}'
