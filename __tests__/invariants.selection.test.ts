@@ -90,4 +90,17 @@ describe("Invariants: repo/branch selection is source of truth", () => {
     expect(src).not.toContain('targetBranch = "main"');
   });
 
+  it("keeps signing-key readiness project-scoped with legacy fallback", () => {
+    const buildPreconditions = read("screens/EnhancedBuildScreen/hooks/useBuildPreconditions.ts");
+    const wizard = read("screens/CredentialsWizardScreen/hooks/useCredentialsWizardScreen.ts");
+
+    expect(buildPreconditions).toContain("resolveProjectCredentialScope");
+    expect(buildPreconditions).toContain("credKeyForProjectUiMode");
+    expect(buildPreconditions).toContain("scopedKey !== legacyKey");
+
+    expect(wizard).toContain("resolveProjectCredentialScope");
+    expect(wizard).toContain("credKeyForProjectUiMode");
+    expect(wizard).toContain("One-time migration into project-scoped key.");
+  });
+
 });

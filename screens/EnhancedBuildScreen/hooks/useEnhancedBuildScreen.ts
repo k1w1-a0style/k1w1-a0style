@@ -173,7 +173,7 @@ export function useEnhancedBuildScreen() {
     ciLiteReason,
     ciLiteStale,
     refreshPreconditions,
-  } = useBuildPreconditions(buildProfile, repoFullName, branchName);
+  } = useBuildPreconditions(buildProfile, repoFullName, branchName, projectData);
 
   const buildBlockedReason = useMemo(() => {
     if (!repoValidation.valid) return "Repo fehlt (im Repo-Screen verknuepfen)";

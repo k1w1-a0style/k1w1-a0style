@@ -12,7 +12,12 @@ import {
   pushFilesToRepo,
 } from "../../../infra/github/githubService";
 import { autoSyncRepoSecrets } from "../../../lib/autoSyncRepoSecrets";
-import { STORAGE_KEYS, credKeyForProfile } from "../../../lib/storageKeys";
+import {
+  STORAGE_KEYS,
+  credKeyForProfile,
+  credKeyForProjectUiMode,
+  resolveProjectCredentialScope,
+} from "../../../lib/storageKeys";
 import type { BuildProfile } from "../types";
 
 export type DeployStepId =
@@ -105,10 +110,19 @@ export function useOneClickDeploy(
       // === Step 1: Signing Key pruefen ===
       updateStep("signing_key", "running");
       const keyMode = buildProfile === "development" ? "dev" : buildProfile;
-      const credKey = credKeyForProfile(
+      const projectScope = resolveProjectCredentialScope({
+        projectId: projectData?.id,
+        linkedRepo: repoFullName,
+      });
+      const scopedKey = credKeyForProjectUiMode({
+        mode: keyMode === "dev" ? "dev" : (keyMode as "preview" | "production"),
+        projectScope,
+      });
+      const legacyKey = credKeyForProfile(
         keyMode === "dev" ? "development" : (keyMode as "preview" | "production"),
       );
-      const keyExists = await AsyncStorage.getItem(credKey).catch(() => null);
+      const scopedVal = await AsyncStorage.getItem(scopedKey).catch(() => null);
+      const keyExists = scopedVal ?? (scopedKey !== legacyKey ? await AsyncStorage.getItem(legacyKey).catch(() => null) : null);
       if (abortRef.current) return;
 
       if (keyExists !== "true") {

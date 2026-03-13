@@ -92,3 +92,38 @@ export function credKeyForUiMode(
   };
   return map[mode] ?? STORAGE_KEYS.CRED_KEY_EXISTS_PREVIEW;
 }
+
+/**
+ * Stable project scope for project-specific credential status persistence.
+ *
+ * Priority:
+ * 1) projectId (most stable)
+ * 2) linkedRepo (fallback for legacy project records)
+ * 3) null (legacy global key)
+ */
+export function resolveProjectCredentialScope(params: {
+  projectId?: string | null;
+  linkedRepo?: string | null;
+}): string | null {
+  const projectId = String(params.projectId ?? "").trim();
+  if (projectId) return `project:${projectId}`;
+
+  const linkedRepo = String(params.linkedRepo ?? "").trim().toLowerCase();
+  if (linkedRepo) return `repo:${linkedRepo}`;
+
+  return null;
+}
+
+/**
+ * Project-scoped signing-key status key.
+ * Falls back to the legacy global key when no project scope is available.
+ */
+export function credKeyForProjectUiMode(params: {
+  mode: "dev" | "preview" | "production";
+  projectScope?: string | null;
+}): string {
+  const base = credKeyForUiMode(params.mode);
+  const scope = String(params.projectScope ?? "").trim();
+  if (!scope) return base;
+  return `${base}::${encodeURIComponent(scope)}`;
+}

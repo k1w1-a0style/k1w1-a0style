@@ -9,7 +9,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useProject } from "../../../contexts/ProjectContext";
 import { ensureSupabaseClient } from "../../../lib/supabase";
 import { getEdgeAdminKey, saveEdgeAdminKey } from "../../../infra/github/githubService";
-import { credKeyForUiMode } from "../../../lib/storageKeys";
+import {
+  credKeyForProjectUiMode,
+  credKeyForUiMode,
+  resolveProjectCredentialScope,
+} from "../../../lib/storageKeys";
 
 import { useInlineToast } from "../../../components/diagnostics/useInlineToast";
 import { theme } from "../../../theme";
@@ -58,13 +62,22 @@ export function useCredentialsWizardScreen() {
       if (project?.setPreferredBuildProfile) void project.setPreferredBuildProfile(apiMode);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMode]);
+  }, [selectedMode, project?.projectData?.preferredBuildProfile, project?.setPreferredBuildProfile]);
 
   const [supabaseUrl, setSupabaseUrl] = useState<string>("");
   const [adminKey, setAdminKey] = useState<string>("");
   const [adminKeyLoaded, setAdminKeyLoaded] = useState(false);
 
   const [busy, setBusy] = useState<string | null>(null);
+
+  const projectCredentialScope = useMemo(
+    () =>
+      resolveProjectCredentialScope({
+        projectId: project?.projectData?.id,
+        linkedRepo: project?.projectData?.linkedRepo,
+      }),
+    [project?.projectData?.id, project?.projectData?.linkedRepo],
+  );
 
   const [statusByMode, setStatusByMode] = useState<Record<UiModeId, StatusResult | null>>({
     dev: null,
@@ -175,6 +188,46 @@ export function useCredentialsWizardScreen() {
     return true;
   }, [supabaseUrl, adminKey, repoFullName]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const next: Partial<Record<UiModeId, StatusResult>> = {};
+
+      for (const mode of MODES.map((m) => m.id)) {
+        const scopedKey = credKeyForProjectUiMode({ mode, projectScope: projectCredentialScope });
+        const legacyKey = credKeyForUiMode(mode);
+
+        const scopedVal = await AsyncStorage.getItem(scopedKey).catch(() => null);
+        let exists = scopedVal === "true" ? true : scopedVal === "false" ? false : null;
+
+        if (exists === null && scopedKey !== legacyKey) {
+          const legacyVal = await AsyncStorage.getItem(legacyKey).catch(() => null);
+          exists = legacyVal === "true" ? true : legacyVal === "false" ? false : null;
+
+          // One-time migration into project-scoped key.
+          if (exists !== null) {
+            await AsyncStorage.setItem(scopedKey, exists ? "true" : "false").catch(() => {});
+          }
+        }
+
+        if (exists !== null) {
+          next[mode] = { exists };
+        }
+      }
+
+      if (cancelled) return;
+      setStatusByMode((prev) => ({
+        ...prev,
+        ...next,
+      }));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectCredentialScope]);
+
   const selectedStatus = statusByMode[selectedMode];
 
   const prettyDebug = useMemo(() => {
@@ -223,7 +276,10 @@ export function useCredentialsWizardScreen() {
       const data = r.data as StatusResult;
       if (isMountedRef.current) setStatusByMode((prev) => ({ ...prev, [mode]: data }));
       // Persist key status
-      const credKey = credKeyForUiMode(mode);
+      const credKey = credKeyForProjectUiMode({
+        mode,
+        projectScope: projectCredentialScope,
+      });
       await AsyncStorage.setItem(credKey, data.exists ? "true" : "false").catch(() => {});
     } catch (e: unknown) {
       safeSetLastError(e);
