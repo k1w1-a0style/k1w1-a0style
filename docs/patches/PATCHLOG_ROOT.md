@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 423: Preview-Flow SoT gehärtet (nur reale Modi supabase/local als zentraler Vertrag, Fallback-Transparenz in Preview + Fullscreen, Resolver-Test ergänzt)
 - Patch 422: job-gebundene History-Selektion für Repo/Branch/Profil im Build-Polling gehärtet (E2E-Traceability gegen Drift zwischen UI-Zustand und gestarteter Build-Wahrheit)
 - Patch 421: Build-Traceability für gestartete Jobs gehärtet (Repo/Branch/Profil konsistent in CurrentBuild/History/UI sichtbar, inkl. CSV-/Status-Transparenz)
 - Patch 420: managed-workflow guardrails gegen implizite ref/default-branch Fallbacks gehärtet; CI/CI-Lite-Ausnahme explizit als Vertrag abgesichert

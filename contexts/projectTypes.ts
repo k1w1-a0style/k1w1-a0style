@@ -4,6 +4,7 @@ import type {
   AutoFixRequest,
   LastPreviewMeta,
   ProjectData,
+  ProjectPreviewMode,
   ProjectFile,
   TemplateId,
 } from "../shared/types/project";
@@ -92,4 +93,5 @@ export interface ProjectContextProps {
   setPreferredBuildProfile?: (
     profile: "development" | "preview" | "production",
   ) => Promise<void>;
+  setPreferredPreviewMode?: (mode: ProjectPreviewMode) => Promise<void>;
 }

@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { useProject } from "../contexts/ProjectContext";
+import { resolvePreviewModeForStart, useProject } from "../contexts/ProjectContext";
 import { buildSandpackHtml } from "../lib/sandpackBuilder";
 import { ensureSupabaseClient } from "../lib/supabase";
 import { logger } from "../lib/logger";
@@ -12,7 +12,7 @@ import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
 import { getEdgeAdminKey } from "../infra/github/githubService";
 import type { PreviewFiles, PreviewResponse } from "../types/preview";
 
-import type { ProjectData, LastPreviewMeta } from "../shared/types/project";
+import type { ProjectData, LastPreviewMeta, ProjectPreviewMode } from "../shared/types/project";
 function promiseWithTimeout<T>(
   promise: Promise<T>,
   ms: number,
@@ -125,6 +125,7 @@ export type PreviewResult = {
   html: string | null;
   expiresAt: string | null;
   source: "supabase" | "local";
+  requestedMode: ProjectPreviewMode;
 };
 
 export interface UsePreviewReturn {
@@ -142,7 +143,7 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
   const [isCreating, setIsCreating] = useState(false);
   const [lastCreatedAt, setLastCreatedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { setLastPreview } = useProject();
+  const { setLastPreview, setPreferredPreviewMode } = useProject();
   const [lastPreview, setLastPreviewState] = useState<PreviewResult | null>(null);
 
   // Hardening: prevent concurrent preview creation and avoid state updates after unmount.
@@ -180,9 +181,10 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
         html: null,
         expiresAt: persisted.expiresAt ?? null,
         source: persisted.source,
+        requestedMode: persisted.source,
       };
     });
-  }, [projectData?.lastPreview?.url, projectData?.lastPreview?.source]);
+  }, [projectData?.lastPreview?.url, projectData?.lastPreview?.source, projectData?.lastPreview?.expiresAt]);
 
   useEffect(() => {
     isAliveRef.current = true;
@@ -428,9 +430,14 @@ if (container) {
 
       try {
         const files = normalizeForWebPreview(ensureMinimumFiles(fileMap));
+        const requestedMode = resolvePreviewModeForStart({
+          preferredMode: projectData.preferredPreviewMode ?? null,
+        });
+        await setPreferredPreviewMode?.(requestedMode);
 
         // 1) Prefer Supabase-hosted preview
-        try {
+        if (requestedMode === "supabase") {
+          try {
           const supabase = await ensureSupabaseClient();
           const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
 
@@ -485,6 +492,7 @@ if (container) {
               html: null,
               expiresAt: resp?.expiresAt ?? null,
               source: "supabase",
+              requestedMode,
             };
 
             safeSetLastPreviewState(result);
@@ -499,11 +507,12 @@ if (container) {
           }
 
           throw new Error(resp?.error || "Preview konnte nicht erstellt werden");
-        } catch (supErr: unknown) {
-          logger.warn(
-            "[usePreview] ⚠️ Supabase Preview fehlgeschlagen, fallback auf Local HTML:",
-            supErr,
-          );
+          } catch (supErr: unknown) {
+            logger.warn(
+              "[usePreview] ⚠️ Supabase Preview fehlgeschlagen, fallback auf Local HTML:",
+              supErr,
+            );
+          }
         }
 
         // 2) Fallback: Local HTML (best-effort)
@@ -530,6 +539,7 @@ if (container) {
           html,
           expiresAt: null,
           source: "local",
+          requestedMode,
         };
 
         safeSetLastPreviewState(fallback);
@@ -568,6 +578,7 @@ if (container) {
     safeSetLastCreatedAt,
     safeSetLastPreviewState,
     setLastPreview,
+    setPreferredPreviewMode,
   ]);
 
   const reset = useCallback(() => {

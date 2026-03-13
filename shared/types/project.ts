@@ -29,6 +29,8 @@ export interface LastPreviewMeta {
   expiresAt?: string | null;
 }
 
+export type ProjectPreviewMode = "supabase" | "local";
+
 export interface ProjectData {
   id?: string;
   name: string;
@@ -58,6 +60,9 @@ export interface ProjectData {
 
   /** Preferred EAS build profile (persisted). */
   preferredBuildProfile?: "development" | "preview" | "production" | null;
+
+  /** Preferred preview mode (persisted per project). */
+  preferredPreviewMode?: ProjectPreviewMode | null;
 
   /** Dev: show manual template override/picker (default: false). */
   advancedTemplatePickerEnabled?: boolean;

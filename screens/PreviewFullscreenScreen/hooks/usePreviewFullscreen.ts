@@ -30,6 +30,8 @@ export function usePreviewFullscreen() {
   const html = route.params?.html ?? '';
   // FIX: keine baseUrl — verhindert ERR_CONNECTION_REFUSED
   const baseUrl = route.params?.baseUrl ?? undefined;
+  const source = route.params?.source ?? null;
+  const requestedMode = route.params?.requestedMode ?? null;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,10 +79,13 @@ export function usePreviewFullscreen() {
 
   // ─── Derived ───────────────────────────────────────────────────────────────
   const headerSubtitle = useMemo(() => {
+    const modeLabel = source === 'supabase' ? 'Supabase Preview' : source === 'local' ? 'Local HTML Preview' : null;
+    const fallbackLabel = requestedMode && source && requestedMode !== source ? ' · Fallback aktiv' : '';
+    if (modeLabel) return `${modeLabel}${fallbackLabel}`;
     if (mode === 'html') return 'Local HTML Preview';
     if (mode === 'url' && url) return truncateUrl(url, 60);
     return 'Keine Preview';
-  }, [mode, url]);
+  }, [mode, requestedMode, source, url]);
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
   const handleGoBack = useCallback(() => navigation.goBack(), [navigation]);

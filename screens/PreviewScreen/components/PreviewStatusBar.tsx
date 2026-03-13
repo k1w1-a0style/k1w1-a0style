@@ -5,6 +5,9 @@ import type { PreviewPhase } from '../hooks/usePreviewScreen';
 import { s } from '../PreviewScreen.styles';
 
 type PreviewStatusBarProps = {
+  activePreviewMode: 'supabase' | 'local' | null;
+  preferredPreviewMode: 'supabase' | 'local' | null;
+  hasModeFallback: boolean;
   phase: PreviewPhase;
   pulseAnim: Animated.Value;
   hotReloadEnabled: boolean;
@@ -23,6 +26,9 @@ function getStatusText(phase: PreviewPhase): string {
 }
 
 export function PreviewStatusBar({
+  activePreviewMode,
+  preferredPreviewMode,
+  hasModeFallback,
   phase,
   pulseAnim,
   hotReloadEnabled,
@@ -42,6 +48,11 @@ export function PreviewStatusBar({
         ]}
       />
       <Text style={s.statusText}>{getStatusText(phase)}</Text>
+      <Text style={s.previewStatsText}>
+        Modus: {activePreviewMode === 'supabase' ? 'Supabase Preview' : activePreviewMode === 'local' ? 'Local HTML' : '—'}
+        {preferredPreviewMode ? ` · Präferenz: ${preferredPreviewMode}` : ''}
+        {hasModeFallback ? ' · Fallback aktiv' : ''}
+      </Text>
       {(phase === 'creating' || phase === 'loading') && (
         <Animated.View style={{ opacity: pulseAnim }}>
           <ActivityIndicator size="small" color={theme.palette.primary} />

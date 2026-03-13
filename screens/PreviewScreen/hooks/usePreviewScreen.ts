@@ -187,8 +187,16 @@ export function usePreviewScreen() {
       url: lastPreview.url ?? undefined,
       html: lastPreview.html ?? undefined,
       title: projectData?.name || 'Preview',
+      source: lastPreview.source,
+      requestedMode: lastPreview.requestedMode,
     });
   }, [navigation, lastPreview, projectData?.name]);
+
+  const activePreviewMode = lastPreview?.source ?? null;
+  const preferredPreviewMode = projectData?.preferredPreviewMode ?? null;
+  const hasModeFallback = Boolean(
+    lastPreview?.requestedMode && lastPreview?.source && lastPreview.requestedMode !== lastPreview.source,
+  );
 
   return {
     projectData,
@@ -196,6 +204,9 @@ export function usePreviewScreen() {
     state,
     lastPreview,
     previewSource,
+    activePreviewMode,
+    preferredPreviewMode,
+    hasModeFallback,
     phase,
     setPhase,
     webError,

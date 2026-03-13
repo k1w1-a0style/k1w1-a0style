@@ -2,6 +2,7 @@ import {
   resolveBuildProfileForStart,
   resolveHistoryBuildSelection,
   resolveLinkedBranchForRepoSelection,
+  resolvePreviewModeForStart,
 } from "../contexts/ProjectContext";
 
 describe("ProjectContext SoT resolvers", () => {
@@ -130,5 +131,35 @@ describe("resolveHistoryBuildSelection", () => {
       branch: "main",
       buildProfile: "preview",
     });
+  });
+});
+
+
+describe("resolvePreviewModeForStart", () => {
+  it("prefers explicit requested mode", () => {
+    expect(
+      resolvePreviewModeForStart({
+        requestedMode: "local",
+        preferredMode: "supabase",
+      }),
+    ).toBe("local");
+  });
+
+  it("falls back to persisted preferred preview mode", () => {
+    expect(
+      resolvePreviewModeForStart({
+        requestedMode: null,
+        preferredMode: "local",
+      }),
+    ).toBe("local");
+  });
+
+  it("defaults to supabase when nothing valid is configured", () => {
+    expect(
+      resolvePreviewModeForStart({
+        requestedMode: "codesandbox",
+        preferredMode: null,
+      }),
+    ).toBe("supabase");
   });
 });

@@ -34,6 +34,8 @@ export type RootStackParamList = {
     html?: string;
     title?: string;
     baseUrl?: string;
+    source?: "supabase" | "local";
+    requestedMode?: "supabase" | "local";
   };
 };
 

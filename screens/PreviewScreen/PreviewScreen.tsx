@@ -29,6 +29,9 @@ export default function PreviewScreen() {
     lastPreview,
     previewSource,
     phase,
+    activePreviewMode,
+    preferredPreviewMode,
+    hasModeFallback,
     setPhase,
     webError,
     setWebError,
@@ -98,6 +101,9 @@ export default function PreviewScreen() {
         pulseAnim={pulseAnim}
         hotReloadEnabled={hotReloadEnabled}
         hotReloadCount={hotReloadCount}
+        activePreviewMode={activePreviewMode}
+        preferredPreviewMode={preferredPreviewMode}
+        hasModeFallback={hasModeFallback}
         fileCount={state.fileCount}
         totalSize={state.totalSize}
         skippedCount={state.skippedCount}

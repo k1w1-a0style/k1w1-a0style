@@ -23,6 +23,7 @@ import type {
   LastPreviewMeta,
   ProjectData,
   ProjectFile,
+  ProjectPreviewMode,
   TemplateId,
 } from "../shared/types/project";
 import type { ProjectContextProps } from "./projectTypes";
@@ -102,6 +103,20 @@ export const resolveBuildProfileForStart = (params: {
   if (isBuildProfile(params.requestedProfile)) return params.requestedProfile;
   if (isBuildProfile(params.preferredProfile)) return params.preferredProfile;
   return "preview";
+};
+
+
+export const resolvePreviewModeForStart = (params: {
+  requestedMode?: string | null;
+  preferredMode?: ProjectPreviewMode | null;
+}): ProjectPreviewMode => {
+  if (params.requestedMode === "supabase" || params.requestedMode === "local") {
+    return params.requestedMode;
+  }
+  if (params.preferredMode === "supabase" || params.preferredMode === "local") {
+    return params.preferredMode;
+  }
+  return "supabase";
 };
 
 const ProjectContext = createContext<ProjectContextProps | undefined>(
@@ -551,6 +566,18 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     [updateProject],
   );
 
+
+  const setPreferredPreviewMode = useCallback(
+    async (mode: ProjectPreviewMode) => {
+      await updateProject((prev) => ({
+        ...prev,
+        preferredPreviewMode: mode,
+      }));
+      logger.info(`👁️ Preferred Preview-Mode gespeichert: ${mode}`);
+    },
+    [updateProject],
+  );
+
   useEffect(() => {
     const initializeProject = async () => {
       try {
@@ -822,6 +849,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       clearAutoFixRequest,
       setLinkedRepo,
       setPreferredBuildProfile,
+      setPreferredPreviewMode,
       setAdvancedTemplatePickerEnabled,
     }),
     [
@@ -848,6 +876,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       clearAutoFixRequest,
       setLinkedRepo,
       setPreferredBuildProfile,
+      setPreferredPreviewMode,
       setAdvancedTemplatePickerEnabled,
     ],
   );
