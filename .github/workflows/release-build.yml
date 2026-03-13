@@ -135,7 +135,6 @@ jobs:
           set -euo pipefail
 
           PM="${{ steps.lock.outputs.package_manager }}"
-          LOCKFILE="${{ steps.lock.outputs.lockfile_path }}"
           if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
             case "$PM" in
               npm)
