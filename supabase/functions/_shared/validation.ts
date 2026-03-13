@@ -149,7 +149,7 @@ export function validateGithubWorkflowDispatchRequest(body: unknown): Ok<{
 
   const githubRepo = body.githubRepo ?? body.github_repo ?? body.repo ?? body.repository;
   const workflow = body.workflow ?? body.workflowId ?? body.workflow_id ?? body.path;
-  const ref = body.ref ?? body.branch ?? "main";
+  const ref = body.ref ?? body.branch;
   const inputs = body.inputs;
   const githubToken = body.githubToken ?? body.github_token ?? body.token ?? null;
 
@@ -165,6 +165,10 @@ export function validateGithubWorkflowDispatchRequest(body: unknown): Ok<{
 
   if (githubToken !== null && githubToken !== undefined && !isString(githubToken)) {
     errors.githubToken = "githubToken must be a string";
+  }
+
+  if (!isString(ref) || !ref.trim()) {
+    errors.ref = "ref must be a non-empty branch name";
   }
 
   const br = validateBranch(ref);
@@ -192,7 +196,7 @@ export function validateGithubWorkflowDispatchRequest(body: unknown): Ok<{
     data: {
       githubRepo: String(githubRepo),
       workflow: String(workflow),
-      ref: br.value || "main",
+      ref: br.value,
       inputs: inputs as any,
       githubToken: githubToken == null ? undefined : String(githubToken),
     },
