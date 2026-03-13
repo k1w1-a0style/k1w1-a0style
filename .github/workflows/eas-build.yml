@@ -603,25 +603,47 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ci-logs
-          HTTP_CODE="$({
-            curl --silent --show-error               --retry 3               --retry-all-errors               --connect-timeout 10               --max-time 60               -o ci-logs/keystore-response.raw.json               -w "%{http_code}"               -X POST "${SUPABASE_URL%/}/functions/v1/android-keystore-export"               -H "Content-Type: application/json"               -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"               -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"               ${K1W1_EDGE_ADMIN_KEY:+-H "x-k1w1-admin-key: ${K1W1_EDGE_ADMIN_KEY}"}               -d @ci-logs/keystore-request.json;
-          })"
+
+          CURL_ARGS=(
+            --silent
+            --show-error
+            --retry 3
+            --retry-all-errors
+            --connect-timeout 10
+            --max-time 60
+            -o ci-logs/keystore-response.raw.json
+            -w "%{http_code}"
+            -X POST "${SUPABASE_URL%/}/functions/v1/android-keystore-export"
+            -H "Content-Type: application/json"
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
+            -d @ci-logs/keystore-request.json
+          )
+
+          if [ -n "${K1W1_EDGE_ADMIN_KEY:-}" ]; then
+            CURL_ARGS+=(-H "x-k1w1-admin-key: ${K1W1_EDGE_ADMIN_KEY}")
+          fi
+
+          HTTP_CODE="$(
+            curl "${CURL_ARGS[@]}"
+          )"
+
           echo "$HTTP_CODE" > ci-logs/keystore-response.http_code
+
           if [ "$HTTP_CODE" != "200" ]; then
             node - <<'NODE'
-            const fs = require("fs");
-            const raw = fs.existsSync("ci-logs/keystore-response.raw.json")
-              ? fs.readFileSync("ci-logs/keystore-response.raw.json", "utf8")
-              : "";
-            const sanitized = raw
-              .replace(/[A-Za-z0-9+/=]{24,}/g, "[redacted]")
-              .replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer [redacted]");
-            fs.writeFileSync("ci-logs/keystore-response.sanitized.txt", sanitized);
-            NODE
+const fs = require("fs");
+const raw = fs.existsSync("ci-logs/keystore-response.raw.json")
+  ? fs.readFileSync("ci-logs/keystore-response.raw.json", "utf8")
+  : "";
+const sanitized = raw
+  .replace(/[A-Za-z0-9+/=]{24,}/g, "[redacted]")
+  .replace(/Bearer\s+[A-Za-z0-9._-]+/g, "Bearer [redacted]");
+fs.writeFileSync("ci-logs/keystore-response.sanitized.txt", sanitized);
+NODE
             echo "::error::Keystore export failed with HTTP ${HTTP_CODE}. See sanitized diagnostics artifact."
             exit 1
           fi
-
       - name: Validate keystore export structure
         if: ${{ inputs.profile == 'production' }}
         shell: bash
