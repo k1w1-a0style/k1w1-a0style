@@ -78,30 +78,40 @@ jobs:
         run: |
           set -euo pipefail
           if [ -f package-lock.json ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=package-lock.json" >> "$GITHUB_OUTPUT"
-            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
-            echo "cache_kind=npm" >> "$GITHUB_OUTPUT"
+            {
+              echo "has_lockfile=true"
+              echo "lockfile_path=package-lock.json"
+              echo "package_manager=npm"
+              echo "cache_kind=npm"
+            } >> "$GITHUB_OUTPUT"
           elif [ -f npm-shrinkwrap.json ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=npm-shrinkwrap.json" >> "$GITHUB_OUTPUT"
-            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
-            echo "cache_kind=npm" >> "$GITHUB_OUTPUT"
+            {
+              echo "has_lockfile=true"
+              echo "lockfile_path=npm-shrinkwrap.json"
+              echo "package_manager=npm"
+              echo "cache_kind=npm"
+            } >> "$GITHUB_OUTPUT"
           elif [ -f yarn.lock ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=yarn.lock" >> "$GITHUB_OUTPUT"
-            echo "package_manager=yarn" >> "$GITHUB_OUTPUT"
-            echo "cache_kind=yarn" >> "$GITHUB_OUTPUT"
+            {
+              echo "has_lockfile=true"
+              echo "lockfile_path=yarn.lock"
+              echo "package_manager=yarn"
+              echo "cache_kind=yarn"
+            } >> "$GITHUB_OUTPUT"
           elif [ -f pnpm-lock.yaml ]; then
-            echo "has_lockfile=true" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
-            echo "package_manager=pnpm" >> "$GITHUB_OUTPUT"
-            echo "cache_kind=pnpm" >> "$GITHUB_OUTPUT"
+            {
+              echo "has_lockfile=true"
+              echo "lockfile_path=pnpm-lock.yaml"
+              echo "package_manager=pnpm"
+              echo "cache_kind=pnpm"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "has_lockfile=false" >> "$GITHUB_OUTPUT"
-            echo "lockfile_path=" >> "$GITHUB_OUTPUT"
-            echo "package_manager=npm" >> "$GITHUB_OUTPUT"
-            echo "cache_kind=npm" >> "$GITHUB_OUTPUT"
+            {
+              echo "has_lockfile=false"
+              echo "lockfile_path="
+              echo "package_manager=npm"
+              echo "cache_kind=npm"
+            } >> "$GITHUB_OUTPUT"
           fi
 
       - name: Setup Node (with package manager cache)
@@ -201,7 +211,7 @@ jobs:
                 console.error("Missing expo.extra.eas.projectId");
                 process.exit(1);
               }
-              console.log($(expo.extra.eas.projectId OK: ${projectId}));
+              console.log(`expo.extra.eas.projectId OK: ${projectId}`);
             '
           ) 2>&1 | tee ci-logs/expo-preflight.log
           EXPO=$?
@@ -245,24 +255,24 @@ jobs:
           {
             echo "## CI Lite"
             echo ""
-            echo "- ref: $(${TARGET_REF})"
-            echo "- job_id: $(${JOB_ID:-})"
-            echo "- workflow version: $(${WORKFLOW_VERSION})"
-            echo "- run id: $(${GITHUB_RUN_ID}) / attempt $(${GITHUB_RUN_ATTEMPT})"
-            echo "- sha: $(${GITHUB_SHA})"
-            echo "- trigger: $(${TRIGGER_MODE:-})"
-            echo "- workflow ref: $(${GITHUB_WORKFLOW_REF:-})"
-            echo "- source workflow: $(${SOURCE_WORKFLOW:-})"
-            echo "- source run: $(${SOURCE_RUN_ID:-})"
-            echo "- source sha: $(${SOURCE_SHA:-})"
-            echo "- eslint: $(${{ steps.run.outputs.eslint_exit }})"
-            echo "- tsc: $(${{ steps.run.outputs.tsc_exit }})"
-            echo "- expo preflight: $(${{ steps.run.outputs.expo_exit }})"
+            echo "- ref: ${TARGET_REF}"
+            echo "- job_id: ${JOB_ID:-}"
+            echo "- workflow version: ${WORKFLOW_VERSION}"
+            echo "- run id: ${GITHUB_RUN_ID} / attempt ${GITHUB_RUN_ATTEMPT}"
+            echo "- sha: ${GITHUB_SHA}"
+            echo "- trigger: ${TRIGGER_MODE:-}"
+            echo "- workflow ref: ${GITHUB_WORKFLOW_REF:-}"
+            echo "- source workflow: ${SOURCE_WORKFLOW:-}"
+            echo "- source run: ${SOURCE_RUN_ID:-}"
+            echo "- source sha: ${SOURCE_SHA:-}"
+            echo "- eslint: ${{ steps.run.outputs.eslint_exit }}"
+            echo "- tsc: ${{ steps.run.outputs.tsc_exit }}"
+            echo "- expo preflight: ${{ steps.run.outputs.expo_exit }}"
             echo ""
             echo "Artifacts:"
-            echo "- $(ci-logs/ci-lite-result.json) (für Header-Polling)"
-            echo "- $(ci-logs/lint.log), $(ci-logs/typecheck.log), $(ci-logs/expo-preflight.log)"
-            echo "- $(ci-logs/metadata.env), $(ci-logs/node-version.log), $(ci-logs/npm-version.log)"
+            echo "- ci-logs/ci-lite-result.json (für Header-Polling)"
+            echo "- ci-logs/lint.log, ci-logs/typecheck.log, ci-logs/expo-preflight.log"
+            echo "- ci-logs/metadata.env, ci-logs/node-version.log, ci-logs/npm-version.log"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload CI Lite logs
