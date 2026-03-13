@@ -20,9 +20,11 @@ describe("Build traceability transparency invariants", () => {
   it("shows effective repo/branch/profile in build status card", () => {
     const src = read("screens/EnhancedBuildScreen/components/BuildStatusSection.tsx");
 
-    expect(src).toContain("Repo {currentBuild.githubRepo}");
-    expect(src).toContain("Branch {currentBuild.branch}");
-    expect(src).toContain("Profil {String(currentBuild.buildProfile)}");
+    expect(src).toContain("const contextRepo = currentBuild?.githubRepo || selectedRepo;");
+    expect(src).toContain("const contextBranch = currentBuild?.branch || selectedBranch;");
+    expect(src).toContain("const contextProfile = currentBuild?.buildProfile || selectedBuildProfile;");
+    expect(src).toContain("Laufkontext (aktueller Build)");
+    expect(src).toContain("Laufkontext (aktuelle Auswahl)");
   });
 
   it("keeps branch and source sha in build history presentation/export", () => {

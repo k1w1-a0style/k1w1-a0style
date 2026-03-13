@@ -35,7 +35,7 @@ export const HeaderSection = memo(function HeaderSection({
     (syncStatus?.modified || 0) + (syncStatus?.localOnly || 0) + (syncStatus?.remoteOnly || 0);
   const lastCheckedLabel = syncStatus?.checkedAt
     ? `Zuletzt geprüft: ${new Date(syncStatus.checkedAt).toLocaleTimeString()}`
-    : "Noch nicht geprüft";
+    : "Noch nicht frisch geprüft";
 
   return (
     <View style={styles.headerSection}>
@@ -79,7 +79,7 @@ export const HeaderSection = memo(function HeaderSection({
 
         {!!activeRepo && (
           <Text style={[styles.subtitle, { marginTop: 4 }]} numberOfLines={1}>
-            {syncStatus?.checking ? "Statusprüfung läuft…" : lastCheckedLabel}
+            {syncStatus?.checking ? "Statusprüfung läuft… (frischer Check)" : lastCheckedLabel}
           </Text>
         )}
       </View>
