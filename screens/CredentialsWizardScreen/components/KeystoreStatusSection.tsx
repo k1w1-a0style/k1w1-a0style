@@ -82,7 +82,11 @@ export function KeystoreStatusSection({
                 Path: <Text style={styles.kvValue}>{s?.exists ? storageLine : "—"}</Text>
               </Text>
               <Text style={styles.kvMuted} numberOfLines={1}>
-                Updated: <Text style={styles.kvValue}>{s?.exists ? updatedLine : "—"}</Text>
+                Last known update: <Text style={styles.kvValue}>{s?.exists ? updatedLine : "—"}</Text>
+              </Text>
+
+              <Text style={styles.kvMuted} numberOfLines={2}>
+                Statusquelle: <Text style={styles.kvValue}>{busy === `status:${m.id}` ? "wird frisch geprüft…" : "zuletzt bekannter Backend-Status"}</Text>
               </Text>
 
               {recordMode && recordMode !== m.id ? (

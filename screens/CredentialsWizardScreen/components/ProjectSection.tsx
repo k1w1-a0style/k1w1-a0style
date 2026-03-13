@@ -16,13 +16,16 @@ export function ProjectSection({
   return (
     <SectionCard
       title="Project"
-      subtitle="Source of truth: linked repo + Supabase client"
+      subtitle="Aktive Projektauswahl (SoT) + gespeicherter Supabase-Client"
       icon="cube-outline"
       right={<Chip label={repoFullName ? "Linked" : "Not linked"} tone={repoFullName ? "success" : "muted"} />}
     >
-      <KeyValue label="Repo" value={repoFullName || "—"} />
-      <KeyValue label="Branch" value={branch || "—"} />
-      <KeyValue label="Supabase" value={supabaseUrl ? supabaseUrl.replace(/https:\/\//, "") : "—"} />
+      <KeyValue label="Aktives Repo" value={repoFullName || "—"} />
+      <KeyValue label="Aktiver Branch" value={branch || "—"} />
+      <KeyValue
+        label="Supabase URL (gespeichert)"
+        value={supabaseUrl ? supabaseUrl.replace(/https:\/\//, "") : "—"}
+      />
     </SectionCard>
   );
 }

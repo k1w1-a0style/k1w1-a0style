@@ -155,6 +155,7 @@ export function StatusCard(props: {
     eas: boolean;
   };
   repoLine: string;
+  selectionSource?: "project" | "context" | "none";
   supabaseUrl: string;
   supabaseRef?: string;
   easProjectId: string;
@@ -175,6 +176,7 @@ export function StatusCard(props: {
     busy,
     status,
     repoLine,
+    selectionSource = "none",
     supabaseUrl,
     supabaseRef,
     easProjectId,
@@ -193,6 +195,13 @@ export function StatusCard(props: {
 
   const ghIsOk = githubOk ?? status.gh;
   const scopesInfo = useMemo(() => formatGitHubScopes(githubScopes), [githubScopes]);
+
+  const repoSelectionHint =
+    selectionSource === "project"
+      ? "Aktive Projektauswahl"
+      : selectionSource === "context"
+        ? "Letzte Context-Auswahl"
+        : "Keine Auswahl";
 
   const supaIsOk = supabaseOk ?? status.sbUrl;
   const supaDisplay = useMemo(
@@ -217,7 +226,7 @@ export function StatusCard(props: {
               <View style={s.scopesRow}>
                 <Text style={s.detailLineLabel}>Scopes:</Text>
                 {scopesInfo.unknown ? (
-                  <ScopeBadge text="unknown" warn />
+                  <ScopeBadge text="unknown (nicht frisch geprüft)" warn />
                 ) : (
                   <View style={s.scopesWrap}>
                     {scopesInfo.scopes.slice(0, 8).map((sc) => (
@@ -247,13 +256,18 @@ export function StatusCard(props: {
         detail={supaDisplay.detail}
       />
 
-      <StatusRow label="Repo verknuepft" ok={status.linked} value={repoLine || undefined} />
+      <StatusRow
+        label="Aktives Repo / Branch"
+        ok={status.linked}
+        value={repoLine || undefined}
+        detail={repoLine ? repoSelectionHint : "In GitHub Repos auswählen."}
+      />
 
       <StatusRow
         label="EAS Project"
         ok={easOk ?? status.eas}
         value={status.eas ? easProjectId : undefined}
-        detail={easInitRunning ? "Workflow läuft… (GitHub Actions: eas-link)" : undefined}
+        detail={easInitRunning ? "Workflow läuft… (GitHub Actions: eas-link)" : "Zuletzt gespeicherter Link-Status"}
       />
 
       <View style={parentStyles.row}>

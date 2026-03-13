@@ -172,6 +172,7 @@ export function useConnectionsScreen() {
   const repoLine = selection.repoLine;
   const effectiveRepo = selection.repo || null;
   const effectiveBranch = selection.branch || null;
+  const selectionSource = selection.source;
 
 
   // Load stored settings on mount
@@ -707,6 +708,7 @@ export function useConnectionsScreen() {
     // Repo/status
     status,
     repoLine,
+    selectionSource,
     supabaseUrl,
 
     // Tokens
