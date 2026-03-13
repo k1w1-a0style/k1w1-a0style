@@ -12,7 +12,7 @@ import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
 import { getEdgeAdminKey } from "../../../infra/github/githubService";
 import { useProject } from "../../../contexts/ProjectContext";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
-import { computeCiLiteOk, inferStepStates, safeUi } from "../../ciLite/ciLiteUtils";
+import { computeCiLiteOk, findWorkflowRunByJobId, inferStepStates, safeUi } from "../../ciLite/ciLiteUtils";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { WORKFLOW_CI_LITE, WORKFLOW_CI_LITE_AUTOFIX, type StepState } from "../types";
 
@@ -86,7 +86,7 @@ export function useCiLiteWorkflow() {
       const runs = json?.data?.workflow_runs ?? json?.workflow_runs ?? json?.runs ?? [];
       if (!Array.isArray(runs)) return null;
 
-      return runs.find((x: any) => String(x?.display_title ?? x?.name ?? "").includes(jid)) ?? null;
+      return findWorkflowRunByJobId(runs, jid);
     },
     [],
   );
@@ -98,7 +98,7 @@ export function useCiLiteWorkflow() {
     isLoading: logsLoading,
     error: logsError,
   } = useGitHubActionsLogs({
-    githubRepo: visible ? githubRepo || null : null,
+    githubRepo: visible && runId ? githubRepo || null : null,
     runId,
     workflowId,
     autoRefresh: visible,
@@ -310,6 +310,7 @@ export function useCiLiteWorkflow() {
         setLocalError(e?.message || String(e));
       }
       if (Date.now() - start > 75_000) {
+        setLocalError("Autofix-Chain ausgelöst, aber kein passender CI-Lite-Run gefunden (Timeout). Bitte Run-Übersicht prüfen.");
         setChainWaiting(false);
         stopPolling();
       }
@@ -440,7 +441,10 @@ export function useCiLiteWorkflow() {
           } catch (e: any) {
             setLocalError(e?.message || String(e));
           }
-          if (Date.now() - start > 60_000) stopPolling();
+          if (Date.now() - start > 60_000) {
+            setLocalError("Workflow wurde gestartet, aber kein passender Run gefunden (Timeout). Bitte Run-Übersicht öffnen.");
+            stopPolling();
+          }
         };
 
         await poll();
