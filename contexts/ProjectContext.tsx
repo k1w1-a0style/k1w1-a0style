@@ -110,6 +110,41 @@ const ProjectContext = createContext<ProjectContextProps | undefined>(
 
 type CurrentBuildState = NonNullable<ProjectContextProps["currentBuild"]>;
 
+type BuildSelectionSnapshot = {
+  jobId?: string | null;
+  repoName?: string | null;
+  branch?: string | null;
+  buildProfile?: string | null;
+};
+
+export const resolveHistoryBuildSelection = (params: {
+  activeJobId?: string | null;
+  snapshot?: BuildSelectionSnapshot | null;
+  currentBuild?: {
+    githubRepo?: string | null;
+    branch?: string | null;
+    buildProfile?: string | null;
+  } | null;
+}) => {
+  const snapshot = params.snapshot;
+  const snapshotMatchesJob =
+    !!params.activeJobId &&
+    !!snapshot?.jobId &&
+    snapshot.jobId === params.activeJobId;
+
+  return {
+    repoName: snapshotMatchesJob
+      ? (snapshot?.repoName ?? undefined)
+      : (params.currentBuild?.githubRepo ?? undefined),
+    branch: snapshotMatchesJob
+      ? (snapshot?.branch ?? undefined)
+      : (params.currentBuild?.branch ?? undefined),
+    buildProfile: snapshotMatchesJob
+      ? (snapshot?.buildProfile ?? undefined)
+      : (params.currentBuild?.buildProfile ?? undefined),
+  };
+};
+
 export {
   getGitHubToken,
   saveGitHubToken,
@@ -129,6 +164,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   const [currentBuild, setCurrentBuild] = useState<CurrentBuildState | null>(
     null,
   );
+  const activeBuildSelectionRef = useRef<BuildSelectionSnapshot | null>(null);
 
   // Centralized polling (single source of truth)
   const activeJobId = currentBuild?.jobId ?? null;
@@ -638,11 +674,17 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
     lastHistoryStatusRef.current = { jobId: activeJobId, status };
 
+    const historySelection = resolveHistoryBuildSelection({
+      activeJobId,
+      snapshot: activeBuildSelectionRef.current,
+      currentBuild,
+    });
+
     updateBuildInHistory(activeJobId, {
       status,
-      branch: currentBuild?.branch ?? undefined,
-      buildProfile: currentBuild?.buildProfile ?? undefined,
-      repoName: currentBuild?.githubRepo ?? undefined,
+      branch: historySelection.branch,
+      buildProfile: historySelection.buildProfile,
+      repoName: historySelection.repoName,
       htmlUrl: buildPoll.details.urls?.html ?? null,
       artifactUrl: buildPoll.details.urls?.artifacts ?? null,
       sourceCommitSha: buildPoll.details.sourceCommitSha ?? null,
@@ -652,7 +694,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         historyError,
       );
     });
-  }, [activeJobId, buildPoll.details, buildPoll.status, currentBuild?.branch, currentBuild?.buildProfile, currentBuild?.githubRepo]);
+  }, [activeJobId, buildPoll.details, buildPoll.status, currentBuild]);
 
   const startBuild = useCallback(
     async (buildProfile?: string) => {
@@ -675,6 +717,12 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
         const startedAt = new Date().toISOString();
         const buildBranch = (pd.linkedBranch ?? "").trim();
+        activeBuildSelectionRef.current = {
+          jobId: null,
+          repoName: githubRepo,
+          branch: buildBranch,
+          buildProfile: profile,
+        };
         setCurrentBuild({
           status: "queued",
           message: "🚀 Build wird gestartet…",
@@ -695,6 +743,12 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         const jobId = started.jobId;
         const githubRepoResolved = started.githubRepo;
         const branchResolved = started.branch;
+        activeBuildSelectionRef.current = {
+          jobId,
+          repoName: githubRepoResolved,
+          branch: branchResolved,
+          buildProfile: profile,
+        };
 
         setCurrentBuild((prev) => ({
           ...(prev ?? { status: "queued" }),
