@@ -59,6 +59,13 @@ describe("Invariants: repo/branch selection is source of truth", () => {
     expect(helper).toContain("We never invent a default branch here");
   });
 
+  it("does not keep stale active branch when resolving repo default branch", () => {
+    const src = read("screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts");
+
+    expect(src).toContain("setActiveBranch(b);");
+    expect(src).not.toContain("setActiveBranch(activeBranch || b);");
+  });
+
   it("passes deterministic artifact result into computeCiLiteOk", () => {
     const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
 
