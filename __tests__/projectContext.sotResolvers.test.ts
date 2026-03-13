@@ -1,5 +1,6 @@
 import {
   resolveBuildProfileForStart,
+  resolveHistoryBuildSelection,
   resolveLinkedBranchForRepoSelection,
 } from "../contexts/ProjectContext";
 
@@ -79,6 +80,55 @@ describe("ProjectContext SoT resolvers", () => {
           preferredProfile: null,
         }),
       ).toBe("preview");
+    });
+  });
+});
+
+
+describe("resolveHistoryBuildSelection", () => {
+  it("prefers the start snapshot when it belongs to the active job", () => {
+    expect(
+      resolveHistoryBuildSelection({
+        activeJobId: "123",
+        snapshot: {
+          jobId: "123",
+          repoName: "owner/repo-from-start",
+          branch: "release/1",
+          buildProfile: "production",
+        },
+        currentBuild: {
+          githubRepo: "owner/repo-from-poll",
+          branch: "main",
+          buildProfile: "preview",
+        },
+      }),
+    ).toEqual({
+      repoName: "owner/repo-from-start",
+      branch: "release/1",
+      buildProfile: "production",
+    });
+  });
+
+  it("falls back to current build values for unrelated jobs", () => {
+    expect(
+      resolveHistoryBuildSelection({
+        activeJobId: "123",
+        snapshot: {
+          jobId: "999",
+          repoName: "owner/repo-from-start",
+          branch: "release/1",
+          buildProfile: "production",
+        },
+        currentBuild: {
+          githubRepo: "owner/repo-from-poll",
+          branch: "main",
+          buildProfile: "preview",
+        },
+      }),
+    ).toEqual({
+      repoName: "owner/repo-from-poll",
+      branch: "main",
+      buildProfile: "preview",
     });
   });
 });
