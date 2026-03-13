@@ -217,9 +217,11 @@ jobs:
           ) 2>&1 | tee ci-logs/expo-preflight.log
           EXPO=$?
 
-          echo "eslint_exit=$ESL" >> "$GITHUB_OUTPUT"
-          echo "tsc_exit=$TSC" >> "$GITHUB_OUTPUT"
-          echo "expo_exit=$EXPO" >> "$GITHUB_OUTPUT"
+          {
+            echo "eslint_exit=$ESL"
+            echo "tsc_exit=$TSC"
+            echo "expo_exit=$EXPO"
+          } >> "$GITHUB_OUTPUT"
 
           cat > ci-logs/ci-lite-result.json <<JSON
           {
