@@ -6,6 +6,14 @@ fail() {
   exit 1
 }
 
+forbid_fixed() {
+  local file="$1"
+  local text="$2"
+  if grep -Fq -- "$text" "$file"; then
+    fail "Forbidden '$text' found in $file"
+  fi
+}
+
 check_file_markers() {
   local file="$1"
   [ -f "$file" ] || fail "Missing file: $file"
@@ -43,5 +51,19 @@ fi
 grep -q 'source_sha' "$EDGE_FILE" || fail "Embedded workflow templates missing source_sha/source_commit_sha provenance"
 grep -q 'function parseManagedWorkflowMeta' "$EDGE_FILE" || fail "Missing managed workflow metadata parser"
 grep -q 'repository_dispatch:' "$EDGE_FILE" || fail "Embedded templates missing repository_dispatch support"
+
+for wf in .github/workflows/eas-build.yml .github/workflows/eas-link.yml .github/workflows/release-build.yml .github/workflows/deploy-supabase-functions.yml .github/workflows/k1w1-triggered-build.yml; do
+  grep -Eq '^\s+ref:\s*$' "$wf" || fail "Missing explicit ref input block in $wf"
+  grep -Eq '^\s+required:\s*true\s*$' "$wf" || fail "Missing required ref contract in $wf"
+  forbid_fixed "$wf" 'ref: ${{ inputs.ref || github.ref }}'
+  forbid_fixed "$wf" 'ref: ${{ inputs.ref || github.ref_name }}'
+  forbid_fixed "$wf" 'ref: ${{ github.ref }}'
+  forbid_fixed "$wf" 'ref: ${{ github.ref_name }}'
+  forbid_fixed "$wf" 'github.head_ref'
+  forbid_fixed "$wf" 'github.event.repository.default_branch'
+done
+
+grep -Fq "workflow_dispatch' && inputs.ref || github.ref" .github/workflows/ci.yml || fail "CI workflow lost documented branch-based CI-lite fallback contract"
+grep -Fq 'default_ref: work' .github/workflows/k1w1-ci-lite.yml || fail "CI Lite workflow lost documented default_ref=work exception"
 
 echo "Managed workflows look consistent."

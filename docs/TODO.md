@@ -10,7 +10,7 @@ Stand: **2026-03-12**
 - [ ] **MD-/Notes-Cleanup abschließen (Kernflächen):** README / INDEX / OVERVIEW / SCREEN-INDEX / PRODUCT-FLOWS weiter konsistent halten, Redundanzen klein halten, operative Navigation priorisieren.
 - [ ] **Dokument-SoT scharf halten:** Kern-MDs als Navigations- und Vertragsfläche; Verlaufsdetails primär in Patchnotes/Patchlog.
 - [ ] **Trust-Follow-up dokumentieren:** frischer Checkout als Green-Path festhalten (`npm ci` + `typecheck` + `lint:ci` + `test:silent`, inkl. Voraussetzungen).
-- [ ] **Workflow-Ref-Hardening ausbauen:** zusätzliche Invariants/Jest-Guards gegen implizite Default-Deploypfade.
+- [x] **Workflow-Ref-Hardening ausbauen:** zusätzliche Invariants/Jest-Guards gegen implizite Default-Deploypfade. (Patch 420)
 
 ## Wichtige Vertrags-Reminder
 
