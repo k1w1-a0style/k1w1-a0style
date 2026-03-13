@@ -203,6 +203,13 @@ export function StatusCard(props: {
         ? "Letzte Context-Auswahl (Fallback)"
         : "Keine Auswahl";
 
+  const repoSelectionDetail =
+    selectionSource === "project"
+      ? `${repoSelectionHint} · Maßgeblich für Build/Signing.`
+      : selectionSource === "context"
+        ? `${repoSelectionHint} · Nicht maßgeblich für Build/Signing, bis sie im Projekt verknüpft ist.`
+        : "In GitHub Repos auswählen.";
+
   const supaIsOk = supabaseOk ?? status.sbUrl;
   const supaDisplay = useMemo(
     () => (supaIsOk ? formatSupabaseDisplay(supabaseUrl, supabaseRef) : {}),
@@ -260,7 +267,7 @@ export function StatusCard(props: {
         label="Aktives Repo / Branch"
         ok={status.linked}
         value={repoLine || undefined}
-        detail={repoLine ? `${repoSelectionHint} · Maßgeblich für Build/Signing.` : "In GitHub Repos auswählen."}
+        detail={repoLine ? repoSelectionDetail : "In GitHub Repos auswählen."}
       />
 
       <StatusRow
@@ -298,4 +305,3 @@ export function StatusCard(props: {
     </View>
   );
 }
-
