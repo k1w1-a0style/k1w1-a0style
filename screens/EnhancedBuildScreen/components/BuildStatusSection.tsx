@@ -63,18 +63,23 @@ export function BuildStatusSection({
           <Text style={s.statusLabel}>{statusLabel}</Text>
           {!!message && <Text style={s.statusMsg}>{message}</Text>}
           {!!jobId && <Text style={s.statusMsg}>Job #{jobId}</Text>}
-          {!!currentBuild?.githubRepo && (
-            <Text style={s.statusMsg}>Repo {currentBuild.githubRepo}</Text>
-          )}
-          {!!currentBuild?.branch && (
-            <Text style={s.statusMsg}>Branch {currentBuild.branch}</Text>
-          )}
-          {!!currentBuild?.buildProfile && (
-            <Text style={s.statusMsg}>Profil {String(currentBuild.buildProfile)}</Text>
-          )}
-          {!!currentBuild?.sourceCommitSha && (
-            <Text style={s.statusMsg}>Commit {currentBuild.sourceCommitSha.slice(0, 12)}</Text>
-          )}
+          {(currentBuild?.githubRepo || currentBuild?.branch || currentBuild?.buildProfile || currentBuild?.sourceCommitSha) ? (
+            <View style={s.contextBox}>
+              <Text style={s.contextLabel}>Laufkontext (SoT)</Text>
+              {!!currentBuild?.githubRepo && (
+                <Text style={s.statusMsg}>Repo {currentBuild.githubRepo}</Text>
+              )}
+              {!!currentBuild?.branch && (
+                <Text style={s.statusMsg}>Branch {currentBuild.branch}</Text>
+              )}
+              {!!currentBuild?.buildProfile && (
+                <Text style={s.statusMsg}>Profil {String(currentBuild.buildProfile)}</Text>
+              )}
+              {!!currentBuild?.sourceCommitSha && (
+                <Text style={s.statusMsg}>Commit {currentBuild.sourceCommitSha.slice(0, 12)}</Text>
+              )}
+            </View>
+          ) : null}
           {etaMs > 0 && (
             <Text style={s.eta}>Restzeit: ~{formatDuration(etaMs)}</Text>
           )}

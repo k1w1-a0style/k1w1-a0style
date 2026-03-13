@@ -102,24 +102,25 @@ export function RepoInfoBadge({
     return (
       <View style={s.infoBadge}>
         <Ionicons name="alert-circle-outline" size={14} color={theme.palette.warning} />
-        <Text style={s.infoMissing}>Kein Repo verknuepft</Text>
+        <Text style={s.infoMissing}>Kein aktives Repo verknüpft</Text>
       </View>
     );
   }
   return (
     <View style={s.infoBadge}>
       <Ionicons name="logo-github" size={14} color={theme.palette.text.primary} />
+      <Text style={s.infoPrefix}>Aktiv:</Text>
       <Text style={s.infoRepo}>{repoFullName}</Text>
       {!!branchName && (
         <>
           <Ionicons name="git-branch-outline" size={12} color={theme.palette.text.muted} />
-          <Text style={s.infoBranch}>{branchName}</Text>
+          <Text style={s.infoBranch}>Branch {branchName}</Text>
         </>
       )}
       {!!sourceCommitSha && (
         <>
           <Ionicons name="git-commit-outline" size={12} color={theme.palette.text.muted} />
-          <Text style={s.infoBranch}>{sourceCommitSha.slice(0, 12)}</Text>
+          <Text style={s.infoBranch}>SHA {sourceCommitSha.slice(0, 12)}</Text>
         </>
       )}
     </View>
@@ -189,6 +190,12 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.palette.border,
     borderRadius: 12,
+  },
+  infoPrefix: {
+    color: theme.palette.text.muted,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
   },
   infoRepo: {
     color: theme.palette.text.primary,

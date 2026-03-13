@@ -33,6 +33,9 @@ export const HeaderSection = memo(function HeaderSection({
 }: HeaderSectionProps) {
   const dirtyCount =
     (syncStatus?.modified || 0) + (syncStatus?.localOnly || 0) + (syncStatus?.remoteOnly || 0);
+  const lastCheckedLabel = syncStatus?.checkedAt
+    ? `Zuletzt geprüft: ${new Date(syncStatus.checkedAt).toLocaleTimeString()}`
+    : "Noch nicht geprüft";
 
   return (
     <View style={styles.headerSection}>
@@ -49,8 +52,8 @@ export const HeaderSection = memo(function HeaderSection({
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
             <Text style={[styles.subtitle, { flex: 1 }]} numberOfLines={1}>
               {userLogin ? `${userLogin} • ` : ""}
-              {activeRepo ? activeRepo : "Kein Repo gewählt"}
-              {activeBranch ? ` • ${activeBranch}` : ""}
+              {activeRepo ? `Repo: ${activeRepo}` : "Kein Repo gewählt"}
+              {activeBranch ? ` • Branch: ${activeBranch}` : ""}
             </Text>
 
             {activeRepo ? (
@@ -73,6 +76,12 @@ export const HeaderSection = memo(function HeaderSection({
             ) : null}
           </View>
         </View>
+
+        {!!activeRepo && (
+          <Text style={[styles.subtitle, { marginTop: 4 }]} numberOfLines={1}>
+            {syncStatus?.checking ? "Statusprüfung läuft…" : lastCheckedLabel}
+          </Text>
+        )}
       </View>
 
       <View style={styles.headerActions}>

@@ -29,6 +29,7 @@ export default function ConnectionsScreen() {
     // Repo/Status
     status,
     repoLine,
+    selectionSource,
     supabaseUrl,
     easProjectId,
 
@@ -139,6 +140,7 @@ export default function ConnectionsScreen() {
           easInitRunning={isEasInitRunning}
           status={status}
           repoLine={repoLine}
+          selectionSource={selectionSource}
           supabaseUrl={supabaseUrl}
           supabaseRef={supabaseRef}
           easProjectId={easProjectId}

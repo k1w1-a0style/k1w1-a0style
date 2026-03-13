@@ -44,6 +44,21 @@ export const s = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
+  contextBox: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.palette.border,
+    gap: 2,
+  },
+  contextLabel: {
+    color: theme.palette.text.muted,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    marginBottom: 2,
+  },
   eta: {
     color: theme.palette.warning,
     fontSize: 12,
