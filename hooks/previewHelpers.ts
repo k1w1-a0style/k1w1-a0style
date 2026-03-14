@@ -134,3 +134,10 @@ export interface UsePreviewReturn {
   /** Changes whenever project files change (for hot-reload detection). */
   filesFingerprint: string;
 }
+
+
+export type PreviewAttemptMode = "supabase" | "local" | null | undefined;
+
+export function shouldAttemptSupabaseFirst(mode: PreviewAttemptMode): boolean {
+  return mode !== "local";
+}

@@ -24,6 +24,7 @@ import type {
   ProjectData,
   ProjectFile,
   TemplateId,
+  PreferredPreviewMode,
 } from "../shared/types/project";
 import type { ProjectContextProps } from "./projectTypes";
 
@@ -303,6 +304,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
                 createdAt: new Date().toISOString(),
                 lastModified: new Date().toISOString(),
                 lastPreview: null,
+                preferredPreviewMode: projectData?.preferredPreviewMode ?? "supabase",
               };
 
               const release = await mutexRef.current.acquire();
@@ -551,6 +553,17 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     [updateProject],
   );
 
+  const setPreferredPreviewMode = useCallback(
+    async (mode: PreferredPreviewMode) => {
+      await updateProject((prev) => ({
+        ...prev,
+        preferredPreviewMode: mode,
+      }));
+      logger.info(`🖥️ Preferred Preview-Mode gespeichert: ${mode}`);
+    },
+    [updateProject],
+  );
+
   useEffect(() => {
     const initializeProject = async () => {
       try {
@@ -561,6 +574,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           logger.info("📖 Projekt geladen:", savedProject.name);
           if (!savedProject.files) savedProject.files = [];
           if (!savedProject.chatHistory) savedProject.chatHistory = [];
+          if (!savedProject.preferredPreviewMode) savedProject.preferredPreviewMode = "supabase";
           setProjectData(savedProject);
         } else {
           logger.info("Kein Projekt gefunden, lade neues Template...");
@@ -573,6 +587,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
             chatHistory: [],
             createdAt: new Date().toISOString(),
             lastModified: new Date().toISOString(),
+            preferredPreviewMode: "supabase",
           };
           setProjectData(newProject);
           await saveProjectToStorage(newProject);
@@ -822,6 +837,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       clearAutoFixRequest,
       setLinkedRepo,
       setPreferredBuildProfile,
+      setPreferredPreviewMode,
       setAdvancedTemplatePickerEnabled,
     }),
     [
@@ -848,6 +864,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       clearAutoFixRequest,
       setLinkedRepo,
       setPreferredBuildProfile,
+      setPreferredPreviewMode,
       setAdvancedTemplatePickerEnabled,
     ],
   );

@@ -6,6 +6,7 @@ import type {
   ProjectData,
   ProjectFile,
   TemplateId,
+  PreferredPreviewMode,
 } from "../shared/types/project";
 
 export interface ProjectContextProps {
@@ -92,4 +93,8 @@ export interface ProjectContextProps {
   setPreferredBuildProfile?: (
     profile: "development" | "preview" | "production",
   ) => Promise<void>;
+
+  /** Persist preferred preview mode (supabase visual preview preferred, local fallback optional). */
+  setPreferredPreviewMode?: (mode: PreferredPreviewMode) => Promise<void>;
+
 }

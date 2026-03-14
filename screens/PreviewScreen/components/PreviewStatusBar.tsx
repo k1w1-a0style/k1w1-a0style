@@ -6,6 +6,7 @@ import { s } from '../PreviewScreen.styles';
 
 type PreviewStatusBarProps = {
   phase: PreviewPhase;
+  previewKind: "supabase" | "local" | null;
   pulseAnim: Animated.Value;
   hotReloadEnabled: boolean;
   hotReloadCount: number;
@@ -14,16 +15,17 @@ type PreviewStatusBarProps = {
   skippedCount: number;
 };
 
-function getStatusText(phase: PreviewPhase): string {
+function getStatusText(phase: PreviewPhase, previewKind: "supabase" | "local" | null): string {
   if (phase === 'idle') return 'Bereit';
   if (phase === 'creating') return 'Preview wird erstellt…';
   if (phase === 'loading') return 'Wird geladen…';
-  if (phase === 'ready') return 'Live';
+  if (phase === 'ready') return previewKind === 'local' ? 'Fallback aktiv (Local HTML)' : 'Live App Preview';
   return 'Fehler';
 }
 
 export function PreviewStatusBar({
   phase,
+  previewKind,
   pulseAnim,
   hotReloadEnabled,
   hotReloadCount,
@@ -41,7 +43,7 @@ export function PreviewStatusBar({
           (phase === 'creating' || phase === 'loading') && s.statusDotLoading,
         ]}
       />
-      <Text style={s.statusText}>{getStatusText(phase)}</Text>
+      <Text style={s.statusText}>{getStatusText(phase, previewKind)}</Text>
       {(phase === 'creating' || phase === 'loading') && (
         <Animated.View style={{ opacity: pulseAnim }}>
           <ActivityIndicator size="small" color={theme.palette.primary} />
@@ -54,6 +56,12 @@ export function PreviewStatusBar({
       {hotReloadEnabled && hotReloadCount > 0 && (
         <View style={s.hotBadge}>
           <Text style={s.hotBadgeText}>{hotReloadCount}x neu geladen</Text>
+        </View>
+      )}
+
+      {phase === 'ready' && previewKind === 'local' && (
+        <View style={s.hotBadge}>
+          <Text style={s.hotBadgeText}>Technischer Fallback</Text>
         </View>
       )}
     </View>
