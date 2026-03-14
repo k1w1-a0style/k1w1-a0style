@@ -128,3 +128,17 @@ export function credKeyForProjectUiMode(params: {
   if (!scope) return base;
   return `${base}::${encodeURIComponent(scope)}`;
 }
+
+/**
+ * Diagnostic status key scoped to the selected repo/branch.
+ * Falls back to the legacy global key when repo or branch are missing.
+ */
+export function diagnosticLastOkKeyForSelection(params: {
+  linkedRepo?: string | null;
+  linkedBranch?: string | null;
+}): string {
+  const repo = String(params.linkedRepo ?? "").trim().toLowerCase();
+  const branch = String(params.linkedBranch ?? "").trim();
+  if (!repo || !branch) return STORAGE_KEYS.DIAGNOSTIC_LAST_OK;
+  return `${STORAGE_KEYS.DIAGNOSTIC_LAST_OK}::${encodeURIComponent(repo)}::${encodeURIComponent(branch)}`;
+}

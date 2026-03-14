@@ -7,6 +7,7 @@ import {
   STORAGE_KEYS,
   credKeyForProfile,
   credKeyForProjectUiMode,
+  diagnosticLastOkKeyForSelection,
   resolveProjectCredentialScope,
 } from "../../../lib/storageKeys";
 
@@ -63,8 +64,16 @@ export function useBuildPreconditions(
       const val = scopedVal ?? (scopedKey !== legacyKey ? await AsyncStorage.getItem(legacyKey).catch(() => null) : null);
       if (isMountedRef.current) setHasSigningKey(val === "true");
 
-      // Diagnostic
-      const diagVal = await AsyncStorage.getItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null);
+      // Diagnostic (repo/branch-scoped with legacy fallback)
+      const scopedDiagnosticKey = diagnosticLastOkKeyForSelection({
+        linkedRepo: repoFullName,
+        linkedBranch: branchName,
+      });
+      const [diagScopedVal, diagLegacyVal] = await Promise.all([
+        AsyncStorage.getItem(scopedDiagnosticKey).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null),
+      ]);
+      const diagVal = diagScopedVal ?? diagLegacyVal;
       if (isMountedRef.current) setHasDiagOk(diagVal === "true");
 
       // CI Lite must match current repo + branch and must not be stale.
