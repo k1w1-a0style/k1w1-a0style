@@ -14,7 +14,7 @@ import {
 } from "../../infra/github/githubService";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
 import { autoFixCIWorkflows } from "../../lib/diagnostics/ciAutoFix";
-import { STORAGE_KEYS } from "../../lib/storageKeys";
+import { STORAGE_KEYS, diagnosticLastOkKeyForSelection } from "../../lib/storageKeys";
 import {
   BUILD_READINESS_ERROR_MESSAGES,
   ERR_BRANCH_MISSING,
@@ -69,7 +69,13 @@ export async function assertBuildReadiness(
     throw new Error(`${ERR_BRANCH_MISSING}: ${BUILD_READINESS_ERROR_MESSAGES[ERR_BRANCH_MISSING]}`);
   }
 
-  const [diagVal, lintVal, typeVal, lastRunAt, lastRepo, lastBranch, lastSha] = await Promise.all([
+  const scopedDiagnosticKey = diagnosticLastOkKeyForSelection({
+    linkedRepo,
+    linkedBranch,
+  });
+
+  const [diagScopedVal, diagLegacyVal, lintVal, typeVal, lastRunAt, lastRepo, lastBranch, lastSha] = await Promise.all([
+    storageGetItem(scopedDiagnosticKey).catch(() => null),
     storageGetItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null),
     storageGetItem(STORAGE_KEYS.CI_LITE_LINT_OK).catch(() => null),
     storageGetItem(STORAGE_KEYS.CI_LITE_TYPECHECK_OK).catch(() => null),
@@ -79,6 +85,7 @@ export async function assertBuildReadiness(
     storageGetItem(STORAGE_KEYS.CI_LITE_LAST_SHA).catch(() => null),
   ]);
 
+  const diagVal = diagScopedVal ?? diagLegacyVal;
   if (diagVal !== "true") {
     throw new Error(
       `${ERR_DIAGNOSTIC_NOT_GREEN}: ${BUILD_READINESS_ERROR_MESSAGES[ERR_DIAGNOSTIC_NOT_GREEN]}`,

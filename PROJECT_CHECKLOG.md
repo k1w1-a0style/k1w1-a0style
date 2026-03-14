@@ -4,6 +4,7 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-14: Patch 431: System-Audit-Fix — `diagnostic_last_ok` für Diagnosis→Build-Flow auf Repo/Branch scoped gemacht (legacy fallback bleibt), damit keine falsche Freigabe zwischen unterschiedlichen Selektionen entsteht.
 - 2026-03-14: Patch 430: Live-Reachability-Audit für Groq/Gemini/OpenAI/Anthropic/HuggingFace mit realen Smoke-Requests; in dieser Umgebung alle Provider wegen fehlender Secrets nur als `missing_secret` klassifizierbar. k1w1-Handler-Fehlerverträge um provider+model-Kontext erweitert, Groq-Fallback gibt resolved Modell-ID zurück.
 - 2026-03-14: Patch 429: KI-/Provider-Konfigurationsaudit — k1w1-Edge-Defaultmodelle auf app-konsistente aktuelle IDs aktualisiert (Gemini 2.5, Anthropic datierte IDs, HF Qwen), Groq-"groq/"-Kompatibilitätsfallback ergänzt, Invariant-Tests erweitert.
 - 2026-03-14: Patch 428: Zweiter Korrektheits-Check durchgeführt; rote Suite auf `__tests__/oneClickDeploy.test.tsx` durch konservative Timeout-Stabilisierung im Test behoben (kein Produktionscode geändert).
