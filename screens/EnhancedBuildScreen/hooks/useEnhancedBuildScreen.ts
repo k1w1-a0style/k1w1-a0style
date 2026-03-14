@@ -505,7 +505,7 @@ export function useEnhancedBuildScreen() {
         id: "signing_key",
         label: "Signing Key vorhanden",
         status: hasSigningKey ? "ok" : "fail",
-        detail: hasSigningKey ? buildProfile : "Key fehlt - im Wizard generieren",
+        detail: hasSigningKey ? `${buildProfile} · zuletzt bekannter Wizard-Status` : "Key fehlt - im Wizard prüfen/generieren",
       },
       {
         id: "tokens",

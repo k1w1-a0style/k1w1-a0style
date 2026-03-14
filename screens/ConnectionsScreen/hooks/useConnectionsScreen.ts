@@ -62,6 +62,7 @@ export function useConnectionsScreen() {
   const [expoOk, setExpoOk] = useState(false);
   const [expoUser, setExpoUser] = useState("" );
   const [easOk, setEasOk] = useState(false);
+  const [easLastVerifiedAt, setEasLastVerifiedAt] = useState<string | null>(null);
   const [repoOk, setRepoOk] = useState(false);
   const [repoOkLine, setRepoOkLine] = useState("" );
 
@@ -77,12 +78,19 @@ export function useConnectionsScreen() {
   const [hydrated, setHydrated] = useState(false);
   const didAutoTestEas = useRef(false);
 
-  const saveConnEasOk = useCallback(async (ok: boolean) => {
+  const saveConnEasOk = useCallback(async (ok: boolean, opts?: { verifiedAt?: string | null }) => {
+    const verifiedAt = opts?.verifiedAt ?? null;
     setEasOk(ok);
+    setEasLastVerifiedAt(verifiedAt);
     await AsyncStorage.setItem(
       STORAGE_KEYS.CONN_EAS_OK,
       ok ? "true" : "false",
     ).catch(() => {});
+    if (verifiedAt) {
+      await AsyncStorage.setItem(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT, verifiedAt).catch(() => {});
+    } else {
+      await AsyncStorage.removeItem(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT).catch(() => {});
+    }
   }, []);
 
   const testEas = useCallback(async () => {
@@ -127,7 +135,7 @@ export function useConnectionsScreen() {
           json?.data?.slug ||
           json?.data?.name,
       );
-      await saveConnEasOk(hasProject);
+      await saveConnEasOk(hasProject, { verifiedAt: hasProject ? new Date().toISOString() : null });
       if (!hasProject) {
         Alert.alert("EAS Test", "Projekt nicht gefunden oder keine Rechte");
       }
@@ -193,7 +201,7 @@ export function useConnectionsScreen() {
       ]);
 
       // Load persistent connection lights
-      const [ghOk, ghUserStored, ghScopesStored, sbOk, sbRefStored, exOk, exUserStored, easOkStored, repoOkStored, repoSlug, repoBranch] = await Promise.all([
+      const [ghOk, ghUserStored, ghScopesStored, sbOk, sbRefStored, exOk, exUserStored, easOkStored, easLastVerifiedStored, repoOkStored, repoSlug, repoBranch] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_OK).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_USER).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_SCOPES).catch(() => null),
@@ -202,6 +210,7 @@ export function useConnectionsScreen() {
         AsyncStorage.getItem(STORAGE_KEYS.CONN_EXPO_OK).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_EXPO_USER).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_EAS_OK).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_REPO_OK).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_REPO_SLUG).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_REPO_BRANCH).catch(() => null),
@@ -226,6 +235,7 @@ export function useConnectionsScreen() {
       if (exOk === "true") setExpoOk(true);
       if (exUserStored) setExpoUser(exUserStored);
       if (easOkStored === "true") setEasOk(true);
+      if (easLastVerifiedStored) setEasLastVerifiedAt(easLastVerifiedStored);
       if (repoOkStored === "true") setRepoOk(true);
       const repoLineStored = [repoSlug || "", repoBranch || ""].filter(Boolean).join(" (") + (repoBranch ? ")" : "");
       if (repoSlug) setRepoOkLine(repoLineStored);
@@ -292,7 +302,9 @@ export function useConnectionsScreen() {
         await AsyncStorage.removeItem(STORAGE_KEYS.CONN_REPO_BRANCH).catch(() => {});
 
         setEasOk(false);
+        setEasLastVerifiedAt(null);
         await AsyncStorage.setItem(STORAGE_KEYS.CONN_EAS_OK, "false").catch(() => {});
+        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT).catch(() => {});
       }
 
       if (ex) await saveExpoToken(ex);
@@ -314,7 +326,15 @@ export function useConnectionsScreen() {
         supabaseAnonKey.trim(),
       );
       await AsyncStorage.removeItem(STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY).catch(() => {});
-      await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, easProjectId.trim());
+      if (easProjectId.trim()) {
+        await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, easProjectId.trim());
+      } else {
+        await AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID);
+        setEasOk(false);
+        setEasLastVerifiedAt(null);
+        await AsyncStorage.setItem(STORAGE_KEYS.CONN_EAS_OK, "false").catch(() => {});
+        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT).catch(() => {});
+      }
 
       // If Supabase base settings are cleared, reset connection status
       if (!supabaseUrl.trim() || !supabaseAnonKey.trim()) {
@@ -595,7 +615,9 @@ export function useConnectionsScreen() {
 
         // Persist UX lights (best-effort): token saved above
         setEasOk(true);
+        setEasLastVerifiedAt(null);
         await AsyncStorage.setItem(STORAGE_KEYS.CONN_EAS_OK, "true").catch(() => {});
+        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT).catch(() => {});
 
         if (repoSlug) {
           setRepoOk(true);
@@ -737,6 +759,7 @@ export function useConnectionsScreen() {
 
     // EAS
     easOk,
+    easLastVerifiedAt,
     easProjectId,
     setEasProjectId,
 

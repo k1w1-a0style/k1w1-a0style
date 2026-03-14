@@ -121,6 +121,26 @@ function formatGitHubScopes(scopesRaw?: string): { scopes: string[]; missing: st
   return { scopes: uniq, missing, unknown: false };
 }
 
+export function buildEasStatusDetail(params: {
+  easInitRunning?: boolean;
+  easProjectId?: string;
+  easOk?: boolean;
+  easLastVerifiedAt?: string | null;
+}): string {
+  const easProjectId = String(params.easProjectId ?? "").trim();
+  if (params.easInitRunning) return "Workflow läuft… (GitHub Actions: eas-link)";
+  if (!easProjectId) return "Keine EAS Project ID gespeichert.";
+  if (params.easOk) {
+    if (params.easLastVerifiedAt) {
+      const ts = new Date(params.easLastVerifiedAt);
+      const readable = Number.isNaN(ts.getTime()) ? params.easLastVerifiedAt : ts.toLocaleString();
+      return `Frisch verifiziert: ${readable}`;
+    }
+    return "Link ausgelöst / gespeichert, aber noch nicht frisch geprüft.";
+  }
+  return "Zuletzt bekannter Status: nicht verifiziert oder nicht erreichbar.";
+}
+
 function formatSupabaseDisplay(url: string, ref?: string): { value?: string; detail?: string } {
   const u = (url || "").trim();
   if (!u) return {};
@@ -159,6 +179,7 @@ export function StatusCard(props: {
   supabaseUrl: string;
   supabaseRef?: string;
   easProjectId: string;
+  easLastVerifiedAt?: string | null;
   githubOk?: boolean;
   githubUser?: string;
   githubScopes?: string;
@@ -180,6 +201,7 @@ export function StatusCard(props: {
     supabaseUrl,
     supabaseRef,
     easProjectId,
+    easLastVerifiedAt,
     githubOk,
     githubUser,
     githubScopes,
@@ -209,6 +231,17 @@ export function StatusCard(props: {
       : selectionSource === "context"
         ? `${repoSelectionHint} · Nicht maßgeblich für Build/Signing, bis sie im Projekt verknüpft ist.`
         : "In GitHub Repos auswählen.";
+
+  const easStatusDetail = useMemo(
+    () =>
+      buildEasStatusDetail({
+        easInitRunning,
+        easProjectId,
+        easOk,
+        easLastVerifiedAt,
+      }),
+    [easInitRunning, easProjectId, easLastVerifiedAt, easOk],
+  );
 
   const supaIsOk = supabaseOk ?? status.sbUrl;
   const supaDisplay = useMemo(
@@ -274,7 +307,7 @@ export function StatusCard(props: {
         label="EAS Project"
         ok={easOk ?? status.eas}
         value={status.eas ? easProjectId : undefined}
-        detail={easInitRunning ? "Workflow läuft… (GitHub Actions: eas-link)" : "Zuletzt gespeicherter Link-Status (nicht automatisch frisch geprüft)"}
+        detail={easStatusDetail}
       />
 
       <View style={parentStyles.row}>
