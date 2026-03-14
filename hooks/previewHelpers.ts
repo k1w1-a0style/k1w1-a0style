@@ -141,3 +141,34 @@ export type PreviewAttemptMode = "supabase" | "local" | null | undefined;
 export function shouldAttemptSupabaseFirst(mode: PreviewAttemptMode): boolean {
   return mode !== "local";
 }
+
+export function formatPreviewExpiry(expiresAt: string | null, now = new Date()): string {
+  if (!expiresAt) return "Keine Ablaufzeit vorhanden";
+
+  const expiry = new Date(expiresAt);
+  if (Number.isNaN(expiry.getTime())) return "Ablaufzeit unbekannt";
+
+  const diffMs = expiry.getTime() - now.getTime();
+  if (diffMs <= 0) return "Abgelaufen – bitte Preview neu erstellen";
+
+  const minutes = Math.round(diffMs / 60000);
+  if (minutes < 60) return `Gültig für ca. ${minutes} min`;
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `Gültig für ca. ${hours} h`;
+
+  const days = Math.round(hours / 24);
+  return `Gültig für ca. ${days} Tage`;
+}
+
+export function getPreviewChannelLabel(source: "supabase" | "local" | null): string {
+  if (source === "supabase") return "Bevorzugter Browser-/WebView-Preview-Weg";
+  if (source === "local") return "Technischer Local-HTML-Fallback";
+  return "Noch keine Preview erstellt";
+}
+
+export function buildQrImageUrl(previewUrl: string): string {
+  const normalized = String(previewUrl ?? "").trim();
+  const encoded = encodeURIComponent(normalized);
+  return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=16&data=${encoded}`;
+}

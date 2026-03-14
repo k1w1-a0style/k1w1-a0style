@@ -10,6 +10,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useProject } from '../../../contexts/ProjectContext';
 import { usePreview } from '../../../hooks/usePreview';
+import { buildQrImageUrl, formatPreviewExpiry, getPreviewChannelLabel } from '../../../hooks/previewHelpers';
 import { isHttpUrl } from '../../../utils/url';
 import { useWebViewNavigation } from '../../shared/preview/useWebViewNavigation';
 import type { RootStackParamList } from '../../../types/preview';
@@ -55,6 +56,19 @@ export function usePreviewScreen() {
   const url = previewSource?.type === 'url' ? previewSource.uri : null;
 
   const previewKind = lastPreview?.source ?? null;
+  const previewUrl = lastPreview?.url ?? null;
+  const previewExpiryText = useMemo(
+    () => formatPreviewExpiry(lastPreview?.expiresAt ?? null),
+    [lastPreview?.expiresAt],
+  );
+  const previewChannelLabel = useMemo(
+    () => getPreviewChannelLabel(previewKind),
+    [previewKind],
+  );
+  const qrImageUrl = useMemo(() => {
+    if (!previewUrl || !isHttpUrl(previewUrl)) return null;
+    return buildQrImageUrl(previewUrl);
+  }, [previewUrl]);
 
   // ─── Shared navigation (eliminiert Duplikat mit PreviewFullscreenScreen) ──
   const { originWhitelist, handleShouldStartLoad } = useWebViewNavigation({
@@ -173,6 +187,12 @@ export function usePreviewScreen() {
     }
   }, [lastPreview]);
 
+  const handleCopyQrLink = useCallback(async () => {
+    if (!qrImageUrl) return;
+    await Clipboard.setStringAsync(qrImageUrl);
+    Alert.alert('Kopiert', 'QR-Link in Zwischenablage.');
+  }, [qrImageUrl]);
+
   const handleOpenExternal = useCallback(async () => {
     if (lastPreview?.url) {
       try {
@@ -182,6 +202,15 @@ export function usePreviewScreen() {
       }
     }
   }, [lastPreview]);
+
+  const handleOpenQr = useCallback(async () => {
+    if (!qrImageUrl) return;
+    try {
+      await Linking.openURL(qrImageUrl);
+    } catch {
+      Alert.alert('Fehler', 'QR-Ansicht konnte nicht geoeffnet werden.');
+    }
+  }, [qrImageUrl]);
 
   const handleFullscreen = useCallback(() => {
     if (!lastPreview) return;
@@ -199,6 +228,10 @@ export function usePreviewScreen() {
     lastPreview,
     previewSource,
     previewKind,
+    previewUrl,
+    previewExpiryText,
+    previewChannelLabel,
+    qrImageUrl,
     phase,
     setPhase,
     webError,
@@ -215,7 +248,9 @@ export function usePreviewScreen() {
     handleCreate,
     handleReset,
     handleCopy,
+    handleCopyQrLink,
     handleOpenExternal,
+    handleOpenQr,
     handleFullscreen,
   };
 }
