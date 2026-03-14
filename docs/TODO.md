@@ -7,7 +7,7 @@ Stand: **2026-03-14**
 
 ## Aktuell (Priorität)
 
-- [x] **Supabase Edge E2E-Contract-Audit (App ↔ Edge ↔ DB-Voraussetzungen):** produktiv genutzte Flows geprüft; zentraler Mapping-Drift im Keystore-Wizard behoben (Patch 433).
+- [x] **Supabase Edge E2E-Contract-Audit (App ↔ Edge ↔ DB-Voraussetzungen):** produktiv genutzte Flows geprüft; zentrale Mapping-/Endpoint-Drifts (inkl. Keystore-Wizard + Function-Name-SoT) geschlossen (Patch 433/434).
 - [ ] **Supabase Operator-Runbook nachziehen:** Secrets/DB-Objekte/Deploy-Reihenfolge für Signing + Preview + Workflow-Edges als Checkliste konsolidieren (explizit inkl. manueller Supabase-Schritte).
 
 - [ ] **MD-/Notes-Cleanup abschließen (Kernflächen):** README / INDEX / OVERVIEW / SCREEN-INDEX / PRODUCT-FLOWS weiter konsistent halten, Redundanzen klein halten, operative Navigation priorisieren.
@@ -25,6 +25,7 @@ Stand: **2026-03-14**
 
 ## Kürzlich abgeschlossen (Kontext)
 
+- [x] Patch 434 — Supabase-E2E-Contract-Audit abgeschlossen; Function-Name-SoT für Signing/Preview/AI ergänzt, Wizard-Hardcodes entfernt, Invariant-Tests ergänzt.
 - [x] Patch 418 V1 — Trust-/Docs-Konsolidierung der Kern-MDs und Sammeln offener Restpunkte.
 - [x] Patch 417 V18 — Patch-Artefakt-Re-Commit im Repo-Root bereinigt und per Ignore-Regeln abgesichert.
 - [x] Patch 416 — stillgelegte Legacy-Edges auch auf Config-Ebene deaktiviert; Guard-/Invariant-Coverage ergänzt.

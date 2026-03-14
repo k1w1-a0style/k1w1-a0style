@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 434: Abschluss des großen Supabase-E2E-Contract-Audits; zentrale Edge-Function-SoT um produktive Signing/Preview/AI-Endpunkte ergänzt und Credentials-Wizard auf Constants statt Hardcodes umgestellt (inkl. Invariant-Tests).
 - Patch 433: Supabase-Edge E2E-Contract-Audit; Credentials-Wizard Edge-200/Error-Mapping zentral gehärtet und per Jest-Regressionstest abgesichert.
 - Patch 432: Ownership-/Permission-Audit; zentrale Guard-Matrix für Template/Baseline, Chat-Writeback und Diagnosis/Autofix eingeführt, inklusive konservativer Konfliktbehandlung und Regressionstests.
 - Patch 431: System-Audit-Fix — Diagnostic-Status auf Repo/Branch scoped gemacht (mit Legacy-Fallback), damit Diagnosis→Build-Readiness keine Cross-Repo/Cross-Branch-Freigabe mehr erzeugt.

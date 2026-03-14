@@ -3,6 +3,8 @@ import {
   validateTriggerBuildRequest,
 } from "../supabase/functions/_shared/validation";
 
+import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
+
 /**
  * Contract tests for Supabase Edge Function request validation.
  *
@@ -97,4 +99,16 @@ describe("edge function request contracts", () => {
       expect(res.errors.buildProfile).toBeTruthy();
     });
   });
+
+  describe("edge function names single source", () => {
+    it("contains production-used signing/preview/ai endpoints", () => {
+      expect(SUPABASE_EDGE_FUNCTIONS.SAVE_PREVIEW).toBe("save_preview");
+      expect(SUPABASE_EDGE_FUNCTIONS.PREVIEW_PAGE).toBe("preview_page");
+      expect(SUPABASE_EDGE_FUNCTIONS.ANDROID_KEYSTORE_STATUS).toBe("android-keystore-status");
+      expect(SUPABASE_EDGE_FUNCTIONS.ANDROID_KEYSTORE_GENERATE).toBe("android-keystore-generate");
+      expect(SUPABASE_EDGE_FUNCTIONS.ANDROID_KEYSTORE_EXPORT).toBe("android-keystore-export");
+      expect(SUPABASE_EDGE_FUNCTIONS.K1W1_HANDLER).toBe("k1w1-handler");
+    });
+  });
+
 });
