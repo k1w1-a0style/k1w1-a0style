@@ -31,24 +31,24 @@ export { parseJsonBody } from "../_shared/validation.ts";
 
 export const DEFAULT_MODELS = {
   groq: {
-    speed: "llama-3.1-8b-instant",
+    speed: "groq/compound-mini",
     quality: "llama-3.3-70b-versatile",
   },
   gemini: {
-    speed: "gemini-1.5-flash",
-    quality: "gemini-1.5-pro",
+    speed: "gemini-2.5-flash-lite",
+    quality: "gemini-2.5-flash",
   },
   openai: {
     speed: "gpt-4o-mini",
     quality: "gpt-4o",
   },
   anthropic: {
-    speed: "claude-3-5-haiku-latest",
-    quality: "claude-3-5-sonnet-latest",
+    speed: "claude-3-5-haiku-20241022",
+    quality: "claude-3-5-sonnet-20241022",
   },
   huggingface: {
-    speed: "mistralai/Mistral-7B-Instruct-v0.3",
-    quality: "meta-llama/Llama-3.1-70B-Instruct",
+    speed: "Qwen/Qwen2.5-7B-Instruct",
+    quality: "Qwen/Qwen2.5-Coder-32B-Instruct",
   },
 } as const;
 
@@ -107,26 +107,45 @@ export async function callGroq(
 
   const url = "https://api.groq.com/openai/v1/chat/completions";
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: body.messages,
-      temperature: 0.2,
-      max_tokens: 2048,
-    }),
-  });
+  const doRequest = async (modelId: string) => {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: modelId,
+        messages: body.messages,
+        temperature: 0.2,
+        max_tokens: 2048,
+      }),
+    });
 
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`groq_http_${res.status}: ${txt}`);
+    if (!res.ok) {
+      const txt = await res.text();
+      return { ok: false as const, status: res.status, text: txt };
+    }
+
+    return { ok: true as const, json: await res.json() };
+  };
+
+  const primary = await doRequest(model);
+  const fallbackModel = model.startsWith("groq/") ? model.slice("groq/".length) : model;
+
+  let json;
+  if (primary.ok) {
+    json = primary.json;
+  } else if (fallbackModel !== model && (primary.status === 404 || /model/i.test(primary.text))) {
+    const fallback = await doRequest(fallbackModel);
+    if (!fallback.ok) {
+      throw new Error(`groq_http_${fallback.status}: ${fallback.text}`);
+    }
+    json = fallback.json;
+  } else {
+    throw new Error(`groq_http_${primary.status}: ${primary.text}`);
   }
 
-  const json = await res.json();
   const content =
     json?.choices?.[0]?.message?.content ??
     json?.choices?.[0]?.delta?.content ??
@@ -150,7 +169,7 @@ export async function callGemini(
 
   const contents = toGeminiContents(body.messages);
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const res = await fetch(url, {
     method: "POST",
