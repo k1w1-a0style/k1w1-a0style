@@ -82,6 +82,13 @@ describe("Invariants: repo/branch selection is source of truth", () => {
     expect(src).toContain("tscExit: artifactResult?.tsc_exit ?? null");
   });
 
+  it("uses shared edge function constant for artifact-json endpoint", () => {
+    const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
+
+    expect(src).toContain("SUPABASE_EDGE_FUNCTIONS.GITHUB_RUN_ARTIFACT_JSON");
+    expect(src).not.toContain("`${edgeUrl}/github-run-artifact-json`");
+  });
+
   it("keeps managed markers in embedded workflow templates", () => {
     const src = read("supabase/functions/github-workflow-dispatch/index.ts");
 

@@ -140,7 +140,7 @@ export function useCiLiteWorkflow() {
             ? "ci-logs/ci-lite-autofix-result.json"
             : "ci-logs/ci-lite-result.json";
 
-        const resp = await fetch(`${edgeUrl}/github-run-artifact-json`, {
+        const resp = await fetch(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_RUN_ARTIFACT_JSON}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
