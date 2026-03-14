@@ -32,6 +32,7 @@ export default function ConnectionsScreen() {
     selectionSource,
     supabaseUrl,
     easProjectId,
+    easLastVerifiedAt,
 
     // Connection lights
     githubOk,
@@ -144,6 +145,7 @@ export default function ConnectionsScreen() {
           supabaseUrl={supabaseUrl}
           supabaseRef={supabaseRef}
           easProjectId={easProjectId}
+          easLastVerifiedAt={easLastVerifiedAt}
           githubOk={githubOk}
           githubUser={githubUser}
           githubScopes={githubScopes}

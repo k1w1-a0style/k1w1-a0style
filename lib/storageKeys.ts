@@ -20,6 +20,7 @@ export const STORAGE_KEYS = {
   CONN_SUPABASE_OK: "conn_supabase_ok",
   CONN_SUPABASE_REF: "conn_supabase_ref",
   CONN_EAS_OK: "conn_eas_ok",
+  CONN_EAS_LAST_VERIFIED_AT: "conn_eas_last_verified_at",
 
   // Repo connection (explicit user action / UX)
   CONN_REPO_OK: "conn_repo_ok",
