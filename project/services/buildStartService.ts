@@ -20,6 +20,7 @@ import {
   ERR_BRANCH_MISSING,
   ERR_DIAGNOSTIC_NOT_GREEN,
 } from "../../lib/errors/buildReadinessErrors";
+import { getRepoSyncState, markRepoSyncSignature } from "../../lib/repoSyncOrchestration";
 
 export type StartBuildProfile = "development" | "preview" | "production";
 
@@ -49,6 +50,7 @@ function normalizeBuildJobId(raw: unknown): string | null {
 
 export type BuildReadinessDeps = {
   storageGetItem?: (key: string) => Promise<string | null>;
+  storageSetItem?: (key: string, value: string) => Promise<void>;
   getBranchHeadSha?: (owner: string, repo: string, branch: string) => Promise<string>;
 };
 
@@ -132,8 +134,9 @@ async function bestEffortPushToGitHub(opts: {
   githubRepo: string;
   branch: string;
   files: ProjectFile[];
+  storageSetItem?: (key: string, value: string) => Promise<void>;
 }): Promise<string> {
-  const { githubRepo, branch, files } = opts;
+  const { githubRepo, branch, files, storageSetItem } = opts;
 
   if (!githubRepo || !githubRepo.includes("/")) {
     throw new Error('Kein GitHub-Repo verbunden. Bitte in "Connections" ein Repo verknuepfen.');
@@ -165,6 +168,13 @@ async function bestEffortPushToGitHub(opts: {
     logger.warn("CI/EAS Workflows konnten nicht automatisch gesetzt werden", { err });
   }
 
+  await markRepoSyncSignature({
+    linkedRepo: githubRepo,
+    linkedBranch: branch,
+    files,
+    storageSetItem,
+  });
+
   return branch;
 }
 
@@ -188,14 +198,23 @@ export async function startBuildJob(params: {
   const profile = normalizeProfile(buildProfile);
   const buildBranch = (project.linkedBranch ?? "").trim();
 
-  try {
+  const syncState = await getRepoSyncState({
+    linkedRepo: githubRepo,
+    linkedBranch: buildBranch,
+    files: project.files,
+    storageGetItem: deps?.storageGetItem,
+  });
+  if (syncState === "unknown") {
+    throw new Error("Build blockiert: Sync-Status lokal↔Repo ist unklar. Bitte zuerst explizit pushen und danach erneut starten.");
+  }
+
+  if (syncState === "out_of_sync") {
     await bestEffortPushToGitHub({
       githubRepo,
       branch: buildBranch,
       files: project.files,
+      storageSetItem: deps?.storageSetItem,
     });
-  } catch (e) {
-    logger.warn("Auto-Push nach GitHub fehlgeschlagen. Build nutzt evtl. alten Repo-Stand", { err: e });
   }
 
   const supabase = await ensureSupabaseClient();

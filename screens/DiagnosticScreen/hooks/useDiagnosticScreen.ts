@@ -273,6 +273,7 @@ export function useDiagnosticScreen(opts: {
           includePipelineChecks,
           linkedRepo,
           linkedBranch,
+          files,
           pipelineAppliesToFocus,
           all,
           mountedRef,
@@ -533,4 +534,3 @@ export function useDiagnosticScreen(opts: {
     headerStats,
   };
 }
-
