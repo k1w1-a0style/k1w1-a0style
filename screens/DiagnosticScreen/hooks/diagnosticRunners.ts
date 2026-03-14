@@ -15,6 +15,7 @@ import type { PreflightCheckResult, PreflightTarget } from "../../../lib/diagnos
 import { runPreflightChecksProgressive } from "../../../lib/diagnostics/preflightRunner";
 import { runBuildPipelineDiagnostics } from "../../../lib/diagnostics/buildPipelineDiagnostics";
 import { parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
+import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
 
 import { useDiagnosticCiAutofix } from "./useDiagnosticCiAutofix";
 
@@ -104,6 +105,7 @@ export async function runPipelineChecks(params: {
   includePipelineChecks: boolean;
   linkedRepo: string;
   linkedBranch?: string;
+  files: any[];
   pipelineAppliesToFocus: (id: string) => boolean;
   all: PreflightCheckResult[];
   mountedRef: MutableRefObject<boolean>;
@@ -114,6 +116,7 @@ export async function runPipelineChecks(params: {
     includePipelineChecks,
     linkedRepo,
     linkedBranch,
+    files,
     pipelineAppliesToFocus,
     all,
     mountedRef,
@@ -125,6 +128,26 @@ export async function runPipelineChecks(params: {
   if (!parsed) return;
   const branch = (linkedBranch || "").trim();
   if (!branch) return;
+
+  const syncState = await getRepoSyncState({
+    linkedRepo,
+    linkedBranch: branch,
+    files: files as any,
+  });
+  if (syncState !== "in_sync") {
+    all.push({
+      id: "pipeline::repoSyncRequired",
+      title: "Pipeline Diagnostics",
+      severity: "high",
+      status: "fail",
+      message:
+        syncState === "out_of_sync"
+          ? "Pipeline-Checks blockiert: Lokale Änderungen sind noch nicht zum gewählten Repo/Branch gepusht."
+          : "Pipeline-Checks blockiert: Sync-Status lokal↔Repo ist unklar. Bitte zuerst explizit pushen.",
+    });
+    if (mountedRef.current) setResults([...all]);
+    return;
+  }
 
   try {
     if (!mountedRef.current) return;
@@ -176,4 +199,3 @@ export async function runPipelineChecks(params: {
     if (mountedRef.current) setResults([...all]);
   }
 }
-

@@ -19,6 +19,7 @@ import {
   patchTouchedPaths,
 } from "../../../lib/diagnostics/fixSafety";
 import type { PreflightPatch } from "../../../lib/diagnostics/preflightTypes";
+import { markRepoSyncSignature } from "../../../lib/repoSyncOrchestration";
 
 interface UseCiLitePatchOpts {
   githubRepo: string;
@@ -209,6 +210,11 @@ export function useCiLitePatch({ githubRepo, branch }: UseCiLitePatchOpts) {
 
       if (upserts.length) await pushFilesToRepo(owner, repo, upserts as any, targetBranch);
       for (const p of deletePaths) await deleteRepoFile(owner, repo, p, `Delete ${p}`, targetBranch);
+      await markRepoSyncSignature({
+        linkedRepo: githubRepo,
+        linkedBranch: targetBranch,
+        files: Array.from(nextMap.entries()).map(([path, content]) => ({ path, content } as any)),
+      });
     } catch (syncErr: any) {
       console.warn("[CI Lite] Auto-Sync failed:", syncErr);
       setPatchInfo((prev) => `${prev || ""}\n\n⚠️ Auto-Sync fehlgeschlagen: ${syncErr?.message || String(syncErr)}`);

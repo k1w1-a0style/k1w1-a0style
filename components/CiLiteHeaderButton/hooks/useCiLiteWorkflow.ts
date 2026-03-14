@@ -15,6 +15,7 @@ import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
 import { computeCiLiteOk, findWorkflowRunByJobId, inferStepStates, safeUi } from "../../ciLite/ciLiteUtils";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { WORKFLOW_CI_LITE, WORKFLOW_CI_LITE_AUTOFIX, type StepState } from "../types";
+import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
 
 export function useCiLiteWorkflow() {
   const { projectData } = useProject();
@@ -397,6 +398,19 @@ export function useCiLiteWorkflow() {
         if (!targetBranch) {
           throw new Error("CI Lite blockiert: Kein Branch verknüpft. Bitte im Repo-Screen einen Branch auswählen.");
         }
+
+        const syncState = await getRepoSyncState({
+          linkedRepo: githubRepo,
+          linkedBranch: targetBranch,
+          files: projectData?.files ?? [],
+        });
+        if (syncState !== "in_sync") {
+          throw new Error(
+            syncState === "out_of_sync"
+              ? "CI Lite blockiert: Lokale Änderungen sind noch nicht im gewählten Repo/Branch. Bitte zuerst pushen."
+              : "CI Lite blockiert: Sync-Status lokal↔Repo ist unklar. Bitte zuerst explizit pushen.",
+          );
+        }
         setTargetRef(targetBranch);
 
         const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
@@ -455,7 +469,7 @@ export function useCiLiteWorkflow() {
         setDispatching(false);
       }
     },
-    [githubRepo, branch, stopPolling, findRunByJobId],
+    [githubRepo, branch, stopPolling, findRunByJobId, projectData?.files],
   );
 
 

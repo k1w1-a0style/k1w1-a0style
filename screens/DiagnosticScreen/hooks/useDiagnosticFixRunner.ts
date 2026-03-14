@@ -15,6 +15,7 @@ import {
   summarizeBatchLimits,
   summarizeBatchRisk,
 } from "../../../lib/diagnostics/fixSafety";
+import { markRepoSyncSignature } from "../../../lib/repoSyncOrchestration";
 import { validateFileContent, validateFilePath } from "../../../lib/validators";
 import { createOrUpdateFile, deleteRepoFile, triggerWorkflow } from "../../../infra/github/githubService";
 import { parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
@@ -224,6 +225,12 @@ export function useDiagnosticFixRunner(opts: {
       for (const p of Array.from(deletedSet)) {
         await deleteRepoFile(parsed.owner, parsed.repo, p, `Diagnostics: ${label}`, branch);
       }
+
+      await markRepoSyncSignature({
+        linkedRepo,
+        linkedBranch: branch,
+        files: projectRef.current?.files ?? [],
+      });
     },
     [linkedRepo, linkedBranch, patchTouchedPaths, projectRef],
   );

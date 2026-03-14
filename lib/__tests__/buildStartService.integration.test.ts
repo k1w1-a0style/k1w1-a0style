@@ -5,11 +5,14 @@
  */
 import type { ProjectData } from "../../shared/types/project";
 import { STORAGE_KEYS } from "../../lib/storageKeys";
+import { computeProjectFilesSignature } from "../../lib/repoSyncOrchestration";
 
 const mockGetItem = jest.fn();
+const mockSetItem = jest.fn();
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
   getItem: (...args: any[]) => mockGetItem(...args),
+  setItem: (...args: any[]) => mockSetItem(...args),
 }));
 
 jest.mock("../../lib/logger", () => ({
@@ -68,9 +71,19 @@ function makeProject(overrides: Partial<ProjectData> = {}): ProjectData {
   } as any;
 }
 
+function repoSyncKey(repo: string, branch: string): string {
+  return `repo_sync_signature::${encodeURIComponent(repo.trim().toLowerCase())}::${encodeURIComponent(branch.trim())}`;
+}
+
 describe("startBuildJob (integration)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSetItem.mockResolvedValue(undefined);
+    const project = makeProject();
+    const repo = "k1w1-a0style/musik-player";
+    const branch = "main";
+    const syncKey = repoSyncKey(repo, branch);
+    const syncSig = `stale:${computeProjectFilesSignature(project.files as any)}`;
     mockGetItem.mockImplementation(async (key: string) => {
       switch (key) {
         case STORAGE_KEYS.DIAGNOSTIC_LAST_OK:
@@ -85,6 +98,8 @@ describe("startBuildJob (integration)", () => {
           return "1111111111111111111111111111111111111111";
         case STORAGE_KEYS.CI_LITE_LAST_RUN_AT:
           return String(Date.now());
+        case syncKey:
+          return syncSig;
         default:
           return null;
       }
@@ -135,6 +150,8 @@ describe("startBuildJob (integration)", () => {
   it("uses linkedBranch when push fails", async () => {
     mockGitHub.pushFilesToRepo.mockRejectedValueOnce(new Error("push failed"));
     const project = makeProject({ linkedBranch: "dev" });
+    const syncKey = repoSyncKey("k1w1-a0style/musik-player", "dev");
+    const syncSig = `stale:${computeProjectFilesSignature(project.files as any)}`;
     mockGetItem.mockImplementation(async (key: string) => {
       switch (key) {
         case STORAGE_KEYS.DIAGNOSTIC_LAST_OK:
@@ -149,6 +166,8 @@ describe("startBuildJob (integration)", () => {
           return "1111111111111111111111111111111111111111";
         case STORAGE_KEYS.CI_LITE_LAST_RUN_AT:
           return String(Date.now());
+        case syncKey:
+          return syncSig;
         default:
           return null;
       }
@@ -191,5 +210,63 @@ describe("startBuildJob (integration)", () => {
     await expect(
       startBuildJob({ project: makeProject(), buildProfile: "production" }),
     ).rejects.toThrow(/positive numerische ID erwartet/i);
+  });
+
+  it("skips push when local and tracked remote signature are already in sync", async () => {
+    const project = makeProject();
+    const syncKey = repoSyncKey("k1w1-a0style/musik-player", "main");
+    const syncSig = computeProjectFilesSignature(project.files as any);
+    mockGetItem.mockImplementation(async (key: string) => {
+      switch (key) {
+        case STORAGE_KEYS.DIAGNOSTIC_LAST_OK:
+        case STORAGE_KEYS.CI_LITE_LINT_OK:
+        case STORAGE_KEYS.CI_LITE_TYPECHECK_OK:
+          return "true";
+        case STORAGE_KEYS.CI_LITE_LAST_REPO:
+          return "k1w1-a0style/musik-player";
+        case STORAGE_KEYS.CI_LITE_LAST_BRANCH:
+          return "main";
+        case STORAGE_KEYS.CI_LITE_LAST_SHA:
+          return "1111111111111111111111111111111111111111";
+        case STORAGE_KEYS.CI_LITE_LAST_RUN_AT:
+          return String(Date.now());
+        case syncKey:
+          return syncSig;
+        default:
+          return null;
+      }
+    });
+
+    await startBuildJob({ project, buildProfile: "preview" });
+
+    expect(mockGitHub.pushFilesToRepo).not.toHaveBeenCalled();
+    expect(mockAutoFix.autoFixCIWorkflows).not.toHaveBeenCalled();
+    expect(mockInvoke).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks build conservatively when sync state is unknown", async () => {
+    const project = makeProject({ linkedBranch: "release" });
+    mockGetItem.mockImplementation(async (key: string) => {
+      switch (key) {
+        case STORAGE_KEYS.DIAGNOSTIC_LAST_OK:
+        case STORAGE_KEYS.CI_LITE_LINT_OK:
+        case STORAGE_KEYS.CI_LITE_TYPECHECK_OK:
+          return "true";
+        case STORAGE_KEYS.CI_LITE_LAST_REPO:
+          return "k1w1-a0style/musik-player";
+        case STORAGE_KEYS.CI_LITE_LAST_BRANCH:
+          return "release";
+        case STORAGE_KEYS.CI_LITE_LAST_SHA:
+          return "1111111111111111111111111111111111111111";
+        case STORAGE_KEYS.CI_LITE_LAST_RUN_AT:
+          return String(Date.now());
+        default:
+          return null;
+      }
+    });
+
+    await expect(startBuildJob({ project, buildProfile: "preview" })).rejects.toThrow(/Sync-Status/i);
+    expect(mockGitHub.pushFilesToRepo).not.toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalled();
   });
 });
