@@ -77,9 +77,9 @@ export function usePreviewFullscreen() {
 
   // ─── Derived ───────────────────────────────────────────────────────────────
   const headerSubtitle = useMemo(() => {
-    if (mode === 'html') return 'Local HTML Preview';
-    if (mode === 'url' && url) return truncateUrl(url, 60);
-    return 'Keine Preview';
+    if (mode === 'html') return 'Technischer Fallback: Lokale HTML-Preview';
+    if (mode === 'url' && url) return `Aktive Supabase-Preview · ${truncateUrl(url, 40)}`;
+    return 'Keine Preview aktiv';
   }, [mode, url]);
 
   // ─── Handlers ──────────────────────────────────────────────────────────────

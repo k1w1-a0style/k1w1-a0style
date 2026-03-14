@@ -16,10 +16,10 @@ describe("previewHelpers", () => {
   test("formatPreviewExpiry returns readable validity states", () => {
     const now = new Date("2026-03-14T10:00:00.000Z");
 
-    expect(formatPreviewExpiry(null, now)).toBe("Keine Ablaufzeit vorhanden");
-    expect(formatPreviewExpiry("invalid", now)).toBe("Ablaufzeit unbekannt");
+    expect(formatPreviewExpiry(null, now)).toBe("Kein Ablauf hinterlegt (letzter bekannter Stand)");
+    expect(formatPreviewExpiry("invalid", now)).toBe("Ablaufzeit konnte nicht gelesen werden");
     expect(formatPreviewExpiry("2026-03-14T09:59:00.000Z", now)).toBe(
-      "Abgelaufen – bitte Preview neu erstellen",
+      "Abgelaufen – letzter Stand sichtbar, bitte neu erstellen",
     );
     expect(formatPreviewExpiry("2026-03-14T10:20:00.000Z", now)).toBe(
       "Gültig für ca. 20 min",
@@ -28,12 +28,12 @@ describe("previewHelpers", () => {
 
   test("labels communicate primary supabase path and fallback", () => {
     expect(getPreviewChannelLabel("supabase")).toBe(
-      "Bevorzugter Browser-/WebView-Preview-Weg",
+      "Aktive Supabase-Preview (Browser/QR)",
     );
     expect(getPreviewChannelLabel("local")).toBe(
-      "Technischer Local-HTML-Fallback",
+      "Technischer Fallback: Lokale HTML-Preview",
     );
-    expect(getPreviewChannelLabel(null)).toBe("Noch keine Preview erstellt");
+    expect(getPreviewChannelLabel(null)).toBe("Noch keine Preview aktiv");
   });
 
   test("buildQrImageUrl encodes preview URL", () => {

@@ -173,17 +173,35 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
   // Restore last preview from persisted project data (fast toggle from header)
   useEffect(() => {
     const persisted = projectData?.lastPreview ?? null;
-    if (!persisted) return;
     setLastPreviewState((prev) => {
-      if (prev) return prev;
-      return {
+      if (!persisted) return null;
+
+      const restored: PreviewResult = {
         url: persisted.url ?? null,
         html: null,
         expiresAt: persisted.expiresAt ?? null,
         source: persisted.source,
       };
+
+      // Keep in-memory HTML only when the persisted metadata still matches.
+      // This avoids stale preview carry-over when switching projects/screens.
+      if (
+        prev &&
+        prev.url === restored.url &&
+        prev.source === restored.source &&
+        prev.expiresAt === restored.expiresAt
+      ) {
+        return prev;
+      }
+
+      return restored;
     });
-  }, [projectData?.lastPreview?.url, projectData?.lastPreview?.source]);
+  }, [
+    projectData?.id,
+    projectData?.lastPreview?.url,
+    projectData?.lastPreview?.source,
+    projectData?.lastPreview?.expiresAt,
+  ]);
 
   useEffect(() => {
     isAliveRef.current = true;
