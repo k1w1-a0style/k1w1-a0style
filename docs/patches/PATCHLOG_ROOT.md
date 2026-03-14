@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 430: Live-Reachability-Audit für 5 KI-Provider mit realen Smoke-Requests; in dieser Umgebung alle Checks als missing_secret klassifiziert; k1w1-Handler-HTTP-Fehler enthalten jetzt konsistent provider+model-Kontext, Groq-Fallback liefert resolved model zurück
 - Patch 429: KI-Provider-/Modell-Audit; k1w1-Edge-Defaults auf aktuelle app-konsistente Modelle gehärtet, Groq-Prefix-Fallback ergänzt, Invariants erweitert
 - Patch 428: Zweiter Korrektheits-Check; flakiges One-Click-Deploy-Timeout im Test stabilisiert (kein Produktionscode-Drift)
 - Patch 427: Supabase-Function-Flow-Audit; Credentials-Wizard meldet Edge-HTTP-/Timeout-Fehler jetzt vertragstreu statt generisch

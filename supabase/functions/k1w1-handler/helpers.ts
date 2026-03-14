@@ -90,6 +90,15 @@ export function toGeminiContents(messages: ChatMessage[]) {
   }));
 }
 
+function providerHttpError(
+  provider: string,
+  model: string,
+  status: number,
+  bodyText: string,
+): Error {
+  return new Error(`${provider}_http_${status} (model=${model}): ${bodyText}`);
+}
+
 // ----------------- Provider Calls -----------------
 
 export async function callGroq(
@@ -134,16 +143,18 @@ export async function callGroq(
   const fallbackModel = model.startsWith("groq/") ? model.slice("groq/".length) : model;
 
   let json;
+  let resolvedModel = model;
   if (primary.ok) {
     json = primary.json;
   } else if (fallbackModel !== model && (primary.status === 404 || /model/i.test(primary.text))) {
     const fallback = await doRequest(fallbackModel);
     if (!fallback.ok) {
-      throw new Error(`groq_http_${fallback.status}: ${fallback.text}`);
+      throw providerHttpError("groq", fallbackModel, fallback.status, fallback.text);
     }
     json = fallback.json;
+    resolvedModel = fallbackModel;
   } else {
-    throw new Error(`groq_http_${primary.status}: ${primary.text}`);
+    throw providerHttpError("groq", model, primary.status, primary.text);
   }
 
   const content =
@@ -151,7 +162,7 @@ export async function callGroq(
     json?.choices?.[0]?.delta?.content ??
     "";
 
-  return { content, raw: json, model };
+  return { content, raw: json, model: resolvedModel };
 }
 
 export async function callGemini(
@@ -179,7 +190,7 @@ export async function callGemini(
 
   if (!res.ok) {
     const txt = await res.text();
-    throw new Error(`gemini_http_${res.status}: ${txt}`);
+    throw providerHttpError("gemini", model, res.status, txt);
   }
 
   const json = await res.json();
@@ -231,7 +242,7 @@ export async function callOpenAI(
 
   if (!res.ok) {
     const txt = await res.text();
-    throw new Error(`openai_http_${res.status}: ${txt}`);
+    throw providerHttpError("openai", model, res.status, txt);
   }
 
   const json = await res.json();
@@ -287,7 +298,7 @@ export async function callAnthropic(
 
   if (!res.ok) {
     const txt = await res.text();
-    throw new Error(`anthropic_http_${res.status}: ${txt}`);
+    throw providerHttpError("anthropic", model, res.status, txt);
   }
 
   const json = await res.json();
@@ -333,7 +344,7 @@ export async function callHuggingFace(
 
   if (!res.ok) {
     const txt = await res.text();
-    throw new Error(`huggingface_http_${res.status}: ${txt}`);
+    throw providerHttpError("huggingface", model, res.status, txt);
   }
 
   const json = await res.json();
