@@ -143,13 +143,13 @@ export function shouldAttemptSupabaseFirst(mode: PreviewAttemptMode): boolean {
 }
 
 export function formatPreviewExpiry(expiresAt: string | null, now = new Date()): string {
-  if (!expiresAt) return "Keine Ablaufzeit vorhanden";
+  if (!expiresAt) return "Kein Ablauf hinterlegt (letzter bekannter Stand)";
 
   const expiry = new Date(expiresAt);
-  if (Number.isNaN(expiry.getTime())) return "Ablaufzeit unbekannt";
+  if (Number.isNaN(expiry.getTime())) return "Ablaufzeit konnte nicht gelesen werden";
 
   const diffMs = expiry.getTime() - now.getTime();
-  if (diffMs <= 0) return "Abgelaufen – bitte Preview neu erstellen";
+  if (diffMs <= 0) return "Abgelaufen – letzter Stand sichtbar, bitte neu erstellen";
 
   const minutes = Math.round(diffMs / 60000);
   if (minutes < 60) return `Gültig für ca. ${minutes} min`;
@@ -162,9 +162,9 @@ export function formatPreviewExpiry(expiresAt: string | null, now = new Date()):
 }
 
 export function getPreviewChannelLabel(source: "supabase" | "local" | null): string {
-  if (source === "supabase") return "Bevorzugter Browser-/WebView-Preview-Weg";
-  if (source === "local") return "Technischer Local-HTML-Fallback";
-  return "Noch keine Preview erstellt";
+  if (source === "supabase") return "Aktive Supabase-Preview (Browser/QR)";
+  if (source === "local") return "Technischer Fallback: Lokale HTML-Preview";
+  return "Noch keine Preview aktiv";
 }
 
 export function buildQrImageUrl(previewUrl: string): string {
