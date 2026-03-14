@@ -124,6 +124,26 @@ export async function invokeEdgeJson(
 
   try {
     const data: unknown = bodyText ? JSON.parse(bodyText) : null;
+
+    // Edge functions can reply with HTTP 200 but `{ ok: false, error }`.
+    // Normalize this branch so all callers get the same error-path behavior.
+    if (
+      data &&
+      typeof data === "object" &&
+      "ok" in data &&
+      (data as { ok?: unknown }).ok === false
+    ) {
+      const errorFromBody =
+        typeof (data as { error?: unknown }).error === "string"
+          ? (data as { error?: string }).error
+          : JSON.stringify(data);
+      return {
+        ok: false,
+        error: sanitizeErrorForUi(errorFromBody || "Edge call failed"),
+        debug,
+      };
+    }
+
     return { ok: true, data, debug };
   } catch {
     return { ok: true, data: bodyText, debug };

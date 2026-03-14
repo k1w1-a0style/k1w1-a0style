@@ -1,11 +1,14 @@
 # TODO
 
-Stand: **2026-03-12**
+Stand: **2026-03-14**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
 
 ## Aktuell (Priorität)
+
+- [x] **Supabase Edge E2E-Contract-Audit (App ↔ Edge ↔ DB-Voraussetzungen):** produktiv genutzte Flows geprüft; zentraler Mapping-Drift im Keystore-Wizard behoben (Patch 433).
+- [ ] **Supabase Operator-Runbook nachziehen:** Secrets/DB-Objekte/Deploy-Reihenfolge für Signing + Preview + Workflow-Edges als Checkliste konsolidieren (explizit inkl. manueller Supabase-Schritte).
 
 - [ ] **MD-/Notes-Cleanup abschließen (Kernflächen):** README / INDEX / OVERVIEW / SCREEN-INDEX / PRODUCT-FLOWS weiter konsistent halten, Redundanzen klein halten, operative Navigation priorisieren.
 - [ ] **Dokument-SoT scharf halten:** Kern-MDs als Navigations- und Vertragsfläche; Verlaufsdetails primär in Patchnotes/Patchlog.

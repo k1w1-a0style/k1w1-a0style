@@ -4,6 +4,7 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-14: Patch 433: End-to-End-Supabase-Contract-Audit über produktive Edge-Flows; stilles 200/ok:false-Drift-Risiko im Credentials-Wizard behoben (`invokeEdgeJson` mapped jetzt konsistent auf Fehlerzweig), Regressionstest ergänzt.
 - 2026-03-14: Patch 432: Ownership-Audit-Härtung — zentrale Guard-Regeln für Template/Baseline vs. Chat vs. Diagnosis/Autofix eingeführt; Chat-Writeback auf kritische/template-nahe Pfade blockiert, Diagnosis/Autofix auf kuratierte Pfade begrenzt; Regressionstests für Ownership-Konflikte ergänzt.
 - 2026-03-14: Patch 431: System-Audit-Fix — `diagnostic_last_ok` für Diagnosis→Build-Flow auf Repo/Branch scoped gemacht (legacy fallback bleibt), damit keine falsche Freigabe zwischen unterschiedlichen Selektionen entsteht.
 - 2026-03-14: Patch 430: Live-Reachability-Audit für Groq/Gemini/OpenAI/Anthropic/HuggingFace mit realen Smoke-Requests; in dieser Umgebung alle Provider wegen fehlender Secrets nur als `missing_secret` klassifizierbar. k1w1-Handler-Fehlerverträge um provider+model-Kontext erweitert, Groq-Fallback gibt resolved Modell-ID zurück.
