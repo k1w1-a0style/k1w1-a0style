@@ -80,6 +80,7 @@
 - [x] `lib/apiKeyMasking.ts` Review: UI-Callsites nutzen die zentrale lib-Implementierung (`SettingsScreen`, `AppInfoScreen`) ✅ *(patch 320 Review)*
 
 ### Stabilität
+- [x] Ownership-/Permissions-Guardrails für Template/Baseline vs. Chat vs. Diagnosis/Autofix zentralisiert (Patch 432)
 - [x] Server-side Payload Limits (save_preview): harte max bytes + max files enforced ✅ *(patch 317)*
 - [x] Observability: Edge Function Logs + optionales `meta.debug` (minimal) ✅ *(patch 321)*
 
@@ -87,6 +88,9 @@
 - [x] Shim-Migration gestartet: `ProjectContext`/`ProjectContext.types` importieren `AutoFixRequest`/`LastPreviewMeta` direkt aus `shared/types/project` ✅ *(patch 322)*
 - [x] `any`-Annotationen reduzieren: AIContext-Teil (Patch 323), Orchestrator-Startschritt (Patch 324: openai/anthropic/index) und Provider-Hotspots (Patch 325: gemini/groq/huggingface) erledigt
 - [x] `contexts/types.ts` Shim-Migration: abgeschlossen (keine Runtime-Imports mehr; Shim-Datei entfernt) ✅ *(patch 326)*
+
+### Ownership / Change Permissions (neu)
+- [ ] Optional: feingranulare Freigabe-UI für manuelle Overrides kritischer Pfade (derzeit konservativ vollständig blockiert).
 
 ## Patch 217 (done)
 - ✅ Applied historically: CI Lite bugfixes + Supabase edge SoT expansion + Storage key SoT + tokenStore consistency + Connection Screen SoT.

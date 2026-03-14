@@ -21,6 +21,7 @@ import {
   relativePath, buildImportSpecifiers, isLikelyCodeFile,
   isReferencedByAnyOtherIncoming, isReferencedByAnyExisting,
 } from "./fileWriterHelpers";
+import { canActorModifyPath } from "./projectOwnership";
 
 
 export type ApplyFilesResult = {
@@ -60,6 +61,13 @@ export function applyFilesToProject(existing: ProjectFile[], incoming: ProjectFi
       continue;
     }
     const path = pathRes.normalized;
+
+    const ownershipDecision = canActorModifyPath("chat", path);
+    if (!ownershipDecision.allowed) {
+      skipped.push(path);
+      errors.push(ownershipDecision.reason ?? `Ownership block: ${path}`);
+      continue;
+    }
 
     // Validate content
     const contentRes = validateFileContent(rawContent);

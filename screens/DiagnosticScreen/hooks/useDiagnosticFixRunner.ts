@@ -19,6 +19,7 @@ import { markRepoSyncSignature } from "../../../lib/repoSyncOrchestration";
 import { validateFileContent, validateFilePath } from "../../../lib/validators";
 import { createOrUpdateFile, deleteRepoFile, triggerWorkflow } from "../../../infra/github/githubService";
 import { parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
+import { findOwnershipViolations } from "../../../lib/projectOwnership";
 
 import type {
   FixHistoryEntry,
@@ -261,6 +262,16 @@ export function useDiagnosticFixRunner(opts: {
             return v.normalized;
           })
           .sort();
+
+        const ownershipViolations = findOwnershipViolations("diagnosisAutofix", normalizedTouched);
+        if (ownershipViolations.length) {
+          const details = ownershipViolations
+            .map((v) => `- ${v.path}: ${v.reason}`)
+            .join("\n");
+          throw new Error(
+            `Patch überschreitet Ownership-Grenzen und wurde blockiert:\n${details}`,
+          );
+        }
 
         const currentMap = new Map(currentFiles.map((f) => [f.path, f] as const));
         const snapshot: ProjectFile[] = [];
