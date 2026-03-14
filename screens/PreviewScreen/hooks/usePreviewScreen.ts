@@ -54,6 +54,8 @@ export function usePreviewScreen() {
   const mode = previewSource?.type ?? null;
   const url = previewSource?.type === 'url' ? previewSource.uri : null;
 
+  const previewKind = lastPreview?.source ?? null;
+
   // ─── Shared navigation (eliminiert Duplikat mit PreviewFullscreenScreen) ──
   const { originWhitelist, handleShouldStartLoad } = useWebViewNavigation({
     mode,
@@ -196,6 +198,7 @@ export function usePreviewScreen() {
     state,
     lastPreview,
     previewSource,
+    previewKind,
     phase,
     setPhase,
     webError,

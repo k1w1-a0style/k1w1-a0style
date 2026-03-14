@@ -28,6 +28,7 @@ export default function PreviewScreen() {
     state,
     lastPreview,
     previewSource,
+    previewKind,
     phase,
     setPhase,
     webError,
@@ -95,6 +96,7 @@ export default function PreviewScreen() {
 
       <PreviewStatusBar
         phase={phase}
+        previewKind={previewKind}
         pulseAnim={pulseAnim}
         hotReloadEnabled={hotReloadEnabled}
         hotReloadCount={hotReloadCount}

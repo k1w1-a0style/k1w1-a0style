@@ -13,6 +13,7 @@ import { getEdgeAdminKey } from "../infra/github/githubService";
 import type { PreviewFiles, PreviewResponse } from "../types/preview";
 
 import type { ProjectData, LastPreviewMeta } from "../shared/types/project";
+import { shouldAttemptSupabaseFirst } from "./previewHelpers";
 function promiseWithTimeout<T>(
   promise: Promise<T>,
   ms: number,
@@ -142,7 +143,7 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
   const [isCreating, setIsCreating] = useState(false);
   const [lastCreatedAt, setLastCreatedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { setLastPreview } = useProject();
+  const { setLastPreview, setPreferredPreviewMode } = useProject();
   const [lastPreview, setLastPreviewState] = useState<PreviewResult | null>(null);
 
   // Hardening: prevent concurrent preview creation and avoid state updates after unmount.
@@ -413,6 +414,11 @@ if (container) {
     [],
   );
 
+
+  const preferredMode = projectData?.preferredPreviewMode ?? "supabase";
+
+  const attemptSupabaseFirst = shouldAttemptSupabaseFirst(preferredMode);
+
   const createPreview = useCallback(async (): Promise<PreviewResult | null> => {
     // Singleflight: reuse the in-flight promise (prevents double-tap races).
     if (inFlightRef.current) return inFlightRef.current;
@@ -429,8 +435,8 @@ if (container) {
       try {
         const files = normalizeForWebPreview(ensureMinimumFiles(fileMap));
 
-        // 1) Prefer Supabase-hosted preview
-        try {
+        // 1) Prefer Supabase-hosted preview (visual mode)
+        if (attemptSupabaseFirst) try {
           const supabase = await ensureSupabaseClient();
           const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
 
@@ -494,6 +500,7 @@ if (container) {
               createdAt: new Date().toISOString(),
               expiresAt: result.expiresAt,
             } as LastPreviewMeta);
+            if (setPreferredPreviewMode) await setPreferredPreviewMode("supabase");
             safeSetLastCreatedAt(Date.now());
             return result;
           }
@@ -506,7 +513,7 @@ if (container) {
           );
         }
 
-        // 2) Fallback: Local HTML (best-effort)
+        // 2) Fallback: Local HTML (technical fallback)
         let html: string;
         try {
           html = buildSandpackHtml({
@@ -539,6 +546,9 @@ if (container) {
           createdAt: new Date().toISOString(),
           expiresAt: fallback.expiresAt,
         } as LastPreviewMeta);
+        if (setPreferredPreviewMode && preferredMode !== "supabase") {
+          await setPreferredPreviewMode("local");
+        }
         safeSetLastCreatedAt(Date.now());
         return fallback;
       } catch (e: unknown) {
@@ -568,6 +578,9 @@ if (container) {
     safeSetLastCreatedAt,
     safeSetLastPreviewState,
     setLastPreview,
+    setPreferredPreviewMode,
+    preferredMode,
+    attemptSupabaseFirst,
   ]);
 
   const reset = useCallback(() => {

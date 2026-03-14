@@ -29,6 +29,8 @@ export interface LastPreviewMeta {
   expiresAt?: string | null;
 }
 
+export type PreferredPreviewMode = "supabase" | "local";
+
 export interface ProjectData {
   id?: string;
   name: string;
@@ -64,4 +66,7 @@ export interface ProjectData {
 
   /** Last preview (for quick switching) */
   lastPreview?: LastPreviewMeta | null;
+
+  /** Preferred preview engine for this project (visual supabase default, local fallback optional). */
+  preferredPreviewMode?: PreferredPreviewMode;
 }
