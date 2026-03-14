@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 433: Supabase-Edge E2E-Contract-Audit; Credentials-Wizard Edge-200/Error-Mapping zentral gehärtet und per Jest-Regressionstest abgesichert.
 - Patch 432: Ownership-/Permission-Audit; zentrale Guard-Matrix für Template/Baseline, Chat-Writeback und Diagnosis/Autofix eingeführt, inklusive konservativer Konfliktbehandlung und Regressionstests.
 - Patch 431: System-Audit-Fix — Diagnostic-Status auf Repo/Branch scoped gemacht (mit Legacy-Fallback), damit Diagnosis→Build-Readiness keine Cross-Repo/Cross-Branch-Freigabe mehr erzeugt.
 - Patch 430: Live-Reachability-Audit für 5 KI-Provider mit realen Smoke-Requests; in dieser Umgebung alle Checks als missing_secret klassifiziert; k1w1-Handler-HTTP-Fehler enthalten jetzt konsistent provider+model-Kontext, Groq-Fallback liefert resolved model zurück
