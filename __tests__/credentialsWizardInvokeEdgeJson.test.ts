@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { invokeEdgeJson } from "../screens/CredentialsWizardScreen/hooks/credentialHelpers";
 
 describe("CredentialsWizard invokeEdgeJson contract mapping", () => {
@@ -47,4 +49,15 @@ describe("CredentialsWizard invokeEdgeJson contract mapping", () => {
     if (!res.ok) return;
     expect(res.data).toEqual({ ok: true, exists: true });
   });
+
+  test("credentials wizard uses centralized supabase function constants", () => {
+    const root = process.cwd();
+    const wizard = fs.readFileSync(path.join(root, "screens/CredentialsWizardScreen/hooks/useCredentialsWizardScreen.ts"), "utf8");
+
+    expect(wizard).toContain("SUPABASE_EDGE_FUNCTIONS.ANDROID_KEYSTORE_STATUS");
+    expect(wizard).toContain("SUPABASE_EDGE_FUNCTIONS.ANDROID_KEYSTORE_GENERATE");
+    expect(wizard).not.toContain('"android-keystore-status"');
+    expect(wizard).not.toContain('"android-keystore-generate"');
+  });
+
 });

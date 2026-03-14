@@ -17,6 +17,7 @@ import {
 
 import { useInlineToast } from "../../../components/diagnostics/useInlineToast";
 import { theme } from "../../../theme";
+import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
 
 import type { ApiModeId, ModeDef, StatusResult, UiModeId, WizardHttpDebug } from "../types";
 
@@ -270,7 +271,7 @@ export function useCredentialsWizardScreen() {
 
     try {
       const apiMode = normalizeModeForApi(mode);
-      const r = await invokeEdgeJson(supabaseUrl, "android-keystore-status", adminKey, {
+      const r = await invokeEdgeJson(supabaseUrl, SUPABASE_EDGE_FUNCTIONS.ANDROID_KEYSTORE_STATUS, adminKey, {
         repo: repoFullName,
         mode: apiMode,
       });
@@ -351,7 +352,7 @@ export function useCredentialsWizardScreen() {
 
     try {
       const apiMode = normalizeModeForApi(mode);
-      const r = await invokeEdgeJson(supabaseUrl, "android-keystore-generate", adminKey, {
+      const r = await invokeEdgeJson(supabaseUrl, SUPABASE_EDGE_FUNCTIONS.ANDROID_KEYSTORE_GENERATE, adminKey, {
         repo: repoFullName,
         mode: apiMode,
         // optional: branch rein, damit du später mehr Kontext hast (DB key bleibt repo+mode)

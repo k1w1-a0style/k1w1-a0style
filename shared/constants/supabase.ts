@@ -9,6 +9,11 @@ export const SUPABASE_EDGE_FUNCTIONS = {
   TRIGGER_EAS_BUILD: "trigger-eas-build",
   CHECK_EAS_BUILD: "check-eas-build",
   SAVE_PREVIEW: "save_preview",
+  PREVIEW_PAGE: "preview_page",
+  ANDROID_KEYSTORE_STATUS: "android-keystore-status",
+  ANDROID_KEYSTORE_GENERATE: "android-keystore-generate",
+  ANDROID_KEYSTORE_EXPORT: "android-keystore-export",
+  K1W1_HANDLER: "k1w1-handler",
 } as const;
 
 export type SupabaseEdgeFunctionName =

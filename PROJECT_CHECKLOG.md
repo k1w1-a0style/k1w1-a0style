@@ -4,6 +4,7 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-14: Patch 434: Supabase-E2E-Contract-Audit abgeschlossen; zentrale Supabase-Edge-Function-Konstanten für Signing/Preview/AI vervollständigt und Keystore-Wizard-Calls auf SoT-Constants migriert (Hardcode-Drift entfernt), Invariant-Tests ergänzt.
 - 2026-03-14: Patch 433: End-to-End-Supabase-Contract-Audit über produktive Edge-Flows; stilles 200/ok:false-Drift-Risiko im Credentials-Wizard behoben (`invokeEdgeJson` mapped jetzt konsistent auf Fehlerzweig), Regressionstest ergänzt.
 - 2026-03-14: Patch 432: Ownership-Audit-Härtung — zentrale Guard-Regeln für Template/Baseline vs. Chat vs. Diagnosis/Autofix eingeführt; Chat-Writeback auf kritische/template-nahe Pfade blockiert, Diagnosis/Autofix auf kuratierte Pfade begrenzt; Regressionstests für Ownership-Konflikte ergänzt.
 - 2026-03-14: Patch 431: System-Audit-Fix — `diagnostic_last_ok` für Diagnosis→Build-Flow auf Repo/Branch scoped gemacht (legacy fallback bleibt), damit keine falsche Freigabe zwischen unterschiedlichen Selektionen entsteht.

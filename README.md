@@ -11,7 +11,7 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 433**.
+- Zuletzt abgeschlossen: **Patch 434**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
 - Build-Job-Vertrag ist auf **positive numerische `jobId`** (bigint-backed) ausgerichtet; UUID-Annahmen sind entfernt.
 - Diagnostics-Upload-ID wird clientseitig als **opaque string** behandelt; SQL-Seite bleibt bigint-backed.
