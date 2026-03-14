@@ -19,6 +19,7 @@ import { runOrchestrator } from "../lib/orchestrator";
 import { normalizeAiResponse } from "../lib/normalizer";
 import { logger } from "../lib/logger";
 import { applyFilesToProject } from "../lib/fileWriter";
+import { buildProjectStateDigest, rebasePendingChangeOnLatest } from "../lib/chatFlowStateGuards";
 import { buildBuilderMessages, buildPlannerMessages, buildValidatorMessages } from "../lib/promptEngine";
 import { looksLikeExplicitFileTask, looksLikeAdviceRequest, looksAmbiguousBuilderRequest, buildChangeDigest, buildExplainMessages } from "../utils/chatHeuristics";
 import { handleMetaCommand } from "../utils/metaCommands";
@@ -389,6 +390,7 @@ export function useChatAIFlow({
           }
         }
 
+        const baseProjectDigest = buildProjectStateDigest(currentProjectFiles);
         const mergeResult: ApplyFilesResult = applyFilesToProject(
           currentProjectFiles,
           finalFiles,
@@ -474,6 +476,8 @@ export function useChatAIFlow({
           safe(() =>
             setPendingChange({
               files: mergeResult.files,
+              proposedFiles: finalFiles,
+              baseProjectDigest,
               summary: summaryText,
               created: mergeResult.created,
               updated: mergeResult.updated,
@@ -541,9 +545,32 @@ export function useChatAIFlow({
     safe(() => setShowConfirmModal(false));
 
     try {
-      await updateProjectFiles(pendingChange.files);
+      const latestProjectFiles = projectFilesRef.current;
+      const { applyResult, driftDetected } = rebasePendingChangeOnLatest(
+        latestProjectFiles,
+        pendingChange,
+      );
 
-      const confirmationText = buildChangeConfirmationText(pendingChange);
+      await updateProjectFiles(applyResult.files);
+
+      if (driftDetected) {
+        addChatMessage({
+          id: uuidv4(),
+          role: "system",
+          content:
+            "ℹ️ Projektzustand hat sich seit dem KI-Vorschlag geändert. Änderungen wurden auf den aktuellen Stand neu angewendet.",
+          timestamp: new Date().toISOString(),
+          meta: { stateDrift: true },
+        });
+      }
+
+      const confirmationText = buildChangeConfirmationText({
+        ...pendingChange,
+        files: applyResult.files,
+        created: applyResult.created,
+        updated: applyResult.updated,
+        skipped: applyResult.skipped,
+      });
 
       addChatMessage({
         id: uuidv4(),
