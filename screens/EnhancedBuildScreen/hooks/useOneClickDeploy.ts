@@ -23,6 +23,7 @@ import type { BuildProfile } from "../types";
 export type DeployStepId =
   | "signing_key"
   | "tokens"
+  | "readiness"
   | "secrets_sync"
   | "push_files"
   | "build";
@@ -39,6 +40,7 @@ export type DeployStep = {
 const INITIAL_STEPS: DeployStep[] = [
   { id: "signing_key", label: "Signing Key pruefen", status: "pending" },
   { id: "tokens", label: "Tokens pruefen", status: "pending" },
+  { id: "readiness", label: "Diagnose + CI-Lite pruefen", status: "pending" },
   { id: "secrets_sync", label: "Secrets synchronisieren", status: "pending" },
   { id: "push_files", label: "Dateien pushen", status: "pending" },
   { id: "build", label: "Build starten", status: "pending" },
@@ -107,6 +109,12 @@ export function useOneClickDeploy(
     resetSteps();
 
     try {
+      if (!repoFullName.trim() || !branchName.trim()) {
+        updateStep("readiness", "fail", "Repo/Branch fehlen");
+        Alert.alert("Build nicht bereit", "Bitte zuerst Repo und Branch verknuepfen.");
+        return;
+      }
+
       // === Step 1: Signing Key pruefen ===
       updateStep("signing_key", "running");
       const keyMode = buildProfile === "development" ? "dev" : buildProfile;
@@ -154,7 +162,38 @@ export function useOneClickDeploy(
       }
       updateStep("tokens", "ok", "GitHub + Expo OK");
 
-      // === Step 3: Secrets synchronisieren (optional) ===
+      // === Step 3: Readiness (Diagnostic + CI-Lite + Repo/Branch Match) ===
+      updateStep("readiness", "running");
+      const [diagVal, lintOk, typeOk, lastRepo, lastBranch, lastRunAt] = await Promise.all([
+        AsyncStorage.getItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_LINT_OK).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_TYPECHECK_OK).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_LAST_REPO).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_LAST_BRANCH).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_LAST_RUN_AT).catch(() => null),
+      ]);
+      if (abortRef.current) return;
+
+      const repoMatches = (lastRepo ?? "").trim() === (repoFullName ?? "").trim();
+      const branchMatches = (lastBranch ?? "").trim() === (branchName ?? "").trim();
+      const runTs = Number(lastRunAt ?? "");
+      const stale = !Number.isFinite(runTs) || runTs <= 0 || Date.now() - runTs > 6 * 60 * 60 * 1000;
+
+      let readinessReason: string | null = null;
+      if (diagVal !== "true") readinessReason = "Diagnostik nicht gruen";
+      else if (lintOk !== "true" || typeOk !== "true") readinessReason = "CI-Lite Lint/Typecheck nicht gruen";
+      else if (!repoMatches) readinessReason = "CI-Lite gehoert zu anderem Repo";
+      else if (!branchMatches) readinessReason = "CI-Lite gehoert zu anderem Branch";
+      else if (stale) readinessReason = "CI-Lite ist veraltet";
+
+      if (readinessReason) {
+        updateStep("readiness", "fail", readinessReason);
+        Alert.alert("Build nicht bereit", `${readinessReason}. Bitte Diagnostic + Header-Checks erneut ausfuehren.`);
+        return;
+      }
+      updateStep("readiness", "ok", "Diagnostik + CI-Lite OK");
+
+      // === Step 4: Secrets synchronisieren (optional) ===
       if (!autoSyncSecrets) {
         updateStep("secrets_sync", "skip", "Auto-Sync deaktiviert");
       } else {
@@ -181,7 +220,7 @@ export function useOneClickDeploy(
         }
       }
 
-      // === Step 4: Dateien pushen ===
+      // === Step 5: Dateien pushen ===
       updateStep("push_files", "running");
       if (abortRef.current) return;
 
@@ -206,7 +245,7 @@ export function useOneClickDeploy(
         return;
       }
 
-      // === Step 5: Build starten ===
+      // === Step 6: Build starten ===
       updateStep("build", "running");
       if (abortRef.current) return;
 

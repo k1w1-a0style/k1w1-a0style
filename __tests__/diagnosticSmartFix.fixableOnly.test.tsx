@@ -68,4 +68,57 @@ describe("useDiagnosticFixRunner smartFix", () => {
 
     expect(updateProjectFiles).toHaveBeenCalledTimes(1);
   });
+
+
+  test("does not auto-apply warn-only fixes in smartFix", async () => {
+    const updateProjectFiles = jest.fn(async () => undefined);
+    const projectRef = {
+      current: {
+        id: "p1",
+        name: "demo",
+        files: [{ path: "app.json", content: "{}" }],
+      } as any as ProjectData,
+    };
+
+    const warnOnly: PreflightCheckResult[] = [
+      {
+        id: "warn-fixable",
+        title: "Warn fixable",
+        status: "warn",
+        fix: { patch: { upsert: [{ path: "app.json", content: '{"expo":{}}' }] } as any, label: "fix" },
+      } as any,
+    ];
+
+    const alertSpy = jest.spyOn(require("react-native").Alert, "alert").mockImplementation(() => {});
+
+    const getApi = createHarness(() =>
+      useDiagnosticFixRunner({
+        projectRef: projectRef as any,
+        mountedRef: { current: true } as any,
+        linkedRepo: "",
+        linkedBranch: "main",
+        updateProjectFiles,
+        deleteFile: jest.fn(async () => undefined),
+        syncFixesToGitHub: false,
+        rerunAfterFix: false,
+        autoFixIncludeWarn: true,
+        autoFixScope: "all",
+        sortedResults: warnOnly,
+        visibleResults: warnOnly,
+        fixableResults: warnOnly,
+        selected: {},
+        setSelected: jest.fn(),
+        runDiagnostics: jest.fn(async () => undefined),
+      }),
+    );
+
+    await act(async () => {
+      await getApi().smartFix();
+    });
+
+    expect(updateProjectFiles).not.toHaveBeenCalled();
+    expect(alertSpy).toHaveBeenCalled();
+    alertSpy.mockRestore();
+  });
+
 });
