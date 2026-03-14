@@ -4,6 +4,7 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-14: Patch 428: Zweiter Korrektheits-Check durchgeführt; rote Suite auf `__tests__/oneClickDeploy.test.tsx` durch konservative Timeout-Stabilisierung im Test behoben (kein Produktionscode geändert).
 - 2026-03-14: Patch 427: Supabase-Function-Flow-Audit — Keystore-Wizard-Edge-Aufrufe mit hartem Timeout und ehrlicher HTTP-Fehlerextraktion (JSON error/message + Details-Fallback) gehärtet.
 - 2026-03-14: Patch 426: Chat/KI-Änderungsfluss konservativ gehärtet — Pending-Änderungen werden vor Persistenz auf den aktuellen Projektstand rebased; Zustandsdrift wird transparent im Chat signalisiert; Guard-Regressionstests ergänzt.
 - 2026-03-14: Patch 425: Diagnosis/Autofix/One-Click-Kette konservativ gehärtet — One-Click blockiert jetzt explizit bei fehlender/grenzwertiger Readiness (Diagnostic, CI-Lite, Repo/Branch-Match, Freshness); mode-abhängige Pipeline-Filterlogik testbar gemacht.
