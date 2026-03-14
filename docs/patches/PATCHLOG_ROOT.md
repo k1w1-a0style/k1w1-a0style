@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 435: Supabase E2E contract close-out — audited Preview/Workflow/Signing/AI edge contracts end-to-end, documented explicit remaining operator dependencies, and fixed `github-run-artifact-json` ZIP path normalization for backslash-separated entries.
 - Patch 434: Abschluss des großen Supabase-E2E-Contract-Audits; zentrale Edge-Function-SoT um produktive Signing/Preview/AI-Endpunkte ergänzt und Credentials-Wizard auf Constants statt Hardcodes umgestellt (inkl. Invariant-Tests).
 - Patch 433: Supabase-Edge E2E-Contract-Audit; Credentials-Wizard Edge-200/Error-Mapping zentral gehärtet und per Jest-Regressionstest abgesichert.
 - Patch 432: Ownership-/Permission-Audit; zentrale Guard-Matrix für Template/Baseline, Chat-Writeback und Diagnosis/Autofix eingeführt, inklusive konservativer Konfliktbehandlung und Regressionstests.
@@ -53,3 +54,4 @@ Append-only Überblick über Patch-Notizen.
 ## Legacy patch-337 references
 - docs/patches/patch_337.md
 - docs/patches/PATCH_337_NOTES.md
+

@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-03-14**
+Stand: **2026-03-14 (Patch 435)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
@@ -9,6 +9,7 @@ Stand: **2026-03-14**
 
 - [x] **Supabase Edge E2E-Contract-Audit (App ↔ Edge ↔ DB-Voraussetzungen):** produktiv genutzte Flows geprüft; zentrale Mapping-/Endpoint-Drifts (inkl. Keystore-Wizard + Function-Name-SoT) geschlossen (Patch 433/434).
 - [ ] **Supabase Operator-Runbook nachziehen:** Secrets/DB-Objekte/Deploy-Reihenfolge für Signing + Preview + Workflow-Edges als Checkliste konsolidieren (explizit inkl. manueller Supabase-Schritte).
+  - Konkret offen: `build_jobs`, `signing_android`, `signing_audit_log`, `previews` (inkl. TTL/Cleanup), Storage-Buckets inkl. Zugriffspfade, sowie Secrets (`K1W1_SUPABASE_URL`, `K1W1_SUPABASE_SERVICE_ROLE_KEY`, `PREVIEW_SUPABASE_URL`, `PREVIEW_SERVICE_ROLE_KEY`, `K1W1_PREVIEW_PAGE_TIMEOUT_MS`, `K1W1_SIGNING_MASTER_KEY`, `K1W1_SIGNING_BUCKET`, `K1W1_EDGE_ADMIN_KEY`, GitHub token envs).
 
 - [ ] **MD-/Notes-Cleanup abschließen (Kernflächen):** README / INDEX / OVERVIEW / SCREEN-INDEX / PRODUCT-FLOWS weiter konsistent halten, Redundanzen klein halten, operative Navigation priorisieren.
 - [ ] **Dokument-SoT scharf halten:** Kern-MDs als Navigations- und Vertragsfläche; Verlaufsdetails primär in Patchnotes/Patchlog.
@@ -25,6 +26,7 @@ Stand: **2026-03-14**
 
 ## Kürzlich abgeschlossen (Kontext)
 
+- [x] Patch 435 — End-to-End-Vertragsprüfung weiter abgeschlossen: App↔Edge-Mapping für Preview/Workflow/Artifact/Signing/AI quergelesen; verbleibende Operator-Abhängigkeiten explizit dokumentiert; Artifact-ZIP-Pfadnormalisierung für Windows-Separatoren gehärtet.
 - [x] Patch 434 — Supabase-E2E-Contract-Audit abgeschlossen; Function-Name-SoT für Signing/Preview/AI ergänzt, Wizard-Hardcodes entfernt, Invariant-Tests ergänzt.
 - [x] Patch 418 V1 — Trust-/Docs-Konsolidierung der Kern-MDs und Sammeln offener Restpunkte.
 - [x] Patch 417 V18 — Patch-Artefakt-Re-Commit im Repo-Root bereinigt und per Ignore-Regeln abgesichert.
