@@ -38,6 +38,8 @@ import { handleMetaCommand } from "../utils/metaCommands";
 
 export type PendingChange = {
   files: ProjectFile[];
+  proposedFiles?: ProjectFile[];
+  baseProjectDigest?: string;
   summary: string;
   created: string[];
   updated: string[];

@@ -13,5 +13,6 @@ export interface ChatMessage {
     planner?: boolean;
     error?: boolean;
     keyRotation?: boolean;
+    stateDrift?: boolean;
   };
 }

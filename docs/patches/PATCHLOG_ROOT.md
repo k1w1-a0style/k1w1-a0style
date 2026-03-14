@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 426: Chat/KI-Confirm→Apply-Pfad gegen Zustandsdrift gehärtet (Rebase auf latest project state + transparente Drift-Meldung + Guard-Regressionstests)
 - Patch 425: One-Click-Deploy um hartes Readiness-Gate (Diagnostik + CI-Lite + Repo/Branch-Frische) erweitert; mode-abhängige Pipeline-Filterlogik testbar extrahiert
 - Patch 424: Supabase-Preview als offiziellen Browser-/QR-Preview-Weg im Produkt klarer markiert (URL-/Expiry-/Fallback-Transparenz, QR-Aktion ohne Architekturumbau)
 - Patch 423: konservatives Machbarkeits-Audit für Expo Web / QR-Web-Preview (ohne Umbau); Empfehlung B mit minimalen Vorarbeiten
