@@ -4,6 +4,7 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-14: Patch 424: Supabase-Preview produktseitig als bevorzugter Browser-/WebView-Weg geschärft; klare URL-/Expiry-/Fallback-Kommunikation und QR-Aktion für bestehende Preview-URL ergänzt.
 - 2026-03-14: Patch 423: Machbarkeits-Audit für Expo Web / QR-Web-Preview abgeschlossen; Empfehlung B (gezielte Vorarbeiten vor offizieller Aktivierung), Supabase-URL-Preview kurzfristig realistischer.
 - 2026-03-13: Patch 422: E2E-Traceability gehärtet — Build-History-Updates nutzen für laufende Jobs eine job-gebundene Snapshot-Selektion (Repo/Branch/Profil) statt potenziell driftendem UI-Zwischenzustand.
 - 2026-03-13: Patch 421: Build-Transparenz gehärtet — effektive Repo/Branch/Profil-Werte werden im Start-/Statusfluss konsistent in `currentBuild` + Historie getragen und im Build-Screen explizit angezeigt.

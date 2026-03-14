@@ -40,11 +40,13 @@ export const s = StyleSheet.create({
   },
   hotReloadLabel: { fontSize: 11, fontWeight: '900', color: theme.palette.text.muted, letterSpacing: 0.3 },
   hotReloadLabelOn: { color: theme.palette.primary },
+  statusBarWrap: {
+    borderBottomWidth: 1, borderBottomColor: theme.palette.border,
+    backgroundColor: theme.palette.backgroundDark,
+  },
   statusBar: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 14, paddingVertical: 8,
-    backgroundColor: theme.palette.backgroundDark,
-    borderBottomWidth: 1, borderBottomColor: theme.palette.border,
   },
   statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.palette.text.disabled },
   statusDotOk: {
@@ -62,6 +64,11 @@ export const s = StyleSheet.create({
     borderColor: 'rgba(0,255,0,0.2)', backgroundColor: 'rgba(0,255,0,0.06)',
   },
   hotBadgeText: { color: theme.palette.primary, fontSize: 10, fontWeight: '800' },
+  previewInfoBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 14, paddingBottom: 8,
+  },
+  previewInfoText: { color: theme.palette.text.muted, fontSize: 11, fontWeight: '700' },
   previewArea: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
     padding: 16, backgroundColor: theme.palette.backgroundDark,
@@ -99,6 +106,22 @@ export const s = StyleSheet.create({
     borderRadius: 12, borderWidth: 1.5, borderColor: theme.palette.primary,
   },
   createBtnText: { color: theme.palette.primary, fontSize: 14, fontWeight: '800' },
+  urlCard: {
+    marginHorizontal: 14, marginTop: 10, marginBottom: 8,
+    borderRadius: 12, borderWidth: 1, borderColor: theme.palette.border,
+    backgroundColor: theme.palette.card, padding: 10, gap: 8,
+  },
+  urlCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  urlCardTitle: { color: theme.palette.text.primary, fontSize: 12, fontWeight: '800' },
+  urlText: { color: theme.palette.text.secondary, fontSize: 12, fontWeight: '600' },
+  urlActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  urlBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderWidth: 1, borderColor: theme.palette.border, borderRadius: 999,
+    paddingHorizontal: 10, paddingVertical: 6,
+  },
+  urlBtnText: { color: theme.palette.text.secondary, fontSize: 11, fontWeight: '700' },
+  urlBtnTextPrimary: { color: theme.palette.primary },
   errorBar: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 14, paddingVertical: 10,

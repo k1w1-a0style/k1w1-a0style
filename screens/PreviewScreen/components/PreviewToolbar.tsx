@@ -9,9 +9,11 @@ type PreviewToolbarProps = {
   hotReloadEnabled: boolean;
   hotDotAnim: Animated.Value;
   hasPreviewUrl: boolean;
+  hasQrUrl: boolean;
   onToggleHotReload: () => void;
   onReload: () => void;
   onCopy: () => void;
+  onOpenQr: () => void;
   onOpenExternal: () => void;
   onFullscreen: () => void;
 };
@@ -21,9 +23,11 @@ export function PreviewToolbar({
   hotReloadEnabled,
   hotDotAnim,
   hasPreviewUrl,
+  hasQrUrl,
   onToggleHotReload,
   onReload,
   onCopy,
+  onOpenQr,
   onOpenExternal,
   onFullscreen,
 }: PreviewToolbarProps) {
@@ -32,7 +36,7 @@ export function PreviewToolbar({
       <View style={s.toolbarLeft}>
         <Ionicons name="eye-outline" size={20} color={theme.palette.primary} />
         <View style={s.toolbarTitle}>
-          <Text style={s.title}>Live Preview</Text>
+          <Text style={s.title}>Browser Preview (Supabase bevorzugt)</Text>
           <Text style={s.subtitle} numberOfLines={1}>{projectName}</Text>
         </View>
       </View>
@@ -52,6 +56,11 @@ export function PreviewToolbar({
         {hasPreviewUrl && (
           <Pressable style={s.toolBtn} onPress={onCopy}>
             <Ionicons name="copy-outline" size={16} color={theme.palette.text.primary} />
+          </Pressable>
+        )}
+        {hasQrUrl && (
+          <Pressable style={s.toolBtn} onPress={onOpenQr}>
+            <Ionicons name="qr-code-outline" size={16} color={theme.palette.primary} />
           </Pressable>
         )}
         {hasPreviewUrl && (

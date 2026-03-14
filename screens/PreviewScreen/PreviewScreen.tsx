@@ -29,6 +29,10 @@ export default function PreviewScreen() {
     lastPreview,
     previewSource,
     previewKind,
+    previewUrl,
+    previewExpiryText,
+    previewChannelLabel,
+    qrImageUrl,
     phase,
     setPhase,
     webError,
@@ -45,6 +49,8 @@ export default function PreviewScreen() {
     handleCreate,
     handleReset,
     handleCopy,
+    handleCopyQrLink,
+    handleOpenQr,
     handleOpenExternal,
     handleFullscreen,
   } = usePreviewScreen();
@@ -87,9 +93,11 @@ export default function PreviewScreen() {
         hotReloadEnabled={hotReloadEnabled}
         hotDotAnim={hotDotAnim}
         hasPreviewUrl={Boolean(lastPreview?.url)}
+        hasQrUrl={Boolean(qrImageUrl)}
         onToggleHotReload={() => setHotReloadEnabled((value) => !value)}
         onReload={handleReload}
         onCopy={handleCopy}
+        onOpenQr={handleOpenQr}
         onOpenExternal={handleOpenExternal}
         onFullscreen={handleFullscreen}
       />
@@ -97,6 +105,8 @@ export default function PreviewScreen() {
       <PreviewStatusBar
         phase={phase}
         previewKind={previewKind}
+        previewChannelLabel={previewChannelLabel}
+        previewExpiryText={previewExpiryText}
         pulseAnim={pulseAnim}
         hotReloadEnabled={hotReloadEnabled}
         hotReloadCount={hotReloadCount}
@@ -128,6 +138,38 @@ export default function PreviewScreen() {
         }}
         onCreate={handleCreate}
       />
+
+      {previewUrl && (
+        <View style={s.urlCard}>
+          <View style={s.urlCardHeader}>
+            <Ionicons name="link-outline" size={15} color={theme.palette.primary} />
+            <Text style={s.urlCardTitle}>Offizieller Browser-/QR-Preview-Link</Text>
+          </View>
+          <Text style={s.urlText} numberOfLines={2}>{previewUrl}</Text>
+          <View style={s.urlActions}>
+            <Pressable style={s.urlBtn} onPress={handleCopy}>
+              <Ionicons name="copy-outline" size={14} color={theme.palette.text.primary} />
+              <Text style={s.urlBtnText}>URL kopieren</Text>
+            </Pressable>
+            <Pressable style={s.urlBtn} onPress={handleOpenExternal}>
+              <Ionicons name="open-outline" size={14} color={theme.palette.primary} />
+              <Text style={[s.urlBtnText, s.urlBtnTextPrimary]}>Im Browser öffnen</Text>
+            </Pressable>
+            {qrImageUrl && (
+              <Pressable style={s.urlBtn} onPress={handleOpenQr}>
+                <Ionicons name="qr-code-outline" size={14} color={theme.palette.primary} />
+                <Text style={[s.urlBtnText, s.urlBtnTextPrimary]}>QR anzeigen</Text>
+              </Pressable>
+            )}
+            {qrImageUrl && (
+              <Pressable style={s.urlBtn} onPress={handleCopyQrLink}>
+                <Ionicons name="copy-outline" size={14} color={theme.palette.text.primary} />
+                <Text style={s.urlBtnText}>QR-Link kopieren</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      )}
 
       {(webError || state.error) && (
         <View style={s.errorBar}>

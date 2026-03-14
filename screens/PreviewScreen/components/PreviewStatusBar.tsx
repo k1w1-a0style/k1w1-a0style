@@ -7,6 +7,8 @@ import { s } from '../PreviewScreen.styles';
 type PreviewStatusBarProps = {
   phase: PreviewPhase;
   previewKind: "supabase" | "local" | null;
+  previewChannelLabel: string;
+  previewExpiryText: string;
   pulseAnim: Animated.Value;
   hotReloadEnabled: boolean;
   hotReloadCount: number;
@@ -19,13 +21,15 @@ function getStatusText(phase: PreviewPhase, previewKind: "supabase" | "local" | 
   if (phase === 'idle') return 'Bereit';
   if (phase === 'creating') return 'Preview wird erstellt…';
   if (phase === 'loading') return 'Wird geladen…';
-  if (phase === 'ready') return previewKind === 'local' ? 'Fallback aktiv (Local HTML)' : 'Live App Preview';
+  if (phase === 'ready') return previewKind === 'local' ? 'Fallback aktiv (Local HTML)' : 'Supabase Browser-Preview aktiv';
   return 'Fehler';
 }
 
 export function PreviewStatusBar({
   phase,
   previewKind,
+  previewChannelLabel,
+  previewExpiryText,
   pulseAnim,
   hotReloadEnabled,
   hotReloadCount,
@@ -34,36 +38,44 @@ export function PreviewStatusBar({
   skippedCount,
 }: PreviewStatusBarProps) {
   return (
-    <View style={s.statusBar}>
-      <View
-        style={[
-          s.statusDot,
-          phase === 'ready' && s.statusDotOk,
-          phase === 'error' && s.statusDotError,
-          (phase === 'creating' || phase === 'loading') && s.statusDotLoading,
-        ]}
-      />
-      <Text style={s.statusText}>{getStatusText(phase, previewKind)}</Text>
-      {(phase === 'creating' || phase === 'loading') && (
-        <Animated.View style={{ opacity: pulseAnim }}>
-          <ActivityIndicator size="small" color={theme.palette.primary} />
-        </Animated.View>
-      )}
-      <Text style={s.previewStatsText}>
-        {fileCount} Dateien · {(totalSize / 1024).toFixed(1)} KB
-        {skippedCount > 0 ? ` · ${skippedCount} übersprungen` : ""}
-      </Text>
-      {hotReloadEnabled && hotReloadCount > 0 && (
-        <View style={s.hotBadge}>
-          <Text style={s.hotBadgeText}>{hotReloadCount}x neu geladen</Text>
-        </View>
-      )}
+    <View style={s.statusBarWrap}>
+      <View style={s.statusBar}>
+        <View
+          style={[
+            s.statusDot,
+            phase === 'ready' && s.statusDotOk,
+            phase === 'error' && s.statusDotError,
+            (phase === 'creating' || phase === 'loading') && s.statusDotLoading,
+          ]}
+        />
+        <Text style={s.statusText}>{getStatusText(phase, previewKind)}</Text>
+        {(phase === 'creating' || phase === 'loading') && (
+          <Animated.View style={{ opacity: pulseAnim }}>
+            <ActivityIndicator size="small" color={theme.palette.primary} />
+          </Animated.View>
+        )}
+        <Text style={s.previewStatsText}>
+          {fileCount} Dateien · {(totalSize / 1024).toFixed(1)} KB
+          {skippedCount > 0 ? ` · ${skippedCount} übersprungen` : ""}
+        </Text>
+        {hotReloadEnabled && hotReloadCount > 0 && (
+          <View style={s.hotBadge}>
+            <Text style={s.hotBadgeText}>{hotReloadCount}x neu geladen</Text>
+          </View>
+        )}
 
-      {phase === 'ready' && previewKind === 'local' && (
-        <View style={s.hotBadge}>
-          <Text style={s.hotBadgeText}>Technischer Fallback</Text>
-        </View>
-      )}
+        {phase === 'ready' && previewKind === 'local' && (
+          <View style={s.hotBadge}>
+            <Text style={s.hotBadgeText}>Technischer Fallback</Text>
+          </View>
+        )}
+      </View>
+
+      <View style={s.previewInfoBar}>
+        <Text style={s.previewInfoText}>{previewChannelLabel}</Text>
+        <Text style={s.previewInfoText}>•</Text>
+        <Text style={s.previewInfoText}>{previewExpiryText}</Text>
+      </View>
     </View>
   );
 }
