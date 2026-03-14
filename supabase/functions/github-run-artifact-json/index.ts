@@ -22,7 +22,7 @@ type Artifact = {
 };
 
 function normalizeZipPath(p: string): string {
-  return p.replace(/^\.\//, "").replace(/\/g, "/");
+  return p.replace(/^\.\//, "").replace(/\\/g, "/");
 }
 
 function pickFileFromZip(files: Record<string, Uint8Array>, wanted: string): Uint8Array | null {
