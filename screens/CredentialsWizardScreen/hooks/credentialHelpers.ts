@@ -17,6 +17,7 @@ import { theme } from "../../../theme";
 import type { ApiModeId, ModeDef, StatusResult, UiModeId, WizardHttpDebug } from "../types";
 
 import {
+  buildEdgeHttpErrorMessage,
   isLikelyValidAdminKey,
   isLikelyValidRepoFullName,
   isLikelyValidSupabaseUrl,
@@ -77,16 +78,33 @@ export async function invokeEdgeJson(
   | { ok: true; data: unknown; debug: WizardHttpDebug }
   | { ok: false; error: string; debug: WizardHttpDebug }
 > {
+  const REQUEST_TIMEOUT_MS = 12_000;
+
   const url = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/${fn}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      // Defensive: trim to avoid accidental whitespace/newlines from copy/paste.
-      "x-k1w1-admin-key": adminKey.trim(),
-    },
-    body: JSON.stringify(payload ?? {}),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        // Defensive: trim to avoid accidental whitespace/newlines from copy/paste.
+        "x-k1w1-admin-key": adminKey.trim(),
+      },
+      body: JSON.stringify(payload ?? {}),
+      signal: controller.signal,
+    });
+  } catch (error: unknown) {
+    const name = error instanceof Error ? error.name : "";
+    if (name === "AbortError") {
+      throw new Error(`Edge request timeout after ${REQUEST_TIMEOUT_MS}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   const bodyText = await res.text();
   const debug: WizardHttpDebug = sanitizeWizardHttpDebug({
@@ -97,7 +115,11 @@ export async function invokeEdgeJson(
   });
 
   if (!res.ok) {
-    return { ok: false, error: `HTTP ${res.status} ${res.statusText || ""}`.trim(), debug };
+    return {
+      ok: false,
+      error: buildEdgeHttpErrorMessage(res.status, res.statusText || "", bodyText),
+      debug,
+    };
   }
 
   try {

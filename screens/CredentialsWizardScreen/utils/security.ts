@@ -73,6 +73,33 @@ export function sanitizeErrorForUi(errorText: string): string {
   return sanitizeText(errorText, MAX_ERROR_CHARS);
 }
 
+export function buildEdgeHttpErrorMessage(status: number, statusText: string, bodyText: string): string {
+  const base = `HTTP ${status} ${statusText || ""}`.trim();
+  if (!bodyText) return base;
+
+  try {
+    const parsed = JSON.parse(bodyText) as Record<string, unknown>;
+    const details =
+      typeof parsed.details === "object" && parsed.details
+        ? (parsed.details as Record<string, unknown>)
+        : null;
+
+    const explicit =
+      (typeof parsed.error === "string" && parsed.error.trim()) ||
+      (typeof parsed.message === "string" && parsed.message.trim()) ||
+      (details && typeof details.error === "string" && details.error.trim()) ||
+      (details && typeof details.message === "string" && details.message.trim()) ||
+      "";
+
+    if (explicit) return `${base}: ${explicit}`;
+  } catch {
+    // Fall through to safe text snippet.
+  }
+
+  const snippet = bodyText.replace(/\s+/g, " ").trim().slice(0, 180);
+  return snippet ? `${base}: ${snippet}` : base;
+}
+
 export function isLikelyValidSupabaseUrl(url: string): boolean {
   const trimmed = url.trim();
   if (!trimmed) return false;
