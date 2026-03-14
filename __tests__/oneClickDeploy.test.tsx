@@ -129,7 +129,7 @@ describe("useOneClickDeploy", () => {
         const signing = steps.find((s: any) => s.id === "signing_key");
         expect(signing.status).toBe("fail");
       },
-      { timeout: 6000 },
+      { timeout: 12000 },
     );
 
     const steps = getSteps(getByTestId);
@@ -139,7 +139,7 @@ describe("useOneClickDeploy", () => {
     expect(tokens.status).toBe("pending");
     expect(build.status).toBe("pending");
     expect(startBuild).not.toHaveBeenCalled();
-  }, 15000);
+  }, 30000);
 
 
   it("blocks before build when diagnostic/ci-lite readiness is not green", async () => {

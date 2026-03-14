@@ -1,4 +1,5 @@
 import {
+  buildEdgeHttpErrorMessage,
   isLikelyValidAdminKey,
   isLikelyValidRepoFullName,
   isLikelyValidSupabaseUrl,
@@ -36,6 +37,22 @@ describe("CredentialsWizard security helpers", () => {
     });
     expect(out.bodyText!.length).toBeLessThanOrEqual(6100);
     expect(out.bodyText).toContain("<truncated>");
+  });
+
+  test("buildEdgeHttpErrorMessage prefers explicit edge JSON error", () => {
+    const msg = buildEdgeHttpErrorMessage(
+      500,
+      "Internal Server Error",
+      JSON.stringify({ error: "Missing SIGNING_MASTER_KEY" }),
+    );
+    expect(msg).toContain("HTTP 500 Internal Server Error");
+    expect(msg).toContain("Missing SIGNING_MASTER_KEY");
+  });
+
+  test("buildEdgeHttpErrorMessage falls back to trimmed plain-text snippet", () => {
+    const msg = buildEdgeHttpErrorMessage(400, "Bad Request", "invalid repo format for owner/repo");
+    expect(msg).toContain("HTTP 400 Bad Request");
+    expect(msg).toContain("invalid repo format");
   });
 
   test("validators behave for common inputs", () => {

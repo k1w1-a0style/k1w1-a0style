@@ -3,6 +3,8 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 428: Zweiter Korrektheits-Check; flakiges One-Click-Deploy-Timeout im Test stabilisiert (kein Produktionscode-Drift)
+- Patch 427: Supabase-Function-Flow-Audit; Credentials-Wizard meldet Edge-HTTP-/Timeout-Fehler jetzt vertragstreu statt generisch
 - Patch 426: Chat/KI-Confirm→Apply-Pfad gegen Zustandsdrift gehärtet (Rebase auf latest project state + transparente Drift-Meldung + Guard-Regressionstests)
 - Patch 425: One-Click-Deploy um hartes Readiness-Gate (Diagnostik + CI-Lite + Repo/Branch-Frische) erweitert; mode-abhängige Pipeline-Filterlogik testbar extrahiert
 - Patch 424: Supabase-Preview als offiziellen Browser-/QR-Preview-Weg im Produkt klarer markiert (URL-/Expiry-/Fallback-Transparenz, QR-Aktion ohne Architekturumbau)
