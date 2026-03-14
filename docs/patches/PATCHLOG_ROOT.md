@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 425: One-Click-Deploy um hartes Readiness-Gate (Diagnostik + CI-Lite + Repo/Branch-Frische) erweitert; mode-abhängige Pipeline-Filterlogik testbar extrahiert
 - Patch 424: Supabase-Preview als offiziellen Browser-/QR-Preview-Weg im Produkt klarer markiert (URL-/Expiry-/Fallback-Transparenz, QR-Aktion ohne Architekturumbau)
 - Patch 423: konservatives Machbarkeits-Audit für Expo Web / QR-Web-Preview (ohne Umbau); Empfehlung B mit minimalen Vorarbeiten
 - Patch 422: job-gebundene History-Selektion für Repo/Branch/Profil im Build-Polling gehärtet (E2E-Traceability gegen Drift zwischen UI-Zustand und gestarteter Build-Wahrheit)

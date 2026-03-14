@@ -32,6 +32,39 @@ import type { ProjectData } from "../../../shared/types/project";
 
 import { ORDER, runLocalChecks, runPipelineChecks } from "./diagnosticRunners";
 
+export function pipelineCheckAppliesToModes(params: {
+  checkId: string;
+  modesAll: boolean;
+  selectedModes: BuildMode[];
+  recommendedMode: BuildMode;
+}): boolean {
+  const { checkId, modesAll, selectedModes, recommendedMode } = params;
+  if (modesAll) return true;
+
+  const enabled = new Set<BuildMode>(
+    selectedModes.length ? selectedModes : [recommendedMode],
+  );
+
+  const isFor = (p: "development" | "preview" | "production") => {
+    if (checkId.endsWith(`.${p}`)) return true;
+    if (checkId.includes(`.${p}.`)) return true;
+    if (checkId.includes(`easProfile.${p}`)) return true;
+    return false;
+  };
+
+  const devOnly =
+    checkId === "repo.easDevelopmentCoherent" ||
+    checkId === "repo.easEnableDevClientFlow" ||
+    checkId === "repo.dep.expoDevClient" ||
+    checkId === "repo.dep.expoDevClient.read";
+
+  if (devOnly) return enabled.has("development");
+  if (isFor("development")) return enabled.has("development");
+  if (isFor("preview")) return enabled.has("preview");
+  if (isFor("production")) return enabled.has("production");
+  return true;
+}
+
 export function useDiagnosticScreen(opts: {
   projectData: ProjectData | null;
   linkedRepo: string;
@@ -185,32 +218,13 @@ export function useDiagnosticScreen(opts: {
   }, [sortedResults]);
 
   const pipelineAppliesToFocus = useCallback(
-    (id: string): boolean => {
-      if (modesAll) return true;
-
-      const enabled = new Set<BuildMode>(
-        selectedModes.length ? selectedModes : [recommendedMode],
-      );
-
-      const isFor = (p: "development" | "preview" | "production") => {
-        if (id.endsWith(`.${p}`)) return true;
-        if (id.includes(`.${p}.`)) return true;
-        if (id.includes(`easProfile.${p}`)) return true;
-        return false;
-      };
-
-      const devOnly =
-        id === "repo.easDevelopmentCoherent" ||
-        id === "repo.easEnableDevClientFlow" ||
-        id === "repo.dep.expoDevClient" ||
-        id === "repo.dep.expoDevClient.read";
-
-      if (devOnly) return enabled.has("development");
-      if (isFor("development")) return enabled.has("development");
-      if (isFor("preview")) return enabled.has("preview");
-      if (isFor("production")) return enabled.has("production");
-      return true;
-    },
+    (id: string): boolean =>
+      pipelineCheckAppliesToModes({
+        checkId: id,
+        modesAll,
+        selectedModes,
+        recommendedMode,
+      }),
     [modesAll, recommendedMode, selectedModes],
   );
 
@@ -508,5 +522,4 @@ export function useDiagnosticScreen(opts: {
     headerStats,
   };
 }
-
 

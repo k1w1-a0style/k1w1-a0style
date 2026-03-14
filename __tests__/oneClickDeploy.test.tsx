@@ -141,9 +141,50 @@ describe("useOneClickDeploy", () => {
     expect(startBuild).not.toHaveBeenCalled();
   }, 15000);
 
+
+  it("blocks before build when diagnostic/ci-lite readiness is not green", async () => {
+    mockAsyncStorage.getItem.mockImplementation(async (k: string) => {
+      if (k === "cred_key_exists_preview") return "true";
+      if (k === "diagnostic_last_ok") return "false";
+      return null;
+    });
+
+    mockGitHub.getGitHubToken.mockResolvedValue("gh");
+    mockGitHub.getExpoToken.mockResolvedValue("expo");
+
+    const startBuild = jest.fn(async () => {});
+    const { getByTestId } = render(
+      <Harness
+        profile="preview"
+        repo="owner/repo"
+        branch="main"
+        startBuild={startBuild}
+      />,
+    );
+
+    fireEvent.press(getByTestId("run"));
+
+    await waitFor(() => {
+      const steps = getSteps(getByTestId);
+      const readiness = steps.find((s: any) => s.id === "readiness");
+      expect(readiness.status).toBe("fail");
+    });
+
+    const steps = getSteps(getByTestId);
+    const build = steps.find((s: any) => s.id === "build");
+    expect(build.status).toBe("pending");
+    expect(startBuild).not.toHaveBeenCalled();
+  });
+
   it("happy path: runs through to build when key exists", async () => {
     mockAsyncStorage.getItem.mockImplementation(async (k: string) => {
       if (k === "cred_key_exists_preview") return "true";
+      if (k === "diagnostic_last_ok") return "true";
+      if (k === "ci_lite_lint_ok") return "true";
+      if (k === "ci_lite_typecheck_ok") return "true";
+      if (k === "ci_lite_last_repo") return "owner/repo";
+      if (k === "ci_lite_last_branch") return "main";
+      if (k === "ci_lite_last_run_at") return String(Date.now());
       return null;
     });
 
