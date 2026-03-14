@@ -4,6 +4,7 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-14: Patch 423: Machbarkeits-Audit für Expo Web / QR-Web-Preview abgeschlossen; Empfehlung B (gezielte Vorarbeiten vor offizieller Aktivierung), Supabase-URL-Preview kurzfristig realistischer.
 - 2026-03-13: Patch 422: E2E-Traceability gehärtet — Build-History-Updates nutzen für laufende Jobs eine job-gebundene Snapshot-Selektion (Repo/Branch/Profil) statt potenziell driftendem UI-Zwischenzustand.
 - 2026-03-13: Patch 421: Build-Transparenz gehärtet — effektive Repo/Branch/Profil-Werte werden im Start-/Statusfluss konsistent in `currentBuild` + Historie getragen und im Build-Screen explizit angezeigt.
 - 2026-03-13: Patch 420: Guard-/Invariant-Härtung gegen implizite Workflow-Ref-Fallbacks (`github.ref`, `github.ref_name`, `github.head_ref`, `default_branch`) in managed Deploy/Build-Flows; CI/CI-Lite-Ausnahme explizit abgesichert.
