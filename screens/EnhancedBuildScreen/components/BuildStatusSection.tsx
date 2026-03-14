@@ -34,6 +34,7 @@ export function BuildStatusSection({
   startDisabledReason,
   onStartBuild,
   openRun,
+  showStartBuildAction = true,
 }: {
   status: BuildStatus;
   statusEmoji: string;
@@ -52,6 +53,7 @@ export function BuildStatusSection({
   startDisabledReason?: string | null;
   onStartBuild: () => void;
   openRun: (url: string) => void;
+  showStartBuildAction?: boolean;
 }): React.ReactElement {
   const contextRepo = currentBuild?.githubRepo || selectedRepo;
   const contextBranch = currentBuild?.branch || selectedBranch;
@@ -73,7 +75,7 @@ export function BuildStatusSection({
 
       <View style={s.statusRow}>
         <View style={s.statusTextWrap}>
-          <Text style={s.statusLabel}>{statusLabel}</Text>
+          <Text style={s.statusLabel}>{statusEmoji} {statusLabel}</Text>
           {!!message && <Text style={s.statusMsg}>{message}</Text>}
           {!!jobId && <Text style={s.statusMsg}>Job #{jobId}</Text>}
           {(contextRepo || contextBranch || contextProfile || currentBuild?.sourceCommitSha) ? (
@@ -155,28 +157,32 @@ export function BuildStatusSection({
         )}
       </View>
 
-      {/* Start Build Button */}
-      {!!startDisabledReason && !!startDisabled ? (
-        <Text style={s.blockReason} numberOfLines={3}>
-          {startDisabledReason}
-        </Text>
-      ) : null}
+      {showStartBuildAction ? (
+        <>
+          {/* Start Build Button */}
+          {!!startDisabledReason && !!startDisabled ? (
+            <Text style={s.blockReason} numberOfLines={3}>
+              {startDisabledReason}
+            </Text>
+          ) : null}
 
-      <TouchableOpacity
-        style={[s.startBtn, (!hasStartBuild || buildLoading || startDisabled) && s.disabled]}
-        onPress={onStartBuild}
-        disabled={!hasStartBuild || buildLoading || !!startDisabled}
-        activeOpacity={0.7}
-      >
-        {buildLoading ? (
-          <ActivityIndicator color={theme.palette.primary} size="small" />
-        ) : (
-          <>
-            <Ionicons name="play-outline" size={18} color={theme.palette.primary} />
-            <Text style={s.startBtnText}>Build starten</Text>
-          </>
-        )}
-      </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.startBtn, (!hasStartBuild || buildLoading || startDisabled) && s.disabled]}
+            onPress={onStartBuild}
+            disabled={!hasStartBuild || buildLoading || !!startDisabled}
+            activeOpacity={0.7}
+          >
+            {buildLoading ? (
+              <ActivityIndicator color={theme.palette.primary} size="small" />
+            ) : (
+              <>
+                <Ionicons name="play-outline" size={18} color={theme.palette.primary} />
+                <Text style={s.startBtnText}>Build starten</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </>
+      ) : null}
     </View>
   );
 }

@@ -185,7 +185,6 @@ export function OneClickDeployCard({
   onReset: () => void;
   onAbort: () => void;
 }) {
-  const allOk = steps.every((st) => st.status === "ok" || st.status === "skip");
   const hasFail = steps.some((st) => st.status === "fail");
   const deployBlocked = !!disabled && !isDeploying;
 
@@ -198,7 +197,7 @@ export function OneClickDeployCard({
           size={20}
           color={deployDone ? theme.palette.success : theme.palette.primary}
         />
-        <Text style={s.title}>One-Click Deploy</Text>
+        <Text style={s.title}>Advanced Build-Automation</Text>
         {deployDone && (
           <View style={s.doneBadge}>
             <Text style={s.doneBadgeText}>FERTIG</Text>
@@ -252,7 +251,7 @@ export function OneClickDeployCard({
             disabled={deployBlocked}
           >
             <Ionicons name="rocket-outline" size={18} color={theme.palette.primary} />
-            <Text style={s.deployBtnText}>Deploy starten</Text>
+            <Text style={s.deployBtnText}>Advanced-Flow starten</Text>
           </Pressable>
         )}
       </View>

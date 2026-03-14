@@ -116,4 +116,77 @@ export const s = StyleSheet.create({
   stepLineDone: {
     backgroundColor: theme.palette.success,
   },
+
+  phaseList: {
+    marginTop: 14,
+    gap: 8,
+  },
+  phaseRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.background,
+  },
+  phaseRowDone: {
+    borderColor: "rgba(0,255,0,0.2)",
+    backgroundColor: "rgba(0,255,0,0.04)",
+  },
+  phaseRowCurrent: {
+    borderColor: "rgba(0,255,0,0.45)",
+    backgroundColor: "rgba(0,255,0,0.08)",
+  },
+  phaseRowFailed: {
+    borderColor: "rgba(255,68,68,0.4)",
+    backgroundColor: "rgba(255,68,68,0.08)",
+  },
+  phaseDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    backgroundColor: theme.palette.backgroundDark,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+  },
+  phaseDotDone: {
+    borderColor: theme.palette.success,
+    backgroundColor: theme.palette.success,
+  },
+  phaseDotCurrent: {
+    borderColor: theme.palette.primary,
+    backgroundColor: "rgba(0,255,0,0.15)",
+  },
+  phaseDotFail: {
+    borderColor: theme.palette.error,
+    backgroundColor: "rgba(255,68,68,0.12)",
+  },
+  phaseTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  phaseLabel: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  phaseLabelDone: {
+    color: theme.palette.success,
+  },
+  phaseLabelCurrent: {
+    color: theme.palette.primary,
+  },
+  phaseLabelFail: {
+    color: theme.palette.error,
+  },
+  phaseDetail: {
+    color: theme.palette.text.muted,
+    fontSize: 11,
+  },
 });

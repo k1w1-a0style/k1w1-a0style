@@ -145,6 +145,8 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           steps={deploy.steps}
           isDeploying={deploy.isDeploying}
           deployDone={deploy.deployDone}
+          disabled={!s.canStartBuildUi}
+          disabledReason={s.buildBlockedReason}
           autoSyncSecrets={deploy.autoSyncSecrets}
           onToggleAutoSyncSecrets={deploy.toggleAutoSyncSecrets}
           onDeploy={deploy.runDeploy}
@@ -164,6 +166,9 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           etaMs={s.etaMs}
           formatDuration={s.formatDuration}
           progress={s.progress}
+          isDeploying={deploy.isDeploying}
+          deploySteps={deploy.steps}
+          buildBlockedReason={s.buildBlockedReason}
         />
 
         {/* Build Status + Actions */}
@@ -181,6 +186,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           selectedBuildProfile={s.buildProfile}
           hasStartBuild={s.hasStartBuild}
           buildLoading={s.buildLoading}
+          showStartBuildAction={false}
           onStartBuild={s.onStartBuild}
           openRun={s.openRun}
         />
@@ -243,4 +249,3 @@ export default function EnhancedBuildScreen(): React.ReactElement {
     </SafeAreaView>
   );
 }
-
