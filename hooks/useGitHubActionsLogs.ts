@@ -182,7 +182,7 @@ export function useGitHubActionsLogs({
       }
       isFetchPendingRef.current = false;
     }
-  }, [githubRepo, runId]);
+  }, [githubRepo, runId, workflowId]);
 
   const refreshLogs = useCallback(async () => {
     await fetchLogs();
@@ -247,4 +247,3 @@ export function useGitHubActionsLogs({
   };
 
 }
-
