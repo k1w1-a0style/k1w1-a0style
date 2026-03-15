@@ -47,7 +47,7 @@ export function HeaderSection(props: {
             </View>
             <Text style={s.projectName}>{headerStats.name}</Text>
           </View>
-          <Text style={s.autoHint}>Modus automatisch vom Build-Screen</Text>
+          <Text style={s.autoHint}>Build-Profil kommt aus der gespeicherten Build-Auswahl</Text>
         </View>
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>

@@ -95,3 +95,7 @@
 ## Patch 217 (done)
 - ✅ Applied historically: CI Lite bugfixes + Supabase edge SoT expansion + Storage key SoT + tokenStore consistency + Connection Screen SoT.
 - Optional weiterhin offen: Performance-Cleanup in `useBuildStatus` (statusRef), falls nötig.
+
+### UX-/Flow-Feintuning (Patch 440)
+- [x] Build/Diagnosis/Preview/Connections/Credentials/Chat-Mikrotexte auf Alltagssprache und klare Zustandsgrenzen (`gespeichert` vs. `letzter bekannter Stand`) geschärft
+- [ ] Optional: CI-Lite-Header-Status zusätzlich mit gleichem Wording-Muster angleichen (nur wenn ohne visuelle Überladung möglich)

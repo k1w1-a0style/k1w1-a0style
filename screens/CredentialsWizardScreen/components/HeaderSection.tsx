@@ -8,8 +8,8 @@ import { styles } from "../styles";
 export function HeaderSection({ subtitle }: { subtitle: string }) {
   return (
     <View style={styles.header}>
-      <Text style={styles.h1}>Credentials Wizard</Text>
-      <Text style={styles.p}>Android Signing (Supabase + CI)</Text>
+      <Text style={styles.h1}>Signing-Assistent</Text>
+      <Text style={styles.p}>Android-Signing für CI (Supabase-gestützt)</Text>
       <View style={styles.headerMeta}>
         <Ionicons name="git-branch-outline" size={14} color={theme.palette.text.secondary} />
         <Text style={styles.headerMetaText}>{subtitle}</Text>

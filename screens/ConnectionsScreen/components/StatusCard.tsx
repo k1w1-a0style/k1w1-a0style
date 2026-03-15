@@ -128,7 +128,7 @@ export function buildEasStatusDetail(params: {
   easLastVerifiedAt?: string | null;
 }): string {
   const easProjectId = String(params.easProjectId ?? "").trim();
-  if (params.easInitRunning) return "Workflow läuft… (GitHub Actions: eas-link)";
+  if (params.easInitRunning) return "Verknüpfung läuft… (GitHub Actions: eas-link)";
   if (!easProjectId) return "Keine EAS Project ID gespeichert.";
   if (params.easOk) {
     if (params.easLastVerifiedAt) {
@@ -136,7 +136,7 @@ export function buildEasStatusDetail(params: {
       const readable = Number.isNaN(ts.getTime()) ? params.easLastVerifiedAt : ts.toLocaleString();
       return `Frisch verifiziert: ${readable}`;
     }
-    return "Link ausgelöst / gespeichert, aber noch nicht frisch geprüft.";
+    return "Projekt-ID gespeichert, aber noch nicht frisch verifiziert.";
   }
   return "Zuletzt bekannter Status: nicht verifiziert oder nicht erreichbar.";
 }
@@ -220,16 +220,16 @@ export function StatusCard(props: {
 
   const repoSelectionHint =
     selectionSource === "project"
-      ? "Aktive Projektauswahl (SoT)"
+      ? "Aktive Projektauswahl (gespeichert)"
       : selectionSource === "context"
-        ? "Letzte Context-Auswahl (Fallback)"
+        ? "Letzte Context-Auswahl (nicht gespeichert)"
         : "Keine Auswahl";
 
   const repoSelectionDetail =
     selectionSource === "project"
       ? `${repoSelectionHint} · Maßgeblich für Build/Signing.`
       : selectionSource === "context"
-        ? `${repoSelectionHint} · Nicht maßgeblich für Build/Signing, bis sie im Projekt verknüpft ist.`
+        ? `${repoSelectionHint} · Nur letzter bekannter Stand; erst nach Verknüpfen im Projekt wirklich wirksam.`
         : "In GitHub Repos auswählen.";
 
   const easStatusDetail = useMemo(

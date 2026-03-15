@@ -8,7 +8,7 @@ describe("ConnectionsScreen EAS status semantics", () => {
         easProjectId: "11111111-1111-1111-1111-111111111111",
         easOk: true,
       }),
-    ).toContain("Workflow läuft");
+    ).toContain("Verknüpfung läuft");
   });
 
   it("marks missing project id as not configured", () => {
@@ -24,7 +24,7 @@ describe("ConnectionsScreen EAS status semantics", () => {
         easOk: true,
         easLastVerifiedAt: null,
       }),
-    ).toContain("noch nicht frisch geprüft");
+    ).toContain("noch nicht frisch verifiziert");
   });
 
   it("marks stale/unknown status honestly", () => {
