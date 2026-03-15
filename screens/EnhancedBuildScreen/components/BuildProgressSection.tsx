@@ -120,6 +120,11 @@ export function BuildProgressSection({
   const isFailed = status === "failed" || status === "error";
   const isBuildActive = status === "queued" || status === "building";
   const isActive = isDeploying || isBuildActive;
+  const phaseHeading = isBuildActive
+    ? "Aktive Build-Phase"
+    : isDeploying
+      ? "Aktive Vorbereitungsphase"
+      : "Phasenübersicht";
 
   const phases = useMemo(() => {
     if (isDeploying && deploySteps && deploySteps.length > 0) {
@@ -218,6 +223,7 @@ export function BuildProgressSection({
       </View>
 
       <Text style={s.statusLabel}>{statusLabel}</Text>
+      <Text style={s.message}>{phaseHeading}</Text>
       {!!message && <Text style={s.message}>{message}</Text>}
       {!!jobId && <Text style={s.message}>Job #{jobId}</Text>}
       {etaMs > 0 && isBuildActive ? <Text style={s.eta}>Restzeit: ~{formatDuration(etaMs)}</Text> : null}
@@ -264,6 +270,7 @@ export function BuildProgressSection({
                 >
                   {phase.label}
                 </Text>
+                {isCurrent ? <Text style={s.phaseDetail}>Jetzt aktiv</Text> : null}
                 {!!phase.detail && <Text style={s.phaseDetail}>{phase.detail}</Text>}
               </View>
             </View>

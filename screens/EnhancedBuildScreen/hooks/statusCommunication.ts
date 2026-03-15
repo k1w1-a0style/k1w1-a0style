@@ -3,7 +3,7 @@ import type { BuildStatus } from "../../../shared/types/build";
 export function resolveContextLabel(status: BuildStatus, hasRuntimeContext: boolean): string {
   const isRunning = status === "queued" || status === "building";
   if (isRunning && hasRuntimeContext) return "Laufender Build (aktiver Kontext)";
-  if (hasRuntimeContext) return "Letzter bekannter Build-Kontext";
+  if (hasRuntimeContext) return "Letzter bekannter Build-Kontext (kein Live-Status)";
   return "Aktuelle Auswahl (noch kein Lauf)";
 }
 

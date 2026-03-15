@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 442: Build-Status/Phasenanzeige im EnhancedBuildScreen gezielt beruhigt — aktiver Lauf vs. letzter bekannter Stand klarer getrennt, aktive Phase explizit markiert, Run/Artifact/Download-Aktionen als aktueller vs. letzter Build-Kontext verständlicher benannt (ohne Backend-/Flow-Umbau).
 - Patch 441: gezieltes UX-Feintuning nur für BuildScreen/DiagnosisScreen/Preview — verständlichere CTA-/Aktionssprache, ruhigere und konsistentere Statusbegriffe (inkl. Live/Fallback/Preview-Fehler), ohne Architekturumbau
 - Patch 440: konservatives UX-/Flow-Feintuning in Kernpfaden (Build/Diagnosis/Preview/Connections/Credentials/Chat-Menü) — missverständliche/zu technische Status- und Hinweistexte geschärft, gespeicherter vs. letzter bekannter Zustand klarer getrennt, gezielte Preview-Status-Regression ergänzt
 - Patch 439: zusätzliche Invariant-Härtung für `insert_diagnostic_upload`-Historie; UUID-Drift bleibt auf zwei bekannte Altmigrationen begrenzt und Legacy-Spalten-Drift (`repo/branch/mode/platform/report/meta`) wird im finalen Vertrag regressionssicher geblockt

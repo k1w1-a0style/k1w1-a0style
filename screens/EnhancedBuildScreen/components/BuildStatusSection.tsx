@@ -62,10 +62,12 @@ export function BuildStatusSection({
   const hasRuntimeContext = Boolean(
     currentBuild?.githubRepo || currentBuild?.branch || currentBuild?.buildProfile || currentBuild?.sourceCommitSha,
   );
+  const isBuildRunning = status === "queued" || status === "building";
+  const hasLastBuildContext = hasRuntimeContext && !isBuildRunning;
   const runningLabel = "Aktueller Laufkontext";
   const selectionLabel = "Aktuelle Auswahl (noch kein Lauf)";
   const contextLabel =
-    status === "queued" || status === "building"
+    isBuildRunning
       ? `${runningLabel} (aktiv)`
       : (!hasRuntimeContext ? selectionLabel : resolveContextLabel(status, hasRuntimeContext));
   const phaseHint = resolvePhaseHint(status, startDisabledReason);
@@ -86,7 +88,11 @@ export function BuildStatusSection({
         <View style={s.statusTextWrap}>
           <Text style={s.statusLabel}>{statusEmoji} {statusLabel}</Text>
           {!!message && <Text style={s.statusMsg}>{message}</Text>}
-          {!!jobId && <Text style={s.statusMsg}>Job #{jobId}</Text>}
+          {!!jobId && (
+            <Text style={s.statusMsg}>
+              {isBuildRunning ? "Aktiver Build-Job" : "Letzter bekannter Build-Job"} #{jobId}
+            </Text>
+          )}
           {(contextRepo || contextBranch || contextProfile || currentBuild?.sourceCommitSha) ? (
             <View style={s.contextBox}>
               <Text style={s.contextLabel}>
@@ -114,6 +120,12 @@ export function BuildStatusSection({
 
       <BuildTimelineCard status={status} />
 
+      {hasLastBuildContext ? (
+        <Text style={s.statusMsg}>
+          Die folgenden Links gehören zum letzten bekannten Build-Ergebnis, nicht zur aktuellen Auswahl.
+        </Text>
+      ) : null}
+
       {/* Action Buttons - Outlined Style */}
       <View style={s.actions}>
         {!!currentBuild?.urls?.html && (
@@ -123,7 +135,7 @@ export function BuildStatusSection({
             activeOpacity={0.7}
           >
             <Ionicons name="open-outline" size={14} color={theme.palette.text.primary} />
-            <Text style={s.outlineBtnText}>GitHub Run</Text>
+            <Text style={s.outlineBtnText}>{isBuildRunning ? "Aktiver GitHub-Run" : "Letzter GitHub-Run"}</Text>
           </TouchableOpacity>
         )}
 
@@ -134,7 +146,7 @@ export function BuildStatusSection({
             activeOpacity={0.7}
           >
             <Ionicons name="cube-outline" size={14} color={theme.palette.text.primary} />
-            <Text style={s.outlineBtnText}>Artefakte</Text>
+            <Text style={s.outlineBtnText}>{isBuildRunning ? "Aktive Artefakte" : "Letzte Artefakte"}</Text>
           </TouchableOpacity>
         )}
 
@@ -149,8 +161,8 @@ export function BuildStatusSection({
               <Text style={s.greenOutlineBtnText}>
                 {currentBuild.urls.buildUrl.toLowerCase().endsWith(".apk") ||
                 currentBuild.urls.buildUrl.includes("/storage/v1/object/")
-                  ? "APK herunterladen"
-                  : "Build Ergebnis"}
+                  ? (isBuildRunning ? "APK (wenn fertig)" : "Letztes APK herunterladen")
+                  : (isBuildRunning ? "Build-Ergebnis (wenn fertig)" : "Letztes Build-Ergebnis")}
               </Text>
             </TouchableOpacity>
 
