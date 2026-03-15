@@ -2,6 +2,7 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { STORAGE_KEYS } from "./storageKeys";
 import { logger } from "./logger";
+import { getSupabaseAnonKey } from "./supabaseAnonKeyStorage";
 
 let supabaseClient: SupabaseClient | null = null;
 let initPromise: Promise<SupabaseClient> | null = null;
@@ -45,9 +46,7 @@ export const ensureSupabaseClient = async (): Promise<SupabaseClient> => {
     try {
       // 1) Werte aus deinen App-Settings (AsyncStorage)
       let supabaseUrl = await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL);
-      let supabaseAnonKey = await AsyncStorage.getItem(
-        STORAGE_KEYS.SUPABASE_KEY,
-      );
+      let supabaseAnonKey = await getSupabaseAnonKey();
 
       // 2) Fallback: bestehende Runtime-Env
       if (!supabaseUrl && typeof process !== "undefined") {

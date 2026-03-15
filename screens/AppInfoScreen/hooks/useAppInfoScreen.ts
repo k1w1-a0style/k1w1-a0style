@@ -18,6 +18,7 @@ import {
   validateApiBackupJson,
 } from "../../../lib/appInfoBackup";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { getSupabaseAnonKey, saveSupabaseAnonKey } from "../../../lib/supabaseAnonKeyStorage";
 import { useGitHub } from "../../../contexts/GitHubContext";
 import {
   getGitHubToken,
@@ -300,7 +301,7 @@ export function useAppInfoScreen() {
                 await Promise.all([
                   AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_RAW).catch(() => ""),
                   AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).catch(() => ""),
-                  AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_KEY).catch(() => ""),
+                  getSupabaseAnonKey().catch(() => ""),
                   AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID).catch(() => ""),
                 ]);
 
@@ -392,9 +393,7 @@ export function useAppInfoScreen() {
                   AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, c.supabaseUrl),
                 );
               if (typeof c.supabaseAnonKey === "string")
-                ops.push(
-                  AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_KEY, c.supabaseAnonKey),
-                );
+                ops.push(saveSupabaseAnonKey(c.supabaseAnonKey));
               await AsyncStorage.removeItem(
                 STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
               ).catch(() => {});

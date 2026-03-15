@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 455: ConnectionsScreen konservativ gehärtet — Supabase-ANON-Key von AsyncStorage auf SecureStore mit Legacy-Migration umgestellt, Busy-/Hydration-Guards gegen parallele Save/Test-Runs ergänzt, `testExpo`-Persistenz-Side-Effect entfernt, Connection-Light-Writes teilweise gebündelt und EAS-Link-Lampe nicht mehr optimistisch auf grün gesetzt; inklusive gezielter Flow-/Storage-Regressionstests.
 - Patch 454: flakigen Timeout-Restpunkt in `__tests__/oneClickDeploy.test.tsx` konservativ stabilisiert — deterministischer Press-Start via `act` + Microtask-Flush, AsyncStorage-Default-Resolves pro Test und striktes Cleanup (`cleanup` + Timer-Clear) gegen runInBand-Rennen; kein Produktcode-Umbau.
 - Patch 453: KI-/Chat-Nachaudit (misstrauisch): echte Restlücke im Builder-NonJSON-Pfad geschlossen (`output_text` → nutzerlesbare Fehler-Preview), Regressionstests für `normalizer` gezielt verschärft.
 - Patch 452: KI-/Chat-/Prompting-Block konservativ gehärtet; projektrelevante Snapshot-Priorisierung im Prompt-Context, verständlicher Builder-NonJSON-Fehlerpfad mit KI-Text-Preview, SHA-256 State-Drift-Digest (statt Länge), transparentere Ownership-/Validator-/Explain-Hinweise im Chat-Feedback; keine neue KI-Architektur, `k1w1-handler` nur eingeordnet.

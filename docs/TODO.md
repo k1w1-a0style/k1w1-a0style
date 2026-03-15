@@ -316,6 +316,16 @@ Akzeptanz:
 
 - [x] **CS-006 (P2)** Security-/Regression-Tests für Masking/Validation (Tokens/Keys) ✅ *(patch 97)*  
   _Ort_: `screens/ConnectionsScreen/utils/validation.ts` + `__tests__/connectionsScreen.validation.test.ts`
+- [x] **CS-455-A (P1/P2)** Supabase-ANON-Key in Connections-Flow konsistent über SecureStore statt AsyncStorage persistieren (inkl. Legacy-Migration) ✅ *(patch 455)*  
+  _Ort_: `lib/supabaseAnonKeyStorage.ts`, `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`, `lib/supabase.ts`
+- [x] **CS-455-B (P1)** Busy-/Parallel-Execution für `saveAll` + `testGitHub` + `testExpo` + `testSupabase` blockieren (ehrliche Busy-UI) ✅ *(patch 455)*  
+  _Ort_: `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`, `screens/ConnectionsScreen/index.tsx`
+- [x] **CS-455-C (P2)** `testExpo` ohne versteckte Token-Persistenz; Persistenz nur über explizites Speichern/Import ✅ *(patch 455)*  
+  _Ort_: `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`
+- [x] **CS-455-D (P2)** EAS-Link-Start setzt Lampe nicht mehr optimistisch auf grün; bleibt bis echter EAS-Verifikation neutral/false ✅ *(patch 455)*  
+  _Ort_: `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`
+- [ ] **CS-REST-001 (P2)** Optionaler Feinschliff: konsistente Busy-UX auch für EAS-Test (`testEas`) auf denselben globalen Guard/Spinner zusammenführen (derzeit parallel-blockiert via `busyRef`, aber eigener `isTestingEas`-Pfad).  
+  _Ort_: `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`
 
 ### Supabase (Audit / Ops)
 
