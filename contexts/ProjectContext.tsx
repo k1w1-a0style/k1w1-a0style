@@ -69,6 +69,12 @@ export const appendChatMessageWithRetention = (
   limit: number,
 ): ChatMessage[] => trimChatHistory([...(history || []), message], limit);
 
+
+export const sanitizeChatRetentionLimit = (limit: number): number => {
+  if (!Number.isFinite(limit) || limit < 0) return CHAT_HISTORY_RETENTION_FALLBACK;
+  return Math.floor(limit);
+};
+
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof Error && error.message) return error.message;
   if (typeof error === "string" && error.trim()) return error;
@@ -277,6 +283,18 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   const setProjectName = useCallback(
     async (newName: string) => {
       await updateProject((prev) => ({ ...prev, name: newName }));
+    },
+    [updateProject],
+  );
+
+  const setChatRetentionLimit = useCallback(
+    async (limit: number) => {
+      const safeLimit = sanitizeChatRetentionLimit(limit);
+      chatRetentionLimitRef.current = safeLimit;
+      await updateProject((prev) => ({
+        ...prev,
+        chatHistory: trimChatHistory(prev.chatHistory || [], safeLimit),
+      }));
     },
     [updateProject],
   );
@@ -859,6 +877,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       currentBuild,
       updateProjectFiles,
       addChatMessage,
+      setChatRetentionLimit,
       clearChatHistory,
       setLastPreview,
       getGitHubToken,
@@ -893,6 +912,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       currentBuild,
       updateProjectFiles,
       addChatMessage,
+      setChatRetentionLimit,
       clearChatHistory,
       setLastPreview,
       createFile,

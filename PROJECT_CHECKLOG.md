@@ -1,5 +1,17 @@
 ## 2026-03-15 — Patch 463: SettingsScreen + AIContext Restpunkte (Quality/Retention/Typing) konservativ geschlossen
 
+## 2026-03-16 — Patch 463 Follow-up (PR #278 review): Retention-Save sofort wirksam
+
+- `screens/SettingsScreen/hooks/useSettingsScreen.ts` aktualisiert nach dem Persistieren des Retention-Limits zusätzlich direkt die Runtime im `ProjectContext` (`setChatRetentionLimit`), sodass neue Limits sofort gelten.
+- `contexts/ProjectContext.tsx` kapselt die Runtime-Aktualisierung inkl. sicherer Limit-Sanitization und trimmt bestehende History sofort auf das neue Limit.
+- Regression ergänzt: `__tests__/projectContext.retentionLimitSanitizer.test.ts` prüft die Sanitization-Invarianten.
+
+Checks (lokal):
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent -- --runInBand __tests__/projectContext.retentionLimitSanitizer.test.ts`
+- `npm run test:silent`
+
 - Quality-Mode wirkt jetzt real auf die effektiven Modellauswahlen: `setQualityMode(...)` setzt zusätzlich `selectedChatMode`/`selectedAgentMode` passend zur gewählten Persona (speed vs. quality/review), sodass der Wechsel nicht nur kosmetisch bleibt.
 - SettingsScreen zieht den gleichen Nutzerfluss sauber nach: Quality-Button-Selection setzt unmittelbar die aktiven Modelle für Generator+Agent, statt alte Modell-IDs stehen zu lassen.
 - Privacy-Retention ist kein halbfertiger Read-only-Hinweis mehr: Retention-Limit ist im SettingsScreen jetzt direkt editierbar und wird über `setChatHistoryRetentionLimit(...)` persistiert.
