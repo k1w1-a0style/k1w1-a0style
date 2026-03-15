@@ -1,9 +1,74 @@
+## 2026-03-15 — Patch 455: ConnectionsScreen Secret-/Flow-Restpunkte konservativ gehärtet
+
+- Supabase-ANON-Key im Connections-Flow auf SecureStore umgestellt (`supabase_anon_key_v1`) inkl. Legacy-Migration aus AsyncStorage (`STORAGE_KEYS.SUPABASE_KEY`) und Cleanup des Legacy-Keys.
+- Busy-/Parallel-Execution-Guard (`withBusyGuard` + `busyRef`) für `saveAll`, `testGitHub`, `testExpo`, `testSupabase` ergänzt; UI-Actions bleiben bis Hydration deaktiviert.
+- `testExpo` persistiert den Token nicht mehr implizit als Side-Effect; Persistenz bleibt am expliziten Save/Import.
+- EAS-Link-Flow setzt `CONN_EAS_OK` nach Workflow-Start nicht mehr optimistisch auf grün, sondern bleibt bis echter Verifikation neutral/false.
+- Flow-nahe Tests ergänzt (`supabaseAnonKeyStorage` + Connections-Flow-Invariants).
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
+## 2026-03-15 — Patch 454: OneClickDeploy-Testflake stabilisiert
+
+- Echte Timeout-Ursache im Testkontext adressiert: Press-Event startet den async Hook-Flow jetzt deterministisch in `act(...)` inkl. Microtask-Flush statt impliziter Scheduling-Rennen.
+- AsyncStorage-Mocks pro Test mit stabilen Default-Resolves initialisiert; dadurch hängen frühe Hook-Effekte (`ONE_CLICK_AUTO_SYNC_SECRETS`) nicht mehr an implizitem Mock-Zustand.
+- Nach jedem Test erzwungenes `cleanup()` + `jest.clearAllTimers()` minimiert Seiteneffekt-Leaks zwischen Tests; Produktcode blieb unverändert.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+- `npm run test:silent -- --runInBand __tests__/oneClickDeploy.test.tsx`
+
+
+## 2026-03-15 — Patch 453: KI-/Chat-Nachaudit (misstrauisch)
+
+- Echte Restlücke geschlossen: `normalizeAiResponseDetailed` übernimmt bei `{ output_text: ... }` den Text jetzt als `responseText`, sodass der Builder-Non-JSON-Fehlerpfad verständliche KI-Preview behält.
+- Regressionstests nachgeschärft: `output_text`-Fallback und `no_valid_files_after_normalization` sind explizit abgedeckt.
+- Full-Suite lief im Audit-Lauf vollständig grün; der Fokus dieses Patches bleibt dennoch strikt auf dem KI-/Chat-Restpunkt.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent -- --runInBand lib/__tests__/normalizer.test.ts __tests__/promptEngine.contextPriority.test.ts __tests__/chatFlowStateGuards.test.ts lib/__tests__/projectOwnership.test.ts`
+- `npm run test:silent`
+
 # PROJECT_CHECKLOG
 
 Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-15: Patch 455: ConnectionsScreen-Restpunkte konservativ gehärtet — Supabase-ANON-Key jetzt SecureStore-basiert (inkl. Legacy-Migration), Busy-/Hydration-Guards blockieren parallele Save/Test-Runs, `testExpo` ohne Token-Persistenz-Side-Effect, EAS-Link-Lampe nicht mehr optimistisch grün; flow-nahe Invariants + Storage-Tests ergänzt.
+- 2026-03-15: Patch 454: OneClickDeploy-Testflake in `__tests__/oneClickDeploy.test.tsx` gezielt stabilisiert (deterministischer `act`-Press + Microtask-Flush, AsyncStorage-Default-Resolves, striktes Cleanup/Timer-Clear); kein Produktcode-Umbau.
+- 2026-03-15: Patch 453: Misstrauisches KI-/Chat-Nachaudit — echte Restlücke im Non-JSON-Fehlerpfad geschlossen (`output_text` wird im Normalizer als Response-Text durchgereicht), gezielte Regressionstests ergänzt; Full-Suite im Audit-Lauf grün.
+- 2026-03-15: Patch 451: PreviewScreen/PreviewFullscreen-Restprobleme konservativ behoben — `usePreview` nutzt content-basierte Fingerprints (Hot-Reload erkennt nun auch inhaltliche Same-Length-Edits), PreviewScreen nutzt dieselbe WebView-Crash-Recovery wie Fullscreen (inkl. one-shot Auto-Reload), und abgelaufene Supabase-URLs werden im normalen PreviewScreen nicht mehr blind in die WebView gegeben; Preview-Helper/Types dedupliziert, `previewFiles`-Dependency auf `projectData?.files` verengt, lokale HTML-Fallback-Transienz im UI klarer benannt.
+- 2026-03-15: Patch 450: CustomHeader-/CI-Lite-Restfix konservativ umgesetzt — `useGitHubActionsLogs` resetet `workflowRun`/`logs` bei Input-Wechsel und verwirft verspätete Antworten per Request-Key-Guard; CI-Lite-Persistenz speichert nur noch für den aktiven CI-Lite-Run-Kontext (`workflowRun.id===runId` + Repo/Branch-Guard), Doppeltap-Dispatch ist blockiert, `head_sha` im `WorkflowRun`-Typ ergänzt, Artifact-JSON lokal typisiert, Patch-Sync ohne `as any` + `syncPatchToGitHub` via `useCallback` stabilisiert; gezielte Regressionen ergänzt.
+- 2026-03-15: Patch 449: EnhancedBuildScreen-Restpunkte gezielt behoben — OneClickDeploy entfernt den redundanten Vorab-Push (SHA-sichere Reihenfolge bleibt im `startBuildJob`), `canStartBuildUi` wurde auf state-basiertes Inflight-Flag umgestellt, unnötige `openRunDetails`-Ref-Dependencies bereinigt und Build-/Logs-`WorkflowRun`-Typing inkl. `event` vereinheitlicht (`LogsAnalysisSection` ohne `any`).
+- 2026-03-15: Patch 448: DiagnosticScreen-Restpunkte gezielt behoben — progressive Preflight-Progress nutzt wieder Severity-`stage`; „KI-Fix verfuegbar“ wird nicht mehr bei `pass`-Checks angezeigt; flow-nahe Typing-/Hook-Cleanups (`projectData`-Casts, Runner-`files`-Typing, Fix-Runner-Signaturen, Dependency-Vollständigkeit) plus fokussierte Regressionstests ergänzt.
+- 2026-03-15: Patch 447: kleiner Edge-Typing-Follow-up umgesetzt; `_shared/auth` + `_shared/cors` lesen Runtime-Env jetzt ohne `globalThis as any`, `_shared/validation` reduziert verbleibende `any` in Trigger-/Dispatch-Validierung und `parseJsonBody` lehnt nicht-Objekt-JSON nun explizit mit Testabdeckung ab.
+- 2026-03-15: Patch 446: Build-Start-Type-Safety gezielt nachgeschärft; riskante `any`-Zugriffe auf Edge-Invoke-Payload in `buildStartService` durch lokales Payload-Narrowing ersetzt, unnötigen `pushFilesToRepo`-Cast entfernt und mit Regressionstests (`job.id` + error-shaped payload) abgesichert.
+- 2026-03-15: Patch 445: `save_preview`-Headerkonsistenz zu Auth-/Rate-Limit-Fehlerpfaden zusätzlich per Invariants abgesichert; `_shared/auth` nutzt nun Deno/Node-kompatiblen Env-Lookup statt harter Deno-Referenzen, wodurch der lokale Typecheck wieder grün läuft.
+- 2026-03-15: Patch 444: `save_preview`-Restinkonsistenz bei CORS-/Security-Headern reduziert; lokale Erfolgs-/Fehlerantworten auf `_shared/cors` ausgerichtet, damit sie konsistenter zu Auth-/Rate-Limit-Fehlerpfaden reagieren; gezielte Invariant-Tests ergänzt.
+- 2026-03-15: Patch 443: `k1w1-handler` Provider-Härtung für Restfälle umgesetzt — Anthropic verhindert leeres `messages`-Array bei reinen `system`-Prompts, Gemini mappt `system` explizit via `systemInstruction` und nutzt nicht-leeren `contents`-Fallback; doppeltes Gemini-Nullish-Coalescing entfernt, Invariant-Tests ergänzt.
 - 2026-03-15: Patch 442: Build-Status-/Phasen-Feintuning im EnhancedBuildScreen umgesetzt; aktiver Lauf, letzte bekannte Build-Daten und Auswahl sauberer getrennt, aktive Phase expliziter markiert sowie Run/Artefakt/Download-Labels auf aktuellen vs. vergangenen Kontext geschärft (ohne Architekturänderung).
 - 2026-03-15: Patch 441: konservatives Mikro-UX-Finetuning der Kernpfade Build/Diagnosis/Preview umgesetzt; Build- und Diagnose-CTAs alltagsnäher benannt, Preview-Statussprache auf Live/Fallback/Fehler vereinheitlicht, bestehende Readiness-/Guard-Logik unverändert gelassen.
 - 2026-03-15: Patch 440: konservatives UX-/Flow-Feintuning (Build/Diagnosis/Preview/Connections/Credentials/Chat) mit Fokus auf klarere Status- und Fallback-Semantik ohne Architekturumbau; ergänzende Regression für Preview-Status-Text.

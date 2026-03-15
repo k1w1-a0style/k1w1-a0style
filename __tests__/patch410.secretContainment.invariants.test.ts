@@ -15,7 +15,7 @@ describe("patch410 secret containment invariants", () => {
     expect(auth).toContain("if (!hasAdmin && !hasCi) {");
     expect(auth).toContain('"Missing auth configuration for this Edge Function."');
     expect(auth).toContain("export function getServiceRoleKey(_req: Request)");
-    expect(auth).toContain('Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY")');
+    expect(auth).toContain(`getRuntimeEnv("K1W1_SUPABASE_SERVICE_ROLE_KEY")`);
     expect(auth).not.toContain(`return getBearerToken(req) || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || null;`);
   });
 

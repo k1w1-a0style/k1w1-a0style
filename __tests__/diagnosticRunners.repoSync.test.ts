@@ -13,7 +13,7 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
   getItem: (...args: any[]) => mockGetItem(...args),
 }));
 
-import { runPipelineChecks } from "../screens/DiagnosticScreen/hooks/diagnosticRunners";
+import { runLocalChecks, runPipelineChecks } from "../screens/DiagnosticScreen/hooks/diagnosticRunners";
 import { computeProjectFilesSignature } from "../lib/repoSyncOrchestration";
 
 describe("runPipelineChecks repo sync guard", () => {
@@ -42,4 +42,27 @@ describe("runPipelineChecks repo sync guard", () => {
 
     expect(all.some((r) => r.id === "pipeline::repoSyncRequired")).toBe(true);
   });
+
+  it("uses progressive stage severity in progress text", async () => {
+    const files = [{ path: "app.json", content: "{}" }];
+    const all: PreflightCheckResult[] = [];
+    const setProgressStage = jest.fn();
+
+    await runLocalChecks({
+      includeLocalChecks: true,
+      focusedProfiles: ["development"],
+      files,
+      all,
+      mountedRef: { current: true } as any,
+      setResults: () => {},
+      setProgressStage,
+    });
+
+    expect(
+      setProgressStage.mock.calls.some((c) =>
+        String(c[0]).startsWith("Checks: local/development • critical"),
+      ),
+    ).toBe(true);
+  });
+
 });

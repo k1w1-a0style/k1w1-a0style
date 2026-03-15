@@ -1,7 +1,7 @@
 // screens/PreviewScreen/PreviewScreen.tsx
 // Refactored (Patch 200): Logik → usePreviewScreen, hier nur Rendering.
 
-import React, { useRef } from 'react';
+import React from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -9,7 +9,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../theme';
 import { usePreviewScreen } from './hooks/usePreviewScreen';
@@ -20,8 +19,6 @@ import { PreviewToolbar } from './components/PreviewToolbar';
 import { PreviewStatusBar } from './components/PreviewStatusBar';
 
 export default function PreviewScreen() {
-  const webViewRef = useRef<WebView>(null);
-
   const {
     projectData,
     isLoading,
@@ -44,8 +41,12 @@ export default function PreviewScreen() {
     fadeAnim,
     hotDotAnim,
     flashBorderAnim,
+    webViewRef,
     originWhitelist,
     handleShouldStartLoad,
+    handleContentProcessDidTerminate,
+    handleRenderProcessGone,
+    resetRecoveryState,
     handleCreate,
     handleReset,
     handleCopy,
@@ -56,6 +57,7 @@ export default function PreviewScreen() {
   } = usePreviewScreen();
 
   const handleReload = () => {
+    resetRecoveryState();
     setWebError(null);
     if (webViewRef.current) {
       setPhase('loading');
@@ -127,7 +129,10 @@ export default function PreviewScreen() {
           setPhase('loading');
           setWebError(null);
         }}
-        onLoadEnd={() => setPhase('ready')}
+        onLoadEnd={() => {
+          resetRecoveryState();
+          setPhase('ready');
+        }}
         onError={(message) => {
           setPhase('error');
           setWebError(message);
@@ -136,6 +141,8 @@ export default function PreviewScreen() {
           setPhase('error');
           setWebError(`HTTP ${statusCode ?? '?'}`);
         }}
+        onContentProcessDidTerminate={handleContentProcessDidTerminate}
+        onRenderProcessGone={handleRenderProcessGone}
         onCreate={handleCreate}
       />
 

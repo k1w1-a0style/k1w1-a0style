@@ -1,6 +1,6 @@
 import React from "react";
 import { Text, TouchableOpacity, Alert } from "react-native";
-import { render, fireEvent, waitFor } from "@testing-library/react-native";
+import { act, render, fireEvent, waitFor, cleanup } from "@testing-library/react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
@@ -22,7 +22,6 @@ const mockAsyncStorage = AsyncStorage as any;
 const mockGitHub = {
   getGitHubToken: jest.fn(),
   getExpoToken: jest.fn(),
-  pushFilesToRepo: jest.fn(),
 };
 
 const mockSecrets = {
@@ -82,26 +81,38 @@ function getSteps(getByTestId: any) {
   return JSON.parse(raw);
 }
 
+async function pressRun(getByTestId: any) {
+  await act(async () => {
+    fireEvent.press(getByTestId("run"));
+    await Promise.resolve();
+  });
+}
+
 describe("useOneClickDeploy", () => {
   beforeAll(() => {
     jest.useRealTimers();
     jest.setTimeout(20000);
   });
   beforeEach(() => {
+    jest.useRealTimers();
     jest.spyOn(Alert, "alert").mockImplementation(() => {});
 
     mockGitHub.getGitHubToken.mockReset();
     mockGitHub.getExpoToken.mockReset();
-    mockGitHub.pushFilesToRepo.mockReset();
     mockSecrets.autoSyncRepoSecrets.mockReset();
     // Reset AsyncStorage mocks per test
     mockAsyncStorage.getItem.mockReset();
     mockAsyncStorage.setItem.mockReset();
     mockAsyncStorage.removeItem?.mockReset?.();
+    mockAsyncStorage.getItem.mockResolvedValue(null);
+    mockAsyncStorage.setItem.mockResolvedValue(undefined);
+    mockAsyncStorage.removeItem?.mockResolvedValue?.(undefined);
   });
 
   afterEach(() => {
     (Alert.alert as any).mockRestore?.();
+    jest.clearAllTimers();
+    cleanup();
   });
 
   it("fails hard when signing key is missing (no skip)", async () => {
@@ -121,7 +132,7 @@ describe("useOneClickDeploy", () => {
       />,
     );
 
-    fireEvent.press(getByTestId("run"));
+    await pressRun(getByTestId);
 
     await waitFor(
       () => {
@@ -162,7 +173,7 @@ describe("useOneClickDeploy", () => {
       />,
     );
 
-    fireEvent.press(getByTestId("run"));
+    await pressRun(getByTestId);
 
     await waitFor(() => {
       const steps = getSteps(getByTestId);
@@ -205,7 +216,7 @@ describe("useOneClickDeploy", () => {
       />,
     );
 
-    fireEvent.press(getByTestId("run"));
+    await pressRun(getByTestId);
 
     await waitFor(
       () => {
@@ -216,8 +227,15 @@ describe("useOneClickDeploy", () => {
     );
 
     const steps = getSteps(getByTestId);
+    const pushFiles = steps.find((s: any) => s.id === "push_files");
     const build = steps.find((s: any) => s.id === "build");
+    expect(pushFiles.status).toBe("skip");
+    expect(["Repo-Sync erfolgt im Build-Start (SHA-sicher)", "Keine Dateien zum Synchronisieren"]).toContain(
+      String(pushFiles.detail || ""),
+    );
     expect(build.status).toBe("ok");
     expect(startBuild).toHaveBeenCalledTimes(1);
+    expect(mockGitHub.getGitHubToken).toHaveBeenCalledTimes(1);
+    expect(mockGitHub.getExpoToken).toHaveBeenCalledTimes(1);
   });
 });

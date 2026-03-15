@@ -1,5 +1,5 @@
 // lib/__tests__/normalizer.test.ts
-import { normalizeAiResponse } from '../normalizer';
+import { normalizeAiResponse, normalizeAiResponseDetailed } from '../normalizer';
 
 describe('normalizer', () => {
   describe('normalizeAiResponse', () => {
@@ -104,6 +104,36 @@ describe('normalizer', () => {
     });
 
 
+
+
+    it('returns parse metadata when response text is not file-json', () => {
+      const result = normalizeAiResponseDetailed('Ich brauche erst mehr Details, bevor ich Dateien ändere.');
+
+      expect(result).not.toBeNull();
+      expect(result?.files).toHaveLength(0);
+      expect(result?.parseError).toBeTruthy();
+      expect(result?.responseText).toContain('mehr Details');
+    });
+
+
+    it('returns responseText from output_text payload when no JSON files are present', () => {
+      const result = normalizeAiResponseDetailed({ output_text: 'Ich brauche mehr Kontext bevor ich Dateien liefere.' });
+
+      expect(result).not.toBeNull();
+      expect(result?.files).toHaveLength(0);
+      expect(result?.parseError).toBe('no_file_array_detected');
+      expect(result?.responseText).toContain('mehr Kontext');
+    });
+
+    it('reports normalization failure for text payloads whose file array normalizes to empty', () => {
+      const result = normalizeAiResponseDetailed(
+        '{"files":[{"path":"","content":"x"},{"path":"App.tsx","content":"   "}]}'
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.files).toHaveLength(0);
+      expect(result?.parseError).toBe('no_valid_files_after_normalization');
+    });
     it('should return null for invalid JSON string', () => {
       const input = 'not valid json {{{';
 

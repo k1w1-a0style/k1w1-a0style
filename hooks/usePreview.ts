@@ -13,120 +13,16 @@ import { getEdgeAdminKey } from "../infra/github/githubService";
 import type { PreviewFiles, PreviewResponse } from "../types/preview";
 
 import type { ProjectData, LastPreviewMeta } from "../shared/types/project";
-import { shouldAttemptSupabaseFirst } from "./previewHelpers";
-function promiseWithTimeout<T>(
-  promise: Promise<T>,
-  ms: number,
-  timeoutMessage: string,
-): Promise<T> {
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  const timeoutPromise = new Promise<T>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), ms);
-  });
-  return (Promise.race([promise, timeoutPromise]) as Promise<T>).finally(() => {
-    if (timeoutId) clearTimeout(timeoutId);
-  });
-}
-
-type ProjectFile = { path?: string; content?: string };
-
-function isProjectFile(value: unknown): value is ProjectFile {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as ProjectFile;
-  return typeof candidate.path === "string" && typeof candidate.content === "string";
-}
-
-const ALLOWED_EXTENSIONS = new Set([
-  ".ts",
-  ".tsx",
-  ".js",
-  ".jsx",
-  ".mjs",
-  ".cjs",
-  ".json",
-  ".css",
-  ".scss",
-  ".sass",
-  ".less",
-  ".html",
-  ".htm",
-  ".md",
-  ".mdx",
-  ".txt",
-  ".svg",
-  ".graphql",
-  ".gql",
-]);
-
-const IGNORED_PATTERNS = [
-  "node_modules/",
-  ".expo/",
-  ".git/",
-  ".next/",
-  "dist/",
-  "build/",
-  ".cache/",
-  "__tests__/",
-  "__mocks__/",
-];
-
-function sanitizePreviewPath(raw: string): string | null {
-  let p = String(raw ?? "")
-    .trim()
-    .replace(/\\/g, "/");
-  if (!p) return null;
-  if (p.length > 300) return null;
-  if (p.includes("\0")) return null;
-
-  const segs = p.split("/").filter(Boolean);
-  if (segs.some((s) => s === "..")) return null;
-
-  // Collapse multiple slashes
-  p = p.replace(/\/+/g, "/");
-  if (!p.startsWith("/")) p = "/" + p;
-  return p;
-}
-
-function isAllowedFile(path: string): boolean {
-  const p = path.toLowerCase();
-  if (IGNORED_PATTERNS.some((pattern) => p.includes(pattern))) return false;
-  const ext = p.match(/\.[^./]+$/)?.[0];
-  if (!ext) return false;
-  return ALLOWED_EXTENSIONS.has(ext);
-}
-
-function safeJson<T>(s: string): T | null {
-  try {
-    return JSON.parse(s) as T;
-  } catch {
-    return null;
-  }
-}
-
-/** Simple DJB2 string hash for fingerprinting. */
-function simpleHash(str: string): number {
-  let hash = 5381;
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0;
-  }
-  return hash >>> 0;
-}
-
-export interface PreviewState {
-  isCreating: boolean;
-  lastCreatedAt: number | null;
-  error: string | null;
-  fileCount: number;
-  totalSize: number;
-  skippedCount: number;
-}
-
-export type PreviewResult = {
-  url: string | null;
-  html: string | null;
-  expiresAt: string | null;
-  source: "supabase" | "local";
-};
+import {
+  isAllowedFile,
+  isProjectFile,
+  promiseWithTimeout,
+  safeJson,
+  sanitizePreviewPath,
+  shouldAttemptSupabaseFirst,
+  simpleHash,
+} from "./previewHelpers";
+import type { PreviewResult, PreviewState } from "./previewHelpers";
 
 export interface UsePreviewReturn {
   state: PreviewState;
@@ -216,7 +112,7 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
 
     const rawFiles = projectData?.files;
     const sourceList: unknown[] = Array.isArray(rawFiles) ? rawFiles : [];
-    const list: ProjectFile[] = sourceList.filter(isProjectFile);
+    const list = sourceList.filter(isProjectFile);
 
     let total = 0;
     // Count malformed entries as skipped (relevant for status feedback in PreviewScreen).
@@ -259,7 +155,7 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
       totalSize: total,
       skippedCount,
     };
-  }, [projectData]);
+  }, [projectData?.files]);
 
   const { fileMap, totalSize, skippedCount } = previewFiles;
 
@@ -620,13 +516,12 @@ if (container) {
     [isCreating, lastCreatedAt, error, fileMap, totalSize, skippedCount],
   );
 
-  // Lightweight fingerprint: count + total size + sorted keys hash
+  // Content-aware fingerprint: key + per-file content hash (same-length edits are detected).
   const filesFingerprint = useMemo(() => {
     const keys = Object.keys(fileMap).sort();
-    const totalLen = Object.values(fileMap).reduce((s, c) => s + c.length, 0);
-    // Simple hash: join key lengths + total size
-    const keyHash = keys.map((k) => `${k}:${(fileMap[k] || "").length}`).join("|");
-    return `${keys.length}-${totalLen}-${simpleHash(keyHash)}`;
+    const totalLen = Object.values(fileMap).reduce((sum, content) => sum + content.length, 0);
+    const fileHashes = keys.map((key) => `${key}:${simpleHash(fileMap[key] ?? "")}`).join("|");
+    return `${keys.length}-${totalLen}-${simpleHash(fileHashes)}`;
   }, [fileMap]);
 
   return {

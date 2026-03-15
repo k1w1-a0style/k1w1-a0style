@@ -16,7 +16,7 @@ import type { ExtendedOrchestratorResult, UseChatAIFlowArgs, PendingChange, Pend
 import { buildChangeConfirmationText } from "./chatChangeSummary";
 
 import { runOrchestrator } from "../lib/orchestrator";
-import { normalizeAiResponse } from "../lib/normalizer";
+import { normalizeAiResponseDetailed } from "../lib/normalizer";
 import { logger } from "../lib/logger";
 import { applyFilesToProject } from "../lib/fileWriter";
 import { buildProjectStateDigest, rebasePendingChangeOnLatest } from "../lib/chatFlowStateGuards";
@@ -260,10 +260,10 @@ export function useChatAIFlow({
         // CALL 1: Planner (nur wenn nicht AutoFix / nicht forced / kein pendingPlan)
         if (!isAutoFix && !forceBuilder && !currentPendingPlan) {
           const advice = looksLikeAdviceRequest(userContent);
+          const explicitFileTask = looksLikeExplicitFileTask(userContent);
           const shouldPlanner =
             advice ||
-            (looksAmbiguousBuilderRequest(userContent) &&
-              !looksLikeExplicitFileTask(userContent));
+            (!forceBuilder && !explicitFileTask && looksAmbiguousBuilderRequest(userContent));
 
           if (shouldPlanner) {
             const plannerMsgs = buildPlannerMessages(
@@ -360,15 +360,31 @@ export function useChatAIFlow({
         // ✅ FIX #7: Type-safe extraction of raw data
         const rawForNormalizer = extractRawOrchestratorResult(ai as ExtendedOrchestratorResult);
 
-        const normalized = normalizeAiResponse(rawForNormalizer);
-        if (!normalized) {
-          const preview =
-            typeof ai.text === "string"
-              ? ai.text.slice(0, 600).replace(/\s+/g, " ")
-              : "";
+        const normalizedResult = normalizeAiResponseDetailed(rawForNormalizer);
+        const normalized = normalizedResult?.files ?? null;
+        if (!normalized || normalized.length === 0) {
+          const rawText =
+            typeof normalizedResult?.responseText === "string"
+              ? normalizedResult.responseText.trim()
+              : typeof ai.text === "string"
+                ? ai.text.trim()
+                : "";
+          if (rawText.length > 0) {
+            const preview = rawText.slice(0, 900);
+            const parseHint =
+              normalizedResult?.parseError && normalizedResult.parseError.length > 0
+                ? ` [Normalizer: ${normalizedResult.parseError}]`
+                : "";
+            throw new Error(
+              "Builder hat keine gültige JSON-Dateiliste geliefert. " +
+                `Ich konnte daher keine Dateien anwenden.${parseHint}\n\n` +
+                "KI-Antwort (gekürzt):\n" +
+                preview,
+            );
+          }
+
           throw new Error(
-            "Normalizer/Validator konnte die Dateien nicht verarbeiten." +
-              (preview ? `\n\nOutput-Preview: ${preview}` : ""),
+            "Builder/Normalizer konnte keine verwertbare Dateiliste erzeugen.",
           );
         }
 
@@ -396,10 +412,20 @@ export function useChatAIFlow({
 
             if (agentRes?.ok) {
               const agentRaw = extractRawOrchestratorResult(agentRes as ExtendedOrchestratorResult);
-              const normalizedAgent = normalizeAiResponse(agentRaw);
+              const normalizedAgent = normalizeAiResponseDetailed(agentRaw)?.files;
               if (normalizedAgent && normalizedAgent.length > 0) {
                 finalFiles = normalizedAgent;
                 agentMeta = agentRes;
+              } else if (agentRes?.ok) {
+                logger.warn("[useChatAIFlow] Validator returned no valid file array; keeping builder files.");
+                addChatMessage({
+                  id: uuidv4(),
+                  role: "system",
+                  content:
+                    "ℹ️ Validator lieferte keine gültige Dateiliste. Es wurden daher die ursprünglichen Builder-Dateien verwendet.",
+                  timestamp: new Date().toISOString(),
+                  meta: { validatorWarning: true },
+                });
               }
             }
           } catch (e) {
@@ -443,6 +469,13 @@ export function useChatAIFlow({
           } catch (e) {
             // ✅ FIX #8: Log explain errors instead of silently swallowing
             logger.warn("[useChatAIFlow] Explain call failed:", e);
+            addChatMessage({
+              id: uuidv4(),
+              role: "system",
+              content: "ℹ️ Konnte die Kurz-Erklärung für die Änderungen nicht erzeugen. Dateien können trotzdem übernommen werden.",
+              timestamp: new Date().toISOString(),
+              meta: { explainWarning: true },
+            });
           }
         }
 
@@ -463,6 +496,13 @@ export function useChatAIFlow({
           (!isAutoFix
             ? `\n\n⏭ **Übersprungen** (${mergeResult.skipped.length}):\n` +
               buildPathBulletList(mergeResult.skipped, 3)
+            : "") +
+          (mergeResult.errors?.length
+            ? `\n\n🚫 **Geblockt/Hinweise** (${mergeResult.errors.length}):\n` +
+              mergeResult.errors.slice(0, 4).map((e) => `  • ${e}`).join("\n") +
+              (mergeResult.errors.length > 4
+                ? `\n  ... und ${mergeResult.errors.length - 4} weitere`
+                : "")
             : "") +
           `\n\nMöchtest du diese Änderungen übernehmen?`;
 

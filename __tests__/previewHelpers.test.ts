@@ -3,6 +3,7 @@ import {
   formatPreviewExpiry,
   getPreviewChannelLabel,
   shouldAttemptSupabaseFirst,
+  isPreviewExpired,
 } from "../hooks/previewHelpers";
 
 describe("previewHelpers", () => {
@@ -19,7 +20,7 @@ describe("previewHelpers", () => {
     expect(formatPreviewExpiry(null, now)).toBe("Kein Ablauf hinterlegt (letzter bekannter Stand)");
     expect(formatPreviewExpiry("invalid", now)).toBe("Ablaufzeit konnte nicht gelesen werden");
     expect(formatPreviewExpiry("2026-03-14T09:59:00.000Z", now)).toBe(
-      "Abgelaufen – letzter Stand sichtbar, bitte neu erstellen",
+      "Abgelaufen – letzte URL wird nicht mehr geladen, bitte neu erstellen",
     );
     expect(formatPreviewExpiry("2026-03-14T10:20:00.000Z", now)).toBe(
       "Gültig für ca. 20 min",
@@ -31,9 +32,20 @@ describe("previewHelpers", () => {
       "Aktive Supabase-Preview (Browser/QR)",
     );
     expect(getPreviewChannelLabel("local")).toBe(
-      "Technischer Fallback: Lokale HTML-Preview",
+      "Technischer Fallback: Lokale HTML-Preview (nur solange App aktiv ist)",
     );
     expect(getPreviewChannelLabel(null)).toBe("Noch keine Preview aktiv");
+  });
+
+
+
+  test("isPreviewExpired only flags valid timestamps in the past", () => {
+    const now = new Date("2026-03-14T10:00:00.000Z");
+
+    expect(isPreviewExpired(null, now)).toBe(false);
+    expect(isPreviewExpired("invalid", now)).toBe(false);
+    expect(isPreviewExpired("2026-03-14T09:59:00.000Z", now)).toBe(true);
+    expect(isPreviewExpired("2026-03-14T10:20:00.000Z", now)).toBe(false);
   });
 
   test("buildQrImageUrl encodes preview URL", () => {

@@ -88,4 +88,62 @@ describe('useGitHubActionsLogs edge contract mapping', () => {
     expect(firstBody.workflowId).toBe('k1w1-ci-lite.yml');
     expect(secondBody.workflowId).toBe('k1w1-ci-lite-autofix.yml');
   });
+
+  it('clears stale workflowRun/logs when repo or runId changes', async () => {
+    const fetchMock = jest.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          logsText: 'first-log-line',
+          run: {
+            id: 111,
+            run_number: 1,
+            status: 'in_progress',
+            conclusion: null,
+            created_at: '2026-01-01T00:00:00Z',
+            updated_at: '2026-01-01T00:00:00Z',
+            html_url: 'https://github.com/runs/111',
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ ok: true, logsText: '' }),
+      });
+
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const { result, rerender } = renderHook<
+      ReturnType<typeof useGitHubActionsLogs>,
+      { githubRepo: string | null; runId: number | null }
+    >(
+      ({ githubRepo, runId }) =>
+        useGitHubActionsLogs({
+          githubRepo,
+          runId,
+          workflowId: 'k1w1-ci-lite.yml',
+          autoRefresh: false,
+        }),
+      { initialProps: { githubRepo: 'owner/repo-a', runId: 111 } },
+    );
+
+    await act(async () => {
+      await result.current.refreshLogs();
+    });
+
+    expect(result.current.workflowRun?.id).toBe(111);
+    expect(result.current.logs).toHaveLength(1);
+
+    rerender({ githubRepo: 'owner/repo-b', runId: 222 });
+
+    expect(result.current.workflowRun).toBeNull();
+    expect(result.current.logs).toEqual([]);
+
+    await act(async () => {
+      await result.current.refreshLogs();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });

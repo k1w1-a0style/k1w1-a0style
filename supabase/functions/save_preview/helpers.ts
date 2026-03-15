@@ -1,12 +1,7 @@
 // supabase/functions/save_preview/helpers.ts
 // Extracted from index.ts
 
-import { serve } from "std/http/server.ts";
-import { createClient } from "@supabase/supabase-js";
-import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
-import { parseJsonBody } from "../_shared/validation.ts";
-// NOTE: Supabase Edge (Deno) bundler requires explicit file extensions for local imports.
-import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
 export type SnackFiles = Record<string, { type?: string; contents: string }>;
 type SnackFileInput = { type?: unknown; contents?: unknown };
@@ -68,12 +63,7 @@ export function sanitizeFiles(files: SnackFiles): SnackFiles {
 }
 
 export function corsHeaders(origin: string | null) {
-  return {
-    "Access-Control-Allow-Origin": origin ?? "*",
-    "Access-Control-Allow-Headers":
-      "authorization, x-client-info, apikey, content-type, x-k1w1-admin-key",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-  };
+  return getCorsHeaders(origin);
 }
 
 export function json(res: unknown, init: ResponseInit = {}) {

@@ -1,12 +1,22 @@
 # TODO
 
-Stand: **2026-03-15 (Patch 442)**
+Stand: **2026-03-15 (Patch 454)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
 
 ## Aktuell (Priorität)
 
+- [x] **OneClickDeploy-Testflake gezielt stabilisiert:** `__tests__/oneClickDeploy.test.tsx` wartet den Press-Start jetzt deterministisch via `act` + Microtask-Flush ab, setzt AsyncStorage-Default-Resolves pro Test explizit und räumt mit `cleanup()` + `jest.clearAllTimers()` strikt auf; dadurch weniger race-/timeout-anfällige Läufe ohne Produktcode-Refactor (Patch 454).
+- [x] **KI-/Chat-Nachaudit (misstrauisch) nachgeschärft:** Restlücke im Builder-Fehlerpfad geschlossen: `normalizeAiResponseDetailed` übernimmt `output_text` jetzt als `responseText`, sodass Non-JSON-Antworten mit verständlicher Vorschau enden statt in generischem Fehlerzustand; Regressionstests decken `output_text` und leere Normalisierungsresultate gezielt ab (Patch 453).
+- [x] **KI-/Chat-/Prompting-Restpunkte (konservativ) gehärtet:** Projektkontext priorisiert nun relevante Dateien (statt starrer Reihenfolge), Builder behandelt Non-JSON-Antworten als verständliche User-Info mit KI-Preview, State-Drift-Digest nutzt SHA-256 über Pfad+Inhalt (kein same-length Blindspot), Planner-vs-Builder-Routing wurde vorsichtig entschärft, Ownership-/Validator-/Explain-Blocker werden im Nutzerfeedback sichtbar; `k1w1-handler` bleibt weiterhin serverseitiger Edge-Handler und wird im Client-Flow nur dokumentiert/eingeordnet, nicht blind eingebaut (Patch 452).
+- [x] **Preview-Restpunkte (Fingerprint/Crash-Recovery/Expiry/Flow-Nahe Dedup) gezielt behoben:** `filesFingerprint` ist content-hash-basiert (same-length Edits erkannt), WebView-Crash-Recovery ist im normalen PreviewScreen analog Fullscreen aktiv, abgelaufene Supabase-URLs werden nicht mehr blind geladen, Preview-Helper/Types wurden dedupliziert (`previewHelpers` als SoT), `previewFiles` hängt nur noch an `projectData?.files`, und der lokale HTML-Fallback ist als transient („nur solange App aktiv ist") explizit markiert (Patch 451).
+- [x] **CustomHeader-/CI-Lite-Restprobleme gezielt behoben:** stale `workflowRun`/`logs` werden bei `githubRepo`/`runId`/`workflowId`-Wechsel aktiv zurückgesetzt und durch Request-Key-Guard gegen verspätete Antworten geschützt; Persistenz akzeptiert nur den aktiven CI-Lite-Run (`workflowRun.id===runId` + Repo/Branch-Guard), Doppeltap-Dispatch ist geblockt, `head_sha` ist im `WorkflowRun`-Typ ergänzt, Artifact-JSON lokal typisiert geparst, und CI-Lite-Patch-Sync entfernt `as any` + stabilisiert `syncPatchToGitHub` per `useCallback` (Patch 450).
+- [x] **DiagnosticScreen-Restpunkte (Flow/UX/Typing) gezielt behoben:** progressiver Preflight zeigt wieder Severity-Stufe (`stage` statt falschem `priority`-Zugriff), „KI-Fix verfuegbar“ wird nicht mehr für `pass`-Checks angezeigt, plus selektive Typing-/Hook-Cleanups (`projectData`-Casts, `runLocalChecks/runPipelineChecks`-`files`-Typing, `updateProjectFiles`/`deleteFile`-Signaturen, tote Runner-Imports, `clearSelection`-Dependency) inkl. gezielter Regressionstests (Patch 448).
+- [x] **EnhancedBuildScreen-Restpunkte (OneClickDeploy/Flow/Typing) gezielt behoben:** OneClickDeploy-Vorab-Push entfernt (SHA-sichere Reihenfolge über `startBuildJob`), unnötiger Doppel-Push vermieden, `canStartBuildUi` gegen Ref-Drift stabilisiert, build-/logs-nahe `WorkflowRun`-Typen inkl. `event` vereinheitlicht und `workflowRun`-`any` in `LogsAnalysisSection` eliminiert (Patch 449).
+- [x] **Edge-Typecheck-Restpunkt (Deno/Node-Env in `_shared/auth`) gezielt behoben:** Secret-Lookups laufen jetzt runtime-kompatibel über Deno-oder-Node-Env-Lookup; `npm run typecheck` ist wieder grün, ohne Broad-Refactor (Patch 445).
+- [x] **`save_preview` CORS-/Security-Header konsistent gehärtet:** Erfolgs- und lokale Fehlerpfade nutzen nun denselben `_shared/cors`-Header-Stack wie Auth-/Rate-Limit-Fehler; gezielte Invariants sichern Header-Gleichlauf ohne Architekturumbau (Patch 444).
+- [x] **k1w1-handler Provider-Randfälle (Anthropic/Gemini) gehärtet:** Anthropic schützt gegen leere Requests bei reinen `system`-Prompts; Gemini trennt `system` explizit via `systemInstruction` und nutzt einen nicht-leeren Fallback für `contents`; doppelte No-op-Coalescing-Stelle entfernt, Invariants ergänzt (Patch 443).
 - [x] **UX-Feintuning der Kernpfade (Build/Diagnosis/Preview/Connections/Credentials/Chat-Menü):** Status-Texte und Hinweise auf gespeicherten vs. letzten bekannten Zustand geschärft; technische Formulierungen reduziert und missverständliche Labels vereinheitlicht (Patch 440).
 - [x] **Gezieltes Mikro-UX-Finetuning Build/Diagnosis/Preview:** CTA-Labels enttechnisiert, Diagnose-Aktionen klarer benannt, Preview-Status (Live/Fallback/Fehler) konsistenter formuliert; keine Architekturänderung (Patch 441).
 - [x] **BuildScreen-Readiness/Status-Hierarchie beruhigt:** Hauptaktion im Autoflow explizit gekennzeichnet, Laufkontext vs. letzter bekannter Build-Kontext getrennt und Checklisten-Texte auf alltagstaugliche Readiness-Sprache angepasst; ohne Backend-/Orchestrierungsumbau (Patch 442).
@@ -26,7 +36,9 @@ Stand: **2026-03-15 (Patch 442)**
 - [x] **Polling-/Hook-Stabilität für `useBuildStatus` gehärtet:** unnötige Effect-Resets bei Status- und Callback-Identity-Wechsel entfernt (`statusRef`/`callbacksRef`), Polling bleibt ruhiger (Patch 439).
 - [x] **ProjectContext-History-Effect entkoppelt:** unnötige `currentBuild`-Abhängigkeitskaskade entfernt, Auswahl via Ref stabilisiert (Patch 439).
 - [x] **Selektiver `any`-Hotspot im Build-Status-Edge reduziert:** `check-eas-build` verwendet nun ein explizites `BuildJobRow` statt untypisiertem `any`-Flow (Patch 439).
-- [ ] **Rest-`any` nur weiter selektiv abbauen:** verbleibende Hotspots weiter nur dort anfassen, wo reale Flow-/Vertragsrisiken bestehen (kein Broad Cleanup).
+- [x] **Build-Start-Flow-`any` selektiv reduziert:** `buildStartService` nutzt für Edge-Invoke-Payload jetzt ein lokales, enges Payload-Narrowing statt mehrfacher `as any`-Zugriffe; Build-Fehler- und Job-ID-Mapping bleiben verhaltensgleich (Patch 446).
+- [x] **Edge-Shared-Validation-/Runtime-`any` selektiv reduziert:** `_shared/auth.ts` und `_shared/cors.ts` nutzen getypte Runtime-Globals statt `globalThis as any`; `_shared/validation.ts` hat engere Fehler-/Payload-Typen für Trigger/Workflow-Dispatch (Patch 447).
+- [ ] **Rest-`any` nur weiter selektiv abbauen:** verbleibende Hotspots (z. B. einige ältere Edge-Helfer und nicht-flow-kritische App-Hilfsmodule) weiter nur dort anfassen, wo reale Build-/Repo-/CI-/Diagnostic-Vertragsrisiken bestehen (kein Broad Cleanup).
 
 ## Wichtige Vertrags-Reminder
 
@@ -38,6 +50,9 @@ Stand: **2026-03-15 (Patch 442)**
 
 ## Kürzlich abgeschlossen (Kontext)
 
+- [x] Patch 449 — EnhancedBuildScreen-Restpunkte fokussiert geschlossen: OneClickDeploy ohne Vorab-Push (SHA-sicher über Build-Start-Flow), `canStartBuildUi` ohne Ref-Lesen im `useMemo`, `WorkflowRun`-Typing Build↔Logs vereinheitlicht inkl. `event`, `LogsAnalysisSection` ohne `any`-Run-Typ.
+- [x] Patch 447 — kleiner Edge-Typing-Follow-up: `_shared/auth`/`_shared/cors` ohne `globalThis as any`, `_shared/validation` mit engeren Objekt-/Union-Typen und zusätzlicher `parseJsonBody`-Regression.
+- [x] Patch 446 — letzter selektiver Build-Start-`any`-Hotspot reduziert: Edge-Invoke-Payload lokal typisiert/narrowed, `pushFilesToRepo`-Cast entfernt und gezielte Regressionstests für `job.id`-/Error-Shape ergänzt.
 - [x] Patch 440 — konservatives UX-/Flow-Feintuning ohne Architekturumbau: klarere Statussemantik (gespeichert vs. letzter bekannter Stand), konsistentere Header-/Fallback-Texte in Build, Diagnosis, Preview, Connections, Credentials und Chat-Menü; gezielte Regression für Preview-Status-Text ergänzt.
 - [x] Patch 441 — fokussiertes UX-Feintuning für die drei Kernscreens: Build-Status/CTA-Wording beruhigt, Diagnose-Aktionssprache alltagsnäher gemacht und Preview-Statuswörter für Live/Fallback/Fehler vereinheitlicht; bestehende Guard-/Statuslogik unverändert belassen.
 - [x] Patch 442 — BuildScreen-Feintuning mit klarem Hauptaktions-Hinweis, ruhigerer Readiness-Sprache in der Checkliste und eindeutiger Trennung von laufendem Kontext vs. letztem bekannten Build-Kontext.
@@ -301,6 +316,16 @@ Akzeptanz:
 
 - [x] **CS-006 (P2)** Security-/Regression-Tests für Masking/Validation (Tokens/Keys) ✅ *(patch 97)*  
   _Ort_: `screens/ConnectionsScreen/utils/validation.ts` + `__tests__/connectionsScreen.validation.test.ts`
+- [x] **CS-455-A (P1/P2)** Supabase-ANON-Key in Connections-Flow konsistent über SecureStore statt AsyncStorage persistieren (inkl. Legacy-Migration) ✅ *(patch 455)*  
+  _Ort_: `lib/supabaseAnonKeyStorage.ts`, `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`, `lib/supabase.ts`
+- [x] **CS-455-B (P1)** Busy-/Parallel-Execution für `saveAll` + `testGitHub` + `testExpo` + `testSupabase` blockieren (ehrliche Busy-UI) ✅ *(patch 455)*  
+  _Ort_: `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`, `screens/ConnectionsScreen/index.tsx`
+- [x] **CS-455-C (P2)** `testExpo` ohne versteckte Token-Persistenz; Persistenz nur über explizites Speichern/Import ✅ *(patch 455)*  
+  _Ort_: `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`
+- [x] **CS-455-D (P2)** EAS-Link-Start setzt Lampe nicht mehr optimistisch auf grün; bleibt bis echter EAS-Verifikation neutral/false ✅ *(patch 455)*  
+  _Ort_: `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`
+- [ ] **CS-REST-001 (P2)** Optionaler Feinschliff: konsistente Busy-UX auch für EAS-Test (`testEas`) auf denselben globalen Guard/Spinner zusammenführen (derzeit parallel-blockiert via `busyRef`, aber eigener `isTestingEas`-Pfad).  
+  _Ort_: `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`
 
 ### Supabase (Audit / Ops)
 
@@ -352,6 +377,12 @@ Akzeptanz:
 
 ### DiagnosticScreen
 
+- [x] **DIAG-448 (P1)** Progressive Preflight-Stage nutzt korrekt `stage` (Severity wird im Fortschritt sichtbar) ✅ *(patch 448)*
+  _Ort_: `screens/DiagnosticScreen/hooks/diagnosticRunners.ts`
+- [x] **DIAG-448 (P1)** „KI-Fix verfuegbar“ wird nicht mehr für `pass`-Items gerendert ✅ *(patch 448)*
+  _Ort_: `screens/DiagnosticScreen/index.tsx`
+- [x] **DIAG-448 (P2)** Flow-nahe Typing-/Hook-Restpunkte im DiagnosticScreen bereinigt (unnötige Casts, Hook-Dependencies, Runner-Typen) ✅ *(patch 448)*
+  _Ort_: `screens/DiagnosticScreen/hooks/useDiagnosticScreen.ts`, `screens/DiagnosticScreen/hooks/diagnosticRunners.ts`, `screens/DiagnosticScreen/index.tsx`
 - [x] **DIAG-106 (P1)** `applyPatch`: Delete-Fehler nicht schlucken (keine File-Leichen / kein projectRef-Phantom-State) ✅ *(patch 106)*  
   _Ort_: `screens/DiagnosticScreen/hooks/useDiagnosticFixRunner.ts`
 - [x] **DIAG-106 (P2)** Batch-Progress: `setFixStepIndex` auch für Apply-Steps ✅ *(patch 106)*  

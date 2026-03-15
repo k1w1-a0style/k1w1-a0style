@@ -54,4 +54,13 @@ describe("chatFlowStateGuards", () => {
     const { applyResult } = rebasePendingChangeOnLatest(baseFiles, pending);
     expect(applyResult.updated).toContain("components/A.tsx");
   });
+
+  test("buildProjectStateDigest detects same-length content drift", () => {
+    const a: ProjectFile[] = [{ path: "App.tsx", content: "aaaa" }];
+    const b: ProjectFile[] = [{ path: "App.tsx", content: "bbbb" }];
+
+    expect(a[0].content.length).toBe(b[0].content.length);
+    expect(buildProjectStateDigest(a)).not.toBe(buildProjectStateDigest(b));
+  });
+
 });
