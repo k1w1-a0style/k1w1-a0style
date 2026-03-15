@@ -1,4 +1,22 @@
 
+## 2026-03-15 — Patch 454: OneClickDeploy-Testflake stabilisiert
+
+- Echte Timeout-Ursache im Testkontext adressiert: Press-Event startet den async Hook-Flow jetzt deterministisch in `act(...)` inkl. Microtask-Flush statt impliziter Scheduling-Rennen.
+- AsyncStorage-Mocks pro Test mit stabilen Default-Resolves initialisiert; dadurch hängen frühe Hook-Effekte (`ONE_CLICK_AUTO_SYNC_SECRETS`) nicht mehr an implizitem Mock-Zustand.
+- Nach jedem Test erzwungenes `cleanup()` + `jest.clearAllTimers()` minimiert Seiteneffekt-Leaks zwischen Tests; Produktcode blieb unverändert.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+- `npm run test:silent -- --runInBand __tests__/oneClickDeploy.test.tsx`
+
+
 ## 2026-03-15 — Patch 453: KI-/Chat-Nachaudit (misstrauisch)
 
 - Echte Restlücke geschlossen: `normalizeAiResponseDetailed` übernimmt bei `{ output_text: ... }` den Text jetzt als `responseText`, sodass der Builder-Non-JSON-Fehlerpfad verständliche KI-Preview behält.
@@ -22,6 +40,7 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-15: Patch 454: OneClickDeploy-Testflake in `__tests__/oneClickDeploy.test.tsx` gezielt stabilisiert (deterministischer `act`-Press + Microtask-Flush, AsyncStorage-Default-Resolves, striktes Cleanup/Timer-Clear); kein Produktcode-Umbau.
 - 2026-03-15: Patch 453: Misstrauisches KI-/Chat-Nachaudit — echte Restlücke im Non-JSON-Fehlerpfad geschlossen (`output_text` wird im Normalizer als Response-Text durchgereicht), gezielte Regressionstests ergänzt; Full-Suite im Audit-Lauf grün.
 - 2026-03-15: Patch 451: PreviewScreen/PreviewFullscreen-Restprobleme konservativ behoben — `usePreview` nutzt content-basierte Fingerprints (Hot-Reload erkennt nun auch inhaltliche Same-Length-Edits), PreviewScreen nutzt dieselbe WebView-Crash-Recovery wie Fullscreen (inkl. one-shot Auto-Reload), und abgelaufene Supabase-URLs werden im normalen PreviewScreen nicht mehr blind in die WebView gegeben; Preview-Helper/Types dedupliziert, `previewFiles`-Dependency auf `projectData?.files` verengt, lokale HTML-Fallback-Transienz im UI klarer benannt.
 - 2026-03-15: Patch 450: CustomHeader-/CI-Lite-Restfix konservativ umgesetzt — `useGitHubActionsLogs` resetet `workflowRun`/`logs` bei Input-Wechsel und verwirft verspätete Antworten per Request-Key-Guard; CI-Lite-Persistenz speichert nur noch für den aktiven CI-Lite-Run-Kontext (`workflowRun.id===runId` + Repo/Branch-Guard), Doppeltap-Dispatch ist blockiert, `head_sha` im `WorkflowRun`-Typ ergänzt, Artifact-JSON lokal typisiert, Patch-Sync ohne `as any` + `syncPatchToGitHub` via `useCallback` stabilisiert; gezielte Regressionen ergänzt.

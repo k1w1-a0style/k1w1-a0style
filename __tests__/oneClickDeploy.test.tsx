@@ -1,6 +1,6 @@
 import React from "react";
 import { Text, TouchableOpacity, Alert } from "react-native";
-import { render, fireEvent, waitFor } from "@testing-library/react-native";
+import { act, render, fireEvent, waitFor, cleanup } from "@testing-library/react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
@@ -81,12 +81,20 @@ function getSteps(getByTestId: any) {
   return JSON.parse(raw);
 }
 
+async function pressRun(getByTestId: any) {
+  await act(async () => {
+    fireEvent.press(getByTestId("run"));
+    await Promise.resolve();
+  });
+}
+
 describe("useOneClickDeploy", () => {
   beforeAll(() => {
     jest.useRealTimers();
     jest.setTimeout(20000);
   });
   beforeEach(() => {
+    jest.useRealTimers();
     jest.spyOn(Alert, "alert").mockImplementation(() => {});
 
     mockGitHub.getGitHubToken.mockReset();
@@ -96,10 +104,15 @@ describe("useOneClickDeploy", () => {
     mockAsyncStorage.getItem.mockReset();
     mockAsyncStorage.setItem.mockReset();
     mockAsyncStorage.removeItem?.mockReset?.();
+    mockAsyncStorage.getItem.mockResolvedValue(null);
+    mockAsyncStorage.setItem.mockResolvedValue(undefined);
+    mockAsyncStorage.removeItem?.mockResolvedValue?.(undefined);
   });
 
   afterEach(() => {
     (Alert.alert as any).mockRestore?.();
+    jest.clearAllTimers();
+    cleanup();
   });
 
   it("fails hard when signing key is missing (no skip)", async () => {
@@ -119,7 +132,7 @@ describe("useOneClickDeploy", () => {
       />,
     );
 
-    fireEvent.press(getByTestId("run"));
+    await pressRun(getByTestId);
 
     await waitFor(
       () => {
@@ -160,7 +173,7 @@ describe("useOneClickDeploy", () => {
       />,
     );
 
-    fireEvent.press(getByTestId("run"));
+    await pressRun(getByTestId);
 
     await waitFor(() => {
       const steps = getSteps(getByTestId);
@@ -203,7 +216,7 @@ describe("useOneClickDeploy", () => {
       />,
     );
 
-    fireEvent.press(getByTestId("run"));
+    await pressRun(getByTestId);
 
     await waitFor(
       () => {
