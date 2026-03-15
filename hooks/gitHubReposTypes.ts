@@ -25,6 +25,7 @@ export type GitHubRepo = {
   name: string;
   full_name: string;
   private: boolean;
+  default_branch?: string | null;
   description?: string | null;
   updated_at: string;
 };
@@ -47,4 +48,3 @@ export const encodePathSegments = (path: string) =>
     .split("/")
     .map((segment) => encodeURIComponent(segment))
     .join("/");
-

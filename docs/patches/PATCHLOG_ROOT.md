@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 462: GitHubReposScreen-Restpunkte konservativ geschlossen — Root-`projectFiles` jetzt sauber als `ProjectFile[]` (kein `any[]`-Root-Cast), `refreshSyncStatus` ignoriert stale Async-Rückläufer via Run-Guard, `handleCreateRepo` übernimmt GitHub-`default_branch` direkt, und angrenzende Pull-/Push-Casts wurden minimal reduziert; keine neue GitHub-Architektur.
 - Patch 461: Chat-Flow-Nachfix aus PR #272/#273 zusammengeführt — Meta-/lokale Kommandos bleiben strikt auf unverändertem Raw-Input, der Attachment-Hinweis bleibt auf den normalen AI-Pfad begrenzt, und Attachment-only-Details gehen auch im Pending-Plan-Handoff nicht verloren (`aiContent || userContent`).
 - Patch 460: Rest-Regression nach PR #273 geschlossen — `handleSendWithMeta(...)` akzeptiert Attachment-only-Sendefälle wieder korrekt (Abort nur noch wenn Raw+AI leer), Meta-/lokale Kommandos bleiben strikt auf unverändertem Raw-Input, und der normale AI-Pfad wird bei Attachment-only deterministisch ausgelöst.
 - Patch 459: Rest-Regression aus PR #272 geschlossen — Attachment-Hinweis wird nicht mehr vor Meta-Command-Routing in den User-Input injiziert; lokale/full-line Kommandos (`cat ...`, `zeige datei ...`) laufen wieder auf unverändertem Raw-Input, während der Hinweis nur im normalen AI-Request-Payload landet; gezielte Invariant-Regression ergänzt.

@@ -11,7 +11,7 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 461**.
+- Zuletzt abgeschlossen: **Patch 462**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
 - Preview-Restfix ist konservativ abgeschlossen: Hot-Reload nutzt content-basierte File-Fingerprints (kein Same-Length-Blindspot mehr), der normale PreviewScreen hat jetzt dieselbe WebView-Crash-Recovery wie Fullscreen, und abgelaufene Supabase-URLs werden im PreviewScreen nicht mehr blind geladen.
 - KI-/Chat-/Prompting-Restpunkte wurden konservativ gehärtet: Projekt-Snapshot priorisiert jetzt relevante Dateien statt reiner Array-Reihenfolge, Builder-NonJSON-Antworten werden als verständliche KI-Rückmeldung angezeigt (statt kryptischem Parserfehler), Drift-Digest nutzt SHA-256 über Pfad+Inhalt (kein Same-Length-Blindspot), und Nutzerfeedback zeigt geblockte/übersprungene Ownership-/Validator-/Explain-Fälle transparenter.
@@ -23,6 +23,7 @@
 - Patch 459 zieht den offenen Restpunkt aus PR #272 nach: Meta-/lokale Full-line-Kommandos (`cat <pfad>`, `zeige datei <pfad>`) laufen wieder auf unverändertem Raw-Input; der Attachment-Hinweis wird erst nach dem Command-Routing im normalen AI-Request berücksichtigt.
 - Patch 460 schließt den verbleibenden PR-#273-Restpunkt: `handleSendWithMeta(...)` bricht nur noch ab, wenn sowohl Raw- als auch AI-Input leer sind; dadurch laufen Attachment-only-Sendefälle wieder deterministisch in den normalen AI-Pfad, während Meta-Kommandos weiterhin ausschließlich auf dem unveränderten Raw-Input geprüft werden.
 - Patch 461 zieht die beiden verbliebenen Chat-Regressionen aus PR #272/#273 gemeinsam final gerade: Meta-/lokale Kommandos bleiben strikt auf unverändertem `rawInput`, der Attachment-Hinweis fließt nur in den normalen AI-Request, und auch im Pending-Plan-Handoff gehen Attachment-only-Details (`aiInput`) nicht verloren.
+- Patch 462 schließt die bestätigten GitHubReposScreen-Restpunkte konservativ: Root-`projectData.files` läuft ohne `any[]`-Root-Cast als `ProjectFile[]`, `refreshSyncStatus` hat nun einen Run-Guard gegen stale Async-Rückläufer bei Repo-/Branch-Wechsel, und `handleCreateRepo` übernimmt den von GitHub gelieferten `default_branch` sofort statt blind auf `null` zu setzen; angrenzende Pull-/Push-Casts wurden im selben Hook minimal reduziert.
 - CustomHeader/CI-Lite-Restfix ist konservativ nachgezogen: Logs/Run-State resetten bei Input-Wechsel, verspätete Responses werden per Request-Key-Guard abgefangen, Persistenz schreibt nur noch für den aktiven CI-Lite-Run-Kontext (kein Autofix→CI-Lite-Fehlpersist), und Doppeltap-Dispatch wird geblockt.
 - Build-Job-Vertrag ist auf **positive numerische `jobId`** (bigint-backed) ausgerichtet; UUID-Annahmen sind entfernt.
 - Edge-Shared-Validation/Auth/CORS haben einen kleinen Deno/Node-Typing-Follow-up: Runtime-Env-Lookup ohne `any`, Request-Validation mit engeren Objekt-/Union-Typen (kein Broad-Refactor).

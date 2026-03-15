@@ -1,0 +1,30 @@
+import fs from "fs";
+import path from "path";
+
+const read = (rel: string) =>
+  fs.readFileSync(path.join(process.cwd(), rel), "utf8");
+
+describe("Patch 462 GitHubReposScreen rest-fixes invariants", () => {
+  it("removes root any-cast from local project files", () => {
+    const src = read("screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts");
+
+    expect(src).toContain("const projectFiles = useMemo<ProjectFile[]>");
+    expect(src).not.toContain("const list = (projectData?.files ?? []) as any[];");
+  });
+
+  it("guards sync status updates against stale async runs", () => {
+    const src = read("screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts");
+
+    expect(src).toContain("const syncStatusRunRef = useRef(0);");
+    expect(src).toContain("if (runId !== syncStatusRunRef.current) return;");
+  });
+
+  it("keeps default branch after repo creation when GitHub provides one", () => {
+    const src = read("screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts");
+    const repoTypes = read("hooks/gitHubReposTypes.ts");
+
+    expect(src).toContain('const defaultBranch = String(repo.default_branch || "").trim() || null;');
+    expect(src).toContain("setActiveBranch(defaultBranch);");
+    expect(repoTypes).toContain("default_branch?: string | null;");
+  });
+});

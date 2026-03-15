@@ -1,3 +1,21 @@
+## 2026-03-15 — Patch 462: GitHubReposScreen-Restpunkte (Typing/Sync/Branch) konservativ geschlossen
+
+- Root-Typing im RepoScreen-Hook bereinigt: `projectData?.files` wird als `ProjectFile[]` geführt (kein `projectFiles as any[]`-Root-Cast mehr), plus reduzierte Pull-/Push-nahe Folge-Casts (`handlePull`, Push-Auswahl, `applyPulledFiles`).
+- `refreshSyncStatus` ist jetzt stale-resistent: laufende Async-Ergebnisse committen nur noch, wenn der Lauf noch aktuell ist (`syncStatusRunRef`), wodurch Repo-/Branch-Wechsel keine alten Statusdaten mehr zurückschreiben.
+- `handleCreateRepo` übernimmt nach erfolgreicher Repo-Erstellung den von GitHub gelieferten `default_branch` unmittelbar in Active-/Linked-Branch, statt den Branch pauschal auf `null` zu setzen.
+- Typing-Nachzug: `GitHubRepo` enthält optional `default_branch`, damit Repo-Selection/Create ohne `as any` auf Branch-Infos zugreifen kann.
+- Regressionen ergänzt: `__tests__/patch462.githubReposScreen.restFixes.invariants.test.ts` prüft Root-Typing, stale-run-Guard und Default-Branch-Übernahme.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 ## 2026-03-15 — Patch 461: Chat-Restregressionen (#272/#273) gemeinsam final geschlossen
 
 - `hooks/useChatAIFlow.ts`: Pending-Plan-Handoff nutzt bei leerem `rawInput` jetzt `aiContent || userContent`, damit Attachment-only-Details im normalen AI-Pfad nicht verloren gehen.
