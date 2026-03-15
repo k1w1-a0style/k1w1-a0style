@@ -20,6 +20,8 @@ type DeviceFrameProps = {
   onLoadEnd: () => void;
   onError: (message: string) => void;
   onHttpError: (statusCode: number | undefined) => void;
+  onContentProcessDidTerminate: (event: { nativeEvent?: unknown }) => void;
+  onRenderProcessGone: (event: { nativeEvent?: { didCrash?: boolean } }) => boolean;
   onCreate: () => void;
 };
 
@@ -35,6 +37,8 @@ export function DeviceFrame({
   onLoadEnd,
   onError,
   onHttpError,
+  onContentProcessDidTerminate,
+  onRenderProcessGone,
   onCreate,
 }: DeviceFrameProps) {
   return (
@@ -69,6 +73,8 @@ export function DeviceFrame({
               onLoadEnd={onLoadEnd}
               onError={(event) => onError(event.nativeEvent?.description || 'WebView Fehler')}
               onHttpError={(event) => onHttpError(event.nativeEvent?.statusCode)}
+              onContentProcessDidTerminate={onContentProcessDidTerminate}
+              onRenderProcessGone={onRenderProcessGone}
               mixedContentMode="always"
               startInLoadingState={false}
             />

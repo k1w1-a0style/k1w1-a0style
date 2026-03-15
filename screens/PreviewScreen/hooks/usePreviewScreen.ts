@@ -10,9 +10,16 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useProject } from '../../../contexts/ProjectContext';
 import { usePreview } from '../../../hooks/usePreview';
-import { buildQrImageUrl, formatPreviewExpiry, getPreviewChannelLabel } from '../../../hooks/previewHelpers';
+import {
+  buildQrImageUrl,
+  formatPreviewExpiry,
+  getPreviewChannelLabel,
+  isPreviewExpired,
+} from '../../../hooks/previewHelpers';
 import { isHttpUrl } from '../../../utils/url';
 import { useWebViewNavigation } from '../../shared/preview/useWebViewNavigation';
+import { useWebViewCrashRecovery } from '../../shared/preview/useWebViewCrashRecovery';
+import type { WebView } from 'react-native-webview';
 import type { RootStackParamList } from '../../../types/preview';
 
 const HOT_RELOAD_DEBOUNCE_MS = 1200;
@@ -40,17 +47,31 @@ export function usePreviewScreen() {
   const lastFingerprintRef = useRef(filesFingerprint);
   const hotReloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isCreatingRef = useRef(false);
+  const webViewRef = useRef<WebView>(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // ─── Preview source ────────────────────────────────────────────────────────
+  const hasExpiredSupabaseUrl = useMemo(() => {
+    if (lastPreview?.source !== 'supabase') return false;
+    return isPreviewExpired(lastPreview?.expiresAt ?? null);
+  }, [lastPreview?.source, lastPreview?.expiresAt]);
+
   const previewSource = useMemo(() => {
-    if (lastPreview?.url && isHttpUrl(lastPreview.url)) {
+    if (lastPreview?.url && isHttpUrl(lastPreview.url) && !hasExpiredSupabaseUrl) {
       return { type: 'url' as const, uri: lastPreview.url };
     }
     if (lastPreview?.html) {
       return { type: 'html' as const, html: lastPreview.html };
     }
     return null;
-  }, [lastPreview]);
+  }, [lastPreview, hasExpiredSupabaseUrl]);
 
   const mode = previewSource?.type ?? null;
   const url = previewSource?.type === 'url' ? previewSource.uri : null;
@@ -76,6 +97,20 @@ export function usePreviewScreen() {
     url,
     confirmExternalLinks: false, // PreviewScreen öffnet externe Links direkt ohne Confirm
   });
+
+
+  const { handleContentProcessDidTerminate, handleRenderProcessGone, resetRecoveryState } =
+    useWebViewCrashRecovery({
+      webViewRef,
+      isMountedRef,
+      onError: (message) => {
+        setPhase('error');
+        setWebError(message);
+      },
+      onLoadingChange: (loading) => {
+        if (loading) setPhase('loading');
+      },
+    });
 
   // ─── Pulse animation ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -121,6 +156,7 @@ export function usePreviewScreen() {
     isCreatingRef.current = true;
     setPhase('creating');
     setWebError(null);
+    resetRecoveryState();
     try {
       const result = await createPreview();
       if (!result) {
@@ -136,7 +172,7 @@ export function usePreviewScreen() {
     } finally {
       isCreatingRef.current = false;
     }
-  }, [createPreview, filesFingerprint]);
+  }, [createPreview, filesFingerprint, resetRecoveryState]);
 
   // ─── Auto-create on mount ──────────────────────────────────────────────────
   useEffect(() => {
@@ -243,8 +279,12 @@ export function usePreviewScreen() {
     fadeAnim,
     hotDotAnim,
     flashBorderAnim,
+    webViewRef,
     originWhitelist,
     handleShouldStartLoad,
+    handleContentProcessDidTerminate,
+    handleRenderProcessGone,
+    resetRecoveryState,
     handleCreate,
     handleReset,
     handleCopy,
