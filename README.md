@@ -11,8 +11,9 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 450**.
+- Zuletzt abgeschlossen: **Patch 451**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
+- Preview-Restfix ist konservativ abgeschlossen: Hot-Reload nutzt content-basierte File-Fingerprints (kein Same-Length-Blindspot mehr), der normale PreviewScreen hat jetzt dieselbe WebView-Crash-Recovery wie Fullscreen, und abgelaufene Supabase-URLs werden im PreviewScreen nicht mehr blind geladen.
 - CustomHeader/CI-Lite-Restfix ist konservativ nachgezogen: Logs/Run-State resetten bei Input-Wechsel, verspätete Responses werden per Request-Key-Guard abgefangen, Persistenz schreibt nur noch für den aktiven CI-Lite-Run-Kontext (kein Autofix→CI-Lite-Fehlpersist), und Doppeltap-Dispatch wird geblockt.
 - Build-Job-Vertrag ist auf **positive numerische `jobId`** (bigint-backed) ausgerichtet; UUID-Annahmen sind entfernt.
 - Edge-Shared-Validation/Auth/CORS haben einen kleinen Deno/Node-Typing-Follow-up: Runtime-Env-Lookup ohne `any`, Request-Validation mit engeren Objekt-/Union-Typen (kein Broad-Refactor).

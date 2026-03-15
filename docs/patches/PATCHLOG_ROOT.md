@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 451: Preview-Restpunkte konservativ geschlossen — `filesFingerprint` erkennt nun auch Same-Length-Content-Änderungen (content-hash-basiert), Crash-Recovery (`onContentProcessDidTerminate`/`onRenderProcessGone`) ist auch im normalen PreviewScreen verdrahtet, abgelaufene Supabase-URLs werden im PreviewScreen nicht mehr blind geladen, und flow-nahe Helper-/Typing-/Dependency-Duplikate im Preview-Block wurden ohne Broad-Refactor konsolidiert.
 - Patch 450: CustomHeader-/CI-Lite-Restfix konservativ geschlossen — `useGitHubActionsLogs` resetet stale Run/Log-State bei Input-Wechsel und schützt vor verspäteten Responses; CI-Lite-Persistenz schreibt nur für den aktiven CI-Lite-Run-Kontext (kein Autofix-Fehlpersist), Dispatch-Guard verhindert Doppeltap-Doppelstart, plus flow-nahe Typing-/Artifact-/Patch-Sync-Härtung ohne Broad-Refactor.
 - Patch 449: EnhancedBuildScreen-Restpunkte konservativ nachgezogen — OneClickDeploy-Vorab-Push entfernt (SHA-sichere Reihenfolge über `startBuildJob`), redundanter Doppel-Push eliminiert, `canStartBuildUi` gegen Ref-Drift stabilisiert und build-/logs-nahe `WorkflowRun`-Typing inkl. `event`-Feld vereinheitlicht.
 - Patch 448: DiagnosticScreen-Restpunkte konservativ geschlossen — progressive Preflight-Severity wieder sichtbar (`stage` korrekt), KI-Fix-Hinweis für `pass`-Items entfernt und flow-nahe Typing-/Hook-Cleanups in Runner/Screen-Hook ergänzt; gezielte Regressionen für Stage-Text und Fix-Hinweis hinzugefügt.
