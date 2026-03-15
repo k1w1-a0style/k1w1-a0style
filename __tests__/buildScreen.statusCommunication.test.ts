@@ -7,7 +7,7 @@ import {
 describe("build screen status communication", () => {
   it("trennt laufenden Kontext von letzter bekanntem Kontext", () => {
     expect(resolveContextLabel("building", true)).toBe("Laufender Build (aktiver Kontext)");
-    expect(resolveContextLabel("success", true)).toBe("Letzter bekannter Build-Kontext");
+    expect(resolveContextLabel("success", true)).toBe("Letzter bekannter Build-Kontext (kein Live-Status)");
     expect(resolveContextLabel("idle", false)).toBe("Aktuelle Auswahl (noch kein Lauf)");
   });
 
