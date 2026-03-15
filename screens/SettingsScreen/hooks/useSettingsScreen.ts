@@ -6,6 +6,7 @@ import { Alert, Platform, ToastAndroid } from "react-native";
 
 import { PROVIDER_DEFAULTS, useAI } from "../../../contexts/AIContext";
 import type { QualityMode } from "../../../contexts/AIContext";
+import { useProject } from "../../../contexts/ProjectContext";
 import { useNotifications } from "../../../hooks/useNotifications";
 import {
   loadChatHistorySettings,
@@ -21,6 +22,8 @@ import {
 import type { ProviderId } from "./settingsHelpers";
 
 export function useSettingsScreen() {
+  const { setChatRetentionLimit } = useProject();
+
   const {
     config,
     setSelectedChatProvider,
@@ -84,6 +87,7 @@ export function useSettingsScreen() {
     const safe = Math.floor(parsed);
     try {
       await setChatHistoryRetentionLimit(safe);
+      await setChatRetentionLimit(safe);
       setRetentionLimit(safe);
       setRetentionInput(String(safe));
       if (Platform.OS === "android") {
