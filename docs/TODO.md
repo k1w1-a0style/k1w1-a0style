@@ -1,12 +1,13 @@
 # TODO
 
-Stand: **2026-03-15 (Patch 451)**
+Stand: **2026-03-15 (Patch 452)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
 
 ## Aktuell (Priorität)
 
+- [x] **KI-/Chat-/Prompting-Restpunkte (konservativ) gehärtet:** Projektkontext priorisiert nun relevante Dateien (statt starrer Reihenfolge), Builder behandelt Non-JSON-Antworten als verständliche User-Info mit KI-Preview, State-Drift-Digest nutzt SHA-256 über Pfad+Inhalt (kein same-length Blindspot), Planner-vs-Builder-Routing wurde vorsichtig entschärft, Ownership-/Validator-/Explain-Blocker werden im Nutzerfeedback sichtbar; `k1w1-handler` bleibt weiterhin serverseitiger Edge-Handler und wird im Client-Flow nur dokumentiert/eingeordnet, nicht blind eingebaut (Patch 452).
 - [x] **Preview-Restpunkte (Fingerprint/Crash-Recovery/Expiry/Flow-Nahe Dedup) gezielt behoben:** `filesFingerprint` ist content-hash-basiert (same-length Edits erkannt), WebView-Crash-Recovery ist im normalen PreviewScreen analog Fullscreen aktiv, abgelaufene Supabase-URLs werden nicht mehr blind geladen, Preview-Helper/Types wurden dedupliziert (`previewHelpers` als SoT), `previewFiles` hängt nur noch an `projectData?.files`, und der lokale HTML-Fallback ist als transient („nur solange App aktiv ist") explizit markiert (Patch 451).
 - [x] **CustomHeader-/CI-Lite-Restprobleme gezielt behoben:** stale `workflowRun`/`logs` werden bei `githubRepo`/`runId`/`workflowId`-Wechsel aktiv zurückgesetzt und durch Request-Key-Guard gegen verspätete Antworten geschützt; Persistenz akzeptiert nur den aktiven CI-Lite-Run (`workflowRun.id===runId` + Repo/Branch-Guard), Doppeltap-Dispatch ist geblockt, `head_sha` ist im `WorkflowRun`-Typ ergänzt, Artifact-JSON lokal typisiert geparst, und CI-Lite-Patch-Sync entfernt `as any` + stabilisiert `syncPatchToGitHub` per `useCallback` (Patch 450).
 - [x] **DiagnosticScreen-Restpunkte (Flow/UX/Typing) gezielt behoben:** progressiver Preflight zeigt wieder Severity-Stufe (`stage` statt falschem `priority`-Zugriff), „KI-Fix verfuegbar“ wird nicht mehr für `pass`-Checks angezeigt, plus selektive Typing-/Hook-Cleanups (`projectData`-Casts, `runLocalChecks/runPipelineChecks`-`files`-Typing, `updateProjectFiles`/`deleteFile`-Signaturen, tote Runner-Imports, `clearSelection`-Dependency) inkl. gezielter Regressionstests (Patch 448).

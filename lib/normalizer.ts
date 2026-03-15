@@ -7,7 +7,7 @@ import { jsonrepair } from 'jsonrepair';
 import { normalizePath } from './validators';
 
 // ---- Typen ----
-type RawFile = {
+export type RawFile = {
   path?: string;
   filename?: string;
   content?: unknown;
@@ -153,13 +153,30 @@ function unwrapToParsable(raw: unknown): unknown {
   return raw;
 }
 
+
+export type NormalizeAiResponseResult = {
+  files: Array<{ path: string; content: string }>;
+  parseError?: string;
+  responseText?: string;
+};
+
 // ---- Hauptfunktion ----
-export function normalizeAiResponse(raw: unknown): Array<{ path: string; content: string }> | null {
+export function normalizeAiResponseDetailed(raw: unknown): NormalizeAiResponseResult | null {
   const parsed = unwrapToParsable(raw);
-  if (!parsed) return null;
+  const responseText = typeof raw === 'string' ? raw : typeof (raw as any)?.text === 'string' ? String((raw as any).text) : undefined;
+
+  if (!parsed) {
+    return responseText && responseText.trim().length > 0
+      ? { files: [], parseError: 'no_json_detected', responseText }
+      : null;
+  }
 
   const fileArray = extractFileArray(parsed);
-  if (!fileArray || fileArray.length === 0) return null;
+  if (!fileArray || fileArray.length === 0) {
+    return responseText && responseText.trim().length > 0
+      ? { files: [], parseError: 'no_file_array_detected', responseText }
+      : null;
+  }
 
   const out: Array<{ path: string; content: string }> = [];
   const seen = new Set<string>();
@@ -171,7 +188,6 @@ export function normalizeAiResponse(raw: unknown): Array<{ path: string; content
     if (!rawPath) continue;
     if (!content || content.trim().length === 0) continue;
 
-    // 👉 Nur soft normalisieren – harte Sicherheitsregeln kommen später:
     const normalizedPath = normalizePath(rawPath);
     if (!normalizedPath) continue;
 
@@ -181,5 +197,16 @@ export function normalizeAiResponse(raw: unknown): Array<{ path: string; content
     out.push({ path: normalizedPath, content });
   }
 
-  return out.length > 0 ? out : null;
+  if (out.length === 0) {
+    return responseText && responseText.trim().length > 0
+      ? { files: [], parseError: 'no_valid_files_after_normalization', responseText }
+      : null;
+  }
+
+  return { files: out };
+}
+
+export function normalizeAiResponse(raw: unknown): Array<{ path: string; content: string }> | null {
+  const files = normalizeAiResponseDetailed(raw)?.files;
+  return files && files.length > 0 ? files : null;
 }

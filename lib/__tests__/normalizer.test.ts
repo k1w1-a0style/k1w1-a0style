@@ -1,5 +1,5 @@
 // lib/__tests__/normalizer.test.ts
-import { normalizeAiResponse } from '../normalizer';
+import { normalizeAiResponse, normalizeAiResponseDetailed } from '../normalizer';
 
 describe('normalizer', () => {
   describe('normalizeAiResponse', () => {
@@ -103,6 +103,17 @@ describe('normalizer', () => {
       expect(result![0].path).toBe('a.ts');
     });
 
+
+
+
+    it('returns parse metadata when response text is not file-json', () => {
+      const result = normalizeAiResponseDetailed('Ich brauche erst mehr Details, bevor ich Dateien ändere.');
+
+      expect(result).not.toBeNull();
+      expect(result?.files).toHaveLength(0);
+      expect(result?.parseError).toBeTruthy();
+      expect(result?.responseText).toContain('mehr Details');
+    });
 
     it('should return null for invalid JSON string', () => {
       const input = 'not valid json {{{';
