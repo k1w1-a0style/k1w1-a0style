@@ -1,3 +1,21 @@
+## 2026-03-15 — Patch 458: ChatScreen/Chat-Flow Restpunkte konservativ geschlossen
+
+- Attachment-/DocumentPicker-Flow kommuniziert jetzt ehrlich: Chat ergänzt bei Dateianhang expliziten Hinweis, dass aktuell nur Dateiname/Metadaten (nicht voller Dateiinhalt) übergeben werden.
+- Chat-History wird in `addChatMessage` direkt beim Append per Retention-Limit begrenzt (Settings-basiert, Fallback 200), damit In-Memory-History nicht unbegrenzt wächst.
+- Focus-Cleanup im ChatScreen räumt Pending-Plan/Pending-Change, Modal, Streaming und Inflight-Requests konservativ auf (`resetTransientState`), damit beim Verlassen keine hängenden UI-Zustände bleiben.
+- `chatAIFlowTypes` bereinigt (tote Imports entfernt) und `extractRawOrchestratorResult` sauber typisiert.
+- Regressionen ergänzt: `__tests__/chatScreenAttachmentNotice.test.ts`, `__tests__/projectContext.chatRetention.test.ts`.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 ## 2026-03-15 — Patch 457: Connections Busy-Guard-Signal korrigiert + Chat-Guard verifiziert
 
 - `withBusyGuard` trennt jetzt echte Busy-Kollisionen über dedizierten `BusyGuardActiveError` von normalen Fehlern (kein boolesches Mehrdeutigkeits-Signal mehr).
@@ -135,3 +153,4 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 - Vollständige Historie: `docs/patches/PATCHLOG_ROOT.md`.
 - Operative Restliste / Follow-ups: `docs/TODO.md`.
+- 2026-03-15: Patch 458: ChatScreen/Chat-Flow Restpunkte konservativ geschlossen: ehrlicher Attachment-Hinweis (kein verdeckter Dateiinhalt-Anspruch), Retention-Pruning direkt beim Chat-Append, Blur-Cleanup für Pending/Modal/Streaming-State sowie typing-/import-Hygiene in chatAIFlow-Types; Verifikation mit Workflow-Checks + Typecheck/Lint/Test vollständig grün.

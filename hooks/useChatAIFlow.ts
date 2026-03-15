@@ -4,13 +4,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, ToastAndroid } from "react-native";
 import { v4 as uuidv4 } from "uuid";
-import type { AIConfig } from "../contexts/AIContext";
 import type { OrchestratorResult } from "../lib/orchestrator";
 import type { ApplyFilesResult } from "../lib/fileWriter";
-import type { ChatMessage } from "../shared/types/chat";
-import type { ProjectFile } from "../shared/types/project";
-
-
 import { extractRawOrchestratorResult, MAX_AUTOFIX_QUEUE } from "./chatAIFlowTypes";
 import type { ExtendedOrchestratorResult, UseChatAIFlowArgs, PendingChange, PendingPlan } from "./chatAIFlowTypes";
 import { buildChangeConfirmationText } from "./chatChangeSummary";
@@ -652,10 +647,8 @@ export function useChatAIFlow({
   }, [addChatMessage, safe, setShowConfirmModal]);
 
   const handleSendWithMeta = useCallback(
-    async (rawInput: string, selectedFileName?: string): Promise<boolean> => {
-      const userContent =
-        rawInput.trim() ||
-        (selectedFileName ? `Datei gesendet: ${selectedFileName}` : "");
+    async (rawInput: string): Promise<boolean> => {
+      const userContent = rawInput.trim();
 
       if (!userContent.trim()) return false;
 
@@ -713,6 +706,27 @@ export function useChatAIFlow({
     [addChatMessage, processAIRequest, safe],
   );
 
+  const resetTransientState = useCallback(() => {
+    cleanupStreamingTimer();
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    inFlightRef.current = false;
+
+    safe(() => setIsStreaming(false));
+    safe(() => setStreamingMessage(""));
+    safe(() => setIsAiLoading(false));
+    safe(() => setShowConfirmModal(false));
+    safe(() => setPendingPlan(null));
+    safe(() => setPendingChange(null));
+  }, [
+    cleanupStreamingTimer,
+    safe,
+    setIsAiLoading,
+    setIsStreaming,
+    setShowConfirmModal,
+    setStreamingMessage,
+  ]);
+
   return useMemo(
     () => ({
       pendingPlan,
@@ -722,6 +736,7 @@ export function useChatAIFlow({
       handleSendWithMeta,
       applyChanges,
       rejectChanges,
+      resetTransientState,
     }),
     [
       applyChanges,
@@ -729,6 +744,7 @@ export function useChatAIFlow({
       pendingChange,
       pendingPlan,
       rejectChanges,
+      resetTransientState,
       setAtBottom,
     ],
   );

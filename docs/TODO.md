@@ -363,6 +363,7 @@ Akzeptanz:
 - **Patch 102**: ChatScreen: Legacy Chat-History Migration (fehlende `id`/`timestamp`) + tolerant keyExtractor + Tests
 - **Patch 103**: ChatScreen/Privacy: Fix default Retention (missing setting key no longer wipes Chat-History)
 - **Patch 104**: ChatScreen Hardening
+- **Patch 458**: ChatScreen/Chat-Flow Restpunkte geschlossen (ehrlicher Attachment-Hinweis statt Scheinanalyse, Retention-Pruning beim Append, Pending/Modal-Cleanup beim Blur, chatAIFlow-Typing-Hygiene)
 - **Patch 108**: Connections/Supabase: RLS-aware Supabase-Test + LayoutAnimation Warnungen im New Architecture unterdrückt
 - **Patch 134**: ConnectionsScreen Hook Hotfix (duplicate effectiveRepo Declaration entfernt)
 - **Patch 109**: Build: GitHub Actions Logs – status-genaue Fehlermeldungen + Edge Function github-workflow-logs Auth/RateLimit Fix (AI-flow stale-closure fix via refs, bounded AutoFix queue, debounced scroll+one retry, modal summary truncation, confirm dialogs)
