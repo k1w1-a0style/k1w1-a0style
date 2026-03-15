@@ -699,7 +699,7 @@ export function useChatAIFlow({
           "\n\n---\nPlaner-Ausgabe:\n" +
           currentPlan.planText +
           "\n\n---\nNutzer-Antwort/Details:\n" +
-          (wantsProceed ? "(User sagt: weiter)" : userContent);
+          (wantsProceed ? "(User sagt: weiter)" : aiContent || userContent);
 
         safe(() => setPendingPlan(null));
         await processAIRequest(combined, false, true);

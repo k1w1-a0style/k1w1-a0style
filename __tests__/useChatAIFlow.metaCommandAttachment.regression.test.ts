@@ -11,10 +11,15 @@ describe("useChatAIFlow meta command + attachment regression", () => {
     expect(src).toContain("const aiContent = aiInput.trim();");
     expect(src).toContain("if (!userContent && !aiContent) return false;");
     expect(src).toContain("const metaResult = userContent");
+    expect(src).toContain("handleMetaCommand(userContent, projectFilesRef.current)");
   });
 
   it("keeps attachment notice scoped to the AI request payload", () => {
     expect(src).toContain("content: userContent || aiContent,");
-    expect(src).toContain("await processAIRequest(aiContent || userContent, false, false);");
+    expect(src).toContain("const ok = await processAIRequest(aiContent || userContent, false, false);");
+  });
+
+  it("keeps attachment-only follow-up details alive in pending-plan handoff", () => {
+    expect(src).toContain("(wantsProceed ? \"(User sagt: weiter)\" : aiContent || userContent);");
   });
 });
