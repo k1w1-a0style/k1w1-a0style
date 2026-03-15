@@ -1,3 +1,4 @@
+- 2026-03-15: Patch 439: Follow-up-Audit für `insert_diagnostic_upload` als History-Invariant abgesichert; UUID-Return-Vertrag explizit auf die beiden bekannten Drift-Migrationen begrenzt und Legacy-Spalten-Drift im Final-Contract testseitig blockiert.
 # PROJECT_CHECKLOG
 
 Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
