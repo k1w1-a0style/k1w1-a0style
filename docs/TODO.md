@@ -1,12 +1,13 @@
 # TODO
 
-Stand: **2026-03-15 (Patch 453)**
+Stand: **2026-03-15 (Patch 454)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
 
 ## Aktuell (Priorität)
 
+- [x] **OneClickDeploy-Testflake gezielt stabilisiert:** `__tests__/oneClickDeploy.test.tsx` wartet den Press-Start jetzt deterministisch via `act` + Microtask-Flush ab, setzt AsyncStorage-Default-Resolves pro Test explizit und räumt mit `cleanup()` + `jest.clearAllTimers()` strikt auf; dadurch weniger race-/timeout-anfällige Läufe ohne Produktcode-Refactor (Patch 454).
 - [x] **KI-/Chat-Nachaudit (misstrauisch) nachgeschärft:** Restlücke im Builder-Fehlerpfad geschlossen: `normalizeAiResponseDetailed` übernimmt `output_text` jetzt als `responseText`, sodass Non-JSON-Antworten mit verständlicher Vorschau enden statt in generischem Fehlerzustand; Regressionstests decken `output_text` und leere Normalisierungsresultate gezielt ab (Patch 453).
 - [x] **KI-/Chat-/Prompting-Restpunkte (konservativ) gehärtet:** Projektkontext priorisiert nun relevante Dateien (statt starrer Reihenfolge), Builder behandelt Non-JSON-Antworten als verständliche User-Info mit KI-Preview, State-Drift-Digest nutzt SHA-256 über Pfad+Inhalt (kein same-length Blindspot), Planner-vs-Builder-Routing wurde vorsichtig entschärft, Ownership-/Validator-/Explain-Blocker werden im Nutzerfeedback sichtbar; `k1w1-handler` bleibt weiterhin serverseitiger Edge-Handler und wird im Client-Flow nur dokumentiert/eingeordnet, nicht blind eingebaut (Patch 452).
 - [x] **Preview-Restpunkte (Fingerprint/Crash-Recovery/Expiry/Flow-Nahe Dedup) gezielt behoben:** `filesFingerprint` ist content-hash-basiert (same-length Edits erkannt), WebView-Crash-Recovery ist im normalen PreviewScreen analog Fullscreen aktiv, abgelaufene Supabase-URLs werden nicht mehr blind geladen, Preview-Helper/Types wurden dedupliziert (`previewHelpers` als SoT), `previewFiles` hängt nur noch an `projectData?.files`, und der lokale HTML-Fallback ist als transient („nur solange App aktiv ist") explizit markiert (Patch 451).

@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 454: flakigen Timeout-Restpunkt in `__tests__/oneClickDeploy.test.tsx` konservativ stabilisiert — deterministischer Press-Start via `act` + Microtask-Flush, AsyncStorage-Default-Resolves pro Test und striktes Cleanup (`cleanup` + Timer-Clear) gegen runInBand-Rennen; kein Produktcode-Umbau.
 - Patch 453: KI-/Chat-Nachaudit (misstrauisch): echte Restlücke im Builder-NonJSON-Pfad geschlossen (`output_text` → nutzerlesbare Fehler-Preview), Regressionstests für `normalizer` gezielt verschärft.
 - Patch 452: KI-/Chat-/Prompting-Block konservativ gehärtet; projektrelevante Snapshot-Priorisierung im Prompt-Context, verständlicher Builder-NonJSON-Fehlerpfad mit KI-Text-Preview, SHA-256 State-Drift-Digest (statt Länge), transparentere Ownership-/Validator-/Explain-Hinweise im Chat-Feedback; keine neue KI-Architektur, `k1w1-handler` nur eingeordnet.
 - Patch 451: Preview-Restpunkte konservativ geschlossen — `filesFingerprint` erkennt nun auch Same-Length-Content-Änderungen (content-hash-basiert), Crash-Recovery (`onContentProcessDidTerminate`/`onRenderProcessGone`) ist auch im normalen PreviewScreen verdrahtet, abgelaufene Supabase-URLs werden im PreviewScreen nicht mehr blind geladen, und flow-nahe Helper-/Typing-/Dependency-Duplikate im Preview-Block wurden ohne Broad-Refactor konsolidiert.
