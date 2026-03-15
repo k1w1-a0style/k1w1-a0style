@@ -4,6 +4,7 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-15: Patch 437: Doppelte Preview-Migration (`20251226140000_fix_previews.sql`/`20251226160000_fix_previews.sql`) als byte-identische Redundanz bestätigt; spätere Migration als explizites Legacy-No-op markiert (kein History-Delete), um Doppel-Ausführung in frischen Setups und Wartungsirritation zu vermeiden.
 - 2026-03-15: Patch 436: Migrations-/RPC-Hygiene für `insert_diagnostic_upload` finalisiert; historischen UUID-/Spalten-Drift (`repo/branch/mode/platform/report/meta`) explizit eingeordnet, finalen `jsonb -> bigint`-Vertrag per Abschlussmigration reassertet und mit Invariant-Test abgesichert.
 - 2026-03-14: Patch 435: Großer Supabase-E2E-Vertragscheck (Preview, Workflow-Dispatch/Runs/Logs/Artifacts, Signing/Keystore, k1w1-Handler) finalisiert; verbleibende Operator-Schritte explizit dokumentiert und `github-run-artifact-json` ZIP-Pfadnormalisierung für `\`-Separatoren korrigiert (stabileres Artifact-JSON-Mapping).
 - 2026-03-14: Patch 434: Supabase-E2E-Contract-Audit abgeschlossen; zentrale Supabase-Edge-Function-Konstanten für Signing/Preview/AI vervollständigt und Keystore-Wizard-Calls auf SoT-Constants migriert (Hardcode-Drift entfernt), Invariant-Tests ergänzt.
