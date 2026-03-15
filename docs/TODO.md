@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-03-15 (Patch 438)**
+Stand: **2026-03-15 (Patch 439)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
@@ -17,6 +17,11 @@ Stand: **2026-03-15 (Patch 438)**
 - [ ] **Dokument-SoT scharf halten:** Kern-MDs als Navigations- und Vertragsfläche; Verlaufsdetails primär in Patchnotes/Patchlog.
 - [ ] **Trust-Follow-up dokumentieren:** frischer Checkout als Green-Path festhalten (`npm ci` + `typecheck` + `lint:ci` + `test:silent`, inkl. Voraussetzungen).
 - [x] **Workflow-Ref-Hardening ausbauen:** zusätzliche Invariants/Jest-Guards gegen implizite Default-Deploypfade. (Patch 420)
+- [x] **Android-Keystore-Status konsistent zur Helper-Struktur gezogen:** `android-keystore-status` nutzt jetzt wie `generate`/`export` eine lokale `helpers.ts` statt Inline-Duplikate (Patch 439).
+- [x] **Polling-/Hook-Stabilität für `useBuildStatus` gehärtet:** unnötige Effect-Resets bei Status- und Callback-Identity-Wechsel entfernt (`statusRef`/`callbacksRef`), Polling bleibt ruhiger (Patch 439).
+- [x] **ProjectContext-History-Effect entkoppelt:** unnötige `currentBuild`-Abhängigkeitskaskade entfernt, Auswahl via Ref stabilisiert (Patch 439).
+- [x] **Selektiver `any`-Hotspot im Build-Status-Edge reduziert:** `check-eas-build` verwendet nun ein explizites `BuildJobRow` statt untypisiertem `any`-Flow (Patch 439).
+- [ ] **Rest-`any` nur weiter selektiv abbauen:** verbleibende Hotspots weiter nur dort anfassen, wo reale Flow-/Vertragsrisiken bestehen (kein Broad Cleanup).
 
 ## Wichtige Vertrags-Reminder
 
@@ -29,6 +34,7 @@ Stand: **2026-03-15 (Patch 438)**
 ## Kürzlich abgeschlossen (Kontext)
 
 - [x] Patch 438 — Fragile Edge→App-Importkette auf `shared/constants/github.ts` entfernt; betroffene Workflow-Edges auf `_shared/github.ts` umgestellt und per Invariant-Test abgesichert.
+- [x] Patch 439 — Keystore-Status-Edge auf gemeinsame Helper-Struktur angeglichen, `useBuildStatus`-Polling-Resets entschärft, `ProjectContext`-History-Effect stabilisiert und einen Build-Flow-`any`-Hotspot typisiert.
 - [x] Patch 437 — Doppelte Preview-Migration (`20251226140000`/`20251226160000`) als bestätigte Redundanz eingeordnet; spätere Datei bewusst auf Legacy-No-op umgestellt (keine History-Löschung), damit die Migrationshistorie weniger irreführend ist.
 - [x] Patch 436 — `insert_diagnostic_upload`-Vertrag finalisiert: historische Drift dokumentiert, Abschlussmigration + Invariant-Test ergänzt, finaler bigint-Vertrag klargezogen.
 - [x] Patch 436 — Chat-Change-Summary zeigt Dateipfade wieder korrekt in Bullet-Listen; `createNewProject` nutzt aktuellen `projectData`-Stand ohne stale closure; gezielte Jest-Regressionen ergänzt.

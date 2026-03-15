@@ -46,6 +46,12 @@ export function useBuildStatus(
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isRequestPendingRef = useRef(false);
   const latestDetailsRef = useRef<BuildStatusDetails | null>(null);
+  const statusRef = useRef<BuildStatus>("idle");
+  const callbacksRef = useRef<UseBuildStatusCallbacks | undefined>(callbacks);
+
+  useEffect(() => {
+    callbacksRef.current = callbacks;
+  }, [callbacks]);
 
   const buildFailureDetails = useCallback(
     (statusOverride: BuildStatus = "error"): BuildStatusDetails | null => {
@@ -70,10 +76,10 @@ export function useBuildStatus(
     (statusOverride: BuildStatus = "error") => {
       const failureDetails = buildFailureDetails(statusOverride);
       if (failureDetails) {
-        callbacks?.onFailed?.(failureDetails);
+        callbacksRef.current?.onFailed?.(failureDetails);
       }
     },
-    [buildFailureDetails, callbacks],
+    [buildFailureDetails],
   );
 
   // Memoized poll function
@@ -102,9 +108,10 @@ export function useBuildStatus(
         setLastError(errorMsg);
 
         // Callback für jeden Fehler
-        callbacks?.onError?.(errorMsg, errorCountRef.current);
+        callbacksRef.current?.onError?.(errorMsg, errorCountRef.current);
 
         if (errorCountRef.current >= MAX_ERRORS) {
+          statusRef.current = "error";
           setStatus("error");
           if (intervalRef.current) {
             clearInterval(intervalRef.current);
@@ -113,7 +120,7 @@ export function useBuildStatus(
           if (!hasAlertedRef.current) {
             hasAlertedRef.current = true;
             // Callback statt Alert
-            callbacks?.onMaxErrors?.(errorMsg, MAX_ERRORS);
+            callbacksRef.current?.onMaxErrors?.(errorMsg, MAX_ERRORS);
             notifyFailure("error");
           }
         }
@@ -126,6 +133,7 @@ export function useBuildStatus(
       setLastError(null);
 
       const mapped = result.status;
+      statusRef.current = mapped;
       setStatus(mapped);
 
       const newDetails: BuildStatusDetails = result.details;
@@ -148,9 +156,9 @@ export function useBuildStatus(
 
           // Callbacks statt Alerts
           if (mapped === "success") {
-            callbacks?.onSuccess?.(newDetails);
+            callbacksRef.current?.onSuccess?.(newDetails);
           } else {
-            callbacks?.onFailed?.(newDetails);
+            callbacksRef.current?.onFailed?.(newDetails);
           }
         }
       }
@@ -164,9 +172,10 @@ export function useBuildStatus(
       setLastError(errorMsg);
 
       // Callback für jeden Fehler
-      callbacks?.onError?.(errorMsg, errorCountRef.current);
+      callbacksRef.current?.onError?.(errorMsg, errorCountRef.current);
 
       if (errorCountRef.current >= MAX_ERRORS) {
+        statusRef.current = "error";
         setStatus("error");
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
@@ -176,19 +185,20 @@ export function useBuildStatus(
         if (!hasAlertedRef.current) {
           hasAlertedRef.current = true;
           // Callback statt Alert
-          callbacks?.onMaxErrors?.(errorMsg, MAX_ERRORS);
+          callbacksRef.current?.onMaxErrors?.(errorMsg, MAX_ERRORS);
           notifyFailure("error");
         }
       }
     } finally {
       isRequestPendingRef.current = false;
     }
-  }, [jobIdFromScreen, callbacks, notifyFailure]);
+  }, [jobIdFromScreen, notifyFailure]);
 
   useEffect(() => {
     isMountedRef.current = true;
 
     if (!jobIdFromScreen) {
+      statusRef.current = "idle";
       setStatus("idle");
       setDetails(null);
       latestDetailsRef.current = null;
@@ -230,7 +240,7 @@ export function useBuildStatus(
       }
 
       // Resume if still relevant and not final
-      if (jobIdFromScreen && !intervalRef.current && !isFinalStatus(status)) {
+      if (jobIdFromScreen && !intervalRef.current && !isFinalStatus(statusRef.current)) {
         poll();
         intervalRef.current = setInterval(() => {
           poll();
@@ -247,7 +257,7 @@ export function useBuildStatus(
         logger.debug("[useBuildStatus] 🛑 Hook unmounted, Polling gestoppt");
       }
     };
-  }, [jobIdFromScreen, poll, status]);
+  }, [jobIdFromScreen, poll]);
 
   return {
     status,
