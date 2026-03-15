@@ -117,7 +117,7 @@ export function BuildHistorySection({
 
   return (
     <View style={styles.card}>
-      <Text style={styles.cardTitle}>Build-Historie</Text>
+      <Text style={styles.cardTitle}>Build-Historie (letzter bekannter Stand)</Text>
 
       {historyLoading ? (
         <ActivityIndicator color="#00FF00" />

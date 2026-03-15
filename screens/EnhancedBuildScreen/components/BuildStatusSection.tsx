@@ -13,6 +13,7 @@ import { BuildTimelineCard } from "../../../components/build/BuildTimelineCard";
 import { theme } from "../../../theme";
 import type { BuildStatus } from "../../../shared/types/build";
 import type { CurrentBuildLike } from "../types";
+import { resolveContextLabel, resolvePhaseHint } from "../hooks/statusCommunication";
 
 import { s } from "./BuildStatusSection.styles";
 
@@ -61,6 +62,13 @@ export function BuildStatusSection({
   const hasRuntimeContext = Boolean(
     currentBuild?.githubRepo || currentBuild?.branch || currentBuild?.buildProfile || currentBuild?.sourceCommitSha,
   );
+  const runningLabel = "Aktueller Laufkontext";
+  const selectionLabel = "Aktuelle Auswahl (noch kein Lauf)";
+  const contextLabel =
+    status === "queued" || status === "building"
+      ? `${runningLabel} (aktiv)`
+      : (!hasRuntimeContext ? selectionLabel : resolveContextLabel(status, hasRuntimeContext));
+  const phaseHint = resolvePhaseHint(status, startDisabledReason);
 
   return (
     <View style={s.card}>
@@ -71,6 +79,7 @@ export function BuildStatusSection({
           color={status === "success" ? theme.palette.success : status === "failed" || status === "error" ? theme.palette.error : theme.palette.primary}
         />
         <Text style={s.title}>Build-Status</Text>
+        <Text style={s.eta}>{phaseHint}</Text>
       </View>
 
       <View style={s.statusRow}>
@@ -81,7 +90,7 @@ export function BuildStatusSection({
           {(contextRepo || contextBranch || contextProfile || currentBuild?.sourceCommitSha) ? (
             <View style={s.contextBox}>
               <Text style={s.contextLabel}>
-                {hasRuntimeContext ? "Aktueller Laufkontext" : "Aktuelle Auswahl (noch kein Lauf)"}
+                {contextLabel}
               </Text>
               {!!contextRepo && (
                 <Text style={s.statusMsg}>Repo {contextRepo}</Text>
