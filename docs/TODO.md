@@ -9,6 +9,7 @@ Stand: **2026-03-15 (Patch 439)**
 
 - [x] **Supabase Edge Import-Hygiene (Cross-Boundary):** produktive Workflow-Edges von App-Pfadimport (`shared/constants/github.ts`) entkoppelt; `GITHUB_API_BASE` edge-nah in `_shared/github.ts` verankert + Invariant-Guard ergänzt (Patch 438).
 - [x] **Migrations-/RPC-Hygiene für `insert_diagnostic_upload`:** historischer UUID-/Spalten-Drift sauber eingeordnet; finaler `jsonb -> bigint`-Vertrag per Abschlussmigration + Invariant-Guard abgesichert (Patch 436).
+- [x] **Follow-up Audit `insert_diagnostic_upload`-Historie:** driftende UUID-Signatur weiterhin nur als dokumentierte Historie erlaubt; zusätzlicher Invariant-Guard verhindert Re-Intro der Legacy-Spaltenannahmen im finalen Vertrag (Patch 439).
 - [x] **Supabase Edge E2E-Contract-Audit (App ↔ Edge ↔ DB-Voraussetzungen):** produktiv genutzte Flows geprüft; zentrale Mapping-/Endpoint-Drifts (inkl. Keystore-Wizard + Function-Name-SoT) geschlossen (Patch 433/434).
 - [ ] **Supabase Operator-Runbook nachziehen:** Secrets/DB-Objekte/Deploy-Reihenfolge für Signing + Preview + Workflow-Edges als Checkliste konsolidieren (explizit inkl. manueller Supabase-Schritte).
   - Konkret offen: `build_jobs`, `signing_android`, `signing_audit_log`, `previews` (inkl. TTL/Cleanup), Storage-Buckets inkl. Zugriffspfade, sowie Secrets (`K1W1_SUPABASE_URL`, `K1W1_SUPABASE_SERVICE_ROLE_KEY`, `PREVIEW_SUPABASE_URL`, `PREVIEW_SERVICE_ROLE_KEY`, `K1W1_PREVIEW_PAGE_TIMEOUT_MS`, `K1W1_SIGNING_MASTER_KEY`, `K1W1_SIGNING_BUCKET`, `K1W1_EDGE_ADMIN_KEY`, GitHub token envs).
@@ -37,6 +38,7 @@ Stand: **2026-03-15 (Patch 439)**
 - [x] Patch 439 — Keystore-Status-Edge auf gemeinsame Helper-Struktur angeglichen, `useBuildStatus`-Polling-Resets entschärft, `ProjectContext`-History-Effect stabilisiert und einen Build-Flow-`any`-Hotspot typisiert.
 - [x] Patch 437 — Doppelte Preview-Migration (`20251226140000`/`20251226160000`) als bestätigte Redundanz eingeordnet; spätere Datei bewusst auf Legacy-No-op umgestellt (keine History-Löschung), damit die Migrationshistorie weniger irreführend ist.
 - [x] Patch 436 — `insert_diagnostic_upload`-Vertrag finalisiert: historische Drift dokumentiert, Abschlussmigration + Invariant-Test ergänzt, finaler bigint-Vertrag klargezogen.
+- [x] Patch 439 — zusätzliche History-Invariants: UUID-Drift auf bekannte Altmigrationen eingegrenzt und Re-Intro von `repo/branch/mode/platform/report/meta` im finalen Vertrag explizit geblockt.
 - [x] Patch 436 — Chat-Change-Summary zeigt Dateipfade wieder korrekt in Bullet-Listen; `createNewProject` nutzt aktuellen `projectData`-Stand ohne stale closure; gezielte Jest-Regressionen ergänzt.
 - [x] Patch 435 — End-to-End-Vertragsprüfung weiter abgeschlossen: App↔Edge-Mapping für Preview/Workflow/Artifact/Signing/AI quergelesen; verbleibende Operator-Abhängigkeiten explizit dokumentiert; Artifact-ZIP-Pfadnormalisierung für Windows-Separatoren gehärtet.
 - [x] Patch 434 — Supabase-E2E-Contract-Audit abgeschlossen; Function-Name-SoT für Signing/Preview/AI ergänzt, Wizard-Hardcodes entfernt, Invariant-Tests ergänzt.
