@@ -7,7 +7,8 @@ describe("connectionsScreen flow guards invariants", () => {
 
   it("uses a busy guard helper for save/test actions", () => {
     expect(src).toContain("const withBusyGuard = useCallback");
-    expect(src).toContain("Ein anderer Save/Test-Lauf ist noch aktiv.");
+    expect(src).toContain("BusyGuardActiveError");
+    expect(src).toContain("isBusyGuardActiveError");
   });
 
   it("does not persist Expo token as side effect in testExpo", () => {

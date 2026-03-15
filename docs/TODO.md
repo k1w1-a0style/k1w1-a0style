@@ -1,12 +1,13 @@
 # TODO
 
-Stand: **2026-03-15 (Patch 454)**
+Stand: **2026-03-15 (Patch 457)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
 
 ## Aktuell (Priorität)
 
+- [x] **Connections Busy-Guard-Fehlersignal entkoppelt (Restpunkt geschlossen):** `withBusyGuard` nutzt jetzt einen dedizierten Busy-Kollisionsfehler statt booleschem `false`, und `saveAll`/`testGitHub`/`testExpo`/`testSupabase` trennen Busy-Konkurrenz sauber von echten Fehlern; dadurch kein irreführender „Ein anderer Save/Test-Lauf ist noch aktiv“-Hinweis mehr nach realen Save-/Test-Fehlern. `useChatAIFlow`-Pending-Plan-Guard wurde gezielt verifiziert und per Invariant abgesichert (Patch 457).
 - [x] **OneClickDeploy-Testflake gezielt stabilisiert:** `__tests__/oneClickDeploy.test.tsx` wartet den Press-Start jetzt deterministisch via `act` + Microtask-Flush ab, setzt AsyncStorage-Default-Resolves pro Test explizit und räumt mit `cleanup()` + `jest.clearAllTimers()` strikt auf; dadurch weniger race-/timeout-anfällige Läufe ohne Produktcode-Refactor (Patch 454).
 - [x] **KI-/Chat-Nachaudit (misstrauisch) nachgeschärft:** Restlücke im Builder-Fehlerpfad geschlossen: `normalizeAiResponseDetailed` übernimmt `output_text` jetzt als `responseText`, sodass Non-JSON-Antworten mit verständlicher Vorschau enden statt in generischem Fehlerzustand; Regressionstests decken `output_text` und leere Normalisierungsresultate gezielt ab (Patch 453).
 - [x] **KI-/Chat-/Prompting-Restpunkte (konservativ) gehärtet:** Projektkontext priorisiert nun relevante Dateien (statt starrer Reihenfolge), Builder behandelt Non-JSON-Antworten als verständliche User-Info mit KI-Preview, State-Drift-Digest nutzt SHA-256 über Pfad+Inhalt (kein same-length Blindspot), Planner-vs-Builder-Routing wurde vorsichtig entschärft, Ownership-/Validator-/Explain-Blocker werden im Nutzerfeedback sichtbar; `k1w1-handler` bleibt weiterhin serverseitiger Edge-Handler und wird im Client-Flow nur dokumentiert/eingeordnet, nicht blind eingebaut (Patch 452).
