@@ -1,40 +1,20 @@
 // hooks/chatAIFlowTypes.ts
-// Extracted from useChatAIFlow.ts: types and helpers.
+// Extracted from useChatAIFlow.ts: shared types + helpers.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Platform, ToastAndroid } from "react-native";
-import { v4 as uuidv4 } from "uuid";
 import type { AIConfig } from "../contexts/AIContext";
 import type { OrchestratorResult } from "../lib/orchestrator";
-import type { ApplyFilesResult } from "../lib/fileWriter";
 import type { ChatMessage } from "../shared/types/chat";
 import type { ProjectFile } from "../shared/types/project";
 
-
-export function extractRawOrchestratorResult(res: any): unknown {
-  if (res?.files && Array.isArray(res.files)) return res.files;
-  if (res?.text) return res.text;
-  return res?.raw;
+export function extractRawOrchestratorResult(
+  res: ExtendedOrchestratorResult,
+): unknown {
+  if (Array.isArray(res.files)) return res.files;
+  if (typeof res.text === "string" && res.text.trim().length > 0) {
+    return res.text;
+  }
+  return res.raw;
 }
-
-
-import { runOrchestrator } from "../lib/orchestrator";
-import { normalizeAiResponse } from "../lib/normalizer";
-import { logger } from "../lib/logger";
-import { applyFilesToProject } from "../lib/fileWriter";
-import {
-  buildBuilderMessages,
-  buildPlannerMessages,
-  buildValidatorMessages,
-} from "../lib/promptEngine";
-import {
-  looksLikeExplicitFileTask,
-  looksLikeAdviceRequest,
-  looksAmbiguousBuilderRequest,
-  buildChangeDigest,
-  buildExplainMessages,
-} from "../utils/chatHeuristics";
-import { handleMetaCommand } from "../utils/metaCommands";
 
 export type PendingChange = {
   files: ProjectFile[];
