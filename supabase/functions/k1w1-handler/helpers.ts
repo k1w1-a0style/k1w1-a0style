@@ -90,6 +90,14 @@ export function toGeminiContents(messages: ChatMessage[]) {
   }));
 }
 
+function joinSystemMessages(messages: ChatMessage[]): string {
+  return messages
+    .filter((m) => m.role === "system")
+    .map((m) => m.content)
+    .join("\n\n")
+    .trim();
+}
+
 function providerHttpError(
   provider: string,
   model: string,
@@ -178,14 +186,28 @@ export async function callGemini(
     body.model ||
     (body.quality === "quality" ? qualityConfig.quality : qualityConfig.speed);
 
-  const contents = toGeminiContents(body.messages);
+  const systemInstructionText = joinSystemMessages(body.messages);
+  const nonSystemMessages = body.messages.filter((m) => m.role !== "system");
+
+  const contents = toGeminiContents(
+    nonSystemMessages.length > 0
+      ? nonSystemMessages
+      : [{ role: "user", content: systemInstructionText || "Continue." }],
+  );
+
+  const payload = {
+    contents,
+    ...(systemInstructionText
+      ? { systemInstruction: { parts: [{ text: systemInstructionText }] } }
+      : {}),
+  };
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contents }),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {
@@ -194,10 +216,7 @@ export async function callGemini(
   }
 
   const json = await res.json();
-  const parts =
-    json?.candidates?.[0]?.content?.parts ??
-    json?.candidates?.[0]?.content?.parts ??
-    [];
+  const parts = json?.candidates?.[0]?.content?.parts ?? [];
   const text = parts.map((p: any) => p.text || "").join("\n");
 
   return { content: text, raw: json, model };
@@ -267,11 +286,7 @@ export async function callAnthropic(
     body.model ||
     (body.quality === "quality" ? qualityConfig.quality : qualityConfig.speed);
 
-  const system = body.messages
-    .filter((m) => m.role === "system")
-    .map((m) => m.content)
-    .join("\n\n")
-    .trim();
+  const system = joinSystemMessages(body.messages);
 
   const messages = body.messages
     .filter((m) => m.role !== "system")
@@ -279,6 +294,11 @@ export async function callAnthropic(
       role: m.role === "assistant" ? "assistant" : "user",
       content: m.content,
     }));
+
+  const safeMessages =
+    messages.length > 0
+      ? messages
+      : [{ role: "user" as const, content: "Please respond to the system instructions." }];
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -290,7 +310,7 @@ export async function callAnthropic(
     body: JSON.stringify({
       model,
       system: system || undefined,
-      messages,
+      messages: safeMessages,
       max_tokens: 2048,
       temperature: 0.2,
     }),

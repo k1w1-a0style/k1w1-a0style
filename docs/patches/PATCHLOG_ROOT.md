@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 443: k1w1-handler Provider-Randfälle gehärtet — Anthropic sendet bei reinen `system`-Prompts kein leeres `messages`-Array mehr (konservativer Fallback-Turn), Gemini behandelt `system` explizit via `systemInstruction` + nicht-leerer `contents`-Fallback; doppeltes Nullish-Coalescing bereinigt, Invariants ergänzt.
 - Patch 442: Build-Status/Phasenanzeige im EnhancedBuildScreen gezielt beruhigt — aktiver Lauf vs. letzter bekannter Stand klarer getrennt, aktive Phase explizit markiert, Run/Artifact/Download-Aktionen als aktueller vs. letzter Build-Kontext verständlicher benannt (ohne Backend-/Flow-Umbau).
 - Patch 441: gezieltes UX-Feintuning nur für BuildScreen/DiagnosisScreen/Preview — verständlichere CTA-/Aktionssprache, ruhigere und konsistentere Statusbegriffe (inkl. Live/Fallback/Preview-Fehler), ohne Architekturumbau
 - Patch 440: konservatives UX-/Flow-Feintuning in Kernpfaden (Build/Diagnosis/Preview/Connections/Credentials/Chat-Menü) — missverständliche/zu technische Status- und Hinweistexte geschärft, gespeicherter vs. letzter bekannter Zustand klarer getrennt, gezielte Preview-Status-Regression ergänzt

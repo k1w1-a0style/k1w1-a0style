@@ -66,6 +66,30 @@ describe("k1w1-handler provider invariants", () => {
 
     expect(src).toContain('model.startsWith("groq/") ? model.slice("groq/".length) : model');
   });
+
+  it("hardens anthropic request mapping when only system messages exist", () => {
+    const src = read("supabase/functions/k1w1-handler/helpers.ts");
+
+    expect(src).toContain("const safeMessages =");
+    expect(src).toContain("Please respond to the system instructions.");
+    expect(src).toContain("messages: safeMessages");
+  });
+
+  it("maps gemini system prompts explicitly and keeps non-empty contents fallback", () => {
+    const src = read("supabase/functions/k1w1-handler/helpers.ts");
+
+    expect(src).toContain("systemInstruction");
+    expect(src).toContain("nonSystemMessages.length > 0");
+    expect(src).toContain('{ role: "user", content: systemInstructionText || "Continue." }');
+  });
+
+  it("does not keep duplicate gemini parts nullish-coalescing", () => {
+    const src = read("supabase/functions/k1w1-handler/helpers.ts");
+
+    expect(src).toContain("const parts = json?.candidates?.[0]?.content?.parts ?? [];");
+    expect(src).not.toContain("json?.candidates?.[0]?.content?.parts ??\n    json?.candidates?.[0]?.content?.parts ??");
+  });
+
   it("routes all 5 providers in index.ts", () => {
     const src = read("supabase/functions/k1w1-handler/index.ts");
 
