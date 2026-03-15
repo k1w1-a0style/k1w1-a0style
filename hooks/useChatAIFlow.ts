@@ -362,13 +362,22 @@ export function useChatAIFlow({
 
         const normalizedResult = normalizeAiResponseDetailed(rawForNormalizer);
         const normalized = normalizedResult?.files ?? null;
-        if (!normalized) {
-          const rawText = typeof ai.text === "string" ? ai.text.trim() : "";
+        if (!normalized || normalized.length === 0) {
+          const rawText =
+            typeof normalizedResult?.responseText === "string"
+              ? normalizedResult.responseText.trim()
+              : typeof ai.text === "string"
+                ? ai.text.trim()
+                : "";
           if (rawText.length > 0) {
             const preview = rawText.slice(0, 900);
+            const parseHint =
+              normalizedResult?.parseError && normalizedResult.parseError.length > 0
+                ? ` [Normalizer: ${normalizedResult.parseError}]`
+                : "";
             throw new Error(
               "Builder hat keine gültige JSON-Dateiliste geliefert. " +
-                "Ich konnte daher keine Dateien anwenden.\n\n" +
+                `Ich konnte daher keine Dateien anwenden.${parseHint}\n\n` +
                 "KI-Antwort (gekürzt):\n" +
                 preview,
             );
