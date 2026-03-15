@@ -29,8 +29,8 @@ const ChatHeaderActions: React.FC<Props> = ({ topOffset }) => {
   const handleNewProject = () => {
     closeMenu();
     Alert.alert(
-      "Neues Projekt erstellen?",
-      "Das aktuelle Projekt wird ersetzt. Nicht gespeicherte Änderungen gehen verloren.",
+      "Neues Projekt starten?",
+      "Das aktuelle Projekt wird ersetzt. Nicht gespeicherte Änderungen gehen verloren, der Chat bleibt leer im neuen Projekt.",
       [
         { text: "Abbrechen", style: "cancel" },
         {

@@ -12,7 +12,7 @@ export function HeaderSection({
     <View style={styles.header}>
       <Text style={styles.title}>Build</Text>
       <Text style={styles.subtitle}>
-        {projectName ? `Projekt: ${projectName}` : "APK Builder"}
+        {projectName ? `Projekt: ${projectName}` : "Repo noch nicht gewählt"}
       </Text>
     </View>
   );

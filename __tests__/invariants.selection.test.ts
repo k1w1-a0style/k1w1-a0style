@@ -46,7 +46,7 @@ describe("Invariants: repo/branch selection is source of truth", () => {
     const src = read("screens/ConnectionsScreen/components/StatusCard.tsx");
 
     expect(src).toContain('? `${repoSelectionHint} · Maßgeblich für Build/Signing.`');
-    expect(src).toContain('? `${repoSelectionHint} · Nicht maßgeblich für Build/Signing, bis sie im Projekt verknüpft ist.`');
+    expect(src).toContain('? `${repoSelectionHint} · Nur letzter bekannter Stand; erst nach Verknüpfen im Projekt wirklich wirksam.`');
   });
 
   it("does not silently fall back to 'main' in ConnectionsScreen EAS prep flows", () => {

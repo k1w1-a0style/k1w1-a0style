@@ -1,10 +1,11 @@
-- 2026-03-15: Patch 439: Follow-up-Audit für `insert_diagnostic_upload` als History-Invariant abgesichert; UUID-Return-Vertrag explizit auf die beiden bekannten Drift-Migrationen begrenzt und Legacy-Spalten-Drift im Final-Contract testseitig blockiert.
+- 2026-03-15: Patch 440: konservatives UX-/Flow-Feintuning (Build/Diagnosis/Preview/Connections/Credentials/Chat) mit Fokus auf klarere Status- und Fallback-Semantik ohne Architekturumbau; ergänzende Regression für Preview-Status-Text.
 # PROJECT_CHECKLOG
 
 Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-15: Patch 440: konservatives UX-/Flow-Feintuning (Build/Diagnosis/Preview/Connections/Credentials/Chat) mit Fokus auf klarere Status- und Fallback-Semantik ohne Architekturumbau; ergänzende Regression für Preview-Status-Text.
 - 2026-03-15: Patch 438: Fragile Cross-Boundary-Imports in produktiven Supabase-Workflow-Edges entfernt (`../../../shared/constants/github.ts`); `GITHUB_API_BASE` edge-nah in `_shared/github.ts` verankert und per Invariant-Test gegen Regress abgesichert.
 - 2026-03-15: Patch 437: Doppelte Preview-Migration (`20251226140000_fix_previews.sql`/`20251226160000_fix_previews.sql`) als byte-identische Redundanz bestätigt; spätere Migration als explizites Legacy-No-op markiert (kein History-Delete), um Doppel-Ausführung in frischen Setups und Wartungsirritation zu vermeiden.
 - 2026-03-15: Patch 436: Migrations-/RPC-Hygiene für `insert_diagnostic_upload` finalisiert; historischen UUID-/Spalten-Drift (`repo/branch/mode/platform/report/meta`) explizit eingeordnet, finalen `jsonb -> bigint`-Vertrag per Abschlussmigration reassertet und mit Invariant-Test abgesichert.
