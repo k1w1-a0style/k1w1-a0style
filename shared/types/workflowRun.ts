@@ -25,4 +25,5 @@ export interface WorkflowRun {
   updated_at: string;
   html_url: string;
   head_branch?: string;
+  head_sha?: string;
 }

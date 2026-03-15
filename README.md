@@ -11,8 +11,9 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 449**.
+- Zuletzt abgeschlossen: **Patch 450**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
+- CustomHeader/CI-Lite-Restfix ist konservativ nachgezogen: Logs/Run-State resetten bei Input-Wechsel, verspätete Responses werden per Request-Key-Guard abgefangen, Persistenz schreibt nur noch für den aktiven CI-Lite-Run-Kontext (kein Autofix→CI-Lite-Fehlpersist), und Doppeltap-Dispatch wird geblockt.
 - Build-Job-Vertrag ist auf **positive numerische `jobId`** (bigint-backed) ausgerichtet; UUID-Annahmen sind entfernt.
 - Edge-Shared-Validation/Auth/CORS haben einen kleinen Deno/Node-Typing-Follow-up: Runtime-Env-Lookup ohne `any`, Request-Validation mit engeren Objekt-/Union-Typen (kein Broad-Refactor).
 - DiagnosticScreen-Restpunkte sind konservativ nachgezogen: progressive Severity-Anzeige im Preflight-Fortschritt ist korrekt, KI-Fix-Hinweise sind für grüne `pass`-Checks nicht mehr irreführend, und flow-nahe Typing-/Hook-Lücken im selben Screen wurden ohne Broad-Refactor geschlossen.

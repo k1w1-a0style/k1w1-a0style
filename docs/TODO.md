@@ -1,12 +1,13 @@
 # TODO
 
-Stand: **2026-03-15 (Patch 449)**
+Stand: **2026-03-15 (Patch 450)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
 
 ## Aktuell (Priorität)
 
+- [x] **CustomHeader-/CI-Lite-Restprobleme gezielt behoben:** stale `workflowRun`/`logs` werden bei `githubRepo`/`runId`/`workflowId`-Wechsel aktiv zurückgesetzt und durch Request-Key-Guard gegen verspätete Antworten geschützt; Persistenz akzeptiert nur den aktiven CI-Lite-Run (`workflowRun.id===runId` + Repo/Branch-Guard), Doppeltap-Dispatch ist geblockt, `head_sha` ist im `WorkflowRun`-Typ ergänzt, Artifact-JSON lokal typisiert geparst, und CI-Lite-Patch-Sync entfernt `as any` + stabilisiert `syncPatchToGitHub` per `useCallback` (Patch 450).
 - [x] **DiagnosticScreen-Restpunkte (Flow/UX/Typing) gezielt behoben:** progressiver Preflight zeigt wieder Severity-Stufe (`stage` statt falschem `priority`-Zugriff), „KI-Fix verfuegbar“ wird nicht mehr für `pass`-Checks angezeigt, plus selektive Typing-/Hook-Cleanups (`projectData`-Casts, `runLocalChecks/runPipelineChecks`-`files`-Typing, `updateProjectFiles`/`deleteFile`-Signaturen, tote Runner-Imports, `clearSelection`-Dependency) inkl. gezielter Regressionstests (Patch 448).
 - [x] **EnhancedBuildScreen-Restpunkte (OneClickDeploy/Flow/Typing) gezielt behoben:** OneClickDeploy-Vorab-Push entfernt (SHA-sichere Reihenfolge über `startBuildJob`), unnötiger Doppel-Push vermieden, `canStartBuildUi` gegen Ref-Drift stabilisiert, build-/logs-nahe `WorkflowRun`-Typen inkl. `event` vereinheitlicht und `workflowRun`-`any` in `LogsAnalysisSection` eliminiert (Patch 449).
 - [x] **Edge-Typecheck-Restpunkt (Deno/Node-Env in `_shared/auth`) gezielt behoben:** Secret-Lookups laufen jetzt runtime-kompatibel über Deno-oder-Node-Env-Lookup; `npm run typecheck` ist wieder grün, ohne Broad-Refactor (Patch 445).
