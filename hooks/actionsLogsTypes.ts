@@ -9,7 +9,9 @@ import { redactSecrets, truncateWithMarker } from "../lib/secretRedaction";
 import { requireSupabaseEdgeUrl } from "../lib/supabaseEdge";
 import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
 import { logger } from '../lib/logger';
+import type { WorkflowRun } from "../shared/types/workflowRun";
 
+export type { WorkflowRun } from "../shared/types/workflowRun";
 
 export interface LogEntry {
   timestamp: string;
@@ -18,15 +20,6 @@ export interface LogEntry {
   step?: string;
 }
 
-export interface WorkflowRun {
-  id: number;
-  status: "queued" | "in_progress" | "completed";
-  conclusion?: "success" | "failure" | "cancelled" | "skipped";
-  html_url: string;
-  run_number: number;
-  created_at: string;
-  updated_at: string;
-}
 
 export interface UseGitHubActionsLogsOptions {
   githubRepo: string | null;

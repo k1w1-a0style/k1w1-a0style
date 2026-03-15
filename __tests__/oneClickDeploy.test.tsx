@@ -22,7 +22,6 @@ const mockAsyncStorage = AsyncStorage as any;
 const mockGitHub = {
   getGitHubToken: jest.fn(),
   getExpoToken: jest.fn(),
-  pushFilesToRepo: jest.fn(),
 };
 
 const mockSecrets = {
@@ -92,7 +91,6 @@ describe("useOneClickDeploy", () => {
 
     mockGitHub.getGitHubToken.mockReset();
     mockGitHub.getExpoToken.mockReset();
-    mockGitHub.pushFilesToRepo.mockReset();
     mockSecrets.autoSyncRepoSecrets.mockReset();
     // Reset AsyncStorage mocks per test
     mockAsyncStorage.getItem.mockReset();
@@ -216,8 +214,15 @@ describe("useOneClickDeploy", () => {
     );
 
     const steps = getSteps(getByTestId);
+    const pushFiles = steps.find((s: any) => s.id === "push_files");
     const build = steps.find((s: any) => s.id === "build");
+    expect(pushFiles.status).toBe("skip");
+    expect(["Repo-Sync erfolgt im Build-Start (SHA-sicher)", "Keine Dateien zum Synchronisieren"]).toContain(
+      String(pushFiles.detail || ""),
+    );
     expect(build.status).toBe("ok");
     expect(startBuild).toHaveBeenCalledTimes(1);
+    expect(mockGitHub.getGitHubToken).toHaveBeenCalledTimes(1);
+    expect(mockGitHub.getExpoToken).toHaveBeenCalledTimes(1);
   });
 });

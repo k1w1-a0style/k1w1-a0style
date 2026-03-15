@@ -11,11 +11,12 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 448**.
+- Zuletzt abgeschlossen: **Patch 449**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
 - Build-Job-Vertrag ist auf **positive numerische `jobId`** (bigint-backed) ausgerichtet; UUID-Annahmen sind entfernt.
 - Edge-Shared-Validation/Auth/CORS haben einen kleinen Deno/Node-Typing-Follow-up: Runtime-Env-Lookup ohne `any`, Request-Validation mit engeren Objekt-/Union-Typen (kein Broad-Refactor).
 - DiagnosticScreen-Restpunkte sind konservativ nachgezogen: progressive Severity-Anzeige im Preflight-Fortschritt ist korrekt, KI-Fix-Hinweise sind für grüne `pass`-Checks nicht mehr irreführend, und flow-nahe Typing-/Hook-Lücken im selben Screen wurden ohne Broad-Refactor geschlossen.
+- EnhancedBuildScreen-OneClickDeploy ist SHA-robuster: kein Vorab-Push mehr im OneClick-Flow (Sync-/Push-Entscheidung bleibt zentral im Build-Start), wodurch künstliche SHA-Mismatch-/Doppel-Push-Risiken reduziert sind.
 - Diagnostics-Upload-ID wird clientseitig als **opaque string** behandelt; SQL-Seite bleibt bigint-backed.
 - Diagnostics-RPC `insert_diagnostic_upload` ist migrationsseitig als finaler `jsonb -> bigint`-Vertrag reassertet; historischer UUID-/Spalten-Drift bleibt dokumentiert und übersteuert.
 - Service-Role-Handling ist aus Client-Pfaden entfernt; CI-/Workflow-Pfade laufen über explizite Guards.

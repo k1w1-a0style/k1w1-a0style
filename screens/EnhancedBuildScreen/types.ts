@@ -1,19 +1,9 @@
 import type { BuildStatus } from "../../shared/types/build";
+import type { WorkflowRun } from "../../shared/types/workflowRun";
+
+export type { WorkflowRun } from "../../shared/types/workflowRun";
 
 export type BuildProfile = "development" | "preview" | "production";
-
-export interface WorkflowRun {
-  id: number;
-  name: string;
-  display_title?: string;
-  run_number?: number;
-  status: string;
-  conclusion: string | null;
-  created_at: string;
-  updated_at: string;
-  html_url: string;
-  head_branch?: string;
-}
 
 export interface WorkflowRunsResponse {
   total_count?: number;

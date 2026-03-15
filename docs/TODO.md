@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-03-15 (Patch 448)**
+Stand: **2026-03-15 (Patch 449)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
@@ -8,6 +8,7 @@ Stand: **2026-03-15 (Patch 448)**
 ## Aktuell (Priorität)
 
 - [x] **DiagnosticScreen-Restpunkte (Flow/UX/Typing) gezielt behoben:** progressiver Preflight zeigt wieder Severity-Stufe (`stage` statt falschem `priority`-Zugriff), „KI-Fix verfuegbar“ wird nicht mehr für `pass`-Checks angezeigt, plus selektive Typing-/Hook-Cleanups (`projectData`-Casts, `runLocalChecks/runPipelineChecks`-`files`-Typing, `updateProjectFiles`/`deleteFile`-Signaturen, tote Runner-Imports, `clearSelection`-Dependency) inkl. gezielter Regressionstests (Patch 448).
+- [x] **EnhancedBuildScreen-Restpunkte (OneClickDeploy/Flow/Typing) gezielt behoben:** OneClickDeploy-Vorab-Push entfernt (SHA-sichere Reihenfolge über `startBuildJob`), unnötiger Doppel-Push vermieden, `canStartBuildUi` gegen Ref-Drift stabilisiert, build-/logs-nahe `WorkflowRun`-Typen inkl. `event` vereinheitlicht und `workflowRun`-`any` in `LogsAnalysisSection` eliminiert (Patch 449).
 - [x] **Edge-Typecheck-Restpunkt (Deno/Node-Env in `_shared/auth`) gezielt behoben:** Secret-Lookups laufen jetzt runtime-kompatibel über Deno-oder-Node-Env-Lookup; `npm run typecheck` ist wieder grün, ohne Broad-Refactor (Patch 445).
 - [x] **`save_preview` CORS-/Security-Header konsistent gehärtet:** Erfolgs- und lokale Fehlerpfade nutzen nun denselben `_shared/cors`-Header-Stack wie Auth-/Rate-Limit-Fehler; gezielte Invariants sichern Header-Gleichlauf ohne Architekturumbau (Patch 444).
 - [x] **k1w1-handler Provider-Randfälle (Anthropic/Gemini) gehärtet:** Anthropic schützt gegen leere Requests bei reinen `system`-Prompts; Gemini trennt `system` explizit via `systemInstruction` und nutzt einen nicht-leeren Fallback für `contents`; doppelte No-op-Coalescing-Stelle entfernt, Invariants ergänzt (Patch 443).
@@ -44,6 +45,7 @@ Stand: **2026-03-15 (Patch 448)**
 
 ## Kürzlich abgeschlossen (Kontext)
 
+- [x] Patch 449 — EnhancedBuildScreen-Restpunkte fokussiert geschlossen: OneClickDeploy ohne Vorab-Push (SHA-sicher über Build-Start-Flow), `canStartBuildUi` ohne Ref-Lesen im `useMemo`, `WorkflowRun`-Typing Build↔Logs vereinheitlicht inkl. `event`, `LogsAnalysisSection` ohne `any`-Run-Typ.
 - [x] Patch 447 — kleiner Edge-Typing-Follow-up: `_shared/auth`/`_shared/cors` ohne `globalThis as any`, `_shared/validation` mit engeren Objekt-/Union-Typen und zusätzlicher `parseJsonBody`-Regression.
 - [x] Patch 446 — letzter selektiver Build-Start-`any`-Hotspot reduziert: Edge-Invoke-Payload lokal typisiert/narrowed, `pushFilesToRepo`-Cast entfernt und gezielte Regressionstests für `job.id`-/Error-Shape ergänzt.
 - [x] Patch 440 — konservatives UX-/Flow-Feintuning ohne Architekturumbau: klarere Statussemantik (gespeichert vs. letzter bekannter Stand), konsistentere Header-/Fallback-Texte in Build, Diagnosis, Preview, Connections, Credentials und Chat-Menü; gezielte Regression für Preview-Status-Text ergänzt.

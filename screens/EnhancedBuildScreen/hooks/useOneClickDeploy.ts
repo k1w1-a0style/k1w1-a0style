@@ -9,7 +9,6 @@ import { useProject } from "../../../contexts/ProjectContext";
 import {
   getGitHubToken,
   getExpoToken,
-  pushFilesToRepo,
 } from "../../../infra/github/githubService";
 import { autoSyncRepoSecrets } from "../../../lib/autoSyncRepoSecrets";
 import {
@@ -220,29 +219,12 @@ export function useOneClickDeploy(
         }
       }
 
-      // === Step 5: Dateien pushen ===
-      updateStep("push_files", "running");
-      if (abortRef.current) return;
-
-      try {
-        const files = projectData?.files;
-        if (files && Array.isArray(files) && files.length > 0) {
-          const [owner, repo] = repoFullName.split("/");
-          if (owner && repo) {
-            await pushFilesToRepo(owner, repo, files as any, branchName || undefined);
-            if (abortRef.current) return;
-            updateStep("push_files", "ok", `${files.length} Dateien gepusht`);
-          } else {
-            updateStep("push_files", "fail", "Repo-Name ungueltig");
-            return;
-          }
-        } else {
-          updateStep("push_files", "skip", "Keine Dateien zum Pushen");
-        }
-      } catch (e: any) {
-        updateStep("push_files", "fail", e?.message || "Push fehlgeschlagen");
-        Alert.alert("Push Fehler", e?.message || "Unbekannter Fehler");
-        return;
+      // === Step 5: Repo-Sync wird im Build-Start entschieden ===
+      const files = projectData?.files;
+      if (Array.isArray(files) && files.length > 0) {
+        updateStep("push_files", "skip", "Repo-Sync erfolgt im Build-Start (SHA-sicher)");
+      } else {
+        updateStep("push_files", "skip", "Keine Dateien zum Synchronisieren");
       }
 
       // === Step 6: Build starten ===

@@ -33,6 +33,7 @@ export function useEnhancedBuildScreen() {
 
   // P1: Prevent duplicate build triggers on double-tap.
   const buildInFlightRef = useRef(false);
+  const [buildInFlight, setBuildInFlight] = useState(false);
 
   // P1: Avoid state updates / alerts after unmount.
   const isMountedRef = useRef(true);
@@ -325,6 +326,7 @@ export function useEnhancedBuildScreen() {
       return;
     }
     buildInFlightRef.current = true;
+    if (isMountedRef.current) setBuildInFlight(true);
 
     if (isMountedRef.current) {
       setBuildLoading(true);
@@ -347,7 +349,10 @@ export function useEnhancedBuildScreen() {
         );
       }
     } finally {
-      if (isMountedRef.current) setBuildLoading(false);
+      if (isMountedRef.current) {
+        setBuildLoading(false);
+        setBuildInFlight(false);
+      }
       buildInFlightRef.current = false;
     }
   }, [repoValidation.valid, buildBlockedReason, buildProfile, hasStartBuild, startBuild, sanitizeUiMessage]);
@@ -420,7 +425,7 @@ export function useEnhancedBuildScreen() {
         setRunDetailLoading(false);
       }
     },
-    [repoValidation.valid, owner, repo, openRun, runDetailReqId, isMountedRef, sanitizeUiMessage],
+    [repoValidation.valid, owner, repo, openRun, sanitizeUiMessage],
   );
 
   const refreshRunDetails = useCallback(async () => {
@@ -492,10 +497,10 @@ export function useEnhancedBuildScreen() {
     return (
       hasStartBuild &&
       !buildLoading &&
-      !buildInFlightRef.current &&
+      !buildInFlight &&
       !buildBlockedReason
     );
-  }, [hasStartBuild, buildLoading, buildBlockedReason]);
+  }, [hasStartBuild, buildLoading, buildInFlight, buildBlockedReason]);
 
   const checklistItems: CheckItem[] = useMemo(() => {
     const hasRepo = !!repoFullName.trim();

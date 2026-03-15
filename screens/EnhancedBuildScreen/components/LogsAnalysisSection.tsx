@@ -11,6 +11,7 @@ import {
 } from "../../../utils/buildScreenUtils";
 import { styles } from "../../../styles/enhancedBuildScreenStyles";
 import type { BuildStatus } from "../../../shared/types/build";
+import type { WorkflowRun } from "../../../shared/types/workflowRun";
 
 export function LogsAnalysisSection({
   status,
@@ -31,7 +32,7 @@ export function LogsAnalysisSection({
   logsError: string | null;
   logs: { timestamp?: string; level: string; message: string }[];
   analyses: { category: string; severity: string; description: string; suggestion: string }[];
-  workflowRun: any | null;
+  workflowRun: WorkflowRun | null;
   onOpenModal: () => void;
   openRun: (url: string) => void;
 }): React.ReactElement {
