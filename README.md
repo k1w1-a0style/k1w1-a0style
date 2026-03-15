@@ -11,10 +11,11 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 435**.
+- Zuletzt abgeschlossen: **Patch 436**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
 - Build-Job-Vertrag ist auf **positive numerische `jobId`** (bigint-backed) ausgerichtet; UUID-Annahmen sind entfernt.
 - Diagnostics-Upload-ID wird clientseitig als **opaque string** behandelt; SQL-Seite bleibt bigint-backed.
+- Diagnostics-RPC `insert_diagnostic_upload` ist migrationsseitig als finaler `jsonb -> bigint`-Vertrag reassertet; historischer UUID-/Spalten-Drift bleibt dokumentiert und übersteuert.
 - Service-Role-Handling ist aus Client-Pfaden entfernt; CI-/Workflow-Pfade laufen über explizite Guards.
 - Patch 415 V3 bleibt als Vertragsanker relevant: workflow-/CI-nahe Edge-Pfade nutzen gemeinsamen Admin-/CI-Bearer-Guard.
 
