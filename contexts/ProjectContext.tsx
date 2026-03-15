@@ -56,7 +56,10 @@ import {
   updateBuildInHistory,
 } from "../lib/buildHistoryStorage";
 import { resolveEffectiveTemplateId } from "../lib/diagnostics/templates";
-import { loadChatHistorySettings } from "../lib/chatPrivacySettings";
+import {
+  loadChatHistorySettings,
+  onChatHistoryRetentionLimitChange,
+} from "../lib/chatPrivacySettings";
 import { trimChatHistory } from "../infra/storage/persistenceHelpers";
 
 const SAVE_DEBOUNCE_MS = 500;
@@ -221,9 +224,14 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       }
     };
 
+    const unsubscribe = onChatHistoryRetentionLimitChange((nextLimit) => {
+      chatRetentionLimitRef.current = nextLimit;
+    });
+
     void loadRetention();
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, []);
 

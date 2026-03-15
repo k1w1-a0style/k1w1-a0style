@@ -1,5 +1,17 @@
 ## 2026-03-15 — Patch 463: SettingsScreen + AIContext Restpunkte (Quality/Retention/Typing) konservativ geschlossen
 
+## 2026-03-16 — Patch 463 Follow-up (PR #278 review): Retention-Save sofort wirksam
+
+- `lib/chatPrivacySettings.ts` veröffentlicht Retention-Updates jetzt zusätzlich über eine kleine Listener-Bridge (`onChatHistoryRetentionLimitChange`).
+- `contexts/ProjectContext.tsx` subscribed auf diese Bridge und aktualisiert `chatRetentionLimitRef` sofort, sodass neue Limits ohne App-Neustart für `addChatMessage` gelten.
+- Regression ergänzt: `__tests__/chatPrivacySettings.retentionSync.test.ts` prüft Notify + Unsubscribe-Verhalten.
+
+Checks (lokal):
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent -- --runInBand __tests__/chatPrivacySettings.retentionSync.test.ts`
+- `npm run test:silent`
+
 - Quality-Mode wirkt jetzt real auf die effektiven Modellauswahlen: `setQualityMode(...)` setzt zusätzlich `selectedChatMode`/`selectedAgentMode` passend zur gewählten Persona (speed vs. quality/review), sodass der Wechsel nicht nur kosmetisch bleibt.
 - SettingsScreen zieht den gleichen Nutzerfluss sauber nach: Quality-Button-Selection setzt unmittelbar die aktiven Modelle für Generator+Agent, statt alte Modell-IDs stehen zu lassen.
 - Privacy-Retention ist kein halbfertiger Read-only-Hinweis mehr: Retention-Limit ist im SettingsScreen jetzt direkt editierbar und wird über `setChatHistoryRetentionLimit(...)` persistiert.

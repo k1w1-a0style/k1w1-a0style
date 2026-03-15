@@ -5,6 +5,9 @@ import { STORAGE_KEYS } from "./storageKeys";
 const DEFAULT_PERSIST = true;
 const DEFAULT_RETENTION = 200;
 
+type ChatRetentionListener = (limit: number) => void;
+const chatRetentionListeners = new Set<ChatRetentionListener>();
+
 function parseBool(value: string | null): boolean | null {
   if (value == null) return null;
   const v = value.trim().toLowerCase();
@@ -52,7 +55,19 @@ export async function setChatHistoryRetentionLimit(limit: number): Promise<void>
     Number.isFinite(limit) && limit >= 0 ? Math.floor(limit) : DEFAULT_RETENTION;
   try {
     await AsyncStorage.setItem(STORAGE_KEYS.CHAT_RETENTION_LIMIT, String(safeLimit));
+    for (const listener of chatRetentionListeners) {
+      listener(safeLimit);
+    }
   } catch {}
+}
+
+export function onChatHistoryRetentionLimitChange(
+  listener: ChatRetentionListener,
+): () => void {
+  chatRetentionListeners.add(listener);
+  return () => {
+    chatRetentionListeners.delete(listener);
+  };
 }
 
 export async function loadChatHistorySettings(): Promise<{

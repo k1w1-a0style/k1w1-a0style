@@ -12,6 +12,7 @@ Bestätigte Restprobleme in SettingsScreen/AIContext minimal-konservativ schlie�
 - `screens/SettingsScreen/hooks/useSettingsScreen.ts`
   - Quality-Mode-Handler setzt effektive Chat-/Agent-Modelle explizit mit.
   - Retention-Limit-Editing ergänzt (`retentionInput`, Save-Handler, Persistenz via `setChatHistoryRetentionLimit`).
+  - Save-Pfad wirkt jetzt sofort in der aktiven Session, weil die Runtime-Retention per Event-Bridge aktualisiert wird.
   - Provider-Status-Normalisierung auf getypten Helper umgestellt (statt `any`-basierter Inline-Logik).
   - Letzter-Key-Hinweis im Remove-Dialog ergänzt.
 - `screens/SettingsScreen/hooks/settingsHelpers.ts`
@@ -27,6 +28,7 @@ Bestätigte Restprobleme in SettingsScreen/AIContext minimal-konservativ schlie�
 - Tests:
   - `__tests__/aiContext.qualityMode.test.ts`
   - `__tests__/settingsScreen.helpers.test.ts`
+  - `__tests__/chatPrivacySettings.retentionSync.test.ts`
 
 ## Offen / bewusst nicht Teil von Patch 463
 - Kein Ausbau einer neuen Provider-/Config-Architektur.
