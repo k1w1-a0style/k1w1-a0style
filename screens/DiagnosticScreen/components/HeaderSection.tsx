@@ -47,7 +47,7 @@ export function HeaderSection(props: {
             </View>
             <Text style={s.projectName}>{headerStats.name}</Text>
           </View>
-          <Text style={s.autoHint}>Build-Profil kommt aus der gespeicherten Build-Auswahl</Text>
+          <Text style={s.autoHint}>Verwendet die gespeicherte Build-Auswahl (Repo/Branch/Profil)</Text>
         </View>
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -64,7 +64,7 @@ export function HeaderSection(props: {
           {busy ? (
             <View style={styles.busyPill}>
               <ActivityIndicator size="small" color={theme.palette.primary} />
-              <Text style={styles.busyText}>{running ? "Laeuft..." : "Anwenden..."}</Text>
+              <Text style={styles.busyText}>{running ? "Prüfung läuft..." : "Wird angewendet..."}</Text>
             </View>
           ) : null}
         </View>

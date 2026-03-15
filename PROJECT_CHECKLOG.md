@@ -1,3 +1,4 @@
+- 2026-03-15: Patch 441: konservatives Mikro-UX-Finetuning der Kernpfade Build/Diagnosis/Preview umgesetzt; Build- und Diagnose-CTAs alltagsnäher benannt, Preview-Statussprache auf Live/Fallback/Fehler vereinheitlicht, bestehende Readiness-/Guard-Logik unverändert gelassen.
 - 2026-03-15: Patch 440: konservatives UX-/Flow-Feintuning (Build/Diagnosis/Preview/Connections/Credentials/Chat) mit Fokus auf klarere Status- und Fallback-Semantik ohne Architekturumbau; ergänzende Regression für Preview-Status-Text.
 # PROJECT_CHECKLOG
 
@@ -5,6 +6,7 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-15: Patch 441: konservatives Mikro-UX-Finetuning der Kernpfade Build/Diagnosis/Preview umgesetzt; Build- und Diagnose-CTAs alltagsnäher benannt, Preview-Statussprache auf Live/Fallback/Fehler vereinheitlicht, bestehende Readiness-/Guard-Logik unverändert gelassen.
 - 2026-03-15: Patch 440: konservatives UX-/Flow-Feintuning (Build/Diagnosis/Preview/Connections/Credentials/Chat) mit Fokus auf klarere Status- und Fallback-Semantik ohne Architekturumbau; ergänzende Regression für Preview-Status-Text.
 - 2026-03-15: Patch 438: Fragile Cross-Boundary-Imports in produktiven Supabase-Workflow-Edges entfernt (`../../../shared/constants/github.ts`); `GITHUB_API_BASE` edge-nah in `_shared/github.ts` verankert und per Invariant-Test gegen Regress abgesichert.
 - 2026-03-15: Patch 437: Doppelte Preview-Migration (`20251226140000_fix_previews.sql`/`20251226160000_fix_previews.sql`) als byte-identische Redundanz bestätigt; spätere Migration als explizites Legacy-No-op markiert (kein History-Delete), um Doppel-Ausführung in frischen Setups und Wartungsirritation zu vermeiden.

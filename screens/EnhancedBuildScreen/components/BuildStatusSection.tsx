@@ -70,7 +70,7 @@ export function BuildStatusSection({
           size={18}
           color={status === "success" ? theme.palette.success : status === "failed" || status === "error" ? theme.palette.error : theme.palette.primary}
         />
-        <Text style={s.title}>Build Status</Text>
+        <Text style={s.title}>Build-Status</Text>
       </View>
 
       <View style={s.statusRow}>
@@ -81,7 +81,7 @@ export function BuildStatusSection({
           {(contextRepo || contextBranch || contextProfile || currentBuild?.sourceCommitSha) ? (
             <View style={s.contextBox}>
               <Text style={s.contextLabel}>
-                {hasRuntimeContext ? "Laufkontext (aktueller Build)" : "Laufkontext (aktuelle Auswahl)"}
+                {hasRuntimeContext ? "Aktueller Laufkontext" : "Aktuelle Auswahl (noch kein Lauf)"}
               </Text>
               {!!contextRepo && (
                 <Text style={s.statusMsg}>Repo {contextRepo}</Text>
@@ -125,7 +125,7 @@ export function BuildStatusSection({
             activeOpacity={0.7}
           >
             <Ionicons name="cube-outline" size={14} color={theme.palette.text.primary} />
-            <Text style={s.outlineBtnText}>Artifacts</Text>
+            <Text style={s.outlineBtnText}>Artefakte</Text>
           </TouchableOpacity>
         )}
 
@@ -140,7 +140,7 @@ export function BuildStatusSection({
               <Text style={s.greenOutlineBtnText}>
                 {currentBuild.urls.buildUrl.toLowerCase().endsWith(".apk") ||
                 currentBuild.urls.buildUrl.includes("/storage/v1/object/")
-                  ? "APK Download"
+                  ? "APK herunterladen"
                   : "Build Ergebnis"}
               </Text>
             </TouchableOpacity>
@@ -177,7 +177,7 @@ export function BuildStatusSection({
             ) : (
               <>
                 <Ionicons name="play-outline" size={18} color={theme.palette.primary} />
-                <Text style={s.startBtnText}>Build starten</Text>
+                <Text style={s.startBtnText}>Build jetzt starten</Text>
               </>
             )}
           </TouchableOpacity>

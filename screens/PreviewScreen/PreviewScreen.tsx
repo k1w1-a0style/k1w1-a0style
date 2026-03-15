@@ -143,7 +143,7 @@ export default function PreviewScreen() {
         <View style={s.urlCard}>
           <View style={s.urlCardHeader}>
             <Ionicons name="link-outline" size={15} color={theme.palette.primary} />
-            <Text style={s.urlCardTitle}>Offizieller Browser-/QR-Preview-Link</Text>
+            <Text style={s.urlCardTitle}>Preview-Link (Browser & QR)</Text>
           </View>
           <Text style={s.urlText} numberOfLines={2}>{previewUrl}</Text>
           <View style={s.urlActions}>

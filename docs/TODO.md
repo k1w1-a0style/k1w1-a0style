@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-03-15 (Patch 440)**
+Stand: **2026-03-15 (Patch 441)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
@@ -8,6 +8,7 @@ Stand: **2026-03-15 (Patch 440)**
 ## Aktuell (Priorität)
 
 - [x] **UX-Feintuning der Kernpfade (Build/Diagnosis/Preview/Connections/Credentials/Chat-Menü):** Status-Texte und Hinweise auf gespeicherten vs. letzten bekannten Zustand geschärft; technische Formulierungen reduziert und missverständliche Labels vereinheitlicht (Patch 440).
+- [x] **Gezieltes Mikro-UX-Finetuning Build/Diagnosis/Preview:** CTA-Labels enttechnisiert, Diagnose-Aktionen klarer benannt, Preview-Status (Live/Fallback/Fehler) konsistenter formuliert; keine Architekturänderung (Patch 441).
 - [x] **Supabase Edge Import-Hygiene (Cross-Boundary):** produktive Workflow-Edges von App-Pfadimport (`shared/constants/github.ts`) entkoppelt; `GITHUB_API_BASE` edge-nah in `_shared/github.ts` verankert + Invariant-Guard ergänzt (Patch 438).
 - [x] **Migrations-/RPC-Hygiene für `insert_diagnostic_upload`:** historischer UUID-/Spalten-Drift sauber eingeordnet; finaler `jsonb -> bigint`-Vertrag per Abschlussmigration + Invariant-Guard abgesichert (Patch 436).
 - [x] **Follow-up Audit `insert_diagnostic_upload`-Historie:** driftende UUID-Signatur weiterhin nur als dokumentierte Historie erlaubt; zusätzlicher Invariant-Guard verhindert Re-Intro der Legacy-Spaltenannahmen im finalen Vertrag (Patch 439).
@@ -36,6 +37,7 @@ Stand: **2026-03-15 (Patch 440)**
 ## Kürzlich abgeschlossen (Kontext)
 
 - [x] Patch 440 — konservatives UX-/Flow-Feintuning ohne Architekturumbau: klarere Statussemantik (gespeichert vs. letzter bekannter Stand), konsistentere Header-/Fallback-Texte in Build, Diagnosis, Preview, Connections, Credentials und Chat-Menü; gezielte Regression für Preview-Status-Text ergänzt.
+- [x] Patch 441 — fokussiertes UX-Feintuning für die drei Kernscreens: Build-Status/CTA-Wording beruhigt, Diagnose-Aktionssprache alltagsnäher gemacht und Preview-Statuswörter für Live/Fallback/Fehler vereinheitlicht; bestehende Guard-/Statuslogik unverändert belassen.
 - [x] Patch 438 — Fragile Edge→App-Importkette auf `shared/constants/github.ts` entfernt; betroffene Workflow-Edges auf `_shared/github.ts` umgestellt und per Invariant-Test abgesichert.
 - [x] Patch 439 — Keystore-Status-Edge auf gemeinsame Helper-Struktur angeglichen, `useBuildStatus`-Polling-Resets entschärft, `ProjectContext`-History-Effect stabilisiert und einen Build-Flow-`any`-Hotspot typisiert.
 - [x] Patch 437 — Doppelte Preview-Migration (`20251226140000`/`20251226160000`) als bestätigte Redundanz eingeordnet; spätere Datei bewusst auf Legacy-No-op umgestellt (keine History-Löschung), damit die Migrationshistorie weniger irreführend ist.

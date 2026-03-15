@@ -6,6 +6,6 @@ describe("PreviewStatusBar status text semantics", () => {
   });
 
   it("keeps supabase ready wording explicit", () => {
-    expect(getStatusText("ready", "supabase")).toBe("Supabase Browser-Preview aktiv");
+    expect(getStatusText("ready", "supabase")).toBe("Live-Preview aktiv (Supabase)");
   });
 });

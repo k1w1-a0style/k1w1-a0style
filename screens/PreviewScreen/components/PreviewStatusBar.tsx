@@ -18,11 +18,11 @@ type PreviewStatusBarProps = {
 };
 
 export function getStatusText(phase: PreviewPhase, previewKind: "supabase" | "local" | null): string {
-  if (phase === 'idle') return 'Bereit';
+  if (phase === 'idle') return 'Bereit für Preview-Erstellung';
   if (phase === 'creating') return 'Preview wird erstellt…';
-  if (phase === 'loading') return 'Wird geladen…';
-  if (phase === 'ready') return previewKind === 'local' ? 'Lokaler Fallback aktiv (letzter bekannter Stand)' : 'Supabase Browser-Preview aktiv';
-  return 'Fehler';
+  if (phase === 'loading') return 'Preview wird geladen…';
+  if (phase === 'ready') return previewKind === 'local' ? 'Fallback aktiv (letzter bekannter Stand)' : 'Live-Preview aktiv (Supabase)';
+  return 'Preview-Fehler';
 }
 
 export function PreviewStatusBar({
@@ -66,7 +66,7 @@ export function PreviewStatusBar({
 
         {phase === 'ready' && previewKind === 'local' && (
           <View style={s.hotBadge}>
-            <Text style={s.hotBadgeText}>Lokaler Fallback</Text>
+            <Text style={s.hotBadgeText}>Fallback aktiv</Text>
           </View>
         )}
       </View>

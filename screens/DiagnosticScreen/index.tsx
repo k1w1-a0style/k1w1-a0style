@@ -237,11 +237,11 @@ export default function DiagnosticScreen() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
         <View style={styles.stack}>
           <SectionCard
-            title="Aktionen"
+            title="Diagnose ausführen"
             subtitle={
               lastRunAt
                 ? `Letzter Scan: ${new Date(lastRunAt).toLocaleString()}`
-                : "Noch kein Scan"
+                : "Noch keine Prüfung"
             }
             icon="pulse"
             right={
@@ -269,7 +269,7 @@ export default function DiagnosticScreen() {
                 disabled={busy || running}
               >
                 <Ionicons name="scan" size={16} color={theme.palette.primary} />
-                <Text style={styles.btnPrimaryText}>Scannen</Text>
+                <Text style={styles.btnPrimaryText}>Prüfen</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -281,7 +281,7 @@ export default function DiagnosticScreen() {
                 disabled={!canFix || busy || running}
               >
                 <Ionicons name="construct" size={16} color={theme.palette.text.primary} />
-                <Text style={styles.btnSecondaryText}>Fixen</Text>
+                <Text style={styles.btnSecondaryText}>Auto-Fix</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -290,23 +290,23 @@ export default function DiagnosticScreen() {
                 disabled={!hasResults}
               >
                 <Ionicons name="document-text" size={16} color={theme.palette.text.primary} />
-                <Text style={styles.btnTertiaryText}>Report</Text>
+                <Text style={styles.btnTertiaryText}>Bericht</Text>
               </TouchableOpacity>
             </View>
           </SectionCard>
 
           <SectionCard
-            title="Checkliste"
+            title="Prüf-Ergebnisse"
             subtitle={
               hasResults
                 ? `${checklist.length} Checks · Modus: ${String(recommendedMode || "").toUpperCase()}`
-                : "Scanne, um die Checks zu sehen"
+                : "Starte eine Prüfung, um die Ergebnisse zu sehen"
             }
             icon="list"
           >
             {!hasResults ? (
               <Text style={styles.muted}>
-                Tippe auf Scannen. Danach siehst du hier alle geprueften Punkte inkl. Status.
+                Tippe auf Prüfen. Danach siehst du hier alle geprüften Punkte mit Status.
               </Text>
             ) : (
               <View style={{ gap: theme.spacing.sm }}>
@@ -358,7 +358,7 @@ export default function DiagnosticScreen() {
           {hasIssues ? (
             <SectionCard
               title="Issues"
-              subtitle="Tippe ein Issue fuer Details/Fix"
+              subtitle="Tippe ein Issue für Details und nächste Schritte"
               icon="alert-circle"
             >
               <View style={styles.filtersRow}>
