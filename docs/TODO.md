@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-03-15 (Patch 445)**
+Stand: **2026-03-15 (Patch 446)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
@@ -29,6 +29,7 @@ Stand: **2026-03-15 (Patch 445)**
 - [x] **Polling-/Hook-Stabilität für `useBuildStatus` gehärtet:** unnötige Effect-Resets bei Status- und Callback-Identity-Wechsel entfernt (`statusRef`/`callbacksRef`), Polling bleibt ruhiger (Patch 439).
 - [x] **ProjectContext-History-Effect entkoppelt:** unnötige `currentBuild`-Abhängigkeitskaskade entfernt, Auswahl via Ref stabilisiert (Patch 439).
 - [x] **Selektiver `any`-Hotspot im Build-Status-Edge reduziert:** `check-eas-build` verwendet nun ein explizites `BuildJobRow` statt untypisiertem `any`-Flow (Patch 439).
+- [x] **Build-Start-Flow-`any` selektiv reduziert:** `buildStartService` nutzt für Edge-Invoke-Payload jetzt ein lokales, enges Payload-Narrowing statt mehrfacher `as any`-Zugriffe; Build-Fehler- und Job-ID-Mapping bleiben verhaltensgleich (Patch 446).
 - [ ] **Rest-`any` nur weiter selektiv abbauen:** verbleibende Hotspots weiter nur dort anfassen, wo reale Flow-/Vertragsrisiken bestehen (kein Broad Cleanup).
 
 ## Wichtige Vertrags-Reminder
@@ -41,6 +42,7 @@ Stand: **2026-03-15 (Patch 445)**
 
 ## Kürzlich abgeschlossen (Kontext)
 
+- [x] Patch 446 — letzter selektiver Build-Start-`any`-Hotspot reduziert: Edge-Invoke-Payload lokal typisiert/narrowed, `pushFilesToRepo`-Cast entfernt und gezielte Regressionstests für `job.id`-/Error-Shape ergänzt.
 - [x] Patch 440 — konservatives UX-/Flow-Feintuning ohne Architekturumbau: klarere Statussemantik (gespeichert vs. letzter bekannter Stand), konsistentere Header-/Fallback-Texte in Build, Diagnosis, Preview, Connections, Credentials und Chat-Menü; gezielte Regression für Preview-Status-Text ergänzt.
 - [x] Patch 441 — fokussiertes UX-Feintuning für die drei Kernscreens: Build-Status/CTA-Wording beruhigt, Diagnose-Aktionssprache alltagsnäher gemacht und Preview-Statuswörter für Live/Fallback/Fehler vereinheitlicht; bestehende Guard-/Statuslogik unverändert belassen.
 - [x] Patch 442 — BuildScreen-Feintuning mit klarem Hauptaktions-Hinweis, ruhigerer Readiness-Sprache in der Checkliste und eindeutiger Trennung von laufendem Kontext vs. letztem bekannten Build-Kontext.

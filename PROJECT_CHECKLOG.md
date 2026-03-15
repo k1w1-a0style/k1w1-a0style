@@ -4,6 +4,7 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-15: Patch 446: Build-Start-Type-Safety gezielt nachgeschärft; riskante `any`-Zugriffe auf Edge-Invoke-Payload in `buildStartService` durch lokales Payload-Narrowing ersetzt, unnötigen `pushFilesToRepo`-Cast entfernt und mit Regressionstests (`job.id` + error-shaped payload) abgesichert.
 - 2026-03-15: Patch 445: `save_preview`-Headerkonsistenz zu Auth-/Rate-Limit-Fehlerpfaden zusätzlich per Invariants abgesichert; `_shared/auth` nutzt nun Deno/Node-kompatiblen Env-Lookup statt harter Deno-Referenzen, wodurch der lokale Typecheck wieder grün läuft.
 - 2026-03-15: Patch 444: `save_preview`-Restinkonsistenz bei CORS-/Security-Headern reduziert; lokale Erfolgs-/Fehlerantworten auf `_shared/cors` ausgerichtet, damit sie konsistenter zu Auth-/Rate-Limit-Fehlerpfaden reagieren; gezielte Invariant-Tests ergänzt.
 - 2026-03-15: Patch 443: `k1w1-handler` Provider-Härtung für Restfälle umgesetzt — Anthropic verhindert leeres `messages`-Array bei reinen `system`-Prompts, Gemini mappt `system` explizit via `systemInstruction` und nutzt nicht-leeren `contents`-Fallback; doppeltes Gemini-Nullish-Coalescing entfernt, Invariant-Tests ergänzt.

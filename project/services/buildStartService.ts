@@ -31,6 +31,15 @@ export type StartBuildJobResult = {
   buildProfile: StartBuildProfile;
 };
 
+type EdgeBuildInvokePayload = {
+  ok?: boolean;
+  error?: string;
+  details?: { message?: unknown };
+  jobId?: unknown;
+  job_id?: unknown;
+  job?: { id?: unknown };
+};
+
 function normalizeProfile(profile?: string): StartBuildProfile {
   return profile === "development" || profile === "preview" || profile === "production"
     ? profile
@@ -46,6 +55,24 @@ function normalizeBuildJobId(raw: unknown): string | null {
     return /^[1-9]\d*$/.test(trimmed) ? trimmed : null;
   }
   return null;
+}
+
+function asEdgeBuildInvokePayload(raw: unknown): EdgeBuildInvokePayload | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  const details =
+    obj.details && typeof obj.details === "object"
+      ? (obj.details as Record<string, unknown>)
+      : undefined;
+  const job = obj.job && typeof obj.job === "object" ? (obj.job as Record<string, unknown>) : undefined;
+  return {
+    ok: typeof obj.ok === "boolean" ? obj.ok : undefined,
+    error: typeof obj.error === "string" ? obj.error : undefined,
+    details: details ? { message: details.message } : undefined,
+    jobId: obj.jobId,
+    job_id: obj.job_id,
+    job: job ? { id: job.id } : undefined,
+  };
 }
 
 export type BuildReadinessDeps = {
@@ -146,7 +173,7 @@ async function bestEffortPushToGitHub(opts: {
 
   if (owner && repo && files?.length) {
     try {
-      await pushFilesToRepo(owner, repo, files as any, branch);
+      await pushFilesToRepo(owner, repo, files, branch);
     } catch (err) {
       // Best-effort: even if push fails (e.g. permissions, network),
       // we still try to ensure workflows exist and proceed with the build using the linked branch.
@@ -220,7 +247,7 @@ export async function startBuildJob(params: {
   const supabase = await ensureSupabaseClient();
   const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
 
-  const invokeOpts: { body: any; headers?: Record<string, string> } = {
+  const invokeOpts: { body: Record<string, string>; headers?: Record<string, string> } = {
     body: { githubRepo, buildProfile: profile, branch: buildBranch },
   };
   if (edgeAdminKey) {
@@ -234,18 +261,19 @@ export async function startBuildJob(params: {
 
   if (error) throw error;
 
+  const payload = asEdgeBuildInvokePayload(data);
+
   // Some edge functions might respond with HTTP 200 but an error-shaped payload.
   // Normalize that to a thrown error so the UI shows the real reason (instead of 'no job id').
-  if ((data as any)?.ok === false) {
-    const details = (data as any)?.details;
-    const msg = (data as any)?.error || (details?.message ? String(details.message) : "Unbekannter Fehler");
+  if (payload?.ok === false) {
+    const msg = payload.error || (payload.details?.message ? String(payload.details.message) : "Unbekannter Fehler");
     throw new Error(msg);
   }
 
   const jobId: string | null =
-    normalizeBuildJobId((data as any)?.jobId) ??
-    normalizeBuildJobId((data as any)?.job_id) ??
-    normalizeBuildJobId((data as any)?.job?.id);
+    normalizeBuildJobId(payload?.jobId) ??
+    normalizeBuildJobId(payload?.job_id) ??
+    normalizeBuildJobId(payload?.job?.id);
 
   if (!jobId) {
     throw new Error(
