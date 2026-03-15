@@ -1,4 +1,5 @@
 import {
+  parseJsonBody,
   validateGithubWorkflowDispatchRequest,
   validateTriggerBuildRequest,
 } from "../supabase/functions/_shared/validation";
@@ -97,6 +98,23 @@ describe("edge function request contracts", () => {
       expect(res.ok).toBe(false);
       if (res.ok) return;
       expect(res.errors.buildProfile).toBeTruthy();
+    });
+  });
+
+
+
+  describe("parseJsonBody", () => {
+    it("rejects non-object JSON payloads", async () => {
+      const req = new Request("https://example.test", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(["not", "an", "object"]),
+      });
+
+      const res = await parseJsonBody(req);
+      expect(res.ok).toBe(false);
+      if (res.ok) return;
+      expect(res.error).toContain("body must be a JSON object");
     });
   });
 
