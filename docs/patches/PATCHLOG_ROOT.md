@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 445: `save_preview`-Konsistenz zusätzlich gegen Auth-/Rate-Limit-Fehlerpfade abgesichert und kleiner Deno/Node-Typecheck-Restpunkt in `_shared/auth` per runtime-kompatiblem Env-Lookup behoben; Typecheck wieder grün.
 - Patch 444: `save_preview` CORS-/Response-Konsistenz konservativ gehärtet — lokaler Erfolgs-/Fehlerpfad nutzt jetzt denselben `_shared/cors`-Header-Stack wie Auth/Rate-Limit-Guards; gezielte Invariants sichern Header-Gleichlauf inkl. Security-Headern.
 - Patch 443: k1w1-handler Provider-Randfälle gehärtet — Anthropic sendet bei reinen `system`-Prompts kein leeres `messages`-Array mehr (konservativer Fallback-Turn), Gemini behandelt `system` explizit via `systemInstruction` + nicht-leerer `contents`-Fallback; doppeltes Nullish-Coalescing bereinigt, Invariants ergänzt.
 - Patch 442: Build-Status/Phasenanzeige im EnhancedBuildScreen gezielt beruhigt — aktiver Lauf vs. letzter bekannter Stand klarer getrennt, aktive Phase explizit markiert, Run/Artifact/Download-Aktionen als aktueller vs. letzter Build-Kontext verständlicher benannt (ohne Backend-/Flow-Umbau).

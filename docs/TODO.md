@@ -1,12 +1,13 @@
 # TODO
 
-Stand: **2026-03-15 (Patch 444)**
+Stand: **2026-03-15 (Patch 445)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
 
 ## Aktuell (Priorität)
 
+- [x] **Edge-Typecheck-Restpunkt (Deno/Node-Env in `_shared/auth`) gezielt behoben:** Secret-Lookups laufen jetzt runtime-kompatibel über Deno-oder-Node-Env-Lookup; `npm run typecheck` ist wieder grün, ohne Broad-Refactor (Patch 445).
 - [x] **`save_preview` CORS-/Security-Header konsistent gehärtet:** Erfolgs- und lokale Fehlerpfade nutzen nun denselben `_shared/cors`-Header-Stack wie Auth-/Rate-Limit-Fehler; gezielte Invariants sichern Header-Gleichlauf ohne Architekturumbau (Patch 444).
 - [x] **k1w1-handler Provider-Randfälle (Anthropic/Gemini) gehärtet:** Anthropic schützt gegen leere Requests bei reinen `system`-Prompts; Gemini trennt `system` explizit via `systemInstruction` und nutzt einen nicht-leeren Fallback für `contents`; doppelte No-op-Coalescing-Stelle entfernt, Invariants ergänzt (Patch 443).
 - [x] **UX-Feintuning der Kernpfade (Build/Diagnosis/Preview/Connections/Credentials/Chat-Menü):** Status-Texte und Hinweise auf gespeicherten vs. letzten bekannten Zustand geschärft; technische Formulierungen reduziert und missverständliche Labels vereinheitlicht (Patch 440).
