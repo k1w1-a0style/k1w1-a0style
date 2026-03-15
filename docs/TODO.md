@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-03-15 (Patch 436)**
+Stand: **2026-03-15 (Patch 437)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
@@ -27,6 +27,7 @@ Stand: **2026-03-15 (Patch 436)**
 
 ## Kürzlich abgeschlossen (Kontext)
 
+- [x] Patch 437 — Doppelte Preview-Migration (`20251226140000`/`20251226160000`) als bestätigte Redundanz eingeordnet; spätere Datei bewusst auf Legacy-No-op umgestellt (keine History-Löschung), damit die Migrationshistorie weniger irreführend ist.
 - [x] Patch 436 — `insert_diagnostic_upload`-Vertrag finalisiert: historische Drift dokumentiert, Abschlussmigration + Invariant-Test ergänzt, finaler bigint-Vertrag klargezogen.
 - [x] Patch 436 — Chat-Change-Summary zeigt Dateipfade wieder korrekt in Bullet-Listen; `createNewProject` nutzt aktuellen `projectData`-Stand ohne stale closure; gezielte Jest-Regressionen ergänzt.
 - [x] Patch 435 — End-to-End-Vertragsprüfung weiter abgeschlossen: App↔Edge-Mapping für Preview/Workflow/Artifact/Signing/AI quergelesen; verbleibende Operator-Abhängigkeiten explizit dokumentiert; Artifact-ZIP-Pfadnormalisierung für Windows-Separatoren gehärtet.
