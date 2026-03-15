@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-03-14 (Patch 435)**
+Stand: **2026-03-15 (Patch 436)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
@@ -26,6 +26,7 @@ Stand: **2026-03-14 (Patch 435)**
 
 ## Kürzlich abgeschlossen (Kontext)
 
+- [x] Patch 436 — Chat-Change-Summary zeigt Dateipfade wieder korrekt in Bullet-Listen; `createNewProject` nutzt aktuellen `projectData`-Stand ohne stale closure; gezielte Jest-Regressionen ergänzt.
 - [x] Patch 435 — End-to-End-Vertragsprüfung weiter abgeschlossen: App↔Edge-Mapping für Preview/Workflow/Artifact/Signing/AI quergelesen; verbleibende Operator-Abhängigkeiten explizit dokumentiert; Artifact-ZIP-Pfadnormalisierung für Windows-Separatoren gehärtet.
 - [x] Patch 434 — Supabase-E2E-Contract-Audit abgeschlossen; Function-Name-SoT für Signing/Preview/AI ergänzt, Wizard-Hardcodes entfernt, Invariant-Tests ergänzt.
 - [x] Patch 418 V1 — Trust-/Docs-Konsolidierung der Kern-MDs und Sammeln offener Restpunkte.

@@ -161,6 +161,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
+  const projectDataRef = useRef<ProjectData | null>(null);
+  projectDataRef.current = projectData;
   const [isLoading, setIsLoading] = useState(true);
   const [currentBuild, setCurrentBuild] = useState<CurrentBuildState | null>(
     null,
@@ -290,21 +292,26 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           onPress: async () => {
             try {
               setIsLoading(true);
-              const mode = (projectData?.templateId as TemplateId) || "auto";
-              const { effective } = resolveEffectiveTemplateId(mode, projectData?.files || []);
+              const currentProjectData = projectDataRef.current;
+              const mode = (currentProjectData?.templateId as TemplateId) || "auto";
+              const { effective } = resolveEffectiveTemplateId(
+                mode,
+                currentProjectData?.files || [],
+              );
               const templateFiles = await loadTemplateFromFile(effective);
               const newProject: ProjectData = {
                 id: uuidv4(),
                 name: "Neues Projekt",
                 slug: "neues-projekt",
                 templateId: mode,
-                effectiveTemplateId: resolveEffectiveTemplateId(mode, projectData?.files || []).effective,
+                effectiveTemplateId: effective,
                 files: templateFiles,
                 chatHistory: [],
                 createdAt: new Date().toISOString(),
                 lastModified: new Date().toISOString(),
                 lastPreview: null,
-                preferredPreviewMode: projectData?.preferredPreviewMode ?? "supabase",
+                preferredPreviewMode:
+                  currentProjectData?.preferredPreviewMode ?? "supabase",
               };
 
               const release = await mutexRef.current.acquire();
