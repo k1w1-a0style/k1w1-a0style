@@ -647,10 +647,13 @@ export function useChatAIFlow({
   }, [addChatMessage, safe, setShowConfirmModal]);
 
   const handleSendWithMeta = useCallback(
-    async (rawInput: string): Promise<boolean> => {
+    async (
+      rawInput: string,
+      aiInput: string = rawInput,
+    ): Promise<boolean> => {
       const userContent = rawInput.trim();
 
-      if (!userContent.trim()) return false;
+      if (!userContent) return false;
 
       addChatMessage({
         id: uuidv4(),
@@ -659,8 +662,8 @@ export function useChatAIFlow({
         timestamp: new Date().toISOString(),
       });
 
-      // ✅ FIX #1: Use ref for fresh projectFiles
-      const metaResult = handleMetaCommand(rawInput.trim(), projectFilesRef.current);
+      // Meta-/lokale Kommandos müssen auf unverändertem User-Input laufen.
+      const metaResult = handleMetaCommand(userContent, projectFilesRef.current);
       if (metaResult.handled && metaResult.message) {
         addChatMessage(metaResult.message);
         return true;
@@ -700,7 +703,8 @@ export function useChatAIFlow({
         return true;
       }
 
-      const ok = await processAIRequest(userContent, false, false);
+      const aiContent = aiInput.trim();
+      const ok = await processAIRequest(aiContent || userContent, false, false);
       return ok;
     },
     [addChatMessage, processAIRequest, safe],

@@ -1,3 +1,21 @@
+## 2026-03-15 — Patch 459: Chat-Regression (PR #272) konservativ nachgezogen
+
+- Verbliebene Regression geschlossen: Attachment-Hinweis wird nicht mehr vor dem lokalen/meta Command-Routing an den Raw-Input angehängt.
+- `handleSendWithMeta` trennt jetzt `rawInput` (für User-Message + Meta-Command-Match) und `aiInput` (nur für normalen AI-Request).
+- `cat <pfad>` und `zeige datei <pfad>` behalten damit Full-line-Matches auch dann, wenn ein Attachment ausgewählt wurde.
+- Minimaler Typing-Nachzug: Attachment-Hinweis-Helper akzeptiert nur noch `name`/`size` (geringere Kopplung).
+- Regression ergänzt: `__tests__/useChatAIFlow.metaCommandAttachment.regression.test.ts`.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 ## 2026-03-15 — Patch 458: ChatScreen/Chat-Flow Restpunkte konservativ geschlossen
 
 - Attachment-/DocumentPicker-Flow kommuniziert jetzt ehrlich: Chat ergänzt bei Dateianhang expliziten Hinweis, dass aktuell nur Dateiname/Metadaten (nicht voller Dateiinhalt) übergeben werden.
@@ -153,4 +171,5 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 - Vollständige Historie: `docs/patches/PATCHLOG_ROOT.md`.
 - Operative Restliste / Follow-ups: `docs/TODO.md`.
+- 2026-03-15: Patch 459: Chat-Regression aus PR #272 konservativ geschlossen — Meta-/lokale Kommandos werden wieder gegen unveränderten Raw-Input geprüft; Attachment-Hinweis wird erst nach Command-Routing für den normalen AI-Request angehängt; gezielte Invariant-Regression ergänzt; Workflow-/Typecheck-/Lint-/Tests grün.
 - 2026-03-15: Patch 458: ChatScreen/Chat-Flow Restpunkte konservativ geschlossen: ehrlicher Attachment-Hinweis (kein verdeckter Dateiinhalt-Anspruch), Retention-Pruning direkt beim Chat-Append, Blur-Cleanup für Pending/Modal/Streaming-State sowie typing-/import-Hygiene in chatAIFlow-Types; Verifikation mit Workflow-Checks + Typecheck/Lint/Test vollständig grün.

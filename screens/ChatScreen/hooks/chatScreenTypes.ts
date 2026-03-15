@@ -5,6 +5,8 @@ export type DocumentResultAsset = NonNullable<
   import("expo-document-picker").DocumentPickerResult["assets"]
 >[0];
 
+export type AttachmentNoticeAsset = Pick<DocumentResultAsset, "name" | "size">;
+
 export const INPUT_BAR_MIN_H = 56;
 
 // Composer 1–2px näher an die Tastatur (wenn offen)
@@ -16,7 +18,7 @@ const FILE_SIZE_ANALYSIS_HINT_LIMIT_BYTES = 100 * 1024;
 
 export function buildUserInputWithAttachmentNotice(
   textInput: string,
-  selectedFileAsset: DocumentResultAsset | null,
+  selectedFileAsset: AttachmentNoticeAsset | null,
 ): string {
   const base = textInput.trim();
   if (!selectedFileAsset) return base;
