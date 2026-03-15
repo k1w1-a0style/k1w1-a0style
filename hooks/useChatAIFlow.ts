@@ -26,6 +26,24 @@ import { handleMetaCommand } from "../utils/metaCommands";
 
 export type { PendingChange, PendingPlan } from "./chatAIFlowTypes";
 
+export const buildPathBulletList = (
+  paths: string[],
+  previewLimit: number,
+): string => {
+  if (!paths.length) return "  (keine)";
+
+  const preview = paths
+    .slice(0, previewLimit)
+    .map((filePath: string) => `  • ${filePath}`)
+    .join("\n");
+
+  if (paths.length > previewLimit) {
+    return `${preview}\n  ... und ${paths.length - previewLimit} weitere`;
+  }
+
+  return preview;
+};
+
 export function useChatAIFlow({
   config,
   messages,
@@ -438,37 +456,13 @@ export function useChatAIFlow({
             ? `🧾 **Kurz erklärt (warum/was):**\n${explainText}\n\n---\n\n`
             : "") +
           `📝 **Neue Dateien** (${mergeResult.created.length}):\n` +
-          (mergeResult.created.length
-            ? mergeResult.created
-                .slice(0, 6)
-                .map((f: string) => `  • `)
-                .join("\n") +
-              (mergeResult.created.length > 6
-                ? `\n  ... und ${mergeResult.created.length - 6} weitere`
-                : "")
-            : "  (keine)") +
+          buildPathBulletList(mergeResult.created, 6) +
           `\n\n` +
           `📝 **Geänderte Dateien** (${mergeResult.updated.length}):\n` +
-          (mergeResult.updated.length
-            ? mergeResult.updated
-                .slice(0, 6)
-                .map((f: string) => `  • `)
-                .join("\n") +
-              (mergeResult.updated.length > 6
-                ? `\n  ... und ${mergeResult.updated.length - 6} weitere`
-                : "")
-            : "  (keine)") +
+          buildPathBulletList(mergeResult.updated, 6) +
           (!isAutoFix
             ? `\n\n⏭ **Übersprungen** (${mergeResult.skipped.length}):\n` +
-              (mergeResult.skipped.length
-                ? mergeResult.skipped
-                    .slice(0, 3)
-                    .map((f: string) => `  • `)
-                    .join("\n") +
-                  (mergeResult.skipped.length > 3
-                    ? `\n  ... und ${mergeResult.skipped.length - 3} weitere`
-                    : "")
-                : "  (keine)")
+              buildPathBulletList(mergeResult.skipped, 3)
             : "") +
           `\n\nMöchtest du diese Änderungen übernehmen?`;
 
@@ -700,4 +694,3 @@ export function useChatAIFlow({
   );
 
 }
-
