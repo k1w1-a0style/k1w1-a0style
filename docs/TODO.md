@@ -1,12 +1,13 @@
 # TODO
 
-Stand: **2026-03-15 (Patch 437)**
+Stand: **2026-03-15 (Patch 438)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
 
 ## Aktuell (Priorität)
 
+- [x] **Supabase Edge Import-Hygiene (Cross-Boundary):** produktive Workflow-Edges von App-Pfadimport (`shared/constants/github.ts`) entkoppelt; `GITHUB_API_BASE` edge-nah in `_shared/github.ts` verankert + Invariant-Guard ergänzt (Patch 438).
 - [x] **Migrations-/RPC-Hygiene für `insert_diagnostic_upload`:** historischer UUID-/Spalten-Drift sauber eingeordnet; finaler `jsonb -> bigint`-Vertrag per Abschlussmigration + Invariant-Guard abgesichert (Patch 436).
 - [x] **Supabase Edge E2E-Contract-Audit (App ↔ Edge ↔ DB-Voraussetzungen):** produktiv genutzte Flows geprüft; zentrale Mapping-/Endpoint-Drifts (inkl. Keystore-Wizard + Function-Name-SoT) geschlossen (Patch 433/434).
 - [ ] **Supabase Operator-Runbook nachziehen:** Secrets/DB-Objekte/Deploy-Reihenfolge für Signing + Preview + Workflow-Edges als Checkliste konsolidieren (explizit inkl. manueller Supabase-Schritte).
@@ -27,6 +28,7 @@ Stand: **2026-03-15 (Patch 437)**
 
 ## Kürzlich abgeschlossen (Kontext)
 
+- [x] Patch 438 — Fragile Edge→App-Importkette auf `shared/constants/github.ts` entfernt; betroffene Workflow-Edges auf `_shared/github.ts` umgestellt und per Invariant-Test abgesichert.
 - [x] Patch 437 — Doppelte Preview-Migration (`20251226140000`/`20251226160000`) als bestätigte Redundanz eingeordnet; spätere Datei bewusst auf Legacy-No-op umgestellt (keine History-Löschung), damit die Migrationshistorie weniger irreführend ist.
 - [x] Patch 436 — `insert_diagnostic_upload`-Vertrag finalisiert: historische Drift dokumentiert, Abschlussmigration + Invariant-Test ergänzt, finaler bigint-Vertrag klargezogen.
 - [x] Patch 436 — Chat-Change-Summary zeigt Dateipfade wieder korrekt in Bullet-Listen; `createNewProject` nutzt aktuellen `projectData`-Stand ohne stale closure; gezielte Jest-Regressionen ergänzt.

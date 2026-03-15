@@ -1,3 +1,5 @@
+export const GITHUB_API_BASE = "https://api.github.com";
+
 /**
  * Shared GitHub helpers for Supabase Edge Functions
  * - Uses GitHub recommended headers

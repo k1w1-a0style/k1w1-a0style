@@ -14,9 +14,8 @@ import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 import { parseJsonBody } from "../_shared/validation.ts";
-import { githubHeaders } from "../_shared/github.ts";
+import { githubHeaders, GITHUB_API_BASE } from "../_shared/github.ts";
 import { unzipSync, strFromU8 } from "npm:fflate@0.8.2";
-import { GITHUB_API_BASE } from "../../../shared/constants/github.ts";
 
 
 export type Json = Record<string, unknown>;

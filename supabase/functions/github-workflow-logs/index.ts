@@ -5,9 +5,8 @@ import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { requireAdminKeyOrServiceRoleBearer, rateLimit } from "../_shared/auth.ts";
 import { parseJsonBody } from "../_shared/validation.ts";
-import { getGithubToken, githubHeaders } from "../_shared/github.ts";
+import { getGithubToken, githubHeaders, GITHUB_API_BASE } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
-import { GITHUB_API_BASE } from "../../../shared/constants/github.ts";
 import {
   jsonOk, jsonErr, asString, asNumber, parseGithubRepo,
   redactSecrets, fetchLogsZip, zipToText, MAX_CHARS, MAX_ZIP_BYTES,
