@@ -163,7 +163,14 @@ export type NormalizeAiResponseResult = {
 // ---- Hauptfunktion ----
 export function normalizeAiResponseDetailed(raw: unknown): NormalizeAiResponseResult | null {
   const parsed = unwrapToParsable(raw);
-  const responseText = typeof raw === 'string' ? raw : typeof (raw as any)?.text === 'string' ? String((raw as any).text) : undefined;
+  const responseText =
+    typeof raw === 'string'
+      ? raw
+      : typeof (raw as any)?.text === 'string'
+        ? String((raw as any).text)
+        : typeof (raw as any)?.output_text === 'string'
+          ? String((raw as any).output_text)
+          : undefined;
 
   if (!parsed) {
     return responseText && responseText.trim().length > 0

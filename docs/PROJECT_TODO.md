@@ -1,8 +1,12 @@
 # PROJECT TODO
 
-> Stand: 2026-02-19
+> Stand: 2026-03-15
 
 ## ✅ Erledigt (aktueller Stand)
+
+### KI-/Chat-Nachaudit (Patch 453)
+- [x] Normalizer transportiert `output_text` im Non-JSON-Fehlerpfad bis ins Nutzerfeedback (keine kryptische Generic-Fehlermeldung mehr ohne KI-Text).
+- [x] Regressionstest für `output_text` + `no_valid_files_after_normalization` ergänzt.
 
 ### Preview-System
 - [x] Supabase `previews` Tabelle + Indizes + Expiry Support
