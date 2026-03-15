@@ -42,6 +42,23 @@ describe("supabaseAnonKeyStorage", () => {
     expect(asyncStorageMock.__getMockStorage()[STORAGE_KEYS.SUPABASE_KEY]).toBeUndefined();
   });
 
+
+
+  it("keeps legacy AsyncStorage anon key when SecureStore migration fails", async () => {
+    asyncStorageMock.__setMockStorage({ [STORAGE_KEYS.SUPABASE_KEY]: "legacy-anon" });
+    const setItemSpy = jest
+      .spyOn(SecureStore, "setItemAsync")
+      .mockRejectedValueOnce(new Error("secure-store-write-failed"));
+
+    const value = await getSupabaseAnonKey();
+
+    expect(value).toBe("legacy-anon");
+    expect(secureStoreMock.__getMockStorage().supabase_anon_key_v1).toBeUndefined();
+    expect(asyncStorageMock.__getMockStorage()[STORAGE_KEYS.SUPABASE_KEY]).toBe("legacy-anon");
+
+    setItemSpy.mockRestore();
+  });
+
   it("deletes anon key from both stores", async () => {
     await saveSupabaseAnonKey("anon-secret");
     asyncStorageMock.__setMockStorage({ [STORAGE_KEYS.SUPABASE_KEY]: "legacy" });
