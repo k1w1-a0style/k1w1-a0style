@@ -37,6 +37,7 @@ import {
 import { debugLog } from "../../../lib/debugOverlay";
 import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction";
 import { parseExpoGraphQLUsername } from "../utils/expoGraphql";
+import { BusyGuardActiveError, isBusyGuardActiveError } from "./busyGuard";
 
 type ExpoProjectResponse = {
   data?: {
@@ -84,13 +85,15 @@ export function useConnectionsScreen() {
   const didAutoTestEas = useRef(false);
   const busyRef = useRef(false);
 
-  const withBusyGuard = useCallback(async (task: () => Promise<void>): Promise<boolean> => {
-    if (busyRef.current) return false;
+  const withBusyGuard = useCallback(async (task: () => Promise<void>): Promise<void> => {
+    if (busyRef.current) {
+      throw new BusyGuardActiveError();
+    }
+
     busyRef.current = true;
     setBusy(true);
     try {
       await task();
-      return true;
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -319,7 +322,8 @@ export function useConnectionsScreen() {
       return;
     }
 
-    const started = await withBusyGuard(async () => {
+    try {
+      await withBusyGuard(async () => {
       const gh = githubToken.trim();
       const ex = expoToken.trim();
       const edge = edgeAdminKey.trim();
@@ -391,13 +395,13 @@ export function useConnectionsScreen() {
       }
 
       Alert.alert("✅ Gespeichert", "Tokens & Verbindungen wurden gespeichert.");
-    }).catch((e: unknown) => {
-      Alert.alert("❌ Speichern fehlgeschlagen", safeAlertText(e));
-      return false;
-    });
-
-    if (!started) {
-      Alert.alert("Bitte warten", "Ein anderer Save/Test-Lauf ist noch aktiv.");
+      });
+    } catch (e: unknown) {
+      if (isBusyGuardActiveError(e)) {
+        Alert.alert("Bitte warten", e.message);
+      } else {
+        Alert.alert("❌ Speichern fehlgeschlagen", safeAlertText(e));
+      }
     }
   }, [
     hydrated,
@@ -418,7 +422,8 @@ export function useConnectionsScreen() {
     const gh = githubToken.trim();
     if (!gh) return Alert.alert("Fehlt", "GitHub Token fehlt.");
 
-    const started = await withBusyGuard(async () => {
+    try {
+      await withBusyGuard(async () => {
       debugLog("connections:github", "GET /user", {
         url: githubApiUrl("/user"),
       });
@@ -451,7 +456,13 @@ export function useConnectionsScreen() {
       }
       Alert.alert("GitHub OK", `Verbunden als: ${login || "OK"}${scopes ? `
 Scopes: ${scopes}` : ""}`);
-    }).catch(async (e: unknown) => {
+      });
+    } catch (e: unknown) {
+      if (isBusyGuardActiveError(e)) {
+        Alert.alert("Bitte warten", e.message);
+        return;
+      }
+
       setGithubOk(false);
       setGithubUser("");
       setGithubScopes("");
@@ -461,11 +472,6 @@ Scopes: ${scopes}` : ""}`);
         error: redactSecrets(truncateWithMarker(safeAlertText(e), 800)),
       });
       Alert.alert("GitHub Test", safeAlertText(e));
-      return false;
-    });
-
-    if (!started) {
-      Alert.alert("Bitte warten", "Ein anderer Save/Test-Lauf ist noch aktiv.");
     }
   }, [githubToken, hydrated, withBusyGuard, persistConnLights, removeConnLights]);
 
@@ -474,7 +480,8 @@ Scopes: ${scopes}` : ""}`);
     const ex = expoToken.trim();
     if (!ex) return Alert.alert("Fehlt", "Expo / EAS Token fehlt.");
 
-    const started = await withBusyGuard(async () => {
+    try {
+      await withBusyGuard(async () => {
       const url = "https://api.expo.dev/graphql";
       debugLog("connections:expo", "POST /graphql", { url });
       const resp = await fetch(url, {
@@ -509,7 +516,13 @@ Scopes: ${scopes}` : ""}`);
       }
 
       Alert.alert("Expo OK", username ? `Verbunden als: ${username}` : "Token ist gueltig.");
-    }).catch(async (e: unknown) => {
+      });
+    } catch (e: unknown) {
+      if (isBusyGuardActiveError(e)) {
+        Alert.alert("Bitte warten", e.message);
+        return;
+      }
+
       setExpoOk(false);
       setExpoUser("");
       await persistConnLights([[STORAGE_KEYS.CONN_EXPO_OK, "false"]]);
@@ -518,11 +531,6 @@ Scopes: ${scopes}` : ""}`);
         error: redactSecrets(truncateWithMarker(safeAlertText(e), 800)),
       });
       Alert.alert("Expo Test", safeAlertText(e));
-      return false;
-    });
-
-    if (!started) {
-      Alert.alert("Bitte warten", "Ein anderer Save/Test-Lauf ist noch aktiv.");
     }
   }, [expoToken, hydrated, withBusyGuard, persistConnLights, removeConnLights]);
 
@@ -533,7 +541,8 @@ Scopes: ${scopes}` : ""}`);
     if (!url) return Alert.alert("Fehlt", "Supabase URL fehlt.");
     if (!anon) return Alert.alert("Fehlt", "Supabase ANON Key fehlt.");
 
-    const started = await withBusyGuard(async () => {
+    try {
+      await withBusyGuard(async () => {
       const resp = await fetch(`${url}/rest/v1/`, {
         method: "GET",
         headers: { apikey: anon, Authorization: `Bearer ${anon}` },
@@ -570,15 +579,16 @@ Scopes: ${scopes}` : ""}`);
         }
       } catch {}
       await persistConnLights(writes);
-    }).catch(async (e: unknown) => {
+      });
+    } catch (e: unknown) {
+      if (isBusyGuardActiveError(e)) {
+        Alert.alert("Bitte warten", e.message);
+        return;
+      }
+
       setSupabaseOk(false);
       await persistConnLights([[STORAGE_KEYS.CONN_SUPABASE_OK, "false"]]);
       Alert.alert("Supabase Test", safeAlertText(e));
-      return false;
-    });
-
-    if (!started) {
-      Alert.alert("Bitte warten", "Ein anderer Save/Test-Lauf ist noch aktiv.");
     }
   }, [supabaseUrl, supabaseAnonKey, hydrated, withBusyGuard, persistConnLights]);
 

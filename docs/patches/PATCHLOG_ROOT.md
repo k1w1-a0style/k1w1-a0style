@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 457: Offener Connections-Busy-Guard-UX-Bug geschlossen — dedizierter `BusyGuardActiveError` trennt Busy-Kollisionen von echten Save/Test-Fehlern, sodass der Hinweis „Ein anderer Save/Test-Lauf ist noch aktiv.“ nur noch bei realer Konkurrenz erscheint; `useChatAIFlow`-Pending-Plan-Guard wurde gezielt geprüft und per Invariant gegen versehentlichen Logikdrift abgesichert.
 - Patch 456: Chat-Drift-Digest gegen RN-Runtime-Regression abgesichert — `lib/chatFlowStateGuards.ts` dokumentiert nun explizit Node-`crypto`-Importverbot im App-Pfad (`useChatAIFlow`), Hashing bleibt runtime-safe ohne Metro-Polyfill-Abhängigkeit.
 - Patch 455: ConnectionsScreen konservativ gehärtet — Supabase-ANON-Key von AsyncStorage auf SecureStore mit Legacy-Migration umgestellt, Busy-/Hydration-Guards gegen parallele Save/Test-Runs ergänzt, `testExpo`-Persistenz-Side-Effect entfernt, Connection-Light-Writes teilweise gebündelt und EAS-Link-Lampe nicht mehr optimistisch auf grün gesetzt; inklusive gezielter Flow-/Storage-Regressionstests.
 - Patch 454: flakigen Timeout-Restpunkt in `__tests__/oneClickDeploy.test.tsx` konservativ stabilisiert — deterministischer Press-Start via `act` + Microtask-Flush, AsyncStorage-Default-Resolves pro Test und striktes Cleanup (`cleanup` + Timer-Clear) gegen runInBand-Rennen; kein Produktcode-Umbau.

@@ -1,3 +1,20 @@
+## 2026-03-15 — Patch 457: Connections Busy-Guard-Signal korrigiert + Chat-Guard verifiziert
+
+- `withBusyGuard` trennt jetzt echte Busy-Kollisionen über dedizierten `BusyGuardActiveError` von normalen Fehlern (kein boolesches Mehrdeutigkeits-Signal mehr).
+- `saveAll`, `testGitHub`, `testExpo`, `testSupabase` behandeln Busy-Kollision und echte Fehlerpfade getrennt; der Busy-Hinweis erscheint nur noch im Konkurrenzfall.
+- `useChatAIFlow`-Pending-Plan-Guard (`mode === "advice" && !wantsProceed`) gezielt verifiziert und per Invariant abgesichert; kein funktionaler Fix nötig.
+- Regressionen ergänzt: `__tests__/busyGuard.test.ts`, aktualisierte/ergänzte Flow-Invariants.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 ## 2026-03-15 — Patch 456: Chat-Drift-Digest RN-Guardrail
 
 - `lib/chatFlowStateGuards.ts` dokumentiert jetzt explizit, dass dieser Pfad im React-Native-App-Runtime-Kontext läuft und daher **keine** Node-Core-Imports wie `crypto` enthalten darf.
@@ -67,6 +84,7 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-15: Patch 457: Connections-Busy-Guard meldet Busy-Kollisionen jetzt explizit (dedizierter Error) statt mehrdeutigem `false`; Save/Test-Aktionen trennen Busy vs. echte Fehler sauber. `useChatAIFlow`-Pending-Plan-Guard wurde gezielt geprüft und per Invariant abgesichert.
 - 2026-03-15: Patch 456: Chat-Drift-Digest RN-sicher dokumentiert — `lib/chatFlowStateGuards.ts` enthält jetzt eine explizite Guardrail-Notiz gegen Node-`crypto` im App-Runtime-Pfad (`useChatAIFlow`), damit Metro-Bundles keine Node-Core-Module auflösen müssen.
 - 2026-03-15: Patch 455: ConnectionsScreen-Restpunkte konservativ gehärtet — Supabase-ANON-Key jetzt SecureStore-basiert (inkl. Legacy-Migration), Busy-/Hydration-Guards blockieren parallele Save/Test-Runs, `testExpo` ohne Token-Persistenz-Side-Effect, EAS-Link-Lampe nicht mehr optimistisch grün; flow-nahe Invariants + Storage-Tests ergänzt.
 - 2026-03-15: Patch 454: OneClickDeploy-Testflake in `__tests__/oneClickDeploy.test.tsx` gezielt stabilisiert (deterministischer `act`-Press + Microtask-Flush, AsyncStorage-Default-Resolves, striktes Cleanup/Timer-Clear); kein Produktcode-Umbau.
