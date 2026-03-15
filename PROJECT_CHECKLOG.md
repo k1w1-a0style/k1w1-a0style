@@ -4,6 +4,7 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-15: Patch 443: `k1w1-handler` Provider-Härtung für Restfälle umgesetzt — Anthropic verhindert leeres `messages`-Array bei reinen `system`-Prompts, Gemini mappt `system` explizit via `systemInstruction` und nutzt nicht-leeren `contents`-Fallback; doppeltes Gemini-Nullish-Coalescing entfernt, Invariant-Tests ergänzt.
 - 2026-03-15: Patch 442: Build-Status-/Phasen-Feintuning im EnhancedBuildScreen umgesetzt; aktiver Lauf, letzte bekannte Build-Daten und Auswahl sauberer getrennt, aktive Phase expliziter markiert sowie Run/Artefakt/Download-Labels auf aktuellen vs. vergangenen Kontext geschärft (ohne Architekturänderung).
 - 2026-03-15: Patch 441: konservatives Mikro-UX-Finetuning der Kernpfade Build/Diagnosis/Preview umgesetzt; Build- und Diagnose-CTAs alltagsnäher benannt, Preview-Statussprache auf Live/Fallback/Fehler vereinheitlicht, bestehende Readiness-/Guard-Logik unverändert gelassen.
 - 2026-03-15: Patch 440: konservatives UX-/Flow-Feintuning (Build/Diagnosis/Preview/Connections/Credentials/Chat) mit Fokus auf klarere Status- und Fallback-Semantik ohne Architekturumbau; ergänzende Regression für Preview-Status-Text.
