@@ -1,3 +1,19 @@
+## 2026-03-15 — Patch 461: Chat-Restregressionen (#272/#273) gemeinsam final geschlossen
+
+- `hooks/useChatAIFlow.ts`: Pending-Plan-Handoff nutzt bei leerem `rawInput` jetzt `aiContent || userContent`, damit Attachment-only-Details im normalen AI-Pfad nicht verloren gehen.
+- Meta-/lokale Command-Logik bleibt unverändert auf `rawInput` gebunden; der Attachment-Hinweis bleibt auf den normalen AI-Pfad begrenzt.
+- Invariant-Regression erweitert (`__tests__/useChatAIFlow.metaCommandAttachment.regression.test.ts`) inkl. Pending-Plan-Handoff-Fallback-Absicherung.
+
+Checks:
+- `bash scripts/check_workflow_template_drift.sh` ✅
+- `bash scripts/check_managed_workflows.sh` ✅
+- `bash scripts/check_workflow_edge_contracts.sh` ✅
+- `bash scripts/check_legacy_disabled_edges.sh` ✅
+- `bash scripts/check_patch_docs_sync.sh` ✅
+- `npm run typecheck` ✅
+- `npm run lint:ci` ✅
+- `npm run test:silent` ✅
+
 ## 2026-03-15 — Patch 460: Chat Attachment-only Regression nach PR #273 geschlossen
 
 - `hooks/useChatAIFlow.ts`: `handleSendWithMeta(...)` verwirft Requests nicht mehr allein bei leerem `rawInput`; der Guard abortiert nur noch bei gleichzeitig leerem `rawInput` **und** `aiInput`.
@@ -137,6 +153,7 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-15: Patch 461: Chat-Restregressionen aus PR #272/#273 gemeinsam final geschlossen; Meta-/lokale Kommandos laufen weiterhin auf unverändertem Raw-Input, Attachment-only wird nicht still verworfen, und Pending-Plan-Handoff übernimmt bei leerem Raw den `aiInput`-Fallback; Invariant-Regression plus Workflow-/Typecheck-/Lint-/Tests grün.
 - 2026-03-15: Patch 460: Chat-Regression nach PR #273 konservativ geschlossen — `useChatAIFlow.handleSendWithMeta(...)` bricht nur noch bei gleichzeitig leerem Raw-/AI-Input ab; Attachment-only-Sendefälle werden nicht mehr still verworfen, Meta-/lokale Kommandos laufen weiterhin ausschließlich auf unverändertem Raw-Input; gezielte Invariant-Regression ergänzt.
 - 2026-03-15: Patch 457: Connections-Busy-Guard meldet Busy-Kollisionen jetzt explizit (dedizierter Error) statt mehrdeutigem `false`; Save/Test-Aktionen trennen Busy vs. echte Fehler sauber. `useChatAIFlow`-Pending-Plan-Guard wurde gezielt geprüft und per Invariant abgesichert.
 - 2026-03-15: Patch 456: Chat-Drift-Digest RN-sicher dokumentiert — `lib/chatFlowStateGuards.ts` enthält jetzt eine explizite Guardrail-Notiz gegen Node-`crypto` im App-Runtime-Pfad (`useChatAIFlow`), damit Metro-Bundles keine Node-Core-Module auflösen müssen.

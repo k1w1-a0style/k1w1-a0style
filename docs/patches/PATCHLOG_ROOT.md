@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 461: Chat-Flow-Nachfix aus PR #272/#273 zusammengeführt — Meta-/lokale Kommandos bleiben strikt auf unverändertem Raw-Input, der Attachment-Hinweis bleibt auf den normalen AI-Pfad begrenzt, und Attachment-only-Details gehen auch im Pending-Plan-Handoff nicht verloren (`aiContent || userContent`).
 - Patch 460: Rest-Regression nach PR #273 geschlossen — `handleSendWithMeta(...)` akzeptiert Attachment-only-Sendefälle wieder korrekt (Abort nur noch wenn Raw+AI leer), Meta-/lokale Kommandos bleiben strikt auf unverändertem Raw-Input, und der normale AI-Pfad wird bei Attachment-only deterministisch ausgelöst.
 - Patch 459: Rest-Regression aus PR #272 geschlossen — Attachment-Hinweis wird nicht mehr vor Meta-Command-Routing in den User-Input injiziert; lokale/full-line Kommandos (`cat ...`, `zeige datei ...`) laufen wieder auf unverändertem Raw-Input, während der Hinweis nur im normalen AI-Request-Payload landet; gezielte Invariant-Regression ergänzt.
 - Patch 458: ChatScreen/Chat-Flow konservativ gehärtet — Attachment-Kommunikation ist jetzt explizit ehrlich (Dateiname/Metadaten statt impliziter Inhaltsanalyse), Chat-History wird bereits beim Append per Retention begrenzt, Focus-Cleanup räumt Pending-/Modal-/Streaming-State auf, und chatAIFlow-Typing-/Import-Artefakte wurden bereinigt.

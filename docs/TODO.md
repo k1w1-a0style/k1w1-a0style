@@ -1,13 +1,13 @@
 # TODO
 
-Stand: **2026-03-15 (Patch 460)**
+Stand: **2026-03-15 (Patch 461)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
 
 ## Aktuell (Priorität)
 
-- [x] **Chat Attachment-only Regression nach PR #273 geschlossen:** `handleSendWithMeta(...)` verwirft Requests nur noch, wenn sowohl `rawInput` als auch `aiInput` leer sind; Meta-/lokale Kommandos bleiben strikt auf unverändertem Raw-Input, und Attachment-only-Sendefälle laufen wieder deterministisch in den normalen AI-Pfad statt still verloren zu gehen (Patch 460).
+- [x] **Chat-Nachfix für PR #272 + #273 vollständig geschlossen:** Meta-/lokale Full-line-Kommandos (`cat <pfad>` / `zeige datei <pfad>`) laufen stabil auf unverändertem `rawInput`; Attachment-Hinweis bleibt auf den normalen AI-Pfad begrenzt; Attachment-only (leerer `rawInput`, sinnvoller `aiInput`) wird nicht mehr still verworfen, inkl. Pending-Plan-Handoff-Fallback auf `aiInput` (Patch 461).
 - [x] **Connections Busy-Guard-Fehlersignal entkoppelt (Restpunkt geschlossen):** `withBusyGuard` nutzt jetzt einen dedizierten Busy-Kollisionsfehler statt booleschem `false`, und `saveAll`/`testGitHub`/`testExpo`/`testSupabase` trennen Busy-Konkurrenz sauber von echten Fehlern; dadurch kein irreführender „Ein anderer Save/Test-Lauf ist noch aktiv“-Hinweis mehr nach realen Save-/Test-Fehlern. `useChatAIFlow`-Pending-Plan-Guard wurde gezielt verifiziert und per Invariant abgesichert (Patch 457).
 - [x] **OneClickDeploy-Testflake gezielt stabilisiert:** `__tests__/oneClickDeploy.test.tsx` wartet den Press-Start jetzt deterministisch via `act` + Microtask-Flush ab, setzt AsyncStorage-Default-Resolves pro Test explizit und räumt mit `cleanup()` + `jest.clearAllTimers()` strikt auf; dadurch weniger race-/timeout-anfällige Läufe ohne Produktcode-Refactor (Patch 454).
 - [x] **KI-/Chat-Nachaudit (misstrauisch) nachgeschärft:** Restlücke im Builder-Fehlerpfad geschlossen: `normalizeAiResponseDetailed` übernimmt `output_text` jetzt als `responseText`, sodass Non-JSON-Antworten mit verständlicher Vorschau enden statt in generischem Fehlerzustand; Regressionstests decken `output_text` und leere Normalisierungsresultate gezielt ab (Patch 453).
