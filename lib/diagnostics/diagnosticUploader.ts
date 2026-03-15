@@ -70,7 +70,7 @@ export function normalizeDiagnosticUploadId(value: unknown): string | null {
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (/^[1-9]\d*$/.test(trimmed)) return trimmed;
-    // Transitional compatibility: tolerate uuid-like ids while the repo contracts settle.
+    // Transitional compatibility for historical DB/RPC drift (uuid-return phase in old migrations).
     if (/^[0-9a-fA-F-]{32,36}$/.test(trimmed)) return trimmed;
     return null;
   }
