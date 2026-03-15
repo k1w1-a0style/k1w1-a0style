@@ -18,6 +18,7 @@ import {
   CONFIG_STORAGE_KEY, DEFAULT_CONFIG,
   loadConfig, loadSecureApiKeys, saveSecureApiKeys,
   getDefaultMode,
+  resolveProviderModeForQualityMode,
 } from "./helpers";
 
 const AIContext = createContext<AIContextProps | undefined>(undefined);
@@ -128,7 +129,18 @@ const setConfig = useCallback((next: AIConfig) => setConfigState(next), []);
   );
   const setSelectedChatMode = useCallback((mode: string) => updateConfig({ selectedChatMode: mode }), [updateConfig]);
   const setSelectedAgentMode = useCallback((mode: string) => updateConfig({ selectedAgentMode: mode }), [updateConfig]);
-  const setQualityMode = useCallback((mode: QualityMode) => updateConfig({ qualityMode: mode }), [updateConfig]);
+  const setQualityMode = useCallback((mode: QualityMode) => {
+    setConfigState((prev) => {
+      const nextChatMode = resolveProviderModeForQualityMode(prev.selectedChatProvider, mode);
+      const nextAgentMode = resolveProviderModeForQualityMode(prev.selectedAgentProvider, mode);
+      return {
+        ...prev,
+        qualityMode: mode,
+        selectedChatMode: nextChatMode,
+        selectedAgentMode: nextAgentMode,
+      };
+    });
+  }, []);
 
   const setAgentEnabled = useCallback((enabled: boolean) => updateConfig({ agentEnabled: !!enabled }), [updateConfig]);
 
@@ -230,16 +242,3 @@ export function useAI() {
   if (!ctx) throw new Error('useAI must be used within AIProvider');
   return ctx;
 }
-
-/** @deprecated Use SecureKeyManager.rotateKey(provider) directly (this helper is unused). */
-export const rotateApiKeyOnError = (provider: AllAIProviders): number => {
-  try {
-    if (SecureKeyManager && typeof SecureKeyManager.rotateKey === 'function') {
-      SecureKeyManager.rotateKey(provider);
-      return 1;
-    }
-  } catch {}
-  return 0;
-
-};
-

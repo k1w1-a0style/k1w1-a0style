@@ -5,18 +5,13 @@ import { PROVIDER_METADATA } from "../../../contexts/AIContext";
 
 import { PROVIDER_IDS, styles, type ProviderId } from "../styles";
 
-type ProviderStatus = {
-  limitReached: boolean;
-  status: string;
-  message?: string;
-  lastRotation?: unknown;
-};
+import type { ProviderStatusView } from "../hooks/settingsHelpers";
 
 type Props = {
   selectedProvider: ProviderId;
   onSelect: (provider: ProviderId) => void;
   apiKeys: Record<string, string[]>;
-  getProviderStatus: (provider: ProviderId) => ProviderStatus;
+  getProviderStatus: (provider: ProviderId) => ProviderStatusView;
 };
 
 export function ProviderTiles({

@@ -33,7 +33,7 @@ export const ModeList: React.FC<Props> = ({
       {modes.map((m: ModelInfo) => {
         const isSelected = m.id === selectedMode;
         const tier = tierTokens[m.tier];
-        const persona = (personaTokens as any)[m.persona] || personaTokens.balanced;
+        const persona = personaTokens[m.persona] || personaTokens.balanced;
         const isHighlighted = m.persona === highlightPersona;
 
         return (
@@ -66,7 +66,7 @@ export const ModeList: React.FC<Props> = ({
                   { borderColor: persona.color, color: persona.color },
                 ]}
               >
-                {(persona as any).label}
+                {persona.label}
               </Text>
               <Text style={styles.bestFor} numberOfLines={1}>
                 {m.bestFor}

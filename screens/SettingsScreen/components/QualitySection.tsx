@@ -24,7 +24,7 @@ export const QualitySection: React.FC<Props> = ({
         {(["speed", "balanced", "quality", "review"] as QualityMode[]).map(
           (m) => {
             const isActive = qualityMode === m;
-            const tok = (personaTokens as any)[m] || personaTokens.balanced;
+            const tok = personaTokens[m] || personaTokens.balanced;
 
             return (
               <TouchableOpacity
@@ -40,7 +40,7 @@ export const QualitySection: React.FC<Props> = ({
                     isActive && styles.qualityBtnTextActive,
                   ]}
                 >
-                  {(tok as any).label}
+                  {tok.label}
                 </Text>
               </TouchableOpacity>
             );

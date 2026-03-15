@@ -5,12 +5,19 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert, Platform, ToastAndroid } from "react-native";
 
 import { PROVIDER_DEFAULTS, useAI } from "../../../contexts/AIContext";
-import type { AllAIProviders, QualityMode } from "../../../contexts/AIContext";
+import type { QualityMode } from "../../../contexts/AIContext";
 import { useNotifications } from "../../../hooks/useNotifications";
-import { loadChatHistorySettings, setChatHistoryPersistence } from "../../../lib/chatPrivacySettings";
-import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction";
+import {
+  loadChatHistorySettings,
+  setChatHistoryPersistence,
+  setChatHistoryRetentionLimit,
+} from "../../../lib/chatPrivacySettings";
 
-import { sanitizeSettingsError, validateApiKeyInput } from "./settingsHelpers";
+import {
+  getProviderStatusSnapshot,
+  sanitizeSettingsError,
+  validateApiKeyInput,
+} from "./settingsHelpers";
 import type { ProviderId } from "./settingsHelpers";
 
 export function useSettingsScreen() {
@@ -35,6 +42,7 @@ export function useSettingsScreen() {
 
   const [persistChatHistory, setPersistChatHistory] = useState(true);
   const [retentionLimit, setRetentionLimit] = useState(200);
+  const [retentionInput, setRetentionInput] = useState("200");
 
   useEffect(() => {
     let alive = true;
@@ -43,7 +51,9 @@ export function useSettingsScreen() {
         const s = await loadChatHistorySettings();
         if (!alive) return;
         setPersistChatHistory(!!s.persist);
-        setRetentionLimit(Number.isFinite(s.retention) ? s.retention : 200);
+        const nextRetention = Number.isFinite(s.retention) ? s.retention : 200;
+        setRetentionLimit(nextRetention);
+        setRetentionInput(String(nextRetention));
       } catch {
         // best-effort
       }
@@ -60,8 +70,27 @@ export function useSettingsScreen() {
       if (Platform.OS === "android") {
         ToastAndroid.show("Privacy gespeichert", ToastAndroid.SHORT);
       }
-    } catch (error: any) {
-      Alert.alert("Fehler", error?.message || "Konnte nicht speichern.");
+    } catch (error: unknown) {
+      Alert.alert("Fehler", sanitizeSettingsError(error));
+    }
+  };
+
+  const handleSaveRetentionLimit = async () => {
+    const parsed = Number(retentionInput.trim());
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      Alert.alert("Ungültiger Wert", "Retention muss eine Zahl ≥ 0 sein.");
+      return;
+    }
+    const safe = Math.floor(parsed);
+    try {
+      await setChatHistoryRetentionLimit(safe);
+      setRetentionLimit(safe);
+      setRetentionInput(String(safe));
+      if (Platform.OS === "android") {
+        ToastAndroid.show("Retention gespeichert", ToastAndroid.SHORT);
+      }
+    } catch (error: unknown) {
+      Alert.alert("Fehler", sanitizeSettingsError(error));
     }
   };
 
@@ -69,60 +98,23 @@ export function useSettingsScreen() {
   const { isInitialized, hasPermissions, requestPermissions, pushToken } =
     useNotifications();
 
-  // Bulletproof falls config/apiKeys mal kurz kaputt wären
-  const apiKeys = (config as any)?.apiKeys ?? {};
-  const generatorProvider = ((config as any)?.selectedChatProvider ??
-    "groq") as ProviderId;
-  const agentProvider = ((config as any)?.selectedAgentProvider ??
-    "anthropic") as ProviderId;
-  const selectedChatMode = (config as any)?.selectedChatMode ?? PROVIDER_DEFAULTS[generatorProvider].speed;
-  const selectedAgentMode = (config as any)?.selectedAgentMode ?? PROVIDER_DEFAULTS[agentProvider].quality;
-  const qualityMode = ((config as any)?.qualityMode ?? "speed") as QualityMode;
-  const agentEnabled = !!(config as any)?.agentEnabled;
+  const apiKeys = config?.apiKeys ?? {};
+  const generatorProvider =
+    config?.selectedChatProvider ?? ("groq" as ProviderId);
+  const agentProvider =
+    config?.selectedAgentProvider ?? ("anthropic" as ProviderId);
+  const selectedChatMode =
+    config?.selectedChatMode ?? PROVIDER_DEFAULTS[generatorProvider].speed;
+  const selectedAgentMode =
+    config?.selectedAgentMode ?? PROVIDER_DEFAULTS[agentProvider].quality;
+  const qualityMode: QualityMode = config?.qualityMode ?? "speed";
+  const agentEnabled = !!config?.agentEnabled;
 
-  const allKeys = (apiKeys?.[selectedKeyProvider] ?? []) as string[];
+  const allKeys = apiKeys?.[selectedKeyProvider] ?? [];
   const hasMultipleKeys = allKeys.length > 1;
 
-  // Robust: providerStatus can be Record<provider, status> OR an array of entries
-  const getProviderStatus = (provider: ProviderId) => {
-    const ps: any = providerStatus as any;
-    const fallback = {
-      limitReached: false,
-      status: "ok",
-      message: "",
-      lastRotation: undefined as any,
-    };
-
-    if (!ps) return fallback;
-
-    if (Array.isArray(ps)) {
-      const hit = ps.find(
-        (x: any) => x?.provider === provider || x?.id === provider,
-      );
-      if (!hit) return fallback;
-      const status = hit.status ?? (hit.limitReached ? "rate_limited" : "ok");
-      return {
-        ...fallback,
-        ...hit,
-        status,
-        limitReached: hit.limitReached ?? status === "rate_limited",
-      };
-    }
-
-    if (typeof ps === "object") {
-      const hit = ps[provider];
-      if (!hit) return fallback;
-      const status = hit.status ?? (hit.limitReached ? "rate_limited" : "ok");
-      return {
-        ...fallback,
-        ...hit,
-        status,
-        limitReached: hit.limitReached ?? status === "rate_limited",
-      };
-    }
-
-    return fallback;
-  };
+  const getProviderStatus = (provider: ProviderId) =>
+    getProviderStatusSnapshot(providerStatus, provider);
 
   const limitStatus = getProviderStatus(selectedKeyProvider);
 
@@ -130,14 +122,23 @@ export function useSettingsScreen() {
     if (!limitStatus?.limitReached) {
       return "Alles grün – aktueller Key liefert noch freie Tokens.";
     }
-    const ts = (limitStatus as any).lastRotation
-      ? new Date((limitStatus as any).lastRotation).toLocaleTimeString()
+    const ts = limitStatus.lastRotation
+      ? new Date(limitStatus.lastRotation).toLocaleTimeString()
       : "gerade eben";
     return `Limit erreicht (Free/Quota). Automatisch rotiert um ${ts}.`;
   }, [limitStatus]);
 
   const handleSetQuality = (mode: QualityMode) => {
+    const nextChatMode = PROVIDER_DEFAULTS[generatorProvider][
+      mode === "quality" || mode === "review" ? "quality" : "speed"
+    ];
+    const nextAgentMode = PROVIDER_DEFAULTS[agentProvider][
+      mode === "quality" || mode === "review" ? "quality" : "speed"
+    ];
+
     setQualityMode(mode);
+    setSelectedChatMode(nextChatMode);
+    setSelectedAgentMode(nextAgentMode);
     Alert.alert("Quality Mode", `Quality Mode wurde gesetzt auf: ${mode}`);
   };
 
@@ -155,7 +156,7 @@ export function useSettingsScreen() {
       await addApiKey(selectedKeyProvider, trimmed);
       setNewKey("");
       Alert.alert("OK", "API Key hinzugefügt.");
-    } catch (error: any) {
+    } catch (error: unknown) {
       Alert.alert(
         "Fehler",
         sanitizeSettingsError(error),
@@ -164,7 +165,13 @@ export function useSettingsScreen() {
   };
 
   const handleRemoveKey = async (key: string) => {
-    Alert.alert("Key löschen", "Möchtest du diesen Key wirklich entfernen?", [
+    const remainingAfterDelete = (allKeys?.length ?? 0) - 1;
+    const warnLastKey =
+      remainingAfterDelete <= 0
+        ? "\n\nHinweis: Das ist der letzte Key für diesen Provider."
+        : "";
+
+    Alert.alert("Key löschen", `Möchtest du diesen Key wirklich entfernen?${warnLastKey}`, [
       { text: "Abbrechen", style: "cancel" },
       {
         text: "Löschen",
@@ -172,7 +179,7 @@ export function useSettingsScreen() {
         onPress: async () => {
           try {
             await removeApiKey(selectedKeyProvider, key);
-          } catch (error: any) {
+          } catch (error: unknown) {
             Alert.alert(
               "Fehler",
               sanitizeSettingsError(error),
@@ -196,7 +203,7 @@ export function useSettingsScreen() {
         onPress: async () => {
           try {
             await rotateApiKey(selectedKeyProvider);
-          } catch (error: any) {
+          } catch (error: unknown) {
             Alert.alert(
               "Fehler",
               sanitizeSettingsError(error),
@@ -214,10 +221,10 @@ export function useSettingsScreen() {
     } catch {}
     try {
       await moveApiKeyToFront(selectedKeyProvider, index);
-    } catch (error: any) {
+    } catch (error: unknown) {
       Alert.alert(
         "Fehler",
-        error?.message || "Konnte Key nicht aktiv setzen.",
+        sanitizeSettingsError(error),
       );
     }
   };
@@ -237,7 +244,10 @@ export function useSettingsScreen() {
 
     persistChatHistory,
     retentionLimit,
+    retentionInput,
+    setRetentionInput,
     handleTogglePersistChat,
+    handleSaveRetentionLimit,
 
     isInitialized,
     hasPermissions,

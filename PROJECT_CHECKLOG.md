@@ -1,3 +1,22 @@
+## 2026-03-15 — Patch 463: SettingsScreen + AIContext Restpunkte (Quality/Retention/Typing) konservativ geschlossen
+
+- Quality-Mode wirkt jetzt real auf die effektiven Modellauswahlen: `setQualityMode(...)` setzt zusätzlich `selectedChatMode`/`selectedAgentMode` passend zur gewählten Persona (speed vs. quality/review), sodass der Wechsel nicht nur kosmetisch bleibt.
+- SettingsScreen zieht den gleichen Nutzerfluss sauber nach: Quality-Button-Selection setzt unmittelbar die aktiven Modelle für Generator+Agent, statt alte Modell-IDs stehen zu lassen.
+- Privacy-Retention ist kein halbfertiger Read-only-Hinweis mehr: Retention-Limit ist im SettingsScreen jetzt direkt editierbar und wird über `setChatHistoryRetentionLimit(...)` persistiert.
+- Flow-nahe Restpunkte mit geringem Risiko nachgezogen: Gemini-Key-Prefix-Validation (`AIza`) ergänzt; `getProviderStatus` im Settings-Hook als getypte Helper-Normalisierung ohne `any` umgesetzt; tote/deprecated Helper-Reste in AIContext bereinigt.
+- UX beim Key-Remove minimal ehrlicher: Beim Entfernen des letzten Keys wird dies im Confirm-Dialog explizit erwähnt.
+- Tests ergänzt: `__tests__/aiContext.qualityMode.test.tsx` und `__tests__/settingsScreen.helpers.test.ts` decken Quality-Mode↔Modell-Mapping, Provider-Status-Normalisierung und Gemini-Key-Validation ab.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 ## 2026-03-15 — Patch 462: GitHubReposScreen-Restpunkte (Typing/Sync/Branch) konservativ geschlossen
 
 - Root-Typing im RepoScreen-Hook bereinigt: `projectData?.files` wird als `ProjectFile[]` geführt (kein `projectFiles as any[]`-Root-Cast mehr), plus reduzierte Pull-/Push-nahe Folge-Casts (`handlePull`, Push-Auswahl, `applyPulledFiles`).

@@ -4,6 +4,7 @@ import { Text, TouchableOpacity, View } from "react-native";
 import type { ProviderId } from "../styles";
 import { styles } from "../styles";
 
+import type { ProviderStatusView } from "../hooks/settingsHelpers";
 import { ModeList } from "./ModeList";
 import { ProviderTiles } from "./ProviderTiles";
 
@@ -15,12 +16,7 @@ type Props = {
   agentEnabled: boolean;
   setAgentEnabled: (v: boolean) => void;
   apiKeys: Record<string, string[]>;
-  getProviderStatus: (p: ProviderId) => {
-    limitReached: boolean;
-    status: string;
-    message?: string;
-    lastRotation?: unknown;
-  };
+  getProviderStatus: (p: ProviderId) => ProviderStatusView;
 };
 
 export const AgentSection: React.FC<Props> = ({

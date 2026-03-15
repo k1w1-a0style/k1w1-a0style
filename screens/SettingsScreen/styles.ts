@@ -206,6 +206,41 @@ export const styles = StyleSheet.create({
   privacyLabel: { color: theme.palette.text.primary, fontWeight: "900", fontSize: 13 },
   privacyHint: { color: theme.palette.text.secondary, fontSize: 12, marginTop: 4, lineHeight: 18 },
 
+  retentionEditor: { marginTop: 12 },
+  retentionLabel: {
+    color: theme.palette.text.secondary,
+    fontSize: 12,
+    marginBottom: 6,
+  },
+  retentionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  retentionInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+    borderRadius: 12,
+    color: theme.palette.text.primary,
+    backgroundColor: theme.palette.background,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontWeight: "700",
+  },
+  retentionSaveBtn: {
+    borderWidth: 1,
+    borderColor: theme.palette.primary,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  retentionSaveBtnText: {
+    color: theme.palette.primary,
+    fontWeight: "900",
+    fontSize: 12,
+  },
+
 
   providerPickerRow: {
     flexDirection: "row",
