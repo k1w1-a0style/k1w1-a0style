@@ -2,13 +2,7 @@
 // Extracted from useGitHubActionsLogs.ts: types, constants, helpers.
 
 // hooks/useGitHubActionsLogs.ts - Real-time GitHub Actions log streaming
-import { useEffect, useState, useCallback, useRef } from "react";
-import { getEdgeAdminKey } from "../infra/github/githubService";
-import { getGitHubToken } from "../infra/github/tokenStore";
 import { redactSecrets, truncateWithMarker } from "../lib/secretRedaction";
-import { requireSupabaseEdgeUrl } from "../lib/supabaseEdge";
-import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
-import { logger } from '../lib/logger';
 import type { WorkflowRun } from "../shared/types/workflowRun";
 
 export type { WorkflowRun } from "../shared/types/workflowRun";

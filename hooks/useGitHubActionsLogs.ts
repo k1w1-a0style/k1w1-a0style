@@ -30,8 +30,12 @@ export function useGitHubActionsLogs({
   const isMountedRef = useRef(true);
   const loggedErrorRef = useRef(false);
   const isFetchPendingRef = useRef(false);
+  const requestKeyRef = useRef<string>("");
 
   const fetchLogs = useCallback(async () => {
+    const requestKey = `${githubRepo || ""}::${String(runId ?? "latest")}::${workflowId}`;
+    requestKeyRef.current = requestKey;
+
     if (!githubRepo) {
       setError("Kein GitHub Repo ausgewählt");
       return;
@@ -123,7 +127,7 @@ export function useGitHubActionsLogs({
 
       const logsData = await logsResponse.json();
 
-      if (isMountedRef.current) {
+      if (isMountedRef.current && requestKeyRef.current === requestKey) {
         // If GitHub hasn't prepared the logs archive yet, treat it as a "soft" state (no red error).
         if (logsData?.ok === true && logsData?.status === "not_ready") {
           setError(null);
@@ -166,18 +170,18 @@ export function useGitHubActionsLogs({
        }
     } catch (err: any) {
       // Nur einmal loggen (nicht bei jedem Poll-Versuch)
-      if (isMountedRef.current && !loggedErrorRef.current) {
+      if (isMountedRef.current && requestKeyRef.current === requestKey && !loggedErrorRef.current) {
         logger.warn(
           "[useGitHubActionsLogs] ⚠️ Logs nicht verfügbar:",
           err?.message,
         );
         loggedErrorRef.current = true;
       }
-      if (isMountedRef.current) {
+      if (isMountedRef.current && requestKeyRef.current === requestKey) {
         setError(err?.message || "Fehler beim Abrufen der Logs");
       }
     } finally {
-      if (isMountedRef.current) {
+      if (isMountedRef.current && requestKeyRef.current === requestKey) {
         setIsLoading(false);
       }
       isFetchPendingRef.current = false;
@@ -196,6 +200,12 @@ export function useGitHubActionsLogs({
   }, [workflowRun?.status]);
 
   useEffect(() => {
+    setLogs([]);
+    setWorkflowRun(null);
+    setError(null);
+    setIsLoading(false);
+    isFetchPendingRef.current = false;
+
     if (!githubRepo || !autoRefresh) {
       return;
     }
@@ -230,6 +240,14 @@ export function useGitHubActionsLogs({
       }
     };
   }, [githubRepo, autoRefresh, refreshInterval, fetchLogs]);
+
+  useEffect(() => {
+    setLogs([]);
+    setWorkflowRun(null);
+    setError(null);
+    setIsLoading(false);
+    isFetchPendingRef.current = false;
+  }, [githubRepo, runId, workflowId]);
 
   useEffect(() => {
     isMountedRef.current = true;

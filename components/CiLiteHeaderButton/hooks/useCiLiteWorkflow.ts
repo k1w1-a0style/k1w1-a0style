@@ -17,6 +17,37 @@ import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { WORKFLOW_CI_LITE, WORKFLOW_CI_LITE_AUTOFIX, type StepState } from "../types";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
 
+
+type CiLiteArtifactJson = {
+  ok: boolean;
+  eslint_exit?: number;
+  tsc_exit?: number;
+  source_commit_sha?: string;
+  source_sha?: string;
+  github_sha?: string;
+};
+
+function parseCiLiteArtifactJson(payload: unknown): CiLiteArtifactJson {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Artifact JSON missing or invalid");
+  }
+
+  const src = payload as Record<string, unknown>;
+  const readNum = (k: "eslint_exit" | "tsc_exit"): number | undefined =>
+    typeof src[k] === "number" ? src[k] : undefined;
+  const readSha = (k: "source_commit_sha" | "source_sha" | "github_sha"): string | undefined =>
+    typeof src[k] === "string" ? (src[k] as string).trim() || undefined : undefined;
+
+  return {
+    ok: typeof src.ok === "boolean" ? src.ok : Boolean(src.ok),
+    eslint_exit: readNum("eslint_exit"),
+    tsc_exit: readNum("tsc_exit"),
+    source_commit_sha: readSha("source_commit_sha"),
+    source_sha: readSha("source_sha"),
+    github_sha: readSha("github_sha"),
+  };
+}
+
 export function useCiLiteWorkflow() {
   const { projectData } = useProject();
 
@@ -155,40 +186,23 @@ export function useCiLiteWorkflow() {
           }),
         });
 
-        const data = await resp.json().catch(() => ({} as any));
+        const data: unknown = await resp.json().catch(() => ({}));
         if (!resp.ok) {
-          const msg = data?.error ? String(data.error) : `HTTP ${resp.status}`;
+          const errObj = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
+          const msg = typeof errObj?.error === "string" ? errObj.error : `HTTP ${resp.status}`;
           throw new Error(msg);
         }
 
-        const json =
-          (data?.json && typeof data.json === "object" ? data.json : null) ??
-          (typeof data?.text === "string" ? JSON.parse(data.text) : null);
+        const parsed = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+        const inlineJson = parsed.json;
+        const jsonCandidate =
+          (inlineJson && typeof inlineJson === "object" ? inlineJson : null) ??
+          (typeof parsed.text === "string" ? JSON.parse(parsed.text) : null);
 
-        if (!json || typeof json !== "object") {
-          throw new Error("Artifact JSON missing or invalid");
-        }
-
-        const ok = Boolean((json as any).ok);
-        const eslint_exit =
-          typeof (json as any).eslint_exit === "number" ? (json as any).eslint_exit : undefined;
-        const tsc_exit =
-          typeof (json as any).tsc_exit === "number" ? (json as any).tsc_exit : undefined;
-        const source_commit_sha =
-          typeof (json as any).source_commit_sha === "string"
-            ? String((json as any).source_commit_sha).trim() || undefined
-            : undefined;
-        const source_sha =
-          typeof (json as any).source_sha === "string"
-            ? String((json as any).source_sha).trim() || undefined
-            : undefined;
-        const github_sha =
-          typeof (json as any).github_sha === "string"
-            ? String((json as any).github_sha).trim() || undefined
-            : undefined;
+        const artifactJson = parseCiLiteArtifactJson(jsonCandidate);
 
         if (!cancelled) {
-          setArtifactResult({ ok, eslint_exit, tsc_exit, source_commit_sha, source_sha, github_sha });
+          setArtifactResult(artifactJson);
         }
       } catch (e) {
         if (!cancelled) setArtifactError(String(e instanceof Error ? e.message : e));
@@ -333,6 +347,8 @@ export function useCiLiteWorkflow() {
   // ---- Persist CI Lite results ----
   useEffect(() => {
     if (!workflowRun || workflowId !== WORKFLOW_CI_LITE || workflowRun.status !== "completed") return;
+    if (runId == null || workflowRun.id !== runId) return;
+    if (!githubRepo || !targetRef || targetRef.trim() !== branch.trim()) return;
     const isSuccess = (workflowRun.conclusion || "").toLowerCase() === "success";
     const lintOk = artifactResult ? artifactResult.eslint_exit === 0 : isSuccess || stepInfo.lint === "success";
     const typeOk = artifactResult ? artifactResult.tsc_exit === 0 : isSuccess || stepInfo.typecheck === "success";
@@ -341,7 +357,7 @@ export function useCiLiteWorkflow() {
         artifactResult?.source_commit_sha ||
         artifactResult?.source_sha ||
         artifactResult?.github_sha ||
-        (workflowRun as any)?.head_sha ||
+        workflowRun?.head_sha ||
         "",
       ).trim();
 
@@ -367,11 +383,13 @@ export function useCiLiteWorkflow() {
     targetRef,
     branch,
     jobId,
+    runId,
   ]);
 
   // ---- Dispatch ----
   const dispatchWorkflow = useCallback(
     async (workflowFile: string) => {
+      if (dispatching) return;
       if (!githubRepo || !githubRepo.includes("/")) {
         Alert.alert("CI Lite", "Kein gültiges Repo (owner/repo) ausgewählt.");
         return;
@@ -469,7 +487,7 @@ export function useCiLiteWorkflow() {
         setDispatching(false);
       }
     },
-    [githubRepo, branch, stopPolling, findRunByJobId, projectData?.files],
+    [dispatching, githubRepo, branch, stopPolling, findRunByJobId, projectData?.files],
   );
 
 

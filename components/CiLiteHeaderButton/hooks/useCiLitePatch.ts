@@ -19,6 +19,7 @@ import {
   patchTouchedPaths,
 } from "../../../lib/diagnostics/fixSafety";
 import type { PreflightPatch } from "../../../lib/diagnostics/preflightTypes";
+import type { ProjectFile } from "../../../shared/types/project";
 import { markRepoSyncSignature } from "../../../lib/repoSyncOrchestration";
 
 interface UseCiLitePatchOpts {
@@ -81,6 +82,47 @@ export function useCiLitePatch({ githubRepo, branch }: UseCiLitePatchOpts) {
       Alert.alert("Apply Patch", msg);
     }
   }, [validatePatchText]);
+
+  /** Mirror applied patch to the linked GitHub repo. Non-blocking on failure. */
+  const syncPatchToGitHub = useCallback(async (
+    nextMap: Map<string, string>,
+    deletePaths: string[],
+    patch: PreflightPatch,
+  ) => {
+    try {
+      if (!githubRepo || !githubRepo.includes("/")) return;
+
+      const [owner, repo] = githubRepo.split("/");
+      const targetBranch = (branch || "").trim();
+      if (!targetBranch) {
+        throw new Error("Kein Branch verknüpft (Auto-Sync nach Patch).");
+      }
+
+      const tok = await getGitHubToken().catch(() => null);
+      if (!tok) throw new Error("GitHub Token fehlt (Auto-Sync nach Patch).");
+
+      const touched = patchTouchedPaths(patch);
+      const toDelete = new Set(deletePaths);
+
+      const upserts: ProjectFile[] = touched
+        .filter((path) => !toDelete.has(path))
+        .map((path) => ({ path, content: nextMap.get(path) ?? "" }));
+
+      if (upserts.length) await pushFilesToRepo(owner, repo, upserts, targetBranch);
+      for (const path of deletePaths) await deleteRepoFile(owner, repo, path, `Delete ${path}`, targetBranch);
+
+      const files: ProjectFile[] = Array.from(nextMap.entries()).map(([path, content]) => ({ path, content }));
+      await markRepoSyncSignature({
+        linkedRepo: githubRepo,
+        linkedBranch: targetBranch,
+        files,
+      });
+    } catch (syncErr: unknown) {
+      const message = syncErr instanceof Error ? syncErr.message : String(syncErr);
+      console.warn("[CI Lite] Auto-Sync failed:", message);
+      setPatchInfo((prev) => `${prev || ""}\n\n⚠️ Auto-Sync fehlgeschlagen: ${message}`);
+    }
+  }, [githubRepo, branch]);
 
   const applyPatchFromText = useCallback(async () => {
     if (!projectData) {
@@ -180,46 +222,7 @@ export function useCiLitePatch({ githubRepo, branch }: UseCiLitePatchOpts) {
         ],
       );
     });
-  }, [projectData, patchBusy, validatePatchText, deleteFile, updateProjectFiles, githubRepo, branch]);
-
-  /** Mirror applied patch to the linked GitHub repo. Non-blocking on failure. */
-  async function syncPatchToGitHub(
-    nextMap: Map<string, string>,
-    deletePaths: string[],
-    patch: PreflightPatch,
-  ) {
-    try {
-      if (!githubRepo || !githubRepo.includes("/")) return;
-
-      const [owner, repo] = githubRepo.split("/");
-      const targetBranch = (branch || "").trim();
-      if (!targetBranch) {
-        throw new Error("Kein Branch verknüpft (Auto-Sync nach Patch).");
-      }
-
-      const tok = await getGitHubToken().catch(() => null);
-      if (!tok) throw new Error("GitHub Token fehlt (Auto-Sync nach Patch).");
-
-      const touched = patchTouchedPaths(patch);
-      const toDelete = new Set(deletePaths);
-
-      const upserts = touched
-        .filter((p) => !toDelete.has(p))
-        .map((p) => ({ path: p, content: nextMap.get(p) ?? "" }))
-        .filter((f) => typeof f.content === "string");
-
-      if (upserts.length) await pushFilesToRepo(owner, repo, upserts as any, targetBranch);
-      for (const p of deletePaths) await deleteRepoFile(owner, repo, p, `Delete ${p}`, targetBranch);
-      await markRepoSyncSignature({
-        linkedRepo: githubRepo,
-        linkedBranch: targetBranch,
-        files: Array.from(nextMap.entries()).map(([path, content]) => ({ path, content } as any)),
-      });
-    } catch (syncErr: any) {
-      console.warn("[CI Lite] Auto-Sync failed:", syncErr);
-      setPatchInfo((prev) => `${prev || ""}\n\n⚠️ Auto-Sync fehlgeschlagen: ${syncErr?.message || String(syncErr)}`);
-    }
-  }
+  }, [projectData, patchBusy, validatePatchText, deleteFile, updateProjectFiles, syncPatchToGitHub]);
 
   return {
     patchPanelOpen, setPatchPanelOpen,
