@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 438: Supabase-Edge Import-Hygiene — produktive Workflow-Edges von fragilem App-Pfadimport (`../../../shared/constants/github.ts`) entkoppelt; `GITHUB_API_BASE` edge-nah in `_shared/github.ts` verankert, Invariant-Guard ergänzt.
 - Patch 437: Doppelte Preview-Migration (`20251226140000`/`20251226160000`) als byte-identische Redundanz eingeordnet; spätere Datei konservativ auf explizites Legacy-No-op umgestellt (keine riskante History-Löschung).
 - Patch 436: `insert_diagnostic_upload`-Vertrag migrationsseitig finalisiert (`jsonb -> bigint`), historischen UUID-/Spalten-Drift explizit dokumentiert und per Invariant-Tests gegen Regression abgesichert
 - Patch 435: Supabase E2E contract close-out — audited Preview/Workflow/Signing/AI edge contracts end-to-end, documented explicit remaining operator dependencies, and fixed `github-run-artifact-json` ZIP path normalization for backslash-separated entries.

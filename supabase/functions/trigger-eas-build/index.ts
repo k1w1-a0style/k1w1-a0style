@@ -6,9 +6,8 @@ import {
   parseJsonBody,
   validateTriggerBuildRequest,
 } from "../_shared/validation.ts";
-import { githubHeaders, getGithubToken } from "../_shared/github.ts";
+import { githubHeaders, getGithubToken, GITHUB_API_BASE } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
-import { GITHUB_API_BASE } from "../../../shared/constants/github.ts";
 
 function parseCsvEnv(name: string): string[] {
   const raw = (Deno.env.get(name) ?? "").trim();
