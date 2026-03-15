@@ -1,17 +1,23 @@
 import React from "react";
-import { Switch, Text, View } from "react-native";
+import { Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import { styles } from "../styles";
 
 type Props = {
   persistChatHistory: boolean;
   retentionLimit: number;
+  retentionInput: string;
+  onRetentionInputChange: (value: string) => void;
+  onSaveRetention: () => void;
   onTogglePersist: (v: boolean) => void;
 };
 
 export const PrivacySection: React.FC<Props> = ({
   persistChatHistory,
   retentionLimit,
+  retentionInput,
+  onRetentionInputChange,
+  onSaveRetention,
   onTogglePersist,
 }) => {
   return (
@@ -28,6 +34,30 @@ export const PrivacySection: React.FC<Props> = ({
 
         <Switch value={persistChatHistory} onValueChange={onTogglePersist} />
       </View>
+
+
+      {persistChatHistory && (
+        <View style={styles.retentionEditor}>
+          <Text style={styles.retentionLabel}>Retention Limit (Messages)</Text>
+          <View style={styles.retentionRow}>
+            <TextInput
+              style={styles.retentionInput}
+              value={retentionInput}
+              onChangeText={onRetentionInputChange}
+              keyboardType="number-pad"
+              placeholder="200"
+              placeholderTextColor="#7b7f86"
+            />
+            <TouchableOpacity
+              style={styles.retentionSaveBtn}
+              onPress={onSaveRetention}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.retentionSaveBtnText}>Speichern</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       <Text style={styles.note}>
         Retention:{" "}

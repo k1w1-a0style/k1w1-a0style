@@ -4,6 +4,7 @@ import { Text, View } from "react-native";
 import type { ProviderId } from "../styles";
 import { styles } from "../styles";
 
+import type { ProviderStatusView } from "../hooks/settingsHelpers";
 import { ModeList } from "./ModeList";
 import { ProviderTiles } from "./ProviderTiles";
 
@@ -14,12 +15,7 @@ type Props = {
   apiKeys: Record<string, string[]>;
   onSelectProvider: (p: ProviderId) => void;
   onSelectMode: (modeId: string) => void;
-  getProviderStatus: (provider: ProviderId) => {
-    limitReached: boolean;
-    status: string;
-    message?: string;
-    lastRotation?: unknown;
-  };
+  getProviderStatus: (provider: ProviderId) => ProviderStatusView;
 };
 
 export function GeneratorSection({
