@@ -652,18 +652,21 @@ export function useChatAIFlow({
       aiInput: string = rawInput,
     ): Promise<boolean> => {
       const userContent = rawInput.trim();
+      const aiContent = aiInput.trim();
 
-      if (!userContent) return false;
+      if (!userContent && !aiContent) return false;
 
       addChatMessage({
         id: uuidv4(),
         role: "user",
-        content: userContent,
+        content: userContent || aiContent,
         timestamp: new Date().toISOString(),
       });
 
       // Meta-/lokale Kommandos müssen auf unverändertem User-Input laufen.
-      const metaResult = handleMetaCommand(userContent, projectFilesRef.current);
+      const metaResult = userContent
+        ? handleMetaCommand(userContent, projectFilesRef.current)
+        : { handled: false };
       if (metaResult.handled && metaResult.message) {
         addChatMessage(metaResult.message);
         return true;
@@ -703,7 +706,6 @@ export function useChatAIFlow({
         return true;
       }
 
-      const aiContent = aiInput.trim();
       const ok = await processAIRequest(aiContent || userContent, false, false);
       return ok;
     },

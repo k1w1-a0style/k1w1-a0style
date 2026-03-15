@@ -1,3 +1,20 @@
+## 2026-03-15 — Patch 460: Chat Attachment-only Regression nach PR #273 geschlossen
+
+- `hooks/useChatAIFlow.ts`: `handleSendWithMeta(...)` verwirft Requests nicht mehr allein bei leerem `rawInput`; der Guard abortiert nur noch bei gleichzeitig leerem `rawInput` **und** `aiInput`.
+- Meta-/lokale Kommandos bleiben auf unverändertem Raw-Input (`userContent`) verdrahtet; damit bleibt Full-line-Command-Routing stabil.
+- Attachment-only-Sendefälle (leerer Texteingang, aber AI-Input mit Attachment-Hinweis) laufen wieder deterministisch in den normalen AI-Pfad; User-Message nutzt dafür einen kontrollierten Fallback auf `aiInput`.
+- `__tests__/useChatAIFlow.metaCommandAttachment.regression.test.ts` als gezielte Invariant-Regression entsprechend nachgezogen.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 ## 2026-03-15 — Patch 459: Chat-Regression (PR #272) konservativ nachgezogen
 
 - Verbliebene Regression geschlossen: Attachment-Hinweis wird nicht mehr vor dem lokalen/meta Command-Routing an den Raw-Input angehängt.
@@ -120,6 +137,7 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-15: Patch 460: Chat-Regression nach PR #273 konservativ geschlossen — `useChatAIFlow.handleSendWithMeta(...)` bricht nur noch bei gleichzeitig leerem Raw-/AI-Input ab; Attachment-only-Sendefälle werden nicht mehr still verworfen, Meta-/lokale Kommandos laufen weiterhin ausschließlich auf unverändertem Raw-Input; gezielte Invariant-Regression ergänzt.
 - 2026-03-15: Patch 457: Connections-Busy-Guard meldet Busy-Kollisionen jetzt explizit (dedizierter Error) statt mehrdeutigem `false`; Save/Test-Aktionen trennen Busy vs. echte Fehler sauber. `useChatAIFlow`-Pending-Plan-Guard wurde gezielt geprüft und per Invariant abgesichert.
 - 2026-03-15: Patch 456: Chat-Drift-Digest RN-sicher dokumentiert — `lib/chatFlowStateGuards.ts` enthält jetzt eine explizite Guardrail-Notiz gegen Node-`crypto` im App-Runtime-Pfad (`useChatAIFlow`), damit Metro-Bundles keine Node-Core-Module auflösen müssen.
 - 2026-03-15: Patch 455: ConnectionsScreen-Restpunkte konservativ gehärtet — Supabase-ANON-Key jetzt SecureStore-basiert (inkl. Legacy-Migration), Busy-/Hydration-Guards blockieren parallele Save/Test-Runs, `testExpo` ohne Token-Persistenz-Side-Effect, EAS-Link-Lampe nicht mehr optimistisch grün; flow-nahe Invariants + Storage-Tests ergänzt.
