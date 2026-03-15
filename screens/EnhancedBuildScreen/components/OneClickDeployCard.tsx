@@ -197,7 +197,7 @@ export function OneClickDeployCard({
           size={20}
           color={deployDone ? theme.palette.success : theme.palette.primary}
         />
-        <Text style={s.title}>Advanced Build-Automation</Text>
+        <Text style={s.title}>Build-Autoflow</Text>
         {deployDone && (
           <View style={s.doneBadge}>
             <Text style={s.doneBadgeText}>FERTIG</Text>
@@ -216,7 +216,7 @@ export function OneClickDeployCard({
       <Pressable style={s.optionRow} onPress={onToggleAutoSyncSecrets} disabled={isDeploying}>
         <View style={s.optionTextWrap}>
           <Text style={s.optionLabel}>Secrets vor Build auto-syncen</Text>
-          <Text style={s.optionHint}>Optional (empfohlen aus), manuell weiter in Repo/Connections möglich</Text>
+          <Text style={s.optionHint}>Optional (standardmäßig aus). Bei Bedarf manuell in Repo/Connections setzen</Text>
         </View>
         <View style={[s.optionLamp, autoSyncSecrets ? s.optionLampOn : s.optionLampOff]}>
           <Text style={s.optionLampText}>{autoSyncSecrets ? "AN" : "AUS"}</Text>
@@ -251,7 +251,7 @@ export function OneClickDeployCard({
             disabled={deployBlocked}
           >
             <Ionicons name="rocket-outline" size={18} color={theme.palette.primary} />
-            <Text style={s.deployBtnText}>Advanced-Flow starten</Text>
+            <Text style={s.deployBtnText}>Autoflow starten</Text>
           </Pressable>
         )}
       </View>

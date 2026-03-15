@@ -23,8 +23,8 @@ describe("Build traceability transparency invariants", () => {
     expect(src).toContain("const contextRepo = currentBuild?.githubRepo || selectedRepo;");
     expect(src).toContain("const contextBranch = currentBuild?.branch || selectedBranch;");
     expect(src).toContain("const contextProfile = currentBuild?.buildProfile || selectedBuildProfile;");
-    expect(src).toContain("Laufkontext (aktueller Build)");
-    expect(src).toContain("Laufkontext (aktuelle Auswahl)");
+    expect(src).toContain("Aktueller Laufkontext");
+    expect(src).toContain("Aktuelle Auswahl (noch kein Lauf)");
   });
 
   it("keeps branch and source sha in build history presentation/export", () => {
