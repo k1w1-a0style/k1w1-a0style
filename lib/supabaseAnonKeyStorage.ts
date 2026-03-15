@@ -22,8 +22,17 @@ export async function getSupabaseAnonKey(): Promise<string | null> {
     return null;
   }
 
-  await SecureStore.setItemAsync(SUPABASE_ANON_SECURE_KEY, normalized).catch(() => {});
-  await AsyncStorage.removeItem(STORAGE_KEYS.SUPABASE_KEY).catch(() => {});
+  const migratedToSecureStore = await SecureStore.setItemAsync(
+    SUPABASE_ANON_SECURE_KEY,
+    normalized,
+  )
+    .then(() => true)
+    .catch(() => false);
+
+  if (migratedToSecureStore) {
+    await AsyncStorage.removeItem(STORAGE_KEYS.SUPABASE_KEY).catch(() => {});
+  }
+
   return normalized;
 }
 
