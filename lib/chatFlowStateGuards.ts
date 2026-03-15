@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import type { ApplyFilesResult } from "./fileWriter";
 import { applyFilesToProject } from "./fileWriter";
 import type { ProjectFile } from "../shared/types/project";
@@ -13,7 +14,8 @@ export function buildProjectStateDigest(files: ProjectFile[]): string {
     .map((f) => ({ path: String(f.path ?? ""), content: String(f.content ?? "") }))
     .sort((a, b) => a.path.localeCompare(b.path));
 
-  return normalized.map((f) => `${f.path}:${f.content.length}`).join("|");
+  const material = normalized.map((f) => `${f.path}\n${f.content}`).join("\n---\n");
+  return createHash("sha256").update(material).digest("hex");
 }
 
 export function rebasePendingChangeOnLatest(
@@ -32,4 +34,3 @@ export function rebasePendingChangeOnLatest(
     driftDetected: Boolean(pending.baseProjectDigest && pending.baseProjectDigest !== latestDigest),
   };
 }
-

@@ -13,24 +13,60 @@ export interface LlmMessage {
 }
 
 // Hilfsfunktion: kleine, komprimierte Projektübersicht für den Prompt
-function buildProjectSnapshot(files: ProjectFile[]): string {
+function collectFocusTerms(userFocus: string): string[] {
+  const lowered = String(userFocus ?? '').toLowerCase();
+  const rawTokens = lowered.match(/[a-z0-9_.\/-]{3,}/g) ?? [];
+  const stop = new Set([
+    'und', 'oder', 'aber', 'nicht', 'mit', 'ohne', 'dass', 'dies', 'eine', 'einen', 'der', 'die', 'das', 'den', 'dem', 'des',
+    'für', 'von', 'auf', 'ist', 'sind', 'bitte', 'kann', 'können', 'soll', 'sollte', 'mach', 'mache', 'baue', 'bauen',
+  ]);
+
+  return [...new Set(rawTokens.filter((t) => !stop.has(t)).slice(0, 24))];
+}
+
+function fileRelevanceScore(file: ProjectFile, focusTerms: string[]): number {
+  const path = String(file.path ?? '').toLowerCase();
+  const content = String(file.content ?? '').toLowerCase();
+  let score = 0;
+
+  for (const term of focusTerms) {
+    if (!term) continue;
+    if (path.includes(term)) score += 8;
+    if (content.includes(term)) score += 3;
+  }
+
+  if (/\b(app|screen|chat|prompt|normalizer|validator|builder|planner|flow)\b/.test(path)) score += 2;
+  if (/(^|\/)readme\.md$|(^|\/)todo\.md$|(^|\/)project_checklog\.md$/i.test(path)) score += 1;
+  return score;
+}
+
+function buildProjectSnapshot(files: ProjectFile[], userFocus = ''): string {
   if (!files || files.length === 0) {
     return 'Es sind aktuell noch keine Projektdateien angelegt.';
   }
 
-  const MAX_FILES = 20;
+  const MAX_FILES = 28;
   const MAX_LINES_PER_FILE = 40;
+  const focusTerms = collectFocusTerms(userFocus);
 
-  const limitedFiles = [...files].slice(0, MAX_FILES).map((f) => {
-    const path = f.path;
-    const content = String(f.content ?? '');
-    const lines = content.split('\n').slice(0, MAX_LINES_PER_FILE);
-    return `# ${path}\n${lines.join('\n')}`;
-  });
+  const prioritized = [...files]
+    .map((f, idx) => ({ f, idx, score: fileRelevanceScore(f, focusTerms) }))
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.idx - b.idx;
+    })
+    .slice(0, MAX_FILES)
+    .map(({ f, score }) => {
+      const path = f.path;
+      const content = String(f.content ?? '');
+      const lines = content.split('\n').slice(0, MAX_LINES_PER_FILE);
+      const relevanceHint = score > 0 ? ` (relevance=${score})` : '';
+      return `# ${path}${relevanceHint}\n${lines.join('\n')}`;
+    });
 
   return (
     'Ausschnitt der aktuellen Projektdateien (gekürzt):\n\n' +
-    limitedFiles.join('\n\n') +
+    prioritized.join('\n\n') +
     '\n\n(Hinweis: Dies ist nur ein Ausschnitt, nicht das komplette Projekt.)'
   );
 }
@@ -85,7 +121,7 @@ export function buildPlannerMessages(
 
   const systemMessage: LlmMessage = { role: 'system', content: systemLines.join('\n\n') };
 
-  const snapshot = buildProjectSnapshot(projectFiles);
+  const snapshot = buildProjectSnapshot(projectFiles, userContent);
   const projectMessage: LlmMessage = {
     role: 'system',
     content: 'Kontext – aktueller Projektzustand:\n\n' + snapshot,
@@ -148,7 +184,7 @@ export function buildBuilderMessages(
 
   const systemMessage: LlmMessage = { role: 'system', content: systemIntroLines.join('\n\n') };
 
-  const snapshot = buildProjectSnapshot(projectFiles);
+  const snapshot = buildProjectSnapshot(projectFiles, userContent);
   const projectMessage: LlmMessage = {
     role: 'system',
     content:
@@ -187,7 +223,7 @@ export function buildValidatorMessages(
       'Prüfe Konsistenz/JSON/Pfade. Liefere ggf. ein korrigiertes JSON-Array zurück (wieder nur {path, content}).',
   };
 
-  const snapshot = buildProjectSnapshot(projectFiles);
+  const snapshot = buildProjectSnapshot(projectFiles, originalUserRequest);
   const context: LlmMessage = {
     role: 'system',
     content: 'Ausschnitt des aktuellen Projekts:\n\n' + snapshot,

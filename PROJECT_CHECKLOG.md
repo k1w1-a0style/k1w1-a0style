@@ -1,3 +1,22 @@
+
+## 2026-03-15 — Patch 452: AI/Chat/Prompting Restfixes
+
+- KI-/Prompt-Context: Projekt-Snapshot priorisiert relevante Dateien anhand Nutzerfokus (nicht nur Array-Reihenfolge), weiterhin hart begrenzt.
+- Builder-Flow: Non-JSON-Antworten liefern jetzt eine verständliche Fehlermeldung inkl. KI-Text-Preview statt nur kryptischem Parser-/Normalizer-Fehler.
+- State-Drift-Guard: Digest von `path:length` auf `sha256(path+content)` gehärtet (same-length Inhaltsänderungen werden erkannt).
+- Nutzerfeedback: Ownership-/Validator-/Explain-Restfälle werden sichtbar im Chat kommuniziert (kein stilles Verschlucken).
+- Einordnung: `k1w1-handler` bleibt Edge-/Serverpfad; kein blinder Client-Architektur-Umbau in diesem konservativen Patch.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 # PROJECT_CHECKLOG
 
 Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.

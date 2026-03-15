@@ -14,5 +14,7 @@ export interface ChatMessage {
     error?: boolean;
     keyRotation?: boolean;
     stateDrift?: boolean;
+    validatorWarning?: boolean;
+    explainWarning?: boolean;
   };
 }
