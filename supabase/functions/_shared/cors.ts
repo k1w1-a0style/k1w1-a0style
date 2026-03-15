@@ -6,12 +6,18 @@ import { sanitizeErrorText, sanitizeUnknownForTransport } from "./errorSanitizat
 
 // NOTE: Supabase Edge runs on Deno, but our repo `tsc`/Jest runs on Node.
 // Avoid direct `Deno` references so local typecheck/tests don't fail.
+type RuntimeGlobals = {
+  Deno?: { env?: { get?: (key: string) => string | undefined } };
+  process?: { env?: Record<string, string | undefined> };
+};
+
 const getRuntimeEnv = (key: string): string | undefined => {
-  const deno = (globalThis as any)?.Deno;
+  const runtime = globalThis as typeof globalThis & RuntimeGlobals;
+  const deno = runtime.Deno;
   const denoVal = deno?.env?.get?.(key);
   if (typeof denoVal === "string") return denoVal;
   // Node/Jest fallback
-  const proc = (globalThis as any)?.process;
+  const proc = runtime.process;
   const nodeVal = proc?.env?.[key];
   return typeof nodeVal === "string" ? nodeVal : undefined;
 };

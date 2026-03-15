@@ -1,23 +1,13 @@
-// @ts-ignore TS5097 -- Supabase Edge (Deno) requires explicit `.ts` extension; repo `tsc` disallows it.
-import {
-  isSafePath,
-  normalizePath,
-  safeJsonForScript,
-  escapeHtml,
-} from "./security.ts";
-/**
- * Central validation helpers for Edge Functions.
- *
- * NOTE: Keep these pure + dependency-light.
- */
+import { isSafePath, normalizePath, safeJsonForScript, escapeHtml } from "./security.ts";
 
 type Ok<T> = { ok: true; data: T };
-type Err = { ok: false; errors: any };
+type ValidationErrors = Record<string, string | Record<string, string>>;
+type Err = { ok: false; errors: ValidationErrors };
 
-export function parseJsonBody(
+export async function parseJsonBody(
   req: Request,
   maxBytes = 200_000,
-): Promise<{ ok: true; body: any } | { ok: false; error: string }> {
+): Promise<{ ok: true; body: Record<string, unknown> } | { ok: false; error: string }> {
   const lenHeader = req.headers.get("content-length");
   if (lenHeader) {
     const len = Number(lenHeader);
@@ -35,7 +25,10 @@ export function parseJsonBody(
       return { ok: false, error: `Body too large (${t.length} > ${maxBytes})` };
 
     try {
-      const body = JSON.parse(t);
+      const body: unknown = JSON.parse(t);
+      if (!isObject(body)) {
+        return { ok: false, error: "Invalid JSON: body must be a JSON object" };
+      }
       return { ok: true, body };
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -50,6 +43,23 @@ function isString(x: unknown): x is string {
 
 function isObject(x: unknown): x is Record<string, unknown> {
   return !!x && typeof x === "object" && !Array.isArray(x);
+}
+
+function isBuildProfile(
+  value: unknown,
+): value is "development" | "preview" | "production" {
+  return value === "development" || value === "preview" || value === "production";
+}
+
+function asStringRecord(value: unknown): Record<string, string> | null {
+  if (!isObject(value)) return null;
+  const mapped: Record<string, string> = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (!isString(k) || k.length > 100) return null;
+    if (!isString(v) || v.length > 2000) return null;
+    mapped[k] = v;
+  }
+  return mapped;
 }
 
 export function validateBranch(
@@ -90,16 +100,13 @@ export function validateTriggerBuildRequest(body: unknown): Ok<{
   const buildProfile = body.buildProfile ?? body.build_profile ?? body.profile;
   const branch = body.branch ?? body.ref;
 
-  const errors: any = {};
+  const errors: ValidationErrors = {};
 
   if (!isString(githubRepo) || !githubRepo.includes("/")) {
     errors.githubRepo = "githubRepo must be like owner/repo";
   }
 
-  if (
-    !isString(buildProfile) ||
-    !["development", "preview", "production"].includes(buildProfile)
-  ) {
+  if (!isBuildProfile(buildProfile)) {
     errors.buildProfile = "buildProfile must be development|preview|production";
   }
 
@@ -107,13 +114,13 @@ export function validateTriggerBuildRequest(body: unknown): Ok<{
   if (!br.valid) errors.branch = br.error;
 
   if (Object.keys(errors).length) return { ok: false, errors };
-  if (!br.valid) return { ok: false, errors }; // extra narrowing for TS
+  if (!br.valid || !isBuildProfile(buildProfile) || !isString(githubRepo)) return { ok: false, errors };
 
   return {
     ok: true,
     data: {
-      githubRepo: String(githubRepo),
-      buildProfile: buildProfile as any,
+      githubRepo,
+      buildProfile,
       branch: br.value || undefined,
     },
   };
@@ -153,7 +160,7 @@ export function validateGithubWorkflowDispatchRequest(body: unknown): Ok<{
   const inputs = body.inputs;
   const githubToken = body.githubToken ?? body.github_token ?? body.token ?? null;
 
-  const errors: any = {};
+  const errors: ValidationErrors = {};
 
   if (!isString(githubRepo) || !githubRepo.includes("/")) {
     errors.githubRepo = "githubRepo must be like owner/repo";
@@ -174,30 +181,34 @@ export function validateGithubWorkflowDispatchRequest(body: unknown): Ok<{
   const br = validateBranch(ref);
   if (!br.valid) errors.ref = br.error;
 
+  let normalizedInputs: Record<string, string> | undefined;
   if (inputs != null) {
-    if (!isObject(inputs)) {
+    const mapped = asStringRecord(inputs);
+    if (!mapped) {
       errors.inputs = "inputs must be an object";
-    } else {
-      // Make sure all inputs are strings and not crazy large
-      const bad: any = {};
-      for (const [k, v] of Object.entries(inputs)) {
-        if (!isString(k) || k.length > 100) bad[k] = "invalid key";
-        if (!isString(v) || v.length > 2000) bad[k] = "invalid value";
+      if (isObject(inputs)) {
+        const bad: Record<string, string> = {};
+        for (const [k, v] of Object.entries(inputs)) {
+          if (!isString(k) || k.length > 100) bad[k] = "invalid key";
+          if (!isString(v) || v.length > 2000) bad[k] = "invalid value";
+        }
+        if (Object.keys(bad).length) errors.inputs = bad;
       }
-      if (Object.keys(bad).length) errors.inputs = bad;
+    } else {
+      normalizedInputs = mapped;
     }
   }
 
-    if (Object.keys(errors).length) return { ok: false, errors };
-  if (!br.valid) return { ok: false, errors }; // extra narrowing for TS
+  if (Object.keys(errors).length) return { ok: false, errors };
+  if (!isString(githubRepo) || !isString(workflow) || !br.valid) return { ok: false, errors };
 
   return {
     ok: true,
     data: {
-      githubRepo: String(githubRepo),
-      workflow: String(workflow),
+      githubRepo,
+      workflow,
       ref: br.value,
-      inputs: inputs as any,
+      inputs: normalizedInputs,
       githubToken: githubToken == null ? undefined : String(githubToken),
     },
   };

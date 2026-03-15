@@ -30,7 +30,8 @@ Stand: **2026-03-15 (Patch 446)**
 - [x] **ProjectContext-History-Effect entkoppelt:** unnötige `currentBuild`-Abhängigkeitskaskade entfernt, Auswahl via Ref stabilisiert (Patch 439).
 - [x] **Selektiver `any`-Hotspot im Build-Status-Edge reduziert:** `check-eas-build` verwendet nun ein explizites `BuildJobRow` statt untypisiertem `any`-Flow (Patch 439).
 - [x] **Build-Start-Flow-`any` selektiv reduziert:** `buildStartService` nutzt für Edge-Invoke-Payload jetzt ein lokales, enges Payload-Narrowing statt mehrfacher `as any`-Zugriffe; Build-Fehler- und Job-ID-Mapping bleiben verhaltensgleich (Patch 446).
-- [ ] **Rest-`any` nur weiter selektiv abbauen:** verbleibende Hotspots weiter nur dort anfassen, wo reale Flow-/Vertragsrisiken bestehen (kein Broad Cleanup).
+- [x] **Edge-Shared-Validation-/Runtime-`any` selektiv reduziert:** `_shared/auth.ts` und `_shared/cors.ts` nutzen getypte Runtime-Globals statt `globalThis as any`; `_shared/validation.ts` hat engere Fehler-/Payload-Typen für Trigger/Workflow-Dispatch (Patch 447).
+- [ ] **Rest-`any` nur weiter selektiv abbauen:** verbleibende Hotspots (z. B. einige ältere Edge-Helfer und nicht-flow-kritische App-Hilfsmodule) weiter nur dort anfassen, wo reale Build-/Repo-/CI-/Diagnostic-Vertragsrisiken bestehen (kein Broad Cleanup).
 
 ## Wichtige Vertrags-Reminder
 
@@ -42,6 +43,7 @@ Stand: **2026-03-15 (Patch 446)**
 
 ## Kürzlich abgeschlossen (Kontext)
 
+- [x] Patch 447 — kleiner Edge-Typing-Follow-up: `_shared/auth`/`_shared/cors` ohne `globalThis as any`, `_shared/validation` mit engeren Objekt-/Union-Typen und zusätzlicher `parseJsonBody`-Regression.
 - [x] Patch 446 — letzter selektiver Build-Start-`any`-Hotspot reduziert: Edge-Invoke-Payload lokal typisiert/narrowed, `pushFilesToRepo`-Cast entfernt und gezielte Regressionstests für `job.id`-/Error-Shape ergänzt.
 - [x] Patch 440 — konservatives UX-/Flow-Feintuning ohne Architekturumbau: klarere Statussemantik (gespeichert vs. letzter bekannter Stand), konsistentere Header-/Fallback-Texte in Build, Diagnosis, Preview, Connections, Credentials und Chat-Menü; gezielte Regression für Preview-Status-Text ergänzt.
 - [x] Patch 441 — fokussiertes UX-Feintuning für die drei Kernscreens: Build-Status/CTA-Wording beruhigt, Diagnose-Aktionssprache alltagsnäher gemacht und Preview-Statuswörter für Live/Fallback/Fehler vereinheitlicht; bestehende Guard-/Statuslogik unverändert belassen.

@@ -2,12 +2,18 @@
 // Intended for internal tooling (wizard + CI).
 import { errorResponse } from "./cors.ts";
 
+type RuntimeGlobals = {
+  Deno?: { env?: { get?: (key: string) => string | undefined } };
+  process?: { env?: Record<string, string | undefined> };
+};
+
 const getRuntimeEnv = (key: string): string | undefined => {
-  const deno = (globalThis as any)?.Deno;
+  const runtime = globalThis as typeof globalThis & RuntimeGlobals;
+  const deno = runtime.Deno;
   const denoVal = deno?.env?.get?.(key);
   if (typeof denoVal === "string") return denoVal;
 
-  const proc = (globalThis as any)?.process;
+  const proc = runtime.process;
   const nodeVal = proc?.env?.[key];
   return typeof nodeVal === "string" ? nodeVal : undefined;
 };
