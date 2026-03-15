@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 459: Rest-Regression aus PR #272 geschlossen — Attachment-Hinweis wird nicht mehr vor Meta-Command-Routing in den User-Input injiziert; lokale/full-line Kommandos (`cat ...`, `zeige datei ...`) laufen wieder auf unverändertem Raw-Input, während der Hinweis nur im normalen AI-Request-Payload landet; gezielte Invariant-Regression ergänzt.
 - Patch 458: ChatScreen/Chat-Flow konservativ gehärtet — Attachment-Kommunikation ist jetzt explizit ehrlich (Dateiname/Metadaten statt impliziter Inhaltsanalyse), Chat-History wird bereits beim Append per Retention begrenzt, Focus-Cleanup räumt Pending-/Modal-/Streaming-State auf, und chatAIFlow-Typing-/Import-Artefakte wurden bereinigt.
 - Patch 457: Offener Connections-Busy-Guard-UX-Bug geschlossen — dedizierter `BusyGuardActiveError` trennt Busy-Kollisionen von echten Save/Test-Fehlern, sodass der Hinweis „Ein anderer Save/Test-Lauf ist noch aktiv.“ nur noch bei realer Konkurrenz erscheint; `useChatAIFlow`-Pending-Plan-Guard wurde gezielt geprüft und per Invariant gegen versehentlichen Logikdrift abgesichert.
 - Patch 456: Chat-Drift-Digest gegen RN-Runtime-Regression abgesichert — `lib/chatFlowStateGuards.ts` dokumentiert nun explizit Node-`crypto`-Importverbot im App-Pfad (`useChatAIFlow`), Hashing bleibt runtime-safe ohne Metro-Polyfill-Abhängigkeit.

@@ -357,17 +357,15 @@ export const useChatScreen = () => {
 
     setError(null);
 
-    const currentInput = buildUserInputWithAttachmentNotice(
-      textInput,
-      selectedFileAsset,
-    );
+    const rawInput = textInput.trim();
+    const currentInput = buildUserInputWithAttachmentNotice(rawInput, selectedFileAsset);
 
     setTextInput("");
     setSelectedFileAsset(null);
 
     Keyboard.dismiss();
 
-    await handleSendWithMeta(currentInput);
+    await handleSendWithMeta(rawInput, currentInput);
   }, [
     textInput,
     selectedFileAsset,
