@@ -1,11 +1,9 @@
 
-## 2026-03-15 — Patch 452: AI/Chat/Prompting Restfixes
+## 2026-03-15 — Patch 453: KI-/Chat-Nachaudit (misstrauisch)
 
-- KI-/Prompt-Context: Projekt-Snapshot priorisiert relevante Dateien anhand Nutzerfokus (nicht nur Array-Reihenfolge), weiterhin hart begrenzt.
-- Builder-Flow: Non-JSON-Antworten liefern jetzt eine verständliche Fehlermeldung inkl. KI-Text-Preview statt nur kryptischem Parser-/Normalizer-Fehler.
-- State-Drift-Guard: Digest von `path:length` auf `sha256(path+content)` gehärtet (same-length Inhaltsänderungen werden erkannt).
-- Nutzerfeedback: Ownership-/Validator-/Explain-Restfälle werden sichtbar im Chat kommuniziert (kein stilles Verschlucken).
-- Einordnung: `k1w1-handler` bleibt Edge-/Serverpfad; kein blinder Client-Architektur-Umbau in diesem konservativen Patch.
+- Echte Restlücke geschlossen: `normalizeAiResponseDetailed` übernimmt bei `{ output_text: ... }` den Text jetzt als `responseText`, sodass der Builder-Non-JSON-Fehlerpfad verständliche KI-Preview behält.
+- Regressionstests nachgeschärft: `output_text`-Fallback und `no_valid_files_after_normalization` sind explizit abgedeckt.
+- Full-Suite lief im Audit-Lauf vollständig grün; der Fokus dieses Patches bleibt dennoch strikt auf dem KI-/Chat-Restpunkt.
 
 Checks (lokal):
 - `bash scripts/check_workflow_template_drift.sh`
@@ -15,6 +13,7 @@ Checks (lokal):
 - `bash scripts/check_patch_docs_sync.sh`
 - `npm run typecheck`
 - `npm run lint:ci`
+- `npm run test:silent -- --runInBand lib/__tests__/normalizer.test.ts __tests__/promptEngine.contextPriority.test.ts __tests__/chatFlowStateGuards.test.ts lib/__tests__/projectOwnership.test.ts`
 - `npm run test:silent`
 
 # PROJECT_CHECKLOG
@@ -23,6 +22,7 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-15: Patch 453: Misstrauisches KI-/Chat-Nachaudit — echte Restlücke im Non-JSON-Fehlerpfad geschlossen (`output_text` wird im Normalizer als Response-Text durchgereicht), gezielte Regressionstests ergänzt; Full-Suite im Audit-Lauf grün.
 - 2026-03-15: Patch 451: PreviewScreen/PreviewFullscreen-Restprobleme konservativ behoben — `usePreview` nutzt content-basierte Fingerprints (Hot-Reload erkennt nun auch inhaltliche Same-Length-Edits), PreviewScreen nutzt dieselbe WebView-Crash-Recovery wie Fullscreen (inkl. one-shot Auto-Reload), und abgelaufene Supabase-URLs werden im normalen PreviewScreen nicht mehr blind in die WebView gegeben; Preview-Helper/Types dedupliziert, `previewFiles`-Dependency auf `projectData?.files` verengt, lokale HTML-Fallback-Transienz im UI klarer benannt.
 - 2026-03-15: Patch 450: CustomHeader-/CI-Lite-Restfix konservativ umgesetzt — `useGitHubActionsLogs` resetet `workflowRun`/`logs` bei Input-Wechsel und verwirft verspätete Antworten per Request-Key-Guard; CI-Lite-Persistenz speichert nur noch für den aktiven CI-Lite-Run-Kontext (`workflowRun.id===runId` + Repo/Branch-Guard), Doppeltap-Dispatch ist blockiert, `head_sha` im `WorkflowRun`-Typ ergänzt, Artifact-JSON lokal typisiert, Patch-Sync ohne `as any` + `syncPatchToGitHub` via `useCallback` stabilisiert; gezielte Regressionen ergänzt.
 - 2026-03-15: Patch 449: EnhancedBuildScreen-Restpunkte gezielt behoben — OneClickDeploy entfernt den redundanten Vorab-Push (SHA-sichere Reihenfolge bleibt im `startBuildJob`), `canStartBuildUi` wurde auf state-basiertes Inflight-Flag umgestellt, unnötige `openRunDetails`-Ref-Dependencies bereinigt und Build-/Logs-`WorkflowRun`-Typing inkl. `event` vereinheitlicht (`LogsAnalysisSection` ohne `any`).

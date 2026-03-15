@@ -11,10 +11,11 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 452**.
+- Zuletzt abgeschlossen: **Patch 453**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
 - Preview-Restfix ist konservativ abgeschlossen: Hot-Reload nutzt content-basierte File-Fingerprints (kein Same-Length-Blindspot mehr), der normale PreviewScreen hat jetzt dieselbe WebView-Crash-Recovery wie Fullscreen, und abgelaufene Supabase-URLs werden im PreviewScreen nicht mehr blind geladen.
 - KI-/Chat-/Prompting-Restpunkte wurden konservativ gehärtet: Projekt-Snapshot priorisiert jetzt relevante Dateien statt reiner Array-Reihenfolge, Builder-NonJSON-Antworten werden als verständliche KI-Rückmeldung angezeigt (statt kryptischem Parserfehler), Drift-Digest nutzt SHA-256 über Pfad+Inhalt (kein Same-Length-Blindspot), und Nutzerfeedback zeigt geblockte/übersprungene Ownership-/Validator-/Explain-Fälle transparenter.
+- Nachaudit (Patch 453): Non-JSON-Fehlerpfad wurde für `output_text`-Antworten wirklich transparent gemacht (Response-Preview bleibt erhalten statt Generic-Fehler), und die Normalizer-Regressionstests decken diesen Randfall jetzt explizit ab.
 - CustomHeader/CI-Lite-Restfix ist konservativ nachgezogen: Logs/Run-State resetten bei Input-Wechsel, verspätete Responses werden per Request-Key-Guard abgefangen, Persistenz schreibt nur noch für den aktiven CI-Lite-Run-Kontext (kein Autofix→CI-Lite-Fehlpersist), und Doppeltap-Dispatch wird geblockt.
 - Build-Job-Vertrag ist auf **positive numerische `jobId`** (bigint-backed) ausgerichtet; UUID-Annahmen sind entfernt.
 - Edge-Shared-Validation/Auth/CORS haben einen kleinen Deno/Node-Typing-Follow-up: Runtime-Env-Lookup ohne `any`, Request-Validation mit engeren Objekt-/Union-Typen (kein Broad-Refactor).
