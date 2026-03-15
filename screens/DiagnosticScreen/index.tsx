@@ -21,7 +21,7 @@ import { HeaderSection } from "./components/HeaderSection";
 import { PreviewModal } from "./components/PreviewModal";
 import { SectionCard } from "../../components/diagnostics/SectionCard";
 import { SeverityBadge } from "../../components/diagnostics/SeverityBadge";
-import type { PreflightCheckResult } from "../../lib/diagnostics/preflightTypes";
+import type { PreflightCheckResult, PreflightStatus } from "../../lib/diagnostics/preflightTypes";
 
 import { styles } from "./styles";
 
@@ -34,12 +34,8 @@ export default function DiagnosticScreen() {
   const { projectData, updateProjectFiles, deleteFile, setPreferredBuildProfile } =
     useProject();
 
-  const linkedRepo = (projectData as any)?.linkedRepo
-    ? String((projectData as any).linkedRepo)
-    : "";
-  const linkedBranch = (projectData as any)?.linkedBranch
-    ? String((projectData as any).linkedBranch)
-    : "";
+  const linkedRepo = projectData?.linkedRepo ? String(projectData.linkedRepo) : "";
+  const linkedBranch = projectData?.linkedBranch ? String(projectData.linkedBranch) : "";
 
   const {
     headerStats,
@@ -162,7 +158,7 @@ export default function DiagnosticScreen() {
 
   const severityFor = useMemo(() => {
     return (r: PreflightCheckResult) => {
-      const st = (r.status ?? "pass") as any;
+      const st = (r.status ?? "pass") as PreflightStatus;
       return toSeverity(st);
     };
   }, [toSeverity]);
@@ -333,12 +329,12 @@ export default function DiagnosticScreen() {
                         ) : null}
                       </View>
                       <View style={{ alignItems: "flex-end", gap: 6 }}>
-                        <SeverityBadge severity={sev as any} />
+                        <SeverityBadge severity={sev} />
                         {hasFix ? (
                           <Text style={styles.fixHint}>Auto-Fix verfuegbar</Text>
-                        ) : (
+                        ) : r.status !== "pass" ? (
                           <Text style={styles.fixHint}>KI-Fix verfuegbar</Text>
-                        )}
+                        ) : null}
                         <TouchableOpacity
                           style={styles.chatFixBtn}
                           onPress={() => sendIssueToChat(r)}
@@ -392,7 +388,7 @@ export default function DiagnosticScreen() {
 
               <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.sm }}>
                 {issueList.map((it) => {
-                  const st = (it.status ?? "pass") as any;
+                  const st = (it.status ?? "pass") as PreflightStatus;
                   const sev = toSeverity(st);
                   return (
                     <TouchableOpacity
@@ -411,7 +407,7 @@ export default function DiagnosticScreen() {
                           </Text>
                         ) : null}
                       </View>
-                      <SeverityBadge severity={sev as any} />
+                      <SeverityBadge severity={sev} />
                     </TouchableOpacity>
                   );
                 })}

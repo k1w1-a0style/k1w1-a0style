@@ -2,7 +2,6 @@
 // REFACTORED: check runners → diagnosticRunners.ts
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { MutableRefObject } from "react";
 import { Alert, LayoutAnimation, Platform, UIManager } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -15,9 +14,6 @@ import type { BuildMode } from "../../../components/diagnostics/ModeSelector";
 import type { TabKey } from "../../../components/diagnostics/SegmentedTabs";
 
 import type { PreflightCheckResult, PreflightTarget } from "../../../lib/diagnostics/preflightTypes";
-import { runPreflightChecksProgressive } from "../../../lib/diagnostics/preflightRunner";
-import { runBuildPipelineDiagnostics } from "../../../lib/diagnostics/buildPipelineDiagnostics";
-import { parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
 
 import { useDiagnosticCiAutofix } from "./useDiagnosticCiAutofix";
 
@@ -31,7 +27,7 @@ import { useDiagnosticFixRunner } from "./useDiagnosticFixRunner";
 import { useDiagnosticSelection } from "./useDiagnosticSelection";
 import { useDiagnosticIssueFiltering } from "./useDiagnosticIssueFiltering";
 
-import type { ProjectData } from "../../../shared/types/project";
+import type { ProjectData, ProjectFile } from "../../../shared/types/project";
 
 import { ORDER, runLocalChecks, runPipelineChecks } from "./diagnosticRunners";
 
@@ -74,15 +70,14 @@ export function useDiagnosticScreen(opts: {
   linkedBranch?: string;
   setPreferredBuildProfile?: (mode: BuildMode) => void;
   navigation?: any;
-  updateProjectFiles?: any;
-  deleteFile?: any;
+  updateProjectFiles: (files: ProjectFile[], newName?: string) => Promise<void>;
+  deleteFile: (path: string) => Promise<void>;
 }) {
   const {
     projectData,
     linkedRepo,
     linkedBranch,
     setPreferredBuildProfile,
-    navigation,
     updateProjectFiles,
     deleteFile,
   } = opts;
@@ -131,7 +126,7 @@ export function useDiagnosticScreen(opts: {
 
   // Recommended by default, Advanced optional multi-select
   const recommendedMode = useMemo<BuildMode>(() => {
-    const preferred = String((projectData as any)?.preferredBuildProfile || "development");
+    const preferred = String(projectData?.preferredBuildProfile || "development");
     if (preferred === "preview" || preferred === "production" || preferred === "development") {
       return preferred;
     }
@@ -306,6 +301,7 @@ export function useDiagnosticScreen(opts: {
       }
     },
     [
+      clearSelection,
       includeLocalChecks,
       includePipelineChecks,
       linkedRepo,

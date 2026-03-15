@@ -1,34 +1,13 @@
 // screens/DiagnosticScreen/hooks/diagnosticRunners.ts
 // Extracted from useDiagnosticScreen.ts: standalone async check runners.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
-import { Alert, LayoutAnimation, Platform, UIManager } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { STORAGE_KEYS } from "../../../lib/storageKeys";
-
-
-import type { BuildMode } from "../../../components/diagnostics/ModeSelector";
-import type { TabKey } from "../../../components/diagnostics/SegmentedTabs";
-
-import type { PreflightCheckResult, PreflightTarget } from "../../../lib/diagnostics/preflightTypes";
+import type { ProjectFile } from "../../../shared/types/project";
+import type { PreflightCheckResult } from "../../../lib/diagnostics/preflightTypes";
 import { runPreflightChecksProgressive } from "../../../lib/diagnostics/preflightRunner";
 import { runBuildPipelineDiagnostics } from "../../../lib/diagnostics/buildPipelineDiagnostics";
 import { parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
-
-import { useDiagnosticCiAutofix } from "./useDiagnosticCiAutofix";
-
-import { useInlineToast } from "../../../components/diagnostics/useInlineToast";
-import type { IssueDetail } from "../../../components/diagnostics/IssueDetailSheet";
-
-import { useDiagnosticPreferences } from "./useDiagnosticPreferences";
-import { useDiagnosticUpload } from "./useDiagnosticUpload";
-import { useDiagnosticFixRunner } from "./useDiagnosticFixRunner";
-import { useDiagnosticSelection } from "./useDiagnosticSelection";
-import { useDiagnosticIssueFiltering } from "./useDiagnosticIssueFiltering";
-
-import type { ProjectData } from "../../../shared/types/project";
 
 import type { Status } from "../types";
 export const ORDER: Record<Status, number> = { fail: 0, warn: 1, pass: 2 };
@@ -36,7 +15,7 @@ export const ORDER: Record<Status, number> = { fail: 0, warn: 1, pass: 2 };
 export async function runLocalChecks(params: {
   includeLocalChecks: boolean;
   focusedProfiles: Array<"development" | "preview" | "production">;
-  files: any;
+  files: ProjectFile[];
   all: PreflightCheckResult[];
   mountedRef: MutableRefObject<boolean>;
   setResults: (v: PreflightCheckResult[]) => void;
@@ -75,12 +54,12 @@ export async function runLocalChecks(params: {
     }
 
     const prog = runPreflightChecksProgressive(files, t);
-    for await (const stage of prog as any) {
+    for await (const stage of prog) {
       if (!mountedRef.current) break;
 
-      if (stage?.priority) {
+      if (stage?.stage) {
         if (mountedRef.current) {
-          setProgressStage(`Checks: local/${t.profile} • ${String(stage.priority)}`);
+          setProgressStage(`Checks: local/${t.profile} • ${String(stage.stage)}`);
         }
       }
 
@@ -105,7 +84,7 @@ export async function runPipelineChecks(params: {
   includePipelineChecks: boolean;
   linkedRepo: string;
   linkedBranch?: string;
-  files: any[];
+  files: ProjectFile[];
   pipelineAppliesToFocus: (id: string) => boolean;
   all: PreflightCheckResult[];
   mountedRef: MutableRefObject<boolean>;
@@ -132,7 +111,7 @@ export async function runPipelineChecks(params: {
   const syncState = await getRepoSyncState({
     linkedRepo,
     linkedBranch: branch,
-    files: files as any,
+    files,
   });
   if (syncState !== "in_sync") {
     all.push({
