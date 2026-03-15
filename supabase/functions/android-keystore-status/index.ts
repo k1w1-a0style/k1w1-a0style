@@ -2,30 +2,18 @@
 // Returns whether a signing record exists for the repo and (best-effort) whether
 // the encrypted blob exists in Storage.
 
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-import { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
-import { rateLimit, requireAdminKey, getServiceRoleKey } from "../_shared/auth.ts";
-
-type Mode = "development" | "preview" | "production";
-
-function resolveMode(v: unknown): Mode {
-  const s = typeof v === "string" ? v.trim() : "";
-  const lower = s.toLowerCase();
-  if (lower === "dev") return "development";
-  if (lower === "development" || lower === "preview" || lower === "production") return lower as Mode;
-  return "production";
-}
-
-
-function safeString(v: unknown): string {
-  return typeof v === "string" ? v.trim() : "";
-}
-
-function repoOk(repo: string): boolean {
-  return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo);
-}
+import {
+  createClient,
+  errorResponse,
+  getServiceRoleKey,
+  handleCors,
+  jsonResponse,
+  rateLimit,
+  repoOk,
+  requireAdminKey,
+  resolveMode,
+  safeString,
+} from "./helpers.ts";
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
@@ -99,7 +87,9 @@ Deno.serve(async (req) => {
       },
       req,
     );
-  } catch (e) {
-    return errorResponse("Unhandled error", req, 500, { message: e?.message || String(e) });
+  } catch (e: unknown) {
+    return errorResponse("Unhandled error", req, 500, {
+      message: e instanceof Error ? e.message : String(e),
+    });
   }
 });

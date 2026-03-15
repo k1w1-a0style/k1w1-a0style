@@ -5,6 +5,25 @@ import { validateCheckBuildRequest, parseJsonBody } from "../_shared/validation.
 import { requireAdminKeyOrServiceRoleBearer, rateLimit } from "../_shared/auth.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 
+type BuildJobRow = {
+  id: number;
+  status?: string | null;
+  github_repo?: string | null;
+  github_run_id?: number | null;
+  build_profile?: string | null;
+  branch?: string | null;
+  build_url?: string | null;
+  download_url?: string | null;
+  source_commit_sha?: string | null;
+  artifact_name?: string | null;
+  artifact_sha256?: string | null;
+  artifact_size?: number | null;
+  error_message?: string | null;
+  error?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
 serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
@@ -53,8 +72,7 @@ serve(async (req) => {
     if (res.error) return errorResponse("DB error", req, 500, res.error);
     if (!res.data) return errorResponse("Not found", req, 404, { jobId });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const job: any = res.data;
+    const job = res.data as BuildJobRow;
 
     const githubRunUrl =
       job.github_run_id && job.github_repo
@@ -133,9 +151,9 @@ serve(async (req) => {
       req,
       200,
     );
-  } catch (e) {
+  } catch (e: unknown) {
     return errorResponse("Unexpected error", req, 500, {
-      message: sanitizeErrorText(e?.message ?? String(e)),
+      message: sanitizeErrorText(e instanceof Error ? e.message : String(e)),
     });
   }
 });

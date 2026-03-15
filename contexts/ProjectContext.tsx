@@ -167,6 +167,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   const [currentBuild, setCurrentBuild] = useState<CurrentBuildState | null>(
     null,
   );
+  const currentBuildRef = useRef<CurrentBuildState | null>(null);
+  currentBuildRef.current = currentBuild;
   const activeBuildSelectionRef = useRef<BuildSelectionSnapshot | null>(null);
 
   // Centralized polling (single source of truth)
@@ -699,7 +701,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     const historySelection = resolveHistoryBuildSelection({
       activeJobId,
       snapshot: activeBuildSelectionRef.current,
-      currentBuild,
+      currentBuild: currentBuildRef.current,
     });
 
     updateBuildInHistory(activeJobId, {
@@ -716,7 +718,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         historyError,
       );
     });
-  }, [activeJobId, buildPoll.details, buildPoll.status, currentBuild]);
+  }, [activeJobId, buildPoll.details, buildPoll.status]);
 
   const startBuild = useCallback(
     async (buildProfile?: string) => {
