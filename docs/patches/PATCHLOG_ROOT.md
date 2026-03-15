@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 446: selektiver Type-Safety-Restpunkt im Build-Start-Flow geschlossen — `buildStartService` ersetzt riskante `as any`-Zugriffe auf Edge-Invoke-Payload durch lokales Narrowing, entfernt unnötigen Push-Cast und ergänzt gezielte Regressionen für `job.id`-/Error-Payload-Shape.
 - Patch 445: `save_preview`-Konsistenz zusätzlich gegen Auth-/Rate-Limit-Fehlerpfade abgesichert und kleiner Deno/Node-Typecheck-Restpunkt in `_shared/auth` per runtime-kompatiblem Env-Lookup behoben; Typecheck wieder grün.
 - Patch 444: `save_preview` CORS-/Response-Konsistenz konservativ gehärtet — lokaler Erfolgs-/Fehlerpfad nutzt jetzt denselben `_shared/cors`-Header-Stack wie Auth/Rate-Limit-Guards; gezielte Invariants sichern Header-Gleichlauf inkl. Security-Headern.
 - Patch 443: k1w1-handler Provider-Randfälle gehärtet — Anthropic sendet bei reinen `system`-Prompts kein leeres `messages`-Array mehr (konservativer Fallback-Turn), Gemini behandelt `system` explizit via `systemInstruction` + nicht-leerer `contents`-Fallback; doppeltes Nullish-Coalescing bereinigt, Invariants ergänzt.
