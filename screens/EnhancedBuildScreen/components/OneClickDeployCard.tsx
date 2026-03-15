@@ -10,7 +10,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../../../theme";
-import type { DeployStep, DeployStepStatus } from "../hooks/useOneClickDeploy";
+import type { DeployStep } from "../hooks/useOneClickDeploy";
+import { resolvePrimaryActionLabel } from "../hooks/statusCommunication";
 
 import { s } from "./OneClickDeployCard.styles";
 
@@ -187,6 +188,12 @@ export function OneClickDeployCard({
 }) {
   const hasFail = steps.some((st) => st.status === "fail");
   const deployBlocked = !!disabled && !isDeploying;
+  const primaryActionLabel = resolvePrimaryActionLabel({
+    isDeploying,
+    hasFail,
+    deployDone,
+    deployBlocked,
+  });
 
   return (
     <View style={s.card}>
@@ -225,6 +232,7 @@ export function OneClickDeployCard({
 
       {/* Action Buttons */}
       <View style={s.actions}>
+        <Text style={s.optionHint}>Hauptaktion: {primaryActionLabel}</Text>
         {isDeploying ? (
           <Pressable style={s.abortBtn} onPress={onAbort}>
             <Ionicons name="stop-circle-outline" size={16} color={theme.palette.error} />
@@ -237,12 +245,12 @@ export function OneClickDeployCard({
             disabled={deployBlocked}
           >
             <Ionicons name="refresh-outline" size={16} color={theme.palette.warning} />
-            <Text style={s.retryBtnText}>Erneut versuchen</Text>
+            <Text style={s.retryBtnText}>Vorbereitung erneut ausführen</Text>
           </Pressable>
         ) : deployDone ? (
           <Pressable style={s.resetBtn} onPress={onReset}>
             <Ionicons name="refresh-outline" size={16} color={theme.palette.text.secondary} />
-            <Text style={s.resetBtnText}>Zuruecksetzen</Text>
+            <Text style={s.resetBtnText}>Ablauf zurücksetzen</Text>
           </Pressable>
         ) : (
           <Pressable
@@ -251,7 +259,7 @@ export function OneClickDeployCard({
             disabled={deployBlocked}
           >
             <Ionicons name="rocket-outline" size={18} color={theme.palette.primary} />
-            <Text style={s.deployBtnText}>Autoflow starten</Text>
+            <Text style={s.deployBtnText}>Build mit Vorbereitung starten</Text>
           </Pressable>
         )}
       </View>
@@ -264,4 +272,3 @@ export function OneClickDeployCard({
     </View>
   );
 }
-

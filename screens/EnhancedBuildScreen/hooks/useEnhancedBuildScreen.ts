@@ -503,9 +503,9 @@ export function useEnhancedBuildScreen() {
     return [
       {
         id: "signing_key",
-        label: "Signing Key vorhanden",
+        label: "Signing-Key bereit",
         status: hasSigningKey ? "ok" : "fail",
-        detail: hasSigningKey ? `${buildProfile} · zuletzt bekannter Wizard-Status` : "Key fehlt - im Wizard prüfen/generieren",
+        detail: hasSigningKey ? `${buildProfile} · letzter bekannter Wizard-Stand` : "Fehlt noch - im Wizard prüfen oder erzeugen",
       },
       {
         id: "tokens",
@@ -515,17 +515,17 @@ export function useEnhancedBuildScreen() {
       },
       {
         id: "diagnostic",
-        label: "Diagnostik gruen",
+        label: "Diagnose erfolgreich",
         status: hasDiagOk ? "ok" : "pending",
-        detail: hasDiagOk ? "Letzte Diagnostik OK" : "Diagnostik ausfuehren",
+        detail: hasDiagOk ? "Letzter bekannter Diagnose-Check: OK" : "Diagnose ausführen",
       },
       {
         id: "ci_lite",
-        label: "CI Lite gruen (TS + ESLint)",
+        label: "Code-Checks grün (CI Lite)",
         status: hasCiLiteOk ? "ok" : ciLiteStale ? "fail" : "pending",
         detail: hasCiLiteOk
-          ? "Letzter CI Lite Run OK"
-          : (ciLiteReason || "Header: CI Lite ausfuehren"),
+          ? "Letzter bekannter CI-Lite-Run: OK"
+          : (ciLiteReason || "Im Header CI Lite ausführen"),
       },
       {
         id: "repo",
