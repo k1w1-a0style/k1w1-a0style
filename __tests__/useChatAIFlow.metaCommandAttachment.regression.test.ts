@@ -8,11 +8,13 @@ describe("useChatAIFlow meta command + attachment regression", () => {
   it("routes meta commands against raw user input before AI attachment notice input", () => {
     expect(src).toContain("async (\n      rawInput: string,\n      aiInput: string = rawInput,");
     expect(src).toContain("const userContent = rawInput.trim();");
-    expect(src).toContain("const metaResult = handleMetaCommand(userContent, projectFilesRef.current);");
+    expect(src).toContain("const aiContent = aiInput.trim();");
+    expect(src).toContain("if (!userContent && !aiContent) return false;");
+    expect(src).toContain("const metaResult = userContent");
   });
 
   it("keeps attachment notice scoped to the AI request payload", () => {
-    expect(src).toContain("const aiContent = aiInput.trim();");
+    expect(src).toContain("content: userContent || aiContent,");
     expect(src).toContain("await processAIRequest(aiContent || userContent, false, false);");
   });
 });
