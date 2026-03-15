@@ -1,12 +1,13 @@
 # TODO
 
-Stand: **2026-03-15 (Patch 446)**
+Stand: **2026-03-15 (Patch 448)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
 
 ## Aktuell (Priorität)
 
+- [x] **DiagnosticScreen-Restpunkte (Flow/UX/Typing) gezielt behoben:** progressiver Preflight zeigt wieder Severity-Stufe (`stage` statt falschem `priority`-Zugriff), „KI-Fix verfuegbar“ wird nicht mehr für `pass`-Checks angezeigt, plus selektive Typing-/Hook-Cleanups (`projectData`-Casts, `runLocalChecks/runPipelineChecks`-`files`-Typing, `updateProjectFiles`/`deleteFile`-Signaturen, tote Runner-Imports, `clearSelection`-Dependency) inkl. gezielter Regressionstests (Patch 448).
 - [x] **Edge-Typecheck-Restpunkt (Deno/Node-Env in `_shared/auth`) gezielt behoben:** Secret-Lookups laufen jetzt runtime-kompatibel über Deno-oder-Node-Env-Lookup; `npm run typecheck` ist wieder grün, ohne Broad-Refactor (Patch 445).
 - [x] **`save_preview` CORS-/Security-Header konsistent gehärtet:** Erfolgs- und lokale Fehlerpfade nutzen nun denselben `_shared/cors`-Header-Stack wie Auth-/Rate-Limit-Fehler; gezielte Invariants sichern Header-Gleichlauf ohne Architekturumbau (Patch 444).
 - [x] **k1w1-handler Provider-Randfälle (Anthropic/Gemini) gehärtet:** Anthropic schützt gegen leere Requests bei reinen `system`-Prompts; Gemini trennt `system` explizit via `systemInstruction` und nutzt einen nicht-leeren Fallback für `contents`; doppelte No-op-Coalescing-Stelle entfernt, Invariants ergänzt (Patch 443).
@@ -359,6 +360,12 @@ Akzeptanz:
 
 ### DiagnosticScreen
 
+- [x] **DIAG-448 (P1)** Progressive Preflight-Stage nutzt korrekt `stage` (Severity wird im Fortschritt sichtbar) ✅ *(patch 448)*
+  _Ort_: `screens/DiagnosticScreen/hooks/diagnosticRunners.ts`
+- [x] **DIAG-448 (P1)** „KI-Fix verfuegbar“ wird nicht mehr für `pass`-Items gerendert ✅ *(patch 448)*
+  _Ort_: `screens/DiagnosticScreen/index.tsx`
+- [x] **DIAG-448 (P2)** Flow-nahe Typing-/Hook-Restpunkte im DiagnosticScreen bereinigt (unnötige Casts, Hook-Dependencies, Runner-Typen) ✅ *(patch 448)*
+  _Ort_: `screens/DiagnosticScreen/hooks/useDiagnosticScreen.ts`, `screens/DiagnosticScreen/hooks/diagnosticRunners.ts`, `screens/DiagnosticScreen/index.tsx`
 - [x] **DIAG-106 (P1)** `applyPatch`: Delete-Fehler nicht schlucken (keine File-Leichen / kein projectRef-Phantom-State) ✅ *(patch 106)*  
   _Ort_: `screens/DiagnosticScreen/hooks/useDiagnosticFixRunner.ts`
 - [x] **DIAG-106 (P2)** Batch-Progress: `setFixStepIndex` auch für Apply-Steps ✅ *(patch 106)*  

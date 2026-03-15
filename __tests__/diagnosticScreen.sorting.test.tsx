@@ -39,7 +39,7 @@ jest.mock("../screens/DiagnosticScreen/hooks/useDiagnosticScreen", () => ({
     results: [
       { id: "pass", title: "pass item", status: "pass" },
       { id: "warn", title: "warn item", status: "warn" },
-      { id: "fail", title: "fail item", status: "fail" },
+      { id: "fail", title: "fail item", status: "fail", fix: { patch: { upsert: [] } } },
     ],
     setReportVisible: jest.fn(),
     fixableResults: [],
@@ -66,4 +66,11 @@ describe("DiagnosticScreen checklist sorting", () => {
     const titles = getAllByText(/ item$/).map((node) => String(node.props.children));
     expect(titles).toEqual(["fail item", "warn item", "pass item"]);
   });
+
+  test("does not show KI-Fix hint for pass items", () => {
+    const { queryAllByText } = render(<DiagnosticScreen />);
+    expect(queryAllByText("KI-Fix verfuegbar")).toHaveLength(1);
+    expect(queryAllByText("Auto-Fix verfuegbar")).toHaveLength(1);
+  });
+
 });
