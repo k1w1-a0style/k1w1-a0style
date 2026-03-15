@@ -1,3 +1,13 @@
+## 2026-03-15 — Patch 456: Chat-Drift-Digest RN-Guardrail
+
+- `lib/chatFlowStateGuards.ts` dokumentiert jetzt explizit, dass dieser Pfad im React-Native-App-Runtime-Kontext läuft und daher **keine** Node-Core-Imports wie `crypto` enthalten darf.
+- Damit ist der Drift-Digest-Pfad gegen Metro-Resolve-Regressionen abgesichert; Hashing bleibt runtime-safe ohne Node-Polyfill-Abhängigkeit.
+
+Checks (lokal):
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 ## 2026-03-15 — Patch 455: ConnectionsScreen Secret-/Flow-Restpunkte konservativ gehärtet
 
 - Supabase-ANON-Key im Connections-Flow auf SecureStore umgestellt (`supabase_anon_key_v1`) inkl. Legacy-Migration aus AsyncStorage (`STORAGE_KEYS.SUPABASE_KEY`) und Cleanup des Legacy-Keys.
@@ -57,6 +67,7 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-15: Patch 456: Chat-Drift-Digest RN-sicher dokumentiert — `lib/chatFlowStateGuards.ts` enthält jetzt eine explizite Guardrail-Notiz gegen Node-`crypto` im App-Runtime-Pfad (`useChatAIFlow`), damit Metro-Bundles keine Node-Core-Module auflösen müssen.
 - 2026-03-15: Patch 455: ConnectionsScreen-Restpunkte konservativ gehärtet — Supabase-ANON-Key jetzt SecureStore-basiert (inkl. Legacy-Migration), Busy-/Hydration-Guards blockieren parallele Save/Test-Runs, `testExpo` ohne Token-Persistenz-Side-Effect, EAS-Link-Lampe nicht mehr optimistisch grün; flow-nahe Invariants + Storage-Tests ergänzt.
 - 2026-03-15: Patch 454: OneClickDeploy-Testflake in `__tests__/oneClickDeploy.test.tsx` gezielt stabilisiert (deterministischer `act`-Press + Microtask-Flush, AsyncStorage-Default-Resolves, striktes Cleanup/Timer-Clear); kein Produktcode-Umbau.
 - 2026-03-15: Patch 453: Misstrauisches KI-/Chat-Nachaudit — echte Restlücke im Non-JSON-Fehlerpfad geschlossen (`output_text` wird im Normalizer als Response-Text durchgereicht), gezielte Regressionstests ergänzt; Full-Suite im Audit-Lauf grün.

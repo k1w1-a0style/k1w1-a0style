@@ -1,3 +1,6 @@
+// NOTE: This module runs inside the React Native app runtime (via useChatAIFlow).
+// Keep it free of Node-only imports (e.g. `node:crypto` / `crypto`) to avoid Metro
+// resolution failures on device bundles.
 import type { ApplyFilesResult } from "./fileWriter";
 import { applyFilesToProject } from "./fileWriter";
 import type { ProjectFile } from "../shared/types/project";
