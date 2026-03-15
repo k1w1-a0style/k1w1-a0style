@@ -2,6 +2,26 @@
 // Intended for internal tooling (wizard + CI).
 import { errorResponse } from "./cors.ts";
 
+const getRuntimeEnv = (key: string): string | undefined => {
+  const deno = (globalThis as any)?.Deno;
+  const denoVal = deno?.env?.get?.(key);
+  if (typeof denoVal === "string") return denoVal;
+
+  const proc = (globalThis as any)?.process;
+  const nodeVal = proc?.env?.[key];
+  return typeof nodeVal === "string" ? nodeVal : undefined;
+};
+
+const getAdminSecret = (): string | null =>
+  getRuntimeEnv("K1W1_EDGE_ADMIN_KEY") ??
+  getRuntimeEnv("SIGNING_ADMIN_KEY") ??
+  null;
+
+const getServiceRoleSecret = (): string | null =>
+  getRuntimeEnv("K1W1_SUPABASE_SERVICE_ROLE_KEY") ??
+  getRuntimeEnv("SUPABASE_SERVICE_ROLE_KEY") ??
+  null;
+
 export function getBearerToken(req: Request): string | null {
   const h = req.headers.get("authorization") ?? req.headers.get("Authorization");
   if (!h) return null;
@@ -18,17 +38,11 @@ export function getAdminKeyHeader(req: Request): string | null {
 }
 
 export function hasAdminKeySecretConfigured(): boolean {
-  return !!(
-    Deno.env.get("K1W1_EDGE_ADMIN_KEY") ||
-    Deno.env.get("SIGNING_ADMIN_KEY")
-  );
+  return !!getAdminSecret();
 }
 
 export function hasServiceRoleSecretConfigured(): boolean {
-  return !!(
-    Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY") ||
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
-  );
+  return !!getServiceRoleSecret();
 }
 
 /**
@@ -37,11 +51,7 @@ export function hasServiceRoleSecretConfigured(): boolean {
  * the caller's Authorization header.
  */
 export function getServiceRoleKey(_req: Request): string | null {
-  return (
-    Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY") ||
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
-    null
-  );
+  return getServiceRoleSecret();
 }
 
 /**
@@ -49,10 +59,7 @@ export function getServiceRoleKey(_req: Request): string | null {
  * Returns Response on failure, null on success.
  */
 export function requireAdminKey(req: Request): Response | null {
-  const expected =
-    Deno.env.get("K1W1_EDGE_ADMIN_KEY") ??
-    Deno.env.get("SIGNING_ADMIN_KEY") ??
-    null;
+  const expected = getAdminSecret();
   const got = getAdminKeyHeader(req) ?? "";
 
   if (!expected) {
@@ -79,10 +86,7 @@ export function requireAdminKey(req: Request): Response | null {
  * This is a caller-auth gate only. It does not supply the server-side DB key.
  */
 export function requireServiceRoleBearer(req: Request): Response | null {
-  const expected =
-    Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY") ??
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
-    null;
+  const expected = getServiceRoleSecret();
   const got = getBearerToken(req) ?? "";
 
   if (!expected) {
