@@ -23,6 +23,7 @@ export default function ConnectionsScreen() {
   const {
     navigation,
     busy,
+    hydrated,
 
     isEasInitRunning,
 
@@ -137,7 +138,7 @@ export default function ConnectionsScreen() {
 
         <StatusCard
           styles={styles}
-          busy={busy}
+          busy={busy || !hydrated}
           easInitRunning={isEasInitRunning}
           status={status}
           repoLine={repoLine}
@@ -160,7 +161,7 @@ export default function ConnectionsScreen() {
 
         <TokensCard
           styles={styles}
-          busy={busy}
+          busy={busy || !hydrated}
           githubToken={githubToken}
           onChangeGitHubToken={setGithubToken}
           expoToken={expoToken}
@@ -180,7 +181,7 @@ export default function ConnectionsScreen() {
 
         <SupabaseCard
           styles={styles}
-          busy={busy}
+          busy={busy || !hydrated}
           supabaseRaw={supabaseRaw}
           onChangeSupabaseRaw={setSupabaseRaw}
           supabaseUrl={supabaseUrl}
@@ -196,7 +197,7 @@ export default function ConnectionsScreen() {
 
         <EasCard
           styles={styles}
-          busy={busy || isTestingEas || isEasInitRunning}
+          busy={!hydrated || busy || isTestingEas || isEasInitRunning}
           easProjectId={easProjectId}
           onChangeEasProjectId={setEasProjectId}
           onTestEas={() => void testEas()}

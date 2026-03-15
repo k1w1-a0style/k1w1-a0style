@@ -22,6 +22,11 @@ import {
   deleteEdgeAdminKey,
   triggerWorkflow,
 } from "../../../infra/github/githubService";
+import {
+  deleteSupabaseAnonKey,
+  getSupabaseAnonKey,
+  saveSupabaseAnonKey,
+} from "../../../lib/supabaseAnonKeyStorage";
 
 import {
   deriveSupabaseUrl,
@@ -77,6 +82,40 @@ export function useConnectionsScreen() {
   // Prevent "token not loaded yet" from clearing persisted OK lights on first mount.
   const [hydrated, setHydrated] = useState(false);
   const didAutoTestEas = useRef(false);
+  const busyRef = useRef(false);
+
+  const withBusyGuard = useCallback(async (task: () => Promise<void>): Promise<boolean> => {
+    if (busyRef.current) return false;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      await task();
+      return true;
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }, []);
+
+  const persistConnLights = useCallback(
+    async (entries: Array<[string, string]>): Promise<void> => {
+      if (!entries.length) return;
+      await AsyncStorage.multiSet(entries).catch(async () => {
+        await Promise.all(entries.map(([key, value]) => AsyncStorage.setItem(key, value).catch(() => {})));
+      });
+    },
+    [],
+  );
+
+  const removeConnLights = useCallback(
+    async (keys: string[]): Promise<void> => {
+      if (!keys.length) return;
+      await AsyncStorage.multiRemove(keys).catch(async () => {
+        await Promise.all(keys.map((key) => AsyncStorage.removeItem(key).catch(() => {})));
+      });
+    },
+    [],
+  );
 
   const saveConnEasOk = useCallback(async (ok: boolean, opts?: { verifiedAt?: string | null }) => {
     const verifiedAt = opts?.verifiedAt ?? null;
@@ -94,6 +133,7 @@ export function useConnectionsScreen() {
   }, []);
 
   const testEas = useCallback(async () => {
+    if (!hydrated || busyRef.current) return;
     // No EAS Project ID -> nothing to test.
     if (!easProjectId?.trim()) {
       await saveConnEasOk(false);
@@ -145,7 +185,7 @@ export function useConnectionsScreen() {
     } finally {
       setIsTestingEas(false);
     }
-  }, [easProjectId, expoToken, saveConnEasOk]);
+  }, [hydrated, easProjectId, expoToken, saveConnEasOk]);
 
   // Expo connection light is persisted (set by explicit "Test Expo"),
   // but we force it OFF if the token is cleared (after hydration).
@@ -196,7 +236,7 @@ export function useConnectionsScreen() {
       const [raw, url, anon, eas] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_RAW).catch(() => ""),
         AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).catch(() => ""),
-        AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_KEY).catch(() => ""),
+        getSupabaseAnonKey().catch(() => ""),
         AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID).catch(() => ""),
       ]);
 
@@ -216,7 +256,6 @@ export function useConnectionsScreen() {
         AsyncStorage.getItem(STORAGE_KEYS.CONN_REPO_BRANCH).catch(() => null),
       ]);
 
-      await AsyncStorage.removeItem(STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY).catch(() => {});
       if (!mounted) return;
       setGithubToken(gh || "");
       setExpoToken(ex || "");
@@ -267,6 +306,7 @@ export function useConnectionsScreen() {
   }, [supabaseRaw]);
 
   const saveAll = useCallback(async () => {
+    if (!hydrated) return;
     const v = validateBeforeSave({
       githubToken,
       expoToken,
@@ -278,79 +318,89 @@ export function useConnectionsScreen() {
       Alert.alert(v.title, v.message);
       return;
     }
-    setBusy(true);
-    try {
+
+    const started = await withBusyGuard(async () => {
       const gh = githubToken.trim();
       const ex = expoToken.trim();
       const edge = edgeAdminKey.trim();
+      const raw = supabaseRaw.trim();
+      const sbUrl = supabaseUrl.trim();
+      const sbAnon = supabaseAnonKey.trim();
+      const easId = easProjectId.trim();
 
       if (gh) await saveGitHubToken(gh);
       else {
         await deleteGitHubToken();
-        // If GitHub token is removed, clear dependent connection states
         setGithubOk(false);
         setGithubUser("");
         setGithubScopes("");
-        await AsyncStorage.setItem(STORAGE_KEYS.CONN_GITHUB_OK, "false").catch(() => {});
-        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_GITHUB_USER).catch(() => {});
-        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_GITHUB_SCOPES).catch(() => {});
-
         setRepoOk(false);
         setRepoOkLine("");
-        await AsyncStorage.setItem(STORAGE_KEYS.CONN_REPO_OK, "false").catch(() => {});
-        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_REPO_SLUG).catch(() => {});
-        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_REPO_BRANCH).catch(() => {});
-
         setEasOk(false);
         setEasLastVerifiedAt(null);
-        await AsyncStorage.setItem(STORAGE_KEYS.CONN_EAS_OK, "false").catch(() => {});
-        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT).catch(() => {});
+        await persistConnLights([
+          [STORAGE_KEYS.CONN_GITHUB_OK, "false"],
+          [STORAGE_KEYS.CONN_REPO_OK, "false"],
+          [STORAGE_KEYS.CONN_EAS_OK, "false"],
+        ]);
+        await removeConnLights([
+          STORAGE_KEYS.CONN_GITHUB_USER,
+          STORAGE_KEYS.CONN_GITHUB_SCOPES,
+          STORAGE_KEYS.CONN_REPO_SLUG,
+          STORAGE_KEYS.CONN_REPO_BRANCH,
+          STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT,
+        ]);
       }
 
-      if (ex) await saveExpoToken(ex);
-      else {
+      if (ex) {
+        await saveExpoToken(ex);
+      } else {
         await deleteExpoToken();
         setExpoOk(false);
         setExpoUser("");
-        await AsyncStorage.setItem(STORAGE_KEYS.CONN_EXPO_OK, "false").catch(() => {});
-        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_EXPO_USER).catch(() => {});
+        await persistConnLights([[STORAGE_KEYS.CONN_EXPO_OK, "false"]]);
+        await removeConnLights([STORAGE_KEYS.CONN_EXPO_USER]);
       }
 
       if (edge) await saveEdgeAdminKey(edge);
       else await deleteEdgeAdminKey();
 
-      await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, supabaseRaw.trim());
-      await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, supabaseUrl.trim());
-      await AsyncStorage.setItem(
-        STORAGE_KEYS.SUPABASE_KEY,
-        supabaseAnonKey.trim(),
-      );
-      await AsyncStorage.removeItem(STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY).catch(() => {});
-      if (easProjectId.trim()) {
-        await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, easProjectId.trim());
+      await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, raw);
+      await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, sbUrl);
+      if (sbAnon) {
+        await saveSupabaseAnonKey(sbAnon);
+      } else {
+        await deleteSupabaseAnonKey();
+      }
+
+      if (easId) {
+        await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, easId);
       } else {
         await AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID);
         setEasOk(false);
         setEasLastVerifiedAt(null);
-        await AsyncStorage.setItem(STORAGE_KEYS.CONN_EAS_OK, "false").catch(() => {});
-        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT).catch(() => {});
+        await persistConnLights([[STORAGE_KEYS.CONN_EAS_OK, "false"]]);
+        await removeConnLights([STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT]);
       }
 
-      // If Supabase base settings are cleared, reset connection status
-      if (!supabaseUrl.trim() || !supabaseAnonKey.trim()) {
+      if (!sbUrl || !sbAnon) {
         setSupabaseOk(false);
         setSupabaseRef("");
-        await AsyncStorage.setItem(STORAGE_KEYS.CONN_SUPABASE_OK, "false").catch(() => {});
-        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_SUPABASE_REF).catch(() => {});
+        await persistConnLights([[STORAGE_KEYS.CONN_SUPABASE_OK, "false"]]);
+        await removeConnLights([STORAGE_KEYS.CONN_SUPABASE_REF]);
       }
 
       Alert.alert("✅ Gespeichert", "Tokens & Verbindungen wurden gespeichert.");
-    } catch (e: unknown) {
+    }).catch((e: unknown) => {
       Alert.alert("❌ Speichern fehlgeschlagen", safeAlertText(e));
-    } finally {
-      setBusy(false);
+      return false;
+    });
+
+    if (!started) {
+      Alert.alert("Bitte warten", "Ein anderer Save/Test-Lauf ist noch aktiv.");
     }
   }, [
+    hydrated,
     githubToken,
     expoToken,
     edgeAdminKey,
@@ -358,13 +408,17 @@ export function useConnectionsScreen() {
     supabaseUrl,
     supabaseAnonKey,
     easProjectId,
+    withBusyGuard,
+    persistConnLights,
+    removeConnLights,
   ]);
 
   const testGitHub = useCallback(async () => {
+    if (!hydrated) return;
     const gh = githubToken.trim();
     if (!gh) return Alert.alert("Fehlt", "GitHub Token fehlt.");
-    setBusy(true);
-    try {
+
+    const started = await withBusyGuard(async () => {
       debugLog("connections:github", "GET /user", {
         url: githubApiUrl("/user"),
       });
@@ -384,41 +438,43 @@ export function useConnectionsScreen() {
       const login = userData?.login || "";
       const scopesHeader = resp.headers.get("x-oauth-scopes") || resp.headers.get("X-OAuth-Scopes") || "";
       const scopes = String(scopesHeader || "").trim();
-      // Persist connection status
       setGithubOk(true);
       setGithubUser(login);
-      await AsyncStorage.setItem(STORAGE_KEYS.CONN_GITHUB_OK, "true").catch(() => {});
-      await AsyncStorage.setItem(STORAGE_KEYS.CONN_GITHUB_USER, login).catch(() => {});
       setGithubScopes(scopes);
-      if (scopes) {
-        await AsyncStorage.setItem(STORAGE_KEYS.CONN_GITHUB_SCOPES, scopes).catch(() => {});
-      } else {
-        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_GITHUB_SCOPES).catch(() => {});
+      await persistConnLights([
+        [STORAGE_KEYS.CONN_GITHUB_OK, "true"],
+        [STORAGE_KEYS.CONN_GITHUB_USER, login],
+        ...(scopes ? [[STORAGE_KEYS.CONN_GITHUB_SCOPES, scopes] as [string, string]] : []),
+      ]);
+      if (!scopes) {
+        await removeConnLights([STORAGE_KEYS.CONN_GITHUB_SCOPES]);
       }
-      Alert.alert("GitHub OK", `Verbunden als: ${login || "OK"}${scopes ? `\nScopes: ${scopes}` : ""}`);
-    } catch (e: unknown) {
+      Alert.alert("GitHub OK", `Verbunden als: ${login || "OK"}${scopes ? `
+Scopes: ${scopes}` : ""}`);
+    }).catch(async (e: unknown) => {
       setGithubOk(false);
       setGithubUser("");
       setGithubScopes("");
-      await AsyncStorage.setItem(STORAGE_KEYS.CONN_GITHUB_OK, "false").catch(() => {});
-      await AsyncStorage.removeItem(STORAGE_KEYS.CONN_GITHUB_USER).catch(() => {});
-      await AsyncStorage.removeItem(STORAGE_KEYS.CONN_GITHUB_SCOPES).catch(() => {});
+      await persistConnLights([[STORAGE_KEYS.CONN_GITHUB_OK, "false"]]);
+      await removeConnLights([STORAGE_KEYS.CONN_GITHUB_USER, STORAGE_KEYS.CONN_GITHUB_SCOPES]);
       debugLog("connections:github", "GitHub ERROR", {
         error: redactSecrets(truncateWithMarker(safeAlertText(e), 800)),
       });
       Alert.alert("GitHub Test", safeAlertText(e));
-    } finally {
-      setBusy(false);
+      return false;
+    });
+
+    if (!started) {
+      Alert.alert("Bitte warten", "Ein anderer Save/Test-Lauf ist noch aktiv.");
     }
-  }, [githubToken]);
+  }, [githubToken, hydrated, withBusyGuard, persistConnLights, removeConnLights]);
 
   const testExpo = useCallback(async () => {
+    if (!hydrated) return;
     const ex = expoToken.trim();
     if (!ex) return Alert.alert("Fehlt", "Expo / EAS Token fehlt.");
-    setBusy(true);
-    try {
-      // Legacy endpoint (exp.host/--/api/v2/auth/user) is often 404 nowadays.
-      // Use Expo's GraphQL API and treat a 200 + data response as "token valid".
+
+    const started = await withBusyGuard(async () => {
       const url = "https://api.expo.dev/graphql";
       debugLog("connections:expo", "POST /graphql", { url });
       const resp = await fetch(url, {
@@ -442,55 +498,48 @@ export function useConnectionsScreen() {
       if (!resp.ok) throw new Error(`Expo Test failed (${resp.status})`);
       const username = parseExpoGraphQLUsername(raw || "");
 
-      // UX: Wenn der Token valide ist, persistieren wir ihn sofort.
-      // Viele Nutzer drücken erst "Test" und erwarten danach einen grünen Status nach Neustart.
-      try {
-        await saveExpoToken(ex);
-      } catch {
-        // ignore (SecureStore kann in manchen Umgebungen scheitern)
-      }
-
       setExpoOk(true);
       setExpoUser(username || "");
-      await AsyncStorage.setItem(STORAGE_KEYS.CONN_EXPO_OK, "true").catch(() => {});
-      if (username) {
-        await AsyncStorage.setItem(STORAGE_KEYS.CONN_EXPO_USER, username).catch(() => {});
-      } else {
-        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_EXPO_USER).catch(() => {});
+      await persistConnLights([
+        [STORAGE_KEYS.CONN_EXPO_OK, "true"],
+        ...(username ? [[STORAGE_KEYS.CONN_EXPO_USER, username] as [string, string]] : []),
+      ]);
+      if (!username) {
+        await removeConnLights([STORAGE_KEYS.CONN_EXPO_USER]);
       }
 
       Alert.alert("Expo OK", username ? `Verbunden als: ${username}` : "Token ist gueltig.");
-    } catch (e: unknown) {
+    }).catch(async (e: unknown) => {
       setExpoOk(false);
       setExpoUser("");
-      await AsyncStorage.setItem(STORAGE_KEYS.CONN_EXPO_OK, "false").catch(() => {});
-      await AsyncStorage.removeItem(STORAGE_KEYS.CONN_EXPO_USER).catch(() => {});
+      await persistConnLights([[STORAGE_KEYS.CONN_EXPO_OK, "false"]]);
+      await removeConnLights([STORAGE_KEYS.CONN_EXPO_USER]);
       debugLog("connections:expo", "Expo ERROR", {
         error: redactSecrets(truncateWithMarker(safeAlertText(e), 800)),
       });
       Alert.alert("Expo Test", safeAlertText(e));
-    } finally {
-      setBusy(false);
+      return false;
+    });
+
+    if (!started) {
+      Alert.alert("Bitte warten", "Ein anderer Save/Test-Lauf ist noch aktiv.");
     }
-  }, [expoToken]);
+  }, [expoToken, hydrated, withBusyGuard, persistConnLights, removeConnLights]);
 
   const testSupabase = useCallback(async () => {
+    if (!hydrated) return;
     const url = supabaseUrl.trim();
     const anon = supabaseAnonKey.trim();
     if (!url) return Alert.alert("Fehlt", "Supabase URL fehlt.");
     if (!anon) return Alert.alert("Fehlt", "Supabase ANON Key fehlt.");
 
-    setBusy(true);
-    try {
-      // Basic REST ping
+    const started = await withBusyGuard(async () => {
       const resp = await fetch(`${url}/rest/v1/`, {
         method: "GET",
         headers: { apikey: anon, Authorization: `Bearer ${anon}` },
       });
       if (!resp.ok) throw new Error(`REST Ping failed (${resp.status})`);
 
-      // build_jobs table check (wichtig fürs Build-System)
-      // In gehärteten Setups darf der ANON-Key durch RLS hier bewusst 401/403 liefern.
       const tableRes = await fetch(`${url}/rest/v1/build_jobs?select=id&limit=1`, {
         method: "GET",
         headers: { apikey: anon, Authorization: `Bearer ${anon}` },
@@ -499,7 +548,7 @@ export function useConnectionsScreen() {
       if (!tableRes.ok) {
         if (tableRes.status === 401 || tableRes.status === 403) {
           setSupabaseOk(true);
-          await AsyncStorage.setItem(STORAGE_KEYS.CONN_SUPABASE_OK, "true").catch(() => {});
+          await persistConnLights([[STORAGE_KEYS.CONN_SUPABASE_OK, "true"]]);
           Alert.alert(
             "Supabase OK",
             "REST erreichbar. build_jobs ist durch RLS geschützt (401/403) – das ist okay. CI/Edge nutzt den Service-Role-Key serverseitig.",
@@ -511,24 +560,27 @@ export function useConnectionsScreen() {
 
       Alert.alert("Supabase OK", "REST + build_jobs erreichbar.");
       setSupabaseOk(true);
-      await AsyncStorage.setItem(STORAGE_KEYS.CONN_SUPABASE_OK, "true").catch(() => {});
-      // Store project ref (subdomain) for UX display
+      const writes: Array<[string, string]> = [[STORAGE_KEYS.CONN_SUPABASE_OK, "true"]];
       try {
         const host = url.replace(/^https?:\/\//, "").split("/")[0] || "";
         const ref = host.endsWith(".supabase.co") ? host.split(".")[0] : "";
         if (ref) {
           setSupabaseRef(ref);
-          await AsyncStorage.setItem(STORAGE_KEYS.CONN_SUPABASE_REF, ref).catch(() => {});
+          writes.push([STORAGE_KEYS.CONN_SUPABASE_REF, ref]);
         }
       } catch {}
-    } catch (e: unknown) {
+      await persistConnLights(writes);
+    }).catch(async (e: unknown) => {
       setSupabaseOk(false);
-      await AsyncStorage.setItem(STORAGE_KEYS.CONN_SUPABASE_OK, "false").catch(() => {});
+      await persistConnLights([[STORAGE_KEYS.CONN_SUPABASE_OK, "false"]]);
       Alert.alert("Supabase Test", safeAlertText(e));
-    } finally {
-      setBusy(false);
+      return false;
+    });
+
+    if (!started) {
+      Alert.alert("Bitte warten", "Ein anderer Save/Test-Lauf ist noch aktiv.");
     }
-  }, [supabaseUrl, supabaseAnonKey]);
+  }, [supabaseUrl, supabaseAnonKey, hydrated, withBusyGuard, persistConnLights]);
 
   // Status flags
   const status = useMemo(() => {
@@ -555,6 +607,7 @@ export function useConnectionsScreen() {
   const githubConnected = !!githubToken.trim();
 
   const onLinkExisting = useCallback(async () => {
+    if (!hydrated || busyRef.current) return;
     if (isEasInitRunning) return;
 
     const token = githubToken.trim();
@@ -613,18 +666,20 @@ export function useConnectionsScreen() {
             : "Keine EAS ID vorhanden. Init+Link Workflow gestartet (erstellt eine neue Project ID).\n\nNach Abschluss: Sync drücken, damit die App die neue ID aus dem Repo übernimmt.",
         );
 
-        // Persist UX lights (best-effort): token saved above
-        setEasOk(true);
+        // Workflow wurde nur gestartet; EAS-Verification bleibt bis zum echten Test neutral/false.
+        setEasOk(false);
         setEasLastVerifiedAt(null);
-        await AsyncStorage.setItem(STORAGE_KEYS.CONN_EAS_OK, "true").catch(() => {});
-        await AsyncStorage.removeItem(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT).catch(() => {});
+        await persistConnLights([[STORAGE_KEYS.CONN_EAS_OK, "false"]]);
+        await removeConnLights([STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT]);
 
         if (repoSlug) {
           setRepoOk(true);
           setRepoOkLine(`${repoSlug}${branch ? ` (${branch})` : ""}`);
-          await AsyncStorage.setItem(STORAGE_KEYS.CONN_REPO_OK, "true").catch(() => {});
-          await AsyncStorage.setItem(STORAGE_KEYS.CONN_REPO_SLUG, repoSlug).catch(() => {});
-          await AsyncStorage.setItem(STORAGE_KEYS.CONN_REPO_BRANCH, branch).catch(() => {});
+          await persistConnLights([
+            [STORAGE_KEYS.CONN_REPO_OK, "true"],
+            [STORAGE_KEYS.CONN_REPO_SLUG, repoSlug],
+            [STORAGE_KEYS.CONN_REPO_BRANCH, branch],
+          ]);
         }
       } catch (e: unknown) {
         Alert.alert("Fehler", safeAlertText(e));
@@ -647,14 +702,18 @@ export function useConnectionsScreen() {
 
     await runLink(easId);
   }, [
+    hydrated,
     isEasInitRunning,
     githubToken,
     effectiveRepo,
     effectiveBranch,
     easProjectId,
+    persistConnLights,
+    removeConnLights,
   ]);
 
   const onCreateAndLink = useCallback(async () => {
+    if (!hydrated || busyRef.current) return;
     if (isEasInitRunning) return;
 
     const token = githubToken.trim();
@@ -704,12 +763,13 @@ export function useConnectionsScreen() {
     } finally {
       setIsEasInitRunning(false);
     }
-  }, [isEasInitRunning, githubToken, effectiveRepo, effectiveBranch]);
+  }, [hydrated, isEasInitRunning, githubToken, effectiveRepo, effectiveBranch]);
 
 
   return {
     navigation,
     busy,
+    hydrated,
     githubConnected,
     isEasInitRunning,
     activeRepo: effectiveRepo,

@@ -1,3 +1,20 @@
+## 2026-03-15 — Patch 455: ConnectionsScreen Secret-/Flow-Restpunkte konservativ gehärtet
+
+- Supabase-ANON-Key im Connections-Flow auf SecureStore umgestellt (`supabase_anon_key_v1`) inkl. Legacy-Migration aus AsyncStorage (`STORAGE_KEYS.SUPABASE_KEY`) und Cleanup des Legacy-Keys.
+- Busy-/Parallel-Execution-Guard (`withBusyGuard` + `busyRef`) für `saveAll`, `testGitHub`, `testExpo`, `testSupabase` ergänzt; UI-Actions bleiben bis Hydration deaktiviert.
+- `testExpo` persistiert den Token nicht mehr implizit als Side-Effect; Persistenz bleibt am expliziten Save/Import.
+- EAS-Link-Flow setzt `CONN_EAS_OK` nach Workflow-Start nicht mehr optimistisch auf grün, sondern bleibt bis echter Verifikation neutral/false.
+- Flow-nahe Tests ergänzt (`supabaseAnonKeyStorage` + Connections-Flow-Invariants).
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
 
 ## 2026-03-15 — Patch 454: OneClickDeploy-Testflake stabilisiert
 
@@ -40,6 +57,7 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-15: Patch 455: ConnectionsScreen-Restpunkte konservativ gehärtet — Supabase-ANON-Key jetzt SecureStore-basiert (inkl. Legacy-Migration), Busy-/Hydration-Guards blockieren parallele Save/Test-Runs, `testExpo` ohne Token-Persistenz-Side-Effect, EAS-Link-Lampe nicht mehr optimistisch grün; flow-nahe Invariants + Storage-Tests ergänzt.
 - 2026-03-15: Patch 454: OneClickDeploy-Testflake in `__tests__/oneClickDeploy.test.tsx` gezielt stabilisiert (deterministischer `act`-Press + Microtask-Flush, AsyncStorage-Default-Resolves, striktes Cleanup/Timer-Clear); kein Produktcode-Umbau.
 - 2026-03-15: Patch 453: Misstrauisches KI-/Chat-Nachaudit — echte Restlücke im Non-JSON-Fehlerpfad geschlossen (`output_text` wird im Normalizer als Response-Text durchgereicht), gezielte Regressionstests ergänzt; Full-Suite im Audit-Lauf grün.
 - 2026-03-15: Patch 451: PreviewScreen/PreviewFullscreen-Restprobleme konservativ behoben — `usePreview` nutzt content-basierte Fingerprints (Hot-Reload erkennt nun auch inhaltliche Same-Length-Edits), PreviewScreen nutzt dieselbe WebView-Crash-Recovery wie Fullscreen (inkl. one-shot Auto-Reload), und abgelaufene Supabase-URLs werden im normalen PreviewScreen nicht mehr blind in die WebView gegeben; Preview-Helper/Types dedupliziert, `previewFiles`-Dependency auf `projectData?.files` verengt, lokale HTML-Fallback-Transienz im UI klarer benannt.
