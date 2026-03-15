@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 449: EnhancedBuildScreen-Restpunkte konservativ nachgezogen — OneClickDeploy-Vorab-Push entfernt (SHA-sichere Reihenfolge über `startBuildJob`), redundanter Doppel-Push eliminiert, `canStartBuildUi` gegen Ref-Drift stabilisiert und build-/logs-nahe `WorkflowRun`-Typing inkl. `event`-Feld vereinheitlicht.
 - Patch 448: DiagnosticScreen-Restpunkte konservativ geschlossen — progressive Preflight-Severity wieder sichtbar (`stage` korrekt), KI-Fix-Hinweis für `pass`-Items entfernt und flow-nahe Typing-/Hook-Cleanups in Runner/Screen-Hook ergänzt; gezielte Regressionen für Stage-Text und Fix-Hinweis hinzugefügt.
 - Patch 447: kleiner Edge-/Deno-Typing-Follow-up in `_shared` — `globalThis as any` in Auth/CORS durch getypte Runtime-Globals ersetzt, `validation`-Any-Hotspots für Trigger/Workflow-Dispatch auf enge Union-/Record-Typen umgestellt und `parseJsonBody` gegen nicht-Objekt-JSON regressionsgesichert.
 - Patch 446: selektiver Type-Safety-Restpunkt im Build-Start-Flow geschlossen — `buildStartService` ersetzt riskante `as any`-Zugriffe auf Edge-Invoke-Payload durch lokales Narrowing, entfernt unnötigen Push-Cast und ergänzt gezielte Regressionen für `job.id`-/Error-Payload-Shape.
