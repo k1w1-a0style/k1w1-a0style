@@ -391,7 +391,7 @@ export function useChatAIFlow({
           try {
             const validatorMsgs = buildValidatorMessages(
               userContent,
-              normalized.map((f: any) => ({ path: f.path, content: f.content })),
+              normalized.map((f) => ({ path: f.path, content: f.content })),
               currentProjectFiles,
             );
 

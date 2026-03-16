@@ -5,7 +5,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getEdgeAdminKey } from "../infra/github/githubService";
 import { getGitHubToken } from "../infra/github/tokenStore";
-import { redactSecrets, truncateWithMarker } from "../lib/secretRedaction";
 import { requireSupabaseEdgeUrl } from "../lib/supabaseEdge";
 import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
 import { logger } from '../lib/logger';
@@ -168,17 +167,17 @@ export function useGitHubActionsLogs({
           setWorkflowRun(runMeta);
         }
        }
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Nur einmal loggen (nicht bei jedem Poll-Versuch)
       if (isMountedRef.current && requestKeyRef.current === requestKey && !loggedErrorRef.current) {
         logger.warn(
           "[useGitHubActionsLogs] ⚠️ Logs nicht verfügbar:",
-          err?.message,
+          err instanceof Error ? err.message : String(err),
         );
         loggedErrorRef.current = true;
       }
       if (isMountedRef.current && requestKeyRef.current === requestKey) {
-        setError(err?.message || "Fehler beim Abrufen der Logs");
+        setError(err instanceof Error ? err.message : "Fehler beim Abrufen der Logs");
       }
     } finally {
       if (isMountedRef.current && requestKeyRef.current === requestKey) {

@@ -62,12 +62,24 @@ export function trimChatHistory<T extends { timestamp?: string }>(
 
 
 
-export function ensureChatHistoryHasIds(history: any[]): ChatMessage[] {
+type LegacyChatMessageLike = {
+  id?: unknown;
+  role?: unknown;
+  content?: unknown;
+  timestamp?: unknown;
+  meta?: unknown;
+};
+
+function isLegacyChatMessageLike(value: unknown): value is LegacyChatMessageLike {
+  return !!value && typeof value === "object";
+}
+
+export function ensureChatHistoryHasIds(history: unknown[]): ChatMessage[] {
   if (!Array.isArray(history)) return [];
   return history
-    .filter((m) => m && typeof m === "object")
+    .filter(isLegacyChatMessageLike)
     .map((m) => {
-      const role =
+      const role: ChatMessage["role"] =
         m.role === "user" || m.role === "assistant" || m.role === "system"
           ? m.role
           : "assistant";
