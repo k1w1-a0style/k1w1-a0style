@@ -1,3 +1,19 @@
+## 2026-03-16 — Patch 464: GitHubReposScreen Defensivfix für malformed `project.files`
+
+- Offener Restpunkt geschlossen: lokale `project.files` werden im RepoScreen zentral über `normalizeProjectFiles(...)` validiert; `null`/malformed Legacy-Einträge werden gefiltert statt iteriert.
+- `useGitHubReposScreen` nutzt die normalisierte Liste auch in Push-/Selection-Pfaden, damit keine Laufzeit-Crashes durch ungültige Dateieinträge entstehen.
+- Regression ergänzt: `__tests__/projectFiles.normalize.regression.test.ts` deckt `null`/invalid-Einträge explizit ab; bestehende Invariant-Datei für den typed Root-Pfad aktualisiert.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 ## 2026-03-15 — Patch 463: SettingsScreen + AIContext Restpunkte (Quality/Retention/Typing) konservativ geschlossen
 
 ## 2026-03-16 — Patch 463 Follow-up (PR #278 review): Retention-Save sofort wirksam

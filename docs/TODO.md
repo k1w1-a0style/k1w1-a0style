@@ -1,6 +1,8 @@
+- [x] Patch 464 (2026-03-16): GitHubReposScreen-Defensivfix für malformed `project.files` nachgezogen (typed Normalizer filtert `null`/invalid Legacy-Einträge, keine RepoScreen-Crashes im Local-File-Normalizer-Pfad).
+
 # TODO
 
-Stand: **2026-03-15 (Patch 462)**
+Stand: **2026-03-16 (Patch 464)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.

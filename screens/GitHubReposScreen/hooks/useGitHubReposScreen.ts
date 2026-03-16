@@ -25,6 +25,7 @@ import { getGitHubUser } from "../../../infra/github/user";
 import { autoSyncRepoSecrets } from "../../../lib/autoSyncRepoSecrets";
 import { useGitHubRepos, GitHubRepo, WorkflowRun } from "../../../hooks/useGitHubRepos";
 import { combineRepos, splitFullName, isValidRepoName } from "../utils/repos";
+import { normalizeProjectFiles } from "../utils/projectFiles";
 import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
 import type { TemplateId, CoreTemplateId, ProjectFile } from "../../../shared/types/project";
 
@@ -80,14 +81,16 @@ export function useGitHubReposScreen() {
 
   // Local project files are the source of truth for what exists "locally" inside the app.
   // Expose them so the RepoScreen can show local↔remote diffs and wire push/pull UX.
-  const projectFiles = useMemo<ProjectFile[]>(() => {
-    const list = projectData?.files;
-    return Array.isArray(list) ? list : [];
-  }, [projectData?.files]);
+  const normalizedLocalFiles = useMemo<ProjectFile[]>(
+    () => normalizeProjectFiles(projectData?.files),
+    [projectData?.files],
+  );
+
+  const projectFiles = normalizedLocalFiles;
 
   const templateId: TemplateId = ((projectData?.templateId as TemplateId) || "auto");
   const effectiveTemplateId: CoreTemplateId =
-    resolveEffectiveTemplateId(templateId, projectFiles).effective;
+    resolveEffectiveTemplateId(templateId, normalizedLocalFiles).effective;
 
   const [token, setToken] = useState<string | null>(null);
   const [tokenLoading, setTokenLoading] = useState(false);
@@ -174,16 +177,6 @@ export function useGitHubReposScreen() {
     loadWorkflowRuns,
     loadDefaultBranch,
   } = useGitHubRepos(token);
-
-  const normalizedLocalFiles = useMemo<ProjectFile[]>(() => {
-    const out: ProjectFile[] = [];
-    for (const file of projectFiles) {
-      const path = String(file.path || "").trim();
-      if (!path) continue;
-      out.push({ path, content: String(file.content ?? "") });
-    }
-    return out;
-  }, [projectFiles]);
 
   const syncStatusRunRef = useRef(0);
 
@@ -629,19 +622,19 @@ export function useGitHubReposScreen() {
 
   const handlePush = useCallback(async () => {
     // Push now opens options (commit message + file selection).
-    if (!activeRepo || !projectFiles.length) {
+    if (!activeRepo || !normalizedLocalFiles.length) {
       Alert.alert("⚠️", "Kein Repo/Projekt ausgewählt oder keine Dateien.");
       return;
     }
     const initial: Record<string, boolean> = {};
-    for (const f of projectFiles) {
-      const p = String(f.path || "").trim();
+    for (const f of normalizedLocalFiles) {
+      const p = f.path;
       if (!p) continue;
       initial[p] = true;
     }
     setPushSelectedPaths(initial);
     setPushModalVisible(true);
-  }, [activeRepo, projectFiles]);
+  }, [activeRepo, normalizedLocalFiles]);
 
   /**
    * Opens the Push options modal but preselects only specific local paths.
@@ -649,15 +642,15 @@ export function useGitHubReposScreen() {
    */
   const openPushModalForPaths = useCallback(
     (paths: string[]) => {
-      if (!activeRepo || !projectFiles.length) {
+      if (!activeRepo || !normalizedLocalFiles.length) {
         Alert.alert("⚠️", "Kein Repo/Projekt ausgewählt oder keine Dateien.");
         return;
       }
       const wanted = new Set((paths || []).map((p) => String(p || "").trim()).filter(Boolean));
       const initial: Record<string, boolean> = {};
 
-      for (const f of projectFiles) {
-        const p = String(f.path || "").trim();
+      for (const f of normalizedLocalFiles) {
+        const p = f.path;
         if (!p) continue;
         if (!wanted.size) initial[p] = true;
         else if (wanted.has(p)) initial[p] = true;
@@ -674,7 +667,7 @@ export function useGitHubReposScreen() {
       setPushSelectedPaths(initial);
       setPushModalVisible(true);
     },
-    [activeRepo, projectFiles],
+    [activeRepo, normalizedLocalFiles],
   );
 
   const togglePushPath = useCallback((path: string) => {
@@ -705,9 +698,9 @@ export function useGitHubReposScreen() {
       return;
     }
 
-    const selectedFiles: ProjectFile[] = projectFiles
-      .filter((f) => selectedPaths.includes(String(f.path || "").trim()))
-      .map((f) => ({ path: String(f.path || ""), content: String(f.content ?? "") }));
+    const selectedFiles: ProjectFile[] = normalizedLocalFiles
+      .filter((f) => selectedPaths.includes(f.path))
+      .map((f) => ({ path: f.path, content: f.content }));
 
     setIsPushing(true);
     try {
@@ -733,7 +726,7 @@ export function useGitHubReposScreen() {
     } finally {
       setIsPushing(false);
     }
-  }, [activeRepo, activeBranch, projectFiles, pushSelectedPaths, pushCommitMessage, withCoreFiles, refreshSyncStatus]);
+  }, [activeRepo, activeBranch, normalizedLocalFiles, pushSelectedPaths, pushCommitMessage, withCoreFiles, refreshSyncStatus]);
 
   const closePullModal = useCallback(() => {
     if (pullPreviewLoading || isPulling) return;
