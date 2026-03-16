@@ -11,7 +11,7 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 465**.
+- Zuletzt abgeschlossen: **Patch 466**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
 - Preview-Restfix ist konservativ abgeschlossen: Hot-Reload nutzt content-basierte File-Fingerprints (kein Same-Length-Blindspot mehr), der normale PreviewScreen hat jetzt dieselbe WebView-Crash-Recovery wie Fullscreen, und abgelaufene Supabase-URLs werden im PreviewScreen nicht mehr blind geladen.
 - KI-/Chat-/Prompting-Restpunkte wurden konservativ gehärtet: Projekt-Snapshot priorisiert jetzt relevante Dateien statt reiner Array-Reihenfolge, Builder-NonJSON-Antworten werden als verständliche KI-Rückmeldung angezeigt (statt kryptischem Parserfehler), Drift-Digest nutzt SHA-256 über Pfad+Inhalt (kein Same-Length-Blindspot), und Nutzerfeedback zeigt geblockte/übersprungene Ownership-/Validator-/Explain-Fälle transparenter.
@@ -25,6 +25,8 @@
 - Patch 461 zieht die beiden verbliebenen Chat-Regressionen aus PR #272/#273 gemeinsam final gerade: Meta-/lokale Kommandos bleiben strikt auf unverändertem `rawInput`, der Attachment-Hinweis fließt nur in den normalen AI-Request, und auch im Pending-Plan-Handoff gehen Attachment-only-Details (`aiInput`) nicht verloren.
 - Patch 464 zieht den verbliebenen defensiven Restpunkt nach: lokale `project.files` laufen im GitHubReposScreen zentral über einen getypten Normalizer, der `null`/malformed Legacy-Einträge herausfiltert; dadurch crashen Normalizer-/Iterationen im RepoScreen-Pfad nicht mehr bei kaputten Storage-Daten.
 - Patch 465 schließt die verbliebenen SettingsScreen/AIContext-Restpunkte minimal-konservativ: leeres Retention-Input wird im Save-Pfad nicht mehr still als `0` gespeichert (explizit ungültig), verspätete Retention-Hydration im `ProjectContext` überschreibt keine frisch gesetzten Runtime-Werte mehr, und der kleine `moveKeyToFront`-Fallback ist ohne Logikänderung leicht bereinigt; gezielte Regressionstests decken beide Kernpfade ab.
+
+- CodeScreen-Restblock ist minimal nachgezogen: WebCodeEditor hat jetzt dieselbe One-Shot-WebView-Crash-Recovery-Verdrahtung (`onContentProcessDidTerminate`/`onRenderProcessGone`) wie der Preview-Shared-Pattern, Folder-Delete nutzt batched `deleteFiles(...)` statt sequentiellem Einzel-Delete, und der Delete-Handler ist explizit gegen fehlendes Target gehärtet; gezielte Regressionstests decken Recovery-Wiring und FileActions-Guards ab.
 
 - Patch 462 schließt die bestätigten GitHubReposScreen-Restpunkte konservativ: Root-`projectData.files` läuft ohne `any[]`-Root-Cast als `ProjectFile[]`, `refreshSyncStatus` hat nun einen Run-Guard gegen stale Async-Rückläufer bei Repo-/Branch-Wechsel, und `handleCreateRepo` übernimmt den von GitHub gelieferten `default_branch` sofort statt blind auf `null` zu setzen; angrenzende Pull-/Push-Casts wurden im selben Hook minimal reduziert.
 

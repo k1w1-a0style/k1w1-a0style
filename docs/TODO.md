@@ -384,6 +384,13 @@ Akzeptanz:
 
 ### CodeScreen
 
+- [x] **CODE-466 (P1)** WebCodeEditor Crash-Recovery im CodeScreen verdrahtet (`onContentProcessDidTerminate`/`onRenderProcessGone`) mit Wiederverwendung des bestehenden Preview-Shared-Recovery-Patterns, ohne neue Editor-Architektur.
+  _Ort_: `screens/CodeScreen/components/WebCodeEditor.tsx`, `screens/shared/preview/useWebViewCrashRecovery.ts`
+- [x] **CODE-466 (P1/P2)** Folder-Delete im CodeScreen von sequentiell auf batched umgestellt (`deleteFiles(...)`), inkl. minimaler Context-API-Erweiterung für einen einzigen Storage-Write statt N Einzelschritten.
+  _Ort_: `screens/CodeScreen/hooks/useFileActions.ts`, `contexts/ProjectContext.tsx`, `contexts/projectTypes.ts`
+- [x] **CODE-466 (P2)** Delete-Handler-Schutz gehärtet (`handleDeleteFile` mit explizitem Guard bei fehlendem Target), plus flow-nahe Cleanup-Reste (tote Imports) und Regressionstests.
+  _Ort_: `screens/CodeScreen/hooks/useFileActions.ts`, `__tests__/useFileActions.regression.test.tsx`, `__tests__/webCodeEditor.recovery.test.tsx`
+
 - [x] **CODE-105 (P1/P2)** CodeScreen: Save await + Folder-Delete deterministisch + selectedFile cleanup ✅ *(patch 105)*  
   _Ort_: `screens/CodeScreen/hooks/useFileEditor.ts`, `screens/CodeScreen/hooks/useFileActions.ts`  
 - [x] **CODE-105 (P2/P3)** CodeScreen UX/Consistency: Modal/Dialog reset, selectAll scoped, ImageViewer size fix, FileTree empty-folder fix ✅ *(patch 105)*  

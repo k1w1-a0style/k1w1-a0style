@@ -5,7 +5,6 @@
 // Handles: file CRUD (create, rename, move, delete, duplicate),
 //          item press / long-press logic, clipboard copy.
 import { useCallback, useRef, useState } from "react";
-import type { Dispatch, SetStateAction } from "react";
 import { Alert } from "react-native";
 
 import * as Clipboard from "expo-clipboard";
@@ -13,7 +12,6 @@ import * as Clipboard from "expo-clipboard";
 import type { TreeNode } from "../../../components/FileTree";
 import { useProject } from "../../../contexts/ProjectContext";
 
-import { validateFilePath } from "../../../lib/validators";
 
 import type { ViewMode } from "./useFileEditor";
 import { toContentString } from "./useFileEditor";
@@ -26,7 +24,7 @@ import type { FileActionsDeps, UseFileActionsReturn } from "./fileActionTypes";
 export type { UseFileActionsReturn, FileActionsDeps } from "./fileActionTypes";
 
 export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
-  const { projectData, createFile, deleteFile, renameFile } = useProject();
+  const { projectData, createFile, deleteFile, deleteFiles, renameFile } = useProject();
 
   const {
     selectedFile,
@@ -122,14 +120,10 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
                           setEditingContent("");
                         }
 
-                        // Note: deleteFile is mutex-serialized in ProjectContext,
-                        // so these run sequentially. A batch-delete API would avoid
-                        // N re-renders, but correctness is guaranteed.
-                        void (async () => {
-                          for (const f of filesToDelete) {
-                            await deleteFile(f.path);
-                          }
-                        })();
+                        const paths = filesToDelete.map((f) => f.path);
+                        void (deleteFiles
+                          ? deleteFiles(paths)
+                          : Promise.all(paths.map((path) => deleteFile(path))).then(() => undefined));
                       },
                     },
                   ],
@@ -149,7 +143,7 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
 
       confirmLoseChanges(proceed);
     },
-    [confirmLoseChanges, deleteFile, projectData?.files, selectedFile, selectionMode, setEditingContent, setSelectedFile],
+    [confirmLoseChanges, deleteFile, deleteFiles, projectData?.files, selectedFile, selectionMode, setEditingContent, setSelectedFile],
   );
 
   const handleRenameFile = useCallback(
@@ -209,16 +203,20 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
     [actionTargetFile, projectData?.files, renameFile, selectedFile, setSelectedFile],
   );
 
-  const handleDeleteFile = useCallback(() => {
-    if (!actionTargetFile) return;
+  const handleDeleteFile = useCallback(async () => {
+    const targetPath = actionTargetFile?.path;
+    if (!targetPath) {
+      Alert.alert("Fehler", "Keine Datei zum Löschen ausgewählt.");
+      return;
+    }
 
-    deleteFile(actionTargetFile.path);
+    await deleteFile(targetPath);
 
-    if (selectedFile?.path === actionTargetFile.path) {
+    if (selectedFile?.path === targetPath) {
       setSelectedFile(null);
       setEditingContent("");
     }
-  }, [actionTargetFile, deleteFile, selectedFile, setEditingContent, setSelectedFile]);
+  }, [actionTargetFile?.path, deleteFile, selectedFile?.path, setEditingContent, setSelectedFile]);
 
   const handleDuplicateFile = useCallback(async () => {
     if (!actionTargetFile) return;
