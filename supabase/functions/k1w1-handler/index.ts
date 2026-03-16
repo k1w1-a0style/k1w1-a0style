@@ -24,9 +24,14 @@ serve(async (req: Request): Promise<Response> => {
   try {
     const parsedBody = await parseJsonBody(req, 200_000);
     if (!parsedBody.ok) {
-      const isTooLarge = parsedBody.error.toLowerCase().includes("too large");
+      const parseErrorText =
+        typeof parsedBody.error === "string" ? parsedBody.error.toLowerCase() : "";
+      const isTooLarge = parseErrorText.includes("too large");
       return new Response(
-        JSON.stringify({ ok: false, error: parsedBody.error }),
+        JSON.stringify({
+          ok: false,
+          error: isTooLarge ? "Request too large." : "Invalid request payload.",
+        }),
         {
           status: isTooLarge ? 413 : 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -79,10 +84,11 @@ serve(async (req: Request): Promise<Response> => {
         "Content-Type": "application/json",
       },
     });
-  } catch (err: any) {
-    console.error("❌ k1w1-handler error", err?.message, err?.stack, err);
+  } catch (err: unknown) {
+    const rawMessage = err instanceof Error ? err.message : "";
+    const rawStack = err instanceof Error ? err.stack : undefined;
+    console.error("❌ k1w1-handler error", rawMessage || "Unknown error", rawStack, err);
 
-    const rawMessage = typeof err?.message === "string" ? err.message : "";
     const isValidationError =
       rawMessage.includes("Missing") ||
       rawMessage.includes("Invalid") ||

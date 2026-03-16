@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 470: Follow-up auf Patch 469 — `k1w1-handler` gibt auch im frühen `parseJsonBody(...)`-Fehlerpfad keine rohen Parse-/Validierungsdetails mehr aus, sondern konsistente generische Client-Fehler (`Invalid request payload.`/`Request too large.`); kleiner Catch-Typing-Rest auf `unknown` + Narrowing ergänzt, Invariants entsprechend erweitert.
 - Patch 469: verbleibende Edge-/Preview-Security-Exposure-Restpunkte konservativ geschlossen — `preview_page` entfernt raw Fehler-/Stack-Interpolation aus HTML-Pfaden (sicherer Overlay-Render via `textContent`), `k1w1-handler` leaked keine rohen internen `err.message`-Details mehr an Clients und antwortet mit generischen sicheren Fehlertexten; gezielte Invariant-Tests ergänzt.
 - Patch 468: GitHubReposScreen-Architekturblock konservativ beruhigt — Sync-Status-Vergleich läuft zentral über Tree-SHA-Abgleich (`compareLocalFilesWithRepo`) statt teurem per-file Contents-Loop, und Multi-File-Push nutzt jetzt den Git-Data-Pfad (Tree/Commit/Ref) als konsolidierten Commit statt N Datei-Commits; bestehende Repo-/Branch-Stale-Guards bleiben intakt.
 - Patch 467: Allgemeiner flow-naher Maintenance-/Typing-Block konservativ nachgezogen — `useChatAIFlow` entfernt einen verbliebenen Validator-`any`-Cast, `useGitHubActionsLogs` bereinigt toten Secret-Import und nutzt `unknown` im Error-Pfad, `actionsLogsTypes.describeEdgeFailure` parst Edge-Fehlerpayload ohne `any`, und `ensureChatHistoryHasIds` läuft defensiv über `unknown[]` + lokalen Type-Guard.

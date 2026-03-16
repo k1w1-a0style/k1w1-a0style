@@ -11,8 +11,9 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 469**.
+- Zuletzt abgeschlossen: **Patch 470**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
+- Patch 470 vervollständigt den verbleibenden `k1w1-handler`-Restpunkt aus 469: auch der frühe `parseJsonBody(...)`-Fehlerpfad nutzt jetzt ausschließlich generische sichere Client-Fehler (`Invalid request payload.` / `Request too large.`) statt roher `parsedBody.error`-Durchreichung; der Catch-Block ist minimal auf `unknown` + Narrowing gehärtet.
 - Patch 469 härtet die verbleibenden bestätigten Security-/Exposure-Restpunkte in Edge-/Preview-Pfaden minimal-konservativ: `preview_page` rendert Runtime-Errors ohne HTML-Interpolation (kein Stack-/HTML-Injection-Pfad mehr), und `k1w1-handler` gibt Clients nur noch generische sichere Fehlertexte statt roher interner `err.message`-Details zurück.
 - Patch 468 schließt den letzten bestätigten GitHubReposScreen-Architekturblock konservativ: Sync-Vergleich läuft zentral über Tree-SHA statt teurem per-file Contents-Loop, Push nutzt den Git Data API-Pfad (ein konsolidierter Commit statt N Datei-Commits), und der bestehende Repo-/Branch-Race-Guard bleibt unverändert aktiv.
 - Patch 467 entschärft den verbleibenden allgemeinen Maintenance-/Typing-Block bewusst klein: flow-nahe `any`-Reste in Chat-/Logs-/Storage-Helfern wurden lokal typisiert, ein toter Import in `useGitHubActionsLogs` entfernt und die Edge-Fehlerpayload-Parse enger gemacht — ohne Architekturumbau.

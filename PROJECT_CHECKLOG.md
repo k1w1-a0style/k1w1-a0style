@@ -1,3 +1,20 @@
+## 2026-03-16 — Patch 470: k1w1-handler Parse-Error-Follow-up (Client-Error-Vertrag konsistent)
+
+- Offener Restpunkt aus Patch 469 geschlossen: der frühe `parseJsonBody(...)`-Fehlerpfad reicht `parsedBody.error` nicht mehr roh an Clients durch.
+- Client-seitiger Error-Vertrag ist jetzt durchgehend konsistent und generisch: `Invalid request payload.` (400) bzw. `Request too large.` (413).
+- Optionaler Mini-Rest mitgezogen: `catch (err: unknown)` + enges Narrowing für Logging.
+- Invariant-Tests erweitert: `__tests__/edgeErrorExposure.invariants.test.ts` prüft explizit den frühen Parse-/Body-Error-Pfad.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 ## 2026-03-16 — Patch 469: Edge Security Hardening (preview_page + k1w1-handler)
 
 - Bestätigter Preview-Restpunkt geschlossen: Error-Overlay nutzt jetzt sichere DOM-Erzeugung mit `textContent` (kein raw Stack-/Message-HTML in `innerHTML`-Templates).

@@ -16,9 +16,12 @@ describe("edge error exposure invariants", () => {
   it("k1w1-handler returns only generic client-safe errors", () => {
     const src = read("supabase/functions/k1w1-handler/index.ts");
 
+    expect(src).toContain('error: isTooLarge ? "Request too large." : "Invalid request payload."');
+    expect(src).not.toContain('JSON.stringify({ ok: false, error: parsedBody.error })');
     expect(src).toContain('error: isValidationError');
     expect(src).toContain('"Invalid request payload."');
     expect(src).toContain('"Internal Server Error"');
     expect(src).not.toContain('error: err?.message || "Unknown error"');
+    expect(src).toContain('} catch (err: unknown) {');
   });
 });
