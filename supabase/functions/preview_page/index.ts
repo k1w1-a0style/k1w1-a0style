@@ -217,6 +217,37 @@ function renderPage(params: {
     rawLogsEl.textContent = (now + " " + message + "\n" + (rawLogsEl.textContent || "")).slice(0, 12000);
   }
 
+  function sanitizeClientErrorText(input) {
+    const value = String(input ?? "");
+    return value.replace(/\s+/g, " ").trim().slice(0, 600);
+  }
+
+  function setOverlayState(state, message) {
+    if (!overlay) return;
+
+    overlay.textContent = "";
+    overlay.classList.remove("error-overlay");
+
+    if (state === "loading") {
+      const spinner = document.createElement("div");
+      spinner.className = "spinner";
+      const label = document.createElement("div");
+      label.className = "overlay-text";
+      label.textContent = "Booting preview…";
+      overlay.append(spinner, label);
+      return;
+    }
+
+    overlay.classList.add("error-overlay");
+    const title = document.createElement("div");
+    title.className = "error-title";
+    title.textContent = "Preview Error";
+    const body = document.createElement("div");
+    body.className = "error-message";
+    body.textContent = sanitizeClientErrorText(message || "Unable to load preview.");
+    overlay.append(title, body);
+  }
+
   import { SandpackClient } from "https://esm.sh/@codesandbox/sandpack-client@2.19.0";
 
   function hideOverlay() {
@@ -226,21 +257,13 @@ function renderPage(params: {
   function showError(err) {
     appendLog("[error] " + String(String(err?.message || err)));
     overlay?.classList.remove("hidden");
-    overlay?.classList.add("error-overlay");
-    overlay.innerHTML = \`
-      <div class="error-title">Preview Error</div>
-      <div class="error-message">\${String(err?.stack || err?.message || err)}</div>
-    \`;
+    setOverlayState("error", err?.message || err);
   }
 
   async function start() {
     try {
       overlay?.classList.remove("hidden");
-      overlay?.classList.remove("error-overlay");
-      overlay.innerHTML = \`
-        <div class="spinner"></div>
-        <div class="overlay-text">Booting preview…</div>
-      \`;
+      setOverlayState("loading");
 
       const root = document.getElementById("root");
       if (!root) throw new Error("Missing #root container");

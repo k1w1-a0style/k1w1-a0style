@@ -1,3 +1,4 @@
+- [x] Patch 469 (2026-03-16): Edge-/Preview-Security-Restpunkte minimal-konservativ gehärtet (`preview_page` ohne unsanitized Fehler-HTML/Stack-Interpolation, `k1w1-handler` mit generischen Client-Fehlerantworten statt rohem `err.message`-Leak, gezielte Invariant-Tests ergänzt).
 - [x] Patch 468 (2026-03-16): GitHubReposScreen-Architekturblock konservativ beruhigt (Sync-Vergleich zentral über Tree-SHAs statt per-file Contents-Reads, Push auf Git Data API mit einem konsolidierten Commit, bestehende Repo-/Branch-Stale-Guards beibehalten, gezielte Architektur-Invariant-Tests ergänzt).
 - [x] Patch 467 (2026-03-16): Allgemeiner flow-naher Maintenance-/Typing-Block konservativ nachgezogen (`useChatAIFlow`-Validator-Map ohne `any`, `useGitHubActionsLogs` Error-Pfad mit `unknown` + toter Import entfernt, `actionsLogsTypes` Edge-Fehlerpayload enger typisiert, `ensureChatHistoryHasIds` auf `unknown[]` + Type-Guard gehärtet).
 - [x] Patch 465 (2026-03-16): SettingsScreen/AIContext-Restpunkte final konservativ geschlossen (leeres Retention-Input wird nicht mehr still zu `0`, Retention-Hydration überschreibt keine frisch gesetzten Runtime-Werte mehr, minimale moveKeyToFront-Bereinigung, gezielte Regressionstests ergänzt).
@@ -5,7 +6,7 @@
 
 # TODO
 
-Stand: **2026-03-16 (Patch 468)**
+Stand: **2026-03-16 (Patch 469)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.

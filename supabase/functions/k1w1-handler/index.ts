@@ -2,7 +2,7 @@
 // REFACTORED: helpers → helpers.ts
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { Role,ChatMessage,HandlerRequestBody,DEFAULT_MODELS,parseRequestBody,toGeminiContents,callGroq,callGemini,callOpenAI,callAnthropic,callHuggingFace,corsHeaders,handleCors,parseJsonBody,rateLimit,requireAdminKey } from "./helpers.ts";
+import { callAnthropic, callGemini, callGroq, callHuggingFace, callOpenAI, corsHeaders, handleCors, parseJsonBody, parseRequestBody, rateLimit, requireAdminKey } from "./helpers.ts";
 
 serve(async (req: Request): Promise<Response> => {
   const corsResponse = handleCors(req);
@@ -82,16 +82,22 @@ serve(async (req: Request): Promise<Response> => {
   } catch (err: any) {
     console.error("❌ k1w1-handler error", err?.message, err?.stack, err);
 
+    const rawMessage = typeof err?.message === "string" ? err.message : "";
+    const isValidationError =
+      rawMessage.includes("Missing") ||
+      rawMessage.includes("Invalid") ||
+      rawMessage.includes("Unsupported provider") ||
+      rawMessage.includes("request body") ||
+      rawMessage.includes("messages");
+
     const errorPayload = {
       ok: false as const,
-      error: err?.message || "Unknown error",
+      error: isValidationError
+        ? "Invalid request payload."
+        : "Internal Server Error",
     };
 
-    // Use 500 for unexpected errors, 400 for validation errors
-    const statusCode =
-      err?.message?.includes("Missing") || err?.message?.includes("Invalid")
-        ? 400
-        : 500;
+    const statusCode = isValidationError ? 400 : 500;
 
     return new Response(JSON.stringify(errorPayload), {
       status: statusCode,

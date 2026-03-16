@@ -1,3 +1,19 @@
+## 2026-03-16 — Patch 469: Edge Security Hardening (preview_page + k1w1-handler)
+
+- Bestätigter Preview-Restpunkt geschlossen: Error-Overlay nutzt jetzt sichere DOM-Erzeugung mit `textContent` (kein raw Stack-/Message-HTML in `innerHTML`-Templates).
+- Bestätigter k1w1-Handler-Restpunkt geschlossen: Client-Fehlerantworten sind generisch (`Invalid request payload.` / `Internal Server Error`), interne Details bleiben nur serverseitig im Log.
+- Gezielt ergänzt: `__tests__/edgeErrorExposure.invariants.test.ts` verhindert Regressionsdrift für beide Exposure-Pfade.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 ## 2026-03-16 — Patch 468: GitHubReposScreen-Architekturblock (Sync/Push) konservativ beruhigt
 
 - Letzter bestätigter GitHubReposScreen-Architekturrest gezielt adressiert: Sync-Status nutzt jetzt einen zentralen Infra-Vergleich auf Tree-SHA-Basis statt per-file Contents-Reads im Screen-Hook.
