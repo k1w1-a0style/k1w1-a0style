@@ -1,3 +1,10 @@
+## 2026-03-16 — Patch 467: Allgemeiner flow-naher Maintenance-/Typing-Block konservativ entschärft
+
+- Verbliebene produktnahe Typing-Reste ohne Broad-Refactor nachgezogen: `useChatAIFlow` Validator-Map ohne `any`, `useGitHubActionsLogs` Error-`catch` auf `unknown` und toter Secret-Import entfernt.
+- `describeEdgeFailure(...)` typisiert den internen Edge-Error-Body jetzt über ein enges lokales Payload-Interface statt `any`.
+- Chat-History-Migrationspfad (`ensureChatHistoryHasIds`) wurde auf `unknown[]` + lokalen Guard umgestellt; Verhalten bleibt gleich, Typvertrag ist robuster.
+- Keine Architekturänderungen, keine massenhafte Test-/Template-Bereinigung; Fokus blieb auf flow-nahen Restpunkten.
+
 ## 2026-03-16 — Patch 466: CodeScreen/File-Editor/File-Actions Restpunkte konservativ geschlossen
 
 - Patch 466: WebCodeEditor nutzt jetzt im CodeScreen denselben shared WebView-Crash-Recovery-Mechanismus wie der Preview-Bereich (`onContentProcessDidTerminate` + `onRenderProcessGone`) ohne neue Editor-Architektur.

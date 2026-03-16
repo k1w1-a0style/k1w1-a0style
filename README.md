@@ -11,8 +11,9 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 466**.
+- Zuletzt abgeschlossen: **Patch 467**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
+- Patch 467 entschärft den verbleibenden allgemeinen Maintenance-/Typing-Block bewusst klein: flow-nahe `any`-Reste in Chat-/Logs-/Storage-Helfern wurden lokal typisiert, ein toter Import in `useGitHubActionsLogs` entfernt und die Edge-Fehlerpayload-Parse enger gemacht — ohne Architekturumbau.
 - Preview-Restfix ist konservativ abgeschlossen: Hot-Reload nutzt content-basierte File-Fingerprints (kein Same-Length-Blindspot mehr), der normale PreviewScreen hat jetzt dieselbe WebView-Crash-Recovery wie Fullscreen, und abgelaufene Supabase-URLs werden im PreviewScreen nicht mehr blind geladen.
 - KI-/Chat-/Prompting-Restpunkte wurden konservativ gehärtet: Projekt-Snapshot priorisiert jetzt relevante Dateien statt reiner Array-Reihenfolge, Builder-NonJSON-Antworten werden als verständliche KI-Rückmeldung angezeigt (statt kryptischem Parserfehler), Drift-Digest nutzt SHA-256 über Pfad+Inhalt (kein Same-Length-Blindspot), und Nutzerfeedback zeigt geblockte/übersprungene Ownership-/Validator-/Explain-Fälle transparenter.
 - Nachaudit (Patch 453): Non-JSON-Fehlerpfad wurde für `output_text`-Antworten wirklich transparent gemacht (Response-Preview bleibt erhalten statt Generic-Fehler), und die Normalizer-Regressionstests decken diesen Randfall jetzt explizit ab.

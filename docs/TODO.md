@@ -1,9 +1,10 @@
+- [x] Patch 467 (2026-03-16): Allgemeiner flow-naher Maintenance-/Typing-Block konservativ nachgezogen (`useChatAIFlow`-Validator-Map ohne `any`, `useGitHubActionsLogs` Error-Pfad mit `unknown` + toter Import entfernt, `actionsLogsTypes` Edge-Fehlerpayload enger typisiert, `ensureChatHistoryHasIds` auf `unknown[]` + Type-Guard gehärtet).
 - [x] Patch 465 (2026-03-16): SettingsScreen/AIContext-Restpunkte final konservativ geschlossen (leeres Retention-Input wird nicht mehr still zu `0`, Retention-Hydration überschreibt keine frisch gesetzten Runtime-Werte mehr, minimale moveKeyToFront-Bereinigung, gezielte Regressionstests ergänzt).
 - [x] Patch 464 (2026-03-16): GitHubReposScreen-Defensivfix für malformed `project.files` nachgezogen (typed Normalizer filtert `null`/invalid Legacy-Einträge, keine RepoScreen-Crashes im Local-File-Normalizer-Pfad).
 
 # TODO
 
-Stand: **2026-03-16 (Patch 465)**
+Stand: **2026-03-16 (Patch 467)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
