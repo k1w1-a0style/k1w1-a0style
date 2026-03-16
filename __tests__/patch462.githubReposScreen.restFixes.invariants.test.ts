@@ -5,10 +5,10 @@ const read = (rel: string) =>
   fs.readFileSync(path.join(process.cwd(), rel), "utf8");
 
 describe("Patch 462 GitHubReposScreen rest-fixes invariants", () => {
-  it("removes root any-cast from local project files", () => {
+  it("keeps typed local file handling without root any-cast", () => {
     const src = read("screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts");
 
-    expect(src).toContain("const projectFiles = useMemo<ProjectFile[]>");
+    expect(src).toContain("normalizeProjectFiles(projectData?.files)");
     expect(src).not.toContain("const list = (projectData?.files ?? []) as any[];");
   });
 

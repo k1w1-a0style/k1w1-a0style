@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 464: GitHubReposScreen-Defensiv-Nachfix für malformed/legacy `project.files` — lokale Dateien werden zentral über einen getypten Normalizer gefiltert (u. a. `null`/invalid Einträge), sodass Push/Pull/Sync-nahe Iterationen nicht crashen; gezielte Regression für Legacy-Einträge ergänzt.
 - Patch 463: SettingsScreen/AIContext-Restpunkte konservativ geschlossen — Quality-Mode setzt nun die effektiven Chat-/Agent-Modelle mit (kein kosmetischer Toggle), Retention-Limit ist in Privacy sinnvoll editierbar/persistierbar **und wird nach Save sofort in der aktiven Chat-Runtime wirksam**, Gemini-Key-Prefix-Validation (`AIza`) ergänzt, unnötige `any`-Hotspots im Settings-Hook/Provider-Status entfernt und gezielte Tests inkl. Retention-Runtime-Absicherung ergänzt.
 - Patch 462: GitHubReposScreen-Restpunkte konservativ geschlossen — Root-`projectFiles` jetzt sauber als `ProjectFile[]` (kein `any[]`-Root-Cast), `refreshSyncStatus` ignoriert stale Async-Rückläufer via Run-Guard, `handleCreateRepo` übernimmt GitHub-`default_branch` direkt, und angrenzende Pull-/Push-Casts wurden minimal reduziert; keine neue GitHub-Architektur.
 - Patch 461: Chat-Flow-Nachfix aus PR #272/#273 zusammengeführt — Meta-/lokale Kommandos bleiben strikt auf unverändertem Raw-Input, der Attachment-Hinweis bleibt auf den normalen AI-Pfad begrenzt, und Attachment-only-Details gehen auch im Pending-Plan-Handoff nicht verloren (`aiContent || userContent`).
