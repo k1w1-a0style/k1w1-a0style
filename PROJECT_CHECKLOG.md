@@ -1,3 +1,11 @@
+## 2026-03-16 — Patch 465: SettingsScreen/AIContext-Restpunkte (Retention-Input + Hydration-Race) final geschlossen
+
+- `screens/SettingsScreen/hooks/useSettingsScreen.ts`: Retention-Save nutzt jetzt einen dedizierten Parser, der leere Eingaben explizit als ungültig behandelt (statt implizit `0`), und meldet dies klar per Alert zurück.
+- `screens/SettingsScreen/hooks/settingsHelpers.ts`: `parseRetentionLimitInput(...)` ergänzt (trim/non-empty + number>=0 + floor), damit der kritische Parsing-Pfad zentral und testbar ist.
+- `contexts/ProjectContext.tsx`: Hydration-Guard für Runtime-Retention ergänzt (`didSetRuntimeRetentionRef` + `shouldApplyHydratedRetention`), damit ein verspäteter Initial-Load keinen frisch gesetzten Runtime-Wert überschreibt.
+- Optionaler Micro-Cleanup: `handleMoveKeyToFront` im Settings-Hook minimiert doppelten Fallback-Try-Code bei identischem Verhalten.
+- Regressionstests ergänzt: `__tests__/settingsScreen.retentionInput.test.ts` (leer -> invalid, kein stilles `0`) und `__tests__/projectContext.retentionHydrationGuard.test.ts` (Hydration-Override wird nach Runtime-Set blockiert).
+
 ## 2026-03-16 — Patch 464: GitHubReposScreen Defensivfix für malformed `project.files`
 
 - Offener Restpunkt geschlossen: lokale `project.files` werden im RepoScreen zentral über `normalizeProjectFiles(...)` validiert; `null`/malformed Legacy-Einträge werden gefiltert statt iteriert.

@@ -113,3 +113,12 @@ export function validateApiKeyInput(provider: ProviderId, key: string): string |
 
   return null;
 }
+
+export function parseRetentionLimitInput(input: string): number | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Math.floor(parsed);
+}

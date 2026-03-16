@@ -1,8 +1,9 @@
+- [x] Patch 465 (2026-03-16): SettingsScreen/AIContext-Restpunkte final konservativ geschlossen (leeres Retention-Input wird nicht mehr still zu `0`, Retention-Hydration überschreibt keine frisch gesetzten Runtime-Werte mehr, minimale moveKeyToFront-Bereinigung, gezielte Regressionstests ergänzt).
 - [x] Patch 464 (2026-03-16): GitHubReposScreen-Defensivfix für malformed `project.files` nachgezogen (typed Normalizer filtert `null`/invalid Legacy-Einträge, keine RepoScreen-Crashes im Local-File-Normalizer-Pfad).
 
 # TODO
 
-Stand: **2026-03-16 (Patch 464)**
+Stand: **2026-03-16 (Patch 465)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
@@ -11,6 +12,7 @@ Stand: **2026-03-16 (Patch 464)**
 
 - [x] **Chat-Nachfix für PR #272 + #273 vollständig geschlossen:** Meta-/lokale Full-line-Kommandos (`cat <pfad>` / `zeige datei <pfad>`) laufen stabil auf unverändertem `rawInput`; Attachment-Hinweis bleibt auf den normalen AI-Pfad begrenzt; Attachment-only (leerer `rawInput`, sinnvoller `aiInput`) wird nicht mehr still verworfen, inkl. Pending-Plan-Handoff-Fallback auf `aiInput` (Patch 461).
 - [x] **GitHubReposScreen-Restpunkte (Typing/Sync/Branch) konservativ geschlossen:** Root-`projectFiles` ohne `any[]`-Cast (`ProjectFile[]`), `refreshSyncStatus` mit stale-run-Guard gegen verspätete Updates, `handleCreateRepo` übernimmt GitHub-`default_branch` statt blind `null`, plus minimale Pull-/Push-nahe Cast-Reduktion ohne Architekturumbau (Patch 462).
+- [x] **SettingsScreen/AIContext-Restpunkte final nachgezogen:** Leere Retention-Eingabe wird im Save-Pfad explizit als ungültig behandelt (kein stilles `Number("") -> 0`), Runtime-Retention ist gegen verspätete Hydration geschützt, und der kleine `moveKeyToFront`-Fallback bleibt funktional gleich bei weniger doppeltem Try-Code; gezielte Regressionstests sichern beide Kernfälle (Patch 465).
 - [x] **Connections Busy-Guard-Fehlersignal entkoppelt (Restpunkt geschlossen):** `withBusyGuard` nutzt jetzt einen dedizierten Busy-Kollisionsfehler statt booleschem `false`, und `saveAll`/`testGitHub`/`testExpo`/`testSupabase` trennen Busy-Konkurrenz sauber von echten Fehlern; dadurch kein irreführender „Ein anderer Save/Test-Lauf ist noch aktiv“-Hinweis mehr nach realen Save-/Test-Fehlern. `useChatAIFlow`-Pending-Plan-Guard wurde gezielt verifiziert und per Invariant abgesichert (Patch 457).
 - [x] **OneClickDeploy-Testflake gezielt stabilisiert:** `__tests__/oneClickDeploy.test.tsx` wartet den Press-Start jetzt deterministisch via `act` + Microtask-Flush ab, setzt AsyncStorage-Default-Resolves pro Test explizit und räumt mit `cleanup()` + `jest.clearAllTimers()` strikt auf; dadurch weniger race-/timeout-anfällige Läufe ohne Produktcode-Refactor (Patch 454).
 - [x] **KI-/Chat-Nachaudit (misstrauisch) nachgeschärft:** Restlücke im Builder-Fehlerpfad geschlossen: `normalizeAiResponseDetailed` übernimmt `output_text` jetzt als `responseText`, sodass Non-JSON-Antworten mit verständlicher Vorschau enden statt in generischem Fehlerzustand; Regressionstests decken `output_text` und leere Normalisierungsresultate gezielt ab (Patch 453).
