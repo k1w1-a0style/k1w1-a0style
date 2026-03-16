@@ -1,3 +1,20 @@
+## 2026-03-16 — Patch 468: GitHubReposScreen-Architekturblock (Sync/Push) konservativ beruhigt
+
+- Letzter bestätigter GitHubReposScreen-Architekturrest gezielt adressiert: Sync-Status nutzt jetzt einen zentralen Infra-Vergleich auf Tree-SHA-Basis statt per-file Contents-Reads im Screen-Hook.
+- Multi-File-Push wurde von dateiweisen Contents-Commits auf den Git-Data-Pfad (Tree → Commit → Ref-Update) umgestellt; Ergebnis ist ein konsolidierter Commit pro Push-Lauf.
+- Repo-/Branch-SoT- und stale-run-Guards im Screen-Hook blieben unverändert erhalten; kein Broad-Refactor außerhalb des GitHubRepos-/RepoSync-Blocks.
+- Architektur-Invariants ergänzt: `__tests__/patch468.githubReposScreen.architecture.invariants.test.ts`.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 ## 2026-03-16 — Patch 467: Allgemeiner flow-naher Maintenance-/Typing-Block konservativ entschärft
 
 - Verbliebene produktnahe Typing-Reste ohne Broad-Refactor nachgezogen: `useChatAIFlow` Validator-Map ohne `any`, `useGitHubActionsLogs` Error-`catch` auf `unknown` und toter Secret-Import entfernt.
