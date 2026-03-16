@@ -9,16 +9,15 @@ import { useGitHub } from "../../../contexts/GitHubContext";
 import { useProject } from "../../../contexts/ProjectContext";
 import {
   createRepo,
-  pushFilesToRepo,
   pushFilesToRepoAdvanced,
   deleteRepo as deleteGitHubRepo,
   renameRepo as renameGitHubRepo,
   createBranch,
   deleteBranch,
   renameBranch,
+  compareLocalFilesWithRepo,
   createOrUpdateFile,
   getRepoFileText,
-  listRepoBlobPaths,
   getGitHubToken,
 } from "../../../infra/github/githubService";
 import { getGitHubUser } from "../../../infra/github/user";
@@ -28,9 +27,6 @@ import { combineRepos, splitFullName, isValidRepoName } from "../utils/repos";
 import { normalizeProjectFiles } from "../utils/projectFiles";
 import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
 import type { TemplateId, CoreTemplateId, ProjectFile } from "../../../shared/types/project";
-
-import { MANAGED_WORKFLOWS, normalizeRepoPath } from "../../../infra/github/utils";
-
 
 import {
   loadCoreTemplateFiles,
@@ -199,64 +195,21 @@ export function useGitHubReposScreen() {
       commitSyncStatus({ ...EMPTY_SYNC_STATUS, checkedAt: Date.now(), error: 1 });
       return;
     }
-    const local = normalizedLocalFiles;
-    if (!local.length) {
-      // remoteOnly still meaningful
-      commitSyncStatus({ ...EMPTY_SYNC_STATUS, checking: true });
-      try {
-        const remotePaths = await listRepoBlobPaths({ owner: parsed.owner, repo: parsed.repo, ref: branch });
-        commitSyncStatus({ ...EMPTY_SYNC_STATUS, remoteOnly: remotePaths.length, checkedAt: Date.now() });
-      } catch {
-        commitSyncStatus({ ...EMPTY_SYNC_STATUS, error: 1, checkedAt: Date.now() });
-      }
-      return;
-    }
-
-    const MAX = 40;
-    const slice = local.slice(0, MAX);
-
     commitSyncStatus({ ...EMPTY_SYNC_STATUS, checking: true });
 
-    let modified = 0;
-    let localOnly = 0;
-    let skipped = 0;
-    let error = 0;
-
-    const localPaths = new Set<string>();
-    for (const f of slice) {
-      const p = normalizeRepoPath(String(f.path || "").trim());
-      if (!p) continue;
-      localPaths.add(p);
-      if (p.startsWith(".github/workflows/") && !MANAGED_WORKFLOWS.has(p)) {
-        skipped++;
-        continue;
-      }
-      try {
-        const remote = await getRepoFileText({ owner: parsed.owner, repo: parsed.repo, path: p, ref: branch });
-        if (remote !== String(f.content ?? "")) modified++;
-      } catch (e: any) {
-        const msg = String(e?.message || "");
-        if (msg.includes("404") || msg.toLowerCase().includes("not found")) localOnly++;
-        else error++;
-      }
-    }
-
-    let remoteOnly = 0;
     try {
-      const remotePaths = await listRepoBlobPaths({ owner: parsed.owner, repo: parsed.repo, ref: branch });
-      const remoteSet = new Set(remotePaths);
-      // Count remote paths not present in local slice
-      for (const rp of remoteSet) {
-        if (rp.startsWith(".github/workflows/") && !MANAGED_WORKFLOWS.has(rp)) continue;
-        if (!localPaths.has(rp)) remoteOnly++;
-      }
+      const stats = await compareLocalFilesWithRepo({
+        owner: parsed.owner,
+        repo: parsed.repo,
+        branch,
+        localFiles: normalizedLocalFiles,
+        maxLocalFiles: 40,
+      });
+      commitSyncStatus({ checking: false, ...stats, checkedAt: Date.now() });
     } catch {
-      // ignore, still show local-only/modified
-      error++;
+      commitSyncStatus({ ...EMPTY_SYNC_STATUS, checking: false, error: 1, checkedAt: Date.now() });
     }
-
-    commitSyncStatus({ checking: false, modified, localOnly, remoteOnly, skipped, error, checkedAt: Date.now() });
-  }, [activeRepo, activeBranch, normalizedLocalFiles, listRepoBlobPaths]);
+  }, [activeRepo, activeBranch, normalizedLocalFiles]);
 
   // Token load
   useEffect(() => {
@@ -719,7 +672,7 @@ export function useGitHubReposScreen() {
       refreshSyncStatus();
       Alert.alert(
         "✅ Push erfolgreich",
-        `${parsed.owner}/${parsed.repo}@${branch}\nHinweis: GitHub erstellt hier pro Datei einen Commit (Contents API).`,
+        `${parsed.owner}/${parsed.repo}@${branch}\nDer Push wurde als ein konsolidierter Git-Commit übertragen.`,
       );
     } catch (e: any) {
       Alert.alert("❌ Push fehlgeschlagen", e?.message ?? "");

@@ -1,10 +1,11 @@
+- [x] Patch 468 (2026-03-16): GitHubReposScreen-Architekturblock konservativ beruhigt (Sync-Vergleich zentral über Tree-SHAs statt per-file Contents-Reads, Push auf Git Data API mit einem konsolidierten Commit, bestehende Repo-/Branch-Stale-Guards beibehalten, gezielte Architektur-Invariant-Tests ergänzt).
 - [x] Patch 467 (2026-03-16): Allgemeiner flow-naher Maintenance-/Typing-Block konservativ nachgezogen (`useChatAIFlow`-Validator-Map ohne `any`, `useGitHubActionsLogs` Error-Pfad mit `unknown` + toter Import entfernt, `actionsLogsTypes` Edge-Fehlerpayload enger typisiert, `ensureChatHistoryHasIds` auf `unknown[]` + Type-Guard gehärtet).
 - [x] Patch 465 (2026-03-16): SettingsScreen/AIContext-Restpunkte final konservativ geschlossen (leeres Retention-Input wird nicht mehr still zu `0`, Retention-Hydration überschreibt keine frisch gesetzten Runtime-Werte mehr, minimale moveKeyToFront-Bereinigung, gezielte Regressionstests ergänzt).
 - [x] Patch 464 (2026-03-16): GitHubReposScreen-Defensivfix für malformed `project.files` nachgezogen (typed Normalizer filtert `null`/invalid Legacy-Einträge, keine RepoScreen-Crashes im Local-File-Normalizer-Pfad).
 
 # TODO
 
-Stand: **2026-03-16 (Patch 467)**
+Stand: **2026-03-16 (Patch 468)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
@@ -325,6 +326,8 @@ Akzeptanz:
   _Ort_: `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`
 - [x] **RS-462-C (P1/P2)** Repo-Erstellung übernimmt `default_branch` direkt, statt Branch-Kontext auf `null` zu verlieren ✅ *(patch 462)*  
   _Ort_: `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`, `hooks/gitHubReposTypes.ts`
+- [x] **RS-468-A (P1/P2)** Letzter GitHubReposScreen-Architekturblock entschärft: Sync-Vergleich zentralisiert (`compareLocalFilesWithRepo`) und Push konsolidiert über Git Data API (Tree/Commit/Ref) statt N Contents-Commits ✅ *(patch 468)*  
+  _Ort_: `infra/github/files.ts`, `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`, `__tests__/patch468.githubReposScreen.architecture.invariants.test.ts`
 
 ### ConnectionsScreen
 
