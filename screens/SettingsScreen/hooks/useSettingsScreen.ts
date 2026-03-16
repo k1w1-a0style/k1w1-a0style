@@ -18,6 +18,7 @@ import {
   getProviderStatusSnapshot,
   sanitizeSettingsError,
   validateApiKeyInput,
+  parseRetentionLimitInput,
 } from "./settingsHelpers";
 import type { ProviderId } from "./settingsHelpers";
 
@@ -79,12 +80,11 @@ export function useSettingsScreen() {
   };
 
   const handleSaveRetentionLimit = async () => {
-    const parsed = Number(retentionInput.trim());
-    if (!Number.isFinite(parsed) || parsed < 0) {
-      Alert.alert("Ungültiger Wert", "Retention muss eine Zahl ≥ 0 sein.");
+    const safe = parseRetentionLimitInput(retentionInput);
+    if (safe === null) {
+      Alert.alert("Ungültiger Wert", "Retention muss eine nicht-leere Zahl ≥ 0 sein.");
       return;
     }
-    const safe = Math.floor(parsed);
     try {
       await setChatHistoryRetentionLimit(safe);
       await setChatRetentionLimit(safe);
@@ -221,15 +221,15 @@ export function useSettingsScreen() {
   const handleMoveKeyToFront = async (key: string, index: number) => {
     try {
       await moveApiKeyToFront(selectedKeyProvider, key);
-      return;
-    } catch {}
-    try {
-      await moveApiKeyToFront(selectedKeyProvider, index);
-    } catch (error: unknown) {
-      Alert.alert(
-        "Fehler",
-        sanitizeSettingsError(error),
-      );
+    } catch {
+      try {
+        await moveApiKeyToFront(selectedKeyProvider, index);
+      } catch (error: unknown) {
+        Alert.alert(
+          "Fehler",
+          sanitizeSettingsError(error),
+        );
+      }
     }
   };
 

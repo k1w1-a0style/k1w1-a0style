@@ -58,7 +58,21 @@ export async function describeEdgeFailure(opts: {
     bodyText = "";
   }
 
-  let bodyJson: any = null;
+  type EdgeFailurePayload = {
+    error?: unknown;
+    message?: unknown;
+    missing?: unknown;
+    required?: unknown;
+    details?: {
+      error?: unknown;
+      message?: unknown;
+      missing?: unknown;
+      required?: unknown;
+      status?: unknown;
+    } | null;
+  };
+
+  let bodyJson: EdgeFailurePayload | null = null;
   try {
     bodyJson = bodyText ? JSON.parse(bodyText) : null;
   } catch {

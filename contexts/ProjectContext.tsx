@@ -75,6 +75,10 @@ export const sanitizeChatRetentionLimit = (limit: number): number => {
   return Math.floor(limit);
 };
 
+export const shouldApplyHydratedRetention = (
+  didSetRuntimeRetention: boolean,
+): boolean => !didSetRuntimeRetention;
+
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof Error && error.message) return error.message;
   if (typeof error === "string" && error.trim()) return error;
@@ -210,6 +214,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     null,
   );
   const chatRetentionLimitRef = useRef<number>(CHAT_HISTORY_RETENTION_FALLBACK);
+  const didSetRuntimeRetentionRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -217,11 +222,17 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     const loadRetention = async () => {
       try {
         const { retention } = await loadChatHistorySettings();
-        if (!cancelled) {
+        if (
+          !cancelled &&
+          shouldApplyHydratedRetention(didSetRuntimeRetentionRef.current)
+        ) {
           chatRetentionLimitRef.current = retention;
         }
       } catch {
-        if (!cancelled) {
+        if (
+          !cancelled &&
+          shouldApplyHydratedRetention(didSetRuntimeRetentionRef.current)
+        ) {
           chatRetentionLimitRef.current = CHAT_HISTORY_RETENTION_FALLBACK;
         }
       }
@@ -290,6 +301,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   const setChatRetentionLimit = useCallback(
     async (limit: number) => {
       const safeLimit = sanitizeChatRetentionLimit(limit);
+      didSetRuntimeRetentionRef.current = true;
       chatRetentionLimitRef.current = safeLimit;
       await updateProject((prev) => ({
         ...prev,
@@ -522,6 +534,19 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       await updateProject((prev) => ({
         ...prev,
         files: prev.files.filter((f) => f.path !== path),
+      }));
+    },
+    [updateProject],
+  );
+
+  const deleteFiles = useCallback(
+    async (paths: string[]) => {
+      const toDelete = new Set(paths.filter((p) => typeof p === "string" && p.length > 0));
+      if (toDelete.size === 0) return;
+
+      await updateProject((prev) => ({
+        ...prev,
+        files: prev.files.filter((f) => !toDelete.has(f.path)),
       }));
     },
     [updateProject],
@@ -884,6 +909,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       getWorkflowRuns,
       createFile,
       deleteFile,
+      deleteFiles,
       renameFile,
       setPackageName,
       exportProjectAsZip,
@@ -917,6 +943,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       setLastPreview,
       createFile,
       deleteFile,
+      deleteFiles,
       renameFile,
       setPackageName,
       exportProjectAsZip,

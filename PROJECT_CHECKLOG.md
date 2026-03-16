@@ -1,3 +1,53 @@
+## 2026-03-16 — Patch 468: GitHubReposScreen-Architekturblock (Sync/Push) konservativ beruhigt
+
+- Letzter bestätigter GitHubReposScreen-Architekturrest gezielt adressiert: Sync-Status nutzt jetzt einen zentralen Infra-Vergleich auf Tree-SHA-Basis statt per-file Contents-Reads im Screen-Hook.
+- Multi-File-Push wurde von dateiweisen Contents-Commits auf den Git-Data-Pfad (Tree → Commit → Ref-Update) umgestellt; Ergebnis ist ein konsolidierter Commit pro Push-Lauf.
+- Repo-/Branch-SoT- und stale-run-Guards im Screen-Hook blieben unverändert erhalten; kein Broad-Refactor außerhalb des GitHubRepos-/RepoSync-Blocks.
+- Architektur-Invariants ergänzt: `__tests__/patch468.githubReposScreen.architecture.invariants.test.ts`.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
+## 2026-03-16 — Patch 467: Allgemeiner flow-naher Maintenance-/Typing-Block konservativ entschärft
+
+- Verbliebene produktnahe Typing-Reste ohne Broad-Refactor nachgezogen: `useChatAIFlow` Validator-Map ohne `any`, `useGitHubActionsLogs` Error-`catch` auf `unknown` und toter Secret-Import entfernt.
+- `describeEdgeFailure(...)` typisiert den internen Edge-Error-Body jetzt über ein enges lokales Payload-Interface statt `any`.
+- Chat-History-Migrationspfad (`ensureChatHistoryHasIds`) wurde auf `unknown[]` + lokalen Guard umgestellt; Verhalten bleibt gleich, Typvertrag ist robuster.
+- Keine Architekturänderungen, keine massenhafte Test-/Template-Bereinigung; Fokus blieb auf flow-nahen Restpunkten.
+
+## 2026-03-16 — Patch 466: CodeScreen/File-Editor/File-Actions Restpunkte konservativ geschlossen
+
+- Patch 466: WebCodeEditor nutzt jetzt im CodeScreen denselben shared WebView-Crash-Recovery-Mechanismus wie der Preview-Bereich (`onContentProcessDidTerminate` + `onRenderProcessGone`) ohne neue Editor-Architektur.
+- Folder-Delete in `useFileActions` läuft gebatcht über `deleteFiles(paths)` statt sequentiellem Einzel-Delete.
+- `ProjectContext`/`projectTypes` wurden minimal um `deleteFiles(...)` erweitert, sodass der Batch-Delete in einem Update laufen kann.
+- `handleDeleteFile` hat einen expliziten Guard für fehlendes Action-Target (kein stiller Direktpfad).
+- Gezielt ergänzt: `__tests__/webCodeEditor.recovery.test.tsx` und `__tests__/useFileActions.regression.test.tsx`.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
+## 2026-03-16 — Patch 465: SettingsScreen/AIContext-Restpunkte (Retention-Input + Hydration-Race) final geschlossen
+
+- `screens/SettingsScreen/hooks/useSettingsScreen.ts`: Retention-Save nutzt jetzt einen dedizierten Parser, der leere Eingaben explizit als ungültig behandelt (statt implizit `0`), und meldet dies klar per Alert zurück.
+- `screens/SettingsScreen/hooks/settingsHelpers.ts`: `parseRetentionLimitInput(...)` ergänzt (trim/non-empty + number>=0 + floor), damit der kritische Parsing-Pfad zentral und testbar ist.
+- `contexts/ProjectContext.tsx`: Hydration-Guard für Runtime-Retention ergänzt (`didSetRuntimeRetentionRef` + `shouldApplyHydratedRetention`), damit ein verspäteter Initial-Load keinen frisch gesetzten Runtime-Wert überschreibt.
+- Optionaler Micro-Cleanup: `handleMoveKeyToFront` im Settings-Hook minimiert doppelten Fallback-Try-Code bei identischem Verhalten.
+- Regressionstests ergänzt: `__tests__/settingsScreen.retentionInput.test.ts` (leer -> invalid, kein stilles `0`) und `__tests__/projectContext.retentionHydrationGuard.test.ts` (Hydration-Override wird nach Runtime-Set blockiert).
+
 ## 2026-03-16 — Patch 464: GitHubReposScreen Defensivfix für malformed `project.files`
 
 - Offener Restpunkt geschlossen: lokale `project.files` werden im RepoScreen zentral über `normalizeProjectFiles(...)` validiert; `null`/malformed Legacy-Einträge werden gefiltert statt iteriert.

@@ -1,8 +1,11 @@
+- [x] Patch 468 (2026-03-16): GitHubReposScreen-Architekturblock konservativ beruhigt (Sync-Vergleich zentral über Tree-SHAs statt per-file Contents-Reads, Push auf Git Data API mit einem konsolidierten Commit, bestehende Repo-/Branch-Stale-Guards beibehalten, gezielte Architektur-Invariant-Tests ergänzt).
+- [x] Patch 467 (2026-03-16): Allgemeiner flow-naher Maintenance-/Typing-Block konservativ nachgezogen (`useChatAIFlow`-Validator-Map ohne `any`, `useGitHubActionsLogs` Error-Pfad mit `unknown` + toter Import entfernt, `actionsLogsTypes` Edge-Fehlerpayload enger typisiert, `ensureChatHistoryHasIds` auf `unknown[]` + Type-Guard gehärtet).
+- [x] Patch 465 (2026-03-16): SettingsScreen/AIContext-Restpunkte final konservativ geschlossen (leeres Retention-Input wird nicht mehr still zu `0`, Retention-Hydration überschreibt keine frisch gesetzten Runtime-Werte mehr, minimale moveKeyToFront-Bereinigung, gezielte Regressionstests ergänzt).
 - [x] Patch 464 (2026-03-16): GitHubReposScreen-Defensivfix für malformed `project.files` nachgezogen (typed Normalizer filtert `null`/invalid Legacy-Einträge, keine RepoScreen-Crashes im Local-File-Normalizer-Pfad).
 
 # TODO
 
-Stand: **2026-03-16 (Patch 464)**
+Stand: **2026-03-16 (Patch 468)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
@@ -11,6 +14,7 @@ Stand: **2026-03-16 (Patch 464)**
 
 - [x] **Chat-Nachfix für PR #272 + #273 vollständig geschlossen:** Meta-/lokale Full-line-Kommandos (`cat <pfad>` / `zeige datei <pfad>`) laufen stabil auf unverändertem `rawInput`; Attachment-Hinweis bleibt auf den normalen AI-Pfad begrenzt; Attachment-only (leerer `rawInput`, sinnvoller `aiInput`) wird nicht mehr still verworfen, inkl. Pending-Plan-Handoff-Fallback auf `aiInput` (Patch 461).
 - [x] **GitHubReposScreen-Restpunkte (Typing/Sync/Branch) konservativ geschlossen:** Root-`projectFiles` ohne `any[]`-Cast (`ProjectFile[]`), `refreshSyncStatus` mit stale-run-Guard gegen verspätete Updates, `handleCreateRepo` übernimmt GitHub-`default_branch` statt blind `null`, plus minimale Pull-/Push-nahe Cast-Reduktion ohne Architekturumbau (Patch 462).
+- [x] **SettingsScreen/AIContext-Restpunkte final nachgezogen:** Leere Retention-Eingabe wird im Save-Pfad explizit als ungültig behandelt (kein stilles `Number("") -> 0`), Runtime-Retention ist gegen verspätete Hydration geschützt, und der kleine `moveKeyToFront`-Fallback bleibt funktional gleich bei weniger doppeltem Try-Code; gezielte Regressionstests sichern beide Kernfälle (Patch 465).
 - [x] **Connections Busy-Guard-Fehlersignal entkoppelt (Restpunkt geschlossen):** `withBusyGuard` nutzt jetzt einen dedizierten Busy-Kollisionsfehler statt booleschem `false`, und `saveAll`/`testGitHub`/`testExpo`/`testSupabase` trennen Busy-Konkurrenz sauber von echten Fehlern; dadurch kein irreführender „Ein anderer Save/Test-Lauf ist noch aktiv“-Hinweis mehr nach realen Save-/Test-Fehlern. `useChatAIFlow`-Pending-Plan-Guard wurde gezielt verifiziert und per Invariant abgesichert (Patch 457).
 - [x] **OneClickDeploy-Testflake gezielt stabilisiert:** `__tests__/oneClickDeploy.test.tsx` wartet den Press-Start jetzt deterministisch via `act` + Microtask-Flush ab, setzt AsyncStorage-Default-Resolves pro Test explizit und räumt mit `cleanup()` + `jest.clearAllTimers()` strikt auf; dadurch weniger race-/timeout-anfällige Läufe ohne Produktcode-Refactor (Patch 454).
 - [x] **KI-/Chat-Nachaudit (misstrauisch) nachgeschärft:** Restlücke im Builder-Fehlerpfad geschlossen: `normalizeAiResponseDetailed` übernimmt `output_text` jetzt als `responseText`, sodass Non-JSON-Antworten mit verständlicher Vorschau enden statt in generischem Fehlerzustand; Regressionstests decken `output_text` und leere Normalisierungsresultate gezielt ab (Patch 453).
@@ -322,6 +326,8 @@ Akzeptanz:
   _Ort_: `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`
 - [x] **RS-462-C (P1/P2)** Repo-Erstellung übernimmt `default_branch` direkt, statt Branch-Kontext auf `null` zu verlieren ✅ *(patch 462)*  
   _Ort_: `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`, `hooks/gitHubReposTypes.ts`
+- [x] **RS-468-A (P1/P2)** Letzter GitHubReposScreen-Architekturblock entschärft: Sync-Vergleich zentralisiert (`compareLocalFilesWithRepo`) und Push konsolidiert über Git Data API (Tree/Commit/Ref) statt N Contents-Commits ✅ *(patch 468)*  
+  _Ort_: `infra/github/files.ts`, `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`, `__tests__/patch468.githubReposScreen.architecture.invariants.test.ts`
 
 ### ConnectionsScreen
 
@@ -381,6 +387,13 @@ Akzeptanz:
 
 
 ### CodeScreen
+
+- [x] **CODE-466 (P1)** WebCodeEditor Crash-Recovery im CodeScreen verdrahtet (`onContentProcessDidTerminate`/`onRenderProcessGone`) mit Wiederverwendung des bestehenden Preview-Shared-Recovery-Patterns, ohne neue Editor-Architektur.
+  _Ort_: `screens/CodeScreen/components/WebCodeEditor.tsx`, `screens/shared/preview/useWebViewCrashRecovery.ts`
+- [x] **CODE-466 (P1/P2)** Folder-Delete im CodeScreen von sequentiell auf batched umgestellt (`deleteFiles(...)`), inkl. minimaler Context-API-Erweiterung für einen einzigen Storage-Write statt N Einzelschritten.
+  _Ort_: `screens/CodeScreen/hooks/useFileActions.ts`, `contexts/ProjectContext.tsx`, `contexts/projectTypes.ts`
+- [x] **CODE-466 (P2)** Delete-Handler-Schutz gehärtet (`handleDeleteFile` mit explizitem Guard bei fehlendem Target), plus flow-nahe Cleanup-Reste (tote Imports) und Regressionstests.
+  _Ort_: `screens/CodeScreen/hooks/useFileActions.ts`, `__tests__/useFileActions.regression.test.tsx`, `__tests__/webCodeEditor.recovery.test.tsx`
 
 - [x] **CODE-105 (P1/P2)** CodeScreen: Save await + Folder-Delete deterministisch + selectedFile cleanup ✅ *(patch 105)*  
   _Ort_: `screens/CodeScreen/hooks/useFileEditor.ts`, `screens/CodeScreen/hooks/useFileActions.ts`  
