@@ -16,6 +16,7 @@ export interface ProjectContextProps {
   updateProjectFiles: (files: ProjectFile[], newName?: string) => Promise<void>;
   createFile: (path: string, content: string) => Promise<void>;
   deleteFile: (path: string) => Promise<void>;
+  deleteFiles?: (paths: string[]) => Promise<void>;
   renameFile: (oldPath: string, newPath: string) => Promise<void>;
 
   setPackageName: (packageName: string) => void;

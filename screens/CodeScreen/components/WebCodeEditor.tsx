@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 
 import theme from "../../../theme";
+import { useWebViewCrashRecovery } from "../../shared/preview/useWebViewCrashRecovery";
 
 type Props = {
   value: string;
@@ -98,6 +99,15 @@ export const WebCodeEditor = ({
 
   const [readyUi, setReadyUi] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [reloadNonce, setReloadNonce] = useState(0);
+
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const bg = theme.palette.background;
   const textColor = theme.palette.text.primary;
@@ -286,6 +296,21 @@ export const WebCodeEditor = ({
     [postToWeb],
   );
 
+  const { handleContentProcessDidTerminate, handleRenderProcessGone } =
+    useWebViewCrashRecovery({
+      webViewRef: webRef,
+      isMountedRef,
+      onError: () => {
+        setReadyUi(false);
+        setIsFocused(false);
+        isReadyRef.current = false;
+        setReloadNonce((prev) => prev + 1);
+      },
+      onLoadingChange: () => {
+        setReadyUi(false);
+      },
+    });
+
   return (
     <View style={[styles.container, { borderColor: border, backgroundColor: bg }]}>
       <View style={[styles.toolbar, { borderBottomColor: theme.palette.border }]}>
@@ -323,10 +348,13 @@ export const WebCodeEditor = ({
       </View>
 
       <WebView
+        key={`web-code-editor-${reloadNonce}`}
         ref={webRef}
         originWhitelist={["about:blank", "data:*"]}
         source={{ html }}
         onMessage={handleMessage}
+        onContentProcessDidTerminate={handleContentProcessDidTerminate}
+        onRenderProcessGone={handleRenderProcessGone}
         javaScriptEnabled
         domStorageEnabled
         // Allow initial load, block external navigations.

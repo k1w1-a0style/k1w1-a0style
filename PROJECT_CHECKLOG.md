@@ -1,3 +1,21 @@
+## 2026-03-16 — Patch 466: CodeScreen/File-Editor/File-Actions Restpunkte konservativ geschlossen
+
+- Patch 466: WebCodeEditor nutzt jetzt im CodeScreen denselben shared WebView-Crash-Recovery-Mechanismus wie der Preview-Bereich (`onContentProcessDidTerminate` + `onRenderProcessGone`) ohne neue Editor-Architektur.
+- Folder-Delete in `useFileActions` läuft gebatcht über `deleteFiles(paths)` statt sequentiellem Einzel-Delete.
+- `ProjectContext`/`projectTypes` wurden minimal um `deleteFiles(...)` erweitert, sodass der Batch-Delete in einem Update laufen kann.
+- `handleDeleteFile` hat einen expliziten Guard für fehlendes Action-Target (kein stiller Direktpfad).
+- Gezielt ergänzt: `__tests__/webCodeEditor.recovery.test.tsx` und `__tests__/useFileActions.regression.test.tsx`.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 ## 2026-03-16 — Patch 465: SettingsScreen/AIContext-Restpunkte (Retention-Input + Hydration-Race) final geschlossen
 
 - `screens/SettingsScreen/hooks/useSettingsScreen.ts`: Retention-Save nutzt jetzt einen dedizierten Parser, der leere Eingaben explizit als ungültig behandelt (statt implizit `0`), und meldet dies klar per Alert zurück.

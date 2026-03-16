@@ -539,6 +539,19 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     [updateProject],
   );
 
+  const deleteFiles = useCallback(
+    async (paths: string[]) => {
+      const toDelete = new Set(paths.filter((p) => typeof p === "string" && p.length > 0));
+      if (toDelete.size === 0) return;
+
+      await updateProject((prev) => ({
+        ...prev,
+        files: prev.files.filter((f) => !toDelete.has(f.path)),
+      }));
+    },
+    [updateProject],
+  );
+
   const renameFile = useCallback(
     async (oldPath: string, newPath: string) => {
       const pathValidation = validateFilePath(newPath);
@@ -896,6 +909,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       getWorkflowRuns,
       createFile,
       deleteFile,
+      deleteFiles,
       renameFile,
       setPackageName,
       exportProjectAsZip,
@@ -929,6 +943,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       setLastPreview,
       createFile,
       deleteFile,
+      deleteFiles,
       renameFile,
       setPackageName,
       exportProjectAsZip,
