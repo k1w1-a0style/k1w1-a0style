@@ -1,12 +1,15 @@
 # TODO
 
-Stand: **2026-03-15 (Patch 454)**
+Stand: **2026-03-15 (Patch 462)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
 
 ## Aktuell (Priorität)
 
+- [x] **Chat-Nachfix für PR #272 + #273 vollständig geschlossen:** Meta-/lokale Full-line-Kommandos (`cat <pfad>` / `zeige datei <pfad>`) laufen stabil auf unverändertem `rawInput`; Attachment-Hinweis bleibt auf den normalen AI-Pfad begrenzt; Attachment-only (leerer `rawInput`, sinnvoller `aiInput`) wird nicht mehr still verworfen, inkl. Pending-Plan-Handoff-Fallback auf `aiInput` (Patch 461).
+- [x] **GitHubReposScreen-Restpunkte (Typing/Sync/Branch) konservativ geschlossen:** Root-`projectFiles` ohne `any[]`-Cast (`ProjectFile[]`), `refreshSyncStatus` mit stale-run-Guard gegen verspätete Updates, `handleCreateRepo` übernimmt GitHub-`default_branch` statt blind `null`, plus minimale Pull-/Push-nahe Cast-Reduktion ohne Architekturumbau (Patch 462).
+- [x] **Connections Busy-Guard-Fehlersignal entkoppelt (Restpunkt geschlossen):** `withBusyGuard` nutzt jetzt einen dedizierten Busy-Kollisionsfehler statt booleschem `false`, und `saveAll`/`testGitHub`/`testExpo`/`testSupabase` trennen Busy-Konkurrenz sauber von echten Fehlern; dadurch kein irreführender „Ein anderer Save/Test-Lauf ist noch aktiv“-Hinweis mehr nach realen Save-/Test-Fehlern. `useChatAIFlow`-Pending-Plan-Guard wurde gezielt verifiziert und per Invariant abgesichert (Patch 457).
 - [x] **OneClickDeploy-Testflake gezielt stabilisiert:** `__tests__/oneClickDeploy.test.tsx` wartet den Press-Start jetzt deterministisch via `act` + Microtask-Flush ab, setzt AsyncStorage-Default-Resolves pro Test explizit und räumt mit `cleanup()` + `jest.clearAllTimers()` strikt auf; dadurch weniger race-/timeout-anfällige Läufe ohne Produktcode-Refactor (Patch 454).
 - [x] **KI-/Chat-Nachaudit (misstrauisch) nachgeschärft:** Restlücke im Builder-Fehlerpfad geschlossen: `normalizeAiResponseDetailed` übernimmt `output_text` jetzt als `responseText`, sodass Non-JSON-Antworten mit verständlicher Vorschau enden statt in generischem Fehlerzustand; Regressionstests decken `output_text` und leere Normalisierungsresultate gezielt ab (Patch 453).
 - [x] **KI-/Chat-/Prompting-Restpunkte (konservativ) gehärtet:** Projektkontext priorisiert nun relevante Dateien (statt starrer Reihenfolge), Builder behandelt Non-JSON-Antworten als verständliche User-Info mit KI-Preview, State-Drift-Digest nutzt SHA-256 über Pfad+Inhalt (kein same-length Blindspot), Planner-vs-Builder-Routing wurde vorsichtig entschärft, Ownership-/Validator-/Explain-Blocker werden im Nutzerfeedback sichtbar; `k1w1-handler` bleibt weiterhin serverseitiger Edge-Handler und wird im Client-Flow nur dokumentiert/eingeordnet, nicht blind eingebaut (Patch 452).
@@ -311,6 +314,12 @@ Akzeptanz:
   _Ort_: `screens/GitHubReposScreen/index.tsx`
 - [x] **RS-008 (P2/P3)** Tests: Selection-Consistency, Branch-Race, Modal-Idempotency ✅ *(patch 79, 91, 92, 94-96)*  
   _Ort_: `__tests__/` (Screen-/Hook-Tests)
+- [x] **RS-462-A (P1/P2)** Root-`projectFiles as any[]`-Cast im RepoScreen-Hook entfernt und Pull-/Push-nahe Folge-Casts reduziert ✅ *(patch 462)*  
+  _Ort_: `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`
+- [x] **RS-462-B (P1/P2)** `refreshSyncStatus` gegen stale Async-Läufe (Repo/Branch-Wechsel) gehärtet ✅ *(patch 462)*  
+  _Ort_: `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`
+- [x] **RS-462-C (P1/P2)** Repo-Erstellung übernimmt `default_branch` direkt, statt Branch-Kontext auf `null` zu verlieren ✅ *(patch 462)*  
+  _Ort_: `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`, `hooks/gitHubReposTypes.ts`
 
 ### ConnectionsScreen
 
@@ -362,6 +371,7 @@ Akzeptanz:
 - **Patch 102**: ChatScreen: Legacy Chat-History Migration (fehlende `id`/`timestamp`) + tolerant keyExtractor + Tests
 - **Patch 103**: ChatScreen/Privacy: Fix default Retention (missing setting key no longer wipes Chat-History)
 - **Patch 104**: ChatScreen Hardening
+- **Patch 458**: ChatScreen/Chat-Flow Restpunkte geschlossen (ehrlicher Attachment-Hinweis statt Scheinanalyse, Retention-Pruning beim Append, Pending/Modal-Cleanup beim Blur, chatAIFlow-Typing-Hygiene)
 - **Patch 108**: Connections/Supabase: RLS-aware Supabase-Test + LayoutAnimation Warnungen im New Architecture unterdrückt
 - **Patch 134**: ConnectionsScreen Hook Hotfix (duplicate effectiveRepo Declaration entfernt)
 - **Patch 109**: Build: GitHub Actions Logs – status-genaue Fehlermeldungen + Edge Function github-workflow-logs Auth/RateLimit Fix (AI-flow stale-closure fix via refs, bounded AutoFix queue, debounced scroll+one retry, modal summary truncation, confirm dialogs)

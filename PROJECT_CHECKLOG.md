@@ -1,3 +1,138 @@
+## 2026-03-15 — Patch 463: SettingsScreen + AIContext Restpunkte (Quality/Retention/Typing) konservativ geschlossen
+
+## 2026-03-16 — Patch 463 Follow-up (PR #278 review): Retention-Save sofort wirksam
+
+- `screens/SettingsScreen/hooks/useSettingsScreen.ts` aktualisiert nach dem Persistieren des Retention-Limits zusätzlich direkt die Runtime im `ProjectContext` (`setChatRetentionLimit`), sodass neue Limits sofort gelten.
+- `contexts/ProjectContext.tsx` kapselt die Runtime-Aktualisierung inkl. sicherer Limit-Sanitization und trimmt bestehende History sofort auf das neue Limit.
+- Regression ergänzt: `__tests__/projectContext.retentionLimitSanitizer.test.ts` prüft die Sanitization-Invarianten.
+
+Checks (lokal):
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent -- --runInBand __tests__/projectContext.retentionLimitSanitizer.test.ts`
+- `npm run test:silent`
+
+- Quality-Mode wirkt jetzt real auf die effektiven Modellauswahlen: `setQualityMode(...)` setzt zusätzlich `selectedChatMode`/`selectedAgentMode` passend zur gewählten Persona (speed vs. quality/review), sodass der Wechsel nicht nur kosmetisch bleibt.
+- SettingsScreen zieht den gleichen Nutzerfluss sauber nach: Quality-Button-Selection setzt unmittelbar die aktiven Modelle für Generator+Agent, statt alte Modell-IDs stehen zu lassen.
+- Privacy-Retention ist kein halbfertiger Read-only-Hinweis mehr: Retention-Limit ist im SettingsScreen jetzt direkt editierbar und wird über `setChatHistoryRetentionLimit(...)` persistiert.
+- Flow-nahe Restpunkte mit geringem Risiko nachgezogen: Gemini-Key-Prefix-Validation (`AIza`) ergänzt; `getProviderStatus` im Settings-Hook als getypte Helper-Normalisierung ohne `any` umgesetzt; tote/deprecated Helper-Reste in AIContext bereinigt.
+- UX beim Key-Remove minimal ehrlicher: Beim Entfernen des letzten Keys wird dies im Confirm-Dialog explizit erwähnt.
+- Tests ergänzt: `__tests__/aiContext.qualityMode.test.tsx` und `__tests__/settingsScreen.helpers.test.ts` decken Quality-Mode↔Modell-Mapping, Provider-Status-Normalisierung und Gemini-Key-Validation ab.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
+## 2026-03-15 — Patch 462: GitHubReposScreen-Restpunkte (Typing/Sync/Branch) konservativ geschlossen
+
+- Root-Typing im RepoScreen-Hook bereinigt: `projectData?.files` wird als `ProjectFile[]` geführt (kein `projectFiles as any[]`-Root-Cast mehr), plus reduzierte Pull-/Push-nahe Folge-Casts (`handlePull`, Push-Auswahl, `applyPulledFiles`).
+- `refreshSyncStatus` ist jetzt stale-resistent: laufende Async-Ergebnisse committen nur noch, wenn der Lauf noch aktuell ist (`syncStatusRunRef`), wodurch Repo-/Branch-Wechsel keine alten Statusdaten mehr zurückschreiben.
+- `handleCreateRepo` übernimmt nach erfolgreicher Repo-Erstellung den von GitHub gelieferten `default_branch` unmittelbar in Active-/Linked-Branch, statt den Branch pauschal auf `null` zu setzen.
+- Typing-Nachzug: `GitHubRepo` enthält optional `default_branch`, damit Repo-Selection/Create ohne `as any` auf Branch-Infos zugreifen kann.
+- Regressionen ergänzt: `__tests__/patch462.githubReposScreen.restFixes.invariants.test.ts` prüft Root-Typing, stale-run-Guard und Default-Branch-Übernahme.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
+## 2026-03-15 — Patch 461: Chat-Restregressionen (#272/#273) gemeinsam final geschlossen
+
+- `hooks/useChatAIFlow.ts`: Pending-Plan-Handoff nutzt bei leerem `rawInput` jetzt `aiContent || userContent`, damit Attachment-only-Details im normalen AI-Pfad nicht verloren gehen.
+- Meta-/lokale Command-Logik bleibt unverändert auf `rawInput` gebunden; der Attachment-Hinweis bleibt auf den normalen AI-Pfad begrenzt.
+- Invariant-Regression erweitert (`__tests__/useChatAIFlow.metaCommandAttachment.regression.test.ts`) inkl. Pending-Plan-Handoff-Fallback-Absicherung.
+
+Checks:
+- `bash scripts/check_workflow_template_drift.sh` ✅
+- `bash scripts/check_managed_workflows.sh` ✅
+- `bash scripts/check_workflow_edge_contracts.sh` ✅
+- `bash scripts/check_legacy_disabled_edges.sh` ✅
+- `bash scripts/check_patch_docs_sync.sh` ✅
+- `npm run typecheck` ✅
+- `npm run lint:ci` ✅
+- `npm run test:silent` ✅
+
+## 2026-03-15 — Patch 460: Chat Attachment-only Regression nach PR #273 geschlossen
+
+- `hooks/useChatAIFlow.ts`: `handleSendWithMeta(...)` verwirft Requests nicht mehr allein bei leerem `rawInput`; der Guard abortiert nur noch bei gleichzeitig leerem `rawInput` **und** `aiInput`.
+- Meta-/lokale Kommandos bleiben auf unverändertem Raw-Input (`userContent`) verdrahtet; damit bleibt Full-line-Command-Routing stabil.
+- Attachment-only-Sendefälle (leerer Texteingang, aber AI-Input mit Attachment-Hinweis) laufen wieder deterministisch in den normalen AI-Pfad; User-Message nutzt dafür einen kontrollierten Fallback auf `aiInput`.
+- `__tests__/useChatAIFlow.metaCommandAttachment.regression.test.ts` als gezielte Invariant-Regression entsprechend nachgezogen.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
+## 2026-03-15 — Patch 459: Chat-Regression (PR #272) konservativ nachgezogen
+
+- Verbliebene Regression geschlossen: Attachment-Hinweis wird nicht mehr vor dem lokalen/meta Command-Routing an den Raw-Input angehängt.
+- `handleSendWithMeta` trennt jetzt `rawInput` (für User-Message + Meta-Command-Match) und `aiInput` (nur für normalen AI-Request).
+- `cat <pfad>` und `zeige datei <pfad>` behalten damit Full-line-Matches auch dann, wenn ein Attachment ausgewählt wurde.
+- Minimaler Typing-Nachzug: Attachment-Hinweis-Helper akzeptiert nur noch `name`/`size` (geringere Kopplung).
+- Regression ergänzt: `__tests__/useChatAIFlow.metaCommandAttachment.regression.test.ts`.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
+## 2026-03-15 — Patch 458: ChatScreen/Chat-Flow Restpunkte konservativ geschlossen
+
+- Attachment-/DocumentPicker-Flow kommuniziert jetzt ehrlich: Chat ergänzt bei Dateianhang expliziten Hinweis, dass aktuell nur Dateiname/Metadaten (nicht voller Dateiinhalt) übergeben werden.
+- Chat-History wird in `addChatMessage` direkt beim Append per Retention-Limit begrenzt (Settings-basiert, Fallback 200), damit In-Memory-History nicht unbegrenzt wächst.
+- Focus-Cleanup im ChatScreen räumt Pending-Plan/Pending-Change, Modal, Streaming und Inflight-Requests konservativ auf (`resetTransientState`), damit beim Verlassen keine hängenden UI-Zustände bleiben.
+- `chatAIFlowTypes` bereinigt (tote Imports entfernt) und `extractRawOrchestratorResult` sauber typisiert.
+- Regressionen ergänzt: `__tests__/chatScreenAttachmentNotice.test.ts`, `__tests__/projectContext.chatRetention.test.ts`.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
+## 2026-03-15 — Patch 457: Connections Busy-Guard-Signal korrigiert + Chat-Guard verifiziert
+
+- `withBusyGuard` trennt jetzt echte Busy-Kollisionen über dedizierten `BusyGuardActiveError` von normalen Fehlern (kein boolesches Mehrdeutigkeits-Signal mehr).
+- `saveAll`, `testGitHub`, `testExpo`, `testSupabase` behandeln Busy-Kollision und echte Fehlerpfade getrennt; der Busy-Hinweis erscheint nur noch im Konkurrenzfall.
+- `useChatAIFlow`-Pending-Plan-Guard (`mode === "advice" && !wantsProceed`) gezielt verifiziert und per Invariant abgesichert; kein funktionaler Fix nötig.
+- Regressionen ergänzt: `__tests__/busyGuard.test.ts`, aktualisierte/ergänzte Flow-Invariants.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 ## 2026-03-15 — Patch 456: Chat-Drift-Digest RN-Guardrail
 
 - `lib/chatFlowStateGuards.ts` dokumentiert jetzt explizit, dass dieser Pfad im React-Native-App-Runtime-Kontext läuft und daher **keine** Node-Core-Imports wie `crypto` enthalten darf.
@@ -67,6 +202,9 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-15: Patch 461: Chat-Restregressionen aus PR #272/#273 gemeinsam final geschlossen; Meta-/lokale Kommandos laufen weiterhin auf unverändertem Raw-Input, Attachment-only wird nicht still verworfen, und Pending-Plan-Handoff übernimmt bei leerem Raw den `aiInput`-Fallback; Invariant-Regression plus Workflow-/Typecheck-/Lint-/Tests grün.
+- 2026-03-15: Patch 460: Chat-Regression nach PR #273 konservativ geschlossen — `useChatAIFlow.handleSendWithMeta(...)` bricht nur noch bei gleichzeitig leerem Raw-/AI-Input ab; Attachment-only-Sendefälle werden nicht mehr still verworfen, Meta-/lokale Kommandos laufen weiterhin ausschließlich auf unverändertem Raw-Input; gezielte Invariant-Regression ergänzt.
+- 2026-03-15: Patch 457: Connections-Busy-Guard meldet Busy-Kollisionen jetzt explizit (dedizierter Error) statt mehrdeutigem `false`; Save/Test-Aktionen trennen Busy vs. echte Fehler sauber. `useChatAIFlow`-Pending-Plan-Guard wurde gezielt geprüft und per Invariant abgesichert.
 - 2026-03-15: Patch 456: Chat-Drift-Digest RN-sicher dokumentiert — `lib/chatFlowStateGuards.ts` enthält jetzt eine explizite Guardrail-Notiz gegen Node-`crypto` im App-Runtime-Pfad (`useChatAIFlow`), damit Metro-Bundles keine Node-Core-Module auflösen müssen.
 - 2026-03-15: Patch 455: ConnectionsScreen-Restpunkte konservativ gehärtet — Supabase-ANON-Key jetzt SecureStore-basiert (inkl. Legacy-Migration), Busy-/Hydration-Guards blockieren parallele Save/Test-Runs, `testExpo` ohne Token-Persistenz-Side-Effect, EAS-Link-Lampe nicht mehr optimistisch grün; flow-nahe Invariants + Storage-Tests ergänzt.
 - 2026-03-15: Patch 454: OneClickDeploy-Testflake in `__tests__/oneClickDeploy.test.tsx` gezielt stabilisiert (deterministischer `act`-Press + Microtask-Flush, AsyncStorage-Default-Resolves, striktes Cleanup/Timer-Clear); kein Produktcode-Umbau.
@@ -117,3 +255,5 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 - Vollständige Historie: `docs/patches/PATCHLOG_ROOT.md`.
 - Operative Restliste / Follow-ups: `docs/TODO.md`.
+- 2026-03-15: Patch 459: Chat-Regression aus PR #272 konservativ geschlossen — Meta-/lokale Kommandos werden wieder gegen unveränderten Raw-Input geprüft; Attachment-Hinweis wird erst nach Command-Routing für den normalen AI-Request angehängt; gezielte Invariant-Regression ergänzt; Workflow-/Typecheck-/Lint-/Tests grün.
+- 2026-03-15: Patch 458: ChatScreen/Chat-Flow Restpunkte konservativ geschlossen: ehrlicher Attachment-Hinweis (kein verdeckter Dateiinhalt-Anspruch), Retention-Pruning direkt beim Chat-Append, Blur-Cleanup für Pending/Modal/Streaming-State sowie typing-/import-Hygiene in chatAIFlow-Types; Verifikation mit Workflow-Checks + Typecheck/Lint/Test vollständig grün.

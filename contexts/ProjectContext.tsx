@@ -56,8 +56,24 @@ import {
   updateBuildInHistory,
 } from "../lib/buildHistoryStorage";
 import { resolveEffectiveTemplateId } from "../lib/diagnostics/templates";
+import { loadChatHistorySettings } from "../lib/chatPrivacySettings";
+import { trimChatHistory } from "../infra/storage/persistenceHelpers";
 
 const SAVE_DEBOUNCE_MS = 500;
+
+const CHAT_HISTORY_RETENTION_FALLBACK = 200;
+
+export const appendChatMessageWithRetention = (
+  history: ChatMessage[],
+  message: ChatMessage,
+  limit: number,
+): ChatMessage[] => trimChatHistory([...(history || []), message], limit);
+
+
+export const sanitizeChatRetentionLimit = (limit: number): number => {
+  if (!Number.isFinite(limit) || limit < 0) return CHAT_HISTORY_RETENTION_FALLBACK;
+  return Math.floor(limit);
+};
 
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof Error && error.message) return error.message;
@@ -193,6 +209,29 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   const [autoFixRequest, setAutoFixRequest] = useState<AutoFixRequest | null>(
     null,
   );
+  const chatRetentionLimitRef = useRef<number>(CHAT_HISTORY_RETENTION_FALLBACK);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadRetention = async () => {
+      try {
+        const { retention } = await loadChatHistorySettings();
+        if (!cancelled) {
+          chatRetentionLimitRef.current = retention;
+        }
+      } catch {
+        if (!cancelled) {
+          chatRetentionLimitRef.current = CHAT_HISTORY_RETENTION_FALLBACK;
+        }
+      }
+    };
+
+    void loadRetention();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const debouncedSave = useCallback((project: ProjectData) => {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -248,11 +287,27 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     [updateProject],
   );
 
+  const setChatRetentionLimit = useCallback(
+    async (limit: number) => {
+      const safeLimit = sanitizeChatRetentionLimit(limit);
+      chatRetentionLimitRef.current = safeLimit;
+      await updateProject((prev) => ({
+        ...prev,
+        chatHistory: trimChatHistory(prev.chatHistory || [], safeLimit),
+      }));
+    },
+    [updateProject],
+  );
+
   const addChatMessage = useCallback(
     async (message: ChatMessage) => {
       await updateProject((prev) => ({
         ...prev,
-        chatHistory: [...(prev.chatHistory || []), message],
+        chatHistory: appendChatMessageWithRetention(
+          prev.chatHistory || [],
+          message,
+          chatRetentionLimitRef.current,
+        ),
       }));
     },
     [updateProject],
@@ -822,6 +877,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       currentBuild,
       updateProjectFiles,
       addChatMessage,
+      setChatRetentionLimit,
       clearChatHistory,
       setLastPreview,
       getGitHubToken,
@@ -856,6 +912,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       currentBuild,
       updateProjectFiles,
       addChatMessage,
+      setChatRetentionLimit,
       clearChatHistory,
       setLastPreview,
       createFile,

@@ -78,6 +78,11 @@ export default function SettingsScreen() {
         <PrivacySection
           persistChatHistory={s.persistChatHistory}
           retentionLimit={s.retentionLimit}
+          retentionInput={s.retentionInput}
+          onRetentionInputChange={s.setRetentionInput}
+          onSaveRetention={() => {
+            void s.handleSaveRetentionLimit();
+          }}
           onTogglePersist={(v) => {
             void s.handleTogglePersistChat(v);
           }}

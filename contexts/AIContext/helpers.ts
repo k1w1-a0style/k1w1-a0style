@@ -3,7 +3,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
-import type { AIConfig, AllAIProviders, QualityMode } from "./models";
+import type { AIConfig, AllAIProviders, ProviderDefaults, QualityMode } from "./models";
 import { PROVIDER_DEFAULTS, AVAILABLE_MODELS } from "./models";
 
 export const CONFIG_STORAGE_KEY = 'ai_config_v4';
@@ -39,6 +39,19 @@ export function getDefaultMode(provider: AllAIProviders, qualityMode: QualityMod
   // balanced -> speed default, review -> quality default
   if (qualityMode === 'quality' || qualityMode === 'review') return defs.quality;
   return defs.speed;
+}
+
+
+export function getModeKeyForQualityMode(mode: QualityMode): keyof ProviderDefaults {
+  return mode === 'quality' || mode === 'review' ? 'quality' : 'speed';
+}
+
+export function resolveProviderModeForQualityMode(
+  provider: AllAIProviders,
+  mode: QualityMode,
+): string {
+  const modeKey = getModeKeyForQualityMode(mode);
+  return PROVIDER_DEFAULTS[provider][modeKey];
 }
 
 export function isModeValidForProvider(provider: AllAIProviders, mode: string): boolean {

@@ -4,13 +4,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, ToastAndroid } from "react-native";
 import { v4 as uuidv4 } from "uuid";
-import type { AIConfig } from "../contexts/AIContext";
 import type { OrchestratorResult } from "../lib/orchestrator";
 import type { ApplyFilesResult } from "../lib/fileWriter";
-import type { ChatMessage } from "../shared/types/chat";
-import type { ProjectFile } from "../shared/types/project";
-
-
 import { extractRawOrchestratorResult, MAX_AUTOFIX_QUEUE } from "./chatAIFlowTypes";
 import type { ExtendedOrchestratorResult, UseChatAIFlowArgs, PendingChange, PendingPlan } from "./chatAIFlowTypes";
 import { buildChangeConfirmationText } from "./chatChangeSummary";
@@ -652,22 +647,26 @@ export function useChatAIFlow({
   }, [addChatMessage, safe, setShowConfirmModal]);
 
   const handleSendWithMeta = useCallback(
-    async (rawInput: string, selectedFileName?: string): Promise<boolean> => {
-      const userContent =
-        rawInput.trim() ||
-        (selectedFileName ? `Datei gesendet: ${selectedFileName}` : "");
+    async (
+      rawInput: string,
+      aiInput: string = rawInput,
+    ): Promise<boolean> => {
+      const userContent = rawInput.trim();
+      const aiContent = aiInput.trim();
 
-      if (!userContent.trim()) return false;
+      if (!userContent && !aiContent) return false;
 
       addChatMessage({
         id: uuidv4(),
         role: "user",
-        content: userContent,
+        content: userContent || aiContent,
         timestamp: new Date().toISOString(),
       });
 
-      // ✅ FIX #1: Use ref for fresh projectFiles
-      const metaResult = handleMetaCommand(rawInput.trim(), projectFilesRef.current);
+      // Meta-/lokale Kommandos müssen auf unverändertem User-Input laufen.
+      const metaResult = userContent
+        ? handleMetaCommand(userContent, projectFilesRef.current)
+        : { handled: false };
       if (metaResult.handled && metaResult.message) {
         addChatMessage(metaResult.message);
         return true;
@@ -700,18 +699,39 @@ export function useChatAIFlow({
           "\n\n---\nPlaner-Ausgabe:\n" +
           currentPlan.planText +
           "\n\n---\nNutzer-Antwort/Details:\n" +
-          (wantsProceed ? "(User sagt: weiter)" : userContent);
+          (wantsProceed ? "(User sagt: weiter)" : aiContent || userContent);
 
         safe(() => setPendingPlan(null));
         await processAIRequest(combined, false, true);
         return true;
       }
 
-      const ok = await processAIRequest(userContent, false, false);
+      const ok = await processAIRequest(aiContent || userContent, false, false);
       return ok;
     },
     [addChatMessage, processAIRequest, safe],
   );
+
+  const resetTransientState = useCallback(() => {
+    cleanupStreamingTimer();
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    inFlightRef.current = false;
+
+    safe(() => setIsStreaming(false));
+    safe(() => setStreamingMessage(""));
+    safe(() => setIsAiLoading(false));
+    safe(() => setShowConfirmModal(false));
+    safe(() => setPendingPlan(null));
+    safe(() => setPendingChange(null));
+  }, [
+    cleanupStreamingTimer,
+    safe,
+    setIsAiLoading,
+    setIsStreaming,
+    setShowConfirmModal,
+    setStreamingMessage,
+  ]);
 
   return useMemo(
     () => ({
@@ -722,6 +742,7 @@ export function useChatAIFlow({
       handleSendWithMeta,
       applyChanges,
       rejectChanges,
+      resetTransientState,
     }),
     [
       applyChanges,
@@ -729,6 +750,7 @@ export function useChatAIFlow({
       pendingChange,
       pendingPlan,
       rejectChanges,
+      resetTransientState,
       setAtBottom,
     ],
   );

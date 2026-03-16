@@ -25,7 +25,12 @@ import { useKeyboardHeight } from "../../../hooks/useKeyboardHeight";
 import { useChatAIFlow } from "../../../hooks/useChatAIFlow";
 
 
-import { INPUT_BAR_MIN_H, KEYBOARD_NUDGE, FOOTER_LIFT_WHEN_BUSY } from "./chatScreenTypes";
+import {
+  INPUT_BAR_MIN_H,
+  KEYBOARD_NUDGE,
+  FOOTER_LIFT_WHEN_BUSY,
+  buildUserInputWithAttachmentNotice,
+} from "./chatScreenTypes";
 import type { DocumentResultAsset } from "./chatScreenTypes";
 
 export const useChatScreen = () => {
@@ -177,6 +182,7 @@ export const useChatScreen = () => {
     handleSendWithMeta,
     applyChanges,
     rejectChanges,
+    resetTransientState,
   } = useChatAIFlow({
     config,
     messages,
@@ -204,8 +210,9 @@ export const useChatScreen = () => {
       return () => {
         task?.cancel?.();
         clearTimeout(t1);
+        resetTransientState();
       };
-    }, [hardScrollToBottom]),
+    }, [hardScrollToBottom, resetTransientState]),
   );
 
   useEffect(() => {
@@ -350,15 +357,15 @@ export const useChatScreen = () => {
 
     setError(null);
 
-    const currentInput = textInput;
-    const fileName = selectedFileAsset?.name;
+    const rawInput = textInput.trim();
+    const currentInput = buildUserInputWithAttachmentNotice(rawInput, selectedFileAsset);
 
     setTextInput("");
     setSelectedFileAsset(null);
 
     Keyboard.dismiss();
 
-    await handleSendWithMeta(currentInput, fileName);
+    await handleSendWithMeta(rawInput, currentInput);
   }, [
     textInput,
     selectedFileAsset,
@@ -417,6 +424,7 @@ export const useChatScreen = () => {
     pendingChange,
     applyChanges,
     rejectChanges,
+    resetTransientState,
 
     showScrollButton,
     error,

@@ -91,9 +91,14 @@ const ChatComposer: React.FC<Props> = ({
           accessibilityLabel={`Ausgewählte Datei: ${selectedFileAsset.name}`}
         >
           <Ionicons name="document" size={16} color={theme.palette.primary} />
-          <Text style={styles.selectedFileText} numberOfLines={1}>
-            {selectedFileAsset.name}
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.selectedFileText} numberOfLines={1}>
+              {selectedFileAsset.name}
+            </Text>
+            <Text style={[styles.selectedFileText, { fontSize: 11, opacity: 0.75 }]} numberOfLines={1}>
+              Hinweis: Aktuell wird nur Dateiname/Metadaten gesendet
+            </Text>
+          </View>
           <TouchableOpacity
             onPress={onClearSelectedFile}
             activeOpacity={0.7}

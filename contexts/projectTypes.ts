@@ -29,6 +29,7 @@ export interface ProjectContextProps {
   setAdvancedTemplatePickerEnabled?: (enabled: boolean) => Promise<void>;
 
   addChatMessage: (message: ChatMessage) => void;
+  setChatRetentionLimit: (limit: number) => Promise<void>;
   messages: ChatMessage[];
 
   clearChatHistory: () => void;
