@@ -1,6 +1,6 @@
 # 00 — Overview
 
-Stand: **2026-03-12**
+Stand: **2026-03-17 (Patch 477)**
 
 ## Zielbild (operativ)
 

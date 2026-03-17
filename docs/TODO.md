@@ -14,7 +14,7 @@
 
 # TODO
 
-Stand: **2026-03-17 (Patch 474)**
+Stand: **2026-03-17 (Patch 477)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.

@@ -1,6 +1,6 @@
 # 10 — Product and Flows
 
-Stand: **2026-03-12**
+Stand: **2026-03-17 (Patch 477)**
 
 ## Produktkern
 
