@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 472: AI-/Request-Robustheit-Follow-up — Orchestrator unterscheidet Timeout jetzt explizit von externem Abort (deterministische Timeout-Fehlermeldung bei hartem 45s-Request-Limit), ohne Änderung am bestehenden Retry-/Backoff-/Provider-Design; Regressionen decken Timeout-vs-Abort-Trennung ab.
 - Patch 471: AI-/Request-Robustheitsreste minimal nachgezogen — harter Request-Timeout im Orchestrator pro Provider-Call (45s, abort-konsistent), kleiner Rotation-Backoff (350ms) vor Key-Retry bei 429/Rate-Limit und konservativer Builder-Retry-Backoff (700ms) in `useChatAIFlow`; gezielte Orchestrator-Regressionstests für Backoff/Timeout ergänzt.
 - Patch 470: Follow-up auf Patch 469 — `k1w1-handler` gibt auch im frühen `parseJsonBody(...)`-Fehlerpfad keine rohen Parse-/Validierungsdetails mehr aus, sondern konsistente generische Client-Fehler (`Invalid request payload.`/`Request too large.`); kleiner Catch-Typing-Rest auf `unknown` + Narrowing ergänzt, Invariants entsprechend erweitert.
 - Patch 469: verbleibende Edge-/Preview-Security-Exposure-Restpunkte konservativ geschlossen — `preview_page` entfernt raw Fehler-/Stack-Interpolation aus HTML-Pfaden (sicherer Overlay-Render via `textContent`), `k1w1-handler` leaked keine rohen internen `err.message`-Details mehr an Clients und antwortet mit generischen sicheren Fehlertexten; gezielte Invariant-Tests ergänzt.

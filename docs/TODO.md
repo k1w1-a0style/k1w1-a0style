@@ -1,3 +1,4 @@
+- [x] Patch 472 (2026-03-17): AI-/Request-Timeout-Follow-up abgeschlossen (Orchestrator trennt Timeout-Fehlertext jetzt deterministisch von externem Abort; gezielte Regression für timeout-vs-abort ergänzt).
 - [x] Patch 471 (2026-03-17): AI-/Request-Robustheitsreste minimal nachgezogen (`runOrchestrator` mit hartem Request-Timeout, kleiner Rotation-Backoff bei 429-Key-Retry, konservativer Builder-Retry-Backoff in `useChatAIFlow`, gezielte Regressionstests für Timeout/Backoff ergänzt).
 - [x] Patch 470 (2026-03-16): k1w1-handler-Follow-up abgeschlossen (früher `parseJsonBody(...)`-Error-Pfad leaked kein rohes `parsedBody.error` mehr an Clients, stattdessen konsistente generische Fehlertexte inkl. `Request too large.` bei 413; Catch-Typing minimal auf `unknown` nachgezogen).
 - [x] Patch 469 (2026-03-16): Edge-/Preview-Security-Restpunkte minimal-konservativ gehärtet (`preview_page` ohne unsanitized Fehler-HTML/Stack-Interpolation, `k1w1-handler` mit generischen Client-Fehlerantworten statt rohem `err.message`-Leak, gezielte Invariant-Tests ergänzt).
@@ -8,7 +9,7 @@
 
 # TODO
 
-Stand: **2026-03-17 (Patch 471)**
+Stand: **2026-03-17 (Patch 472)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.

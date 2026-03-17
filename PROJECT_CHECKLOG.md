@@ -1,3 +1,19 @@
+## 2026-03-17 — Patch 472: Orchestrator-Timeout klar von externem Abort getrennt
+
+- `lib/orchestrator/index.ts`: bestehender harter Request-Timeout (`45_000ms`) markiert Timeout-Attempts jetzt zusätzlich lokal und gibt im Timeout-Fall deterministisch `Request timeout nach 45000ms` zurück statt generischem Abort-Text.
+- Externe Abort-Signale bleiben unverändert und liefern weiterhin `Request abgebrochen`; keine Änderung an Singleflight-/Key-Rotation-/Fallback-Architektur.
+- `lib/__tests__/orchestrator.test.ts`: Timeout-Regression auf explizites Timeout geschärft und neuer Regressionstest ergänzt, der externes Abort weiterhin als `abgebrochen` absichert.
+
+Checks:
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 ## 2026-03-17 — Patch 471: AI-/Request-Robustheitsreste (Timeout + Backoff) konservativ nachgezogen
 
 - `lib/orchestrator/index.ts`: harter Request-Timeout pro Provider-Call (`ORCHESTRATOR_REQUEST_TIMEOUT_MS = 45_000`) via lokalem Request-`AbortController` + sauberer Weitergabe externer Abort-Signale; keine Änderung am bestehenden Singleflight-/Key-Rotation-/Fallback-Design.
