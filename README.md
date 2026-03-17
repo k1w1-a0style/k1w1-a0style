@@ -11,8 +11,9 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 473**.
+- Zuletzt abgeschlossen: **Patch 474**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
+- Patch 474 ergänzt gezielte Wiring-Invariants für den Timeout-Hauptrestpunkt: der Chat-AI-Flow bleibt regressionsfest auf `runOrchestratorWithHardTimeout(...)` verdrahtet (Planner/Builder/Validator/Explain, inkl. Builder-Retry) und verhindert direkte `runOrchestrator(...)`-Rückfälle im `processAIRequest(...)`-Block.
 - Patch 473 schließt den verbleibenden Hauptrestpunkt im Chat-AI-Flow: Planner/Builder/Validator/Explain verwenden jetzt jeweils einen echten harten Stage-Timeout (`45s`) mit aktivem Abort des hängenden `runOrchestrator(...)`-Calls über die bestehende AbortController-Struktur.
 - Patch 472 schließt den letzten Timeout-Detailrest aus 471: harte Orchestrator-Timeouts werden im Ergebnis jetzt explizit als `timeout` ausgewiesen, während externe/usergetriebene Abbrüche weiterhin sauber als `abgebrochen` klassifiziert bleiben (keine Änderung am Retry-/Provider-Design).
 - Patch 471 zieht verbleibende AI-/Request-Robustheitsreste minimal nach: `runOrchestrator` erzwingt jetzt ein hartes Request-Timeout pro Provider-Call (45s, inklusive sauberer Abort-Weitergabe), Key-Rotation-Retries warten kurz per kleinem Backoff (350ms) statt sofort zu feuern, und der Builder-Retry im Chat-Flow hat einen konservativen Backoff (700ms) bei 429/503/Timeout-/Netzwerkpfaden.

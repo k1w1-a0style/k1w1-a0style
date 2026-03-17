@@ -1,3 +1,19 @@
+## 2026-03-17 — Patch 474: harte Chat-AI-Timeout-Wiring-Invariants ergänzt
+
+- `__tests__/useChatAIFlow.hardTimeout.invariants.test.ts`: neue Invariants sichern, dass Planner/Builder/Validator/Explain im `processAIRequest(...)`-Flow über `runOrchestratorWithHardTimeout(...)` laufen (inkl. Builder-Retry-Call).
+- Zusätzlicher Guard im selben Test stellt sicher, dass im `processAIRequest(...)`-Block keine direkte `await runOrchestrator(...)`-Nutzung zurückkehrt.
+- Bestehender Timeout-/Abort-Mechanismus bleibt unverändert; Fokus dieses Patchs ist die gezielte Regressionsabsicherung des Hauptrestpunkts.
+
+Checks:
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 ## 2026-03-17 — Patch 473: harter Stage-Timeout im Chat-AI-Flow (Planner/Builder/Validator/Explain)
 
 - `hooks/useChatAIFlow.ts`: neuer `runOrchestratorWithHardTimeout(...)`-Wrapper (`45_000ms`) mit lokalem `AbortController`, gekoppelt an das bestehende Parent-`AbortSignal`; der laufende Orchestrator-Call wird im Timeout-Fall aktiv abgebrochen.

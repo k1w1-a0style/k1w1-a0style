@@ -1,3 +1,4 @@
+- [x] Patch 474 (2026-03-17): Timeout-Hauptrestpunkt regressionsfest abgesichert (Invariants prüfen harte Timeout-Verdrahtung für Planner/Builder/Validator/Explain und verhindern direkte `runOrchestrator(...)`-Rückfälle im Chat-Flow).
 - [x] Patch 473 (2026-03-17): Chat-AI-Flow-Hauptrestpunkt geschlossen (echter harter Stage-Timeout für Planner/Builder/Validator/Explain mit aktivem Abort und gezielten Timeout/Abort-Regressionen).
 - [x] Patch 472 (2026-03-17): AI-/Request-Timeout-Follow-up abgeschlossen (Orchestrator trennt Timeout-Fehlertext jetzt deterministisch von externem Abort; gezielte Regression für timeout-vs-abort ergänzt).
 - [x] Patch 471 (2026-03-17): AI-/Request-Robustheitsreste minimal nachgezogen (`runOrchestrator` mit hartem Request-Timeout, kleiner Rotation-Backoff bei 429-Key-Retry, konservativer Builder-Retry-Backoff in `useChatAIFlow`, gezielte Regressionstests für Timeout/Backoff ergänzt).
@@ -10,7 +11,7 @@
 
 # TODO
 
-Stand: **2026-03-17 (Patch 473)**
+Stand: **2026-03-17 (Patch 474)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
