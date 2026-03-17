@@ -78,14 +78,14 @@ describe("Invariant String Tests", () => {
   it("I7 — No silent branch fallback: explicit branch-missing block message exists", () => {
     // Why it matters: silently normalizing branch to main can ship from wrong ref.
     const buildHook = read("screens/EnhancedBuildScreen/hooks/useEnhancedBuildScreen.ts");
-    expect(buildHook).toContain("Branch fehlt (im Repo-Screen auswaehlen)");
+    expect(buildHook).toContain("Branch fehlt (im GitHub-Repos-Screen auswaehlen)");
     expect(buildHook).not.toMatch(/\|\|\s*["']main["']/);
   });
 
   it("I8 — No silent repo fallback: explicit repo-missing block message exists", () => {
     // Why it matters: hidden repo defaults can dispatch builds to the wrong repository.
     const buildHook = read("screens/EnhancedBuildScreen/hooks/useEnhancedBuildScreen.ts");
-    expect(buildHook).toContain("Repo fehlt (im Repo-Screen verknuepfen)");
+    expect(buildHook).toContain("Repo fehlt (im GitHub-Repos-Screen verknuepfen)");
     expect(buildHook).not.toMatch(/repo\s*\|\|\s*["'][^"']+\/[^"]+["']/i);
   });
 

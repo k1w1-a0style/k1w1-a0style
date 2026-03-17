@@ -107,6 +107,26 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
   }, []);
 
 
+  useEffect(() => {
+    const persisted = projectData?.lastPreview ?? null;
+    const isTransientLocal =
+      persisted?.source === "local" &&
+      lastPreview?.source === "local" &&
+      !lastPreview?.html;
+
+    if (isTransientLocal) {
+      safeSetError(
+        "Hinweis: Die letzte Preview war ein lokaler HTML-Fallback und ist nach App-Neustart nicht mehr verfügbar. Bitte Preview neu erstellen.",
+      );
+      return;
+    }
+
+    // Nur den transienten Hinweis zurücksetzen; andere Fehler bleiben erhalten.
+    setError((prev) =>
+      prev?.startsWith("Hinweis: Die letzte Preview war ein lokaler HTML-Fallback") ? null : prev,
+    );
+  }, [projectData?.lastPreview?.source, lastPreview?.source, lastPreview?.html, safeSetError]);
+
   const previewFiles = useMemo(() => {
     const files: Record<string, string> = {};
 

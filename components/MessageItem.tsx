@@ -229,6 +229,18 @@ const MessageItem = memo(({ message }: MessageItemProps) => {
       </Pressable>
     </Animated.View>
   );
+
+}, (prev, next) => {
+  const prevMsg = prev.message;
+  const nextMsg = next.message;
+
+  return (
+    prevMsg.id === nextMsg.id &&
+    prevMsg.role === nextMsg.role &&
+    prevMsg.content === nextMsg.content &&
+    prevMsg.timestamp === nextMsg.timestamp &&
+    prevMsg.meta?.error === nextMsg.meta?.error
+  );
 });
 
 MessageItem.displayName = "MessageItem";

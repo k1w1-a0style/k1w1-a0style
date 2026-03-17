@@ -9,13 +9,14 @@ import { listRepoSecretNames } from "../../../infra/github/githubService";
 const REQUIRED_SECRETS = [
   "EXPO_TOKEN",
   "SUPABASE_URL",
-  "SUPABASE_SERVICE_ROLE_KEY",
-  "EAS_PROJECT_ID",
 ] as const;
 
 const OPTIONAL_SECRETS = [
-  // Nice-to-have; not required for basic build/test flows
+  // Optional or flow-specific in app-managed sync paths
+  "EAS_PROJECT_ID",
   "K1W1_EDGE_ADMIN_KEY",
+  // Production/Supabase report secret stays manual-only
+  "SUPABASE_SERVICE_ROLE_KEY",
 ] as const;
 
 export function SecretsSection(props: {
@@ -70,7 +71,7 @@ export function SecretsSection(props: {
   return (
     <View style={styles.section}>
       <View style={styles.rowBetween}>
-        <Text style={styles.sectionTitle}>Secrets</Text>
+        <Text style={styles.sectionTitle}>Secrets (Repo)</Text>
         <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
           {loading ? <ActivityIndicator size="small" color={theme.palette.primary} /> : null}
           <TouchableOpacity style={styles.iconBtn} onPress={load} disabled={!parsed || loading}>
@@ -92,6 +93,15 @@ export function SecretsSection(props: {
       {!!error ? (
         <Text style={{ fontSize: 12, color: theme.palette.error, marginTop: 6, lineHeight: 18 }}>
           {error}
+        </Text>
+      ) : null}
+
+
+
+      {activeRepo ? (
+        <Text style={{ fontSize: 11, color: theme.palette.text.secondary, lineHeight: 17, marginTop: 8 }}>
+          Auto-Sync aus der App deckt EXPO_TOKEN + SUPABASE_URL ab (optional: EAS_PROJECT_ID, K1W1_EDGE_ADMIN_KEY).
+          SUPABASE_SERVICE_ROLE_KEY bleibt bewusst ein manueller Production-Schritt.
         </Text>
       ) : null}
 

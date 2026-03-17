@@ -4,13 +4,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, ToastAndroid } from "react-native";
 import { v4 as uuidv4 } from "uuid";
-import type { OrchestratorResult } from "../lib/orchestrator";
+import type { LlmMessage, OrchestratorResult } from "../lib/orchestrator";
+import type { Quality } from "../lib/orchestrator/types";
 import type { ApplyFilesResult } from "../lib/fileWriter";
 import { extractRawOrchestratorResult, MAX_AUTOFIX_QUEUE } from "./chatAIFlowTypes";
 import type { ExtendedOrchestratorResult, UseChatAIFlowArgs, PendingChange, PendingPlan } from "./chatAIFlowTypes";
 import { buildChangeConfirmationText } from "./chatChangeSummary";
 
 import { runOrchestrator } from "../lib/orchestrator";
+import type { AllAIProviders } from "../contexts/AIContext";
 import { normalizeAiResponseDetailed } from "../lib/normalizer";
 import { logger } from "../lib/logger";
 import { applyFilesToProject } from "../lib/fileWriter";
@@ -20,6 +22,91 @@ import { looksLikeExplicitFileTask, looksLikeAdviceRequest, looksAmbiguousBuilde
 import { handleMetaCommand } from "../utils/metaCommands";
 
 export type { PendingChange, PendingPlan } from "./chatAIFlowTypes";
+
+const BUILDER_RETRY_BACKOFF_MS = 700;
+const BUILDER_RETRY_MAX_ATTEMPTS = 3;
+const BUILDER_RETRY_MAX_BACKOFF_MS = 3_500;
+export const CHAT_AI_REQUEST_TIMEOUT_MS = 45_000;
+
+const readErrorText = (result: OrchestratorResult | null | undefined): string => {
+  if (!result) return "";
+  return [result.error, ...(result.errors ?? [])].filter(Boolean).join("\n");
+};
+
+const parseRetryAfterMs = (errorText: string): number | null => {
+  const secondsMatch = errorText.match(/retry-?after[^\d]*(\d+(?:\.\d+)?)\s*s/i);
+  if (secondsMatch) return Math.round(Number(secondsMatch[1]) * 1000);
+
+  const millisecondsMatch = errorText.match(/retry-?after[^\d]*(\d+)\s*ms/i);
+  if (millisecondsMatch) return Number(millisecondsMatch[1]);
+
+  return null;
+};
+
+const isRetryableBuilderError = (errorText: string): boolean => {
+  return /\b429\b|\brate\s*limit\b|\b503\b|overloaded|timeout|timed\s*out|ECONNRESET|network/i.test(
+    errorText,
+  );
+};
+
+export const computeBuilderRetryDelayMs = (
+  attempt: number,
+  errorText: string,
+): number => {
+  const retryAfterMs = parseRetryAfterMs(errorText);
+  if (retryAfterMs && retryAfterMs > 0) {
+    return Math.min(retryAfterMs, BUILDER_RETRY_MAX_BACKOFF_MS);
+  }
+
+  const exponential = BUILDER_RETRY_BACKOFF_MS * Math.pow(2, Math.max(0, attempt - 1));
+  const jitter = 0.9 + Math.random() * 0.2;
+  return Math.min(Math.round(exponential * jitter), BUILDER_RETRY_MAX_BACKOFF_MS);
+};
+
+export async function runOrchestratorWithHardTimeout(
+  provider: AllAIProviders,
+  model: string,
+  quality: Quality,
+  messages: LlmMessage[],
+  signal?: AbortSignal,
+  timeoutMs = CHAT_AI_REQUEST_TIMEOUT_MS,
+): Promise<OrchestratorResult> {
+  if (signal?.aborted) {
+    return { ok: false, error: "Request abgebrochen" };
+  }
+
+  const requestController = new AbortController();
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    requestController.abort();
+  }, timeoutMs);
+
+  const onAbort = () => requestController.abort();
+  signal?.addEventListener("abort", onAbort, { once: true });
+
+  try {
+    const result = await runOrchestrator(
+      provider,
+      model,
+      quality,
+      messages,
+      requestController.signal,
+    );
+
+    if (timedOut && !result.ok) {
+      return {
+        ...result,
+        error: `Request timeout nach ${timeoutMs}ms`,
+      };
+    }
+
+    return result;
+  } finally {
+    clearTimeout(timeoutId);
+    signal?.removeEventListener("abort", onAbort);
+  }
+}
 
 export const buildPathBulletList = (
   paths: string[],
@@ -69,6 +156,7 @@ export function useChatAIFlow({
   >(null);
 
   const streamingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const streamingRunIdRef = useRef(0);
 
   // ✅ FIX #1: Keep fresh references to avoid stale closures in AutoFix queue
   const messagesRef = useRef(messages);
@@ -79,6 +167,9 @@ export function useChatAIFlow({
 
   const pendingPlanRef = useRef(pendingPlan);
   pendingPlanRef.current = pendingPlan;
+
+  const pendingChangeRef = useRef(pendingChange);
+  pendingChangeRef.current = pendingChange;
 
   // ✅ FIX #3: AutoFix FIFO Queue with max limit
   const queuedAutoFixRef = useRef<string[]>([]);
@@ -99,6 +190,33 @@ export function useChatAIFlow({
     }
   }, []);
 
+
+  const sleepWithAbort = useCallback((ms: number, signal?: AbortSignal) => {
+    if (ms <= 0) return Promise.resolve();
+    if (signal?.aborted) {
+      return Promise.reject(Object.assign(new Error("Aborted"), { name: "AbortError" }));
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        cleanup();
+        resolve();
+      }, ms);
+
+      const onAbort = () => {
+        cleanup();
+        reject(Object.assign(new Error("Aborted"), { name: "AbortError" }));
+      };
+
+      const cleanup = () => {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", onAbort);
+      };
+
+      signal?.addEventListener("abort", onAbort, { once: true });
+    });
+  }, []);
+
   // ✅ FIX #2: Cleanup streaming timer on unmount
   useEffect(() => {
     return () => {
@@ -106,6 +224,7 @@ export function useChatAIFlow({
       abortControllerRef.current?.abort();
       abortControllerRef.current = null;
       cleanupStreamingTimer();
+      streamingRunIdRef.current += 1;
       inFlightRef.current = false;
     };
   }, [cleanupStreamingTimer]);
@@ -113,6 +232,7 @@ export function useChatAIFlow({
   const simulateStreaming = useCallback(
     (fullText: string, onComplete: () => void) => {
       cleanupStreamingTimer();
+      const runId = ++streamingRunIdRef.current;
 
       safe(() => setIsStreaming(true));
       safe(() => setStreamingMessage(""));
@@ -122,7 +242,7 @@ export function useChatAIFlow({
       const delay = 18;
 
       const tick = () => {
-        if (!isMountedRef.current) {
+        if (!isMountedRef.current || runId !== streamingRunIdRef.current) {
           cleanupStreamingTimer();
           return;
         }
@@ -145,6 +265,7 @@ export function useChatAIFlow({
         }
 
         cleanupStreamingTimer();
+        if (runId !== streamingRunIdRef.current) return;
         safe(() => setIsStreaming(false));
 
         if (isAtBottomRef.current) {
@@ -267,7 +388,7 @@ export function useChatAIFlow({
               currentProjectFiles,
             );
 
-            const planRes = await runOrchestrator(
+            const planRes = await runOrchestratorWithHardTimeout(
               config.selectedChatProvider,
               config.selectedChatMode,
               "speed",
@@ -315,33 +436,30 @@ export function useChatAIFlow({
           currentProjectFiles,
         );
 
-        let ai: OrchestratorResult | null = await runOrchestrator(
-          config.selectedChatProvider,
-          config.selectedChatMode,
-          config.qualityMode,
-          llmMessages,
-          controller.signal,
-        );
+        let ai: OrchestratorResult | null = null;
+        for (let attempt = 1; attempt <= BUILDER_RETRY_MAX_ATTEMPTS; attempt += 1) {
+          ai = await runOrchestratorWithHardTimeout(
+            config.selectedChatProvider,
+            config.selectedChatMode,
+            config.qualityMode,
+            llmMessages,
+            controller.signal,
+          );
 
-        notifyKeyRotation(ai);
+          notifyKeyRotation(ai);
 
-        if (!ai?.ok) {
-          const errText = String(ai?.error ?? "");
+          if (ai?.ok) break;
+
+          const errText = readErrorText(ai);
           const shouldRetry =
-            /\b429\b|\brate\s*limit\b|\b503\b|overloaded|timeout|timed\s*out|ECONNRESET|network/i.test(
-              errText,
-            );
-          if (shouldRetry) {
-            ai = await runOrchestrator(
-              config.selectedChatProvider,
-              config.selectedChatMode,
-              config.qualityMode,
-              llmMessages,
-              controller.signal,
-            );
+            attempt < BUILDER_RETRY_MAX_ATTEMPTS && isRetryableBuilderError(errText);
+          if (!shouldRetry) break;
 
-            notifyKeyRotation(ai);
-          }
+          const backoffMs = computeBuilderRetryDelayMs(attempt, errText);
+          logger.warn(
+            `[useChatAIFlow] Builder retry ${attempt}/${BUILDER_RETRY_MAX_ATTEMPTS - 1} in ${backoffMs}ms: ${errText.slice(0, 220)}`,
+          );
+          await sleepWithAbort(backoffMs, controller.signal);
         }
 
         if (!ai || !ai.ok) {
@@ -395,7 +513,7 @@ export function useChatAIFlow({
               currentProjectFiles,
             );
 
-            const agentRes = await runOrchestrator(
+            const agentRes = await runOrchestratorWithHardTimeout(
               config.selectedAgentProvider ?? config.selectedChatProvider,
               config.selectedAgentMode ?? config.selectedChatMode,
               "quality",
@@ -449,7 +567,7 @@ export function useChatAIFlow({
               mergeResult.updated,
             );
             const explainMsgs = buildExplainMessages(userContent, digest);
-            const explainRes = await runOrchestrator(
+            const explainRes = await runOrchestratorWithHardTimeout(
               config.selectedChatProvider,
               config.selectedChatMode,
               "speed",
@@ -558,6 +676,7 @@ export function useChatAIFlow({
       drainAutoFixQueue,
       notifyKeyRotation,
       safe,
+      sleepWithAbort,
       setError,
       setIsAiLoading,
       setShowConfirmModal,
@@ -714,9 +833,13 @@ export function useChatAIFlow({
 
   const resetTransientState = useCallback(() => {
     cleanupStreamingTimer();
+    streamingRunIdRef.current += 1;
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
     inFlightRef.current = false;
+    queuedAutoFixRef.current = [];
+    pendingPlanRef.current = null;
+    pendingChangeRef.current = null;
 
     safe(() => setIsStreaming(false));
     safe(() => setStreamingMessage(""));

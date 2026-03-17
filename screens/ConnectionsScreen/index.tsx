@@ -99,12 +99,15 @@ export default function ConnectionsScreen() {
     lines.push(`EAS Status: ${easOk ? "✅" : "❌"}`);
 
     lines.push("");
-    lines.push("Wird beim Sync ins Repo/Supabase geschrieben (Namen, keine Werte):");
-    lines.push("- GITHUB_TOKEN");
+    lines.push("Automatisch per Secret-Sync ins aktive Repo (Namen, keine Werte):");
     lines.push("- EXPO_TOKEN");
-    lines.push("- EDGE_ADMIN_KEY");
-    lines.push("- SUPABASE_ANON_KEY");
-    lines.push("- EAS_PROJECT_ID");
+    lines.push("- SUPABASE_URL");
+    lines.push("- EAS_PROJECT_ID (optional)");
+    lines.push("- K1W1_EDGE_ADMIN_KEY (optional)");
+    lines.push("");
+    lines.push("Nicht aus der App auto-synchronisiert:");
+    lines.push("- Supabase Service-Role-Key (Production/Supabase-Reporting: manuell setzen)");
+    lines.push("- GITHUB_TOKEN / SUPABASE_ANON_KEY (bleiben lokal auf dem Gerät)");
     return lines;
   }, [repoLine, githubOk, githubUser, githubScopes, supabaseUrl, supabaseRef, supabaseOk, expoOk, expoUser, easProjectId, easOk]);
 
@@ -287,4 +290,3 @@ export default function ConnectionsScreen() {
     </SafeAreaView>
   );
 }
-

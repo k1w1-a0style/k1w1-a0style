@@ -32,6 +32,6 @@ describe("CI Lite Header workflow invariants", () => {
     const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
 
     expect(src).toContain("findRunByJobId({ githubRepo, branch: b, jobId, workflow: WORKFLOW_CI_LITE })");
-    expect(src).toContain("Autofix-Chain ausgelöst, aber kein passender CI-Lite-Run gefunden (Timeout)");
+    expect(src).toContain("Autofix-Chain ausgelöst, aber kein frischer passender CI-Lite-Run gefunden (Timeout)");
   });
 });

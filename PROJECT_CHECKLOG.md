@@ -1,3 +1,152 @@
+- 2026-03-17: Patch 477: One-Click-Deploy-Readiness auf repo/branch-scoped `diagnostic_last_ok` umgestellt (mit Legacy-Fallback), damit der Deploy-Guard nicht durch globalen Altstatus freigegeben wird; Regressionstest in `__tests__/oneClickDeploy.test.tsx` entsprechend nachgezogen.
+
+## 2026-03-17 — Abschlussklärung (2 Punkte): Chat/Preview/Editor/UX-Einstufung + Vollsuite-Timeout
+
+- **Punkt 1 (Einstufung) kritisch verifiziert:** Chat-/Preview-/Editor-/UX-nahe Regressionen laufen stabil (gezielt: `useChatAIFlow.timeoutAbort.regression`, `useChatAIFlow.hardTimeout.invariants`, `usePreview.rehydration`, `usePreview.fingerprint`, `webCodeEditor.recovery`, `invariants.selection`) und sind zusätzlich in der kompletten Suite enthalten.
+- **Punkt 2 (Vollsuite-Timeout) eingeordnet:** `npm run test:silent` lief im aktuellen Stand komplett grün (`157/157` Suites). Der zuvor dokumentierte Timeout-Restpunkt war im Nachlauf nicht reproduzierbar; `__tests__/oneClickDeploy.test.tsx` lief isoliert 5× hintereinander grün mit `--runInBand`.
+- **Bewertung für Abschlussstand:** kein bestätigter Produktcode-Defekt in diesen beiden Punkten; verbleibendes Risiko liegt eher bei allgemeiner Test-Flaky-Wahrscheinlichkeit als bei bestätigter Instabilität.
+
+Checks:
+- `npm run test:silent -- --runInBand __tests__/useChatAIFlow.timeoutAbort.regression.test.ts __tests__/useChatAIFlow.hardTimeout.invariants.test.ts __tests__/usePreview.rehydration.test.tsx __tests__/usePreview.fingerprint.test.tsx __tests__/webCodeEditor.recovery.test.tsx __tests__/invariants.selection.test.ts`
+- `for i in 1 2 3 4 5; do npm run test:silent -- --runInBand __tests__/oneClickDeploy.test.tsx; done`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+## 2026-03-17 — Patch 476: UX-/Flow-Consistency (Repo/Connections/Secret-Sync/EAS-Link)
+
+- Build-Gate-/Hinweistexte verweisen jetzt konsistent auf den GitHub-Repos-Screen für Repo/Branch-Setup.
+- Secret-Sync-Hinweise in Connections + Repo wurden auf den real app-gemanagten Umfang eingegrenzt; manueller Production-Schritt (Service-Role-Key) ist explizit kommuniziert.
+- EAS-Rollen wurden sprachlich getrennt: Connections verwaltet Token/Project-ID, Repo-Flow erledigt EAS-Link/Workflow-Dateien.
+- Gezielt ergänzt: `__tests__/patch476.flowCopyConsistency.invariants.test.ts`; bestehende String-Invariants auf den neuen Screen-Hinweis angepasst.
+
+Checks:
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
+## 2026-03-17 — Patch 475: Persistenz-/ProjectContext-Restpunkte minimal gehärtet
+
+- `infra/storage/persistenceHelpers.ts`: konservative UTF-8-Size-Utilities + Soft-/Hard-Limits ergänzt (`PROJECT_STORAGE_SOFT_LIMIT_BYTES`, `PROJECT_STORAGE_HARD_LIMIT_BYTES`, `assertProjectStoragePayloadSafe(...)`) als klarer Save-Guard.
+- `infra/storage/projectPersistence.ts`: `saveProjectToStorage(...)` prüft Payload jetzt vor `AsyncStorage.setItem`; near-limit wird als Warnung protokolliert, Hard-Limit führt zu sauberem Fail statt stillem Storage-Problem.
+- `contexts/ProjectContext.tsx`: `messages` im Context-Value werden über `contextMessages` (`useMemo` auf `projectData?.chatHistory`) referenzstabil bereitgestellt, um unnötige Array-Neureferenzen bei nicht-chat-bezogenen `projectData`-Updates zu vermeiden.
+- Tests ergänzt:
+  - `__tests__/projectPersistence.sizeGuard.test.ts`
+  - `__tests__/projectContext.messagesReference.invariants.test.ts`
+
+Checks:
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
+## 2026-03-17 — Patch 474: harte Chat-AI-Timeout-Wiring-Invariants ergänzt
+
+- `__tests__/useChatAIFlow.hardTimeout.invariants.test.ts`: neue Invariants sichern, dass Planner/Builder/Validator/Explain im `processAIRequest(...)`-Flow über `runOrchestratorWithHardTimeout(...)` laufen (inkl. Builder-Retry-Call).
+- Zusätzlicher Guard im selben Test stellt sicher, dass im `processAIRequest(...)`-Block keine direkte `await runOrchestrator(...)`-Nutzung zurückkehrt.
+- Bestehender Timeout-/Abort-Mechanismus bleibt unverändert; Fokus dieses Patchs ist die gezielte Regressionsabsicherung des Hauptrestpunkts.
+
+Checks:
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
+## 2026-03-17 — Patch 473: harter Stage-Timeout im Chat-AI-Flow (Planner/Builder/Validator/Explain)
+
+- `hooks/useChatAIFlow.ts`: neuer `runOrchestratorWithHardTimeout(...)`-Wrapper (`45_000ms`) mit lokalem `AbortController`, gekoppelt an das bestehende Parent-`AbortSignal`; der laufende Orchestrator-Call wird im Timeout-Fall aktiv abgebrochen.
+- Alle Chat-AI-Stages nutzen jetzt den Timeout-Wrapper: Planner, Builder (inkl. Retry-Call), Validator, Explain.
+- Timeout-/Abort-Semantik bleibt klar: Timeout liefert `Request timeout nach ...ms`, externes Abort bleibt `Request abgebrochen`.
+- `__tests__/useChatAIFlow.timeoutAbort.regression.test.ts`: gezielte Regressionen für Timeout- und externes Abort-Verhalten ergänzt.
+
+Checks:
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
+## 2026-03-17 — Patch 472: Orchestrator-Timeout klar von externem Abort getrennt
+
+- `lib/orchestrator/index.ts`: bestehender harter Request-Timeout (`45_000ms`) markiert Timeout-Attempts jetzt zusätzlich lokal und gibt im Timeout-Fall deterministisch `Request timeout nach 45000ms` zurück statt generischem Abort-Text.
+- Externe Abort-Signale bleiben unverändert und liefern weiterhin `Request abgebrochen`; keine Änderung an Singleflight-/Key-Rotation-/Fallback-Architektur.
+- `lib/__tests__/orchestrator.test.ts`: Timeout-Regression auf explizites Timeout geschärft und neuer Regressionstest ergänzt, der externes Abort weiterhin als `abgebrochen` absichert.
+
+Checks:
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
+## 2026-03-17 — Patch 471: AI-/Request-Robustheitsreste (Timeout + Backoff) konservativ nachgezogen
+
+- `lib/orchestrator/index.ts`: harter Request-Timeout pro Provider-Call (`ORCHESTRATOR_REQUEST_TIMEOUT_MS = 45_000`) via lokalem Request-`AbortController` + sauberer Weitergabe externer Abort-Signale; keine Änderung am bestehenden Singleflight-/Key-Rotation-/Fallback-Design.
+- `lib/orchestrator/index.ts`: bei 429-/Rate-Limit-Key-Rotation folgt vor dem nächsten Versuch ein kleiner deterministischer Backoff (`ORCHESTRATOR_ROTATION_BACKOFF_MS = 350`) statt sofortigem Re-Fire.
+- `hooks/useChatAIFlow.ts`: vorhandener Builder-Retry auf 429/503/Timeout/Netzwerk wartet jetzt konservativ `700ms` mit abort-fähigem Delay vor dem zweiten Versuch.
+- `lib/__tests__/orchestrator.test.ts`: gezielte Regressionen ergänzt für (a) Rotation-Backoff vor Retry und (b) harten Orchestrator-Timeout als Abbruchpfad.
+
+Checks:
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
+## 2026-03-16 — Patch 470: k1w1-handler Parse-Error-Follow-up (Client-Error-Vertrag konsistent)
+
+- Offener Restpunkt aus Patch 469 geschlossen: der frühe `parseJsonBody(...)`-Fehlerpfad reicht `parsedBody.error` nicht mehr roh an Clients durch.
+- Client-seitiger Error-Vertrag ist jetzt durchgehend konsistent und generisch: `Invalid request payload.` (400) bzw. `Request too large.` (413).
+- Optionaler Mini-Rest mitgezogen: `catch (err: unknown)` + enges Narrowing für Logging.
+- Invariant-Tests erweitert: `__tests__/edgeErrorExposure.invariants.test.ts` prüft explizit den frühen Parse-/Body-Error-Pfad.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
+## 2026-03-16 — Patch 469: Edge Security Hardening (preview_page + k1w1-handler)
+
+- Bestätigter Preview-Restpunkt geschlossen: Error-Overlay nutzt jetzt sichere DOM-Erzeugung mit `textContent` (kein raw Stack-/Message-HTML in `innerHTML`-Templates).
+- Bestätigter k1w1-Handler-Restpunkt geschlossen: Client-Fehlerantworten sind generisch (`Invalid request payload.` / `Internal Server Error`), interne Details bleiben nur serverseitig im Log.
+- Gezielt ergänzt: `__tests__/edgeErrorExposure.invariants.test.ts` verhindert Regressionsdrift für beide Exposure-Pfade.
+
+Checks (lokal):
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 ## 2026-03-16 — Patch 468: GitHubReposScreen-Architekturblock (Sync/Push) konservativ beruhigt
 
 - Letzter bestätigter GitHubReposScreen-Architekturrest gezielt adressiert: Sync-Status nutzt jetzt einen zentralen Infra-Vergleich auf Tree-SHA-Basis statt per-file Contents-Reads im Screen-Hook.

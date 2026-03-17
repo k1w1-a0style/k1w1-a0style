@@ -223,7 +223,7 @@ export function OneClickDeployCard({
       <Pressable style={s.optionRow} onPress={onToggleAutoSyncSecrets} disabled={isDeploying}>
         <View style={s.optionTextWrap}>
           <Text style={s.optionLabel}>Secrets vor Build auto-syncen</Text>
-          <Text style={s.optionHint}>Optional (standardmäßig aus). Bei Bedarf manuell in Repo/Connections setzen</Text>
+          <Text style={s.optionHint}>Optional (standardmäßig aus). Synct nur app-verwaltete Repo-Secrets; Production-Secrets bleiben manuell</Text>
         </View>
         <View style={[s.optionLamp, autoSyncSecrets ? s.optionLampOn : s.optionLampOff]}>
           <Text style={s.optionLampText}>{autoSyncSecrets ? "AN" : "AUS"}</Text>

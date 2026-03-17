@@ -1,3 +1,12 @@
+- [x] Patch 477 (2026-03-17): One-Click-Deploy-Readiness auf repo/branch-scoped Diagnostic-SoT angeglichen (Legacy-Fallback bleibt), damit globaler Altstatus keine Cross-Selection-Freigabe mehr erzeugt; OneClickDeploy-Regressionstest entsprechend nachgezogen.
+- [x] Patch 476 (2026-03-17): UX-/Flow-Consistency-Restpunkte für Repo/Connections/Build konservativ geschlossen (konsistente Screen-Hinweise zu GitHub-Repos, Secret-Sync-Kommunikation auf realen Auto-Sync-Umfang inkl. manueller Production-Grenze geschärft, EAS-Rollen zwischen Verbindungen und Repo-Flow klarer getrennt, gezielte Invariant-Tests ergänzt).
+- [x] Patch 475 (2026-03-17): Persistenz-/ProjectContext-Restpunkte konservativ gehärtet (Storage-Size/Safety-Guard vor `saveProjectToStorage`-Writes inkl. Soft-/Hard-Limit-Verhalten + minimal memoisierte `messages`-Referenz im ProjectContext, ergänzt um gezielte Regressionen).
+- [x] Patch 474 (2026-03-17): Timeout-Hauptrestpunkt regressionsfest abgesichert (Invariants prüfen harte Timeout-Verdrahtung für Planner/Builder/Validator/Explain und verhindern direkte `runOrchestrator(...)`-Rückfälle im Chat-Flow).
+- [x] Patch 473 (2026-03-17): Chat-AI-Flow-Hauptrestpunkt geschlossen (echter harter Stage-Timeout für Planner/Builder/Validator/Explain mit aktivem Abort und gezielten Timeout/Abort-Regressionen).
+- [x] Patch 472 (2026-03-17): AI-/Request-Timeout-Follow-up abgeschlossen (Orchestrator trennt Timeout-Fehlertext jetzt deterministisch von externem Abort; gezielte Regression für timeout-vs-abort ergänzt).
+- [x] Patch 471 (2026-03-17): AI-/Request-Robustheitsreste minimal nachgezogen (`runOrchestrator` mit hartem Request-Timeout, kleiner Rotation-Backoff bei 429-Key-Retry, konservativer Builder-Retry-Backoff in `useChatAIFlow`, gezielte Regressionstests für Timeout/Backoff ergänzt).
+- [x] Patch 470 (2026-03-16): k1w1-handler-Follow-up abgeschlossen (früher `parseJsonBody(...)`-Error-Pfad leaked kein rohes `parsedBody.error` mehr an Clients, stattdessen konsistente generische Fehlertexte inkl. `Request too large.` bei 413; Catch-Typing minimal auf `unknown` nachgezogen).
+- [x] Patch 469 (2026-03-16): Edge-/Preview-Security-Restpunkte minimal-konservativ gehärtet (`preview_page` ohne unsanitized Fehler-HTML/Stack-Interpolation, `k1w1-handler` mit generischen Client-Fehlerantworten statt rohem `err.message`-Leak, gezielte Invariant-Tests ergänzt).
 - [x] Patch 468 (2026-03-16): GitHubReposScreen-Architekturblock konservativ beruhigt (Sync-Vergleich zentral über Tree-SHAs statt per-file Contents-Reads, Push auf Git Data API mit einem konsolidierten Commit, bestehende Repo-/Branch-Stale-Guards beibehalten, gezielte Architektur-Invariant-Tests ergänzt).
 - [x] Patch 467 (2026-03-16): Allgemeiner flow-naher Maintenance-/Typing-Block konservativ nachgezogen (`useChatAIFlow`-Validator-Map ohne `any`, `useGitHubActionsLogs` Error-Pfad mit `unknown` + toter Import entfernt, `actionsLogsTypes` Edge-Fehlerpayload enger typisiert, `ensureChatHistoryHasIds` auf `unknown[]` + Type-Guard gehärtet).
 - [x] Patch 465 (2026-03-16): SettingsScreen/AIContext-Restpunkte final konservativ geschlossen (leeres Retention-Input wird nicht mehr still zu `0`, Retention-Hydration überschreibt keine frisch gesetzten Runtime-Werte mehr, minimale moveKeyToFront-Bereinigung, gezielte Regressionstests ergänzt).
@@ -5,7 +14,7 @@
 
 # TODO
 
-Stand: **2026-03-16 (Patch 468)**
+Stand: **2026-03-17 (Patch 477)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.

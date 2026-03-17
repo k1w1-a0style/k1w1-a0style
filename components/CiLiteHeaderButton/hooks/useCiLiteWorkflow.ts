@@ -48,7 +48,60 @@ function parseCiLiteArtifactJson(payload: unknown): CiLiteArtifactJson {
   };
 }
 
+
+function getAutofixChainSkipReason(lines: string[]): string | null {
+  if (!Array.isArray(lines) || lines.length === 0) return null;
+  const joined = lines.join("\n");
+
+  if (/No TARGET_BRANCH; skipping CI Lite chain-run\./i.test(joined)) {
+    return "Kein TARGET_BRANCH im Autofix-Run";
+  }
+  if (/Ref looks like a SHA .* skipping CI Lite chain-run\./i.test(joined)) {
+    return "Ref wurde als SHA statt Branch erkannt";
+  }
+  if (/Unsafe ref .* skipping CI Lite chain-run\./i.test(joined)) {
+    return "Ref enthält unsichere Zeichen";
+  }
+  if (/CI Lite chain-run disabled for .*regex:/i.test(joined)) {
+    return "Ref ist laut Workflow-Regeln nicht für Chain-Run erlaubt";
+  }
+  if (/is not a remote branch; skipping CI Lite chain-run\./i.test(joined)) {
+    return "Ref existiert nicht als Remote-Branch";
+  }
+
+  return null;
+}
+
+
+
+
+function hasExactJobIdMarkerInRun(run: { display_title?: unknown; name?: unknown } | null | undefined, jobId: string): boolean {
+  const jid = String(jobId || "").trim();
+  if (!run || !jid) return false;
+  const title = String(run.display_title ?? run.name ?? "").trim();
+  if (!title) return false;
+  return (
+    title.includes(`[${jid}]`) ||
+    title.includes(`(job_id=${jid})`) ||
+    title.includes(`job_id=${jid}`) ||
+    title.includes(`job_id: ${jid}`)
+  );
+}
+
+function isFreshChainRunCandidate(run: { created_at?: unknown } | null | undefined, chainStartMs: number): boolean {
+  if (!run) return false;
+  const createdAt = typeof run.created_at === "string" ? Date.parse(run.created_at) : Number.NaN;
+  if (!Number.isFinite(createdAt)) return true;
+  // Guard against accidentally binding to stale runs if a matching title appears in history.
+  // Small skew tolerance for clock/API timing.
+  return createdAt >= chainStartMs - 5_000;
+}
+
 export function useCiLiteWorkflow() {
+  // Contract for chain-run correlation:
+  // - Autofix dispatches repository_dispatch(trigger-ci-lite) with the *same* job_id
+  // - CI Lite run-name includes that job_id
+  // The header polls by this shared job_id to locate the chained CI-Lite run deterministically.
   const { projectData } = useProject();
 
   const [visible, setVisible] = useState(false);
@@ -304,6 +357,14 @@ export function useCiLiteWorkflow() {
     const b = (targetRef || branch || "").trim();
     if (!b) return;
 
+    const chainSkipReason = getAutofixChainSkipReason(logLines);
+    if (chainSkipReason) {
+      setLocalError(`Autofix erfolgreich, aber CI-Lite Chain-Run wurde im Workflow übersprungen: ${chainSkipReason}.`);
+      setChainWaiting(false);
+      stopPolling();
+      return;
+    }
+
     setChainWaiting(true);
     setWorkflowId(WORKFLOW_CI_LITE);
     setRunId(null);
@@ -314,7 +375,7 @@ export function useCiLiteWorkflow() {
     const poll = async () => {
       try {
         const found = await findRunByJobId({ githubRepo, branch: b, jobId, workflow: WORKFLOW_CI_LITE });
-        if (found?.id) {
+        if (found?.id && hasExactJobIdMarkerInRun(found, jobId) && isFreshChainRunCandidate(found, start)) {
           setRunId(Number(found.id));
           setRunUrl(typeof found?.html_url === "string" ? found.html_url : null);
           setChainWaiting(false);
@@ -325,7 +386,9 @@ export function useCiLiteWorkflow() {
         setLocalError(e?.message || String(e));
       }
       if (Date.now() - start > 75_000) {
-        setLocalError("Autofix-Chain ausgelöst, aber kein passender CI-Lite-Run gefunden (Timeout). Bitte Run-Übersicht prüfen.");
+        setLocalError(
+          "Autofix-Chain ausgelöst, aber kein frischer passender CI-Lite-Run gefunden (Timeout). Prüfe job_id-Contract/Workflow-Dispatch.",
+        );
         setChainWaiting(false);
         stopPolling();
       }
@@ -333,7 +396,7 @@ export function useCiLiteWorkflow() {
 
     void poll();
     pollTimerRef.current = setInterval(poll, 2500);
-  }, [visible, workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, stopPolling, findRunByJobId]);
+  }, [visible, workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopPolling, findRunByJobId]);
 
   // ---- Header state lamp ----
   useEffect(() => {

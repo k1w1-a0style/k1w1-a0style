@@ -72,8 +72,18 @@ export function inferStepStates(lines: string[]): {
 } {
   const joined = lines.join("\n");
 
-  const lintStarted = /npm run lint:ci|eslint\s+\.|\blint:ci\b|Lint \(CI\)/i.test(joined);
-  const typecheckStarted = /npm run typecheck|tsc\s+--noEmit|Typecheck/i.test(joined);
+  // Workflow emits deterministic markers (metadata.env + summaries). Keep regex fallback for legacy logs.
+  const lintExitCodeMatch = joined.match(/LINT_EXIT=(\d+)/i);
+  const typecheckExitCodeMatch = joined.match(/TSC_EXIT=(\d+)/i);
+  const lintExitCode = lintExitCodeMatch ? Number(lintExitCodeMatch[1]) : null;
+  const typecheckExitCode = typecheckExitCodeMatch ? Number(typecheckExitCodeMatch[1]) : null;
+
+  const lintStarted =
+    lintExitCode !== null ||
+    /npm run lint:ci|eslint\s+\.|\blint:ci\b|Lint \(CI\)/i.test(joined);
+  const typecheckStarted =
+    typecheckExitCode !== null ||
+    /npm run typecheck|tsc\s+--noEmit|Typecheck/i.test(joined);
 
   const tsErrors = lines.filter((l) => /error\s+TS\d+:|Type \".*\" is not assignable/i.test(l)).length;
   // ESLint (quiet) prints only errors; zähle typische Formate inkl. compact formatter.
@@ -85,23 +95,31 @@ export function inferStepStates(lines: string[]): {
   const hasSuccess = /✅\s*CI\s*Lite\s*passed|All checks passed|Done\s+in\s+\d|0\s+problems\s*\(0\s+errors|Typecheck\s*(ok|passed)/i.test(joined);
 
   const lint: StepState = lintStarted
-    ? eslintErrors > 0
-      ? "failure"
-      : hasSuccess || /Lint \(CI\).*\s+\(\d+\)/i.test(joined)
-        ? "success"
-        : hasFailure
+    ? lintExitCode === 0
+      ? "success"
+      : typeof lintExitCode === "number" && lintExitCode !== 0
+        ? "failure"
+        : eslintErrors > 0
           ? "failure"
-          : "running"
+          : hasSuccess || /Lint \(CI\).*\s+\(\d+\)/i.test(joined)
+            ? "success"
+            : hasFailure
+              ? "failure"
+              : "running"
     : "waiting";
 
   const typecheck: StepState = typecheckStarted
-    ? tsErrors > 0
-      ? "failure"
-      : hasSuccess
-        ? "success"
-        : hasFailure
+    ? typecheckExitCode === 0
+      ? "success"
+      : typeof typecheckExitCode === "number" && typecheckExitCode !== 0
+        ? "failure"
+        : tsErrors > 0
           ? "failure"
-          : "running"
+          : hasSuccess
+            ? "success"
+            : hasFailure
+              ? "failure"
+              : "running"
     : "waiting";
 
   return { lint, typecheck, eslintErrors, tsErrors };

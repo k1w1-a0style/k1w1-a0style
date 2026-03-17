@@ -15,6 +15,9 @@ import { callAnthropic } from './providers/anthropic';
 import { callGemini } from './providers/gemini';
 import { callHuggingFace } from './providers/huggingface';
 
+export const ORCHESTRATOR_REQUEST_TIMEOUT_MS = 45_000;
+export const ORCHESTRATOR_ROTATION_BACKOFF_MS = 350;
+
 // Re-export types so existing imports keep working
 export type { LlmMessage, OrchestratorResult } from './types';
 
@@ -29,6 +32,32 @@ function getErrorMessage(error: unknown): string {
 
 export function parseFilesFromText(text: string): Array<{ path: string; content: string }> | null {
   return normalizeAiResponse(text);
+}
+
+async function sleepWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
+  if (ms <= 0) return;
+  if (signal?.aborted) {
+    throw Object.assign(new Error('Aborted'), { name: 'AbortError' });
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      resolve();
+    }, ms);
+
+    const onAbort = () => {
+      cleanup();
+      reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
+    };
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+    };
+
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 export async function runValidatorOrchestrator(
@@ -89,19 +118,44 @@ export async function runOrchestrator(
       const apiKey = SecureKeyManager.getCurrentKey(provider);
       if (!apiKey) break;
 
+      const requestController = new AbortController();
+      let timedOut = false;
+      const timeoutId = setTimeout(() => {
+        timedOut = true;
+        requestController.abort();
+      }, ORCHESTRATOR_REQUEST_TIMEOUT_MS);
+      const onAbort = () => requestController.abort();
+      signal?.addEventListener('abort', onAbort, { once: true });
+
       let result: OrchestratorResult;
-      switch (provider) {
-        case 'groq':       result = await callGroq(apiKey, resolvedModel, messages, quality, signal); break;
-        case 'openai':     result = await callOpenAI(apiKey, resolvedModel, messages, quality, signal); break;
-        case 'anthropic':  result = await callAnthropic(apiKey, resolvedModel, messages, quality, signal); break;
-        case 'gemini':     result = await callGemini(apiKey, resolvedModel, messages, quality, signal); break;
-        case 'huggingface': result = await callHuggingFace(apiKey, resolvedModel, messages, quality, signal); break;
-        default:           result = { ok: false, error: `Unbekannter Provider: ${provider}` };
+      try {
+        switch (provider) {
+          case 'groq':       result = await callGroq(apiKey, resolvedModel, messages, quality, requestController.signal); break;
+          case 'openai':     result = await callOpenAI(apiKey, resolvedModel, messages, quality, requestController.signal); break;
+          case 'anthropic':  result = await callAnthropic(apiKey, resolvedModel, messages, quality, requestController.signal); break;
+          case 'gemini':     result = await callGemini(apiKey, resolvedModel, messages, quality, requestController.signal); break;
+          case 'huggingface': result = await callHuggingFace(apiKey, resolvedModel, messages, quality, requestController.signal); break;
+          default:           result = { ok: false, error: `Unbekannter Provider: ${provider}` };
+        }
+      } finally {
+        clearTimeout(timeoutId);
+        signal?.removeEventListener('abort', onAbort);
+      }
+
+      if (!result.ok && timedOut) {
+        result = {
+          ...result,
+          error: `Request timeout nach ${ORCHESTRATOR_REQUEST_TIMEOUT_MS}ms`,
+        };
       }
 
       lastResult = result;
       if (result.ok) break;
-      if (isRateLimit(result) && SecureKeyManager.rotateKey(provider)) { keysRotated += 1; continue; }
+      if (isRateLimit(result) && SecureKeyManager.rotateKey(provider)) {
+        keysRotated += 1;
+        await sleepWithAbort(ORCHESTRATOR_ROTATION_BACKOFF_MS, signal);
+        continue;
+      }
       break;
     }
 
