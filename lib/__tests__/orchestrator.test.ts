@@ -1,5 +1,6 @@
 import SecureKeyManager from '../SecureKeyManager';
-import { runOrchestrator, parseFilesFromText, runValidatorOrchestrator, type LlmMessage } from '../orchestrator';
+import { providerRateLimiter } from '../RateLimiter';
+import { runOrchestrator, parseFilesFromText, runValidatorOrchestrator, type LlmMessage, ORCHESTRATOR_REQUEST_TIMEOUT_MS, ORCHESTRATOR_ROTATION_BACKOFF_MS } from '../orchestrator';
 
 // Ensure global.fetch is a Jest mock for this test file.
 // Jest setup in this repo does not guarantee fetch is mocked.
@@ -186,6 +187,82 @@ it('sollte bei 429 automatisch den API-Key rotieren und retry machen', async () 
   expect(fetchAny.mock.calls.length).toBe(2);
   expect(fetchAny.mock.calls[0][1].headers.Authorization).toBe('Bearer k1');
   expect(fetchAny.mock.calls[1][1].headers.Authorization).toBe('Bearer k2');
+});
+
+
+it('sollte bei 429-Rotation vor dem Retry einen kleinen Backoff einlegen', async () => {
+  const fetchAny: any = (global as any).fetch;
+  SecureKeyManager.setKeys('groq', ['k1', 'k2']);
+  fetchAny.mockReset();
+  providerRateLimiter.resetProvider('groq');
+
+  jest.useFakeTimers();
+
+  const callTimes: number[] = [];
+  fetchAny
+    .mockImplementationOnce(async () => {
+      callTimes.push(Date.now());
+      return {
+        ok: false,
+        status: 429,
+        text: async () => 'Too Many Requests',
+      };
+    })
+    .mockImplementationOnce(async () => {
+      callTimes.push(Date.now());
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ choices: [{ message: { content: 'ok' } }] }),
+        text: async () => '',
+      };
+    });
+
+  const pending = runOrchestrator('groq', 'llama-3.1-8b-instant', 'speed', [
+    { role: 'user', content: 'hi' },
+  ]);
+
+  await jest.runAllTimersAsync();
+  const res: any = await pending;
+
+  expect(res.ok).toBe(true);
+  expect(res.keysRotated).toBe(1);
+  expect(callTimes.length).toBe(2);
+  expect(callTimes[1] - callTimes[0]).toBeGreaterThanOrEqual(
+    ORCHESTRATOR_ROTATION_BACKOFF_MS,
+  );
+
+  jest.useRealTimers();
+});
+
+it('sollte harte Request-Timeouts als abgebrochen melden', async () => {
+  const fetchAny: any = (global as any).fetch;
+  SecureKeyManager.setKeys('groq', ['k1']);
+  fetchAny.mockReset();
+  providerRateLimiter.resetProvider('groq');
+
+  jest.useFakeTimers();
+
+  fetchAny.mockImplementationOnce((_: string, options?: RequestInit) => {
+    return new Promise((_, reject) => {
+      options?.signal?.addEventListener('abort', () => {
+        const abortError = Object.assign(new Error('Aborted'), { name: 'AbortError' });
+        reject(abortError);
+      });
+    });
+  });
+
+  const pending = runOrchestrator('groq', 'llama-3.1-8b-instant', 'speed', [
+    { role: 'user', content: 'hi' },
+  ]);
+
+  await jest.advanceTimersByTimeAsync(ORCHESTRATOR_REQUEST_TIMEOUT_MS + 1);
+  const res: any = await pending;
+
+  expect(res.ok).toBe(false);
+  expect(String(res.error || '')).toMatch(/abgebrochen/i);
+
+  jest.useRealTimers();
 });
   });
 });

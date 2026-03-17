@@ -11,8 +11,9 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 470**.
+- Zuletzt abgeschlossen: **Patch 471**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
+- Patch 471 zieht verbleibende AI-/Request-Robustheitsreste minimal nach: `runOrchestrator` erzwingt jetzt ein hartes Request-Timeout pro Provider-Call (45s, inklusive sauberer Abort-Weitergabe), Key-Rotation-Retries warten kurz per kleinem Backoff (350ms) statt sofort zu feuern, und der Builder-Retry im Chat-Flow hat einen konservativen Backoff (700ms) bei 429/503/Timeout-/Netzwerkpfaden.
 - Patch 470 vervollständigt den verbleibenden `k1w1-handler`-Restpunkt aus 469: auch der frühe `parseJsonBody(...)`-Fehlerpfad nutzt jetzt ausschließlich generische sichere Client-Fehler (`Invalid request payload.` / `Request too large.`) statt roher `parsedBody.error`-Durchreichung; der Catch-Block ist minimal auf `unknown` + Narrowing gehärtet.
 - Patch 469 härtet die verbleibenden bestätigten Security-/Exposure-Restpunkte in Edge-/Preview-Pfaden minimal-konservativ: `preview_page` rendert Runtime-Errors ohne HTML-Interpolation (kein Stack-/HTML-Injection-Pfad mehr), und `k1w1-handler` gibt Clients nur noch generische sichere Fehlertexte statt roher interner `err.message`-Details zurück.
 - Patch 468 schließt den letzten bestätigten GitHubReposScreen-Architekturblock konservativ: Sync-Vergleich läuft zentral über Tree-SHA statt teurem per-file Contents-Loop, Push nutzt den Git Data API-Pfad (ein konsolidierter Commit statt N Datei-Commits), und der bestehende Repo-/Branch-Race-Guard bleibt unverändert aktiv.
