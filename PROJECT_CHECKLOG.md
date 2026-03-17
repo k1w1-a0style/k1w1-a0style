@@ -1,3 +1,20 @@
+## 2026-03-17 — Patch 471: AI-/Request-Robustheitsreste (Timeout + Backoff) konservativ nachgezogen
+
+- `lib/orchestrator/index.ts`: harter Request-Timeout pro Provider-Call (`ORCHESTRATOR_REQUEST_TIMEOUT_MS = 45_000`) via lokalem Request-`AbortController` + sauberer Weitergabe externer Abort-Signale; keine Änderung am bestehenden Singleflight-/Key-Rotation-/Fallback-Design.
+- `lib/orchestrator/index.ts`: bei 429-/Rate-Limit-Key-Rotation folgt vor dem nächsten Versuch ein kleiner deterministischer Backoff (`ORCHESTRATOR_ROTATION_BACKOFF_MS = 350`) statt sofortigem Re-Fire.
+- `hooks/useChatAIFlow.ts`: vorhandener Builder-Retry auf 429/503/Timeout/Netzwerk wartet jetzt konservativ `700ms` mit abort-fähigem Delay vor dem zweiten Versuch.
+- `lib/__tests__/orchestrator.test.ts`: gezielte Regressionen ergänzt für (a) Rotation-Backoff vor Retry und (b) harten Orchestrator-Timeout als Abbruchpfad.
+
+Checks:
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 ## 2026-03-16 — Patch 470: k1w1-handler Parse-Error-Follow-up (Client-Error-Vertrag konsistent)
 
 - Offener Restpunkt aus Patch 469 geschlossen: der frühe `parseJsonBody(...)`-Fehlerpfad reicht `parsedBody.error` nicht mehr roh an Clients durch.
