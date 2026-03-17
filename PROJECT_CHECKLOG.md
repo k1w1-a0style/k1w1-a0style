@@ -1,3 +1,20 @@
+## 2026-03-17 — Patch 476: UX-/Flow-Consistency (Repo/Connections/Secret-Sync/EAS-Link)
+
+- Build-Gate-/Hinweistexte verweisen jetzt konsistent auf den GitHub-Repos-Screen für Repo/Branch-Setup.
+- Secret-Sync-Hinweise in Connections + Repo wurden auf den real app-gemanagten Umfang eingegrenzt; manueller Production-Schritt (Service-Role-Key) ist explizit kommuniziert.
+- EAS-Rollen wurden sprachlich getrennt: Connections verwaltet Token/Project-ID, Repo-Flow erledigt EAS-Link/Workflow-Dateien.
+- Gezielt ergänzt: `__tests__/patch476.flowCopyConsistency.invariants.test.ts`; bestehende String-Invariants auf den neuen Screen-Hinweis angepasst.
+
+Checks:
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 ## 2026-03-17 — Patch 475: Persistenz-/ProjectContext-Restpunkte minimal gehärtet
 
 - `infra/storage/persistenceHelpers.ts`: konservative UTF-8-Size-Utilities + Soft-/Hard-Limits ergänzt (`PROJECT_STORAGE_SOFT_LIMIT_BYTES`, `PROJECT_STORAGE_HARD_LIMIT_BYTES`, `assertProjectStoragePayloadSafe(...)`) als klarer Save-Guard.

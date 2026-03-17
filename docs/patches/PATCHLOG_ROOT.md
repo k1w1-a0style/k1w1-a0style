@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 476: UX-/Flow-Consistency zwischen Connections/Repo/Build konservativ nachgeschärft — Build-Gates zeigen konsistent auf den GitHub-Repos-Screen, Secret-Sync-Kommunikation spiegelt den real app-verwalteten Umfang inkl. manueller Production-Grenze (Service-Role-Key) ehrlich wider, und die EAS-Rollen sind sprachlich klar getrennt (Connections: Token/ID, Repo: EAS-Link/Workflow im Ziel-Repo).
 - Patch 475: Persistenz-/ProjectContext-Restpunkte konservativ gehärtet — `saveProjectToStorage` prüft Payloadgröße jetzt vor dem Schreiben mit klarem Soft-/Hard-Limit-Guard (kein stilles Oversize-Fail), und `ProjectContext.messages` nutzt eine stabile memoized Referenz aus `projectData.chatHistory`, um unnötige Re-Renders durch Array-Neureferenzen zu reduzieren.
 - Patch 474: Timeout-Hauptrestpunkt regressionsfest abgesichert — neue Invariants stellen sicher, dass Planner/Builder/Validator/Explain im Chat-AI-Flow weiterhin ausschließlich über `runOrchestratorWithHardTimeout(...)` laufen und keine direkte `runOrchestrator(...)`-Nutzung in `processAIRequest(...)` zurückkehrt.
 - Patch 473: Chat-AI-Flow-Härtung vervollständigt — alle Planner/Builder/Validator/Explain-`runOrchestrator(...)`-Aufrufe laufen jetzt über einen echten harten Stage-Timeout (45s) mit aktivem Abort des hängenden Calls und sauberer Timeout-vs-Abort-Trennung; gezielte Timeout/Abort-Regressionen ergänzt.
