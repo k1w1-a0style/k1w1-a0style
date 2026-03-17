@@ -7,11 +7,11 @@ describe("useChatAIFlow hard-timeout wiring invariants", () => {
 
   it("wires planner/builder/validator/explain through runOrchestratorWithHardTimeout", () => {
     const calls = source.match(/await\s+runOrchestratorWithHardTimeout\(/g) ?? [];
-    expect(calls.length).toBeGreaterThanOrEqual(5);
+    expect(calls.length).toBeGreaterThanOrEqual(4);
 
     expect(source).toContain("const planRes = await runOrchestratorWithHardTimeout(");
-    expect(source).toContain("let ai: OrchestratorResult | null = await runOrchestratorWithHardTimeout(");
     expect(source).toContain("ai = await runOrchestratorWithHardTimeout(");
+    expect(source).toContain("for (let attempt = 1; attempt <= BUILDER_RETRY_MAX_ATTEMPTS; attempt += 1)");
     expect(source).toContain("const agentRes = await runOrchestratorWithHardTimeout(");
     expect(source).toContain("const explainRes = await runOrchestratorWithHardTimeout(");
   });

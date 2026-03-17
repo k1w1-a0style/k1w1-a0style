@@ -104,4 +104,17 @@ export const styles = StyleSheet.create({
     opacity: 0.55,
     borderColor: theme.palette.border,
   },
+  charCounter: {
+    alignSelf: "flex-end",
+    marginRight: 14,
+    marginBottom: 6,
+    fontSize: 11,
+    color: theme.palette.text.secondary,
+  },
+  charCounterWarning: {
+    color: theme.palette.warning,
+  },
+  charCounterCritical: {
+    color: theme.palette.error,
+  },
 });
