@@ -42,7 +42,7 @@ export function EasCard(props: {
         value={easProjectId}
         onChangeText={onChangeEasProjectId}
         placeholder="5e5a7791-8751-416b-9a1f-831adfffcb6c"
-        rightHint="Wird beim EAS-Link genutzt"
+        rightHint="Wird beim EAS-Link im GitHub-Repos-Screen genutzt"
       />
 
 
@@ -95,8 +95,7 @@ export function EasCard(props: {
       </View>
 
       <Text style={styles.hint}>
-        EAS-Link/Init ist im Repo-Screen (dort wird auch geprüft/auto-fix:
-        Workflow-Dateien im Ziel-Repo).
+        Verbindungen verwaltet Token + EAS Project ID.\n        EAS-Link/Init (Workflow im Ziel-Repo schreiben/prüfen) läuft im GitHub-Repos-Screen.
       </Text>
     </View>
   );

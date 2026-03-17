@@ -177,8 +177,8 @@ export function useEnhancedBuildScreen() {
   } = useBuildPreconditions(buildProfile, repoFullName, branchName, projectData);
 
   const buildBlockedReason = useMemo(() => {
-    if (!repoValidation.valid) return "Repo fehlt (im Repo-Screen verknuepfen)";
-    if (!branchName.trim()) return "Branch fehlt (im Repo-Screen auswaehlen)";
+    if (!repoValidation.valid) return "Repo fehlt (im GitHub-Repos-Screen verknuepfen)";
+    if (!branchName.trim()) return "Branch fehlt (im GitHub-Repos-Screen auswaehlen)";
     if (!hasTokens) return "Tokens fehlen (GitHub + Expo) – im Verbindungen-Screen setzen";
     if (!hasDiagOk) return "Diagnostik nicht gruen – im Diagnostic-Screen ausfuehren";
     if (!hasCiLiteOk) {
@@ -304,7 +304,7 @@ export function useEnhancedBuildScreen() {
       Alert.alert(
         "Repo fehlt",
         sanitizeUiMessage(
-          "Bitte zuerst im Repo-Screen ein Repo (owner/repo) verknuepfen.",
+          "Bitte zuerst im GitHub-Repos-Screen ein Repo (owner/repo) verknuepfen.",
         ),
       );
       return;
@@ -536,13 +536,13 @@ export function useEnhancedBuildScreen() {
         id: "repo",
         label: "Repo gewaehlt",
         status: hasRepo ? "ok" : "fail",
-        detail: hasRepo ? repoFullName : "Im Repo-Screen verknuepfen",
+        detail: hasRepo ? repoFullName : "Im GitHub-Repos-Screen verknuepfen",
       },
       {
         id: "branch",
         label: "Branch gewaehlt",
         status: hasBranch ? "ok" : "fail",
-        detail: hasBranch ? branchName : "Im Repo-Screen auswaehlen",
+        detail: hasBranch ? branchName : "Im GitHub-Repos-Screen auswaehlen",
       },
       {
         id: "build_mode",

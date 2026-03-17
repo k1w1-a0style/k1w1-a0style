@@ -11,8 +11,9 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 475**.
+- Zuletzt abgeschlossen: **Patch 476**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
+- Patch 476 schließt verbleibende UX-/Flow-Consistency-Restpunkte zwischen Verbindungen, Repo und Build konservativ: Build-Gates verweisen jetzt konsistent auf den GitHub-Repos-Screen, Secret-Sync-Kommunikation bildet den real app-verwalteten Umfang inkl. manueller Production-Grenze (Service-Role-Key) ehrlich ab, und die EAS-Rollen sind sprachlich klar getrennt (Verbindungen = Token/ID, Repo = Link/Workflow im Ziel-Repo).
 - Patch 475 härtet verbleibende Persistenz-/ProjectContext-Restpunkte minimal: `saveProjectToStorage` hat jetzt einen klaren UTF-8-Size-Guard mit Soft-/Hard-Limit-Warnung bzw. hartem Fail vor `AsyncStorage.setItem`, und `ProjectContext.messages` nutzt eine memoized `contextMessages`-Referenz auf Basis von `projectData.chatHistory`, um unnötige Array-Referenzwechsel bei projectData-Updates zu reduzieren.
 - Patch 474 ergänzt gezielte Wiring-Invariants für den Timeout-Hauptrestpunkt: der Chat-AI-Flow bleibt regressionsfest auf `runOrchestratorWithHardTimeout(...)` verdrahtet (Planner/Builder/Validator/Explain, inkl. Builder-Retry) und verhindert direkte `runOrchestrator(...)`-Rückfälle im `processAIRequest(...)`-Block.
 - Patch 473 schließt den verbleibenden Hauptrestpunkt im Chat-AI-Flow: Planner/Builder/Validator/Explain verwenden jetzt jeweils einen echten harten Stage-Timeout (`45s`) mit aktivem Abort des hängenden `runOrchestrator(...)`-Calls über die bestehende AbortController-Struktur.

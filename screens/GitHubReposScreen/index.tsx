@@ -296,8 +296,10 @@ export default function GitHubReposScreen() {
           </View>
 
           <Text style={{ fontSize: 12, color: theme.palette.text.secondary, lineHeight: 18, marginTop: -2, marginBottom: 10 }}>
-            Erstellt/aktualisiert <Text style={{ fontFamily: "monospace", color: theme.palette.text.primary }}>eas-project.json</Text> und
-            stellt sicher, dass <Text style={{ fontFamily: "monospace", color: theme.palette.text.primary }}>eas-link.yml</Text> im Repo existiert.
+            Dieser Schritt gehört zum Repo-Flow: Er erstellt/aktualisiert
+            <Text style={{ fontFamily: "monospace", color: theme.palette.text.primary }}> eas-project.json</Text> und stellt sicher, dass
+            <Text style={{ fontFamily: "monospace", color: theme.palette.text.primary }}> eas-link.yml</Text> im Ziel-Repo existiert.
+            Tokens/Grundverbindungen pflegst du weiterhin im Verbindungen-Screen.
           </Text>
 
           <TextInput
