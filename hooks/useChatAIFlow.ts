@@ -21,6 +21,8 @@ import { handleMetaCommand } from "../utils/metaCommands";
 
 export type { PendingChange, PendingPlan } from "./chatAIFlowTypes";
 
+const BUILDER_RETRY_BACKOFF_MS = 700;
+
 export const buildPathBulletList = (
   paths: string[],
   previewLimit: number,
@@ -97,6 +99,33 @@ export function useChatAIFlow({
       clearTimeout(streamingTimerRef.current);
       streamingTimerRef.current = null;
     }
+  }, []);
+
+
+  const sleepWithAbort = useCallback((ms: number, signal?: AbortSignal) => {
+    if (ms <= 0) return Promise.resolve();
+    if (signal?.aborted) {
+      return Promise.reject(Object.assign(new Error("Aborted"), { name: "AbortError" }));
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        cleanup();
+        resolve();
+      }, ms);
+
+      const onAbort = () => {
+        cleanup();
+        reject(Object.assign(new Error("Aborted"), { name: "AbortError" }));
+      };
+
+      const cleanup = () => {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", onAbort);
+      };
+
+      signal?.addEventListener("abort", onAbort, { once: true });
+    });
   }, []);
 
   // ✅ FIX #2: Cleanup streaming timer on unmount
@@ -332,6 +361,8 @@ export function useChatAIFlow({
               errText,
             );
           if (shouldRetry) {
+            await sleepWithAbort(BUILDER_RETRY_BACKOFF_MS, controller.signal);
+
             ai = await runOrchestrator(
               config.selectedChatProvider,
               config.selectedChatMode,
@@ -558,6 +589,7 @@ export function useChatAIFlow({
       drainAutoFixQueue,
       notifyKeyRotation,
       safe,
+      sleepWithAbort,
       setError,
       setIsAiLoading,
       setShowConfirmModal,
