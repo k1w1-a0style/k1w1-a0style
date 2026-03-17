@@ -17,7 +17,6 @@ import {
   WorkflowRun,
 } from "../infra/github/githubService";
 
-import { encodePathSegments } from "./gitHubReposTypes";
 import type { GitHubRepo, UseGitHubReposCallbacks } from "./gitHubReposTypes";
 export type { GitHubRepo, UseGitHubReposCallbacks } from "./gitHubReposTypes";
 export type { GitHubBranch, WorkflowRun };
@@ -28,9 +27,135 @@ type RepoTreeEntry = {
   sha?: string;
 };
 
+type RepoBlobCandidate = {
+  path: string;
+  sha: string;
+};
+
 const getErrorMessage = (e: unknown, fallback: string): string =>
   e instanceof Error && e.message ? e.message : fallback;
 
+const TEXT_EXTENSIONS = new Set([
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".css",
+  ".html",
+  ".svg",
+  ".json",
+  ".md",
+  ".txt",
+  ".yml",
+  ".yaml",
+  ".config.js",
+]);
+
+const TEXT_BASENAMES = new Set([
+  ".gitignore",
+  ".easignore",
+  ".npmrc",
+  ".prettierrc",
+  ".prettierignore",
+  ".editorconfig",
+]);
+
+const GRAPHQL_BLOB_BATCH_SIZE = 30;
+
+const isAllowedTextPath = (repoPath: string): boolean => {
+  const ext = repoPath.match(/\.[^.]+$/)?.[0]?.toLowerCase() || "";
+  const base = String(repoPath).split("/").pop() || "";
+  return TEXT_EXTENSIONS.has(ext) || TEXT_BASENAMES.has(base);
+};
+
+const decodeBase64 = (content: unknown): string =>
+  Buffer.from(String(content || "").replace(/\n/g, ""), "base64").toString("utf8");
+
+const fetchBlobContentBySha = async (params: {
+  owner: string;
+  repo: string;
+  sha: string;
+  headers: Record<string, string>;
+}): Promise<string | null> => {
+  const res = await fetchWithBackoff(
+    githubApiUrl(`/repos/${params.owner}/${params.repo}/git/blobs/${params.sha}`),
+    { headers: params.headers },
+  );
+  if (!res.ok) return null;
+
+  const json = await res.json();
+  return json.encoding === "base64" ? decodeBase64(json.content) : String(json.content || "");
+};
+
+const fetchBlobBatchViaGraphQL = async (params: {
+  owner: string;
+  repo: string;
+  ref: string;
+  entries: RepoBlobCandidate[];
+  headers: Record<string, string>;
+}): Promise<{ files: ProjectFile[]; missingText: RepoBlobCandidate[] }> => {
+  const aliases = params.entries.map((entry, index) => ({
+    alias: `f${index}`,
+    entry,
+  }));
+
+  const fields = aliases
+    .map(({ alias, entry }) => {
+      const expression = `${params.ref}:${entry.path}`;
+      return `${alias}: object(expression: ${JSON.stringify(expression)}) { ... on Blob { isBinary text } }`;
+    })
+    .join("\n");
+
+  const query = `query PullRepoBlobs($owner: String!, $repo: String!) {\nrepository(owner: $owner, name: $repo) {\n${fields}\n}\n}`;
+
+  const res = await fetchWithBackoff(githubApiUrl("/graphql"), {
+    method: "POST",
+    headers: {
+      ...params.headers,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query,
+      variables: {
+        owner: params.owner,
+        repo: params.repo,
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`GraphQL Blob-Abruf fehlgeschlagen (${res.status}): ${text}`);
+  }
+
+  const json = await res.json();
+  if (Array.isArray(json?.errors) && json.errors.length > 0) {
+    const firstMessage = String(json.errors[0]?.message || "GraphQL-Fehler");
+    throw new Error(`GraphQL Blob-Abruf fehlgeschlagen: ${firstMessage}`);
+  }
+
+  const repoNode = json?.data?.repository;
+  if (!repoNode) {
+    throw new Error("GraphQL Blob-Abruf lieferte kein Repository-Objekt.");
+  }
+
+  const files: ProjectFile[] = [];
+  const missingText: RepoBlobCandidate[] = [];
+
+  for (const { alias, entry } of aliases) {
+    const blobNode = repoNode?.[alias];
+    if (!blobNode || blobNode.isBinary === true) continue;
+
+    if (typeof blobNode.text === "string") {
+      files.push({ path: entry.path, content: blobNode.text });
+      continue;
+    }
+
+    missingText.push(entry);
+  }
+
+  return { files, missingText };
+};
 
 export const useGitHubRepos = (
   token: string | null,
@@ -206,39 +331,20 @@ export const useGitHubRepos = (
           throw new Error("Ungültige Baum-Struktur");
         }
 
-        const textExtensions = [
-          ".ts",
-          ".tsx",
-          ".js",
-          ".jsx",
-          ".css",
-          ".html",
-          ".svg",
-          ".json",
-          ".md",
-          ".txt",
-          ".yml",
-          ".yaml",
-          ".config.js",
-        ];
-
-        // Some "dotfiles" are plain text but don't match the extension allowlist
-        // (e.g. ".gitignore" → ext is ".gitignore"). We explicitly allow the ones
-        // that are important for repo sync.
-        const textBasenames = new Set<string>([
-          ".gitignore",
-          ".easignore",
-          ".npmrc",
-          ".prettierrc",
-          ".prettierignore",
-          ".editorconfig",
-        ]);
         const files: ProjectFile[] = [];
-        const blobContentCache = new Map<string, Promise<string | null>>();
-
-        const treeEntries = treeJson.tree.filter(
-          (entry: RepoTreeEntry) => entry.type === "blob",
-        );
+        const treeEntries = treeJson.tree
+          .filter((entry: RepoTreeEntry) => entry.type === "blob")
+          .map((entry: RepoTreeEntry): RepoBlobCandidate | null => {
+            const path = String(entry.path || "").trim();
+            const sha = String(entry.sha || "").trim();
+            if (!path || !sha) return null;
+            if (!isAllowedTextPath(path)) {
+              if (__DEV__) logger.debug(`[useGitHubRepos] Skip binary: ${path}`);
+              return null;
+            }
+            return { path, sha };
+          })
+          .filter((entry: RepoBlobCandidate | null): entry is RepoBlobCandidate => !!entry);
 
         if (!treeEntries.length) {
           callbacks?.onPullNoFiles?.();
@@ -247,69 +353,54 @@ export const useGitHubRepos = (
 
         onProgress?.(`Lade Dateien (${treeEntries.length})...`);
 
-        const BATCH_SIZE = 10;
-        for (let i = 0; i < treeEntries.length; i += BATCH_SIZE) {
-          const batch = treeEntries.slice(i, i + BATCH_SIZE);
+        for (let i = 0; i < treeEntries.length; i += GRAPHQL_BLOB_BATCH_SIZE) {
+          const batch = treeEntries.slice(i, i + GRAPHQL_BLOB_BATCH_SIZE);
           onProgress?.(
-            `Lade Dateien ${i + 1}-${Math.min(i + BATCH_SIZE, treeEntries.length)} von ${treeEntries.length}...`,
+            `Lade Dateien ${i + 1}-${Math.min(i + GRAPHQL_BLOB_BATCH_SIZE, treeEntries.length)} von ${treeEntries.length}...`,
           );
 
-          const results = await Promise.allSettled(
-            batch.map(async (entry: RepoTreeEntry) => {
-              const path = String(entry.path || "");
-              if (!path) return null;
-              const ext = path.match(/\.[^.]+$/)?.[0]?.toLowerCase() || "";
-              const base = String(path).split("/").pop() || "";
-
-              if (!textExtensions.includes(ext) && !textBasenames.has(base)) {
-                if (__DEV__) logger.debug(`[useGitHubRepos] Skip binary: ${path}`);
-                return null;
-              }
-
-              try {
-                const blobSha = String(entry.sha || "").trim();
-                const encodedPath = encodePathSegments(path);
-                const fetchContent = async (): Promise<string | null> => {
-                  const url = blobSha
-                    ? githubApiUrl(`/repos/${owner}/${repo}/git/blobs/${blobSha}`)
-                    : githubApiUrl(`/repos/${owner}/${repo}/contents/${encodedPath}`);
-                  const res = await fetchWithBackoff(url, { headers });
-
-                  if (!res.ok) return null;
-
-                  const json = await res.json();
-                  return json.encoding === "base64"
-                    ? Buffer.from(
-                        String(json.content || "").replace(/\n/g, ""),
-                        "base64",
-                      ).toString("utf8")
-                    : json.content || "";
-                };
-
-                const content = blobSha
-                  ? await ((): Promise<string | null> => {
-                      const cached = blobContentCache.get(blobSha);
-                      if (cached) return cached;
-                      const pending = fetchContent();
-                      blobContentCache.set(blobSha, pending);
-                      return pending;
-                    })()
-                  : await fetchContent();
-
-                if (content == null) return null;
-
-                return { path, content };
-              } catch {
-                return null;
-              }
-            }),
-          );
-
-          results.forEach((result) => {
-            if (result.status === "fulfilled" && result.value) {
-              files.push(result.value);
-            }
+          const { files: batchFiles, missingText } = await fetchBlobBatchViaGraphQL({
+            owner,
+            repo,
+            ref: branch,
+            entries: batch,
+            headers,
           });
+          files.push(...batchFiles);
+
+          if (missingText.length > 0) {
+            const fallbackResults = await Promise.allSettled(
+              missingText.map(async (entry) => {
+                const content = await fetchBlobContentBySha({
+                  owner,
+                  repo,
+                  sha: entry.sha,
+                  headers,
+                });
+                return content == null ? null : { path: entry.path, content };
+              }),
+            );
+
+            fallbackResults.forEach((result) => {
+              if (result.status === "fulfilled" && result.value) {
+                files.push(result.value);
+              }
+            });
+          }
+        }
+
+        if (__DEV__) {
+          const uniquePaths = new Set<string>();
+          const deduped: ProjectFile[] = [];
+          for (const file of files) {
+            if (uniquePaths.has(file.path)) {
+              logger.warn(`[useGitHubRepos] Duplicate path ignored: ${file.path}`);
+              continue;
+            }
+            uniquePaths.add(file.path);
+            deduped.push(file);
+          }
+          files.splice(0, files.length, ...deduped);
         }
 
         if (files.length === 0) {
