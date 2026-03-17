@@ -40,6 +40,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const [hydrated, setHydrated] = useState(false);
 
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -72,6 +73,8 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const setActiveRepo = useCallback(
     (repo: string | null) => {
+      if (activeRepo === repo) return;
+
       setActiveRepoState(repo);
       if (repo) {
         AsyncStorage.setItem(ACTIVE_REPO_KEY, repo).catch((e) => {
@@ -89,10 +92,12 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
         AsyncStorage.removeItem(ACTIVE_REPO_KEY).catch(() => {});
       }
     },
-    [persistRecent],
+    [activeRepo, persistRecent],
   );
 
   const setActiveBranch = useCallback((branch: string | null) => {
+    if (activeBranch === branch) return;
+
     setActiveBranchState(branch);
     if (branch) {
       AsyncStorage.setItem(ACTIVE_BRANCH_KEY, branch).catch((e) => {
@@ -101,7 +106,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
     } else {
       AsyncStorage.removeItem(ACTIVE_BRANCH_KEY).catch(() => {});
     }
-  }, []);
+  }, [activeBranch]);
 
   // Single source of truth: mirror the project's linked repo/branch into this context.
   // This guarantees that the selection is consistent across screens (Header, Diagnostics, Wizard, Build, etc.).

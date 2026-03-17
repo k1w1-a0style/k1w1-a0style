@@ -740,9 +740,22 @@ export function useGitHubReposScreen() {
   }, [activeRepo]);
 
   const handleEasLinkStatusCheck = useCallback(async () => {
-    if (!activeRepo || !activeBranch) return;
+    if (!activeRepo || !activeBranch) {
+      setEasLinkStatus("unknown");
+      return;
+    }
+
     const parsed = splitFullName(activeRepo);
-    if (!parsed) return;
+    if (!parsed) {
+      setEasLinkStatus("unknown");
+      return;
+    }
+
+    const isNotFoundError = (e: unknown): boolean => {
+      const msg = String((e as any)?.message || "").toLowerCase();
+      return msg.includes("404") || msg.includes("not found");
+    };
+
     try {
       await getRepoFileText({
         owner: parsed.owner,
@@ -750,10 +763,28 @@ export function useGitHubReposScreen() {
         path: ".github/workflows/eas-link.yml",
         ref: activeBranch,
       });
-      setEasLinkStatus("ok");
+
+      let repoProjectId = "";
+      try {
+        const easProjectRaw = await getRepoFileText({
+          owner: parsed.owner,
+          repo: parsed.repo,
+          path: "eas-project.json",
+          ref: activeBranch,
+        });
+        const parsedJson = JSON.parse(String(easProjectRaw || "{}"));
+        repoProjectId = String(parsedJson?.projectId || "").trim();
+      } catch (e: any) {
+        if (isNotFoundError(e)) {
+          setEasLinkStatus("missing");
+          return;
+        }
+        throw e;
+      }
+
+      setEasLinkStatus(repoProjectId ? "ok" : "missing");
     } catch (e: any) {
-      const msg = String(e?.message || "");
-      if (msg.includes("404") || msg.toLowerCase().includes("not found")) setEasLinkStatus("missing");
+      if (isNotFoundError(e)) setEasLinkStatus("missing");
       else setEasLinkStatus("unknown");
     }
   }, [activeRepo, activeBranch]);
@@ -791,14 +822,14 @@ export function useGitHubReposScreen() {
         branch,
       );
 
-      setEasLinkStatus("ok");
+      await handleEasLinkStatusCheck();
       Alert.alert("✅ EAS linked", `EAS Project ID geschrieben nach ${easProjectJsonPath}`);
     } catch (e: any) {
       Alert.alert("❌ EAS link fehlgeschlagen", e?.message ?? "");
     } finally {
       setIsEasLinking(false);
     }
-  }, [activeRepo, activeBranch, easProjectId]);
+  }, [activeRepo, activeBranch, easProjectId, handleEasLinkStatusCheck]);
 
   const handleSyncSecrets = useCallback(async () => {
     if (!activeRepo) {
@@ -883,7 +914,7 @@ export function useGitHubReposScreen() {
         },
       },
     ]);
-  }, [activeRepo, token, activeBranch, setActiveBranch, setLinkedRepo]);
+  }, [activeRepo, activeBranch, setActiveBranch, setLinkedRepo]);
 
   const combinedRepos = useMemo(() => combineRepos(repos, localRepos), [repos, localRepos]);
 
