@@ -25,6 +25,7 @@ export type { GitHubBranch, WorkflowRun };
 type RepoTreeEntry = {
   type?: string;
   path?: string;
+  sha?: string;
 };
 
 const getErrorMessage = (e: unknown, fallback: string): string =>
@@ -265,11 +266,12 @@ export const useGitHubRepos = (
               }
 
               try {
+                const blobSha = String(entry.sha || "").trim();
                 const encodedPath = encodePathSegments(path);
-                const res = await fetchWithBackoff(
-                  githubApiUrl(`/repos/${owner}/${repo}/contents/${encodedPath}`),
-                  { headers },
-                );
+                const url = blobSha
+                  ? githubApiUrl(`/repos/${owner}/${repo}/git/blobs/${blobSha}`)
+                  : githubApiUrl(`/repos/${owner}/${repo}/contents/${encodedPath}`);
+                const res = await fetchWithBackoff(url, { headers });
 
                 if (!res.ok) return null;
 
