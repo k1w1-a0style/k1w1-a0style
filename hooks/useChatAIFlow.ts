@@ -168,6 +168,9 @@ export function useChatAIFlow({
   const pendingPlanRef = useRef(pendingPlan);
   pendingPlanRef.current = pendingPlan;
 
+  const pendingChangeRef = useRef(pendingChange);
+  pendingChangeRef.current = pendingChange;
+
   // ✅ FIX #3: AutoFix FIFO Queue with max limit
   const queuedAutoFixRef = useRef<string[]>([]);
 
@@ -834,6 +837,9 @@ export function useChatAIFlow({
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
     inFlightRef.current = false;
+    queuedAutoFixRef.current = [];
+    pendingPlanRef.current = null;
+    pendingChangeRef.current = null;
 
     safe(() => setIsStreaming(false));
     safe(() => setStreamingMessage(""));
