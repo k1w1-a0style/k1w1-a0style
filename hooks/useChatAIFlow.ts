@@ -4,13 +4,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, ToastAndroid } from "react-native";
 import { v4 as uuidv4 } from "uuid";
-import type { OrchestratorResult } from "../lib/orchestrator";
+import type { LlmMessage, OrchestratorResult } from "../lib/orchestrator";
+import type { Quality } from "../lib/orchestrator/types";
 import type { ApplyFilesResult } from "../lib/fileWriter";
 import { extractRawOrchestratorResult, MAX_AUTOFIX_QUEUE } from "./chatAIFlowTypes";
 import type { ExtendedOrchestratorResult, UseChatAIFlowArgs, PendingChange, PendingPlan } from "./chatAIFlowTypes";
 import { buildChangeConfirmationText } from "./chatChangeSummary";
 
 import { runOrchestrator } from "../lib/orchestrator";
+import type { AllAIProviders } from "../contexts/AIContext";
 import { normalizeAiResponseDetailed } from "../lib/normalizer";
 import { logger } from "../lib/logger";
 import { applyFilesToProject } from "../lib/fileWriter";
@@ -22,6 +24,52 @@ import { handleMetaCommand } from "../utils/metaCommands";
 export type { PendingChange, PendingPlan } from "./chatAIFlowTypes";
 
 const BUILDER_RETRY_BACKOFF_MS = 700;
+export const CHAT_AI_REQUEST_TIMEOUT_MS = 45_000;
+
+export async function runOrchestratorWithHardTimeout(
+  provider: AllAIProviders,
+  model: string,
+  quality: Quality,
+  messages: LlmMessage[],
+  signal?: AbortSignal,
+  timeoutMs = CHAT_AI_REQUEST_TIMEOUT_MS,
+): Promise<OrchestratorResult> {
+  if (signal?.aborted) {
+    return { ok: false, error: "Request abgebrochen" };
+  }
+
+  const requestController = new AbortController();
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    requestController.abort();
+  }, timeoutMs);
+
+  const onAbort = () => requestController.abort();
+  signal?.addEventListener("abort", onAbort, { once: true });
+
+  try {
+    const result = await runOrchestrator(
+      provider,
+      model,
+      quality,
+      messages,
+      requestController.signal,
+    );
+
+    if (timedOut && !result.ok) {
+      return {
+        ...result,
+        error: `Request timeout nach ${timeoutMs}ms`,
+      };
+    }
+
+    return result;
+  } finally {
+    clearTimeout(timeoutId);
+    signal?.removeEventListener("abort", onAbort);
+  }
+}
 
 export const buildPathBulletList = (
   paths: string[],
@@ -296,7 +344,7 @@ export function useChatAIFlow({
               currentProjectFiles,
             );
 
-            const planRes = await runOrchestrator(
+            const planRes = await runOrchestratorWithHardTimeout(
               config.selectedChatProvider,
               config.selectedChatMode,
               "speed",
@@ -344,7 +392,7 @@ export function useChatAIFlow({
           currentProjectFiles,
         );
 
-        let ai: OrchestratorResult | null = await runOrchestrator(
+        let ai: OrchestratorResult | null = await runOrchestratorWithHardTimeout(
           config.selectedChatProvider,
           config.selectedChatMode,
           config.qualityMode,
@@ -363,7 +411,7 @@ export function useChatAIFlow({
           if (shouldRetry) {
             await sleepWithAbort(BUILDER_RETRY_BACKOFF_MS, controller.signal);
 
-            ai = await runOrchestrator(
+            ai = await runOrchestratorWithHardTimeout(
               config.selectedChatProvider,
               config.selectedChatMode,
               config.qualityMode,
@@ -426,7 +474,7 @@ export function useChatAIFlow({
               currentProjectFiles,
             );
 
-            const agentRes = await runOrchestrator(
+            const agentRes = await runOrchestratorWithHardTimeout(
               config.selectedAgentProvider ?? config.selectedChatProvider,
               config.selectedAgentMode ?? config.selectedChatMode,
               "quality",
@@ -480,7 +528,7 @@ export function useChatAIFlow({
               mergeResult.updated,
             );
             const explainMsgs = buildExplainMessages(userContent, digest);
-            const explainRes = await runOrchestrator(
+            const explainRes = await runOrchestratorWithHardTimeout(
               config.selectedChatProvider,
               config.selectedChatMode,
               "speed",

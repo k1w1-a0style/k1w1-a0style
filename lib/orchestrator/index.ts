@@ -119,7 +119,11 @@ export async function runOrchestrator(
       if (!apiKey) break;
 
       const requestController = new AbortController();
-      const timeoutId = setTimeout(() => requestController.abort(), ORCHESTRATOR_REQUEST_TIMEOUT_MS);
+      let timedOut = false;
+      const timeoutId = setTimeout(() => {
+        timedOut = true;
+        requestController.abort();
+      }, ORCHESTRATOR_REQUEST_TIMEOUT_MS);
       const onAbort = () => requestController.abort();
       signal?.addEventListener('abort', onAbort, { once: true });
 
@@ -136,6 +140,13 @@ export async function runOrchestrator(
       } finally {
         clearTimeout(timeoutId);
         signal?.removeEventListener('abort', onAbort);
+      }
+
+      if (!result.ok && timedOut) {
+        result = {
+          ...result,
+          error: `Request timeout nach ${ORCHESTRATOR_REQUEST_TIMEOUT_MS}ms`,
+        };
       }
 
       lastResult = result;
