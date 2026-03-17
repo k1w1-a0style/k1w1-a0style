@@ -1,4 +1,17 @@
 - 2026-03-17: Patch 477: One-Click-Deploy-Readiness auf repo/branch-scoped `diagnostic_last_ok` umgestellt (mit Legacy-Fallback), damit der Deploy-Guard nicht durch globalen Altstatus freigegeben wird; Regressionstest in `__tests__/oneClickDeploy.test.tsx` entsprechend nachgezogen.
+
+## 2026-03-17 — Abschlussklärung (2 Punkte): Chat/Preview/Editor/UX-Einstufung + Vollsuite-Timeout
+
+- **Punkt 1 (Einstufung) kritisch verifiziert:** Chat-/Preview-/Editor-/UX-nahe Regressionen laufen stabil (gezielt: `useChatAIFlow.timeoutAbort.regression`, `useChatAIFlow.hardTimeout.invariants`, `usePreview.rehydration`, `usePreview.fingerprint`, `webCodeEditor.recovery`, `invariants.selection`) und sind zusätzlich in der kompletten Suite enthalten.
+- **Punkt 2 (Vollsuite-Timeout) eingeordnet:** `npm run test:silent` lief im aktuellen Stand komplett grün (`157/157` Suites). Der zuvor dokumentierte Timeout-Restpunkt war im Nachlauf nicht reproduzierbar; `__tests__/oneClickDeploy.test.tsx` lief isoliert 5× hintereinander grün mit `--runInBand`.
+- **Bewertung für Abschlussstand:** kein bestätigter Produktcode-Defekt in diesen beiden Punkten; verbleibendes Risiko liegt eher bei allgemeiner Test-Flaky-Wahrscheinlichkeit als bei bestätigter Instabilität.
+
+Checks:
+- `npm run test:silent -- --runInBand __tests__/useChatAIFlow.timeoutAbort.regression.test.ts __tests__/useChatAIFlow.hardTimeout.invariants.test.ts __tests__/usePreview.rehydration.test.tsx __tests__/usePreview.fingerprint.test.tsx __tests__/webCodeEditor.recovery.test.tsx __tests__/invariants.selection.test.ts`
+- `for i in 1 2 3 4 5; do npm run test:silent -- --runInBand __tests__/oneClickDeploy.test.tsx; done`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
 ## 2026-03-17 — Patch 476: UX-/Flow-Consistency (Repo/Connections/Secret-Sync/EAS-Link)
 
 - Build-Gate-/Hinweistexte verweisen jetzt konsistent auf den GitHub-Repos-Screen für Repo/Branch-Setup.
