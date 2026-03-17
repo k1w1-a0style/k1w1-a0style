@@ -48,6 +48,31 @@ function parseCiLiteArtifactJson(payload: unknown): CiLiteArtifactJson {
   };
 }
 
+
+function getAutofixChainSkipReason(lines: string[]): string | null {
+  if (!Array.isArray(lines) || lines.length === 0) return null;
+  const joined = lines.join("\n");
+
+  if (/No TARGET_BRANCH; skipping CI Lite chain-run\./i.test(joined)) {
+    return "Kein TARGET_BRANCH im Autofix-Run";
+  }
+  if (/Ref looks like a SHA .* skipping CI Lite chain-run\./i.test(joined)) {
+    return "Ref wurde als SHA statt Branch erkannt";
+  }
+  if (/Unsafe ref .* skipping CI Lite chain-run\./i.test(joined)) {
+    return "Ref enthält unsichere Zeichen";
+  }
+  if (/CI Lite chain-run disabled for .*regex:/i.test(joined)) {
+    return "Ref ist laut Workflow-Regeln nicht für Chain-Run erlaubt";
+  }
+  if (/is not a remote branch; skipping CI Lite chain-run\./i.test(joined)) {
+    return "Ref existiert nicht als Remote-Branch";
+  }
+
+  return null;
+}
+
+
 export function useCiLiteWorkflow() {
   // Contract for chain-run correlation:
   // - Autofix dispatches repository_dispatch(trigger-ci-lite) with the *same* job_id
@@ -308,6 +333,14 @@ export function useCiLiteWorkflow() {
     const b = (targetRef || branch || "").trim();
     if (!b) return;
 
+    const chainSkipReason = getAutofixChainSkipReason(logLines);
+    if (chainSkipReason) {
+      setLocalError(`Autofix erfolgreich, aber CI-Lite Chain-Run wurde im Workflow übersprungen: ${chainSkipReason}.`);
+      setChainWaiting(false);
+      stopPolling();
+      return;
+    }
+
     setChainWaiting(true);
     setWorkflowId(WORKFLOW_CI_LITE);
     setRunId(null);
@@ -339,7 +372,7 @@ export function useCiLiteWorkflow() {
 
     void poll();
     pollTimerRef.current = setInterval(poll, 2500);
-  }, [visible, workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, stopPolling, findRunByJobId]);
+  }, [visible, workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopPolling, findRunByJobId]);
 
   // ---- Header state lamp ----
   useEffect(() => {
