@@ -234,6 +234,7 @@ export const useGitHubRepos = (
           ".editorconfig",
         ]);
         const files: ProjectFile[] = [];
+        const blobContentCache = new Map<string, Promise<string | null>>();
 
         const treeEntries = treeJson.tree.filter(
           (entry: RepoTreeEntry) => entry.type === "blob",
@@ -268,21 +269,34 @@ export const useGitHubRepos = (
               try {
                 const blobSha = String(entry.sha || "").trim();
                 const encodedPath = encodePathSegments(path);
-                const url = blobSha
-                  ? githubApiUrl(`/repos/${owner}/${repo}/git/blobs/${blobSha}`)
-                  : githubApiUrl(`/repos/${owner}/${repo}/contents/${encodedPath}`);
-                const res = await fetchWithBackoff(url, { headers });
+                const fetchContent = async (): Promise<string | null> => {
+                  const url = blobSha
+                    ? githubApiUrl(`/repos/${owner}/${repo}/git/blobs/${blobSha}`)
+                    : githubApiUrl(`/repos/${owner}/${repo}/contents/${encodedPath}`);
+                  const res = await fetchWithBackoff(url, { headers });
 
-                if (!res.ok) return null;
+                  if (!res.ok) return null;
 
-                const json = await res.json();
-                const content =
-                  json.encoding === "base64"
+                  const json = await res.json();
+                  return json.encoding === "base64"
                     ? Buffer.from(
                         String(json.content || "").replace(/\n/g, ""),
                         "base64",
                       ).toString("utf8")
                     : json.content || "";
+                };
+
+                const content = blobSha
+                  ? await ((): Promise<string | null> => {
+                      const cached = blobContentCache.get(blobSha);
+                      if (cached) return cached;
+                      const pending = fetchContent();
+                      blobContentCache.set(blobSha, pending);
+                      return pending;
+                    })()
+                  : await fetchContent();
+
+                if (content == null) return null;
 
                 return { path, content };
               } catch {
