@@ -1,3 +1,4 @@
+- 2026-03-17: Patch 477: One-Click-Deploy-Readiness auf repo/branch-scoped `diagnostic_last_ok` umgestellt (mit Legacy-Fallback), damit der Deploy-Guard nicht durch globalen Altstatus freigegeben wird; Regressionstest in `__tests__/oneClickDeploy.test.tsx` entsprechend nachgezogen.
 ## 2026-03-17 — Patch 476: UX-/Flow-Consistency (Repo/Connections/Secret-Sync/EAS-Link)
 
 - Build-Gate-/Hinweistexte verweisen jetzt konsistent auf den GitHub-Repos-Screen für Repo/Branch-Setup.

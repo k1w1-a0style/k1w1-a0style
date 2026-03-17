@@ -15,6 +15,7 @@ import {
   STORAGE_KEYS,
   credKeyForProfile,
   credKeyForProjectUiMode,
+  diagnosticLastOkKeyForSelection,
   resolveProjectCredentialScope,
 } from "../../../lib/storageKeys";
 import type { BuildProfile } from "../types";
@@ -163,7 +164,12 @@ export function useOneClickDeploy(
 
       // === Step 3: Readiness (Diagnostic + CI-Lite + Repo/Branch Match) ===
       updateStep("readiness", "running");
-      const [diagVal, lintOk, typeOk, lastRepo, lastBranch, lastRunAt] = await Promise.all([
+      const scopedDiagnosticKey = diagnosticLastOkKeyForSelection({
+        linkedRepo: repoFullName,
+        linkedBranch: branchName,
+      });
+      const [diagScopedVal, diagLegacyVal, lintOk, typeOk, lastRepo, lastBranch, lastRunAt] = await Promise.all([
+        AsyncStorage.getItem(scopedDiagnosticKey).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_LINT_OK).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_TYPECHECK_OK).catch(() => null),
@@ -173,6 +179,7 @@ export function useOneClickDeploy(
       ]);
       if (abortRef.current) return;
 
+      const diagVal = diagScopedVal ?? diagLegacyVal;
       const repoMatches = (lastRepo ?? "").trim() === (repoFullName ?? "").trim();
       const branchMatches = (lastBranch ?? "").trim() === (branchName ?? "").trim();
       const runTs = Number(lastRunAt ?? "");
