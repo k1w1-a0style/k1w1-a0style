@@ -73,13 +73,17 @@ export function inferStepStates(lines: string[]): {
   const joined = lines.join("\n");
 
   // Workflow emits deterministic markers (metadata.env + summaries). Keep regex fallback for legacy logs.
-  const lintStarted = /npm run lint:ci|eslint\s+\.|\blint:ci\b|Lint \(CI\)/i.test(joined);
-  const typecheckStarted = /npm run typecheck|tsc\s+--noEmit|Typecheck/i.test(joined);
-
   const lintExitCodeMatch = joined.match(/LINT_EXIT=(\d+)/i);
   const typecheckExitCodeMatch = joined.match(/TSC_EXIT=(\d+)/i);
   const lintExitCode = lintExitCodeMatch ? Number(lintExitCodeMatch[1]) : null;
   const typecheckExitCode = typecheckExitCodeMatch ? Number(typecheckExitCodeMatch[1]) : null;
+
+  const lintStarted =
+    lintExitCode !== null ||
+    /npm run lint:ci|eslint\s+\.|\blint:ci\b|Lint \(CI\)/i.test(joined);
+  const typecheckStarted =
+    typecheckExitCode !== null ||
+    /npm run typecheck|tsc\s+--noEmit|Typecheck/i.test(joined);
 
   const tsErrors = lines.filter((l) => /error\s+TS\d+:|Type \".*\" is not assignable/i.test(l)).length;
   // ESLint (quiet) prints only errors; zähle typische Formate inkl. compact formatter.

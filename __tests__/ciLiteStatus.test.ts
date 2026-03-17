@@ -90,5 +90,17 @@ describe("inferStepStates", () => {
     expect(steps.lint).toBe("failure");
     expect(steps.typecheck).toBe("success");
   });
+
+
+  it("treats exit markers as authoritative even without explicit command start lines", () => {
+    const steps = inferStepStates([
+      "metadata.env",
+      "LINT_EXIT=0",
+      "TSC_EXIT=1",
+    ]);
+
+    expect(steps.lint).toBe("success");
+    expect(steps.typecheck).toBe("failure");
+  });
 });
 

@@ -74,6 +74,20 @@ function getAutofixChainSkipReason(lines: string[]): string | null {
 
 
 
+
+function hasExactJobIdMarkerInRun(run: { display_title?: unknown; name?: unknown } | null | undefined, jobId: string): boolean {
+  const jid = String(jobId || "").trim();
+  if (!run || !jid) return false;
+  const title = String(run.display_title ?? run.name ?? "").trim();
+  if (!title) return false;
+  return (
+    title.includes(`[${jid}]`) ||
+    title.includes(`(job_id=${jid})`) ||
+    title.includes(`job_id=${jid}`) ||
+    title.includes(`job_id: ${jid}`)
+  );
+}
+
 function isFreshChainRunCandidate(run: { created_at?: unknown } | null | undefined, chainStartMs: number): boolean {
   if (!run) return false;
   const createdAt = typeof run.created_at === "string" ? Date.parse(run.created_at) : Number.NaN;
@@ -361,7 +375,7 @@ export function useCiLiteWorkflow() {
     const poll = async () => {
       try {
         const found = await findRunByJobId({ githubRepo, branch: b, jobId, workflow: WORKFLOW_CI_LITE });
-        if (found?.id && isFreshChainRunCandidate(found, start)) {
+        if (found?.id && hasExactJobIdMarkerInRun(found, jobId) && isFreshChainRunCandidate(found, start)) {
           setRunId(Number(found.id));
           setRunUrl(typeof found?.html_url === "string" ? found.html_url : null);
           setChainWaiting(false);
