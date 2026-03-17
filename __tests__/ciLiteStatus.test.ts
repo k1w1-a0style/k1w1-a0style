@@ -1,4 +1,4 @@
-import { computeCiLiteOk, findWorkflowRunByJobId } from "../components/ciLite/ciLiteUtils";
+import { computeCiLiteOk, findWorkflowRunByJobId, inferStepStates } from "../components/ciLite/ciLiteUtils";
 
 describe("computeCiLiteOk", () => {
   it("is false when not done", () => {
@@ -77,3 +77,18 @@ describe("findWorkflowRunByJobId", () => {
     expect(findWorkflowRunByJobId(null as any, "abc")).toBeNull();
   });
 });
+
+describe("inferStepStates", () => {
+  it("prefers deterministic LINT_EXIT/TSC_EXIT markers when available", () => {
+    const steps = inferStepStates([
+      "npm run lint:ci",
+      "LINT_EXIT=1",
+      "npm run typecheck",
+      "TSC_EXIT=0",
+    ]);
+
+    expect(steps.lint).toBe("failure");
+    expect(steps.typecheck).toBe("success");
+  });
+});
+

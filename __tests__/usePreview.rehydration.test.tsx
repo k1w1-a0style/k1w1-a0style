@@ -47,4 +47,29 @@ describe('usePreview rehydration', () => {
       expect(result.current.lastPreview).toBeNull();
     });
   });
+
+
+  test('shows clear hint when only transient local preview metadata is restored', async () => {
+    const localProject: ProjectData = {
+      ...baseProject,
+      id: 'p-local',
+      lastPreview: {
+        url: null,
+        source: 'local',
+        createdAt: '2026-03-14T10:00:00.000Z',
+        expiresAt: null,
+      },
+    };
+
+    const { result } = renderHook((projectData: ProjectData | null) => usePreview(projectData), {
+      initialProps: localProject,
+    });
+
+    await waitFor(() => {
+      expect(result.current.lastPreview?.source).toBe('local');
+      expect(result.current.lastPreview?.html).toBeNull();
+      expect(result.current.state.error).toContain('lokaler HTML-Fallback');
+    });
+  });
+
 });

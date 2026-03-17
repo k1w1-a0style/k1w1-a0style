@@ -49,6 +49,10 @@ function parseCiLiteArtifactJson(payload: unknown): CiLiteArtifactJson {
 }
 
 export function useCiLiteWorkflow() {
+  // Contract for chain-run correlation:
+  // - Autofix dispatches repository_dispatch(trigger-ci-lite) with the *same* job_id
+  // - CI Lite run-name includes that job_id
+  // The header polls by this shared job_id to locate the chained CI-Lite run deterministically.
   const { projectData } = useProject();
 
   const [visible, setVisible] = useState(false);
@@ -325,7 +329,9 @@ export function useCiLiteWorkflow() {
         setLocalError(e?.message || String(e));
       }
       if (Date.now() - start > 75_000) {
-        setLocalError("Autofix-Chain ausgelöst, aber kein passender CI-Lite-Run gefunden (Timeout). Bitte Run-Übersicht prüfen.");
+        setLocalError(
+          "Autofix-Chain ausgelöst, aber kein passender CI-Lite-Run gefunden (Timeout). Prüfe CI-Lite-Workflow/YAML-Contract (job_id via repository_dispatch).",
+        );
         setChainWaiting(false);
         stopPolling();
       }
