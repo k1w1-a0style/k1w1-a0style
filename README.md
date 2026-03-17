@@ -11,8 +11,9 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 476**.
+- Zuletzt abgeschlossen: **Patch 477**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
+- Patch 477 schließt einen realen Guard-Drift im One-Click-Deploy: Der Readiness-Check nutzt nun denselben repo/branch-scoped Diagnostic-Key wie der Build-Gate (mit Legacy-Fallback), sodass ein globaler Altstatus keinen falschen grünen Zustand für eine andere Auswahl mehr erzeugt.
 - Patch 476 schließt verbleibende UX-/Flow-Consistency-Restpunkte zwischen Verbindungen, Repo und Build konservativ: Build-Gates verweisen jetzt konsistent auf den GitHub-Repos-Screen, Secret-Sync-Kommunikation bildet den real app-verwalteten Umfang inkl. manueller Production-Grenze (Service-Role-Key) ehrlich ab, und die EAS-Rollen sind sprachlich klar getrennt (Verbindungen = Token/ID, Repo = Link/Workflow im Ziel-Repo).
 - Patch 475 härtet verbleibende Persistenz-/ProjectContext-Restpunkte minimal: `saveProjectToStorage` hat jetzt einen klaren UTF-8-Size-Guard mit Soft-/Hard-Limit-Warnung bzw. hartem Fail vor `AsyncStorage.setItem`, und `ProjectContext.messages` nutzt eine memoized `contextMessages`-Referenz auf Basis von `projectData.chatHistory`, um unnötige Array-Referenzwechsel bei projectData-Updates zu reduzieren.
 - Patch 474 ergänzt gezielte Wiring-Invariants für den Timeout-Hauptrestpunkt: der Chat-AI-Flow bleibt regressionsfest auf `runOrchestratorWithHardTimeout(...)` verdrahtet (Planner/Builder/Validator/Explain, inkl. Builder-Retry) und verhindert direkte `runOrchestrator(...)`-Rückfälle im `processAIRequest(...)`-Block.

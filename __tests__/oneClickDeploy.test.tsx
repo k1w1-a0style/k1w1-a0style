@@ -156,7 +156,8 @@ describe("useOneClickDeploy", () => {
   it("blocks before build when diagnostic/ci-lite readiness is not green", async () => {
     mockAsyncStorage.getItem.mockImplementation(async (k: string) => {
       if (k === "cred_key_exists_preview") return "true";
-      if (k === "diagnostic_last_ok") return "false";
+      if (k === "diagnostic_last_ok::owner%2Frepo::main") return "false";
+      if (k === "diagnostic_last_ok") return "true";
       return null;
     });
 
@@ -190,7 +191,7 @@ describe("useOneClickDeploy", () => {
   it("happy path: runs through to build when key exists", async () => {
     mockAsyncStorage.getItem.mockImplementation(async (k: string) => {
       if (k === "cred_key_exists_preview") return "true";
-      if (k === "diagnostic_last_ok") return "true";
+      if (k === "diagnostic_last_ok::owner%2Frepo::main") return "true";
       if (k === "ci_lite_lint_ok") return "true";
       if (k === "ci_lite_typecheck_ok") return "true";
       if (k === "ci_lite_last_repo") return "owner/repo";

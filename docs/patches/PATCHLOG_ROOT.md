@@ -1,3 +1,5 @@
+- Patch 477: One-Click-Deploy-Readiness nutzt jetzt denselben repo/branch-scoped Diagnostic-Key wie der Build-Gate (Legacy-Fallback bleibt), um Cross-Selection-Freigaben durch globalen Altstatus zu verhindern; Tests in `oneClickDeploy` entsprechend gehärtet
+
 # Patchlog Root
 
 Append-only Überblick über Patch-Notizen.
