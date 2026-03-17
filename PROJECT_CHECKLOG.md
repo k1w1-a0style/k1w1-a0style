@@ -1,3 +1,22 @@
+## 2026-03-17 — Patch 475: Persistenz-/ProjectContext-Restpunkte minimal gehärtet
+
+- `infra/storage/persistenceHelpers.ts`: konservative UTF-8-Size-Utilities + Soft-/Hard-Limits ergänzt (`PROJECT_STORAGE_SOFT_LIMIT_BYTES`, `PROJECT_STORAGE_HARD_LIMIT_BYTES`, `assertProjectStoragePayloadSafe(...)`) als klarer Save-Guard.
+- `infra/storage/projectPersistence.ts`: `saveProjectToStorage(...)` prüft Payload jetzt vor `AsyncStorage.setItem`; near-limit wird als Warnung protokolliert, Hard-Limit führt zu sauberem Fail statt stillem Storage-Problem.
+- `contexts/ProjectContext.tsx`: `messages` im Context-Value werden über `contextMessages` (`useMemo` auf `projectData?.chatHistory`) referenzstabil bereitgestellt, um unnötige Array-Neureferenzen bei nicht-chat-bezogenen `projectData`-Updates zu vermeiden.
+- Tests ergänzt:
+  - `__tests__/projectPersistence.sizeGuard.test.ts`
+  - `__tests__/projectContext.messagesReference.invariants.test.ts`
+
+Checks:
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 ## 2026-03-17 — Patch 474: harte Chat-AI-Timeout-Wiring-Invariants ergänzt
 
 - `__tests__/useChatAIFlow.hardTimeout.invariants.test.ts`: neue Invariants sichern, dass Planner/Builder/Validator/Explain im `processAIRequest(...)`-Flow über `runOrchestratorWithHardTimeout(...)` laufen (inkl. Builder-Retry-Call).

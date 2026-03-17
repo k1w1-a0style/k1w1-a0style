@@ -894,6 +894,15 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     [projectData],
   );
 
+
+  const contextMessages = useMemo(
+    () =>
+      projectData?.chatHistory?.filter(
+        (msg) => msg && (msg.id || msg.timestamp) && typeof msg.content === "string",
+      ) || [],
+    [projectData?.chatHistory],
+  );
+
   const value: ProjectContextProps = useMemo(
     () => ({
       projectData,
@@ -919,10 +928,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       setTemplateId,
       setProjectName,
       // Be tolerant: older persisted chat entries might miss `id` (migration will repair on load)
-      messages:
-        projectData?.chatHistory?.filter(
-          (msg) => msg && (msg.id || msg.timestamp) && typeof msg.content === "string",
-        ) || [],
+      messages: contextMessages,
       autoFixRequest,
       triggerAutoFix,
       clearAutoFixRequest,
@@ -933,6 +939,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     }),
     [
       projectData,
+      contextMessages,
       isLoading,
       startBuild,
       currentBuild,

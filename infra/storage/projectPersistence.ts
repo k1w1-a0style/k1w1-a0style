@@ -22,7 +22,9 @@ import { logger } from "../../lib/logger";
 import {
   PROJECT_STORAGE_KEY, CACHE_DIR, BINARY_EXTENSIONS,
   isBinaryFilePath, stripBase64Prefix, trimChatHistory,
-  ensureChatHistoryHasIds, readDirectoryRecursive,
+  ensureChatHistoryHasIds,
+  readDirectoryRecursive,
+  assertProjectStoragePayloadSafe,
 } from "./persistenceHelpers";
 
 export const saveProjectToStorage = async (project: ProjectData): Promise<void> => {
@@ -34,8 +36,18 @@ export const saveProjectToStorage = async (project: ProjectData): Promise<void> 
       chatHistory: persistChat ? trimChatHistory(project.chatHistory ?? [], retention) : [],
     };
     const projectString = JSON.stringify(projectToSave);
+    const payloadState = assertProjectStoragePayloadSafe(projectString);
+
     await AsyncStorage.setItem(PROJECT_STORAGE_KEY, projectString);
-    logger.info('💾 Projekt gespeichert:', project.name);
+
+    if (payloadState.nearLimit) {
+      logger.warn("[projectStorage] Projektzustand nahe Storage-Limit gespeichert", {
+        projectName: project.name,
+        bytes: payloadState.bytes,
+      });
+    } else {
+      logger.info('💾 Projekt gespeichert:', project.name);
+    }
   } catch (error) {
     logger.error("[projectStorage] Fehler beim Speichern", { err: error });
     throw new Error('Projekt konnte nicht gespeichert werden');
