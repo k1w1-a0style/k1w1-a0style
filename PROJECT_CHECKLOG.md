@@ -1,3 +1,20 @@
+## 2026-03-17 — Patch 473: harter Stage-Timeout im Chat-AI-Flow (Planner/Builder/Validator/Explain)
+
+- `hooks/useChatAIFlow.ts`: neuer `runOrchestratorWithHardTimeout(...)`-Wrapper (`45_000ms`) mit lokalem `AbortController`, gekoppelt an das bestehende Parent-`AbortSignal`; der laufende Orchestrator-Call wird im Timeout-Fall aktiv abgebrochen.
+- Alle Chat-AI-Stages nutzen jetzt den Timeout-Wrapper: Planner, Builder (inkl. Retry-Call), Validator, Explain.
+- Timeout-/Abort-Semantik bleibt klar: Timeout liefert `Request timeout nach ...ms`, externes Abort bleibt `Request abgebrochen`.
+- `__tests__/useChatAIFlow.timeoutAbort.regression.test.ts`: gezielte Regressionen für Timeout- und externes Abort-Verhalten ergänzt.
+
+Checks:
+- `bash scripts/check_workflow_template_drift.sh`
+- `bash scripts/check_managed_workflows.sh`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+
 ## 2026-03-17 — Patch 472: Orchestrator-Timeout klar von externem Abort getrennt
 
 - `lib/orchestrator/index.ts`: bestehender harter Request-Timeout (`45_000ms`) markiert Timeout-Attempts jetzt zusätzlich lokal und gibt im Timeout-Fall deterministisch `Request timeout nach 45000ms` zurück statt generischem Abort-Text.

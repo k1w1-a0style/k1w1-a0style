@@ -11,8 +11,9 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 472**.
+- Zuletzt abgeschlossen: **Patch 473**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
+- Patch 473 schließt den verbleibenden Hauptrestpunkt im Chat-AI-Flow: Planner/Builder/Validator/Explain verwenden jetzt jeweils einen echten harten Stage-Timeout (`45s`) mit aktivem Abort des hängenden `runOrchestrator(...)`-Calls über die bestehende AbortController-Struktur.
 - Patch 472 schließt den letzten Timeout-Detailrest aus 471: harte Orchestrator-Timeouts werden im Ergebnis jetzt explizit als `timeout` ausgewiesen, während externe/usergetriebene Abbrüche weiterhin sauber als `abgebrochen` klassifiziert bleiben (keine Änderung am Retry-/Provider-Design).
 - Patch 471 zieht verbleibende AI-/Request-Robustheitsreste minimal nach: `runOrchestrator` erzwingt jetzt ein hartes Request-Timeout pro Provider-Call (45s, inklusive sauberer Abort-Weitergabe), Key-Rotation-Retries warten kurz per kleinem Backoff (350ms) statt sofort zu feuern, und der Builder-Retry im Chat-Flow hat einen konservativen Backoff (700ms) bei 429/503/Timeout-/Netzwerkpfaden.
 - Patch 470 vervollständigt den verbleibenden `k1w1-handler`-Restpunkt aus 469: auch der frühe `parseJsonBody(...)`-Fehlerpfad nutzt jetzt ausschließlich generische sichere Client-Fehler (`Invalid request payload.` / `Request too large.`) statt roher `parsedBody.error`-Durchreichung; der Catch-Block ist minimal auf `unknown` + Narrowing gehärtet.
