@@ -20,6 +20,8 @@ import { logger } from "../../lib/logger";
 
 
 export const PROJECT_STORAGE_KEY = 'k1w1_project_data';
+export const PROJECT_STORAGE_SOFT_LIMIT_BYTES = 1_500_000;
+export const PROJECT_STORAGE_HARD_LIMIT_BYTES = 1_900_000;
 export const CACHE_DIR = FileSystem.cacheDirectory + 'zip_temp/';
 // === Binary file handling (assets etc.) ===
 export const BINARY_EXTENSIONS = new Set([
@@ -37,6 +39,36 @@ export function isBinaryFilePath(p: string): boolean {
 
 export function stripBase64Prefix(s: string): string {
   return s.startsWith("base64:") ? s.slice("base64:".length) : s;
+}
+
+export function getUtf8ByteSize(value: string): number {
+  if (typeof TextEncoder !== "undefined") {
+    return new TextEncoder().encode(value).length;
+  }
+
+  if (typeof Buffer !== "undefined") {
+    return Buffer.byteLength(value, "utf8");
+  }
+
+  return unescape(encodeURIComponent(value)).length;
+}
+
+export function assertProjectStoragePayloadSafe(payload: string): {
+  bytes: number;
+  nearLimit: boolean;
+} {
+  const bytes = getUtf8ByteSize(payload);
+
+  if (bytes > PROJECT_STORAGE_HARD_LIMIT_BYTES) {
+    throw new Error(
+      `Persisted project payload exceeds storage hard limit (${bytes} bytes > ${PROJECT_STORAGE_HARD_LIMIT_BYTES} bytes).`,
+    );
+  }
+
+  return {
+    bytes,
+    nearLimit: bytes > PROJECT_STORAGE_SOFT_LIMIT_BYTES,
+  };
 }
 
 export function trimChatHistory<T extends { timestamp?: string }>(

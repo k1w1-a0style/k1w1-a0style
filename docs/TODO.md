@@ -1,3 +1,4 @@
+- [x] Patch 475 (2026-03-17): Persistenz-/ProjectContext-Restpunkte konservativ gehärtet (Storage-Size/Safety-Guard vor `saveProjectToStorage`-Writes inkl. Soft-/Hard-Limit-Verhalten + minimal memoisierte `messages`-Referenz im ProjectContext, ergänzt um gezielte Regressionen).
 - [x] Patch 474 (2026-03-17): Timeout-Hauptrestpunkt regressionsfest abgesichert (Invariants prüfen harte Timeout-Verdrahtung für Planner/Builder/Validator/Explain und verhindern direkte `runOrchestrator(...)`-Rückfälle im Chat-Flow).
 - [x] Patch 473 (2026-03-17): Chat-AI-Flow-Hauptrestpunkt geschlossen (echter harter Stage-Timeout für Planner/Builder/Validator/Explain mit aktivem Abort und gezielten Timeout/Abort-Regressionen).
 - [x] Patch 472 (2026-03-17): AI-/Request-Timeout-Follow-up abgeschlossen (Orchestrator trennt Timeout-Fehlertext jetzt deterministisch von externem Abort; gezielte Regression für timeout-vs-abort ergänzt).
