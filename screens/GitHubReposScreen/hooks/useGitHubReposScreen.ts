@@ -883,7 +883,7 @@ export function useGitHubReposScreen() {
         },
       },
     ]);
-  }, [activeRepo, token, activeBranch, setActiveBranch, setLinkedRepo]);
+  }, [activeRepo, activeBranch, setActiveBranch, setLinkedRepo]);
 
   const combinedRepos = useMemo(() => combineRepos(repos, localRepos), [repos, localRepos]);
 

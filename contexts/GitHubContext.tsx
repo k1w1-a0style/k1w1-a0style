@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -40,6 +41,17 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const [hydrated, setHydrated] = useState(false);
 
+  const activeRepoRef = useRef<string | null>(null);
+  const activeBranchRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    activeRepoRef.current = activeRepo;
+  }, [activeRepo]);
+
+  useEffect(() => {
+    activeBranchRef.current = activeBranch;
+  }, [activeBranch]);
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -72,7 +84,10 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const setActiveRepo = useCallback(
     (repo: string | null) => {
+      if (activeRepoRef.current === repo) return;
+
       setActiveRepoState(repo);
+      activeRepoRef.current = repo;
       if (repo) {
         AsyncStorage.setItem(ACTIVE_REPO_KEY, repo).catch((e) => {
           logger.error("[GitHubContext] ActiveRepo persist failed", { err: e });
@@ -93,7 +108,10 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const setActiveBranch = useCallback((branch: string | null) => {
+    if (activeBranchRef.current === branch) return;
+
     setActiveBranchState(branch);
+    activeBranchRef.current = branch;
     if (branch) {
       AsyncStorage.setItem(ACTIVE_BRANCH_KEY, branch).catch((e) => {
         logger.error("[GitHubContext] ActiveBranch persist failed", { err: e });
