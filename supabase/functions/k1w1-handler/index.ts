@@ -2,7 +2,7 @@
 // REFACTORED: helpers → helpers.ts
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { Role,ChatMessage,HandlerRequestBody,DEFAULT_MODELS,parseRequestBody,toGeminiContents,callGroq,callGemini,callOpenAI,callAnthropic,callHuggingFace,corsHeaders,handleCors,parseJsonBody,rateLimit,requireAdminKey } from "./helpers.ts";
+import { callAnthropic, callGemini, callGroq, callHuggingFace, callOpenAI, corsHeaders, handleCors, parseJsonBody, parseRequestBody, rateLimit, requireAdminKey } from "./helpers.ts";
 
 serve(async (req: Request): Promise<Response> => {
   const corsResponse = handleCors(req);
@@ -24,9 +24,14 @@ serve(async (req: Request): Promise<Response> => {
   try {
     const parsedBody = await parseJsonBody(req, 200_000);
     if (!parsedBody.ok) {
-      const isTooLarge = parsedBody.error.toLowerCase().includes("too large");
+      const parseErrorText =
+        typeof parsedBody.error === "string" ? parsedBody.error.toLowerCase() : "";
+      const isTooLarge = parseErrorText.includes("too large");
       return new Response(
-        JSON.stringify({ ok: false, error: parsedBody.error }),
+        JSON.stringify({
+          ok: false,
+          error: isTooLarge ? "Request too large." : "Invalid request payload.",
+        }),
         {
           status: isTooLarge ? 413 : 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -79,19 +84,26 @@ serve(async (req: Request): Promise<Response> => {
         "Content-Type": "application/json",
       },
     });
-  } catch (err: any) {
-    console.error("❌ k1w1-handler error", err?.message, err?.stack, err);
+  } catch (err: unknown) {
+    const rawMessage = err instanceof Error ? err.message : "";
+    const rawStack = err instanceof Error ? err.stack : undefined;
+    console.error("❌ k1w1-handler error", rawMessage || "Unknown error", rawStack, err);
+
+    const isValidationError =
+      rawMessage.includes("Missing") ||
+      rawMessage.includes("Invalid") ||
+      rawMessage.includes("Unsupported provider") ||
+      rawMessage.includes("request body") ||
+      rawMessage.includes("messages");
 
     const errorPayload = {
       ok: false as const,
-      error: err?.message || "Unknown error",
+      error: isValidationError
+        ? "Invalid request payload."
+        : "Internal Server Error",
     };
 
-    // Use 500 for unexpected errors, 400 for validation errors
-    const statusCode =
-      err?.message?.includes("Missing") || err?.message?.includes("Invalid")
-        ? 400
-        : 500;
+    const statusCode = isValidationError ? 400 : 500;
 
     return new Response(JSON.stringify(errorPayload), {
       status: statusCode,
