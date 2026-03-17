@@ -44,6 +44,9 @@ const ChatComposer: React.FC<Props> = ({
   onHeightChange,
 }) => {
   const hasMessage = textInput.trim().length > 0;
+  const charLimit = 2000;
+  const charCount = textInput.length;
+  const charsRemaining = charLimit - charCount;
   const canSend = !combinedIsLoading && (hasMessage || !!selectedFileAsset);
 
   const sendColor = canSend ? theme.palette.primary : theme.palette.text.secondary;
@@ -146,7 +149,7 @@ const ChatComposer: React.FC<Props> = ({
           onSubmitEditing={handleSubmit}
           blurOnSubmit={false}
           multiline
-          maxLength={2000}
+          maxLength={charLimit}
           accessibilityLabel="Nachricht eingeben"
           accessibilityHint={placeholder}
         />
@@ -179,6 +182,18 @@ const ChatComposer: React.FC<Props> = ({
           </TouchableOpacity>
         </Animated.View>
       </View>
+
+      <Text
+        style={[
+          styles.charCounter,
+          charsRemaining <= 120 && styles.charCounterWarning,
+          charsRemaining <= 40 && styles.charCounterCritical,
+        ]}
+        accessibilityLabel={`Verbleibende Zeichen: ${charsRemaining}`}
+      >
+        {charsRemaining}
+      </Text>
+
     </View>
   );
 };

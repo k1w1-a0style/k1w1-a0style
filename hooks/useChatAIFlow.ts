@@ -24,7 +24,44 @@ import { handleMetaCommand } from "../utils/metaCommands";
 export type { PendingChange, PendingPlan } from "./chatAIFlowTypes";
 
 const BUILDER_RETRY_BACKOFF_MS = 700;
+const BUILDER_RETRY_MAX_ATTEMPTS = 3;
+const BUILDER_RETRY_MAX_BACKOFF_MS = 3_500;
 export const CHAT_AI_REQUEST_TIMEOUT_MS = 45_000;
+
+const readErrorText = (result: OrchestratorResult | null | undefined): string => {
+  if (!result) return "";
+  return [result.error, ...(result.errors ?? [])].filter(Boolean).join("\n");
+};
+
+const parseRetryAfterMs = (errorText: string): number | null => {
+  const secondsMatch = errorText.match(/retry-?after[^\d]*(\d+(?:\.\d+)?)\s*s/i);
+  if (secondsMatch) return Math.round(Number(secondsMatch[1]) * 1000);
+
+  const millisecondsMatch = errorText.match(/retry-?after[^\d]*(\d+)\s*ms/i);
+  if (millisecondsMatch) return Number(millisecondsMatch[1]);
+
+  return null;
+};
+
+const isRetryableBuilderError = (errorText: string): boolean => {
+  return /\b429\b|\brate\s*limit\b|\b503\b|overloaded|timeout|timed\s*out|ECONNRESET|network/i.test(
+    errorText,
+  );
+};
+
+export const computeBuilderRetryDelayMs = (
+  attempt: number,
+  errorText: string,
+): number => {
+  const retryAfterMs = parseRetryAfterMs(errorText);
+  if (retryAfterMs && retryAfterMs > 0) {
+    return Math.min(retryAfterMs, BUILDER_RETRY_MAX_BACKOFF_MS);
+  }
+
+  const exponential = BUILDER_RETRY_BACKOFF_MS * Math.pow(2, Math.max(0, attempt - 1));
+  const jitter = 0.9 + Math.random() * 0.2;
+  return Math.min(Math.round(exponential * jitter), BUILDER_RETRY_MAX_BACKOFF_MS);
+};
 
 export async function runOrchestratorWithHardTimeout(
   provider: AllAIProviders,
@@ -392,35 +429,30 @@ export function useChatAIFlow({
           currentProjectFiles,
         );
 
-        let ai: OrchestratorResult | null = await runOrchestratorWithHardTimeout(
-          config.selectedChatProvider,
-          config.selectedChatMode,
-          config.qualityMode,
-          llmMessages,
-          controller.signal,
-        );
+        let ai: OrchestratorResult | null = null;
+        for (let attempt = 1; attempt <= BUILDER_RETRY_MAX_ATTEMPTS; attempt += 1) {
+          ai = await runOrchestratorWithHardTimeout(
+            config.selectedChatProvider,
+            config.selectedChatMode,
+            config.qualityMode,
+            llmMessages,
+            controller.signal,
+          );
 
-        notifyKeyRotation(ai);
+          notifyKeyRotation(ai);
 
-        if (!ai?.ok) {
-          const errText = String(ai?.error ?? "");
+          if (ai?.ok) break;
+
+          const errText = readErrorText(ai);
           const shouldRetry =
-            /\b429\b|\brate\s*limit\b|\b503\b|overloaded|timeout|timed\s*out|ECONNRESET|network/i.test(
-              errText,
-            );
-          if (shouldRetry) {
-            await sleepWithAbort(BUILDER_RETRY_BACKOFF_MS, controller.signal);
+            attempt < BUILDER_RETRY_MAX_ATTEMPTS && isRetryableBuilderError(errText);
+          if (!shouldRetry) break;
 
-            ai = await runOrchestratorWithHardTimeout(
-              config.selectedChatProvider,
-              config.selectedChatMode,
-              config.qualityMode,
-              llmMessages,
-              controller.signal,
-            );
-
-            notifyKeyRotation(ai);
-          }
+          const backoffMs = computeBuilderRetryDelayMs(attempt, errText);
+          logger.warn(
+            `[useChatAIFlow] Builder retry ${attempt}/${BUILDER_RETRY_MAX_ATTEMPTS - 1} in ${backoffMs}ms: ${errText.slice(0, 220)}`,
+          );
+          await sleepWithAbort(backoffMs, controller.signal);
         }
 
         if (!ai || !ai.ok) {
