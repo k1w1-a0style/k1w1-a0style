@@ -73,6 +73,16 @@ function getAutofixChainSkipReason(lines: string[]): string | null {
 }
 
 
+
+function isFreshChainRunCandidate(run: { created_at?: unknown } | null | undefined, chainStartMs: number): boolean {
+  if (!run) return false;
+  const createdAt = typeof run.created_at === "string" ? Date.parse(run.created_at) : Number.NaN;
+  if (!Number.isFinite(createdAt)) return true;
+  // Guard against accidentally binding to stale runs if a matching title appears in history.
+  // Small skew tolerance for clock/API timing.
+  return createdAt >= chainStartMs - 5_000;
+}
+
 export function useCiLiteWorkflow() {
   // Contract for chain-run correlation:
   // - Autofix dispatches repository_dispatch(trigger-ci-lite) with the *same* job_id
@@ -351,7 +361,7 @@ export function useCiLiteWorkflow() {
     const poll = async () => {
       try {
         const found = await findRunByJobId({ githubRepo, branch: b, jobId, workflow: WORKFLOW_CI_LITE });
-        if (found?.id) {
+        if (found?.id && isFreshChainRunCandidate(found, start)) {
           setRunId(Number(found.id));
           setRunUrl(typeof found?.html_url === "string" ? found.html_url : null);
           setChainWaiting(false);
@@ -363,7 +373,7 @@ export function useCiLiteWorkflow() {
       }
       if (Date.now() - start > 75_000) {
         setLocalError(
-          "Autofix-Chain ausgelöst, aber kein passender CI-Lite-Run gefunden (Timeout). Prüfe CI-Lite-Workflow/YAML-Contract (job_id via repository_dispatch).",
+          "Autofix-Chain ausgelöst, aber kein frischer passender CI-Lite-Run gefunden (Timeout). Prüfe job_id-Contract/Workflow-Dispatch.",
         );
         setChainWaiting(false);
         stopPolling();
