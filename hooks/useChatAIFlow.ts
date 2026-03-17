@@ -156,6 +156,7 @@ export function useChatAIFlow({
   >(null);
 
   const streamingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const streamingRunIdRef = useRef(0);
 
   // ✅ FIX #1: Keep fresh references to avoid stale closures in AutoFix queue
   const messagesRef = useRef(messages);
@@ -220,6 +221,7 @@ export function useChatAIFlow({
       abortControllerRef.current?.abort();
       abortControllerRef.current = null;
       cleanupStreamingTimer();
+      streamingRunIdRef.current += 1;
       inFlightRef.current = false;
     };
   }, [cleanupStreamingTimer]);
@@ -227,6 +229,7 @@ export function useChatAIFlow({
   const simulateStreaming = useCallback(
     (fullText: string, onComplete: () => void) => {
       cleanupStreamingTimer();
+      const runId = ++streamingRunIdRef.current;
 
       safe(() => setIsStreaming(true));
       safe(() => setStreamingMessage(""));
@@ -236,7 +239,7 @@ export function useChatAIFlow({
       const delay = 18;
 
       const tick = () => {
-        if (!isMountedRef.current) {
+        if (!isMountedRef.current || runId !== streamingRunIdRef.current) {
           cleanupStreamingTimer();
           return;
         }
@@ -259,6 +262,7 @@ export function useChatAIFlow({
         }
 
         cleanupStreamingTimer();
+        if (runId !== streamingRunIdRef.current) return;
         safe(() => setIsStreaming(false));
 
         if (isAtBottomRef.current) {
@@ -826,6 +830,7 @@ export function useChatAIFlow({
 
   const resetTransientState = useCallback(() => {
     cleanupStreamingTimer();
+    streamingRunIdRef.current += 1;
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
     inFlightRef.current = false;
