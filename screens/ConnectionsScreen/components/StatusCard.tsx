@@ -104,7 +104,7 @@ function StatusRow(props: {
   );
 }
 
-function formatGitHubScopes(scopesRaw?: string): { scopes: string[]; missing: string[]; unknown: boolean } {
+export function formatGitHubScopes(scopesRaw?: string): { scopes: string[]; missing: string[]; unknown: boolean } {
   const raw = (scopesRaw || "").trim();
   if (!raw) return { scopes: [], missing: [], unknown: true };
   const scopes = raw
@@ -119,6 +119,10 @@ function formatGitHubScopes(scopesRaw?: string): { scopes: string[]; missing: st
   const missing = required.filter((r) => !uniq.includes(r));
 
   return { scopes: uniq, missing, unknown: false };
+}
+
+export function shouldRenderGitHubScopes(scopesRaw?: string): boolean {
+  return !formatGitHubScopes(scopesRaw).unknown;
 }
 
 export function buildEasStatusDetail(params: {
@@ -217,6 +221,10 @@ export function StatusCard(props: {
 
   const ghIsOk = githubOk ?? status.gh;
   const scopesInfo = useMemo(() => formatGitHubScopes(githubScopes), [githubScopes]);
+  const showGitHubScopes = useMemo(
+    () => shouldRenderGitHubScopes(githubScopes),
+    [githubScopes],
+  );
 
   const repoSelectionHint =
     selectionSource === "project"
@@ -265,16 +273,14 @@ export function StatusCard(props: {
             <View>
               <View style={s.scopesRow}>
                 <Text style={s.detailLineLabel}>Scopes:</Text>
-                {scopesInfo.unknown ? (
-                  <ScopeBadge text="unknown (nicht frisch geprüft)" warn />
-                ) : (
+                {showGitHubScopes ? (
                   <View style={s.scopesWrap}>
                     {scopesInfo.scopes.slice(0, 8).map((sc) => (
                       <ScopeBadge key={sc} text={sc} />
                     ))}
                     {scopesInfo.scopes.length > 8 ? <ScopeBadge text={`+${scopesInfo.scopes.length - 8}`} /> : null}
                   </View>
-                )}
+                ) : null}
               </View>
               {(!scopesInfo.unknown && scopesInfo.missing.length > 0) ? (
                 <View style={s.missingRow}>
