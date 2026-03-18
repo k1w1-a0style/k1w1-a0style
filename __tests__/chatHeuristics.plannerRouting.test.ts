@@ -24,6 +24,10 @@ describe("chatHeuristics planner routing", () => {
     ).toBe(false);
   });
 
+  it("does not mark direct scoped UI tweaks as ambiguous just because no location cue is present", () => {
+    expect(looksAmbiguousBuilderRequest("Mach den Header grün und füge einen Schatten hinzu.")).toBe(false);
+  });
+
   it("still detects explicit advice requests separately", () => {
     expect(looksLikeAdviceRequest("Gib mir bitte ein Review der aktuellen Chat-Architektur.")).toBe(true);
   });

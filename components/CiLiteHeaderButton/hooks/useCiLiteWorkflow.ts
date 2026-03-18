@@ -199,6 +199,13 @@ export function useCiLiteWorkflow() {
       }
 
       const json = await r.json();
+      const workflowLookupNote = typeof json?.note === "string" ? json.note.trim() : "";
+      if (workflowLookupNote) {
+        throw new Error(
+          `Workflow-Run-Lookup ist nicht workflow-spezifisch abgesichert (${safeUi(workflowLookupNote)}).`,
+        );
+      }
+
       const runs = json?.data?.workflow_runs ?? json?.workflow_runs ?? json?.runs ?? [];
       if (!Array.isArray(runs)) return null;
 

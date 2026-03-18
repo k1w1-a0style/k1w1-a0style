@@ -41,8 +41,12 @@ const hasConcreteImplementationScope = (raw: string, normalized: string): boolea
       normalized,
     );
   const hasLocationCue = /\b(in|im|ins|auf|am|bei|unter|für)\b/.test(normalized);
+  const hasDirectScopedObject =
+    /\b(den|die|das|dem|der|des|einen|eine|einem|einer|mein|meine|meinen|unser|unsere)\s+(button|toggle|modal|dialog|sheet|header|footer|banner|badge|card|liste|list|flatlist|screen|seite|view|komponente|component|hook|funktion|state|zustand|icon|farbe|theme|input|formular|field|toolbar|tab|route|stack|composer)\b/.test(
+      normalized,
+    );
 
-  return hasQuotedIdentifier || hasNamedUiTarget || (hasScopedTarget && hasLocationCue);
+  return hasQuotedIdentifier || hasNamedUiTarget || (hasScopedTarget && (hasLocationCue || hasDirectScopedObject));
 };
 
 /**
