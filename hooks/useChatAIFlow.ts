@@ -416,13 +416,15 @@ export function useChatAIFlow({
                 meta: { planner: true },
               });
 
-              safe(() =>
-                setPendingPlan({
-                  originalRequest: userContent,
-                  planText,
-                  mode: advice ? "advice" : "build",
-                }),
-              );
+              const nextPlan: PendingPlan = {
+                originalRequest: userContent,
+                planText,
+                mode: advice ? "advice" : "build",
+              };
+              // Keep ref/state in sync immediately to avoid planner→builder races
+              // when the follow-up user message lands before the next render commit.
+              pendingPlanRef.current = nextPlan;
+              safe(() => setPendingPlan(nextPlan));
 
               return true;
             }
@@ -820,6 +822,7 @@ export function useChatAIFlow({
           "\n\n---\nNutzer-Antwort/Details:\n" +
           (wantsProceed ? "(User sagt: weiter)" : aiContent || userContent);
 
+        pendingPlanRef.current = null;
         safe(() => setPendingPlan(null));
         await processAIRequest(combined, false, true);
         return true;

@@ -38,23 +38,29 @@ export const looksLikeAdviceRequest = (s: string): boolean => {
 export const looksAmbiguousBuilderRequest = (s: string): boolean => {
   const t = String(s || '').trim();
   if (!t) return false;
+  const normalized = t
+    .toLowerCase()
+    .replace(/[„“”"'`´]/g, "")
+    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
   const genericVerb =
-    /\b(baue|bauen|erstelle|erstellen|mach|mache|implementiere|füge hinzu|erweitere|optimiere|korrigiere|fix|repariere|prüfe|checke|verbessere)\b/i.test(
-      t,
+    /\b(baue|bauen|erstelle|erstellen|mach|mache|implementiere|fuge hinzu|füge hinzu|erweitere|optimiere|korrigiere|fix|repariere|prufe|prüfe|checke|verbessere)\b/.test(
+      normalized,
     );
 
   if (looksLikeAdviceRequest(t)) return true;
   if (!genericVerb) return false;
   if (looksLikeExplicitFileTask(t)) return false;
 
-  const wc = t.split(/\s+/).filter(Boolean).length;
+  const wc = normalized.split(/\s+/).filter(Boolean).length;
   if (wc <= 12) return true;
-  if (/\b(alles|komplett|gesamt|überall)\b/i.test(t)) return true;
+  if (/\b(alles|komplett|gesamt|uberall|überall)\b/.test(normalized)) return true;
 
   const hasConcreteNouns =
-    /\b(playlist|id3|download|login|auth|api|cache|offline|sync|player|ui|screen|settings|github|terminal|orchestrator|prompt|normalizer)\b/i.test(
-      t,
+    /\b(playlist|id3|download|login|auth|api|cache|offline|sync|player|ui|screen|settings|github|terminal|orchestrator|prompt|normalizer)\b/.test(
+      normalized,
     );
 
   return !hasConcreteNouns;

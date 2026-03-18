@@ -270,17 +270,25 @@ export default function GitHubReposScreen() {
                 style={[
                   s.chip,
                   easLinkStatus === "ok" ? s.chipActive : null,
-                  easLinkStatus === "missing" ? { borderColor: theme.palette.error } : null,
+                  easLinkStatus !== "ok" && easLinkStatus !== "unknown" ? { borderColor: theme.palette.error } : null,
                 ]}
               >
                 <Text
                   style={[
                     s.chipText,
                     easLinkStatus === "ok" ? s.chipTextActive : null,
-                    easLinkStatus === "missing" ? { color: theme.palette.error } : null,
+                    easLinkStatus !== "ok" && easLinkStatus !== "unknown" ? { color: theme.palette.error } : null,
                   ]}
                 >
-                  {easLinkStatus === "ok" ? "OK" : easLinkStatus === "missing" ? "Fehlt" : "Unbekannt"}
+                  {easLinkStatus === "ok"
+                    ? "OK"
+                    : easLinkStatus === "workflow_missing"
+                      ? "Workflow fehlt"
+                      : easLinkStatus === "project_missing"
+                        ? "Project fehlt"
+                        : easLinkStatus === "project_invalid"
+                          ? "Project ungültig"
+                          : "Unbekannt"}
                 </Text>
               </View>
 
