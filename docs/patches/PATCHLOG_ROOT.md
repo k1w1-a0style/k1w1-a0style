@@ -1,3 +1,5 @@
+- Patch 479: Schritt-3-Restpunkte gezielt nachgezogen — Connections/EAS bleibt beim Workflow-Start bewusst neutral statt optimistisch grün, Save-Validation/Ownership/k1w1-Handler wurden im aktuellen Stand erneut eingeordnet, und der bestätigte K8-Restpunkt wurde minimal geschlossen: Validator-Ausfälle im Chat-Flow sind jetzt auch für Nutzer als Fallback sichtbar; Explain bleibt unverändert transparent.
+- Patch 478: Schritt-2-Restpunktprüfung konsistent abgeschlossen — der bestätigte Gemini-Clientpfad sendet den API-Key jetzt per `x-goog-api-key` statt URL-Query-Param, ein fokussierter Regressionstest hält das fest, und README/TODO/Patchlog/Checklog sind auf denselben Patchstand synchronisiert; übrige Restpunkte bleiben ehrlich als teilweise/offen bzw. nicht bestätigt eingeordnet.
 - Patch 477: One-Click-Deploy-Readiness nutzt jetzt denselben repo/branch-scoped Diagnostic-Key wie der Build-Gate (Legacy-Fallback bleibt), um Cross-Selection-Freigaben durch globalen Altstatus zu verhindern; Tests in `oneClickDeploy` entsprechend gehärtet
 
 # Patchlog Root
@@ -97,4 +99,3 @@ Append-only Überblick über Patch-Notizen.
 ## Legacy patch-337 references
 - docs/patches/patch_337.md
 - docs/patches/PATCH_337_NOTES.md
-

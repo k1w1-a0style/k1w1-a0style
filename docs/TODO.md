@@ -1,3 +1,5 @@
+- [x] Patch 479 (2026-03-18): Schritt-3-Restpunkt K8 gezielt nachgezogen — Validator-Ausfälle im Chat-Flow werden nicht mehr nur geloggt, sondern als expliziter Fallback-Hinweis im Nutzerfluss sichtbar gemacht; N6/N9/K7/K9 wurden im aktuellen Stand erneut geprüft und nicht künstlich als technische Fixes markiert.
+- [x] Patch 478 (2026-03-18): Schritt-2-Punkt NEW-12 sauber geschlossen — Gemini-Clientpfad nutzt jetzt `x-goog-api-key` statt URL-Query-Param; fokussierter Regressionstest ergänzt und Patch-/README-/Checklog-Stand auf denselben Abschlussstand gezogen.
 - [x] Patch 477 (2026-03-17): One-Click-Deploy-Readiness auf repo/branch-scoped Diagnostic-SoT angeglichen (Legacy-Fallback bleibt), damit globaler Altstatus keine Cross-Selection-Freigabe mehr erzeugt; OneClickDeploy-Regressionstest entsprechend nachgezogen.
 - [x] Patch 476 (2026-03-17): UX-/Flow-Consistency-Restpunkte für Repo/Connections/Build konservativ geschlossen (konsistente Screen-Hinweise zu GitHub-Repos, Secret-Sync-Kommunikation auf realen Auto-Sync-Umfang inkl. manueller Production-Grenze geschärft, EAS-Rollen zwischen Verbindungen und Repo-Flow klarer getrennt, gezielte Invariant-Tests ergänzt).
 - [x] Patch 475 (2026-03-17): Persistenz-/ProjectContext-Restpunkte konservativ gehärtet (Storage-Size/Safety-Guard vor `saveProjectToStorage`-Writes inkl. Soft-/Hard-Limit-Verhalten + minimal memoisierte `messages`-Referenz im ProjectContext, ergänzt um gezielte Regressionen).
@@ -14,7 +16,7 @@
 
 # TODO
 
-Stand: **2026-03-17 (Patch 477)**
+Stand: **2026-03-18 (Patch 479)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.

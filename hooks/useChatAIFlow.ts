@@ -506,6 +506,15 @@ export function useChatAIFlow({
         // Optional Agent (Validator)
         let finalFiles = normalized;
         let agentMeta: OrchestratorResult | null = null;
+        const addValidatorWarning = (content: string) => {
+          addChatMessage({
+            id: uuidv4(),
+            role: "system",
+            content,
+            timestamp: new Date().toISOString(),
+            meta: { validatorWarning: true },
+          });
+        };
 
         if (config.agentEnabled) {
           try {
@@ -533,19 +542,22 @@ export function useChatAIFlow({
                 agentMeta = agentRes;
               } else if (agentRes?.ok) {
                 logger.warn("[useChatAIFlow] Validator returned no valid file array; keeping builder files.");
-                addChatMessage({
-                  id: uuidv4(),
-                  role: "system",
-                  content:
-                    "ℹ️ Validator lieferte keine gültige Dateiliste. Es wurden daher die ursprünglichen Builder-Dateien verwendet.",
-                  timestamp: new Date().toISOString(),
-                  meta: { validatorWarning: true },
-                });
+                addValidatorWarning(
+                  "ℹ️ Validator lieferte keine gültige Dateiliste. Es wurden daher die ursprünglichen Builder-Dateien verwendet.",
+                );
               }
+            } else if (agentRes) {
+              logger.warn("[useChatAIFlow] Validator returned non-ok result:", agentRes.error);
+              addValidatorWarning(
+                "ℹ️ Validator-Prüfung war nicht erfolgreich. Es wurden daher die ursprünglichen Builder-Dateien verwendet.",
+              );
             }
           } catch (e) {
-            // ✅ FIX #8: Log agent errors instead of silently swallowing
+            // ✅ FIX #8: Log agent errors and surface the fallback to the user
             logger.warn("[useChatAIFlow] Agent/Validator call failed:", e);
+            addValidatorWarning(
+              "ℹ️ Validator-Prüfung konnte nicht abgeschlossen werden. Es wurden daher die ursprünglichen Builder-Dateien verwendet.",
+            );
           }
         }
 

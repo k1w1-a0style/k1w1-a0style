@@ -11,8 +11,10 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 477**.
+- Zuletzt abgeschlossen: **Patch 479**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
+- Patch 479 zieht Schritt 3 gezielt nach: Im Chat-Flow bleibt K8 nur teilweise bestätigt, aber der reale Restpunkt ist jetzt geschlossen, weil Validator-Ausfälle nicht mehr nur geloggt, sondern als bewusster Fallback-Hinweis im Nutzerfluss sichtbar gemacht werden; Explain bleibt unverändert transparent.
+- Patch 478 schließt den bestätigten Schritt-2-Restpunkt NEW-12 minimal und sauber: Der App-Orchestrator sendet den Gemini-API-Key nicht mehr als URL-Query-Parameter, sondern per `x-goog-api-key` Header; der gezielte Regressionstest hält genau diesen Transportpfad stabil.
 - Patch 477 schließt einen realen Guard-Drift im One-Click-Deploy: Der Readiness-Check nutzt nun denselben repo/branch-scoped Diagnostic-Key wie der Build-Gate (mit Legacy-Fallback), sodass ein globaler Altstatus keinen falschen grünen Zustand für eine andere Auswahl mehr erzeugt.
 - Patch 476 schließt verbleibende UX-/Flow-Consistency-Restpunkte zwischen Verbindungen, Repo und Build konservativ: Build-Gates verweisen jetzt konsistent auf den GitHub-Repos-Screen, Secret-Sync-Kommunikation bildet den real app-verwalteten Umfang inkl. manueller Production-Grenze (Service-Role-Key) ehrlich ab, und die EAS-Rollen sind sprachlich klar getrennt (Verbindungen = Token/ID, Repo = Link/Workflow im Ziel-Repo).
 - Patch 475 härtet verbleibende Persistenz-/ProjectContext-Restpunkte minimal: `saveProjectToStorage` hat jetzt einen klaren UTF-8-Size-Guard mit Soft-/Hard-Limit-Warnung bzw. hartem Fail vor `AsyncStorage.setItem`, und `ProjectContext.messages` nutzt eine memoized `contextMessages`-Referenz auf Basis von `projectData.chatHistory`, um unnötige Array-Referenzwechsel bei projectData-Updates zu reduzieren.
