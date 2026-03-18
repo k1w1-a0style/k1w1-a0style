@@ -1,9 +1,10 @@
-# Patch 478 — Schritt 2 Restpunkt-Prüfung: Gemini-Key-Transport konservativ gehärtet
+# Patch 478 — Schritt 2 Restpunkt-Prüfung: Gemini-Key-Transport konsistent abgeschlossen
 
 ## Was wurde geändert?
 
 - `lib/orchestrator/providers/gemini.ts`: Gemini-Requests senden den API-Key nicht mehr als URL-Query-Parameter, sondern per `x-goog-api-key` Header.
 - `lib/__tests__/geminiProvider.test.ts`: gezielte Regression ergänzt, die den Header-Pfad absichert und verhindert, dass `?key=` zurückkehrt.
+- `README.md`, `docs/TODO.md`, `docs/patches/PATCHLOG_ROOT.md`, `PROJECT_CHECKLOG.md`: auf denselben Patchstand gezogen, damit Patch-478-Abschluss und Kurztexte konsistent bleiben.
 
 ## Bewertung der geprüften Restpunkte
 

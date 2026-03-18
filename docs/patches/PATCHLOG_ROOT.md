@@ -1,4 +1,4 @@
-- Patch 478: Schritt-2-Restpunktprüfung konservativ weitergeführt — bestätigten Gemini-Clientpfad ohne Architekturumbau gehärtet, sodass der API-Key im App-Orchestrator nicht mehr als URL-Query-Parameter gesendet wird; gezielte Regression ergänzt, übrige Restpunkte ehrlich als teilweise/offen bzw. nicht bestätigt eingeordnet.
+- Patch 478: Schritt-2-Restpunktprüfung konsistent abgeschlossen — der bestätigte Gemini-Clientpfad sendet den API-Key jetzt per `x-goog-api-key` statt URL-Query-Param, ein fokussierter Regressionstest hält das fest, und README/TODO/Patchlog/Checklog sind auf denselben Patchstand synchronisiert; übrige Restpunkte bleiben ehrlich als teilweise/offen bzw. nicht bestätigt eingeordnet.
 - Patch 477: One-Click-Deploy-Readiness nutzt jetzt denselben repo/branch-scoped Diagnostic-Key wie der Build-Gate (Legacy-Fallback bleibt), um Cross-Selection-Freigaben durch globalen Altstatus zu verhindern; Tests in `oneClickDeploy` entsprechend gehärtet
 
 # Patchlog Root
