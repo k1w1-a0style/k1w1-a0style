@@ -38,6 +38,8 @@ describe("CI Lite Header workflow invariants", () => {
   it("requires workflow event + branch to match before binding a located run", () => {
     const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
 
+    expect(src).toContain('const workflowLookupNote = typeof json?.note === "string" ? json.note.trim() : "";');
+    expect(src).toContain("Workflow-Run-Lookup ist nicht workflow-spezifisch abgesichert");
     expect(src).toContain('if (event && event !== opts.expectedEvent) return false;');
     expect(src).toContain('if (headBranch && headBranch !== targetBranch) return false;');
     expect(src).toContain('expectedEvent: "repository_dispatch"');
