@@ -97,6 +97,37 @@ function isFreshChainRunCandidate(run: { created_at?: unknown } | null | undefin
   return createdAt >= chainStartMs - 5_000;
 }
 
+type WorkflowRunLocatorCandidate = {
+  display_title?: unknown;
+  name?: unknown;
+  created_at?: unknown;
+  event?: unknown;
+  head_branch?: unknown;
+} | null | undefined;
+
+function matchesWorkflowRunContract(
+  run: WorkflowRunLocatorCandidate,
+  opts: {
+    jobId: string;
+    branch: string;
+    startedAtMs: number;
+    expectedEvent: "repository_dispatch" | "workflow_dispatch";
+  },
+): boolean {
+  const targetBranch = String(opts.branch || "").trim();
+  if (!targetBranch) return false;
+  if (!hasExactJobIdMarkerInRun(run, opts.jobId)) return false;
+  if (!isFreshChainRunCandidate(run, opts.startedAtMs)) return false;
+
+  const event = typeof run?.event === "string" ? run.event.trim().toLowerCase() : "";
+  if (event && event !== opts.expectedEvent) return false;
+
+  const headBranch = typeof run?.head_branch === "string" ? run.head_branch.trim() : "";
+  if (headBranch && headBranch !== targetBranch) return false;
+
+  return true;
+}
+
 export function useCiLiteWorkflow() {
   // Contract for chain-run correlation:
   // - Autofix dispatches repository_dispatch(trigger-ci-lite) with the *same* job_id
@@ -375,7 +406,15 @@ export function useCiLiteWorkflow() {
     const poll = async () => {
       try {
         const found = await findRunByJobId({ githubRepo, branch: b, jobId, workflow: WORKFLOW_CI_LITE });
-        if (found?.id && hasExactJobIdMarkerInRun(found, jobId) && isFreshChainRunCandidate(found, start)) {
+        if (
+          found?.id &&
+          matchesWorkflowRunContract(found, {
+            jobId,
+            branch: b,
+            startedAtMs: start,
+            expectedEvent: "repository_dispatch",
+          })
+        ) {
           setRunId(Number(found.id));
           setRunUrl(typeof found?.html_url === "string" ? found.html_url : null);
           setChainWaiting(false);
@@ -527,7 +566,15 @@ export function useCiLiteWorkflow() {
         const poll = async () => {
           try {
             const found = await findRunByJobId({ githubRepo, branch: targetBranch, jobId: newJobId, workflow: workflowFile });
-            if (found?.id) {
+            if (
+              found?.id &&
+              matchesWorkflowRunContract(found, {
+                jobId: newJobId,
+                branch: targetBranch,
+                startedAtMs: start,
+                expectedEvent: "workflow_dispatch",
+              })
+            ) {
               setRunId(Number(found.id));
               setRunUrl(typeof found?.html_url === "string" ? found.html_url : null);
               stopPolling();

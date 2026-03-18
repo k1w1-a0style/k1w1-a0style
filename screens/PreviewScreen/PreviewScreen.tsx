@@ -29,6 +29,7 @@ export default function PreviewScreen() {
     previewUrl,
     previewExpiryText,
     previewChannelLabel,
+    transientLocalPreviewNotice,
     qrImageUrl,
     phase,
     setPhase,
@@ -109,6 +110,7 @@ export default function PreviewScreen() {
         previewKind={previewKind}
         previewChannelLabel={previewChannelLabel}
         previewExpiryText={previewExpiryText}
+        transientLocalPreviewNotice={transientLocalPreviewNotice}
         pulseAnim={pulseAnim}
         hotReloadEnabled={hotReloadEnabled}
         hotReloadCount={hotReloadCount}

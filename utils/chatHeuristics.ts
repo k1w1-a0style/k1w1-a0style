@@ -32,6 +32,19 @@ export const looksLikeAdviceRequest = (s: string): boolean => {
   return /\b(vorschlag|vorschläge|ideen|review|analyse|bewerte|feedback|verbesserungsvorschläge)\b/i.test(t);
 };
 
+const hasConcreteImplementationScope = (raw: string, normalized: string): boolean => {
+  const hasQuotedIdentifier = /[„“"'][^„“"'`]{2,}[„“"']/.test(raw);
+  const hasNamedUiTarget =
+    /\b[A-Z][A-Za-z0-9]+(Screen|Modal|Button|Banner|Card|List|Item|Header|Footer|Hook|View)\b/.test(raw);
+  const hasScopedTarget =
+    /\b(button|toggle|modal|dialog|sheet|header|footer|banner|badge|card|liste|list|flatlist|screen|seite|view|komponente|component|hook|funktion|state|zustand|icon|farbe|theme|input|formular|field|toolbar|tab|route|stack|composer)\b/.test(
+      normalized,
+    );
+  const hasLocationCue = /\b(in|im|ins|auf|am|bei|unter|für)\b/.test(normalized);
+
+  return hasQuotedIdentifier || hasNamedUiTarget || (hasScopedTarget && hasLocationCue);
+};
+
 /**
  * Erkennt mehrdeutige Builder-Requests die einen Planner-Call benötigen
  */
@@ -53,6 +66,7 @@ export const looksAmbiguousBuilderRequest = (s: string): boolean => {
   if (looksLikeAdviceRequest(t)) return true;
   if (!genericVerb) return false;
   if (looksLikeExplicitFileTask(t)) return false;
+  if (hasConcreteImplementationScope(t, normalized)) return false;
 
   const wc = normalized.split(/\s+/).filter(Boolean).length;
   if (wc <= 12) return true;
