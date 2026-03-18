@@ -24,6 +24,7 @@ export type PendingChange = {
   created: string[];
   updated: string[];
   skipped: string[];
+  errors?: string[];
   aiResponse: OrchestratorResult;
   agentResponse?: OrchestratorResult;
 };
