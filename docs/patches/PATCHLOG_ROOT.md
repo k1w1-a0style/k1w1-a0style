@@ -1,3 +1,4 @@
+- Patch 478: Schritt-2-Restpunktprüfung konservativ weitergeführt — bestätigten Gemini-Clientpfad ohne Architekturumbau gehärtet, sodass der API-Key im App-Orchestrator nicht mehr als URL-Query-Parameter gesendet wird; gezielte Regression ergänzt, übrige Restpunkte ehrlich als teilweise/offen bzw. nicht bestätigt eingeordnet.
 - Patch 477: One-Click-Deploy-Readiness nutzt jetzt denselben repo/branch-scoped Diagnostic-Key wie der Build-Gate (Legacy-Fallback bleibt), um Cross-Selection-Freigaben durch globalen Altstatus zu verhindern; Tests in `oneClickDeploy` entsprechend gehärtet
 
 # Patchlog Root
@@ -97,4 +98,3 @@ Append-only Überblick über Patch-Notizen.
 ## Legacy patch-337 references
 - docs/patches/patch_337.md
 - docs/patches/PATCH_337_NOTES.md
-
