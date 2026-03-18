@@ -22,6 +22,7 @@ const mockAsyncStorage = AsyncStorage as any;
 const mockGitHub = {
   getGitHubToken: jest.fn(),
   getExpoToken: jest.fn(),
+  getBranchHeadSha: jest.fn(),
 };
 
 const mockSecrets = {
@@ -99,6 +100,7 @@ describe("useOneClickDeploy", () => {
 
     mockGitHub.getGitHubToken.mockReset();
     mockGitHub.getExpoToken.mockReset();
+    mockGitHub.getBranchHeadSha.mockReset();
     mockSecrets.autoSyncRepoSecrets.mockReset();
     // Reset AsyncStorage mocks per test
     mockAsyncStorage.getItem.mockReset();
@@ -107,6 +109,7 @@ describe("useOneClickDeploy", () => {
     mockAsyncStorage.getItem.mockResolvedValue(null);
     mockAsyncStorage.setItem.mockResolvedValue(undefined);
     mockAsyncStorage.removeItem?.mockResolvedValue?.(undefined);
+    mockGitHub.getBranchHeadSha.mockResolvedValue("a".repeat(40));
   });
 
   afterEach(() => {
@@ -189,6 +192,7 @@ describe("useOneClickDeploy", () => {
   });
 
   it("happy path: runs through to build when key exists", async () => {
+    const sha = "a".repeat(40);
     mockAsyncStorage.getItem.mockImplementation(async (k: string) => {
       if (k === "cred_key_exists_preview") return "true";
       if (k === "diagnostic_last_ok::owner%2Frepo::main") return "true";
@@ -197,11 +201,13 @@ describe("useOneClickDeploy", () => {
       if (k === "ci_lite_last_repo") return "owner/repo";
       if (k === "ci_lite_last_branch") return "main";
       if (k === "ci_lite_last_run_at") return String(Date.now());
+      if (k === "ci_lite_last_sha") return sha;
       return null;
     });
 
     mockGitHub.getGitHubToken.mockResolvedValue("gh");
     mockGitHub.getExpoToken.mockResolvedValue("expo");
+    mockGitHub.getBranchHeadSha.mockResolvedValue(sha);
     mockSecrets.autoSyncRepoSecrets.mockResolvedValue({
       updated: [],
       skipped: [],
@@ -238,5 +244,44 @@ describe("useOneClickDeploy", () => {
     expect(startBuild).toHaveBeenCalledTimes(1);
     expect(mockGitHub.getGitHubToken).toHaveBeenCalledTimes(1);
     expect(mockGitHub.getExpoToken).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks before build when CI-Lite SHA no longer matches the current branch head", async () => {
+    mockAsyncStorage.getItem.mockImplementation(async (k: string) => {
+      if (k === "cred_key_exists_preview") return "true";
+      if (k === "diagnostic_last_ok::owner%2Frepo::main") return "true";
+      if (k === "ci_lite_lint_ok") return "true";
+      if (k === "ci_lite_typecheck_ok") return "true";
+      if (k === "ci_lite_last_repo") return "owner/repo";
+      if (k === "ci_lite_last_branch") return "main";
+      if (k === "ci_lite_last_run_at") return String(Date.now());
+      if (k === "ci_lite_last_sha") return "a".repeat(40);
+      return null;
+    });
+
+    mockGitHub.getGitHubToken.mockResolvedValue("gh");
+    mockGitHub.getExpoToken.mockResolvedValue("expo");
+    mockGitHub.getBranchHeadSha.mockResolvedValue("b".repeat(40));
+
+    const startBuild = jest.fn(async () => {});
+    const { getByTestId } = render(
+      <Harness
+        profile="preview"
+        repo="owner/repo"
+        branch="main"
+        startBuild={startBuild}
+      />,
+    );
+
+    await pressRun(getByTestId);
+
+    await waitFor(() => {
+      const steps = getSteps(getByTestId);
+      const readiness = steps.find((s: any) => s.id === "readiness");
+      expect(readiness.status).toBe("fail");
+      expect(String(readiness.detail || "")).toMatch(/SHA-Mismatch/);
+    });
+
+    expect(startBuild).not.toHaveBeenCalled();
   });
 });

@@ -1,3 +1,4 @@
+- [x] Patch 481 (2026-03-18): Schritt-5-Restpunkt B6 minimal geschlossen — Build-Screen und One-Click-Deploy prüfen CI-Lite jetzt auch gegen den zuletzt grünen SHA und den aktuellen Branch-HEAD, damit die UI keinen falschen grünen Zustand mehr zeigt, wenn der eigentliche Build-Start wegen SHA-Mismatch blockiert wäre; S10/E5/E6/E7 wurden im aktuellen Stand erneut geprüft und nicht künstlich wieder geöffnet.
 - [x] Patch 480 (2026-03-18): PR-307-Nachkorrektur sauber abgeschlossen — Doku-/Patchstand auf denselben Abschlussstand gezogen; fachlich bleibt Patch 480 bewusst eng: ungültige manuelle EAS Project IDs werden vor Save und vor den vorhandenen Link-Pfaden geblockt, und Ownership-/Blocker-Gründe bleiben nach Apply sichtbar; N6/K8/K9 weiterhin nicht bestätigt.
 - [x] Patch 479 (2026-03-18): Schritt-3-Restpunkt K8 gezielt nachgezogen — Validator-Ausfälle im Chat-Flow werden nicht mehr nur geloggt, sondern als expliziter Fallback-Hinweis im Nutzerfluss sichtbar gemacht; N6/N9/K7/K9 wurden im aktuellen Stand erneut geprüft und nicht künstlich als technische Fixes markiert.
 - [x] Patch 478 (2026-03-18): Schritt-2-Punkt NEW-12 sauber geschlossen — Gemini-Clientpfad nutzt jetzt `x-goog-api-key` statt URL-Query-Param; fokussierter Regressionstest ergänzt und Patch-/README-/Checklog-Stand auf denselben Abschlussstand gezogen.
@@ -17,7 +18,7 @@
 
 # TODO
 
-Stand: **2026-03-18 (Patch 480)**
+Stand: **2026-03-18 (Patch 481)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.

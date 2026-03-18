@@ -15,10 +15,10 @@ import {
   STORAGE_KEYS,
   credKeyForProfile,
   credKeyForProjectUiMode,
-  diagnosticLastOkKeyForSelection,
   resolveProjectCredentialScope,
 } from "../../../lib/storageKeys";
 import type { BuildProfile } from "../types";
+import { readBuildReadinessState } from "./buildReadinessState";
 
 export type DeployStepId =
   | "signing_key"
@@ -164,33 +164,15 @@ export function useOneClickDeploy(
 
       // === Step 3: Readiness (Diagnostic + CI-Lite + Repo/Branch Match) ===
       updateStep("readiness", "running");
-      const scopedDiagnosticKey = diagnosticLastOkKeyForSelection({
-        linkedRepo: repoFullName,
-        linkedBranch: branchName,
+      const readiness = await readBuildReadinessState({
+        repoFullName,
+        branchName,
       });
-      const [diagScopedVal, diagLegacyVal, lintOk, typeOk, lastRepo, lastBranch, lastRunAt] = await Promise.all([
-        AsyncStorage.getItem(scopedDiagnosticKey).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_LINT_OK).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_TYPECHECK_OK).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_LAST_REPO).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_LAST_BRANCH).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_LAST_RUN_AT).catch(() => null),
-      ]);
       if (abortRef.current) return;
 
-      const diagVal = diagScopedVal ?? diagLegacyVal;
-      const repoMatches = (lastRepo ?? "").trim() === (repoFullName ?? "").trim();
-      const branchMatches = (lastBranch ?? "").trim() === (branchName ?? "").trim();
-      const runTs = Number(lastRunAt ?? "");
-      const stale = !Number.isFinite(runTs) || runTs <= 0 || Date.now() - runTs > 6 * 60 * 60 * 1000;
-
       let readinessReason: string | null = null;
-      if (diagVal !== "true") readinessReason = "Diagnostik nicht gruen";
-      else if (lintOk !== "true" || typeOk !== "true") readinessReason = "CI-Lite Lint/Typecheck nicht gruen";
-      else if (!repoMatches) readinessReason = "CI-Lite gehoert zu anderem Repo";
-      else if (!branchMatches) readinessReason = "CI-Lite gehoert zu anderem Branch";
-      else if (stale) readinessReason = "CI-Lite ist veraltet";
+      if (!readiness.hasDiagOk) readinessReason = "Diagnostik nicht gruen";
+      else if (!readiness.hasCiLiteOk) readinessReason = readiness.ciLiteReason;
 
       if (readinessReason) {
         updateStep("readiness", "fail", readinessReason);

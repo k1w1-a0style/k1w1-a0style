@@ -1,0 +1,82 @@
+import { readBuildReadinessState } from "../screens/EnhancedBuildScreen/hooks/buildReadinessState";
+
+describe("readBuildReadinessState", () => {
+  it("marks CI-Lite as blocked when the recorded SHA is missing", async () => {
+    const now = Date.now();
+    const storageMap: Record<string, string> = {
+      "diagnostic_last_ok::owner%2Frepo::main": "true",
+      ci_lite_lint_ok: "true",
+      ci_lite_typecheck_ok: "true",
+      ci_lite_last_repo: "owner/repo",
+      ci_lite_last_branch: "main",
+      ci_lite_last_run_at: String(now),
+    };
+
+    const result = await readBuildReadinessState({
+      repoFullName: "owner/repo",
+      branchName: "main",
+      deps: {
+        storageGetItem: async (key: string) => storageMap[key] ?? null,
+        readBranchHeadSha: async () => "a".repeat(40),
+      },
+    });
+
+    expect(result.hasDiagOk).toBe(true);
+    expect(result.hasCiLiteOk).toBe(false);
+    expect(result.ciLiteReason).toBe("CI-Lite-SHA fehlt oder ist ungueltig");
+  });
+
+  it("marks CI-Lite as blocked when branch HEAD changed since the last green run", async () => {
+    const now = Date.now();
+    const storageMap: Record<string, string> = {
+      "diagnostic_last_ok::owner%2Frepo::main": "true",
+      ci_lite_lint_ok: "true",
+      ci_lite_typecheck_ok: "true",
+      ci_lite_last_repo: "owner/repo",
+      ci_lite_last_branch: "main",
+      ci_lite_last_run_at: String(now),
+      ci_lite_last_sha: "a".repeat(40),
+    };
+
+    const result = await readBuildReadinessState({
+      repoFullName: "owner/repo",
+      branchName: "main",
+      deps: {
+        storageGetItem: async (key: string) => storageMap[key] ?? null,
+        readBranchHeadSha: async () => "b".repeat(40),
+      },
+    });
+
+    expect(result.hasDiagOk).toBe(true);
+    expect(result.hasCiLiteOk).toBe(false);
+    expect(result.ciLiteReason).toMatch(/SHA-Mismatch/);
+  });
+
+  it("keeps CI-Lite green when repo, branch, freshness and SHA all match", async () => {
+    const now = Date.now();
+    const sha = "c".repeat(40);
+    const storageMap: Record<string, string> = {
+      "diagnostic_last_ok::owner%2Frepo::main": "true",
+      ci_lite_lint_ok: "true",
+      ci_lite_typecheck_ok: "true",
+      ci_lite_last_repo: "owner/repo",
+      ci_lite_last_branch: "main",
+      ci_lite_last_run_at: String(now),
+      ci_lite_last_sha: sha,
+    };
+
+    const result = await readBuildReadinessState({
+      repoFullName: "owner/repo",
+      branchName: "main",
+      deps: {
+        storageGetItem: async (key: string) => storageMap[key] ?? null,
+        readBranchHeadSha: async () => sha,
+      },
+    });
+
+    expect(result.hasDiagOk).toBe(true);
+    expect(result.hasCiLiteOk).toBe(true);
+    expect(result.ciLiteReason).toBeNull();
+    expect(result.ciLiteStale).toBe(false);
+  });
+});
