@@ -9,6 +9,7 @@ type PreviewStatusBarProps = {
   previewKind: "supabase" | "local" | null;
   previewChannelLabel: string;
   previewExpiryText: string;
+  transientLocalPreviewNotice: string | null;
   pulseAnim: Animated.Value;
   hotReloadEnabled: boolean;
   hotReloadCount: number;
@@ -25,11 +26,16 @@ export function getStatusText(phase: PreviewPhase, previewKind: "supabase" | "lo
   return 'Preview-Fehler';
 }
 
+export function getTransientPreviewNotice(notice: string | null): string | null {
+  return typeof notice === 'string' && notice.trim().length > 0 ? notice : null;
+}
+
 export function PreviewStatusBar({
   phase,
   previewKind,
   previewChannelLabel,
   previewExpiryText,
+  transientLocalPreviewNotice,
   pulseAnim,
   hotReloadEnabled,
   hotReloadCount,
@@ -37,6 +43,8 @@ export function PreviewStatusBar({
   totalSize,
   skippedCount,
 }: PreviewStatusBarProps) {
+  const previewNotice = getTransientPreviewNotice(transientLocalPreviewNotice);
+
   return (
     <View style={s.statusBarWrap}>
       <View style={s.statusBar}>
@@ -76,6 +84,11 @@ export function PreviewStatusBar({
         <Text style={s.previewInfoText}>•</Text>
         <Text style={s.previewInfoText}>{previewExpiryText}</Text>
       </View>
+      {previewNotice && (
+        <View style={s.previewNoticeBar}>
+          <Text style={s.previewNoticeText}>{previewNotice}</Text>
+        </View>
+      )}
     </View>
   );
 }

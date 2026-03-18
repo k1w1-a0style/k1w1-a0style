@@ -86,6 +86,11 @@ export function usePreviewScreen() {
     () => getPreviewChannelLabel(previewKind),
     [previewKind],
   );
+  const transientLocalPreviewNotice = useMemo(() => {
+    if (lastPreview?.source !== 'local') return null;
+    if (previewSource) return null;
+    return 'Die letzte lokale HTML-Preview war nur temporär und ist nach Restart/Rehydration nicht mehr verfügbar. Bitte Preview neu erstellen.';
+  }, [lastPreview?.source, previewSource]);
   const qrImageUrl = useMemo(() => {
     if (!previewUrl || !isHttpUrl(previewUrl)) return null;
     return buildQrImageUrl(previewUrl);
@@ -267,6 +272,7 @@ export function usePreviewScreen() {
     previewUrl,
     previewExpiryText,
     previewChannelLabel,
+    transientLocalPreviewNotice,
     qrImageUrl,
     phase,
     setPhase,

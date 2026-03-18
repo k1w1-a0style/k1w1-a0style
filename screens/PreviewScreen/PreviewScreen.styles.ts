@@ -69,6 +69,16 @@ export const s = StyleSheet.create({
     paddingHorizontal: 14, paddingBottom: 8,
   },
   previewInfoText: { color: theme.palette.text.muted, fontSize: 11, fontWeight: '700' },
+  previewNoticeBar: {
+    paddingHorizontal: 14,
+    paddingBottom: 10,
+  },
+  previewNoticeText: {
+    color: theme.palette.warning,
+    fontSize: 11,
+    fontWeight: '700',
+    lineHeight: 16,
+  },
   previewArea: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
     padding: 16, backgroundColor: theme.palette.backgroundDark,
