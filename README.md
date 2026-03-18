@@ -11,8 +11,9 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 480**.
+- Zuletzt abgeschlossen: **Patch 481**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
+- Patch 481 zieht im Schritt-5-Scope nur den bestätigten Restpunkt nach: Build-Screen und One-Click-Deploy bewerten CI-Lite jetzt nicht mehr nur nach Repo/Branch/Freshness, sondern auch gegen den zuletzt grünen SHA und den aktuellen Branch-HEAD; dadurch zeigt die UI keinen falschen grünen Zustand mehr, wenn `startBuildJob(...)` später wegen SHA-Mismatch blockieren würde. S10/E5/E6/E7 bleiben im aktuellen Stand ohne neuen Produktdefekt bestätigt.
 - Patch 480 führt PR 307 im bestätigten Scope sauber weiter: manuell eingegebene EAS Project IDs werden jetzt vor Save **und** vor den bestehenden Link-Pfaden auf UUID-Format geblockt, und Ownership-/Blocker-Gründe bleiben im Chat auch nach dem Anwenden eines Vorschlags sichtbar; N6/K8/K9 bleiben bewusst nicht bestätigt und unverändert.
 - Patch 478 schließt den bestätigten Schritt-2-Restpunkt NEW-12 minimal und sauber: Der App-Orchestrator sendet den Gemini-API-Key nicht mehr als URL-Query-Parameter, sondern per `x-goog-api-key` Header; der gezielte Regressionstest hält genau diesen Transportpfad stabil.
 - Patch 477 schließt einen realen Guard-Drift im One-Click-Deploy: Der Readiness-Check nutzt nun denselben repo/branch-scoped Diagnostic-Key wie der Build-Gate (mit Legacy-Fallback), sodass ein globaler Altstatus keinen falschen grünen Zustand für eine andere Auswahl mehr erzeugt.
