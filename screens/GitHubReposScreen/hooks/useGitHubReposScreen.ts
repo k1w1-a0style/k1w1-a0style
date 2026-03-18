@@ -144,7 +144,7 @@ export function useGitHubReposScreen() {
 
   const [easProjectId, setEasProjectId] = useState<string>("");
   const [isEasLinking, setIsEasLinking] = useState(false);
-  const [easLinkStatus, setEasLinkStatus] = useState<"unknown" | "ok" | "missing">("unknown");
+  const [easLinkStatus, setEasLinkStatus] = useState<"unknown" | "ok" | "workflow_missing" | "project_missing" | "project_invalid">("unknown");
 
   // Manage Modal (used for branch operations)
   type ManageModalConfig = {
@@ -776,15 +776,19 @@ export function useGitHubReposScreen() {
         repoProjectId = String(parsedJson?.projectId || "").trim();
       } catch (e: any) {
         if (isNotFoundError(e)) {
-          setEasLinkStatus("missing");
+          setEasLinkStatus("project_missing");
+          return;
+        }
+        if (e instanceof SyntaxError) {
+          setEasLinkStatus("project_invalid");
           return;
         }
         throw e;
       }
 
-      setEasLinkStatus(repoProjectId ? "ok" : "missing");
+      setEasLinkStatus(repoProjectId ? "ok" : "project_invalid");
     } catch (e: any) {
-      if (isNotFoundError(e)) setEasLinkStatus("missing");
+      if (isNotFoundError(e)) setEasLinkStatus("workflow_missing");
       else setEasLinkStatus("unknown");
     }
   }, [activeRepo, activeBranch]);

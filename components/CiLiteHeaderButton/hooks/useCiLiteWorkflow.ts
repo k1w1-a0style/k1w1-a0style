@@ -53,19 +53,19 @@ function getAutofixChainSkipReason(lines: string[]): string | null {
   if (!Array.isArray(lines) || lines.length === 0) return null;
   const joined = lines.join("\n");
 
-  if (/No TARGET_BRANCH; skipping CI Lite chain-run\./i.test(joined)) {
+  if (/No\s+TARGET_BRANCH.*skipping\s+CI\s*Lite\s+chain-?run/i.test(joined)) {
     return "Kein TARGET_BRANCH im Autofix-Run";
   }
-  if (/Ref looks like a SHA .* skipping CI Lite chain-run\./i.test(joined)) {
+  if (/Ref\s+looks\s+like\s+a\s+SHA.*skipping\s+CI\s*Lite\s+chain-?run/i.test(joined)) {
     return "Ref wurde als SHA statt Branch erkannt";
   }
-  if (/Unsafe ref .* skipping CI Lite chain-run\./i.test(joined)) {
+  if (/Unsafe\s+ref.*skipping\s+CI\s*Lite\s+chain-?run/i.test(joined)) {
     return "Ref enthält unsichere Zeichen";
   }
-  if (/CI Lite chain-run disabled for .*regex:/i.test(joined)) {
+  if (/CI\s*Lite\s+chain-?run\s+disabled\s+for.*regex:/i.test(joined)) {
     return "Ref ist laut Workflow-Regeln nicht für Chain-Run erlaubt";
   }
-  if (/is not a remote branch; skipping CI Lite chain-run\./i.test(joined)) {
+  if (/is\s+not\s+a\s+remote\s+branch.*skipping\s+CI\s*Lite\s+chain-?run/i.test(joined)) {
     return "Ref existiert nicht als Remote-Branch";
   }
 
