@@ -17,6 +17,24 @@ export type ValidationResult =
   | { ok: true }
   | { ok: false; title: string; message: string };
 
+export const validateEasProjectId = (easProjectId?: string): ValidationResult => {
+  const normalized = easProjectId?.trim() ?? "";
+  if (!normalized) return { ok: true };
+
+  const isUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      normalized,
+    );
+
+  if (isUuid) return { ok: true };
+
+  return {
+    ok: false,
+    title: "Ungültige EAS Project ID",
+    message: "Die EAS Project ID muss eine UUID im Format xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx sein.",
+  };
+};
+
 export const validateBeforeSave = (p: {
   githubToken: string;
   expoToken: string;
@@ -82,22 +100,7 @@ export const validateBeforeSave = (p: {
     };
   }
 
-  const easProjectId = p.easProjectId?.trim() ?? "";
-  if (easProjectId) {
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        easProjectId,
-      );
-    if (!isUuid) {
-      return {
-        ok: false,
-        title: "Ungültige EAS Project ID",
-        message: "Die EAS Project ID muss eine UUID im Format xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx sein.",
-      };
-    }
-  }
-
-  return { ok: true };
+  return validateEasProjectId(p.easProjectId);
 };
 
 export const deriveSupabaseUrl = (raw: string): { projectId: string; url: string } => {

@@ -25,6 +25,7 @@ import { autoSyncRepoSecrets } from "../../../lib/autoSyncRepoSecrets";
 import { useGitHubRepos, GitHubRepo, WorkflowRun } from "../../../hooks/useGitHubRepos";
 import { combineRepos, splitFullName, isValidRepoName } from "../utils/repos";
 import { normalizeProjectFiles } from "../utils/projectFiles";
+import { validateEasProjectId } from "../../ConnectionsScreen/utils/validation";
 import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
 import type { TemplateId, CoreTemplateId, ProjectFile } from "../../../shared/types/project";
 
@@ -804,6 +805,12 @@ export function useGitHubReposScreen() {
     const id = (easProjectId || "").trim();
     if (!id) {
       Alert.alert("⚠️", "Bitte EAS Project ID setzen (AsyncStorage).");
+      return;
+    }
+
+    const idValidation = validateEasProjectId(id);
+    if (!idValidation.ok) {
+      Alert.alert(idValidation.title, idValidation.message);
       return;
     }
 
