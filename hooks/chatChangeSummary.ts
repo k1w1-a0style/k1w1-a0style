@@ -13,7 +13,7 @@ export function buildChangeConfirmationText(pendingChange: PendingChange): strin
   const provider = pendingChange.aiResponse?.provider || "unbekannt";
   const keysRotated = pendingChange.aiResponse?.keysRotated;
 
-  const { created, updated, skipped } = pendingChange;
+  const { created, updated, skipped, errors } = pendingChange;
 
   const summaryText =
     `🤖 Provider: ${provider}` +
@@ -21,7 +21,8 @@ export function buildChangeConfirmationText(pendingChange: PendingChange): strin
     `\n` +
     `🆕 Neue Dateien: ${created.length}\n` +
     `✏️ Geänderte Dateien: ${updated.length}\n` +
-    `⏭️ Übersprungen: ${skipped.length}`;
+    `⏭️ Übersprungen: ${skipped.length}\n` +
+    `🚫 Geblockt/Hinweise: ${errors?.length ?? 0}`;
 
   const lines: string[] = [];
   if (created.length) {
@@ -35,6 +36,13 @@ export function buildChangeConfirmationText(pendingChange: PendingChange): strin
   if (skipped.length) {
     lines.push("⏭️ Übersprungene Dateien:");
     skipped.forEach((p) => lines.push(`  • ${p}`));
+  }
+  if (errors?.length) {
+    lines.push("🚫 Geblockt/Hinweise:");
+    errors.slice(0, 6).forEach((entry) => lines.push(`  • ${entry}`));
+    if (errors.length > 6) {
+      lines.push(`  ... und ${errors.length - 6} weitere`);
+    }
   }
 
   const filesBlock = lines.length ? `\n\n📂 Details:\n${lines.join("\n")}` : "";

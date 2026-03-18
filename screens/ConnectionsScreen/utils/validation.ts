@@ -23,6 +23,7 @@ export const validateBeforeSave = (p: {
   edgeAdminKey: string;
   supabaseUrl: string;
   supabaseAnonKey: string;
+  easProjectId?: string;
 }): ValidationResult => {
   const gh = p.githubToken.trim();
   if (gh) {
@@ -81,6 +82,20 @@ export const validateBeforeSave = (p: {
     };
   }
 
+  const easProjectId = p.easProjectId?.trim() ?? "";
+  if (easProjectId) {
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        easProjectId,
+      );
+    if (!isUuid) {
+      return {
+        ok: false,
+        title: "Ungültige EAS Project ID",
+        message: "Die EAS Project ID muss eine UUID im Format xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx sein.",
+      };
+    }
+  }
 
   return { ok: true };
 };

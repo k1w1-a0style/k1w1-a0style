@@ -643,6 +643,7 @@ export function useChatAIFlow({
               created: mergeResult.created,
               updated: mergeResult.updated,
               skipped: mergeResult.skipped,
+              errors: mergeResult.errors,
               aiResponse: ai!,
               agentResponse: agentMeta ?? undefined,
             }),
@@ -732,6 +733,7 @@ export function useChatAIFlow({
         created: applyResult.created,
         updated: applyResult.updated,
         skipped: applyResult.skipped,
+        errors: applyResult.errors ?? pendingChange.errors,
       });
 
       addChatMessage({

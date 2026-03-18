@@ -316,6 +316,7 @@ export function useConnectionsScreen() {
       edgeAdminKey,
       supabaseUrl,
       supabaseAnonKey,
+      easProjectId,
     });
     if (!v.ok) {
       Alert.alert(v.title, v.message);
