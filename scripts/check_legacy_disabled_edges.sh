@@ -23,7 +23,7 @@ legacy=(
 
 for fn in "${legacy[@]}"; do
   require_fixed "$CONFIG" "[functions.${fn}]"
-  python - "$CONFIG" "$fn" <<'PY'
+  python3 - "$CONFIG" "$fn" <<'PY'
 from pathlib import Path
 import sys
 cfg = Path(sys.argv[1]).read_text().splitlines()
