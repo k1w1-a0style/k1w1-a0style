@@ -14,6 +14,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 487: zweite AI-Flow-Welle konservativ abgeschlossen — produktive Chat-Input-Validierung mit Sanitizing aktiviert, deterministisches Prompt-Budget/Context-Trimming für Planner/Builder/Validator eingeführt, Confirm-Modal auf kompakte Inhaltsdeltas umgestellt und Validator-Herkunft/Fallback im UX als advisory transparent gemacht; fokussierte Jest-Regressionen ergänzt.
 - Patch 486: CI-Lite-Header hydriert jetzt konservativ aus passender Persistenz (Repo/Branch/SHA/Freshness geprüft), bleibt bei fachlich fremden/veralteten Ständen neutral und trennt Workflow-/Run-Fehler im Modal sichtbar von Artifact-/Nachzug-Problemen; Reopen zeigt den letzten plausiblen Abschluss ohne Redispatch.
 - Patch 485: CI-Lite-Tracking/Status-UI sauber entkoppelt — Header-Tap öffnet nur noch das Modal, neue CI-Lite-/Autofix-Runs starten ausschließlich über explizite Modal-CTAs, laufendes Polling/Log-Following bleibt bei geschlossenem Modal aktiv und Reopen zeigt den bestehenden Zustand ohne Redispatch.
 - Patch 476: UX-/Flow-Consistency zwischen Connections/Repo/Build konservativ nachgeschärft — Build-Gates zeigen konsistent auf den GitHub-Repos-Screen, Secret-Sync-Kommunikation spiegelt den real app-verwalteten Umfang inkl. manueller Production-Grenze (Service-Role-Key) ehrlich wider, und die EAS-Rollen sind sprachlich klar getrennt (Connections: Token/ID, Repo: EAS-Link/Workflow im Ziel-Repo).

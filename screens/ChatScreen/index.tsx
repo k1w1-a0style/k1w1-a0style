@@ -145,7 +145,7 @@ const ChatScreen: React.FC = () => {
 
         <ConfirmChangesModal
           visible={showConfirmModal}
-          summary={pendingChange?.summary ?? ""}
+          pendingChange={pendingChange}
           onAccept={applyChanges}
           onReject={rejectChanges}
         />

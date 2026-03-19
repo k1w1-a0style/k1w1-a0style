@@ -14,11 +14,13 @@ export function buildChangeConfirmationText(pendingChange: PendingChange): strin
   const keysRotated = pendingChange.aiResponse?.keysRotated;
 
   const { created, updated, skipped, errors } = pendingChange;
+  const sourceSummary = pendingChange.sourceSummary ?? "Dateiliste stammt aus dem Builder-Flow.";
 
   const summaryText =
     `🤖 Provider: ${provider}` +
     (keysRotated ? ` (${keysRotated}x Key-Rotation)` : "") +
     `\n` +
+    `🧠 Quelle: ${sourceSummary}\n` +
     `🆕 Neue Dateien: ${created.length}\n` +
     `✏️ Geänderte Dateien: ${updated.length}\n` +
     `⏭️ Übersprungen: ${skipped.length}\n` +
