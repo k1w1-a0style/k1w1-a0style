@@ -28,10 +28,12 @@ describe("CI Lite Header workflow invariants", () => {
     expect(workflowType).toContain("head_sha?: string;");
   });
 
-  it("keeps branch-based CI-Lite chain coupling explicit and documented", () => {
+  it("keeps CI-Lite chain coupling explicit and prefers source head_sha before title markers", () => {
     const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
 
-    expect(src).toContain("findRunByJobId({ githubRepo, branch: b, jobId, workflow: WORKFLOW_CI_LITE })");
+    expect(src).toContain("sourceHeadSha: workflowRun.head_sha ?? null");
+    expect(src).toContain("requireJobIdMarker: false");
+    expect(src).toContain("Manual workflow_dispatch still requires the explicit job_id marker");
     expect(src).toContain("Autofix-Chain ausgelöst, aber kein frischer passender CI-Lite-Run gefunden (Timeout)");
   });
 
