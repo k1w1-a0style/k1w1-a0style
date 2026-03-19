@@ -1,4 +1,4 @@
-import { buildBuilderMessages } from "../lib/promptEngine";
+import { buildBuilderMessages, buildProjectSnapshot } from "../lib/promptEngine";
 import type { ProjectFile } from "../shared/types/project";
 
 describe("promptEngine context prioritization", () => {
@@ -19,5 +19,21 @@ describe("promptEngine context prioritization", () => {
     expect(idxIrrelevant).toBeGreaterThan(-1);
     expect(idxNormalizer).toBeLessThan(idxIrrelevant);
     expect(snapshot).toContain("relevance=");
+  });
+
+  it("appends a complete sorted path list after the truncated snapshot", () => {
+    const files: ProjectFile[] = Array.from({ length: 31 }, (_, idx) => ({
+      path: `src/file-${String(31 - idx).padStart(2, "0")}.ts`,
+      content: `export const file${idx} = ${idx};`,
+    }));
+
+    const snapshot = buildProjectSnapshot(files, "");
+    const pathList = snapshot.split("Vollständige Projektpfade (sortiert):\n")[1] ?? "";
+
+    expect(snapshot).toContain("Ausschnitt der aktuellen Projektdateien (gekürzt):");
+    expect(snapshot).toContain("Vollständige Projektpfade (sortiert):");
+    expect(pathList).toContain("src/file-01.ts");
+    expect(pathList).toContain("src/file-31.ts");
+    expect(pathList.indexOf("src/file-01.ts")).toBeLessThan(pathList.indexOf("src/file-31.ts"));
   });
 });
