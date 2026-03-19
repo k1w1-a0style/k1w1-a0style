@@ -24,7 +24,7 @@ inputs:
   allowed_ref_regex:
     description: Bash regex for allowed refs (defense against injection)
     required: false
-    default: "^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$"
+    default: "^(work|codex|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
 
 outputs:
   checkout_ref:

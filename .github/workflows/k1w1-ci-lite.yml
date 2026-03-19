@@ -47,7 +47,6 @@ jobs:
           input_ref: ${{ inputs.ref || '' }}
           github_ref_name: ${{ github.ref_name || '' }}
           default_ref: work
-          allowed_ref_regex: "^(work|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
 
       - name: Export run metadata
         shell: bash

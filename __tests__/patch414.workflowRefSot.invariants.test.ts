@@ -127,6 +127,27 @@ const extractTemplateContent = (jsonSrc: string, workflowPath: string) => {
   return entries.find((entry) => entry.path === workflowPath)?.content ?? "";
 };
 
+const extractYamlInputDefault = (src: string, inputName: string) => {
+  const header = `${inputName}:`;
+  const start = src.indexOf(header);
+  if (start === -1) return "";
+
+  const match = src.slice(start).match(/default: "([^"]+)"/);
+  return match?.[1] ?? "";
+};
+
+const parseAllowedBranchRegex = (src: string) => {
+  const pattern = extractYamlInputDefault(src, "allowed_ref_regex");
+  expect(pattern).toBeTruthy();
+  return new RegExp(pattern);
+};
+
+const isGuardedCiLiteBranch = (branch: string, allowed: RegExp) =>
+  Boolean(branch) &&
+  !/^[0-9a-fA-F]{7,40}$/.test(branch) &&
+  !/[ :]/.test(branch) &&
+  allowed.test(branch);
+
 const expectExplicitRefContract = (src: string) => {
   expect(src).toContain("required: true");
   expect(src).not.toContain("github.ref_name");
@@ -207,6 +228,33 @@ describe("Patch 414 workflow ref SoT invariants", () => {
     expect(tsEas).toContain('process.env.WORKFLOW_REF || "",');
     expect(baseEas).toContain('process.env.WORKFLOW_REF || "",');
     expect(fullEas).toContain('process.env.WORKFLOW_REF || "",');
+  });
+
+  it("centralizes the CI Lite branch allowlist through determine-ref", () => {
+    const determineRef = read(".github/actions/determine-ref/action.yml");
+    const ciLite = read(".github/workflows/k1w1-ci-lite.yml");
+    const autofix = read(".github/workflows/k1w1-ci-lite-autofix.yml");
+
+    expect(extractYamlInputDefault(determineRef, "allowed_ref_regex")).toBe(
+      "^(work|codex|main|dev|develop|release/.+|feature/.+|hotfix/.+)$",
+    );
+    expect(ciLite).toContain("uses: ./.github/actions/determine-ref");
+    expect(ciLite).not.toContain("allowed_ref_regex:");
+    expect(autofix).toContain("- name: Determine target branch");
+    expect(autofix).toContain("uses: ./.github/actions/determine-ref");
+    expect(autofix).not.toContain("ALLOWED_REF_REGEX");
+  });
+
+  it("accepts codex while continuing to block unsafe CI Lite refs", () => {
+    const determineRef = read(".github/actions/determine-ref/action.yml");
+    const allowed = parseAllowedBranchRegex(determineRef);
+
+    expect(allowed.test("codex")).toBe(true);
+    expect(isGuardedCiLiteBranch("codex", allowed)).toBe(true);
+
+    expect(allowed.test("refs/pull/1/head")).toBe(false);
+    expect(isGuardedCiLiteBranch("main:evil", allowed)).toBe(false);
+    expect(isGuardedCiLiteBranch("deadbeef", allowed)).toBe(false);
   });
 
   it("documents CI Lite as a branch-oriented exception instead of a ref-only path", () => {
