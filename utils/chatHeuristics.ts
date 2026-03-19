@@ -32,29 +32,53 @@ export const looksLikeAdviceRequest = (s: string): boolean => {
   return /\b(vorschlag|vorschläge|ideen|review|analyse|bewerte|feedback|verbesserungsvorschläge)\b/i.test(t);
 };
 
+const hasConcreteImplementationScope = (raw: string, normalized: string): boolean => {
+  const hasQuotedIdentifier = /[„“"'][^„“"'`]{2,}[„“"']/.test(raw);
+  const hasNamedUiTarget =
+    /\b[A-Z][A-Za-z0-9]+(Screen|Modal|Button|Banner|Card|List|Item|Header|Footer|Hook|View)\b/.test(raw);
+  const hasScopedTarget =
+    /\b(button|toggle|modal|dialog|sheet|header|footer|banner|badge|card|liste|list|flatlist|screen|seite|view|komponente|component|hook|funktion|state|zustand|icon|farbe|theme|input|formular|field|toolbar|tab|route|stack|composer)\b/.test(
+      normalized,
+    );
+  const hasLocationCue = /\b(in|im|ins|auf|am|bei|unter|für)\b/.test(normalized);
+  const hasDirectScopedObject =
+    /\b(den|die|das|dem|der|des|einen|eine|einem|einer|mein|meine|meinen|unser|unsere)\s+(button|toggle|modal|dialog|sheet|header|footer|banner|badge|card|liste|list|flatlist|screen|seite|view|komponente|component|hook|funktion|state|zustand|icon|farbe|theme|input|formular|field|toolbar|tab|route|stack|composer)\b/.test(
+      normalized,
+    );
+
+  return hasQuotedIdentifier || hasNamedUiTarget || (hasScopedTarget && (hasLocationCue || hasDirectScopedObject));
+};
+
 /**
  * Erkennt mehrdeutige Builder-Requests die einen Planner-Call benötigen
  */
 export const looksAmbiguousBuilderRequest = (s: string): boolean => {
   const t = String(s || '').trim();
   if (!t) return false;
+  const normalized = t
+    .toLowerCase()
+    .replace(/[„“”"'`´]/g, "")
+    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
   const genericVerb =
-    /\b(baue|bauen|erstelle|erstellen|mach|mache|implementiere|füge hinzu|erweitere|optimiere|korrigiere|fix|repariere|prüfe|checke|verbessere)\b/i.test(
-      t,
+    /\b(baue|bauen|erstelle|erstellen|mach|mache|implementiere|fuge hinzu|füge hinzu|erweitere|optimiere|korrigiere|fix|repariere|prufe|prüfe|checke|verbessere)\b/.test(
+      normalized,
     );
 
   if (looksLikeAdviceRequest(t)) return true;
   if (!genericVerb) return false;
   if (looksLikeExplicitFileTask(t)) return false;
+  if (hasConcreteImplementationScope(t, normalized)) return false;
 
-  const wc = t.split(/\s+/).filter(Boolean).length;
+  const wc = normalized.split(/\s+/).filter(Boolean).length;
   if (wc <= 12) return true;
-  if (/\b(alles|komplett|gesamt|überall)\b/i.test(t)) return true;
+  if (/\b(alles|komplett|gesamt|uberall|überall)\b/.test(normalized)) return true;
 
   const hasConcreteNouns =
-    /\b(playlist|id3|download|login|auth|api|cache|offline|sync|player|ui|screen|settings|github|terminal|orchestrator|prompt|normalizer)\b/i.test(
-      t,
+    /\b(playlist|id3|download|login|auth|api|cache|offline|sync|player|ui|screen|settings|github|terminal|orchestrator|prompt|normalizer)\b/.test(
+      normalized,
     );
 
   return !hasConcreteNouns;

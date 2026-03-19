@@ -25,6 +25,7 @@ import { autoSyncRepoSecrets } from "../../../lib/autoSyncRepoSecrets";
 import { useGitHubRepos, GitHubRepo, WorkflowRun } from "../../../hooks/useGitHubRepos";
 import { combineRepos, splitFullName, isValidRepoName } from "../utils/repos";
 import { normalizeProjectFiles } from "../utils/projectFiles";
+import { validateEasProjectId } from "../../ConnectionsScreen/utils/validation";
 import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
 import type { TemplateId, CoreTemplateId, ProjectFile } from "../../../shared/types/project";
 
@@ -144,7 +145,7 @@ export function useGitHubReposScreen() {
 
   const [easProjectId, setEasProjectId] = useState<string>("");
   const [isEasLinking, setIsEasLinking] = useState(false);
-  const [easLinkStatus, setEasLinkStatus] = useState<"unknown" | "ok" | "missing">("unknown");
+  const [easLinkStatus, setEasLinkStatus] = useState<"unknown" | "ok" | "workflow_missing" | "project_missing" | "project_invalid">("unknown");
 
   // Manage Modal (used for branch operations)
   type ManageModalConfig = {
@@ -156,6 +157,7 @@ export function useGitHubReposScreen() {
   };
   const [manageModal, setManageModal] = useState<ManageModalConfig | null>(null);
   const [manageValue, setManageValue] = useState("");
+  const [manageBusy, setManageBusy] = useState(false);
 
   const openManageModal = useCallback((cfg: ManageModalConfig) => {
     setManageModal(cfg);
@@ -314,6 +316,7 @@ export function useGitHubReposScreen() {
   const handleSelectRepo = useCallback((repoOrString: GitHubRepo | string) => {
   const fullName =
     typeof repoOrString === "string" ? repoOrString : repoOrString.full_name;
+  const selectionGen = ++selectRepoGen.current;
 
   // Prefer default branch from the repo list payload (fast), fallback to API if needed.
   const defaultBranch: string | null =
@@ -343,13 +346,12 @@ export function useGitHubReposScreen() {
     const parsed = splitFullName(fullName);
     if (!parsed) return;
 
-    const gen = ++selectRepoGen.current;
     loadDefaultBranch(parsed.owner, parsed.repo)
       .then((b) => String(b || "").trim())
       .then((b) => {
         if (!b) return;
         if (!isMountedRef.current) return;
-        if (gen !== selectRepoGen.current) return;
+        if (selectionGen !== selectRepoGen.current) return;
         setActiveBranch(b);
         setLinkedRepo(fullName, b);
       })
@@ -358,6 +360,17 @@ export function useGitHubReposScreen() {
       });
   }
 }, [setActiveRepo, addRecentRepo, setLinkedRepo, setActiveBranch, loadDefaultBranch]);
+
+  const confirmManageModal = useCallback(async () => {
+    if (!manageModal || manageBusy) return;
+
+    setManageBusy(true);
+    try {
+      await manageModal.action(manageValue);
+    } finally {
+      setManageBusy(false);
+    }
+  }, [manageModal, manageBusy, manageValue]);
 
   const rememberRecentBranch = useCallback(async (repoFullName: string, branch: string) => {
     try {
@@ -776,15 +789,19 @@ export function useGitHubReposScreen() {
         repoProjectId = String(parsedJson?.projectId || "").trim();
       } catch (e: any) {
         if (isNotFoundError(e)) {
-          setEasLinkStatus("missing");
+          setEasLinkStatus("project_missing");
+          return;
+        }
+        if (e instanceof SyntaxError) {
+          setEasLinkStatus("project_invalid");
           return;
         }
         throw e;
       }
 
-      setEasLinkStatus(repoProjectId ? "ok" : "missing");
+      setEasLinkStatus(repoProjectId ? "ok" : "project_invalid");
     } catch (e: any) {
-      if (isNotFoundError(e)) setEasLinkStatus("missing");
+      if (isNotFoundError(e)) setEasLinkStatus("workflow_missing");
       else setEasLinkStatus("unknown");
     }
   }, [activeRepo, activeBranch]);
@@ -800,6 +817,12 @@ export function useGitHubReposScreen() {
     const id = (easProjectId || "").trim();
     if (!id) {
       Alert.alert("⚠️", "Bitte EAS Project ID setzen (AsyncStorage).");
+      return;
+    }
+
+    const idValidation = validateEasProjectId(id);
+    if (!idValidation.ok) {
+      Alert.alert(idValidation.title, idValidation.message);
       return;
     }
 
@@ -1025,7 +1048,9 @@ export function useGitHubReposScreen() {
     // manage modal
     manageModal,
     manageValue,
+    manageBusy,
     setManageValue,
     closeManageModal,
+    confirmManageModal,
   };
 }

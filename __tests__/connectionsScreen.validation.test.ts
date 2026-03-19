@@ -74,6 +74,31 @@ describe("ConnectionsScreen validation", () => {
     expect(res.ok).toBe(true);
   });
 
+
+  test("validateBeforeSave rejects malformed EAS project id", () => {
+    const res = validateBeforeSave({
+      githubToken: "",
+      expoToken: "",
+      edgeAdminKey: "",
+      supabaseUrl: "",
+      supabaseAnonKey: "",
+      easProjectId: "not-a-uuid",
+    });
+    expect(res.ok).toBe(false);
+  });
+
+  test("validateBeforeSave accepts UUID-like EAS project id", () => {
+    const res = validateBeforeSave({
+      githubToken: "",
+      expoToken: "",
+      edgeAdminKey: "",
+      supabaseUrl: "",
+      supabaseAnonKey: "",
+      easProjectId: "5e5a7791-8751-416b-9a1f-831adfffcb6c",
+    });
+    expect(res.ok).toBe(true);
+  });
+
   test("safeAlertText redacts secrets and truncates", () => {
     const msg =
       "Authorization: Bearer abcdefghijklmnopqrstuvwxyz012345 " +

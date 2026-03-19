@@ -116,8 +116,10 @@ export default function GitHubReposScreen() {
 
     manageModal,
     manageValue,
+    manageBusy,
     setManageValue,
     closeManageModal,
+    confirmManageModal,
 
     // EAS link
     easProjectId,
@@ -270,17 +272,25 @@ export default function GitHubReposScreen() {
                 style={[
                   s.chip,
                   easLinkStatus === "ok" ? s.chipActive : null,
-                  easLinkStatus === "missing" ? { borderColor: theme.palette.error } : null,
+                  easLinkStatus !== "ok" && easLinkStatus !== "unknown" ? { borderColor: theme.palette.error } : null,
                 ]}
               >
                 <Text
                   style={[
                     s.chipText,
                     easLinkStatus === "ok" ? s.chipTextActive : null,
-                    easLinkStatus === "missing" ? { color: theme.palette.error } : null,
+                    easLinkStatus !== "ok" && easLinkStatus !== "unknown" ? { color: theme.palette.error } : null,
                   ]}
                 >
-                  {easLinkStatus === "ok" ? "OK" : easLinkStatus === "missing" ? "Fehlt" : "Unbekannt"}
+                  {easLinkStatus === "ok"
+                    ? "OK"
+                    : easLinkStatus === "workflow_missing"
+                      ? "Workflow fehlt"
+                      : easLinkStatus === "project_missing"
+                        ? "Project fehlt"
+                        : easLinkStatus === "project_invalid"
+                          ? "Project ungültig"
+                          : "Unbekannt"}
                 </Text>
               </View>
 
@@ -379,7 +389,7 @@ export default function GitHubReposScreen() {
       <LocalRemoteDiffSection
         activeRepo={activeRepo}
         activeBranch={activeBranch}
-        projectFiles={projectFiles as any}
+        projectFiles={projectFiles}
       />
 
       <ManageTextModal
@@ -391,13 +401,13 @@ export default function GitHubReposScreen() {
         setValue={setManageValue}
         onCancel={closeManageModal}
         onConfirm={async () => {
-          if (!manageModal) return;
           try {
-            await manageModal.action(manageValue);
+            await confirmManageModal();
           } catch (e: any) {
             Alert.alert("❌", e?.message ?? "Aktion fehlgeschlagen");
           }
         }}
+        busy={manageBusy}
       />
     </>
   );

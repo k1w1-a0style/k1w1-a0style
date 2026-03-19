@@ -32,6 +32,7 @@ import {
   deriveSupabaseUrl,
   safeAlertText,
   validateBeforeSave,
+  validateEasProjectId,
 } from "../utils/validation";
 
 import { debugLog } from "../../../lib/debugOverlay";
@@ -316,6 +317,7 @@ export function useConnectionsScreen() {
       edgeAdminKey,
       supabaseUrl,
       supabaseAnonKey,
+      easProjectId,
     });
     if (!v.ok) {
       Alert.alert(v.title, v.message);
@@ -648,6 +650,11 @@ Scopes: ${scopes}` : ""}`);
     }
 
     const easId = easProjectId.trim();
+    const easValidation = validateEasProjectId(easId);
+    if (!easValidation.ok) {
+      Alert.alert(easValidation.title, easValidation.message);
+      return;
+    }
 
     const runLink = async (projectId: string) => {
       setIsEasInitRunning(true);

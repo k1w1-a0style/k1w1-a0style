@@ -4,17 +4,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { BuildProfile } from "../types";
 import { getExpoToken, getGitHubToken } from "../../../infra/github/githubService";
 import {
-  STORAGE_KEYS,
   credKeyForProfile,
   credKeyForProjectUiMode,
-  diagnosticLastOkKeyForSelection,
   resolveProjectCredentialScope,
 } from "../../../lib/storageKeys";
-
-/**
- * Centralized precondition checks for Build Screen.
- */
-const CI_LITE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+import { readBuildReadinessState } from "./buildReadinessState";
 
 export function useBuildPreconditions(
   buildProfile: BuildProfile,
@@ -64,53 +58,16 @@ export function useBuildPreconditions(
       const val = scopedVal ?? (scopedKey !== legacyKey ? await AsyncStorage.getItem(legacyKey).catch(() => null) : null);
       if (isMountedRef.current) setHasSigningKey(val === "true");
 
-      // Diagnostic (repo/branch-scoped with legacy fallback)
-      const scopedDiagnosticKey = diagnosticLastOkKeyForSelection({
-        linkedRepo: repoFullName,
-        linkedBranch: branchName,
+      const readiness = await readBuildReadinessState({
+        repoFullName,
+        branchName,
       });
-      const [diagScopedVal, diagLegacyVal] = await Promise.all([
-        AsyncStorage.getItem(scopedDiagnosticKey).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null),
-      ]);
-      const diagVal = diagScopedVal ?? diagLegacyVal;
-      if (isMountedRef.current) setHasDiagOk(diagVal === "true");
-
-      // CI Lite must match current repo + branch and must not be stale.
-      const [lintOk, typeOk, lastRepo, lastBranch, lastRunAt] = await Promise.all([
-        AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_LINT_OK).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_TYPECHECK_OK).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_LAST_REPO).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_LAST_BRANCH).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CI_LITE_LAST_RUN_AT).catch(() => null),
-      ] as const);
-
-      const repoMatches = (lastRepo ?? "").trim() === (repoFullName ?? "").trim();
-      const branchMatches = (lastBranch ?? "").trim() === (branchName ?? "").trim();
-      const runTs = Number(lastRunAt ?? "");
-      const stale = !Number.isFinite(runTs) || runTs <= 0 || Date.now() - runTs > CI_LITE_MAX_AGE_MS;
-
-      let reason: string | null = null;
-      if (lintOk !== "true" || typeOk !== "true") {
-        reason = "CI Lite ist nicht grün (Lint/Typecheck).";
-      } else if (!repoMatches) {
-        reason = "Letzter CI-Lite-Run gehört zu einem anderen Repo.";
-      } else if (!branchMatches) {
-        reason = "Letzter CI-Lite-Run gehört zu einem anderen Branch.";
-      } else if (stale) {
-        reason = "Letzter CI-Lite-Run ist veraltet. Bitte erneut prüfen.";
-      }
 
       if (isMountedRef.current) {
-        setHasCiLiteOk(
-          lintOk === "true" &&
-          typeOk === "true" &&
-          repoMatches &&
-          branchMatches &&
-          !stale,
-        );
-        setCiLiteReason(reason);
-        setCiLiteStale(stale);
+        setHasDiagOk(readiness.hasDiagOk);
+        setHasCiLiteOk(readiness.hasCiLiteOk);
+        setCiLiteReason(readiness.ciLiteReason);
+        setCiLiteStale(readiness.ciLiteStale);
       }
     } catch {
       // ignore
