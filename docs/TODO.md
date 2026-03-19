@@ -1,3 +1,4 @@
+- [x] Patch 483 (2026-03-19): Schritt-8-Block eng verifiziert — bestätigt waren nur G2 (Selection-Race bei asynchroner Default-Branch-Auflösung) und G3 (regressiertes Busy-Wiring im Branch-Manage-Modal); G6/G7/G8 wurden im aktuellen Stand nicht bestätigt.
 - [x] Patch 482 (2026-03-18): Schritt-6-Block eng verifiziert — E8/E9 sind im aktuellen Build-Start-Flow bereits sauber durch Gate + Service-Delegation abgedeckt, N7/S7 bleiben mangels belegbarem aktuellem Fund nicht bestätigt, und der einzig bestätigte E3-Rest wurde minimal als UX-Hinweis nachgezogen: Fehlt der GitHub-Scopes-Header, zeigt die Connections-Card keinen irreführenden „unknown“-Badge mehr.
 - [x] Patch 481 (2026-03-18): Schritt-5-Restpunkt B6 minimal geschlossen — Build-Screen und One-Click-Deploy prüfen CI-Lite jetzt auch gegen den zuletzt grünen SHA und den aktuellen Branch-HEAD, damit die UI keinen falschen grünen Zustand mehr zeigt, wenn der eigentliche Build-Start wegen SHA-Mismatch blockiert wäre; S10/E5/E6/E7 wurden im aktuellen Stand erneut geprüft und nicht künstlich wieder geöffnet.
 - [x] Patch 480 (2026-03-18): PR-307-Nachkorrektur sauber abgeschlossen — Doku-/Patchstand auf denselben Abschlussstand gezogen; fachlich bleibt Patch 480 bewusst eng: ungültige manuelle EAS Project IDs werden vor Save und vor den vorhandenen Link-Pfaden geblockt, und Ownership-/Blocker-Gründe bleiben nach Apply sichtbar; N6/K8/K9 weiterhin nicht bestätigt.
@@ -19,7 +20,7 @@
 
 # TODO
 
-Stand: **2026-03-18 (Patch 481)**
+Stand: **2026-03-19 (Patch 483)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
