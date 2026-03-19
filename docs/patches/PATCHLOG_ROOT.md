@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 490: CredentialsWizard-Trust-/Safety-/Status-Härtung — Wizard-Zustände unterscheiden jetzt ehrlich zwischen `verified`, `missing`, `unknown`, `auth_error`, `generated_pending_verification` und laufenden Busy-Aktionen; Generate bleibt bis zur echten Nachverifikation pending, Refresh/Recheck verfälscht Auth-/temporäre Fehler nicht mehr zu "fehlt", und ein gemeinsamer Busy-Guard blockiert widersprüchliche Parallelaktionen.
 - Patch 489: Preview-/Server-Contract minimal gehärtet — Remote-Preview, lokaler HTML-Fallback, unavailable/loading/failure und unsichere/ungültige Remote-URLs werden jetzt über einen gemeinsamen Preview-Status ehrlich unterschieden; lokale Fallbacks bleiben nutzbar, erscheinen aber nicht mehr als „grüne“ Server-Preview, und die Preview-WebViews laufen mit engerem Mixed-Content-Setting.
 - Patch 488: gemeinsamer `verificationContract` vereinheitlicht Secret-/EAS-/Readiness-Semantik über ConnectionsScreen, Build-Readiness und Diagnostics; Auth/Permission/Unknown/Stale werden nicht mehr als „fehlt“ verfälscht, inklusive gezielter Jest-Regressionen.
 - Patch 487: zweite AI-Flow-Welle konservativ abgeschlossen — produktive Chat-Input-Validierung mit Sanitizing aktiviert, deterministisches Prompt-Budget/Context-Trimming für Planner/Builder/Validator eingeführt, Confirm-Modal auf kompakte Inhaltsdeltas umgestellt und Validator-Herkunft/Fallback im UX als advisory transparent gemacht; fokussierte Jest-Regressionen ergänzt.
