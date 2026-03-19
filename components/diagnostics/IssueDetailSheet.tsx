@@ -23,6 +23,7 @@ export type IssueDetail = {
   severity: Severity;
   hasFix: boolean;
   fixLabel?: string;
+  previewAvailable?: boolean;
 };
 
 export function IssueDetailSheet({
@@ -123,14 +124,16 @@ export function IssueDetailSheet({
                 <Text style={styles.primaryText}>{issue.fixLabel || "Auto-Fix anwenden"}</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.secondaryBtn, busy && { opacity: 0.6 }]}
-                onPress={onPreview}
-                disabled={!!busy}
-              >
-                <Ionicons name="eye" size={16} color={theme.palette.text.primary} />
-                <Text style={styles.secondaryText}>Patch Vorschau</Text>
-              </TouchableOpacity>
+              {issue?.previewAvailable ? (
+                <TouchableOpacity
+                  style={[styles.secondaryBtn, busy && { opacity: 0.6 }]}
+                  onPress={onPreview}
+                  disabled={!!busy}
+                >
+                  <Ionicons name="eye" size={16} color={theme.palette.text.primary} />
+                  <Text style={styles.secondaryText}>Patch Vorschau</Text>
+                </TouchableOpacity>
+              ) : null}
 
               <TouchableOpacity
                 style={[styles.secondaryBtn, busy && { opacity: 0.6 }]}
@@ -162,4 +165,3 @@ export function IssueDetailSheet({
     </Modal>
   );
 }
-

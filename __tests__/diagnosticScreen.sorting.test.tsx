@@ -39,6 +39,7 @@ jest.mock("../screens/DiagnosticScreen/hooks/useDiagnosticScreen", () => ({
     results: [
       { id: "pass", title: "pass item", status: "pass" },
       { id: "warn", title: "warn item", status: "warn" },
+      { id: "workflow", title: "workflow item", status: "fail", fix: { workflowDispatch: { workflowFileName: "eas-link.yml" } } },
       { id: "fail", title: "fail item", status: "fail", fix: { patch: { upsert: [] } } },
     ],
     setReportVisible: jest.fn(),
@@ -64,13 +65,14 @@ describe("DiagnosticScreen checklist sorting", () => {
   test("renders fail before warn before pass", () => {
     const { getAllByText } = render(<DiagnosticScreen />);
     const titles = getAllByText(/ item$/).map((node) => String(node.props.children));
-    expect(titles).toEqual(["fail item", "warn item", "pass item"]);
+    expect(titles).toEqual(["workflow item", "fail item", "warn item", "pass item"]);
   });
 
   test("does not show KI-Fix hint for pass items", () => {
     const { queryAllByText } = render(<DiagnosticScreen />);
-    expect(queryAllByText("KI-Fix verfuegbar")).toHaveLength(1);
-    expect(queryAllByText("Auto-Fix verfuegbar")).toHaveLength(1);
+    expect(queryAllByText("KI-Fix verfügbar")).toHaveLength(1);
+    expect(queryAllByText("Patch-Fix verfügbar")).toHaveLength(1);
+    expect(queryAllByText("Workflow-Fix verfügbar")).toHaveLength(1);
   });
 
 });
