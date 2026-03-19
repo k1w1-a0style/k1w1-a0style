@@ -83,8 +83,10 @@ describe("CiLiteHeaderButton behavior", () => {
       busy: false,
       isAutofix: false,
       showError: "",
+      artifactNotice: "",
       logsLoading: false,
       runMeta: null,
+      hydratedFromPersistence: false,
       stopPolling: jest.fn(),
       ...overrides,
     };
@@ -127,5 +129,40 @@ describe("CiLiteHeaderButton behavior", () => {
     fireEvent.press(getByLabelText("CI Lite Autofix starten"));
 
     expect(dispatchWorkflow).not.toHaveBeenCalled();
+  });
+
+  it("shows artifactError visibly in the modal", () => {
+    mockUseCiLiteWorkflow.mockReturnValue(
+      buildWorkflowState({
+        visible: true,
+        artifactNotice: "Workflow war erfolgreich, aber das Ergebnis-Artefakt konnte nicht geladen werden. Bitte Run öffnen oder erneut starten.",
+        done: true,
+        ok: true,
+      }),
+    );
+
+    const { getByText } = render(<CiLiteHeaderButton />);
+
+    expect(getByText("Artifact-/Nachzug-Problem")).toBeTruthy();
+    expect(getByText(/Ergebnis-Artefakt konnte nicht geladen werden/i)).toBeTruthy();
+  });
+
+  it("distinguishes workflow/run failures from artifact/backchannel problems in the UI", () => {
+    mockUseCiLiteWorkflow.mockReturnValue(
+      buildWorkflowState({
+        visible: true,
+        showError: "Workflow failed (failure). Open the run for details.",
+        artifactNotice: "Zusätzliche Ergebnisdaten zum Run konnten nicht geladen werden. Bitte Run öffnen oder erneut starten.",
+        done: true,
+        ok: false,
+      }),
+    );
+
+    const { getByText } = render(<CiLiteHeaderButton />);
+
+    expect(getByText("Workflow-/Run-Problem")).toBeTruthy();
+    expect(getByText("Artifact-/Nachzug-Problem")).toBeTruthy();
+    expect(getByText(/Workflow failed/i)).toBeTruthy();
+    expect(getByText(/Zusätzliche Ergebnisdaten zum Run konnten nicht geladen werden/i)).toBeTruthy();
   });
 });

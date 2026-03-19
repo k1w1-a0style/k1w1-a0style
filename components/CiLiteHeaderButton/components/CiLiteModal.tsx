@@ -29,6 +29,7 @@ interface CiLiteModalProps {
   done: boolean;
   ok: boolean;
   showError: string;
+  artifactNotice: string;
 
   // Meta
   githubRepo: string;
@@ -37,6 +38,7 @@ interface CiLiteModalProps {
   jobId: string | null;
   stepInfo: { lint: StepState; typecheck: StepState };
   runMeta: RunMeta | null;
+  hydratedFromPersistence: boolean;
 
   // Logs
   onlyErrors: string[];
@@ -70,8 +72,8 @@ interface CiLiteModalProps {
 
 export function CiLiteModal(props: CiLiteModalProps) {
   const {
-    visible, onClose, isAutofix, statusText, statusLamp, busy, done, ok, showError,
-    githubRepo, targetRef, branch, jobId, stepInfo, runMeta,
+    visible, onClose, isAutofix, statusText, statusLamp, busy, done, ok, showError, artifactNotice,
+    githubRepo, targetRef, branch, jobId, stepInfo, runMeta, hydratedFromPersistence,
     onlyErrors,
     progressAnim, shimmerAnim, progressPctClamped, progressLabel,
     patchPanelOpen, patchText, onChangePatchText, patchBusy, patchInfo,
@@ -133,6 +135,10 @@ export function CiLiteModal(props: CiLiteModalProps) {
               </View>
             </View>
 
+            {hydratedFromPersistence ? (
+              <Text style={styles.persistedHint}>Zuletzt bekannter Abschluss aus passender Persistenz.</Text>
+            ) : null}
+
             {runMeta ? (
               <View style={styles.runMetaRow}>
                 <Text style={styles.metaLine} numberOfLines={1}>
@@ -146,7 +152,20 @@ export function CiLiteModal(props: CiLiteModalProps) {
           {showError ? (
             <View style={styles.errorBox}>
               <Ionicons name="alert-circle" size={16} color={theme.palette.error} />
-              <Text style={styles.errorText}>{showError}</Text>
+              <View style={styles.messageTextWrap}>
+                <Text style={styles.errorTitle}>Workflow-/Run-Problem</Text>
+                <Text style={styles.errorText}>{showError}</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {artifactNotice ? (
+            <View style={styles.warningBox}>
+              <Ionicons name="warning" size={16} color={theme.palette.warning} />
+              <View style={styles.messageTextWrap}>
+                <Text style={styles.warningTitle}>Artifact-/Nachzug-Problem</Text>
+                <Text style={styles.warningText}>{artifactNotice}</Text>
+              </View>
             </View>
           ) : null}
 
