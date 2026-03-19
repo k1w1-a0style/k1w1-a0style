@@ -31,9 +31,10 @@ describe('Validators', () => {
       });
     });
 
-    it('sollte "src/index.js" ablehnen (Policy: kein src/)', () => {
+    it('sollte "src/index.js" akzeptieren (Policy: src/ ist erlaubt)', () => {
       const result = validateFilePath('src/index.js');
-      expect(result.valid).toBe(false);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
     });
 
     it('sollte sehr tiefe Pfade ablehnen (Policy abhängig)', () => {

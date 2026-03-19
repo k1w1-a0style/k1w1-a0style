@@ -26,6 +26,7 @@ import { useGitHubRepos, GitHubRepo, WorkflowRun } from "../../../hooks/useGitHu
 import { combineRepos, splitFullName, isValidRepoName } from "../utils/repos";
 import { normalizeProjectFiles } from "../utils/projectFiles";
 import { validateEasProjectId } from "../../ConnectionsScreen/utils/validation";
+import { markRepoSyncSignature } from "../../../lib/repoSyncOrchestration";
 import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
 import type { TemplateId, CoreTemplateId, ProjectFile } from "../../../shared/types/project";
 
@@ -169,6 +170,7 @@ export function useGitHubReposScreen() {
   const {
     repos,
     loading: loadingRepos,
+    error: reposError,
     loadRepos,
     pullFromRepo,
     loadBranches,
@@ -335,8 +337,6 @@ export function useGitHubReposScreen() {
     setActiveBranch(null);
     setLinkedRepo(fullName, null);
   }
-
-  setShowRepoList(false);
   setShowRenameRepo(false);
   setShowNewRepo(false);
   setPullProgress("");
@@ -675,12 +675,18 @@ export function useGitHubReposScreen() {
         Alert.alert("⚠️ Push", "Kein Branch ausgewählt.");
         return;
       }
+      const pushedFiles = withCoreFiles(selectedFiles);
       await pushFilesToRepoAdvanced(
         parsed.owner,
         parsed.repo,
-        withCoreFiles(selectedFiles),
+        pushedFiles,
         { branch, message: pushCommitMessage || "chore: sync" },
       );
+      await markRepoSyncSignature({
+        linkedRepo: activeRepo,
+        linkedBranch: branch,
+        files: pushedFiles,
+      });
       setPushModalVisible(false);
       refreshSyncStatus();
       Alert.alert(
@@ -731,6 +737,11 @@ export function useGitHubReposScreen() {
       }
 
       updateProjectFiles(out);
+      await markRepoSyncSignature({
+        linkedRepo: activeRepo,
+        linkedBranch: activeBranch,
+        files: out,
+      });
       setPullModalVisible(false);
       setPullPreview(null);
       refreshSyncStatus();
@@ -745,7 +756,7 @@ export function useGitHubReposScreen() {
     } finally {
       setIsPulling(false);
     }
-  }, [pullPreview, normalizedLocalFiles, updateProjectFiles, refreshSyncStatus]);
+  }, [pullPreview, normalizedLocalFiles, updateProjectFiles, refreshSyncStatus, activeRepo, activeBranch]);
 
   const handleOpenRepoOnGitHub = useCallback(async () => {
     if (!activeRepo) return;
@@ -976,7 +987,7 @@ export function useGitHubReposScreen() {
     userLogin, userLoading,
 
     // repos
-    loadingRepos, loadRepos, refreshing, handleRefresh,
+    loadingRepos, reposError, loadRepos, refreshing, handleRefresh,
     combinedRepos, filteredRepos,
 
     // selection + recent

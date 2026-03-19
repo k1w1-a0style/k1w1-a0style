@@ -115,6 +115,12 @@ export default function DiagnosticScreen() {
   const sendIssueToChat = (r: PreflightCheckResult | null) => {
     if (!r) return;
     const details = (r.details || []).slice(0, 10).map((d) => `- ${d}`).join("\n");
+    const fileList = (projectData?.files ?? [])
+      .map((f) => String(f?.path || "").trim())
+      .filter(Boolean)
+      .sort()
+      .slice(0, 60)
+      .join("\n");
     const msg =
       `Bitte behebe dieses Diagnostic-Issue mit einem sicheren Minimal-Patch.\n` +
       `Titel: ${r.title}\n` +
@@ -123,6 +129,8 @@ export default function DiagnosticScreen() {
       (linkedRepo ? `Repo: ${linkedRepo}\n` : "") +
       (linkedBranch ? `Branch: ${linkedBranch}\n` : "") +
       (details ? `\nDetails:\n${details}\n` : "") +
+      (fileList ? `\nVorhandene Projektdateien:\n${fileList}\n` : "") +
+      `\nWICHTIG: Verwende NUR Pfade aus der obigen Dateiliste. Erfinde keine Pfade.` +
       `\nLiefere zuerst die betroffenen Dateien und dann einen minimalen Patch.`;
 
     navigation.navigate("Home", {
