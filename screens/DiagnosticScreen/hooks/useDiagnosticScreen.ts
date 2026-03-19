@@ -26,6 +26,7 @@ import { useDiagnosticUpload } from "./useDiagnosticUpload";
 import { useDiagnosticFixRunner } from "./useDiagnosticFixRunner";
 import { useDiagnosticSelection } from "./useDiagnosticSelection";
 import { useDiagnosticIssueFiltering } from "./useDiagnosticIssueFiltering";
+import { getDiagnosticFixOffer } from "../../../lib/diagnostics/fixResultContract";
 
 import type { ProjectData, ProjectFile } from "../../../shared/types/project";
 
@@ -407,13 +408,15 @@ export function useDiagnosticScreen(opts: {
   const activeIssueDetail = useMemo<IssueDetail | null>(() => {
     if (!activeIssue) return null;
     const st = ((activeIssue.status ?? "pass") as Status) ?? "pass";
+    const fixOffer = getDiagnosticFixOffer(activeIssue);
     return {
       title: activeIssue.title,
       message: activeIssue.message,
       details: activeIssue.details,
       severity: toSeverity(st),
-      hasFix: !!(activeIssue.fix?.patch || activeIssue.fix?.workflowDispatch),
-      fixLabel: activeIssue.fix?.label,
+      hasFix: fixOffer.status !== "advisory_only",
+      fixLabel: activeIssue.fix?.label || fixOffer.actionLabel,
+      previewAvailable: fixOffer.previewAvailable,
     };
   }, [activeIssue, toSeverity]);
 

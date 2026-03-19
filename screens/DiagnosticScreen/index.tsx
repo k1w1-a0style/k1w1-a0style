@@ -21,6 +21,7 @@ import { HeaderSection } from "./components/HeaderSection";
 import { PreviewModal } from "./components/PreviewModal";
 import { SectionCard } from "../../components/diagnostics/SectionCard";
 import { SeverityBadge } from "../../components/diagnostics/SeverityBadge";
+import { getDiagnosticFixOffer } from "../../lib/diagnostics/fixResultContract";
 import type { PreflightCheckResult, PreflightStatus } from "../../lib/diagnostics/preflightTypes";
 
 import { styles } from "./styles";
@@ -316,7 +317,7 @@ export default function DiagnosticScreen() {
               <View style={{ gap: theme.spacing.sm }}>
                 {allChecks.map((r) => {
                   const sev = severityFor(r);
-                  const hasFix = !!(r.fix?.patch || r.fix?.workflowDispatch);
+                  const fixOffer = getDiagnosticFixOffer(r);
                   const clickable = r.status === "fail" || r.status === "warn";
                   return (
                     <TouchableOpacity
@@ -338,11 +339,7 @@ export default function DiagnosticScreen() {
                       </View>
                       <View style={{ alignItems: "flex-end", gap: 6 }}>
                         <SeverityBadge severity={sev} />
-                        {hasFix ? (
-                          <Text style={styles.fixHint}>Auto-Fix verfuegbar</Text>
-                        ) : r.status !== "pass" ? (
-                          <Text style={styles.fixHint}>KI-Fix verfuegbar</Text>
-                        ) : null}
+                        {fixOffer.badgeText ? <Text style={styles.fixHint}>{fixOffer.badgeText}</Text> : null}
                         <TouchableOpacity
                           style={styles.chatFixBtn}
                           onPress={() => sendIssueToChat(r)}
