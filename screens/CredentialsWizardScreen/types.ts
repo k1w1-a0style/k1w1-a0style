@@ -2,8 +2,18 @@
 export type UiModeId = "dev" | "preview" | "production";
 export type ApiModeId = "development" | "preview" | "production";
 
+export type WizardCredentialState =
+  | "verified"
+  | "missing"
+  | "unknown"
+  | "auth_error"
+  | "stale"
+  | "generated_pending_verification";
+
 export type StatusResult = {
   exists: boolean;
+  credentialState?: WizardCredentialState;
+  stateDetail?: string;
   // NOTE: Backend-Response wurde geändert. Wir unterstützen beides (neu + legacy),
   // damit die App auch nach Edge-Deploys stabil bleibt.
   record?: {

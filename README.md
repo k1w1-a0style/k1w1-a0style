@@ -11,8 +11,9 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 489**.
+- Zuletzt abgeschlossen: **Patch 490**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
+- Patch 490 härtet den CredentialsWizard fachlich und semantisch: verifiziert/fehlt/unklar/auth_error/generated_pending/busy werden jetzt getrennt modelliert, Generate signalisiert nicht mehr voreilig Erfolg, und Refresh-/Recheck-Pfade bleiben auch bei Auth-/temporären Fehlern ehrlich und konservativ.
 - Patch 489 härtet den Preview-/Server-Contract minimal und ehrlich: Remote-Preview, lokaler HTML-Fallback, unavailable/loading/failure sowie unsichere oder ungültige Server-URLs werden jetzt gemeinsam unterschieden, und die WebView lädt Remote-Previews nur noch mit härterer Minimal-Policy statt false green.
 - Patch 488 vereinheitlicht die Secret-/Credential-/EAS-/Readiness-Semantik über Connections, Build-Readiness und Diagnostics: Auth/Permission/Unknown/Stale werden nicht mehr als „fehlt“ dargestellt, und Diagnostics-Hinweise bleiben bei unklaren Prüfzuständen ehrlicher.
 - Patch 483 zieht im Schritt-8-Scope nur den bestätigten Minimalrest nach: G2 (Selection-Race) und G3 (Manage-Modal-Busy-Wiring) wurden sauber geschlossen; G6/G7/G8 ließen sich im aktuellen Stand nicht bestätigen.

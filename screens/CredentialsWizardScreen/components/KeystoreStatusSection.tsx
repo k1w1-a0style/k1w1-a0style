@@ -30,7 +30,16 @@ export function KeystoreStatusSection({
   setSelectedMode: (v: UiModeId) => void;
   canRun: boolean;
   busy: string | null;
-  metaForStatus: (s: StatusResult | null, mode: UiModeId) => { icon: any; text: string; color: string };
+  metaForStatus: (s: StatusResult | null, mode: UiModeId) => {
+    icon: any;
+    text: string;
+    color: string;
+    detail: string;
+    state: string;
+    requiresManualRecheck: boolean;
+    treatsAsMissing: boolean;
+    treatsAsVerified: boolean;
+  };
   normalizeModeForUi: (mode?: string) => UiModeId | undefined;
   pickStorageBucket: (record?: StatusResult["record"]) => string | undefined;
   pickStoragePath: (record?: StatusResult["record"]) => string | undefined;
@@ -51,6 +60,7 @@ export function KeystoreStatusSection({
         const path = pickStoragePath(s?.record);
         const updated = pickUpdatedAt(s?.record);
 
+        const hasVerifiedRecord = meta.treatsAsVerified;
         const storageLine = bucket && path ? `${bucket}/${path}` : path || bucket || "—";
         const updatedLine = updated ? new Date(updated).toLocaleString() : "—";
 
@@ -75,19 +85,31 @@ export function KeystoreStatusSection({
                 </View>
               </View>
 
+              <Text style={styles.kvMuted} numberOfLines={2}>
+                Einordnung: <Text style={styles.kvValue}>{meta.detail}</Text>
+              </Text>
+
               <Text style={styles.kvMuted} numberOfLines={1}>
-                Alias: <Text style={styles.kvValue}>{s?.exists ? alias : "—"}</Text>
+                Alias: <Text style={styles.kvValue}>{hasVerifiedRecord ? alias : "—"}</Text>
               </Text>
               <Text style={styles.kvMuted} numberOfLines={1}>
-                Path: <Text style={styles.kvValue}>{s?.exists ? storageLine : "—"}</Text>
+                Path: <Text style={styles.kvValue}>{hasVerifiedRecord ? storageLine : "—"}</Text>
               </Text>
               <Text style={styles.kvMuted} numberOfLines={1}>
-                Last known update: <Text style={styles.kvValue}>{s?.exists ? updatedLine : "—"}</Text>
+                Last known update: <Text style={styles.kvValue}>{hasVerifiedRecord ? updatedLine : "—"}</Text>
               </Text>
 
               <Text style={styles.kvMuted} numberOfLines={2}>
-                Statusquelle: <Text style={styles.kvValue}>{busy === `status:${m.id}` ? "wird frisch geprüft…" : "zuletzt bekannter Backend-Status"}</Text>
+                Statusquelle: <Text style={styles.kvValue}>{busy === `status:${m.id}` || busy === "status:all" ? "wird frisch geprueft…" : meta.treatsAsVerified ? "frisch bestaetigter Backend-Status" : "konservativ letzter bekannter Status"}</Text>
               </Text>
+
+              {meta.requiresManualRecheck ? (
+                <InlineHint
+                  icon="warning-outline"
+                  text="Noch kein hart verifizierter Erfolg. Bitte Status erneut pruefen, wenn der Check abgeschlossen sein sollte."
+                  tone="warning"
+                />
+              ) : null}
 
               {recordMode && recordMode !== m.id ? (
                 <InlineHint

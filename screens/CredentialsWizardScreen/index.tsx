@@ -105,7 +105,7 @@ export default function CredentialsWizardScreen() {
           </>
         ) : null}
 
-        {s.busy ? <BusyFooter busy={s.busy} /> : null}
+        {s.formatBusyLabel ? <BusyFooter busy={s.formatBusyLabel} /> : null}
 
         <View style={{ height: 140 }} />
       </ScrollView>
