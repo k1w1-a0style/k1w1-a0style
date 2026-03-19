@@ -10,7 +10,7 @@ import * as Clipboard from "expo-clipboard";
 import { theme } from "../../../theme";
 import { safeUi } from "../../ciLite/ciLiteUtils";
 import { styles } from "../styles";
-import { WORKFLOW_CI_LITE_AUTOFIX } from "../types";
+import { WORKFLOW_CI_LITE, WORKFLOW_CI_LITE_AUTOFIX } from "../types";
 import type { ChatMessage } from "../../../shared/types/chat";
 
 interface ActionButtonsProps {
@@ -18,6 +18,7 @@ interface ActionButtonsProps {
   runUrl: string | null;
   workflowRunUrl: string | undefined;
   dispatching: boolean;
+  isTrackingRun: boolean;
   // Some callers keep this synchronous (fire-and-forget).
   // `await` works for both sync + async functions.
   addChatMessage: (msg: ChatMessage) => void | Promise<void>;
@@ -26,10 +27,11 @@ interface ActionButtonsProps {
 }
 
 export function ActionButtons({
-  onlyErrors, runUrl, workflowRunUrl, dispatching,
+  onlyErrors, runUrl, workflowRunUrl, dispatching, isTrackingRun,
   addChatMessage, dispatchWorkflow, onOpenPatchPanel,
 }: ActionButtonsProps) {
   const viewUrl = runUrl || workflowRunUrl;
+  const runStartDisabled = dispatching || isTrackingRun;
 
   return (
     <View style={styles.actionsRow}>
@@ -92,6 +94,23 @@ export function ActionButtons({
         <Text style={styles.actionBtnText}>Run</Text>
       </Pressable>
 
+      {/* Explicit CI Lite start */}
+      <Pressable
+        accessibilityLabel="CI Lite Run starten"
+        onPress={() => dispatchWorkflow(WORKFLOW_CI_LITE)}
+        disabled={runStartDisabled}
+        style={({ pressed }) => [
+          styles.actionBtn, styles.actionBtnPrimary,
+          runStartDisabled && styles.actionBtnDisabled,
+          pressed && !runStartDisabled && styles.actionBtnPressed,
+        ]}
+      >
+        <Ionicons name="play-outline" size={16} color={theme.palette.background} />
+        <Text style={[styles.actionBtnText, styles.actionBtnTextPrimary]}>
+          {dispatching ? "…" : "Start"}
+        </Text>
+      </Pressable>
+
       {/* Patch panel toggle */}
       <Pressable
         onPress={onOpenPatchPanel}
@@ -103,12 +122,13 @@ export function ActionButtons({
 
       {/* Autofix dispatch */}
       <Pressable
+        accessibilityLabel="CI Lite Autofix starten"
         onPress={() => dispatchWorkflow(WORKFLOW_CI_LITE_AUTOFIX)}
-        disabled={dispatching}
+        disabled={runStartDisabled}
         style={({ pressed }) => [
           styles.actionBtn, styles.actionBtnPrimary,
-          dispatching && styles.actionBtnDisabled,
-          pressed && !dispatching && styles.actionBtnPressed,
+          runStartDisabled && styles.actionBtnDisabled,
+          pressed && !runStartDisabled && styles.actionBtnPressed,
         ]}
       >
         <Ionicons name="flash-outline" size={16} color={theme.palette.background} />

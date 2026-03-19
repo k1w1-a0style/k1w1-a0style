@@ -43,13 +43,13 @@ export default function CiLiteHeaderButton(): React.ReactElement {
     busy: wf.busy,
   });
 
-  const closeModal = () => { wf.setVisible(false); wf.stopPolling(); };
+  const closeModal = () => { wf.setVisible(false); };
 
   return (
     <>
       {/* Header icon */}
       <Pressable
-        onPress={() => { wf.setVisible(true); wf.dispatchWorkflow(WORKFLOW_CI_LITE); }}
+        onPress={() => { wf.setVisible(true); }}
         style={({ pressed }) => [
           styles.iconBtn,
           pressed && styles.iconBtnPressed,
@@ -118,6 +118,7 @@ export default function CiLiteHeaderButton(): React.ReactElement {
         runUrl={wf.runUrl}
         workflowRunUrl={wf.workflowRun?.html_url}
         dispatching={wf.dispatching}
+        isTrackingRun={wf.isTrackingRun}
         addChatMessage={addChatMessage}
         dispatchWorkflow={wf.dispatchWorkflow}
       />

@@ -11,9 +11,9 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 484**.
+- Zuletzt abgeschlossen: **Patch 485**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
-- Patch 484 prüft NEW-3 bewusst ohne Blendwerk: `new Function()` bleibt im lokalen Preview-Fallback ein echter Isolations-Trade-off, aber der HTML-Fallback liefert jetzt eine restriktive CSP aus, die triviale Netzwerk-Exfiltration aus diesem WebView-Kontext blockiert; eine echte Sandbox ist das ausdrücklich nicht.
+- Patch 485 trennt CI-Lite-Status-UI und fachliches Run-Tracking sauber: Header-Tap öffnet nur noch das Modal, neue CI-Lite-/Autofix-Runs starten ausschließlich über explizite Modal-CTAs, und laufendes Polling/Log-Following bleibt auch bei geschlossenem Modal aktiv.
 - Patch 483 zieht im Schritt-8-Scope nur den bestätigten Minimalrest nach: G2 (Selection-Race) und G3 (Manage-Modal-Busy-Wiring) wurden sauber geschlossen; G6/G7/G8 ließen sich im aktuellen Stand nicht bestätigen.
 - Patch 482 zieht im Schritt-6-Scope keinen neuen Technikblock auf, sondern nur den bestätigten Doku-/UX-Rest sauber nach: README/Patchstand ist jetzt mit TODO/Checklog/Patchlog synchron, und E3 bleibt fachlich ein kleiner Connections-UX-Hinweis (kein neuer E8/E9-Fix; N7/S7 bleiben nicht bestätigt).
 - Patch 481 zieht im Schritt-5-Scope nur den bestätigten Restpunkt nach: Build-Screen und One-Click-Deploy bewerten CI-Lite jetzt nicht mehr nur nach Repo/Branch/Freshness, sondern auch gegen den zuletzt grünen SHA und den aktuellen Branch-HEAD; dadurch zeigt die UI keinen falschen grünen Zustand mehr, wenn `startBuildJob(...)` später wegen SHA-Mismatch blockieren würde. S10/E5/E6/E7 bleiben im aktuellen Stand ohne neuen Produktdefekt bestätigt.
