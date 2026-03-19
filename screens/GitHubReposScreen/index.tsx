@@ -116,8 +116,10 @@ export default function GitHubReposScreen() {
 
     manageModal,
     manageValue,
+    manageBusy,
     setManageValue,
     closeManageModal,
+    confirmManageModal,
 
     // EAS link
     easProjectId,
@@ -387,7 +389,7 @@ export default function GitHubReposScreen() {
       <LocalRemoteDiffSection
         activeRepo={activeRepo}
         activeBranch={activeBranch}
-        projectFiles={projectFiles as any}
+        projectFiles={projectFiles}
       />
 
       <ManageTextModal
@@ -399,13 +401,13 @@ export default function GitHubReposScreen() {
         setValue={setManageValue}
         onCancel={closeManageModal}
         onConfirm={async () => {
-          if (!manageModal) return;
           try {
-            await manageModal.action(manageValue);
+            await confirmManageModal();
           } catch (e: any) {
             Alert.alert("❌", e?.message ?? "Aktion fehlgeschlagen");
           }
         }}
+        busy={manageBusy}
       />
     </>
   );
