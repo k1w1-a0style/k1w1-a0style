@@ -13,6 +13,7 @@ import { StatusCard } from "./components/StatusCard";
 import { TokensCard } from "./components/TokensCard";
 import { SupabaseCard } from "./components/SupabaseCard";
 import { EasCard } from "./components/EasCard";
+import { resolveEasVerificationPresentation } from "./components/StatusCard";
 
 import { styles } from "./styles";
 
@@ -34,6 +35,7 @@ export default function ConnectionsScreen() {
     supabaseUrl,
     easProjectId,
     easLastVerifiedAt,
+    easState,
 
     // Connection lights
     githubOk,
@@ -85,6 +87,11 @@ export default function ConnectionsScreen() {
   } = useConnectionsScreen();
 
   const syncSummaryLines = useMemo(() => {
+    const easSummary = resolveEasVerificationPresentation({
+      easProjectId,
+      easState,
+      easLastVerifiedAt,
+    });
     const lines: string[] = [];
     lines.push(`Repo: ${repoLine || "(kein Repo)"}`);
     lines.push(`GitHub: ${githubOk ? "✅" : "❌"}${githubUser ? ` (${githubUser})` : ""}`);
@@ -96,7 +103,7 @@ export default function ConnectionsScreen() {
 
     lines.push(`Expo: ${expoOk ? "✅" : "❌"}${expoUser ? ` (${expoUser})` : ""}`);
     lines.push(`EAS Project ID: ${easProjectId || "(leer)"}`);
-    lines.push(`EAS Status: ${easOk ? "✅" : "❌"}`);
+    lines.push(`EAS Status: ${easSummary.stateLabel}`);
 
     lines.push("");
     lines.push("Automatisch per Secret-Sync ins aktive Repo (Namen, keine Werte):");
@@ -109,7 +116,7 @@ export default function ConnectionsScreen() {
     lines.push("- Supabase Service-Role-Key (Production/Supabase-Reporting: manuell setzen)");
     lines.push("- GITHUB_TOKEN / SUPABASE_ANON_KEY (bleiben lokal auf dem Gerät)");
     return lines;
-  }, [repoLine, githubOk, githubUser, githubScopes, supabaseUrl, supabaseRef, supabaseOk, expoOk, expoUser, easProjectId, easOk]);
+  }, [repoLine, githubOk, githubUser, githubScopes, supabaseUrl, supabaseRef, supabaseOk, expoOk, expoUser, easProjectId, easState, easLastVerifiedAt]);
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
@@ -157,6 +164,7 @@ export default function ConnectionsScreen() {
           expoOk={expoOk}
           expoUser={expoUser}
           easOk={easOk}
+          easState={easState}
           onNavigateRepos={() => navigation.navigate("GitHubRepos")}
           onNavigateDiagnostic={() => navigation.navigate("Diagnostic")}
           onNavigateBuild={() => navigation.navigate("EnhancedBuild")}

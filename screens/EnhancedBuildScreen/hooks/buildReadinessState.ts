@@ -6,6 +6,10 @@ import {
   STORAGE_KEYS,
   diagnosticLastOkKeyForSelection,
 } from "../../../lib/storageKeys";
+import {
+  normalizeVerificationContract,
+  type VerificationContractState,
+} from "../../../lib/status/verificationContract";
 
 type BuildReadinessStateDeps = {
   storageGetItem?: (key: string) => Promise<string | null>;
@@ -15,9 +19,28 @@ type BuildReadinessStateDeps = {
 export type BuildReadinessState = {
   hasDiagOk: boolean;
   hasCiLiteOk: boolean;
+  diagnosticState: VerificationContractState;
+  diagnosticReason: string | null;
   ciLiteReason: string | null;
+  ciLiteState: VerificationContractState;
   ciLiteStale: boolean;
 };
+
+export function describeReadinessContract(params: {
+  area: "diagnostic" | "ci_lite";
+  state: VerificationContractState;
+  reason?: string | null;
+}): string {
+  if (params.reason) return params.reason;
+  if (params.area === "diagnostic") {
+    if (params.state === "verified") return "Letzter bekannter Diagnose-Check: OK";
+    if (params.state === "stale") return "Diagnose ist nicht mehr frisch bestaetigt.";
+    return "Diagnose wurde fuer dieses Repo/Branch noch nicht sicher bestaetigt.";
+  }
+  if (params.state === "verified") return "Letzter bekannter CI-Lite-Run: OK";
+  if (params.state === "stale") return "CI-Lite ist veraltet und sollte neu laufen.";
+  return "CI-Lite ist fuer dieses Repo/Branch derzeit nicht sicher bestaetigt.";
+}
 
 export async function readBuildReadinessState(params: {
   repoFullName: string;
@@ -48,12 +71,35 @@ export async function readBuildReadinessState(params: {
   ]);
 
   const diagVal = diagScopedVal ?? diagLegacyVal;
-  const reason = diagVal !== "true" ? "Diagnostik nicht gruen" : persistedCiLite.reason;
+  const diagnosticContract = normalizeVerificationContract({
+    explicitState: diagVal === "true" ? "verified" : "unknown",
+  });
+  const ciLiteContract = normalizeVerificationContract({
+    explicitState: persistedCiLite.reason
+      ? (persistedCiLite.stale ? "stale" : "unknown")
+      : "verified",
+  });
+  const diagnosticReason = diagnosticContract.isVerified
+    ? null
+    : describeReadinessContract({
+        area: "diagnostic",
+        state: diagnosticContract.state,
+      });
+  const reason = ciLiteContract.isVerified
+    ? null
+    : describeReadinessContract({
+        area: "ci_lite",
+        state: ciLiteContract.state,
+        reason: persistedCiLite.reason,
+      });
 
   return {
-    hasDiagOk: diagVal === "true",
-    hasCiLiteOk: reason === null,
+    hasDiagOk: diagnosticContract.isVerified,
+    hasCiLiteOk: ciLiteContract.isVerified,
+    diagnosticState: diagnosticContract.state,
+    diagnosticReason,
     ciLiteReason: reason,
+    ciLiteState: ciLiteContract.state,
     ciLiteStale: persistedCiLite.stale,
   };
 }

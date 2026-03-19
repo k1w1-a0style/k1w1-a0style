@@ -171,8 +171,8 @@ export function useEnhancedBuildScreen() {
     hasSigningKey,
     hasDiagOk,
     hasCiLiteOk,
+    diagnosticReason,
     ciLiteReason,
-    ciLiteStale,
     refreshPreconditions,
   } = useBuildPreconditions(buildProfile, repoFullName, branchName, projectData);
 
@@ -180,13 +180,13 @@ export function useEnhancedBuildScreen() {
     if (!repoValidation.valid) return "Repo fehlt (im GitHub-Repos-Screen verknuepfen)";
     if (!branchName.trim()) return "Branch fehlt (im GitHub-Repos-Screen auswaehlen)";
     if (!hasTokens) return "Tokens fehlen (GitHub + Expo) – im Verbindungen-Screen setzen";
-    if (!hasDiagOk) return "Diagnostik nicht gruen – im Diagnostic-Screen ausfuehren";
+    if (!hasDiagOk) return diagnosticReason || "Diagnostik noch nicht sicher bestaetigt – im Diagnostic-Screen ausfuehren";
     if (!hasCiLiteOk) {
       return ciLiteReason || "CI Lite nicht gruen oder nicht passend zu Repo/Branch – im Header ausfuehren";
     }
     if (!hasSigningKey) return "Signing Key fehlt – im Wizard generieren";
     return null;
-  }, [repoValidation.valid, branchName, hasTokens, hasDiagOk, hasCiLiteOk, ciLiteReason, hasSigningKey]);
+  }, [repoValidation.valid, branchName, hasTokens, hasDiagOk, diagnosticReason, hasCiLiteOk, ciLiteReason, hasSigningKey]);
 
   // Logs nur laden wenn ein aktiver Build läuft oder eine runId existiert
   const shouldLoadLogs =
@@ -522,12 +522,14 @@ export function useEnhancedBuildScreen() {
         id: "diagnostic",
         label: "Diagnose erfolgreich",
         status: hasDiagOk ? "ok" : "pending",
-        detail: hasDiagOk ? "Letzter bekannter Diagnose-Check: OK" : "Diagnose ausführen",
+        detail: hasDiagOk
+          ? "Letzter bekannter Diagnose-Check: OK"
+          : (diagnosticReason || "Diagnose ausfuehren"),
       },
       {
         id: "ci_lite",
         label: "Code-Checks grün (CI Lite)",
-        status: hasCiLiteOk ? "ok" : ciLiteStale ? "fail" : "pending",
+        status: hasCiLiteOk ? "ok" : "pending",
         detail: hasCiLiteOk
           ? "Letzter bekannter CI-Lite-Run: OK"
           : (ciLiteReason || "Im Header CI Lite ausführen"),
@@ -555,9 +557,9 @@ export function useEnhancedBuildScreen() {
     hasSigningKey,
     hasTokens,
     hasDiagOk,
+    diagnosticReason,
     hasCiLiteOk,
     ciLiteReason,
-    ciLiteStale,
     repoFullName,
     branchName,
     buildProfile,

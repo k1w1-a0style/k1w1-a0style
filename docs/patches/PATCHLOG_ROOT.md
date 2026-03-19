@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 488: gemeinsamer `verificationContract` vereinheitlicht Secret-/EAS-/Readiness-Semantik über ConnectionsScreen, Build-Readiness und Diagnostics; Auth/Permission/Unknown/Stale werden nicht mehr als „fehlt“ verfälscht, inklusive gezielter Jest-Regressionen.
 - Patch 487: zweite AI-Flow-Welle konservativ abgeschlossen — produktive Chat-Input-Validierung mit Sanitizing aktiviert, deterministisches Prompt-Budget/Context-Trimming für Planner/Builder/Validator eingeführt, Confirm-Modal auf kompakte Inhaltsdeltas umgestellt und Validator-Herkunft/Fallback im UX als advisory transparent gemacht; fokussierte Jest-Regressionen ergänzt.
 - Patch 486: CI-Lite-Header hydriert jetzt konservativ aus passender Persistenz (Repo/Branch/SHA/Freshness geprüft), bleibt bei fachlich fremden/veralteten Ständen neutral und trennt Workflow-/Run-Fehler im Modal sichtbar von Artifact-/Nachzug-Problemen; Reopen zeigt den letzten plausiblen Abschluss ohne Redispatch.
 - Patch 485: CI-Lite-Tracking/Status-UI sauber entkoppelt — Header-Tap öffnet nur noch das Modal, neue CI-Lite-/Autofix-Runs starten ausschließlich über explizite Modal-CTAs, laufendes Polling/Log-Following bleibt bei geschlossenem Modal aktiv und Reopen zeigt den bestehenden Zustand ohne Redispatch.
