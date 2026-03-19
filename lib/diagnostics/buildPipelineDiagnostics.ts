@@ -14,6 +14,10 @@ import type { DiagnosticCheck } from "./diagnosticTypes";
 export type { DiagnosticStatus, DiagnosticFix, DiagnosticCheck } from "./diagnosticTypes";
 export { triggerRemoteDiagnostics, fetchLatestRemoteDiagnosticsReport } from "./remoteDiagnostics";
 export type { RemoteDiagnosticsReport } from "./remoteDiagnostics";
+import {
+  classifyVerificationError,
+  normalizeVerificationContract,
+} from "../status/verificationContract";
 
 
 export type BuildPipelineDiagnosticsDeps = {
@@ -46,6 +50,38 @@ const CANONICAL_EAS_JSON = {
 
 const canonicalEasJsonString = () => `${JSON.stringify(CANONICAL_EAS_JSON, null, 2)}
 `;
+
+export function describeRepoSecretContract(params: {
+  name: string;
+  state: "verified" | "missing" | "unknown" | "auth_error" | "stale";
+  optional?: boolean;
+}): { status: DiagnosticCheck["status"]; fixHint?: string } {
+  if (params.state === "verified") return { status: "pass" };
+  if (params.state === "missing") {
+    return {
+      status: params.optional ? "warn" : "fail",
+      fixHint: params.optional
+        ? `Optional, aber fuer Remote-Checks hilfreich: ${params.name} setzen.`
+        : `Secretsync ausführen (${params.name} fehlt).`,
+    };
+  }
+  if (params.state === "auth_error") {
+    return {
+      status: "warn",
+      fixHint: "Secret-Status konnte nicht verifiziert werden: GitHub Token braucht Repo-Admin-/Secrets-Rechte.",
+    };
+  }
+  if (params.state === "stale") {
+    return {
+      status: "warn",
+      fixHint: "Secret-Status ist nicht mehr frisch bestaetigt. Bitte Repo-Secrets erneut prüfen.",
+    };
+  }
+  return {
+    status: "warn",
+    fixHint: "Secret-Status ist aktuell unklar und konnte nicht sicher verifiziert werden.",
+  };
+}
 
 const DEFAULT_BUILD_PIPELINE_DIAGNOSTICS_DEPS: Required<BuildPipelineDiagnosticsDeps> = {
   getGitHubToken,
@@ -592,41 +628,63 @@ export const runBuildPipelineDiagnostics = async (
     const hasSupabaseServiceRoleSecret = names.includes(
       "SUPABASE_SERVICE_ROLE_KEY",
     );
+    const expoTokenContract = normalizeVerificationContract({
+      configured: hasExpoTokenSecret,
+    });
+    const supabaseUrlContract = normalizeVerificationContract({
+      configured: hasSupabaseUrlSecret,
+    });
+    const supabaseServiceRoleContract = normalizeVerificationContract({
+      configured: hasSupabaseServiceRoleSecret,
+    });
+    const expoTokenCopy = describeRepoSecretContract({
+      name: "EXPO_TOKEN",
+      state: expoTokenContract.state,
+    });
+    const supabaseUrlCopy = describeRepoSecretContract({
+      name: "SUPABASE_URL",
+      state: supabaseUrlContract.state,
+      optional: true,
+    });
+    const serviceRoleCopy = describeRepoSecretContract({
+      name: "SUPABASE_SERVICE_ROLE_KEY",
+      state: supabaseServiceRoleContract.state,
+      optional: true,
+    });
 
     checks.push({
       id: "repo.secret.expoToken",
       title: "Repo Secret vorhanden: EXPO_TOKEN",
-      status: hasExpoTokenSecret ? "pass" : "fail",
-      fixHint: hasExpoTokenSecret
-        ? undefined
-        : "Secretsync ausführen (EXPO_TOKEN fehlt).",
+      status: expoTokenCopy.status,
+      fixHint: expoTokenCopy.fixHint,
     });
 
     checks.push({
       id: "repo.secret.supabaseUrl",
       title: "Repo Secret vorhanden: SUPABASE_URL",
-      status: hasSupabaseUrlSecret ? "pass" : "warn",
-      fixHint: hasSupabaseUrlSecret
-        ? undefined
-        : "Für Remote-Reports sinnvoll: Secretsync SUPABASE_URL.",
+      status: supabaseUrlCopy.status,
+      fixHint: supabaseUrlCopy.fixHint,
     });
 
     checks.push({
       id: "repo.secret.supabaseServiceRole",
       title: "Repo Secret vorhanden: SUPABASE_SERVICE_ROLE_KEY",
-      status: hasSupabaseServiceRoleSecret ? "pass" : "warn",
-      fixHint: hasSupabaseServiceRoleSecret
-        ? undefined
-        : "Für Remote-Reports sinnvoll: Secretsync SUPABASE_SERVICE_ROLE_KEY.",
+      status: serviceRoleCopy.status,
+      fixHint: serviceRoleCopy.fixHint,
     });
   } catch (e: any) {
+    const errorState = classifyVerificationError({ error: e });
+    const secretListCopy = describeRepoSecretContract({
+      name: "repo secrets",
+      state: errorState,
+      optional: true,
+    });
     checks.push({
       id: "repo.secret.list",
       title: "Repo Secrets abrufbar",
-      status: "warn",
+      status: secretListCopy.status,
       details: e?.message || "Secrets konnten nicht gelesen werden.",
-      fixHint:
-        "GitHub Token braucht Zugriff auf Actions Secrets (Repo Admin oder entsprechende Permission).",
+      fixHint: secretListCopy.fixHint,
     });
   }
 

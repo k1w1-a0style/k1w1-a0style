@@ -171,7 +171,7 @@ export function useOneClickDeploy(
       if (abortRef.current) return;
 
       let readinessReason: string | null = null;
-      if (!readiness.hasDiagOk) readinessReason = "Diagnostik nicht gruen";
+      if (!readiness.hasDiagOk) readinessReason = readiness.diagnosticReason;
       else if (!readiness.hasCiLiteOk) readinessReason = readiness.ciLiteReason;
 
       if (readinessReason) {

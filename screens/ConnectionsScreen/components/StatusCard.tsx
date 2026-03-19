@@ -3,6 +3,10 @@ import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../../../theme";
+import {
+  normalizeVerificationContract,
+  type VerificationContractState,
+} from "../../../lib/status/verificationContract";
 import type { ConnectionsStyles } from "./types";
 import { ActionButton } from "./ActionButton";
 
@@ -72,11 +76,21 @@ function StatusRow(props: {
   label: string;
   ok: boolean;
   value?: string;
+  stateLabel?: string;
+  stateTone?: "ok" | "warn" | "neutral" | "error";
   accountName?: string;
   detail?: string;
   detailNode?: React.ReactNode;
 }) {
-  const { label, ok, value, accountName, detail, detailNode } = props;
+  const { label, ok, value, stateLabel, stateTone = ok ? "ok" : "error", accountName, detail, detailNode } = props;
+  const stateStyle =
+    stateTone === "ok"
+      ? s.badgeOk
+      : stateTone === "warn"
+        ? s.statusBadgeWarn
+        : stateTone === "neutral"
+          ? s.statusBadgeNeutral
+          : s.badgeFail;
   return (
     <View style={s.statusRow}>
       <ConnectionLight ok={ok} />
@@ -91,15 +105,18 @@ function StatusRow(props: {
           </Text>
         ) : null}
       </View>
-      {value ? (
-        <Text style={s.statusValue} numberOfLines={1}>
-          {value}
-        </Text>
-      ) : (
-        <Text style={[s.statusBadge, ok ? s.badgeOk : s.badgeFail]}>
-          {ok ? "OK" : "FEHLT"}
-        </Text>
-      )}
+      <View style={s.statusValueWrap}>
+        {value ? (
+          <Text style={s.statusValue} numberOfLines={1}>
+            {value}
+          </Text>
+        ) : null}
+        {(!value || stateLabel) ? (
+          <Text style={[s.statusBadge, stateStyle]}>
+            {stateLabel || (ok ? "OK" : "FEHLT")}
+          </Text>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -128,13 +145,13 @@ export function shouldRenderGitHubScopes(scopesRaw?: string): boolean {
 export function buildEasStatusDetail(params: {
   easInitRunning?: boolean;
   easProjectId?: string;
-  easOk?: boolean;
+  easState?: VerificationContractState;
   easLastVerifiedAt?: string | null;
 }): string {
   const easProjectId = String(params.easProjectId ?? "").trim();
   if (params.easInitRunning) return "Verknüpfung läuft… (GitHub Actions: eas-link)";
   if (!easProjectId) return "Keine EAS Project ID gespeichert.";
-  if (params.easOk) {
+  if (params.easState === "verified") {
     if (params.easLastVerifiedAt) {
       const ts = new Date(params.easLastVerifiedAt);
       const readable = Number.isNaN(ts.getTime()) ? params.easLastVerifiedAt : ts.toLocaleString();
@@ -142,7 +159,66 @@ export function buildEasStatusDetail(params: {
     }
     return "Projekt-ID gespeichert, aber noch nicht frisch verifiziert.";
   }
-  return "Zuletzt bekannter Status: nicht verifiziert oder nicht erreichbar.";
+  if (params.easState === "stale") {
+    return "Projekt-ID vorhanden, aber der letzte erfolgreiche Check ist nicht mehr frisch.";
+  }
+  if (params.easState === "auth_error") {
+    return "Projekt-ID vorhanden, aber Expo/EAS konnte sie mit diesem Login nicht bestaetigen.";
+  }
+  return "Projekt-ID vorhanden, aber aktuell nicht sicher verifizierbar.";
+}
+
+export function resolveEasVerificationPresentation(params: {
+  easInitRunning?: boolean;
+  easProjectId?: string;
+  easState?: VerificationContractState | null;
+  easLastVerifiedAt?: string | null;
+}): {
+  contractState: VerificationContractState;
+  ok: boolean;
+  stateLabel: string;
+  stateTone: "ok" | "warn" | "neutral" | "error";
+  detail: string;
+} {
+  const contract = normalizeVerificationContract({
+    configured: !!String(params.easProjectId ?? "").trim(),
+    stale: params.easState === "stale",
+    verified: params.easState === "verified",
+    explicitState: params.easState ?? undefined,
+  });
+
+  const stateLabel =
+    contract.state === "verified"
+      ? "OK"
+      : contract.state === "missing"
+        ? "FEHLT"
+        : contract.state === "auth_error"
+          ? "ZUGRIFF"
+          : contract.state === "stale"
+            ? "ALT"
+            : "UNKLAR";
+
+  const stateTone =
+    contract.state === "verified"
+      ? "ok"
+      : contract.state === "missing"
+        ? "error"
+        : contract.state === "auth_error"
+          ? "warn"
+          : "neutral";
+
+  return {
+    contractState: contract.state,
+    ok: contract.isVerified,
+    stateLabel,
+    stateTone,
+    detail: buildEasStatusDetail({
+      easInitRunning: params.easInitRunning,
+      easProjectId: params.easProjectId,
+      easState: contract.state,
+      easLastVerifiedAt: params.easLastVerifiedAt,
+    }),
+  };
 }
 
 function formatSupabaseDisplay(url: string, ref?: string): { value?: string; detail?: string } {
@@ -191,6 +267,7 @@ export function StatusCard(props: {
   expoOk?: boolean;
   expoUser?: string;
   easOk?: boolean;
+  easState?: VerificationContractState;
   easInitRunning?: boolean;
   onNavigateRepos: () => void;
   onNavigateDiagnostic: () => void;
@@ -213,6 +290,7 @@ export function StatusCard(props: {
     expoOk,
     expoUser,
     easOk,
+    easState,
     easInitRunning,
     onNavigateRepos,
     onNavigateDiagnostic,
@@ -242,13 +320,15 @@ export function StatusCard(props: {
 
   const easStatusDetail = useMemo(
     () =>
-      buildEasStatusDetail({
+      resolveEasVerificationPresentation({
         easInitRunning,
         easProjectId,
-        easOk,
+        easState:
+          easState ??
+          (easOk ? "verified" : status.eas ? "stale" : "missing"),
         easLastVerifiedAt,
       }),
-    [easInitRunning, easProjectId, easLastVerifiedAt, easOk],
+    [easInitRunning, easProjectId, easLastVerifiedAt, easOk, easState, status.eas],
   );
 
   const supaIsOk = supabaseOk ?? status.sbUrl;
@@ -311,9 +391,11 @@ export function StatusCard(props: {
 
       <StatusRow
         label="EAS Project"
-        ok={easOk ?? status.eas}
+        ok={easStatusDetail.ok}
         value={status.eas ? easProjectId : undefined}
-        detail={easStatusDetail}
+        stateLabel={easStatusDetail.stateLabel}
+        stateTone={easStatusDetail.stateTone}
+        detail={easStatusDetail.detail}
       />
 
       <View style={parentStyles.row}>

@@ -9,6 +9,7 @@ import {
   resolveProjectCredentialScope,
 } from "../../../lib/storageKeys";
 import { readBuildReadinessState } from "./buildReadinessState";
+import type { VerificationContractState } from "../../../lib/status/verificationContract";
 
 export function useBuildPreconditions(
   buildProfile: BuildProfile,
@@ -29,7 +30,10 @@ export function useBuildPreconditions(
   const [hasSigningKey, setHasSigningKey] = useState(false);
   const [hasDiagOk, setHasDiagOk] = useState(false);
   const [hasCiLiteOk, setHasCiLiteOk] = useState(false);
+  const [diagnosticState, setDiagnosticState] = useState<VerificationContractState>("unknown");
+  const [diagnosticReason, setDiagnosticReason] = useState<string | null>(null);
   const [ciLiteReason, setCiLiteReason] = useState<string | null>(null);
+  const [ciLiteState, setCiLiteState] = useState<VerificationContractState>("unknown");
   const [ciLiteStale, setCiLiteStale] = useState(false);
 
   const refreshPreconditions = useCallback(async () => {
@@ -66,7 +70,10 @@ export function useBuildPreconditions(
       if (isMountedRef.current) {
         setHasDiagOk(readiness.hasDiagOk);
         setHasCiLiteOk(readiness.hasCiLiteOk);
+        setDiagnosticState(readiness.diagnosticState);
+        setDiagnosticReason(readiness.diagnosticReason);
         setCiLiteReason(readiness.ciLiteReason);
+        setCiLiteState(readiness.ciLiteState);
         setCiLiteStale(readiness.ciLiteStale);
       }
     } catch {
@@ -83,7 +90,10 @@ export function useBuildPreconditions(
     hasSigningKey,
     hasDiagOk,
     hasCiLiteOk,
+    diagnosticState,
+    diagnosticReason,
     ciLiteReason,
+    ciLiteState,
     ciLiteStale,
     refreshPreconditions,
   };

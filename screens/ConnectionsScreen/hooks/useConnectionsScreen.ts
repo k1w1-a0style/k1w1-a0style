@@ -39,6 +39,10 @@ import { debugLog } from "../../../lib/debugOverlay";
 import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction";
 import { parseExpoGraphQLUsername } from "../utils/expoGraphql";
 import { BusyGuardActiveError, isBusyGuardActiveError } from "./busyGuard";
+import {
+  classifyVerificationError,
+  type VerificationContractState,
+} from "../../../lib/status/verificationContract";
 
 type ExpoProjectResponse = {
   data?: {
@@ -69,6 +73,7 @@ export function useConnectionsScreen() {
   const [expoOk, setExpoOk] = useState(false);
   const [expoUser, setExpoUser] = useState("" );
   const [easOk, setEasOk] = useState(false);
+  const [easState, setEasState] = useState<VerificationContractState>("missing");
   const [easLastVerifiedAt, setEasLastVerifiedAt] = useState<string | null>(null);
   const [repoOk, setRepoOk] = useState(false);
   const [repoOkLine, setRepoOkLine] = useState("" );
@@ -121,14 +126,23 @@ export function useConnectionsScreen() {
     [],
   );
 
-  const saveConnEasOk = useCallback(async (ok: boolean, opts?: { verifiedAt?: string | null }) => {
-    const verifiedAt = opts?.verifiedAt ?? null;
+  const saveConnEasStatus = useCallback(async (params: {
+    ok: boolean;
+    state: VerificationContractState;
+    verifiedAt?: string | null;
+  }) => {
+    const { ok, state } = params;
+    const verifiedAt = params.verifiedAt ?? null;
     setEasOk(ok);
+    setEasState(state);
     setEasLastVerifiedAt(verifiedAt);
-    await AsyncStorage.setItem(
-      STORAGE_KEYS.CONN_EAS_OK,
-      ok ? "true" : "false",
-    ).catch(() => {});
+    await AsyncStorage.multiSet([
+      [STORAGE_KEYS.CONN_EAS_OK, ok ? "true" : "false"],
+      [STORAGE_KEYS.CONN_EAS_STATE, state],
+    ]).catch(async () => {
+      await AsyncStorage.setItem(STORAGE_KEYS.CONN_EAS_OK, ok ? "true" : "false").catch(() => {});
+      await AsyncStorage.setItem(STORAGE_KEYS.CONN_EAS_STATE, state).catch(() => {});
+    });
     if (verifiedAt) {
       await AsyncStorage.setItem(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT, verifiedAt).catch(() => {});
     } else {
@@ -140,14 +154,14 @@ export function useConnectionsScreen() {
     if (!hydrated || busyRef.current) return;
     // No EAS Project ID -> nothing to test.
     if (!easProjectId?.trim()) {
-      await saveConnEasOk(false);
+      await saveConnEasStatus({ ok: false, state: "missing" });
       return;
     }
 
     // EAS project validation requires an authenticated Expo request.
     // exp.host expects @owner/slug and will return 400 for UUID project IDs.
     if (!expoToken?.trim()) {
-      await saveConnEasOk(false);
+      await saveConnEasStatus({ ok: false, state: "unknown" });
       Alert.alert("EAS Test", "Expo Token fehlt (für EAS Test erforderlich)");
       return;
     }
@@ -166,7 +180,10 @@ export function useConnectionsScreen() {
       );
 
       if (!resp.ok) {
-        await saveConnEasOk(false);
+        await saveConnEasStatus({
+          ok: false,
+          state: classifyVerificationError({ statusCode: resp.status }),
+        });
         Alert.alert("EAS Test", `EAS Test failed (${resp.status})`);
         return;
       }
@@ -179,17 +196,24 @@ export function useConnectionsScreen() {
           json?.data?.slug ||
           json?.data?.name,
       );
-      await saveConnEasOk(hasProject, { verifiedAt: hasProject ? new Date().toISOString() : null });
+      await saveConnEasStatus({
+        ok: hasProject,
+        state: hasProject ? "verified" : "unknown",
+        verifiedAt: hasProject ? new Date().toISOString() : null,
+      });
       if (!hasProject) {
         Alert.alert("EAS Test", "Projekt nicht gefunden oder keine Rechte");
       }
     } catch (e: unknown) {
-      await saveConnEasOk(false);
+      await saveConnEasStatus({
+        ok: false,
+        state: classifyVerificationError({ error: e }),
+      });
       Alert.alert("EAS Test", `EAS Test failed (${safeAlertText(e)})`);
     } finally {
       setIsTestingEas(false);
     }
-  }, [hydrated, easProjectId, expoToken, saveConnEasOk]);
+  }, [hydrated, easProjectId, expoToken, saveConnEasStatus]);
 
   // Expo connection light is persisted (set by explicit "Test Expo"),
   // but we force it OFF if the token is cleared (after hydration).
@@ -245,7 +269,7 @@ export function useConnectionsScreen() {
       ]);
 
       // Load persistent connection lights
-      const [ghOk, ghUserStored, ghScopesStored, sbOk, sbRefStored, exOk, exUserStored, easOkStored, easLastVerifiedStored, repoOkStored, repoSlug, repoBranch] = await Promise.all([
+      const [ghOk, ghUserStored, ghScopesStored, sbOk, sbRefStored, exOk, exUserStored, easOkStored, easStateStored, easLastVerifiedStored, repoOkStored, repoSlug, repoBranch] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_OK).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_USER).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_SCOPES).catch(() => null),
@@ -254,6 +278,7 @@ export function useConnectionsScreen() {
         AsyncStorage.getItem(STORAGE_KEYS.CONN_EXPO_OK).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_EXPO_USER).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_EAS_OK).catch(() => null),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_EAS_STATE).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_REPO_OK).catch(() => null),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_REPO_SLUG).catch(() => null),
@@ -278,6 +303,17 @@ export function useConnectionsScreen() {
       if (exOk === "true") setExpoOk(true);
       if (exUserStored) setExpoUser(exUserStored);
       if (easOkStored === "true") setEasOk(true);
+      if (
+        easStateStored === "verified" ||
+        easStateStored === "missing" ||
+        easStateStored === "unknown" ||
+        easStateStored === "auth_error" ||
+        easStateStored === "stale"
+      ) {
+        setEasState(easStateStored);
+      } else if (eas || easLastVerifiedStored) {
+        setEasState(easLastVerifiedStored ? "verified" : "stale");
+      }
       if (easLastVerifiedStored) setEasLastVerifiedAt(easLastVerifiedStored);
       if (repoOkStored === "true") setRepoOk(true);
       const repoLineStored = [repoSlug || "", repoBranch || ""].filter(Boolean).join(" (") + (repoBranch ? ")" : "");
@@ -343,11 +379,13 @@ export function useConnectionsScreen() {
         setRepoOk(false);
         setRepoOkLine("");
         setEasOk(false);
+        setEasState("missing");
         setEasLastVerifiedAt(null);
         await persistConnLights([
           [STORAGE_KEYS.CONN_GITHUB_OK, "false"],
           [STORAGE_KEYS.CONN_REPO_OK, "false"],
           [STORAGE_KEYS.CONN_EAS_OK, "false"],
+          [STORAGE_KEYS.CONN_EAS_STATE, "missing"],
         ]);
         await removeConnLights([
           STORAGE_KEYS.CONN_GITHUB_USER,
@@ -384,8 +422,12 @@ export function useConnectionsScreen() {
       } else {
         await AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID);
         setEasOk(false);
+        setEasState("missing");
         setEasLastVerifiedAt(null);
-        await persistConnLights([[STORAGE_KEYS.CONN_EAS_OK, "false"]]);
+        await persistConnLights([
+          [STORAGE_KEYS.CONN_EAS_OK, "false"],
+          [STORAGE_KEYS.CONN_EAS_STATE, "missing"],
+        ]);
         await removeConnLights([STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT]);
       }
 
@@ -685,8 +727,12 @@ Scopes: ${scopes}` : ""}`);
 
         // Workflow wurde nur gestartet; EAS-Verification bleibt bis zum echten Test neutral/false.
         setEasOk(false);
+        setEasState(projectId ? "stale" : "missing");
         setEasLastVerifiedAt(null);
-        await persistConnLights([[STORAGE_KEYS.CONN_EAS_OK, "false"]]);
+        await persistConnLights([
+          [STORAGE_KEYS.CONN_EAS_OK, "false"],
+          [STORAGE_KEYS.CONN_EAS_STATE, projectId ? "stale" : "missing"],
+        ]);
         await removeConnLights([STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT]);
 
         if (repoSlug) {
@@ -836,6 +882,7 @@ Scopes: ${scopes}` : ""}`);
 
     // EAS
     easOk,
+    easState,
     easLastVerifiedAt,
     easProjectId,
     setEasProjectId,
