@@ -1,15 +1,47 @@
+import React from "react";
+import { Animated } from "react-native";
+import { render } from "@testing-library/react-native";
 import {
-  getStatusText,
   getTransientPreviewNotice,
 } from "../screens/PreviewScreen/components/PreviewStatusBar";
+import { PreviewStatusBar } from "../screens/PreviewScreen/components/PreviewStatusBar";
+import { resolvePreviewDisplayState } from "../hooks/previewHelpers";
 
 describe("PreviewStatusBar status text semantics", () => {
-  it("shows local fallback as last known state", () => {
-    expect(getStatusText("ready", "local")).toContain("letzter bekannter Stand");
-  });
+  it("marks local fallback visibly as fallback and restricted state", () => {
+    const displayState = resolvePreviewDisplayState({
+      phase: "ready",
+      previewKind: "local",
+      previewSourceType: "html",
+      remoteUrlStatus: "missing",
+      hasExpiredRemoteUrl: false,
+      remoteFailure: "Preview-Server derzeit nicht erreichbar.",
+      stateError: null,
+      webError: null,
+      transientLocalPreviewNotice: null,
+    });
 
-  it("keeps supabase ready wording explicit", () => {
-    expect(getStatusText("ready", "supabase")).toBe("Live-Preview aktiv (Supabase)");
+    const screen = render(
+      React.createElement(PreviewStatusBar, {
+        phase: "ready",
+        displayState,
+        previewChannelLabel: "Technischer Fallback: Lokale HTML-Preview (nur solange App aktiv ist)",
+        previewExpiryText: "Kein Ablauf hinterlegt (letzter bekannter Stand)",
+        transientLocalPreviewNotice: null,
+        pulseAnim: new Animated.Value(1),
+        hotReloadEnabled: false,
+        hotReloadCount: 0,
+        fileCount: 2,
+        totalSize: 1024,
+        skippedCount: 0,
+      }),
+    );
+
+    expect(screen.getByText("Lokaler Fallback aktiv")).toBeTruthy();
+    expect(screen.getByText("Fallback")).toBeTruthy();
+    expect(
+      screen.getByText("Preview-Server derzeit nicht erreichbar."),
+    ).toBeTruthy();
   });
 
   it("keeps a transient local rehydration notice visible when provided", () => {

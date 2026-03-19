@@ -7,6 +7,7 @@ import { ActivityIndicator, BackHandler, Pressable, Text, View } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
+import { getPreviewMixedContentMode } from '../../hooks/previewHelpers';
 import { theme } from '../../theme';
 import { usePreviewFullscreen } from './hooks/usePreviewFullscreen';
 
@@ -163,7 +164,7 @@ export default function PreviewFullscreenScreen() {
           onRenderProcessGone={handleRenderProcessGone}
           startInLoadingState
           style={styles.webView}
-          mixedContentMode="always"
+          mixedContentMode={getPreviewMixedContentMode()}
           source={mode === 'html' ? { html, baseUrl } : { uri: url! }}
         />
         {loading && (
@@ -176,4 +177,3 @@ export default function PreviewFullscreenScreen() {
     </SafeAreaView>
   );
 }
-

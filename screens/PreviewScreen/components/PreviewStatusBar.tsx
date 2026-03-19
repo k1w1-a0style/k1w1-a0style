@@ -1,12 +1,12 @@
 import React from 'react';
 import { ActivityIndicator, Animated, Text, View } from 'react-native';
 import { theme } from '../../../theme';
-import type { PreviewPhase } from '../hooks/usePreviewScreen';
+import type { PreviewDisplayState, PreviewPhase } from '../../../hooks/previewHelpers';
 import { s } from '../PreviewScreen.styles';
 
 type PreviewStatusBarProps = {
   phase: PreviewPhase;
-  previewKind: "supabase" | "local" | null;
+  displayState: PreviewDisplayState;
   previewChannelLabel: string;
   previewExpiryText: string;
   transientLocalPreviewNotice: string | null;
@@ -18,21 +18,13 @@ type PreviewStatusBarProps = {
   skippedCount: number;
 };
 
-export function getStatusText(phase: PreviewPhase, previewKind: "supabase" | "local" | null): string {
-  if (phase === 'idle') return 'Bereit für Preview-Erstellung';
-  if (phase === 'creating') return 'Preview wird erstellt…';
-  if (phase === 'loading') return 'Preview wird geladen…';
-  if (phase === 'ready') return previewKind === 'local' ? 'Fallback aktiv (letzter bekannter Stand)' : 'Live-Preview aktiv (Supabase)';
-  return 'Preview-Fehler';
-}
-
 export function getTransientPreviewNotice(notice: string | null): string | null {
   return typeof notice === 'string' && notice.trim().length > 0 ? notice : null;
 }
 
 export function PreviewStatusBar({
   phase,
-  previewKind,
+  displayState,
   previewChannelLabel,
   previewExpiryText,
   transientLocalPreviewNotice,
@@ -43,21 +35,33 @@ export function PreviewStatusBar({
   totalSize,
   skippedCount,
 }: PreviewStatusBarProps) {
-  const previewNotice = getTransientPreviewNotice(transientLocalPreviewNotice);
+  const previewNotice = getTransientPreviewNotice(
+    transientLocalPreviewNotice ?? displayState.detailText,
+  );
+  const isBusy = phase === 'creating' || phase === 'loading';
+  const statusDotStyle =
+    displayState.tone === 'ok'
+      ? s.statusDotOk
+      : displayState.tone === 'error'
+        ? s.statusDotError
+        : displayState.tone === 'warning'
+          ? s.statusDotWarning
+          : s.statusDotNeutral;
+  const badgeStyle =
+    displayState.tone === 'ok'
+      ? s.statusBadgeOk
+      : displayState.tone === 'error'
+        ? s.statusBadgeError
+        : displayState.tone === 'warning'
+          ? s.statusBadgeWarning
+          : s.statusBadgeNeutral;
 
   return (
     <View style={s.statusBarWrap}>
       <View style={s.statusBar}>
-        <View
-          style={[
-            s.statusDot,
-            phase === 'ready' && s.statusDotOk,
-            phase === 'error' && s.statusDotError,
-            (phase === 'creating' || phase === 'loading') && s.statusDotLoading,
-          ]}
-        />
-        <Text style={s.statusText}>{getStatusText(phase, previewKind)}</Text>
-        {(phase === 'creating' || phase === 'loading') && (
+        <View style={[s.statusDot, statusDotStyle, isBusy && s.statusDotLoading]} />
+        <Text style={s.statusText}>{displayState.statusText}</Text>
+        {isBusy && (
           <Animated.View style={{ opacity: pulseAnim }}>
             <ActivityIndicator size="small" color={theme.palette.primary} />
           </Animated.View>
@@ -72,9 +76,9 @@ export function PreviewStatusBar({
           </View>
         )}
 
-        {phase === 'ready' && previewKind === 'local' && (
-          <View style={s.hotBadge}>
-            <Text style={s.hotBadgeText}>Fallback aktiv</Text>
+        {displayState.badgeText && (
+          <View style={[s.statusBadge, badgeStyle]}>
+            <Text style={s.statusBadgeText}>{displayState.badgeText}</Text>
           </View>
         )}
       </View>

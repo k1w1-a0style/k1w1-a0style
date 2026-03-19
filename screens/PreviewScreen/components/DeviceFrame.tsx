@@ -3,6 +3,7 @@ import { ActivityIndicator, Animated, Pressable, Text, View } from 'react-native
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../../theme';
+import { getPreviewMixedContentMode } from '../../../hooks/previewHelpers';
 import type { PreviewPhase } from '../hooks/usePreviewScreen';
 import { s } from '../PreviewScreen.styles';
 
@@ -75,7 +76,7 @@ export function DeviceFrame({
               onHttpError={(event) => onHttpError(event.nativeEvent?.statusCode)}
               onContentProcessDidTerminate={onContentProcessDidTerminate}
               onRenderProcessGone={onRenderProcessGone}
-              mixedContentMode="always"
+              mixedContentMode={getPreviewMixedContentMode()}
               startInLoadingState={false}
             />
             {(phase === 'loading' || phase === 'creating') && (
