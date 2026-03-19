@@ -17,6 +17,18 @@ export function buildSandpackHtml(opts: SandpackOptions): string {
 
   const safeTitle = sanitizeTitle(title);
   const fileCount = Object.keys(files).length;
+  const csp = [
+    "default-src 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+    "script-src 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://esm.sh",
+    "style-src 'unsafe-inline'",
+    "img-src data: blob: https:",
+    "font-src data: https:",
+    "connect-src 'none'",
+  ].join("; ");
 
   // App Code extrahieren und für JS escapen
   const appCode = escapeForJs(findAppCode(files));
@@ -35,6 +47,7 @@ export function buildSandpackHtml(opts: SandpackOptions): string {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
 <meta name="color-scheme" content="dark" />
+<meta http-equiv="Content-Security-Policy" content="${csp}" />
 <title>${safeTitle}</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; }
