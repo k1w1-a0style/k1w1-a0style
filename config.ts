@@ -91,6 +91,7 @@ export const CONFIG = {
 
     // Ordner, die als “Source Folders” gelten
     SRC_FOLDERS: [
+      "src",
       "components",
       "screens",
       "contexts",
@@ -113,6 +114,7 @@ export const CONFIG = {
 
     // Erlaubte Präfixe (alles darunter darf existieren/geschrieben werden)
     ALLOWED_PREFIXES: [
+      "src/",
       "components/",
       "screens/",
       "contexts/",
