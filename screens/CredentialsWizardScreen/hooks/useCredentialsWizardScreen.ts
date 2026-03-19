@@ -52,6 +52,26 @@ export function mergePersistedStatusByMode(
   };
 }
 
+export type WizardActionKind = "refreshStatus" | "refreshAll" | "generate";
+
+export function tryStartWizardAction(
+  activeActionRef: { current: WizardActionKind | null },
+  action: WizardActionKind,
+): boolean {
+  if (activeActionRef.current) return false;
+  activeActionRef.current = action;
+  return true;
+}
+
+export function finishWizardAction(
+  activeActionRef: { current: WizardActionKind | null },
+  action: WizardActionKind,
+): void {
+  if (activeActionRef.current === action) {
+    activeActionRef.current = null;
+  }
+}
+
 export function useCredentialsWizardScreen() {
   const project = useProject();
   const toast = useInlineToast();
@@ -106,9 +126,7 @@ export function useCredentialsWizardScreen() {
   const [showDebug, setShowDebug] = useState(false);
   const [showError, setShowError] = useState(false);
 
-  const runningRef = useRef(false);
-  const runningAllRef = useRef(false);
-  const generateRef = useRef(false);
+  const activeActionRef = useRef<WizardActionKind | null>(null);
   const isMountedRef = useRef(true);
 
   const safeSetLastError = useCallback(
@@ -279,7 +297,6 @@ export function useCredentialsWizardScreen() {
       safeSetLastDebug(r.debug);
       if (!r.ok) {
         safeSetLastError(r.error);
-        if (isMountedRef.current) setStatusByMode((prev) => ({ ...prev, [mode]: { exists: false } }));
         return;
       }
 
@@ -301,23 +318,19 @@ export function useCredentialsWizardScreen() {
   async function refreshStatus(mode: UiModeId) {
     if (!ensureCanRunOrAlert()) return;
 
-    // Prevent stacked calls on bad networks.
-    if (runningRef.current) return;
-    runningRef.current = true;
+    if (!tryStartWizardAction(activeActionRef, "refreshStatus")) return;
 
     try {
       await refreshStatusCore(mode, { setBusy: true });
     } finally {
-      runningRef.current = false;
+      finishWizardAction(activeActionRef, "refreshStatus");
     }
   }
 
   async function refreshAll() {
     if (!ensureCanRunOrAlert()) return;
 
-    // Separate guard so refreshAll doesn't deadlock with refreshStatus' guard.
-    if (runningAllRef.current) return;
-    runningAllRef.current = true;
+    if (!tryStartWizardAction(activeActionRef, "refreshAll")) return;
 
     if (isMountedRef.current) {
       setBusy("status:all");
@@ -334,15 +347,14 @@ export function useCredentialsWizardScreen() {
       }
       toast.show("Status aktualisiert");
     } finally {
-      runningAllRef.current = false;
+      finishWizardAction(activeActionRef, "refreshAll");
       if (isMountedRef.current) setBusy(null);
     }
   }
 
   async function generate(mode: UiModeId) {
     if (!ensureCanRunOrAlert()) return;
-    if (generateRef.current) return;
-    generateRef.current = true;
+    if (!tryStartWizardAction(activeActionRef, "generate")) return;
 
     if (isMountedRef.current) {
       setBusy(`generate:${mode}`);
@@ -372,11 +384,11 @@ export function useCredentialsWizardScreen() {
       }
 
       toast.show("Keystore erstellt");
-      await refreshStatus(mode);
+      await refreshStatusCore(mode, { setBusy: false });
     } catch (e: unknown) {
       safeSetLastError(e);
     } finally {
-      generateRef.current = false;
+      finishWizardAction(activeActionRef, "generate");
       if (isMountedRef.current) setBusy(null);
     }
   }

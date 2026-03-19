@@ -40,7 +40,18 @@ function fileRelevanceScore(file: ProjectFile, focusTerms: string[]): number {
   return score;
 }
 
-function buildProjectSnapshot(files: ProjectFile[], userFocus = ''): string {
+function buildProjectPathList(files: ProjectFile[]): string {
+  const paths = files
+    .map((file) => String(file.path ?? "").trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+
+  if (!paths.length) return "";
+
+  return `Vollständige Projektpfade (sortiert):\n${paths.join("\n")}`;
+}
+
+export function buildProjectSnapshot(files: ProjectFile[], userFocus = ''): string {
   if (!files || files.length === 0) {
     return 'Es sind aktuell noch keine Projektdateien angelegt.';
   }
@@ -67,7 +78,9 @@ function buildProjectSnapshot(files: ProjectFile[], userFocus = ''): string {
   return (
     'Ausschnitt der aktuellen Projektdateien (gekürzt):\n\n' +
     prioritized.join('\n\n') +
-    '\n\n(Hinweis: Dies ist nur ein Ausschnitt, nicht das komplette Projekt.)'
+    '\n\n(Hinweis: Dies ist nur ein Ausschnitt, nicht das komplette Projekt.)' +
+    '\n\n' +
+    buildProjectPathList(files)
   );
 }
 
