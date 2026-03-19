@@ -157,6 +157,7 @@ export function useGitHubReposScreen() {
   };
   const [manageModal, setManageModal] = useState<ManageModalConfig | null>(null);
   const [manageValue, setManageValue] = useState("");
+  const [manageBusy, setManageBusy] = useState(false);
 
   const openManageModal = useCallback((cfg: ManageModalConfig) => {
     setManageModal(cfg);
@@ -315,6 +316,7 @@ export function useGitHubReposScreen() {
   const handleSelectRepo = useCallback((repoOrString: GitHubRepo | string) => {
   const fullName =
     typeof repoOrString === "string" ? repoOrString : repoOrString.full_name;
+  const selectionGen = ++selectRepoGen.current;
 
   // Prefer default branch from the repo list payload (fast), fallback to API if needed.
   const defaultBranch: string | null =
@@ -344,13 +346,12 @@ export function useGitHubReposScreen() {
     const parsed = splitFullName(fullName);
     if (!parsed) return;
 
-    const gen = ++selectRepoGen.current;
     loadDefaultBranch(parsed.owner, parsed.repo)
       .then((b) => String(b || "").trim())
       .then((b) => {
         if (!b) return;
         if (!isMountedRef.current) return;
-        if (gen !== selectRepoGen.current) return;
+        if (selectionGen !== selectRepoGen.current) return;
         setActiveBranch(b);
         setLinkedRepo(fullName, b);
       })
@@ -359,6 +360,17 @@ export function useGitHubReposScreen() {
       });
   }
 }, [setActiveRepo, addRecentRepo, setLinkedRepo, setActiveBranch, loadDefaultBranch]);
+
+  const confirmManageModal = useCallback(async () => {
+    if (!manageModal || manageBusy) return;
+
+    setManageBusy(true);
+    try {
+      await manageModal.action(manageValue);
+    } finally {
+      setManageBusy(false);
+    }
+  }, [manageModal, manageBusy, manageValue]);
 
   const rememberRecentBranch = useCallback(async (repoFullName: string, branch: string) => {
     try {
@@ -1036,7 +1048,9 @@ export function useGitHubReposScreen() {
     // manage modal
     manageModal,
     manageValue,
+    manageBusy,
     setManageValue,
     closeManageModal,
+    confirmManageModal,
   };
 }
