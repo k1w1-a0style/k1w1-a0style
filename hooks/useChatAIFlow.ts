@@ -18,6 +18,7 @@ import { logger } from "../lib/logger";
 import { applyFilesToProject } from "../lib/fileWriter";
 import { buildProjectStateDigest, rebasePendingChangeOnLatest } from "../lib/chatFlowStateGuards";
 import { buildBuilderMessages, buildPlannerMessages, buildValidatorMessages } from "../lib/promptEngine";
+import { buildSanitizedLlmHistory } from "../lib/promptSanitizer";
 import { looksLikeExplicitFileTask, looksLikeAdviceRequest, looksAmbiguousBuilderRequest, buildChangeDigest, buildExplainMessages } from "../utils/chatHeuristics";
 import { handleMetaCommand } from "../utils/metaCommands";
 
@@ -369,9 +370,7 @@ export function useChatAIFlow({
         const currentProjectFiles = projectFilesRef.current;
         const currentPendingPlan = pendingPlanRef.current;
 
-        const historyAsLlm = currentMessages
-          .map((m) => ({ role: m.role, content: m.content }))
-          .filter((m) => String(m.content ?? "").trim().length > 0);
+        const historyAsLlm = buildSanitizedLlmHistory(currentMessages);
 
         // CALL 1: Planner (nur wenn nicht AutoFix / nicht forced / kein pendingPlan)
         if (!isAutoFix && !forceBuilder && !currentPendingPlan) {
