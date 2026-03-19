@@ -16,5 +16,7 @@ export interface ChatMessage {
     stateDrift?: boolean;
     validatorWarning?: boolean;
     explainWarning?: boolean;
+    localOnly?: boolean;
+    containsFilePreview?: boolean;
   };
 }

@@ -16,7 +16,7 @@ export type MetaCommandResult = {
 };
 
 const MAX_LISTED_FILES = 50;
-const MAX_FILE_PREVIEW_CHARS = 60000;
+export const MAX_FILE_PREVIEW_CHARS = 6000;
 
 const normalizeCommandInput = (value: string): string => {
   const trimmed = value.trim().toLowerCase();
@@ -126,6 +126,7 @@ export const handleMetaCommand = (
           (isTruncated ? ` (gekürzt auf ${MAX_FILE_PREVIEW_CHARS} Zeichen)` : '') +
           `\n\n\`\`\`\n${shown}\n\`\`\``,
         timestamp: new Date().toISOString(),
+        meta: { localOnly: true, containsFilePreview: true },
       },
     };
   }

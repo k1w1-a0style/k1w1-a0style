@@ -2,7 +2,8 @@
 // Zentrale Prompt-Logik für den k1w1 APK-Builder
 
 
-import { CONFIG } from '../config';
+import { buildEffectiveChatWriteHint } from './effectiveWritePolicy';
+import { sanitizeFileContentForPrompt, sanitizeTextForLlm } from './promptSanitizer';
 
 import type { ProjectFile } from "../shared/types/project";
 export type LlmMessageRole = 'system' | 'user' | 'assistant';
@@ -58,7 +59,7 @@ function buildProjectSnapshot(files: ProjectFile[], userFocus = ''): string {
     .slice(0, MAX_FILES)
     .map(({ f, score }) => {
       const path = f.path;
-      const content = String(f.content ?? '');
+      const content = sanitizeFileContentForPrompt(f.path, String(f.content ?? ''));
       const lines = content.split('\n').slice(0, MAX_LINES_PER_FILE);
       const relevanceHint = score > 0 ? ` (relevance=${score})` : '';
       return `# ${path}${relevanceHint}\n${lines.join('\n')}`;
@@ -72,26 +73,7 @@ function buildProjectSnapshot(files: ProjectFile[], userFocus = ''): string {
 }
 
 function buildAllowedPathHint(): string {
-  try {
-    const roots = CONFIG?.PATHS?.ALLOWED_ROOT ?? [];
-    const singles = CONFIG?.PATHS?.ALLOWED_SINGLE ?? [];
-    const prefixes = CONFIG?.PATHS?.ALLOWED_PREFIXES ?? [];
-
-    const rootList = roots.length ? `ALLOWED_ROOT: ${roots.join(', ')}` : '';
-    const singleList = singles.length ? `ALLOWED_SINGLE: ${singles.join(', ')}` : '';
-    const prefixList = prefixes.length ? `ALLOWED_PREFIXES: ${prefixes.join(', ')}` : '';
-
-    const parts = [rootList, singleList, prefixList].filter(Boolean);
-    if (!parts.length) return '';
-
-    return (
-      'Erlaubte Pfade (Validator): ' +
-      parts.join(' | ') +
-      '. Lege neue Dateien nur innerhalb dieser Bereiche an.'
-    );
-  } catch {
-    return '';
-  }
+  return buildEffectiveChatWriteHint();
 }
 
 /**
@@ -132,7 +114,7 @@ export function buildPlannerMessages(
 
   const userTask: LlmMessage = {
     role: 'user',
-    content: 'Nutzerwunsch:\n' + userContent + '\n\nBitte antworte als PLANER (Fragen ODER Plan+Dateiliste).',
+    content: 'Nutzerwunsch:\n' + sanitizeTextForLlm(userContent) + '\n\nBitte antworte als PLANER (Fragen ODER Plan+Dateiliste).',
   };
 
   return [systemMessage, projectMessage, ...trimmedHistory, userTask];
@@ -200,7 +182,7 @@ export function buildBuilderMessages(
     role: 'user',
     content:
       'Aufgabe (aktuelle User-Eingabe):\n' +
-      userContent +
+      sanitizeTextForLlm(userContent) +
       '\n\nDenke daran: Antworte ausschließlich mit einem JSON-Array von Dateien, ohne zusätzliche Erklärungen.',
   };
 
@@ -233,12 +215,15 @@ export function buildValidatorMessages(
     role: 'user',
     content:
       'Ursprüngliche Nutzeranfrage:\n' +
-      originalUserRequest +
+      sanitizeTextForLlm(originalUserRequest) +
       '\n\nHier sind die von der Haupt-KI erzeugten Dateien (JSON-Array). Prüfe sie und liefere ggf. ein verbessertes Array:',
   };
 
   const aiFilesJson = JSON.stringify(
-    aiFiles.map((f) => ({ path: f.path, content: String(f.content ?? '') })),
+    aiFiles.map((f) => ({
+      path: f.path,
+      content: sanitizeFileContentForPrompt(f.path, String(f.content ?? '')),
+    })),
     null,
     2,
   );

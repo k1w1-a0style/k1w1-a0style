@@ -62,6 +62,20 @@ export function redactSecrets(input: string): string {
     `$1="${REDACTED}"`
   );
 
+  // x-api-key headers.
+  out = replaceAllSafe(
+    out,
+    /(x-api-key\s*[:=]\s*)([^\s\n\r]+)/gi,
+    `$1${REDACTED}`
+  );
+
+  // npm auth tokens in .npmrc style files.
+  out = replaceAllSafe(
+    out,
+    /(_authToken\s*[=:]\s*)([^\s\n\r]+)/gi,
+    `$1${REDACTED}`
+  );
+
   // Bearer tokens inside text.
   out = replaceAllSafe(out, /\bBearer\s+([A-Za-z0-9._-]{10,})\b/g, `Bearer ${REDACTED}`);
 
