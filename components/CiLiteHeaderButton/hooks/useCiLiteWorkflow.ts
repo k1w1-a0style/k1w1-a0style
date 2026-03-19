@@ -193,8 +193,6 @@ export function useCiLiteWorkflow() {
   const [artifactError, setArtifactError] = useState<string | null>(null);
 
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const manualCiLiteSessionRef = useRef<string | null>(null);
-  const autoAutofixStartedForSessionRef = useRef<string | null>(null);
 
   // ---- Derived repo/branch ----
   const githubRepo = useMemo(
@@ -276,22 +274,26 @@ export function useCiLiteWorkflow() {
   );
 
   // ---- Logs ----
+  const trackedRunId = runId;
+  const hasActiveRunContext = dispatching || chainWaiting || trackedRunId != null;
+
   const {
     logs,
     workflowRun,
     isLoading: logsLoading,
     error: logsError,
   } = useGitHubActionsLogs({
-    githubRepo: visible && runId ? githubRepo || null : null,
-    runId,
+    githubRepo: trackedRunId ? githubRepo || null : null,
+    runId: trackedRunId,
     workflowId,
-    autoRefresh: visible,
+    autoRefresh: Boolean(trackedRunId) && hasActiveRunContext,
   });
 
+  const runCompleted = workflowRun?.status === "completed";
+  const isTrackingRun = dispatching || chainWaiting || (trackedRunId != null && !runCompleted);
 
   // ---- Artifact result (deterministic header backchannel) ----
   useEffect(() => {
-    if (!visible) return;
     if (!githubRepo) return;
     if (!workflowRun?.id) return;
     if (workflowRun.status !== "completed") return;
@@ -367,7 +369,6 @@ export function useCiLiteWorkflow() {
       cancelled = true;
     };
   }, [
-    visible,
     githubRepo,
     workflowId,
     workflowRun?.id,
@@ -376,16 +377,15 @@ export function useCiLiteWorkflow() {
     artifactResult,
   ]);
 
-  // Clear artifact state when we start a new run or hide UI.
+  // Clear artifact state when we switch to a new tracked run context.
   useEffect(() => {
     setArtifactResult(null);
     setArtifactError(null);
     setArtifactLoading(false);
-  }, [visible, jobId, workflowId, runId]);
+  }, [jobId, workflowId, runId]);
 
   // ---- Derived log state ----
   const logLines = useMemo(() => {
-    if (!visible) return [];
     if (!runId) {
       return [
         chainWaiting && workflowId === WORKFLOW_CI_LITE
@@ -397,7 +397,7 @@ export function useCiLiteWorkflow() {
     }
     if (!logs || logs.length === 0) return [];
     return logs.map((e) => e.message);
-  }, [visible, runId, logs, jobId, chainWaiting, workflowId]);
+  }, [runId, logs, jobId, chainWaiting, workflowId]);
 
   const stepInfo = useMemo(() => inferStepStates(logLines), [logLines]);
 
@@ -444,12 +444,17 @@ export function useCiLiteWorkflow() {
     [done, workflowRun, onlyErrors.length, showError, artifactResult],
   );
 
-  const busy = dispatching || logsLoading || workflowRun?.status === "in_progress";
+  const busy =
+    dispatching ||
+    chainWaiting ||
+    logsLoading ||
+    workflowRun?.status === "in_progress" ||
+    workflowRun?.status === "queued";
   const isAutofix = workflowId === WORKFLOW_CI_LITE_AUTOFIX;
 
   // ---- Chain-run (autofix → CI Lite) ----
   useEffect(() => {
-    if (!visible || workflowId !== WORKFLOW_CI_LITE_AUTOFIX || !workflowRun) return;
+    if (workflowId !== WORKFLOW_CI_LITE_AUTOFIX || !workflowRun) return;
     if (workflowRun.status !== "completed" || workflowRun.conclusion !== "success") return;
     if (!jobId || !githubRepo || chainWaiting) return;
 
@@ -504,7 +509,7 @@ export function useCiLiteWorkflow() {
 
     void poll();
     pollTimerRef.current = setInterval(poll, 2500);
-  }, [visible, workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopPolling, findMatchingRun]);
+  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopPolling, findMatchingRun]);
 
   // ---- Header state lamp ----
   useEffect(() => {
@@ -576,10 +581,6 @@ export function useCiLiteWorkflow() {
       stopPolling();
 
       const newJobId = uuidv4();
-      if (workflowFile === WORKFLOW_CI_LITE) {
-        manualCiLiteSessionRef.current = newJobId;
-        autoAutofixStartedForSessionRef.current = null;
-      }
       setJobId(newJobId);
 
       try {
@@ -669,23 +670,6 @@ export function useCiLiteWorkflow() {
   );
 
 
-  // ---- Auto chain (manual CI Lite failure -> Autofix once) ----
-  useEffect(() => {
-    if (!visible || workflowId !== WORKFLOW_CI_LITE || !workflowRun) return;
-    if (workflowRun.status !== "completed") return;
-
-    const conclusion = String(workflowRun.conclusion || "").toLowerCase();
-    if (conclusion !== "failure") return;
-
-    const manualSessionId = manualCiLiteSessionRef.current;
-    if (!manualSessionId || jobId !== manualSessionId) return;
-    if (autoAutofixStartedForSessionRef.current === manualSessionId) return;
-    if (!githubRepo || !branch) return;
-
-    autoAutofixStartedForSessionRef.current = manualSessionId;
-    void dispatchWorkflow(WORKFLOW_CI_LITE_AUTOFIX);
-  }, [visible, workflowId, workflowRun, jobId, githubRepo, branch, dispatchWorkflow]);
-
   // ---- Run metadata ----
   const runMeta = useMemo(() => {
     if (!workflowRun?.created_at) return null;
@@ -707,9 +691,10 @@ export function useCiLiteWorkflow() {
   return {
     visible, setVisible,
     dispatching, dispatchWorkflow,
+    isTrackingRun,
     headerState,
     githubRepo, branch, targetRef,
-    jobId, runUrl, workflowId, workflowRun,
+    jobId, runUrl, workflowId, workflowRun, trackedRunId,
     stepInfo, logLines, onlyErrors,
     done, ok, busy, isAutofix,
     showError, logsLoading,
