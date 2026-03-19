@@ -11,9 +11,9 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 486**.
+- Zuletzt abgeschlossen: **Patch 487**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
-- Patch 486 härtet den CI-Lite-Header/Modal-Flow zusätzlich gegen Persistenzdrift: Start/Reopen hydriert nur noch frische repo-/branch-/sha-passende CI-Lite-Abschlüsse, bleibt bei fremder/veralteter Persistenz neutral, und das Modal trennt Workflow-/Run-Fehler sichtbar von Artifact-/Nachzug-Problemen.
+- Patch 487 schließt die zweite AI-Flow-Welle konservativ ab: `validateChatInput()` hängt jetzt im echten Sendepfad, Prompt-Kontexte für Planner/Builder/Validator werden deterministisch budgetiert gekürzt, und das Confirm-Modal zeigt kompakte Inhaltsdeltas mit ehrlicher Builder-vs-Validator-Provenance.
 - Patch 483 zieht im Schritt-8-Scope nur den bestätigten Minimalrest nach: G2 (Selection-Race) und G3 (Manage-Modal-Busy-Wiring) wurden sauber geschlossen; G6/G7/G8 ließen sich im aktuellen Stand nicht bestätigen.
 - Patch 482 zieht im Schritt-6-Scope keinen neuen Technikblock auf, sondern nur den bestätigten Doku-/UX-Rest sauber nach: README/Patchstand ist jetzt mit TODO/Checklog/Patchlog synchron, und E3 bleibt fachlich ein kleiner Connections-UX-Hinweis (kein neuer E8/E9-Fix; N7/S7 bleiben nicht bestätigt).
 - Patch 481 zieht im Schritt-5-Scope nur den bestätigten Restpunkt nach: Build-Screen und One-Click-Deploy bewerten CI-Lite jetzt nicht mehr nur nach Repo/Branch/Freshness, sondern auch gegen den zuletzt grünen SHA und den aktuellen Branch-HEAD; dadurch zeigt die UI keinen falschen grünen Zustand mehr, wenn `startBuildJob(...)` später wegen SHA-Mismatch blockieren würde. S10/E5/E6/E7 bleiben im aktuellen Stand ohne neuen Produktdefekt bestätigt.

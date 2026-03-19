@@ -3,6 +3,7 @@
 
 import type { AIConfig } from "../contexts/AIContext";
 import type { OrchestratorResult } from "../lib/orchestrator";
+import type { ChangePreview } from "../lib/changePreview";
 import type { ChatMessage } from "../shared/types/chat";
 import type { ProjectFile } from "../shared/types/project";
 
@@ -16,6 +17,14 @@ export function extractRawOrchestratorResult(
   return res.raw;
 }
 
+export type PendingChangeFileSource = "builder" | "validator";
+export type PendingChangeValidatorState =
+  | "disabled"
+  | "validated"
+  | "builder-fallback-empty"
+  | "builder-fallback-error"
+  | "builder-fallback-exception";
+
 export type PendingChange = {
   files: ProjectFile[];
   proposedFiles?: ProjectFile[];
@@ -27,6 +36,10 @@ export type PendingChange = {
   errors?: string[];
   aiResponse: OrchestratorResult;
   agentResponse?: OrchestratorResult;
+  changePreviews?: ChangePreview[];
+  finalFileSource?: PendingChangeFileSource;
+  validatorState?: PendingChangeValidatorState;
+  sourceSummary?: string;
 };
 
 export type PendingPlan = {
