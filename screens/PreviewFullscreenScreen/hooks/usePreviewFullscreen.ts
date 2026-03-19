@@ -13,6 +13,7 @@ import type { WebView, WebViewNavigation } from 'react-native-webview';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { isHttpUrl, truncateUrl } from '../../../utils/url';
+import { getPreviewRemoteUrlStatus } from '../../../hooks/previewHelpers';
 import { useWebViewNavigation } from '../../shared/preview/useWebViewNavigation';
 import { useWebViewCrashRecovery } from '../../shared/preview/useWebViewCrashRecovery';
 import { logger } from '../../../lib/logger';
@@ -30,6 +31,10 @@ export function usePreviewFullscreen() {
   const html = route.params?.html ?? '';
   // FIX: keine baseUrl — verhindert ERR_CONNECTION_REFUSED
   const baseUrl = route.params?.baseUrl ?? undefined;
+  const remoteUrlStatus = useMemo(
+    () => getPreviewRemoteUrlStatus(typeof url === 'string' ? url : null),
+    [url],
+  );
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,9 +52,16 @@ export function usePreviewFullscreen() {
   // ─── Mode ─────────────────────────────────────────────────────────────────
   const mode = useMemo<'html' | 'url' | null>(() => {
     if (html.trim().length > 0) return 'html';
-    if (typeof url === 'string' && url.length > 0 && isHttpUrl(url)) return 'url';
+    if (
+      typeof url === 'string' &&
+      url.length > 0 &&
+      isHttpUrl(url) &&
+      remoteUrlStatus === 'trusted'
+    ) {
+      return 'url';
+    }
     return null;
-  }, [html, url]);
+  }, [html, url, remoteUrlStatus]);
 
   // ─── BUG FIX: URL-Parse-Error als separates Flag ──────────────────────────
   // War vorher dead code innerhalb des if(!mode)-Blocks nach einem return.
@@ -79,8 +91,10 @@ export function usePreviewFullscreen() {
   const headerSubtitle = useMemo(() => {
     if (mode === 'html') return 'Technischer Fallback: Lokale HTML-Preview';
     if (mode === 'url' && url) return `Aktive Supabase-Preview · ${truncateUrl(url, 40)}`;
+    if (remoteUrlStatus === 'insecure') return 'Remote-Preview blockiert · unsicherer Link';
+    if (remoteUrlStatus === 'invalid') return 'Remote-Preview blockiert · ungültige URL';
     return 'Keine Preview aktiv';
-  }, [mode, url]);
+  }, [mode, url, remoteUrlStatus]);
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
   const handleGoBack = useCallback(() => navigation.goBack(), [navigation]);

@@ -49,6 +49,7 @@ export const s = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 8,
   },
   statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.palette.text.disabled },
+  statusDotNeutral: { backgroundColor: theme.palette.text.disabled },
   statusDotOk: {
     backgroundColor: theme.palette.success,
     shadowColor: theme.palette.success,
@@ -56,9 +57,26 @@ export const s = StyleSheet.create({
     shadowOpacity: 0.6, shadowRadius: 4,
   },
   statusDotError: { backgroundColor: theme.palette.error },
+  statusDotWarning: { backgroundColor: theme.palette.warning },
   statusDotLoading: { backgroundColor: theme.palette.warning },
   statusText: { flex: 1, color: theme.palette.text.secondary, fontSize: 12, fontWeight: '700' },
   previewStatsText: { color: theme.palette.text.muted, fontSize: 11, fontWeight: '700' },
+  statusBadge: {
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1,
+  },
+  statusBadgeOk: {
+    borderColor: 'rgba(0,255,0,0.2)', backgroundColor: 'rgba(0,255,0,0.06)',
+  },
+  statusBadgeWarning: {
+    borderColor: 'rgba(255,170,0,0.25)', backgroundColor: 'rgba(255,170,0,0.08)',
+  },
+  statusBadgeError: {
+    borderColor: 'rgba(255,68,68,0.25)', backgroundColor: 'rgba(255,68,68,0.08)',
+  },
+  statusBadgeNeutral: {
+    borderColor: theme.palette.border, backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  statusBadgeText: { color: theme.palette.text.primary, fontSize: 10, fontWeight: '800' },
   hotBadge: {
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1,
     borderColor: 'rgba(0,255,0,0.2)', backgroundColor: 'rgba(0,255,0,0.06)',

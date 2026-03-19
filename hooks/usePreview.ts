@@ -14,6 +14,7 @@ import type { PreviewFiles, PreviewResponse } from "../types/preview";
 
 import type { ProjectData, LastPreviewMeta } from "../shared/types/project";
 import {
+  describeRemotePreviewFailure,
   isAllowedFile,
   isProjectFile,
   promiseWithTimeout,
@@ -39,6 +40,7 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
   const [isCreating, setIsCreating] = useState(false);
   const [lastCreatedAt, setLastCreatedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [remoteFailure, setRemoteFailure] = useState<string | null>(null);
   const { setLastPreview, setPreferredPreviewMode } = useProject();
   const [lastPreview, setLastPreviewState] = useState<PreviewResult | null>(null);
 
@@ -54,6 +56,11 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
   const safeSetError = useCallback((v: string | null) => {
     if (!isAliveRef.current) return;
     setError(v);
+  }, []);
+
+  const safeSetRemoteFailure = useCallback((v: string | null) => {
+    if (!isAliveRef.current) return;
+    setRemoteFailure(v);
   }, []);
 
   const safeSetLastCreatedAt = useCallback((v: number | null) => {
@@ -365,6 +372,7 @@ if (container) {
 
       safeSetIsCreating(true);
       safeSetError(null);
+      safeSetRemoteFailure(null);
 
       try {
         const files = normalizeForWebPreview(ensureMinimumFiles(fileMap));
@@ -428,6 +436,7 @@ if (container) {
             };
 
             safeSetLastPreviewState(result);
+            safeSetRemoteFailure(null);
             await setLastPreview({
               url: result.url,
               source: result.source,
@@ -441,6 +450,7 @@ if (container) {
 
           throw new Error(resp?.error || "Preview konnte nicht erstellt werden");
         } catch (supErr: unknown) {
+          safeSetRemoteFailure(describeRemotePreviewFailure(supErr));
           logger.warn(
             "[usePreview] ⚠️ Supabase Preview fehlgeschlagen, fallback auf Local HTML:",
             supErr,
@@ -522,18 +532,20 @@ if (container) {
     void setLastPreview(null);
     safeSetLastCreatedAt(null);
     safeSetError(null);
-  }, [setLastPreview, safeSetError, safeSetLastCreatedAt, safeSetLastPreviewState]);
+    safeSetRemoteFailure(null);
+  }, [setLastPreview, safeSetError, safeSetLastCreatedAt, safeSetLastPreviewState, safeSetRemoteFailure]);
 
   const state: PreviewState = useMemo(
     () => ({
       isCreating,
       lastCreatedAt,
       error,
+      remoteFailure,
       fileCount: Object.keys(fileMap).length,
       totalSize,
       skippedCount,
     }),
-    [isCreating, lastCreatedAt, error, fileMap, totalSize, skippedCount],
+    [isCreating, lastCreatedAt, error, remoteFailure, fileMap, totalSize, skippedCount],
   );
 
   // Content-aware fingerprint: key + per-file content hash (same-length edits are detected).

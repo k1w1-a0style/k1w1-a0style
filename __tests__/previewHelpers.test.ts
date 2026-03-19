@@ -1,7 +1,10 @@
 import {
   buildQrImageUrl,
+  getPreviewMixedContentMode,
   formatPreviewExpiry,
   getPreviewChannelLabel,
+  getPreviewRemoteUrlStatus,
+  resolvePreviewDisplayState,
   shouldAttemptSupabaseFirst,
   isPreviewExpired,
 } from "../hooks/previewHelpers";
@@ -53,5 +56,93 @@ describe("previewHelpers", () => {
     expect(buildQrImageUrl(url)).toContain(
       "data=https%3A%2F%2Fexample.com%2Fpreview%3Fa%3D1%26b%3D2",
     );
+  });
+
+  test("distinguishes remote ready, local fallback and unavailable preview states", () => {
+    expect(
+      resolvePreviewDisplayState({
+        phase: "ready",
+        previewKind: "supabase",
+        previewSourceType: "url",
+        remoteUrlStatus: "trusted",
+        hasExpiredRemoteUrl: false,
+        remoteFailure: null,
+        stateError: null,
+        webError: null,
+        transientLocalPreviewNotice: null,
+      }).kind,
+    ).toBe("remote_ready");
+
+    expect(
+      resolvePreviewDisplayState({
+        phase: "ready",
+        previewKind: "local",
+        previewSourceType: "html",
+        remoteUrlStatus: "missing",
+        hasExpiredRemoteUrl: false,
+        remoteFailure: null,
+        stateError: null,
+        webError: null,
+        transientLocalPreviewNotice: null,
+      }).kind,
+    ).toBe("fallback_active");
+
+    expect(
+      resolvePreviewDisplayState({
+        phase: "idle",
+        previewKind: null,
+        previewSourceType: null,
+        remoteUrlStatus: "missing",
+        hasExpiredRemoteUrl: false,
+        remoteFailure: null,
+        stateError: null,
+        webError: null,
+        transientLocalPreviewNotice: null,
+      }).kind,
+    ).toBe("unavailable");
+  });
+
+  test("missing, invalid and insecure server URLs never become remote ready", () => {
+    expect(getPreviewRemoteUrlStatus(null)).toBe("missing");
+    expect(getPreviewRemoteUrlStatus("notaurl")).toBe("invalid");
+    expect(getPreviewRemoteUrlStatus("http://preview.example.com")).toBe("insecure");
+    expect(getPreviewRemoteUrlStatus("https://preview.example.com")).toBe("trusted");
+    expect(getPreviewRemoteUrlStatus("http://localhost:8081")).toBe("trusted");
+
+    expect(
+      resolvePreviewDisplayState({
+        phase: "ready",
+        previewKind: "supabase",
+        previewSourceType: null,
+        remoteUrlStatus: "invalid",
+        hasExpiredRemoteUrl: false,
+        remoteFailure: null,
+        stateError: null,
+        webError: null,
+        transientLocalPreviewNotice: null,
+      }).kind,
+    ).toBe("unavailable");
+  });
+
+  test("unreachable server yields an honest unavailable state", () => {
+    const state = resolvePreviewDisplayState({
+      phase: "idle",
+      previewKind: "supabase",
+      previewSourceType: null,
+      remoteUrlStatus: "missing",
+      hasExpiredRemoteUrl: false,
+      remoteFailure: "Preview-Server derzeit nicht erreichbar.",
+      stateError: null,
+      webError: null,
+      transientLocalPreviewNotice: null,
+    });
+
+    expect(state.kind).toBe("unavailable");
+    expect(state.statusText).toBe("Remote-Preview nicht verfügbar");
+    expect(state.detailText).toContain("nicht erreichbar");
+  });
+
+  test("preview webview policy keeps mixed content locked down", () => {
+    expect(getPreviewMixedContentMode()).toBe("never");
   });
 });

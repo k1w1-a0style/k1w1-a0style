@@ -14,7 +14,9 @@ import {
   buildQrImageUrl,
   formatPreviewExpiry,
   getPreviewChannelLabel,
+  getPreviewRemoteUrlStatus,
   isPreviewExpired,
+  resolvePreviewDisplayState,
 } from '../../../hooks/previewHelpers';
 import { isHttpUrl } from '../../../utils/url';
 import { useWebViewNavigation } from '../../shared/preview/useWebViewNavigation';
@@ -63,34 +65,81 @@ export function usePreviewScreen() {
     return isPreviewExpired(lastPreview?.expiresAt ?? null);
   }, [lastPreview?.source, lastPreview?.expiresAt]);
 
+  const remoteUrlStatus = useMemo(
+    () => getPreviewRemoteUrlStatus(lastPreview?.source === 'supabase' ? lastPreview?.url : null),
+    [lastPreview?.source, lastPreview?.url],
+  );
+
   const previewSource = useMemo(() => {
-    if (lastPreview?.url && isHttpUrl(lastPreview.url) && !hasExpiredSupabaseUrl) {
+    if (
+      lastPreview?.url &&
+      isHttpUrl(lastPreview.url) &&
+      remoteUrlStatus === 'trusted' &&
+      !hasExpiredSupabaseUrl
+    ) {
       return { type: 'url' as const, uri: lastPreview.url };
     }
     if (lastPreview?.html) {
       return { type: 'html' as const, html: lastPreview.html };
     }
     return null;
-  }, [lastPreview, hasExpiredSupabaseUrl]);
+  }, [lastPreview, hasExpiredSupabaseUrl, remoteUrlStatus]);
 
   const mode = previewSource?.type ?? null;
   const url = previewSource?.type === 'url' ? previewSource.uri : null;
 
   const previewKind = lastPreview?.source ?? null;
-  const previewUrl = lastPreview?.url ?? null;
+  const previewUrl = useMemo(
+    () =>
+      previewKind === 'supabase' && remoteUrlStatus === 'trusted' && !hasExpiredSupabaseUrl
+        ? lastPreview?.url ?? null
+        : null,
+    [previewKind, remoteUrlStatus, hasExpiredSupabaseUrl, lastPreview?.url],
+  );
   const previewExpiryText = useMemo(
     () => formatPreviewExpiry(lastPreview?.expiresAt ?? null),
     [lastPreview?.expiresAt],
-  );
-  const previewChannelLabel = useMemo(
-    () => getPreviewChannelLabel(previewKind),
-    [previewKind],
   );
   const transientLocalPreviewNotice = useMemo(() => {
     if (lastPreview?.source !== 'local') return null;
     if (previewSource) return null;
     return 'Die letzte lokale HTML-Preview war nur temporär und ist nach Restart/Rehydration nicht mehr verfügbar. Bitte Preview neu erstellen.';
   }, [lastPreview?.source, previewSource]);
+  const displayState = useMemo(
+    () =>
+      resolvePreviewDisplayState({
+        phase,
+        previewKind: previewKind,
+        previewSourceType: previewSource?.type ?? null,
+        remoteUrlStatus,
+        hasExpiredRemoteUrl: hasExpiredSupabaseUrl,
+        remoteFailure: state.remoteFailure,
+        stateError: state.error,
+        webError,
+        transientLocalPreviewNotice,
+      }),
+    [
+      phase,
+      previewKind,
+      previewSource?.type,
+      remoteUrlStatus,
+      hasExpiredSupabaseUrl,
+      state.remoteFailure,
+      state.error,
+      webError,
+      transientLocalPreviewNotice,
+    ],
+  );
+  const previewChannelLabel = useMemo(() => {
+    if (displayState.kind === 'remote_ready') return getPreviewChannelLabel(previewKind);
+    if (displayState.kind === 'fallback_active') {
+      return 'Technischer Fallback: Lokale HTML-Preview (eingeschränkt, nicht server-verifiziert)';
+    }
+    if (previewKind === 'supabase') {
+      return 'Remote-Preview derzeit nicht verifiziert';
+    }
+    return getPreviewChannelLabel(previewKind);
+  }, [displayState.kind, previewKind]);
   const qrImageUrl = useMemo(() => {
     if (!previewUrl || !isHttpUrl(previewUrl)) return null;
     return buildQrImageUrl(previewUrl);
@@ -222,11 +271,11 @@ export function usePreviewScreen() {
   }, [reset]);
 
   const handleCopy = useCallback(async () => {
-    if (lastPreview?.url) {
-      await Clipboard.setStringAsync(lastPreview.url);
+    if (previewUrl) {
+      await Clipboard.setStringAsync(previewUrl);
       Alert.alert('Kopiert', 'Preview-URL in Zwischenablage.');
     }
-  }, [lastPreview]);
+  }, [previewUrl]);
 
   const handleCopyQrLink = useCallback(async () => {
     if (!qrImageUrl) return;
@@ -235,14 +284,14 @@ export function usePreviewScreen() {
   }, [qrImageUrl]);
 
   const handleOpenExternal = useCallback(async () => {
-    if (lastPreview?.url) {
+    if (previewUrl) {
       try {
-        await Linking.openURL(lastPreview.url);
+        await Linking.openURL(previewUrl);
       } catch {
         Alert.alert('Fehler', 'Browser konnte nicht geoeffnet werden.');
       }
     }
-  }, [lastPreview]);
+  }, [previewUrl]);
 
   const handleOpenQr = useCallback(async () => {
     if (!qrImageUrl) return;
@@ -273,6 +322,7 @@ export function usePreviewScreen() {
     previewExpiryText,
     previewChannelLabel,
     transientLocalPreviewNotice,
+    displayState,
     qrImageUrl,
     phase,
     setPhase,

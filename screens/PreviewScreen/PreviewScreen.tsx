@@ -30,6 +30,7 @@ export default function PreviewScreen() {
     previewExpiryText,
     previewChannelLabel,
     transientLocalPreviewNotice,
+    displayState,
     qrImageUrl,
     phase,
     setPhase,
@@ -95,7 +96,7 @@ export default function PreviewScreen() {
         projectName={projectData.name}
         hotReloadEnabled={hotReloadEnabled}
         hotDotAnim={hotDotAnim}
-        hasPreviewUrl={Boolean(lastPreview?.url)}
+        hasPreviewUrl={Boolean(previewUrl)}
         hasQrUrl={Boolean(qrImageUrl)}
         onToggleHotReload={() => setHotReloadEnabled((value) => !value)}
         onReload={handleReload}
@@ -107,7 +108,7 @@ export default function PreviewScreen() {
 
       <PreviewStatusBar
         phase={phase}
-        previewKind={previewKind}
+        displayState={displayState}
         previewChannelLabel={previewChannelLabel}
         previewExpiryText={previewExpiryText}
         transientLocalPreviewNotice={transientLocalPreviewNotice}

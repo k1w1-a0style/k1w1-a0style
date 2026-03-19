@@ -11,8 +11,9 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 488**.
+- Zuletzt abgeschlossen: **Patch 489**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
+- Patch 489 härtet den Preview-/Server-Contract minimal und ehrlich: Remote-Preview, lokaler HTML-Fallback, unavailable/loading/failure sowie unsichere oder ungültige Server-URLs werden jetzt gemeinsam unterschieden, und die WebView lädt Remote-Previews nur noch mit härterer Minimal-Policy statt false green.
 - Patch 488 vereinheitlicht die Secret-/Credential-/EAS-/Readiness-Semantik über Connections, Build-Readiness und Diagnostics: Auth/Permission/Unknown/Stale werden nicht mehr als „fehlt“ dargestellt, und Diagnostics-Hinweise bleiben bei unklaren Prüfzuständen ehrlicher.
 - Patch 483 zieht im Schritt-8-Scope nur den bestätigten Minimalrest nach: G2 (Selection-Race) und G3 (Manage-Modal-Busy-Wiring) wurden sauber geschlossen; G6/G7/G8 ließen sich im aktuellen Stand nicht bestätigen.
 - Patch 482 zieht im Schritt-6-Scope keinen neuen Technikblock auf, sondern nur den bestätigten Doku-/UX-Rest sauber nach: README/Patchstand ist jetzt mit TODO/Checklog/Patchlog synchron, und E3 bleibt fachlich ein kleiner Connections-UX-Hinweis (kein neuer E8/E9-Fix; N7/S7 bleiben nicht bestätigt).
