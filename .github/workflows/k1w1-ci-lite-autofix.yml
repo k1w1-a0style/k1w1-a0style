@@ -33,6 +33,7 @@ jobs:
     env:
       JOB_ID: ${{ inputs.job_id }}
       TARGET_BRANCH: ${{ inputs.ref }}
+      ALLOWED_REF_REGEX: "^(work|codex|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
       WORKFLOW_VERSION: "399"
 
     steps:
@@ -43,6 +44,7 @@ jobs:
           input_ref: ${{ inputs.ref }}
           github_ref_name: ""
           default_ref: ""
+          allowed_ref_regex: ${{ env.ALLOWED_REF_REGEX }}
 
       - name: Export target branch
         shell: bash
@@ -217,6 +219,11 @@ jobs:
             exit 0
           fi
 
+          if ! echo "$BR" | grep -qE "${ALLOWED_REF_REGEX}"; then
+            echo "::warning::Writeback disabled for branch '$BR' (regex: ${ALLOWED_REF_REGEX})." | tee -a ci-logs/autofix.log
+            exit 0
+          fi
+
           if ! git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
             echo "::warning::Ref '$BR' is not a remote branch. Skipping writeback." | tee -a ci-logs/autofix.log
             exit 0
@@ -373,6 +380,11 @@ jobs:
 
           if echo "$BR" | grep -qE '[ :]'; then
             echo "::warning::Unsafe ref ($BR); skipping CI Lite chain-run."
+            exit 0
+          fi
+
+          if ! echo "$BR" | grep -qE "${ALLOWED_REF_REGEX}"; then
+            echo "::warning::CI Lite chain-run disabled for '$BR' (regex: ${ALLOWED_REF_REGEX})."
             exit 0
           fi
 

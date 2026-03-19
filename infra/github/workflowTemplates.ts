@@ -181,6 +181,7 @@ jobs:
       contents: read
 
     env:
+      ALLOWED_REF_REGEX: "^(work|codex|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
       WORKFLOW_VERSION: "399"
 
     steps:
@@ -193,7 +194,7 @@ jobs:
           input_ref: \${{ inputs.ref || '' }}
           github_ref_name: \${{ github.ref_name || '' }}
           default_ref: work
-          allowed_ref_regex: "^(work|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
+          allowed_ref_regex: \${{ env.ALLOWED_REF_REGEX }}
 
       - name: Export run metadata
         shell: bash
@@ -442,15 +443,14 @@ jobs:
 name: K1W1 CI Lite Autofix (ESLint --fix)
 
 run-name: >-
-  CI Lite Autofix\${{ inputs.job_id && format(' [{0}]', inputs.job_id) || '' }} • \${{ inputs.ref || github.ref_name }}
+  CI Lite Autofix\${{ inputs.job_id && format(' [{0}]', inputs.job_id) || '' }} • \${{ inputs.ref }}
 
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Branch/Ref to autofix (must be a remote branch)"
-        required: false
-        default: ""
+        description: "Branch to autofix (must be a remote branch)"
+        required: true
       job_id:
         description: "Client job id (UUID) for log correlation"
         required: false
@@ -461,7 +461,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: k1w1-ci-lite-autofix-\${{ inputs.ref || github.ref_name }}
+  group: k1w1-ci-lite-autofix-\${{ inputs.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -472,11 +472,26 @@ jobs:
 
     env:
       JOB_ID: \${{ inputs.job_id }}
-      TARGET_BRANCH: \${{ inputs.ref || github.ref_name }}
-      ALLOWED_REF_REGEX: "^(work|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
+      TARGET_BRANCH: \${{ inputs.ref }}
+      ALLOWED_REF_REGEX: "^(work|codex|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
       WORKFLOW_VERSION: "399"
 
     steps:
+      - name: Determine target branch
+        id: target_ref
+        uses: ./.github/actions/determine-ref
+        with:
+          input_ref: \${{ inputs.ref }}
+          github_ref_name: ""
+          default_ref: ""
+          allowed_ref_regex: \${{ env.ALLOWED_REF_REGEX }}
+
+      - name: Export target branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "TARGET_BRANCH=\${{ steps.target_ref.outputs.checkout_ref }}" >> "$GITHUB_ENV"
+
       - name: Run info
         shell: bash
         run: |

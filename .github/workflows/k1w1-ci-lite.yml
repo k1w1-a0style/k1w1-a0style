@@ -35,6 +35,7 @@ jobs:
       contents: read
 
     env:
+      ALLOWED_REF_REGEX: "^(work|codex|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
       WORKFLOW_VERSION: "399"
 
     steps:
@@ -47,6 +48,7 @@ jobs:
           input_ref: ${{ inputs.ref || '' }}
           github_ref_name: ${{ github.ref_name || '' }}
           default_ref: work
+          allowed_ref_regex: ${{ env.ALLOWED_REF_REGEX }}
 
       - name: Export run metadata
         shell: bash
