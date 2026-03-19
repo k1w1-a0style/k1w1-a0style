@@ -9,10 +9,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getGitHubToken } from "../../../infra/github/tokenStore";
 import { requireSupabaseEdgeUrl } from "../../../lib/supabaseEdge";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
-import { getEdgeAdminKey } from "../../../infra/github/githubService";
+import { getBranchHeadSha, getEdgeAdminKey } from "../../../infra/github/githubService";
 import { useProject } from "../../../contexts/ProjectContext";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
 import { computeCiLiteOk, inferStepStates, safeUi } from "../../ciLite/ciLiteUtils";
+import { readPersistedCiLiteSelection, type PersistedCiLiteSnapshot } from "../../../lib/ciLitePersistence";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { WORKFLOW_CI_LITE, WORKFLOW_CI_LITE_AUTOFIX, type StepState } from "../types";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
@@ -166,6 +167,22 @@ function chooseWorkflowRunCandidate(
   return eligibleRuns[0] ?? null;
 }
 
+function getArtifactUiMessage(params: {
+  artifactError: string | null;
+  workflowStatus?: string | null;
+  workflowConclusion?: string | null;
+}): string {
+  if (!params.artifactError) return "";
+
+  const status = String(params.workflowStatus ?? "").trim().toLowerCase();
+  const conclusion = String(params.workflowConclusion ?? "").trim().toLowerCase();
+  if (status === "completed" && conclusion === "success") {
+    return "Workflow war erfolgreich, aber das Ergebnis-Artefakt konnte nicht geladen werden. Bitte Run öffnen oder erneut starten.";
+  }
+
+  return "Zusätzliche Ergebnisdaten zum Run konnten nicht geladen werden. Bitte Run öffnen oder erneut starten.";
+}
+
 export function useCiLiteWorkflow() {
   // Contract for chain-run correlation:
   // - Autofix dispatches repository_dispatch(trigger-ci-lite) with the same source commit SHA and job_id
@@ -191,6 +208,7 @@ export function useCiLiteWorkflow() {
   >(null);
   const [artifactLoading, setArtifactLoading] = useState(false);
   const [artifactError, setArtifactError] = useState<string | null>(null);
+  const [hydratedSnapshot, setHydratedSnapshot] = useState<PersistedCiLiteSnapshot | null>(null);
 
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -292,6 +310,44 @@ export function useCiLiteWorkflow() {
   const runCompleted = workflowRun?.status === "completed";
   const isTrackingRun = dispatching || chainWaiting || (trackedRunId != null && !runCompleted);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!githubRepo || !branch) {
+      setHydratedSnapshot(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (hasActiveRunContext) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    (async () => {
+      const persisted = await readPersistedCiLiteSelection({
+        repoFullName: githubRepo,
+        branchName: branch,
+        deps: {
+          storageGetItem: (key: string) => AsyncStorage.getItem(key),
+          readBranchHeadSha: getBranchHeadSha,
+        },
+      });
+
+      if (!cancelled) {
+        setHydratedSnapshot(persisted.snapshot);
+      }
+    })().catch(() => {
+      if (!cancelled) setHydratedSnapshot(null);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [githubRepo, branch, hasActiveRunContext]);
+
   // ---- Artifact result (deterministic header backchannel) ----
   useEffect(() => {
     if (!githubRepo) return;
@@ -384,9 +440,13 @@ export function useCiLiteWorkflow() {
     setArtifactLoading(false);
   }, [jobId, workflowId, runId]);
 
+  const hydratedDisplaySnapshot = !hasActiveRunContext && !workflowRun ? hydratedSnapshot : null;
+  const effectiveTargetRef = (targetRef || hydratedDisplaySnapshot?.branch || branch || "").trim() || null;
+
   // ---- Derived log state ----
   const logLines = useMemo(() => {
     if (!runId) {
+      if (hydratedDisplaySnapshot) return [];
       return [
         chainWaiting && workflowId === WORKFLOW_CI_LITE
           ? `Autofix fertig – starte CI Lite (chain-run)… (job_id: ${jobId || ""})`
@@ -397,9 +457,19 @@ export function useCiLiteWorkflow() {
     }
     if (!logs || logs.length === 0) return [];
     return logs.map((e) => e.message);
-  }, [runId, logs, jobId, chainWaiting, workflowId]);
+  }, [runId, logs, jobId, chainWaiting, workflowId, hydratedDisplaySnapshot]);
 
-  const stepInfo = useMemo(() => inferStepStates(logLines), [logLines]);
+  const stepInfo = useMemo<{ lint: StepState; typecheck: StepState; eslintErrors: number; tsErrors: number }>(() => {
+    if (hydratedDisplaySnapshot) {
+      return {
+        lint: hydratedDisplaySnapshot.lintOk ? "success" : "failure",
+        typecheck: hydratedDisplaySnapshot.typecheckOk ? "success" : "failure",
+        eslintErrors: hydratedDisplaySnapshot.lintOk ? 0 : 1,
+        tsErrors: hydratedDisplaySnapshot.typecheckOk ? 0 : 1,
+      };
+    }
+    return inferStepStates(logLines);
+  }, [logLines, hydratedDisplaySnapshot]);
 
   const onlyErrors = useMemo(() => {
     const out: string[] = [];
@@ -412,11 +482,16 @@ export function useCiLiteWorkflow() {
     return out;
   }, [logLines]);
 
+  const effectiveWorkflowRun = workflowRun ?? (hydratedDisplaySnapshot
+    ? { status: "completed", conclusion: hydratedDisplaySnapshot.conclusion }
+    : null);
+
   const done = useMemo(() => {
     if (workflowRun?.status === "completed") return true;
+    if (hydratedDisplaySnapshot) return true;
     if (logLines?.some((l) => /Process completed with exit code/i.test(l))) return true;
     return false;
-  }, [workflowRun?.status, logLines]);
+  }, [workflowRun?.status, logLines, hydratedDisplaySnapshot]);
 
   // If the workflow run exists and completed with a non-success conclusion,
   // always surface that as an error even if log parsing yields nothing.
@@ -427,21 +502,31 @@ export function useCiLiteWorkflow() {
       workflowRun.conclusion &&
       workflowRun.conclusion !== "success"
         ? `Workflow failed (${workflowRun.conclusion}). Open the run for details.`
-        : ""),
+        : hydratedDisplaySnapshot && hydratedDisplaySnapshot.conclusion !== "success"
+          ? `Letzter CI-Lite-Run ist beendet, aber nicht grün (${hydratedDisplaySnapshot.conclusion}).`
+          : ""),
+  );
+
+  const artifactNotice = safeUi(
+    getArtifactUiMessage({
+      artifactError,
+      workflowStatus: workflowRun?.status,
+      workflowConclusion: workflowRun?.conclusion,
+    }),
   );
 
   const ok = useMemo(
     () =>
       computeCiLiteOk({
         done,
-        workflowRun,
+        workflowRun: effectiveWorkflowRun,
         onlyErrorsCount: onlyErrors.length,
         hasErrorText: Boolean(showError),
         resultOk: artifactResult?.ok ?? null,
         eslintExit: artifactResult?.eslint_exit ?? null,
         tscExit: artifactResult?.tsc_exit ?? null,
       }),
-    [done, workflowRun, onlyErrors.length, showError, artifactResult],
+    [done, effectiveWorkflowRun, onlyErrors.length, showError, artifactResult],
   );
 
   const busy =
@@ -513,12 +598,20 @@ export function useCiLiteWorkflow() {
 
   // ---- Header state lamp ----
   useEffect(() => {
-    if (dispatching) { setHeaderState("running"); return; }
-    if (!workflowRun?.status) return;
-    if (workflowRun.status !== "completed") { setHeaderState("running"); return; }
-    if (workflowRun.conclusion === "success") setHeaderState("success");
-    else if (workflowRun.conclusion === "failure" || workflowRun.conclusion === "cancelled") setHeaderState("failure");
-  }, [workflowRun?.status, workflowRun?.conclusion, dispatching]);
+    if (dispatching || chainWaiting) { setHeaderState("running"); return; }
+    if (workflowRun?.status) {
+      if (workflowRun.status !== "completed") { setHeaderState("running"); return; }
+      if (workflowRun.conclusion === "success") setHeaderState("success");
+      else if (workflowRun.conclusion === "failure" || workflowRun.conclusion === "cancelled") setHeaderState("failure");
+      else setHeaderState("idle");
+      return;
+    }
+    if (hydratedDisplaySnapshot) {
+      setHeaderState(hydratedDisplaySnapshot.conclusion === "success" ? "success" : "failure");
+      return;
+    }
+    setHeaderState("idle");
+  }, [workflowRun?.status, workflowRun?.conclusion, dispatching, chainWaiting, hydratedDisplaySnapshot]);
 
   // ---- Persist CI Lite results ----
   useEffect(() => {
@@ -693,12 +786,13 @@ export function useCiLiteWorkflow() {
     dispatching, dispatchWorkflow,
     isTrackingRun,
     headerState,
-    githubRepo, branch, targetRef,
+    githubRepo, branch, targetRef: effectiveTargetRef,
     jobId, runUrl, workflowId, workflowRun, trackedRunId,
     stepInfo, logLines, onlyErrors,
     done, ok, busy, isAutofix,
-    showError, logsLoading,
+    showError, artifactNotice, logsLoading,
     runMeta,
+    hydratedFromPersistence: Boolean(hydratedDisplaySnapshot),
     stopPolling,
   };
 }

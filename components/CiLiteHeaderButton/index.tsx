@@ -94,12 +94,14 @@ export default function CiLiteHeaderButton(): React.ReactElement {
         done={wf.done}
         ok={wf.ok}
         showError={wf.showError}
+        artifactNotice={wf.artifactNotice}
         githubRepo={wf.githubRepo}
         targetRef={wf.targetRef}
         branch={wf.branch}
         jobId={wf.jobId}
         stepInfo={wf.stepInfo}
         runMeta={wf.runMeta}
+        hydratedFromPersistence={wf.hydratedFromPersistence}
         onlyErrors={wf.onlyErrors}
         progressAnim={anim.progressAnim}
         shimmerAnim={anim.shimmerAnim}
