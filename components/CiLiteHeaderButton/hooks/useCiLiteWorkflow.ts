@@ -12,7 +12,7 @@ import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
 import { getEdgeAdminKey } from "../../../infra/github/githubService";
 import { useProject } from "../../../contexts/ProjectContext";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
-import { computeCiLiteOk, findWorkflowRunByJobId, inferStepStates, safeUi } from "../../ciLite/ciLiteUtils";
+import { computeCiLiteOk, inferStepStates, safeUi } from "../../ciLite/ciLiteUtils";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { WORKFLOW_CI_LITE, WORKFLOW_CI_LITE_AUTOFIX, type StepState } from "../types";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
@@ -98,12 +98,22 @@ function isFreshChainRunCandidate(run: { created_at?: unknown } | null | undefin
 }
 
 type WorkflowRunLocatorCandidate = {
+  id?: unknown;
+  html_url?: unknown;
   display_title?: unknown;
   name?: unknown;
   created_at?: unknown;
   event?: unknown;
   head_branch?: unknown;
+  head_sha?: unknown;
 } | null | undefined;
+
+function hasExactHeadSha(run: WorkflowRunLocatorCandidate, sha: string | null | undefined): boolean {
+  const expected = String(sha || "").trim();
+  if (!expected) return false;
+  const actual = typeof run?.head_sha === "string" ? run.head_sha.trim() : "";
+  return !!actual && actual === expected;
+}
 
 function matchesWorkflowRunContract(
   run: WorkflowRunLocatorCandidate,
@@ -112,11 +122,12 @@ function matchesWorkflowRunContract(
     branch: string;
     startedAtMs: number;
     expectedEvent: "repository_dispatch" | "workflow_dispatch";
+    sourceHeadSha?: string | null;
+    requireJobIdMarker?: boolean;
   },
 ): boolean {
   const targetBranch = String(opts.branch || "").trim();
   if (!targetBranch) return false;
-  if (!hasExactJobIdMarkerInRun(run, opts.jobId)) return false;
   if (!isFreshChainRunCandidate(run, opts.startedAtMs)) return false;
 
   const event = typeof run?.event === "string" ? run.event.trim().toLowerCase() : "";
@@ -125,14 +136,41 @@ function matchesWorkflowRunContract(
   const headBranch = typeof run?.head_branch === "string" ? run.head_branch.trim() : "";
   if (headBranch && headBranch !== targetBranch) return false;
 
-  return true;
+  if (opts.requireJobIdMarker === false && hasExactHeadSha(run, opts.sourceHeadSha)) return true;
+
+  return hasExactJobIdMarkerInRun(run, opts.jobId);
+}
+
+function chooseWorkflowRunCandidate(
+  runs: WorkflowRunLocatorCandidate[],
+  opts: {
+    jobId: string;
+    branch: string;
+    startedAtMs: number;
+    expectedEvent: "repository_dispatch" | "workflow_dispatch";
+    sourceHeadSha?: string | null;
+    requireJobIdMarker?: boolean;
+  },
+): WorkflowRunLocatorCandidate {
+  const eligibleRuns = runs.filter((run) =>
+    matchesWorkflowRunContract(run, { ...opts, requireJobIdMarker: true }),
+  );
+
+  if (opts.requireJobIdMarker === false) {
+    const headShaMatch = runs.find((run) =>
+      matchesWorkflowRunContract(run, { ...opts, requireJobIdMarker: false }),
+    );
+    if (headShaMatch) return headShaMatch;
+  }
+
+  return eligibleRuns[0] ?? null;
 }
 
 export function useCiLiteWorkflow() {
   // Contract for chain-run correlation:
-  // - Autofix dispatches repository_dispatch(trigger-ci-lite) with the *same* job_id
-  // - CI Lite run-name includes that job_id
-  // The header polls by this shared job_id to locate the chained CI-Lite run deterministically.
+  // - Autofix dispatches repository_dispatch(trigger-ci-lite) with the same source commit SHA and job_id
+  // - The header prefers branch/event/fresh-head_sha for the chained CI-Lite run
+  // - Manual workflow_dispatch still requires the explicit job_id marker to avoid cross-binding concurrent runs
   const { projectData } = useProject();
 
   const [visible, setVisible] = useState(false);
@@ -178,9 +216,26 @@ export function useCiLiteWorkflow() {
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
-  const findRunByJobId = useCallback(
-    async (opts: { githubRepo: string; branch: string; jobId: string; workflow: string }) => {
-      const { githubRepo: repo, branch: br, jobId: jid, workflow } = opts;
+  const findMatchingRun = useCallback(
+    async (opts: {
+      githubRepo: string;
+      branch: string;
+      jobId: string;
+      workflow: string;
+      expectedEvent: "repository_dispatch" | "workflow_dispatch";
+      startedAtMs: number;
+      sourceHeadSha?: string | null;
+      requireJobIdMarker?: boolean;
+    }) => {
+      const {
+        githubRepo: repo,
+        branch: br,
+        workflow,
+        expectedEvent,
+        startedAtMs,
+        sourceHeadSha,
+        requireJobIdMarker = true,
+      } = opts;
       const edgeUrl = await requireSupabaseEdgeUrl();
       const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
 
@@ -209,7 +264,13 @@ export function useCiLiteWorkflow() {
       const runs = json?.data?.workflow_runs ?? json?.workflow_runs ?? json?.runs ?? [];
       if (!Array.isArray(runs)) return null;
 
-      return findWorkflowRunByJobId(runs, jid);
+      return chooseWorkflowRunCandidate(runs, {
+        ...opts,
+        expectedEvent,
+        startedAtMs,
+        sourceHeadSha,
+        requireJobIdMarker,
+      });
     },
     [],
   );
@@ -412,16 +473,17 @@ export function useCiLiteWorkflow() {
     const start = Date.now();
     const poll = async () => {
       try {
-        const found = await findRunByJobId({ githubRepo, branch: b, jobId, workflow: WORKFLOW_CI_LITE });
-        if (
-          found?.id &&
-          matchesWorkflowRunContract(found, {
-            jobId,
-            branch: b,
-            startedAtMs: start,
-            expectedEvent: "repository_dispatch",
-          })
-        ) {
+        const found = await findMatchingRun({
+          githubRepo,
+          branch: b,
+          jobId,
+          workflow: WORKFLOW_CI_LITE,
+          expectedEvent: "repository_dispatch",
+          startedAtMs: start,
+          sourceHeadSha: workflowRun.head_sha ?? null,
+          requireJobIdMarker: false,
+        });
+        if (found?.id) {
           setRunId(Number(found.id));
           setRunUrl(typeof found?.html_url === "string" ? found.html_url : null);
           setChainWaiting(false);
@@ -442,7 +504,7 @@ export function useCiLiteWorkflow() {
 
     void poll();
     pollTimerRef.current = setInterval(poll, 2500);
-  }, [visible, workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopPolling, findRunByJobId]);
+  }, [visible, workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopPolling, findMatchingRun]);
 
   // ---- Header state lamp ----
   useEffect(() => {
@@ -572,16 +634,15 @@ export function useCiLiteWorkflow() {
         const start = Date.now();
         const poll = async () => {
           try {
-            const found = await findRunByJobId({ githubRepo, branch: targetBranch, jobId: newJobId, workflow: workflowFile });
-            if (
-              found?.id &&
-              matchesWorkflowRunContract(found, {
-                jobId: newJobId,
-                branch: targetBranch,
-                startedAtMs: start,
-                expectedEvent: "workflow_dispatch",
-              })
-            ) {
+            const found = await findMatchingRun({
+              githubRepo,
+              branch: targetBranch,
+              jobId: newJobId,
+              workflow: workflowFile,
+              expectedEvent: "workflow_dispatch",
+              startedAtMs: start,
+            });
+            if (found?.id) {
               setRunId(Number(found.id));
               setRunUrl(typeof found?.html_url === "string" ? found.html_url : null);
               stopPolling();
@@ -604,7 +665,7 @@ export function useCiLiteWorkflow() {
         setDispatching(false);
       }
     },
-    [dispatching, githubRepo, branch, stopPolling, findRunByJobId, projectData?.files],
+    [dispatching, githubRepo, branch, stopPolling, findMatchingRun, projectData?.files],
   );
 
 
