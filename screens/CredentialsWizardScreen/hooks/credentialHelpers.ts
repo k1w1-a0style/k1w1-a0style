@@ -92,6 +92,7 @@ export async function invokeEdgeJson(
         "content-type": "application/json",
         // Defensive: trim to avoid accidental whitespace/newlines from copy/paste.
         "x-k1w1-admin-key": adminKey.trim(),
+        Authorization: `Bearer ${adminKey.trim()}`,
       },
       body: JSON.stringify(payload ?? {}),
       signal: controller.signal,

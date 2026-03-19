@@ -47,6 +47,7 @@ export default function GitHubReposScreen() {
     userLogin,
 
     loadingRepos,
+    reposError,
     refreshing,
     handleRefresh,
 
@@ -147,10 +148,26 @@ export default function GitHubReposScreen() {
     [handleSelectRepo, setShowRenameRepo],
   );
 
-  const repoData: GitHubRepo[] = useMemo(
-    () => ((showRepoList ?? true) ? filteredRepos : []),
-    [filteredRepos, showRepoList],
-  );
+  const repoData: GitHubRepo[] = useMemo(() => {
+    if (!(showRepoList ?? true)) return [];
+    if (filteredRepos.length > 0) return filteredRepos;
+
+    if (activeRepo) {
+      return [
+        {
+          id: `linked:${activeRepo}`,
+          name: activeRepo.split("/").pop() || activeRepo,
+          full_name: activeRepo,
+          private: true,
+          default_branch: activeBranch || undefined,
+          owner: { login: activeRepo.split("/")[0] || userLogin || "unknown" },
+          html_url: `https://github.com/${activeRepo}`,
+        } as unknown as GitHubRepo,
+      ];
+    }
+
+    return [];
+  }, [filteredRepos, showRepoList, activeRepo, activeBranch, userLogin]);
 
   const renderRepoItem = useCallback(
     ({ item }: { item: GitHubRepo }) => (
@@ -208,11 +225,11 @@ export default function GitHubReposScreen() {
     </>
   );
 
-  const listEmpty = !loadingRepos ? (
+  const listEmpty = !loadingRepos && repoData.length === 0 ? (
     <View style={[s.section, { alignItems: "center", paddingVertical: 24, gap: 8 }]}>
-      <Text style={{ fontSize: 32, marginBottom: 4 }}>📁</Text>
+      <Text style={{ fontSize: 32, marginBottom: 4 }}>{reposError ? "⚠️" : "📁"}</Text>
       <Text style={{ fontSize: 14, fontWeight: "700", color: theme.palette.text.primary }}>
-        Keine Repositories
+        {reposError ? "Repos konnten nicht geladen werden" : "Keine Repositories"}
       </Text>
       <Text
         style={{
@@ -222,7 +239,7 @@ export default function GitHubReposScreen() {
           lineHeight: 18,
         }}
       >
-        Lade Repos mit dem Button oben oder erstelle ein neues Repo.
+        {reposError ? reposError : "Lade Repos mit dem Button oben oder erstelle ein neues Repo."}
       </Text>
     </View>
   ) : null;

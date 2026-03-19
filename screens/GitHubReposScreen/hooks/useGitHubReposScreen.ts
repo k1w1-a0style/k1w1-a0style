@@ -169,6 +169,7 @@ export function useGitHubReposScreen() {
   const {
     repos,
     loading: loadingRepos,
+    error: reposError,
     loadRepos,
     pullFromRepo,
     loadBranches,
@@ -335,8 +336,6 @@ export function useGitHubReposScreen() {
     setActiveBranch(null);
     setLinkedRepo(fullName, null);
   }
-
-  setShowRepoList(false);
   setShowRenameRepo(false);
   setShowNewRepo(false);
   setPullProgress("");
@@ -976,7 +975,7 @@ export function useGitHubReposScreen() {
     userLogin, userLoading,
 
     // repos
-    loadingRepos, loadRepos, refreshing, handleRefresh,
+    loadingRepos, reposError, loadRepos, refreshing, handleRefresh,
     combinedRepos, filteredRepos,
 
     // selection + recent
