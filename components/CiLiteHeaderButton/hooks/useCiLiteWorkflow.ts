@@ -166,25 +166,6 @@ function chooseWorkflowRunCandidate(
   return eligibleRuns[0] ?? null;
 }
 
-export function resolveCiLiteShowError(args: {
-  localError?: string | null;
-  logsError?: string | null;
-  artifactError?: string | null;
-  workflowStatus?: string | null;
-  workflowConclusion?: string | null;
-}): string {
-  return safeUi(
-    args.localError ||
-      args.logsError ||
-      args.artifactError ||
-      (args.workflowStatus === "completed" &&
-      args.workflowConclusion &&
-      args.workflowConclusion !== "success"
-        ? `Workflow failed (${args.workflowConclusion}). Open the run for details.`
-        : ""),
-  );
-}
-
 export function useCiLiteWorkflow() {
   // Contract for chain-run correlation:
   // - Autofix dispatches repository_dispatch(trigger-ci-lite) with the same source commit SHA and job_id
@@ -439,13 +420,15 @@ export function useCiLiteWorkflow() {
 
   // If the workflow run exists and completed with a non-success conclusion,
   // always surface that as an error even if log parsing yields nothing.
-  const showError = resolveCiLiteShowError({
-    localError,
-    logsError,
-    artifactError,
-    workflowStatus: workflowRun?.status ?? null,
-    workflowConclusion: workflowRun?.conclusion ?? null,
-  });
+  const showError = safeUi(
+    localError ||
+      logsError ||
+      (workflowRun?.status === "completed" &&
+      workflowRun.conclusion &&
+      workflowRun.conclusion !== "success"
+        ? `Workflow failed (${workflowRun.conclusion}). Open the run for details.`
+        : ""),
+  );
 
   const ok = useMemo(
     () =>

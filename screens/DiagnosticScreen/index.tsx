@@ -27,45 +27,6 @@ import { styles } from "./styles";
 
 const FIX_MODAL_MAX_LINES = 7;
 
-function getSortedProjectFileList(projectData: { files?: Array<{ path?: string | null }> } | null | undefined): string {
-  return (projectData?.files ?? [])
-    .map((f) => String(f?.path || "").trim())
-    .filter(Boolean)
-    .sort((a, b) => a.localeCompare(b))
-    .join("\n");
-}
-
-export function buildDiagnosticDebugMessage(args: {
-  results: PreflightCheckResult[];
-  headerStats: { name?: string | null; profileLabel?: string | null } | null | undefined;
-  linkedRepo?: string;
-  linkedBranch?: string;
-  projectData?: { files?: Array<{ path?: string | null }> } | null;
-}): string {
-  const fails = (args.results || []).filter((r) => r.status === "fail");
-  const lines = fails.slice(0, 12).map((r) => `- ${r.title}: ${r.message || ""}`.trim());
-  const fileList = getSortedProjectFileList(args.projectData);
-
-  return (
-    `Bitte debugge meinen Diagnostic Report.\n` +
-    `Projekt: ${args.headerStats?.name || "?"}\n` +
-    `Profil: ${args.headerStats?.profileLabel || "?"}\n` +
-    (args.linkedRepo ? `Repo: ${args.linkedRepo}\n` : "") +
-    (args.linkedBranch ? `Branch: ${args.linkedBranch}\n` : "") +
-    `\nFails (${fails.length}):\n` +
-    (lines.length ? lines.join("\n") : "(keine fails)\n") +
-    (fileList ? `\n\nVorhandene Projektdateien:\n${fileList}\n` : "\n") +
-    `\nWenn du mehr Details brauchst: sag Bescheid, ich kann den vollständigen JSON-Report senden.`
-  );
-}
-
-export function getDiagnosticFixHint(result: PreflightCheckResult): string | null {
-  if (result.fix?.patch) return "Auto-Fix verfuegbar";
-  if (result.fix?.workflowDispatch) return "CI-Fix verfuegbar";
-  if (result.status !== "pass") return "KI-Fix verfuegbar";
-  return null;
-}
-
 export default function DiagnosticScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -132,13 +93,17 @@ export default function DiagnosticScreen() {
   });
 
   const onDebug = () => {
-    const msg = buildDiagnosticDebugMessage({
-      results: (results || []) as PreflightCheckResult[],
-      headerStats,
-      linkedRepo,
-      linkedBranch,
-      projectData,
-    });
+    const fails = (results || []).filter((r: any) => r.status === "fail");
+    const lines = fails.slice(0, 12).map((r: any) => `- ${r.title}: ${r.message || ""}`.trim());
+    const msg =
+      `Bitte debugge meinen Diagnostic Report.\n` +
+      `Projekt: ${headerStats?.name || "?"}\n` +
+      `Profil: ${headerStats?.profileLabel || "?"}\n` +
+      (linkedRepo ? `Repo: ${linkedRepo}\n` : "") +
+      (linkedBranch ? `Branch: ${linkedBranch}\n` : "") +
+      `\nFails (${fails.length}):\n` +
+      (lines.length ? lines.join("\n") : "(keine fails)\n") +
+      `\n\nWenn du mehr Details brauchst: sag Bescheid, ich kann den vollständigen JSON-Report senden.`;
 
     navigation.navigate("Home", {
       screen: "Chat",
@@ -150,7 +115,12 @@ export default function DiagnosticScreen() {
   const sendIssueToChat = (r: PreflightCheckResult | null) => {
     if (!r) return;
     const details = (r.details || []).slice(0, 10).map((d) => `- ${d}`).join("\n");
-    const fileList = getSortedProjectFileList(projectData);
+    const fileList = (projectData?.files ?? [])
+      .map((f) => String(f?.path || "").trim())
+      .filter(Boolean)
+      .sort()
+      .slice(0, 60)
+      .join("\n");
     const msg =
       `Bitte behebe dieses Diagnostic-Issue mit einem sicheren Minimal-Patch.\n` +
       `Titel: ${r.title}\n` +
@@ -346,7 +316,7 @@ export default function DiagnosticScreen() {
               <View style={{ gap: theme.spacing.sm }}>
                 {allChecks.map((r) => {
                   const sev = severityFor(r);
-                  const fixHint = getDiagnosticFixHint(r);
+                  const hasFix = !!(r.fix?.patch || r.fix?.workflowDispatch);
                   const clickable = r.status === "fail" || r.status === "warn";
                   return (
                     <TouchableOpacity
@@ -368,7 +338,11 @@ export default function DiagnosticScreen() {
                       </View>
                       <View style={{ alignItems: "flex-end", gap: 6 }}>
                         <SeverityBadge severity={sev} />
-                        {fixHint ? <Text style={styles.fixHint}>{fixHint}</Text> : null}
+                        {hasFix ? (
+                          <Text style={styles.fixHint}>Auto-Fix verfuegbar</Text>
+                        ) : r.status !== "pass" ? (
+                          <Text style={styles.fixHint}>KI-Fix verfuegbar</Text>
+                        ) : null}
                         <TouchableOpacity
                           style={styles.chatFixBtn}
                           onPress={() => sendIssueToChat(r)}

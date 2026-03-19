@@ -1,5 +1,1 @@
-export {
-  default,
-  buildDiagnosticDebugMessage,
-  getDiagnosticFixHint,
-} from "./DiagnosticScreen/index";
+export { default } from "./DiagnosticScreen/index";
