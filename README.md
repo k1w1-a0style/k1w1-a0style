@@ -11,7 +11,8 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 504**.
+- Zuletzt abgeschlossen: **Patch 505**.
+- Patch 505 bereinigt irrefuehrende Service-Role-Secret-Pfade: `android-keystore-generate` liest den serverseitigen Service-Role-Key jetzt ueber den bestehenden Shared-Auth-Helper statt ueber einen parallelen direkten `Deno.env`-Pfad, und AppInfo-Backup-/Import-Cleanup nutzt nur noch einen expliziten Legacy-Cleanup-Helper statt eines normalen Client-Storage-Slots fuer `SUPABASE_SERVICE_ROLE_KEY`.
 - Patch 504 haertet verbleibende Wildcard-CORS-Nutzung in geschuetzten produktiven Edge-Functions: `k1w1-handler`, `github-workflow-runs` und der eng angrenzende `github-workflow-logs` nutzen fuer lokale Erfolgs-/Fehlerpfade jetzt request-spezifische Header aus `_shared/cors`, Preflight bleibt ueber `handleCors(req)` intakt, und neue Invariants sichern Origin-Reflection sowie das Entfernen von `Access-Control-Allow-Origin: *`.
 - Patch 503 macht den KI-Confirm-/Review-Schritt deutlich diff-orientierter: `ConfirmChangesModal` rendert die vorhandenen `changePreviews` jetzt dateibezogen als kompakte Review-Karten fuer neue/geaenderte Dateien, zeigt ueber `finalFileSource`/`validatorState` die Builder-vs-Validator-Provenance ehrlich als advisory Review an, und blendet uebersprungene bzw. geblockte Hinweise sichtbar ausserhalb der langen Text-Summary ein; fokussierte Jest-Regressionen sichern Vorschau, Delta-Ausschnitte, Provenance und den unveraenderten Accept/Reject-Flow ab.
 - Patch 499 trennt im GitHubReposScreen Repo-Secret-Namen und lokale Laufzeit-Credentials sichtbar: `SecretsSection` zeigt fuer `EXPO_TOKEN` und `K1W1_EDGE_ADMIN_KEY` jetzt getrennte Zeilen fuer `Repo Secret` vs. `Lokaler App-Wert`, warnt explizit davor, dass CI Lite / Edge Dispatch den lokalen SecureStore-Wert braucht, und laesst ein bestaetigtes Repo-Secret nicht mehr wie lokale Dispatch-Bereitschaft wirken.
