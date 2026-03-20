@@ -29,7 +29,9 @@ describe("patch416 legacy edge disablement invariants", () => {
     legacy.forEach((fn) => {
       const src = read(`supabase/functions/${fn}/index.ts`);
       expect(src).toContain("disabled: true");
-      expect(src).toContain("status: 410");
+      expect(src).toContain("return jsonResponse(");
+      expect(src).toContain("req,");
+      expect(src).toContain("410,");
     });
   });
 
