@@ -11,7 +11,8 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 507**.
+- Zuletzt abgeschlossen: **Patch 508**.
+- Patch 508 stabilisiert den bekannten Flaky-Test rund um `LocalRemoteDiffSection`: die Komponente invalidiert laufende Diff-/Preview-Asyncs jetzt auch beim Unmount, sodass spaete Promise-Ruecklaeufer nach Teardown keinen alten UI-State mehr committen, und der Truthfulness-Test deckt diesen Unmount-Fall explizit als Regression ab.
 - Patch 507 bereinigt die repo-seitige DB-Referenz fuer Public-Schema-/Diagnostics-Vertraege: `supabase/schema.public.sql` ist nicht mehr leer, sondern klar als abgeleitete Sekundaerreferenz markiert, zeigt den aktuellen Snapshot fuer `public.diagnostic_uploads`, `public.diagnostics_reports` und `insert_diagnostic_upload(jsonb)`, und ein neuer Invariant-Test haelt SoT-Verweise sowie den finalen bigint-/Grant-Stand gegen die kanonischen Migrationen ehrlich.
 - Patch 506 richtet den Diagnostic-Upload-Vertrag wieder explizit auf den echten Clientpfad aus: `lib/diagnostics/diagnosticUploader.ts` dokumentiert den direkten RPC-Upload ueber den normalen Supabase-Client klar als finalen Vertrag, und eine kleine Folgemigration stellt `insert_diagnostic_upload(jsonb)` fuer `anon`/`authenticated`/`service_role` wieder explizit frei, ohne die bestehenden SQL-seitigen Rate-/Payload-/Idempotenz-Haertungen anzutasten.
 - Patch 504 haertet verbleibende Wildcard-CORS-Nutzung in geschuetzten produktiven Edge-Functions: `k1w1-handler`, `github-workflow-runs` und der eng angrenzende `github-workflow-logs` nutzen fuer lokale Erfolgs-/Fehlerpfade jetzt request-spezifische Header aus `_shared/cors`, Preflight bleibt ueber `handleCors(req)` intakt, und neue Invariants sichern Origin-Reflection sowie das Entfernen von `Access-Control-Allow-Origin: *`.
