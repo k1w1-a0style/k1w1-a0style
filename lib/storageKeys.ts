@@ -141,6 +141,32 @@ export function credKeyForProjectUiMode(params: {
   return `${base}::${encodeURIComponent(scope)}`;
 }
 
+
+type CredentialStatusMetaField = "state" | "detail";
+
+function credStatusMetaBaseKeyForUiMode(
+  mode: "dev" | "preview" | "production",
+  field: CredentialStatusMetaField,
+): string {
+  const suffix = field === "state" ? "state" : "detail";
+  return `${credKeyForUiMode(mode)}_${suffix}`;
+}
+
+/**
+ * Project-scoped signing-key verification meta key (state/detail).
+ * Falls back to the legacy global key when no project scope is available.
+ */
+export function credStatusMetaKeyForProjectUiMode(params: {
+  mode: "dev" | "preview" | "production";
+  field: CredentialStatusMetaField;
+  projectScope?: string | null;
+}): string {
+  const base = credStatusMetaBaseKeyForUiMode(params.mode, params.field);
+  const scope = String(params.projectScope ?? "").trim();
+  if (!scope) return base;
+  return `${base}::${encodeURIComponent(scope)}`;
+}
+
 /**
  * Diagnostic status key scoped to the selected repo/branch.
  * Falls back to the legacy global key when repo or branch are missing.

@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -12,6 +13,7 @@ import { getEdgeAdminKey, saveEdgeAdminKey } from "../../../infra/github/githubS
 import {
   credKeyForProjectUiMode,
   credKeyForUiMode,
+  credStatusMetaKeyForProjectUiMode,
   resolveProjectCredentialScope,
 } from "../../../lib/storageKeys";
 
@@ -28,6 +30,7 @@ import {
   sanitizeErrorForUi,
   sanitizeWizardHttpDebug,
 } from "../utils/security";
+import { describeLocalEdgeAdminKeyIssue } from "../utils/localAdminKey";
 
 
 import {
@@ -156,17 +159,27 @@ export function useCredentialsWizardScreen() {
     })();
   }, [safeSetLastError]);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const k = await getEdgeAdminKey();
-        if (!isMountedRef.current) return;
-        if (k && isMountedRef.current) setAdminKey(k);
-      } finally {
-        if (isMountedRef.current) setAdminKeyLoaded(true);
-      }
-    })();
+  const hydrateAdminKey = useCallback(async () => {
+    try {
+      const k = await getEdgeAdminKey();
+      if (!isMountedRef.current) return null;
+      setAdminKey(k ?? "");
+      return k ?? "";
+    } finally {
+      if (isMountedRef.current) setAdminKeyLoaded(true);
+    }
   }, []);
+
+  useEffect(() => {
+    void hydrateAdminKey();
+  }, [hydrateAdminKey]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void hydrateAdminKey();
+      return undefined;
+    }, [hydrateAdminKey]),
+  );
 
   const canRun = useMemo(() => {
     return (
@@ -221,6 +234,18 @@ export function useCredentialsWizardScreen() {
       for (const mode of MODES.map((m) => m.id)) {
         const scopedKey = credKeyForProjectUiMode({ mode, projectScope: projectCredentialScope });
         const legacyKey = credKeyForUiMode(mode);
+        const scopedStateKey = credStatusMetaKeyForProjectUiMode({
+          mode,
+          field: "state",
+          projectScope: projectCredentialScope,
+        });
+        const legacyStateKey = credStatusMetaKeyForProjectUiMode({ mode, field: "state" });
+        const scopedDetailKey = credStatusMetaKeyForProjectUiMode({
+          mode,
+          field: "detail",
+          projectScope: projectCredentialScope,
+        });
+        const legacyDetailKey = credStatusMetaKeyForProjectUiMode({ mode, field: "detail" });
 
         const scopedVal = await AsyncStorage.getItem(scopedKey).catch(() => null);
         let exists = scopedVal === "true" ? true : scopedVal === "false" ? false : null;
@@ -230,8 +255,33 @@ export function useCredentialsWizardScreen() {
           exists = legacyVal === "true" ? true : legacyVal === "false" ? false : null;
         }
 
-        if (exists !== null) {
-          next[mode] = { exists };
+        const scopedStateVal = await AsyncStorage.getItem(scopedStateKey).catch(() => null);
+        const credentialState =
+          scopedStateVal ??
+          (scopedStateKey !== legacyStateKey
+            ? await AsyncStorage.getItem(legacyStateKey).catch(() => null)
+            : null);
+        const scopedDetailVal = await AsyncStorage.getItem(scopedDetailKey).catch(() => null);
+        const stateDetail =
+          scopedDetailVal ??
+          (scopedDetailKey !== legacyDetailKey
+            ? await AsyncStorage.getItem(legacyDetailKey).catch(() => null)
+            : null);
+
+        if (exists !== null || credentialState || stateDetail) {
+          next[mode] = {
+            exists: exists ?? false,
+            credentialState:
+              credentialState === "verified" ||
+              credentialState === "missing" ||
+              credentialState === "unknown" ||
+              credentialState === "auth_error" ||
+              credentialState === "stale" ||
+              credentialState === "generated_pending_verification"
+                ? credentialState
+                : undefined,
+            stateDetail: stateDetail ?? undefined,
+          };
         }
       }
 
@@ -302,6 +352,35 @@ export function useCredentialsWizardScreen() {
     }
   }, []);
 
+  const persistWizardStatus = useCallback(
+    async (mode: UiModeId, status: StatusResult | null) => {
+      const existsKey = credKeyForProjectUiMode({ mode, projectScope: projectCredentialScope });
+      const stateKey = credStatusMetaKeyForProjectUiMode({
+        mode,
+        field: "state",
+        projectScope: projectCredentialScope,
+      });
+      const detailKey = credStatusMetaKeyForProjectUiMode({
+        mode,
+        field: "detail",
+        projectScope: projectCredentialScope,
+      });
+      const removeItem = typeof AsyncStorage.removeItem === "function"
+        ? AsyncStorage.removeItem.bind(AsyncStorage)
+        : async () => undefined;
+      await Promise.all([
+        AsyncStorage.setItem(existsKey, status?.exists ? "true" : "false").catch(() => {}),
+        status?.credentialState
+          ? AsyncStorage.setItem(stateKey, status.credentialState).catch(() => {})
+          : removeItem(stateKey).catch(() => {}),
+        status?.stateDetail
+          ? AsyncStorage.setItem(detailKey, status.stateDetail).catch(() => {})
+          : removeItem(detailKey).catch(() => {}),
+      ]);
+    },
+    [projectCredentialScope],
+  );
+
   async function refreshStatusCore(mode: UiModeId, opts?: { preservePendingOnError?: boolean }) {
     safeSetLastError(null);
     safeSetLastDebug(null);
@@ -317,42 +396,57 @@ export function useCredentialsWizardScreen() {
       if (!r.ok) {
         safeSetLastError(r.error);
         if (isMountedRef.current) {
-          setStatusByMode((prev) => ({
-            ...prev,
-            [mode]:
+          setStatusByMode((prev) => {
+            const nextStatus =
               opts?.preservePendingOnError && prev[mode]?.credentialState === "generated_pending_verification"
                 ? toGeneratedPendingStatusWithReason(prev[mode], "Statuscheck konnte den neuen Keystore noch nicht bestaetigen.")
                 : toWizardErrorStatus({
                     previous: prev[mode],
                     statusCode: r.debug.status ?? null,
                     error: r.error,
-                  }),
-          }));
+                    detail: describeLocalEdgeAdminKeyIssue({
+                      adminKey,
+                      statusCode: r.debug.status ?? null,
+                      error: r.error,
+                    }),
+                  });
+            void persistWizardStatus(mode, nextStatus);
+            return {
+              ...prev,
+              [mode]: nextStatus,
+            };
+          });
         }
         return false;
       }
 
       const data = toWizardStatusResult(r.data as StatusResult);
-      if (isMountedRef.current) setStatusByMode((prev) => ({ ...prev, [mode]: data }));
-      const credKey = credKeyForProjectUiMode({
-        mode,
-        projectScope: projectCredentialScope,
-      });
-      await AsyncStorage.setItem(credKey, data.exists ? "true" : "false").catch(() => {});
+      if (isMountedRef.current) {
+        setStatusByMode((prev) => ({ ...prev, [mode]: data }));
+      }
+      await persistWizardStatus(mode, data);
       return true;
     } catch (e: unknown) {
       safeSetLastError(e);
       if (isMountedRef.current) {
-        setStatusByMode((prev) => ({
-          ...prev,
-          [mode]:
+        setStatusByMode((prev) => {
+          const nextStatus =
             prev[mode]?.credentialState === "generated_pending_verification"
               ? toGeneratedPendingStatusWithReason(
                   prev[mode],
                   "Statuscheck konnte den neuen Keystore noch nicht bestaetigen.",
                 )
-              : toWizardErrorStatus({ previous: prev[mode], error: e }),
-        }));
+              : toWizardErrorStatus({
+                  previous: prev[mode],
+                  error: e,
+                  detail: describeLocalEdgeAdminKeyIssue({ adminKey, error: e }),
+                });
+          void persistWizardStatus(mode, nextStatus);
+          return {
+            ...prev,
+            [mode]: nextStatus,
+          };
+        });
       }
       return false;
     }
@@ -419,14 +513,23 @@ export function useCredentialsWizardScreen() {
       if (!r.ok) {
         safeSetLastError(r.error);
         if (isMountedRef.current) {
-          setStatusByMode((prev) => ({
-            ...prev,
-            [mode]: toWizardErrorStatus({
+          setStatusByMode((prev) => {
+            const nextStatus = toWizardErrorStatus({
               previous: prev[mode],
               statusCode: r.debug.status ?? null,
               error: r.error,
-            }),
-          }));
+              detail: describeLocalEdgeAdminKeyIssue({
+                adminKey,
+                statusCode: r.debug.status ?? null,
+                error: r.error,
+              }),
+            });
+            void persistWizardStatus(mode, nextStatus);
+            return {
+              ...prev,
+              [mode]: nextStatus,
+            };
+          });
         }
         return;
       }
@@ -438,10 +541,14 @@ export function useCredentialsWizardScreen() {
       }
 
       if (isMountedRef.current) {
-        setStatusByMode((prev) => ({
-          ...prev,
-          [mode]: toGeneratedPendingStatus(prev[mode]),
-        }));
+        setStatusByMode((prev) => {
+          const nextStatus = toGeneratedPendingStatus(prev[mode]);
+          void persistWizardStatus(mode, nextStatus);
+          return {
+            ...prev,
+            [mode]: nextStatus,
+          };
+        });
       }
 
       toast.show("Keystore erzeugt - Verifikation laeuft/steht noch aus");
@@ -449,16 +556,24 @@ export function useCredentialsWizardScreen() {
     } catch (e: unknown) {
       safeSetLastError(e);
       if (isMountedRef.current) {
-        setStatusByMode((prev) => ({
-          ...prev,
-          [mode]:
+        setStatusByMode((prev) => {
+          const nextStatus =
             prev[mode]?.credentialState === "generated_pending_verification"
               ? toGeneratedPendingStatusWithReason(
                   prev[mode],
                   "Statuscheck konnte den neuen Keystore noch nicht bestaetigen.",
                 )
-              : toWizardErrorStatus({ previous: prev[mode], error: e }),
-        }));
+              : toWizardErrorStatus({
+                  previous: prev[mode],
+                  error: e,
+                  detail: describeLocalEdgeAdminKeyIssue({ adminKey, error: e }),
+                });
+          void persistWizardStatus(mode, nextStatus);
+          return {
+            ...prev,
+            [mode]: nextStatus,
+          };
+        });
       }
     } finally {
       finishAction(actionKey);
@@ -469,7 +584,8 @@ export function useCredentialsWizardScreen() {
     const trimmed = adminKey.trim();
     setAdminKey(trimmed);
     await saveEdgeAdminKey(trimmed);
-    toast.show("Admin-Key gespeichert");
+    await hydrateAdminKey();
+    toast.show("Admin-Key gespeichert und neu geladen");
   }
 
   async function onCopyError() {

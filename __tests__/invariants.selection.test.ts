@@ -114,11 +114,13 @@ describe("Invariants: repo/branch selection is source of truth", () => {
 
   it("keeps signing-key readiness project-scoped with legacy fallback", () => {
     const buildPreconditions = read("screens/EnhancedBuildScreen/hooks/useBuildPreconditions.ts");
+    const signingKeyGate = read("screens/EnhancedBuildScreen/hooks/signingKeyGate.ts");
     const wizard = read("screens/CredentialsWizardScreen/hooks/useCredentialsWizardScreen.ts");
 
-    expect(buildPreconditions).toContain("resolveProjectCredentialScope");
-    expect(buildPreconditions).toContain("credKeyForProjectUiMode");
-    expect(buildPreconditions).toContain("scopedKey !== legacyKey");
+    expect(buildPreconditions).toContain("readSigningKeyGateState");
+    expect(signingKeyGate).toContain("resolveProjectCredentialScope");
+    expect(signingKeyGate).toContain("credKeyForProjectUiMode");
+    expect(signingKeyGate).toContain("params.scopedKey === params.legacyKey");
 
     expect(wizard).toContain("resolveProjectCredentialScope");
     expect(wizard).toContain("credKeyForProjectUiMode");

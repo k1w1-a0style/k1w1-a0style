@@ -4,6 +4,8 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-20: Patch 518: lokalen Edge-Admin-Key-Vertrag fuer Wizard/Preview/Build ehrlich synchronisiert — `screens/CredentialsWizardScreen/hooks/useCredentialsWizardScreen.ts` rehydriert den lokalen Key jetzt bei Fokus und nach Save erneut aus SecureStore, persistiert projektbezogen auch Wizard-State/Detail fuer spaetere Build-Gates, `screens/EnhancedBuildScreen/hooks/signingKeyGate.ts` sowie `useBuildPreconditions.ts`/`useOneClickDeploy.ts` kommunizieren fehlende bzw. abgelehnte lokale App-Keys als echten Blocker, und `hooks/previewHelpers.ts` meldet fehlenden/ungueltigen lokalen Admin-Key im Remote-Preview-Pfad explizit statt nur neutral-vage.
+
 - 2026-03-20: Patch 517: Preview-Produktvertrag auf den bestehenden Expo-/WebView-Remote-Pfad als klare SoT geschaerft — `hooks/usePreview.ts`, `screens/PreviewScreen/hooks/usePreviewScreen.ts` und `screens/PreviewScreen/components/DeviceFrame.tsx` priorisieren und benennen die vertraute Remote-Preview jetzt noch expliziter als Primaerpfad, waehrend `lib/sandpackBuilder.ts` sowie die Preview-Status-/Vertragstests den lokalen HTML-/Eval-Weg sichtbar nur noch als Dev-/Best-Effort-Fallback einordnen.
 
 - 2026-03-20: Patch 516: finalen toten Legacy-Key-Manager-Rest konservativ entfernt — `lib/SecureKeyManager.ts` und `lib/__tests__/SecureKeyManager.test.ts` hatten keine Runtime- oder fachlich noetigen Test-Imports mehr und sind geloescht, der bestehende Patch-513-Invariant blockiert nun auch die Rueckkehr dieser Datei regressionsfest, waehrend `docs/SYSTEM_README.md` die produktive KI-Vertragslage wieder ohne veraltete SecureKeyManager-/SecureTokenManager-Empfehlungen beschreibt.
