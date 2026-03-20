@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { PendingChange } from "../../hooks/chatAIFlowTypes";
 import { theme } from "../../theme";
 import { styles } from "../../styles/chatScreenStyles";
+import type { ChangePreview } from "../../lib/changePreview";
 
 type Props = {
   visible: boolean;
@@ -25,6 +26,10 @@ type Props = {
 /** Max characters for the summary display. Prevents UI lag from oversized LLM output. */
 const SUMMARY_MAX_CHARS = 6_000;
 const MAX_PREVIEW_ITEMS = 6;
+
+type ReviewCard =
+  | { key: string; path: string; status: "new" | "updated"; preview?: ChangePreview }
+  | { key: string; path: string; status: "skipped" };
 
 function getSourceTone(pendingChange: PendingChange | null) {
   if (!pendingChange) return { label: "Noch kein Vorschlag", tone: styles.modalMetaNeutral };
@@ -44,6 +49,25 @@ function getSourceTone(pendingChange: PendingChange | null) {
     label: "Finale Dateiliste: Builder direkt (Validator nur advisory/fallback)",
     tone: styles.modalMetaWarning,
   };
+}
+
+function getValidatorReviewLabel(pendingChange: PendingChange | null): string {
+  if (!pendingChange) return "Validator: noch kein Review";
+
+  switch (pendingChange.validatorState) {
+    case "validated":
+      return "Validator hat die finale Dateiliste nachgeschaerft";
+    case "disabled":
+      return "Validator war deaktiviert";
+    case "builder-fallback-empty":
+      return "Validator blieb advisory: keine verwertbare Nachschaerfung";
+    case "builder-fallback-error":
+      return "Validator blieb advisory: Review-Fehler, Builder-Liste bleibt aktiv";
+    case "builder-fallback-exception":
+      return "Validator blieb advisory: Exception, Builder-Liste bleibt aktiv";
+    default:
+      return "Validator blieb advisory ohne finale Uebernahme";
+  }
 }
 
 const ConfirmChangesModal: React.FC<Props> = ({
@@ -82,8 +106,38 @@ const ConfirmChangesModal: React.FC<Props> = ({
     () => pendingChange?.changePreviews?.slice(0, MAX_PREVIEW_ITEMS) ?? [],
     [pendingChange],
   );
+  const reviewCards = useMemo<ReviewCard[]>(() => {
+    if (!pendingChange) return [];
+    const previewMap = new Map(previews.map((preview) => [preview.path, preview]));
+    return [
+      ...pendingChange.created.map((path) => ({
+        key: `new:${path}`,
+        path,
+        status: "new" as const,
+        preview: previewMap.get(path),
+      })),
+      ...pendingChange.updated.map((path) => ({
+        key: `updated:${path}`,
+        path,
+        status: "updated" as const,
+        preview: previewMap.get(path),
+      })),
+      ...pendingChange.skipped.map((path) => ({
+        key: `skipped:${path}`,
+        path,
+        status: "skipped" as const,
+      })),
+    ].slice(0, MAX_PREVIEW_ITEMS + pendingChange.skipped.length);
+  }, [pendingChange, previews]);
+  const hiddenPreviewCount = Math.max(
+    0,
+    (pendingChange?.created.length ?? 0) +
+      (pendingChange?.updated.length ?? 0) -
+      previews.length,
+  );
 
   const sourceTone = getSourceTone(pendingChange);
+  const validatorReviewLabel = getValidatorReviewLabel(pendingChange);
   const summary = pendingChange?.summary ?? "";
 
   return (
@@ -130,49 +184,102 @@ const ConfirmChangesModal: React.FC<Props> = ({
                   <Text style={styles.modalSummaryText}>
                     Neue Dateien: {pendingChange.created.length} · Geänderte Dateien: {pendingChange.updated.length} · Hinweise: {pendingChange.errors?.length ?? 0}
                   </Text>
+                  <View style={styles.modalMetaGrid}>
+                    <View style={styles.modalMetaRow}>
+                      <Text style={styles.modalMetaLabel}>Builder</Text>
+                      <Text style={styles.modalMetaValue}>Erstellt den ersten Dateivorschlag.</Text>
+                    </View>
+                    <View style={styles.modalMetaRow}>
+                      <Text style={styles.modalMetaLabel}>Validator</Text>
+                      <Text style={styles.modalMetaValue}>{validatorReviewLabel}</Text>
+                    </View>
+                    <View style={styles.modalMetaRow}>
+                      <Text style={styles.modalMetaLabel}>Finale Quelle</Text>
+                      <Text style={styles.modalMetaValue}>
+                        {pendingChange.finalFileSource === "validator"
+                          ? "Finale Liste kommt aus dem Validator-Review."
+                          : "Finale Liste bleibt beim Builder-Vorschlag."}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
 
-                <Text style={styles.modalSectionTitle}>Delta-Vorschau</Text>
-                {previews.length === 0 ? (
-                  <Text style={styles.modalEmptyText}>Keine reviewbaren Inhaltsänderungen gefunden.</Text>
+                <Text style={styles.modalSectionTitle}>Datei-Review</Text>
+                {reviewCards.length === 0 ? (
+                  <Text style={styles.modalEmptyText}>Keine reviewbaren Dateiänderungen gefunden.</Text>
                 ) : (
-                  previews.map((preview) => (
-                    <View key={`${preview.kind}:${preview.path}`} style={styles.modalDiffCard}>
+                  reviewCards.map((card) => (
+                    <View key={card.key} style={styles.modalDiffCard}>
                       <View style={styles.modalDiffHeader}>
-                        <Text style={styles.modalDiffPath}>{preview.path}</Text>
-                        <Text style={styles.modalDiffKind}>
-                          {preview.kind === "new" ? "Neue Datei" : "Änderung"}
+                        <Text style={styles.modalDiffPath}>{card.path}</Text>
+                        <Text
+                          style={[
+                            styles.modalDiffKind,
+                            card.status === "skipped"
+                              ? styles.modalDiffKindSkipped
+                              : card.status === "updated"
+                                ? styles.modalDiffKindUpdated
+                                : styles.modalDiffKindNew,
+                          ]}
+                        >
+                          {card.status === "new"
+                            ? "Neue Datei"
+                            : card.status === "updated"
+                              ? "Geänderte Datei"
+                              : "Übersprungen"}
                         </Text>
                       </View>
 
-                      {preview.kind === "new" ? (
+                      {card.status === "skipped" ? (
+                        <Text style={styles.modalHintText}>
+                          Diese Datei wurde bewusst nicht in den finalen Apply-Satz übernommen.
+                        </Text>
+                      ) : card.preview?.kind === "new" ? (
                         <>
-                          <Text style={styles.modalDiffLabel}>Vorschau</Text>
-                          <Text style={styles.modalCodeBlock}>{preview.preview}</Text>
+                          <Text style={styles.modalDiffLabel}>Neue Datei · kompakte Inhaltsvorschau</Text>
+                          <Text style={styles.modalCodeBlock}>{card.preview.preview}</Text>
                         </>
                       ) : (
                         <>
-                          <Text style={styles.modalDiffLabel}>Kompakter Diff-Ausschnitt</Text>
-                          <Text style={styles.modalCodeBlock}>{preview.diffSnippet}</Text>
+                          <Text style={styles.modalDiffLabel}>Delta · kompakter Diff-Ausschnitt</Text>
+                          <Text style={styles.modalCodeBlock}>{card.preview?.diffSnippet ?? "Kein Diff-Ausschnitt verfügbar."}</Text>
                           <View style={styles.modalBeforeAfterRow}>
                             <View style={styles.modalBeforeAfterCol}>
                               <Text style={styles.modalDiffLabel}>Vorher</Text>
-                              <Text style={styles.modalCodeBlock}>{preview.beforeSnippet}</Text>
+                              <Text style={styles.modalCodeBlock}>
+                                {card.preview?.beforeSnippet ?? "Keine Vorher-Vorschau verfügbar."}
+                              </Text>
                             </View>
                             <View style={styles.modalBeforeAfterCol}>
                               <Text style={styles.modalDiffLabel}>Nachher</Text>
-                              <Text style={styles.modalCodeBlock}>{preview.afterSnippet}</Text>
+                              <Text style={styles.modalCodeBlock}>
+                                {card.preview?.afterSnippet ?? "Keine Nachher-Vorschau verfügbar."}
+                              </Text>
                             </View>
                           </View>
                         </>
                       )}
 
-                      {preview.truncated ? (
+                      {"preview" in card && card.preview?.truncated ? (
                         <Text style={styles.modalHintText}>Ausschnitt hart gekürzt, damit das Review kompakt bleibt.</Text>
                       ) : null}
                     </View>
                   ))
                 )}
+                {hiddenPreviewCount > 0 ? (
+                  <Text style={styles.modalHintText}>
+                    Weitere {hiddenPreviewCount} Dateiänderung{hiddenPreviewCount === 1 ? "" : "en"} sind nur in der Zusammenfassung gelistet, damit das Modal kompakt bleibt.
+                  </Text>
+                ) : null}
+
+                {pendingChange.skipped.length ? (
+                  <View style={styles.modalSummaryCard}>
+                    <Text style={styles.modalSectionTitle}>Übersprungen</Text>
+                    {pendingChange.skipped.map((path) => (
+                      <Text key={path} style={styles.modalHintText}>• {path}</Text>
+                    ))}
+                  </View>
+                ) : null}
 
                 {pendingChange.errors?.length ? (
                   <View style={styles.modalSummaryCard}>
