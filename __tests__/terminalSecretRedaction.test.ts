@@ -22,6 +22,18 @@ describe("Terminal secret redaction", () => {
     expect(out).not.toContain("eyJhbGci");
   });
 
+
+  test("redacts cookies and credential assignments", () => {
+    const input = "Cookie: session=abc123\npassword=hunter2\nclient_secret=topsecret";
+    const out = redactSecrets(input);
+    expect(out).toContain("Cookie: <redacted>");
+    expect(out).toContain('password="<redacted>"');
+    expect(out).toContain('client_secret="<redacted>"');
+    expect(out).not.toContain("abc123");
+    expect(out).not.toContain("hunter2");
+    expect(out).not.toContain("topsecret");
+  });
+
   test("truncateWithMarker adds marker", () => {
     const input = "x".repeat(50);
     const out = truncateWithMarker(input, 20, "<truncated>");

@@ -111,6 +111,28 @@ export async function runOrchestratorWithHardTimeout(
   }
 }
 
+export const prepareValidatedChatInput = (
+  input: string,
+): { valid: boolean; error?: string; sanitized: string; hadXSS: boolean } => {
+  const validation = validateChatInput(input);
+  if (!validation.valid) {
+    return {
+      valid: false,
+      error: validation.error,
+      sanitized: "",
+      hadXSS: Boolean(validation.hadXSS),
+    };
+  }
+
+  const sanitized = String(validation.sanitized ?? input).trim();
+  return {
+    valid: sanitized.length > 0,
+    error: sanitized.length > 0 ? undefined : "Nachricht ist leer",
+    sanitized,
+    hadXSS: Boolean(validation.hadXSS),
+  };
+};
+
 export const buildPathBulletList = (
   paths: string[],
   previewLimit: number,
@@ -358,6 +380,26 @@ export function useChatAIFlow({
     async (userContent: string, isAutoFix = false, forceBuilder = false) => {
       if (inFlightRef.current) return false;
 
+      const preparedInput = prepareValidatedChatInput(userContent);
+      if (!preparedInput.valid) {
+        const validationMessage =
+          preparedInput.error === "Nachricht ist zu lang"
+            ? "⚠️ Deine Nachricht ist zu lang. Bitte kürze den Prompt oder teile ihn in kleinere Schritte auf."
+            : `⚠️ ${preparedInput.error || "Nachricht konnte nicht verarbeitet werden."}`;
+
+        safe(() => setError(validationMessage));
+        addChatMessage({
+          id: uuidv4(),
+          role: "assistant",
+          content: validationMessage,
+          timestamp: new Date().toISOString(),
+          meta: { error: true },
+        });
+        return false;
+      }
+
+      const sanitizedRequestContent = preparedInput.sanitized;
+
       inFlightRef.current = true;
       safe(() => setIsAiLoading(true));
       safe(() => setError(null));
@@ -376,16 +418,16 @@ export function useChatAIFlow({
 
         // CALL 1: Planner (nur wenn nicht AutoFix / nicht forced / kein pendingPlan)
         if (!isAutoFix && !forceBuilder && !currentPendingPlan) {
-          const advice = looksLikeAdviceRequest(userContent);
-          const explicitFileTask = looksLikeExplicitFileTask(userContent);
+          const advice = looksLikeAdviceRequest(sanitizedRequestContent);
+          const explicitFileTask = looksLikeExplicitFileTask(sanitizedRequestContent);
           const shouldPlanner =
             advice ||
-            (!forceBuilder && !explicitFileTask && looksAmbiguousBuilderRequest(userContent));
+            (!forceBuilder && !explicitFileTask && looksAmbiguousBuilderRequest(sanitizedRequestContent));
 
           if (shouldPlanner) {
             const plannerMsgs = buildPlannerMessages(
               historyAsLlm,
-              userContent,
+              sanitizedRequestContent,
               currentProjectFiles,
               config.selectedChatProvider,
             );
@@ -419,7 +461,7 @@ export function useChatAIFlow({
               });
 
               const nextPlan: PendingPlan = {
-                originalRequest: userContent,
+                originalRequest: sanitizedRequestContent,
                 planText,
                 mode: advice ? "advice" : "build",
               };
@@ -436,7 +478,7 @@ export function useChatAIFlow({
         // CALL 2: Builder
         const llmMessages = buildBuilderMessages(
           historyAsLlm,
-          userContent,
+          sanitizedRequestContent,
           currentProjectFiles,
           config.selectedChatProvider,
         );
@@ -524,7 +566,7 @@ export function useChatAIFlow({
         if (config.agentEnabled) {
           try {
             const validatorMsgs = buildValidatorMessages(
-              userContent,
+              sanitizedRequestContent,
               normalized.map((f) => ({ path: f.path, content: f.content })),
               currentProjectFiles,
               config.selectedAgentProvider ?? config.selectedChatProvider,
@@ -605,7 +647,7 @@ export function useChatAIFlow({
               mergeResult.created,
               mergeResult.updated,
             );
-            const explainMsgs = buildExplainMessages(userContent, digest);
+            const explainMsgs = buildExplainMessages(sanitizedRequestContent, digest);
             const explainRes = await runOrchestratorWithHardTimeout(
               config.selectedChatProvider,
               config.selectedChatMode,
@@ -834,12 +876,13 @@ export function useChatAIFlow({
           role: "user",
           content: userContent,
           timestamp: new Date().toISOString(),
+          meta: { localOnly: true, metaCommand: true },
         });
         addChatMessage(metaResult.message);
         return true;
       }
 
-      const validation = validateChatInput(candidateInput);
+      const validation = prepareValidatedChatInput(candidateInput);
       if (!validation.valid) {
         const validationMessage =
           validation.error === "Nachricht ist zu lang"
@@ -857,9 +900,9 @@ export function useChatAIFlow({
         return false;
       }
 
-      const sanitizedAiContent = String(validation.sanitized ?? candidateInput).trim();
+      const sanitizedAiContent = validation.sanitized;
       const sanitizedUserContent = userContent
-        ? String(validateChatInput(userContent).sanitized ?? userContent).trim()
+        ? prepareValidatedChatInput(userContent).sanitized || userContent
         : sanitizedAiContent;
 
       if (!sanitizedAiContent) {
