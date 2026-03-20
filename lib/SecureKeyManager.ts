@@ -1,6 +1,10 @@
 /**
  * SecureKeyManager – sichere Verwaltung von API-Keys (Client-side)
  *
+ * Restrolle nach Edge-Proxy-Umstellung:
+ * - kein produktiver Provider-HTTP-Client mehr
+ * - nur noch lokaler Client-Key-/Reihenfolgespeicher fuer Settings, Rotation-UI und Persistenz
+ *
  * Ziele:
  * - Keys NICHT in globalThis
  * - Keine Key-Details in Logs

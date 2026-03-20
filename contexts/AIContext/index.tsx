@@ -98,7 +98,9 @@ useEffect(() => {
 useEffect(() => {
   if (!didLoad.current) return;
 
-  // 1) In-memory keys for request-time usage
+  // 1) In-memory keys fuer lokale Settings-/Rotations-Persistenz.
+  // Produktive KI-Requests laufen seit Patch 500 ausschliesslich ueber den Edge-Proxy
+  // (`invokeK1w1Handler(...)`) und lesen keine direkten Client-Provider-Keys mehr.
   (Object.keys(config.apiKeys) as AllAIProviders[]).forEach((provider) => {
     SecureKeyManager.setKeys(provider, config.apiKeys[provider] ?? []);
   });

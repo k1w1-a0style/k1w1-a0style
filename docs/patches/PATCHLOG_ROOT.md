@@ -1,5 +1,7 @@
 # Patchlog Root
 
+- Patch 512: verbliebene direkte Client-Provider-Altpfade im Orchestrator entfernt — `lib/orchestrator/providers/*` und die daran haengenden clientseitigen Provider-Tests sind geloescht, `SecureKeyManager` bleibt explizit als lokaler Key-/Rotations-State fuer `contexts/AIContext` eingegrenzt, und ein neuer Invariant-Test blockiert die Wiedereinbindung direkter Client-Provider-Imports im produktiven Runtime-Scope.
+
 - Patch 511: verbleibende produktive Supabase-Edge-Entry-Points auf native `Deno.serve(...)`-Bootstrap-Linie vereinheitlicht — `check-eas-build`, `trigger-eas-build`, `github-workflow-dispatch`, `github-workflow-runs`, `github-workflow-logs`, `k1w1-handler`, `save_preview`, `preview_page` und `create_codesandbox` nutzen keinen alten `std/http/server.ts`-Import mehr; bereinigte Helper schleppen keine toten `serve`-Reexports/-Imports weiter, und ein gezielter Invariant-Test blockiert neue Serve-Drift.
 
 - Patch 510: verbleibende Android-Keystore-Export-/Status-Secret-Lesepfade auf die bestehende Shared-Secret-/Auth-Linie gezogen — `_shared/auth.ts` liefert jetzt kleine Getter fuer `SUPABASE_URL` und `SIGNING_MASTER_KEY`, die drei Keystore-Pfade `android-keystore-generate`, `android-keystore-export` und `android-keystore-status` nutzen dadurch keine parallelen direkten `Deno.env.get(...)`-Reads mehr, und gezielte Invariants halten Helper-Reexports sowie unveraenderte Admin-/CI-Guards regressionsfest.
@@ -25,6 +27,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 512: alte direkte Client-Provider-Helfer unter `lib/orchestrator/providers/*` sowie deren verbleibende clientseitige Provider-Tests sind entfernt; der produktive Orchestrator bleibt ausschliesslich auf `invokeK1w1Handler(...)` verdrahtet, und ein neuer Invariant-Test blockiert direkte Client-Provider-Imports im Runtime-Scope.
 - Patch 509: restliche disabled Legacy-Edge-Stubs halten fuer lokale Disabled-Antworten jetzt den sichtbaren `status: 410`-Vertragsanker und nutzen request-gebundene Shared-CORS-Header via `corsHeadersForRequest(req)` statt `...corsHeaders`; `test` bleibt fuer die lokale 200-Antwort bei `jsonResponse({ ok: true }, req)`; die CORS-Invariants decken diese Restpfade zusaetzlich ab.
 - Patch 508: `LocalRemoteDiffSection` invalidiert laufende Diff-/Preview-Asyncs jetzt auch beim Unmount; der Truthfulness-Test deckt den Unmount-/Late-Resolve-Fall explizit als Regression ab.
 - Patch 507: `supabase/schema.public.sql` ist als abgeleitete Sekundaerreferenz fuer aktuelle Diagnostics-Public-Contracts nachgezogen; Migrationen + DB-/RPC-Invariants bleiben die kanonische SoT, und der Snapshot behauptet keine Legacy-UUID-/Spaltenwelt mehr.
