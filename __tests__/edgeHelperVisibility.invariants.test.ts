@@ -9,9 +9,9 @@ describe("Edge helper visibility invariants", () => {
       name: "k1w1-handler",
       index: "supabase/functions/k1w1-handler/index.ts",
       helpers: "supabase/functions/k1w1-handler/helpers.ts",
-      imports: ["corsHeaders", "handleCors", "parseJsonBody", "rateLimit", "requireAdminKey"],
+      imports: ["corsHeadersForRequest", "handleCors", "parseJsonBody", "rateLimit", "requireAdminKey"],
       reexports: [
-        'export { corsHeaders, handleCors } from "../_shared/cors.ts";',
+        'export { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";',
         'export { requireAdminKey, rateLimit } from "../_shared/auth.ts";',
         'export { parseJsonBody } from "../_shared/validation.ts";',
       ],

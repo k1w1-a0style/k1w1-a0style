@@ -25,7 +25,7 @@ export interface HandlerRequestBody {
   quality?: "speed" | "quality";
 }
 
-export { corsHeaders, handleCors } from "../_shared/cors.ts";
+export { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";
 export { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 export { parseJsonBody } from "../_shared/validation.ts";
 
