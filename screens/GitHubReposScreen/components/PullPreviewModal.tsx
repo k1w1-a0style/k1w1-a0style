@@ -119,7 +119,7 @@ export const PullPreviewModal = memo(function PullPreviewModal(props: Props) {
               )}
 
               <Text style={{ fontSize: 11, marginTop: 10, color: theme.palette.text.muted, lineHeight: 16 }}>
-                Overwrite übernimmt Remote-Version bei Konflikten. Skip behält lokale Version bei Konflikten.
+                Overwrite übernimmt Remote-Version bei Konflikten. Skip behält lokale Version bei Konflikten und markiert den Stand bewusst nicht als vollständig synchron.
               </Text>
 
               <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
