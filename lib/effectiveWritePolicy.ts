@@ -1,15 +1,29 @@
-import { CONFIG } from '../config';
 import { canActorModifyPath } from './projectOwnership';
 import { normalizePath } from './validators';
 
 export type EffectiveWritePolicy = {
   writableRoots: string[];
   writablePrefixes: string[];
-  blockedExamples: string[];
+  guardedExamples: Array<{ path: string; reason: string }>;
 };
 
-const CHAT_PREFIX_PROBES: Record<string, string> = {
-  '.github/': '.github/workflows/example.yml',
+const NORMAL_CHAT_WRITE_ROOT_PROBES = [
+  'App.tsx',
+  'App.js',
+  'index.js',
+  'config.ts',
+  'theme.ts',
+  'babel.config.js',
+  'eslint.config.js',
+  'jest.config.js',
+  'jest.setup.js',
+  'expo-env.d.ts',
+  '.gitignore',
+  '.npmrc',
+  'README.md',
+];
+
+const NORMAL_CHAT_WRITE_PREFIX_PROBES: Record<string, string> = {
   '__mocks__/': '__mocks__/example.ts',
   '__tests__/': '__tests__/example.test.ts',
   'assets/': 'assets/example.png',
@@ -22,25 +36,26 @@ const CHAT_PREFIX_PROBES: Record<string, string> = {
   'services/': 'services/example.ts',
   'src/': 'src/example.ts',
   'styles/': 'styles/example.ts',
-  'supabase/': 'supabase/functions/example/index.ts',
-  'templates/': 'templates/example.json',
   'types/': 'types/example.ts',
   'utils/': 'utils/example.ts',
-  'scripts/': 'scripts/example.sh',
 };
 
-const BLOCKED_PATH_EXAMPLES = [
+const GUARDED_CHAT_PATH_PROBES = [
   'package.json',
-  'app.config.js',
+  'package-lock.json',
   'app.json',
+  'app.config.js',
+  'app.config.ts',
   'eas.json',
+  'eas-project.json',
   'metro.config.js',
   'tsconfig.json',
   '.github/workflows/eas-build.yml',
+  '.github/actions/example/action.yml',
   'supabase/functions/example/index.ts',
   'templates/example.json',
-  'docs/patches/patch_999.md',
   'scripts/example.sh',
+  'docs/patches/patch_999.md',
   'android/app/build.gradle',
   'ios/Podfile',
 ];
@@ -49,23 +64,39 @@ const uniqueSorted = (values: string[]): string[] => [...new Set(values.map((val
 
 const normalizePrefix = (prefix: string): string => `${normalizePath(prefix).replace(/\/+$/, '')}/`;
 
-export function getEffectiveChatWritePolicy(): EffectiveWritePolicy {
-  const roots = uniqueSorted([...(CONFIG.PATHS.ALLOWED_ROOT ?? []), ...(CONFIG.PATHS.ALLOWED_SINGLE ?? [])]);
-  const prefixes = [...new Set((CONFIG.PATHS.ALLOWED_PREFIXES ?? []).map(normalizePrefix).filter(Boolean))].sort();
+function describeGuardedReason(reason: string): string {
+  if (/Template\/Baseline/i.test(reason)) return 'baseline-verwaltet/read-only';
+  if (/kritisch/i.test(reason)) return 'kritisch/manual-only';
+  return 'guarded';
+}
 
-  const writableRoots = roots.filter((path) => canActorModifyPath('chat', path).allowed);
-  const writablePrefixes = prefixes.filter((prefix) => {
-    const probe = CHAT_PREFIX_PROBES[prefix] ?? `${prefix.replace(/\/+$/, '')}/example.ts`;
-    return canActorModifyPath('chat', probe).allowed;
-  });
-  const blockedExamples = uniqueSorted(
-    BLOCKED_PATH_EXAMPLES.filter((path) => !canActorModifyPath('chat', path).allowed),
+export function getEffectiveChatWritePolicy(): EffectiveWritePolicy {
+  const writableRoots = uniqueSorted(
+    NORMAL_CHAT_WRITE_ROOT_PROBES.filter((candidate) => canActorModifyPath('chat', candidate).allowed),
   );
+
+  const writablePrefixes = [...new Set(
+    Object.entries(NORMAL_CHAT_WRITE_PREFIX_PROBES)
+      .filter(([, probe]) => canActorModifyPath('chat', probe).allowed)
+      .map(([prefix]) => normalizePrefix(prefix)),
+  )].sort();
+
+  const guardedExamples = uniqueSorted(GUARDED_CHAT_PATH_PROBES)
+    .map((path) => {
+      const decision = canActorModifyPath('chat', path);
+      return decision.allowed
+        ? null
+        : {
+            path: decision.normalizedPath,
+            reason: decision.reason ?? 'Guarded path',
+          };
+    })
+    .filter((entry): entry is { path: string; reason: string } => !!entry);
 
   return {
     writableRoots,
     writablePrefixes,
-    blockedExamples,
+    guardedExamples,
   };
 }
 
@@ -73,13 +104,16 @@ export function buildEffectiveChatWriteHint(): string {
   const policy = getEffectiveChatWritePolicy();
   const writableRoots = policy.writableRoots.slice(0, 10).join(', ');
   const writablePrefixes = policy.writablePrefixes.slice(0, 10).join(', ');
-  const blockedExamples = policy.blockedExamples.join(', ');
+  const guardedExamples = policy.guardedExamples
+    .map(({ path, reason }) => `${path} (${describeGuardedReason(reason)})`)
+    .join(', ');
 
   const parts = [
-    writablePrefixes ? `Normale Schreibbereiche im Chat-Flow: ${writablePrefixes}.` : '',
-    writableRoots ? `Einzeldateien im Root nur wenn explizit nötig und innerhalb der Chat-Policy: ${writableRoots}.` : '',
-    blockedExamples
-      ? `Nicht als normal beschreibbar darstellen: ${blockedExamples}. Solche Pfade sind im Chat-Flow read-only oder manuell.`
+    'Kontext-Hinweis: Du siehst nur einen priorisierten, gekürzten Projektausschnitt und keine Vollrepo-Sicht. Plane nur mit sichtbaren Dateien bzw. klar benannten Pfaden.',
+    writablePrefixes ? `Realistische normale Schreibbereiche im Chat-Flow: ${writablePrefixes}.` : '',
+    writableRoots ? `Normale Root-Dateien im Chat-Flow nur falls wirklich nötig: ${writableRoots}.` : '',
+    guardedExamples
+      ? `Guarded/manual-only statt normal beschreibbar: ${guardedExamples}. Solche Pfade nur als manuellen oder gesondert guardierten Folgeschritt erwähnen.`
       : '',
   ].filter(Boolean);
 
