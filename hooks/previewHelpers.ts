@@ -180,14 +180,20 @@ export function describeRemotePreviewFailure(error: unknown): string {
     return "Preview-Server derzeit nicht erreichbar.";
   }
 
+  if (normalized.includes("missing edge admin key")) {
+    return "Remote-Preview blockiert: lokaler Edge Admin Key fehlt.";
+  }
+
   if (
-    normalized.includes("missing edge admin key") ||
+    normalized.includes("missing or invalid admin") ||
+    normalized.includes("invalid admin") ||
+    normalized.includes("x-k1w1-admin-key") ||
     normalized.includes("unauthorized") ||
     normalized.includes("forbidden") ||
     normalized.includes("401") ||
     normalized.includes("403")
   ) {
-    return "Remote-Preview ist derzeit nicht verifizierbar.";
+    return "Remote-Preview blockiert: lokaler Edge Admin Key fehlt oder wurde vom Edge-Server abgelehnt (401/403).";
   }
 
   return "Remote-Preview konnte nicht zuverlässig bereitgestellt werden.";

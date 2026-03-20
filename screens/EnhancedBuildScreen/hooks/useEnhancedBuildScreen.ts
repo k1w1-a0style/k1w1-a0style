@@ -169,6 +169,7 @@ export function useEnhancedBuildScreen() {
   const {
     hasTokens,
     hasSigningKey,
+    signingKeyReason,
     hasDiagOk,
     hasCiLiteOk,
     diagnosticReason,
@@ -184,9 +185,9 @@ export function useEnhancedBuildScreen() {
     if (!hasCiLiteOk) {
       return ciLiteReason || "CI Lite nicht gruen oder nicht passend zu Repo/Branch – im Header ausfuehren";
     }
-    if (!hasSigningKey) return "Signing Key fehlt – im Wizard generieren";
+    if (!hasSigningKey) return signingKeyReason || "Signing Key fehlt – im Wizard generieren";
     return null;
-  }, [repoValidation.valid, branchName, hasTokens, hasDiagOk, diagnosticReason, hasCiLiteOk, ciLiteReason, hasSigningKey]);
+  }, [repoValidation.valid, branchName, hasTokens, hasDiagOk, diagnosticReason, hasCiLiteOk, ciLiteReason, hasSigningKey, signingKeyReason]);
 
   // Logs nur laden wenn ein aktiver Build läuft oder eine runId existiert
   const shouldLoadLogs =
@@ -510,7 +511,9 @@ export function useEnhancedBuildScreen() {
         id: "signing_key",
         label: "Signing-Key bereit",
         status: hasSigningKey ? "ok" : "fail",
-        detail: hasSigningKey ? `${buildProfile} · letzter bekannter Wizard-Stand` : "Fehlt noch - im Wizard prüfen oder erzeugen",
+        detail: hasSigningKey
+          ? `${buildProfile} · letzter bekannter Wizard-Stand`
+          : (signingKeyReason || "Fehlt noch - im Wizard prüfen oder erzeugen"),
       },
       {
         id: "tokens",
@@ -555,6 +558,7 @@ export function useEnhancedBuildScreen() {
     ];
   }, [
     hasSigningKey,
+    signingKeyReason,
     hasTokens,
     hasDiagOk,
     diagnosticReason,

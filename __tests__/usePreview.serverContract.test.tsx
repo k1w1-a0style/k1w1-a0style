@@ -71,6 +71,29 @@ describe("usePreview server contract", () => {
     expect(result.current.state.error).toBeNull();
   });
 
+
+  test("reports a missing local Edge Admin Key honestly before falling back to the local preview", async () => {
+    mockGetEdgeAdminKey.mockResolvedValue(null);
+
+    const { result } = renderHook((projectData: ProjectData | null) => usePreview(projectData), {
+      initialProps: baseProject,
+    });
+
+    await act(async () => {
+      await result.current.createPreview();
+    });
+
+    await waitFor(() => {
+      expect(result.current.lastPreview?.source).toBe("local");
+    });
+
+    expect(result.current.state.remoteFailure).toBe(
+      "Remote-Preview blockiert: lokaler Edge Admin Key fehlt.",
+    );
+    expect(mockEnsureSupabaseClient).toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalled();
+  });
+
   test("uses the trusted remote preview as primary path when the server responds successfully", async () => {
     mockGetEdgeAdminKey.mockResolvedValue("edge-admin-key");
     mockInvoke.mockResolvedValue({
