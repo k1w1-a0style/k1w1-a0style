@@ -51,6 +51,7 @@ describe("Edge helper visibility invariants", () => {
         "createClient",
         "encryptWithAesCbc",
         "errorResponse",
+        "getServiceRoleKey",
         "handleCors",
         "jsonResponse",
         "rateLimit",
@@ -59,7 +60,7 @@ describe("Edge helper visibility invariants", () => {
       reexports: [
         'export { createClient } from "https://esm.sh/@supabase/supabase-js@2";',
         'export { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";',
-        'export { rateLimit, requireAdminKey } from "../_shared/auth.ts";',
+        'export { getServiceRoleKey, rateLimit, requireAdminKey } from "../_shared/auth.ts";',
       ],
     },
     {

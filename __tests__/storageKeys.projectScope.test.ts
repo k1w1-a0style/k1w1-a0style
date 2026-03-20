@@ -3,6 +3,8 @@ import {
   credKeyForUiMode,
   resolveProjectCredentialScope,
   diagnosticLastOkKeyForSelection,
+  legacyClientServiceRoleStorageKeys,
+  STORAGE_KEYS,
 } from "../lib/storageKeys";
 
 describe("storageKeys project credential scope", () => {
@@ -42,6 +44,12 @@ describe("storageKeys project credential scope", () => {
     ).toBe("cred_key_exists_dev::project%3Aabc-123");
   });
 
+
+
+  it("keeps service-role cleanup on an explicit legacy-only helper instead of normal storage keys", () => {
+    expect(Object.prototype.hasOwnProperty.call(STORAGE_KEYS, "SUPABASE_SERVICE_ROLE_KEY")).toBe(false);
+    expect(legacyClientServiceRoleStorageKeys()).toEqual(["supabase_service_role_key"]);
+  });
 
   it("builds branch-scoped diagnostic key for repo + branch", () => {
     expect(

@@ -17,7 +17,7 @@ import {
   safeFormatBackupDate,
   validateApiBackupJson,
 } from "../../../lib/appInfoBackup";
-import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { STORAGE_KEYS, legacyClientServiceRoleStorageKeys } from "../../../lib/storageKeys";
 import { getSupabaseAnonKey, saveSupabaseAnonKey } from "../../../lib/supabaseAnonKeyStorage";
 import { useGitHub } from "../../../contexts/GitHubContext";
 import {
@@ -293,9 +293,11 @@ export function useAppInfoScreen() {
                 getSigningMasterKey().catch(() => null),
               ]);
 
-              await AsyncStorage.removeItem(
-                STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
-              ).catch(() => {});
+              await Promise.all(
+                legacyClientServiceRoleStorageKeys().map((key) =>
+                  AsyncStorage.removeItem(key).catch(() => {})
+                ),
+              );
 
               const [supabaseRaw, supabaseUrl, supabaseAnonKey, easProjectId] =
                 await Promise.all([
@@ -394,9 +396,11 @@ export function useAppInfoScreen() {
                 );
               if (typeof c.supabaseAnonKey === "string")
                 ops.push(saveSupabaseAnonKey(c.supabaseAnonKey));
-              await AsyncStorage.removeItem(
-                STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY,
-              ).catch(() => {});
+              await Promise.all(
+                legacyClientServiceRoleStorageKeys().map((key) =>
+                  AsyncStorage.removeItem(key).catch(() => {})
+                ),
+              );
 
               if (typeof c.easProjectId === "string")
                 ops.push(
