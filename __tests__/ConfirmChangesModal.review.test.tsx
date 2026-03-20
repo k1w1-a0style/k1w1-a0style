@@ -1,5 +1,5 @@
 import React from "react";
-import { render } from "@testing-library/react-native";
+import { fireEvent, render } from "@testing-library/react-native";
 
 import ConfirmChangesModal from "../components/chat/ConfirmChangesModal";
 import { buildChangePreviews } from "../lib/changePreview";
@@ -38,7 +38,7 @@ function buildPendingChange(overrides: Partial<PendingChange> = {}): PendingChan
 describe("ConfirmChangesModal review UX", () => {
   it("shows a compact preview for new files", () => {
     const pendingChange = buildPendingChange();
-    const { getAllByText, getByText } = render(
+    const { getByText } = render(
       <ConfirmChangesModal
         visible
         pendingChange={pendingChange}
@@ -48,7 +48,7 @@ describe("ConfirmChangesModal review UX", () => {
     );
 
     expect(getByText("Neue Datei")).toBeTruthy();
-    expect(getByText("Vorschau")).toBeTruthy();
+    expect(getByText("Neue Datei · kompakte Inhaltsvorschau")).toBeTruthy();
     expect(getByText(/export const NewBadge/)).toBeTruthy();
   });
 
@@ -63,9 +63,11 @@ describe("ConfirmChangesModal review UX", () => {
       />,
     );
 
-    expect(getByText("Kompakter Diff-Ausschnitt")).toBeTruthy();
+    expect(getByText("Delta · kompakter Diff-Ausschnitt")).toBeTruthy();
     expect(getByText(/- export default function App\(\) \{ return <Text>Before<\/Text>; \}/)).toBeTruthy();
     expect(getByText(/\+ export default function App\(\) \{ return <Text>After<\/Text>; \}/)).toBeTruthy();
+    expect(getByText("Vorher")).toBeTruthy();
+    expect(getByText("Nachher")).toBeTruthy();
   });
 
   it("makes builder vs validator provenance explicit and advisory", () => {
@@ -87,6 +89,51 @@ describe("ConfirmChangesModal review UX", () => {
 
     expect(getAllByText(/Validator-Review/).length).toBeGreaterThan(0);
     expect(getByText(/advisory Nachschärfer/)).toBeTruthy();
+    expect(getByText(/Finale Liste kommt aus dem Validator-Review/)).toBeTruthy();
     expect(getByText(/styles\/theme.ts wurde bewusst nicht angefasst/)).toBeTruthy();
+  });
+
+  it("shows skipped and blocked hints outside the long summary text", () => {
+    const pendingChange = buildPendingChange({
+      skipped: ["package.json"],
+      errors: [
+        "package.json bleibt geblockt: kritischer/manual-only Pfad",
+        "styles/theme.ts wurde bewusst nicht angefasst",
+      ],
+    });
+
+    const { getAllByText, getByText, queryByText } = render(
+      <ConfirmChangesModal
+        visible
+        pendingChange={pendingChange}
+        onAccept={jest.fn()}
+        onReject={jest.fn()}
+      />,
+    );
+
+    expect(getAllByText("Übersprungen").length).toBeGreaterThan(0);
+    expect(getAllByText("package.json").length).toBeGreaterThan(0);
+    expect(getByText(/kritischer\/manual-only Pfad/)).toBeTruthy();
+    expect(queryByText("Noch keine Änderungen zum Bestätigen.")).toBeNull();
+  });
+
+  it("keeps the existing accept/reject flow intact", () => {
+    const onAccept = jest.fn();
+    const onReject = jest.fn();
+    const pendingChange = buildPendingChange();
+    const { getByLabelText } = render(
+      <ConfirmChangesModal
+        visible
+        pendingChange={pendingChange}
+        onAccept={onAccept}
+        onReject={onReject}
+      />,
+    );
+
+    fireEvent.press(getByLabelText("Änderungen bestätigen und anwenden"));
+    fireEvent.press(getByLabelText("Änderungen ablehnen"));
+
+    expect(onAccept).toHaveBeenCalledTimes(1);
+    expect(onReject).toHaveBeenCalledTimes(1);
   });
 });

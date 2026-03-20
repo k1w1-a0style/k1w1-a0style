@@ -30,6 +30,7 @@ describe("patch416 legacy edge disablement invariants", () => {
       const src = read(`supabase/functions/${fn}/index.ts`);
       expect(src).toContain("disabled: true");
       expect(src).toContain("status: 410");
+      expect(src).toContain("corsHeadersForRequest(req)");
     });
   });
 

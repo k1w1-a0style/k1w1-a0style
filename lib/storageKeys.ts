@@ -6,8 +6,6 @@ export const STORAGE_KEYS = {
   SUPABASE_URL: "supabase_url",
   SUPABASE_KEY: "supabase_key",
 
-  // NOTE: Service Role Key is migrated to SecureStore; this constant remains as legacy AsyncStorage key name.
-  SUPABASE_SERVICE_ROLE_KEY: "supabase_service_role_key",
 
   EAS_PROJECT_ID: "eas_project_id",
 
@@ -64,6 +62,19 @@ export const STORAGE_KEYS = {
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
+
+
+const LEGACY_SUPABASE_SERVICE_ROLE_STORAGE_KEY = "supabase_service_role_key";
+
+/**
+ * Historical cleanup-only key for accidental legacy AsyncStorage data.
+ *
+ * The client must not actively manage or back up the Supabase service-role key;
+ * this helper exists only so import/export cleanup can delete stale remnants.
+ */
+export function legacyClientServiceRoleStorageKeys(): readonly string[] {
+  return [LEGACY_SUPABASE_SERVICE_ROLE_STORAGE_KEY];
+}
 
 /**
  * Returns the AsyncStorage key for signing-key existence per build profile.

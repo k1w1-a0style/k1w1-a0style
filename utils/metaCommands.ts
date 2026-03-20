@@ -15,6 +15,8 @@ export type MetaCommandResult = {
   message?: ChatMessage;
 };
 
+const LOCAL_META_MESSAGE = { localOnly: true, metaCommand: true } as const;
+
 const MAX_LISTED_FILES = 50;
 export const MAX_FILE_PREVIEW_CHARS = 6000;
 
@@ -59,6 +61,7 @@ export const handleMetaCommand = (
         role: 'assistant',
         content: `📊 Aktuell sind ${count} Datei(en) im Projekt gespeichert.`,
         timestamp: new Date().toISOString(),
+        meta: LOCAL_META_MESSAGE,
       },
     };
   }
@@ -73,6 +76,7 @@ export const handleMetaCommand = (
           role: 'assistant',
           content: '📂 Es sind noch keine Projektdateien vorhanden.',
           timestamp: new Date().toISOString(),
+          meta: LOCAL_META_MESSAGE,
         },
       };
     }
@@ -85,6 +89,7 @@ export const handleMetaCommand = (
         role: 'assistant',
         content: `📂 Aktuelle Projektdateien (${projectFiles.length}):\n\n${list}`,
         timestamp: new Date().toISOString(),
+        meta: LOCAL_META_MESSAGE,
       },
     };
   }
@@ -106,6 +111,7 @@ export const handleMetaCommand = (
           role: 'assistant',
           content: `❌ Datei nicht gefunden: ${sanitizePathForDisplay(rawPath)}`,
           timestamp: new Date().toISOString(),
+          meta: LOCAL_META_MESSAGE,
         },
       };
     }
@@ -126,7 +132,7 @@ export const handleMetaCommand = (
           (isTruncated ? ` (gekürzt auf ${MAX_FILE_PREVIEW_CHARS} Zeichen)` : '') +
           `\n\n\`\`\`\n${shown}\n\`\`\``,
         timestamp: new Date().toISOString(),
-        meta: { localOnly: true, containsFilePreview: true },
+        meta: { ...LOCAL_META_MESSAGE, containsFilePreview: true },
       },
     };
   }
@@ -141,6 +147,7 @@ export const handleMetaCommand = (
           role: 'assistant',
           content: '⚠️ Es gibt keine Dateien zum Prüfen.',
           timestamp: new Date().toISOString(),
+          meta: LOCAL_META_MESSAGE,
         },
       };
     }
@@ -154,6 +161,7 @@ export const handleMetaCommand = (
           role: 'assistant',
           content: `✅ Projektprüfung: Keine kritischen Probleme (${projectFiles.length} Dateien).`,
           timestamp: new Date().toISOString(),
+          meta: LOCAL_META_MESSAGE,
         },
       };
     }
@@ -170,6 +178,7 @@ export const handleMetaCommand = (
         role: 'assistant',
         content: `⚠️ Projektprüfung: ${validation.errors.length} Problem(e):\n\n${errorText}`,
         timestamp: new Date().toISOString(),
+        meta: LOCAL_META_MESSAGE,
       },
     };
   }

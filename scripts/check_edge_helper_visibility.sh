@@ -12,7 +12,7 @@ check_contains() {
   grep -Fq "$needle" "$file" || fail "Missing expected content in $file: $needle"
 }
 
-check_contains "supabase/functions/k1w1-handler/helpers.ts" 'export { corsHeaders, handleCors } from "../_shared/cors.ts";'
+check_contains "supabase/functions/k1w1-handler/helpers.ts" 'export { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";'
 check_contains "supabase/functions/k1w1-handler/helpers.ts" 'export { requireAdminKey, rateLimit } from "../_shared/auth.ts";'
 check_contains "supabase/functions/k1w1-handler/helpers.ts" 'export { parseJsonBody } from "../_shared/validation.ts";'
 
@@ -21,8 +21,8 @@ check_contains "supabase/functions/android-keystore-export/helpers.ts" 'export {
 
 check_contains "supabase/functions/android-keystore-generate/helpers.ts" 'export { createClient } from "https://esm.sh/@supabase/supabase-js@2";'
 check_contains "supabase/functions/android-keystore-generate/helpers.ts" 'export { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";'
+check_contains "supabase/functions/android-keystore-generate/helpers.ts" 'export { getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, rateLimit, requireAdminKey } from "../_shared/auth.ts";'
 
-check_contains "supabase/functions/create_codesandbox/helpers.ts" 'export { serve } from "std/http/server.ts";'
 check_contains "supabase/functions/create_codesandbox/helpers.ts" 'export { parseJsonBody } from "../_shared/validation.ts";'
 check_contains "supabase/functions/create_codesandbox/helpers.ts" 'export { requireAdminKey, rateLimit } from "../_shared/auth.ts";'
 

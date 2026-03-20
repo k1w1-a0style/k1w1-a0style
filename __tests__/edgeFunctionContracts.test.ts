@@ -14,13 +14,12 @@ import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
 
 describe("edge function request contracts", () => {
   describe("validateGithubWorkflowDispatchRequest", () => {
-    it("accepts common alias keys and normalizes output", () => {
+    it("accepts common alias keys and normalizes output without client token passthrough", () => {
       const res = validateGithubWorkflowDispatchRequest({
         github_repo: "k1w1-a0style/musik-player",
         workflowId: "eas-link.yml",
         branch: "dev",
         inputs: { profile: "development", projectId: "abc" },
-        github_token: "ghp_TESTTOKEN",
       });
 
       expect(res.ok).toBe(true);
@@ -30,7 +29,7 @@ describe("edge function request contracts", () => {
       expect(res.data.workflow).toBe("eas-link.yml");
       expect(res.data.ref).toBe("dev");
       expect(res.data.inputs).toEqual({ profile: "development", projectId: "abc" });
-      expect(res.data.githubToken).toBe("ghp_TESTTOKEN");
+      expect(res.data).not.toHaveProperty("githubToken");
     });
 
     it("rejects missing ref instead of defaulting to main", () => {

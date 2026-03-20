@@ -68,7 +68,7 @@ describe('usePreview rehydration', () => {
     await waitFor(() => {
       expect(result.current.lastPreview?.source).toBe('local');
       expect(result.current.lastPreview?.html).toBeNull();
-      expect(result.current.state.error).toContain('lokaler HTML-Fallback');
+      expect(result.current.state.error).toContain('lokale HTML-/Eval-Fallback');
     });
   });
 

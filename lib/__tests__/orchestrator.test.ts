@@ -1,27 +1,74 @@
-import SecureKeyManager from '../SecureKeyManager';
 import { providerRateLimiter } from '../RateLimiter';
-import { runOrchestrator, parseFilesFromText, runValidatorOrchestrator, type LlmMessage, ORCHESTRATOR_REQUEST_TIMEOUT_MS, ORCHESTRATOR_ROTATION_BACKOFF_MS } from '../orchestrator';
+import {
+  runOrchestrator,
+  parseFilesFromText,
+  runValidatorOrchestrator,
+  type LlmMessage,
+  ORCHESTRATOR_REQUEST_TIMEOUT_MS,
+} from '../orchestrator';
+import { ensureSupabaseClient } from '../supabase';
+import { getEdgeAdminKey } from '../../infra/github/githubService';
+import { SUPABASE_EDGE_FUNCTIONS } from '../../shared/constants/supabase';
 
-// Ensure global.fetch is a Jest mock for this test file.
-// Jest setup in this repo does not guarantee fetch is mocked.
-const __originalFetch: any = (global as any).fetch;
+jest.mock('../supabase', () => ({
+  ensureSupabaseClient: jest.fn(),
+}));
+
+jest.mock('../../infra/github/githubService', () => ({
+  getEdgeAdminKey: jest.fn(),
+}));
+
+type InvokeOptions = {
+  body?: Record<string, unknown>;
+  headers?: Record<string, string>;
+  signal?: AbortSignal;
+};
+
+const mockEnsureSupabaseClient = ensureSupabaseClient as jest.MockedFunction<typeof ensureSupabaseClient>;
+const mockGetEdgeAdminKey = getEdgeAdminKey as jest.MockedFunction<typeof getEdgeAdminKey>;
+const invokeMock = jest.fn();
+const fetchSpy = jest.fn();
+const originalFetch = global.fetch;
 
 beforeAll(() => {
-  if (!(global as any).fetch || !(global as any).fetch.mock) {
-    (global as any).fetch = jest.fn(async () => ({
-      ok: false,
-      status: 401,
-      text: async () => 'Unauthorized',
-      json: async () => ({ error: 'Unauthorized' }),
-    }));
-  }
+  global.fetch = fetchSpy as unknown as typeof fetch;
 });
 
 afterAll(() => {
-  // Restore original fetch if it existed (important for other suites).
-  (global as any).fetch = __originalFetch;
+  global.fetch = originalFetch;
 });
 
+beforeEach(() => {
+  jest.useRealTimers();
+  jest.clearAllMocks();
+  invokeMock.mockReset();
+  fetchSpy.mockReset();
+  providerRateLimiter.resetProvider('groq');
+  providerRateLimiter.resetProvider('openai');
+  providerRateLimiter.resetProvider('anthropic');
+  providerRateLimiter.resetProvider('gemini');
+  providerRateLimiter.resetProvider('huggingface');
+
+  mockEnsureSupabaseClient.mockResolvedValue({
+    functions: {
+      invoke: invokeMock,
+    },
+  } as unknown as Awaited<ReturnType<typeof ensureSupabaseClient>>);
+  mockGetEdgeAdminKey.mockResolvedValue('edge-admin-key');
+  invokeMock.mockResolvedValue({
+    data: {
+      ok: true,
+      provider: 'groq',
+      model: 'llama-3.1-8b-instant',
+      content: 'ok',
+    },
+    error: null,
+  });
+});
+
+afterEach(() => {
+  jest.useRealTimers();
+});
 
 describe('Orchestrator', () => {
   describe('parseFilesFromText', () => {
@@ -41,259 +88,191 @@ describe('Orchestrator', () => {
   });
 
   describe('runOrchestrator', () => {
-    it('sollte fehlschlagen wenn kein API-Key vorhanden', async () => {
+    it('nutzt produktiv supabase.functions.invoke fuer k1w1-handler statt direkter Provider-Endpoints', async () => {
       const testMessages: LlmMessage[] = [{ role: 'user', content: 'hi' }];
 
-      const result: any = await runOrchestrator('groq', 'llama-3.1-8b-instant', 'speed', testMessages);
+      const result = await runOrchestrator('groq', 'llama-3.1-8b-instant', 'speed', testMessages);
+
+      expect(result.ok).toBe(true);
+      expect(mockEnsureSupabaseClient).toHaveBeenCalledTimes(1);
+      expect(invokeMock).toHaveBeenCalledTimes(1);
+      expect(invokeMock).toHaveBeenCalledWith(
+        SUPABASE_EDGE_FUNCTIONS.K1W1_HANDLER,
+        expect.objectContaining({
+          body: {
+            provider: 'groq',
+            model: 'llama-3.1-8b-instant',
+            quality: 'speed',
+            messages: testMessages,
+          },
+          headers: { 'x-k1w1-admin-key': 'edge-admin-key' },
+        }),
+      );
+      expect(fetchSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('api.groq.com'),
+        expect.anything(),
+      );
+      expect(fetchSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('api.openai.com'),
+        expect.anything(),
+      );
+      expect(fetchSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('api.anthropic.com'),
+        expect.anything(),
+      );
+      expect(fetchSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('generativelanguage.googleapis.com'),
+        expect.anything(),
+      );
+      expect(fetchSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('router.huggingface.co'),
+        expect.anything(),
+      );
+    });
+
+    it('mappt Edge-Responses in kompatible OrchestratorResult-Form', async () => {
+      const testMessages: LlmMessage[] = [{ role: 'user', content: 'Sag Hallo' }];
+
+      invokeMock.mockResolvedValueOnce({
+        data: {
+          ok: true,
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          content: 'Hallo vom Edge-Proxy',
+        },
+        error: null,
+      });
+
+      const result = await runOrchestrator('openai', 'gpt-4o-mini', 'speed', testMessages);
+
+      expect(result).toMatchObject({
+        ok: true,
+        text: 'Hallo vom Edge-Proxy',
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+      });
+      expect(result.timing?.durationMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it('meldet fehlenden Edge-Admin-Key klar statt lokale Provider-Keys zu verlangen', async () => {
+      const testMessages: LlmMessage[] = [{ role: 'user', content: 'hi' }];
+      mockGetEdgeAdminKey.mockResolvedValueOnce(null);
+
+      const result = await runOrchestrator('groq', 'llama-3.1-8b-instant', 'speed', testMessages);
 
       expect(result.ok).toBe(false);
-
-      const hasAnyError =
-        (typeof result.error === 'string' && result.error.length > 0) ||
-        (Array.isArray(result.errors) && result.errors.length > 0);
-
-      expect(hasAnyError).toBe(true);
+      expect(String(result.error || '')).toMatch(/K1W1_EDGE_ADMIN_KEY/i);
+      expect(invokeMock).not.toHaveBeenCalled();
     });
 
-    it('sollte mit gültigem API-Key und Response funktionieren (timing optional)', async () => {
+    it('behandelt Edge-Fehler stabil und verstaendlich', async () => {
       const testMessages: LlmMessage[] = [{ role: 'user', content: 'hi' }];
 
-      const result: any = await runOrchestrator('groq', 'llama-3.1-8b-instant', 'speed', testMessages);
+      invokeMock.mockResolvedValueOnce({
+        data: null,
+        error: {
+          name: 'FunctionsHttpError',
+          context: new Response(JSON.stringify({ ok: false, error: 'Invalid request payload.' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        },
+      });
 
-      if (result.ok) {
-        expect(result.provider).toBe('groq');
-        expect(result.text).toBeDefined();
-        if (result.timing) {
-          expect(result.timing.durationMs).toBeGreaterThanOrEqual(0);
-        }
-      } else {
-        expect(result.ok).toBe(false);
-      }
+      const result = await runOrchestrator('groq', 'llama-3.1-8b-instant', 'speed', testMessages);
+
+      expect(result.ok).toBe(false);
+      expect(result.provider).toBe('groq');
+      expect(String(result.error || '')).toContain('Invalid request payload.');
     });
 
-    it('sollte HTTP-Fehler / Rate-Limit / Unauthorized nicht crashen (stabile Result-Form)', async () => {
+    it('meldet harte Request-Timeouts ueber den Edge-Proxy weiterhin als timeout', async () => {
+      jest.useFakeTimers();
       const testMessages: LlmMessage[] = [{ role: 'user', content: 'hi' }];
 
-      const result: any = await runOrchestrator('groq', 'llama-3.1-8b-instant', 'speed', testMessages);
+      invokeMock.mockImplementationOnce(async (_fn: string, options?: InvokeOptions) => {
+        return await new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => {
+            reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
+          });
+        });
+      });
 
-      expect(typeof result.ok).toBe('boolean');
-      if (!result.ok) {
-        const hasAnyError =
-          (typeof result.error === 'string' && result.error.length > 0) ||
-          (Array.isArray(result.errors) && result.errors.length > 0);
-        expect(hasAnyError).toBe(true);
-      } else {
-        expect(typeof result.text).toBe('string');
-        expect(result.text.length).toBeGreaterThan(0);
-      }
+      const pending = runOrchestrator('groq', 'llama-3.1-8b-instant', 'speed', testMessages);
+
+      await jest.advanceTimersByTimeAsync(ORCHESTRATOR_REQUEST_TIMEOUT_MS + 1);
+      const result = await pending;
+
+      expect(result.ok).toBe(false);
+      expect(String(result.error || '')).toMatch(/timeout/i);
+
+      jest.useRealTimers();
+    });
+
+    it('meldet externes Abort-Signal weiterhin als abgebrochen', async () => {
+      const testMessages: LlmMessage[] = [{ role: 'user', content: 'hi' }];
+
+      invokeMock.mockImplementationOnce(async (_fn: string, options?: InvokeOptions) => {
+        return await new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => {
+            reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
+          });
+        });
+      });
+
+      const controller = new AbortController();
+      const pending = runOrchestrator(
+        'groq',
+        'llama-3.1-8b-instant',
+        'speed',
+        testMessages,
+        controller.signal,
+      );
+
+      controller.abort();
+      const result = await pending;
+
+      expect(result.ok).toBe(false);
+      expect(String(result.error || '')).toMatch(/abgebrochen/i);
     });
   });
 
   describe('runValidatorOrchestrator', () => {
-    it('sollte Validator mit quality Modus ausführen (best effort shape)', async () => {
+    it('haelt Validator/quality-Pfad ueber denselben Edge-Call kompatibel', async () => {
       const validationMessages: LlmMessage[] = [{ role: 'user', content: 'Validate this.' }];
 
-      const result: any = await runValidatorOrchestrator(
+      invokeMock.mockResolvedValueOnce({
+        data: {
+          ok: true,
+          provider: 'anthropic',
+          model: 'claude-3-5-sonnet-20241022',
+          content: 'Validator response',
+        },
+        error: null,
+      });
+
+      const result = await runValidatorOrchestrator(
         'anthropic',
         'claude-3-5-sonnet-20241022',
-        validationMessages
+        validationMessages,
       );
 
-      expect(typeof result.ok).toBe('boolean');
-      if (result.ok) {
-        expect(typeof result.text).toBe('string');
-      } else {
-        const hasAnyError =
-          (typeof result.error === 'string' && result.error.length > 0) ||
-          (Array.isArray(result.errors) && result.errors.length > 0);
-        expect(hasAnyError).toBe(true);
-      }
-    });
-  });
-
-  describe('Message-Handling', () => {
-    it('sollte System-Prompts korrekt handhaben (nur wenn fetch gemockt ist)', async () => {
-      const fetchAny: any = (global as any).fetch;
-
-      // Wenn fetch nicht als Jest-Mock läuft, können wir mock.calls nicht prüfen.
-      if (!fetchAny || !fetchAny.mock || !Array.isArray(fetchAny.mock.calls)) {
-        return;
-      }
-
-      // Ensure a key is available so the orchestrator actually performs a network call.
-      SecureKeyManager.setKeys('groq', ['k1']);
-      fetchAny.mockReset();
-
-      fetchAny.mockResolvedValueOnce({
+      expect(result).toMatchObject({
         ok: true,
-        status: 200,
-        json: async () => ({
-          choices: [{ message: { content: 'ok' } }],
+        text: 'Validator response',
+        provider: 'anthropic',
+        model: 'claude-3-5-sonnet-20241022',
+      });
+      expect(invokeMock).toHaveBeenLastCalledWith(
+        SUPABASE_EDGE_FUNCTIONS.K1W1_HANDLER,
+        expect.objectContaining({
+          body: expect.objectContaining({
+            provider: 'anthropic',
+            quality: 'quality',
+            messages: validationMessages,
+          }),
         }),
-        text: async () => 'ok',
-      });
-
-      const testMessages: LlmMessage[] = [
-        { role: 'system', content: 'Du bist ein hilfreicher Assistent.' },
-        { role: 'user', content: 'Sag Hallo' },
-      ];
-
-      await runOrchestrator('groq', 'llama-3.1-8b-instant', 'speed', testMessages);
-
-      expect(fetchAny).toHaveBeenCalled();
-      const fetchCall = fetchAny.mock.calls[0];
-      expect(fetchCall).toBeTruthy();
-      expect(fetchCall[1]).toBeTruthy();
-
-      const body = JSON.parse(fetchCall[1].body);
-
-      expect(Array.isArray(body.messages)).toBe(true);
-      expect(body.messages[0].role).toBe('system');
-      expect(body.messages[0].content).toBe('Du bist ein hilfreicher Assistent.');
+      );
     });
-
-
-it('sollte bei 429 automatisch den API-Key rotieren und retry machen', async () => {
-  const fetchAny: any = (global as any).fetch;
-  if (!fetchAny || !fetchAny.mock) {
-    // Should not happen because we install a mock in beforeAll.
-    (global as any).fetch = jest.fn();
-  }
-
-
-  SecureKeyManager.setKeys('groq', ['k1', 'k2']);
-  fetchAny.mockReset();
-
-  fetchAny
-    .mockResolvedValueOnce({
-      ok: false,
-      status: 429,
-      text: async () => 'Too Many Requests',
-    })
-    .mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: async () => ({ choices: [{ message: { content: 'ok' } }] }),
-      text: async () => '',
-    });
-
-  const res: any = await runOrchestrator('groq', 'llama-3.1-8b-instant', 'speed', [
-    { role: 'user', content: 'hi' },
-  ]);
-
-  expect(res.ok).toBe(true);
-  expect(res.keysRotated).toBe(1);
-
-  expect(fetchAny.mock.calls.length).toBe(2);
-  expect(fetchAny.mock.calls[0][1].headers.Authorization).toBe('Bearer k1');
-  expect(fetchAny.mock.calls[1][1].headers.Authorization).toBe('Bearer k2');
-});
-
-
-it('sollte bei 429-Rotation vor dem Retry einen kleinen Backoff einlegen', async () => {
-  const fetchAny: any = (global as any).fetch;
-  SecureKeyManager.setKeys('groq', ['k1', 'k2']);
-  fetchAny.mockReset();
-  providerRateLimiter.resetProvider('groq');
-
-  jest.useFakeTimers();
-
-  const callTimes: number[] = [];
-  fetchAny
-    .mockImplementationOnce(async () => {
-      callTimes.push(Date.now());
-      return {
-        ok: false,
-        status: 429,
-        text: async () => 'Too Many Requests',
-      };
-    })
-    .mockImplementationOnce(async () => {
-      callTimes.push(Date.now());
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({ choices: [{ message: { content: 'ok' } }] }),
-        text: async () => '',
-      };
-    });
-
-  const pending = runOrchestrator('groq', 'llama-3.1-8b-instant', 'speed', [
-    { role: 'user', content: 'hi' },
-  ]);
-
-  await jest.runAllTimersAsync();
-  const res: any = await pending;
-
-  expect(res.ok).toBe(true);
-  expect(res.keysRotated).toBe(1);
-  expect(callTimes.length).toBe(2);
-  expect(callTimes[1] - callTimes[0]).toBeGreaterThanOrEqual(
-    ORCHESTRATOR_ROTATION_BACKOFF_MS,
-  );
-
-  jest.useRealTimers();
-});
-
-it('sollte harte Request-Timeouts klar als timeout melden', async () => {
-  const fetchAny: any = (global as any).fetch;
-  SecureKeyManager.setKeys('groq', ['k1']);
-  fetchAny.mockReset();
-  providerRateLimiter.resetProvider('groq');
-
-  jest.useFakeTimers();
-
-  fetchAny.mockImplementationOnce((_: string, options?: RequestInit) => {
-    return new Promise((_, reject) => {
-      options?.signal?.addEventListener('abort', () => {
-        const abortError = Object.assign(new Error('Aborted'), { name: 'AbortError' });
-        reject(abortError);
-      });
-    });
-  });
-
-  const pending = runOrchestrator('groq', 'llama-3.1-8b-instant', 'speed', [
-    { role: 'user', content: 'hi' },
-  ]);
-
-  await jest.advanceTimersByTimeAsync(ORCHESTRATOR_REQUEST_TIMEOUT_MS + 1);
-  const res: any = await pending;
-
-  expect(res.ok).toBe(false);
-  expect(String(res.error || '')).toMatch(/timeout/i);
-
-  jest.useRealTimers();
-});
-
-it('sollte externes Abort-Signal weiterhin als abgebrochen melden', async () => {
-  const fetchAny: any = (global as any).fetch;
-  SecureKeyManager.setKeys('groq', ['k1']);
-  fetchAny.mockReset();
-  providerRateLimiter.resetProvider('groq');
-
-  fetchAny.mockImplementationOnce((_: string, options?: RequestInit) => {
-    return new Promise((_, reject) => {
-      options?.signal?.addEventListener('abort', () => {
-        const abortError = Object.assign(new Error('Aborted'), { name: 'AbortError' });
-        reject(abortError);
-      });
-    });
-  });
-
-  const controller = new AbortController();
-  const pending = runOrchestrator(
-    'groq',
-    'llama-3.1-8b-instant',
-    'speed',
-    [{ role: 'user', content: 'hi' }],
-    controller.signal,
-  );
-
-  controller.abort();
-  const res: any = await pending;
-
-  expect(res.ok).toBe(false);
-  expect(String(res.error || '')).toMatch(/abgebrochen/i);
-});
   });
 });

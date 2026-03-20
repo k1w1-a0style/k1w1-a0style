@@ -1,8 +1,7 @@
 // supabase/functions/github-workflow-logs/index.ts
 // REFACTORED: helpers → helpers.ts
 
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { corsHeaders, handleCors } from "../_shared/cors.ts";
+import { handleCors } from "../_shared/cors.ts";
 import { requireAdminKeyOrServiceRoleBearer, rateLimit } from "../_shared/auth.ts";
 import { parseJsonBody } from "../_shared/validation.ts";
 import { getGithubToken, githubHeaders, GITHUB_API_BASE } from "../_shared/github.ts";
@@ -12,7 +11,7 @@ import {
   redactSecrets, fetchLogsZip, zipToText, MAX_CHARS, MAX_ZIP_BYTES,
 } from "./helpers.ts";
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
@@ -26,17 +25,13 @@ serve(async (req) => {
     const parsedBody = await parseJsonBody(req, 50_000);
     if (!parsedBody.ok) {
       const status = parsedBody.error.includes("too large") ? 413 : 400;
-      return jsonErr("Validation failed", { error: parsedBody.error }, status);
+      return jsonErr(req, "Validation failed", { error: parsedBody.error }, status);
     }
     const body = parsedBody.body as Json;
-
-    const tokenFromBody = String(
-      (body as any).githubToken ?? (body as any).ghToken ?? (body as any).token ?? (body as any).github_token ?? "",
-    ).trim();
-
     const repoObj = parseGithubRepo(body.githubRepo);
     if (!repoObj) {
       return jsonErr(
+        req,
         "Validation failed",
         { error: "githubRepo must be 'owner/repo' string" },
         400,
@@ -51,15 +46,17 @@ serve(async (req) => {
 
     if (!runId || !Number.isFinite(runId)) {
       return jsonErr(
+        req,
         "Validation failed",
         { error: "runId must be a number" },
         400,
       );
     }
 
-    const token = (tokenFromBody || getGithubToken() || "").trim();
+    const token = getGithubToken().trim();
     if (!token) {
       return jsonErr(
+        req,
         "Missing GitHub token",
         { expected: ["GITHUB_TOKEN", "GH_TOKEN", "GITHUB_API_TOKEN"] },
         500,
@@ -116,7 +113,7 @@ serve(async (req) => {
       text = text.slice(0, MAX_CHARS) + "\n\n<...truncated...>";
     }
 
-    return jsonOk({
+    return jsonOk(req, {
       ok: true,
       githubRepo: `${repoObj.owner}/${repoObj.repo}`,
       runId: Math.trunc(runId),
@@ -130,16 +127,18 @@ serve(async (req) => {
     const anyE = e as any;
     // Handle "not ready" signals from fetchLogsZip (logs still being prepared)
     if (anyE && anyE.notReady === true && anyE.body) {
-      return jsonOk(anyE.body, anyE.status ?? 200);
+      return jsonOk(req, anyE.body, anyE.status ?? 200);
     }
     if (anyE && typeof anyE.status === "number") {
       return jsonErr(
+        req,
         "GitHub workflow logs fetch failed",
         { status: anyE.status, body: anyE.body ?? "" },
         502,
       );
     }
     return jsonErr(
+      req,
       "Internal error",
       { message: String(anyE?.message ?? e), code: anyE?.code },
       500,

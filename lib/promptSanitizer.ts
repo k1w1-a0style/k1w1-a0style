@@ -5,6 +5,7 @@ export type HistoryLikeMessage = {
   content: string;
   meta?: {
     localOnly?: boolean;
+    metaCommand?: boolean;
     containsFilePreview?: boolean;
   };
 };
@@ -51,6 +52,7 @@ export function sanitizeFileContentForPrompt(
 
 export function shouldIncludeMessageInLlmHistory(message: HistoryLikeMessage): boolean {
   if (message.meta?.localOnly) return false;
+  if (message.meta?.metaCommand) return false;
   if (message.meta?.containsFilePreview) return false;
   return String(message.content ?? '').trim().length > 0;
 }

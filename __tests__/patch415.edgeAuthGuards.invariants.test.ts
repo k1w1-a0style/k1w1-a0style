@@ -41,6 +41,19 @@ describe("patch415 edge auth guard invariants", () => {
     }
   });
 
+
+  it("keeps android-keystore-generate on the shared server-side service-role lookup", () => {
+    const src = read("supabase/functions/android-keystore-generate/index.ts");
+    const helpers = read("supabase/functions/android-keystore-generate/helpers.ts");
+    expect(helpers).toContain('export { getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, rateLimit, requireAdminKey } from "../_shared/auth.ts";');
+    expect(src).toContain("const serviceKey = getServiceRoleKey(req);");
+    expect(src).toContain("const supabaseUrl = getSupabaseUrl();");
+    expect(src).toContain("const masterKey = getSigningMasterKey();");
+    expect(src).not.toContain('Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")');
+    expect(src).not.toContain('Deno.env.get("SUPABASE_URL")');
+    expect(src).not.toContain('Deno.env.get("SIGNING_MASTER_KEY")');
+  });
+
   it("keeps wizard-style keystore routes admin-only", () => {
     for (const rel of adminOnly) {
       const src = read(rel);

@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { requireAdminKeyOrServiceRoleBearer, rateLimit } from "../_shared/auth.ts";
 import { githubHeaders, getGithubToken, GITHUB_API_BASE } from "../_shared/github.ts";
@@ -880,7 +879,7 @@ function isAllowedRef(ref: string): boolean {
  *   inputs?: object
  * }
  */
-serve(async (req) => {
+Deno.serve(async (req) => {
     const cors = handleCors(req);
   if (cors) return cors;
 try {
@@ -896,9 +895,8 @@ try {
     const val = validateGithubWorkflowDispatchRequest(parsed.body);
     if (!val.ok) return errorResponse("Invalid request", req, 400, val.errors);
 
-    const { githubRepo, workflow, ref, inputs, githubToken } = val.data!;
-    // Prefer server-side secret; optionally allow a caller-provided token as fallback.
-    const token = (getGithubToken() || githubToken || "").trim();
+    const { githubRepo, workflow, ref, inputs } = val.data!;
+    const token = getGithubToken().trim();
 
     if (!token) {
       return errorResponse("Missing GitHub token", req, 500, {

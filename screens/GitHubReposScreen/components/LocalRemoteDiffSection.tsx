@@ -173,6 +173,7 @@ export function LocalRemoteDiffSection(props: {
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const genRef = useRef(0);
   const previewReqRef = useRef(0);
+  const mountedRef = useRef(true);
 
   const previewCacheRef = useRef(new Map<string, PreviewCacheEntry>());
   const [inlineOpenPath, setInlineOpenPath] = useState<string | null>(null);
@@ -209,6 +210,12 @@ export function LocalRemoteDiffSection(props: {
     previewReqRef.current += 1;
   }, []);
 
+  const commitIfMounted = useCallback((updater: () => void) => {
+    if (!mountedRef.current) return false;
+    updater();
+    return true;
+  }, []);
+
   const resetContextState = useCallback(() => {
     setItems([]);
     setNote("");
@@ -238,39 +245,47 @@ export function LocalRemoteDiffSection(props: {
     if (!parsed) {
       loadedTruthKeyRef.current = null;
       resetContextState();
-      setNote("Kein Repo gewählt.");
+      commitIfMounted(() => {
+        setNote("Kein Repo gewählt.");
+      });
       return;
     }
     if (!local.length) {
       loadedTruthKeyRef.current = null;
       resetContextState();
-      setNote("Keine lokalen Projektdateien gefunden.");
+      commitIfMounted(() => {
+        setNote("Keine lokalen Projektdateien gefunden.");
+      });
       return;
     }
 
     invalidateAsyncState();
     const myGen = genRef.current;
-    setLoading(true);
-    setItems([]);
-    setNote("");
-    setSelected({});
-    setInlineOpenPath(null);
-    setInlineOpenAll(false);
-    setInlineLoadingPath(null);
-    setPreviewOpen(false);
-    setPreviewPath("");
-    setPreviewStatus("same");
-    setPreviewLoading(false);
-    setPreviewLocal("");
-    setPreviewRemote("");
-    setPreviewDiff("");
-    previewCacheRef.current.clear();
+    commitIfMounted(() => {
+      setLoading(true);
+      setItems([]);
+      setNote("");
+      setSelected({});
+      setInlineOpenPath(null);
+      setInlineOpenAll(false);
+      setInlineLoadingPath(null);
+      setPreviewOpen(false);
+      setPreviewPath("");
+      setPreviewStatus("same");
+      setPreviewLoading(false);
+      setPreviewLocal("");
+      setPreviewRemote("");
+      setPreviewDiff("");
+      previewCacheRef.current.clear();
+    });
 
     // Safety: keep API calls reasonable.
     const MAX = 60;
     const slice = local.slice(0, MAX);
     if (local.length > MAX) {
-      setNote(`Es werden nur die ersten ${MAX} lokalen Dateien geprüft (Rate-Limit Schutz).`);
+      commitIfMounted(() => {
+        setNote(`Es werden nur die ersten ${MAX} lokalen Dateien geprüft (Rate-Limit Schutz).`);
+      });
     }
 
     const results: DiffItem[] = [];
@@ -319,7 +334,9 @@ export function LocalRemoteDiffSection(props: {
         }
       }
       if (remoteSet.size > localPaths.size && added >= MAX_REMOTE_ONLY) {
-        setNote((prev) => (prev ? prev : `Remote-only ist auf ${MAX_REMOTE_ONLY} Einträge begrenzt (Übersicht + Rate-Limit Schutz).`));
+        commitIfMounted(() => {
+          setNote((prev) => (prev ? prev : `Remote-only ist auf ${MAX_REMOTE_ONLY} Einträge begrenzt (Übersicht + Rate-Limit Schutz).`));
+        });
       }
     } catch (e: any) {
       // ignore; remote-only may be unavailable on some tokens or rate-limits
@@ -327,15 +344,25 @@ export function LocalRemoteDiffSection(props: {
 
     if (myGen !== genRef.current) return;
     loadedTruthKeyRef.current = truthKey;
-    setItems(results);
-    // Default selection: only pushable changes (modified + localOnly)
-    const nextSel: Record<string, boolean> = {};
-    for (const r of results) {
-      if (r.status === "modified" || r.status === "localOnly") nextSel[r.path] = true;
-    }
-    setSelected(nextSel);
-    setLoading(false);
-  }, [parsed, local, branch, invalidateAsyncState, resetContextState, truthKey]);
+    commitIfMounted(() => {
+      setItems(results);
+      // Default selection: only pushable changes (modified + localOnly)
+      const nextSel: Record<string, boolean> = {};
+      for (const r of results) {
+        if (r.status === "modified" || r.status === "localOnly") nextSel[r.path] = true;
+      }
+      setSelected(nextSel);
+      setLoading(false);
+    });
+  }, [parsed, local, branch, commitIfMounted, invalidateAsyncState, resetContextState, truthKey]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      invalidateAsyncState();
+    };
+  }, [invalidateAsyncState]);
 
   useEffect(() => {
     if (lastContextKeyRef.current !== contextKey) {
@@ -388,7 +415,7 @@ export function LocalRemoteDiffSection(props: {
       const requestId = ++previewReqRef.current;
       const previewTruthKey = truthKey;
       const commitPreviewState = (updater: () => void) => {
-        if (requestId !== previewReqRef.current || previewTruthKey !== truthKey) return false;
+        if (!mountedRef.current || requestId !== previewReqRef.current || previewTruthKey !== truthKey) return false;
         updater();
         return true;
       };

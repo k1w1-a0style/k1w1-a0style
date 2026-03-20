@@ -71,7 +71,37 @@ describe("usePreview server contract", () => {
     expect(result.current.state.error).toBeNull();
   });
 
-  test("keeps the existing legitimate local preview path working without remote server checks", async () => {
+  test("uses the trusted remote preview as primary path when the server responds successfully", async () => {
+    mockGetEdgeAdminKey.mockResolvedValue("edge-admin-key");
+    mockInvoke.mockResolvedValue({
+      data: {
+        ok: true,
+        previewUrl: "https://preview.example.com/session-123",
+        expiresAt: "2026-03-20T12:30:00.000Z",
+      },
+      error: null,
+    });
+
+    const { result } = renderHook((projectData: ProjectData | null) => usePreview(projectData), {
+      initialProps: baseProject,
+    });
+
+    await act(async () => {
+      await result.current.createPreview();
+    });
+
+    await waitFor(() => {
+      expect(result.current.lastPreview?.source).toBe("supabase");
+    });
+
+    expect(result.current.lastPreview?.url).toBe("https://preview.example.com/session-123");
+    expect(result.current.lastPreview?.html).toBeNull();
+    expect(result.current.state.remoteFailure).toBeNull();
+    expect(mockBuildSandpackHtml).not.toHaveBeenCalled();
+    expect(mockSetPreferredPreviewMode).toHaveBeenCalledWith("supabase");
+  });
+
+  test("keeps the existing explicit local dev fallback path working without remote server checks", async () => {
     const { result } = renderHook((projectData: ProjectData | null) => usePreview(projectData), {
       initialProps: {
         ...baseProject,

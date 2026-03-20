@@ -1,7 +1,12 @@
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
-import { requireAdminKeyOrServiceRoleBearer, rateLimit } from "../_shared/auth.ts";
+import {
+  getRuntimeEnv,
+  getServiceRoleKey,
+  getSupabaseUrl,
+  requireAdminKeyOrServiceRoleBearer,
+  rateLimit,
+} from "../_shared/auth.ts";
 import {
   parseJsonBody,
   validateTriggerBuildRequest,
@@ -10,7 +15,7 @@ import { githubHeaders, getGithubToken, GITHUB_API_BASE } from "../_shared/githu
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
 
 function parseCsvEnv(name: string): string[] {
-  const raw = (Deno.env.get(name) ?? "").trim();
+  const raw = (getRuntimeEnv(name) ?? "").trim();
   if (!raw) return [];
   return raw.split(",").map((s) => s.trim()).filter(Boolean);
 }
@@ -27,7 +32,7 @@ function isAllowedRef(ref: string | null | undefined): boolean {
   if (r.startsWith("refs/")) return false;
   if (/^[0-9a-f]{40}$/i.test(r)) return false;
 
-  const regexStr = (Deno.env.get("K1W1_ALLOWED_REF_REGEX") ?? "").trim();
+  const regexStr = (getRuntimeEnv("K1W1_ALLOWED_REF_REGEX") ?? "").trim();
   if (!regexStr) return true; // rollout mode
   try {
     const re = new RegExp(regexStr);
@@ -44,10 +49,11 @@ function isAllowedRef(ref: string | null | undefined): boolean {
  * - Input: { githubRepo, buildProfile, branch? }
  * - Output: { ok: true, jobId, githubRepo, branch, buildProfile }
  */
-serve(async (req) => {
-    const cors = handleCors(req);
+Deno.serve(async (req) => {
+  const cors = handleCors(req);
   if (cors) return cors;
-try {
+
+  try {
     const auth = requireAdminKeyOrServiceRoleBearer(req);
     if (auth) return auth;
 
@@ -64,21 +70,19 @@ try {
       return errorResponse("Invalid request", req, 400, validation.errors);
     }
 
-    const SUPABASE_URL = Deno.env.get("K1W1_SUPABASE_URL") ?? Deno.env.get("SUPABASE_URL");
-    const SERVICE_ROLE =
-      Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY") ??
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseUrl = getSupabaseUrl();
+    const serviceRoleKey = getServiceRoleKey(req);
     const GITHUB_TOKEN = getGithubToken();
 
-    if (!SUPABASE_URL || !SERVICE_ROLE || !GITHUB_TOKEN) {
+    if (!supabaseUrl || !serviceRoleKey || !GITHUB_TOKEN) {
       return errorResponse("Missing required server env", req, 500, {
-        SUPABASE_URL: !!SUPABASE_URL,
-        SERVICE_ROLE: !!SERVICE_ROLE,
+        SUPABASE_URL: !!supabaseUrl,
+        SERVICE_ROLE: !!serviceRoleKey,
         GITHUB_TOKEN: !!GITHUB_TOKEN,
       });
     }
 
-    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     const { githubRepo, buildProfile, branch } = validation.data!;
 
@@ -147,9 +151,9 @@ try {
       req,
       200,
     );
-  } catch (e) {
+  } catch (e: unknown) {
     return errorResponse("Unexpected error", req, 500, {
-      message: sanitizeErrorText(e?.message ?? String(e)),
+      message: sanitizeErrorText(e instanceof Error ? e.message : String(e)),
     });
   }
 });

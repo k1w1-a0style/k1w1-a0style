@@ -1,15 +1,21 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, ActivityIndicator, TouchableOpacity, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../../../theme";
 import { styles } from "../styles";
 import { splitFullName } from "../utils/repos";
-import { listRepoSecretNames } from "../../../infra/github/githubService";
+import {
+  getEdgeAdminKey,
+  getExpoToken,
+  listRepoSecretNames,
+} from "../../../infra/github/githubService";
+import { describeRepoSecretContract } from "../../../lib/diagnostics/buildPipelineDiagnostics";
+import {
+  resolveRepoSecretListVerification,
+  resolveRepoSecretVerification,
+} from "../../../lib/status/repoSecretVerification";
 
-const REQUIRED_SECRETS = [
-  "EXPO_TOKEN",
-  "SUPABASE_URL",
-] as const;
+const REQUIRED_SECRETS = ["EXPO_TOKEN", "SUPABASE_URL"] as const;
 
 const OPTIONAL_SECRETS = [
   // Optional or flow-specific in app-managed sync paths
@@ -18,6 +24,20 @@ const OPTIONAL_SECRETS = [
   // Production/Supabase report secret stays manual-only
   "SUPABASE_SERVICE_ROLE_KEY",
 ] as const;
+
+type SecretRow = {
+  name: string;
+  contract: ReturnType<typeof resolveRepoSecretVerification>;
+};
+
+type RuntimeCredentialRow = {
+  name: "EXPO_TOKEN" | "K1W1_EDGE_ADMIN_KEY";
+  repoContract: ReturnType<typeof resolveRepoSecretVerification>;
+  localPresent: boolean | null;
+  usageCopy: string;
+  repoCopy: string;
+  localCopy: string;
+};
 
 export function SecretsSection(props: {
   activeRepo: string | null;
@@ -28,45 +48,405 @@ export function SecretsSection(props: {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [names, setNames] = useState<string[]>([]);
+  const [names, setNames] = useState<string[] | null>(null);
+  const [stale, setStale] = useState(false);
+  const [runtimePresence, setRuntimePresence] = useState<{
+    expoToken: boolean | null;
+    edgeAdminKey: boolean | null;
+  }>({ expoToken: null, edgeAdminKey: null });
+  const [runtimeLoading, setRuntimeLoading] = useState(false);
+  const requestRef = useRef(0);
+  const runtimeRequestRef = useRef(0);
 
   const parsed = useMemo(() => (activeRepo ? splitFullName(activeRepo) : null), [activeRepo]);
 
   const load = useCallback(async () => {
     if (!parsed) {
-      setNames([]);
+      setNames(null);
+      setStale(false);
       setError(null);
       return;
     }
+
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
+    const hadVerifiedNames = Array.isArray(names);
+
     setLoading(true);
     setError(null);
+
     try {
       const list = await listRepoSecretNames(parsed.owner, parsed.repo);
+      if (requestRef.current !== requestId) return;
       setNames(list);
+      setStale(false);
     } catch (e: any) {
+      if (requestRef.current !== requestId) return;
       setError(e?.message || "Secrets konnten nicht geladen werden.");
-      setNames([]);
+      setStale(hadVerifiedNames);
+      if (!hadVerifiedNames) {
+        setNames(null);
+      }
     } finally {
-      setLoading(false);
+      if (requestRef.current === requestId) {
+        setLoading(false);
+      }
     }
-  }, [parsed]);
+  }, [names, parsed]);
+
+  const loadRuntimePresence = useCallback(async () => {
+    if (!activeRepo) {
+      setRuntimePresence({ expoToken: null, edgeAdminKey: null });
+      setRuntimeLoading(false);
+      return;
+    }
+
+    const requestId = runtimeRequestRef.current + 1;
+    runtimeRequestRef.current = requestId;
+    setRuntimeLoading(true);
+
+    try {
+      const [expoToken, edgeAdminKey] = await Promise.all([
+        getExpoToken().catch(() => null),
+        getEdgeAdminKey().catch(() => null),
+      ]);
+      if (runtimeRequestRef.current !== requestId) return;
+      setRuntimePresence({
+        expoToken: !!expoToken?.trim(),
+        edgeAdminKey: !!edgeAdminKey?.trim(),
+      });
+    } finally {
+      if (runtimeRequestRef.current === requestId) {
+        setRuntimeLoading(false);
+      }
+    }
+  }, [activeRepo]);
+
+  useEffect(() => {
+    requestRef.current += 1;
+    setNames(null);
+    setError(null);
+    setStale(false);
+    setLoading(false);
+
+    runtimeRequestRef.current += 1;
+    setRuntimePresence({ expoToken: null, edgeAdminKey: null });
+    setRuntimeLoading(false);
+  }, [activeRepo]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const requiredStatus = useMemo(() => {
-    const set = new Set(names);
-    return REQUIRED_SECRETS.map((n) => ({ name: n, ok: set.has(n) }));
-  }, [names]);
+  useEffect(() => {
+    void loadRuntimePresence();
+  }, [loadRuntimePresence]);
 
-  const optionalStatus = useMemo(() => {
-    const set = new Set(names);
-    return OPTIONAL_SECRETS.map((n) => ({ name: n, ok: set.has(n) }));
-  }, [names]);
+  const listContract = useMemo(
+    () =>
+      resolveRepoSecretListVerification({
+        names,
+        error,
+        stale,
+      }),
+    [error, names, stale],
+  );
 
-  const requiredMissing = useMemo(() => requiredStatus.some((s) => !s.ok), [requiredStatus]);
+  const requiredStatus = useMemo(
+    () =>
+      REQUIRED_SECRETS.map((name) => ({
+        name,
+        contract: resolveRepoSecretVerification({
+          name,
+          names,
+          error,
+          stale,
+        }),
+      })),
+    [error, names, stale],
+  );
 
+  const optionalStatus = useMemo(
+    () =>
+      OPTIONAL_SECRETS.map((name) => ({
+        name,
+        contract: resolveRepoSecretVerification({
+          name,
+          names,
+          error,
+          stale,
+        }),
+      })),
+    [error, names, stale],
+  );
+
+  const requiredMissing = useMemo(
+    () => requiredStatus.some((entry) => entry.contract.isHardMissing),
+    [requiredStatus],
+  );
+
+  const summary = useMemo(() => {
+    if (listContract.state === "verified" && !requiredMissing) {
+      return {
+        icon: "checkmark-circle" as const,
+        color: theme.palette.primary,
+        title: "Secret-Namen bestätigt",
+        body:
+          "GitHub hat die aktuelle Repo-Secret-Namensliste bestätigt. Die Pflicht-Secrets sind vorhanden.",
+      };
+    }
+
+    if (listContract.state === "verified") {
+      return {
+        icon: "alert-circle" as const,
+        color: theme.palette.error,
+        title: "Bestätigt, aber unvollständig",
+        body:
+          "GitHub hat die Repo-Secret-Namensliste bestätigt, aber mindestens ein Pflicht-Secret fehlt.",
+      };
+    }
+
+    if (listContract.state === "auth_error") {
+      return {
+        icon: "lock-closed" as const,
+        color: theme.palette.warning,
+        title: "Zugriff auf Repo-Secrets blockiert",
+        body:
+          "Die Secret-Namen konnten mit diesem GitHub-Zugriff nicht verifiziert werden. Das ist kein sicher bestätigtes 'fehlt'.",
+      };
+    }
+
+    if (listContract.state === "stale") {
+      return {
+        icon: "time" as const,
+        color: theme.palette.warning,
+        title: "Zuletzt bestätigte Secret-Namen sind veraltet",
+        body:
+          "Die zuletzt bestätigte Namensliste ist noch sichtbar, aber der aktuelle Recheck ist fehlgeschlagen. Bitte erneut prüfen.",
+      };
+    }
+
+    return {
+      icon: "help-circle" as const,
+      color: theme.palette.text.secondary,
+      title: "Repo-Secret-Prüfung aktuell unklar",
+      body:
+        "Die Secret-Namen konnten aktuell nicht sicher geladen werden. Fehlend wird erst nach bestätigter Namensliste angezeigt.",
+    };
+  }, [listContract.state, requiredMissing]);
+
+  const runtimeRows = useMemo<RuntimeCredentialRow[]>(() => {
+    const expoRepoContract = requiredStatus.find((entry) => entry.name === "EXPO_TOKEN")?.contract;
+    const edgeRepoContract = optionalStatus.find((entry) => entry.name === "K1W1_EDGE_ADMIN_KEY")?.contract;
+
+    return [
+      {
+        name: "EXPO_TOKEN",
+        repoContract:
+          expoRepoContract ??
+          resolveRepoSecretVerification({
+            name: "EXPO_TOKEN",
+            names,
+            error,
+            stale,
+          }),
+        localPresent: runtimePresence.expoToken,
+        usageCopy:
+          "Repo Secret vorhanden ≠ lokaler Expo-Token vorhanden. App-seitige Expo/EAS-Schritte lesen den lokalen App-Wert; GitHub Actions lesen danach EXPO_TOKEN aus dem Repo.",
+        repoCopy: "GitHub-Repo-Secret-Name fuer Actions/EAS im Ziel-Repo.",
+        localCopy: "SecureStore auf diesem Geraet; getrennt vom Repo-Secret.",
+      },
+      {
+        name: "K1W1_EDGE_ADMIN_KEY",
+        repoContract:
+          edgeRepoContract ??
+          resolveRepoSecretVerification({
+            name: "K1W1_EDGE_ADMIN_KEY",
+            names,
+            error,
+            stale,
+          }),
+        localPresent: runtimePresence.edgeAdminKey,
+        usageCopy:
+          "CI Lite / Edge Dispatch nutzt den lokalen Edge Admin Key aus SecureStore. Ein gruener Repo-Secret-Name allein macht diesen Dispatch nicht bereit.",
+        repoCopy: "GitHub-Repo-Secret-Name fuer Workflows oder manuelle Repo-Syncs.",
+        localCopy: "SecureStore auf diesem Geraet; wird fuer App → Edge / CI Lite Dispatch verwendet.",
+      },
+    ];
+  }, [error, names, optionalStatus, requiredStatus, runtimePresence.edgeAdminKey, runtimePresence.expoToken, stale]);
+
+  const runtimeMissingLabels = useMemo(() => {
+    return runtimeRows
+      .filter((row) => row.localPresent === false)
+      .map((row) => (row.name === "EXPO_TOKEN" ? "Expo-Token lokal" : "Edge Admin Key lokal"));
+  }, [runtimeRows]);
+
+  const runtimeSummary = useMemo(() => {
+    if (!activeRepo) return null;
+
+    if (runtimeLoading || runtimeRows.some((row) => row.localPresent === null)) {
+      return {
+        icon: "sync" as const,
+        color: theme.palette.text.secondary,
+        title: "Lokale App-Werte werden geladen",
+        body:
+          "Repo-Secrets und lokale Laufzeit-Credentials werden getrennt angezeigt, sobald die lokalen Werte geladen sind.",
+      };
+    }
+
+    if (runtimeMissingLabels.length > 0) {
+      return {
+        icon: "warning" as const,
+        color: theme.palette.warning,
+        title: "Repo Secret ≠ Lokaler App-Wert",
+        body: `Repo-Secret-Namen koennen bestaetigt sein, aber fuer App-Dispatch fehlt noch: ${runtimeMissingLabels.join(", ")}.`,
+      };
+    }
+
+    return {
+      icon: "checkmark-done-circle" as const,
+      color: theme.palette.primary,
+      title: "Repo und lokal getrennt bestaetigt",
+      body:
+        "Die kritischen Werte sind getrennt sichtbar: Repo-Secrets fuer GitHub, lokale App-Werte fuer App-Dispatch und lokale Laufzeit.",
+    };
+  }, [activeRepo, runtimeLoading, runtimeMissingLabels, runtimeRows]);
+
+  const renderSecretRow = useCallback((entry: SecretRow, optional = false) => {
+    const { contract, name } = entry;
+    const presentation = describeRepoSecretContract({
+      name,
+      state: contract.state,
+      optional,
+    });
+
+    const statusText =
+      contract.state === "verified"
+        ? "bestätigt"
+        : contract.state === "missing"
+          ? "fehlt"
+          : contract.state === "auth_error"
+            ? "auth-blockiert"
+            : contract.state === "stale"
+              ? "veraltet"
+              : "unklar";
+
+    const iconName =
+      contract.state === "verified"
+        ? "checkmark-circle"
+        : contract.state === "missing"
+          ? "close-circle"
+          : contract.state === "auth_error"
+            ? "lock-closed"
+            : contract.state === "stale"
+              ? "time"
+              : "help-circle";
+
+    const color =
+      contract.state === "verified"
+        ? theme.palette.primary
+        : contract.state === "missing"
+          ? optional
+            ? theme.palette.warning
+            : theme.palette.error
+          : contract.state === "auth_error" || contract.state === "stale"
+            ? theme.palette.warning
+            : theme.palette.text.secondary;
+
+    return (
+      <View key={name} style={{ gap: 2 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Ionicons name={iconName} size={16} color={color} />
+          <Text style={{ flex: 1, fontSize: 12, color: theme.palette.text.secondary }}>{name}</Text>
+          <Text style={{ fontSize: 11, fontWeight: "800", color }}>{statusText}</Text>
+        </View>
+        {presentation.fixHint ? (
+          <Text
+            style={{
+              marginLeft: 24,
+              fontSize: 11,
+              lineHeight: 16,
+              color:
+                presentation.status === "pass"
+                  ? theme.palette.text.secondary
+                  : presentation.status === "fail"
+                    ? theme.palette.error
+                    : theme.palette.warning,
+            }}
+          >
+            {presentation.fixHint}
+          </Text>
+        ) : null}
+      </View>
+    );
+  }, []);
+
+  const renderRuntimeSourceRow = useCallback(
+    (
+      label: "Repo Secret" | "Lokaler App-Wert",
+      state: ReturnType<typeof resolveRepoSecretVerification>["state"] | "present" | "missing" | "loading",
+      copy: string,
+    ) => {
+      const iconName =
+        state === "verified" || state === "present"
+          ? "checkmark-circle"
+          : state === "missing"
+            ? "close-circle"
+            : state === "auth_error"
+              ? "lock-closed"
+              : state === "stale" || state === "loading"
+                ? "time"
+                : "help-circle";
+
+      const color =
+        state === "verified" || state === "present"
+          ? theme.palette.primary
+          : state === "missing"
+            ? theme.palette.warning
+            : state === "auth_error" || state === "stale"
+              ? theme.palette.warning
+              : theme.palette.text.secondary;
+
+      const statusText =
+        state === "verified"
+          ? "bestätigt"
+          : state === "present"
+            ? "vorhanden"
+            : state === "missing"
+              ? "fehlt"
+              : state === "auth_error"
+                ? "auth-blockiert"
+                : state === "stale"
+                  ? "veraltet"
+                  : state === "loading"
+                    ? "lädt"
+                    : "unklar";
+
+      return (
+        <View
+          style={{
+            gap: 4,
+            paddingVertical: 8,
+            paddingHorizontal: 10,
+            borderRadius: 10,
+            borderWidth: 1,
+            borderColor: `${color}33`,
+            backgroundColor: `${color}10`,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Ionicons name={iconName} size={15} color={color} />
+            <Text style={{ flex: 1, fontSize: 11, fontWeight: "800", color: theme.palette.text.primary }}>
+              {label}
+            </Text>
+            <Text style={{ fontSize: 10, fontWeight: "900", color }}>{statusText}</Text>
+          </View>
+          <Text style={{ fontSize: 11, lineHeight: 16, color: theme.palette.text.secondary }}>{copy}</Text>
+        </View>
+      );
+    },
+    [],
+  );
 
   return (
     <View style={styles.section}>
@@ -91,12 +471,66 @@ export function SecretsSection(props: {
       ) : null}
 
       {!!error ? (
-        <Text style={{ fontSize: 12, color: theme.palette.error, marginTop: 6, lineHeight: 18 }}>
+        <Text
+          style={{
+            fontSize: 12,
+            color:
+              listContract.state === "auth_error" || listContract.state === "stale"
+                ? theme.palette.warning
+                : theme.palette.text.secondary,
+            marginTop: 6,
+            lineHeight: 18,
+          }}
+        >
           {error}
         </Text>
       ) : null}
 
+      {activeRepo ? (
+        <View
+          style={{
+            marginTop: 8,
+            borderWidth: 1,
+            borderColor: `${summary.color}55`,
+            backgroundColor: `${summary.color}12`,
+            borderRadius: 12,
+            padding: 10,
+            gap: 6,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Ionicons name={summary.icon} size={16} color={summary.color} />
+            <Text style={{ fontSize: 12, fontWeight: "900", color: summary.color }}>{summary.title}</Text>
+          </View>
+          <Text style={{ fontSize: 11, lineHeight: 17, color: theme.palette.text.secondary }}>
+            {summary.body}
+          </Text>
+        </View>
+      ) : null}
 
+      {activeRepo && runtimeSummary ? (
+        <View
+          style={{
+            marginTop: 8,
+            borderWidth: 1,
+            borderColor: `${runtimeSummary.color}55`,
+            backgroundColor: `${runtimeSummary.color}12`,
+            borderRadius: 12,
+            padding: 10,
+            gap: 6,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Ionicons name={runtimeSummary.icon} size={16} color={runtimeSummary.color} />
+            <Text style={{ fontSize: 12, fontWeight: "900", color: runtimeSummary.color }}>
+              {runtimeSummary.title}
+            </Text>
+          </View>
+          <Text style={{ fontSize: 11, lineHeight: 17, color: theme.palette.text.secondary }}>
+            {runtimeSummary.body}
+          </Text>
+        </View>
+      ) : null}
 
       {activeRepo ? (
         <Text style={{ fontSize: 11, color: theme.palette.text.secondary, lineHeight: 17, marginTop: 8 }}>
@@ -106,56 +540,91 @@ export function SecretsSection(props: {
       ) : null}
 
       {activeRepo ? (
+        <View style={{ marginTop: 10, gap: 8 }}>
+          <Text style={{ fontSize: 12, fontWeight: "800", color: theme.palette.text.primary }}>
+            Laufzeit-Quellen klar getrennt
+          </Text>
+          {runtimeRows.map((row) => (
+            <View
+              key={row.name}
+              style={{
+                gap: 8,
+                padding: 10,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: `${theme.palette.primary}22`,
+                backgroundColor: theme.palette.card,
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "900", color: theme.palette.text.primary }}>
+                {row.name}
+              </Text>
+              <View style={{ gap: 6 }}>
+                {renderRuntimeSourceRow("Repo Secret", row.repoContract.state, row.repoCopy)}
+                {renderRuntimeSourceRow(
+                  "Lokaler App-Wert",
+                  row.localPresent === null ? "loading" : row.localPresent ? "present" : "missing",
+                  row.localCopy,
+                )}
+              </View>
+              <Text style={{ fontSize: 11, lineHeight: 17, color: theme.palette.text.secondary }}>
+                {row.usageCopy}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {activeRepo ? (
         <View style={{ marginTop: 8, gap: 6 }}>
           <Text
             style={{
               fontSize: 12,
               fontWeight: "800",
-              color: requiredMissing ? theme.palette.error : theme.palette.text.secondary,
+              color:
+                listContract.state === "verified"
+                  ? requiredMissing
+                    ? theme.palette.error
+                    : theme.palette.primary
+                  : listContract.state === "auth_error" || listContract.state === "stale"
+                    ? theme.palette.warning
+                    : theme.palette.text.secondary,
             }}
           >
             Required
           </Text>
 
-          {requiredStatus.map((s) => (
-            <View key={s.name} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Ionicons
-                name={s.ok ? "checkmark-circle" : "close-circle"}
-                size={16}
-                color={s.ok ? theme.palette.primary : theme.palette.error}
-              />
-              <Text style={{ fontSize: 12, color: theme.palette.text.secondary }}>{s.name}</Text>
-            </View>
-          ))}
+          {requiredStatus.map((entry) => renderSecretRow(entry))}
 
           {optionalStatus.length ? (
             <View style={{ marginTop: 10, gap: 6 }}>
-              <Text style={{ fontSize: 12, fontWeight: "800", color: theme.palette.text.secondary }}>
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: "800",
+                  color: listContract.state === "verified" ? theme.palette.text.secondary : summary.color,
+                }}
+              >
                 Optional
               </Text>
-              {optionalStatus.map((s) => (
-                <View key={s.name} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Ionicons
-                    name={s.ok ? "checkmark-circle" : "ellipse-outline"}
-                    size={16}
-                    color={s.ok ? theme.palette.primary : theme.palette.text.muted}
-                  />
-                  <Text style={{ fontSize: 12, color: theme.palette.text.secondary }}>{s.name}</Text>
-                </View>
-              ))}
+              {optionalStatus.map((entry) => renderSecretRow(entry, true))}
             </View>
           ) : null}
         </View>
       ) : null}
 
-      {activeRepo && names.length ? (
+      {activeRepo && Array.isArray(names) && names.length ? (
         <TouchableOpacity
           style={[styles.button, { marginTop: 12 }]}
           onPress={() => {
             Alert.alert("Secrets", names.join("\n"));
           }}
         >
-          <Text style={styles.buttonText}>Alle anzeigen ({names.length})</Text>
+          <Text style={styles.buttonText}>
+            {listContract.state === "stale"
+              ? `Zuletzt bestätigt anzeigen (${names.length})`
+              : `Alle anzeigen (${names.length})`}
+          </Text>
         </TouchableOpacity>
       ) : null}
 

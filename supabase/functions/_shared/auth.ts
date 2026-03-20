@@ -7,7 +7,7 @@ type RuntimeGlobals = {
   process?: { env?: Record<string, string | undefined> };
 };
 
-const getRuntimeEnv = (key: string): string | undefined => {
+export const getRuntimeEnv = (key: string): string | undefined => {
   const runtime = globalThis as typeof globalThis & RuntimeGlobals;
   const deno = runtime.Deno;
   const denoVal = deno?.env?.get?.(key);
@@ -26,6 +26,23 @@ const getAdminSecret = (): string | null =>
 const getServiceRoleSecret = (): string | null =>
   getRuntimeEnv("K1W1_SUPABASE_SERVICE_ROLE_KEY") ??
   getRuntimeEnv("SUPABASE_SERVICE_ROLE_KEY") ??
+  null;
+
+const getSupabaseUrlSecret = (): string | null =>
+  getRuntimeEnv("K1W1_SUPABASE_URL") ??
+  getRuntimeEnv("SUPABASE_URL") ??
+  null;
+
+const getPreviewSupabaseUrlSecret = (): string | null =>
+  getRuntimeEnv("PREVIEW_SUPABASE_URL") ??
+  null;
+
+const getPreviewServiceRoleSecret = (): string | null =>
+  getRuntimeEnv("PREVIEW_SERVICE_ROLE_KEY") ??
+  null;
+
+const getSigningMasterKeySecret = (): string | null =>
+  getRuntimeEnv("SIGNING_MASTER_KEY") ??
   null;
 
 export function getBearerToken(req: Request): string | null {
@@ -58,6 +75,22 @@ export function hasServiceRoleSecretConfigured(): boolean {
  */
 export function getServiceRoleKey(_req: Request): string | null {
   return getServiceRoleSecret();
+}
+
+export function getSupabaseUrl(): string | null {
+  return getSupabaseUrlSecret();
+}
+
+export function getPreviewSupabaseUrl(): string | null {
+  return getPreviewSupabaseUrlSecret();
+}
+
+export function getPreviewServiceRoleKey(): string | null {
+  return getPreviewServiceRoleSecret();
+}
+
+export function getSigningMasterKey(): string | null {
+  return getSigningMasterKeySecret();
 }
 
 /**

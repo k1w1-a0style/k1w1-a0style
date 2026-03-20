@@ -254,11 +254,11 @@ export function resolvePreviewDisplayState({
     return {
       kind: "fallback_active",
       tone: "warning",
-      statusText: "Lokaler Fallback aktiv",
+      statusText: "Lokaler Dev-Fallback aktiv",
       detailText:
         remoteFailure ??
-        "Nur lokaler HTML-Stand; Server-Preview ist damit nicht verifiziert.",
-      badgeText: "Fallback",
+        "Nur lokaler HTML-/Eval-Fallback; nicht server-verifiziert und nur Best-Effort.",
+      badgeText: "Dev-Fallback",
     };
   }
 
@@ -266,7 +266,7 @@ export function resolvePreviewDisplayState({
     return {
       kind: "unavailable",
       tone: "neutral",
-      statusText: "Lokaler Fallback nicht verfügbar",
+      statusText: "Lokaler Dev-Fallback nicht verfügbar",
       detailText: transientLocalPreviewNotice,
       badgeText: "Nicht verfügbar",
     };
@@ -360,8 +360,8 @@ export function formatPreviewExpiry(expiresAt: string | null, now = new Date()):
 }
 
 export function getPreviewChannelLabel(source: "supabase" | "local" | null): string {
-  if (source === "supabase") return "Aktive Supabase-Preview (Browser/QR)";
-  if (source === "local") return "Technischer Fallback: Lokale HTML-Preview (nur solange App aktiv ist)";
+  if (source === "supabase") return "Primäre Remote-Preview (Supabase / Browser / QR)";
+  if (source === "local") return "Lokaler HTML-/Eval-Fallback (nur Dev/Best-Effort, nur solange App aktiv ist)";
   return "Noch keine Preview aktiv";
 }
 
