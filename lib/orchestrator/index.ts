@@ -2,18 +2,12 @@
 // REFACTORED: providers split into individual files, helpers & types extracted.
 
 import { providerRateLimiter } from '../RateLimiter';
-import SecureKeyManager from '../SecureKeyManager';
 import { AllAIProviders } from '../../contexts/AIContext';
 import { normalizeAiResponse } from '../normalizer';
 
 import type { LlmMessage, OrchestratorResult, Quality } from './types';
 import { resolveModel } from './helpers';
-
-import { callGroq } from './providers/groq';
-import { callOpenAI } from './providers/openai';
-import { callAnthropic } from './providers/anthropic';
-import { callGemini } from './providers/gemini';
-import { callHuggingFace } from './providers/huggingface';
+import { invokeK1w1Handler } from './k1w1Edge';
 
 export const ORCHESTRATOR_REQUEST_TIMEOUT_MS = 45_000;
 export const ORCHESTRATOR_ROTATION_BACKOFF_MS = 350;
@@ -34,32 +28,6 @@ export function parseFilesFromText(text: string): Array<{ path: string; content:
   return normalizeAiResponse(text);
 }
 
-async function sleepWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
-  if (ms <= 0) return;
-  if (signal?.aborted) {
-    throw Object.assign(new Error('Aborted'), { name: 'AbortError' });
-  }
-
-  await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      cleanup();
-      resolve();
-    }, ms);
-
-    const onAbort = () => {
-      cleanup();
-      reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
-    };
-
-    const cleanup = () => {
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', onAbort);
-    };
-
-    signal?.addEventListener('abort', onAbort, { once: true });
-  });
-}
-
 export async function runValidatorOrchestrator(
   provider: AllAIProviders,
   model: string,
@@ -78,106 +46,53 @@ export async function runOrchestrator(
 ): Promise<OrchestratorResult> {
   const startMs = Date.now();
   const resolvedModel = resolveModel(provider, model, quality);
-  let keysRotated = 0;
 
   try {
     await providerRateLimiter.checkLimit(provider);
 
-    const isRateLimit = (r: OrchestratorResult): boolean => {
-      const parts: string[] = [];
-      if (typeof r.error === 'string') parts.push(r.error);
-      if (Array.isArray(r.errors)) parts.push(...r.errors);
-      const s = parts.join('\n').toLowerCase();
-
-      if (s.includes('too many requests')) return true;
-      if (s.includes('rate limit')) return true;
-      if (s.includes('resource_exhausted')) return true;
-      if (s.includes('quota')) return true;
-      if (s.includes('(429)')) return true;
-      if (/(^|[^0-9])429([^0-9]|$)/.test(s)) return true;
-      return false;
-    };
-
-    const maxRotations = 2;
-    let lastResult: OrchestratorResult = {
-      ok: false,
-      error: `Kein API-Key für ${provider} gefunden. Bitte in Einstellungen konfigurieren.`,
-      model: resolvedModel,
-    };
-
-    for (let attempt = 0; attempt <= maxRotations; attempt++) {
-      if (signal?.aborted) {
-        const endMs = Date.now();
-        return {
-          ok: false, error: "Request abgebrochen", provider, model: resolvedModel,
-          keysRotated: keysRotated || undefined,
-          timing: { startMs, endMs, durationMs: endMs - startMs },
-        };
-      }
-
-      const apiKey = SecureKeyManager.getCurrentKey(provider);
-      if (!apiKey) break;
-
-      const requestController = new AbortController();
-      let timedOut = false;
-      const timeoutId = setTimeout(() => {
-        timedOut = true;
-        requestController.abort();
-      }, ORCHESTRATOR_REQUEST_TIMEOUT_MS);
-      const onAbort = () => requestController.abort();
-      signal?.addEventListener('abort', onAbort, { once: true });
-
-      let result: OrchestratorResult;
-      try {
-        switch (provider) {
-          case 'groq':       result = await callGroq(apiKey, resolvedModel, messages, quality, requestController.signal); break;
-          case 'openai':     result = await callOpenAI(apiKey, resolvedModel, messages, quality, requestController.signal); break;
-          case 'anthropic':  result = await callAnthropic(apiKey, resolvedModel, messages, quality, requestController.signal); break;
-          case 'gemini':     result = await callGemini(apiKey, resolvedModel, messages, quality, requestController.signal); break;
-          case 'huggingface': result = await callHuggingFace(apiKey, resolvedModel, messages, quality, requestController.signal); break;
-          default:           result = { ok: false, error: `Unbekannter Provider: ${provider}` };
-        }
-      } finally {
-        clearTimeout(timeoutId);
-        signal?.removeEventListener('abort', onAbort);
-      }
-
-      if (!result.ok && timedOut) {
-        result = {
-          ...result,
-          error: `Request timeout nach ${ORCHESTRATOR_REQUEST_TIMEOUT_MS}ms`,
-        };
-      }
-
-      lastResult = result;
-      if (result.ok) break;
-      if (isRateLimit(result) && SecureKeyManager.rotateKey(provider)) {
-        keysRotated += 1;
-        await sleepWithAbort(ORCHESTRATOR_ROTATION_BACKOFF_MS, signal);
-        continue;
-      }
-      break;
+    if (signal?.aborted) {
+      const endMs = Date.now();
+      return {
+        ok: false,
+        error: 'Request abgebrochen',
+        provider,
+        model: resolvedModel,
+        timing: { startMs, endMs, durationMs: endMs - startMs },
+      };
     }
+
+    const result = await invokeK1w1Handler({
+      provider,
+      model: resolvedModel,
+      quality,
+      messages,
+      signal,
+      timeoutMs: ORCHESTRATOR_REQUEST_TIMEOUT_MS,
+    });
 
     const endMs = Date.now();
     return {
-      ...lastResult, provider, model: resolvedModel,
-      keysRotated: keysRotated || undefined,
+      ...result,
+      provider: result.provider || provider,
+      model: result.model || resolvedModel,
       timing: { startMs, endMs, durationMs: endMs - startMs },
     };
   } catch (error: unknown) {
     const endMs = Date.now();
     if (isAbortError(error) || signal?.aborted) {
       return {
-        ok: false, error: "Request abgebrochen", provider, model: resolvedModel,
-        keysRotated: keysRotated || undefined,
+        ok: false,
+        error: 'Request abgebrochen',
+        provider,
+        model: resolvedModel,
         timing: { startMs, endMs, durationMs: endMs - startMs },
       };
     }
     return {
-      ok: false, error: `Orchestrator Fehler: ${getErrorMessage(error)}`,
-      provider, model: resolvedModel,
-      keysRotated: keysRotated || undefined,
+      ok: false,
+      error: `Orchestrator Fehler: ${getErrorMessage(error)}`,
+      provider,
+      model: resolvedModel,
       timing: { startMs, endMs, durationMs: endMs - startMs },
     };
   }

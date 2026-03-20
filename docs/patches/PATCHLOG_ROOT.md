@@ -1,3 +1,4 @@
+- Patch 500: produktiven AI-Flow auf den vorhandenen Supabase-Edge-Proxy `k1w1-handler` umgestellt — der Client sendet fuer Groq/OpenAI/Anthropic/Gemini/HuggingFace keine lokalen Provider-Keys mehr direkt an externe Provider-Endpunkte, `runOrchestrator(...)` nutzt stattdessen `supabase.functions.invoke(...)` mit kompatibler Response-/Timeout-/Abort-Normalisierung, und gezielte Orchestrator-Regressionen sichern Invoke-Wiring sowie Result-Mapping ab.
 # Patchlog Root
 
 - Patch 499: GitHubReposScreen macht die Source of Truth fuer `EXPO_TOKEN` und `K1W1_EDGE_ADMIN_KEY` ehrlich sichtbar — `SecretsSection` trennt jetzt `Repo Secret` und `Lokaler App-Wert`, warnt bei bestaetigten Repo-Secrets aber fehlendem lokalem SecureStore-Wert explizit vor false-green CI-Lite-/Dispatch-Annahmen, und der CI-Lite-Modalhinweis sagt klar, dass App-Dispatch den lokalen Edge Admin Key braucht.
