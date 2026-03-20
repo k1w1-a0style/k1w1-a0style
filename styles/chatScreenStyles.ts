@@ -110,6 +110,25 @@ export const styles = StyleSheet.create({
     lineHeight: 19,
     color: theme.palette.text.secondary,
   },
+  modalMetaGrid: {
+    gap: 8,
+    marginTop: 2,
+  },
+  modalMetaRow: {
+    gap: 4,
+  },
+  modalMetaLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: theme.palette.primary,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  modalMetaValue: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: theme.palette.text.secondary,
+  },
   modalSectionTitle: {
     fontSize: 15,
     fontWeight: "700",
@@ -145,8 +164,16 @@ export const styles = StyleSheet.create({
   modalDiffKind: {
     fontSize: 11,
     fontWeight: "700",
-    color: theme.palette.primary,
     textTransform: "uppercase",
+  },
+  modalDiffKindNew: {
+    color: theme.palette.primary,
+  },
+  modalDiffKindUpdated: {
+    color: "#7DD3FC",
+  },
+  modalDiffKindSkipped: {
+    color: "#F5C451",
   },
   modalDiffLabel: {
     fontSize: 12,
