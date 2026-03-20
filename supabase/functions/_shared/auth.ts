@@ -28,6 +28,14 @@ const getServiceRoleSecret = (): string | null =>
   getRuntimeEnv("SUPABASE_SERVICE_ROLE_KEY") ??
   null;
 
+const getSupabaseUrlSecret = (): string | null =>
+  getRuntimeEnv("SUPABASE_URL") ??
+  null;
+
+const getSigningMasterKeySecret = (): string | null =>
+  getRuntimeEnv("SIGNING_MASTER_KEY") ??
+  null;
+
 export function getBearerToken(req: Request): string | null {
   const h = req.headers.get("authorization") ?? req.headers.get("Authorization");
   if (!h) return null;
@@ -58,6 +66,14 @@ export function hasServiceRoleSecretConfigured(): boolean {
  */
 export function getServiceRoleKey(_req: Request): string | null {
   return getServiceRoleSecret();
+}
+
+export function getSupabaseUrl(): string | null {
+  return getSupabaseUrlSecret();
+}
+
+export function getSigningMasterKey(): string | null {
+  return getSigningMasterKeySecret();
 }
 
 /**
