@@ -16,6 +16,10 @@ jest.mock("expo-clipboard", () => ({
   setStringAsync: jest.fn(),
 }));
 
+jest.mock("@react-navigation/native", () => ({
+  useFocusEffect: (cb: () => void | (() => void)) => cb(),
+}));
+
 const mockGetItem = jest.fn(async (_key: string) => null);
 const mockSetItem = jest.fn(async (_key: string, _value: string) => undefined);
 
@@ -65,7 +69,7 @@ describe("CredentialsWizard trust semantics", () => {
   });
 
   it("does not classify auth/permission or temporary errors as missing", () => {
-    const authState = toWizardErrorStatus({ previous: null, statusCode: 403, error: "Forbidden" });
+    const authState = toWizardErrorStatus({ previous: null, statusCode: 403, error: "Forbidden", detail: "Lokaler Edge Admin Key wurde vom Edge-Server abgelehnt (401/403)." });
     const temporaryState = toWizardErrorStatus({ previous: null, error: new Error("temporary network timeout") });
 
     expect(authState.credentialState).toBe("auth_error");
@@ -111,7 +115,7 @@ describe("CredentialsWizard trust semantics", () => {
         ]}
         statusByMode={{
           dev: toWizardErrorStatus({ previous: null, error: new Error("temporary network timeout") }),
-          preview: toWizardErrorStatus({ previous: null, statusCode: 403, error: "Forbidden" }),
+          preview: toWizardErrorStatus({ previous: null, statusCode: 403, error: "Forbidden", detail: "Lokaler Edge Admin Key wurde vom Edge-Server abgelehnt (401/403)." }),
           production: toGeneratedPendingStatus(null),
         }}
         selectedMode="dev"
@@ -145,7 +149,7 @@ describe("CredentialsWizard trust semantics", () => {
       />,
     );
 
-    expect(screen.getByText("zugriff unklar")).toBeTruthy();
+    expect(screen.getByText("lokaler Key abgelehnt")).toBeTruthy();
     expect(screen.getByText("generiert, noch offen")).toBeTruthy();
     expect(screen.queryByText(/^verifiziert$/i)).toBeNull();
     expect(screen.queryByText(/^fehlt$/i)).toBeNull();

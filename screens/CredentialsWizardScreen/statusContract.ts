@@ -46,6 +46,7 @@ export function toWizardErrorStatus(params: {
   previous: WizardStatusResult | StatusResult | null;
   statusCode?: number | null;
   error?: unknown;
+  detail?: string;
 }): WizardStatusResult {
   const state = classifyVerificationError({
     statusCode: params.statusCode,
@@ -53,9 +54,10 @@ export function toWizardErrorStatus(params: {
   });
 
   const detail =
-    state === "auth_error"
+    params.detail?.trim() ||
+    (state === "auth_error"
       ? "Status konnte wegen Auth-/Berechtigungsproblem nicht bestaetigt werden."
-      : "Status ist derzeit nicht sicher verifizierbar.";
+      : "Status ist derzeit nicht sicher verifizierbar.");
 
   return {
     ...(params.previous ?? { exists: false }),
@@ -151,10 +153,18 @@ export function resolveWizardStatusPresentation(params: {
   }
 
   if (state === "auth_error") {
+    const normalizedDetail = (baseDetail || "").toLowerCase();
+    const authText = normalizedDetail.includes("lokaler edge admin key fehlt")
+      ? "lokaler Key fehlt"
+      : normalizedDetail.includes("lokaler edge admin key wirkt ungueltig")
+        ? "lokaler Key ungueltig"
+        : normalizedDetail.includes("lokaler edge admin key wurde vom edge-server abgelehnt")
+          ? "lokaler Key abgelehnt"
+          : "zugriff unklar";
     return {
       state,
       icon: "warning-outline",
-      text: "zugriff unklar",
+      text: authText,
       colorToken: "warn",
       detail: baseDetail || "Statuscheck scheiterte an Auth oder Berechtigungen; nicht als 'fehlt' interpretieren.",
       requiresManualRecheck: true,
