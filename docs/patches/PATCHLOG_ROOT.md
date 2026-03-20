@@ -1,5 +1,7 @@
 # Patchlog Root
 
+- Patch 507: repo-seitige DB-Referenz fuer Public-Schema-/Diagnostics-Vertraege ehrlich gezogen — `supabase/schema.public.sql` ist jetzt eine explizit sekundäre Snapshot-Referenz statt leerer Schein-SoT, zeigt nur die aktuell relevanten Public-Contracts (`diagnostic_uploads`, `diagnostics_reports`, `insert_diagnostic_upload(jsonb)`), und ein neuer Invariant-Test haelt Snapshot, Migrations-SoT sowie finalen bigint-/Grant-Stand widerspruchsfrei.
+
 - Patch 506: Diagnostic-Upload-Auth-Vertrag explizit auf den echten Clientpfad ausgerichtet — direkter Client-RPC auf `insert_diagnostic_upload(jsonb)` bleibt der finale Vertrag, eine kleine Folgemigration gibt `anon` bewusst wieder frei, und gezielte Regressionen/Invariants sichern RPC-Pfad, Grant-Stand sowie unveraenderte Payload-/ID-Haertungen ab.
 
 - Patch 505: irrefuehrende Service-Role-Secret-Pfade bereinigt — `android-keystore-generate` nutzt fuer den serverseitigen Service-Role-Key jetzt denselben Shared-Auth-Helper wie angrenzende Signing-Pfade, und der tote Client-Storage-/Backup-Cleanup-Hinweis fuer `SUPABASE_SERVICE_ROLE_KEY` wurde auf einen expliziten Legacy-Cleanup-Helper ohne normalen `STORAGE_KEYS`-Slot zurueckgebaut.
@@ -15,6 +17,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 507: `supabase/schema.public.sql` ist als abgeleitete Sekundaerreferenz fuer aktuelle Diagnostics-Public-Contracts nachgezogen; Migrationen + DB-/RPC-Invariants bleiben die kanonische SoT, und der Snapshot behauptet keine Legacy-UUID-/Spaltenwelt mehr.
 - Patch 505: Shared-Secret-SoT fuer `android-keystore-generate` auf den bestehenden Auth-Helper gezogen; irrefuehrenden Client-Storage-Slot `STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY` entfernt und auf expliziten Legacy-Cleanup ohne normale Backup-/UI-Semantik reduziert.
 - Patch 504: request-spezifische Shared-CORS-Header fuer `k1w1-handler`, `github-workflow-runs` und den angrenzenden `github-workflow-logs`; lokale Erfolgs-/Fehlerpfade nutzen keine Wildcard-Origin mehr, Preflight bleibt ueber `handleCors(req)` intakt.
 - Patch 499: GitHubReposScreen trennt Repo-Secret-Namen und lokale Laufzeit-Credentials fuer `EXPO_TOKEN` und `K1W1_EDGE_ADMIN_KEY` sichtbar; bestaetigte Repo-Secrets bleiben getrennt von lokalem SecureStore-Status, und CI Lite / Edge Dispatch wird explizit als lokaler App-Key-Pfad benannt.
