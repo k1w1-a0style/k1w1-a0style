@@ -16,6 +16,7 @@ describe("patch510 keystore shared secret helper invariants", () => {
     const src = read(sharedAuth);
     expect(src).toContain("export function getSupabaseUrl(): string | null {");
     expect(src).toContain("const getSupabaseUrlSecret = (): string | null =>");
+    expect(src).toContain('getRuntimeEnv("K1W1_SUPABASE_URL")');
     expect(src).toContain('getRuntimeEnv("SUPABASE_URL")');
     expect(src).toContain("export function getSigningMasterKey(): string | null {");
     expect(src).toContain("const getSigningMasterKeySecret = (): string | null =>");
