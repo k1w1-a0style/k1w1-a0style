@@ -32,10 +32,10 @@ describe("previewHelpers", () => {
 
   test("labels communicate primary supabase path and fallback", () => {
     expect(getPreviewChannelLabel("supabase")).toBe(
-      "Aktive Supabase-Preview (Browser/QR)",
+      "Primäre Remote-Preview (Supabase / Browser / QR)",
     );
     expect(getPreviewChannelLabel("local")).toBe(
-      "Technischer Fallback: Lokale HTML-Preview (nur solange App aktiv ist)",
+      "Lokaler HTML-/Eval-Fallback (nur Dev/Best-Effort, nur solange App aktiv ist)",
     );
     expect(getPreviewChannelLabel(null)).toBe("Noch keine Preview aktiv");
   });
@@ -144,5 +144,26 @@ describe("previewHelpers", () => {
 
   test("preview webview policy keeps mixed content locked down", () => {
     expect(getPreviewMixedContentMode()).toBe("never");
+  });
+});
+
+
+describe("preview fallback semantics", () => {
+  test("fallback copy stays visibly secondary and dev-scoped", () => {
+    const state = resolvePreviewDisplayState({
+      phase: "ready",
+      previewKind: "local",
+      previewSourceType: "html",
+      remoteUrlStatus: "missing",
+      hasExpiredRemoteUrl: false,
+      remoteFailure: null,
+      stateError: null,
+      webError: null,
+      transientLocalPreviewNotice: null,
+    });
+
+    expect(state.statusText).toBe("Lokaler Dev-Fallback aktiv");
+    expect(state.badgeText).toBe("Dev-Fallback");
+    expect(state.detailText).toContain("Best-Effort");
   });
 });

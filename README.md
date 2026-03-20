@@ -11,7 +11,8 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 516**.
+- Zuletzt abgeschlossen: **Patch 517**.
+- Patch 517 schaerft den Preview-Produktvertrag ohne Architekturumbau: `usePreview` und `usePreviewScreen` behandeln die vertraute Supabase-/WebView-Preview jetzt noch expliziter als primaeren Produktpfad, der lokale HTML-/Eval-Pfad bleibt sichtbar nur noch als Dev-/Best-Effort-Fallback markiert, und gezielte Preview-Regressionen blockieren die Rueckkehr zu einer Gleichstellung beider Wege.
 - Patch 515 entfernt den verbliebenen GitHub-PAT-Passthrough auf dem Client→Edge-Pfad fuer Workflow-/Run-/Log-Aufrufe: `useGitHubActionsLogs` und `useCiLiteWorkflow` senden kein `githubToken` mehr im JSON-Body, `github-workflow-runs`, `github-workflow-logs` und `github-workflow-dispatch` lesen den Token konsistent nur noch serverseitig ueber `_shared/github.ts`, und neue Vertrags-/Invariant-Tests blockieren Rueckfaelle bei Token-Passthrough sowie unveraenderten Admin-/Workflow-Guards.
 - Patch 516 entfernt den final unbenutzten Legacy-Key-Manager-Rest: `lib/SecureKeyManager.ts` samt zugehoerigem Test ist geloescht, der Patch-513-Invariant blockiert jetzt auch die Rueckkehr dieser Datei, und `docs/SYSTEM_README.md` beschreibt den produktiven KI-Vertrag wieder konsistent als Edge-Proxy-only ohne alte Key-/Token-Manager-Empfehlungen.
 - Patch 513 bereinigt die verbliebene Key-/Token-Manager-Verwirrung nach der Edge-Proxy-Umstellung: `contexts/AIContext/index.tsx` spiegelt keine Provider-API-Keys mehr in `SecureKeyManager`, `lib/SecureTokenManager.ts` samt Test ist entfernt, `lib/SecureKeyManager.ts` bleibt explizit nur noch als Legacy-/Test-Helper dokumentiert, und ein neuer Patch-513-Invariant blockiert die Rueckkehr dieser Pfade in den produktiven Runtime-Scope.

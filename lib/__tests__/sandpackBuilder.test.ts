@@ -1,7 +1,7 @@
 import { buildSandpackHtml } from "../sandpackBuilder";
 
 describe("buildSandpackHtml", () => {
-  it("adds a CSP that blocks arbitrary network requests while keeping the local preview runtime alive", () => {
+  it("keeps the local preview HTML clearly marked as a dev-only fallback while blocking arbitrary network requests", () => {
     const html = buildSandpackHtml({
       title: "Preview",
       files: {
@@ -18,4 +18,18 @@ describe("buildSandpackHtml", () => {
     expect(html).toContain("https://unpkg.com/@babel/standalone/babel.min.js");
     expect(html).toContain('"react": "https://esm.sh/react@19.1.0"');
   });
+});
+
+
+it("labels the generated preview as a non-primary local fallback", () => {
+  const html = buildSandpackHtml({
+    title: "Preview",
+    files: {
+      "/App.tsx": "export default function App() { return <div>Hello</div>; }",
+    },
+  });
+
+  expect(html).toContain("Lokaler HTML-/Eval-Fallback");
+  expect(html).toContain("nicht server-verifiziert");
+  expect(html).toContain("Dev-Fallback bereit");
 });

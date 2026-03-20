@@ -89,7 +89,7 @@ export function usePreviewFullscreen() {
 
   // ─── Derived ───────────────────────────────────────────────────────────────
   const headerSubtitle = useMemo(() => {
-    if (mode === 'html') return 'Technischer Fallback: Lokale HTML-Preview';
+    if (mode === 'html') return 'Lokaler HTML-/Eval-Fallback · nicht server-verifiziert';
     if (mode === 'url' && url) return `Aktive Supabase-Preview · ${truncateUrl(url, 40)}`;
     if (remoteUrlStatus === 'insecure') return 'Remote-Preview blockiert · unsicherer Link';
     if (remoteUrlStatus === 'invalid') return 'Remote-Preview blockiert · ungültige URL';
@@ -139,7 +139,7 @@ export function usePreviewFullscreen() {
         Alert.alert('❌ Fehler', 'Browser konnte nicht geöffnet werden.');
       }
     } else {
-      Alert.alert('ℹ️ Hinweis', 'Diese lokale HTML-Preview kann nicht im externen Browser geöffnet werden.');
+      Alert.alert('ℹ️ Hinweis', 'Dieser lokale HTML-/Eval-Fallback kann nicht im externen Browser geöffnet werden.');
     }
   }, [mode, url]);
 

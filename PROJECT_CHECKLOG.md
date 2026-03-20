@@ -4,6 +4,8 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-20: Patch 517: Preview-Produktvertrag auf den bestehenden Expo-/WebView-Remote-Pfad als klare SoT geschaerft — `hooks/usePreview.ts`, `screens/PreviewScreen/hooks/usePreviewScreen.ts` und `screens/PreviewScreen/components/DeviceFrame.tsx` priorisieren und benennen die vertraute Remote-Preview jetzt noch expliziter als Primaerpfad, waehrend `lib/sandpackBuilder.ts` sowie die Preview-Status-/Vertragstests den lokalen HTML-/Eval-Weg sichtbar nur noch als Dev-/Best-Effort-Fallback einordnen.
+
 - 2026-03-20: Patch 516: finalen toten Legacy-Key-Manager-Rest konservativ entfernt — `lib/SecureKeyManager.ts` und `lib/__tests__/SecureKeyManager.test.ts` hatten keine Runtime- oder fachlich noetigen Test-Imports mehr und sind geloescht, der bestehende Patch-513-Invariant blockiert nun auch die Rueckkehr dieser Datei regressionsfest, waehrend `docs/SYSTEM_README.md` die produktive KI-Vertragslage wieder ohne veraltete SecureKeyManager-/SecureTokenManager-Empfehlungen beschreibt.
 
 - 2026-03-20: Patch 515: verbliebenen GitHub-PAT-Passthrough vom Client zu workflow-/logs-/run-bezogenen Edge-Pfaden entfernt — `hooks/useGitHubActionsLogs.ts` und `components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts` senden fuer `github-workflow-runs`, `github-workflow-logs` und `github-workflow-dispatch` kein `githubToken` mehr im JSON-Body, die drei Edge-Entry-Points beziehen den Token jetzt ausschliesslich ueber `_shared/github.ts`, und gezielte Vertrags-/Invariant-Tests sichern serverseitige Shared-Token-Nutzung sowie unveraenderte Admin-/Workflow-/Logs-Guards regressionsfest.
@@ -88,6 +90,7 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Hinweise
 
+- 2026-03-20: Patch 517: Preview-Produktvertrag weiter auf den bestehenden Expo-/WebView-Remote-Pfad fokussiert; lokale HTML-/Eval-Vorschau ist jetzt in Hook-, UI-, Builder- und Test-Semantik explizit nur noch Dev-/Best-Effort-Fallback.
 - Vollständige Historie: `docs/patches/PATCHLOG_ROOT.md`.
 - Operative Restliste / Follow-ups: `docs/TODO.md`.
 - 2026-03-15: Patch 459: Chat-Regression aus PR #272 konservativ geschlossen — Meta-/lokale Kommandos werden wieder gegen unveränderten Raw-Input geprüft; Attachment-Hinweis wird erst nach Command-Routing für den normalen AI-Request angehängt; gezielte Invariant-Regression ergänzt; Workflow-/Typecheck-/Lint-/Tests grün.

@@ -1,5 +1,7 @@
 # Patchlog Root
 
+- Patch 517: Preview-Vertrag auf den vorhandenen Expo-/WebView-Remote-Pfad als klare Produkt-SoT geschaerft — `usePreview`/`usePreviewScreen` markieren den vertrauenswuerdigen Supabase-URL-Pfad jetzt noch expliziter als primaeren Weg, der lokale HTML-/Eval-Pfad bleibt im UI, im Builder und in den Status-Texten klar als Dev-/Best-Effort-Fallback eingegrenzt, und gezielte Preview-Regressionen sichern Remote-vor-Fallback sowie die neue Sekundaer-Semantik ab.
+
 - Patch 516: finalen unbenutzten Legacy-Key-Manager-Rest entfernt — `lib/SecureKeyManager.ts` samt Test ist geloescht, der bestehende Key-Manager-Invariant blockiert die Rueckkehr jetzt dateiweit, und `docs/SYSTEM_README.md` beschreibt den produktiven KI-Vertrag wieder ohne veraltete Key-/Token-Manager-Hinweise.
 
 - Patch 515: verbliebenen GitHub-PAT-Passthrough im produktiven Client→Edge-Workflow-/Run-/Log-Pfad entfernt — `useGitHubActionsLogs` und `useCiLiteWorkflow` senden kein `githubToken` mehr an `github-workflow-runs`, `github-workflow-logs` bzw. `github-workflow-dispatch`, die drei Edge-Functions lesen den GitHub-Token konsistent nur noch ueber `_shared/github.ts`, und neue Vertrags-/Invariant-Tests blockieren Rueckfaelle bei Token-Body-Passthrough sowie unveraenderten Admin-/Workflow-Guards.
