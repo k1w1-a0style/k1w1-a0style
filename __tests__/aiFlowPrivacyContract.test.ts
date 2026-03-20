@@ -75,7 +75,17 @@ describe('AI flow privacy and prompt contract', () => {
     expect(result.handled).toBe(true);
     expect(result.message?.content).toContain('src/demo.ts');
     expect(result.message?.content).toContain('export const demo = 1;');
-    expect(result.message?.meta).toEqual({ localOnly: true, containsFilePreview: true });
+    expect(result.message?.meta).toEqual({ localOnly: true, metaCommand: true, containsFilePreview: true });
+  });
+
+
+  test('marks non-preview meta command results as local-only meta history', () => {
+    const result = handleMetaCommand('liste alle dateien', [
+      { path: 'src/demo.ts', content: 'export const demo = 1;\n' },
+    ]);
+
+    expect(result.handled).toBe(true);
+    expect(result.message?.meta).toEqual({ localOnly: true, metaCommand: true });
   });
 
   test('truncates file previews much earlier than before', () => {

@@ -69,6 +69,20 @@ export function redactSecrets(input: string): string {
     `$1${REDACTED}`
   );
 
+  // Cookie / Set-Cookie headers.
+  out = replaceAllSafe(
+    out,
+    /((?:set-cookie|cookie)\s*[:=]\s*)([^\n\r]+)/gi,
+    `$1${REDACTED}`
+  );
+
+  // Common credential assignments beyond apiKey/token.
+  out = replaceAllSafe(
+    out,
+    /\b(password|passwd|client[_-]?secret)\s*[:=]\s*"?([^\s"\n\r]{4,})"?/gi,
+    `$1="${REDACTED}"`
+  );
+
   // npm auth tokens in .npmrc style files.
   out = replaceAllSafe(
     out,

@@ -1,23 +1,24 @@
 import { act, renderHook } from "@testing-library/react-native";
-
 import { useChatAIFlow } from "../hooks/useChatAIFlow";
 import * as validators from "../lib/validators";
 import { runOrchestrator } from "../lib/orchestrator";
-
+import type { ChatMessage } from "../shared/types/chat";
+import type { ProjectFile } from "../shared/types/project";
 jest.mock("../lib/orchestrator", () => ({
   runOrchestrator: jest.fn(),
 }));
-
 const mockedRunOrchestrator = runOrchestrator as jest.MockedFunction<typeof runOrchestrator>;
-
 beforeAll(() => {
   global.requestAnimationFrame = ((cb: any) => {
     cb(0);
     return 0;
   }) as any;
 });
-
-const createFlow = () => {
+type FlowOptions = {
+  messages?: ChatMessage[];
+  projectFiles?: ProjectFile[];
+};
+const createFlow = (options: FlowOptions = {}) => {
   const addChatMessage = jest.fn();
   const updateProjectFiles = jest.fn().mockResolvedValue(undefined);
   const hardScrollToBottom = jest.fn();
@@ -26,7 +27,6 @@ const createFlow = () => {
   const setIsAiLoading = jest.fn();
   const setError = jest.fn();
   const setShowConfirmModal = jest.fn();
-
   const hook = renderHook(() =>
     useChatAIFlow({
       config: {
@@ -37,8 +37,9 @@ const createFlow = () => {
         qualityMode: "speed",
         agentEnabled: false,
       } as any,
-      messages: [],
-      projectFiles: [{ path: "App.tsx", content: "export default function App() { return null; }" }],
+      messages: options.messages ?? [],
+      projectFiles:
+        options.projectFiles ?? [{ path: "App.tsx", content: "export default function App() { return null; }" }],
       addChatMessage,
       updateProjectFiles,
       autoFixRequest: null,
@@ -51,14 +52,12 @@ const createFlow = () => {
       setShowConfirmModal,
     }),
   );
-
   return {
     ...hook,
     addChatMessage,
     setError,
   };
 };
-
 describe("useChatAIFlow input validation", () => {
   beforeEach(() => {
     jest.useFakeTimers();
@@ -77,34 +76,27 @@ describe("useChatAIFlow input validation", () => {
         provider: "openai",
       } as any);
   });
-
   afterEach(() => {
     jest.runOnlyPendingTimers();
     jest.useRealTimers();
     jest.restoreAllMocks();
   });
-
   it("handleSendWithMeta uses validateChatInput on the real send path", async () => {
     const spy = jest.spyOn(validators, "validateChatInput");
     const { result } = createFlow();
-
     await act(async () => {
       await result.current.handleSendWithMeta("Bitte aktualisiere App.tsx");
     });
-
     expect(spy).toHaveBeenCalledWith("Bitte aktualisiere App.tsx");
     expect(mockedRunOrchestrator).toHaveBeenCalled();
   });
-
   it("blocks too long input with a clear message", async () => {
     const { result, addChatMessage, setError } = createFlow();
     const input = "a".repeat(10_001);
-
     await act(async () => {
       const ok = await result.current.handleSendWithMeta(input);
       expect(ok).toBe(false);
     });
-
     expect(mockedRunOrchestrator).not.toHaveBeenCalled();
     expect(setError).toHaveBeenCalledWith(expect.stringContaining("zu lang"));
     expect(addChatMessage).toHaveBeenCalledWith(
@@ -114,16 +106,13 @@ describe("useChatAIFlow input validation", () => {
       }),
     );
   });
-
   it("sanitizes xss-like input before it reaches the provider", async () => {
     const { result, addChatMessage } = createFlow();
-
     await act(async () => {
       await result.current.handleSendWithMeta(
         '<script>alert("x")</script> Bitte aktualisiere App.tsx',
       );
     });
-
     const builderMessages = mockedRunOrchestrator.mock.calls[0]?.[3] ?? [];
     const joined = JSON.stringify(builderMessages);
     expect(joined).not.toContain("<script>");
@@ -140,5 +129,66 @@ describe("useChatAIFlow input validation", () => {
         content: expect.not.stringContaining("<script>"),
       }),
     );
+  });
+  it("keeps normal history but filters local preview/meta-only history out of provider context", async () => {
+    const { result } = createFlow({
+      messages: [
+        {
+          id: "msg-user",
+          role: "user",
+          content: "Bitte passe den Button an",
+          timestamp: new Date("2026-03-20T00:00:00.000Z").toISOString(),
+        },
+        {
+          id: "msg-preview",
+          role: "assistant",
+          content: "📄 **src/local.ts**\n\n```ts\nconst secret = 'preview';\n```",
+          timestamp: new Date("2026-03-20T00:00:01.000Z").toISOString(),
+          meta: { localOnly: true, metaCommand: true, containsFilePreview: true },
+        },
+        {
+          id: "msg-meta",
+          role: "assistant",
+          content: "📂 Aktuelle Projektdateien ...",
+          timestamp: new Date("2026-03-20T00:00:02.000Z").toISOString(),
+          meta: { localOnly: true, metaCommand: true },
+        },
+      ],
+    });
+    await act(async () => {
+      await result.current.handleSendWithMeta("Bitte ändere die Button-Farbe");
+    });
+    const builderMessages = mockedRunOrchestrator.mock.calls[0]?.[3] ?? [];
+    const joined = JSON.stringify(builderMessages);
+    expect(joined).toContain("Bitte passe den Button an");
+    expect(joined).not.toContain("src/local.ts");
+    expect(joined).not.toContain("Aktuelle Projektdateien");
+  });
+  it("redacts token/header/credential patterns before provider handoff", async () => {
+    const { result } = createFlow({
+      messages: [
+        {
+          id: "msg-secret-history",
+          role: "assistant",
+          content: "Cookie: session=abc123\npassword=hunter2\nclient_secret=super-secret",
+          timestamp: new Date("2026-03-20T00:00:03.000Z").toISOString(),
+        },
+      ],
+    });
+    await act(async () => {
+      await result.current.handleSendWithMeta(
+        "Bitte nutze Authorization: Bearer abcdefghijklmnopqrstuvwxyz012345 und x-api-key: sk_test_1234567890abcdef",
+      );
+    });
+    const builderMessages = mockedRunOrchestrator.mock.calls[0]?.[3] ?? [];
+    const joined = builderMessages.map((message: { content: string }) => message.content).join("\n---\n");
+    expect(joined).toContain("Bearer <redacted>");
+    expect(joined).toContain('password="<redacted>"');
+    expect(joined).toContain('client_secret="<redacted>"');
+    expect(joined).toContain("Cookie: <redacted>");
+    expect(joined).not.toContain("abcdefghijklmnopqrstuvwxyz012345");
+    expect(joined).not.toContain("sk_test_1234567890abcdef");
+    expect(joined).not.toContain("hunter2");
+    expect(joined).not.toContain("super-secret");
   });
 });
