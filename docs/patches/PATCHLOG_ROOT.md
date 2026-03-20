@@ -1,5 +1,7 @@
 # Patchlog Root
 
+- Patch 497: Pipeline-Diagnostics Repo-Secret-Contract / Title-Truthfulness — erfolgreich geladene Repo-Secret-Namenslisten werden für `EXPO_TOKEN`, `SUPABASE_URL` und `SUPABASE_SERVICE_ROLE_KEY` jetzt explizit als `verified` oder `missing` in den bestehenden Verification-Contract eingespeist; `unknown`/`auth_error` bleiben auf echte Fehlerpfade beschränkt, Secret-Checks nutzen zustandsabhängige Titel/Fix-Hinweise statt pauschalem `Repo Secret vorhanden`, und gezielte Jest-Regressionen decken verified/missing/auth/title-semantics ab.
+
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)

@@ -11,7 +11,8 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 496**.
+- Zuletzt abgeschlossen: **Patch 497**.
+- Patch 497 härtet im Pipeline-Diagnostics-Scope die Repo-Secret-Wahrheit für `EXPO_TOKEN`, `SUPABASE_URL` und `SUPABASE_SERVICE_ROLE_KEY`: eine erfolgreich geladene GitHub-Secret-Namensliste wird jetzt explizit als bestätigt oder fehlend ausgewertet, `unknown`/`auth_error` entstehen nur noch auf echten Fehlerpfaden, und die Check-Titel/Fix-Hinweise behaupten keinen vorhandenen Secret-Status mehr ohne verifizierte Grundlage.
 - Patch 496 härtet im GitHubReposScreen die EAS-Link-Statuschecks gegen stale Async-Rückläufer und Race-Zustände: ein kleiner Request-/Generation-Guard bindet jeden Check an `repo@@branch`, Repo-/Branch-Wechsel resetten die UI bewusst auf neutral/unknown, ältere Checks dürfen keinen neueren Status oder den Write→Recheck-Pfad überschreiben, und der Recheck nach dem Write nutzt dieselbe Guard-Wahrheit wie manuelle Statusprüfungen.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
 - Patch 495 härtet `LocalRemoteDiffSection` auch bei lokalen Dateiänderungen im selben Repo-/Branch-Kontext: ein kleiner lokaler Fingerprint invalidiert alte Diff-Items, Push-Selection, Inline-/Modal-Preview und Preview-Cache ehrlich auf neutral, sobald sich die lokale Diff-Grundlage geändert hat, und die UI fordert dann explizit einen neuen Vergleich per Refresh.
