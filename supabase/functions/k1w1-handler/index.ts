@@ -1,10 +1,9 @@
 // supabase/functions/k1w1-handler/index.ts
 // REFACTORED: helpers → helpers.ts
 
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { callAnthropic, callGemini, callGroq, callHuggingFace, callOpenAI, corsHeadersForRequest, handleCors, parseJsonBody, parseRequestBody, rateLimit, requireAdminKey } from "./helpers.ts";
 
-serve(async (req: Request): Promise<Response> => {
+Deno.serve(async (req: Request): Promise<Response> => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 

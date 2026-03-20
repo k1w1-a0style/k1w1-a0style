@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";
 import { requireAdminKeyOrServiceRoleBearer, rateLimit } from "../_shared/auth.ts";
 import { githubHeaders, getGithubToken, GITHUB_API_BASE } from "../_shared/github.ts";
@@ -22,7 +21,7 @@ import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSaniti
  * Optional auth passthrough (for private repos):
  * - githubToken / ghToken / token: client-provided PAT (only accepted if admin key is valid)
  */
-serve(async (req) => {
+Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 

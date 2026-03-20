@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { requireAdminKeyOrServiceRoleBearer, rateLimit } from "../_shared/auth.ts";
@@ -44,7 +43,7 @@ function isAllowedRef(ref: string | null | undefined): boolean {
  * - Input: { githubRepo, buildProfile, branch? }
  * - Output: { ok: true, jobId, githubRepo, branch, buildProfile }
  */
-serve(async (req) => {
+Deno.serve(async (req) => {
     const cors = handleCors(req);
   if (cors) return cors;
 try {
