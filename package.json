@@ -81,7 +81,7 @@
     "@types/jest": "^29.5.14",
     "@types/react": "~19.1.10",
     "@types/uuid": "^10.0.0",
-    "babel-preset-expo": "~54.0.9",
+    "babel-preset-expo": "~55.0.12",
     "depcheck": "^1.4.7",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~10.0.0",
