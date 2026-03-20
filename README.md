@@ -11,7 +11,8 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 495**.
+- Zuletzt abgeschlossen: **Patch 496**.
+- Patch 496 härtet im GitHubReposScreen die EAS-Link-Statuschecks gegen stale Async-Rückläufer und Race-Zustände: ein kleiner Request-/Generation-Guard bindet jeden Check an `repo@@branch`, Repo-/Branch-Wechsel resetten die UI bewusst auf neutral/unknown, ältere Checks dürfen keinen neueren Status oder den Write→Recheck-Pfad überschreiben, und der Recheck nach dem Write nutzt dieselbe Guard-Wahrheit wie manuelle Statusprüfungen.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
 - Patch 495 härtet `LocalRemoteDiffSection` auch bei lokalen Dateiänderungen im selben Repo-/Branch-Kontext: ein kleiner lokaler Fingerprint invalidiert alte Diff-Items, Push-Selection, Inline-/Modal-Preview und Preview-Cache ehrlich auf neutral, sobald sich die lokale Diff-Grundlage geändert hat, und die UI fordert dann explizit einen neuen Vergleich per Refresh.
 - Patch 494 härtet `LocalRemoteDiffSection` gegen stale Async-Rückläufer und Kontext-Leaks: Repo-/Branch-Wechsel invalidieren jetzt laufende Diff-/Preview-Requests hart, resetten Items/Selection/Inline-/Modal-Preview ehrlich auf neutral, und der Preview-Cache ist an den aktiven Repo-/Branch-Kontext gebunden statt alte Diff-Wahrheit weiterzutragen.

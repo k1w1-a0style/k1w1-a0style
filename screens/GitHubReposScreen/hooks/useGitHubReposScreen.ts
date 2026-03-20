@@ -35,6 +35,10 @@ import {
   resolveEasLinkWriteOutcome,
   type EasLinkPresentation,
 } from "../utils/easLinkContract";
+import {
+  createEasLinkStatusRequestGuard,
+  type EasLinkStatusRequestToken,
+} from "../utils/easLinkStatusRequestGuard";
 import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
 import type { TemplateId, CoreTemplateId, ProjectFile } from "../../../shared/types/project";
 
@@ -155,6 +159,12 @@ export function useGitHubReposScreen() {
   const [easProjectId, setEasProjectId] = useState<string>("");
   const [isEasLinking, setIsEasLinking] = useState(false);
   const [easLinkStatus, setEasLinkStatus] = useState<EasLinkPresentation>(getEasLinkPresentation("unknown"));
+  const easLinkContextKey = useMemo(() => {
+    const repo = (activeRepo || "").trim();
+    const branch = (activeBranch || "").trim();
+    return repo && branch ? `${repo}@@${branch}` : null;
+  }, [activeRepo, activeBranch]);
+  const easLinkStatusGuardRef = useRef(createEasLinkStatusRequestGuard(easLinkContextKey));
 
   // Manage Modal (used for branch operations)
   type ManageModalConfig = {
@@ -187,6 +197,18 @@ export function useGitHubReposScreen() {
   } = useGitHubRepos(token);
 
   const syncStatusRunRef = useRef(0);
+
+  useEffect(() => {
+    easLinkStatusGuardRef.current.setContextKey(easLinkContextKey);
+    setEasLinkStatus(
+      getEasLinkPresentation(
+        "unknown",
+        easLinkContextKey
+          ? "Pruefstatus fuer die aktuelle Repo-/Branch-Auswahl noch nicht geladen."
+          : "Repo oder Branch sind noch nicht ausgewaehlt.",
+      ),
+    );
+  }, [easLinkContextKey]);
 
   const refreshSyncStatus = useCallback(async () => {
     const runId = ++syncStatusRunRef.current;
@@ -746,8 +768,14 @@ export function useGitHubReposScreen() {
     await Linking.openURL(`https://github.com/${activeRepo}`);
   }, [activeRepo]);
 
-  const handleEasLinkStatusCheck = useCallback(async () => {
+  const isCurrentEasLinkRequest = useCallback((requestId: number, contextKey: string | null) => {
+    if (!isMountedRef.current) return false;
+    return easLinkStatusGuardRef.current.isCurrent({ requestId, contextKey });
+  }, []);
+
+  const handleEasLinkStatusCheck = useCallback(async (): Promise<EasLinkPresentation | null> => {
     if (!activeRepo || !activeBranch) {
+      easLinkStatusGuardRef.current.invalidate();
       const presentation = getEasLinkPresentation("unknown", "Repo oder Branch sind noch nicht ausgewaehlt.");
       setEasLinkStatus(presentation);
       return presentation;
@@ -755,11 +783,14 @@ export function useGitHubReposScreen() {
 
     const parsed = splitFullName(activeRepo);
     if (!parsed) {
+      easLinkStatusGuardRef.current.invalidate();
       const presentation = getEasLinkPresentation("unknown", "Repo-Auswahl konnte nicht verarbeitet werden.");
       setEasLinkStatus(presentation);
       return presentation;
     }
 
+    const contextKey = `${activeRepo}@@${activeBranch}`;
+    const requestToken = easLinkStatusGuardRef.current.begin(contextKey);
     const presentation = await checkRepoEasLinkStatus({
       expectedProjectId: easProjectId,
       loadFile: (path: string) =>
@@ -771,9 +802,13 @@ export function useGitHubReposScreen() {
         }),
     });
 
+    if (!isCurrentEasLinkRequest(requestToken.requestId, requestToken.contextKey)) {
+      return null;
+    }
+
     setEasLinkStatus(presentation);
     return presentation;
-  }, [activeRepo, activeBranch, easProjectId]);
+  }, [activeRepo, activeBranch, easProjectId, isCurrentEasLinkRequest]);
 
   const handleEasLink = useCallback(async () => {
     if (!activeRepo) {
@@ -795,14 +830,25 @@ export function useGitHubReposScreen() {
       return;
     }
 
+    const branch = (activeBranch || "").trim();
+    if (!branch) {
+      Alert.alert("⚠️", "Kein Branch ausgewählt.");
+      return;
+    }
+
+    const contextKey = `${activeRepo}@@${branch}`;
+    const writeToken = easLinkStatusGuardRef.current.begin(contextKey);
+
     setIsEasLinking(true);
-    setEasLinkStatus(getEasLinkPresentation("pending_recheck", "Schreibe `eas-project.json` und pruefe den Repo-Zustand danach erneut."));
+    if (isCurrentEasLinkRequest(writeToken.requestId, writeToken.contextKey)) {
+      setEasLinkStatus(
+        getEasLinkPresentation(
+          "pending_recheck",
+          "Schreibe `eas-project.json` und pruefe den Repo-Zustand danach erneut.",
+        ),
+      );
+    }
     try {
-      const branch = (activeBranch || "").trim();
-      if (!branch) {
-        Alert.alert("⚠️", "Kein Branch ausgewählt.");
-        return;
-      }
       const easProjectJsonPath = "eas-project.json";
       const content = JSON.stringify({ projectId: id }, null, 2) + "\n";
 
@@ -815,9 +861,27 @@ export function useGitHubReposScreen() {
         branch,
       );
 
+      if (!isCurrentEasLinkRequest(writeToken.requestId, writeToken.contextKey)) {
+        return;
+      }
+
       const verification = await handleEasLinkStatusCheck();
+      if (!verification) {
+        return;
+      }
+
+      const recheckToken: EasLinkStatusRequestToken = {
+        requestId: easLinkStatusGuardRef.current.getCurrentRequestId(),
+        contextKey,
+      };
       const writeOutcome = resolveEasLinkWriteOutcome({ verification });
-      setEasLinkStatus(writeOutcome);
+      if (isCurrentEasLinkRequest(recheckToken.requestId, recheckToken.contextKey)) {
+        setEasLinkStatus(writeOutcome);
+      }
+
+      if (!isCurrentEasLinkRequest(recheckToken.requestId, recheckToken.contextKey)) {
+        return;
+      }
 
       if (writeOutcome.state === "verified") {
         Alert.alert("✅ EAS verifiziert", "Projektdatei geschrieben und Repo-Link sauber bestaetigt.");
@@ -831,12 +895,14 @@ export function useGitHubReposScreen() {
 
       Alert.alert("⚠️ EAS geschrieben, aber nicht verifiziert", writeOutcome.detail);
     } catch (e: any) {
-      setEasLinkStatus(getEasLinkPresentation("unknown", "Schreiben oder Nachverifikation ist fehlgeschlagen."));
-      Alert.alert("❌ EAS link fehlgeschlagen", e?.message ?? "");
+      if (isCurrentEasLinkRequest(writeToken.requestId, writeToken.contextKey)) {
+        setEasLinkStatus(getEasLinkPresentation("unknown", "Schreiben oder Nachverifikation ist fehlgeschlagen."));
+        Alert.alert("❌ EAS link fehlgeschlagen", e?.message ?? "");
+      }
     } finally {
       setIsEasLinking(false);
     }
-  }, [activeRepo, activeBranch, easProjectId, handleEasLinkStatusCheck]);
+  }, [activeRepo, activeBranch, easProjectId, handleEasLinkStatusCheck, isCurrentEasLinkRequest]);
 
   const handleSyncSecrets = useCallback(async () => {
     if (!activeRepo) {
