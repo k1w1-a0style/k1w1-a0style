@@ -1,7 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { validateCheckBuildRequest, parseJsonBody } from "../_shared/validation.ts";
-import { requireAdminKeyOrServiceRoleBearer, rateLimit } from "../_shared/auth.ts";
+import {
+  getServiceRoleKey,
+  getSupabaseUrl,
+  requireAdminKeyOrServiceRoleBearer,
+  rateLimit,
+} from "../_shared/auth.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 
 type BuildJobRow = {
@@ -42,20 +47,17 @@ Deno.serve(async (req) => {
       return errorResponse("Invalid request", req, 400, validation.errors);
     }
 
-    const SUPABASE_URL =
-      Deno.env.get("K1W1_SUPABASE_URL") ?? Deno.env.get("SUPABASE_URL");
-    const SERVICE_ROLE =
-      Deno.env.get("K1W1_SUPABASE_SERVICE_ROLE_KEY") ??
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseUrl = getSupabaseUrl();
+    const serviceRoleKey = getServiceRoleKey(req);
 
-    if (!SUPABASE_URL || !SERVICE_ROLE) {
+    if (!supabaseUrl || !serviceRoleKey) {
       return errorResponse("Missing Supabase env", req, 500, {
-        SUPABASE_URL: !!SUPABASE_URL,
-        SERVICE_ROLE: !!SERVICE_ROLE,
+        SUPABASE_URL: !!supabaseUrl,
+        SERVICE_ROLE: !!serviceRoleKey,
       });
     }
 
-    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     const { jobId } = validation.data!;
     // build_jobs.id is currently bigint-backed in the database.

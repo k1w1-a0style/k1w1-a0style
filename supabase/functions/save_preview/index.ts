@@ -2,7 +2,12 @@
 // REFACTORED: helpers → helpers.ts
 
 import { createClient } from "@supabase/supabase-js";
-import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import {
+  getPreviewServiceRoleKey,
+  getPreviewSupabaseUrl,
+  requireAdminKey,
+  rateLimit,
+} from "../_shared/auth.ts";
 import { parseJsonBody } from "../_shared/validation.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 import {
@@ -39,11 +44,10 @@ Deno.serve(async (req) => {
     );
   }
 
-  const PREVIEW_SUPABASE_URL = Deno.env.get("PREVIEW_SUPABASE_URL") ?? "";
-  const PREVIEW_SERVICE_ROLE_KEY =
-    Deno.env.get("PREVIEW_SERVICE_ROLE_KEY") ?? "";
+  const previewSupabaseUrl = getPreviewSupabaseUrl() ?? "";
+  const previewServiceRoleKey = getPreviewServiceRoleKey() ?? "";
 
-  if (!PREVIEW_SUPABASE_URL || !PREVIEW_SERVICE_ROLE_KEY) {
+  if (!previewSupabaseUrl || !previewServiceRoleKey) {
     return json(
       {
         ok: false,
@@ -105,8 +109,8 @@ Deno.serve(async (req) => {
   const secret = randomSecret(24);
 
   const supabase = createClient(
-    PREVIEW_SUPABASE_URL,
-    PREVIEW_SERVICE_ROLE_KEY,
+    previewSupabaseUrl,
+    previewServiceRoleKey,
     {
       auth: { persistSession: false },
     },
@@ -130,7 +134,7 @@ Deno.serve(async (req) => {
 
     if (error) throw error;
 
-    const previewUrl = `${PREVIEW_SUPABASE_URL}/functions/v1/preview_page?secret=${encodeURIComponent(secret)}`;
+    const previewUrl = `${previewSupabaseUrl}/functions/v1/preview_page?secret=${encodeURIComponent(secret)}`;
 
     return json(
       {

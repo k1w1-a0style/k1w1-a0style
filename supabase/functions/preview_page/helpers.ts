@@ -5,7 +5,12 @@
 // Serves a preview page for a previously "saved preview" (by secret).
 // NOTE: Preview runs in a sandbox. Do NOT put secrets/service keys into preview files.
 
-import { rateLimit } from "../_shared/auth.ts";
+import {
+  getPreviewServiceRoleKey,
+  getPreviewSupabaseUrl,
+  getRuntimeEnv,
+  rateLimit,
+} from "../_shared/auth.ts";
 // NOTE: Supabase Edge (Deno) bundler requires explicit file extensions for local imports.
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 
@@ -65,12 +70,12 @@ export function safeJsonForScript(obj: unknown): string {
 
 export function getSupabaseBaseUrl(): string {
   // Keep consistent with your save_preview function (uses PREVIEW_SUPABASE_URL)
-  return Deno.env.get("PREVIEW_SUPABASE_URL") ?? "";
+  return getPreviewSupabaseUrl() ?? "";
 }
 
 export function supabaseHeaders(): Record<string, string> {
   // Keep consistent with your save_preview function (uses PREVIEW_SERVICE_ROLE_KEY)
-  const key = Deno.env.get("PREVIEW_SERVICE_ROLE_KEY") ?? "";
+  const key = getPreviewServiceRoleKey() ?? "";
   if (!key) throw new Error("Missing PREVIEW_SERVICE_ROLE_KEY");
 
   return {
@@ -106,7 +111,7 @@ export function randomNonce(len = 16): string {
 export function buildCsp(nonce: string): string {
   // Optional strict CSP test mode (disables eval; some sandpack/babel setups need eval)
   const strict =
-    (Deno.env.get("TEST_STRICT_CSP") ?? "").toLowerCase() === "true";
+    (getRuntimeEnv("TEST_STRICT_CSP") ?? "").toLowerCase() === "true";
   const evalPart = strict ? "" : " 'unsafe-eval'";
 
   return [

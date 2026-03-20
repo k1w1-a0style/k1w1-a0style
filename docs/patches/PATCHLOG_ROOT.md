@@ -1,5 +1,7 @@
 # Patchlog Root
 
+- Patch 514: verbleibende produktive Build-/Preview-Env-Lesepfade auf eine kleine Shared-Helper-Linie gezogen — `_shared/auth.ts` liefert jetzt Runtime-Getter fuer `K1W1_SUPABASE_URL`/`SUPABASE_URL`, `PREVIEW_SUPABASE_URL`, `PREVIEW_SERVICE_ROLE_KEY` und generische Runtime-Reads; `check-eas-build`, `trigger-eas-build`, `preview_page/helpers.ts` und `save_preview` nutzen dadurch keine direkten parallelen `Deno.env.get(...)`-Reads mehr, und ein neuer Invariant-Test blockiert Rueckfaelle bei Guards und Helper-Nutzung.
+
 - Patch 513: Key-/Token-Manager-Restpfade nach der Edge-Proxy-Umstellung bereinigt — `AIContext` spiegelt keine Provider-API-Keys mehr in `SecureKeyManager`, `SecureTokenManager` ist aus dem Repo entfernt, `SecureKeyManager` bleibt nur noch als expliziter Legacy-/Test-Helper dokumentiert, und ein neuer Invariant-Test blockiert direkte Runtime-Nutzung bzw. Token-Manager-Drift.
 
 - Patch 512: verbliebene direkte Client-Provider-Altpfade im Orchestrator entfernt — `lib/orchestrator/providers/*` und die daran haengenden clientseitigen Provider-Tests sind geloescht, `SecureKeyManager` bleibt explizit als lokaler Key-/Rotations-State fuer `contexts/AIContext` eingegrenzt, und ein neuer Invariant-Test blockiert die Wiedereinbindung direkter Client-Provider-Imports im produktiven Runtime-Scope.
