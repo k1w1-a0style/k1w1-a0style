@@ -19,7 +19,7 @@ function collectTsSources(relDir: string): string[] {
   });
 }
 
-describe("patch512 orchestrator legacy client provider invariants", () => {
+describe("patch513 key manager runtime boundary invariants", () => {
   it("keeps the productive orchestrator on the edge-proxy path only", () => {
     const src = read("lib/orchestrator/index.ts");
 
@@ -51,12 +51,32 @@ describe("patch512 orchestrator legacy client provider invariants", () => {
     }
   });
 
-  it("keeps SecureKeyManager scoped to local client state instead of provider transport", () => {
+  it("keeps SecureKeyManager out of the productive runtime path", () => {
     const managerSrc = read("lib/SecureKeyManager.ts");
     const aiContextSrc = read("contexts/AIContext/index.tsx");
+    const runtimeFiles = [
+      ...collectTsSources("lib"),
+      ...collectTsSources("contexts"),
+    ].filter((rel) => !rel.includes("__tests__"));
 
-    expect(managerSrc).toContain("kein produktiver Provider-HTTP-Client mehr");
+    expect(managerSrc).toContain("keine Runtime-Verwendung im produktiven KI-Pfad");
     expect(aiContextSrc).toContain("Produktive KI-Requests laufen seit Patch 500 ausschliesslich ueber den Edge-Proxy");
-    expect(aiContextSrc).toContain("SecureKeyManager.setKeys(provider, config.apiKeys[provider] ?? []);");
+    expect(aiContextSrc).not.toContain("SecureKeyManager");
+
+    const secureKeyImports = runtimeFiles.filter((rel) => rel !== "lib/SecureKeyManager.ts" && read(rel).includes("SecureKeyManager"));
+    expect(secureKeyImports).toEqual([]);
+  });
+
+  it("removes SecureTokenManager from the repo so it cannot drift back into runtime use", () => {
+    const runtimeFiles = [
+      ...collectTsSources("lib"),
+      ...collectTsSources("contexts"),
+    ].filter((rel) => !rel.includes("__tests__"));
+
+    expect(fs.existsSync(path.join(repoRoot, "lib/SecureTokenManager.ts"))).toBe(false);
+
+    for (const rel of runtimeFiles) {
+      expect(read(rel)).not.toContain("SecureTokenManager");
+    }
   });
 });

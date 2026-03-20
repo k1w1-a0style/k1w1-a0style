@@ -3,7 +3,6 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import SecureKeyManager from '../../lib/SecureKeyManager';
 
 // Re-export types & constants so existing imports from "AIContext" keep working
 export type {
@@ -27,88 +26,55 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
   const [config, setConfigState] = useState<AIConfig>(DEFAULT_CONFIG);
   const [providerStatus, setProviderStatus] = useState<ProviderLimitStatus[]>([]);
   const didLoad = useRef(false);
-  const persistRotationInProgress = useRef(false);
 
-  
-useEffect(() => {
-  (async () => {
-    try {
-      const loaded = (await loadConfig()) ?? DEFAULT_CONFIG;
+  useEffect(() => {
+    (async () => {
+      try {
+        const loaded = (await loadConfig()) ?? DEFAULT_CONFIG;
 
-      // Load keys from SecureStore (authoritative)
-      const secureKeys = await loadSecureApiKeys();
+        // Load keys from SecureStore (authoritative)
+        const secureKeys = await loadSecureApiKeys();
 
-      // Legacy migration: if SecureStore empty but config contains keys, migrate them once
-      const hasSecureAny = (Object.keys(secureKeys) as AllAIProviders[]).some(
-        (p) => (secureKeys[p] ?? []).length > 0,
-      );
-      const hasLegacyAny = (Object.keys(loaded.apiKeys) as AllAIProviders[]).some(
-        (p) => (loaded.apiKeys[p] ?? []).length > 0,
-      );
+        // Legacy migration: if SecureStore empty but config contains keys, migrate them once
+        const hasSecureAny = (Object.keys(secureKeys) as AllAIProviders[]).some(
+          (p) => (secureKeys[p] ?? []).length > 0,
+        );
+        const hasLegacyAny = (Object.keys(loaded.apiKeys) as AllAIProviders[]).some(
+          (p) => (loaded.apiKeys[p] ?? []).length > 0,
+        );
 
-      let finalKeys = secureKeys;
-      if (!hasSecureAny && hasLegacyAny) {
-        finalKeys = { ...DEFAULT_CONFIG.apiKeys, ...loaded.apiKeys };
-        await saveSecureApiKeys(finalKeys);
+        let finalKeys = secureKeys;
+        if (!hasSecureAny && hasLegacyAny) {
+          finalKeys = { ...DEFAULT_CONFIG.apiKeys, ...loaded.apiKeys };
+          await saveSecureApiKeys(finalKeys);
+        }
+
+        // Keep models/modes untouched; only ensure keys are loaded
+        setConfigState({ ...loaded, apiKeys: finalKeys });
+      } finally {
+        didLoad.current = true;
       }
+    })();
+  }, []);
 
-      // Keep models/modes untouched; only ensure keys are loaded
-      setConfigState({ ...loaded, apiKeys: finalKeys });
-    } finally {
-      didLoad.current = true;
-    }
-  })();
-}, []);
+  useEffect(() => {
+    if (!didLoad.current) return;
+    const redacted: AIConfig = { ...config, apiKeys: { ...DEFAULT_CONFIG.apiKeys } };
+    AsyncStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(redacted)).catch(
+      () => undefined,
+    );
+  }, [config]);
 
-useEffect(() => {
-  // Persistente Rotation: wenn SecureKeyManager wegen 429 rotiert, spiegeln wir das in config.apiKeys,
-  // damit es nach App-Neustart/Backup erhalten bleibt.
-  const unsubscribe = SecureKeyManager.addRotationListener((provider: AllAIProviders) => {
-    // Nur persistieren, wenn Config bereits geladen ist und wir nicht gerade selbst persistieren
-    if (!didLoad.current || persistRotationInProgress.current) return;
+  useEffect(() => {
+    if (!didLoad.current) return;
 
-    persistRotationInProgress.current = true;
-    try {
-      setConfigState((prev) => {
-        const list = prev.apiKeys?.[provider] ?? [];
-        if (list.length < 2) return prev;
-        const next = [...list.slice(1), list[0]];
-        return { ...prev, apiKeys: { ...prev.apiKeys, [provider]: next } };
-      });
-    } finally {
-      setTimeout(() => {
-        persistRotationInProgress.current = false;
-      }, 0);
-    }
-  });
+    // Produktive KI-Requests laufen seit Patch 500 ausschliesslich ueber den Edge-Proxy
+    // (`invokeK1w1Handler(...)`). Die API-Keys bleiben deshalb nur im AIContext-State
+    // und im SecureStore-Persistenzpfad; wir spiegeln sie nicht mehr in Legacy-In-Memory-Manager.
+    saveSecureApiKeys(config.apiKeys).catch(() => undefined);
+  }, [config.apiKeys]);
 
-  return () => {
-    unsubscribe();
-  };
-}, []);
-
-useEffect(() => {
-  if (!didLoad.current) return;
-  const redacted: AIConfig = { ...config, apiKeys: { ...DEFAULT_CONFIG.apiKeys } };
-  AsyncStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(redacted)).catch(
-    () => undefined,
-  );
-}, [config]);
-
-useEffect(() => {
-  if (!didLoad.current) return;
-
-  // 1) In-memory keys fuer lokale Settings-/Rotations-Persistenz.
-  // Produktive KI-Requests laufen seit Patch 500 ausschliesslich ueber den Edge-Proxy
-  // (`invokeK1w1Handler(...)`) und lesen keine direkten Client-Provider-Keys mehr.
-  (Object.keys(config.apiKeys) as AllAIProviders[]).forEach((provider) => {
-    SecureKeyManager.setKeys(provider, config.apiKeys[provider] ?? []);
-  });
-
-  // 2) Persist keys securely
-  saveSecureApiKeys(config.apiKeys).catch(() => undefined);
-}, [config.apiKeys]);
-const setConfig = useCallback((next: AIConfig) => setConfigState(next), []);
+  const setConfig = useCallback((next: AIConfig) => setConfigState(next), []);
   const updateConfig = useCallback((patch: Partial<AIConfig>) => {
     setConfigState((prev) => ({ ...prev, ...patch }));
   }, []);
