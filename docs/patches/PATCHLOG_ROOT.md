@@ -3,6 +3,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- Patch 495: `LocalRemoteDiffSection` Same-Context-Truthfulness für lokale Dateiänderungen gehärtet — ein kleiner lokaler Fingerprint bindet die geladene Diff-/Preview-Wahrheit jetzt an den aktiven lokalen Dateistand; Änderungen im selben Repo-/Branch-Kontext invalidieren Liste, Push-Selection, Inline-/Modal-Preview und Preview-Cache ehrlich statt alte Diff-Wahrheit still weiterzuzeigen.
 - Patch 494: `LocalRemoteDiffSection` stale-async-/Cache-/Reset-Wahrheit gehärtet — Repo-/Branch-Wechsel invalidieren laufende Diff-/Preview-Requests jetzt hart, resetten Liste/Selection/Inline-/Modal-Preview ehrlich auf neutral und binden den Preview-Cache an den aktiven Kontext statt alte Datei-/Diff-Wahrheit mitzuschleppen.
 - Patch 493: GitHubReposScreen EAS-Link-/Repo-Semantik gehärtet — kleiner gemeinsamer `easLinkContract` trennt jetzt `verified`, `workflow_missing`, `project_missing`, `project_invalid`, `project_mismatch`, `auth_error`, `unknown` und `pending_recheck`; der Repo-Check prueft Workflow und erwartete `projectId` ehrlich getrennt, und der Write-Pfad meldet nur noch echte Verifikation oder klares Re-Check-Pending statt false-green `linked/ok`.
 - Patch 492: GitHubReposScreen Pull-/Push-/Sync-Wahrheit gehärtet — Pull-Apply wartet jetzt echte lokale Writes vor Sync-Signatur/Refresh/Success ab, no-op/teilweise angewendet/fehlgeschlagen werden ehrlich getrennt, `skipConflicts` erzeugt keinen false-green Sync mehr, und Push meldet ohne Branch oder echte Dateiauswahl keinen Erfolg.
