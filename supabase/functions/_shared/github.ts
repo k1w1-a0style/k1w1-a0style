@@ -1,3 +1,5 @@
+import { getRuntimeEnv } from "./auth.ts";
+
 export const GITHUB_API_BASE = "https://api.github.com";
 
 /**
@@ -9,9 +11,9 @@ export const GITHUB_API_BASE = "https://api.github.com";
 
 export function getGithubToken(): string {
   const t = (
-    Deno.env.get("GITHUB_TOKEN") ??
-    Deno.env.get("GH_TOKEN") ??
-    Deno.env.get("GITHUB_API_TOKEN") ??
+    getRuntimeEnv("GITHUB_TOKEN") ??
+    getRuntimeEnv("GH_TOKEN") ??
+    getRuntimeEnv("GITHUB_API_TOKEN") ??
     ""
   ).trim();
 
