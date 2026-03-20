@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { validateCheckBuildRequest, parseJsonBody } from "../_shared/validation.ts";
@@ -24,7 +23,7 @@ type BuildJobRow = {
   updated_at?: string | null;
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 

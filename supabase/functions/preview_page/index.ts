@@ -5,7 +5,7 @@ import {
   TABLE, MAX_FILES_BYTES, MAX_RESPONSE_BYTES,
   json, escapeHtml, safeJsonForScript, getSupabaseBaseUrl, supabaseHeaders,
   withTimeout, utf8Size, approxFilesPayloadSize, randomNonce, html,
-  serve, rateLimit, sanitizeErrorText,
+  rateLimit, sanitizeErrorText,
 } from "./helpers.ts";
 import type { SnackFiles, PreviewRecord } from "./helpers.ts";
 
@@ -323,7 +323,7 @@ function renderPage(params: {
 </html>`;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   const rl = rateLimit(req, "preview_page");
   if (rl) return rl;
 
