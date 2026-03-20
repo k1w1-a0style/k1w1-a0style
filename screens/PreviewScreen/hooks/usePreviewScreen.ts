@@ -103,7 +103,7 @@ export function usePreviewScreen() {
   const transientLocalPreviewNotice = useMemo(() => {
     if (lastPreview?.source !== 'local') return null;
     if (previewSource) return null;
-    return 'Die letzte lokale HTML-Preview war nur temporär und ist nach Restart/Rehydration nicht mehr verfügbar. Bitte Preview neu erstellen.';
+    return 'Der letzte lokale HTML-/Eval-Fallback war nur temporär und ist nach Restart/Rehydration nicht mehr verfügbar. Bitte die primäre Remote-Preview neu erstellen.';
   }, [lastPreview?.source, previewSource]);
   const displayState = useMemo(
     () =>
@@ -133,7 +133,7 @@ export function usePreviewScreen() {
   const previewChannelLabel = useMemo(() => {
     if (displayState.kind === 'remote_ready') return getPreviewChannelLabel(previewKind);
     if (displayState.kind === 'fallback_active') {
-      return 'Technischer Fallback: Lokale HTML-Preview (eingeschränkt, nicht server-verifiziert)';
+      return 'Lokaler HTML-/Eval-Fallback (eingeschränkt, nicht server-verifiziert, nur Best-Effort)';
     }
     if (previewKind === 'supabase') {
       return 'Remote-Preview derzeit nicht verifiziert';

@@ -26,6 +26,12 @@ type DeviceFrameProps = {
   onCreate: () => void;
 };
 
+function getLoadingLabel(phase: PreviewPhase, previewSource: PreviewSource): string {
+  if (phase === 'creating') return 'Primäre Remote-Preview wird angefragt…';
+  if (previewSource?.type === 'html') return 'Lokaler Dev-Fallback lädt…';
+  return 'Remote-Preview lädt…';
+}
+
 export function DeviceFrame({
   webViewRef,
   previewSource,
@@ -82,9 +88,7 @@ export function DeviceFrame({
             {(phase === 'loading' || phase === 'creating') && (
               <View style={s.loadingOverlay}>
                 <ActivityIndicator size="large" color={theme.palette.primary} />
-                <Text style={s.loadingOverlayText}>
-                  {phase === 'creating' ? 'Preview wird generiert…' : 'Laden…'}
-                </Text>
+                <Text style={s.loadingOverlayText}>{getLoadingLabel(phase, previewSource)}</Text>
               </View>
             )}
           </Animated.View>
@@ -93,7 +97,7 @@ export function DeviceFrame({
             {phase === 'creating' ? (
               <>
                 <ActivityIndicator size="large" color={theme.palette.primary} />
-                <Text style={s.emptyPreviewText}>Preview wird erstellt…</Text>
+                <Text style={s.emptyPreviewText}>Primäre Remote-Preview wird erstellt…</Text>
               </>
             ) : (
               <>
@@ -101,7 +105,7 @@ export function DeviceFrame({
                 <Text style={s.emptyPreviewText}>Noch keine Preview</Text>
                 <Pressable style={s.createBtn} onPress={onCreate}>
                   <Ionicons name="play-outline" size={16} color={theme.palette.primary} />
-                  <Text style={s.createBtnText}>Preview erstellen</Text>
+                  <Text style={s.createBtnText}>Remote-Preview erstellen</Text>
                 </Pressable>
               </>
             )}

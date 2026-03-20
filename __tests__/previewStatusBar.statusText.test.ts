@@ -25,7 +25,7 @@ describe("PreviewStatusBar status text semantics", () => {
       React.createElement(PreviewStatusBar, {
         phase: "ready",
         displayState,
-        previewChannelLabel: "Technischer Fallback: Lokale HTML-Preview (nur solange App aktiv ist)",
+        previewChannelLabel: "Lokaler HTML-/Eval-Fallback (nur Dev/Best-Effort, nur solange App aktiv ist)",
         previewExpiryText: "Kein Ablauf hinterlegt (letzter bekannter Stand)",
         transientLocalPreviewNotice: null,
         pulseAnim: new Animated.Value(1),
@@ -37,8 +37,8 @@ describe("PreviewStatusBar status text semantics", () => {
       }),
     );
 
-    expect(screen.getByText("Lokaler Fallback aktiv")).toBeTruthy();
-    expect(screen.getByText("Fallback")).toBeTruthy();
+    expect(screen.getByText("Lokaler Dev-Fallback aktiv")).toBeTruthy();
+    expect(screen.getByText("Dev-Fallback")).toBeTruthy();
     expect(
       screen.getByText("Preview-Server derzeit nicht erreichbar."),
     ).toBeTruthy();
@@ -47,7 +47,7 @@ describe("PreviewStatusBar status text semantics", () => {
   it("keeps a transient local rehydration notice visible when provided", () => {
     expect(
       getTransientPreviewNotice(
-        "Die letzte lokale HTML-Preview war nur temporär und ist nach Restart/Rehydration nicht mehr verfügbar. Bitte Preview neu erstellen.",
+        "Der letzte lokale HTML-/Eval-Fallback war nur temporär und ist nach Restart/Rehydration nicht mehr verfügbar. Bitte die primäre Remote-Preview neu erstellen.",
       ),
     ).toContain("nur temporär");
   });

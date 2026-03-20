@@ -2,7 +2,9 @@
 // REFACTORED: helpers → sandpackHelpers.ts
 
 // lib/sandpackBuilder.ts
-// Builds React Preview HTML using CDN imports (no Sandpack dependency)
+// Builds the local HTML/Eval preview fallback only.
+// This is intentionally not the product SoT: the primary path is the trusted remote WebView preview.
+// Uses CDN imports + Babel + new Function on purpose as a dev-/best-effort-only fallback.
 
 import {
   sanitizeTitle,
@@ -158,17 +160,17 @@ export function buildSandpackHtml(opts: SandpackOptions): string {
   <div class="header">
     <div class="header-left">
       <div class="title">${safeTitle}</div>
-      <div class="meta">React Preview • ${fileCount} Dateien</div>
+      <div class="meta">Lokaler HTML-/Eval-Fallback • ${fileCount} Dateien • nicht server-verifiziert</div>
     </div>
     <div class="status">
       <span class="status-dot" id="statusDot"></span>
-      <span id="statusText">Bereit</span>
+      <span id="statusText">Dev-Fallback bereit</span>
     </div>
   </div>
 
   <div id="loading">
     <div class="spinner"></div>
-    <div class="loading-text">Lade React...</div>
+    <div class="loading-text">Lade lokalen Dev-Fallback...</div>
   </div>
   
   <div id="app-root"></div>
@@ -330,6 +332,7 @@ try {
         return {};
       };
 
+      // Intentional local fallback only: compile isolated preview code into the in-memory WebView runtime.
       const fn = new Function(
         "React",
         "exports",
@@ -363,11 +366,11 @@ try {
           lineHeight: 1.4,
         },
       },
-      React.createElement("h2", { style: { margin: 0 } }, "Preview (Fallback)"),
+      React.createElement("h2", { style: { margin: 0 } }, "Lokaler Dev-Fallback"),
       React.createElement(
         "p",
         { style: { opacity: 0.8 } },
-        "Lokales Fallback (ohne Supabase). Dateien: ",
+        "Lokaler HTML-/Eval-Fallback (ohne Remote-Preview). Dateien: ",
         String(fileCount),
       ),
       userAppError
@@ -396,7 +399,7 @@ try {
   root.render(React.createElement(PreviewApp));
   
   statusDot.className = "status-dot";
-  statusTextEl.textContent = "Bereit";
+  statusTextEl.textContent = "Dev-Fallback bereit";
   
 } catch (e) {
   showError(e?.message || String(e));

@@ -1,6 +1,6 @@
 // hooks/usePreview.ts
-// Preview creation: prefer Supabase-hosted preview (save_preview -> preview_page).
-// Fallback: local HTML via buildSandpackHtml (best-effort).
+// Preview creation: prefer Supabase-hosted remote preview (save_preview -> preview_page) as product SoT.
+// Fallback: local HTML via buildSandpackHtml remains a dev-/best-effort-only path.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -123,14 +123,14 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
 
     if (isTransientLocal) {
       safeSetError(
-        "Hinweis: Die letzte Preview war ein lokaler HTML-Fallback und ist nach App-Neustart nicht mehr verfügbar. Bitte Preview neu erstellen.",
+        "Hinweis: Der letzte lokale HTML-/Eval-Fallback war nur temporaer und ist nach App-Neustart nicht mehr verfuegbar. Bitte die primaere Remote-Preview neu erstellen.",
       );
       return;
     }
 
     // Nur den transienten Hinweis zurücksetzen; andere Fehler bleiben erhalten.
     setError((prev) =>
-      prev?.startsWith("Hinweis: Die letzte Preview war ein lokaler HTML-Fallback") ? null : prev,
+      prev?.startsWith("Hinweis: Der letzte lokale HTML-/Eval-Fallback") ? null : prev,
     );
   }, [projectData?.lastPreview?.source, lastPreview?.source, lastPreview?.html, safeSetError]);
 
@@ -457,7 +457,7 @@ if (container) {
           );
         }
 
-        // 2) Fallback: Local HTML (technical fallback)
+        // 2) Fallback only: local HTML/Eval preview for dev/best-effort recovery.
         let html: string;
         try {
           html = buildSandpackHtml({
@@ -467,12 +467,12 @@ if (container) {
           });
         } catch (e) {
           logger.error("[usePreview] buildSandpackHtml failed", { err: e });
-          safeSetError("Local Preview konnte nicht erzeugt werden.");
+          safeSetError("Lokaler Dev-Fallback konnte nicht erzeugt werden.");
           return null;
         }
 
         if (!html || typeof html !== "string") {
-          safeSetError("Local Preview konnte nicht erzeugt werden.");
+          safeSetError("Lokaler Dev-Fallback konnte nicht erzeugt werden.");
           return null;
         }
 
