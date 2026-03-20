@@ -11,8 +11,9 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 493**.
+- Zuletzt abgeschlossen: **Patch 494**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
+- Patch 494 härtet `LocalRemoteDiffSection` gegen stale Async-Rückläufer und Kontext-Leaks: Repo-/Branch-Wechsel invalidieren jetzt laufende Diff-/Preview-Requests hart, resetten Items/Selection/Inline-/Modal-Preview ehrlich auf neutral, und der Preview-Cache ist an den aktiven Repo-/Branch-Kontext gebunden statt alte Diff-Wahrheit weiterzutragen.
 - Patch 493 härtet im GitHubReposScreen die EAS-Link-/Repo-Wahrheit: ein kleiner gemeinsamer Contract unterscheidet jetzt `verified`, `workflow_missing`, `project_missing`, `project_invalid`, `project_mismatch`, `auth_error`, `unknown` und `pending_recheck`, der Status-Check validiert die erwartete Project-ID ehrlich gegen `eas-project.json`, und der Link-Flow meldet nach dem Write nur noch echte Verifikation oder klares Re-Check-Pending statt voreiligem „linked/ok“.
 - Patch 491 härtet die Diagnostics-Fix-Engine fachlich und semantisch: Advisory, lokaler Patch-Fix, Workflow-Dispatch, Blocker, Fehlversuch und Re-Check-Pending laufen jetzt über einen kleinen gemeinsamen Result-Contract; leere/no-op oder guard-blockierte Patches enden nicht mehr als „behoben“, Workflow-only-Fixes wirken nicht mehr wie lokal repariert, und Badge-/Action-/Toast-Texte sprechen dieselbe Wahrheit.
 - Patch 490 härtet den CredentialsWizard fachlich und semantisch: verifiziert/fehlt/unklar/auth_error/generated_pending/busy werden jetzt getrennt modelliert, Generate signalisiert nicht mehr voreilig Erfolg, und Refresh-/Recheck-Pfade bleiben auch bei Auth-/temporären Fehlern ehrlich und konservativ.

@@ -16,6 +16,13 @@ type DiffItem = {
   detail?: string;
 };
 
+type PreviewCacheEntry = {
+  status: DiffItem["status"];
+  local: string;
+  remote: string;
+  diff: string;
+};
+
 function statusGlyph(s: DiffItem["status"]) {
   // "Git-like" signals: + = local add, - = remote-only (missing locally), ± = modified
   if (s === "localOnly") return "+";
@@ -145,8 +152,9 @@ export function LocalRemoteDiffSection(props: {
   const [inlineMode, setInlineMode] = useState(true);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const genRef = useRef(0);
+  const previewReqRef = useRef(0);
 
-  const previewCacheRef = useRef(new Map<string, { status: DiffItem["status"]; local: string; remote: string; diff: string }>());
+  const previewCacheRef = useRef(new Map<string, PreviewCacheEntry>());
   const [inlineOpenPath, setInlineOpenPath] = useState<string | null>(null);
   const [inlineOpenAll, setInlineOpenAll] = useState(false);
   const [inlineLoadingPath, setInlineLoadingPath] = useState<string | null>(null);
@@ -166,22 +174,62 @@ export function LocalRemoteDiffSection(props: {
       .map((f) => ({ path: String(f.path), content: String((f as any).content ?? "") }));
   }, [projectFiles]);
 
+  const contextKey = useMemo(() => `${activeRepo ?? ""}@@${branch}`, [activeRepo, branch]);
+
+  const getPreviewCacheKey = useCallback((path: string) => `${contextKey}::${normalizeRepoPath(path)}`, [contextKey]);
+
+  const invalidateAsyncState = useCallback(() => {
+    genRef.current += 1;
+    previewReqRef.current += 1;
+  }, []);
+
+  const resetContextState = useCallback(() => {
+    setItems([]);
+    setNote("");
+    setLoading(false);
+    setSelected({});
+    setInlineOpenPath(null);
+    setInlineOpenAll(false);
+    setInlineLoadingPath(null);
+    setPreviewOpen(false);
+    setPreviewPath("");
+    setPreviewStatus("same");
+    setPreviewLoading(false);
+    setPreviewLocal("");
+    setPreviewRemote("");
+    setPreviewDiff("");
+    previewCacheRef.current.clear();
+  }, []);
+
   const load = useCallback(async () => {
     if (!parsed) {
-      setItems([]);
+      resetContextState();
       setNote("Kein Repo gewählt.");
       return;
     }
     if (!local.length) {
-      setItems([]);
+      resetContextState();
       setNote("Keine lokalen Projektdateien gefunden.");
       return;
     }
 
-    const myGen = ++genRef.current;
+    invalidateAsyncState();
+    const myGen = genRef.current;
     setLoading(true);
     setItems([]);
     setNote("");
+    setSelected({});
+    setInlineOpenPath(null);
+    setInlineOpenAll(false);
+    setInlineLoadingPath(null);
+    setPreviewOpen(false);
+    setPreviewPath("");
+    setPreviewStatus("same");
+    setPreviewLoading(false);
+    setPreviewLocal("");
+    setPreviewRemote("");
+    setPreviewDiff("");
+    previewCacheRef.current.clear();
 
     // Safety: keep API calls reasonable.
     const MAX = 60;
@@ -251,14 +299,12 @@ export function LocalRemoteDiffSection(props: {
     }
     setSelected(nextSel);
     setLoading(false);
-  }, [parsed, local, branch]);
+  }, [parsed, local, branch, invalidateAsyncState, resetContextState]);
 
   useEffect(() => {
-    // Best-effort auto refresh when switching repo/branch.
-    setItems([]);
-    setNote("");
-    setLoading(false);
-  }, [activeRepo, activeBranch]);
+    invalidateAsyncState();
+    resetContextState();
+  }, [contextKey, invalidateAsyncState, resetContextState]);
 
   const summary = useMemo(() => {
     const c = (s: DiffItem["status"]) => items.filter((i) => i.status === s).length;
@@ -290,13 +336,23 @@ export function LocalRemoteDiffSection(props: {
       const p = normalizeRepoPath(it.path);
       if (!p) return;
 
-      if (!opts?.silent) setPreviewOpen(true);
-      setPreviewPath(p);
-      setPreviewStatus(it.status);
-      setPreviewLoading(true);
-      setPreviewLocal("");
-      setPreviewRemote("");
-      setPreviewDiff("");
+      const requestId = ++previewReqRef.current;
+      const previewContextKey = contextKey;
+      const commitPreviewState = (updater: () => void) => {
+        if (requestId !== previewReqRef.current || previewContextKey !== contextKey) return false;
+        updater();
+        return true;
+      };
+
+      commitPreviewState(() => {
+        if (!opts?.silent) setPreviewOpen(true);
+        setPreviewPath(p);
+        setPreviewStatus(it.status);
+        setPreviewLoading(true);
+        setPreviewLocal("");
+        setPreviewRemote("");
+        setPreviewDiff("");
+      });
 
       try {
         const localText = localMap.get(p) ?? "";
@@ -310,33 +366,34 @@ export function LocalRemoteDiffSection(props: {
           }
         }
 
-        setPreviewLocal(localText);
-        setPreviewRemote(remoteText);
-
-        // cache for inline preview
-        previewCacheRef.current.set(p, { status: it.status, local: localText, remote: remoteText, diff: "" });
-
+        let diffText = "";
         if (it.status === "modified") {
           const raw = unifiedLineDiff(localText, remoteText);
-          const compact = compactUnifiedDiff(raw);
-          setPreviewDiff(compact);
-          previewCacheRef.current.set(p, { status: it.status, local: localText, remote: remoteText, diff: compact });
+          diffText = compactUnifiedDiff(raw);
         } else if (it.status === "localOnly") {
-          const msg = "(Nur lokal vorhanden)\n+ Datei wird beim Push erstellt.";
-          setPreviewDiff(msg);
-          previewCacheRef.current.set(p, { status: it.status, local: localText, remote: remoteText, diff: msg });
+          diffText = "(Nur lokal vorhanden)\n+ Datei wird beim Push erstellt.";
         } else if (it.status === "remoteOnly") {
-          const msg = "(Nur online vorhanden)\n- Datei fehlt lokal. Pull würde sie holen.";
-          setPreviewDiff(msg);
-          previewCacheRef.current.set(p, { status: it.status, local: localText, remote: remoteText, diff: msg });
-        } else {
-          setPreviewDiff("");
+          diffText = "(Nur online vorhanden)\n- Datei fehlt lokal. Pull würde sie holen.";
         }
+
+        commitPreviewState(() => {
+          setPreviewLocal(localText);
+          setPreviewRemote(remoteText);
+          setPreviewDiff(diffText);
+          previewCacheRef.current.set(getPreviewCacheKey(p), {
+            status: it.status,
+            local: localText,
+            remote: remoteText,
+            diff: diffText,
+          });
+        });
       } finally {
-        setPreviewLoading(false);
+        commitPreviewState(() => {
+          setPreviewLoading(false);
+        });
       }
     },
-    [parsed, branch, localMap],
+    [parsed, branch, localMap, contextKey, getPreviewCacheKey],
   );
 
   const pushablePaths = useMemo(() => {
@@ -381,7 +438,12 @@ export function LocalRemoteDiffSection(props: {
         <Text style={styles.sectionTitle}>Diff Lokal ↔ Online</Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           {loading ? <ActivityIndicator size="small" color={theme.palette.primary} /> : null}
-          <TouchableOpacity style={styles.iconBtn} onPress={load} disabled={!parsed || loading}>
+          <TouchableOpacity
+            testID="local-remote-diff-refresh"
+            style={styles.iconBtn}
+            onPress={load}
+            disabled={!parsed || loading}
+          >
             <Ionicons
               name="refresh"
               size={18}
@@ -574,7 +636,7 @@ export function LocalRemoteDiffSection(props: {
 	          const pushable = i.status === "modified" || i.status === "localOnly";
 	          const checked = !!selected[i.path];
 	          const isOpen = inlineMode && (inlineOpenAll || inlineOpenPath === i.path);
-	          const cached = previewCacheRef.current.get(i.path);
+	          const cached = previewCacheRef.current.get(getPreviewCacheKey(i.path));
 	          const needsLoad = inlineMode && isOpen && !cached;
 	          return (
 	            <View style={{ marginBottom: 2 }}>
@@ -594,7 +656,7 @@ export function LocalRemoteDiffSection(props: {
 	                    setInlineOpenPath(p);
 	                  }
 
-	                  const c = previewCacheRef.current.get(p);
+	                  const c = previewCacheRef.current.get(getPreviewCacheKey(p));
 	                  if (!c) {
 	                    setInlineLoadingPath(p);
 	                    try {
@@ -672,7 +734,7 @@ export function LocalRemoteDiffSection(props: {
 	                        </TouchableOpacity>
 	                      ) : null}
 
-	                      {(previewCacheRef.current.get(i.path)?.diff || (needsLoad ? "" : "(keine Vorschau)"))
+	                      {(previewCacheRef.current.get(getPreviewCacheKey(i.path))?.diff || (needsLoad ? "" : "(keine Vorschau)"))
 	                        .split("\n")
 	                        .slice(0, 220)
 	                        .map((ln, idx) => (
@@ -687,7 +749,7 @@ export function LocalRemoteDiffSection(props: {
 	                    <TouchableOpacity
 	                      style={[styles.button, { flex: 1, paddingVertical: 8 }]}
 	                      onPress={async () => {
-	                        const cached2 = previewCacheRef.current.get(i.path);
+	                        const cached2 = previewCacheRef.current.get(getPreviewCacheKey(i.path));
 	                        const t = cached2?.diff || "";
 	                        await Clipboard.setStringAsync(t);
 	                        Alert.alert("✅", "Diff kopiert.");
