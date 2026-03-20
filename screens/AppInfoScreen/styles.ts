@@ -157,6 +157,9 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
   },
+  backupButtonStack: {
+    gap: 12,
+  },
   backupButton: {
     flex: 1,
     flexDirection: "row",
@@ -180,6 +183,63 @@ export const styles = StyleSheet.create({
   },
   restoreButtonText: {
     color: theme.palette.warning,
+  },
+
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: theme.palette.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.palette.primary,
+    padding: 18,
+    gap: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: theme.palette.text.primary,
+  },
+  modalDescription: {
+    fontSize: 13,
+    color: theme.palette.text.secondary,
+    lineHeight: 20,
+  },
+  modalHint: {
+    fontSize: 12,
+    color: theme.palette.primary,
+  },
+  modalInput: {
+    backgroundColor: theme.palette.input.background,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    color: theme.palette.text.primary,
+    borderWidth: 1,
+    borderColor: theme.palette.border,
+  },
+  modalError: {
+    fontSize: 12,
+    color: theme.palette.error,
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 4,
+  },
+  modalButton: {
+    flex: 1,
+  },
+  modalCancelButton: {
+    borderColor: theme.palette.border,
+  },
+  modalCancelText: {
+    color: theme.palette.text.secondary,
   },
 
   // API Keys Display Styles

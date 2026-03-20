@@ -6,11 +6,12 @@ import { useAppInfoScreen } from "./hooks/useAppInfoScreen";
 import { styles } from "./styles";
 
 import { AppSettingsSection } from "./components/AppSettingsSection";
-import { FullBackupSection } from "./components/FullBackupSection";
+import { SecureBackupSection } from "./components/SecureBackupSection";
 import { ApiBackupSection } from "./components/ApiBackupSection";
 import { ActiveApiKeysSection } from "./components/ActiveApiKeysSection";
 import { TemplateInfoSection } from "./components/TemplateInfoSection";
 import { ProjectInfoSection } from "./components/ProjectInfoSection";
+import { BackupPassphraseModal } from "./components/BackupPassphraseModal";
 
 export default function AppInfoScreen() {
   const {
@@ -26,8 +27,13 @@ export default function AppInfoScreen() {
     handleChooseIcon,
     handleExportAPIConfig,
     handleImportAPIConfig,
-    handleExportFullBackup,
-    handleImportFullBackup,
+    handleExportSecretsBackup,
+    handleExportConfigSecretsBackup,
+    handleImportSecureBackup,
+    secureBackupRequest,
+    secureBackupBusy,
+    closeSecureBackupPrompt,
+    handleSubmitSecureBackupPassphrase,
     fileCount,
     messageCount,
     assetsStatus,
@@ -51,10 +57,11 @@ export default function AppInfoScreen() {
           handleChooseIcon={handleChooseIcon}
         />
 
-        <FullBackupSection
+        <SecureBackupSection
           styles={styles}
-          handleExportFullBackup={handleExportFullBackup}
-          handleImportFullBackup={handleImportFullBackup}
+          handleExportSecretsBackup={handleExportSecretsBackup}
+          handleExportConfigSecretsBackup={handleExportConfigSecretsBackup}
+          handleImportSecureBackup={handleImportSecureBackup}
         />
 
         <ApiBackupSection
@@ -74,6 +81,16 @@ export default function AppInfoScreen() {
           messageCount={messageCount}
         />
       </ScrollView>
+
+      <BackupPassphraseModal
+        styles={styles}
+        visible={!!secureBackupRequest}
+        busy={secureBackupBusy}
+        mode={secureBackupRequest?.mode ?? "import"}
+        scope={secureBackupRequest?.mode === "export" ? secureBackupRequest.scope : undefined}
+        onClose={closeSecureBackupPrompt}
+        onSubmit={handleSubmitSecureBackupPassphrase}
+      />
     </SafeAreaView>
   );
 }
