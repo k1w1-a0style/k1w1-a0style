@@ -189,6 +189,29 @@ describe("LocalRemoteDiffSection truthfulness", () => {
     expect(screen.getByText("Push (0)")).toBeTruthy();
   });
 
+
+  it("ignores late diff loads after unmount", async () => {
+    const deferred = createDeferred<string>();
+
+    mockGetRepoFileText.mockImplementation(({ repo, path }: { repo: string; path: string }) => {
+      if (repo === "repo-a" && path === "shared.ts") return deferred.promise;
+      throw new Error(`Unexpected getRepoFileText call for ${repo}/${path}`);
+    });
+
+    const screen = renderSection();
+
+    fireEvent.press(screen.getByTestId("local-remote-diff-refresh"));
+    screen.unmount();
+
+    await act(async () => {
+      deferred.resolve("remote repo-a");
+      await deferred.promise;
+    });
+    await flushMicrotasks();
+
+    expect(mockGetRepoFileText).toHaveBeenCalledTimes(1);
+  });
+
   it("prevents stale modal or inline previews from showing old diffs after a context switch", async () => {
     const previewDeferred = createDeferred<string>();
 
