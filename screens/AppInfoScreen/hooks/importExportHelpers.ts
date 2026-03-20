@@ -1,48 +1,22 @@
-// screens/AppInfoScreen/hooks/importExportHelpers.ts
-// Extracted from useAppInfoScreen.ts: import/export utility functions.
-
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert } from "react-native";
-
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
-import * as ImagePicker from "expo-image-picker";
 import * as Sharing from "expo-sharing";
 
-import { useProject } from "../../../contexts/ProjectContext";
-import { useAI, type AllAIProviders } from "../../../contexts/AIContext";
+import { validateApiBackupJson } from "../../../lib/appInfoBackup";
 import {
-  sanitizeAiConfigFromBackup,
-  safeFormatBackupDate,
-  validateApiBackupJson,
-} from "../../../lib/appInfoBackup";
-import { STORAGE_KEYS } from "../../../lib/storageKeys";
-import { useGitHub } from "../../../contexts/GitHubContext";
-import {
-  getGitHubToken,
-  saveGitHubToken,
-  deleteGitHubToken,
-  getExpoToken,
-  saveExpoToken,
-  deleteExpoToken,
-  getEdgeAdminKey,
-  saveEdgeAdminKey,
-  deleteEdgeAdminKey,
-  getSigningMasterKey,
-  saveSigningMasterKey,
-  deleteSigningMasterKey,
-} from "../../../infra/github/githubService";
+  decryptScopedBackup,
+  encryptScopedBackup,
+  validateEncryptedScopedBackupJson,
+  type EncryptedScopedBackupV1,
+  type SecureBackupPayloadV1,
+  type SecureBackupScope,
+} from "../../../lib/appInfoScopedBackup";
 
-import { TEMPLATE_INFO, type FullBackupV1 } from "../types";
+import { TEMPLATE_INFO } from "../types";
 
-
-export const exportAPIConfig = async (config: any) => {
+export const exportAPIConfig = async (config: unknown) => {
   try {
-    const timestamp = new Date()
-      .toISOString()
-      .replace(/[:.]/g, "-")
-      .slice(0, 19);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const fileName = `k1w1-api-backup-${timestamp}.json`;
     const filePath = FileSystem.cacheDirectory + fileName;
 
@@ -50,14 +24,12 @@ export const exportAPIConfig = async (config: any) => {
       version: 1,
       exportDate: new Date().toISOString(),
       appVersion: TEMPLATE_INFO.version,
-      config: config,
+      config,
     };
 
-    await FileSystem.writeAsStringAsync(
-      filePath,
-      JSON.stringify(exportData, null, 2),
-      { encoding: FileSystem.EncodingType.UTF8 },
-    );
+    await FileSystem.writeAsStringAsync(filePath, JSON.stringify(exportData, null, 2), {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
 
     if (!(await Sharing.isAvailableAsync())) {
       throw new Error("Teilen ist auf diesem Gerät nicht verfügbar.");
@@ -65,7 +37,7 @@ export const exportAPIConfig = async (config: any) => {
 
     await Sharing.shareAsync(`file://${filePath}`, {
       mimeType: "application/json",
-      dialogTitle: "API-Konfiguration exportieren",
+      dialogTitle: "API-/KI-Konfiguration exportieren",
       UTI: "public.json",
     });
 
@@ -86,12 +58,9 @@ export const importAPIConfig = async () => {
       throw new Error("Import abgebrochen");
     }
 
-    const fileContent = await FileSystem.readAsStringAsync(
-      result.assets[0].uri,
-      {
-        encoding: FileSystem.EncodingType.UTF8,
-      },
-    );
+    const fileContent = await FileSystem.readAsStringAsync(result.assets[0].uri, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
 
     const importData = validateApiBackupJson(JSON.parse(fileContent));
 
@@ -108,23 +77,38 @@ export const importAPIConfig = async () => {
   }
 };
 
-// Voll-Backup (ALLE Tokens/Keys + AI Config + Connections + GitHub Auswahl)
-// ⚠️ Enthält SECRETS im Klartext. Datei nur sicher speichern!
+function backupFileNameForScope(scope: SecureBackupScope): string {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  return scope === "secrets"
+    ? `k1w1-secrets-backup-${timestamp}.json`
+    : `k1w1-config-secrets-backup-${timestamp}.json`;
+}
 
-export const exportFullBackup = async (data: FullBackupV1) => {
+function backupDialogTitleForScope(scope: SecureBackupScope): string {
+  return scope === "secrets"
+    ? "Secrets-/Token-Backup exportieren"
+    : "Gesichertes Konfig-Backup exportieren";
+}
+
+export const exportEncryptedScopedBackup = async (input: {
+  scope: SecureBackupScope;
+  passphrase: string;
+  payload: SecureBackupPayloadV1;
+}) => {
   try {
-    const timestamp = new Date()
-      .toISOString()
-      .replace(/[:.]/g, "-")
-      .slice(0, 19);
-    const fileName = `k1w1-full-backup-${timestamp}.json`;
+    const backup = await encryptScopedBackup({
+      scope: input.scope,
+      passphrase: input.passphrase,
+      appVersion: TEMPLATE_INFO.version,
+      payload: input.payload,
+    });
+
+    const fileName = backupFileNameForScope(input.scope);
     const filePath = FileSystem.cacheDirectory + fileName;
 
-    await FileSystem.writeAsStringAsync(
-      filePath,
-      JSON.stringify(data, null, 2),
-      { encoding: FileSystem.EncodingType.UTF8 },
-    );
+    await FileSystem.writeAsStringAsync(filePath, JSON.stringify(backup, null, 2), {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
 
     if (!(await Sharing.isAvailableAsync())) {
       throw new Error("Teilen ist auf diesem Gerät nicht verfügbar.");
@@ -132,17 +116,17 @@ export const exportFullBackup = async (data: FullBackupV1) => {
 
     await Sharing.shareAsync(`file://${filePath}`, {
       mimeType: "application/json",
-      dialogTitle: "Voll-Backup exportieren",
+      dialogTitle: backupDialogTitleForScope(input.scope),
       UTI: "public.json",
     });
 
-    return { success: true, fileName };
+    return { success: true, fileName, backup };
   } catch (error: any) {
     throw new Error(error?.message || "Export fehlgeschlagen");
   }
 };
 
-export const importFullBackup = async () => {
+export const importEncryptedScopedBackup = async (passphrase: string) => {
   try {
     const result = await DocumentPicker.getDocumentAsync({
       type: "application/json",
@@ -157,16 +141,15 @@ export const importFullBackup = async () => {
       encoding: FileSystem.EncodingType.UTF8,
     });
 
-    const importData = JSON.parse(fileContent);
-
-    if (!importData || importData.type !== "k1w1-full-backup" || importData.version !== 1) {
-      throw new Error("Ungültiges Backup-Format");
-    }
+    const encrypted = validateEncryptedScopedBackupJson(JSON.parse(fileContent));
+    const data = await decryptScopedBackup({ passphrase, backup: encrypted });
 
     return {
       success: true,
-      data: importData as FullBackupV1,
-      exportDate: importData.exportDate,
+      data,
+      exportDate: encrypted.exportDate,
+      scope: encrypted.scope,
+      encrypted,
     };
   } catch (error: any) {
     if (error.message.includes("abgebrochen")) {
@@ -174,4 +157,12 @@ export const importFullBackup = async () => {
     }
     throw new Error(error?.message || "Import fehlgeschlagen");
   }
+};
+
+export type ImportedEncryptedScopedBackup = {
+  success: true;
+  data: SecureBackupPayloadV1;
+  exportDate: string;
+  scope: SecureBackupScope;
+  encrypted: EncryptedScopedBackupV1;
 };
