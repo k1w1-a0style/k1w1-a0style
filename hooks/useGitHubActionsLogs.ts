@@ -199,13 +199,16 @@ export function useGitHubActionsLogs({
   }, [workflowRun?.status]);
 
   useEffect(() => {
-    setLogs([]);
-    setWorkflowRun(null);
-    setError(null);
-    setIsLoading(false);
-    isFetchPendingRef.current = false;
+    if (!githubRepo) {
+      setLogs([]);
+      setWorkflowRun(null);
+      setError(null);
+      setIsLoading(false);
+      isFetchPendingRef.current = false;
+      return;
+    }
 
-    if (!githubRepo || !autoRefresh) {
+    if (!autoRefresh) {
       return;
     }
 

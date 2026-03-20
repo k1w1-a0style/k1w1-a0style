@@ -138,6 +138,11 @@ export const s = StyleSheet.create({
     fontWeight: "800",
     maxWidth: 150,
   },
+  statusValueWrap: {
+    alignItems: "flex-end",
+    gap: 6,
+    maxWidth: 160,
+  },
 
   statusBadge: {
     fontSize: 11,
@@ -154,5 +159,13 @@ export const s = StyleSheet.create({
   badgeFail: {
     backgroundColor: theme.palette.error + "22",
     color: theme.palette.error,
+  },
+  statusBadgeWarn: {
+    backgroundColor: theme.palette.warning + "22",
+    color: theme.palette.warning,
+  },
+  statusBadgeNeutral: {
+    backgroundColor: theme.palette.cardHover,
+    color: theme.palette.text.secondary,
   },
 });

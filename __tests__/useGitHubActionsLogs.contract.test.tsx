@@ -146,4 +146,53 @@ describe('useGitHubActionsLogs edge contract mapping', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+  it('preserves the last known run state when autoRefresh is turned off', async () => {
+    const fetchMock = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        logsText: 'first-log-line',
+        run: {
+          id: 333,
+          run_number: 7,
+          status: 'completed',
+          conclusion: 'success',
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:01:00Z',
+          html_url: 'https://github.com/runs/333',
+        },
+      }),
+    });
+
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const { result, rerender } = renderHook<
+      ReturnType<typeof useGitHubActionsLogs>,
+      { autoRefresh: boolean }
+    >(
+      ({ autoRefresh }) =>
+        useGitHubActionsLogs({
+          githubRepo: 'owner/repo',
+          runId: 333,
+          workflowId: 'k1w1-ci-lite.yml',
+          autoRefresh,
+        }),
+      { initialProps: { autoRefresh: true } },
+    );
+
+    await act(async () => {
+      await result.current.refreshLogs();
+    });
+
+    expect(result.current.workflowRun?.id).toBe(333);
+    expect(result.current.logs).toHaveLength(1);
+
+    rerender({ autoRefresh: false });
+
+    expect(result.current.workflowRun?.id).toBe(333);
+    expect(result.current.logs).toEqual([
+      expect.objectContaining({ message: 'first-log-line' }),
+    ]);
+  });
+
 });

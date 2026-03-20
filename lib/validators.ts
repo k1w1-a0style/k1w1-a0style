@@ -162,7 +162,7 @@ export const validateChatInput = (
   if (raw.length > 10000) return { valid: false, error: 'Nachricht ist zu lang' };
 
   const hadXSS = XSS_DANGEROUS.test(raw);
-  const sanitized = hadXSS ? sanitizeChat(raw) : raw;
+  const sanitized = (hadXSS ? sanitizeChat(raw) : raw).trim();
 
   return { valid: true, sanitized, hadXSS };
 };

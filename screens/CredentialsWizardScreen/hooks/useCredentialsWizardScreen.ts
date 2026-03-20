@@ -36,6 +36,14 @@ import {
   normalizeModeForUi,
   normalizeModeForApi,
 } from "./credentialHelpers";
+import {
+  formatWizardBusyLabel,
+  resolveWizardStatusPresentation,
+  toGeneratedPendingStatus,
+  toGeneratedPendingStatusWithReason,
+  toWizardErrorStatus,
+  toWizardStatusResult,
+} from "../statusContract";
 
 const EMPTY_STATUS_BY_MODE: Record<UiModeId, StatusResult | null> = {
   dev: null,
@@ -106,9 +114,7 @@ export function useCredentialsWizardScreen() {
   const [showDebug, setShowDebug] = useState(false);
   const [showError, setShowError] = useState(false);
 
-  const runningRef = useRef(false);
-  const runningAllRef = useRef(false);
-  const generateRef = useRef(false);
+  const activeActionRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
 
   const safeSetLastError = useCallback(
@@ -255,19 +261,50 @@ export function useCredentialsWizardScreen() {
   }, [lastError]);
 
   function metaForStatus(s: StatusResult | null, mode: UiModeId) {
-    const isBusy = busy === `status:${mode}`;
-    if (isBusy) return { icon: "time-outline" as const, text: "prüfe…", color: paletteTextMuted() };
-    if (s?.exists) return { icon: "checkmark-circle-outline" as const, text: "Key vorhanden", color: paletteSuccess() };
-    if (s && !s.exists) return { icon: "close-circle-outline" as const, text: "kein Key", color: paletteError() };
-    return { icon: "help-circle-outline" as const, text: "unbekannt", color: paletteTextMuted() };
+    const presentation = resolveWizardStatusPresentation({
+      status: s,
+      mode,
+      busy,
+    });
+
+    const color =
+      presentation.colorToken === "ok"
+        ? paletteSuccess()
+        : presentation.colorToken === "error"
+          ? paletteError()
+          : presentation.colorToken === "warn"
+            ? theme.palette.warning
+            : paletteTextMuted();
+
+    return {
+      icon: presentation.icon,
+      text: presentation.text,
+      color,
+      detail: presentation.detail,
+      state: presentation.state,
+      requiresManualRecheck: presentation.requiresManualRecheck,
+      treatsAsMissing: presentation.treatsAsMissing,
+      treatsAsVerified: presentation.treatsAsVerified,
+    };
   }
 
-  async function refreshStatusCore(mode: UiModeId, opts?: { setBusy?: boolean }) {
-    const setBusyFlag = opts?.setBusy !== false;
+  const tryBeginAction = useCallback((nextBusy: string): boolean => {
+    if (activeActionRef.current) return false;
+    activeActionRef.current = nextBusy;
+    if (isMountedRef.current) setBusy(nextBusy);
+    return true;
+  }, []);
 
+  const finishAction = useCallback((nextBusy: string) => {
+    if (activeActionRef.current === nextBusy) activeActionRef.current = null;
+    if (isMountedRef.current) {
+      setBusy((prev) => (prev === nextBusy ? null : prev));
+    }
+  }, []);
+
+  async function refreshStatusCore(mode: UiModeId, opts?: { preservePendingOnError?: boolean }) {
     safeSetLastError(null);
     safeSetLastDebug(null);
-    if (setBusyFlag && isMountedRef.current) setBusy(`status:${mode}`);
 
     try {
       const apiMode = normalizeModeForApi(mode);
@@ -279,48 +316,68 @@ export function useCredentialsWizardScreen() {
       safeSetLastDebug(r.debug);
       if (!r.ok) {
         safeSetLastError(r.error);
-        if (isMountedRef.current) setStatusByMode((prev) => ({ ...prev, [mode]: { exists: false } }));
-        return;
+        if (isMountedRef.current) {
+          setStatusByMode((prev) => ({
+            ...prev,
+            [mode]:
+              opts?.preservePendingOnError && prev[mode]?.credentialState === "generated_pending_verification"
+                ? toGeneratedPendingStatusWithReason(prev[mode], "Statuscheck konnte den neuen Keystore noch nicht bestaetigen.")
+                : toWizardErrorStatus({
+                    previous: prev[mode],
+                    statusCode: r.debug.status ?? null,
+                    error: r.error,
+                  }),
+          }));
+        }
+        return false;
       }
 
-      const data = r.data as StatusResult;
+      const data = toWizardStatusResult(r.data as StatusResult);
       if (isMountedRef.current) setStatusByMode((prev) => ({ ...prev, [mode]: data }));
-      // Persist key status
       const credKey = credKeyForProjectUiMode({
         mode,
         projectScope: projectCredentialScope,
       });
       await AsyncStorage.setItem(credKey, data.exists ? "true" : "false").catch(() => {});
+      return true;
     } catch (e: unknown) {
       safeSetLastError(e);
-    } finally {
-      if (setBusyFlag && isMountedRef.current) setBusy(null);
+      if (isMountedRef.current) {
+        setStatusByMode((prev) => ({
+          ...prev,
+          [mode]:
+            prev[mode]?.credentialState === "generated_pending_verification"
+              ? toGeneratedPendingStatusWithReason(
+                  prev[mode],
+                  "Statuscheck konnte den neuen Keystore noch nicht bestaetigen.",
+                )
+              : toWizardErrorStatus({ previous: prev[mode], error: e }),
+        }));
+      }
+      return false;
     }
   }
 
   async function refreshStatus(mode: UiModeId) {
     if (!ensureCanRunOrAlert()) return;
 
-    // Prevent stacked calls on bad networks.
-    if (runningRef.current) return;
-    runningRef.current = true;
+    const actionKey = `status:${mode}`;
+    if (!tryBeginAction(actionKey)) return;
 
     try {
-      await refreshStatusCore(mode, { setBusy: true });
+      await refreshStatusCore(mode, { preservePendingOnError: true });
     } finally {
-      runningRef.current = false;
+      finishAction(actionKey);
     }
   }
 
   async function refreshAll() {
     if (!ensureCanRunOrAlert()) return;
 
-    // Separate guard so refreshAll doesn't deadlock with refreshStatus' guard.
-    if (runningAllRef.current) return;
-    runningAllRef.current = true;
+    const actionKey = "status:all";
+    if (!tryBeginAction(actionKey)) return;
 
     if (isMountedRef.current) {
-      setBusy("status:all");
       setLastError(null);
       setLastDebug(null);
     }
@@ -330,22 +387,21 @@ export function useCredentialsWizardScreen() {
       // eslint-disable-next-line no-restricted-syntax
       for (const m of MODES) {
         // eslint-disable-next-line no-await-in-loop
-        await refreshStatusCore(m.id, { setBusy: false });
+        await refreshStatusCore(m.id);
       }
       toast.show("Status aktualisiert");
     } finally {
-      runningAllRef.current = false;
-      if (isMountedRef.current) setBusy(null);
+      finishAction(actionKey);
     }
   }
 
   async function generate(mode: UiModeId) {
     if (!ensureCanRunOrAlert()) return;
-    if (generateRef.current) return;
-    generateRef.current = true;
+
+    const actionKey = `generate:${mode}`;
+    if (!tryBeginAction(actionKey)) return;
 
     if (isMountedRef.current) {
-      setBusy(`generate:${mode}`);
       setLastError(null);
       setLastDebug(null);
     }
@@ -362,6 +418,16 @@ export function useCredentialsWizardScreen() {
       safeSetLastDebug(r.debug);
       if (!r.ok) {
         safeSetLastError(r.error);
+        if (isMountedRef.current) {
+          setStatusByMode((prev) => ({
+            ...prev,
+            [mode]: toWizardErrorStatus({
+              previous: prev[mode],
+              statusCode: r.debug.status ?? null,
+              error: r.error,
+            }),
+          }));
+        }
         return;
       }
 
@@ -371,13 +437,31 @@ export function useCredentialsWizardScreen() {
         return;
       }
 
-      toast.show("Keystore erstellt");
-      await refreshStatus(mode);
+      if (isMountedRef.current) {
+        setStatusByMode((prev) => ({
+          ...prev,
+          [mode]: toGeneratedPendingStatus(prev[mode]),
+        }));
+      }
+
+      toast.show("Keystore erzeugt - Verifikation laeuft/steht noch aus");
+      await refreshStatusCore(mode, { preservePendingOnError: true });
     } catch (e: unknown) {
       safeSetLastError(e);
+      if (isMountedRef.current) {
+        setStatusByMode((prev) => ({
+          ...prev,
+          [mode]:
+            prev[mode]?.credentialState === "generated_pending_verification"
+              ? toGeneratedPendingStatusWithReason(
+                  prev[mode],
+                  "Statuscheck konnte den neuen Keystore noch nicht bestaetigen.",
+                )
+              : toWizardErrorStatus({ previous: prev[mode], error: e }),
+        }));
+      }
     } finally {
-      generateRef.current = false;
-      if (isMountedRef.current) setBusy(null);
+      finishAction(actionKey);
     }
   }
 
@@ -457,6 +541,7 @@ export function useCredentialsWizardScreen() {
     refreshStatus,
     refreshAll,
     generate,
+    formatBusyLabel: busy ? formatWizardBusyLabel(busy) : null,
 
     onCopyError,
     onCopyDebug,

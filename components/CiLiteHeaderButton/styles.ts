@@ -178,6 +178,11 @@ export const styles = StyleSheet.create({
   runMetaRow: {
     marginTop: 6,
   },
+  persistedHint: {
+    marginTop: 6,
+    color: theme.palette.text.secondary,
+    fontSize: 11,
+  },
   stepsCompactRow: {
     flexDirection: "row",
     gap: 10,
@@ -230,8 +235,37 @@ export const styles = StyleSheet.create({
     borderColor: `${theme.palette.error}44`,
     backgroundColor: "rgba(255,68,68,0.08)",
   },
-  errorText: {
+  messageTextWrap: {
     flex: 1,
+  },
+  errorTitle: {
+    color: theme.palette.error,
+    fontSize: 12,
+    fontWeight: "900",
+    marginBottom: 2,
+  },
+  errorText: {
+    color: theme.palette.text.primary,
+    fontSize: 12,
+  },
+  warningBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: `${theme.palette.warning}44`,
+    backgroundColor: `${theme.palette.warning}12`,
+  },
+  warningTitle: {
+    color: theme.palette.warning,
+    fontSize: 12,
+    fontWeight: "900",
+    marginBottom: 2,
+  },
+  warningText: {
     color: theme.palette.text.primary,
     fontSize: 12,
   },

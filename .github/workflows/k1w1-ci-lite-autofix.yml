@@ -33,10 +33,25 @@ jobs:
     env:
       JOB_ID: ${{ inputs.job_id }}
       TARGET_BRANCH: ${{ inputs.ref }}
-      ALLOWED_REF_REGEX: "^(work|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
+      ALLOWED_REF_REGEX: "^(work|codex|main|dev|develop|release/.+|feature/.+|hotfix/.+)$"
       WORKFLOW_VERSION: "399"
 
     steps:
+      - name: Determine target branch
+        id: target_ref
+        uses: ./.github/actions/determine-ref
+        with:
+          input_ref: ${{ inputs.ref }}
+          github_ref_name: ""
+          default_ref: ""
+          allowed_ref_regex: ${{ env.ALLOWED_REF_REGEX }}
+
+      - name: Export target branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "TARGET_BRANCH=${{ steps.target_ref.outputs.checkout_ref }}" >> "$GITHUB_ENV"
+
       - name: Run info
         shell: bash
         run: |

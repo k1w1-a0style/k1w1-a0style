@@ -2,6 +2,7 @@ import React from "react";
 import { render, fireEvent } from "@testing-library/react-native";
 
 import GitHubReposScreen from "../screens/GitHubReposScreen";
+import { getEasLinkPresentation } from "../screens/GitHubReposScreen/utils/easLinkContract";
 
 jest.mock("../screens/GitHubReposScreen/components/HeaderSection", () => ({
   HeaderSection: () => null,
@@ -122,6 +123,13 @@ const baseVM = (overrides: any = {}) => ({
   handleSyncSecrets: jest.fn(),
 
   handleOpenRepoOnGitHub: jest.fn(),
+
+  easProjectId: "11111111-1111-1111-1111-111111111111",
+  setEasProjectId: jest.fn(),
+  isEasLinking: false,
+  easLinkStatus: getEasLinkPresentation("verified"),
+  handleEasLinkStatusCheck: jest.fn(async () => getEasLinkPresentation("verified")),
+  handleEasLink: jest.fn(),
 
   loadBranches: jest.fn(),
   loadDefaultBranch: jest.fn(),

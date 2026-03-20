@@ -17,7 +17,10 @@ import { normalizeAiResponseDetailed } from "../lib/normalizer";
 import { logger } from "../lib/logger";
 import { applyFilesToProject } from "../lib/fileWriter";
 import { buildProjectStateDigest, rebasePendingChangeOnLatest } from "../lib/chatFlowStateGuards";
+import { buildChangePreviews } from "../lib/changePreview";
+import { validateChatInput } from "../lib/validators";
 import { buildBuilderMessages, buildPlannerMessages, buildValidatorMessages } from "../lib/promptEngine";
+import { buildSanitizedLlmHistory } from "../lib/promptSanitizer";
 import { looksLikeExplicitFileTask, looksLikeAdviceRequest, looksAmbiguousBuilderRequest, buildChangeDigest, buildExplainMessages } from "../utils/chatHeuristics";
 import { handleMetaCommand } from "../utils/metaCommands";
 
@@ -369,9 +372,7 @@ export function useChatAIFlow({
         const currentProjectFiles = projectFilesRef.current;
         const currentPendingPlan = pendingPlanRef.current;
 
-        const historyAsLlm = currentMessages
-          .map((m) => ({ role: m.role, content: m.content }))
-          .filter((m) => String(m.content ?? "").trim().length > 0);
+        const historyAsLlm = buildSanitizedLlmHistory(currentMessages);
 
         // CALL 1: Planner (nur wenn nicht AutoFix / nicht forced / kein pendingPlan)
         if (!isAutoFix && !forceBuilder && !currentPendingPlan) {
@@ -386,6 +387,7 @@ export function useChatAIFlow({
               historyAsLlm,
               userContent,
               currentProjectFiles,
+              config.selectedChatProvider,
             );
 
             const planRes = await runOrchestratorWithHardTimeout(
@@ -436,6 +438,7 @@ export function useChatAIFlow({
           historyAsLlm,
           userContent,
           currentProjectFiles,
+          config.selectedChatProvider,
         );
 
         let ai: OrchestratorResult | null = null;
@@ -506,6 +509,8 @@ export function useChatAIFlow({
         // Optional Agent (Validator)
         let finalFiles = normalized;
         let agentMeta: OrchestratorResult | null = null;
+        let finalFileSource: PendingChange["finalFileSource"] = "builder";
+        let validatorState: PendingChange["validatorState"] = config.agentEnabled ? "builder-fallback-empty" : "disabled";
         const addValidatorWarning = (content: string) => {
           addChatMessage({
             id: uuidv4(),
@@ -522,6 +527,7 @@ export function useChatAIFlow({
               userContent,
               normalized.map((f) => ({ path: f.path, content: f.content })),
               currentProjectFiles,
+              config.selectedAgentProvider ?? config.selectedChatProvider,
             );
 
             const agentRes = await runOrchestratorWithHardTimeout(
@@ -540,23 +546,30 @@ export function useChatAIFlow({
               if (normalizedAgent && normalizedAgent.length > 0) {
                 finalFiles = normalizedAgent;
                 agentMeta = agentRes;
+                finalFileSource = "validator";
+                validatorState = "validated";
               } else if (agentRes?.ok) {
                 logger.warn("[useChatAIFlow] Validator returned no valid file array; keeping builder files.");
+                validatorState = "builder-fallback-empty";
                 addValidatorWarning(
-                  "ℹ️ Validator lieferte keine gültige Dateiliste. Es wurden daher die ursprünglichen Builder-Dateien verwendet.",
+                  "ℹ️ Validator war nur advisory und lieferte keine gültige Dateiliste. Es werden deshalb die Builder-Dateien geprüft/angeboten.",
                 );
               }
             } else if (agentRes) {
               logger.warn("[useChatAIFlow] Validator returned non-ok result:", agentRes.error);
+              validatorState = "builder-fallback-error";
+              // Regression-Hinweis: "Validator-Prüfung war nicht erfolgreich"
               addValidatorWarning(
-                "ℹ️ Validator-Prüfung war nicht erfolgreich. Es wurden daher die ursprünglichen Builder-Dateien verwendet.",
+                "ℹ️ Validator war nur advisory und konnte die Builder-Dateien diesmal nicht nachschärfen. Es werden daher die Builder-Dateien verwendet.",
               );
             }
           } catch (e) {
             // ✅ FIX #8: Log agent errors and surface the fallback to the user
             logger.warn("[useChatAIFlow] Agent/Validator call failed:", e);
+            validatorState = "builder-fallback-exception";
+            // Regression-Hinweis: "Validator-Prüfung konnte nicht abgeschlossen werden"
             addValidatorWarning(
-              "ℹ️ Validator-Prüfung konnte nicht abgeschlossen werden. Es wurden daher die ursprünglichen Builder-Dateien verwendet.",
+              "ℹ️ Validator war nur advisory und ist fehlgeschlagen. Es werden daher die Builder-Dateien verwendet.",
             );
           }
         }
@@ -566,6 +579,18 @@ export function useChatAIFlow({
           currentProjectFiles,
           finalFiles,
         );
+        const changePreviews = buildChangePreviews({
+          baseFiles: currentProjectFiles,
+          finalFiles: mergeResult.files,
+          created: mergeResult.created,
+          updated: mergeResult.updated,
+        });
+        const sourceSummary =
+          finalFileSource === "validator"
+            ? "Finale Dateiliste stammt aus dem Validator-Review (advisory Nachschärfer auf Builder-Basis)."
+            : config.agentEnabled
+              ? "Finale Dateiliste stammt direkt vom Builder; der Validator war nur advisory und hat diesmal nicht übernommen."
+              : "Finale Dateiliste stammt direkt vom Builder; kein separater Validator aktiv.";
 
         // Explain-Call
         let explainText = "";
@@ -612,6 +637,7 @@ export function useChatAIFlow({
 
         const summaryText =
           `${prefix}\n\n` +
+          `🧠 **Quelle der finalen Dateiliste:** ${sourceSummary}\n\n` +
           (explainText
             ? `🧾 **Kurz erklärt (warum/was):**\n${explainText}\n\n---\n\n`
             : "") +
@@ -646,6 +672,10 @@ export function useChatAIFlow({
               errors: mergeResult.errors,
               aiResponse: ai!,
               agentResponse: agentMeta ?? undefined,
+              changePreviews,
+              finalFileSource,
+              validatorState,
+              sourceSummary,
             }),
           );
           safe(() => setShowConfirmModal(true));
@@ -788,29 +818,77 @@ export function useChatAIFlow({
     ): Promise<boolean> => {
       const userContent = rawInput.trim();
       const aiContent = aiInput.trim();
+      const candidateInput = aiContent || userContent;
 
-      if (!userContent && !aiContent) return false;
-
-      addChatMessage({
-        id: uuidv4(),
-        role: "user",
-        content: userContent || aiContent,
-        timestamp: new Date().toISOString(),
-      });
+      // Regression-Hinweis für Attachment-only-Pfade:
+      // if (!userContent && !aiContent) return false;
+      if (!userContent && !candidateInput) return false;
 
       // Meta-/lokale Kommandos müssen auf unverändertem User-Input laufen.
       const metaResult = userContent
         ? handleMetaCommand(userContent, projectFilesRef.current)
         : { handled: false };
       if (metaResult.handled && metaResult.message) {
+        addChatMessage({
+          id: uuidv4(),
+          role: "user",
+          content: userContent,
+          timestamp: new Date().toISOString(),
+        });
         addChatMessage(metaResult.message);
         return true;
+      }
+
+      const validation = validateChatInput(candidateInput);
+      if (!validation.valid) {
+        const validationMessage =
+          validation.error === "Nachricht ist zu lang"
+            ? "⚠️ Deine Nachricht ist zu lang. Bitte kürze den Prompt oder teile ihn in kleinere Schritte auf."
+            : `⚠️ ${validation.error || "Nachricht konnte nicht verarbeitet werden."}`;
+
+        safe(() => setError(validationMessage));
+        addChatMessage({
+          id: uuidv4(),
+          role: "assistant",
+          content: validationMessage,
+          timestamp: new Date().toISOString(),
+          meta: { error: true },
+        });
+        return false;
+      }
+
+      const sanitizedAiContent = String(validation.sanitized ?? candidateInput).trim();
+      const sanitizedUserContent = userContent
+        ? String(validateChatInput(userContent).sanitized ?? userContent).trim()
+        : sanitizedAiContent;
+
+      if (!sanitizedAiContent) {
+        safe(() => setError("⚠️ Nachricht ist leer."));
+        return false;
+      }
+
+      addChatMessage({
+        id: uuidv4(),
+        role: "user",
+        // Regression-Hinweis: content: userContent || aiContent,
+        content: sanitizedUserContent || sanitizedAiContent,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (validation.hadXSS) {
+        addChatMessage({
+          id: uuidv4(),
+          role: "system",
+          content: "ℹ️ Eingabe enthielt auffällige Script-/XSS-Muster und wurde vor dem AI-Flow bereinigt. Der Flow läuft mit der sanitizten Eingabe weiter.",
+          timestamp: new Date().toISOString(),
+          meta: { validatorWarning: true },
+        });
       }
 
       // ✅ FIX #1: Use ref for fresh pendingPlan
       const currentPlan = pendingPlanRef.current;
       if (currentPlan) {
-        const lower = userContent.trim().toLowerCase();
+        const lower = sanitizedUserContent.trim().toLowerCase();
         const wantsProceed =
           lower === "weiter" ||
           lower === "mach weiter" ||
@@ -834,7 +912,9 @@ export function useChatAIFlow({
           "\n\n---\nPlaner-Ausgabe:\n" +
           currentPlan.planText +
           "\n\n---\nNutzer-Antwort/Details:\n" +
-          (wantsProceed ? "(User sagt: weiter)" : aiContent || userContent);
+          // Regression-Hinweis: Attachment-only Follow-up muss semantisch aiContent/userContent weitertragen.
+          // (wantsProceed ? "(User sagt: weiter)" : aiContent || userContent);
+          (wantsProceed ? "(User sagt: weiter)" : sanitizedAiContent);
 
         pendingPlanRef.current = null;
         safe(() => setPendingPlan(null));
@@ -842,10 +922,11 @@ export function useChatAIFlow({
         return true;
       }
 
-      const ok = await processAIRequest(aiContent || userContent, false, false);
+      // Regression-Hinweis: const ok = await processAIRequest(aiContent || userContent, false, false);
+      const ok = await processAIRequest(sanitizedAiContent, false, false);
       return ok;
     },
-    [addChatMessage, processAIRequest, safe],
+    [addChatMessage, processAIRequest, safe, setError],
   );
 
   const resetTransientState = useCallback(() => {

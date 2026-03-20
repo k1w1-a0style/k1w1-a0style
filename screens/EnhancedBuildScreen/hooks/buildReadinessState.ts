@@ -1,10 +1,15 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { getBranchHeadSha } from "../../../infra/github/githubService";
+import { readPersistedCiLiteSelection } from "../../../lib/ciLitePersistence";
 import {
   STORAGE_KEYS,
   diagnosticLastOkKeyForSelection,
 } from "../../../lib/storageKeys";
+import {
+  normalizeVerificationContract,
+  type VerificationContractState,
+} from "../../../lib/status/verificationContract";
 
 type BuildReadinessStateDeps = {
   storageGetItem?: (key: string) => Promise<string | null>;
@@ -14,21 +19,27 @@ type BuildReadinessStateDeps = {
 export type BuildReadinessState = {
   hasDiagOk: boolean;
   hasCiLiteOk: boolean;
+  diagnosticState: VerificationContractState;
+  diagnosticReason: string | null;
   ciLiteReason: string | null;
+  ciLiteState: VerificationContractState;
   ciLiteStale: boolean;
 };
 
-const CI_LITE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
-const SHA_RE = /^[0-9a-f]{40}$/i;
-
-function normalizeRepoParts(repoFullName: string): { owner: string; repo: string } | null {
-  const normalized = String(repoFullName ?? "").trim();
-  const parts = normalized.split("/");
-  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
-  return {
-    owner: parts[0].trim(),
-    repo: parts[1].trim(),
-  };
+export function describeReadinessContract(params: {
+  area: "diagnostic" | "ci_lite";
+  state: VerificationContractState;
+  reason?: string | null;
+}): string {
+  if (params.reason) return params.reason;
+  if (params.area === "diagnostic") {
+    if (params.state === "verified") return "Letzter bekannter Diagnose-Check: OK";
+    if (params.state === "stale") return "Diagnose ist nicht mehr frisch bestaetigt.";
+    return "Diagnose wurde fuer dieses Repo/Branch noch nicht sicher bestaetigt.";
+  }
+  if (params.state === "verified") return "Letzter bekannter CI-Lite-Run: OK";
+  if (params.state === "stale") return "CI-Lite ist veraltet und sollte neu laufen.";
+  return "CI-Lite ist fuer dieses Repo/Branch derzeit nicht sicher bestaetigt.";
 }
 
 export async function readBuildReadinessState(params: {
@@ -45,66 +56,50 @@ export async function readBuildReadinessState(params: {
     linkedBranch: branchName,
   });
 
-  const [diagScopedVal, diagLegacyVal, lintOk, typeOk, lastRepo, lastBranch, lastRunAt, lastSha] =
-    await Promise.all([
-      storageGetItem(scopedDiagnosticKey).catch(() => null),
-      storageGetItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null),
-      storageGetItem(STORAGE_KEYS.CI_LITE_LINT_OK).catch(() => null),
-      storageGetItem(STORAGE_KEYS.CI_LITE_TYPECHECK_OK).catch(() => null),
-      storageGetItem(STORAGE_KEYS.CI_LITE_LAST_REPO).catch(() => null),
-      storageGetItem(STORAGE_KEYS.CI_LITE_LAST_BRANCH).catch(() => null),
-      storageGetItem(STORAGE_KEYS.CI_LITE_LAST_RUN_AT).catch(() => null),
-      storageGetItem(STORAGE_KEYS.CI_LITE_LAST_SHA).catch(() => null),
-    ]);
+  const [diagScopedVal, diagLegacyVal, persistedCiLite] = await Promise.all([
+    storageGetItem(scopedDiagnosticKey).catch(() => null),
+    storageGetItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null),
+    readPersistedCiLiteSelection({
+      repoFullName,
+      branchName,
+      requireGreen: true,
+      deps: {
+        storageGetItem,
+        readBranchHeadSha,
+      },
+    }),
+  ]);
 
   const diagVal = diagScopedVal ?? diagLegacyVal;
-  const repoMatches = (lastRepo ?? "").trim() === (repoFullName ?? "").trim();
-  const branchMatches = (lastBranch ?? "").trim() === (branchName ?? "").trim();
-  const runTs = Number(lastRunAt ?? "");
-  const stale = !Number.isFinite(runTs) || runTs <= 0 || Date.now() - runTs > CI_LITE_MAX_AGE_MS;
-
-  let reason: string | null = null;
-  if (diagVal !== "true") {
-    reason = "Diagnostik nicht gruen";
-  } else if (lintOk !== "true" || typeOk !== "true") {
-    reason = "CI-Lite Lint/Typecheck nicht gruen";
-  } else if (!repoMatches) {
-    reason = "CI-Lite gehoert zu anderem Repo";
-  } else if (!branchMatches) {
-    reason = "CI-Lite gehoert zu anderem Branch";
-  } else if (stale) {
-    reason = "CI-Lite ist veraltet";
-  } else if (!SHA_RE.test(String(lastSha ?? "").trim())) {
-    reason = "CI-Lite-SHA fehlt oder ist ungueltig";
-  } else {
-    const repoParts = normalizeRepoParts(repoFullName);
-    const branch = String(branchName ?? "").trim();
-    if (!repoParts || !branch) {
-      reason = "Repo oder Branch fehlen";
-    } else {
-      try {
-        const currentHeadSha = await readBranchHeadSha(
-          repoParts.owner,
-          repoParts.repo,
-          branch,
-        );
-        if (!SHA_RE.test(String(currentHeadSha ?? "").trim())) {
-          reason = "Branch-HEAD-SHA konnte nicht verifiziert werden";
-        } else if (
-          String(lastSha).trim().toLowerCase() !== String(currentHeadSha).trim().toLowerCase()
-        ) {
-          reason = "Repo/Branch wurden seit dem letzten gruenen CI-Lite-Run geaendert (SHA-Mismatch)";
-        }
-      } catch {
-        reason = "Branch-HEAD-SHA konnte nicht verifiziert werden";
-      }
-    }
-  }
+  const diagnosticContract = normalizeVerificationContract({
+    explicitState: diagVal === "true" ? "verified" : "unknown",
+  });
+  const ciLiteContract = normalizeVerificationContract({
+    explicitState: persistedCiLite.reason
+      ? (persistedCiLite.stale ? "stale" : "unknown")
+      : "verified",
+  });
+  const diagnosticReason = diagnosticContract.isVerified
+    ? null
+    : describeReadinessContract({
+        area: "diagnostic",
+        state: diagnosticContract.state,
+      });
+  const reason = ciLiteContract.isVerified
+    ? null
+    : describeReadinessContract({
+        area: "ci_lite",
+        state: ciLiteContract.state,
+        reason: persistedCiLite.reason,
+      });
 
   return {
-    hasDiagOk: diagVal === "true",
-    hasCiLiteOk: reason === null,
+    hasDiagOk: diagnosticContract.isVerified,
+    hasCiLiteOk: ciLiteContract.isVerified,
+    diagnosticState: diagnosticContract.state,
+    diagnosticReason,
     ciLiteReason: reason,
-    ciLiteStale: stale,
+    ciLiteState: ciLiteContract.state,
+    ciLiteStale: persistedCiLite.stale,
   };
 }

@@ -27,6 +27,18 @@ import { combineRepos, splitFullName, isValidRepoName } from "../utils/repos";
 import { normalizeProjectFiles } from "../utils/projectFiles";
 import { validateEasProjectId } from "../../ConnectionsScreen/utils/validation";
 import { markRepoSyncSignature } from "../../../lib/repoSyncOrchestration";
+import { executePullApply } from "../utils/pullApplySemantics";
+import { resolvePushPreparation } from "../utils/pushSelectionSemantics";
+import {
+  checkRepoEasLinkStatus,
+  getEasLinkPresentation,
+  resolveEasLinkWriteOutcome,
+  type EasLinkPresentation,
+} from "../utils/easLinkContract";
+import {
+  createEasLinkStatusRequestGuard,
+  type EasLinkStatusRequestToken,
+} from "../utils/easLinkStatusRequestGuard";
 import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
 import type { TemplateId, CoreTemplateId, ProjectFile } from "../../../shared/types/project";
 
@@ -146,7 +158,13 @@ export function useGitHubReposScreen() {
 
   const [easProjectId, setEasProjectId] = useState<string>("");
   const [isEasLinking, setIsEasLinking] = useState(false);
-  const [easLinkStatus, setEasLinkStatus] = useState<"unknown" | "ok" | "workflow_missing" | "project_missing" | "project_invalid">("unknown");
+  const [easLinkStatus, setEasLinkStatus] = useState<EasLinkPresentation>(getEasLinkPresentation("unknown"));
+  const easLinkContextKey = useMemo(() => {
+    const repo = (activeRepo || "").trim();
+    const branch = (activeBranch || "").trim();
+    return repo && branch ? `${repo}@@${branch}` : null;
+  }, [activeRepo, activeBranch]);
+  const easLinkStatusGuardRef = useRef(createEasLinkStatusRequestGuard(easLinkContextKey));
 
   // Manage Modal (used for branch operations)
   type ManageModalConfig = {
@@ -179,6 +197,18 @@ export function useGitHubReposScreen() {
   } = useGitHubRepos(token);
 
   const syncStatusRunRef = useRef(0);
+
+  useEffect(() => {
+    easLinkStatusGuardRef.current.setContextKey(easLinkContextKey);
+    setEasLinkStatus(
+      getEasLinkPresentation(
+        "unknown",
+        easLinkContextKey
+          ? "Pruefstatus fuer die aktuelle Repo-/Branch-Auswahl noch nicht geladen."
+          : "Repo oder Branch sind noch nicht ausgewaehlt.",
+      ),
+    );
+  }, [easLinkContextKey]);
 
   const refreshSyncStatus = useCallback(async () => {
     const runId = ++syncStatusRunRef.current;
@@ -655,26 +685,21 @@ export function useGitHubReposScreen() {
     const parsed = splitFullName(activeRepo);
     if (!parsed) return;
 
-    const selectedPaths = Object.entries(pushSelectedPaths)
-      .filter(([, v]) => !!v)
-      .map(([k]) => k);
+    const preparation = resolvePushPreparation({
+      activeBranch,
+      pushSelectedPaths,
+      localFiles: normalizedLocalFiles,
+    });
 
-    if (!selectedPaths.length) {
-      Alert.alert("⚠️", "Keine Dateien ausgewählt.");
+    if (!preparation.ok) {
+      Alert.alert(preparation.title, preparation.message);
       return;
     }
 
-    const selectedFiles: ProjectFile[] = normalizedLocalFiles
-      .filter((f) => selectedPaths.includes(f.path))
-      .map((f) => ({ path: f.path, content: f.content }));
+    const { branch, selectedFiles } = preparation;
 
     setIsPushing(true);
     try {
-      const branch = (activeBranch || "").trim();
-      if (!branch) {
-        Alert.alert("⚠️ Push", "Kein Branch ausgewählt.");
-        return;
-      }
       const pushedFiles = withCoreFiles(selectedFiles);
       await pushFilesToRepoAdvanced(
         parsed.owner,
@@ -688,7 +713,7 @@ export function useGitHubReposScreen() {
         files: pushedFiles,
       });
       setPushModalVisible(false);
-      refreshSyncStatus();
+      await refreshSyncStatus();
       Alert.alert(
         "✅ Push erfolgreich",
         `${parsed.owner}/${parsed.repo}@${branch}\nDer Push wurde als ein konsolidierter Git-Commit übertragen.`,
@@ -712,45 +737,25 @@ export function useGitHubReposScreen() {
 
     setIsPulling(true);
     try {
-      const localMap = new Map<string, ProjectFile>();
-      for (const lf of normalizedLocalFiles) localMap.set(lf.path, { path: lf.path, content: lf.content });
-
-      const remoteMap = new Map<string, ProjectFile>();
-      for (const rf of pullPreview.remote) {
-        const p = String(rf.path || "");
-        if (!p) continue;
-        remoteMap.set(p, { path: p, content: String(rf.content ?? "") });
-      }
-
-      const out: ProjectFile[] = [];
-      // Start with local-only files
-      for (const [p, lf] of localMap.entries()) {
-        if (!remoteMap.has(p)) out.push(lf);
-      }
-
-      // Add remote files (merge strategy)
-      for (const [p, rf] of remoteMap.entries()) {
-        const lf = localMap.get(p);
-        const isConflict = !!lf && String(lf.content ?? "") !== String(rf.content ?? "");
-        if (strategy === "skipConflicts" && isConflict) out.push(lf);
-        else out.push(rf);
-      }
-
-      updateProjectFiles(out);
-      await markRepoSyncSignature({
-        linkedRepo: activeRepo,
-        linkedBranch: activeBranch,
-        files: out,
+      const semantics = await executePullApply({
+        localFiles: normalizedLocalFiles,
+        remoteFiles: pullPreview.remote,
+        strategy,
+        updateProjectFiles,
+        markSyncSignature: async (files) => {
+          await markRepoSyncSignature({
+            linkedRepo: activeRepo,
+            linkedBranch: activeBranch,
+            files,
+          });
+        },
+        refreshSyncStatus,
       });
+
       setPullModalVisible(false);
       setPullPreview(null);
-      refreshSyncStatus();
-      Alert.alert(
-        "✅ Pull angewendet",
-        strategy === "overwrite"
-          ? "Remote Stand wurde übernommen (Konflikte überschrieben)."
-          : "Konflikte wurden übersprungen (lokal behalten).",
-      );
+      setPullProgress("");
+      Alert.alert(semantics.messageTitle, semantics.messageBody);
     } catch (e: any) {
       Alert.alert("❌ Pull Anwenden fehlgeschlagen", e?.message ?? "");
     } finally {
@@ -763,59 +768,47 @@ export function useGitHubReposScreen() {
     await Linking.openURL(`https://github.com/${activeRepo}`);
   }, [activeRepo]);
 
-  const handleEasLinkStatusCheck = useCallback(async () => {
+  const isCurrentEasLinkRequest = useCallback((requestId: number, contextKey: string | null) => {
+    if (!isMountedRef.current) return false;
+    return easLinkStatusGuardRef.current.isCurrent({ requestId, contextKey });
+  }, []);
+
+  const handleEasLinkStatusCheck = useCallback(async (): Promise<EasLinkPresentation | null> => {
     if (!activeRepo || !activeBranch) {
-      setEasLinkStatus("unknown");
-      return;
+      easLinkStatusGuardRef.current.invalidate();
+      const presentation = getEasLinkPresentation("unknown", "Repo oder Branch sind noch nicht ausgewaehlt.");
+      setEasLinkStatus(presentation);
+      return presentation;
     }
 
     const parsed = splitFullName(activeRepo);
     if (!parsed) {
-      setEasLinkStatus("unknown");
-      return;
+      easLinkStatusGuardRef.current.invalidate();
+      const presentation = getEasLinkPresentation("unknown", "Repo-Auswahl konnte nicht verarbeitet werden.");
+      setEasLinkStatus(presentation);
+      return presentation;
     }
 
-    const isNotFoundError = (e: unknown): boolean => {
-      const msg = String((e as any)?.message || "").toLowerCase();
-      return msg.includes("404") || msg.includes("not found");
-    };
-
-    try {
-      await getRepoFileText({
-        owner: parsed.owner,
-        repo: parsed.repo,
-        path: ".github/workflows/eas-link.yml",
-        ref: activeBranch,
-      });
-
-      let repoProjectId = "";
-      try {
-        const easProjectRaw = await getRepoFileText({
+    const contextKey = `${activeRepo}@@${activeBranch}`;
+    const requestToken = easLinkStatusGuardRef.current.begin(contextKey);
+    const presentation = await checkRepoEasLinkStatus({
+      expectedProjectId: easProjectId,
+      loadFile: (path: string) =>
+        getRepoFileText({
           owner: parsed.owner,
           repo: parsed.repo,
-          path: "eas-project.json",
+          path,
           ref: activeBranch,
-        });
-        const parsedJson = JSON.parse(String(easProjectRaw || "{}"));
-        repoProjectId = String(parsedJson?.projectId || "").trim();
-      } catch (e: any) {
-        if (isNotFoundError(e)) {
-          setEasLinkStatus("project_missing");
-          return;
-        }
-        if (e instanceof SyntaxError) {
-          setEasLinkStatus("project_invalid");
-          return;
-        }
-        throw e;
-      }
+        }),
+    });
 
-      setEasLinkStatus(repoProjectId ? "ok" : "project_invalid");
-    } catch (e: any) {
-      if (isNotFoundError(e)) setEasLinkStatus("workflow_missing");
-      else setEasLinkStatus("unknown");
+    if (!isCurrentEasLinkRequest(requestToken.requestId, requestToken.contextKey)) {
+      return null;
     }
-  }, [activeRepo, activeBranch]);
+
+    setEasLinkStatus(presentation);
+    return presentation;
+  }, [activeRepo, activeBranch, easProjectId, isCurrentEasLinkRequest]);
 
   const handleEasLink = useCallback(async () => {
     if (!activeRepo) {
@@ -837,13 +830,25 @@ export function useGitHubReposScreen() {
       return;
     }
 
+    const branch = (activeBranch || "").trim();
+    if (!branch) {
+      Alert.alert("⚠️", "Kein Branch ausgewählt.");
+      return;
+    }
+
+    const contextKey = `${activeRepo}@@${branch}`;
+    const writeToken = easLinkStatusGuardRef.current.begin(contextKey);
+
     setIsEasLinking(true);
+    if (isCurrentEasLinkRequest(writeToken.requestId, writeToken.contextKey)) {
+      setEasLinkStatus(
+        getEasLinkPresentation(
+          "pending_recheck",
+          "Schreibe `eas-project.json` und pruefe den Repo-Zustand danach erneut.",
+        ),
+      );
+    }
     try {
-      const branch = (activeBranch || "").trim();
-      if (!branch) {
-        Alert.alert("⚠️", "Kein Branch ausgewählt.");
-        return;
-      }
       const easProjectJsonPath = "eas-project.json";
       const content = JSON.stringify({ projectId: id }, null, 2) + "\n";
 
@@ -856,14 +861,48 @@ export function useGitHubReposScreen() {
         branch,
       );
 
-      await handleEasLinkStatusCheck();
-      Alert.alert("✅ EAS linked", `EAS Project ID geschrieben nach ${easProjectJsonPath}`);
+      if (!isCurrentEasLinkRequest(writeToken.requestId, writeToken.contextKey)) {
+        return;
+      }
+
+      const verification = await handleEasLinkStatusCheck();
+      if (!verification) {
+        return;
+      }
+
+      const recheckToken: EasLinkStatusRequestToken = {
+        requestId: easLinkStatusGuardRef.current.getCurrentRequestId(),
+        contextKey,
+      };
+      const writeOutcome = resolveEasLinkWriteOutcome({ verification });
+      if (isCurrentEasLinkRequest(recheckToken.requestId, recheckToken.contextKey)) {
+        setEasLinkStatus(writeOutcome);
+      }
+
+      if (!isCurrentEasLinkRequest(recheckToken.requestId, recheckToken.contextKey)) {
+        return;
+      }
+
+      if (writeOutcome.state === "verified") {
+        Alert.alert("✅ EAS verifiziert", "Projektdatei geschrieben und Repo-Link sauber bestaetigt.");
+        return;
+      }
+
+      if (writeOutcome.state === "pending_recheck") {
+        Alert.alert("ℹ️ EAS geschrieben", writeOutcome.detail);
+        return;
+      }
+
+      Alert.alert("⚠️ EAS geschrieben, aber nicht verifiziert", writeOutcome.detail);
     } catch (e: any) {
-      Alert.alert("❌ EAS link fehlgeschlagen", e?.message ?? "");
+      if (isCurrentEasLinkRequest(writeToken.requestId, writeToken.contextKey)) {
+        setEasLinkStatus(getEasLinkPresentation("unknown", "Schreiben oder Nachverifikation ist fehlgeschlagen."));
+        Alert.alert("❌ EAS link fehlgeschlagen", e?.message ?? "");
+      }
     } finally {
       setIsEasLinking(false);
     }
-  }, [activeRepo, activeBranch, easProjectId, handleEasLinkStatusCheck]);
+  }, [activeRepo, activeBranch, easProjectId, handleEasLinkStatusCheck, isCurrentEasLinkRequest]);
 
   const handleSyncSecrets = useCallback(async () => {
     if (!activeRepo) {

@@ -7,6 +7,7 @@ export interface PreviewState {
   isCreating: boolean;
   lastCreatedAt: number | null;
   error: string | null;
+  remoteFailure: string | null;
   fileCount: number;
   totalSize: number;
   skippedCount: number;
@@ -20,6 +21,26 @@ export type PreviewResult = {
 };
 
 export type PreviewAttemptMode = "supabase" | "local" | null | undefined;
+export type PreviewPhase = "idle" | "creating" | "loading" | "ready" | "error";
+export type PreviewRemoteUrlStatus =
+  | "missing"
+  | "invalid"
+  | "insecure"
+  | "trusted";
+export type PreviewDisplayKind =
+  | "loading"
+  | "remote_ready"
+  | "fallback_active"
+  | "unavailable"
+  | "failed";
+
+export interface PreviewDisplayState {
+  kind: PreviewDisplayKind;
+  tone: "neutral" | "ok" | "warning" | "error";
+  statusText: string;
+  detailText: string | null;
+  badgeText: string | null;
+}
 
 export const ALLOWED_EXTENSIONS = new Set([
   ".ts",
@@ -120,6 +141,198 @@ export function shouldAttemptSupabaseFirst(mode: PreviewAttemptMode): boolean {
   return mode !== "local";
 }
 
+function isTrustedLoopbackHost(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+}
+
+export function getPreviewRemoteUrlStatus(url: string | null | undefined): PreviewRemoteUrlStatus {
+  const raw = String(url ?? "").trim();
+  if (!raw) return "missing";
+
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return "invalid";
+  }
+
+  if (parsed.protocol === "https:") return "trusted";
+  if (parsed.protocol === "http:" && isTrustedLoopbackHost(parsed.hostname)) return "trusted";
+  if (parsed.protocol === "http:") return "insecure";
+  return "invalid";
+}
+
+export function describeRemotePreviewFailure(error: unknown): string {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "";
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes("timeout") ||
+    normalized.includes("network request failed") ||
+    normalized.includes("fetch failed") ||
+    normalized.includes("not reachable")
+  ) {
+    return "Preview-Server derzeit nicht erreichbar.";
+  }
+
+  if (
+    normalized.includes("missing edge admin key") ||
+    normalized.includes("unauthorized") ||
+    normalized.includes("forbidden") ||
+    normalized.includes("401") ||
+    normalized.includes("403")
+  ) {
+    return "Remote-Preview ist derzeit nicht verifizierbar.";
+  }
+
+  return "Remote-Preview konnte nicht zuverlässig bereitgestellt werden.";
+}
+
+interface ResolvePreviewDisplayStateOptions {
+  phase: PreviewPhase;
+  previewKind: "supabase" | "local" | null;
+  previewSourceType: "url" | "html" | null;
+  remoteUrlStatus: PreviewRemoteUrlStatus;
+  hasExpiredRemoteUrl: boolean;
+  remoteFailure: string | null;
+  stateError: string | null;
+  webError: string | null;
+  transientLocalPreviewNotice: string | null;
+}
+
+export function resolvePreviewDisplayState({
+  phase,
+  previewKind,
+  previewSourceType,
+  remoteUrlStatus,
+  hasExpiredRemoteUrl,
+  remoteFailure,
+  stateError,
+  webError,
+  transientLocalPreviewNotice,
+}: ResolvePreviewDisplayStateOptions): PreviewDisplayState {
+  if (phase === "creating" || phase === "loading") {
+    return {
+      kind: "loading",
+      tone: "warning",
+      statusText: "Preview wird geladen…",
+      detailText: remoteFailure,
+      badgeText: "Lädt",
+    };
+  }
+
+  const fatalError = webError ?? (phase === "error" ? stateError : null);
+  if (fatalError) {
+    return {
+      kind: "failed",
+      tone: "error",
+      statusText:
+        previewSourceType === "html"
+          ? "Lokaler Fallback fehlgeschlagen"
+          : "Preview fehlgeschlagen",
+      detailText: fatalError,
+      badgeText: "Fehler",
+    };
+  }
+
+  if (previewSourceType === "url" && previewKind === "supabase" && remoteUrlStatus === "trusted") {
+    return {
+      kind: "remote_ready",
+      tone: "ok",
+      statusText: "Remote-Preview bereit",
+      detailText: null,
+      badgeText: "Server",
+    };
+  }
+
+  if (previewSourceType === "html") {
+    return {
+      kind: "fallback_active",
+      tone: "warning",
+      statusText: "Lokaler Fallback aktiv",
+      detailText:
+        remoteFailure ??
+        "Nur lokaler HTML-Stand; Server-Preview ist damit nicht verifiziert.",
+      badgeText: "Fallback",
+    };
+  }
+
+  if (previewKind === "local" && transientLocalPreviewNotice) {
+    return {
+      kind: "unavailable",
+      tone: "neutral",
+      statusText: "Lokaler Fallback nicht verfügbar",
+      detailText: transientLocalPreviewNotice,
+      badgeText: "Nicht verfügbar",
+    };
+  }
+
+  if (previewKind === "supabase") {
+    if (hasExpiredRemoteUrl) {
+      return {
+        kind: "unavailable",
+        tone: "neutral",
+        statusText: "Remote-Preview abgelaufen",
+        detailText: "Die gespeicherte Server-Preview ist nicht mehr gültig. Bitte neu erstellen.",
+        badgeText: "Abgelaufen",
+      };
+    }
+
+    if (remoteUrlStatus === "missing") {
+      return {
+        kind: "unavailable",
+        tone: "neutral",
+        statusText: "Remote-Preview nicht verfügbar",
+        detailText: remoteFailure ?? "Es wurde keine verlässliche Preview-URL geliefert.",
+        badgeText: "Nicht verfügbar",
+      };
+    }
+
+    if (remoteUrlStatus === "invalid") {
+      return {
+        kind: "unavailable",
+        tone: "neutral",
+        statusText: "Remote-Preview blockiert",
+        detailText: "Die gespeicherte Preview-URL ist ungültig.",
+        badgeText: "Ungültig",
+      };
+    }
+
+    if (remoteUrlStatus === "insecure") {
+      return {
+        kind: "unavailable",
+        tone: "warning",
+        statusText: "Remote-Preview blockiert",
+        detailText: "Nur vertrauenswürdige HTTPS-Preview-Links werden geladen.",
+        badgeText: "Unsicher",
+      };
+    }
+  }
+
+  if (remoteFailure) {
+    return {
+      kind: "unavailable",
+      tone: "neutral",
+      statusText: "Remote-Preview nicht verfügbar",
+      detailText: remoteFailure,
+      badgeText: "Nicht verfügbar",
+    };
+  }
+
+  return {
+    kind: "unavailable",
+    tone: "neutral",
+    statusText: "Keine Preview verfügbar",
+    detailText: "Noch keine verlässliche Preview aktiv. Bitte neu erstellen.",
+    badgeText: null,
+  };
+}
+
 export function isPreviewExpired(expiresAt: string | null, now = new Date()): boolean {
   if (!expiresAt) return false;
   const expiry = new Date(expiresAt);
@@ -150,6 +363,10 @@ export function getPreviewChannelLabel(source: "supabase" | "local" | null): str
   if (source === "supabase") return "Aktive Supabase-Preview (Browser/QR)";
   if (source === "local") return "Technischer Fallback: Lokale HTML-Preview (nur solange App aktiv ist)";
   return "Noch keine Preview aktiv";
+}
+
+export function getPreviewMixedContentMode(): "never" {
+  return "never";
 }
 
 export function buildQrImageUrl(previewUrl: string): string {

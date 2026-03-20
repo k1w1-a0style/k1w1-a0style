@@ -1,8 +1,9 @@
 // lib/promptEngine.ts
 // Zentrale Prompt-Logik für den k1w1 APK-Builder
 
-
-import { CONFIG } from '../config';
+import { buildEffectiveChatWriteHint } from './effectiveWritePolicy';
+import { sanitizeFileContentForPrompt, sanitizeTextForLlm } from './promptSanitizer';
+import { trimPromptContextToBudget } from './aiContextBudget';
 
 import type { ProjectFile } from "../shared/types/project";
 export type LlmMessageRole = 'system' | 'user' | 'assistant';
@@ -58,7 +59,7 @@ function buildProjectSnapshot(files: ProjectFile[], userFocus = ''): string {
     .slice(0, MAX_FILES)
     .map(({ f, score }) => {
       const path = f.path;
-      const content = String(f.content ?? '');
+      const content = sanitizeFileContentForPrompt(f.path, String(f.content ?? ''));
       const lines = content.split('\n').slice(0, MAX_LINES_PER_FILE);
       const relevanceHint = score > 0 ? ` (relevance=${score})` : '';
       return `# ${path}${relevanceHint}\n${lines.join('\n')}`;
@@ -72,26 +73,7 @@ function buildProjectSnapshot(files: ProjectFile[], userFocus = ''): string {
 }
 
 function buildAllowedPathHint(): string {
-  try {
-    const roots = CONFIG?.PATHS?.ALLOWED_ROOT ?? [];
-    const singles = CONFIG?.PATHS?.ALLOWED_SINGLE ?? [];
-    const prefixes = CONFIG?.PATHS?.ALLOWED_PREFIXES ?? [];
-
-    const rootList = roots.length ? `ALLOWED_ROOT: ${roots.join(', ')}` : '';
-    const singleList = singles.length ? `ALLOWED_SINGLE: ${singles.join(', ')}` : '';
-    const prefixList = prefixes.length ? `ALLOWED_PREFIXES: ${prefixes.join(', ')}` : '';
-
-    const parts = [rootList, singleList, prefixList].filter(Boolean);
-    if (!parts.length) return '';
-
-    return (
-      'Erlaubte Pfade (Validator): ' +
-      parts.join(' | ') +
-      '. Lege neue Dateien nur innerhalb dieser Bereiche an.'
-    );
-  } catch {
-    return '';
-  }
+  return buildEffectiveChatWriteHint();
 }
 
 /**
@@ -103,6 +85,7 @@ export function buildPlannerMessages(
   history: LlmMessage[],
   userContent: string,
   projectFiles: ProjectFile[],
+  provider?: string | null,
 ): LlmMessage[] {
   const systemLines: string[] = [];
 
@@ -121,21 +104,29 @@ export function buildPlannerMessages(
 
   const systemMessage: LlmMessage = { role: 'system', content: systemLines.join('\n\n') };
 
-  const snapshot = buildProjectSnapshot(projectFiles, userContent);
+  const budgeted = trimPromptContextToBudget({
+    history,
+    projectFiles,
+    userContent,
+    mode: 'planner',
+    provider,
+  });
+
+  const snapshot = buildProjectSnapshot(budgeted.projectFiles, userContent);
   const projectMessage: LlmMessage = {
     role: 'system',
-    content: 'Kontext – aktueller Projektzustand:\n\n' + snapshot,
+    content: 'Kontext – aktueller Projektzustand:\n\n' + (budgeted.note ? `[intern] ${budgeted.note}\n\n` : '') + snapshot,
   };
 
   const MAX_HISTORY = 8;
-  const trimmedHistory = history.length > MAX_HISTORY ? history.slice(history.length - MAX_HISTORY) : history;
+  const recentHistory = budgeted.history.length > MAX_HISTORY ? budgeted.history.slice(budgeted.history.length - MAX_HISTORY) : budgeted.history;
 
   const userTask: LlmMessage = {
     role: 'user',
-    content: 'Nutzerwunsch:\n' + userContent + '\n\nBitte antworte als PLANER (Fragen ODER Plan+Dateiliste).',
+    content: 'Nutzerwunsch:\n' + sanitizeTextForLlm(userContent) + '\n\nBitte antworte als PLANER (Fragen ODER Plan+Dateiliste).',
   };
 
-  return [systemMessage, projectMessage, ...trimmedHistory, userTask];
+  return [systemMessage, projectMessage, ...recentHistory, userTask];
 }
 
 /**
@@ -145,6 +136,7 @@ export function buildBuilderMessages(
   history: LlmMessage[],
   userContent: string,
   projectFiles: ProjectFile[],
+  provider?: string | null,
 ): LlmMessage[] {
   const systemIntroLines: string[] = [];
 
@@ -184,27 +176,36 @@ export function buildBuilderMessages(
 
   const systemMessage: LlmMessage = { role: 'system', content: systemIntroLines.join('\n\n') };
 
-  const snapshot = buildProjectSnapshot(projectFiles, userContent);
+  const budgeted = trimPromptContextToBudget({
+    history,
+    projectFiles,
+    userContent,
+    mode: 'builder',
+    provider,
+  });
+
+  const snapshot = buildProjectSnapshot(budgeted.projectFiles, userContent);
   const projectMessage: LlmMessage = {
     role: 'system',
     content:
       'Kontext – aktueller Projektzustand:\n\n' +
+      (budgeted.note ? `[intern] ${budgeted.note}\n\n` : '') +
       snapshot +
       '\n\nNutze diesen Kontext, um nur die relevanten Dateien zu ändern oder zu ergänzen.',
   };
 
   const MAX_HISTORY = 10;
-  const trimmedHistory = history.length > MAX_HISTORY ? history.slice(history.length - MAX_HISTORY) : history;
+  const recentHistory = budgeted.history.length > MAX_HISTORY ? budgeted.history.slice(budgeted.history.length - MAX_HISTORY) : budgeted.history;
 
   const userTask: LlmMessage = {
     role: 'user',
     content:
       'Aufgabe (aktuelle User-Eingabe):\n' +
-      userContent +
+      sanitizeTextForLlm(userContent) +
       '\n\nDenke daran: Antworte ausschließlich mit einem JSON-Array von Dateien, ohne zusätzliche Erklärungen.',
   };
 
-  return [systemMessage, projectMessage, ...trimmedHistory, userTask];
+  return [systemMessage, projectMessage, ...recentHistory, userTask];
 }
 
 /**
@@ -214,6 +215,7 @@ export function buildValidatorMessages(
   originalUserRequest: string,
   aiFiles: ProjectFile[],
   projectFiles: ProjectFile[],
+  provider?: string | null,
 ): LlmMessage[] {
   const system: LlmMessage = {
     role: 'system',
@@ -223,22 +225,42 @@ export function buildValidatorMessages(
       'Prüfe Konsistenz/JSON/Pfade. Liefere ggf. ein korrigiertes JSON-Array zurück (wieder nur {path, content}).',
   };
 
-  const snapshot = buildProjectSnapshot(projectFiles, originalUserRequest);
+  const budgetedProject = trimPromptContextToBudget({
+    projectFiles,
+    userContent: originalUserRequest,
+    mode: 'validator',
+    provider,
+    extraTexts: aiFiles.map((file) => `${file.path}\n${String(file.content ?? '')}`),
+  });
+  const budgetedAiFiles = trimPromptContextToBudget({
+    projectFiles: aiFiles,
+    userContent: originalUserRequest,
+    mode: 'validator',
+    provider,
+  }).projectFiles;
+
+  const snapshot = buildProjectSnapshot(budgetedProject.projectFiles, originalUserRequest);
   const context: LlmMessage = {
     role: 'system',
-    content: 'Ausschnitt des aktuellen Projekts:\n\n' + snapshot,
+    content:
+      'Ausschnitt des aktuellen Projekts:\n\n' +
+      (budgetedProject.note ? `[intern] ${budgetedProject.note}\n\n` : '') +
+      snapshot,
   };
 
   const user: LlmMessage = {
     role: 'user',
     content:
       'Ursprüngliche Nutzeranfrage:\n' +
-      originalUserRequest +
+      sanitizeTextForLlm(originalUserRequest) +
       '\n\nHier sind die von der Haupt-KI erzeugten Dateien (JSON-Array). Prüfe sie und liefere ggf. ein verbessertes Array:',
   };
 
   const aiFilesJson = JSON.stringify(
-    aiFiles.map((f) => ({ path: f.path, content: String(f.content ?? '') })),
+    budgetedAiFiles.map((f) => ({
+      path: f.path,
+      content: sanitizeFileContentForPrompt(f.path, String(f.content ?? '')),
+    })),
     null,
     2,
   );
