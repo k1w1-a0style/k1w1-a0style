@@ -169,6 +169,17 @@ export function CiLiteModal(props: CiLiteModalProps) {
             </View>
           ) : null}
 
+          <View style={styles.warningBox}>
+            <Ionicons name="information-circle" size={16} color={theme.palette.warning} />
+            <View style={styles.messageTextWrap}>
+              <Text style={styles.warningTitle}>Dispatch-Quelle</Text>
+              <Text style={styles.warningText}>
+                CI Lite Dispatch liest den lokalen Edge Admin Key aus SecureStore. Ein bestaetigter Repo Secret
+                Name `K1W1_EDGE_ADMIN_KEY` allein macht diesen Start nicht bereit.
+              </Text>
+            </View>
+          </View>
+
           {/* Results */}
           <View style={styles.resultsHead}>
             <Text style={styles.resultsTitle}>Ergebnisse</Text>

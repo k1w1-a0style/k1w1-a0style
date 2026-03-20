@@ -11,7 +11,8 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 498**.
+- Zuletzt abgeschlossen: **Patch 499**.
+- Patch 499 trennt im GitHubReposScreen Repo-Secret-Namen und lokale Laufzeit-Credentials sichtbar: `SecretsSection` zeigt fuer `EXPO_TOKEN` und `K1W1_EDGE_ADMIN_KEY` jetzt getrennte Zeilen fuer `Repo Secret` vs. `Lokaler App-Wert`, warnt explizit davor, dass CI Lite / Edge Dispatch den lokalen SecureStore-Wert braucht, und laesst ein bestaetigtes Repo-Secret nicht mehr wie lokale Dispatch-Bereitschaft wirken.
 - Patch 498 zieht die Repo-Secret-Semantik im GitHubReposScreen auf denselben Verification-Contract wie Diagnostics: `SecretsSection` bewertet bestätigte GitHub-Secret-Namenslisten jetzt explizit als `verified` oder `missing`, mappt 401/403 sauber auf `auth_error`, generische Fetch-Fehler auf `unknown`, nutzt bei Recheck-Fehlschlag nach bereits bestätigter Liste `stale`, und rendert dadurch keine missing-/false-green UI mehr aus `names=[]` auf Fehlerpfaden.
 - Patch 497 härtet im Pipeline-Diagnostics-Scope die Repo-Secret-Wahrheit für `EXPO_TOKEN`, `SUPABASE_URL` und `SUPABASE_SERVICE_ROLE_KEY`: eine erfolgreich geladene GitHub-Secret-Namensliste wird jetzt explizit als bestätigt oder fehlend ausgewertet, `unknown`/`auth_error` entstehen nur noch auf echten Fehlerpfaden, und die Check-Titel/Fix-Hinweise behaupten keinen vorhandenen Secret-Status mehr ohne verifizierte Grundlage.
 - Patch 496 härtet im GitHubReposScreen die EAS-Link-Statuschecks gegen stale Async-Rückläufer und Race-Zustände: ein kleiner Request-/Generation-Guard bindet jeden Check an `repo@@branch`, Repo-/Branch-Wechsel resetten die UI bewusst auf neutral/unknown, ältere Checks dürfen keinen neueren Status oder den Write→Recheck-Pfad überschreiben, und der Recheck nach dem Write nutzt dieselbe Guard-Wahrheit wie manuelle Statusprüfungen.
