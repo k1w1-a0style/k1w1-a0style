@@ -6,6 +6,7 @@ import {
   createClient,
   errorResponse,
   getServiceRoleKey,
+  getSupabaseUrl,
   handleCors,
   jsonResponse,
   rateLimit,
@@ -26,7 +27,7 @@ Deno.serve(async (req) => {
   if (admin) return admin;
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseUrl = getSupabaseUrl();
     const serviceKey = getServiceRoleKey(req);
     if (!supabaseUrl || !serviceKey) {
       return errorResponse("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY", req, 500);

@@ -5,7 +5,7 @@ import {
   resolveMode, getForge, safeString, repoOk,
   bytesToBinaryStringChunked, encryptText, ensureBucketExists,
   bytesToBinaryString, createClient, encryptWithAesCbc,
-  errorResponse, getServiceRoleKey, handleCors, jsonResponse, rateLimit, requireAdminKey,
+  errorResponse, getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, handleCors, jsonResponse, rateLimit, requireAdminKey,
 } from "./helpers.ts";
 import type { Mode } from "./helpers.ts";
 
@@ -19,9 +19,9 @@ Deno.serve(async (req) => {
   if (auth) return auth;
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseUrl = getSupabaseUrl();
     const serviceKey = getServiceRoleKey(req);
-    const masterKey = Deno.env.get("SIGNING_MASTER_KEY");
+    const masterKey = getSigningMasterKey();
 
     if (!supabaseUrl || !serviceKey) {
       return errorResponse("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY", req, 500);
