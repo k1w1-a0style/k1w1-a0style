@@ -15,9 +15,9 @@ export type { DiagnosticStatus, DiagnosticFix, DiagnosticCheck } from "./diagnos
 export { triggerRemoteDiagnostics, fetchLatestRemoteDiagnosticsReport } from "./remoteDiagnostics";
 export type { RemoteDiagnosticsReport } from "./remoteDiagnostics";
 import {
-  classifyVerificationError,
-  normalizeVerificationContract,
-} from "../status/verificationContract";
+  resolveRepoSecretListVerification,
+  resolveRepoSecretVerification,
+} from "../status/repoSecretVerification";
 
 
 export type BuildPipelineDiagnosticsDeps = {
@@ -634,14 +634,17 @@ export const runBuildPipelineDiagnostics = async (
   // --- Secrets existence (names only) ---
   try {
     const names = await d.listRepoSecretNames(params.owner, params.repo);
-    const expoTokenContract = normalizeVerificationContract({
-      explicitState: names.includes("EXPO_TOKEN") ? "verified" : "missing",
+    const expoTokenContract = resolveRepoSecretVerification({
+      name: "EXPO_TOKEN",
+      names,
     });
-    const supabaseUrlContract = normalizeVerificationContract({
-      explicitState: names.includes("SUPABASE_URL") ? "verified" : "missing",
+    const supabaseUrlContract = resolveRepoSecretVerification({
+      name: "SUPABASE_URL",
+      names,
     });
-    const supabaseServiceRoleContract = normalizeVerificationContract({
-      explicitState: names.includes("SUPABASE_SERVICE_ROLE_KEY") ? "verified" : "missing",
+    const supabaseServiceRoleContract = resolveRepoSecretVerification({
+      name: "SUPABASE_SERVICE_ROLE_KEY",
+      names,
     });
     const expoTokenCopy = describeRepoSecretContract({
       name: "EXPO_TOKEN",
@@ -688,7 +691,7 @@ export const runBuildPipelineDiagnostics = async (
       fixHint: serviceRoleCopy.fixHint,
     });
   } catch (e: any) {
-    const errorState = classifyVerificationError({ error: e });
+    const errorState = resolveRepoSecretListVerification({ error: e }).state;
     const secretListCopy = describeRepoSecretContract({
       name: "repo secrets",
       state: errorState,
