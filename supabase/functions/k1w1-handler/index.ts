@@ -2,11 +2,13 @@
 // REFACTORED: helpers → helpers.ts
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { callAnthropic, callGemini, callGroq, callHuggingFace, callOpenAI, corsHeaders, handleCors, parseJsonBody, parseRequestBody, rateLimit, requireAdminKey } from "./helpers.ts";
+import { callAnthropic, callGemini, callGroq, callHuggingFace, callOpenAI, corsHeadersForRequest, handleCors, parseJsonBody, parseRequestBody, rateLimit, requireAdminKey } from "./helpers.ts";
 
 serve(async (req: Request): Promise<Response> => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
+
+  const responseCorsHeaders = corsHeadersForRequest(req);
 
   const auth = requireAdminKey(req);
   if (auth) return auth;
@@ -17,7 +19,7 @@ serve(async (req: Request): Promise<Response> => {
   if (req.method !== "POST") {
     return new Response("Method not allowed", {
       status: 405,
-      headers: corsHeaders,
+      headers: responseCorsHeaders,
     });
   }
 
@@ -34,7 +36,7 @@ serve(async (req: Request): Promise<Response> => {
         }),
         {
           status: isTooLarge ? 413 : 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
         },
       );
     }
@@ -80,7 +82,7 @@ serve(async (req: Request): Promise<Response> => {
     return new Response(JSON.stringify(responsePayload), {
       status: 200,
       headers: {
-        ...corsHeaders,
+        ...responseCorsHeaders,
         "Content-Type": "application/json",
       },
     });
@@ -108,7 +110,7 @@ serve(async (req: Request): Promise<Response> => {
     return new Response(JSON.stringify(errorPayload), {
       status: statusCode,
       headers: {
-        ...corsHeaders,
+        ...responseCorsHeaders,
         "Content-Type": "application/json",
       },
     });

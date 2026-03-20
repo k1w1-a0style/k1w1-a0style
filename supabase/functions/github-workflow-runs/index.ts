@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { corsHeaders, handleCors } from "../_shared/cors.ts";
+import { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";
 import { requireAdminKeyOrServiceRoleBearer, rateLimit } from "../_shared/auth.ts";
 import { githubHeaders, getGithubToken, GITHUB_API_BASE } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
@@ -23,9 +23,12 @@ import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSaniti
  * - githubToken / ghToken / token: client-provided PAT (only accepted if admin key is valid)
  */
 serve(async (req) => {
-    const cors = handleCors(req);
+  const cors = handleCors(req);
   if (cors) return cors;
-try {
+
+  const responseCorsHeaders = corsHeadersForRequest(req);
+
+  try {
     const auth = requireAdminKeyOrServiceRoleBearer(req);
     if (auth) return auth;
 
@@ -42,7 +45,7 @@ try {
           JSON.stringify({ ok: false, error: "Invalid JSON body" }),
           {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
           },
         );
       }
@@ -62,7 +65,7 @@ try {
         JSON.stringify({ ok: false, error: "Missing/invalid githubRepo" }),
         {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
         },
       );
     }
@@ -97,7 +100,7 @@ try {
         }),
         {
           status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
         },
       );
     }
@@ -141,7 +144,7 @@ try {
           }),
           {
             status: 502,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
           },
         );
       }
@@ -154,7 +157,7 @@ try {
           JSON.stringify({ ok: false, error: "Invalid JSON from GitHub" }),
           {
             status: 502,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
           },
         );
       }
@@ -167,7 +170,7 @@ try {
         }),
         {
           status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
         },
       );
     }
@@ -181,7 +184,7 @@ try {
         }),
         {
           status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
         },
       );
     }
@@ -194,14 +197,14 @@ try {
         JSON.stringify({ ok: false, error: "Invalid JSON from GitHub" }),
         {
           status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
         },
       );
     }
 
     return new Response(JSON.stringify({ ok: true, data: json }), {
       status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     return new Response(
@@ -212,7 +215,7 @@ try {
       }),
       {
         status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
       },
     );
   }

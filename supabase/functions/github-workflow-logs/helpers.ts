@@ -11,7 +11,7 @@
  * Response is intentionally minimized & sanitized to avoid leaking huge GitHub objects.
  */
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { corsHeaders, handleCors } from "../_shared/cors.ts";
+import { errorResponse, handleCors, jsonResponse } from "../_shared/cors.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 import { parseJsonBody } from "../_shared/validation.ts";
 import { githubHeaders, GITHUB_API_BASE } from "../_shared/github.ts";
@@ -20,15 +20,12 @@ import { unzipSync, strFromU8 } from "npm:fflate@0.8.2";
 
 export type Json = Record<string, unknown>;
 
-export function jsonOk(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "content-type": "application/json" },
-  });
+export function jsonOk(req: Request, body: unknown, status = 200) {
+  return jsonResponse(body, req, status);
 }
 
-export function jsonErr(error: string, details?: unknown, status = 400) {
-  return jsonOk({ ok: false, error, details }, status);
+export function jsonErr(req: Request, error: string, details?: unknown, status = 400) {
+  return errorResponse(error, req, status, details);
 }
 
 export function asString(v: unknown): string | undefined {
