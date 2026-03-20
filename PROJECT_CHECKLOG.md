@@ -4,6 +4,8 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-20: Patch 515: verbliebenen GitHub-PAT-Passthrough vom Client zu workflow-/logs-/run-bezogenen Edge-Pfaden entfernt — `hooks/useGitHubActionsLogs.ts` und `components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts` senden fuer `github-workflow-runs`, `github-workflow-logs` und `github-workflow-dispatch` kein `githubToken` mehr im JSON-Body, die drei Edge-Entry-Points beziehen den Token jetzt ausschliesslich ueber `_shared/github.ts`, und gezielte Vertrags-/Invariant-Tests sichern serverseitige Shared-Token-Nutzung sowie unveraenderte Admin-/Workflow-/Logs-Guards regressionsfest.
+
 - 2026-03-20: Patch 514: verbleibenden produktiven Build-/Preview-Env-Restpfad auf Shared-Helper-Linie geschlossen — `check-eas-build`, `preview_page/helpers.ts` und `save_preview` bleiben auf den bestehenden `_shared/auth.ts`-Gettern, `trigger-eas-build` zieht den GitHub-Token-Lookup in `_shared/github.ts` jetzt ebenfalls auf `getRuntimeEnv(...)` statt `Deno.env.get(...)`, und der Patch-514-Invariant sichert Shared-Helper-Nutzung plus unveraenderte Admin-/CI-/Preview-Guard-Vertraege regressionsfest.
 
 - 2026-03-20: Patch 513: Key-/Token-Manager-Hygiene im Client nach der Edge-Proxy-Umstellung geklaert — `contexts/AIContext/index.tsx` spiegelt Provider-API-Keys nicht mehr in den alten `SecureKeyManager`, `lib/SecureTokenManager.ts` plus zugehoeriger Test sind entfernt, `lib/SecureKeyManager.ts` ist explizit als Legacy-/Test-Helper ohne produktive Runtime-Rolle markiert, und ein neuer Patch-513-Invariant blockiert sowohl direkte Runtime-Imports als auch eine Rueckkehr der entfernten Token-Manager-Datei regressionsfest.

@@ -6,7 +6,6 @@ import { Alert } from "react-native";
 import { v4 as uuidv4 } from "uuid";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { getGitHubToken } from "../../../infra/github/tokenStore";
 import { requireSupabaseEdgeUrl } from "../../../lib/supabaseEdge";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
 import { getBranchHeadSha, getEdgeAdminKey } from "../../../infra/github/githubService";
@@ -707,7 +706,6 @@ export function useCiLiteWorkflow() {
           headers: { "Content-Type": "application/json", "x-k1w1-admin-key": edgeAdminKey },
           body: JSON.stringify({
             githubRepo,
-            githubToken: await getGitHubToken().catch(() => null),
             workflow: workflowFile,
             ref: targetBranch,
             // `ref` is already provided as the top-level workflow_dispatch ref.

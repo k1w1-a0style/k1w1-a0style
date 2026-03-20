@@ -19,6 +19,56 @@ describe('useGitHubActionsLogs edge contract mapping', () => {
     jest.clearAllMocks();
   });
 
+
+  it('does not send githubToken in github-workflow-runs or github-workflow-logs bodies', async () => {
+    const fetchMock = jest.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            workflow_runs: [{ id: 123, status: 'queued', html_url: 'https://github.com/runs/123' }],
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ ok: true, logsText: '' }),
+      });
+
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const { result } = renderHook(() =>
+      useGitHubActionsLogs({
+        githubRepo: 'owner/repo',
+        runId: null,
+        workflowId: 'k1w1-ci-lite.yml',
+        autoRefresh: false,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.refreshLogs();
+    });
+
+    const runsCall = fetchMock.mock.calls.find(
+      (args) => typeof args?.[0] === 'string' && args[0].includes('github-workflow-runs'),
+    );
+    const logsCall = fetchMock.mock.calls.find(
+      (args) => typeof args?.[0] === 'string' && args[0].includes('github-workflow-logs'),
+    );
+
+    expect(runsCall).toBeTruthy();
+    expect(logsCall).toBeTruthy();
+
+    const runsBody = JSON.parse(String((runsCall?.[1] as RequestInit | undefined)?.body ?? '{}'));
+    const logsBody = JSON.parse(String((logsCall?.[1] as RequestInit | undefined)?.body ?? '{}'));
+
+    expect(runsBody).toEqual({ githubRepo: 'owner/repo', workflowId: 'k1w1-ci-lite.yml' });
+    expect(logsBody).toEqual({ githubRepo: 'owner/repo', runId: 123, mode: 'raw' });
+    expect(runsBody).not.toHaveProperty('githubToken');
+    expect(logsBody).not.toHaveProperty('githubToken');
+  });
+
   it('uses the current workflowId for github-workflow-runs after rerender', async () => {
     const fetchMock = jest.fn()
       // first refresh: runs
