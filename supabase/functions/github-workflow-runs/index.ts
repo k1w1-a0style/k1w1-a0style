@@ -18,8 +18,7 @@ import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSaniti
  * - ref/branch (aliases: branch)
  * - status (optional)
  *
- * Optional auth passthrough (for private repos):
- * - githubToken / ghToken / token: client-provided PAT (only accepted if admin key is valid)
+ * Authentication uses the shared server-side GitHub token helper.
  */
 Deno.serve(async (req) => {
   const cors = handleCors(req);
@@ -85,17 +84,13 @@ Deno.serve(async (req) => {
 
     const ref = (body.ref ?? body.branch ?? "").toString().trim();
     const status = (body.status ?? "").toString().trim();
-
-    const tokenFromBody = String(
-      body.githubToken ?? body.ghToken ?? body.token ?? body.github_token ?? "",
-    ).trim();
-    const token = tokenFromBody || getGithubToken();
+    const token = getGithubToken();
     if (!token) {
       return new Response(
         JSON.stringify({
           ok: false,
           error: "Missing GitHub token",
-          expected: ["GITHUB_TOKEN", "GH_TOKEN", "GITHUB_API_TOKEN", "githubToken (body)"],
+          expected: ["GITHUB_TOKEN", "GH_TOKEN", "GITHUB_API_TOKEN"],
         }),
         {
           status: 500,

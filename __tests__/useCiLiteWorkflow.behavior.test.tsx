@@ -9,7 +9,6 @@ const mockGetRepoSyncState = jest.fn();
 const mockRequireSupabaseEdgeUrl = jest.fn();
 const mockGetEdgeAdminKey = jest.fn();
 const mockGetBranchHeadSha = jest.fn();
-const mockGetGitHubToken = jest.fn();
 const mockStorageGetItem = jest.fn();
 const mockStorageMultiSet = jest.fn();
 
@@ -41,10 +40,6 @@ jest.mock("../lib/supabaseEdge", () => ({
 jest.mock("../infra/github/githubService", () => ({
   getEdgeAdminKey: () => mockGetEdgeAdminKey(),
   getBranchHeadSha: (...args: unknown[]) => mockGetBranchHeadSha(...args),
-}));
-
-jest.mock("../infra/github/tokenStore", () => ({
-  getGitHubToken: () => mockGetGitHubToken(),
 }));
 
 const NOW = 1_710_000_000_000;
@@ -83,7 +78,6 @@ describe("useCiLiteWorkflow behavior", () => {
     mockRequireSupabaseEdgeUrl.mockResolvedValue("https://example.supabase.co/functions/v1");
     mockGetEdgeAdminKey.mockResolvedValue("edge-admin-key");
     mockGetBranchHeadSha.mockResolvedValue(SHA);
-    mockGetGitHubToken.mockResolvedValue("gh-token");
     mockStorageMultiSet.mockResolvedValue(undefined);
     mockStorageGetItem.mockImplementation(async (key: string) => buildPersistedStorageMap()[key] ?? null);
 
@@ -162,6 +156,35 @@ describe("useCiLiteWorkflow behavior", () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+
+  it("does not pass githubToken in github-workflow-dispatch bodies", async () => {
+    mockStorageGetItem.mockResolvedValue(null);
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    const dispatchCall = (global.fetch as jest.Mock).mock.calls.find(([url]) =>
+      String(url).includes("github-workflow-dispatch"),
+    );
+
+    expect(dispatchCall).toBeTruthy();
+
+    const dispatchBody = JSON.parse(
+      String((dispatchCall?.[1] as RequestInit | undefined)?.body ?? "{}"),
+    );
+
+    expect(dispatchBody).toMatchObject({
+      githubRepo: "owner/repo",
+      workflow: WORKFLOW_CI_LITE,
+      ref: "main",
+      inputs: { job_id: "job-123" },
+    });
+    expect(dispatchBody).not.toHaveProperty("githubToken");
   });
 
   it("hydrates a fresh persisted final state on startup", async () => {

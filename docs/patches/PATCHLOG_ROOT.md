@@ -1,5 +1,7 @@
 # Patchlog Root
 
+- Patch 515: verbliebenen GitHub-PAT-Passthrough im produktiven Client→Edge-Workflow-/Run-/Log-Pfad entfernt — `useGitHubActionsLogs` und `useCiLiteWorkflow` senden kein `githubToken` mehr an `github-workflow-runs`, `github-workflow-logs` bzw. `github-workflow-dispatch`, die drei Edge-Functions lesen den GitHub-Token konsistent nur noch ueber `_shared/github.ts`, und neue Vertrags-/Invariant-Tests blockieren Rueckfaelle bei Token-Body-Passthrough sowie unveraenderten Admin-/Workflow-Guards.
+
 - Patch 514: verbliebenen produktiven Build-/Preview-Env-Restpfad auf die gemeinsame Shared-Helper-Linie gezogen — `check-eas-build`, `preview_page/helpers.ts` und `save_preview` bleiben auf `_shared/auth.ts`, `trigger-eas-build` liest das GitHub-Token ueber `_shared/github.ts` nun ebenfalls via `getRuntimeEnv(...)` statt via direktem `Deno.env.get(...)`, und ein erweiterter Invariant-Test blockiert Rueckfaelle bei Helper-Nutzung und unveraenderten Guard-Vertraegen.
 
 - Patch 513: Key-/Token-Manager-Restpfade nach der Edge-Proxy-Umstellung bereinigt — `AIContext` spiegelt keine Provider-API-Keys mehr in `SecureKeyManager`, `SecureTokenManager` ist aus dem Repo entfernt, `SecureKeyManager` bleibt nur noch als expliziter Legacy-/Test-Helper dokumentiert, und ein neuer Invariant-Test blockiert direkte Runtime-Nutzung bzw. Token-Manager-Drift.

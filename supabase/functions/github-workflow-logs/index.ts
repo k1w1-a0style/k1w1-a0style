@@ -28,11 +28,6 @@ Deno.serve(async (req) => {
       return jsonErr(req, "Validation failed", { error: parsedBody.error }, status);
     }
     const body = parsedBody.body as Json;
-
-    const tokenFromBody = String(
-      (body as any).githubToken ?? (body as any).ghToken ?? (body as any).token ?? (body as any).github_token ?? "",
-    ).trim();
-
     const repoObj = parseGithubRepo(body.githubRepo);
     if (!repoObj) {
       return jsonErr(
@@ -58,7 +53,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const token = (tokenFromBody || getGithubToken() || "").trim();
+    const token = getGithubToken().trim();
     if (!token) {
       return jsonErr(
         req,

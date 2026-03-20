@@ -4,7 +4,6 @@
 // hooks/useGitHubActionsLogs.ts - Real-time GitHub Actions log streaming
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getEdgeAdminKey } from "../infra/github/githubService";
-import { getGitHubToken } from "../infra/github/tokenStore";
 import { requireSupabaseEdgeUrl } from "../lib/supabaseEdge";
 import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
 import { logger } from '../lib/logger';
@@ -51,7 +50,6 @@ export function useGitHubActionsLogs({
       let targetRunId = runId;
       const edgeUrl = await requireSupabaseEdgeUrl();
       const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
-      const clientGithubToken = await getGitHubToken().catch(() => null);
 
       if (!targetRunId) {
       const runsResponse = await fetch(
@@ -62,7 +60,7 @@ export function useGitHubActionsLogs({
             "Content-Type": "application/json",
             ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
           },
-          body: JSON.stringify({ githubRepo, workflowId, githubToken: clientGithubToken ?? undefined }),
+          body: JSON.stringify({ githubRepo, workflowId }),
         },
       );
 
@@ -108,7 +106,6 @@ export function useGitHubActionsLogs({
           githubRepo,
           runId: targetRunId,
           mode: "raw",
-          githubToken: clientGithubToken ?? undefined,
         }),
         },
       );
