@@ -11,8 +11,9 @@
 
 ## Aktueller Stand (kompakt)
 
-- Zuletzt abgeschlossen: **Patch 491**.
+- Zuletzt abgeschlossen: **Patch 492**.
 - Workflow-/CI-Lite-SoT ist nach 393A–417 konsolidiert; Drift-Guards und Invariants sind dafür etabliert.
+- Patch 492 härtet im GitHubReposScreen die Pull-/Push-/Sync-Wahrheit: lokales Pull-Apply wird jetzt wirklich awaited, no-op/teilweise angewendet/fehlgeschlagen werden ehrlich getrennt, `skipConflicts` markiert keinen false-green Sync mehr, und Push zeigt ohne Branch oder echte Auswahl keinen falschen Erfolg.
 - Patch 491 härtet die Diagnostics-Fix-Engine fachlich und semantisch: Advisory, lokaler Patch-Fix, Workflow-Dispatch, Blocker, Fehlversuch und Re-Check-Pending laufen jetzt über einen kleinen gemeinsamen Result-Contract; leere/no-op oder guard-blockierte Patches enden nicht mehr als „behoben“, Workflow-only-Fixes wirken nicht mehr wie lokal repariert, und Badge-/Action-/Toast-Texte sprechen dieselbe Wahrheit.
 - Patch 490 härtet den CredentialsWizard fachlich und semantisch: verifiziert/fehlt/unklar/auth_error/generated_pending/busy werden jetzt getrennt modelliert, Generate signalisiert nicht mehr voreilig Erfolg, und Refresh-/Recheck-Pfade bleiben auch bei Auth-/temporären Fehlern ehrlich und konservativ.
 - Patch 489 härtet den Preview-/Server-Contract minimal und ehrlich: Remote-Preview, lokaler HTML-Fallback, unavailable/loading/failure sowie unsichere oder ungültige Server-URLs werden jetzt gemeinsam unterschieden, und die WebView lädt Remote-Previews nur noch mit härterer Minimal-Policy statt false green.

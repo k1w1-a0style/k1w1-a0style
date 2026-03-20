@@ -27,6 +27,8 @@ import { combineRepos, splitFullName, isValidRepoName } from "../utils/repos";
 import { normalizeProjectFiles } from "../utils/projectFiles";
 import { validateEasProjectId } from "../../ConnectionsScreen/utils/validation";
 import { markRepoSyncSignature } from "../../../lib/repoSyncOrchestration";
+import { executePullApply } from "../utils/pullApplySemantics";
+import { resolvePushPreparation } from "../utils/pushSelectionSemantics";
 import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
 import type { TemplateId, CoreTemplateId, ProjectFile } from "../../../shared/types/project";
 
@@ -655,26 +657,21 @@ export function useGitHubReposScreen() {
     const parsed = splitFullName(activeRepo);
     if (!parsed) return;
 
-    const selectedPaths = Object.entries(pushSelectedPaths)
-      .filter(([, v]) => !!v)
-      .map(([k]) => k);
+    const preparation = resolvePushPreparation({
+      activeBranch,
+      pushSelectedPaths,
+      localFiles: normalizedLocalFiles,
+    });
 
-    if (!selectedPaths.length) {
-      Alert.alert("⚠️", "Keine Dateien ausgewählt.");
+    if (!preparation.ok) {
+      Alert.alert(preparation.title, preparation.message);
       return;
     }
 
-    const selectedFiles: ProjectFile[] = normalizedLocalFiles
-      .filter((f) => selectedPaths.includes(f.path))
-      .map((f) => ({ path: f.path, content: f.content }));
+    const { branch, selectedFiles } = preparation;
 
     setIsPushing(true);
     try {
-      const branch = (activeBranch || "").trim();
-      if (!branch) {
-        Alert.alert("⚠️ Push", "Kein Branch ausgewählt.");
-        return;
-      }
       const pushedFiles = withCoreFiles(selectedFiles);
       await pushFilesToRepoAdvanced(
         parsed.owner,
@@ -688,7 +685,7 @@ export function useGitHubReposScreen() {
         files: pushedFiles,
       });
       setPushModalVisible(false);
-      refreshSyncStatus();
+      await refreshSyncStatus();
       Alert.alert(
         "✅ Push erfolgreich",
         `${parsed.owner}/${parsed.repo}@${branch}\nDer Push wurde als ein konsolidierter Git-Commit übertragen.`,
@@ -712,45 +709,25 @@ export function useGitHubReposScreen() {
 
     setIsPulling(true);
     try {
-      const localMap = new Map<string, ProjectFile>();
-      for (const lf of normalizedLocalFiles) localMap.set(lf.path, { path: lf.path, content: lf.content });
-
-      const remoteMap = new Map<string, ProjectFile>();
-      for (const rf of pullPreview.remote) {
-        const p = String(rf.path || "");
-        if (!p) continue;
-        remoteMap.set(p, { path: p, content: String(rf.content ?? "") });
-      }
-
-      const out: ProjectFile[] = [];
-      // Start with local-only files
-      for (const [p, lf] of localMap.entries()) {
-        if (!remoteMap.has(p)) out.push(lf);
-      }
-
-      // Add remote files (merge strategy)
-      for (const [p, rf] of remoteMap.entries()) {
-        const lf = localMap.get(p);
-        const isConflict = !!lf && String(lf.content ?? "") !== String(rf.content ?? "");
-        if (strategy === "skipConflicts" && isConflict) out.push(lf);
-        else out.push(rf);
-      }
-
-      updateProjectFiles(out);
-      await markRepoSyncSignature({
-        linkedRepo: activeRepo,
-        linkedBranch: activeBranch,
-        files: out,
+      const semantics = await executePullApply({
+        localFiles: normalizedLocalFiles,
+        remoteFiles: pullPreview.remote,
+        strategy,
+        updateProjectFiles,
+        markSyncSignature: async (files) => {
+          await markRepoSyncSignature({
+            linkedRepo: activeRepo,
+            linkedBranch: activeBranch,
+            files,
+          });
+        },
+        refreshSyncStatus,
       });
+
       setPullModalVisible(false);
       setPullPreview(null);
-      refreshSyncStatus();
-      Alert.alert(
-        "✅ Pull angewendet",
-        strategy === "overwrite"
-          ? "Remote Stand wurde übernommen (Konflikte überschrieben)."
-          : "Konflikte wurden übersprungen (lokal behalten).",
-      );
+      setPullProgress("");
+      Alert.alert(semantics.messageTitle, semantics.messageBody);
     } catch (e: any) {
       Alert.alert("❌ Pull Anwenden fehlgeschlagen", e?.message ?? "");
     } finally {
