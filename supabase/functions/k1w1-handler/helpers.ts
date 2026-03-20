@@ -8,8 +8,6 @@
 // - Verwendet NUR Server-Env-Keys (GROQ_API_KEY, GEMINI_API_KEY)
 // - Kein API-Key mehr im Request-Body nötig.
 
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-
 export type Role = "system" | "user" | "assistant";
 
 export interface ChatMessage {

@@ -5,12 +5,11 @@
 // Serves a preview page for a previously "saved preview" (by secret).
 // NOTE: Preview runs in a sandbox. Do NOT put secrets/service keys into preview files.
 
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { rateLimit } from "../_shared/auth.ts";
 // NOTE: Supabase Edge (Deno) bundler requires explicit file extensions for local imports.
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 
-export { serve, rateLimit, sanitizeErrorText };
+export { rateLimit, sanitizeErrorText };
 
 
 export type SnackFiles = Record<string, { type?: string; contents: string }>;

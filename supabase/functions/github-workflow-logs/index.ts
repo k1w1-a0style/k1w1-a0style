@@ -1,7 +1,6 @@
 // supabase/functions/github-workflow-logs/index.ts
 // REFACTORED: helpers → helpers.ts
 
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { handleCors } from "../_shared/cors.ts";
 import { requireAdminKeyOrServiceRoleBearer, rateLimit } from "../_shared/auth.ts";
 import { parseJsonBody } from "../_shared/validation.ts";
@@ -12,7 +11,7 @@ import {
   redactSecrets, fetchLogsZip, zipToText, MAX_CHARS, MAX_ZIP_BYTES,
 } from "./helpers.ts";
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 

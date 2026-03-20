@@ -78,10 +78,8 @@ describe("Edge helper visibility invariants", () => {
         "rateLimit",
         "requireAdminKey",
         "sanitizeUnknownForTransport",
-        "serve",
       ],
       reexports: [
-        'export { serve } from "std/http/server.ts";',
         'export { sanitizeErrorText, sanitizeUnknownForTransport } from "../_shared/errorSanitization.ts";',
         'export { parseJsonBody } from "../_shared/validation.ts";',
         'export { requireAdminKey, rateLimit } from "../_shared/auth.ts";',

@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { requireAdminKeyOrServiceRoleBearer, rateLimit } from "../_shared/auth.ts";
 import { githubHeaders, getGithubToken, GITHUB_API_BASE } from "../_shared/github.ts";
@@ -880,7 +879,7 @@ function isAllowedRef(ref: string): boolean {
  *   inputs?: object
  * }
  */
-serve(async (req) => {
+Deno.serve(async (req) => {
     const cors = handleCors(req);
   if (cors) return cors;
 try {

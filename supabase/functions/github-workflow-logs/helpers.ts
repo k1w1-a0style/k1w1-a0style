@@ -10,7 +10,6 @@
  *
  * Response is intentionally minimized & sanitized to avoid leaking huge GitHub objects.
  */
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { errorResponse, handleCors, jsonResponse } from "../_shared/cors.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 import { parseJsonBody } from "../_shared/validation.ts";

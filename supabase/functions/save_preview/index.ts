@@ -1,7 +1,6 @@
 // supabase/functions/save_preview/index.ts
 // REFACTORED: helpers → helpers.ts
 
-import { serve } from "std/http/server.ts";
 import { createClient } from "@supabase/supabase-js";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 import { parseJsonBody } from "../_shared/validation.ts";
@@ -19,7 +18,7 @@ import {
   MAX_PAYLOAD_BYTES,
 } from "./helpers.ts";
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
   const cors = corsHeaders(origin);
 

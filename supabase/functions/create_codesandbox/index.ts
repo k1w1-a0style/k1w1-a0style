@@ -4,7 +4,7 @@
 import {
   CODESANDBOX_DEFINE_URL, cors, json, safeErrorMessage, safeName,
   isObject, escapeHtml, transformRNtoWeb, pickEntry,
-  parseJsonBody, rateLimit, requireAdminKey, sanitizeUnknownForTransport, serve,
+  parseJsonBody, rateLimit, requireAdminKey, sanitizeUnknownForTransport,
 } from "./helpers.ts";
 import type { PreviewFile, RequestBody, JsonRecord } from "./helpers.ts";
 
@@ -188,7 +188,7 @@ function filterDeps(
   return out;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   const auth = requireAdminKey(req);
   if (auth) return auth;
 
