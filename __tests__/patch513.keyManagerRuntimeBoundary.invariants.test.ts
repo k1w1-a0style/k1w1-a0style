@@ -51,20 +51,20 @@ describe("patch513 key manager runtime boundary invariants", () => {
     }
   });
 
-  it("keeps SecureKeyManager out of the productive runtime path", () => {
-    const managerSrc = read("lib/SecureKeyManager.ts");
+  it("removes SecureKeyManager from the runtime tree so it cannot drift back into product code", () => {
     const aiContextSrc = read("contexts/AIContext/index.tsx");
     const runtimeFiles = [
       ...collectTsSources("lib"),
       ...collectTsSources("contexts"),
     ].filter((rel) => !rel.includes("__tests__"));
 
-    expect(managerSrc).toContain("keine Runtime-Verwendung im produktiven KI-Pfad");
+    expect(fs.existsSync(path.join(repoRoot, "lib/SecureKeyManager.ts"))).toBe(false);
     expect(aiContextSrc).toContain("Produktive KI-Requests laufen seit Patch 500 ausschliesslich ueber den Edge-Proxy");
     expect(aiContextSrc).not.toContain("SecureKeyManager");
 
-    const secureKeyImports = runtimeFiles.filter((rel) => rel !== "lib/SecureKeyManager.ts" && read(rel).includes("SecureKeyManager"));
-    expect(secureKeyImports).toEqual([]);
+    for (const rel of runtimeFiles) {
+      expect(read(rel)).not.toContain("SecureKeyManager");
+    }
   });
 
   it("removes SecureTokenManager from the repo so it cannot drift back into runtime use", () => {

@@ -4,6 +4,8 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 ## Zuletzt geprüft / aktualisiert
 
+- 2026-03-20: Patch 516: finalen toten Legacy-Key-Manager-Rest konservativ entfernt — `lib/SecureKeyManager.ts` und `lib/__tests__/SecureKeyManager.test.ts` hatten keine Runtime- oder fachlich noetigen Test-Imports mehr und sind geloescht, der bestehende Patch-513-Invariant blockiert nun auch die Rueckkehr dieser Datei regressionsfest, waehrend `docs/SYSTEM_README.md` die produktive KI-Vertragslage wieder ohne veraltete SecureKeyManager-/SecureTokenManager-Empfehlungen beschreibt.
+
 - 2026-03-20: Patch 515: verbliebenen GitHub-PAT-Passthrough vom Client zu workflow-/logs-/run-bezogenen Edge-Pfaden entfernt — `hooks/useGitHubActionsLogs.ts` und `components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts` senden fuer `github-workflow-runs`, `github-workflow-logs` und `github-workflow-dispatch` kein `githubToken` mehr im JSON-Body, die drei Edge-Entry-Points beziehen den Token jetzt ausschliesslich ueber `_shared/github.ts`, und gezielte Vertrags-/Invariant-Tests sichern serverseitige Shared-Token-Nutzung sowie unveraenderte Admin-/Workflow-/Logs-Guards regressionsfest.
 
 - 2026-03-20: Patch 514: verbleibenden produktiven Build-/Preview-Env-Restpfad auf Shared-Helper-Linie geschlossen — `check-eas-build`, `preview_page/helpers.ts` und `save_preview` bleiben auf den bestehenden `_shared/auth.ts`-Gettern, `trigger-eas-build` zieht den GitHub-Token-Lookup in `_shared/github.ts` jetzt ebenfalls auf `getRuntimeEnv(...)` statt `Deno.env.get(...)`, und der Patch-514-Invariant sichert Shared-Helper-Nutzung plus unveraenderte Admin-/CI-/Preview-Guard-Vertraege regressionsfest.

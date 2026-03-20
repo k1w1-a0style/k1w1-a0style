@@ -57,30 +57,27 @@ Die KI MUSS diese Module kennen, da sie miteinander interagieren.
 - Hauptmodul für Provider-Routing
 - Unterstützt: Groq, Gemini, OpenAI, Anthropic, HuggingFace
 - Implementiert Fallback-Strategien
-- Nutzt SecureKeyManager
+- Nutzt fuer produktive KI-Requests ausschliesslich den Supabase-Edge-Proxy `k1w1-handler`
 
 ### KI-Regeln:
 
 - immer `orchestrator.ask()` verwenden
 - niemals direkt Provider ansprechen
-- Keys niemals manuell setzen → SecureKeyManager benutzen
+- keine direkten Client-Provider- oder Key-Manager-Pfade fuer produktive Requests reaktivieren
 
 ---
 
-## 3.2 SecureKeyManager / SecureTokenManager
+## 3.2 Legacy-Key-Manager-Status
 
-- verwaltet API Keys
-- verschlüsselt sie lokal
-- rotiert Keys automatisch
-- verhindert Rate Limit Errors
+- `SecureKeyManager` und `SecureTokenManager` gehoeren nicht mehr zum produktiven Runtime-Vertrag
+- produktive Provider-Requests laufen seit Patch 500 ausschliesslich ueber `invokeK1w1Handler(...)` / `k1w1-handler`
+- lokale Provider-Keys duerfen nicht ueber alte Client-Manager oder direkte Provider-Pfade wieder eingebunden werden
 
 ### KI-Regel:
 
-```ts
-import SecureKeyManager from "../lib/SecureKeyManager";
-```
-
-→ niemals Keys hardcoden.
+- keine neuen Imports aus `lib/SecureKeyManager` oder `lib/SecureTokenManager` anlegen
+- niemals Keys hardcoden
+- fuer produktive AI-Requests nur den bestehenden Edge-Proxy-Pfad verwenden
 
 ---
 
@@ -300,7 +297,6 @@ UI: GitHubReposScreen.tsx enthält alle Funktionen.
 - [x] GitHub Funktionen erweitern (Delete, Create, Pull, Push)
 - [x] PreviewScreen → AppStatusScreen umbenennen
 - [x] fileWriter.test.ts erstellen
-- [x] SecureTokenManager.test.ts erstellen
 - [x] coverage/ Ordner aus Git entfernen (.gitignore aktualisieren)
 - [x] **buildErrorAnalyzer.test.ts erstellen** ✅ NEU
 - [x] **RateLimiter.test.ts erstellen** ✅ NEU
@@ -362,10 +358,8 @@ UI: GitHubReposScreen.tsx enthält alle Funktionen.
 - `__tests__/chatParsing.test.ts`
 - `__tests__/navigation.smoke.test.tsx`
 - `__tests__/jsonTruncation.test.ts`
-- `lib/__tests__/SecureKeyManager.test.ts`
 - `lib/__tests__/validators.test.ts`
 - `lib/__tests__/fileWriter.test.ts` ✅ NEU
-- `lib/__tests__/SecureTokenManager.test.ts` ✅ NEU
 - `lib/__tests__/orchestrator.test.ts` ✅ NEU (9. Dezember 2025)
 - `lib/__tests__/AIContext.integration.test.ts` ✅ NEU (9. Dezember 2025)
 - `lib/__tests__/buildErrorAnalyzer.test.ts` ✅ NEU (9. Dezember 2025)
