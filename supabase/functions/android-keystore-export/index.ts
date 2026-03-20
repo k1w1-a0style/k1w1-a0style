@@ -4,6 +4,8 @@ import {
   errorResponse,
   getJwtSub,
   getServiceRoleKey,
+  getSigningMasterKey,
+  getSupabaseUrl,
   handleCors,
   jsonResponse,
   rateLimit,
@@ -24,9 +26,9 @@ Deno.serve(async (req) => {
   if (auth) return auth;
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseUrl = getSupabaseUrl();
     const serviceKey = getServiceRoleKey(req);
-    const masterKey = Deno.env.get("SIGNING_MASTER_KEY");
+    const masterKey = getSigningMasterKey();
 
     if (!supabaseUrl || !serviceKey) {
       return errorResponse(

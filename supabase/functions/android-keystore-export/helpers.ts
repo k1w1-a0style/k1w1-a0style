@@ -20,6 +20,8 @@ export {
   hasAdminKeySecretConfigured,
   hasServiceRoleSecretConfigured,
   getServiceRoleKey,
+  getSigningMasterKey,
+  getSupabaseUrl,
   getBearerToken,
 } from "../_shared/auth.ts";
 

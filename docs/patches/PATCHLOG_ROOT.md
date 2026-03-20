@@ -1,5 +1,7 @@
 # Patchlog Root
 
+- Patch 510: verbleibende Android-Keystore-Export-/Status-Secret-Lesepfade auf die bestehende Shared-Secret-/Auth-Linie gezogen — `_shared/auth.ts` liefert jetzt kleine Getter fuer `SUPABASE_URL` und `SIGNING_MASTER_KEY`, die drei Keystore-Pfade `android-keystore-generate`, `android-keystore-export` und `android-keystore-status` nutzen dadurch keine parallelen direkten `Deno.env.get(...)`-Reads mehr, und gezielte Invariants halten Helper-Reexports sowie unveraenderte Admin-/CI-Guards regressionsfest.
+
 - Patch 509: verbleibende repo-weite Edge-Restpfade ohne Produktlogik-Änderung auf request-gebundene Shared-CORS-Header gezogen — die disabled Legacy-Functions `check-lint`, `trigger-lint`, `check-native-sync`, `trigger-native-sync`, `native-sync-report`, `native-sync-report-ingest` senden lokal keine `Access-Control-Allow-Origin: *`-Antworten mehr und halten fuer die disabled Stubs den sichtbaren `status: 410`-Vertragsanker ueber `corsHeadersForRequest(req)`; `test` bleibt fuer die 200-Antwort bei request-gebundenem `jsonResponse({ ok: true }, req)`; ein erweiterter Invariant-Test haelt Restpfade, Preflight und die bereits gehaerteten Kernpfade regressionsfest.
 
 - Patch 508: `LocalRemoteDiffSection` invalidiert laufende Diff-/Preview-Asyncs jetzt auch beim Unmount, damit spaete Promise-Ruecklaeufer nach Teardown keinen alten UI-State mehr committen; der Truthfulness-Test deckt den Unmount-/Late-Resolve-Fall zusaetzlich als Regression ab.
