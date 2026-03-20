@@ -288,26 +288,20 @@ export default function GitHubReposScreen() {
               <View
                 style={[
                   s.chip,
-                  easLinkStatus === "ok" ? s.chipActive : null,
-                  easLinkStatus !== "ok" && easLinkStatus !== "unknown" ? { borderColor: theme.palette.error } : null,
+                  easLinkStatus.state === "verified" ? s.chipActive : null,
+                  easLinkStatus.tone === "error" ? { borderColor: theme.palette.error } : null,
+                  easLinkStatus.tone === "warn" ? { borderColor: theme.palette.warning ?? theme.palette.primary } : null,
                 ]}
               >
                 <Text
                   style={[
                     s.chipText,
-                    easLinkStatus === "ok" ? s.chipTextActive : null,
-                    easLinkStatus !== "ok" && easLinkStatus !== "unknown" ? { color: theme.palette.error } : null,
+                    easLinkStatus.state === "verified" ? s.chipTextActive : null,
+                    easLinkStatus.tone === "error" ? { color: theme.palette.error } : null,
+                    easLinkStatus.tone === "warn" ? { color: theme.palette.warning ?? theme.palette.primary } : null,
                   ]}
                 >
-                  {easLinkStatus === "ok"
-                    ? "OK"
-                    : easLinkStatus === "workflow_missing"
-                      ? "Workflow fehlt"
-                      : easLinkStatus === "project_missing"
-                        ? "Project fehlt"
-                        : easLinkStatus === "project_invalid"
-                          ? "Project ungültig"
-                          : "Unbekannt"}
+                  {easLinkStatus.label}
                 </Text>
               </View>
 
@@ -322,11 +316,17 @@ export default function GitHubReposScreen() {
             </View>
           </View>
 
-          <Text style={{ fontSize: 12, color: theme.palette.text.secondary, lineHeight: 18, marginTop: -2, marginBottom: 10 }}>
-            Dieser Schritt gehört zum Repo-Flow: Er erstellt/aktualisiert
-            <Text style={{ fontFamily: "monospace", color: theme.palette.text.primary }}> eas-project.json</Text> und stellt sicher, dass
-            <Text style={{ fontFamily: "monospace", color: theme.palette.text.primary }}> eas-link.yml</Text> im Ziel-Repo existiert.
+          <Text style={{ fontSize: 12, color: theme.palette.text.secondary, lineHeight: 18, marginTop: -2, marginBottom: 8 }}>
+            Dieser Repo-Schritt prueft Workflow und Projektdatei getrennt. Nur ein voll passender Workflow plus passende
+            <Text style={{ fontFamily: "monospace", color: theme.palette.text.primary }}> eas-project.json</Text> gilt hier als verifiziert.
             Tokens/Grundverbindungen pflegst du weiterhin im Verbindungen-Screen.
+          </Text>
+
+          <Text
+            testID="eas-link-detail"
+            style={{ fontSize: 12, color: theme.palette.text.secondary, lineHeight: 18, marginBottom: 10 }}
+          >
+            {easLinkStatus.detail}
           </Text>
 
           <TextInput

@@ -29,6 +29,12 @@ import { validateEasProjectId } from "../../ConnectionsScreen/utils/validation";
 import { markRepoSyncSignature } from "../../../lib/repoSyncOrchestration";
 import { executePullApply } from "../utils/pullApplySemantics";
 import { resolvePushPreparation } from "../utils/pushSelectionSemantics";
+import {
+  checkRepoEasLinkStatus,
+  getEasLinkPresentation,
+  resolveEasLinkWriteOutcome,
+  type EasLinkPresentation,
+} from "../utils/easLinkContract";
 import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
 import type { TemplateId, CoreTemplateId, ProjectFile } from "../../../shared/types/project";
 
@@ -148,7 +154,7 @@ export function useGitHubReposScreen() {
 
   const [easProjectId, setEasProjectId] = useState<string>("");
   const [isEasLinking, setIsEasLinking] = useState(false);
-  const [easLinkStatus, setEasLinkStatus] = useState<"unknown" | "ok" | "workflow_missing" | "project_missing" | "project_invalid">("unknown");
+  const [easLinkStatus, setEasLinkStatus] = useState<EasLinkPresentation>(getEasLinkPresentation("unknown"));
 
   // Manage Modal (used for branch operations)
   type ManageModalConfig = {
@@ -742,57 +748,32 @@ export function useGitHubReposScreen() {
 
   const handleEasLinkStatusCheck = useCallback(async () => {
     if (!activeRepo || !activeBranch) {
-      setEasLinkStatus("unknown");
-      return;
+      const presentation = getEasLinkPresentation("unknown", "Repo oder Branch sind noch nicht ausgewaehlt.");
+      setEasLinkStatus(presentation);
+      return presentation;
     }
 
     const parsed = splitFullName(activeRepo);
     if (!parsed) {
-      setEasLinkStatus("unknown");
-      return;
+      const presentation = getEasLinkPresentation("unknown", "Repo-Auswahl konnte nicht verarbeitet werden.");
+      setEasLinkStatus(presentation);
+      return presentation;
     }
 
-    const isNotFoundError = (e: unknown): boolean => {
-      const msg = String((e as any)?.message || "").toLowerCase();
-      return msg.includes("404") || msg.includes("not found");
-    };
-
-    try {
-      await getRepoFileText({
-        owner: parsed.owner,
-        repo: parsed.repo,
-        path: ".github/workflows/eas-link.yml",
-        ref: activeBranch,
-      });
-
-      let repoProjectId = "";
-      try {
-        const easProjectRaw = await getRepoFileText({
+    const presentation = await checkRepoEasLinkStatus({
+      expectedProjectId: easProjectId,
+      loadFile: (path: string) =>
+        getRepoFileText({
           owner: parsed.owner,
           repo: parsed.repo,
-          path: "eas-project.json",
+          path,
           ref: activeBranch,
-        });
-        const parsedJson = JSON.parse(String(easProjectRaw || "{}"));
-        repoProjectId = String(parsedJson?.projectId || "").trim();
-      } catch (e: any) {
-        if (isNotFoundError(e)) {
-          setEasLinkStatus("project_missing");
-          return;
-        }
-        if (e instanceof SyntaxError) {
-          setEasLinkStatus("project_invalid");
-          return;
-        }
-        throw e;
-      }
+        }),
+    });
 
-      setEasLinkStatus(repoProjectId ? "ok" : "project_invalid");
-    } catch (e: any) {
-      if (isNotFoundError(e)) setEasLinkStatus("workflow_missing");
-      else setEasLinkStatus("unknown");
-    }
-  }, [activeRepo, activeBranch]);
+    setEasLinkStatus(presentation);
+    return presentation;
+  }, [activeRepo, activeBranch, easProjectId]);
 
   const handleEasLink = useCallback(async () => {
     if (!activeRepo) {
@@ -815,6 +796,7 @@ export function useGitHubReposScreen() {
     }
 
     setIsEasLinking(true);
+    setEasLinkStatus(getEasLinkPresentation("pending_recheck", "Schreibe `eas-project.json` und pruefe den Repo-Zustand danach erneut."));
     try {
       const branch = (activeBranch || "").trim();
       if (!branch) {
@@ -833,9 +815,23 @@ export function useGitHubReposScreen() {
         branch,
       );
 
-      await handleEasLinkStatusCheck();
-      Alert.alert("✅ EAS linked", `EAS Project ID geschrieben nach ${easProjectJsonPath}`);
+      const verification = await handleEasLinkStatusCheck();
+      const writeOutcome = resolveEasLinkWriteOutcome({ verification });
+      setEasLinkStatus(writeOutcome);
+
+      if (writeOutcome.state === "verified") {
+        Alert.alert("✅ EAS verifiziert", "Projektdatei geschrieben und Repo-Link sauber bestaetigt.");
+        return;
+      }
+
+      if (writeOutcome.state === "pending_recheck") {
+        Alert.alert("ℹ️ EAS geschrieben", writeOutcome.detail);
+        return;
+      }
+
+      Alert.alert("⚠️ EAS geschrieben, aber nicht verifiziert", writeOutcome.detail);
     } catch (e: any) {
+      setEasLinkStatus(getEasLinkPresentation("unknown", "Schreiben oder Nachverifikation ist fehlgeschlagen."));
       Alert.alert("❌ EAS link fehlgeschlagen", e?.message ?? "");
     } finally {
       setIsEasLinking(false);
