@@ -1,5 +1,7 @@
 # Patchlog Root
 
+- Patch 513: Key-/Token-Manager-Restpfade nach der Edge-Proxy-Umstellung bereinigt — `AIContext` spiegelt keine Provider-API-Keys mehr in `SecureKeyManager`, `SecureTokenManager` ist aus dem Repo entfernt, `SecureKeyManager` bleibt nur noch als expliziter Legacy-/Test-Helper dokumentiert, und ein neuer Invariant-Test blockiert direkte Runtime-Nutzung bzw. Token-Manager-Drift.
+
 - Patch 512: verbliebene direkte Client-Provider-Altpfade im Orchestrator entfernt — `lib/orchestrator/providers/*` und die daran haengenden clientseitigen Provider-Tests sind geloescht, `SecureKeyManager` bleibt explizit als lokaler Key-/Rotations-State fuer `contexts/AIContext` eingegrenzt, und ein neuer Invariant-Test blockiert die Wiedereinbindung direkter Client-Provider-Imports im produktiven Runtime-Scope.
 
 - Patch 511: verbleibende produktive Supabase-Edge-Entry-Points auf native `Deno.serve(...)`-Bootstrap-Linie vereinheitlicht — `check-eas-build`, `trigger-eas-build`, `github-workflow-dispatch`, `github-workflow-runs`, `github-workflow-logs`, `k1w1-handler`, `save_preview`, `preview_page` und `create_codesandbox` nutzen keinen alten `std/http/server.ts`-Import mehr; bereinigte Helper schleppen keine toten `serve`-Reexports/-Imports weiter, und ein gezielter Invariant-Test blockiert neue Serve-Drift.

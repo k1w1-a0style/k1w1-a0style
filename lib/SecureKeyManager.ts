@@ -1,15 +1,20 @@
 /**
  * SecureKeyManager – sichere Verwaltung von API-Keys (Client-side)
  *
- * Restrolle nach Edge-Proxy-Umstellung:
+ * Legacy-Restrolle nach Edge-Proxy-Umstellung:
  * - kein produktiver Provider-HTTP-Client mehr
- * - nur noch lokaler Client-Key-/Reihenfolgespeicher fuer Settings, Rotation-UI und Persistenz
+ * - keine Runtime-Verwendung im produktiven KI-Pfad
+ * - nur noch interner Legacy-/Test-Helper fuer lokale Key-Reihenfolge-Semantik
  *
  * Ziele:
  * - Keys NICHT in globalThis
  * - Keine Key-Details in Logs
- * - Rotation ohne Downtime
+ * - Rotation ohne Downtime in Legacy-/Test-Szenarien
  * - Weniger Log/Warning-Spam bei fehlenden Keys
+ *
+ * WICHTIG:
+ * Der produktive App-Pfad darf diesen Manager nicht als Secret-Transport oder
+ * Provider-Client missverstehen. Runtime-KI-Requests laufen ausschliesslich ueber den Edge-Proxy.
  */
 
 import type { AllAIProviders } from '../contexts/AIContext';
@@ -56,7 +61,7 @@ class SecureKeyManager {
   }
 
 
-  // --- rotation listeners (used by AIContext to persist key order) ---
+  // --- rotation listeners (legacy/test hook for key-order semantics) ---
   private static rotationListeners = new Set<(provider: AllAIProviders) => void>();
 
   static addRotationListener(fn: (provider: AllAIProviders) => void): () => void {
