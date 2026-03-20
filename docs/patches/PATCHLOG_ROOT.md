@@ -1,6 +1,6 @@
 # Patchlog Root
 
-- Patch 509: verbleibende repo-weite Edge-Restpfade ohne Produktlogik-Änderung auf request-gebundene Shared-CORS-Header gezogen — die disabled Legacy-Functions `check-lint`, `trigger-lint`, `check-native-sync`, `trigger-native-sync`, `native-sync-report`, `native-sync-report-ingest` sowie `test` senden lokal keine `Access-Control-Allow-Origin: *`-Antworten mehr, sondern laufen ueber `jsonResponse(..., req)`; ein erweiterter Invariant-Test haelt Restpfade, Preflight und die bereits gehaerteten Kernpfade regressionsfest.
+- Patch 509: verbleibende repo-weite Edge-Restpfade ohne Produktlogik-Änderung auf request-gebundene Shared-CORS-Header gezogen — die disabled Legacy-Functions `check-lint`, `trigger-lint`, `check-native-sync`, `trigger-native-sync`, `native-sync-report`, `native-sync-report-ingest` senden lokal keine `Access-Control-Allow-Origin: *`-Antworten mehr und halten fuer die disabled Stubs den sichtbaren `status: 410`-Vertragsanker ueber `corsHeadersForRequest(req)`; `test` bleibt fuer die 200-Antwort bei request-gebundenem `jsonResponse({ ok: true }, req)`; ein erweiterter Invariant-Test haelt Restpfade, Preflight und die bereits gehaerteten Kernpfade regressionsfest.
 
 - Patch 508: `LocalRemoteDiffSection` invalidiert laufende Diff-/Preview-Asyncs jetzt auch beim Unmount, damit spaete Promise-Ruecklaeufer nach Teardown keinen alten UI-State mehr committen; der Truthfulness-Test deckt den Unmount-/Late-Resolve-Fall zusaetzlich als Regression ab.
 
@@ -21,7 +21,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
-- Patch 509: restliche disabled Legacy-Edge-Stubs plus `test` nutzen fuer lokale Antworten jetzt request-gebundene Shared-CORS-Header via `jsonResponse(..., req)` statt `...corsHeaders`; die CORS-Invariants decken diese Restpfade zusaetzlich ab.
+- Patch 509: restliche disabled Legacy-Edge-Stubs halten fuer lokale Disabled-Antworten jetzt den sichtbaren `status: 410`-Vertragsanker und nutzen request-gebundene Shared-CORS-Header via `corsHeadersForRequest(req)` statt `...corsHeaders`; `test` bleibt fuer die lokale 200-Antwort bei `jsonResponse({ ok: true }, req)`; die CORS-Invariants decken diese Restpfade zusaetzlich ab.
 - Patch 508: `LocalRemoteDiffSection` invalidiert laufende Diff-/Preview-Asyncs jetzt auch beim Unmount; der Truthfulness-Test deckt den Unmount-/Late-Resolve-Fall explizit als Regression ab.
 - Patch 507: `supabase/schema.public.sql` ist als abgeleitete Sekundaerreferenz fuer aktuelle Diagnostics-Public-Contracts nachgezogen; Migrationen + DB-/RPC-Invariants bleiben die kanonische SoT, und der Snapshot behauptet keine Legacy-UUID-/Spaltenwelt mehr.
 - Patch 505: Shared-Secret-SoT fuer `android-keystore-generate` auf den bestehenden Auth-Helper gezogen; irrefuehrenden Client-Storage-Slot `STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY` entfernt und auf expliziten Legacy-Cleanup ohne normale Backup-/UI-Semantik reduziert.

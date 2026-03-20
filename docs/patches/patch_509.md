@@ -12,11 +12,11 @@ Die verbleibenden repo-weiten Edge-Functions mit alter `corsHeaders`-Wildcard-Nu
 - `supabase/functions/trigger-native-sync/index.ts`
 - `supabase/functions/native-sync-report/index.ts`
 - `supabase/functions/native-sync-report-ingest/index.ts`
-  - diese disabled Legacy-Stubs importieren statt `corsHeaders` jetzt `jsonResponse` aus `../_shared/cors.ts` und liefern ihre lokalen `410`-Antworten request-gebunden ueber `jsonResponse(..., req, 410)` aus.
+  - diese disabled Legacy-Stubs importieren statt `corsHeaders` jetzt `corsHeadersForRequest` aus `../_shared/cors.ts` und liefern ihre lokalen `410`-Antworten weiter sichtbar mit `status: 410`, aber request-gebunden ueber `headers: corsHeadersForRequest(req)` aus.
 - `supabase/functions/test/index.ts`
   - die lokale Erfolgsantwort nutzt ebenfalls `jsonResponse({ ok: true }, req)` statt einer Wildcard-CORS-Headerkopie.
 - `__tests__/edgeCorsRequestBound.invariants.test.ts`
-  - erweitert um eine Restpfad-Invariant, die fuer die verbleibenden Legacy-/Test-Functions das Entfernen von `corsHeaders`/`Access-Control-Allow-Origin: *` sowie die weitere Nutzung von `handleCors(req)` und request-gebundenen JSON-Antworten absichert.
+  - erweitert um eine Restpfad-Invariant, die fuer die verbleibenden Legacy-Stubs das Entfernen von `corsHeaders`/`Access-Control-Allow-Origin: *`, den sichtbaren `status: 410`-Vertrag der disabled Stubs sowie die weitere Nutzung von `handleCors(req)` und request-gebundenen Headern absichert; der `test`-Stub bleibt separat auf request-gebundenem `jsonResponse({ ok: true }, req)` abgesichert.
 
 ## Unveraendert / bewusst nicht im Scope
 
@@ -34,5 +34,5 @@ Die verbleibenden repo-weiten Edge-Functions mit alter `corsHeaders`-Wildcard-Nu
 ## Ergebnis
 
 - Keine `...corsHeaders`-Antworten mehr in den verbleibenden repo-weiten Edge-Restpfaden im Scope.
-- Origin-Reflection und Preflight bleiben ueber die vorhandene Shared-CORS-Logik (`handleCors(req)` / `jsonResponse(..., req)`) intakt.
+- Origin-Reflection und Preflight bleiben ueber die vorhandene Shared-CORS-Logik (`handleCors(req)` / `corsHeadersForRequest(req)`) intakt, waehrend die disabled Legacy-Stubs fuer CI sichtbar weiter `status: 410` tragen.
 - Die bereits gehaerteten Kernpfade bleiben ueber denselben Invariant-Test weiterhin regressionsfest.

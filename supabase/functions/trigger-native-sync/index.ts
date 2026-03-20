@@ -1,4 +1,4 @@
-import { handleCors, jsonResponse } from "../_shared/cors.ts";
+import { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";
 import { requireAdminKey } from "../_shared/auth.ts";
 
 Deno.serve(async (req) => {
@@ -8,13 +8,15 @@ Deno.serve(async (req) => {
   const gate = await requireAdminKey(req);
   if (gate) return gate;
 
-  return jsonResponse(
-    {
+  return new Response(
+    JSON.stringify({
       ok: false,
       disabled: true,
       message: "This function is disabled on this deployment.",
+    }),
+    {
+      status: 410,
+      headers: corsHeadersForRequest(req),
     },
-    req,
-    410,
   );
 });
