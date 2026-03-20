@@ -23,6 +23,26 @@ type PreviewCacheEntry = {
   diff: string;
 };
 
+function hashText(input: string) {
+  let hash = 0;
+  for (let i = 0; i < input.length; i++) {
+    hash = (hash * 31 + input.charCodeAt(i)) >>> 0;
+  }
+  return hash.toString(36);
+}
+
+function buildLocalFilesFingerprint(files: LocalFile[]) {
+  if (!files.length) return "local:empty";
+  return files
+    .map((file) => {
+      const path = normalizeRepoPath(String(file.path || ""));
+      const content = String(file.content ?? "");
+      return `${path}:${content.length}:${hashText(content)}`;
+    })
+    .sort()
+    .join("|");
+}
+
 function statusGlyph(s: DiffItem["status"]) {
   // "Git-like" signals: + = local add, - = remote-only (missing locally), ± = modified
   if (s === "localOnly") return "+";
@@ -175,8 +195,14 @@ export function LocalRemoteDiffSection(props: {
   }, [projectFiles]);
 
   const contextKey = useMemo(() => `${activeRepo ?? ""}@@${branch}`, [activeRepo, branch]);
+  const localFingerprint = useMemo(() => buildLocalFilesFingerprint(local), [local]);
+  const truthKey = useMemo(() => `${contextKey}::${localFingerprint}`, [contextKey, localFingerprint]);
 
-  const getPreviewCacheKey = useCallback((path: string) => `${contextKey}::${normalizeRepoPath(path)}`, [contextKey]);
+  const loadedTruthKeyRef = useRef<string | null>(null);
+  const lastContextKeyRef = useRef(contextKey);
+  const lastLocalFingerprintRef = useRef(localFingerprint);
+
+  const getPreviewCacheKey = useCallback((path: string) => `${truthKey}::${normalizeRepoPath(path)}`, [truthKey]);
 
   const invalidateAsyncState = useCallback(() => {
     genRef.current += 1;
@@ -201,13 +227,22 @@ export function LocalRemoteDiffSection(props: {
     previewCacheRef.current.clear();
   }, []);
 
+  const invalidateStaleTruth = useCallback((staleNote?: string) => {
+    invalidateAsyncState();
+    loadedTruthKeyRef.current = null;
+    resetContextState();
+    if (staleNote) setNote(staleNote);
+  }, [invalidateAsyncState, resetContextState]);
+
   const load = useCallback(async () => {
     if (!parsed) {
+      loadedTruthKeyRef.current = null;
       resetContextState();
       setNote("Kein Repo gewählt.");
       return;
     }
     if (!local.length) {
+      loadedTruthKeyRef.current = null;
       resetContextState();
       setNote("Keine lokalen Projektdateien gefunden.");
       return;
@@ -291,6 +326,7 @@ export function LocalRemoteDiffSection(props: {
     }
 
     if (myGen !== genRef.current) return;
+    loadedTruthKeyRef.current = truthKey;
     setItems(results);
     // Default selection: only pushable changes (modified + localOnly)
     const nextSel: Record<string, boolean> = {};
@@ -299,12 +335,25 @@ export function LocalRemoteDiffSection(props: {
     }
     setSelected(nextSel);
     setLoading(false);
-  }, [parsed, local, branch, invalidateAsyncState, resetContextState]);
+  }, [parsed, local, branch, invalidateAsyncState, resetContextState, truthKey]);
 
   useEffect(() => {
-    invalidateAsyncState();
-    resetContextState();
-  }, [contextKey, invalidateAsyncState, resetContextState]);
+    if (lastContextKeyRef.current !== contextKey) {
+      lastContextKeyRef.current = contextKey;
+      lastLocalFingerprintRef.current = localFingerprint;
+      loadedTruthKeyRef.current = null;
+      invalidateAsyncState();
+      resetContextState();
+      return;
+    }
+
+    if (lastLocalFingerprintRef.current === localFingerprint) return;
+    lastLocalFingerprintRef.current = localFingerprint;
+
+    if (!loadedTruthKeyRef.current || loadedTruthKeyRef.current === truthKey) return;
+
+    invalidateStaleTruth("Lokale Dateien wurden geändert. Vergleich neu laden.");
+  }, [contextKey, localFingerprint, truthKey, invalidateAsyncState, invalidateStaleTruth, resetContextState]);
 
   const summary = useMemo(() => {
     const c = (s: DiffItem["status"]) => items.filter((i) => i.status === s).length;
@@ -337,9 +386,9 @@ export function LocalRemoteDiffSection(props: {
       if (!p) return;
 
       const requestId = ++previewReqRef.current;
-      const previewContextKey = contextKey;
+      const previewTruthKey = truthKey;
       const commitPreviewState = (updater: () => void) => {
-        if (requestId !== previewReqRef.current || previewContextKey !== contextKey) return false;
+        if (requestId !== previewReqRef.current || previewTruthKey !== truthKey) return false;
         updater();
         return true;
       };
@@ -393,7 +442,7 @@ export function LocalRemoteDiffSection(props: {
         });
       }
     },
-    [parsed, branch, localMap, contextKey, getPreviewCacheKey],
+    [parsed, branch, localMap, truthKey, getPreviewCacheKey],
   );
 
   const pushablePaths = useMemo(() => {

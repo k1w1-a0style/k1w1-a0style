@@ -252,4 +252,155 @@ describe("LocalRemoteDiffSection truthfulness", () => {
       expect(screen.getByText("- local repo-a")).toBeTruthy();
     });
   });
+
+
+  it("invalidates stale diff items when local files change inside the same repo/branch context", async () => {
+    mockGetRepoFileText.mockResolvedValue("remote repo-a");
+
+    const screen = renderSection();
+
+    fireEvent.press(screen.getByTestId("local-remote-diff-refresh"));
+    await waitFor(() => {
+      expect(screen.getByText("shared.ts")).toBeTruthy();
+      expect(screen.getByText("Push (1)")).toBeTruthy();
+    });
+
+    screen.rerender(
+      <LocalRemoteDiffSection
+        activeRepo="owner/repo-a"
+        activeBranch="main"
+        projectFiles={[{ path: "shared.ts", content: "local repo-a updated" }]}
+        onPushSelected={jest.fn()}
+      />,
+    );
+
+    await flushMicrotasks();
+
+    expect(screen.queryByText("shared.ts")).toBeNull();
+    expect(screen.getByText("Lokale Dateien wurden geändert. Vergleich neu laden.")).toBeTruthy();
+    expect(screen.getByText("Drück Refresh für einen Vergleich (lokale Dateien gegen GitHub Datei-Inhalt).")).toBeTruthy();
+  });
+
+  it("clears stale push selection when local files change inside the same repo/branch context", async () => {
+    mockGetRepoFileText.mockResolvedValue("remote repo-a");
+
+    const screen = renderSection();
+
+    fireEvent.press(screen.getByTestId("local-remote-diff-refresh"));
+    await waitFor(() => {
+      expect(screen.getByText("Push (1)")).toBeTruthy();
+    });
+
+    screen.rerender(
+      <LocalRemoteDiffSection
+        activeRepo="owner/repo-a"
+        activeBranch="main"
+        projectFiles={[{ path: "shared.ts", content: "local repo-a updated" }]}
+        onPushSelected={jest.fn()}
+      />,
+    );
+
+    await flushMicrotasks();
+
+    expect(screen.getByText("Push (0)")).toBeTruthy();
+    expect(screen.queryByText("push")).toBeNull();
+  });
+
+  it("drops open preview content and preview cache when local files change inside the same repo/branch context", async () => {
+    mockGetRepoFileText.mockResolvedValue("remote repo-a");
+
+    const screen = renderSection();
+
+    fireEvent.press(screen.getByTestId("local-remote-diff-refresh"));
+    await waitFor(() => {
+      expect(screen.getByText("shared.ts")).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText("shared.ts"));
+    await waitFor(() => {
+      expect(screen.getByText("Diff kopieren")).toBeTruthy();
+      expect(screen.getByText("+ remote repo-a")).toBeTruthy();
+    });
+
+    fireEvent.press(screen.getByText("Details"));
+    await waitFor(() => {
+      expect(screen.getByText("Unified Diff")).toBeTruthy();
+    });
+
+    screen.rerender(
+      <LocalRemoteDiffSection
+        activeRepo="owner/repo-a"
+        activeBranch="main"
+        projectFiles={[{ path: "shared.ts", content: "local repo-a updated" }]}
+        onPushSelected={jest.fn()}
+      />,
+    );
+
+    await flushMicrotasks();
+
+    expect(screen.queryByText("Diff kopieren")).toBeNull();
+    expect(screen.queryByText("Unified Diff")).toBeNull();
+    expect(screen.queryByText("+ remote repo-a")).toBeNull();
+    expect(screen.queryByText("- local repo-a")).toBeNull();
+  });
+
+  it("shows an honest refresh hint after local files change inside the same repo/branch context", async () => {
+    mockGetRepoFileText.mockResolvedValue("remote repo-a");
+
+    const screen = renderSection();
+
+    fireEvent.press(screen.getByTestId("local-remote-diff-refresh"));
+    await waitFor(() => {
+      expect(screen.getByText("shared.ts")).toBeTruthy();
+    });
+
+    screen.rerender(
+      <LocalRemoteDiffSection
+        activeRepo="owner/repo-a"
+        activeBranch="main"
+        projectFiles={[{ path: "shared.ts", content: "local repo-a updated" }]}
+        onPushSelected={jest.fn()}
+      />,
+    );
+
+    await flushMicrotasks();
+
+    expect(screen.getByText("Lokale Dateien wurden geändert. Vergleich neu laden.")).toBeTruthy();
+    expect(screen.queryByText("✅ 0 • ✏️ 1 • ➕ 0 • ⬇️ 0 • ⏭️ 0 • ⚠️ 0")).toBeNull();
+  });
+
+  it("keeps the diff stable when the same repo/branch rerenders without local file changes", async () => {
+    mockGetRepoFileText.mockResolvedValue("remote repo-a");
+
+    const onPushSelected = jest.fn();
+    const screen = render(
+      <LocalRemoteDiffSection
+        activeRepo="owner/repo-a"
+        activeBranch="main"
+        projectFiles={[{ path: "shared.ts", content: "local repo-a" }]}
+        onPushSelected={onPushSelected}
+      />,
+    );
+
+    fireEvent.press(screen.getByTestId("local-remote-diff-refresh"));
+    await waitFor(() => {
+      expect(screen.getByText("shared.ts")).toBeTruthy();
+      expect(screen.getByText("Push (1)")).toBeTruthy();
+    });
+
+    screen.rerender(
+      <LocalRemoteDiffSection
+        activeRepo="owner/repo-a"
+        activeBranch="main"
+        projectFiles={[{ path: "shared.ts", content: "local repo-a" }]}
+        onPushSelected={onPushSelected}
+      />,
+    );
+
+    await flushMicrotasks();
+
+    expect(screen.getByText("shared.ts")).toBeTruthy();
+    expect(screen.getByText("Push (1)")).toBeTruthy();
+    expect(screen.queryByText("Lokale Dateien wurden geändert. Vergleich neu laden.")).toBeNull();
+  });
 });
