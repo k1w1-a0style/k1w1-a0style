@@ -31,14 +31,14 @@ describe("Edge request-bound CORS hardening", () => {
   });
 
   it("removes wildcard CORS usage from protected workflow/AI edge functions in scope", () => {
-    const files = [
+    const hardenedFiles = [
       "supabase/functions/k1w1-handler/index.ts",
       "supabase/functions/github-workflow-runs/index.ts",
       "supabase/functions/github-workflow-logs/index.ts",
       "supabase/functions/github-workflow-logs/helpers.ts",
     ];
 
-    for (const rel of files) {
+    for (const rel of hardenedFiles) {
       const src = read(rel);
       expect(src).not.toContain('"Access-Control-Allow-Origin": "*"');
       expect(src).not.toMatch(/\bcorsHeaders\b/);
@@ -48,5 +48,31 @@ describe("Edge request-bound CORS hardening", () => {
     expect(read("supabase/functions/github-workflow-runs/index.ts")).toContain("corsHeadersForRequest(req)");
     expect(read("supabase/functions/github-workflow-logs/helpers.ts")).toContain("jsonResponse(body, req, status)");
     expect(read("supabase/functions/github-workflow-logs/helpers.ts")).toContain("errorResponse(error, req, status, details)");
+  });
+
+  it("removes wildcard CORS usage from the remaining legacy edge stubs in scope", () => {
+    const disabledLegacyFiles = [
+      "supabase/functions/check-lint/index.ts",
+      "supabase/functions/trigger-lint/index.ts",
+      "supabase/functions/check-native-sync/index.ts",
+      "supabase/functions/trigger-native-sync/index.ts",
+      "supabase/functions/native-sync-report/index.ts",
+      "supabase/functions/native-sync-report-ingest/index.ts",
+    ];
+
+    for (const rel of disabledLegacyFiles) {
+      const src = read(rel);
+      expect(src).not.toContain('"Access-Control-Allow-Origin": "*"');
+      expect(src).not.toMatch(/\bcorsHeaders\b/);
+      expect(src).toContain("handleCors(req)");
+      expect(src).toContain("status: 410");
+      expect(src).toContain("corsHeadersForRequest(req)");
+    }
+
+    const testStub = read("supabase/functions/test/index.ts");
+    expect(testStub).not.toContain('"Access-Control-Allow-Origin": "*"');
+    expect(testStub).not.toMatch(/\bcorsHeaders\b/);
+    expect(testStub).toContain("handleCors(req)");
+    expect(testStub).toContain("jsonResponse({ ok: true }, req)");
   });
 });

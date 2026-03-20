@@ -1,4 +1,4 @@
-import { handleCors, corsHeaders } from "../_shared/cors.ts";
+import { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";
 import { requireAdminKey } from "../_shared/auth.ts";
 
 Deno.serve(async (req) => {
@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
     }),
     {
       status: 410,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: corsHeadersForRequest(req),
     },
   );
 });
