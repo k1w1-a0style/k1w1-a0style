@@ -66,9 +66,9 @@ function buildProjectSnapshot(files: ProjectFile[], userFocus = ''): string {
     });
 
   return (
-    'Ausschnitt der aktuellen Projektdateien (gekürzt):\n\n' +
+    'Priorisierter Ausschnitt der aktuellen Projektdateien (gekürzt):\n\n' +
     prioritized.join('\n\n') +
-    '\n\n(Hinweis: Dies ist nur ein Ausschnitt, nicht das komplette Projekt.)'
+    '\n\n(Hinweis: Dies ist ein priorisierter Snapshot, nicht das komplette Projekt. Nicht gezeigte Pfade koennen fehlen.)'
   );
 }
 
@@ -96,7 +96,8 @@ export function buildPlannerMessages(
       '1) Wenn Details fehlen: stelle 1–3 kurze Rückfragen.\n' +
       '2) Wenn genug klar ist: gib einen Mini-Plan (max. 6 Bulletpoints) + eine Dateiliste (welche Dateien du ändern würdest und warum).\n' +
       '3) Optional: 1 kleines Code-Snippet in ```ts``` oder ```tsx``` (max. ca. 20 Zeilen).\n' +
-      '4) Kein Markdown-Kram außer Code-Fences. Kein JSON-Array in diesem Call.',
+      '4) Kein Markdown-Kram außer Code-Fences. Kein JSON-Array in diesem Call.\n' +
+      '5) Behaupte keine Vollrepo-Sicht: du arbeitest nur mit einem priorisierten Snapshot und den explizit benannten Pfaden.',
   );
 
   const pathHint = buildAllowedPathHint();
@@ -168,6 +169,10 @@ export function buildBuilderMessages(
   );
 
   systemIntroLines.push(
+    'Du arbeitest nur mit einem priorisierten, gekürzten Snapshot des Projekts. Behaupte keine Vollrepo-Sicht und plane keine normalen Writes fuer nicht sichtbare oder guardierte Pfade.',
+  );
+
+  systemIntroLines.push(
     'Fasse zentrale Projektdateien (package.json, app.config.js, eas.json, metro.config.js, tsconfig.json, .gitignore) NUR an, wenn der Nutzer das explizit verlangt.',
   );
 
@@ -222,7 +227,8 @@ export function buildValidatorMessages(
     content:
       'Du bist ein strenger Code-Validator für den k1w1 APK-Builder. ' +
       'Du bekommst den ursprünglichen User-Wunsch und die von der Haupt-KI vorgeschlagenen Dateien. ' +
-      'Prüfe Konsistenz/JSON/Pfade. Liefere ggf. ein korrigiertes JSON-Array zurück (wieder nur {path, content}).',
+      'Prüfe Konsistenz/JSON/Pfade. Liefere ggf. ein korrigiertes JSON-Array zurück (wieder nur {path, content}). ' +
+      'Du siehst dabei nur einen priorisierten, gekürzten Projektausschnitt statt einer Vollrepo-Sicht.',
   };
 
   const budgetedProject = trimPromptContextToBudget({
