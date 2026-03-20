@@ -6,32 +6,27 @@ Die verbliebenen direkten `Deno.env.get(...)`-Reads in den produktiven Build-/Pr
 
 ## Vorheriger Ist-Zustand
 
-Vor diesem Patch war die Runtime-/Env-Leselogik in diesem Restblock noch gemischt:
+Beim erneuten Audit dieses Restblocks zeigte sich: `check-eas-build`, `preview_page/helpers.ts` und `save_preview` liefen bereits ueber die kleine Shared-Helper-Linie aus `_shared/auth.ts`; der verbliebene produktive Parallelpfad sass noch im GitHub-Token-Lookup fuer `trigger-eas-build`.
 
-- `supabase/functions/check-eas-build/index.ts` las `K1W1_SUPABASE_URL`/`SUPABASE_URL` und den Service-Role-Key lokal direkt.
-- `supabase/functions/trigger-eas-build/index.ts` las sowohl die Supabase-Runtime-Env-Werte als auch Allowlist-/Regex-Env-Werte direkt per `Deno.env.get(...)`.
-- `supabase/functions/preview_page/helpers.ts` las `PREVIEW_SUPABASE_URL`, `PREVIEW_SERVICE_ROLE_KEY` und `TEST_STRICT_CSP` lokal direkt.
-- `supabase/functions/save_preview/index.ts` las `PREVIEW_SUPABASE_URL` und `PREVIEW_SERVICE_ROLE_KEY` lokal direkt.
+Konkret:
 
-Die Fachlogik war korrekt, aber die Runtime-/Env-SoT blieb unnoetig gemischt.
+- `supabase/functions/check-eas-build/index.ts` nutzte bereits `getSupabaseUrl()` und `getServiceRoleKey(req)`.
+- `supabase/functions/preview_page/helpers.ts` nutzte bereits `getPreviewSupabaseUrl()`, `getPreviewServiceRoleKey()` und `getRuntimeEnv(...)` fuer `TEST_STRICT_CSP`.
+- `supabase/functions/save_preview/index.ts` nutzte bereits dieselben Preview-Getter.
+- `supabase/functions/trigger-eas-build/index.ts` war fuer Supabase-/Allowlist-Reads bereits aligned, zog sein GitHub-Token aber noch indirekt aus `_shared/github.ts`, wo `getGithubToken()` intern weiterhin direkte `Deno.env.get(...)`-Reads fuer `GITHUB_TOKEN` / `GH_TOKEN` / `GITHUB_API_TOKEN` enthielt.
+
+Die Fachlogik war korrekt; offen war nur noch dieser kleine produktive Runtime-/Env-Mischpfad im Build-nahen Trigger-Stack.
 
 ## Geaenderte Bereiche
 
-- `_shared/auth.ts`
-  - exportiert den bestehenden runtime-kompatiblen Env-Reader jetzt bewusst als kleinen Shared-Helper
-  - `getSupabaseUrl()` deckt nun den produktiven Alias `K1W1_SUPABASE_URL` plus Fallback `SUPABASE_URL` ab
-  - neue kleine Getter fuer `PREVIEW_SUPABASE_URL` und `PREVIEW_SERVICE_ROLE_KEY`
-- `check-eas-build`
-  - nutzt jetzt `getSupabaseUrl()` und `getServiceRoleKey(req)` statt paralleler lokaler Env-Reads
+- `_shared/github.ts`
+  - `getGithubToken()` nutzt jetzt dieselbe runtime-kompatible Shared-Helper-Linie ueber `getRuntimeEnv(...)`
+  - die Alias-Kette `GITHUB_TOKEN` -> `GH_TOKEN` -> `GITHUB_API_TOKEN` bleibt unveraendert
 - `trigger-eas-build`
-  - nutzt fuer Supabase-Env die Shared-Getter und fuer Allowlist-/Regex-Reads denselben Shared-Runtime-Reader statt direkter `Deno.env.get(...)`
-- `preview_page/helpers.ts`
-  - nutzt Preview-Getter und den Shared-Runtime-Reader fuer `TEST_STRICT_CSP`
-- `save_preview`
-  - nutzt dieselben Preview-Getter wie `preview_page`
+  - bleibt unveraendert im Guard-/Build-Vertrag, zieht sein GitHub-Token aber nun ueber den bereinigten Shared-GitHub-Helper ohne direkten `Deno.env.get(...)`-Pfad
 - Tests
-  - neuer Patch-514-Invariant sichert Shared-Helper-Nutzung, das Entfernen direkter Env-Reads in genau diesem Scope und unveraenderte Guard-Vertraege ab
-  - bestehender Patch-510-Invariant wurde minimal auf den erweiterten `getSupabaseUrl()`-Alias aktualisiert
+  - der bestehende Patch-514-Invariant prueft jetzt zusaetzlich `_shared/github.ts` und den `trigger-eas-build`-GitHub-Token-Pfad
+  - derselbe Test sichert weiter ab, dass `check-eas-build`, `preview_page/helpers.ts` und `save_preview` auf ihrer bestehenden Shared-Helper-Linie bleiben und dass die Guard-Vertraege unveraendert sind
 
 ## Bewusst nicht im Scope
 
@@ -39,7 +34,7 @@ Die Fachlogik war korrekt, aber die Runtime-/Env-SoT blieb unnoetig gemischt.
 - keine CORS-Aenderung
 - keine neue Service-Role-/Client-Architektur
 - keine Aenderung an `k1w1-handler`-Provider-Secrets
-- keine Broad-Refactors in anderen Edge-Functions oder GitHub-Workflow-Shared-Modulen
+- keine Broad-Refactors in anderen Edge-Functions oder GitHub-Workflow-Shared-Modulen jenseits dieses kleinen GitHub-Token-Helpers
 
 ## Checks
 
@@ -50,6 +45,6 @@ Die Fachlogik war korrekt, aber die Runtime-/Env-SoT blieb unnoetig gemischt.
 
 ## Ergebnis
 
-- die betroffenen Build-/Preview-nahen Edge-Pfade lesen gemeinsame Runtime-/Env-Werte jetzt ueber dieselbe kleine Shared-Helper-Linie
-- direkte parallele `Deno.env.get(...)`-Reads sind in diesem Scope entfernt
+- der letzte produktive Runtime-/Env-Mischpfad im Build-/Preview-nahen Trigger-Stack liest GitHub-Token jetzt ebenfalls ueber die gemeinsame Shared-Helper-Linie
+- direkte `Deno.env.get(...)`-Reads sind damit im bearbeiteten Build-/Preview-Scope entfernt, ohne neue Secret-Architektur einzufuehren
 - bestehende Guard-/Build-/Preview-Semantik bleibt unveraendert und wird durch gezielte Invariants regressionsfest gehalten

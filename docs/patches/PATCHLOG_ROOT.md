@@ -1,6 +1,6 @@
 # Patchlog Root
 
-- Patch 514: verbleibende produktive Build-/Preview-Env-Lesepfade auf eine kleine Shared-Helper-Linie gezogen — `_shared/auth.ts` liefert jetzt Runtime-Getter fuer `K1W1_SUPABASE_URL`/`SUPABASE_URL`, `PREVIEW_SUPABASE_URL`, `PREVIEW_SERVICE_ROLE_KEY` und generische Runtime-Reads; `check-eas-build`, `trigger-eas-build`, `preview_page/helpers.ts` und `save_preview` nutzen dadurch keine direkten parallelen `Deno.env.get(...)`-Reads mehr, und ein neuer Invariant-Test blockiert Rueckfaelle bei Guards und Helper-Nutzung.
+- Patch 514: verbliebenen produktiven Build-/Preview-Env-Restpfad auf die gemeinsame Shared-Helper-Linie gezogen — `check-eas-build`, `preview_page/helpers.ts` und `save_preview` bleiben auf `_shared/auth.ts`, `trigger-eas-build` liest das GitHub-Token ueber `_shared/github.ts` nun ebenfalls via `getRuntimeEnv(...)` statt via direktem `Deno.env.get(...)`, und ein erweiterter Invariant-Test blockiert Rueckfaelle bei Helper-Nutzung und unveraenderten Guard-Vertraegen.
 
 - Patch 513: Key-/Token-Manager-Restpfade nach der Edge-Proxy-Umstellung bereinigt — `AIContext` spiegelt keine Provider-API-Keys mehr in `SecureKeyManager`, `SecureTokenManager` ist aus dem Repo entfernt, `SecureKeyManager` bleibt nur noch als expliziter Legacy-/Test-Helper dokumentiert, und ein neuer Invariant-Test blockiert direkte Runtime-Nutzung bzw. Token-Manager-Drift.
 

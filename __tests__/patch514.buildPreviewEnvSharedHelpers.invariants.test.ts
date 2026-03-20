@@ -6,6 +6,7 @@ import {
   getRuntimeEnv,
   getSupabaseUrl,
 } from "../supabase/functions/_shared/auth";
+import { getGithubToken } from "../supabase/functions/_shared/github";
 
 const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "utf8");
 
@@ -39,6 +40,7 @@ describe("patch514 build/preview env helper hygiene invariants", () => {
   const triggerIndex = "supabase/functions/trigger-eas-build/index.ts";
   const previewHelpers = "supabase/functions/preview_page/helpers.ts";
   const savePreviewIndex = "supabase/functions/save_preview/index.ts";
+  const sharedGithub = "supabase/functions/_shared/github.ts";
 
   it("extends the shared auth helper line for shared runtime env reads", () => {
     const src = read(sharedAuth);
@@ -67,6 +69,13 @@ describe("patch514 build/preview env helper hygiene invariants", () => {
     );
     expect(read(triggerIndex)).toContain("const supabaseUrl = getSupabaseUrl();");
     expect(read(triggerIndex)).toContain("const serviceRoleKey = getServiceRoleKey(req);");
+    expect(read(triggerIndex)).toContain("const GITHUB_TOKEN = getGithubToken();");
+
+    expect(read(sharedGithub)).toContain('import { getRuntimeEnv } from "./auth.ts";');
+    expect(read(sharedGithub)).toContain('getRuntimeEnv("GITHUB_TOKEN")');
+    expect(read(sharedGithub)).toContain('getRuntimeEnv("GH_TOKEN")');
+    expect(read(sharedGithub)).toContain('getRuntimeEnv("GITHUB_API_TOKEN")');
+    expect(read(sharedGithub)).not.toContain("Deno.env.get(");
 
     expect(read(previewHelpers)).toContain("return getPreviewSupabaseUrl() ?? \"\";");
     expect(read(previewHelpers)).toContain("const key = getPreviewServiceRoleKey() ?? \"\";");
@@ -99,12 +108,14 @@ describe("patch514 build/preview env helper hygiene invariants", () => {
           PREVIEW_SUPABASE_URL: "https://preview.example.supabase.co",
           PREVIEW_SERVICE_ROLE_KEY: "preview-role",
           TEST_STRICT_CSP: "true",
+          GITHUB_TOKEN: "github-token-from-node",
         },
         () => {
           expect(getSupabaseUrl()).toBe("https://k1w1.example.supabase.co");
           expect(getPreviewSupabaseUrl()).toBe("https://preview.example.supabase.co");
           expect(getPreviewServiceRoleKey()).toBe("preview-role");
           expect(getRuntimeEnv("TEST_STRICT_CSP")).toBe("true");
+          expect(getGithubToken()).toBe("github-token-from-node");
         },
       );
     } finally {
