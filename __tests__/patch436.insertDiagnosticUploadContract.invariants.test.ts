@@ -11,6 +11,11 @@ const finalizeMigration = path.join(
   "supabase/migrations/20260315000100_finalize_insert_diagnostic_upload_contract.sql",
 );
 
+const finalAuthMigration = path.join(
+  process.cwd(),
+  "supabase/migrations/20260320000000_restore_insert_diagnostic_upload_anon_client_contract.sql",
+);
+
 describe("patch436 insert_diagnostic_upload migration contract", () => {
   it("keeps the historical uuid drift explicit in migration history", () => {
     const sql = fs.readFileSync(legacyDriftMigration, "utf8");
@@ -52,12 +57,16 @@ describe("patch436 insert_diagnostic_upload migration contract", () => {
   )`);
   });
 
-  it("keeps execute grants locked to authenticated + service_role", () => {
-    const sql = fs.readFileSync(finalizeMigration, "utf8");
+  it("documents the final anon-compatible client auth contract explicitly", () => {
+    const sql = fs.readFileSync(finalAuthMigration, "utf8");
 
+    expect(sql).toContain("Final auth contract for diagnostics uploads");
     expect(sql).toContain("revoke all on function public.insert_diagnostic_upload(jsonb) from public;");
     expect(sql).toContain("revoke all on function public.insert_diagnostic_upload(jsonb) from anon;");
+    expect(sql).toContain("revoke all on function public.insert_diagnostic_upload(jsonb) from authenticated;");
+    expect(sql).toContain("grant execute on function public.insert_diagnostic_upload(jsonb) to anon;");
     expect(sql).toContain("grant execute on function public.insert_diagnostic_upload(jsonb) to authenticated;");
     expect(sql).toContain("grant execute on function public.insert_diagnostic_upload(jsonb) to service_role;");
+    expect(sql).toContain("Client diagnostics upload RPC; callable by anon/authenticated/service_role");
   });
 });

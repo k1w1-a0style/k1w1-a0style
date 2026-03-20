@@ -83,10 +83,10 @@ export function normalizeDiagnosticUploadId(value: unknown): string | null {
 }
 
 /**
- * Upload via RPC:
- * - returns REAL db id
- * - anon SELECT bleibt aus (RLS)
- * - server-side rate limit + hardening kann in SQL passieren
+ * Final contract: the mobile client uploads diagnostics directly via
+ * public.insert_diagnostic_upload(jsonb) using the normal Supabase client
+ * (anon key / optional client session). The SQL RPC remains the single place
+ * for rate limits, payload validation, idempotency and DB writes.
  */
 export async function uploadDiagnosticReport(
   input: DiagnosticUploadInput,
