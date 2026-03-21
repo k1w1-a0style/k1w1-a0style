@@ -1,5 +1,7 @@
 # Patchlog Root
 
+- Patch 528: CI-Lite-/Build-Readiness-Contracts klein konsolidiert — `ciLitePersistence` exportiert jetzt kanonische Reason-/Workflow-Konstanten fuer den repo-/branch-scoped Snapshot-Vertrag, `buildReadiness` mappt CI-Lite-Blocker darueber statt ueber verstreute Stringvergleiche, und eng ueberschneidende Jest-Faelle fuer Mismatch bzw. stale/SHA-Mismatch wurden per `it.each(...)` ohne Schutzverlust zusammengezogen.
+
 - Patch 526: Remote-Preview-Payload im echten App-Pfad minimal repariert — `usePreview` sendet `save_preview` jetzt ueber einen expliziten JSON-`fetch` mit `x-k1w1-admin-key` und validiertem `files`-Payload statt ueber den vorherigen fehleranfaelligen Invoke-Weg, normale Projekte liefern dadurch wieder nicht-leere Remote-Dateien an den Server, und leer/weggefilterte Dateimengen werden in `previewHelpers` ehrlich als Datei-/Payload-Ursache kommuniziert statt mit Auth vermischt.
 
 - Patch 525: Repo-Secrets-Refresh-/Load-Loop in `SecretsSection` minimal entkoppelt — der automatische Initial-Load liest den fuer Refresh-/stale-Entscheidungen benoetigten „es gab bereits eine verifizierte Liste“-Status jetzt ueber einen kleinen `hasVerifiedNamesRef` statt ueber die `names`-Hook-Dependency; dadurch feuert `useEffect(() => load(), [load])` nicht mehr nach jedem erfolgreichen `setNames(...)` erneut, waehrend manueller Refresh, Repo-Wechsel-Invalidierung und die bisherige ehrliche Fehler-/Last-known-list-Semantik erhalten bleiben.
@@ -54,6 +56,7 @@
 Append-only Überblick über Patch-Notizen.
 
 ## Recent (kompakt)
+- 2026-03-21: Patch 528: kleiner Stabilitaets-/Cleanup-Durchgang nach den CI-Lite-/Build-Readiness-Folgeaenderungen — `lib/ciLitePersistence.ts` haelt Persistenzgruende und das kanonische CI-Lite-Workflow-Id jetzt als kleine gemeinsame Konstanten, `lib/buildReadiness.ts` nutzt dieselbe Quelle fuer ReasonCode-Mapping statt duplizierter Stringlisten, und fokussierte Jest-Regressionen wurden an den klaren Verantwortlichkeiten leicht entdupliziert, ohne CI-Lite-/Build-Verhalten zu aendern.
 - Patch 512: alte direkte Client-Provider-Helfer unter `lib/orchestrator/providers/*` sowie deren verbleibende clientseitige Provider-Tests sind entfernt; der produktive Orchestrator bleibt ausschliesslich auf `invokeK1w1Handler(...)` verdrahtet, und ein neuer Invariant-Test blockiert direkte Client-Provider-Imports im Runtime-Scope.
 - Patch 509: restliche disabled Legacy-Edge-Stubs halten fuer lokale Disabled-Antworten jetzt den sichtbaren `status: 410`-Vertragsanker und nutzen request-gebundene Shared-CORS-Header via `corsHeadersForRequest(req)` statt `...corsHeaders`; `test` bleibt fuer die lokale 200-Antwort bei `jsonResponse({ ok: true }, req)`; die CORS-Invariants decken diese Restpfade zusaetzlich ab.
 - Patch 508: `LocalRemoteDiffSection` invalidiert laufende Diff-/Preview-Asyncs jetzt auch beim Unmount; der Truthfulness-Test deckt den Unmount-/Late-Resolve-Fall explizit als Regression ab.

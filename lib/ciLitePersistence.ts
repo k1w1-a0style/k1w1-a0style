@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { STORAGE_KEYS, ciLiteSnapshotKeyForSelection } from "./storageKeys";
 
 const SHA_RE = /^[0-9a-f]{40}$/i;
+export const CI_LITE_WORKFLOW_ID = "k1w1-ci-lite.yml";
 const FINAL_CONCLUSIONS = new Set([
   "success",
   "failure",
@@ -16,6 +17,24 @@ const FINAL_CONCLUSIONS = new Set([
 ]);
 
 export const CI_LITE_PERSISTENCE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+export const CI_LITE_PERSISTENCE_REASONS = {
+  LINT_TYPECHECK_UNCLEAR: "CI-Lite Lint/Typecheck unklar",
+  PERSISTENCE_MISSING: "CI-Lite-Persistenz fehlt oder ist unvollständig",
+  REPO_MISMATCH: "CI-Lite gehoert zu anderem Repo",
+  BRANCH_MISMATCH: "CI-Lite gehoert zu anderem Branch",
+  INVALID_TIMESTAMP: "CI-Lite-Zeitstempel fehlt oder ist ungueltig",
+  STALE: "CI-Lite ist veraltet",
+  INVALID_SHA: "CI-Lite-SHA fehlt oder ist ungueltig",
+  WORKFLOW_MISMATCH: "CI-Lite-Workflow passt nicht zur Persistenz",
+  REPO_OR_BRANCH_MISSING: "Repo oder Branch fehlen",
+  HEAD_UNVERIFIED: "Branch-HEAD-SHA konnte nicht verifiziert werden",
+  SHA_MISMATCH: "Repo/Branch wurden seit dem letzten CI-Lite-Run geaendert (SHA-Mismatch)",
+  NOT_GREEN: "CI-Lite Lint/Typecheck nicht gruen",
+} as const;
+
+export type CiLitePersistenceReason =
+  (typeof CI_LITE_PERSISTENCE_REASONS)[keyof typeof CI_LITE_PERSISTENCE_REASONS];
 
 export type PersistedCiLiteSnapshot = {
   repo: string;
@@ -32,7 +51,7 @@ export type PersistedCiLiteSnapshot = {
 
 export type PersistedCiLiteSelectionCheck = {
   snapshot: PersistedCiLiteSnapshot | null;
-  reason: string | null;
+  reason: CiLitePersistenceReason | null;
   stale: boolean;
 };
 
@@ -43,7 +62,7 @@ type SelectionDeps = {
 
 type ScopedSnapshotReadResult = {
   parsed: PersistedCiLiteSnapshot | null;
-  parseReason: string | null;
+  parseReason: CiLitePersistenceReason | null;
   source: "scoped" | "legacy";
 };
 
@@ -85,25 +104,25 @@ function normalizeBranch(raw: unknown): string {
 
 type ParsedSnapshotResult = {
   snapshot: PersistedCiLiteSnapshot | null;
-  reason: string | null;
+  reason: CiLitePersistenceReason | null;
 };
 
 function parseSnapshotRecord(parsed: Record<string, unknown>): ParsedSnapshotResult {
   const lintOk = typeof parsed.lintOk === "boolean" ? parsed.lintOk : null;
   const typecheckOk = typeof parsed.typecheckOk === "boolean" ? parsed.typecheckOk : null;
   if (lintOk === null || typecheckOk === null) {
-    return { snapshot: null, reason: "CI-Lite Lint/Typecheck unklar" };
+    return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.LINT_TYPECHECK_UNCLEAR };
   }
 
   const repo = normalizeRepo(parsed.repo);
   const branch = normalizeBranch(parsed.branch);
   if (!repo || !branch) {
-    return { snapshot: null, reason: "CI-Lite-Persistenz fehlt oder ist unvollständig" };
+    return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.PERSISTENCE_MISSING };
   }
 
   const runAtMs = Number(parsed.runAtMs ?? "");
   const sha = String(parsed.sha ?? "").trim().toLowerCase();
-  const workflowId = String(parsed.workflowId ?? "").trim() || "k1w1-ci-lite.yml";
+  const workflowId = String(parsed.workflowId ?? "").trim() || CI_LITE_WORKFLOW_ID;
   const jobId = String(parsed.jobId ?? "").trim() || null;
   const runIdRaw = parsed.runId;
   const runId =
@@ -130,17 +149,17 @@ function parseSnapshotRecord(parsed: Record<string, unknown>): ParsedSnapshotRes
 
 function parseSnapshotFromRaw(raw: string | null): ParsedSnapshotResult {
   if (!raw) {
-    return { snapshot: null, reason: "CI-Lite-Persistenz fehlt oder ist unvollständig" };
+    return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.PERSISTENCE_MISSING };
   }
 
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     if (!parsed || typeof parsed !== "object") {
-      return { snapshot: null, reason: "CI-Lite-Persistenz fehlt oder ist unvollständig" };
+      return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.PERSISTENCE_MISSING };
     }
     return parseSnapshotRecord(parsed);
   } catch {
-    return { snapshot: null, reason: "CI-Lite-Persistenz fehlt oder ist unvollständig" };
+    return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.PERSISTENCE_MISSING };
   }
 }
 
@@ -177,7 +196,7 @@ async function readScopedOrLegacySnapshotRaw(
     branch: normalizeBranch(lastBranch),
     sha: String(lastSha ?? "").trim().toLowerCase(),
     runAtMs: Number(lastRunAt ?? ""),
-    workflowId: String(lastWorkflow ?? "").trim() || "k1w1-ci-lite.yml",
+    workflowId: String(lastWorkflow ?? "").trim() || CI_LITE_WORKFLOW_ID,
     jobId: String(lastJobId ?? "").trim() || null,
     runId: parseOptionalPositiveInt(lastRunId),
     conclusion: String(lastConclusion ?? "").trim(),
@@ -200,32 +219,32 @@ function validateSnapshotForSelection(params: {
 }): PersistedCiLiteSelectionCheck {
   const { snapshot, expectedRepo, expectedBranch } = params;
   if (!snapshot) {
-    return { snapshot: null, reason: "CI-Lite-Persistenz fehlt oder ist unvollständig", stale: false };
+    return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.PERSISTENCE_MISSING, stale: false };
   }
 
   if (snapshot.repo !== expectedRepo) {
-    return { snapshot: null, reason: "CI-Lite gehoert zu anderem Repo", stale: false };
+    return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.REPO_MISMATCH, stale: false };
   }
 
   if (snapshot.branch !== expectedBranch) {
-    return { snapshot: null, reason: "CI-Lite gehoert zu anderem Branch", stale: false };
+    return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.BRANCH_MISMATCH, stale: false };
   }
 
   const stale = Date.now() - snapshot.runAtMs > CI_LITE_PERSISTENCE_MAX_AGE_MS;
   if (!Number.isFinite(snapshot.runAtMs) || snapshot.runAtMs <= 0) {
-    return { snapshot: null, reason: "CI-Lite-Zeitstempel fehlt oder ist ungueltig", stale: false };
+    return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.INVALID_TIMESTAMP, stale: false };
   }
 
   if (stale) {
-    return { snapshot: null, reason: "CI-Lite ist veraltet", stale: true };
+    return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.STALE, stale: true };
   }
 
   if (!SHA_RE.test(snapshot.sha)) {
-    return { snapshot: null, reason: "CI-Lite-SHA fehlt oder ist ungueltig", stale: false };
+    return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.INVALID_SHA, stale: false };
   }
 
-  if (snapshot.workflowId && snapshot.workflowId !== "k1w1-ci-lite.yml") {
-    return { snapshot: null, reason: "CI-Lite-Workflow passt nicht zur Persistenz", stale: false };
+  if (snapshot.workflowId && snapshot.workflowId !== CI_LITE_WORKFLOW_ID) {
+    return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.WORKFLOW_MISMATCH, stale: false };
   }
 
   return { snapshot, reason: null, stale: false };
@@ -254,7 +273,7 @@ export async function readPersistedCiLiteSelection(params: {
   if (!persistedRaw.parsed) {
     return {
       snapshot: null,
-      reason: persistedRaw.parseReason ?? "CI-Lite-Persistenz fehlt oder ist unvollständig",
+      reason: persistedRaw.parseReason ?? CI_LITE_PERSISTENCE_REASONS.PERSISTENCE_MISSING,
       stale: false,
     };
   }
@@ -268,7 +287,7 @@ export async function readPersistedCiLiteSelection(params: {
   if (readBranchHeadSha) {
     const repoParts = parseRepoParts(expectedRepo);
     if (!repoParts || !expectedBranch) {
-      return { snapshot: null, reason: "Repo oder Branch fehlen", stale: false };
+      return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.REPO_OR_BRANCH_MISSING, stale: false };
     }
 
     try {
@@ -276,24 +295,24 @@ export async function readPersistedCiLiteSelection(params: {
         await readBranchHeadSha(repoParts.owner, repoParts.repo, expectedBranch),
       ).trim().toLowerCase();
       if (!SHA_RE.test(currentHeadSha)) {
-        return { snapshot: null, reason: "Branch-HEAD-SHA konnte nicht verifiziert werden", stale: false };
+        return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.HEAD_UNVERIFIED, stale: false };
       }
       if (currentHeadSha !== validated.snapshot.sha) {
         return {
           snapshot: null,
-          reason: "Repo/Branch wurden seit dem letzten CI-Lite-Run geaendert (SHA-Mismatch)",
+          reason: CI_LITE_PERSISTENCE_REASONS.SHA_MISMATCH,
           stale: false,
         };
       }
     } catch {
-      return { snapshot: null, reason: "Branch-HEAD-SHA konnte nicht verifiziert werden", stale: false };
+      return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.HEAD_UNVERIFIED, stale: false };
     }
   }
 
   if (requireGreen) {
     const isGreen = validated.snapshot.lintOk && validated.snapshot.typecheckOk && validated.snapshot.conclusion === "success";
     if (!isGreen) {
-      return { snapshot: null, reason: "CI-Lite Lint/Typecheck nicht gruen", stale: false };
+      return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.NOT_GREEN, stale: false };
     }
   }
 
@@ -310,7 +329,7 @@ export function buildPersistCiLiteEntries(params: {
     branch: normalizeBranch(snapshot.branch),
     sha: String(snapshot.sha ?? "").trim().toLowerCase(),
     runAtMs: Number(snapshot.runAtMs ?? ""),
-    workflowId: String(snapshot.workflowId ?? "").trim() || "k1w1-ci-lite.yml",
+    workflowId: String(snapshot.workflowId ?? "").trim() || CI_LITE_WORKFLOW_ID,
     jobId: String(snapshot.jobId ?? "").trim() || null,
     runId:
       typeof snapshot.runId === "number" && Number.isFinite(snapshot.runId) && snapshot.runId > 0

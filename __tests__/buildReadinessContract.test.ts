@@ -1,3 +1,4 @@
+import { CI_LITE_PERSISTENCE_REASONS, CI_LITE_WORKFLOW_ID } from "../lib/ciLitePersistence";
 import { evaluateBuildReadiness } from "../lib/buildReadiness";
 import { ciLiteSnapshotKeyForSelection } from "../lib/storageKeys";
 import type { ProjectData } from "../shared/types/project";
@@ -32,7 +33,7 @@ function buildScopedGreenStorageMap(params: {
       branch,
       sha: SHA,
       runAtMs: NOW,
-      workflowId: "k1w1-ci-lite.yml",
+      workflowId: CI_LITE_WORKFLOW_ID,
       jobId: "job-123",
       runId: 321,
       conclusion: "success",
@@ -117,35 +118,34 @@ describe("evaluateBuildReadiness", () => {
     });
   });
 
-  it("returns ci_lite_stale when the persisted CI-Lite snapshot is too old", async () => {
-    const storageMap = buildScopedGreenStorageMap({
-      snapshotOverrides: { runAtMs: NOW - 7 * 60 * 60 * 1000 },
-    });
-
+  it.each([
+    {
+      label: "ci_lite_stale when the persisted CI-Lite snapshot is too old",
+      storageMap: buildScopedGreenStorageMap({
+        snapshotOverrides: { runAtMs: NOW - 7 * 60 * 60 * 1000 },
+      }),
+      headSha: SHA,
+      expected: {
+        reasonCode: "ci_lite_stale",
+        message: CI_LITE_PERSISTENCE_REASONS.STALE,
+      },
+    },
+    {
+      label: "ci_lite_sha_mismatch when the branch head changed after the last CI-Lite run",
+      storageMap: buildScopedGreenStorageMap(),
+      headSha: "b".repeat(40),
+      expected: {
+        reasonCode: "ci_lite_sha_mismatch",
+        message: CI_LITE_PERSISTENCE_REASONS.SHA_MISMATCH,
+      },
+    },
+  ])("returns $label", async ({ storageMap, headSha, expected }) => {
     const result = await evaluateBuildReadiness(makeProject(), {
       storageGetItem: async (key: string) => storageMap[key] ?? null,
-      getBranchHeadSha: async () => SHA,
+      getBranchHeadSha: async () => headSha,
     });
 
     expect(result.ok).toBe(false);
-    expect(result).toMatchObject({
-      reasonCode: "ci_lite_stale",
-      message: "CI-Lite ist veraltet",
-    });
-  });
-
-  it("returns ci_lite_sha_mismatch when the branch head changed after the last CI-Lite run", async () => {
-    const storageMap = buildScopedGreenStorageMap();
-
-    const result = await evaluateBuildReadiness(makeProject(), {
-      storageGetItem: async (key: string) => storageMap[key] ?? null,
-      getBranchHeadSha: async () => "b".repeat(40),
-    });
-
-    expect(result.ok).toBe(false);
-    expect(result).toMatchObject({
-      reasonCode: "ci_lite_sha_mismatch",
-      message: "Repo/Branch wurden seit dem letzten CI-Lite-Run geaendert (SHA-Mismatch)",
-    });
+    expect(result).toMatchObject(expected);
   });
 });
