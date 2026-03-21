@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import { useCiLiteWorkflow } from "../components/CiLiteHeaderButton/hooks/useCiLiteWorkflow";
 import { WORKFLOW_CI_LITE } from "../components/CiLiteHeaderButton/types";
+import { ciLiteSnapshotKeyForSelection } from "../lib/storageKeys";
 
 const mockUseProject = jest.fn();
 const mockUseGitHubActionsLogs = jest.fn();
@@ -45,18 +46,27 @@ jest.mock("../infra/github/githubService", () => ({
 const NOW = 1_710_000_000_000;
 const SHA = "a".repeat(40);
 
+async function flushAsyncWork() {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
 function buildPersistedStorageMap(overrides: Record<string, string | null> = {}): Record<string, string | null> {
   return {
-    ci_lite_lint_ok: "true",
-    ci_lite_typecheck_ok: "true",
-    ci_lite_last_run_at: String(NOW),
-    ci_lite_last_repo: "owner/repo",
-    ci_lite_last_branch: "main",
-    ci_lite_last_sha: SHA,
-    ci_lite_last_workflow: "k1w1-ci-lite.yml",
-    ci_lite_last_job_id: "job-123",
-    ci_lite_last_run_id: "321",
-    ci_lite_last_conclusion: "success",
+    [ciLiteSnapshotKeyForSelection({ linkedRepo: "owner/repo", linkedBranch: "main" })]: JSON.stringify({
+      repo: "owner/repo",
+      branch: "main",
+      sha: SHA,
+      runAtMs: NOW,
+      workflowId: "k1w1-ci-lite.yml",
+      jobId: "job-123",
+      runId: 321,
+      conclusion: "success",
+      lintOk: true,
+      typecheckOk: true,
+    }),
     ...overrides,
   };
 }
@@ -155,6 +165,7 @@ describe("useCiLiteWorkflow behavior", () => {
   });
 
   afterEach(() => {
+    jest.useRealTimers();
     jest.restoreAllMocks();
   });
 
@@ -254,6 +265,140 @@ describe("useCiLiteWorkflow behavior", () => {
     expect(result.current.busy).toBe(false);
   });
 
+  it("keeps the hook active after dispatch until the matching run is found", async () => {
+    jest.useFakeTimers();
+    mockStorageGetItem.mockResolvedValue(null);
+
+    let currentNow = NOW;
+    jest.spyOn(Date, "now").mockImplementation(() => currentNow);
+
+    let runLookupCalls = 0;
+    (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("github-workflow-dispatch")) {
+        return {
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          text: async () => "",
+        } as Response;
+      }
+
+      if (url.includes("github-workflow-runs")) {
+        runLookupCalls += 1;
+        return {
+          ok: true,
+          json: async () => ({
+            data: {
+              workflow_runs: runLookupCalls === 1
+                ? []
+                : [
+                  {
+                    id: 777,
+                    html_url: "https://github.com/runs/777",
+                    display_title: "CI Lite (job_id=job-123)",
+                    event: "workflow_dispatch",
+                    head_branch: "main",
+                    created_at: new Date(currentNow).toISOString(),
+                  },
+                ],
+            },
+          }),
+        } as Response;
+      }
+
+      if (url.includes("github-run-artifact-json")) {
+        return {
+          ok: true,
+          json: async () => ({ json: { ok: true, eslint_exit: 0, tsc_exit: 0, github_sha: SHA } }),
+        } as Response;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    expect(result.current.dispatching).toBe(false);
+    expect(result.current.runLookupActive).toBe(true);
+    expect(result.current.trackedRunId).toBeNull();
+    expect(result.current.busy).toBe(true);
+    expect(result.current.isTrackingRun).toBe(true);
+    expect(result.current.headerState).toBe("running");
+
+    await act(async () => {
+      currentNow += 2_500;
+      jest.advanceTimersByTime(2_500);
+    });
+    await flushAsyncWork();
+
+    expect(result.current.trackedRunId).toBe(777);
+    expect(result.current.runLookupActive).toBe(false);
+    expect(result.current.busy).toBe(true);
+    expect(result.current.isTrackingRun).toBe(true);
+    expect(result.current.headerState).toBe("running");
+  });
+
+  it("ends the lookup state cleanly when no matching run is found before timeout", async () => {
+    jest.useFakeTimers();
+    mockStorageGetItem.mockResolvedValue(null);
+
+    let currentNow = NOW;
+    jest.spyOn(Date, "now").mockImplementation(() => currentNow);
+
+    (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("github-workflow-dispatch")) {
+        return {
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          text: async () => "",
+        } as Response;
+      }
+
+      if (url.includes("github-workflow-runs")) {
+        return {
+          ok: true,
+          json: async () => ({
+            data: {
+              workflow_runs: [],
+            },
+          }),
+        } as Response;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    expect(result.current.runLookupActive).toBe(true);
+    expect(result.current.busy).toBe(true);
+    expect(result.current.headerState).toBe("running");
+
+    await act(async () => {
+      currentNow += 60_001;
+      jest.advanceTimersByTime(60_001);
+    });
+    await flushAsyncWork();
+
+    expect(result.current.trackedRunId).toBeNull();
+    expect(result.current.runLookupActive).toBe(false);
+    expect(result.current.busy).toBe(false);
+    expect(result.current.isTrackingRun).toBe(false);
+    expect(result.current.headerState).toBe("idle");
+    expect(result.current.showError).toMatch(/kein passender Run gefunden \(Timeout\)/i);
+  });
+
   it("keeps tracking the active run after the modal is closed and reopens without redispatch", async () => {
     mockStorageGetItem.mockResolvedValue(null);
 
@@ -309,6 +454,99 @@ describe("useCiLiteWorkflow behavior", () => {
     expect(dispatchCallsAfterReopen).toBe(dispatchCallsBeforeReopen);
   });
 
+  it("surfaces missing GitHub token as an explicit CI-Lite dispatch error", async () => {
+    mockStorageGetItem.mockResolvedValue(null);
+    (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("github-workflow-dispatch")) {
+        return {
+          ok: false,
+          status: 500,
+          statusText: "Internal Server Error",
+          text: async () => JSON.stringify({ ok: false, error: "Missing GitHub token" }),
+        } as Response;
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    expect(result.current.showError).toMatch(/CI Lite Dispatch blockiert/i);
+    expect(result.current.showError).toMatch(/GitHub-Token fehlt/i);
+    expect(result.current.showError).not.toMatch(/HTTP 500/i);
+  });
+
+  it("maps a dispatch 404 to a workflow-not-found user error", async () => {
+    mockStorageGetItem.mockResolvedValue(null);
+    (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("github-workflow-dispatch")) {
+        return {
+          ok: false,
+          status: 404,
+          statusText: "Not Found",
+          text: async () => JSON.stringify({
+            error: "GitHub workflow dispatch failed (workflow not found)",
+            details: {
+              hint: "Workflow not found in repo. Ensure the workflow file exists under .github/workflows.",
+            },
+          }),
+        } as Response;
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    expect(result.current.showError).toMatch(/Workflow-Datei\/Workflow .* nicht gefunden/i);
+    expect(result.current.showError).not.toMatch(/github-workflow-dispatch failed/i);
+  });
+
+  it("surfaces unscoped workflow-run lookup as a contract error", async () => {
+    mockStorageGetItem.mockResolvedValue(null);
+    (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("github-workflow-dispatch")) {
+        return {
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          text: async () => "",
+        } as Response;
+      }
+
+      if (url.includes("github-workflow-runs")) {
+        return {
+          ok: true,
+          json: async () => ({
+            ok: true,
+            data: { workflow_runs: [] },
+            note: "workflowId not found; returned repo-wide workflow runs instead",
+          }),
+        } as Response;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    expect(result.current.runLookupActive).toBe(false);
+    expect(result.current.showError).toMatch(/nicht workflow-spezifisch abgesichert/i);
+  });
+
   it("classifies a server-rejected local Edge Admin Key honestly during CI-Lite dispatch", async () => {
     mockStorageGetItem.mockResolvedValue(null);
     (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
@@ -335,5 +573,68 @@ describe("useCiLiteWorkflow behavior", () => {
     expect(result.current.showError).toMatch(/abgelehnt/i);
     expect(result.current.showError).not.toMatch(/lokaler edge admin key fehlt/i);
     expect(result.current.showError).not.toContain("edge-admin-key");
+  });
+
+  it("persists completed CI-Lite runs under the repo/branch-scoped snapshot contract", async () => {
+    mockStorageGetItem.mockResolvedValue(null);
+    mockUseGitHubActionsLogs.mockImplementation((options: any) => {
+      if (!options?.runId) {
+        return {
+          logs: [],
+          workflowRun: null,
+          isLoading: false,
+          error: null,
+          refreshLogs: jest.fn(),
+        };
+      }
+
+      return {
+        logs: [{ timestamp: "", message: "done", level: "raw" }],
+        workflowRun: {
+          id: options.runId,
+          run_number: 12,
+          status: "completed",
+          conclusion: "success",
+          created_at: "2026-03-19T00:00:00Z",
+          updated_at: "2026-03-19T00:00:05Z",
+          html_url: `https://github.com/runs/${options.runId}`,
+          head_sha: SHA,
+        },
+        isLoading: false,
+        error: null,
+        refreshLogs: jest.fn(),
+      };
+    });
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    await waitFor(() => {
+      expect(mockStorageMultiSet).toHaveBeenCalled();
+    });
+
+    const persistedEntries = mockStorageMultiSet.mock.calls.at(-1)?.[0] as [string, string][];
+    const scopedEntry = persistedEntries.find(([key]) =>
+      key === ciLiteSnapshotKeyForSelection({ linkedRepo: "owner/repo", linkedBranch: "main" }),
+    );
+
+    expect(scopedEntry).toBeTruthy();
+    expect(scopedEntry?.[1]).toBe(
+      JSON.stringify({
+        repo: "owner/repo",
+        branch: "main",
+        sha: SHA,
+        runAtMs: NOW,
+        workflowId: "k1w1-ci-lite.yml",
+        jobId: "job-123",
+        runId: 321,
+        conclusion: "success",
+        lintOk: true,
+        typecheckOk: true,
+      }),
+    );
   });
 });

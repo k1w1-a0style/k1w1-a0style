@@ -1,26 +1,21 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { ProjectData, ProjectFile } from "../../shared/types/project";
 // project/services/buildStartService.ts
 // Extracted from ProjectContext.startBuild to keep ProjectContext lean.
 // Behavior is intentionally kept the same.
 
-
 import { ensureSupabaseClient } from "../../lib/supabase";
 import { logger } from "../../lib/logger";
 import {
   getEdgeAdminKey,
-  getBranchHeadSha,
   pushFilesToRepo,
 } from "../../infra/github/githubService";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
 import { autoFixCIWorkflows } from "../../lib/diagnostics/ciAutoFix";
-import { STORAGE_KEYS, diagnosticLastOkKeyForSelection } from "../../lib/storageKeys";
-import {
-  BUILD_READINESS_ERROR_MESSAGES,
-  ERR_BRANCH_MISSING,
-  ERR_DIAGNOSTIC_NOT_GREEN,
-} from "../../lib/errors/buildReadinessErrors";
 import { getRepoSyncState, markRepoSyncSignature } from "../../lib/repoSyncOrchestration";
+import {
+  assertBuildReadiness as assertBuildReadinessContract,
+  type BuildReadinessDeps,
+} from "../../lib/buildReadiness";
 
 export type StartBuildProfile = "development" | "preview" | "production";
 
@@ -75,86 +70,11 @@ function asEdgeBuildInvokePayload(raw: unknown): EdgeBuildInvokePayload | null {
   };
 }
 
-export type BuildReadinessDeps = {
-  storageGetItem?: (key: string) => Promise<string | null>;
-  storageSetItem?: (key: string, value: string) => Promise<void>;
-  getBranchHeadSha?: (owner: string, repo: string, branch: string) => Promise<string>;
-};
-
-const CI_LITE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
-
 export async function assertBuildReadiness(
   project: ProjectData,
   deps: BuildReadinessDeps = {},
 ): Promise<void> {
-  const storageGetItem = deps.storageGetItem ?? ((key: string) => AsyncStorage.getItem(key));
-  const readBranchHeadSha = deps.getBranchHeadSha ?? getBranchHeadSha;
-  const linkedRepo = typeof project?.linkedRepo === "string" ? project.linkedRepo.trim() : "";
-  const linkedBranch = typeof project?.linkedBranch === "string" ? project.linkedBranch.trim() : "";
-  if (!linkedRepo || !linkedRepo.includes("/")) {
-    throw new Error('Kein gültiges Ziel-Repo verknüpft. Bitte in "Connections" ein Repo auswählen.');
-  }
-  if (!linkedBranch) {
-    throw new Error(`${ERR_BRANCH_MISSING}: ${BUILD_READINESS_ERROR_MESSAGES[ERR_BRANCH_MISSING]}`);
-  }
-
-  const scopedDiagnosticKey = diagnosticLastOkKeyForSelection({
-    linkedRepo,
-    linkedBranch,
-  });
-
-  const [diagScopedVal, diagLegacyVal, lintVal, typeVal, lastRunAt, lastRepo, lastBranch, lastSha] = await Promise.all([
-    storageGetItem(scopedDiagnosticKey).catch(() => null),
-    storageGetItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_LINT_OK).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_TYPECHECK_OK).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_LAST_RUN_AT).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_LAST_REPO).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_LAST_BRANCH).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_LAST_SHA).catch(() => null),
-  ]);
-
-  const diagVal = diagScopedVal ?? diagLegacyVal;
-  if (diagVal !== "true") {
-    throw new Error(
-      `${ERR_DIAGNOSTIC_NOT_GREEN}: ${BUILD_READINESS_ERROR_MESSAGES[ERR_DIAGNOSTIC_NOT_GREEN]}`,
-    );
-  }
-
-  if (lintVal !== "true" || typeVal !== "true") {
-    throw new Error("Build blockiert: CI Lite (Lint + Typecheck) ist für dieses Ziel noch nicht grün.");
-  }
-
-  if ((lastRepo ?? "").trim() !== linkedRepo) {
-    throw new Error("Build blockiert: Letzter CI-Lite-Run gehört zu einem anderen Repo.");
-  }
-
-  if ((lastBranch ?? "").trim() !== linkedBranch) {
-    throw new Error("Build blockiert: Letzter CI-Lite-Run gehört zu einem anderen Branch.");
-  }
-
-  const ts = Number(lastRunAt ?? "");
-  if (!Number.isFinite(ts) || ts <= 0) {
-    throw new Error("Build blockiert: Kein gültiger Zeitstempel für den letzten CI-Lite-Run vorhanden.");
-  }
-
-  if (Date.now() - ts > CI_LITE_MAX_AGE_MS) {
-    throw new Error("Build blockiert: Letzter CI-Lite-Run ist veraltet. Bitte erneut prüfen.");
-  }
-
-  if (!/^[0-9a-f]{40}$/i.test(String(lastSha ?? "").trim())) {
-    throw new Error("Build blockiert: Kein gültiger CI-Lite-SHA vorhanden. Bitte CI Lite erneut ausführen.");
-  }
-
-  const [owner, repo] = linkedRepo.split("/");
-  const currentHeadSha = await readBranchHeadSha(owner, repo, linkedBranch);
-  if (!/^[0-9a-f]{40}$/i.test(String(currentHeadSha ?? "").trim())) {
-    throw new Error("Build blockiert: Branch-HEAD-SHA konnte nicht ermittelt werden.");
-  }
-
-  if (String(lastSha).trim() !== String(currentHeadSha).trim()) {
-    throw new Error("Build blockiert: Repo/Branch wurden seit dem letzten grünen CI-Lite-Run geändert (SHA-Mismatch).");
-  }
+  await assertBuildReadinessContract(project, deps);
 }
 
 async function bestEffortPushToGitHub(opts: {
@@ -165,6 +85,7 @@ async function bestEffortPushToGitHub(opts: {
 }): Promise<string> {
   const { githubRepo, branch, files, storageSetItem } = opts;
 
+  // Defensive helper guard: this helper can still be reused independently of startBuildJob.
   if (!githubRepo || !githubRepo.includes("/")) {
     throw new Error('Kein GitHub-Repo verbunden. Bitte in "Connections" ein Repo verknuepfen.');
   }
@@ -218,10 +139,8 @@ export async function startBuildJob(params: {
 
   await assertBuildReadiness(project, deps);
 
+  // Repo/branch gating now comes from the centralized readiness contract above.
   const githubRepo = (project.linkedRepo?.trim() || "").trim();
-  if (!githubRepo || !githubRepo.includes("/")) {
-    throw new Error('Kein gültiges Ziel-Repo verknüpft. Bitte in "Connections" ein Repo auswählen.');
-  }
   const profile = normalizeProfile(buildProfile);
   const buildBranch = (project.linkedBranch ?? "").trim();
 

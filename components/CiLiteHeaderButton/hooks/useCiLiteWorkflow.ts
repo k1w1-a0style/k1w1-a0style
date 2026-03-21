@@ -12,13 +12,19 @@ import { getBranchHeadSha, getEdgeAdminKey } from "../../../infra/github/githubS
 import { useProject } from "../../../contexts/ProjectContext";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
 import { computeCiLiteOk, inferStepStates, safeUi } from "../../ciLite/ciLiteUtils";
-import { readPersistedCiLiteSelection, type PersistedCiLiteSnapshot } from "../../../lib/ciLitePersistence";
-import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import {
+  buildPersistCiLiteEntries,
+  readPersistedCiLiteSelection,
+  type PersistedCiLiteSnapshot,
+} from "../../../lib/ciLitePersistence";
 import { WORKFLOW_CI_LITE, WORKFLOW_CI_LITE_AUTOFIX, type StepState } from "../types";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
-import { describeLocalEdgeAdminKeyIssue } from "../../../screens/CredentialsWizardScreen/utils/localAdminKey";
 import { isLikelyValidAdminKey } from "../../../screens/CredentialsWizardScreen/utils/security";
 import { chooseWorkflowRunCandidate } from "./workflowRunMatching";
+import {
+  normalizeCiLiteWorkflowError,
+  readCiLiteErrorResponse,
+} from "./ciLiteWorkflowErrors";
 
 
 type CiLiteArtifactJson = {
@@ -105,25 +111,6 @@ function getArtifactUiMessage(params: {
   return "Zusätzliche Ergebnisdaten zum Run konnten nicht geladen werden. Bitte Run öffnen oder erneut starten.";
 }
 
-function buildCiLiteAdminKeyError(params: {
-  adminKey?: string | null;
-  statusCode?: number | null;
-  error?: unknown;
-  context: "dispatch" | "artifact";
-}): string | null {
-  const reason = describeLocalEdgeAdminKeyIssue({
-    adminKey: params.adminKey,
-    statusCode: params.statusCode,
-    error: params.error,
-  });
-  if (!reason) return null;
-
-  if (params.context === "artifact") {
-    return `CI Lite Ergebnisabruf blockiert: ${reason}`;
-  }
-  return `CI Lite Dispatch blockiert: ${reason}`;
-}
-
 export function useCiLiteWorkflow() {
   // Contract for chain-run correlation:
   // - Autofix dispatches repository_dispatch(trigger-ci-lite) with the same source commit SHA and job_id
@@ -138,6 +125,7 @@ export function useCiLiteWorkflow() {
   const [workflowId, setWorkflowId] = useState<string>(WORKFLOW_CI_LITE);
   const [targetRef, setTargetRef] = useState<string | null>(null);
   const [dispatching, setDispatching] = useState(false);
+  const [locatingRun, setLocatingRun] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
   const [headerState, setHeaderState] = useState<StepState>("idle");
@@ -170,6 +158,16 @@ export function useCiLiteWorkflow() {
       pollTimerRef.current = null;
     }
   }, []);
+
+  const startRunLookup = useCallback(() => {
+    stopPolling();
+    setLocatingRun(true);
+  }, [stopPolling]);
+
+  const stopRunLookup = useCallback(() => {
+    setLocatingRun(false);
+    stopPolling();
+  }, [stopPolling]);
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
@@ -206,16 +204,28 @@ export function useCiLiteWorkflow() {
       });
 
       if (!r.ok) {
-        const t = await r.text().catch(() => "");
-        throw new Error(`github-workflow-runs failed (${r.status}): ${safeUi(t || r.statusText)}`);
+        const { payload, text } = await readCiLiteErrorResponse(r);
+        const normalized = normalizeCiLiteWorkflowError({
+          context: "lookup",
+          adminKey: edgeAdminKey,
+          statusCode: r.status,
+          statusText: r.statusText,
+          payload,
+          text,
+        });
+        throw new Error(normalized.userMessage);
       }
 
       const json = await r.json();
       const workflowLookupNote = typeof json?.note === "string" ? json.note.trim() : "";
+      // Workflow-Run-Lookup ist nicht workflow-spezifisch abgesichert => harter Vertrags-/Sicherheitsfehler.
       if (workflowLookupNote) {
-        throw new Error(
-          `Workflow-Run-Lookup ist nicht workflow-spezifisch abgesichert (${safeUi(workflowLookupNote)}).`,
-        );
+        const normalized = normalizeCiLiteWorkflowError({
+          context: "lookup",
+          adminKey: edgeAdminKey,
+          note: workflowLookupNote,
+        });
+        throw new Error(normalized.userMessage);
       }
 
       const runs = json?.data?.workflow_runs ?? json?.workflow_runs ?? json?.runs ?? [];
@@ -234,7 +244,7 @@ export function useCiLiteWorkflow() {
 
   // ---- Logs ----
   const trackedRunId = runId;
-  const hasActiveRunContext = dispatching || chainWaiting || trackedRunId != null;
+  const hasActiveRunContext = dispatching || locatingRun || chainWaiting || trackedRunId != null;
 
   const {
     logs,
@@ -249,7 +259,7 @@ export function useCiLiteWorkflow() {
   });
 
   const runCompleted = workflowRun?.status === "completed";
-  const isTrackingRun = dispatching || chainWaiting || (trackedRunId != null && !runCompleted);
+  const isTrackingRun = dispatching || locatingRun || chainWaiting || (trackedRunId != null && !runCompleted);
 
   useEffect(() => {
     let cancelled = false;
@@ -312,12 +322,11 @@ export function useCiLiteWorkflow() {
         const adminKey = await getEdgeAdminKey().catch(() => null);
         const trimmedAdminKey = String(adminKey ?? "").trim();
         if (!trimmedAdminKey || !isLikelyValidAdminKey(trimmedAdminKey)) {
-          throw new Error(
-            buildCiLiteAdminKeyError({
-              adminKey,
-              context: "artifact",
-            }) ?? "CI Lite Ergebnisabruf blockiert: lokaler Edge Admin Key fehlt oder ist ungueltig.",
-          );
+          const normalized = normalizeCiLiteWorkflowError({
+            context: "artifact",
+            adminKey,
+          });
+          throw new Error(normalized.userMessage);
         }
 
         const artifactName =
@@ -341,18 +350,17 @@ export function useCiLiteWorkflow() {
           }),
         });
 
-        const data: unknown = await resp.json().catch(() => ({}));
+        const { payload: data, text: raw } = await readCiLiteErrorResponse(resp);
         if (!resp.ok) {
-          const errObj = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
-          const msg = typeof errObj?.error === "string" ? errObj.error : `HTTP ${resp.status}`;
-          throw new Error(
-            buildCiLiteAdminKeyError({
-              adminKey: trimmedAdminKey,
-              statusCode: resp.status,
-              error: msg,
-              context: "artifact",
-            }) ?? msg,
-          );
+          const normalized = normalizeCiLiteWorkflowError({
+            context: "artifact",
+            adminKey: trimmedAdminKey,
+            statusCode: resp.status,
+            statusText: resp.statusText,
+            payload: data,
+            text: raw,
+          });
+          throw new Error(normalized.userMessage);
         }
 
         const parsed = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
@@ -483,6 +491,7 @@ export function useCiLiteWorkflow() {
 
   const busy =
     dispatching ||
+    locatingRun ||
     chainWaiting ||
     logsLoading ||
     workflowRun?.status === "in_progress" ||
@@ -502,15 +511,15 @@ export function useCiLiteWorkflow() {
     if (chainSkipReason) {
       setLocalError(`Autofix erfolgreich, aber CI-Lite Chain-Run wurde im Workflow übersprungen: ${chainSkipReason}.`);
       setChainWaiting(false);
-      stopPolling();
+      stopRunLookup();
       return;
     }
 
     setChainWaiting(true);
+    startRunLookup();
     setWorkflowId(WORKFLOW_CI_LITE);
     setRunId(null);
     setRunUrl(null);
-    stopPolling();
 
     const start = Date.now();
     const poll = async () => {
@@ -529,28 +538,39 @@ export function useCiLiteWorkflow() {
           setRunId(Number(found.id));
           setRunUrl(typeof found?.html_url === "string" ? found.html_url : null);
           setChainWaiting(false);
-          stopPolling();
-          return;
+          stopRunLookup();
+          return true;
         }
       } catch (e: any) {
         setLocalError(e?.message || String(e));
+        setChainWaiting(false);
+        stopRunLookup();
+        return true;
       }
       if (Date.now() - start > 75_000) {
         setLocalError(
           "Autofix-Chain ausgelöst, aber kein frischer passender CI-Lite-Run gefunden (Timeout). Prüfe job_id-Contract/Workflow-Dispatch.",
         );
         setChainWaiting(false);
-        stopPolling();
+        stopRunLookup();
+        return true;
       }
+      return false;
     };
 
-    void poll();
-    pollTimerRef.current = setInterval(poll, 2500);
-  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopPolling, findMatchingRun]);
+    void (async () => {
+      const lookupFinished = await poll();
+      if (!lookupFinished) {
+        pollTimerRef.current = setInterval(() => {
+          void poll();
+        }, 2500);
+      }
+    })();
+  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopRunLookup, startRunLookup, findMatchingRun]);
 
   // ---- Header state lamp ----
   useEffect(() => {
-    if (dispatching || chainWaiting) { setHeaderState("running"); return; }
+    if (dispatching || locatingRun || chainWaiting) { setHeaderState("running"); return; }
     if (workflowRun?.status) {
       if (workflowRun.status !== "completed") { setHeaderState("running"); return; }
       if (workflowRun.conclusion === "success") setHeaderState("success");
@@ -563,7 +583,7 @@ export function useCiLiteWorkflow() {
       return;
     }
     setHeaderState("idle");
-  }, [workflowRun?.status, workflowRun?.conclusion, dispatching, chainWaiting, hydratedDisplaySnapshot]);
+  }, [workflowRun?.status, workflowRun?.conclusion, dispatching, locatingRun, chainWaiting, hydratedDisplaySnapshot]);
 
   // ---- Persist CI Lite results ----
   useEffect(() => {
@@ -582,18 +602,24 @@ export function useCiLiteWorkflow() {
         "",
       ).trim();
 
-    void AsyncStorage.multiSet([
-      [STORAGE_KEYS.CI_LITE_LINT_OK, lintOk ? "true" : "false"],
-      [STORAGE_KEYS.CI_LITE_TYPECHECK_OK, typeOk ? "true" : "false"],
-      [STORAGE_KEYS.CI_LITE_LAST_RUN_AT, String(Date.now())],
-      [STORAGE_KEYS.CI_LITE_LAST_REPO, githubRepo || ""],
-      [STORAGE_KEYS.CI_LITE_LAST_BRANCH, (targetRef || branch || "").trim()],
-      [STORAGE_KEYS.CI_LITE_LAST_SHA, sourceCommitSha],
-      [STORAGE_KEYS.CI_LITE_LAST_WORKFLOW, workflowId],
-      [STORAGE_KEYS.CI_LITE_LAST_JOB_ID, jobId || ""],
-      [STORAGE_KEYS.CI_LITE_LAST_RUN_ID, workflowRun?.id != null ? String(workflowRun.id) : ""],
-      [STORAGE_KEYS.CI_LITE_LAST_CONCLUSION, String(workflowRun.conclusion || "")],
-    ]).catch(() => {});
+    void AsyncStorage.multiSet(
+      buildPersistCiLiteEntries({
+        // Preferred source of truth is the repo/branch-scoped snapshot.
+        // The legacy flat keys are mirrored only temporarily for migration compatibility.
+        snapshot: {
+          repo: githubRepo,
+          branch: (targetRef || branch || "").trim(),
+          sha: sourceCommitSha,
+          runAtMs: Date.now(),
+          workflowId,
+          jobId,
+          runId: workflowRun?.id ?? null,
+          conclusion: String(workflowRun.conclusion || ""),
+          lintOk,
+          typecheckOk: typeOk,
+        },
+      }),
+    ).catch(() => {});
   }, [
     workflowRun,
     workflowId,
@@ -619,11 +645,12 @@ export function useCiLiteWorkflow() {
       setLocalError(null);
       setVisible(true);
       setDispatching(true);
+      setLocatingRun(false);
       setRunId(null);
       setRunUrl(null);
       setWorkflowId(workflowFile);
       setChainWaiting(false);
-      stopPolling();
+      stopRunLookup();
 
       const newJobId = uuidv4();
       setJobId(newJobId);
@@ -651,12 +678,11 @@ export function useCiLiteWorkflow() {
         const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
         const trimmedEdgeAdminKey = String(edgeAdminKey ?? "").trim();
         if (!trimmedEdgeAdminKey || !isLikelyValidAdminKey(trimmedEdgeAdminKey)) {
-          throw new Error(
-            buildCiLiteAdminKeyError({
-              adminKey: edgeAdminKey,
-              context: "dispatch",
-            }) ?? "CI Lite Dispatch blockiert: lokaler Edge Admin Key fehlt oder ist ungueltig.",
-          );
+          const normalized = normalizeCiLiteWorkflowError({
+            context: "dispatch",
+            adminKey: edgeAdminKey,
+          });
+          throw new Error(normalized.userMessage);
         }
 
         const edgeUrl = await requireSupabaseEdgeUrl();
@@ -674,19 +700,16 @@ export function useCiLiteWorkflow() {
         });
 
         if (!r.ok) {
-          const t = await r.text().catch(() => "");
-          const safeText = safeUi(t || r.statusText);
-          const adminKeyError = buildCiLiteAdminKeyError({
+          const { payload, text } = await readCiLiteErrorResponse(r);
+          const normalized = normalizeCiLiteWorkflowError({
+            context: "dispatch",
             adminKey: trimmedEdgeAdminKey,
             statusCode: r.status,
-            error: safeText,
-            context: "dispatch",
+            statusText: r.statusText,
+            payload,
+            text,
           });
-          if (adminKeyError) {
-            throw new Error(adminKeyError);
-          }
-          const hint = r.status === 404 ? " (Workflow-Datei auf diesem Branch nicht gefunden)" : "";
-          throw new Error(`github-workflow-dispatch failed (${r.status}): ${safeText}${hint}`);
+          throw new Error(normalized.userMessage);
         }
 
         const start = Date.now();
@@ -703,27 +726,37 @@ export function useCiLiteWorkflow() {
             if (found?.id) {
               setRunId(Number(found.id));
               setRunUrl(typeof found?.html_url === "string" ? found.html_url : null);
-              stopPolling();
-              return;
+              stopRunLookup();
+              return true;
             }
           } catch (e: any) {
             setLocalError(e?.message || String(e));
+            stopRunLookup();
+            return true;
           }
           if (Date.now() - start > 60_000) {
             setLocalError("Workflow wurde gestartet, aber kein passender Run gefunden (Timeout). Bitte Run-Übersicht öffnen.");
-            stopPolling();
+            stopRunLookup();
+            return true;
           }
+          return false;
         };
 
-        await poll();
-        pollTimerRef.current = setInterval(poll, 2500);
+        startRunLookup();
+        const lookupFinished = await poll();
+        if (!lookupFinished) {
+          pollTimerRef.current = setInterval(() => {
+            void poll();
+          }, 2500);
+        }
       } catch (e: any) {
         setLocalError(e?.message || String(e));
+        stopRunLookup();
       } finally {
         setDispatching(false);
       }
     },
-    [dispatching, githubRepo, branch, stopPolling, findMatchingRun, projectData?.files],
+    [dispatching, githubRepo, branch, stopRunLookup, startRunLookup, findMatchingRun, projectData?.files],
   );
 
 
@@ -748,6 +781,7 @@ export function useCiLiteWorkflow() {
   return {
     visible, setVisible,
     dispatching, dispatchWorkflow,
+    runLookupActive: locatingRun,
     isTrackingRun,
     headerState,
     githubRepo, branch, targetRef: effectiveTargetRef,

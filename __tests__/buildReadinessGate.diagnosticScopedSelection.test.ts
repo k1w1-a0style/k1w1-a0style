@@ -51,6 +51,6 @@ describe("build readiness gate - diagnostic scoped selection", () => {
         storageGetItem: async (key: string) => storageMap[key] ?? null,
         getBranchHeadSha: async () => "b".repeat(40),
       }),
-    ).rejects.toThrow(/DIAGNOSTIC_NOT_GREEN/);
+    ).rejects.toThrow(/diagnostic_not_green/);
   });
 });
