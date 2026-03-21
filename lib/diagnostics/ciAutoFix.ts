@@ -9,17 +9,50 @@ import {
   getRepoFileText,
   listRepoSecretNames,
 } from "../../infra/github/githubService";
+import {
+  classifyManagedWorkflowState,
+  getAutoFixManagedWorkflowDefinitions,
+  type ManagedWorkflowDetectedState,
+} from "./managedWorkflowRegistry";
+
+export type ManagedWorkflowApplyState = "unchanged" | "updated" | "update_failed";
 
 export type CiFixChange = {
   path: string;
   changed: boolean;
   message: string;
+  detectedState: ManagedWorkflowDetectedState;
+  applyState: ManagedWorkflowApplyState;
+  error?: string;
 };
 
 export type SecretsCheck = {
   required: string[];
   present: string[];
   missing: string[];
+};
+
+const buildWorkflowMessage = (params: {
+  detectedState: ManagedWorkflowDetectedState;
+  applyState: ManagedWorkflowApplyState;
+}): string => {
+  const { detectedState, applyState } = params;
+
+  if (applyState === "unchanged") {
+    return detectedState === "current"
+      ? "Current managed workflow"
+      : "No update applied";
+  }
+
+  if (applyState === "updated") {
+    return detectedState === "missing"
+      ? "Update pushed (managed workflow was missing)"
+      : "Update pushed (managed workflow drift repaired)";
+  }
+
+  return detectedState === "missing"
+    ? "Update failed (managed workflow was missing)"
+    : "Update failed (managed workflow drift detected)";
 };
 
 export function parseOwnerRepo(
@@ -30,21 +63,6 @@ export function parseOwnerRepo(
   if (!m) return null;
   return { owner: m[1], repo: m[2] };
 }
-
-import {
-  WORKFLOW_K1W1_TRIGGERED_BUILD,
-  WORKFLOW_EAS_BUILD,
-  WORKFLOW_RELEASE_BUILD,
-  WORKFLOW_EAS_LINK,
-} from "./workflowTemplates";
-
-const WORKFLOWS: Record<string, string> = {
-  "k1w1-triggered-build.yml": WORKFLOW_K1W1_TRIGGERED_BUILD,
-  "eas-build.yml": WORKFLOW_EAS_BUILD,
-  "release-build.yml": WORKFLOW_RELEASE_BUILD,
-  "eas-link.yml": WORKFLOW_EAS_LINK,
-};
-
 
 export const REQUIRED_SECRETS = ["EXPO_TOKEN"];
 
@@ -72,45 +90,75 @@ export async function autoFixCIWorkflows(params: {
   const { owner, repo, branch } = params;
 
   const results: CiFixChange[] = [];
-  const entries = Object.entries(WORKFLOWS);
+  const entries = getAutoFixManagedWorkflowDefinitions();
 
-  for (const [fileName, desired] of entries) {
-    const path = `.github/workflows/${fileName}`;
-
+  for (const entry of entries) {
     let current = "";
     try {
-      current = await getRepoFileText({ owner, repo, path, ref: branch });
+      current = await getRepoFileText({
+        owner,
+        repo,
+        path: entry.path,
+        ref: branch,
+      });
     } catch {
-      // file missing -> treat as empty
       current = "";
     }
 
-    const normalizedCurrent = (current || "").replace(/\r\n/g, "\n");
-    const normalizedDesired = (desired || "").replace(/\r\n/g, "\n");
+    const detectedState = classifyManagedWorkflowState({
+      currentContent: current,
+      desiredContent: entry.content,
+    });
 
-    if (normalizedCurrent.trim() === normalizedDesired.trim()) {
+    if (detectedState === "current") {
       results.push({
-        path,
+        path: entry.path,
         changed: false,
-        message: "OK (already up to date)",
+        detectedState,
+        applyState: "unchanged",
+        message: buildWorkflowMessage({
+          detectedState,
+          applyState: "unchanged",
+        }),
       });
       continue;
     }
 
-    await createOrUpdateFile(
-      owner,
-      repo,
-      path,
-      normalizedDesired,
-      `fix(ci): update ${fileName}`,
-      branch,
-    );
+    try {
+      await createOrUpdateFile(
+        owner,
+        repo,
+        entry.path,
+        entry.content.replace(/\r\n/g, "\n"),
+        `fix(ci): update ${entry.fileName}`,
+        branch,
+      );
 
-    results.push({
-      path,
-      changed: true,
-      message: "Updated",
-    });
+      results.push({
+        path: entry.path,
+        changed: true,
+        detectedState,
+        applyState: "updated",
+        message: buildWorkflowMessage({
+          detectedState,
+          applyState: "updated",
+        }),
+      });
+    } catch (error) {
+      results.push({
+        path: entry.path,
+        changed: false,
+        detectedState,
+        applyState: "update_failed",
+        message: buildWorkflowMessage({
+          detectedState,
+          applyState: "update_failed",
+        }),
+        error: String(
+          (error as any)?.message || error || "Unknown workflow update failure",
+        ),
+      });
+    }
   }
 
   // Ensure repo ignores patch ZIPs produced by this builder (avoid accidentally committing patch bundles)
@@ -153,12 +201,16 @@ export async function autoFixCIWorkflows(params: {
       results.push({
         path: giPath,
         changed: true,
-        message: "Updated .gitignore to ignore patch ZIPs",
+        detectedState: existing.trim() ? "drifted" : "missing",
+        applyState: "updated",
+        message: "Update pushed (.gitignore patch ZIP guard added)",
       });
     } else {
       results.push({
         path: giPath,
         changed: false,
+        detectedState: "current",
+        applyState: "unchanged",
         message: ".gitignore already ignores patch ZIPs",
       });
     }
@@ -170,24 +222,41 @@ export async function autoFixCIWorkflows(params: {
       results.push({
         path: giPath,
         changed: false,
-        message: `Skipped .gitignore update (could not read existing file): ${msg.slice(0, 120)}`,
+        detectedState: "drifted",
+        applyState: "update_failed",
+        message: "Update failed (.gitignore could not be read)",
+        error: msg.slice(0, 120),
       });
     } else {
-      // .gitignore missing -> create a minimal one with the ignore block
-      const next = (giBlock + "\n").replace(/\r\n/g, "\n");
-      await createOrUpdateFile(
-        owner,
-        repo,
-        giPath,
-        next,
-        "chore(ci): add .gitignore for patch zips",
-        branch,
-      );
-      results.push({
-        path: giPath,
-        changed: true,
-        message: "Created .gitignore to ignore patch ZIPs",
-      });
+      try {
+        const next = (giBlock + "\n").replace(/\r\n/g, "\n");
+        await createOrUpdateFile(
+          owner,
+          repo,
+          giPath,
+          next,
+          "chore(ci): add .gitignore for patch zips",
+          branch,
+        );
+        results.push({
+          path: giPath,
+          changed: true,
+          detectedState: "missing",
+          applyState: "updated",
+          message: "Update pushed (.gitignore created for patch ZIP guard)",
+        });
+      } catch (error) {
+        results.push({
+          path: giPath,
+          changed: false,
+          detectedState: "missing",
+          applyState: "update_failed",
+          message: "Update failed (.gitignore was missing)",
+          error: String(
+            (error as any)?.message || error || "Unknown .gitignore update failure",
+          ),
+        });
+      }
     }
   }
 
