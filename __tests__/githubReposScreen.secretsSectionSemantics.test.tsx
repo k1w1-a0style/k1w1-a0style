@@ -1,5 +1,6 @@
 import React from "react";
-import { render, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { TouchableOpacity } from "react-native";
 
 import { SecretsSection } from "../screens/GitHubReposScreen/components/SecretsSection";
 
@@ -13,11 +14,52 @@ jest.mock("../infra/github/githubService", () => ({
   getEdgeAdminKey: (...args: unknown[]) => mockGetEdgeAdminKey(...args),
 }));
 
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason?: unknown) => void;
+};
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+async function flushMicrotasks() {
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
+
+function getRefreshButton(screen: ReturnType<typeof render>) {
+  return screen.UNSAFE_getAllByType(TouchableOpacity)[0];
+}
+
 describe("GitHubReposScreen SecretsSection secret semantics", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetExpoToken.mockResolvedValue("expo-local-token");
     mockGetEdgeAdminKey.mockResolvedValue("edge-local-key");
+  });
+
+  it("loads repo secret names only once automatically per repo context", async () => {
+    mockListRepoSecretNames.mockResolvedValue(["EXPO_TOKEN", "SUPABASE_URL", "K1W1_EDGE_ADMIN_KEY"]);
+
+    const screen = render(<SecretsSection activeRepo="owner/repo" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Secret-Namen bestätigt")).toBeTruthy();
+    });
+
+    await flushMicrotasks();
+
+    expect(mockListRepoSecretNames).toHaveBeenCalledTimes(1);
+    expect(mockListRepoSecretNames).toHaveBeenCalledWith("owner", "repo");
   });
 
   it("shows repo secret and local app value separately when the local Edge Admin Key is missing", async () => {
@@ -39,6 +81,80 @@ describe("GitHubReposScreen SecretsSection secret semantics", () => {
     expect(
       screen.getByText(/Repo-Secret-Namen koennen bestaetigt sein, aber fuer App-Dispatch fehlt noch: Edge Admin Key lokal/i),
     ).toBeTruthy();
+  });
+
+  it("supports manual refresh without reintroducing an automatic reload loop", async () => {
+    mockListRepoSecretNames.mockResolvedValue(["EXPO_TOKEN", "SUPABASE_URL", "K1W1_EDGE_ADMIN_KEY"]);
+
+    const screen = render(<SecretsSection activeRepo="owner/repo" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Secret-Namen bestätigt")).toBeTruthy();
+    });
+
+    expect(mockListRepoSecretNames).toHaveBeenCalledTimes(1);
+
+    fireEvent.press(getRefreshButton(screen));
+
+    await waitFor(() => {
+      expect(mockListRepoSecretNames).toHaveBeenCalledTimes(2);
+    });
+
+    await flushMicrotasks();
+
+    expect(mockListRepoSecretNames).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the last verified repo-secret list visible when a refresh fails", async () => {
+    mockListRepoSecretNames
+      .mockResolvedValueOnce(["EXPO_TOKEN", "SUPABASE_URL", "K1W1_EDGE_ADMIN_KEY"])
+      .mockRejectedValueOnce(new Error("403 forbidden"));
+
+    const screen = render(<SecretsSection activeRepo="owner/repo" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Secret-Namen bestätigt")).toBeTruthy();
+    });
+
+    fireEvent.press(getRefreshButton(screen));
+
+    await waitFor(() => {
+      expect(screen.getByText("403 forbidden")).toBeTruthy();
+    });
+
+    expect(screen.getByText("Secret-Namen bestätigt")).toBeTruthy();
+    expect(screen.getByText("Alle anzeigen (3)")).toBeTruthy();
+    expect(screen.getAllByText("EXPO_TOKEN").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("SUPABASE_URL")).toBeTruthy();
+  });
+
+  it("invalidates stale repo-secret requests when the repo context changes", async () => {
+    const repoA = createDeferred<string[]>();
+
+    mockListRepoSecretNames.mockImplementation((owner: string, repo: string) => {
+      if (owner === "owner" && repo === "repo-a") return repoA.promise;
+      if (owner === "owner" && repo === "repo-b") return Promise.resolve(["EXPO_TOKEN", "SUPABASE_URL"]);
+      throw new Error(`Unexpected repo ${owner}/${repo}`);
+    });
+
+    const screen = render(<SecretsSection activeRepo="owner/repo-a" />);
+
+    screen.rerender(<SecretsSection activeRepo="owner/repo-b" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Secret-Namen bestätigt")).toBeTruthy();
+    });
+
+    await act(async () => {
+      repoA.resolve(["EXPO_TOKEN", "SUPABASE_URL", "K1W1_EDGE_ADMIN_KEY"]);
+      await repoA.promise;
+    });
+    await flushMicrotasks();
+
+    expect(screen.getByText("Alle anzeigen (2)")).toBeTruthy();
+    expect(screen.queryByText("Alle anzeigen (3)")).toBeNull();
+    expect(mockListRepoSecretNames).toHaveBeenNthCalledWith(1, "owner", "repo-a");
+    expect(mockListRepoSecretNames).toHaveBeenNthCalledWith(2, "owner", "repo-b");
   });
 
   it("shows both repo and local Edge Admin Key as available when both exist", async () => {
