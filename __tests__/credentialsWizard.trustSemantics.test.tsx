@@ -189,6 +189,29 @@ describe("CredentialsWizard trust semantics", () => {
     });
   });
 
+  it("does not let a fresh auth failure look like an actually verified current state", () => {
+    const previouslyVerified = toWizardStatusResult({
+      exists: true,
+      record: { alias: "android-dev", mode: "development" },
+    });
+    const freshAuthError = toWizardErrorStatus({
+      previous: previouslyVerified,
+      statusCode: 401,
+      error: "Unauthorized: missing or invalid admin key",
+      detail: "Lokaler Edge Admin Key wurde vom Edge-Server abgelehnt (401/403).",
+    });
+    const presentation = resolveWizardStatusPresentation({
+      status: freshAuthError,
+      mode: "dev",
+      busy: null,
+    });
+
+    expect(freshAuthError.exists).toBe(true);
+    expect(freshAuthError.credentialState).toBe("auth_error");
+    expect(presentation.treatsAsVerified).toBe(false);
+    expect(presentation.text).toBe("lokaler Key abgelehnt");
+  });
+
   it("keeps real verified and missing states working cleanly", () => {
     const verified: StatusResult = {
       exists: true,
