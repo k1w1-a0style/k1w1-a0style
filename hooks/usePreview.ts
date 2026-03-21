@@ -8,16 +8,16 @@ import { useProject } from "../contexts/ProjectContext";
 import { buildSandpackHtml } from "../lib/sandpackBuilder";
 import { ensureSupabaseClient } from "../lib/supabase";
 import { logger } from "../lib/logger";
-import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
 import { getEdgeAdminKey } from "../infra/github/githubService";
-import type { PreviewFiles, PreviewResponse } from "../types/preview";
+import type { PreviewFiles } from "../types/preview";
 
 import type { ProjectData, LastPreviewMeta } from "../shared/types/project";
 import {
+  describeEmptyRemotePreviewFiles,
   describeRemotePreviewFailure,
+  invokeSavePreview,
   isAllowedFile,
   isProjectFile,
-  promiseWithTimeout,
   safeJson,
   sanitizePreviewPath,
   shouldAttemptSupabaseFirst,
@@ -376,13 +376,14 @@ if (container) {
       safeSetRemoteFailure(null);
 
       try {
+        const hasRemoteProjectFiles = Object.keys(fileMap).length > 0;
         const files = normalizeForWebPreview(ensureMinimumFiles(fileMap));
 
         // 1) Prefer Supabase-hosted preview (visual mode)
-        if (attemptSupabaseFirst) {
+        if (attemptSupabaseFirst && hasRemoteProjectFiles) {
           let edgeAdminKey: string | null = null;
           try {
-            const supabase = await ensureSupabaseClient();
+            await ensureSupabaseClient();
             edgeAdminKey = await getEdgeAdminKey().catch(() => null);
             const trimmedEdgeAdminKey = String(edgeAdminKey ?? "").trim();
 
@@ -405,32 +406,24 @@ if (container) {
             const fileCount = Object.keys(snackFiles).length;
 
             const invokeOpts = {
-              body: {
-                projectId: projectData.id,
-                name: projectData.name || "Preview",
-                files: snackFiles,
-                dependencies: resolvedDependencies,
-                meta: {
-                  template: "react",
-                  debug: {
-                    source: "usePreview",
-                    fileCount,
-                    dependencyCount,
-                  },
+              projectId: projectData.id,
+              name: projectData.name || "Preview",
+              files: snackFiles,
+              dependencies: resolvedDependencies,
+              meta: {
+                template: "react",
+                debug: {
+                  source: "usePreview",
+                  fileCount,
+                  dependencyCount,
                 },
               },
-              headers: { "x-k1w1-admin-key": trimmedEdgeAdminKey },
             };
 
-            const { data, error: fnError } = await promiseWithTimeout(
-              supabase.functions.invoke(SUPABASE_EDGE_FUNCTIONS.SAVE_PREVIEW, invokeOpts),
-              12_000,
-              "Supabase Preview Timeout (12s)",
-            );
-
-            if (fnError) throw fnError;
-
-            const resp = data as PreviewResponse;
+            const resp = await invokeSavePreview({
+              adminKey: trimmedEdgeAdminKey,
+              payload: invokeOpts,
+            });
             const previewUrl =
               typeof resp?.previewUrl === "string" ? resp.previewUrl : null;
 
@@ -473,6 +466,14 @@ if (container) {
               supErr,
             );
           }
+        } else if (attemptSupabaseFirst) {
+          safeSetRemoteFailure(
+            describeEmptyRemotePreviewFiles({
+              projectFileCount: Array.isArray(projectData.files) ? projectData.files.length : 0,
+              allowedFileCount: Object.keys(fileMap).length,
+              skippedCount,
+            }),
+          );
         }
 
         // 2) Fallback only: local HTML/Eval preview for dev/best-effort recovery.

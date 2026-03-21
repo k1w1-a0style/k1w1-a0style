@@ -2,6 +2,7 @@
 // Shared preview helper utilities to keep usePreview/usePreviewScreen aligned.
 
 import { describeLocalEdgeAdminKeyIssue } from "../screens/CredentialsWizardScreen/utils/localAdminKey";
+import type { PreviewFiles, PreviewResponse } from "../types/preview";
 
 export type ProjectFile = { path?: string; content?: string };
 
@@ -78,6 +79,9 @@ export const IGNORED_PATTERNS = [
   "__mocks__/",
 ];
 
+export const EMPTY_REMOTE_PREVIEW_FILES_ERROR =
+  "Keine zulaessigen Projektdateien fuer Remote-Preview gefunden.";
+
 export function promiseWithTimeout<T>(
   promise: Promise<T>,
   ms: number,
@@ -120,6 +124,28 @@ export function isAllowedFile(path: string): boolean {
   const ext = p.match(/\.[^./]+$/)?.[0];
   if (!ext) return false;
   return ALLOWED_EXTENSIONS.has(ext);
+}
+
+export function describeEmptyRemotePreviewFiles(params: {
+  projectFileCount: number;
+  allowedFileCount: number;
+  skippedCount: number;
+}): string {
+  const { projectFileCount, allowedFileCount, skippedCount } = params;
+
+  if (allowedFileCount > 0) {
+    return EMPTY_REMOTE_PREVIEW_FILES_ERROR;
+  }
+
+  if (projectFileCount <= 0) {
+    return `${EMPTY_REMOTE_PREVIEW_FILES_ERROR} Das Projekt enthaelt aktuell keine Dateien.`;
+  }
+
+  if (skippedCount > 0) {
+    return `${EMPTY_REMOTE_PREVIEW_FILES_ERROR} ${skippedCount} Datei(en) wurden vom Preview-Filter ausgeschlossen.`;
+  }
+
+  return EMPTY_REMOTE_PREVIEW_FILES_ERROR;
 }
 
 export function safeJson<T>(s: string): T | null {
@@ -186,6 +212,14 @@ export function describeRemotePreviewFailure(params: {
     return "Preview-Server derzeit nicht erreichbar.";
   }
 
+  if (
+    normalized.includes("files fehlt/leer") ||
+    normalized.includes("no valid files") ||
+    normalized.includes("keine zulaessigen projektdateien")
+  ) {
+    return EMPTY_REMOTE_PREVIEW_FILES_ERROR;
+  }
+
   const localKeyReason = describeLocalEdgeAdminKeyIssue({
     adminKey: params.adminKey,
     statusCode: params.statusCode,
@@ -196,6 +230,78 @@ export function describeRemotePreviewFailure(params: {
   }
 
   return "Remote-Preview konnte nicht zuverlässig bereitgestellt werden.";
+}
+
+function buildPreviewInvokeError(message: string, status?: number): Error & { status?: number } {
+  const error = new Error(message) as Error & { status?: number };
+  if (typeof status === "number") {
+    error.status = status;
+  }
+  return error;
+}
+
+function getRuntimeSupabaseUrl(): string | null {
+  if (typeof process === "undefined") return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const envUrl = (process as any)?.env?.EXPO_PUBLIC_SUPABASE_URL;
+  return typeof envUrl === "string" && envUrl.trim() ? envUrl.trim() : null;
+}
+
+export async function invokeSavePreview(params: {
+  adminKey: string;
+  payload: {
+    projectId?: string;
+    name: string;
+    files: PreviewFiles;
+    dependencies: Record<string, string>;
+    meta: Record<string, unknown>;
+  };
+  timeoutMs?: number;
+}): Promise<PreviewResponse> {
+  const supabaseUrl = getRuntimeSupabaseUrl();
+  if (!supabaseUrl) {
+    throw buildPreviewInvokeError("Supabase URL fehlt.");
+  }
+
+  const controller = new AbortController();
+  const timeoutMs = params.timeoutMs ?? 12_000;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(`${supabaseUrl.replace(/\/$/, "")}/functions/v1/save_preview`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-k1w1-admin-key": params.adminKey.trim(),
+      },
+      body: JSON.stringify(params.payload),
+      signal: controller.signal,
+    });
+
+    const rawText = await res.text();
+    const parsed = rawText ? safeJson<PreviewResponse>(rawText) : null;
+    const errorMessage =
+      typeof parsed?.error === "string" && parsed.error.trim()
+        ? parsed.error.trim()
+        : rawText.trim() || `HTTP ${res.status}`;
+
+    if (!res.ok) {
+      throw buildPreviewInvokeError(errorMessage, res.status);
+    }
+
+    if (parsed && parsed.ok === false) {
+      throw buildPreviewInvokeError(errorMessage, res.status);
+    }
+
+    return parsed ?? { ok: false, error: "Leere Preview-Antwort" };
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw buildPreviewInvokeError(`Supabase Preview Timeout (${timeoutMs}ms)`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 interface ResolvePreviewDisplayStateOptions {
