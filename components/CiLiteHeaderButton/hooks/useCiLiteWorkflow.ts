@@ -16,9 +16,12 @@ import { readPersistedCiLiteSelection, type PersistedCiLiteSnapshot } from "../.
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { WORKFLOW_CI_LITE, WORKFLOW_CI_LITE_AUTOFIX, type StepState } from "../types";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
-import { describeLocalEdgeAdminKeyIssue } from "../../../screens/CredentialsWizardScreen/utils/localAdminKey";
 import { isLikelyValidAdminKey } from "../../../screens/CredentialsWizardScreen/utils/security";
 import { chooseWorkflowRunCandidate } from "./workflowRunMatching";
+import {
+  normalizeCiLiteWorkflowError,
+  readCiLiteErrorResponse,
+} from "./ciLiteWorkflowErrors";
 
 
 type CiLiteArtifactJson = {
@@ -103,25 +106,6 @@ function getArtifactUiMessage(params: {
   }
 
   return "Zusätzliche Ergebnisdaten zum Run konnten nicht geladen werden. Bitte Run öffnen oder erneut starten.";
-}
-
-function buildCiLiteAdminKeyError(params: {
-  adminKey?: string | null;
-  statusCode?: number | null;
-  error?: unknown;
-  context: "dispatch" | "artifact";
-}): string | null {
-  const reason = describeLocalEdgeAdminKeyIssue({
-    adminKey: params.adminKey,
-    statusCode: params.statusCode,
-    error: params.error,
-  });
-  if (!reason) return null;
-
-  if (params.context === "artifact") {
-    return `CI Lite Ergebnisabruf blockiert: ${reason}`;
-  }
-  return `CI Lite Dispatch blockiert: ${reason}`;
 }
 
 export function useCiLiteWorkflow() {
@@ -217,16 +201,28 @@ export function useCiLiteWorkflow() {
       });
 
       if (!r.ok) {
-        const t = await r.text().catch(() => "");
-        throw new Error(`github-workflow-runs failed (${r.status}): ${safeUi(t || r.statusText)}`);
+        const { payload, text } = await readCiLiteErrorResponse(r);
+        const normalized = normalizeCiLiteWorkflowError({
+          context: "lookup",
+          adminKey: edgeAdminKey,
+          statusCode: r.status,
+          statusText: r.statusText,
+          payload,
+          text,
+        });
+        throw new Error(normalized.userMessage);
       }
 
       const json = await r.json();
       const workflowLookupNote = typeof json?.note === "string" ? json.note.trim() : "";
+      // Workflow-Run-Lookup ist nicht workflow-spezifisch abgesichert => harter Vertrags-/Sicherheitsfehler.
       if (workflowLookupNote) {
-        throw new Error(
-          `Workflow-Run-Lookup ist nicht workflow-spezifisch abgesichert (${safeUi(workflowLookupNote)}).`,
-        );
+        const normalized = normalizeCiLiteWorkflowError({
+          context: "lookup",
+          adminKey: edgeAdminKey,
+          note: workflowLookupNote,
+        });
+        throw new Error(normalized.userMessage);
       }
 
       const runs = json?.data?.workflow_runs ?? json?.workflow_runs ?? json?.runs ?? [];
@@ -323,12 +319,11 @@ export function useCiLiteWorkflow() {
         const adminKey = await getEdgeAdminKey().catch(() => null);
         const trimmedAdminKey = String(adminKey ?? "").trim();
         if (!trimmedAdminKey || !isLikelyValidAdminKey(trimmedAdminKey)) {
-          throw new Error(
-            buildCiLiteAdminKeyError({
-              adminKey,
-              context: "artifact",
-            }) ?? "CI Lite Ergebnisabruf blockiert: lokaler Edge Admin Key fehlt oder ist ungueltig.",
-          );
+          const normalized = normalizeCiLiteWorkflowError({
+            context: "artifact",
+            adminKey,
+          });
+          throw new Error(normalized.userMessage);
         }
 
         const artifactName =
@@ -352,18 +347,17 @@ export function useCiLiteWorkflow() {
           }),
         });
 
-        const data: unknown = await resp.json().catch(() => ({}));
+        const { payload: data, text: raw } = await readCiLiteErrorResponse(resp);
         if (!resp.ok) {
-          const errObj = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
-          const msg = typeof errObj?.error === "string" ? errObj.error : `HTTP ${resp.status}`;
-          throw new Error(
-            buildCiLiteAdminKeyError({
-              adminKey: trimmedAdminKey,
-              statusCode: resp.status,
-              error: msg,
-              context: "artifact",
-            }) ?? msg,
-          );
+          const normalized = normalizeCiLiteWorkflowError({
+            context: "artifact",
+            adminKey: trimmedAdminKey,
+            statusCode: resp.status,
+            statusText: resp.statusText,
+            payload: data,
+            text: raw,
+          });
+          throw new Error(normalized.userMessage);
         }
 
         const parsed = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
@@ -675,12 +669,11 @@ export function useCiLiteWorkflow() {
         const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
         const trimmedEdgeAdminKey = String(edgeAdminKey ?? "").trim();
         if (!trimmedEdgeAdminKey || !isLikelyValidAdminKey(trimmedEdgeAdminKey)) {
-          throw new Error(
-            buildCiLiteAdminKeyError({
-              adminKey: edgeAdminKey,
-              context: "dispatch",
-            }) ?? "CI Lite Dispatch blockiert: lokaler Edge Admin Key fehlt oder ist ungueltig.",
-          );
+          const normalized = normalizeCiLiteWorkflowError({
+            context: "dispatch",
+            adminKey: edgeAdminKey,
+          });
+          throw new Error(normalized.userMessage);
         }
 
         const edgeUrl = await requireSupabaseEdgeUrl();
@@ -698,19 +691,16 @@ export function useCiLiteWorkflow() {
         });
 
         if (!r.ok) {
-          const t = await r.text().catch(() => "");
-          const safeText = safeUi(t || r.statusText);
-          const adminKeyError = buildCiLiteAdminKeyError({
+          const { payload, text } = await readCiLiteErrorResponse(r);
+          const normalized = normalizeCiLiteWorkflowError({
+            context: "dispatch",
             adminKey: trimmedEdgeAdminKey,
             statusCode: r.status,
-            error: safeText,
-            context: "dispatch",
+            statusText: r.statusText,
+            payload,
+            text,
           });
-          if (adminKeyError) {
-            throw new Error(adminKeyError);
-          }
-          const hint = r.status === 404 ? " (Workflow-Datei auf diesem Branch nicht gefunden)" : "";
-          throw new Error(`github-workflow-dispatch failed (${r.status}): ${safeText}${hint}`);
+          throw new Error(normalized.userMessage);
         }
 
         const start = Date.now();
