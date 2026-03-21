@@ -20,8 +20,12 @@ import {
 import { WORKFLOW_CI_LITE, WORKFLOW_CI_LITE_AUTOFIX, type StepState } from "../types";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
 import { isLikelyValidAdminKey } from "../../../screens/CredentialsWizardScreen/utils/security";
-import { chooseWorkflowRunCandidate } from "./workflowRunMatching";
 import {
+  chooseWorkflowRunCandidateDetailed,
+  type WorkflowRunLookupDiagnosis,
+} from "./workflowRunMatching";
+import {
+  buildCiLiteLookupFailureMessage,
   normalizeCiLiteWorkflowError,
   readCiLiteErrorResponse,
 } from "./ciLiteWorkflowErrors";
@@ -81,20 +85,6 @@ function getAutofixChainSkipReason(lines: string[]): string | null {
   return null;
 }
 
-
-
-
-type WorkflowRunLocatorCandidate = {
-  id?: unknown;
-  html_url?: unknown;
-  display_title?: unknown;
-  name?: unknown;
-  created_at?: unknown;
-  event?: unknown;
-  head_branch?: unknown;
-  head_sha?: unknown;
-} | null | undefined;
-
 function getArtifactUiMessage(params: {
   artifactError: string | null;
   workflowStatus?: string | null;
@@ -111,11 +101,19 @@ function getArtifactUiMessage(params: {
   return "Zusätzliche Ergebnisdaten zum Run konnten nicht geladen werden. Bitte Run öffnen oder erneut starten.";
 }
 
+function splitRepoFullName(repoFullName: string): { owner: string; repo: string } | null {
+  const [owner, repo] = String(repoFullName || "").trim().split("/");
+  if (!owner || !repo) return null;
+  return { owner, repo };
+}
+
 export function useCiLiteWorkflow() {
   // Contract for chain-run correlation:
   // - Autofix dispatches repository_dispatch(trigger-ci-lite) with the same source commit SHA and job_id
   // - The header requires the explicit job_id marker for both manual and chained CI-Lite runs
-  // - sourceHeadSha remains a secondary freshness/safety guard, never the sole correlation anchor
+  // - The header keeps the explicit job_id marker as the preferred correlation path for both manual and chained CI-Lite runs
+  // - manual workflow_dispatch lookups may use a guarded fallback when older target workflows still miss the full marker contract
+  // - sourceHeadSha remains a secondary freshness/safety guard, never the sole correlation anchor for chain-runs
   const { projectData } = useProject();
 
   const [visible, setVisible] = useState(false);
@@ -138,8 +136,10 @@ export function useCiLiteWorkflow() {
   const [artifactLoading, setArtifactLoading] = useState(false);
   const [artifactError, setArtifactError] = useState<string | null>(null);
   const [hydratedSnapshot, setHydratedSnapshot] = useState<PersistedCiLiteSnapshot | null>(null);
+  const [lookupDiagnosis, setLookupDiagnosis] = useState<WorkflowRunLookupDiagnosis | null>(null);
 
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lookupDiagnosisRef = useRef<WorkflowRunLookupDiagnosis | null>(null);
 
   // ---- Derived repo/branch ----
   const githubRepo = useMemo(
@@ -161,6 +161,8 @@ export function useCiLiteWorkflow() {
 
   const startRunLookup = useCallback(() => {
     stopPolling();
+    lookupDiagnosisRef.current = null;
+    setLookupDiagnosis(null);
     setLocatingRun(true);
   }, [stopPolling]);
 
@@ -168,6 +170,11 @@ export function useCiLiteWorkflow() {
     setLocatingRun(false);
     stopPolling();
   }, [stopPolling]);
+
+  const updateLookupDiagnosis = useCallback((diagnosis: WorkflowRunLookupDiagnosis | null) => {
+    lookupDiagnosisRef.current = diagnosis;
+    setLookupDiagnosis(diagnosis);
+  }, []);
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
@@ -229,9 +236,21 @@ export function useCiLiteWorkflow() {
       }
 
       const runs = json?.data?.workflow_runs ?? json?.workflow_runs ?? json?.runs ?? [];
-      if (!Array.isArray(runs)) return null;
+      if (!Array.isArray(runs)) {
+        return {
+          candidate: null,
+          diagnosis: {
+            exactJobIdMatchFound: false,
+            fallbackCandidateCount: 0,
+            ambiguous: false,
+            contractMismatchLikely: false,
+            plausibleCandidateCount: 0,
+            selectedTier: null,
+          },
+        };
+      }
 
-      return chooseWorkflowRunCandidate(runs, {
+      return chooseWorkflowRunCandidateDetailed(runs, {
         ...opts,
         expectedEvent,
         startedAtMs,
@@ -400,6 +419,21 @@ export function useCiLiteWorkflow() {
     setArtifactLoading(false);
   }, [jobId, workflowId, runId]);
 
+  const buildLookupFailureMessage = useCallback((params: { workflowLabel: string }) => {
+    const diagnosis = lookupDiagnosisRef.current;
+    if (diagnosis?.ambiguous) {
+      return buildCiLiteLookupFailureMessage({ workflowLabel: params.workflowLabel, kind: "ambiguous" });
+    }
+    if (diagnosis?.contractMismatchLikely) {
+      return buildCiLiteLookupFailureMessage({
+        workflowLabel: params.workflowLabel,
+        kind: "contract_mismatch",
+        hasExistingRunCandidate: diagnosis.plausibleCandidateCount > 0 || diagnosis.fallbackCandidateCount > 0,
+      });
+    }
+    return buildCiLiteLookupFailureMessage({ workflowLabel: params.workflowLabel, kind: "timeout" });
+  }, []);
+
   const hydratedDisplaySnapshot = !hasActiveRunContext && !workflowRun ? hydratedSnapshot : null;
   const effectiveTargetRef = (targetRef || hydratedDisplaySnapshot?.branch || branch || "").trim() || null;
 
@@ -524,7 +558,7 @@ export function useCiLiteWorkflow() {
     const start = Date.now();
     const poll = async () => {
       try {
-        const found = await findMatchingRun({
+        const lookup = await findMatchingRun({
           githubRepo,
           branch: b,
           jobId,
@@ -534,9 +568,10 @@ export function useCiLiteWorkflow() {
           sourceHeadSha: workflowRun.head_sha ?? null,
           requireJobIdMarker: true,
         });
-        if (found?.id) {
-          setRunId(Number(found.id));
-          setRunUrl(typeof found?.html_url === "string" ? found.html_url : null);
+        updateLookupDiagnosis(lookup.diagnosis);
+        if (lookup.candidate?.id) {
+          setRunId(Number(lookup.candidate.id));
+          setRunUrl(typeof lookup.candidate?.html_url === "string" ? lookup.candidate.html_url : null);
           setChainWaiting(false);
           stopRunLookup();
           return true;
@@ -548,9 +583,7 @@ export function useCiLiteWorkflow() {
         return true;
       }
       if (Date.now() - start > 75_000) {
-        setLocalError(
-          "Autofix-Chain ausgelöst, aber kein frischer passender CI-Lite-Run gefunden (Timeout). Prüfe job_id-Contract/Workflow-Dispatch.",
-        );
+        setLocalError(buildLookupFailureMessage({ workflowLabel: "Autofix-Chain → CI Lite" }));
         setChainWaiting(false);
         stopRunLookup();
         return true;
@@ -566,7 +599,7 @@ export function useCiLiteWorkflow() {
         }, 2500);
       }
     })();
-  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopRunLookup, startRunLookup, findMatchingRun]);
+  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopRunLookup, startRunLookup, findMatchingRun, buildLookupFailureMessage, updateLookupDiagnosis]);
 
   // ---- Header state lamp ----
   useEffect(() => {
@@ -650,6 +683,7 @@ export function useCiLiteWorkflow() {
       setRunUrl(null);
       setWorkflowId(workflowFile);
       setChainWaiting(false);
+      updateLookupDiagnosis(null);
       stopRunLookup();
 
       const newJobId = uuidv4();
@@ -674,6 +708,11 @@ export function useCiLiteWorkflow() {
           );
         }
         setTargetRef(targetBranch);
+
+        const repoParts = splitRepoFullName(githubRepo);
+        const sourceHeadSha = repoParts
+          ? await getBranchHeadSha(repoParts.owner, repoParts.repo, targetBranch).catch(() => null)
+          : null;
 
         const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
         const trimmedEdgeAdminKey = String(edgeAdminKey ?? "").trim();
@@ -715,17 +754,20 @@ export function useCiLiteWorkflow() {
         const start = Date.now();
         const poll = async () => {
           try {
-            const found = await findMatchingRun({
+            const lookup = await findMatchingRun({
               githubRepo,
               branch: targetBranch,
               jobId: newJobId,
               workflow: workflowFile,
               expectedEvent: "workflow_dispatch",
               startedAtMs: start,
+              sourceHeadSha,
+              requireJobIdMarker: false,
             });
-            if (found?.id) {
-              setRunId(Number(found.id));
-              setRunUrl(typeof found?.html_url === "string" ? found.html_url : null);
+            updateLookupDiagnosis(lookup.diagnosis);
+            if (lookup.candidate?.id) {
+              setRunId(Number(lookup.candidate.id));
+              setRunUrl(typeof lookup.candidate?.html_url === "string" ? lookup.candidate.html_url : null);
               stopRunLookup();
               return true;
             }
@@ -735,7 +777,7 @@ export function useCiLiteWorkflow() {
             return true;
           }
           if (Date.now() - start > 60_000) {
-            setLocalError("Workflow wurde gestartet, aber kein passender Run gefunden (Timeout). Bitte Run-Übersicht öffnen.");
+            setLocalError(buildLookupFailureMessage({ workflowLabel: "Workflow" }));
             stopRunLookup();
             return true;
           }
@@ -756,7 +798,7 @@ export function useCiLiteWorkflow() {
         setDispatching(false);
       }
     },
-    [dispatching, githubRepo, branch, stopRunLookup, startRunLookup, findMatchingRun, projectData?.files],
+    [dispatching, githubRepo, branch, stopRunLookup, startRunLookup, findMatchingRun, projectData?.files, buildLookupFailureMessage, updateLookupDiagnosis],
   );
 
 
@@ -791,6 +833,7 @@ export function useCiLiteWorkflow() {
     showError, artifactNotice, logsLoading,
     runMeta,
     hydratedFromPersistence: Boolean(hydratedDisplaySnapshot),
+    lookupDiagnosis,
     stopPolling,
   };
 }

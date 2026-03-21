@@ -1,4 +1,7 @@
-import { normalizeCiLiteWorkflowError } from "../components/CiLiteHeaderButton/hooks/ciLiteWorkflowErrors";
+import {
+  buildCiLiteLookupFailureMessage,
+  normalizeCiLiteWorkflowError,
+} from "../components/CiLiteHeaderButton/hooks/ciLiteWorkflowErrors";
 
 describe("CI Lite workflow error normalization", () => {
   it("classifies missing GitHub token explicitly instead of as generic HTTP 500", () => {
@@ -66,5 +69,27 @@ describe("CI Lite workflow error normalization", () => {
 
     expect(normalized.code).toBe("upstream_http_error");
     expect(normalized.userMessage).toMatch(/HTTP 502/i);
+  });
+
+  it("builds an explicit contract-mismatch lookup message when a plausible run exists", () => {
+    const message = buildCiLiteLookupFailureMessage({
+      workflowLabel: "Workflow",
+      kind: "contract_mismatch",
+      hasExistingRunCandidate: true,
+    });
+
+    expect(message).toMatch(/plausibler GitHub-Run existiert/i);
+    expect(message).toMatch(/Correlation-Contract/i);
+    expect(message).not.toMatch(/kein passender Run gefunden/i);
+  });
+
+  it("builds an explicit ambiguity lookup message for multiple fresh candidates", () => {
+    const message = buildCiLiteLookupFailureMessage({
+      workflowLabel: "Workflow",
+      kind: "ambiguous",
+    });
+
+    expect(message).toMatch(/mehrere frische Kandidaten/i);
+    expect(message).toMatch(/keine eindeutige Zuordnung/i);
   });
 });

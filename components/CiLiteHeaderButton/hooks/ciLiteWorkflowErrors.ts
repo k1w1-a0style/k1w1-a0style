@@ -9,6 +9,8 @@ export type CiLiteWorkflowErrorCode =
   | "invalid_or_missing_local_admin_key"
   | "workflow_not_found"
   | "workflow_lookup_not_scoped"
+  | "workflow_run_contract_mismatch"
+  | "workflow_run_ambiguous"
   | "forbidden"
   | "upstream_http_error"
   | "timeout"
@@ -35,6 +37,29 @@ export type CiLiteWorkflowError = {
   detail: string;
   userMessage: string;
 };
+
+
+export type CiLiteLookupFailureKind = "timeout" | "contract_mismatch" | "ambiguous";
+
+export function buildCiLiteLookupFailureMessage(params: {
+  workflowLabel: string;
+  kind: CiLiteLookupFailureKind;
+  hasExistingRunCandidate?: boolean;
+}): string {
+  const workflowLabel = safeUi(params.workflowLabel || "Workflow");
+
+  if (params.kind === "ambiguous") {
+    return `${workflowLabel} wurde gestartet und GitHub hat mehrere frische Kandidaten geliefert, aber keine eindeutige Zuordnung war möglich. Bitte den Ziel-Workflow auf den aktuellen job_id-Correlation-Contract aktualisieren oder den gewünschten Run manuell öffnen.`;
+  }
+
+  if (params.kind === "contract_mismatch") {
+    return params.hasExistingRunCandidate
+      ? `${workflowLabel} wurde gestartet und ein plausibler GitHub-Run existiert, aber der Ziel-Workflow erfüllt den erwarteten Correlation-Contract nicht vollständig. Bitte den Workflow auf den aktuellen job_id-Correlation-Contract aktualisieren oder den Run manuell öffnen.`
+      : `${workflowLabel} wurde gestartet, aber der Ziel-Workflow erfüllt den erwarteten Correlation-Contract nicht vollständig. Bitte den Workflow auf den aktuellen job_id-Correlation-Contract aktualisieren.`;
+  }
+
+  return `${workflowLabel} wurde gestartet, aber kein passender Run gefunden (Timeout). Bitte Run-Übersicht öffnen.`;
+}
 
 function asRecord(value: unknown): JsonRecord | null {
   return value && typeof value === "object" && !Array.isArray(value)

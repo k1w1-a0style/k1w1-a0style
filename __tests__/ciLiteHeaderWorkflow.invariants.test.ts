@@ -55,7 +55,8 @@ describe("CI Lite Header workflow invariants", () => {
     expect(src).toContain("requireJobIdMarker: true");
     expect(src).toContain("requires the explicit job_id marker for both manual and chained CI-Lite runs");
     expect(src).toContain("sourceHeadSha remains a secondary freshness/safety guard");
-    expect(src).toContain("Autofix-Chain ausgelöst, aber kein frischer passender CI-Lite-Run gefunden (Timeout)");
+    expect(src).toContain('buildLookupFailureMessage({ workflowLabel: "Autofix-Chain → CI Lite" })');
+    expect(src).toContain("manual workflow_dispatch lookups may use a guarded fallback");
   });
 
   it("requires workflow event + branch to match before binding a located run", () => {
