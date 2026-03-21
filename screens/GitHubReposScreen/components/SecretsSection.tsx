@@ -57,6 +57,7 @@ export function SecretsSection(props: {
   const [runtimeLoading, setRuntimeLoading] = useState(false);
   const requestRef = useRef(0);
   const runtimeRequestRef = useRef(0);
+  const hasVerifiedNamesRef = useRef(false);
 
   const parsed = useMemo(() => (activeRepo ? splitFullName(activeRepo) : null), [activeRepo]);
 
@@ -70,7 +71,7 @@ export function SecretsSection(props: {
 
     const requestId = requestRef.current + 1;
     requestRef.current = requestId;
-    const hadVerifiedNames = Array.isArray(names);
+    const hadVerifiedNames = hasVerifiedNamesRef.current;
 
     setLoading(true);
     setError(null);
@@ -78,6 +79,7 @@ export function SecretsSection(props: {
     try {
       const list = await listRepoSecretNames(parsed.owner, parsed.repo);
       if (requestRef.current !== requestId) return;
+      hasVerifiedNamesRef.current = true;
       setNames(list);
       setStale(false);
     } catch (e: any) {
@@ -92,7 +94,7 @@ export function SecretsSection(props: {
         setLoading(false);
       }
     }
-  }, [names, parsed]);
+  }, [parsed]);
 
   const loadRuntimePresence = useCallback(async () => {
     if (!activeRepo) {
@@ -124,6 +126,7 @@ export function SecretsSection(props: {
 
   useEffect(() => {
     requestRef.current += 1;
+    hasVerifiedNamesRef.current = false;
     setNames(null);
     setError(null);
     setStale(false);
