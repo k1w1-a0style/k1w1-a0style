@@ -1,5 +1,9 @@
 # Patchlog Root
 
+- Patch 519: AppInfo-Backup-/Import-Pfad fuer Secrets/Tokens ehrlich getrennt und gehaertet — der bisherige Klartext-"Full-Backup"-Pfad ist durch passwortgeschuetzte AES-GCM-Backups fuer `Secrets/Tokens/Connections` bzw. optional `AI-/KI-Konfiguration + Secrets/Connections` ersetzt, API-/KI-Konfiguration bleibt separat exportierbar, und neue Regressionen sichern Verschluesselung, falsche Passphrase, Legacy-Klartext-Ablehnung sowie die Abwesenheit von Projektdateien/Chat-Inhalten.
+
+- Patch 518: lokaler Edge-Admin-Key-Vertrag fuer Wizard/Preview/Build ehrlich und konsistent gezogen — `useCredentialsWizardScreen` rehydriert und persistiert den lokalen Key-/Status jetzt nach Save/Fokus projektbezogen, `signingKeyGate` gibt Build-Readiness und One-Click-Deploy denselben praezisen lokalen Blockergrund, und `previewHelpers` benennt fehlende/abgelehnte `x-k1w1-admin-key`-Faelle offen, waehrend der lokale HTML-Fallback klar sekundaer bleibt.
+
 - Patch 517: Preview-Vertrag auf den vorhandenen Expo-/WebView-Remote-Pfad als klare Produkt-SoT geschaerft — `usePreview`/`usePreviewScreen` markieren den vertrauenswuerdigen Supabase-URL-Pfad jetzt noch expliziter als primaeren Weg, der lokale HTML-/Eval-Pfad bleibt im UI, im Builder und in den Status-Texten klar als Dev-/Best-Effort-Fallback eingegrenzt, und gezielte Preview-Regressionen sichern Remote-vor-Fallback sowie die neue Sekundaer-Semantik ab.
 
 - Patch 516: finalen unbenutzten Legacy-Key-Manager-Rest entfernt — `lib/SecureKeyManager.ts` samt Test ist geloescht, der bestehende Key-Manager-Invariant blockiert die Rueckkehr jetzt dateiweit, und `docs/SYSTEM_README.md` beschreibt den produktiven KI-Vertrag wieder ohne veraltete Key-/Token-Manager-Hinweise.

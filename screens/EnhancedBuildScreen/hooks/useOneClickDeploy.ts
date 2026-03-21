@@ -11,14 +11,10 @@ import {
   getExpoToken,
 } from "../../../infra/github/githubService";
 import { autoSyncRepoSecrets } from "../../../lib/autoSyncRepoSecrets";
-import {
-  STORAGE_KEYS,
-  credKeyForProfile,
-  credKeyForProjectUiMode,
-  resolveProjectCredentialScope,
-} from "../../../lib/storageKeys";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import type { BuildProfile } from "../types";
 import { readBuildReadinessState } from "./buildReadinessState";
+import { readSigningKeyGateState } from "./signingKeyGate";
 
 export type DeployStepId =
   | "signing_key"
@@ -117,32 +113,18 @@ export function useOneClickDeploy(
 
       // === Step 1: Signing Key pruefen ===
       updateStep("signing_key", "running");
-      const keyMode = buildProfile === "development" ? "dev" : buildProfile;
-      const projectScope = resolveProjectCredentialScope({
-        projectId: projectData?.id,
-        linkedRepo: repoFullName,
+      const signingGate = await readSigningKeyGateState({
+        buildProfile,
+        repoFullName,
+        projectData,
       });
-      const scopedKey = credKeyForProjectUiMode({
-        mode: keyMode === "dev" ? "dev" : (keyMode as "preview" | "production"),
-        projectScope,
-      });
-      const legacyKey = credKeyForProfile(
-        keyMode === "dev" ? "development" : (keyMode as "preview" | "production"),
-      );
-      const scopedVal = await AsyncStorage.getItem(scopedKey).catch(() => null);
-      const keyExists = scopedVal ?? (scopedKey !== legacyKey ? await AsyncStorage.getItem(legacyKey).catch(() => null) : null);
       if (abortRef.current) return;
 
-      if (keyExists !== "true") {
-        updateStep(
-          "signing_key",
-          "fail",
-          "Signing Key fehlt – bitte im Credentials Wizard generieren",
-        );
-        Alert.alert(
-          "Signing Key fehlt",
-          "Bitte erst im Credentials Wizard einen Signing Key erzeugen. Danach One-Click Deploy erneut starten.",
-        );
+      if (!signingGate.hasSigningKey) {
+        const signingReason =
+          signingGate.reason || "Signing Key fehlt – bitte im Credentials Wizard generieren";
+        updateStep("signing_key", "fail", signingReason);
+        Alert.alert("Signing Key fehlt", signingReason);
         return;
       }
       updateStep("signing_key", "ok", `Key fuer ${buildProfile} vorhanden`);

@@ -1,15 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
 
 import type { BuildProfile } from "../types";
 import { getExpoToken, getGitHubToken } from "../../../infra/github/githubService";
-import {
-  credKeyForProfile,
-  credKeyForProjectUiMode,
-  resolveProjectCredentialScope,
-} from "../../../lib/storageKeys";
 import { readBuildReadinessState } from "./buildReadinessState";
 import type { VerificationContractState } from "../../../lib/status/verificationContract";
+import { readSigningKeyGateState } from "./signingKeyGate";
 
 export function useBuildPreconditions(
   buildProfile: BuildProfile,
@@ -28,6 +24,7 @@ export function useBuildPreconditions(
 
   const [hasTokens, setHasTokens] = useState(false);
   const [hasSigningKey, setHasSigningKey] = useState(false);
+  const [signingKeyReason, setSigningKeyReason] = useState<string | null>(null);
   const [hasDiagOk, setHasDiagOk] = useState(false);
   const [hasCiLiteOk, setHasCiLiteOk] = useState(false);
   const [diagnosticState, setDiagnosticState] = useState<VerificationContractState>("unknown");
@@ -45,22 +42,15 @@ export function useBuildPreconditions(
       ]);
       if (isMountedRef.current) setHasTokens(!!(gh && expo));
 
-      // Signing key (profile-aware + project-scoped with legacy fallback)
-      const keyMode = buildProfile === "development" ? "dev" : buildProfile;
-      const projectScope = resolveProjectCredentialScope({
-        projectId: projectData?.id,
-        linkedRepo: repoFullName,
+      const signingGate = await readSigningKeyGateState({
+        buildProfile,
+        repoFullName,
+        projectData,
       });
-      const scopedKey = credKeyForProjectUiMode({
-        mode: keyMode === "dev" ? "dev" : (keyMode as "preview" | "production"),
-        projectScope,
-      });
-      const legacyKey = credKeyForProfile(
-        keyMode === "dev" ? "development" : (keyMode as "preview" | "production"),
-      );
-      const scopedVal = await AsyncStorage.getItem(scopedKey).catch(() => null);
-      const val = scopedVal ?? (scopedKey !== legacyKey ? await AsyncStorage.getItem(legacyKey).catch(() => null) : null);
-      if (isMountedRef.current) setHasSigningKey(val === "true");
+      if (isMountedRef.current) {
+        setHasSigningKey(signingGate.hasSigningKey);
+        setSigningKeyReason(signingGate.reason);
+      }
 
       const readiness = await readBuildReadinessState({
         repoFullName,
@@ -85,10 +75,18 @@ export function useBuildPreconditions(
     refreshPreconditions().catch(() => {});
   }, [refreshPreconditions]);
 
+  useFocusEffect(
+    useCallback(() => {
+      refreshPreconditions().catch(() => {});
+      return undefined;
+    }, [refreshPreconditions]),
+  );
+
   return {
     hasTokens,
     hasSigningKey,
     hasDiagOk,
+    signingKeyReason,
     hasCiLiteOk,
     diagnosticState,
     diagnosticReason,

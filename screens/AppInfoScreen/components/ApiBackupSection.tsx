@@ -17,11 +17,10 @@ export function ApiBackupSection({
 }: Props) {
   return (
     <>
-      {/* API BACKUP & RESTORE */}
-      <Text style={styles.sectionTitle}>💾 API-Backup & Wiederherstellung</Text>
+      <Text style={styles.sectionTitle}>💾 API-/KI-Konfiguration</Text>
       <View style={styles.apiBackupContainer}>
         <Text style={styles.apiBackupDescription}>
-          Exportiere oder importiere nur die AI/API-Konfiguration als Datei.
+          Exportiere oder importiere nur die AI-/Provider-Konfiguration. Keine Projektdateien, keine Chats und keine Secret-/Token-Backups.
         </Text>
 
         <View style={styles.apiBackupButtons}>
@@ -31,7 +30,7 @@ export function ApiBackupSection({
               size={20}
               color={theme.palette.primary}
             />
-            <Text style={styles.backupButtonText}>Exportieren</Text>
+            <Text style={styles.backupButtonText}>Konfig exportieren</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -44,7 +43,7 @@ export function ApiBackupSection({
               color={theme.palette.warning}
             />
             <Text style={[styles.backupButtonText, styles.restoreButtonText]}>
-              Importieren
+              Konfig importieren
             </Text>
           </TouchableOpacity>
         </View>
