@@ -29,6 +29,16 @@ const SAFE_EXPO_AUTOFIX_VERSIONS: Record<string, Record<number, string>> = {
   "expo-blur": { 54: "~15.0.7" },
 };
 
+type NpmLockDependencyNode = {
+  version?: unknown;
+  dependencies?: Record<string, NpmLockDependencyNode>;
+};
+
+type NpmLockfile = {
+  packages?: Record<string, { version?: unknown }>;
+  dependencies?: Record<string, NpmLockDependencyNode>;
+};
+
 function isRelevantRuntimeSourceFile(path: string): boolean {
   if (!RUNTIME_SOURCE_FILE_RE.test(path)) return false;
   if (EXCLUDED_SOURCE_SEGMENTS.some((segment) => path.includes(segment))) return false;
@@ -114,6 +124,53 @@ function resolveSafeAutofixVersion(packageName: string, expoMajor: number | null
   return SAFE_EXPO_AUTOFIX_VERSIONS[packageName]?.[expoMajor];
 }
 
+function findVersionInNpmDependencyTree(
+  dependencies: Record<string, NpmLockDependencyNode> | undefined,
+  packageName: string,
+): string | undefined {
+  if (!dependencies || typeof dependencies !== "object") return undefined;
+
+  const direct = dependencies[packageName];
+  if (direct && typeof direct.version === "string" && direct.version.trim()) {
+    return direct.version.trim();
+  }
+
+  for (const value of Object.values(dependencies)) {
+    const nested = findVersionInNpmDependencyTree(value?.dependencies, packageName);
+    if (nested) return nested;
+  }
+
+  return undefined;
+}
+
+function resolveVersionFromNpmLockfiles(files: ProjectFile[], packageName: string): string | undefined {
+  for (const lockfilePath of ["package-lock.json", "npm-shrinkwrap.json"]) {
+    const file = files.find((entry) => entry.path === lockfilePath);
+    if (!file?.content) continue;
+
+    const parsed = parseJson<NpmLockfile>(file.content);
+    if (!parsed || typeof parsed !== "object") continue;
+
+    const packageEntry = parsed.packages?.[`node_modules/${packageName}`];
+    if (packageEntry && typeof packageEntry.version === "string" && packageEntry.version.trim()) {
+      return packageEntry.version.trim();
+    }
+
+    const nested = findVersionInNpmDependencyTree(parsed.dependencies, packageName);
+    if (nested) return nested;
+  }
+
+  return undefined;
+}
+
+function resolveAutofixVersion(
+  files: ProjectFile[],
+  packageName: string,
+  expoMajor: number | null,
+): string | undefined {
+  return resolveVersionFromNpmLockfiles(files, packageName) ?? resolveSafeAutofixVersion(packageName, expoMajor);
+}
+
 function buildFindingDetail(finding: DependencyImportMismatchFinding): string {
   const files = finding.importingFiles.slice(0, 3).join(", ");
   const moreCount = Math.max(0, finding.importingFiles.length - 3);
@@ -122,7 +179,7 @@ function buildFindingDetail(finding: DependencyImportMismatchFinding): string {
   const fixHint =
     finding.fixability === "autofix"
       ? ` AutoFix kann ${finding.versionSuggestion ? `(${finding.versionSuggestion}) ` : ""}package.json ergänzen.`
-      : ` Bitte ${finding.suggestedInstallMethod} ausführen und package.json/Lockfile committen.`;
+      : ` Kein sicherer AutoFix: bitte ${finding.suggestedInstallMethod} ausführen und package.json/Lockfile committen.`;
 
   if (finding.category === "runtime_dependency_in_devDependencies") {
     return `${finding.packageName} liegt nur in devDependencies, wird aber zur Laufzeit${location} importiert.${fixHint}`;
@@ -204,7 +261,7 @@ export function findRuntimeDependencyImportMismatches(
     if (typeof dependencies[packageName] === "string") continue;
 
     const inDevDependencies = typeof devDependencies[packageName] === "string";
-    const versionSuggestion = resolveSafeAutofixVersion(packageName, expoMajor);
+    const versionSuggestion = resolveAutofixVersion(files, packageName, expoMajor);
     findings.push({
       packageName,
       importingFiles,
