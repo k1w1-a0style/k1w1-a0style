@@ -9,6 +9,7 @@ import { normalizePath, byPath } from "./preflightHelpers";
 
 // --- Check imports (by category) ---
 import { checkPackageJson, checkEntryPoint } from "./checks/packageAndEntry";
+import { checkRuntimeImportDependencies } from "./checks/runtimeDependencies";
 import { checkEasProfiles, checkExpoConfig, checkSdkConsistency } from "./checks/configAndProfiles";
 import {
   checkAssetsExist,
@@ -24,6 +25,7 @@ import { checkWorkflowServiceRoleKeyLeak, checkWorkflowYamlNameColonQuoting } fr
 // Re-export individual checks for direct imports elsewhere
 export {
   checkPackageJson, checkEntryPoint,
+  checkRuntimeImportDependencies,
   checkEasProfiles, checkExpoConfig, checkSdkConsistency,
   checkAssetsExist, checkLockfileConsistency, checkGitignorePresent,
   checkForbiddenFiles, checkNativeDirsManagedGuard, checkEasWithoutCredentialsForDebug,
@@ -33,6 +35,7 @@ export {
 
 export const PREFLIGHT_CHECKS: PreflightCheck[] = [
   checkPackageJson,
+  checkRuntimeImportDependencies,
   checkGitignorePresent,
   checkLockfileConsistency,
   checkEntryPoint,

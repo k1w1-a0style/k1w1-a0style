@@ -29,6 +29,16 @@ export type PreflightPatch = {
   explanation?: string;
 };
 
+export type DependencyImportMismatchFinding = {
+  packageName: string;
+  importingFiles: string[];
+  severity: PreflightSeverity;
+  category: "missing_runtime_dependency" | "runtime_dependency_in_devDependencies";
+  fixability: "autofix" | "manual";
+  suggestedInstallMethod?: string;
+  versionSuggestion?: string;
+};
+
 export type PreflightCheckResult = {
   id: string;
   title: string;
@@ -36,6 +46,7 @@ export type PreflightCheckResult = {
   severity: PreflightSeverity;
   message?: string;
   details?: string[];
+  findings?: DependencyImportMismatchFinding[];
   tags?: string[];
   /** optional auto-fix */
   fix?: {
