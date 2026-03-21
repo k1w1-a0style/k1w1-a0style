@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import { useCiLiteWorkflow } from "../components/CiLiteHeaderButton/hooks/useCiLiteWorkflow";
 import { WORKFLOW_CI_LITE } from "../components/CiLiteHeaderButton/types";
+import { ciLiteSnapshotKeyForSelection } from "../lib/storageKeys";
 
 const mockUseProject = jest.fn();
 const mockUseGitHubActionsLogs = jest.fn();
@@ -54,16 +55,18 @@ async function flushAsyncWork() {
 
 function buildPersistedStorageMap(overrides: Record<string, string | null> = {}): Record<string, string | null> {
   return {
-    ci_lite_lint_ok: "true",
-    ci_lite_typecheck_ok: "true",
-    ci_lite_last_run_at: String(NOW),
-    ci_lite_last_repo: "owner/repo",
-    ci_lite_last_branch: "main",
-    ci_lite_last_sha: SHA,
-    ci_lite_last_workflow: "k1w1-ci-lite.yml",
-    ci_lite_last_job_id: "job-123",
-    ci_lite_last_run_id: "321",
-    ci_lite_last_conclusion: "success",
+    [ciLiteSnapshotKeyForSelection({ linkedRepo: "owner/repo", linkedBranch: "main" })]: JSON.stringify({
+      repo: "owner/repo",
+      branch: "main",
+      sha: SHA,
+      runAtMs: NOW,
+      workflowId: "k1w1-ci-lite.yml",
+      jobId: "job-123",
+      runId: 321,
+      conclusion: "success",
+      lintOk: true,
+      typecheckOk: true,
+    }),
     ...overrides,
   };
 }
@@ -570,5 +573,68 @@ describe("useCiLiteWorkflow behavior", () => {
     expect(result.current.showError).toMatch(/abgelehnt/i);
     expect(result.current.showError).not.toMatch(/lokaler edge admin key fehlt/i);
     expect(result.current.showError).not.toContain("edge-admin-key");
+  });
+
+  it("persists completed CI-Lite runs under the repo/branch-scoped snapshot contract", async () => {
+    mockStorageGetItem.mockResolvedValue(null);
+    mockUseGitHubActionsLogs.mockImplementation((options: any) => {
+      if (!options?.runId) {
+        return {
+          logs: [],
+          workflowRun: null,
+          isLoading: false,
+          error: null,
+          refreshLogs: jest.fn(),
+        };
+      }
+
+      return {
+        logs: [{ timestamp: "", message: "done", level: "raw" }],
+        workflowRun: {
+          id: options.runId,
+          run_number: 12,
+          status: "completed",
+          conclusion: "success",
+          created_at: "2026-03-19T00:00:00Z",
+          updated_at: "2026-03-19T00:00:05Z",
+          html_url: `https://github.com/runs/${options.runId}`,
+          head_sha: SHA,
+        },
+        isLoading: false,
+        error: null,
+        refreshLogs: jest.fn(),
+      };
+    });
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    await waitFor(() => {
+      expect(mockStorageMultiSet).toHaveBeenCalled();
+    });
+
+    const persistedEntries = mockStorageMultiSet.mock.calls.at(-1)?.[0] as [string, string][];
+    const scopedEntry = persistedEntries.find(([key]) =>
+      key === ciLiteSnapshotKeyForSelection({ linkedRepo: "owner/repo", linkedBranch: "main" }),
+    );
+
+    expect(scopedEntry).toBeTruthy();
+    expect(scopedEntry?.[1]).toBe(
+      JSON.stringify({
+        repo: "owner/repo",
+        branch: "main",
+        sha: SHA,
+        runAtMs: NOW,
+        workflowId: "k1w1-ci-lite.yml",
+        jobId: "job-123",
+        runId: 321,
+        conclusion: "success",
+        lintOk: true,
+        typecheckOk: true,
+      }),
+    );
   });
 });

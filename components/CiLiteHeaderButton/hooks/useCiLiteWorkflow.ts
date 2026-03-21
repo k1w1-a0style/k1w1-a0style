@@ -12,8 +12,11 @@ import { getBranchHeadSha, getEdgeAdminKey } from "../../../infra/github/githubS
 import { useProject } from "../../../contexts/ProjectContext";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
 import { computeCiLiteOk, inferStepStates, safeUi } from "../../ciLite/ciLiteUtils";
-import { readPersistedCiLiteSelection, type PersistedCiLiteSnapshot } from "../../../lib/ciLitePersistence";
-import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import {
+  buildPersistCiLiteEntries,
+  readPersistedCiLiteSelection,
+  type PersistedCiLiteSnapshot,
+} from "../../../lib/ciLitePersistence";
 import { WORKFLOW_CI_LITE, WORKFLOW_CI_LITE_AUTOFIX, type StepState } from "../types";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
 import { isLikelyValidAdminKey } from "../../../screens/CredentialsWizardScreen/utils/security";
@@ -599,18 +602,24 @@ export function useCiLiteWorkflow() {
         "",
       ).trim();
 
-    void AsyncStorage.multiSet([
-      [STORAGE_KEYS.CI_LITE_LINT_OK, lintOk ? "true" : "false"],
-      [STORAGE_KEYS.CI_LITE_TYPECHECK_OK, typeOk ? "true" : "false"],
-      [STORAGE_KEYS.CI_LITE_LAST_RUN_AT, String(Date.now())],
-      [STORAGE_KEYS.CI_LITE_LAST_REPO, githubRepo || ""],
-      [STORAGE_KEYS.CI_LITE_LAST_BRANCH, (targetRef || branch || "").trim()],
-      [STORAGE_KEYS.CI_LITE_LAST_SHA, sourceCommitSha],
-      [STORAGE_KEYS.CI_LITE_LAST_WORKFLOW, workflowId],
-      [STORAGE_KEYS.CI_LITE_LAST_JOB_ID, jobId || ""],
-      [STORAGE_KEYS.CI_LITE_LAST_RUN_ID, workflowRun?.id != null ? String(workflowRun.id) : ""],
-      [STORAGE_KEYS.CI_LITE_LAST_CONCLUSION, String(workflowRun.conclusion || "")],
-    ]).catch(() => {});
+    void AsyncStorage.multiSet(
+      buildPersistCiLiteEntries({
+        // Preferred source of truth is the repo/branch-scoped snapshot.
+        // The legacy flat keys are mirrored only temporarily for migration compatibility.
+        snapshot: {
+          repo: githubRepo,
+          branch: (targetRef || branch || "").trim(),
+          sha: sourceCommitSha,
+          runAtMs: Date.now(),
+          workflowId,
+          jobId,
+          runId: workflowRun?.id ?? null,
+          conclusion: String(workflowRun.conclusion || ""),
+          lintOk,
+          typecheckOk: typeOk,
+        },
+      }),
+    ).catch(() => {});
   }, [
     workflowRun,
     workflowId,

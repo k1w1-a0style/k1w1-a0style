@@ -46,6 +46,9 @@ export const STORAGE_KEYS = {
   BUILD_HISTORY: "k1w1_build_history",
 
   // CI Lite (GitHub Actions lint + typecheck) last known good state
+  // Preferred source of truth: repo/branch-scoped snapshot via ciLiteSnapshotKeyForSelection(...).
+  // The flat CI_LITE_LAST_* keys remain temporary legacy/migration fallback only.
+  CI_LITE_SCOPED_SNAPSHOT: "ci_lite_snapshot",
   CI_LITE_LINT_OK: "ci_lite_lint_ok",
   CI_LITE_TYPECHECK_OK: "ci_lite_typecheck_ok",
   CI_LITE_LAST_RUN_AT: "ci_lite_last_run_at",
@@ -179,4 +182,18 @@ export function diagnosticLastOkKeyForSelection(params: {
   const branch = String(params.linkedBranch ?? "").trim();
   if (!repo || !branch) return STORAGE_KEYS.DIAGNOSTIC_LAST_OK;
   return `${STORAGE_KEYS.DIAGNOSTIC_LAST_OK}::${encodeURIComponent(repo)}::${encodeURIComponent(branch)}`;
+}
+
+/**
+ * Preferred CI-Lite source of truth: repo/branch-scoped snapshot key.
+ * Falls back to the legacy global key namespace only when repo or branch are missing.
+ */
+export function ciLiteSnapshotKeyForSelection(params: {
+  linkedRepo?: string | null;
+  linkedBranch?: string | null;
+}): string {
+  const repo = String(params.linkedRepo ?? "").trim().toLowerCase();
+  const branch = String(params.linkedBranch ?? "").trim();
+  if (!repo || !branch) return STORAGE_KEYS.CI_LITE_SCOPED_SNAPSHOT;
+  return `${STORAGE_KEYS.CI_LITE_SCOPED_SNAPSHOT}::${encodeURIComponent(repo)}::${encodeURIComponent(branch)}`;
 }

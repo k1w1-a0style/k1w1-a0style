@@ -54,7 +54,7 @@ describe("build readiness gate - ci lite freshness", () => {
     }[key] ?? null));
 
     await expect(startBuildJob({ project: makeProject(), buildProfile: "preview" })).rejects.toThrow(
-      /anderen Repo/i,
+      /anderem Repo/i,
     );
 
     expect(mockGitHub.pushFilesToRepo).not.toHaveBeenCalled();
