@@ -16,6 +16,8 @@ import { readPersistedCiLiteSelection, type PersistedCiLiteSnapshot } from "../.
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { WORKFLOW_CI_LITE, WORKFLOW_CI_LITE_AUTOFIX, type StepState } from "../types";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
+import { describeLocalEdgeAdminKeyIssue } from "../../../screens/CredentialsWizardScreen/utils/localAdminKey";
+import { isLikelyValidAdminKey } from "../../../screens/CredentialsWizardScreen/utils/security";
 
 
 type CiLiteArtifactJson = {
@@ -180,6 +182,25 @@ function getArtifactUiMessage(params: {
   }
 
   return "Zusätzliche Ergebnisdaten zum Run konnten nicht geladen werden. Bitte Run öffnen oder erneut starten.";
+}
+
+function buildCiLiteAdminKeyError(params: {
+  adminKey?: string | null;
+  statusCode?: number | null;
+  error?: unknown;
+  context: "dispatch" | "artifact";
+}): string | null {
+  const reason = describeLocalEdgeAdminKeyIssue({
+    adminKey: params.adminKey,
+    statusCode: params.statusCode,
+    error: params.error,
+  });
+  if (!reason) return null;
+
+  if (params.context === "artifact") {
+    return `CI Lite Ergebnisabruf blockiert: ${reason}`;
+  }
+  return `CI Lite Dispatch blockiert: ${reason}`;
 }
 
 export function useCiLiteWorkflow() {
@@ -367,10 +388,14 @@ export function useCiLiteWorkflow() {
         setArtifactLoading(true);
 
         const edgeUrl = await requireSupabaseEdgeUrl();
-        const adminKey = await getEdgeAdminKey();
-        if (!adminKey) {
+        const adminKey = await getEdgeAdminKey().catch(() => null);
+        const trimmedAdminKey = String(adminKey ?? "").trim();
+        if (!trimmedAdminKey || !isLikelyValidAdminKey(trimmedAdminKey)) {
           throw new Error(
-            "Missing SIGNING_ADMIN_KEY for CI-Lite (x-k1w1-admin-key). Configure it in app secrets/env.",
+            buildCiLiteAdminKeyError({
+              adminKey,
+              context: "artifact",
+            }) ?? "CI Lite Ergebnisabruf blockiert: lokaler Edge Admin Key fehlt oder ist ungueltig.",
           );
         }
 
@@ -385,7 +410,7 @@ export function useCiLiteWorkflow() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-k1w1-admin-key": adminKey,
+            "x-k1w1-admin-key": trimmedAdminKey,
           },
           body: JSON.stringify({
             githubRepo,
@@ -399,7 +424,14 @@ export function useCiLiteWorkflow() {
         if (!resp.ok) {
           const errObj = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
           const msg = typeof errObj?.error === "string" ? errObj.error : `HTTP ${resp.status}`;
-          throw new Error(msg);
+          throw new Error(
+            buildCiLiteAdminKeyError({
+              adminKey: trimmedAdminKey,
+              statusCode: resp.status,
+              error: msg,
+              context: "artifact",
+            }) ?? msg,
+          );
         }
 
         const parsed = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
@@ -696,14 +728,20 @@ export function useCiLiteWorkflow() {
         setTargetRef(targetBranch);
 
         const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
-        if (!edgeAdminKey) {
-          throw new Error("Edge Admin Key fehlt. Bitte im Verbindungen/Credentials Wizard setzen.");
+        const trimmedEdgeAdminKey = String(edgeAdminKey ?? "").trim();
+        if (!trimmedEdgeAdminKey || !isLikelyValidAdminKey(trimmedEdgeAdminKey)) {
+          throw new Error(
+            buildCiLiteAdminKeyError({
+              adminKey: edgeAdminKey,
+              context: "dispatch",
+            }) ?? "CI Lite Dispatch blockiert: lokaler Edge Admin Key fehlt oder ist ungueltig.",
+          );
         }
 
         const edgeUrl = await requireSupabaseEdgeUrl();
         const r = await fetch(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_DISPATCH}`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-k1w1-admin-key": edgeAdminKey },
+          headers: { "Content-Type": "application/json", "x-k1w1-admin-key": trimmedEdgeAdminKey },
           body: JSON.stringify({
             githubRepo,
             workflow: workflowFile,
@@ -716,11 +754,18 @@ export function useCiLiteWorkflow() {
 
         if (!r.ok) {
           const t = await r.text().catch(() => "");
-          const hint =
-            r.status === 404 ? " (Workflow-Datei auf diesem Branch nicht gefunden)"
-            : r.status === 401 || r.status === 403 ? " (Admin-Key falsch/fehlt)"
-            : "";
-          throw new Error(`github-workflow-dispatch failed (${r.status}): ${safeUi(t || r.statusText)}${hint}`);
+          const safeText = safeUi(t || r.statusText);
+          const adminKeyError = buildCiLiteAdminKeyError({
+            adminKey: trimmedEdgeAdminKey,
+            statusCode: r.status,
+            error: safeText,
+            context: "dispatch",
+          });
+          if (adminKeyError) {
+            throw new Error(adminKeyError);
+          }
+          const hint = r.status === 404 ? " (Workflow-Datei auf diesem Branch nicht gefunden)" : "";
+          throw new Error(`github-workflow-dispatch failed (${r.status}): ${safeText}${hint}`);
         }
 
         const start = Date.now();

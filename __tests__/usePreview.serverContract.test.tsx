@@ -51,7 +51,7 @@ describe("usePreview server contract", () => {
   });
 
   test("falls back locally when the preview server is unreachable and keeps the state honest", async () => {
-    mockGetEdgeAdminKey.mockResolvedValue("edge-admin-key");
+    mockGetEdgeAdminKey.mockResolvedValue("edge-admin-key-12345678901234567890");
     mockInvoke.mockRejectedValue(new Error("Network request failed"));
 
     const { result } = renderHook((projectData: ProjectData | null) => usePreview(projectData), {
@@ -88,14 +88,57 @@ describe("usePreview server contract", () => {
     });
 
     expect(result.current.state.remoteFailure).toBe(
-      "Remote-Preview blockiert: lokaler Edge Admin Key fehlt.",
+      "Remote-Preview blockiert: Lokaler Edge Admin Key fehlt. Repo-/Server-Secrets koennen vorhanden sein, aber Wizard, Remote-Preview und Build-Vorbereitung brauchen diesen lokalen App-Wert fuer geschuetzte Edge-Calls.",
     );
     expect(mockEnsureSupabaseClient).toHaveBeenCalled();
     expect(mockInvoke).not.toHaveBeenCalled();
   });
 
+  test("reports a present but rejected local Edge Admin Key as rejected instead of missing", async () => {
+    mockGetEdgeAdminKey.mockResolvedValue("edge-admin-key-12345678901234567890");
+    mockInvoke.mockRejectedValue(new Error("401 missing or invalid admin key"));
+
+    const { result } = renderHook((projectData: ProjectData | null) => usePreview(projectData), {
+      initialProps: baseProject,
+    });
+
+    await act(async () => {
+      await result.current.createPreview();
+    });
+
+    await waitFor(() => {
+      expect(result.current.lastPreview?.source).toBe("local");
+    });
+
+    expect(result.current.state.remoteFailure).toBe(
+      "Remote-Preview blockiert: Lokaler Edge Admin Key ist lokal vorhanden und wurde fuer den geschuetzten Edge-Request verwendet, aber vom Edge-Server abgelehnt (401/403 bzw. invalid admin). Bitte den lokalen App-Key neu speichern oder korrekt importieren.",
+    );
+    expect(result.current.state.remoteFailure).not.toMatch(/fehlt oder wurde/i);
+  });
+
+  test("reports a formally invalid local Edge Admin Key as invalid before any remote call", async () => {
+    mockGetEdgeAdminKey.mockResolvedValue("short key");
+
+    const { result } = renderHook((projectData: ProjectData | null) => usePreview(projectData), {
+      initialProps: baseProject,
+    });
+
+    await act(async () => {
+      await result.current.createPreview();
+    });
+
+    await waitFor(() => {
+      expect(result.current.lastPreview?.source).toBe("local");
+    });
+
+    expect(result.current.state.remoteFailure).toBe(
+      "Remote-Preview blockiert: Lokaler Edge Admin Key wirkt ungueltig (leer/zu kurz/Whitespace). Bitte in der App neu speichern oder importieren.",
+    );
+    expect(mockInvoke).not.toHaveBeenCalled();
+  });
+
   test("uses the trusted remote preview as primary path when the server responds successfully", async () => {
-    mockGetEdgeAdminKey.mockResolvedValue("edge-admin-key");
+    mockGetEdgeAdminKey.mockResolvedValue("edge-admin-key-12345678901234567890");
     mockInvoke.mockResolvedValue({
       data: {
         ok: true,

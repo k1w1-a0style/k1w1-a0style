@@ -76,7 +76,7 @@ describe("useCiLiteWorkflow behavior", () => {
 
     mockGetRepoSyncState.mockResolvedValue("in_sync");
     mockRequireSupabaseEdgeUrl.mockResolvedValue("https://example.supabase.co/functions/v1");
-    mockGetEdgeAdminKey.mockResolvedValue("edge-admin-key");
+    mockGetEdgeAdminKey.mockResolvedValue("edge-admin-key-12345678901234567890");
     mockGetBranchHeadSha.mockResolvedValue(SHA);
     mockStorageMultiSet.mockResolvedValue(undefined);
     mockStorageGetItem.mockImplementation(async (key: string) => buildPersistedStorageMap()[key] ?? null);
@@ -285,5 +285,33 @@ describe("useCiLiteWorkflow behavior", () => {
     ).length;
 
     expect(dispatchCallsAfterReopen).toBe(dispatchCallsBeforeReopen);
+  });
+
+  it("classifies a server-rejected local Edge Admin Key honestly during CI-Lite dispatch", async () => {
+    mockStorageGetItem.mockResolvedValue(null);
+    (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("github-workflow-dispatch")) {
+        return {
+          ok: false,
+          status: 401,
+          statusText: "Unauthorized",
+          text: async () => "missing or invalid admin key",
+        } as Response;
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    expect(result.current.showError).toMatch(/CI Lite Dispatch blockiert/i);
+    expect(result.current.showError).toMatch(/lokaler edge admin key ist lokal vorhanden/i);
+    expect(result.current.showError).toMatch(/abgelehnt/i);
+    expect(result.current.showError).not.toMatch(/lokaler edge admin key fehlt/i);
+    expect(result.current.showError).not.toContain("edge-admin-key");
   });
 });

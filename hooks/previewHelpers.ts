@@ -1,6 +1,8 @@
 // hooks/previewHelpers.ts
 // Shared preview helper utilities to keep usePreview/usePreviewScreen aligned.
 
+import { describeLocalEdgeAdminKeyIssue } from "../screens/CredentialsWizardScreen/utils/localAdminKey";
+
 export type ProjectFile = { path?: string; content?: string };
 
 export interface PreviewState {
@@ -162,12 +164,16 @@ export function getPreviewRemoteUrlStatus(url: string | null | undefined): Previ
   return "invalid";
 }
 
-export function describeRemotePreviewFailure(error: unknown): string {
+export function describeRemotePreviewFailure(params: {
+  adminKey?: string | null;
+  statusCode?: number | null;
+  error: unknown;
+}): string {
   const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === "string"
-        ? error
+    params.error instanceof Error
+      ? params.error.message
+      : typeof params.error === "string"
+        ? params.error
         : "";
   const normalized = message.toLowerCase();
 
@@ -180,20 +186,13 @@ export function describeRemotePreviewFailure(error: unknown): string {
     return "Preview-Server derzeit nicht erreichbar.";
   }
 
-  if (normalized.includes("missing edge admin key")) {
-    return "Remote-Preview blockiert: lokaler Edge Admin Key fehlt.";
-  }
-
-  if (
-    normalized.includes("missing or invalid admin") ||
-    normalized.includes("invalid admin") ||
-    normalized.includes("x-k1w1-admin-key") ||
-    normalized.includes("unauthorized") ||
-    normalized.includes("forbidden") ||
-    normalized.includes("401") ||
-    normalized.includes("403")
-  ) {
-    return "Remote-Preview blockiert: lokaler Edge Admin Key fehlt oder wurde vom Edge-Server abgelehnt (401/403).";
+  const localKeyReason = describeLocalEdgeAdminKeyIssue({
+    adminKey: params.adminKey,
+    statusCode: params.statusCode,
+    error: params.error,
+  });
+  if (localKeyReason) {
+    return `Remote-Preview blockiert: ${localKeyReason}`;
   }
 
   return "Remote-Preview konnte nicht zuverlässig bereitgestellt werden.";

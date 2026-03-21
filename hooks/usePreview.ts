@@ -24,6 +24,7 @@ import {
   simpleHash,
 } from "./previewHelpers";
 import type { PreviewResult, PreviewState } from "./previewHelpers";
+import { isLikelyValidAdminKey } from "../screens/CredentialsWizardScreen/utils/security";
 
 export interface UsePreviewReturn {
   state: PreviewState;
@@ -378,83 +379,100 @@ if (container) {
         const files = normalizeForWebPreview(ensureMinimumFiles(fileMap));
 
         // 1) Prefer Supabase-hosted preview (visual mode)
-        if (attemptSupabaseFirst) try {
-          const supabase = await ensureSupabaseClient();
-          const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+        if (attemptSupabaseFirst) {
+          let edgeAdminKey: string | null = null;
+          try {
+            const supabase = await ensureSupabaseClient();
+            edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+            const trimmedEdgeAdminKey = String(edgeAdminKey ?? "").trim();
 
-          // Security: save_preview is protected by an admin key. If it's not configured,
-          // skip the remote preview path immediately to avoid unnecessary 401 calls.
-          if (!edgeAdminKey) {
-            throw new Error("Missing Edge Admin Key");
-          }
+            // Security: save_preview is protected by an admin key. If it's not configured,
+            // skip the remote preview path immediately to avoid unnecessary 401 calls.
+            if (!trimmedEdgeAdminKey) {
+              throw new Error("Missing Edge Admin Key");
+            }
+            if (!isLikelyValidAdminKey(trimmedEdgeAdminKey)) {
+              throw new Error("Invalid Edge Admin Key");
+            }
 
-          const snackFiles: PreviewFiles = {};
-          for (const [path, content] of Object.entries(files)) {
-            snackFiles[path] = { contents: String(content ?? "") };
-          }
+            const snackFiles: PreviewFiles = {};
+            for (const [path, content] of Object.entries(files)) {
+              snackFiles[path] = { contents: String(content ?? "") };
+            }
 
-          const resolvedDependencies = dependencies ?? {};
-          const dependencyCount = Object.keys(resolvedDependencies).length;
-          const fileCount = Object.keys(snackFiles).length;
+            const resolvedDependencies = dependencies ?? {};
+            const dependencyCount = Object.keys(resolvedDependencies).length;
+            const fileCount = Object.keys(snackFiles).length;
 
-          const invokeOpts = {
-            body: {
-              projectId: projectData.id,
-              name: projectData.name || "Preview",
-              files: snackFiles,
-              dependencies: resolvedDependencies,
-              meta: {
-                template: "react",
-                debug: {
-                  source: "usePreview",
-                  fileCount,
-                  dependencyCount,
+            const invokeOpts = {
+              body: {
+                projectId: projectData.id,
+                name: projectData.name || "Preview",
+                files: snackFiles,
+                dependencies: resolvedDependencies,
+                meta: {
+                  template: "react",
+                  debug: {
+                    source: "usePreview",
+                    fileCount,
+                    dependencyCount,
+                  },
                 },
               },
-            },
-            headers: { "x-k1w1-admin-key": edgeAdminKey },
-          };
-
-          const { data, error: fnError } = await promiseWithTimeout(
-            supabase.functions.invoke(SUPABASE_EDGE_FUNCTIONS.SAVE_PREVIEW, invokeOpts),
-            12_000,
-            "Supabase Preview Timeout (12s)",
-          );
-
-          if (fnError) throw fnError;
-
-          const resp = data as PreviewResponse;
-          const previewUrl =
-            typeof resp?.previewUrl === "string" ? resp.previewUrl : null;
-
-          if (resp?.ok && previewUrl) {
-            const result: PreviewResult = {
-              url: previewUrl,
-              html: null,
-              expiresAt: resp?.expiresAt ?? null,
-              source: "supabase",
+              headers: { "x-k1w1-admin-key": trimmedEdgeAdminKey },
             };
 
-            safeSetLastPreviewState(result);
-            safeSetRemoteFailure(null);
-            await setLastPreview({
-              url: result.url,
-              source: result.source,
-              createdAt: new Date().toISOString(),
-              expiresAt: result.expiresAt,
-            } as LastPreviewMeta);
-            if (setPreferredPreviewMode) await setPreferredPreviewMode("supabase");
-            safeSetLastCreatedAt(Date.now());
-            return result;
-          }
+            const { data, error: fnError } = await promiseWithTimeout(
+              supabase.functions.invoke(SUPABASE_EDGE_FUNCTIONS.SAVE_PREVIEW, invokeOpts),
+              12_000,
+              "Supabase Preview Timeout (12s)",
+            );
 
-          throw new Error(resp?.error || "Preview konnte nicht erstellt werden");
-        } catch (supErr: unknown) {
-          safeSetRemoteFailure(describeRemotePreviewFailure(supErr));
-          logger.warn(
-            "[usePreview] ⚠️ Supabase Preview fehlgeschlagen, fallback auf Local HTML:",
-            supErr,
-          );
+            if (fnError) throw fnError;
+
+            const resp = data as PreviewResponse;
+            const previewUrl =
+              typeof resp?.previewUrl === "string" ? resp.previewUrl : null;
+
+            if (resp?.ok && previewUrl) {
+              const result: PreviewResult = {
+                url: previewUrl,
+                html: null,
+                expiresAt: resp?.expiresAt ?? null,
+                source: "supabase",
+              };
+
+              safeSetLastPreviewState(result);
+              safeSetRemoteFailure(null);
+              await setLastPreview({
+                url: result.url,
+                source: result.source,
+                createdAt: new Date().toISOString(),
+                expiresAt: result.expiresAt,
+              } as LastPreviewMeta);
+              if (setPreferredPreviewMode) await setPreferredPreviewMode("supabase");
+              safeSetLastCreatedAt(Date.now());
+              return result;
+            }
+
+            throw new Error(resp?.error || "Preview konnte nicht erstellt werden");
+          } catch (supErr: unknown) {
+            const statusCode =
+              typeof (supErr as { status?: unknown } | null)?.status === "number"
+                ? Number((supErr as { status?: number }).status)
+                : null;
+            safeSetRemoteFailure(
+              describeRemotePreviewFailure({
+                adminKey: edgeAdminKey,
+                statusCode,
+                error: supErr,
+              }),
+            );
+            logger.warn(
+              "[usePreview] ⚠️ Supabase Preview fehlgeschlagen, fallback auf Local HTML:",
+              supErr,
+            );
+          }
         }
 
         // 2) Fallback only: local HTML/Eval preview for dev/best-effort recovery.
