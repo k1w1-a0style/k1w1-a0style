@@ -451,6 +451,99 @@ describe("useCiLiteWorkflow behavior", () => {
     expect(dispatchCallsAfterReopen).toBe(dispatchCallsBeforeReopen);
   });
 
+  it("surfaces missing GitHub token as an explicit CI-Lite dispatch error", async () => {
+    mockStorageGetItem.mockResolvedValue(null);
+    (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("github-workflow-dispatch")) {
+        return {
+          ok: false,
+          status: 500,
+          statusText: "Internal Server Error",
+          text: async () => JSON.stringify({ ok: false, error: "Missing GitHub token" }),
+        } as Response;
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    expect(result.current.showError).toMatch(/CI Lite Dispatch blockiert/i);
+    expect(result.current.showError).toMatch(/GitHub-Token fehlt/i);
+    expect(result.current.showError).not.toMatch(/HTTP 500/i);
+  });
+
+  it("maps a dispatch 404 to a workflow-not-found user error", async () => {
+    mockStorageGetItem.mockResolvedValue(null);
+    (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("github-workflow-dispatch")) {
+        return {
+          ok: false,
+          status: 404,
+          statusText: "Not Found",
+          text: async () => JSON.stringify({
+            error: "GitHub workflow dispatch failed (workflow not found)",
+            details: {
+              hint: "Workflow not found in repo. Ensure the workflow file exists under .github/workflows.",
+            },
+          }),
+        } as Response;
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    expect(result.current.showError).toMatch(/Workflow-Datei\/Workflow .* nicht gefunden/i);
+    expect(result.current.showError).not.toMatch(/github-workflow-dispatch failed/i);
+  });
+
+  it("surfaces unscoped workflow-run lookup as a contract error", async () => {
+    mockStorageGetItem.mockResolvedValue(null);
+    (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("github-workflow-dispatch")) {
+        return {
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          text: async () => "",
+        } as Response;
+      }
+
+      if (url.includes("github-workflow-runs")) {
+        return {
+          ok: true,
+          json: async () => ({
+            ok: true,
+            data: { workflow_runs: [] },
+            note: "workflowId not found; returned repo-wide workflow runs instead",
+          }),
+        } as Response;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    expect(result.current.runLookupActive).toBe(false);
+    expect(result.current.showError).toMatch(/nicht workflow-spezifisch abgesichert/i);
+  });
+
   it("classifies a server-rejected local Edge Admin Key honestly during CI-Lite dispatch", async () => {
     mockStorageGetItem.mockResolvedValue(null);
     (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
