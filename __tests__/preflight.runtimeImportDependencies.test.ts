@@ -163,6 +163,69 @@ describe("preflight runtime import dependency mismatches", () => {
     expect(nextPackageJson.dependencies["expo-blur"]).toBe("~15.0.7");
   });
 
+  it("autofix reuses exact versions from package-lock.json for missing runtime dependencies", async () => {
+    const files = [
+      ...makeFiles(
+        {
+          name: "musik-player",
+          dependencies: {
+            expo: "~54.0.0",
+            react: "19.1.0",
+            "react-native": "0.81.0",
+          },
+        },
+        [
+          {
+            path: "screens/Preview.tsx",
+            content:
+              'import { GestureHandlerRootView } from "react-native-gesture-handler";\nexport default GestureHandlerRootView;\n',
+          },
+        ],
+      ),
+      {
+        path: "package-lock.json",
+        content: `${JSON.stringify(
+          {
+            name: "musik-player",
+            lockfileVersion: 3,
+            packages: {
+              "": {
+                dependencies: {
+                  "react-native-gesture-handler": "~2.28.0",
+                },
+              },
+              "node_modules/react-native-gesture-handler": {
+                version: "2.28.0",
+              },
+            },
+          },
+          null,
+          2,
+        )}\n`,
+      },
+    ];
+
+    const result = checkRuntimeImportDependencies.run(files, {
+      mode: "eas",
+      profile: "preview",
+    });
+
+    expect(result.findings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          packageName: "react-native-gesture-handler",
+          fixability: "autofix",
+          versionSuggestion: "2.28.0",
+        }),
+      ]),
+    );
+
+    const nextFiles = await applyPatch(files, result.fix!.patch!);
+    const nextPackageJson = JSON.parse(nextFiles.find((file) => file.path === "package.json")?.content ?? "{}");
+
+    expect(nextPackageJson.dependencies["react-native-gesture-handler"]).toBe("2.28.0");
+  });
+
   it("marks unsupported runtime packages as manual-only diagnostics", () => {
     const files = makeFiles(
       {
