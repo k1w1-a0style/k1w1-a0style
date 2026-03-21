@@ -10,6 +10,26 @@ describe("CI Lite Header workflow invariants", () => {
     const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
 
     expect(src).toContain("if (dispatching) return;");
+    expect(src).toContain("const [locatingRun, setLocatingRun] = useState(false);");
+  });
+
+  it("keeps busy/tracking/header-running active while run lookup is still in progress", () => {
+    const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
+
+    expect(src).toContain("const hasActiveRunContext = dispatching || locatingRun || chainWaiting || trackedRunId != null;");
+    expect(src).toContain("const isTrackingRun = dispatching || locatingRun || chainWaiting || (trackedRunId != null && !runCompleted);");
+    expect(src).toContain("dispatching ||\n    locatingRun ||\n    chainWaiting ||");
+    expect(src).toContain('if (dispatching || locatingRun || chainWaiting) { setHeaderState("running"); return; }');
+  });
+
+  it("resets run lookup state on found run, timeout, and fatal lookup error without reusing stale intervals", () => {
+    const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
+
+    expect(src).toContain("const stopRunLookup = useCallback(() => {");
+    expect(src).toContain("setLocatingRun(false);");
+    expect(src).toContain("const lookupFinished = await poll();");
+    expect(src).toContain("if (!lookupFinished) {");
+    expect(src).toContain("pollTimerRef.current = setInterval(() => {");
   });
 
   it("persists CI-Lite outcome only for the active CI-Lite run context", () => {

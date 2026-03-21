@@ -81,6 +81,14 @@ export function CiLiteModal(props: CiLiteModalProps) {
     runUrl, workflowRunUrl, dispatching, isTrackingRun, addChatMessage, dispatchWorkflow,
   } = props;
 
+  const showDispatchSourceNotice =
+    !busy &&
+    !isTrackingRun &&
+    !hydratedFromPersistence &&
+    !runMeta &&
+    !runUrl &&
+    !workflowRunUrl;
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.modalOverlay} onPress={onClose}>
@@ -169,16 +177,18 @@ export function CiLiteModal(props: CiLiteModalProps) {
             </View>
           ) : null}
 
-          <View style={styles.warningBox}>
-            <Ionicons name="information-circle" size={16} color={theme.palette.warning} />
-            <View style={styles.messageTextWrap}>
-              <Text style={styles.warningTitle}>Dispatch-Quelle</Text>
-              <Text style={styles.warningText}>
-                CI Lite Dispatch liest den lokalen Edge Admin Key aus SecureStore. Ein bestaetigter Repo Secret
-                Name `K1W1_EDGE_ADMIN_KEY` allein macht diesen Start nicht bereit.
-              </Text>
+          {showDispatchSourceNotice ? (
+            <View style={styles.warningBox}>
+              <Ionicons name="information-circle" size={16} color={theme.palette.warning} />
+              <View style={styles.messageTextWrap}>
+                <Text style={styles.warningTitle}>Dispatch-Quelle</Text>
+                <Text style={styles.warningText}>
+                  CI Lite Dispatch liest den lokalen Edge Admin Key aus SecureStore. Ein bestaetigter Repo Secret
+                  Name `K1W1_EDGE_ADMIN_KEY` allein macht diesen Start nicht bereit.
+                </Text>
+              </View>
             </View>
-          </View>
+          ) : null}
 
           {/* Results */}
           <View style={styles.resultsHead}>

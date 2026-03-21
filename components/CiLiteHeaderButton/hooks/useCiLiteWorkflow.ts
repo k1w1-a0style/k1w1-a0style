@@ -138,6 +138,7 @@ export function useCiLiteWorkflow() {
   const [workflowId, setWorkflowId] = useState<string>(WORKFLOW_CI_LITE);
   const [targetRef, setTargetRef] = useState<string | null>(null);
   const [dispatching, setDispatching] = useState(false);
+  const [locatingRun, setLocatingRun] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
   const [headerState, setHeaderState] = useState<StepState>("idle");
@@ -170,6 +171,16 @@ export function useCiLiteWorkflow() {
       pollTimerRef.current = null;
     }
   }, []);
+
+  const startRunLookup = useCallback(() => {
+    stopPolling();
+    setLocatingRun(true);
+  }, [stopPolling]);
+
+  const stopRunLookup = useCallback(() => {
+    setLocatingRun(false);
+    stopPolling();
+  }, [stopPolling]);
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
@@ -234,7 +245,7 @@ export function useCiLiteWorkflow() {
 
   // ---- Logs ----
   const trackedRunId = runId;
-  const hasActiveRunContext = dispatching || chainWaiting || trackedRunId != null;
+  const hasActiveRunContext = dispatching || locatingRun || chainWaiting || trackedRunId != null;
 
   const {
     logs,
@@ -249,7 +260,7 @@ export function useCiLiteWorkflow() {
   });
 
   const runCompleted = workflowRun?.status === "completed";
-  const isTrackingRun = dispatching || chainWaiting || (trackedRunId != null && !runCompleted);
+  const isTrackingRun = dispatching || locatingRun || chainWaiting || (trackedRunId != null && !runCompleted);
 
   useEffect(() => {
     let cancelled = false;
@@ -483,6 +494,7 @@ export function useCiLiteWorkflow() {
 
   const busy =
     dispatching ||
+    locatingRun ||
     chainWaiting ||
     logsLoading ||
     workflowRun?.status === "in_progress" ||
@@ -502,15 +514,15 @@ export function useCiLiteWorkflow() {
     if (chainSkipReason) {
       setLocalError(`Autofix erfolgreich, aber CI-Lite Chain-Run wurde im Workflow übersprungen: ${chainSkipReason}.`);
       setChainWaiting(false);
-      stopPolling();
+      stopRunLookup();
       return;
     }
 
     setChainWaiting(true);
+    startRunLookup();
     setWorkflowId(WORKFLOW_CI_LITE);
     setRunId(null);
     setRunUrl(null);
-    stopPolling();
 
     const start = Date.now();
     const poll = async () => {
@@ -529,28 +541,39 @@ export function useCiLiteWorkflow() {
           setRunId(Number(found.id));
           setRunUrl(typeof found?.html_url === "string" ? found.html_url : null);
           setChainWaiting(false);
-          stopPolling();
-          return;
+          stopRunLookup();
+          return true;
         }
       } catch (e: any) {
         setLocalError(e?.message || String(e));
+        setChainWaiting(false);
+        stopRunLookup();
+        return true;
       }
       if (Date.now() - start > 75_000) {
         setLocalError(
           "Autofix-Chain ausgelöst, aber kein frischer passender CI-Lite-Run gefunden (Timeout). Prüfe job_id-Contract/Workflow-Dispatch.",
         );
         setChainWaiting(false);
-        stopPolling();
+        stopRunLookup();
+        return true;
       }
+      return false;
     };
 
-    void poll();
-    pollTimerRef.current = setInterval(poll, 2500);
-  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopPolling, findMatchingRun]);
+    void (async () => {
+      const lookupFinished = await poll();
+      if (!lookupFinished) {
+        pollTimerRef.current = setInterval(() => {
+          void poll();
+        }, 2500);
+      }
+    })();
+  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopRunLookup, startRunLookup, findMatchingRun]);
 
   // ---- Header state lamp ----
   useEffect(() => {
-    if (dispatching || chainWaiting) { setHeaderState("running"); return; }
+    if (dispatching || locatingRun || chainWaiting) { setHeaderState("running"); return; }
     if (workflowRun?.status) {
       if (workflowRun.status !== "completed") { setHeaderState("running"); return; }
       if (workflowRun.conclusion === "success") setHeaderState("success");
@@ -563,7 +586,7 @@ export function useCiLiteWorkflow() {
       return;
     }
     setHeaderState("idle");
-  }, [workflowRun?.status, workflowRun?.conclusion, dispatching, chainWaiting, hydratedDisplaySnapshot]);
+  }, [workflowRun?.status, workflowRun?.conclusion, dispatching, locatingRun, chainWaiting, hydratedDisplaySnapshot]);
 
   // ---- Persist CI Lite results ----
   useEffect(() => {
@@ -619,11 +642,12 @@ export function useCiLiteWorkflow() {
       setLocalError(null);
       setVisible(true);
       setDispatching(true);
+      setLocatingRun(false);
       setRunId(null);
       setRunUrl(null);
       setWorkflowId(workflowFile);
       setChainWaiting(false);
-      stopPolling();
+      stopRunLookup();
 
       const newJobId = uuidv4();
       setJobId(newJobId);
@@ -703,27 +727,37 @@ export function useCiLiteWorkflow() {
             if (found?.id) {
               setRunId(Number(found.id));
               setRunUrl(typeof found?.html_url === "string" ? found.html_url : null);
-              stopPolling();
-              return;
+              stopRunLookup();
+              return true;
             }
           } catch (e: any) {
             setLocalError(e?.message || String(e));
+            stopRunLookup();
+            return true;
           }
           if (Date.now() - start > 60_000) {
             setLocalError("Workflow wurde gestartet, aber kein passender Run gefunden (Timeout). Bitte Run-Übersicht öffnen.");
-            stopPolling();
+            stopRunLookup();
+            return true;
           }
+          return false;
         };
 
-        await poll();
-        pollTimerRef.current = setInterval(poll, 2500);
+        startRunLookup();
+        const lookupFinished = await poll();
+        if (!lookupFinished) {
+          pollTimerRef.current = setInterval(() => {
+            void poll();
+          }, 2500);
+        }
       } catch (e: any) {
         setLocalError(e?.message || String(e));
+        stopRunLookup();
       } finally {
         setDispatching(false);
       }
     },
-    [dispatching, githubRepo, branch, stopPolling, findMatchingRun, projectData?.files],
+    [dispatching, githubRepo, branch, stopRunLookup, startRunLookup, findMatchingRun, projectData?.files],
   );
 
 
@@ -748,6 +782,7 @@ export function useCiLiteWorkflow() {
   return {
     visible, setVisible,
     dispatching, dispatchWorkflow,
+    runLookupActive: locatingRun,
     isTrackingRun,
     headerState,
     githubRepo, branch, targetRef: effectiveTargetRef,
