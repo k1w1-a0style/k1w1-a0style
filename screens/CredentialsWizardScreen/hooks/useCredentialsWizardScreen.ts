@@ -583,9 +583,18 @@ export function useCredentialsWizardScreen() {
   async function onSaveAdminKey() {
     const trimmed = adminKey.trim();
     setAdminKey(trimmed);
+
+    if (trimmed && !isLikelyValidAdminKey(trimmed)) {
+      Alert.alert(
+        "Admin-Key wirkt ungültig",
+        "Bitte nur einen formal gültigen Edge Admin Key ohne Leerzeichen speichern.",
+      );
+      return;
+    }
+
     await saveEdgeAdminKey(trimmed);
     await hydrateAdminKey();
-    toast.show("Admin-Key gespeichert und neu geladen");
+    toast.show(trimmed ? "Admin-Key gespeichert und neu geladen" : "Admin-Key gelöscht und neu geladen");
   }
 
   async function onCopyError() {
