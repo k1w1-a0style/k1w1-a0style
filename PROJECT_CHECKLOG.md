@@ -105,6 +105,8 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 
 - 2026-03-21: Patch 527: CI-Lite-Persistenz auf repo-/branch-scoped Snapshot-Vertrag gehärtet — neuer `ci_lite_snapshot::<repo>::<branch>`-Schluessel ist die bevorzugte Wahrheit fuer Header + Build-Readiness, `readPersistedCiLiteSelection(...)` liest scoped zuerst und nutzt flache `CI_LITE_LAST_*`-Keys nur noch als Legacy-Fallback; fokussierte Jest-Regressionen decken scoped Read, Mismatch, kaputte Persistenz, Legacy-Fallback und den scoped Write-Pfad ab.
 
+- 2026-03-21: Patch 529: CI-Lite-Run-Lookup fuer Legacy-`workflow_dispatch`-Workflows gehaertet — exakter `job_id`-Marker bleibt der bevorzugte Trefferweg, sichere Fallback-Tiers ueber `head_sha`/frische Branch-Kandidaten verhindern falsche Generic-Timeouts, und mehrdeutige Kandidaten liefern nun explizite Contract-/Ambiguitaetsdiagnosen statt falscher Bindung.
+
 ## Hinweise
 
 - 2026-03-20: Patch 517: Preview-Produktvertrag weiter auf den bestehenden Expo-/WebView-Remote-Pfad fokussiert; lokale HTML-/Eval-Vorschau ist jetzt in Hook-, UI-, Builder- und Test-Semantik explizit nur noch Dev-/Best-Effort-Fallback.
