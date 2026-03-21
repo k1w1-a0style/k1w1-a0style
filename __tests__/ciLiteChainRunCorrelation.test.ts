@@ -1,6 +1,7 @@
-import { __TEST_ONLY__ } from "../components/CiLiteHeaderButton/hooks/useCiLiteWorkflow";
-
-const { matchesWorkflowRunContract, chooseWorkflowRunCandidate } = __TEST_ONLY__;
+import {
+  chooseWorkflowRunCandidate,
+  matchesWorkflowRunContract,
+} from "../components/CiLiteHeaderButton/hooks/workflowRunMatching";
 
 describe("CI Lite chain-run correlation", () => {
   const startedAtMs = Date.parse("2026-03-21T10:00:00.000Z");
