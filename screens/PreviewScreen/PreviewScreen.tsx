@@ -92,19 +92,21 @@ export default function PreviewScreen() {
 
   return (
     <SafeAreaView style={s.root} edges={['top']}>
-      <PreviewToolbar
-        projectName={projectData.name}
-        hotReloadEnabled={hotReloadEnabled}
-        hotDotAnim={hotDotAnim}
-        hasPreviewUrl={Boolean(previewUrl)}
-        hasQrUrl={Boolean(qrImageUrl)}
-        onToggleHotReload={() => setHotReloadEnabled((value) => !value)}
-        onReload={handleReload}
-        onCopy={handleCopy}
-        onOpenQr={handleOpenQr}
-        onOpenExternal={handleOpenExternal}
-        onFullscreen={handleFullscreen}
-      />
+      <View testID="preview-toolbar">
+        <PreviewToolbar
+          projectName={projectData.name}
+          hotReloadEnabled={hotReloadEnabled}
+          hotDotAnim={hotDotAnim}
+          hasPreviewUrl={Boolean(previewUrl)}
+          hasQrUrl={Boolean(qrImageUrl)}
+          onToggleHotReload={() => setHotReloadEnabled((value) => !value)}
+          onReload={handleReload}
+          onCopy={handleCopy}
+          onOpenQr={handleOpenQr}
+          onOpenExternal={handleOpenExternal}
+          onFullscreen={handleFullscreen}
+        />
+      </View>
 
       <PreviewStatusBar
         phase={phase}
@@ -127,6 +129,7 @@ export default function PreviewScreen() {
         fadeAnim={fadeAnim}
         flashBorderAnim={flashBorderAnim}
         originWhitelist={originWhitelist}
+        errorMessage={webError || state.error || state.remoteFailure}
         onShouldStartLoadWithRequest={handleShouldStartLoad}
         onLoadStart={() => {
           setPhase('loading');
@@ -191,7 +194,7 @@ export default function PreviewScreen() {
         </View>
       )}
 
-      <View style={s.bottomBar}>
+      <View style={s.bottomBar} testID="preview-bottom-bar">
         <Pressable style={[s.bottomBtn, state.isCreating && s.disabled]} onPress={handleCreate} disabled={state.isCreating}>
           <Ionicons name="refresh-outline" size={16} color={theme.palette.primary} />
           <Text style={s.bottomBtnText}>Neu erstellen</Text>
