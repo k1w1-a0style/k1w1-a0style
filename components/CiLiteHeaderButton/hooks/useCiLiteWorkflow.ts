@@ -138,9 +138,15 @@ function matchesWorkflowRunContract(
   const headBranch = typeof run?.head_branch === "string" ? run.head_branch.trim() : "";
   if (headBranch && headBranch !== targetBranch) return false;
 
-  if (opts.requireJobIdMarker === false && hasExactHeadSha(run, opts.sourceHeadSha)) return true;
+  if (opts.requireJobIdMarker !== false && !hasExactJobIdMarkerInRun(run, opts.jobId)) return false;
 
-  return hasExactJobIdMarkerInRun(run, opts.jobId);
+  if (opts.sourceHeadSha && typeof run?.head_sha === "string" && !hasExactHeadSha(run, opts.sourceHeadSha)) {
+    return false;
+  }
+
+  return opts.requireJobIdMarker === false
+    ? hasExactJobIdMarkerInRun(run, opts.jobId) || hasExactHeadSha(run, opts.sourceHeadSha)
+    : true;
 }
 
 function chooseWorkflowRunCandidate(
@@ -155,18 +161,20 @@ function chooseWorkflowRunCandidate(
   },
 ): WorkflowRunLocatorCandidate {
   const eligibleRuns = runs.filter((run) =>
-    matchesWorkflowRunContract(run, { ...opts, requireJobIdMarker: true }),
+    matchesWorkflowRunContract(run, opts),
   );
 
-  if (opts.requireJobIdMarker === false) {
-    const headShaMatch = runs.find((run) =>
-      matchesWorkflowRunContract(run, { ...opts, requireJobIdMarker: false }),
-    );
-    if (headShaMatch) return headShaMatch;
-  }
+  const exactHeadShaMatch = opts.sourceHeadSha
+    ? eligibleRuns.find((run) => hasExactHeadSha(run, opts.sourceHeadSha))
+    : null;
 
-  return eligibleRuns[0] ?? null;
+  return exactHeadShaMatch ?? eligibleRuns[0] ?? null;
 }
+
+export const __TEST_ONLY__ = {
+  matchesWorkflowRunContract,
+  chooseWorkflowRunCandidate,
+};
 
 function getArtifactUiMessage(params: {
   artifactError: string | null;
@@ -206,8 +214,8 @@ function buildCiLiteAdminKeyError(params: {
 export function useCiLiteWorkflow() {
   // Contract for chain-run correlation:
   // - Autofix dispatches repository_dispatch(trigger-ci-lite) with the same source commit SHA and job_id
-  // - The header prefers branch/event/fresh-head_sha for the chained CI-Lite run
-  // - Manual workflow_dispatch still requires the explicit job_id marker to avoid cross-binding concurrent runs
+  // - The header requires the explicit job_id marker for both manual and chained CI-Lite runs
+  // - sourceHeadSha remains a secondary freshness/safety guard, never the sole correlation anchor
   const { projectData } = useProject();
 
   const [visible, setVisible] = useState(false);
@@ -602,7 +610,7 @@ export function useCiLiteWorkflow() {
           expectedEvent: "repository_dispatch",
           startedAtMs: start,
           sourceHeadSha: workflowRun.head_sha ?? null,
-          requireJobIdMarker: false,
+          requireJobIdMarker: true,
         });
         if (found?.id) {
           setRunId(Number(found.id));
