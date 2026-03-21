@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { STORAGE_KEYS } from "./storageKeys";
+import { STORAGE_KEYS, ciLiteSnapshotKeyForSelection } from "./storageKeys";
 
 const SHA_RE = /^[0-9a-f]{40}$/i;
 const FINAL_CONCLUSIONS = new Set([
@@ -41,6 +41,12 @@ type SelectionDeps = {
   readBranchHeadSha?: (owner: string, repo: string, branch: string) => Promise<string>;
 };
 
+type ScopedSnapshotReadResult = {
+  parsed: PersistedCiLiteSnapshot | null;
+  parseReason: string | null;
+  source: "scoped" | "legacy";
+};
+
 function parseRepoParts(repoFullName: string): { owner: string; repo: string } | null {
   const normalized = String(repoFullName ?? "").trim();
   const parts = normalized.split("/");
@@ -69,6 +75,166 @@ function parseOptionalPositiveInt(raw: string | null): number | null {
   return Math.trunc(parsed);
 }
 
+function normalizeRepo(raw: unknown): string {
+  return String(raw ?? "").trim();
+}
+
+function normalizeBranch(raw: unknown): string {
+  return String(raw ?? "").trim();
+}
+
+type ParsedSnapshotResult = {
+  snapshot: PersistedCiLiteSnapshot | null;
+  reason: string | null;
+};
+
+function parseSnapshotRecord(parsed: Record<string, unknown>): ParsedSnapshotResult {
+  const lintOk = typeof parsed.lintOk === "boolean" ? parsed.lintOk : null;
+  const typecheckOk = typeof parsed.typecheckOk === "boolean" ? parsed.typecheckOk : null;
+  if (lintOk === null || typecheckOk === null) {
+    return { snapshot: null, reason: "CI-Lite Lint/Typecheck unklar" };
+  }
+
+  const repo = normalizeRepo(parsed.repo);
+  const branch = normalizeBranch(parsed.branch);
+  if (!repo || !branch) {
+    return { snapshot: null, reason: "CI-Lite-Persistenz fehlt oder ist unvollständig" };
+  }
+
+  const runAtMs = Number(parsed.runAtMs ?? "");
+  const sha = String(parsed.sha ?? "").trim().toLowerCase();
+  const workflowId = String(parsed.workflowId ?? "").trim() || "k1w1-ci-lite.yml";
+  const jobId = String(parsed.jobId ?? "").trim() || null;
+  const runIdRaw = parsed.runId;
+  const runId =
+    typeof runIdRaw === "number"
+      ? parseOptionalPositiveInt(String(runIdRaw))
+      : parseOptionalPositiveInt(typeof runIdRaw === "string" ? runIdRaw : null);
+
+  return {
+    snapshot: {
+      repo,
+      branch,
+      sha,
+      runAtMs,
+      workflowId,
+      jobId,
+      runId,
+      conclusion: normalizeConclusion(String(parsed.conclusion ?? ""), lintOk, typecheckOk),
+      lintOk,
+      typecheckOk,
+    },
+    reason: null,
+  };
+}
+
+function parseSnapshotFromRaw(raw: string | null): ParsedSnapshotResult {
+  if (!raw) {
+    return { snapshot: null, reason: "CI-Lite-Persistenz fehlt oder ist unvollständig" };
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== "object") {
+      return { snapshot: null, reason: "CI-Lite-Persistenz fehlt oder ist unvollständig" };
+    }
+    return parseSnapshotRecord(parsed);
+  } catch {
+    return { snapshot: null, reason: "CI-Lite-Persistenz fehlt oder ist unvollständig" };
+  }
+}
+
+async function readScopedOrLegacySnapshotRaw(
+  storageGetItem: (key: string) => Promise<string | null>,
+  params: { repoFullName: string; branchName: string },
+): Promise<ScopedSnapshotReadResult> {
+  const scopedKey = ciLiteSnapshotKeyForSelection({
+    linkedRepo: params.repoFullName,
+    linkedBranch: params.branchName,
+  });
+  const scopedRaw = await storageGetItem(scopedKey).catch(() => null);
+  if (scopedRaw != null) {
+    const parsed = parseSnapshotFromRaw(scopedRaw);
+    return { parsed: parsed.snapshot, parseReason: parsed.reason, source: "scoped" };
+  }
+
+  const [lintOkRaw, typeOkRaw, lastRepo, lastBranch, lastRunAt, lastSha, lastWorkflow, lastJobId, lastRunId, lastConclusion] =
+    await Promise.all([
+      storageGetItem(STORAGE_KEYS.CI_LITE_LINT_OK).catch(() => null),
+      storageGetItem(STORAGE_KEYS.CI_LITE_TYPECHECK_OK).catch(() => null),
+      storageGetItem(STORAGE_KEYS.CI_LITE_LAST_REPO).catch(() => null),
+      storageGetItem(STORAGE_KEYS.CI_LITE_LAST_BRANCH).catch(() => null),
+      storageGetItem(STORAGE_KEYS.CI_LITE_LAST_RUN_AT).catch(() => null),
+      storageGetItem(STORAGE_KEYS.CI_LITE_LAST_SHA).catch(() => null),
+      storageGetItem(STORAGE_KEYS.CI_LITE_LAST_WORKFLOW).catch(() => null),
+      storageGetItem(STORAGE_KEYS.CI_LITE_LAST_JOB_ID).catch(() => null),
+      storageGetItem(STORAGE_KEYS.CI_LITE_LAST_RUN_ID).catch(() => null),
+      storageGetItem(STORAGE_KEYS.CI_LITE_LAST_CONCLUSION).catch(() => null),
+    ]);
+
+  const legacySnapshot = {
+    repo: normalizeRepo(lastRepo),
+    branch: normalizeBranch(lastBranch),
+    sha: String(lastSha ?? "").trim().toLowerCase(),
+    runAtMs: Number(lastRunAt ?? ""),
+    workflowId: String(lastWorkflow ?? "").trim() || "k1w1-ci-lite.yml",
+    jobId: String(lastJobId ?? "").trim() || null,
+    runId: parseOptionalPositiveInt(lastRunId),
+    conclusion: String(lastConclusion ?? "").trim(),
+    lintOk: readBooleanFlag(lintOkRaw),
+    typecheckOk: readBooleanFlag(typeOkRaw),
+  };
+
+  const parsedLegacy = parseSnapshotRecord(legacySnapshot as unknown as Record<string, unknown>);
+  return {
+    parsed: parsedLegacy.snapshot,
+    parseReason: parsedLegacy.reason,
+    source: "legacy",
+  };
+}
+
+function validateSnapshotForSelection(params: {
+  snapshot: PersistedCiLiteSnapshot | null;
+  expectedRepo: string;
+  expectedBranch: string;
+}): PersistedCiLiteSelectionCheck {
+  const { snapshot, expectedRepo, expectedBranch } = params;
+  if (!snapshot) {
+    return { snapshot: null, reason: "CI-Lite-Persistenz fehlt oder ist unvollständig", stale: false };
+  }
+
+  if (snapshot.repo !== expectedRepo) {
+    return { snapshot: null, reason: "CI-Lite gehoert zu anderem Repo", stale: false };
+  }
+
+  if (snapshot.branch !== expectedBranch) {
+    return { snapshot: null, reason: "CI-Lite gehoert zu anderem Branch", stale: false };
+  }
+
+  const stale = Date.now() - snapshot.runAtMs > CI_LITE_PERSISTENCE_MAX_AGE_MS;
+  if (!Number.isFinite(snapshot.runAtMs) || snapshot.runAtMs <= 0) {
+    return { snapshot: null, reason: "CI-Lite-Zeitstempel fehlt oder ist ungueltig", stale: false };
+  }
+
+  if (stale) {
+    return { snapshot: null, reason: "CI-Lite ist veraltet", stale: true };
+  }
+
+  if (!SHA_RE.test(snapshot.sha)) {
+    return { snapshot: null, reason: "CI-Lite-SHA fehlt oder ist ungueltig", stale: false };
+  }
+
+  if (snapshot.workflowId && snapshot.workflowId !== "k1w1-ci-lite.yml") {
+    return { snapshot: null, reason: "CI-Lite-Workflow passt nicht zur Persistenz", stale: false };
+  }
+
+  return { snapshot, reason: null, stale: false };
+}
+
+/**
+ * Preferred CI-Lite source of truth: repo/branch-scoped snapshot.
+ * Legacy flat keys remain read-only fallback for migration while older writers/readers exist.
+ */
 export async function readPersistedCiLiteSelection(params: {
   repoFullName: string;
   branchName: string;
@@ -78,77 +244,41 @@ export async function readPersistedCiLiteSelection(params: {
   const { repoFullName, branchName, deps, requireGreen = false } = params;
   const storageGetItem = deps?.storageGetItem ?? ((key: string) => AsyncStorage.getItem(key));
   const readBranchHeadSha = deps?.readBranchHeadSha;
+  const expectedRepo = String(repoFullName ?? "").trim();
+  const expectedBranch = String(branchName ?? "").trim();
 
-  const [
-    lintOkRaw,
-    typeOkRaw,
-    lastRepo,
-    lastBranch,
-    lastRunAt,
-    lastSha,
-    lastWorkflow,
-    lastJobId,
-    lastRunId,
-    lastConclusion,
-  ] = await Promise.all([
-    storageGetItem(STORAGE_KEYS.CI_LITE_LINT_OK).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_TYPECHECK_OK).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_LAST_REPO).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_LAST_BRANCH).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_LAST_RUN_AT).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_LAST_SHA).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_LAST_WORKFLOW).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_LAST_JOB_ID).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_LAST_RUN_ID).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_LAST_CONCLUSION).catch(() => null),
-  ]);
-
-  const lintOk = readBooleanFlag(lintOkRaw);
-  const typecheckOk = readBooleanFlag(typeOkRaw);
-  if (lintOk === null || typecheckOk === null) {
-    return { snapshot: null, reason: "CI-Lite Lint/Typecheck unklar", stale: false };
+  const persistedRaw = await readScopedOrLegacySnapshotRaw(storageGetItem, {
+    repoFullName: expectedRepo,
+    branchName: expectedBranch,
+  });
+  if (!persistedRaw.parsed) {
+    return {
+      snapshot: null,
+      reason: persistedRaw.parseReason ?? "CI-Lite-Persistenz fehlt oder ist unvollständig",
+      stale: false,
+    };
   }
-
-  const repo = String(lastRepo ?? "").trim();
-  const branch = String(lastBranch ?? "").trim();
-  if (repo !== String(repoFullName ?? "").trim()) {
-    return { snapshot: null, reason: "CI-Lite gehoert zu anderem Repo", stale: false };
-  }
-  if (branch !== String(branchName ?? "").trim()) {
-    return { snapshot: null, reason: "CI-Lite gehoert zu anderem Branch", stale: false };
-  }
-
-  const runAtMs = Number(lastRunAt ?? "");
-  const stale = !Number.isFinite(runAtMs) || runAtMs <= 0 || Date.now() - runAtMs > CI_LITE_PERSISTENCE_MAX_AGE_MS;
-  if (stale) {
-    return { snapshot: null, reason: "CI-Lite ist veraltet", stale: true };
-  }
-
-  const sha = String(lastSha ?? "").trim().toLowerCase();
-  if (!SHA_RE.test(sha)) {
-    return { snapshot: null, reason: "CI-Lite-SHA fehlt oder ist ungueltig", stale: false };
-  }
-
-  const workflowId = String(lastWorkflow ?? "").trim();
-  if (workflowId && workflowId !== "k1w1-ci-lite.yml") {
-    return { snapshot: null, reason: "CI-Lite-Workflow passt nicht zur Persistenz", stale: false };
-  }
+  const validated = validateSnapshotForSelection({
+    snapshot: persistedRaw.parsed,
+    expectedRepo,
+    expectedBranch,
+  });
+  if (!validated.snapshot) return validated;
 
   if (readBranchHeadSha) {
-    const repoParts = parseRepoParts(repoFullName);
-    const selectedBranch = String(branchName ?? "").trim();
-    if (!repoParts || !selectedBranch) {
+    const repoParts = parseRepoParts(expectedRepo);
+    if (!repoParts || !expectedBranch) {
       return { snapshot: null, reason: "Repo oder Branch fehlen", stale: false };
     }
 
     try {
       const currentHeadSha = String(
-        await readBranchHeadSha(repoParts.owner, repoParts.repo, selectedBranch),
+        await readBranchHeadSha(repoParts.owner, repoParts.repo, expectedBranch),
       ).trim().toLowerCase();
       if (!SHA_RE.test(currentHeadSha)) {
         return { snapshot: null, reason: "Branch-HEAD-SHA konnte nicht verifiziert werden", stale: false };
       }
-      if (currentHeadSha !== sha) {
+      if (currentHeadSha !== validated.snapshot.sha) {
         return {
           snapshot: null,
           reason: "Repo/Branch wurden seit dem letzten CI-Lite-Run geaendert (SHA-Mismatch)",
@@ -160,25 +290,63 @@ export async function readPersistedCiLiteSelection(params: {
     }
   }
 
-  const conclusion = normalizeConclusion(lastConclusion, lintOk, typecheckOk);
-  if (requireGreen && (!lintOk || !typecheckOk || conclusion !== "success")) {
-    return { snapshot: null, reason: "CI-Lite Lint/Typecheck nicht gruen", stale: false };
+  if (requireGreen) {
+    const isGreen = validated.snapshot.lintOk && validated.snapshot.typecheckOk && validated.snapshot.conclusion === "success";
+    if (!isGreen) {
+      return { snapshot: null, reason: "CI-Lite Lint/Typecheck nicht gruen", stale: false };
+    }
   }
 
-  return {
-    snapshot: {
-      repo,
-      branch,
-      sha,
-      runAtMs,
-      workflowId: workflowId || "k1w1-ci-lite.yml",
-      jobId: String(lastJobId ?? "").trim() || null,
-      runId: parseOptionalPositiveInt(lastRunId),
-      conclusion,
-      lintOk,
-      typecheckOk,
-    },
-    reason: null,
-    stale: false,
+  return validated;
+}
+
+export function buildPersistCiLiteEntries(params: {
+  snapshot: PersistedCiLiteSnapshot;
+  includeLegacyMirror?: boolean;
+}): [string, string][] {
+  const { snapshot, includeLegacyMirror = true } = params;
+  const normalizedSnapshot: PersistedCiLiteSnapshot = {
+    repo: normalizeRepo(snapshot.repo),
+    branch: normalizeBranch(snapshot.branch),
+    sha: String(snapshot.sha ?? "").trim().toLowerCase(),
+    runAtMs: Number(snapshot.runAtMs ?? ""),
+    workflowId: String(snapshot.workflowId ?? "").trim() || "k1w1-ci-lite.yml",
+    jobId: String(snapshot.jobId ?? "").trim() || null,
+    runId:
+      typeof snapshot.runId === "number" && Number.isFinite(snapshot.runId) && snapshot.runId > 0
+        ? Math.trunc(snapshot.runId)
+        : null,
+    conclusion: normalizeConclusion(snapshot.conclusion, snapshot.lintOk, snapshot.typecheckOk),
+    lintOk: Boolean(snapshot.lintOk),
+    typecheckOk: Boolean(snapshot.typecheckOk),
   };
+
+  const entries: [string, string][] = [
+    [
+      ciLiteSnapshotKeyForSelection({
+        linkedRepo: normalizedSnapshot.repo,
+        linkedBranch: normalizedSnapshot.branch,
+      }),
+      JSON.stringify(normalizedSnapshot),
+    ],
+  ];
+
+  if (!includeLegacyMirror) {
+    return entries;
+  }
+
+  entries.push(
+    [STORAGE_KEYS.CI_LITE_LINT_OK, normalizedSnapshot.lintOk ? "true" : "false"],
+    [STORAGE_KEYS.CI_LITE_TYPECHECK_OK, normalizedSnapshot.typecheckOk ? "true" : "false"],
+    [STORAGE_KEYS.CI_LITE_LAST_RUN_AT, String(normalizedSnapshot.runAtMs)],
+    [STORAGE_KEYS.CI_LITE_LAST_REPO, normalizedSnapshot.repo],
+    [STORAGE_KEYS.CI_LITE_LAST_BRANCH, normalizedSnapshot.branch],
+    [STORAGE_KEYS.CI_LITE_LAST_SHA, normalizedSnapshot.sha],
+    [STORAGE_KEYS.CI_LITE_LAST_WORKFLOW, normalizedSnapshot.workflowId],
+    [STORAGE_KEYS.CI_LITE_LAST_JOB_ID, normalizedSnapshot.jobId ?? ""],
+    [STORAGE_KEYS.CI_LITE_LAST_RUN_ID, normalizedSnapshot.runId != null ? String(normalizedSnapshot.runId) : ""],
+    [STORAGE_KEYS.CI_LITE_LAST_CONCLUSION, normalizedSnapshot.conclusion],
+  );
+
+  return entries;
 }

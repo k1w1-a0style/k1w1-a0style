@@ -102,6 +102,8 @@ Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 - 2026-03-09: Patch 410/410B — Edge-Auth-Pfade getrennt, explizite CI-Bearer-Guards ergänzt, Service-Role-Handhabung aus Client-Pfaden entfernt.
 - 2026-03-09: Patch 409/408 — Upload-ID-Vertrag als opaque string stabilisiert; Build-Job-Vertrag auf positive numerische `jobId` ausgerichtet.
 
+- 2026-03-21: Patch 527: CI-Lite-Persistenz auf repo-/branch-scoped Snapshot-Vertrag gehärtet — neuer `ci_lite_snapshot::<repo>::<branch>`-Schluessel ist die bevorzugte Wahrheit fuer Header + Build-Readiness, `readPersistedCiLiteSelection(...)` liest scoped zuerst und nutzt flache `CI_LITE_LAST_*`-Keys nur noch als Legacy-Fallback; fokussierte Jest-Regressionen decken scoped Read, Mismatch, kaputte Persistenz, Legacy-Fallback und den scoped Write-Pfad ab.
+
 ## Hinweise
 
 - 2026-03-20: Patch 517: Preview-Produktvertrag weiter auf den bestehenden Expo-/WebView-Remote-Pfad fokussiert; lokale HTML-/Eval-Vorschau ist jetzt in Hook-, UI-, Builder- und Test-Semantik explizit nur noch Dev-/Best-Effort-Fallback.

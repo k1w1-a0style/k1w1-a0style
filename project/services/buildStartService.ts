@@ -21,6 +21,7 @@ import {
   ERR_DIAGNOSTIC_NOT_GREEN,
 } from "../../lib/errors/buildReadinessErrors";
 import { getRepoSyncState, markRepoSyncSignature } from "../../lib/repoSyncOrchestration";
+import { readPersistedCiLiteSelection } from "../../lib/ciLitePersistence";
 
 export type StartBuildProfile = "development" | "preview" | "production";
 
@@ -80,9 +81,6 @@ export type BuildReadinessDeps = {
   storageSetItem?: (key: string, value: string) => Promise<void>;
   getBranchHeadSha?: (owner: string, repo: string, branch: string) => Promise<string>;
 };
-
-const CI_LITE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
-
 export async function assertBuildReadiness(
   project: ProjectData,
   deps: BuildReadinessDeps = {},
@@ -103,15 +101,9 @@ export async function assertBuildReadiness(
     linkedBranch,
   });
 
-  const [diagScopedVal, diagLegacyVal, lintVal, typeVal, lastRunAt, lastRepo, lastBranch, lastSha] = await Promise.all([
+  const [diagScopedVal, diagLegacyVal] = await Promise.all([
     storageGetItem(scopedDiagnosticKey).catch(() => null),
     storageGetItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_LINT_OK).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_TYPECHECK_OK).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_LAST_RUN_AT).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_LAST_REPO).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_LAST_BRANCH).catch(() => null),
-    storageGetItem(STORAGE_KEYS.CI_LITE_LAST_SHA).catch(() => null),
   ]);
 
   const diagVal = diagScopedVal ?? diagLegacyVal;
@@ -121,39 +113,19 @@ export async function assertBuildReadiness(
     );
   }
 
-  if (lintVal !== "true" || typeVal !== "true") {
-    throw new Error("Build blockiert: CI Lite (Lint + Typecheck) ist für dieses Ziel noch nicht grün.");
-  }
+  const persistedCiLite = await readPersistedCiLiteSelection({
+    repoFullName: linkedRepo,
+    branchName: linkedBranch,
+    requireGreen: true,
+    deps: {
+      storageGetItem,
+      readBranchHeadSha,
+    },
+  });
 
-  if ((lastRepo ?? "").trim() !== linkedRepo) {
-    throw new Error("Build blockiert: Letzter CI-Lite-Run gehört zu einem anderen Repo.");
-  }
-
-  if ((lastBranch ?? "").trim() !== linkedBranch) {
-    throw new Error("Build blockiert: Letzter CI-Lite-Run gehört zu einem anderen Branch.");
-  }
-
-  const ts = Number(lastRunAt ?? "");
-  if (!Number.isFinite(ts) || ts <= 0) {
-    throw new Error("Build blockiert: Kein gültiger Zeitstempel für den letzten CI-Lite-Run vorhanden.");
-  }
-
-  if (Date.now() - ts > CI_LITE_MAX_AGE_MS) {
-    throw new Error("Build blockiert: Letzter CI-Lite-Run ist veraltet. Bitte erneut prüfen.");
-  }
-
-  if (!/^[0-9a-f]{40}$/i.test(String(lastSha ?? "").trim())) {
-    throw new Error("Build blockiert: Kein gültiger CI-Lite-SHA vorhanden. Bitte CI Lite erneut ausführen.");
-  }
-
-  const [owner, repo] = linkedRepo.split("/");
-  const currentHeadSha = await readBranchHeadSha(owner, repo, linkedBranch);
-  if (!/^[0-9a-f]{40}$/i.test(String(currentHeadSha ?? "").trim())) {
-    throw new Error("Build blockiert: Branch-HEAD-SHA konnte nicht ermittelt werden.");
-  }
-
-  if (String(lastSha).trim() !== String(currentHeadSha).trim()) {
-    throw new Error("Build blockiert: Repo/Branch wurden seit dem letzten grünen CI-Lite-Run geändert (SHA-Mismatch).");
+  if (!persistedCiLite.snapshot) {
+    const reason = persistedCiLite.reason ?? "CI-Lite-Persistenz fehlt oder ist unvollständig";
+    throw new Error(`Build blockiert: ${reason}.`);
   }
 }
 

@@ -145,6 +145,8 @@ Append-only Überblick über Patch-Notizen.
 - Patch 407–403: Repo/Branch-SoT-Härtung, Workflow-Governance, Contract-/Drift-Guards und Doku-Sync konsolidiert
 - Patch 401–389: Provider-/Helper-Invariants, CI-Lite-SHA-/Template-Drift-Härtung, Dispatch-/Trigger-Polish
 
+- Patch 527: CI-Lite-Persistenz auf repo-/branch-scoped Snapshot-Vertrag umgestellt; `readPersistedCiLiteSelection(...)` bevorzugt jetzt `ci_lite_snapshot::<repo>::<branch>`, globale `CI_LITE_LAST_*`-Keys bleiben nur noch Legacy-Fallback/Migration, der Header schreibt denselben scoped Snapshot und Build-Readiness liest dieselbe gemeinsame Quelle.
+
 ## Historical (selected)
 - Patch 388: workflow drift validator + stronger patch artifact discipline
 - Patch 387: managed workflow drift hardening + CI-lite template SHA metadata + cleanup
