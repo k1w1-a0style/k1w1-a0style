@@ -1,4 +1,4 @@
-# Patch 524 — CI-Lite-Chain-Run-Korrelation ueber expliziten `job_id`-Marker
+# Patch 524 — CI-Lite-Chain-Run-Korrelation konsistent ueber expliziten `job_id`-Marker
 
 ## Ziel
 
@@ -20,19 +20,20 @@ frischen Run binden, sondern muss denselben expliziten `job_id`-Marker wie im ma
 ## Umsetzung
 
 1. `components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts`
-   - der Chain-Run-Pfad fordert jetzt wieder explizit `requireJobIdMarker: true`
+   - der Chain-Run-Pfad fordert explizit `requireJobIdMarker: true`
+   - der Hook nutzt fuer das Run-Matching den kleinen benachbarten Helper
+     `components/CiLiteHeaderButton/hooks/workflowRunMatching.ts`
+2. `components/CiLiteHeaderButton/hooks/workflowRunMatching.ts`
    - `matchesWorkflowRunContract(...)` verlangt fuer marker-pflichtige Suchen einen echten
      `job_id`-Treffer und nutzt `sourceHeadSha` nur noch als zusaetzlichen Guard, wenn ein Run
      bereits marker-passend ist
    - `chooseWorkflowRunCandidate(...)` sortiert marker-passende Kandidaten weiterhin bevorzugt auf
      exaktes `head_sha`, ohne je auf head-sha-only zurueckzufallen
-   - ein kleines `__TEST_ONLY__`-Export macht die pure Matching-Logik gezielt testbar, ohne den
-     Hook-Aufbau umzubauen
-2. `__tests__/ciLiteChainRunCorrelation.test.ts`
+3. `__tests__/ciLiteChainRunCorrelation.test.ts`
    - deckt explizit ab, dass `head_sha` allein nicht mehr reicht
    - deckt konkurrierende frische Runs mit gleicher SHA ab
    - deckt den unveraenderten manuellen `workflow_dispatch`-Pfad mit explizitem Marker ab
-3. `__tests__/ciLiteHeaderWorkflow.invariants.test.ts`
+4. `__tests__/ciLiteHeaderWorkflow.invariants.test.ts`
    - haelt den aktualisierten Hook-Vertrag fuer Chain-Run + Guard-Kommentar regressionsfest
 
 ## Tests / Checks
@@ -48,3 +49,5 @@ frischen Run binden, sondern muss denselben expliziten `job_id`-Marker wie im ma
 - Kein Eingriff in AbortController-/Log-Heuristik, weil fuer diesen Fix nicht noetig.
 - `head_sha` bleibt nur noch ein sekundärer Guard/Sorter; der primaere Korrelationsanker ist
   wieder der explizite `job_id`-Marker.
+- Der kleine Review-Nachzug zur Testbarkeit ist hier bewusst **Teil desselben Patch 524** und
+  keine separate Patch-Wahrheit.

@@ -1,8 +1,6 @@
 # Patchlog Root
 
-- Patch 525: CI-Lite-Chain-Run-Review-Follow-up haelt den job_id-Fix aus Patch 524 klein und produktionsnah — die markerbasierte Korrelation bleibt bestehen, aber die pure Matching-Logik lebt jetzt in `workflowRunMatching.ts` statt als `__TEST_ONLY__`-Export am Hook; fokussierte Regressionen pruefen denselben Chain-/Manual-Contract weiter ohne Hook-Testoberflaeche zu erweitern.
-
-- Patch 524: CI-Lite-Chain-Run-Korrelation wieder deterministisch auf den expliziten `job_id`-Marker gezogen — `useCiLiteWorkflow` verlangt jetzt auch fuer den Autofix→CI-Lite-Folgepfad denselben Marker wie fuer manuelle `workflow_dispatch`-Runs, behandelt `sourceHeadSha` nur noch als zusaetzlichen Guard/Sorter innerhalb marker-passender Kandidaten und verhindert damit Fehlbindungen bei parallelen frischen Runs mit identischem `head_sha`; gezielte Regressionen sichern Chain- und Manual-Matching ab.
+- Patch 524: CI-Lite-Chain-Run-Korrelation deterministisch und final konsolidiert — `useCiLiteWorkflow` verlangt fuer den Autofix→CI-Lite-Folgepfad denselben expliziten `job_id`-Marker wie fuer manuelle `workflow_dispatch`-Runs, behandelt `sourceHeadSha` nur noch als zusaetzlichen Guard/Sorter innerhalb marker-passender Kandidaten und haelt die pure Matching-Logik im finalen Branch-Stand in `workflowRunMatching.ts` statt als Test-Only-Export am Hook; fokussierte Regressionen sichern denselben Chain-/Manual-Contract weiter ab.
 
 - Patch 523: GitHubRepoScreen-/Infra-Push-/Pull-Pfad minimal gehaertet — `normalizeRepoPath()` blockiert jetzt `..`-Traversal-Segmente statt sie still durchzulassen, `pushFilesToRepoAdvanced(...)` lehnt solche lokalen Repo-Pfade mit klarer Fehlermeldung vor dem GitHub-Write ab, und `pullFromRepo()` bricht bei mehr als 200 erlaubten Textdateien ehrlich vor dem Blob-Load ab statt sehr grosse Repos ungebremst in den App-Memory zu ziehen.
 
