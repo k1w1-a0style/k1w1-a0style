@@ -7,6 +7,24 @@ function toMessage(error: unknown): string {
   return typeof error === "string" ? error : String(error ?? "");
 }
 
+function isAdminKeyAuthFailure(params: { statusCode?: number | null; message: string }): boolean {
+  return (
+    params.statusCode === 401 ||
+    params.statusCode === 403 ||
+    params.message.includes("401") ||
+    params.message.includes("403") ||
+    params.message.includes("missing edge admin key") ||
+    params.message.includes("missing or invalid admin") ||
+    params.message.includes("invalid admin") ||
+    params.message.includes("admin key fehlt") ||
+    params.message.includes("unauthorized") ||
+    params.message.includes("forbidden") ||
+    params.message.includes("x-k1w1-admin-key") ||
+    params.message.includes("authorization") ||
+    params.message.includes("bearer")
+  );
+}
+
 export function inferLocalEdgeAdminKeyIssueKind(params: {
   adminKey?: string | null;
   statusCode?: number | null;
@@ -17,26 +35,7 @@ export function inferLocalEdgeAdminKeyIssueKind(params: {
   if (!isLikelyValidAdminKey(trimmedKey)) return "invalid";
 
   const message = toMessage(params.error).toLowerCase();
-
-  if (
-    message.includes("missing edge admin key") ||
-    message.includes("missing or invalid admin") ||
-    message.includes("admin key fehlt")
-  ) {
-    return "missing";
-  }
-
-  if (
-    params.statusCode === 401 ||
-    params.statusCode === 403 ||
-    message.includes("401") ||
-    message.includes("403") ||
-    message.includes("unauthorized") ||
-    message.includes("forbidden") ||
-    message.includes("invalid admin") ||
-    message.includes("admin key") ||
-    message.includes("x-k1w1-admin-key")
-  ) {
+  if (isAdminKeyAuthFailure({ statusCode: params.statusCode, message })) {
     return "rejected";
   }
 
@@ -56,7 +55,7 @@ export function describeLocalEdgeAdminKeyIssue(params: {
     return "Lokaler Edge Admin Key wirkt ungueltig (leer/zu kurz/Whitespace). Bitte in der App neu speichern oder importieren.";
   }
   if (kind === "rejected") {
-    return "Lokaler Edge Admin Key wurde vom Edge-Server abgelehnt (401/403). Repo-/Server-Secrets koennen trotzdem vorhanden sein; bitte den lokalen App-Key neu speichern oder korrekt importieren.";
+    return "Lokaler Edge Admin Key ist lokal vorhanden und wurde fuer den geschuetzten Edge-Request verwendet, aber vom Edge-Server abgelehnt (401/403 bzw. invalid admin). Bitte den lokalen App-Key neu speichern oder korrekt importieren.";
   }
   if (kind === "unknown") {
     return "Edge-Status konnte nicht sicher verifiziert werden. Wenn Repo-/Server-Secrets vorhanden sind, pruefe zuerst den lokalen Edge Admin Key in der App.";
