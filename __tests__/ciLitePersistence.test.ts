@@ -1,4 +1,9 @@
-import { buildPersistCiLiteEntries, readPersistedCiLiteSelection } from "../lib/ciLitePersistence";
+import {
+  buildPersistCiLiteEntries,
+  CI_LITE_PERSISTENCE_REASONS,
+  CI_LITE_WORKFLOW_ID,
+  readPersistedCiLiteSelection,
+} from "../lib/ciLitePersistence";
 import { ciLiteSnapshotKeyForSelection } from "../lib/storageKeys";
 
 const NOW = 1_710_000_000_000;
@@ -12,7 +17,7 @@ function buildLegacyStorageMap(overrides: Record<string, string | null> = {}): R
     ci_lite_last_repo: "owner/repo",
     ci_lite_last_branch: "main",
     ci_lite_last_sha: SHA,
-    ci_lite_last_workflow: "k1w1-ci-lite.yml",
+    ci_lite_last_workflow: CI_LITE_WORKFLOW_ID,
     ci_lite_last_job_id: "job-123",
     ci_lite_last_run_id: "321",
     ci_lite_last_conclusion: "success",
@@ -33,7 +38,7 @@ function buildScopedStorageMap(params: {
       branch,
       sha: SHA,
       runAtMs: NOW,
-      workflowId: "k1w1-ci-lite.yml",
+      workflowId: CI_LITE_WORKFLOW_ID,
       jobId: "job-123",
       runId: 321,
       conclusion: "success",
@@ -79,27 +84,19 @@ describe("readPersistedCiLiteSelection", () => {
     });
   });
 
-  it("rejects a scoped snapshot when the persisted repo mismatches the selected repo", async () => {
-    const storageMap = buildScopedStorageMap({
+  it.each([
+    {
+      label: "repo mismatches the selected repo",
       overrides: { repo: "other/repo" },
-    });
-
-    const result = await readPersistedCiLiteSelection({
-      repoFullName: "owner/repo",
-      branchName: "main",
-      deps: {
-        storageGetItem: async (key: string) => storageMap[key] ?? null,
-      },
-    });
-
-    expect(result.snapshot).toBeNull();
-    expect(result.reason).toBe("CI-Lite gehoert zu anderem Repo");
-  });
-
-  it("rejects a scoped snapshot when the persisted branch mismatches the selected branch", async () => {
-    const storageMap = buildScopedStorageMap({
+      expectedReason: CI_LITE_PERSISTENCE_REASONS.REPO_MISMATCH,
+    },
+    {
+      label: "branch mismatches the selected branch",
       overrides: { branch: "release" },
-    });
+      expectedReason: CI_LITE_PERSISTENCE_REASONS.BRANCH_MISMATCH,
+    },
+  ])("rejects a scoped snapshot when the persisted $label", async ({ overrides, expectedReason }) => {
+    const storageMap = buildScopedStorageMap({ overrides });
 
     const result = await readPersistedCiLiteSelection({
       repoFullName: "owner/repo",
@@ -110,7 +107,7 @@ describe("readPersistedCiLiteSelection", () => {
     });
 
     expect(result.snapshot).toBeNull();
-    expect(result.reason).toBe("CI-Lite gehoert zu anderem Branch");
+    expect(result.reason).toBe(expectedReason);
   });
 
   it("falls back to legacy global keys when no scoped snapshot exists", async () => {
@@ -150,7 +147,7 @@ describe("readPersistedCiLiteSelection", () => {
     });
 
     expect(result.snapshot).toBeNull();
-    expect(result.reason).toBe("CI-Lite ist veraltet");
+    expect(result.reason).toBe(CI_LITE_PERSISTENCE_REASONS.STALE);
     expect(result.stale).toBe(true);
   });
 
@@ -171,7 +168,7 @@ describe("readPersistedCiLiteSelection", () => {
     });
 
     expect(result.snapshot).toBeNull();
-    expect(result.reason).toBe("CI-Lite Lint/Typecheck unklar");
+    expect(result.reason).toBe(CI_LITE_PERSISTENCE_REASONS.LINT_TYPECHECK_UNCLEAR);
   });
 
   it("rejects persisted state when the current branch head SHA changed", async () => {
@@ -187,7 +184,7 @@ describe("readPersistedCiLiteSelection", () => {
     });
 
     expect(result.snapshot).toBeNull();
-    expect(result.reason).toBe("Repo/Branch wurden seit dem letzten CI-Lite-Run geaendert (SHA-Mismatch)");
+    expect(result.reason).toBe(CI_LITE_PERSISTENCE_REASONS.SHA_MISMATCH);
   });
 });
 
@@ -199,7 +196,7 @@ describe("buildPersistCiLiteEntries", () => {
         branch: "main",
         sha: SHA.toUpperCase(),
         runAtMs: NOW,
-        workflowId: "k1w1-ci-lite.yml",
+        workflowId: CI_LITE_WORKFLOW_ID,
         jobId: "job-123",
         runId: 321,
         conclusion: "success",
@@ -217,7 +214,7 @@ describe("buildPersistCiLiteEntries", () => {
             branch: "main",
             sha: SHA,
             runAtMs: NOW,
-            workflowId: "k1w1-ci-lite.yml",
+            workflowId: CI_LITE_WORKFLOW_ID,
             jobId: "job-123",
             runId: 321,
             conclusion: "success",

@@ -2,7 +2,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { getBranchHeadSha } from "../infra/github/githubService";
 import {
+  CI_LITE_PERSISTENCE_REASONS,
   readPersistedCiLiteSelection,
+  type CiLitePersistenceReason,
   type PersistedCiLiteSnapshot,
 } from "./ciLitePersistence";
 import {
@@ -69,36 +71,39 @@ function isValidRepoFullName(repoFullName: string): boolean {
   return parts.length === 2 && Boolean(parts[0]?.trim()) && Boolean(parts[1]?.trim());
 }
 
-function mapCiLiteReasonToCode(reason: string | null, stale: boolean): BuildReadinessReasonCode {
-  if (stale || reason === "CI-Lite ist veraltet") {
+const CI_LITE_REASON_TO_BUILD_READINESS_CODE: Partial<
+  Record<(typeof CI_LITE_PERSISTENCE_REASONS)[keyof typeof CI_LITE_PERSISTENCE_REASONS], BuildReadinessReasonCode>
+> = {
+  [CI_LITE_PERSISTENCE_REASONS.PERSISTENCE_MISSING]: BUILD_READINESS_REASON_CODES.CI_LITE_MISSING,
+  [CI_LITE_PERSISTENCE_REASONS.REPO_MISMATCH]: BUILD_READINESS_REASON_CODES.CI_LITE_REPO_MISMATCH,
+  [CI_LITE_PERSISTENCE_REASONS.BRANCH_MISMATCH]: BUILD_READINESS_REASON_CODES.CI_LITE_BRANCH_MISMATCH,
+  [CI_LITE_PERSISTENCE_REASONS.INVALID_SHA]: BUILD_READINESS_REASON_CODES.CI_LITE_INVALID_SHA,
+  [CI_LITE_PERSISTENCE_REASONS.SHA_MISMATCH]: BUILD_READINESS_REASON_CODES.CI_LITE_SHA_MISMATCH,
+  [CI_LITE_PERSISTENCE_REASONS.NOT_GREEN]: BUILD_READINESS_REASON_CODES.CI_LITE_NOT_GREEN,
+  [CI_LITE_PERSISTENCE_REASONS.HEAD_UNVERIFIED]: BUILD_READINESS_REASON_CODES.CI_LITE_HEAD_UNVERIFIED,
+};
+
+const CI_LITE_INVALID_SNAPSHOT_REASONS: readonly CiLitePersistenceReason[] = [
+  CI_LITE_PERSISTENCE_REASONS.INVALID_TIMESTAMP,
+  CI_LITE_PERSISTENCE_REASONS.WORKFLOW_MISMATCH,
+  CI_LITE_PERSISTENCE_REASONS.LINT_TYPECHECK_UNCLEAR,
+];
+
+function mapCiLiteReasonToCode(
+  reason: CiLitePersistenceReason | null,
+  stale: boolean,
+): BuildReadinessReasonCode {
+  if (stale || reason === CI_LITE_PERSISTENCE_REASONS.STALE) {
     return BUILD_READINESS_REASON_CODES.CI_LITE_STALE;
   }
-  if (!reason || reason === "CI-Lite-Persistenz fehlt oder ist unvollständig") {
+  if (!reason) {
     return BUILD_READINESS_REASON_CODES.CI_LITE_MISSING;
   }
-  if (reason === "CI-Lite gehoert zu anderem Repo") {
-    return BUILD_READINESS_REASON_CODES.CI_LITE_REPO_MISMATCH;
+  const mappedCode = CI_LITE_REASON_TO_BUILD_READINESS_CODE[reason];
+  if (mappedCode) {
+    return mappedCode;
   }
-  if (reason === "CI-Lite gehoert zu anderem Branch") {
-    return BUILD_READINESS_REASON_CODES.CI_LITE_BRANCH_MISMATCH;
-  }
-  if (reason === "CI-Lite-SHA fehlt oder ist ungueltig") {
-    return BUILD_READINESS_REASON_CODES.CI_LITE_INVALID_SHA;
-  }
-  if (reason.includes("SHA-Mismatch")) {
-    return BUILD_READINESS_REASON_CODES.CI_LITE_SHA_MISMATCH;
-  }
-  if (reason === "CI-Lite Lint/Typecheck nicht gruen") {
-    return BUILD_READINESS_REASON_CODES.CI_LITE_NOT_GREEN;
-  }
-  if (reason === "Branch-HEAD-SHA konnte nicht verifiziert werden") {
-    return BUILD_READINESS_REASON_CODES.CI_LITE_HEAD_UNVERIFIED;
-  }
-  if (
-    reason === "CI-Lite-Zeitstempel fehlt oder ist ungueltig" ||
-    reason === "CI-Lite-Workflow passt nicht zur Persistenz" ||
-    reason === "CI-Lite Lint/Typecheck unklar"
-  ) {
+  if (CI_LITE_INVALID_SNAPSHOT_REASONS.includes(reason)) {
     return BUILD_READINESS_REASON_CODES.CI_LITE_INVALID_SNAPSHOT;
   }
   return BUILD_READINESS_REASON_CODES.CI_LITE_MISSING;
