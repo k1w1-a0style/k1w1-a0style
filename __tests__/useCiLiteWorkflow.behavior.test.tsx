@@ -159,6 +159,28 @@ describe("useCiLiteWorkflow behavior", () => {
   });
 
 
+  it("sends only x-k1w1-admin-key on the CI Lite dispatch edge call", async () => {
+    mockStorageGetItem.mockResolvedValue(null);
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    const dispatchCall = (global.fetch as jest.Mock).mock.calls.find(([url]) =>
+      String(url).includes("github-workflow-dispatch"),
+    );
+
+    expect(dispatchCall).toBeTruthy();
+    const headers = ((dispatchCall?.[1] as RequestInit | undefined)?.headers ?? {}) as Record<string, string>;
+    expect(headers).toMatchObject({
+      "Content-Type": "application/json",
+      "x-k1w1-admin-key": "edge-admin-key-12345678901234567890",
+    });
+    expect(headers).not.toHaveProperty("Authorization");
+  });
+
   it("does not pass githubToken in github-workflow-dispatch bodies", async () => {
     mockStorageGetItem.mockResolvedValue(null);
 

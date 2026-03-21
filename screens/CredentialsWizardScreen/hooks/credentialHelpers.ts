@@ -90,9 +90,9 @@ export async function invokeEdgeJson(
       method: "POST",
       headers: {
         "content-type": "application/json",
-        // Defensive: trim to avoid accidental whitespace/newlines from copy/paste.
+        // Local wizard/preview/CI-lite admin-key contract: only the dedicated admin header belongs here.
+        // This is not a Supabase JWT/service-role bearer token and must not ride the Authorization path.
         "x-k1w1-admin-key": adminKey.trim(),
-        Authorization: `Bearer ${adminKey.trim()}`,
       },
       body: JSON.stringify(payload ?? {}),
       signal: controller.signal,

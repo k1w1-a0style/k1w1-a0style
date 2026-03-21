@@ -1,5 +1,7 @@
 # Patchlog Root
 
+- Patch 521: lokaler Edge-Admin-Key-HTTP-Vertrag im Wizard-/Preview-/CI-Lite-Scope bereinigt — `invokeEdgeJson(...)` sendet fuer lokale Admin-Key-Edge-Calls keinen semantisch falschen `Authorization: Bearer ...`-Header mehr, sondern nur noch `x-k1w1-admin-key`; gezielte Regressionstests sichern den Header-Vertrag fuer Wizard, Remote-Preview und CI Lite, waehrend die bestehende ehrliche `missing`/`invalid`/`rejected`-Diagnose sowie Fresh-vs-Persist-Truthfulness regressionsfest bleiben.
+
 - Patch 520: lokale Edge-Admin-Key-Diagnose in Wizard, Preview und CI Lite ehrlich nachgezogen — `missing` gilt nur noch fuer wirklich leere lokale App-Keys, formal kaputte Werte bleiben `invalid`, vorhandene aber serverseitig mit 401/403 bzw. `missing or invalid admin` abgelehnte Keys werden als `rejected` kommuniziert, und fokussierte Regressionen sichern die konsistente Nutzerkommunikation ohne Secret-Leaks.
 - Patch 519: AppInfo-Backup-/Import-Pfad fuer Secrets/Tokens ehrlich getrennt und gehaertet — der bisherige Klartext-"Full-Backup"-Pfad ist durch passwortgeschuetzte AES-GCM-Backups fuer `Secrets/Tokens/Connections` bzw. optional `AI-/KI-Konfiguration + Secrets/Connections` ersetzt, API-/KI-Konfiguration bleibt separat exportierbar, und neue Regressionen sichern Verschluesselung, falsche Passphrase, Legacy-Klartext-Ablehnung sowie die Abwesenheit von Projektdateien/Chat-Inhalten.
 
