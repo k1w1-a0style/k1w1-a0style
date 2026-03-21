@@ -18,7 +18,7 @@ jest.doMock(require.resolve("../lib/buildReadiness"), () => {
 });
 
 jest.doMock(require.resolve("../infra/github/githubService"), () => ({
-  getEdgeAdminKey: jest.fn(),
+  getEdgeAdminKey: jest.fn(async () => null),
   pushFilesToRepo: jest.fn(),
 }));
 
@@ -73,5 +73,26 @@ describe("startBuildJob readiness contract integration", () => {
     expect(mockAssertBuildReadiness).toHaveBeenCalledWith(project, {});
     expect(mockGetRepoSyncState).not.toHaveBeenCalled();
     expect(mockInvoke).not.toHaveBeenCalled();
+  });
+
+  it("continues with sync and dispatch after the centralized readiness contract resolves", async () => {
+    mockAssertBuildReadiness.mockResolvedValue(undefined);
+    const project = makeProject({ linkedRepo: " owner/repo ", linkedBranch: "main" });
+
+    await expect(startBuildJob({ project, buildProfile: "preview" })).resolves.toMatchObject({
+      githubRepo: "owner/repo",
+      branch: "main",
+      buildProfile: "preview",
+      jobId: "42",
+    });
+
+    expect(mockAssertBuildReadiness).toHaveBeenCalledWith(project, {});
+    expect(mockGetRepoSyncState).toHaveBeenCalledWith({
+      linkedRepo: "owner/repo",
+      linkedBranch: "main",
+      files: project.files,
+      storageGetItem: undefined,
+    });
+    expect(mockInvoke).toHaveBeenCalledTimes(1);
   });
 });

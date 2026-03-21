@@ -46,3 +46,7 @@ export function formatBuildReadinessFailure(params: {
 }): string {
   return `${params.reasonCode}: ${params.message}`;
 }
+
+export function getBuildReadinessMessage(reasonCode: BuildReadinessReasonCode): string {
+  return BUILD_READINESS_REASON_MESSAGES[reasonCode];
+}

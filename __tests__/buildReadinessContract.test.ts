@@ -118,6 +118,24 @@ describe("evaluateBuildReadiness", () => {
     });
   });
 
+  it("returns canonical build message for invalid CI-Lite snapshots instead of persistence parser details", async () => {
+    const storageMap = buildScopedGreenStorageMap({
+      snapshotOverrides: { workflowId: "other-workflow.yml" },
+    });
+
+    const result = await evaluateBuildReadiness(makeProject(), {
+      storageGetItem: async (key: string) => storageMap[key] ?? null,
+      getBranchHeadSha: async () => SHA,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result).toMatchObject({
+      reasonCode: "ci_lite_invalid_snapshot",
+      message: "CI-Lite-Snapshot ist ungueltig oder passt nicht zur Persistenz",
+    });
+    expect(result.message).not.toBe(CI_LITE_PERSISTENCE_REASONS.WORKFLOW_MISMATCH);
+  });
+
   it.each([
     {
       label: "ci_lite_stale when the persisted CI-Lite snapshot is too old",
@@ -127,7 +145,7 @@ describe("evaluateBuildReadiness", () => {
       headSha: SHA,
       expected: {
         reasonCode: "ci_lite_stale",
-        message: CI_LITE_PERSISTENCE_REASONS.STALE,
+        message: "CI-Lite ist veraltet",
       },
     },
     {
@@ -136,7 +154,7 @@ describe("evaluateBuildReadiness", () => {
       headSha: "b".repeat(40),
       expected: {
         reasonCode: "ci_lite_sha_mismatch",
-        message: CI_LITE_PERSISTENCE_REASONS.SHA_MISMATCH,
+        message: "Repo/Branch wurden seit dem letzten CI-Lite-Run geaendert (SHA-Mismatch)",
       },
     },
   ])("returns $label", async ({ storageMap, headSha, expected }) => {

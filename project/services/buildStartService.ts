@@ -3,7 +3,6 @@ import type { ProjectData, ProjectFile } from "../../shared/types/project";
 // Extracted from ProjectContext.startBuild to keep ProjectContext lean.
 // Behavior is intentionally kept the same.
 
-
 import { ensureSupabaseClient } from "../../lib/supabase";
 import { logger } from "../../lib/logger";
 import {
@@ -86,6 +85,7 @@ async function bestEffortPushToGitHub(opts: {
 }): Promise<string> {
   const { githubRepo, branch, files, storageSetItem } = opts;
 
+  // Defensive helper guard: this helper can still be reused independently of startBuildJob.
   if (!githubRepo || !githubRepo.includes("/")) {
     throw new Error('Kein GitHub-Repo verbunden. Bitte in "Connections" ein Repo verknuepfen.');
   }
@@ -139,10 +139,8 @@ export async function startBuildJob(params: {
 
   await assertBuildReadiness(project, deps);
 
+  // Repo/branch gating now comes from the centralized readiness contract above.
   const githubRepo = (project.linkedRepo?.trim() || "").trim();
-  if (!githubRepo || !githubRepo.includes("/")) {
-    throw new Error('Kein gültiges Ziel-Repo verknüpft. Bitte in "Connections" ein Repo auswählen.');
-  }
   const profile = normalizeProfile(buildProfile);
   const buildBranch = (project.linkedBranch ?? "").trim();
 
