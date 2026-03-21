@@ -1,5 +1,7 @@
 # Patchlog Root
 
+- Patch 522: lokalen Edge-Admin-Key-Save-Flow im Credentials Wizard minimal gehaertet — `onSaveAdminKey()` nutzt jetzt dieselbe formale `isLikelyValidAdminKey(...)`-Pruefung wie die restliche lokale Key-Diagnose, behandelt leer/Whitespace weiter als Loeschpfad, blockiert nicht-leere formal ungueltige Werte mit klarer UI-Meldung vor dem Persistieren und laesst nur formal gueltige Keys in SecureStore; fokussierte Regressionen decken Delete/Invalid/Valid-Save ab.
+
 - Patch 521: lokaler Edge-Admin-Key-HTTP-Vertrag im Wizard-/Preview-/CI-Lite-Scope bereinigt — `invokeEdgeJson(...)` sendet fuer lokale Admin-Key-Edge-Calls keinen semantisch falschen `Authorization: Bearer ...`-Header mehr, sondern nur noch `x-k1w1-admin-key`; gezielte Regressionstests sichern den Header-Vertrag fuer Wizard, Remote-Preview und CI Lite, waehrend die bestehende ehrliche `missing`/`invalid`/`rejected`-Diagnose sowie Fresh-vs-Persist-Truthfulness regressionsfest bleiben.
 
 - Patch 520: lokale Edge-Admin-Key-Diagnose in Wizard, Preview und CI Lite ehrlich nachgezogen — `missing` gilt nur noch fuer wirklich leere lokale App-Keys, formal kaputte Werte bleiben `invalid`, vorhandene aber serverseitig mit 401/403 bzw. `missing or invalid admin` abgelehnte Keys werden als `rejected` kommuniziert, und fokussierte Regressionen sichern die konsistente Nutzerkommunikation ohne Secret-Leaks.
