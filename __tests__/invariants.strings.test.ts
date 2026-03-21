@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { REQUIRED_SECRETS } from "../lib/diagnostics/ciAutoFix";
+import { AUTO_FIX_MANAGED_WORKFLOW_FILES } from "../lib/diagnostics/managedWorkflowRegistry";
 import { STORAGE_KEYS } from "../lib/storageKeys";
 import {
   WORKFLOW_EAS_BUILD,
@@ -54,14 +55,17 @@ describe("Invariant String Tests", () => {
 
   it("I5 — Workflow filenames remain canonical (no case or naming drift)", () => {
     // Why it matters: wrong filename strings break dispatch/startBuild integration.
-    const ciAutoFixSource = read("lib/diagnostics/ciAutoFix.ts");
-    expect(ciAutoFixSource).toContain('"k1w1-triggered-build.yml"');
-    expect(ciAutoFixSource).toContain('"eas-build.yml"');
-    expect(ciAutoFixSource).toContain('"release-build.yml"');
-    expect(ciAutoFixSource).toContain('"eas-link.yml"');
+    expect(AUTO_FIX_MANAGED_WORKFLOW_FILES).toEqual([
+      "k1w1-triggered-build.yml",
+      "eas-build.yml",
+      "release-build.yml",
+      "eas-link.yml",
+      "k1w1-ci-lite.yml",
+      "k1w1-ci-lite-autofix.yml",
+    ]);
 
-    expect(ciAutoFixSource).not.toContain('"K1W1-triggered-build.yml"');
-    expect(ciAutoFixSource).not.toContain('"EAS-link.yml"');
+    expect(AUTO_FIX_MANAGED_WORKFLOW_FILES).not.toContain("K1W1-triggered-build.yml" as any);
+    expect(AUTO_FIX_MANAGED_WORKFLOW_FILES).not.toContain("EAS-link.yml" as any);
   });
 
   it("I6 — APK-only policy stays pinned to buildType=apk in defaults/patch path", () => {
