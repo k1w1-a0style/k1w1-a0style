@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { ProjectData, ProjectFile } from "../../shared/types/project";
 // project/services/buildStartService.ts
 // Extracted from ProjectContext.startBuild to keep ProjectContext lean.
@@ -9,19 +8,15 @@ import { ensureSupabaseClient } from "../../lib/supabase";
 import { logger } from "../../lib/logger";
 import {
   getEdgeAdminKey,
-  getBranchHeadSha,
   pushFilesToRepo,
 } from "../../infra/github/githubService";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
 import { autoFixCIWorkflows } from "../../lib/diagnostics/ciAutoFix";
-import { STORAGE_KEYS, diagnosticLastOkKeyForSelection } from "../../lib/storageKeys";
-import {
-  BUILD_READINESS_ERROR_MESSAGES,
-  ERR_BRANCH_MISSING,
-  ERR_DIAGNOSTIC_NOT_GREEN,
-} from "../../lib/errors/buildReadinessErrors";
 import { getRepoSyncState, markRepoSyncSignature } from "../../lib/repoSyncOrchestration";
-import { readPersistedCiLiteSelection } from "../../lib/ciLitePersistence";
+import {
+  assertBuildReadiness as assertBuildReadinessContract,
+  type BuildReadinessDeps,
+} from "../../lib/buildReadiness";
 
 export type StartBuildProfile = "development" | "preview" | "production";
 
@@ -76,57 +71,11 @@ function asEdgeBuildInvokePayload(raw: unknown): EdgeBuildInvokePayload | null {
   };
 }
 
-export type BuildReadinessDeps = {
-  storageGetItem?: (key: string) => Promise<string | null>;
-  storageSetItem?: (key: string, value: string) => Promise<void>;
-  getBranchHeadSha?: (owner: string, repo: string, branch: string) => Promise<string>;
-};
 export async function assertBuildReadiness(
   project: ProjectData,
   deps: BuildReadinessDeps = {},
 ): Promise<void> {
-  const storageGetItem = deps.storageGetItem ?? ((key: string) => AsyncStorage.getItem(key));
-  const readBranchHeadSha = deps.getBranchHeadSha ?? getBranchHeadSha;
-  const linkedRepo = typeof project?.linkedRepo === "string" ? project.linkedRepo.trim() : "";
-  const linkedBranch = typeof project?.linkedBranch === "string" ? project.linkedBranch.trim() : "";
-  if (!linkedRepo || !linkedRepo.includes("/")) {
-    throw new Error('Kein gültiges Ziel-Repo verknüpft. Bitte in "Connections" ein Repo auswählen.');
-  }
-  if (!linkedBranch) {
-    throw new Error(`${ERR_BRANCH_MISSING}: ${BUILD_READINESS_ERROR_MESSAGES[ERR_BRANCH_MISSING]}`);
-  }
-
-  const scopedDiagnosticKey = diagnosticLastOkKeyForSelection({
-    linkedRepo,
-    linkedBranch,
-  });
-
-  const [diagScopedVal, diagLegacyVal] = await Promise.all([
-    storageGetItem(scopedDiagnosticKey).catch(() => null),
-    storageGetItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null),
-  ]);
-
-  const diagVal = diagScopedVal ?? diagLegacyVal;
-  if (diagVal !== "true") {
-    throw new Error(
-      `${ERR_DIAGNOSTIC_NOT_GREEN}: ${BUILD_READINESS_ERROR_MESSAGES[ERR_DIAGNOSTIC_NOT_GREEN]}`,
-    );
-  }
-
-  const persistedCiLite = await readPersistedCiLiteSelection({
-    repoFullName: linkedRepo,
-    branchName: linkedBranch,
-    requireGreen: true,
-    deps: {
-      storageGetItem,
-      readBranchHeadSha,
-    },
-  });
-
-  if (!persistedCiLite.snapshot) {
-    const reason = persistedCiLite.reason ?? "CI-Lite-Persistenz fehlt oder ist unvollständig";
-    throw new Error(`Build blockiert: ${reason}.`);
-  }
+  await assertBuildReadinessContract(project, deps);
 }
 
 async function bestEffortPushToGitHub(opts: {
