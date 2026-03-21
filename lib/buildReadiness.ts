@@ -9,8 +9,8 @@ import {
 } from "./ciLitePersistence";
 import {
   BUILD_READINESS_REASON_CODES,
-  BUILD_READINESS_REASON_MESSAGES,
   formatBuildReadinessFailure,
+  getBuildReadinessMessage,
   type BuildReadinessReasonCode,
 } from "./errors/buildReadinessErrors";
 import {
@@ -51,15 +51,13 @@ export type BuildReadinessResult = BuildReadinessOkResult | BuildReadinessBlocke
 
 function createBlockedResult(params: {
   reasonCode: BuildReadinessReasonCode;
-  message?: string | null;
   snapshot?: PersistedCiLiteSnapshot | null;
   context: BuildReadinessContext;
 }): BuildReadinessBlockedResult {
-  const fallbackMessage = BUILD_READINESS_REASON_MESSAGES[params.reasonCode];
   return {
     ok: false,
     reasonCode: params.reasonCode,
-    message: (params.message ?? fallbackMessage).trim(),
+    message: getBuildReadinessMessage(params.reasonCode).trim(),
     snapshot: params.snapshot ?? null,
     context: params.context,
   };
@@ -175,7 +173,6 @@ export async function evaluateBuildReadiness(
     const reasonCode = mapCiLiteReasonToCode(persistedCiLite.reason, persistedCiLite.stale);
     return createBlockedResult({
       reasonCode,
-      message: persistedCiLite.reason,
       context,
     });
   }
