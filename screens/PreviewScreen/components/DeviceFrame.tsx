@@ -16,6 +16,7 @@ type DeviceFrameProps = {
   fadeAnim: Animated.Value;
   flashBorderAnim: Animated.Value;
   originWhitelist: string[];
+  errorMessage?: string | null;
   onShouldStartLoadWithRequest: NonNullable<React.ComponentProps<typeof WebView>['onShouldStartLoadWithRequest']>;
   onLoadStart: () => void;
   onLoadEnd: () => void;
@@ -39,6 +40,7 @@ export function DeviceFrame({
   fadeAnim,
   flashBorderAnim,
   originWhitelist,
+  errorMessage,
   onShouldStartLoadWithRequest,
   onLoadStart,
   onLoadEnd,
@@ -48,9 +50,15 @@ export function DeviceFrame({
   onRenderProcessGone,
   onCreate,
 }: DeviceFrameProps) {
+  const isBusy = phase === 'loading' || phase === 'creating';
+  const showWebView = Boolean(previewSource) && phase !== 'error';
+  const fallbackMessage = errorMessage?.trim() || null;
+  const renderablePreviewSource = showWebView ? previewSource : null;
+
   return (
-    <View style={s.previewArea}>
+    <View style={s.previewArea} testID="preview-device-frame-shell">
       <Animated.View
+        testID="preview-device-frame"
         style={[
           s.deviceFrame,
           {
@@ -66,12 +74,19 @@ export function DeviceFrame({
       >
         <View style={s.deviceNotch} />
 
-        {previewSource ? (
-          <Animated.View style={[s.webViewWrap, { opacity: phase === 'ready' ? fadeAnim : 0.3 }]}>
+        {renderablePreviewSource ? (
+          <Animated.View
+            testID="preview-webview-wrap"
+            style={[s.webViewWrap, { opacity: phase === 'ready' ? fadeAnim : 1 }]}
+          >
             <WebView
               ref={webViewRef}
               style={s.webView}
-              source={previewSource.type === 'url' ? { uri: previewSource.uri } : { html: previewSource.html }}
+              source={
+                renderablePreviewSource.type === 'url'
+                  ? { uri: renderablePreviewSource.uri }
+                  : { html: renderablePreviewSource.html }
+              }
               originWhitelist={originWhitelist}
               setSupportMultipleWindows={false}
               javaScriptCanOpenWindowsAutomatically={false}
@@ -85,24 +100,41 @@ export function DeviceFrame({
               mixedContentMode={getPreviewMixedContentMode()}
               startInLoadingState={false}
             />
-            {(phase === 'loading' || phase === 'creating') && (
-              <View style={s.loadingOverlay}>
-                <ActivityIndicator size="large" color={theme.palette.primary} />
-                <Text style={s.loadingOverlayText}>{getLoadingLabel(phase, previewSource)}</Text>
+            {isBusy && (
+              <View style={s.loadingOverlay} testID="preview-loading-overlay">
+                <View style={s.loadingOverlayCard}>
+                  <ActivityIndicator size="large" color={theme.palette.primary} />
+                  <Text style={s.loadingOverlayText}>{getLoadingLabel(phase, renderablePreviewSource)}</Text>
+                </View>
               </View>
             )}
           </Animated.View>
         ) : (
-          <View style={s.emptyPreview}>
+          <View style={s.emptyPreview} testID="preview-device-fallback">
             {phase === 'creating' ? (
               <>
                 <ActivityIndicator size="large" color={theme.palette.primary} />
                 <Text style={s.emptyPreviewText}>Primäre Remote-Preview wird erstellt…</Text>
               </>
+            ) : phase === 'error' ? (
+              <>
+                <Ionicons name="warning-outline" size={48} color={theme.palette.error} />
+                <Text style={s.emptyPreviewTitle}>Preview konnte nicht angezeigt werden</Text>
+                <Text style={s.emptyPreviewText}>
+                  {fallbackMessage ?? 'Die Preview ist derzeit nicht renderbar. Bitte neu laden oder erneut erstellen.'}
+                </Text>
+                <Pressable style={s.createBtn} onPress={onCreate}>
+                  <Ionicons name="refresh-outline" size={16} color={theme.palette.primary} />
+                  <Text style={s.createBtnText}>Preview neu laden</Text>
+                </Pressable>
+              </>
             ) : (
               <>
                 <Ionicons name="phone-portrait-outline" size={48} color={theme.palette.text.muted} />
-                <Text style={s.emptyPreviewText}>Noch keine Preview</Text>
+                <Text style={s.emptyPreviewTitle}>Noch keine Preview</Text>
+                <Text style={s.emptyPreviewText}>
+                  {fallbackMessage ?? 'Erstelle eine Preview, damit hier statt einer leeren Fläche ein sichtbarer Inhalt geladen wird.'}
+                </Text>
                 <Pressable style={s.createBtn} onPress={onCreate}>
                   <Ionicons name="play-outline" size={16} color={theme.palette.primary} />
                   <Text style={s.createBtnText}>Remote-Preview erstellen</Text>
