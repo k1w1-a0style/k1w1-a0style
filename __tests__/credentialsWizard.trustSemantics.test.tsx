@@ -1,4 +1,5 @@
 import React from "react";
+import { Alert } from "react-native";
 import { act, render, renderHook, screen, waitFor } from "@testing-library/react-native";
 
 import { KeystoreStatusSection } from "../screens/CredentialsWizardScreen/components/KeystoreStatusSection";
@@ -41,9 +42,15 @@ jest.mock("../lib/supabase", () => ({
   ensureSupabaseClient: jest.fn(async () => ({ supabaseUrl: "https://example.supabase.co" })),
 }));
 
+let currentStoredAdminKey = "admin-key-12345678901234567890";
+const mockGetEdgeAdminKey = jest.fn(async () => currentStoredAdminKey);
+const mockSaveEdgeAdminKey = jest.fn(async (nextKey: string) => {
+  currentStoredAdminKey = nextKey;
+});
+
 jest.mock("../infra/github/githubService", () => ({
-  getEdgeAdminKey: jest.fn(async () => "admin-key-12345678901234567890"),
-  saveEdgeAdminKey: jest.fn(async () => undefined),
+  getEdgeAdminKey: () => mockGetEdgeAdminKey(),
+  saveEdgeAdminKey: (key: string) => mockSaveEdgeAdminKey(key),
 }));
 
 const mockSetPreferredBuildProfile = jest.fn(async () => undefined);
@@ -62,10 +69,16 @@ jest.mock("../contexts/ProjectContext", () => ({
 
 describe("CredentialsWizard trust semantics", () => {
   const originalFetch = global.fetch;
+  const alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
 
   afterEach(() => {
     global.fetch = originalFetch;
+    currentStoredAdminKey = "admin-key-12345678901234567890";
     jest.clearAllMocks();
+  });
+
+  afterAll(() => {
+    alertSpy.mockRestore();
   });
 
   it("does not classify auth/permission or temporary errors as missing", () => {
@@ -156,6 +169,64 @@ describe("CredentialsWizard trust semantics", () => {
     expect(screen.getAllByText(/Noch kein hart verifizierter Erfolg/i).length).toBeGreaterThan(0);
   });
 
+  it("allows whitespace-only input to delete the local Edge Admin Key", async () => {
+    currentStoredAdminKey = "   ";
+    const { result } = renderHook(() => useCredentialsWizardScreen());
+
+    await waitFor(() => expect(result.current.adminKeyLoaded).toBe(true));
+    expect(result.current.adminKey).toBe("   ");
+
+    await act(async () => {
+      await result.current.onSaveAdminKey();
+    });
+
+    expect(mockSaveEdgeAdminKey).toHaveBeenCalledWith("");
+    expect(mockGetEdgeAdminKey).toHaveBeenCalled();
+    expect(mockToastShow).toHaveBeenCalledWith("Admin-Key gelöscht und neu geladen");
+    expect(alertSpy).not.toHaveBeenCalled();
+    expect(result.current.adminKey).toBe("");
+  });
+
+  it("does not persist a non-empty but formally invalid local Edge Admin Key", async () => {
+    currentStoredAdminKey = "  short key  ";
+    const { result } = renderHook(() => useCredentialsWizardScreen());
+
+    await waitFor(() => expect(result.current.adminKeyLoaded).toBe(true));
+    expect(result.current.adminKey).toBe("  short key  ");
+
+    await act(async () => {
+      await result.current.onSaveAdminKey();
+    });
+
+    expect(mockSaveEdgeAdminKey).not.toHaveBeenCalled();
+    expect(mockGetEdgeAdminKey).toHaveBeenCalled();
+    expect(alertSpy).toHaveBeenCalledWith(
+      "Admin-Key wirkt ungültig",
+      "Bitte nur einen formal gültigen Edge Admin Key ohne Leerzeichen speichern.",
+    );
+    expect(mockToastShow).not.toHaveBeenCalled();
+    expect(currentStoredAdminKey).toBe("  short key  ");
+  });
+
+  it("persists a formally valid local Edge Admin Key as before", async () => {
+    currentStoredAdminKey = "  edge-admin-key-abcdefghijklmnopqrstuvwxyz123456  ";
+    const { result } = renderHook(() => useCredentialsWizardScreen());
+
+    await waitFor(() => expect(result.current.adminKeyLoaded).toBe(true));
+    expect(result.current.adminKey).toBe("  edge-admin-key-abcdefghijklmnopqrstuvwxyz123456  ");
+
+    await act(async () => {
+      await result.current.onSaveAdminKey();
+    });
+
+    expect(mockSaveEdgeAdminKey).toHaveBeenCalledWith("edge-admin-key-abcdefghijklmnopqrstuvwxyz123456");
+    expect(mockGetEdgeAdminKey).toHaveBeenCalled();
+    expect(mockToastShow).toHaveBeenCalledWith("Admin-Key gespeichert und neu geladen");
+    expect(alertSpy).not.toHaveBeenCalled();
+    expect(result.current.adminKey).toBe("edge-admin-key-abcdefghijklmnopqrstuvwxyz123456");
+    expect(currentStoredAdminKey).toBe("edge-admin-key-abcdefghijklmnopqrstuvwxyz123456");
+  });
+
   it("blocks parallel contradictory wizard actions with the shared busy guard", async () => {
     let resolveGenerate: ((value: Response) => void) | null = null;
     global.fetch = jest.fn(
@@ -187,6 +258,29 @@ describe("CredentialsWizard trust semantics", () => {
       );
       await Promise.resolve();
     });
+  });
+
+  it("does not let a fresh auth failure look like an actually verified current state", () => {
+    const previouslyVerified = toWizardStatusResult({
+      exists: true,
+      record: { alias: "android-dev", mode: "development" },
+    });
+    const freshAuthError = toWizardErrorStatus({
+      previous: previouslyVerified,
+      statusCode: 401,
+      error: "Unauthorized: missing or invalid admin key",
+      detail: "Lokaler Edge Admin Key wurde vom Edge-Server abgelehnt (401/403).",
+    });
+    const presentation = resolveWizardStatusPresentation({
+      status: freshAuthError,
+      mode: "dev",
+      busy: null,
+    });
+
+    expect(freshAuthError.exists).toBe(true);
+    expect(freshAuthError.credentialState).toBe("auth_error");
+    expect(presentation.treatsAsVerified).toBe(false);
+    expect(presentation.text).toBe("lokaler Key abgelehnt");
   });
 
   it("keeps real verified and missing states working cleanly", () => {

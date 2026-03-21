@@ -278,10 +278,18 @@ export const pushFilesToRepoAdvanced = async (
   const message = (options?.message || "").trim() || "chore: sync";
 
   const normalizedFiles = [...files]
-    .map((f) => ({
-      path: normalizeRepoPath(String(f.path || "").trim()),
-      content: String(f.content ?? ""),
-    }))
+    .map((f) => {
+      const originalPath = String(f.path || "").trim();
+      const path = normalizeRepoPath(originalPath);
+      if (originalPath && !path) {
+        throw new Error(`Ungültiger Repo-Pfad: ${originalPath}`);
+      }
+      return {
+        path,
+        originalPath,
+        content: String(f.content ?? ""),
+      };
+    })
     .filter((f) => !!f.path)
     .filter((f) => {
       if (f.path.startsWith(".github/workflows/") && !MANAGED_WORKFLOWS.has(f.path)) {
@@ -290,6 +298,10 @@ export const pushFilesToRepoAdvanced = async (
       }
       return true;
     })
+    .map((f) => ({
+      path: f.path,
+      content: String(f.content ?? ""),
+    }))
     .sort((a, b) => a.path.localeCompare(b.path));
 
   if (!normalizedFiles.length) return;

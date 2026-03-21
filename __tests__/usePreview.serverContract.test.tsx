@@ -137,6 +137,41 @@ describe("usePreview server contract", () => {
     expect(mockInvoke).not.toHaveBeenCalled();
   });
 
+  test("uses only x-k1w1-admin-key for the remote preview admin-key invoke scope", async () => {
+    mockGetEdgeAdminKey.mockResolvedValue("  edge-admin-key-12345678901234567890  ");
+    mockInvoke.mockResolvedValue({
+      data: {
+        ok: true,
+        previewUrl: "https://preview.example.com/session-headers",
+        expiresAt: "2026-03-20T12:30:00.000Z",
+      },
+      error: null,
+    });
+
+    const { result } = renderHook((projectData: ProjectData | null) => usePreview(projectData), {
+      initialProps: baseProject,
+    });
+
+    await act(async () => {
+      await result.current.createPreview();
+    });
+
+    await waitFor(() => {
+      expect(result.current.lastPreview?.source).toBe("supabase");
+    });
+
+    expect(mockInvoke).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: {
+          "x-k1w1-admin-key": "edge-admin-key-12345678901234567890",
+        },
+      }),
+    );
+    const invokeOpts = mockInvoke.mock.calls.at(-1)?.[1] as { headers?: Record<string, string> } | undefined;
+    expect(invokeOpts?.headers).not.toHaveProperty("Authorization");
+  });
+
   test("uses the trusted remote preview as primary path when the server responds successfully", async () => {
     mockGetEdgeAdminKey.mockResolvedValue("edge-admin-key-12345678901234567890");
     mockInvoke.mockResolvedValue({

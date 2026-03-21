@@ -28,22 +28,24 @@ describe("CI Lite Header workflow invariants", () => {
     expect(workflowType).toContain("head_sha?: string;");
   });
 
-  it("keeps CI-Lite chain coupling explicit and prefers source head_sha before title markers", () => {
+  it("keeps CI-Lite chain coupling explicit while requiring the shared job_id marker", () => {
     const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
 
     expect(src).toContain("sourceHeadSha: workflowRun.head_sha ?? null");
-    expect(src).toContain("requireJobIdMarker: false");
-    expect(src).toContain("Manual workflow_dispatch still requires the explicit job_id marker");
+    expect(src).toContain("requireJobIdMarker: true");
+    expect(src).toContain("requires the explicit job_id marker for both manual and chained CI-Lite runs");
+    expect(src).toContain("sourceHeadSha remains a secondary freshness/safety guard");
     expect(src).toContain("Autofix-Chain ausgelöst, aber kein frischer passender CI-Lite-Run gefunden (Timeout)");
   });
 
   it("requires workflow event + branch to match before binding a located run", () => {
     const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
+    const matchingSrc = read("components/CiLiteHeaderButton/hooks/workflowRunMatching.ts");
 
     expect(src).toContain('const workflowLookupNote = typeof json?.note === "string" ? json.note.trim() : "";');
     expect(src).toContain("Workflow-Run-Lookup ist nicht workflow-spezifisch abgesichert");
-    expect(src).toContain('if (event && event !== opts.expectedEvent) return false;');
-    expect(src).toContain('if (headBranch && headBranch !== targetBranch) return false;');
+    expect(matchingSrc).toContain('if (event && event !== opts.expectedEvent) return false;');
+    expect(matchingSrc).toContain('if (headBranch && headBranch !== targetBranch) return false;');
     expect(src).toContain('expectedEvent: "repository_dispatch"');
     expect(src).toContain('expectedEvent: "workflow_dispatch"');
   });
