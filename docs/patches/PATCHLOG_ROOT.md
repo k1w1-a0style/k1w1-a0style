@@ -1,3 +1,5 @@
+- Patch 530: lokale Preflight-Diagnose erkennt jetzt offensichtliche Runtime-Import→Dependency-Mismatches vor CI Lite; strukturierte `findings` benennen Paket, Fundstellen, Kategorie/Fixbarkeit und sichere Expo-SDK-54-AutoFixes ergaenzen gezielt `expo-linear-gradient` bzw. `expo-blur` in `package.json`, waehrend unsichere Faelle bewusst diagnose-only bleiben.
+
 # Patchlog Root
 
 - Patch 528: CI-Lite-/Build-Readiness-Contracts klein konsolidiert — `ciLitePersistence` exportiert jetzt kanonische Reason-/Workflow-Konstanten fuer den repo-/branch-scoped Snapshot-Vertrag, `buildReadiness` mappt CI-Lite-Blocker darueber statt ueber verstreute Stringvergleiche, und eng ueberschneidende Jest-Faelle fuer Mismatch bzw. stale/SHA-Mismatch wurden per `it.each(...)` ohne Schutzverlust zusammengezogen.
@@ -149,6 +151,8 @@ Append-only Überblick über Patch-Notizen.
 - Patch 401–389: Provider-/Helper-Invariants, CI-Lite-SHA-/Template-Drift-Härtung, Dispatch-/Trigger-Polish
 
 - Patch 527: CI-Lite-Persistenz auf repo-/branch-scoped Snapshot-Vertrag umgestellt; `readPersistedCiLiteSelection(...)` bevorzugt jetzt `ci_lite_snapshot::<repo>::<branch>`, globale `CI_LITE_LAST_*`-Keys bleiben nur noch Legacy-Fallback/Migration, der Header schreibt denselben scoped Snapshot und Build-Readiness liest dieselbe gemeinsame Quelle.
+
+- Patch 529: CI-Lite-Run-Lookup gegen Legacy-Workflow-Drift gehaertet; exakter `job_id`-Marker bleibt Prioritaet, `workflow_dispatch` bekommt nur noch sichere Fallback-Tiers inkl. Ambiguitaets-/Contract-Diagnose statt irrefuehrendem Generic-Timeout.
 
 ## Historical (selected)
 - Patch 388: workflow drift validator + stronger patch artifact discipline

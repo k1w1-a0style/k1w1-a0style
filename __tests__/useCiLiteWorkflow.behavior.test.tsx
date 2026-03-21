@@ -343,6 +343,69 @@ describe("useCiLiteWorkflow behavior", () => {
     expect(result.current.headerState).toBe("running");
   });
 
+  it("binds a unique legacy workflow_dispatch run without job_id marker via guarded fallback", async () => {
+    mockStorageGetItem.mockResolvedValue(null);
+    (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("github-workflow-dispatch")) {
+        return {
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          text: async () => "",
+        } as Response;
+      }
+
+      if (url.includes("github-workflow-runs")) {
+        return {
+          ok: true,
+          json: async () => ({
+            data: {
+              workflow_runs: [
+                {
+                  id: 654,
+                  html_url: "https://github.com/runs/654",
+                  display_title: "CI Lite • legacy workflow",
+                  event: "workflow_dispatch",
+                  head_branch: "main",
+                  head_sha: SHA,
+                  created_at: new Date(NOW).toISOString(),
+                },
+              ],
+            },
+          }),
+        } as Response;
+      }
+
+      if (url.includes("github-run-artifact-json")) {
+        return {
+          ok: true,
+          json: async () => ({ json: { ok: true, eslint_exit: 0, tsc_exit: 0, github_sha: SHA } }),
+        } as Response;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    await waitFor(() => {
+      expect(result.current.trackedRunId).toBe(654);
+    });
+
+    expect(result.current.lookupDiagnosis).toMatchObject({
+      exactJobIdMatchFound: false,
+      ambiguous: false,
+      contractMismatchLikely: false,
+      selectedTier: "head_sha_fallback",
+    });
+    expect(result.current.showError).toBe("");
+  });
+
   it("ends the lookup state cleanly when no matching run is found before timeout", async () => {
     jest.useFakeTimers();
     mockStorageGetItem.mockResolvedValue(null);
@@ -397,6 +460,143 @@ describe("useCiLiteWorkflow behavior", () => {
     expect(result.current.isTrackingRun).toBe(false);
     expect(result.current.headerState).toBe("idle");
     expect(result.current.showError).toMatch(/kein passender Run gefunden \(Timeout\)/i);
+  });
+
+  it("surfaces contract-mismatch guidance instead of a generic timeout when a legacy GitHub run exists without marker", async () => {
+    jest.useFakeTimers();
+    mockStorageGetItem.mockResolvedValue(null);
+
+    let currentNow = NOW;
+    jest.spyOn(Date, "now").mockImplementation(() => currentNow);
+
+    (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("github-workflow-dispatch")) {
+        return {
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          text: async () => "",
+        } as Response;
+      }
+
+      if (url.includes("github-workflow-runs")) {
+        return {
+          ok: true,
+          json: async () => ({
+            data: {
+              workflow_runs: [
+                {
+                  id: 811,
+                  html_url: "https://github.com/runs/811",
+                  display_title: "CI Lite • legacy workflow",
+                  event: "workflow_dispatch",
+                  head_branch: "main",
+                  created_at: new Date(currentNow - 120_000).toISOString(),
+                },
+              ],
+            },
+          }),
+        } as Response;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    await act(async () => {
+      currentNow += 60_001;
+      jest.advanceTimersByTime(60_001);
+    });
+    await flushAsyncWork();
+
+    expect(result.current.trackedRunId).toBeNull();
+    expect(result.current.runLookupActive).toBe(false);
+    expect(result.current.lookupDiagnosis).toMatchObject({
+      exactJobIdMatchFound: false,
+      contractMismatchLikely: true,
+      ambiguous: false,
+    });
+    expect(result.current.showError).toMatch(/plausibler GitHub-Run existiert/i);
+    expect(result.current.showError).toMatch(/Correlation-Contract/i);
+    expect(result.current.showError).not.toMatch(/kein passender Run gefunden \(Timeout\)/i);
+  });
+
+  it("does not bind multiple fresh legacy candidates and reports an ambiguity diagnosis", async () => {
+    jest.useFakeTimers();
+    mockStorageGetItem.mockResolvedValue(null);
+
+    let currentNow = NOW;
+    const candidateCreatedAtOne = new Date(NOW + 1_000).toISOString();
+    const candidateCreatedAtTwo = new Date(NOW + 3_000).toISOString();
+    jest.spyOn(Date, "now").mockImplementation(() => currentNow);
+
+    (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("github-workflow-dispatch")) {
+        return {
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          text: async () => "",
+        } as Response;
+      }
+
+      if (url.includes("github-workflow-runs")) {
+        return {
+          ok: true,
+          json: async () => ({
+            data: {
+              workflow_runs: [
+                {
+                  id: 901,
+                  html_url: "https://github.com/runs/901",
+                  display_title: "CI Lite • legacy workflow",
+                  event: "workflow_dispatch",
+                  head_branch: "main",
+                  created_at: candidateCreatedAtOne,
+                },
+                {
+                  id: 902,
+                  html_url: "https://github.com/runs/902",
+                  display_title: "CI Lite • legacy workflow rerun",
+                  event: "workflow_dispatch",
+                  head_branch: "main",
+                  created_at: candidateCreatedAtTwo,
+                },
+              ],
+            },
+          }),
+        } as Response;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    await act(async () => {
+      currentNow += 60_001;
+      jest.advanceTimersByTime(60_001);
+    });
+    await flushAsyncWork();
+
+    expect(result.current.trackedRunId).toBeNull();
+    expect(result.current.lookupDiagnosis).toMatchObject({
+      ambiguous: true,
+      exactJobIdMatchFound: false,
+    });
+    expect(result.current.showError).toMatch(/mehrere frische Kandidaten/i);
+    expect(result.current.showError).not.toMatch(/kein passender Run gefunden \(Timeout\)/i);
   });
 
   it("keeps tracking the active run after the modal is closed and reopens without redispatch", async () => {

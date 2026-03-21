@@ -70,4 +70,33 @@ describe("Preview WebView contract", () => {
     expect(latestProps.mixedContentMode).toBe("never");
     expect(latestProps.source).toEqual({ html: "<html><body>local fallback</body></html>" });
   });
+
+  test("shows an explicit fallback state instead of leaving a dark empty surface on preview errors", () => {
+    const { getByTestId, getByText, queryByTestId } = render(
+      <DeviceFrame
+        {...baseProps}
+        phase="error"
+        errorMessage="HTTP 500"
+        previewSource={{ type: "url", uri: "https://preview.example.com/app" }}
+      />,
+    );
+
+    expect(getByTestId("preview-device-fallback")).toBeTruthy();
+    expect(getByText("Preview konnte nicht angezeigt werden")).toBeTruthy();
+    expect(getByText("HTTP 500")).toBeTruthy();
+    expect(queryByTestId("mock-webview")).toBeNull();
+  });
+
+  test("keeps the preview WebView mounted while loading so successful sources remain visible", () => {
+    const { getByTestId } = render(
+      <DeviceFrame
+        {...baseProps}
+        phase="loading"
+        previewSource={{ type: "url", uri: "https://preview.example.com/app" }}
+      />,
+    );
+
+    expect(getByTestId("mock-webview")).toBeTruthy();
+    expect(getByTestId("preview-loading-overlay")).toBeTruthy();
+  });
 });
