@@ -61,6 +61,7 @@ const TEXT_BASENAMES = new Set([
 ]);
 
 const GRAPHQL_BLOB_BATCH_SIZE = 30;
+export const MAX_PULL_TEXT_FILES = 200;
 
 const isAllowedTextPath = (repoPath: string): boolean => {
   const ext = repoPath.match(/\.[^.]+$/)?.[0]?.toLowerCase() || "";
@@ -349,6 +350,12 @@ export const useGitHubRepos = (
         if (!treeEntries.length) {
           callbacks?.onPullNoFiles?.();
           return [];
+        }
+
+        if (treeEntries.length > MAX_PULL_TEXT_FILES) {
+          throw new Error(
+            `Pull abgebrochen: ${treeEntries.length} unterstützte Textdateien gefunden, Limit ist ${MAX_PULL_TEXT_FILES}. Bitte Repo/Branch eingrenzen oder die Auswahl verkleinern.`,
+          );
         }
 
         onProgress?.(`Lade Dateien (${treeEntries.length})...`);

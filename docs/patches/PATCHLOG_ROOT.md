@@ -1,5 +1,7 @@
 # Patchlog Root
 
+- Patch 523: GitHubRepoScreen-/Infra-Push-/Pull-Pfad minimal gehaertet — `normalizeRepoPath()` blockiert jetzt `..`-Traversal-Segmente statt sie still durchzulassen, `pushFilesToRepoAdvanced(...)` lehnt solche lokalen Repo-Pfade mit klarer Fehlermeldung vor dem GitHub-Write ab, und `pullFromRepo()` bricht bei mehr als 200 erlaubten Textdateien ehrlich vor dem Blob-Load ab statt sehr grosse Repos ungebremst in den App-Memory zu ziehen.
+
 - Patch 522: lokalen Edge-Admin-Key-Save-Flow im Credentials Wizard minimal gehaertet — `onSaveAdminKey()` nutzt jetzt dieselbe formale `isLikelyValidAdminKey(...)`-Pruefung wie die restliche lokale Key-Diagnose, behandelt leer/Whitespace weiter als Loeschpfad, blockiert nicht-leere formal ungueltige Werte mit klarer UI-Meldung vor dem Persistieren und laesst nur formal gueltige Keys in SecureStore; fokussierte Regressionen decken Delete/Invalid/Valid-Save ab.
 
 - Patch 521: lokaler Edge-Admin-Key-HTTP-Vertrag im Wizard-/Preview-/CI-Lite-Scope bereinigt — `invokeEdgeJson(...)` sendet fuer lokale Admin-Key-Edge-Calls keinen semantisch falschen `Authorization: Bearer ...`-Header mehr, sondern nur noch `x-k1w1-admin-key`; gezielte Regressionstests sichern den Header-Vertrag fuer Wizard, Remote-Preview und CI Lite, waehrend die bestehende ehrliche `missing`/`invalid`/`rejected`-Diagnose sowie Fresh-vs-Persist-Truthfulness regressionsfest bleiben.

@@ -18,8 +18,20 @@ export const encodeGitHubPath = (p: string): string => {
     .join("/");
 };
 
-export const normalizeRepoPath = (p: string) =>
-  String(p ?? "").replace(/\\/g, "/").replace(/^\.?\//, "");
+export const normalizeRepoPath = (p: string) => {
+  const normalized = String(p ?? "")
+    .replace(/\\/g, "/")
+    .replace(/^(\.\/)+/, "");
+
+  if (!normalized) return "";
+
+  const segments = normalized.split("/");
+  if (segments.some((segment) => segment === "..")) {
+    return "";
+  }
+
+  return normalized;
+};
 
 export const MANAGED_WORKFLOWS = new Set([
   ".github/workflows/deploy-supabase-functions.yml",
