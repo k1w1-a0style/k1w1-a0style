@@ -8,6 +8,11 @@ exports[`e2e smoke diagnostics schema snapshot keeps stable diagnostics schema (
     "status": "fail",
   },
   {
+    "id": "runtime-import-dependency-mismatches",
+    "severity": "high",
+    "status": "pass",
+  },
+  {
     "id": "gitignore-present",
     "severity": "normal",
     "status": "fail",

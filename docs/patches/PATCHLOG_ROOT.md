@@ -1,3 +1,5 @@
+- Patch 530: lokale Preflight-Diagnose erkennt jetzt offensichtliche Runtime-Import→Dependency-Mismatches vor CI Lite; strukturierte `findings` benennen Paket, Fundstellen, Kategorie/Fixbarkeit und sichere Expo-SDK-54-AutoFixes ergaenzen gezielt `expo-linear-gradient` bzw. `expo-blur` in `package.json`, waehrend unsichere Faelle bewusst diagnose-only bleiben.
+
 # Patchlog Root
 
 - Patch 528: CI-Lite-/Build-Readiness-Contracts klein konsolidiert — `ciLitePersistence` exportiert jetzt kanonische Reason-/Workflow-Konstanten fuer den repo-/branch-scoped Snapshot-Vertrag, `buildReadiness` mappt CI-Lite-Blocker darueber statt ueber verstreute Stringvergleiche, und eng ueberschneidende Jest-Faelle fuer Mismatch bzw. stale/SHA-Mismatch wurden per `it.each(...)` ohne Schutzverlust zusammengezogen.
