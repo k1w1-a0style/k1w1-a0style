@@ -121,6 +121,39 @@ describe('PreviewScreen layout contract', () => {
     expect(screen.queryByTestId('preview-device-fallback')).toBeNull();
   });
 
+  it('keeps the main scroll path fill-oriented on tall layouts so the device frame stays anchored above the bottom bar', () => {
+    const view = render(<PreviewScreen />);
+    const scrollView = view.UNSAFE_getByType(ScrollView);
+    const activePath = screen.getByTestId('preview-screen-active-path');
+    const mainContent = screen.getByTestId('preview-screen-main-content');
+    const bottomBar = screen.getByTestId('preview-bottom-bar');
+
+    expect(scrollView.props.contentInsetAdjustmentBehavior).toBe('never');
+    expect(activePath.props.style).toEqual(
+      expect.objectContaining({
+        flexGrow: 1,
+        justifyContent: 'space-between',
+      }),
+    );
+    expect(mainContent.props.style).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          flexGrow: 1,
+          flexShrink: 0,
+          minHeight: 0,
+        }),
+      ]),
+    );
+    expect(bottomBar.props.style).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          marginTop: 'auto',
+        }),
+        expect.objectContaining({ paddingBottom: 10 }),
+      ]),
+    );
+  });
+
   it('surfaces remoteFailure inside the visible preview meta contract', () => {
     mockUsePreviewScreen.mockReturnValue(
       buildHookState({
@@ -150,6 +183,21 @@ describe('PreviewScreen layout contract', () => {
     expect(
       screen.getAllByText('Preview-Server derzeit nicht erreichbar; lokale Fallback-Diagnose bleibt relevant.'),
     ).toHaveLength(2);
+  });
+
+  it('uses a single bottom safe-area strategy so iOS inset padding is not applied twice', () => {
+    mockUseSafeAreaInsets.mockReturnValue({ top: 0, right: 0, bottom: 34, left: 0 });
+
+    const view = render(<PreviewScreen />);
+    const scrollView = view.UNSAFE_getByType(ScrollView);
+    const bottomBar = screen.getByTestId('preview-bottom-bar');
+
+    expect(scrollView.props.contentInsetAdjustmentBehavior).toBe('never');
+    expect(bottomBar.props.style).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ paddingBottom: 34 }),
+      ]),
+    );
   });
 
   it('keeps a vertical scroll path when the screen is short so meta and actions stay reachable', () => {

@@ -122,11 +122,11 @@ export default function PreviewScreen() {
           isShortLayout && s.screenScrollContentShort,
         ]}
         keyboardShouldPersistTaps="handled"
-        contentInsetAdjustmentBehavior="always"
+        contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={isShortLayout}
         testID="preview-screen-scroll"
       >
-        <View testID="preview-screen-active-path">
+        <View style={s.screenScrollInner} testID="preview-screen-active-path">
           <PreviewStatusBar
             phase={phase}
             compact={isCompactLayout}
@@ -143,7 +143,10 @@ export default function PreviewScreen() {
             skippedCount={state.skippedCount}
           />
 
-          <View style={[s.previewBody, isShortLayout && s.previewBodyShort]}>
+          <View
+            style={[s.previewBody, isShortLayout && s.previewBodyShort]}
+            testID="preview-screen-main-content"
+          >
             <DeviceFrame
               webViewRef={webViewRef}
               previewSource={previewSource}
