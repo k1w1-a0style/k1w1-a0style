@@ -5,6 +5,8 @@ import { theme } from "../../theme";
 export const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.palette.background },
   screenContent: { flex: 1, minHeight: 0 },
+  screenScrollContent: { flexGrow: 1 },
+  screenScrollContentShort: { paddingBottom: 0 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 },
   loadingText: { color: theme.palette.text.secondary, fontWeight: '700', fontSize: 14 },
   emptyTitle: { color: theme.palette.text.primary, fontSize: 18, fontWeight: '900' },
@@ -124,6 +126,7 @@ export const s = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     lineHeight: 16,
+    flexShrink: 1,
   },
   previewRuntimeBar: {
     paddingHorizontal: 14,
@@ -138,6 +141,9 @@ export const s = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     backgroundColor: theme.palette.backgroundDark,
+  },
+  previewBodyShort: {
+    flexGrow: 1,
   },
   previewArea: {
     flex: 1,
@@ -205,6 +211,20 @@ export const s = StyleSheet.create({
     paddingBottom: 10,
     gap: 10,
     backgroundColor: theme.palette.backgroundDark,
+  },
+  diagnosticCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,170,0,0.35)',
+    backgroundColor: 'rgba(255,170,0,0.08)',
+    padding: 10,
+    gap: 8,
+  },
+  diagnosticText: {
+    color: theme.palette.warning,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 18,
   },
   urlCard: {
     borderRadius: 12, borderWidth: 1, borderColor: theme.palette.border,
