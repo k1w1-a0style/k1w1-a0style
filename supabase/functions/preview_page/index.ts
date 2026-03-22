@@ -28,7 +28,6 @@ async function fetchPreviewRecord(
     `${base}/rest/v1/${TABLE}?secret=eq.${encodeURIComponent(secret)}` +
     `&select=${encodeURIComponent(select)}&limit=1`;
 
-  const t = withTimeout(8000);
   let headers: Record<string, string>;
   try {
     headers = supabaseHeaders();
@@ -36,6 +35,7 @@ async function fetchPreviewRecord(
     return { ok: false, code: classifyPreviewRecordLookupFailure({ missingServiceRoleKey: true }) };
   }
 
+  const t = withTimeout(8000);
   try {
     const res = await fetch(restUrl, {
       method: "GET",

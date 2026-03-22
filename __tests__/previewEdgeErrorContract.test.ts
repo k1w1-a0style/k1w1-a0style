@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import {
   classifySavePreviewPayloadError,
   classifySavePreviewUnexpectedError,
@@ -56,6 +58,24 @@ describe("preview edge error contract", () => {
     expect(classifyPreviewRecordLookupFailure({ status: 500 })).toBe("preview_db_error");
     expect(classifyPreviewRecordLookupFailure({ parseFailed: true, error: new Error("bad json") })).toBe(
       "preview_db_error",
+    );
+  });
+
+  it("keeps preview_page lookup config guards ahead of the fetch timeout allocation", () => {
+    const source = fs.readFileSync(
+      path.join(process.cwd(), "supabase/functions/preview_page/index.ts"),
+      "utf8",
+    );
+
+    const fetchPreviewRecordSource = source.slice(
+      source.indexOf("async function fetchPreviewRecord"),
+      source.indexOf("async function deletePreviewRecord"),
+    );
+
+    expect(fetchPreviewRecordSource.indexOf("headers = supabaseHeaders();")).toBeGreaterThan(-1);
+    expect(fetchPreviewRecordSource.indexOf("const t = withTimeout(8000);")).toBeGreaterThan(-1);
+    expect(fetchPreviewRecordSource.indexOf("headers = supabaseHeaders();")).toBeLessThan(
+      fetchPreviewRecordSource.indexOf("const t = withTimeout(8000);"),
     );
   });
 
