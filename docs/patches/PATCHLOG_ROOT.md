@@ -1,3 +1,4 @@
+- Patch 536: `preview_page`-Follow-up nach PR 398 minimal geschlossen — der Partial-Env-Fall (`PREVIEW_SUPABASE_URL` vorhanden, `PREVIEW_SERVICE_ROLE_KEY` fehlt) wird im Lookup jetzt explizit als `preview_env_missing` statt `preview_db_error` klassifiziert, und browser-/QR-seitige Env-/DB-/Lookup-Fehler bleiben konsequent auf dem sicheren HTML-Fehlerpfad mit erhaltenem Header-/Marker-/Status-Vertrag statt rohem JSON.
 - Patch 535: Preview-Edge-Fehlervertrag gehaertet — `save_preview` und `preview_page` klassifizieren jetzt bekannte Env-/Payload-/DB-/NotFound-/Expired-/Response-/Runtime-Faelle ueber strukturierte Preview-Fehlercodes statt blindem `Internal Server Error`; der Client liest diese Codes in `invokeSavePreview(...)`/`describeRemotePreviewFailure(...)` stabil aus und meldet ehrlichere, aber sichere Ursachen.
 # Patchlog Root
 

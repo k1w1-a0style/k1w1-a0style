@@ -3,10 +3,10 @@
 
 import {
   TABLE, MAX_FILES_BYTES, MAX_RESPONSE_BYTES,
-  jsonPreviewError, escapeHtml, safeJsonForScript, getSupabaseBaseUrl, supabaseHeaders,
+  escapeHtml, safeJsonForScript, getSupabaseBaseUrl, supabaseHeaders,
   withTimeout, utf8Size, approxFilesPayloadSize, randomNonce, html, htmlPreviewError,
   rateLimit, sanitizeErrorText, classifyPreviewRecordLookupFailure, classifyPreviewRecordShape,
-  classifyPreviewPageUnexpectedError,
+  classifyPreviewPageUnexpectedError, previewPageErrorResponse,
 } from "./helpers.ts";
 import type { SnackFiles, PreviewRecord } from "./helpers.ts";
 
@@ -29,10 +29,17 @@ async function fetchPreviewRecord(
     `&select=${encodeURIComponent(select)}&limit=1`;
 
   const t = withTimeout(8000);
+  let headers: Record<string, string>;
+  try {
+    headers = supabaseHeaders();
+  } catch {
+    return { ok: false, code: classifyPreviewRecordLookupFailure({ missingServiceRoleKey: true }) };
+  }
+
   try {
     const res = await fetch(restUrl, {
       method: "GET",
-      headers: supabaseHeaders(),
+      headers,
       signal: t.signal,
     });
 
@@ -359,14 +366,9 @@ Deno.serve(async (req) => {
 
     const recordResult = await fetchPreviewRecord(secret);
     if (!recordResult.ok) {
-      if (recordResult.code === "preview_env_missing" || recordResult.code === "preview_db_error") {
-        return jsonPreviewError({ code: recordResult.code });
-      }
-      return htmlPreviewError({
+      return previewPageErrorResponse({
         code: recordResult.code,
         nonce,
-        title: "Preview Error",
-        message: "Preview konnte nicht geladen werden.",
       });
     }
 
@@ -459,6 +461,9 @@ Deno.serve(async (req) => {
   } catch (e) {
     const safeError = sanitizeErrorText(e instanceof Error ? e.message : String(e));
     console.error("[preview_page] error:", safeError);
-    return jsonPreviewError({ code: classifyPreviewPageUnexpectedError(e) });
+    return previewPageErrorResponse({
+      code: classifyPreviewPageUnexpectedError(e),
+      nonce: randomNonce(),
+    });
   }
 });

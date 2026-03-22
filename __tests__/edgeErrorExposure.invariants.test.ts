@@ -9,6 +9,8 @@ describe("edge error exposure invariants", () => {
 
     expect(src).toContain("function setOverlayState(state, message)");
     expect(src).toContain("body.textContent = sanitizeClientErrorText");
+    expect(src).toContain("return previewPageErrorResponse({");
+    expect(src).not.toContain("return jsonPreviewError({ code: recordResult.code })");
     expect(src).not.toContain('overlay.innerHTML = `\n      <div class="error-title">Preview Error</div>\n      <div class="error-message">${String(err?.stack || err?.message || err)}</div>\n    `;');
     expect(src).not.toContain("err?.stack");
   });
