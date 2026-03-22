@@ -7,6 +7,11 @@ export const s = StyleSheet.create({
   screenContent: { flex: 1, minHeight: 0 },
   screenScrollContent: { flexGrow: 1 },
   screenScrollContentShort: { paddingBottom: 0 },
+  screenScrollInner: {
+    flexGrow: 1,
+    justifyContent: 'space-between',
+    minHeight: 0,
+  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 },
   loadingText: { color: theme.palette.text.secondary, fontWeight: '700', fontSize: 14 },
   emptyTitle: { color: theme.palette.text.primary, fontSize: 18, fontWeight: '900' },
@@ -138,7 +143,8 @@ export const s = StyleSheet.create({
     fontWeight: '700',
   },
   previewBody: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 0,
     minHeight: 0,
     backgroundColor: theme.palette.backgroundDark,
   },
@@ -259,6 +265,7 @@ export const s = StyleSheet.create({
     flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingVertical: 10,
     borderTopWidth: 1, borderTopColor: theme.palette.border,
     backgroundColor: theme.palette.card,
+    marginTop: 'auto',
   },
   bottomBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
