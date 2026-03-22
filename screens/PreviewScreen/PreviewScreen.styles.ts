@@ -4,21 +4,40 @@ import { theme } from "../../theme";
 
 export const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.palette.background },
+  screenContent: { flex: 1, minHeight: 0 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 },
   loadingText: { color: theme.palette.text.secondary, fontWeight: '700', fontSize: 14 },
   emptyTitle: { color: theme.palette.text.primary, fontSize: 18, fontWeight: '900' },
   emptyText: { color: theme.palette.text.secondary, fontSize: 14, textAlign: 'center' },
   toolbar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    flexWrap: 'wrap',
     paddingHorizontal: 14, paddingVertical: 10,
     borderBottomWidth: 1, borderBottomColor: theme.palette.border,
     backgroundColor: theme.palette.card,
+    gap: 10,
   },
-  toolbarLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  toolbarCompact: { alignItems: 'flex-start' },
+  toolbarLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 },
+  toolbarLeftCompact: { width: '100%', flexBasis: '100%' },
   toolbarTitle: { flex: 1, minWidth: 0 },
   title: { color: theme.palette.text.primary, fontSize: 18, fontWeight: '900' },
   subtitle: { color: theme.palette.text.secondary, fontSize: 12 },
-  toolbarActions: { flexDirection: 'row', gap: 6, alignItems: 'center' },
+  toolbarActions: {
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    flexShrink: 1,
+    flexWrap: 'wrap',
+  },
+  toolbarActionsCompact: { width: '100%', justifyContent: 'flex-start' },
+  toolbarRuntimeHint: {
+    width: '100%',
+    color: theme.palette.text.muted,
+    fontSize: 10,
+    fontWeight: '700',
+  },
   toolBtn: {
     width: 36, height: 36, borderRadius: 10, borderWidth: 1,
     borderColor: theme.palette.border, backgroundColor: theme.palette.background,
@@ -46,8 +65,14 @@ export const s = StyleSheet.create({
   },
   statusBar: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
     paddingHorizontal: 14, paddingVertical: 8,
   },
+  statusBarCompact: { alignItems: 'flex-start' },
+  statusHeadline: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 180 },
+  statusMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' },
+  statusMetaRowCompact: { width: '100%', justifyContent: 'flex-start' },
   statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.palette.text.disabled },
   statusDotNeutral: { backgroundColor: theme.palette.text.disabled },
   statusDotOk: {
@@ -84,8 +109,11 @@ export const s = StyleSheet.create({
   hotBadgeText: { color: theme.palette.primary, fontSize: 10, fontWeight: '800' },
   previewInfoBar: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
+    flexWrap: 'wrap',
     paddingHorizontal: 14, paddingBottom: 8,
   },
+  previewInfoBarCompact: { alignItems: 'flex-start' },
+  previewInfoBullet: { color: theme.palette.text.muted, fontSize: 11, fontWeight: '700' },
   previewInfoText: { color: theme.palette.text.muted, fontSize: 11, fontWeight: '700' },
   previewNoticeBar: {
     paddingHorizontal: 14,
@@ -96,6 +124,20 @@ export const s = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     lineHeight: 16,
+  },
+  previewRuntimeBar: {
+    paddingHorizontal: 14,
+    paddingBottom: 10,
+  },
+  previewRuntimeText: {
+    color: theme.palette.text.disabled,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  previewBody: {
+    flex: 1,
+    minHeight: 0,
+    backgroundColor: theme.palette.backgroundDark,
   },
   previewArea: {
     flex: 1,
@@ -158,8 +200,13 @@ export const s = StyleSheet.create({
     borderRadius: 12, borderWidth: 1.5, borderColor: theme.palette.primary,
   },
   createBtnText: { color: theme.palette.primary, fontSize: 14, fontWeight: '800' },
+  previewMetaStack: {
+    paddingHorizontal: 14,
+    paddingBottom: 10,
+    gap: 10,
+    backgroundColor: theme.palette.backgroundDark,
+  },
   urlCard: {
-    marginHorizontal: 14, marginTop: 10, marginBottom: 8,
     borderRadius: 12, borderWidth: 1, borderColor: theme.palette.border,
     backgroundColor: theme.palette.card, padding: 10, gap: 8,
   },
@@ -177,8 +224,10 @@ export const s = StyleSheet.create({
   errorBar: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 14, paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
     backgroundColor: 'rgba(255,68,68,0.08)',
-    borderTopWidth: 1, borderTopColor: theme.palette.error,
+    borderColor: theme.palette.error,
   },
   errorText: { flex: 1, color: theme.palette.error, fontSize: 12, fontWeight: '600' },
   errorRetryBtn: {

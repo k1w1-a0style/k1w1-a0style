@@ -45,6 +45,7 @@ function buildHookState(overrides: Record<string, unknown> = {}) {
       detailText: null,
       badgeText: 'Fallback',
     },
+    runtimeHint: 'active=PreviewScreen source=local/html state=fallback_active phase=ready',
     qrImageUrl: null,
     phase: 'ready',
     setPhase: jest.fn(),
@@ -87,6 +88,7 @@ describe('PreviewScreen layout contract', () => {
     render(<PreviewScreen />);
 
     expect(screen.getByTestId('preview-toolbar')).toBeTruthy();
+    expect(screen.getByTestId('preview-screen-active-path')).toBeTruthy();
     expect(screen.getByTestId('preview-device-frame')).toBeTruthy();
     expect(screen.getByTestId('preview-bottom-bar')).toBeTruthy();
   });
