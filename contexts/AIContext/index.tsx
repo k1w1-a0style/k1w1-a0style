@@ -21,11 +21,13 @@ import {
 } from "./helpers";
 
 const AIContext = createContext<AIContextProps | undefined>(undefined);
+const CONFIG_PERSIST_DEBOUNCE_MS = 350;
 
 export function AIProvider({ children }: { children: React.ReactNode }) {
   const [config, setConfigState] = useState<AIConfig>(DEFAULT_CONFIG);
   const [providerStatus, setProviderStatus] = useState<ProviderLimitStatus[]>([]);
   const didLoad = useRef(false);
+  const persistConfigTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -60,9 +62,24 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!didLoad.current) return;
     const redacted: AIConfig = { ...config, apiKeys: { ...DEFAULT_CONFIG.apiKeys } };
-    AsyncStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(redacted)).catch(
-      () => undefined,
-    );
+
+    if (persistConfigTimeoutRef.current) {
+      clearTimeout(persistConfigTimeoutRef.current);
+    }
+
+    persistConfigTimeoutRef.current = setTimeout(() => {
+      AsyncStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(redacted)).catch(
+        () => undefined,
+      );
+      persistConfigTimeoutRef.current = null;
+    }, CONFIG_PERSIST_DEBOUNCE_MS);
+
+    return () => {
+      if (persistConfigTimeoutRef.current) {
+        clearTimeout(persistConfigTimeoutRef.current);
+        persistConfigTimeoutRef.current = null;
+      }
+    };
   }, [config]);
 
   useEffect(() => {
@@ -73,6 +90,13 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
     // und im SecureStore-Persistenzpfad; wir spiegeln sie nicht mehr in Legacy-In-Memory-Manager.
     saveSecureApiKeys(config.apiKeys).catch(() => undefined);
   }, [config.apiKeys]);
+
+  useEffect(() => () => {
+    if (persistConfigTimeoutRef.current) {
+      clearTimeout(persistConfigTimeoutRef.current);
+      persistConfigTimeoutRef.current = null;
+    }
+  }, []);
 
   const setConfig = useCallback((next: AIConfig) => setConfigState(next), []);
   const updateConfig = useCallback((patch: Partial<AIConfig>) => {
