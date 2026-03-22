@@ -1,3 +1,4 @@
+- Patch 535: Preview-Edge-Fehlervertrag gehaertet — `save_preview` und `preview_page` klassifizieren jetzt bekannte Env-/Payload-/DB-/NotFound-/Expired-/Response-/Runtime-Faelle ueber strukturierte Preview-Fehlercodes statt blindem `Internal Server Error`; der Client liest diese Codes in `invokeSavePreview(...)`/`describeRemotePreviewFailure(...)` stabil aus und meldet ehrlichere, aber sichere Ursachen.
 # Patchlog Root
 
 - Patch 534: PreviewScreen-Layout-Restpunkte nach PR 396 geschlossen — der Scroll-Hauptinhalt nutzt wieder eine explizite Fill-Struktur statt nur intrinsischer Hoehe, die BottomBar wird ueber denselben Scroll-Vertrag sauber am unteren Bereich gehalten, und auf iOS bleibt genau ein Bottom-Safe-Area-Pfad aktiv, sodass kein doppelter Leerraum hinter den Action-Buttons entsteht.

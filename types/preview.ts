@@ -1,6 +1,8 @@
 // types/preview.ts
 // Unified types for Preview functionality
 
+import type { PreviewEdgeErrorCode } from "../shared/previewErrorContract";
+
 export type PreviewMode = "sandpack" | "supabase" | "web";
 
 export type PreviewFiles = Record<string, { type?: string; contents: string }>;
@@ -12,6 +14,7 @@ export interface PreviewResponse {
   expiresAt?: string | null;
   error?: string;
   hint?: string;
+  code?: PreviewEdgeErrorCode;
 }
 
 export interface PreviewSettings {

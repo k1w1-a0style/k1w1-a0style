@@ -1,3 +1,4 @@
+- 2026-03-22: Patch 535: Preview-Edge-Fehlervertrag gezielt gehaertet — `save_preview` und `preview_page` liefern fuer klassifizierbare Env-/Payload-/DB-/Runtime-/Groessenfehler jetzt strukturierte Preview-Codes statt blindem Generic-500, waehrend `hooks/previewHelpers.ts` diese Codes ohne fragile Text-Matches in ehrliche sichere Clientmeldungen mappt; fokussierte Preview-Vertragstests decken Env-missing, invalid/empty payload, DB insert/select, `preview_page`-Runtime-Catch und den Client-Mapping-Pfad ab.
 # PROJECT_CHECKLOG
 
 Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
