@@ -1,5 +1,7 @@
 # Patchlog Root
 
+- Patch 532: produktiven k1w1-handler-Fehlervertrag fuer Provider-/Env-/Modellfehler gehaertet — `helpers.ts` klassifiziert bestehende interne Provider-/Env-/HTTP-Fehler jetzt in sichere strukturierte Codes (`provider_env_missing`, `provider_http_401/403/404/429`, `provider_model_not_found`, `provider_upstream_error`, `invalid_request_payload`, `unsupported_provider`, `unknown_internal_error`), `index.ts` liefert diese Payloads statt generischem `Internal Server Error`, und `lib/orchestrator/k1w1Edge.ts` uebernimmt die strukturierten Ursachen in ehrliche Chat-Meldungen ohne rohe Upstream-Bodies oder Secret-Leaks.
+
 - Patch 531: Runtime-Dependency-Diagnose kann fehlende Runtime-Pakete jetzt nicht mehr nur ueber harte Expo-Safe-Mappings auto-fixen, sondern bevorzugt exakte bereits im `package-lock.json`/`npm-shrinkwrap.json` aufgeloeste Versionen wiederverwenden; dadurch erscheinen reale Runtime-Import-Fehler deutlich haeufiger mit ehrlichem lokalem Auto-Fix statt nur als KI-/Manual-Follow-up.
 
 - Patch 530: lokale Preflight-Diagnose erkennt jetzt offensichtliche Runtime-Import→Dependency-Mismatches vor CI Lite; strukturierte `findings` benennen Paket, Fundstellen, Kategorie/Fixbarkeit und sichere Expo-SDK-54-AutoFixes ergaenzen gezielt `expo-linear-gradient` bzw. `expo-blur` in `package.json`, waehrend unsichere Faelle bewusst diagnose-only bleiben.

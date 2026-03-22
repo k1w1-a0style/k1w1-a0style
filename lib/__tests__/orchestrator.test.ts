@@ -186,6 +186,39 @@ describe('Orchestrator', () => {
       expect(String(result.error || '')).toContain('Invalid request payload.');
     });
 
+    it('nutzt strukturierte Edge-Fehlercodes fuer hilfreiche Chat-Meldungen statt generischem 500', async () => {
+      const testMessages: LlmMessage[] = [{ role: 'user', content: 'hi' }];
+
+      invokeMock.mockResolvedValueOnce({
+        data: null,
+        error: {
+          name: 'FunctionsHttpError',
+          context: new Response(JSON.stringify({
+            ok: false,
+            code: 'provider_http_429',
+            error: 'Openai meldet ein Rate-Limit oder ist voruebergehend ueberlastet (429).',
+            provider: 'openai',
+            model: 'gpt-4o-mini',
+            status: 429,
+          }), {
+            status: 429,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        },
+      });
+
+      const result = await runOrchestrator('openai', 'gpt-4o-mini', 'speed', testMessages);
+
+      expect(result.ok).toBe(false);
+      expect(result.provider).toBe('openai');
+      expect(result.model).toBe('gpt-4o-mini');
+      expect(String(result.error || '')).toBe(
+        'Openai meldet ein Rate-Limit oder ist voruebergehend ueberlastet (429).',
+      );
+      expect(String(result.error || '')).not.toContain('Internal Server Error');
+      expect(String(result.error || '')).not.toContain('Edge-Request fehlgeschlagen (429)');
+    });
+
     it('meldet harte Request-Timeouts ueber den Edge-Proxy weiterhin als timeout', async () => {
       jest.useFakeTimers();
       const testMessages: LlmMessage[] = [{ role: 'user', content: 'hi' }];
