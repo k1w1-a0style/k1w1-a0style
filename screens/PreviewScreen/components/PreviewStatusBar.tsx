@@ -24,6 +24,14 @@ export function getTransientPreviewNotice(notice: string | null): string | null 
   return typeof notice === 'string' && notice.trim().length > 0 ? notice : null;
 }
 
+export function shouldClampPreviewNotice(compact: boolean, displayStateKind: PreviewDisplayState['kind']): number | undefined {
+  if (!compact) return 2;
+  if (displayStateKind === 'fallback_active' || displayStateKind === 'failed' || displayStateKind === 'unavailable') {
+    return undefined;
+  }
+  return 3;
+}
+
 export function PreviewStatusBar({
   phase,
   compact,
@@ -99,7 +107,12 @@ export function PreviewStatusBar({
       </View>
       {previewNotice && (
         <View style={s.previewNoticeBar}>
-          <Text style={s.previewNoticeText} numberOfLines={compact ? 3 : 2}>{previewNotice}</Text>
+          <Text
+            style={s.previewNoticeText}
+            numberOfLines={shouldClampPreviewNotice(compact, displayState.kind)}
+          >
+            {previewNotice}
+          </Text>
         </View>
       )}
       {((typeof __DEV__ !== 'undefined' && __DEV__) || process.env.NODE_ENV === 'test') && runtimeHint ? (
