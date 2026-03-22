@@ -7,6 +7,7 @@ import {
   Pressable,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,18 +20,19 @@ import { PreviewToolbar } from './components/PreviewToolbar';
 import { PreviewStatusBar } from './components/PreviewStatusBar';
 
 export default function PreviewScreen() {
+  const { width } = useWindowDimensions();
+  const isCompactLayout = width < 420;
   const {
     projectData,
     isLoading,
     state,
-    lastPreview,
     previewSource,
-    previewKind,
     previewUrl,
     previewExpiryText,
     previewChannelLabel,
     transientLocalPreviewNotice,
     displayState,
+    runtimeHint,
     qrImageUrl,
     phase,
     setPhase,
@@ -95,6 +97,8 @@ export default function PreviewScreen() {
       <View testID="preview-toolbar">
         <PreviewToolbar
           projectName={projectData.name}
+          compact={isCompactLayout}
+          runtimeHint={runtimeHint}
           hotReloadEnabled={hotReloadEnabled}
           hotDotAnim={hotDotAnim}
           hasPreviewUrl={Boolean(previewUrl)}
@@ -108,91 +112,101 @@ export default function PreviewScreen() {
         />
       </View>
 
-      <PreviewStatusBar
-        phase={phase}
-        displayState={displayState}
-        previewChannelLabel={previewChannelLabel}
-        previewExpiryText={previewExpiryText}
-        transientLocalPreviewNotice={transientLocalPreviewNotice}
-        pulseAnim={pulseAnim}
-        hotReloadEnabled={hotReloadEnabled}
-        hotReloadCount={hotReloadCount}
-        fileCount={state.fileCount}
-        totalSize={state.totalSize}
-        skippedCount={state.skippedCount}
-      />
+      <View style={s.screenContent} testID="preview-screen-active-path">
+        <PreviewStatusBar
+          phase={phase}
+          compact={isCompactLayout}
+          runtimeHint={runtimeHint}
+          displayState={displayState}
+          previewChannelLabel={previewChannelLabel}
+          previewExpiryText={previewExpiryText}
+          transientLocalPreviewNotice={transientLocalPreviewNotice}
+          pulseAnim={pulseAnim}
+          hotReloadEnabled={hotReloadEnabled}
+          hotReloadCount={hotReloadCount}
+          fileCount={state.fileCount}
+          totalSize={state.totalSize}
+          skippedCount={state.skippedCount}
+        />
 
-      <DeviceFrame
-        webViewRef={webViewRef}
-        previewSource={previewSource}
-        phase={phase}
-        fadeAnim={fadeAnim}
-        flashBorderAnim={flashBorderAnim}
-        originWhitelist={originWhitelist}
-        errorMessage={webError || state.error || state.remoteFailure}
-        onShouldStartLoadWithRequest={handleShouldStartLoad}
-        onLoadStart={() => {
-          setPhase('loading');
-          setWebError(null);
-        }}
-        onLoadEnd={() => {
-          resetRecoveryState();
-          setPhase('ready');
-        }}
-        onError={(message) => {
-          setPhase('error');
-          setWebError(message);
-        }}
-        onHttpError={(statusCode) => {
-          setPhase('error');
-          setWebError(`HTTP ${statusCode ?? '?'}`);
-        }}
-        onContentProcessDidTerminate={handleContentProcessDidTerminate}
-        onRenderProcessGone={handleRenderProcessGone}
-        onCreate={handleCreate}
-      />
+        <View style={s.previewBody}>
+          <DeviceFrame
+            webViewRef={webViewRef}
+            previewSource={previewSource}
+            phase={phase}
+            fadeAnim={fadeAnim}
+            flashBorderAnim={flashBorderAnim}
+            originWhitelist={originWhitelist}
+            errorMessage={webError || state.error || state.remoteFailure}
+            onShouldStartLoadWithRequest={handleShouldStartLoad}
+            onLoadStart={() => {
+              setPhase('loading');
+              setWebError(null);
+            }}
+            onLoadEnd={() => {
+              resetRecoveryState();
+              setPhase('ready');
+            }}
+            onError={(message) => {
+              setPhase('error');
+              setWebError(message);
+            }}
+            onHttpError={(statusCode) => {
+              setPhase('error');
+              setWebError(`HTTP ${statusCode ?? '?'}`);
+            }}
+            onContentProcessDidTerminate={handleContentProcessDidTerminate}
+            onRenderProcessGone={handleRenderProcessGone}
+            onCreate={handleCreate}
+          />
 
-      {previewUrl && (
-        <View style={s.urlCard}>
-          <View style={s.urlCardHeader}>
-            <Ionicons name="link-outline" size={15} color={theme.palette.primary} />
-            <Text style={s.urlCardTitle}>Preview-Link (Browser & QR)</Text>
-          </View>
-          <Text style={s.urlText} numberOfLines={2}>{previewUrl}</Text>
-          <View style={s.urlActions}>
-            <Pressable style={s.urlBtn} onPress={handleCopy}>
-              <Ionicons name="copy-outline" size={14} color={theme.palette.text.primary} />
-              <Text style={s.urlBtnText}>URL kopieren</Text>
-            </Pressable>
-            <Pressable style={s.urlBtn} onPress={handleOpenExternal}>
-              <Ionicons name="open-outline" size={14} color={theme.palette.primary} />
-              <Text style={[s.urlBtnText, s.urlBtnTextPrimary]}>Im Browser öffnen</Text>
-            </Pressable>
-            {qrImageUrl && (
-              <Pressable style={s.urlBtn} onPress={handleOpenQr}>
-                <Ionicons name="qr-code-outline" size={14} color={theme.palette.primary} />
-                <Text style={[s.urlBtnText, s.urlBtnTextPrimary]}>QR anzeigen</Text>
-              </Pressable>
-            )}
-            {qrImageUrl && (
-              <Pressable style={s.urlBtn} onPress={handleCopyQrLink}>
-                <Ionicons name="copy-outline" size={14} color={theme.palette.text.primary} />
-                <Text style={s.urlBtnText}>QR-Link kopieren</Text>
-              </Pressable>
-            )}
-          </View>
+          {(previewUrl || webError || state.error) && (
+            <View style={s.previewMetaStack}>
+              {previewUrl && (
+                <View style={s.urlCard}>
+                  <View style={s.urlCardHeader}>
+                    <Ionicons name="link-outline" size={15} color={theme.palette.primary} />
+                    <Text style={s.urlCardTitle}>Preview-Link (Browser & QR)</Text>
+                  </View>
+                  <Text style={s.urlText} numberOfLines={2}>{previewUrl}</Text>
+                  <View style={s.urlActions}>
+                    <Pressable style={s.urlBtn} onPress={handleCopy}>
+                      <Ionicons name="copy-outline" size={14} color={theme.palette.text.primary} />
+                      <Text style={s.urlBtnText}>URL kopieren</Text>
+                    </Pressable>
+                    <Pressable style={s.urlBtn} onPress={handleOpenExternal}>
+                      <Ionicons name="open-outline" size={14} color={theme.palette.primary} />
+                      <Text style={[s.urlBtnText, s.urlBtnTextPrimary]}>Im Browser öffnen</Text>
+                    </Pressable>
+                    {qrImageUrl && (
+                      <Pressable style={s.urlBtn} onPress={handleOpenQr}>
+                        <Ionicons name="qr-code-outline" size={14} color={theme.palette.primary} />
+                        <Text style={[s.urlBtnText, s.urlBtnTextPrimary]}>QR anzeigen</Text>
+                      </Pressable>
+                    )}
+                    {qrImageUrl && (
+                      <Pressable style={s.urlBtn} onPress={handleCopyQrLink}>
+                        <Ionicons name="copy-outline" size={14} color={theme.palette.text.primary} />
+                        <Text style={s.urlBtnText}>QR-Link kopieren</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                </View>
+              )}
+
+              {(webError || state.error) && (
+                <View style={s.errorBar}>
+                  <Ionicons name="alert-circle" size={16} color={theme.palette.error} />
+                  <Text style={s.errorText} numberOfLines={2}>{webError || state.error}</Text>
+                  <Pressable style={s.errorRetryBtn} onPress={handleCreate}>
+                    <Text style={s.errorRetryText}>Erneut versuchen</Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
+          )}
         </View>
-      )}
-
-      {(webError || state.error) && (
-        <View style={s.errorBar}>
-          <Ionicons name="alert-circle" size={16} color={theme.palette.error} />
-          <Text style={s.errorText} numberOfLines={2}>{webError || state.error}</Text>
-          <Pressable style={s.errorRetryBtn} onPress={handleCreate}>
-            <Text style={s.errorRetryText}>Erneut versuchen</Text>
-          </Pressable>
-        </View>
-      )}
+      </View>
 
       <View style={s.bottomBar} testID="preview-bottom-bar">
         <Pressable style={[s.bottomBtn, state.isCreating && s.disabled]} onPress={handleCreate} disabled={state.isCreating}>

@@ -24,6 +24,8 @@ describe("PreviewStatusBar status text semantics", () => {
     const screen = render(
       React.createElement(PreviewStatusBar, {
         phase: "ready",
+        compact: false,
+        runtimeHint: "active=PreviewScreen source=local/html state=fallback_active phase=ready",
         displayState,
         previewChannelLabel: "Lokaler HTML-/Eval-Fallback (nur Dev/Best-Effort, nur solange App aktiv ist)",
         previewExpiryText: "Kein Ablauf hinterlegt (letzter bekannter Stand)",

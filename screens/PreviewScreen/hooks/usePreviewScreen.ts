@@ -144,6 +144,11 @@ export function usePreviewScreen() {
     if (!previewUrl || !isHttpUrl(previewUrl)) return null;
     return buildQrImageUrl(previewUrl);
   }, [previewUrl]);
+  const runtimeHint = useMemo(() => {
+    const sourceKind = previewKind ?? 'none';
+    const sourceType = previewSource?.type ?? 'none';
+    return `active=PreviewScreen source=${sourceKind}/${sourceType} state=${displayState.kind} phase=${phase}`;
+  }, [displayState.kind, phase, previewKind, previewSource?.type]);
 
   // ─── Shared navigation (eliminiert Duplikat mit PreviewFullscreenScreen) ──
   const { originWhitelist, handleShouldStartLoad } = useWebViewNavigation({
@@ -323,6 +328,7 @@ export function usePreviewScreen() {
     previewChannelLabel,
     transientLocalPreviewNotice,
     displayState,
+    runtimeHint,
     qrImageUrl,
     phase,
     setPhase,
