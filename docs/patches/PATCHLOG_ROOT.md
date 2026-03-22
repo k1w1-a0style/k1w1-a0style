@@ -167,6 +167,8 @@ Append-only Überblick über Patch-Notizen.
 
 - Patch 529: CI-Lite-Run-Lookup gegen Legacy-Workflow-Drift gehaertet; exakter `job_id`-Marker bleibt Prioritaet, `workflow_dispatch` bekommt nur noch sichere Fallback-Tiers inkl. Ambiguitaets-/Contract-Diagnose statt irrefuehrendem Generic-Timeout.
 
+- Patch 538: kleiner Maintenance-Block fuer verbleibende Robustheitsreste — GitHubContext spiegelt `projectData.linkedRepo` / `linkedBranch` jetzt ohne redundante Mirror-Re-Set-Pfade, `useGitHubActionsLogs` hat einen echten AbortController-/Timeout-Vertrag fuer Runs und Logs inklusive Request-Invalidierung bei Input-Wechsel, und AIContext coalesced die redacted AsyncStorage-Persistenz per kleinem Debounce; fokussierte Regressionen decken alle drei Pfade ab.
+
 ## Historical (selected)
 - Patch 388: workflow drift validator + stronger patch artifact discipline
 - Patch 387: managed workflow drift hardening + CI-lite template SHA metadata + cleanup

@@ -1,4 +1,4 @@
-import { renderHook, act } from '@testing-library/react-native';
+import { renderHook, act, waitFor } from '@testing-library/react-native';
 
 import { useGitHubActionsLogs } from '../hooks/useGitHubActionsLogs';
 
@@ -230,12 +230,10 @@ describe('useGitHubActionsLogs edge contract mapping', () => {
       { initialProps: { autoRefresh: true } },
     );
 
-    await act(async () => {
-      await result.current.refreshLogs();
+    await waitFor(() => {
+      expect(result.current.workflowRun?.id).toBe(333);
+      expect(result.current.logs).toHaveLength(1);
     });
-
-    expect(result.current.workflowRun?.id).toBe(333);
-    expect(result.current.logs).toHaveLength(1);
 
     rerender({ autoRefresh: false });
 
@@ -243,6 +241,35 @@ describe('useGitHubActionsLogs edge contract mapping', () => {
     expect(result.current.logs).toEqual([
       expect.objectContaining({ message: 'first-log-line' }),
     ]);
+  });
+
+  it("maps abortable fetch failures onto the timeout/abort error contract", async () => {
+    const fetchMock = jest.fn(async (_: RequestInfo | URL, init?: RequestInit) => {
+      expect(init?.signal).toBeDefined();
+      const err = new Error("aborted");
+      err.name = "AbortError";
+      throw err;
+    });
+
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const { result } = renderHook(() =>
+      useGitHubActionsLogs({
+        githubRepo: "owner/repo",
+        runId: 999,
+        workflowId: "k1w1-ci-lite.yml",
+        autoRefresh: false,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.refreshLogs();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((fetchMock.mock.calls[0][1] as RequestInit | undefined)?.signal).toBeDefined();
+    expect(result.current.error).toBe("Request timeout - GitHub Actions Logs Anfrage abgebrochen");
+    expect(result.current.isLoading).toBe(false);
   });
 
 });
