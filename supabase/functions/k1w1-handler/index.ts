@@ -1,7 +1,7 @@
 // supabase/functions/k1w1-handler/index.ts
 // REFACTORED: helpers → helpers.ts
 
-import { callAnthropic, callGemini, callGroq, callHuggingFace, callOpenAI, corsHeadersForRequest, handleCors, parseJsonBody, parseRequestBody, rateLimit, requireAdminKey } from "./helpers.ts";
+import { callAnthropic, callGemini, callGroq, callHuggingFace, callOpenAI, classifyK1w1HandlerError, corsHeadersForRequest, handleCors, parseJsonBody, parseRequestBody, rateLimit, requireAdminKey } from "./helpers.ts";
 
 Deno.serve(async (req: Request): Promise<Response> => {
   const corsResponse = handleCors(req);
@@ -22,25 +22,30 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
+  let requestProvider: string | undefined;
+  let requestModel: string | undefined;
+
   try {
     const parsedBody = await parseJsonBody(req, 200_000);
     if (!parsedBody.ok) {
       const parseErrorText =
         typeof parsedBody.error === "string" ? parsedBody.error.toLowerCase() : "";
       const isTooLarge = parseErrorText.includes("too large");
-      return new Response(
-        JSON.stringify({
-          ok: false,
-          error: isTooLarge ? "Request too large." : "Invalid request payload.",
-        }),
-        {
-          status: isTooLarge ? 413 : 400,
-          headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
-        },
-      );
+      const errorPayload = {
+        ok: false as const,
+        code: "invalid_request_payload" as const,
+        error: isTooLarge ? "Request too large." : "Invalid request payload.",
+        status: isTooLarge ? 413 : 400,
+      };
+      return new Response(JSON.stringify(errorPayload), {
+        status: isTooLarge ? 413 : 400,
+        headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
+      });
     }
     const bodyJson = parsedBody.body;
     const body = parseRequestBody(bodyJson);
+    requestProvider = body.provider;
+    requestModel = body.model;
 
     console.log(
       "🧠 k1w1-handler request",
@@ -86,28 +91,27 @@ Deno.serve(async (req: Request): Promise<Response> => {
       },
     });
   } catch (err: unknown) {
-    const rawMessage = err instanceof Error ? err.message : "";
+    const rawMessage = err instanceof Error ? err.message : String(err ?? "");
     const rawStack = err instanceof Error ? err.stack : undefined;
-    console.error("❌ k1w1-handler error", rawMessage || "Unknown error", rawStack, err);
+    const errorPayload = classifyK1w1HandlerError(err, {
+      provider: requestProvider,
+      model: requestModel,
+    });
 
-    const isValidationError =
-      rawMessage.includes("Missing") ||
-      rawMessage.includes("Invalid") ||
-      rawMessage.includes("Unsupported provider") ||
-      rawMessage.includes("request body") ||
-      rawMessage.includes("messages");
-
-    const errorPayload = {
-      ok: false as const,
-      error: isValidationError
-        ? "Invalid request payload."
-        : "Internal Server Error",
-    };
-
-    const statusCode = isValidationError ? 400 : 500;
+    console.error(
+      "❌ k1w1-handler error",
+      JSON.stringify({
+        code: errorPayload.code,
+        provider: errorPayload.provider,
+        model: errorPayload.model,
+        status: errorPayload.status,
+        message: rawMessage || "Unknown error",
+      }),
+      rawStack,
+    );
 
     return new Response(JSON.stringify(errorPayload), {
-      status: statusCode,
+      status: errorPayload.status,
       headers: {
         ...responseCorsHeaders,
         "Content-Type": "application/json",
