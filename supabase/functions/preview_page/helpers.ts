@@ -8,6 +8,7 @@
 import {
   createPreviewEdgeErrorPayload,
   isPreviewEdgeErrorCode,
+  PREVIEW_EDGE_ERROR_MESSAGE,
   PREVIEW_EDGE_ERROR_STATUS,
   PREVIEW_ERROR_HEADER,
   type PreviewEdgeErrorCode,
@@ -194,14 +195,31 @@ export function htmlPreviewError(params: {
   );
 }
 
+export function previewPageErrorResponse(params: {
+  code: PreviewEdgeErrorCode;
+  nonce: string;
+  title?: string;
+  message?: string;
+  status?: number;
+}) {
+  return htmlPreviewError({
+    code: params.code,
+    nonce: params.nonce,
+    title: params.title ?? "Preview Error",
+    message: params.message ?? PREVIEW_EDGE_ERROR_MESSAGE[params.code],
+    status: params.status,
+  });
+}
+
 export function classifyPreviewRecordLookupFailure(params: {
   missingBaseUrl?: boolean;
+  missingServiceRoleKey?: boolean;
   status?: number | null;
   contentType?: string | null;
   parseFailed?: boolean;
   error?: unknown;
 }): PreviewEdgeErrorCode {
-  if (params.missingBaseUrl) {
+  if (params.missingBaseUrl || params.missingServiceRoleKey) {
     return "preview_env_missing";
   }
 

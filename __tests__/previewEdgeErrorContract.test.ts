@@ -7,6 +7,7 @@ import {
   classifyPreviewPageUnexpectedError,
   classifyPreviewRecordLookupFailure,
   htmlPreviewError,
+  previewPageErrorResponse,
 } from "../supabase/functions/preview_page/helpers";
 import {
   describeRemotePreviewFailure,
@@ -58,6 +59,14 @@ describe("preview edge error contract", () => {
     );
   });
 
+  it("classifies preview_page partial preview env as preview_env_missing", () => {
+    expect(
+      classifyPreviewRecordLookupFailure({
+        missingServiceRoleKey: true,
+      }),
+    ).toBe("preview_env_missing");
+  });
+
   it("classifies preview_page runtime catch failures explicitly and keeps the response safe", async () => {
     expect(classifyPreviewPageUnexpectedError(new Error("render failed"))).toBe("preview_runtime_error");
 
@@ -71,6 +80,27 @@ describe("preview edge error contract", () => {
     expect(res.status).toBe(500);
     expect(res.headers.get("x-k1w1-preview-error")).toBe("preview_runtime_error");
     await expect(res.text()).resolves.toContain('data-preview-error-code="preview_runtime_error"');
+  });
+
+  it("keeps preview_page browser-facing lookup/env/db failures on the HTML error path with structured markers", async () => {
+    const envRes = previewPageErrorResponse({
+      code: "preview_env_missing",
+      nonce: "nonce-env",
+    });
+    const dbRes = previewPageErrorResponse({
+      code: "preview_db_error",
+      nonce: "nonce-db",
+    });
+
+    expect(envRes.status).toBe(500);
+    expect(envRes.headers.get("content-type")).toContain("text/html");
+    expect(envRes.headers.get("x-k1w1-preview-error")).toBe("preview_env_missing");
+    await expect(envRes.text()).resolves.toContain('data-preview-error-code="preview_env_missing"');
+
+    expect(dbRes.status).toBe(502);
+    expect(dbRes.headers.get("content-type")).toContain("text/html");
+    expect(dbRes.headers.get("x-k1w1-preview-error")).toBe("preview_db_error");
+    await expect(dbRes.text()).resolves.toContain('data-preview-error-code="preview_db_error"');
   });
 
   it("reads structured preview edge errors in invokeSavePreview and maps them to honest client copy", async () => {
