@@ -164,6 +164,34 @@ describe("useChatAIFlow input validation", () => {
     expect(joined).not.toContain("src/local.ts");
     expect(joined).not.toContain("Aktuelle Projektdateien");
   });
+  it("surfaces runtime fallback notes as visible system chat messages", async () => {
+    mockedRunOrchestrator.mockReset();
+    mockedRunOrchestrator.mockResolvedValueOnce({
+      ok: true,
+      text: JSON.stringify([
+        { path: "components/Button.tsx", content: "export const Button = () => null;" },
+      ]),
+      provider: "openai",
+      model: "gpt-4o",
+      runtimeNote: "ℹ️ Runtime-Fallback aktiv: gemini/gemini-2.5-flash -> openai/gpt-4o",
+      fallbackUsed: true,
+    } as any);
+
+    const { result, addChatMessage } = createFlow();
+
+    await act(async () => {
+      await result.current.handleSendWithMeta("Bitte aktualisiere App.tsx");
+    });
+
+    expect(addChatMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: "system",
+        content: "ℹ️ Runtime-Fallback aktiv: gemini/gemini-2.5-flash -> openai/gpt-4o",
+        meta: expect.objectContaining({ runtimeNote: true, fallbackUsed: true }),
+      }),
+    );
+  });
+
   it("redacts token/header/credential patterns before provider handoff", async () => {
     const { result } = createFlow({
       messages: [
