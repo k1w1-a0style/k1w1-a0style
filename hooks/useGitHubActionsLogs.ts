@@ -7,19 +7,13 @@ import { getEdgeAdminKey } from "../infra/github/githubService";
 import { requireSupabaseEdgeUrl } from "../lib/supabaseEdge";
 import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
 import { logger } from '../lib/logger';
+import { fetchWithTimeout as fetchWithAbortTimeout, isAbortError } from "../lib/network/fetchWithTimeout";
 
 import { POLL_INTERVAL_MS, MAX_LOG_ENTRIES, sanitizeLogLine, describeEdgeFailure } from "./actionsLogsTypes";
 import type { UseGitHubActionsLogsOptions, UseGitHubActionsLogsResult, LogEntry, WorkflowRun } from "./actionsLogsTypes";
 export type { LogEntry, WorkflowRun } from "./actionsLogsTypes";
 
 const FETCH_TIMEOUT_MS = 12000;
-
-const isAbortLikeError = (err: unknown): boolean => {
-  if (!err || typeof err !== "object") return false;
-  const name =
-    "name" in err && typeof err.name === "string" ? err.name : "";
-  return name === "AbortError";
-};
 
 export function useGitHubActionsLogs({
   githubRepo,
@@ -52,19 +46,19 @@ export function useGitHubActionsLogs({
       const controller = new AbortController();
       activeAbortControllerRef.current = controller;
 
-      const timeoutId = setTimeout(() => {
-        controller.abort();
-      }, timeoutMs);
-
       try {
-        return await fetch(input, { ...init, signal: controller.signal });
+        return await fetchWithAbortTimeout(input, {
+          ...init,
+          signal: controller.signal,
+          timeoutMs,
+          timeoutMessage: "Request timeout - GitHub Actions Logs Anfrage abgebrochen",
+        });
       } catch (err) {
-        if (isAbortLikeError(err)) {
+        if (isAbortError(err)) {
           throw new Error("Request timeout - GitHub Actions Logs Anfrage abgebrochen");
         }
         throw err;
       } finally {
-        clearTimeout(timeoutId);
         if (activeAbortControllerRef.current === controller) {
           activeAbortControllerRef.current = null;
         }

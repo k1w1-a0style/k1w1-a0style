@@ -27,6 +27,7 @@ export { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";
 export { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 export { parseJsonBody } from "../_shared/validation.ts";
 import { getRuntimeEnv } from "../_shared/auth.ts";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 export const DEFAULT_MODELS = {
   groq: {
@@ -50,6 +51,8 @@ export const DEFAULT_MODELS = {
     quality: "Qwen/Qwen2.5-Coder-32B-Instruct",
   },
 } as const;
+
+const PROVIDER_UPSTREAM_TIMEOUT_MS = 45_000;
 
 // ----------------- Helpers -----------------
 
@@ -319,8 +322,8 @@ export async function callGroq(
 
   const doRequest = async (modelId: string) => {
     const res = await fetchWithTimeout(url, {
-      timeoutMs: 20_000,
-      timeoutMessage: `Groq request timed out after 20000ms: ${url}`,
+      timeoutMs: PROVIDER_UPSTREAM_TIMEOUT_MS,
+      timeoutMessage: `Groq request timed out after ${PROVIDER_UPSTREAM_TIMEOUT_MS}ms`,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -400,8 +403,8 @@ export async function callGemini(
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const res = await fetchWithTimeout(url, {
-    timeoutMs: 20_000,
-    timeoutMessage: `Gemini request timed out after 20000ms: ${url}`,
+    timeoutMs: PROVIDER_UPSTREAM_TIMEOUT_MS,
+    timeoutMessage: `Gemini request timed out after ${PROVIDER_UPSTREAM_TIMEOUT_MS}ms`,
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -443,8 +446,8 @@ export async function callOpenAI(
     (body.quality === "quality" ? qualityConfig.quality : qualityConfig.speed);
 
   const res = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
-    timeoutMs: 20_000,
-    timeoutMessage: "OpenAI request timed out after 20000ms",
+    timeoutMs: PROVIDER_UPSTREAM_TIMEOUT_MS,
+    timeoutMessage: `OpenAI request timed out after ${PROVIDER_UPSTREAM_TIMEOUT_MS}ms`,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -500,8 +503,8 @@ export async function callAnthropic(
       : [{ role: "user" as const, content: "Please respond to the system instructions." }];
 
   const res = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
-    timeoutMs: 20_000,
-    timeoutMessage: "Anthropic request timed out after 20000ms",
+    timeoutMs: PROVIDER_UPSTREAM_TIMEOUT_MS,
+    timeoutMessage: `Anthropic request timed out after ${PROVIDER_UPSTREAM_TIMEOUT_MS}ms`,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -548,8 +551,8 @@ export async function callHuggingFace(
   const prompt = toPlainPrompt(body.messages);
 
   const res = await fetchWithTimeout(`https://api-inference.huggingface.co/models/${encodeURIComponent(model)}`, {
-    timeoutMs: 20_000,
-    timeoutMessage: `HuggingFace request timed out after 20000ms: ${model}`,
+    timeoutMs: PROVIDER_UPSTREAM_TIMEOUT_MS,
+    timeoutMessage: `HuggingFace request timed out after ${PROVIDER_UPSTREAM_TIMEOUT_MS}ms`,
     method: "POST",
     headers: {
       "Content-Type": "application/json",

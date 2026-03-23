@@ -73,9 +73,9 @@ describe("preview edge error contract", () => {
     );
 
     expect(fetchPreviewRecordSource.indexOf("headers = supabaseHeaders();")).toBeGreaterThan(-1);
-    expect(fetchPreviewRecordSource.indexOf("const t = withTimeout(8000);")).toBeGreaterThan(-1);
+    expect(fetchPreviewRecordSource.indexOf("fetchWithTimeout(restUrl")).toBeGreaterThan(-1);
     expect(fetchPreviewRecordSource.indexOf("headers = supabaseHeaders();")).toBeLessThan(
-      fetchPreviewRecordSource.indexOf("const t = withTimeout(8000);"),
+      fetchPreviewRecordSource.indexOf("fetchWithTimeout(restUrl"),
     );
   });
 

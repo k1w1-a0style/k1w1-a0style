@@ -201,7 +201,7 @@ export async function fetchLogsZip(
   const r2 = await fetchWithTimeout(safeLoc, {
     method: "GET",
     timeoutMs: 15_000,
-    timeoutMessage: `GitHub logs archive download timed out after 15000ms: ${safeLoc}`,
+    timeoutMessage: "GitHub logs archive download timed out after 15000ms",
   });
   if (!r2.ok) {
     const body = await r2.text().catch(() => "");

@@ -2,6 +2,7 @@
 // Shared preview helper utilities to keep usePreview/usePreviewScreen aligned.
 
 import { describeLocalEdgeAdminKeyIssue } from "../screens/CredentialsWizardScreen/utils/localAdminKey";
+import { fetchWithTimeout } from "../lib/network/fetchWithTimeout";
 import { isPreviewEdgeErrorCode, type PreviewEdgeErrorCode } from "../shared/previewErrorContract";
 import type { PreviewFiles, PreviewResponse } from "../types/preview";
 
@@ -99,20 +100,6 @@ export const IGNORED_PATTERNS = [
 
 export const EMPTY_REMOTE_PREVIEW_FILES_ERROR =
   "Keine zulaessigen Projektdateien fuer Remote-Preview gefunden.";
-
-export function promiseWithTimeout<T>(
-  promise: Promise<T>,
-  ms: number,
-  timeoutMessage: string,
-): Promise<T> {
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  const timeoutPromise = new Promise<T>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), ms);
-  });
-  return (Promise.race([promise, timeoutPromise]) as Promise<T>).finally(() => {
-    if (timeoutId) clearTimeout(timeoutId);
-  });
-}
 
 export function isProjectFile(value: unknown): value is ProjectFile {
   if (!value || typeof value !== "object") return false;
@@ -282,10 +269,15 @@ function buildPreviewInvokeError(
   return error;
 }
 
+type RuntimeGlobals = typeof globalThis & {
+  process?: {
+    env?: Record<string, string | undefined>;
+  };
+};
+
 function getRuntimeSupabaseUrl(): string | null {
-  if (typeof process === "undefined") return null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const envUrl = (process as any)?.env?.EXPO_PUBLIC_SUPABASE_URL;
+  const runtime = globalThis as RuntimeGlobals;
+  const envUrl = runtime.process?.env?.EXPO_PUBLIC_SUPABASE_URL;
   return typeof envUrl === "string" && envUrl.trim() ? envUrl.trim() : null;
 }
 
@@ -305,19 +297,18 @@ export async function invokeSavePreview(params: {
     throw buildPreviewInvokeError("Supabase URL fehlt.");
   }
 
-  const controller = new AbortController();
   const timeoutMs = params.timeoutMs ?? 12_000;
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const res = await fetch(`${supabaseUrl.replace(/\/$/, "")}/functions/v1/save_preview`, {
+    const res = await fetchWithTimeout(`${supabaseUrl.replace(/\/$/, "")}/functions/v1/save_preview`, {
+      timeoutMs,
+      timeoutMessage: `Supabase Preview Timeout (${timeoutMs}ms)`,
       method: "POST",
       headers: {
         "content-type": "application/json",
         "x-k1w1-admin-key": params.adminKey.trim(),
       },
       body: JSON.stringify(params.payload),
-      signal: controller.signal,
     });
 
     const rawText = await res.text();
@@ -338,12 +329,10 @@ export async function invokeSavePreview(params: {
 
     return parsed ?? { ok: false, error: "Leere Preview-Antwort" };
   } catch (error: unknown) {
-    if (error instanceof Error && error.name === "AbortError") {
+    if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
       throw buildPreviewInvokeError(`Supabase Preview Timeout (${timeoutMs}ms)`);
     }
     throw error;
-  } finally {
-    clearTimeout(timeoutId);
   }
 }
 
