@@ -7,6 +7,7 @@ import {
   parseJsonBody, rateLimit, requireAdminKey, sanitizeUnknownForTransport,
 } from "./helpers.ts";
 import type { PreviewFile, RequestBody, JsonRecord } from "./helpers.ts";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 function buildSandboxFiles(
   name: string,
@@ -231,7 +232,9 @@ Deno.serve(async (req) => {
 
     const sandboxFiles = buildSandboxFiles(name, body.files, deps);
 
-    const resp = await fetch(CODESANDBOX_DEFINE_URL, {
+    const resp = await fetchWithTimeout(CODESANDBOX_DEFINE_URL, {
+      timeoutMs: 15_000,
+      timeoutMessage: `CodeSandbox define request timed out after 15000ms: ${CODESANDBOX_DEFINE_URL}`,
       method: "POST",
       headers: {
         "Content-Type": "application/json",

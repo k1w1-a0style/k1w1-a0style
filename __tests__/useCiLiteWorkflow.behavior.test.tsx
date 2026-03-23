@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import { useCiLiteWorkflow } from "../components/CiLiteHeaderButton/hooks/useCiLiteWorkflow";
 import { WORKFLOW_CI_LITE } from "../components/CiLiteHeaderButton/types";
+import { TimeoutError } from "../lib/network/fetchWithTimeout";
 import { ciLiteSnapshotKeyForSelection } from "../lib/storageKeys";
 
 const mockUseProject = jest.fn();
@@ -219,6 +220,26 @@ describe("useCiLiteWorkflow behavior", () => {
     });
     expect(dispatchBody).not.toHaveProperty("githubToken");
   });
+
+  it("surfaces workflow dispatch timeout errors clearly", async () => {
+    mockStorageGetItem.mockResolvedValue(null);
+    (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("github-workflow-dispatch")) {
+        throw new TimeoutError("Workflow-Dispatch hat das Zeitlimit erreicht. Bitte erneut versuchen.", 15_000);
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    expect(result.current.showError).toBe("Workflow-Dispatch hat das Zeitlimit erreicht. Bitte erneut versuchen.");
+  });
+
 
   it("hydrates a fresh persisted final state on startup", async () => {
     const { result } = renderHook(() => useCiLiteWorkflow());

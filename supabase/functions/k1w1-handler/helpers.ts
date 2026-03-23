@@ -318,7 +318,9 @@ export async function callGroq(
   const url = "https://api.groq.com/openai/v1/chat/completions";
 
   const doRequest = async (modelId: string) => {
-    const res = await fetch(url, {
+    const res = await fetchWithTimeout(url, {
+      timeoutMs: 20_000,
+      timeoutMessage: `Groq request timed out after 20000ms: ${url}`,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -397,7 +399,9 @@ export async function callGemini(
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
+    timeoutMs: 20_000,
+    timeoutMessage: `Gemini request timed out after 20000ms: ${url}`,
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -438,7 +442,9 @@ export async function callOpenAI(
     body.model ||
     (body.quality === "quality" ? qualityConfig.quality : qualityConfig.speed);
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+  const res = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
+    timeoutMs: 20_000,
+    timeoutMessage: "OpenAI request timed out after 20000ms",
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -493,7 +499,9 @@ export async function callAnthropic(
       ? messages
       : [{ role: "user" as const, content: "Please respond to the system instructions." }];
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
+    timeoutMs: 20_000,
+    timeoutMessage: "Anthropic request timed out after 20000ms",
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -539,7 +547,9 @@ export async function callHuggingFace(
 
   const prompt = toPlainPrompt(body.messages);
 
-  const res = await fetch(`https://api-inference.huggingface.co/models/${encodeURIComponent(model)}`, {
+  const res = await fetchWithTimeout(`https://api-inference.huggingface.co/models/${encodeURIComponent(model)}`, {
+    timeoutMs: 20_000,
+    timeoutMessage: `HuggingFace request timed out after 20000ms: ${model}`,
     method: "POST",
     headers: {
       "Content-Type": "application/json",

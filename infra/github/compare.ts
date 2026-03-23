@@ -1,6 +1,7 @@
 import { githubLimiter } from "./rateLimit";
 import { getGitHubToken } from "./tokenStore";
 import { githubApiUrl } from "../../shared/constants/github";
+import { fetchGitHub } from "./utils";
 
 export type GitHubCompareFile = {
   filename: string;
@@ -36,7 +37,7 @@ export async function compareBranches(params: {
     )}?per_page=${perPage}`,
   );
 
-  const resp = await fetch(url, {
+  const resp = await fetchGitHub(url, {
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${token}`,

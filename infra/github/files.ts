@@ -7,6 +7,7 @@ import { encodeGitHubPath, MANAGED_WORKFLOWS, normalizeRepoPath } from "./utils"
 import { getGitHubToken } from "./tokenStore";
 import { getDefaultBranch } from "./repos";
 import { logger } from "../../lib/logger";
+import { fetchGitHub } from "./utils";
 
 type RepoBlobEntry = {
   path: string;
@@ -119,7 +120,7 @@ export const createOrUpdateFile = async (
   await githubLimiter.checkLimit();
 
   const getUrl = githubApiUrl(`/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}?ref=${encodeURIComponent(branch)}`);
-  const getResp = await fetch(getUrl, {
+  const getResp = await fetchGitHub(getUrl, {
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${token}`,
@@ -141,7 +142,7 @@ export const createOrUpdateFile = async (
 
   await githubLimiter.checkLimit();
 
-  const putResp = await fetch(
+  const putResp = await fetchGitHub(
     githubApiUrl(`/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}`), {
       method: "PUT",
       headers: {
@@ -190,7 +191,7 @@ export const deleteRepoFile = async (
   await githubLimiter.checkLimit();
 
   const getUrl = githubApiUrl(`/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}?ref=${encodeURIComponent(branch)}`);
-  const getResp = await fetch(getUrl, {
+  const getResp = await fetchGitHub(getUrl, {
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${token}`,
@@ -213,7 +214,7 @@ export const deleteRepoFile = async (
 
   await githubLimiter.checkLimit();
 
-  const delResp = await fetch(
+  const delResp = await fetchGitHub(
     githubApiUrl(`/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}`), {
       method: "DELETE",
       headers: {
@@ -307,7 +308,7 @@ export const pushFilesToRepoAdvanced = async (
   if (!normalizedFiles.length) return;
 
   await githubLimiter.checkLimit();
-  const branchResp = await fetch(
+  const branchResp = await fetchGitHub(
     githubApiUrl(`/repos/${owner}/${repo}/branches/${encodeURIComponent(targetBranch)}`),
     { headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}` } },
   );
@@ -324,7 +325,7 @@ export const pushFilesToRepoAdvanced = async (
   if (!baseCommitSha) throw new Error("Konnte Basis-Commit für Push nicht ermitteln.");
 
   await githubLimiter.checkLimit();
-  const baseCommitResp = await fetch(
+  const baseCommitResp = await fetchGitHub(
     githubApiUrl(`/repos/${owner}/${repo}/git/commits/${encodeURIComponent(baseCommitSha)}`),
     { headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}` } },
   );
@@ -344,7 +345,7 @@ export const pushFilesToRepoAdvanced = async (
   }));
 
   await githubLimiter.checkLimit();
-  const createTreeResp = await fetch(
+  const createTreeResp = await fetchGitHub(
     githubApiUrl(`/repos/${owner}/${repo}/git/trees`),
     {
       method: "POST",
@@ -361,7 +362,7 @@ export const pushFilesToRepoAdvanced = async (
   if (!newTreeSha) throw new Error("Tree-Erstellung lieferte keine SHA.");
 
   await githubLimiter.checkLimit();
-  const createCommitResp = await fetch(
+  const createCommitResp = await fetchGitHub(
     githubApiUrl(`/repos/${owner}/${repo}/git/commits`),
     {
       method: "POST",
@@ -382,7 +383,7 @@ export const pushFilesToRepoAdvanced = async (
   if (!newCommitSha) throw new Error("Commit-Erstellung lieferte keine SHA.");
 
   await githubLimiter.checkLimit();
-  const updateRefResp = await fetch(
+  const updateRefResp = await fetchGitHub(
     githubApiUrl(`/repos/${owner}/${repo}/git/refs/heads/${encodeGitHubPath(targetBranch)}`),
     {
       method: "PATCH",
@@ -424,7 +425,7 @@ export const listRepoBlobEntries = async (params: {
     const treeUrl = githubApiUrl(
       `/repos/${params.owner}/${params.repo}/git/trees/${encodeURIComponent(treeShaOrRef)}?recursive=1`,
     );
-    const treeRes = await fetch(treeUrl, { headers });
+    const treeRes = await fetchGitHub(treeUrl, { headers });
     if (!treeRes.ok) {
       const text = await treeRes.text().catch(() => "");
       throw new Error(`Tree-Abruf fehlgeschlagen (${treeRes.status}): ${text}`);
@@ -444,7 +445,7 @@ export const listRepoBlobEntries = async (params: {
     const branchUrl = githubApiUrl(
       `/repos/${params.owner}/${params.repo}/branches/${encodeURIComponent(treeRef)}`,
     );
-    const bRes = await fetch(branchUrl, { headers });
+    const bRes = await fetchGitHub(branchUrl, { headers });
     if (!bRes.ok) throw e;
     const bJson: any = await bRes.json().catch(() => ({}));
     const commitSha = String(bJson?.commit?.sha || "").trim();
@@ -454,7 +455,7 @@ export const listRepoBlobEntries = async (params: {
     const commitUrl = githubApiUrl(
       `/repos/${params.owner}/${params.repo}/git/commits/${encodeURIComponent(commitSha)}`,
     );
-    const cRes = await fetch(commitUrl, { headers });
+    const cRes = await fetchGitHub(commitUrl, { headers });
     if (!cRes.ok) throw e;
     const cJson: any = await cRes.json().catch(() => ({}));
     const treeSha = String(cJson?.tree?.sha || "").trim();
@@ -562,7 +563,7 @@ export const getRepoFileText = async (params: {
   const ref = params.ref?.trim();
   const url = githubApiUrl(`/repos/${params.owner}/${params.repo}/contents/${encodeGitHubPath(params.path)}${ref ? `?ref=${encodeURIComponent(ref)}` : ''}`);
 
-  const resp = await fetch(url, {
+  const resp = await fetchGitHub(url, {
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${token}`,

@@ -1,6 +1,8 @@
 import { getRuntimeEnv } from "./auth.ts";
+import { fetchWithTimeout } from "./fetchWithTimeout.ts";
 
 export const GITHUB_API_BASE = "https://api.github.com";
+const GITHUB_FETCH_TIMEOUT_MS = 15_000;
 
 /**
  * Shared GitHub helpers for Supabase Edge Functions
@@ -39,25 +41,42 @@ export function githubHeaders(
   return headers;
 }
 
+function githubTimeoutMessage(url: string, timeoutMs: number): string {
+  return `GitHub upstream request timed out after ${timeoutMs}ms: ${url}`;
+}
+
 export async function githubFetch(
   url: string,
   init: RequestInit = {},
 ): Promise<Response> {
   const token = getGithubToken();
+  const timeoutMs = GITHUB_FETCH_TIMEOUT_MS;
 
   // Primary attempt: Bearer (best for fine-grained PAT)
   const h1 = new Headers(init.headers);
-  for (const [k, v] of Object.entries(githubHeaders(token, "Bearer")))
+  for (const [k, v] of Object.entries(githubHeaders(token, "Bearer"))) {
     h1.set(k, v);
+  }
 
-  const r1 = await fetch(url, { ...init, headers: h1 });
+  const r1 = await fetchWithTimeout(url, {
+    ...init,
+    headers: h1,
+    timeoutMs,
+    timeoutMessage: githubTimeoutMessage(url, timeoutMs),
+  });
 
   // Fallback: classic `token` scheme (some setups still use it)
   if (r1.status === 401) {
     const h2 = new Headers(init.headers);
-    for (const [k, v] of Object.entries(githubHeaders(token, "token")))
+    for (const [k, v] of Object.entries(githubHeaders(token, "token"))) {
       h2.set(k, v);
-    return await fetch(url, { ...init, headers: h2 });
+    }
+    return await fetchWithTimeout(url, {
+      ...init,
+      headers: h2,
+      timeoutMs,
+      timeoutMessage: githubTimeoutMessage(url, timeoutMs),
+    });
   }
 
   return r1;
@@ -75,17 +94,28 @@ export async function githubFetchRaw(
   init: RequestInit = {},
 ): Promise<Response> {
   const t = (token ?? "").trim();
+  const timeoutMs = GITHUB_FETCH_TIMEOUT_MS;
 
   // Primary attempt: Bearer
   const h1 = new Headers(init.headers);
   for (const [k, v] of Object.entries(githubHeaders(t, "Bearer"))) h1.set(k, v);
-  const r1 = await fetch(url, { ...init, headers: h1 });
+  const r1 = await fetchWithTimeout(url, {
+    ...init,
+    headers: h1,
+    timeoutMs,
+    timeoutMessage: githubTimeoutMessage(url, timeoutMs),
+  });
 
   // Fallback: classic token
   if (r1.status === 401) {
     const h2 = new Headers(init.headers);
     for (const [k, v] of Object.entries(githubHeaders(t, "token"))) h2.set(k, v);
-    return await fetch(url, { ...init, headers: h2 });
+    return await fetchWithTimeout(url, {
+      ...init,
+      headers: h2,
+      timeoutMs,
+      timeoutMessage: githubTimeoutMessage(url, timeoutMs),
+    });
   }
 
   return r1;
