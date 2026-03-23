@@ -54,9 +54,14 @@ function renderSection(props?: Partial<React.ComponentProps<typeof LocalRemoteDi
   );
 }
 
-async function waitForContextReset(screen: ReturnType<typeof render>) {
+async function waitForContextReset(
+  screen: ReturnType<typeof render>,
+  expectedContextLabel: string,
+) {
   await waitFor(() => {
+    expect(screen.getByText(expectedContextLabel)).toBeTruthy();
     expect(screen.getByText("Push (0)")).toBeTruthy();
+    expect(screen.getByTestId("local-remote-diff-refresh").props.disabled).not.toBe(true);
   });
 }
 
@@ -99,7 +104,7 @@ describe("LocalRemoteDiffSection truthfulness", () => {
       />,
     );
 
-    await waitForContextReset(screen);
+    await waitForContextReset(screen, "owner/repo-b@develop • Lokal: 1 Dateien");
 
     fireEvent.press(screen.getByTestId("local-remote-diff-refresh"));
 
@@ -147,7 +152,7 @@ describe("LocalRemoteDiffSection truthfulness", () => {
       />,
     );
 
-    await waitForContextReset(screen);
+    await waitForContextReset(screen, "owner/repo-b@main • Lokal: 1 Dateien");
 
     fireEvent.press(screen.getByTestId("local-remote-diff-refresh"));
     await waitFor(() => {
