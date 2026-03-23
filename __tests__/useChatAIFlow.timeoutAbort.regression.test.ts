@@ -11,6 +11,10 @@ describe("useChatAIFlow hard timeout wrapper", () => {
     mockRunOrchestrator.mockReset();
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it("aborts hanging orchestrator requests and reports timeout", async () => {
     jest.useFakeTimers();
 

@@ -14,12 +14,12 @@ afterAll(() => {
 
 // Mock global fetch
 const mockFetch = jest.fn();
-global.fetch = mockFetch;
 
 describe('retryWithBackoff', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    global.fetch = mockFetch as typeof fetch;
   });
 
   afterEach(() => {

@@ -14,6 +14,12 @@ describe("AIContext redacted config persistence", () => {
     jest.clearAllMocks();
   });
 
+
+  afterEach(() => {
+    jest.runOnlyPendingTimers();
+    jest.useRealTimers();
+  });
+
   it("debounces redacted AsyncStorage writes across quick successive config updates", async () => {
     jest.useFakeTimers();
 

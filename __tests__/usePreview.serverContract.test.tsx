@@ -28,6 +28,8 @@ jest.mock("../lib/sandpackBuilder", () => ({
   buildSandpackHtml: (opts: unknown) => mockBuildSandpackHtml(opts),
 }));
 
+const originalSupabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+
 const baseProject: ProjectData = {
   id: "preview-contract",
   name: "Preview Contract",
@@ -50,6 +52,10 @@ describe("usePreview server contract", () => {
     mockFetch.mockReset();
     global.fetch = mockFetch as typeof fetch;
     process.env.EXPO_PUBLIC_SUPABASE_URL = "https://preview.example.com";
+  });
+
+  afterEach(() => {
+    process.env.EXPO_PUBLIC_SUPABASE_URL = originalSupabaseUrl;
   });
 
   test("falls back locally when the preview server is unreachable and keeps the state honest", async () => {

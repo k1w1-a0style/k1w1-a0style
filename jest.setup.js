@@ -77,20 +77,53 @@ const BlockedWebSocket = class BlockedWebSocket {
   }
 };
 
-global.fetch = jest.fn(blockNetworkFactory("fetch"));
-global.XMLHttpRequest = BlockedXMLHttpRequest;
-global.WebSocket = BlockedWebSocket;
+const resetBlockedNetworkGlobals = () => {
+  global.fetch = jest.fn(blockNetworkFactory("fetch"));
+  global.XMLHttpRequest = BlockedXMLHttpRequest;
+  global.WebSocket = BlockedWebSocket;
+};
 
+const unhandledRejectionErrors = [];
 
-// ✅ Global teardown to prevent Jest worker leaks (timers / listeners)
+const onUnhandledRejection = (reason) => {
+  if (reason instanceof Error) {
+    unhandledRejectionErrors.push(reason);
+    return;
+  }
+
+  unhandledRejectionErrors.push(new Error(`Unhandled promise rejection: ${String(reason)}`));
+};
+
+beforeAll(() => {
+  process.on("unhandledRejection", onUnhandledRejection);
+});
+
+beforeEach(() => {
+  unhandledRejectionErrors.length = 0;
+  resetBlockedNetworkGlobals();
+});
+
+// ✅ Global teardown to prevent Jest worker leaks (timers / listeners / DOM / async leftovers)
 afterEach(() => {
   cleanup();
   jest.clearAllMocks();
   jest.clearAllTimers();
   jest.useRealTimers();
+  resetBlockedNetworkGlobals();
+
+  if (unhandledRejectionErrors.length === 1) {
+    const [error] = unhandledRejectionErrors.splice(0, 1);
+    throw error;
+  }
+
+  if (unhandledRejectionErrors.length > 1) {
+    const errors = unhandledRejectionErrors.splice(0, unhandledRejectionErrors.length);
+    throw new AggregateError(errors, "Unhandled promise rejections occurred during this test.");
+  }
 });
 
 afterAll(() => {
+  process.off("unhandledRejection", onUnhandledRejection);
   jest.clearAllTimers();
   jest.useRealTimers();
   global.fetch = originalFetch;
