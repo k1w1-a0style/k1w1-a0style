@@ -2,6 +2,8 @@
 // Shared preview helper utilities to keep usePreview/usePreviewScreen aligned.
 
 import { describeLocalEdgeAdminKeyIssue } from "../screens/CredentialsWizardScreen/utils/localAdminKey";
+import { fetchWithTimeout } from "../lib/network/fetchWithTimeout";
+import { isPreviewEdgeErrorCode, type PreviewEdgeErrorCode } from "../shared/previewErrorContract";
 import type { PreviewFiles, PreviewResponse } from "../types/preview";
 
 export type ProjectFile = { path?: string; content?: string };
@@ -21,6 +23,23 @@ export type PreviewResult = {
   html: string | null;
   expiresAt: string | null;
   source: "supabase" | "local";
+};
+
+type PreviewInvokeError = Error & {
+  status?: number;
+  code?: PreviewEdgeErrorCode;
+};
+
+const PREVIEW_EDGE_ERROR_MESSAGES: Record<PreviewEdgeErrorCode, string> = {
+  preview_env_missing: "Remote-Preview blockiert: Der Preview-Server ist nicht vollstaendig konfiguriert.",
+  preview_db_error: "Remote-Preview konnte serverseitig nicht gespeichert oder geladen werden.",
+  preview_payload_invalid: "Remote-Preview hat ungueltige oder leere Dateien erhalten.",
+  preview_payload_too_large: "Remote-Preview ist zu gross fuer den Serververtrag.",
+  preview_not_found: "Remote-Preview wurde auf dem Server nicht gefunden.",
+  preview_expired: "Remote-Preview ist bereits abgelaufen. Bitte neu erstellen.",
+  preview_response_too_large: "Remote-Preview konnte nicht ausgeliefert werden, weil die Antwort zu gross wurde.",
+  preview_runtime_error: "Remote-Preview ist serverseitig beim Rendern fehlgeschlagen.",
+  preview_unknown_internal_error: "Remote-Preview ist serverseitig intern fehlgeschlagen.",
 };
 
 export type PreviewAttemptMode = "supabase" | "local" | null | undefined;
@@ -81,20 +100,6 @@ export const IGNORED_PATTERNS = [
 
 export const EMPTY_REMOTE_PREVIEW_FILES_ERROR =
   "Keine zulaessigen Projektdateien fuer Remote-Preview gefunden.";
-
-export function promiseWithTimeout<T>(
-  promise: Promise<T>,
-  ms: number,
-  timeoutMessage: string,
-): Promise<T> {
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  const timeoutPromise = new Promise<T>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), ms);
-  });
-  return (Promise.race([promise, timeoutPromise]) as Promise<T>).finally(() => {
-    if (timeoutId) clearTimeout(timeoutId);
-  });
-}
 
 export function isProjectFile(value: unknown): value is ProjectFile {
   if (!value || typeof value !== "object") return false;
@@ -190,6 +195,18 @@ export function getPreviewRemoteUrlStatus(url: string | null | undefined): Previ
   return "invalid";
 }
 
+function getPreviewEdgeErrorCode(error: unknown): PreviewEdgeErrorCode | null {
+  const directCode = (error as { code?: unknown } | null)?.code;
+  if (isPreviewEdgeErrorCode(directCode)) return directCode;
+
+  if (error && typeof error === "object") {
+    const nestedCode = (error as { response?: { code?: unknown } }).response?.code;
+    if (isPreviewEdgeErrorCode(nestedCode)) return nestedCode;
+  }
+
+  return null;
+}
+
 export function describeRemotePreviewFailure(params: {
   adminKey?: string | null;
   statusCode?: number | null;
@@ -212,6 +229,11 @@ export function describeRemotePreviewFailure(params: {
     return "Preview-Server derzeit nicht erreichbar.";
   }
 
+  const errorCode = getPreviewEdgeErrorCode(params.error);
+  if (errorCode) {
+    return PREVIEW_EDGE_ERROR_MESSAGES[errorCode];
+  }
+
   if (
     normalized.includes("files fehlt/leer") ||
     normalized.includes("no valid files") ||
@@ -232,18 +254,30 @@ export function describeRemotePreviewFailure(params: {
   return "Remote-Preview konnte nicht zuverlässig bereitgestellt werden.";
 }
 
-function buildPreviewInvokeError(message: string, status?: number): Error & { status?: number } {
-  const error = new Error(message) as Error & { status?: number };
+function buildPreviewInvokeError(
+  message: string,
+  status?: number,
+  code?: PreviewEdgeErrorCode,
+): PreviewInvokeError {
+  const error = new Error(message) as PreviewInvokeError;
   if (typeof status === "number") {
     error.status = status;
+  }
+  if (code) {
+    error.code = code;
   }
   return error;
 }
 
+type RuntimeGlobals = typeof globalThis & {
+  process?: {
+    env?: Record<string, string | undefined>;
+  };
+};
+
 function getRuntimeSupabaseUrl(): string | null {
-  if (typeof process === "undefined") return null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const envUrl = (process as any)?.env?.EXPO_PUBLIC_SUPABASE_URL;
+  const runtime = globalThis as RuntimeGlobals;
+  const envUrl = runtime.process?.env?.EXPO_PUBLIC_SUPABASE_URL;
   return typeof envUrl === "string" && envUrl.trim() ? envUrl.trim() : null;
 }
 
@@ -263,44 +297,42 @@ export async function invokeSavePreview(params: {
     throw buildPreviewInvokeError("Supabase URL fehlt.");
   }
 
-  const controller = new AbortController();
   const timeoutMs = params.timeoutMs ?? 12_000;
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const res = await fetch(`${supabaseUrl.replace(/\/$/, "")}/functions/v1/save_preview`, {
+    const res = await fetchWithTimeout(`${supabaseUrl.replace(/\/$/, "")}/functions/v1/save_preview`, {
+      timeoutMs,
+      timeoutMessage: `Supabase Preview Timeout (${timeoutMs}ms)`,
       method: "POST",
       headers: {
         "content-type": "application/json",
         "x-k1w1-admin-key": params.adminKey.trim(),
       },
       body: JSON.stringify(params.payload),
-      signal: controller.signal,
     });
 
     const rawText = await res.text();
     const parsed = rawText ? safeJson<PreviewResponse>(rawText) : null;
+    const errorCode = isPreviewEdgeErrorCode(parsed?.code) ? parsed.code : null;
     const errorMessage =
       typeof parsed?.error === "string" && parsed.error.trim()
         ? parsed.error.trim()
         : rawText.trim() || `HTTP ${res.status}`;
 
     if (!res.ok) {
-      throw buildPreviewInvokeError(errorMessage, res.status);
+      throw buildPreviewInvokeError(errorMessage, res.status, errorCode ?? undefined);
     }
 
     if (parsed && parsed.ok === false) {
-      throw buildPreviewInvokeError(errorMessage, res.status);
+      throw buildPreviewInvokeError(errorMessage, res.status, errorCode ?? undefined);
     }
 
     return parsed ?? { ok: false, error: "Leere Preview-Antwort" };
   } catch (error: unknown) {
-    if (error instanceof Error && error.name === "AbortError") {
+    if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
       throw buildPreviewInvokeError(`Supabase Preview Timeout (${timeoutMs}ms)`);
     }
     throw error;
-  } finally {
-    clearTimeout(timeoutId);
   }
 }
 

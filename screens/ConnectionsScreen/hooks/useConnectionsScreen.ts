@@ -36,6 +36,7 @@ import {
 } from "../utils/validation";
 
 import { debugLog } from "../../../lib/debugOverlay";
+import { fetchWithTimeout } from "../../../lib/network/fetchWithTimeout";
 import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction";
 import { parseExpoGraphQLUsername } from "../utils/expoGraphql";
 import { BusyGuardActiveError, isBusyGuardActiveError } from "./busyGuard";
@@ -169,9 +170,11 @@ export function useConnectionsScreen() {
     setIsTestingEas(true);
     try {
       const id = easProjectId.trim();
-      const resp = await fetch(
+      const resp = await fetchWithTimeout(
         `https://api.expo.dev/v2/projects/${encodeURIComponent(id)}`,
         {
+          timeoutMs: 12_000,
+          timeoutMessage: "EAS-Projektprüfung hat das Zeitlimit erreicht. Bitte Expo-Verbindung erneut testen.",
           headers: {
             Authorization: `Bearer ${expoToken.trim()}`,
             Accept: "application/json",
@@ -471,7 +474,9 @@ export function useConnectionsScreen() {
       debugLog("connections:github", "GET /user", {
         url: githubApiUrl("/user"),
       });
-      const resp = await fetch(githubApiUrl("/user"), {
+      const resp = await fetchWithTimeout(githubApiUrl("/user"), {
+        timeoutMs: 12_000,
+        timeoutMessage: "GitHub-Test hat das Zeitlimit erreicht. Bitte erneut versuchen.",
         headers: {
           Accept: "application/vnd.github+json",
           Authorization: `Bearer ${gh}`,
@@ -528,7 +533,9 @@ Scopes: ${scopes}` : ""}`);
       await withBusyGuard(async () => {
       const url = "https://api.expo.dev/graphql";
       debugLog("connections:expo", "POST /graphql", { url });
-      const resp = await fetch(url, {
+      const resp = await fetchWithTimeout(url, {
+        timeoutMs: 12_000,
+        timeoutMessage: "Expo-Test hat das Zeitlimit erreicht. Bitte erneut versuchen.",
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -587,13 +594,17 @@ Scopes: ${scopes}` : ""}`);
 
     try {
       await withBusyGuard(async () => {
-      const resp = await fetch(`${url}/rest/v1/`, {
+      const resp = await fetchWithTimeout(`${url}/rest/v1/`, {
+        timeoutMs: 12_000,
+        timeoutMessage: "Supabase-REST-Ping hat das Zeitlimit erreicht. Bitte URL/Netzwerk prüfen.",
         method: "GET",
         headers: { apikey: anon, Authorization: `Bearer ${anon}` },
       });
       if (!resp.ok) throw new Error(`REST Ping failed (${resp.status})`);
 
-      const tableRes = await fetch(`${url}/rest/v1/build_jobs?select=id&limit=1`, {
+      const tableRes = await fetchWithTimeout(`${url}/rest/v1/build_jobs?select=id&limit=1`, {
+        timeoutMs: 12_000,
+        timeoutMessage: "Supabase build_jobs-Prüfung hat das Zeitlimit erreicht. Bitte erneut versuchen.",
         method: "GET",
         headers: { apikey: anon, Authorization: `Bearer ${anon}` },
       });

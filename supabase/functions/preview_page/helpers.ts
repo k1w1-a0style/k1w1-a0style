@@ -6,6 +6,14 @@
 // NOTE: Preview runs in a sandbox. Do NOT put secrets/service keys into preview files.
 
 import {
+  createPreviewEdgeErrorPayload,
+  isPreviewEdgeErrorCode,
+  PREVIEW_EDGE_ERROR_MESSAGE,
+  PREVIEW_EDGE_ERROR_STATUS,
+  PREVIEW_ERROR_HEADER,
+  type PreviewEdgeErrorCode,
+} from "../../../shared/previewErrorContract.ts";
+import {
   getPreviewServiceRoleKey,
   getPreviewSupabaseUrl,
   getRuntimeEnv,
@@ -15,7 +23,6 @@ import {
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 
 export { rateLimit, sanitizeErrorText };
-
 
 export type SnackFiles = Record<string, { type?: string; contents: string }>;
 
@@ -30,6 +37,10 @@ export type PreviewRecord = {
   meta: Record<string, unknown> | null;
 };
 
+export type PreviewRecordLookupResult =
+  | { ok: true; record: PreviewRecord | null }
+  | { ok: false; code: PreviewEdgeErrorCode };
+
 export const TABLE = "previews";
 
 // Limits
@@ -37,15 +48,39 @@ export const MAX_FILES_BYTES = 1_500_000; // 1.5MB (aligned with save_preview)
 export const MAX_RESPONSE_BYTES = 5_000_000; // 5MB safety for generated HTML
 
 // Rate limiting (best-effort, in-memory; resets on cold start)
-export function json(data: unknown, status = 200) {
+export function json(data: unknown, status = 200, headers?: HeadersInit) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "Cache-Control": "no-store, no-cache, must-revalidate",
       "X-Content-Type-Options": "nosniff",
+      ...(headers ?? {}),
     },
   });
+}
+
+export function previewErrorHeaders(
+  code: PreviewEdgeErrorCode,
+  extraHeaders?: HeadersInit,
+): HeadersInit {
+  return {
+    [PREVIEW_ERROR_HEADER]: code,
+    ...(extraHeaders ?? {}),
+  };
+}
+
+export function jsonPreviewError(params: {
+  code: PreviewEdgeErrorCode;
+  message?: string;
+  status?: number;
+}) {
+  const status = params.status ?? PREVIEW_EDGE_ERROR_STATUS[params.code];
+  return json(
+    createPreviewEdgeErrorPayload(params.code, params.message),
+    status,
+    previewErrorHeaders(params.code),
+  );
 }
 
 export function escapeHtml(s: string) {
@@ -85,12 +120,6 @@ export function supabaseHeaders(): Record<string, string> {
   };
 }
 
-export function withTimeout(ms: number) {
-  const ac = new AbortController();
-  const id = setTimeout(() => ac.abort(), ms);
-  return { signal: ac.signal, cancel: () => clearTimeout(id) };
-}
-
 export function utf8Size(s: string): number {
   return new TextEncoder().encode(s).length;
 }
@@ -128,7 +157,7 @@ export function buildCsp(nonce: string): string {
   ].join("; ");
 }
 
-export function html(body: string, nonce: string, status = 200) {
+export function html(body: string, nonce: string, status = 200, headers?: HeadersInit) {
   return new Response(body, {
     status,
     headers: {
@@ -140,7 +169,93 @@ export function html(body: string, nonce: string, status = 200) {
       // which breaks Sandpack/WebViews (white screen). Override it here.
       "Content-Security-Policy": buildCsp(nonce),
       "Referrer-Policy": "no-referrer",
+      ...(headers ?? {}),
     },
   });
 }
 
+export function htmlPreviewError(params: {
+  code: PreviewEdgeErrorCode;
+  nonce: string;
+  title: string;
+  message: string;
+  status?: number;
+}) {
+  return html(
+    `<!doctype html><meta charset="utf-8"><title>${escapeHtml(params.title)}</title><pre data-preview-error-code="${escapeHtml(params.code)}">${escapeHtml(params.message)}</pre>`,
+    params.nonce,
+    params.status ?? PREVIEW_EDGE_ERROR_STATUS[params.code],
+    previewErrorHeaders(params.code),
+  );
+}
+
+export function previewPageErrorResponse(params: {
+  code: PreviewEdgeErrorCode;
+  nonce: string;
+  title?: string;
+  message?: string;
+  status?: number;
+}) {
+  return htmlPreviewError({
+    code: params.code,
+    nonce: params.nonce,
+    title: params.title ?? "Preview Error",
+    message: params.message ?? PREVIEW_EDGE_ERROR_MESSAGE[params.code],
+    status: params.status,
+  });
+}
+
+export function classifyPreviewRecordLookupFailure(params: {
+  missingBaseUrl?: boolean;
+  missingServiceRoleKey?: boolean;
+  status?: number | null;
+  contentType?: string | null;
+  parseFailed?: boolean;
+  error?: unknown;
+}): PreviewEdgeErrorCode {
+  if (params.missingBaseUrl || params.missingServiceRoleKey) {
+    return "preview_env_missing";
+  }
+
+  if (params.status != null && params.status >= 400) {
+    return "preview_db_error";
+  }
+
+  if (params.parseFailed) {
+    return "preview_db_error";
+  }
+
+  if (params.contentType && !params.contentType.toLowerCase().includes("application/json")) {
+    return "preview_db_error";
+  }
+
+  if (params.error) {
+    const message = sanitizeErrorText(params.error instanceof Error ? params.error.message : String(params.error));
+    if (isPreviewEdgeErrorCode(message)) {
+      return message;
+    }
+    return "preview_db_error";
+  }
+
+  return "preview_db_error";
+}
+
+export function classifyPreviewRecordShape(record: PreviewRecord | null): PreviewEdgeErrorCode | null {
+  if (!record) return null;
+  if (!record.files || typeof record.files !== "object" || Array.isArray(record.files)) {
+    return "preview_payload_invalid";
+  }
+  return null;
+}
+
+export function classifyPreviewPageUnexpectedError(error: unknown): PreviewEdgeErrorCode {
+  if (isPreviewEdgeErrorCode(error)) {
+    return error;
+  }
+
+  const message = sanitizeErrorText(error instanceof Error ? error.message : String(error ?? ""));
+  if (!message.trim()) {
+    return "preview_unknown_internal_error";
+  }
+  return "preview_runtime_error";
+}

@@ -27,11 +27,11 @@ describe("k1w1-handler provider invariants", () => {
   it("keeps required provider secrets server-side", () => {
     const src = read("supabase/functions/k1w1-handler/helpers.ts");
 
-    expect(src).toContain('Deno.env.get("GROQ_API_KEY")');
-    expect(src).toContain('Deno.env.get("GEMINI_API_KEY")');
-    expect(src).toContain('Deno.env.get("OPENAI_API_KEY")');
-    expect(src).toContain('Deno.env.get("ANTHROPIC_API_KEY")');
-    expect(src).toContain('Deno.env.get("HUGGINGFACE_API_KEY")');
+    expect(src).toContain('getRuntimeEnv("GROQ_API_KEY")');
+    expect(src).toContain('getRuntimeEnv("GEMINI_API_KEY")');
+    expect(src).toContain('getRuntimeEnv("OPENAI_API_KEY")');
+    expect(src).toContain('getRuntimeEnv("ANTHROPIC_API_KEY")');
+    expect(src).toContain('getRuntimeEnv("HUGGINGFACE_API_KEY")');
   });
 
 

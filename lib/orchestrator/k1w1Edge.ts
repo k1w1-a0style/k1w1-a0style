@@ -5,12 +5,26 @@ import { SUPABASE_EDGE_FUNCTIONS } from '../../shared/constants/supabase';
 import type { AllAIProviders } from '../../contexts/AIContext';
 import type { LlmMessage, OrchestratorResult, Quality } from './types';
 
+export type K1w1HandlerErrorCode =
+  | 'provider_env_missing'
+  | 'provider_http_401'
+  | 'provider_http_403'
+  | 'provider_http_404'
+  | 'provider_http_429'
+  | 'provider_model_not_found'
+  | 'provider_upstream_error'
+  | 'invalid_request_payload'
+  | 'unsupported_provider'
+  | 'unknown_internal_error';
+
 export type K1w1HandlerPayload = {
   ok?: boolean;
   provider?: string;
   model?: string;
   content?: string;
   error?: string;
+  code?: K1w1HandlerErrorCode;
+  status?: number;
 };
 
 type InvokeK1w1HandlerArgs = {
@@ -35,6 +49,50 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
+function providerLabel(provider: string): string {
+  const normalized = provider.trim();
+  if (!normalized) return 'Der Provider';
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function mapHandlerErrorCodeToMessage(
+  code: K1w1HandlerErrorCode | undefined,
+  provider: string,
+  model: string,
+): string {
+  const label = providerLabel(provider);
+  const safeModel = model.trim();
+
+  switch (code) {
+    case 'provider_env_missing':
+      return `${label} ist serverseitig nicht konfiguriert.`;
+    case 'provider_http_401':
+      return `${label} lehnt den Server-Request ab (401). Bitte Provider-Key oder Account-Berechtigungen pruefen.`;
+    case 'provider_http_403':
+      return `${label} verweigert den Zugriff auf den angeforderten KI-Request (403).`;
+    case 'provider_http_404':
+      return `${label} konnte die angeforderte Ressource nicht finden (404).`;
+    case 'provider_http_429':
+      return `${label} meldet ein Rate-Limit oder ist voruebergehend ueberlastet (429).`;
+    case 'provider_model_not_found':
+      return safeModel
+        ? `Das Modell "${safeModel}" ist bei ${label} nicht verfuegbar oder wird dort nicht unterstuetzt.`
+        : `${label} meldet, dass das angeforderte Modell nicht verfuegbar ist.`;
+    case 'provider_upstream_error':
+      return `${label} hat den KI-Request serverseitig nicht erfolgreich verarbeitet.`;
+    case 'invalid_request_payload':
+      return 'Invalid request payload.';
+    case 'unsupported_provider':
+      return provider.trim()
+        ? `Der Provider "${provider.trim()}" wird vom k1w1-handler nicht unterstuetzt.`
+        : 'Der angeforderte KI-Provider wird vom k1w1-handler nicht unterstuetzt.';
+    case 'unknown_internal_error':
+      return 'Internal Server Error';
+    default:
+      return 'Edge-Handler lieferte keinen gueltigen Erfolgs-Response.';
+  }
+}
+
 async function readResponseText(response: Response): Promise<string> {
   try {
     return await response.text();
@@ -52,35 +110,77 @@ async function readResponseJson(response: Response): Promise<Record<string, unkn
   }
 }
 
-async function extractInvokeErrorMessage(error: unknown): Promise<string> {
+function resolveHandlerError(
+  payload: K1w1HandlerPayload | null | undefined,
+  fallbackProvider: AllAIProviders,
+  fallbackModel: string,
+): { provider: string; model: string; message: string } {
+  const provider = typeof payload?.provider === 'string' && payload.provider.trim()
+    ? payload.provider.trim()
+    : fallbackProvider;
+  const model = typeof payload?.model === 'string' && payload.model.trim()
+    ? payload.model.trim()
+    : fallbackModel;
+  const explicitError = typeof payload?.error === 'string' ? payload.error.trim() : '';
+
+  return {
+    provider,
+    model,
+    message: explicitError || mapHandlerErrorCodeToMessage(payload?.code, provider, model),
+  };
+}
+
+async function extractInvokeErrorResult(
+  error: unknown,
+  fallbackProvider: AllAIProviders,
+  fallbackModel: string,
+): Promise<OrchestratorResult> {
   if (!error || typeof error !== 'object') {
-    return `Edge-Request fehlgeschlagen: ${getErrorMessage(error)}`;
+    return {
+      ok: false,
+      error: `Edge-Request fehlgeschlagen: ${getErrorMessage(error)}`,
+      provider: fallbackProvider,
+      model: fallbackModel,
+    };
   }
 
-  const withContext = error as { context?: unknown; message?: unknown; name?: unknown };
+  const withContext = error as { context?: unknown; message?: unknown };
   const response = withContext.context instanceof Response ? withContext.context : null;
 
   if (response) {
-    const json = await readResponseJson(response);
-    const payloadError = typeof json?.error === 'string' ? json.error.trim() : '';
-    if (payloadError) {
-      return payloadError;
+    const json = await readResponseJson(response.clone());
+    if (json) {
+      const normalized = normalizeHandlerPayload(json as K1w1HandlerPayload, fallbackProvider, fallbackModel);
+      if (!normalized.ok) {
+        return normalized;
+      }
     }
 
     const text = (await readResponseText(response)).trim();
     if (text) {
-      return `Edge-Request fehlgeschlagen (${response.status}): ${text}`;
+      return {
+        ok: false,
+        error: `Edge-Request fehlgeschlagen (${response.status}): ${text}`,
+        provider: fallbackProvider,
+        model: fallbackModel,
+      };
     }
 
-    return `Edge-Request fehlgeschlagen (${response.status}).`;
+    return {
+      ok: false,
+      error: `Edge-Request fehlgeschlagen (${response.status}).`,
+      provider: fallbackProvider,
+      model: fallbackModel,
+    };
   }
 
   const msg = typeof withContext.message === 'string' ? withContext.message.trim() : '';
-  if (msg) {
-    return `Edge-Request fehlgeschlagen: ${msg}`;
-  }
-
-  return 'Edge-Request fehlgeschlagen.';
+  return {
+    ok: false,
+    error: msg ? `Edge-Request fehlgeschlagen: ${msg}` : 'Edge-Request fehlgeschlagen.',
+    provider: fallbackProvider,
+    model: fallbackModel,
+  };
 }
 
 function normalizeHandlerPayload(
@@ -96,14 +196,12 @@ function normalizeHandlerPayload(
     : fallbackModel;
 
   if (!payload || payload.ok !== true) {
+    const resolved = resolveHandlerError(payload, fallbackProvider, fallbackModel);
     return {
       ok: false,
-      error:
-        typeof payload?.error === 'string' && payload.error.trim()
-          ? payload.error.trim()
-          : 'Edge-Handler lieferte keinen gueltigen Erfolgs-Response.',
-      provider,
-      model,
+      error: resolved.message,
+      provider: resolved.provider,
+      model: resolved.model,
     };
   }
 
@@ -173,12 +271,13 @@ export async function invokeK1w1Handler({
     );
 
     if (error) {
-      const errorMessage = timedOut
-        ? `Request timeout nach ${timeoutMs}ms`
-        : signal?.aborted || isAbortError(error)
-          ? 'Request abgebrochen'
-          : await extractInvokeErrorMessage(error);
-      return { ok: false, error: errorMessage, provider, model };
+      if (timedOut) {
+        return { ok: false, error: `Request timeout nach ${timeoutMs}ms`, provider, model };
+      }
+      if (signal?.aborted || isAbortError(error)) {
+        return { ok: false, error: 'Request abgebrochen', provider, model };
+      }
+      return await extractInvokeErrorResult(error, provider, model);
     }
 
     return normalizeHandlerPayload(data, provider, model);
@@ -189,12 +288,7 @@ export async function invokeK1w1Handler({
     if (signal?.aborted || isAbortError(error)) {
       return { ok: false, error: 'Request abgebrochen', provider, model };
     }
-    return {
-      ok: false,
-      error: await extractInvokeErrorMessage(error),
-      provider,
-      model,
-    };
+    return await extractInvokeErrorResult(error, provider, model);
   } finally {
     clearTimeout(timeoutId);
     signal?.removeEventListener('abort', onAbort);

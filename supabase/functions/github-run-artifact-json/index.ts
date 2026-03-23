@@ -1,5 +1,5 @@
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
-import { requireAdminKeyOrServiceRoleBearer } from "../_shared/auth.ts";
+import { requireAdminKeyOrServiceRoleBearer, rateLimit } from "../_shared/auth.ts";
 import { githubFetchJson, githubFetchRaw, getGithubToken } from "../_shared/github.ts";
 
 // GitHub Artifacts are delivered as ZIP. The Deno std ZIP module moved around and
@@ -44,6 +44,9 @@ Deno.serve(async (req: Request) => {
 
   const authError = requireAdminKeyOrServiceRoleBearer(req);
   if (authError) return authError;
+
+  const rl = rateLimit(req, "github-run-artifact-json", 30, 60_000);
+  if (rl) return rl;
 
   try {
     const token = getGithubToken();

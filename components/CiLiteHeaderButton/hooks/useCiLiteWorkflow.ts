@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from "uuid";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { requireSupabaseEdgeUrl } from "../../../lib/supabaseEdge";
+import { fetchWithTimeout } from "../../../lib/network/fetchWithTimeout";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
 import { getBranchHeadSha, getEdgeAdminKey } from "../../../infra/github/githubService";
 import { useProject } from "../../../contexts/ProjectContext";
@@ -201,7 +202,9 @@ export function useCiLiteWorkflow() {
       const edgeUrl = await requireSupabaseEdgeUrl();
       const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
 
-      const r = await fetch(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_RUNS}`, {
+      const r = await fetchWithTimeout(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_RUNS}`, {
+        timeoutMs: 15_000,
+        timeoutMessage: "Workflow-Run-Lookup hat das Zeitlimit erreicht. Bitte erneut versuchen.",
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -355,7 +358,9 @@ export function useCiLiteWorkflow() {
             ? "ci-logs/ci-lite-autofix-result.json"
             : "ci-logs/ci-lite-result.json";
 
-        const resp = await fetch(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_RUN_ARTIFACT_JSON}`, {
+        const resp = await fetchWithTimeout(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_RUN_ARTIFACT_JSON}`, {
+          timeoutMs: 15_000,
+          timeoutMessage: "CI-Lite-Artefakt konnte nicht rechtzeitig geladen werden. Bitte erneut versuchen.",
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -725,7 +730,9 @@ export function useCiLiteWorkflow() {
         }
 
         const edgeUrl = await requireSupabaseEdgeUrl();
-        const r = await fetch(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_DISPATCH}`, {
+        const r = await fetchWithTimeout(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_DISPATCH}`, {
+          timeoutMs: 15_000,
+          timeoutMessage: "Workflow-Dispatch hat das Zeitlimit erreicht. Bitte erneut versuchen.",
           method: "POST",
           headers: { "Content-Type": "application/json", "x-k1w1-admin-key": trimmedEdgeAdminKey },
           body: JSON.stringify({

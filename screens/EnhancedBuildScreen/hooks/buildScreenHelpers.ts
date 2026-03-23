@@ -1,3 +1,4 @@
+import { TimeoutError } from "../../../lib/network/fetchWithTimeout";
 import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction";
 import {
   getWorkflowRunDetails,
@@ -59,9 +60,12 @@ export function validateRepoFullName(input: string): RepoValidation {
 }
 
 export async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  // Intentional higher-level deadline guard: the underlying GitHub helpers already use the
+  // shared fetchWithTimeout(...) contract per request, while this caps the full async bundle
+  // without widening downstream helper signatures just to thread AbortSignals through.
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
   const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error("Timeout")), ms);
+    timeoutId = setTimeout(() => reject(new TimeoutError("Timeout", ms)), ms);
   });
   try {
     return await Promise.race([promise, timeoutPromise]);

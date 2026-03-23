@@ -5,6 +5,7 @@ import { githubLimiter } from "./rateLimit";
 import { githubApiUrl } from "../../shared/constants/github";
 import { getGitHubToken } from "./tokenStore";
 import { logger } from "../../lib/logger";
+import { fetchGitHub } from "./utils";
 
 export type { GitHubBranch } from "./branchOps";
 export { createBranch, deleteBranch, renameBranch, getBranches, getDefaultBranch, getBranchHeadSha } from "./branchOps";
@@ -16,7 +17,7 @@ export const createRepo = async (repoName: string, isPrivate = true) => {
 
   await githubLimiter.checkLimit();
 
-  const resp = await fetch(githubApiUrl("/user/repos"), {
+  const resp = await fetchGitHub(githubApiUrl("/user/repos"), {
     method: "POST",
     headers: {
       Accept: "application/vnd.github+json",
@@ -55,7 +56,7 @@ export const createRepo = async (repoName: string, isPrivate = true) => {
     if (status === 422 && alreadyExistsError) {
       logger.warn("Repo existiert bereits, verwende es", { repoName });
       await githubLimiter.checkLimit();
-      const userResp = await fetch(githubApiUrl("/user"), {
+      const userResp = await fetchGitHub(githubApiUrl("/user"), {
         headers: {
           Accept: "application/vnd.github+json",
           Authorization: `Bearer ${token}`,
@@ -90,7 +91,7 @@ export const deleteRepo = async (
 
   await githubLimiter.checkLimit();
 
-  const resp = await fetch(githubApiUrl(`/repos/${owner}/${repo}`), {
+  const resp = await fetchGitHub(githubApiUrl(`/repos/${owner}/${repo}`), {
     method: "DELETE",
     headers: {
       Accept: "application/vnd.github+json",
@@ -121,7 +122,7 @@ export const renameRepo = async (
 
   await githubLimiter.checkLimit();
 
-  const resp = await fetch(githubApiUrl(`/repos/${owner}/${repo}`), {
+  const resp = await fetchGitHub(githubApiUrl(`/repos/${owner}/${repo}`), {
     method: "PATCH",
     headers: {
       Accept: "application/vnd.github+json",

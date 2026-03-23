@@ -17,10 +17,13 @@ import {
   sanitizeFiles,
   corsHeaders,
   json,
+  jsonPreviewError,
   randomSecret,
   approxSize,
   MAX_FILES_COUNT,
   MAX_PAYLOAD_BYTES,
+  classifySavePreviewPayloadError,
+  classifySavePreviewUnexpectedError,
 } from "./helpers.ts";
 
 Deno.serve(async (req) => {
@@ -48,21 +51,19 @@ Deno.serve(async (req) => {
   const previewServiceRoleKey = getPreviewServiceRoleKey() ?? "";
 
   if (!previewSupabaseUrl || !previewServiceRoleKey) {
-    return json(
-      {
-        ok: false,
-        error: "Server misconfigured",
-        hint: "Missing PREVIEW_SUPABASE_URL / PREVIEW_SERVICE_ROLE_KEY",
-      },
-      { status: 500, headers: cors },
-    );
+    return jsonPreviewError({
+      origin,
+      code: "preview_env_missing",
+    });
   }
 
   let body: Payload;
   const parsed = await parseJsonBody(req, MAX_PAYLOAD_BYTES);
   if (!parsed.ok) {
-    const status = parsed.error.toLowerCase().includes("too large") ? 413 : 400;
-    return json({ ok: false, error: parsed.error }, { status, headers: cors });
+    return jsonPreviewError({
+      origin,
+      code: classifySavePreviewPayloadError(parsed.error),
+    });
   }
   body = parsed.body as Payload;
 
@@ -71,10 +72,11 @@ Deno.serve(async (req) => {
     typeof body.files !== "object" ||
     Object.keys(body.files).length === 0
   ) {
-    return json(
-      { ok: false, error: "files fehlt/leer" },
-      { status: 400, headers: cors },
-    );
+    return jsonPreviewError({
+      origin,
+      code: "preview_payload_invalid",
+      message: "Preview-Payload enthaelt keine Dateien.",
+    });
   }
 
   let files: SnackFiles;
@@ -82,7 +84,10 @@ Deno.serve(async (req) => {
     files = sanitizeFiles(body.files);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Invalid files";
-    return json({ ok: false, error: msg }, { status: 400, headers: cors });
+    return jsonPreviewError({
+      origin,
+      code: classifySavePreviewPayloadError(msg),
+    });
   }
 
   const project_id =
@@ -92,18 +97,18 @@ Deno.serve(async (req) => {
 
   const fileCount = Object.keys(body.files).length;
   if (fileCount > MAX_FILES_COUNT) {
-    return json(
-      { ok: false, error: `Too many files (${fileCount} > ${MAX_FILES_COUNT})` },
-      { status: 413, headers: cors },
-    );
+    return jsonPreviewError({
+      origin,
+      code: "preview_payload_too_large",
+    });
   }
 
   const bytes = approxSize(body);
   if (bytes > MAX_PAYLOAD_BYTES) {
-    return json(
-      { ok: false, error: `Payload zu groß (${bytes} bytes)` },
-      { status: 413, headers: cors },
-    );
+    return jsonPreviewError({
+      origin,
+      code: "preview_payload_too_large",
+    });
   }
 
   const secret = randomSecret(24);
@@ -148,9 +153,9 @@ Deno.serve(async (req) => {
   } catch (e) {
     const msg = sanitizeErrorText(e instanceof Error ? e.message : String(e));
     console.error("[save_preview] error:", msg);
-    return json(
-      { ok: false, error: "Internal Server Error" },
-      { status: 500, headers: cors },
-    );
+    return jsonPreviewError({
+      origin,
+      code: classifySavePreviewUnexpectedError(e),
+    });
   }
 });

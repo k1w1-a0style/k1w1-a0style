@@ -1,6 +1,12 @@
 // supabase/functions/save_preview/helpers.ts
 // Extracted from index.ts
 
+import {
+  createPreviewEdgeErrorPayload,
+  PREVIEW_EDGE_ERROR_STATUS,
+  PREVIEW_ERROR_HEADER,
+  type PreviewEdgeErrorCode,
+} from "../../../shared/previewErrorContract.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 
 export type SnackFiles = Record<string, { type?: string; contents: string }>;
@@ -66,6 +72,18 @@ export function corsHeaders(origin: string | null) {
   return getCorsHeaders(origin);
 }
 
+export function previewErrorHeaders(
+  origin: string | null,
+  code: PreviewEdgeErrorCode,
+  extraHeaders?: HeadersInit,
+): HeadersInit {
+  return {
+    ...corsHeaders(origin),
+    [PREVIEW_ERROR_HEADER]: code,
+    ...(extraHeaders ?? {}),
+  };
+}
+
 export function json(res: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(res), {
     ...init,
@@ -74,6 +92,52 @@ export function json(res: unknown, init: ResponseInit = {}) {
       ...(init.headers ?? {}),
     },
   });
+}
+
+export function jsonPreviewError(params: {
+  origin: string | null;
+  code: PreviewEdgeErrorCode;
+  status?: number;
+  message?: string;
+}) {
+  const status = params.status ?? PREVIEW_EDGE_ERROR_STATUS[params.code];
+  return json(createPreviewEdgeErrorPayload(params.code, params.message), {
+    status,
+    headers: previewErrorHeaders(params.origin, params.code),
+  });
+}
+
+export function classifySavePreviewPayloadError(message: string): PreviewEdgeErrorCode {
+  const normalized = message.toLowerCase();
+  if (
+    normalized.includes("too large") ||
+    normalized.includes("zu groß") ||
+    normalized.includes("zu gross") ||
+    normalized.includes("too many files")
+  ) {
+    return "preview_payload_too_large";
+  }
+  return "preview_payload_invalid";
+}
+
+export function classifySavePreviewUnexpectedError(error: unknown): PreviewEdgeErrorCode {
+  const message = String(error instanceof Error ? error.message : error ?? "").toLowerCase();
+  if (
+    message.includes("postgres") ||
+    message.includes("relation ") ||
+    message.includes("violates") ||
+    message.includes("duplicate key") ||
+    message.includes("insert") ||
+    message.includes("row-level security") ||
+    message.includes("database") ||
+    message.includes("db")
+  ) {
+    return "preview_db_error";
+  }
+  if (!message) {
+    return "preview_unknown_internal_error";
+  }
+  return "preview_runtime_error";
 }
 
 export function randomSecret(lenBytes = 24): string {

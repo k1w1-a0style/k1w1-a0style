@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -39,6 +40,16 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
   const [recentRepos, setRecentRepos] = useState<string[]>([]);
 
   const [hydrated, setHydrated] = useState(false);
+  const activeRepoRef = useRef<string | null>(null);
+  const activeBranchRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    activeRepoRef.current = activeRepo;
+  }, [activeRepo]);
+
+  useEffect(() => {
+    activeBranchRef.current = activeBranch;
+  }, [activeBranch]);
 
 
   useEffect(() => {
@@ -73,7 +84,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const setActiveRepo = useCallback(
     (repo: string | null) => {
-      if (activeRepo === repo) return;
+      if (activeRepoRef.current === repo) return;
 
       setActiveRepoState(repo);
       if (repo) {
@@ -92,11 +103,11 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
         AsyncStorage.removeItem(ACTIVE_REPO_KEY).catch(() => {});
       }
     },
-    [activeRepo, persistRecent],
+    [persistRecent],
   );
 
   const setActiveBranch = useCallback((branch: string | null) => {
-    if (activeBranch === branch) return;
+    if (activeBranchRef.current === branch) return;
 
     setActiveBranchState(branch);
     if (branch) {
@@ -106,7 +117,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
     } else {
       AsyncStorage.removeItem(ACTIVE_BRANCH_KEY).catch(() => {});
     }
-  }, [activeBranch]);
+  }, []);
 
   // Single source of truth: mirror the project's linked repo/branch into this context.
   // This guarantees that the selection is consistent across screens (Header, Diagnostics, Wizard, Build, etc.).
@@ -117,15 +128,15 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
     const linkedBranch = (projectData?.linkedBranch ?? "").trim() || null;
 
     // If project has a linked repo, prefer it over local storage.
-    if (linkedRepo !== activeRepo) {
+    if (linkedRepo !== activeRepoRef.current) {
       setActiveRepo(linkedRepo);
     }
 
     // Branch should follow the linked branch (even to null).
-    if (linkedBranch !== activeBranch) {
+    if (linkedBranch !== activeBranchRef.current) {
       setActiveBranch(linkedBranch);
     }
-  }, [hydrated, projectData?.linkedRepo, projectData?.linkedBranch, activeRepo, activeBranch, setActiveRepo, setActiveBranch]);
+  }, [hydrated, projectData?.linkedRepo, projectData?.linkedBranch, setActiveRepo, setActiveBranch]);
 
   const addRecentRepo = useCallback(
     (repo: string) => {

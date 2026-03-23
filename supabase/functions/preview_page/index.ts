@@ -3,19 +3,23 @@
 
 import {
   TABLE, MAX_FILES_BYTES, MAX_RESPONSE_BYTES,
-  json, escapeHtml, safeJsonForScript, getSupabaseBaseUrl, supabaseHeaders,
-  withTimeout, utf8Size, approxFilesPayloadSize, randomNonce, html,
-  rateLimit, sanitizeErrorText,
+  escapeHtml, safeJsonForScript, getSupabaseBaseUrl, supabaseHeaders,
+  utf8Size, approxFilesPayloadSize, randomNonce, html, htmlPreviewError,
+  rateLimit, sanitizeErrorText, classifyPreviewRecordLookupFailure, classifyPreviewRecordShape,
+  classifyPreviewPageUnexpectedError, previewPageErrorResponse,
 } from "./helpers.ts";
 import type { SnackFiles, PreviewRecord } from "./helpers.ts";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 type PreviewMeta = { template?: unknown };
 
 async function fetchPreviewRecord(
   secret: string,
-): Promise<PreviewRecord | null> {
+): Promise<import("./helpers.ts").PreviewRecordLookupResult> {
   const base = getSupabaseBaseUrl();
-  if (!base) return null;
+  if (!base) {
+    return { ok: false, code: classifyPreviewRecordLookupFailure({ missingBaseUrl: true }) };
+  }
 
   // ✅ Match your DB schema (migrations + save_preview): files/dependencies/meta (NOT payload)
   const select =
@@ -25,20 +29,29 @@ async function fetchPreviewRecord(
     `${base}/rest/v1/${TABLE}?secret=eq.${encodeURIComponent(secret)}` +
     `&select=${encodeURIComponent(select)}&limit=1`;
 
-  const t = withTimeout(8000);
+  let headers: Record<string, string>;
   try {
-    const res = await fetch(restUrl, {
+    headers = supabaseHeaders();
+  } catch {
+    return { ok: false, code: classifyPreviewRecordLookupFailure({ missingServiceRoleKey: true }) };
+  }
+
+  try {
+    const res = await fetchWithTimeout(restUrl, {
+      timeoutMs: 8000,
+      timeoutMessage: "preview_page lookup timed out after 8000ms",
       method: "GET",
-      headers: supabaseHeaders(),
-      signal: t.signal,
+      headers,
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      return { ok: false, code: classifyPreviewRecordLookupFailure({ status: res.status }) };
+    }
 
     const ctype = res.headers.get("content-type") ?? "";
     if (!ctype.toLowerCase().includes("application/json")) {
       console.error("preview_page: unexpected content-type:", ctype);
-      return null;
+      return { ok: false, code: classifyPreviewRecordLookupFailure({ contentType: ctype }) };
     }
 
     let arr: unknown = null;
@@ -49,19 +62,22 @@ async function fetchPreviewRecord(
         "preview_page: failed to parse JSON:",
         sanitizeErrorText(e instanceof Error ? e.message : String(e)),
       );
-      return null;
+      return { ok: false, code: classifyPreviewRecordLookupFailure({ parseFailed: true, error: e }) };
     }
 
-    if (!Array.isArray(arr) || arr.length === 0) return null;
-    return arr[0] as PreviewRecord;
+    if (!Array.isArray(arr) || arr.length === 0) return { ok: true, record: null };
+    const record = arr[0] as PreviewRecord;
+    const shapeError = classifyPreviewRecordShape(record);
+    if (shapeError) {
+      return { ok: false, code: shapeError };
+    }
+    return { ok: true, record };
   } catch (e) {
     console.error(
       "fetchPreviewRecord error:",
       sanitizeErrorText(e instanceof Error ? e.message : String(e)),
     );
-    return null;
-  } finally {
-    t.cancel();
+    return { ok: false, code: classifyPreviewRecordLookupFailure({ error: e }) };
   }
 }
 
@@ -71,20 +87,18 @@ async function deletePreviewRecord(secret: string): Promise<void> {
 
   const restUrl = `${base}/rest/v1/${TABLE}?secret=eq.${encodeURIComponent(secret)}`;
 
-  const t = withTimeout(6000);
   try {
-    await fetch(restUrl, {
+    await fetchWithTimeout(restUrl, {
+      timeoutMs: 6000,
+      timeoutMessage: "preview_page delete timed out after 6000ms",
       method: "DELETE",
       headers: supabaseHeaders(),
-      signal: t.signal,
     });
   } catch (e) {
     console.error(
       "deletePreviewRecord error:",
       sanitizeErrorText(e instanceof Error ? e.message : String(e)),
     );
-  } finally {
-    t.cancel();
   }
 }
 
@@ -347,32 +361,43 @@ Deno.serve(async (req) => {
       );
     }
 
-    const record = await fetchPreviewRecord(secret);
-    if (!record) {
-      return html(
-        `<!doctype html><meta charset="utf-8"><title>Not found</title><pre>Preview not found (invalid secret?)</pre>`,
+    const recordResult = await fetchPreviewRecord(secret);
+    if (!recordResult.ok) {
+      return previewPageErrorResponse({
+        code: recordResult.code,
         nonce,
-        404,
-      );
+      });
+    }
+
+    const record = recordResult.record;
+    if (!record) {
+      return htmlPreviewError({
+        code: "preview_not_found",
+        nonce,
+        title: "Not found",
+        message: "Preview not found (invalid secret?)",
+      });
     }
 
     if (isExpired(record.expires_at)) {
       await deletePreviewRecord(secret);
-      return html(
-        `<!doctype html><meta charset="utf-8"><title>Expired</title><pre>Preview expired. Please create a new one.</pre>`,
+      return htmlPreviewError({
+        code: "preview_expired",
         nonce,
-        410,
-      );
+        title: "Expired",
+        message: "Preview expired. Please create a new one.",
+      });
     }
 
     // Size safety net for DB payload
     const fileBytes = approxFilesPayloadSize(record.files ?? {});
     if (fileBytes > MAX_FILES_BYTES) {
-      return html(
-        `<!doctype html><meta charset="utf-8"><title>Too large</title><pre>Preview files exceed 3MB limit.</pre>`,
+      return htmlPreviewError({
+        code: "preview_payload_too_large",
         nonce,
-        413,
-      );
+        title: "Too large",
+        message: "Preview files exceed size limit.",
+      });
     }
 
     const createdAt = record.created_at
@@ -415,11 +440,12 @@ Deno.serve(async (req) => {
     // Response size check
     const pageBytes = utf8Size(page);
     if (pageBytes > MAX_RESPONSE_BYTES) {
-      return html(
-        `<!doctype html><meta charset="utf-8"><title>Response too large</title><pre>Generated preview exceeds size limit.</pre>`,
+      return htmlPreviewError({
+        code: "preview_response_too_large",
         nonce,
-        413,
-      );
+        title: "Response too large",
+        message: "Generated preview exceeds size limit.",
+      });
     }
 
     const ms = Date.now() - started;
@@ -432,6 +458,9 @@ Deno.serve(async (req) => {
   } catch (e) {
     const safeError = sanitizeErrorText(e instanceof Error ? e.message : String(e));
     console.error("[preview_page] error:", safeError);
-    return json({ ok: false, error: "Internal Server Error" }, 500);
+    return previewPageErrorResponse({
+      code: classifyPreviewPageUnexpectedError(e),
+      nonce: randomNonce(),
+    });
   }
 });

@@ -1,6 +1,24 @@
-import { renderHook, act } from '@testing-library/react-native';
+import { renderHook, act, waitFor } from '@testing-library/react-native';
 
 import { useGitHubActionsLogs } from '../hooks/useGitHubActionsLogs';
+
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason?: unknown) => void;
+};
+
+const createDeferred = <T,>(): Deferred<T> => {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+
+  return { promise, resolve, reject };
+};
 
 jest.mock('../lib/supabaseEdge', () => ({
   requireSupabaseEdgeUrl: jest.fn(async () => 'https://example.supabase.co/functions/v1'),
@@ -230,12 +248,10 @@ describe('useGitHubActionsLogs edge contract mapping', () => {
       { initialProps: { autoRefresh: true } },
     );
 
-    await act(async () => {
-      await result.current.refreshLogs();
+    await waitFor(() => {
+      expect(result.current.workflowRun?.id).toBe(333);
+      expect(result.current.logs).toHaveLength(1);
     });
-
-    expect(result.current.workflowRun?.id).toBe(333);
-    expect(result.current.logs).toHaveLength(1);
 
     rerender({ autoRefresh: false });
 
@@ -243,6 +259,376 @@ describe('useGitHubActionsLogs edge contract mapping', () => {
     expect(result.current.logs).toEqual([
       expect.objectContaining({ message: 'first-log-line' }),
     ]);
+  });
+
+  it("maps abortable fetch failures onto the timeout/abort error contract", async () => {
+    const fetchMock = jest.fn(async (_: RequestInfo | URL, init?: RequestInit) => {
+      expect(init?.signal).toBeDefined();
+      const err = new Error("aborted");
+      err.name = "AbortError";
+      throw err;
+    });
+
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const { result } = renderHook(() =>
+      useGitHubActionsLogs({
+        githubRepo: "owner/repo",
+        runId: 999,
+        workflowId: "k1w1-ci-lite.yml",
+        autoRefresh: false,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.refreshLogs();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((fetchMock.mock.calls[0][1] as RequestInit | undefined)?.signal).toBeDefined();
+    expect(result.current.error).toBe("Request timeout - GitHub Actions Logs Anfrage abgebrochen");
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it('does not invalidate the active request when refreshLogs is called again while loading', async () => {
+    const fetchDeferred = createDeferred<{
+      ok: boolean;
+      json: () => Promise<{
+        ok: boolean;
+        logsText: string;
+        run: {
+          id: number;
+          run_number: number;
+          status: string;
+          conclusion: string | null;
+          created_at: string;
+          updated_at: string;
+          html_url: string;
+        };
+      }>;
+    }>();
+
+    const fetchMock = jest.fn(() => fetchDeferred.promise);
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const { result } = renderHook(() =>
+      useGitHubActionsLogs({
+        githubRepo: 'owner/repo',
+        runId: 444,
+        workflowId: 'k1w1-ci-lite.yml',
+        autoRefresh: false,
+      }),
+    );
+
+    let firstRefreshPromise!: Promise<void>;
+    act(() => {
+      firstRefreshPromise = result.current.refreshLogs();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(true);
+    });
+
+    await act(async () => {
+      await result.current.refreshLogs();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.current.isLoading).toBe(true);
+
+    await act(async () => {
+      fetchDeferred.resolve({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          logsText: 'first-log-line',
+          run: {
+            id: 444,
+            run_number: 4,
+            status: 'completed',
+            conclusion: 'success',
+            created_at: '2026-01-01T00:00:00Z',
+            updated_at: '2026-01-01T00:01:00Z',
+            html_url: 'https://github.com/runs/444',
+          },
+        }),
+      });
+      await firstRefreshPromise;
+    });
+
+    expect(result.current.logs).toEqual([
+      expect.objectContaining({ message: 'first-log-line' }),
+    ]);
+    expect(result.current.workflowRun?.id).toBe(444);
+    expect(result.current.error).toBeNull();
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it('keeps the first auto-refresh fetch after a selection change alive', async () => {
+    const firstFetchDeferred = createDeferred<{
+      ok: boolean;
+      json: () => Promise<{
+        ok: boolean;
+        logsText: string;
+        run: {
+          id: number;
+          run_number: number;
+          status: string;
+          conclusion: string | null;
+          created_at: string;
+          updated_at: string;
+          html_url: string;
+        };
+      }>;
+    }>();
+    const secondFetchDeferred = createDeferred<{
+      ok: boolean;
+      json: () => Promise<{
+        ok: boolean;
+        logsText: string;
+        run: {
+          id: number;
+          run_number: number;
+          status: string;
+          conclusion: string | null;
+          created_at: string;
+          updated_at: string;
+          html_url: string;
+        };
+      }>;
+    }>();
+    const fetchDeferreds = [firstFetchDeferred, secondFetchDeferred];
+    const requestSignals: AbortSignal[] = [];
+
+    const fetchMock = jest.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      const signal = init?.signal as AbortSignal;
+      requestSignals.push(signal);
+      const deferred = fetchDeferreds.shift();
+      if (!deferred) {
+        throw new Error('missing deferred fetch response');
+      }
+
+      signal.addEventListener('abort', () => {
+        const err = new Error('aborted');
+        err.name = 'AbortError';
+        deferred.reject(err);
+      });
+
+      return deferred.promise;
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const { result, rerender } = renderHook<
+      ReturnType<typeof useGitHubActionsLogs>,
+      { runId: number }
+    >(
+      ({ runId }) =>
+        useGitHubActionsLogs({
+          githubRepo: 'owner/repo',
+          runId,
+          workflowId: 'k1w1-ci-lite.yml',
+          autoRefresh: true,
+        }),
+      { initialProps: { runId: 111 } },
+    );
+
+    await act(async () => {
+      firstFetchDeferred.resolve({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          logsText: 'old-log-line',
+          run: {
+            id: 111,
+            run_number: 1,
+            status: 'completed',
+            conclusion: 'success',
+            created_at: '2026-01-01T00:00:00Z',
+            updated_at: '2026-01-01T00:01:00Z',
+            html_url: 'https://github.com/runs/111',
+          },
+        }),
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.workflowRun?.id).toBe(111);
+      expect(result.current.logs).toEqual([
+        expect.objectContaining({ message: 'old-log-line' }),
+      ]);
+    });
+
+    rerender({ runId: 222 });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(result.current.isLoading).toBe(true);
+    });
+
+    expect(requestSignals[1]?.aborted).toBe(false);
+    expect(result.current.logs).toEqual([]);
+    expect(result.current.workflowRun).toBeNull();
+
+    await act(async () => {
+      secondFetchDeferred.resolve({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          logsText: 'new-log-line',
+          run: {
+            id: 222,
+            run_number: 2,
+            status: 'in_progress',
+            conclusion: null,
+            created_at: '2026-01-01T00:02:00Z',
+            updated_at: '2026-01-01T00:03:00Z',
+            html_url: 'https://github.com/runs/222',
+          },
+        }),
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.workflowRun?.id).toBe(222);
+      expect(result.current.logs).toEqual([
+        expect.objectContaining({ message: 'new-log-line' }),
+      ]);
+      expect(result.current.isLoading).toBe(false);
+    });
+  });
+
+  it('does not let an aborted stale finally reopen the pending guard for the new selection', async () => {
+    const firstFetchDeferred = createDeferred<{
+      ok: boolean;
+      json: () => Promise<{
+        ok: boolean;
+        logsText: string;
+        run: {
+          id: number;
+          run_number: number;
+          status: string;
+          conclusion: string | null;
+          created_at: string;
+          updated_at: string;
+          html_url: string;
+        };
+      }>;
+    }>();
+    const secondFetchDeferred = createDeferred<{
+      ok: boolean;
+      json: () => Promise<{
+        ok: boolean;
+        logsText: string;
+        run: {
+          id: number;
+          run_number: number;
+          status: string;
+          conclusion: string | null;
+          created_at: string;
+          updated_at: string;
+          html_url: string;
+        };
+      }>;
+    }>();
+    const abortOldRequest = createDeferred<void>();
+    const requestSignals: AbortSignal[] = [];
+
+    const fetchMock = jest.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      const signal = init?.signal as AbortSignal;
+      requestSignals.push(signal);
+
+      if (requestSignals.length === 1) {
+        signal.addEventListener('abort', () => {
+          abortOldRequest.promise.then(() => {
+            const err = new Error('aborted');
+            err.name = 'AbortError';
+            firstFetchDeferred.reject(err);
+          });
+        });
+        return firstFetchDeferred.promise;
+      }
+
+      if (requestSignals.length === 2) {
+        return secondFetchDeferred.promise;
+      }
+
+      throw new Error('stale pending guard reopened and started an unexpected parallel fetch');
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const { result, rerender } = renderHook<
+      ReturnType<typeof useGitHubActionsLogs>,
+      { runId: number }
+    >(
+      ({ runId }) =>
+        useGitHubActionsLogs({
+          githubRepo: 'owner/repo',
+          runId,
+          workflowId: 'k1w1-ci-lite.yml',
+          autoRefresh: true,
+        }),
+      { initialProps: { runId: 111 } },
+    );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(result.current.isLoading).toBe(true);
+    });
+
+    rerender({ runId: 222 });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(result.current.isLoading).toBe(true);
+    });
+
+    expect(requestSignals[0]?.aborted).toBe(true);
+    expect(requestSignals[1]?.aborted).toBe(false);
+    expect(result.current.logs).toEqual([]);
+    expect(result.current.workflowRun).toBeNull();
+
+    await act(async () => {
+      abortOldRequest.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.isLoading).toBe(true);
+
+    await act(async () => {
+      await result.current.refreshLogs();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.current.isLoading).toBe(true);
+
+    await act(async () => {
+      secondFetchDeferred.resolve({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          logsText: 'fresh-log-line',
+          run: {
+            id: 222,
+            run_number: 2,
+            status: 'in_progress',
+            conclusion: null,
+            created_at: '2026-01-01T00:02:00Z',
+            updated_at: '2026-01-01T00:03:00Z',
+            html_url: 'https://github.com/runs/222',
+          },
+        }),
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.workflowRun?.id).toBe(222);
+      expect(result.current.logs).toEqual([
+        expect.objectContaining({ message: 'fresh-log-line' }),
+      ]);
+      expect(result.current.error).toBeNull();
+      expect(result.current.isLoading).toBe(false);
+    });
   });
 
 });

@@ -5,6 +5,7 @@ import { githubLimiter } from "./rateLimit";
 import { githubApiUrl } from "../../shared/constants/github";
 import { getGitHubToken } from "./tokenStore";
 import { logger } from "../../lib/logger";
+import { fetchGitHub } from "./utils";
 
 
 export interface GitHubBranch {
@@ -28,7 +29,7 @@ export const createBranch = async (
 
   await githubLimiter.checkLimit();
 
-  const refResp = await fetch(
+  const refResp = await fetchGitHub(
     githubApiUrl(`/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(fromBranch)}`), {
       headers: {
         Accept: "application/vnd.github+json",
@@ -52,7 +53,7 @@ export const createBranch = async (
 
   await githubLimiter.checkLimit();
 
-  const createResp = await fetch(
+  const createResp = await fetchGitHub(
     githubApiUrl(`/repos/${owner}/${repo}/git/refs`), {
       method: "POST",
       headers: {
@@ -91,7 +92,7 @@ export const deleteBranch = async (
 
   await githubLimiter.checkLimit();
 
-  const resp = await fetch(
+  const resp = await fetchGitHub(
     githubApiUrl(`/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(b)}`), {
       method: "DELETE",
       headers: {
@@ -129,7 +130,7 @@ export const renameBranch = async (
 
   await githubLimiter.checkLimit();
 
-  const resp = await fetch(
+  const resp = await fetchGitHub(
     githubApiUrl(`/repos/${owner}/${repo}/branches/${encodeURIComponent(from)}/rename`), {
       method: "POST",
       headers: {
@@ -168,7 +169,7 @@ export const getBranches = async (
   await githubLimiter.checkLimit();
 
   const url = githubApiUrl(`/repos/${owner}/${repo}/branches?per_page=100`);
-  const resp = await fetch(url, {
+  const resp = await fetchGitHub(url, {
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${token}`,
@@ -197,7 +198,7 @@ export const getDefaultBranch = async (
   await githubLimiter.checkLimit();
 
   const url = githubApiUrl(`/repos/${owner}/${repo}`);
-  const resp = await fetch(url, {
+  const resp = await fetchGitHub(url, {
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${token}`,
@@ -226,7 +227,7 @@ export const getBranchHeadSha = async (
 
   await githubLimiter.checkLimit();
 
-  const resp = await fetch(
+  const resp = await fetchGitHub(
     githubApiUrl(`/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(b)}`), {
       headers: {
         Accept: "application/vnd.github+json",

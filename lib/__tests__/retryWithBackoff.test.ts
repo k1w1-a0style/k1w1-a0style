@@ -14,12 +14,12 @@ afterAll(() => {
 
 // Mock global fetch
 const mockFetch = jest.fn();
-global.fetch = mockFetch;
 
 describe('retryWithBackoff', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    global.fetch = mockFetch as typeof fetch;
   });
 
   afterEach(() => {
@@ -134,7 +134,10 @@ describe('retryWithBackoff', () => {
 
       await fetchWithBackoff('https://api.example.com', options);
       
-      expect(mockFetch).toHaveBeenCalledWith('https://api.example.com', options);
+      expect(mockFetch).toHaveBeenCalledWith('https://api.example.com', {
+        ...options,
+        signal: expect.any(AbortSignal),
+      });
     });
 
     it('should use default maxRetries of 3', async () => {
@@ -150,6 +153,15 @@ describe('retryWithBackoff', () => {
       
       expect(mockFetch).toHaveBeenCalledTimes(3);
     });
+
+    it('should not retry abort errors', async () => {
+      const abortError = Object.assign(new Error('Cancelled'), { name: 'AbortError' });
+      mockFetch.mockRejectedValue(abortError);
+
+      await expect(fetchWithBackoff('https://api.example.com', {}, 3)).rejects.toBe(abortError);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
   });
 
   describe('retryWithBackoff (generic)', () => {
@@ -241,6 +253,21 @@ describe('retryWithBackoff', () => {
         expect(delays[0]).toBeGreaterThanOrEqual(900);
         expect(delays[0]).toBeLessThan(1500);
       }
+    });
+
+
+
+    it('should stop waiting when the retry signal aborts', async () => {
+      const controller = new AbortController();
+      const operation = jest.fn().mockRejectedValue(new Error('Retry me'));
+      const promise = retryWithBackoff(operation, 3, undefined, { signal: controller.signal });
+
+      await Promise.resolve();
+      const abortError = Object.assign(new Error('Cancelled during backoff'), { name: 'AbortError' });
+      controller.abort(abortError);
+
+      await expect(promise).rejects.toBe(abortError);
+      expect(operation).toHaveBeenCalledTimes(1);
     });
 
     it('should handle custom maxRetries', async () => {

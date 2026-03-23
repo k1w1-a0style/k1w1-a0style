@@ -1,6 +1,7 @@
 import { githubLimiter } from "./rateLimit";
 import { getGitHubToken } from "./tokenStore";
 import { githubApiUrl } from "../../shared/constants/github";
+import { fetchGitHub } from "./utils";
 
 export type GitHubUser = {
   login: string;
@@ -15,7 +16,7 @@ export async function getGitHubUser(): Promise<GitHubUser> {
 
   await githubLimiter.checkLimit();
 
-  const resp = await fetch(githubApiUrl("/user"), {
+  const resp = await fetchGitHub(githubApiUrl("/user"), {
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${token}`,
