@@ -346,7 +346,7 @@ export default function DiagnosticScreen() {
                           disabled={busy || running}
                         >
                           <Ionicons name="chatbubble-ellipses-outline" size={12} color={theme.palette.primary} />
-                          <Text style={styles.chatFixText}>KI-Fix</Text>
+                          <Text style={styles.chatFixText}>Im Chat</Text>
                         </TouchableOpacity>
                       </View>
                     </TouchableOpacity>

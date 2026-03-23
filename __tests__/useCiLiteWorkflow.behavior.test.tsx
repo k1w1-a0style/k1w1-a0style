@@ -364,8 +364,13 @@ describe("useCiLiteWorkflow behavior", () => {
     expect(result.current.headerState).toBe("running");
   });
 
-  it("binds a unique legacy workflow_dispatch run without job_id marker via guarded fallback", async () => {
+  it("does not bind a legacy workflow_dispatch run without job_id marker and reports the contract mismatch", async () => {
+    jest.useFakeTimers();
     mockStorageGetItem.mockResolvedValue(null);
+
+    let currentNow = NOW;
+    jest.spyOn(Date, "now").mockImplementation(() => currentNow);
+
     (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("github-workflow-dispatch")) {
@@ -390,18 +395,11 @@ describe("useCiLiteWorkflow behavior", () => {
                   event: "workflow_dispatch",
                   head_branch: "main",
                   head_sha: SHA,
-                  created_at: new Date(NOW).toISOString(),
+                  created_at: new Date(currentNow).toISOString(),
                 },
               ],
             },
           }),
-        } as Response;
-      }
-
-      if (url.includes("github-run-artifact-json")) {
-        return {
-          ok: true,
-          json: async () => ({ json: { ok: true, eslint_exit: 0, tsc_exit: 0, github_sha: SHA } }),
         } as Response;
       }
 
@@ -414,17 +412,22 @@ describe("useCiLiteWorkflow behavior", () => {
       await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
     });
 
-    await waitFor(() => {
-      expect(result.current.trackedRunId).toBe(654);
+    await act(async () => {
+      currentNow += 60_001;
+      jest.advanceTimersByTime(60_001);
     });
+    await flushAsyncWork();
 
+    expect(result.current.trackedRunId).toBeNull();
+    expect(result.current.runLookupActive).toBe(false);
     expect(result.current.lookupDiagnosis).toMatchObject({
       exactJobIdMatchFound: false,
       ambiguous: false,
-      contractMismatchLikely: false,
-      selectedTier: "head_sha_fallback",
+      contractMismatchLikely: true,
+      selectedTier: null,
     });
-    expect(result.current.showError).toBe("");
+    expect(result.current.showError).toMatch(/plausibler GitHub-Run existiert/i);
+    expect(result.current.showError).toMatch(/Correlation-Contract/i);
   });
 
   it("ends the lookup state cleanly when no matching run is found before timeout", async () => {
@@ -513,7 +516,7 @@ describe("useCiLiteWorkflow behavior", () => {
                   display_title: "CI Lite • legacy workflow",
                   event: "workflow_dispatch",
                   head_branch: "main",
-                  created_at: new Date(currentNow - 120_000).toISOString(),
+                  created_at: new Date(currentNow).toISOString(),
                 },
               ],
             },

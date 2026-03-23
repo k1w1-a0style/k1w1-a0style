@@ -36,7 +36,7 @@ describe("k1w1-handler provider invariants", () => {
 
 
 
-  it("uses aligned, non-legacy default model ids", () => {
+  it("uses aligned, runtime-supported default model ids", () => {
     const src = read("supabase/functions/k1w1-handler/helpers.ts");
 
     // Keep edge defaults aligned with app model catalog defaults.

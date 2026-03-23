@@ -39,7 +39,7 @@ describe("diagnostic fix result contract", () => {
     expect(workflowOffer.actionLabel).toBe("Workflow-Fix starten");
     expect(workflowOffer.previewAvailable).toBe(false);
 
-    expect(advisory.badgeText).toBe("KI-Fix verfügbar");
-    expect(advisory.summary).toContain("Hinweis");
+    expect(advisory.badgeText).toBe("Im Chat verfügbar");
+    expect(advisory.summary).toContain("Chat");
   });
 });

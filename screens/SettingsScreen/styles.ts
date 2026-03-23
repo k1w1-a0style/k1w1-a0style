@@ -175,6 +175,25 @@ export const styles = StyleSheet.create({
     fontSize: 11,
   },
   bestFor: { color: theme.palette.text.secondary, fontSize: 12, flex: 1 },
+  modeMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 8,
+  },
+  metaPill: {
+    borderWidth: 1,
+    borderColor: `${theme.palette.primary}33`,
+    backgroundColor: `${theme.palette.primary}11`,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  metaPillText: {
+    color: theme.palette.text.secondary,
+    fontSize: 11,
+    fontWeight: "700",
+  },
 
   qualityRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   qualityBtn: {

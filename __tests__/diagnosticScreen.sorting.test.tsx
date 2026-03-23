@@ -68,9 +68,9 @@ describe("DiagnosticScreen checklist sorting", () => {
     expect(titles).toEqual(["workflow item", "fail item", "warn item", "pass item"]);
   });
 
-  test("does not show KI-Fix hint for pass items", () => {
+  test("does not show the advisory chat hint for pass items", () => {
     const { queryAllByText } = render(<DiagnosticScreen />);
-    expect(queryAllByText("KI-Fix verfügbar")).toHaveLength(1);
+    expect(queryAllByText("Im Chat verfügbar")).toHaveLength(1);
     expect(queryAllByText("Patch-Fix verfügbar")).toHaveLength(1);
     expect(queryAllByText("Workflow-Fix verfügbar")).toHaveLength(1);
   });

@@ -20,7 +20,7 @@ export interface HandlerRequestBody {
   messages: ChatMessage[];
   mode?: string;
   model?: string;
-  quality?: "speed" | "quality";
+  quality?: "speed" | "balanced" | "quality" | "review";
 }
 
 export { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";
@@ -71,8 +71,13 @@ export function parseRequestBody(body: unknown): HandlerRequestBody {
 
   const provider = b.provider as string;
   const quality = (
-    b.quality === "quality" || b.quality === "speed" ? b.quality : "speed"
-  ) as "speed" | "quality";
+    b.quality === "quality" ||
+    b.quality === "speed" ||
+    b.quality === "balanced" ||
+    b.quality === "review"
+      ? b.quality
+      : "speed"
+  ) as "speed" | "balanced" | "quality" | "review";
 
   return {
     provider,
@@ -98,6 +103,13 @@ function joinSystemMessages(messages: ChatMessage[]): string {
     .map((m) => m.content)
     .join("\n\n")
     .trim();
+}
+
+function resolveDefaultModelForQuality<T extends { speed: string; quality: string }>(
+  defaults: T,
+  quality: HandlerRequestBody["quality"],
+): string {
+  return quality === "quality" || quality === "review" ? defaults.quality : defaults.speed;
 }
 
 export type K1w1HandlerErrorCode =
@@ -316,7 +328,7 @@ export async function callGroq(
   const qualityConfig = DEFAULT_MODELS.groq;
   const model =
     body.model ||
-    (body.quality === "quality" ? qualityConfig.quality : qualityConfig.speed);
+    resolveDefaultModelForQuality(qualityConfig, body.quality);
 
   const url = "https://api.groq.com/openai/v1/chat/completions";
 
@@ -382,7 +394,7 @@ export async function callGemini(
   const qualityConfig = DEFAULT_MODELS.gemini;
   const model =
     body.model ||
-    (body.quality === "quality" ? qualityConfig.quality : qualityConfig.speed);
+    resolveDefaultModelForQuality(qualityConfig, body.quality);
 
   const systemInstructionText = joinSystemMessages(body.messages);
   const nonSystemMessages = body.messages.filter((m) => m.role !== "system");
@@ -443,7 +455,7 @@ export async function callOpenAI(
   const qualityConfig = DEFAULT_MODELS.openai;
   const model =
     body.model ||
-    (body.quality === "quality" ? qualityConfig.quality : qualityConfig.speed);
+    resolveDefaultModelForQuality(qualityConfig, body.quality);
 
   const res = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
     timeoutMs: PROVIDER_UPSTREAM_TIMEOUT_MS,
@@ -486,7 +498,7 @@ export async function callAnthropic(
   const qualityConfig = DEFAULT_MODELS.anthropic;
   const model =
     body.model ||
-    (body.quality === "quality" ? qualityConfig.quality : qualityConfig.speed);
+    resolveDefaultModelForQuality(qualityConfig, body.quality);
 
   const system = joinSystemMessages(body.messages);
 
@@ -546,7 +558,7 @@ export async function callHuggingFace(
   const qualityConfig = DEFAULT_MODELS.huggingface;
   const model =
     body.model ||
-    (body.quality === "quality" ? qualityConfig.quality : qualityConfig.speed);
+    resolveDefaultModelForQuality(qualityConfig, body.quality);
 
   const prompt = toPlainPrompt(body.messages);
 
