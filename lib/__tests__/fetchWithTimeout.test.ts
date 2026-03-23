@@ -1,7 +1,6 @@
 import { fetchWithTimeout, TimeoutError } from "../network/fetchWithTimeout";
 
 const mockFetch = jest.fn();
-global.fetch = mockFetch;
 
 function createAbortAwareFetchMock() {
   return jest.fn((_input: RequestInfo | URL, init?: RequestInit) => {
@@ -26,6 +25,7 @@ function createAbortAwareFetchMock() {
 describe("fetchWithTimeout", () => {
   beforeEach(() => {
     mockFetch.mockReset();
+    global.fetch = mockFetch as typeof fetch;
   });
 
   it("aborts requests that exceed the timeout", async () => {

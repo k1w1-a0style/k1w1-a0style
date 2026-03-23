@@ -77,17 +77,23 @@ const BlockedWebSocket = class BlockedWebSocket {
   }
 };
 
-global.fetch = jest.fn(blockNetworkFactory("fetch"));
-global.XMLHttpRequest = BlockedXMLHttpRequest;
-global.WebSocket = BlockedWebSocket;
+const resetBlockedNetworkGlobals = () => {
+  global.fetch = jest.fn(blockNetworkFactory("fetch"));
+  global.XMLHttpRequest = BlockedXMLHttpRequest;
+  global.WebSocket = BlockedWebSocket;
+};
 
+beforeEach(() => {
+  resetBlockedNetworkGlobals();
+});
 
-// ✅ Global teardown to prevent Jest worker leaks (timers / listeners)
+// ✅ Global teardown to prevent Jest worker leaks (timers / listeners / spies / DOM)
 afterEach(() => {
   cleanup();
   jest.clearAllMocks();
   jest.clearAllTimers();
   jest.useRealTimers();
+  resetBlockedNetworkGlobals();
 });
 
 afterAll(() => {
