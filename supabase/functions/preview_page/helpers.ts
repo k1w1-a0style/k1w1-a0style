@@ -120,12 +120,6 @@ export function supabaseHeaders(): Record<string, string> {
   };
 }
 
-export function withTimeout(ms: number) {
-  const ac = new AbortController();
-  const id = setTimeout(() => ac.abort(), ms);
-  return { signal: ac.signal, cancel: () => clearTimeout(id) };
-}
-
 export function utf8Size(s: string): number {
   return new TextEncoder().encode(s).length;
 }

@@ -6,6 +6,7 @@
 // - Network/timeout errors are thrown (so callers can handle retry/backoff).
 
 import { getEdgeAdminKey } from "../../infra/github/githubService";
+import { fetchWithTimeout as sharedFetchWithTimeout } from "../../lib/network/fetchWithTimeout";
 import { mapBuildStatus } from "../../lib/buildStatusMapper";
 import { getSupabaseEdgeUrl, SUPABASE_URL_MISSING_ERROR } from '../../lib/supabaseEdge';
 import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
@@ -28,35 +29,8 @@ export type PollBuildResult =
       raw?: unknown;
     };
 
-export async function fetchWithTimeout(
-  url: string,
-  options: RequestInit,
-  timeoutMs: number = DEFAULT_REQUEST_TIMEOUT_MS,
-): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+export { fetchWithTimeout } from "../../lib/network/fetchWithTimeout";
 
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error: unknown) {
-    clearTimeout(timeoutId);
-    const errorName =
-      error instanceof Error
-        ? error.name
-        : typeof error === "object" && error !== null && "name" in error
-          ? (error as { name?: unknown }).name
-          : null;
-    if (errorName === "AbortError") {
-      throw new Error("Request timeout - Keine Antwort vom Server");
-    }
-    throw error;
-  }
-}
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
@@ -90,18 +64,18 @@ export async function pollBuildStatusOnce(
   }
   const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
 
-  const res = await fetchWithTimeout(
-    `${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.CHECK_EAS_BUILD}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
-      },
-      body: JSON.stringify({ jobId }),
+  const timeoutMs = opts?.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+
+  const res = await sharedFetchWithTimeout(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.CHECK_EAS_BUILD}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
     },
-    opts?.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
-  );
+    body: JSON.stringify({ jobId }),
+    timeoutMs,
+    timeoutMessage: "Request timeout - Keine Antwort vom Server",
+  });
 
   let json: unknown = null;
   try {

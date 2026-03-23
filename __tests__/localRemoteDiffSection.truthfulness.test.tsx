@@ -1,5 +1,5 @@
 import React from "react";
-import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react-native";
 
 import { LocalRemoteDiffSection } from "../screens/GitHubReposScreen/components/LocalRemoteDiffSection";
 
@@ -54,12 +54,25 @@ function renderSection(props?: Partial<React.ComponentProps<typeof LocalRemoteDi
   );
 }
 
+async function waitForContextReset(screen: ReturnType<typeof render>) {
+  await waitFor(() => {
+    expect(screen.getByText("Push (0)")).toBeTruthy();
+  });
+}
+
 describe("LocalRemoteDiffSection truthfulness", () => {
   beforeEach(() => {
+    jest.useRealTimers();
     mockGetRepoFileText.mockReset();
     mockListRepoBlobPaths.mockReset();
     mockSetStringAsync.mockClear();
     mockListRepoBlobPaths.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    cleanup();
+    jest.useRealTimers();
+    jest.clearAllMocks();
   });
 
   it("blocks stale diff loads from an old repo/branch after a context switch", async () => {
@@ -85,6 +98,8 @@ describe("LocalRemoteDiffSection truthfulness", () => {
         onPushSelected={jest.fn()}
       />,
     );
+
+    await waitForContextReset(screen);
 
     fireEvent.press(screen.getByTestId("local-remote-diff-refresh"));
 
@@ -131,6 +146,8 @@ describe("LocalRemoteDiffSection truthfulness", () => {
         onPushSelected={jest.fn()}
       />,
     );
+
+    await waitForContextReset(screen);
 
     fireEvent.press(screen.getByTestId("local-remote-diff-refresh"));
     await waitFor(() => {
