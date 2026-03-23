@@ -1,4 +1,4 @@
-import { pollBuildStatusOnce, fetchWithTimeout } from "../project/services/buildPollingService";
+import { pollBuildStatusOnce } from "../project/services/buildPollingService";
 
 jest.mock("../infra/github/githubService", () => ({
   getEdgeAdminKey: jest.fn(async () => "admin-key"),
@@ -8,6 +8,26 @@ jest.mock("../lib/supabaseEdge", () => ({
   getSupabaseEdgeUrl: jest.fn(async () => "https://example.functions.supabase.co"),
   SUPABASE_URL_MISSING_ERROR: "SUPABASE_URL_MISSING_ERROR",
 }));
+
+function createAbortAwareFetchMock() {
+  return jest.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+    const signal = init?.signal;
+    return new Promise<Response>((_resolve, reject) => {
+      if (signal?.aborted) {
+        reject(signal.reason ?? Object.assign(new Error("Aborted"), { name: "AbortError" }));
+        return;
+      }
+
+      signal?.addEventListener(
+        "abort",
+        () => {
+          reject(signal.reason ?? Object.assign(new Error("Aborted"), { name: "AbortError" }));
+        },
+        { once: true },
+      );
+    });
+  });
+}
 
 describe("buildPollingService", () => {
   beforeEach(() => {
@@ -53,25 +73,13 @@ describe("buildPollingService", () => {
     expect(result.status).toBe("success");
   });
 
-  it("converts AbortError to timeout message", async () => {
-    global.fetch = jest.fn(async () => {
-      const err = new Error("aborted");
-      err.name = "AbortError";
-      throw err;
-    }) as unknown as typeof fetch;
+  it("preserves the shared timeout contract for poll requests", async () => {
+    global.fetch = createAbortAwareFetchMock() as unknown as typeof fetch;
 
-    await expect(fetchWithTimeout("https://example.com", { method: "GET" }, 20)).rejects.toThrow(
-      "Request timeout - Keine Antwort vom Server",
-    );
-  });
-
-  it("converts object AbortError to timeout message", async () => {
-    global.fetch = jest.fn(async () => {
-      throw { name: "AbortError" };
-    }) as unknown as typeof fetch;
-
-    await expect(fetchWithTimeout("https://example.com", { method: "GET" }, 20)).rejects.toThrow(
-      "Request timeout - Keine Antwort vom Server",
-    );
+    await expect(pollBuildStatusOnce("job-timeout", { timeoutMs: 20 })).rejects.toMatchObject({
+      name: "TimeoutError",
+      message: "Request timeout - Keine Antwort vom Server",
+      timeoutMs: 20,
+    });
   });
 });
