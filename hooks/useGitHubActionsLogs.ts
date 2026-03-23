@@ -29,17 +29,31 @@ export function useGitHubActionsLogs({
   const loggedErrorRef = useRef(false);
   const isFetchPendingRef = useRef(false);
   const requestKeyRef = useRef<string>("");
+  const activeRequestKeyRef = useRef<string>("");
+  const requestVersionRef = useRef(0);
+  const activeRequestVersionRef = useRef(0);
+  const pendingRequestVersionRef = useRef<number | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchLogs = useCallback(async () => {
     const requestKey = `${githubRepo || ""}::${String(runId ?? "latest")}::${workflowId}`;
-    requestKeyRef.current = requestKey;
 
     if (!githubRepo) {
       setError("Kein GitHub Repo ausgewählt");
       return;
     }
     if (isFetchPendingRef.current) return;
+
+    const requestVersion = requestVersionRef.current + 1;
+    requestVersionRef.current = requestVersion;
+    requestKeyRef.current = requestKey;
+    activeRequestKeyRef.current = requestKey;
+    activeRequestVersionRef.current = requestVersion;
+    pendingRequestVersionRef.current = requestVersion;
     isFetchPendingRef.current = true;
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     setIsLoading(true);
     setError(null);
@@ -61,6 +75,7 @@ export function useGitHubActionsLogs({
             ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
           },
           body: JSON.stringify({ githubRepo, workflowId }),
+          signal: controller.signal,
         },
       );
 
@@ -85,10 +100,22 @@ export function useGitHubActionsLogs({
 
         if (Array.isArray(runs) && runs.length > 0) {
           targetRunId = runs[0].id;
-          setWorkflowRun(runs[0]);
+          if (
+            isMountedRef.current &&
+            requestKeyRef.current === requestKey &&
+            activeRequestVersionRef.current === requestVersion
+          ) {
+            setWorkflowRun(runs[0]);
+          }
         } else {
-          setLogs([]);
-          setIsLoading(false);
+          if (
+            isMountedRef.current &&
+            requestKeyRef.current === requestKey &&
+            activeRequestVersionRef.current === requestVersion
+          ) {
+            setLogs([]);
+            setIsLoading(false);
+          }
           return;
         }
       }
@@ -107,6 +134,7 @@ export function useGitHubActionsLogs({
           runId: targetRunId,
           mode: "raw",
         }),
+        signal: controller.signal,
         },
       );
 
@@ -123,7 +151,11 @@ export function useGitHubActionsLogs({
 
       const logsData = await logsResponse.json();
 
-      if (isMountedRef.current && requestKeyRef.current === requestKey) {
+      if (
+        isMountedRef.current &&
+        requestKeyRef.current === requestKey &&
+        activeRequestVersionRef.current === requestVersion
+      ) {
         // If GitHub hasn't prepared the logs archive yet, treat it as a "soft" state (no red error).
         if (logsData?.ok === true && logsData?.status === "not_ready") {
           setError(null);
@@ -166,21 +198,46 @@ export function useGitHubActionsLogs({
        }
     } catch (err: unknown) {
       // Nur einmal loggen (nicht bei jedem Poll-Versuch)
-      if (isMountedRef.current && requestKeyRef.current === requestKey && !loggedErrorRef.current) {
+      if (
+        err instanceof Error &&
+        err.name === "AbortError"
+      ) {
+        return;
+      }
+      if (
+        isMountedRef.current &&
+        requestKeyRef.current === requestKey &&
+        activeRequestVersionRef.current === requestVersion &&
+        !loggedErrorRef.current
+      ) {
         logger.warn(
           "[useGitHubActionsLogs] ⚠️ Logs nicht verfügbar:",
           err instanceof Error ? err.message : String(err),
         );
         loggedErrorRef.current = true;
       }
-      if (isMountedRef.current && requestKeyRef.current === requestKey) {
+      if (
+        isMountedRef.current &&
+        requestKeyRef.current === requestKey &&
+        activeRequestVersionRef.current === requestVersion
+      ) {
         setError(err instanceof Error ? err.message : "Fehler beim Abrufen der Logs");
       }
     } finally {
-      if (isMountedRef.current && requestKeyRef.current === requestKey) {
+      if (
+        isMountedRef.current &&
+        requestKeyRef.current === requestKey &&
+        activeRequestVersionRef.current === requestVersion
+      ) {
         setIsLoading(false);
       }
-      isFetchPendingRef.current = false;
+      if (pendingRequestVersionRef.current === requestVersion) {
+        pendingRequestVersionRef.current = null;
+        isFetchPendingRef.current = false;
+      }
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
     }
   }, [githubRepo, runId, workflowId]);
 
@@ -196,12 +253,36 @@ export function useGitHubActionsLogs({
   }, [workflowRun?.status]);
 
   useEffect(() => {
-    if (!githubRepo) {
-      setLogs([]);
-      setWorkflowRun(null);
-      setError(null);
-      setIsLoading(false);
+    const nextRequestKey = `${githubRepo || ""}::${String(runId ?? "latest")}::${workflowId}`;
+    requestKeyRef.current = nextRequestKey;
+
+    const hasPendingStaleRequest =
+      isFetchPendingRef.current &&
+      pendingRequestVersionRef.current != null &&
+      activeRequestKeyRef.current !== nextRequestKey;
+
+    if (hasPendingStaleRequest) {
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
+      pendingRequestVersionRef.current = null;
       isFetchPendingRef.current = false;
+    }
+
+    setLogs([]);
+    setWorkflowRun(null);
+    setError(null);
+    setIsLoading(false);
+
+    if (!githubRepo) {
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
+      pendingRequestVersionRef.current = null;
+      isFetchPendingRef.current = false;
+    }
+  }, [githubRepo, runId, workflowId]);
+
+  useEffect(() => {
+    if (!githubRepo) {
       return;
     }
 
@@ -241,17 +322,13 @@ export function useGitHubActionsLogs({
   }, [githubRepo, autoRefresh, refreshInterval, fetchLogs]);
 
   useEffect(() => {
-    setLogs([]);
-    setWorkflowRun(null);
-    setError(null);
-    setIsLoading(false);
-    isFetchPendingRef.current = false;
-  }, [githubRepo, runId, workflowId]);
-
-  useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
+      pendingRequestVersionRef.current = null;
+      isFetchPendingRef.current = false;
     };
   }, []);
 

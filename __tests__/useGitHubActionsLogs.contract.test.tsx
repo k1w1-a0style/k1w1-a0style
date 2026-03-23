@@ -196,6 +196,95 @@ describe('useGitHubActionsLogs edge contract mapping', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it('keeps the pending guard locked for the new selection when an older aborted request settles later', async () => {
+    jest.useFakeTimers();
+
+    const abortError = Object.assign(new Error('aborted'), { name: 'AbortError' });
+    let firstRequestAborted = false;
+    let secondRequestAborted = false;
+
+    const fetchMock = jest.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      const signal = init?.signal as AbortSignal | undefined;
+      const callNumber = fetchMock.mock.calls.length;
+
+      if (callNumber === 1) {
+        return new Promise((_resolve, reject) => {
+          signal?.addEventListener(
+            'abort',
+            () => {
+              firstRequestAborted = true;
+              reject(abortError);
+            },
+            { once: true },
+          );
+        });
+      }
+
+      if (callNumber === 2) {
+        return new Promise((_resolve, reject) => {
+          signal?.addEventListener(
+            'abort',
+            () => {
+              secondRequestAborted = true;
+              reject(abortError);
+            },
+            { once: true },
+          );
+        });
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ ok: true, logsText: '' }),
+      });
+    });
+
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const { rerender, unmount } = renderHook<
+      ReturnType<typeof useGitHubActionsLogs>,
+      { githubRepo: string; runId: number }
+    >(
+      ({ githubRepo, runId }) =>
+        useGitHubActionsLogs({
+          githubRepo,
+          runId,
+          workflowId: 'k1w1-ci-lite.yml',
+          autoRefresh: true,
+          refreshInterval: 25,
+        }),
+      { initialProps: { githubRepo: 'owner/repo-a', runId: 111 } },
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      rerender({ githubRepo: 'owner/repo-b', runId: 222 });
+    });
+
+    expect(firstRequestAborted).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      jest.advanceTimersByTime(25);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(secondRequestAborted).toBe(false);
+
+    unmount();
+    jest.useRealTimers();
+  });
+
   it('preserves the last known run state when autoRefresh is turned off', async () => {
     const fetchMock = jest.fn().mockResolvedValueOnce({
       ok: true,

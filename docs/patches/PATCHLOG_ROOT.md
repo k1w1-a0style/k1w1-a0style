@@ -1,3 +1,4 @@
+- Patch 531: `useGitHubActionsLogs` koordiniert Pending-Guard und Abort jetzt requestgebunden — Selection-Wechsel aborten alte Requests und resetten den UI-Zustand weiter ehrlich, waehrend `requestVersionRef` plus `pendingRequestVersionRef` verhindern, dass ein spaetes `finally` eines alten Requests den Guard eines neueren laufenden Fetches oeffnet; ein gezielter Hook-Test blockiert doppelte Parallel-Requests fuer dieselbe neue Selection.
 - Patch 530: lokale Preflight-Diagnose erkennt jetzt offensichtliche Runtime-Import→Dependency-Mismatches vor CI Lite; strukturierte `findings` benennen Paket, Fundstellen, Kategorie/Fixbarkeit und sichere Expo-SDK-54-AutoFixes ergaenzen gezielt `expo-linear-gradient` bzw. `expo-blur` in `package.json`, waehrend unsichere Faelle bewusst diagnose-only bleiben.
 
 # Patchlog Root
