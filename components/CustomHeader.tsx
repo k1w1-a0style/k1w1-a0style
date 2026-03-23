@@ -20,9 +20,12 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
   const insets = useSafeAreaInsets();
 
   const repoLine = useMemo(() => {
-    if (!activeRepo) return "Kein Repo ausgewählt";
-    return `${activeRepo}${activeBranch ? `  (${activeBranch})` : ""}`;
-  }, [activeRepo, activeBranch]);
+    const selectedRepo = (projectData?.linkedRepo || activeRepo || "").trim();
+    const selectedBranch = (projectData?.linkedBranch || activeBranch || "").trim();
+
+    if (!selectedRepo) return "Kein Repo ausgewählt";
+    return `${selectedRepo}${selectedBranch ? `  (${selectedBranch})` : ""}`;
+  }, [activeBranch, activeRepo, projectData?.linkedBranch, projectData?.linkedRepo]);
 
   const handlePreviewPress = () => {
     const last = projectData?.lastPreview ?? null;

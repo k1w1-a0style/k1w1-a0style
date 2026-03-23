@@ -13,6 +13,12 @@ type Props = {
   highlightPersona: "speed" | "quality";
 };
 
+function renderCodingStrength(value?: number): string | null {
+  if (!value || value < 1) return null;
+  const clamped = Math.max(1, Math.min(5, Math.round(value)));
+  return `Coding ${"★".repeat(clamped)}${"☆".repeat(5 - clamped)}`;
+}
+
 export const ModeList: React.FC<Props> = ({
   provider,
   selectedMode,
@@ -35,6 +41,7 @@ export const ModeList: React.FC<Props> = ({
         const tier = tierTokens[m.tier];
         const persona = personaTokens[m.persona] || personaTokens.balanced;
         const isHighlighted = m.persona === highlightPersona;
+        const codingStrength = renderCodingStrength(m.codingStrength);
 
         return (
           <TouchableOpacity
@@ -59,6 +66,29 @@ export const ModeList: React.FC<Props> = ({
 
             <Text style={styles.modeDesc}>{m.description}</Text>
 
+            <View style={styles.modeMetaRow}>
+              {m.pricePerMillion ? (
+                <View style={styles.metaPill}>
+                  <Text style={styles.metaPillText}>{m.pricePerMillion}</Text>
+                </View>
+              ) : null}
+              {m.contextWindow ? (
+                <View style={styles.metaPill}>
+                  <Text style={styles.metaPillText}>Kontext {m.contextWindow}</Text>
+                </View>
+              ) : null}
+              {m.availabilityLabel ? (
+                <View style={styles.metaPill}>
+                  <Text style={styles.metaPillText}>Verfügbar: {m.availabilityLabel}</Text>
+                </View>
+              ) : null}
+              {codingStrength ? (
+                <View style={styles.metaPill}>
+                  <Text style={styles.metaPillText}>{codingStrength}</Text>
+                </View>
+              ) : null}
+            </View>
+
             <View style={styles.modeFoot}>
               <Text
                 style={[
@@ -68,7 +98,7 @@ export const ModeList: React.FC<Props> = ({
               >
                 {persona.label}
               </Text>
-              <Text style={styles.bestFor} numberOfLines={1}>
+              <Text style={styles.bestFor} numberOfLines={2}>
                 {m.bestFor}
               </Text>
             </View>

@@ -376,6 +376,24 @@ export function useChatAIFlow({
     [addChatMessage],
   );
 
+
+  const notifyFallbackNotes = useCallback(
+    (res: OrchestratorResult | null | undefined) => {
+      if (!res?.ok || !Array.isArray(res.errors) || res.errors.length === 0) return;
+      const fallbackNotes = res.errors.filter((entry) => typeof entry === "string" && entry.includes("Fallback aktiv"));
+      if (fallbackNotes.length === 0) return;
+
+      addChatMessage({
+        id: uuidv4(),
+        role: "system",
+        content: fallbackNotes.join("\n"),
+        timestamp: new Date().toISOString(),
+        meta: { providerFallback: true, provider: res.provider },
+      });
+    },
+    [addChatMessage],
+  );
+
   const processAIRequest = useCallback(
     async (userContent: string, isAutoFix = false, forceBuilder = false) => {
       if (inFlightRef.current) return false;
@@ -441,6 +459,7 @@ export function useChatAIFlow({
             );
 
             notifyKeyRotation(planRes);
+            notifyFallbackNotes(planRes);
 
             if (
               planRes?.ok &&
@@ -494,6 +513,7 @@ export function useChatAIFlow({
           );
 
           notifyKeyRotation(ai);
+          notifyFallbackNotes(ai);
 
           if (ai?.ok) break;
 
@@ -581,6 +601,7 @@ export function useChatAIFlow({
             );
 
             notifyKeyRotation(agentRes);
+            notifyFallbackNotes(agentRes);
 
             if (agentRes?.ok) {
               const agentRaw = extractRawOrchestratorResult(agentRes as ExtendedOrchestratorResult);
@@ -657,6 +678,7 @@ export function useChatAIFlow({
             );
 
             notifyKeyRotation(explainRes);
+            notifyFallbackNotes(explainRes);
             if (explainRes?.ok && typeof explainRes.text === "string") {
               explainText = explainRes.text.trim();
             }
@@ -761,6 +783,7 @@ export function useChatAIFlow({
       addChatMessage,
       config,
       drainAutoFixQueue,
+      notifyFallbackNotes,
       notifyKeyRotation,
       safe,
       sleepWithAbort,

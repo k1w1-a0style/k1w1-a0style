@@ -40,20 +40,20 @@ describe("k1w1-handler provider invariants", () => {
     const src = read("supabase/functions/k1w1-handler/helpers.ts");
 
     // Keep edge defaults aligned with app model catalog defaults.
-    expect(src).toContain('speed: "groq/compound-mini"');
+    expect(src).toContain('speed: "qwen3-32b"');
     expect(src).toContain('quality: "llama-3.3-70b-versatile"');
 
-    expect(src).toContain('speed: "gemini-2.5-flash-lite"');
-    expect(src).toContain('quality: "gemini-2.5-flash"');
+    expect(src).toContain('speed: "gemini-3-flash"');
+    expect(src).toContain('quality: "gemini-3.1-pro"');
 
-    expect(src).toContain('speed: "gpt-4o-mini"');
-    expect(src).toContain('quality: "gpt-4o"');
+    expect(src).toContain('speed: "gpt-4o"');
+    expect(src).toContain('quality: "gpt-5.4"');
 
-    expect(src).toContain('speed: "claude-3-5-haiku-20241022"');
-    expect(src).toContain('quality: "claude-3-5-sonnet-20241022"');
+    expect(src).toContain('speed: "claude-4-haiku-202502"');
+    expect(src).toContain('quality: "claude-4-sonnet-202502"');
 
-    expect(src).toContain('speed: "Qwen/Qwen2.5-7B-Instruct"');
-    expect(src).toContain('quality: "Qwen/Qwen2.5-Coder-32B-Instruct"');
+    expect(src).toContain('speed: "Qwen/Qwen3-32B"');
+    expect(src).toContain('quality: "Qwen/Qwen3-Coder-235B"');
 
     expect(src).not.toContain('claude-3-5-haiku-latest');
     expect(src).not.toContain('claude-3-5-sonnet-latest');

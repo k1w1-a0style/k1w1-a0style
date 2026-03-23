@@ -114,7 +114,7 @@ function resolveHandlerError(
   payload: K1w1HandlerPayload | null | undefined,
   fallbackProvider: AllAIProviders,
   fallbackModel: string,
-): { provider: string; model: string; message: string } {
+): { provider: string; model: string; message: string; errorCode?: K1w1HandlerErrorCode } {
   const provider = typeof payload?.provider === 'string' && payload.provider.trim()
     ? payload.provider.trim()
     : fallbackProvider;
@@ -127,6 +127,7 @@ function resolveHandlerError(
     provider,
     model,
     message: explicitError || mapHandlerErrorCodeToMessage(payload?.code, provider, model),
+    errorCode: payload?.code,
   };
 }
 
@@ -200,6 +201,7 @@ function normalizeHandlerPayload(
     return {
       ok: false,
       error: resolved.message,
+      errorCode: resolved.errorCode,
       provider: resolved.provider,
       model: resolved.model,
     };
