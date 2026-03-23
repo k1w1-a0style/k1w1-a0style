@@ -58,10 +58,10 @@ export function getDiagnosticFixOffer(result: Pick<PreflightCheckResult, "fix" |
 
   return {
     status: "advisory_only",
-    badgeText: result.status !== "pass" ? "KI-Fix verfügbar" : null,
+    badgeText: result.status !== "pass" ? "Im Chat verfügbar" : null,
     actionLabel: undefined,
     previewAvailable: false,
-    summary: result.status === "pass" ? "Kein Fix nötig." : "Nur Hinweis oder manueller/KI-Follow-up verfügbar.",
+    summary: result.status === "pass" ? "Kein Fix nötig." : "Nur Hinweis oder Chat-/manueller Follow-up verfügbar.",
   };
 }
 
