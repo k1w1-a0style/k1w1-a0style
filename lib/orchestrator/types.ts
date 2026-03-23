@@ -12,7 +12,6 @@ export interface OrchestratorResult {
   ok: boolean;
   text?: string;
   error?: string;
-  errorCode?: string;
   errors?: string[];
   provider?: string;
   model?: string;
