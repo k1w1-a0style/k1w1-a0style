@@ -497,4 +497,138 @@ describe('useGitHubActionsLogs edge contract mapping', () => {
     });
   });
 
+  it('does not let an aborted stale finally reopen the pending guard for the new selection', async () => {
+    const firstFetchDeferred = createDeferred<{
+      ok: boolean;
+      json: () => Promise<{
+        ok: boolean;
+        logsText: string;
+        run: {
+          id: number;
+          run_number: number;
+          status: string;
+          conclusion: string | null;
+          created_at: string;
+          updated_at: string;
+          html_url: string;
+        };
+      }>;
+    }>();
+    const secondFetchDeferred = createDeferred<{
+      ok: boolean;
+      json: () => Promise<{
+        ok: boolean;
+        logsText: string;
+        run: {
+          id: number;
+          run_number: number;
+          status: string;
+          conclusion: string | null;
+          created_at: string;
+          updated_at: string;
+          html_url: string;
+        };
+      }>;
+    }>();
+    const abortOldRequest = createDeferred<void>();
+    const requestSignals: AbortSignal[] = [];
+
+    const fetchMock = jest.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      const signal = init?.signal as AbortSignal;
+      requestSignals.push(signal);
+
+      if (requestSignals.length === 1) {
+        signal.addEventListener('abort', () => {
+          abortOldRequest.promise.then(() => {
+            const err = new Error('aborted');
+            err.name = 'AbortError';
+            firstFetchDeferred.reject(err);
+          });
+        });
+        return firstFetchDeferred.promise;
+      }
+
+      if (requestSignals.length === 2) {
+        return secondFetchDeferred.promise;
+      }
+
+      throw new Error('stale pending guard reopened and started an unexpected parallel fetch');
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const { result, rerender } = renderHook<
+      ReturnType<typeof useGitHubActionsLogs>,
+      { runId: number }
+    >(
+      ({ runId }) =>
+        useGitHubActionsLogs({
+          githubRepo: 'owner/repo',
+          runId,
+          workflowId: 'k1w1-ci-lite.yml',
+          autoRefresh: true,
+        }),
+      { initialProps: { runId: 111 } },
+    );
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(result.current.isLoading).toBe(true);
+    });
+
+    rerender({ runId: 222 });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(result.current.isLoading).toBe(true);
+    });
+
+    expect(requestSignals[0]?.aborted).toBe(true);
+    expect(requestSignals[1]?.aborted).toBe(false);
+    expect(result.current.logs).toEqual([]);
+    expect(result.current.workflowRun).toBeNull();
+
+    await act(async () => {
+      abortOldRequest.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.isLoading).toBe(true);
+
+    await act(async () => {
+      await result.current.refreshLogs();
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.current.isLoading).toBe(true);
+
+    await act(async () => {
+      secondFetchDeferred.resolve({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          logsText: 'fresh-log-line',
+          run: {
+            id: 222,
+            run_number: 2,
+            status: 'in_progress',
+            conclusion: null,
+            created_at: '2026-01-01T00:02:00Z',
+            updated_at: '2026-01-01T00:03:00Z',
+            html_url: 'https://github.com/runs/222',
+          },
+        }),
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.workflowRun?.id).toBe(222);
+      expect(result.current.logs).toEqual([
+        expect.objectContaining({ message: 'fresh-log-line' }),
+      ]);
+      expect(result.current.error).toBeNull();
+      expect(result.current.isLoading).toBe(false);
+    });
+  });
+
 });

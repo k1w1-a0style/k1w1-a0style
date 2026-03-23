@@ -36,7 +36,7 @@ export function useGitHubActionsLogs({
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isMountedRef = useRef(true);
   const loggedErrorRef = useRef(false);
-  const isFetchPendingRef = useRef(false);
+  const pendingRequestVersionRef = useRef<number | null>(null);
   const requestKeyRef = useRef<string>("");
   const requestVersionRef = useRef(0);
   const activeAbortControllerRef = useRef<AbortController | null>(null);
@@ -80,11 +80,11 @@ export function useGitHubActionsLogs({
       setError("Kein GitHub Repo ausgewählt");
       return;
     }
-    if (isFetchPendingRef.current) return;
-    isFetchPendingRef.current = true;
+    if (pendingRequestVersionRef.current !== null) return;
     requestKeyRef.current = requestKey;
     const requestVersion = requestVersionRef.current + 1;
     requestVersionRef.current = requestVersion;
+    pendingRequestVersionRef.current = requestVersion;
 
     setIsLoading(true);
     setError(null);
@@ -254,7 +254,9 @@ export function useGitHubActionsLogs({
       ) {
         setIsLoading(false);
       }
-      isFetchPendingRef.current = false;
+      if (pendingRequestVersionRef.current === requestVersion) {
+        pendingRequestVersionRef.current = null;
+      }
     }
   }, [fetchWithTimeout, githubRepo, runId, workflowId]);
 
@@ -283,7 +285,7 @@ export function useGitHubActionsLogs({
     setWorkflowRun(null);
     setError(null);
     setIsLoading(false);
-    isFetchPendingRef.current = false;
+    pendingRequestVersionRef.current = null;
   }, [abortActiveRequest, githubRepo, runId, workflowId]);
 
   useEffect(() => {
@@ -292,7 +294,7 @@ export function useGitHubActionsLogs({
       setWorkflowRun(null);
       setError(null);
       setIsLoading(false);
-      isFetchPendingRef.current = false;
+      pendingRequestVersionRef.current = null;
       return;
     }
 
@@ -336,6 +338,7 @@ export function useGitHubActionsLogs({
     return () => {
       requestVersionRef.current += 1;
       abortActiveRequest();
+      pendingRequestVersionRef.current = null;
       isMountedRef.current = false;
     };
   }, [abortActiveRequest]);
