@@ -75,8 +75,6 @@ export function useGitHubActionsLogs({
 
   const fetchLogs = useCallback(async () => {
     const requestKey = `${githubRepo || ""}::${String(runId ?? "latest")}::${workflowId}`;
-    const requestVersion = ++requestVersionRef.current;
-    requestKeyRef.current = requestKey;
 
     if (!githubRepo) {
       setError("Kein GitHub Repo ausgewählt");
@@ -84,6 +82,9 @@ export function useGitHubActionsLogs({
     }
     if (isFetchPendingRef.current) return;
     isFetchPendingRef.current = true;
+    requestKeyRef.current = requestKey;
+    const requestVersion = requestVersionRef.current + 1;
+    requestVersionRef.current = requestVersion;
 
     setIsLoading(true);
     setError(null);
@@ -269,6 +270,23 @@ export function useGitHubActionsLogs({
   }, [workflowRun?.status]);
 
   useEffect(() => {
+    if (!didInitSelectionResetRef.current) {
+      didInitSelectionResetRef.current = true;
+      requestKeyRef.current = `${githubRepo || ""}::${String(runId ?? "latest")}::${workflowId}`;
+      return;
+    }
+
+    requestVersionRef.current += 1;
+    requestKeyRef.current = `${githubRepo || ""}::${String(runId ?? "latest")}::${workflowId}`;
+    abortActiveRequest();
+    setLogs([]);
+    setWorkflowRun(null);
+    setError(null);
+    setIsLoading(false);
+    isFetchPendingRef.current = false;
+  }, [abortActiveRequest, githubRepo, runId, workflowId]);
+
+  useEffect(() => {
     if (!githubRepo) {
       setLogs([]);
       setWorkflowRun(null);
@@ -312,23 +330,6 @@ export function useGitHubActionsLogs({
       }
     };
   }, [githubRepo, autoRefresh, refreshInterval, fetchLogs]);
-
-  useEffect(() => {
-    if (!didInitSelectionResetRef.current) {
-      didInitSelectionResetRef.current = true;
-      requestKeyRef.current = `${githubRepo || ""}::${String(runId ?? "latest")}::${workflowId}`;
-      return;
-    }
-
-    requestVersionRef.current += 1;
-    requestKeyRef.current = `${githubRepo || ""}::${String(runId ?? "latest")}::${workflowId}`;
-    abortActiveRequest();
-    setLogs([]);
-    setWorkflowRun(null);
-    setError(null);
-    setIsLoading(false);
-    isFetchPendingRef.current = false;
-  }, [abortActiveRequest, githubRepo, runId, workflowId]);
 
   useEffect(() => {
     isMountedRef.current = true;
