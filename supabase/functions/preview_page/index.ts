@@ -4,11 +4,12 @@
 import {
   TABLE, MAX_FILES_BYTES, MAX_RESPONSE_BYTES,
   escapeHtml, safeJsonForScript, getSupabaseBaseUrl, supabaseHeaders,
-  withTimeout, utf8Size, approxFilesPayloadSize, randomNonce, html, htmlPreviewError,
+  utf8Size, approxFilesPayloadSize, randomNonce, html, htmlPreviewError,
   rateLimit, sanitizeErrorText, classifyPreviewRecordLookupFailure, classifyPreviewRecordShape,
   classifyPreviewPageUnexpectedError, previewPageErrorResponse,
 } from "./helpers.ts";
 import type { SnackFiles, PreviewRecord } from "./helpers.ts";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 
 type PreviewMeta = { template?: unknown };
 
@@ -35,12 +36,12 @@ async function fetchPreviewRecord(
     return { ok: false, code: classifyPreviewRecordLookupFailure({ missingServiceRoleKey: true }) };
   }
 
-  const t = withTimeout(8000);
   try {
-    const res = await fetch(restUrl, {
+    const res = await fetchWithTimeout(restUrl, {
+      timeoutMs: 8000,
+      timeoutMessage: "preview_page lookup timed out after 8000ms",
       method: "GET",
       headers,
-      signal: t.signal,
     });
 
     if (!res.ok) {
@@ -77,8 +78,6 @@ async function fetchPreviewRecord(
       sanitizeErrorText(e instanceof Error ? e.message : String(e)),
     );
     return { ok: false, code: classifyPreviewRecordLookupFailure({ error: e }) };
-  } finally {
-    t.cancel();
   }
 }
 
@@ -88,20 +87,18 @@ async function deletePreviewRecord(secret: string): Promise<void> {
 
   const restUrl = `${base}/rest/v1/${TABLE}?secret=eq.${encodeURIComponent(secret)}`;
 
-  const t = withTimeout(6000);
   try {
-    await fetch(restUrl, {
+    await fetchWithTimeout(restUrl, {
+      timeoutMs: 6000,
+      timeoutMessage: "preview_page delete timed out after 6000ms",
       method: "DELETE",
       headers: supabaseHeaders(),
-      signal: t.signal,
     });
   } catch (e) {
     console.error(
       "deletePreviewRecord error:",
       sanitizeErrorText(e instanceof Error ? e.message : String(e)),
     );
-  } finally {
-    t.cancel();
   }
 }
 

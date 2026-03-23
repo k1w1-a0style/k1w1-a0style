@@ -1,6 +1,7 @@
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { requireAdminKeyOrServiceRoleBearer, rateLimit } from "../_shared/auth.ts";
 import { githubHeaders, getGithubToken, GITHUB_API_BASE } from "../_shared/github.ts";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
 import {
   parseJsonBody,
@@ -745,8 +746,10 @@ function parseManagedWorkflowMeta(content: string): { managedBy: string | null; 
 }
 
 async function ghFetch(url: string, token: string, init: RequestInit): Promise<Response> {
-  return await fetch(url, {
+  return await fetchWithTimeout(url, {
     ...init,
+    timeoutMs: 15_000,
+    timeoutMessage: `GitHub workflow dispatch request timed out after 15000ms: ${url}`,
     headers: {
       ...githubHeaders(token),
       ...(init.headers ?? {}),

@@ -10,6 +10,7 @@ import { useProject } from "../../../contexts/ProjectContext";
 import { ensureSupabaseClient } from "../../../lib/supabase";
 import { getEdgeAdminKey, saveEdgeAdminKey } from "../../../infra/github/githubService";
 import { credKeyForUiMode } from "../../../lib/storageKeys";
+import { fetchWithTimeout } from "../../../lib/network/fetchWithTimeout";
 
 import { useInlineToast } from "../../../components/diagnostics/useInlineToast";
 import { theme } from "../../../theme";
@@ -81,12 +82,12 @@ export async function invokeEdgeJson(
   const REQUEST_TIMEOUT_MS = 12_000;
 
   const url = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/${fn}`;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await fetchWithTimeout(url, {
+      timeoutMs: REQUEST_TIMEOUT_MS,
+      timeoutMessage: `Edge request timeout after ${REQUEST_TIMEOUT_MS}ms`,
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -95,16 +96,13 @@ export async function invokeEdgeJson(
         "x-k1w1-admin-key": adminKey.trim(),
       },
       body: JSON.stringify(payload ?? {}),
-      signal: controller.signal,
     });
   } catch (error: unknown) {
     const name = error instanceof Error ? error.name : "";
-    if (name === "AbortError") {
+    if (name === "AbortError" || name === "TimeoutError") {
       throw new Error(`Edge request timeout after ${REQUEST_TIMEOUT_MS}ms`);
     }
     throw error;
-  } finally {
-    clearTimeout(timeoutId);
   }
 
   const bodyText = await res.text();

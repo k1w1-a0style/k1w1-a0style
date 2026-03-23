@@ -13,7 +13,8 @@
 import { errorResponse, handleCors, jsonResponse } from "../_shared/cors.ts";
 import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 import { parseJsonBody } from "../_shared/validation.ts";
-import { githubHeaders, GITHUB_API_BASE } from "../_shared/github.ts";
+import { githubFetch, GITHUB_API_BASE } from "../_shared/github.ts";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { unzipSync, strFromU8 } from "npm:fflate@0.8.2";
 
 
@@ -119,9 +120,8 @@ export async function fetchLogsZip(
   const api = `${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/runs/${runId}/logs`;
 
   // First request: get the signed URL (302 Location).
-  const r1 = await fetch(api, {
+  const r1 = await githubFetch(api, {
     method: "GET",
-    headers: githubHeaders(token, "Bearer"),
     redirect: "manual",
   });
 
@@ -131,9 +131,8 @@ export async function fetchLogsZip(
     // 2) The token has no access to Actions/logs (private repo) OR runId is invalid
     if (r1.status === 404) {
       const runApi = `${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/runs/${runId}`;
-      const rr = await fetch(runApi, {
+      const rr = await githubFetch(runApi, {
         method: "GET",
-        headers: githubHeaders(token, "Bearer"),
       });
 
       if (rr.status === 200) {
@@ -199,7 +198,11 @@ export async function fetchLogsZip(
   const safeLoc = assertAllowedRedirect(loc).toString();
 
   // Second request: download zip from signed URL (no auth header).
-  const r2 = await fetch(safeLoc, { method: "GET" });
+  const r2 = await fetchWithTimeout(safeLoc, {
+    method: "GET",
+    timeoutMs: 15_000,
+    timeoutMessage: "GitHub logs archive download timed out after 15000ms",
+  });
   if (!r2.ok) {
     const body = await r2.text().catch(() => "");
     throw { status: r2.status, body };

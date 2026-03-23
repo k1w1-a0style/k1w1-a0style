@@ -4,7 +4,7 @@
 import { handleCors } from "../_shared/cors.ts";
 import { requireAdminKeyOrServiceRoleBearer, rateLimit } from "../_shared/auth.ts";
 import { parseJsonBody } from "../_shared/validation.ts";
-import { getGithubToken, githubHeaders, GITHUB_API_BASE } from "../_shared/github.ts";
+import { getGithubToken, githubFetch, GITHUB_API_BASE } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
 import {
   jsonOk, jsonErr, asString, asNumber, parseGithubRepo,
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
     let run: Record<string, Json> | null = null;
     try {
       const runMetaUrl = `${GITHUB_API_BASE}/repos/${repoObj.owner}/${repoObj.repo}/actions/runs/${Math.trunc(runId)}`;
-      const runMetaRes = await fetch(runMetaUrl, { method: "GET", headers: githubHeaders(token, "Bearer") });
+      const runMetaRes = await githubFetch(runMetaUrl, { method: "GET" });
       const runMetaTxt = await runMetaRes.text();
       if (runMetaRes.ok) {
         const raw = JSON.parse(runMetaTxt);

@@ -1,3 +1,17 @@
+import { fetchWithTimeout, type FetchWithTimeoutInit } from "../../lib/network/fetchWithTimeout";
+
+const GITHUB_REQUEST_TIMEOUT_MS = 15_000;
+
+export async function fetchGitHub(input: RequestInfo | URL, init: FetchWithTimeoutInit = {}) {
+  const timeoutMs = init.timeoutMs ?? GITHUB_REQUEST_TIMEOUT_MS;
+  return fetchWithTimeout(input, {
+    ...init,
+    timeoutMs,
+    timeoutMessage:
+      init.timeoutMessage ?? `GitHub request timed out after ${timeoutMs}ms. Bitte Anfrage erneut versuchen.`,
+  });
+}
+
 // Small helpers used across GitHub infra modules.
 
 export const ensureGitHubRepoParts = (

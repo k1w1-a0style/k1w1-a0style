@@ -1,6 +1,6 @@
 import { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";
 import { requireAdminKeyOrServiceRoleBearer, rateLimit } from "../_shared/auth.ts";
-import { githubHeaders, getGithubToken, GITHUB_API_BASE } from "../_shared/github.ts";
+import { githubFetch, getGithubToken, GITHUB_API_BASE } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
 
 /**
@@ -115,18 +115,16 @@ Deno.serve(async (req) => {
         : repoRunsUrl;
 
     // Primary fetch: workflow-specific (if workflowId given) else repo-wide.
-    const r = await fetch(workflowRunsUrl, {
+    const r = await githubFetch(workflowRunsUrl, {
       method: "GET",
-      headers: githubHeaders(token),
     });
 
     const txt = await r.text();
 
     // If workflow file/id is not found, fall back to repo-wide runs to keep UI usable.
     if (!r.ok && r.status === 404 && workflowId) {
-      const r2 = await fetch(repoRunsUrl, {
+      const r2 = await githubFetch(repoRunsUrl, {
         method: "GET",
-        headers: githubHeaders(token),
       });
       const txt2 = await r2.text();
       if (!r2.ok) {
