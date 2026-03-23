@@ -172,10 +172,38 @@ export function useCiLiteWorkflow() {
     stopPolling();
   }, [stopPolling]);
 
-  const updateLookupDiagnosis = useCallback((diagnosis: WorkflowRunLookupDiagnosis | null) => {
-    lookupDiagnosisRef.current = diagnosis;
-    setLookupDiagnosis(diagnosis);
+  const mergeLookupDiagnosis = useCallback((
+    next: WorkflowRunLookupDiagnosis | null,
+  ): WorkflowRunLookupDiagnosis | null => {
+    if (!next) return lookupDiagnosisRef.current;
+
+    const previous = lookupDiagnosisRef.current;
+    if (!previous) return next;
+
+    if (next.exactJobIdMatchFound || next.selectedTier) {
+      return next;
+    }
+
+    if (!next.contractMismatchLikely && !next.ambiguous) {
+      if (previous.contractMismatchLikely || previous.ambiguous) {
+        return {
+          ...next,
+          ambiguous: previous.ambiguous || next.ambiguous,
+          contractMismatchLikely: previous.contractMismatchLikely || next.contractMismatchLikely,
+          fallbackCandidateCount: Math.max(previous.fallbackCandidateCount, next.fallbackCandidateCount),
+          plausibleCandidateCount: Math.max(previous.plausibleCandidateCount, next.plausibleCandidateCount),
+        };
+      }
+    }
+
+    return next;
   }, []);
+
+  const updateLookupDiagnosis = useCallback((diagnosis: WorkflowRunLookupDiagnosis | null) => {
+    const merged = mergeLookupDiagnosis(diagnosis);
+    lookupDiagnosisRef.current = merged;
+    setLookupDiagnosis(merged);
+  }, [mergeLookupDiagnosis]);
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
@@ -739,9 +767,10 @@ export function useCiLiteWorkflow() {
             githubRepo,
             workflow: workflowFile,
             ref: targetBranch,
-            // `ref` is already provided as the top-level workflow_dispatch ref.
-            // `inputs` must match the workflow's declared `workflow_dispatch.inputs`.
-            inputs: { job_id: newJobId },
+            // GitHub workflow_dispatch requires the target ref twice:
+            // - top-level `ref` selects the branch/SHA to run on
+            // - `inputs.ref` satisfies the workflow's declared input contract
+            inputs: { ref: targetBranch, job_id: newJobId },
           }),
         });
 
@@ -769,7 +798,7 @@ export function useCiLiteWorkflow() {
               expectedEvent: "workflow_dispatch",
               startedAtMs: start,
               sourceHeadSha,
-              requireJobIdMarker: false,
+              requireJobIdMarker: true,
             });
             updateLookupDiagnosis(lookup.diagnosis);
             if (lookup.candidate?.id) {

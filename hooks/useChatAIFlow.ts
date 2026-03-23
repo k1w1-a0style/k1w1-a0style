@@ -36,6 +36,11 @@ const readErrorText = (result: OrchestratorResult | null | undefined): string =>
   return [result.error, ...(result.errors ?? [])].filter(Boolean).join("\n");
 };
 
+const readRuntimeNote = (result: OrchestratorResult | null | undefined): string => {
+  const note = typeof result?.runtimeNote === "string" ? result.runtimeNote.trim() : "";
+  return note;
+};
+
 const parseRetryAfterMs = (errorText: string): number | null => {
   const secondsMatch = errorText.match(/retry-?after[^\d]*(\d+(?:\.\d+)?)\s*s/i);
   if (secondsMatch) return Math.round(Number(secondsMatch[1]) * 1000);
@@ -376,6 +381,22 @@ export function useChatAIFlow({
     [addChatMessage],
   );
 
+  const announceRuntimeNote = useCallback(
+    (result: OrchestratorResult | null | undefined) => {
+      const note = readRuntimeNote(result);
+      if (!note) return;
+
+      addChatMessage({
+        id: uuidv4(),
+        role: "system",
+        content: note,
+        timestamp: new Date().toISOString(),
+        meta: { runtimeNote: true, fallbackUsed: !!result?.fallbackUsed },
+      });
+    },
+    [addChatMessage],
+  );
+
   const processAIRequest = useCallback(
     async (userContent: string, isAutoFix = false, forceBuilder = false) => {
       if (inFlightRef.current) return false;
@@ -441,6 +462,7 @@ export function useChatAIFlow({
             );
 
             notifyKeyRotation(planRes);
+            announceRuntimeNote(planRes);
 
             if (
               planRes?.ok &&
@@ -494,6 +516,7 @@ export function useChatAIFlow({
           );
 
           notifyKeyRotation(ai);
+          announceRuntimeNote(ai);
 
           if (ai?.ok) break;
 
@@ -762,6 +785,7 @@ export function useChatAIFlow({
       config,
       drainAutoFixQueue,
       notifyKeyRotation,
+      announceRuntimeNote,
       safe,
       sleepWithAbort,
       setError,

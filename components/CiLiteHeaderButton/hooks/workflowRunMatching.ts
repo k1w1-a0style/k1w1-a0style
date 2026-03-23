@@ -178,6 +178,30 @@ export function chooseWorkflowRunCandidateDetailed(
   }
 
   if (opts.expectedEvent !== "workflow_dispatch" || opts.requireJobIdMarker !== false) {
+    if (opts.expectedEvent === "workflow_dispatch") {
+      const plausibleDispatchCandidates = runs.filter((run) =>
+        isPlausibleWorkflowDispatchFallbackCandidate(run, {
+          branch: opts.branch,
+          startedAtMs: opts.startedAtMs,
+          sourceHeadSha: opts.sourceHeadSha,
+        }),
+      );
+
+      if (plausibleDispatchCandidates.length > 0) {
+        return {
+          candidate: null,
+          diagnosis: {
+            exactJobIdMatchFound: false,
+            fallbackCandidateCount: plausibleDispatchCandidates.length,
+            ambiguous: plausibleDispatchCandidates.length > 1,
+            contractMismatchLikely: true,
+            plausibleCandidateCount: plausibleDispatchCandidates.length,
+            selectedTier: null,
+          },
+        };
+      }
+    }
+
     return {
       candidate: null,
       diagnosis: {
