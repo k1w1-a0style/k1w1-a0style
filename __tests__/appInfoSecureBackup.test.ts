@@ -13,7 +13,7 @@ const baseConfig: any = {
   selectedChatProvider: "openai",
   selectedChatMode: "gpt-4.1-mini",
   selectedAgentProvider: "anthropic",
-  selectedAgentMode: "claude-3-5-sonnet-20241022",
+  selectedAgentMode: "claude-sonnet-4-20250514",
   qualityMode: "balanced",
   agentEnabled: true,
   apiKeys: {

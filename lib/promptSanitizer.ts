@@ -7,6 +7,7 @@ export type HistoryLikeMessage = {
     localOnly?: boolean;
     metaCommand?: boolean;
     containsFilePreview?: boolean;
+    runtimeNote?: boolean;
   };
 };
 
@@ -54,6 +55,7 @@ export function shouldIncludeMessageInLlmHistory(message: HistoryLikeMessage): b
   if (message.meta?.localOnly) return false;
   if (message.meta?.metaCommand) return false;
   if (message.meta?.containsFilePreview) return false;
+  if (message.meta?.runtimeNote) return false;
   return String(message.content ?? '').trim().length > 0;
 }
 

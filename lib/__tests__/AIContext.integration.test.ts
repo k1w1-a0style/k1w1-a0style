@@ -196,6 +196,7 @@ describe('AIContext Integration', () => {
     it('haelt die erweiterten Groq-Katalogoptionen sichtbar, ohne die Defaults zu verschieben', () => {
       const groqIds = AVAILABLE_MODELS.groq.map(m => m.id);
 
+      expect(groqIds).toContain('qwen/qwen3-32b');
       expect(groqIds).toContain('openai/gpt-oss-20b');
       expect(groqIds).toContain('openai/gpt-oss-120b');
       expect(PROVIDER_DEFAULTS.groq.speed).toBe('groq/compound-mini');
@@ -221,6 +222,8 @@ describe('AIContext Integration', () => {
       const models = AVAILABLE_MODELS.anthropic;
       const claudeModels = models.filter(m => m.id.toLowerCase().includes('claude'));
       expect(claudeModels.length).toBeGreaterThan(0);
+      expect(PROVIDER_DEFAULTS.anthropic.speed).toBe('claude-3-5-haiku-20241022');
+      expect(PROVIDER_DEFAULTS.anthropic.quality).toBe('claude-sonnet-4-20250514');
     });
 
     it('HuggingFace sollte Open-Source Modelle haben', () => {

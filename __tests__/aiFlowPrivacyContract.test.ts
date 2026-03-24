@@ -58,6 +58,15 @@ describe('AI flow privacy and prompt contract', () => {
     expect(history).toEqual([{ role: 'user', content: 'Bitte baue einen Screen' }]);
   });
 
+  test('filters runtime fallback notes out of provider history', () => {
+    const history = buildSanitizedLlmHistory([
+      makeMessage({ content: 'Normale Historie' }),
+      makeMessage({ id: 'runtime-note', role: 'system', content: 'ℹ️ Runtime-Fallback aktiv: gemini/gemini-2.5-flash -> openai/gpt-4o', meta: { runtimeNote: true } }),
+    ]);
+
+    expect(history).toEqual([{ role: 'user', content: 'Normale Historie' }]);
+  });
+
   test('filters containsFilePreview messages out of provider history', () => {
     const history = buildSanitizedLlmHistory([
       makeMessage({ content: 'Normale Historie' }),

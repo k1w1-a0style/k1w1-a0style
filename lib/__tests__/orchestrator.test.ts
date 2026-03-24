@@ -339,7 +339,7 @@ describe('Orchestrator', () => {
             code: 'provider_env_missing',
             error: 'Anthropic ist serverseitig nicht konfiguriert.',
             provider: 'anthropic',
-            model: 'claude-3-5-sonnet-20241022',
+            model: 'claude-sonnet-4-20250514',
             status: 500,
           },
           error: null,
@@ -421,7 +421,7 @@ describe('Orchestrator', () => {
         data: {
           ok: true,
           provider: 'anthropic',
-          model: 'claude-3-5-sonnet-20241022',
+          model: 'claude-sonnet-4-20250514',
           content: 'Validator response',
         },
         error: null,
@@ -429,7 +429,7 @@ describe('Orchestrator', () => {
 
       const result = await runValidatorOrchestrator(
         'anthropic',
-        'claude-3-5-sonnet-20241022',
+        'claude-sonnet-4-20250514',
         validationMessages,
       );
 
@@ -437,7 +437,7 @@ describe('Orchestrator', () => {
         ok: true,
         text: 'Validator response',
         provider: 'anthropic',
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-4-20250514',
       });
       expect(invokeMock).toHaveBeenLastCalledWith(
         SUPABASE_EDGE_FUNCTIONS.K1W1_HANDLER,

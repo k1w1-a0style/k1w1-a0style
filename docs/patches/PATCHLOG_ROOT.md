@@ -203,3 +203,5 @@ Append-only Überblick über Patch-Notizen.
 ## Legacy patch-337 references
 - docs/patches/patch_337.md
 - docs/patches/PATCH_337_NOTES.md
+
+- Patch 550: PR-408-Follow-up auf aktuellem Branch-Zustand geschlossen — gemeinsame Provider-Default-Quelle fuer App/Edge eingefuehrt, Anthropic-Quality-Default auf `claude-sonnet-4-20250514` aktualisiert und Runtime-Fallback-Hinweise per explizitem `runtimeNote`-Meta-Filter aus spaeterer LLM-Historie ausgeschlossen.
