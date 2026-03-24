@@ -13,6 +13,8 @@ export interface ChatMessage {
     planner?: boolean;
     error?: boolean;
     keyRotation?: boolean;
+    runtimeNote?: boolean;
+    fallbackUsed?: boolean;
     stateDrift?: boolean;
     validatorWarning?: boolean;
     explainWarning?: boolean;

@@ -15,6 +15,11 @@ export interface OrchestratorResult {
   errors?: string[];
   provider?: string;
   model?: string;
+  errorCode?: string;
+  statusCode?: number;
+  runtimeNote?: string;
+  fallbackUsed?: boolean;
+  fallbackAttempts?: Array<{ provider: string; model: string; reason: string }>;
   keysRotated?: number;
   timing?: { startMs: number; endMs: number; durationMs: number };
 }

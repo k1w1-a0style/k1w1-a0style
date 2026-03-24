@@ -25,6 +25,7 @@ export type K1w1HandlerPayload = {
   error?: string;
   code?: K1w1HandlerErrorCode;
   status?: number;
+  runtime_note?: string;
 };
 
 type InvokeK1w1HandlerArgs = {
@@ -202,6 +203,8 @@ function normalizeHandlerPayload(
       error: resolved.message,
       provider: resolved.provider,
       model: resolved.model,
+      errorCode: payload?.code,
+      statusCode: typeof payload?.status === 'number' ? payload.status : undefined,
     };
   }
 
@@ -220,6 +223,7 @@ function normalizeHandlerPayload(
     text,
     provider,
     model,
+    runtimeNote: typeof payload.runtime_note === 'string' ? payload.runtime_note.trim() || undefined : undefined,
   };
 }
 

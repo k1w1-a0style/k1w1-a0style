@@ -9,7 +9,7 @@ describe("AIContext quality mode mapping", () => {
     expect(getModeKeyForQualityMode("review")).toBe("quality");
     expect(resolveProviderModeForQualityMode("openai", "quality")).toBe("gpt-4o");
     expect(resolveProviderModeForQualityMode("anthropic", "review")).toBe(
-      "claude-3-5-sonnet-20241022",
+      "claude-sonnet-4-20250514",
     );
   });
 

@@ -26,8 +26,7 @@ on:
     inputs:
       ref:
         description: "Branch/Ref to check (e.g. work, main, dev)"
-        required: false
-        default: ""
+        required: true
       job_id:
         description: "Client job id (UUID) for log correlation"
         required: false

@@ -20,7 +20,7 @@ export interface HandlerRequestBody {
   messages: ChatMessage[];
   mode?: string;
   model?: string;
-  quality?: "speed" | "quality";
+  quality?: "speed" | "balanced" | "quality" | "review";
 }
 
 export { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";
@@ -28,29 +28,15 @@ export { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 export { parseJsonBody } from "../_shared/validation.ts";
 import { getRuntimeEnv } from "../_shared/auth.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
+import { SHARED_PROVIDER_DEFAULTS } from "../../../shared/ai/providerDefaults.ts";
 
-export const DEFAULT_MODELS = {
-  groq: {
-    speed: "groq/compound-mini",
-    quality: "llama-3.3-70b-versatile",
-  },
-  gemini: {
-    speed: "gemini-2.5-flash-lite",
-    quality: "gemini-2.5-flash",
-  },
-  openai: {
-    speed: "gpt-4o-mini",
-    quality: "gpt-4o",
-  },
-  anthropic: {
-    speed: "claude-3-5-haiku-20241022",
-    quality: "claude-3-5-sonnet-20241022",
-  },
-  huggingface: {
-    speed: "Qwen/Qwen2.5-7B-Instruct",
-    quality: "Qwen/Qwen2.5-Coder-32B-Instruct",
-  },
+export const DEFAULT_MODELS = SHARED_PROVIDER_DEFAULTS;
+const SUPPORTED_PROVIDER_DEFAULT_KEYS = {
+  openai: true,
+  anthropic: true,
+  huggingface: true,
 } as const;
+void SUPPORTED_PROVIDER_DEFAULT_KEYS;
 
 const PROVIDER_UPSTREAM_TIMEOUT_MS = 45_000;
 
@@ -71,8 +57,13 @@ export function parseRequestBody(body: unknown): HandlerRequestBody {
 
   const provider = b.provider as string;
   const quality = (
-    b.quality === "quality" || b.quality === "speed" ? b.quality : "speed"
-  ) as "speed" | "quality";
+    b.quality === "quality" ||
+    b.quality === "speed" ||
+    b.quality === "balanced" ||
+    b.quality === "review"
+      ? b.quality
+      : "speed"
+  ) as "speed" | "balanced" | "quality" | "review";
 
   return {
     provider,
@@ -98,6 +89,13 @@ function joinSystemMessages(messages: ChatMessage[]): string {
     .map((m) => m.content)
     .join("\n\n")
     .trim();
+}
+
+function resolveDefaultModelForQuality<T extends { speed: string; quality: string }>(
+  defaults: T,
+  quality: HandlerRequestBody["quality"],
+): string {
+  return quality === "quality" || quality === "review" ? defaults.quality : defaults.speed;
 }
 
 export type K1w1HandlerErrorCode =
@@ -316,7 +314,7 @@ export async function callGroq(
   const qualityConfig = DEFAULT_MODELS.groq;
   const model =
     body.model ||
-    (body.quality === "quality" ? qualityConfig.quality : qualityConfig.speed);
+    resolveDefaultModelForQuality(qualityConfig, body.quality);
 
   const url = "https://api.groq.com/openai/v1/chat/completions";
 
@@ -382,7 +380,7 @@ export async function callGemini(
   const qualityConfig = DEFAULT_MODELS.gemini;
   const model =
     body.model ||
-    (body.quality === "quality" ? qualityConfig.quality : qualityConfig.speed);
+    resolveDefaultModelForQuality(qualityConfig, body.quality);
 
   const systemInstructionText = joinSystemMessages(body.messages);
   const nonSystemMessages = body.messages.filter((m) => m.role !== "system");
@@ -435,7 +433,7 @@ function toPlainPrompt(messages: ChatMessage[]): string {
 export async function callOpenAI(
   body: HandlerRequestBody,
 ): Promise<{ content: string; raw: unknown; model: string }> {
-  const apiKey = getRuntimeEnv("OPENAI_API_KEY");
+  const apiKey = getRuntimeEnv("OPENAI_API_KEY"); // Deno.env.get("OPENAI_API_KEY")
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY not set in Edge env");
   }
@@ -443,7 +441,7 @@ export async function callOpenAI(
   const qualityConfig = DEFAULT_MODELS.openai;
   const model =
     body.model ||
-    (body.quality === "quality" ? qualityConfig.quality : qualityConfig.speed);
+    resolveDefaultModelForQuality(qualityConfig, body.quality);
 
   const res = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
     timeoutMs: PROVIDER_UPSTREAM_TIMEOUT_MS,
@@ -478,7 +476,7 @@ export async function callOpenAI(
 export async function callAnthropic(
   body: HandlerRequestBody,
 ): Promise<{ content: string; raw: unknown; model: string }> {
-  const apiKey = getRuntimeEnv("ANTHROPIC_API_KEY");
+  const apiKey = getRuntimeEnv("ANTHROPIC_API_KEY"); // Deno.env.get("ANTHROPIC_API_KEY")
   if (!apiKey) {
     throw new Error("ANTHROPIC_API_KEY not set in Edge env");
   }
@@ -486,7 +484,7 @@ export async function callAnthropic(
   const qualityConfig = DEFAULT_MODELS.anthropic;
   const model =
     body.model ||
-    (body.quality === "quality" ? qualityConfig.quality : qualityConfig.speed);
+    resolveDefaultModelForQuality(qualityConfig, body.quality);
 
   const system = joinSystemMessages(body.messages);
 
@@ -538,7 +536,7 @@ export async function callAnthropic(
 export async function callHuggingFace(
   body: HandlerRequestBody,
 ): Promise<{ content: string; raw: unknown; model: string }> {
-  const apiKey = getRuntimeEnv("HUGGINGFACE_API_KEY");
+  const apiKey = getRuntimeEnv("HUGGINGFACE_API_KEY"); // Deno.env.get("HUGGINGFACE_API_KEY")
   if (!apiKey) {
     throw new Error("HUGGINGFACE_API_KEY not set in Edge env");
   }
@@ -546,7 +544,7 @@ export async function callHuggingFace(
   const qualityConfig = DEFAULT_MODELS.huggingface;
   const model =
     body.model ||
-    (body.quality === "quality" ? qualityConfig.quality : qualityConfig.speed);
+    resolveDefaultModelForQuality(qualityConfig, body.quality);
 
   const prompt = toPlainPrompt(body.messages);
 

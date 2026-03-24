@@ -219,6 +219,149 @@ describe('Orchestrator', () => {
       expect(String(result.error || '')).not.toContain('Edge-Request fehlgeschlagen (429)');
     });
 
+    it('faellt bei provider_env_missing ehrlich auf einen anderen konfigurierten Provider zurueck', async () => {
+      const testMessages: LlmMessage[] = [{ role: 'user', content: 'hi' }];
+
+      invokeMock
+        .mockResolvedValueOnce({
+          data: {
+            ok: false,
+            code: 'provider_env_missing',
+            error: 'Gemini ist serverseitig nicht konfiguriert.',
+            provider: 'gemini',
+            model: 'gemini-2.5-flash',
+            status: 500,
+          },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: {
+            ok: true,
+            provider: 'openai',
+            model: 'gpt-4o',
+            content: 'Fallback ok',
+          },
+          error: null,
+        });
+
+      const result = await runOrchestrator('gemini', 'gemini-2.5-flash', 'quality', testMessages);
+
+      expect(result.ok).toBe(true);
+      expect(result.provider).toBe('openai');
+      expect(result.model).toBe('gpt-4o');
+      expect(result.fallbackUsed).toBe(true);
+      expect(String(result.runtimeNote || '')).toMatch(/Runtime-Fallback aktiv/i);
+      expect(invokeMock).toHaveBeenNthCalledWith(
+        2,
+        SUPABASE_EDGE_FUNCTIONS.K1W1_HANDLER,
+        expect.objectContaining({
+          body: expect.objectContaining({
+            provider: 'openai',
+            model: 'gpt-4o',
+          }),
+        }),
+      );
+    });
+
+    it('faellt bei model_not_found zunaechst auf das same-provider-default zurueck', async () => {
+      const testMessages: LlmMessage[] = [{ role: 'user', content: 'hi' }];
+
+      invokeMock
+        .mockResolvedValueOnce({
+          data: {
+            ok: false,
+            code: 'provider_model_not_found',
+            error: 'Das Modell "legacy-openai" ist bei Openai nicht verfuegbar oder wird dort nicht unterstuetzt.',
+            provider: 'openai',
+            model: 'legacy-openai',
+            status: 404,
+          },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: {
+            ok: true,
+            provider: 'openai',
+            model: 'gpt-4o-mini',
+            content: 'Fallback same provider ok',
+          },
+          error: null,
+        });
+
+      const result = await runOrchestrator('openai', 'legacy-openai', 'speed', testMessages);
+
+      expect(result.ok).toBe(true);
+      expect(result.provider).toBe('openai');
+      expect(result.model).toBe('gpt-4o-mini');
+      expect(result.fallbackUsed).toBe(true);
+      expect(String(result.runtimeNote || '')).toContain('legacy-openai');
+      expect(invokeMock).toHaveBeenNthCalledWith(
+        2,
+        SUPABASE_EDGE_FUNCTIONS.K1W1_HANDLER,
+        expect.objectContaining({
+          body: expect.objectContaining({
+            provider: 'openai',
+            model: 'gpt-4o-mini',
+          }),
+        }),
+      );
+    });
+
+    it('meldet fallback exhaustion praezise statt den ersten Providerfehler zu verschleiern', async () => {
+      const testMessages: LlmMessage[] = [{ role: 'user', content: 'hi' }];
+
+      invokeMock
+        .mockResolvedValueOnce({
+          data: {
+            ok: false,
+            code: 'provider_env_missing',
+            error: 'Gemini ist serverseitig nicht konfiguriert.',
+            provider: 'gemini',
+            model: 'gemini-2.5-flash',
+            status: 500,
+          },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: {
+            ok: false,
+            code: 'provider_env_missing',
+            error: 'Openai ist serverseitig nicht konfiguriert.',
+            provider: 'openai',
+            model: 'gpt-4o',
+            status: 500,
+          },
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: {
+            ok: false,
+            code: 'provider_env_missing',
+            error: 'Anthropic ist serverseitig nicht konfiguriert.',
+            provider: 'anthropic',
+            model: 'claude-sonnet-4-20250514',
+            status: 500,
+          },
+          error: null,
+        })
+        .mockResolvedValue({
+          data: {
+            ok: false,
+            code: 'provider_env_missing',
+            error: 'Provider ist serverseitig nicht konfiguriert.',
+            status: 500,
+          },
+          error: null,
+        });
+
+      const result = await runOrchestrator('gemini', 'gemini-2.5-flash', 'quality', testMessages);
+
+      expect(result.ok).toBe(false);
+      expect(String(result.error || '')).toContain('keine serverseitig nutzbare Fallback-Route');
+      expect(String(result.error || '')).toContain('openai/gpt-4o');
+      expect(result.fallbackUsed).toBe(true);
+    });
+
     it('meldet harte Request-Timeouts ueber den Edge-Proxy weiterhin als timeout', async () => {
       jest.useFakeTimers();
       const testMessages: LlmMessage[] = [{ role: 'user', content: 'hi' }];
@@ -278,7 +421,7 @@ describe('Orchestrator', () => {
         data: {
           ok: true,
           provider: 'anthropic',
-          model: 'claude-3-5-sonnet-20241022',
+          model: 'claude-sonnet-4-20250514',
           content: 'Validator response',
         },
         error: null,
@@ -286,7 +429,7 @@ describe('Orchestrator', () => {
 
       const result = await runValidatorOrchestrator(
         'anthropic',
-        'claude-3-5-sonnet-20241022',
+        'claude-sonnet-4-20250514',
         validationMessages,
       );
 
@@ -294,7 +437,7 @@ describe('Orchestrator', () => {
         ok: true,
         text: 'Validator response',
         provider: 'anthropic',
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-4-20250514',
       });
       expect(invokeMock).toHaveBeenLastCalledWith(
         SUPABASE_EDGE_FUNCTIONS.K1W1_HANDLER,
