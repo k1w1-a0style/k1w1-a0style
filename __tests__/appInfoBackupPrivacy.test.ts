@@ -7,7 +7,7 @@ const baseConfig: any = {
   selectedChatProvider: "openai",
   selectedChatMode: "groq/compound-mini",
   selectedAgentProvider: "openai",
-  selectedAgentMode: "claude-3-5-sonnet-20241022",
+  selectedAgentMode: "claude-sonnet-4-20250514",
   qualityMode: "balanced",
   agentEnabled: true,
   apiKeys: {

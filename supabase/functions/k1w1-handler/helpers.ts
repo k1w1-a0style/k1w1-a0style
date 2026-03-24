@@ -28,29 +28,9 @@ export { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 export { parseJsonBody } from "../_shared/validation.ts";
 import { getRuntimeEnv } from "../_shared/auth.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
+import { SHARED_PROVIDER_DEFAULTS } from "../../../shared/ai/providerDefaults.ts";
 
-export const DEFAULT_MODELS = {
-  groq: {
-    speed: "groq/compound-mini",
-    quality: "llama-3.3-70b-versatile",
-  },
-  gemini: {
-    speed: "gemini-2.5-flash-lite",
-    quality: "gemini-2.5-flash",
-  },
-  openai: {
-    speed: "gpt-4o-mini",
-    quality: "gpt-4o",
-  },
-  anthropic: {
-    speed: "claude-3-5-haiku-20241022",
-    quality: "claude-3-5-sonnet-20241022",
-  },
-  huggingface: {
-    speed: "Qwen/Qwen2.5-7B-Instruct",
-    quality: "Qwen/Qwen2.5-Coder-32B-Instruct",
-  },
-} as const;
+export const DEFAULT_MODELS = SHARED_PROVIDER_DEFAULTS;
 
 const PROVIDER_UPSTREAM_TIMEOUT_MS = 45_000;
 

@@ -1,6 +1,8 @@
 // contexts/AIContext/models.ts
 // Extracted from AIContext.tsx: types, model catalog, provider metadata.
 
+import { SHARED_PROVIDER_DEFAULTS } from '../../shared/ai/providerDefaults';
+
 export type AllAIProviders = 'groq' | 'gemini' | 'openai' | 'anthropic' | 'huggingface';
 export type QualityMode = 'speed' | 'balanced' | 'quality' | 'review';
 export type ModelTier = 'free' | 'credit' | 'paid';
@@ -75,13 +77,7 @@ export type AIContextProps = {
 
 const model = (entry: ModelInfo): ModelInfo => entry;
 
-export const PROVIDER_DEFAULTS: Record<AllAIProviders, ProviderDefaults> = {
-  groq: { speed: 'groq/compound-mini', quality: 'llama-3.3-70b-versatile' },
-  openai: { speed: 'gpt-4o-mini', quality: 'gpt-4o' },
-  anthropic: { speed: 'claude-3-5-haiku-20241022', quality: 'claude-3-5-sonnet-20241022' },
-  gemini: { speed: 'gemini-2.5-flash-lite', quality: 'gemini-2.5-flash' },
-  huggingface: { speed: 'Qwen/Qwen2.5-7B-Instruct', quality: 'Qwen/Qwen2.5-Coder-32B-Instruct' },
-};
+export const PROVIDER_DEFAULTS: Record<AllAIProviders, ProviderDefaults> = SHARED_PROVIDER_DEFAULTS;
 
 export const PROVIDER_METADATA: Record<AllAIProviders, ProviderMetadata> = {
   groq: {
@@ -138,6 +134,7 @@ export const AVAILABLE_MODELS: Record<AllAIProviders, ModelInfo[]> = {
     model({ id: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku', description: 'Schneller Daily Driver mit guter Code-Qualität.', tier: 'credit', persona: 'speed', bestFor: 'Speed + Qualität', contextWindow: '200k', pricePerMillion: '$0.80 / $4', availabilityLabel: 'Runtime OK', codingStrength: 3 }),
     model({ id: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', description: 'Bewährtes Qualitätsmodell für Review, Refactor und Diagnose.', tier: 'credit', persona: 'quality', bestFor: 'Quality/Review', contextWindow: '200k', pricePerMillion: '$3 / $15', availabilityLabel: 'Runtime OK', codingStrength: 4 }),
     model({ id: 'claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet', description: 'Aktuellere Sonnet-Generation für Coding und Reasoning.', tier: 'credit', persona: 'quality', bestFor: 'Code + Reasoning', contextWindow: '200k', pricePerMillion: '$3 / $15', availabilityLabel: 'Runtime OK', codingStrength: 4 }),
+    model({ id: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4', description: 'Aktueller Qualitäts-Default für anspruchsvollere Coding-, Review- und Analyse-Aufgaben.', tier: 'paid', persona: 'quality', bestFor: 'Quality/Review', contextWindow: '200k', pricePerMillion: '$3 / $15', availabilityLabel: 'Runtime OK', codingStrength: 5 }),
   ],
   openai: [
     model({ id: 'gpt-4o', label: 'GPT-4o', description: 'Starker Allrounder für Coding, Diagnose und Chat.', tier: 'credit', persona: 'quality', bestFor: 'Allround', contextWindow: '128k', pricePerMillion: '$5 / $15', availabilityLabel: 'Runtime OK', codingStrength: 4 }),

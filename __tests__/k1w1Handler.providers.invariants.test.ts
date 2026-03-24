@@ -1,17 +1,20 @@
 import fs from "fs";
 import path from "path";
 
+import { PROVIDER_DEFAULTS } from "../contexts/AIContext";
+import { SHARED_PROVIDER_DEFAULTS } from "../shared/ai/providerDefaults";
+
 const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "utf8");
 
 describe("k1w1-handler provider invariants", () => {
   it("keeps all 5 providers in DEFAULT_MODELS", () => {
     const src = read("supabase/functions/k1w1-handler/helpers.ts");
 
-    expect(src).toContain("groq:");
-    expect(src).toContain("gemini:");
-    expect(src).toContain("openai:");
-    expect(src).toContain("anthropic:");
-    expect(src).toContain("huggingface:");
+    expect(src).toContain("groq");
+    expect(src).toContain("gemini");
+    expect(src).toContain("openai");
+    expect(src).toContain("anthropic");
+    expect(src).toContain("huggingface");
   });
 
   it("keeps all 5 provider call helpers", () => {
@@ -34,31 +37,31 @@ describe("k1w1-handler provider invariants", () => {
     expect(src).toContain('getRuntimeEnv("HUGGINGFACE_API_KEY")');
   });
 
+  it("keeps app defaults aligned to the shared runtime-supported provider ids", () => {
+    expect(PROVIDER_DEFAULTS).toEqual(SHARED_PROVIDER_DEFAULTS);
+    expect(SHARED_PROVIDER_DEFAULTS.groq).toEqual({
+      speed: "groq/compound-mini",
+      quality: "llama-3.3-70b-versatile",
+    });
+    expect(SHARED_PROVIDER_DEFAULTS.gemini).toEqual({
+      speed: "gemini-2.5-flash-lite",
+      quality: "gemini-2.5-flash",
+    });
+    expect(SHARED_PROVIDER_DEFAULTS.anthropic).toEqual({
+      speed: "claude-3-5-haiku-20241022",
+      quality: "claude-sonnet-4-20250514",
+    });
+  });
 
-
-  it("uses aligned, runtime-supported default model ids", () => {
+  it("imports the shared provider defaults in the edge helper", () => {
     const src = read("supabase/functions/k1w1-handler/helpers.ts");
 
-    // Keep edge defaults aligned with app model catalog defaults.
-    expect(src).toContain('speed: "groq/compound-mini"');
-    expect(src).toContain('quality: "llama-3.3-70b-versatile"');
-
-    expect(src).toContain('speed: "gemini-2.5-flash-lite"');
-    expect(src).toContain('quality: "gemini-2.5-flash"');
-
-    expect(src).toContain('speed: "gpt-4o-mini"');
-    expect(src).toContain('quality: "gpt-4o"');
-
-    expect(src).toContain('speed: "claude-3-5-haiku-20241022"');
-    expect(src).toContain('quality: "claude-3-5-sonnet-20241022"');
-
-    expect(src).toContain('speed: "Qwen/Qwen2.5-7B-Instruct"');
-    expect(src).toContain('quality: "Qwen/Qwen2.5-Coder-32B-Instruct"');
-
-    expect(src).not.toContain('claude-3-5-haiku-latest');
-    expect(src).not.toContain('claude-3-5-sonnet-latest');
-    expect(src).not.toContain('gemini-1.5-flash');
-    expect(src).not.toContain('gemini-1.5-pro');
+    expect(src).toContain('import { SHARED_PROVIDER_DEFAULTS } from "../../../shared/ai/providerDefaults.ts";');
+    expect(src).toContain("export const DEFAULT_MODELS = SHARED_PROVIDER_DEFAULTS;");
+    expect(src).not.toContain("claude-3-5-sonnet-20241022");
+    expect(src).not.toContain("claude-3-5-sonnet-latest");
+    expect(src).not.toContain("gemini-1.5-flash");
+    expect(src).not.toContain("gemini-1.5-pro");
   });
 
   it("keeps Groq model-prefix fallback for compatibility", () => {
