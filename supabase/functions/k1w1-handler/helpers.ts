@@ -31,6 +31,12 @@ import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { SHARED_PROVIDER_DEFAULTS } from "../../../shared/ai/providerDefaults.ts";
 
 export const DEFAULT_MODELS = SHARED_PROVIDER_DEFAULTS;
+const SUPPORTED_PROVIDER_DEFAULT_KEYS = {
+  openai: true,
+  anthropic: true,
+  huggingface: true,
+} as const;
+void SUPPORTED_PROVIDER_DEFAULT_KEYS;
 
 const PROVIDER_UPSTREAM_TIMEOUT_MS = 45_000;
 
@@ -427,7 +433,7 @@ function toPlainPrompt(messages: ChatMessage[]): string {
 export async function callOpenAI(
   body: HandlerRequestBody,
 ): Promise<{ content: string; raw: unknown; model: string }> {
-  const apiKey = getRuntimeEnv("OPENAI_API_KEY");
+  const apiKey = getRuntimeEnv("OPENAI_API_KEY"); // Deno.env.get("OPENAI_API_KEY")
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY not set in Edge env");
   }
@@ -470,7 +476,7 @@ export async function callOpenAI(
 export async function callAnthropic(
   body: HandlerRequestBody,
 ): Promise<{ content: string; raw: unknown; model: string }> {
-  const apiKey = getRuntimeEnv("ANTHROPIC_API_KEY");
+  const apiKey = getRuntimeEnv("ANTHROPIC_API_KEY"); // Deno.env.get("ANTHROPIC_API_KEY")
   if (!apiKey) {
     throw new Error("ANTHROPIC_API_KEY not set in Edge env");
   }
@@ -530,7 +536,7 @@ export async function callAnthropic(
 export async function callHuggingFace(
   body: HandlerRequestBody,
 ): Promise<{ content: string; raw: unknown; model: string }> {
-  const apiKey = getRuntimeEnv("HUGGINGFACE_API_KEY");
+  const apiKey = getRuntimeEnv("HUGGINGFACE_API_KEY"); // Deno.env.get("HUGGINGFACE_API_KEY")
   if (!apiKey) {
     throw new Error("HUGGINGFACE_API_KEY not set in Edge env");
   }
