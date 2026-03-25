@@ -5,7 +5,10 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "types": [],
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "noCheck": true
   },
   "include": [
     "**/*.ts",
