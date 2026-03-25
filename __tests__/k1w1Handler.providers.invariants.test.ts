@@ -45,12 +45,23 @@ describe("k1w1-handler provider invariants", () => {
     });
     expect(SHARED_PROVIDER_DEFAULTS.gemini).toEqual({
       speed: "gemini-2.5-flash-lite",
-      quality: "gemini-2.5-flash",
+      quality: "gemini-2.5-pro",
     });
     expect(SHARED_PROVIDER_DEFAULTS.anthropic).toEqual({
       speed: "claude-3-5-haiku-20241022",
       quality: "claude-sonnet-4-20250514",
     });
+  });
+
+
+
+  it("guards runtime-safe provider default ids for Groq/Gemini/Anthropic", () => {
+    expect(SHARED_PROVIDER_DEFAULTS.groq.speed).toBe("groq/compound-mini");
+    expect(SHARED_PROVIDER_DEFAULTS.groq.quality).toBe("llama-3.3-70b-versatile");
+    expect(SHARED_PROVIDER_DEFAULTS.gemini.speed).toBe("gemini-2.5-flash-lite");
+    expect(SHARED_PROVIDER_DEFAULTS.gemini.quality).toBe("gemini-2.5-pro");
+    expect(SHARED_PROVIDER_DEFAULTS.anthropic.speed).toBe("claude-3-5-haiku-20241022");
+    expect(SHARED_PROVIDER_DEFAULTS.anthropic.quality).toBe("claude-sonnet-4-20250514");
   });
 
   it("imports the shared provider defaults in the edge helper", () => {
