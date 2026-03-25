@@ -48,6 +48,12 @@ function isParsedBodyError(
   return !result.ok;
 }
 
+function isTriggerValidationError(
+  result: ReturnType<typeof validateTriggerBuildRequest>,
+): result is Extract<ReturnType<typeof validateTriggerBuildRequest>, { ok: false }> {
+  return !result.ok;
+}
+
 /**
  * Creates a build_jobs row and triggers the GitHub repository_dispatch event (trigger-eas-build).
  *
@@ -72,8 +78,8 @@ Deno.serve(async (req) => {
     }
 
     const validation = validateTriggerBuildRequest(parsed.body);
-    if (!validation.ok) {
-      return errorResponse("Invalid request", req, 400, (validation as { ok: false; errors: unknown }).errors);
+    if (isTriggerValidationError(validation)) {
+      return errorResponse("Invalid request", req, 400, validation.errors);
     }
 
     const supabaseUrl = getSupabaseUrl();
