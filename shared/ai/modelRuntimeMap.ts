@@ -24,7 +24,11 @@ const MAPPED = (runtimeModel: string, note: string): Omit<RuntimeModelResolution
 
 function freezeProviderRuntimeMap(map: Record<RuntimeProvider, ProviderModelRuntimeMap>): Readonly<Record<RuntimeProvider, Readonly<ProviderModelRuntimeMap>>> {
   for (const provider of Object.keys(map) as RuntimeProvider[]) {
-    Object.freeze(map[provider]);
+    const providerMap = map[provider];
+    for (const visibleModel of Object.keys(providerMap)) {
+      Object.freeze(providerMap[visibleModel]);
+    }
+    Object.freeze(providerMap);
   }
   return Object.freeze(map);
 }

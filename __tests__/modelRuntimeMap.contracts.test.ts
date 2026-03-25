@@ -11,7 +11,11 @@ describe('model runtime mapping contracts', () => {
   it('keeps runtime map frozen to prevent accidental runtime mutation', () => {
     expect(Object.isFrozen(PROVIDER_RUNTIME_MODEL_MAP)).toBe(true);
     for (const provider of Object.keys(PROVIDER_RUNTIME_MODEL_MAP) as RuntimeProvider[]) {
-      expect(Object.isFrozen(PROVIDER_RUNTIME_MODEL_MAP[provider])).toBe(true);
+      const providerMap = PROVIDER_RUNTIME_MODEL_MAP[provider];
+      expect(Object.isFrozen(providerMap)).toBe(true);
+      for (const visibleModel of Object.keys(providerMap)) {
+        expect(Object.isFrozen(providerMap[visibleModel])).toBe(true);
+      }
     }
   });
 
