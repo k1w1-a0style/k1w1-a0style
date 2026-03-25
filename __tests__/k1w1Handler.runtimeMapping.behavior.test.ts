@@ -1,4 +1,4 @@
-import { callGemini, callGroq, callHuggingFace } from '../supabase/functions/k1w1-handler/helpers.ts';
+import { callAnthropic, callGemini, callGroq, callHuggingFace, callOpenAI } from '../supabase/functions/k1w1-handler/helpers.ts';
 
 const mockGetRuntimeEnv = jest.fn();
 const mockFetchWithTimeout = jest.fn();
@@ -123,5 +123,63 @@ describe('k1w1-handler runtime mapping behavior', () => {
     expect(String(calledUrl)).toContain('deepseek-ai%2FDeepSeek-V3.2-Speciale');
     expect(result.model).toBe('deepseek-ai/DeepSeek-V3.2');
     expect(String(result.runtimeNote || '')).toContain('Runtime-Mapping aktiv');
+  });
+
+
+  it('maps anthropic alias upstream while preserving visible model + runtime note', async () => {
+    mockFetchWithTimeout.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        content: [{ type: 'text', text: 'anthropic-ok' }],
+      }),
+    });
+
+    const result = await callAnthropic({
+      provider: 'anthropic',
+      model: 'claude-4-opus-202502',
+      quality: 'quality',
+      messages: [{ role: 'user', content: 'Hi' }],
+    });
+
+    const [, request] = mockFetchWithTimeout.mock.calls[0];
+    const body = JSON.parse(String(request.body));
+    expect(body.model).toBe('claude-opus-4-20250514');
+    expect(result.model).toBe('claude-4-opus-202502');
+    expect(String(result.runtimeNote || '')).toContain('Runtime-Mapping aktiv');
+  });
+
+  it('keeps openai direct IDs upstream without runtime mapping note', async () => {
+    mockFetchWithTimeout.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: 'openai-ok' } }],
+      }),
+    });
+
+    const result = await callOpenAI({
+      provider: 'openai',
+      model: 'gpt-5.3-codex',
+      quality: 'balanced',
+      messages: [{ role: 'user', content: 'Hi' }],
+    });
+
+    const [, request] = mockFetchWithTimeout.mock.calls[0];
+    const body = JSON.parse(String(request.body));
+    expect(body.model).toBe('gpt-5.3-codex');
+    expect(result.model).toBe('gpt-5.3-codex');
+    expect(result.runtimeNote).toBeUndefined();
+  });
+
+  it('rejects unsupported visible IDs explicitly instead of silently falling back', async () => {
+    await expect(
+      callGemini({
+        provider: 'gemini',
+        model: 'gemini-legacy-not-supported',
+        quality: 'balanced',
+        messages: [{ role: 'user', content: 'Hi' }],
+      }),
+    ).rejects.toThrow(/gemini_model_unsupported/i);
+
+    expect(mockFetchWithTimeout).not.toHaveBeenCalled();
   });
 });
