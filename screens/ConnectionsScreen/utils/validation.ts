@@ -74,7 +74,7 @@ export const validateBeforeSave = (p: {
     if (edge.length < 20 || /\s/.test(edge)) {
       return {
         ok: false,
-        title: "Ungültiger Edge Admin Key",
+        title: "Ungültiger lokaler Edge Admin Key",
         message: "Key ist zu kurz oder enthält Leerzeichen.",
       };
     }

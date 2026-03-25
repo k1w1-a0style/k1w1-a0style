@@ -83,7 +83,7 @@ Layout/Spacing/Buttons bleiben gleich.
 - Edge Function `github-workflow-logs` nutzt jetzt `requireAdminKey` korrekt (Response wird returned) und korrektes `rateLimit` Bucket/Window.
 
 ### Schnelltest
-1. Ohne Admin-Key: Logs abrufen → Fehlermeldung enthält 401 + Hinweis auf K1W1_EDGE_ADMIN_KEY.
+1. Ohne lokalen Admin-Key: Logs abrufen → Fehlermeldung enthält 401 + Hinweis auf den lokalen App-Key bzw. das route-spezifische Repo-Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`.
 2. Mit falscher Supabase URL / Function nicht deployed: 404 Hinweis.
 3. Mit gültigem Key: Logs abrufbar.
 

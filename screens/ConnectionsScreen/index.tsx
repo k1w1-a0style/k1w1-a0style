@@ -110,10 +110,12 @@ export default function ConnectionsScreen() {
     lines.push("- EXPO_TOKEN");
     lines.push("- SUPABASE_URL");
     lines.push("- EAS_PROJECT_ID (optional)");
-    lines.push("- K1W1_EDGE_ADMIN_KEY (optional)");
+    lines.push("- K1W1_EDGE_WORKFLOW_ADMIN_KEY (optional, aus lokalem Edge Admin Key gespiegelt)");
+    lines.push("- K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY (optional, aus lokalem Edge Admin Key gespiegelt)");
+    lines.push("- K1W1_EDGE_ADMIN_KEY (legacy optional)");
     lines.push("");
     lines.push("Nicht aus der App auto-synchronisiert:");
-    lines.push("- Supabase Service-Role-Key (Production/Supabase-Reporting: manuell setzen)");
+    lines.push("- K1W1_EDGE_WORKFLOW_CI_BEARER (CI-only / manuell setzen)");
     lines.push("- GITHUB_TOKEN / SUPABASE_ANON_KEY (bleiben lokal auf dem Gerät)");
     return lines;
   }, [repoLine, githubOk, githubUser, githubScopes, supabaseUrl, supabaseRef, supabaseOk, expoOk, expoUser, easProjectId, easState, easLastVerifiedAt]);

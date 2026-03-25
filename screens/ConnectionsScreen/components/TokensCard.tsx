@@ -80,14 +80,15 @@ export function TokensCard(props: {
 
       <InputRow
         styles={styles}
-        label="Edge Admin Key (optional, x-k1w1-admin-key)"
+        label="Lokaler Edge Admin Key (optional, x-k1w1-admin-key)"
         value={edgeAdminKey}
         onChangeText={onChangeEdgeAdminKey}
-        placeholder="selbst-gewähltes-secret"
+        placeholder="lokaler-edge-admin-key"
         secure
         showToggle
         isShown={showEdge}
         onToggleShow={onToggleShowEdge}
+        rightHint="App-Dispatch nutzt den lokalen Wert; Repo-Sync spiegelt ihn in die scoped Admin-Secrets."
       />
 
       <View style={styles.row}>

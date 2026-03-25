@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
   const rl = rateLimit(req, "android-keystore-export", 30, 60_000);
   if (rl) return rl;
 
-  // Legacy guard lineage: requireAdminKeyOrServiceRoleBearer(req).
+  // Scoped route auth replaces the former shared admin/service-role guard.
   const auth = requireScopedEdgeAuth(req, {
     scope: "android-keystore-export",
     allowAdmin: true,

@@ -587,7 +587,7 @@ export function useCredentialsWizardScreen() {
     if (trimmed && !isLikelyValidAdminKey(trimmed)) {
       Alert.alert(
         "Admin-Key wirkt ungültig",
-        "Bitte nur einen formal gültigen Edge Admin Key ohne Leerzeichen speichern.",
+        "Bitte nur einen formal gültigen lokalen Edge Admin Key ohne Leerzeichen speichern.",
       );
       return;
     }

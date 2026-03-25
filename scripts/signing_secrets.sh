@@ -3,9 +3,12 @@ set -euo pipefail
 
 # k1w1 signing secrets helper
 #
-# Generates and/or sets two secrets:
-#   - SIGNING_ADMIN_KEY  (used by app header: x-k1w1-admin-key)
-#   - SIGNING_MASTER_KEY (used to derive encryption key for keystore blob)
+# Generates and/or sets signing-related secrets:
+#   - SIGNING_ADMIN_KEY                         (legacy/local app admin value)
+#   - K1W1_EDGE_WORKFLOW_ADMIN_KEY             (scoped admin secret for workflow-facing edge routes)
+#   - K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY (scoped admin secret for android-keystore-export)
+#   - K1W1_EDGE_ADMIN_KEY                       (legacy shared admin secret, kept for compatibility)
+#   - SIGNING_MASTER_KEY                        (used to derive encryption key for keystore blob)
 #
 # Why this exists:
 # If you generate NEW keys and set them in Supabase, but the app still has the OLD
@@ -27,7 +30,9 @@ Options:
   -h, --help     Show help.
 
 Notes:
-- The keys are printed in full so you can paste SIGNING_ADMIN_KEY into the app.
+- The admin key is printed in full so you can paste it into the app as the local Edge Admin Key.
+- The same generated admin value is mirrored into workflow + keystore admin secrets for convenience.
+- This helper does NOT manage K1W1_EDGE_WORKFLOW_CI_BEARER; workflow CI bearer rotation stays separate on purpose.
 - .signing_secrets.local is created with chmod 600 and SHOULD NOT be committed.
 - If you run --set-supabase, redeploy the edge functions afterwards.
 USAGE
@@ -77,6 +82,9 @@ print_keys() {
   echo ""
   echo "=== k1w1 signing secrets (COPY/PASTE) ==="
   echo "SIGNING_ADMIN_KEY=$SIGNING_ADMIN_KEY"
+  echo "K1W1_EDGE_WORKFLOW_ADMIN_KEY=$SIGNING_ADMIN_KEY"
+  echo "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY=$SIGNING_ADMIN_KEY"
+  echo "K1W1_EDGE_ADMIN_KEY=$SIGNING_ADMIN_KEY"
   echo "SIGNING_MASTER_KEY=$SIGNING_MASTER_KEY"
   echo "======================================="
   echo ""
@@ -91,6 +99,9 @@ set_supabase() {
   echo "Setting Supabase secrets (overwrites existing)…"
   supabase secrets set \
     SIGNING_ADMIN_KEY="$SIGNING_ADMIN_KEY" \
+    K1W1_EDGE_WORKFLOW_ADMIN_KEY="$SIGNING_ADMIN_KEY" \
+    K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY="$SIGNING_ADMIN_KEY" \
+    K1W1_EDGE_ADMIN_KEY="$SIGNING_ADMIN_KEY" \
     SIGNING_MASTER_KEY="$SIGNING_MASTER_KEY"
   echo "Done. Re-deploy functions so the new secrets take effect:"
   echo "  supabase functions deploy android-keystore-generate"
@@ -105,6 +116,9 @@ set_github() {
   fi
   echo "Setting GitHub Actions secrets (overwrites existing)…"
   gh secret set SIGNING_ADMIN_KEY --body "$SIGNING_ADMIN_KEY"
+  gh secret set K1W1_EDGE_WORKFLOW_ADMIN_KEY --body "$SIGNING_ADMIN_KEY"
+  gh secret set K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY --body "$SIGNING_ADMIN_KEY"
+  gh secret set K1W1_EDGE_ADMIN_KEY --body "$SIGNING_ADMIN_KEY"
   gh secret set SIGNING_MASTER_KEY --body "$SIGNING_MASTER_KEY"
   echo "Done."
 }

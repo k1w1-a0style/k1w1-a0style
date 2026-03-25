@@ -13,8 +13,10 @@ source "$FILE"
 set +a
 
 : "${SUPABASE_URL:?SUPABASE_URL missing}"
-: "${ADMIN_KEY:?ADMIN_KEY missing (should equal SIGNING_ADMIN_KEY)}"
+
+WORKFLOW_ADMIN="${K1W1_EDGE_WORKFLOW_ADMIN_KEY:-${ADMIN_KEY:-${K1W1_EDGE_ADMIN_KEY:-}}}"
+: "${WORKFLOW_ADMIN:?Missing workflow admin key (set K1W1_EDGE_WORKFLOW_ADMIN_KEY or legacy ADMIN_KEY/K1W1_EDGE_ADMIN_KEY)}"
 
 echo "Loaded env from $FILE"
 echo "SUPABASE_URL=$SUPABASE_URL"
-echo "ADMIN_KEY=[SET]"
+echo "K1W1_EDGE_WORKFLOW_ADMIN_KEY=[SET]"

@@ -90,8 +90,8 @@ describe("patch514 build/preview env helper hygiene invariants", () => {
   });
 
   it("keeps build/preview guard contracts on the existing paths", () => {
-    expect(read(checkIndex)).toContain("requireAdminKeyOrServiceRoleBearer(req)");
-    expect(read(triggerIndex)).toContain("requireAdminKeyOrServiceRoleBearer(req)");
+    expect(read(checkIndex)).toContain("requireScopedEdgeAuth(req, {");
+    expect(read(triggerIndex)).toContain("requireScopedEdgeAuth(req, {");
     expect(read(savePreviewIndex)).toContain("requireAdminKey(req)");
     expect(read(previewHelpers)).toContain('export { rateLimit, sanitizeErrorText };');
   });

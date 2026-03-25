@@ -64,7 +64,7 @@ Der Service muss dieselben Regeln servernah erzwingen, damit keine Umgehung via 
 
 ### 3.3 Warnung vs Blocker
 - **Blocker:** Repo ungültig, Branch leer, Profil ungültig, Token fehlt, Signing fehlt, Diagnostics fail/unknown, notwendige profilabhängige Secrets fehlen.
-- **Warnung:** CI Lite rot/unknown, optionale Keys (`EAS_PROJECT_ID`, `K1W1_EDGE_ADMIN_KEY`) fehlen, solange Build-Flow ohne diese lauffähig bleibt.
+- **Warnung:** CI Lite rot/unknown, optionale Keys (`EAS_PROJECT_ID`, `K1W1_EDGE_WORKFLOW_ADMIN_KEY`, `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) fehlen, solange Build-Flow ohne diese lauffähig bleibt.
 
 ---
 
@@ -249,7 +249,11 @@ if (!expoToken) skipped.push("EXPO_TOKEN (missing)");
 if (!supabaseUrl) skipped.push("SUPABASE_URL (missing)");
 if (!supabaseServiceRole) skipped.push("SUPABASE_SERVICE_ROLE_KEY (missing)");
 if (!easProjectId) skipped.push("EAS_PROJECT_ID (optional, empty)");
-if (!edgeAdminKey) skipped.push("K1W1_EDGE_ADMIN_KEY (optional, empty)");
+if (!edgeAdminKey) {
+  skipped.push("K1W1_EDGE_WORKFLOW_ADMIN_KEY (optional, empty)");
+  skipped.push("K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY (optional, empty)");
+  skipped.push("K1W1_EDGE_ADMIN_KEY (legacy optional, empty)");
+}
 ```
 
 ### E15 — Profilabhängige Credentials-Strategie in `eas.json`

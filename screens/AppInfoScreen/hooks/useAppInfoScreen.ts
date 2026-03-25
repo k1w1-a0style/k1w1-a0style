@@ -47,14 +47,18 @@ type SecureBackupRequest =
   | { mode: "import" };
 
 function buildSecretCiSecrets(payload: SecretBackupPayloadV1) {
+  const edgeAdminKey = payload.tokens.edgeAdminKey ?? "";
   return {
     GITHUB_TOKEN: payload.tokens.githubToken ?? "",
     EXPO_TOKEN: payload.tokens.expoToken ?? "",
     SUPABASE_URL: payload.connections.supabaseUrl,
     SUPABASE_ANON_KEY: payload.connections.supabaseAnonKey,
     EAS_PROJECT_ID: payload.connections.easProjectId,
-    K1W1_EDGE_ADMIN_KEY: payload.tokens.edgeAdminKey ?? "",
-    SIGNING_ADMIN_KEY: payload.tokens.edgeAdminKey ?? "",
+    K1W1_EDGE_WORKFLOW_ADMIN_KEY: edgeAdminKey,
+    K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: edgeAdminKey,
+    K1W1_EDGE_ADMIN_KEY: edgeAdminKey,
+    K1W1_EDGE_WORKFLOW_CI_BEARER: "",
+    SIGNING_ADMIN_KEY: edgeAdminKey,
     SIGNING_MASTER_KEY: payload.tokens.signingMasterKey ?? "",
   };
 }
@@ -259,6 +263,8 @@ export function useAppInfoScreen() {
       const expoToken = t.expoToken?.trim() || cs.EXPO_TOKEN?.trim() || "";
       const edgeKey =
         t.edgeAdminKey?.trim() ||
+        cs.K1W1_EDGE_WORKFLOW_ADMIN_KEY?.trim() ||
+        cs.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY?.trim() ||
         cs.K1W1_EDGE_ADMIN_KEY?.trim() ||
         cs.SIGNING_ADMIN_KEY?.trim() ||
         "";

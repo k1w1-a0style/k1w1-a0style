@@ -31,7 +31,7 @@ export function AdminKeySection({
 }) {
   return (
     <SectionCard
-      title="Edge Admin Key"
+      title="Lokaler Edge Admin Key"
       subtitle="Local only (SecureStore) — not committed to git"
       icon="key-outline"
       right={
@@ -56,7 +56,7 @@ export function AdminKeySection({
       <TextInput
         value={adminKey}
         onChangeText={setAdminKey}
-        placeholder={adminKeyLoaded ? "SIGNING_ADMIN_KEY einfügen…" : "lade…"}
+        placeholder={adminKeyLoaded ? "lokalen Edge Admin Key einfügen…" : "lade…"}
         placeholderTextColor={theme.palette.text.muted}
         secureTextEntry
         autoCapitalize="none"

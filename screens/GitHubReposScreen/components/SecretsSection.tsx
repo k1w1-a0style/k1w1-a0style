@@ -20,6 +20,9 @@ const REQUIRED_SECRETS = ["EXPO_TOKEN", "SUPABASE_URL"] as const;
 const OPTIONAL_SECRETS = [
   // Optional or flow-specific in app-managed sync paths
   "EAS_PROJECT_ID",
+  "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
+  "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
+  "K1W1_EDGE_WORKFLOW_CI_BEARER",
   "K1W1_EDGE_ADMIN_KEY",
   // Production/Supabase report secret stays manual-only
   "SUPABASE_SERVICE_ROLE_KEY",
@@ -31,7 +34,8 @@ type SecretRow = {
 };
 
 type RuntimeCredentialRow = {
-  name: "EXPO_TOKEN" | "K1W1_EDGE_ADMIN_KEY";
+  id: "expo" | "edgeAdmin";
+  title: string;
   repoContract: ReturnType<typeof resolveRepoSecretVerification>;
   localPresent: boolean | null;
   usageCopy: string;
@@ -240,11 +244,15 @@ export function SecretsSection(props: {
 
   const runtimeRows = useMemo<RuntimeCredentialRow[]>(() => {
     const expoRepoContract = requiredStatus.find((entry) => entry.name === "EXPO_TOKEN")?.contract;
-    const edgeRepoContract = optionalStatus.find((entry) => entry.name === "K1W1_EDGE_ADMIN_KEY")?.contract;
+    const edgeRepoContract =
+      optionalStatus.find((entry) => entry.name === "K1W1_EDGE_WORKFLOW_ADMIN_KEY")?.contract ??
+      optionalStatus.find((entry) => entry.name === "K1W1_EDGE_ADMIN_KEY")?.contract ??
+      optionalStatus.find((entry) => entry.name === "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY")?.contract;
 
     return [
       {
-        name: "EXPO_TOKEN",
+        id: "expo",
+        title: "EXPO_TOKEN",
         repoContract:
           expoRepoContract ??
           resolveRepoSecretVerification({
@@ -260,20 +268,23 @@ export function SecretsSection(props: {
         localCopy: "SecureStore auf diesem Geraet; getrennt vom Repo-Secret.",
       },
       {
-        name: "K1W1_EDGE_ADMIN_KEY",
+        id: "edgeAdmin",
+        title: "Lokaler Edge Admin Key",
         repoContract:
           edgeRepoContract ??
           resolveRepoSecretVerification({
-            name: "K1W1_EDGE_ADMIN_KEY",
+            name: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
             names,
             error,
             stale,
           }),
         localPresent: runtimePresence.edgeAdminKey,
         usageCopy:
-          "CI Lite / Edge Dispatch nutzt den lokalen Edge Admin Key aus SecureStore. Ein gruener Repo-Secret-Name allein macht diesen Dispatch nicht bereit.",
-        repoCopy: "GitHub-Repo-Secret-Name fuer Workflows oder manuelle Repo-Syncs.",
-        localCopy: "SecureStore auf diesem Geraet; wird fuer App → Edge / CI Lite Dispatch verwendet.",
+          "CI Lite / Edge Dispatch nutzt den lokalen Edge Admin Key aus SecureStore. Repo-Sync kann denselben Wert in K1W1_EDGE_WORKFLOW_ADMIN_KEY und K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY spiegeln; ein gruener Repo-Secret-Name allein macht den lokalen Dispatch trotzdem nicht bereit.",
+        repoCopy:
+          "Primaerer Repo-Secret-Name fuer workflow-faehige Admin-Calls: K1W1_EDGE_WORKFLOW_ADMIN_KEY; legacy K1W1_EDGE_ADMIN_KEY bleibt als Fallback sichtbar. K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY deckt den separaten Keystore-Export-Pfad ab.",
+        localCopy:
+          "SecureStore auf diesem Geraet; wird fuer App → Edge / CI Lite Dispatch verwendet und sollte zum serverseitigen Workflow-Admin-Secret passen.",
       },
     ];
   }, [error, names, optionalStatus, requiredStatus, runtimePresence.edgeAdminKey, runtimePresence.expoToken, stale]);
@@ -281,7 +292,7 @@ export function SecretsSection(props: {
   const runtimeMissingLabels = useMemo(() => {
     return runtimeRows
       .filter((row) => row.localPresent === false)
-      .map((row) => (row.name === "EXPO_TOKEN" ? "Expo-Token lokal" : "Edge Admin Key lokal"));
+      .map((row) => (row.id === "expo" ? "Expo-Token lokal" : "lokaler Edge Admin Key"));
   }, [runtimeRows]);
 
   const runtimeSummary = useMemo(() => {
@@ -537,8 +548,10 @@ export function SecretsSection(props: {
 
       {activeRepo ? (
         <Text style={{ fontSize: 11, color: theme.palette.text.secondary, lineHeight: 17, marginTop: 8 }}>
-          Auto-Sync aus der App deckt EXPO_TOKEN + SUPABASE_URL ab (optional: EAS_PROJECT_ID, K1W1_EDGE_ADMIN_KEY).
-          SUPABASE_SERVICE_ROLE_KEY bleibt bewusst ein manueller Production-Schritt.
+          Auto-Sync aus der App deckt EXPO_TOKEN + SUPABASE_URL ab (optional: EAS_PROJECT_ID,
+          K1W1_EDGE_WORKFLOW_ADMIN_KEY, K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY; legacy zusätzlich
+          K1W1_EDGE_ADMIN_KEY). K1W1_EDGE_WORKFLOW_CI_BEARER bleibt bewusst ein manueller CI-Schritt.
+              SUPABASE_SERVICE_ROLE_KEY bleibt bewusst ein manueller Production-Schritt.
         </Text>
       ) : null}
 
@@ -549,7 +562,7 @@ export function SecretsSection(props: {
           </Text>
           {runtimeRows.map((row) => (
             <View
-              key={row.name}
+              key={row.id}
               style={{
                 gap: 8,
                 padding: 10,
@@ -560,7 +573,7 @@ export function SecretsSection(props: {
               }}
             >
               <Text style={{ fontSize: 12, fontWeight: "900", color: theme.palette.text.primary }}>
-                {row.name}
+                {row.title}
               </Text>
               <View style={{ gap: 6 }}>
                 {renderRuntimeSourceRow("Repo Secret", row.repoContract.state, row.repoCopy)}

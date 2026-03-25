@@ -6,12 +6,12 @@ Stand: 2026-03-14 (Patch 435)
 
 | Function | Zweck | Wichtige Outputs / Vertrag |
 |---|---|---|
-| `trigger-eas-build` | Legt `build_jobs` an und dispatcht GitHub `trigger-eas-build` | `jobId`, `githubRepo`, `branch`, `buildProfile` · Auth: Admin-Key oder CI-Bearer |
-| `check-eas-build` | Liest `build_jobs` zurück | `status`, `runId`, `build_url`, `download_url`, `source_commit_sha`, `urls`, `artifact`, `job` · Auth: Admin-Key oder CI-Bearer |
-| `github-workflow-dispatch` | Dispatch / Bootstrap managed Workflows | `ok`, `workflow`, `workflow_id`, optional `bootstrapped` · Auth: Admin-Key oder CI-Bearer |
-| `github-workflow-runs` | Holt Workflow-Runs (fail-closed bei ungültigem `workflowId`) | `data` · Auth: Workflow-Admin-Key oder Workflow-CI-Bearer |
-| `github-workflow-logs` | Holt redigierte Logs eines Workflow-Runs | `run`, `files`, `fileCount`, `logsText`, `truncated` · Auth: Admin-Key oder CI-Bearer |
-| `github-run-artifact-json` | Liest JSON-Datei aus GitHub Artifact-ZIP | `text`, `json`, `artifactId`, `artifactName`, `filePath` · Auth: Admin-Key oder CI-Bearer |
+| `trigger-eas-build` | Legt `build_jobs` an und dispatcht GitHub `trigger-eas-build` | `jobId`, `githubRepo`, `branch`, `buildProfile` · Auth: Workflow-Admin-Key (`x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) oder Workflow-CI-Bearer (`Authorization: Bearer <secret>`, Secret `K1W1_EDGE_WORKFLOW_CI_BEARER`) |
+| `check-eas-build` | Liest `build_jobs` zurück | `status`, `runId`, `build_url`, `download_url`, `source_commit_sha`, `urls`, `artifact`, `job` · Auth: Workflow-Admin-Key (`x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) oder Workflow-CI-Bearer (`Authorization: Bearer <secret>`, Secret `K1W1_EDGE_WORKFLOW_CI_BEARER`) |
+| `github-workflow-dispatch` | Dispatch / Bootstrap managed Workflows | `ok`, `workflow`, `workflow_id`, optional `bootstrapped` · Auth: Workflow-Admin-Key (`x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) oder Workflow-CI-Bearer (`Authorization: Bearer <secret>`, Secret `K1W1_EDGE_WORKFLOW_CI_BEARER`) |
+| `github-workflow-runs` | Holt Workflow-Runs (fail-closed bei ungültigem `workflowId`) | `data` · Auth: Workflow-Admin-Key (`x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) oder Workflow-CI-Bearer (`Authorization: Bearer <secret>`, Secret `K1W1_EDGE_WORKFLOW_CI_BEARER`) |
+| `github-workflow-logs` | Holt redigierte Logs eines Workflow-Runs | `run`, `files`, `fileCount`, `logsText`, `truncated` · Auth: Workflow-Admin-Key (`x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) oder Workflow-CI-Bearer (`Authorization: Bearer <secret>`, Secret `K1W1_EDGE_WORKFLOW_CI_BEARER`) |
+| `github-run-artifact-json` | Liest JSON-Datei aus GitHub Artifact-ZIP | `text`, `json`, `artifactId`, `artifactName`, `filePath` · Auth: Workflow-Admin-Key (`x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) oder Workflow-CI-Bearer (`Authorization: Bearer <secret>`, Secret `K1W1_EDGE_WORKFLOW_CI_BEARER`) |
 | `save_preview` / `preview_page` | Persistiert und rendert Browser-Previews | `previewUrl`, `expiresAt` (save) / HTML-Response + sichere Fehlerfälle (page) · Auth: admin-only (save), public secret-link (page) |
 | `k1w1-handler` | KI-Provider-Proxy für produktive Chat-Calls | `ok`, `provider`, `model`, `content`, `raw` bzw. `ok:false,error` · Auth: Admin-Key |
 | `android-keystore-export` | Liefert Android-Signing-Material für CI | `alias`, `keystoreBase64`, `keystorePassword`, `keyPassword` · Auth: **nur** `x-k1w1-admin-key` (Secret `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) |
@@ -37,3 +37,5 @@ Stand: 2026-03-14 (Patch 435)
   - `bash scripts/check_workflow_template_drift.sh`
   - `bash scripts/check_managed_workflows.sh`
   - `bash scripts/check_workflow_edge_contracts.sh`
+
+- App-seitig gibt es aktuell weiterhin einen lokalen Edge-Admin-Key im SecureStore. Wenn du Workflows/Logs/Dispatch aus der App startest, muss dieser lokale Wert zum serverseitigen Workflow-Admin-Secret passen.

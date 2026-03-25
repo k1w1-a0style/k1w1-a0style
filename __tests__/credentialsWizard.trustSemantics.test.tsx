@@ -202,7 +202,7 @@ describe("CredentialsWizard trust semantics", () => {
     expect(mockGetEdgeAdminKey).toHaveBeenCalled();
     expect(alertSpy).toHaveBeenCalledWith(
       "Admin-Key wirkt ungültig",
-      "Bitte nur einen formal gültigen Edge Admin Key ohne Leerzeichen speichern.",
+      "Bitte nur einen formal gültigen lokalen Edge Admin Key ohne Leerzeichen speichern.",
     );
     expect(mockToastShow).not.toHaveBeenCalled();
     expect(currentStoredAdminKey).toBe("  short key  ");

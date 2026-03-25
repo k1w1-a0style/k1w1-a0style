@@ -31,7 +31,12 @@ export const autoSyncRepoSecrets = async (
 
   // Optional (do not mark missing as error)
   if (!easProjectId) skipped.push("EAS_PROJECT_ID (optional, empty)");
-  if (!edgeAdminKey) skipped.push("K1W1_EDGE_ADMIN_KEY (optional, empty)");
+  if (!edgeAdminKey) {
+    skipped.push("K1W1_EDGE_WORKFLOW_ADMIN_KEY (optional, empty)");
+    skipped.push("K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY (optional, empty)");
+    skipped.push("K1W1_EDGE_ADMIN_KEY (legacy optional, empty)");
+  }
+  skipped.push("K1W1_EDGE_WORKFLOW_CI_BEARER (manual-only, not synced from app)");
 
   // If nothing to sync, return early
   if (!expoToken && !supabaseUrl && !easProjectId && !edgeAdminKey) {
@@ -43,6 +48,8 @@ export const autoSyncRepoSecrets = async (
     supabaseUrl: supabaseUrl || undefined,
     easProjectId: easProjectId || undefined,
     edgeAdminKey: edgeAdminKey || undefined,
+    workflowAdminKey: edgeAdminKey || undefined,
+    androidKeystoreExportAdminKey: edgeAdminKey || undefined,
   });
 
   updated.push(...res.updated);

@@ -100,7 +100,7 @@ export const hasValidExpoToken = async (): Promise<boolean> => {
 };
 
 // ----------------------
-// Edge Admin Key (optional)
+// Local Edge Admin Key (optional; app-side admin value, reused for scoped admin repo secrets on sync)
 // ----------------------
 export const getEdgeAdminKey = async (): Promise<string | null> => {
   return getSecureToken(EDGE_ADMIN_KEY);
