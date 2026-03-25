@@ -1,5 +1,5 @@
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
-import { requireAdminKeyOrServiceRoleBearer, rateLimit } from "../_shared/auth.ts";
+import { requireScopedEdgeAuth, rateLimit } from "../_shared/auth.ts";
 import { githubHeaders, getGithubToken, GITHUB_API_BASE } from "../_shared/github.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
@@ -199,7 +199,7 @@ jobs:
           set -o pipefail
           mkdir -p ci-logs
 
-          (npm run lint:ci || npx --yes eslint . --quiet) 2>&1 | tee ci-logs/lint.log
+          (npm run lint:ci || npx --yes eslint .) 2>&1 | tee ci-logs/lint.log
           ESL=$?
 
           (npm run typecheck || npx --yes tsc --noEmit) 2>&1 | tee ci-logs/typecheck.log
@@ -559,7 +559,7 @@ jobs:
           set -o pipefail
           mkdir -p ci-logs
 
-          (npm run lint:ci || npx --yes eslint . --quiet) 2>&1 | tee ci-logs/lint.log
+          (npm run lint:ci || npx --yes eslint .) 2>&1 | tee ci-logs/lint.log
           ESL=$?
 
           (npm run typecheck || npx --yes tsc --noEmit) 2>&1 | tee ci-logs/typecheck.log
@@ -789,7 +789,8 @@ async function ensureWorkflowFileExists(
   if (!template) return { ok: false, details: { reason: "no_template", workflowFile } };
   const v = validateWorkflowTemplate(workflowFile, template);
   if (!v.ok) {
-    return { ok: false, details: { reason: "template_invalid", workflowFile, why: v.reason } };
+    const reason = (v as { ok: false; reason: string }).reason;
+    return { ok: false, details: { reason: "template_invalid", workflowFile, why: reason } };
   }
 
 
@@ -885,17 +886,24 @@ Deno.serve(async (req) => {
     const cors = handleCors(req);
   if (cors) return cors;
 try {
-    const auth = requireAdminKeyOrServiceRoleBearer(req);
+    // Legacy guard lineage: requireAdminKeyOrServiceRoleBearer(req).
+    const auth = requireScopedEdgeAuth(req, {
+      scope: "github-workflow-dispatch",
+      allowAdmin: true,
+      allowCiBearer: true,
+      adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
+      ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER",
+    });
     if (auth) return auth;
 
     const rl = rateLimit(req, "github-workflow-dispatch");
     if (rl) return rl;
 
     const parsed = await parseJsonBody(req, 200_000);
-    if (!parsed.ok) return errorResponse(parsed.error, req, 400);
+    if (!parsed.ok) return errorResponse((parsed as { ok: false; error: string }).error, req, 400);
 
     const val = validateGithubWorkflowDispatchRequest(parsed.body);
-    if (!val.ok) return errorResponse("Invalid request", req, 400, val.errors);
+    if (!val.ok) return errorResponse("Invalid request", req, 400, (val as { ok: false; errors: unknown }).errors);
 
     const { githubRepo, workflow, ref, inputs } = val.data!;
     const token = getGithubToken().trim();
@@ -1017,7 +1025,7 @@ try {
             req,
             404,
             {
-              ...ensured.details,
+              ...(typeof ensured.details === "object" && ensured.details ? ensured.details as Record<string, unknown> : {}),
               hint:
                 "Workflow not found and auto-bootstrap failed. Check token permissions (contents:write) and branch protection.",
             },

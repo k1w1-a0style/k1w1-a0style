@@ -34,7 +34,7 @@ jobs:
       EAS_CLI_VERSION: "16.32.0"
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      K1W1_EDGE_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ADMIN_KEY }}
+      K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY }}
       WORKFLOW_VERSION: "405"
 
     steps:
@@ -66,8 +66,8 @@ jobs:
           fi
 
           if [ "${{ inputs.profile }}" = "production" ]; then
-            if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
-              echo "::error::Production profile uses local Android credentials. Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY."
+            if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] || [ -z "${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY:-}" ]; then
+              echo "::error::Production profile uses local Android credentials. Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY."
               exit 1
             fi
           fi
@@ -188,10 +188,9 @@ jobs:
           )"
 
           RESP="$(curl -fsS -X POST "${SUPABASE_URL%/}/functions/v1/android-keystore-export" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
-            ${K1W1_EDGE_ADMIN_KEY:+-H "x-k1w1-admin-key: ${K1W1_EDGE_ADMIN_KEY}"} \
+            ${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY:+-H "x-k1w1-admin-key: ${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY}"} \
             --data "${BODY}")"
 
           RESP_JSON="$RESP" node - <<'NODE'

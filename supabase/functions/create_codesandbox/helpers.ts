@@ -3,6 +3,7 @@
 
 // NOTE: Supabase Edge (Deno) bundler requires explicit file extensions for local imports.
 export { sanitizeErrorText, sanitizeUnknownForTransport } from "../_shared/errorSanitization.ts";
+import { sanitizeErrorText as sanitizeErrorTextLocal } from "../_shared/errorSanitization.ts";
 export { parseJsonBody } from "../_shared/validation.ts";
 export { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 
@@ -42,11 +43,11 @@ export function json(data: unknown, init: ResponseInit = {}) {
 }
 
 export function safeErrorMessage(err: unknown): string {
-  if (typeof err === "string") return sanitizeErrorText(err);
+  if (typeof err === "string") return sanitizeErrorTextLocal(err);
   if (err && typeof err === "object" && "message" in err) {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return sanitizeErrorText(String((err as any).message));
+      return sanitizeErrorTextLocal(String((err as any).message));
     } catch {
       return "Unknown error";
     }
@@ -156,4 +157,3 @@ export function pickEntry(files: Record<string, PreviewFile>): string {
   const first = Object.keys(files || {})[0];
   return first || "App.tsx";
 }
-

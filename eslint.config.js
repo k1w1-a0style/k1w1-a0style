@@ -18,7 +18,6 @@ module.exports = [
       '__mocks__/**',
       '**/*.test.*',
       'jest.setup.js',
-      'supabase/functions/**',
       'web-build/**',
       'android/**',
       'ios/**',
@@ -26,6 +25,23 @@ module.exports = [
   },
 
   ...expoConfig,
+
+
+  // Supabase Edge Functions: aktiv in Quality Gates + verschärfte Security-Regeln
+  {
+    files: ['supabase/functions/**/*.ts'],
+    languageOptions: {
+      globals: {
+        Deno: 'readonly',
+      },
+    },
+    rules: {
+      'no-console': 'off',
+      'no-eval': 'error',
+      'no-implied-eval': 'error',
+      'no-new-func': 'error',
+    },
+  },
 
 
   // Node-Skripte (CI) sollen Node-Globals kennen (flat config => kein eslint-env Kommentar)
@@ -61,8 +77,8 @@ module.exports = [
       'react-hooks/exhaustive-deps': 'off',
 
       // Logging policy: new console usage should be visible in lint output.
-      // CI uses --quiet, therefore warnings stay non-blocking until we decide
-      // to tighten this rule further.
+      // CI lint runs without --quiet, so warnings stay visible while non-blocking.
+      // Tighten this rule later if warnings should block Quality Gates.
       'no-console': ['warn', { allow: ['warn', 'error'] }],
 
       // Refactor guardrails (strict; fail CI when a facade import slips in)

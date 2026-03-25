@@ -60,9 +60,10 @@ Deno.serve(async (req) => {
   let body: Payload;
   const parsed = await parseJsonBody(req, MAX_PAYLOAD_BYTES);
   if (!parsed.ok) {
+    const parseError = (parsed as { ok: false; error: string }).error;
     return jsonPreviewError({
       origin,
-      code: classifySavePreviewPayloadError(parsed.error),
+      code: classifySavePreviewPayloadError(parseError),
     });
   }
   body = parsed.body as Payload;

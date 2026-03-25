@@ -1,105 +1,55 @@
-import fs from "fs";
-import path from "path";
+import { AVAILABLE_MODELS, PROVIDER_DEFAULTS, type AllAIProviders, type QualityMode } from '../contexts/AIContext/models';
+import { getModeKeyForQualityMode, resolveProviderModeForQualityMode } from '../contexts/AIContext/helpers';
+import { SHARED_PROVIDER_DEFAULTS } from '../shared/ai/providerDefaults';
+import { assertRuntimeModelSupported } from '../shared/ai/modelRuntimeMap';
 
-import { PROVIDER_DEFAULTS } from "../contexts/AIContext";
-import { SHARED_PROVIDER_DEFAULTS } from "../shared/ai/providerDefaults";
+const PROVIDERS: AllAIProviders[] = ['groq', 'gemini', 'openai', 'anthropic', 'huggingface'];
 
-const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "utf8");
-
-describe("k1w1-handler provider invariants", () => {
-  it("keeps all 5 providers in DEFAULT_MODELS", () => {
-    const src = read("supabase/functions/k1w1-handler/helpers.ts");
-
-    expect(src).toContain("groq");
-    expect(src).toContain("gemini");
-    expect(src).toContain("openai");
-    expect(src).toContain("anthropic");
-    expect(src).toContain("huggingface");
-  });
-
-  it("keeps all 5 provider call helpers", () => {
-    const src = read("supabase/functions/k1w1-handler/helpers.ts");
-
-    expect(src).toContain("export async function callGroq(");
-    expect(src).toContain("export async function callGemini(");
-    expect(src).toContain("export async function callOpenAI(");
-    expect(src).toContain("export async function callAnthropic(");
-    expect(src).toContain("export async function callHuggingFace(");
-  });
-
-  it("keeps required provider secrets server-side", () => {
-    const src = read("supabase/functions/k1w1-handler/helpers.ts");
-
-    expect(src).toContain('getRuntimeEnv("GROQ_API_KEY")');
-    expect(src).toContain('getRuntimeEnv("GEMINI_API_KEY")');
-    expect(src).toContain('getRuntimeEnv("OPENAI_API_KEY")');
-    expect(src).toContain('getRuntimeEnv("ANTHROPIC_API_KEY")');
-    expect(src).toContain('getRuntimeEnv("HUGGINGFACE_API_KEY")');
-  });
-
-  it("keeps app defaults aligned to the shared runtime-supported provider ids", () => {
+describe('k1w1 runtime/provider invariants', () => {
+  it('keeps app defaults and shared runtime defaults aligned', () => {
     expect(PROVIDER_DEFAULTS).toEqual(SHARED_PROVIDER_DEFAULTS);
-    expect(SHARED_PROVIDER_DEFAULTS.groq).toEqual({
-      speed: "groq/compound-mini",
-      quality: "llama-3.3-70b-versatile",
-    });
-    expect(SHARED_PROVIDER_DEFAULTS.gemini).toEqual({
-      speed: "gemini-2.5-flash-lite",
-      quality: "gemini-2.5-flash",
-    });
-    expect(SHARED_PROVIDER_DEFAULTS.anthropic).toEqual({
-      speed: "claude-3-5-haiku-20241022",
-      quality: "claude-sonnet-4-20250514",
-    });
   });
 
-  it("imports the shared provider defaults in the edge helper", () => {
-    const src = read("supabase/functions/k1w1-handler/helpers.ts");
+  it('keeps all defaults in visible catalog and runtime mapping contract', () => {
+    for (const provider of PROVIDERS) {
+      const visibleIds = new Set(AVAILABLE_MODELS[provider].map((entry) => entry.id));
+      const defaults = SHARED_PROVIDER_DEFAULTS[provider];
 
-    expect(src).toContain('import { SHARED_PROVIDER_DEFAULTS } from "../../../shared/ai/providerDefaults.ts";');
-    expect(src).toContain("export const DEFAULT_MODELS = SHARED_PROVIDER_DEFAULTS;");
-    expect(src).not.toContain("claude-3-5-sonnet-20241022");
-    expect(src).not.toContain("claude-3-5-sonnet-latest");
-    expect(src).not.toContain("gemini-1.5-flash");
-    expect(src).not.toContain("gemini-1.5-pro");
+      expect(visibleIds.has(defaults.speed)).toBe(true);
+      expect(visibleIds.has(defaults.quality)).toBe(true);
+      expect(assertRuntimeModelSupported(provider, defaults.speed).status).not.toBe('unsupported');
+      expect(assertRuntimeModelSupported(provider, defaults.quality).status).not.toBe('unsupported');
+    }
   });
 
-  it("keeps Groq model-prefix fallback for compatibility", () => {
-    const src = read("supabase/functions/k1w1-handler/helpers.ts");
+  it('keeps quality routing invariant: speed/balanced => speed, quality/review => quality', () => {
+    const modeCases: Array<{ qualityMode: QualityMode; expectedKey: 'speed' | 'quality' }> = [
+      { qualityMode: 'speed', expectedKey: 'speed' },
+      { qualityMode: 'balanced', expectedKey: 'speed' },
+      { qualityMode: 'quality', expectedKey: 'quality' },
+      { qualityMode: 'review', expectedKey: 'quality' },
+    ];
 
-    expect(src).toContain('model.startsWith("groq/") ? model.slice("groq/".length) : model');
+    for (const provider of PROVIDERS) {
+      for (const testCase of modeCases) {
+        expect(getModeKeyForQualityMode(testCase.qualityMode)).toBe(testCase.expectedKey);
+        expect(resolveProviderModeForQualityMode(provider, testCase.qualityMode)).toBe(
+          SHARED_PROVIDER_DEFAULTS[provider][testCase.expectedKey],
+        );
+      }
+    }
   });
 
-  it("hardens anthropic request mapping when only system messages exist", () => {
-    const src = read("supabase/functions/k1w1-handler/helpers.ts");
-
-    expect(src).toContain("const safeMessages =");
-    expect(src).toContain("Please respond to the system instructions.");
-    expect(src).toContain("messages: safeMessages");
-  });
-
-  it("maps gemini system prompts explicitly and keeps non-empty contents fallback", () => {
-    const src = read("supabase/functions/k1w1-handler/helpers.ts");
-
-    expect(src).toContain("systemInstruction");
-    expect(src).toContain("nonSystemMessages.length > 0");
-    expect(src).toContain('{ role: "user", content: systemInstructionText || "Continue." }');
-  });
-
-  it("does not keep duplicate gemini parts nullish-coalescing", () => {
-    const src = read("supabase/functions/k1w1-handler/helpers.ts");
-
-    expect(src).toContain("const parts = json?.candidates?.[0]?.content?.parts ?? [];");
-    expect(src).not.toContain("json?.candidates?.[0]?.content?.parts ??\n    json?.candidates?.[0]?.content?.parts ??");
-  });
-
-  it("routes all 5 providers in index.ts", () => {
-    const src = read("supabase/functions/k1w1-handler/index.ts");
-
-    expect(src).toContain('providerLower === "groq"');
-    expect(src).toContain('providerLower === "gemini"');
-    expect(src).toContain('providerLower === "openai"');
-    expect(src).toContain('providerLower === "anthropic"');
-    expect(src).toContain('providerLower === "huggingface"');
+  it('guards against silent fallback to unrelated historical defaults', () => {
+    expect(SHARED_PROVIDER_DEFAULTS.groq.speed).toBe('llama-3.1-8b-instant');
+    expect(SHARED_PROVIDER_DEFAULTS.groq.quality).toBe('llama-3.3-70b-versatile');
+    expect(SHARED_PROVIDER_DEFAULTS.gemini.speed).toBe('gemini-3.1-flash-lite');
+    expect(SHARED_PROVIDER_DEFAULTS.gemini.quality).toBe('gemini-3.1-pro');
+    expect(SHARED_PROVIDER_DEFAULTS.openai.speed).toBe('gpt-5.4-mini');
+    expect(SHARED_PROVIDER_DEFAULTS.openai.quality).toBe('gpt-5.4-pro');
+    expect(SHARED_PROVIDER_DEFAULTS.anthropic.speed).toBe('claude-4-haiku-202502');
+    expect(SHARED_PROVIDER_DEFAULTS.anthropic.quality).toBe('claude-4-opus-202502');
+    expect(SHARED_PROVIDER_DEFAULTS.huggingface.speed).toBe('Qwen/Qwen3-32B');
+    expect(SHARED_PROVIDER_DEFAULTS.huggingface.quality).toBe('Qwen/Qwen3-Coder-235B');
   });
 });

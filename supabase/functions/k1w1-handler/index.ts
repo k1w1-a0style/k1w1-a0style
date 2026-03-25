@@ -28,8 +28,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const parsedBody = await parseJsonBody(req, 200_000);
     if (!parsedBody.ok) {
+      const parseError = (parsedBody as { ok: false; error: string }).error;
       const parseErrorText =
-        typeof parsedBody.error === "string" ? parsedBody.error.toLowerCase() : "";
+        typeof parseError === "string" ? parseError.toLowerCase() : "";
       const isTooLarge = parseErrorText.includes("too large");
       const errorPayload = {
         ok: false as const,
@@ -80,6 +81,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       provider: providerLower,
       model: result.model,
       content: result.content,
+      ...(result.runtimeNote ? { runtime_note: result.runtimeNote } : {}),
       raw: result.raw,
     };
 

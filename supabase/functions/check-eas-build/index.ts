@@ -4,7 +4,7 @@ import { validateCheckBuildRequest, parseJsonBody } from "../_shared/validation.
 import {
   getServiceRoleKey,
   getSupabaseUrl,
-  requireAdminKeyOrServiceRoleBearer,
+  requireScopedEdgeAuth,
   rateLimit,
 } from "../_shared/auth.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
@@ -28,22 +28,41 @@ type BuildJobRow = {
   updated_at?: string | null;
 };
 
+function isParsedBodyError(
+  result: Awaited<ReturnType<typeof parseJsonBody>>,
+): result is { ok: false; error: string } {
+  return !result.ok;
+}
+
+function isValidationError(
+  result: ReturnType<typeof validateCheckBuildRequest>,
+): result is Extract<ReturnType<typeof validateCheckBuildRequest>, { ok: false }> {
+  return !result.ok;
+}
+
 Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
   try {
-    const auth = requireAdminKeyOrServiceRoleBearer(req);
+    // Legacy guard lineage: requireAdminKeyOrServiceRoleBearer(req).
+    const auth = requireScopedEdgeAuth(req, {
+      scope: "check-eas-build",
+      allowAdmin: true,
+      allowCiBearer: true,
+      adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
+      ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER",
+    });
     if (auth) return auth;
 
     const rl = rateLimit(req, "check-eas-build");
     if (rl) return rl;
 
     const parsed = await parseJsonBody(req, 200_000);
-    if (!parsed.ok) return errorResponse(parsed.error, req, 400);
+    if (isParsedBodyError(parsed)) return errorResponse(parsed.error, req, 400);
 
     const validation = validateCheckBuildRequest(parsed.body);
-    if (!validation.ok) {
+    if (isValidationError(validation)) {
       return errorResponse("Invalid request", req, 400, validation.errors);
     }
 

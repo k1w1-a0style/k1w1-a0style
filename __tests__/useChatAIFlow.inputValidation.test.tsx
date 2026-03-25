@@ -31,9 +31,9 @@ const createFlow = (options: FlowOptions = {}) => {
     useChatAIFlow({
       config: {
         selectedChatProvider: "openai",
-        selectedChatMode: "gpt-4.1-mini",
+        selectedChatMode: "gpt-5.4-mini",
         selectedAgentProvider: "openai",
-        selectedAgentMode: "gpt-4.1-mini",
+        selectedAgentMode: "gpt-5.4-mini",
         qualityMode: "speed",
         agentEnabled: false,
       } as any,

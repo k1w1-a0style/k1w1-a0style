@@ -42,6 +42,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Edge Functions Quality Gates
+        run: npm run edge:check
+
       - name: Tests
         run: npm run test:silent
 

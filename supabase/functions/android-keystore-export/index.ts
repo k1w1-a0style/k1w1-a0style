@@ -10,7 +10,7 @@ import {
   jsonResponse,
   rateLimit,
   repoOk,
-  requireAdminKeyOrServiceRoleBearer,
+  requireScopedEdgeAuth,
   resolveMode,
   safeString,
 } from "./helpers.ts";
@@ -22,7 +22,13 @@ Deno.serve(async (req) => {
   const rl = rateLimit(req, "android-keystore-export", 30, 60_000);
   if (rl) return rl;
 
-  const auth = requireAdminKeyOrServiceRoleBearer(req);
+  // Legacy guard lineage: requireAdminKeyOrServiceRoleBearer(req).
+  const auth = requireScopedEdgeAuth(req, {
+    scope: "android-keystore-export",
+    allowAdmin: true,
+    allowCiBearer: false,
+    adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
+  });
   if (auth) return auth;
 
   try {

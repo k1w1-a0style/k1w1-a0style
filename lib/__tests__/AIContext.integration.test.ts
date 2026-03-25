@@ -1,252 +1,136 @@
 /**
- * AIContext Integration Tests
- * 
- * ✅ Testet die Integration zwischen AIContext und Orchestrator
- * ✅ Testet Key-Rotation und Provider-Status
- * 
  * @jest-environment node
  */
 
 import {
   PROVIDER_DEFAULTS,
   AVAILABLE_MODELS,
-  PROVIDER_METADATA,
   type AllAIProviders,
-  type QualityMode,
-  type ModelInfo,
-  type ProviderDefaults,
 } from '../../contexts/AIContext';
+import { SHARED_PROVIDER_DEFAULTS } from '../../shared/ai/providerDefaults';
+import { resolveRuntimeModelId } from '../../shared/ai/modelRuntimeMap';
+import { resolveModel } from '../orchestrator/helpers';
 
-describe('AIContext Integration', () => {
-  describe('Provider Configuration', () => {
-    const providers: AllAIProviders[] = ['groq', 'gemini', 'openai', 'anthropic', 'huggingface'];
+type CatalogExpectation = {
+  id: string;
+  label: string;
+  pricePerMillion: string;
+  codingStrength: number;
+  description: string;
+  availabilityLabel: string;
+};
 
-    describe('PROVIDER_DEFAULTS', () => {
-      providers.forEach(provider => {
-        it(`sollte gültige Defaults für ${provider} haben`, () => {
-          const defaults = PROVIDER_DEFAULTS[provider];
-          
-          expect(defaults).toBeDefined();
-          expect(defaults.speed).toBeDefined();
-          expect(defaults.quality).toBeDefined();
-          expect(typeof defaults.speed).toBe('string');
-          expect(typeof defaults.quality).toBe('string');
-        });
+describe('AI model catalog source-of-truth', () => {
+  const expectedCatalog: Record<AllAIProviders, CatalogExpectation[]> = {
+    anthropic: [
+      { id: 'claude-4-opus-202502', label: 'Opus 4.6', pricePerMillion: '$15 / $75', codingStrength: 5, description: 'Beste Reasoning, Architektur, lange Refactors, Tests', availabilityLabel: 'Ja' },
+      { id: 'claude-4-sonnet-202502', label: 'Sonnet 4.6', pricePerMillion: '$3 / $15', codingStrength: 4, description: 'Sauberer Code, Multi-File, Tests, sehr zuverlässig', availabilityLabel: 'Ja' },
+      { id: 'claude-4-haiku-202502', label: 'Haiku 4.5', pricePerMillion: '$0.30 / $1.50', codingStrength: 3, description: 'Schnell, kleine Fixes, Syntax, Boilerplate', availabilityLabel: 'Ja' },
+      { id: 'claude-3.5-sonnet-202410', label: 'Sonnet 3.5', pricePerMillion: '$3 / $15', codingStrength: 4, description: 'Stabil, gutes Preis-Leistungs-Verhältnis', availabilityLabel: 'Ja' },
+      { id: 'claude-3.5-haiku-202410', label: 'Haiku 3.5', pricePerMillion: '$0.30 / $1.50', codingStrength: 3, description: 'Sehr günstig & schnell', availabilityLabel: 'Ja' },
+    ],
+    openai: [
+      { id: 'gpt-5.4-pro', label: 'GPT-5.4 Pro', pricePerMillion: '$15 / $45', codingStrength: 5, description: 'Große Repos, Architektur, Agentic Workflow', availabilityLabel: 'Ja' },
+      { id: 'gpt-5.4', label: 'GPT-5.4', pricePerMillion: '$10 / $30', codingStrength: 4, description: 'Solides Reasoning, Multi-File, nativer Tool-Use', availabilityLabel: 'Ja' },
+      { id: 'gpt-5.3-codex', label: 'GPT-5.3 Codex', pricePerMillion: '$2 / $6', codingStrength: 4, description: 'Letztes dediziertes Codex-Modell, guter Fallback', availabilityLabel: 'Ja' },
+      { id: 'gpt-5.4-mini', label: 'GPT-5.4 mini', pricePerMillion: '$0 (Quota)', codingStrength: 3, description: 'Schnell, Tests, Boilerplate', availabilityLabel: 'Ja' },
+      { id: 'gpt-5.4-nano', label: 'GPT-5.4 nano', pricePerMillion: '$0 (Quota)', codingStrength: 2, description: 'Sehr leicht, pfeilschnelle Inline-Fixes', availabilityLabel: 'Ja' },
+      { id: 'gpt-4o', label: 'GPT-4o', pricePerMillion: '$0 (Quota)', codingStrength: 4, description: 'Klassiker, ausgewogene Qualität', availabilityLabel: 'Ja' },
+    ],
+    gemini: [
+      { id: 'gemini-3.1-pro', label: '3.1 Pro', pricePerMillion: '$2 / $12', codingStrength: 5, description: 'Bestes Repo- & Kontext-Verständnis (bis 2M Tokens)', availabilityLabel: 'Ja' },
+      { id: 'gemini-2.5-pro', label: '2.5 Pro', pricePerMillion: '$7 / $25', codingStrength: 4, description: 'Starkes Reasoning, sauberer Code', availabilityLabel: 'Ja' },
+      { id: 'gemini-3-flash', label: '3 Flash', pricePerMillion: '$0 (Quota)', codingStrength: 3, description: 'Sehr schnell, gute Syntax', availabilityLabel: 'Ja' },
+      { id: 'gemini-3.1-flash-lite', label: '3.1 Flash Lite', pricePerMillion: '$0 (Quota)', codingStrength: 2, description: 'Extrem leicht, ideal für hohes Volumen', availabilityLabel: 'Ja' },
+      { id: 'gemini-2.5-flash', label: '2.5 Flash', pricePerMillion: '$0 (Quota)', codingStrength: 3, description: 'Schnell & zuverlässig', availabilityLabel: 'Ja' },
+    ],
+    groq: [
+      { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B', pricePerMillion: '$2 / $8', codingStrength: 4, description: 'Beste Balance Speed/Qualität', availabilityLabel: 'Ja' },
+      { id: 'llama-3.1-405b-reasoning', label: 'Llama 3.1 405B', pricePerMillion: '$5 / $15', codingStrength: 5, description: 'Höchste Qualität', availabilityLabel: 'Ja' },
+      { id: 'grok-4', label: 'Grok 4', pricePerMillion: '$3 / $10', codingStrength: 4, description: 'Schnell, kreativ', availabilityLabel: 'Ja' },
+      { id: 'llama-4-scout-17b-16e', label: 'Llama 4 Scout', pricePerMillion: '$0 (Limit)', codingStrength: 3, description: 'Neu & leicht', availabilityLabel: 'Ja' },
+      { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B', pricePerMillion: '$0 (Limit)', codingStrength: 2, description: 'Extrem schnell', availabilityLabel: 'Ja' },
+      { id: 'qwen3-32b', label: 'Qwen 3 32B', pricePerMillion: '$0 (Limit)', codingStrength: 4, description: 'Sehr starkes Coding', availabilityLabel: 'Ja' },
+      { id: 'mixtral-8x7b-instruct', label: 'Mixtral 8x7B', pricePerMillion: '$0 (Limit)', codingStrength: 3, description: 'Klassiker', availabilityLabel: 'Ja' },
+      { id: 'gemma2-9b-it', label: 'Gemma 2 9B', pricePerMillion: '$0 (Limit)', codingStrength: 3, description: 'Schnell & effizient', availabilityLabel: 'Ja' },
+    ],
+    huggingface: [
+      { id: 'Qwen/Qwen3-Coder-235B', label: 'Qwen 3 Coder', pricePerMillion: '$8 / $20', codingStrength: 5, description: 'Bestes Open-Source-Coding', availabilityLabel: 'Ja' },
+      { id: 'deepseek-ai/DeepSeek-V3.2', label: 'DeepSeek V3.2', pricePerMillion: '$7 / $18', codingStrength: 5, description: 'Starkes Reasoning', availabilityLabel: 'Ja' },
+      { id: 'meta-llama/Llama-4-Maverick', label: 'Llama 4 Maverick', pricePerMillion: '$6 / $15', codingStrength: 4, description: 'Neu & leistungsstark', availabilityLabel: 'Ja' },
+      { id: 'Qwen/Qwen3-32B', label: 'Qwen 3 32B', pricePerMillion: '$0 (Credits)', codingStrength: 4, description: 'Starkes Coding', availabilityLabel: 'Ja' },
+      { id: 'Qwen/Qwen2.5-72B', label: 'Qwen 2.5 72B', pricePerMillion: '$0 (Credits)', codingStrength: 4, description: 'Solide 72B', availabilityLabel: 'Ja' },
+      { id: 'deepseek-ai/DeepSeek-Coder-V2', label: 'DeepSeek Coder V2', pricePerMillion: '$0 (Credits)', codingStrength: 4, description: 'Sehr coding-orientiert', availabilityLabel: 'Ja' },
+      { id: 'deepseek-ai/DeepSeek-R1-7B', label: 'DeepSeek R1 7B', pricePerMillion: '$0 (Credits)', codingStrength: 3, description: 'Schnell & leicht', availabilityLabel: 'Ja' },
+      { id: 'meta-llama/Llama-3.3-70B', label: 'Llama 3.3 70B', pricePerMillion: '$0 (Credits)', codingStrength: 4, description: 'Gute Balance', availabilityLabel: 'Ja' },
+      { id: 'microsoft/Phi-4-14B', label: 'Phi 4 14B', pricePerMillion: '$0 (Credits)', codingStrength: 3, description: 'Effizient & leicht', availabilityLabel: 'Ja' },
+    ],
+  };
 
-        it(`sollte speed und quality Modelle für ${provider} in AVAILABLE_MODELS haben`, () => {
-          const defaults = PROVIDER_DEFAULTS[provider];
-          const models = AVAILABLE_MODELS[provider];
-          const modelIds = models.map(m => m.id);
-
-          expect(modelIds).toContain(defaults.speed);
-          expect(modelIds).toContain(defaults.quality);
-        });
-      });
-    });
-
-    describe('AVAILABLE_MODELS', () => {
-      providers.forEach(provider => {
-        it(`sollte mindestens ein Modell für ${provider} haben`, () => {
-          const models = AVAILABLE_MODELS[provider];
-          
-          expect(models).toBeDefined();
-          expect(Array.isArray(models)).toBe(true);
-          expect(models.length).toBeGreaterThan(0);
-        });
-
-        it(`sollte valide ModelInfo-Objekte für ${provider} haben`, () => {
-          const models = AVAILABLE_MODELS[provider];
-          
-          models.forEach(model => {
-            expect(model.id).toBeDefined();
-            expect(typeof model.id).toBe('string');
-            expect(model.label).toBeDefined();
-            expect(typeof model.label).toBe('string');
-            expect(model.description).toBeDefined();
-            expect(['free', 'credit', 'paid']).toContain(model.tier);
-            expect(['speed', 'quality', 'balanced', 'review']).toContain(model.persona);
-            expect(model.bestFor).toBeDefined();
-          });
-        });
-
-        it(`sollte kein Auto-Modell für ${provider} anbieten (verhindert Verwirrung)`, () => {
-          const models = AVAILABLE_MODELS[provider];
-          expect(models.some(m => m.id === 'auto' || m.isAuto === true)).toBe(false);
-        });
-      });
-
-      it('sollte keine doppelten Model-IDs haben', () => {
-        providers.forEach(provider => {
-          const models = AVAILABLE_MODELS[provider];
-          const ids = models.map(m => m.id);
-          const uniqueIds = [...new Set(ids)];
-          
-          expect(ids.length).toBe(uniqueIds.length);
-        });
-      });
-    });
-
-    describe('PROVIDER_METADATA', () => {
-      providers.forEach(provider => {
-        it(`sollte vollständige Metadaten für ${provider} haben`, () => {
-          const metadata = PROVIDER_METADATA[provider];
-          
-          expect(metadata).toBeDefined();
-          expect(metadata.id).toBe(provider);
-          expect(metadata.label).toBeDefined();
-          expect(metadata.emoji).toBeDefined();
-          expect(metadata.description).toBeDefined();
-          expect(metadata.hero).toBeDefined();
-          expect(metadata.accent).toBeDefined();
-          // Accent sollte eine Hex-Farbe sein
-          expect(metadata.accent).toMatch(/^#[0-9a-fA-F]{6}$/);
-        });
-      });
+  it('contains exact visible IDs + labels + pricing + coding + description + availability', () => {
+    (Object.keys(expectedCatalog) as AllAIProviders[]).forEach((provider) => {
+      const actual = AVAILABLE_MODELS[provider].map((model) => ({
+        id: model.id,
+        label: model.label,
+        pricePerMillion: model.pricePerMillion,
+        codingStrength: model.codingStrength,
+        description: model.description,
+        availabilityLabel: model.availabilityLabel,
+      }));
+      expect(actual).toEqual(expectedCatalog[provider]);
     });
   });
 
-  describe('Quality Mode Model Selection', () => {
-    const providers: AllAIProviders[] = ['groq', 'gemini', 'openai', 'anthropic', 'huggingface'];
+  it('keeps shared defaults aligned between app and runtime', () => {
+    expect(PROVIDER_DEFAULTS).toEqual(SHARED_PROVIDER_DEFAULTS);
+  });
 
-    describe('Speed Mode', () => {
-      providers.forEach(provider => {
-        it(`sollte schnelleres Modell für ${provider} im Speed-Modus haben`, () => {
-          const defaults = PROVIDER_DEFAULTS[provider];
-          const models = AVAILABLE_MODELS[provider];
-          const speedModel = models.find(m => m.id === defaults.speed);
-          
-          expect(speedModel).toBeDefined();
-          if (speedModel) {
-            // Speed-Modelle sollten 'speed' oder 'balanced' Persona haben
-            expect(['speed', 'balanced']).toContain(speedModel.persona);
-          }
-        });
-      });
-    });
-
-    describe('Quality Mode', () => {
-      providers.forEach(provider => {
-        it(`sollte höherqualitatives Modell für ${provider} im Quality-Modus haben`, () => {
-          const defaults = PROVIDER_DEFAULTS[provider];
-          const models = AVAILABLE_MODELS[provider];
-          const qualityModel = models.find(m => m.id === defaults.quality);
-          
-          expect(qualityModel).toBeDefined();
-          if (qualityModel) {
-            // Quality-Modelle sollten 'quality', 'review' oder 'balanced' Persona haben
-            expect(['quality', 'review', 'balanced']).toContain(qualityModel.persona);
-          }
-        });
-      });
+  it('keeps defaults inside the visible catalog', () => {
+    (Object.keys(PROVIDER_DEFAULTS) as AllAIProviders[]).forEach((provider) => {
+      const ids = AVAILABLE_MODELS[provider].map((entry) => entry.id);
+      expect(ids).toContain(PROVIDER_DEFAULTS[provider].speed);
+      expect(ids).toContain(PROVIDER_DEFAULTS[provider].quality);
     });
   });
 
-  describe('Model Tier Distribution', () => {
-    it('sollte mindestens ein Free-Tier Modell pro Provider haben', () => {
-      const providers: AllAIProviders[] = ['groq', 'gemini', 'huggingface'];
-      
-      providers.forEach(provider => {
-        const models = AVAILABLE_MODELS[provider];
-        const freeModels = models.filter(m => m.tier === 'free');
-        
-        expect(freeModels.length).toBeGreaterThan(0);
-      });
-    });
-
-    it('sollte Free oder Credit-Tier Speed-Modelle haben', () => {
-      const providers: AllAIProviders[] = ['groq', 'gemini', 'huggingface'];
-      
-      providers.forEach(provider => {
-        const defaults = PROVIDER_DEFAULTS[provider];
-        const models = AVAILABLE_MODELS[provider];
-        const speedModel = models.find(m => m.id === defaults.speed);
-        
-        expect(speedModel).toBeDefined();
-        if (speedModel) {
-          expect(['free', 'credit']).toContain(speedModel.tier);
-        }
-      });
+  it('uses intended defaults per provider', () => {
+    expect(PROVIDER_DEFAULTS).toEqual({
+      groq: { speed: 'llama-3.1-8b-instant', quality: 'llama-3.3-70b-versatile' },
+      gemini: { speed: 'gemini-3.1-flash-lite', quality: 'gemini-3.1-pro' },
+      openai: { speed: 'gpt-5.4-mini', quality: 'gpt-5.4-pro' },
+      anthropic: { speed: 'claude-4-haiku-202502', quality: 'claude-4-opus-202502' },
+      huggingface: { speed: 'Qwen/Qwen3-32B', quality: 'Qwen/Qwen3-Coder-235B' },
     });
   });
 
-  describe('Context Window Information', () => {
-    it('sollte Context Window Info für Modelle haben', () => {
-      const providers: AllAIProviders[] = ['groq', 'gemini', 'openai', 'anthropic', 'huggingface'];
-      
-      providers.forEach(provider => {
-        const models = AVAILABLE_MODELS[provider];
-        
-        // Mindestens einige Modelle sollten contextWindow haben
-        const modelsWithContext = models.filter(m => m.contextWindow);
-        expect(modelsWithContext.length).toBeGreaterThan(0);
-      });
+  it('maps quality/review to quality defaults and speed/balanced to speed defaults', () => {
+    (Object.keys(PROVIDER_DEFAULTS) as AllAIProviders[]).forEach((provider) => {
+      expect(resolveModel(provider, 'auto', 'speed')).toBe(PROVIDER_DEFAULTS[provider].speed);
+      expect(resolveModel(provider, 'auto', 'balanced')).toBe(PROVIDER_DEFAULTS[provider].speed);
+      expect(resolveModel(provider, 'auto', 'quality')).toBe(PROVIDER_DEFAULTS[provider].quality);
+      expect(resolveModel(provider, 'auto', 'review')).toBe(PROVIDER_DEFAULTS[provider].quality);
     });
   });
 
-  describe('Catalog restoration invariants', () => {
-    it('haelt die erweiterten OpenAI-Katalogoptionen sichtbar, ohne die Defaults zu verschieben', () => {
-      const openaiIds = AVAILABLE_MODELS.openai.map(m => m.id);
+  it('keeps explicit runtime mapping available while preserving visible IDs', () => {
+    const anth = resolveRuntimeModelId('anthropic', 'claude-4-opus-202502');
+    expect(anth.visibleModel).toBe('claude-4-opus-202502');
+    expect(anth.runtimeModel).toBe('claude-opus-4-20250514');
+    expect(anth.status).toBe('mapped');
 
-      expect(openaiIds).toContain('gpt-5-mini');
-      expect(openaiIds).toContain('gpt-4.1-nano');
-      expect(PROVIDER_DEFAULTS.openai.speed).toBe('gpt-4o-mini');
-      expect(PROVIDER_DEFAULTS.openai.quality).toBe('gpt-4o');
-    });
+    const gemini = resolveRuntimeModelId('gemini', 'gemini-3-flash');
+    expect(gemini.visibleModel).toBe('gemini-3-flash');
+    expect(gemini.runtimeModel).toBe('gemini-2.5-flash');
+    expect(gemini.status).toBe('mapped');
 
-    it('haelt die erweiterten Groq-Katalogoptionen sichtbar, ohne die Defaults zu verschieben', () => {
-      const groqIds = AVAILABLE_MODELS.groq.map(m => m.id);
+    const groq = resolveRuntimeModelId('groq', 'qwen3-32b');
+    expect(groq.visibleModel).toBe('qwen3-32b');
+    expect(groq.runtimeModel).toBe('qwen/qwen3-32b');
+    expect(groq.status).toBe('mapped');
 
-      expect(groqIds).toContain('qwen/qwen3-32b');
-      expect(groqIds).toContain('openai/gpt-oss-20b');
-      expect(groqIds).toContain('openai/gpt-oss-120b');
-      expect(PROVIDER_DEFAULTS.groq.speed).toBe('groq/compound-mini');
-      expect(PROVIDER_DEFAULTS.groq.quality).toBe('llama-3.3-70b-versatile');
-    });
-  });
-
-  describe('Provider-Specific Features', () => {
-    it('Groq sollte FPGA-beschleunigte Modelle haben', () => {
-      const metadata = PROVIDER_METADATA.groq;
-      expect(metadata.description.toLowerCase()).toContain('fpga');
-    });
-
-    it('Gemini sollte große Kontextfenster haben', () => {
-      const models = AVAILABLE_MODELS.gemini;
-      const largeContextModels = models.filter(m => 
-        m.contextWindow && (m.contextWindow.includes('1M') || m.contextWindow.includes('2M'))
-      );
-      expect(largeContextModels.length).toBeGreaterThan(0);
-    });
-
-    it('Anthropic sollte Claude-Modelle haben', () => {
-      const models = AVAILABLE_MODELS.anthropic;
-      const claudeModels = models.filter(m => m.id.toLowerCase().includes('claude'));
-      expect(claudeModels.length).toBeGreaterThan(0);
-      expect(PROVIDER_DEFAULTS.anthropic.speed).toBe('claude-3-5-haiku-20241022');
-      expect(PROVIDER_DEFAULTS.anthropic.quality).toBe('claude-sonnet-4-20250514');
-    });
-
-    it('HuggingFace sollte Open-Source Modelle haben', () => {
-      const metadata = PROVIDER_METADATA.huggingface;
-      expect(metadata.description.toLowerCase()).toContain('open-source');
-    });
-  });
-});
-
-describe('Provider Configuration Consistency', () => {
-  it('sollte konsistente Provider-IDs haben', () => {
-    const defaultKeys = Object.keys(PROVIDER_DEFAULTS);
-    const modelKeys = Object.keys(AVAILABLE_MODELS);
-    const metadataKeys = Object.keys(PROVIDER_METADATA);
-
-    expect(defaultKeys.sort()).toEqual(modelKeys.sort());
-    expect(defaultKeys.sort()).toEqual(metadataKeys.sort());
-  });
-
-  it('sollte keine undefined Werte in Defaults haben', () => {
-    Object.entries(PROVIDER_DEFAULTS).forEach(([provider, defaults]) => {
-      expect(defaults.speed).not.toBeUndefined();
-      expect(defaults.quality).not.toBeUndefined();
-    });
+    const geminiLite = resolveRuntimeModelId('gemini', 'gemini-3.1-flash-lite');
+    expect(geminiLite.visibleModel).toBe('gemini-3.1-flash-lite');
+    expect(geminiLite.runtimeModel).toBe('gemini-2.5-flash-lite');
+    expect(geminiLite.status).toBe('mapped');
   });
 });

@@ -262,7 +262,7 @@ jobs:
           set -o pipefail
           mkdir -p ci-logs
 
-          (npm run lint:ci || npx --yes eslint . --quiet) 2>&1 | tee ci-logs/lint.log
+          (npm run lint:ci || npx --yes eslint .) 2>&1 | tee ci-logs/lint.log
           ESL=$?
 
           (npm run typecheck || npx --yes tsc --noEmit) 2>&1 | tee ci-logs/typecheck.log

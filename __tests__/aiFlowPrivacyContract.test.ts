@@ -1,4 +1,4 @@
-import { buildBuilderMessages, buildValidatorMessages } from '../lib/promptEngine';
+import { buildBuilderMessages, buildPlannerMessages, buildValidatorMessages } from '../lib/promptEngine';
 import { getEffectiveChatWritePolicy } from '../lib/effectiveWritePolicy';
 import { buildSanitizedLlmHistory } from '../lib/promptSanitizer';
 import { canActorModifyPath } from '../lib/projectOwnership';
@@ -58,6 +58,18 @@ describe('AI flow privacy and prompt contract', () => {
     expect(history).toEqual([{ role: 'user', content: 'Bitte baue einen Screen' }]);
   });
 
+
+  test('does not rely on fallback-note text matching for runtime-note filtering', () => {
+    const history = buildSanitizedLlmHistory([
+      makeMessage({ id: 'raw-runtime-text', role: 'assistant', content: 'Runtime-Fallback aktiv: plain text without meta flag' }),
+      makeMessage({ id: 'flagged-runtime', role: 'system', content: 'harmless note', meta: { runtimeNote: true } }),
+    ]);
+
+    expect(history).toEqual([
+      { role: 'assistant', content: 'Runtime-Fallback aktiv: plain text without meta flag' },
+    ]);
+  });
+
   test('filters runtime fallback notes out of provider history', () => {
     const history = buildSanitizedLlmHistory([
       makeMessage({ content: 'Normale Historie' }),
@@ -65,6 +77,33 @@ describe('AI flow privacy and prompt contract', () => {
     ]);
 
     expect(history).toEqual([{ role: 'user', content: 'Normale Historie' }]);
+  });
+
+
+  test('keeps runtime notes visible in local history but excludes them from planner/builder/validator prompts', () => {
+    const sanitizedHistory = buildSanitizedLlmHistory([
+      makeMessage({ role: 'user', content: 'Bitte optimiere den Build-Flow' }),
+      makeMessage({
+        id: 'runtime-note',
+        role: 'system',
+        content: 'ℹ️ Runtime-Mapping aktiv: gemini/gemini-3-flash -> gemini/gemini-2.5-flash',
+        meta: { runtimeNote: true },
+      }),
+    ]);
+
+    expect(sanitizedHistory).toEqual([
+      { role: 'user', content: 'Bitte optimiere den Build-Flow' },
+    ]);
+
+    const files: ProjectFile[] = [{ path: 'App.tsx', content: 'export default function App(){ return null; }' }];
+    const planner = buildPlannerMessages(sanitizedHistory, 'Bitte optimiere den Build-Flow', files);
+    const builder = buildBuilderMessages(sanitizedHistory, 'Bitte optimiere den Build-Flow', files);
+    const validator = buildValidatorMessages('Bitte optimiere den Build-Flow', files, files);
+
+    const combined = [...planner, ...builder, ...validator].map((entry) => entry.content).join('\n---\n');
+    expect(combined).toContain('Bitte optimiere den Build-Flow');
+    expect(combined).not.toContain('Runtime-Mapping aktiv');
+    expect(combined).not.toContain('gemini-3-flash -> gemini-2.5-flash');
   });
 
   test('filters containsFilePreview messages out of provider history', () => {
