@@ -9,6 +9,14 @@ describe('model runtime mapping contracts', () => {
     });
   });
 
+  it('keeps updated openai codex id as direct runtime id', () => {
+    expect(resolveRuntimeModelId('openai', 'gpt-5.3-codex')).toMatchObject({
+      visibleModel: 'gpt-5.3-codex',
+      runtimeModel: 'gpt-5.3-codex',
+      status: 'direct',
+    });
+  });
+
   it('maps gemini and groq aliases explicitly without changing visible ids', () => {
     expect(resolveRuntimeModelId('gemini', 'gemini-3-flash')).toMatchObject({
       visibleModel: 'gemini-3-flash',
@@ -19,6 +27,24 @@ describe('model runtime mapping contracts', () => {
     expect(resolveRuntimeModelId('groq', 'qwen3-32b')).toMatchObject({
       visibleModel: 'qwen3-32b',
       runtimeModel: 'qwen/qwen3-32b',
+      status: 'mapped',
+    });
+
+    expect(resolveRuntimeModelId('gemini', 'gemini-3.1-flash-lite')).toMatchObject({
+      visibleModel: 'gemini-3.1-flash-lite',
+      runtimeModel: 'gemini-2.5-flash-lite',
+      status: 'mapped',
+    });
+
+    expect(resolveRuntimeModelId('groq', 'llama-4-scout-17b-16e')).toMatchObject({
+      visibleModel: 'llama-4-scout-17b-16e',
+      runtimeModel: 'llama-4-scout-17b-16e-instruct',
+      status: 'mapped',
+    });
+
+    expect(resolveRuntimeModelId('huggingface', 'deepseek-ai/DeepSeek-V3.2')).toMatchObject({
+      visibleModel: 'deepseek-ai/DeepSeek-V3.2',
+      runtimeModel: 'deepseek-ai/DeepSeek-V3.2-Speciale',
       status: 'mapped',
     });
   });

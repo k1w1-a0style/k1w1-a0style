@@ -1,4 +1,4 @@
-import { callGemini, callGroq } from '../supabase/functions/k1w1-handler/helpers.ts';
+import { callGemini, callGroq, callHuggingFace } from '../supabase/functions/k1w1-handler/helpers.ts';
 
 const mockGetRuntimeEnv = jest.fn();
 const mockFetchWithTimeout = jest.fn();
@@ -41,6 +41,27 @@ describe('k1w1-handler runtime mapping behavior', () => {
     expect(String(result.runtimeNote || '')).toContain('Runtime-Mapping aktiv');
   });
 
+  it('maps gemini-3.1-flash-lite to runtime alias while keeping visible model', async () => {
+    mockFetchWithTimeout.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: 'hello-lite' }] } }],
+      }),
+    });
+
+    const result = await callGemini({
+      provider: 'gemini',
+      model: 'gemini-3.1-flash-lite',
+      quality: 'speed',
+      messages: [{ role: 'user', content: 'Hi' }],
+    });
+
+    const [calledUrl] = mockFetchWithTimeout.mock.calls[0];
+    expect(String(calledUrl)).toContain('/models/gemini-2.5-flash-lite:generateContent');
+    expect(result.model).toBe('gemini-3.1-flash-lite');
+    expect(String(result.runtimeNote || '')).toContain('Runtime-Mapping aktiv');
+  });
+
   it('uses mapped runtime id for Groq upstream call while keeping visible id in response', async () => {
     mockFetchWithTimeout.mockResolvedValueOnce({
       ok: true,
@@ -60,6 +81,47 @@ describe('k1w1-handler runtime mapping behavior', () => {
     const body = JSON.parse(String(request.body));
     expect(body.model).toBe('qwen/qwen3-32b');
     expect(result.model).toBe('qwen3-32b');
+    expect(String(result.runtimeNote || '')).toContain('Runtime-Mapping aktiv');
+  });
+
+  it('maps llama-4-scout-17b-16e to runtime scout instruct id without changing visible id', async () => {
+    mockFetchWithTimeout.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: 'ok' } }],
+      }),
+    });
+
+    const result = await callGroq({
+      provider: 'groq',
+      model: 'llama-4-scout-17b-16e',
+      quality: 'balanced',
+      messages: [{ role: 'user', content: 'Hi' }],
+    });
+
+    const [, request] = mockFetchWithTimeout.mock.calls[0];
+    const body = JSON.parse(String(request.body));
+    expect(body.model).toBe('llama-4-scout-17b-16e-instruct');
+    expect(result.model).toBe('llama-4-scout-17b-16e');
+    expect(String(result.runtimeNote || '')).toContain('Runtime-Mapping aktiv');
+  });
+
+  it('maps Hugging Face visible deepseek id to runtime alias while preserving visible model', async () => {
+    mockFetchWithTimeout.mockResolvedValueOnce({
+      ok: true,
+      json: async () => [{ generated_text: 'hf' }],
+    });
+
+    const result = await callHuggingFace({
+      provider: 'huggingface',
+      model: 'deepseek-ai/DeepSeek-V3.2',
+      quality: 'quality',
+      messages: [{ role: 'user', content: 'Hi' }],
+    });
+
+    const [calledUrl] = mockFetchWithTimeout.mock.calls[0];
+    expect(String(calledUrl)).toContain('deepseek-ai%2FDeepSeek-V3.2-Speciale');
+    expect(result.model).toBe('deepseek-ai/DeepSeek-V3.2');
     expect(String(result.runtimeNote || '')).toContain('Runtime-Mapping aktiv');
   });
 });

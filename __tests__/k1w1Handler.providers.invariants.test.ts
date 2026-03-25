@@ -44,7 +44,7 @@ describe("k1w1-handler provider invariants", () => {
       quality: "llama-3.3-70b-versatile",
     });
     expect(SHARED_PROVIDER_DEFAULTS.gemini).toEqual({
-      speed: "gemini-2.5-flash-lite",
+      speed: "gemini-3.1-flash-lite",
       quality: "gemini-3.1-pro",
     });
     expect(SHARED_PROVIDER_DEFAULTS.anthropic).toEqual({
@@ -58,7 +58,7 @@ describe("k1w1-handler provider invariants", () => {
   it("guards runtime-safe provider default ids for Groq/Gemini/Anthropic", () => {
     expect(SHARED_PROVIDER_DEFAULTS.groq.speed).toBe("llama-3.1-8b-instant");
     expect(SHARED_PROVIDER_DEFAULTS.groq.quality).toBe("llama-3.3-70b-versatile");
-    expect(SHARED_PROVIDER_DEFAULTS.gemini.speed).toBe("gemini-2.5-flash-lite");
+    expect(SHARED_PROVIDER_DEFAULTS.gemini.speed).toBe("gemini-3.1-flash-lite");
     expect(SHARED_PROVIDER_DEFAULTS.gemini.quality).toBe("gemini-3.1-pro");
     expect(SHARED_PROVIDER_DEFAULTS.anthropic.speed).toBe("claude-4-haiku-202502");
     expect(SHARED_PROVIDER_DEFAULTS.anthropic.quality).toBe("claude-4-opus-202502");

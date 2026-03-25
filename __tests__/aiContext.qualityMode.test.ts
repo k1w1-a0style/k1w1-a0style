@@ -19,7 +19,7 @@ describe("AIContext quality mode mapping", () => {
     expect(getModeKeyForQualityMode("balanced")).toBe("speed");
     expect(resolveProviderModeForQualityMode("openai", "speed")).toBe("gpt-5.4-mini");
     expect(resolveProviderModeForQualityMode("gemini", "balanced")).toBe(
-      "gemini-2.5-flash-lite",
+      "gemini-3.1-flash-lite",
     );
   });
 });
