@@ -4,7 +4,7 @@
 import {
   CODESANDBOX_DEFINE_URL, cors, json, safeErrorMessage, safeName,
   isObject, escapeHtml, transformRNtoWeb, pickEntry,
-  parseJsonBody, rateLimit, requireAdminKey, sanitizeUnknownForTransport,
+  parseJsonBody, rateLimit, requireAdminKey, sanitizeErrorText, sanitizeUnknownForTransport,
 } from "./helpers.ts";
 import type { PreviewFile, RequestBody, JsonRecord } from "./helpers.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
@@ -212,9 +212,10 @@ Deno.serve(async (req) => {
   try {
     const parsedBody = await parseJsonBody(req, 2_000_000);
     if (!parsedBody.ok) {
-      const status = parsedBody.error.includes("too large") ? 413 : 400;
+      const parseError = (parsedBody as { ok: false; error: string }).error;
+      const status = parseError.includes("too large") ? 413 : 400;
       return json(
-        { ok: false, error: sanitizeErrorText(parsedBody.error) },
+        { ok: false, error: sanitizeErrorText(parseError) },
         { status, headers: cors(origin) },
       );
     }

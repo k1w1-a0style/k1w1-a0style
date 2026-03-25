@@ -28,6 +28,18 @@ type BuildJobRow = {
   updated_at?: string | null;
 };
 
+function isParsedBodyError(
+  result: Awaited<ReturnType<typeof parseJsonBody>>,
+): result is { ok: false; error: string } {
+  return !result.ok;
+}
+
+function isValidationError(
+  result: ReturnType<typeof validateCheckBuildRequest>,
+): result is Extract<ReturnType<typeof validateCheckBuildRequest>, { ok: false }> {
+  return !result.ok;
+}
+
 Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
@@ -40,10 +52,10 @@ Deno.serve(async (req) => {
     if (rl) return rl;
 
     const parsed = await parseJsonBody(req, 200_000);
-    if (!parsed.ok) return errorResponse(parsed.error, req, 400);
+    if (isParsedBodyError(parsed)) return errorResponse(parsed.error, req, 400);
 
     const validation = validateCheckBuildRequest(parsed.body);
-    if (!validation.ok) {
+    if (isValidationError(validation)) {
       return errorResponse("Invalid request", req, 400, validation.errors);
     }
 

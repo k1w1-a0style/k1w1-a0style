@@ -42,6 +42,18 @@ function isAllowedRef(ref: string | null | undefined): boolean {
   }
 }
 
+function isParsedBodyError(
+  result: Awaited<ReturnType<typeof parseJsonBody>>,
+): result is { ok: false; error: string } {
+  return !result.ok;
+}
+
+function isTriggerValidationError(
+  result: ReturnType<typeof validateTriggerBuildRequest>,
+): result is Extract<ReturnType<typeof validateTriggerBuildRequest>, { ok: false }> {
+  return !result.ok;
+}
+
 /**
  * Creates a build_jobs row and triggers the GitHub repository_dispatch event (trigger-eas-build).
  *
@@ -61,12 +73,12 @@ Deno.serve(async (req) => {
     if (rl) return rl;
 
     const parsed = await parseJsonBody(req, 200_000);
-    if (!parsed.ok) {
+    if (isParsedBodyError(parsed)) {
       return errorResponse(parsed.error, req, 400);
     }
 
     const validation = validateTriggerBuildRequest(parsed.body);
-    if (!validation.ok) {
+    if (isTriggerValidationError(validation)) {
       return errorResponse("Invalid request", req, 400, validation.errors);
     }
 

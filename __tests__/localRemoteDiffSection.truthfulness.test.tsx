@@ -104,6 +104,7 @@ describe("LocalRemoteDiffSection truthfulness", () => {
       />,
     );
 
+    await flushMicrotasks();
     await waitForContextReset(screen, "owner/repo-b@develop • Lokal: 1 Dateien");
 
     fireEvent.press(screen.getByTestId("local-remote-diff-refresh"));

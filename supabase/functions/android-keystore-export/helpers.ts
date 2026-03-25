@@ -100,10 +100,9 @@ export async function decryptWithAesCbc(b64: string, masterKey: string): Promise
   const enc = bytes.slice(16);
 
   const keyBytes = await deriveAesKeyBytes(masterKey);
-  const key = await crypto.subtle.importKey("raw", keyBytes, { name: "AES-CBC" }, false, [
+  const key = await crypto.subtle.importKey("raw", keyBytes as unknown as BufferSource, { name: "AES-CBC" }, false, [
     "decrypt",
   ]);
   const dec = await crypto.subtle.decrypt({ name: "AES-CBC", iv }, key, enc);
   return new TextDecoder().decode(new Uint8Array(dec));
 }
-

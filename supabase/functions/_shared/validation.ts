@@ -89,6 +89,12 @@ export function validateBranch(
   return { valid: true, value: trimmed };
 }
 
+function getBranchValidationError(
+  result: ReturnType<typeof validateBranch>,
+): string | null {
+  return "error" in result ? result.error : null;
+}
+
 export function validateTriggerBuildRequest(body: unknown): Ok<{
   githubRepo: string;
   buildProfile: "development" | "preview" | "production";
@@ -111,7 +117,8 @@ export function validateTriggerBuildRequest(body: unknown): Ok<{
   }
 
   const br = validateBranch(branch);
-  if (!br.valid) errors.branch = br.error;
+  const branchError = getBranchValidationError(br);
+  if (branchError) errors.branch = branchError;
 
   if (Object.keys(errors).length) return { ok: false, errors };
   if (!br.valid || !isBuildProfile(buildProfile) || !isString(githubRepo)) return { ok: false, errors };
@@ -173,7 +180,8 @@ export function validateGithubWorkflowDispatchRequest(body: unknown): Ok<{
   }
 
   const br = validateBranch(ref);
-  if (!br.valid) errors.ref = br.error;
+  const refError = getBranchValidationError(br);
+  if (refError) errors.ref = refError;
 
   let normalizedInputs: Record<string, string> | undefined;
   if (inputs != null) {

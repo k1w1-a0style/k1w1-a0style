@@ -7,9 +7,15 @@ import { parseJsonBody } from "../_shared/validation.ts";
 import { getGithubToken, githubFetch, GITHUB_API_BASE } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
 import {
-  jsonOk, jsonErr, asString, asNumber, parseGithubRepo,
+  jsonOk, jsonErr, asString, asNumber, parseGithubRepo, type Json,
   redactSecrets, fetchLogsZip, zipToText, MAX_CHARS, MAX_ZIP_BYTES,
 } from "./helpers.ts";
+
+function isParsedBodyError(
+  result: Awaited<ReturnType<typeof parseJsonBody>>,
+): result is { ok: false; error: string } {
+  return !result.ok;
+}
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
@@ -23,9 +29,10 @@ Deno.serve(async (req) => {
     if (rl) return rl;
 
     const parsedBody = await parseJsonBody(req, 50_000);
-    if (!parsedBody.ok) {
-      const status = parsedBody.error.includes("too large") ? 413 : 400;
-      return jsonErr(req, "Validation failed", { error: parsedBody.error }, status);
+    if (isParsedBodyError(parsedBody)) {
+      const parseError = parsedBody.error;
+      const status = parseError.includes("too large") ? 413 : 400;
+      return jsonErr(req, "Validation failed", { error: parseError }, status);
     }
     const body = parsedBody.body as Json;
     const repoObj = parseGithubRepo(body.githubRepo);
@@ -83,7 +90,7 @@ Deno.serve(async (req) => {
         };
       } else {
         run = {
-          id: Math.trunc(runId) as Json,
+          id: Math.trunc(runId) as unknown as Json,
           status: null,
           conclusion: null,
           html_url: null,
@@ -91,7 +98,7 @@ Deno.serve(async (req) => {
           event: null,
           created_at: null,
           updated_at: null,
-          meta_error: sanitizeGitHubFailure(runMetaTxt) as Json,
+          meta_error: sanitizeGitHubFailure(runMetaRes, runMetaTxt) as Json,
         };
       }
     } catch {

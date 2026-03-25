@@ -105,7 +105,7 @@ export async function encryptWithAesCbc(payload: string, masterKey: string): Pro
   const iv = crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey(
     "raw",
-    keyBytes,
+    keyBytes as unknown as BufferSource,
     { name: "AES-CBC" },
     false,
     ["encrypt"],
@@ -163,4 +163,3 @@ export async function ensureBucketExists(
     throw new Error(`Could not ensure storage bucket '${bucket}': ${e?.message || String(e)}`);
   }
 }
-
