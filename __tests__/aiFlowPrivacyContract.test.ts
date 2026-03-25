@@ -58,6 +58,18 @@ describe('AI flow privacy and prompt contract', () => {
     expect(history).toEqual([{ role: 'user', content: 'Bitte baue einen Screen' }]);
   });
 
+
+  test('does not rely on fallback-note text matching for runtime-note filtering', () => {
+    const history = buildSanitizedLlmHistory([
+      makeMessage({ id: 'raw-runtime-text', role: 'assistant', content: 'Runtime-Fallback aktiv: plain text without meta flag' }),
+      makeMessage({ id: 'flagged-runtime', role: 'system', content: 'harmless note', meta: { runtimeNote: true } }),
+    ]);
+
+    expect(history).toEqual([
+      { role: 'assistant', content: 'Runtime-Fallback aktiv: plain text without meta flag' },
+    ]);
+  });
+
   test('filters runtime fallback notes out of provider history', () => {
     const history = buildSanitizedLlmHistory([
       makeMessage({ content: 'Normale Historie' }),

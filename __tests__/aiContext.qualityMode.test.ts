@@ -11,6 +11,7 @@ describe("AIContext quality mode mapping", () => {
     expect(resolveProviderModeForQualityMode("anthropic", "review")).toBe(
       "claude-sonnet-4-20250514",
     );
+    expect(resolveProviderModeForQualityMode("gemini", "quality")).toBe("gemini-2.5-pro");
   });
 
   test("maps speed/balanced to provider speed defaults", () => {
