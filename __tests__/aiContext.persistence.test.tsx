@@ -43,7 +43,7 @@ describe("AIContext redacted config persistence", () => {
     (AsyncStorage.setItem as jest.Mock).mockClear();
 
     act(() => {
-      result.current.setSelectedChatMode("gpt-4o");
+      result.current.setSelectedChatMode("gpt-5.4");
       result.current.setAgentEnabled(false);
     });
 
@@ -72,7 +72,7 @@ describe("AIContext redacted config persistence", () => {
       String((AsyncStorage.setItem as jest.Mock).mock.calls[0][1]),
     ) as { selectedChatMode: string; agentEnabled: boolean; apiKeys: Record<string, unknown[]> };
 
-    expect(persisted.selectedChatMode).toBe("gpt-4o");
+    expect(persisted.selectedChatMode).toBe("gpt-5.4");
     expect(persisted.agentEnabled).toBe(false);
     expect(persisted.apiKeys).toEqual({
       groq: [],

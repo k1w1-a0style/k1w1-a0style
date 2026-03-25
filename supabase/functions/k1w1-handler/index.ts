@@ -80,6 +80,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       provider: providerLower,
       model: result.model,
       content: result.content,
+      ...(result.runtimeNote ? { runtime_note: result.runtimeNote } : {}),
       raw: result.raw,
     };
 

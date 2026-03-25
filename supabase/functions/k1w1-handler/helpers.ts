@@ -29,6 +29,7 @@ export { parseJsonBody } from "../_shared/validation.ts";
 import { getRuntimeEnv } from "../_shared/auth.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { SHARED_PROVIDER_DEFAULTS } from "../../../shared/ai/providerDefaults.ts";
+import { resolveRuntimeModelId } from "../../../shared/ai/modelRuntimeMap.ts";
 
 export const DEFAULT_MODELS = SHARED_PROVIDER_DEFAULTS;
 const SUPPORTED_PROVIDER_DEFAULT_KEYS = {
@@ -39,6 +40,24 @@ const SUPPORTED_PROVIDER_DEFAULT_KEYS = {
 void SUPPORTED_PROVIDER_DEFAULT_KEYS;
 
 const PROVIDER_UPSTREAM_TIMEOUT_MS = 45_000;
+
+function resolveProviderModelForRuntime(
+  provider: "groq" | "gemini" | "openai" | "anthropic" | "huggingface",
+  selectedModel: string,
+): { visibleModel: string; runtimeModel: string; runtimeNote?: string } {
+  const resolved = resolveRuntimeModelId(provider, selectedModel);
+  if (resolved.status === "unsupported") {
+    throw new Error(`${provider}_model_unsupported (model=${resolved.visibleModel}): ${resolved.note ?? "unsupported"}`);
+  }
+  const runtimeNote = resolved.status === "mapped"
+    ? `ℹ️ Runtime-Mapping aktiv: ${provider}/${resolved.visibleModel} -> ${provider}/${resolved.runtimeModel} (${resolved.note ?? "alias"}).`
+    : undefined;
+  return {
+    visibleModel: resolved.visibleModel,
+    runtimeModel: resolved.runtimeModel,
+    runtimeNote,
+  };
+}
 
 // ----------------- Helpers -----------------
 
@@ -121,6 +140,8 @@ export interface K1w1HandlerErrorPayload {
 
 const PROVIDER_HTTP_ERROR_PATTERN =
   /^(?<provider>[a-z0-9_-]+)_http_(?<status>\d{3}) \(model=(?<model>[^)]+)\):(?<body>[\s\S]*)$/i;
+const PROVIDER_MODEL_UNSUPPORTED_PATTERN =
+  /^(?<provider>[a-z0-9_-]+)_model_unsupported \(model=(?<model>[^)]+)\):(?<reason>[\s\S]*)$/i;
 
 function providerHttpError(
   provider: string,
@@ -293,6 +314,18 @@ export function classifyK1w1HandlerError(
     );
   }
 
+  const unsupportedModelMatch = rawMessage.match(PROVIDER_MODEL_UNSUPPORTED_PATTERN);
+  if (unsupportedModelMatch?.groups) {
+    const provider = normalizeProviderName(unsupportedModelMatch.groups.provider) ?? fallbackProvider;
+    const model = safeModelLabel(unsupportedModelMatch.groups.model) ?? fallbackModel;
+    const payload = buildClientErrorPayload("provider_model_not_found", 404, provider, model);
+    const reason = String(unsupportedModelMatch.groups.reason ?? "").trim();
+    if (reason) {
+      payload.error = `${payload.error} Hinweis: ${reason}`;
+    }
+    return payload;
+  }
+
   return buildClientErrorPayload(
     "unknown_internal_error",
     500,
@@ -305,16 +338,18 @@ export function classifyK1w1HandlerError(
 
 export async function callGroq(
   body: HandlerRequestBody,
-): Promise<{ content: string; raw: unknown; model: string }> {
+): Promise<{ content: string; raw: unknown; model: string; runtimeNote?: string }> {
   const apiKey = getRuntimeEnv("GROQ_API_KEY");
   if (!apiKey) {
     throw new Error("GROQ_API_KEY not set in Edge env");
   }
 
   const qualityConfig = DEFAULT_MODELS.groq;
-  const model =
+  const selectedModel =
     body.model ||
     resolveDefaultModelForQuality(qualityConfig, body.quality);
+  const resolvedSelection = resolveProviderModelForRuntime("groq", selectedModel);
+  const model = resolvedSelection.runtimeModel;
 
   const url = "https://api.groq.com/openai/v1/chat/completions";
 
@@ -347,7 +382,6 @@ export async function callGroq(
   const fallbackModel = model.startsWith("groq/") ? model.slice("groq/".length) : model;
 
   let json;
-  let resolvedModel = model;
   if (primary.ok) {
     json = primary.json;
   } else if (fallbackModel !== model && (primary.status === 404 || /model/i.test(primary.text))) {
@@ -356,7 +390,6 @@ export async function callGroq(
       throw providerHttpError("groq", fallbackModel, fallback.status, fallback.text);
     }
     json = fallback.json;
-    resolvedModel = fallbackModel;
   } else {
     throw providerHttpError("groq", model, primary.status, primary.text);
   }
@@ -366,21 +399,23 @@ export async function callGroq(
     json?.choices?.[0]?.delta?.content ??
     "";
 
-  return { content, raw: json, model: resolvedModel };
+  return { content, raw: json, model: resolvedSelection.visibleModel, runtimeNote: resolvedSelection.runtimeNote };
 }
 
 export async function callGemini(
   body: HandlerRequestBody,
-): Promise<{ content: string; raw: unknown; model: string }> {
+): Promise<{ content: string; raw: unknown; model: string; runtimeNote?: string }> {
   const apiKey = getRuntimeEnv("GEMINI_API_KEY");
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY not set in Edge env");
   }
 
   const qualityConfig = DEFAULT_MODELS.gemini;
-  const model =
+  const selectedModel =
     body.model ||
     resolveDefaultModelForQuality(qualityConfig, body.quality);
+  const resolvedModel = resolveProviderModelForRuntime("gemini", selectedModel);
+  const model = resolvedModel.runtimeModel;
 
   const systemInstructionText = joinSystemMessages(body.messages);
   const nonSystemMessages = body.messages.filter((m) => m.role !== "system");
@@ -417,7 +452,7 @@ export async function callGemini(
   const parts = json?.candidates?.[0]?.content?.parts ?? [];
   const text = parts.map((p: any) => p.text || "").join("\n");
 
-  return { content: text, raw: json, model };
+  return { content: text, raw: json, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
 }
 
 // ----------------- Main Handler -----------------
@@ -432,16 +467,18 @@ function toPlainPrompt(messages: ChatMessage[]): string {
 
 export async function callOpenAI(
   body: HandlerRequestBody,
-): Promise<{ content: string; raw: unknown; model: string }> {
+): Promise<{ content: string; raw: unknown; model: string; runtimeNote?: string }> {
   const apiKey = getRuntimeEnv("OPENAI_API_KEY"); // Deno.env.get("OPENAI_API_KEY")
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY not set in Edge env");
   }
 
   const qualityConfig = DEFAULT_MODELS.openai;
-  const model =
+  const selectedModel =
     body.model ||
     resolveDefaultModelForQuality(qualityConfig, body.quality);
+  const resolvedModel = resolveProviderModelForRuntime("openai", selectedModel);
+  const model = resolvedModel.runtimeModel;
 
   const res = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
     timeoutMs: PROVIDER_UPSTREAM_TIMEOUT_MS,
@@ -470,21 +507,23 @@ export async function callOpenAI(
     json?.choices?.[0]?.delta?.content ??
     "";
 
-  return { content, raw: json, model };
+  return { content, raw: json, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
 }
 
 export async function callAnthropic(
   body: HandlerRequestBody,
-): Promise<{ content: string; raw: unknown; model: string }> {
+): Promise<{ content: string; raw: unknown; model: string; runtimeNote?: string }> {
   const apiKey = getRuntimeEnv("ANTHROPIC_API_KEY"); // Deno.env.get("ANTHROPIC_API_KEY")
   if (!apiKey) {
     throw new Error("ANTHROPIC_API_KEY not set in Edge env");
   }
 
   const qualityConfig = DEFAULT_MODELS.anthropic;
-  const model =
+  const selectedModel =
     body.model ||
     resolveDefaultModelForQuality(qualityConfig, body.quality);
+  const resolvedModel = resolveProviderModelForRuntime("anthropic", selectedModel);
+  const model = resolvedModel.runtimeModel;
 
   const system = joinSystemMessages(body.messages);
 
@@ -530,21 +569,23 @@ export async function callAnthropic(
         .join("\n")
     : "";
 
-  return { content, raw: json, model };
+  return { content, raw: json, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
 }
 
 export async function callHuggingFace(
   body: HandlerRequestBody,
-): Promise<{ content: string; raw: unknown; model: string }> {
+): Promise<{ content: string; raw: unknown; model: string; runtimeNote?: string }> {
   const apiKey = getRuntimeEnv("HUGGINGFACE_API_KEY"); // Deno.env.get("HUGGINGFACE_API_KEY")
   if (!apiKey) {
     throw new Error("HUGGINGFACE_API_KEY not set in Edge env");
   }
 
   const qualityConfig = DEFAULT_MODELS.huggingface;
-  const model =
+  const selectedModel =
     body.model ||
     resolveDefaultModelForQuality(qualityConfig, body.quality);
+  const resolvedModel = resolveProviderModelForRuntime("huggingface", selectedModel);
+  const model = resolvedModel.runtimeModel;
 
   const prompt = toPlainPrompt(body.messages);
 
@@ -576,5 +617,5 @@ export async function callHuggingFace(
     ? String(json?.[0]?.generated_text || "")
     : String(json?.generated_text || "");
 
-  return { content, raw: json, model };
+  return { content, raw: json, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
 }

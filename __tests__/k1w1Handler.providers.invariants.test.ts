@@ -40,39 +40,38 @@ describe("k1w1-handler provider invariants", () => {
   it("keeps app defaults aligned to the shared runtime-supported provider ids", () => {
     expect(PROVIDER_DEFAULTS).toEqual(SHARED_PROVIDER_DEFAULTS);
     expect(SHARED_PROVIDER_DEFAULTS.groq).toEqual({
-      speed: "groq/compound-mini",
+      speed: "llama-3.1-8b-instant",
       quality: "llama-3.3-70b-versatile",
     });
     expect(SHARED_PROVIDER_DEFAULTS.gemini).toEqual({
-      speed: "gemini-2.5-flash-lite",
-      quality: "gemini-2.5-pro",
+      speed: "gemini-3.1-flash-lite",
+      quality: "gemini-3.1-pro",
     });
     expect(SHARED_PROVIDER_DEFAULTS.anthropic).toEqual({
-      speed: "claude-3-5-haiku-20241022",
-      quality: "claude-sonnet-4-20250514",
+      speed: "claude-4-haiku-202502",
+      quality: "claude-4-opus-202502",
     });
   });
 
 
 
   it("guards runtime-safe provider default ids for Groq/Gemini/Anthropic", () => {
-    expect(SHARED_PROVIDER_DEFAULTS.groq.speed).toBe("groq/compound-mini");
+    expect(SHARED_PROVIDER_DEFAULTS.groq.speed).toBe("llama-3.1-8b-instant");
     expect(SHARED_PROVIDER_DEFAULTS.groq.quality).toBe("llama-3.3-70b-versatile");
-    expect(SHARED_PROVIDER_DEFAULTS.gemini.speed).toBe("gemini-2.5-flash-lite");
-    expect(SHARED_PROVIDER_DEFAULTS.gemini.quality).toBe("gemini-2.5-pro");
-    expect(SHARED_PROVIDER_DEFAULTS.anthropic.speed).toBe("claude-3-5-haiku-20241022");
-    expect(SHARED_PROVIDER_DEFAULTS.anthropic.quality).toBe("claude-sonnet-4-20250514");
+    expect(SHARED_PROVIDER_DEFAULTS.gemini.speed).toBe("gemini-3.1-flash-lite");
+    expect(SHARED_PROVIDER_DEFAULTS.gemini.quality).toBe("gemini-3.1-pro");
+    expect(SHARED_PROVIDER_DEFAULTS.anthropic.speed).toBe("claude-4-haiku-202502");
+    expect(SHARED_PROVIDER_DEFAULTS.anthropic.quality).toBe("claude-4-opus-202502");
   });
 
   it("imports the shared provider defaults in the edge helper", () => {
     const src = read("supabase/functions/k1w1-handler/helpers.ts");
 
     expect(src).toContain('import { SHARED_PROVIDER_DEFAULTS } from "../../../shared/ai/providerDefaults.ts";');
+    expect(src).toContain('import { resolveRuntimeModelId } from "../../../shared/ai/modelRuntimeMap.ts";');
     expect(src).toContain("export const DEFAULT_MODELS = SHARED_PROVIDER_DEFAULTS;");
-    expect(src).not.toContain("claude-3-5-sonnet-20241022");
-    expect(src).not.toContain("claude-3-5-sonnet-latest");
-    expect(src).not.toContain("gemini-1.5-flash");
-    expect(src).not.toContain("gemini-1.5-pro");
+    expect(src).toContain("resolveProviderModelForRuntime");
+    expect(src).toContain("Runtime-Mapping aktiv");
   });
 
   it("keeps Groq model-prefix fallback for compatibility", () => {

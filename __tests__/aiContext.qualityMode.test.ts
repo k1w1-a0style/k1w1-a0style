@@ -7,19 +7,19 @@ describe("AIContext quality mode mapping", () => {
   test("maps quality/review to provider quality defaults", () => {
     expect(getModeKeyForQualityMode("quality")).toBe("quality");
     expect(getModeKeyForQualityMode("review")).toBe("quality");
-    expect(resolveProviderModeForQualityMode("openai", "quality")).toBe("gpt-4o");
+    expect(resolveProviderModeForQualityMode("openai", "quality")).toBe("gpt-5.4-pro");
     expect(resolveProviderModeForQualityMode("anthropic", "review")).toBe(
-      "claude-sonnet-4-20250514",
+      "claude-4-opus-202502",
     );
-    expect(resolveProviderModeForQualityMode("gemini", "quality")).toBe("gemini-2.5-pro");
+    expect(resolveProviderModeForQualityMode("gemini", "quality")).toBe("gemini-3.1-pro");
   });
 
   test("maps speed/balanced to provider speed defaults", () => {
     expect(getModeKeyForQualityMode("speed")).toBe("speed");
     expect(getModeKeyForQualityMode("balanced")).toBe("speed");
-    expect(resolveProviderModeForQualityMode("openai", "speed")).toBe("gpt-4o-mini");
+    expect(resolveProviderModeForQualityMode("openai", "speed")).toBe("gpt-5.4-mini");
     expect(resolveProviderModeForQualityMode("gemini", "balanced")).toBe(
-      "gemini-2.5-flash-lite",
+      "gemini-3.1-flash-lite",
     );
   });
 });

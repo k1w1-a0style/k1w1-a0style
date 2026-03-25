@@ -137,21 +137,41 @@ describe('Orchestrator', () => {
         data: {
           ok: true,
           provider: 'openai',
-          model: 'gpt-4o-mini',
+          model: 'gpt-5.4-mini',
           content: 'Hallo vom Edge-Proxy',
         },
         error: null,
       });
 
-      const result = await runOrchestrator('openai', 'gpt-4o-mini', 'speed', testMessages);
+      const result = await runOrchestrator('openai', 'gpt-5.4-mini', 'speed', testMessages);
 
       expect(result).toMatchObject({
         ok: true,
         text: 'Hallo vom Edge-Proxy',
         provider: 'openai',
-        model: 'gpt-4o-mini',
+        model: 'gpt-5.4-mini',
       });
       expect(result.timing?.durationMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it('reicht runtime mapping notes als sichtbare runtimeNote durch', async () => {
+      const testMessages: LlmMessage[] = [{ role: 'user', content: 'Sag Hallo' }];
+
+      invokeMock.mockResolvedValueOnce({
+        data: {
+          ok: true,
+          provider: 'groq',
+          model: 'qwen3-32b',
+          content: 'Hallo vom Edge-Proxy',
+          runtime_note: 'ℹ️ Runtime-Mapping aktiv: groq/qwen3-32b -> groq/qwen/qwen3-32b (alias).',
+        },
+        error: null,
+      });
+
+      const result = await runOrchestrator('groq', 'qwen3-32b', 'balanced', testMessages);
+      expect(result.ok).toBe(true);
+      expect(result.model).toBe('qwen3-32b');
+      expect(result.runtimeNote).toContain('Runtime-Mapping aktiv');
     });
 
     it('meldet fehlenden Edge-Admin-Key klar statt lokale Provider-Keys zu verlangen', async () => {
@@ -198,7 +218,7 @@ describe('Orchestrator', () => {
             code: 'provider_http_429',
             error: 'Openai meldet ein Rate-Limit oder ist voruebergehend ueberlastet (429).',
             provider: 'openai',
-            model: 'gpt-4o-mini',
+            model: 'gpt-5.4-mini',
             status: 429,
           }), {
             status: 429,
@@ -207,11 +227,11 @@ describe('Orchestrator', () => {
         },
       });
 
-      const result = await runOrchestrator('openai', 'gpt-4o-mini', 'speed', testMessages);
+      const result = await runOrchestrator('openai', 'gpt-5.4-mini', 'speed', testMessages);
 
       expect(result.ok).toBe(false);
       expect(result.provider).toBe('openai');
-      expect(result.model).toBe('gpt-4o-mini');
+      expect(result.model).toBe('gpt-5.4-mini');
       expect(String(result.error || '')).toBe(
         'Openai meldet ein Rate-Limit oder ist voruebergehend ueberlastet (429).',
       );
@@ -229,7 +249,7 @@ describe('Orchestrator', () => {
             code: 'provider_env_missing',
             error: 'Gemini ist serverseitig nicht konfiguriert.',
             provider: 'gemini',
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3-flash',
             status: 500,
           },
           error: null,
@@ -238,17 +258,17 @@ describe('Orchestrator', () => {
           data: {
             ok: true,
             provider: 'openai',
-            model: 'gpt-4o',
+            model: 'gpt-5.4-pro',
             content: 'Fallback ok',
           },
           error: null,
         });
 
-      const result = await runOrchestrator('gemini', 'gemini-2.5-flash', 'quality', testMessages);
+      const result = await runOrchestrator('gemini', 'gemini-3-flash', 'quality', testMessages);
 
       expect(result.ok).toBe(true);
       expect(result.provider).toBe('openai');
-      expect(result.model).toBe('gpt-4o');
+      expect(result.model).toBe('gpt-5.4-pro');
       expect(result.fallbackUsed).toBe(true);
       expect(String(result.runtimeNote || '')).toMatch(/Runtime-Fallback aktiv/i);
       expect(invokeMock).toHaveBeenNthCalledWith(
@@ -257,7 +277,7 @@ describe('Orchestrator', () => {
         expect.objectContaining({
           body: expect.objectContaining({
             provider: 'openai',
-            model: 'gpt-4o',
+            model: 'gpt-5.4-pro',
           }),
         }),
       );
@@ -282,7 +302,7 @@ describe('Orchestrator', () => {
           data: {
             ok: true,
             provider: 'openai',
-            model: 'gpt-4o-mini',
+            model: 'gpt-5.4-mini',
             content: 'Fallback same provider ok',
           },
           error: null,
@@ -292,7 +312,7 @@ describe('Orchestrator', () => {
 
       expect(result.ok).toBe(true);
       expect(result.provider).toBe('openai');
-      expect(result.model).toBe('gpt-4o-mini');
+      expect(result.model).toBe('gpt-5.4-mini');
       expect(result.fallbackUsed).toBe(true);
       expect(String(result.runtimeNote || '')).toContain('legacy-openai');
       expect(invokeMock).toHaveBeenNthCalledWith(
@@ -301,7 +321,7 @@ describe('Orchestrator', () => {
         expect.objectContaining({
           body: expect.objectContaining({
             provider: 'openai',
-            model: 'gpt-4o-mini',
+            model: 'gpt-5.4-mini',
           }),
         }),
       );
@@ -317,7 +337,7 @@ describe('Orchestrator', () => {
             code: 'provider_env_missing',
             error: 'Gemini ist serverseitig nicht konfiguriert.',
             provider: 'gemini',
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3-flash',
             status: 500,
           },
           error: null,
@@ -328,7 +348,7 @@ describe('Orchestrator', () => {
             code: 'provider_env_missing',
             error: 'Openai ist serverseitig nicht konfiguriert.',
             provider: 'openai',
-            model: 'gpt-4o',
+            model: 'gpt-5.4-pro',
             status: 500,
           },
           error: null,
@@ -339,7 +359,7 @@ describe('Orchestrator', () => {
             code: 'provider_env_missing',
             error: 'Anthropic ist serverseitig nicht konfiguriert.',
             provider: 'anthropic',
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-4-opus-202502',
             status: 500,
           },
           error: null,
@@ -354,11 +374,11 @@ describe('Orchestrator', () => {
           error: null,
         });
 
-      const result = await runOrchestrator('gemini', 'gemini-2.5-flash', 'quality', testMessages);
+      const result = await runOrchestrator('gemini', 'gemini-3-flash', 'quality', testMessages);
 
       expect(result.ok).toBe(false);
       expect(String(result.error || '')).toContain('keine serverseitig nutzbare Fallback-Route');
-      expect(String(result.error || '')).toContain('openai/gpt-4o');
+      expect(String(result.error || '')).toContain('openai/gpt-5.4-pro');
       expect(result.fallbackUsed).toBe(true);
     });
 
@@ -421,7 +441,7 @@ describe('Orchestrator', () => {
         data: {
           ok: true,
           provider: 'anthropic',
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-4-opus-202502',
           content: 'Validator response',
         },
         error: null,
@@ -429,7 +449,7 @@ describe('Orchestrator', () => {
 
       const result = await runValidatorOrchestrator(
         'anthropic',
-        'claude-sonnet-4-20250514',
+        'claude-4-opus-202502',
         validationMessages,
       );
 
@@ -437,7 +457,7 @@ describe('Orchestrator', () => {
         ok: true,
         text: 'Validator response',
         provider: 'anthropic',
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-4-opus-202502',
       });
       expect(invokeMock).toHaveBeenLastCalledWith(
         SUPABASE_EDGE_FUNCTIONS.K1W1_HANDLER,
