@@ -11,11 +11,11 @@ describe("k1w1-handler live reachability error contracts", () => {
     expect(src).toContain("(model=${model})");
   });
 
-  it("returns the actual resolved Groq model after prefix fallback", () => {
+  it("keeps visible Groq model IDs while allowing runtime mapping and prefix fallback", () => {
     const src = read("supabase/functions/k1w1-handler/helpers.ts");
 
-    expect(src).toContain("let resolvedModel = model;");
-    expect(src).toContain("resolvedModel = fallbackModel;");
-    expect(src).toContain("return { content, raw: json, model: resolvedModel };");
+    expect(src).toContain('const resolvedSelection = resolveProviderModelForRuntime("groq", selectedModel);');
+    expect(src).toContain('const fallbackModel = model.startsWith("groq/") ? model.slice("groq/".length) : model;');
+    expect(src).toContain("model: resolvedSelection.visibleModel");
   });
 });
