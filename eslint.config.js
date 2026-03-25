@@ -18,7 +18,6 @@ module.exports = [
       '__mocks__/**',
       '**/*.test.*',
       'jest.setup.js',
-      'supabase/functions/**',
       'web-build/**',
       'android/**',
       'ios/**',
@@ -26,6 +25,23 @@ module.exports = [
   },
 
   ...expoConfig,
+
+
+  // Supabase Edge Functions: aktiv in Quality Gates + verschärfte Security-Regeln
+  {
+    files: ['supabase/functions/**/*.ts'],
+    languageOptions: {
+      globals: {
+        Deno: 'readonly',
+      },
+    },
+    rules: {
+      'no-console': 'off',
+      'no-eval': 'error',
+      'no-implied-eval': 'error',
+      'no-new-func': 'error',
+    },
+  },
 
 
   // Node-Skripte (CI) sollen Node-Globals kennen (flat config => kein eslint-env Kommentar)

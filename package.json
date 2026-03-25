@@ -10,7 +10,7 @@
     "start": "expo start",
     "android": "expo run:android",
     "lint": "expo lint",
-    "lint:ci": "eslint . --quiet",
+    "lint:ci": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:silent": "jest --silent",
@@ -21,13 +21,15 @@
     "test:integration": "jest --testPathPattern=integration",
     "test:clear": "jest --clearCache",
     "postinstall": "patch-package",
-    "preflight": "npm run typecheck && npm run lint:ci && npm run test:silent && npm run audit:types && npm run audit:imports",
+    "preflight": "npm run typecheck && npm run edge:check && npm run lint:ci && npm run test:silent && npm run audit:types && npm run audit:imports",
     "eas-prebuild": "npm run preflight",
     "prepare": "husky install",
     "audit:types": "bash scripts/refactor/pr8-type-audit.sh",
     "audit:imports": "bash scripts/refactor/pr8-context-import-audit.sh",
     "preflight:fast": "npm run typecheck && npm run lint:ci && npm run audit:types && npm run audit:imports",
-    "docs:lint": "node scripts/docsLint.js"
+    "docs:lint": "node scripts/docsLint.js",
+    "lint:edge": "eslint \"supabase/functions/**/*.ts\"",
+    "edge:check": "npm run lint:edge"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
