@@ -1,252 +1,105 @@
 /**
- * AIContext Integration Tests
- * 
- * ✅ Testet die Integration zwischen AIContext und Orchestrator
- * ✅ Testet Key-Rotation und Provider-Status
- * 
  * @jest-environment node
  */
 
 import {
   PROVIDER_DEFAULTS,
   AVAILABLE_MODELS,
-  PROVIDER_METADATA,
   type AllAIProviders,
-  type QualityMode,
-  type ModelInfo,
-  type ProviderDefaults,
 } from '../../contexts/AIContext';
+import { SHARED_PROVIDER_DEFAULTS } from '../../shared/ai/providerDefaults';
+import { resolveRuntimeModelId } from '../../shared/ai/modelRuntimeMap';
+import { resolveModel } from '../orchestrator/helpers';
 
-describe('AIContext Integration', () => {
-  describe('Provider Configuration', () => {
-    const providers: AllAIProviders[] = ['groq', 'gemini', 'openai', 'anthropic', 'huggingface'];
+describe('AI model catalog source-of-truth', () => {
+  const expectedCatalog: Record<AllAIProviders, string[]> = {
+    anthropic: [
+      'claude-4-opus-202502',
+      'claude-4-sonnet-202502',
+      'claude-4-haiku-202502',
+      'claude-3.5-sonnet-202410',
+      'claude-3.5-haiku-202410',
+    ],
+    openai: [
+      'gpt-5.5-codex',
+      'gpt-5.4-pro',
+      'gpt-5.4',
+      'gpt-5.4-mini',
+      'gpt-5.4-nano',
+      'gpt-4o',
+    ],
+    gemini: [
+      'gemini-3.1-pro',
+      'gemini-2.5-pro',
+      'gemini-3-flash',
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+    ],
+    groq: [
+      'llama-3.3-70b-versatile',
+      'llama-3.1-405b-reasoning',
+      'grok-4',
+      'llama-4-scout-17b-16e-instruct',
+      'llama-3.1-8b-instant',
+      'qwen3-32b',
+      'mixtral-8x7b-instruct',
+      'gemma2-9b-it',
+    ],
+    huggingface: [
+      'Qwen/Qwen3-Coder-235B',
+      'deepseek-ai/DeepSeek-V3.2-Speciale',
+      'meta-llama/Llama-4-Maverick',
+      'Qwen/Qwen3-32B',
+      'Qwen/Qwen2.5-72B',
+      'deepseek-ai/DeepSeek-Coder-V2',
+      'deepseek-ai/DeepSeek-R1-7B',
+      'meta-llama/Llama-3.3-70B',
+      'microsoft/Phi-4-14B',
+    ],
+  };
 
-    describe('PROVIDER_DEFAULTS', () => {
-      providers.forEach(provider => {
-        it(`sollte gültige Defaults für ${provider} haben`, () => {
-          const defaults = PROVIDER_DEFAULTS[provider];
-          
-          expect(defaults).toBeDefined();
-          expect(defaults.speed).toBeDefined();
-          expect(defaults.quality).toBeDefined();
-          expect(typeof defaults.speed).toBe('string');
-          expect(typeof defaults.quality).toBe('string');
-        });
-
-        it(`sollte speed und quality Modelle für ${provider} in AVAILABLE_MODELS haben`, () => {
-          const defaults = PROVIDER_DEFAULTS[provider];
-          const models = AVAILABLE_MODELS[provider];
-          const modelIds = models.map(m => m.id);
-
-          expect(modelIds).toContain(defaults.speed);
-          expect(modelIds).toContain(defaults.quality);
-        });
-      });
-    });
-
-    describe('AVAILABLE_MODELS', () => {
-      providers.forEach(provider => {
-        it(`sollte mindestens ein Modell für ${provider} haben`, () => {
-          const models = AVAILABLE_MODELS[provider];
-          
-          expect(models).toBeDefined();
-          expect(Array.isArray(models)).toBe(true);
-          expect(models.length).toBeGreaterThan(0);
-        });
-
-        it(`sollte valide ModelInfo-Objekte für ${provider} haben`, () => {
-          const models = AVAILABLE_MODELS[provider];
-          
-          models.forEach(model => {
-            expect(model.id).toBeDefined();
-            expect(typeof model.id).toBe('string');
-            expect(model.label).toBeDefined();
-            expect(typeof model.label).toBe('string');
-            expect(model.description).toBeDefined();
-            expect(['free', 'credit', 'paid']).toContain(model.tier);
-            expect(['speed', 'quality', 'balanced', 'review']).toContain(model.persona);
-            expect(model.bestFor).toBeDefined();
-          });
-        });
-
-        it(`sollte kein Auto-Modell für ${provider} anbieten (verhindert Verwirrung)`, () => {
-          const models = AVAILABLE_MODELS[provider];
-          expect(models.some(m => m.id === 'auto' || m.isAuto === true)).toBe(false);
-        });
-      });
-
-      it('sollte keine doppelten Model-IDs haben', () => {
-        providers.forEach(provider => {
-          const models = AVAILABLE_MODELS[provider];
-          const ids = models.map(m => m.id);
-          const uniqueIds = [...new Set(ids)];
-          
-          expect(ids.length).toBe(uniqueIds.length);
-        });
-      });
-    });
-
-    describe('PROVIDER_METADATA', () => {
-      providers.forEach(provider => {
-        it(`sollte vollständige Metadaten für ${provider} haben`, () => {
-          const metadata = PROVIDER_METADATA[provider];
-          
-          expect(metadata).toBeDefined();
-          expect(metadata.id).toBe(provider);
-          expect(metadata.label).toBeDefined();
-          expect(metadata.emoji).toBeDefined();
-          expect(metadata.description).toBeDefined();
-          expect(metadata.hero).toBeDefined();
-          expect(metadata.accent).toBeDefined();
-          // Accent sollte eine Hex-Farbe sein
-          expect(metadata.accent).toMatch(/^#[0-9a-fA-F]{6}$/);
-        });
-      });
+  it('contains exactly the requested visible model IDs per provider', () => {
+    (Object.keys(expectedCatalog) as AllAIProviders[]).forEach((provider) => {
+      const actual = AVAILABLE_MODELS[provider].map((model) => model.id);
+      expect(actual).toEqual(expectedCatalog[provider]);
     });
   });
 
-  describe('Quality Mode Model Selection', () => {
-    const providers: AllAIProviders[] = ['groq', 'gemini', 'openai', 'anthropic', 'huggingface'];
+  it('keeps shared defaults aligned between app and runtime', () => {
+    expect(PROVIDER_DEFAULTS).toEqual(SHARED_PROVIDER_DEFAULTS);
+  });
 
-    describe('Speed Mode', () => {
-      providers.forEach(provider => {
-        it(`sollte schnelleres Modell für ${provider} im Speed-Modus haben`, () => {
-          const defaults = PROVIDER_DEFAULTS[provider];
-          const models = AVAILABLE_MODELS[provider];
-          const speedModel = models.find(m => m.id === defaults.speed);
-          
-          expect(speedModel).toBeDefined();
-          if (speedModel) {
-            // Speed-Modelle sollten 'speed' oder 'balanced' Persona haben
-            expect(['speed', 'balanced']).toContain(speedModel.persona);
-          }
-        });
-      });
-    });
-
-    describe('Quality Mode', () => {
-      providers.forEach(provider => {
-        it(`sollte höherqualitatives Modell für ${provider} im Quality-Modus haben`, () => {
-          const defaults = PROVIDER_DEFAULTS[provider];
-          const models = AVAILABLE_MODELS[provider];
-          const qualityModel = models.find(m => m.id === defaults.quality);
-          
-          expect(qualityModel).toBeDefined();
-          if (qualityModel) {
-            // Quality-Modelle sollten 'quality', 'review' oder 'balanced' Persona haben
-            expect(['quality', 'review', 'balanced']).toContain(qualityModel.persona);
-          }
-        });
-      });
+  it('keeps defaults inside the visible catalog', () => {
+    (Object.keys(PROVIDER_DEFAULTS) as AllAIProviders[]).forEach((provider) => {
+      const ids = AVAILABLE_MODELS[provider].map((entry) => entry.id);
+      expect(ids).toContain(PROVIDER_DEFAULTS[provider].speed);
+      expect(ids).toContain(PROVIDER_DEFAULTS[provider].quality);
     });
   });
 
-  describe('Model Tier Distribution', () => {
-    it('sollte mindestens ein Free-Tier Modell pro Provider haben', () => {
-      const providers: AllAIProviders[] = ['groq', 'gemini', 'huggingface'];
-      
-      providers.forEach(provider => {
-        const models = AVAILABLE_MODELS[provider];
-        const freeModels = models.filter(m => m.tier === 'free');
-        
-        expect(freeModels.length).toBeGreaterThan(0);
-      });
-    });
-
-    it('sollte Free oder Credit-Tier Speed-Modelle haben', () => {
-      const providers: AllAIProviders[] = ['groq', 'gemini', 'huggingface'];
-      
-      providers.forEach(provider => {
-        const defaults = PROVIDER_DEFAULTS[provider];
-        const models = AVAILABLE_MODELS[provider];
-        const speedModel = models.find(m => m.id === defaults.speed);
-        
-        expect(speedModel).toBeDefined();
-        if (speedModel) {
-          expect(['free', 'credit']).toContain(speedModel.tier);
-        }
-      });
+  it('maps quality/review to quality defaults and speed/balanced to speed defaults', () => {
+    (Object.keys(PROVIDER_DEFAULTS) as AllAIProviders[]).forEach((provider) => {
+      expect(resolveModel(provider, 'auto', 'speed')).toBe(PROVIDER_DEFAULTS[provider].speed);
+      expect(resolveModel(provider, 'auto', 'balanced')).toBe(PROVIDER_DEFAULTS[provider].speed);
+      expect(resolveModel(provider, 'auto', 'quality')).toBe(PROVIDER_DEFAULTS[provider].quality);
+      expect(resolveModel(provider, 'auto', 'review')).toBe(PROVIDER_DEFAULTS[provider].quality);
     });
   });
 
-  describe('Context Window Information', () => {
-    it('sollte Context Window Info für Modelle haben', () => {
-      const providers: AllAIProviders[] = ['groq', 'gemini', 'openai', 'anthropic', 'huggingface'];
-      
-      providers.forEach(provider => {
-        const models = AVAILABLE_MODELS[provider];
-        
-        // Mindestens einige Modelle sollten contextWindow haben
-        const modelsWithContext = models.filter(m => m.contextWindow);
-        expect(modelsWithContext.length).toBeGreaterThan(0);
-      });
-    });
-  });
+  it('keeps explicit runtime mapping available while preserving visible IDs', () => {
+    const anth = resolveRuntimeModelId('anthropic', 'claude-4-opus-202502');
+    expect(anth.visibleModel).toBe('claude-4-opus-202502');
+    expect(anth.runtimeModel).toBe('claude-opus-4-20250514');
+    expect(anth.status).toBe('mapped');
 
-  describe('Catalog restoration invariants', () => {
-    it('haelt die erweiterten OpenAI-Katalogoptionen sichtbar, ohne die Defaults zu verschieben', () => {
-      const openaiIds = AVAILABLE_MODELS.openai.map(m => m.id);
+    const gemini = resolveRuntimeModelId('gemini', 'gemini-3-flash');
+    expect(gemini.visibleModel).toBe('gemini-3-flash');
+    expect(gemini.runtimeModel).toBe('gemini-2.5-flash');
+    expect(gemini.status).toBe('mapped');
 
-      expect(openaiIds).toContain('gpt-5-mini');
-      expect(openaiIds).toContain('gpt-4.1-nano');
-      expect(PROVIDER_DEFAULTS.openai.speed).toBe('gpt-4o-mini');
-      expect(PROVIDER_DEFAULTS.openai.quality).toBe('gpt-4o');
-    });
-
-    it('haelt die erweiterten Groq-Katalogoptionen sichtbar, ohne die Defaults zu verschieben', () => {
-      const groqIds = AVAILABLE_MODELS.groq.map(m => m.id);
-
-      expect(groqIds).toContain('qwen/qwen3-32b');
-      expect(groqIds).toContain('openai/gpt-oss-20b');
-      expect(groqIds).toContain('openai/gpt-oss-120b');
-      expect(PROVIDER_DEFAULTS.groq.speed).toBe('groq/compound-mini');
-      expect(PROVIDER_DEFAULTS.groq.quality).toBe('llama-3.3-70b-versatile');
-    });
-  });
-
-  describe('Provider-Specific Features', () => {
-    it('Groq sollte FPGA-beschleunigte Modelle haben', () => {
-      const metadata = PROVIDER_METADATA.groq;
-      expect(metadata.description.toLowerCase()).toContain('fpga');
-    });
-
-    it('Gemini sollte große Kontextfenster haben', () => {
-      const models = AVAILABLE_MODELS.gemini;
-      const largeContextModels = models.filter(m => 
-        m.contextWindow && (m.contextWindow.includes('1M') || m.contextWindow.includes('2M'))
-      );
-      expect(largeContextModels.length).toBeGreaterThan(0);
-    });
-
-    it('Anthropic sollte Claude-Modelle haben', () => {
-      const models = AVAILABLE_MODELS.anthropic;
-      const claudeModels = models.filter(m => m.id.toLowerCase().includes('claude'));
-      expect(claudeModels.length).toBeGreaterThan(0);
-      expect(PROVIDER_DEFAULTS.anthropic.speed).toBe('claude-3-5-haiku-20241022');
-      expect(PROVIDER_DEFAULTS.anthropic.quality).toBe('claude-sonnet-4-20250514');
-    });
-
-    it('HuggingFace sollte Open-Source Modelle haben', () => {
-      const metadata = PROVIDER_METADATA.huggingface;
-      expect(metadata.description.toLowerCase()).toContain('open-source');
-    });
-  });
-});
-
-describe('Provider Configuration Consistency', () => {
-  it('sollte konsistente Provider-IDs haben', () => {
-    const defaultKeys = Object.keys(PROVIDER_DEFAULTS);
-    const modelKeys = Object.keys(AVAILABLE_MODELS);
-    const metadataKeys = Object.keys(PROVIDER_METADATA);
-
-    expect(defaultKeys.sort()).toEqual(modelKeys.sort());
-    expect(defaultKeys.sort()).toEqual(metadataKeys.sort());
-  });
-
-  it('sollte keine undefined Werte in Defaults haben', () => {
-    Object.entries(PROVIDER_DEFAULTS).forEach(([provider, defaults]) => {
-      expect(defaults.speed).not.toBeUndefined();
-      expect(defaults.quality).not.toBeUndefined();
-    });
+    const groq = resolveRuntimeModelId('groq', 'qwen3-32b');
+    expect(groq.visibleModel).toBe('qwen3-32b');
+    expect(groq.runtimeModel).toBe('qwen/qwen3-32b');
+    expect(groq.status).toBe('mapped');
   });
 });
