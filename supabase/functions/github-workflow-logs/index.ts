@@ -2,7 +2,7 @@
 // REFACTORED: helpers → helpers.ts
 
 import { handleCors } from "../_shared/cors.ts";
-import { requireAdminKeyOrServiceRoleBearer, rateLimit } from "../_shared/auth.ts";
+import { requireScopedEdgeAuth, rateLimit } from "../_shared/auth.ts";
 import { parseJsonBody } from "../_shared/validation.ts";
 import { getGithubToken, githubFetch, GITHUB_API_BASE } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
@@ -22,7 +22,14 @@ Deno.serve(async (req) => {
   if (cors) return cors;
 
   try {
-    const auth = requireAdminKeyOrServiceRoleBearer(req);
+    // Legacy guard lineage: requireAdminKeyOrServiceRoleBearer(req).
+    const auth = requireScopedEdgeAuth(req, {
+      scope: "github-workflow-logs",
+      allowAdmin: true,
+      allowCiBearer: true,
+      adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
+      ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER",
+    });
     if (auth) return auth;
 
     const rl = rateLimit(req, "github-workflow-logs", 60, 60_000);

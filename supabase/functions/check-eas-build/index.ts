@@ -4,7 +4,7 @@ import { validateCheckBuildRequest, parseJsonBody } from "../_shared/validation.
 import {
   getServiceRoleKey,
   getSupabaseUrl,
-  requireAdminKeyOrServiceRoleBearer,
+  requireScopedEdgeAuth,
   rateLimit,
 } from "../_shared/auth.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
@@ -45,7 +45,14 @@ Deno.serve(async (req) => {
   if (cors) return cors;
 
   try {
-    const auth = requireAdminKeyOrServiceRoleBearer(req);
+    // Legacy guard lineage: requireAdminKeyOrServiceRoleBearer(req).
+    const auth = requireScopedEdgeAuth(req, {
+      scope: "check-eas-build",
+      allowAdmin: true,
+      allowCiBearer: true,
+      adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
+      ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER",
+    });
     if (auth) return auth;
 
     const rl = rateLimit(req, "check-eas-build");
