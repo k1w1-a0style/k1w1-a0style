@@ -3,6 +3,9 @@
 ## Kontext
 Im Repo gab es zwei getrennte Modell-Wahrheiten: App-seitige Provider-/Modellkataloge waren neuer, aber der Supabase-Edge-Handler (`k1w1-handler`) nutzte teils ältere oder weniger konsistente Default-Modelle (u.a. Gemini 1.5, Anthropic `-latest`, HF Mistral/Llama).
 
+## Historischer Hinweis (nach spaeteren Merges)
+Diese Notiz beschreibt den Stand vom 2026-03-14. Der aktuell gueltige Modell-/Default-Stand liegt inzwischen in `contexts/AIContext/models.ts`, `shared/ai/providerDefaults.ts` und `shared/ai/modelRuntimeMap.ts` (u.a. Gemini `gemini-3.1-flash-lite`/`gemini-3.1-pro`).
+
 ## Probleme
 - Edge-Defaults drifteten gegen die App-Defaults (`contexts/AIContext/models.ts`).
 - Anthropic-Defaults nutzten `-latest` Aliase statt stabilen, datierten IDs.
