@@ -11,6 +11,12 @@ import {
   redactSecrets, fetchLogsZip, zipToText, MAX_CHARS, MAX_ZIP_BYTES,
 } from "./helpers.ts";
 
+function isParsedBodyError(
+  result: Awaited<ReturnType<typeof parseJsonBody>>,
+): result is { ok: false; error: string } {
+  return !result.ok;
+}
+
 Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
@@ -23,8 +29,8 @@ Deno.serve(async (req) => {
     if (rl) return rl;
 
     const parsedBody = await parseJsonBody(req, 50_000);
-    if (!parsedBody.ok) {
-      const parseError = (parsedBody as { ok: false; error: string }).error;
+    if (isParsedBodyError(parsedBody)) {
+      const parseError = parsedBody.error;
       const status = parseError.includes("too large") ? 413 : 400;
       return jsonErr(req, "Validation failed", { error: parseError }, status);
     }

@@ -54,7 +54,7 @@ Deno.serve(async (req: Request) => {
       return errorResponse("Missing GitHub token for artifact lookup", req, 500);
     }
 
-    const body = (await req.json().catch(() => null)) as ReqBody | null;
+    const body = (await req.json().catch((): null => null)) as ReqBody | null;
     if (!body) return errorResponse("Invalid JSON body", req, 400);
 
     const { githubRepo, runId, artifactName, filePath } = body;
