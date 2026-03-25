@@ -22,7 +22,14 @@ const MAPPED = (runtimeModel: string, note: string): Omit<RuntimeModelResolution
   note,
 });
 
-export const PROVIDER_RUNTIME_MODEL_MAP: Record<RuntimeProvider, ProviderModelRuntimeMap> = {
+function freezeProviderRuntimeMap(map: Record<RuntimeProvider, ProviderModelRuntimeMap>): Readonly<Record<RuntimeProvider, Readonly<ProviderModelRuntimeMap>>> {
+  for (const provider of Object.keys(map) as RuntimeProvider[]) {
+    Object.freeze(map[provider]);
+  }
+  return Object.freeze(map);
+}
+
+export const PROVIDER_RUNTIME_MODEL_MAP = freezeProviderRuntimeMap({
   anthropic: {
     'claude-4-opus-202502': MAPPED('claude-opus-4-20250514', 'Anthropic API model alias'),
     'claude-4-sonnet-202502': MAPPED('claude-sonnet-4-20250514', 'Anthropic API model alias'),
@@ -66,7 +73,7 @@ export const PROVIDER_RUNTIME_MODEL_MAP: Record<RuntimeProvider, ProviderModelRu
     'meta-llama/Llama-3.3-70B': DIRECT('meta-llama/Llama-3.3-70B'),
     'microsoft/Phi-4-14B': DIRECT('microsoft/Phi-4-14B'),
   },
-};
+});
 
 export function resolveRuntimeModelId(provider: RuntimeProvider, visibleModel: string): RuntimeModelResolution {
   const id = String(visibleModel || '').trim();
@@ -80,4 +87,12 @@ export function resolveRuntimeModelId(provider: RuntimeProvider, visibleModel: s
     status: 'unsupported',
     note: `${provider}/${id} ist im Runtime-Mapping nicht hinterlegt.`,
   };
+}
+
+export function assertRuntimeModelSupported(provider: RuntimeProvider, visibleModel: string): RuntimeModelResolution {
+  const resolved = resolveRuntimeModelId(provider, visibleModel);
+  if (resolved.status === 'unsupported') {
+    throw new Error(`${provider}_model_unsupported (model=${resolved.visibleModel}): ${resolved.note ?? 'unsupported'}`);
+  }
+  return resolved;
 }

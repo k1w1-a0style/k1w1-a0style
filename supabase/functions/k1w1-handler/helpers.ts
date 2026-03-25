@@ -29,7 +29,7 @@ export { parseJsonBody } from "../_shared/validation.ts";
 import { getRuntimeEnv } from "../_shared/auth.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { SHARED_PROVIDER_DEFAULTS } from "../../../shared/ai/providerDefaults.ts";
-import { resolveRuntimeModelId } from "../../../shared/ai/modelRuntimeMap.ts";
+import { assertRuntimeModelSupported } from "../../../shared/ai/modelRuntimeMap.ts";
 
 export const DEFAULT_MODELS = SHARED_PROVIDER_DEFAULTS;
 const SUPPORTED_PROVIDER_DEFAULT_KEYS = {
@@ -45,10 +45,7 @@ function resolveProviderModelForRuntime(
   provider: "groq" | "gemini" | "openai" | "anthropic" | "huggingface",
   selectedModel: string,
 ): { visibleModel: string; runtimeModel: string; runtimeNote?: string } {
-  const resolved = resolveRuntimeModelId(provider, selectedModel);
-  if (resolved.status === "unsupported") {
-    throw new Error(`${provider}_model_unsupported (model=${resolved.visibleModel}): ${resolved.note ?? "unsupported"}`);
-  }
+  const resolved = assertRuntimeModelSupported(provider, selectedModel);
   const runtimeNote = resolved.status === "mapped"
     ? `ℹ️ Runtime-Mapping aktiv: ${provider}/${resolved.visibleModel} -> ${provider}/${resolved.runtimeModel} (${resolved.note ?? "alias"}).`
     : undefined;
