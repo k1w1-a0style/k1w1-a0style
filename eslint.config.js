@@ -77,8 +77,8 @@ module.exports = [
       'react-hooks/exhaustive-deps': 'off',
 
       // Logging policy: new console usage should be visible in lint output.
-      // CI uses --quiet, therefore warnings stay non-blocking until we decide
-      // to tighten this rule further.
+      // CI lint runs without --quiet, so warnings stay visible while non-blocking.
+      // Tighten this rule later if warnings should block Quality Gates.
       'no-console': ['warn', { allow: ['warn', 'error'] }],
 
       // Refactor guardrails (strict; fail CI when a facade import slips in)
