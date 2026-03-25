@@ -74,7 +74,7 @@ on:
         required: false
       SUPABASE_APK_BUCKET:
         required: false
-      K1W1_EDGE_ADMIN_KEY:
+      K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY:
         required: false
 
 permissions:
@@ -364,6 +364,7 @@ jobs:
 
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY }}
       JOB_ID: ${{ inputs.job_id }}
 
     steps:
@@ -386,8 +387,8 @@ jobs:
           fi
 
           if [ "${{ inputs.profile }}" = "production" ]; then
-            if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
-              echo "::error::Production build requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (local Android keystore)."
+            if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] || [ -z "${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY:-}" ]; then
+              echo "::error::Production build requires SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, and K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY."
               exit 1
             fi
           fi
@@ -594,13 +595,17 @@ jobs:
         if: ${{ inputs.profile == 'production' }}
         shell: bash
         env:
-          K1W1_EDGE_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ADMIN_KEY }}
+          K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY }}
           WORKFLOW_REF: ${{ inputs.ref }}
         run: |
           set -euo pipefail
           echo "::add-mask::${SUPABASE_SERVICE_ROLE_KEY}"
-          if [ -n "${K1W1_EDGE_ADMIN_KEY:-}" ]; then
-            echo "::add-mask::${K1W1_EDGE_ADMIN_KEY}"
+          if [ -z "${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY:-}" ]; then
+            echo "::error::Missing K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY for production keystore export."
+            exit 1
+          fi
+          if [ -n "${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY:-}" ]; then
+            echo "::add-mask::${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY}"
           fi
           node -e '
             const fs = require("fs");
@@ -619,7 +624,7 @@ jobs:
         if: ${{ inputs.profile == 'production' }}
         shell: bash
         env:
-          K1W1_EDGE_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ADMIN_KEY }}
+          K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY }}
         run: |
           set -euo pipefail
           mkdir -p ci-logs
@@ -636,12 +641,11 @@ jobs:
             -X POST "${SUPABASE_URL%/}/functions/v1/android-keystore-export"
             -H "Content-Type: application/json"
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
             -d @ci-logs/keystore-request.json
           )
 
-          if [ -n "${K1W1_EDGE_ADMIN_KEY:-}" ]; then
-            CURL_ARGS+=(-H "x-k1w1-admin-key: ${K1W1_EDGE_ADMIN_KEY}")
+          if [ -n "${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY:-}" ]; then
+            CURL_ARGS+=(-H "x-k1w1-admin-key: ${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY}")
           fi
 
           HTTP_CODE="$(
