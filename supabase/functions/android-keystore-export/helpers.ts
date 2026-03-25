@@ -2,11 +2,8 @@
 // Extracted from index.ts
 
 // supabase/functions/android-keystore-export/index.ts
-// CI-only endpoint: exports decrypted Android keystore + passwords.
-// Hardens access:
-// - Supabase verifies JWT by default. We additionally require:
-//   1) x-k1w1-admin-key (optional enforcement via secret)
-//   2) caller role == service_role (so the app's anon key cannot exfiltrate creds)
+// Endpoint exports decrypted Android keystore + passwords.
+// Access control is enforced in index.ts via scoped header-secret auth.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 export { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -17,6 +14,7 @@ export {
   requireAdminKey,
   requireServiceRoleBearer,
   requireAdminKeyOrServiceRoleBearer,
+  requireScopedEdgeAuth,
   hasAdminKeySecretConfigured,
   hasServiceRoleSecretConfigured,
   getServiceRoleKey,
