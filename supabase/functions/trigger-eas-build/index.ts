@@ -62,12 +62,12 @@ Deno.serve(async (req) => {
 
     const parsed = await parseJsonBody(req, 200_000);
     if (!parsed.ok) {
-      return errorResponse(parsed.error, req, 400);
+      return errorResponse((parsed as { ok: false; error: string }).error, req, 400);
     }
 
     const validation = validateTriggerBuildRequest(parsed.body);
     if (!validation.ok) {
-      return errorResponse("Invalid request", req, 400, validation.errors);
+      return errorResponse("Invalid request", req, 400, (validation as { ok: false; errors: unknown }).errors);
     }
 
     const supabaseUrl = getSupabaseUrl();

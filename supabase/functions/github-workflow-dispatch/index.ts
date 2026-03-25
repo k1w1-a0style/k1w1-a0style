@@ -789,7 +789,8 @@ async function ensureWorkflowFileExists(
   if (!template) return { ok: false, details: { reason: "no_template", workflowFile } };
   const v = validateWorkflowTemplate(workflowFile, template);
   if (!v.ok) {
-    return { ok: false, details: { reason: "template_invalid", workflowFile, why: v.reason } };
+    const reason = (v as { ok: false; reason: string }).reason;
+    return { ok: false, details: { reason: "template_invalid", workflowFile, why: reason } };
   }
 
 
@@ -892,10 +893,10 @@ try {
     if (rl) return rl;
 
     const parsed = await parseJsonBody(req, 200_000);
-    if (!parsed.ok) return errorResponse(parsed.error, req, 400);
+    if (!parsed.ok) return errorResponse((parsed as { ok: false; error: string }).error, req, 400);
 
     const val = validateGithubWorkflowDispatchRequest(parsed.body);
-    if (!val.ok) return errorResponse("Invalid request", req, 400, val.errors);
+    if (!val.ok) return errorResponse("Invalid request", req, 400, (val as { ok: false; errors: unknown }).errors);
 
     const { githubRepo, workflow, ref, inputs } = val.data!;
     const token = getGithubToken().trim();
@@ -1017,7 +1018,7 @@ try {
             req,
             404,
             {
-              ...ensured.details,
+              ...(typeof ensured.details === "object" && ensured.details ? ensured.details as Record<string, unknown> : {}),
               hint:
                 "Workflow not found and auto-bootstrap failed. Check token permissions (contents:write) and branch protection.",
             },

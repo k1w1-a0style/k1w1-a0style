@@ -111,7 +111,7 @@ export function validateTriggerBuildRequest(body: unknown): Ok<{
   }
 
   const br = validateBranch(branch);
-  if (!br.valid) errors.branch = br.error;
+  if (!br.valid) errors.branch = (br as { valid: false; error: string }).error;
 
   if (Object.keys(errors).length) return { ok: false, errors };
   if (!br.valid || !isBuildProfile(buildProfile) || !isString(githubRepo)) return { ok: false, errors };
@@ -173,7 +173,7 @@ export function validateGithubWorkflowDispatchRequest(body: unknown): Ok<{
   }
 
   const br = validateBranch(ref);
-  if (!br.valid) errors.ref = br.error;
+  if (!br.valid) errors.ref = (br as { valid: false; error: string }).error;
 
   let normalizedInputs: Record<string, string> | undefined;
   if (inputs != null) {

@@ -40,11 +40,11 @@ Deno.serve(async (req) => {
     if (rl) return rl;
 
     const parsed = await parseJsonBody(req, 200_000);
-    if (!parsed.ok) return errorResponse(parsed.error, req, 400);
+    if (!parsed.ok) return errorResponse((parsed as { ok: false; error: string }).error, req, 400);
 
     const validation = validateCheckBuildRequest(parsed.body);
     if (!validation.ok) {
-      return errorResponse("Invalid request", req, 400, validation.errors);
+      return errorResponse("Invalid request", req, 400, (validation as { ok: false; errors: unknown }).errors);
     }
 
     const supabaseUrl = getSupabaseUrl();

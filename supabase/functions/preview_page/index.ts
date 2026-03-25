@@ -363,8 +363,9 @@ Deno.serve(async (req) => {
 
     const recordResult = await fetchPreviewRecord(secret);
     if (!recordResult.ok) {
+      const code = (recordResult as { ok: false; code: Parameters<typeof previewPageErrorResponse>[0]["code"] }).code;
       return previewPageErrorResponse({
-        code: recordResult.code,
+        code,
         nonce,
       });
     }
