@@ -17,6 +17,12 @@ require_fixed() {
   grep -Fq -- "$text" "$file" || fail "Missing '$text' in $file"
 }
 
+require_pattern() {
+  local file="$1"
+  local pattern="$2"
+  grep -Eq -- "$pattern" "$file" || fail "Missing pattern /$pattern/ in $file"
+}
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
@@ -42,13 +48,13 @@ require_fixed "$TRIGGER_EDGE" 'build_profile: buildProfile'
 require_fixed "$TRIGGER_EDGE" 'buildProfile: buildProfile'
 require_fixed "$TRIGGER_EDGE" 'ref: branch ?? null'
 require_fixed "$TRIGGER_EDGE" 'branch: branch ?? null'
-require_fixed "$TRIGGER_EDGE" 'requireScopedEdgeAuth(req, {'
-require_fixed "$CHECK_EDGE" 'requireScopedEdgeAuth(req, {'
-require_fixed "$ARTIFACT_EDGE" 'requireScopedEdgeAuth(req, {'
-require_fixed "$RUNS_EDGE" 'requireScopedEdgeAuth(req, {'
-require_fixed "$LOGS_EDGE" 'requireScopedEdgeAuth(req, {'
-require_fixed "$KEYSTORE_EDGE" 'requireScopedEdgeAuth(req, {'
-require_fixed "$DISPATCH_EDGE" 'requireScopedEdgeAuth(req, {'
+require_pattern "$TRIGGER_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
+require_pattern "$CHECK_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
+require_pattern "$ARTIFACT_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
+require_pattern "$RUNS_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
+require_pattern "$LOGS_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
+require_pattern "$KEYSTORE_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
+require_pattern "$DISPATCH_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
 
 require_fixed "$TRIGGER_EDGE" 'adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"'
 require_fixed "$TRIGGER_EDGE" 'ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"'

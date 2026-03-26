@@ -551,7 +551,7 @@ export function SecretsSection(props: {
           Auto-Sync aus der App deckt EXPO_TOKEN + SUPABASE_URL ab (optional: EAS_PROJECT_ID,
           K1W1_EDGE_WORKFLOW_ADMIN_KEY, K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY; legacy zusätzlich
           K1W1_EDGE_ADMIN_KEY). K1W1_EDGE_WORKFLOW_CI_BEARER bleibt bewusst ein manueller CI-Schritt.
-              SUPABASE_SERVICE_ROLE_KEY bleibt bewusst ein manueller Production-Schritt.
+          SUPABASE_SERVICE_ROLE_KEY bleibt bewusst ein manueller Production-Schritt.
         </Text>
       ) : null}
 

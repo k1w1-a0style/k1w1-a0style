@@ -15,7 +15,6 @@ const saveSecureToken = async (key: string, value: string): Promise<void> => {
   try {
     await SecureStore.setItemAsync(key, value);
   } catch (error: any) {
-    // eslint-disable-next-line no-console
     logger.error("[SecureStore] Speichern fehlgeschlagen", { key, err: error });
     throw new Error(
       `Token konnte nicht sicher gespeichert werden: ${error?.message ?? String(error)}`,
@@ -27,7 +26,6 @@ const getSecureToken = async (key: string): Promise<string | null> => {
   try {
     return await SecureStore.getItemAsync(key);
   } catch (error: any) {
-    // eslint-disable-next-line no-console
     logger.error("[SecureStore] Laden fehlgeschlagen", { key, err: error });
     return null;
   }
@@ -37,7 +35,6 @@ const deleteSecureToken = async (key: string): Promise<void> => {
   try {
     await SecureStore.deleteItemAsync(key);
   } catch (error: any) {
-    // eslint-disable-next-line no-console
     logger.error("[SecureStore] Löschen fehlgeschlagen", { key, err: error });
   }
 };

@@ -79,7 +79,6 @@ export function useCredentialsWizardScreen() {
   useEffect(() => {
     const next = normalizeModeForUi(project?.projectData?.preferredBuildProfile) ?? "dev";
     setSelectedMode((prev) => (prev === next ? prev : next));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.projectData?.preferredBuildProfile]);
 
   // Persist selection back to the project (single source of truth).
@@ -88,7 +87,6 @@ export function useCredentialsWizardScreen() {
     if (apiMode && apiMode !== project?.projectData?.preferredBuildProfile) {
       if (project?.setPreferredBuildProfile) void project.setPreferredBuildProfile(apiMode);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMode, project?.projectData?.preferredBuildProfile, project?.setPreferredBuildProfile]);
 
   const [supabaseUrl, setSupabaseUrl] = useState<string>("");
@@ -150,8 +148,7 @@ export function useCredentialsWizardScreen() {
         const client = await ensureSupabaseClient();
         if (!isMountedRef.current) return;
         // supabase-js client exposes supabaseUrl
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const url = (client as any)?.supabaseUrl as string | undefined;
+        const url = (client as unknown as { supabaseUrl?: string } | null)?.supabaseUrl;
         if (url && isMountedRef.current) setSupabaseUrl(url);
       } catch (e) {
         safeSetLastError(e);
@@ -478,9 +475,7 @@ export function useCredentialsWizardScreen() {
 
     try {
       // Sequential to avoid rate-limit bursts (stable + gentle on Edge functions)
-      // eslint-disable-next-line no-restricted-syntax
       for (const m of MODES) {
-        // eslint-disable-next-line no-await-in-loop
         await refreshStatusCore(m.id);
       }
       toast.show("Status aktualisiert");
