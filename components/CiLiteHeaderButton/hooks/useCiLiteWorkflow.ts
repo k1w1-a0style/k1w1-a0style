@@ -18,6 +18,7 @@ import {
   readPersistedCiLiteSelection,
   type PersistedCiLiteSnapshot,
 } from "../../../lib/ciLitePersistence";
+import { ensureSupabaseClient } from "../../../lib/supabase";
 import { WORKFLOW_CI_LITE, WORKFLOW_CI_LITE_AUTOFIX, type StepState } from "../types";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
 import { isLikelyValidAdminKey } from "../../../screens/CredentialsWizardScreen/utils/security";
@@ -756,13 +757,25 @@ export function useCiLiteWorkflow() {
           });
           throw new Error(normalized.userMessage);
         }
+        const supabase = await ensureSupabaseClient().catch(() => null);
+        const session = await supabase?.auth.getSession().catch(() => null);
+        const userJwt = String(session?.data?.session?.access_token ?? "").trim();
+        if (!userJwt) {
+          throw new Error(
+            "Workflow-Dispatch blockiert: Kein gueltiger Supabase User-Login (JWT role=authenticated). Bitte einloggen und erneut versuchen.",
+          );
+        }
 
         const edgeUrl = await requireSupabaseEdgeUrl();
         const r = await fetchWithTimeout(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_DISPATCH}`, {
           timeoutMs: 15_000,
           timeoutMessage: "Workflow-Dispatch hat das Zeitlimit erreicht. Bitte erneut versuchen.",
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-k1w1-admin-key": trimmedEdgeAdminKey },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${userJwt}`,
+            "x-k1w1-admin-key": trimmedEdgeAdminKey,
+          },
           body: JSON.stringify({
             githubRepo,
             workflow: workflowFile,

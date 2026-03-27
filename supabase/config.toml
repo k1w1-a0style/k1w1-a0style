@@ -1,14 +1,16 @@
 # supabase/config.toml
 # ------------------------------------------------------------
 # SECURITY NOTE:
-# - verify_jwt bleibt für die unten gelisteten CI-/Tooling-Routen bewusst false:
+# - verify_jwt bleibt für die meisten unten gelisteten CI-/Tooling-Routen bewusst false:
 #   bestehende Caller authentifizieren aktuell per Header-Secret (kein Supabase-User-JWT).
 # - High-impact Routen sind deny-by-default gehärtet via `requireScopedEdgeAuth`:
 #   fehlende Route-Secrets führen zu 500 (fail-closed), keine impliziten Fallback-Secrets.
 # - Route-Secrets:
 #   - K1W1_EDGE_WORKFLOW_ADMIN_KEY / K1W1_EDGE_WORKFLOW_CI_BEARER
 #   - K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY
-# - Pilot-Migration: `android-keystore-export` nutzt verify_jwt=true + role=service_role + scoped admin key.
+# - Pilot-Migrationen:
+#   - `android-keystore-export` nutzt verify_jwt=true + role=service_role + scoped admin key.
+#   - `github-workflow-dispatch` nutzt verify_jwt=true + JWT-Claim-Guard + scoped workflow admin key.
 # - verify_jwt nur aktivieren, wenn der jeweilige Caller-Flow real JWT-kompatibel migriert ist.
 # ------------------------------------------------------------
 
@@ -38,7 +40,7 @@ entrypoint = "./functions/github-workflow-logs/index.ts"
 
 [functions.github-workflow-dispatch]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./import_map.json"
 entrypoint = "./functions/github-workflow-dispatch/index.ts"
 
