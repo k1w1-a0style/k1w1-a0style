@@ -487,7 +487,6 @@ export function useEnhancedBuildScreen() {
       try {
         if (setPreferredBuildProfile) await setPreferredBuildProfile(p);
       } catch (e) {
-        // eslint-disable-next-line no-console
         console.warn("[Build] Konnte Build-Profil nicht persistieren:", e);
       }
     },

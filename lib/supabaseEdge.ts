@@ -21,7 +21,6 @@ export async function getSupabaseEdgeUrl(): Promise<string> {
     () => null,
   );
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const envUrl = ((typeof process !== "undefined"
     ? (process as any).env?.EXPO_PUBLIC_SUPABASE_URL
     : null) as string | null) ?? null;

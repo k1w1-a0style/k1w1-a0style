@@ -10,6 +10,5 @@
  * und ersetze dieses Stub-Script.
  */
 
-// eslint-disable-next-line no-console
 console.error('[build.js] Dieses Script ist deaktiviert. Siehe Kommentar im File.');
 process.exitCode = 1;
