@@ -32,7 +32,7 @@ export function computeCiLiteOk(args: {
     return (workflowRun.conclusion || "").toLowerCase() === "success";
   }
 
-  return onlyErrorsCount == 0 && !hasErrorText;
+  return onlyErrorsCount === 0 && !hasErrorText;
 }
 
 export function safeUi(s: string): string {

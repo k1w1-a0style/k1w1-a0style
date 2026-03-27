@@ -21,9 +21,9 @@ const safe = (fn: LogFn): LogFn => {
 // and binding would bypass the spy. Using dynamic console access keeps logging
 // mockable and predictable.
 export const logger = {
-  debug: safe((...args: any[]) => (console.debug ?? console.log)(...args)),
-  info: safe((...args: any[]) => (console.info ?? console.log)(...args)),
-  log: safe((...args: any[]) => console.log(...args)),
-  warn: safe((...args: any[]) => console.warn(...args)),
-  error: safe((...args: any[]) => console.error(...args)),
+  debug: safe((...args: any[]) => (globalThis.console.debug ?? globalThis.console.log)(...args)),
+  info: safe((...args: any[]) => (globalThis.console.info ?? globalThis.console.log)(...args)),
+  log: safe((...args: any[]) => globalThis.console.log(...args)),
+  warn: safe((...args: any[]) => globalThis.console.warn(...args)),
+  error: safe((...args: any[]) => globalThis.console.error(...args)),
 };
