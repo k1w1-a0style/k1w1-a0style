@@ -1,6 +1,6 @@
 import {
   createClient,
-  decryptWithAesCbc,
+  decryptKeystorePayload,
   errorResponse,
   getJwtSub,
   getServiceRoleKey,
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
     }
 
     const encrypted = await file.text();
-    const decrypted = await decryptWithAesCbc(encrypted, masterKey);
+    const decrypted = await decryptKeystorePayload(encrypted, masterKey);
     const parsed = JSON.parse(decrypted);
 
     try {

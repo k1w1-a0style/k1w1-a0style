@@ -4,7 +4,7 @@
 import {
   resolveMode, getForge, safeString, repoOk,
   bytesToBinaryStringChunked, encryptText, ensureBucketExists,
-  bytesToBinaryString, createClient, encryptWithAesCbc,
+  bytesToBinaryString, createClient, encryptKeystorePayload,
   errorResponse, getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, handleCors, jsonResponse, rateLimit, requireAdminKey,
 } from "./helpers.ts";
 import type { Mode } from "./helpers.ts";
@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
       keyPassword,
       alias,
     });
-    const encrypted = await encryptWithAesCbc(payload, masterKey);
+    const encrypted = await encryptKeystorePayload(payload, masterKey);
 
     const storagePath = `android/${repo.replace("/", "__")}/${mode}/keystore.enc`;
     const { error: uploadErr } = await supabase.storage
