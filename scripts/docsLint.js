@@ -96,4 +96,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log('docsLint: OK');
+process.stdout.write('docsLint: OK\n');

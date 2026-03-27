@@ -17,7 +17,7 @@ if (!fs.existsSync(p)) fail("eas-project.json not found at repo root");
 let j;
 try {
   j = JSON.parse(fs.readFileSync(p, "utf8"));
-} catch (e) {
+} catch (_e) {
   fail("eas-project.json is not valid JSON");
 }
 

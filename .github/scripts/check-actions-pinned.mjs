@@ -67,7 +67,7 @@ function checkFile(file) {
 
 const files = listWorkflowFiles(WORKFLOWS_DIR);
 if (!files.length) {
-  console.log("No workflow files found.");
+  process.stdout.write("No workflow files found.\n");
   process.exit(0);
 }
 
@@ -89,4 +89,4 @@ if (totalIssues) {
   process.exit(1);
 }
 
-console.log("OK: all remote actions are pinned to full SHAs.");
+process.stdout.write("OK: all remote actions are pinned to full SHAs.\n");
