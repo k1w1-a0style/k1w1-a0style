@@ -327,7 +327,6 @@ export function useGitHubReposScreen() {
     }
     // fire-and-forget (best-effort)
     refreshSyncStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRepo, activeBranch]);
 
   const handleRefresh = useCallback(async () => {
