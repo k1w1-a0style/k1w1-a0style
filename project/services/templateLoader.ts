@@ -8,7 +8,6 @@ import { logger } from "../../lib/logger";
 
 export const loadTemplateFromFile = async (templateId: TemplateId = "base"): Promise<ProjectFile[]> => {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const template =
       templateId === "navigation"
         ? require("../../templates/expo-sdk54-navigation.json")

@@ -40,7 +40,6 @@ export const CORE_TEMPLATE_FILES: readonly string[] = [
 
 export const loadCoreTemplateFiles = (templateId: CoreTemplateId = "navigation"): TemplateFile[] => {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const template = (
       templateId === "full"
         ? require("../../../templates/expo-sdk54-full.json")

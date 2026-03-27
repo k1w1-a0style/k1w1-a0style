@@ -11,13 +11,13 @@ import {
 
 import { safeTrim, isUuid, fileExists, readJsonFile } from "./diagnosticTypes";
 import type { DiagnosticCheck } from "./diagnosticTypes";
-export type { DiagnosticStatus, DiagnosticFix, DiagnosticCheck } from "./diagnosticTypes";
-export { triggerRemoteDiagnostics, fetchLatestRemoteDiagnosticsReport } from "./remoteDiagnostics";
-export type { RemoteDiagnosticsReport } from "./remoteDiagnostics";
 import {
   resolveRepoSecretListVerification,
   resolveRepoSecretVerification,
 } from "../status/repoSecretVerification";
+export type { DiagnosticStatus, DiagnosticFix, DiagnosticCheck } from "./diagnosticTypes";
+export { triggerRemoteDiagnostics, fetchLatestRemoteDiagnosticsReport } from "./remoteDiagnostics";
+export type { RemoteDiagnosticsReport } from "./remoteDiagnostics";
 
 
 export type BuildPipelineDiagnosticsDeps = {

@@ -16,7 +16,6 @@ function replaceAllSafe(
   replacement: string | ((substring: string, ...args: any[]) => string)
 ): string {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (input as any).replace(re, replacement as any);
   } catch {
     return input;

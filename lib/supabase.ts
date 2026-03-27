@@ -9,7 +9,6 @@ let initPromise: Promise<SupabaseClient> | null = null;
 
 const setRuntimeEnvFromSupabase = (url: string, anonKey: string) => {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const anyProcess = process as any;
 
     if (!anyProcess.env) {
@@ -50,11 +49,9 @@ export const ensureSupabaseClient = async (): Promise<SupabaseClient> => {
 
       // 2) Fallback: bestehende Runtime-Env
       if (!supabaseUrl && typeof process !== "undefined") {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         supabaseUrl = (process as any).env?.EXPO_PUBLIC_SUPABASE_URL;
       }
       if (!supabaseAnonKey && typeof process !== "undefined") {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         supabaseAnonKey = (process as any).env?.EXPO_PUBLIC_SUPABASE_ANON_KEY;
       }
 

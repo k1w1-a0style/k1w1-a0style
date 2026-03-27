@@ -4,13 +4,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Re-export types & constants so existing imports from "AIContext" keep working
-export type {
-  AllAIProviders, QualityMode, ModelTier, ProviderLimitStatus,
-  ModelInfo, ProviderDefaults, ProviderMetadata, AIConfig, AIContextProps,
-} from "./models";
-export { PROVIDER_DEFAULTS, PROVIDER_METADATA, AVAILABLE_MODELS } from "./models";
-
 import type { AIConfig, AIContextProps, AllAIProviders, ProviderLimitStatus, QualityMode } from "./models";
 import { PROVIDER_DEFAULTS } from "./models";
 import {
@@ -19,6 +12,13 @@ import {
   getDefaultMode,
   resolveProviderModeForQualityMode,
 } from "./helpers";
+
+// Re-export types & constants so existing imports from "AIContext" keep working
+export type {
+  AllAIProviders, QualityMode, ModelTier, ProviderLimitStatus,
+  ModelInfo, ProviderDefaults, ProviderMetadata, AIConfig, AIContextProps,
+} from "./models";
+export { PROVIDER_DEFAULTS, PROVIDER_METADATA, AVAILABLE_MODELS } from "./models";
 
 const AIContext = createContext<AIContextProps | undefined>(undefined);
 const CONFIG_PERSIST_DEBOUNCE_MS = 350;
