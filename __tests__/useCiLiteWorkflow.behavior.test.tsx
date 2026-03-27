@@ -11,6 +11,7 @@ const mockGetRepoSyncState = jest.fn();
 const mockRequireSupabaseEdgeUrl = jest.fn();
 const mockGetEdgeAdminKey = jest.fn();
 const mockGetBranchHeadSha = jest.fn();
+const mockGetSupabaseAnonKey = jest.fn();
 const mockStorageGetItem = jest.fn();
 const mockStorageMultiSet = jest.fn();
 
@@ -37,6 +38,9 @@ jest.mock("../lib/repoSyncOrchestration", () => ({
 
 jest.mock("../lib/supabaseEdge", () => ({
   requireSupabaseEdgeUrl: () => mockRequireSupabaseEdgeUrl(),
+}));
+jest.mock("../lib/supabaseAnonKeyStorage", () => ({
+  getSupabaseAnonKey: () => mockGetSupabaseAnonKey(),
 }));
 
 jest.mock("../infra/github/githubService", () => ({
@@ -89,6 +93,7 @@ describe("useCiLiteWorkflow behavior", () => {
     mockRequireSupabaseEdgeUrl.mockResolvedValue("https://example.supabase.co/functions/v1");
     mockGetEdgeAdminKey.mockResolvedValue("edge-admin-key-12345678901234567890");
     mockGetBranchHeadSha.mockResolvedValue(SHA);
+    mockGetSupabaseAnonKey.mockResolvedValue("supabase-anon-jwt-token");
     mockStorageMultiSet.mockResolvedValue(undefined);
     mockStorageGetItem.mockImplementation(async (key: string) => buildPersistedStorageMap()[key] ?? null);
 
@@ -171,7 +176,7 @@ describe("useCiLiteWorkflow behavior", () => {
   });
 
 
-  it("sends only x-k1w1-admin-key on the CI Lite dispatch edge call", async () => {
+  it("sends JWT + x-k1w1-admin-key on the CI Lite dispatch edge call", async () => {
     mockStorageGetItem.mockResolvedValue(null);
 
     const { result } = renderHook(() => useCiLiteWorkflow());
@@ -188,9 +193,9 @@ describe("useCiLiteWorkflow behavior", () => {
     const headers = ((dispatchCall?.[1] as RequestInit | undefined)?.headers ?? {}) as Record<string, string>;
     expect(headers).toMatchObject({
       "Content-Type": "application/json",
+      Authorization: "Bearer supabase-anon-jwt-token",
       "x-k1w1-admin-key": "edge-admin-key-12345678901234567890",
     });
-    expect(headers).not.toHaveProperty("Authorization");
   });
 
   it("does not pass githubToken in github-workflow-dispatch bodies", async () => {

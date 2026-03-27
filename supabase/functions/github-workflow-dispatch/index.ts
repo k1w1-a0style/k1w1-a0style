@@ -1,5 +1,5 @@
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
-import { requireScopedEdgeAuth, rateLimit } from "../_shared/auth.ts";
+import { requireJwtRole, requireScopedEdgeAuth, rateLimit } from "../_shared/auth.ts";
 import { githubHeaders, getGithubToken, GITHUB_API_BASE } from "../_shared/github.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
@@ -890,11 +890,16 @@ try {
     const auth = requireScopedEdgeAuth(req, {
       scope: "github-workflow-dispatch",
       allowAdmin: true,
-      allowCiBearer: true,
+      allowCiBearer: false,
+      allowJwtAuthHeaderWithAdmin: true,
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
-      ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER",
     });
     if (auth) return auth;
+    const jwtRoleGuard = requireJwtRole(req, {
+      scope: "github-workflow-dispatch",
+      allowedRoles: ["service_role", "authenticated", "anon"],
+    });
+    if (jwtRoleGuard) return jwtRoleGuard;
 
     const rl = rateLimit(req, "github-workflow-dispatch");
     if (rl) return rl;

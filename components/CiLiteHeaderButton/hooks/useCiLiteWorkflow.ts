@@ -18,6 +18,7 @@ import {
   readPersistedCiLiteSelection,
   type PersistedCiLiteSnapshot,
 } from "../../../lib/ciLitePersistence";
+import { getSupabaseAnonKey } from "../../../lib/supabaseAnonKeyStorage";
 import { WORKFLOW_CI_LITE, WORKFLOW_CI_LITE_AUTOFIX, type StepState } from "../types";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
 import { isLikelyValidAdminKey } from "../../../screens/CredentialsWizardScreen/utils/security";
@@ -756,13 +757,23 @@ export function useCiLiteWorkflow() {
           });
           throw new Error(normalized.userMessage);
         }
+        const anonJwt = String((await getSupabaseAnonKey().catch(() => null)) ?? "").trim();
+        if (!anonJwt) {
+          throw new Error(
+            "Workflow-Dispatch blockiert: SUPABASE_ANON_KEY fehlt. Bitte in Verbindungen/Credentials setzen.",
+          );
+        }
 
         const edgeUrl = await requireSupabaseEdgeUrl();
         const r = await fetchWithTimeout(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_DISPATCH}`, {
           timeoutMs: 15_000,
           timeoutMessage: "Workflow-Dispatch hat das Zeitlimit erreicht. Bitte erneut versuchen.",
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-k1w1-admin-key": trimmedEdgeAdminKey },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${anonJwt}`,
+            "x-k1w1-admin-key": trimmedEdgeAdminKey,
+          },
           body: JSON.stringify({
             githubRepo,
             workflow: workflowFile,
