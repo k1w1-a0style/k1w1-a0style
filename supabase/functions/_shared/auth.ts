@@ -214,6 +214,7 @@ export type ScopedEdgeAuthConfig = {
   scope: string;
   allowAdmin: boolean;
   allowCiBearer: boolean;
+  allowJwtAuthHeaderWithAdmin?: boolean;
   adminSecretEnv?: string;
   ciBearerSecretEnv?: string;
 };
@@ -227,7 +228,14 @@ function getStrictEnvSecret(key: string | undefined): string | null {
 }
 
 export function requireScopedEdgeAuth(req: Request, cfg: ScopedEdgeAuthConfig): Response | null {
-  const { scope, allowAdmin, allowCiBearer, adminSecretEnv, ciBearerSecretEnv } = cfg;
+  const {
+    scope,
+    allowAdmin,
+    allowCiBearer,
+    allowJwtAuthHeaderWithAdmin = false,
+    adminSecretEnv,
+    ciBearerSecretEnv,
+  } = cfg;
 
   if (!allowAdmin && !allowCiBearer) {
     return errorResponse(
@@ -267,7 +275,7 @@ export function requireScopedEdgeAuth(req: Request, cfg: ScopedEdgeAuthConfig): 
     );
   }
 
-  if (adminHeader && hasAuthHeader) {
+  if (adminHeader && hasAuthHeader && !allowJwtAuthHeaderWithAdmin) {
     return errorResponse(
       "Unauthorized: send either admin key OR bearer token, not both.",
       req,

@@ -28,6 +28,7 @@ Deno.serve(async (req) => {
     scope: "android-keystore-export",
     allowAdmin: true,
     allowCiBearer: false,
+    allowJwtAuthHeaderWithAdmin: true,
     adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
   });
   if (auth) return auth;
