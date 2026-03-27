@@ -1,5 +1,5 @@
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
-import { requireScopedEdgeAuth, rateLimit } from "../_shared/auth.ts";
+import { requireJwtRole, requireScopedEdgeAuth, rateLimit } from "../_shared/auth.ts";
 import { githubFetchJson, githubFetchRaw, getGithubToken } from "../_shared/github.ts";
 
 // GitHub Artifacts are delivered as ZIP. The Deno std ZIP module moved around and
@@ -46,11 +46,16 @@ Deno.serve(async (req: Request) => {
   const authError = requireScopedEdgeAuth(req, {
     scope: "github-run-artifact-json",
     allowAdmin: true,
-    allowCiBearer: true,
+    allowCiBearer: false,
+    allowJwtAuthHeaderWithAdmin: true,
     adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
-    ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER",
   });
   if (authError) return authError;
+  const jwtRoleGuard = requireJwtRole(req, {
+    scope: "github-run-artifact-json",
+    allowedRoles: ["service_role", "authenticated"],
+  });
+  if (jwtRoleGuard) return jwtRoleGuard;
 
   const rl = rateLimit(req, "github-run-artifact-json", 30, 60_000);
   if (rl) return rl;

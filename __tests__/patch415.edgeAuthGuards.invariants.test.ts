@@ -36,15 +36,14 @@ describe("patch415 edge auth guard invariants", () => {
         rel.includes("trigger-eas-build") ||
         rel.includes("check-eas-build") ||
         rel.includes("github-workflow-runs") ||
-        rel.includes("github-workflow-logs")
+        rel.includes("github-workflow-logs") ||
+        rel.includes("github-run-artifact-json")
       ) {
         expect(src).toContain("allowCiBearer: false");
         expect(src).toContain("allowJwtAuthHeaderWithAdmin: true");
         expect(src).toContain("requireJwtRole(req, {");
         expect(src).toContain('allowedRoles: ["service_role", "authenticated"]');
         expect(src).not.toContain('ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"');
-      } else {
-        expect(src).toContain('ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"');
       }
       expect(src).not.toContain("const auth = requireAdminKey(req);");
       expect(src).not.toContain("const authError = requireAdminKey(req);");
@@ -95,7 +94,6 @@ describe("patch415 edge auth guard invariants", () => {
   it("documents workflow and keystore routes with their scoped secrets", () => {
     const edgeStatus = read("docs/EDGE_FUNCTIONS_STATUS.md");
     expect(edgeStatus).toContain("K1W1_EDGE_WORKFLOW_ADMIN_KEY");
-    expect(edgeStatus).toContain("K1W1_EDGE_WORKFLOW_CI_BEARER");
     expect(edgeStatus).toContain("K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY");
     expect(edgeStatus).toContain("`github-workflow-dispatch`");
     expect(edgeStatus).toContain("`android-keystore-export`");

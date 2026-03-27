@@ -1,6 +1,7 @@
 import { renderHook, act, waitFor } from '@testing-library/react-native';
 
 import { useGitHubActionsLogs } from '../hooks/useGitHubActionsLogs';
+import { getEdgeAdminKey } from '../infra/github/githubService';
 
 type Deferred<T> = {
   promise: Promise<T>;
@@ -104,6 +105,28 @@ describe('useGitHubActionsLogs edge contract mapping', () => {
     });
     expect(runsBody).not.toHaveProperty('githubToken');
     expect(logsBody).not.toHaveProperty('githubToken');
+  });
+
+  it('fails fast locally when the workflow admin key is missing', async () => {
+    (getEdgeAdminKey as jest.Mock).mockResolvedValueOnce('');
+    const fetchMock = jest.fn();
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const { result } = renderHook(() =>
+      useGitHubActionsLogs({
+        githubRepo: 'owner/repo',
+        runId: null,
+        workflowId: 'k1w1-ci-lite.yml',
+        autoRefresh: false,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.refreshLogs();
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.error).toMatch(/Admin-Key fehlt/i);
   });
 
   it('uses the current workflowId for github-workflow-runs after rerender', async () => {

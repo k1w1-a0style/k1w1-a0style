@@ -226,6 +226,41 @@ describe("useCiLiteWorkflow behavior", () => {
     });
   });
 
+  it("sends JWT + x-k1w1-admin-key on the artifact-json call", async () => {
+    const completedRunId = 901;
+    mockUseGitHubActionsLogs.mockImplementation(() => ({
+      logs: [],
+      workflowRun: {
+        id: completedRunId,
+        run_number: 90,
+        status: "completed",
+        conclusion: "success",
+        created_at: "2026-03-19T00:00:00Z",
+        updated_at: "2026-03-19T00:10:00Z",
+        html_url: `https://github.com/runs/${completedRunId}`,
+        head_sha: SHA,
+      },
+      isLoading: false,
+      error: null,
+      refreshLogs: jest.fn(),
+    }));
+
+    renderHook(() => useCiLiteWorkflow());
+    await flushAsyncWork();
+    await waitFor(() => {
+      const artifactCall = (global.fetch as jest.Mock).mock.calls.find(([url]) =>
+        String(url).includes("github-run-artifact-json"),
+      );
+      expect(artifactCall).toBeTruthy();
+      const headers = ((artifactCall?.[1] as RequestInit | undefined)?.headers ?? {}) as Record<string, string>;
+      expect(headers).toMatchObject({
+        "Content-Type": "application/json",
+        Authorization: "Bearer supabase-authenticated-jwt-token",
+        "x-k1w1-admin-key": "edge-admin-key-12345678901234567890",
+      });
+    });
+  });
+
   it("does not pass githubToken in github-workflow-dispatch bodies", async () => {
     mockStorageGetItem.mockResolvedValue(null);
 
