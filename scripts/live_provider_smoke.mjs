@@ -118,11 +118,11 @@ async function main() {
     results.push({ provider, ...outcome });
   }
 
-  console.log(JSON.stringify({
+  process.stdout.write(`${JSON.stringify({
     checkedAt: new Date().toISOString(),
     sourceDefaultsFile: HELPERS_PATH,
     results,
-  }, null, 2));
+  }, null, 2)}\n`);
 }
 
 main().catch((err) => {
