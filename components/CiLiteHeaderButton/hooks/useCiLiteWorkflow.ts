@@ -375,6 +375,12 @@ export function useCiLiteWorkflow() {
         const edgeUrl = await requireSupabaseEdgeUrl();
         const adminKey = await getEdgeAdminKey().catch(() => null);
         const trimmedAdminKey = String(adminKey ?? "").trim();
+        const supabase = await ensureSupabaseClient().catch(() => null);
+        const session = await supabase?.auth.getSession().catch(() => null);
+        const userJwt = String(session?.data?.session?.access_token ?? "").trim();
+        if (!userJwt) {
+          throw new Error("CI-Lite-Artefakt blockiert: Kein gueltiger Supabase User-Login (JWT role=authenticated). Bitte einloggen und erneut versuchen.");
+        }
         if (!trimmedAdminKey || !isLikelyValidAdminKey(trimmedAdminKey)) {
           const normalized = normalizeCiLiteWorkflowError({
             context: "artifact",
@@ -396,6 +402,7 @@ export function useCiLiteWorkflow() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${userJwt}`,
             "x-k1w1-admin-key": trimmedAdminKey,
           },
           body: JSON.stringify({

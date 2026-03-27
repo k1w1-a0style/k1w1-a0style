@@ -90,6 +90,10 @@ export function useGitHubActionsLogs({
       let targetRunId = runId;
       const edgeUrl = await requireSupabaseEdgeUrl();
       const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+      const trimmedAdminKey = String(edgeAdminKey ?? "").trim();
+      if (!trimmedAdminKey) {
+        throw new Error("Workflow-Read blockiert: Lokaler Edge-Admin-Key fehlt. Bitte im Credentials-Wizard setzen und erneut versuchen.");
+      }
       const supabase = await ensureSupabaseClient().catch(() => null);
       const session = await supabase?.auth.getSession().catch(() => null);
       const userJwt = String(session?.data?.session?.access_token ?? "").trim();
@@ -105,7 +109,7 @@ export function useGitHubActionsLogs({
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${userJwt}`,
-            ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
+            "x-k1w1-admin-key": trimmedAdminKey,
           },
           body: JSON.stringify({ githubRepo, workflowId }),
           },
@@ -117,7 +121,7 @@ export function useGitHubActionsLogs({
             fnName: SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_RUNS,
               res: runsResponse,
               edgeUrl,
-              hasAdminKey: !!edgeAdminKey,
+              hasAdminKey: true,
             }),
           );
         }
@@ -160,7 +164,7 @@ export function useGitHubActionsLogs({
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${userJwt}`,
-            ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
+            "x-k1w1-admin-key": trimmedAdminKey,
           },
           body: JSON.stringify({
             githubRepo,
@@ -176,7 +180,7 @@ export function useGitHubActionsLogs({
             fnName: SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_LOGS,
             res: logsResponse,
             edgeUrl,
-            hasAdminKey: !!edgeAdminKey,
+            hasAdminKey: true,
           }),
         );
       }
