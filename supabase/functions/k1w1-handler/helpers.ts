@@ -8,6 +8,10 @@
 // - Verwendet NUR Server-Env-Keys (GROQ_API_KEY, GEMINI_API_KEY)
 // - Kein API-Key mehr im Request-Body nötig.
 
+import { getRuntimeEnv } from "../_shared/auth.ts";
+import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
+import { SHARED_PROVIDER_DEFAULTS } from "../../../shared/ai/providerDefaults.ts";
+import { assertRuntimeModelSupported } from "../../../shared/ai/modelRuntimeMap.ts";
 export type Role = "system" | "user" | "assistant";
 
 export interface ChatMessage {
@@ -26,10 +30,6 @@ export interface HandlerRequestBody {
 export { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";
 export { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 export { parseJsonBody } from "../_shared/validation.ts";
-import { getRuntimeEnv } from "../_shared/auth.ts";
-import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
-import { SHARED_PROVIDER_DEFAULTS } from "../../../shared/ai/providerDefaults.ts";
-import { assertRuntimeModelSupported } from "../../../shared/ai/modelRuntimeMap.ts";
 
 export const DEFAULT_MODELS = SHARED_PROVIDER_DEFAULTS;
 const SUPPORTED_PROVIDER_DEFAULT_KEYS = {
