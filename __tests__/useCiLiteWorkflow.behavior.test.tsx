@@ -226,6 +226,28 @@ describe("useCiLiteWorkflow behavior", () => {
     });
   });
 
+  it("blocks workflow run lookup locally when the admin key is missing", async () => {
+    mockStorageGetItem.mockResolvedValue(null);
+    mockGetEdgeAdminKey
+      .mockResolvedValueOnce("edge-admin-key-12345678901234567890")
+      .mockResolvedValueOnce("   ");
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    const runsCall = (global.fetch as jest.Mock).mock.calls.find(([url]) =>
+      String(url).includes("github-workflow-runs"),
+    );
+
+    expect(runsCall).toBeFalsy();
+    expect(result.current.showError).toMatch(/Workflow-Run-Lookup blockiert/i);
+    expect(result.current.showError).toMatch(/lokaler edge admin key fehlt/i);
+  });
+
+
   it("sends JWT + x-k1w1-admin-key on the artifact-json call", async () => {
     const completedRunId = 901;
     mockUseGitHubActionsLogs.mockImplementation(() => ({
