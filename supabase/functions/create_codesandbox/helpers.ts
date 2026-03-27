@@ -2,8 +2,8 @@
 // Extracted from create_codesandbox/index.ts: utility functions.
 
 // NOTE: Supabase Edge (Deno) bundler requires explicit file extensions for local imports.
-export { sanitizeErrorText, sanitizeUnknownForTransport } from "../_shared/errorSanitization.ts";
 import { sanitizeErrorText as sanitizeErrorTextLocal } from "../_shared/errorSanitization.ts";
+export { sanitizeErrorText, sanitizeUnknownForTransport } from "../_shared/errorSanitization.ts";
 export { parseJsonBody } from "../_shared/validation.ts";
 export { requireAdminKey, rateLimit } from "../_shared/auth.ts";
 
@@ -46,7 +46,6 @@ export function safeErrorMessage(err: unknown): string {
   if (typeof err === "string") return sanitizeErrorTextLocal(err);
   if (err && typeof err === "object" && "message" in err) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return sanitizeErrorTextLocal(String((err as any).message));
     } catch {
       return "Unknown error";

@@ -1,4 +1,4 @@
-import { isLikelyValidAdminKey } from "./security";
+import { isLikelyValidAdminKey } from "../../../lib/security/isLikelyValidAdminKey";
 
 export type LocalEdgeAdminKeyIssueKind = "missing" | "invalid" | "rejected" | "unknown" | null;
 

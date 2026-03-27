@@ -8,6 +8,7 @@ import { useProject } from "../contexts/ProjectContext";
 import { buildSandpackHtml } from "../lib/sandpackBuilder";
 import { ensureSupabaseClient } from "../lib/supabase";
 import { logger } from "../lib/logger";
+import { isLikelyValidAdminKey } from "../lib/security/isLikelyValidAdminKey";
 import { getEdgeAdminKey } from "../infra/github/githubService";
 import type { PreviewFiles } from "../types/preview";
 
@@ -24,7 +25,6 @@ import {
   simpleHash,
 } from "./previewHelpers";
 import type { PreviewResult, PreviewState } from "./previewHelpers";
-import { isLikelyValidAdminKey } from "../screens/CredentialsWizardScreen/utils/security";
 
 export interface UsePreviewReturn {
   state: PreviewState;

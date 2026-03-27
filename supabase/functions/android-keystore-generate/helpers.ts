@@ -105,7 +105,6 @@ export async function encryptText(text: string, masterKey: string): Promise<stri
 }
 
 export async function ensureBucketExists(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   bucket: string,
 ): Promise<void> {
@@ -125,7 +124,6 @@ export async function ensureBucketExists(
 
   // Fallback: insert directly into storage.buckets (works in Supabase Postgres).
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any)
       .from("storage.buckets")
       .insert({ id: bucket, name: bucket, public: false })

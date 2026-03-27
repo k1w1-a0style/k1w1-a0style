@@ -19,12 +19,12 @@ import type { ApiModeId, ModeDef, StatusResult, UiModeId, WizardHttpDebug } from
 
 import {
   buildEdgeHttpErrorMessage,
-  isLikelyValidAdminKey,
   isLikelyValidRepoFullName,
   isLikelyValidSupabaseUrl,
   sanitizeErrorForUi,
   sanitizeWizardHttpDebug,
 } from "../utils/security";
+import { isLikelyValidAdminKey } from "../../../lib/security/isLikelyValidAdminKey";
 
 
 export const MODES: ModeDef[] = [
