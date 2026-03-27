@@ -53,7 +53,7 @@ describe("Edge helper visibility invariants", () => {
       imports: [
         "bytesToBinaryString",
         "createClient",
-        "encryptWithAesCbc",
+        "encryptKeystorePayload",
         "errorResponse",
         "getServiceRoleKey",
         "getSigningMasterKey",
