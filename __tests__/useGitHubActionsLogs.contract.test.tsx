@@ -27,6 +27,15 @@ jest.mock('../lib/supabaseEdge', () => ({
 jest.mock('../infra/github/githubService', () => ({
   getEdgeAdminKey: jest.fn(async () => 'edge-admin-key'),
 }));
+jest.mock('../lib/supabase', () => ({
+  ensureSupabaseClient: jest.fn(async () => ({
+    auth: {
+      getSession: jest.fn(async () => ({
+        data: { session: { access_token: 'supabase-authenticated-jwt-token' } },
+      })),
+    },
+  })),
+}));
 
 jest.mock('../infra/github/tokenStore', () => ({
   getGitHubToken: jest.fn(async () => 'ghp_test_token'),
@@ -80,9 +89,19 @@ describe('useGitHubActionsLogs edge contract mapping', () => {
 
     const runsBody = JSON.parse(String((runsCall?.[1] as RequestInit | undefined)?.body ?? '{}'));
     const logsBody = JSON.parse(String((logsCall?.[1] as RequestInit | undefined)?.body ?? '{}'));
+    const runsHeaders = ((runsCall?.[1] as RequestInit | undefined)?.headers ?? {}) as Record<string, string>;
+    const logsHeaders = ((logsCall?.[1] as RequestInit | undefined)?.headers ?? {}) as Record<string, string>;
 
     expect(runsBody).toEqual({ githubRepo: 'owner/repo', workflowId: 'k1w1-ci-lite.yml' });
     expect(logsBody).toEqual({ githubRepo: 'owner/repo', runId: 123, mode: 'raw' });
+    expect(runsHeaders).toMatchObject({
+      Authorization: 'Bearer supabase-authenticated-jwt-token',
+      'x-k1w1-admin-key': 'edge-admin-key',
+    });
+    expect(logsHeaders).toMatchObject({
+      Authorization: 'Bearer supabase-authenticated-jwt-token',
+      'x-k1w1-admin-key': 'edge-admin-key',
+    });
     expect(runsBody).not.toHaveProperty('githubToken');
     expect(logsBody).not.toHaveProperty('githubToken');
   });

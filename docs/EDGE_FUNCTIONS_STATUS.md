@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: 2026-03-14 (Patch 435)
+Stand: 2026-03-27 (Patch 554)
 
 ## Aktiv und workflow-relevant
 
@@ -9,8 +9,8 @@ Stand: 2026-03-14 (Patch 435)
 | `trigger-eas-build` | Legt `build_jobs` an und dispatcht GitHub `trigger-eas-build` | `jobId`, `githubRepo`, `branch`, `buildProfile` · Auth: Workflow-Admin-Key (`x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) oder Workflow-CI-Bearer (`Authorization: Bearer <secret>`, Secret `K1W1_EDGE_WORKFLOW_CI_BEARER`) |
 | `check-eas-build` | Liest `build_jobs` zurück | `status`, `runId`, `build_url`, `download_url`, `source_commit_sha`, `urls`, `artifact`, `job` · Auth: Workflow-Admin-Key (`x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) oder Workflow-CI-Bearer (`Authorization: Bearer <secret>`, Secret `K1W1_EDGE_WORKFLOW_CI_BEARER`) |
 | `github-workflow-dispatch` | Dispatch / Bootstrap managed Workflows | `ok`, `workflow`, `workflow_id`, optional `bootstrapped` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, authenticated]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) |
-| `github-workflow-runs` | Holt Workflow-Runs (fail-closed bei ungültigem `workflowId`) | `data` · Auth: Workflow-Admin-Key (`x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) oder Workflow-CI-Bearer (`Authorization: Bearer <secret>`, Secret `K1W1_EDGE_WORKFLOW_CI_BEARER`) |
-| `github-workflow-logs` | Holt redigierte Logs eines Workflow-Runs | `run`, `files`, `fileCount`, `logsText`, `truncated` · Auth: Workflow-Admin-Key (`x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) oder Workflow-CI-Bearer (`Authorization: Bearer <secret>`, Secret `K1W1_EDGE_WORKFLOW_CI_BEARER`) |
+| `github-workflow-runs` | Holt Workflow-Runs (fail-closed bei ungültigem `workflowId`) | `data` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, authenticated]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) |
+| `github-workflow-logs` | Holt redigierte Logs eines Workflow-Runs | `run`, `files`, `fileCount`, `logsText`, `truncated` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, authenticated]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) |
 | `github-run-artifact-json` | Liest JSON-Datei aus GitHub Artifact-ZIP | `text`, `json`, `artifactId`, `artifactName`, `filePath` · Auth: Workflow-Admin-Key (`x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) oder Workflow-CI-Bearer (`Authorization: Bearer <secret>`, Secret `K1W1_EDGE_WORKFLOW_CI_BEARER`) |
 | `save_preview` / `preview_page` | Persistiert und rendert Browser-Previews | `previewUrl`, `expiresAt` (save) / HTML-Response + sichere Fehlerfälle (page) · Auth: admin-only (save), public secret-link (page) |
 | `k1w1-handler` | KI-Provider-Proxy für produktive Chat-Calls | `ok`, `provider`, `model`, `content`, `raw` bzw. `ok:false,error` · Auth: Admin-Key |

@@ -204,6 +204,28 @@ describe("useCiLiteWorkflow behavior", () => {
     });
   });
 
+  it("sends JWT + x-k1w1-admin-key on the CI Lite workflow run lookup call", async () => {
+    mockStorageGetItem.mockResolvedValue(null);
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    const runsCall = (global.fetch as jest.Mock).mock.calls.find(([url]) =>
+      String(url).includes("github-workflow-runs"),
+    );
+
+    expect(runsCall).toBeTruthy();
+    const headers = ((runsCall?.[1] as RequestInit | undefined)?.headers ?? {}) as Record<string, string>;
+    expect(headers).toMatchObject({
+      "Content-Type": "application/json",
+      Authorization: "Bearer supabase-authenticated-jwt-token",
+      "x-k1w1-admin-key": "edge-admin-key-12345678901234567890",
+    });
+  });
+
   it("does not pass githubToken in github-workflow-dispatch bodies", async () => {
     mockStorageGetItem.mockResolvedValue(null);
 
