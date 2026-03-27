@@ -641,6 +641,7 @@ jobs:
             -X POST "${SUPABASE_URL%/}/functions/v1/android-keystore-export"
             -H "Content-Type: application/json"
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}"
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
             -d @ci-logs/keystore-request.json
           )
 

@@ -52,6 +52,63 @@ export function getBearerToken(req: Request): string | null {
   return m?.[1]?.trim() || null;
 }
 
+export type JwtPayload = {
+  role?: unknown;
+  sub?: unknown;
+  aud?: unknown;
+  iss?: unknown;
+  [key: string]: unknown;
+};
+
+function decodeJwtPayload(token: string): JwtPayload | null {
+  const parts = token.split(".");
+  if (parts.length < 2) return null;
+  try {
+    const normalized = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const pad = "=".repeat((4 - (normalized.length % 4)) % 4);
+    const payload = JSON.parse(atob(`${normalized}${pad}`));
+    if (!payload || typeof payload !== "object") return null;
+    return payload as JwtPayload;
+  } catch {
+    return null;
+  }
+}
+
+export function getJwtPayload(req: Request): JwtPayload | null {
+  const token = getBearerToken(req);
+  if (!token) return null;
+  return decodeJwtPayload(token);
+}
+
+export type JwtRoleGuardConfig = {
+  scope: string;
+  allowedRoles: string[];
+};
+
+export function requireJwtRole(req: Request, cfg: JwtRoleGuardConfig): Response | null {
+  const payload = getJwtPayload(req);
+  if (!payload) {
+    return errorResponse(
+      "Unauthorized: missing or invalid JWT payload.",
+      req,
+      401,
+      { scope: cfg.scope },
+    );
+  }
+
+  const role = typeof payload.role === "string" ? payload.role.trim() : "";
+  if (!role || !cfg.allowedRoles.includes(role)) {
+    return errorResponse(
+      "Forbidden: JWT role is not allowed for this route.",
+      req,
+      403,
+      { scope: cfg.scope, allowedRoles: cfg.allowedRoles },
+    );
+  }
+
+  return null;
+}
+
 export function getAdminKeyHeader(req: Request): string | null {
   return (
     req.headers.get("x-k1w1-admin-key") ??
@@ -157,6 +214,7 @@ export type ScopedEdgeAuthConfig = {
   scope: string;
   allowAdmin: boolean;
   allowCiBearer: boolean;
+  allowJwtAuthHeaderWithAdmin?: boolean;
   adminSecretEnv?: string;
   ciBearerSecretEnv?: string;
 };
@@ -170,7 +228,14 @@ function getStrictEnvSecret(key: string | undefined): string | null {
 }
 
 export function requireScopedEdgeAuth(req: Request, cfg: ScopedEdgeAuthConfig): Response | null {
-  const { scope, allowAdmin, allowCiBearer, adminSecretEnv, ciBearerSecretEnv } = cfg;
+  const {
+    scope,
+    allowAdmin,
+    allowCiBearer,
+    allowJwtAuthHeaderWithAdmin = false,
+    adminSecretEnv,
+    ciBearerSecretEnv,
+  } = cfg;
 
   if (!allowAdmin && !allowCiBearer) {
     return errorResponse(
@@ -210,7 +275,7 @@ export function requireScopedEdgeAuth(req: Request, cfg: ScopedEdgeAuthConfig): 
     );
   }
 
-  if (adminHeader && hasAuthHeader) {
+  if (adminHeader && hasAuthHeader && !allowJwtAuthHeaderWithAdmin) {
     return errorResponse(
       "Unauthorized: send either admin key OR bearer token, not both.",
       req,
