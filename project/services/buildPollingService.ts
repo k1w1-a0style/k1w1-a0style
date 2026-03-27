@@ -9,6 +9,7 @@ import { getEdgeAdminKey } from "../../infra/github/githubService";
 import { fetchWithTimeout as sharedFetchWithTimeout } from "../../lib/network/fetchWithTimeout";
 import { mapBuildStatus } from "../../lib/buildStatusMapper";
 import { getSupabaseEdgeUrl, SUPABASE_URL_MISSING_ERROR } from '../../lib/supabaseEdge';
+import { ensureSupabaseClient } from "../../lib/supabase";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
 import type { BuildStatus, BuildStatusDetails } from "../../shared/types/build";
 import { logger } from "../../lib/logger";
@@ -62,7 +63,23 @@ export async function pollBuildStatusOnce(
       error: SUPABASE_URL_MISSING_ERROR,
     };
   }
+  const supabase = await ensureSupabaseClient();
   const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+  const session = await supabase.auth.getSession().catch(() => null);
+  const accessToken = session?.data?.session?.access_token ?? null;
+
+  if (!accessToken) {
+    return {
+      ok: false,
+      error: "Build-Status blockiert: Es fehlt ein gueltiger Supabase-User-Login (JWT). Bitte neu anmelden.",
+    };
+  }
+  if (!edgeAdminKey) {
+    return {
+      ok: false,
+      error: "Build-Status blockiert: Lokaler Edge-Admin-Key fehlt. Bitte Verbindungen pruefen.",
+    };
+  }
 
   const timeoutMs = opts?.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
 
@@ -70,7 +87,8 @@ export async function pollBuildStatusOnce(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
+      Authorization: `Bearer ${accessToken}`,
+      "x-k1w1-admin-key": edgeAdminKey,
     },
     body: JSON.stringify({ jobId }),
     timeoutMs,

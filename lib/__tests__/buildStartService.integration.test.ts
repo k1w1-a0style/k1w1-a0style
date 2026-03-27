@@ -37,6 +37,11 @@ const mockAutoFix = {
 const mockInvoke = jest.fn();
 
 const mockSupabase = {
+  auth: {
+    getSession: jest.fn(async () => ({
+      data: { session: { access_token: "supabase-authenticated-jwt-token" } },
+    })),
+  },
   functions: {
     invoke: mockInvoke,
   },
@@ -127,11 +132,12 @@ describe("startBuildJob (integration)", () => {
       branch: "main",
     });
 
-    // Supabase edge function invoke payload + admin header
+    // Supabase edge function invoke payload + JWT/admin header
     expect(mockInvoke).toHaveBeenCalledTimes(1);
     const [fnName, opts] = mockInvoke.mock.calls[0];
 
     expect(typeof fnName).toBe("string");
+    expect(opts?.headers?.Authorization).toBe("Bearer supabase-authenticated-jwt-token");
     expect(opts?.headers?.["x-k1w1-admin-key"]).toBe("adminkey");
     expect(opts?.body).toEqual({
       githubRepo: "k1w1-a0style/musik-player",
@@ -267,6 +273,15 @@ describe("startBuildJob (integration)", () => {
 
     await expect(startBuildJob({ project, buildProfile: "preview" })).rejects.toThrow(/Sync-Status/i);
     expect(mockGitHub.pushFilesToRepo).not.toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalled();
+  });
+
+  it("blocks build when no session JWT is available", async () => {
+    mockSupabase.auth.getSession.mockResolvedValueOnce({ data: { session: null } } as any);
+
+    await expect(startBuildJob({ project: makeProject(), buildProfile: "preview" })).rejects.toThrow(
+      /Supabase-User-Login \(JWT\)/i,
+    );
     expect(mockInvoke).not.toHaveBeenCalled();
   });
 });

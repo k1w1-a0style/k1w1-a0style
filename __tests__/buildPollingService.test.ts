@@ -8,6 +8,15 @@ jest.mock("../lib/supabaseEdge", () => ({
   getSupabaseEdgeUrl: jest.fn(async () => "https://example.functions.supabase.co"),
   SUPABASE_URL_MISSING_ERROR: "SUPABASE_URL_MISSING_ERROR",
 }));
+jest.mock("../lib/supabase", () => ({
+  ensureSupabaseClient: jest.fn(async () => ({
+    auth: {
+      getSession: jest.fn(async () => ({
+        data: { session: { access_token: "supabase-authenticated-jwt-token" } },
+      })),
+    },
+  })),
+}));
 
 function createAbortAwareFetchMock() {
   return jest.fn((_input: RequestInfo | URL, init?: RequestInit) => {
@@ -71,6 +80,22 @@ describe("buildPollingService", () => {
     expect(result.details.runId).toBe(123);
     expect(result.details.urls?.buildUrl).toBe("https://download.example/app.apk");
     expect(result.status).toBe("success");
+  });
+
+  it("sends JWT + x-k1w1-admin-key headers for check-eas-build", async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true, status: "queued" }),
+    })) as unknown as typeof fetch;
+
+    await pollBuildStatusOnce("job-headers");
+
+    const [, init] = (global.fetch as jest.Mock).mock.calls[0] as [RequestInfo | URL, RequestInit];
+    expect((init.headers as Record<string, string>)?.Authorization).toBe(
+      "Bearer supabase-authenticated-jwt-token",
+    );
+    expect((init.headers as Record<string, string>)?.["x-k1w1-admin-key"]).toBe("admin-key");
   });
 
   it("preserves the shared timeout contract for poll requests", async () => {

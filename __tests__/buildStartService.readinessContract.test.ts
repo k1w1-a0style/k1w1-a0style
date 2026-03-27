@@ -18,7 +18,7 @@ jest.doMock(require.resolve("../lib/buildReadiness"), () => {
 });
 
 jest.doMock(require.resolve("../infra/github/githubService"), () => ({
-  getEdgeAdminKey: jest.fn(async () => null),
+  getEdgeAdminKey: jest.fn(async () => "adminkey"),
   pushFilesToRepo: jest.fn(),
 }));
 
@@ -36,7 +36,14 @@ jest.doMock(require.resolve("../lib/repoSyncOrchestration"), () => {
 });
 
 jest.doMock(require.resolve("../lib/supabase"), () => ({
-  ensureSupabaseClient: jest.fn(async () => ({ functions: { invoke: mockInvoke } })),
+  ensureSupabaseClient: jest.fn(async () => ({
+    auth: {
+      getSession: jest.fn(async () => ({
+        data: { session: { access_token: "supabase-authenticated-jwt-token" } },
+      })),
+    },
+    functions: { invoke: mockInvoke },
+  })),
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires

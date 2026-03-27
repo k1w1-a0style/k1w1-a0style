@@ -23,7 +23,14 @@ jest.doMock(require.resolve("../lib/repoSyncOrchestration"), () => ({
   markRepoSyncSignature: jest.fn(async () => undefined),
 }));
 jest.doMock(require.resolve("../lib/supabase"), () => ({
-  ensureSupabaseClient: jest.fn(async () => ({ functions: { invoke: mockInvoke } })),
+  ensureSupabaseClient: jest.fn(async () => ({
+    auth: {
+      getSession: jest.fn(async () => ({
+        data: { session: { access_token: "supabase-authenticated-jwt-token" } },
+      })),
+    },
+    functions: { invoke: mockInvoke },
+  })),
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
