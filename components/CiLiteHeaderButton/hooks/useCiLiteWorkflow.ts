@@ -232,6 +232,14 @@ export function useCiLiteWorkflow() {
       } = opts;
       const edgeUrl = await requireSupabaseEdgeUrl();
       const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+      const trimmedEdgeAdminKey = String(edgeAdminKey ?? "").trim();
+      if (!trimmedEdgeAdminKey || !isLikelyValidAdminKey(trimmedEdgeAdminKey)) {
+        const normalized = normalizeCiLiteWorkflowError({
+          context: "lookup",
+          adminKey: trimmedEdgeAdminKey,
+        });
+        throw new Error(normalized.userMessage);
+      }
 
       const r = await fetchWithTimeout(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_RUNS}`, {
         timeoutMs: 15_000,
@@ -240,7 +248,7 @@ export function useCiLiteWorkflow() {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${userJwt}`,
-          ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
+          "x-k1w1-admin-key": trimmedEdgeAdminKey,
         },
         body: JSON.stringify({ githubRepo: repo, workflowId: workflow, ref: br, perPage: 30 }),
       });
@@ -249,7 +257,7 @@ export function useCiLiteWorkflow() {
         const { payload, text } = await readCiLiteErrorResponse(r);
         const normalized = normalizeCiLiteWorkflowError({
           context: "lookup",
-          adminKey: edgeAdminKey,
+          adminKey: trimmedEdgeAdminKey,
           statusCode: r.status,
           statusText: r.statusText,
           payload,
@@ -264,7 +272,7 @@ export function useCiLiteWorkflow() {
       if (workflowLookupNote) {
         const normalized = normalizeCiLiteWorkflowError({
           context: "lookup",
-          adminKey: edgeAdminKey,
+          adminKey: trimmedEdgeAdminKey,
           note: workflowLookupNote,
         });
         throw new Error(normalized.userMessage);
