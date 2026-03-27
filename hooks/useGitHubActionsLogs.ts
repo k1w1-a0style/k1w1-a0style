@@ -9,6 +9,7 @@ import { ensureSupabaseClient } from "../lib/supabase";
 import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
 import { logger } from '../lib/logger';
 import { fetchWithTimeout as fetchWithAbortTimeout, isAbortError } from "../lib/network/fetchWithTimeout";
+import { isLikelyValidAdminKey } from "../screens/CredentialsWizardScreen/utils/security";
 
 import { POLL_INTERVAL_MS, MAX_LOG_ENTRIES, sanitizeLogLine, describeEdgeFailure } from "./actionsLogsTypes";
 import type { UseGitHubActionsLogsOptions, UseGitHubActionsLogsResult, LogEntry, WorkflowRun } from "./actionsLogsTypes";
@@ -93,6 +94,9 @@ export function useGitHubActionsLogs({
       const trimmedAdminKey = String(edgeAdminKey ?? "").trim();
       if (!trimmedAdminKey) {
         throw new Error("Workflow-Read blockiert: Lokaler Edge-Admin-Key fehlt. Bitte im Credentials-Wizard setzen und erneut versuchen.");
+      }
+      if (!isLikelyValidAdminKey(trimmedAdminKey)) {
+        throw new Error("Workflow-Read blockiert: Lokaler Edge-Admin-Key ist formal ungueltig. Bitte im Credentials-Wizard korrigieren und erneut versuchen.");
       }
       const supabase = await ensureSupabaseClient().catch(() => null);
       const session = await supabase?.auth.getSession().catch(() => null);
