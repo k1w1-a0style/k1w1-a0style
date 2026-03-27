@@ -21,7 +21,7 @@ import {
 import { ensureSupabaseClient } from "../../../lib/supabase";
 import { WORKFLOW_CI_LITE, WORKFLOW_CI_LITE_AUTOFIX, type StepState } from "../types";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
-import { isLikelyValidAdminKey } from "../../../screens/CredentialsWizardScreen/utils/security";
+import { isLikelyValidAdminKey } from "../../../lib/security/isLikelyValidAdminKey";
 import {
   chooseWorkflowRunCandidateDetailed,
   type WorkflowRunLookupDiagnosis,

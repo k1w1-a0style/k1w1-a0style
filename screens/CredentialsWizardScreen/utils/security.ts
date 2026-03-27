@@ -1,4 +1,5 @@
 import type { WizardHttpDebug } from "../types";
+import { isLikelyValidAdminKey } from "../../../lib/security/isLikelyValidAdminKey";
 
 // Defensive redaction helpers.
 // Goal: never leak secrets in UI, logs, or clipboard.
@@ -116,14 +117,7 @@ export function isLikelyValidSupabaseUrl(url: string): boolean {
   }
 }
 
-export function isLikelyValidAdminKey(key: string): boolean {
-  const k = key.trim();
-  if (!k) return false;
-  if (/\s/.test(k)) return false;
-  // Service role keys / JWTs are typically fairly long.
-  if (k.length < 20) return false;
-  return true;
-}
+export { isLikelyValidAdminKey };
 
 export function isLikelyValidRepoFullName(repo: string): boolean {
   const r = repo.trim();

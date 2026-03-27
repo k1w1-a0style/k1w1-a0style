@@ -24,12 +24,12 @@ import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
 import type { ApiModeId, ModeDef, StatusResult, UiModeId, WizardHttpDebug } from "../types";
 
 import {
-  isLikelyValidAdminKey,
   isLikelyValidRepoFullName,
   isLikelyValidSupabaseUrl,
   sanitizeErrorForUi,
   sanitizeWizardHttpDebug,
 } from "../utils/security";
+import { isLikelyValidAdminKey } from "../../../lib/security/isLikelyValidAdminKey";
 import { describeLocalEdgeAdminKeyIssue } from "../utils/localAdminKey";
 
 

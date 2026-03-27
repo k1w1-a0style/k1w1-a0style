@@ -8,8 +8,8 @@ import { requireSupabaseEdgeUrl } from "../lib/supabaseEdge";
 import { ensureSupabaseClient } from "../lib/supabase";
 import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
 import { logger } from '../lib/logger';
+import { isLikelyValidAdminKey } from "../lib/security/isLikelyValidAdminKey";
 import { fetchWithTimeout as fetchWithAbortTimeout, isAbortError } from "../lib/network/fetchWithTimeout";
-import { isLikelyValidAdminKey } from "../screens/CredentialsWizardScreen/utils/security";
 
 import { POLL_INTERVAL_MS, MAX_LOG_ENTRIES, sanitizeLogLine, describeEdgeFailure } from "./actionsLogsTypes";
 import type { UseGitHubActionsLogsOptions, UseGitHubActionsLogsResult, LogEntry, WorkflowRun } from "./actionsLogsTypes";
