@@ -12,18 +12,19 @@
 #   - `android-keystore-export` nutzt verify_jwt=true + role=service_role + scoped admin key.
 #   - `github-workflow-dispatch` nutzt verify_jwt=true + JWT-Claim-Guard + scoped workflow admin key.
 #   - `github-workflow-runs`/`github-workflow-logs` nutzen verify_jwt=true + JWT-Claim-Guard + scoped workflow admin key.
+#   - `trigger-eas-build`/`check-eas-build` nutzen verify_jwt=true + JWT-Claim-Guard + scoped workflow admin key.
 # - verify_jwt nur aktivieren, wenn der jeweilige Caller-Flow real JWT-kompatibel migriert ist.
 # ------------------------------------------------------------
 
 [functions.trigger-eas-build]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./import_map.json"
 entrypoint = "./functions/trigger-eas-build/index.ts"
 
 [functions.check-eas-build]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./import_map.json"
 entrypoint = "./functions/check-eas-build/index.ts"
 
