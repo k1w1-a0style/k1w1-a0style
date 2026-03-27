@@ -2,7 +2,7 @@ import {
   createClient,
   decryptKeystorePayload,
   errorResponse,
-  getJwtSub,
+  getJwtPayload,
   getServiceRoleKey,
   getSigningMasterKey,
   getSupabaseUrl,
@@ -10,6 +10,7 @@ import {
   jsonResponse,
   rateLimit,
   repoOk,
+  requireJwtRole,
   requireScopedEdgeAuth,
   resolveMode,
   safeString,
@@ -30,6 +31,11 @@ Deno.serve(async (req) => {
     adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
   });
   if (auth) return auth;
+  const jwtRoleGuard = requireJwtRole(req, {
+    scope: "android-keystore-export",
+    allowedRoles: ["service_role"],
+  });
+  if (jwtRoleGuard) return jwtRoleGuard;
 
   try {
     const supabaseUrl = getSupabaseUrl();
@@ -93,7 +99,8 @@ Deno.serve(async (req) => {
     const parsed = JSON.parse(decrypted);
 
     try {
-      const actor = getJwtSub(req) || "service_role";
+      const payload = getJwtPayload(req);
+      const actor = typeof payload?.sub === "string" ? payload.sub : "service_role";
       const ip = (req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "")
         .split(",")[0]
         .trim();

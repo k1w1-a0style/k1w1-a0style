@@ -44,6 +44,8 @@ describe("patch415 edge auth guard invariants", () => {
     expect(src).toContain("requireScopedEdgeAuth(req, {");
     expect(src).toContain("allowCiBearer: false");
     expect(src).toContain('adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"');
+    expect(src).toContain("requireJwtRole(req, {");
+    expect(src).toContain('allowedRoles: ["service_role"]');
     expect(src).not.toContain("requireAdminKeyOrServiceRoleBearer");
   });
 

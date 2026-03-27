@@ -49,6 +49,8 @@ describe("patch510 keystore shared secret helper invariants", () => {
     expect(read(exportIndex)).toContain("requireScopedEdgeAuth(req, {");
     expect(read(exportIndex)).toContain('adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"');
     expect(read(exportIndex)).toContain("allowCiBearer: false");
+    expect(read(exportIndex)).toContain("requireJwtRole(req, {");
+    expect(read(exportIndex)).toContain('allowedRoles: ["service_role"]');
     expect(read(statusIndex)).toContain("requireAdminKey(req)");
     expect(read(generateIndex)).toContain("requireAdminKey(req)");
   });

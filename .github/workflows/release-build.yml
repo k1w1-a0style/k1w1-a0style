@@ -189,6 +189,7 @@ jobs:
 
           RESP="$(curl -fsS -X POST "${SUPABASE_URL%/}/functions/v1/android-keystore-export" \
             -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
             -H "Content-Type: application/json" \
             ${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY:+-H "x-k1w1-admin-key: ${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY}"} \
             --data "${BODY}")"

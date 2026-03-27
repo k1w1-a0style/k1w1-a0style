@@ -28,7 +28,9 @@ describe("Edge helper visibility invariants", () => {
         "getSupabaseUrl",
         "handleCors",
         "jsonResponse",
+        "getJwtPayload",
         "rateLimit",
+        "requireJwtRole",
         "requireScopedEdgeAuth",
       ],
       reexports: [
@@ -43,7 +45,8 @@ describe("Edge helper visibility invariants", () => {
         'getServiceRoleKey',
         'getSigningMasterKey',
         'getSupabaseUrl',
-        'getBearerToken',
+        'getJwtPayload',
+        'requireJwtRole',
       ],
     },
     {
