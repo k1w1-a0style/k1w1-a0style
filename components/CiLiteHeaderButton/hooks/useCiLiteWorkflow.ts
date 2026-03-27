@@ -214,6 +214,7 @@ export function useCiLiteWorkflow() {
       branch: string;
       jobId: string;
       workflow: string;
+      userJwt: string;
       expectedEvent: "repository_dispatch" | "workflow_dispatch";
       startedAtMs: number;
       sourceHeadSha?: string | null;
@@ -223,6 +224,7 @@ export function useCiLiteWorkflow() {
         githubRepo: repo,
         branch: br,
         workflow,
+        userJwt,
         expectedEvent,
         startedAtMs,
         sourceHeadSha,
@@ -237,6 +239,7 @@ export function useCiLiteWorkflow() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${userJwt}`,
           ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
         },
         body: JSON.stringify({ githubRepo: repo, workflowId: workflow, ref: br, perPage: 30 }),
@@ -589,43 +592,54 @@ export function useCiLiteWorkflow() {
     setRunId(null);
     setRunUrl(null);
 
-    const start = Date.now();
-    const poll = async () => {
-      try {
-        const lookup = await findMatchingRun({
-          githubRepo,
-          branch: b,
-          jobId,
-          workflow: WORKFLOW_CI_LITE,
-          expectedEvent: "repository_dispatch",
-          startedAtMs: start,
-          sourceHeadSha: workflowRun.head_sha ?? null,
-          requireJobIdMarker: true,
-        });
-        updateLookupDiagnosis(lookup.diagnosis);
-        if (lookup.candidate?.id) {
-          setRunId(Number(lookup.candidate.id));
-          setRunUrl(typeof lookup.candidate?.html_url === "string" ? lookup.candidate.html_url : null);
+    void (async () => {
+      const supabase = await ensureSupabaseClient().catch(() => null);
+      const session = await supabase?.auth.getSession().catch(() => null);
+      const userJwt = String(session?.data?.session?.access_token ?? "").trim();
+      if (!userJwt) {
+        setLocalError("Workflow-Run-Lookup blockiert: Kein gueltiger Supabase User-Login (JWT role=authenticated). Bitte einloggen und erneut versuchen.");
+        setChainWaiting(false);
+        stopRunLookup();
+        return;
+      }
+
+      const start = Date.now();
+      const poll = async () => {
+        try {
+          const lookup = await findMatchingRun({
+            githubRepo,
+            branch: b,
+            jobId,
+            workflow: WORKFLOW_CI_LITE,
+            userJwt,
+            expectedEvent: "repository_dispatch",
+            startedAtMs: start,
+            sourceHeadSha: workflowRun.head_sha ?? null,
+            requireJobIdMarker: true,
+          });
+          updateLookupDiagnosis(lookup.diagnosis);
+          if (lookup.candidate?.id) {
+            setRunId(Number(lookup.candidate.id));
+            setRunUrl(typeof lookup.candidate?.html_url === "string" ? lookup.candidate.html_url : null);
+            setChainWaiting(false);
+            stopRunLookup();
+            return true;
+          }
+        } catch (e: any) {
+          setLocalError(e?.message || String(e));
           setChainWaiting(false);
           stopRunLookup();
           return true;
         }
-      } catch (e: any) {
-        setLocalError(e?.message || String(e));
-        setChainWaiting(false);
-        stopRunLookup();
-        return true;
-      }
-      if (Date.now() - start > 75_000) {
-        setLocalError(buildLookupFailureMessage({ workflowLabel: "Autofix-Chain → CI Lite" }));
-        setChainWaiting(false);
-        stopRunLookup();
-        return true;
-      }
-      return false;
-    };
+        if (Date.now() - start > 75_000) {
+          setLocalError(buildLookupFailureMessage({ workflowLabel: "Autofix-Chain → CI Lite" }));
+          setChainWaiting(false);
+          stopRunLookup();
+          return true;
+        }
+        return false;
+      };
 
-    void (async () => {
       const lookupFinished = await poll();
       if (!lookupFinished) {
         pollTimerRef.current = setInterval(() => {
@@ -808,6 +822,7 @@ export function useCiLiteWorkflow() {
               branch: targetBranch,
               jobId: newJobId,
               workflow: workflowFile,
+              userJwt,
               expectedEvent: "workflow_dispatch",
               startedAtMs: start,
               sourceHeadSha,

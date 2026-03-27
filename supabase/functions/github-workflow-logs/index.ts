@@ -2,7 +2,7 @@
 // REFACTORED: helpers → helpers.ts
 
 import { handleCors } from "../_shared/cors.ts";
-import { requireScopedEdgeAuth, rateLimit } from "../_shared/auth.ts";
+import { requireJwtRole, requireScopedEdgeAuth, rateLimit } from "../_shared/auth.ts";
 import { parseJsonBody } from "../_shared/validation.ts";
 import { getGithubToken, githubFetch, GITHUB_API_BASE } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
@@ -26,11 +26,16 @@ Deno.serve(async (req) => {
     const auth = requireScopedEdgeAuth(req, {
       scope: "github-workflow-logs",
       allowAdmin: true,
-      allowCiBearer: true,
+      allowCiBearer: false,
+      allowJwtAuthHeaderWithAdmin: true,
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
-      ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER",
     });
     if (auth) return auth;
+    const jwtRoleGuard = requireJwtRole(req, {
+      scope: "github-workflow-logs",
+      allowedRoles: ["service_role", "authenticated"],
+    });
+    if (jwtRoleGuard) return jwtRoleGuard;
 
     const rl = rateLimit(req, "github-workflow-logs", 60, 60_000);
     if (rl) return rl;

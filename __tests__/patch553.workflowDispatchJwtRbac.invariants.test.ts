@@ -19,4 +19,25 @@ describe("patch553 github-workflow-dispatch JWT/RBAC hardening invariants", () =
     expect(route).toContain("const jwtRoleGuard = requireJwtRole(req, {");
     expect(route).toContain('allowedRoles: ["service_role", "authenticated"]');
   });
+
+  it("hardens workflow runs/logs routes to the same JWT + scoped-admin contract", () => {
+    const rootConfig = read("supabase/config.toml");
+    expect(rootConfig).toContain("[functions.github-workflow-runs]");
+    expect(rootConfig).toContain("[functions.github-workflow-logs]");
+    expect(rootConfig).toContain("verify_jwt = true");
+
+    const runs = read("supabase/functions/github-workflow-runs/index.ts");
+    expect(runs).toContain("allowCiBearer: false");
+    expect(runs).toContain("allowJwtAuthHeaderWithAdmin: true");
+    expect(runs).toContain('adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"');
+    expect(runs).toContain("const jwtRoleGuard = requireJwtRole(req, {");
+    expect(runs).toContain('allowedRoles: ["service_role", "authenticated"]');
+
+    const logs = read("supabase/functions/github-workflow-logs/index.ts");
+    expect(logs).toContain("allowCiBearer: false");
+    expect(logs).toContain("allowJwtAuthHeaderWithAdmin: true");
+    expect(logs).toContain('adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"');
+    expect(logs).toContain("const jwtRoleGuard = requireJwtRole(req, {");
+    expect(logs).toContain('allowedRoles: ["service_role", "authenticated"]');
+  });
 });

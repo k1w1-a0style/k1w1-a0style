@@ -32,7 +32,15 @@ describe("patch415 edge auth guard invariants", () => {
       const src = read(rel);
       expect(src).toContain("requireScopedEdgeAuth");
       expect(src).toContain('adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"');
-      expect(src).toContain('ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"');
+      if (rel.includes("github-workflow-runs") || rel.includes("github-workflow-logs")) {
+        expect(src).toContain("allowCiBearer: false");
+        expect(src).toContain("allowJwtAuthHeaderWithAdmin: true");
+        expect(src).toContain("requireJwtRole(req, {");
+        expect(src).toContain('allowedRoles: ["service_role", "authenticated"]');
+        expect(src).not.toContain('ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"');
+      } else {
+        expect(src).toContain('ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"');
+      }
       expect(src).not.toContain("const auth = requireAdminKey(req);");
       expect(src).not.toContain("const authError = requireAdminKey(req);");
     }

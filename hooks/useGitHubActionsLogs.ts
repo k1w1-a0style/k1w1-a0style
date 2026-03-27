@@ -5,6 +5,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getEdgeAdminKey } from "../infra/github/githubService";
 import { requireSupabaseEdgeUrl } from "../lib/supabaseEdge";
+import { ensureSupabaseClient } from "../lib/supabase";
 import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
 import { logger } from '../lib/logger';
 import { fetchWithTimeout as fetchWithAbortTimeout, isAbortError } from "../lib/network/fetchWithTimeout";
@@ -89,6 +90,12 @@ export function useGitHubActionsLogs({
       let targetRunId = runId;
       const edgeUrl = await requireSupabaseEdgeUrl();
       const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+      const supabase = await ensureSupabaseClient().catch(() => null);
+      const session = await supabase?.auth.getSession().catch(() => null);
+      const userJwt = String(session?.data?.session?.access_token ?? "").trim();
+      if (!userJwt) {
+        throw new Error("Workflow-Read blockiert: Kein gueltiger Supabase User-Login (JWT role=authenticated). Bitte einloggen und erneut versuchen.");
+      }
 
       if (!targetRunId) {
         const runsResponse = await fetchWithTimeout(
@@ -97,6 +104,7 @@ export function useGitHubActionsLogs({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${userJwt}`,
             ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
           },
           body: JSON.stringify({ githubRepo, workflowId }),
@@ -151,6 +159,7 @@ export function useGitHubActionsLogs({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${userJwt}`,
             ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
           },
           body: JSON.stringify({
