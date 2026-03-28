@@ -57,6 +57,7 @@ export type JwtPayload = {
   sub?: unknown;
   aud?: unknown;
   iss?: unknown;
+  app_metadata?: { role?: unknown; [key: string]: unknown };
   [key: string]: unknown;
 };
 
@@ -85,21 +86,84 @@ export type JwtRoleGuardConfig = {
   allowedRoles: string[];
 };
 
-export function requireJwtRole(req: Request, cfg: JwtRoleGuardConfig): Response | null {
-  const payload = getJwtPayload(req);
-  if (!payload) {
+type VerifiedJwtUser = {
+  id?: unknown;
+  role?: unknown;
+  app_metadata?: { role?: unknown; [key: string]: unknown };
+};
+
+function getRoleFromVerifiedUser(user: VerifiedJwtUser | null): string {
+  if (!user || typeof user !== "object") return "";
+  if (typeof user.role === "string" && user.role.trim()) return user.role.trim();
+  const appRole = user.app_metadata?.role;
+  return typeof appRole === "string" ? appRole.trim() : "";
+}
+
+type VerifiedJwtLookupResult =
+  | { ok: true; user: VerifiedJwtUser }
+  | { ok: false; reason: "invalid_or_unverifiable" | "server_misconfigured" };
+
+async function verifyJwtViaSupabaseAuth(req: Request): Promise<VerifiedJwtLookupResult> {
+  const token = getBearerToken(req);
+  if (!token) return { ok: false, reason: "invalid_or_unverifiable" };
+
+  const supabaseUrl = getSupabaseUrlSecret();
+  const serviceKey = getServiceRoleSecret();
+  if (!supabaseUrl || !serviceKey) return { ok: false, reason: "server_misconfigured" };
+
+  try {
+    const authUrl = `${supabaseUrl.replace(/\/$/, "")}/auth/v1/user`;
+    const res = await fetch(authUrl, {
+      method: "GET",
+      headers: {
+        apikey: serviceKey,
+        authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) return { ok: false, reason: "invalid_or_unverifiable" };
+    const user = await res.json().catch(() => null);
+    if (!user || typeof user !== "object") {
+      return { ok: false, reason: "invalid_or_unverifiable" };
+    }
+    return { ok: true, user: user as VerifiedJwtUser };
+  } catch {
+    return { ok: false, reason: "invalid_or_unverifiable" };
+  }
+}
+
+export async function requireJwtRole(req: Request, cfg: JwtRoleGuardConfig): Promise<Response | null> {
+  const token = getBearerToken(req);
+  if (!token) {
     return errorResponse(
-      "Unauthorized: missing or invalid JWT payload.",
+      "Unauthorized: missing bearer token.",
+      req,
+      401,
+      { scope: cfg.scope, required: "Authorization: Bearer <jwt>" },
+    );
+  }
+
+  const verified = await verifyJwtViaSupabaseAuth(req);
+  if (!verified.ok) {
+    if (verified.reason === "server_misconfigured") {
+      return errorResponse(
+        "JWT verification is unavailable due to server auth misconfiguration.",
+        req,
+        500,
+        { scope: cfg.scope },
+      );
+    }
+    return errorResponse(
+      "Unauthorized: missing or unverifiable JWT.",
       req,
       401,
       { scope: cfg.scope },
     );
   }
 
-  const role = typeof payload.role === "string" ? payload.role.trim() : "";
+  const role = getRoleFromVerifiedUser(verified.user);
   if (!role || !cfg.allowedRoles.includes(role)) {
     return errorResponse(
-      "Forbidden: JWT role is not allowed for this route.",
+      "Forbidden: verified JWT role is not allowed for this route.",
       req,
       403,
       { scope: cfg.scope, allowedRoles: cfg.allowedRoles },
@@ -115,6 +179,19 @@ export function getAdminKeyHeader(req: Request): string | null {
     req.headers.get("X-K1W1-Admin-Key") ??
     null
   )?.trim() || null;
+}
+
+export function isScopedCiBearerRequest(req: Request, ciBearerSecretEnv?: string): boolean {
+  const hasAdminHeader = !!getAdminKeyHeader(req);
+  if (hasAdminHeader) return false;
+
+  const token = getBearerToken(req);
+  if (!token) return false;
+
+  const expected = getStrictEnvSecret(ciBearerSecretEnv);
+  if (!expected) return false;
+
+  return token === expected;
 }
 
 export function hasAdminKeySecretConfigured(): boolean {
@@ -398,7 +475,86 @@ export function rateLimit(
   }
   v.c += 1;
   if (v.c > max) {
-    return errorResponse("rate_limited", req, 429, { windowMs, max });
+    return errorResponse("rate_limited", req, 429, { windowMs, max, mode: "local_best_effort" });
   }
   return null;
+}
+
+export type DurableRateLimitConfig = {
+  scope: string;
+  subject: string;
+  max: number;
+  windowMs: number;
+};
+
+export async function requireDurableRateLimit(
+  req: Request,
+  cfg: DurableRateLimitConfig,
+): Promise<Response | null> {
+  const supabaseUrl = getSupabaseUrlSecret();
+  const serviceKey = getServiceRoleSecret();
+  if (!supabaseUrl || !serviceKey) {
+    return errorResponse(
+      "Rate-limit misconfiguration: missing durable store secrets.",
+      req,
+      500,
+      { scope: cfg.scope, missing: ["K1W1_SUPABASE_URL|SUPABASE_URL", "K1W1_SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY"] },
+    );
+  }
+
+  const nowIso = new Date().toISOString();
+  const windowStartIso = new Date(Date.now() - cfg.windowMs).toISOString();
+  const restBase = `${supabaseUrl.replace(/\/$/, "")}/rest/v1/edge_rate_limit_events`;
+
+  try {
+    const insertRes = await fetch(restBase, {
+      method: "POST",
+      headers: {
+        apikey: serviceKey,
+        authorization: `Bearer ${serviceKey}`,
+        "content-type": "application/json",
+        prefer: "return=minimal",
+      },
+      body: JSON.stringify({
+        scope: cfg.scope,
+        subject: cfg.subject,
+        created_at: nowIso,
+      }),
+    });
+
+    if (!insertRes.ok) {
+      return errorResponse("Durable rate-limit write failed.", req, 500, { scope: cfg.scope });
+    }
+
+    const countUrl = `${restBase}?scope=eq.${encodeURIComponent(cfg.scope)}&subject=eq.${encodeURIComponent(cfg.subject)}&created_at=gte.${encodeURIComponent(windowStartIso)}&select=id`;
+    const countRes = await fetch(countUrl, {
+      method: "GET",
+      headers: {
+        apikey: serviceKey,
+        authorization: `Bearer ${serviceKey}`,
+        range: "0-0",
+        prefer: "count=exact",
+      },
+    });
+
+    if (!countRes.ok) {
+      return errorResponse("Durable rate-limit read failed.", req, 500, { scope: cfg.scope });
+    }
+
+    const countHeader = countRes.headers.get("content-range") || "";
+    const totalStr = countHeader.split("/")[1];
+    const total = Number(totalStr);
+    if (Number.isFinite(total) && total > cfg.max) {
+      return errorResponse("rate_limited", req, 429, {
+        scope: cfg.scope,
+        max: cfg.max,
+        windowMs: cfg.windowMs,
+        mode: "durable",
+      });
+    }
+
+    return null;
+  } catch {
+    return errorResponse("Durable rate-limit unavailable.", req, 500, { scope: cfg.scope });
+  }
 }

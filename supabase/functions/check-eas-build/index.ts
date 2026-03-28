@@ -4,9 +4,11 @@ import { validateCheckBuildRequest, parseJsonBody } from "../_shared/validation.
 import {
   getServiceRoleKey,
   getSupabaseUrl,
+  isScopedCiBearerRequest,
   requireJwtRole,
   requireScopedEdgeAuth,
   rateLimit,
+  requireDurableRateLimit,
 } from "../_shared/auth.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 
@@ -50,16 +52,28 @@ Deno.serve(async (req) => {
     const auth = requireScopedEdgeAuth(req, {
       scope: "check-eas-build",
       allowAdmin: true,
-      allowCiBearer: false,
+      allowCiBearer: true,
       allowJwtAuthHeaderWithAdmin: true,
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
+      ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER",
     });
     if (auth) return auth;
-    const jwtRoleGuard = requireJwtRole(req, {
+    const usedCiBearer = isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER");
+    if (!usedCiBearer) {
+      const jwtRoleGuard = await requireJwtRole(req, {
+        scope: "check-eas-build",
+        allowedRoles: ["service_role", "authenticated"],
+      });
+      if (jwtRoleGuard) return jwtRoleGuard;
+    }
+
+    const durableRl = await requireDurableRateLimit(req, {
       scope: "check-eas-build",
-      allowedRoles: ["service_role", "authenticated"],
+      subject: req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "unknown",
+      max: 30,
+      windowMs: 60_000,
     });
-    if (jwtRoleGuard) return jwtRoleGuard;
+    if (durableRl) return durableRl;
 
     const rl = rateLimit(req, "check-eas-build");
     if (rl) return rl;

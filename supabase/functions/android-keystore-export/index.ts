@@ -9,6 +9,7 @@ import {
   handleCors,
   jsonResponse,
   rateLimit,
+  requireDurableRateLimit,
   repoOk,
   requireJwtRole,
   requireScopedEdgeAuth,
@@ -20,9 +21,6 @@ Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
-  const rl = rateLimit(req, "android-keystore-export", 30, 60_000);
-  if (rl) return rl;
-
   // Scoped route auth replaces the former shared admin/service-role guard.
   const auth = requireScopedEdgeAuth(req, {
     scope: "android-keystore-export",
@@ -32,11 +30,22 @@ Deno.serve(async (req) => {
     adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
   });
   if (auth) return auth;
-  const jwtRoleGuard = requireJwtRole(req, {
+  const jwtRoleGuard = await requireJwtRole(req, {
     scope: "android-keystore-export",
     allowedRoles: ["service_role"],
   });
   if (jwtRoleGuard) return jwtRoleGuard;
+
+  const durableRl = await requireDurableRateLimit(req, {
+    scope: "android-keystore-export",
+    subject: req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "unknown",
+    max: 30,
+    windowMs: 60_000,
+  });
+  if (durableRl) return durableRl;
+
+  const rl = rateLimit(req, "android-keystore-export", 30, 60_000);
+  if (rl) return rl;
 
   try {
     const supabaseUrl = getSupabaseUrl();

@@ -5,7 +5,7 @@ import {
   resolveMode, getForge, safeString, repoOk,
   bytesToBinaryStringChunked, encryptText, ensureBucketExists,
   bytesToBinaryString, createClient, encryptKeystorePayload,
-  errorResponse, getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, handleCors, jsonResponse, rateLimit, requireAdminKey,
+  errorResponse, getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, handleCors, jsonResponse, rateLimit, requireAdminKey, requireDurableRateLimit,
 } from "./helpers.ts";
 import type { Mode } from "./helpers.ts";
 
@@ -13,11 +13,18 @@ Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
-  const rl = rateLimit(req, "android-keystore-generate", 30, 60_000);
-  if (rl) return rl;
   const auth = requireAdminKey(req);
   if (auth) return auth;
 
+  const durableRl = await requireDurableRateLimit(req, {
+    scope: "android-keystore-generate",
+    subject: req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "unknown",
+    max: 30,
+    windowMs: 60_000,
+  });
+  if (durableRl) return durableRl;
+  const rl = rateLimit(req, "android-keystore-generate", 30, 60_000);
+  if (rl) return rl;
   try {
     const supabaseUrl = getSupabaseUrl();
     const serviceKey = getServiceRoleKey(req);

@@ -18,6 +18,7 @@ export {
   getJwtPayload,
   requireJwtRole,
   rateLimit,
+  requireDurableRateLimit,
   requireAdminKey,
   requireServiceRoleBearer,
   requireAdminKeyOrServiceRoleBearer,
