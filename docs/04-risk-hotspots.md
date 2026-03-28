@@ -45,6 +45,7 @@
 **Fix-Stand (Patch 596):**
 - Connections-UI und SecretsSection trennen lokale Workflow-/Keystore-/Legacy-Keys klar.
 - Diagnostics prueft `local.workflowAdminKey` und `local.androidKeystoreExportAdminKey` explizit; Legacy ist nur Compat-Hinweis.
+- Patch 597 zieht den Wizard-Caller-Vertrag fuer Keystore-Routen nach: `android-keystore-status`/`android-keystore-generate` laufen dort nur noch mit `Authorization: Bearer <Supabase user JWT>` plus dediziertem lokalem Keystore-Key (`x-k1w1-admin-key`).
 
 ---
 

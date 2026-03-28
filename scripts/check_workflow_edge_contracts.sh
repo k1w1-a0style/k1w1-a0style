@@ -48,8 +48,10 @@ TRIGGER_WF=".github/workflows/k1w1-triggered-build.yml"
 EAS_WF=".github/workflows/eas-build.yml"
 EDGE_STATUS_DOC="docs/EDGE_FUNCTIONS_STATUS.md"
 AUTH_SHARED="supabase/functions/_shared/auth.ts"
+WIZARD_HELPERS="screens/CredentialsWizardScreen/hooks/credentialHelpers.ts"
+WIZARD_HOOK="screens/CredentialsWizardScreen/hooks/useCredentialsWizardScreen.ts"
 
-for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$AUTH_SHARED"; do
+for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$AUTH_SHARED" "$WIZARD_HELPERS" "$WIZARD_HOOK"; do
   require_file "$f"
 done
 
@@ -131,6 +133,11 @@ require_fixed "$KEYSTORE_STATUS_EDGE" 'allowCiBearer: false'
 require_fixed "$KEYSTORE_STATUS_EDGE" 'allowJwtAuthHeaderWithAdmin: true'
 require_fixed "$KEYSTORE_STATUS_EDGE" 'adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"'
 require_fixed "$KEYSTORE_STATUS_EDGE" 'requirePrivilegedOperatorJwtRole(req, "android-keystore-status")'
+require_fixed "$WIZARD_HELPERS" 'Authorization: `Bearer ${userJwt.trim()}`'
+require_fixed "$WIZARD_HELPERS" '"x-k1w1-admin-key": adminKey.trim()'
+require_fixed "$WIZARD_HOOK" "getAndroidKeystoreExportAdminKey"
+require_fixed "$WIZARD_HOOK" "saveAndroidKeystoreExportAdminKey"
+require_fixed "$WIZARD_HOOK" "Authorization: Bearer <jwt>"
 
 require_fixed "$AUTH_SHARED" 'export function requireScopedEdgeAuth(req: Request, cfg: ScopedEdgeAuthConfig): Response | null {'
 require_fixed "$AUTH_SHARED" "export const WORKFLOW_OPERATOR_ALLOWED_ROLES = [\"service_role\", \"build_admin\"] as const;"
