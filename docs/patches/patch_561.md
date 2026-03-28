@@ -53,6 +53,7 @@ Den letzten offenen Auth-/JWT-/Rate-Limit-Block minimal und ehrlich schliessen:
   - scoped CI-bearer Detection ist regressionsgesichert
   - durable Counter liefert 429 bei Limitueberschreitung
 - Invariant-Tests angepasst fuer async JWT-Guard-/Helper-Vertrag:
+  - `__tests__/patch415.edgeAuthGuards.invariants.test.ts`
   - `__tests__/patch549.keystoreExportJwtRbac.invariants.test.ts`
   - `__tests__/patch553.workflowDispatchJwtRbac.invariants.test.ts`
   - `__tests__/patch510.keystoreSharedSecretHelpers.invariants.test.ts`
