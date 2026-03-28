@@ -7,6 +7,7 @@ import {
   requireJwtRole,
   requireScopedEdgeAuth,
   rateLimit,
+  requireDurableRateLimit,
 } from "../_shared/auth.ts";
 import {
   parseJsonBody,
@@ -76,11 +77,19 @@ Deno.serve(async (req) => {
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
     });
     if (auth) return auth;
-    const jwtRoleGuard = requireJwtRole(req, {
+    const jwtRoleGuard = await requireJwtRole(req, {
       scope: "trigger-eas-build",
       allowedRoles: ["service_role", "authenticated"],
     });
     if (jwtRoleGuard) return jwtRoleGuard;
+
+    const durableRl = await requireDurableRateLimit(req, {
+      scope: "trigger-eas-build",
+      subject: req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "unknown",
+      max: 10,
+      windowMs: 60_000,
+    });
+    if (durableRl) return durableRl;
 
     const rl = rateLimit(req, "trigger-eas-build");
     if (rl) return rl;

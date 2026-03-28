@@ -16,7 +16,7 @@ describe("patch553 github-workflow-dispatch JWT/RBAC hardening invariants", () =
     expect(route).toContain("allowCiBearer: false");
     expect(route).toContain("allowJwtAuthHeaderWithAdmin: true");
     expect(route).toContain('adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"');
-    expect(route).toContain("const jwtRoleGuard = requireJwtRole(req, {");
+    expect(route).toContain("const jwtRoleGuard = await requireJwtRole(req, {");
     expect(route).toContain('allowedRoles: ["service_role", "authenticated"]');
   });
 
@@ -30,14 +30,14 @@ describe("patch553 github-workflow-dispatch JWT/RBAC hardening invariants", () =
     expect(runs).toContain("allowCiBearer: false");
     expect(runs).toContain("allowJwtAuthHeaderWithAdmin: true");
     expect(runs).toContain('adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"');
-    expect(runs).toContain("const jwtRoleGuard = requireJwtRole(req, {");
+    expect(runs).toContain("const jwtRoleGuard = await requireJwtRole(req, {");
     expect(runs).toContain('allowedRoles: ["service_role", "authenticated"]');
 
     const logs = read("supabase/functions/github-workflow-logs/index.ts");
     expect(logs).toContain("allowCiBearer: false");
     expect(logs).toContain("allowJwtAuthHeaderWithAdmin: true");
     expect(logs).toContain('adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"');
-    expect(logs).toContain("const jwtRoleGuard = requireJwtRole(req, {");
+    expect(logs).toContain("const jwtRoleGuard = await requireJwtRole(req, {");
     expect(logs).toContain('allowedRoles: ["service_role", "authenticated"]');
   });
 });

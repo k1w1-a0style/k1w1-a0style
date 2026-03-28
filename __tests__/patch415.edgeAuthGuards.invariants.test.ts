@@ -56,7 +56,7 @@ describe("patch415 edge auth guard invariants", () => {
     expect(src).toContain('adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"');
     expect(src).toContain("allowCiBearer: false");
     expect(src).toContain("allowJwtAuthHeaderWithAdmin: true");
-    expect(src).toContain("const jwtRoleGuard = requireJwtRole(req, {");
+    expect(src).toContain("const jwtRoleGuard = await requireJwtRole(req, {");
     expect(src).toContain('allowedRoles: ["service_role", "authenticated"]');
     expect(src).not.toContain('ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"');
   });

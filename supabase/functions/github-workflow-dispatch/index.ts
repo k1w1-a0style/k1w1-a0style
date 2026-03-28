@@ -1,5 +1,5 @@
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
-import { requireJwtRole, requireScopedEdgeAuth, rateLimit } from "../_shared/auth.ts";
+import { requireDurableRateLimit, requireJwtRole, requireScopedEdgeAuth, rateLimit } from "../_shared/auth.ts";
 import { githubHeaders, getGithubToken, GITHUB_API_BASE } from "../_shared/github.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
@@ -895,11 +895,19 @@ try {
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
     });
     if (auth) return auth;
-    const jwtRoleGuard = requireJwtRole(req, {
+    const jwtRoleGuard = await requireJwtRole(req, {
       scope: "github-workflow-dispatch",
       allowedRoles: ["service_role", "authenticated"],
     });
     if (jwtRoleGuard) return jwtRoleGuard;
+
+    const durableRl = await requireDurableRateLimit(req, {
+      scope: "github-workflow-dispatch",
+      subject: req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "unknown",
+      max: 20,
+      windowMs: 60_000,
+    });
+    if (durableRl) return durableRl;
 
     const rl = rateLimit(req, "github-workflow-dispatch");
     if (rl) return rl;
