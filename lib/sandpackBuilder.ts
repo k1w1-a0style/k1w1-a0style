@@ -160,17 +160,17 @@ export function buildSandpackHtml(opts: SandpackOptions): string {
   <div class="header">
     <div class="header-left">
       <div class="title">${safeTitle}</div>
-      <div class="meta">Lokaler HTML-/Eval-Fallback • ${fileCount} Dateien • nicht server-verifiziert</div>
+      <div class="meta">Lokaler HTML-/Eval-Fallback • nur im expliziten Local-/Dev-Modus • ${fileCount} Dateien • nicht server-verifiziert</div>
     </div>
     <div class="status">
       <span class="status-dot" id="statusDot"></span>
-      <span id="statusText">Dev-Fallback bereit</span>
+      <span id="statusText">Expliziter Dev-Fallback bereit</span>
     </div>
   </div>
 
   <div id="loading">
     <div class="spinner"></div>
-    <div class="loading-text">Lade lokalen Dev-Fallback...</div>
+    <div class="loading-text">Lade expliziten lokalen Dev-Fallback...</div>
   </div>
   
   <div id="app-root"></div>

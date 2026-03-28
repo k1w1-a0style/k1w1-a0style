@@ -6,6 +6,7 @@ import {
   getPreviewRemoteUrlStatus,
   resolvePreviewDisplayState,
   shouldAttemptSupabaseFirst,
+  shouldUseLocalPreviewFallback,
   isPreviewExpired,
 } from "../hooks/previewHelpers";
 
@@ -15,6 +16,9 @@ describe("previewHelpers", () => {
     expect(shouldAttemptSupabaseFirst(null)).toBe(true);
     expect(shouldAttemptSupabaseFirst("supabase")).toBe(true);
     expect(shouldAttemptSupabaseFirst("local")).toBe(false);
+    expect(shouldUseLocalPreviewFallback(undefined)).toBe(false);
+    expect(shouldUseLocalPreviewFallback("supabase")).toBe(false);
+    expect(shouldUseLocalPreviewFallback("local")).toBe(true);
   });
 
   test("formatPreviewExpiry returns readable validity states", () => {
