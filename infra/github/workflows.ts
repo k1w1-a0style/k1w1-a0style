@@ -161,9 +161,12 @@ export const triggerWorkflow = async (
   owner: string,
   repo: string,
   workflowFileName = "eas-build.yml",
-  ref = "main",
+  ref?: string,
   inputs = {},
 ) => {
+  const targetRef = String(ref ?? "").trim();
+  if (!targetRef) throw new Error("Explicit branch/ref is required.");
+
   const token = await getGitHubToken();
   if (!token) throw new Error("GitHub token fehlt.");
 
@@ -181,7 +184,7 @@ export const triggerWorkflow = async (
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ ref, inputs }),
+      body: JSON.stringify({ ref: targetRef, inputs }),
     });
 
   debugLog("github:workflow", "Dispatch workflow", {
@@ -189,7 +192,7 @@ export const triggerWorkflow = async (
     owner,
     repo,
     workflowFileName,
-    ref,
+    ref: targetRef,
     inputs: Object.keys(inputs || {}),
   });
 
@@ -211,7 +214,7 @@ export const triggerWorkflow = async (
         owner,
         repo,
         workflowFileName,
-        ref,
+        ref: targetRef,
         resolved,
       });
       resp = await doDispatch(dispatchByIdUrl);
@@ -224,7 +227,7 @@ export const triggerWorkflow = async (
     debugLog("github:workflow", "Bootstrap missing workflow from template", {
       owner,
       repo,
-      ref,
+      ref: targetRef,
       workflowFileName,
       path,
     });
@@ -234,7 +237,7 @@ export const triggerWorkflow = async (
       path,
       WORKFLOW_TEMPLATES[workflowFileName],
       `Add ${workflowFileName} (K1W1)`,
-      ref,
+      targetRef,
     );
 
     // Retry dispatch after bootstrap.
@@ -286,7 +289,7 @@ export const triggerWorkflow = async (
       ? "Der Workflow wurde versucht nachzuinstallieren, aber GitHub liefert weiterhin 404. Prüfe Repo/Branch-Rechte oder Branch-Name."
       : "Die Workflow-Datei fehlt in diesem Repo/Branch. (Tipp: RepoScreen → Workflows/Core Files pushen oder Workflow hinzufügen.)";
     throw new Error(
-      `Workflow nicht gefunden. '${workflowFileName}' existiert nicht unter '.github/workflows' auf Branch '${ref}'. ${bootstrapHint}${availableHint ? " " + availableHint : ""}`,
+      `Workflow nicht gefunden. '${workflowFileName}' existiert nicht unter '.github/workflows' auf Branch '${targetRef}'. ${bootstrapHint}${availableHint ? " " + availableHint : ""}`,
     );
   }
 

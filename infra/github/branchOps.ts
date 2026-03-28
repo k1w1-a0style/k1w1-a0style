@@ -210,7 +210,9 @@ export const getDefaultBranch = async (
   }
 
   const json = await resp.json();
-  return json.default_branch || "main";
+  const defaultBranch = typeof json?.default_branch === "string" ? json.default_branch.trim() : "";
+  if (!defaultBranch) throw new Error("Repository default_branch is missing.");
+  return defaultBranch;
 };
 
 

@@ -23,6 +23,12 @@ require_pattern() {
   grep -Eq -- "$pattern" "$file" || fail "Missing pattern /$pattern/ in $file"
 }
 
+forbid_fixed() {
+  local file="$1"
+  local text="$2"
+  ! grep -Fq -- "$text" "$file" || fail "Forbidden '$text' still present in $file"
+}
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
@@ -35,12 +41,15 @@ KEYSTORE_EDGE="supabase/functions/android-keystore-export/index.ts"
 KEYSTORE_GENERATE_EDGE="supabase/functions/android-keystore-generate/index.ts"
 KEYSTORE_STATUS_EDGE="supabase/functions/android-keystore-status/index.ts"
 DISPATCH_EDGE="supabase/functions/github-workflow-dispatch/index.ts"
+GH_WORKFLOWS_INFRA="infra/github/workflows.ts"
+GH_FILES_INFRA="infra/github/files.ts"
+GH_BRANCHOPS_INFRA="infra/github/branchOps.ts"
 TRIGGER_WF=".github/workflows/k1w1-triggered-build.yml"
 EAS_WF=".github/workflows/eas-build.yml"
 EDGE_STATUS_DOC="docs/EDGE_FUNCTIONS_STATUS.md"
 AUTH_SHARED="supabase/functions/_shared/auth.ts"
 
-for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$AUTH_SHARED"; do
+for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$AUTH_SHARED"; do
   require_file "$f"
 done
 
@@ -115,6 +124,7 @@ require_fixed "$KEYSTORE_GENERATE_EDGE" 'allowCiBearer: false'
 require_fixed "$KEYSTORE_GENERATE_EDGE" 'allowJwtAuthHeaderWithAdmin: true'
 require_fixed "$KEYSTORE_GENERATE_EDGE" 'adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"'
 require_fixed "$KEYSTORE_GENERATE_EDGE" 'requirePrivilegedOperatorJwtRole(req, "android-keystore-generate")'
+forbid_fixed "$KEYSTORE_GENERATE_EDGE" 'safeString(body?.branch) || "main"'
 require_fixed "$KEYSTORE_STATUS_EDGE" 'allowCiBearer: false'
 require_fixed "$KEYSTORE_STATUS_EDGE" 'allowJwtAuthHeaderWithAdmin: true'
 require_fixed "$KEYSTORE_STATUS_EDGE" 'adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"'
@@ -161,6 +171,14 @@ require_fixed "$ARTIFACT_EDGE" 'filePath,'
 require_fixed "$RUNS_EDGE" 'error: "workflowId not found"'
 require_fixed "$LOGS_EDGE" 'logsText: text'
 require_fixed "$LOGS_EDGE" 'truncated,'
+
+require_fixed "$GH_WORKFLOWS_INFRA" 'if (!targetRef) throw new Error("Explicit branch/ref is required.");'
+forbid_fixed "$GH_WORKFLOWS_INFRA" 'ref = "main"'
+require_fixed "$GH_FILES_INFRA" 'if (!targetBranch) throw new Error("Explicit branch/ref is required.");'
+forbid_fixed "$GH_FILES_INFRA" 'targetBranch = "main"'
+forbid_fixed "$GH_FILES_INFRA" '|| "main"'
+require_fixed "$GH_BRANCHOPS_INFRA" 'throw new Error("Repository default_branch is missing.");'
+forbid_fixed "$GH_BRANCHOPS_INFRA" 'default_branch || "main"'
 
 require_fixed "$KEYSTORE_EDGE" 'alias: parsed.alias'
 require_fixed "$KEYSTORE_EDGE" 'keystoreBase64: parsed.keystoreBase64'

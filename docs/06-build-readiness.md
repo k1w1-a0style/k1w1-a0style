@@ -68,10 +68,10 @@ Der Service muss dieselben Regeln servernah erzwingen, damit keine Umgehung via 
 
 ---
 
-### 3.4 Edge-Contract (Patch 589)
+### 3.4 Edge-/Infra-Contract (Patch 590)
 - `trigger-eas-build` akzeptiert serverseitig nur noch Requests mit explizitem nicht-leerem `branch` (nach `trim()`).
 - Fehlender/leer/Whitespace-Branch wird am Edge-Eingang mit 400 abgelehnt (fail-closed).
-- Dieser Schritt haertet nur den Edge-Eingang; tieferliegende Shared-Layer-Default-Branch-/`main`-Fallbacks werden spaeter separat entfernt.
+- Tieferliegende branch-/ref-sensitive Infra-Helper sind jetzt ebenfalls fail-closed: kein stiller `"main"`-Fallback mehr in `infra/github/workflows.ts`, `infra/github/files.ts` und `infra/github/branchOps.ts`; fehlender expliziter Branch/Ref wird mit klarem Fehler abgebrochen.
 
 ## 4) Single Entry Point (Code-Verankerung)
 
@@ -308,4 +308,3 @@ Damit wird der Buildflow „wasserdicht“ gegen Umgehungen außerhalb der Build
 - Test Coverage Matrix: `docs/08-test-coverage-matrix.md`
 - Smoke Plan: `docs/04-testing-smoke-plan.md`
 - Gap Tickets: `docs/09-gap-tickets.md`
-

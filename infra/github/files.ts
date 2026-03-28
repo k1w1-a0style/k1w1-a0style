@@ -51,15 +51,12 @@ const resolveTargetBranch = async (owner: string, repo: string, branch?: string)
   let targetBranch = typeof branch === "string" ? branch.trim() : "";
 
   if (!targetBranch) {
-    try {
-      targetBranch = (await getDefaultBranch(owner, repo)).trim();
-    } catch (e) {
-      logger.warn("⚠️ Default-Branch konnte nicht ermittelt werden, fallback auf 'main':", e);
-      targetBranch = "main";
-    }
+    targetBranch = (await getDefaultBranch(owner, repo)).trim();
   }
 
-  if (!targetBranch) targetBranch = "main";
+  if (!targetBranch) {
+    throw new Error("Explicit branch/ref is required.");
+  }
   return targetBranch;
 };
 
@@ -145,14 +142,17 @@ export const createOrUpdateFile = async (
   path: string,
   content: string,
   message = "Add file",
-  branch = "main",
+  branch?: string,
 ) => {
+  const targetBranch = String(branch ?? "").trim();
+  if (!targetBranch) throw new Error("Explicit branch/ref is required.");
+
   const token = await getGitHubToken();
   if (!token) throw new Error("GitHub token fehlt.");
 
   await githubLimiter.checkLimit();
 
-  const getUrl = githubApiUrl(`/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}?ref=${encodeURIComponent(branch)}`);
+  const getUrl = githubApiUrl(`/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}?ref=${encodeURIComponent(targetBranch)}`);
   const getResp = await fetchGitHub(getUrl, {
     headers: {
       Accept: "application/vnd.github+json",
@@ -169,7 +169,7 @@ export const createOrUpdateFile = async (
   const body: GitHubCreateFileBody = {
     message,
     content: encodeGitHubFileContent(content),
-    branch,
+    branch: targetBranch,
   };
   if (sha) body.sha = sha;
 
@@ -216,14 +216,17 @@ export const deleteRepoFile = async (
   repo: string,
   path: string,
   message = "Delete file",
-  branch = "main",
+  branch?: string,
 ) => {
+  const targetBranch = String(branch ?? "").trim();
+  if (!targetBranch) throw new Error("Explicit branch/ref is required.");
+
   const token = await getGitHubToken();
   if (!token) throw new Error("GitHub token fehlt.");
 
   await githubLimiter.checkLimit();
 
-  const getUrl = githubApiUrl(`/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}?ref=${encodeURIComponent(branch)}`);
+  const getUrl = githubApiUrl(`/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}?ref=${encodeURIComponent(targetBranch)}`);
   const getResp = await fetchGitHub(getUrl, {
     headers: {
       Accept: "application/vnd.github+json",
@@ -255,7 +258,7 @@ export const deleteRepoFile = async (
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ message, sha, branch }),
+      body: JSON.stringify({ message, sha, branch: targetBranch }),
     },
   );
 
@@ -446,7 +449,8 @@ export const listRepoBlobEntries = async (params: {
   if (!token) throw new Error("GitHub token fehlt.");
 
   const ref = (params.ref || "").trim();
-  const treeRef = ref || (await getDefaultBranch(params.owner, params.repo)).trim() || "main";
+  const treeRef = ref || (await getDefaultBranch(params.owner, params.repo)).trim();
+  if (!treeRef) throw new Error("Explicit branch/ref is required.");
 
   const headers = {
     Accept: "application/vnd.github+json",
