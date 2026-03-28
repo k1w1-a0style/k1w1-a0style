@@ -19,6 +19,33 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === "object" && !Array.isArray(v);
 }
 
+function asRecord(v: unknown): Record<string, unknown> | null {
+  return isPlainObject(v) ? v : null;
+}
+
+function getString(v: unknown): string | null {
+  return typeof v === "string" ? v : null;
+}
+
+function getNumber(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+function getBoolean(v: unknown): boolean | null {
+  return typeof v === "boolean" ? v : null;
+}
+
+function isProvider(value: unknown): value is AllAIProviders {
+  return typeof value === "string" && PROVIDERS.includes(value as AllAIProviders);
+}
+
+function normalizeQualityMode(raw: unknown, fallback: AIConfig["qualityMode"]): AIConfig["qualityMode"] {
+  if (raw === "speed" || raw === "balanced" || raw === "quality" || raw === "review") return raw;
+  if (raw === "fast") return "speed";
+  if (raw === "best") return "quality";
+  return fallback;
+}
+
 function sanitizeKeyList(v: unknown, maxKeys: number): string[] {
   if (!Array.isArray(v)) return [];
   const out: string[] = [];
@@ -41,7 +68,7 @@ export function validateApiBackupJson(parsed: unknown): ApiBackupV1 {
   if (parsed.version !== 1) throw new Error("Nicht unterstützte Backup-Version");
   if (!("config" in parsed)) throw new Error("Ungültiges Backup-Format");
 
-  const cfg = (parsed as any).config;
+  const cfg = asRecord(parsed.config);
   if (!isPlainObject(cfg)) throw new Error("Ungültiges Backup-Format");
 
   // Minimal schema validation: apiKeys must be an object when present.
@@ -60,45 +87,34 @@ export function sanitizeAiConfigFromBackup(
   const maxKeys = opts?.maxKeysPerProvider ?? 10;
   const base: AIConfig = { ...fallback, apiKeys: { ...fallback.apiKeys } };
 
-  if (!isPlainObject(raw)) return base;
+  const source = asRecord(raw);
+  if (!source) return base;
 
-  const apiKeysRaw = (raw as any).apiKeys;
+  const apiKeysRaw = asRecord(source.apiKeys);
   const apiKeys: AIConfig["apiKeys"] = { ...base.apiKeys };
 
-  if (isPlainObject(apiKeysRaw)) {
+  if (apiKeysRaw) {
     for (const p of PROVIDERS) {
-      apiKeys[p] = sanitizeKeyList((apiKeysRaw as any)[p], maxKeys);
+      apiKeys[p] = sanitizeKeyList(apiKeysRaw[p], maxKeys);
     }
   }
 
-  const version = typeof (raw as any).version === "number" ? (raw as any).version : base.version;
+  const version = getNumber(source.version) ?? base.version;
 
-  const selectedChatProviderRaw = (raw as any).selectedChatProvider;
-  const selectedAgentProviderRaw = (raw as any).selectedAgentProvider ?? (raw as any).selectedAutofixProvider;
+  const selectedChatProviderRaw = source.selectedChatProvider;
+  const selectedAgentProviderRaw = source.selectedAgentProvider ?? source.selectedAutofixProvider;
 
-  const selectedChatModeRaw = (raw as any).selectedChatMode;
-  const selectedAgentModeRaw = (raw as any).selectedAgentMode;
-  const agentEnabledRaw = (raw as any).agentEnabled;
+  const selectedChatModeRaw = source.selectedChatMode;
+  const selectedAgentModeRaw = source.selectedAgentMode;
+  const agentEnabledRaw = source.agentEnabled;
 
-  const qualityRaw = (raw as any).qualityMode;
-  const qualityMode: AIConfig["qualityMode"] =
-    qualityRaw === "speed" || qualityRaw === "balanced" || qualityRaw === "quality" || qualityRaw === "review"
-      ? qualityRaw
-      : qualityRaw === "fast"
-        ? "speed"
-        : qualityRaw === "best"
-          ? "quality"
-          : base.qualityMode;
+  const qualityMode = normalizeQualityMode(source.qualityMode, base.qualityMode);
 
   const selectedChatProvider: AIConfig["selectedChatProvider"] =
-    typeof selectedChatProviderRaw === "string" && (PROVIDERS as string[]).includes(selectedChatProviderRaw)
-      ? (selectedChatProviderRaw as AllAIProviders)
-      : base.selectedChatProvider;
+    isProvider(selectedChatProviderRaw) ? selectedChatProviderRaw : base.selectedChatProvider;
 
   const selectedAgentProvider: AIConfig["selectedAgentProvider"] =
-    typeof selectedAgentProviderRaw === "string" && (PROVIDERS as string[]).includes(selectedAgentProviderRaw)
-      ? (selectedAgentProviderRaw as AllAIProviders)
-      : base.selectedAgentProvider;
+    isProvider(selectedAgentProviderRaw) ? selectedAgentProviderRaw : base.selectedAgentProvider;
 
   return {
     ...base,
@@ -106,9 +122,9 @@ export function sanitizeAiConfigFromBackup(
     apiKeys,
     selectedChatProvider,
     selectedAgentProvider,
-    selectedChatMode: typeof selectedChatModeRaw === "string" ? selectedChatModeRaw : base.selectedChatMode,
-    selectedAgentMode: typeof selectedAgentModeRaw === "string" ? selectedAgentModeRaw : base.selectedAgentMode,
-    agentEnabled: typeof agentEnabledRaw === "boolean" ? agentEnabledRaw : base.agentEnabled,
+    selectedChatMode: getString(selectedChatModeRaw) ?? base.selectedChatMode,
+    selectedAgentMode: getString(selectedAgentModeRaw) ?? base.selectedAgentMode,
+    agentEnabled: getBoolean(agentEnabledRaw) ?? base.agentEnabled,
     qualityMode,
   };
 }

@@ -39,7 +39,27 @@ export function safeUi(s: string): string {
   return truncateWithMarker(redactSecrets(s || ""), 900, "…");
 }
 
-export function findWorkflowRunByJobId(runs: any[], jobId: string): any | null {
+type WorkflowRunForLookup = {
+  display_title?: unknown;
+  name?: unknown;
+} & Record<string, unknown>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function toWorkflowRunCandidate(value: unknown): WorkflowRunForLookup | null {
+  if (!isRecord(value)) return null;
+  return value as WorkflowRunForLookup;
+}
+
+function getRunTitle(run: WorkflowRunForLookup): string {
+  const displayTitle = typeof run.display_title === "string" ? run.display_title : "";
+  const name = typeof run.name === "string" ? run.name : "";
+  return String(displayTitle || name).trim();
+}
+
+export function findWorkflowRunByJobId(runs: unknown, jobId: string): WorkflowRunForLookup | null {
   if (!Array.isArray(runs) || !jobId?.trim()) return null;
   const jid = jobId.trim();
 
@@ -51,10 +71,11 @@ export function findWorkflowRunByJobId(runs: any[], jobId: string): any | null {
   ];
 
   const withTitle = runs
-    .map((r) => ({
-      run: r,
-      title: String(r?.display_title ?? r?.name ?? "").trim(),
-    }))
+    .map((r) => {
+      const run = toWorkflowRunCandidate(r);
+      return run ? { run, title: getRunTitle(run) } : null;
+    })
+    .filter((x): x is { run: WorkflowRunForLookup; title: string } => !!x)
     .filter((x) => x.title.length > 0);
 
   const exact = withTitle.find(({ title }) => exactPatterns.some((p) => title.includes(p)));
@@ -125,18 +146,17 @@ export function inferStepStates(lines: string[]): {
   return { lint, typecheck, eslintErrors, tsErrors };
 }
 
-export function normalizePreflightPatch(input: any): PreflightPatch {
-  if (!input || typeof input !== "object") throw new Error("Patch JSON ist leer oder ungültig.");
+export function normalizePreflightPatch(input: unknown): PreflightPatch {
+  if (!isRecord(input)) throw new Error("Patch JSON ist leer oder ungültig.");
 
   // Accept either a plain patch or { patch: ... }
-  const p =
-    (input as any).patch && typeof (input as any).patch === "object" ? (input as any).patch : input;
+  const patchCandidate = isRecord(input.patch) ? input.patch : input;
 
   const out: PreflightPatch = {};
-  if (Array.isArray((p as any).upsert)) out.upsert = (p as any).upsert;
-  if (Array.isArray((p as any).delete)) out.delete = (p as any).delete;
-  if (Array.isArray((p as any).jsonMerge)) out.jsonMerge = (p as any).jsonMerge;
-  if (typeof (p as any).explanation === "string") out.explanation = (p as any).explanation;
+  if (Array.isArray(patchCandidate.upsert)) out.upsert = patchCandidate.upsert as PreflightPatch["upsert"];
+  if (Array.isArray(patchCandidate.delete)) out.delete = patchCandidate.delete as PreflightPatch["delete"];
+  if (Array.isArray(patchCandidate.jsonMerge)) out.jsonMerge = patchCandidate.jsonMerge as PreflightPatch["jsonMerge"];
+  if (typeof patchCandidate.explanation === "string") out.explanation = patchCandidate.explanation;
 
   if (!out.upsert?.length && !out.delete?.length && !out.jsonMerge?.length) {
     throw new Error("Patch hat keine Operationen (upsert/delete/jsonMerge).");

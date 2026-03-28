@@ -19,4 +19,18 @@ describe("CI-Lite flow-near typing/parsing guards", () => {
     expect(patch.upsert).toHaveLength(1);
     expect(patch.explanation).toBe("test");
   });
+
+  it("unwraps { patch: ... } but fails safely on invalid shapes", () => {
+    const wrapped = normalizePreflightPatch({
+      patch: {
+        delete: ["README.md"],
+      },
+    });
+    expect(wrapped.delete).toEqual(["README.md"]);
+
+    expect(() => normalizePreflightPatch(null)).toThrow("Patch JSON ist leer oder ungültig.");
+    expect(() => normalizePreflightPatch({ explanation: "only text" })).toThrow(
+      "Patch hat keine Operationen (upsert/delete/jsonMerge).",
+    );
+  });
 });
