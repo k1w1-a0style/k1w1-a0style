@@ -183,7 +183,7 @@ export function CiLiteModal(props: CiLiteModalProps) {
               <View style={styles.messageTextWrap}>
                 <Text style={styles.warningTitle}>Dispatch-Quelle</Text>
                 <Text style={styles.warningText}>
-                  CI Lite Dispatch liest den lokalen Edge Admin Key aus SecureStore. Fuer workflow-faehige
+                  CI Lite Dispatch liest den lokalen Legacy Edge Admin Key (compat) aus SecureStore. Fuer workflow-faehige
                   Edge-Routen ist repo-seitig primaer `K1W1_EDGE_WORKFLOW_ADMIN_KEY` relevant; ein bestaetigter
                   Repo-Secret-Name allein macht diesen Start trotzdem nicht lokal bereit.
                 </Text>

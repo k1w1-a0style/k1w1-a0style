@@ -56,7 +56,7 @@ const mockSaveAndroidKeystoreExportAdminKey = jest.fn(async (nextKey: string) =>
 
 jest.mock("../infra/github/githubService", () => ({
   getAndroidKeystoreExportAdminKey: () => mockGetAndroidKeystoreExportAdminKey(),
-  getEdgeAdminKey: () => mockGetEdgeAdminKey(),
+  getLegacyEdgeAdminKey: () => mockGetEdgeAdminKey(),
   saveAndroidKeystoreExportAdminKey: (key: string) => mockSaveAndroidKeystoreExportAdminKey(key),
 }));
 

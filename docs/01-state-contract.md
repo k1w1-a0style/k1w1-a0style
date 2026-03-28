@@ -50,7 +50,7 @@
 | GitHub Token, Expo Token | SecureStore | tokenStore helpers | `saveGitHubToken/saveExpoToken` |
 | Workflow Admin Key | SecureStore | tokenStore helpers | `saveWorkflowAdminKey` |
 | Android Keystore Export Admin Key | SecureStore | tokenStore helpers | `saveAndroidKeystoreExportAdminKey` |
-| Legacy Edge Admin Key | SecureStore | tokenStore helpers | `saveEdgeAdminKey` |
+| Legacy Edge Admin Key | SecureStore | tokenStore helpers | `saveLegacyEdgeAdminKey` |
 | Signing Admin Key | SecureStore | tokenStore helpers | `saveSigningAdminKey` |
 | Supabase Service Role Key | SecureStore (legacy AsyncStorage migration) | tokenStore helpers | `saveSupabaseServiceRoleKey` |
 | Signing Master Key | SecureStore | tokenStore helpers | `saveSigningMasterKey` |

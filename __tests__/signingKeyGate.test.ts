@@ -17,7 +17,7 @@ describe("signing key gate", () => {
       projectData: { id: "project-1" },
       deps: {
         storageGetItem: async (key: string) => values.get(key) ?? null,
-        getEdgeAdminKey: async () => "edge-admin-key-12345678901234567890",
+        getLegacyEdgeAdminKey: async () => "edge-admin-key-12345678901234567890",
       },
     });
 
@@ -32,11 +32,11 @@ describe("signing key gate", () => {
       projectData: { id: "project-1" },
       deps: {
         storageGetItem: async () => null,
-        getEdgeAdminKey: async () => null,
+        getLegacyEdgeAdminKey: async () => null,
       },
     });
 
     expect(result.hasSigningKey).toBe(false);
-    expect(result.reason).toMatch(/lokaler edge admin key fehlt/i);
+    expect(result.reason).toMatch(/lokaler (legacy )?edge admin key(?: \(compat\))? fehlt/i);
   });
 });

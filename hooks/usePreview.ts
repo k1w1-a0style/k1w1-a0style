@@ -9,7 +9,7 @@ import { buildSandpackHtml } from "../lib/sandpackBuilder";
 import { ensureSupabaseClient } from "../lib/supabase";
 import { logger } from "../lib/logger";
 import { isLikelyValidAdminKey } from "../lib/security/isLikelyValidAdminKey";
-import { getEdgeAdminKey } from "../infra/github/githubService";
+import { getLegacyEdgeAdminKey } from "../infra/github/githubService";
 import type { PreviewFiles } from "../types/preview";
 
 import type { ProjectData, LastPreviewMeta } from "../shared/types/project";
@@ -386,16 +386,16 @@ if (container) {
           let edgeAdminKey: string | null = null;
           try {
             await ensureSupabaseClient();
-            edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+            edgeAdminKey = await getLegacyEdgeAdminKey().catch(() => null);
             const trimmedEdgeAdminKey = String(edgeAdminKey ?? "").trim();
 
             // Security: save_preview is protected by an admin key. If it's not configured,
             // skip the remote preview path immediately to avoid unnecessary 401 calls.
             if (!trimmedEdgeAdminKey) {
-              throw new Error("Missing Edge Admin Key");
+              throw new Error("Missing Legacy Edge Admin Key");
             }
             if (!isLikelyValidAdminKey(trimmedEdgeAdminKey)) {
-              throw new Error("Invalid Edge Admin Key");
+              throw new Error("Invalid Legacy Edge Admin Key");
             }
 
             const snackFiles: PreviewFiles = {};

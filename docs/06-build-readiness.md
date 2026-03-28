@@ -257,6 +257,8 @@ if (!easProjectId) skipped.push("EAS_PROJECT_ID (optional, empty)");
 if (!workflowAdminKey) skipped.push("K1W1_EDGE_WORKFLOW_ADMIN_KEY (optional, empty)");
 if (!androidKeystoreExportAdminKey) skipped.push("K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY (optional, empty)");
 if (!legacyEdgeAdminKey) skipped.push("K1W1_EDGE_ADMIN_KEY (legacy optional, empty)");
+// Patch 601: legacy test edge route (`supabase/functions/test`) ist bewusst deaktiviert
+// und liefert nur fail-closed `410 legacy_test_route_disabled` hinter scoped Legacy-Auth.
 if (!signingAdminKey) skipped.push("SIGNING_ADMIN_KEY (legacy optional, empty)");
 ```
 

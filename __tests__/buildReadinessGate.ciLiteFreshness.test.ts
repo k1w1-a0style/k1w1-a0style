@@ -7,7 +7,7 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
 }));
 
 const mockGitHub = {
-  getEdgeAdminKey: jest.fn(),
+  getLegacyEdgeAdminKey: jest.fn(),
   pushFilesToRepo: jest.fn(),
 };
 const mockAutoFix = { autoFixCIWorkflows: jest.fn() };
@@ -43,7 +43,7 @@ function makeProject(overrides: Partial<ProjectData> = {}): ProjectData {
 describe("build readiness gate - ci lite freshness", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockGitHub.getEdgeAdminKey.mockResolvedValue("adminkey");
+    mockGitHub.getLegacyEdgeAdminKey.mockResolvedValue("adminkey");
     mockGitHub.pushFilesToRepo.mockResolvedValue(undefined);
     mockAutoFix.autoFixCIWorkflows.mockResolvedValue(undefined);
     mockInvoke.mockResolvedValue({ data: { jobId: "11111111-1111-1111-1111-111111111111" }, error: null });

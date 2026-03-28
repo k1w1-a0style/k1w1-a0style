@@ -23,9 +23,9 @@ import {
   getAndroidKeystoreExportAdminKey,
   saveAndroidKeystoreExportAdminKey,
   deleteAndroidKeystoreExportAdminKey,
-  getEdgeAdminKey,
-  saveEdgeAdminKey,
-  deleteEdgeAdminKey,
+  getLegacyEdgeAdminKey,
+  saveLegacyEdgeAdminKey,
+  deleteLegacyEdgeAdminKey,
   triggerWorkflow,
 } from "../../../infra/github/githubService";
 import {
@@ -273,7 +273,7 @@ export function useConnectionsScreen() {
         getExpoToken().catch(() => ""),
         getWorkflowAdminKey().catch(() => ""),
         getAndroidKeystoreExportAdminKey().catch(() => ""),
-        getEdgeAdminKey().catch(() => ""),
+        getLegacyEdgeAdminKey().catch(() => ""),
       ]);
 
       const [raw, url, anon, eas] = await Promise.all([
@@ -433,8 +433,8 @@ export function useConnectionsScreen() {
       if (keystoreAdmin) await saveAndroidKeystoreExportAdminKey(keystoreAdmin);
       else await deleteAndroidKeystoreExportAdminKey();
 
-      if (legacyEdge) await saveEdgeAdminKey(legacyEdge);
-      else await deleteEdgeAdminKey();
+      if (legacyEdge) await saveLegacyEdgeAdminKey(legacyEdge);
+      else await deleteLegacyEdgeAdminKey();
 
       await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, raw);
       await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, sbUrl);

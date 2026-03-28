@@ -45,7 +45,7 @@ describe("CI Lite workflow error normalization", () => {
     });
 
     expect(normalized.code).toBe("invalid_or_missing_local_admin_key");
-    expect(normalized.userMessage).toMatch(/lokaler workflow admin key ist lokal vorhanden/i);
+    expect(normalized.userMessage).toMatch(/lokaler (legacy )?workflow admin key(?: \(compat\))? ist lokal vorhanden/i);
     expect(normalized.userMessage).toMatch(/abgelehnt/i);
   });
 

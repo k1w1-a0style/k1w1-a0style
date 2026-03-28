@@ -1,4 +1,4 @@
-import { getEdgeAdminKey } from '../../infra/github/githubService';
+import { getLegacyEdgeAdminKey } from '../../infra/github/githubService';
 import { ensureSupabaseClient } from '../supabase';
 import { SUPABASE_EDGE_FUNCTIONS } from '../../shared/constants/supabase';
 
@@ -236,7 +236,7 @@ export async function invokeK1w1Handler({
   timeoutMs,
 }: InvokeK1w1HandlerArgs): Promise<OrchestratorResult> {
   const supabase = await ensureSupabaseClient();
-  const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+  const edgeAdminKey = await getLegacyEdgeAdminKey().catch(() => null);
 
   if (!edgeAdminKey) {
     return {

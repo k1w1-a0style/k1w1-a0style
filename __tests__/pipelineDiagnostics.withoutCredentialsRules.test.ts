@@ -1,5 +1,5 @@
 const mockSvc = {
-  getEdgeAdminKey: jest.fn(),
+  getLegacyEdgeAdminKey: jest.fn(),
   getExpoToken: jest.fn(),
   getGitHubToken: jest.fn(),
   getRepoFileText: jest.fn(),
@@ -15,7 +15,7 @@ describe("runBuildPipelineDiagnostics - withoutCredentials profile rules", () =>
   it("warns for dev/preview missing and production=true with corrective patches", async () => {
     mockSvc.getGitHubToken.mockResolvedValue("gh");
     mockSvc.getExpoToken.mockResolvedValue("expo");
-    mockSvc.getEdgeAdminKey.mockResolvedValue("admin");
+    mockSvc.getLegacyEdgeAdminKey.mockResolvedValue("admin");
     mockSvc.listRepoSecretNames.mockResolvedValue(["EXPO_TOKEN"]);
 
     const files: Record<string, string> = {
