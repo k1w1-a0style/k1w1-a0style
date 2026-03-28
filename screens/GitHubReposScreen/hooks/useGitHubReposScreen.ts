@@ -49,6 +49,7 @@ import {
 } from "./templateFiles";
 import type { TemplateFile, RepoFilterType } from "./templateFiles";
 import { getErrorMessage } from "./githubReposScreenErrorHelpers";
+import { getEasLinkWriteNotice, getSecretsSyncNotice } from "./githubReposScreenNoticeHelpers";
 
 type SyncStatus = {
   checking: boolean;
@@ -883,17 +884,8 @@ export function useGitHubReposScreen() {
         return;
       }
 
-      if (writeOutcome.state === "verified") {
-        Alert.alert("✅ EAS verifiziert", "Projektdatei geschrieben und Repo-Link sauber bestaetigt.");
-        return;
-      }
-
-      if (writeOutcome.state === "pending_recheck") {
-        Alert.alert("ℹ️ EAS geschrieben", writeOutcome.detail);
-        return;
-      }
-
-      Alert.alert("⚠️ EAS geschrieben, aber nicht verifiziert", writeOutcome.detail);
+      const writeNotice = getEasLinkWriteNotice(writeOutcome);
+      Alert.alert(writeNotice.title, writeNotice.message);
     } catch (e: unknown) {
       if (isCurrentEasLinkRequest(writeToken.requestId, writeToken.contextKey)) {
         setEasLinkStatus(getEasLinkPresentation("unknown", "Schreiben oder Nachverifikation ist fehlgeschlagen."));
@@ -912,11 +904,8 @@ export function useGitHubReposScreen() {
     setIsSyncingSecrets(true);
     try {
       const result = await autoSyncRepoSecrets(activeRepo);
-      if (!result.updated.length) {
-        Alert.alert("ℹ️ Secrets", "Keine Secrets zum Synchronisieren gefunden.");
-      } else {
-        Alert.alert("✅ Secrets synchronisiert", result.updated.join(", "));
-      }
+      const syncNotice = getSecretsSyncNotice(result.updated);
+      Alert.alert(syncNotice.title, syncNotice.message);
     } catch (e: unknown) {
       Alert.alert("❌ Secrets Sync fehlgeschlagen", getErrorMessage(e, ""));
     } finally {
