@@ -8,6 +8,7 @@ describe("patch415 edge auth guard invariants", () => {
   const workflowScoped = [
     "supabase/functions/trigger-eas-build/index.ts",
     "supabase/functions/check-eas-build/index.ts",
+    "supabase/functions/github-workflow-dispatch/index.ts",
     "supabase/functions/github-workflow-runs/index.ts",
     "supabase/functions/github-workflow-logs/index.ts",
     "supabase/functions/github-run-artifact-json/index.ts",
@@ -32,35 +33,17 @@ describe("patch415 edge auth guard invariants", () => {
       const src = read(rel);
       expect(src).toContain("requireScopedEdgeAuth");
       expect(src).toContain('adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"');
-      if (
-        rel.includes("trigger-eas-build") ||
-        rel.includes("check-eas-build") ||
-        rel.includes("github-workflow-runs") ||
-        rel.includes("github-workflow-logs") ||
-        rel.includes("github-run-artifact-json")
-      ) {
-        expect(src).toContain("allowCiBearer: true");
-        expect(src).toContain("allowJwtAuthHeaderWithAdmin: true");
-        expect(src).toContain("requireJwtRole(req, {");
-        expect(src).toContain('allowedRoles: ["service_role", "authenticated"]');
-        expect(src).toContain('ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"');
-        expect(src).toContain('const usedCiBearer = isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER")');
-      }
+      expect(src).toContain("allowCiBearer: true");
+      expect(src).toContain("allowJwtAuthHeaderWithAdmin: true");
+      expect(src).toContain('ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"');
+      expect(src).toContain('const usedCiBearer = isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER")');
+      expect(src).toContain("if (!usedCiBearer) {");
+      expect(src).toContain("requireJwtRole(req, {");
+      expect(src).toContain('allowedRoles: ["service_role", "authenticated"]');
+      expect(src).not.toContain("allowCiBearer: false");
       expect(src).not.toContain("const auth = requireAdminKey(req);");
       expect(src).not.toContain("const authError = requireAdminKey(req);");
     }
-  });
-
-  it("keeps github-workflow-dispatch on scoped workflow admin+CI bearer gate with JWT role checks for non-CI path", () => {
-    const src = read("supabase/functions/github-workflow-dispatch/index.ts");
-    expect(src).toContain("requireScopedEdgeAuth");
-    expect(src).toContain('adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"');
-    expect(src).toContain("allowCiBearer: true");
-    expect(src).toContain("allowJwtAuthHeaderWithAdmin: true");
-    expect(src).toContain("const jwtRoleGuard = await requireJwtRole(req, {");
-    expect(src).toContain('allowedRoles: ["service_role", "authenticated"]');
-    expect(src).toContain('ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"');
-    expect(src).toContain('const usedCiBearer = isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER")');
   });
 
   it("keeps android-keystore-export on a scoped admin-only route secret", () => {
