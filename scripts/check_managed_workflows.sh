@@ -70,10 +70,12 @@ EDGE_FILE="supabase/functions/github-workflow-dispatch/index.ts"
 SHARED_FILE="shared/workflows/managedWorkflowTemplates.ts"
 EAS_LINK_SHARED_FILE="shared/workflows/easLinkWorkflowTemplate.ts"
 EAS_BUILD_RELEASE_SHARED_FILE="shared/workflows/easBuildReleaseWorkflowTemplates.ts"
+TRIGGERED_BUILD_SHARED_FILE="shared/workflows/k1w1TriggeredBuildWorkflowTemplate.ts"
 [ -f "$EDGE_FILE" ] || fail "Missing edge workflow source: $EDGE_FILE"
 [ -f "$SHARED_FILE" ] || fail "Missing shared workflow source: $SHARED_FILE"
 [ -f "$EAS_LINK_SHARED_FILE" ] || fail "Missing shared EAS Link workflow source: $EAS_LINK_SHARED_FILE"
 [ -f "$EAS_BUILD_RELEASE_SHARED_FILE" ] || fail "Missing shared EAS/Release workflow source: $EAS_BUILD_RELEASE_SHARED_FILE"
+[ -f "$TRIGGERED_BUILD_SHARED_FILE" ] || fail "Missing shared triggered-build workflow source: $TRIGGERED_BUILD_SHARED_FILE"
 
 grep -q 'managedWorkflowTemplates' "$EDGE_FILE" || fail "Edge dispatch must import shared managed workflow templates"
 grep -q 'WORKFLOW_TEMPLATES' "$EDGE_FILE" || fail "Edge dispatch missing WORKFLOW_TEMPLATES reference"
@@ -97,9 +99,11 @@ grep -q '^# workflow-version: ' .github/workflows/eas-link.yml || fail "Live EAS
 grep -q 'WORKFLOW_EAS_LINK_TEMPLATE' lib/diagnostics/workflowTemplates.ts || fail "Diagnostics templates must import WORKFLOW_EAS_LINK_TEMPLATE"
 grep -q 'WORKFLOW_EAS_BUILD_TEMPLATE' lib/diagnostics/workflowTemplates.ts || fail "Diagnostics templates must import WORKFLOW_EAS_BUILD_TEMPLATE"
 grep -q 'WORKFLOW_RELEASE_BUILD_TEMPLATE' lib/diagnostics/workflowTemplates.ts || fail "Diagnostics templates must import WORKFLOW_RELEASE_BUILD_TEMPLATE"
+grep -q 'WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE' lib/diagnostics/workflowTemplates.ts || fail "Diagnostics templates must import WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE"
 grep -q 'WORKFLOW_EAS_LINK = WORKFLOW_EAS_LINK_TEMPLATE' lib/diagnostics/workflowTemplates.ts || fail "Diagnostics EAS Link template must be sourced from shared template"
 grep -q 'WORKFLOW_EAS_BUILD = WORKFLOW_EAS_BUILD_TEMPLATE' lib/diagnostics/workflowTemplates.ts || fail "Diagnostics EAS build template must be sourced from shared template"
 grep -q 'WORKFLOW_RELEASE_BUILD = WORKFLOW_RELEASE_BUILD_TEMPLATE' lib/diagnostics/workflowTemplates.ts || fail "Diagnostics release template must be sourced from shared template"
+grep -q 'WORKFLOW_K1W1_TRIGGERED_BUILD = WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE' lib/diagnostics/workflowTemplates.ts || fail "Diagnostics triggered-build template must be sourced from shared template"
 
 for wf in .github/workflows/eas-build.yml .github/workflows/eas-link.yml .github/workflows/release-build.yml .github/workflows/deploy-supabase-functions.yml .github/workflows/k1w1-triggered-build.yml; do
   grep -Eq '^\s+ref:\s*$' "$wf" || fail "Missing explicit ref input block in $wf"
@@ -122,6 +126,8 @@ const fs = require('fs');
 const liveEas = fs.readFileSync('.github/workflows/eas-build.yml', 'utf8').replace(/\r\n/g, '\n');
 const liveRelease = fs.readFileSync('.github/workflows/release-build.yml', 'utf8').replace(/\r\n/g, '\n');
 const sharedSrc = fs.readFileSync('shared/workflows/easBuildReleaseWorkflowTemplates.ts', 'utf8');
+const sharedTriggeredSrc = fs.readFileSync('shared/workflows/k1w1TriggeredBuildWorkflowTemplate.ts', 'utf8');
+const liveTriggered = fs.readFileSync('.github/workflows/k1w1-triggered-build.yml', 'utf8').replace(/\r\n/g, '\n');
 
 const easMatch = sharedSrc.match(/export const WORKFLOW_EAS_BUILD_TEMPLATE = ('(?:\\.|[^'])*'|`(?:\\.|[^`])*`);/s);
 const releaseMatch = sharedSrc.match(/export const WORKFLOW_RELEASE_BUILD_TEMPLATE = ('(?:\\.|[^'])*'|`(?:\\.|[^`])*`);/s);
@@ -140,6 +146,18 @@ if (sharedEas !== liveEas) {
 
 if (sharedRelease !== liveRelease) {
   console.error('[FAIL] Shared release build template drifted from live .github/workflows/release-build.yml');
+  process.exit(1);
+}
+
+const triggeredMatch = sharedTriggeredSrc.match(/export const WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE = ('(?:\\.|[^'])*'|`(?:\\.|[^`])*`);/s);
+if (!triggeredMatch) {
+  console.error('[FAIL] Shared triggered-build workflow template export missing or unparsable');
+  process.exit(1);
+}
+
+const sharedTriggered = Function(`return (${triggeredMatch[1]});`)().replace(/\r\n/g, '\n');
+if (sharedTriggered !== liveTriggered) {
+  console.error('[FAIL] Shared triggered-build template drifted from live .github/workflows/k1w1-triggered-build.yml');
   process.exit(1);
 }
 NODE
