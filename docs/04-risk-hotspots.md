@@ -38,6 +38,16 @@
 
 ---
 
+## R2b — False-Green-Risiko durch Legacy-Admin-Key
+**Risiko:** UI/Diagnostics signalisieren Readiness, obwohl nur `K1W1_EDGE_ADMIN_KEY`/Legacy lokal gesetzt ist.
+**Auswirkung:** Workflow-/Keystore-Routen schlagen spaeter fehl, obwohl Vorpruefung gruen wirkte.
+
+**Fix-Stand (Patch 596):**
+- Connections-UI und SecretsSection trennen lokale Workflow-/Keystore-/Legacy-Keys klar.
+- Diagnostics prueft `local.workflowAdminKey` und `local.androidKeystoreExportAdminKey` explizit; Legacy ist nur Compat-Hinweis.
+
+---
+
 ## R3 — Repo-Fallback via `CONFIG.BUILD.GITHUB_REPO`
 **Risiko:** Build startet auf statischem/notfall Repo statt User-Selektion.  
 **Auswirkung:** Harte Kopplung, falsches Zielrepo.

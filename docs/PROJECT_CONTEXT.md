@@ -43,6 +43,7 @@ Instead it orchestrates builds by:
 - The builder must **NOT** hard-pin the target repo branch inside workflow templates.
   - The branch/ref is chosen by the user in the app, and workflows should operate on that selected ref.
 - Secrets/tokens should be handled via GitHub Secrets/Variables, not committed.
+- Scoped admin contract is explicit: Workflow/build/artifact routes use workflow-scoped admin key material, keystore routes use keystore-scoped admin key material, and legacy edge admin keys are compatibility-only.
 - Provisioning should be safe to run multiple times (idempotent).
 - “Auto-fix/self-heal” steps must never silently change the target repo in a destructive way.
 
