@@ -14,8 +14,8 @@ set +a
 
 : "${SUPABASE_URL:?SUPABASE_URL missing}"
 
-WORKFLOW_ADMIN="${K1W1_EDGE_WORKFLOW_ADMIN_KEY:-${ADMIN_KEY:-${K1W1_EDGE_ADMIN_KEY:-}}}"
-: "${WORKFLOW_ADMIN:?Missing workflow admin key (set K1W1_EDGE_WORKFLOW_ADMIN_KEY or legacy ADMIN_KEY/K1W1_EDGE_ADMIN_KEY)}"
+WORKFLOW_ADMIN="${K1W1_EDGE_WORKFLOW_ADMIN_KEY:-}"
+: "${WORKFLOW_ADMIN:?Missing required K1W1_EDGE_WORKFLOW_ADMIN_KEY (workflow/build/artifact scripts do not accept ADMIN_KEY or K1W1_EDGE_ADMIN_KEY fallback).}"
 
 echo "Loaded env from $FILE"
 echo "SUPABASE_URL=$SUPABASE_URL"
