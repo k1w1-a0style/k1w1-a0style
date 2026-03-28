@@ -48,6 +48,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     requestProvider = body.provider;
     requestModel = body.model;
 
+    // eslint-disable-next-line no-console
     console.log(
       "🧠 k1w1-handler request",
       JSON.stringify({
