@@ -51,7 +51,6 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const repo = safeString(body?.repo);
-    const branch = safeString(body?.branch);
     let mode: Mode;
     try {
       mode = resolveMode(safeString(body?.mode));
@@ -61,9 +60,6 @@ Deno.serve(async (req) => {
 
     if (!repoOk(repo)) {
       return errorResponse("Invalid repo format. Expected 'owner/name'.", req, 400);
-    }
-    if (!/^[A-Za-z0-9_./-]{1,128}$/.test(branch)) {
-      return errorResponse("Invalid branch.", req, 400);
     }
     // `resolveMode` already normalizes/validates.
 
@@ -189,7 +185,6 @@ Deno.serve(async (req) => {
       {
         ok: true,
         repo,
-        branch,
         mode,
         alias,
         bucket,

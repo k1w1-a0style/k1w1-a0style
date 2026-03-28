@@ -500,8 +500,6 @@ export function useCredentialsWizardScreen() {
       const r = await invokeEdgeJson(supabaseUrl, SUPABASE_EDGE_FUNCTIONS.ANDROID_KEYSTORE_GENERATE, adminKey, {
         repo: repoFullName,
         mode: apiMode,
-        // optional: branch rein, damit du später mehr Kontext hast (DB key bleibt repo+mode)
-        branch: branch || undefined,
       });
 
       safeSetLastDebug(r.debug);

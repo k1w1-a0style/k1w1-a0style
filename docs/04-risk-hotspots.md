@@ -99,12 +99,14 @@ if (!branch) {
 if (!branch) branch = "main";
 ```
 
-### Evidence B — Connection-Flow fallback auf main
-**Datei:** `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`  
-**Symbol:** `onLinkExisting`/`onCreateAndLink`
+### Evidence B — Repo/Branch-SoT ist jetzt konsolidiert auf `projectData.linked*`
+**Datei:** `contexts/GitHubContext.tsx`  
+**Symbol:** abgeleitete Active-Selection
 ```ts
-const branch =
-  (activeBranch || projectData?.linkedBranch || "main").trim() || "main";
+const activeRepo = useMemo(
+  () => (hydrated ? normalizeLinkedGitHubValue(projectData?.linkedRepo) : null),
+  [hydrated, projectData?.linkedRepo],
+);
 ```
 
 ### Evidence C — Repo-Fallback via Config
@@ -137,6 +139,7 @@ CI_LITE_TYPECHECK_OK: "ci_lite_typecheck_ok",
 
 **Follow-up (Patch 588):**
 4. `android-keystore-generate` und `android-keystore-status` wurden auf denselben dedizierten Keystore-Scoped-Secret-Pfad (`K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) plus fail-closed JWT-RBAC (`service_role|build_admin`) gehoben; generischer `requireAdminKey(...)`-Pfad ist dort entfernt.
+5. Patch 591 bereinigt den oeffentlichen `android-keystore-generate`-Vertrag: kein irrefuehrendes `branch`-Feld mehr, fachlicher Scope bleibt `repo + mode`.
 
 ---
 

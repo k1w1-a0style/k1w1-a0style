@@ -109,13 +109,8 @@ const buildBlockedReason = useMemo(() => {
 ```ts
 const branchName = useMemo(() => {
   const fromBuild = String(currentBuild?.branch ?? "").trim();
-  return (
-    projectData?.linkedBranch?.trim() ||
-    activeBranch?.trim() ||
-    fromBuild ||
-    ""
-  );
-}, [projectData?.linkedBranch, activeBranch, currentBuild?.branch]);
+  return projectData?.linkedBranch?.trim() || fromBuild || "";
+}, [projectData?.linkedBranch, currentBuild?.branch]);
 ```
 
 ### E3 — Token-Check (GitHub + Expo)
