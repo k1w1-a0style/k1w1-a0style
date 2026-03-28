@@ -24,7 +24,6 @@ const OPTIONAL_SECRETS = [
   "EAS_PROJECT_ID",
   "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
   "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
-  "K1W1_EDGE_WORKFLOW_CI_BEARER",
   "K1W1_EDGE_ADMIN_KEY",
   // Production/Supabase report secret stays manual-only
   "SUPABASE_SERVICE_ROLE_KEY",
@@ -618,8 +617,7 @@ export function SecretsSection(props: {
           Auto-Sync aus der App deckt EXPO_TOKEN + SUPABASE_URL ab (optional: EAS_PROJECT_ID,
           K1W1_EDGE_WORKFLOW_ADMIN_KEY, K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY; legacy zusaetzlich
           K1W1_EDGE_ADMIN_KEY). Scoped Workflow-/Keystore-Secrets bleiben getrennte Schluessel ohne
-          implizites Spiegeln eines Einzelwerts. K1W1_EDGE_WORKFLOW_CI_BEARER bleibt bewusst ein manueller CI-Schritt.
-          SUPABASE_SERVICE_ROLE_KEY bleibt bewusst ein manueller Production-Schritt.
+          implizites Spiegeln eines Einzelwerts. SUPABASE_SERVICE_ROLE_KEY bleibt bewusst ein manueller Production-Schritt.
         </Text>
       ) : null}
 

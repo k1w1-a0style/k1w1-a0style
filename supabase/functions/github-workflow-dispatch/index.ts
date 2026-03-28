@@ -1,6 +1,5 @@
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import {
-  isScopedCiBearerRequest,
   requireDurableRateLimit,
   requireWorkflowOperatorJwtRole,
   requireScopedEdgeAuth,
@@ -179,17 +178,13 @@ try {
     const auth = requireScopedEdgeAuth(req, {
       scope: "github-workflow-dispatch",
       allowAdmin: true,
-      allowCiBearer: true,
+      allowCiBearer: false,
       allowJwtAuthHeaderWithAdmin: true,
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
-      ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER",
     });
     if (auth) return auth;
-    const usedCiBearer = isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER");
-    if (!usedCiBearer) {
-      const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "github-workflow-dispatch");
-      if (jwtRoleGuard) return jwtRoleGuard;
-    }
+    const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "github-workflow-dispatch");
+    if (jwtRoleGuard) return jwtRoleGuard;
 
     const durableRl = await requireDurableRateLimit(req, {
       scope: "github-workflow-dispatch",

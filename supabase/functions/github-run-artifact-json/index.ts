@@ -1,6 +1,5 @@
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import {
-  isScopedCiBearerRequest,
   requireDurableRateLimit,
   requireWorkflowOperatorJwtRole,
   requireScopedEdgeAuth,
@@ -52,17 +51,13 @@ Deno.serve(async (req: Request) => {
   const authError = requireScopedEdgeAuth(req, {
     scope: "github-run-artifact-json",
     allowAdmin: true,
-    allowCiBearer: true,
+    allowCiBearer: false,
     allowJwtAuthHeaderWithAdmin: true,
     adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
-    ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER",
   });
   if (authError) return authError;
-  const usedCiBearer = isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER");
-  if (!usedCiBearer) {
-    const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "github-run-artifact-json");
-    if (jwtRoleGuard) return jwtRoleGuard;
-  }
+  const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "github-run-artifact-json");
+  if (jwtRoleGuard) return jwtRoleGuard;
 
     const durableRl = await requireDurableRateLimit(req, {
       scope: "github-run-artifact-json",

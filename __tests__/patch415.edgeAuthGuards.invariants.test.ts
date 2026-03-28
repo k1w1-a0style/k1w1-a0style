@@ -25,18 +25,16 @@ describe("patch415 edge auth guard invariants", () => {
     expect(src).toContain('accepted.push("x-k1w1-admin-key")');
   });
 
-  it("moves workflow-facing edge functions onto scoped workflow admin/bearer secrets", () => {
+  it("moves workflow-facing edge functions onto scoped workflow admin+JWT secrets", () => {
     for (const rel of workflowScoped) {
       const src = read(rel);
       expect(src).toContain("requireScopedEdgeAuth");
       expect(src).toContain('adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"');
-      expect(src).toContain("allowCiBearer: true");
+      expect(src).toContain("allowCiBearer: false");
       expect(src).toContain("allowJwtAuthHeaderWithAdmin: true");
-      expect(src).toContain('ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"');
-      expect(src).toContain('const usedCiBearer = isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER")');
-      expect(src).toContain("if (!usedCiBearer) {");
+      expect(src).not.toContain("ciBearerSecretEnv:");
+      expect(src).not.toContain("isScopedCiBearerRequest(");
       expect(src).toContain("requireWorkflowOperatorJwtRole(req,");
-      expect(src).not.toContain("allowCiBearer: false");
       expect(src).not.toContain("const auth = requireAdminKey(req);");
       expect(src).not.toContain("const authError = requireAdminKey(req);");
     }

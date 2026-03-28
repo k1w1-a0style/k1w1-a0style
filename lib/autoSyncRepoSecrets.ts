@@ -55,7 +55,6 @@ export const autoSyncRepoSecrets = async (
   }
   if (!legacyEdgeAdminKey) skipped.push("K1W1_EDGE_ADMIN_KEY (legacy optional, empty)");
   if (!signingAdminKey) skipped.push("SIGNING_ADMIN_KEY (legacy optional, empty)");
-  skipped.push("K1W1_EDGE_WORKFLOW_CI_BEARER (manual-only, not synced from app)");
 
   // If nothing to sync, return early
   if (

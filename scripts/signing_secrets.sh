@@ -25,7 +25,6 @@ Options:
 
 Notes:
 - The workflow/keystore/legacy/signing keys are intentionally split and generated separately.
-- This helper does NOT manage K1W1_EDGE_WORKFLOW_CI_BEARER.
 - .signing_secrets.local is created with chmod 600 and SHOULD NOT be committed.
 - If you run --set-supabase, redeploy the edge functions afterwards.
 USAGE

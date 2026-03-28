@@ -4,7 +4,6 @@ import { validateCheckBuildRequest, parseJsonBody } from "../_shared/validation.
 import {
   getServiceRoleKey,
   getSupabaseUrl,
-  isScopedCiBearerRequest,
   requireWorkflowOperatorJwtRole,
   requireScopedEdgeAuth,
   rateLimit,
@@ -52,17 +51,13 @@ Deno.serve(async (req) => {
     const auth = requireScopedEdgeAuth(req, {
       scope: "check-eas-build",
       allowAdmin: true,
-      allowCiBearer: true,
+      allowCiBearer: false,
       allowJwtAuthHeaderWithAdmin: true,
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
-      ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER",
     });
     if (auth) return auth;
-    const usedCiBearer = isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER");
-    if (!usedCiBearer) {
-      const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "check-eas-build");
-      if (jwtRoleGuard) return jwtRoleGuard;
-    }
+    const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "check-eas-build");
+    if (jwtRoleGuard) return jwtRoleGuard;
 
     const durableRl = await requireDurableRateLimit(req, {
       scope: "check-eas-build",

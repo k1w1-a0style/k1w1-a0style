@@ -6,7 +6,7 @@
 # - High-impact Routen sind deny-by-default gehärtet via `requireScopedEdgeAuth`:
 #   fehlende Route-Secrets führen zu 500 (fail-closed), keine impliziten Fallback-Secrets.
 # - Route-Secrets:
-#   - K1W1_EDGE_WORKFLOW_ADMIN_KEY / K1W1_EDGE_WORKFLOW_CI_BEARER
+#   - K1W1_EDGE_WORKFLOW_ADMIN_KEY
 #   - K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY
 # - Pilot-Migrationen:
 #   - `android-keystore-export` nutzt verify_jwt=true + role=service_role + scoped admin key.

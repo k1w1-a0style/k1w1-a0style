@@ -128,7 +128,6 @@ export default function ConnectionsScreen() {
     lines.push(`- Legacy Edge Admin Key (compat): ${legacyEdgeAdminKey.trim() ? "gesetzt" : "leer"}`);
     lines.push("");
     lines.push("Nicht aus der App auto-synchronisiert:");
-    lines.push("- K1W1_EDGE_WORKFLOW_CI_BEARER (CI-only / manuell setzen)");
     lines.push("- GITHUB_TOKEN / SUPABASE_ANON_KEY (bleiben lokal auf dem Gerät)");
     return lines;
   }, [repoLine, githubOk, githubUser, githubScopes, supabaseUrl, supabaseRef, supabaseOk, expoOk, expoUser, easProjectId, easState, easLastVerifiedAt, workflowAdminKey, androidKeystoreExportAdminKey, legacyEdgeAdminKey]);
