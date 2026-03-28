@@ -219,12 +219,13 @@ describe("Patch 414 workflow ref SoT invariants", () => {
 
   it("keeps the embedded build workflow templates aligned with the live contract", () => {
     const templatesTs = read("lib/diagnostics/workflowTemplates.ts");
+    const sharedBuildReleaseTs = read("shared/workflows/easBuildReleaseWorkflowTemplates.ts");
     const baseJson = read("templates/expo-sdk54-base.json");
     const fullJson = read("templates/expo-sdk54-full.json");
 
     const tsTriggered = extractTsConst(templatesTs, "WORKFLOW_K1W1_TRIGGERED_BUILD");
-    const tsEas = extractTsConst(templatesTs, "WORKFLOW_EAS_BUILD");
-    const tsRelease = extractTsConst(templatesTs, "WORKFLOW_RELEASE_BUILD");
+    const tsEas = extractTsConst(sharedBuildReleaseTs, "WORKFLOW_EAS_BUILD_TEMPLATE");
+    const tsRelease = extractTsConst(sharedBuildReleaseTs, "WORKFLOW_RELEASE_BUILD_TEMPLATE");
 
     const baseTriggered = extractTemplateContent(baseJson, ".github/workflows/k1w1-triggered-build.yml");
     const baseEas = extractTemplateContent(baseJson, ".github/workflows/eas-build.yml");
@@ -246,6 +247,9 @@ describe("Patch 414 workflow ref SoT invariants", () => {
     expectRequiredRefBlocks(fullRelease, 1);
     expectRequiredRefBlocks(tsTriggered, 1);
     expectRequiredRefBlocks(baseTriggered, 1);
+
+    expect(templatesTs).toContain("export const WORKFLOW_EAS_BUILD = WORKFLOW_EAS_BUILD_TEMPLATE;");
+    expect(templatesTs).toContain("export const WORKFLOW_RELEASE_BUILD = WORKFLOW_RELEASE_BUILD_TEMPLATE;");
 
     expect(tsTriggered).toContain("Missing required ref.");
     expect(baseTriggered).toContain("Missing required ref.");
