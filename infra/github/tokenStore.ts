@@ -112,7 +112,20 @@ const saveOptionalScopedKey = async (storageKey: string, key: string): Promise<v
 };
 
 export const getWorkflowAdminKey = async (): Promise<string | null> => {
-  return getSecureToken(WORKFLOW_ADMIN_KEY);
+  const workflowKey = await getSecureToken(WORKFLOW_ADMIN_KEY);
+  if (workflowKey) {
+    return workflowKey;
+  }
+
+  // Controlled one-time compat migration:
+  // If only the legacy edge admin key exists, seed workflow scope once.
+  const legacyEdgeKey = await getSecureToken(LEGACY_EDGE_ADMIN_KEY);
+  if (!legacyEdgeKey) {
+    return null;
+  }
+
+  await saveSecureToken(WORKFLOW_ADMIN_KEY, legacyEdgeKey);
+  return legacyEdgeKey;
 };
 
 export const saveWorkflowAdminKey = async (key: string): Promise<void> => {
@@ -161,6 +174,18 @@ export const getEdgeAdminKey = async (): Promise<string | null> => {
  */
 export const saveEdgeAdminKey = async (key: string): Promise<void> => {
   await saveOptionalScopedKey(LEGACY_EDGE_ADMIN_KEY, key);
+};
+
+export const getLegacyEdgeAdminKey = async (): Promise<string | null> => {
+  return getEdgeAdminKey();
+};
+
+export const saveLegacyEdgeAdminKey = async (key: string): Promise<void> => {
+  await saveEdgeAdminKey(key);
+};
+
+export const deleteLegacyEdgeAdminKey = async (): Promise<void> => {
+  await deleteEdgeAdminKey();
 };
 
 export const deleteEdgeAdminKey = async (): Promise<void> => {

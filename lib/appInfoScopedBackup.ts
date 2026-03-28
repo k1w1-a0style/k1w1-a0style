@@ -322,15 +322,11 @@ function sanitizeSecretPayload(raw: unknown): SecretBackupPayloadV1 {
       workflowAdminKey:
         normalizeOptionalString(tokens.workflowAdminKey) ??
         normalizeOptionalString(tokens.edgeAdminKey),
-      androidKeystoreExportAdminKey:
-        normalizeOptionalString(tokens.androidKeystoreExportAdminKey) ??
-        normalizeOptionalString(tokens.edgeAdminKey),
+      androidKeystoreExportAdminKey: normalizeOptionalString(tokens.androidKeystoreExportAdminKey),
       legacyEdgeAdminKey:
         normalizeOptionalString(tokens.legacyEdgeAdminKey) ??
         normalizeOptionalString(tokens.edgeAdminKey),
-      signingAdminKey:
-        normalizeOptionalString(tokens.signingAdminKey) ??
-        normalizeOptionalString(tokens.edgeAdminKey),
+      signingAdminKey: normalizeOptionalString(tokens.signingAdminKey),
       signingMasterKey: normalizeOptionalString(tokens.signingMasterKey),
     },
     ciSecrets: Object.fromEntries(

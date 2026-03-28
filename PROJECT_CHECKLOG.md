@@ -1,4 +1,5 @@
 # PROJECT_CHECKLOG
+- 2026-03-28: Patch 593: lokale scoped Admin-Key-Zonen als klaren Primarvertrag nachgeschaerft — `infra/github/tokenStore.ts` migriert den lokalen Workflow-Key kontrolliert einmalig aus `edge_admin_key_v1` (nur wenn `workflow_admin_key_v1` fehlt) und stellt explizite Legacy-Compat-APIs (`get/save/deleteLegacyEdgeAdminKey`) bereit. Backup-/Import-Compat in `lib/appInfoScopedBackup.ts` spiegelt Legacy-`edgeAdminKey` nicht mehr still in Keystore-/Signing-Zonen, sondern nur noch in `workflowAdminKey` + `legacyEdgeAdminKey`; `useAppInfoScreen` und `autoSyncRepoSecrets` nutzen dafuer explizite Legacy-Reads/Writes. Validation-Stand: fokussierte Jest-Tests (`tokenStore.edgeAdminKey`, `appInfoSecureBackup`, `useCiLiteWorkflow.behavior`, `useGitHubActionsLogs.contract`, `buildPollingService`, `buildStartService.readinessContract`) sowie `npm run typecheck`, `npm run lint:ci`, `npm run test:silent`, `bash scripts/check_patch_docs_sync.sh`, `bash scripts/check_workflow_template_drift.sh`, `bash scripts/check_managed_workflows.sh`, `bash scripts/check_workflow_edge_contracts.sh`.
 
 Kurzlog für den laufenden Stand. Detailhistorie bleibt im Patchlog.
 

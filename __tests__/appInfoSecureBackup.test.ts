@@ -189,6 +189,45 @@ describe("app info secure backup contract", () => {
     expect(restored.github.linkedBranch).toBe("legacy-branch");
   });
 
+  test("legacy edgeAdminKey-only backups migrate compatibly but do not mirror into keystore/signing slots", () => {
+    const restored = validateSecureBackupPayload({
+      kind: "secret-snapshot",
+      version: 1,
+      exportDate: "2026-03-20T12:00:00.000Z",
+      connections: {
+        supabaseRaw: "",
+        supabaseUrl: "",
+        supabaseAnonKey: "",
+        easProjectId: "",
+      },
+      tokens: {
+        githubToken: null,
+        expoToken: null,
+        edgeAdminKey: "legacy-edge-only",
+        workflowAdminKey: null,
+        androidKeystoreExportAdminKey: null,
+        legacyEdgeAdminKey: null,
+        signingAdminKey: null,
+        signingMasterKey: null,
+      },
+      ciSecrets: {},
+      github: {
+        linkedRepo: "legacy/only",
+        linkedBranch: "legacy-branch",
+        recentRepos: [],
+      },
+    });
+
+    if (restored.kind !== "secret-snapshot") {
+      throw new Error("Expected secret snapshot payload");
+    }
+
+    expect(restored.tokens.workflowAdminKey).toBe("legacy-edge-only");
+    expect(restored.tokens.legacyEdgeAdminKey).toBe("legacy-edge-only");
+    expect(restored.tokens.androidKeystoreExportAdminKey).toBeNull();
+    expect(restored.tokens.signingAdminKey).toBeNull();
+  });
+
   test("legacy api config exports still validate and sanitize independently", () => {
     const validated = validateApiBackupJson({
       version: 1,

@@ -33,9 +33,9 @@ import {
   getAndroidKeystoreExportAdminKey,
   saveAndroidKeystoreExportAdminKey,
   deleteAndroidKeystoreExportAdminKey,
-  getEdgeAdminKey,
-  saveEdgeAdminKey,
-  deleteEdgeAdminKey,
+  getLegacyEdgeAdminKey,
+  saveLegacyEdgeAdminKey,
+  deleteLegacyEdgeAdminKey,
   getSigningAdminKey,
   saveSigningAdminKey,
   deleteSigningAdminKey,
@@ -247,7 +247,7 @@ export function useAppInfoScreen() {
       getExpoToken().catch(() => null),
       getWorkflowAdminKey().catch(() => null),
       getAndroidKeystoreExportAdminKey().catch(() => null),
-      getEdgeAdminKey().catch(() => null),
+      getLegacyEdgeAdminKey().catch(() => null),
       getSigningAdminKey().catch(() => null),
       getSigningMasterKey().catch(() => null),
     ]);
@@ -343,8 +343,8 @@ export function useAppInfoScreen() {
       if (androidKeystoreExportAdminKey) await saveAndroidKeystoreExportAdminKey(androidKeystoreExportAdminKey);
       else await deleteAndroidKeystoreExportAdminKey();
 
-      if (legacyEdgeAdminKey) await saveEdgeAdminKey(legacyEdgeAdminKey);
-      else await deleteEdgeAdminKey();
+      if (legacyEdgeAdminKey) await saveLegacyEdgeAdminKey(legacyEdgeAdminKey);
+      else await deleteLegacyEdgeAdminKey();
 
       if (signingAdminKey) await saveSigningAdminKey(signingAdminKey);
       else await deleteSigningAdminKey();
