@@ -269,12 +269,11 @@ describe("Patch 414 workflow ref SoT invariants", () => {
   it("keeps the CI Lite ref policy aligned across live workflows, infra templates, and edge dispatch templates", () => {
     const ciLite = read(".github/workflows/k1w1-ci-lite.yml");
     const autofix = read(".github/workflows/k1w1-ci-lite-autofix.yml");
+    const sharedTemplates = read("shared/workflows/managedWorkflowTemplates.ts");
     const infraTemplates = read("infra/github/workflowTemplates.ts");
     const edgeTemplates = read("supabase/functions/github-workflow-dispatch/index.ts");
-    const infraCiLite = extractNamedTemplateLiteral(infraTemplates, "k1w1-ci-lite.yml");
-    const edgeCiLite = extractNamedTemplateLiteral(edgeTemplates, "k1w1-ci-lite.yml");
-    const infraAutofix = extractNamedTemplateLiteral(infraTemplates, "k1w1-ci-lite-autofix.yml");
-    const edgeAutofix = extractNamedTemplateLiteral(edgeTemplates, "k1w1-ci-lite-autofix.yml");
+    const sharedCiLite = extractNamedTemplateLiteral(sharedTemplates, "k1w1-ci-lite.yml");
+    const sharedAutofix = extractNamedTemplateLiteral(sharedTemplates, "k1w1-ci-lite-autofix.yml");
     const legacyRegex = "^(work|main|dev|develop|release/.+|feature/.+|hotfix/.+)$";
 
     expect(ciLite).toContain(`ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"`);
@@ -282,7 +281,7 @@ describe("Patch 414 workflow ref SoT invariants", () => {
     expect(ciLite).not.toContain(`ALLOWED_REF_REGEX: "${legacyRegex}"`);
     expect(ciLite).not.toContain(`allowed_ref_regex: "${legacyRegex}"`);
 
-    for (const src of [infraCiLite, edgeCiLite]) {
+    for (const src of [sharedCiLite]) {
       expect(src).toContain(`ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"`);
       expect(src).toContain("allowed_ref_regex: \\${{ env.ALLOWED_REF_REGEX }}");
       expect(src).not.toContain(`ALLOWED_REF_REGEX: "${legacyRegex}"`);
@@ -294,18 +293,21 @@ describe("Patch 414 workflow ref SoT invariants", () => {
     expect(autofix).not.toContain(`ALLOWED_REF_REGEX: "${legacyRegex}"`);
     expect(autofix).not.toContain(`allowed_ref_regex: "${legacyRegex}"`);
 
-    for (const src of [infraAutofix, edgeAutofix]) {
+    for (const src of [sharedAutofix]) {
       expect(src).toContain(`ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"`);
       expect(src).toContain("allowed_ref_regex: \\${{ env.ALLOWED_REF_REGEX }}");
       expect(src).not.toContain(`ALLOWED_REF_REGEX: "${legacyRegex}"`);
       expect(src).not.toContain(`allowed_ref_regex: "${legacyRegex}"`);
     }
 
+
+    expect(infraTemplates).toContain("managedWorkflowTemplates");
+    expect(edgeTemplates).toContain("managedWorkflowTemplates");
     expect(autofix).toContain("- name: Determine target branch");
     expect(autofix).toContain("TARGET_BRANCH=${{ steps.target_ref.outputs.checkout_ref }}");
     expect(autofix).not.toContain("inputs.ref || github.ref_name");
 
-    for (const src of [infraAutofix, edgeAutofix]) {
+    for (const src of [sharedAutofix]) {
       expect(src).toContain("- name: Determine target branch");
       expect(src).toContain("TARGET_BRANCH=\\${{ steps.target_ref.outputs.checkout_ref }}");
       expect(src).not.toContain("inputs.ref || github.ref_name");

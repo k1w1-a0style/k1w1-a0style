@@ -67,23 +67,26 @@ for wf in .github/workflows/eas-link.yml .github/workflows/release-build.yml .gi
 done
 
 EDGE_FILE="supabase/functions/github-workflow-dispatch/index.ts"
+SHARED_FILE="shared/workflows/managedWorkflowTemplates.ts"
 [ -f "$EDGE_FILE" ] || fail "Missing edge workflow source: $EDGE_FILE"
+[ -f "$SHARED_FILE" ] || fail "Missing shared workflow source: $SHARED_FILE"
 
-managed_count="$(grep -c '# managed-by: k1w1' "$EDGE_FILE" || true)"
-[ "${managed_count:-0}" -ge 1 ] || fail "Embedded workflow templates missing managed-by marker"
+grep -q 'managedWorkflowTemplates' "$EDGE_FILE" || fail "Edge dispatch must import shared managed workflow templates"
+grep -q 'WORKFLOW_TEMPLATES' "$EDGE_FILE" || fail "Edge dispatch missing WORKFLOW_TEMPLATES reference"
+grep -q 'function parseManagedWorkflowMeta' "$EDGE_FILE" || fail "Missing managed workflow metadata parser"
 
-version_count="$(grep -E -c '# workflow-version: [0-9]+' "$EDGE_FILE" || true)"
-[ "${version_count:-0}" -ge 1 ] || fail "Embedded workflow templates missing numeric workflow-version marker"
+grep -q '# managed-by: k1w1' "$SHARED_FILE" || fail "Shared workflow templates missing managed-by marker"
+version_count="$(grep -E -c '# workflow-version: [0-9]+' "$SHARED_FILE" || true)"
+[ "${version_count:-0}" -ge 1 ] || fail "Shared workflow templates missing numeric workflow-version marker"
 
-embedded_max_version="$(grep -Eo '# workflow-version: [0-9]+' "$EDGE_FILE" | awk '{print $3}' | sort -n | tail -n1)"
-[ -n "${embedded_max_version:-}" ] || fail "Could not determine embedded workflow-version"
-if [ "$embedded_max_version" -lt 399 ]; then
-  fail "Embedded workflow-version unexpectedly old: $embedded_max_version"
+shared_max_version="$(grep -Eo '# workflow-version: [0-9]+' "$SHARED_FILE" | awk '{print $3}' | sort -n | tail -n1)"
+[ -n "${shared_max_version:-}" ] || fail "Could not determine shared workflow-version"
+if [ "$shared_max_version" -lt 399 ]; then
+  fail "Shared workflow-version unexpectedly old: $shared_max_version"
 fi
 
-grep -q 'source_sha' "$EDGE_FILE" || fail "Embedded workflow templates missing source_sha/source_commit_sha provenance"
-grep -q 'function parseManagedWorkflowMeta' "$EDGE_FILE" || fail "Missing managed workflow metadata parser"
-grep -q 'repository_dispatch:' "$EDGE_FILE" || fail "Embedded templates missing repository_dispatch support"
+grep -q 'source_sha' "$SHARED_FILE" || fail "Shared workflow templates missing source_sha/source_commit_sha provenance"
+grep -q 'repository_dispatch:' "$SHARED_FILE" || fail "Shared templates missing repository_dispatch support"
 
 for wf in .github/workflows/eas-build.yml .github/workflows/eas-link.yml .github/workflows/release-build.yml .github/workflows/deploy-supabase-functions.yml .github/workflows/k1w1-triggered-build.yml; do
   grep -Eq '^\s+ref:\s*$' "$wf" || fail "Missing explicit ref input block in $wf"
