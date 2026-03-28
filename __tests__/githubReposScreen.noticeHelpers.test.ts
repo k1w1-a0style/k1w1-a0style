@@ -1,7 +1,30 @@
-import { getEasLinkWriteNotice, getSecretsSyncNotice } from "../screens/GitHubReposScreen/hooks/githubReposScreenNoticeHelpers";
+import {
+  getEasLinkWriteNotice,
+  getRepoSuccessNotice,
+  getSecretsSyncNotice,
+} from "../screens/GitHubReposScreen/hooks/githubReposScreenNoticeHelpers";
 import { getEasLinkPresentation } from "../screens/GitHubReposScreen/utils/easLinkContract";
 
 describe("githubReposScreenNoticeHelpers", () => {
+  it("maps repo success actions to stable notice texts", () => {
+    expect(getRepoSuccessNotice("repo_created", "owner/new-repo")).toEqual({
+      title: "✅ Repo erstellt",
+      message: "owner/new-repo",
+    });
+    expect(getRepoSuccessNotice("repo_renamed", "owner/new-name")).toEqual({
+      title: "✅ Repo umbenannt",
+      message: "owner/new-name",
+    });
+    expect(getRepoSuccessNotice("repo_deleted", "owner/deleted")).toEqual({
+      title: "✅ Repo gelöscht",
+      message: "owner/deleted",
+    });
+    expect(getRepoSuccessNotice("branch_deleted", "feature/a")).toEqual({
+      title: "✅ Branch gelöscht",
+      message: "feature/a",
+    });
+  });
+
   it("maps empty secrets sync results to neutral notice text", () => {
     expect(getSecretsSyncNotice([])).toEqual({
       title: "ℹ️ Secrets",
