@@ -13,7 +13,6 @@ const isDev =
     : process.env.NODE_ENV !== "production";
 
 if (!isDev) {
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
   const noop = () => {};
   // eslint-disable-next-line no-console
   console.log = noop as any;
