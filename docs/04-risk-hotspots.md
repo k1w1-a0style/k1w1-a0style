@@ -12,6 +12,8 @@
 - `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts` (mehrere Sync/Repo-Operationen)
 - `screens/DiagnosticScreen/hooks/diagnosticRunners.ts`, `useDiagnosticFixRunner.ts`
 
+**Update (Patch 589):** Der Edge-Eingang `trigger-eas-build` lehnt fehlenden/leeren Branch jetzt bereits serverseitig fail-closed ab. Tieferliegende Shared-Layer-Fallbacks auf Default-Branch/`main` bleiben weiterhin als Rest-Risiko bestehen.
+
 **Fix-Vorschlag:**
 1. Harten Branch-Guard einführen: wenn Branch leer ⇒ blockieren mit UI-Fehler.
 2. Fallbacks auf `main` entfernen.
@@ -28,6 +30,7 @@
 - `screens/AppInfoScreen/hooks/useAppInfoScreen.ts`
 - `contexts/GitHubContext.tsx` (persistiert `active*`, spiegelt aber aus `linked*`)
 
+
 **Fix-Vorschlag:**
 1. `linked*` als einziges Schreibziel definieren.
 2. `active*` nur als derived read-model führen (kein eigener User-Write außer Mirror-Mechanik).
@@ -43,6 +46,7 @@
 - `contexts/ProjectContext.tsx` (`pd.linkedRepo?.trim() || CONFIG.BUILD.GITHUB_REPO`)
 - `project/services/buildStartService.ts` (gleicher Fallback)
 
+
 **Fix-Vorschlag:**
 1. Build blocken, wenn `linkedRepo` fehlt.
 2. Config-Fallback nur für expliziten Dev-Testmodus erlauben (Feature Flag + Hinweis).
@@ -57,6 +61,7 @@
 - `lib/storageKeys.ts`
 - `screens/DiagnosticScreen/hooks/useDiagnosticScreen.ts`
 - `screens/EnhancedBuildScreen/hooks/useBuildPreconditions.ts`
+
 
 **Fix-Vorschlag:**
 1. Statusobjekt mit Timestamp/Version (z. B. `diagnostic_last_result_v2`) einführen.

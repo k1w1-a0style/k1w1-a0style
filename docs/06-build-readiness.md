@@ -68,6 +68,11 @@ Der Service muss dieselben Regeln servernah erzwingen, damit keine Umgehung via 
 
 ---
 
+### 3.4 Edge-Contract (Patch 589)
+- `trigger-eas-build` akzeptiert serverseitig nur noch Requests mit explizitem nicht-leerem `branch` (nach `trim()`).
+- Fehlender/leer/Whitespace-Branch wird am Edge-Eingang mit 400 abgelehnt (fail-closed).
+- Dieser Schritt haertet nur den Edge-Eingang; tieferliegende Shared-Layer-Default-Branch-/`main`-Fallbacks werden spaeter separat entfernt.
+
 ## 4) Single Entry Point (Code-Verankerung)
 
 ### Verbindlicher Einstieg
