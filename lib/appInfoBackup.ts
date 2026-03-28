@@ -7,6 +7,7 @@ const PROVIDERS: AllAIProviders[] = [
   "anthropic",
   "huggingface",
 ];
+const PROVIDER_SET: ReadonlySet<AllAIProviders> = new Set(PROVIDERS);
 
 type ApiBackupV1 = {
   version: 1;
@@ -36,7 +37,7 @@ function getBoolean(v: unknown): boolean | null {
 }
 
 function isProvider(value: unknown): value is AllAIProviders {
-  return typeof value === "string" && PROVIDERS.includes(value as AllAIProviders);
+  return typeof value === "string" && PROVIDER_SET.has(value as AllAIProviders);
 }
 
 function normalizeQualityMode(raw: unknown, fallback: AIConfig["qualityMode"]): AIConfig["qualityMode"] {
@@ -69,14 +70,19 @@ export function validateApiBackupJson(parsed: unknown): ApiBackupV1 {
   if (!("config" in parsed)) throw new Error("Ungültiges Backup-Format");
 
   const cfg = asRecord(parsed.config);
-  if (!isPlainObject(cfg)) throw new Error("Ungültiges Backup-Format");
+  if (!cfg) throw new Error("Ungültiges Backup-Format");
 
   // Minimal schema validation: apiKeys must be an object when present.
   if ("apiKeys" in cfg && cfg.apiKeys !== undefined && !isPlainObject(cfg.apiKeys)) {
     throw new Error("Ungültiges Backup-Format");
   }
 
-  return parsed as ApiBackupV1;
+  return {
+    version: 1,
+    exportDate: getString(parsed.exportDate) ?? undefined,
+    appVersion: getString(parsed.appVersion) ?? undefined,
+    config: cfg,
+  };
 }
 
 export function sanitizeAiConfigFromBackup(

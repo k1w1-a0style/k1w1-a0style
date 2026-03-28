@@ -20,10 +20,11 @@ Fokus: riskante `any`-Zugriffe reduzieren, `unknown` + Narrowing einsetzen, Fall
 - Neue lokale Guards:
   - `isRecord(...)`
   - `toWorkflowRunCandidate(...)`
+  - `toWorkflowRunWithTitle(...)`
   - `getRunTitle(...)`
 - Unvollstaendige/fremde Run-Objekte werden fail-safe ignoriert, Matching-Logik (exact marker zuerst, danach includes) bleibt unveraendert.
 - `normalizePreflightPatch(...)` nimmt jetzt `unknown` statt `any`.
-- Patch-Normalisierung laeuft ueber record-Guards statt `as any`-Property-Ketten.
+- Patch-Normalisierung liest `upsert`/`delete`/`jsonMerge` ueber sichere Array-Grenzen statt `as any`-Property-Ketten.
 - Semantik bleibt gleich:
   - plain patch oder `{ patch: ... }` wird akzeptiert
   - nur vorhandene `upsert`/`delete`/`jsonMerge`/`explanation` werden uebernommen
@@ -35,6 +36,7 @@ Fokus: riskante `any`-Zugriffe reduzieren, `unknown` + Narrowing einsetzen, Fall
   - `asRecord(...)`, `getString(...)`, `getNumber(...)`, `getBoolean(...)`
   - `isProvider(...)`, `normalizeQualityMode(...)`
 - `validateApiBackupJson(...)` liest `config`/`apiKeys` ohne `as any`.
+- `validateApiBackupJson(...)` baut das Rueckgabeobjekt explizit neu auf (inkl. optionaler `exportDate`/`appVersion`), statt blind zu casten.
 - `sanitizeAiConfigFromBackup(...)` liest `apiKeys`, Provider, Mode, `qualityMode`, `agentEnabled` ueber echte Narrowing-Grenzen.
 - Fallback-Semantik bleibt bewusst stabil:
   - fremde Provider fallen auf `fallback` zurueck
@@ -44,11 +46,11 @@ Fokus: riskante `any`-Zugriffe reduzieren, `unknown` + Narrowing einsetzen, Fall
 ## Tests / Regressionen
 
 - `__tests__/ciLiteStatus.test.ts`
-  - neuer Fall fuer unvollstaendige Run-Payloads bei `findWorkflowRunByJobId(...)`.
+  - bestehender Stabilitaetsfall fuer unvollstaendige Run-Payloads bei `findWorkflowRunByJobId(...)` bleibt gruen.
 - `__tests__/ciLiteArtifactParsing.test.ts`
-  - neuer Fall fuer `{ patch: ... }` + fail-safe Fehlerverhalten bei invalidem Input ohne Operationen.
+  - neuer Fall fuer Legacy-Top-Level-Fallback bei invalidem `patch`-Wrapper plus fail-safe Fehlerverhalten bei invaliden Operationen.
 - `__tests__/appInfoBackupPrivacy.test.ts`
-  - neue Regressionen fuer fremde/unvollstaendige Backup-Payloads und stabile Provider-/Mode-/Quality-Fallbacks.
+  - neue Regression fuer Legacy-`selectedAutofixProvider` + ungueltige `config`/`apiKeys`-Payloads bei stabilen Provider-/Quality-Fallbacks.
 
 ## Checks
 

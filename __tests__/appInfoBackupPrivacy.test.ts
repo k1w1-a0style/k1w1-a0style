@@ -69,6 +69,22 @@ describe("AppInfo backup privacy helpers", () => {
     expect(next.qualityMode).toBe("quality");
   });
 
+  test("sanitizeAiConfigFromBackup accepts legacy selectedAutofixProvider but ignores malformed config/apiKeys", () => {
+    const next = sanitizeAiConfigFromBackup(
+      {
+        config: "legacy-non-object",
+        apiKeys: "invalid",
+        selectedAutofixProvider: "anthropic",
+        qualityMode: "review",
+      },
+      baseConfig,
+    );
+
+    expect(next.selectedAgentProvider).toBe("anthropic");
+    expect(next.apiKeys.openai).toEqual([]);
+    expect(next.qualityMode).toBe("review");
+  });
+
   test("sanitizeAiConfigFromBackup tolerates incomplete config/apiKeys payloads", () => {
     const next = sanitizeAiConfigFromBackup(
       {
