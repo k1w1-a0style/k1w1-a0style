@@ -20,6 +20,8 @@ function collectFocusTerms(userFocus: string): string[] {
   const stop = new Set([
     'und', 'oder', 'aber', 'nicht', 'mit', 'ohne', 'dass', 'dies', 'eine', 'einen', 'der', 'die', 'das', 'den', 'dem', 'des',
     'für', 'von', 'auf', 'ist', 'sind', 'bitte', 'kann', 'können', 'soll', 'sollte', 'mach', 'mache', 'baue', 'bauen',
+    'the', 'and', 'for', 'with', 'without', 'from', 'into', 'onto', 'that', 'this', 'these', 'those',
+    'please', 'can', 'could', 'should', 'would', 'make', 'create', 'add', 'update', 'improve',
   ]);
 
   return [...new Set(rawTokens.filter((t) => !stop.has(t)).slice(0, 24))];
@@ -245,6 +247,10 @@ export function buildValidatorMessages(
     provider,
   }).projectFiles;
 
+  const allAiPaths = [...new Set(aiFiles.map((file) => String(file.path ?? '').trim()).filter(Boolean))];
+  const includedAiPaths = new Set(budgetedAiFiles.map((file) => file.path));
+  const omittedAiPaths = allAiPaths.filter((path) => !includedAiPaths.has(path));
+
   const snapshot = buildProjectSnapshot(budgetedProject.projectFiles, originalUserRequest);
   const context: LlmMessage = {
     role: 'system',
@@ -262,6 +268,16 @@ export function buildValidatorMessages(
       '\n\nHier sind die von der Haupt-KI erzeugten Dateien (JSON-Array). Prüfe sie und liefere ggf. ein verbessertes Array:',
   };
 
+  const manifestSummary: LlmMessage = {
+    role: 'system',
+    content:
+      'Vollständige AI-Zielpfade (auch wenn Inhalte wegen Budget gekürzt/ausgelassen sein können):\n' +
+      (allAiPaths.length > 0 ? allAiPaths.map((path) => `- ${path}`).join('\n') : '- (keine)') +
+      (omittedAiPaths.length > 0
+        ? `\n\nNicht vollständig inline im JSON enthalten (nur Pfad sichtbar):\n${omittedAiPaths.map((path) => `- ${path}`).join('\n')}`
+        : '\n\nAlle AI-Zielpfade sind vollständig im JSON enthalten.'),
+  };
+
   const aiFilesJson = JSON.stringify(
     budgetedAiFiles.map((f) => ({
       path: f.path,
@@ -272,5 +288,5 @@ export function buildValidatorMessages(
   );
 
   const assistantDraft: LlmMessage = { role: 'assistant', content: aiFilesJson };
-  return [system, context, user, assistantDraft];
+  return [system, context, manifestSummary, user, assistantDraft];
 }

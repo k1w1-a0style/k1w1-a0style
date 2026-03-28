@@ -187,6 +187,10 @@ export const validateZipImport = (
     return { valid: false, validFiles: [], invalidFiles: [], errors: ['Import ist kein Array'] };
   }
 
+  if (files.length === 0) {
+    errors.push('ZIP enthält keine Dateien');
+  }
+
   if (files.length > maxFiles) {
     errors.push(`Zu viele Dateien (max ${maxFiles})`);
   }
@@ -210,7 +214,7 @@ export const validateZipImport = (
     validFiles.push({ path: pRes.normalized || p, content: c });
   }
 
-  if (invalidFiles.length > 0) errors.push('Einige Dateien sind ungültig');
+  if (invalidFiles.length > 0) errors.push('ZIP enthält ungültige Dateien (strict all-or-nothing)');
 
   return { valid: errors.length === 0 && invalidFiles.length === 0, validFiles, invalidFiles, errors };
 };
