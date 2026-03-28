@@ -3,7 +3,7 @@ import {
   inferLocalEdgeAdminKeyIssueKind,
 } from "../screens/CredentialsWizardScreen/utils/localAdminKey";
 
-describe("local Edge Admin Key diagnosis", () => {
+describe("local Android Keystore Export Admin Key diagnosis", () => {
   const validKey = "edge-admin-key-12345678901234567890";
 
   it("classifies a present but server-rejected local key as rejected, not missing", () => {

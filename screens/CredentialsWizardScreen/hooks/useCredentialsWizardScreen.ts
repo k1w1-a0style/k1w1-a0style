@@ -9,7 +9,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useProject } from "../../../contexts/ProjectContext";
 import { ensureSupabaseClient } from "../../../lib/supabase";
-import { getEdgeAdminKey, saveEdgeAdminKey } from "../../../infra/github/githubService";
+import {
+  getAndroidKeystoreExportAdminKey,
+  getEdgeAdminKey,
+  saveAndroidKeystoreExportAdminKey,
+} from "../../../infra/github/githubService";
 import {
   credKeyForProjectUiMode,
   credKeyForUiMode,
@@ -158,7 +162,8 @@ export function useCredentialsWizardScreen() {
 
   const hydrateAdminKey = useCallback(async () => {
     try {
-      const k = await getEdgeAdminKey();
+      const scopedKeystoreKey = await getAndroidKeystoreExportAdminKey();
+      const k = scopedKeystoreKey ?? (await getEdgeAdminKey());
       if (!isMountedRef.current) return null;
       setAdminKey(k ?? "");
       return k ?? "";
@@ -217,6 +222,27 @@ export function useCredentialsWizardScreen() {
 
     return true;
   }, [supabaseUrl, adminKey, repoFullName]);
+
+  const requireUserJwtOrAlert = useCallback(async (): Promise<string | null> => {
+    try {
+      const client = await ensureSupabaseClient();
+      const sessionResult = await (client as {
+        auth?: {
+          getSession?: () => Promise<{ data?: { session?: { access_token?: string | null } | null } | null }>;
+        };
+      })?.auth?.getSession?.();
+      const jwt = sessionResult?.data?.session?.access_token?.trim();
+      if (jwt) return jwt;
+    } catch (error) {
+      safeSetLastError(error);
+    }
+
+    Alert.alert(
+      "Supabase Login fehlt",
+      "Keystore-Status/Generate benötigen einen gültigen Supabase User JWT (Authorization: Bearer <jwt>) plus lokalen Android Keystore Export Admin Key.",
+    );
+    return null;
+  }, [safeSetLastError]);
 
   useEffect(() => {
     let cancelled = false;
@@ -378,13 +404,22 @@ export function useCredentialsWizardScreen() {
     [projectCredentialScope],
   );
 
-  async function refreshStatusCore(mode: UiModeId, opts?: { preservePendingOnError?: boolean }) {
+  async function refreshStatusCore(
+    mode: UiModeId,
+    userJwt: string,
+    opts?: { preservePendingOnError?: boolean },
+  ) {
     safeSetLastError(null);
     safeSetLastDebug(null);
 
     try {
       const apiMode = normalizeModeForApi(mode);
-      const r = await invokeEdgeJson(supabaseUrl, SUPABASE_EDGE_FUNCTIONS.ANDROID_KEYSTORE_STATUS, adminKey, {
+      const r = await invokeEdgeJson(
+        supabaseUrl,
+        SUPABASE_EDGE_FUNCTIONS.ANDROID_KEYSTORE_STATUS,
+        adminKey,
+        userJwt,
+        {
         repo: repoFullName,
         mode: apiMode,
       });
@@ -405,6 +440,7 @@ export function useCredentialsWizardScreen() {
                       adminKey,
                       statusCode: r.debug.status ?? null,
                       error: r.error,
+                      surface: "keystore",
                     }),
                   });
             void persistWizardStatus(mode, nextStatus);
@@ -436,7 +472,7 @@ export function useCredentialsWizardScreen() {
               : toWizardErrorStatus({
                   previous: prev[mode],
                   error: e,
-                  detail: describeLocalEdgeAdminKeyIssue({ adminKey, error: e }),
+                  detail: describeLocalEdgeAdminKeyIssue({ adminKey, error: e, surface: "keystore" }),
                 });
           void persistWizardStatus(mode, nextStatus);
           return {
@@ -451,12 +487,14 @@ export function useCredentialsWizardScreen() {
 
   async function refreshStatus(mode: UiModeId) {
     if (!ensureCanRunOrAlert()) return;
+    const userJwt = await requireUserJwtOrAlert();
+    if (!userJwt) return;
 
     const actionKey = `status:${mode}`;
     if (!tryBeginAction(actionKey)) return;
 
     try {
-      await refreshStatusCore(mode, { preservePendingOnError: true });
+      await refreshStatusCore(mode, userJwt, { preservePendingOnError: true });
     } finally {
       finishAction(actionKey);
     }
@@ -464,6 +502,8 @@ export function useCredentialsWizardScreen() {
 
   async function refreshAll() {
     if (!ensureCanRunOrAlert()) return;
+    const userJwt = await requireUserJwtOrAlert();
+    if (!userJwt) return;
 
     const actionKey = "status:all";
     if (!tryBeginAction(actionKey)) return;
@@ -476,7 +516,7 @@ export function useCredentialsWizardScreen() {
     try {
       // Sequential to avoid rate-limit bursts (stable + gentle on Edge functions)
       for (const m of MODES) {
-        await refreshStatusCore(m.id);
+        await refreshStatusCore(m.id, userJwt);
       }
       toast.show("Status aktualisiert");
     } finally {
@@ -486,6 +526,8 @@ export function useCredentialsWizardScreen() {
 
   async function generate(mode: UiModeId) {
     if (!ensureCanRunOrAlert()) return;
+    const userJwt = await requireUserJwtOrAlert();
+    if (!userJwt) return;
 
     const actionKey = `generate:${mode}`;
     if (!tryBeginAction(actionKey)) return;
@@ -497,7 +539,12 @@ export function useCredentialsWizardScreen() {
 
     try {
       const apiMode = normalizeModeForApi(mode);
-      const r = await invokeEdgeJson(supabaseUrl, SUPABASE_EDGE_FUNCTIONS.ANDROID_KEYSTORE_GENERATE, adminKey, {
+      const r = await invokeEdgeJson(
+        supabaseUrl,
+        SUPABASE_EDGE_FUNCTIONS.ANDROID_KEYSTORE_GENERATE,
+        adminKey,
+        userJwt,
+        {
         repo: repoFullName,
         mode: apiMode,
       });
@@ -515,6 +562,7 @@ export function useCredentialsWizardScreen() {
                 adminKey,
                 statusCode: r.debug.status ?? null,
                 error: r.error,
+                surface: "keystore",
               }),
             });
             void persistWizardStatus(mode, nextStatus);
@@ -545,7 +593,7 @@ export function useCredentialsWizardScreen() {
       }
 
       toast.show("Keystore erzeugt - Verifikation laeuft/steht noch aus");
-      await refreshStatusCore(mode, { preservePendingOnError: true });
+      await refreshStatusCore(mode, userJwt, { preservePendingOnError: true });
     } catch (e: unknown) {
       safeSetLastError(e);
       if (isMountedRef.current) {
@@ -559,7 +607,7 @@ export function useCredentialsWizardScreen() {
               : toWizardErrorStatus({
                   previous: prev[mode],
                   error: e,
-                  detail: describeLocalEdgeAdminKeyIssue({ adminKey, error: e }),
+                  detail: describeLocalEdgeAdminKeyIssue({ adminKey, error: e, surface: "keystore" }),
                 });
           void persistWizardStatus(mode, nextStatus);
           return {
@@ -580,14 +628,18 @@ export function useCredentialsWizardScreen() {
     if (trimmed && !isLikelyValidAdminKey(trimmed)) {
       Alert.alert(
         "Admin-Key wirkt ungültig",
-        "Bitte nur einen formal gültigen lokalen Edge Admin Key ohne Leerzeichen speichern.",
+        "Bitte nur einen formal gültigen lokalen Android Keystore Export Admin Key ohne Leerzeichen speichern.",
       );
       return;
     }
 
-    await saveEdgeAdminKey(trimmed);
+    await saveAndroidKeystoreExportAdminKey(trimmed);
     await hydrateAdminKey();
-    toast.show(trimmed ? "Admin-Key gespeichert und neu geladen" : "Admin-Key gelöscht und neu geladen");
+    toast.show(
+      trimmed
+        ? "Android Keystore Export Admin Key gespeichert und neu geladen"
+        : "Android Keystore Export Admin Key gelöscht und neu geladen",
+    );
   }
 
   async function onCopyError() {

@@ -22,6 +22,7 @@ describe("CredentialsWizard invokeEdgeJson contract mapping", () => {
       "https://example.supabase.co",
       "android-keystore-generate",
       "admin-key-12345678901234567890",
+      "jwt-token-123",
       { repo: "owner/repo", mode: "production" },
     );
 
@@ -30,7 +31,7 @@ describe("CredentialsWizard invokeEdgeJson contract mapping", () => {
     expect(res.error).toContain("Missing SIGNING_MASTER_KEY");
   });
 
-  test("sends only x-k1w1-admin-key for local admin-key flows", async () => {
+  test("sends Authorization bearer JWT plus x-k1w1-admin-key for keystore flows", async () => {
     global.fetch = jest.fn(async () =>
       new Response(JSON.stringify({ ok: true, exists: true }), {
         status: 200,
@@ -42,6 +43,7 @@ describe("CredentialsWizard invokeEdgeJson contract mapping", () => {
       "https://example.supabase.co",
       "android-keystore-status",
       "  admin-key-12345678901234567890  ",
+      "  user-jwt-token-abc  ",
       { repo: "owner/repo", mode: "production" },
     );
 
@@ -51,9 +53,9 @@ describe("CredentialsWizard invokeEdgeJson contract mapping", () => {
 
     expect(headers).toMatchObject({
       "content-type": "application/json",
+      Authorization: "Bearer user-jwt-token-abc",
       "x-k1w1-admin-key": "admin-key-12345678901234567890",
     });
-    expect(headers).not.toHaveProperty("Authorization");
   });
 
   test("keeps normal HTTP 200 success payloads as success branch", async () => {
@@ -68,6 +70,7 @@ describe("CredentialsWizard invokeEdgeJson contract mapping", () => {
       "https://example.supabase.co",
       "android-keystore-status",
       "admin-key-12345678901234567890",
+      "jwt-token-123",
       { repo: "owner/repo", mode: "production" },
     );
 

@@ -31,7 +31,7 @@ export function AdminKeySection({
 }) {
   return (
     <SectionCard
-      title="Lokaler Edge Admin Key"
+      title="Lokaler Android Keystore Export Admin Key"
       subtitle="Local only (SecureStore) — not committed to git"
       icon="key-outline"
       right={
@@ -56,7 +56,7 @@ export function AdminKeySection({
       <TextInput
         value={adminKey}
         onChangeText={setAdminKey}
-        placeholder={adminKeyLoaded ? "lokalen Edge Admin Key einfügen…" : "lade…"}
+        placeholder={adminKeyLoaded ? "lokalen Android Keystore Export Admin Key einfügen…" : "lade…"}
         placeholderTextColor={theme.palette.text.muted}
         secureTextEntry
         autoCapitalize="none"
@@ -77,7 +77,7 @@ export function AdminKeySection({
           />
           <InlineHint
             icon="shield-checkmark-outline"
-            text="Admin-Key bleibt lokal. Wenn du das Gerät wechselst, musst du ihn neu setzen."
+            text="Der dedizierte Keystore-Admin-Key bleibt lokal. Wenn du das Gerät wechselst, musst du ihn neu setzen."
           />
         </View>
       ) : null}

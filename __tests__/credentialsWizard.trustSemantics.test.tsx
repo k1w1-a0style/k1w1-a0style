@@ -39,18 +39,25 @@ jest.mock("../components/diagnostics/useInlineToast", () => ({
 }));
 
 jest.mock("../lib/supabase", () => ({
-  ensureSupabaseClient: jest.fn(async () => ({ supabaseUrl: "https://example.supabase.co" })),
+  ensureSupabaseClient: jest.fn(async () => ({
+    supabaseUrl: "https://example.supabase.co",
+    auth: {
+      getSession: async () => ({ data: { session: { access_token: "wizard-user-jwt-123" } } }),
+    },
+  })),
 }));
 
 let currentStoredAdminKey = "admin-key-12345678901234567890";
-const mockGetEdgeAdminKey = jest.fn(async () => currentStoredAdminKey);
-const mockSaveEdgeAdminKey = jest.fn(async (nextKey: string) => {
+const mockGetAndroidKeystoreExportAdminKey = jest.fn(async () => currentStoredAdminKey);
+const mockGetEdgeAdminKey = jest.fn(async () => null);
+const mockSaveAndroidKeystoreExportAdminKey = jest.fn(async (nextKey: string) => {
   currentStoredAdminKey = nextKey;
 });
 
 jest.mock("../infra/github/githubService", () => ({
+  getAndroidKeystoreExportAdminKey: () => mockGetAndroidKeystoreExportAdminKey(),
   getEdgeAdminKey: () => mockGetEdgeAdminKey(),
-  saveEdgeAdminKey: (key: string) => mockSaveEdgeAdminKey(key),
+  saveAndroidKeystoreExportAdminKey: (key: string) => mockSaveAndroidKeystoreExportAdminKey(key),
 }));
 
 const mockSetPreferredBuildProfile = jest.fn(async () => undefined);
@@ -82,7 +89,7 @@ describe("CredentialsWizard trust semantics", () => {
   });
 
   it("does not classify auth/permission or temporary errors as missing", () => {
-    const authState = toWizardErrorStatus({ previous: null, statusCode: 403, error: "Forbidden", detail: "Lokaler Edge Admin Key wurde vom Edge-Server abgelehnt (401/403)." });
+    const authState = toWizardErrorStatus({ previous: null, statusCode: 403, error: "Forbidden", detail: "Lokaler Android Keystore Export Admin Key ist lokal vorhanden und wurde fuer den geschuetzten Keystore-Edge-Request verwendet, aber vom Edge-Server abgelehnt (401/403 bzw. invalid admin)." });
     const temporaryState = toWizardErrorStatus({ previous: null, error: new Error("temporary network timeout") });
 
     expect(authState.credentialState).toBe("auth_error");
@@ -128,7 +135,7 @@ describe("CredentialsWizard trust semantics", () => {
         ]}
         statusByMode={{
           dev: toWizardErrorStatus({ previous: null, error: new Error("temporary network timeout") }),
-          preview: toWizardErrorStatus({ previous: null, statusCode: 403, error: "Forbidden", detail: "Lokaler Edge Admin Key wurde vom Edge-Server abgelehnt (401/403)." }),
+          preview: toWizardErrorStatus({ previous: null, statusCode: 403, error: "Forbidden", detail: "Lokaler Android Keystore Export Admin Key ist lokal vorhanden und wurde fuer den geschuetzten Keystore-Edge-Request verwendet, aber vom Edge-Server abgelehnt (401/403 bzw. invalid admin)." }),
           production: toGeneratedPendingStatus(null),
         }}
         selectedMode="dev"
@@ -169,7 +176,7 @@ describe("CredentialsWizard trust semantics", () => {
     expect(screen.getAllByText(/Noch kein hart verifizierter Erfolg/i).length).toBeGreaterThan(0);
   });
 
-  it("allows whitespace-only input to delete the local Edge Admin Key", async () => {
+  it("allows whitespace-only input to delete the local Android Keystore Export Admin Key", async () => {
     currentStoredAdminKey = "   ";
     const { result } = renderHook(() => useCredentialsWizardScreen());
 
@@ -180,14 +187,14 @@ describe("CredentialsWizard trust semantics", () => {
       await result.current.onSaveAdminKey();
     });
 
-    expect(mockSaveEdgeAdminKey).toHaveBeenCalledWith("");
-    expect(mockGetEdgeAdminKey).toHaveBeenCalled();
-    expect(mockToastShow).toHaveBeenCalledWith("Admin-Key gelöscht und neu geladen");
+    expect(mockSaveAndroidKeystoreExportAdminKey).toHaveBeenCalledWith("");
+    expect(mockGetAndroidKeystoreExportAdminKey).toHaveBeenCalled();
+    expect(mockToastShow).toHaveBeenCalledWith("Android Keystore Export Admin Key gelöscht und neu geladen");
     expect(alertSpy).not.toHaveBeenCalled();
     expect(result.current.adminKey).toBe("");
   });
 
-  it("does not persist a non-empty but formally invalid local Edge Admin Key", async () => {
+  it("does not persist a non-empty but formally invalid local Android Keystore Export Admin Key", async () => {
     currentStoredAdminKey = "  short key  ";
     const { result } = renderHook(() => useCredentialsWizardScreen());
 
@@ -198,17 +205,17 @@ describe("CredentialsWizard trust semantics", () => {
       await result.current.onSaveAdminKey();
     });
 
-    expect(mockSaveEdgeAdminKey).not.toHaveBeenCalled();
-    expect(mockGetEdgeAdminKey).toHaveBeenCalled();
+    expect(mockSaveAndroidKeystoreExportAdminKey).not.toHaveBeenCalled();
+    expect(mockGetAndroidKeystoreExportAdminKey).toHaveBeenCalled();
     expect(alertSpy).toHaveBeenCalledWith(
       "Admin-Key wirkt ungültig",
-      "Bitte nur einen formal gültigen lokalen Edge Admin Key ohne Leerzeichen speichern.",
+      "Bitte nur einen formal gültigen lokalen Android Keystore Export Admin Key ohne Leerzeichen speichern.",
     );
     expect(mockToastShow).not.toHaveBeenCalled();
     expect(currentStoredAdminKey).toBe("  short key  ");
   });
 
-  it("persists a formally valid local Edge Admin Key as before", async () => {
+  it("persists a formally valid local Android Keystore Export Admin Key as before", async () => {
     currentStoredAdminKey = "  edge-admin-key-abcdefghijklmnopqrstuvwxyz123456  ";
     const { result } = renderHook(() => useCredentialsWizardScreen());
 
@@ -219,9 +226,9 @@ describe("CredentialsWizard trust semantics", () => {
       await result.current.onSaveAdminKey();
     });
 
-    expect(mockSaveEdgeAdminKey).toHaveBeenCalledWith("edge-admin-key-abcdefghijklmnopqrstuvwxyz123456");
-    expect(mockGetEdgeAdminKey).toHaveBeenCalled();
-    expect(mockToastShow).toHaveBeenCalledWith("Admin-Key gespeichert und neu geladen");
+    expect(mockSaveAndroidKeystoreExportAdminKey).toHaveBeenCalledWith("edge-admin-key-abcdefghijklmnopqrstuvwxyz123456");
+    expect(mockGetAndroidKeystoreExportAdminKey).toHaveBeenCalled();
+    expect(mockToastShow).toHaveBeenCalledWith("Android Keystore Export Admin Key gespeichert und neu geladen");
     expect(alertSpy).not.toHaveBeenCalled();
     expect(result.current.adminKey).toBe("edge-admin-key-abcdefghijklmnopqrstuvwxyz123456");
     expect(currentStoredAdminKey).toBe("edge-admin-key-abcdefghijklmnopqrstuvwxyz123456");
@@ -269,7 +276,7 @@ describe("CredentialsWizard trust semantics", () => {
       previous: previouslyVerified,
       statusCode: 401,
       error: "Unauthorized: missing or invalid admin key",
-      detail: "Lokaler Edge Admin Key wurde vom Edge-Server abgelehnt (401/403).",
+      detail: "Lokaler Android Keystore Export Admin Key ist lokal vorhanden und wurde fuer den geschuetzten Keystore-Edge-Request verwendet, aber vom Edge-Server abgelehnt (401/403 bzw. invalid admin).",
     });
     const presentation = resolveWizardStatusPresentation({
       status: freshAuthError,
