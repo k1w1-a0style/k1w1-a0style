@@ -24,6 +24,7 @@ import { looksLikeExplicitFileTask, looksLikeAdviceRequest, looksAmbiguousBuilde
 import { handleMetaCommand } from "../utils/metaCommands";
 import { normalizeResultFiles, readBuilderFilesOrThrow } from "./chatAIFlowResultHelpers";
 import { getSourceSummaryText, getValidatorFallbackWarning } from "./chatAIFlowStageHelpers";
+import { getBuilderFailureMessage } from "./chatAIFlowNoticeHelpers";
 
 export type { PendingChange, PendingPlan } from "./chatAIFlowTypes";
 
@@ -534,11 +535,7 @@ export function useChatAIFlow({
         }
 
         if (!ai || !ai.ok) {
-          const details =
-            ai?.error ||
-            ai?.errors?.join?.("\n") ||
-            "Kein ok=true (unbekannter Fehler).";
-          throw new Error(`KI-Request fehlgeschlagen: ${details}`);
+          throw new Error(getBuilderFailureMessage(ai));
         }
 
         // ✅ FIX #7: Type-safe extraction of raw data

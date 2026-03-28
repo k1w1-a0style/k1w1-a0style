@@ -5,6 +5,31 @@ type AlertNotice = {
   message: string;
 };
 
+type RepoSuccessNoticeAction =
+  | "repo_created"
+  | "repo_renamed"
+  | "repo_deleted"
+  | "branch_deleted";
+
+export function getRepoSuccessNotice(
+  action: RepoSuccessNoticeAction,
+  target: string,
+): AlertNotice {
+  if (action === "repo_created") {
+    return { title: "✅ Repo erstellt", message: target };
+  }
+
+  if (action === "repo_renamed") {
+    return { title: "✅ Repo umbenannt", message: target };
+  }
+
+  if (action === "repo_deleted") {
+    return { title: "✅ Repo gelöscht", message: target };
+  }
+
+  return { title: "✅ Branch gelöscht", message: target };
+}
+
 export function getSecretsSyncNotice(updatedSecrets: string[]): AlertNotice {
   if (!updatedSecrets.length) {
     return {

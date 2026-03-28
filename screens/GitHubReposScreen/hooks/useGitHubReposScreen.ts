@@ -49,7 +49,7 @@ import {
 } from "./templateFiles";
 import type { TemplateFile, RepoFilterType } from "./templateFiles";
 import { getErrorMessage } from "./githubReposScreenErrorHelpers";
-import { getEasLinkWriteNotice, getSecretsSyncNotice } from "./githubReposScreenNoticeHelpers";
+import { getEasLinkWriteNotice, getRepoSuccessNotice, getSecretsSyncNotice } from "./githubReposScreenNoticeHelpers";
 import { getDeleteBranchConfirmDialog, getDeleteRepoConfirmDialog } from "./githubReposScreenDialogHelpers";
 
 type SyncStatus = {
@@ -479,7 +479,8 @@ export function useGitHubReposScreen() {
       const defaultBranch = String(repo.default_branch || "").trim() || null;
       setLinkedRepo(repo.full_name, defaultBranch);
       setActiveBranch(defaultBranch);
-      Alert.alert("✅ Repo erstellt", repo.full_name);
+      const successNotice = getRepoSuccessNotice("repo_created", repo.full_name);
+      Alert.alert(successNotice.title, successNotice.message);
     } catch (e: unknown) {
       Alert.alert("❌ Repo erstellen fehlgeschlagen", getErrorMessage(e, ""));
     } finally {
@@ -508,7 +509,8 @@ export function useGitHubReposScreen() {
       addRecentRepo(newFullName);
       setShowRenameRepo(false);
       setRenameName("");
-      Alert.alert("✅ Repo umbenannt", newFullName);
+      const successNotice = getRepoSuccessNotice("repo_renamed", newFullName);
+      Alert.alert(successNotice.title, successNotice.message);
       await loadRepos();
     } catch (e: unknown) {
       Alert.alert("❌ Umbenennen fehlgeschlagen", getErrorMessage(e, ""));
@@ -544,7 +546,8 @@ export function useGitHubReposScreen() {
                 setLinkedRepo(null, null);
               }
               await loadRepos();
-              Alert.alert("✅ Repo gelöscht", full);
+              const successNotice = getRepoSuccessNotice("repo_deleted", full);
+              Alert.alert(successNotice.title, successNotice.message);
             } catch (e: unknown) {
               Alert.alert("❌ Löschen fehlgeschlagen", getErrorMessage(e, ""));
             } finally {
@@ -973,7 +976,8 @@ export function useGitHubReposScreen() {
             await deleteBranch(parsed.owner, parsed.repo, activeBranch);
             setActiveBranch(null);
             setLinkedRepo(activeRepo, null);
-            Alert.alert("✅ Branch gelöscht", activeBranch);
+            const successNotice = getRepoSuccessNotice("branch_deleted", activeBranch);
+            Alert.alert(successNotice.title, successNotice.message);
           } catch (e: unknown) {
             Alert.alert("❌ Fehler", getErrorMessage(e, ""));
           }
