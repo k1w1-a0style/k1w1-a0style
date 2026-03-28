@@ -12,7 +12,7 @@
 - `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts` (mehrere Sync/Repo-Operationen)
 - `screens/DiagnosticScreen/hooks/diagnosticRunners.ts`, `useDiagnosticFixRunner.ts`
 
-**Update (Patch 589):** Der Edge-Eingang `trigger-eas-build` lehnt fehlenden/leeren Branch jetzt bereits serverseitig fail-closed ab. Tieferliegende Shared-Layer-Fallbacks auf Default-Branch/`main` bleiben weiterhin als Rest-Risiko bestehen.
+**Update (Patch 590):** Nach dem gehaerteten Edge-Eingang aus Patch 589 sind jetzt auch die tieferen branch-nahen Shared-Layer gehaertet: `infra/github/workflows.ts`, `infra/github/files.ts` und `infra/github/branchOps.ts` enthalten keine stillen `"main"`-Fallbacks mehr; fehlender Branch/Ref bricht fail-closed ab statt zu raten.
 
 **Fix-Vorschlag:**
 1. Harten Branch-Guard einführen: wenn Branch leer ⇒ blockieren mit UI-Fehler.
@@ -85,7 +85,7 @@
 
 ## Evidence
 
-### Evidence A — Branch fallback im Build-Service
+### Evidence A — Historischer Branch fallback im Build-Service (vor Hardening)
 **Datei:** `project/services/buildStartService.ts`  
 **Symbol:** `bestEffortPushToGitHub`
 ```ts

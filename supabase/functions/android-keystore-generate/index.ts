@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const repo = safeString(body?.repo);
-    const branch = safeString(body?.branch) || "main";
+    const branch = safeString(body?.branch);
     let mode: Mode;
     try {
       mode = resolveMode(safeString(body?.mode));

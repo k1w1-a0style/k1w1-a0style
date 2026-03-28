@@ -1,4 +1,4 @@
-import { createOrUpdateFile, getRepoFileText } from "../infra/github/files";
+import { createOrUpdateFile, getRepoFileText, listRepoBlobEntries } from "../infra/github/files";
 
 jest.mock("../infra/github/tokenStore", () => ({
   getGitHubToken: jest.fn(async () => "gh-token"),
@@ -22,6 +22,9 @@ jest.mock("../infra/github/utils", () => {
 
 const { fetchGitHub: mockFetchGitHub } = jest.requireMock("../infra/github/utils") as {
   fetchGitHub: jest.Mock;
+};
+const { getDefaultBranch: mockGetDefaultBranch } = jest.requireMock("../infra/github/repos") as {
+  getDefaultBranch: jest.Mock;
 };
 
 type ResponseLike = {
@@ -76,5 +79,19 @@ describe("infra/github/files contracts", () => {
     await expect(
       createOrUpdateFile("o", "r", "README.md", "hi", "msg", "main"),
     ).rejects.toThrow("create/update file failed: README.md");
+  });
+
+  test("createOrUpdateFile fails closed when branch is missing", async () => {
+    await expect(
+      createOrUpdateFile("o", "r", "README.md", "hi", "msg"),
+    ).rejects.toThrow("Explicit branch/ref is required.");
+  });
+
+  test("listRepoBlobEntries does not fallback to main when default branch metadata is missing", async () => {
+    mockGetDefaultBranch.mockResolvedValueOnce("   ");
+
+    await expect(
+      listRepoBlobEntries({ owner: "o", repo: "r" }),
+    ).rejects.toThrow("Explicit branch/ref is required.");
   });
 });

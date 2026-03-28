@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: 2026-03-28 (Patch 589)
+Stand: 2026-03-28 (Patch 590)
 
 ## Aktiv und workflow-relevant
 
@@ -32,7 +32,7 @@ Stand: 2026-03-28 (Patch 589)
 ## Hinweise
 
 - Edge-Eingang `trigger-eas-build` ist ab Patch 589 fail-closed auf expliziten `branch` gehaertet (kein still tolerierter leerer/missing Branch mehr am Route-Request).
-- Tieferliegende Shared-Layer-Default-Branch-/`main`-Fallbacks bleiben in diesem Patch bewusst unveraendert und werden spaeter separat bereinigt.
+- Patch 590 zieht die tieferen branch-nahen Infra-Pfade nach: `infra/github/workflows.ts`, `infra/github/files.ts` und `infra/github/branchOps.ts` raten nicht mehr auf `"main"`, sondern brechen bei fehlendem Branch/Ref bzw. fehlendem `default_branch` fail-closed ab.
 - `release-build.yml` ist bewusst ein manueller Direktpfad und nicht dieselbe App-SoT wie `eas-build.yml`.
 - `android-keystore-export` bleibt die Referenz fuer den dedizierten Keystore-Secret-Scope; `android-keystore-generate` und `android-keystore-status` nutzen jetzt denselben scoped Secret-Pfad plus fail-closed JWT-RBAC (`service_role|build_admin`).
 - `github-workflow-dispatch` / `infra/github/workflowTemplates.ts` bilden weiterhin eine **partielle** Workflow-SoT ab (vor allem CI Lite), nicht die komplette managed Familie.
