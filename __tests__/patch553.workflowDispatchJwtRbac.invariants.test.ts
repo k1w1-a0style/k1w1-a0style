@@ -18,8 +18,7 @@ describe("patch553 github-workflow-dispatch JWT/RBAC hardening invariants", () =
     expect(route).toContain('adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"');
     expect(route).toContain('ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"');
     expect(route).toContain('const usedCiBearer = isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER")');
-    expect(route).toContain("const jwtRoleGuard = await requireJwtRole(req, {");
-    expect(route).toContain('allowedRoles: ["service_role", "authenticated"]');
+    expect(route).toContain('const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "github-workflow-dispatch")');
   });
 
   it("hardens workflow runs/logs routes to the same JWT + scoped-admin contract", () => {
@@ -34,8 +33,7 @@ describe("patch553 github-workflow-dispatch JWT/RBAC hardening invariants", () =
     expect(runs).toContain('adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"');
     expect(runs).toContain('ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"');
     expect(runs).toContain('const usedCiBearer = isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER")');
-    expect(runs).toContain("const jwtRoleGuard = await requireJwtRole(req, {");
-    expect(runs).toContain('allowedRoles: ["service_role", "authenticated"]');
+    expect(runs).toContain('const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "github-workflow-runs")');
 
     const logs = read("supabase/functions/github-workflow-logs/index.ts");
     expect(logs).toContain("allowCiBearer: true");
@@ -43,7 +41,6 @@ describe("patch553 github-workflow-dispatch JWT/RBAC hardening invariants", () =
     expect(logs).toContain('adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"');
     expect(logs).toContain('ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"');
     expect(logs).toContain('const usedCiBearer = isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER")');
-    expect(logs).toContain("const jwtRoleGuard = await requireJwtRole(req, {");
-    expect(logs).toContain('allowedRoles: ["service_role", "authenticated"]');
+    expect(logs).toContain('const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "github-workflow-logs")');
   });
 });

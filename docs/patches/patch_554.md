@@ -9,6 +9,8 @@ Naechsten eng angrenzenden Read-/Support-Block nach den Piloten (`android-keysto
 - `supabase/functions/github-workflow-runs/index.ts`
   - Auth auf `allowCiBearer: false` + `allowJwtAuthHeaderWithAdmin: true` umgestellt.
   - Serverseitigen Claim-Guard `requireJwtRole(... allowedRoles: ["service_role", "authenticated"])` ergaenzt.
+
+> Historischer Stand: Der damalige `authenticated`-Vertrag wurde spaeter in Patch 586 fuer diese Operator-Routen auf `service_role|build_admin` gehaertet.
 - `supabase/functions/github-workflow-logs/index.ts`
   - Auth auf `allowCiBearer: false` + `allowJwtAuthHeaderWithAdmin: true` umgestellt.
   - Serverseitigen Claim-Guard `requireJwtRole(... allowedRoles: ["service_role", "authenticated"])` ergaenzt.

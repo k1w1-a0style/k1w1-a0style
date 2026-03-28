@@ -2,7 +2,7 @@ import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import {
   isScopedCiBearerRequest,
   requireDurableRateLimit,
-  requireJwtRole,
+  requireWorkflowOperatorJwtRole,
   requireScopedEdgeAuth,
   rateLimit,
 } from "../_shared/auth.ts";
@@ -60,10 +60,7 @@ Deno.serve(async (req: Request) => {
   if (authError) return authError;
   const usedCiBearer = isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER");
   if (!usedCiBearer) {
-    const jwtRoleGuard = await requireJwtRole(req, {
-      scope: "github-run-artifact-json",
-      allowedRoles: ["service_role", "authenticated"],
-    });
+    const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "github-run-artifact-json");
     if (jwtRoleGuard) return jwtRoleGuard;
   }
 

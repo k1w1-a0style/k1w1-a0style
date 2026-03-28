@@ -89,15 +89,15 @@ describe("Invariants: repo/branch selection is source of truth", () => {
     expect(src).not.toContain("`${edgeUrl}/github-run-artifact-json`");
   });
 
-  it("keeps managed markers in embedded workflow templates", () => {
-    const src = read("supabase/functions/github-workflow-dispatch/index.ts");
+  it("keeps managed markers in managed workflow templates", () => {
+    const src = read("shared/workflows/managedWorkflowTemplates.ts");
 
     expect(src).toContain('# managed-by: k1w1');
     expect(src).toContain('# workflow-version: 399');
   });
 
   it("keeps source provenance fields in CI-Lite template artifacts", () => {
-    const src = read("supabase/functions/github-workflow-dispatch/index.ts");
+    const src = read("shared/workflows/managedWorkflowTemplates.ts");
 
     expect(src).toContain('\"source_sha\": \"\\${SOURCE_SHA:-}\"');
     expect(src).toContain('\"github_sha\": \"\\${GITHUB_SHA}\"');

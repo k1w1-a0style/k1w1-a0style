@@ -2,7 +2,7 @@ import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import {
   isScopedCiBearerRequest,
   requireDurableRateLimit,
-  requireJwtRole,
+  requireWorkflowOperatorJwtRole,
   requireScopedEdgeAuth,
   rateLimit,
 } from "../_shared/auth.ts";
@@ -187,10 +187,7 @@ try {
     if (auth) return auth;
     const usedCiBearer = isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER");
     if (!usedCiBearer) {
-      const jwtRoleGuard = await requireJwtRole(req, {
-        scope: "github-workflow-dispatch",
-        allowedRoles: ["service_role", "authenticated"],
-      });
+      const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "github-workflow-dispatch");
       if (jwtRoleGuard) return jwtRoleGuard;
     }
 

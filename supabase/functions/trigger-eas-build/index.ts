@@ -5,7 +5,7 @@ import {
   getServiceRoleKey,
   getSupabaseUrl,
   isScopedCiBearerRequest,
-  requireJwtRole,
+  requireWorkflowOperatorJwtRole,
   requireScopedEdgeAuth,
   rateLimit,
   requireDurableRateLimit,
@@ -81,10 +81,7 @@ Deno.serve(async (req) => {
     if (auth) return auth;
     const usedCiBearer = isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER");
     if (!usedCiBearer) {
-      const jwtRoleGuard = await requireJwtRole(req, {
-        scope: "trigger-eas-build",
-        allowedRoles: ["service_role", "authenticated"],
-      });
+      const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "trigger-eas-build");
       if (jwtRoleGuard) return jwtRoleGuard;
     }
 

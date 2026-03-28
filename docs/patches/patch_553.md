@@ -10,6 +10,8 @@ Naechster kontrollierter JWT-/RBAC-Rollout nach dem erfolgreichen `android-keyst
   - Route auf JWT+Claim-Gate erweitert (`requireJwtRole(...)`).
   - Scoped Route-Auth fuer Dispatch auf `allowCiBearer: false` + `allowJwtAuthHeaderWithAdmin: true` umgestellt.
   - Erlaubte Claims explizit verengt auf: `service_role`, `authenticated` (kein `anon` mehr).
+
+> Historischer Stand: Der hier dokumentierte Claim-Stand (`authenticated`) wurde in Patch 586 fuer workflow-/build-Operator-Routen weiter gehaertet auf `service_role|build_admin`.
 - `supabase/config.toml`
   - `functions.github-workflow-dispatch.verify_jwt = true`.
   - Sicherheitskommentar fuer den neuen Pilot-Stand aktualisiert.
