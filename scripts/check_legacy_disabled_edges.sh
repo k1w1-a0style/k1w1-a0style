@@ -39,6 +39,8 @@ raise SystemExit(1)
 PY
   require_fixed "supabase/functions/${fn}/index.ts" 'disabled: true'
   require_fixed "supabase/functions/${fn}/index.ts" 'status: 410'
+  require_fixed "supabase/functions/${fn}/index.ts" 'requireScopedEdgeAuth(req, {'
+  require_fixed "supabase/functions/${fn}/index.ts" 'adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"'
 done
 
 echo "legacy disabled edge checks passed."
