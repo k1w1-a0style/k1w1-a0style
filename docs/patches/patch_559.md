@@ -25,6 +25,12 @@ Den ZIP-Import-Pfad minimal, ehrlich und widerspruchsfrei machen:
 - `validateZipImport([])` liefert jetzt explizit `ZIP enthält keine Dateien`.
 - Invalid-Dateien melden konsistent den strict-Vertrag (`ZIP enthält ungültige Dateien (strict all-or-nothing)`).
 
+### 4) Follow-up (PR #436) — Pre-unzip-Guard
+- `importProjectFromZipFile(...)` prueft jetzt **vor** `unzip(...)` die ZIP-Archivgroesse (best-effort ueber `DocumentPicker`-Asset-`size`, Fallback `FileSystem.getInfoAsync`).
+- Leere/unlesbare ZIP-Groesse wird vor dem Entpacken abgelehnt.
+- ZIPs ueber 25MB werden vor dem Entpacken abgelehnt, um unnoetiges Entpacken grosser Archive zu vermeiden.
+- Wichtige Grenze (ehrlich): mit den aktuellen Libraries ist vor `unzip(...)` keine vollstaendige Entry-Inspektion moeglich; inhaltliche Dateipruefungen bleiben daher weiterhin im Post-unzip-Pfad (`readDirectoryRecursive` + `validateZipImport`).
+
 ## Tests
 - Aktualisiert: `lib/__tests__/validators.test.ts`
   - strict-Vertrag bei invalid/oversize Dateien
@@ -33,6 +39,7 @@ Den ZIP-Import-Pfad minimal, ehrlich und widerspruchsfrei machen:
   - globales Dateilimit ueber verschachtelte Verzeichnisse
 - Neu: `__tests__/projectPersistence.zipImportContract.test.ts`
   - Import-Fehlertext bestaetigt strict all-or-nothing ohne Skip-Wording
+  - Pre-unzip-Guard blockiert ubergrosse ZIPs vor `unzip(...)`
 
 ## Validierung
 - `npm run typecheck` ✅

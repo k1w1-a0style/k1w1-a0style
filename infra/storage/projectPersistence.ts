@@ -188,6 +188,8 @@ export const importProjectFromZipFile = async (): Promise<{
   messageCount: number;
   metadata?: Record<string, unknown>;
 }> => {
+  const MAX_ZIP_ARCHIVE_BYTES = 25 * 1024 * 1024; // best-effort pre-unzip guard (compressed archive size)
+
   try {
     const result = await DocumentPicker.getDocumentAsync({
       type: 'application/zip',
@@ -199,6 +201,23 @@ export const importProjectFromZipFile = async (): Promise<{
     }
 
     const zipAsset = result.assets[0];
+
+    const zipInfo = await FileSystem.getInfoAsync(zipAsset.uri);
+    const zipSizeBytes =
+      typeof zipAsset.size === 'number' && zipAsset.size > 0
+        ? zipAsset.size
+        : (zipInfo as { size?: number }).size ?? 0;
+
+    if (!Number.isFinite(zipSizeBytes) || zipSizeBytes <= 0) {
+      throw new Error('ZIP-Datei ist leer oder Größe nicht lesbar');
+    }
+
+    if (zipSizeBytes > MAX_ZIP_ARCHIVE_BYTES) {
+      throw new Error(
+        `ZIP-Datei ist zu groß für den Import vor dem Entpacken (${(zipSizeBytes / (1024 * 1024)).toFixed(2)}MB > ${(MAX_ZIP_ARCHIVE_BYTES / (1024 * 1024)).toFixed(2)}MB)`,
+      );
+    }
+
     await FileSystem.deleteAsync(CACHE_DIR, { idempotent: true });
     await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
 
