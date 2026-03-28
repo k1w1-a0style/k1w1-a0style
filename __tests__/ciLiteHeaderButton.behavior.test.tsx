@@ -135,7 +135,7 @@ describe("CiLiteHeaderButton behavior", () => {
     mockUseCiLiteWorkflow.mockReturnValue(
       buildWorkflowState({
         visible: true,
-        artifactNotice: "Workflow war erfolgreich, aber das Ergebnis-Artefakt konnte nicht geladen werden. Bitte Run öffnen oder erneut starten.",
+        artifactNotice: "Workflow war erfolgreich, aber das Ergebnis-Artefakt konnte nicht geladen werden. Bitte Run öffnen oder erneut starten. Detail: 403 Forbidden [redacted]",
         done: true,
         ok: true,
       }),
@@ -145,6 +145,7 @@ describe("CiLiteHeaderButton behavior", () => {
 
     expect(getByText("Artifact-/Nachzug-Problem")).toBeTruthy();
     expect(getByText(/Ergebnis-Artefakt konnte nicht geladen werden/i)).toBeTruthy();
+    expect(getByText(/Detail: 403 Forbidden \[redacted\]/i)).toBeTruthy();
   });
 
   it("distinguishes workflow/run failures from artifact/backchannel problems in the UI", () => {

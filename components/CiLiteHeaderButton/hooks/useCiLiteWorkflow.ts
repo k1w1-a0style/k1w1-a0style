@@ -87,20 +87,40 @@ function getAutofixChainSkipReason(lines: string[]): string | null {
   return null;
 }
 
+const ARTIFACT_DETAIL_MAX = 180;
+
+function sanitizeArtifactDetail(input: string): string {
+  const singleLine = String(input || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!singleLine) return "";
+
+  const redacted = singleLine
+    .replace(/(github_pat_[A-Za-z0-9_]+)/gi, "[redacted-token]")
+    .replace(/(gh[pousr]_[A-Za-z0-9_]+)/gi, "[redacted-token]")
+    .replace(/(x-k1w1-admin-key\s*[:=]\s*)([^\s,;]+)/gi, "$1[redacted]")
+    .replace(/(authorization\s*[:=]\s*bearer\s+)([^\s,;]+)/gi, "$1[redacted]");
+
+  if (redacted.length <= ARTIFACT_DETAIL_MAX) return redacted;
+  return `${redacted.slice(0, ARTIFACT_DETAIL_MAX)}…`;
+}
+
 function getArtifactUiMessage(params: {
   artifactError: string | null;
   workflowStatus?: string | null;
   workflowConclusion?: string | null;
 }): string {
   if (!params.artifactError) return "";
+  const detail = sanitizeArtifactDetail(params.artifactError);
+  const detailSuffix = detail ? ` Detail: ${detail}` : "";
 
   const status = String(params.workflowStatus ?? "").trim().toLowerCase();
   const conclusion = String(params.workflowConclusion ?? "").trim().toLowerCase();
   if (status === "completed" && conclusion === "success") {
-    return "Workflow war erfolgreich, aber das Ergebnis-Artefakt konnte nicht geladen werden. Bitte Run öffnen oder erneut starten.";
+    return `Workflow war erfolgreich, aber das Ergebnis-Artefakt konnte nicht geladen werden. Bitte Run öffnen oder erneut starten.${detailSuffix}`;
   }
 
-  return "Zusätzliche Ergebnisdaten zum Run konnten nicht geladen werden. Bitte Run öffnen oder erneut starten.";
+  return `Zusätzliche Ergebnisdaten zum Run konnten nicht geladen werden. Bitte Run öffnen oder erneut starten.${detailSuffix}`;
 }
 
 function splitRepoFullName(repoFullName: string): { owner: string; repo: string } | null {
@@ -140,8 +160,10 @@ export function useCiLiteWorkflow() {
   const [hydratedSnapshot, setHydratedSnapshot] = useState<PersistedCiLiteSnapshot | null>(null);
   const [lookupDiagnosis, setLookupDiagnosis] = useState<WorkflowRunLookupDiagnosis | null>(null);
 
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lookupDiagnosisRef = useRef<WorkflowRunLookupDiagnosis | null>(null);
+  const lookupGenerationRef = useRef(0);
+  const artifactAttemptedContextRef = useRef<string | null>(null);
 
   // ---- Derived repo/branch ----
   const githubRepo = useMemo(
@@ -155,17 +177,43 @@ export function useCiLiteWorkflow() {
 
   // ---- Polling helpers ----
   const stopPolling = useCallback(() => {
+    lookupGenerationRef.current += 1;
     if (pollTimerRef.current) {
-      clearInterval(pollTimerRef.current);
+      clearTimeout(pollTimerRef.current);
       pollTimerRef.current = null;
     }
   }, []);
 
+  const isLookupGenerationActive = useCallback((generation: number): boolean => {
+    return lookupGenerationRef.current === generation;
+  }, []);
+
+  const scheduleLookupPoll = useCallback((params: {
+    generation: number;
+    attempt: number;
+    poll: () => Promise<boolean>;
+  }) => {
+    if (!isLookupGenerationActive(params.generation)) return;
+    const delaysMs = [1200, 1800, 2600, 3500, 4500];
+    const delay = delaysMs[Math.min(params.attempt, delaysMs.length - 1)];
+    pollTimerRef.current = setTimeout(() => {
+      void (async () => {
+        if (!isLookupGenerationActive(params.generation)) return;
+        const finished = await params.poll();
+        if (!finished && isLookupGenerationActive(params.generation)) {
+          scheduleLookupPoll({ generation: params.generation, attempt: params.attempt + 1, poll: params.poll });
+        }
+      })();
+    }, delay);
+  }, [isLookupGenerationActive]);
+
   const startRunLookup = useCallback(() => {
     stopPolling();
+    const generation = lookupGenerationRef.current;
     lookupDiagnosisRef.current = null;
     setLookupDiagnosis(null);
     setLocatingRun(true);
+    return generation;
   }, [stopPolling]);
 
   const stopRunLookup = useCallback(() => {
@@ -366,13 +414,13 @@ export function useCiLiteWorkflow() {
     if (!githubRepo) return;
     if (!workflowRun?.id) return;
     if (workflowRun.status !== "completed") return;
+    const artifactContextKey = `${githubRepo}::${workflowId}::${String(workflowRun.id)}`;
+    if (artifactAttemptedContextRef.current === artifactContextKey) return;
 
     // Reset any stale errors when a run completes.
     setArtifactError(null);
 
-    // Avoid refetch loops
-    if (artifactLoading) return;
-    if (artifactResult) return;
+    artifactAttemptedContextRef.current = artifactContextKey;
 
     let cancelled = false;
 
@@ -460,16 +508,15 @@ export function useCiLiteWorkflow() {
     workflowId,
     workflowRun?.id,
     workflowRun?.status,
-    artifactLoading,
-    artifactResult,
   ]);
 
   // Clear artifact state when we switch to a new tracked run context.
   useEffect(() => {
+    artifactAttemptedContextRef.current = null;
     setArtifactResult(null);
     setArtifactError(null);
     setArtifactLoading(false);
-  }, [jobId, workflowId, runId]);
+  }, [jobId, workflowId, runId, workflowRun?.id]);
 
   const buildLookupFailureMessage = useCallback((params: { workflowLabel: string }) => {
     const diagnosis = lookupDiagnosisRef.current;
@@ -602,7 +649,7 @@ export function useCiLiteWorkflow() {
     }
 
     setChainWaiting(true);
-    startRunLookup();
+    const lookupGeneration = startRunLookup();
     setWorkflowId(WORKFLOW_CI_LITE);
     setRunId(null);
     setRunUrl(null);
@@ -632,6 +679,7 @@ export function useCiLiteWorkflow() {
             sourceHeadSha: workflowRun.head_sha ?? null,
             requireJobIdMarker: true,
           });
+          if (!isLookupGenerationActive(lookupGeneration)) return true;
           updateLookupDiagnosis(lookup.diagnosis);
           if (lookup.candidate?.id) {
             setRunId(Number(lookup.candidate.id));
@@ -657,12 +705,10 @@ export function useCiLiteWorkflow() {
 
       const lookupFinished = await poll();
       if (!lookupFinished) {
-        pollTimerRef.current = setInterval(() => {
-          void poll();
-        }, 2500);
+        scheduleLookupPoll({ generation: lookupGeneration, attempt: 0, poll });
       }
     })();
-  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopRunLookup, startRunLookup, findMatchingRun, buildLookupFailureMessage, updateLookupDiagnosis]);
+  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopRunLookup, startRunLookup, findMatchingRun, buildLookupFailureMessage, updateLookupDiagnosis, scheduleLookupPoll, isLookupGenerationActive]);
 
   // ---- Header state lamp ----
   useEffect(() => {
@@ -843,6 +889,7 @@ export function useCiLiteWorkflow() {
               sourceHeadSha,
               requireJobIdMarker: true,
             });
+            if (!isLookupGenerationActive(lookupGeneration)) return true;
             updateLookupDiagnosis(lookup.diagnosis);
             if (lookup.candidate?.id) {
               setRunId(Number(lookup.candidate.id));
@@ -863,12 +910,10 @@ export function useCiLiteWorkflow() {
           return false;
         };
 
-        startRunLookup();
+        const lookupGeneration = startRunLookup();
         const lookupFinished = await poll();
         if (!lookupFinished) {
-          pollTimerRef.current = setInterval(() => {
-            void poll();
-          }, 2500);
+          scheduleLookupPoll({ generation: lookupGeneration, attempt: 0, poll });
         }
       } catch (e: any) {
         setLocalError(e?.message || String(e));
@@ -877,7 +922,7 @@ export function useCiLiteWorkflow() {
         setDispatching(false);
       }
     },
-    [dispatching, githubRepo, branch, stopRunLookup, startRunLookup, findMatchingRun, projectData?.files, buildLookupFailureMessage, updateLookupDiagnosis],
+    [dispatching, githubRepo, branch, stopRunLookup, startRunLookup, findMatchingRun, projectData?.files, buildLookupFailureMessage, updateLookupDiagnosis, scheduleLookupPoll, isLookupGenerationActive],
   );
 
 

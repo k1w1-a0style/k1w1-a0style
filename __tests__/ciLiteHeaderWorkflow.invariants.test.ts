@@ -29,7 +29,18 @@ describe("CI Lite Header workflow invariants", () => {
     expect(src).toContain("setLocatingRun(false);");
     expect(src).toContain("const lookupFinished = await poll();");
     expect(src).toContain("if (!lookupFinished) {");
-    expect(src).toContain("pollTimerRef.current = setInterval(() => {");
+    expect(src).toContain("const scheduleLookupPoll = useCallback((params: {");
+    expect(src).toContain("lookupGenerationRef.current += 1;");
+    expect(src).toContain("if (!isLookupGenerationActive(params.generation)) return;");
+    expect(src).toContain("pollTimerRef.current = setTimeout(() => {");
+  });
+
+  it("keeps a run-context artifact attempt guard to avoid endless fetch loops on completed failures", () => {
+    const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
+
+    expect(src).toContain("const artifactAttemptedContextRef = useRef<string | null>(null);");
+    expect(src).toContain("if (artifactAttemptedContextRef.current === artifactContextKey) return;");
+    expect(src).toContain("artifactAttemptedContextRef.current = artifactContextKey;");
   });
 
   it("persists CI-Lite outcome only for the active CI-Lite run context", () => {
