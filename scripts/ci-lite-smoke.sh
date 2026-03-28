@@ -11,14 +11,14 @@ if [[ -z "$REPO" || -z "$WORKFLOW" ]]; then
 fi
 
 SUPABASE_BASE="${SUPABASE_URL:-${K1W1_SUPABASE_URL:-}}"
-WORKFLOW_ADMIN="${K1W1_EDGE_WORKFLOW_ADMIN_KEY:-${ADMIN_KEY:-${K1W1_EDGE_ADMIN_KEY:-}}}"
+WORKFLOW_ADMIN="${K1W1_EDGE_WORKFLOW_ADMIN_KEY:-}"
 
 if [[ -z "$SUPABASE_BASE" ]]; then
   echo "Missing SUPABASE_URL (or K1W1_SUPABASE_URL)." >&2
   exit 2
 fi
 if [[ -z "$WORKFLOW_ADMIN" ]]; then
-  echo "Missing workflow admin key (set K1W1_EDGE_WORKFLOW_ADMIN_KEY or legacy ADMIN_KEY/K1W1_EDGE_ADMIN_KEY)." >&2
+  echo "Missing required K1W1_EDGE_WORKFLOW_ADMIN_KEY (workflow/build/artifact smoke does not accept ADMIN_KEY or K1W1_EDGE_ADMIN_KEY fallback)." >&2
   exit 2
 fi
 

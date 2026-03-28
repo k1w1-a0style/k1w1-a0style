@@ -69,6 +69,7 @@ Der Service muss dieselben Regeln servernah erzwingen, damit keine Umgehung via 
 - **Wichtig (Keystore-Wizard Contract, Patch 597):** Keystore-Status/Generate-Calls im Wizard sind nur mit Kombi-Header gueltig: `Authorization: Bearer <Supabase user JWT>` + `x-k1w1-admin-key: <lokaler androidKeystoreExportAdminKey>`.
 - **Wichtig (Patch 598):** `SIGNING_ADMIN_KEY` ist kein generischer Fallback mehr fuer `x-k1w1-admin-key`-Legacy-Routen. Generische Legacy-Guards laufen ausschliesslich ueber `K1W1_EDGE_ADMIN_KEY`; signing-spezifische Pfade muessen dedizierte Guards nutzen.
 - **Wichtig (Patch 599, Config-SoT):** Fuer `android-keystore-status` und `android-keystore-generate` ist `supabase/config.toml` die einzige `verify_jwt`-Quelle (`true`). Funktionslokale Keystore-Configs gelten hier bewusst nicht mehr, um Split-Brain zwischen Root- und Route-Config auszuschliessen.
+- **Wichtig (Patch 600, CI-/Smoke-Contract):** `scripts/ci-lite-env-load.sh` und `scripts/ci-lite-smoke.sh` akzeptieren im workflow-/build-/artifact-nahen Scope ausschliesslich `K1W1_EDGE_WORKFLOW_ADMIN_KEY`. Die frueheren stillen Legacy-/Generic-Fallbacks auf `ADMIN_KEY` bzw. `K1W1_EDGE_ADMIN_KEY` sind dort bewusst entfernt (fail-closed gegen false-green).
 
 ---
 
