@@ -23,6 +23,7 @@ import { buildSanitizedLlmHistory } from "../lib/promptSanitizer";
 import { looksLikeExplicitFileTask, looksLikeAdviceRequest, looksAmbiguousBuilderRequest, buildChangeDigest, buildExplainMessages } from "../utils/chatHeuristics";
 import { handleMetaCommand } from "../utils/metaCommands";
 import { normalizeResultFiles, readBuilderFilesOrThrow } from "./chatAIFlowResultHelpers";
+import { getSourceSummaryText, getValidatorFallbackWarning } from "./chatAIFlowStageHelpers";
 
 export type { PendingChange, PendingPlan } from "./chatAIFlowTypes";
 
@@ -551,7 +552,12 @@ export function useChatAIFlow({
         let agentMeta: OrchestratorResult | null = null;
         let finalFileSource: PendingChange["finalFileSource"] = "builder";
         let validatorState: PendingChange["validatorState"] = config.agentEnabled ? "builder-fallback-empty" : "disabled";
-        const addValidatorWarning = (content: string) => {
+        const addValidatorWarning = (validatorStateForMessage: PendingChange["validatorState"]) => {
+          const content = validatorStateForMessage
+            ? getValidatorFallbackWarning(validatorStateForMessage)
+            : null;
+          if (!content) return;
+
           addChatMessage({
             id: uuidv4(),
             role: "system",
@@ -591,26 +597,20 @@ export function useChatAIFlow({
               } else if (agentRes?.ok) {
                 logger.warn("[useChatAIFlow] Validator returned no valid file array; keeping builder files.");
                 validatorState = "builder-fallback-empty";
-                addValidatorWarning(
-                  "ℹ️ Validator war nur advisory und lieferte keine gültige Dateiliste. Es werden deshalb die Builder-Dateien geprüft/angeboten.",
-                );
+                addValidatorWarning(validatorState);
               }
             } else if (agentRes) {
               logger.warn("[useChatAIFlow] Validator returned non-ok result:", agentRes.error);
               validatorState = "builder-fallback-error";
               // Regression-Hinweis: "Validator-Prüfung war nicht erfolgreich"
-              addValidatorWarning(
-                "ℹ️ Validator war nur advisory und konnte die Builder-Dateien diesmal nicht nachschärfen. Es werden daher die Builder-Dateien verwendet.",
-              );
+              addValidatorWarning(validatorState);
             }
           } catch (e) {
             // ✅ FIX #8: Log agent errors and surface the fallback to the user
             logger.warn("[useChatAIFlow] Agent/Validator call failed:", e);
             validatorState = "builder-fallback-exception";
             // Regression-Hinweis: "Validator-Prüfung konnte nicht abgeschlossen werden"
-            addValidatorWarning(
-              "ℹ️ Validator war nur advisory und ist fehlgeschlagen. Es werden daher die Builder-Dateien verwendet.",
-            );
+            addValidatorWarning(validatorState);
           }
         }
 
@@ -625,12 +625,7 @@ export function useChatAIFlow({
           created: mergeResult.created,
           updated: mergeResult.updated,
         });
-        const sourceSummary =
-          finalFileSource === "validator"
-            ? "Finale Dateiliste stammt aus dem Validator-Review (advisory Nachschärfer auf Builder-Basis)."
-            : config.agentEnabled
-              ? "Finale Dateiliste stammt direkt vom Builder; der Validator war nur advisory und hat diesmal nicht übernommen."
-              : "Finale Dateiliste stammt direkt vom Builder; kein separater Validator aktiv.";
+        const sourceSummary = getSourceSummaryText(finalFileSource, config.agentEnabled);
 
         // Explain-Call
         let explainText = "";
