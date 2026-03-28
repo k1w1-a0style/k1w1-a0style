@@ -50,6 +50,8 @@ function collectFocusTerms(userFocus: string): string[] {
     "und", "oder", "aber", "nicht", "mit", "ohne", "dass", "dies", "eine", "einen", "der", "die", "das",
     "den", "dem", "des", "für", "von", "auf", "ist", "sind", "bitte", "kann", "können", "soll", "sollte",
     "mach", "mache", "baue", "bauen", "weiter", "noch", "mehr", "input", "budget", "prompt", "kontext",
+    "the", "and", "for", "with", "without", "from", "into", "onto", "that", "this", "these", "those",
+    "please", "can", "could", "should", "would", "make", "create", "add", "update", "improve",
   ]);
 
   return [...new Set(rawTokens.filter((token) => !stop.has(token)).slice(0, 24))];
