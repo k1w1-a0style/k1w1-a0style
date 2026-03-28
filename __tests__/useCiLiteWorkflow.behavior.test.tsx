@@ -96,7 +96,7 @@ describe("useCiLiteWorkflow behavior", () => {
     mockEnsureSupabaseClient.mockResolvedValue({
       auth: {
         getSession: jest.fn(async () => ({
-          data: { session: { access_token: "supabase-authenticated-jwt-token" } },
+          data: { session: { access_token: "supabase-operator-jwt-token" } },
         })),
       },
     });
@@ -199,7 +199,7 @@ describe("useCiLiteWorkflow behavior", () => {
     const headers = ((dispatchCall?.[1] as RequestInit | undefined)?.headers ?? {}) as Record<string, string>;
     expect(headers).toMatchObject({
       "Content-Type": "application/json",
-      Authorization: "Bearer supabase-authenticated-jwt-token",
+      Authorization: "Bearer supabase-operator-jwt-token",
       "x-k1w1-admin-key": "workflow-admin-key-12345678901234567890",
     });
   });
@@ -221,7 +221,7 @@ describe("useCiLiteWorkflow behavior", () => {
     const headers = ((runsCall?.[1] as RequestInit | undefined)?.headers ?? {}) as Record<string, string>;
     expect(headers).toMatchObject({
       "Content-Type": "application/json",
-      Authorization: "Bearer supabase-authenticated-jwt-token",
+      Authorization: "Bearer supabase-operator-jwt-token",
       "x-k1w1-admin-key": "workflow-admin-key-12345678901234567890",
     });
   });
@@ -277,7 +277,7 @@ describe("useCiLiteWorkflow behavior", () => {
       const headers = ((artifactCall?.[1] as RequestInit | undefined)?.headers ?? {}) as Record<string, string>;
       expect(headers).toMatchObject({
         "Content-Type": "application/json",
-        Authorization: "Bearer supabase-authenticated-jwt-token",
+        Authorization: "Bearer supabase-operator-jwt-token",
         "x-k1w1-admin-key": "workflow-admin-key-12345678901234567890",
       });
     });

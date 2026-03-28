@@ -39,7 +39,7 @@ const mockInvoke = jest.fn();
 const mockSupabase = {
   auth: {
     getSession: jest.fn(async () => ({
-      data: { session: { access_token: "supabase-authenticated-jwt-token" } },
+      data: { session: { access_token: "supabase-operator-jwt-token" } },
     })),
   },
   functions: {
@@ -137,7 +137,7 @@ describe("startBuildJob (integration)", () => {
     const [fnName, opts] = mockInvoke.mock.calls[0];
 
     expect(typeof fnName).toBe("string");
-    expect(opts?.headers?.Authorization).toBe("Bearer supabase-authenticated-jwt-token");
+    expect(opts?.headers?.Authorization).toBe("Bearer supabase-operator-jwt-token");
     expect(opts?.headers?.["x-k1w1-admin-key"]).toBe("adminkey");
     expect(opts?.body).toEqual({
       githubRepo: "k1w1-a0style/musik-player",
@@ -280,7 +280,7 @@ describe("startBuildJob (integration)", () => {
     mockSupabase.auth.getSession.mockResolvedValueOnce({ data: { session: null } } as any);
 
     await expect(startBuildJob({ project: makeProject(), buildProfile: "preview" })).rejects.toThrow(
-      /Supabase-User-Login \(JWT\)/i,
+      /Operator-Rolle|build_admin/i,
     );
     expect(mockInvoke).not.toHaveBeenCalled();
   });

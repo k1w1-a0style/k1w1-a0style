@@ -102,7 +102,7 @@ export function useGitHubActionsLogs({
       const session = await supabase?.auth.getSession().catch(() => null);
       const userJwt = String(session?.data?.session?.access_token ?? "").trim();
       if (!userJwt) {
-        throw new Error("Workflow-Read blockiert: Kein gueltiger Supabase User-Login (JWT role=authenticated). Bitte einloggen und erneut versuchen.");
+        throw new Error("Workflow-Read blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller).");
       }
 
       if (!targetRunId) {
