@@ -421,7 +421,7 @@ export function useCiLiteWorkflow() {
         const session = await supabase?.auth.getSession().catch(() => null);
         const userJwt = String(session?.data?.session?.access_token ?? "").trim();
         if (!userJwt) {
-          throw new Error("CI-Lite-Artefakt blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller).");
+          throw new Error("CI-Lite-Artefakt blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben.");
         }
         if (!trimmedAdminKey || !isLikelyValidAdminKey(trimmedAdminKey)) {
           const normalized = normalizeCiLiteWorkflowError({
@@ -645,7 +645,7 @@ export function useCiLiteWorkflow() {
       const session = await supabase?.auth.getSession().catch(() => null);
       const userJwt = String(session?.data?.session?.access_token ?? "").trim();
       if (!userJwt) {
-        setLocalError("Workflow-Run-Lookup blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller).");
+        setLocalError("Workflow-Run-Lookup blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben.");
         setChainWaiting(false);
         stopRunLookup();
         return;
@@ -819,7 +819,7 @@ export function useCiLiteWorkflow() {
         const userJwt = String(session?.data?.session?.access_token ?? "").trim();
         if (!userJwt) {
           throw new Error(
-            "Workflow-Dispatch blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller).",
+            "Workflow-Dispatch blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben.",
           );
         }
 

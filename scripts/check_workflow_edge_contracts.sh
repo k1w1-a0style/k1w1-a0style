@@ -51,6 +51,8 @@ GH_BRANCHOPS_INFRA="infra/github/branchOps.ts"
 TRIGGER_WF=".github/workflows/k1w1-triggered-build.yml"
 EAS_WF=".github/workflows/eas-build.yml"
 EDGE_STATUS_DOC="docs/EDGE_FUNCTIONS_STATUS.md"
+BUILD_READINESS_DOC="docs/06-build-readiness.md"
+RISK_HOTSPOTS_DOC="docs/04-risk-hotspots.md"
 AUTH_SHARED="supabase/functions/_shared/auth.ts"
 WIZARD_HELPERS="screens/CredentialsWizardScreen/hooks/credentialHelpers.ts"
 WIZARD_HOOK="screens/CredentialsWizardScreen/hooks/useCredentialsWizardScreen.ts"
@@ -66,7 +68,7 @@ KEYSTORE_EXPORT_CONFIG="supabase/functions/android-keystore-export/config.toml"
 KEYSTORE_GENERATE_LOCAL_CONFIG="supabase/functions/android-keystore-generate/config.toml"
 KEYSTORE_STATUS_LOCAL_CONFIG="supabase/functions/android-keystore-status/config.toml"
 
-for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$K1W1_HANDLER_EDGE" "$CREATE_CODESANDBOX_EDGE" "$SAVE_PREVIEW_EDGE" "$LEGACY_TEST_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$AUTH_SHARED" "$WIZARD_HELPERS" "$WIZARD_HOOK" "$BUILD_START_SERVICE" "$BUILD_POLLING_SERVICE" "$WORKFLOW_LOGS_HOOK" "$CI_LITE_WORKFLOW_HOOK" "$ROOT_CONFIG" "$KEYSTORE_EXPORT_CONFIG" "$CI_LITE_ENV_LOAD" "$CI_LITE_SMOKE"; do
+for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$K1W1_HANDLER_EDGE" "$CREATE_CODESANDBOX_EDGE" "$SAVE_PREVIEW_EDGE" "$LEGACY_TEST_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$BUILD_READINESS_DOC" "$RISK_HOTSPOTS_DOC" "$AUTH_SHARED" "$WIZARD_HELPERS" "$WIZARD_HOOK" "$BUILD_START_SERVICE" "$BUILD_POLLING_SERVICE" "$WORKFLOW_LOGS_HOOK" "$CI_LITE_WORKFLOW_HOOK" "$ROOT_CONFIG" "$KEYSTORE_EXPORT_CONFIG" "$CI_LITE_ENV_LOAD" "$CI_LITE_SMOKE"; do
   require_file "$f"
 done
 
@@ -177,6 +179,11 @@ require_fixed "$BUILD_START_SERVICE" "JWT role=build_admin (oder service_role fu
 require_fixed "$BUILD_POLLING_SERVICE" "JWT role=build_admin (oder service_role fuer Server-Caller)"
 require_fixed "$WORKFLOW_LOGS_HOOK" "JWT role=build_admin (oder service_role fuer Server-Caller)"
 require_fixed "$CI_LITE_WORKFLOW_HOOK" "JWT role=build_admin (oder service_role fuer Server-Caller)"
+require_fixed "$WIZARD_HOOK" "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
+require_fixed "$BUILD_START_SERVICE" "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
+require_fixed "$BUILD_POLLING_SERVICE" "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
+require_fixed "$WORKFLOW_LOGS_HOOK" "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
+require_fixed "$CI_LITE_WORKFLOW_HOOK" "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
 forbid_fixed "$BUILD_START_SERVICE" "JWT role=authenticated"
 forbid_fixed "$BUILD_POLLING_SERVICE" "JWT role=authenticated"
 forbid_fixed "$WORKFLOW_LOGS_HOOK" "JWT role=authenticated"
@@ -258,6 +265,9 @@ require_fixed "$KEYSTORE_EDGE" 'keyPassword: parsed.keyPassword'
 require_fixed "$EDGE_STATUS_DOC" '`trigger-eas-build`'
 require_fixed "$EDGE_STATUS_DOC" '`check-eas-build`'
 require_fixed "$EDGE_STATUS_DOC" '`github-workflow-dispatch`'
+require_fixed "$EDGE_STATUS_DOC" "build_admin-Claim wird nicht im Repo erzeugt"
+require_fixed "$BUILD_READINESS_DOC" "build_admin-Claim wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos vergeben"
+require_fixed "$RISK_HOTSPOTS_DOC" "Es gibt im Repo keinen internen Claim-Mapper/Grant-Flow fuer build_admin"
 require_fixed "$EDGE_STATUS_DOC" '`github-run-artifact-json`'
 require_fixed "$EDGE_STATUS_DOC" '`android-keystore-export`'
 require_fixed "$EDGE_STATUS_DOC" 'K1W1_EDGE_WORKFLOW_ADMIN_KEY'

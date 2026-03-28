@@ -72,6 +72,7 @@ Der Service muss dieselben Regeln servernah erzwingen, damit keine Umgehung via 
 - **Wichtig (Patch 602, CI-/Smoke-Contract):** `scripts/ci-lite-env-load.sh` und `scripts/ci-lite-smoke.sh` verlangen im workflow-/build-/artifact-nahen Scope jetzt die Kombi aus `K1W1_EDGE_WORKFLOW_ADMIN_KEY` **und** `K1W1_EDGE_WORKFLOW_JWT` (`Authorization: Bearer <jwt>`), plus einen expliziten `<ref>` fuer den Smoke-Dispatch. Legacy-/Generic-Fallbacks auf `ADMIN_KEY`/`K1W1_EDGE_ADMIN_KEY` sowie stilles `main` sind bewusst entfernt (fail-closed gegen false-green).
 - **Wichtig (Patch 603, Legacy-Teststub-Guard):** `supabase/functions/test` bleibt bewusst disabled (`410 legacy_test_route_disabled`), ist aber jetzt sauber scoped-auth-konfiguriert (`scope: "test"`, `adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"`, `allowAdmin: true`, `allowCiBearer: false`), damit keine Guard-Misconfiguration mehr vorzeitig in `500` endet.
 - **Wichtig (Patch 604, RBAC-Vertrag):** App-initiierte workflow-/build-/artifact-/keystore-Calls sind Operator-Pfade; ein normales `authenticated`-Session-JWT reicht nicht, serverseitig gilt fail-closed `service_role|build_admin` plus scoped Admin-Key.
+- **Wichtig (Patch 605, Claim-Herkunft):** Der build_admin-Claim wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos vergeben (Supabase-User `role`/`app_metadata.role`). Im Repo gibt es bewusst keinen internen Claim-Generator oder automatischen Auth-Mapper fuer normale Logins.
 
 ---
 
