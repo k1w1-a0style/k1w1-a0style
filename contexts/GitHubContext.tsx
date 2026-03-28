@@ -14,6 +14,7 @@ import { logger } from "../lib/logger";
 import { GITHUB_STORAGE_KEYS } from "../shared/constants/github";
 
 import { useProject } from "./ProjectContext";
+import { mergeRecentRepo, normalizeLinkedGitHubValue } from "./githubContextHelpers";
 
 type GitHubContextValue = {
   activeRepo: string | null;
@@ -92,8 +93,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
           logger.error("[GitHubContext] ActiveRepo persist failed", { err: e });
         });
         setRecentRepos((prev) => {
-          const filtered = prev.filter((r) => r !== repo);
-          const next = [repo, ...filtered].slice(0, 10);
+          const next = mergeRecentRepo(prev, repo);
           persistRecent(next).catch((e) => {
             logger.error("[GitHubContext] RecentRepos persist failed", { err: e });
           });
@@ -124,8 +124,8 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     if (!hydrated) return;
 
-    const linkedRepo = (projectData?.linkedRepo ?? "").trim() || null;
-    const linkedBranch = (projectData?.linkedBranch ?? "").trim() || null;
+    const linkedRepo = normalizeLinkedGitHubValue(projectData?.linkedRepo);
+    const linkedBranch = normalizeLinkedGitHubValue(projectData?.linkedBranch);
 
     // If project has a linked repo, prefer it over local storage.
     if (linkedRepo !== activeRepoRef.current) {
@@ -142,8 +142,7 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
     (repo: string) => {
       if (!repo) return;
       setRecentRepos((prev) => {
-        const filtered = prev.filter((r) => r !== repo);
-        const next = [repo, ...filtered].slice(0, 10);
+        const next = mergeRecentRepo(prev, repo);
         persistRecent(next).catch((e) => {
           logger.error("[GitHubContext] RecentRepos persist failed", { err: e });
         });
