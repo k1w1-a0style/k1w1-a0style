@@ -47,6 +47,7 @@
 - Diagnostics prueft `local.workflowAdminKey` und `local.androidKeystoreExportAdminKey` explizit; Legacy ist nur Compat-Hinweis.
 - Patch 597 zieht den Wizard-Caller-Vertrag fuer Keystore-Routen nach: `android-keystore-status`/`android-keystore-generate` laufen dort nur noch mit `Authorization: Bearer <Supabase user JWT>` plus dediziertem lokalem Keystore-Key (`x-k1w1-admin-key`).
 - Patch 598 reduziert verbleibende Drift im Legacy-Admin-Guard: generisches `requireAdminKey(...)` akzeptiert keinen `SIGNING_ADMIN_KEY`-Fallback mehr; Legacy-Routen (`k1w1-handler`, `create_codesandbox`, `save_preview`, disabled lint/native-sync Stubs) nutzen jetzt explizite scoped Guards auf `K1W1_EDGE_ADMIN_KEY`.
+- Patch 599 schliesst den Keystore-Config-Split-Brain: widerspruechliche lokale `verify_jwt=false`-Configs fuer `android-keystore-status`/`android-keystore-generate` wurden entfernt; fail-closed SoT ist jetzt eindeutig `supabase/config.toml` mit `verify_jwt=true`.
 
 ---
 
