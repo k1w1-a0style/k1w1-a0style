@@ -11,6 +11,7 @@ import {
   loadConfig, loadSecureApiKeys, saveSecureApiKeys,
   getDefaultMode,
   resolveProviderModeForQualityMode,
+  resolveRehydratedApiKeys,
 } from "./helpers";
 
 // Re-export types & constants so existing imports from "AIContext" keep working
@@ -36,20 +37,11 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
 
         // Load keys from SecureStore (authoritative)
         const secureKeys = await loadSecureApiKeys();
-
-        // Legacy migration: if SecureStore empty but config contains keys, migrate them once
-        const hasSecureAny = (Object.keys(secureKeys) as AllAIProviders[]).some(
-          (p) => (secureKeys[p] ?? []).length > 0,
-        );
-        const hasLegacyAny = (Object.keys(loaded.apiKeys) as AllAIProviders[]).some(
-          (p) => (loaded.apiKeys[p] ?? []).length > 0,
-        );
-
-        let finalKeys = secureKeys;
-        if (!hasSecureAny && hasLegacyAny) {
-          finalKeys = { ...DEFAULT_CONFIG.apiKeys, ...loaded.apiKeys };
-          await saveSecureApiKeys(finalKeys);
-        }
+        const { finalKeys, shouldMigrateLegacyToSecure } = resolveRehydratedApiKeys({
+          loadedApiKeys: loaded.apiKeys,
+          secureApiKeys: secureKeys,
+        });
+        if (shouldMigrateLegacyToSecure) await saveSecureApiKeys(finalKeys);
 
         // Keep models/modes untouched; only ensure keys are loaded
         setConfigState({ ...loaded, apiKeys: finalKeys });
