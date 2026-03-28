@@ -45,6 +45,10 @@ import * as Notifications from "expo-notifications";
 import notificationService from "../notificationService";
 
 describe("NotificationService", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockExpoConstants.easConfig = { projectId: "eas-project-id" };
@@ -56,6 +60,48 @@ describe("NotificationService", () => {
   });
 
   describe("initialize", () => {
+    it("resolveProjectId priorisiert easConfig.projectId", () => {
+      jest
+        .spyOn(notificationService as any, "getConstantsSource")
+        .mockReturnValue({
+          easConfig: { projectId: "eas-project-id" },
+          expoConfig: { extra: { eas: { projectId: "expo-fallback-id" } } },
+          manifest2: {
+            extra: { expoClient: { extra: { eas: { projectId: "manifest-fallback-id" } } } },
+          },
+        });
+
+      expect((notificationService as any).resolveProjectId()).toBe("eas-project-id");
+    });
+
+    it("resolveProjectId nutzt expoConfig.extra.eas.projectId als Fallback", () => {
+      jest
+        .spyOn(notificationService as any, "getConstantsSource")
+        .mockReturnValue({
+          easConfig: {},
+          expoConfig: { extra: { eas: { projectId: "expo-fallback-id" } } },
+          manifest2: {
+            extra: { expoClient: { extra: { eas: { projectId: "manifest-fallback-id" } } } },
+          },
+        });
+
+      expect((notificationService as any).resolveProjectId()).toBe("expo-fallback-id");
+    });
+
+    it("resolveProjectId nutzt manifest2 als letzten Fallback", () => {
+      jest
+        .spyOn(notificationService as any, "getConstantsSource")
+        .mockReturnValue({
+          easConfig: {},
+          expoConfig: { extra: { eas: {} } },
+          manifest2: {
+            extra: { expoClient: { extra: { eas: { projectId: "manifest-fallback-id" } } } },
+          },
+        });
+
+      expect((notificationService as any).resolveProjectId()).toBe("manifest-fallback-id");
+    });
+
     it("sollte erfolgreich initialisieren mit granted permissions", async () => {
       (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({
         status: "granted",
@@ -81,26 +127,15 @@ describe("NotificationService", () => {
           }),
         );
       }
-
-      expect(result).toBe(true);
-    });
-
-    it("sollte auch ohne projectId robust erfolgreich initialisieren", async () => {
-      mockExpoConstants.easConfig = {};
-      mockExpoConstants.expoConfig = { android: { googleServicesFile: "google-services.json" } };
-
-      (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({
-        status: "granted",
-      });
-      const result = await notificationService.initialize();
-      expect(result).toBe(true);
-      expect(Notifications.getExpoPushTokenAsync).not.toHaveBeenCalled();
     });
 
     it("sollte Push-Token Abruf überspringen wenn keine projectId auffindbar ist", async () => {
-      mockExpoConstants.easConfig = {};
-      mockExpoConstants.expoConfig = { android: { googleServicesFile: "google-services.json" } };
-
+      jest
+        .spyOn(notificationService as any, "getConstantsSource")
+        .mockReturnValue({
+          expoConfig: { android: { googleServicesFile: "google-services.json" } },
+        });
+      jest.spyOn(notificationService as any, "resolveProjectId").mockReturnValue(null);
       (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({
         status: "granted",
       });
@@ -140,6 +175,7 @@ describe("NotificationService", () => {
 
       expect(result).toBe(false);
       expect(notificationService.hasPermissions()).toBe(false);
+      expect(notificationService.getPushToken()).toBeNull();
     });
 
     it("sollte Fehler graceful handhaben", async () => {
@@ -150,6 +186,45 @@ describe("NotificationService", () => {
       const result = await notificationService.initialize();
 
       expect(result).toBe(false);
+      expect(notificationService.hasPermissions()).toBe(false);
+      expect(notificationService.getPushToken()).toBeNull();
+    });
+
+    it("behaelt Permissions bei Token-Fetch-Fehler, Token bleibt null", async () => {
+      (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({
+        status: "granted",
+      });
+      (Notifications.getExpoPushTokenAsync as jest.Mock).mockRejectedValue(
+        new Error("push token unavailable"),
+      );
+
+      const result = await notificationService.initialize();
+
+      expect(result).toBe(true);
+      expect(notificationService.hasPermissions()).toBe(true);
+      expect(notificationService.getPushToken()).toBeNull();
+    });
+
+    it("behaelt Permissions bei Android-FCM-Skip ohne Token", async () => {
+      const previousJestWorkerId = process.env.JEST_WORKER_ID;
+      delete process.env.JEST_WORKER_ID;
+
+      jest
+        .spyOn(notificationService as any, "getConstantsSource")
+        .mockReturnValue({ expoConfig: { android: {} } });
+
+      (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({
+        status: "granted",
+      });
+
+      const result = await notificationService.initialize();
+
+      process.env.JEST_WORKER_ID = previousJestWorkerId;
+
+      expect(result).toBe(true);
+      expect(notificationService.hasPermissions()).toBe(true);
+      expect(notificationService.getPushToken()).toBeNull();
+      expect(Notifications.getExpoPushTokenAsync).not.toHaveBeenCalled();
     });
   });
 
@@ -371,8 +446,7 @@ describe("NotificationService", () => {
       const result = await notificationService.initialize();
 
       expect(result).toBe(true); // Sollte trotzdem true sein
-      // Token kann null sein oder den alten Wert behalten (Singleton)
-      // Wichtig ist nur, dass initialize trotzdem true zurückgibt
+      expect(notificationService.getPushToken()).toBeNull();
     });
 
     it("sollte mehrfache Initialisierung handhaben", async () => {

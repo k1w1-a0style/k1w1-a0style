@@ -62,6 +62,7 @@ class NotificationService {
    */
   async initialize(): Promise<boolean> {
     try {
+      this.permissionGranted = false;
       this.expoPushToken = null;
 
       // Permissions prüfen und anfordern
@@ -77,10 +78,9 @@ class NotificationService {
       if (finalStatus !== "granted") {
         logger.warn("Notification permissions not granted");
         this.permissionGranted = false;
+        this.expoPushToken = null;
         return false;
       }
-
-      this.permissionGranted = true;
 
       // Android-spezifische Channel-Konfiguration
       if (Platform?.OS === "android") {
@@ -92,6 +92,8 @@ class NotificationService {
           sound: "default",
         });
       }
+
+      this.permissionGranted = true;
 
       // Expo Push Token abrufen (für zukünftige Remote-Notifications)
       try {
@@ -129,6 +131,8 @@ class NotificationService {
 
       return true;
     } catch (error) {
+      this.permissionGranted = false;
+      this.expoPushToken = null;
       logger.error("Notification Service Initialization failed", { err: error });
       return false;
     }
