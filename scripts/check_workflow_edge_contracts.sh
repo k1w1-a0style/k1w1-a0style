@@ -41,6 +41,9 @@ KEYSTORE_EDGE="supabase/functions/android-keystore-export/index.ts"
 KEYSTORE_GENERATE_EDGE="supabase/functions/android-keystore-generate/index.ts"
 KEYSTORE_STATUS_EDGE="supabase/functions/android-keystore-status/index.ts"
 DISPATCH_EDGE="supabase/functions/github-workflow-dispatch/index.ts"
+K1W1_HANDLER_EDGE="supabase/functions/k1w1-handler/index.ts"
+CREATE_CODESANDBOX_EDGE="supabase/functions/create_codesandbox/index.ts"
+SAVE_PREVIEW_EDGE="supabase/functions/save_preview/index.ts"
 GH_WORKFLOWS_INFRA="infra/github/workflows.ts"
 GH_FILES_INFRA="infra/github/files.ts"
 GH_BRANCHOPS_INFRA="infra/github/branchOps.ts"
@@ -51,7 +54,7 @@ AUTH_SHARED="supabase/functions/_shared/auth.ts"
 WIZARD_HELPERS="screens/CredentialsWizardScreen/hooks/credentialHelpers.ts"
 WIZARD_HOOK="screens/CredentialsWizardScreen/hooks/useCredentialsWizardScreen.ts"
 
-for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$AUTH_SHARED" "$WIZARD_HELPERS" "$WIZARD_HOOK"; do
+for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$K1W1_HANDLER_EDGE" "$CREATE_CODESANDBOX_EDGE" "$SAVE_PREVIEW_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$AUTH_SHARED" "$WIZARD_HELPERS" "$WIZARD_HOOK"; do
   require_file "$f"
 done
 
@@ -133,6 +136,18 @@ require_fixed "$KEYSTORE_STATUS_EDGE" 'allowCiBearer: false'
 require_fixed "$KEYSTORE_STATUS_EDGE" 'allowJwtAuthHeaderWithAdmin: true'
 require_fixed "$KEYSTORE_STATUS_EDGE" 'adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"'
 require_fixed "$KEYSTORE_STATUS_EDGE" 'requirePrivilegedOperatorJwtRole(req, "android-keystore-status")'
+require_pattern "$K1W1_HANDLER_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
+require_fixed "$K1W1_HANDLER_EDGE" 'adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"'
+require_fixed "$K1W1_HANDLER_EDGE" 'allowCiBearer: false'
+forbid_fixed "$K1W1_HANDLER_EDGE" 'requireAdminKey(req)'
+require_pattern "$CREATE_CODESANDBOX_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
+require_fixed "$CREATE_CODESANDBOX_EDGE" 'adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"'
+require_fixed "$CREATE_CODESANDBOX_EDGE" 'allowCiBearer: false'
+forbid_fixed "$CREATE_CODESANDBOX_EDGE" 'requireAdminKey(req)'
+require_pattern "$SAVE_PREVIEW_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
+require_fixed "$SAVE_PREVIEW_EDGE" 'adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"'
+require_fixed "$SAVE_PREVIEW_EDGE" 'allowCiBearer: false'
+forbid_fixed "$SAVE_PREVIEW_EDGE" 'requireAdminKey(req)'
 require_fixed "$WIZARD_HELPERS" 'Authorization: `Bearer ${userJwt.trim()}`'
 require_fixed "$WIZARD_HELPERS" '"x-k1w1-admin-key": adminKey.trim()'
 require_fixed "$WIZARD_HOOK" "getAndroidKeystoreExportAdminKey"
@@ -144,6 +159,10 @@ require_fixed "$AUTH_SHARED" "export const WORKFLOW_OPERATOR_ALLOWED_ROLES = [\"
 require_fixed "$AUTH_SHARED" "export async function requireWorkflowOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {"
 require_fixed "$AUTH_SHARED" "export const PRIVILEGED_OPERATOR_ALLOWED_ROLES = [\"service_role\", \"build_admin\"] as const;"
 require_fixed "$AUTH_SHARED" "export async function requirePrivilegedOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {"
+require_fixed "$AUTH_SHARED" 'const getSigningAdminSecret = (): string | null =>'
+require_fixed "$AUTH_SHARED" "export function requireSigningAdminKey(req: Request): Response | null {"
+require_fixed "$AUTH_SHARED" 'missing: ["K1W1_EDGE_ADMIN_KEY"]'
+forbid_fixed "$AUTH_SHARED" "K1W1_EDGE_ADMIN_KEY|SIGNING_ADMIN_KEY"
 require_fixed "$AUTH_SHARED" '"Missing required auth secrets for this Edge Function."'
 require_fixed "$AUTH_SHARED" '"Unauthorized: send either admin key OR bearer token, not both."'
 require_fixed "$AUTH_SHARED" '"Unauthorized: missing authentication header."'

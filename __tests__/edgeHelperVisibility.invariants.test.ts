@@ -9,10 +9,10 @@ describe("Edge helper visibility invariants", () => {
       name: "k1w1-handler",
       index: "supabase/functions/k1w1-handler/index.ts",
       helpers: "supabase/functions/k1w1-handler/helpers.ts",
-      imports: ["corsHeadersForRequest", "handleCors", "parseJsonBody", "rateLimit", "requireAdminKey"],
+      imports: ["corsHeadersForRequest", "handleCors", "parseJsonBody", "rateLimit", "requireScopedEdgeAuth"],
       reexports: [
         'export { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";',
-        'export { requireAdminKey, rateLimit } from "../_shared/auth.ts";',
+        'export { requireScopedEdgeAuth, rateLimit } from "../_shared/auth.ts";',
         'export { parseJsonBody } from "../_shared/validation.ts";',
       ],
     },
@@ -81,13 +81,13 @@ describe("Edge helper visibility invariants", () => {
       imports: [
         "parseJsonBody",
         "rateLimit",
-        "requireAdminKey",
+        "requireScopedEdgeAuth",
         "sanitizeUnknownForTransport",
       ],
       reexports: [
         'export { sanitizeErrorText, sanitizeUnknownForTransport } from "../_shared/errorSanitization.ts";',
         'export { parseJsonBody } from "../_shared/validation.ts";',
-        'export { requireAdminKey, rateLimit } from "../_shared/auth.ts";',
+        'export { requireScopedEdgeAuth, rateLimit } from "../_shared/auth.ts";',
       ],
     },
   ];

@@ -181,7 +181,7 @@ describe('Orchestrator', () => {
       const result = await runOrchestrator('groq', 'llama-3.1-8b-instant', 'speed', testMessages);
 
       expect(result.ok).toBe(false);
-      expect(String(result.error || '')).toMatch(/Lokaler Edge Admin Key/i);
+      expect(String(result.error || '')).toMatch(/Lokaler (Legacy )?Edge Admin Key/i);
       expect(invokeMock).not.toHaveBeenCalled();
     });
 

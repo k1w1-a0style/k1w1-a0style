@@ -1,11 +1,16 @@
 import { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";
-import { requireAdminKey } from "../_shared/auth.ts";
+import { requireScopedEdgeAuth } from "../_shared/auth.ts";
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
-  const gate = await requireAdminKey(req);
+  const gate = requireScopedEdgeAuth(req, {
+    scope: "check-native-sync",
+    allowAdmin: true,
+    allowCiBearer: false,
+    adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
+  });
   if (gate) return gate;
 
   return new Response(

@@ -20,6 +20,9 @@ export const getRuntimeEnv = (key: string): string | undefined => {
 
 const getAdminSecret = (): string | null =>
   getRuntimeEnv("K1W1_EDGE_ADMIN_KEY") ??
+  null;
+
+const getSigningAdminSecret = (): string | null =>
   getRuntimeEnv("SIGNING_ADMIN_KEY") ??
   null;
 
@@ -246,7 +249,8 @@ export function getSigningMasterKey(): string | null {
 }
 
 /**
- * Verify x-k1w1-admin-key against K1W1_EDGE_ADMIN_KEY / SIGNING_ADMIN_KEY.
+ * Verify x-k1w1-admin-key against the generic legacy edge admin secret only.
+ * Important: SIGNING_ADMIN_KEY is intentionally not accepted here.
  * Returns Response on failure, null on success.
  */
 export function requireAdminKey(req: Request): Response | null {
@@ -258,7 +262,7 @@ export function requireAdminKey(req: Request): Response | null {
       "Missing admin auth secret for this Edge Function.",
       req,
       500,
-      { missing: ["K1W1_EDGE_ADMIN_KEY|SIGNING_ADMIN_KEY"] },
+      { missing: ["K1W1_EDGE_ADMIN_KEY"] },
     );
   }
 
@@ -266,6 +270,33 @@ export function requireAdminKey(req: Request): Response | null {
 
   return errorResponse(
     "Unauthorized: missing or invalid admin key.",
+    req,
+    401,
+    { required: "x-k1w1-admin-key" },
+  );
+}
+
+/**
+ * Verify x-k1w1-admin-key against SIGNING_ADMIN_KEY only.
+ * Use this helper only for signing-specific routes/contracts.
+ */
+export function requireSigningAdminKey(req: Request): Response | null {
+  const expected = getSigningAdminSecret();
+  const got = getAdminKeyHeader(req) ?? "";
+
+  if (!expected) {
+    return errorResponse(
+      "Missing signing admin auth secret for this Edge Function.",
+      req,
+      500,
+      { missing: ["SIGNING_ADMIN_KEY"] },
+    );
+  }
+
+  if (got && got === expected) return null;
+
+  return errorResponse(
+    "Unauthorized: missing or invalid signing admin key.",
     req,
     401,
     { required: "x-k1w1-admin-key" },
@@ -438,7 +469,7 @@ export function requireAdminKeyOrServiceRoleBearer(req: Request): Response | nul
       500,
       {
         missing: [
-          "K1W1_EDGE_ADMIN_KEY|SIGNING_ADMIN_KEY",
+          "K1W1_EDGE_ADMIN_KEY",
           "K1W1_SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY",
         ],
       },

@@ -28,7 +28,7 @@ export interface HandlerRequestBody {
 }
 
 export { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";
-export { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+export { requireScopedEdgeAuth, rateLimit } from "../_shared/auth.ts";
 export { parseJsonBody } from "../_shared/validation.ts";
 
 export const DEFAULT_MODELS = SHARED_PROVIDER_DEFAULTS;

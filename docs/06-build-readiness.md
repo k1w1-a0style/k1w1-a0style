@@ -67,6 +67,7 @@ Der Service muss dieselben Regeln servernah erzwingen, damit keine Umgehung via 
 - **Warnung:** CI Lite rot/unknown, optionale Keys (`EAS_PROJECT_ID`, `K1W1_EDGE_WORKFLOW_ADMIN_KEY`, `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) fehlen, solange Build-Flow ohne diese lauffähig bleibt.
 - **Wichtig (lokale Readiness):** Workflow-/Build-/Artifact-Pfade prüfen den **lokalen Workflow Admin Key** getrennt; Keystore-bezogene Pfade prüfen den **lokalen Android Keystore Export Admin Key** getrennt. Ein vorhandener Legacy-Key allein darf kein false-green erzeugen.
 - **Wichtig (Keystore-Wizard Contract, Patch 597):** Keystore-Status/Generate-Calls im Wizard sind nur mit Kombi-Header gueltig: `Authorization: Bearer <Supabase user JWT>` + `x-k1w1-admin-key: <lokaler androidKeystoreExportAdminKey>`.
+- **Wichtig (Patch 598):** `SIGNING_ADMIN_KEY` ist kein generischer Fallback mehr fuer `x-k1w1-admin-key`-Legacy-Routen. Generische Legacy-Guards laufen ausschliesslich ueber `K1W1_EDGE_ADMIN_KEY`; signing-spezifische Pfade muessen dedizierte Guards nutzen.
 
 ---
 

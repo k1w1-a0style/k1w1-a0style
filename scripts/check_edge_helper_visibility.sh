@@ -13,7 +13,7 @@ check_contains() {
 }
 
 check_contains "supabase/functions/k1w1-handler/helpers.ts" 'export { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";'
-check_contains "supabase/functions/k1w1-handler/helpers.ts" 'export { requireAdminKey, rateLimit } from "../_shared/auth.ts";'
+check_contains "supabase/functions/k1w1-handler/helpers.ts" 'export { requireScopedEdgeAuth, rateLimit } from "../_shared/auth.ts";'
 check_contains "supabase/functions/k1w1-handler/helpers.ts" 'export { parseJsonBody } from "../_shared/validation.ts";'
 
 check_contains "supabase/functions/android-keystore-export/helpers.ts" 'export { createClient } from "https://esm.sh/@supabase/supabase-js@2";'
@@ -27,6 +27,6 @@ check_contains "supabase/functions/android-keystore-status/helpers.ts" 'requireS
 check_contains "supabase/functions/android-keystore-status/helpers.ts" 'requirePrivilegedOperatorJwtRole'
 
 check_contains "supabase/functions/create_codesandbox/helpers.ts" 'export { parseJsonBody } from "../_shared/validation.ts";'
-check_contains "supabase/functions/create_codesandbox/helpers.ts" 'export { requireAdminKey, rateLimit } from "../_shared/auth.ts";'
+check_contains "supabase/functions/create_codesandbox/helpers.ts" 'export { requireScopedEdgeAuth, rateLimit } from "../_shared/auth.ts";'
 
 echo "Edge helper visibility check passed."

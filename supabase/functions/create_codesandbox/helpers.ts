@@ -5,7 +5,7 @@
 import { sanitizeErrorText as sanitizeErrorTextLocal } from "../_shared/errorSanitization.ts";
 export { sanitizeErrorText, sanitizeUnknownForTransport } from "../_shared/errorSanitization.ts";
 export { parseJsonBody } from "../_shared/validation.ts";
-export { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+export { requireScopedEdgeAuth, rateLimit } from "../_shared/auth.ts";
 
 // CodeSandbox "define" API
 

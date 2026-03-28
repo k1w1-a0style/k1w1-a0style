@@ -93,4 +93,21 @@ describe("patch415 edge auth guard invariants", () => {
     expect(edgeStatus).toContain("`github-workflow-dispatch`");
     expect(edgeStatus).toContain("`android-keystore-export`");
   });
+
+  it("keeps legacy generic routes on explicit K1W1_EDGE_ADMIN_KEY scoped guard contracts", () => {
+    const genericRoutes = [
+      "supabase/functions/k1w1-handler/index.ts",
+      "supabase/functions/create_codesandbox/index.ts",
+      "supabase/functions/save_preview/index.ts",
+    ];
+
+    for (const rel of genericRoutes) {
+      const src = read(rel);
+      expect(src).toContain("requireScopedEdgeAuth(req, {");
+      expect(src).toContain('adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"');
+      expect(src).toContain("allowAdmin: true");
+      expect(src).toContain("allowCiBearer: false");
+      expect(src).not.toContain("requireAdminKey(req)");
+    }
+  });
 });
