@@ -6,7 +6,7 @@ import { styles } from "../styles";
 import { splitFullName } from "../utils/repos";
 import {
   getAndroidKeystoreExportAdminKey,
-  getEdgeAdminKey,
+  getLegacyEdgeAdminKey,
   getExpoToken,
   getWorkflowAdminKey,
   listRepoSecretNames,
@@ -130,7 +130,7 @@ export function SecretsSection(props: {
         getExpoToken().catch(() => null),
         getWorkflowAdminKey().catch(() => null),
         getAndroidKeystoreExportAdminKey().catch(() => null),
-        getEdgeAdminKey().catch(() => null),
+        getLegacyEdgeAdminKey().catch(() => null),
       ]);
       if (runtimeRequestRef.current !== requestId) return;
       setRuntimePresence({

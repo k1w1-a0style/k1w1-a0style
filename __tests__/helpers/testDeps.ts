@@ -45,7 +45,7 @@ export function createPipelineDepsFromProjectFiles(
     getAndroidKeystoreExportAdminKey: jest.fn(
       async () => opts?.androidKeystoreExportAdminKey ?? "keystore_test",
     ),
-    getEdgeAdminKey: jest.fn(async () => opts?.edgeAdminKey ?? "edge_test"),
+    getLegacyEdgeAdminKey: jest.fn(async () => opts?.edgeAdminKey ?? "edge_test"),
     fileExists: jest.fn(async (_o, _r, targetPath) => map.has(targetPath)),
     readJsonFile: jest.fn(async (_o, _r, targetPath) => {
       const raw = map.get(targetPath);

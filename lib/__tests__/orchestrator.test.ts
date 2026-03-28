@@ -7,7 +7,7 @@ import {
   ORCHESTRATOR_REQUEST_TIMEOUT_MS,
 } from '../orchestrator';
 import { ensureSupabaseClient } from '../supabase';
-import { getEdgeAdminKey } from '../../infra/github/githubService';
+import { getLegacyEdgeAdminKey } from '../../infra/github/githubService';
 import { SUPABASE_EDGE_FUNCTIONS } from '../../shared/constants/supabase';
 
 jest.mock('../supabase', () => ({
@@ -15,7 +15,7 @@ jest.mock('../supabase', () => ({
 }));
 
 jest.mock('../../infra/github/githubService', () => ({
-  getEdgeAdminKey: jest.fn(),
+  getLegacyEdgeAdminKey: jest.fn(),
 }));
 
 type InvokeOptions = {
@@ -25,7 +25,7 @@ type InvokeOptions = {
 };
 
 const mockEnsureSupabaseClient = ensureSupabaseClient as jest.MockedFunction<typeof ensureSupabaseClient>;
-const mockGetEdgeAdminKey = getEdgeAdminKey as jest.MockedFunction<typeof getEdgeAdminKey>;
+const mockGetEdgeAdminKey = getLegacyEdgeAdminKey as jest.MockedFunction<typeof getLegacyEdgeAdminKey>;
 const invokeMock = jest.fn();
 const fetchSpy = jest.fn();
 const originalFetch = global.fetch;

@@ -2,7 +2,7 @@
 // Extracted from buildPipelineDiagnostics.ts: types and helpers.
 
 import {
-  getEdgeAdminKey,
+  getLegacyEdgeAdminKey,
   getExpoToken,
   getGitHubToken,
   getRepoFileText,

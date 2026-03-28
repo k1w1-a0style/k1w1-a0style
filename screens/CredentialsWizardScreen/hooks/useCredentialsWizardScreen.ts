@@ -11,7 +11,7 @@ import { useProject } from "../../../contexts/ProjectContext";
 import { ensureSupabaseClient } from "../../../lib/supabase";
 import {
   getAndroidKeystoreExportAdminKey,
-  getEdgeAdminKey,
+  getLegacyEdgeAdminKey,
   saveAndroidKeystoreExportAdminKey,
 } from "../../../infra/github/githubService";
 import {
@@ -163,7 +163,7 @@ export function useCredentialsWizardScreen() {
   const hydrateAdminKey = useCallback(async () => {
     try {
       const scopedKeystoreKey = await getAndroidKeystoreExportAdminKey();
-      const k = scopedKeystoreKey ?? (await getEdgeAdminKey());
+      const k = scopedKeystoreKey ?? (await getLegacyEdgeAdminKey());
       if (!isMountedRef.current) return null;
       setAdminKey(k ?? "");
       return k ?? "";

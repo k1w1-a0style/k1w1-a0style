@@ -1,15 +1,29 @@
-import { handleCors, jsonResponse } from "../_shared/cors.ts";
-import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
+import { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";
+import { requireScopedEdgeAuth } from "../_shared/auth.ts";
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
-  const gate = await requireAdminKey(req);
-  if (gate) return gate;
+  const auth = requireScopedEdgeAuth(req, {
+    adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
+    allowCiBearer: false,
+  });
+  if (auth) return auth;
 
-  const rl = rateLimit(req, "test", 30, 60_000);
-  if (rl) return rl;
-
-  return jsonResponse({ ok: true }, req);
+  return new Response(
+    JSON.stringify({
+      ok: false,
+      code: "legacy_test_route_disabled",
+      error:
+        "Legacy test edge route is intentionally disabled. Use scoped workflow/keystore routes instead.",
+    }),
+    {
+      status: 410,
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        ...corsHeadersForRequest(req),
+      },
+    },
+  );
 });

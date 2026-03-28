@@ -9,7 +9,7 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
 const mockGitHub = {
   getDefaultBranch: jest.fn(),
   pushFilesToRepo: jest.fn(),
-  getEdgeAdminKey: jest.fn(),
+  getLegacyEdgeAdminKey: jest.fn(),
 };
 const mockAutoFix = { autoFixCIWorkflows: jest.fn() };
 const mockInvoke = jest.fn();
@@ -47,7 +47,7 @@ describe("build readiness gate - linkedBranch missing", () => {
     mockGetItem.mockResolvedValue("true");
     mockGitHub.getDefaultBranch.mockResolvedValue("main");
     mockGitHub.pushFilesToRepo.mockResolvedValue(undefined);
-    mockGitHub.getEdgeAdminKey.mockResolvedValue("adminkey");
+    mockGitHub.getLegacyEdgeAdminKey.mockResolvedValue("adminkey");
     mockAutoFix.autoFixCIWorkflows.mockResolvedValue(undefined);
     mockInvoke.mockResolvedValue({ data: { jobId: "11111111-1111-1111-1111-111111111111" }, error: null });
   });

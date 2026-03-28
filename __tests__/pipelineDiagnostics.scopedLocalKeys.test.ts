@@ -25,7 +25,7 @@ describe("runBuildPipelineDiagnostics scoped local admin key readiness", () => {
         ...baseDeps,
         getWorkflowAdminKey: jest.fn(async () => null),
         getAndroidKeystoreExportAdminKey: jest.fn(async () => null),
-        getEdgeAdminKey: jest.fn(async () => "legacy-only-key"),
+        getLegacyEdgeAdminKey: jest.fn(async () => "legacy-only-key"),
       },
     );
 

@@ -176,9 +176,9 @@ export {
   saveExpoToken,
   getExpoToken,
   syncRepoSecrets,
-  getEdgeAdminKey,
-  saveEdgeAdminKey,
-  deleteEdgeAdminKey,
+  getLegacyEdgeAdminKey,
+  saveLegacyEdgeAdminKey,
+  deleteLegacyEdgeAdminKey,
 } from "../infra/github/githubService";
 
 export const ProjectProvider: React.FC<{ children: ReactNode }> = ({

@@ -16,7 +16,7 @@ jest.mock("../infra/github/githubService", () => ({
   getWorkflowAdminKey: (...args: unknown[]) => mockGetWorkflowAdminKey(...args),
   getAndroidKeystoreExportAdminKey: (...args: unknown[]) =>
     mockGetAndroidKeystoreExportAdminKey(...args),
-  getEdgeAdminKey: (...args: unknown[]) => mockGetEdgeAdminKey(...args),
+  getLegacyEdgeAdminKey: (...args: unknown[]) => mockGetEdgeAdminKey(...args),
 }));
 
 type Deferred<T> = {

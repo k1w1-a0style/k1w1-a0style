@@ -3,7 +3,7 @@
 
 import {
   getAndroidKeystoreExportAdminKey,
-  getEdgeAdminKey,
+  getLegacyEdgeAdminKey,
   getExpoToken,
   getGitHubToken,
   getWorkflowAdminKey,
@@ -27,7 +27,7 @@ export type BuildPipelineDiagnosticsDeps = {
   getExpoToken?: typeof getExpoToken;
   getWorkflowAdminKey?: typeof getWorkflowAdminKey;
   getAndroidKeystoreExportAdminKey?: typeof getAndroidKeystoreExportAdminKey;
-  getEdgeAdminKey?: typeof getEdgeAdminKey;
+  getLegacyEdgeAdminKey?: typeof getLegacyEdgeAdminKey;
   fileExists?: typeof fileExists;
   readJsonFile?: typeof readJsonFile;
   getRepoFileText?: typeof getRepoFileText;
@@ -103,7 +103,7 @@ const DEFAULT_BUILD_PIPELINE_DIAGNOSTICS_DEPS: Required<BuildPipelineDiagnostics
   getExpoToken,
   getWorkflowAdminKey,
   getAndroidKeystoreExportAdminKey,
-  getEdgeAdminKey,
+  getLegacyEdgeAdminKey,
   fileExists,
   readJsonFile,
   getRepoFileText,
@@ -132,7 +132,7 @@ export const runBuildPipelineDiagnostics = async (
     d.getExpoToken(),
     d.getWorkflowAdminKey?.() ?? Promise.resolve(null),
     d.getAndroidKeystoreExportAdminKey?.() ?? Promise.resolve(null),
-    d.getEdgeAdminKey?.() ?? Promise.resolve(null),
+    d.getLegacyEdgeAdminKey?.() ?? Promise.resolve(null),
   ]);
 
   checks.push({

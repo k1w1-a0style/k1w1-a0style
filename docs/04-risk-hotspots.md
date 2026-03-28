@@ -49,6 +49,7 @@
 - Patch 598 reduziert verbleibende Drift im Legacy-Admin-Guard: generisches `requireAdminKey(...)` akzeptiert keinen `SIGNING_ADMIN_KEY`-Fallback mehr; Legacy-Routen (`k1w1-handler`, `create_codesandbox`, `save_preview`, disabled lint/native-sync Stubs) nutzen jetzt explizite scoped Guards auf `K1W1_EDGE_ADMIN_KEY`.
 - Patch 599 schliesst den Keystore-Config-Split-Brain: widerspruechliche lokale `verify_jwt=false`-Configs fuer `android-keystore-status`/`android-keystore-generate` wurden entfernt; fail-closed SoT ist jetzt eindeutig `supabase/config.toml` mit `verify_jwt=true`.
 - Patch 600 entfernt verbleibende stille Legacy-Fallbacks in workflow-/build-/artifact-nahen Ops-Skripten: `scripts/ci-lite-env-load.sh` und `scripts/ci-lite-smoke.sh` verwenden nur noch `K1W1_EDGE_WORKFLOW_ADMIN_KEY` (kein `ADMIN_KEY`/`K1W1_EDGE_ADMIN_KEY`-Alias mehr), damit fehlende scoped Workflow-Keys nicht mehr als false-green durchlaufen.
+- Patch 601 schliesst den Restpunkt `supabase/functions/test` explizit: alte Testroute ist jetzt fail-closed (`requireScopedEdgeAuth` + immer `410 legacy_test_route_disabled`) und kann nicht mehr als halboffene Altflaeche mit unklarem Auth-Vertrag stehen bleiben.
 
 ---
 

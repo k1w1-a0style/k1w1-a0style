@@ -44,6 +44,7 @@ DISPATCH_EDGE="supabase/functions/github-workflow-dispatch/index.ts"
 K1W1_HANDLER_EDGE="supabase/functions/k1w1-handler/index.ts"
 CREATE_CODESANDBOX_EDGE="supabase/functions/create_codesandbox/index.ts"
 SAVE_PREVIEW_EDGE="supabase/functions/save_preview/index.ts"
+LEGACY_TEST_EDGE="supabase/functions/test/index.ts"
 GH_WORKFLOWS_INFRA="infra/github/workflows.ts"
 GH_FILES_INFRA="infra/github/files.ts"
 GH_BRANCHOPS_INFRA="infra/github/branchOps.ts"
@@ -61,7 +62,7 @@ KEYSTORE_EXPORT_CONFIG="supabase/functions/android-keystore-export/config.toml"
 KEYSTORE_GENERATE_LOCAL_CONFIG="supabase/functions/android-keystore-generate/config.toml"
 KEYSTORE_STATUS_LOCAL_CONFIG="supabase/functions/android-keystore-status/config.toml"
 
-for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$K1W1_HANDLER_EDGE" "$CREATE_CODESANDBOX_EDGE" "$SAVE_PREVIEW_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$AUTH_SHARED" "$WIZARD_HELPERS" "$WIZARD_HOOK" "$ROOT_CONFIG" "$KEYSTORE_EXPORT_CONFIG" "$CI_LITE_ENV_LOAD" "$CI_LITE_SMOKE"; do
+for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$K1W1_HANDLER_EDGE" "$CREATE_CODESANDBOX_EDGE" "$SAVE_PREVIEW_EDGE" "$LEGACY_TEST_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$AUTH_SHARED" "$WIZARD_HELPERS" "$WIZARD_HOOK" "$ROOT_CONFIG" "$KEYSTORE_EXPORT_CONFIG" "$CI_LITE_ENV_LOAD" "$CI_LITE_SMOKE"; do
   require_file "$f"
 done
 
@@ -155,6 +156,12 @@ require_pattern "$SAVE_PREVIEW_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
 require_fixed "$SAVE_PREVIEW_EDGE" 'adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"'
 require_fixed "$SAVE_PREVIEW_EDGE" 'allowCiBearer: false'
 forbid_fixed "$SAVE_PREVIEW_EDGE" 'requireAdminKey(req)'
+require_pattern "$LEGACY_TEST_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
+require_fixed "$LEGACY_TEST_EDGE" 'adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"'
+require_fixed "$LEGACY_TEST_EDGE" 'allowCiBearer: false'
+forbid_fixed "$LEGACY_TEST_EDGE" 'requireAdminKey(req)'
+require_fixed "$LEGACY_TEST_EDGE" 'status: 410'
+require_fixed "$LEGACY_TEST_EDGE" 'legacy_test_route_disabled'
 require_fixed "$WIZARD_HELPERS" 'Authorization: `Bearer ${userJwt.trim()}`'
 require_fixed "$WIZARD_HELPERS" '"x-k1w1-admin-key": adminKey.trim()'
 require_fixed "$WIZARD_HOOK" "getAndroidKeystoreExportAdminKey"

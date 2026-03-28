@@ -2,7 +2,7 @@
 // Extracted from buildPipelineDiagnostics.ts: remote diagnostics functions.
 
 import {
-  getEdgeAdminKey,
+  getLegacyEdgeAdminKey,
   getExpoToken,
   getGitHubToken,
   getRepoFileText,
