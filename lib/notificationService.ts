@@ -33,12 +33,37 @@ class NotificationService {
   private permissionGranted: boolean = false;
   private expoPushToken: string | null = null;
 
+  private getConstantsSource(): any {
+    const constantsMaybeDefault = (Constants as any)?.default;
+    if (constantsMaybeDefault && typeof constantsMaybeDefault === "object") {
+      return constantsMaybeDefault;
+    }
+    return Constants as any;
+  }
+
+  private resolveProjectId(): string | null {
+    const constantsSource = this.getConstantsSource();
+    const candidates = [
+      constantsSource?.easConfig?.projectId,
+      constantsSource?.expoConfig?.extra?.eas?.projectId,
+      constantsSource?.manifest2?.extra?.expoClient?.extra?.eas?.projectId,
+    ];
+
+    const projectId = candidates.find(
+      (candidate) => typeof candidate === "string" && candidate.trim().length > 0,
+    );
+
+    return projectId ?? null;
+  }
+
   /**
    * Initialisiert den Notification Service
    * Fordert Permissions an (falls noch nicht gewährt)
    */
   async initialize(): Promise<boolean> {
     try {
+      this.expoPushToken = null;
+
       // Permissions prüfen und anfordern
       const { status: existingStatus } =
         await Notifications.getPermissionsAsync();
@@ -70,16 +95,13 @@ class NotificationService {
 
       // Expo Push Token abrufen (für zukünftige Remote-Notifications)
       try {
-        // ✅ FIX: projectId aus app.config.js laden
-        const projectId =
-          (Constants as any).expoConfig?.extra?.eas?.projectId ||
-          (Constants as any).expoConfig?.owner ||
-          "your-project-id"; // Fallback
+        const constantsSource = this.getConstantsSource();
+        const projectId = this.resolveProjectId();
 
         // ✅ Android ohne FCM/Firebase: Push Token nicht abrufen (verhindert FirebaseApp-Init Warnungen)
         const androidGoogleServices =
-          (Constants as any).expoConfig?.android?.googleServicesFile ||
-          (Constants as any).expoConfig?.android?.googleServicesPath;
+          constantsSource?.expoConfig?.android?.googleServicesFile ||
+          constantsSource?.expoConfig?.android?.googleServicesPath;
 
         const isJest = typeof process !== "undefined" && !!process.env.JEST_WORKER_ID;
 
@@ -88,13 +110,20 @@ class NotificationService {
           return true;
         }
 
+        if (!projectId) {
+          logger.warn(
+            "Could not resolve Expo EAS projectId, skipping Expo Push Token registration",
+          );
+          return true;
+        }
 
         const tokenData = await Notifications.getExpoPushTokenAsync({
-          projectId: projectId as string,
+          projectId,
         });
         this.expoPushToken = tokenData.data;
-        logger.info("📱 Expo Push Token:", this.expoPushToken);
+        logger.info("Expo Push Token registration ready");
       } catch (error) {
+        this.expoPushToken = null;
         logger.warn("Could not get Expo Push Token (Dev-Mode?)", { err: error });
       }
 
