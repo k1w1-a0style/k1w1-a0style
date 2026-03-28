@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: 2026-03-28 (Patch 599)
+Stand: 2026-03-28 (Patch 602)
 
 ## Aktiv und workflow-relevant
 
@@ -42,6 +42,7 @@ Stand: 2026-03-28 (Patch 599)
 - Patch 598 reduziert den verbleibenden generischen Legacy-Guard-Scope: `requireAdminKey(...)` akzeptiert nur noch `K1W1_EDGE_ADMIN_KEY` (kein stiller `SIGNING_ADMIN_KEY`-Fallback), und die verbliebenen Legacy-Routen (`k1w1-handler`, `create_codesandbox`, `save_preview` sowie disabled lint/native-sync Stubs) sind auf explizite `requireScopedEdgeAuth(... adminSecretEnv: "K1W1_EDGE_ADMIN_KEY")`-Vertraege gezogen.
 - Patch 599 beseitigt den aktuellen Keystore-Config-Split-Brain: die funktionslokalen Config-Dateien fuer `android-keystore-status`/`android-keystore-generate` wurden entfernt, damit `supabase/config.toml` als einzige fail-closed SoT (`verify_jwt=true`) gilt und kein lokaler `verify_jwt=false`-Schattenzustand mehr existiert.
 - Patch 601 behandelt die stray Legacy-Testroute `test` explizit fail-closed (scoped Guard + `410 legacy_test_route_disabled`) und sichert den Vertrag in Invariants/Script-Checks mit ab.
+- Patch 602 zieht den lokalen Smoke-Caller-Vertrag auf denselben Edge-Vertrag: `scripts/ci-lite-smoke.sh` sendet fuer `github-workflow-dispatch`/`github-workflow-runs`/`github-workflow-logs` jetzt immer `Authorization: Bearer <K1W1_EDGE_WORKFLOW_JWT>` plus `x-k1w1-admin-key: <K1W1_EDGE_WORKFLOW_ADMIN_KEY>` und verlangt einen expliziten `<ref>` (kein stilles `main`).
 - `github-workflow-dispatch` / `infra/github/workflowTemplates.ts` bilden weiterhin eine **partielle** Workflow-SoT ab (vor allem CI Lite), nicht die komplette managed Familie.
 - `github-run-artifact-json` normalisiert ZIP-Pfade jetzt explizit inkl. `\`-Separatoren; dadurch bleiben Artifact-JSON-Lookups robust, auch wenn ZIP-Einträge nicht POSIX-normalisiert sind.
 - `github-run-artifact-json` folgt jetzt derselben kontrollierten Workflow-Linie wie Dispatch/Runs/Logs/Build: JWT-Claim-Guard fuer `service_role|build_admin` plus scoped Workflow-Admin-Key und CI-Bearer-Sonderpfad nur fuer explizite CI-Aufrufe.
