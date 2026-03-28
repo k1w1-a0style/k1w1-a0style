@@ -2,9 +2,11 @@
 // REFACTORED: types/helpers → diagnosticTypes.ts, remote → remoteDiagnostics.ts
 
 import {
+  getAndroidKeystoreExportAdminKey,
   getEdgeAdminKey,
   getExpoToken,
   getGitHubToken,
+  getWorkflowAdminKey,
   getRepoFileText,
   listRepoSecretNames,
 } from "../../infra/github/githubService";
@@ -23,6 +25,8 @@ export type { RemoteDiagnosticsReport } from "./remoteDiagnostics";
 export type BuildPipelineDiagnosticsDeps = {
   getGitHubToken?: typeof getGitHubToken;
   getExpoToken?: typeof getExpoToken;
+  getWorkflowAdminKey?: typeof getWorkflowAdminKey;
+  getAndroidKeystoreExportAdminKey?: typeof getAndroidKeystoreExportAdminKey;
   getEdgeAdminKey?: typeof getEdgeAdminKey;
   fileExists?: typeof fileExists;
   readJsonFile?: typeof readJsonFile;
@@ -97,6 +101,8 @@ export function describeRepoSecretContract(params: {
 const DEFAULT_BUILD_PIPELINE_DIAGNOSTICS_DEPS: Required<BuildPipelineDiagnosticsDeps> = {
   getGitHubToken,
   getExpoToken,
+  getWorkflowAdminKey,
+  getAndroidKeystoreExportAdminKey,
   getEdgeAdminKey,
   fileExists,
   readJsonFile,
@@ -121,10 +127,12 @@ export const runBuildPipelineDiagnostics = async (
   const checks: DiagnosticCheck[] = [];
 
   // --- Local prerequisites ---
-  const [ghToken, expoToken, adminKey] = await Promise.all([
+  const [ghToken, expoToken, workflowAdminKey, androidKeystoreExportAdminKey, legacyAdminKey] = await Promise.all([
     d.getGitHubToken(),
     d.getExpoToken(),
-    d.getEdgeAdminKey(),
+    d.getWorkflowAdminKey?.() ?? Promise.resolve(null),
+    d.getAndroidKeystoreExportAdminKey?.() ?? Promise.resolve(null),
+    d.getEdgeAdminKey?.() ?? Promise.resolve(null),
   ]);
 
   checks.push({
@@ -144,12 +152,30 @@ export const runBuildPipelineDiagnostics = async (
   });
 
   checks.push({
-    id: "local.edgeAdminKey",
-    title: "Edge Admin-Key vorhanden (x-k1w1-admin-key)",
-    status: adminKey ? "pass" : "warn",
-    fixHint: adminKey
+    id: "local.workflowAdminKey",
+    title: "Lokaler Workflow Admin-Key vorhanden (x-k1w1-admin-key)",
+    status: workflowAdminKey ? "pass" : "fail",
+    fixHint: workflowAdminKey
       ? undefined
-      : "Ohne Admin-Key sind manche Supabase-Checks nicht möglich (Edge Functions sind geschützt).",
+      : "Workflow-/Build-/Artifact-Readiness braucht den lokalen Workflow Admin-Key (scoped).",
+  });
+
+  checks.push({
+    id: "local.androidKeystoreExportAdminKey",
+    title: "Lokaler Android Keystore Export Admin-Key vorhanden (x-k1w1-admin-key)",
+    status: androidKeystoreExportAdminKey ? "pass" : "warn",
+    fixHint: androidKeystoreExportAdminKey
+      ? undefined
+      : "Keystore-Routen nutzen den separaten lokalen Keystore-Scoped-Key. Ohne ihn bleibt Keystore-Readiness unbestaetigt.",
+  });
+
+  checks.push({
+    id: "local.legacyEdgeAdminKey",
+    title: "Lokaler Legacy Edge Admin-Key (compat)",
+    status: legacyAdminKey ? "warn" : "pass",
+    fixHint: legacyAdminKey
+      ? "Legacy-Key ist gesetzt. Fuer neue Workflow-/Keystore-Readiness gelten die scoped Keys als primaerer Vertrag."
+      : undefined,
   });
 
   // --- Repo files (branch-specific) ---
