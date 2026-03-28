@@ -39,7 +39,7 @@ Im Notification-Block gab es drei regressionsanfaellige Restpunkte:
      - `manifest2.extra.expoClient.extra.eas.projectId`
    - kein Request bei fehlender `projectId`
    - kein Push-Token-Wert im Log
-   - konsistenter Zustand in Fehlerpfaden (`denied`, outer error, Channel-Fehler, Token-Fetch-Fehler, Android-FCM-Skip)
+   - konsistenter Zustand in explizit getesteten Fehlerpfaden (`denied`, outer error, Token-Fetch-Fehler, Android-FCM-Skip)
    - Hook-Regressionstest fuer Permission-Regrant/-Revoke-State-Synchronitaet bleibt enthalten
 
 ## Geaenderte Dateien
