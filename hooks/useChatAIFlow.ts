@@ -13,7 +13,6 @@ import { buildChangeConfirmationText } from "./chatChangeSummary";
 
 import { runOrchestrator } from "../lib/orchestrator";
 import type { AllAIProviders } from "../contexts/AIContext";
-import { normalizeAiResponseDetailed } from "../lib/normalizer";
 import { logger } from "../lib/logger";
 import { applyFilesToProject } from "../lib/fileWriter";
 import { buildProjectStateDigest, rebasePendingChangeOnLatest } from "../lib/chatFlowStateGuards";
@@ -23,6 +22,7 @@ import { buildBuilderMessages, buildPlannerMessages, buildValidatorMessages } fr
 import { buildSanitizedLlmHistory } from "../lib/promptSanitizer";
 import { looksLikeExplicitFileTask, looksLikeAdviceRequest, looksAmbiguousBuilderRequest, buildChangeDigest, buildExplainMessages } from "../utils/chatHeuristics";
 import { handleMetaCommand } from "../utils/metaCommands";
+import { normalizeResultFiles, readBuilderFilesOrThrow } from "./chatAIFlowResultHelpers";
 
 export type { PendingChange, PendingPlan } from "./chatAIFlowTypes";
 
@@ -543,33 +543,8 @@ export function useChatAIFlow({
         // ✅ FIX #7: Type-safe extraction of raw data
         const rawForNormalizer = extractRawOrchestratorResult(ai as ExtendedOrchestratorResult);
 
-        const normalizedResult = normalizeAiResponseDetailed(rawForNormalizer);
-        const normalized = normalizedResult?.files ?? null;
-        if (!normalized || normalized.length === 0) {
-          const rawText =
-            typeof normalizedResult?.responseText === "string"
-              ? normalizedResult.responseText.trim()
-              : typeof ai.text === "string"
-                ? ai.text.trim()
-                : "";
-          if (rawText.length > 0) {
-            const preview = rawText.slice(0, 900);
-            const parseHint =
-              normalizedResult?.parseError && normalizedResult.parseError.length > 0
-                ? ` [Normalizer: ${normalizedResult.parseError}]`
-                : "";
-            throw new Error(
-              "Builder hat keine gültige JSON-Dateiliste geliefert. " +
-                `Ich konnte daher keine Dateien anwenden.${parseHint}\n\n` +
-                "KI-Antwort (gekürzt):\n" +
-                preview,
-            );
-          }
-
-          throw new Error(
-            "Builder/Normalizer konnte keine verwertbare Dateiliste erzeugen.",
-          );
-        }
+        const normalizedResult = normalizeResultFiles(rawForNormalizer);
+        const normalized = readBuilderFilesOrThrow(normalizedResult, ai.text ?? "");
 
         // Optional Agent (Validator)
         let finalFiles = normalized;
@@ -607,7 +582,7 @@ export function useChatAIFlow({
 
             if (agentRes?.ok) {
               const agentRaw = extractRawOrchestratorResult(agentRes as ExtendedOrchestratorResult);
-              const normalizedAgent = normalizeAiResponseDetailed(agentRaw)?.files;
+              const normalizedAgent = normalizeResultFiles(agentRaw).files;
               if (normalizedAgent && normalizedAgent.length > 0) {
                 finalFiles = normalizedAgent;
                 agentMeta = agentRes;
