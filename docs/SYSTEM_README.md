@@ -640,7 +640,7 @@ Neue Validierungsmodule in `supabase/functions/_shared/validation.ts`:
 - `validateGitHubRepo()` - Format und Path-Traversal-Schutz
 - `validateBuildProfile()` - Nur erlaubte Profile (development, preview, production)
 - `validateJobId()` - Integer-Validierung mit Grenzwerten
-- `validateTriggerBuildRequest()` - Komplette Request-Body-Validierung
+- `validateTriggerBuildRequest()` - Komplette Request-Body-Validierung (`trigger-eas-build`: fehlender/leer/Whitespace-Branch wird fail-closed mit 400 abgelehnt)
 
 ### Integration in Supabase Functions:
 
@@ -649,7 +649,7 @@ import { validateTriggerBuildRequest } from "../_shared/validation.ts";
 import { errorResponse } from "../_shared/cors.ts";
 
 const validation = validateTriggerBuildRequest(body);
-if (!validation.valid) {
+if (!validation.ok) {
   return errorResponse("Validation failed", req, 400, {
     errors: validation.errors,
   });

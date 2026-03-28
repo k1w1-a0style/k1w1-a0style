@@ -98,6 +98,29 @@ describe("edge function request contracts", () => {
       if (res.ok) return;
       expect(res.errors.buildProfile).toBeTruthy();
     });
+
+    it.each([
+      [{ githubRepo: "k1w1-a0style/musik-player", buildProfile: "preview" }, "missing branch"],
+      [{ githubRepo: "k1w1-a0style/musik-player", buildProfile: "preview", branch: "" }, "empty branch"],
+      [{ githubRepo: "k1w1-a0style/musik-player", buildProfile: "preview", branch: "   " }, "whitespace branch"],
+    ])("rejects %s for trigger branch fail-closed contract", (payload, _label) => {
+      const res = validateTriggerBuildRequest(payload);
+      expect(res.ok).toBe(false);
+      if (res.ok) return;
+      expect(res.errors.branch).toContain("non-empty branch name");
+    });
+
+    it("trims a valid branch and returns a required branch string", () => {
+      const res = validateTriggerBuildRequest({
+        githubRepo: "k1w1-a0style/musik-player",
+        buildProfile: "preview",
+        branch: "  feature/hardening-589  ",
+      });
+
+      expect(res.ok).toBe(true);
+      if (!res.ok) return;
+      expect(res.data.branch).toBe("feature/hardening-589");
+    });
   });
 
 
