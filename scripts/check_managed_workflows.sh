@@ -68,8 +68,10 @@ done
 
 EDGE_FILE="supabase/functions/github-workflow-dispatch/index.ts"
 SHARED_FILE="shared/workflows/managedWorkflowTemplates.ts"
+EAS_LINK_SHARED_FILE="shared/workflows/easLinkWorkflowTemplate.ts"
 [ -f "$EDGE_FILE" ] || fail "Missing edge workflow source: $EDGE_FILE"
 [ -f "$SHARED_FILE" ] || fail "Missing shared workflow source: $SHARED_FILE"
+[ -f "$EAS_LINK_SHARED_FILE" ] || fail "Missing shared EAS Link workflow source: $EAS_LINK_SHARED_FILE"
 
 grep -q 'managedWorkflowTemplates' "$EDGE_FILE" || fail "Edge dispatch must import shared managed workflow templates"
 grep -q 'WORKFLOW_TEMPLATES' "$EDGE_FILE" || fail "Edge dispatch missing WORKFLOW_TEMPLATES reference"
@@ -87,6 +89,11 @@ fi
 
 grep -q 'source_sha' "$SHARED_FILE" || fail "Shared workflow templates missing source_sha/source_commit_sha provenance"
 grep -q 'repository_dispatch:' "$SHARED_FILE" || fail "Shared templates missing repository_dispatch support"
+grep -q 'WORKFLOW_EAS_LINK_TEMPLATE' "$EAS_LINK_SHARED_FILE" || fail "Shared EAS Link workflow file missing WORKFLOW_EAS_LINK_TEMPLATE export"
+grep -q '^# managed-by: k1w1' .github/workflows/eas-link.yml || fail "Live EAS Link workflow missing managed-by marker"
+grep -q '^# workflow-version: ' .github/workflows/eas-link.yml || fail "Live EAS Link workflow missing workflow-version marker"
+grep -q 'WORKFLOW_EAS_LINK_TEMPLATE' lib/diagnostics/workflowTemplates.ts || fail "Diagnostics templates must import WORKFLOW_EAS_LINK_TEMPLATE"
+grep -q 'WORKFLOW_EAS_LINK = WORKFLOW_EAS_LINK_TEMPLATE' lib/diagnostics/workflowTemplates.ts || fail "Diagnostics EAS Link template must be sourced from shared template"
 
 for wf in .github/workflows/eas-build.yml .github/workflows/eas-link.yml .github/workflows/release-build.yml .github/workflows/deploy-supabase-functions.yml .github/workflows/k1w1-triggered-build.yml; do
   grep -Eq '^\s+ref:\s*$' "$wf" || fail "Missing explicit ref input block in $wf"

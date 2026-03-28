@@ -9,11 +9,13 @@ fail() {
 EDGE_FILE="supabase/functions/github-workflow-dispatch/index.ts"
 INFRA_FILE="infra/github/workflowTemplates.ts"
 SHARED_FILE="shared/workflows/managedWorkflowTemplates.ts"
+EAS_LINK_SHARED_FILE="shared/workflows/easLinkWorkflowTemplate.ts"
 DIAG_FILE="lib/diagnostics/workflowTemplates.ts"
 
 [ -f "$EDGE_FILE" ] || fail "Missing edge workflow source: $EDGE_FILE"
 [ -f "$INFRA_FILE" ] || fail "Missing infra workflow source: $INFRA_FILE"
 [ -f "$SHARED_FILE" ] || fail "Missing shared workflow source: $SHARED_FILE"
+[ -f "$EAS_LINK_SHARED_FILE" ] || fail "Missing shared EAS Link workflow source: $EAS_LINK_SHARED_FILE"
 [ -f "$DIAG_FILE" ] || fail "Missing diagnostics workflow source: $DIAG_FILE"
 
 extract_version() {
@@ -62,6 +64,8 @@ grep -q 'managedWorkflowTemplates' "$INFRA_FILE" || fail "Infra templates must i
 grep -q 'WORKFLOW_TEMPLATES' "$INFRA_FILE" || fail "Infra templates missing WORKFLOW_TEMPLATES reference"
 grep -q 'managedWorkflowTemplates' "$EDGE_FILE" || fail "Edge dispatch must import shared managed templates"
 grep -q 'WORKFLOW_TEMPLATES' "$EDGE_FILE" || fail "Edge dispatch missing WORKFLOW_TEMPLATES reference"
+grep -q 'WORKFLOW_EAS_LINK_TEMPLATE' "$DIAG_FILE" || fail "Diagnostics workflow templates must import WORKFLOW_EAS_LINK_TEMPLATE"
+grep -q 'WORKFLOW_EAS_LINK = WORKFLOW_EAS_LINK_TEMPLATE' "$DIAG_FILE" || fail "Diagnostics EAS Link export must re-use shared template SoT"
 
 grep -q 'package_manager=yarn' "$DIAG_FILE" || fail "Diagnostics templates missing yarn package-manager handling"
 grep -q 'package_manager=pnpm' "$DIAG_FILE" || fail "Diagnostics templates missing pnpm package-manager handling"
@@ -96,19 +100,25 @@ const fs = require('fs');
 
 const live = fs.readFileSync('.github/workflows/eas-link.yml', 'utf8').replace(/\r\n/g, '\n');
 const diag = fs.readFileSync('lib/diagnostics/workflowTemplates.ts', 'utf8');
+const shared = fs.readFileSync('shared/workflows/easLinkWorkflowTemplate.ts', 'utf8');
 const base = JSON.parse(fs.readFileSync('templates/expo-sdk54-base.json', 'utf8'));
 
-const match = diag.match(/export const WORKFLOW_EAS_LINK = ('(?:\\.|[^'])*'|`(?:\\.|[^`])*`);/s);
-if (!match) {
-  console.error('[FAIL] Diagnostics workflow templates missing parsable WORKFLOW_EAS_LINK export');
+const sharedMatch = shared.match(/export const WORKFLOW_EAS_LINK_TEMPLATE = ('(?:\\.|[^'])*'|`(?:\\.|[^`])*`);/s);
+if (!sharedMatch) {
+  console.error('[FAIL] Shared EAS Link workflow template missing parsable WORKFLOW_EAS_LINK_TEMPLATE export');
   process.exit(1);
 }
 
-let diagValue;
+let sharedValue;
 try {
-  diagValue = Function(`return (${match[1]});`)();
+  sharedValue = Function(`return (${sharedMatch[1]});`)();
 } catch (err) {
-  console.error('[FAIL] Diagnostics WORKFLOW_EAS_LINK export is not a valid JS string literal');
+  console.error('[FAIL] Shared WORKFLOW_EAS_LINK_TEMPLATE export is not a valid JS string literal');
+  process.exit(1);
+}
+
+if (!diag.includes('export const WORKFLOW_EAS_LINK = WORKFLOW_EAS_LINK_TEMPLATE;')) {
+  console.error('[FAIL] Diagnostics WORKFLOW_EAS_LINK export is not wired to WORKFLOW_EAS_LINK_TEMPLATE');
   process.exit(1);
 }
 
@@ -118,8 +128,8 @@ if (!baseEntry) {
   process.exit(1);
 }
 
-if (diagValue.replace(/\r\n/g, '\n') !== live) {
-  console.error('[FAIL] Diagnostics WORKFLOW_EAS_LINK drifted from live .github/workflows/eas-link.yml');
+if (sharedValue.replace(/\r\n/g, '\n') !== live) {
+  console.error('[FAIL] Shared WORKFLOW_EAS_LINK_TEMPLATE drifted from live .github/workflows/eas-link.yml');
   process.exit(1);
 }
 
