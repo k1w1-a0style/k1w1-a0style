@@ -252,9 +252,17 @@ require_fixed "$EDGE_STATUS_DOC" 'K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY'
 require_fixed "$CI_LITE_ENV_LOAD" 'WORKFLOW_ADMIN="${K1W1_EDGE_WORKFLOW_ADMIN_KEY:-}"'
 require_fixed "$CI_LITE_ENV_LOAD" 'Missing required K1W1_EDGE_WORKFLOW_ADMIN_KEY'
 forbid_fixed "$CI_LITE_ENV_LOAD" 'K1W1_EDGE_WORKFLOW_ADMIN_KEY:-${ADMIN_KEY:-${K1W1_EDGE_ADMIN_KEY:-}}'
+require_fixed "$CI_LITE_ENV_LOAD" 'WORKFLOW_JWT="${K1W1_EDGE_WORKFLOW_JWT:-}"'
+require_fixed "$CI_LITE_ENV_LOAD" 'Missing required K1W1_EDGE_WORKFLOW_JWT'
 
 require_fixed "$CI_LITE_SMOKE" 'WORKFLOW_ADMIN="${K1W1_EDGE_WORKFLOW_ADMIN_KEY:-}"'
 require_fixed "$CI_LITE_SMOKE" 'Missing required K1W1_EDGE_WORKFLOW_ADMIN_KEY'
 forbid_fixed "$CI_LITE_SMOKE" 'K1W1_EDGE_WORKFLOW_ADMIN_KEY:-${ADMIN_KEY:-${K1W1_EDGE_ADMIN_KEY:-}}'
+require_fixed "$CI_LITE_SMOKE" 'WORKFLOW_JWT="${K1W1_EDGE_WORKFLOW_JWT:-}"'
+require_fixed "$CI_LITE_SMOKE" 'Missing required K1W1_EDGE_WORKFLOW_JWT'
+require_fixed "$CI_LITE_SMOKE" '-H "Authorization: Bearer ${WORKFLOW_JWT}"'
+forbid_fixed "$CI_LITE_SMOKE" 'REF="${3:-main}"'
+forbid_fixed "$CI_LITE_SMOKE" 'Usage: $0 <owner/repo> <workflow.yml> [ref]'
+require_fixed "$CI_LITE_SMOKE" 'Usage: $0 <owner/repo> <workflow.yml> <ref>'
 
 echo "Workflow edge contracts look consistent."
