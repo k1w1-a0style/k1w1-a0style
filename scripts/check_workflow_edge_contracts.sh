@@ -54,7 +54,12 @@ AUTH_SHARED="supabase/functions/_shared/auth.ts"
 WIZARD_HELPERS="screens/CredentialsWizardScreen/hooks/credentialHelpers.ts"
 WIZARD_HOOK="screens/CredentialsWizardScreen/hooks/useCredentialsWizardScreen.ts"
 
-for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$K1W1_HANDLER_EDGE" "$CREATE_CODESANDBOX_EDGE" "$SAVE_PREVIEW_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$AUTH_SHARED" "$WIZARD_HELPERS" "$WIZARD_HOOK"; do
+ROOT_CONFIG="supabase/config.toml"
+KEYSTORE_EXPORT_CONFIG="supabase/functions/android-keystore-export/config.toml"
+KEYSTORE_GENERATE_LOCAL_CONFIG="supabase/functions/android-keystore-generate/config.toml"
+KEYSTORE_STATUS_LOCAL_CONFIG="supabase/functions/android-keystore-status/config.toml"
+
+for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$K1W1_HANDLER_EDGE" "$CREATE_CODESANDBOX_EDGE" "$SAVE_PREVIEW_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$AUTH_SHARED" "$WIZARD_HELPERS" "$WIZARD_HOOK" "$ROOT_CONFIG" "$KEYSTORE_EXPORT_CONFIG"; do
   require_file "$f"
 done
 
@@ -153,6 +158,20 @@ require_fixed "$WIZARD_HELPERS" '"x-k1w1-admin-key": adminKey.trim()'
 require_fixed "$WIZARD_HOOK" "getAndroidKeystoreExportAdminKey"
 require_fixed "$WIZARD_HOOK" "saveAndroidKeystoreExportAdminKey"
 require_fixed "$WIZARD_HOOK" "Authorization: Bearer <jwt>"
+
+
+require_fixed "$ROOT_CONFIG" '[functions.android-keystore-generate]'
+require_fixed "$ROOT_CONFIG" '[functions.android-keystore-status]'
+require_fixed "$ROOT_CONFIG" '[functions.android-keystore-export]'
+awk '/^\[functions\.android-keystore-generate\]/{flag=1; next} /^\[functions\./{flag=0} flag && /verify_jwt = true/{found=1} END{exit(found?0:1)}' "$ROOT_CONFIG" \
+  || fail "android-keystore-generate must keep verify_jwt = true in $ROOT_CONFIG"
+awk '/^\[functions\.android-keystore-status\]/{flag=1; next} /^\[functions\./{flag=0} flag && /verify_jwt = true/{found=1} END{exit(found?0:1)}' "$ROOT_CONFIG" \
+  || fail "android-keystore-status must keep verify_jwt = true in $ROOT_CONFIG"
+awk '/^\[functions\.android-keystore-export\]/{flag=1; next} /^\[functions\./{flag=0} flag && /verify_jwt = true/{found=1} END{exit(found?0:1)}' "$ROOT_CONFIG" \
+  || fail "android-keystore-export must keep verify_jwt = true in $ROOT_CONFIG"
+require_fixed "$KEYSTORE_EXPORT_CONFIG" 'verify_jwt = true'
+[ ! -f "$KEYSTORE_GENERATE_LOCAL_CONFIG" ] || fail "Split-brain risk: local config must not exist for android-keystore-generate ($KEYSTORE_GENERATE_LOCAL_CONFIG)"
+[ ! -f "$KEYSTORE_STATUS_LOCAL_CONFIG" ] || fail "Split-brain risk: local config must not exist for android-keystore-status ($KEYSTORE_STATUS_LOCAL_CONFIG)"
 
 require_fixed "$AUTH_SHARED" 'export function requireScopedEdgeAuth(req: Request, cfg: ScopedEdgeAuthConfig): Response | null {'
 require_fixed "$AUTH_SHARED" "export const WORKFLOW_OPERATOR_ALLOWED_ROLES = [\"service_role\", \"build_admin\"] as const;"
