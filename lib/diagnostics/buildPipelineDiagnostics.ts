@@ -161,6 +161,15 @@ export const runBuildPipelineDiagnostics = async (
   });
 
   checks.push({
+    id: "local.operatorClaimProvisioning",
+    title: "Operator-Claim build_admin (externes Provisioning verstanden)",
+    status: "warn",
+    details: "Workflow-/Build-/Artifact-/Keystore-Routen akzeptieren JWT-Rollen nur als service_role|build_admin.",
+    fixHint:
+      "build_admin wird nicht im Repo erzeugt. Der Claim muss im Betriebsprozess ausserhalb dieses Repos fuer den Supabase-User (role/app_metadata.role) provisioniert werden.",
+  });
+
+  checks.push({
     id: "local.androidKeystoreExportAdminKey",
     title: "Lokaler Android Keystore Export Admin-Key vorhanden (x-k1w1-admin-key)",
     status: androidKeystoreExportAdminKey ? "pass" : "warn",

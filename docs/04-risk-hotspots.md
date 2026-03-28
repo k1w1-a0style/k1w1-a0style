@@ -159,6 +159,8 @@ CI_LITE_TYPECHECK_OK: "ci_lite_typecheck_ok",
 5. Patch 591 bereinigt den oeffentlichen `android-keystore-generate`-Vertrag: kein irrefuehrendes `branch`-Feld mehr, fachlicher Scope bleibt `repo + mode`.
 **Follow-up (Patch 604):**
 6. App-Caller-/Wizard-Fehltexte, Vertrags-Tests und Drift-Checks wurden auf denselben Operator-Vertrag gezogen; kein `JWT role=authenticated`-Wording mehr im app-initiierten Operator-Scope.
+**Follow-up (Patch 605):**
+7. Es gibt im Repo keinen internen Claim-Mapper/Grant-Flow fuer build_admin; der Operator-Claim ist ein externer Supabase-Provisioning-Vertrag (`user.role`/`user.app_metadata.role`) und wird entsprechend in UX/Diagnostics/Docs explizit benannt.
 
 ---
 
