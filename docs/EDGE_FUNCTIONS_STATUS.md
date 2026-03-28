@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: 2026-03-28 (Patch 602)
+Stand: 2026-03-28 (Patch 603)
 
 ## Aktiv und workflow-relevant
 
@@ -18,7 +18,7 @@ Stand: 2026-03-28 (Patch 602)
 | `android-keystore-export` | Liefert Android-Signing-Material für CI | `alias`, `keystoreBase64`, `keystorePassword`, `keyPassword` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role=service_role`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) |
 | `android-keystore-generate` | Generiert/signiert Android-Keystore-Material serverseitig (branch-unabhaengig, Scope `repo + mode`) | `ok`, `repo`, `mode`, `alias`, `bucket`, `path` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, build_admin]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) |
 | `android-keystore-status` | Liefert Keystore-Record-/Storage-Status für Repo/Mode | `ok`, `exists`, optional `record` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, build_admin]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) |
-| `test` | Legacy-Testroute (stray/stub) | bewusst fail-closed: scoped Legacy-Guard `requireScopedEdgeAuth(... adminSecretEnv: "K1W1_EDGE_ADMIN_KEY", allowCiBearer: false)` und danach immer `410` mit `code: legacy_test_route_disabled` |
+| `test` | Legacy-Testroute (stray/stub) | bewusst fail-closed: scoped Legacy-Guard `requireScopedEdgeAuth(... scope: "test", adminSecretEnv: "K1W1_EDGE_ADMIN_KEY", allowAdmin: true, allowCiBearer: false)` und danach immer `410` mit `code: legacy_test_route_disabled` |
 
 ## Bewusst deaktiviert / Legacy
 
@@ -43,6 +43,7 @@ Stand: 2026-03-28 (Patch 602)
 - Patch 599 beseitigt den aktuellen Keystore-Config-Split-Brain: die funktionslokalen Config-Dateien fuer `android-keystore-status`/`android-keystore-generate` wurden entfernt, damit `supabase/config.toml` als einzige fail-closed SoT (`verify_jwt=true`) gilt und kein lokaler `verify_jwt=false`-Schattenzustand mehr existiert.
 - Patch 601 behandelt die stray Legacy-Testroute `test` explizit fail-closed (scoped Guard + `410 legacy_test_route_disabled`) und sichert den Vertrag in Invariants/Script-Checks mit ab.
 - Patch 602 zieht den lokalen Smoke-Caller-Vertrag auf denselben Edge-Vertrag: `scripts/ci-lite-smoke.sh` sendet fuer `github-workflow-dispatch`/`github-workflow-runs`/`github-workflow-logs` jetzt immer `Authorization: Bearer <K1W1_EDGE_WORKFLOW_JWT>` plus `x-k1w1-admin-key: <K1W1_EDGE_WORKFLOW_ADMIN_KEY>` und verlangt einen expliziten `<ref>` (kein stilles `main`).
+- Patch 603 schliesst eine echte Guard-Misconfiguration der Legacy-Testroute: `supabase/functions/test` setzt jetzt explizit `allowAdmin: true` + `scope: "test"` im `requireScopedEdgeAuth(...)`-Aufruf, damit der Pfad nicht mehr vorzeitig in `500` (`Auth misconfiguration`) endet, sondern konsistent fail-closed `410 legacy_test_route_disabled` liefert; Script-Check und Invariants pruefen diese konkrete Konfiguration explizit mit.
 - `github-workflow-dispatch` / `infra/github/workflowTemplates.ts` bilden weiterhin eine **partielle** Workflow-SoT ab (vor allem CI Lite), nicht die komplette managed Familie.
 - `github-run-artifact-json` normalisiert ZIP-Pfade jetzt explizit inkl. `\`-Separatoren; dadurch bleiben Artifact-JSON-Lookups robust, auch wenn ZIP-Einträge nicht POSIX-normalisiert sind.
 - `github-run-artifact-json` folgt jetzt derselben kontrollierten Workflow-Linie wie Dispatch/Runs/Logs/Build: JWT-Claim-Guard fuer `service_role|build_admin` plus scoped Workflow-Admin-Key und CI-Bearer-Sonderpfad nur fuer explizite CI-Aufrufe.

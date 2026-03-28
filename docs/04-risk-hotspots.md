@@ -51,6 +51,7 @@
 - Patch 600 entfernt verbleibende stille Legacy-Fallbacks in workflow-/build-/artifact-nahen Ops-Skripten: `scripts/ci-lite-env-load.sh` und `scripts/ci-lite-smoke.sh` verwenden nur noch `K1W1_EDGE_WORKFLOW_ADMIN_KEY` (kein `ADMIN_KEY`/`K1W1_EDGE_ADMIN_KEY`-Alias mehr), damit fehlende scoped Workflow-Keys nicht mehr als false-green durchlaufen.
 - Patch 602 schliesst den verbleibenden JWT-/Ref-Vertragsbruch im selben Script-Scope: `scripts/ci-lite-smoke.sh` ruft JWT-pflichtige workflow-/build-nahe Routen nur noch mit `Authorization: Bearer <K1W1_EDGE_WORKFLOW_JWT>` plus scoped Workflow-Key auf und verlangt einen expliziten `<ref>` (kein stilles `main` mehr).
 - Patch 601 schliesst den Restpunkt `supabase/functions/test` explizit: alte Testroute ist jetzt fail-closed (`requireScopedEdgeAuth` + immer `410 legacy_test_route_disabled`) und kann nicht mehr als halboffene Altflaeche mit unklarem Auth-Vertrag stehen bleiben.
+- Patch 603 korrigiert den verbleibenden Vertragsfehler in genau dieser Testroute: der Scoped-Guard enthaelt jetzt verpflichtend `allowAdmin: true` und `scope: "test"`, damit keine `500`-Auth-Misconfiguration den beabsichtigten `410 legacy_test_route_disabled`-Pfad verdeckt; Contract-Checks/Invariants blocken die Rueckdrift explizit.
 
 ---
 
