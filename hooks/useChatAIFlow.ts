@@ -24,7 +24,7 @@ import { looksLikeExplicitFileTask, looksLikeAdviceRequest, looksAmbiguousBuilde
 import { handleMetaCommand } from "../utils/metaCommands";
 import { normalizeResultFiles, readBuilderFilesOrThrow } from "./chatAIFlowResultHelpers";
 import { getSourceSummaryText, getValidatorFallbackWarning } from "./chatAIFlowStageHelpers";
-import { getBuilderFailureMessage } from "./chatAIFlowNoticeHelpers";
+import { getBuilderFailureMessage, getInputValidationMessage } from "./chatAIFlowNoticeHelpers";
 
 export type { PendingChange, PendingPlan } from "./chatAIFlowTypes";
 
@@ -405,10 +405,7 @@ export function useChatAIFlow({
 
       const preparedInput = prepareValidatedChatInput(userContent);
       if (!preparedInput.valid) {
-        const validationMessage =
-          preparedInput.error === "Nachricht ist zu lang"
-            ? "⚠️ Deine Nachricht ist zu lang. Bitte kürze den Prompt oder teile ihn in kleinere Schritte auf."
-            : `⚠️ ${preparedInput.error || "Nachricht konnte nicht verarbeitet werden."}`;
+        const validationMessage = getInputValidationMessage(preparedInput.error);
 
         safe(() => setError(validationMessage));
         addChatMessage({

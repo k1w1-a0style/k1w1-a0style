@@ -1,4 +1,9 @@
-import { mergeRecentRepo, normalizeLinkedGitHubValue, normalizeStoredRecentRepos } from "../contexts/githubContextHelpers";
+import {
+  getLinkedMirrorUpdates,
+  mergeRecentRepo,
+  normalizeLinkedGitHubValue,
+  normalizeStoredRecentRepos,
+} from "../contexts/githubContextHelpers";
 
 describe("githubContextHelpers", () => {
   describe("mergeRecentRepo", () => {
@@ -70,6 +75,36 @@ describe("githubContextHelpers", () => {
       expect(normalizeLinkedGitHubValue(undefined)).toBeNull();
       expect(normalizeLinkedGitHubValue(null)).toBeNull();
       expect(normalizeLinkedGitHubValue("   ")).toBeNull();
+    });
+  });
+
+  describe("getLinkedMirrorUpdates", () => {
+    it("returns linked values when they differ from the current mirror", () => {
+      expect(
+        getLinkedMirrorUpdates({
+          linkedRepo: "owner/repo-a",
+          linkedBranch: "develop",
+          currentRepo: "owner/repo-b",
+          currentBranch: "main",
+        }),
+      ).toEqual({
+        nextRepo: "owner/repo-a",
+        nextBranch: "develop",
+      });
+    });
+
+    it("keeps current values when linked mirror already matches", () => {
+      expect(
+        getLinkedMirrorUpdates({
+          linkedRepo: "owner/repo-a",
+          linkedBranch: null,
+          currentRepo: "owner/repo-a",
+          currentBranch: null,
+        }),
+      ).toEqual({
+        nextRepo: "owner/repo-a",
+        nextBranch: null,
+      });
     });
   });
 });

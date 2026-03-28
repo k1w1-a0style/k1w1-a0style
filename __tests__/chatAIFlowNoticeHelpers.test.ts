@@ -1,4 +1,8 @@
-import { getBuilderFailureDetails, getBuilderFailureMessage } from "../hooks/chatAIFlowNoticeHelpers";
+import {
+  getBuilderFailureDetails,
+  getBuilderFailureMessage,
+  getInputValidationMessage,
+} from "../hooks/chatAIFlowNoticeHelpers";
 
 describe("chatAIFlowNoticeHelpers", () => {
   it("prefers primary error text from orchestrator result", () => {
@@ -20,5 +24,20 @@ describe("chatAIFlowNoticeHelpers", () => {
     expect(getBuilderFailureMessage(null)).toBe(
       "KI-Request fehlgeschlagen: Kein ok=true (unbekannter Fehler).",
     );
+  });
+
+  describe("getInputValidationMessage", () => {
+    it("uses the dedicated long-input advisory text", () => {
+      expect(getInputValidationMessage("Nachricht ist zu lang")).toBe(
+        "⚠️ Deine Nachricht ist zu lang. Bitte kürze den Prompt oder teile ihn in kleinere Schritte auf.",
+      );
+    });
+
+    it("keeps generic validation fallback mapping stable", () => {
+      expect(getInputValidationMessage("Nachricht ist leer")).toBe("⚠️ Nachricht ist leer");
+      expect(getInputValidationMessage(undefined)).toBe(
+        "⚠️ Nachricht konnte nicht verarbeitet werden.",
+      );
+    });
   });
 });
