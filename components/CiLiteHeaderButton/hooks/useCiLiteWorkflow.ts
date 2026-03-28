@@ -129,6 +129,22 @@ function splitRepoFullName(repoFullName: string): { owner: string; repo: string 
   return { owner, repo };
 }
 
+function getErrorMessage(error: unknown, fallback = ""): string {
+  if (error instanceof Error && typeof error.message === "string") {
+    return error.message;
+  }
+  if (typeof error === "string") return error;
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message;
+  }
+  return fallback;
+}
+
 export function useCiLiteWorkflow() {
   // Contract for chain-run correlation:
   // - Autofix dispatches repository_dispatch(trigger-ci-lite) with the same source commit SHA and job_id
@@ -688,8 +704,8 @@ export function useCiLiteWorkflow() {
             stopRunLookup();
             return true;
           }
-        } catch (e: any) {
-          setLocalError(e?.message || String(e));
+        } catch (e: unknown) {
+          setLocalError(getErrorMessage(e, String(e)));
           setChainWaiting(false);
           stopRunLookup();
           return true;
@@ -897,8 +913,8 @@ export function useCiLiteWorkflow() {
               stopRunLookup();
               return true;
             }
-          } catch (e: any) {
-            setLocalError(e?.message || String(e));
+          } catch (e: unknown) {
+            setLocalError(getErrorMessage(e, String(e)));
             stopRunLookup();
             return true;
           }
@@ -915,8 +931,8 @@ export function useCiLiteWorkflow() {
         if (!lookupFinished) {
           scheduleLookupPoll({ generation: lookupGeneration, attempt: 0, poll });
         }
-      } catch (e: any) {
-        setLocalError(e?.message || String(e));
+      } catch (e: unknown) {
+        setLocalError(getErrorMessage(e, String(e)));
         stopRunLookup();
       } finally {
         setDispatching(false);

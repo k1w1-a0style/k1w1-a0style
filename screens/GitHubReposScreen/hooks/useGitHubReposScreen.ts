@@ -76,6 +76,22 @@ const EMPTY_SYNC_STATUS: SyncStatus = {
   checkedAt: null,
 };
 
+function getErrorMessage(error: unknown, fallback = ""): string {
+  if (error instanceof Error && typeof error.message === "string") {
+    return error.message;
+  }
+  if (typeof error === "string") return error;
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message;
+  }
+  return fallback;
+}
+
 export function useGitHubReposScreen() {
   const {
     activeRepo,
@@ -258,10 +274,10 @@ export function useGitHubReposScreen() {
         if (!t) {
           setTokenError("Kein Token gefunden. Hinterlege eins im Verbindungen-Screen.");
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!mounted) return;
         setToken(null);
-        setTokenError(e?.message ?? "Token konnte nicht geladen werden.");
+        setTokenError(getErrorMessage(e, "Token konnte nicht geladen werden."));
       } finally {
         if (mounted) setTokenLoading(false);
       }
@@ -477,8 +493,8 @@ export function useGitHubReposScreen() {
       setLinkedRepo(repo.full_name, defaultBranch);
       setActiveBranch(defaultBranch);
       Alert.alert("✅ Repo erstellt", repo.full_name);
-    } catch (e: any) {
-      Alert.alert("❌ Repo erstellen fehlgeschlagen", e?.message ?? "");
+    } catch (e: unknown) {
+      Alert.alert("❌ Repo erstellen fehlgeschlagen", getErrorMessage(e, ""));
     } finally {
       setIsCreating(false);
     }
@@ -507,8 +523,8 @@ export function useGitHubReposScreen() {
       setRenameName("");
       Alert.alert("✅ Repo umbenannt", newFullName);
       await loadRepos();
-    } catch (e: any) {
-      Alert.alert("❌ Umbenennen fehlgeschlagen", e?.message ?? "");
+    } catch (e: unknown) {
+      Alert.alert("❌ Umbenennen fehlgeschlagen", getErrorMessage(e, ""));
     } finally {
       setIsRenaming(false);
     }
@@ -540,8 +556,8 @@ export function useGitHubReposScreen() {
               }
               await loadRepos();
               Alert.alert("✅ Repo gelöscht", full);
-            } catch (e: any) {
-              Alert.alert("❌ Löschen fehlgeschlagen", e?.message ?? "");
+            } catch (e: unknown) {
+              Alert.alert("❌ Löschen fehlgeschlagen", getErrorMessage(e, ""));
             } finally {
               setIsDeletingRepo(false);
             }
@@ -607,8 +623,8 @@ export function useGitHubReposScreen() {
       }
 
       setPullPreview({ remote: pulled, conflicts, remoteOnly, updates });
-    } catch (e: any) {
-      Alert.alert("❌ Pull fehlgeschlagen", e?.message ?? "");
+    } catch (e: unknown) {
+      Alert.alert("❌ Pull fehlgeschlagen", getErrorMessage(e, ""));
       setPullModalVisible(false);
     } finally {
       setPullPreviewLoading(false);
@@ -717,8 +733,8 @@ export function useGitHubReposScreen() {
         "✅ Push erfolgreich",
         `${parsed.owner}/${parsed.repo}@${branch}\nDer Push wurde als ein konsolidierter Git-Commit übertragen.`,
       );
-    } catch (e: any) {
-      Alert.alert("❌ Push fehlgeschlagen", e?.message ?? "");
+    } catch (e: unknown) {
+      Alert.alert("❌ Push fehlgeschlagen", getErrorMessage(e, ""));
     } finally {
       setIsPushing(false);
     }
@@ -755,8 +771,8 @@ export function useGitHubReposScreen() {
       setPullPreview(null);
       setPullProgress("");
       Alert.alert(semantics.messageTitle, semantics.messageBody);
-    } catch (e: any) {
-      Alert.alert("❌ Pull Anwenden fehlgeschlagen", e?.message ?? "");
+    } catch (e: unknown) {
+      Alert.alert("❌ Pull Anwenden fehlgeschlagen", getErrorMessage(e, ""));
     } finally {
       setIsPulling(false);
     }
@@ -893,10 +909,10 @@ export function useGitHubReposScreen() {
       }
 
       Alert.alert("⚠️ EAS geschrieben, aber nicht verifiziert", writeOutcome.detail);
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (isCurrentEasLinkRequest(writeToken.requestId, writeToken.contextKey)) {
         setEasLinkStatus(getEasLinkPresentation("unknown", "Schreiben oder Nachverifikation ist fehlgeschlagen."));
-        Alert.alert("❌ EAS link fehlgeschlagen", e?.message ?? "");
+        Alert.alert("❌ EAS link fehlgeschlagen", getErrorMessage(e, ""));
       }
     } finally {
       setIsEasLinking(false);
@@ -916,8 +932,8 @@ export function useGitHubReposScreen() {
       } else {
         Alert.alert("✅ Secrets synchronisiert", result.updated.join(", "));
       }
-    } catch (e: any) {
-      Alert.alert("❌ Secrets Sync fehlgeschlagen", e?.message ?? "");
+    } catch (e: unknown) {
+      Alert.alert("❌ Secrets Sync fehlgeschlagen", getErrorMessage(e, ""));
     } finally {
       setIsSyncingSecrets(false);
     }
@@ -980,8 +996,8 @@ export function useGitHubReposScreen() {
             setActiveBranch(null);
             setLinkedRepo(activeRepo, null);
             Alert.alert("✅ Branch gelöscht", activeBranch);
-          } catch (e: any) {
-            Alert.alert("❌ Fehler", e?.message ?? "");
+          } catch (e: unknown) {
+            Alert.alert("❌ Fehler", getErrorMessage(e, ""));
           }
         },
       },
