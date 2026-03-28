@@ -1,4 +1,4 @@
-import { mergeRecentRepo, normalizeLinkedGitHubValue } from "../contexts/githubContextHelpers";
+import { mergeRecentRepo, normalizeLinkedGitHubValue, normalizeStoredRecentRepos } from "../contexts/githubContextHelpers";
 
 describe("githubContextHelpers", () => {
   describe("mergeRecentRepo", () => {
@@ -21,6 +21,43 @@ describe("githubContextHelpers", () => {
 
       expect(result).toEqual(previous);
       expect(result).not.toBe(previous);
+    });
+  });
+
+
+  describe("normalizeStoredRecentRepos", () => {
+    it("keeps only trimmed string entries, removes duplicates, and caps to 10", () => {
+      const parsed = [
+        " owner/repo-1 ",
+        "",
+        "owner/repo-2",
+        "owner/repo-1",
+        null,
+        123,
+        "   ",
+        ...Array.from({ length: 20 }, (_, index) => `owner/repo-${index + 3}`),
+      ];
+
+      const normalized = normalizeStoredRecentRepos(parsed);
+
+      expect(normalized).toEqual([
+        "owner/repo-1",
+        "owner/repo-2",
+        "owner/repo-3",
+        "owner/repo-4",
+        "owner/repo-5",
+        "owner/repo-6",
+        "owner/repo-7",
+        "owner/repo-8",
+        "owner/repo-9",
+        "owner/repo-10",
+      ]);
+    });
+
+    it("returns an empty list for non-array payloads", () => {
+      expect(normalizeStoredRecentRepos(null)).toEqual([]);
+      expect(normalizeStoredRecentRepos("owner/repo")).toEqual([]);
+      expect(normalizeStoredRecentRepos({ value: ["owner/repo"] })).toEqual([]);
     });
   });
 

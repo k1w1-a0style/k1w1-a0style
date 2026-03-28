@@ -16,3 +16,21 @@ export const mergeRecentRepo = (
 export const normalizeLinkedGitHubValue = (value: string | null | undefined): string | null => {
   return (value ?? "").trim() || null;
 };
+
+export const normalizeStoredRecentRepos = (
+  parsedValue: unknown,
+  limit = MAX_RECENT_REPOS,
+): string[] => {
+  if (!Array.isArray(parsedValue)) return [];
+
+  const unique: string[] = [];
+  for (const entry of parsedValue) {
+    if (typeof entry !== "string") continue;
+    const trimmed = entry.trim();
+    if (!trimmed || unique.includes(trimmed)) continue;
+    unique.push(trimmed);
+    if (unique.length >= limit) break;
+  }
+
+  return unique;
+};

@@ -14,7 +14,7 @@ import { logger } from "../lib/logger";
 import { GITHUB_STORAGE_KEYS } from "../shared/constants/github";
 
 import { useProject } from "./ProjectContext";
-import { mergeRecentRepo, normalizeLinkedGitHubValue } from "./githubContextHelpers";
+import { mergeRecentRepo, normalizeLinkedGitHubValue, normalizeStoredRecentRepos } from "./githubContextHelpers";
 
 type GitHubContextValue = {
   activeRepo: string | null;
@@ -64,8 +64,8 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
           ]);
 
         if (storedRecent) {
-          const parsed = JSON.parse(storedRecent);
-          if (Array.isArray(parsed)) setRecentRepos(parsed.filter(Boolean));
+          const parsed = JSON.parse(storedRecent) as unknown;
+          setRecentRepos(normalizeStoredRecentRepos(parsed));
         }
 
         if (storedActiveRepo) setActiveRepoState(storedActiveRepo);
