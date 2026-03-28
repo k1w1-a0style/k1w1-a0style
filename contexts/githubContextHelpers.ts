@@ -34,3 +34,17 @@ export const normalizeStoredRecentRepos = (
 
   return unique;
 };
+
+export const getLinkedMirrorUpdates = (params: {
+  linkedRepo: string | null;
+  linkedBranch: string | null;
+  currentRepo: string | null;
+  currentBranch: string | null;
+}): { nextRepo: string | null; nextBranch: string | null } => {
+  const { linkedRepo, linkedBranch, currentRepo, currentBranch } = params;
+
+  return {
+    nextRepo: linkedRepo !== currentRepo ? linkedRepo : currentRepo,
+    nextBranch: linkedBranch !== currentBranch ? linkedBranch : currentBranch,
+  };
+};

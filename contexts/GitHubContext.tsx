@@ -14,7 +14,12 @@ import { logger } from "../lib/logger";
 import { GITHUB_STORAGE_KEYS } from "../shared/constants/github";
 
 import { useProject } from "./ProjectContext";
-import { mergeRecentRepo, normalizeLinkedGitHubValue, normalizeStoredRecentRepos } from "./githubContextHelpers";
+import {
+  getLinkedMirrorUpdates,
+  mergeRecentRepo,
+  normalizeLinkedGitHubValue,
+  normalizeStoredRecentRepos,
+} from "./githubContextHelpers";
 
 type GitHubContextValue = {
   activeRepo: string | null;
@@ -126,15 +131,21 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const linkedRepo = normalizeLinkedGitHubValue(projectData?.linkedRepo);
     const linkedBranch = normalizeLinkedGitHubValue(projectData?.linkedBranch);
+    const updates = getLinkedMirrorUpdates({
+      linkedRepo,
+      linkedBranch,
+      currentRepo: activeRepoRef.current,
+      currentBranch: activeBranchRef.current,
+    });
 
     // If project has a linked repo, prefer it over local storage.
-    if (linkedRepo !== activeRepoRef.current) {
-      setActiveRepo(linkedRepo);
+    if (updates.nextRepo !== activeRepoRef.current) {
+      setActiveRepo(updates.nextRepo);
     }
 
     // Branch should follow the linked branch (even to null).
-    if (linkedBranch !== activeBranchRef.current) {
-      setActiveBranch(linkedBranch);
+    if (updates.nextBranch !== activeBranchRef.current) {
+      setActiveBranch(updates.nextBranch);
     }
   }, [hydrated, projectData?.linkedRepo, projectData?.linkedBranch, setActiveRepo, setActiveBranch]);
 

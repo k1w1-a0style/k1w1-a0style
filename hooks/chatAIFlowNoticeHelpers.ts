@@ -16,3 +16,11 @@ export const getBuilderFailureMessage = (
 ): string => {
   return `KI-Request fehlgeschlagen: ${getBuilderFailureDetails(result)}`;
 };
+
+export const getInputValidationMessage = (error?: string): string => {
+  if (error === "Nachricht ist zu lang") {
+    return "⚠️ Deine Nachricht ist zu lang. Bitte kürze den Prompt oder teile ihn in kleinere Schritte auf.";
+  }
+
+  return `⚠️ ${error || "Nachricht konnte nicht verarbeitet werden."}`;
+};
