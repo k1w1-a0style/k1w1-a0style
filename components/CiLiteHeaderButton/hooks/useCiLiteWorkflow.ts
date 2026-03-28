@@ -87,20 +87,39 @@ function getAutofixChainSkipReason(lines: string[]): string | null {
   return null;
 }
 
+const ARTIFACT_DETAIL_MAX = 180;
+
+function sanitizeArtifactDetail(input: string): string {
+  const singleLine = String(input || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!singleLine) return "";
+
+  const redacted = singleLine
+    .replace(/(gh[pousr]_[A-Za-z0-9_]+)/gi, "[redacted-token]")
+    .replace(/(x-k1w1-admin-key\s*[:=]\s*)([^\s,;]+)/gi, "$1[redacted]")
+    .replace(/(authorization\s*[:=]\s*bearer\s+)([^\s,;]+)/gi, "$1[redacted]");
+
+  if (redacted.length <= ARTIFACT_DETAIL_MAX) return redacted;
+  return `${redacted.slice(0, ARTIFACT_DETAIL_MAX)}…`;
+}
+
 function getArtifactUiMessage(params: {
   artifactError: string | null;
   workflowStatus?: string | null;
   workflowConclusion?: string | null;
 }): string {
   if (!params.artifactError) return "";
+  const detail = sanitizeArtifactDetail(params.artifactError);
+  const detailSuffix = detail ? ` Detail: ${detail}` : "";
 
   const status = String(params.workflowStatus ?? "").trim().toLowerCase();
   const conclusion = String(params.workflowConclusion ?? "").trim().toLowerCase();
   if (status === "completed" && conclusion === "success") {
-    return "Workflow war erfolgreich, aber das Ergebnis-Artefakt konnte nicht geladen werden. Bitte Run öffnen oder erneut starten.";
+    return `Workflow war erfolgreich, aber das Ergebnis-Artefakt konnte nicht geladen werden. Bitte Run öffnen oder erneut starten.${detailSuffix}`;
   }
 
-  return "Zusätzliche Ergebnisdaten zum Run konnten nicht geladen werden. Bitte Run öffnen oder erneut starten.";
+  return `Zusätzliche Ergebnisdaten zum Run konnten nicht geladen werden. Bitte Run öffnen oder erneut starten.${detailSuffix}`;
 }
 
 function splitRepoFullName(repoFullName: string): { owner: string; repo: string } | null {
@@ -140,7 +159,7 @@ export function useCiLiteWorkflow() {
   const [hydratedSnapshot, setHydratedSnapshot] = useState<PersistedCiLiteSnapshot | null>(null);
   const [lookupDiagnosis, setLookupDiagnosis] = useState<WorkflowRunLookupDiagnosis | null>(null);
 
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lookupDiagnosisRef = useRef<WorkflowRunLookupDiagnosis | null>(null);
 
   // ---- Derived repo/branch ----
@@ -156,9 +175,25 @@ export function useCiLiteWorkflow() {
   // ---- Polling helpers ----
   const stopPolling = useCallback(() => {
     if (pollTimerRef.current) {
-      clearInterval(pollTimerRef.current);
+      clearTimeout(pollTimerRef.current);
       pollTimerRef.current = null;
     }
+  }, []);
+
+  const scheduleLookupPoll = useCallback((params: {
+    attempt: number;
+    poll: () => Promise<boolean>;
+  }) => {
+    const delaysMs = [1200, 1800, 2600, 3500, 4500];
+    const delay = delaysMs[Math.min(params.attempt, delaysMs.length - 1)];
+    pollTimerRef.current = setTimeout(() => {
+      void (async () => {
+        const finished = await params.poll();
+        if (!finished) {
+          scheduleLookupPoll({ attempt: params.attempt + 1, poll: params.poll });
+        }
+      })();
+    }, delay);
   }, []);
 
   const startRunLookup = useCallback(() => {
@@ -657,12 +692,10 @@ export function useCiLiteWorkflow() {
 
       const lookupFinished = await poll();
       if (!lookupFinished) {
-        pollTimerRef.current = setInterval(() => {
-          void poll();
-        }, 2500);
+        scheduleLookupPoll({ attempt: 0, poll });
       }
     })();
-  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopRunLookup, startRunLookup, findMatchingRun, buildLookupFailureMessage, updateLookupDiagnosis]);
+  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopRunLookup, startRunLookup, findMatchingRun, buildLookupFailureMessage, updateLookupDiagnosis, scheduleLookupPoll]);
 
   // ---- Header state lamp ----
   useEffect(() => {
@@ -866,9 +899,7 @@ export function useCiLiteWorkflow() {
         startRunLookup();
         const lookupFinished = await poll();
         if (!lookupFinished) {
-          pollTimerRef.current = setInterval(() => {
-            void poll();
-          }, 2500);
+          scheduleLookupPoll({ attempt: 0, poll });
         }
       } catch (e: any) {
         setLocalError(e?.message || String(e));
@@ -877,7 +908,7 @@ export function useCiLiteWorkflow() {
         setDispatching(false);
       }
     },
-    [dispatching, githubRepo, branch, stopRunLookup, startRunLookup, findMatchingRun, projectData?.files, buildLookupFailureMessage, updateLookupDiagnosis],
+    [dispatching, githubRepo, branch, stopRunLookup, startRunLookup, findMatchingRun, projectData?.files, buildLookupFailureMessage, updateLookupDiagnosis, scheduleLookupPoll],
   );
 
 

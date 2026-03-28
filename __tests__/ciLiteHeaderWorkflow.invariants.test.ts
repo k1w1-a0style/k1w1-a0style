@@ -29,7 +29,8 @@ describe("CI Lite Header workflow invariants", () => {
     expect(src).toContain("setLocatingRun(false);");
     expect(src).toContain("const lookupFinished = await poll();");
     expect(src).toContain("if (!lookupFinished) {");
-    expect(src).toContain("pollTimerRef.current = setInterval(() => {");
+    expect(src).toContain("const scheduleLookupPoll = useCallback((params: {");
+    expect(src).toContain("pollTimerRef.current = setTimeout(() => {");
   });
 
   it("persists CI-Lite outcome only for the active CI-Lite run context", () => {

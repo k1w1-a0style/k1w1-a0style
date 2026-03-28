@@ -283,6 +283,50 @@ describe("useCiLiteWorkflow behavior", () => {
     });
   });
 
+  it("keeps artifact details visible but sanitized when artifact loading fails after a successful workflow", async () => {
+    const completedRunId = 902;
+    mockUseGitHubActionsLogs.mockImplementation(() => ({
+      logs: [],
+      workflowRun: {
+        id: completedRunId,
+        run_number: 91,
+        status: "completed",
+        conclusion: "success",
+        created_at: "2026-03-19T00:00:00Z",
+        updated_at: "2026-03-19T00:10:00Z",
+        html_url: `https://github.com/runs/${completedRunId}`,
+        head_sha: SHA,
+      },
+      isLoading: false,
+      error: null,
+      refreshLogs: jest.fn(),
+    }));
+
+    (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("github-run-artifact-json")) {
+        return {
+          ok: false,
+          status: 403,
+          statusText: "Forbidden",
+          text: async () => "Authorization: Bearer ghp_superSecretTokenValue and x-k1w1-admin-key=adminSecret",
+          json: async () => ({}),
+        } as Response;
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+
+    await waitFor(() => {
+      expect(result.current.artifactNotice).toContain("Workflow war erfolgreich");
+      expect(result.current.artifactNotice).toContain("Detail:");
+      expect(result.current.artifactNotice).toContain("CI Lite Ergebnisabruf blockiert");
+      expect(result.current.artifactNotice).not.toContain("ghp_superSecretTokenValue");
+      expect(result.current.artifactNotice).not.toContain("adminSecret");
+    });
+  });
+
   it("does not pass githubToken in github-workflow-dispatch bodies", async () => {
     mockStorageGetItem.mockResolvedValue(null);
 
@@ -452,6 +496,66 @@ describe("useCiLiteWorkflow behavior", () => {
     expect(result.current.busy).toBe(true);
     expect(result.current.isTrackingRun).toBe(true);
     expect(result.current.headerState).toBe("running");
+  });
+
+  it("uses progressive lookup polling delays instead of a static 2.5s interval", async () => {
+    jest.useFakeTimers();
+    mockStorageGetItem.mockResolvedValue(null);
+
+    let currentNow = NOW;
+    jest.spyOn(Date, "now").mockImplementation(() => currentNow);
+
+    const runLookupTimestamps: number[] = [];
+    (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("github-workflow-dispatch")) {
+        return {
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          text: async () => "",
+        } as Response;
+      }
+
+      if (url.includes("github-workflow-runs")) {
+        runLookupTimestamps.push(currentNow);
+        return {
+          ok: true,
+          json: async () => ({
+            data: {
+              workflow_runs: [],
+            },
+          }),
+        } as Response;
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    expect(runLookupTimestamps).toHaveLength(1); // immediate poll
+
+    await act(async () => {
+      currentNow += 1_200;
+      jest.advanceTimersByTime(1_200);
+    });
+    await flushAsyncWork();
+    expect(runLookupTimestamps).toHaveLength(2);
+
+    await act(async () => {
+      currentNow += 1_800;
+      jest.advanceTimersByTime(1_800);
+    });
+    await flushAsyncWork();
+    expect(runLookupTimestamps).toHaveLength(3);
+
+    expect(runLookupTimestamps[1] - runLookupTimestamps[0]).toBe(1_200);
+    expect(runLookupTimestamps[2] - runLookupTimestamps[1]).toBe(1_800);
+    expect(result.current.runLookupActive).toBe(true);
   });
 
   it("does not bind a legacy workflow_dispatch run without job_id marker and reports the contract mismatch", async () => {
