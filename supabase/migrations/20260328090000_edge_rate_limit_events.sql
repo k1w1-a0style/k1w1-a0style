@@ -32,3 +32,8 @@ create policy "Deny write edge_rate_limit_events"
 revoke all on table public.edge_rate_limit_events from anon;
 revoke all on table public.edge_rate_limit_events from authenticated;
 grant all on table public.edge_rate_limit_events to service_role;
+
+-- Retention note (operator-managed):
+-- This table is append-only by design for a short-window counter.
+-- Recommended housekeeping (e.g. scheduled SQL job) is to delete old rows:
+--   delete from public.edge_rate_limit_events where created_at < now() - interval '7 days';

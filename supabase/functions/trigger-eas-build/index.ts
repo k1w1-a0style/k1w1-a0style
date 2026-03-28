@@ -4,6 +4,7 @@ import {
   getRuntimeEnv,
   getServiceRoleKey,
   getSupabaseUrl,
+  isScopedCiBearerRequest,
   requireJwtRole,
   requireScopedEdgeAuth,
   rateLimit,
@@ -72,16 +73,20 @@ Deno.serve(async (req) => {
     const auth = requireScopedEdgeAuth(req, {
       scope: "trigger-eas-build",
       allowAdmin: true,
-      allowCiBearer: false,
+      allowCiBearer: true,
       allowJwtAuthHeaderWithAdmin: true,
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
+      ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER",
     });
     if (auth) return auth;
-    const jwtRoleGuard = await requireJwtRole(req, {
-      scope: "trigger-eas-build",
-      allowedRoles: ["service_role", "authenticated"],
-    });
-    if (jwtRoleGuard) return jwtRoleGuard;
+    const usedCiBearer = isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER");
+    if (!usedCiBearer) {
+      const jwtRoleGuard = await requireJwtRole(req, {
+        scope: "trigger-eas-build",
+        allowedRoles: ["service_role", "authenticated"],
+      });
+      if (jwtRoleGuard) return jwtRoleGuard;
+    }
 
     const durableRl = await requireDurableRateLimit(req, {
       scope: "trigger-eas-build",

@@ -1,5 +1,11 @@
 import { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";
-import { requireDurableRateLimit, requireJwtRole, requireScopedEdgeAuth, rateLimit } from "../_shared/auth.ts";
+import {
+  isScopedCiBearerRequest,
+  requireDurableRateLimit,
+  requireJwtRole,
+  requireScopedEdgeAuth,
+  rateLimit,
+} from "../_shared/auth.ts";
 import { githubFetch, getGithubToken, GITHUB_API_BASE } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
 
@@ -31,16 +37,20 @@ Deno.serve(async (req) => {
     const auth = requireScopedEdgeAuth(req, {
       scope: "github-workflow-runs",
       allowAdmin: true,
-      allowCiBearer: false,
+      allowCiBearer: true,
       allowJwtAuthHeaderWithAdmin: true,
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
+      ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER",
     });
     if (auth) return auth;
-    const jwtRoleGuard = await requireJwtRole(req, {
-      scope: "github-workflow-runs",
-      allowedRoles: ["service_role", "authenticated"],
-    });
-    if (jwtRoleGuard) return jwtRoleGuard;
+    const usedCiBearer = isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER");
+    if (!usedCiBearer) {
+      const jwtRoleGuard = await requireJwtRole(req, {
+        scope: "github-workflow-runs",
+        allowedRoles: ["service_role", "authenticated"],
+      });
+      if (jwtRoleGuard) return jwtRoleGuard;
+    }
 
     const durableRl = await requireDurableRateLimit(req, {
       scope: "github-workflow-runs",

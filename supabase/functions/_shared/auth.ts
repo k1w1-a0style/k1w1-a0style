@@ -99,13 +99,17 @@ function getRoleFromVerifiedUser(user: VerifiedJwtUser | null): string {
   return typeof appRole === "string" ? appRole.trim() : "";
 }
 
-async function verifyJwtViaSupabaseAuth(req: Request): Promise<VerifiedJwtUser | null> {
+type VerifiedJwtLookupResult =
+  | { ok: true; user: VerifiedJwtUser }
+  | { ok: false; reason: "invalid_or_unverifiable" | "server_misconfigured" };
+
+async function verifyJwtViaSupabaseAuth(req: Request): Promise<VerifiedJwtLookupResult> {
   const token = getBearerToken(req);
-  if (!token) return null;
+  if (!token) return { ok: false, reason: "invalid_or_unverifiable" };
 
   const supabaseUrl = getSupabaseUrlSecret();
   const serviceKey = getServiceRoleSecret();
-  if (!supabaseUrl || !serviceKey) return null;
+  if (!supabaseUrl || !serviceKey) return { ok: false, reason: "server_misconfigured" };
 
   try {
     const authUrl = `${supabaseUrl.replace(/\/$/, "")}/auth/v1/user`;
@@ -116,11 +120,14 @@ async function verifyJwtViaSupabaseAuth(req: Request): Promise<VerifiedJwtUser |
         authorization: `Bearer ${token}`,
       },
     });
-    if (!res.ok) return null;
+    if (!res.ok) return { ok: false, reason: "invalid_or_unverifiable" };
     const user = await res.json().catch(() => null);
-    return user && typeof user === "object" ? user as VerifiedJwtUser : null;
+    if (!user || typeof user !== "object") {
+      return { ok: false, reason: "invalid_or_unverifiable" };
+    }
+    return { ok: true, user: user as VerifiedJwtUser };
   } catch {
-    return null;
+    return { ok: false, reason: "invalid_or_unverifiable" };
   }
 }
 
@@ -135,8 +142,16 @@ export async function requireJwtRole(req: Request, cfg: JwtRoleGuardConfig): Pro
     );
   }
 
-  const verifiedUser = await verifyJwtViaSupabaseAuth(req);
-  if (!verifiedUser) {
+  const verified = await verifyJwtViaSupabaseAuth(req);
+  if (!verified.ok) {
+    if (verified.reason === "server_misconfigured") {
+      return errorResponse(
+        "JWT verification is unavailable due to server auth misconfiguration.",
+        req,
+        500,
+        { scope: cfg.scope },
+      );
+    }
     return errorResponse(
       "Unauthorized: missing or unverifiable JWT.",
       req,
@@ -145,7 +160,7 @@ export async function requireJwtRole(req: Request, cfg: JwtRoleGuardConfig): Pro
     );
   }
 
-  const role = getRoleFromVerifiedUser(verifiedUser);
+  const role = getRoleFromVerifiedUser(verified.user);
   if (!role || !cfg.allowedRoles.includes(role)) {
     return errorResponse(
       "Forbidden: verified JWT role is not allowed for this route.",
@@ -164,6 +179,19 @@ export function getAdminKeyHeader(req: Request): string | null {
     req.headers.get("X-K1W1-Admin-Key") ??
     null
   )?.trim() || null;
+}
+
+export function isScopedCiBearerRequest(req: Request, ciBearerSecretEnv?: string): boolean {
+  const hasAdminHeader = !!getAdminKeyHeader(req);
+  if (hasAdminHeader) return false;
+
+  const token = getBearerToken(req);
+  if (!token) return false;
+
+  const expected = getStrictEnvSecret(ciBearerSecretEnv);
+  if (!expected) return false;
+
+  return token === expected;
 }
 
 export function hasAdminKeySecretConfigured(): boolean {
