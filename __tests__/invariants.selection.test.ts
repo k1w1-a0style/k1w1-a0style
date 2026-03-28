@@ -70,7 +70,7 @@ describe("Invariants: repo/branch selection is source of truth", () => {
   it("does not keep stale active branch when resolving repo default branch", () => {
     const src = read("screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts");
 
-    expect(src).toContain("setActiveBranch(b);");
+    expect(src).toContain("setLinkedRepo(fullName, b);");
     expect(src).not.toContain("setActiveBranch(activeBranch || b);");
   });
 

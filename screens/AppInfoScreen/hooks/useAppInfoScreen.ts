@@ -111,8 +111,6 @@ export function useAppInfoScreen() {
     activeRepo,
     activeBranch,
     recentRepos,
-    setActiveRepo,
-    setActiveBranch,
     addRecentRepo,
     clearRecentRepos,
   } = useGitHub();
@@ -283,8 +281,8 @@ export function useAppInfoScreen() {
       },
       ciSecrets: {},
       github: {
-        activeRepo,
-        activeBranch,
+        linkedRepo: activeRepo,
+        linkedBranch: activeBranch,
         recentRepos,
       },
     });
@@ -363,11 +361,9 @@ export function useAppInfoScreen() {
         }
       }
 
-      setActiveRepo(payload.github.activeRepo);
-      setActiveBranch(payload.github.activeBranch);
-      setLinkedRepo(payload.github.activeRepo, payload.github.activeBranch);
+      setLinkedRepo(payload.github.linkedRepo, payload.github.linkedBranch);
     },
-    [addRecentRepo, clearRecentRepos, setActiveBranch, setActiveRepo, setLinkedRepo],
+    [addRecentRepo, clearRecentRepos, setLinkedRepo],
   );
 
   const handleExportAPIConfig = useCallback(async () => {

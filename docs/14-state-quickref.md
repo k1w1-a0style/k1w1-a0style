@@ -6,7 +6,7 @@ Stand: 2026-03-02
 
 | Domäne | SoT | Mirror / Derived | Hinweise |
 |---|---|---|---|
-| Repo/Branch/Profile | `ProjectContext.projectData` (`linkedRepo`, `linkedBranch`, `preferredBuildProfile`) | `GitHubContext.activeRepo/activeBranch` | Mirror wird aus `projectData.linked*` synchronisiert |
+| Repo/Branch/Profile | `ProjectContext.projectData` (`linkedRepo`, `linkedBranch`, `preferredBuildProfile`) | `GitHubContext.activeRepo/activeBranch` | `active*` ist rein abgeleitet aus `projectData.linked*` (keine eigene Persistenz) |
 | Build-Start | `ProjectContext.startBuild` + `startBuildJob` | Build UI states (`useEnhancedBuildScreen`) | Gate: Branch vorhanden + `diagnostic_last_ok=true` |
 | Diagnostics Status | AsyncStorage `diagnostic_last_ok` + letzte Reports im Screen-State | Header counts / issue filter | Wird von Diagnose geschrieben, vom Build gelesen |
 | Connections | Token storage/services + `STORAGE_KEYS.CONN_*` | Lampen/Badges in Connections/GitHub Repos | Nur positiv getestete Zustände als `*_ok` |
@@ -23,8 +23,8 @@ Stand: 2026-03-02
 
 ### Aus `shared/constants/github.ts` (GitHubContext)
 - `k1w1_github_recent_repos`
-- `k1w1_github_active_repo`
-- `k1w1_github_active_branch`
+- `k1w1_github_active_repo` *(legacy, wird nicht mehr als SoT geschrieben)*
+- `k1w1_github_active_branch` *(legacy, wird nicht mehr als SoT geschrieben)*
 
 ## 3) Ephemeral State (nur RAM)
 - Diagnose UI-State: Filter, offene Issue-Details, laufender Busy-Status.

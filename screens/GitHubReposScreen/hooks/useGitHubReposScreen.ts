@@ -82,9 +82,7 @@ const EMPTY_SYNC_STATUS: SyncStatus = {
 export function useGitHubReposScreen() {
   const {
     activeRepo,
-    setActiveRepo,
     activeBranch,
-    setActiveBranch,
     recentRepos,
     addRecentRepo,
     clearRecentRepos,
@@ -114,7 +112,6 @@ export function useGitHubReposScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
   const hasAutoLoaded = useRef(false);
-  const hasRestoredLink = useRef(false);
 
   const isMountedRef = useRef(true);
   const refreshGen = useRef(0);
@@ -306,15 +303,6 @@ export function useGitHubReposScreen() {
     return () => { mounted = false; };
   }, []);
 
-  // Auto-restore linked repo/branch from project context once
-  useEffect(() => {
-    if (!hasRestoredLink.current && projectData?.linkedRepo && !activeRepo) {
-      hasRestoredLink.current = true;
-      setActiveRepo(projectData.linkedRepo);
-      if (projectData.linkedBranch) setActiveBranch(projectData.linkedBranch);
-    }
-  }, [projectData, activeRepo, setActiveRepo, setActiveBranch]);
-
   // Auto-load repos once token exists
   useEffect(() => {
     if (!token || hasAutoLoaded.current) return;
@@ -359,16 +347,8 @@ export function useGitHubReposScreen() {
       : String(repoOrString.default_branch || "").trim() || null;
 
   // Single source of truth for ALL repo selections (list + recent)
-  setActiveRepo(fullName);
   addRecentRepo(fullName);
-
-  if (defaultBranch) {
-    setActiveBranch(defaultBranch);
-    setLinkedRepo(fullName, defaultBranch);
-  } else {
-    setActiveBranch(null);
-    setLinkedRepo(fullName, null);
-  }
+  setLinkedRepo(fullName, defaultBranch);
   setShowRenameRepo(false);
   setShowNewRepo(false);
   setPullProgress("");
@@ -384,14 +364,13 @@ export function useGitHubReposScreen() {
         if (!b) return;
         if (!isMountedRef.current) return;
         if (selectionGen !== selectRepoGen.current) return;
-        setActiveBranch(b);
         setLinkedRepo(fullName, b);
       })
       .catch(() => {
         // non-fatal: user can still pick a branch manually
       });
   }
-}, [setActiveRepo, addRecentRepo, setLinkedRepo, setActiveBranch, loadDefaultBranch]);
+}, [addRecentRepo, setLinkedRepo, loadDefaultBranch]);
 
   const confirmManageModal = useCallback(async () => {
     if (!manageModal || manageBusy) return;
@@ -424,13 +403,12 @@ export function useGitHubReposScreen() {
 
   const handleSelectBranch = useCallback(
     (branch: string) => {
-      setActiveBranch(branch);
       if (activeRepo) {
         setLinkedRepo(activeRepo, branch);
         rememberRecentBranch(activeRepo, branch);
       }
     },
-    [setActiveBranch, activeRepo, setLinkedRepo, rememberRecentBranch],
+    [activeRepo, setLinkedRepo, rememberRecentBranch],
   );
 
   const withCoreFiles = useCallback((files: ProjectFile[]): ProjectFile[] => {
@@ -474,11 +452,9 @@ export function useGitHubReposScreen() {
       setLocalRepos((prev) => [repo, ...prev]);
       setNewRepoName("");
       setShowNewRepo(false);
-      setActiveRepo(repo.full_name);
       addRecentRepo(repo.full_name);
       const defaultBranch = String(repo.default_branch || "").trim() || null;
       setLinkedRepo(repo.full_name, defaultBranch);
-      setActiveBranch(defaultBranch);
       const successNotice = getRepoSuccessNotice("repo_created", repo.full_name);
       Alert.alert(successNotice.title, successNotice.message);
     } catch (e: unknown) {
@@ -486,7 +462,7 @@ export function useGitHubReposScreen() {
     } finally {
       setIsCreating(false);
     }
-  }, [token, newRepoName, newRepoPrivate, setActiveRepo, addRecentRepo, setLinkedRepo, setActiveBranch]);
+  }, [token, newRepoName, newRepoPrivate, addRecentRepo, setLinkedRepo]);
 
   const handleRenameRepo = useCallback(async () => {
     if (!token || !activeRepo) return;
@@ -504,7 +480,6 @@ export function useGitHubReposScreen() {
     try {
       const res = await renameGitHubRepo(parsed.owner, parsed.repo, newName);
       const newFullName = res.full_name ?? `${parsed.owner}/${newName}`;
-      setActiveRepo(newFullName);
       setLinkedRepo(newFullName, activeBranch ?? null);
       addRecentRepo(newFullName);
       setShowRenameRepo(false);
@@ -517,7 +492,7 @@ export function useGitHubReposScreen() {
     } finally {
       setIsRenaming(false);
     }
-  }, [token, activeRepo, renameName, setActiveRepo, setLinkedRepo, activeBranch, addRecentRepo, loadRepos]);
+  }, [token, activeRepo, renameName, setLinkedRepo, activeBranch, addRecentRepo, loadRepos]);
 
   const handleDeleteRepo = useCallback(async (repo: GitHubRepo) => {
     if (!token) return;
@@ -541,8 +516,6 @@ export function useGitHubReposScreen() {
               await deleteGitHubRepo(parsed.owner, parsed.repo);
               setLocalRepos((prev) => prev.filter((r) => r.full_name !== full));
               if (activeRepo === full) {
-                setActiveRepo(null);
-                setActiveBranch(null);
                 setLinkedRepo(null, null);
               }
               await loadRepos();
@@ -557,7 +530,7 @@ export function useGitHubReposScreen() {
         },
       ],
     );
-  }, [token, activeRepo, setActiveRepo, setActiveBranch, setLinkedRepo, loadRepos]);
+  }, [token, activeRepo, setLinkedRepo, loadRepos]);
 
   const handlePull = useCallback(async () => {
     // Pull now opens a preview modal (conflicts + strategy) to avoid silent overwrites.
@@ -934,12 +907,11 @@ export function useGitHubReposScreen() {
         const base = activeBranch ?? (await loadDefaultBranch(parsed.owner, parsed.repo));
         await createBranch(parsed.owner, parsed.repo, name, base);
         const res = { name };
-        setActiveBranch(res.name);
         setLinkedRepo(activeRepo, res.name);
         closeManageModal();
       },
     });
-  }, [activeRepo, activeBranch, loadDefaultBranch, openManageModal, closeManageModal, setActiveBranch, setLinkedRepo]);
+  }, [activeRepo, activeBranch, loadDefaultBranch, openManageModal, closeManageModal, setLinkedRepo]);
 
   const handleRenameBranch = useCallback(() => {
     if (!activeRepo || !activeBranch) return;
@@ -954,12 +926,11 @@ export function useGitHubReposScreen() {
         const name = newName.trim();
         if (!name) throw new Error("Branch Name fehlt.");
         const res = await renameBranch(parsed.owner, parsed.repo, activeBranch, name);
-        setActiveBranch(res.name);
         setLinkedRepo(activeRepo, res.name);
         closeManageModal();
       },
     });
-  }, [activeRepo, activeBranch, openManageModal, closeManageModal, setActiveBranch, setLinkedRepo]);
+  }, [activeRepo, activeBranch, openManageModal, closeManageModal, setLinkedRepo]);
 
   const handleDeleteBranch = useCallback(() => {
     if (!activeRepo || !activeBranch) return;
@@ -971,20 +942,19 @@ export function useGitHubReposScreen() {
       {
         text: dialogText.confirmText,
         style: "destructive",
-        onPress: async () => {
-          try {
-            await deleteBranch(parsed.owner, parsed.repo, activeBranch);
-            setActiveBranch(null);
-            setLinkedRepo(activeRepo, null);
-            const successNotice = getRepoSuccessNotice("branch_deleted", activeBranch);
-            Alert.alert(successNotice.title, successNotice.message);
+          onPress: async () => {
+            try {
+              await deleteBranch(parsed.owner, parsed.repo, activeBranch);
+              setLinkedRepo(activeRepo, null);
+              const successNotice = getRepoSuccessNotice("branch_deleted", activeBranch);
+              Alert.alert(successNotice.title, successNotice.message);
           } catch (e: unknown) {
             Alert.alert("❌ Fehler", getErrorMessage(e, ""));
           }
         },
       },
     ]);
-  }, [activeRepo, activeBranch, setActiveBranch, setLinkedRepo]);
+  }, [activeRepo, activeBranch, setLinkedRepo]);
 
   const combinedRepos = useMemo(() => combineRepos(repos, localRepos), [repos, localRepos]);
 
@@ -1027,9 +997,9 @@ export function useGitHubReposScreen() {
     combinedRepos, filteredRepos,
 
     // selection + recent
-    activeRepo, setActiveRepo,
+    activeRepo,
     activeRepoObj,
-    activeBranch, setActiveBranch,
+    activeBranch,
     recentRepos, addRecentRepo, clearRecentRepos,
 
     // UI states

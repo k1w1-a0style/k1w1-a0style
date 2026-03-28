@@ -3,7 +3,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { renderHook, waitFor } from "@testing-library/react-native";
 
 import { GitHubProvider, useGitHub } from "../contexts/GitHubContext";
-import { GITHUB_STORAGE_KEYS } from "../shared/constants/github";
 
 let mockProjectData: { linkedRepo?: string; linkedBranch?: string } = {};
 
@@ -21,7 +20,7 @@ describe("GitHubContext mirror contract", () => {
     jest.clearAllMocks();
   });
 
-  it("mirrors linked repo and branch once without redundant rewrite passes on rerender", async () => {
+  it("exposes linked repo/branch as active selection without writing legacy active storage keys", async () => {
     mockProjectData = {
       linkedRepo: "owner/repo",
       linkedBranch: "main",
@@ -38,13 +37,6 @@ describe("GitHubContext mirror contract", () => {
       expect(result.current.activeBranch).toBe("main");
     });
 
-    const repoWritesAfterMirror = (AsyncStorage.setItem as jest.Mock).mock.calls.filter(
-      ([key]) => key === GITHUB_STORAGE_KEYS.ACTIVE_REPO,
-    ).length;
-    const branchWritesAfterMirror = (AsyncStorage.setItem as jest.Mock).mock.calls.filter(
-      ([key]) => key === GITHUB_STORAGE_KEYS.ACTIVE_BRANCH,
-    ).length;
-
     rerender(undefined);
 
     await waitFor(() => {
@@ -52,15 +44,8 @@ describe("GitHubContext mirror contract", () => {
       expect(result.current.activeBranch).toBe("main");
     });
 
-    expect(
-      (AsyncStorage.setItem as jest.Mock).mock.calls.filter(
-        ([key]) => key === GITHUB_STORAGE_KEYS.ACTIVE_REPO,
-      ),
-    ).toHaveLength(repoWritesAfterMirror);
-    expect(
-      (AsyncStorage.setItem as jest.Mock).mock.calls.filter(
-        ([key]) => key === GITHUB_STORAGE_KEYS.ACTIVE_BRANCH,
-      ),
-    ).toHaveLength(branchWritesAfterMirror);
+    const setItemKeys = (AsyncStorage.setItem as jest.Mock).mock.calls.map(([key]) => key);
+    expect(setItemKeys).not.toContain("k1w1_github_active_repo");
+    expect(setItemKeys).not.toContain("k1w1_github_active_branch");
   });
 });

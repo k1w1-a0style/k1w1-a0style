@@ -30,9 +30,13 @@ export type SecretTokensSnapshotV1 = {
 };
 
 export type SecretGithubContextSnapshotV1 = {
-  activeRepo: string | null;
-  activeBranch: string | null;
+  linkedRepo: string | null;
+  linkedBranch: string | null;
   recentRepos: string[];
+  /** @deprecated legacy compatibility snapshot keys */
+  activeRepo?: string | null;
+  /** @deprecated legacy compatibility snapshot keys */
+  activeBranch?: string | null;
 };
 
 export type SecretBackupPayloadV1 = {
@@ -191,8 +195,12 @@ export function createSecretBackupPayload(input: {
       Object.entries(input.ciSecrets ?? {}).map(([key, value]) => [key, normalizeString(value)]),
     ),
     github: {
-      activeRepo: normalizeOptionalString(input.github.activeRepo),
-      activeBranch: normalizeOptionalString(input.github.activeBranch),
+      linkedRepo:
+        normalizeOptionalString(input.github.linkedRepo) ??
+        normalizeOptionalString(input.github.activeRepo),
+      linkedBranch:
+        normalizeOptionalString(input.github.linkedBranch) ??
+        normalizeOptionalString(input.github.activeBranch),
       recentRepos: normalizeStringArray(input.github.recentRepos),
     },
   };
@@ -329,8 +337,12 @@ function sanitizeSecretPayload(raw: unknown): SecretBackupPayloadV1 {
       Object.entries(ciSecrets).map(([key, value]) => [key, normalizeString(value)]),
     ),
     github: {
-      activeRepo: normalizeOptionalString(github.activeRepo),
-      activeBranch: normalizeOptionalString(github.activeBranch),
+      linkedRepo:
+        normalizeOptionalString(github.linkedRepo) ??
+        normalizeOptionalString(github.activeRepo),
+      linkedBranch:
+        normalizeOptionalString(github.linkedBranch) ??
+        normalizeOptionalString(github.activeBranch),
       recentRepos: normalizeStringArray(github.recentRepos),
     },
   };

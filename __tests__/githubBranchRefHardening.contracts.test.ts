@@ -47,12 +47,15 @@ describe("github branch/ref hardening contracts", () => {
     );
   });
 
-  test("android-keystore-generate no longer hard-falls back to main", () => {
+  test("android-keystore-generate no longer hard-falls back to main or exposes branch as a contract field", () => {
     const src = fs.readFileSync(
       path.join(process.cwd(), "supabase/functions/android-keystore-generate/index.ts"),
       "utf8",
     );
 
     expect(src).not.toContain('safeString(body?.branch) || "main"');
+    expect(src).not.toContain("const branch = safeString(body?.branch)");
+    expect(src).not.toContain("Invalid branch.");
+    expect(src).not.toContain("branch,");
   });
 });
