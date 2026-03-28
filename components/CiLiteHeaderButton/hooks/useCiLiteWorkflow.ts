@@ -261,12 +261,12 @@ export function useCiLiteWorkflow() {
         requireJobIdMarker = true,
       } = opts;
       const edgeUrl = await requireSupabaseEdgeUrl();
-      const edgeAdminKey = await getWorkflowAdminKey().catch(() => null);
-      const trimmedEdgeAdminKey = String(edgeAdminKey ?? "").trim();
-      if (!trimmedEdgeAdminKey || !isLikelyValidAdminKey(trimmedEdgeAdminKey)) {
+      const workflowAdminKey = await getWorkflowAdminKey().catch(() => null);
+      const trimmedWorkflowAdminKey = String(workflowAdminKey ?? "").trim();
+      if (!trimmedWorkflowAdminKey || !isLikelyValidAdminKey(trimmedWorkflowAdminKey)) {
         const normalized = normalizeCiLiteWorkflowError({
           context: "lookup",
-          adminKey: trimmedEdgeAdminKey,
+          adminKey: trimmedWorkflowAdminKey,
         });
         throw new Error(normalized.userMessage);
       }
@@ -278,7 +278,7 @@ export function useCiLiteWorkflow() {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${userJwt}`,
-          "x-k1w1-admin-key": trimmedEdgeAdminKey,
+          "x-k1w1-admin-key": trimmedWorkflowAdminKey,
         },
         body: JSON.stringify({ githubRepo: repo, workflowId: workflow, ref: br, perPage: 30 }),
       });
@@ -287,7 +287,7 @@ export function useCiLiteWorkflow() {
         const { payload, text } = await readCiLiteErrorResponse(r);
         const normalized = normalizeCiLiteWorkflowError({
           context: "lookup",
-          adminKey: trimmedEdgeAdminKey,
+          adminKey: trimmedWorkflowAdminKey,
           statusCode: r.status,
           statusText: r.statusText,
           payload,
@@ -302,7 +302,7 @@ export function useCiLiteWorkflow() {
       if (workflowLookupNote) {
         const normalized = normalizeCiLiteWorkflowError({
           context: "lookup",
-          adminKey: trimmedEdgeAdminKey,
+          adminKey: trimmedWorkflowAdminKey,
           note: workflowLookupNote,
         });
         throw new Error(normalized.userMessage);
@@ -805,12 +805,12 @@ export function useCiLiteWorkflow() {
           ? await getBranchHeadSha(repoParts.owner, repoParts.repo, targetBranch).catch(() => null)
           : null;
 
-        const edgeAdminKey = await getWorkflowAdminKey().catch(() => null);
-        const trimmedEdgeAdminKey = String(edgeAdminKey ?? "").trim();
-        if (!trimmedEdgeAdminKey || !isLikelyValidAdminKey(trimmedEdgeAdminKey)) {
+        const workflowAdminKey = await getWorkflowAdminKey().catch(() => null);
+        const trimmedWorkflowAdminKey = String(workflowAdminKey ?? "").trim();
+        if (!trimmedWorkflowAdminKey || !isLikelyValidAdminKey(trimmedWorkflowAdminKey)) {
           const normalized = normalizeCiLiteWorkflowError({
             context: "dispatch",
-            adminKey: edgeAdminKey,
+            adminKey: workflowAdminKey,
           });
           throw new Error(normalized.userMessage);
         }
@@ -831,7 +831,7 @@ export function useCiLiteWorkflow() {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${userJwt}`,
-            "x-k1w1-admin-key": trimmedEdgeAdminKey,
+            "x-k1w1-admin-key": trimmedWorkflowAdminKey,
           },
           body: JSON.stringify({
             githubRepo,
@@ -848,7 +848,7 @@ export function useCiLiteWorkflow() {
           const { payload, text } = await readCiLiteErrorResponse(r);
           const normalized = normalizeCiLiteWorkflowError({
             context: "dispatch",
-            adminKey: trimmedEdgeAdminKey,
+            adminKey: trimmedWorkflowAdminKey,
             statusCode: r.status,
             statusText: r.statusText,
             payload,

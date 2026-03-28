@@ -8,7 +8,7 @@ import {
   getExpoToken,
   getWorkflowAdminKey,
   getAndroidKeystoreExportAdminKey,
-  getEdgeAdminKey,
+  getLegacyEdgeAdminKey,
   getSigningAdminKey,
   syncRepoSecrets,
 } from "../infra/github/githubService";
@@ -38,7 +38,7 @@ export const autoSyncRepoSecrets = async (
     AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID),
     getWorkflowAdminKey(),
     getAndroidKeystoreExportAdminKey(),
-    getEdgeAdminKey(),
+    getLegacyEdgeAdminKey(),
     getSigningAdminKey(),
   ]);
 

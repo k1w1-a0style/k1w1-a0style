@@ -20,6 +20,8 @@ import {
   saveAndroidKeystoreExportAdminKey,
   getEdgeAdminKey,
   saveEdgeAdminKey,
+  getLegacyEdgeAdminKey,
+  saveLegacyEdgeAdminKey,
   getSigningAdminKey,
   saveSigningAdminKey,
 } from "../infra/github/tokenStore";
@@ -63,6 +65,43 @@ describe("admin key token store split contract", () => {
     await expect(getWorkflowAdminKey()).resolves.toBe("workflow-admin-key-12345678901234567890");
     await expect(getAndroidKeystoreExportAdminKey()).resolves.toBe("android-export-key-12345678901234567890");
     await expect(getEdgeAdminKey()).resolves.toBe("legacy-edge-key-12345678901234567890");
+    await expect(getLegacyEdgeAdminKey()).resolves.toBe("legacy-edge-key-12345678901234567890");
     await expect(getSigningAdminKey()).resolves.toBe("signing-admin-key-12345678901234567890");
+  });
+
+  it("migrates legacy edge_admin_key_v1 to workflow_admin_key_v1 once when workflow key is missing", async () => {
+    const persisted = new Map<string, string>([
+      ["edge_admin_key_v1", "legacy-edge-key-12345678901234567890"],
+    ]);
+    mockSecureStore.setItemAsync.mockImplementation(async (key: string, value: string) => {
+      persisted.set(key, value);
+    });
+    mockSecureStore.getItemAsync.mockImplementation(async (key: string) => persisted.get(key) ?? null);
+
+    await expect(getWorkflowAdminKey()).resolves.toBe("legacy-edge-key-12345678901234567890");
+    expect(mockSecureStore.setItemAsync).toHaveBeenCalledWith(
+      "workflow_admin_key_v1",
+      "legacy-edge-key-12345678901234567890",
+    );
+    expect(persisted.get("workflow_admin_key_v1")).toBe("legacy-edge-key-12345678901234567890");
+    expect(persisted.get("edge_admin_key_v1")).toBe("legacy-edge-key-12345678901234567890");
+  });
+
+  it("does not silently mirror scoped workflow updates back into legacy slot", async () => {
+    const persisted = new Map<string, string>([
+      ["edge_admin_key_v1", "legacy-edge-key-12345678901234567890"],
+    ]);
+    mockSecureStore.setItemAsync.mockImplementation(async (key: string, value: string) => {
+      persisted.set(key, value);
+    });
+    mockSecureStore.getItemAsync.mockImplementation(async (key: string) => persisted.get(key) ?? null);
+
+    await saveWorkflowAdminKey("workflow-only-key-12345678901234567890");
+    expect(persisted.get("workflow_admin_key_v1")).toBe("workflow-only-key-12345678901234567890");
+    expect(persisted.get("edge_admin_key_v1")).toBe("legacy-edge-key-12345678901234567890");
+
+    await saveLegacyEdgeAdminKey("legacy-only-key-12345678901234567890");
+    expect(persisted.get("edge_admin_key_v1")).toBe("legacy-only-key-12345678901234567890");
+    expect(persisted.get("workflow_admin_key_v1")).toBe("workflow-only-key-12345678901234567890");
   });
 });
