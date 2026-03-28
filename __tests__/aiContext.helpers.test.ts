@@ -1,4 +1,5 @@
 import {
+  buildProviderSelectionPatch,
   hasAnyApiKeys,
   normalizeApiKeys,
   resolveRehydratedApiKeys,
@@ -75,5 +76,31 @@ describe("aiContext helpers", () => {
         huggingface: [],
       }),
     ).toBe(true);
+  });
+
+  test("buildProviderSelectionPatch resolves chat provider and mode from quality fallback", () => {
+    const patch = buildProviderSelectionPatch({
+      providerType: "chat",
+      provider: "openai",
+      qualityMode: "quality",
+    });
+
+    expect(patch).toEqual({
+      selectedChatProvider: "openai",
+      selectedChatMode: "gpt-5.4-pro",
+    });
+  });
+
+  test("buildProviderSelectionPatch resolves agent provider and mode from speed fallback", () => {
+    const patch = buildProviderSelectionPatch({
+      providerType: "agent",
+      provider: "groq",
+      qualityMode: "speed",
+    });
+
+    expect(patch).toEqual({
+      selectedAgentProvider: "groq",
+      selectedAgentMode: "llama-3.1-8b-instant",
+    });
   });
 });

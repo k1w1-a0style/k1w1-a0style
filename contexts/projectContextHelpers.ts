@@ -41,3 +41,14 @@ export const buildProjectForCreation = (
       : {}),
   };
 };
+
+export const removeProjectFilesByPaths = (
+  currentFiles: ProjectFile[],
+  pathsToRemove: readonly string[],
+): ProjectFile[] => {
+  const toDelete = new Set(
+    pathsToRemove.filter((path): path is string => typeof path === "string" && path.length > 0),
+  );
+  if (toDelete.size === 0) return currentFiles;
+  return currentFiles.filter((file) => !toDelete.has(file.path));
+};

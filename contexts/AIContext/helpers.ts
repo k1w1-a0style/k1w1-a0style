@@ -54,6 +54,30 @@ export function resolveProviderModeForQualityMode(
   return PROVIDER_DEFAULTS[provider][modeKey];
 }
 
+export function buildProviderSelectionPatch(params: {
+  providerType: "chat" | "agent";
+  provider: AllAIProviders;
+  qualityMode: QualityMode;
+}): Partial<AIConfig> {
+  const nextMode =
+    getDefaultMode(params.provider, params.qualityMode) ||
+    (params.providerType === "chat"
+      ? PROVIDER_DEFAULTS[params.provider].speed
+      : PROVIDER_DEFAULTS[params.provider].quality);
+
+  if (params.providerType === "chat") {
+    return {
+      selectedChatProvider: params.provider,
+      selectedChatMode: nextMode,
+    };
+  }
+
+  return {
+    selectedAgentProvider: params.provider,
+    selectedAgentMode: nextMode,
+  };
+}
+
 export function isModeValidForProvider(provider: AllAIProviders, mode: string): boolean {
   const list = AVAILABLE_MODELS?.[provider] ?? [];
   return list.some((m) => m.id === mode);

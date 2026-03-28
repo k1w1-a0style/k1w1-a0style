@@ -1,5 +1,7 @@
 # Patchlog Root
 
+- Patch 583: zwei kleine pure-logic-Extracts ohne Context-Redesign — `contexts/ProjectContext.tsx` zieht den Delete-/Filter-Block fuer Projektdateien in `contexts/projectContextHelpers.ts` (`removeProjectFilesByPaths`), und `contexts/AIContext/index.tsx` zieht die wiederholte Provider-/Mode-Default-Ableitung in `contexts/AIContext/helpers.ts` (`buildProviderSelectionPatch`); Rehydration-/Persistenz-/Context-Orchestrierung und aussen sichtbare Semantik bleiben bewusst unveraendert. Abgesichert durch erweiterte Helper-Vertragstests plus bestehende AIContext-Persistenz-/Quality-Regressionen.
+
 - Patch 582: zwei kleine pure-logic-Extracts ohne Hook-Umbau — `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts` zieht die Delete-Confirm-Textbildung in `screens/GitHubReposScreen/hooks/githubReposScreenDialogHelpers.ts` (`getDeleteRepoConfirmDialog`, `getDeleteBranchConfirmDialog`), und `components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts` zieht die Header-Lampenableitung in `components/CiLiteHeaderButton/hooks/useCiLiteWorkflowStatusHelpers.ts` (`deriveCiLiteHeaderState`); Async-/Polling-/Dispatch-/Dialog-Orchestrierung bleibt bewusst unveraendert. Abgesichert durch neue fokussierte Helper-Tests plus bestehende Hook-Behavior-/Semantiktests.
 
 

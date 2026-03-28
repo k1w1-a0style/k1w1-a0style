@@ -1,6 +1,7 @@
 import {
   buildProjectForCreation,
   normalizeLoadedProjectData,
+  removeProjectFilesByPaths,
 } from "../contexts/projectContextHelpers";
 
 describe("projectContextHelpers", () => {
@@ -76,6 +77,32 @@ describe("projectContextHelpers", () => {
       expect(created.templateId).toBe("crud");
       expect(created.effectiveTemplateId).toBe("crud");
       expect(created.preferredPreviewMode).toBe("local");
+    });
+  });
+
+  describe("removeProjectFilesByPaths", () => {
+    it("removes files by path while preserving order of remaining entries", () => {
+      const files = [
+        { path: "a.ts", content: "a" },
+        { path: "b.ts", content: "b" },
+        { path: "c.ts", content: "c" },
+      ];
+
+      const updated = removeProjectFilesByPaths(files, ["b.ts"]);
+
+      expect(updated).toEqual([
+        { path: "a.ts", content: "a" },
+        { path: "c.ts", content: "c" },
+      ]);
+    });
+
+    it("ignores empty and non-string delete candidates", () => {
+      const files = [{ path: "App.tsx", content: "app" }];
+
+      const updated = removeProjectFilesByPaths(files, ["", null as unknown as string]);
+
+      expect(updated).toBe(files);
+      expect(updated).toEqual([{ path: "App.tsx", content: "app" }]);
     });
   });
 });

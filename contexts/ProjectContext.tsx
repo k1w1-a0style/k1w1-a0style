@@ -60,6 +60,7 @@ import { trimChatHistory } from "../infra/storage/persistenceHelpers";
 import {
   buildProjectForCreation,
   normalizeLoadedProjectData,
+  removeProjectFilesByPaths,
 } from "./projectContextHelpers";
 
 const SAVE_DEBOUNCE_MS = 500;
@@ -533,7 +534,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     async (path: string) => {
       await updateProject((prev) => ({
         ...prev,
-        files: prev.files.filter((f) => f.path !== path),
+        files: removeProjectFilesByPaths(prev.files, [path]),
       }));
     },
     [updateProject],
@@ -541,12 +542,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
   const deleteFiles = useCallback(
     async (paths: string[]) => {
-      const toDelete = new Set(paths.filter((p) => typeof p === "string" && p.length > 0));
-      if (toDelete.size === 0) return;
+      if (!paths.some((path) => typeof path === "string" && path.length > 0)) return;
 
       await updateProject((prev) => ({
         ...prev,
-        files: prev.files.filter((f) => !toDelete.has(f.path)),
+        files: removeProjectFilesByPaths(prev.files, paths),
       }));
     },
     [updateProject],
