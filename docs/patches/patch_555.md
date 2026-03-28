@@ -15,6 +15,8 @@ Beide liefen noch mit Workflow-CI-Bearer-Fallback. In diesem Patch wurden **nur 
    - `verify_jwt = true` (in `supabase/config.toml`)
    - `requireScopedEdgeAuth(... allowCiBearer: false, allowJwtAuthHeaderWithAdmin: true, adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY")`
    - `requireJwtRole(... allowedRoles: ["service_role", "authenticated"])`
+
+> Historischer Stand: Die in diesem Patch dokumentierte Rolle `authenticated` wurde in Patch 586 fuer workflow-/build-Operator-Routen durch `build_admin` ersetzt.
 2. App-Caller wurden minimal nachgezogen:
    - `project/services/buildStartService.ts`
    - `project/services/buildPollingService.ts`

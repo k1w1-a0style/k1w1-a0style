@@ -86,6 +86,15 @@ export type JwtRoleGuardConfig = {
   allowedRoles: string[];
 };
 
+export const WORKFLOW_OPERATOR_ALLOWED_ROLES = ["service_role", "build_admin"] as const;
+
+export async function requireWorkflowOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {
+  return requireJwtRole(req, {
+    scope,
+    allowedRoles: [...WORKFLOW_OPERATOR_ALLOWED_ROLES],
+  });
+}
+
 type VerifiedJwtUser = {
   id?: unknown;
   role?: unknown;

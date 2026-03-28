@@ -22,6 +22,8 @@ describe("patch415 edge auth guard invariants", () => {
     const src = read(sharedAuth);
     expect(src).toContain("export type ScopedEdgeAuthConfig = {");
     expect(src).toContain("export function requireScopedEdgeAuth(req: Request, cfg: ScopedEdgeAuthConfig): Response | null {");
+    expect(src).toContain('export const WORKFLOW_OPERATOR_ALLOWED_ROLES = ["service_role", "build_admin"] as const;');
+    expect(src).toContain("export async function requireWorkflowOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {");
     expect(src).toContain('"Missing required auth secrets for this Edge Function."');
     expect(src).toContain('"Unauthorized: send either admin key OR bearer token, not both."');
     expect(src).toContain('"Unauthorized: missing authentication header."');
@@ -38,8 +40,7 @@ describe("patch415 edge auth guard invariants", () => {
       expect(src).toContain('ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"');
       expect(src).toContain('const usedCiBearer = isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER")');
       expect(src).toContain("if (!usedCiBearer) {");
-      expect(src).toContain("requireJwtRole(req, {");
-      expect(src).toContain('allowedRoles: ["service_role", "authenticated"]');
+      expect(src).toContain("requireWorkflowOperatorJwtRole(req,");
       expect(src).not.toContain("allowCiBearer: false");
       expect(src).not.toContain("const auth = requireAdminKey(req);");
       expect(src).not.toContain("const authError = requireAdminKey(req);");

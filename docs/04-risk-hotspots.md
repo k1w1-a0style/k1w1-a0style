@@ -118,6 +118,20 @@ CI_LITE_LINT_OK: "ci_lite_lint_ok",
 CI_LITE_TYPECHECK_OK: "ci_lite_typecheck_ok",
 ```
 
+## R6 — Workflow-Operator-RBAC bisher zu breit (`authenticated`)
+**Risiko:** Breite JWT-Rolle `authenticated` auf privilegierten workflow-/build-/artifact-Routen vergroessert die Angriffsoberflaeche fuer Operator-Aktionen.
+**Auswirkung:** Nicht-admin User-JWTs koennen unnötig weitreichende Operator-Routen erreichen, wenn zusaetzliche Guards falsch konfiguriert sind.
+
+**Fundstellen (historisch, vor Patch 586):**
+- `trigger-eas-build`, `check-eas-build`, `github-workflow-dispatch`, `github-workflow-runs`, `github-workflow-logs`, `github-run-artifact-json`
+
+**Hardening-Stand (Patch 586):**
+1. JWT-Rollen auf `service_role` + `build_admin` eingeschraenkt (fail-closed).
+2. CI-Bearer-/scoped-admin-key-Dualpfad bleibt unveraendert.
+3. Shared SoT (`WORKFLOW_OPERATOR_ALLOWED_ROLES`) verhindert Rollen-Drift zwischen Routen.
+
+---
+
 ### Evidence E — `ersId` nicht gefunden (Search Evidence)
 **Command:** `rg -n "ersId" contexts screens lib infra project shared`
 ```txt

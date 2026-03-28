@@ -14,6 +14,8 @@ Zusaetzlich war der Clientvertrag fuer Runs/Logs in `hooks/useGitHubActionsLogs.
    - `verify_jwt = true` in `supabase/config.toml`
    - `requireScopedEdgeAuth(... allowAdmin: true, allowCiBearer: false, allowJwtAuthHeaderWithAdmin: true, adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY")`
    - danach `requireJwtRole(... allowedRoles: ["service_role", "authenticated"])`
+
+> Historischer Stand: Die Rolle `authenticated` wurde spaeter in Patch 586 fuer diese Route auf `build_admin` gehaertet (zusammen mit `service_role`).
 2. Direkten Artifact-Caller minimal synchronisiert (`useCiLiteWorkflow`):
    - Session-JWT via `supabase.auth.getSession()`
    - Header jetzt immer `Authorization: Bearer <user-jwt>` + `x-k1w1-admin-key`
