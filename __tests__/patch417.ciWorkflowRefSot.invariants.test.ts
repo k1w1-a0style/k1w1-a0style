@@ -116,6 +116,7 @@ describe("Patch 417 CI utility workflow ref SoT invariants", () => {
     expect(guard).toContain('for wf in .github/workflows/eas-link.yml .github/workflows/release-build.yml; do');
     expect(guard).not.toContain('.github/workflows/deploy-supabase-functions.yml; do');
     expect(guard).toContain('Shared WORKFLOW_EAS_LINK_TEMPLATE drifted from live .github/workflows/eas-link.yml');
+    expect(guard).toContain('Shared WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE drifted from live .github/workflows/k1w1-triggered-build.yml');
     expect(guard).toContain('templates/expo-sdk54-base.json EAS Link entry drifted from live .github/workflows/eas-link.yml');
   });
 
@@ -127,6 +128,7 @@ describe("Patch 417 CI utility workflow ref SoT invariants", () => {
     expect(managed).toContain("Missing 'on.workflow_dispatch.inputs.ref.required: true' contract");
     expect(managed).not.toContain("grep -Eq '^\\s+required:\\s*true\\s*$'");
     expect(managed).toContain('.github/workflows/k1w1-triggered-build.yml');
+    expect(managed).toContain('WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE');
     expect(managed).toContain("ref: ${{ github.ref }}");
     expect(managed).toContain("ref: ${{ github.ref_name }}");
     expect(managed).toContain("github.head_ref");
