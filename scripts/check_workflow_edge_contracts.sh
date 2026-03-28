@@ -32,13 +32,15 @@ ARTIFACT_EDGE="supabase/functions/github-run-artifact-json/index.ts"
 RUNS_EDGE="supabase/functions/github-workflow-runs/index.ts"
 LOGS_EDGE="supabase/functions/github-workflow-logs/index.ts"
 KEYSTORE_EDGE="supabase/functions/android-keystore-export/index.ts"
+KEYSTORE_GENERATE_EDGE="supabase/functions/android-keystore-generate/index.ts"
+KEYSTORE_STATUS_EDGE="supabase/functions/android-keystore-status/index.ts"
 DISPATCH_EDGE="supabase/functions/github-workflow-dispatch/index.ts"
 TRIGGER_WF=".github/workflows/k1w1-triggered-build.yml"
 EAS_WF=".github/workflows/eas-build.yml"
 EDGE_STATUS_DOC="docs/EDGE_FUNCTIONS_STATUS.md"
 AUTH_SHARED="supabase/functions/_shared/auth.ts"
 
-for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$DISPATCH_EDGE" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$AUTH_SHARED"; do
+for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$AUTH_SHARED"; do
   require_file "$f"
 done
 
@@ -54,6 +56,8 @@ require_pattern "$ARTIFACT_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
 require_pattern "$RUNS_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
 require_pattern "$LOGS_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
 require_pattern "$KEYSTORE_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
+require_pattern "$KEYSTORE_GENERATE_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
+require_pattern "$KEYSTORE_STATUS_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
 require_pattern "$DISPATCH_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
 
 require_fixed "$TRIGGER_EDGE" 'adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"'
@@ -106,10 +110,20 @@ require_fixed "$DISPATCH_EDGE" 'requireWorkflowOperatorJwtRole(req, "github-work
 ! grep -Fq -- 'allowCiBearer: false' "$DISPATCH_EDGE" || fail "Found deprecated 'allowCiBearer: false' in $DISPATCH_EDGE"
 require_fixed "$KEYSTORE_EDGE" 'allowCiBearer: false'
 require_fixed "$KEYSTORE_EDGE" 'adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"'
+require_fixed "$KEYSTORE_GENERATE_EDGE" 'allowCiBearer: false'
+require_fixed "$KEYSTORE_GENERATE_EDGE" 'allowJwtAuthHeaderWithAdmin: true'
+require_fixed "$KEYSTORE_GENERATE_EDGE" 'adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"'
+require_fixed "$KEYSTORE_GENERATE_EDGE" 'requirePrivilegedOperatorJwtRole(req, "android-keystore-generate")'
+require_fixed "$KEYSTORE_STATUS_EDGE" 'allowCiBearer: false'
+require_fixed "$KEYSTORE_STATUS_EDGE" 'allowJwtAuthHeaderWithAdmin: true'
+require_fixed "$KEYSTORE_STATUS_EDGE" 'adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"'
+require_fixed "$KEYSTORE_STATUS_EDGE" 'requirePrivilegedOperatorJwtRole(req, "android-keystore-status")'
 
 require_fixed "$AUTH_SHARED" 'export function requireScopedEdgeAuth(req: Request, cfg: ScopedEdgeAuthConfig): Response | null {'
 require_fixed "$AUTH_SHARED" "export const WORKFLOW_OPERATOR_ALLOWED_ROLES = [\"service_role\", \"build_admin\"] as const;"
 require_fixed "$AUTH_SHARED" "export async function requireWorkflowOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {"
+require_fixed "$AUTH_SHARED" "export const PRIVILEGED_OPERATOR_ALLOWED_ROLES = [\"service_role\", \"build_admin\"] as const;"
+require_fixed "$AUTH_SHARED" "export async function requirePrivilegedOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {"
 require_fixed "$AUTH_SHARED" '"Missing required auth secrets for this Edge Function."'
 require_fixed "$AUTH_SHARED" '"Unauthorized: send either admin key OR bearer token, not both."'
 require_fixed "$AUTH_SHARED" '"Unauthorized: missing authentication header."'

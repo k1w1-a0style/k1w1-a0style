@@ -13,11 +13,6 @@ describe("patch415 edge auth guard invariants", () => {
     "supabase/functions/github-workflow-logs/index.ts",
     "supabase/functions/github-run-artifact-json/index.ts",
   ];
-  const adminOnly = [
-    "supabase/functions/android-keystore-generate/index.ts",
-    "supabase/functions/android-keystore-status/index.ts",
-  ];
-
   it("defines the scoped edge auth guard and fails closed without configured route secrets", () => {
     const src = read(sharedAuth);
     expect(src).toContain("export type ScopedEdgeAuthConfig = {");
@@ -60,22 +55,34 @@ describe("patch415 edge auth guard invariants", () => {
   it("keeps android-keystore-generate on the shared server-side service-role lookup", () => {
     const src = read("supabase/functions/android-keystore-generate/index.ts");
     const helpers = read("supabase/functions/android-keystore-generate/helpers.ts");
-    expect(helpers).toContain('export { getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, rateLimit, requireAdminKey } from "../_shared/auth.ts";');
+    expect(helpers).toContain("requireScopedEdgeAuth");
+    expect(helpers).toContain("requirePrivilegedOperatorJwtRole");
     expect(src).toContain("const serviceKey = getServiceRoleKey(req);");
     expect(src).toContain("const supabaseUrl = getSupabaseUrl();");
     expect(src).toContain("const masterKey = getSigningMasterKey();");
     expect(src).not.toContain('Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")');
     expect(src).not.toContain('Deno.env.get("SUPABASE_URL")');
     expect(src).not.toContain('Deno.env.get("SIGNING_MASTER_KEY")');
-    expect(src).not.toContain("requireJwtRole(req");
+    expect(src).toContain("requireScopedEdgeAuth(req, {");
+    expect(src).toContain('adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"');
+    expect(src).toContain("allowCiBearer: false");
+    expect(src).toContain('const jwtRoleGuard = await requirePrivilegedOperatorJwtRole(req, "android-keystore-generate")');
   });
 
-  it("keeps wizard-style keystore routes admin-only", () => {
-    for (const rel of adminOnly) {
-      const src = read(rel);
-      expect(src).toContain("requireAdminKey(req)");
+  it("keeps keystore wizard routes on scoped secret + privileged JWT roles", () => {
+    const generateSrc = read("supabase/functions/android-keystore-generate/index.ts");
+    const statusSrc = read("supabase/functions/android-keystore-status/index.ts");
+    for (const src of [generateSrc, statusSrc]) {
+      expect(src).toContain("requireScopedEdgeAuth(req, {");
+      expect(src).toContain("allowAdmin: true");
+      expect(src).toContain("allowCiBearer: false");
+      expect(src).toContain("allowJwtAuthHeaderWithAdmin: true");
+      expect(src).toContain('adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"');
+      expect(src).not.toContain("requireAdminKey(req)");
       expect(src).not.toContain("requireAdminKeyOrServiceRoleBearer");
     }
+    expect(generateSrc).toContain('requirePrivilegedOperatorJwtRole(req, "android-keystore-generate")');
+    expect(statusSrc).toContain('requirePrivilegedOperatorJwtRole(req, "android-keystore-status")');
     expect(read("supabase/functions/android-keystore-generate/index.ts")).toContain("requireDurableRateLimit(req, {");
   });
 

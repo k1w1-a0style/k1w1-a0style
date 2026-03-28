@@ -95,6 +95,15 @@ export async function requireWorkflowOperatorJwtRole(req: Request, scope: string
   });
 }
 
+export const PRIVILEGED_OPERATOR_ALLOWED_ROLES = ["service_role", "build_admin"] as const;
+
+export async function requirePrivilegedOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {
+  return requireJwtRole(req, {
+    scope,
+    allowedRoles: [...PRIVILEGED_OPERATOR_ALLOWED_ROLES],
+  });
+}
+
 type VerifiedJwtUser = {
   id?: unknown;
   role?: unknown;

@@ -2,7 +2,13 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 export { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 export { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
-export { rateLimit, requireAdminKey, getServiceRoleKey, getSupabaseUrl } from "../_shared/auth.ts";
+export {
+  rateLimit,
+  requirePrivilegedOperatorJwtRole,
+  requireScopedEdgeAuth,
+  getServiceRoleKey,
+  getSupabaseUrl,
+} from "../_shared/auth.ts";
 
 export type Mode = "development" | "preview" | "production";
 

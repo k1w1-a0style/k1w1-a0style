@@ -5,7 +5,7 @@ import {
   resolveMode, getForge, safeString, repoOk,
   bytesToBinaryStringChunked, encryptText, ensureBucketExists,
   bytesToBinaryString, createClient, encryptKeystorePayload,
-  errorResponse, getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, handleCors, jsonResponse, rateLimit, requireAdminKey, requireDurableRateLimit,
+  errorResponse, getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, handleCors, jsonResponse, rateLimit, requireDurableRateLimit, requirePrivilegedOperatorJwtRole, requireScopedEdgeAuth,
 } from "./helpers.ts";
 import type { Mode } from "./helpers.ts";
 
@@ -13,8 +13,16 @@ Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
-  const auth = requireAdminKey(req);
+  const auth = requireScopedEdgeAuth(req, {
+    scope: "android-keystore-generate",
+    allowAdmin: true,
+    allowCiBearer: false,
+    allowJwtAuthHeaderWithAdmin: true,
+    adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
+  });
   if (auth) return auth;
+  const jwtRoleGuard = await requirePrivilegedOperatorJwtRole(req, "android-keystore-generate");
+  if (jwtRoleGuard) return jwtRoleGuard;
 
   const durableRl = await requireDurableRateLimit(req, {
     scope: "android-keystore-generate",
