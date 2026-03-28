@@ -50,6 +50,7 @@ import {
 import type { TemplateFile, RepoFilterType } from "./templateFiles";
 import { getErrorMessage } from "./githubReposScreenErrorHelpers";
 import { getEasLinkWriteNotice, getSecretsSyncNotice } from "./githubReposScreenNoticeHelpers";
+import { getDeleteBranchConfirmDialog, getDeleteRepoConfirmDialog } from "./githubReposScreenDialogHelpers";
 
 type SyncStatus = {
   checking: boolean;
@@ -522,13 +523,15 @@ export function useGitHubReposScreen() {
     const parsed = splitFullName(full);
     if (!parsed) return;
 
+    const dialogText = getDeleteRepoConfirmDialog(full);
+
     Alert.alert(
-      "🗑️ Repo löschen?",
-      `Willst du ${full} wirklich löschen? Das kann nicht rückgängig gemacht werden.`,
+      dialogText.title,
+      dialogText.message,
       [
         { text: "Abbrechen", style: "cancel" },
         {
-          text: "Löschen",
+          text: dialogText.confirmText,
           style: "destructive",
           onPress: async () => {
             setIsDeletingRepo(true);
@@ -959,10 +962,11 @@ export function useGitHubReposScreen() {
     if (!activeRepo || !activeBranch) return;
     const parsed = splitFullName(activeRepo);
     if (!parsed) return;
-    Alert.alert("Branch löschen?", `${activeBranch} wirklich löschen?`, [
+    const dialogText = getDeleteBranchConfirmDialog(activeBranch);
+    Alert.alert(dialogText.title, dialogText.message, [
       { text: "Abbrechen", style: "cancel" },
       {
-        text: "Löschen",
+        text: dialogText.confirmText,
         style: "destructive",
         onPress: async () => {
           try {

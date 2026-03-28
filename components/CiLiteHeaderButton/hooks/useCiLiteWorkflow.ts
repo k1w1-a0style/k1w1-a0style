@@ -33,6 +33,7 @@ import {
 } from "./ciLiteWorkflowErrors";
 import { getArtifactUiMessage } from "./ciLiteWorkflowNoticeHelpers";
 import { buildArtifactFetchContextKey } from "./useCiLiteWorkflowHelpers";
+import { deriveCiLiteHeaderState } from "./useCiLiteWorkflowStatusHelpers";
 
 type CiLiteArtifactJson = {
   ok: boolean;
@@ -697,20 +698,16 @@ export function useCiLiteWorkflow() {
 
   // ---- Header state lamp ----
   useEffect(() => {
-    if (dispatching || locatingRun || chainWaiting) { setHeaderState("running"); return; }
-    if (workflowRun?.status) {
-      if (workflowRun.status !== "completed") { setHeaderState("running"); return; }
-      if (workflowRun.conclusion === "success") setHeaderState("success");
-      else if (workflowRun.conclusion === "failure" || workflowRun.conclusion === "cancelled") setHeaderState("failure");
-      else setHeaderState("idle");
-      return;
-    }
-    if (hydratedDisplaySnapshot) {
-      setHeaderState(hydratedDisplaySnapshot.conclusion === "success" ? "success" : "failure");
-      return;
-    }
-    setHeaderState("idle");
-  }, [workflowRun?.status, workflowRun?.conclusion, dispatching, locatingRun, chainWaiting, hydratedDisplaySnapshot]);
+    setHeaderState(
+      deriveCiLiteHeaderState({
+        dispatching,
+        locatingRun,
+        chainWaiting,
+        workflowRun,
+        hydratedDisplaySnapshot,
+      }),
+    );
+  }, [workflowRun, dispatching, locatingRun, chainWaiting, hydratedDisplaySnapshot]);
 
   // ---- Persist CI Lite results ----
   useEffect(() => {
