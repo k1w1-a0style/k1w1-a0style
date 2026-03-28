@@ -239,7 +239,7 @@ export function useCredentialsWizardScreen() {
 
     Alert.alert(
       "Supabase Login fehlt",
-      "Keystore-Status/Generate benötigen einen gültigen Supabase User JWT (Authorization: Bearer <jwt>) plus lokalen Android Keystore Export Admin Key.",
+      "Keystore-Status/Generate benötigen einen Supabase Operator-JWT mit Rolle build_admin (oder service_role fuer Server-Caller) sowie den lokalen Android Keystore Export Admin Key.",
     );
     return null;
   }, [safeSetLastError]);

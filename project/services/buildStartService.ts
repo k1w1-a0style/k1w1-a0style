@@ -170,7 +170,7 @@ export async function startBuildJob(params: {
 
   if (!accessToken) {
     throw new Error(
-      "Build-Start blockiert: Es fehlt ein gueltiger Supabase-User-Login (JWT). Bitte neu anmelden und erneut versuchen.",
+      "Build-Start blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller).",
     );
   }
   if (!workflowAdminKey) {

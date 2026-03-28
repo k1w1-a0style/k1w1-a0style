@@ -19,7 +19,7 @@ jest.doMock(require.resolve("../lib/supabase"), () => ({
   ensureSupabaseClient: jest.fn(async () => ({
     auth: {
       getSession: jest.fn(async () => ({
-        data: { session: { access_token: "supabase-authenticated-jwt-token" } },
+        data: { session: { access_token: "supabase-operator-jwt-token" } },
       })),
     },
     functions: { invoke: mockInvoke },

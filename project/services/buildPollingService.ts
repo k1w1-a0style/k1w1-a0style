@@ -71,7 +71,7 @@ export async function pollBuildStatusOnce(
   if (!accessToken) {
     return {
       ok: false,
-      error: "Build-Status blockiert: Es fehlt ein gueltiger Supabase-User-Login (JWT). Bitte neu anmelden.",
+      error: "Build-Status blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller).",
     };
   }
   if (!workflowAdminKey) {

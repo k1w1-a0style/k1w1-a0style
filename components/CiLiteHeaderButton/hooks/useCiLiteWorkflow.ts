@@ -421,7 +421,7 @@ export function useCiLiteWorkflow() {
         const session = await supabase?.auth.getSession().catch(() => null);
         const userJwt = String(session?.data?.session?.access_token ?? "").trim();
         if (!userJwt) {
-          throw new Error("CI-Lite-Artefakt blockiert: Kein gueltiger Supabase User-Login (JWT role=authenticated). Bitte einloggen und erneut versuchen.");
+          throw new Error("CI-Lite-Artefakt blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller).");
         }
         if (!trimmedAdminKey || !isLikelyValidAdminKey(trimmedAdminKey)) {
           const normalized = normalizeCiLiteWorkflowError({
@@ -645,7 +645,7 @@ export function useCiLiteWorkflow() {
       const session = await supabase?.auth.getSession().catch(() => null);
       const userJwt = String(session?.data?.session?.access_token ?? "").trim();
       if (!userJwt) {
-        setLocalError("Workflow-Run-Lookup blockiert: Kein gueltiger Supabase User-Login (JWT role=authenticated). Bitte einloggen und erneut versuchen.");
+        setLocalError("Workflow-Run-Lookup blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller).");
         setChainWaiting(false);
         stopRunLookup();
         return;
@@ -819,7 +819,7 @@ export function useCiLiteWorkflow() {
         const userJwt = String(session?.data?.session?.access_token ?? "").trim();
         if (!userJwt) {
           throw new Error(
-            "Workflow-Dispatch blockiert: Kein gueltiger Supabase User-Login (JWT role=authenticated). Bitte einloggen und erneut versuchen.",
+            "Workflow-Dispatch blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller).",
           );
         }
 

@@ -32,7 +32,7 @@ jest.mock('../lib/supabase', () => ({
   ensureSupabaseClient: jest.fn(async () => ({
     auth: {
       getSession: jest.fn(async () => ({
-        data: { session: { access_token: 'supabase-authenticated-jwt-token' } },
+        data: { session: { access_token: 'supabase-operator-jwt-token' } },
       })),
     },
   })),
@@ -96,11 +96,11 @@ describe('useGitHubActionsLogs edge contract mapping', () => {
     expect(runsBody).toEqual({ githubRepo: 'owner/repo', workflowId: 'k1w1-ci-lite.yml' });
     expect(logsBody).toEqual({ githubRepo: 'owner/repo', runId: 123, mode: 'raw' });
     expect(runsHeaders).toMatchObject({
-      Authorization: 'Bearer supabase-authenticated-jwt-token',
+      Authorization: 'Bearer supabase-operator-jwt-token',
       'x-k1w1-admin-key': 'aaaaaaaabbbbbbbb.ccccccccdddddddd.eeeeeeeeffffffff',
     });
     expect(logsHeaders).toMatchObject({
-      Authorization: 'Bearer supabase-authenticated-jwt-token',
+      Authorization: 'Bearer supabase-operator-jwt-token',
       'x-k1w1-admin-key': 'aaaaaaaabbbbbbbb.ccccccccdddddddd.eeeeeeeeffffffff',
     });
     expect(runsBody).not.toHaveProperty('githubToken');
