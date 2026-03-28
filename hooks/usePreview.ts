@@ -22,6 +22,7 @@ import {
   safeJson,
   sanitizePreviewPath,
   shouldAttemptSupabaseFirst,
+  shouldUseLocalPreviewFallback,
   simpleHash,
 } from "./previewHelpers";
 import type { PreviewResult, PreviewState } from "./previewHelpers";
@@ -360,6 +361,7 @@ if (container) {
   const preferredMode = projectData?.preferredPreviewMode ?? "supabase";
 
   const attemptSupabaseFirst = shouldAttemptSupabaseFirst(preferredMode);
+  const localFallbackExplicitlyEnabled = shouldUseLocalPreviewFallback(preferredMode);
 
   const createPreview = useCallback(async (): Promise<PreviewResult | null> => {
     // Singleflight: reuse the in-flight promise (prevents double-tap races).
@@ -461,10 +463,7 @@ if (container) {
                 error: supErr,
               }),
             );
-            logger.warn(
-              "[usePreview] ⚠️ Supabase Preview fehlgeschlagen, fallback auf Local HTML:",
-              supErr,
-            );
+            logger.warn("[usePreview] ⚠️ Supabase Preview fehlgeschlagen", supErr);
           }
         } else if (attemptSupabaseFirst) {
           safeSetRemoteFailure(
@@ -476,7 +475,13 @@ if (container) {
           );
         }
 
-        // 2) Fallback only: local HTML/Eval preview for dev/best-effort recovery.
+        if (!localFallbackExplicitlyEnabled) {
+          throw new Error(
+            "Remote-Preview nicht verfuegbar. Lokaler HTML-/Eval-Fallback ist nur im expliziten Local-/Dev-Modus erlaubt.",
+          );
+        }
+
+        // 2) Explicit local mode only: local HTML/Eval preview for dev/best-effort.
         let html: string;
         try {
           html = buildSandpackHtml({
@@ -509,9 +514,6 @@ if (container) {
           createdAt: new Date().toISOString(),
           expiresAt: fallback.expiresAt,
         } as LastPreviewMeta);
-        if (setPreferredPreviewMode && preferredMode !== "supabase") {
-          await setPreferredPreviewMode("local");
-        }
         safeSetLastCreatedAt(Date.now());
         return fallback;
       } catch (e: unknown) {
@@ -544,6 +546,7 @@ if (container) {
     setPreferredPreviewMode,
     preferredMode,
     attemptSupabaseFirst,
+    localFallbackExplicitlyEnabled,
   ]);
 
   const reset = useCallback(() => {

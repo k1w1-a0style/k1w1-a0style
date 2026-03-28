@@ -174,6 +174,10 @@ export function shouldAttemptSupabaseFirst(mode: PreviewAttemptMode): boolean {
   return mode !== "local";
 }
 
+export function shouldUseLocalPreviewFallback(mode: PreviewAttemptMode): boolean {
+  return mode === "local";
+}
+
 function isTrustedLoopbackHost(hostname: string): boolean {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 }
