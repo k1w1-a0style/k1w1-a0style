@@ -27,9 +27,18 @@ import {
   getExpoToken,
   saveExpoToken,
   deleteExpoToken,
+  getWorkflowAdminKey,
+  saveWorkflowAdminKey,
+  deleteWorkflowAdminKey,
+  getAndroidKeystoreExportAdminKey,
+  saveAndroidKeystoreExportAdminKey,
+  deleteAndroidKeystoreExportAdminKey,
   getEdgeAdminKey,
   saveEdgeAdminKey,
   deleteEdgeAdminKey,
+  getSigningAdminKey,
+  saveSigningAdminKey,
+  deleteSigningAdminKey,
   getSigningMasterKey,
   saveSigningMasterKey,
   deleteSigningMasterKey,
@@ -79,18 +88,17 @@ function toProjectFiles(value: unknown): ProjectFileLike[] {
 }
 
 function buildSecretCiSecrets(payload: SecretBackupPayloadV1) {
-  const edgeAdminKey = payload.tokens.edgeAdminKey ?? "";
   return {
     GITHUB_TOKEN: payload.tokens.githubToken ?? "",
     EXPO_TOKEN: payload.tokens.expoToken ?? "",
     SUPABASE_URL: payload.connections.supabaseUrl,
     SUPABASE_ANON_KEY: payload.connections.supabaseAnonKey,
     EAS_PROJECT_ID: payload.connections.easProjectId,
-    K1W1_EDGE_WORKFLOW_ADMIN_KEY: edgeAdminKey,
-    K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: edgeAdminKey,
-    K1W1_EDGE_ADMIN_KEY: edgeAdminKey,
+    K1W1_EDGE_WORKFLOW_ADMIN_KEY: payload.tokens.workflowAdminKey ?? "",
+    K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: payload.tokens.androidKeystoreExportAdminKey ?? "",
+    K1W1_EDGE_ADMIN_KEY: payload.tokens.legacyEdgeAdminKey ?? "",
     K1W1_EDGE_WORKFLOW_CI_BEARER: "",
-    SIGNING_ADMIN_KEY: edgeAdminKey,
+    SIGNING_ADMIN_KEY: payload.tokens.signingAdminKey ?? "",
     SIGNING_MASTER_KEY: payload.tokens.signingMasterKey ?? "",
   };
 }
@@ -228,10 +236,21 @@ export function useAppInfoScreen() {
   }, [updateProjectFiles]);
 
   const collectSecretBackupPayload = useCallback(async () => {
-    const [githubToken, expoToken, edgeAdminKey, signingMasterKey] = await Promise.all([
+    const [
+      githubToken,
+      expoToken,
+      workflowAdminKey,
+      androidKeystoreExportAdminKey,
+      legacyEdgeAdminKey,
+      signingAdminKey,
+      signingMasterKey,
+    ] = await Promise.all([
       getGitHubToken().catch(() => null),
       getExpoToken().catch(() => null),
+      getWorkflowAdminKey().catch(() => null),
+      getAndroidKeystoreExportAdminKey().catch(() => null),
       getEdgeAdminKey().catch(() => null),
+      getSigningAdminKey().catch(() => null),
       getSigningMasterKey().catch(() => null),
     ]);
 
@@ -256,7 +275,10 @@ export function useAppInfoScreen() {
       tokens: {
         githubToken,
         expoToken,
-        edgeAdminKey,
+        workflowAdminKey,
+        androidKeystoreExportAdminKey,
+        legacyEdgeAdminKey,
+        signingAdminKey,
         signingMasterKey,
       },
       ciSecrets: {},
@@ -292,11 +314,21 @@ export function useAppInfoScreen() {
       const cs = payload.ciSecrets;
       const githubToken = t.githubToken?.trim() || cs.GITHUB_TOKEN?.trim() || "";
       const expoToken = t.expoToken?.trim() || cs.EXPO_TOKEN?.trim() || "";
-      const edgeKey =
-        t.edgeAdminKey?.trim() ||
+      const workflowAdminKey =
+        t.workflowAdminKey?.trim() ||
         cs.K1W1_EDGE_WORKFLOW_ADMIN_KEY?.trim() ||
+        "";
+      const androidKeystoreExportAdminKey =
+        t.androidKeystoreExportAdminKey?.trim() ||
         cs.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY?.trim() ||
+        "";
+      const legacyEdgeAdminKey =
+        t.legacyEdgeAdminKey?.trim() ||
+        t.edgeAdminKey?.trim() ||
         cs.K1W1_EDGE_ADMIN_KEY?.trim() ||
+        "";
+      const signingAdminKey =
+        t.signingAdminKey?.trim() ||
         cs.SIGNING_ADMIN_KEY?.trim() ||
         "";
       const signingMaster = t.signingMasterKey?.trim() || cs.SIGNING_MASTER_KEY?.trim() || "";
@@ -307,8 +339,17 @@ export function useAppInfoScreen() {
       if (expoToken) await saveExpoToken(expoToken);
       else await deleteExpoToken();
 
-      if (edgeKey) await saveEdgeAdminKey(edgeKey);
+      if (workflowAdminKey) await saveWorkflowAdminKey(workflowAdminKey);
+      else await deleteWorkflowAdminKey();
+
+      if (androidKeystoreExportAdminKey) await saveAndroidKeystoreExportAdminKey(androidKeystoreExportAdminKey);
+      else await deleteAndroidKeystoreExportAdminKey();
+
+      if (legacyEdgeAdminKey) await saveEdgeAdminKey(legacyEdgeAdminKey);
       else await deleteEdgeAdminKey();
+
+      if (signingAdminKey) await saveSigningAdminKey(signingAdminKey);
+      else await deleteSigningAdminKey();
 
       if (signingMaster) await saveSigningMasterKey(signingMaster);
       else await deleteSigningMasterKey();

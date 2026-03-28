@@ -8,7 +8,10 @@ const LEGACY_GH_TOKEN_KEY = "github_pat_v1";
 const LEGACY_EXPO_TOKEN_KEY = "expo_token_v1";
 
 // These are intentionally versioned because they are optional / power-user inputs.
-const EDGE_ADMIN_KEY = "edge_admin_key_v1";
+const LEGACY_EDGE_ADMIN_KEY = "edge_admin_key_v1";
+const WORKFLOW_ADMIN_KEY = "workflow_admin_key_v1";
+const ANDROID_KEYSTORE_EXPORT_ADMIN_KEY = "android_keystore_export_admin_key_v1";
+const SIGNING_ADMIN_KEY = "signing_admin_key_v1";
 const SIGNING_MASTER_KEY = "signing_master_key_v1";
 
 const saveSecureToken = async (key: string, value: string): Promise<void> => {
@@ -97,25 +100,72 @@ export const hasValidExpoToken = async (): Promise<boolean> => {
 };
 
 // ----------------------
-// Local Edge Admin Key (optional; app-side admin value, reused for scoped admin repo secrets on sync)
+// Scoped/legacy local admin keys
 // ----------------------
-export const getEdgeAdminKey = async (): Promise<string | null> => {
-  return getSecureToken(EDGE_ADMIN_KEY);
-};
-
-export const saveEdgeAdminKey = async (key: string): Promise<void> => {
+const saveOptionalScopedKey = async (storageKey: string, key: string): Promise<void> => {
   const v = (key ?? "").trim();
   if (!v) {
-    await deleteSecureToken(EDGE_ADMIN_KEY);
+    await deleteSecureToken(storageKey);
     return;
   }
-  await saveSecureToken(EDGE_ADMIN_KEY, v);
+  await saveSecureToken(storageKey, v);
+};
+
+export const getWorkflowAdminKey = async (): Promise<string | null> => {
+  return getSecureToken(WORKFLOW_ADMIN_KEY);
+};
+
+export const saveWorkflowAdminKey = async (key: string): Promise<void> => {
+  await saveOptionalScopedKey(WORKFLOW_ADMIN_KEY, key);
+};
+
+export const deleteWorkflowAdminKey = async (): Promise<void> => {
+  await deleteSecureToken(WORKFLOW_ADMIN_KEY);
+};
+
+export const getAndroidKeystoreExportAdminKey = async (): Promise<string | null> => {
+  return getSecureToken(ANDROID_KEYSTORE_EXPORT_ADMIN_KEY);
+};
+
+export const saveAndroidKeystoreExportAdminKey = async (key: string): Promise<void> => {
+  await saveOptionalScopedKey(ANDROID_KEYSTORE_EXPORT_ADMIN_KEY, key);
+};
+
+export const deleteAndroidKeystoreExportAdminKey = async (): Promise<void> => {
+  await deleteSecureToken(ANDROID_KEYSTORE_EXPORT_ADMIN_KEY);
+};
+
+export const getSigningAdminKey = async (): Promise<string | null> => {
+  return getSecureToken(SIGNING_ADMIN_KEY);
+};
+
+export const saveSigningAdminKey = async (key: string): Promise<void> => {
+  await saveOptionalScopedKey(SIGNING_ADMIN_KEY, key);
+};
+
+export const deleteSigningAdminKey = async (): Promise<void> => {
+  await deleteSecureToken(SIGNING_ADMIN_KEY);
+};
+
+/**
+ * Legacy helper kept for compatibility with older callers.
+ * New privileged workflow/build callers must use getWorkflowAdminKey().
+ */
+export const getEdgeAdminKey = async (): Promise<string | null> => {
+  return getSecureToken(LEGACY_EDGE_ADMIN_KEY);
+};
+
+/**
+ * Legacy helper kept for compatibility with older callers.
+ * New privileged workflow/build callers must use saveWorkflowAdminKey().
+ */
+export const saveEdgeAdminKey = async (key: string): Promise<void> => {
+  await saveOptionalScopedKey(LEGACY_EDGE_ADMIN_KEY, key);
 };
 
 export const deleteEdgeAdminKey = async (): Promise<void> => {
-  await deleteSecureToken(EDGE_ADMIN_KEY);
+  await deleteSecureToken(LEGACY_EDGE_ADMIN_KEY);
 };
-
 
 // ----------------------
 // Signing Master Key (optional)

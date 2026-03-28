@@ -3,7 +3,7 @@
 
 // hooks/useGitHubActionsLogs.ts - Real-time GitHub Actions log streaming
 import { useEffect, useState, useCallback, useRef } from "react";
-import { getEdgeAdminKey } from "../infra/github/githubService";
+import { getWorkflowAdminKey } from "../infra/github/githubService";
 import { requireSupabaseEdgeUrl } from "../lib/supabaseEdge";
 import { ensureSupabaseClient } from "../lib/supabase";
 import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
@@ -90,13 +90,13 @@ export function useGitHubActionsLogs({
       // Fetch latest workflow run if no runId provided
       let targetRunId = runId;
       const edgeUrl = await requireSupabaseEdgeUrl();
-      const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
-      const trimmedAdminKey = String(edgeAdminKey ?? "").trim();
+      const workflowAdminKey = await getWorkflowAdminKey().catch(() => null);
+      const trimmedAdminKey = String(workflowAdminKey ?? "").trim();
       if (!trimmedAdminKey) {
-        throw new Error("Workflow-Read blockiert: Lokaler Edge-Admin-Key fehlt. Bitte im Credentials-Wizard setzen und erneut versuchen.");
+        throw new Error("Workflow-Read blockiert: Lokaler Workflow-Admin-Key fehlt. Bitte im Credentials-Wizard setzen und erneut versuchen.");
       }
       if (!isLikelyValidAdminKey(trimmedAdminKey)) {
-        throw new Error("Workflow-Read blockiert: Lokaler Edge-Admin-Key ist formal ungueltig. Bitte im Credentials-Wizard korrigieren und erneut versuchen.");
+        throw new Error("Workflow-Read blockiert: Lokaler Workflow-Admin-Key ist formal ungueltig. Bitte im Credentials-Wizard korrigieren und erneut versuchen.");
       }
       const supabase = await ensureSupabaseClient().catch(() => null);
       const session = await supabase?.auth.getSession().catch(() => null);

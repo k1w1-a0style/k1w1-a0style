@@ -13,28 +13,56 @@ jest.mock("../lib/logger", () => ({
   logger: { error: jest.fn(), warn: jest.fn(), info: jest.fn() },
 }));
 
-import { getEdgeAdminKey, saveEdgeAdminKey } from "../infra/github/tokenStore";
+import {
+  getWorkflowAdminKey,
+  saveWorkflowAdminKey,
+  getAndroidKeystoreExportAdminKey,
+  saveAndroidKeystoreExportAdminKey,
+  getEdgeAdminKey,
+  saveEdgeAdminKey,
+  getSigningAdminKey,
+  saveSigningAdminKey,
+} from "../infra/github/tokenStore";
 
-describe("edge admin key token store contract", () => {
+describe("admin key token store split contract", () => {
   beforeEach(() => {
     mockSecureStore.getItemAsync.mockReset();
     mockSecureStore.setItemAsync.mockReset();
     mockSecureStore.deleteItemAsync.mockReset();
   });
 
-  it("trims the key on save and re-reads the same persisted value", async () => {
+  it("stores workflow, keystore-export, legacy and signing admin keys in separate secure-store slots", async () => {
     const persisted = new Map<string, string>();
     mockSecureStore.setItemAsync.mockImplementation(async (key: string, value: string) => {
       persisted.set(key, value);
     });
     mockSecureStore.getItemAsync.mockImplementation(async (key: string) => persisted.get(key) ?? null);
 
-    await saveEdgeAdminKey("  edge-admin-key-12345678901234567890  ");
+    await saveWorkflowAdminKey("  workflow-admin-key-12345678901234567890  ");
+    await saveAndroidKeystoreExportAdminKey("  android-export-key-12345678901234567890  ");
+    await saveEdgeAdminKey("  legacy-edge-key-12345678901234567890  ");
+    await saveSigningAdminKey("  signing-admin-key-12345678901234567890  ");
 
     expect(mockSecureStore.setItemAsync).toHaveBeenCalledWith(
-      "edge_admin_key_v1",
-      "edge-admin-key-12345678901234567890",
+      "workflow_admin_key_v1",
+      "workflow-admin-key-12345678901234567890",
     );
-    await expect(getEdgeAdminKey()).resolves.toBe("edge-admin-key-12345678901234567890");
+    expect(mockSecureStore.setItemAsync).toHaveBeenCalledWith(
+      "android_keystore_export_admin_key_v1",
+      "android-export-key-12345678901234567890",
+    );
+    expect(mockSecureStore.setItemAsync).toHaveBeenCalledWith(
+      "edge_admin_key_v1",
+      "legacy-edge-key-12345678901234567890",
+    );
+    expect(mockSecureStore.setItemAsync).toHaveBeenCalledWith(
+      "signing_admin_key_v1",
+      "signing-admin-key-12345678901234567890",
+    );
+
+    await expect(getWorkflowAdminKey()).resolves.toBe("workflow-admin-key-12345678901234567890");
+    await expect(getAndroidKeystoreExportAdminKey()).resolves.toBe("android-export-key-12345678901234567890");
+    await expect(getEdgeAdminKey()).resolves.toBe("legacy-edge-key-12345678901234567890");
+    await expect(getSigningAdminKey()).resolves.toBe("signing-admin-key-12345678901234567890");
   });
 });

@@ -1,7 +1,7 @@
 import { renderHook, act, waitFor } from '@testing-library/react-native';
 
 import { useGitHubActionsLogs } from '../hooks/useGitHubActionsLogs';
-import { getEdgeAdminKey } from '../infra/github/githubService';
+import { getWorkflowAdminKey } from '../infra/github/githubService';
 
 type Deferred<T> = {
   promise: Promise<T>;
@@ -26,7 +26,7 @@ jest.mock('../lib/supabaseEdge', () => ({
 }));
 
 jest.mock('../infra/github/githubService', () => ({
-  getEdgeAdminKey: jest.fn(async () => 'aaaaaaaabbbbbbbb.ccccccccdddddddd.eeeeeeeeffffffff'),
+  getWorkflowAdminKey: jest.fn(async () => 'aaaaaaaabbbbbbbb.ccccccccdddddddd.eeeeeeeeffffffff'),
 }));
 jest.mock('../lib/supabase', () => ({
   ensureSupabaseClient: jest.fn(async () => ({
@@ -108,7 +108,7 @@ describe('useGitHubActionsLogs edge contract mapping', () => {
   });
 
   it('fails fast locally when the workflow admin key is missing', async () => {
-    (getEdgeAdminKey as jest.Mock).mockResolvedValueOnce('');
+    (getWorkflowAdminKey as jest.Mock).mockResolvedValueOnce('');
     const fetchMock = jest.fn();
     global.fetch = fetchMock as unknown as typeof fetch;
 
@@ -130,7 +130,7 @@ describe('useGitHubActionsLogs edge contract mapping', () => {
   });
 
   it('fails fast locally when the workflow admin key is formally invalid', async () => {
-    (getEdgeAdminKey as jest.Mock).mockResolvedValueOnce('short');
+    (getWorkflowAdminKey as jest.Mock).mockResolvedValueOnce('short');
     const fetchMock = jest.fn();
     global.fetch = fetchMock as unknown as typeof fetch;
 

@@ -25,7 +25,7 @@ jest.mock("../../lib/logger", () => ({
 }));
 
 const mockGitHub = {
-  getEdgeAdminKey: jest.fn(),
+  getWorkflowAdminKey: jest.fn(),
   getBranchHeadSha: jest.fn(),
   pushFilesToRepo: jest.fn(),
 };
@@ -109,7 +109,7 @@ describe("startBuildJob (integration)", () => {
           return null;
       }
     });
-    mockGitHub.getEdgeAdminKey.mockResolvedValue("adminkey");
+    mockGitHub.getWorkflowAdminKey.mockResolvedValue("adminkey");
     mockGitHub.getBranchHeadSha.mockResolvedValue("1111111111111111111111111111111111111111");
     mockGitHub.pushFilesToRepo.mockResolvedValue(undefined);
     mockAutoFix.autoFixCIWorkflows.mockResolvedValue(undefined);

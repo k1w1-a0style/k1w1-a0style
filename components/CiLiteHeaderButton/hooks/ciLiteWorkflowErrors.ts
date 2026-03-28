@@ -109,13 +109,16 @@ export async function readCiLiteErrorResponse(response: Response): Promise<{ pay
 }
 
 function buildAdminKeyMessage(context: CiLiteWorkflowErrorContext, reason: string): string {
+  const normalizedReason = reason
+    .replace(/Edge Admin Key/g, "Workflow Admin Key")
+    .replace(/edge admin key/g, "workflow admin key");
   if (context === "artifact") {
-    return `CI Lite Ergebnisabruf blockiert: ${reason}`;
+    return `CI Lite Ergebnisabruf blockiert: ${normalizedReason}`;
   }
   if (context === "lookup") {
-    return `CI Lite Workflow-Run-Lookup blockiert: ${reason}`;
+    return `CI Lite Workflow-Run-Lookup blockiert: ${normalizedReason}`;
   }
-  return `CI Lite Dispatch blockiert: ${reason}`;
+  return `CI Lite Dispatch blockiert: ${normalizedReason}`;
 }
 
 function buildMissingGitHubTokenMessage(context: CiLiteWorkflowErrorContext): string {

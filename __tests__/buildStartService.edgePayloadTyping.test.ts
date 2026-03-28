@@ -9,7 +9,7 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
 }));
 
 const mockGitHub = {
-  getEdgeAdminKey: jest.fn(),
+  getWorkflowAdminKey: jest.fn(),
   pushFilesToRepo: jest.fn(),
   getBranchHeadSha: jest.fn(),
 };
@@ -64,7 +64,7 @@ describe("buildStartService edge payload typing", () => {
       ci_lite_last_sha: "0123456789abcdef0123456789abcdef01234567",
     }[key] ?? null));
 
-    mockGitHub.getEdgeAdminKey.mockResolvedValue("adminkey");
+    mockGitHub.getWorkflowAdminKey.mockResolvedValue("adminkey");
     mockGitHub.getBranchHeadSha.mockResolvedValue("0123456789abcdef0123456789abcdef01234567");
     mockGitHub.pushFilesToRepo.mockResolvedValue(undefined);
     mockAutoFix.autoFixCIWorkflows.mockResolvedValue(undefined);
