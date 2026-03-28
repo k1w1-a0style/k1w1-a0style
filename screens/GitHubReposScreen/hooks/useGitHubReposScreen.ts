@@ -48,6 +48,7 @@ import {
   CORE_TEMPLATE_FILES,
 } from "./templateFiles";
 import type { TemplateFile, RepoFilterType } from "./templateFiles";
+import { getErrorMessage } from "./githubReposScreenErrorHelpers";
 
 type SyncStatus = {
   checking: boolean;
@@ -75,22 +76,6 @@ const EMPTY_SYNC_STATUS: SyncStatus = {
   error: 0,
   checkedAt: null,
 };
-
-function getErrorMessage(error: unknown, fallback = ""): string {
-  if (error instanceof Error && typeof error.message === "string") {
-    return error.message;
-  }
-  if (typeof error === "string") return error;
-  if (
-    error &&
-    typeof error === "object" &&
-    "message" in error &&
-    typeof (error as { message?: unknown }).message === "string"
-  ) {
-    return (error as { message: string }).message;
-  }
-  return fallback;
-}
 
 export function useGitHubReposScreen() {
   const {
