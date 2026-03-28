@@ -130,6 +130,9 @@ CI_LITE_TYPECHECK_OK: "ci_lite_typecheck_ok",
 2. CI-Bearer-/scoped-admin-key-Dualpfad bleibt unveraendert.
 3. Shared SoT (`WORKFLOW_OPERATOR_ALLOWED_ROLES`) verhindert Rollen-Drift zwischen Routen.
 
+**Follow-up (Patch 588):**
+4. `android-keystore-generate` und `android-keystore-status` wurden auf denselben dedizierten Keystore-Scoped-Secret-Pfad (`K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) plus fail-closed JWT-RBAC (`service_role|build_admin`) gehoben; generischer `requireAdminKey(...)`-Pfad ist dort entfernt.
+
 ---
 
 ### Evidence E — `ersId` nicht gefunden (Search Evidence)

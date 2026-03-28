@@ -11,7 +11,8 @@ import {
   jsonResponse,
   rateLimit,
   repoOk,
-  requireAdminKey,
+  requirePrivilegedOperatorJwtRole,
+  requireScopedEdgeAuth,
   resolveMode,
   safeString,
 } from "./helpers.ts";
@@ -23,8 +24,16 @@ Deno.serve(async (req) => {
   const rl = rateLimit(req, "android-keystore-status", 60, 60_000);
   if (rl) return rl;
 
-  const admin = requireAdminKey(req);
-  if (admin) return admin;
+  const auth = requireScopedEdgeAuth(req, {
+    scope: "android-keystore-status",
+    allowAdmin: true,
+    allowCiBearer: false,
+    allowJwtAuthHeaderWithAdmin: true,
+    adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
+  });
+  if (auth) return auth;
+  const jwtRoleGuard = await requirePrivilegedOperatorJwtRole(req, "android-keystore-status");
+  if (jwtRoleGuard) return jwtRoleGuard;
 
   try {
     const supabaseUrl = getSupabaseUrl();
