@@ -70,6 +70,7 @@ Der Service muss dieselben Regeln servernah erzwingen, damit keine Umgehung via 
 - **Wichtig (Patch 598):** `SIGNING_ADMIN_KEY` ist kein generischer Fallback mehr fuer `x-k1w1-admin-key`-Legacy-Routen. Generische Legacy-Guards laufen ausschliesslich ueber `K1W1_EDGE_ADMIN_KEY`; signing-spezifische Pfade muessen dedizierte Guards nutzen.
 - **Wichtig (Patch 599, Config-SoT):** Fuer `android-keystore-status` und `android-keystore-generate` ist `supabase/config.toml` die einzige `verify_jwt`-Quelle (`true`). Funktionslokale Keystore-Configs gelten hier bewusst nicht mehr, um Split-Brain zwischen Root- und Route-Config auszuschliessen.
 - **Wichtig (Patch 602, CI-/Smoke-Contract):** `scripts/ci-lite-env-load.sh` und `scripts/ci-lite-smoke.sh` verlangen im workflow-/build-/artifact-nahen Scope jetzt die Kombi aus `K1W1_EDGE_WORKFLOW_ADMIN_KEY` **und** `K1W1_EDGE_WORKFLOW_JWT` (`Authorization: Bearer <jwt>`), plus einen expliziten `<ref>` fuer den Smoke-Dispatch. Legacy-/Generic-Fallbacks auf `ADMIN_KEY`/`K1W1_EDGE_ADMIN_KEY` sowie stilles `main` sind bewusst entfernt (fail-closed gegen false-green).
+- **Wichtig (Patch 603, Legacy-Teststub-Guard):** `supabase/functions/test` bleibt bewusst disabled (`410 legacy_test_route_disabled`), ist aber jetzt sauber scoped-auth-konfiguriert (`scope: "test"`, `adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"`, `allowAdmin: true`, `allowCiBearer: false`), damit keine Guard-Misconfiguration mehr vorzeitig in `500` endet.
 
 ---
 
@@ -257,8 +258,8 @@ if (!easProjectId) skipped.push("EAS_PROJECT_ID (optional, empty)");
 if (!workflowAdminKey) skipped.push("K1W1_EDGE_WORKFLOW_ADMIN_KEY (optional, empty)");
 if (!androidKeystoreExportAdminKey) skipped.push("K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY (optional, empty)");
 if (!legacyEdgeAdminKey) skipped.push("K1W1_EDGE_ADMIN_KEY (legacy optional, empty)");
-// Patch 601: legacy test edge route (`supabase/functions/test`) ist bewusst deaktiviert
-// und liefert nur fail-closed `410 legacy_test_route_disabled` hinter scoped Legacy-Auth.
+// Patch 603: legacy test edge route (`supabase/functions/test`) bleibt bewusst deaktiviert
+// und ist jetzt scoped-auth-konsistent (`scope: "test"`, `allowAdmin: true`) auf fail-closed `410 legacy_test_route_disabled` gehaertet.
 if (!signingAdminKey) skipped.push("SIGNING_ADMIN_KEY (legacy optional, empty)");
 ```
 

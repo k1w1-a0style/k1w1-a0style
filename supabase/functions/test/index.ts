@@ -6,7 +6,9 @@ Deno.serve(async (req) => {
   if (cors) return cors;
 
   const auth = requireScopedEdgeAuth(req, {
+    scope: "test",
     adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
+    allowAdmin: true,
     allowCiBearer: false,
   });
   if (auth) return auth;
