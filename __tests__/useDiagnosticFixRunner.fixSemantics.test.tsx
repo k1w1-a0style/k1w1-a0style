@@ -124,6 +124,30 @@ describe("useDiagnosticFixRunner fix semantics", () => {
     expect(getApi().fixSteps[0]?.message).toContain("Speichern fehlgeschlagen");
   });
 
+  test("handles unknown thrown objects fail-safe in fix error messaging", async () => {
+    const updateProjectFiles = jest.fn(async () => {
+      throw { localChangeApplied: true, partial: true };
+    });
+    const { getApi, toast } = renderRunner({ updateProjectFiles });
+    const result: PreflightCheckResult = {
+      id: "unknown-error",
+      title: "Unknown error patch",
+      status: "fail",
+      fix: {
+        patch: {
+          upsert: [{ path: "app.json", content: '{"expo":{"name":"changed"}}' }],
+        },
+      },
+    } as any;
+
+    await act(async () => {
+      await getApi().applyIssueFix(result);
+    });
+
+    expect(toast).toHaveBeenCalledWith("Fix fehlgeschlagen.");
+    expect(getApi().fixSteps[0]?.message).toContain("Patch konnte nicht angewendet werden.");
+  });
+
   test("shows workflow-only fixes as started and recheck-needed, not locally fixed", async () => {
     const { getApi, updateProjectFiles, toast } = renderRunner();
     const result: PreflightCheckResult = {

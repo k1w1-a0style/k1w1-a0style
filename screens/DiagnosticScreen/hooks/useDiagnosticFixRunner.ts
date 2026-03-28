@@ -36,6 +36,7 @@ const MAX_HISTORY = 10;
 export const AUTOFIX_MAX = 50; // safety: don't apply endless chains
 
 type ToastLike = { show: (msg: string) => void };
+type FixRuntimeMeta = { localChangeApplied?: boolean; partial?: boolean };
 
 const normalizeFilesForCompare = (files: ProjectFile[]) =>
   [...files]
@@ -47,6 +48,20 @@ const sameProjectFiles = (left: ProjectFile[], right: ProjectFile[]) => {
   const b = normalizeFilesForCompare(right);
   if (a.length !== b.length) return false;
   return a.every((file, index) => file.path === b[index]?.path && file.content === b[index]?.content);
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getErrorMessage = (error: unknown, fallback: string): string =>
+  error instanceof Error && error.message.trim() ? error.message : fallback;
+
+const getFixRuntimeMeta = (error: unknown): FixRuntimeMeta => {
+  if (!isRecord(error)) return {};
+  return {
+    localChangeApplied: typeof error.localChangeApplied === "boolean" ? error.localChangeApplied : undefined,
+    partial: typeof error.partial === "boolean" ? error.partial : undefined,
+  };
 };
 
 export function useDiagnosticFixRunner(opts: {
@@ -518,16 +533,17 @@ export function useDiagnosticFixRunner(opts: {
           setFixSteps((prev) => prev.map((s, i) => (i === cursor ? { ...s, status: "done" } : s)));
           cursor++;
           return null;
-        } catch (e: any) {
+        } catch (error: unknown) {
+          const message = getErrorMessage(error, failMsg);
           setFixSteps((prev) =>
             prev.map((s, i) =>
               i === cursor
-                ? { ...s, status: "failed", message: safeTruncateText(e?.message || failMsg, 160) }
+                ? { ...s, status: "failed", message: safeTruncateText(message, 160) }
                 : s,
             ),
           );
           setFixDone(true);
-          return e;
+          return error;
         }
       };
 
@@ -540,9 +556,9 @@ export function useDiagnosticFixRunner(opts: {
         if (stepError) {
           finishWithResult({
             status: stepError instanceof DiagnosticFixApplyError ? stepError.status : "failed",
-            detail: stepError?.message || "Patch konnte nicht angewendet werden.",
-            localChangeApplied: !!stepError?.localChangeApplied,
-            partial: !!stepError?.partial,
+            detail: getErrorMessage(stepError, "Patch konnte nicht angewendet werden."),
+            localChangeApplied: !!getFixRuntimeMeta(stepError).localChangeApplied,
+            partial: !!getFixRuntimeMeta(stepError).partial,
             stepIndex: cursor,
           });
           return;
@@ -588,8 +604,8 @@ export function useDiagnosticFixRunner(opts: {
               workflowRef,
               dispatch.inputs || {},
             );
-          } catch (e: any) {
-            const msg = String(e?.message || "");
+          } catch (error: unknown) {
+            const msg = getErrorMessage(error, "");
             if (/404|not found/i.test(msg) && dispatch.fallbackPatch) {
               await applyPatch(`Bootstrap ${dispatch.workflowFileName}`, dispatch.fallbackPatch);
               await triggerWorkflow(
@@ -601,13 +617,13 @@ export function useDiagnosticFixRunner(opts: {
               );
               return;
             }
-            throw e;
+            throw error;
           }
         }, "Workflow dispatch fehlgeschlagen");
         if (stepError) {
           finishWithResult({
             status: "failed",
-            detail: stepError?.message || "Workflow dispatch fehlgeschlagen",
+            detail: getErrorMessage(stepError, "Workflow dispatch fehlgeschlagen"),
             localChangeApplied: patchApplied,
             workflowTriggered: false,
             partial: patchApplied,
@@ -625,7 +641,7 @@ export function useDiagnosticFixRunner(opts: {
         if (stepError) {
           finishWithResult({
             status: "failed",
-            detail: stepError?.message || "Sync fehlgeschlagen",
+            detail: getErrorMessage(stepError, "Sync fehlgeschlagen"),
             localChangeApplied: patchApplied,
             partial: patchApplied,
             stepIndex: cursor,
@@ -642,7 +658,7 @@ export function useDiagnosticFixRunner(opts: {
         if (stepError) {
           finishWithResult({
             status: "pending_recheck",
-            detail: stepError?.message || "Verify fehlgeschlagen",
+            detail: getErrorMessage(stepError, "Verify fehlgeschlagen"),
             localChangeApplied: patchApplied,
             workflowTriggered: !!dispatch,
             stepIndex: cursor,
@@ -774,13 +790,15 @@ export function useDiagnosticFixRunner(opts: {
           await applyPatch(r.title, patch);
           mark(cursor, { status: "done" });
           appliedCount++;
-        } catch (e: any) {
-          mark(cursor, { status: "failed", message: safeTruncateText(e?.message || "Apply fehlgeschlagen", 160) });
+        } catch (error: unknown) {
+          const runtimeMeta = getFixRuntimeMeta(error);
+          const message = getErrorMessage(error, "Apply fehlgeschlagen");
+          mark(cursor, { status: "failed", message: safeTruncateText(message, 160) });
           finishWithResult({
-            status: e instanceof DiagnosticFixApplyError ? e.status : "failed",
-            detail: e?.message || "Apply fehlgeschlagen",
-            localChangeApplied: appliedCount > 0 || !!e?.localChangeApplied,
-            partial: appliedCount > 0 || !!e?.partial,
+            status: error instanceof DiagnosticFixApplyError ? error.status : "failed",
+            detail: message,
+            localChangeApplied: appliedCount > 0 || !!runtimeMeta.localChangeApplied,
+            partial: appliedCount > 0 || !!runtimeMeta.partial,
             stepIndex: cursor,
           });
           return;
@@ -793,11 +811,12 @@ export function useDiagnosticFixRunner(opts: {
           try {
             await syncPatchToGitHub(r.title, patch);
             mark(cursor, { status: "done" });
-          } catch (e: any) {
-            mark(cursor, { status: "failed", message: safeTruncateText(e?.message || "Sync fehlgeschlagen", 160) });
+          } catch (error: unknown) {
+            const message = getErrorMessage(error, "Sync fehlgeschlagen");
+            mark(cursor, { status: "failed", message: safeTruncateText(message, 160) });
             finishWithResult({
               status: "failed",
-              detail: e?.message || "Sync fehlgeschlagen",
+              detail: message,
               localChangeApplied: appliedCount > 0,
               partial: appliedCount > 0,
               stepIndex: cursor,
@@ -814,11 +833,12 @@ export function useDiagnosticFixRunner(opts: {
         try {
           await runDiagnostics({ resetSelection: false, resetHistory: false });
           mark(cursor, { status: "done" });
-        } catch (e: any) {
-          mark(cursor, { status: "failed", message: safeTruncateText(e?.message || "Verify fehlgeschlagen", 160) });
+        } catch (error: unknown) {
+          const message = getErrorMessage(error, "Verify fehlgeschlagen");
+          mark(cursor, { status: "failed", message: safeTruncateText(message, 160) });
           finishWithResult({
             status: "pending_recheck",
-            detail: e?.message || "Verify fehlgeschlagen",
+            detail: message,
             localChangeApplied: appliedCount > 0,
             partial: false,
             stepIndex: cursor,
@@ -986,19 +1006,21 @@ export function useDiagnosticFixRunner(opts: {
           await applyPatch(r.title, patch);
           patchApplied = true;
           setFixSteps((prev) => prev.map((s, i) => (i === 0 ? { ...s, status: "done" } : s)));
-        } catch (e: any) {
+        } catch (error: unknown) {
+          const runtimeMeta = getFixRuntimeMeta(error);
+          const message = getErrorMessage(error, "Fehler");
           setFixSteps((prev) =>
             prev.map((s, i) =>
               i === 0
-                ? { ...s, status: "failed", message: safeTruncateText(e?.message || "Fehler", 160) }
+                ? { ...s, status: "failed", message: safeTruncateText(message, 160) }
                 : s,
             ),
           );
           finishWithResult({
-            status: e instanceof DiagnosticFixApplyError ? e.status : "failed",
-            detail: e?.message || "Fehler",
-            localChangeApplied: !!e?.localChangeApplied,
-            partial: !!e?.partial,
+            status: error instanceof DiagnosticFixApplyError ? error.status : "failed",
+            detail: message,
+            localChangeApplied: !!runtimeMeta.localChangeApplied,
+            partial: !!runtimeMeta.partial,
             stepIndex: 0,
           });
           return;
@@ -1011,17 +1033,18 @@ export function useDiagnosticFixRunner(opts: {
           try {
             await syncPatchToGitHub(r.title, patch);
             setFixSteps((prev) => prev.map((s, i) => (i === stepCursor ? { ...s, status: "done" } : s)));
-          } catch (e: any) {
+          } catch (error: unknown) {
+            const message = getErrorMessage(error, "Sync fehlgeschlagen");
             setFixSteps((prev) =>
               prev.map((s, i) =>
                 i === stepCursor
-                  ? { ...s, status: "failed", message: safeTruncateText(e?.message || "Sync fehlgeschlagen", 160) }
+                  ? { ...s, status: "failed", message: safeTruncateText(message, 160) }
                   : s,
               ),
             );
             finishWithResult({
               status: "failed",
-              detail: e?.message || "Sync fehlgeschlagen",
+              detail: message,
               localChangeApplied: patchApplied,
               partial: patchApplied,
               stepIndex: stepCursor,
@@ -1037,17 +1060,18 @@ export function useDiagnosticFixRunner(opts: {
           try {
             await runDiagnostics({ resetSelection: false, resetHistory: false });
             setFixSteps((prev) => prev.map((s, i) => (i === stepCursor ? { ...s, status: "done" } : s)));
-          } catch (e: any) {
+          } catch (error: unknown) {
+            const message = getErrorMessage(error, "Verify fehlgeschlagen");
             setFixSteps((prev) =>
               prev.map((s, i) =>
                 i === stepCursor
-                  ? { ...s, status: "failed", message: safeTruncateText(e?.message || "Verify fehlgeschlagen", 160) }
+                  ? { ...s, status: "failed", message: safeTruncateText(message, 160) }
                   : s,
               ),
             );
             finishWithResult({
               status: "pending_recheck",
-              detail: e?.message || "Verify fehlgeschlagen",
+              detail: message,
               localChangeApplied: patchApplied,
               stepIndex: stepCursor,
             });
