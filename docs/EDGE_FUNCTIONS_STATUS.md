@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: 2026-03-28 (Patch 605)
+Stand: 2026-03-28 (Patch 606)
 
 ## Aktiv und workflow-relevant
 
@@ -49,7 +49,7 @@ Stand: 2026-03-28 (Patch 605)
 - Patch 603 schliesst eine echte Guard-Misconfiguration der Legacy-Testroute: `supabase/functions/test` setzt jetzt explizit `allowAdmin: true` + `scope: "test"` im `requireScopedEdgeAuth(...)`-Aufruf, damit der Pfad nicht mehr vorzeitig in `500` (`Auth misconfiguration`) endet, sondern konsistent fail-closed `410 legacy_test_route_disabled` liefert; Script-Check und Invariants pruefen diese konkrete Konfiguration explizit mit.
 - `github-workflow-dispatch` / `infra/github/workflowTemplates.ts` bilden weiterhin eine **partielle** Workflow-SoT ab (vor allem CI Lite), nicht die komplette managed Familie.
 - `github-run-artifact-json` normalisiert ZIP-Pfade jetzt explizit inkl. `\`-Separatoren; dadurch bleiben Artifact-JSON-Lookups robust, auch wenn ZIP-Einträge nicht POSIX-normalisiert sind.
-- `github-run-artifact-json` folgt jetzt derselben kontrollierten Workflow-Linie wie Dispatch/Runs/Logs/Build: JWT-Claim-Guard fuer `service_role|build_admin` plus scoped Workflow-Admin-Key und CI-Bearer-Sonderpfad nur fuer explizite CI-Aufrufe.
+- `github-run-artifact-json` folgt jetzt derselben kontrollierten Workflow-Linie wie Dispatch/Runs/Logs/Build: JWT-Claim-Guard fuer `service_role|build_admin` plus scoped Workflow-Admin-Key; ein separater CI-bearer-Sonderpfad ist entfernt.
 - Für operative Konsistenz nach Workflow- oder Edge-Änderungen zusätzlich ausführen:
   - `bash scripts/check_workflow_template_drift.sh`
   - `bash scripts/check_managed_workflows.sh`

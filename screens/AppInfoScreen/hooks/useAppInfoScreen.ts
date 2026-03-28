@@ -97,7 +97,6 @@ function buildSecretCiSecrets(payload: SecretBackupPayloadV1) {
     K1W1_EDGE_WORKFLOW_ADMIN_KEY: payload.tokens.workflowAdminKey ?? "",
     K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: payload.tokens.androidKeystoreExportAdminKey ?? "",
     K1W1_EDGE_ADMIN_KEY: payload.tokens.legacyEdgeAdminKey ?? "",
-    K1W1_EDGE_WORKFLOW_CI_BEARER: "",
     SIGNING_ADMIN_KEY: payload.tokens.signingAdminKey ?? "",
     SIGNING_MASTER_KEY: payload.tokens.signingMasterKey ?? "",
   };

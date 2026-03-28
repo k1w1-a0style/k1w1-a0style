@@ -151,7 +151,7 @@ CI_LITE_TYPECHECK_OK: "ci_lite_typecheck_ok",
 
 **Hardening-Stand (Patch 586):**
 1. JWT-Rollen auf `service_role` + `build_admin` eingeschraenkt (fail-closed).
-2. CI-Bearer-/scoped-admin-key-Dualpfad bleibt unveraendert.
+2. Der fruehere CI-bearer-Dualpfad wurde in Patch 606 entfernt; workflow-/build-/artifact-Routen nutzen jetzt nur noch den JWT+scoped-admin-key-Vertrag.
 3. Shared SoT (`WORKFLOW_OPERATOR_ALLOWED_ROLES`) verhindert Rollen-Drift zwischen Routen.
 
 **Follow-up (Patch 588):**
