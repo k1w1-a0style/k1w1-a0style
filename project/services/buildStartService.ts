@@ -6,7 +6,7 @@ import type { ProjectData, ProjectFile } from "../../shared/types/project";
 import { ensureSupabaseClient } from "../../lib/supabase";
 import { logger } from "../../lib/logger";
 import {
-  getEdgeAdminKey,
+  getWorkflowAdminKey,
   pushFilesToRepo,
 } from "../../infra/github/githubService";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
@@ -164,7 +164,7 @@ export async function startBuildJob(params: {
   }
 
   const supabase = await ensureSupabaseClient();
-  const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+  const workflowAdminKey = await getWorkflowAdminKey().catch(() => null);
   const session = await supabase.auth.getSession().catch(() => null);
   const accessToken = session?.data?.session?.access_token ?? null;
 
@@ -173,9 +173,9 @@ export async function startBuildJob(params: {
       "Build-Start blockiert: Es fehlt ein gueltiger Supabase-User-Login (JWT). Bitte neu anmelden und erneut versuchen.",
     );
   }
-  if (!edgeAdminKey) {
+  if (!workflowAdminKey) {
     throw new Error(
-      "Build-Start blockiert: Lokaler Edge-Admin-Key fehlt. Bitte Verbindungen pruefen und erneut versuchen.",
+      "Build-Start blockiert: Lokaler Workflow-Admin-Key fehlt. Bitte Verbindungen pruefen und erneut versuchen.",
     );
   }
 
@@ -183,7 +183,7 @@ export async function startBuildJob(params: {
     body: { githubRepo, buildProfile: profile, branch: buildBranch },
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      "x-k1w1-admin-key": edgeAdminKey,
+      "x-k1w1-admin-key": workflowAdminKey,
     },
   };
 

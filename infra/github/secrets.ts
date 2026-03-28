@@ -16,6 +16,8 @@ export type RepoSecretsPayload = Partial<{
   workflowAdminKey: string | null | undefined;
   /** Scoped admin-only secret for android-keystore-export */
   androidKeystoreExportAdminKey: string | null | undefined;
+  /** Legacy signing key name used by selected compatibility flows */
+  signingAdminKey: string | null | undefined;
 }>;
 
 const SECRET_NAME_MAP: Record<keyof RepoSecretsPayload, string> = {
@@ -26,6 +28,7 @@ const SECRET_NAME_MAP: Record<keyof RepoSecretsPayload, string> = {
   edgeAdminKey: "K1W1_EDGE_ADMIN_KEY",
   workflowAdminKey: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
   androidKeystoreExportAdminKey: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
+  signingAdminKey: "SIGNING_ADMIN_KEY",
 };
 
 /**

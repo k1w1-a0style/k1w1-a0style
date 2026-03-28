@@ -9,7 +9,7 @@ const mockUseProject = jest.fn();
 const mockUseGitHubActionsLogs = jest.fn();
 const mockGetRepoSyncState = jest.fn();
 const mockRequireSupabaseEdgeUrl = jest.fn();
-const mockGetEdgeAdminKey = jest.fn();
+const mockGetWorkflowAdminKey = jest.fn();
 const mockGetBranchHeadSha = jest.fn();
 const mockEnsureSupabaseClient = jest.fn();
 const mockStorageGetItem = jest.fn();
@@ -44,7 +44,7 @@ jest.mock("../lib/supabase", () => ({
 }));
 
 jest.mock("../infra/github/githubService", () => ({
-  getEdgeAdminKey: () => mockGetEdgeAdminKey(),
+  getWorkflowAdminKey: () => mockGetWorkflowAdminKey(),
   getBranchHeadSha: (...args: unknown[]) => mockGetBranchHeadSha(...args),
 }));
 
@@ -91,7 +91,7 @@ describe("useCiLiteWorkflow behavior", () => {
 
     mockGetRepoSyncState.mockResolvedValue("in_sync");
     mockRequireSupabaseEdgeUrl.mockResolvedValue("https://example.supabase.co/functions/v1");
-    mockGetEdgeAdminKey.mockResolvedValue("edge-admin-key-12345678901234567890");
+    mockGetWorkflowAdminKey.mockResolvedValue("workflow-admin-key-12345678901234567890");
     mockGetBranchHeadSha.mockResolvedValue(SHA);
     mockEnsureSupabaseClient.mockResolvedValue({
       auth: {
@@ -200,7 +200,7 @@ describe("useCiLiteWorkflow behavior", () => {
     expect(headers).toMatchObject({
       "Content-Type": "application/json",
       Authorization: "Bearer supabase-authenticated-jwt-token",
-      "x-k1w1-admin-key": "edge-admin-key-12345678901234567890",
+      "x-k1w1-admin-key": "workflow-admin-key-12345678901234567890",
     });
   });
 
@@ -222,14 +222,14 @@ describe("useCiLiteWorkflow behavior", () => {
     expect(headers).toMatchObject({
       "Content-Type": "application/json",
       Authorization: "Bearer supabase-authenticated-jwt-token",
-      "x-k1w1-admin-key": "edge-admin-key-12345678901234567890",
+      "x-k1w1-admin-key": "workflow-admin-key-12345678901234567890",
     });
   });
 
   it("blocks workflow run lookup locally when the admin key is missing", async () => {
     mockStorageGetItem.mockResolvedValue(null);
-    mockGetEdgeAdminKey
-      .mockResolvedValueOnce("edge-admin-key-12345678901234567890")
+    mockGetWorkflowAdminKey
+      .mockResolvedValueOnce("workflow-admin-key-12345678901234567890")
       .mockResolvedValueOnce("   ");
 
     const { result } = renderHook(() => useCiLiteWorkflow());
@@ -244,7 +244,7 @@ describe("useCiLiteWorkflow behavior", () => {
 
     expect(runsCall).toBeFalsy();
     expect(result.current.showError).toMatch(/Workflow-Run-Lookup blockiert/i);
-    expect(result.current.showError).toMatch(/lokaler edge admin key fehlt/i);
+    expect(result.current.showError).toMatch(/lokaler workflow admin key fehlt/i);
   });
 
 
@@ -278,7 +278,7 @@ describe("useCiLiteWorkflow behavior", () => {
       expect(headers).toMatchObject({
         "Content-Type": "application/json",
         Authorization: "Bearer supabase-authenticated-jwt-token",
-        "x-k1w1-admin-key": "edge-admin-key-12345678901234567890",
+        "x-k1w1-admin-key": "workflow-admin-key-12345678901234567890",
       });
     });
   });
@@ -1110,7 +1110,7 @@ describe("useCiLiteWorkflow behavior", () => {
     expect(result.current.showError).toMatch(/nicht workflow-spezifisch abgesichert/i);
   });
 
-  it("classifies a server-rejected local Edge Admin Key honestly during CI-Lite dispatch", async () => {
+  it("classifies a server-rejected local Workflow Admin Key honestly during CI-Lite dispatch", async () => {
     mockStorageGetItem.mockResolvedValue(null);
     (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -1132,10 +1132,10 @@ describe("useCiLiteWorkflow behavior", () => {
     });
 
     expect(result.current.showError).toMatch(/CI Lite Dispatch blockiert/i);
-    expect(result.current.showError).toMatch(/lokaler edge admin key ist lokal vorhanden/i);
+    expect(result.current.showError).toMatch(/lokaler workflow admin key ist lokal vorhanden/i);
     expect(result.current.showError).toMatch(/abgelehnt/i);
-    expect(result.current.showError).not.toMatch(/lokaler edge admin key fehlt/i);
-    expect(result.current.showError).not.toContain("edge-admin-key");
+    expect(result.current.showError).not.toMatch(/lokaler workflow admin key fehlt/i);
+    expect(result.current.showError).not.toContain("workflow-admin-key");
   });
 
   it("persists completed CI-Lite runs under the repo/branch-scoped snapshot contract", async () => {

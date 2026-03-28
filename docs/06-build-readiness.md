@@ -249,11 +249,10 @@ if (!expoToken) skipped.push("EXPO_TOKEN (missing)");
 if (!supabaseUrl) skipped.push("SUPABASE_URL (missing)");
 if (!supabaseServiceRole) skipped.push("SUPABASE_SERVICE_ROLE_KEY (missing)");
 if (!easProjectId) skipped.push("EAS_PROJECT_ID (optional, empty)");
-if (!edgeAdminKey) {
-  skipped.push("K1W1_EDGE_WORKFLOW_ADMIN_KEY (optional, empty)");
-  skipped.push("K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY (optional, empty)");
-  skipped.push("K1W1_EDGE_ADMIN_KEY (legacy optional, empty)");
-}
+if (!workflowAdminKey) skipped.push("K1W1_EDGE_WORKFLOW_ADMIN_KEY (optional, empty)");
+if (!androidKeystoreExportAdminKey) skipped.push("K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY (optional, empty)");
+if (!legacyEdgeAdminKey) skipped.push("K1W1_EDGE_ADMIN_KEY (legacy optional, empty)");
+if (!signingAdminKey) skipped.push("SIGNING_ADMIN_KEY (legacy optional, empty)");
 ```
 
 ### E15 — Profilabhängige Credentials-Strategie in `eas.json`

@@ -20,7 +20,12 @@ export type SecretConnectionsSnapshotV1 = {
 export type SecretTokensSnapshotV1 = {
   githubToken: string | null;
   expoToken: string | null;
-  edgeAdminKey: string | null;
+  /** @deprecated legacy compatibility snapshot key */
+  edgeAdminKey?: string | null;
+  workflowAdminKey: string | null;
+  androidKeystoreExportAdminKey: string | null;
+  legacyEdgeAdminKey: string | null;
+  signingAdminKey: string | null;
   signingMasterKey?: string | null;
 };
 
@@ -176,6 +181,10 @@ export function createSecretBackupPayload(input: {
       githubToken: normalizeOptionalString(input.tokens.githubToken),
       expoToken: normalizeOptionalString(input.tokens.expoToken),
       edgeAdminKey: normalizeOptionalString(input.tokens.edgeAdminKey),
+      workflowAdminKey: normalizeOptionalString(input.tokens.workflowAdminKey),
+      androidKeystoreExportAdminKey: normalizeOptionalString(input.tokens.androidKeystoreExportAdminKey),
+      legacyEdgeAdminKey: normalizeOptionalString(input.tokens.legacyEdgeAdminKey),
+      signingAdminKey: normalizeOptionalString(input.tokens.signingAdminKey),
       signingMasterKey: normalizeOptionalString(input.tokens.signingMasterKey),
     },
     ciSecrets: Object.fromEntries(
@@ -302,6 +311,18 @@ function sanitizeSecretPayload(raw: unknown): SecretBackupPayloadV1 {
       githubToken: normalizeOptionalString(tokens.githubToken),
       expoToken: normalizeOptionalString(tokens.expoToken),
       edgeAdminKey: normalizeOptionalString(tokens.edgeAdminKey),
+      workflowAdminKey:
+        normalizeOptionalString(tokens.workflowAdminKey) ??
+        normalizeOptionalString(tokens.edgeAdminKey),
+      androidKeystoreExportAdminKey:
+        normalizeOptionalString(tokens.androidKeystoreExportAdminKey) ??
+        normalizeOptionalString(tokens.edgeAdminKey),
+      legacyEdgeAdminKey:
+        normalizeOptionalString(tokens.legacyEdgeAdminKey) ??
+        normalizeOptionalString(tokens.edgeAdminKey),
+      signingAdminKey:
+        normalizeOptionalString(tokens.signingAdminKey) ??
+        normalizeOptionalString(tokens.edgeAdminKey),
       signingMasterKey: normalizeOptionalString(tokens.signingMasterKey),
     },
     ciSecrets: Object.fromEntries(

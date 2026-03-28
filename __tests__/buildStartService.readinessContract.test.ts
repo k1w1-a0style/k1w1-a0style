@@ -18,7 +18,7 @@ jest.doMock(require.resolve("../lib/buildReadiness"), () => {
 });
 
 jest.doMock(require.resolve("../infra/github/githubService"), () => ({
-  getEdgeAdminKey: jest.fn(async () => "adminkey"),
+  getWorkflowAdminKey: jest.fn(async () => "adminkey"),
   pushFilesToRepo: jest.fn(),
 }));
 

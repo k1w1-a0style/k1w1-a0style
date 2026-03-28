@@ -9,7 +9,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { requireSupabaseEdgeUrl } from "../../../lib/supabaseEdge";
 import { fetchWithTimeout } from "../../../lib/network/fetchWithTimeout";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
-import { getBranchHeadSha, getEdgeAdminKey } from "../../../infra/github/githubService";
+import { getBranchHeadSha, getWorkflowAdminKey } from "../../../infra/github/githubService";
 import { useProject } from "../../../contexts/ProjectContext";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
 import { computeCiLiteOk, inferStepStates, safeUi } from "../../ciLite/ciLiteUtils";
@@ -261,7 +261,7 @@ export function useCiLiteWorkflow() {
         requireJobIdMarker = true,
       } = opts;
       const edgeUrl = await requireSupabaseEdgeUrl();
-      const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+      const edgeAdminKey = await getWorkflowAdminKey().catch(() => null);
       const trimmedEdgeAdminKey = String(edgeAdminKey ?? "").trim();
       if (!trimmedEdgeAdminKey || !isLikelyValidAdminKey(trimmedEdgeAdminKey)) {
         const normalized = normalizeCiLiteWorkflowError({
@@ -415,7 +415,7 @@ export function useCiLiteWorkflow() {
         setArtifactLoading(true);
 
         const edgeUrl = await requireSupabaseEdgeUrl();
-        const adminKey = await getEdgeAdminKey().catch(() => null);
+        const adminKey = await getWorkflowAdminKey().catch(() => null);
         const trimmedAdminKey = String(adminKey ?? "").trim();
         const supabase = await ensureSupabaseClient().catch(() => null);
         const session = await supabase?.auth.getSession().catch(() => null);
@@ -805,7 +805,7 @@ export function useCiLiteWorkflow() {
           ? await getBranchHeadSha(repoParts.owner, repoParts.repo, targetBranch).catch(() => null)
           : null;
 
-        const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+        const edgeAdminKey = await getWorkflowAdminKey().catch(() => null);
         const trimmedEdgeAdminKey = String(edgeAdminKey ?? "").trim();
         if (!trimmedEdgeAdminKey || !isLikelyValidAdminKey(trimmedEdgeAdminKey)) {
           const normalized = normalizeCiLiteWorkflowError({

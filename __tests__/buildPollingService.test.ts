@@ -1,7 +1,7 @@
 import { pollBuildStatusOnce } from "../project/services/buildPollingService";
 
 jest.mock("../infra/github/githubService", () => ({
-  getEdgeAdminKey: jest.fn(async () => "admin-key"),
+  getWorkflowAdminKey: jest.fn(async () => "workflow-key"),
 }));
 
 jest.mock("../lib/supabaseEdge", () => ({
@@ -95,7 +95,7 @@ describe("buildPollingService", () => {
     expect((init.headers as Record<string, string>)?.Authorization).toBe(
       "Bearer supabase-authenticated-jwt-token",
     );
-    expect((init.headers as Record<string, string>)?.["x-k1w1-admin-key"]).toBe("admin-key");
+    expect((init.headers as Record<string, string>)?.["x-k1w1-admin-key"]).toBe("workflow-key");
   });
 
   it("preserves the shared timeout contract for poll requests", async () => {
