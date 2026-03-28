@@ -39,24 +39,36 @@ export function safeUi(s: string): string {
   return truncateWithMarker(redactSecrets(s || ""), 900, "…");
 }
 
-type WorkflowRunForLookup = {
+type WorkflowRunForLookup = Record<string, unknown> & {
   display_title?: unknown;
   name?: unknown;
-} & Record<string, unknown>;
+};
+
+type WorkflowRunWithTitle = {
+  run: WorkflowRunForLookup;
+  title: string;
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function toWorkflowRunCandidate(value: unknown): WorkflowRunForLookup | null {
-  if (!isRecord(value)) return null;
-  return value as WorkflowRunForLookup;
+  return isRecord(value) ? value : null;
 }
 
 function getRunTitle(run: WorkflowRunForLookup): string {
   const displayTitle = typeof run.display_title === "string" ? run.display_title : "";
   const name = typeof run.name === "string" ? run.name : "";
   return String(displayTitle || name).trim();
+}
+
+function toWorkflowRunWithTitle(value: unknown): WorkflowRunWithTitle | null {
+  const run = toWorkflowRunCandidate(value);
+  if (!run) return null;
+  const title = getRunTitle(run);
+  if (!title) return null;
+  return { run, title };
 }
 
 export function findWorkflowRunByJobId(runs: unknown, jobId: string): WorkflowRunForLookup | null {
@@ -71,12 +83,8 @@ export function findWorkflowRunByJobId(runs: unknown, jobId: string): WorkflowRu
   ];
 
   const withTitle = runs
-    .map((r) => {
-      const run = toWorkflowRunCandidate(r);
-      return run ? { run, title: getRunTitle(run) } : null;
-    })
-    .filter((x): x is { run: WorkflowRunForLookup; title: string } => !!x)
-    .filter((x) => x.title.length > 0);
+    .map(toWorkflowRunWithTitle)
+    .filter((entry): entry is WorkflowRunWithTitle => entry !== null);
 
   const exact = withTitle.find(({ title }) => exactPatterns.some((p) => title.includes(p)));
   if (exact) return exact.run;
@@ -153,9 +161,12 @@ export function normalizePreflightPatch(input: unknown): PreflightPatch {
   const patchCandidate = isRecord(input.patch) ? input.patch : input;
 
   const out: PreflightPatch = {};
-  if (Array.isArray(patchCandidate.upsert)) out.upsert = patchCandidate.upsert as PreflightPatch["upsert"];
-  if (Array.isArray(patchCandidate.delete)) out.delete = patchCandidate.delete as PreflightPatch["delete"];
-  if (Array.isArray(patchCandidate.jsonMerge)) out.jsonMerge = patchCandidate.jsonMerge as PreflightPatch["jsonMerge"];
+  const upsert = patchCandidate.upsert;
+  const deletions = patchCandidate.delete;
+  const jsonMerge = patchCandidate.jsonMerge;
+  if (Array.isArray(upsert)) out.upsert = upsert;
+  if (Array.isArray(deletions)) out.delete = deletions;
+  if (Array.isArray(jsonMerge)) out.jsonMerge = jsonMerge;
   if (typeof patchCandidate.explanation === "string") out.explanation = patchCandidate.explanation;
 
   if (!out.upsert?.length && !out.delete?.length && !out.jsonMerge?.length) {
