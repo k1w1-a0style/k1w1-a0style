@@ -446,6 +446,10 @@ Vollständiges Notification-System für Build-Status-Updates mit lokalen Push-Be
 - **Permission Management**: Automatische Permission-Anforderung
 - **Android Channel**: Dedicated "Build Updates" Channel
 - **Expo Push Token**: Vorbereitet für Remote-Notifications
+- **Patch-557-Hardening**:
+  - `projectId` fuer Expo Push wird priorisiert aus echten Expo/EAS-Quellen ermittelt (`easConfig` -> `expoConfig.extra.eas` -> `manifest2.expoClient.extra.eas`)
+  - kein Logging des rohen Expo Push Token
+  - `initialize()` haelt internen Permission-/Token-State auch in Fehlerpfaden konsistent
 
 ### API:
 

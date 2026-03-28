@@ -38,9 +38,7 @@ export function useNotifications(): UseNotificationsReturn {
       const success = await notificationService.initialize();
       setIsInitialized(true);
       setHasPermissions(success);
-      if (success) {
-        setPushToken(notificationService.getPushToken());
-      }
+      setPushToken(notificationService.getPushToken());
     };
 
     initializeNotifications();
@@ -110,7 +108,9 @@ export function useNotifications(): UseNotificationsReturn {
 
   const requestPermissions = useCallback(async () => {
     const success = await notificationService.initialize();
+    setIsInitialized(true);
     setHasPermissions(success);
+    setPushToken(notificationService.getPushToken());
     return success;
   }, []);
 

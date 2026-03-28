@@ -212,3 +212,5 @@ Append-only Überblick über Patch-Notizen.
 - docs/patches/PATCH_337_NOTES.md
 
 - Patch 550: PR-408-Follow-up auf aktuellem Branch-Zustand geschlossen — gemeinsame Provider-Default-Quelle fuer App/Edge eingefuehrt, Anthropic-Quality-Default auf `claude-sonnet-4-20250514` aktualisiert und Runtime-Fallback-Hinweise per explizitem `runtimeNote`-Meta-Filter aus spaeterer LLM-Historie ausgeschlossen.
+
+- 2026-03-28: Patch 557: Notification-Push-Flow konservativ repariert und nachgezogen — `lib/notificationService.ts` ermittelt `projectId` jetzt ueber echte Expo/EAS-Pfade (`easConfig` -> `expoConfig.extra.eas` -> `manifest2.expoClient.extra.eas`) statt owner/placeholder, loggt keine Token-Werte mehr und haelt im gesamten `initialize()`-Verlauf `permissionGranted`/`expoPushToken` konsistent; explizit getestete Fehlerpfade sind denied, outer-error, token-fetch-error und Android-FCM-skip. `hooks/useNotifications.ts` synchronisiert weiter `isInitialized` + `hasPermissions` + `pushToken`, und `lib/__tests__/notificationService.test.ts` deckt die projectId-Prioritaet jetzt explizit regressionsfest ab.
