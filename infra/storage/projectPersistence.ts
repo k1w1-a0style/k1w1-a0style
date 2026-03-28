@@ -213,21 +213,21 @@ export const importProjectFromZipFile = async (): Promise<{
     const zipValidation = validateZipImport(newFiles);
 
     if (!zipValidation.valid) {
+      const invalidPreview = zipValidation.invalidFiles
+        .slice(0, 5)
+        .map((f: { path: string; reason: string }) => `${f.path}: ${f.reason}`);
       const errorMsg = [
-        'ZIP-Validierung fehlgeschlagen:',
+        'ZIP-Validierung fehlgeschlagen (strikter Import, keine Teilübernahme):',
         ...zipValidation.errors,
         `Ungültige Dateien: ${zipValidation.invalidFiles.length}`,
+        ...(invalidPreview.length > 0 ? ['Beispiele:', ...invalidPreview] : []),
       ].join('\n');
 
-      logger.error("[projectStorage] Invalid ZIP content", { errorMsg });
+      logger.error("[projectStorage] ZIP import rejected by validator", {
+        errors: zipValidation.errors,
+        invalidFilesCount: zipValidation.invalidFiles.length,
+      });
       throw new Error(errorMsg);
-    }
-
-    if (zipValidation.invalidFiles.length > 0) {
-      logger.warn(
-        `[projectStorage] ${zipValidation.invalidFiles.length} ungültige Dateien übersprungen:`,
-        zipValidation.invalidFiles.map((f: { path: string; reason: string }) => `${f.path}: ${f.reason}`),
-      );
     }
 
     const validatedFiles = zipValidation.validFiles;
@@ -242,7 +242,7 @@ export const importProjectFromZipFile = async (): Promise<{
       lastModified: new Date().toISOString(),
     };
 
-    logger.info(`✅ ZIP-Import erfolgreich: ${validatedFiles.length} Dateien validiert`);
+    logger.info(`✅ ZIP-Import erfolgreich: ${validatedFiles.length} Dateien validiert (strict all-or-nothing)`);
 
     return {
       project: newProject,
