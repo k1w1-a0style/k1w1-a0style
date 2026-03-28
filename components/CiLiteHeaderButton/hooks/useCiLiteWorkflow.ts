@@ -32,6 +32,7 @@ import {
   readCiLiteErrorResponse,
 } from "./ciLiteWorkflowErrors";
 import { getArtifactUiMessage } from "./ciLiteWorkflowNoticeHelpers";
+import { buildArtifactFetchContextKey } from "./useCiLiteWorkflowHelpers";
 
 type CiLiteArtifactJson = {
   ok: boolean;
@@ -391,10 +392,14 @@ export function useCiLiteWorkflow() {
 
   // ---- Artifact result (deterministic header backchannel) ----
   useEffect(() => {
-    if (!githubRepo) return;
-    if (!workflowRun?.id) return;
-    if (workflowRun.status !== "completed") return;
-    const artifactContextKey = `${githubRepo}::${workflowId}::${String(workflowRun.id)}`;
+    const artifactRunId = workflowRun?.id ?? null;
+    const artifactContextKey = buildArtifactFetchContextKey({
+      githubRepo,
+      workflowId,
+      workflowRunId: artifactRunId,
+      workflowStatus: workflowRun?.status ?? null,
+    });
+    if (!artifactContextKey || !artifactRunId) return;
     if (artifactAttemptedContextRef.current === artifactContextKey) return;
 
     // Reset any stale errors when a run completes.
@@ -443,7 +448,7 @@ export function useCiLiteWorkflow() {
           },
           body: JSON.stringify({
             githubRepo,
-            runId: workflowRun.id,
+            runId: artifactRunId,
             artifactName,
             filePath,
           }),
