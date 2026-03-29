@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: 2026-03-29 (Patch 608)
+Stand: 2026-03-29 (Patch 609)
 
 ## Aktiv und workflow-relevant
 
