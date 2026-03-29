@@ -4,7 +4,7 @@ export const CONFIG = {
     MIN_LINES_TSX: 8,
     MIN_LINES_TS: 5,
     MAX_FILES: (() => {
-      const raw = (process.env.EXPO_PUBLIC_K1W1_MAX_FILES ?? process.env.K1W1_MAX_FILES) as any;
+      const raw = process.env.EXPO_PUBLIC_K1W1_MAX_FILES ?? process.env.K1W1_MAX_FILES;
       const n = Number(raw);
       return Number.isFinite(n) && n > 0 ? n : 200;
     })(),

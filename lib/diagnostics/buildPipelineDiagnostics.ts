@@ -52,6 +52,19 @@ const CANONICAL_EAS_JSON = {
   },
 };
 
+type EasProfileName = "development" | "preview" | "production";
+type EasProfileConfig = {
+  android?: {
+    buildType?: unknown;
+    withoutCredentials?: unknown;
+  };
+  developmentClient?: unknown;
+  distribution?: unknown;
+};
+type EasConfig = {
+  build?: Partial<Record<EasProfileName, EasProfileConfig>>;
+};
+
 const canonicalEasJsonString = () => `${JSON.stringify(CANONICAL_EAS_JSON, null, 2)}
 `;
 
@@ -265,9 +278,9 @@ export const runBuildPipelineDiagnostics = async (
   });
 
   // --- EAS profiles (3 flows) & APK-only ---
-  let easJson: any = null;
+  let easJson: EasConfig | null = null;
   if (hasEasJson) {
-    easJson = await d.readJsonFile<any>(params.owner, params.repo, "eas.json", ref);
+    easJson = await d.readJsonFile<EasConfig>(params.owner, params.repo, "eas.json", ref);
     if (!easJson) {
       checks.push({
         id: "repo.easJson.parse",
@@ -278,7 +291,7 @@ export const runBuildPipelineDiagnostics = async (
     }
   }
 
-  const profiles: Array<"development" | "preview" | "production"> = [
+  const profiles: EasProfileName[] = [
     "development",
     "preview",
     "production",
@@ -302,7 +315,7 @@ export const runBuildPipelineDiagnostics = async (
             jsonMerge: [
               {
                 path: "eas.json",
-                patch: { build: { [prof]: (CANONICAL_EAS_JSON.build as any)[prof] } },
+                patch: { build: { [prof]: CANONICAL_EAS_JSON.build[prof] } },
                 createIfMissing: true,
               },
             ],
@@ -585,7 +598,12 @@ export const runBuildPipelineDiagnostics = async (
 
   if (!projectIdOk && hasAppJson) {
     try {
-      const appJson = await d.readJsonFile<any>(params.owner, params.repo, "app.json", ref);
+      const appJson = await d.readJsonFile<{ expo?: { extra?: { eas?: { projectId?: string } } } }>(
+        params.owner,
+        params.repo,
+        "app.json",
+        ref,
+      );
       const candidate = safeTrim(appJson?.expo?.extra?.eas?.projectId);
       if (candidate && isUuid(candidate)) {
         projectId = candidate;
@@ -603,7 +621,7 @@ export const runBuildPipelineDiagnostics = async (
       const text = await d.getRepoFileText({ owner: params.owner, repo: params.repo, path, ref });
       const m1 = text.match(/projectId[^0-9a-fA-F]{0,64}([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/);
       const m2 = !m1 ? text.match(/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/) : null;
-      const candidate = safeTrim((m1?.[1] ?? m2?.[1]) as any);
+      const candidate = safeTrim(m1?.[1] ?? m2?.[1] ?? null);
       if (candidate && isUuid(candidate)) {
         projectId = candidate;
         projectIdOk = true;

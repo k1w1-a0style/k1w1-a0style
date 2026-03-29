@@ -7,6 +7,7 @@ import {
   exportProjectAsZipFile,
   importProjectFromZipFile,
 } from "../../infra/storage/projectPersistence";
+import type { ProjectFile } from "../../shared/types/project";
 
 export type ZipExportResult = {
   fileCount: number;
@@ -52,7 +53,7 @@ function isBinaryPath(p: string): boolean {
 }
 
 export function cloneProjectWithOnlyTextFiles(project: ProjectData): ProjectData {
-  const filtered = (project.files || []).filter((f: any) => {
+  const filtered = (project.files || []).filter((f: ProjectFile) => {
     if (!f?.path || typeof f.path !== "string") return false;
     const content = typeof f.content === "string" ? f.content : "";
     if (content.startsWith("base64:")) return false;
@@ -67,10 +68,11 @@ export function cloneProjectWithOnlyTextFiles(project: ProjectData): ProjectData
 }
 
 export async function exportProjectZip(project: ProjectData): Promise<ZipExportResult> {
-  const res: any = await exportProjectAsZipFile(project as any);
+  const res = await exportProjectAsZipFile(project);
+  const maybePath = (res as { uri?: string; path?: string }).uri ?? (res as { path?: string }).path;
   return {
     fileCount: Number(res?.fileCount ?? 0),
-    uri: res?.uri ?? res?.path ?? undefined,
+    uri: maybePath ?? undefined,
   };
 }
 
@@ -80,11 +82,11 @@ export async function exportTextFilesZip(project: ProjectData): Promise<ZipExpor
 }
 
 export async function importProjectZip(): Promise<ZipImportResult> {
-  const res: any = await importProjectFromZipFile();
-  const project: ProjectData = res.project as ProjectData;
+  const res = await importProjectFromZipFile();
+  const project: ProjectData = res.project;
 
   // Reset chat after import (privacy + avoid merging incompatible chat schema)
-  (project as any).chatHistory = [];
+  project.chatHistory = [];
 
   return {
     project,
