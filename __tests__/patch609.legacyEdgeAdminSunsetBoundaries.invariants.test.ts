@@ -7,6 +7,7 @@ const SOURCE_GLOBS = ["hooks", "lib", "screens", "infra", "components", "__tests
 const ALLOWED_GET_LEGACY_CALLS = new Set([
   "__tests__/tokenStore.edgeAdminKey.test.ts",
   "__tests__/patch609.legacyEdgeAdminSunsetBoundaries.invariants.test.ts",
+  "__tests__/patch615.previewLegacyOperatorBoundary.invariants.test.ts",
   "hooks/usePreview.ts",
   "lib/autoSyncRepoSecrets.ts",
   "lib/orchestrator/k1w1Edge.ts",

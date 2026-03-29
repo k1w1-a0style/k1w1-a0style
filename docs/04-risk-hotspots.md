@@ -57,6 +57,7 @@
 - Patch 601 schliesst den Restpunkt `supabase/functions/test` explizit: alte Testroute ist jetzt fail-closed (`requireScopedEdgeAuth` + immer `410 legacy_test_route_disabled`) und kann nicht mehr als halboffene Altflaeche mit unklarem Auth-Vertrag stehen bleiben.
 - Patch 603 korrigiert den verbleibenden Vertragsfehler in genau dieser Testroute: der Scoped-Guard enthaelt jetzt verpflichtend `allowAdmin: true` und `scope: "test"`, damit keine `500`-Auth-Misconfiguration den beabsichtigten `410 legacy_test_route_disabled`-Pfad verdeckt; Contract-Checks/Invariants blocken die Rueckdrift explizit.
 - Patch 609 schiebt den Sunset im Client weiter auf scoped-only Runtime: Wizard- und Signing-Gate lesen keinen Legacy-Edge-Key mehr fuer Keystore-Readiness, und SecretsSection wertet fehlenden Legacy-Key nicht mehr als aktuellen Runtime-Blocker; verbleibende Legacy-Reste sind explizit als Compat-/Altpfade begrenzt und per Invariant/Contract-Check abgesichert.
+- Patch 615 trennt den Preview-Clientvertrag jetzt ebenfalls fail-closed: der normale `usePreview`-Supabasepfad nutzt den Legacy-Key nicht mehr still; Legacy-`save_preview` ist nur noch ein expliziter Operator-/Maintenance-Compatpfad hinter `EXPO_PUBLIC_ENABLE_LEGACY_PREVIEW_OPERATOR_MODE=true`.
 
 ---
 
