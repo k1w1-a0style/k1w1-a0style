@@ -7,10 +7,8 @@ describe("patch549 keystore export JWT/RBAC hardening invariants", () => {
   it("enables verify_jwt for android-keystore-export", () => {
     const rootConfig = read("supabase/config.toml");
     expect(rootConfig).toContain("[functions.android-keystore-export]");
-    expect(rootConfig).toContain("verify_jwt = true");
-
-    const functionConfig = read("supabase/functions/android-keystore-export/config.toml");
-    expect(functionConfig).toContain("verify_jwt = true");
+    expect(rootConfig).toMatch(/\[functions\.android-keystore-export\][\s\S]*?verify_jwt\s*=\s*true/);
+    expect(fs.existsSync(path.join(process.cwd(), "supabase/functions/android-keystore-export/config.toml"))).toBe(false);
   });
 
   it("keeps deny-by-default JWT role checks in shared auth and the route entrypoint", () => {
