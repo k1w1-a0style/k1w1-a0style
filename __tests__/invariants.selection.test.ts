@@ -31,6 +31,13 @@ describe("Invariants: repo/branch selection is source of truth", () => {
     expect(src).not.toContain("projectData?.linkedBranch?.trim() ||\n      activeBranch?.trim() ||");
   });
 
+  it("does not fall back to full workflow run list when active profile filter has zero matches", () => {
+    const src = read("screens/EnhancedBuildScreen/hooks/useEnhancedBuildScreen.ts");
+
+    expect(src).not.toContain("return list.length > 0 ? list : runs;");
+    expect(src).toContain("filterWorkflowRunsByProfile");
+  });
+
   it("uses project-context repo/branch as the only header CI-Lite source of truth", () => {
     const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
 

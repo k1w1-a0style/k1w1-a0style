@@ -19,6 +19,7 @@ import { useEnhancedBuildScreen, MAX_RUNS_DISPLAY } from "./hooks/useEnhancedBui
 import { useOneClickDeploy } from "./hooks/useOneClickDeploy";
 
 import { st } from "./index.styles";
+import { styles } from "../../styles/enhancedBuildScreenStyles";
 
 export default function EnhancedBuildScreen(): React.ReactElement {
   const s = useEnhancedBuildScreen();
@@ -192,6 +193,11 @@ export default function EnhancedBuildScreen(): React.ReactElement {
         />
 
         {/* GitHub Actions moved to Repo Screen (Diff/Repo management). */}
+        {!!s.runsEmptyStateText && (
+          <View style={styles.card}>
+            <Text style={styles.emptyText}>ℹ️ {s.runsEmptyStateText}</Text>
+          </View>
+        )}
 
         {/* Build History */}
         <BuildHistorySection
