@@ -102,7 +102,7 @@ export function useGitHubActionsLogs({
       const session = await supabase?.auth.getSession().catch(() => null);
       const userJwt = String(session?.data?.session?.access_token ?? "").trim();
       if (!userJwt) {
-        throw new Error("Workflow-Read blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben.");
+        throw new Error("Workflow-Read blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.");
       }
 
       if (!targetRunId) {

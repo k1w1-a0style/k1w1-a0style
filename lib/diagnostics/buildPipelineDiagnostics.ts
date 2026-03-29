@@ -162,11 +162,11 @@ export const runBuildPipelineDiagnostics = async (
 
   checks.push({
     id: "local.operatorClaimProvisioning",
-    title: "Operator-Claim build_admin (externes Provisioning verstanden)",
+    title: "Operator-Claim build_admin extern provisioniert (Preflight-Pflicht)",
     status: "warn",
     details: "Workflow-/Build-/Artifact-/Keystore-Routen akzeptieren JWT-Rollen nur als service_role|build_admin.",
     fixHint:
-      "build_admin wird nicht im Repo erzeugt. Der Claim muss im Betriebsprozess ausserhalb dieses Repos fuer den Supabase-User (role/app_metadata.role) provisioniert werden.",
+      "build_admin wird nicht im Repo erzeugt. Der Claim muss extern im Betriebsprozess fuer den Supabase-User (role/app_metadata.role) provisioniert sein, bevor diese Operator-Flows live getestet werden. Normale eingeloggte Nutzer ohne diesen externen Claim bleiben fail-closed blockiert.",
   });
 
   checks.push({
