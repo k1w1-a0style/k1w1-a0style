@@ -74,8 +74,36 @@ Der Service muss dieselben Regeln servernah erzwingen, damit keine Umgehung via 
 - **Wichtig (Patch 603, Legacy-Teststub-Guard):** `supabase/functions/test` bleibt bewusst disabled (`410 legacy_test_route_disabled`), ist aber jetzt sauber scoped-auth-konfiguriert (`scope: "test"`, `adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"`, `allowAdmin: true`), damit keine Guard-Misconfiguration mehr vorzeitig in `500` endet.
 - **Wichtig (Patch 604, RBAC-Vertrag):** App-initiierte workflow-/build-/artifact-/keystore-Calls sind Operator-Pfade; ein normales `authenticated`-Session-JWT reicht nicht, serverseitig gilt fail-closed `service_role|build_admin` plus scoped Admin-Key.
 - **Wichtig (Patch 605, Claim-Herkunft):** Der build_admin-Claim wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos vergeben (Supabase-User `role`/`app_metadata.role`). Im Repo gibt es bewusst keinen internen Claim-Generator oder automatischen Auth-Mapper fuer normale Logins.
+- **Wichtig (Patch 611, finaler Operator-Preflight):** Normale eingeloggte Nutzer ohne extern provisionierten `build_admin`-Claim sind auf workflow-/build-/artifact-/keystore-Operatorpfaden bewusst fail-closed blockiert; das ist ein externer Betriebsvertrag und kein fehlender Repo-Codepfad.
 
 ---
+
+### 3.4 Operator-Runbook/Preflight (extern provisionierter `build_admin`-Vertrag)
+
+#### Voraussetzung
+- Supabase-Session-JWT ist vorhanden **und** gehoert zu einem extern provisionierten Operator-User (`role=build_admin` oder `app_metadata.role=build_admin`).
+- Lokaler scoped Admin-Key ist gesetzt (`K1W1_EDGE_WORKFLOW_ADMIN_KEY` fuer Workflow/Build/Artifact, `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY` fuer Keystore).
+- Das Repo provisioniert `build_admin` **nicht** selbst; kein interner Grant-/Mapper-Pfad existiert.
+
+#### Erwarteter Claim
+- Serverseitig gilt fail-closed nur `service_role|build_admin`.
+- Ein normales eingeloggtes User-JWT ohne externen `build_admin`-Claim ist **nicht ausreichend**.
+
+#### Betroffene Flows
+- Build-Start (`trigger-eas-build`)
+- Build-Status (`check-eas-build`)
+- Workflow Dispatch/Runs/Logs/Artifact
+- Keystore Status/Generate
+
+#### Typische Fehlersymptome
+- App-/Wizard-/CI-Lite-Fehlertexte mit `keine Operator-Rolle` oder `JWT role=build_admin ...`.
+- Edge antwortet fail-closed trotz gueltigem Login, wenn nur ein normales User-JWT vorliegt.
+
+#### Pruefschritte vor Live-Test
+1. Externen Provisioning-Nachweis fuer den Testuser einholen (`role`/`app_metadata.role` = `build_admin`).
+2. Lokale scoped Admin-Keys pruefen (Workflow + optional Keystore).
+3. Erst danach Operator-Flow testen (Dispatch/Build/Logs/Keystore).
+4. Bei Blockierung nicht am Repo mappen: Claim extern korrigieren und Test wiederholen.
 
 ### 3.4 Edge-/Infra-Contract (Patch 590)
 - `trigger-eas-build` akzeptiert serverseitig nur noch Requests mit explizitem nicht-leerem `branch` (nach `trim()`).

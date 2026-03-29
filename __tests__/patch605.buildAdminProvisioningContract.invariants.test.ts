@@ -27,6 +27,7 @@ describe("patch605 build_admin provisioning contract invariants", () => {
       expect(src).toContain("build_admin");
       expect(src).toContain("service_role fuer Server-Caller");
       expect(src).toContain("ausserhalb dieses Repos per Supabase-User-Claim vergeben");
+      expect(src).toContain("Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim");
     }
   });
 
@@ -37,6 +38,7 @@ describe("patch605 build_admin provisioning contract invariants", () => {
     const risk = read("docs/04-risk-hotspots.md");
 
     expect(script).toContain('require_fixed "$BUILD_START_SERVICE" "ausserhalb dieses Repos per Supabase-User-Claim vergeben"');
+    expect(script).toContain('require_fixed "$BUILD_START_SERVICE" "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim"');
     expect(edgeStatus).toContain("build_admin-Claim wird nicht im Repo erzeugt");
     expect(readiness).toContain("build_admin-Claim wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos vergeben");
     expect(risk).toContain("Es gibt im Repo keinen internen Claim-Mapper/Grant-Flow fuer build_admin");

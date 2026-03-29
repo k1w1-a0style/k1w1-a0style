@@ -161,6 +161,11 @@ require_fixed "$BUILD_START_SERVICE" "JWT role=build_admin (oder service_role fu
 require_fixed "$BUILD_POLLING_SERVICE" "JWT role=build_admin (oder service_role fuer Server-Caller)"
 require_fixed "$WORKFLOW_LOGS_HOOK" "JWT role=build_admin (oder service_role fuer Server-Caller)"
 require_fixed "$CI_LITE_WORKFLOW_HOOK" "JWT role=build_admin (oder service_role fuer Server-Caller)"
+require_fixed "$WIZARD_HOOK" "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim"
+require_fixed "$BUILD_START_SERVICE" "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim"
+require_fixed "$BUILD_POLLING_SERVICE" "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim"
+require_fixed "$WORKFLOW_LOGS_HOOK" "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim"
+require_fixed "$CI_LITE_WORKFLOW_HOOK" "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim"
 require_fixed "$WIZARD_HOOK" "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
 require_fixed "$BUILD_START_SERVICE" "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
 require_fixed "$BUILD_POLLING_SERVICE" "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
@@ -249,6 +254,8 @@ require_fixed "$EDGE_STATUS_DOC" '`check-eas-build`'
 require_fixed "$EDGE_STATUS_DOC" '`github-workflow-dispatch`'
 require_fixed "$EDGE_STATUS_DOC" "build_admin-Claim wird nicht im Repo erzeugt"
 require_fixed "$BUILD_READINESS_DOC" "build_admin-Claim wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos vergeben"
+require_fixed "$BUILD_READINESS_DOC" 'Operator-Runbook/Preflight (extern provisionierter `build_admin`-Vertrag)'
+require_fixed "$BUILD_READINESS_DOC" 'Ein normales eingeloggtes User-JWT ohne externen `build_admin`-Claim ist **nicht ausreichend**.'
 require_fixed "$RISK_HOTSPOTS_DOC" "Es gibt im Repo keinen internen Claim-Mapper/Grant-Flow fuer build_admin"
 require_fixed "$EDGE_STATUS_DOC" '`github-run-artifact-json`'
 require_fixed "$EDGE_STATUS_DOC" '`android-keystore-export`'

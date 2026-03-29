@@ -164,6 +164,7 @@ CI_LITE_TYPECHECK_OK: "ci_lite_typecheck_ok",
 6. App-Caller-/Wizard-Fehltexte, Vertrags-Tests und Drift-Checks wurden auf denselben Operator-Vertrag gezogen; kein `JWT role=authenticated`-Wording mehr im app-initiierten Operator-Scope.
 **Follow-up (Patch 605):**
 7. Es gibt im Repo keinen internen Claim-Mapper/Grant-Flow fuer build_admin; der Operator-Claim ist ein externer Supabase-Provisioning-Vertrag (`user.role`/`user.app_metadata.role`) und wird entsprechend in UX/Diagnostics/Docs explizit benannt.
+8. Patch 611 verschaerft den operativen Endvertrag als Runbook-/Preflight-Aussage: normale eingeloggte Nutzer ohne extern provisionierten `build_admin`-Claim bleiben auf Operator-Flows bewusst fail-closed blockiert; Troubleshooting verweist explizit auf externes Claim-Provisioning statt auf Repo-Refactor.
 
 ---
 

@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: 2026-03-29 (Patch 609)
+Stand: 2026-03-29 (Patch 611)
 
 ## Aktiv und workflow-relevant
 
@@ -47,6 +47,7 @@ Stand: 2026-03-29 (Patch 609)
 - Patch 602 zieht den lokalen Smoke-Caller-Vertrag auf denselben Edge-Vertrag: `scripts/ci-lite-smoke.sh` sendet fuer `github-workflow-dispatch`/`github-workflow-runs`/`github-workflow-logs` jetzt immer `Authorization: Bearer <K1W1_EDGE_WORKFLOW_JWT>` plus `x-k1w1-admin-key: <K1W1_EDGE_WORKFLOW_ADMIN_KEY>` und verlangt einen expliziten `<ref>` (kein stilles `main`).
 - Patch 604 zieht die App-Caller-/Wizard-Kommunikation auf denselben Operator-Vertrag: app-initiierte workflow-/build-/artifact-/keystore-Calls benoetigen weiterhin `Authorization: Bearer <jwt>` + scoped Admin-Key, aber der JWT muss serverseitig `service_role|build_admin` erfuellen; lokale Fehltexte nennen daher kein `role=authenticated` mehr.
 - Patch 605 schliesst den operativen Restvertrag: im Repo existiert kein interner build_admin-Mapper/Grant-Flow; fuer produktive Operator-Nutzung muss der Claim extern provisioniert sein, bevor App-/Wizard-Caller diese Routen nutzen.
+- Patch 611 zieht den finalen Operator-Runbook-/Preflight-Vertrag nach: fuer workflow-/build-/artifact-/keystore-Operatorpfade sind normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim kein Repo-Bug, sondern bewusst fail-closed blockiert; Caller-Texte, Diagnostics und Checks benennen diesen externen Betriebsvertrag jetzt einheitlich.
 - Patch 603 schliesst eine echte Guard-Misconfiguration der Legacy-Testroute: `supabase/functions/test` setzt jetzt explizit `allowAdmin: true` + `scope: "test"` im `requireScopedEdgeAuth(...)`-Aufruf, damit der Pfad nicht mehr vorzeitig in `500` (`Auth misconfiguration`) endet, sondern konsistent fail-closed `410 legacy_test_route_disabled` liefert; Script-Check und Invariants pruefen diese konkrete Konfiguration explizit mit.
 - `github-workflow-dispatch` / `infra/github/workflowTemplates.ts` bilden weiterhin eine **partielle** Workflow-SoT ab (vor allem CI Lite), nicht die komplette managed Familie.
 - `github-run-artifact-json` normalisiert ZIP-Pfade jetzt explizit inkl. `\`-Separatoren; dadurch bleiben Artifact-JSON-Lookups robust, auch wenn ZIP-Einträge nicht POSIX-normalisiert sind.
