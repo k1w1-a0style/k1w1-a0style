@@ -46,7 +46,6 @@ describe("save_preview auth/error header consistency + auth runtime env fallback
         requireScopedEdgeAuth(req, {
           scope: "save_preview",
           allowAdmin: true,
-          allowCiBearer: false,
           adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
         }),
     );
@@ -103,8 +102,7 @@ describe("save_preview auth/error header consistency + auth runtime env fallback
           requireScopedEdgeAuth(req, {
             scope: "save_preview",
             allowAdmin: true,
-            allowCiBearer: false,
-            adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
+              adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
           }),
       );
 
@@ -132,7 +130,6 @@ describe("save_preview auth/error header consistency + auth runtime env fallback
         requireScopedEdgeAuth(req, {
           scope: "save_preview",
           allowAdmin: true,
-          allowCiBearer: false,
           adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
         }),
     );

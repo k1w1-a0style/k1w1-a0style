@@ -7,7 +7,8 @@ describe("patch 398 invariants", () => {
   it("github-run-artifact-json uses existing shared helpers", () => {
     const src = read("supabase/functions/github-run-artifact-json/index.ts");
     expect(src).toContain("handleCors");
-    expect(src).toContain("requireAdminKey");
+    expect(src).toContain("requireScopedEdgeAuth");
+    expect(src).toContain("requireWorkflowOperatorJwtRole");
     expect(src).toContain("getGithubToken");
     expect(src).toContain("githubFetchJson");
     expect(src).toContain("githubFetchRaw");

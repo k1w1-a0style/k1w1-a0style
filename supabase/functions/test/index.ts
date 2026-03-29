@@ -9,7 +9,6 @@ Deno.serve(async (req) => {
     scope: "test",
     adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
     allowAdmin: true,
-    allowCiBearer: false,
   });
   if (auth) return auth;
 

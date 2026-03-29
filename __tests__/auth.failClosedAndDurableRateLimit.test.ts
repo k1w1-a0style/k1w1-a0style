@@ -1,4 +1,4 @@
-import { isScopedCiBearerRequest, requireDurableRateLimit, requireJwtRole } from "../supabase/functions/_shared/auth";
+import { requireDurableRateLimit, requireJwtRole } from "../supabase/functions/_shared/auth";
 
 function withEnv<T>(patch: Record<string, string | undefined>, run: () => T): T {
   const prev: Record<string, string | undefined> = {};
@@ -90,23 +90,6 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     expect(await result?.text()).toContain("server auth misconfiguration");
   });
 
-  it("detects scoped CI bearer auth only when bearer matches configured scoped secret", () => {
-    const req = new Request("http://localhost/edge", {
-      headers: { Authorization: "Bearer ci-secret" },
-    });
-
-    const ok = withEnv(
-      { K1W1_EDGE_WORKFLOW_CI_BEARER: "ci-secret" },
-      () => isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER"),
-    );
-    const bad = withEnv(
-      { K1W1_EDGE_WORKFLOW_CI_BEARER: "other-secret" },
-      () => isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER"),
-    );
-
-    expect(ok).toBe(true);
-    expect(bad).toBe(false);
-  });
 
   it("uses durable counter storage for high-risk route rate limits", async () => {
     const req = new Request("http://localhost/edge", {

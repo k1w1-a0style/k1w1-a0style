@@ -27,7 +27,6 @@ Deno.serve(async (req) => {
   const auth = requireScopedEdgeAuth(req, {
     scope: "android-keystore-status",
     allowAdmin: true,
-    allowCiBearer: false,
     allowJwtAuthHeaderWithAdmin: true,
     adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
   });
