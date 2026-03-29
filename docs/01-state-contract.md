@@ -76,6 +76,7 @@
 - **Build Profile:** nur `ProjectContext.setPreferredBuildProfile(...)`.
 - **Tokens/Secrets:** nur `infra/github/tokenStore.ts` (`save*/delete*`).
 - **Scoped lokale Admin-Keys:** Workflow (`workflowAdminKey`) und Android Keystore Export (`androidKeystoreExportAdminKey`) bleiben getrennte SecureStore-Slots; `legacyEdgeAdminKey` ist nur Compat-/Sunset-Slot und im Preview-Vertrag (Patch 615) **kein Standardpfad** mehr: `save_preview` darf nur noch bei explizitem Operator-/Maintenance-Flag (`EXPO_PUBLIC_ENABLE_LEGACY_PREVIEW_OPERATOR_MODE=true`) genutzt werden.
+- **Operator-Claim ist externer Betriebsvertrag:** `build_admin` wird ausserhalb des Repos provisioniert; App-/Repo-Code simuliert diesen Claim bewusst nicht.
 - **Connection-Lampen:** nur `useConnectionsScreen` schreibt `CONN_*` und `EAS_PROJECT_ID` (außer klar definierte Import-Flows).
 - **Wizard key-exists Flags:** nur `useCredentialsWizardScreen.refreshStatusCore(...)`.
 - **Diagnostic/CI Lite Flags:** nur Diagnostic-Run und CI-Lite Workflow Hook.

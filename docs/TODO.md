@@ -21,7 +21,7 @@
 
 # TODO
 
-Stand: **2026-03-19 (Patch 485)**
+Stand: **2026-03-29 (Patch 617)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
@@ -50,8 +50,13 @@ Stand: **2026-03-19 (Patch 485)**
 - [x] **Migrations-/RPC-Hygiene für `insert_diagnostic_upload`:** historischer UUID-/Spalten-Drift sauber eingeordnet; finaler `jsonb -> bigint`-Vertrag per Abschlussmigration + Invariant-Guard abgesichert (Patch 436).
 - [x] **Follow-up Audit `insert_diagnostic_upload`-Historie:** driftende UUID-Signatur weiterhin nur als dokumentierte Historie erlaubt; zusätzlicher Invariant-Guard verhindert Re-Intro der Legacy-Spaltenannahmen im finalen Vertrag (Patch 439).
 - [x] **Supabase Edge E2E-Contract-Audit (App ↔ Edge ↔ DB-Voraussetzungen):** produktiv genutzte Flows geprüft; zentrale Mapping-/Endpoint-Drifts (inkl. Keystore-Wizard + Function-Name-SoT) geschlossen (Patch 433/434).
-- [ ] **Supabase Operator-Runbook nachziehen:** Secrets/DB-Objekte/Deploy-Reihenfolge für Signing + Preview + Workflow-Edges als Checkliste konsolidieren (explizit inkl. manueller Supabase-Schritte).
-  - Konkret offen: `build_jobs`, `signing_android`, `signing_audit_log`, `previews` (inkl. TTL/Cleanup), Storage-Buckets inkl. Zugriffspfade, sowie Secrets (`K1W1_SUPABASE_URL`, `K1W1_SUPABASE_SERVICE_ROLE_KEY`, `PREVIEW_SUPABASE_URL`, `PREVIEW_SERVICE_ROLE_KEY`, `K1W1_PREVIEW_PAGE_TIMEOUT_MS`, `K1W1_SIGNING_MASTER_KEY`, `K1W1_SIGNING_BUCKET`, `K1W1_EDGE_ADMIN_KEY`, `SIGNING_ADMIN_KEY`, `K1W1_EDGE_WORKFLOW_ADMIN_KEY`, `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`, GitHub token envs).
+- [x] **Supabase-/Operator-Runbook-Restpunkt geschlossen:** Die operative Reihenfolge fuer Supabase/Secrets/DB/Storage/Functions/Preview/Signing/Workflow ist jetzt als verbindlicher Runbook-Vertrag dokumentiert (`docs/06-build-readiness.md`, Abschnitt „3.5 Supabase-/Operator-Readiness (verbindliche Reihenfolge)“ und „3.6 Troubleshooting“). `docs/EDGE_FUNCTIONS_STATUS.md` und `docs/04-risk-hotspots.md` sind auf denselben Vertrag gezogen (Patch 617).
+
+### Externe Betriebs-Restpunkte (bewusst ausserhalb Repo-Code)
+
+- Vergabe des Supabase-Operator-Claims (`build_admin`) fuer reale Operator-User bleibt externer Provisioning-Schritt (Supabase Auth/User-Management), nicht Repo-Code.
+- Anlage/Rotation produktiver Secrets in Supabase Dashboard/CI/Secret-Store bleibt externer Betriebsprozess; das Repo prueft nur den dokumentierten Vertragsrahmen.
+- Reale DB-/Storage-Lebenszyklusaufgaben (z. B. produktive TTL/Cleanup-Schedules, Monitoring, Backup-Policies) bleiben externe Betriebsaufgaben nach den im Runbook beschriebenen Mindestvoraussetzungen.
 
 - [ ] **MD-/Notes-Cleanup abschließen (Kernflächen):** README / INDEX / OVERVIEW / SCREEN-INDEX / PRODUCT-FLOWS weiter konsistent halten, Redundanzen klein halten, operative Navigation priorisieren.
 - [ ] **Dokument-SoT scharf halten:** Kern-MDs als Navigations- und Vertragsfläche; Verlaufsdetails primär in Patchnotes/Patchlog.

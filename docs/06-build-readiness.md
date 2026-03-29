@@ -364,3 +364,38 @@ Damit wird der Buildflow „wasserdicht“ gegen Umgehungen außerhalb der Build
 - Neuer Vertrag: Dispatch versucht nur Triggern (Dateiname/ID-Aufloesung) und liefert bei Fehlschlag klaren Fehlerzustand (`missing_workflow`).
 - Repair/Bootstrap bleibt ein separater, expliziter Operator-Schritt (AutoFix/Provisioning), nicht implizit im normalen Dispatch.
 - Ergebnis: Operatoren koennen jetzt klar unterscheiden zwischen "Dispatch fehlgeschlagen" und "Repo muss zuerst repariert/provisioniert werden".
+
+
+### 3.5 Supabase-/Operator-Readiness (verbindliche Reihenfolge)
+
+**Ziel:** Vor Live-Tests muss klar sein, ob ein echter Produktfehler oder nur fehlendes Setup vorliegt.
+
+1. **Operator-Claim zuerst (extern):** Testuser braucht extern provisionierten Supabase-Claim `build_admin` (oder serverseitig `service_role`). Ohne diesen Claim sind workflow-/build-/artifact-/keystore-Pfade bewusst fail-closed.
+2. **Lokale scoped Keys setzen:**
+   - Workflow-/Build-/Artifact: `K1W1_EDGE_WORKFLOW_ADMIN_KEY` (+ JWT fuer Operator-Aufrufe).
+   - Keystore-Operatorpfade: `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY` (+ JWT).
+   - Legacy-`K1W1_EDGE_ADMIN_KEY` ist kein Ersatz fuer Workflow-/Keystore-Scopes.
+3. **Supabase-/Preview-/Signing-Secrets verifizieren:**
+   - Preview: `PREVIEW_SUPABASE_URL`, `PREVIEW_SERVICE_ROLE_KEY`, `K1W1_PREVIEW_PAGE_TIMEOUT_MS`.
+   - Signing/Keystore: `K1W1_SIGNING_MASTER_KEY`, `K1W1_SIGNING_BUCKET`, `SIGNING_ADMIN_KEY` (nur signing-spezifische Legacy/Compat-Pfade).
+   - Workflow/Repo-CI: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `EXPO_TOKEN`.
+4. **DB-/Storage-/Function-Basis pruefen:** Tabellen/Funktionen/Buckets fuer `build_jobs`, `signing_android`, `signing_audit_log`, `previews` inklusive erwarteter Zugriffspfade und Cleanup/TTL-Mechanik muessen in der Zielumgebung bereits provisioniert sein (kein Auto-Bootstrap durch normalen Dispatch).
+5. **Workflow-/Preview-/Signing-Reihenfolge einhalten:**
+   - Erst Readiness/Provisioning, dann expliziter Workflow-Repair (falls noetig), danach normaler Dispatch/Build.
+   - Preview-Standardpfad bleibt ohne Operator-Flag fail-closed; Legacy-`save_preview` nur im expliziten Operator-/Maintenance-Modus.
+6. **Erst dann Live-Test starten:** Build triggern, Runs/Logs/Artifacts pruefen, danach Preview-/Signing-Pfade validieren.
+
+### 3.6 Troubleshooting: typische Symptome → Ursache → naechster Schritt
+
+- **Symptom:** `missing_workflow` beim Dispatch.
+  - **Ursache:** Workflow-Datei fehlt im Zielrepo; normaler Dispatch ist mutation-free.
+  - **Schritt:** Expliziten Repair-/Provisioning-Flow ausfuehren, danach erneut dispatchen.
+- **Symptom:** Meldung zu fehlender Operator-Rolle trotz gueltigem Login.
+  - **Ursache:** User hat keinen extern provisionierten `build_admin`-Claim.
+  - **Schritt:** Claim extern provisionieren, JWT neu holen, Test wiederholen.
+- **Symptom:** Keystore-/Build-Route bleibt fail-closed trotz lokalem Legacy-Key.
+  - **Ursache:** Falscher Key-Scope; Legacy-Key ersetzt keine scoped Workflow-/Keystore-Keys.
+  - **Schritt:** Scoped Keys setzen (`K1W1_EDGE_WORKFLOW_ADMIN_KEY` / `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`).
+- **Symptom:** Preview wirkt „kaputt“, lokal geht es aber.
+  - **Ursache:** Supabase-/Preview-Secrets oder Preview-DB/Storage-Setup fehlen; lokaler Fallback ist nur Best-Effort.
+  - **Schritt:** Preview-Secrets + `previews`-Objekte/TTL-Prereqs im Zielsystem nachziehen.
