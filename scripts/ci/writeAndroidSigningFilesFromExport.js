@@ -24,14 +24,14 @@ function die(msg) {
 let raw = '';
 try {
   raw = fs.readFileSync(0, 'utf8');
-} catch (e) {
+} catch (_e) {
   die('❌ Failed to read stdin for keystore export response');
 }
 
 let resp;
 try {
   resp = JSON.parse(raw);
-} catch (e) {
+} catch (_e) {
   die('❌ Keystore export response is not valid JSON');
 }
 
@@ -59,6 +59,6 @@ const creds = {
 };
 
 fs.writeFileSync('credentials.json', JSON.stringify(creds, null, 2), { mode: 0o600 });
-console.log(
-  `✅ wrote signing files (alias=${resp.alias || 'unknown'}, keystorePassword=${mask(resp.keystorePassword)})`
+process.stdout.write(
+  `✅ wrote signing files (alias=${resp.alias || 'unknown'}, keystorePassword=${mask(resp.keystorePassword)})\n`
 );

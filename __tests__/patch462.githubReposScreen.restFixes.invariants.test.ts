@@ -24,7 +24,7 @@ describe("Patch 462 GitHubReposScreen rest-fixes invariants", () => {
     const repoTypes = read("hooks/gitHubReposTypes.ts");
 
     expect(src).toContain('const defaultBranch = String(repo.default_branch || "").trim() || null;');
-    expect(src).toContain("setActiveBranch(defaultBranch);");
+    expect(src).toContain("setLinkedRepo(repo.full_name, defaultBranch);");
     expect(repoTypes).toContain("default_branch?: string | null;");
   });
 });

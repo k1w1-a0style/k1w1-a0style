@@ -1,5 +1,5 @@
 const mockSvc = {
-  getEdgeAdminKey: jest.fn(),
+  getLegacyEdgeAdminKey: jest.fn(),
   getExpoToken: jest.fn(),
   getGitHubToken: jest.fn(),
   getRepoFileText: jest.fn(),
@@ -16,7 +16,7 @@ describe("pipeline diagnostics P0 autofix actions", () => {
     jest.clearAllMocks();
     mockSvc.getGitHubToken.mockResolvedValue("gh");
     mockSvc.getExpoToken.mockResolvedValue("expo");
-    mockSvc.getEdgeAdminKey.mockResolvedValue("admin");
+    mockSvc.getLegacyEdgeAdminKey.mockResolvedValue("admin");
     mockSvc.listRepoSecretNames.mockResolvedValue(["EXPO_TOKEN"]);
   });
 

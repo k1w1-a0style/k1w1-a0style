@@ -446,6 +446,10 @@ Vollständiges Notification-System für Build-Status-Updates mit lokalen Push-Be
 - **Permission Management**: Automatische Permission-Anforderung
 - **Android Channel**: Dedicated "Build Updates" Channel
 - **Expo Push Token**: Vorbereitet für Remote-Notifications
+- **Patch-557-Hardening**:
+  - `projectId` fuer Expo Push wird priorisiert aus echten Expo/EAS-Quellen ermittelt (`easConfig` -> `expoConfig.extra.eas` -> `manifest2.expoClient.extra.eas`)
+  - kein Logging des rohen Expo Push Token
+  - `initialize()` haelt internen Permission-/Token-State auch in Fehlerpfaden konsistent
 
 ### API:
 
@@ -636,7 +640,7 @@ Neue Validierungsmodule in `supabase/functions/_shared/validation.ts`:
 - `validateGitHubRepo()` - Format und Path-Traversal-Schutz
 - `validateBuildProfile()` - Nur erlaubte Profile (development, preview, production)
 - `validateJobId()` - Integer-Validierung mit Grenzwerten
-- `validateTriggerBuildRequest()` - Komplette Request-Body-Validierung
+- `validateTriggerBuildRequest()` - Komplette Request-Body-Validierung (`trigger-eas-build`: fehlender/leer/Whitespace-Branch wird fail-closed mit 400 abgelehnt)
 
 ### Integration in Supabase Functions:
 
@@ -645,7 +649,7 @@ import { validateTriggerBuildRequest } from "../_shared/validation.ts";
 import { errorResponse } from "../_shared/cors.ts";
 
 const validation = validateTriggerBuildRequest(body);
-if (!validation.valid) {
+if (!validation.ok) {
   return errorResponse("Validation failed", req, 400, {
     errors: validation.errors,
   });

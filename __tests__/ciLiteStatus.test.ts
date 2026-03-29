@@ -74,7 +74,14 @@ describe("findWorkflowRunByJobId", () => {
 
   it("returns null when run list or job-id is invalid", () => {
     expect(findWorkflowRunByJobId([], "")).toBeNull();
-    expect(findWorkflowRunByJobId(null as any, "abc")).toBeNull();
+    expect(findWorkflowRunByJobId(null, "abc")).toBeNull();
+  });
+
+  it("stays stable with incomplete run payload entries", () => {
+    const target = { id: 9, name: "CI abc-123" };
+    const runs = [null, 123, { display_title: 99 }, { name: ["bad"] }, target];
+
+    expect(findWorkflowRunByJobId(runs, "abc-123")).toEqual(target);
   });
 });
 
@@ -103,4 +110,3 @@ describe("inferStepStates", () => {
     expect(steps.typecheck).toBe("failure");
   });
 });
-

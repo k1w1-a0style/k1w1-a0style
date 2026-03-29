@@ -24,10 +24,13 @@ describe("patch510 keystore shared secret helper invariants", () => {
   });
 
   it("re-exports the shared secret helpers for keystore generate/export/status paths", () => {
-    expect(read(generateHelpers)).toContain('export { getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, rateLimit, requireAdminKey } from "../_shared/auth.ts";');
+    expect(read(generateHelpers)).toContain("requireScopedEdgeAuth");
+    expect(read(generateHelpers)).toContain("requirePrivilegedOperatorJwtRole");
+    expect(read(generateHelpers)).toContain('export { requireDurableRateLimit } from "../_shared/auth.ts";');
     expect(read(exportHelpers)).toContain("getSigningMasterKey");
     expect(read(exportHelpers)).toContain("getSupabaseUrl");
-    expect(read(statusHelpers)).toContain('export { rateLimit, requireAdminKey, getServiceRoleKey, getSupabaseUrl } from "../_shared/auth.ts";');
+    expect(read(statusHelpers)).toContain("requireScopedEdgeAuth");
+    expect(read(statusHelpers)).toContain("requirePrivilegedOperatorJwtRole");
   });
 
   it("removes parallel direct Deno.env secret reads from keystore generate/export/status indexes", () => {
@@ -45,9 +48,16 @@ describe("patch510 keystore shared secret helper invariants", () => {
     expect(read(statusIndex)).toContain("const supabaseUrl = getSupabaseUrl();");
   });
 
-  it("keeps auth guard contracts unchanged while aligning shared secret helpers", () => {
-    expect(read(exportIndex)).toContain("requireAdminKeyOrServiceRoleBearer(req)");
-    expect(read(statusIndex)).toContain("requireAdminKey(req)");
-    expect(read(generateIndex)).toContain("requireAdminKey(req)");
+  it("keeps keystore auth contracts on scoped admin secret + privileged JWT roles", () => {
+    expect(read(exportIndex)).toContain("requireScopedEdgeAuth(req, {");
+    expect(read(exportIndex)).toContain('adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"');
+        expect(read(exportIndex)).toContain("requireJwtRole(req, {");
+    expect(read(exportIndex)).toContain('allowedRoles: ["service_role"]');
+    expect(read(statusIndex)).toContain("requireScopedEdgeAuth(req, {");
+    expect(read(generateIndex)).toContain("requireScopedEdgeAuth(req, {");
+    expect(read(statusIndex)).toContain('requirePrivilegedOperatorJwtRole(req, "android-keystore-status")');
+    expect(read(generateIndex)).toContain('requirePrivilegedOperatorJwtRole(req, "android-keystore-generate")');
+    expect(read(statusIndex)).not.toContain("requireAdminKey(req)");
+    expect(read(generateIndex)).not.toContain("requireAdminKey(req)");
   });
 });

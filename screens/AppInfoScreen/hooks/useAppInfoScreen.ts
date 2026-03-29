@@ -27,9 +27,18 @@ import {
   getExpoToken,
   saveExpoToken,
   deleteExpoToken,
-  getEdgeAdminKey,
-  saveEdgeAdminKey,
-  deleteEdgeAdminKey,
+  getWorkflowAdminKey,
+  saveWorkflowAdminKey,
+  deleteWorkflowAdminKey,
+  getAndroidKeystoreExportAdminKey,
+  saveAndroidKeystoreExportAdminKey,
+  deleteAndroidKeystoreExportAdminKey,
+  getLegacyEdgeAdminKey,
+  saveLegacyEdgeAdminKey,
+  deleteLegacyEdgeAdminKey,
+  getSigningAdminKey,
+  saveSigningAdminKey,
+  deleteSigningAdminKey,
   getSigningMasterKey,
   saveSigningMasterKey,
   deleteSigningMasterKey,
@@ -46,6 +55,38 @@ type SecureBackupRequest =
   | { mode: "export"; scope: SecureBackupScope }
   | { mode: "import" };
 
+type ProjectFileLike = {
+  path: string;
+  content: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && typeof error.message === "string" && error.message.trim()) {
+    return error.message;
+  }
+  if (isRecord(error) && typeof error.message === "string" && error.message.trim()) {
+    return error.message;
+  }
+  return fallback;
+}
+
+function isAbortLikeError(error: unknown): boolean {
+  const message = getErrorMessage(error, "").toLowerCase();
+  return message.includes("abgebrochen");
+}
+
+function toProjectFiles(value: unknown): ProjectFileLike[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (entry): entry is ProjectFileLike =>
+      isRecord(entry) && typeof entry.path === "string" && typeof entry.content === "string",
+  );
+}
+
 function buildSecretCiSecrets(payload: SecretBackupPayloadV1) {
   return {
     GITHUB_TOKEN: payload.tokens.githubToken ?? "",
@@ -53,23 +94,22 @@ function buildSecretCiSecrets(payload: SecretBackupPayloadV1) {
     SUPABASE_URL: payload.connections.supabaseUrl,
     SUPABASE_ANON_KEY: payload.connections.supabaseAnonKey,
     EAS_PROJECT_ID: payload.connections.easProjectId,
-    K1W1_EDGE_ADMIN_KEY: payload.tokens.edgeAdminKey ?? "",
-    SIGNING_ADMIN_KEY: payload.tokens.edgeAdminKey ?? "",
+    K1W1_EDGE_WORKFLOW_ADMIN_KEY: payload.tokens.workflowAdminKey ?? "",
+    K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: payload.tokens.androidKeystoreExportAdminKey ?? "",
+    K1W1_EDGE_ADMIN_KEY: payload.tokens.legacyEdgeAdminKey ?? "",
+    SIGNING_ADMIN_KEY: payload.tokens.signingAdminKey ?? "",
     SIGNING_MASTER_KEY: payload.tokens.signingMasterKey ?? "",
   };
 }
 
 export function useAppInfoScreen() {
   const { projectData, setProjectName, updateProjectFiles, setPackageName, setLinkedRepo } = useProject();
-
-  const typedProjectData = projectData as any;
+  const projectFiles = useMemo(() => toProjectFiles(projectData?.files), [projectData?.files]);
   const { config, setConfig } = useAI();
   const {
     activeRepo,
     activeBranch,
     recentRepos,
-    setActiveRepo,
-    setActiveBranch,
     addRecentRepo,
     clearRecentRepos,
   } = useGitHub();
@@ -80,11 +120,11 @@ export function useAppInfoScreen() {
   const [secureBackupBusy, setSecureBackupBusy] = useState(false);
 
   useEffect(() => {
-    if (!typedProjectData?.files) return;
+    if (!projectFiles.length) return;
 
-    setAppName(typedProjectData.name || "Meine App");
+    setAppName(projectData?.name || "Meine App");
 
-    const pkgJson = typedProjectData.files.find((f: any) => f.path === "package.json");
+    const pkgJson = projectFiles.find((f) => f.path === "package.json");
     if (pkgJson && typeof pkgJson.content === "string") {
       try {
         const parsed = JSON.parse(pkgJson.content);
@@ -93,15 +133,15 @@ export function useAppInfoScreen() {
         setPackageNameState("meine-app");
       }
     }
-  }, [typedProjectData?.name, typedProjectData?.files]);
+  }, [projectData?.name, projectFiles]);
 
   useEffect(() => {
-    if (!typedProjectData?.files) {
+    if (!projectFiles.length) {
       setIconPreview(null);
       return;
     }
 
-    const iconFile = typedProjectData.files.find((f: any) => f.path === "assets/icon.png");
+    const iconFile = projectFiles.find((f) => f.path === "assets/icon.png");
     if (!iconFile?.content) {
       setIconPreview(null);
       return;
@@ -117,7 +157,7 @@ export function useAppInfoScreen() {
     } else {
       setIconPreview(null);
     }
-  }, [typedProjectData?.files, typedProjectData?.lastModified]);
+  }, [projectFiles, projectData?.lastModified]);
 
   const handleSaveAppName = useCallback(async () => {
     const trimmedName = appName.trim();
@@ -129,8 +169,8 @@ export function useAppInfoScreen() {
     try {
       await setProjectName(trimmedName);
       Alert.alert("✅ Gespeichert", `App-Name: "${trimmedName}"`);
-    } catch (error: any) {
-      Alert.alert("Fehler", error?.message || "Konnte App-Name nicht speichern.");
+    } catch (error: unknown) {
+      Alert.alert("Fehler", getErrorMessage(error, "Konnte App-Name nicht speichern."));
     }
   }, [appName, setProjectName]);
 
@@ -144,8 +184,8 @@ export function useAppInfoScreen() {
     try {
       await setPackageName(trimmedPkg);
       Alert.alert("✅ Gespeichert", `Package Name: "${trimmedPkg}"`);
-    } catch (error: any) {
-      Alert.alert("Fehler", error?.message || "Konnte Package Name nicht speichern.");
+    } catch (error: unknown) {
+      Alert.alert("Fehler", getErrorMessage(error, "Konnte Package Name nicht speichern."));
     }
   }, [packageName, setPackageName]);
 
@@ -187,16 +227,27 @@ export function useAppInfoScreen() {
         "✅ Erfolg",
         "Alle App-Assets wurden aktualisiert:\n\n• icon.png\n• adaptive-icon.png\n• splash.png\n• favicon.png\n\nDeine App ist bereit für den Build!",
       );
-    } catch (error: any) {
-      Alert.alert("Fehler", error?.message || "Assets konnten nicht aktualisiert werden.");
+    } catch (error: unknown) {
+      Alert.alert("Fehler", getErrorMessage(error, "Assets konnten nicht aktualisiert werden."));
     }
   }, [updateProjectFiles]);
 
   const collectSecretBackupPayload = useCallback(async () => {
-    const [githubToken, expoToken, edgeAdminKey, signingMasterKey] = await Promise.all([
+    const [
+      githubToken,
+      expoToken,
+      workflowAdminKey,
+      androidKeystoreExportAdminKey,
+      legacyEdgeAdminKey,
+      signingAdminKey,
+      signingMasterKey,
+    ] = await Promise.all([
       getGitHubToken().catch(() => null),
       getExpoToken().catch(() => null),
-      getEdgeAdminKey().catch(() => null),
+      getWorkflowAdminKey().catch(() => null),
+      getAndroidKeystoreExportAdminKey().catch(() => null),
+      getLegacyEdgeAdminKey().catch(() => null),
+      getSigningAdminKey().catch(() => null),
       getSigningMasterKey().catch(() => null),
     ]);
 
@@ -221,13 +272,16 @@ export function useAppInfoScreen() {
       tokens: {
         githubToken,
         expoToken,
-        edgeAdminKey,
+        workflowAdminKey,
+        androidKeystoreExportAdminKey,
+        legacyEdgeAdminKey,
+        signingAdminKey,
         signingMasterKey,
       },
       ciSecrets: {},
       github: {
-        activeRepo,
-        activeBranch,
+        linkedRepo: activeRepo,
+        linkedBranch: activeBranch,
         recentRepos,
       },
     });
@@ -257,9 +311,21 @@ export function useAppInfoScreen() {
       const cs = payload.ciSecrets;
       const githubToken = t.githubToken?.trim() || cs.GITHUB_TOKEN?.trim() || "";
       const expoToken = t.expoToken?.trim() || cs.EXPO_TOKEN?.trim() || "";
-      const edgeKey =
+      const workflowAdminKey =
+        t.workflowAdminKey?.trim() ||
+        cs.K1W1_EDGE_WORKFLOW_ADMIN_KEY?.trim() ||
+        "";
+      const androidKeystoreExportAdminKey =
+        t.androidKeystoreExportAdminKey?.trim() ||
+        cs.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY?.trim() ||
+        "";
+      const legacyEdgeAdminKey =
+        t.legacyEdgeAdminKey?.trim() ||
         t.edgeAdminKey?.trim() ||
         cs.K1W1_EDGE_ADMIN_KEY?.trim() ||
+        "";
+      const signingAdminKey =
+        t.signingAdminKey?.trim() ||
         cs.SIGNING_ADMIN_KEY?.trim() ||
         "";
       const signingMaster = t.signingMasterKey?.trim() || cs.SIGNING_MASTER_KEY?.trim() || "";
@@ -270,8 +336,17 @@ export function useAppInfoScreen() {
       if (expoToken) await saveExpoToken(expoToken);
       else await deleteExpoToken();
 
-      if (edgeKey) await saveEdgeAdminKey(edgeKey);
-      else await deleteEdgeAdminKey();
+      if (workflowAdminKey) await saveWorkflowAdminKey(workflowAdminKey);
+      else await deleteWorkflowAdminKey();
+
+      if (androidKeystoreExportAdminKey) await saveAndroidKeystoreExportAdminKey(androidKeystoreExportAdminKey);
+      else await deleteAndroidKeystoreExportAdminKey();
+
+      if (legacyEdgeAdminKey) await saveLegacyEdgeAdminKey(legacyEdgeAdminKey);
+      else await deleteLegacyEdgeAdminKey();
+
+      if (signingAdminKey) await saveSigningAdminKey(signingAdminKey);
+      else await deleteSigningAdminKey();
 
       if (signingMaster) await saveSigningMasterKey(signingMaster);
       else await deleteSigningMasterKey();
@@ -285,11 +360,9 @@ export function useAppInfoScreen() {
         }
       }
 
-      setActiveRepo(payload.github.activeRepo);
-      setActiveBranch(payload.github.activeBranch);
-      setLinkedRepo(payload.github.activeRepo, payload.github.activeBranch);
+      setLinkedRepo(payload.github.linkedRepo, payload.github.linkedBranch);
     },
-    [addRecentRepo, clearRecentRepos, setActiveBranch, setActiveRepo, setLinkedRepo],
+    [addRecentRepo, clearRecentRepos, setLinkedRepo],
   );
 
   const handleExportAPIConfig = useCallback(async () => {
@@ -299,8 +372,8 @@ export function useAppInfoScreen() {
         "✅ Export erfolgreich",
         `API-/KI-Konfiguration wurde als Datei "${result.fileName}" gespeichert. Sie enthält keine Projektdateien.`,
       );
-    } catch (error: any) {
-      Alert.alert("Fehler beim Export", error?.message || "Export fehlgeschlagen");
+    } catch (error: unknown) {
+      Alert.alert("Fehler beim Export", getErrorMessage(error, "Export fehlgeschlagen"));
     }
   }, [config]);
 
@@ -330,9 +403,9 @@ export function useAppInfoScreen() {
                 "✅ Import erfolgreich",
                 `${totalKeysImported} API-Keys wurden geladen. Projektdateien und ZIP-Inhalte wurden nicht verändert.\n\nBackup-Datum: ${exportDate}`,
               );
-            } catch (error: any) {
-              if (!error.message.includes("abgebrochen")) {
-                Alert.alert("Fehler beim Import", error?.message || "Import fehlgeschlagen");
+            } catch (error: unknown) {
+              if (!isAbortLikeError(error)) {
+                Alert.alert("Fehler beim Import", getErrorMessage(error, "Import fehlgeschlagen"));
               }
             }
           },
@@ -422,9 +495,9 @@ export function useAppInfoScreen() {
         }
 
         setSecureBackupRequest(null);
-      } catch (error: any) {
-        if (!error.message.includes("abgebrochen")) {
-          Alert.alert("Fehler beim gesicherten Backup", error?.message || "Backup fehlgeschlagen");
+      } catch (error: unknown) {
+        if (!isAbortLikeError(error)) {
+          Alert.alert("Fehler beim gesicherten Backup", getErrorMessage(error, "Backup fehlgeschlagen"));
         }
       } finally {
         setSecureBackupBusy(false);
@@ -433,10 +506,10 @@ export function useAppInfoScreen() {
     [secureBackupRequest, secureBackupBusy, collectSecretBackupPayload, config, applySecretBackupPayload, setConfig],
   );
 
-  const fileCount = useMemo(() => typedProjectData?.files?.length || 0, [typedProjectData?.files]);
+  const fileCount = useMemo(() => projectFiles.length, [projectFiles]);
   const messageCount = useMemo(
-    () => (typedProjectData?.chatHistory || typedProjectData?.messages)?.length || 0,
-    [typedProjectData?.chatHistory, typedProjectData?.messages],
+    () => (Array.isArray(projectData?.chatHistory) ? projectData.chatHistory : projectData?.messages)?.length || 0,
+    [projectData?.chatHistory, projectData?.messages],
   );
 
   const apiKeysCount = useMemo(() => {
@@ -448,12 +521,12 @@ export function useAppInfoScreen() {
   }, [config.apiKeys]);
 
   const assetsStatus = useMemo(() => {
-    if (!typedProjectData?.files) {
+    if (!projectFiles.length) {
       return { icon: false, adaptiveIcon: false, splash: false, favicon: false };
     }
 
     const hasAsset = (path: string) =>
-      typedProjectData.files.some((file: any) => file.path === path && file.content.length > 100);
+      projectFiles.some((file) => file.path === path && file.content.length > 100);
 
     return {
       icon: hasAsset("assets/icon.png"),
@@ -461,7 +534,7 @@ export function useAppInfoScreen() {
       splash: hasAsset("assets/splash.png"),
       favicon: hasAsset("assets/favicon.png"),
     };
-  }, [typedProjectData?.files]);
+  }, [projectFiles]);
 
   return {
     projectData,

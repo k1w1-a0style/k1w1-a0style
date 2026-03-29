@@ -142,26 +142,30 @@ describe("Invariant String Tests", () => {
     expect(wfAuto).toContain('event_type="trigger-ci-lite"');
     expect(wfAuto).toContain("\njobs:\n");
 
+    const sharedTemplates = read("shared/workflows/managedWorkflowTemplates.ts");
+    expect(sharedTemplates).toContain("k1w1-ci-lite.yml");
+    expect(sharedTemplates).toContain("\non:\n  repository_dispatch:");
+    expect(sharedTemplates).toContain("trigger-ci-lite");
+    expect(sharedTemplates).toContain("repos/\\${GITHUB_REPOSITORY}/dispatches");
+
     const edge = read("supabase/functions/github-workflow-dispatch/index.ts");
-    expect(edge).toContain("WORKFLOW_TEMPLATES");
-    expect(edge).toContain("k1w1-ci-lite.yml");
-    expect(edge).toContain("\non:\n  repository_dispatch:");
-    expect(edge).toContain("trigger-ci-lite");
-    expect(edge).toContain("repos/\\${GITHUB_REPOSITORY}/dispatches");
+    expect(edge).toContain("missing_workflow");
+    expect(edge).toContain("Dispatch is mutation-free");
+    expect(edge).not.toContain("WORKFLOW_TEMPLATES");
+    expect(edge).not.toContain("managedWorkflowTemplates");
 
     const appTemplates = read("infra/github/workflowTemplates.ts");
-    expect(appTemplates).toContain("k1w1-ci-lite.yml");
-    expect(appTemplates).toContain("\non:\n  repository_dispatch:");
-    expect(appTemplates).toContain("trigger-ci-lite");
-    expect(appTemplates).toContain("repos/\\${GITHUB_REPOSITORY}/dispatches");
+    expect(appTemplates).toContain("WORKFLOW_TEMPLATES");
+    expect(appTemplates).toContain("managedWorkflowTemplates");
   });
   it("I12 — CI-lite workflows keep pipefail, pinned actions, and Expo preflight", () => {
     // Why it matters: tee without pipefail causes false-green header status, and Expo preflight guards build-readiness.
     const wf = read(".github/workflows/k1w1-ci-lite.yml");
     const wfAuto = read(".github/workflows/k1w1-ci-lite-autofix.yml");
+    const sharedTemplates = read("shared/workflows/managedWorkflowTemplates.ts");
     const appTemplates = read("infra/github/workflowTemplates.ts");
 
-    for (const source of [wf, wfAuto, appTemplates]) {
+    for (const source of [wf, wfAuto, sharedTemplates]) {
       expect(source).toContain("set -o pipefail");
       expect(source).toContain("(data?.expo ?? data)?.extra?.eas?.projectId");
       expect(source).toContain("actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5");
@@ -170,6 +174,8 @@ describe("Invariant String Tests", () => {
       expect(source).toContain('"expo_exit":');
       expect(source).toContain('"ok":');
     }
+    expect(appTemplates).toContain("WORKFLOW_TEMPLATES");
+    expect(appTemplates).toContain("managedWorkflowTemplates");
   });
 
 });

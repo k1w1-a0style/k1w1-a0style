@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { getEdgeAdminKey } from "../../../infra/github/githubService";
+import { getAndroidKeystoreExportAdminKey } from "../../../infra/github/githubService";
 import {
   credKeyForProfile,
   credKeyForProjectUiMode,
@@ -26,7 +26,7 @@ export type ReadSigningKeyGateStateParams = {
   projectData?: { id?: string | null } | null;
   deps?: {
     storageGetItem?: StorageReader;
-    getEdgeAdminKey?: typeof getEdgeAdminKey;
+    getAndroidKeystoreExportAdminKey?: typeof getAndroidKeystoreExportAdminKey;
   };
 };
 
@@ -50,14 +50,14 @@ export function describeSigningKeyGateReason(params: {
   if (params.hasSigningKey) return null;
 
   if (!params.localEdgeAdminKeyPresent) {
-    return "Lokaler Edge Admin Key fehlt – Credentials Wizard, Remote-Preview und Build-Vorbereitung koennen den Keystore-Status ohne diesen lokalen App-Wert nicht verifizieren.";
+    return "Lokaler Android Keystore Export Admin Key fehlt – Credentials Wizard und Build-Vorbereitung koennen den Keystore-Status ohne diesen lokalen scoped App-Wert nicht verifizieren.";
   }
 
   const detail = params.credentialDetail?.trim() || null;
   if (detail) return detail;
 
   if (params.credentialState === "auth_error") {
-    return "Lokaler Edge Admin Key wurde vom Edge-Server fuer den Keystore-Check abgelehnt (401/403). Repo-/Server-Secrets koennen trotzdem vorhanden sein.";
+    return "Lokaler Android Keystore Export Admin Key wurde vom Edge-Server fuer den Keystore-Check abgelehnt (401/403). Repo-/Server-Secrets koennen trotzdem vorhanden sein.";
   }
 
   if (params.credentialState === "missing") {
@@ -73,7 +73,8 @@ export async function readSigningKeyGateState(
   const storageGetItem =
     params.deps?.storageGetItem ??
     ((key: string) => AsyncStorage.getItem(key));
-  const readEdgeAdminKey = params.deps?.getEdgeAdminKey ?? getEdgeAdminKey;
+  const readEdgeAdminKey =
+    params.deps?.getAndroidKeystoreExportAdminKey ?? getAndroidKeystoreExportAdminKey;
 
   const keyMode = params.buildProfile === "development" ? "dev" : params.buildProfile;
   const projectScope = resolveProjectCredentialScope({

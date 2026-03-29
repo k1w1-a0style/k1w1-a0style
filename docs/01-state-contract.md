@@ -13,8 +13,8 @@
 | `projectData.linkedRepo` | `string \| null \| undefined` | neues Projekt: `undefined` | im Projekt-Blob `k1w1_project_data` | `ProjectContext` / `ProjectData` | Schreiben: `setLinkedRepo(...)`; Lesen: Build/Diagnostic/Wizard/Connections über `projectData` |
 | `projectData.linkedBranch` | `string \| null \| undefined` | neues Projekt: `undefined` | im Projekt-Blob `k1w1_project_data` | `ProjectContext` / `ProjectData` | Schreiben: `setLinkedRepo(repo, branch)`; Lesen: Build/Diagnostic/Wizard/Connections |
 | `projectData.preferredBuildProfile` | `"development" \| "preview" \| "production" \| null` | initial meist UI-Fallback (`preview` oder `dev`) | im Projekt-Blob `k1w1_project_data` | `ProjectContext` / `ProjectData` | Schreiben: `setPreferredBuildProfile(...)`; Lesen: Build + Wizard + Drawer-Chip |
-| `activeRepo` (GitHubContext) | `string \| null` | aus `k1w1_github_active_repo` bzw. `null` | `k1w1_github_active_repo` | **Mirror-State** (nicht autoritativ) | Schreiben: GitHubContext + RepoScreen + Backup-Import; Lesen: Header/Drawer/Repo-Screen |
-| `activeBranch` (GitHubContext) | `string \| null` | aus `k1w1_github_active_branch` bzw. `null` | `k1w1_github_active_branch` | **Mirror-State** (nicht autoritativ) | Schreiben: GitHubContext + RepoScreen + Backup-Import; Lesen: Header/Drawer/Repo-Screen |
+| `activeRepo` (GitHubContext) | `string \| null` | aus `projectData.linkedRepo` abgeleitet | keine eigene Persistenz (Legacy-Key wird bereinigt) | **Derived Read-Model** (nicht autoritativ) | Schreiben: indirekt über `setLinkedRepo(...)`; Lesen: Header/Drawer/Repo-Screen |
+| `activeBranch` (GitHubContext) | `string \| null` | aus `projectData.linkedBranch` abgeleitet | keine eigene Persistenz (Legacy-Key wird bereinigt) | **Derived Read-Model** (nicht autoritativ) | Schreiben: indirekt über `setLinkedRepo(repo, branch)`; Lesen: Header/Drawer/Repo-Screen |
 | `recentRepos` (GitHubContext) | `string[]` | `[]` | `k1w1_github_recent_repos` | GitHubContext | Schreiben: `addRecentRepo`; Lesen: Repo-Screen |
 | `RECENT_BRANCHES_BY_REPO` | `Record<string,string[]>` (JSON) | `{}` | `recent_branches_by_repo` | AsyncStorage Read-Model | Schreiben: Repo-Screen branch selection; Lesen: BranchSelector |
 
@@ -48,7 +48,10 @@
 | Zustand | Storage | SoT | Writer |
 |---|---|---|---|
 | GitHub Token, Expo Token | SecureStore | tokenStore helpers | `saveGitHubToken/saveExpoToken` |
-| Edge Admin Key | SecureStore | tokenStore helpers | `saveEdgeAdminKey` |
+| Workflow Admin Key | SecureStore | tokenStore helpers | `saveWorkflowAdminKey` |
+| Android Keystore Export Admin Key | SecureStore | tokenStore helpers | `saveAndroidKeystoreExportAdminKey` |
+| Legacy Edge Admin Key | SecureStore | tokenStore helpers | `saveLegacyEdgeAdminKey` |
+| Signing Admin Key | SecureStore | tokenStore helpers | `saveSigningAdminKey` |
 | Supabase Service Role Key | SecureStore (legacy AsyncStorage migration) | tokenStore helpers | `saveSupabaseServiceRoleKey` |
 | Signing Master Key | SecureStore | tokenStore helpers | `saveSigningMasterKey` |
 
@@ -60,8 +63,8 @@
 
 1. **Repo/Branch/BuildProfile SoT = `ProjectData`**
    - `linkedRepo`, `linkedBranch`, `preferredBuildProfile` sind die autoritativen Werte.
-2. **GitHubContext `active*` = reiner Mirror/Read-Optimierung**
-   - darf UI bedienen, aber semantisch nie gegen `ProjectData.linked*` laufen.
+2. **GitHubContext `active*` = abgeleitetes Read-Model**
+   - darf UI bedienen, hat aber keine eigene Persistenz- oder Business-SoT.
 3. **Sensitive Keys SoT = SecureStore (über tokenStore/githubService APIs)**
    - kein Klartext-SoT in AsyncStorage.
 4. **Status-Lampen/Read-Model-Flags SoT = AsyncStorage keys**
@@ -72,16 +75,16 @@
 - **Repo/Branch:** nur `ProjectContext.setLinkedRepo(...)` ist autoritativer Writer.
 - **Build Profile:** nur `ProjectContext.setPreferredBuildProfile(...)`.
 - **Tokens/Secrets:** nur `infra/github/tokenStore.ts` (`save*/delete*`).
+- **Scoped lokale Admin-Keys:** Workflow (`workflowAdminKey`) und Android Keystore Export (`androidKeystoreExportAdminKey`) bleiben getrennte SecureStore-Slots; `legacyEdgeAdminKey` ist nur Compat-/Sunset-Slot und im Preview-Vertrag (Patch 615) **kein Standardpfad** mehr: `save_preview` darf nur noch bei explizitem Operator-/Maintenance-Flag (`EXPO_PUBLIC_ENABLE_LEGACY_PREVIEW_OPERATOR_MODE=true`) genutzt werden.
+- **Operator-Claim ist externer Betriebsvertrag:** `build_admin` wird ausserhalb des Repos provisioniert; App-/Repo-Code simuliert diesen Claim bewusst nicht.
 - **Connection-Lampen:** nur `useConnectionsScreen` schreibt `CONN_*` und `EAS_PROJECT_ID` (außer klar definierte Import-Flows).
 - **Wizard key-exists Flags:** nur `useCredentialsWizardScreen.refreshStatusCore(...)`.
 - **Diagnostic/CI Lite Flags:** nur Diagnostic-Run und CI-Lite Workflow Hook.
 
 ## B.3 Aktuelle Abweichungen (Ist vs Soll)
 
-- **Dual-write bei Repo/Branch existiert noch:**
-  - Repo-Screen schreibt sowohl `setActive*` als auch `setLinkedRepo`.
-  - AppInfo Full-Backup-Import schreibt ebenfalls beides.
-- **Build/CI nutzt teilweise Branch-Fallbacks auf `"main"`** statt strikt aus SoT.
+- Keine konkurrierende Dual-SoT fuer Repo/Branch mehr: Write-Pfade laufen ueber `setLinkedRepo(...)`.
+- Legacy-Backups mit `github.activeRepo/activeBranch` werden beim Import kontrolliert auf `github.linkedRepo/linkedBranch` migriert.
 
 ---
 
@@ -90,8 +93,8 @@
 ## C.1 Reihenfolge (Boot + Laufzeit)
 
 1. `ProjectContext` lädt `k1w1_project_data` und setzt `projectData`.
-2. `GitHubContext` lädt eigene Keys (`active*`, `recentRepos`) und setzt danach Mirror-Effekt:
-   - `projectData.linked*` überschreibt `active*`.
+2. `GitHubContext` lädt `recentRepos` und bereinigt Legacy-`active*`-Keys;
+   `activeRepo`/`activeBranch` werden direkt aus `projectData.linked*` abgeleitet.
 3. Feature-Hooks laden ihre Read-Model-Flags aus AsyncStorage:
    - Connections Lampen,
    - Build Preconditions (Wizard/Diagnostic/CI Lite),
@@ -154,19 +157,17 @@ const setPreferredBuildProfile = useCallback(
 );
 ```
 
-### E2 — GitHubContext als Mirror von `projectData.linked*`
-**Datei:** `contexts/GitHubContext.tsx` — **Symbol:** mirror `useEffect`
+### E2 — GitHubContext als Derived Read-Model aus `projectData.linked*`
+**Datei:** `contexts/GitHubContext.tsx` — **Symbole:** `activeRepo`, `activeBranch`
 ```ts
-const linkedRepo = (projectData?.linkedRepo ?? "").trim() || null;
-const linkedBranch = (projectData?.linkedBranch ?? "").trim() || null;
-
-if (linkedRepo !== activeRepo) {
-  setActiveRepo(linkedRepo);
-}
-
-if (linkedBranch !== activeBranch) {
-  setActiveBranch(linkedBranch);
-}
+const activeRepo = useMemo(
+  () => (hydrated ? normalizeLinkedGitHubValue(projectData?.linkedRepo) : null),
+  [hydrated, projectData?.linkedRepo],
+);
+const activeBranch = useMemo(
+  () => (hydrated ? normalizeLinkedGitHubValue(projectData?.linkedBranch) : null),
+  [hydrated, projectData?.linkedBranch],
+);
 ```
 
 ### E3 — Persistenz von `ProjectData` als JSON-Blob
@@ -277,14 +278,10 @@ export const getSupabaseServiceRoleKey = async (): Promise<string | null> => {
 };
 ```
 
-### E12 — Aktuelle Abweichung: Dual-write bei Import
-**Datei:** `screens/AppInfoScreen/hooks/useAppInfoScreen.ts` — **Symbol:** `handleImportFullBackup`
+### E12 — Backup-Import schreibt nur noch die autoritative Repo/Branch-SoT
+**Datei:** `screens/AppInfoScreen/hooks/useAppInfoScreen.ts` — **Symbol:** `applySecretBackupPayload`
 ```ts
-setActiveRepo(nextRepo);
-setActiveBranch(nextBranch);
-
-// Persist selection so the rest of the app doesn't snap back to an old linkedRepo.
-setLinkedRepo(nextRepo, nextBranch);
+setLinkedRepo(payload.github.linkedRepo, payload.github.linkedBranch);
 ```
 
 ### E13 — Aktuelle Abweichung: Branch-Fallback auf "main"

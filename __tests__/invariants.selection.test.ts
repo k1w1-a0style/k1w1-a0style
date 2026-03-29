@@ -31,6 +31,13 @@ describe("Invariants: repo/branch selection is source of truth", () => {
     expect(src).not.toContain("projectData?.linkedBranch?.trim() ||\n      activeBranch?.trim() ||");
   });
 
+  it("does not fall back to full workflow run list when active profile filter has zero matches", () => {
+    const src = read("screens/EnhancedBuildScreen/hooks/useEnhancedBuildScreen.ts");
+
+    expect(src).not.toContain("return list.length > 0 ? list : runs;");
+    expect(src).toContain("filterWorkflowRunsByProfile");
+  });
+
   it("uses project-context repo/branch as the only header CI-Lite source of truth", () => {
     const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
 
@@ -70,7 +77,7 @@ describe("Invariants: repo/branch selection is source of truth", () => {
   it("does not keep stale active branch when resolving repo default branch", () => {
     const src = read("screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts");
 
-    expect(src).toContain("setActiveBranch(b);");
+    expect(src).toContain("setLinkedRepo(fullName, b);");
     expect(src).not.toContain("setActiveBranch(activeBranch || b);");
   });
 
@@ -89,15 +96,15 @@ describe("Invariants: repo/branch selection is source of truth", () => {
     expect(src).not.toContain("`${edgeUrl}/github-run-artifact-json`");
   });
 
-  it("keeps managed markers in embedded workflow templates", () => {
-    const src = read("supabase/functions/github-workflow-dispatch/index.ts");
+  it("keeps managed markers in managed workflow templates", () => {
+    const src = read("shared/workflows/managedWorkflowTemplates.ts");
 
     expect(src).toContain('# managed-by: k1w1');
     expect(src).toContain('# workflow-version: 399');
   });
 
   it("keeps source provenance fields in CI-Lite template artifacts", () => {
-    const src = read("supabase/functions/github-workflow-dispatch/index.ts");
+    const src = read("shared/workflows/managedWorkflowTemplates.ts");
 
     expect(src).toContain('\"source_sha\": \"\\${SOURCE_SHA:-}\"');
     expect(src).toContain('\"github_sha\": \"\\${GITHUB_SHA}\"');

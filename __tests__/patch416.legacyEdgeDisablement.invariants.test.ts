@@ -31,6 +31,9 @@ describe("patch416 legacy edge disablement invariants", () => {
       expect(src).toContain("disabled: true");
       expect(src).toContain("status: 410");
       expect(src).toContain("corsHeadersForRequest(req)");
+      expect(src).toContain("requireScopedEdgeAuth(req, {");
+      expect(src).toContain('adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"');
+            expect(src).not.toContain("requireAdminKey(req)");
     });
   });
 

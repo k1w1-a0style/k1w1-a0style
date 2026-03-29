@@ -4,8 +4,10 @@ import { validateCheckBuildRequest, parseJsonBody } from "../_shared/validation.
 import {
   getServiceRoleKey,
   getSupabaseUrl,
+  requireWorkflowOperatorJwtRole,
   requireScopedEdgeAuth,
   rateLimit,
+  requireDurableRateLimit,
 } from "../_shared/auth.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 
@@ -45,15 +47,24 @@ Deno.serve(async (req) => {
   if (cors) return cors;
 
   try {
-    // Legacy guard lineage: requireAdminKeyOrServiceRoleBearer(req).
+    // Legacy guard lineage: generic admin-or-CI bearer guard (removed).
     const auth = requireScopedEdgeAuth(req, {
       scope: "check-eas-build",
       allowAdmin: true,
-      allowCiBearer: true,
+      allowJwtAuthHeaderWithAdmin: true,
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
-      ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER",
     });
     if (auth) return auth;
+    const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "check-eas-build");
+    if (jwtRoleGuard) return jwtRoleGuard;
+
+    const durableRl = await requireDurableRateLimit(req, {
+      scope: "check-eas-build",
+      subject: req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "unknown",
+      max: 30,
+      windowMs: 60_000,
+    });
+    if (durableRl) return durableRl;
 
     const rl = rateLimit(req, "check-eas-build");
     if (rl) return rl;

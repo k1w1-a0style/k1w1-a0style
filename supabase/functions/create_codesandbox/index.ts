@@ -4,7 +4,7 @@
 import {
   CODESANDBOX_DEFINE_URL, cors, json, safeErrorMessage, safeName,
   isObject, escapeHtml, transformRNtoWeb, pickEntry,
-  parseJsonBody, rateLimit, requireAdminKey, sanitizeErrorText, sanitizeUnknownForTransport,
+  parseJsonBody, rateLimit, requireScopedEdgeAuth, sanitizeErrorText, sanitizeUnknownForTransport,
 } from "./helpers.ts";
 import type { PreviewFile, RequestBody, JsonRecord } from "./helpers.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
@@ -190,7 +190,11 @@ function filterDeps(
 }
 
 Deno.serve(async (req) => {
-  const auth = requireAdminKey(req);
+  const auth = requireScopedEdgeAuth(req, {
+    scope: "create_codesandbox",
+    allowAdmin: true,
+    adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
+  });
   if (auth) return auth;
 
   const rl = rateLimit(req, "create_codesandbox");

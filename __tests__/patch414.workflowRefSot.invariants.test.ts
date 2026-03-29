@@ -219,12 +219,14 @@ describe("Patch 414 workflow ref SoT invariants", () => {
 
   it("keeps the embedded build workflow templates aligned with the live contract", () => {
     const templatesTs = read("lib/diagnostics/workflowTemplates.ts");
+    const sharedBuildReleaseTs = read("shared/workflows/easBuildReleaseWorkflowTemplates.ts");
+    const sharedTriggeredTs = read("shared/workflows/k1w1TriggeredBuildWorkflowTemplate.ts");
     const baseJson = read("templates/expo-sdk54-base.json");
     const fullJson = read("templates/expo-sdk54-full.json");
 
-    const tsTriggered = extractTsConst(templatesTs, "WORKFLOW_K1W1_TRIGGERED_BUILD");
-    const tsEas = extractTsConst(templatesTs, "WORKFLOW_EAS_BUILD");
-    const tsRelease = extractTsConst(templatesTs, "WORKFLOW_RELEASE_BUILD");
+    const tsTriggered = extractTsConst(sharedTriggeredTs, "WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE");
+    const tsEas = extractTsConst(sharedBuildReleaseTs, "WORKFLOW_EAS_BUILD_TEMPLATE");
+    const tsRelease = extractTsConst(sharedBuildReleaseTs, "WORKFLOW_RELEASE_BUILD_TEMPLATE");
 
     const baseTriggered = extractTemplateContent(baseJson, ".github/workflows/k1w1-triggered-build.yml");
     const baseEas = extractTemplateContent(baseJson, ".github/workflows/eas-build.yml");
@@ -246,6 +248,10 @@ describe("Patch 414 workflow ref SoT invariants", () => {
     expectRequiredRefBlocks(fullRelease, 1);
     expectRequiredRefBlocks(tsTriggered, 1);
     expectRequiredRefBlocks(baseTriggered, 1);
+
+    expect(templatesTs).toContain("export const WORKFLOW_EAS_BUILD = WORKFLOW_EAS_BUILD_TEMPLATE;");
+    expect(templatesTs).toContain("export const WORKFLOW_RELEASE_BUILD = WORKFLOW_RELEASE_BUILD_TEMPLATE;");
+    expect(templatesTs).toContain("export const WORKFLOW_K1W1_TRIGGERED_BUILD = WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE;");
 
     expect(tsTriggered).toContain("Missing required ref.");
     expect(baseTriggered).toContain("Missing required ref.");
@@ -269,12 +275,11 @@ describe("Patch 414 workflow ref SoT invariants", () => {
   it("keeps the CI Lite ref policy aligned across live workflows, infra templates, and edge dispatch templates", () => {
     const ciLite = read(".github/workflows/k1w1-ci-lite.yml");
     const autofix = read(".github/workflows/k1w1-ci-lite-autofix.yml");
+    const sharedTemplates = read("shared/workflows/managedWorkflowTemplates.ts");
     const infraTemplates = read("infra/github/workflowTemplates.ts");
     const edgeTemplates = read("supabase/functions/github-workflow-dispatch/index.ts");
-    const infraCiLite = extractNamedTemplateLiteral(infraTemplates, "k1w1-ci-lite.yml");
-    const edgeCiLite = extractNamedTemplateLiteral(edgeTemplates, "k1w1-ci-lite.yml");
-    const infraAutofix = extractNamedTemplateLiteral(infraTemplates, "k1w1-ci-lite-autofix.yml");
-    const edgeAutofix = extractNamedTemplateLiteral(edgeTemplates, "k1w1-ci-lite-autofix.yml");
+    const sharedCiLite = extractNamedTemplateLiteral(sharedTemplates, "k1w1-ci-lite.yml");
+    const sharedAutofix = extractNamedTemplateLiteral(sharedTemplates, "k1w1-ci-lite-autofix.yml");
     const legacyRegex = "^(work|main|dev|develop|release/.+|feature/.+|hotfix/.+)$";
 
     expect(ciLite).toContain(`ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"`);
@@ -282,7 +287,7 @@ describe("Patch 414 workflow ref SoT invariants", () => {
     expect(ciLite).not.toContain(`ALLOWED_REF_REGEX: "${legacyRegex}"`);
     expect(ciLite).not.toContain(`allowed_ref_regex: "${legacyRegex}"`);
 
-    for (const src of [infraCiLite, edgeCiLite]) {
+    for (const src of [sharedCiLite]) {
       expect(src).toContain(`ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"`);
       expect(src).toContain("allowed_ref_regex: \\${{ env.ALLOWED_REF_REGEX }}");
       expect(src).not.toContain(`ALLOWED_REF_REGEX: "${legacyRegex}"`);
@@ -294,18 +299,22 @@ describe("Patch 414 workflow ref SoT invariants", () => {
     expect(autofix).not.toContain(`ALLOWED_REF_REGEX: "${legacyRegex}"`);
     expect(autofix).not.toContain(`allowed_ref_regex: "${legacyRegex}"`);
 
-    for (const src of [infraAutofix, edgeAutofix]) {
+    for (const src of [sharedAutofix]) {
       expect(src).toContain(`ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"`);
       expect(src).toContain("allowed_ref_regex: \\${{ env.ALLOWED_REF_REGEX }}");
       expect(src).not.toContain(`ALLOWED_REF_REGEX: "${legacyRegex}"`);
       expect(src).not.toContain(`allowed_ref_regex: "${legacyRegex}"`);
     }
 
+
+    expect(infraTemplates).toContain("managedWorkflowTemplates");
+    expect(edgeTemplates).toContain("missing_workflow");
+    expect(edgeTemplates).not.toContain("managedWorkflowTemplates");
     expect(autofix).toContain("- name: Determine target branch");
     expect(autofix).toContain("TARGET_BRANCH=${{ steps.target_ref.outputs.checkout_ref }}");
     expect(autofix).not.toContain("inputs.ref || github.ref_name");
 
-    for (const src of [infraAutofix, edgeAutofix]) {
+    for (const src of [sharedAutofix]) {
       expect(src).toContain("- name: Determine target branch");
       expect(src).toContain("TARGET_BRANCH=\\${{ steps.target_ref.outputs.checkout_ref }}");
       expect(src).not.toContain("inputs.ref || github.ref_name");

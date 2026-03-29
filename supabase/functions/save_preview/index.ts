@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import {
   getPreviewServiceRoleKey,
   getPreviewSupabaseUrl,
-  requireAdminKey,
+  requireScopedEdgeAuth,
   rateLimit,
 } from "../_shared/auth.ts";
 import { parseJsonBody } from "../_shared/validation.ts";
@@ -34,7 +34,11 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: cors });
   }
 
-  const auth = requireAdminKey(req);
+  const auth = requireScopedEdgeAuth(req, {
+    scope: "save_preview",
+    allowAdmin: true,
+    adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
+  });
   if (auth) return auth;
 
   const rl = rateLimit(req, "save_preview");

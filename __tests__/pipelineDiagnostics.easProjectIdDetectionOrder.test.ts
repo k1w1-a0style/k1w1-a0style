@@ -1,5 +1,5 @@
 const mockSvc = {
-  getEdgeAdminKey: jest.fn(),
+  getLegacyEdgeAdminKey: jest.fn(),
   getExpoToken: jest.fn(),
   getGitHubToken: jest.fn(),
   getRepoFileText: jest.fn(),
@@ -20,7 +20,7 @@ const UUID_C = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 function setupRepo(repoFiles: Record<string, string>) {
   mockSvc.getGitHubToken.mockResolvedValue("gh");
   mockSvc.getExpoToken.mockResolvedValue("expo");
-  mockSvc.getEdgeAdminKey.mockResolvedValue("admin");
+  mockSvc.getLegacyEdgeAdminKey.mockResolvedValue("admin");
   mockSvc.listRepoSecretNames.mockResolvedValue(["EXPO_TOKEN"]);
   mockSvc.triggerWorkflow.mockResolvedValue({ ok: true });
   mockSvc.getRepoFileText.mockImplementation(async ({ path }: { path: string }) => {

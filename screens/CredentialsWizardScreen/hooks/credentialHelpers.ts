@@ -1,27 +1,13 @@
 // screens/CredentialsWizardScreen/hooks/credentialHelpers.ts
 // Extracted from useCredentialsWizardScreen.ts: utility functions.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert } from "react-native";
-import * as Clipboard from "expo-clipboard";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-import { useProject } from "../../../contexts/ProjectContext";
-import { ensureSupabaseClient } from "../../../lib/supabase";
-import { getEdgeAdminKey, saveEdgeAdminKey } from "../../../infra/github/githubService";
-import { credKeyForUiMode } from "../../../lib/storageKeys";
 import { fetchWithTimeout } from "../../../lib/network/fetchWithTimeout";
-
-import { useInlineToast } from "../../../components/diagnostics/useInlineToast";
 import { theme } from "../../../theme";
 
 import type { ApiModeId, ModeDef, StatusResult, UiModeId, WizardHttpDebug } from "../types";
 
 import {
   buildEdgeHttpErrorMessage,
-  isLikelyValidAdminKey,
-  isLikelyValidRepoFullName,
-  isLikelyValidSupabaseUrl,
   sanitizeErrorForUi,
   sanitizeWizardHttpDebug,
 } from "../utils/security";
@@ -74,6 +60,7 @@ export async function invokeEdgeJson(
   supabaseUrl: string,
   fn: string,
   adminKey: string,
+  userJwt: string,
   payload: Record<string, unknown> | null,
 ): Promise<
   | { ok: true; data: unknown; debug: WizardHttpDebug }
@@ -91,8 +78,10 @@ export async function invokeEdgeJson(
       method: "POST",
       headers: {
         "content-type": "application/json",
-        // Local wizard/preview/CI-lite admin-key contract: only the dedicated admin header belongs here.
-        // This is not a Supabase JWT/service-role bearer token and must not ride the Authorization path.
+        // Scoped keystore caller contract:
+        // Authorization carries the current Supabase user JWT; x-k1w1-admin-key carries
+        // the dedicated local androidKeystoreExportAdminKey.
+        Authorization: `Bearer ${userJwt.trim()}`,
         "x-k1w1-admin-key": adminKey.trim(),
       },
       body: JSON.stringify(payload ?? {}),

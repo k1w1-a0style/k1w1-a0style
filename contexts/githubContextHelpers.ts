@@ -1,0 +1,50 @@
+export const MAX_RECENT_REPOS = 10;
+
+export const mergeRecentRepo = (
+  previousRepos: readonly string[],
+  repo: string,
+  limit = MAX_RECENT_REPOS,
+): string[] => {
+  if (!repo) {
+    return [...previousRepos];
+  }
+
+  const filtered = previousRepos.filter((entry) => entry !== repo);
+  return [repo, ...filtered].slice(0, limit);
+};
+
+export const normalizeLinkedGitHubValue = (value: string | null | undefined): string | null => {
+  return (value ?? "").trim() || null;
+};
+
+export const normalizeStoredRecentRepos = (
+  parsedValue: unknown,
+  limit = MAX_RECENT_REPOS,
+): string[] => {
+  if (!Array.isArray(parsedValue)) return [];
+
+  const unique: string[] = [];
+  for (const entry of parsedValue) {
+    if (typeof entry !== "string") continue;
+    const trimmed = entry.trim();
+    if (!trimmed || unique.includes(trimmed)) continue;
+    unique.push(trimmed);
+    if (unique.length >= limit) break;
+  }
+
+  return unique;
+};
+
+export const getLinkedMirrorUpdates = (params: {
+  linkedRepo: string | null;
+  linkedBranch: string | null;
+  currentRepo: string | null;
+  currentBranch: string | null;
+}): { nextRepo: string | null; nextBranch: string | null } => {
+  const { linkedRepo, linkedBranch, currentRepo, currentBranch } = params;
+
+  return {
+    nextRepo: linkedRepo !== currentRepo ? linkedRepo : currentRepo,
+    nextBranch: linkedBranch !== currentBranch ? linkedBranch : currentBranch,
+  };
+};

@@ -13,7 +13,6 @@ import { buildChangeConfirmationText } from "./chatChangeSummary";
 
 import { runOrchestrator } from "../lib/orchestrator";
 import type { AllAIProviders } from "../contexts/AIContext";
-import { normalizeAiResponseDetailed } from "../lib/normalizer";
 import { logger } from "../lib/logger";
 import { applyFilesToProject } from "../lib/fileWriter";
 import { buildProjectStateDigest, rebasePendingChangeOnLatest } from "../lib/chatFlowStateGuards";
@@ -23,6 +22,9 @@ import { buildBuilderMessages, buildPlannerMessages, buildValidatorMessages } fr
 import { buildSanitizedLlmHistory } from "../lib/promptSanitizer";
 import { looksLikeExplicitFileTask, looksLikeAdviceRequest, looksAmbiguousBuilderRequest, buildChangeDigest, buildExplainMessages } from "../utils/chatHeuristics";
 import { handleMetaCommand } from "../utils/metaCommands";
+import { normalizeResultFiles, readBuilderFilesOrThrow } from "./chatAIFlowResultHelpers";
+import { getSourceSummaryText, getValidatorFallbackWarning } from "./chatAIFlowStageHelpers";
+import { getBuilderFailureMessage, getInputValidationMessage } from "./chatAIFlowNoticeHelpers";
 
 export type { PendingChange, PendingPlan } from "./chatAIFlowTypes";
 
@@ -403,10 +405,7 @@ export function useChatAIFlow({
 
       const preparedInput = prepareValidatedChatInput(userContent);
       if (!preparedInput.valid) {
-        const validationMessage =
-          preparedInput.error === "Nachricht ist zu lang"
-            ? "⚠️ Deine Nachricht ist zu lang. Bitte kürze den Prompt oder teile ihn in kleinere Schritte auf."
-            : `⚠️ ${preparedInput.error || "Nachricht konnte nicht verarbeitet werden."}`;
+        const validationMessage = getInputValidationMessage(preparedInput.error);
 
         safe(() => setError(validationMessage));
         addChatMessage({
@@ -533,50 +532,26 @@ export function useChatAIFlow({
         }
 
         if (!ai || !ai.ok) {
-          const details =
-            ai?.error ||
-            ai?.errors?.join?.("\n") ||
-            "Kein ok=true (unbekannter Fehler).";
-          throw new Error(`KI-Request fehlgeschlagen: ${details}`);
+          throw new Error(getBuilderFailureMessage(ai));
         }
 
         // ✅ FIX #7: Type-safe extraction of raw data
         const rawForNormalizer = extractRawOrchestratorResult(ai as ExtendedOrchestratorResult);
 
-        const normalizedResult = normalizeAiResponseDetailed(rawForNormalizer);
-        const normalized = normalizedResult?.files ?? null;
-        if (!normalized || normalized.length === 0) {
-          const rawText =
-            typeof normalizedResult?.responseText === "string"
-              ? normalizedResult.responseText.trim()
-              : typeof ai.text === "string"
-                ? ai.text.trim()
-                : "";
-          if (rawText.length > 0) {
-            const preview = rawText.slice(0, 900);
-            const parseHint =
-              normalizedResult?.parseError && normalizedResult.parseError.length > 0
-                ? ` [Normalizer: ${normalizedResult.parseError}]`
-                : "";
-            throw new Error(
-              "Builder hat keine gültige JSON-Dateiliste geliefert. " +
-                `Ich konnte daher keine Dateien anwenden.${parseHint}\n\n` +
-                "KI-Antwort (gekürzt):\n" +
-                preview,
-            );
-          }
-
-          throw new Error(
-            "Builder/Normalizer konnte keine verwertbare Dateiliste erzeugen.",
-          );
-        }
+        const normalizedResult = normalizeResultFiles(rawForNormalizer);
+        const normalized = readBuilderFilesOrThrow(normalizedResult, ai.text ?? "");
 
         // Optional Agent (Validator)
         let finalFiles = normalized;
         let agentMeta: OrchestratorResult | null = null;
         let finalFileSource: PendingChange["finalFileSource"] = "builder";
         let validatorState: PendingChange["validatorState"] = config.agentEnabled ? "builder-fallback-empty" : "disabled";
-        const addValidatorWarning = (content: string) => {
+        const addValidatorWarning = (validatorStateForMessage: PendingChange["validatorState"]) => {
+          const content = validatorStateForMessage
+            ? getValidatorFallbackWarning(validatorStateForMessage)
+            : null;
+          if (!content) return;
+
           addChatMessage({
             id: uuidv4(),
             role: "system",
@@ -607,7 +582,7 @@ export function useChatAIFlow({
 
             if (agentRes?.ok) {
               const agentRaw = extractRawOrchestratorResult(agentRes as ExtendedOrchestratorResult);
-              const normalizedAgent = normalizeAiResponseDetailed(agentRaw)?.files;
+              const normalizedAgent = normalizeResultFiles(agentRaw).files;
               if (normalizedAgent && normalizedAgent.length > 0) {
                 finalFiles = normalizedAgent;
                 agentMeta = agentRes;
@@ -616,26 +591,20 @@ export function useChatAIFlow({
               } else if (agentRes?.ok) {
                 logger.warn("[useChatAIFlow] Validator returned no valid file array; keeping builder files.");
                 validatorState = "builder-fallback-empty";
-                addValidatorWarning(
-                  "ℹ️ Validator war nur advisory und lieferte keine gültige Dateiliste. Es werden deshalb die Builder-Dateien geprüft/angeboten.",
-                );
+                addValidatorWarning(validatorState);
               }
             } else if (agentRes) {
               logger.warn("[useChatAIFlow] Validator returned non-ok result:", agentRes.error);
               validatorState = "builder-fallback-error";
               // Regression-Hinweis: "Validator-Prüfung war nicht erfolgreich"
-              addValidatorWarning(
-                "ℹ️ Validator war nur advisory und konnte die Builder-Dateien diesmal nicht nachschärfen. Es werden daher die Builder-Dateien verwendet.",
-              );
+              addValidatorWarning(validatorState);
             }
           } catch (e) {
             // ✅ FIX #8: Log agent errors and surface the fallback to the user
             logger.warn("[useChatAIFlow] Agent/Validator call failed:", e);
             validatorState = "builder-fallback-exception";
             // Regression-Hinweis: "Validator-Prüfung konnte nicht abgeschlossen werden"
-            addValidatorWarning(
-              "ℹ️ Validator war nur advisory und ist fehlgeschlagen. Es werden daher die Builder-Dateien verwendet.",
-            );
+            addValidatorWarning(validatorState);
           }
         }
 
@@ -650,12 +619,7 @@ export function useChatAIFlow({
           created: mergeResult.created,
           updated: mergeResult.updated,
         });
-        const sourceSummary =
-          finalFileSource === "validator"
-            ? "Finale Dateiliste stammt aus dem Validator-Review (advisory Nachschärfer auf Builder-Basis)."
-            : config.agentEnabled
-              ? "Finale Dateiliste stammt direkt vom Builder; der Validator war nur advisory und hat diesmal nicht übernommen."
-              : "Finale Dateiliste stammt direkt vom Builder; kein separater Validator aktiv.";
+        const sourceSummary = getSourceSummaryText(finalFileSource, config.agentEnabled);
 
         // Explain-Call
         let explainText = "";

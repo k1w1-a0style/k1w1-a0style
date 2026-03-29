@@ -9,7 +9,7 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
 }));
 
 const mockGitHub = {
-  getEdgeAdminKey: jest.fn(),
+  getWorkflowAdminKey: jest.fn(),
   pushFilesToRepo: jest.fn(),
   getBranchHeadSha: jest.fn(),
 };
@@ -23,7 +23,14 @@ jest.doMock(require.resolve("../lib/repoSyncOrchestration"), () => ({
   markRepoSyncSignature: jest.fn(async () => undefined),
 }));
 jest.doMock(require.resolve("../lib/supabase"), () => ({
-  ensureSupabaseClient: jest.fn(async () => ({ functions: { invoke: mockInvoke } })),
+  ensureSupabaseClient: jest.fn(async () => ({
+    auth: {
+      getSession: jest.fn(async () => ({
+        data: { session: { access_token: "supabase-operator-jwt-token" } },
+      })),
+    },
+    functions: { invoke: mockInvoke },
+  })),
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -57,7 +64,7 @@ describe("buildStartService edge payload typing", () => {
       ci_lite_last_sha: "0123456789abcdef0123456789abcdef01234567",
     }[key] ?? null));
 
-    mockGitHub.getEdgeAdminKey.mockResolvedValue("adminkey");
+    mockGitHub.getWorkflowAdminKey.mockResolvedValue("adminkey");
     mockGitHub.getBranchHeadSha.mockResolvedValue("0123456789abcdef0123456789abcdef01234567");
     mockGitHub.pushFilesToRepo.mockResolvedValue(undefined);
     mockAutoFix.autoFixCIWorkflows.mockResolvedValue(undefined);

@@ -50,7 +50,7 @@ UI remains unchanged.
 
 Key Backup/Restore was extended to cover new secret surfaces that appeared in the project:
 
-- **Signing keys:** supports optional `SIGNING_MASTER_KEY` (SecureStore) and maps `SIGNING_ADMIN_KEY` from the stored Edge admin key.
+- **Signing keys:** supports optional `SIGNING_MASTER_KEY` (SecureStore) and nutzt getrennte lokale Secret-Slots fuer `workflowAdminKey`, `androidKeystoreExportAdminKey`, `legacyEdgeAdminKey` und `signingAdminKey`; CI-Secret-Export mappt diese Werte bewusst 1:1 auf `K1W1_EDGE_WORKFLOW_ADMIN_KEY`, `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`, `K1W1_EDGE_ADMIN_KEY` und `SIGNING_ADMIN_KEY` ohne stilles Spiegeln eines Einzelwerts.
 - **Token bundle:** export includes a normalized `tokens` object and a `ciSecrets` map (import accepts both shapes).
 - **No UI change required:** existing AppInfoScreen "Full Backup" action is enough; the additional fields are purely structural.
 

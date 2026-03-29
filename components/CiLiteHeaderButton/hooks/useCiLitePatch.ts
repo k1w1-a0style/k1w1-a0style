@@ -27,6 +27,20 @@ interface UseCiLitePatchOpts {
   branch: string;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && typeof error.message === "string" && error.message.trim()) {
+    return error.message;
+  }
+  if (isRecord(error) && typeof error.message === "string" && error.message.trim()) {
+    return error.message;
+  }
+  return fallback;
+}
+
 export function useCiLitePatch({ githubRepo, branch }: UseCiLitePatchOpts) {
   const { projectData, updateProjectFiles, deleteFile } = useProject();
 
@@ -50,11 +64,11 @@ export function useCiLitePatch({ githubRepo, branch }: UseCiLitePatchOpts) {
   const validatePatchText = useCallback((): { patch: PreflightPatch; summary: string } => {
     const raw = patchText?.trim();
     if (!raw) throw new Error("Patch JSON ist leer.");
-    let parsed: any;
+    let parsed: unknown;
     try {
       parsed = JSON.parse(raw);
-    } catch (e: any) {
-      throw new Error(`JSON Parse Fehler: ${e?.message || "invalid"}`);
+    } catch (error: unknown) {
+      throw new Error(`JSON Parse Fehler: ${getErrorMessage(error, "invalid")}`);
     }
 
     const patch = normalizePreflightPatch(parsed);
@@ -76,8 +90,8 @@ export function useCiLitePatch({ githubRepo, branch }: UseCiLitePatchOpts) {
   const validatePatchAndShow = useCallback(() => {
     try {
       setPatchInfo(validatePatchText().summary);
-    } catch (e: any) {
-      const msg = e?.message || String(e);
+    } catch (error: unknown) {
+      const msg = getErrorMessage(error, "Patch konnte nicht validiert werden.");
       setPatchInfo(msg);
       Alert.alert("Apply Patch", msg);
     }
@@ -118,7 +132,7 @@ export function useCiLitePatch({ githubRepo, branch }: UseCiLitePatchOpts) {
         files,
       });
     } catch (syncErr: unknown) {
-      const message = syncErr instanceof Error ? syncErr.message : String(syncErr);
+      const message = getErrorMessage(syncErr, "Auto-Sync fehlgeschlagen.");
       console.warn("[CI Lite] Auto-Sync failed:", message);
       setPatchInfo((prev) => `${prev || ""}\n\n⚠️ Auto-Sync fehlgeschlagen: ${message}`);
     }
@@ -137,8 +151,8 @@ export function useCiLitePatch({ githubRepo, branch }: UseCiLitePatchOpts) {
       const v = validatePatchText();
       patch = v.patch;
       summary = v.summary;
-    } catch (e: any) {
-      const msg = e?.message || String(e);
+    } catch (error: unknown) {
+      const msg = getErrorMessage(error, "Patch konnte nicht validiert werden.");
       setPatchInfo(msg);
       Alert.alert("Apply Patch", msg);
       return;
@@ -198,8 +212,8 @@ export function useCiLitePatch({ githubRepo, branch }: UseCiLitePatchOpts) {
         await syncPatchToGitHub(nextMap, deletePaths, patch);
 
         setPatchInfo(`✅ Patch applied.\n${summary}`);
-      } catch (e: any) {
-        const msg = e?.message || String(e);
+      } catch (error: unknown) {
+        const msg = getErrorMessage(error, "Patch konnte nicht angewendet werden.");
         setPatchInfo(msg);
         Alert.alert("Apply Patch", msg);
       } finally {

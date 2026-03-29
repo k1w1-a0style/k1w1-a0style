@@ -9,7 +9,6 @@ import React, {
   useRef,
   ReactNode,
 } from "react";
-import { materializeProjectData, sanitizeAndroidPackage, slugify } from "../lib/projectMaterializer";
 import { Alert, AppState, AppStateStatus } from "react-native";
 import { v4 as uuidv4 } from "uuid";
 import { Mutex } from "async-mutex";
@@ -58,6 +57,11 @@ import {
 import { resolveEffectiveTemplateId } from "../lib/diagnostics/templates";
 import { loadChatHistorySettings } from "../lib/chatPrivacySettings";
 import { trimChatHistory } from "../infra/storage/persistenceHelpers";
+import {
+  buildProjectForCreation,
+  normalizeLoadedProjectData,
+  removeProjectFilesByPaths,
+} from "./projectContextHelpers";
 
 const SAVE_DEBOUNCE_MS = 500;
 
@@ -172,9 +176,9 @@ export {
   saveExpoToken,
   getExpoToken,
   syncRepoSecrets,
-  getEdgeAdminKey,
-  saveEdgeAdminKey,
-  deleteEdgeAdminKey,
+  getLegacyEdgeAdminKey,
+  saveLegacyEdgeAdminKey,
+  deleteLegacyEdgeAdminKey,
 } from "../infra/github/githubService";
 
 export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
@@ -369,18 +373,15 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
               );
               const templateFiles = await loadTemplateFromFile(effective);
               const newProject: ProjectData = {
-                id: uuidv4(),
-                name: "Neues Projekt",
-                slug: "neues-projekt",
-                templateId: mode,
-                effectiveTemplateId: effective,
-                files: templateFiles,
-                chatHistory: [],
-                createdAt: new Date().toISOString(),
-                lastModified: new Date().toISOString(),
+                ...buildProjectForCreation({
+                  id: uuidv4(),
+                  files: templateFiles,
+                  templateId: mode,
+                  effectiveTemplateId: effective,
+                  preferredPreviewMode:
+                    currentProjectData?.preferredPreviewMode ?? "supabase",
+                }),
                 lastPreview: null,
-                preferredPreviewMode:
-                  currentProjectData?.preferredPreviewMode ?? "supabase",
               };
 
               const release = await mutexRef.current.acquire();
@@ -533,7 +534,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     async (path: string) => {
       await updateProject((prev) => ({
         ...prev,
-        files: prev.files.filter((f) => f.path !== path),
+        files: removeProjectFilesByPaths(prev.files, [path]),
       }));
     },
     [updateProject],
@@ -541,12 +542,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
   const deleteFiles = useCallback(
     async (paths: string[]) => {
-      const toDelete = new Set(paths.filter((p) => typeof p === "string" && p.length > 0));
-      if (toDelete.size === 0) return;
+      if (!paths.some((path) => typeof path === "string" && path.length > 0)) return;
 
       await updateProject((prev) => ({
         ...prev,
-        files: prev.files.filter((f) => !toDelete.has(f.path)),
+        files: removeProjectFilesByPaths(prev.files, paths),
       }));
     },
     [updateProject],
@@ -661,23 +661,14 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
         if (savedProject) {
           logger.info("📖 Projekt geladen:", savedProject.name);
-          if (!savedProject.files) savedProject.files = [];
-          if (!savedProject.chatHistory) savedProject.chatHistory = [];
-          if (!savedProject.preferredPreviewMode) savedProject.preferredPreviewMode = "supabase";
-          setProjectData(savedProject);
+          setProjectData(normalizeLoadedProjectData(savedProject));
         } else {
           logger.info("Kein Projekt gefunden, lade neues Template...");
           const templateFiles = await loadTemplateFromFile();
-          const newProject: ProjectData = {
+          const newProject = buildProjectForCreation({
             id: uuidv4(),
-            name: "Neues Projekt",
-            slug: "neues-projekt",
             files: templateFiles,
-            chatHistory: [],
-            createdAt: new Date().toISOString(),
-            lastModified: new Date().toISOString(),
-            preferredPreviewMode: "supabase",
-          };
+          });
           setProjectData(newProject);
           await saveProjectToStorage(newProject);
           logger.info("Neues Template-Projekt erstellt und gespeichert.");

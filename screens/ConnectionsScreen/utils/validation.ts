@@ -2,8 +2,15 @@ import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction"
 
 const MAX_ALERT_CHARS = 180;
 
+const getMessageFromUnknown = (value: unknown): string | null => {
+  if (typeof value === "string") return value;
+  if (typeof value !== "object" || !value) return null;
+  const message = (value as { message?: unknown }).message;
+  return typeof message === "string" ? message : null;
+};
+
 export const safeAlertText = (value: unknown, fallback = "Fehler"): string => {
-  const raw = typeof value === "string" ? value : (value as any)?.message;
+  const raw = getMessageFromUnknown(value);
   const msg = String(raw || fallback);
   return truncateWithMarker(redactSecrets(msg), MAX_ALERT_CHARS, "…<gekürzt>");
 };
@@ -38,7 +45,9 @@ export const validateEasProjectId = (easProjectId?: string): ValidationResult =>
 export const validateBeforeSave = (p: {
   githubToken: string;
   expoToken: string;
-  edgeAdminKey: string;
+  workflowAdminKey: string;
+  androidKeystoreExportAdminKey: string;
+  legacyEdgeAdminKey: string;
   supabaseUrl: string;
   supabaseAnonKey: string;
   easProjectId?: string;
@@ -69,16 +78,39 @@ export const validateBeforeSave = (p: {
     }
   }
 
-  const edge = p.edgeAdminKey.trim();
-  if (edge) {
-    if (edge.length < 20 || /\s/.test(edge)) {
-      return {
-        ok: false,
-        title: "Ungültiger Edge Admin Key",
-        message: "Key ist zu kurz oder enthält Leerzeichen.",
-      };
+  const validateScopedAdminKey = (
+    rawValue: string,
+    title: string,
+    message: string,
+  ): ValidationResult => {
+    const value = rawValue.trim();
+    if (!value) return { ok: true };
+    if (value.length < 20 || /\s/.test(value)) {
+      return { ok: false, title, message };
     }
-  }
+    return { ok: true };
+  };
+
+  const workflowKeyValidation = validateScopedAdminKey(
+    p.workflowAdminKey,
+    "Ungültiger lokaler Workflow Admin Key",
+    "Workflow-Key ist zu kurz oder enthält Leerzeichen.",
+  );
+  if (!workflowKeyValidation.ok) return workflowKeyValidation;
+
+  const keystoreKeyValidation = validateScopedAdminKey(
+    p.androidKeystoreExportAdminKey,
+    "Ungültiger lokaler Keystore Export Admin Key",
+    "Keystore-Export-Key ist zu kurz oder enthält Leerzeichen.",
+  );
+  if (!keystoreKeyValidation.ok) return keystoreKeyValidation;
+
+  const legacyKeyValidation = validateScopedAdminKey(
+    p.legacyEdgeAdminKey,
+    "Ungültiger lokaler Legacy Edge Admin Key",
+    "Legacy-Key ist zu kurz oder enthält Leerzeichen.",
+  );
+  if (!legacyKeyValidation.ok) return legacyKeyValidation;
 
   const sbUrl = p.supabaseUrl.trim();
   if (sbUrl) {

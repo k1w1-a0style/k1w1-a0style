@@ -4,7 +4,8 @@
  * Supabase Edge Function: github-workflow-logs
  *
  * Fetches GitHub Actions run logs (zip) and returns a sanitized text output.
- * - Requires x-k1w1-admin-key header (K1W1_EDGE_ADMIN_KEY)
+ * - Requires scoped workflow auth: Authorization: Bearer <jwt> +
+ *   x-k1w1-admin-key (K1W1_EDGE_WORKFLOW_ADMIN_KEY)
  * - Uses GITHUB_TOKEN (fine-grained PAT supported)
  * - Accepts githubRepo like "owner/repo" and runId
  *

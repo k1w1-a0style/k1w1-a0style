@@ -1,0 +1,28 @@
+import fs from "fs";
+import path from "path";
+
+function read(rel: string): string {
+  return fs.readFileSync(path.join(process.cwd(), rel), "utf8");
+}
+
+describe("Patch 570 type/error contract invariants", () => {
+  it("hardens useAppInfoScreen error contracts to unknown + guarded message access", () => {
+    const src = read("screens/AppInfoScreen/hooks/useAppInfoScreen.ts");
+
+    expect(src).toContain("function getErrorMessage(error: unknown, fallback: string): string");
+    expect(src).toContain("function isAbortLikeError(error: unknown): boolean");
+    expect(src).toContain("function toProjectFiles(value: unknown): ProjectFileLike[]");
+    expect(src).not.toContain("projectData as any");
+    expect(src).not.toContain("catch (error: any)");
+  });
+
+  it("hardens useCiLitePatch JSON/error parsing to unknown + guards", () => {
+    const src = read("components/CiLiteHeaderButton/hooks/useCiLitePatch.ts");
+
+    expect(src).toContain("function getErrorMessage(error: unknown, fallback: string): string");
+    expect(src).toContain("let parsed: unknown;");
+    expect(src).toContain("JSON Parse Fehler:");
+    expect(src).not.toContain("let parsed: any;");
+    expect(src).not.toContain("catch (e: any)");
+  });
+});

@@ -3,10 +3,12 @@
 
 // hooks/useGitHubActionsLogs.ts - Real-time GitHub Actions log streaming
 import { useEffect, useState, useCallback, useRef } from "react";
-import { getEdgeAdminKey } from "../infra/github/githubService";
+import { getWorkflowAdminKey } from "../infra/github/githubService";
 import { requireSupabaseEdgeUrl } from "../lib/supabaseEdge";
+import { ensureSupabaseClient } from "../lib/supabase";
 import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
 import { logger } from '../lib/logger';
+import { isLikelyValidAdminKey } from "../lib/security/isLikelyValidAdminKey";
 import { fetchWithTimeout as fetchWithAbortTimeout, isAbortError } from "../lib/network/fetchWithTimeout";
 
 import { POLL_INTERVAL_MS, MAX_LOG_ENTRIES, sanitizeLogLine, describeEdgeFailure } from "./actionsLogsTypes";
@@ -88,7 +90,20 @@ export function useGitHubActionsLogs({
       // Fetch latest workflow run if no runId provided
       let targetRunId = runId;
       const edgeUrl = await requireSupabaseEdgeUrl();
-      const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+      const workflowAdminKey = await getWorkflowAdminKey().catch(() => null);
+      const trimmedAdminKey = String(workflowAdminKey ?? "").trim();
+      if (!trimmedAdminKey) {
+        throw new Error("Workflow-Read blockiert: Lokaler Workflow-Admin-Key fehlt. Bitte im Credentials-Wizard setzen und erneut versuchen.");
+      }
+      if (!isLikelyValidAdminKey(trimmedAdminKey)) {
+        throw new Error("Workflow-Read blockiert: Lokaler Workflow-Admin-Key ist formal ungueltig. Bitte im Credentials-Wizard korrigieren und erneut versuchen.");
+      }
+      const supabase = await ensureSupabaseClient().catch(() => null);
+      const session = await supabase?.auth.getSession().catch(() => null);
+      const userJwt = String(session?.data?.session?.access_token ?? "").trim();
+      if (!userJwt) {
+        throw new Error("Workflow-Read blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.");
+      }
 
       if (!targetRunId) {
         const runsResponse = await fetchWithTimeout(
@@ -97,7 +112,8 @@ export function useGitHubActionsLogs({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
+            Authorization: `Bearer ${userJwt}`,
+            "x-k1w1-admin-key": trimmedAdminKey,
           },
           body: JSON.stringify({ githubRepo, workflowId }),
           },
@@ -109,7 +125,7 @@ export function useGitHubActionsLogs({
             fnName: SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_RUNS,
               res: runsResponse,
               edgeUrl,
-              hasAdminKey: !!edgeAdminKey,
+              hasAdminKey: true,
             }),
           );
         }
@@ -151,7 +167,8 @@ export function useGitHubActionsLogs({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
+            Authorization: `Bearer ${userJwt}`,
+            "x-k1w1-admin-key": trimmedAdminKey,
           },
           body: JSON.stringify({
             githubRepo,
@@ -167,7 +184,7 @@ export function useGitHubActionsLogs({
             fnName: SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_LOGS,
             res: logsResponse,
             edgeUrl,
-            hasAdminKey: !!edgeAdminKey,
+            hasAdminKey: true,
           }),
         );
       }

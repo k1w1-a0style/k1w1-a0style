@@ -7,7 +7,7 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
 }));
 
 const mockGitHub = {
-  getEdgeAdminKey: jest.fn(),
+  getLegacyEdgeAdminKey: jest.fn(),
   pushFilesToRepo: jest.fn(),
 };
 const mockAutoFix = { autoFixCIWorkflows: jest.fn() };
@@ -16,7 +16,14 @@ const mockInvoke = jest.fn();
 jest.doMock(require.resolve("../infra/github/githubService"), () => mockGitHub);
 jest.doMock(require.resolve("../lib/diagnostics/ciAutoFix"), () => mockAutoFix);
 jest.doMock(require.resolve("../lib/supabase"), () => ({
-  ensureSupabaseClient: jest.fn(async () => ({ functions: { invoke: mockInvoke } })),
+  ensureSupabaseClient: jest.fn(async () => ({
+    auth: {
+      getSession: jest.fn(async () => ({
+        data: { session: { access_token: "supabase-operator-jwt-token" } },
+      })),
+    },
+    functions: { invoke: mockInvoke },
+  })),
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -37,7 +44,7 @@ describe("build readiness gate - diagnostic_last_ok", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetItem.mockResolvedValue("false");
-    mockGitHub.getEdgeAdminKey.mockResolvedValue("adminkey");
+    mockGitHub.getLegacyEdgeAdminKey.mockResolvedValue("adminkey");
     mockGitHub.pushFilesToRepo.mockResolvedValue(undefined);
     mockAutoFix.autoFixCIWorkflows.mockResolvedValue(undefined);
     mockInvoke.mockResolvedValue({ data: { jobId: "11111111-1111-1111-1111-111111111111" }, error: null });

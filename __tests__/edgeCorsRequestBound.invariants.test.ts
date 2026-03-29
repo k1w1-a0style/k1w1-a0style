@@ -73,6 +73,11 @@ describe("Edge request-bound CORS hardening", () => {
     expect(testStub).not.toContain('"Access-Control-Allow-Origin": "*"');
     expect(testStub).not.toMatch(/\bcorsHeaders\b/);
     expect(testStub).toContain("handleCors(req)");
-    expect(testStub).toContain("jsonResponse({ ok: true }, req)");
+    expect(testStub).toContain("requireScopedEdgeAuth(req, {");
+    expect(testStub).toContain('adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"');
+    expect(testStub).toContain("allowAdmin: true");
+        expect(testStub).toContain('scope: "test"');
+    expect(testStub).toContain("status: 410");
+    expect(testStub).toContain("legacy_test_route_disabled");
   });
 });

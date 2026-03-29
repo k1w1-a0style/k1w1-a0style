@@ -5,7 +5,6 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -14,6 +13,11 @@ import { logger } from "../lib/logger";
 import { GITHUB_STORAGE_KEYS } from "../shared/constants/github";
 
 import { useProject } from "./ProjectContext";
+import {
+  mergeRecentRepo,
+  normalizeLinkedGitHubValue,
+  normalizeStoredRecentRepos,
+} from "./githubContextHelpers";
 
 type GitHubContextValue = {
   activeRepo: string | null;
@@ -34,41 +38,26 @@ const GitHubContext = createContext<GitHubContextValue | undefined>(undefined);
 export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const { projectData } = useProject();
-  const [activeRepo, setActiveRepoState] = useState<string | null>(null);
-  const [activeBranch, setActiveBranchState] = useState<string | null>(null);
+  const { projectData, setLinkedRepo } = useProject();
   const [recentRepos, setRecentRepos] = useState<string[]>([]);
-
   const [hydrated, setHydrated] = useState(false);
-  const activeRepoRef = useRef<string | null>(null);
-  const activeBranchRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    activeRepoRef.current = activeRepo;
-  }, [activeRepo]);
-
-  useEffect(() => {
-    activeBranchRef.current = activeBranch;
-  }, [activeBranch]);
-
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [storedRecent, storedActiveRepo, storedBranch] =
+        const [storedRecent] =
           await Promise.all([
             AsyncStorage.getItem(RECENT_REPOS_KEY),
-            AsyncStorage.getItem(ACTIVE_REPO_KEY),
-            AsyncStorage.getItem(ACTIVE_BRANCH_KEY),
           ]);
 
         if (storedRecent) {
-          const parsed = JSON.parse(storedRecent);
-          if (Array.isArray(parsed)) setRecentRepos(parsed.filter(Boolean));
+          const parsed = JSON.parse(storedRecent) as unknown;
+          setRecentRepos(normalizeStoredRecentRepos(parsed));
         }
-
-        if (storedActiveRepo) setActiveRepoState(storedActiveRepo);
-        if (storedBranch) setActiveBranchState(storedBranch);
+        await Promise.all([
+          AsyncStorage.removeItem(ACTIVE_REPO_KEY).catch(() => {}),
+          AsyncStorage.removeItem(ACTIVE_BRANCH_KEY).catch(() => {}),
+        ]);
       } catch (e) {
         logger.error("[GitHubContext] Fehler beim Laden", { err: e });
       } finally {
@@ -84,66 +73,53 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const setActiveRepo = useCallback(
     (repo: string | null) => {
-      if (activeRepoRef.current === repo) return;
-
-      setActiveRepoState(repo);
+      const normalizedRepo = normalizeLinkedGitHubValue(repo);
+      const currentRepo = normalizeLinkedGitHubValue(projectData?.linkedRepo);
+      if (normalizedRepo === currentRepo) return;
+      void setLinkedRepo(normalizedRepo, undefined).catch((e) => {
+        logger.error("[GitHubContext] LinkedRepo update failed", { err: e });
+      });
       if (repo) {
-        AsyncStorage.setItem(ACTIVE_REPO_KEY, repo).catch((e) => {
-          logger.error("[GitHubContext] ActiveRepo persist failed", { err: e });
-        });
         setRecentRepos((prev) => {
-          const filtered = prev.filter((r) => r !== repo);
-          const next = [repo, ...filtered].slice(0, 10);
+          const next = mergeRecentRepo(prev, repo);
           persistRecent(next).catch((e) => {
             logger.error("[GitHubContext] RecentRepos persist failed", { err: e });
           });
           return next;
         });
-      } else {
-        AsyncStorage.removeItem(ACTIVE_REPO_KEY).catch(() => {});
       }
     },
-    [persistRecent],
+    [persistRecent, projectData?.linkedRepo, setLinkedRepo],
   );
 
-  const setActiveBranch = useCallback((branch: string | null) => {
-    if (activeBranchRef.current === branch) return;
-
-    setActiveBranchState(branch);
-    if (branch) {
-      AsyncStorage.setItem(ACTIVE_BRANCH_KEY, branch).catch((e) => {
-        logger.error("[GitHubContext] ActiveBranch persist failed", { err: e });
+  const setActiveBranch = useCallback(
+    (branch: string | null) => {
+      const repo = normalizeLinkedGitHubValue(projectData?.linkedRepo);
+      if (!repo) return;
+      const normalizedBranch = normalizeLinkedGitHubValue(branch);
+      const currentBranch = normalizeLinkedGitHubValue(projectData?.linkedBranch);
+      if (normalizedBranch === currentBranch) return;
+      void setLinkedRepo(repo, normalizedBranch).catch((e) => {
+        logger.error("[GitHubContext] LinkedBranch update failed", { err: e });
       });
-    } else {
-      AsyncStorage.removeItem(ACTIVE_BRANCH_KEY).catch(() => {});
-    }
-  }, []);
+    },
+    [projectData?.linkedRepo, projectData?.linkedBranch, setLinkedRepo],
+  );
 
-  // Single source of truth: mirror the project's linked repo/branch into this context.
-  // This guarantees that the selection is consistent across screens (Header, Diagnostics, Wizard, Build, etc.).
-  useEffect(() => {
-    if (!hydrated) return;
-
-    const linkedRepo = (projectData?.linkedRepo ?? "").trim() || null;
-    const linkedBranch = (projectData?.linkedBranch ?? "").trim() || null;
-
-    // If project has a linked repo, prefer it over local storage.
-    if (linkedRepo !== activeRepoRef.current) {
-      setActiveRepo(linkedRepo);
-    }
-
-    // Branch should follow the linked branch (even to null).
-    if (linkedBranch !== activeBranchRef.current) {
-      setActiveBranch(linkedBranch);
-    }
-  }, [hydrated, projectData?.linkedRepo, projectData?.linkedBranch, setActiveRepo, setActiveBranch]);
+  const activeRepo = useMemo(
+    () => (hydrated ? normalizeLinkedGitHubValue(projectData?.linkedRepo) : null),
+    [hydrated, projectData?.linkedRepo],
+  );
+  const activeBranch = useMemo(
+    () => (hydrated ? normalizeLinkedGitHubValue(projectData?.linkedBranch) : null),
+    [hydrated, projectData?.linkedBranch],
+  );
 
   const addRecentRepo = useCallback(
     (repo: string) => {
       if (!repo) return;
       setRecentRepos((prev) => {
-        const filtered = prev.filter((r) => r !== repo);
-        const next = [repo, ...filtered].slice(0, 10);
+        const next = mergeRecentRepo(prev, repo);
         persistRecent(next).catch((e) => {
           logger.error("[GitHubContext] RecentRepos persist failed", { err: e });
         });

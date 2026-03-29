@@ -5,10 +5,23 @@
 // and persists metadata in the `signing_android` table.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import {
+  deriveAesKeyBytes,
+  encryptKeystorePayload,
+  encryptWithAesCbcLegacy,
+} from "../_shared/androidKeystoreCrypto.ts";
 export { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 export { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
-export { getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, rateLimit, requireAdminKey } from "../_shared/auth.ts";
+export {
+  getServiceRoleKey,
+  getSigningMasterKey,
+  getSupabaseUrl,
+  rateLimit,
+  requirePrivilegedOperatorJwtRole,
+  requireScopedEdgeAuth,
+} from "../_shared/auth.ts";
+export { requireDurableRateLimit } from "../_shared/auth.ts";
 
 
 export type Mode = "development" | "preview" | "production";
@@ -87,12 +100,7 @@ export function repoOk(repo: string): boolean {
   return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo);
 }
 
-export async function deriveAesKeyBytes(masterKey: string): Promise<Uint8Array> {
-  // Derive a stable 32-byte key from any masterKey string using SHA-256.
-  const input = new TextEncoder().encode(masterKey);
-  const hash = await crypto.subtle.digest("SHA-256", input);
-  return new Uint8Array(hash); // 32 bytes
-}
+export { deriveAesKeyBytes, encryptKeystorePayload, encryptWithAesCbcLegacy };
 
 export function bytesToBinaryString(bytes: Uint8Array): string {
   let out = "";
@@ -100,33 +108,11 @@ export function bytesToBinaryString(bytes: Uint8Array): string {
   return out;
 }
 
-export async function encryptWithAesCbc(payload: string, masterKey: string): Promise<string> {
-  const keyBytes = await deriveAesKeyBytes(masterKey);
-  const iv = crypto.getRandomValues(new Uint8Array(16));
-  const key = await crypto.subtle.importKey(
-    "raw",
-    keyBytes as unknown as BufferSource,
-    { name: "AES-CBC" },
-    false,
-    ["encrypt"],
-  );
-
-  const data = new TextEncoder().encode(payload);
-  const enc = await crypto.subtle.encrypt({ name: "AES-CBC", iv }, key, data);
-  const out = new Uint8Array(iv.length + enc.byteLength);
-  out.set(iv, 0);
-  out.set(new Uint8Array(enc), iv.length);
-
-  // base64
-  return btoa(bytesToBinaryString(out));
-}
-
 export async function encryptText(text: string, masterKey: string): Promise<string> {
-  return encryptWithAesCbc(text, masterKey);
+  return encryptWithAesCbcLegacy(text, masterKey);
 }
 
 export async function ensureBucketExists(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   bucket: string,
 ): Promise<void> {
@@ -146,7 +132,6 @@ export async function ensureBucketExists(
 
   // Fallback: insert directly into storage.buckets (works in Supabase Postgres).
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any)
       .from("storage.buckets")
       .insert({ id: bucket, name: bucket, public: false })

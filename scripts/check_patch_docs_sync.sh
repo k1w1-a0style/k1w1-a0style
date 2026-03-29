@@ -47,6 +47,7 @@ require_fixed docs/WORKFLOW_PATCHING.md 'rm -rf <PATCH_PACKAGE_DIR>'
 require_fixed docs/WORKFLOW_PATCHING.md 'rm -f <PATCH_ZIP>'
 require_fixed docs/INDEX.md '[EDGE_FUNCTIONS_STATUS](EDGE_FUNCTIONS_STATUS.md)'
 [ -f docs/EDGE_FUNCTIONS_STATUS.md ] || { echo 'Missing docs/EDGE_FUNCTIONS_STATUS.md' >&2; exit 1; }
+require_fixed docs/06-build-readiness.md 'K1W1_EDGE_WORKFLOW_JWT'
 
 checklog_top="$(grep -Eo 'Patch [A-Za-z0-9._-]+:' PROJECT_CHECKLOG.md | head -n1 | sed -E 's/^Patch ([A-Za-z0-9._-]+):$/\1/')"
 patchlog_top="$(grep -Eo -- '- Patch [A-Za-z0-9._-]+:' docs/patches/PATCHLOG_ROOT.md | head -n1 | sed -E 's/^- Patch ([A-Za-z0-9._-]+):$/\1/')"

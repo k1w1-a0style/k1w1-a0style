@@ -1,15 +1,17 @@
 import {
   createClient,
-  decryptWithAesCbc,
+  decryptKeystorePayload,
   errorResponse,
-  getJwtSub,
+  getJwtPayload,
   getServiceRoleKey,
   getSigningMasterKey,
   getSupabaseUrl,
   handleCors,
   jsonResponse,
   rateLimit,
+  requireDurableRateLimit,
   repoOk,
+  requireJwtRole,
   requireScopedEdgeAuth,
   resolveMode,
   safeString,
@@ -19,17 +21,30 @@ Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
-  const rl = rateLimit(req, "android-keystore-export", 30, 60_000);
-  if (rl) return rl;
-
-  // Legacy guard lineage: requireAdminKeyOrServiceRoleBearer(req).
+  // Scoped route auth replaces the former shared admin/service-role guard.
   const auth = requireScopedEdgeAuth(req, {
     scope: "android-keystore-export",
     allowAdmin: true,
-    allowCiBearer: false,
+    allowJwtAuthHeaderWithAdmin: true,
     adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
   });
   if (auth) return auth;
+  const jwtRoleGuard = await requireJwtRole(req, {
+    scope: "android-keystore-export",
+    allowedRoles: ["service_role"],
+  });
+  if (jwtRoleGuard) return jwtRoleGuard;
+
+  const durableRl = await requireDurableRateLimit(req, {
+    scope: "android-keystore-export",
+    subject: req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "unknown",
+    max: 30,
+    windowMs: 60_000,
+  });
+  if (durableRl) return durableRl;
+
+  const rl = rateLimit(req, "android-keystore-export", 30, 60_000);
+  if (rl) return rl;
 
   try {
     const supabaseUrl = getSupabaseUrl();
@@ -89,11 +104,12 @@ Deno.serve(async (req) => {
     }
 
     const encrypted = await file.text();
-    const decrypted = await decryptWithAesCbc(encrypted, masterKey);
+    const decrypted = await decryptKeystorePayload(encrypted, masterKey);
     const parsed = JSON.parse(decrypted);
 
     try {
-      const actor = getJwtSub(req) || "service_role";
+      const payload = getJwtPayload(req);
+      const actor = typeof payload?.sub === "string" ? payload.sub : "service_role";
       const ip = (req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "")
         .split(",")[0]
         .trim();

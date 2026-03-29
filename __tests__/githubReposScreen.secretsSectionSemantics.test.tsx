@@ -6,12 +6,17 @@ import { SecretsSection } from "../screens/GitHubReposScreen/components/SecretsS
 
 const mockListRepoSecretNames = jest.fn();
 const mockGetExpoToken = jest.fn();
+const mockGetWorkflowAdminKey = jest.fn();
+const mockGetAndroidKeystoreExportAdminKey = jest.fn();
 const mockGetEdgeAdminKey = jest.fn();
 
 jest.mock("../infra/github/githubService", () => ({
   listRepoSecretNames: (...args: unknown[]) => mockListRepoSecretNames(...args),
   getExpoToken: (...args: unknown[]) => mockGetExpoToken(...args),
-  getEdgeAdminKey: (...args: unknown[]) => mockGetEdgeAdminKey(...args),
+  getWorkflowAdminKey: (...args: unknown[]) => mockGetWorkflowAdminKey(...args),
+  getAndroidKeystoreExportAdminKey: (...args: unknown[]) =>
+    mockGetAndroidKeystoreExportAdminKey(...args),
+  getLegacyEdgeAdminKey: (...args: unknown[]) => mockGetEdgeAdminKey(...args),
 }));
 
 type Deferred<T> = {
@@ -44,11 +49,13 @@ describe("GitHubReposScreen SecretsSection secret semantics", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetExpoToken.mockResolvedValue("expo-local-token");
+    mockGetWorkflowAdminKey.mockResolvedValue("workflow-local-key");
+    mockGetAndroidKeystoreExportAdminKey.mockResolvedValue("keystore-local-key");
     mockGetEdgeAdminKey.mockResolvedValue("edge-local-key");
   });
 
   it("loads repo secret names only once automatically per repo context", async () => {
-    mockListRepoSecretNames.mockResolvedValue(["EXPO_TOKEN", "SUPABASE_URL", "K1W1_EDGE_ADMIN_KEY"]);
+    mockListRepoSecretNames.mockResolvedValue(["EXPO_TOKEN", "SUPABASE_URL", "K1W1_EDGE_WORKFLOW_ADMIN_KEY"]);
 
     const screen = render(<SecretsSection activeRepo="owner/repo" />);
 
@@ -62,9 +69,9 @@ describe("GitHubReposScreen SecretsSection secret semantics", () => {
     expect(mockListRepoSecretNames).toHaveBeenCalledWith("owner", "repo");
   });
 
-  it("shows repo secret and local app value separately when the local Edge Admin Key is missing", async () => {
-    mockListRepoSecretNames.mockResolvedValue(["EXPO_TOKEN", "SUPABASE_URL", "K1W1_EDGE_ADMIN_KEY"]);
-    mockGetEdgeAdminKey.mockResolvedValue(null);
+  it("shows repo secret and local app value separately when the local Workflow Admin Key is missing", async () => {
+    mockListRepoSecretNames.mockResolvedValue(["EXPO_TOKEN", "SUPABASE_URL", "K1W1_EDGE_WORKFLOW_ADMIN_KEY"]);
+    mockGetWorkflowAdminKey.mockResolvedValue(null);
 
     const screen = render(<SecretsSection activeRepo="owner/repo" />);
 
@@ -74,17 +81,18 @@ describe("GitHubReposScreen SecretsSection secret semantics", () => {
 
     expect(screen.getAllByText("Repo Secret").length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText("Lokaler App-Wert").length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByText("K1W1_EDGE_ADMIN_KEY").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("Lokaler Workflow Admin Key")).toBeTruthy();
+    expect(screen.getByText("K1W1_EDGE_WORKFLOW_ADMIN_KEY")).toBeTruthy();
     expect(
-      screen.getByText(/CI Lite \/ Edge Dispatch nutzt den lokalen Edge Admin Key aus SecureStore/i),
+      screen.getByText(/Workflow-\/Build-\/Artifact-Routen nutzen den lokalen Workflow Admin Key aus SecureStore/i),
     ).toBeTruthy();
     expect(
-      screen.getByText(/Repo-Secret-Namen koennen bestaetigt sein, aber fuer App-Dispatch fehlt noch: Edge Admin Key lokal/i),
+      screen.getByText(/Repo-Secret-Namen koennen bestaetigt sein, aber fuer App-Dispatch fehlt noch: lokaler Workflow Admin Key/i),
     ).toBeTruthy();
   });
 
   it("supports manual refresh without reintroducing an automatic reload loop", async () => {
-    mockListRepoSecretNames.mockResolvedValue(["EXPO_TOKEN", "SUPABASE_URL", "K1W1_EDGE_ADMIN_KEY"]);
+    mockListRepoSecretNames.mockResolvedValue(["EXPO_TOKEN", "SUPABASE_URL", "K1W1_EDGE_WORKFLOW_ADMIN_KEY"]);
 
     const screen = render(<SecretsSection activeRepo="owner/repo" />);
 
@@ -107,7 +115,7 @@ describe("GitHubReposScreen SecretsSection secret semantics", () => {
 
   it("keeps the last verified repo-secret list visible when a refresh fails", async () => {
     mockListRepoSecretNames
-      .mockResolvedValueOnce(["EXPO_TOKEN", "SUPABASE_URL", "K1W1_EDGE_ADMIN_KEY"])
+      .mockResolvedValueOnce(["EXPO_TOKEN", "SUPABASE_URL", "K1W1_EDGE_WORKFLOW_ADMIN_KEY"])
       .mockRejectedValueOnce(new Error("403 forbidden"));
 
     const screen = render(<SecretsSection activeRepo="owner/repo" />);
@@ -146,7 +154,7 @@ describe("GitHubReposScreen SecretsSection secret semantics", () => {
     });
 
     await act(async () => {
-      repoA.resolve(["EXPO_TOKEN", "SUPABASE_URL", "K1W1_EDGE_ADMIN_KEY"]);
+      repoA.resolve(["EXPO_TOKEN", "SUPABASE_URL", "K1W1_EDGE_WORKFLOW_ADMIN_KEY"]);
       await repoA.promise;
     });
     await flushMicrotasks();
@@ -157,9 +165,25 @@ describe("GitHubReposScreen SecretsSection secret semantics", () => {
     expect(mockListRepoSecretNames).toHaveBeenNthCalledWith(2, "owner", "repo-b");
   });
 
-  it("shows both repo and local Edge Admin Key as available when both exist", async () => {
+
+  it("shows legacy repo admin secret in its dedicated compat row", async () => {
     mockListRepoSecretNames.mockResolvedValue(["EXPO_TOKEN", "SUPABASE_URL", "K1W1_EDGE_ADMIN_KEY"]);
     mockGetEdgeAdminKey.mockResolvedValue("edge-local-key");
+
+    const screen = render(<SecretsSection activeRepo="owner/repo" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Repo und lokal getrennt bestaetigt")).toBeTruthy();
+    });
+
+    expect(screen.getByText("K1W1_EDGE_ADMIN_KEY")).toBeTruthy();
+    expect(screen.getByText("Lokaler Legacy Edge Admin Key (compat)")).toBeTruthy();
+    expect(screen.getAllByText("bestätigt").length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("shows both scoped repo/local keys as available when both exist", async () => {
+    mockListRepoSecretNames.mockResolvedValue(["EXPO_TOKEN", "SUPABASE_URL", "K1W1_EDGE_WORKFLOW_ADMIN_KEY"]);
+    mockGetWorkflowAdminKey.mockResolvedValue("workflow-local-key");
 
     const screen = render(<SecretsSection activeRepo="owner/repo" />);
 
@@ -172,9 +196,9 @@ describe("GitHubReposScreen SecretsSection secret semantics", () => {
     expect(screen.getAllByText("bestätigt").length).toBeGreaterThanOrEqual(3);
   });
 
-  it("does not imply CI Lite readiness from a green repo secret alone when the local dispatch key is missing", async () => {
-    mockListRepoSecretNames.mockResolvedValue(["EXPO_TOKEN", "SUPABASE_URL", "K1W1_EDGE_ADMIN_KEY"]);
-    mockGetEdgeAdminKey.mockResolvedValue("");
+  it("does not imply workflow readiness from a green repo secret alone when the local scoped key is missing", async () => {
+    mockListRepoSecretNames.mockResolvedValue(["EXPO_TOKEN", "SUPABASE_URL", "K1W1_EDGE_WORKFLOW_ADMIN_KEY"]);
+    mockGetWorkflowAdminKey.mockResolvedValue("");
 
     const screen = render(<SecretsSection activeRepo="owner/repo" />);
 
@@ -184,7 +208,7 @@ describe("GitHubReposScreen SecretsSection secret semantics", () => {
 
     expect(screen.getByText("Secret-Namen bestätigt")).toBeTruthy();
     expect(
-      screen.getByText(/Ein gruener Repo-Secret-Name allein macht diesen Dispatch nicht bereit/i),
+      screen.getByText(/Repo-Secret-Namen und lokaler App-Wert sind getrennte Readiness-Signale/i),
     ).toBeTruthy();
     expect(screen.queryByText(/CI Lite Auth bereit/i)).toBeNull();
   });

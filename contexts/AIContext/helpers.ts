@@ -54,37 +54,81 @@ export function resolveProviderModeForQualityMode(
   return PROVIDER_DEFAULTS[provider][modeKey];
 }
 
+export function buildProviderSelectionPatch(params: {
+  providerType: "chat" | "agent";
+  provider: AllAIProviders;
+  qualityMode: QualityMode;
+}): Partial<AIConfig> {
+  const nextMode =
+    getDefaultMode(params.provider, params.qualityMode) ||
+    (params.providerType === "chat"
+      ? PROVIDER_DEFAULTS[params.provider].speed
+      : PROVIDER_DEFAULTS[params.provider].quality);
+
+  if (params.providerType === "chat") {
+    return {
+      selectedChatProvider: params.provider,
+      selectedChatMode: nextMode,
+    };
+  }
+
+  return {
+    selectedAgentProvider: params.provider,
+    selectedAgentMode: nextMode,
+  };
+}
+
 export function isModeValidForProvider(provider: AllAIProviders, mode: string): boolean {
   const list = AVAILABLE_MODELS?.[provider] ?? [];
   return list.some((m) => m.id === mode);
 }
 
+export function normalizeApiKeys(
+  keys: Partial<Record<AllAIProviders, unknown>> | null | undefined,
+): Record<AllAIProviders, string[]> {
+  const next: Record<AllAIProviders, string[]> = { ...DEFAULT_CONFIG.apiKeys };
+  (Object.keys(next) as AllAIProviders[]).forEach((provider) => {
+    const value = keys?.[provider];
+    next[provider] = Array.isArray(value)
+      ? value.map((entry) => String(entry ?? "").trim()).filter(Boolean)
+      : [];
+  });
+  return next;
+}
 
+export function hasAnyApiKeys(keys: Record<AllAIProviders, string[]>): boolean {
+  return (Object.keys(keys) as AllAIProviders[]).some(
+    (provider) => keys[provider].length > 0,
+  );
+}
+
+export function resolveRehydratedApiKeys(params: {
+  loadedApiKeys: Partial<Record<AllAIProviders, unknown>> | null | undefined;
+  secureApiKeys: Partial<Record<AllAIProviders, unknown>> | null | undefined;
+}): { finalKeys: Record<AllAIProviders, string[]>; shouldMigrateLegacyToSecure: boolean } {
+  const loadedKeys = normalizeApiKeys(params.loadedApiKeys);
+  const secureKeys = normalizeApiKeys(params.secureApiKeys);
+  const shouldMigrateLegacyToSecure = !hasAnyApiKeys(secureKeys) && hasAnyApiKeys(loadedKeys);
+  return {
+    finalKeys: shouldMigrateLegacyToSecure ? loadedKeys : secureKeys,
+    shouldMigrateLegacyToSecure,
+  };
+}
 
 export async function loadSecureApiKeys(): Promise<Record<AllAIProviders, string[]>> {
   try {
     const raw = await SecureStore.getItemAsync(AI_KEYS_SECURE_KEY);
-    if (!raw) return { ...DEFAULT_CONFIG.apiKeys };
+    if (!raw) return normalizeApiKeys(undefined);
     const parsed = JSON.parse(raw) as Partial<Record<AllAIProviders, unknown>>;
-    const next: Record<AllAIProviders, string[]> = { ...DEFAULT_CONFIG.apiKeys };
-    (Object.keys(next) as AllAIProviders[]).forEach((p) => {
-      const v = parsed?.[p];
-      if (Array.isArray(v)) next[p] = v.map((k) => String(k ?? "").trim()).filter(Boolean);
-    });
-    return next;
+    return normalizeApiKeys(parsed);
   } catch {
-    return { ...DEFAULT_CONFIG.apiKeys };
+    return normalizeApiKeys(undefined);
   }
 }
 
 export async function saveSecureApiKeys(keys: Record<AllAIProviders, string[]>): Promise<void> {
-  const cleaned: Record<AllAIProviders, string[]> = { ...DEFAULT_CONFIG.apiKeys };
-  (Object.keys(cleaned) as AllAIProviders[]).forEach((p) => {
-    const v = keys?.[p];
-    cleaned[p] = Array.isArray(v) ? v.map((k) => String(k ?? "").trim()).filter(Boolean) : [];
-  });
-  const hasAny = (Object.keys(cleaned) as AllAIProviders[]).some((p) => cleaned[p].length > 0);
-  if (!hasAny) {
+  const cleaned = normalizeApiKeys(keys);
+  if (!hasAnyApiKeys(cleaned)) {
     await SecureStore.deleteItemAsync(AI_KEYS_SECURE_KEY).catch(() => undefined);
     return;
   }

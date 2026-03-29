@@ -4,7 +4,14 @@
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { STORAGE_KEYS } from "./storageKeys";
-import { getExpoToken, getEdgeAdminKey, syncRepoSecrets } from "../infra/github/githubService";
+import {
+  getExpoToken,
+  getWorkflowAdminKey,
+  getAndroidKeystoreExportAdminKey,
+  getLegacyEdgeAdminKey,
+  getSigningAdminKey,
+  syncRepoSecrets,
+} from "../infra/github/githubService";
 
 type AutoSyncResult = {
   updated: string[];
@@ -17,11 +24,22 @@ export const autoSyncRepoSecrets = async (
   const updated: string[] = [];
   const skipped: string[] = [];
 
-  const [expoToken, supabaseUrl, easProjectId, edgeAdminKey] = await Promise.all([
+  const [
+    expoToken,
+    supabaseUrl,
+    easProjectId,
+    workflowAdminKey,
+    androidKeystoreExportAdminKey,
+    legacyEdgeAdminKey,
+    signingAdminKey,
+  ] = await Promise.all([
     getExpoToken(),
     AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL),
     AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID),
-    getEdgeAdminKey(),
+    getWorkflowAdminKey(),
+    getAndroidKeystoreExportAdminKey(),
+    getLegacyEdgeAdminKey(),
+    getSigningAdminKey(),
   ]);
 
   // Validate inputs (but keep a useful 'skipped' list instead of throwing)
@@ -31,10 +49,23 @@ export const autoSyncRepoSecrets = async (
 
   // Optional (do not mark missing as error)
   if (!easProjectId) skipped.push("EAS_PROJECT_ID (optional, empty)");
-  if (!edgeAdminKey) skipped.push("K1W1_EDGE_ADMIN_KEY (optional, empty)");
+  if (!workflowAdminKey) skipped.push("K1W1_EDGE_WORKFLOW_ADMIN_KEY (optional, empty)");
+  if (!androidKeystoreExportAdminKey) {
+    skipped.push("K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY (optional, empty)");
+  }
+  if (!legacyEdgeAdminKey) skipped.push("K1W1_EDGE_ADMIN_KEY (legacy optional, empty)");
+  if (!signingAdminKey) skipped.push("SIGNING_ADMIN_KEY (legacy optional, empty)");
 
   // If nothing to sync, return early
-  if (!expoToken && !supabaseUrl && !easProjectId && !edgeAdminKey) {
+  if (
+    !expoToken &&
+    !supabaseUrl &&
+    !easProjectId &&
+    !workflowAdminKey &&
+    !androidKeystoreExportAdminKey &&
+    !legacyEdgeAdminKey &&
+    !signingAdminKey
+  ) {
     return { updated, skipped };
   }
 
@@ -42,7 +73,10 @@ export const autoSyncRepoSecrets = async (
     expoToken: expoToken || undefined,
     supabaseUrl: supabaseUrl || undefined,
     easProjectId: easProjectId || undefined,
-    edgeAdminKey: edgeAdminKey || undefined,
+    workflowAdminKey: workflowAdminKey || undefined,
+    androidKeystoreExportAdminKey: androidKeystoreExportAdminKey || undefined,
+    edgeAdminKey: legacyEdgeAdminKey || undefined,
+    signingAdminKey: signingAdminKey || undefined,
   });
 
   updated.push(...res.updated);

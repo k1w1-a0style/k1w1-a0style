@@ -1,45 +1,58 @@
 # supabase/config.toml
 # ------------------------------------------------------------
 # SECURITY NOTE:
-# - verify_jwt bleibt für die unten gelisteten CI-/Tooling-Routen bewusst false:
+# - verify_jwt bleibt für die meisten unten gelisteten CI-/Tooling-Routen bewusst false:
 #   bestehende Caller authentifizieren aktuell per Header-Secret (kein Supabase-User-JWT).
 # - High-impact Routen sind deny-by-default gehärtet via `requireScopedEdgeAuth`:
 #   fehlende Route-Secrets führen zu 500 (fail-closed), keine impliziten Fallback-Secrets.
 # - Route-Secrets:
-#   - K1W1_EDGE_WORKFLOW_ADMIN_KEY / K1W1_EDGE_WORKFLOW_CI_BEARER
+#   - K1W1_EDGE_WORKFLOW_ADMIN_KEY
 #   - K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY
+# - Pilot-Migrationen:
+#   - `android-keystore-export` nutzt verify_jwt=true + role=service_role + scoped admin key.
+#   - `github-workflow-dispatch` nutzt verify_jwt=true + JWT-Claim-Guard + scoped workflow admin key.
+#   - `github-workflow-runs`/`github-workflow-logs` nutzen verify_jwt=true + JWT-Claim-Guard + scoped workflow admin key.
+#   - `github-run-artifact-json` nutzt verify_jwt=true + JWT-Claim-Guard + scoped workflow admin key.
+#   - `trigger-eas-build`/`check-eas-build` nutzen verify_jwt=true + JWT-Claim-Guard + scoped workflow admin key.
+#   - `android-keystore-generate`/`android-keystore-status` nutzen verify_jwt=true + JWT-Claim-Guard + scoped keystore admin key.
 # - verify_jwt nur aktivieren, wenn der jeweilige Caller-Flow real JWT-kompatibel migriert ist.
 # ------------------------------------------------------------
 
 [functions.trigger-eas-build]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./import_map.json"
 entrypoint = "./functions/trigger-eas-build/index.ts"
 
 [functions.check-eas-build]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./import_map.json"
 entrypoint = "./functions/check-eas-build/index.ts"
 
 [functions.github-workflow-runs]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./import_map.json"
 entrypoint = "./functions/github-workflow-runs/index.ts"
 
 [functions.github-workflow-logs]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./import_map.json"
 entrypoint = "./functions/github-workflow-logs/index.ts"
 
 [functions.github-workflow-dispatch]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./import_map.json"
 entrypoint = "./functions/github-workflow-dispatch/index.ts"
+
+[functions.github-run-artifact-json]
+enabled = true
+verify_jwt = true
+import_map = "./import_map.json"
+entrypoint = "./functions/github-run-artifact-json/index.ts"
 
 [functions.save_preview]
 enabled = true
@@ -103,24 +116,24 @@ entrypoint = "./functions/native-sync-report-ingest/index.ts"
 
 # ------------------------------------------------------------
 # Android signing keystore helpers
-# NOTE: `android-keystore-export` nutzt nun ein dediziertes Admin-Secret
+# NOTE: Android-Keystore-Routen nutzen ein dediziertes Admin-Secret
 # (`K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) ohne CI-Bearer-Fallback.
 # ------------------------------------------------------------
 
 [functions.android-keystore-status]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./import_map.json"
 entrypoint = "./functions/android-keystore-status/index.ts"
 
 [functions.android-keystore-generate]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./import_map.json"
 entrypoint = "./functions/android-keystore-generate/index.ts"
 
 [functions.android-keystore-export]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./import_map.json"
 entrypoint = "./functions/android-keystore-export/index.ts"

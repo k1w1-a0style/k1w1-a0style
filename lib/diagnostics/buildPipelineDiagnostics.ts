@@ -2,28 +2,32 @@
 // REFACTORED: types/helpers → diagnosticTypes.ts, remote → remoteDiagnostics.ts
 
 import {
-  getEdgeAdminKey,
+  getAndroidKeystoreExportAdminKey,
+  getLegacyEdgeAdminKey,
   getExpoToken,
   getGitHubToken,
+  getWorkflowAdminKey,
   getRepoFileText,
   listRepoSecretNames,
 } from "../../infra/github/githubService";
 
 import { safeTrim, isUuid, fileExists, readJsonFile } from "./diagnosticTypes";
 import type { DiagnosticCheck } from "./diagnosticTypes";
-export type { DiagnosticStatus, DiagnosticFix, DiagnosticCheck } from "./diagnosticTypes";
-export { triggerRemoteDiagnostics, fetchLatestRemoteDiagnosticsReport } from "./remoteDiagnostics";
-export type { RemoteDiagnosticsReport } from "./remoteDiagnostics";
 import {
   resolveRepoSecretListVerification,
   resolveRepoSecretVerification,
 } from "../status/repoSecretVerification";
+export type { DiagnosticStatus, DiagnosticFix, DiagnosticCheck } from "./diagnosticTypes";
+export { triggerRemoteDiagnostics, fetchLatestRemoteDiagnosticsReport } from "./remoteDiagnostics";
+export type { RemoteDiagnosticsReport } from "./remoteDiagnostics";
 
 
 export type BuildPipelineDiagnosticsDeps = {
   getGitHubToken?: typeof getGitHubToken;
   getExpoToken?: typeof getExpoToken;
-  getEdgeAdminKey?: typeof getEdgeAdminKey;
+  getWorkflowAdminKey?: typeof getWorkflowAdminKey;
+  getAndroidKeystoreExportAdminKey?: typeof getAndroidKeystoreExportAdminKey;
+  getLegacyEdgeAdminKey?: typeof getLegacyEdgeAdminKey;
   fileExists?: typeof fileExists;
   readJsonFile?: typeof readJsonFile;
   getRepoFileText?: typeof getRepoFileText;
@@ -46,6 +50,19 @@ const CANONICAL_EAS_JSON = {
       android: { buildType: "apk", withoutCredentials: false },
     },
   },
+};
+
+type EasProfileName = "development" | "preview" | "production";
+type EasProfileConfig = {
+  android?: {
+    buildType?: unknown;
+    withoutCredentials?: unknown;
+  };
+  developmentClient?: unknown;
+  distribution?: unknown;
+};
+type EasConfig = {
+  build?: Partial<Record<EasProfileName, EasProfileConfig>>;
 };
 
 const canonicalEasJsonString = () => `${JSON.stringify(CANONICAL_EAS_JSON, null, 2)}
@@ -97,7 +114,9 @@ export function describeRepoSecretContract(params: {
 const DEFAULT_BUILD_PIPELINE_DIAGNOSTICS_DEPS: Required<BuildPipelineDiagnosticsDeps> = {
   getGitHubToken,
   getExpoToken,
-  getEdgeAdminKey,
+  getWorkflowAdminKey,
+  getAndroidKeystoreExportAdminKey,
+  getLegacyEdgeAdminKey,
   fileExists,
   readJsonFile,
   getRepoFileText,
@@ -121,10 +140,12 @@ export const runBuildPipelineDiagnostics = async (
   const checks: DiagnosticCheck[] = [];
 
   // --- Local prerequisites ---
-  const [ghToken, expoToken, adminKey] = await Promise.all([
+  const [ghToken, expoToken, workflowAdminKey, androidKeystoreExportAdminKey, legacyAdminKey] = await Promise.all([
     d.getGitHubToken(),
     d.getExpoToken(),
-    d.getEdgeAdminKey(),
+    d.getWorkflowAdminKey?.() ?? Promise.resolve(null),
+    d.getAndroidKeystoreExportAdminKey?.() ?? Promise.resolve(null),
+    d.getLegacyEdgeAdminKey?.() ?? Promise.resolve(null),
   ]);
 
   checks.push({
@@ -144,12 +165,39 @@ export const runBuildPipelineDiagnostics = async (
   });
 
   checks.push({
-    id: "local.edgeAdminKey",
-    title: "Edge Admin-Key vorhanden (x-k1w1-admin-key)",
-    status: adminKey ? "pass" : "warn",
-    fixHint: adminKey
+    id: "local.workflowAdminKey",
+    title: "Lokaler Workflow Admin-Key vorhanden (x-k1w1-admin-key)",
+    status: workflowAdminKey ? "pass" : "fail",
+    fixHint: workflowAdminKey
       ? undefined
-      : "Ohne Admin-Key sind manche Supabase-Checks nicht möglich (Edge Functions sind geschützt).",
+      : "Workflow-/Build-/Artifact-Readiness braucht den lokalen Workflow Admin-Key (scoped).",
+  });
+
+  checks.push({
+    id: "local.operatorClaimProvisioning",
+    title: "Operator-Claim build_admin extern provisioniert (Preflight-Pflicht)",
+    status: "warn",
+    details: "Workflow-/Build-/Artifact-/Keystore-Routen akzeptieren JWT-Rollen nur als service_role|build_admin.",
+    fixHint:
+      "build_admin wird nicht im Repo erzeugt. Der Claim muss extern im Betriebsprozess fuer den Supabase-User (role/app_metadata.role) provisioniert sein, bevor diese Operator-Flows live getestet werden. Normale eingeloggte Nutzer ohne diesen externen Claim bleiben fail-closed blockiert.",
+  });
+
+  checks.push({
+    id: "local.androidKeystoreExportAdminKey",
+    title: "Lokaler Android Keystore Export Admin-Key vorhanden (x-k1w1-admin-key)",
+    status: androidKeystoreExportAdminKey ? "pass" : "warn",
+    fixHint: androidKeystoreExportAdminKey
+      ? undefined
+      : "Keystore-Routen nutzen den separaten lokalen Keystore-Scoped-Key. Ohne ihn bleibt Keystore-Readiness unbestaetigt.",
+  });
+
+  checks.push({
+    id: "local.legacyEdgeAdminKey",
+    title: "Lokaler Legacy Edge Admin-Key (compat)",
+    status: legacyAdminKey ? "warn" : "pass",
+    fixHint: legacyAdminKey
+      ? "Legacy-Key ist gesetzt (Sunset). Fuer aktuelle Readiness gelten nur scoped Keys; Legacy bleibt nur fuer klar begrenzte Altpfade (z.B. k1w1-handler/save_preview)."
+      : undefined,
   });
 
   // --- Repo files (branch-specific) ---
@@ -230,9 +278,9 @@ export const runBuildPipelineDiagnostics = async (
   });
 
   // --- EAS profiles (3 flows) & APK-only ---
-  let easJson: any = null;
+  let easJson: EasConfig | null = null;
   if (hasEasJson) {
-    easJson = await d.readJsonFile<any>(params.owner, params.repo, "eas.json", ref);
+    easJson = await d.readJsonFile<EasConfig>(params.owner, params.repo, "eas.json", ref);
     if (!easJson) {
       checks.push({
         id: "repo.easJson.parse",
@@ -243,7 +291,7 @@ export const runBuildPipelineDiagnostics = async (
     }
   }
 
-  const profiles: Array<"development" | "preview" | "production"> = [
+  const profiles: EasProfileName[] = [
     "development",
     "preview",
     "production",
@@ -267,7 +315,7 @@ export const runBuildPipelineDiagnostics = async (
             jsonMerge: [
               {
                 path: "eas.json",
-                patch: { build: { [prof]: (CANONICAL_EAS_JSON.build as any)[prof] } },
+                patch: { build: { [prof]: CANONICAL_EAS_JSON.build[prof] } },
                 createIfMissing: true,
               },
             ],
@@ -550,7 +598,12 @@ export const runBuildPipelineDiagnostics = async (
 
   if (!projectIdOk && hasAppJson) {
     try {
-      const appJson = await d.readJsonFile<any>(params.owner, params.repo, "app.json", ref);
+      const appJson = await d.readJsonFile<{ expo?: { extra?: { eas?: { projectId?: string } } } }>(
+        params.owner,
+        params.repo,
+        "app.json",
+        ref,
+      );
       const candidate = safeTrim(appJson?.expo?.extra?.eas?.projectId);
       if (candidate && isUuid(candidate)) {
         projectId = candidate;
@@ -568,7 +621,7 @@ export const runBuildPipelineDiagnostics = async (
       const text = await d.getRepoFileText({ owner: params.owner, repo: params.repo, path, ref });
       const m1 = text.match(/projectId[^0-9a-fA-F]{0,64}([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/);
       const m2 = !m1 ? text.match(/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/) : null;
-      const candidate = safeTrim((m1?.[1] ?? m2?.[1]) as any);
+      const candidate = safeTrim(m1?.[1] ?? m2?.[1] ?? null);
       if (candidate && isUuid(candidate)) {
         projectId = candidate;
         projectIdOk = true;

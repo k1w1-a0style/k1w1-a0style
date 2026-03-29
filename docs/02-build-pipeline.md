@@ -33,7 +33,7 @@ Zusätzlich profilabhängig:
 ### 2.2 Warnings (kein Hard-Block)
 - CI-Lite nicht grün,
 - `EAS_PROJECT_ID` fehlt (optional; kann später Workflow-Fehler verursachen),
-- optionaler `K1W1_EDGE_ADMIN_KEY` fehlt.
+- optionale Workflow-/Keystore-Admin-Secrets (`K1W1_EDGE_WORKFLOW_ADMIN_KEY`, `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) fehlen.
 
 ### 2.3 UI-Verhalten
 - Build-Button disabled, sobald mindestens ein Blocker offen ist.

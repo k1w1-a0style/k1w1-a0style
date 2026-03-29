@@ -103,8 +103,8 @@ export async function describeEdgeFailure(opts: {
     hint = `Edge Function '${fnName}' nicht deployed (edgeUrl: ${edgeUrl}).`;
   } else if (status === 401) {
     hint = hasAdminKey
-      ? "Edge Admin Key wurde abgelehnt (x-k1w1-admin-key). Prüfe K1W1_EDGE_ADMIN_KEY / SIGNING_ADMIN_KEY."
-      : "Edge Admin Key fehlt (x-k1w1-admin-key). Setze K1W1_EDGE_ADMIN_KEY in der App oder nutze Bearer (Service Role) in CI.";
+      ? "Admin-Key wurde abgelehnt (x-k1w1-admin-key). Fuer Workflow-Routen: lokalen Workflow Admin Key + K1W1_EDGE_WORKFLOW_ADMIN_KEY pruefen; fuer Keystore-Routen: lokalen Keystore Export Admin Key + K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY pruefen (legacy K1W1_EDGE_ADMIN_KEY nur compat)."
+      : "Admin-Key fehlt (x-k1w1-admin-key). Setze den passenden lokalen scoped Key (Workflow oder Keystore); fuer workflow/build/artifact-Routen gilt JWT + scoped Workflow-Admin-Key.";
   } else if (status === 429) {
     hint = "Rate limit aktiv – bitte kurz warten.";
   } else if (status >= 500) {

@@ -1,6 +1,6 @@
 /**
  * Integration-ish tests for project/services/buildStartService.startBuildJob
- * Focus: build-profile normalization, GitHub push + workflow autofix sequencing,
+ * Focus: build-profile normalization, fail-closed GitHub push + workflow autofix sequencing,
  * and Supabase Edge invoke payload/headers.
  */
 import type { ProjectData } from "../../shared/types/project";
@@ -25,7 +25,7 @@ jest.mock("../../lib/logger", () => ({
 }));
 
 const mockGitHub = {
-  getEdgeAdminKey: jest.fn(),
+  getWorkflowAdminKey: jest.fn(),
   getBranchHeadSha: jest.fn(),
   pushFilesToRepo: jest.fn(),
 };
@@ -37,6 +37,11 @@ const mockAutoFix = {
 const mockInvoke = jest.fn();
 
 const mockSupabase = {
+  auth: {
+    getSession: jest.fn(async () => ({
+      data: { session: { access_token: "supabase-operator-jwt-token" } },
+    })),
+  },
   functions: {
     invoke: mockInvoke,
   },
@@ -104,7 +109,7 @@ describe("startBuildJob (integration)", () => {
           return null;
       }
     });
-    mockGitHub.getEdgeAdminKey.mockResolvedValue("adminkey");
+    mockGitHub.getWorkflowAdminKey.mockResolvedValue("adminkey");
     mockGitHub.getBranchHeadSha.mockResolvedValue("1111111111111111111111111111111111111111");
     mockGitHub.pushFilesToRepo.mockResolvedValue(undefined);
     mockAutoFix.autoFixCIWorkflows.mockResolvedValue(undefined);
@@ -127,11 +132,12 @@ describe("startBuildJob (integration)", () => {
       branch: "main",
     });
 
-    // Supabase edge function invoke payload + admin header
+    // Supabase edge function invoke payload + JWT/admin header
     expect(mockInvoke).toHaveBeenCalledTimes(1);
     const [fnName, opts] = mockInvoke.mock.calls[0];
 
     expect(typeof fnName).toBe("string");
+    expect(opts?.headers?.Authorization).toBe("Bearer supabase-operator-jwt-token");
     expect(opts?.headers?.["x-k1w1-admin-key"]).toBe("adminkey");
     expect(opts?.body).toEqual({
       githubRepo: "k1w1-a0style/musik-player",
@@ -147,7 +153,7 @@ describe("startBuildJob (integration)", () => {
     });
   });
 
-  it("uses linkedBranch when push fails", async () => {
+  it("aborts build when push fails before workflow autofix or dispatch", async () => {
     mockGitHub.pushFilesToRepo.mockRejectedValueOnce(new Error("push failed"));
     const project = makeProject({ linkedBranch: "dev" });
     const syncKey = repoSyncKey("k1w1-a0style/musik-player", "dev");
@@ -173,18 +179,11 @@ describe("startBuildJob (integration)", () => {
       }
     });
 
-    const res = await startBuildJob({ project, buildProfile: "preview" });
-
-    // still attempts autofix with derived owner/repo and branch hint (dev)
-    expect(mockAutoFix.autoFixCIWorkflows).toHaveBeenCalledWith({
-      owner: "k1w1-a0style",
-      repo: "musik-player",
-      branch: "dev",
-    });
-
-    const [, opts] = mockInvoke.mock.calls[0];
-    expect(opts.body.branch).toBe("dev");
-    expect(res.branch).toBe("dev");
+    await expect(startBuildJob({ project, buildProfile: "preview" })).rejects.toThrow(
+      /Build abgebrochen: Lokale Aenderungen konnten nicht erfolgreich ins Ziel-Repo gepusht werden\./i,
+    );
+    expect(mockAutoFix.autoFixCIWorkflows).not.toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalled();
   });
 
   it("normalizes numeric job ids from the edge function to string", async () => {
@@ -267,6 +266,15 @@ describe("startBuildJob (integration)", () => {
 
     await expect(startBuildJob({ project, buildProfile: "preview" })).rejects.toThrow(/Sync-Status/i);
     expect(mockGitHub.pushFilesToRepo).not.toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalled();
+  });
+
+  it("blocks build when no session JWT is available", async () => {
+    mockSupabase.auth.getSession.mockResolvedValueOnce({ data: { session: null } } as any);
+
+    await expect(startBuildJob({ project: makeProject(), buildProfile: "preview" })).rejects.toThrow(
+      /Operator-Rolle|build_admin/i,
+    );
     expect(mockInvoke).not.toHaveBeenCalled();
   });
 });

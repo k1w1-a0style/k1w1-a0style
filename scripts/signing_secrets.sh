@@ -3,15 +3,12 @@ set -euo pipefail
 
 # k1w1 signing secrets helper
 #
-# Generates and/or sets two secrets:
-#   - SIGNING_ADMIN_KEY  (used by app header: x-k1w1-admin-key)
-#   - SIGNING_MASTER_KEY (used to derive encryption key for keystore blob)
-#
-# Why this exists:
-# If you generate NEW keys and set them in Supabase, but the app still has the OLD
-# admin key saved, every keystore call will fail with HTTP 401 "invalid admin key".
-# Therefore this script is IDEMPOTENT by default: it reuses .signing_secrets.local
-# unless you explicitly rotate.
+# Generates and/or sets signing-related secrets:
+#   - K1W1_EDGE_WORKFLOW_ADMIN_KEY                 (workflow/build/artifact routes)
+#   - K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY  (android keystore export routes)
+#   - K1W1_EDGE_ADMIN_KEY                           (legacy compatibility key)
+#   - SIGNING_ADMIN_KEY                             (legacy compatibility name)
+#   - SIGNING_MASTER_KEY                            (used to derive encryption key for keystore blob)
 
 LOCAL_FILE=".signing_secrets.local"
 
@@ -27,7 +24,7 @@ Options:
   -h, --help     Show help.
 
 Notes:
-- The keys are printed in full so you can paste SIGNING_ADMIN_KEY into the app.
+- The workflow/keystore/legacy/signing keys are intentionally split and generated separately.
 - .signing_secrets.local is created with chmod 600 and SHOULD NOT be committed.
 - If you run --set-supabase, redeploy the edge functions afterwards.
 USAGE
@@ -51,7 +48,7 @@ load_existing() {
   if [[ -f "$LOCAL_FILE" ]]; then
     # shellcheck disable=SC1090
     source "$LOCAL_FILE"
-    if [[ -n "${SIGNING_ADMIN_KEY:-}" && -n "${SIGNING_MASTER_KEY:-}" ]]; then
+    if [[ -n "${K1W1_EDGE_WORKFLOW_ADMIN_KEY:-}" && -n "${K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY:-}" && -n "${K1W1_EDGE_ADMIN_KEY:-}" && -n "${SIGNING_ADMIN_KEY:-}" && -n "${SIGNING_MASTER_KEY:-}" ]]; then
       return 0
     fi
   fi
@@ -59,23 +56,32 @@ load_existing() {
 }
 
 gen_keys() {
+  K1W1_EDGE_WORKFLOW_ADMIN_KEY="$(openssl rand -base64 32 | tr -d '\n')"
+  K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY="$(openssl rand -base64 32 | tr -d '\n')"
+  K1W1_EDGE_ADMIN_KEY="$(openssl rand -base64 32 | tr -d '\n')"
   SIGNING_ADMIN_KEY="$(openssl rand -base64 32 | tr -d '\n')"
   SIGNING_MASTER_KEY="$(openssl rand -base64 48 | tr -d '\n')"
 }
 
 save_local() {
   umask 177
-  cat > "$LOCAL_FILE" <<EOF
+  cat > "$LOCAL_FILE" <<EOKEYS
 # Local signing secrets (DO NOT COMMIT)
+K1W1_EDGE_WORKFLOW_ADMIN_KEY=$K1W1_EDGE_WORKFLOW_ADMIN_KEY
+K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY=$K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY
+K1W1_EDGE_ADMIN_KEY=$K1W1_EDGE_ADMIN_KEY
 SIGNING_ADMIN_KEY=$SIGNING_ADMIN_KEY
 SIGNING_MASTER_KEY=$SIGNING_MASTER_KEY
-EOF
+EOKEYS
   chmod 600 "$LOCAL_FILE" 2>/dev/null || true
 }
 
 print_keys() {
   echo ""
   echo "=== k1w1 signing secrets (COPY/PASTE) ==="
+  echo "K1W1_EDGE_WORKFLOW_ADMIN_KEY=$K1W1_EDGE_WORKFLOW_ADMIN_KEY"
+  echo "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY=$K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"
+  echo "K1W1_EDGE_ADMIN_KEY=$K1W1_EDGE_ADMIN_KEY"
   echo "SIGNING_ADMIN_KEY=$SIGNING_ADMIN_KEY"
   echo "SIGNING_MASTER_KEY=$SIGNING_MASTER_KEY"
   echo "======================================="
@@ -90,6 +96,9 @@ set_supabase() {
   fi
   echo "Setting Supabase secrets (overwrites existing)…"
   supabase secrets set \
+    K1W1_EDGE_WORKFLOW_ADMIN_KEY="$K1W1_EDGE_WORKFLOW_ADMIN_KEY" \
+    K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY="$K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY" \
+    K1W1_EDGE_ADMIN_KEY="$K1W1_EDGE_ADMIN_KEY" \
     SIGNING_ADMIN_KEY="$SIGNING_ADMIN_KEY" \
     SIGNING_MASTER_KEY="$SIGNING_MASTER_KEY"
   echo "Done. Re-deploy functions so the new secrets take effect:"
@@ -104,6 +113,9 @@ set_github() {
     exit 1
   fi
   echo "Setting GitHub Actions secrets (overwrites existing)…"
+  gh secret set K1W1_EDGE_WORKFLOW_ADMIN_KEY --body "$K1W1_EDGE_WORKFLOW_ADMIN_KEY"
+  gh secret set K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY --body "$K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"
+  gh secret set K1W1_EDGE_ADMIN_KEY --body "$K1W1_EDGE_ADMIN_KEY"
   gh secret set SIGNING_ADMIN_KEY --body "$SIGNING_ADMIN_KEY"
   gh secret set SIGNING_MASTER_KEY --body "$SIGNING_MASTER_KEY"
   echo "Done."
@@ -122,7 +134,7 @@ main() {
     save_local
   fi
 
-  export SIGNING_ADMIN_KEY SIGNING_MASTER_KEY
+  export K1W1_EDGE_WORKFLOW_ADMIN_KEY K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY K1W1_EDGE_ADMIN_KEY SIGNING_ADMIN_KEY SIGNING_MASTER_KEY
 
   print_keys
 

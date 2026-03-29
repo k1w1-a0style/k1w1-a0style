@@ -21,7 +21,9 @@ describe("ConnectionsScreen validation", () => {
     const res = validateBeforeSave({
       githubToken: "not-a-token",
       expoToken: "",
-      edgeAdminKey: "",
+      workflowAdminKey: "",
+      androidKeystoreExportAdminKey: "",
+      legacyEdgeAdminKey: "",
       supabaseUrl: "",
       supabaseAnonKey: "",
     });
@@ -32,7 +34,9 @@ describe("ConnectionsScreen validation", () => {
     const res = validateBeforeSave({
       githubToken: "",
       expoToken: "abc def",
-      edgeAdminKey: "",
+      workflowAdminKey: "",
+      androidKeystoreExportAdminKey: "",
+      legacyEdgeAdminKey: "",
       supabaseUrl: "",
       supabaseAnonKey: "",
     });
@@ -43,7 +47,9 @@ describe("ConnectionsScreen validation", () => {
     const res = validateBeforeSave({
       githubToken: "",
       expoToken: "",
-      edgeAdminKey: "",
+      workflowAdminKey: "",
+      androidKeystoreExportAdminKey: "",
+      legacyEdgeAdminKey: "",
       supabaseUrl: "https://example.com",
       supabaseAnonKey: "",
     });
@@ -54,7 +60,9 @@ describe("ConnectionsScreen validation", () => {
     const res = validateBeforeSave({
       githubToken: "",
       expoToken: "",
-      edgeAdminKey: "",
+      workflowAdminKey: "",
+      androidKeystoreExportAdminKey: "",
+      legacyEdgeAdminKey: "",
       supabaseUrl: "https://abc123.supabase.co",
       supabaseAnonKey: "notjwt",
     });
@@ -67,7 +75,9 @@ describe("ConnectionsScreen validation", () => {
     const res = validateBeforeSave({
       githubToken: "",
       expoToken: "",
-      edgeAdminKey: "",
+      workflowAdminKey: "",
+      androidKeystoreExportAdminKey: "",
+      legacyEdgeAdminKey: "",
       supabaseUrl: "https://abc123.supabase.co",
       supabaseAnonKey: jwtLike,
     });
@@ -79,7 +89,9 @@ describe("ConnectionsScreen validation", () => {
     const res = validateBeforeSave({
       githubToken: "",
       expoToken: "",
-      edgeAdminKey: "",
+      workflowAdminKey: "",
+      androidKeystoreExportAdminKey: "",
+      legacyEdgeAdminKey: "",
       supabaseUrl: "",
       supabaseAnonKey: "",
       easProjectId: "not-a-uuid",
@@ -91,12 +103,40 @@ describe("ConnectionsScreen validation", () => {
     const res = validateBeforeSave({
       githubToken: "",
       expoToken: "",
-      edgeAdminKey: "",
+      workflowAdminKey: "",
+      androidKeystoreExportAdminKey: "",
+      legacyEdgeAdminKey: "",
       supabaseUrl: "",
       supabaseAnonKey: "",
       easProjectId: "5e5a7791-8751-416b-9a1f-831adfffcb6c",
     });
     expect(res.ok).toBe(true);
+  });
+
+  test("validateBeforeSave rejects malformed local workflow admin key", () => {
+    const res = validateBeforeSave({
+      githubToken: "",
+      expoToken: "",
+      workflowAdminKey: "too short",
+      androidKeystoreExportAdminKey: "",
+      legacyEdgeAdminKey: "",
+      supabaseUrl: "",
+      supabaseAnonKey: "",
+    });
+    expect(res.ok).toBe(false);
+  });
+
+  test("validateBeforeSave rejects malformed local keystore admin key", () => {
+    const res = validateBeforeSave({
+      githubToken: "",
+      expoToken: "",
+      workflowAdminKey: "",
+      androidKeystoreExportAdminKey: "bad key with spaces",
+      legacyEdgeAdminKey: "",
+      supabaseUrl: "",
+      supabaseAnonKey: "",
+    });
+    expect(res.ok).toBe(false);
   });
 
   test("safeAlertText redacts secrets and truncates", () => {

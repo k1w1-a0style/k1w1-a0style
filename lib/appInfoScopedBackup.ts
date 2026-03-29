@@ -20,14 +20,23 @@ export type SecretConnectionsSnapshotV1 = {
 export type SecretTokensSnapshotV1 = {
   githubToken: string | null;
   expoToken: string | null;
-  edgeAdminKey: string | null;
+  /** @deprecated legacy compatibility snapshot key */
+  edgeAdminKey?: string | null;
+  workflowAdminKey: string | null;
+  androidKeystoreExportAdminKey: string | null;
+  legacyEdgeAdminKey: string | null;
+  signingAdminKey: string | null;
   signingMasterKey?: string | null;
 };
 
 export type SecretGithubContextSnapshotV1 = {
-  activeRepo: string | null;
-  activeBranch: string | null;
+  linkedRepo: string | null;
+  linkedBranch: string | null;
   recentRepos: string[];
+  /** @deprecated legacy compatibility snapshot keys */
+  activeRepo?: string | null;
+  /** @deprecated legacy compatibility snapshot keys */
+  activeBranch?: string | null;
 };
 
 export type SecretBackupPayloadV1 = {
@@ -176,14 +185,22 @@ export function createSecretBackupPayload(input: {
       githubToken: normalizeOptionalString(input.tokens.githubToken),
       expoToken: normalizeOptionalString(input.tokens.expoToken),
       edgeAdminKey: normalizeOptionalString(input.tokens.edgeAdminKey),
+      workflowAdminKey: normalizeOptionalString(input.tokens.workflowAdminKey),
+      androidKeystoreExportAdminKey: normalizeOptionalString(input.tokens.androidKeystoreExportAdminKey),
+      legacyEdgeAdminKey: normalizeOptionalString(input.tokens.legacyEdgeAdminKey),
+      signingAdminKey: normalizeOptionalString(input.tokens.signingAdminKey),
       signingMasterKey: normalizeOptionalString(input.tokens.signingMasterKey),
     },
     ciSecrets: Object.fromEntries(
       Object.entries(input.ciSecrets ?? {}).map(([key, value]) => [key, normalizeString(value)]),
     ),
     github: {
-      activeRepo: normalizeOptionalString(input.github.activeRepo),
-      activeBranch: normalizeOptionalString(input.github.activeBranch),
+      linkedRepo:
+        normalizeOptionalString(input.github.linkedRepo) ??
+        normalizeOptionalString(input.github.activeRepo),
+      linkedBranch:
+        normalizeOptionalString(input.github.linkedBranch) ??
+        normalizeOptionalString(input.github.activeBranch),
       recentRepos: normalizeStringArray(input.github.recentRepos),
     },
   };
@@ -302,14 +319,26 @@ function sanitizeSecretPayload(raw: unknown): SecretBackupPayloadV1 {
       githubToken: normalizeOptionalString(tokens.githubToken),
       expoToken: normalizeOptionalString(tokens.expoToken),
       edgeAdminKey: normalizeOptionalString(tokens.edgeAdminKey),
+      workflowAdminKey:
+        normalizeOptionalString(tokens.workflowAdminKey) ??
+        normalizeOptionalString(tokens.edgeAdminKey),
+      androidKeystoreExportAdminKey: normalizeOptionalString(tokens.androidKeystoreExportAdminKey),
+      legacyEdgeAdminKey:
+        normalizeOptionalString(tokens.legacyEdgeAdminKey) ??
+        normalizeOptionalString(tokens.edgeAdminKey),
+      signingAdminKey: normalizeOptionalString(tokens.signingAdminKey),
       signingMasterKey: normalizeOptionalString(tokens.signingMasterKey),
     },
     ciSecrets: Object.fromEntries(
       Object.entries(ciSecrets).map(([key, value]) => [key, normalizeString(value)]),
     ),
     github: {
-      activeRepo: normalizeOptionalString(github.activeRepo),
-      activeBranch: normalizeOptionalString(github.activeBranch),
+      linkedRepo:
+        normalizeOptionalString(github.linkedRepo) ??
+        normalizeOptionalString(github.activeRepo),
+      linkedBranch:
+        normalizeOptionalString(github.linkedBranch) ??
+        normalizeOptionalString(github.activeBranch),
       recentRepos: normalizeStringArray(github.recentRepos),
     },
   };

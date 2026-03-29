@@ -14,11 +14,11 @@ const bytesToMB = (bytes: number) => Math.round((bytes / (1024 * 1024)) * 100) /
  * - Root-Dateien nur über CONFIG.PATHS.ALLOWED_ROOT
  * - Unterordner nur über CONFIG.PATHS.SRC_FOLDERS (plus .github)
  */
-const ROOT_ALLOWLIST = new Set<string>([...((CONFIG as any)?.PATHS?.ALLOWED_ROOT ?? [])]);
-const ALLOWED_TOP_LEVEL_DIRS = new Set<string>([...((CONFIG as any)?.PATHS?.SRC_FOLDERS ?? []), '.github']);
+const ROOT_ALLOWLIST = new Set<string>([...(CONFIG.PATHS?.ALLOWED_ROOT ?? [])]);
+const ALLOWED_TOP_LEVEL_DIRS = new Set<string>([...(CONFIG.PATHS?.SRC_FOLDERS ?? []), '.github']);
 
 const hasAllowedExtension = (normalizedPath: string): boolean => {
-  const allowed: string[] = ((CONFIG as any)?.PATHS?.ALLOWED_EXT ?? []) as string[];
+  const allowed = CONFIG.PATHS?.ALLOWED_EXT ?? [];
   if (!allowed || allowed.length === 0) return true;
 
   const base = normalizedPath.split('/').pop() ?? normalizedPath;
@@ -61,7 +61,7 @@ export const validateFilePath = (path: string): { valid: boolean; errors: string
     errors.push('Pfad darf nicht mit ./ beginnen');
   }
 
-  if (normalized.length > ((CONFIG as any)?.PATHS?.MAX_PATH_LENGTH ?? 255)) {
+  if (normalized.length > (CONFIG.PATHS?.MAX_PATH_LENGTH ?? 255)) {
     errors.push('Pfad ist zu lang');
   }
 
@@ -114,10 +114,7 @@ export const validateFileContent = (
   const sizeMB = bytesToMB(sizeBytes);
 
   const maxBytes = (() => {
-    const cfg = CONFIG?.VALIDATION as any;
-    // prefer bytes if present, otherwise MB fallback to 10MB
-    const maxBytesDirect = Number(cfg?.MAX_FILE_SIZE_BYTES);
-    if (Number.isFinite(maxBytesDirect) && maxBytesDirect > 0) return maxBytesDirect;
+    const cfg = CONFIG?.VALIDATION;
     const maxMB = Number(cfg?.MAX_FILE_SIZE_MB);
     if (Number.isFinite(maxMB) && maxMB > 0) return Math.floor(maxMB * 1024 * 1024);
     return 10 * 1024 * 1024; // tests expect 10MB ok, 11MB rejected
@@ -187,6 +184,10 @@ export const validateZipImport = (
     return { valid: false, validFiles: [], invalidFiles: [], errors: ['Import ist kein Array'] };
   }
 
+  if (files.length === 0) {
+    errors.push('ZIP enthält keine Dateien');
+  }
+
   if (files.length > maxFiles) {
     errors.push(`Zu viele Dateien (max ${maxFiles})`);
   }
@@ -210,7 +211,7 @@ export const validateZipImport = (
     validFiles.push({ path: pRes.normalized || p, content: c });
   }
 
-  if (invalidFiles.length > 0) errors.push('Einige Dateien sind ungültig');
+  if (invalidFiles.length > 0) errors.push('ZIP enthält ungültige Dateien (strict all-or-nothing)');
 
   return { valid: errors.length === 0 && invalidFiles.length === 0, validFiles, invalidFiles, errors };
 };

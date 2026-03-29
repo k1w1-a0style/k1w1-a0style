@@ -1,8 +1,9 @@
 import { maskApiKey } from "../lib/apiKeyMasking";
+import type { AIConfig } from "../contexts/AIContext";
 import { sanitizeAiConfigFromBackup, validateApiBackupJson } from "../lib/appInfoBackup";
 
 // Minimal AIConfig fallback for unit tests (keep it aligned with contexts/AIContext.tsx)
-const baseConfig: any = {
+const baseConfig: AIConfig = {
   version: 1,
   selectedChatProvider: "openai",
   selectedChatMode: "llama-3.1-8b-instant",
@@ -28,10 +29,10 @@ describe("AppInfo backup privacy helpers", () => {
   });
 
   test("validateApiBackupJson rejects invalid shapes", () => {
-    expect(() => validateApiBackupJson({} as any)).toThrow();
-    expect(() => validateApiBackupJson({ version: 2, config: {} } as any)).toThrow();
+    expect(() => validateApiBackupJson({})).toThrow();
+    expect(() => validateApiBackupJson({ version: 2, config: {} })).toThrow();
     expect(() =>
-      validateApiBackupJson({ version: 1, config: { apiKeys: "nope" } } as any)
+      validateApiBackupJson({ version: 1, config: { apiKeys: "nope" } })
     ).toThrow();
   });
 
@@ -44,8 +45,60 @@ describe("AppInfo backup privacy helpers", () => {
       selectedChatProvider: "openai",
     };
 
-    const next = sanitizeAiConfigFromBackup(raw as any, baseConfig);
+    const next = sanitizeAiConfigFromBackup(raw, baseConfig);
     expect(next.apiKeys.openai).toEqual(["a", "b"]);
     expect(next.apiKeys.groq).toEqual(["x"]);
+  });
+
+  test("sanitizeAiConfigFromBackup keeps provider/quality/mode fallback for foreign payload values", () => {
+    const next = sanitizeAiConfigFromBackup(
+      {
+        selectedChatProvider: "unknown-provider",
+        selectedAgentProvider: 123,
+        selectedChatMode: 42,
+        selectedAgentMode: { id: "bad" },
+        qualityMode: "best",
+      },
+      baseConfig,
+    );
+
+    expect(next.selectedChatProvider).toBe(baseConfig.selectedChatProvider);
+    expect(next.selectedAgentProvider).toBe(baseConfig.selectedAgentProvider);
+    expect(next.selectedChatMode).toBe(baseConfig.selectedChatMode);
+    expect(next.selectedAgentMode).toBe(baseConfig.selectedAgentMode);
+    expect(next.qualityMode).toBe("quality");
+  });
+
+  test("sanitizeAiConfigFromBackup accepts legacy selectedAutofixProvider but ignores malformed config/apiKeys", () => {
+    const next = sanitizeAiConfigFromBackup(
+      {
+        config: "legacy-non-object",
+        apiKeys: "invalid",
+        selectedAutofixProvider: "anthropic",
+        qualityMode: "review",
+      },
+      baseConfig,
+    );
+
+    expect(next.selectedAgentProvider).toBe("anthropic");
+    expect(next.apiKeys.openai).toEqual([]);
+    expect(next.qualityMode).toBe("review");
+  });
+
+  test("sanitizeAiConfigFromBackup tolerates incomplete config/apiKeys payloads", () => {
+    const next = sanitizeAiConfigFromBackup(
+      {
+        apiKeys: {
+          openai: [" key-1 ", "", "key-1"],
+          huggingface: "bad",
+        },
+        agentEnabled: "yes",
+      },
+      baseConfig,
+    );
+
+    expect(next.apiKeys.openai).toEqual(["key-1"]);
+    expect(next.apiKeys.huggingface).toEqual([]);
+    expect(next.agentEnabled).toBe(baseConfig.agentEnabled);
   });
 });

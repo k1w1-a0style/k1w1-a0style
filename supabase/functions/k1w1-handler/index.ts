@@ -1,7 +1,7 @@
 // supabase/functions/k1w1-handler/index.ts
 // REFACTORED: helpers → helpers.ts
 
-import { callAnthropic, callGemini, callGroq, callHuggingFace, callOpenAI, classifyK1w1HandlerError, corsHeadersForRequest, handleCors, parseJsonBody, parseRequestBody, rateLimit, requireAdminKey } from "./helpers.ts";
+import { callAnthropic, callGemini, callGroq, callHuggingFace, callOpenAI, classifyK1w1HandlerError, corsHeadersForRequest, handleCors, parseJsonBody, parseRequestBody, rateLimit, requireScopedEdgeAuth } from "./helpers.ts";
 
 Deno.serve(async (req: Request): Promise<Response> => {
   const corsResponse = handleCors(req);
@@ -9,7 +9,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const responseCorsHeaders = corsHeadersForRequest(req);
 
-  const auth = requireAdminKey(req);
+  const auth = requireScopedEdgeAuth(req, {
+    scope: "k1w1-handler",
+    allowAdmin: true,
+    adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
+  });
   if (auth) return auth;
 
   const rl = rateLimit(req, "k1w1-handler");
@@ -48,6 +52,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     requestProvider = body.provider;
     requestModel = body.model;
 
+    // eslint-disable-next-line no-console
     console.log(
       "🧠 k1w1-handler request",
       JSON.stringify({

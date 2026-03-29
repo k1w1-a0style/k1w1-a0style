@@ -14,19 +14,49 @@ type RepoBlobEntry = {
   sha: string;
 };
 
+type GitHubMessagePayload = { message?: string };
+type GitHubContentFilePayload = { sha?: string; content?: string; encoding?: string };
+type GitHubBranchPayload = { commit?: { sha?: string } };
+type GitHubCommitPayload = { sha?: string; tree?: { sha?: string } };
+type GitHubTreeEntryPayload = { type?: string; path?: string; sha?: string };
+type GitHubTreePayload = { tree?: GitHubTreeEntryPayload[] };
+type GitHubCreateFileBody = {
+  message: string;
+  content: string;
+  branch: string;
+  sha?: string;
+};
+
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const pickGitHubMessage = (value: unknown): string | null => {
+  if (!isObjectRecord(value)) return null;
+  const message = value.message;
+  return typeof message === "string" && message.trim() ? message : null;
+};
+
+const getErrorMessage = (error: unknown, fallback: string): string =>
+  error instanceof Error && error.message.trim() ? error.message : fallback;
+
+const readJsonSafe = async <T>(response: Response): Promise<T | null> => {
+  try {
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+};
+
 const resolveTargetBranch = async (owner: string, repo: string, branch?: string) => {
   let targetBranch = typeof branch === "string" ? branch.trim() : "";
 
   if (!targetBranch) {
-    try {
-      targetBranch = (await getDefaultBranch(owner, repo)).trim();
-    } catch (e) {
-      logger.warn("⚠️ Default-Branch konnte nicht ermittelt werden, fallback auf 'main':", e);
-      targetBranch = "main";
-    }
+    targetBranch = (await getDefaultBranch(owner, repo)).trim();
   }
 
-  if (!targetBranch) targetBranch = "main";
+  if (!targetBranch) {
+    throw new Error("Explicit branch/ref is required.");
+  }
   return targetBranch;
 };
 
@@ -112,14 +142,17 @@ export const createOrUpdateFile = async (
   path: string,
   content: string,
   message = "Add file",
-  branch = "main",
+  branch?: string,
 ) => {
+  const targetBranch = String(branch ?? "").trim();
+  if (!targetBranch) throw new Error("Explicit branch/ref is required.");
+
   const token = await getGitHubToken();
   if (!token) throw new Error("GitHub token fehlt.");
 
   await githubLimiter.checkLimit();
 
-  const getUrl = githubApiUrl(`/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}?ref=${encodeURIComponent(branch)}`);
+  const getUrl = githubApiUrl(`/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}?ref=${encodeURIComponent(targetBranch)}`);
   const getResp = await fetchGitHub(getUrl, {
     headers: {
       Accept: "application/vnd.github+json",
@@ -129,14 +162,14 @@ export const createOrUpdateFile = async (
 
   let sha: string | undefined = undefined;
   if (getResp.ok) {
-    const existing = await getResp.json();
-    sha = existing.sha;
+    const existing = await readJsonSafe<GitHubContentFilePayload>(getResp);
+    sha = typeof existing?.sha === "string" ? existing.sha : undefined;
   }
 
-  const body: any = {
+  const body: GitHubCreateFileBody = {
     message,
     content: encodeGitHubFileContent(content),
-    branch,
+    branch: targetBranch,
   };
   if (sha) body.sha = sha;
 
@@ -154,7 +187,7 @@ export const createOrUpdateFile = async (
     },
   );
 
-  let json: any;
+  let json: unknown = null;
   try {
     json = await putResp.json();
   } catch {
@@ -169,7 +202,7 @@ export const createOrUpdateFile = async (
     if (status === 401) throw new Error("GitHub Token ungültig.");
     if (status === 403) throw new Error("Keine Berechtigung für Datei-Upload.");
     if (status === 404) throw new Error("Repository nicht gefunden.");
-    throw new Error(json.message || `create/update file failed: ${path}`);
+    throw new Error(pickGitHubMessage(json) || `create/update file failed: ${path}`);
   }
   return json;
 };
@@ -183,14 +216,17 @@ export const deleteRepoFile = async (
   repo: string,
   path: string,
   message = "Delete file",
-  branch = "main",
+  branch?: string,
 ) => {
+  const targetBranch = String(branch ?? "").trim();
+  if (!targetBranch) throw new Error("Explicit branch/ref is required.");
+
   const token = await getGitHubToken();
   if (!token) throw new Error("GitHub token fehlt.");
 
   await githubLimiter.checkLimit();
 
-  const getUrl = githubApiUrl(`/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}?ref=${encodeURIComponent(branch)}`);
+  const getUrl = githubApiUrl(`/repos/${owner}/${repo}/contents/${encodeGitHubPath(path)}?ref=${encodeURIComponent(targetBranch)}`);
   const getResp = await fetchGitHub(getUrl, {
     headers: {
       Accept: "application/vnd.github+json",
@@ -208,8 +244,8 @@ export const deleteRepoFile = async (
     throw new Error(`Delete get failed (${getResp.status}): ${t}`);
   }
 
-  const existing: any = await getResp.json();
-  const sha: string | undefined = existing?.sha;
+  const existing = await readJsonSafe<GitHubContentFilePayload>(getResp);
+  const sha: string | undefined = typeof existing?.sha === "string" ? existing.sha : undefined;
   if (!sha) return { deleted: false, reason: "no_sha" } as const;
 
   await githubLimiter.checkLimit();
@@ -222,14 +258,14 @@ export const deleteRepoFile = async (
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ message, sha, branch }),
+      body: JSON.stringify({ message, sha, branch: targetBranch }),
     },
   );
 
   if (delResp.ok) return { deleted: true } as const;
 
   const status = delResp.status;
-  let j: any = null;
+  let j: unknown = null;
   try {
     j = await delResp.json();
   } catch {
@@ -238,7 +274,7 @@ export const deleteRepoFile = async (
   if (status === 401) throw new Error("GitHub Token ungültig.");
   if (status === 403) throw new Error("Keine Berechtigung für Datei-Löschung.");
   if (status === 404) throw new Error("Repository oder Datei nicht gefunden.");
-  throw new Error(j?.message || `Delete failed (${status}): ${path}`);
+  throw new Error(pickGitHubMessage(j) || `Delete failed (${status}): ${path}`);
 };
 
 export const pushFilesToRepo = async (
@@ -313,15 +349,15 @@ export const pushFilesToRepoAdvanced = async (
     { headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}` } },
   );
 
-  const branchJson: any = await branchResp.json().catch(() => ({}));
+  const branchJson = (await readJsonSafe<GitHubBranchPayload & GitHubMessagePayload>(branchResp)) ?? {};
   if (!branchResp.ok) {
     if (branchResp.status === 401) throw new Error("GitHub Token ungültig.");
     if (branchResp.status === 403) throw new Error('Keine Berechtigung. Token benötigt "repo" Scope.');
     if (branchResp.status === 404) throw new Error("Repo/Branch nicht gefunden.");
-    throw new Error(branchJson?.message || `Branch-Abruf fehlgeschlagen (${branchResp.status})`);
+    throw new Error(branchJson.message || `Branch-Abruf fehlgeschlagen (${branchResp.status})`);
   }
 
-  const baseCommitSha = String(branchJson?.commit?.sha || "").trim();
+  const baseCommitSha = String(branchJson.commit?.sha || "").trim();
   if (!baseCommitSha) throw new Error("Konnte Basis-Commit für Push nicht ermitteln.");
 
   await githubLimiter.checkLimit();
@@ -329,12 +365,12 @@ export const pushFilesToRepoAdvanced = async (
     githubApiUrl(`/repos/${owner}/${repo}/git/commits/${encodeURIComponent(baseCommitSha)}`),
     { headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}` } },
   );
-  const baseCommitJson: any = await baseCommitResp.json().catch(() => ({}));
+  const baseCommitJson = (await readJsonSafe<GitHubCommitPayload & GitHubMessagePayload>(baseCommitResp)) ?? {};
   if (!baseCommitResp.ok) {
-    throw new Error(baseCommitJson?.message || `Commit-Abruf fehlgeschlagen (${baseCommitResp.status})`);
+    throw new Error(baseCommitJson.message || `Commit-Abruf fehlgeschlagen (${baseCommitResp.status})`);
   }
 
-  const baseTreeSha = String(baseCommitJson?.tree?.sha || "").trim();
+  const baseTreeSha = String(baseCommitJson.tree?.sha || "").trim();
   if (!baseTreeSha) throw new Error("Konnte Basis-Tree für Push nicht ermitteln.");
 
   const treeEntries = normalizedFiles.map((f) => ({
@@ -353,12 +389,12 @@ export const pushFilesToRepoAdvanced = async (
       body: JSON.stringify({ base_tree: baseTreeSha, tree: treeEntries }),
     },
   );
-  const createTreeJson: any = await createTreeResp.json().catch(() => ({}));
+  const createTreeJson = (await readJsonSafe<GitHubCommitPayload & GitHubMessagePayload>(createTreeResp)) ?? {};
   if (!createTreeResp.ok) {
-    throw new Error(createTreeJson?.message || `Tree-Erstellung fehlgeschlagen (${createTreeResp.status})`);
+    throw new Error(createTreeJson.message || `Tree-Erstellung fehlgeschlagen (${createTreeResp.status})`);
   }
 
-  const newTreeSha = String(createTreeJson?.sha || "").trim();
+  const newTreeSha = String(createTreeJson.sha || "").trim();
   if (!newTreeSha) throw new Error("Tree-Erstellung lieferte keine SHA.");
 
   await githubLimiter.checkLimit();
@@ -374,12 +410,12 @@ export const pushFilesToRepoAdvanced = async (
       }),
     },
   );
-  const createCommitJson: any = await createCommitResp.json().catch(() => ({}));
+  const createCommitJson = (await readJsonSafe<GitHubCommitPayload & GitHubMessagePayload>(createCommitResp)) ?? {};
   if (!createCommitResp.ok) {
-    throw new Error(createCommitJson?.message || `Commit-Erstellung fehlgeschlagen (${createCommitResp.status})`);
+    throw new Error(createCommitJson.message || `Commit-Erstellung fehlgeschlagen (${createCommitResp.status})`);
   }
 
-  const newCommitSha = String(createCommitJson?.sha || "").trim();
+  const newCommitSha = String(createCommitJson.sha || "").trim();
   if (!newCommitSha) throw new Error("Commit-Erstellung lieferte keine SHA.");
 
   await githubLimiter.checkLimit();
@@ -391,12 +427,12 @@ export const pushFilesToRepoAdvanced = async (
       body: JSON.stringify({ sha: newCommitSha, force: false }),
     },
   );
-  const updateRefJson: any = await updateRefResp.json().catch(() => ({}));
+  const updateRefJson = (await readJsonSafe<GitHubMessagePayload>(updateRefResp)) ?? {};
   if (!updateRefResp.ok) {
     if (updateRefResp.status === 422) {
       throw new Error("Push abgebrochen: Branch wurde parallel geändert. Bitte erneut synchronisieren.");
     }
-    throw new Error(updateRefJson?.message || `Branch-Update fehlgeschlagen (${updateRefResp.status})`);
+    throw new Error(updateRefJson.message || `Branch-Update fehlgeschlagen (${updateRefResp.status})`);
   }
 };
 
@@ -413,7 +449,8 @@ export const listRepoBlobEntries = async (params: {
   if (!token) throw new Error("GitHub token fehlt.");
 
   const ref = (params.ref || "").trim();
-  const treeRef = ref || (await getDefaultBranch(params.owner, params.repo)).trim() || "main";
+  const treeRef = ref || (await getDefaultBranch(params.owner, params.repo)).trim();
+  if (!treeRef) throw new Error("Explicit branch/ref is required.");
 
   const headers = {
     Accept: "application/vnd.github+json",
@@ -430,36 +467,36 @@ export const listRepoBlobEntries = async (params: {
       const text = await treeRes.text().catch(() => "");
       throw new Error(`Tree-Abruf fehlgeschlagen (${treeRes.status}): ${text}`);
     }
-    const treeJson: any = await treeRes.json().catch(() => ({}));
-    const tree = Array.isArray(treeJson?.tree) ? treeJson.tree : [];
+    const treeJson = (await readJsonSafe<GitHubTreePayload>(treeRes)) ?? {};
+    const tree = Array.isArray(treeJson.tree) ? treeJson.tree : [];
     return tree
-      .filter((e: any) => e?.type === "blob" && typeof e?.path === "string")
-      .map((e: any) => ({ path: normalizeRepoPath(String(e.path)), sha: String(e?.sha || "").trim() }))
+      .filter((e) => e?.type === "blob" && typeof e?.path === "string")
+      .map((e) => ({ path: normalizeRepoPath(String(e.path)), sha: String(e?.sha || "").trim() }))
       .filter((e: RepoBlobEntry) => !!e.path && !!e.sha);
   };
 
   try {
     return await tryFetchTree(treeRef);
-  } catch (e) {
+  } catch (error: unknown) {
     await githubLimiter.checkLimit();
     const branchUrl = githubApiUrl(
       `/repos/${params.owner}/${params.repo}/branches/${encodeURIComponent(treeRef)}`,
     );
     const bRes = await fetchGitHub(branchUrl, { headers });
-    if (!bRes.ok) throw e;
-    const bJson: any = await bRes.json().catch(() => ({}));
-    const commitSha = String(bJson?.commit?.sha || "").trim();
-    if (!commitSha) throw e;
+    if (!bRes.ok) throw error;
+    const bJson = (await readJsonSafe<GitHubBranchPayload>(bRes)) ?? {};
+    const commitSha = String(bJson.commit?.sha || "").trim();
+    if (!commitSha) throw error;
 
     await githubLimiter.checkLimit();
     const commitUrl = githubApiUrl(
       `/repos/${params.owner}/${params.repo}/git/commits/${encodeURIComponent(commitSha)}`,
     );
     const cRes = await fetchGitHub(commitUrl, { headers });
-    if (!cRes.ok) throw e;
-    const cJson: any = await cRes.json().catch(() => ({}));
-    const treeSha = String(cJson?.tree?.sha || "").trim();
-    if (!treeSha) throw e;
+    if (!cRes.ok) throw error;
+    const cJson = (await readJsonSafe<GitHubCommitPayload>(cRes)) ?? {};
+    const treeSha = String(cJson.tree?.sha || "").trim();
+    if (!treeSha) throw error;
     return await tryFetchTree(treeSha);
   }
 };
@@ -517,7 +554,7 @@ export const compareLocalFilesWithRepo = async (params: {
   let modified = 0;
   let localOnly = 0;
   let skipped = 0;
-  let error = 0;
+  let errorCount = 0;
 
   const localPaths = new Set<string>();
   for (const lf of localFiles) {
@@ -536,8 +573,12 @@ export const compareLocalFilesWithRepo = async (params: {
     try {
       const localSha = encodeGitBlobContentSha(lf.content);
       if (localSha !== remoteSha) modified++;
-    } catch {
-      error++;
+    } catch (error: unknown) {
+      logger.debug("[compareLocalFilesWithRepo] Failed to hash local blob", {
+        path: lf.path,
+        reason: getErrorMessage(error, "unknown"),
+      });
+      errorCount++;
     }
   }
 
@@ -546,7 +587,7 @@ export const compareLocalFilesWithRepo = async (params: {
     if (!localPaths.has(remotePath)) remoteOnly++;
   }
 
-  return { modified, localOnly, remoteOnly, skipped, error };
+  return { modified, localOnly, remoteOnly, skipped, error: errorCount };
 };
 
 export const getRepoFileText = async (params: {
@@ -575,8 +616,8 @@ export const getRepoFileText = async (params: {
     throw new Error(`File read Fehler (${resp.status}): ${text}`);
   }
 
-  const json = await resp.json();
-  if (!json?.content || json?.encoding !== "base64") {
+  const json = await readJsonSafe<GitHubContentFilePayload>(resp);
+  if (!json?.content || json.encoding !== "base64") {
     throw new Error("Unsupported file response (not base64 content).");
   }
 

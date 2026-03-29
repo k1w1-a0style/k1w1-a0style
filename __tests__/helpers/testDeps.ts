@@ -31,6 +31,8 @@ export function createPipelineDepsFromProjectFiles(
   opts?: {
     ghToken?: string | null;
     expoToken?: string | null;
+    workflowAdminKey?: string | null;
+    androidKeystoreExportAdminKey?: string | null;
     edgeAdminKey?: string | null;
     secretNames?: string[];
   },
@@ -39,7 +41,11 @@ export function createPipelineDepsFromProjectFiles(
   return {
     getGitHubToken: jest.fn(async () => opts?.ghToken ?? "gh_test"),
     getExpoToken: jest.fn(async () => opts?.expoToken ?? "expo_test"),
-    getEdgeAdminKey: jest.fn(async () => opts?.edgeAdminKey ?? "edge_test"),
+    getWorkflowAdminKey: jest.fn(async () => opts?.workflowAdminKey ?? "workflow_test"),
+    getAndroidKeystoreExportAdminKey: jest.fn(
+      async () => opts?.androidKeystoreExportAdminKey ?? "keystore_test",
+    ),
+    getLegacyEdgeAdminKey: jest.fn(async () => opts?.edgeAdminKey ?? "edge_test"),
     fileExists: jest.fn(async (_o, _r, targetPath) => map.has(targetPath)),
     readJsonFile: jest.fn(async (_o, _r, targetPath) => {
       const raw = map.get(targetPath);

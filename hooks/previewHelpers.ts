@@ -174,6 +174,10 @@ export function shouldAttemptSupabaseFirst(mode: PreviewAttemptMode): boolean {
   return mode !== "local";
 }
 
+export function shouldUseLocalPreviewFallback(mode: PreviewAttemptMode): boolean {
+  return mode === "local";
+}
+
 function isTrustedLoopbackHost(hostname: string): boolean {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 }
@@ -279,6 +283,13 @@ function getRuntimeSupabaseUrl(): string | null {
   const runtime = globalThis as RuntimeGlobals;
   const envUrl = runtime.process?.env?.EXPO_PUBLIC_SUPABASE_URL;
   return typeof envUrl === "string" && envUrl.trim() ? envUrl.trim() : null;
+}
+
+export function isLegacyPreviewOperatorModeEnabled(): boolean {
+  const runtime = globalThis as RuntimeGlobals;
+  const raw = runtime.process?.env?.EXPO_PUBLIC_ENABLE_LEGACY_PREVIEW_OPERATOR_MODE;
+  const normalized = String(raw ?? "").trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes";
 }
 
 export async function invokeSavePreview(params: {

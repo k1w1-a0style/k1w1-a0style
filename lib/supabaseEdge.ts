@@ -16,15 +16,18 @@ import { STORAGE_KEYS } from "./storageKeys";
  */
 export const SUPABASE_URL_MISSING_ERROR = "Supabase URL fehlt. Bitte in Verbindungen/Credentials setzen (oder EXPO_PUBLIC_SUPABASE_URL als Env setzen).";
 
+const getRuntimeEnv = (): Record<string, string | undefined> | null => {
+  if (typeof process === "undefined") return null;
+  const runtime = process as { env?: Record<string, string | undefined> };
+  return runtime.env ?? null;
+};
+
 export async function getSupabaseEdgeUrl(): Promise<string> {
   const storedUrl = await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).catch(
     () => null,
   );
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const envUrl = ((typeof process !== "undefined"
-    ? (process as any).env?.EXPO_PUBLIC_SUPABASE_URL
-    : null) as string | null) ?? null;
+  const envUrl = getRuntimeEnv()?.EXPO_PUBLIC_SUPABASE_URL ?? null;
 
   const runtimeUrl = (storedUrl || envUrl || "").trim();
   if (runtimeUrl) {

@@ -154,11 +154,11 @@ export function resolveWizardStatusPresentation(params: {
 
   if (state === "auth_error") {
     const normalizedDetail = (baseDetail || "").toLowerCase();
-    const authText = normalizedDetail.includes("lokaler edge admin key fehlt")
+    const authText = normalizedDetail.includes("lokaler android keystore export admin key fehlt")
       ? "lokaler Key fehlt"
-      : normalizedDetail.includes("lokaler edge admin key wirkt ungueltig")
+      : normalizedDetail.includes("lokaler android keystore export admin key wirkt ungueltig")
         ? "lokaler Key ungueltig"
-        : normalizedDetail.includes("lokaler edge admin key wurde vom edge-server abgelehnt")
+        : normalizedDetail.includes("lokaler android keystore export admin key ist lokal vorhanden")
           ? "lokaler Key abgelehnt"
           : "zugriff unklar";
     return {

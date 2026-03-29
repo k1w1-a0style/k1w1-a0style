@@ -4,21 +4,21 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import type { AIConfig, AIContextProps, AllAIProviders, ProviderLimitStatus, QualityMode } from "./models";
+import {
+  CONFIG_STORAGE_KEY, DEFAULT_CONFIG,
+  loadConfig, loadSecureApiKeys, saveSecureApiKeys,
+  resolveProviderModeForQualityMode,
+  resolveRehydratedApiKeys,
+  buildProviderSelectionPatch,
+} from "./helpers";
+
 // Re-export types & constants so existing imports from "AIContext" keep working
 export type {
   AllAIProviders, QualityMode, ModelTier, ProviderLimitStatus,
   ModelInfo, ProviderDefaults, ProviderMetadata, AIConfig, AIContextProps,
 } from "./models";
 export { PROVIDER_DEFAULTS, PROVIDER_METADATA, AVAILABLE_MODELS } from "./models";
-
-import type { AIConfig, AIContextProps, AllAIProviders, ProviderLimitStatus, QualityMode } from "./models";
-import { PROVIDER_DEFAULTS } from "./models";
-import {
-  CONFIG_STORAGE_KEY, DEFAULT_CONFIG,
-  loadConfig, loadSecureApiKeys, saveSecureApiKeys,
-  getDefaultMode,
-  resolveProviderModeForQualityMode,
-} from "./helpers";
 
 const AIContext = createContext<AIContextProps | undefined>(undefined);
 const CONFIG_PERSIST_DEBOUNCE_MS = 350;
@@ -36,20 +36,11 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
 
         // Load keys from SecureStore (authoritative)
         const secureKeys = await loadSecureApiKeys();
-
-        // Legacy migration: if SecureStore empty but config contains keys, migrate them once
-        const hasSecureAny = (Object.keys(secureKeys) as AllAIProviders[]).some(
-          (p) => (secureKeys[p] ?? []).length > 0,
-        );
-        const hasLegacyAny = (Object.keys(loaded.apiKeys) as AllAIProviders[]).some(
-          (p) => (loaded.apiKeys[p] ?? []).length > 0,
-        );
-
-        let finalKeys = secureKeys;
-        if (!hasSecureAny && hasLegacyAny) {
-          finalKeys = { ...DEFAULT_CONFIG.apiKeys, ...loaded.apiKeys };
-          await saveSecureApiKeys(finalKeys);
-        }
+        const { finalKeys, shouldMigrateLegacyToSecure } = resolveRehydratedApiKeys({
+          loadedApiKeys: loaded.apiKeys,
+          secureApiKeys: secureKeys,
+        });
+        if (shouldMigrateLegacyToSecure) await saveSecureApiKeys(finalKeys);
 
         // Keep models/modes untouched; only ensure keys are loaded
         setConfigState({ ...loaded, apiKeys: finalKeys });
@@ -105,18 +96,24 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
 
   const setSelectedChatProvider = useCallback(
     (provider: AllAIProviders) =>
-      updateConfig({
-        selectedChatProvider: provider,
-        selectedChatMode: getDefaultMode(provider, config.qualityMode) || PROVIDER_DEFAULTS[provider].speed,
-      }),
+      updateConfig(
+        buildProviderSelectionPatch({
+          providerType: "chat",
+          provider,
+          qualityMode: config.qualityMode,
+        }),
+      ),
     [updateConfig, config.qualityMode],
   );
   const setSelectedAgentProvider = useCallback(
     (provider: AllAIProviders) =>
-      updateConfig({
-        selectedAgentProvider: provider,
-        selectedAgentMode: getDefaultMode(provider, config.qualityMode) || PROVIDER_DEFAULTS[provider].quality,
-      }),
+      updateConfig(
+        buildProviderSelectionPatch({
+          providerType: "agent",
+          provider,
+          qualityMode: config.qualityMode,
+        }),
+      ),
     [updateConfig, config.qualityMode],
   );
   const setSelectedChatMode = useCallback((mode: string) => updateConfig({ selectedChatMode: mode }), [updateConfig]);

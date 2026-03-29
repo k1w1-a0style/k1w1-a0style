@@ -8,10 +8,18 @@ fail() {
 
 EDGE_FILE="supabase/functions/github-workflow-dispatch/index.ts"
 INFRA_FILE="infra/github/workflowTemplates.ts"
+SHARED_FILE="shared/workflows/managedWorkflowTemplates.ts"
+EAS_LINK_SHARED_FILE="shared/workflows/easLinkWorkflowTemplate.ts"
+EAS_BUILD_RELEASE_SHARED_FILE="shared/workflows/easBuildReleaseWorkflowTemplates.ts"
+TRIGGERED_BUILD_SHARED_FILE="shared/workflows/k1w1TriggeredBuildWorkflowTemplate.ts"
 DIAG_FILE="lib/diagnostics/workflowTemplates.ts"
 
 [ -f "$EDGE_FILE" ] || fail "Missing edge workflow source: $EDGE_FILE"
 [ -f "$INFRA_FILE" ] || fail "Missing infra workflow source: $INFRA_FILE"
+[ -f "$SHARED_FILE" ] || fail "Missing shared workflow source: $SHARED_FILE"
+[ -f "$EAS_LINK_SHARED_FILE" ] || fail "Missing shared EAS Link workflow source: $EAS_LINK_SHARED_FILE"
+[ -f "$EAS_BUILD_RELEASE_SHARED_FILE" ] || fail "Missing shared EAS/Release workflow source: $EAS_BUILD_RELEASE_SHARED_FILE"
+[ -f "$TRIGGERED_BUILD_SHARED_FILE" ] || fail "Missing shared triggered build workflow source: $TRIGGERED_BUILD_SHARED_FILE"
 [ -f "$DIAG_FILE" ] || fail "Missing diagnostics workflow source: $DIAG_FILE"
 
 extract_version() {
@@ -41,56 +49,62 @@ for wf in .github/workflows/eas-link.yml .github/workflows/release-build.yml; do
   [ "$V" = "$EAS_VERSION" ] || fail "Workflow version drift in $wf (expected $EAS_VERSION, got ${V:-<empty>})"
 done
 
-grep -q '# managed-by: k1w1' "$DIAG_FILE" || fail "Diagnostics workflow templates missing managed-by marker"
-grep -q "# workflow-version: $EAS_VERSION" "$DIAG_FILE" || fail "Diagnostics workflow templates missing workflow-version $EAS_VERSION"
+grep -q "WORKFLOW_EAS_BUILD_TEMPLATE" "$DIAG_FILE" || fail "Diagnostics workflow templates must import WORKFLOW_EAS_BUILD_TEMPLATE"
+grep -q "WORKFLOW_RELEASE_BUILD_TEMPLATE" "$DIAG_FILE" || fail "Diagnostics workflow templates must import WORKFLOW_RELEASE_BUILD_TEMPLATE"
+grep -q "export const WORKFLOW_EAS_BUILD = WORKFLOW_EAS_BUILD_TEMPLATE;" "$DIAG_FILE" || fail "Diagnostics EAS build export must re-use shared template SoT"
+grep -q "export const WORKFLOW_RELEASE_BUILD = WORKFLOW_RELEASE_BUILD_TEMPLATE;" "$DIAG_FILE" || fail "Diagnostics release build export must re-use shared template SoT"
 
 CI_VERSION="$(extract_version .github/workflows/k1w1-ci-lite.yml)"
 AF_VERSION="$(extract_version .github/workflows/k1w1-ci-lite-autofix.yml)"
 [ "$CI_VERSION" = "$AF_VERSION" ] || fail "CI Lite workflow version drift between live workflows"
 
-grep -q '"k1w1-ci-lite.yml": `' "$INFRA_FILE" || fail "Template source missing entry for k1w1-ci-lite.yml"
-grep -q '"k1w1-ci-lite-autofix.yml": `' "$INFRA_FILE" || fail "Template source missing entry for k1w1-ci-lite-autofix.yml"
-grep -q '# managed-by: k1w1' "$INFRA_FILE" || fail "Infra templates missing managed-by marker"
-grep -q "# workflow-version: $CI_VERSION" "$INFRA_FILE" || fail "Infra templates missing workflow-version $CI_VERSION"
-grep -q 'repository_dispatch:' "$INFRA_FILE" || fail "Infra CI Lite template missing repository_dispatch"
-grep -q 'source_sha' "$INFRA_FILE" || fail "Infra CI Lite templates missing source_sha provenance"
-grep -q 'expo preflight' "$INFRA_FILE" || fail "Infra CI Lite templates missing expo preflight"
+grep -q '"k1w1-ci-lite.yml": `' "$SHARED_FILE" || fail "Shared templates missing entry for k1w1-ci-lite.yml"
+grep -q '"k1w1-ci-lite-autofix.yml": `' "$SHARED_FILE" || fail "Shared templates missing entry for k1w1-ci-lite-autofix.yml"
+grep -q '# managed-by: k1w1' "$SHARED_FILE" || fail "Shared templates missing managed-by marker"
+grep -q "# workflow-version: $CI_VERSION" "$SHARED_FILE" || fail "Shared templates missing workflow-version $CI_VERSION"
+grep -q 'repository_dispatch:' "$SHARED_FILE" || fail "Shared CI Lite template missing repository_dispatch"
+grep -q 'source_sha' "$SHARED_FILE" || fail "Shared CI Lite templates missing source_sha provenance"
+grep -q 'expo preflight' "$SHARED_FILE" || fail "Shared CI Lite templates missing expo preflight"
 
-grep -q '"k1w1-ci-lite.yml": `' "$EDGE_FILE" || fail "Edge templates missing entry for k1w1-ci-lite.yml"
-grep -q '"k1w1-ci-lite-autofix.yml": `' "$EDGE_FILE" || fail "Edge templates missing entry for k1w1-ci-lite-autofix.yml"
-grep -q '# managed-by: k1w1' "$EDGE_FILE" || fail "Edge templates missing managed-by marker"
-grep -q "# workflow-version: $CI_VERSION" "$EDGE_FILE" || fail "Edge templates missing workflow-version $CI_VERSION"
-grep -q 'repository_dispatch:' "$EDGE_FILE" || fail "Edge CI Lite template missing repository_dispatch"
-grep -q 'source_sha' "$EDGE_FILE" || fail "Edge CI Lite templates missing source_sha provenance"
-grep -q 'expo preflight' "$EDGE_FILE" || fail "Edge CI Lite templates missing expo preflight"
+grep -q 'managedWorkflowTemplates' "$INFRA_FILE" || fail "Infra templates must import shared managed templates"
+grep -q 'WORKFLOW_TEMPLATES' "$INFRA_FILE" || fail "Infra templates missing WORKFLOW_TEMPLATES reference"
+grep -q 'code: "missing_workflow"' "$EDGE_FILE" || fail "Edge dispatch must expose missing_workflow error contract"
+grep -q 'Dispatch is mutation-free' "$EDGE_FILE" || fail "Edge dispatch must document mutation-free dispatch contract"
+if grep -q 'managedWorkflowTemplates' "$EDGE_FILE"; then
+  fail "Edge dispatch must not import shared managed templates for implicit bootstrap anymore"
+fi
+if grep -q 'WORKFLOW_TEMPLATES' "$EDGE_FILE"; then
+  fail "Edge dispatch must not keep implicit bootstrap template map references"
+fi
+grep -q 'WORKFLOW_EAS_LINK_TEMPLATE' "$DIAG_FILE" || fail "Diagnostics workflow templates must import WORKFLOW_EAS_LINK_TEMPLATE"
+grep -q 'WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE' "$DIAG_FILE" || fail "Diagnostics workflow templates must import WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE"
+grep -q 'WORKFLOW_EAS_LINK = WORKFLOW_EAS_LINK_TEMPLATE' "$DIAG_FILE" || fail "Diagnostics EAS Link export must re-use shared template SoT"
+grep -q 'WORKFLOW_K1W1_TRIGGERED_BUILD = WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE' "$DIAG_FILE" || fail "Diagnostics triggered-build export must re-use shared template SoT"
 
-grep -q 'package_manager=yarn' "$DIAG_FILE" || fail "Diagnostics templates missing yarn package-manager handling"
-grep -q 'package_manager=pnpm' "$DIAG_FILE" || fail "Diagnostics templates missing pnpm package-manager handling"
-grep -q 'yarn install --frozen-lockfile' "$DIAG_FILE" || fail "Diagnostics templates missing yarn install path"
-grep -q 'pnpm install --frozen-lockfile' "$DIAG_FILE" || fail "Diagnostics templates missing pnpm install path"
-grep -q 'github.event.client_payload.autofix' "$DIAG_FILE" || fail "Diagnostics templates missing repository_dispatch autofix passthrough"
-grep -q 'github.event.client_payload.strict_lockfile' "$DIAG_FILE" || fail "Diagnostics templates missing repository_dispatch strict_lockfile passthrough"
+grep -q 'package_manager=yarn' "$EAS_BUILD_RELEASE_SHARED_FILE" || fail "Shared EAS/release templates missing yarn package-manager handling"
+grep -q 'package_manager=pnpm' "$EAS_BUILD_RELEASE_SHARED_FILE" || fail "Shared EAS/release templates missing pnpm package-manager handling"
+grep -q 'yarn install --frozen-lockfile' "$EAS_BUILD_RELEASE_SHARED_FILE" || fail "Shared EAS/release templates missing yarn install path"
+grep -q 'pnpm install --frozen-lockfile' "$EAS_BUILD_RELEASE_SHARED_FILE" || fail "Shared EAS/release templates missing pnpm install path"
+grep -q 'github.event.client_payload.autofix' "$TRIGGERED_BUILD_SHARED_FILE" || fail "Shared triggered-build template missing repository_dispatch autofix passthrough"
+grep -q 'github.event.client_payload.strict_lockfile' "$TRIGGERED_BUILD_SHARED_FILE" || fail "Shared triggered-build template missing repository_dispatch strict_lockfile passthrough"
 
 grep -q 'package_manager' .github/workflows/k1w1-ci-lite.yml || fail "Live CI Lite missing package_manager metadata"
 grep -q 'package_manager' .github/workflows/k1w1-ci-lite-autofix.yml || fail "Live CI Lite Autofix missing package_manager metadata"
-grep -q 'package_manager' "$INFRA_FILE" || fail "Infra templates missing package_manager metadata"
-grep -q 'package_manager' "$EDGE_FILE" || fail "Edge templates missing package_manager metadata"
+grep -q 'package_manager' "$SHARED_FILE" || fail "Shared templates missing package_manager metadata"
 grep -q 'yarn install --immutable' .github/workflows/k1w1-ci-lite.yml || fail "Live CI Lite missing yarn install path"
 grep -q 'pnpm install --frozen-lockfile' .github/workflows/k1w1-ci-lite.yml || fail "Live CI Lite missing pnpm install path"
 grep -q 'yarn install --immutable' .github/workflows/k1w1-ci-lite-autofix.yml || fail "Live CI Lite Autofix missing yarn install path"
 grep -q 'pnpm install --frozen-lockfile' .github/workflows/k1w1-ci-lite-autofix.yml || fail "Live CI Lite Autofix missing pnpm install path"
-grep -q 'yarn install --immutable' "$INFRA_FILE" || fail "Infra templates missing yarn install path"
-grep -q 'pnpm install --frozen-lockfile' "$INFRA_FILE" || fail "Infra templates missing pnpm install path"
-grep -q 'yarn install --immutable' "$EDGE_FILE" || fail "Edge templates missing yarn install path"
-grep -q 'pnpm install --frozen-lockfile' "$EDGE_FILE" || fail "Edge templates missing pnpm install path"
+grep -q 'yarn install --immutable' "$SHARED_FILE" || fail "Shared templates missing yarn install path"
+grep -q 'pnpm install --frozen-lockfile' "$SHARED_FILE" || fail "Shared templates missing pnpm install path"
 
 grep -q 'Auto-fix writeback currently supports npm-managed repos only' .github/workflows/eas-build.yml || fail "Live EAS workflow missing non-npm autofix guard"
-grep -q 'Auto-fix writeback currently supports npm-managed repos only' "$DIAG_FILE" || fail "Diagnostics templates missing non-npm autofix guard"
+grep -q 'Auto-fix writeback currently supports npm-managed repos only' "$EAS_BUILD_RELEASE_SHARED_FILE" || fail "Shared EAS/release templates missing non-npm autofix guard"
 
 
 grep -q 'android-keystore-export' .github/workflows/eas-build.yml || fail "Live EAS workflow missing android-keystore-export endpoint"
 grep -q 'android-keystore-export' .github/workflows/release-build.yml || fail "Release workflow missing android-keystore-export endpoint"
-grep -q 'android-keystore-export' "$DIAG_FILE" || fail "Diagnostics templates missing android-keystore-export endpoint"
+grep -q 'android-keystore-export' "$EAS_BUILD_RELEASE_SHARED_FILE" || fail "Shared EAS/release templates missing android-keystore-export endpoint"
 grep -q 'workflow version:' .github/workflows/deploy-supabase-functions.yml || fail "Supabase deploy summary missing workflow version line"
 grep -q 'workflow version:' .github/workflows/eas-link.yml || fail "EAS Link summary missing workflow version line"
 grep -q 'workflow version:' .github/workflows/release-build.yml || fail "Release Build summary missing workflow version line"
@@ -100,19 +114,92 @@ const fs = require('fs');
 
 const live = fs.readFileSync('.github/workflows/eas-link.yml', 'utf8').replace(/\r\n/g, '\n');
 const diag = fs.readFileSync('lib/diagnostics/workflowTemplates.ts', 'utf8');
-const base = JSON.parse(fs.readFileSync('templates/expo-sdk54-base.json', 'utf8'));
+const shared = fs.readFileSync('shared/workflows/easLinkWorkflowTemplate.ts', 'utf8');
+const liveEas = fs.readFileSync('.github/workflows/eas-build.yml', 'utf8').replace(/\r\n/g, '\n');
+const liveRelease = fs.readFileSync('.github/workflows/release-build.yml', 'utf8').replace(/\r\n/g, '\n');
+const sharedBuildRelease = fs.readFileSync('shared/workflows/easBuildReleaseWorkflowTemplates.ts', 'utf8');
+const liveTriggered = fs.readFileSync('.github/workflows/k1w1-triggered-build.yml', 'utf8').replace(/\r\n/g, '\n');
+const sharedTriggered = fs.readFileSync('shared/workflows/k1w1TriggeredBuildWorkflowTemplate.ts', 'utf8');
 
-const match = diag.match(/export const WORKFLOW_EAS_LINK = ('(?:\\.|[^'])*'|`(?:\\.|[^`])*`);/s);
-if (!match) {
-  console.error('[FAIL] Diagnostics workflow templates missing parsable WORKFLOW_EAS_LINK export');
+const sharedEasMatch = sharedBuildRelease.match(/export const WORKFLOW_EAS_BUILD_TEMPLATE = ('(?:\\.|[^'])*'|`(?:\\.|[^`])*`);/s);
+const sharedReleaseMatch = sharedBuildRelease.match(/export const WORKFLOW_RELEASE_BUILD_TEMPLATE = ('(?:\\.|[^'])*'|`(?:\\.|[^`])*`);/s);
+if (!sharedEasMatch || !sharedReleaseMatch) {
+  console.error('[FAIL] Shared EAS/Release workflow template file missing parsable exports');
   process.exit(1);
 }
 
-let diagValue;
+let sharedEasValue;
+let sharedReleaseValue;
 try {
-  diagValue = Function(`return (${match[1]});`)();
+  sharedEasValue = Function(`return (${sharedEasMatch[1]});`)();
+  sharedReleaseValue = Function(`return (${sharedReleaseMatch[1]});`)();
 } catch (err) {
-  console.error('[FAIL] Diagnostics WORKFLOW_EAS_LINK export is not a valid JS string literal');
+  console.error('[FAIL] Shared EAS/Release workflow template exports are not valid JS string literals');
+  process.exit(1);
+}
+
+if (sharedEasValue.replace(/\r\n/g, '\n') !== liveEas) {
+  console.error('[FAIL] Shared WORKFLOW_EAS_BUILD_TEMPLATE drifted from live .github/workflows/eas-build.yml');
+  process.exit(1);
+}
+
+if (sharedReleaseValue.replace(/\r\n/g, '\n') !== liveRelease) {
+  console.error('[FAIL] Shared WORKFLOW_RELEASE_BUILD_TEMPLATE drifted from live .github/workflows/release-build.yml');
+  process.exit(1);
+}
+
+if (!diag.includes('export const WORKFLOW_EAS_BUILD = WORKFLOW_EAS_BUILD_TEMPLATE;')) {
+  console.error('[FAIL] Diagnostics WORKFLOW_EAS_BUILD export is not wired to WORKFLOW_EAS_BUILD_TEMPLATE');
+  process.exit(1);
+}
+
+if (!diag.includes('export const WORKFLOW_RELEASE_BUILD = WORKFLOW_RELEASE_BUILD_TEMPLATE;')) {
+  console.error('[FAIL] Diagnostics WORKFLOW_RELEASE_BUILD export is not wired to WORKFLOW_RELEASE_BUILD_TEMPLATE');
+  process.exit(1);
+}
+
+const triggeredMatch = sharedTriggered.match(/export const WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE = ('(?:\\.|[^'])*'|`(?:\\.|[^`])*`);/s);
+if (!triggeredMatch) {
+  console.error('[FAIL] Shared triggered-build workflow template missing parsable export');
+  process.exit(1);
+}
+
+let triggeredValue;
+try {
+  triggeredValue = Function(`return (${triggeredMatch[1]});`)();
+} catch (err) {
+  console.error('[FAIL] Shared triggered-build workflow template export is not a valid JS string literal');
+  process.exit(1);
+}
+
+if (triggeredValue.replace(/\r\n/g, '\n') !== liveTriggered) {
+  console.error('[FAIL] Shared WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE drifted from live .github/workflows/k1w1-triggered-build.yml');
+  process.exit(1);
+}
+
+if (!diag.includes('export const WORKFLOW_K1W1_TRIGGERED_BUILD = WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE;')) {
+  console.error('[FAIL] Diagnostics WORKFLOW_K1W1_TRIGGERED_BUILD export is not wired to WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE');
+  process.exit(1);
+}
+
+const base = JSON.parse(fs.readFileSync('templates/expo-sdk54-base.json', 'utf8'));
+
+const sharedMatch = shared.match(/export const WORKFLOW_EAS_LINK_TEMPLATE = ('(?:\\.|[^'])*'|`(?:\\.|[^`])*`);/s);
+if (!sharedMatch) {
+  console.error('[FAIL] Shared EAS Link workflow template missing parsable WORKFLOW_EAS_LINK_TEMPLATE export');
+  process.exit(1);
+}
+
+let sharedValue;
+try {
+  sharedValue = Function(`return (${sharedMatch[1]});`)();
+} catch (err) {
+  console.error('[FAIL] Shared WORKFLOW_EAS_LINK_TEMPLATE export is not a valid JS string literal');
+  process.exit(1);
+}
+
+if (!diag.includes('export const WORKFLOW_EAS_LINK = WORKFLOW_EAS_LINK_TEMPLATE;')) {
+  console.error('[FAIL] Diagnostics WORKFLOW_EAS_LINK export is not wired to WORKFLOW_EAS_LINK_TEMPLATE');
   process.exit(1);
 }
 
@@ -122,8 +209,8 @@ if (!baseEntry) {
   process.exit(1);
 }
 
-if (diagValue.replace(/\r\n/g, '\n') !== live) {
-  console.error('[FAIL] Diagnostics WORKFLOW_EAS_LINK drifted from live .github/workflows/eas-link.yml');
+if (sharedValue.replace(/\r\n/g, '\n') !== live) {
+  console.error('[FAIL] Shared WORKFLOW_EAS_LINK_TEMPLATE drifted from live .github/workflows/eas-link.yml');
   process.exit(1);
 }
 

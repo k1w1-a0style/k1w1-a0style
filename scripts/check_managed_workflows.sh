@@ -67,23 +67,47 @@ for wf in .github/workflows/eas-link.yml .github/workflows/release-build.yml .gi
 done
 
 EDGE_FILE="supabase/functions/github-workflow-dispatch/index.ts"
+SHARED_FILE="shared/workflows/managedWorkflowTemplates.ts"
+EAS_LINK_SHARED_FILE="shared/workflows/easLinkWorkflowTemplate.ts"
+EAS_BUILD_RELEASE_SHARED_FILE="shared/workflows/easBuildReleaseWorkflowTemplates.ts"
+TRIGGERED_BUILD_SHARED_FILE="shared/workflows/k1w1TriggeredBuildWorkflowTemplate.ts"
 [ -f "$EDGE_FILE" ] || fail "Missing edge workflow source: $EDGE_FILE"
+[ -f "$SHARED_FILE" ] || fail "Missing shared workflow source: $SHARED_FILE"
+[ -f "$EAS_LINK_SHARED_FILE" ] || fail "Missing shared EAS Link workflow source: $EAS_LINK_SHARED_FILE"
+[ -f "$EAS_BUILD_RELEASE_SHARED_FILE" ] || fail "Missing shared EAS/Release workflow source: $EAS_BUILD_RELEASE_SHARED_FILE"
+[ -f "$TRIGGERED_BUILD_SHARED_FILE" ] || fail "Missing shared triggered-build workflow source: $TRIGGERED_BUILD_SHARED_FILE"
 
-managed_count="$(grep -c '# managed-by: k1w1' "$EDGE_FILE" || true)"
-[ "${managed_count:-0}" -ge 1 ] || fail "Embedded workflow templates missing managed-by marker"
+grep -q 'code: "missing_workflow"' "$EDGE_FILE" || fail "Edge dispatch must return missing_workflow contract"
+grep -q 'Dispatch is mutation-free' "$EDGE_FILE" || fail "Edge dispatch must document mutation-free dispatch contract"
+if grep -q 'managedWorkflowTemplates' "$EDGE_FILE"; then
+  fail "Edge dispatch must not import managed workflow templates for implicit bootstrap anymore"
+fi
+if grep -q 'WORKFLOW_TEMPLATES' "$EDGE_FILE"; then
+  fail "Edge dispatch must not keep implicit bootstrap template map references"
+fi
+grep -q '# managed-by: k1w1' "$SHARED_FILE" || fail "Shared workflow templates missing managed-by marker"
+version_count="$(grep -E -c '# workflow-version: [0-9]+' "$SHARED_FILE" || true)"
+[ "${version_count:-0}" -ge 1 ] || fail "Shared workflow templates missing numeric workflow-version marker"
 
-version_count="$(grep -E -c '# workflow-version: [0-9]+' "$EDGE_FILE" || true)"
-[ "${version_count:-0}" -ge 1 ] || fail "Embedded workflow templates missing numeric workflow-version marker"
-
-embedded_max_version="$(grep -Eo '# workflow-version: [0-9]+' "$EDGE_FILE" | awk '{print $3}' | sort -n | tail -n1)"
-[ -n "${embedded_max_version:-}" ] || fail "Could not determine embedded workflow-version"
-if [ "$embedded_max_version" -lt 399 ]; then
-  fail "Embedded workflow-version unexpectedly old: $embedded_max_version"
+shared_max_version="$(grep -Eo '# workflow-version: [0-9]+' "$SHARED_FILE" | awk '{print $3}' | sort -n | tail -n1)"
+[ -n "${shared_max_version:-}" ] || fail "Could not determine shared workflow-version"
+if [ "$shared_max_version" -lt 399 ]; then
+  fail "Shared workflow-version unexpectedly old: $shared_max_version"
 fi
 
-grep -q 'source_sha' "$EDGE_FILE" || fail "Embedded workflow templates missing source_sha/source_commit_sha provenance"
-grep -q 'function parseManagedWorkflowMeta' "$EDGE_FILE" || fail "Missing managed workflow metadata parser"
-grep -q 'repository_dispatch:' "$EDGE_FILE" || fail "Embedded templates missing repository_dispatch support"
+grep -q 'source_sha' "$SHARED_FILE" || fail "Shared workflow templates missing source_sha/source_commit_sha provenance"
+grep -q 'repository_dispatch:' "$SHARED_FILE" || fail "Shared templates missing repository_dispatch support"
+grep -q 'WORKFLOW_EAS_LINK_TEMPLATE' "$EAS_LINK_SHARED_FILE" || fail "Shared EAS Link workflow file missing WORKFLOW_EAS_LINK_TEMPLATE export"
+grep -q '^# managed-by: k1w1' .github/workflows/eas-link.yml || fail "Live EAS Link workflow missing managed-by marker"
+grep -q '^# workflow-version: ' .github/workflows/eas-link.yml || fail "Live EAS Link workflow missing workflow-version marker"
+grep -q 'WORKFLOW_EAS_LINK_TEMPLATE' lib/diagnostics/workflowTemplates.ts || fail "Diagnostics templates must import WORKFLOW_EAS_LINK_TEMPLATE"
+grep -q 'WORKFLOW_EAS_BUILD_TEMPLATE' lib/diagnostics/workflowTemplates.ts || fail "Diagnostics templates must import WORKFLOW_EAS_BUILD_TEMPLATE"
+grep -q 'WORKFLOW_RELEASE_BUILD_TEMPLATE' lib/diagnostics/workflowTemplates.ts || fail "Diagnostics templates must import WORKFLOW_RELEASE_BUILD_TEMPLATE"
+grep -q 'WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE' lib/diagnostics/workflowTemplates.ts || fail "Diagnostics templates must import WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE"
+grep -q 'WORKFLOW_EAS_LINK = WORKFLOW_EAS_LINK_TEMPLATE' lib/diagnostics/workflowTemplates.ts || fail "Diagnostics EAS Link template must be sourced from shared template"
+grep -q 'WORKFLOW_EAS_BUILD = WORKFLOW_EAS_BUILD_TEMPLATE' lib/diagnostics/workflowTemplates.ts || fail "Diagnostics EAS build template must be sourced from shared template"
+grep -q 'WORKFLOW_RELEASE_BUILD = WORKFLOW_RELEASE_BUILD_TEMPLATE' lib/diagnostics/workflowTemplates.ts || fail "Diagnostics release template must be sourced from shared template"
+grep -q 'WORKFLOW_K1W1_TRIGGERED_BUILD = WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE' lib/diagnostics/workflowTemplates.ts || fail "Diagnostics triggered-build template must be sourced from shared template"
 
 for wf in .github/workflows/eas-build.yml .github/workflows/eas-link.yml .github/workflows/release-build.yml .github/workflows/deploy-supabase-functions.yml .github/workflows/k1w1-triggered-build.yml; do
   grep -Eq '^\s+ref:\s*$' "$wf" || fail "Missing explicit ref input block in $wf"
@@ -98,5 +122,48 @@ done
 
 grep -Fq "workflow_dispatch' && inputs.ref || github.ref" .github/workflows/ci.yml || fail "CI workflow lost documented branch-based CI-lite fallback contract"
 grep -Fq 'default_ref: work' .github/workflows/k1w1-ci-lite.yml || fail "CI Lite workflow lost documented default_ref=work exception"
+
+
+node <<'NODE'
+const fs = require('fs');
+
+const liveEas = fs.readFileSync('.github/workflows/eas-build.yml', 'utf8').replace(/\r\n/g, '\n');
+const liveRelease = fs.readFileSync('.github/workflows/release-build.yml', 'utf8').replace(/\r\n/g, '\n');
+const sharedSrc = fs.readFileSync('shared/workflows/easBuildReleaseWorkflowTemplates.ts', 'utf8');
+const sharedTriggeredSrc = fs.readFileSync('shared/workflows/k1w1TriggeredBuildWorkflowTemplate.ts', 'utf8');
+const liveTriggered = fs.readFileSync('.github/workflows/k1w1-triggered-build.yml', 'utf8').replace(/\r\n/g, '\n');
+
+const easMatch = sharedSrc.match(/export const WORKFLOW_EAS_BUILD_TEMPLATE = ('(?:\\.|[^'])*'|`(?:\\.|[^`])*`);/s);
+const releaseMatch = sharedSrc.match(/export const WORKFLOW_RELEASE_BUILD_TEMPLATE = ('(?:\\.|[^'])*'|`(?:\\.|[^`])*`);/s);
+if (!easMatch || !releaseMatch) {
+  console.error('[FAIL] Shared EAS/Release workflow template exports are missing or unparsable');
+  process.exit(1);
+}
+
+const sharedEas = Function(`return (${easMatch[1]});`)().replace(/\r\n/g, '\n');
+const sharedRelease = Function(`return (${releaseMatch[1]});`)().replace(/\r\n/g, '\n');
+
+if (sharedEas !== liveEas) {
+  console.error('[FAIL] Shared EAS build template drifted from live .github/workflows/eas-build.yml');
+  process.exit(1);
+}
+
+if (sharedRelease !== liveRelease) {
+  console.error('[FAIL] Shared release build template drifted from live .github/workflows/release-build.yml');
+  process.exit(1);
+}
+
+const triggeredMatch = sharedTriggeredSrc.match(/export const WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE = ('(?:\\.|[^'])*'|`(?:\\.|[^`])*`);/s);
+if (!triggeredMatch) {
+  console.error('[FAIL] Shared triggered-build workflow template export missing or unparsable');
+  process.exit(1);
+}
+
+const sharedTriggered = Function(`return (${triggeredMatch[1]});`)().replace(/\r\n/g, '\n');
+if (sharedTriggered !== liveTriggered) {
+  console.error('[FAIL] Shared triggered-build template drifted from live .github/workflows/k1w1-triggered-build.yml');
+  process.exit(1);
+}
+NODE
 
 echo "Managed workflows look consistent."

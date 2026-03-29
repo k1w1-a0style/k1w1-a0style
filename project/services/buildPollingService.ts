@@ -5,10 +5,11 @@
 // - Normalizes HTTP and JSON-parse errors into a simple result type.
 // - Network/timeout errors are thrown (so callers can handle retry/backoff).
 
-import { getEdgeAdminKey } from "../../infra/github/githubService";
+import { getWorkflowAdminKey } from "../../infra/github/githubService";
 import { fetchWithTimeout as sharedFetchWithTimeout } from "../../lib/network/fetchWithTimeout";
 import { mapBuildStatus } from "../../lib/buildStatusMapper";
 import { getSupabaseEdgeUrl, SUPABASE_URL_MISSING_ERROR } from '../../lib/supabaseEdge';
+import { ensureSupabaseClient } from "../../lib/supabase";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
 import type { BuildStatus, BuildStatusDetails } from "../../shared/types/build";
 import { logger } from "../../lib/logger";
@@ -62,7 +63,23 @@ export async function pollBuildStatusOnce(
       error: SUPABASE_URL_MISSING_ERROR,
     };
   }
-  const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+  const supabase = await ensureSupabaseClient();
+  const workflowAdminKey = await getWorkflowAdminKey().catch(() => null);
+  const session = await supabase.auth.getSession().catch(() => null);
+  const accessToken = session?.data?.session?.access_token ?? null;
+
+  if (!accessToken) {
+    return {
+      ok: false,
+      error: "Build-Status blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.",
+    };
+  }
+  if (!workflowAdminKey) {
+    return {
+      ok: false,
+      error: "Build-Status blockiert: Lokaler Workflow-Admin-Key fehlt. Bitte Verbindungen pruefen.",
+    };
+  }
 
   const timeoutMs = opts?.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
 
@@ -70,7 +87,8 @@ export async function pollBuildStatusOnce(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
+      Authorization: `Bearer ${accessToken}`,
+      "x-k1w1-admin-key": workflowAdminKey,
     },
     body: JSON.stringify({ jobId }),
     timeoutMs,

@@ -98,7 +98,7 @@ function getBranchValidationError(
 export function validateTriggerBuildRequest(body: unknown): Ok<{
   githubRepo: string;
   buildProfile: "development" | "preview" | "production";
-  branch?: string;
+  branch: string;
 }> | Err {
   if (!isObject(body)) return { ok: false, errors: { error: "body must be an object" } };
 
@@ -116,6 +116,10 @@ export function validateTriggerBuildRequest(body: unknown): Ok<{
     errors.buildProfile = "buildProfile must be development|preview|production";
   }
 
+  if (!isString(branch) || !branch.trim()) {
+    errors.branch = "branch must be a non-empty branch name";
+  }
+
   const br = validateBranch(branch);
   const branchError = getBranchValidationError(br);
   if (branchError) errors.branch = branchError;
@@ -128,7 +132,7 @@ export function validateTriggerBuildRequest(body: unknown): Ok<{
     data: {
       githubRepo,
       buildProfile,
-      branch: br.value || undefined,
+      branch: br.value,
     },
   };
 }

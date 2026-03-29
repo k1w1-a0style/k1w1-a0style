@@ -6,7 +6,7 @@ import type { ProjectData, ProjectFile } from "../../shared/types/project";
 import { ensureSupabaseClient } from "../../lib/supabase";
 import { logger } from "../../lib/logger";
 import {
-  getEdgeAdminKey,
+  getWorkflowAdminKey,
   pushFilesToRepo,
 } from "../../infra/github/githubService";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
@@ -77,7 +77,7 @@ export async function assertBuildReadiness(
   await assertBuildReadinessContract(project, deps);
 }
 
-async function bestEffortPushToGitHub(opts: {
+async function pushProjectFilesOrAbortBuild(opts: {
   githubRepo: string;
   branch: string;
   files: ProjectFile[];
@@ -96,14 +96,15 @@ async function bestEffortPushToGitHub(opts: {
     try {
       await pushFilesToRepo(owner, repo, files, branch);
     } catch (err) {
-      // Best-effort: even if push fails (e.g. permissions, network),
-      // we still try to ensure workflows exist and proceed with the build using the linked branch.
-      logger.warn("Push nach GitHub fehlgeschlagen (best-effort). Fahre fort mit Workflow-Autofix.", {
+      logger.warn("Build-Start abgebrochen: Push nach GitHub fehlgeschlagen.", {
         owner,
         repo,
         branch,
         err,
       });
+      throw new Error(
+        "Build abgebrochen: Lokale Aenderungen konnten nicht erfolgreich ins Ziel-Repo gepusht werden.",
+      );
     }
   }
 
@@ -155,7 +156,7 @@ export async function startBuildJob(params: {
   }
 
   if (syncState === "out_of_sync") {
-    await bestEffortPushToGitHub({
+    await pushProjectFilesOrAbortBuild({
       githubRepo,
       branch: buildBranch,
       files: project.files,
@@ -164,14 +165,28 @@ export async function startBuildJob(params: {
   }
 
   const supabase = await ensureSupabaseClient();
-  const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+  const workflowAdminKey = await getWorkflowAdminKey().catch(() => null);
+  const session = await supabase.auth.getSession().catch(() => null);
+  const accessToken = session?.data?.session?.access_token ?? null;
+
+  if (!accessToken) {
+    throw new Error(
+      "Build-Start blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.",
+    );
+  }
+  if (!workflowAdminKey) {
+    throw new Error(
+      "Build-Start blockiert: Lokaler Workflow-Admin-Key fehlt. Bitte Verbindungen pruefen und erneut versuchen.",
+    );
+  }
 
   const invokeOpts: { body: Record<string, string>; headers?: Record<string, string> } = {
     body: { githubRepo, buildProfile: profile, branch: buildBranch },
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "x-k1w1-admin-key": workflowAdminKey,
+    },
   };
-  if (edgeAdminKey) {
-    invokeOpts.headers = { "x-k1w1-admin-key": edgeAdminKey };
-  }
 
   const { data, error } = await supabase.functions.invoke(
     SUPABASE_EDGE_FUNCTIONS.TRIGGER_EAS_BUILD,

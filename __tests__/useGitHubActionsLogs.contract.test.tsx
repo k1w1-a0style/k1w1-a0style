@@ -1,6 +1,7 @@
 import { renderHook, act, waitFor } from '@testing-library/react-native';
 
 import { useGitHubActionsLogs } from '../hooks/useGitHubActionsLogs';
+import { getWorkflowAdminKey } from '../infra/github/githubService';
 
 type Deferred<T> = {
   promise: Promise<T>;
@@ -25,7 +26,16 @@ jest.mock('../lib/supabaseEdge', () => ({
 }));
 
 jest.mock('../infra/github/githubService', () => ({
-  getEdgeAdminKey: jest.fn(async () => 'edge-admin-key'),
+  getWorkflowAdminKey: jest.fn(async () => 'aaaaaaaabbbbbbbb.ccccccccdddddddd.eeeeeeeeffffffff'),
+}));
+jest.mock('../lib/supabase', () => ({
+  ensureSupabaseClient: jest.fn(async () => ({
+    auth: {
+      getSession: jest.fn(async () => ({
+        data: { session: { access_token: 'supabase-operator-jwt-token' } },
+      })),
+    },
+  })),
 }));
 
 jest.mock('../infra/github/tokenStore', () => ({
@@ -80,11 +90,65 @@ describe('useGitHubActionsLogs edge contract mapping', () => {
 
     const runsBody = JSON.parse(String((runsCall?.[1] as RequestInit | undefined)?.body ?? '{}'));
     const logsBody = JSON.parse(String((logsCall?.[1] as RequestInit | undefined)?.body ?? '{}'));
+    const runsHeaders = ((runsCall?.[1] as RequestInit | undefined)?.headers ?? {}) as Record<string, string>;
+    const logsHeaders = ((logsCall?.[1] as RequestInit | undefined)?.headers ?? {}) as Record<string, string>;
 
     expect(runsBody).toEqual({ githubRepo: 'owner/repo', workflowId: 'k1w1-ci-lite.yml' });
     expect(logsBody).toEqual({ githubRepo: 'owner/repo', runId: 123, mode: 'raw' });
+    expect(runsHeaders).toMatchObject({
+      Authorization: 'Bearer supabase-operator-jwt-token',
+      'x-k1w1-admin-key': 'aaaaaaaabbbbbbbb.ccccccccdddddddd.eeeeeeeeffffffff',
+    });
+    expect(logsHeaders).toMatchObject({
+      Authorization: 'Bearer supabase-operator-jwt-token',
+      'x-k1w1-admin-key': 'aaaaaaaabbbbbbbb.ccccccccdddddddd.eeeeeeeeffffffff',
+    });
     expect(runsBody).not.toHaveProperty('githubToken');
     expect(logsBody).not.toHaveProperty('githubToken');
+  });
+
+  it('fails fast locally when the workflow admin key is missing', async () => {
+    (getWorkflowAdminKey as jest.Mock).mockResolvedValueOnce('');
+    const fetchMock = jest.fn();
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const { result } = renderHook(() =>
+      useGitHubActionsLogs({
+        githubRepo: 'owner/repo',
+        runId: null,
+        workflowId: 'k1w1-ci-lite.yml',
+        autoRefresh: false,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.refreshLogs();
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.error).toMatch(/Admin-Key fehlt/i);
+  });
+
+  it('fails fast locally when the workflow admin key is formally invalid', async () => {
+    (getWorkflowAdminKey as jest.Mock).mockResolvedValueOnce('short');
+    const fetchMock = jest.fn();
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const { result } = renderHook(() =>
+      useGitHubActionsLogs({
+        githubRepo: 'owner/repo',
+        runId: null,
+        workflowId: 'k1w1-ci-lite.yml',
+        autoRefresh: false,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.refreshLogs();
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.error).toMatch(/formal ungueltig/i);
   });
 
   it('uses the current workflowId for github-workflow-runs after rerender', async () => {

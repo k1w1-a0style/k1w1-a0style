@@ -1,4 +1,4 @@
-import { getEdgeAdminKey } from '../../infra/github/githubService';
+import { getLegacyEdgeAdminKey } from '../../infra/github/githubService';
 import { ensureSupabaseClient } from '../supabase';
 import { SUPABASE_EDGE_FUNCTIONS } from '../../shared/constants/supabase';
 
@@ -236,13 +236,13 @@ export async function invokeK1w1Handler({
   timeoutMs,
 }: InvokeK1w1HandlerArgs): Promise<OrchestratorResult> {
   const supabase = await ensureSupabaseClient();
-  const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+  const edgeAdminKey = await getLegacyEdgeAdminKey().catch(() => null);
 
   if (!edgeAdminKey) {
     return {
       ok: false,
       error:
-        'K1W1_EDGE_ADMIN_KEY fehlt. Bitte den Edge Admin Key lokal setzen, damit produktive KI-Requests ueber den k1w1-handler laufen koennen.',
+        'Lokaler Legacy Edge Admin Key (compat/Sunset) fehlt. k1w1-handler nutzt derzeit noch K1W1_EDGE_ADMIN_KEY; bitte den lokalen Compat-Key nur fuer diesen Altpfad setzen und scoped Keys fuer Workflow/Keystore getrennt pflegen.',
       provider,
       model,
     };

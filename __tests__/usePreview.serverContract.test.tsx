@@ -21,7 +21,7 @@ jest.mock("../lib/supabase", () => ({
 }));
 
 jest.mock("../infra/github/githubService", () => ({
-  getEdgeAdminKey: () => mockGetEdgeAdminKey(),
+  getLegacyEdgeAdminKey: () => mockGetEdgeAdminKey(),
 }));
 
 jest.mock("../lib/sandpackBuilder", () => ({
@@ -29,6 +29,10 @@ jest.mock("../lib/sandpackBuilder", () => ({
 }));
 
 const originalSupabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const originalLegacyPreviewOperatorMode =
+  process.env.EXPO_PUBLIC_ENABLE_LEGACY_PREVIEW_OPERATOR_MODE;
+const PREVIEW_FAIL_CLOSED_MESSAGE =
+  "Remote-Preview im Standardpfad nicht verfuegbar. Legacy save_preview ist nur im expliziten Operator-/Maintenance-Modus erlaubt; lokaler HTML-/Eval-Fallback nur im expliziten Local-/Dev-Modus.";
 
 const baseProject: ProjectData = {
   id: "preview-contract",
@@ -52,13 +56,65 @@ describe("usePreview server contract", () => {
     mockFetch.mockReset();
     global.fetch = mockFetch as typeof fetch;
     process.env.EXPO_PUBLIC_SUPABASE_URL = "https://preview.example.com";
+    delete process.env.EXPO_PUBLIC_ENABLE_LEGACY_PREVIEW_OPERATOR_MODE;
   });
 
   afterEach(() => {
     process.env.EXPO_PUBLIC_SUPABASE_URL = originalSupabaseUrl;
+    process.env.EXPO_PUBLIC_ENABLE_LEGACY_PREVIEW_OPERATOR_MODE = originalLegacyPreviewOperatorMode;
   });
 
-  test("falls back locally when the preview server is unreachable and keeps the state honest", async () => {
+  test("blocks normal supabase preview in standard flow unless legacy operator mode is explicitly enabled", async () => {
+    mockGetEdgeAdminKey.mockResolvedValue("edge-admin-key-12345678901234567890");
+
+    const { result } = renderHook((projectData: ProjectData | null) => usePreview(projectData), {
+      initialProps: baseProject,
+    });
+
+    await act(async () => {
+      await expect(result.current.createPreview()).rejects.toThrow(PREVIEW_FAIL_CLOSED_MESSAGE);
+    });
+
+    await waitFor(() => {
+      expect(result.current.lastPreview).toBeNull();
+    });
+    expect(result.current.state.remoteFailure).toBe(
+      "Remote-Preview blockiert: Legacy save_preview ist jetzt ein expliziter Operator-/Maintenance-Vertrag. Standard-Clientflow nutzt keinen stillen Legacy-Admin-Key mehr.",
+    );
+    expect(result.current.state.error).toBe(PREVIEW_FAIL_CLOSED_MESSAGE);
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockGetEdgeAdminKey).not.toHaveBeenCalled();
+    expect(mockBuildSandpackHtml).not.toHaveBeenCalled();
+    expect(mockSetPreferredPreviewMode).not.toHaveBeenCalledWith("local");
+  });
+
+
+  test("reports a missing local Edge Admin Key honestly and stays fail-closed in supabase mode", async () => {
+    process.env.EXPO_PUBLIC_ENABLE_LEGACY_PREVIEW_OPERATOR_MODE = "true";
+    mockGetEdgeAdminKey.mockResolvedValue(null);
+
+    const { result } = renderHook((projectData: ProjectData | null) => usePreview(projectData), {
+      initialProps: baseProject,
+    });
+
+    await act(async () => {
+      await expect(result.current.createPreview()).rejects.toThrow(PREVIEW_FAIL_CLOSED_MESSAGE);
+    });
+
+    await waitFor(() => {
+      expect(result.current.lastPreview).toBeNull();
+    });
+
+    expect(result.current.state.remoteFailure).toBe(
+      "Remote-Preview blockiert: Lokaler Legacy Edge Admin Key (compat, Sunset) fehlt. Repo-/Server-Secrets koennen vorhanden sein, aber Wizard, Remote-Preview und Build-Vorbereitung brauchen diesen lokalen App-Wert fuer geschuetzte Edge-Calls.",
+    );
+    expect(mockEnsureSupabaseClient).toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockBuildSandpackHtml).not.toHaveBeenCalled();
+  });
+
+  test("keeps operator mode fail-closed when preview server is unreachable", async () => {
+    process.env.EXPO_PUBLIC_ENABLE_LEGACY_PREVIEW_OPERATOR_MODE = "true";
     mockGetEdgeAdminKey.mockResolvedValue("edge-admin-key-12345678901234567890");
     mockFetch.mockRejectedValue(new Error("Network request failed"));
 
@@ -67,42 +123,20 @@ describe("usePreview server contract", () => {
     });
 
     await act(async () => {
-      await result.current.createPreview();
+      await expect(result.current.createPreview()).rejects.toThrow(PREVIEW_FAIL_CLOSED_MESSAGE);
     });
 
     await waitFor(() => {
-      expect(result.current.lastPreview?.source).toBe("local");
+      expect(result.current.lastPreview).toBeNull();
     });
 
-    expect(result.current.lastPreview?.html).toContain("fallback");
     expect(result.current.state.remoteFailure).toBe("Preview-Server derzeit nicht erreichbar.");
-    expect(result.current.state.error).toBeNull();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockBuildSandpackHtml).not.toHaveBeenCalled();
   });
 
-
-  test("reports a missing local Edge Admin Key honestly before falling back to the local preview", async () => {
-    mockGetEdgeAdminKey.mockResolvedValue(null);
-
-    const { result } = renderHook((projectData: ProjectData | null) => usePreview(projectData), {
-      initialProps: baseProject,
-    });
-
-    await act(async () => {
-      await result.current.createPreview();
-    });
-
-    await waitFor(() => {
-      expect(result.current.lastPreview?.source).toBe("local");
-    });
-
-    expect(result.current.state.remoteFailure).toBe(
-      "Remote-Preview blockiert: Lokaler Edge Admin Key fehlt. Repo-/Server-Secrets koennen vorhanden sein, aber Wizard, Remote-Preview und Build-Vorbereitung brauchen diesen lokalen App-Wert fuer geschuetzte Edge-Calls.",
-    );
-    expect(mockEnsureSupabaseClient).toHaveBeenCalled();
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  test("reports a present but rejected local Edge Admin Key as rejected instead of missing", async () => {
+  test("reports a present but rejected local Edge Admin Key as rejected instead of missing, without local auto-fallback", async () => {
+    process.env.EXPO_PUBLIC_ENABLE_LEGACY_PREVIEW_OPERATOR_MODE = "true";
     mockGetEdgeAdminKey.mockResolvedValue("edge-admin-key-12345678901234567890");
     mockFetch.mockResolvedValue({
       ok: false,
@@ -115,20 +149,22 @@ describe("usePreview server contract", () => {
     });
 
     await act(async () => {
-      await result.current.createPreview();
+      await expect(result.current.createPreview()).rejects.toThrow(PREVIEW_FAIL_CLOSED_MESSAGE);
     });
 
     await waitFor(() => {
-      expect(result.current.lastPreview?.source).toBe("local");
+      expect(result.current.lastPreview).toBeNull();
     });
 
     expect(result.current.state.remoteFailure).toBe(
-      "Remote-Preview blockiert: Lokaler Edge Admin Key ist lokal vorhanden und wurde fuer den geschuetzten Edge-Request verwendet, aber vom Edge-Server abgelehnt (401/403 bzw. invalid admin). Bitte den lokalen App-Key neu speichern oder korrekt importieren.",
+      "Remote-Preview blockiert: Lokaler Legacy Edge Admin Key (compat, Sunset) ist lokal vorhanden und wurde fuer den geschuetzten Edge-Request verwendet, aber vom Edge-Server abgelehnt (401/403 bzw. invalid admin). Bitte den lokalen App-Key neu speichern oder korrekt importieren.",
     );
     expect(result.current.state.remoteFailure).not.toMatch(/fehlt oder wurde/i);
+    expect(mockBuildSandpackHtml).not.toHaveBeenCalled();
   });
 
-  test("reports a formally invalid local Edge Admin Key as invalid before any remote call", async () => {
+  test("reports a formally invalid local Edge Admin Key as invalid before any remote call and stays fail-closed", async () => {
+    process.env.EXPO_PUBLIC_ENABLE_LEGACY_PREVIEW_OPERATOR_MODE = "true";
     mockGetEdgeAdminKey.mockResolvedValue("short key");
 
     const { result } = renderHook((projectData: ProjectData | null) => usePreview(projectData), {
@@ -136,20 +172,22 @@ describe("usePreview server contract", () => {
     });
 
     await act(async () => {
-      await result.current.createPreview();
+      await expect(result.current.createPreview()).rejects.toThrow(PREVIEW_FAIL_CLOSED_MESSAGE);
     });
 
     await waitFor(() => {
-      expect(result.current.lastPreview?.source).toBe("local");
+      expect(result.current.lastPreview).toBeNull();
     });
 
     expect(result.current.state.remoteFailure).toBe(
-      "Remote-Preview blockiert: Lokaler Edge Admin Key wirkt ungueltig (leer/zu kurz/Whitespace). Bitte in der App neu speichern oder importieren.",
+      "Remote-Preview blockiert: Lokaler Legacy Edge Admin Key (compat, Sunset) wirkt ungueltig (leer/zu kurz/Whitespace). Bitte in der App neu speichern oder importieren.",
     );
     expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockBuildSandpackHtml).not.toHaveBeenCalled();
   });
 
   test("uses only x-k1w1-admin-key for the remote preview admin-key fetch scope", async () => {
+    process.env.EXPO_PUBLIC_ENABLE_LEGACY_PREVIEW_OPERATOR_MODE = "true";
     mockGetEdgeAdminKey.mockResolvedValue("  edge-admin-key-12345678901234567890  ");
     mockFetch.mockResolvedValue({
       ok: true,
@@ -185,6 +223,7 @@ describe("usePreview server contract", () => {
   });
 
   test("uses the trusted remote preview as primary path when the server responds successfully", async () => {
+    process.env.EXPO_PUBLIC_ENABLE_LEGACY_PREVIEW_OPERATOR_MODE = "true";
     mockGetEdgeAdminKey.mockResolvedValue("edge-admin-key-12345678901234567890");
     mockFetch.mockResolvedValue({
       ok: true,
@@ -217,6 +256,7 @@ describe("usePreview server contract", () => {
   });
 
   test("sends a non-empty files payload for a normal project", async () => {
+    process.env.EXPO_PUBLIC_ENABLE_LEGACY_PREVIEW_OPERATOR_MODE = "true";
     mockGetEdgeAdminKey.mockResolvedValue("edge-admin-key-12345678901234567890");
     mockFetch.mockResolvedValue({
       ok: true,
@@ -255,8 +295,6 @@ describe("usePreview server contract", () => {
   });
 
   test("reports an honest payload/file reason when no remote-preview files survive filtering", async () => {
-    mockGetEdgeAdminKey.mockResolvedValue("edge-admin-key-12345678901234567890");
-
     const { result } = renderHook((projectData: ProjectData | null) => usePreview(projectData), {
       initialProps: {
         ...baseProject,
@@ -265,18 +303,19 @@ describe("usePreview server contract", () => {
     });
 
     await act(async () => {
-      await result.current.createPreview();
+      await expect(result.current.createPreview()).rejects.toThrow(PREVIEW_FAIL_CLOSED_MESSAGE);
     });
 
     await waitFor(() => {
-      expect(result.current.lastPreview?.source).toBe("local");
+      expect(result.current.lastPreview).toBeNull();
     });
 
     expect(result.current.state.remoteFailure).toBe(
       "Keine zulaessigen Projektdateien fuer Remote-Preview gefunden. 1 Datei(en) wurden vom Preview-Filter ausgeschlossen.",
     );
     expect(mockFetch).not.toHaveBeenCalled();
-    expect(result.current.lastPreview?.html).toContain("fallback");
+    expect(mockGetEdgeAdminKey).not.toHaveBeenCalled();
+    expect(mockBuildSandpackHtml).not.toHaveBeenCalled();
   });
 
   test("keeps the existing explicit local dev fallback path working without remote server checks", async () => {
@@ -298,5 +337,6 @@ describe("usePreview server contract", () => {
     expect(mockEnsureSupabaseClient).not.toHaveBeenCalled();
     expect(result.current.state.remoteFailure).toBeNull();
     expect(result.current.lastPreview?.html).toContain("fallback");
+    expect(mockSetPreferredPreviewMode).not.toHaveBeenCalledWith("local");
   });
 });

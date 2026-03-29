@@ -9,7 +9,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { requireSupabaseEdgeUrl } from "../../../lib/supabaseEdge";
 import { fetchWithTimeout } from "../../../lib/network/fetchWithTimeout";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
-import { getBranchHeadSha, getEdgeAdminKey } from "../../../infra/github/githubService";
+import { getBranchHeadSha, getWorkflowAdminKey } from "../../../infra/github/githubService";
 import { useProject } from "../../../contexts/ProjectContext";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
 import { computeCiLiteOk, inferStepStates, safeUi } from "../../ciLite/ciLiteUtils";
@@ -18,9 +18,10 @@ import {
   readPersistedCiLiteSelection,
   type PersistedCiLiteSnapshot,
 } from "../../../lib/ciLitePersistence";
+import { ensureSupabaseClient } from "../../../lib/supabase";
 import { WORKFLOW_CI_LITE, WORKFLOW_CI_LITE_AUTOFIX, type StepState } from "../types";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
-import { isLikelyValidAdminKey } from "../../../screens/CredentialsWizardScreen/utils/security";
+import { isLikelyValidAdminKey } from "../../../lib/security/isLikelyValidAdminKey";
 import {
   chooseWorkflowRunCandidateDetailed,
   type WorkflowRunLookupDiagnosis,
@@ -30,7 +31,9 @@ import {
   normalizeCiLiteWorkflowError,
   readCiLiteErrorResponse,
 } from "./ciLiteWorkflowErrors";
-
+import { getArtifactUiMessage } from "./ciLiteWorkflowNoticeHelpers";
+import { buildArtifactFetchContextKey } from "./useCiLiteWorkflowHelpers";
+import { deriveCiLiteHeaderState } from "./useCiLiteWorkflowStatusHelpers";
 
 type CiLiteArtifactJson = {
   ok: boolean;
@@ -86,26 +89,26 @@ function getAutofixChainSkipReason(lines: string[]): string | null {
   return null;
 }
 
-function getArtifactUiMessage(params: {
-  artifactError: string | null;
-  workflowStatus?: string | null;
-  workflowConclusion?: string | null;
-}): string {
-  if (!params.artifactError) return "";
-
-  const status = String(params.workflowStatus ?? "").trim().toLowerCase();
-  const conclusion = String(params.workflowConclusion ?? "").trim().toLowerCase();
-  if (status === "completed" && conclusion === "success") {
-    return "Workflow war erfolgreich, aber das Ergebnis-Artefakt konnte nicht geladen werden. Bitte Run öffnen oder erneut starten.";
-  }
-
-  return "Zusätzliche Ergebnisdaten zum Run konnten nicht geladen werden. Bitte Run öffnen oder erneut starten.";
-}
-
 function splitRepoFullName(repoFullName: string): { owner: string; repo: string } | null {
   const [owner, repo] = String(repoFullName || "").trim().split("/");
   if (!owner || !repo) return null;
   return { owner, repo };
+}
+
+function getErrorMessage(error: unknown, fallback = ""): string {
+  if (error instanceof Error && typeof error.message === "string") {
+    return error.message;
+  }
+  if (typeof error === "string") return error;
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message;
+  }
+  return fallback;
 }
 
 export function useCiLiteWorkflow() {
@@ -139,8 +142,10 @@ export function useCiLiteWorkflow() {
   const [hydratedSnapshot, setHydratedSnapshot] = useState<PersistedCiLiteSnapshot | null>(null);
   const [lookupDiagnosis, setLookupDiagnosis] = useState<WorkflowRunLookupDiagnosis | null>(null);
 
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lookupDiagnosisRef = useRef<WorkflowRunLookupDiagnosis | null>(null);
+  const lookupGenerationRef = useRef(0);
+  const artifactAttemptedContextRef = useRef<string | null>(null);
 
   // ---- Derived repo/branch ----
   const githubRepo = useMemo(
@@ -154,17 +159,43 @@ export function useCiLiteWorkflow() {
 
   // ---- Polling helpers ----
   const stopPolling = useCallback(() => {
+    lookupGenerationRef.current += 1;
     if (pollTimerRef.current) {
-      clearInterval(pollTimerRef.current);
+      clearTimeout(pollTimerRef.current);
       pollTimerRef.current = null;
     }
   }, []);
 
+  const isLookupGenerationActive = useCallback((generation: number): boolean => {
+    return lookupGenerationRef.current === generation;
+  }, []);
+
+  const scheduleLookupPoll = useCallback((params: {
+    generation: number;
+    attempt: number;
+    poll: () => Promise<boolean>;
+  }) => {
+    if (!isLookupGenerationActive(params.generation)) return;
+    const delaysMs = [1200, 1800, 2600, 3500, 4500];
+    const delay = delaysMs[Math.min(params.attempt, delaysMs.length - 1)];
+    pollTimerRef.current = setTimeout(() => {
+      void (async () => {
+        if (!isLookupGenerationActive(params.generation)) return;
+        const finished = await params.poll();
+        if (!finished && isLookupGenerationActive(params.generation)) {
+          scheduleLookupPoll({ generation: params.generation, attempt: params.attempt + 1, poll: params.poll });
+        }
+      })();
+    }, delay);
+  }, [isLookupGenerationActive]);
+
   const startRunLookup = useCallback(() => {
     stopPolling();
+    const generation = lookupGenerationRef.current;
     lookupDiagnosisRef.current = null;
     setLookupDiagnosis(null);
     setLocatingRun(true);
+    return generation;
   }, [stopPolling]);
 
   const stopRunLookup = useCallback(() => {
@@ -213,6 +244,7 @@ export function useCiLiteWorkflow() {
       branch: string;
       jobId: string;
       workflow: string;
+      userJwt: string;
       expectedEvent: "repository_dispatch" | "workflow_dispatch";
       startedAtMs: number;
       sourceHeadSha?: string | null;
@@ -222,13 +254,22 @@ export function useCiLiteWorkflow() {
         githubRepo: repo,
         branch: br,
         workflow,
+        userJwt,
         expectedEvent,
         startedAtMs,
         sourceHeadSha,
         requireJobIdMarker = true,
       } = opts;
       const edgeUrl = await requireSupabaseEdgeUrl();
-      const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+      const workflowAdminKey = await getWorkflowAdminKey().catch(() => null);
+      const trimmedWorkflowAdminKey = String(workflowAdminKey ?? "").trim();
+      if (!trimmedWorkflowAdminKey || !isLikelyValidAdminKey(trimmedWorkflowAdminKey)) {
+        const normalized = normalizeCiLiteWorkflowError({
+          context: "lookup",
+          adminKey: trimmedWorkflowAdminKey,
+        });
+        throw new Error(normalized.userMessage);
+      }
 
       const r = await fetchWithTimeout(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_RUNS}`, {
         timeoutMs: 15_000,
@@ -236,7 +277,8 @@ export function useCiLiteWorkflow() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(edgeAdminKey ? { "x-k1w1-admin-key": edgeAdminKey } : {}),
+          Authorization: `Bearer ${userJwt}`,
+          "x-k1w1-admin-key": trimmedWorkflowAdminKey,
         },
         body: JSON.stringify({ githubRepo: repo, workflowId: workflow, ref: br, perPage: 30 }),
       });
@@ -245,7 +287,7 @@ export function useCiLiteWorkflow() {
         const { payload, text } = await readCiLiteErrorResponse(r);
         const normalized = normalizeCiLiteWorkflowError({
           context: "lookup",
-          adminKey: edgeAdminKey,
+          adminKey: trimmedWorkflowAdminKey,
           statusCode: r.status,
           statusText: r.statusText,
           payload,
@@ -260,7 +302,7 @@ export function useCiLiteWorkflow() {
       if (workflowLookupNote) {
         const normalized = normalizeCiLiteWorkflowError({
           context: "lookup",
-          adminKey: edgeAdminKey,
+          adminKey: trimmedWorkflowAdminKey,
           note: workflowLookupNote,
         });
         throw new Error(normalized.userMessage);
@@ -351,16 +393,20 @@ export function useCiLiteWorkflow() {
 
   // ---- Artifact result (deterministic header backchannel) ----
   useEffect(() => {
-    if (!githubRepo) return;
-    if (!workflowRun?.id) return;
-    if (workflowRun.status !== "completed") return;
+    const artifactRunId = workflowRun?.id ?? null;
+    const artifactContextKey = buildArtifactFetchContextKey({
+      githubRepo,
+      workflowId,
+      workflowRunId: artifactRunId,
+      workflowStatus: workflowRun?.status ?? null,
+    });
+    if (!artifactContextKey || !artifactRunId) return;
+    if (artifactAttemptedContextRef.current === artifactContextKey) return;
 
     // Reset any stale errors when a run completes.
     setArtifactError(null);
 
-    // Avoid refetch loops
-    if (artifactLoading) return;
-    if (artifactResult) return;
+    artifactAttemptedContextRef.current = artifactContextKey;
 
     let cancelled = false;
 
@@ -369,8 +415,14 @@ export function useCiLiteWorkflow() {
         setArtifactLoading(true);
 
         const edgeUrl = await requireSupabaseEdgeUrl();
-        const adminKey = await getEdgeAdminKey().catch(() => null);
+        const adminKey = await getWorkflowAdminKey().catch(() => null);
         const trimmedAdminKey = String(adminKey ?? "").trim();
+        const supabase = await ensureSupabaseClient().catch(() => null);
+        const session = await supabase?.auth.getSession().catch(() => null);
+        const userJwt = String(session?.data?.session?.access_token ?? "").trim();
+        if (!userJwt) {
+          throw new Error("CI-Lite-Artefakt blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.");
+        }
         if (!trimmedAdminKey || !isLikelyValidAdminKey(trimmedAdminKey)) {
           const normalized = normalizeCiLiteWorkflowError({
             context: "artifact",
@@ -392,11 +444,12 @@ export function useCiLiteWorkflow() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${userJwt}`,
             "x-k1w1-admin-key": trimmedAdminKey,
           },
           body: JSON.stringify({
             githubRepo,
-            runId: workflowRun.id,
+            runId: artifactRunId,
             artifactName,
             filePath,
           }),
@@ -441,16 +494,15 @@ export function useCiLiteWorkflow() {
     workflowId,
     workflowRun?.id,
     workflowRun?.status,
-    artifactLoading,
-    artifactResult,
   ]);
 
   // Clear artifact state when we switch to a new tracked run context.
   useEffect(() => {
+    artifactAttemptedContextRef.current = null;
     setArtifactResult(null);
     setArtifactError(null);
     setArtifactLoading(false);
-  }, [jobId, workflowId, runId]);
+  }, [jobId, workflowId, runId, workflowRun?.id]);
 
   const buildLookupFailureMessage = useCallback((params: { workflowLabel: string }) => {
     const diagnosis = lookupDiagnosisRef.current;
@@ -583,73 +635,79 @@ export function useCiLiteWorkflow() {
     }
 
     setChainWaiting(true);
-    startRunLookup();
+    const lookupGeneration = startRunLookup();
     setWorkflowId(WORKFLOW_CI_LITE);
     setRunId(null);
     setRunUrl(null);
 
-    const start = Date.now();
-    const poll = async () => {
-      try {
-        const lookup = await findMatchingRun({
-          githubRepo,
-          branch: b,
-          jobId,
-          workflow: WORKFLOW_CI_LITE,
-          expectedEvent: "repository_dispatch",
-          startedAtMs: start,
-          sourceHeadSha: workflowRun.head_sha ?? null,
-          requireJobIdMarker: true,
-        });
-        updateLookupDiagnosis(lookup.diagnosis);
-        if (lookup.candidate?.id) {
-          setRunId(Number(lookup.candidate.id));
-          setRunUrl(typeof lookup.candidate?.html_url === "string" ? lookup.candidate.html_url : null);
+    void (async () => {
+      const supabase = await ensureSupabaseClient().catch(() => null);
+      const session = await supabase?.auth.getSession().catch(() => null);
+      const userJwt = String(session?.data?.session?.access_token ?? "").trim();
+      if (!userJwt) {
+        setLocalError("Workflow-Run-Lookup blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.");
+        setChainWaiting(false);
+        stopRunLookup();
+        return;
+      }
+
+      const start = Date.now();
+      const poll = async () => {
+        try {
+          const lookup = await findMatchingRun({
+            githubRepo,
+            branch: b,
+            jobId,
+            workflow: WORKFLOW_CI_LITE,
+            userJwt,
+            expectedEvent: "repository_dispatch",
+            startedAtMs: start,
+            sourceHeadSha: workflowRun.head_sha ?? null,
+            requireJobIdMarker: true,
+          });
+          if (!isLookupGenerationActive(lookupGeneration)) return true;
+          updateLookupDiagnosis(lookup.diagnosis);
+          if (lookup.candidate?.id) {
+            setRunId(Number(lookup.candidate.id));
+            setRunUrl(typeof lookup.candidate?.html_url === "string" ? lookup.candidate.html_url : null);
+            setChainWaiting(false);
+            stopRunLookup();
+            return true;
+          }
+        } catch (e: unknown) {
+          setLocalError(getErrorMessage(e, String(e)));
           setChainWaiting(false);
           stopRunLookup();
           return true;
         }
-      } catch (e: any) {
-        setLocalError(e?.message || String(e));
-        setChainWaiting(false);
-        stopRunLookup();
-        return true;
-      }
-      if (Date.now() - start > 75_000) {
-        setLocalError(buildLookupFailureMessage({ workflowLabel: "Autofix-Chain → CI Lite" }));
-        setChainWaiting(false);
-        stopRunLookup();
-        return true;
-      }
-      return false;
-    };
+        if (Date.now() - start > 75_000) {
+          setLocalError(buildLookupFailureMessage({ workflowLabel: "Autofix-Chain → CI Lite" }));
+          setChainWaiting(false);
+          stopRunLookup();
+          return true;
+        }
+        return false;
+      };
 
-    void (async () => {
       const lookupFinished = await poll();
       if (!lookupFinished) {
-        pollTimerRef.current = setInterval(() => {
-          void poll();
-        }, 2500);
+        scheduleLookupPoll({ generation: lookupGeneration, attempt: 0, poll });
       }
     })();
-  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopRunLookup, startRunLookup, findMatchingRun, buildLookupFailureMessage, updateLookupDiagnosis]);
+  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopRunLookup, startRunLookup, findMatchingRun, buildLookupFailureMessage, updateLookupDiagnosis, scheduleLookupPoll, isLookupGenerationActive]);
 
   // ---- Header state lamp ----
   useEffect(() => {
-    if (dispatching || locatingRun || chainWaiting) { setHeaderState("running"); return; }
-    if (workflowRun?.status) {
-      if (workflowRun.status !== "completed") { setHeaderState("running"); return; }
-      if (workflowRun.conclusion === "success") setHeaderState("success");
-      else if (workflowRun.conclusion === "failure" || workflowRun.conclusion === "cancelled") setHeaderState("failure");
-      else setHeaderState("idle");
-      return;
-    }
-    if (hydratedDisplaySnapshot) {
-      setHeaderState(hydratedDisplaySnapshot.conclusion === "success" ? "success" : "failure");
-      return;
-    }
-    setHeaderState("idle");
-  }, [workflowRun?.status, workflowRun?.conclusion, dispatching, locatingRun, chainWaiting, hydratedDisplaySnapshot]);
+    setHeaderState(
+      deriveCiLiteHeaderState({
+        dispatching,
+        locatingRun,
+        chainWaiting,
+        workflowRun,
+        hydratedDisplaySnapshot,
+      }),
+    );
+  }, [workflowRun, dispatching, locatingRun, chainWaiting, hydratedDisplaySnapshot]);
 
   // ---- Persist CI Lite results ----
   useEffect(() => {
@@ -747,14 +805,22 @@ export function useCiLiteWorkflow() {
           ? await getBranchHeadSha(repoParts.owner, repoParts.repo, targetBranch).catch(() => null)
           : null;
 
-        const edgeAdminKey = await getEdgeAdminKey().catch(() => null);
-        const trimmedEdgeAdminKey = String(edgeAdminKey ?? "").trim();
-        if (!trimmedEdgeAdminKey || !isLikelyValidAdminKey(trimmedEdgeAdminKey)) {
+        const workflowAdminKey = await getWorkflowAdminKey().catch(() => null);
+        const trimmedWorkflowAdminKey = String(workflowAdminKey ?? "").trim();
+        if (!trimmedWorkflowAdminKey || !isLikelyValidAdminKey(trimmedWorkflowAdminKey)) {
           const normalized = normalizeCiLiteWorkflowError({
             context: "dispatch",
-            adminKey: edgeAdminKey,
+            adminKey: workflowAdminKey,
           });
           throw new Error(normalized.userMessage);
+        }
+        const supabase = await ensureSupabaseClient().catch(() => null);
+        const session = await supabase?.auth.getSession().catch(() => null);
+        const userJwt = String(session?.data?.session?.access_token ?? "").trim();
+        if (!userJwt) {
+          throw new Error(
+            "Workflow-Dispatch blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.",
+          );
         }
 
         const edgeUrl = await requireSupabaseEdgeUrl();
@@ -762,7 +828,11 @@ export function useCiLiteWorkflow() {
           timeoutMs: 15_000,
           timeoutMessage: "Workflow-Dispatch hat das Zeitlimit erreicht. Bitte erneut versuchen.",
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-k1w1-admin-key": trimmedEdgeAdminKey },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${userJwt}`,
+            "x-k1w1-admin-key": trimmedWorkflowAdminKey,
+          },
           body: JSON.stringify({
             githubRepo,
             workflow: workflowFile,
@@ -778,7 +848,7 @@ export function useCiLiteWorkflow() {
           const { payload, text } = await readCiLiteErrorResponse(r);
           const normalized = normalizeCiLiteWorkflowError({
             context: "dispatch",
-            adminKey: trimmedEdgeAdminKey,
+            adminKey: trimmedWorkflowAdminKey,
             statusCode: r.status,
             statusText: r.statusText,
             payload,
@@ -795,11 +865,13 @@ export function useCiLiteWorkflow() {
               branch: targetBranch,
               jobId: newJobId,
               workflow: workflowFile,
+              userJwt,
               expectedEvent: "workflow_dispatch",
               startedAtMs: start,
               sourceHeadSha,
               requireJobIdMarker: true,
             });
+            if (!isLookupGenerationActive(lookupGeneration)) return true;
             updateLookupDiagnosis(lookup.diagnosis);
             if (lookup.candidate?.id) {
               setRunId(Number(lookup.candidate.id));
@@ -807,8 +879,8 @@ export function useCiLiteWorkflow() {
               stopRunLookup();
               return true;
             }
-          } catch (e: any) {
-            setLocalError(e?.message || String(e));
+          } catch (e: unknown) {
+            setLocalError(getErrorMessage(e, String(e)));
             stopRunLookup();
             return true;
           }
@@ -820,21 +892,19 @@ export function useCiLiteWorkflow() {
           return false;
         };
 
-        startRunLookup();
+        const lookupGeneration = startRunLookup();
         const lookupFinished = await poll();
         if (!lookupFinished) {
-          pollTimerRef.current = setInterval(() => {
-            void poll();
-          }, 2500);
+          scheduleLookupPoll({ generation: lookupGeneration, attempt: 0, poll });
         }
-      } catch (e: any) {
-        setLocalError(e?.message || String(e));
+      } catch (e: unknown) {
+        setLocalError(getErrorMessage(e, String(e)));
         stopRunLookup();
       } finally {
         setDispatching(false);
       }
     },
-    [dispatching, githubRepo, branch, stopRunLookup, startRunLookup, findMatchingRun, projectData?.files, buildLookupFailureMessage, updateLookupDiagnosis],
+    [dispatching, githubRepo, branch, stopRunLookup, startRunLookup, findMatchingRun, projectData?.files, buildLookupFailureMessage, updateLookupDiagnosis, scheduleLookupPoll, isLookupGenerationActive],
   );
 
 

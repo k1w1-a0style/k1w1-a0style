@@ -32,14 +32,46 @@ export function computeCiLiteOk(args: {
     return (workflowRun.conclusion || "").toLowerCase() === "success";
   }
 
-  return onlyErrorsCount == 0 && !hasErrorText;
+  return onlyErrorsCount === 0 && !hasErrorText;
 }
 
 export function safeUi(s: string): string {
   return truncateWithMarker(redactSecrets(s || ""), 900, "…");
 }
 
-export function findWorkflowRunByJobId(runs: any[], jobId: string): any | null {
+type WorkflowRunForLookup = Record<string, unknown> & {
+  display_title?: unknown;
+  name?: unknown;
+};
+
+type WorkflowRunWithTitle = {
+  run: WorkflowRunForLookup;
+  title: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function toWorkflowRunCandidate(value: unknown): WorkflowRunForLookup | null {
+  return isRecord(value) ? value : null;
+}
+
+function getRunTitle(run: WorkflowRunForLookup): string {
+  const displayTitle = typeof run.display_title === "string" ? run.display_title : "";
+  const name = typeof run.name === "string" ? run.name : "";
+  return String(displayTitle || name).trim();
+}
+
+function toWorkflowRunWithTitle(value: unknown): WorkflowRunWithTitle | null {
+  const run = toWorkflowRunCandidate(value);
+  if (!run) return null;
+  const title = getRunTitle(run);
+  if (!title) return null;
+  return { run, title };
+}
+
+export function findWorkflowRunByJobId(runs: unknown, jobId: string): WorkflowRunForLookup | null {
   if (!Array.isArray(runs) || !jobId?.trim()) return null;
   const jid = jobId.trim();
 
@@ -51,11 +83,8 @@ export function findWorkflowRunByJobId(runs: any[], jobId: string): any | null {
   ];
 
   const withTitle = runs
-    .map((r) => ({
-      run: r,
-      title: String(r?.display_title ?? r?.name ?? "").trim(),
-    }))
-    .filter((x) => x.title.length > 0);
+    .map(toWorkflowRunWithTitle)
+    .filter((entry): entry is WorkflowRunWithTitle => entry !== null);
 
   const exact = withTitle.find(({ title }) => exactPatterns.some((p) => title.includes(p)));
   if (exact) return exact.run;
@@ -125,18 +154,20 @@ export function inferStepStates(lines: string[]): {
   return { lint, typecheck, eslintErrors, tsErrors };
 }
 
-export function normalizePreflightPatch(input: any): PreflightPatch {
-  if (!input || typeof input !== "object") throw new Error("Patch JSON ist leer oder ungültig.");
+export function normalizePreflightPatch(input: unknown): PreflightPatch {
+  if (!isRecord(input)) throw new Error("Patch JSON ist leer oder ungültig.");
 
   // Accept either a plain patch or { patch: ... }
-  const p =
-    (input as any).patch && typeof (input as any).patch === "object" ? (input as any).patch : input;
+  const patchCandidate = isRecord(input.patch) ? input.patch : input;
 
   const out: PreflightPatch = {};
-  if (Array.isArray((p as any).upsert)) out.upsert = (p as any).upsert;
-  if (Array.isArray((p as any).delete)) out.delete = (p as any).delete;
-  if (Array.isArray((p as any).jsonMerge)) out.jsonMerge = (p as any).jsonMerge;
-  if (typeof (p as any).explanation === "string") out.explanation = (p as any).explanation;
+  const upsert = patchCandidate.upsert;
+  const deletions = patchCandidate.delete;
+  const jsonMerge = patchCandidate.jsonMerge;
+  if (Array.isArray(upsert)) out.upsert = upsert;
+  if (Array.isArray(deletions)) out.delete = deletions;
+  if (Array.isArray(jsonMerge)) out.jsonMerge = jsonMerge;
+  if (typeof patchCandidate.explanation === "string") out.explanation = patchCandidate.explanation;
 
   if (!out.upsert?.length && !out.delete?.length && !out.jsonMerge?.length) {
     throw new Error("Patch hat keine Operationen (upsert/delete/jsonMerge).");

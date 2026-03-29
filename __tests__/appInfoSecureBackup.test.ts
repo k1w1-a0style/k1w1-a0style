@@ -4,6 +4,7 @@ import {
   decryptScopedBackup,
   encryptScopedBackup,
   secureBackupContainsProjectContent,
+  validateSecureBackupPayload,
   validateEncryptedScopedBackupJson,
 } from "../lib/appInfoScopedBackup";
 import { sanitizeAiConfigFromBackup, validateApiBackupJson } from "../lib/appInfoBackup";
@@ -46,6 +47,10 @@ function makeSecretPayload() {
     tokens: {
       githubToken: "ghp_secret_token",
       expoToken: "expo_secret_token",
+      workflowAdminKey: "workflow_admin_secret",
+      androidKeystoreExportAdminKey: "keystore_export_admin_secret",
+      legacyEdgeAdminKey: "edge_admin_secret",
+      signingAdminKey: "signing_admin_secret",
       edgeAdminKey: "edge_admin_secret",
       signingMasterKey: "signing_master_secret",
     },
@@ -54,8 +59,8 @@ function makeSecretPayload() {
       SIGNING_MASTER_KEY: "signing_master_secret",
     },
     github: {
-      activeRepo: "owner/repo",
-      activeBranch: "main",
+      linkedRepo: "owner/repo",
+      linkedBranch: "main",
       recentRepos: ["owner/repo", "owner/other"],
     },
   });
@@ -146,6 +151,81 @@ describe("app info secure backup contract", () => {
         version: 1,
       }),
     ).toThrow("Legacy-Klartext-Backups werden nicht mehr unterstützt");
+  });
+
+  test("legacy github activeRepo/activeBranch fields are migrated to linkedRepo/linkedBranch on import", () => {
+    const restored = validateSecureBackupPayload({
+      kind: "secret-snapshot",
+      version: 1,
+      exportDate: "2026-03-20T12:00:00.000Z",
+      connections: {
+        supabaseRaw: "",
+        supabaseUrl: "",
+        supabaseAnonKey: "",
+        easProjectId: "",
+      },
+      tokens: {
+        githubToken: null,
+        expoToken: null,
+        workflowAdminKey: null,
+        androidKeystoreExportAdminKey: null,
+        legacyEdgeAdminKey: null,
+        signingAdminKey: null,
+        signingMasterKey: null,
+      },
+      ciSecrets: {},
+      github: {
+        activeRepo: "legacy/only",
+        activeBranch: "legacy-branch",
+        recentRepos: ["legacy/only"],
+      },
+    });
+
+    expect(restored.kind).toBe("secret-snapshot");
+    if (restored.kind !== "secret-snapshot") {
+      throw new Error("Expected secret snapshot payload");
+    }
+    expect(restored.github.linkedRepo).toBe("legacy/only");
+    expect(restored.github.linkedBranch).toBe("legacy-branch");
+  });
+
+  test("legacy edgeAdminKey-only backups migrate compatibly but do not mirror into keystore/signing slots", () => {
+    const restored = validateSecureBackupPayload({
+      kind: "secret-snapshot",
+      version: 1,
+      exportDate: "2026-03-20T12:00:00.000Z",
+      connections: {
+        supabaseRaw: "",
+        supabaseUrl: "",
+        supabaseAnonKey: "",
+        easProjectId: "",
+      },
+      tokens: {
+        githubToken: null,
+        expoToken: null,
+        edgeAdminKey: "legacy-edge-only",
+        workflowAdminKey: null,
+        androidKeystoreExportAdminKey: null,
+        legacyEdgeAdminKey: null,
+        signingAdminKey: null,
+        signingMasterKey: null,
+      },
+      ciSecrets: {},
+      github: {
+        linkedRepo: "legacy/only",
+        linkedBranch: "legacy-branch",
+        recentRepos: [],
+      },
+    });
+
+    if (restored.kind !== "secret-snapshot") {
+      throw new Error("Expected secret snapshot payload");
+    }
+
+    expect(restored.tokens.workflowAdminKey).toBe("legacy-edge-only");
+    expect(restored.tokens.legacyEdgeAdminKey).toBe("legacy-edge-only");
+    expect(restored.tokens.androidKeystoreExportAdminKey).toBeNull();
+    expect(restored.tokens.signingAdminKey).toBeNull();
   });
 
   test("legacy api config exports still validate and sanitize independently", () => {

@@ -91,14 +91,21 @@ describe("Patch 417 CI utility workflow ref SoT invariants", () => {
 
   it("keeps the embedded EAS Link templates exactly aligned with the live workflow", () => {
     const easLink = read(".github/workflows/eas-link.yml");
-    const templatesTs = read("lib/diagnostics/workflowTemplates.ts");
+    const templatesTs = read("shared/workflows/easLinkWorkflowTemplate.ts");
+    const diagnosticsTs = read("lib/diagnostics/workflowTemplates.ts");
     const baseJson = read("templates/expo-sdk54-base.json");
 
-    const tsEasLink = extractExportedStringConst(templatesTs, "workflowTemplates.ts", "WORKFLOW_EAS_LINK");
+    const tsEasLink = extractExportedStringConst(
+      templatesTs,
+      "easLinkWorkflowTemplate.ts",
+      "WORKFLOW_EAS_LINK_TEMPLATE",
+    );
     const baseEasLink = extractTemplateContent(baseJson, ".github/workflows/eas-link.yml");
 
     expect(tsEasLink).toBeTruthy();
     expect(baseEasLink).toBeTruthy();
+    expect(diagnosticsTs).toContain("WORKFLOW_EAS_LINK_TEMPLATE");
+    expect(diagnosticsTs).toContain("export const WORKFLOW_EAS_LINK = WORKFLOW_EAS_LINK_TEMPLATE;");
 
     expect(normalize(tsEasLink)).toBe(normalize(easLink));
     expect(normalize(baseEasLink)).toBe(normalize(easLink));
@@ -108,7 +115,8 @@ describe("Patch 417 CI utility workflow ref SoT invariants", () => {
     const guard = read("scripts/check_workflow_template_drift.sh");
     expect(guard).toContain('for wf in .github/workflows/eas-link.yml .github/workflows/release-build.yml; do');
     expect(guard).not.toContain('.github/workflows/deploy-supabase-functions.yml; do');
-    expect(guard).toContain('Diagnostics WORKFLOW_EAS_LINK drifted from live .github/workflows/eas-link.yml');
+    expect(guard).toContain('Shared WORKFLOW_EAS_LINK_TEMPLATE drifted from live .github/workflows/eas-link.yml');
+    expect(guard).toContain('Shared WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE drifted from live .github/workflows/k1w1-triggered-build.yml');
     expect(guard).toContain('templates/expo-sdk54-base.json EAS Link entry drifted from live .github/workflows/eas-link.yml');
   });
 
@@ -120,6 +128,7 @@ describe("Patch 417 CI utility workflow ref SoT invariants", () => {
     expect(managed).toContain("Missing 'on.workflow_dispatch.inputs.ref.required: true' contract");
     expect(managed).not.toContain("grep -Eq '^\\s+required:\\s*true\\s*$'");
     expect(managed).toContain('.github/workflows/k1w1-triggered-build.yml');
+    expect(managed).toContain('WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE');
     expect(managed).toContain("ref: ${{ github.ref }}");
     expect(managed).toContain("ref: ${{ github.ref_name }}");
     expect(managed).toContain("github.head_ref");

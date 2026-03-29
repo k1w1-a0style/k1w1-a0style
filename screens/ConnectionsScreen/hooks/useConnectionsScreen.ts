@@ -17,9 +17,15 @@ import {
   getExpoToken,
   saveExpoToken,
   deleteExpoToken,
-  getEdgeAdminKey,
-  saveEdgeAdminKey,
-  deleteEdgeAdminKey,
+  getWorkflowAdminKey,
+  saveWorkflowAdminKey,
+  deleteWorkflowAdminKey,
+  getAndroidKeystoreExportAdminKey,
+  saveAndroidKeystoreExportAdminKey,
+  deleteAndroidKeystoreExportAdminKey,
+  getLegacyEdgeAdminKey,
+  saveLegacyEdgeAdminKey,
+  deleteLegacyEdgeAdminKey,
   triggerWorkflow,
 } from "../../../infra/github/githubService";
 import {
@@ -230,11 +236,15 @@ export function useConnectionsScreen() {
     }
   }, [expoToken, hydrated]);
 
-  const [edgeAdminKey, setEdgeAdminKeyState] = useState("");
+  const [workflowAdminKey, setWorkflowAdminKey] = useState("");
+  const [androidKeystoreExportAdminKey, setAndroidKeystoreExportAdminKey] = useState("");
+  const [legacyEdgeAdminKey, setLegacyEdgeAdminKey] = useState("");
 
   const [showGitHub, setShowGitHub] = useState(false);
   const [showExpo, setShowExpo] = useState(false);
-  const [showEdge, setShowEdge] = useState(false);
+  const [showWorkflowAdmin, setShowWorkflowAdmin] = useState(false);
+  const [showKeystoreAdmin, setShowKeystoreAdmin] = useState(false);
+  const [showLegacyEdge, setShowLegacyEdge] = useState(false);
 
   // Supabase
   const [supabaseRaw, setSupabaseRaw] = useState("");
@@ -258,10 +268,12 @@ export function useConnectionsScreen() {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const [gh, ex, edge] = await Promise.all([
+      const [gh, ex, workflowKey, keystoreKey, legacyEdgeKey] = await Promise.all([
         getGitHubToken().catch(() => ""),
         getExpoToken().catch(() => ""),
-        getEdgeAdminKey().catch(() => ""),
+        getWorkflowAdminKey().catch(() => ""),
+        getAndroidKeystoreExportAdminKey().catch(() => ""),
+        getLegacyEdgeAdminKey().catch(() => ""),
       ]);
 
       const [raw, url, anon, eas] = await Promise.all([
@@ -291,7 +303,9 @@ export function useConnectionsScreen() {
       if (!mounted) return;
       setGithubToken(gh || "");
       setExpoToken(ex || "");
-      setEdgeAdminKeyState(edge || "");
+      setWorkflowAdminKey(workflowKey || "");
+      setAndroidKeystoreExportAdminKey(keystoreKey || "");
+      setLegacyEdgeAdminKey(legacyEdgeKey || "");
       setSupabaseRaw(raw || "");
       setSupabaseUrl(url || "");
       setSupabaseAnonKey(anon || "");
@@ -353,7 +367,9 @@ export function useConnectionsScreen() {
     const v = validateBeforeSave({
       githubToken,
       expoToken,
-      edgeAdminKey,
+      workflowAdminKey,
+      androidKeystoreExportAdminKey,
+      legacyEdgeAdminKey,
       supabaseUrl,
       supabaseAnonKey,
       easProjectId,
@@ -367,7 +383,9 @@ export function useConnectionsScreen() {
       await withBusyGuard(async () => {
       const gh = githubToken.trim();
       const ex = expoToken.trim();
-      const edge = edgeAdminKey.trim();
+      const workflowAdmin = workflowAdminKey.trim();
+      const keystoreAdmin = androidKeystoreExportAdminKey.trim();
+      const legacyEdge = legacyEdgeAdminKey.trim();
       const raw = supabaseRaw.trim();
       const sbUrl = supabaseUrl.trim();
       const sbAnon = supabaseAnonKey.trim();
@@ -409,8 +427,14 @@ export function useConnectionsScreen() {
         await removeConnLights([STORAGE_KEYS.CONN_EXPO_USER]);
       }
 
-      if (edge) await saveEdgeAdminKey(edge);
-      else await deleteEdgeAdminKey();
+      if (workflowAdmin) await saveWorkflowAdminKey(workflowAdmin);
+      else await deleteWorkflowAdminKey();
+
+      if (keystoreAdmin) await saveAndroidKeystoreExportAdminKey(keystoreAdmin);
+      else await deleteAndroidKeystoreExportAdminKey();
+
+      if (legacyEdge) await saveLegacyEdgeAdminKey(legacyEdge);
+      else await deleteLegacyEdgeAdminKey();
 
       await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, raw);
       await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, sbUrl);
@@ -454,7 +478,9 @@ export function useConnectionsScreen() {
     hydrated,
     githubToken,
     expoToken,
-    edgeAdminKey,
+    workflowAdminKey,
+    androidKeystoreExportAdminKey,
+    legacyEdgeAdminKey,
     supabaseRaw,
     supabaseUrl,
     supabaseAnonKey,
@@ -651,7 +677,10 @@ Scopes: ${scopes}` : ""}`);
   const status = useMemo(() => {
     const gh = !!githubToken.trim();
     const ex = !!expoToken.trim();
-    const edge = !!edgeAdminKey.trim();
+    const edge =
+      !!workflowAdminKey.trim() ||
+      !!androidKeystoreExportAdminKey.trim() ||
+      !!legacyEdgeAdminKey.trim();
     const sbUrl = !!supabaseUrl.trim();
     const sbAnon = !!supabaseAnonKey.trim();
     const linked = !!(projectData?.linkedRepo || activeRepo);
@@ -661,7 +690,9 @@ Scopes: ${scopes}` : ""}`);
   }, [
     githubToken,
     expoToken,
-    edgeAdminKey,
+    workflowAdminKey,
+    androidKeystoreExportAdminKey,
+    legacyEdgeAdminKey,
     supabaseUrl,
     supabaseAnonKey,
     projectData?.linkedRepo,
@@ -872,14 +903,22 @@ Scopes: ${scopes}` : ""}`);
     setGithubToken,
     expoToken,
     setExpoToken,
-    edgeAdminKey,
-    setEdgeAdminKey: setEdgeAdminKeyState,
+    workflowAdminKey,
+    setWorkflowAdminKey,
+    androidKeystoreExportAdminKey,
+    setAndroidKeystoreExportAdminKey,
+    legacyEdgeAdminKey,
+    setLegacyEdgeAdminKey,
     showGitHub,
     setShowGitHub,
     showExpo,
     setShowExpo,
-    showEdge,
-    setShowEdge,
+    showWorkflowAdmin,
+    setShowWorkflowAdmin,
+    showKeystoreAdmin,
+    setShowKeystoreAdmin,
+    showLegacyEdge,
+    setShowLegacyEdge,
 
     showSupabaseAnon,
     setShowSupabaseAnon,

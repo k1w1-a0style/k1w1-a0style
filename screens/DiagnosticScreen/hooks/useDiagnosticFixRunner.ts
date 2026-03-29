@@ -24,11 +24,21 @@ import {
   getDiagnosticFixExecutionResult,
 } from "../../../lib/diagnostics/fixResultContract";
 import { findOwnershipViolations } from "../../../lib/projectOwnership";
+import {
+  buildBatchFixSteps,
+  buildIssueFixSteps,
+  buildSingleFixSteps,
+  setStepStatusAtIndex,
+} from "./fixRunnerHelpers";
+import {
+  buildApplyFailureResult,
+  buildFailedStepPatch,
+  getErrorMessage,
+} from "./fixRunnerResultHelpers";
 
 import type {
   FixHistoryEntry,
   FixStep,
-  FixStepStatus,
   Status,
 } from "../types";
 
@@ -489,18 +499,12 @@ export function useDiagnosticFixRunner(opts: {
       const dispatch = r.fix?.workflowDispatch;
       const doSync = patchForApply ? shouldSyncPatch(patchForApply) : false;
 
-      const steps: FixStep[] = [
-        ...(patchForApply
-          ? [{ key: "apply", title: "Patch lokal anwenden", status: "pending" as FixStepStatus }]
-          : []),
-        ...(dispatch
-          ? [{ key: "dispatch", title: "Workflow-Fix starten", status: "pending" as FixStepStatus }]
-          : []),
-        ...(doSync ? [{ key: "sync", title: "Änderung ins Repo syncen", status: "pending" as FixStepStatus }] : []),
-        ...(rerunAfterFix
-          ? [{ key: "rerun", title: "Diagnostics erneut prüfen", status: "pending" as FixStepStatus }]
-          : []),
-      ];
+      const steps = buildIssueFixSteps({
+        hasPatch: !!patchForApply,
+        hasDispatch: !!dispatch,
+        doSync,
+        rerunAfterFix,
+      });
 
       setFixModalTitle("Fix");
       setFixModalSubtitle(r.title);
@@ -512,22 +516,16 @@ export function useDiagnosticFixRunner(opts: {
       let cursor = 0;
       const runStep = async (fn: () => Promise<void>, failMsg: string) => {
         setFixStepIndex(cursor);
-        setFixSteps((prev) => prev.map((s, i) => (i === cursor ? { ...s, status: "running" } : s)));
+        setFixSteps((prev) => setStepStatusAtIndex(prev, cursor, { status: "running" }));
         try {
           await fn();
-          setFixSteps((prev) => prev.map((s, i) => (i === cursor ? { ...s, status: "done" } : s)));
+          setFixSteps((prev) => setStepStatusAtIndex(prev, cursor, { status: "done" }));
           cursor++;
           return null;
-        } catch (e: any) {
-          setFixSteps((prev) =>
-            prev.map((s, i) =>
-              i === cursor
-                ? { ...s, status: "failed", message: safeTruncateText(e?.message || failMsg, 160) }
-                : s,
-            ),
-          );
+        } catch (error: unknown) {
+          setFixSteps((prev) => setStepStatusAtIndex(prev, cursor, buildFailedStepPatch(error, failMsg)));
           setFixDone(true);
-          return e;
+          return error;
         }
       };
 
@@ -538,13 +536,13 @@ export function useDiagnosticFixRunner(opts: {
           patchApplied = true;
         }, "Fehler");
         if (stepError) {
-          finishWithResult({
-            status: stepError instanceof DiagnosticFixApplyError ? stepError.status : "failed",
-            detail: stepError?.message || "Patch konnte nicht angewendet werden.",
-            localChangeApplied: !!stepError?.localChangeApplied,
-            partial: !!stepError?.partial,
-            stepIndex: cursor,
-          });
+          finishWithResult(
+            buildApplyFailureResult({
+              error: stepError,
+              fallback: "Patch konnte nicht angewendet werden.",
+              stepIndex: cursor,
+            }),
+          );
           return;
         }
       }
@@ -564,11 +562,7 @@ export function useDiagnosticFixRunner(opts: {
         if (!workflowRef) {
           const detail = "Workflow-Fix ist ohne verknüpften Branch nicht anwendbar.";
           setFixSteps((prev) =>
-            prev.map((s, i) =>
-              i === cursor
-                ? { ...s, status: "failed", message: safeTruncateText(detail, 160) }
-                : s,
-            ),
+            setStepStatusAtIndex(prev, cursor, buildFailedStepPatch(detail, detail)),
           );
           finishWithResult({
             status: "blocked",
@@ -588,8 +582,8 @@ export function useDiagnosticFixRunner(opts: {
               workflowRef,
               dispatch.inputs || {},
             );
-          } catch (e: any) {
-            const msg = String(e?.message || "");
+          } catch (error: unknown) {
+            const msg = getErrorMessage(error, "");
             if (/404|not found/i.test(msg) && dispatch.fallbackPatch) {
               await applyPatch(`Bootstrap ${dispatch.workflowFileName}`, dispatch.fallbackPatch);
               await triggerWorkflow(
@@ -601,13 +595,13 @@ export function useDiagnosticFixRunner(opts: {
               );
               return;
             }
-            throw e;
+            throw error;
           }
         }, "Workflow dispatch fehlgeschlagen");
         if (stepError) {
           finishWithResult({
             status: "failed",
-            detail: stepError?.message || "Workflow dispatch fehlgeschlagen",
+            detail: getErrorMessage(stepError, "Workflow dispatch fehlgeschlagen"),
             localChangeApplied: patchApplied,
             workflowTriggered: false,
             partial: patchApplied,
@@ -625,7 +619,7 @@ export function useDiagnosticFixRunner(opts: {
         if (stepError) {
           finishWithResult({
             status: "failed",
-            detail: stepError?.message || "Sync fehlgeschlagen",
+            detail: getErrorMessage(stepError, "Sync fehlgeschlagen"),
             localChangeApplied: patchApplied,
             partial: patchApplied,
             stepIndex: cursor,
@@ -642,7 +636,7 @@ export function useDiagnosticFixRunner(opts: {
         if (stepError) {
           finishWithResult({
             status: "pending_recheck",
-            detail: stepError?.message || "Verify fehlgeschlagen",
+            detail: getErrorMessage(stepError, "Verify fehlgeschlagen"),
             localChangeApplied: patchApplied,
             workflowTriggered: !!dispatch,
             stepIndex: cursor,
@@ -729,8 +723,6 @@ export function useDiagnosticFixRunner(opts: {
         if (!proceed) return;
       }
 
-      const steps: FixStep[] = [];
-
       // De-dup patches in batch mode: prevents repeated apply of identical patch sets.
       const seen = new Set<string>();
       const deduped: Array<{ r: PreflightCheckResult; patch: PreflightPatch }> = [];
@@ -743,15 +735,10 @@ export function useDiagnosticFixRunner(opts: {
         deduped.push({ r, patch });
       }
 
-      for (const { r, patch } of deduped) {
-        steps.push({ key: `apply:${r.id}`, title: `Patch: ${r.title}`, status: "pending" });
-        if (shouldSyncPatch(patch)) {
-          steps.push({ key: `sync:${r.id}`, title: `Sync: ${r.title}`, status: "pending" });
-        }
-      }
-      if (rerunAfterFix) {
-        steps.push({ key: "rerun", title: "Diagnostics erneut prüfen", status: "pending" });
-      }
+      const steps = buildBatchFixSteps(
+        deduped.map(({ r, patch }) => ({ id: r.id, title: r.title, doSync: shouldSyncPatch(patch) })),
+        rerunAfterFix,
+      );
 
       const skipped = Math.max(0, items.filter((r) => !!r.fix?.patch).length - deduped.length);
       setFixModalTitle(label);
@@ -763,7 +750,7 @@ export function useDiagnosticFixRunner(opts: {
 
       let cursor = 0;
       const mark = (idx: number, patch: Partial<FixStep>) => {
-        setFixSteps((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
+        setFixSteps((prev) => setStepStatusAtIndex(prev, idx, patch));
       };
 
       let appliedCount = 0;
@@ -774,15 +761,18 @@ export function useDiagnosticFixRunner(opts: {
           await applyPatch(r.title, patch);
           mark(cursor, { status: "done" });
           appliedCount++;
-        } catch (e: any) {
-          mark(cursor, { status: "failed", message: safeTruncateText(e?.message || "Apply fehlgeschlagen", 160) });
-          finishWithResult({
-            status: e instanceof DiagnosticFixApplyError ? e.status : "failed",
-            detail: e?.message || "Apply fehlgeschlagen",
-            localChangeApplied: appliedCount > 0 || !!e?.localChangeApplied,
-            partial: appliedCount > 0 || !!e?.partial,
-            stepIndex: cursor,
-          });
+        } catch (error: unknown) {
+          const message = getErrorMessage(error, "Apply fehlgeschlagen");
+          mark(cursor, buildFailedStepPatch(error, "Apply fehlgeschlagen"));
+          finishWithResult(
+            buildApplyFailureResult({
+              error,
+              fallback: "Apply fehlgeschlagen",
+              stepIndex: cursor,
+              localChangeApplied: appliedCount > 0 || undefined,
+              partial: appliedCount > 0 || undefined,
+            }),
+          );
           return;
         }
         cursor++;
@@ -793,11 +783,12 @@ export function useDiagnosticFixRunner(opts: {
           try {
             await syncPatchToGitHub(r.title, patch);
             mark(cursor, { status: "done" });
-          } catch (e: any) {
-            mark(cursor, { status: "failed", message: safeTruncateText(e?.message || "Sync fehlgeschlagen", 160) });
+          } catch (error: unknown) {
+            const message = getErrorMessage(error, "Sync fehlgeschlagen");
+            mark(cursor, buildFailedStepPatch(error, "Sync fehlgeschlagen"));
             finishWithResult({
               status: "failed",
-              detail: e?.message || "Sync fehlgeschlagen",
+              detail: message,
               localChangeApplied: appliedCount > 0,
               partial: appliedCount > 0,
               stepIndex: cursor,
@@ -814,11 +805,12 @@ export function useDiagnosticFixRunner(opts: {
         try {
           await runDiagnostics({ resetSelection: false, resetHistory: false });
           mark(cursor, { status: "done" });
-        } catch (e: any) {
-          mark(cursor, { status: "failed", message: safeTruncateText(e?.message || "Verify fehlgeschlagen", 160) });
+        } catch (error: unknown) {
+          const message = getErrorMessage(error, "Verify fehlgeschlagen");
+          mark(cursor, buildFailedStepPatch(error, "Verify fehlgeschlagen"));
           finishWithResult({
             status: "pending_recheck",
-            detail: e?.message || "Verify fehlgeschlagen",
+            detail: message,
             localChangeApplied: appliedCount > 0,
             partial: false,
             stepIndex: cursor,
@@ -963,15 +955,7 @@ export function useDiagnosticFixRunner(opts: {
       const syncWouldHelp = shouldSyncPatch(patch);
 
       const runOne = async (doSync: boolean) => {
-        const steps: FixStep[] = [
-          { key: "apply", title: "Patch lokal anwenden", status: "pending" },
-          ...(doSync
-            ? [{ key: "sync", title: "Änderung ins Repo syncen", status: "pending" as FixStepStatus }]
-            : []),
-          ...(rerunAfterFix
-            ? [{ key: "rerun", title: "Diagnostics erneut prüfen", status: "pending" as FixStepStatus }]
-            : []),
-        ];
+        const steps = buildSingleFixSteps({ doSync, rerunAfterFix });
 
         setFixModalTitle("Fix");
         setFixModalSubtitle(r.title);
@@ -980,48 +964,39 @@ export function useDiagnosticFixRunner(opts: {
         setFixDone(false);
         setFixModalVisible(true);
 
-        setFixSteps((prev) => prev.map((s, i) => (i === 0 ? { ...s, status: "running" } : s)));
+        setFixSteps((prev) => setStepStatusAtIndex(prev, 0, { status: "running" }));
         let patchApplied = false;
         try {
           await applyPatch(r.title, patch);
           patchApplied = true;
-          setFixSteps((prev) => prev.map((s, i) => (i === 0 ? { ...s, status: "done" } : s)));
-        } catch (e: any) {
-          setFixSteps((prev) =>
-            prev.map((s, i) =>
-              i === 0
-                ? { ...s, status: "failed", message: safeTruncateText(e?.message || "Fehler", 160) }
-                : s,
-            ),
+          setFixSteps((prev) => setStepStatusAtIndex(prev, 0, { status: "done" }));
+        } catch (error: unknown) {
+          setFixSteps((prev) => setStepStatusAtIndex(prev, 0, buildFailedStepPatch(error, "Fehler")));
+          finishWithResult(
+            buildApplyFailureResult({
+              error,
+              fallback: "Fehler",
+              stepIndex: 0,
+            }),
           );
-          finishWithResult({
-            status: e instanceof DiagnosticFixApplyError ? e.status : "failed",
-            detail: e?.message || "Fehler",
-            localChangeApplied: !!e?.localChangeApplied,
-            partial: !!e?.partial,
-            stepIndex: 0,
-          });
           return;
         }
 
         let stepCursor = 1;
         if (doSync) {
           setFixStepIndex(stepCursor);
-          setFixSteps((prev) => prev.map((s, i) => (i === stepCursor ? { ...s, status: "running" } : s)));
+          setFixSteps((prev) => setStepStatusAtIndex(prev, stepCursor, { status: "running" }));
           try {
             await syncPatchToGitHub(r.title, patch);
-            setFixSteps((prev) => prev.map((s, i) => (i === stepCursor ? { ...s, status: "done" } : s)));
-          } catch (e: any) {
+            setFixSteps((prev) => setStepStatusAtIndex(prev, stepCursor, { status: "done" }));
+          } catch (error: unknown) {
+            const message = getErrorMessage(error, "Sync fehlgeschlagen");
             setFixSteps((prev) =>
-              prev.map((s, i) =>
-                i === stepCursor
-                  ? { ...s, status: "failed", message: safeTruncateText(e?.message || "Sync fehlgeschlagen", 160) }
-                  : s,
-              ),
+              setStepStatusAtIndex(prev, stepCursor, buildFailedStepPatch(error, "Sync fehlgeschlagen")),
             );
             finishWithResult({
               status: "failed",
-              detail: e?.message || "Sync fehlgeschlagen",
+              detail: message,
               localChangeApplied: patchApplied,
               partial: patchApplied,
               stepIndex: stepCursor,
@@ -1033,21 +1008,18 @@ export function useDiagnosticFixRunner(opts: {
 
         if (rerunAfterFix) {
           setFixStepIndex(stepCursor);
-          setFixSteps((prev) => prev.map((s, i) => (i === stepCursor ? { ...s, status: "running" } : s)));
+          setFixSteps((prev) => setStepStatusAtIndex(prev, stepCursor, { status: "running" }));
           try {
             await runDiagnostics({ resetSelection: false, resetHistory: false });
-            setFixSteps((prev) => prev.map((s, i) => (i === stepCursor ? { ...s, status: "done" } : s)));
-          } catch (e: any) {
+            setFixSteps((prev) => setStepStatusAtIndex(prev, stepCursor, { status: "done" }));
+          } catch (error: unknown) {
+            const message = getErrorMessage(error, "Verify fehlgeschlagen");
             setFixSteps((prev) =>
-              prev.map((s, i) =>
-                i === stepCursor
-                  ? { ...s, status: "failed", message: safeTruncateText(e?.message || "Verify fehlgeschlagen", 160) }
-                  : s,
-              ),
+              setStepStatusAtIndex(prev, stepCursor, buildFailedStepPatch(error, "Verify fehlgeschlagen")),
             );
             finishWithResult({
               status: "pending_recheck",
-              detail: e?.message || "Verify fehlgeschlagen",
+              detail: message,
               localChangeApplied: patchApplied,
               stepIndex: stepCursor,
             });

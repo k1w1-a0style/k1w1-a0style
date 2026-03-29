@@ -10,8 +10,14 @@ export type RepoSecretsPayload = Partial<{
   supabaseUrl: string | null | undefined;
   supabaseServiceRole: string | null | undefined;
   easProjectId: string | null | undefined;
-  /** Optional: Shared secret for Supabase Edge Functions (x-k1w1-admin-key) */
+  /** Optional legacy/shared admin secret for older Edge paths (x-k1w1-admin-key) */
   edgeAdminKey: string | null | undefined;
+  /** Scoped workflow/admin secret for workflow-facing Edge Functions */
+  workflowAdminKey: string | null | undefined;
+  /** Scoped admin-only secret for android-keystore-export */
+  androidKeystoreExportAdminKey: string | null | undefined;
+  /** Legacy signing key name used by selected compatibility flows */
+  signingAdminKey: string | null | undefined;
 }>;
 
 const SECRET_NAME_MAP: Record<keyof RepoSecretsPayload, string> = {
@@ -20,6 +26,9 @@ const SECRET_NAME_MAP: Record<keyof RepoSecretsPayload, string> = {
   supabaseServiceRole: "SUPABASE_SERVICE_ROLE_KEY",
   easProjectId: "EAS_PROJECT_ID",
   edgeAdminKey: "K1W1_EDGE_ADMIN_KEY",
+  workflowAdminKey: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
+  androidKeystoreExportAdminKey: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
+  signingAdminKey: "SIGNING_ADMIN_KEY",
 };
 
 /**

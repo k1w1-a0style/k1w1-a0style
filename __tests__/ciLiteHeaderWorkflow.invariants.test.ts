@@ -15,11 +15,14 @@ describe("CI Lite Header workflow invariants", () => {
 
   it("keeps busy/tracking/header-running active while run lookup is still in progress", () => {
     const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
+    const statusHelper = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflowStatusHelpers.ts");
 
     expect(src).toContain("const hasActiveRunContext = dispatching || locatingRun || chainWaiting || trackedRunId != null;");
     expect(src).toContain("const isTrackingRun = dispatching || locatingRun || chainWaiting || (trackedRunId != null && !runCompleted);");
     expect(src).toContain("dispatching ||\n    locatingRun ||\n    chainWaiting ||");
-    expect(src).toContain('if (dispatching || locatingRun || chainWaiting) { setHeaderState("running"); return; }');
+    expect(src).toContain("deriveCiLiteHeaderState({");
+    expect(statusHelper).toContain("if (dispatching || locatingRun || chainWaiting) {");
+    expect(statusHelper).toContain('return "running";');
   });
 
   it("resets run lookup state on found run, timeout, and fatal lookup error without reusing stale intervals", () => {
@@ -29,7 +32,18 @@ describe("CI Lite Header workflow invariants", () => {
     expect(src).toContain("setLocatingRun(false);");
     expect(src).toContain("const lookupFinished = await poll();");
     expect(src).toContain("if (!lookupFinished) {");
-    expect(src).toContain("pollTimerRef.current = setInterval(() => {");
+    expect(src).toContain("const scheduleLookupPoll = useCallback((params: {");
+    expect(src).toContain("lookupGenerationRef.current += 1;");
+    expect(src).toContain("if (!isLookupGenerationActive(params.generation)) return;");
+    expect(src).toContain("pollTimerRef.current = setTimeout(() => {");
+  });
+
+  it("keeps a run-context artifact attempt guard to avoid endless fetch loops on completed failures", () => {
+    const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
+
+    expect(src).toContain("const artifactAttemptedContextRef = useRef<string | null>(null);");
+    expect(src).toContain("if (artifactAttemptedContextRef.current === artifactContextKey) return;");
+    expect(src).toContain("artifactAttemptedContextRef.current = artifactContextKey;");
   });
 
   it("persists CI-Lite outcome only for the active CI-Lite run context", () => {

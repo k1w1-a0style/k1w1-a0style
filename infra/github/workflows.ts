@@ -5,7 +5,6 @@ import { logger } from "../../lib/logger";
 import { fetchGitHub } from "./utils";
 import { debugLog } from "../../lib/debugOverlay";
 import { redactSecrets, truncateWithMarker } from "../../lib/secretRedaction";
-import { createOrUpdateFile } from "./files";
 import { WORKFLOW_TEMPLATES } from "./workflowTemplates";
 
 export interface WorkflowRun {
@@ -161,9 +160,12 @@ export const triggerWorkflow = async (
   owner: string,
   repo: string,
   workflowFileName = "eas-build.yml",
-  ref = "main",
+  ref?: string,
   inputs = {},
 ) => {
+  const targetRef = String(ref ?? "").trim();
+  if (!targetRef) throw new Error("Explicit branch/ref is required.");
+
   const token = await getGitHubToken();
   if (!token) throw new Error("GitHub token fehlt.");
 
@@ -181,7 +183,7 @@ export const triggerWorkflow = async (
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ ref, inputs }),
+      body: JSON.stringify({ ref: targetRef, inputs }),
     });
 
   debugLog("github:workflow", "Dispatch workflow", {
@@ -189,7 +191,7 @@ export const triggerWorkflow = async (
     owner,
     repo,
     workflowFileName,
-    ref,
+    ref: targetRef,
     inputs: Object.keys(inputs || {}),
   });
 
@@ -211,52 +213,10 @@ export const triggerWorkflow = async (
         owner,
         repo,
         workflowFileName,
-        ref,
+        ref: targetRef,
         resolved,
       });
       resp = await doDispatch(dispatchByIdUrl);
-    }
-  }
-
-  // 3) If still not found: bootstrap known workflow templates into the selected repo/branch.
-  if (resp.status === 404 && WORKFLOW_TEMPLATES[workflowFileName]) {
-    const path = `.github/workflows/${workflowFileName}`;
-    debugLog("github:workflow", "Bootstrap missing workflow from template", {
-      owner,
-      repo,
-      ref,
-      workflowFileName,
-      path,
-    });
-    await createOrUpdateFile(
-      owner,
-      repo,
-      path,
-      WORKFLOW_TEMPLATES[workflowFileName],
-      `Add ${workflowFileName} (K1W1)`,
-      ref,
-    );
-
-    // Retry dispatch after bootstrap.
-    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-    for (const wait of [500, 900, 1500, 2500, 4000]) {
-      await sleep(wait);
-
-      const resolvedAfterBootstrap = await resolveWorkflowId(owner, repo, workflowFileName).catch(
-        () => null,
-      );
-
-      if (resolvedAfterBootstrap?.id) {
-        const dispatchByIdUrl = githubApiUrl(
-          `/repos/${owner}/${repo}/actions/workflows/${resolvedAfterBootstrap.id}/dispatches`,
-        );
-        resp = await doDispatch(dispatchByIdUrl);
-      } else {
-        resp = await doDispatch(dispatchByFileUrl);
-      }
-
-      if (resp.status !== 404) break;
     }
   }
 
@@ -283,10 +243,10 @@ export const triggerWorkflow = async (
       ? `Verfügbar: ${resolved.available.slice(0, 8).join(", ")}${resolved.available.length > 8 ? " …" : ""}`
       : "";
     const bootstrapHint = WORKFLOW_TEMPLATES[workflowFileName]
-      ? "Der Workflow wurde versucht nachzuinstallieren, aber GitHub liefert weiterhin 404. Prüfe Repo/Branch-Rechte oder Branch-Name."
+      ? "Dispatch bleibt fail-closed ohne Repo-Mutation. Fuer Reparatur/Bootstrap nutze den expliziten Workflow-Autofix-/Provisioning-Pfad."
       : "Die Workflow-Datei fehlt in diesem Repo/Branch. (Tipp: RepoScreen → Workflows/Core Files pushen oder Workflow hinzufügen.)";
     throw new Error(
-      `Workflow nicht gefunden. '${workflowFileName}' existiert nicht unter '.github/workflows' auf Branch '${ref}'. ${bootstrapHint}${availableHint ? " " + availableHint : ""}`,
+      `missing_workflow: '${workflowFileName}' existiert nicht unter '.github/workflows' auf Branch '${targetRef}'. ${bootstrapHint}${availableHint ? " " + availableHint : ""}`,
     );
   }
 

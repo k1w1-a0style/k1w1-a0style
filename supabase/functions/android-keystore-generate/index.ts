@@ -4,8 +4,8 @@
 import {
   resolveMode, getForge, safeString, repoOk,
   bytesToBinaryStringChunked, encryptText, ensureBucketExists,
-  bytesToBinaryString, createClient, encryptWithAesCbc,
-  errorResponse, getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, handleCors, jsonResponse, rateLimit, requireAdminKey,
+  bytesToBinaryString, createClient, encryptKeystorePayload,
+  errorResponse, getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, handleCors, jsonResponse, rateLimit, requireDurableRateLimit, requirePrivilegedOperatorJwtRole, requireScopedEdgeAuth,
 } from "./helpers.ts";
 import type { Mode } from "./helpers.ts";
 
@@ -13,11 +13,25 @@ Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
+  const auth = requireScopedEdgeAuth(req, {
+    scope: "android-keystore-generate",
+    allowAdmin: true,
+    allowJwtAuthHeaderWithAdmin: true,
+    adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
+  });
+  if (auth) return auth;
+  const jwtRoleGuard = await requirePrivilegedOperatorJwtRole(req, "android-keystore-generate");
+  if (jwtRoleGuard) return jwtRoleGuard;
+
+  const durableRl = await requireDurableRateLimit(req, {
+    scope: "android-keystore-generate",
+    subject: req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "unknown",
+    max: 30,
+    windowMs: 60_000,
+  });
+  if (durableRl) return durableRl;
   const rl = rateLimit(req, "android-keystore-generate", 30, 60_000);
   if (rl) return rl;
-  const auth = requireAdminKey(req);
-  if (auth) return auth;
-
   try {
     const supabaseUrl = getSupabaseUrl();
     const serviceKey = getServiceRoleKey(req);
@@ -36,7 +50,6 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const repo = safeString(body?.repo);
-    const branch = safeString(body?.branch) || "main";
     let mode: Mode;
     try {
       mode = resolveMode(safeString(body?.mode));
@@ -46,9 +59,6 @@ Deno.serve(async (req) => {
 
     if (!repoOk(repo)) {
       return errorResponse("Invalid repo format. Expected 'owner/name'.", req, 400);
-    }
-    if (!/^[A-Za-z0-9_./-]{1,128}$/.test(branch)) {
-      return errorResponse("Invalid branch.", req, 400);
     }
     // `resolveMode` already normalizes/validates.
 
@@ -134,7 +144,7 @@ Deno.serve(async (req) => {
       keyPassword,
       alias,
     });
-    const encrypted = await encryptWithAesCbc(payload, masterKey);
+    const encrypted = await encryptKeystorePayload(payload, masterKey);
 
     const storagePath = `android/${repo.replace("/", "__")}/${mode}/keystore.enc`;
     const { error: uploadErr } = await supabase.storage
@@ -174,7 +184,6 @@ Deno.serve(async (req) => {
       {
         ok: true,
         repo,
-        branch,
         mode,
         alias,
         bucket,

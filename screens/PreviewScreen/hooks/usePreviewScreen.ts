@@ -133,7 +133,7 @@ export function usePreviewScreen() {
   const previewChannelLabel = useMemo(() => {
     if (displayState.kind === 'remote_ready') return getPreviewChannelLabel(previewKind);
     if (displayState.kind === 'fallback_active') {
-      return 'Lokaler HTML-/Eval-Fallback (eingeschränkt, nicht server-verifiziert, nur Best-Effort)';
+      return 'Lokaler HTML-/Eval-Fallback (nur bei explizitem Local-/Dev-Modus, nicht server-verifiziert, Best-Effort)';
     }
     if (previewKind === 'supabase') {
       return 'Remote-Preview derzeit nicht verifiziert';

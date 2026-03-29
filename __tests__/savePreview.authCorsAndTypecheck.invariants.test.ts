@@ -1,5 +1,5 @@
 import {
-  requireAdminKey,
+  requireScopedEdgeAuth,
   rateLimit,
 } from "../supabase/functions/_shared/auth";
 import { corsHeaders as savePreviewCorsHeaders } from "../supabase/functions/save_preview/helpers";
@@ -42,7 +42,12 @@ describe("save_preview auth/error header consistency + auth runtime env fallback
         K1W1_EDGE_ADMIN_KEY: undefined,
         SIGNING_ADMIN_KEY: undefined,
       },
-      () => requireAdminKey(req),
+      () =>
+        requireScopedEdgeAuth(req, {
+          scope: "save_preview",
+          allowAdmin: true,
+          adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
+        }),
     );
 
     expect(authRes).toBeTruthy();
@@ -93,7 +98,12 @@ describe("save_preview auth/error header consistency + auth runtime env fallback
           K1W1_EDGE_ADMIN_KEY: "node-env-secret",
           SIGNING_ADMIN_KEY: undefined,
         },
-        () => requireAdminKey(req),
+        () =>
+          requireScopedEdgeAuth(req, {
+            scope: "save_preview",
+            allowAdmin: true,
+              adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
+          }),
       );
 
       expect(result).toBeNull();
@@ -102,3 +112,28 @@ describe("save_preview auth/error header consistency + auth runtime env fallback
     }
   });
 });
+  it("does not accept SIGNING_ADMIN_KEY as fallback for generic save_preview auth", () => {
+    const req = new Request("http://localhost/save-preview", {
+      method: "POST",
+      headers: {
+        origin: ORIGIN,
+        "x-k1w1-admin-key": "signing-only-secret",
+      },
+    });
+
+    const result = withEnv(
+      {
+        K1W1_EDGE_ADMIN_KEY: undefined,
+        SIGNING_ADMIN_KEY: "signing-only-secret",
+      },
+      () =>
+        requireScopedEdgeAuth(req, {
+          scope: "save_preview",
+          allowAdmin: true,
+          adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
+        }),
+    );
+
+    expect(result?.status).toBe(500);
+    expect(result?.headers.get("content-type")).toContain("application/json");
+  });

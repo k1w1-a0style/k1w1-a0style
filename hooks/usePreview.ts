@@ -8,12 +8,14 @@ import { useProject } from "../contexts/ProjectContext";
 import { buildSandpackHtml } from "../lib/sandpackBuilder";
 import { ensureSupabaseClient } from "../lib/supabase";
 import { logger } from "../lib/logger";
-import { getEdgeAdminKey } from "../infra/github/githubService";
+import { isLikelyValidAdminKey } from "../lib/security/isLikelyValidAdminKey";
+import { getLegacyEdgeAdminKey } from "../infra/github/githubService";
 import type { PreviewFiles } from "../types/preview";
 
 import type { ProjectData, LastPreviewMeta } from "../shared/types/project";
 import {
   describeEmptyRemotePreviewFiles,
+  isLegacyPreviewOperatorModeEnabled,
   describeRemotePreviewFailure,
   invokeSavePreview,
   isAllowedFile,
@@ -21,10 +23,10 @@ import {
   safeJson,
   sanitizePreviewPath,
   shouldAttemptSupabaseFirst,
+  shouldUseLocalPreviewFallback,
   simpleHash,
 } from "./previewHelpers";
 import type { PreviewResult, PreviewState } from "./previewHelpers";
-import { isLikelyValidAdminKey } from "../screens/CredentialsWizardScreen/utils/security";
 
 export interface UsePreviewReturn {
   state: PreviewState;
@@ -360,6 +362,7 @@ if (container) {
   const preferredMode = projectData?.preferredPreviewMode ?? "supabase";
 
   const attemptSupabaseFirst = shouldAttemptSupabaseFirst(preferredMode);
+  const localFallbackExplicitlyEnabled = shouldUseLocalPreviewFallback(preferredMode);
 
   const createPreview = useCallback(async (): Promise<PreviewResult | null> => {
     // Singleflight: reuse the in-flight promise (prevents double-tap races).
@@ -378,22 +381,28 @@ if (container) {
       try {
         const hasRemoteProjectFiles = Object.keys(fileMap).length > 0;
         const files = normalizeForWebPreview(ensureMinimumFiles(fileMap));
+        const legacyOperatorMode = isLegacyPreviewOperatorModeEnabled();
 
         // 1) Prefer Supabase-hosted preview (visual mode)
         if (attemptSupabaseFirst && hasRemoteProjectFiles) {
           let edgeAdminKey: string | null = null;
           try {
             await ensureSupabaseClient();
-            edgeAdminKey = await getEdgeAdminKey().catch(() => null);
+
+            if (!legacyOperatorMode) {
+              throw new Error("LEGACY_PREVIEW_OPERATOR_MODE_REQUIRED");
+            }
+
+            edgeAdminKey = await getLegacyEdgeAdminKey().catch(() => null);
             const trimmedEdgeAdminKey = String(edgeAdminKey ?? "").trim();
 
-            // Security: save_preview is protected by an admin key. If it's not configured,
-            // skip the remote preview path immediately to avoid unnecessary 401 calls.
+            // Security: save_preview currently remains on the legacy compat admin scope.
+            // Keep this path explicit and fail-closed: no silent fallback to other local keys.
             if (!trimmedEdgeAdminKey) {
-              throw new Error("Missing Edge Admin Key");
+              throw new Error("Missing Legacy Edge Admin Key");
             }
             if (!isLikelyValidAdminKey(trimmedEdgeAdminKey)) {
-              throw new Error("Invalid Edge Admin Key");
+              throw new Error("Invalid Legacy Edge Admin Key");
             }
 
             const snackFiles: PreviewFiles = {};
@@ -450,6 +459,14 @@ if (container) {
 
             throw new Error(resp?.error || "Preview konnte nicht erstellt werden");
           } catch (supErr: unknown) {
+            if (supErr instanceof Error && supErr.message === "LEGACY_PREVIEW_OPERATOR_MODE_REQUIRED") {
+              safeSetRemoteFailure(
+                "Remote-Preview blockiert: Legacy save_preview ist jetzt ein expliziter Operator-/Maintenance-Vertrag. Standard-Clientflow nutzt keinen stillen Legacy-Admin-Key mehr.",
+              );
+              logger.warn(
+                "[usePreview] ⚠️ Legacy save_preview nur noch im expliziten Operator-/Maintenance-Mode",
+              );
+            } else {
             const statusCode =
               typeof (supErr as { status?: unknown } | null)?.status === "number"
                 ? Number((supErr as { status?: number }).status)
@@ -461,10 +478,8 @@ if (container) {
                 error: supErr,
               }),
             );
-            logger.warn(
-              "[usePreview] ⚠️ Supabase Preview fehlgeschlagen, fallback auf Local HTML:",
-              supErr,
-            );
+            logger.warn("[usePreview] ⚠️ Supabase Preview fehlgeschlagen", supErr);
+            }
           }
         } else if (attemptSupabaseFirst) {
           safeSetRemoteFailure(
@@ -476,7 +491,13 @@ if (container) {
           );
         }
 
-        // 2) Fallback only: local HTML/Eval preview for dev/best-effort recovery.
+        if (!localFallbackExplicitlyEnabled) {
+          throw new Error(
+            "Remote-Preview im Standardpfad nicht verfuegbar. Legacy save_preview ist nur im expliziten Operator-/Maintenance-Modus erlaubt; lokaler HTML-/Eval-Fallback nur im expliziten Local-/Dev-Modus.",
+          );
+        }
+
+        // 2) Explicit local mode only: local HTML/Eval preview for dev/best-effort.
         let html: string;
         try {
           html = buildSandpackHtml({
@@ -509,9 +530,6 @@ if (container) {
           createdAt: new Date().toISOString(),
           expiresAt: fallback.expiresAt,
         } as LastPreviewMeta);
-        if (setPreferredPreviewMode && preferredMode !== "supabase") {
-          await setPreferredPreviewMode("local");
-        }
         safeSetLastCreatedAt(Date.now());
         return fallback;
       } catch (e: unknown) {
@@ -544,6 +562,7 @@ if (container) {
     setPreferredPreviewMode,
     preferredMode,
     attemptSupabaseFirst,
+    localFallbackExplicitlyEnabled,
   ]);
 
   const reset = useCallback(() => {

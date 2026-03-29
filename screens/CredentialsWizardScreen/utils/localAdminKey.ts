@@ -1,4 +1,4 @@
-import { isLikelyValidAdminKey } from "./security";
+import { isLikelyValidAdminKey } from "../../../lib/security/isLikelyValidAdminKey";
 
 export type LocalEdgeAdminKeyIssueKind = "missing" | "invalid" | "rejected" | "unknown" | null;
 
@@ -46,19 +46,31 @@ export function describeLocalEdgeAdminKeyIssue(params: {
   adminKey?: string | null;
   statusCode?: number | null;
   error?: unknown;
+  surface?: "generic" | "keystore";
 }): string | undefined {
+  const surface = params.surface ?? "generic";
+  const keyName =
+    surface === "keystore"
+      ? "Lokaler Android Keystore Export Admin Key"
+      : "Lokaler Legacy Edge Admin Key (compat, Sunset)";
   const kind = inferLocalEdgeAdminKeyIssueKind(params);
   if (kind === "missing") {
-    return "Lokaler Edge Admin Key fehlt. Repo-/Server-Secrets koennen vorhanden sein, aber Wizard, Remote-Preview und Build-Vorbereitung brauchen diesen lokalen App-Wert fuer geschuetzte Edge-Calls.";
+    return surface === "keystore"
+      ? `${keyName} fehlt. Repo-/Server-Secrets koennen vorhanden sein, aber der Wizard braucht diesen lokalen App-Wert fuer geschuetzte Keystore-Edge-Calls.`
+      : `${keyName} fehlt. Repo-/Server-Secrets koennen vorhanden sein, aber Wizard, Remote-Preview und Build-Vorbereitung brauchen diesen lokalen App-Wert fuer geschuetzte Edge-Calls.`;
   }
   if (kind === "invalid") {
-    return "Lokaler Edge Admin Key wirkt ungueltig (leer/zu kurz/Whitespace). Bitte in der App neu speichern oder importieren.";
+    return `${keyName} wirkt ungueltig (leer/zu kurz/Whitespace). Bitte in der App neu speichern oder importieren.`;
   }
   if (kind === "rejected") {
-    return "Lokaler Edge Admin Key ist lokal vorhanden und wurde fuer den geschuetzten Edge-Request verwendet, aber vom Edge-Server abgelehnt (401/403 bzw. invalid admin). Bitte den lokalen App-Key neu speichern oder korrekt importieren.";
+    return surface === "keystore"
+      ? `${keyName} ist lokal vorhanden und wurde fuer den geschuetzten Keystore-Edge-Request verwendet, aber vom Edge-Server abgelehnt (401/403 bzw. invalid admin). Bitte den lokalen App-Key neu speichern oder korrekt importieren.`
+      : `${keyName} ist lokal vorhanden und wurde fuer den geschuetzten Edge-Request verwendet, aber vom Edge-Server abgelehnt (401/403 bzw. invalid admin). Bitte den lokalen App-Key neu speichern oder korrekt importieren.`;
   }
   if (kind === "unknown") {
-    return "Edge-Status konnte nicht sicher verifiziert werden. Wenn Repo-/Server-Secrets vorhanden sind, pruefe zuerst den lokalen Edge Admin Key in der App.";
+    return surface === "keystore"
+      ? `Keystore-Status konnte nicht sicher verifiziert werden. Wenn Repo-/Server-Secrets vorhanden sind, pruefe zuerst den ${keyName.toLowerCase()} in der App.`
+      : `Edge-Status konnte nicht sicher verifiziert werden. Wenn Repo-/Server-Secrets vorhanden sind, pruefe zuerst den ${keyName.toLowerCase()} in der App.`;
   }
   return undefined;
 }

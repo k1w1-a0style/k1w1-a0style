@@ -171,26 +171,27 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   const applyConsoleOverride = useCallback(() => {
     if (originalsRef.current) return;
+    const runtimeConsole = globalThis.console;
 
-    const originalLog = console.log.bind(console);
-    const originalWarn = console.warn.bind(console);
-    const originalError = console.error.bind(console);
+    const originalLog = runtimeConsole.log.bind(runtimeConsole);
+    const originalWarn = runtimeConsole.warn.bind(runtimeConsole);
+    const originalError = runtimeConsole.error.bind(runtimeConsole);
 
     originalsRef.current = { log: originalLog, warn: originalWarn, error: originalError };
 
-    console.log = (...args: unknown[]) => {
+    runtimeConsole.log = (...args: unknown[]) => {
       const msg = formatArgs(args);
       addLog(msg, 'log');
       originalLog(...args);
     };
 
-    console.warn = (...args: unknown[]) => {
+    runtimeConsole.warn = (...args: unknown[]) => {
       const msg = formatArgs(args);
       addLog(msg, 'warn');
       originalWarn(...args);
     };
 
-    console.error = (...args: unknown[]) => {
+    runtimeConsole.error = (...args: unknown[]) => {
       const msg = formatArgs(args);
       addLog(msg, 'error');
       originalError(...args);
@@ -202,10 +203,11 @@ export const TerminalProvider: React.FC<{ children: ReactNode }> = ({ children }
   const removeConsoleOverride = useCallback(() => {
     const o = originalsRef.current;
     if (!o) return;
+    const runtimeConsole = globalThis.console;
 
-    console.log = o.log;
-    console.warn = o.warn;
-    console.error = o.error;
+    runtimeConsole.log = o.log;
+    runtimeConsole.warn = o.warn;
+    runtimeConsole.error = o.error;
     originalsRef.current = null;
 
     addLog('🛑 Terminal Console Override deaktiviert', 'warn');

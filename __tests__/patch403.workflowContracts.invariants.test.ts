@@ -15,11 +15,17 @@ describe("patch 403 workflow contract invariants", () => {
     }
   });
 
-  it("keeps CI Lite package-manager aware in infra + edge bootstrap templates", () => {
+  it("keeps CI Lite package-manager aware in shared + infra templates while dispatch edge stays mutation-free", () => {
     const infra = read("infra/github/workflowTemplates.ts");
     const edge = read("supabase/functions/github-workflow-dispatch/index.ts");
+    const shared = read("shared/workflows/managedWorkflowTemplates.ts");
 
-    for (const src of [infra, edge]) {
+    expect(infra).toContain('from "../../shared/workflows/managedWorkflowTemplates"');
+    expect(edge).not.toContain("managedWorkflowTemplates");
+    expect(edge).not.toContain("WORKFLOW_TEMPLATES");
+    expect(edge).toContain("missing_workflow");
+
+    for (const src of [shared]) {
       expect(src).toContain("package_manager");
       expect(src).toContain("cache_kind");
       expect(src).toContain("yarn install --immutable");
@@ -32,8 +38,11 @@ describe("patch 403 workflow contract invariants", () => {
   it("keeps EAS autofix honest for non-npm repos", () => {
     const src = read(".github/workflows/eas-build.yml");
     const diag = read("lib/diagnostics/workflowTemplates.ts");
+    const shared = read("shared/workflows/easBuildReleaseWorkflowTemplates.ts");
 
-    for (const body of [src, diag]) {
+    expect(diag).toContain("WORKFLOW_EAS_BUILD_TEMPLATE");
+
+    for (const body of [src, shared]) {
       expect(body).toContain("Auto-fix writeback currently supports npm-managed repos only");
       expect(body).toContain("PACKAGE_MANAGER");
       expect(body).toContain("HAS_LOCKFILE");

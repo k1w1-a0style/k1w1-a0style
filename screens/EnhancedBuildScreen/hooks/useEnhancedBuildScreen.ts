@@ -23,6 +23,11 @@ import type { WorkflowJob, WorkflowRunDetails } from "../../../infra/github/work
 
 import { FETCH_TIMEOUT_MS, fetchRunDetailsBundle, sanitizeUiMessage, validateRepoFullName, withTimeout } from "./buildScreenHelpers";
 import { useBuildPreconditions } from "./useBuildPreconditions";
+import {
+  filterWorkflowRunsByProfile,
+  getWorkflowRunsEmptyStateText,
+  type ModeFilter,
+} from "./runFilterState";
 
 export const MAX_RUNS_DISPLAY = 10;
 
@@ -91,8 +96,6 @@ export function useEnhancedBuildScreen() {
 
   // Preconditions for "idiotensicher" build
 
-  type ModeFilter = "all" | BuildProfile;
-
   const [actionsFilter, setActionsFilter] = useState<ModeFilter>(
     projectData?.preferredBuildProfile || "preview",
   );
@@ -109,17 +112,16 @@ export function useEnhancedBuildScreen() {
   const buildHistory = useBuildHistory();
 
   const filteredRuns = useMemo(() => {
-    if (actionsFilter === "all") return runs;
-    const needle = String(actionsFilter).toLowerCase();
-    const re = new RegExp(`\\b${needle}\\b`, "i");
-    const list = runs.filter((r) => {
-      const title = String(r.display_title || "");
-      const name = String(r.name || "");
-      return re.test(title) || re.test(name);
-    });
-    // Backwards-compatible: older runs may not have a profile in the title yet.
-    return list.length > 0 ? list : runs;
+    return filterWorkflowRunsByProfile(runs, actionsFilter);
   }, [runs, actionsFilter]);
+
+  const runsEmptyStateText = useMemo(() => {
+    return getWorkflowRunsEmptyStateText({
+      actionsFilter,
+      filteredRunsCount: filteredRuns.length,
+      allRunsCount: runs.length,
+    });
+  }, [actionsFilter, filteredRuns.length, runs.length]);
 
   const filteredHistory = useMemo(() => {
     const all = buildHistory.history ?? [];
@@ -479,7 +481,9 @@ export function useEnhancedBuildScreen() {
       : status.toUpperCase();
 
   const moreCount =
-    runs.length > MAX_RUNS_DISPLAY ? runs.length - MAX_RUNS_DISPLAY : 0;
+    filteredRuns.length > MAX_RUNS_DISPLAY
+      ? filteredRuns.length - MAX_RUNS_DISPLAY
+      : 0;
 
   const onSelectBuildProfile = useCallback(
     async (p: BuildProfile) => {
@@ -487,7 +491,6 @@ export function useEnhancedBuildScreen() {
       try {
         if (setPreferredBuildProfile) await setPreferredBuildProfile(p);
       } catch (e) {
-        // eslint-disable-next-line no-console
         console.warn("[Build] Konnte Build-Profil nicht persistieren:", e);
       }
     },
@@ -587,6 +590,7 @@ export function useEnhancedBuildScreen() {
     runs: filteredRuns,
     actionsFilter,
     setActionsFilter,
+    runsEmptyStateText,
     error,
     refreshing,
 

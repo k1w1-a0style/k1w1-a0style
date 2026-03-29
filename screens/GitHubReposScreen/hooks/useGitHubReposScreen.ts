@@ -48,6 +48,9 @@ import {
   CORE_TEMPLATE_FILES,
 } from "./templateFiles";
 import type { TemplateFile, RepoFilterType } from "./templateFiles";
+import { getErrorMessage } from "./githubReposScreenErrorHelpers";
+import { getEasLinkWriteNotice, getRepoSuccessNotice, getSecretsSyncNotice } from "./githubReposScreenNoticeHelpers";
+import { getDeleteBranchConfirmDialog, getDeleteRepoConfirmDialog } from "./githubReposScreenDialogHelpers";
 
 type SyncStatus = {
   checking: boolean;
@@ -79,9 +82,7 @@ const EMPTY_SYNC_STATUS: SyncStatus = {
 export function useGitHubReposScreen() {
   const {
     activeRepo,
-    setActiveRepo,
     activeBranch,
-    setActiveBranch,
     recentRepos,
     addRecentRepo,
     clearRecentRepos,
@@ -111,7 +112,6 @@ export function useGitHubReposScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
   const hasAutoLoaded = useRef(false);
-  const hasRestoredLink = useRef(false);
 
   const isMountedRef = useRef(true);
   const refreshGen = useRef(0);
@@ -258,10 +258,10 @@ export function useGitHubReposScreen() {
         if (!t) {
           setTokenError("Kein Token gefunden. Hinterlege eins im Verbindungen-Screen.");
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!mounted) return;
         setToken(null);
-        setTokenError(e?.message ?? "Token konnte nicht geladen werden.");
+        setTokenError(getErrorMessage(e, "Token konnte nicht geladen werden."));
       } finally {
         if (mounted) setTokenLoading(false);
       }
@@ -303,15 +303,6 @@ export function useGitHubReposScreen() {
     return () => { mounted = false; };
   }, []);
 
-  // Auto-restore linked repo/branch from project context once
-  useEffect(() => {
-    if (!hasRestoredLink.current && projectData?.linkedRepo && !activeRepo) {
-      hasRestoredLink.current = true;
-      setActiveRepo(projectData.linkedRepo);
-      if (projectData.linkedBranch) setActiveBranch(projectData.linkedBranch);
-    }
-  }, [projectData, activeRepo, setActiveRepo, setActiveBranch]);
-
   // Auto-load repos once token exists
   useEffect(() => {
     if (!token || hasAutoLoaded.current) return;
@@ -327,7 +318,6 @@ export function useGitHubReposScreen() {
     }
     // fire-and-forget (best-effort)
     refreshSyncStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRepo, activeBranch]);
 
   const handleRefresh = useCallback(async () => {
@@ -357,16 +347,8 @@ export function useGitHubReposScreen() {
       : String(repoOrString.default_branch || "").trim() || null;
 
   // Single source of truth for ALL repo selections (list + recent)
-  setActiveRepo(fullName);
   addRecentRepo(fullName);
-
-  if (defaultBranch) {
-    setActiveBranch(defaultBranch);
-    setLinkedRepo(fullName, defaultBranch);
-  } else {
-    setActiveBranch(null);
-    setLinkedRepo(fullName, null);
-  }
+  setLinkedRepo(fullName, defaultBranch);
   setShowRenameRepo(false);
   setShowNewRepo(false);
   setPullProgress("");
@@ -382,14 +364,13 @@ export function useGitHubReposScreen() {
         if (!b) return;
         if (!isMountedRef.current) return;
         if (selectionGen !== selectRepoGen.current) return;
-        setActiveBranch(b);
         setLinkedRepo(fullName, b);
       })
       .catch(() => {
         // non-fatal: user can still pick a branch manually
       });
   }
-}, [setActiveRepo, addRecentRepo, setLinkedRepo, setActiveBranch, loadDefaultBranch]);
+}, [addRecentRepo, setLinkedRepo, loadDefaultBranch]);
 
   const confirmManageModal = useCallback(async () => {
     if (!manageModal || manageBusy) return;
@@ -422,13 +403,12 @@ export function useGitHubReposScreen() {
 
   const handleSelectBranch = useCallback(
     (branch: string) => {
-      setActiveBranch(branch);
       if (activeRepo) {
         setLinkedRepo(activeRepo, branch);
         rememberRecentBranch(activeRepo, branch);
       }
     },
-    [setActiveBranch, activeRepo, setLinkedRepo, rememberRecentBranch],
+    [activeRepo, setLinkedRepo, rememberRecentBranch],
   );
 
   const withCoreFiles = useCallback((files: ProjectFile[]): ProjectFile[] => {
@@ -472,18 +452,17 @@ export function useGitHubReposScreen() {
       setLocalRepos((prev) => [repo, ...prev]);
       setNewRepoName("");
       setShowNewRepo(false);
-      setActiveRepo(repo.full_name);
       addRecentRepo(repo.full_name);
       const defaultBranch = String(repo.default_branch || "").trim() || null;
       setLinkedRepo(repo.full_name, defaultBranch);
-      setActiveBranch(defaultBranch);
-      Alert.alert("✅ Repo erstellt", repo.full_name);
-    } catch (e: any) {
-      Alert.alert("❌ Repo erstellen fehlgeschlagen", e?.message ?? "");
+      const successNotice = getRepoSuccessNotice("repo_created", repo.full_name);
+      Alert.alert(successNotice.title, successNotice.message);
+    } catch (e: unknown) {
+      Alert.alert("❌ Repo erstellen fehlgeschlagen", getErrorMessage(e, ""));
     } finally {
       setIsCreating(false);
     }
-  }, [token, newRepoName, newRepoPrivate, setActiveRepo, addRecentRepo, setLinkedRepo, setActiveBranch]);
+  }, [token, newRepoName, newRepoPrivate, addRecentRepo, setLinkedRepo]);
 
   const handleRenameRepo = useCallback(async () => {
     if (!token || !activeRepo) return;
@@ -501,19 +480,19 @@ export function useGitHubReposScreen() {
     try {
       const res = await renameGitHubRepo(parsed.owner, parsed.repo, newName);
       const newFullName = res.full_name ?? `${parsed.owner}/${newName}`;
-      setActiveRepo(newFullName);
       setLinkedRepo(newFullName, activeBranch ?? null);
       addRecentRepo(newFullName);
       setShowRenameRepo(false);
       setRenameName("");
-      Alert.alert("✅ Repo umbenannt", newFullName);
+      const successNotice = getRepoSuccessNotice("repo_renamed", newFullName);
+      Alert.alert(successNotice.title, successNotice.message);
       await loadRepos();
-    } catch (e: any) {
-      Alert.alert("❌ Umbenennen fehlgeschlagen", e?.message ?? "");
+    } catch (e: unknown) {
+      Alert.alert("❌ Umbenennen fehlgeschlagen", getErrorMessage(e, ""));
     } finally {
       setIsRenaming(false);
     }
-  }, [token, activeRepo, renameName, setActiveRepo, setLinkedRepo, activeBranch, addRecentRepo, loadRepos]);
+  }, [token, activeRepo, renameName, setLinkedRepo, activeBranch, addRecentRepo, loadRepos]);
 
   const handleDeleteRepo = useCallback(async (repo: GitHubRepo) => {
     if (!token) return;
@@ -521,13 +500,15 @@ export function useGitHubReposScreen() {
     const parsed = splitFullName(full);
     if (!parsed) return;
 
+    const dialogText = getDeleteRepoConfirmDialog(full);
+
     Alert.alert(
-      "🗑️ Repo löschen?",
-      `Willst du ${full} wirklich löschen? Das kann nicht rückgängig gemacht werden.`,
+      dialogText.title,
+      dialogText.message,
       [
         { text: "Abbrechen", style: "cancel" },
         {
-          text: "Löschen",
+          text: dialogText.confirmText,
           style: "destructive",
           onPress: async () => {
             setIsDeletingRepo(true);
@@ -535,14 +516,13 @@ export function useGitHubReposScreen() {
               await deleteGitHubRepo(parsed.owner, parsed.repo);
               setLocalRepos((prev) => prev.filter((r) => r.full_name !== full));
               if (activeRepo === full) {
-                setActiveRepo(null);
-                setActiveBranch(null);
                 setLinkedRepo(null, null);
               }
               await loadRepos();
-              Alert.alert("✅ Repo gelöscht", full);
-            } catch (e: any) {
-              Alert.alert("❌ Löschen fehlgeschlagen", e?.message ?? "");
+              const successNotice = getRepoSuccessNotice("repo_deleted", full);
+              Alert.alert(successNotice.title, successNotice.message);
+            } catch (e: unknown) {
+              Alert.alert("❌ Löschen fehlgeschlagen", getErrorMessage(e, ""));
             } finally {
               setIsDeletingRepo(false);
             }
@@ -550,7 +530,7 @@ export function useGitHubReposScreen() {
         },
       ],
     );
-  }, [token, activeRepo, setActiveRepo, setActiveBranch, setLinkedRepo, loadRepos]);
+  }, [token, activeRepo, setLinkedRepo, loadRepos]);
 
   const handlePull = useCallback(async () => {
     // Pull now opens a preview modal (conflicts + strategy) to avoid silent overwrites.
@@ -608,8 +588,8 @@ export function useGitHubReposScreen() {
       }
 
       setPullPreview({ remote: pulled, conflicts, remoteOnly, updates });
-    } catch (e: any) {
-      Alert.alert("❌ Pull fehlgeschlagen", e?.message ?? "");
+    } catch (e: unknown) {
+      Alert.alert("❌ Pull fehlgeschlagen", getErrorMessage(e, ""));
       setPullModalVisible(false);
     } finally {
       setPullPreviewLoading(false);
@@ -718,8 +698,8 @@ export function useGitHubReposScreen() {
         "✅ Push erfolgreich",
         `${parsed.owner}/${parsed.repo}@${branch}\nDer Push wurde als ein konsolidierter Git-Commit übertragen.`,
       );
-    } catch (e: any) {
-      Alert.alert("❌ Push fehlgeschlagen", e?.message ?? "");
+    } catch (e: unknown) {
+      Alert.alert("❌ Push fehlgeschlagen", getErrorMessage(e, ""));
     } finally {
       setIsPushing(false);
     }
@@ -756,8 +736,8 @@ export function useGitHubReposScreen() {
       setPullPreview(null);
       setPullProgress("");
       Alert.alert(semantics.messageTitle, semantics.messageBody);
-    } catch (e: any) {
-      Alert.alert("❌ Pull Anwenden fehlgeschlagen", e?.message ?? "");
+    } catch (e: unknown) {
+      Alert.alert("❌ Pull Anwenden fehlgeschlagen", getErrorMessage(e, ""));
     } finally {
       setIsPulling(false);
     }
@@ -883,21 +863,12 @@ export function useGitHubReposScreen() {
         return;
       }
 
-      if (writeOutcome.state === "verified") {
-        Alert.alert("✅ EAS verifiziert", "Projektdatei geschrieben und Repo-Link sauber bestaetigt.");
-        return;
-      }
-
-      if (writeOutcome.state === "pending_recheck") {
-        Alert.alert("ℹ️ EAS geschrieben", writeOutcome.detail);
-        return;
-      }
-
-      Alert.alert("⚠️ EAS geschrieben, aber nicht verifiziert", writeOutcome.detail);
-    } catch (e: any) {
+      const writeNotice = getEasLinkWriteNotice(writeOutcome);
+      Alert.alert(writeNotice.title, writeNotice.message);
+    } catch (e: unknown) {
       if (isCurrentEasLinkRequest(writeToken.requestId, writeToken.contextKey)) {
         setEasLinkStatus(getEasLinkPresentation("unknown", "Schreiben oder Nachverifikation ist fehlgeschlagen."));
-        Alert.alert("❌ EAS link fehlgeschlagen", e?.message ?? "");
+        Alert.alert("❌ EAS link fehlgeschlagen", getErrorMessage(e, ""));
       }
     } finally {
       setIsEasLinking(false);
@@ -912,13 +883,10 @@ export function useGitHubReposScreen() {
     setIsSyncingSecrets(true);
     try {
       const result = await autoSyncRepoSecrets(activeRepo);
-      if (!result.updated.length) {
-        Alert.alert("ℹ️ Secrets", "Keine Secrets zum Synchronisieren gefunden.");
-      } else {
-        Alert.alert("✅ Secrets synchronisiert", result.updated.join(", "));
-      }
-    } catch (e: any) {
-      Alert.alert("❌ Secrets Sync fehlgeschlagen", e?.message ?? "");
+      const syncNotice = getSecretsSyncNotice(result.updated);
+      Alert.alert(syncNotice.title, syncNotice.message);
+    } catch (e: unknown) {
+      Alert.alert("❌ Secrets Sync fehlgeschlagen", getErrorMessage(e, ""));
     } finally {
       setIsSyncingSecrets(false);
     }
@@ -939,12 +907,11 @@ export function useGitHubReposScreen() {
         const base = activeBranch ?? (await loadDefaultBranch(parsed.owner, parsed.repo));
         await createBranch(parsed.owner, parsed.repo, name, base);
         const res = { name };
-        setActiveBranch(res.name);
         setLinkedRepo(activeRepo, res.name);
         closeManageModal();
       },
     });
-  }, [activeRepo, activeBranch, loadDefaultBranch, openManageModal, closeManageModal, setActiveBranch, setLinkedRepo]);
+  }, [activeRepo, activeBranch, loadDefaultBranch, openManageModal, closeManageModal, setLinkedRepo]);
 
   const handleRenameBranch = useCallback(() => {
     if (!activeRepo || !activeBranch) return;
@@ -959,35 +926,35 @@ export function useGitHubReposScreen() {
         const name = newName.trim();
         if (!name) throw new Error("Branch Name fehlt.");
         const res = await renameBranch(parsed.owner, parsed.repo, activeBranch, name);
-        setActiveBranch(res.name);
         setLinkedRepo(activeRepo, res.name);
         closeManageModal();
       },
     });
-  }, [activeRepo, activeBranch, openManageModal, closeManageModal, setActiveBranch, setLinkedRepo]);
+  }, [activeRepo, activeBranch, openManageModal, closeManageModal, setLinkedRepo]);
 
   const handleDeleteBranch = useCallback(() => {
     if (!activeRepo || !activeBranch) return;
     const parsed = splitFullName(activeRepo);
     if (!parsed) return;
-    Alert.alert("Branch löschen?", `${activeBranch} wirklich löschen?`, [
+    const dialogText = getDeleteBranchConfirmDialog(activeBranch);
+    Alert.alert(dialogText.title, dialogText.message, [
       { text: "Abbrechen", style: "cancel" },
       {
-        text: "Löschen",
+        text: dialogText.confirmText,
         style: "destructive",
-        onPress: async () => {
-          try {
-            await deleteBranch(parsed.owner, parsed.repo, activeBranch);
-            setActiveBranch(null);
-            setLinkedRepo(activeRepo, null);
-            Alert.alert("✅ Branch gelöscht", activeBranch);
-          } catch (e: any) {
-            Alert.alert("❌ Fehler", e?.message ?? "");
+          onPress: async () => {
+            try {
+              await deleteBranch(parsed.owner, parsed.repo, activeBranch);
+              setLinkedRepo(activeRepo, null);
+              const successNotice = getRepoSuccessNotice("branch_deleted", activeBranch);
+              Alert.alert(successNotice.title, successNotice.message);
+          } catch (e: unknown) {
+            Alert.alert("❌ Fehler", getErrorMessage(e, ""));
           }
         },
       },
     ]);
-  }, [activeRepo, activeBranch, setActiveBranch, setLinkedRepo]);
+  }, [activeRepo, activeBranch, setLinkedRepo]);
 
   const combinedRepos = useMemo(() => combineRepos(repos, localRepos), [repos, localRepos]);
 
@@ -1030,9 +997,9 @@ export function useGitHubReposScreen() {
     combinedRepos, filteredRepos,
 
     // selection + recent
-    activeRepo, setActiveRepo,
+    activeRepo,
     activeRepoObj,
-    activeBranch, setActiveBranch,
+    activeBranch,
     recentRepos, addRecentRepo, clearRecentRepos,
 
     // UI states

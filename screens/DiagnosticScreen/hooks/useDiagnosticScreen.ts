@@ -98,7 +98,6 @@ export function useDiagnosticScreen(opts: {
 
   useEffect(() => {
     // NOTE: In der New Architecture ist setLayoutAnimationEnabledExperimental ein No-Op (warn spam).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const isNewArch = !!(global as any)?.nativeFabricUIManager;
     if (Platform.OS === "android" && !isNewArch) {
       UIManager.setLayoutAnimationEnabledExperimental?.(true);

@@ -4,8 +4,10 @@ import {
   getRuntimeEnv,
   getServiceRoleKey,
   getSupabaseUrl,
+  requireWorkflowOperatorJwtRole,
   requireScopedEdgeAuth,
   rateLimit,
+  requireDurableRateLimit,
 } from "../_shared/auth.ts";
 import {
   parseJsonBody,
@@ -28,7 +30,7 @@ function isAllowedRepo(repo: string): boolean {
 
 function isAllowedRef(ref: string | null | undefined): boolean {
   const r = (ref ?? "").trim();
-  if (!r) return true;
+  if (!r) return false;
   if (r.startsWith("refs/")) return false;
   if (/^[0-9a-f]{40}$/i.test(r)) return false;
 
@@ -58,7 +60,7 @@ function isTriggerValidationError(
  * Creates a build_jobs row and triggers the GitHub repository_dispatch event (trigger-eas-build).
  *
  * Contract:
- * - Input: { githubRepo, buildProfile, branch? }
+ * - Input: { githubRepo, buildProfile, branch }
  * - Output: { ok: true, jobId, githubRepo, branch, buildProfile }
  */
 Deno.serve(async (req) => {
@@ -66,15 +68,24 @@ Deno.serve(async (req) => {
   if (cors) return cors;
 
   try {
-    // Legacy guard lineage: requireAdminKeyOrServiceRoleBearer(req).
+    // Legacy guard lineage: generic admin-or-CI bearer guard (removed).
     const auth = requireScopedEdgeAuth(req, {
       scope: "trigger-eas-build",
       allowAdmin: true,
-      allowCiBearer: true,
+      allowJwtAuthHeaderWithAdmin: true,
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
-      ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER",
     });
     if (auth) return auth;
+    const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "trigger-eas-build");
+    if (jwtRoleGuard) return jwtRoleGuard;
+
+    const durableRl = await requireDurableRateLimit(req, {
+      scope: "trigger-eas-build",
+      subject: req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "unknown",
+      max: 10,
+      windowMs: 60_000,
+    });
+    if (durableRl) return durableRl;
 
     const rl = rateLimit(req, "trigger-eas-build");
     if (rl) return rl;
@@ -109,8 +120,8 @@ Deno.serve(async (req) => {
       return errorResponse("githubRepo not allowed", req, 403, { githubRepo });
     }
 
-    if (!isAllowedRef(branch ?? null)) {
-      return errorResponse("branch/ref not allowed", req, 403, { branch: branch ?? null });
+    if (!isAllowedRef(branch)) {
+      return errorResponse("branch/ref not allowed", req, 403, { branch });
     }
 
     // Create job row
@@ -120,7 +131,7 @@ Deno.serve(async (req) => {
         status: "queued",
         github_repo: githubRepo,
         build_profile: buildProfile,
-        branch: branch ?? null,
+        branch,
       })
       .select("id")
       .single();
@@ -140,8 +151,8 @@ Deno.serve(async (req) => {
       client_payload: {
         github_repo: githubRepo,
         repo: githubRepo,
-        branch: branch ?? null,
-        ref: branch ?? null,
+        branch,
+        ref: branch,
         build_profile: buildProfile,
         buildProfile: buildProfile,
         job_id: jobId,
@@ -163,7 +174,7 @@ Deno.serve(async (req) => {
         ok: true,
         jobId,
         githubRepo,
-        branch: branch ?? null,
+        branch,
         buildProfile,
       },
       req,
