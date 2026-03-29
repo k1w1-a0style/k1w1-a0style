@@ -15,6 +15,7 @@ import type { PreviewFiles } from "../types/preview";
 import type { ProjectData, LastPreviewMeta } from "../shared/types/project";
 import {
   describeEmptyRemotePreviewFiles,
+  isLegacyPreviewOperatorModeEnabled,
   describeRemotePreviewFailure,
   invokeSavePreview,
   isAllowedFile,
@@ -380,12 +381,18 @@ if (container) {
       try {
         const hasRemoteProjectFiles = Object.keys(fileMap).length > 0;
         const files = normalizeForWebPreview(ensureMinimumFiles(fileMap));
+        const legacyOperatorMode = isLegacyPreviewOperatorModeEnabled();
 
         // 1) Prefer Supabase-hosted preview (visual mode)
         if (attemptSupabaseFirst && hasRemoteProjectFiles) {
           let edgeAdminKey: string | null = null;
           try {
             await ensureSupabaseClient();
+
+            if (!legacyOperatorMode) {
+              throw new Error("LEGACY_PREVIEW_OPERATOR_MODE_REQUIRED");
+            }
+
             edgeAdminKey = await getLegacyEdgeAdminKey().catch(() => null);
             const trimmedEdgeAdminKey = String(edgeAdminKey ?? "").trim();
 
@@ -452,6 +459,14 @@ if (container) {
 
             throw new Error(resp?.error || "Preview konnte nicht erstellt werden");
           } catch (supErr: unknown) {
+            if (supErr instanceof Error && supErr.message === "LEGACY_PREVIEW_OPERATOR_MODE_REQUIRED") {
+              safeSetRemoteFailure(
+                "Remote-Preview blockiert: Legacy save_preview ist jetzt ein expliziter Operator-/Maintenance-Vertrag. Standard-Clientflow nutzt keinen stillen Legacy-Admin-Key mehr.",
+              );
+              logger.warn(
+                "[usePreview] ⚠️ Legacy save_preview nur noch im expliziten Operator-/Maintenance-Mode",
+              );
+            } else {
             const statusCode =
               typeof (supErr as { status?: unknown } | null)?.status === "number"
                 ? Number((supErr as { status?: number }).status)
@@ -464,6 +479,7 @@ if (container) {
               }),
             );
             logger.warn("[usePreview] ⚠️ Supabase Preview fehlgeschlagen", supErr);
+            }
           }
         } else if (attemptSupabaseFirst) {
           safeSetRemoteFailure(
@@ -477,7 +493,7 @@ if (container) {
 
         if (!localFallbackExplicitlyEnabled) {
           throw new Error(
-            "Remote-Preview nicht verfuegbar. Lokaler HTML-/Eval-Fallback ist nur im expliziten Local-/Dev-Modus erlaubt.",
+            "Remote-Preview im Standardpfad nicht verfuegbar. Legacy save_preview ist nur im expliziten Operator-/Maintenance-Modus erlaubt; lokaler HTML-/Eval-Fallback nur im expliziten Local-/Dev-Modus.",
           );
         }
 

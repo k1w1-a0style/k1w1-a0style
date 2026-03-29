@@ -285,6 +285,13 @@ function getRuntimeSupabaseUrl(): string | null {
   return typeof envUrl === "string" && envUrl.trim() ? envUrl.trim() : null;
 }
 
+export function isLegacyPreviewOperatorModeEnabled(): boolean {
+  const runtime = globalThis as RuntimeGlobals;
+  const raw = runtime.process?.env?.EXPO_PUBLIC_ENABLE_LEGACY_PREVIEW_OPERATOR_MODE;
+  const normalized = String(raw ?? "").trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes";
+}
+
 export async function invokeSavePreview(params: {
   adminKey: string;
   payload: {

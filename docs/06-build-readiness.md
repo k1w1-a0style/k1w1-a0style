@@ -77,6 +77,7 @@ Der Service muss dieselben Regeln servernah erzwingen, damit keine Umgehung via 
 - **Wichtig (Patch 611, finaler Operator-Preflight):** Normale eingeloggte Nutzer ohne extern provisionierten `build_admin`-Claim sind auf workflow-/build-/artifact-/keystore-Operatorpfaden bewusst fail-closed blockiert; das ist ein externer Betriebsvertrag und kein fehlender Repo-Codepfad.
 - **Wichtig (Patch 613, Dispatch-Semantik):** Normaler Workflow-Dispatch ist strikt mutation-free. `404`/fehlender Workflow fuehrt zu `missing_workflow` (klarer Fehlerzustand) und **nicht** zu stillen Repo-Writes/Bootstrap. Repo-Mutationen duerfen nur in expliziten Repair-/Provisioning-Flows stattfinden (z. B. `autoFixCIWorkflows`, RepoScreen Workflows/Core Files Push).
 - **Wichtig (Patch 614, Build-Filter-Truthfulness):** Im Build-Screen gilt fuer Workflow-Run-Filter jetzt strikt: aktiver Profilfilter + null Treffer => leere Liste (`[]`) und ehrlicher Empty State. Ein aktiver Filter darf nicht mehr still auf die unfiltrierte Gesamtliste zurueckfallen.
+- **Wichtig (Patch 615, Preview-Operatorgrenze):** Der normale Preview-Clientpfad (`preferredPreviewMode: "supabase"`) nutzt keinen stillen Legacy-Admin-Key mehr. Legacy-`save_preview` ist nur noch im expliziten Operator-/Maintenance-Modus erlaubt (`EXPO_PUBLIC_ENABLE_LEGACY_PREVIEW_OPERATOR_MODE=true`); ohne diesen Schalter bleibt der Standardpfad fail-closed und meldet den Blocker ehrlich.
 
 ---
 
