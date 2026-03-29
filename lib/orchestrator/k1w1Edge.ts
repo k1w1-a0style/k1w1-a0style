@@ -242,7 +242,7 @@ export async function invokeK1w1Handler({
     return {
       ok: false,
       error:
-        'Lokaler Legacy Edge Admin Key fehlt. Bitte den lokalen K1W1_EDGE_ADMIN_KEY-kompatiblen App-Key setzen; fuer produktive KI-Requests ueber den k1w1-handler muss er zum serverseitigen Legacy-Secret passen.',
+        'Lokaler Legacy Edge Admin Key (compat/Sunset) fehlt. k1w1-handler nutzt derzeit noch K1W1_EDGE_ADMIN_KEY; bitte den lokalen Compat-Key nur fuer diesen Altpfad setzen und scoped Keys fuer Workflow/Keystore getrennt pflegen.',
       provider,
       model,
     };

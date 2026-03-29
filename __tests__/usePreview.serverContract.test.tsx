@@ -102,7 +102,7 @@ describe("usePreview server contract", () => {
     });
 
     expect(result.current.state.remoteFailure).toBe(
-      "Remote-Preview blockiert: Lokaler Legacy Edge Admin Key (compat) fehlt. Repo-/Server-Secrets koennen vorhanden sein, aber Wizard, Remote-Preview und Build-Vorbereitung brauchen diesen lokalen App-Wert fuer geschuetzte Edge-Calls.",
+      "Remote-Preview blockiert: Lokaler Legacy Edge Admin Key (compat, Sunset) fehlt. Repo-/Server-Secrets koennen vorhanden sein, aber Wizard, Remote-Preview und Build-Vorbereitung brauchen diesen lokalen App-Wert fuer geschuetzte Edge-Calls.",
     );
     expect(mockEnsureSupabaseClient).toHaveBeenCalled();
     expect(mockFetch).not.toHaveBeenCalled();
@@ -132,7 +132,7 @@ describe("usePreview server contract", () => {
     });
 
     expect(result.current.state.remoteFailure).toBe(
-      "Remote-Preview blockiert: Lokaler Legacy Edge Admin Key (compat) ist lokal vorhanden und wurde fuer den geschuetzten Edge-Request verwendet, aber vom Edge-Server abgelehnt (401/403 bzw. invalid admin). Bitte den lokalen App-Key neu speichern oder korrekt importieren.",
+      "Remote-Preview blockiert: Lokaler Legacy Edge Admin Key (compat, Sunset) ist lokal vorhanden und wurde fuer den geschuetzten Edge-Request verwendet, aber vom Edge-Server abgelehnt (401/403 bzw. invalid admin). Bitte den lokalen App-Key neu speichern oder korrekt importieren.",
     );
     expect(result.current.state.remoteFailure).not.toMatch(/fehlt oder wurde/i);
     expect(mockBuildSandpackHtml).not.toHaveBeenCalled();
@@ -156,7 +156,7 @@ describe("usePreview server contract", () => {
     });
 
     expect(result.current.state.remoteFailure).toBe(
-      "Remote-Preview blockiert: Lokaler Legacy Edge Admin Key (compat) wirkt ungueltig (leer/zu kurz/Whitespace). Bitte in der App neu speichern oder importieren.",
+      "Remote-Preview blockiert: Lokaler Legacy Edge Admin Key (compat, Sunset) wirkt ungueltig (leer/zu kurz/Whitespace). Bitte in der App neu speichern oder importieren.",
     );
     expect(mockFetch).not.toHaveBeenCalled();
     expect(mockBuildSandpackHtml).not.toHaveBeenCalled();

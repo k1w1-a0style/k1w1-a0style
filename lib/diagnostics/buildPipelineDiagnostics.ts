@@ -183,7 +183,7 @@ export const runBuildPipelineDiagnostics = async (
     title: "Lokaler Legacy Edge Admin-Key (compat)",
     status: legacyAdminKey ? "warn" : "pass",
     fixHint: legacyAdminKey
-      ? "Legacy-Key ist gesetzt. Fuer neue Workflow-/Keystore-Readiness gelten die scoped Keys als primaerer Vertrag."
+      ? "Legacy-Key ist gesetzt (Sunset). Fuer aktuelle Readiness gelten nur scoped Keys; Legacy bleibt nur fuer klar begrenzte Altpfade (z.B. k1w1-handler/save_preview)."
       : undefined,
   });
 

@@ -26,7 +26,7 @@ const mockAsyncStorage = AsyncStorage as any;
 const mockGitHub = {
   getGitHubToken: jest.fn(),
   getExpoToken: jest.fn(),
-  getLegacyEdgeAdminKey: jest.fn(),
+  getAndroidKeystoreExportAdminKey: jest.fn(),
   getBranchHeadSha: jest.fn(),
 };
 
@@ -106,7 +106,7 @@ describe("useOneClickDeploy", () => {
     mockGitHub.getGitHubToken.mockReset();
     mockGitHub.getExpoToken.mockReset();
     mockGitHub.getBranchHeadSha.mockReset();
-    mockGitHub.getLegacyEdgeAdminKey.mockReset();
+    mockGitHub.getAndroidKeystoreExportAdminKey.mockReset();
     mockSecrets.autoSyncRepoSecrets.mockReset();
     // Reset AsyncStorage mocks per test
     mockAsyncStorage.getItem.mockReset();
@@ -116,7 +116,7 @@ describe("useOneClickDeploy", () => {
     mockAsyncStorage.setItem.mockResolvedValue(undefined);
     mockAsyncStorage.removeItem?.mockResolvedValue?.(undefined);
     mockGitHub.getBranchHeadSha.mockResolvedValue("a".repeat(40));
-    mockGitHub.getLegacyEdgeAdminKey.mockResolvedValue("edge-admin-key-12345678901234567890");
+    mockGitHub.getAndroidKeystoreExportAdminKey.mockResolvedValue("keystore-admin-key-12345678901234567890");
   });
 
   afterEach(() => {
@@ -132,7 +132,7 @@ describe("useOneClickDeploy", () => {
       return null;
     });
 
-    mockGitHub.getLegacyEdgeAdminKey.mockResolvedValue(null);
+    mockGitHub.getAndroidKeystoreExportAdminKey.mockResolvedValue(null);
 
     const startBuild = jest.fn(async () => {});
     const { getByTestId } = render(
@@ -151,7 +151,7 @@ describe("useOneClickDeploy", () => {
         const steps = getSteps(getByTestId);
         const signing = steps.find((s: any) => s.id === "signing_key");
         expect(signing.status).toBe("fail");
-        expect(signing.detail).toMatch(/lokaler (legacy )?edge admin key(?: \(compat\))? wurde vom edge-server abgelehnt|lokaler (legacy )?edge admin key(?: \(compat\))? fehlt/i);
+        expect(signing.detail).toMatch(/lokaler android keystore export admin key wurde vom edge-server abgelehnt|lokaler android keystore export admin key fehlt/i);
       },
       { timeout: 12000 },
     );
