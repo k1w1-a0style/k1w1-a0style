@@ -117,7 +117,7 @@ Der Service muss dieselben Regeln servernah erzwingen, damit keine Umgehung via 
 - `contexts/ProjectContext.tsx::startBuild` delegiert an genau diesen Service.
 
 ### Erforderliche Durchsetzung
-- Gate-Funktion als dedizierte Funktion im Service-Layer (z. B. `assertBuildReadiness`) direkt in `startBuildJob` vor `bestEffortPushToGitHub(...)` und vor `supabase.functions.invoke(...)`.
+- Gate-Funktion als dedizierte Funktion im Service-Layer (z. B. `assertBuildReadiness`) direkt in `startBuildJob` vor dem fail-closed Sync/Push-Schritt `pushProjectFilesOrAbortBuild(...)` und vor `supabase.functions.invoke(...)`.
 - UI-Checks bleiben UX-Feedback, aber **nicht** einzige Sicherheitsinstanz.
 
 ---
@@ -325,7 +325,7 @@ fi
 
 ## 6) Konkrete Implementierungsanweisung (nächster Code-Patch)
 
-1. In `project/services/buildStartService.ts` vor `bestEffortPushToGitHub`:
+1. In `project/services/buildStartService.ts` vor dem Sync/Push-Gate `pushProjectFilesOrAbortBuild(...)`:
    - `assertBuildReadiness({ project, buildProfile })` aufrufen.
 2. `assertBuildReadiness` liefert:
    - `errors[]` (Blocker),
@@ -336,6 +336,18 @@ fi
 4. UI kann weiterhin `buildBlockedReason` für sofortiges Feedback nutzen; Service bleibt letzte harte Instanz.
 
 Damit wird der Buildflow „wasserdicht“ gegen Umgehungen außerhalb der Build-Screen-UI.
+
+## 7) Patch-612 Korrektheitsfix: Repo-Sync/Push ist jetzt harter Start-Guard
+
+- Historischer Fehler: Im `out_of_sync`-Pfad konnte ein fehlgeschlagenes `pushFilesToRepo(...)` nur geloggt werden; danach liefen Workflow-Autofix und Build-Dispatch weiter.
+- Neuer Vertrag (fail-closed): Schlaegt der Push fehl, bricht `startBuildJob(...)` sofort ab und wirft den klaren Operator-Fehler:
+  - `Build abgebrochen: Lokale Aenderungen konnten nicht erfolgreich ins Ziel-Repo gepusht werden.`
+- Guard-Reihenfolge:
+  1. Push scheitert im Sync-Gate.
+  2. Sofortiger Abbruch.
+  3. Kein `autoFixCIWorkflows(...)`/Bootstrap mehr.
+  4. Kein `supabase.functions.invoke(trigger-eas-build)`/Dispatch/Run.
+- UI-Semantik: Caller sehen einen eindeutigen Abbruchzustand statt eines irrefuehrenden Teil-Erfolgs.
 
 ## Related
 - Diagnostics → Fix Playbook: `docs/07-diagnostics-fix-playbook.md`

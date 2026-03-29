@@ -1,6 +1,6 @@
 /**
  * Integration-ish tests for project/services/buildStartService.startBuildJob
- * Focus: build-profile normalization, GitHub push + workflow autofix sequencing,
+ * Focus: build-profile normalization, fail-closed GitHub push + workflow autofix sequencing,
  * and Supabase Edge invoke payload/headers.
  */
 import type { ProjectData } from "../../shared/types/project";
@@ -153,7 +153,7 @@ describe("startBuildJob (integration)", () => {
     });
   });
 
-  it("uses linkedBranch when push fails", async () => {
+  it("aborts build when push fails before workflow autofix or dispatch", async () => {
     mockGitHub.pushFilesToRepo.mockRejectedValueOnce(new Error("push failed"));
     const project = makeProject({ linkedBranch: "dev" });
     const syncKey = repoSyncKey("k1w1-a0style/musik-player", "dev");
@@ -179,18 +179,11 @@ describe("startBuildJob (integration)", () => {
       }
     });
 
-    const res = await startBuildJob({ project, buildProfile: "preview" });
-
-    // still attempts autofix with derived owner/repo and branch hint (dev)
-    expect(mockAutoFix.autoFixCIWorkflows).toHaveBeenCalledWith({
-      owner: "k1w1-a0style",
-      repo: "musik-player",
-      branch: "dev",
-    });
-
-    const [, opts] = mockInvoke.mock.calls[0];
-    expect(opts.body.branch).toBe("dev");
-    expect(res.branch).toBe("dev");
+    await expect(startBuildJob({ project, buildProfile: "preview" })).rejects.toThrow(
+      /Build abgebrochen: Lokale Aenderungen konnten nicht erfolgreich ins Ziel-Repo gepusht werden\./i,
+    );
+    expect(mockAutoFix.autoFixCIWorkflows).not.toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalled();
   });
 
   it("normalizes numeric job ids from the edge function to string", async () => {

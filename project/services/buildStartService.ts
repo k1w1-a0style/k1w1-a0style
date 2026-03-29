@@ -77,7 +77,7 @@ export async function assertBuildReadiness(
   await assertBuildReadinessContract(project, deps);
 }
 
-async function bestEffortPushToGitHub(opts: {
+async function pushProjectFilesOrAbortBuild(opts: {
   githubRepo: string;
   branch: string;
   files: ProjectFile[];
@@ -96,14 +96,15 @@ async function bestEffortPushToGitHub(opts: {
     try {
       await pushFilesToRepo(owner, repo, files, branch);
     } catch (err) {
-      // Best-effort: even if push fails (e.g. permissions, network),
-      // we still try to ensure workflows exist and proceed with the build using the linked branch.
-      logger.warn("Push nach GitHub fehlgeschlagen (best-effort). Fahre fort mit Workflow-Autofix.", {
+      logger.warn("Build-Start abgebrochen: Push nach GitHub fehlgeschlagen.", {
         owner,
         repo,
         branch,
         err,
       });
+      throw new Error(
+        "Build abgebrochen: Lokale Aenderungen konnten nicht erfolgreich ins Ziel-Repo gepusht werden.",
+      );
     }
   }
 
@@ -155,7 +156,7 @@ export async function startBuildJob(params: {
   }
 
   if (syncState === "out_of_sync") {
-    await bestEffortPushToGitHub({
+    await pushProjectFilesOrAbortBuild({
       githubRepo,
       branch: buildBranch,
       files: project.files,
