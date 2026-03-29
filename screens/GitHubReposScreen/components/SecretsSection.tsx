@@ -343,16 +343,16 @@ export function SecretsSection(props: {
           }),
         localPresent: runtimePresence.legacyEdgeAdminKey,
         usageCopy:
-          "Legacy-Compat sichtbar, aber nicht primaerer Scoped-Vertrag fuer Workflow-/Keystore-Readiness.",
-        repoCopy: "Legacy-Repo-Secret K1W1_EDGE_ADMIN_KEY (nur Compat/Fallback).",
-        localCopy: "SecureStore-Legacywert fuer alte Pfade; neue Flows sollten scoped Keys nutzen.",
+          "Legacy-Compat sichtbar (Sunset): nur fuer alte Runtime-Pfade wie k1w1-handler/save_preview, nicht als allgemeiner Readiness-Anker.",
+        repoCopy: "Legacy-Repo-Secret K1W1_EDGE_ADMIN_KEY (nur Compat/Sunset, kein Scoped-Primärvertrag).",
+        localCopy: "SecureStore-Legacywert fuer Altpfade; aktuelle Workflow-/Keystore-Flows bleiben scoped-only.",
       },
     ];
   }, [error, names, optionalStatus, requiredStatus, runtimePresence.workflowAdminKey, runtimePresence.androidKeystoreExportAdminKey, runtimePresence.legacyEdgeAdminKey, runtimePresence.expoToken, stale]);
 
   const runtimeMissingLabels = useMemo(() => {
     return runtimeRows
-      .filter((row) => row.localPresent === false)
+      .filter((row) => row.localPresent === false && row.id !== "legacyEdgeAdmin")
       .map((row) => {
         if (row.id === "expo") return "Expo-Token lokal";
         if (row.id === "workflowAdmin") return "lokaler Workflow Admin Key";

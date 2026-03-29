@@ -56,6 +56,8 @@ RISK_HOTSPOTS_DOC="docs/04-risk-hotspots.md"
 AUTH_SHARED="supabase/functions/_shared/auth.ts"
 WIZARD_HELPERS="screens/CredentialsWizardScreen/hooks/credentialHelpers.ts"
 WIZARD_HOOK="screens/CredentialsWizardScreen/hooks/useCredentialsWizardScreen.ts"
+SIGNING_GATE="screens/EnhancedBuildScreen/hooks/signingKeyGate.ts"
+CI_LITE_MODAL="components/CiLiteHeaderButton/components/CiLiteModal.tsx"
 BUILD_START_SERVICE="project/services/buildStartService.ts"
 BUILD_POLLING_SERVICE="project/services/buildPollingService.ts"
 WORKFLOW_LOGS_HOOK="hooks/useGitHubActionsLogs.ts"
@@ -68,7 +70,7 @@ KEYSTORE_EXPORT_CONFIG="supabase/functions/android-keystore-export/config.toml"
 KEYSTORE_GENERATE_LOCAL_CONFIG="supabase/functions/android-keystore-generate/config.toml"
 KEYSTORE_STATUS_LOCAL_CONFIG="supabase/functions/android-keystore-status/config.toml"
 
-for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$K1W1_HANDLER_EDGE" "$CREATE_CODESANDBOX_EDGE" "$SAVE_PREVIEW_EDGE" "$LEGACY_TEST_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$BUILD_READINESS_DOC" "$RISK_HOTSPOTS_DOC" "$AUTH_SHARED" "$WIZARD_HELPERS" "$WIZARD_HOOK" "$BUILD_START_SERVICE" "$BUILD_POLLING_SERVICE" "$WORKFLOW_LOGS_HOOK" "$CI_LITE_WORKFLOW_HOOK" "$ROOT_CONFIG" "$CI_LITE_ENV_LOAD" "$CI_LITE_SMOKE"; do
+for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$K1W1_HANDLER_EDGE" "$CREATE_CODESANDBOX_EDGE" "$SAVE_PREVIEW_EDGE" "$LEGACY_TEST_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$BUILD_READINESS_DOC" "$RISK_HOTSPOTS_DOC" "$AUTH_SHARED" "$WIZARD_HELPERS" "$WIZARD_HOOK" "$SIGNING_GATE" "$CI_LITE_MODAL" "$BUILD_START_SERVICE" "$BUILD_POLLING_SERVICE" "$WORKFLOW_LOGS_HOOK" "$CI_LITE_WORKFLOW_HOOK" "$ROOT_CONFIG" "$CI_LITE_ENV_LOAD" "$CI_LITE_SMOKE"; do
   require_file "$f"
 done
 
@@ -149,6 +151,11 @@ require_fixed "$WIZARD_HELPERS" 'Authorization: `Bearer ${userJwt.trim()}`'
 require_fixed "$WIZARD_HELPERS" '"x-k1w1-admin-key": adminKey.trim()'
 require_fixed "$WIZARD_HOOK" "getAndroidKeystoreExportAdminKey"
 require_fixed "$WIZARD_HOOK" "saveAndroidKeystoreExportAdminKey"
+forbid_fixed "$WIZARD_HOOK" "getLegacyEdgeAdminKey"
+require_fixed "$SIGNING_GATE" "getAndroidKeystoreExportAdminKey"
+forbid_fixed "$SIGNING_GATE" "getLegacyEdgeAdminKey"
+require_fixed "$CI_LITE_MODAL" "lokalen Workflow Admin Key (scoped)"
+require_fixed "$CI_LITE_MODAL" "Legacy-Compat/Sunset-Vertrag"
 require_fixed "$WIZARD_HOOK" "build_admin (oder service_role fuer Server-Caller)"
 require_fixed "$BUILD_START_SERVICE" "JWT role=build_admin (oder service_role fuer Server-Caller)"
 require_fixed "$BUILD_POLLING_SERVICE" "JWT role=build_admin (oder service_role fuer Server-Caller)"

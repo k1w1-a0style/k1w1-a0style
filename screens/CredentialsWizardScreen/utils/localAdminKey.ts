@@ -52,7 +52,7 @@ export function describeLocalEdgeAdminKeyIssue(params: {
   const keyName =
     surface === "keystore"
       ? "Lokaler Android Keystore Export Admin Key"
-      : "Lokaler Legacy Edge Admin Key (compat)";
+      : "Lokaler Legacy Edge Admin Key (compat, Sunset)";
   const kind = inferLocalEdgeAdminKeyIssueKind(params);
   if (kind === "missing") {
     return surface === "keystore"

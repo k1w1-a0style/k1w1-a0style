@@ -244,7 +244,7 @@ describe("useCiLiteWorkflow behavior", () => {
 
     expect(runsCall).toBeFalsy();
     expect(result.current.showError).toMatch(/Workflow-Run-Lookup blockiert/i);
-    expect(result.current.showError).toMatch(/lokaler (legacy )?workflow admin key(?: \(compat\))? fehlt/i);
+    expect(result.current.showError).toMatch(/lokaler (legacy )?workflow admin key(?: \(compat(?:, Sunset)?\))? fehlt/i);
   });
 
 
@@ -1132,9 +1132,9 @@ describe("useCiLiteWorkflow behavior", () => {
     });
 
     expect(result.current.showError).toMatch(/CI Lite Dispatch blockiert/i);
-    expect(result.current.showError).toMatch(/lokaler (legacy )?workflow admin key(?: \(compat\))? ist lokal vorhanden/i);
+    expect(result.current.showError).toMatch(/lokaler (legacy )?workflow admin key(?: \(compat(?:, Sunset)?\))? ist lokal vorhanden/i);
     expect(result.current.showError).toMatch(/abgelehnt/i);
-    expect(result.current.showError).not.toMatch(/lokaler (legacy )?workflow admin key(?: \(compat\))? fehlt/i);
+    expect(result.current.showError).not.toMatch(/lokaler (legacy )?workflow admin key(?: \(compat(?:, Sunset)?\))? fehlt/i);
     expect(result.current.showError).not.toContain("workflow-admin-key");
   });
 

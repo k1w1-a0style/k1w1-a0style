@@ -53,6 +53,7 @@
 - Patch 602 schliesst den verbleibenden JWT-/Ref-Vertragsbruch im selben Script-Scope: `scripts/ci-lite-smoke.sh` ruft JWT-pflichtige workflow-/build-nahe Routen nur noch mit `Authorization: Bearer <K1W1_EDGE_WORKFLOW_JWT>` plus scoped Workflow-Key auf und verlangt einen expliziten `<ref>` (kein stilles `main` mehr).
 - Patch 601 schliesst den Restpunkt `supabase/functions/test` explizit: alte Testroute ist jetzt fail-closed (`requireScopedEdgeAuth` + immer `410 legacy_test_route_disabled`) und kann nicht mehr als halboffene Altflaeche mit unklarem Auth-Vertrag stehen bleiben.
 - Patch 603 korrigiert den verbleibenden Vertragsfehler in genau dieser Testroute: der Scoped-Guard enthaelt jetzt verpflichtend `allowAdmin: true` und `scope: "test"`, damit keine `500`-Auth-Misconfiguration den beabsichtigten `410 legacy_test_route_disabled`-Pfad verdeckt; Contract-Checks/Invariants blocken die Rueckdrift explizit.
+- Patch 609 schiebt den Sunset im Client weiter auf scoped-only Runtime: Wizard- und Signing-Gate lesen keinen Legacy-Edge-Key mehr fuer Keystore-Readiness, und SecretsSection wertet fehlenden Legacy-Key nicht mehr als aktuellen Runtime-Blocker; verbleibende Legacy-Reste sind explizit als Compat-/Altpfade begrenzt und per Invariant/Contract-Check abgesichert.
 
 ---
 

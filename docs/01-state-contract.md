@@ -75,7 +75,7 @@
 - **Repo/Branch:** nur `ProjectContext.setLinkedRepo(...)` ist autoritativer Writer.
 - **Build Profile:** nur `ProjectContext.setPreferredBuildProfile(...)`.
 - **Tokens/Secrets:** nur `infra/github/tokenStore.ts` (`save*/delete*`).
-- **Scoped lokale Admin-Keys:** Workflow (`workflowAdminKey`) und Android Keystore Export (`androidKeystoreExportAdminKey`) bleiben getrennte SecureStore-Slots; `legacyEdgeAdminKey` ist nur Compat-Slot und kein Primärsignal für Build-/Keystore-Readiness.
+- **Scoped lokale Admin-Keys:** Workflow (`workflowAdminKey`) und Android Keystore Export (`androidKeystoreExportAdminKey`) bleiben getrennte SecureStore-Slots; `legacyEdgeAdminKey` ist nur Compat-/Sunset-Slot (Altpfade wie `k1w1-handler`/`save_preview`) und kein Primärsignal oder Blocker für Workflow-/Keystore-Readiness.
 - **Connection-Lampen:** nur `useConnectionsScreen` schreibt `CONN_*` und `EAS_PROJECT_ID` (außer klar definierte Import-Flows).
 - **Wizard key-exists Flags:** nur `useCredentialsWizardScreen.refreshStatusCore(...)`.
 - **Diagnostic/CI Lite Flags:** nur Diagnostic-Run und CI-Lite Workflow Hook.

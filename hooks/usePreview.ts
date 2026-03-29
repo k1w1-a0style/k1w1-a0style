@@ -389,8 +389,8 @@ if (container) {
             edgeAdminKey = await getLegacyEdgeAdminKey().catch(() => null);
             const trimmedEdgeAdminKey = String(edgeAdminKey ?? "").trim();
 
-            // Security: save_preview is protected by an admin key. If it's not configured,
-            // skip the remote preview path immediately to avoid unnecessary 401 calls.
+            // Security: save_preview currently remains on the legacy compat admin scope.
+            // Keep this path explicit and fail-closed: no silent fallback to other local keys.
             if (!trimmedEdgeAdminKey) {
               throw new Error("Missing Legacy Edge Admin Key");
             }

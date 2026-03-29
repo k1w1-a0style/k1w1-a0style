@@ -260,7 +260,7 @@ if (!supabaseServiceRole) skipped.push("SUPABASE_SERVICE_ROLE_KEY (missing)");
 if (!easProjectId) skipped.push("EAS_PROJECT_ID (optional, empty)");
 if (!workflowAdminKey) skipped.push("K1W1_EDGE_WORKFLOW_ADMIN_KEY (optional, empty)");
 if (!androidKeystoreExportAdminKey) skipped.push("K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY (optional, empty)");
-if (!legacyEdgeAdminKey) skipped.push("K1W1_EDGE_ADMIN_KEY (legacy optional, empty)");
+if (!legacyEdgeAdminKey) skipped.push("K1W1_EDGE_ADMIN_KEY (legacy optional, sunset/compat only)");
 // Patch 603: legacy test edge route (`supabase/functions/test`) bleibt bewusst deaktiviert
 // und ist jetzt scoped-auth-konsistent (`scope: "test"`, `allowAdmin: true`) auf fail-closed `410 legacy_test_route_disabled` gehaertet.
 if (!signingAdminKey) skipped.push("SIGNING_ADMIN_KEY (legacy optional, empty)");
