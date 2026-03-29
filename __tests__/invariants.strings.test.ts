@@ -149,8 +149,10 @@ describe("Invariant String Tests", () => {
     expect(sharedTemplates).toContain("repos/\\${GITHUB_REPOSITORY}/dispatches");
 
     const edge = read("supabase/functions/github-workflow-dispatch/index.ts");
-    expect(edge).toContain("WORKFLOW_TEMPLATES");
-    expect(edge).toContain("managedWorkflowTemplates");
+    expect(edge).toContain("missing_workflow");
+    expect(edge).toContain("Dispatch is mutation-free");
+    expect(edge).not.toContain("WORKFLOW_TEMPLATES");
+    expect(edge).not.toContain("managedWorkflowTemplates");
 
     const appTemplates = read("infra/github/workflowTemplates.ts");
     expect(appTemplates).toContain("WORKFLOW_TEMPLATES");

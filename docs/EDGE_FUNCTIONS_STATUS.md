@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: 2026-03-29 (Patch 611)
+Stand: 2026-03-29 (Patch 613)
 
 ## Aktiv und workflow-relevant
 
@@ -8,7 +8,7 @@ Stand: 2026-03-29 (Patch 611)
 |---|---|---|
 | `trigger-eas-build` | Legt `build_jobs` an und dispatcht GitHub `trigger-eas-build` | `jobId`, `githubRepo`, `branch`, `buildProfile` · Request-Contract: `branch` ist serverseitig verpflichtend (fehlend/leer/Whitespace => 400) · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, build_admin]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) |
 | `check-eas-build` | Liest `build_jobs` zurück | `status`, `runId`, `build_url`, `download_url`, `source_commit_sha`, `urls`, `artifact`, `job` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, build_admin]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) |
-| `github-workflow-dispatch` | Dispatch / Bootstrap managed Workflows | `ok`, `workflow`, `workflow_id`, optional `bootstrapped` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, build_admin]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) |
+| `github-workflow-dispatch` | Reiner Workflow-Dispatch (mutation-free) | `ok`, `workflow`, `workflow_id`; bei fehlendem Workflow klarer `missing_workflow`-Fehler (kein impliziter Bootstrap/Repo-Write) · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, build_admin]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) |
 | `github-workflow-runs` | Holt Workflow-Runs (fail-closed bei ungültigem `workflowId`) | `data` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, build_admin]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) |
 | `github-workflow-logs` | Holt redigierte Logs eines Workflow-Runs | `run`, `files`, `fileCount`, `logsText`, `truncated` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, build_admin]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) |
 | `github-run-artifact-json` | Liest JSON-Datei aus GitHub Artifact-ZIP | `text`, `json`, `artifactId`, `artifactName`, `filePath` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, build_admin]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) |
@@ -48,6 +48,7 @@ Stand: 2026-03-29 (Patch 611)
 - Patch 604 zieht die App-Caller-/Wizard-Kommunikation auf denselben Operator-Vertrag: app-initiierte workflow-/build-/artifact-/keystore-Calls benoetigen weiterhin `Authorization: Bearer <jwt>` + scoped Admin-Key, aber der JWT muss serverseitig `service_role|build_admin` erfuellen; lokale Fehltexte nennen daher kein `role=authenticated` mehr.
 - Patch 605 schliesst den operativen Restvertrag: im Repo existiert kein interner build_admin-Mapper/Grant-Flow; fuer produktive Operator-Nutzung muss der Claim extern provisioniert sein, bevor App-/Wizard-Caller diese Routen nutzen.
 - Patch 611 zieht den finalen Operator-Runbook-/Preflight-Vertrag nach: fuer workflow-/build-/artifact-/keystore-Operatorpfade sind normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim kein Repo-Bug, sondern bewusst fail-closed blockiert; Caller-Texte, Diagnostics und Checks benennen diesen externen Betriebsvertrag jetzt einheitlich.
+- Patch 613 trennt Dispatch und Bootstrap/Repair hart: `github-workflow-dispatch` dispatcht nur noch und mutiert das Ziel-Repo nicht implizit mehr bei `404`; fehlende Workflows werden als `missing_workflow` signalisiert und muessen ueber explizite Repair-/Provisioning-Flows behoben werden.
 - Patch 603 schliesst eine echte Guard-Misconfiguration der Legacy-Testroute: `supabase/functions/test` setzt jetzt explizit `allowAdmin: true` + `scope: "test"` im `requireScopedEdgeAuth(...)`-Aufruf, damit der Pfad nicht mehr vorzeitig in `500` (`Auth misconfiguration`) endet, sondern konsistent fail-closed `410 legacy_test_route_disabled` liefert; Script-Check und Invariants pruefen diese konkrete Konfiguration explizit mit.
 - `github-workflow-dispatch` / `infra/github/workflowTemplates.ts` bilden weiterhin eine **partielle** Workflow-SoT ab (vor allem CI Lite), nicht die komplette managed Familie.
 - `github-run-artifact-json` normalisiert ZIP-Pfade jetzt explizit inkl. `\`-Separatoren; dadurch bleiben Artifact-JSON-Lookups robust, auch wenn ZIP-Einträge nicht POSIX-normalisiert sind.
