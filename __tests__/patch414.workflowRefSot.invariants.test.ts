@@ -308,7 +308,8 @@ describe("Patch 414 workflow ref SoT invariants", () => {
 
 
     expect(infraTemplates).toContain("managedWorkflowTemplates");
-    expect(edgeTemplates).toContain("managedWorkflowTemplates");
+    expect(edgeTemplates).toContain("missing_workflow");
+    expect(edgeTemplates).not.toContain("managedWorkflowTemplates");
     expect(autofix).toContain("- name: Determine target branch");
     expect(autofix).toContain("TARGET_BRANCH=${{ steps.target_ref.outputs.checkout_ref }}");
     expect(autofix).not.toContain("inputs.ref || github.ref_name");

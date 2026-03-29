@@ -25,6 +25,7 @@ describe("patch 399 managed workflow drift invariants", () => {
     expect(shared).toContain('"k1w1-ci-lite.yml": `\n# managed-by: k1w1\n# workflow-version: 399');
     expect(shared).toContain('"k1w1-ci-lite-autofix.yml": `\n# managed-by: k1w1\n# workflow-version: 399');
     expect(infra).toContain("managedWorkflowTemplates");
-    expect(edge).toContain("managedWorkflowTemplates");
+    expect(edge).not.toContain("managedWorkflowTemplates");
+    expect(edge).toContain("missing_workflow");
   });
 });

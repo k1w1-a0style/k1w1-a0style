@@ -15,13 +15,15 @@ describe("patch 403 workflow contract invariants", () => {
     }
   });
 
-  it("keeps CI Lite package-manager aware in infra + edge bootstrap templates", () => {
+  it("keeps CI Lite package-manager aware in shared + infra templates while dispatch edge stays mutation-free", () => {
     const infra = read("infra/github/workflowTemplates.ts");
     const edge = read("supabase/functions/github-workflow-dispatch/index.ts");
     const shared = read("shared/workflows/managedWorkflowTemplates.ts");
 
     expect(infra).toContain('from "../../shared/workflows/managedWorkflowTemplates"');
-    expect(edge).toContain("from \"../../../shared/workflows/managedWorkflowTemplates.ts\"");
+    expect(edge).not.toContain("managedWorkflowTemplates");
+    expect(edge).not.toContain("WORKFLOW_TEMPLATES");
+    expect(edge).toContain("missing_workflow");
 
     for (const src of [shared]) {
       expect(src).toContain("package_manager");

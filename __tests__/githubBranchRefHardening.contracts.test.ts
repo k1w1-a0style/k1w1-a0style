@@ -58,4 +58,25 @@ describe("github branch/ref hardening contracts", () => {
     expect(src).not.toContain("Invalid branch.");
     expect(src).not.toContain("branch,");
   });
+
+  test("triggerWorkflow stays mutation-free on missing workflow (404)", async () => {
+    mockFetchGitHub
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        text: async () => "workflow not found",
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ workflows: [] }),
+      } as Response);
+
+    await expect(
+      triggerWorkflow("o", "r", "k1w1-ci-lite.yml", "work"),
+    ).rejects.toThrow(/missing_workflow/i);
+
+    // Dispatch + workflow listing only; no bootstrap write path is used.
+    expect(mockFetchGitHub).toHaveBeenCalledTimes(2);
+  });
 });

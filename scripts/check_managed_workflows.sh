@@ -77,10 +77,14 @@ TRIGGERED_BUILD_SHARED_FILE="shared/workflows/k1w1TriggeredBuildWorkflowTemplate
 [ -f "$EAS_BUILD_RELEASE_SHARED_FILE" ] || fail "Missing shared EAS/Release workflow source: $EAS_BUILD_RELEASE_SHARED_FILE"
 [ -f "$TRIGGERED_BUILD_SHARED_FILE" ] || fail "Missing shared triggered-build workflow source: $TRIGGERED_BUILD_SHARED_FILE"
 
-grep -q 'managedWorkflowTemplates' "$EDGE_FILE" || fail "Edge dispatch must import shared managed workflow templates"
-grep -q 'WORKFLOW_TEMPLATES' "$EDGE_FILE" || fail "Edge dispatch missing WORKFLOW_TEMPLATES reference"
-grep -q 'function parseManagedWorkflowMeta' "$EDGE_FILE" || fail "Missing managed workflow metadata parser"
-
+grep -q 'code: "missing_workflow"' "$EDGE_FILE" || fail "Edge dispatch must return missing_workflow contract"
+grep -q 'Dispatch is mutation-free' "$EDGE_FILE" || fail "Edge dispatch must document mutation-free dispatch contract"
+if grep -q 'managedWorkflowTemplates' "$EDGE_FILE"; then
+  fail "Edge dispatch must not import managed workflow templates for implicit bootstrap anymore"
+fi
+if grep -q 'WORKFLOW_TEMPLATES' "$EDGE_FILE"; then
+  fail "Edge dispatch must not keep implicit bootstrap template map references"
+fi
 grep -q '# managed-by: k1w1' "$SHARED_FILE" || fail "Shared workflow templates missing managed-by marker"
 version_count="$(grep -E -c '# workflow-version: [0-9]+' "$SHARED_FILE" || true)"
 [ "${version_count:-0}" -ge 1 ] || fail "Shared workflow templates missing numeric workflow-version marker"

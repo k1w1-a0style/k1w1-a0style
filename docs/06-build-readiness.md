@@ -42,7 +42,7 @@ Kein stiller Fallback bei Repo/Branch/Profil/Secrets.
 | EAS Auth Secret in GitHub (`EXPO_TOKEN`) | Ja/Ja/Ja | Repo GitHub Secrets | Workflow Validate Inputs (`Missing GitHub Secret EXPO_TOKEN`) | Ja | `Missing GitHub Secret EXPO_TOKEN` | Ja | `autoSyncRepoSecrets` synct `EXPO_TOKEN` falls lokal vorhanden |
 | Supabase Secrets in GitHub (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) | Nein/Nein/Ja | Repo GitHub Secrets | `eas-build.yml` blockt production bei fehlenden Werten | Ja (nur prod) | `Production build requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY` | Ja | `autoSyncRepoSecrets` (wenn lokal vorhanden), sonst manuell im Repo-Secret setzen |
 | EAS Project Linking (`eas-project.json`/projectId) | Nein*/Empf./Empf. | Repo-Datei + `EAS_PROJECT_ID` key | `eas-link.yml` erzeugt/aktualisiert `eas-project.json` | Warnung (Gate), harter Fehler kann später in Workflow kommen | `EAS Project ID fehlt/unlinked` | Ja | `eas-link.yml` triggern, `Sync` drücken |
-| Workflow-Dateien vorhanden | Ja/Ja/Ja | Ziel-Repo `.github/workflows/*` | `autoFixCIWorkflows` schreibt Soll-Templates | Ja | `Pflicht-Workflow fehlt` | Ja | AutoFix (createOrUpdateFile), sonst manuell committen |
+| Workflow-Dateien vorhanden | Ja/Ja/Ja | Ziel-Repo `.github/workflows/*` | Dispatch prueft nur Existenz/Trigger; Repair laeuft explizit ueber `autoFixCIWorkflows`/Provisioning | Ja | `missing_workflow` / `Pflicht-Workflow fehlt` | Ja | Expliziter AutoFix-/Provisioning-Flow, danach Dispatch erneut ausfuehren |
 | EAS Profile in Repo (`eas.json`) | Ja/Ja/Ja | Ziel-Repo `eas.json` | Profile-Definition vorhanden + prod credentialsSource local | Ja | `eas.json Profil unvollständig` | Nein | `eas.json` im Zielrepo korrigieren |
 | Project Files vorhanden | Ja/Ja/Ja | `project.files` | `project.files.length > 0` | Ja | `Projekt ist leer` | Nein | Dateien erzeugen/importieren |
 
@@ -75,6 +75,7 @@ Der Service muss dieselben Regeln servernah erzwingen, damit keine Umgehung via 
 - **Wichtig (Patch 604, RBAC-Vertrag):** App-initiierte workflow-/build-/artifact-/keystore-Calls sind Operator-Pfade; ein normales `authenticated`-Session-JWT reicht nicht, serverseitig gilt fail-closed `service_role|build_admin` plus scoped Admin-Key.
 - **Wichtig (Patch 605, Claim-Herkunft):** Der build_admin-Claim wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos vergeben (Supabase-User `role`/`app_metadata.role`). Im Repo gibt es bewusst keinen internen Claim-Generator oder automatischen Auth-Mapper fuer normale Logins.
 - **Wichtig (Patch 611, finaler Operator-Preflight):** Normale eingeloggte Nutzer ohne extern provisionierten `build_admin`-Claim sind auf workflow-/build-/artifact-/keystore-Operatorpfaden bewusst fail-closed blockiert; das ist ein externer Betriebsvertrag und kein fehlender Repo-Codepfad.
+- **Wichtig (Patch 613, Dispatch-Semantik):** Normaler Workflow-Dispatch ist strikt mutation-free. `404`/fehlender Workflow fuehrt zu `missing_workflow` (klarer Fehlerzustand) und **nicht** zu stillen Repo-Writes/Bootstrap. Repo-Mutationen duerfen nur in expliziten Repair-/Provisioning-Flows stattfinden (z. B. `autoFixCIWorkflows`, RepoScreen Workflows/Core Files Push).
 
 ---
 
@@ -354,3 +355,10 @@ Damit wird der Buildflow „wasserdicht“ gegen Umgehungen außerhalb der Build
 - Test Coverage Matrix: `docs/08-test-coverage-matrix.md`
 - Smoke Plan: `docs/04-testing-smoke-plan.md`
 - Gap Tickets: `docs/09-gap-tickets.md`
+
+## 8) Patch-613 Semantikfix: Dispatch ist mutation-free, Repair ist explizit
+
+- Historischer Fehler: Dispatch-Pfade konnten bei fehlendem Workflow (`404`) still in Bootstrap-/Repo-Write-Logik kippen.
+- Neuer Vertrag: Dispatch versucht nur Triggern (Dateiname/ID-Aufloesung) und liefert bei Fehlschlag klaren Fehlerzustand (`missing_workflow`).
+- Repair/Bootstrap bleibt ein separater, expliziter Operator-Schritt (AutoFix/Provisioning), nicht implizit im normalen Dispatch.
+- Ergebnis: Operatoren koennen jetzt klar unterscheiden zwischen "Dispatch fehlgeschlagen" und "Repo muss zuerst repariert/provisioniert werden".

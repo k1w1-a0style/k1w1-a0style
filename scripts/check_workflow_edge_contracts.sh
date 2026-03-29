@@ -109,6 +109,12 @@ require_fixed "$LOGS_EDGE" 'requireWorkflowOperatorJwtRole(req, "github-workflow
 require_fixed "$DISPATCH_EDGE" 'adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"'
 require_fixed "$DISPATCH_EDGE" 'allowJwtAuthHeaderWithAdmin: true'
 require_fixed "$DISPATCH_EDGE" 'requireWorkflowOperatorJwtRole(req, "github-workflow-dispatch")'
+require_fixed "$DISPATCH_EDGE" 'code: "missing_workflow"'
+require_fixed "$DISPATCH_EDGE" "Dispatch is mutation-free"
+forbid_fixed "$DISPATCH_EDGE" "ensureWorkflowFileExists("
+forbid_fixed "$DISPATCH_EDGE" "bootstrapped:"
+forbid_fixed "$DISPATCH_EDGE" "k1w1: add managed workflow"
+forbid_fixed "$DISPATCH_EDGE" "k1w1: update managed workflow"
 forbid_fixed "$TRIGGER_EDGE" 'ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"'
 forbid_fixed "$CHECK_EDGE" 'ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"'
 forbid_fixed "$ARTIFACT_EDGE" 'ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"'

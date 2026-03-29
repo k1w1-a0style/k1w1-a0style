@@ -68,8 +68,14 @@ grep -q 'expo preflight' "$SHARED_FILE" || fail "Shared CI Lite templates missin
 
 grep -q 'managedWorkflowTemplates' "$INFRA_FILE" || fail "Infra templates must import shared managed templates"
 grep -q 'WORKFLOW_TEMPLATES' "$INFRA_FILE" || fail "Infra templates missing WORKFLOW_TEMPLATES reference"
-grep -q 'managedWorkflowTemplates' "$EDGE_FILE" || fail "Edge dispatch must import shared managed templates"
-grep -q 'WORKFLOW_TEMPLATES' "$EDGE_FILE" || fail "Edge dispatch missing WORKFLOW_TEMPLATES reference"
+grep -q 'code: "missing_workflow"' "$EDGE_FILE" || fail "Edge dispatch must expose missing_workflow error contract"
+grep -q 'Dispatch is mutation-free' "$EDGE_FILE" || fail "Edge dispatch must document mutation-free dispatch contract"
+if grep -q 'managedWorkflowTemplates' "$EDGE_FILE"; then
+  fail "Edge dispatch must not import shared managed templates for implicit bootstrap anymore"
+fi
+if grep -q 'WORKFLOW_TEMPLATES' "$EDGE_FILE"; then
+  fail "Edge dispatch must not keep implicit bootstrap template map references"
+fi
 grep -q 'WORKFLOW_EAS_LINK_TEMPLATE' "$DIAG_FILE" || fail "Diagnostics workflow templates must import WORKFLOW_EAS_LINK_TEMPLATE"
 grep -q 'WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE' "$DIAG_FILE" || fail "Diagnostics workflow templates must import WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE"
 grep -q 'WORKFLOW_EAS_LINK = WORKFLOW_EAS_LINK_TEMPLATE' "$DIAG_FILE" || fail "Diagnostics EAS Link export must re-use shared template SoT"
