@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: 2026-03-29 (Patch 613)
+Stand: 2026-03-29 (Patch 617)
 
 ## Aktiv und workflow-relevant
 
@@ -59,3 +59,14 @@ Stand: 2026-03-29 (Patch 613)
   - `bash scripts/check_workflow_edge_contracts.sh`
 
 - App-seitig gibt es aktuell weiterhin einen lokalen Edge-Admin-Key im SecureStore. Wenn du Workflows/Logs/Dispatch aus der App startest, muss dieser lokale Wert zum serverseitigen Workflow-Admin-Secret passen.
+
+
+## Operative Reihenfolge (Runbook-Kurzfassung)
+
+1. Externen Operator-Claim (`build_admin`) fuer den Testuser provisionieren.
+2. Lokale scoped Keys setzen (Workflow vs. Keystore getrennt).
+3. Supabase- und GitHub-Secrets sowie DB-/Storage-Objekte fuer Build/Signing/Preview verifizieren.
+4. Erst danach Repair-/Provisioning-Flows (falls noetig) und normalen Dispatch/Build starten.
+5. Legacy-/Compat-Pfade (`save_preview` Operator-Mode, `K1W1_EDGE_ADMIN_KEY`) nie als Standard-Produktpfad interpretieren.
+
+Dieser Vertrag ist bewusst darauf ausgelegt, Setup-Luecken als Setup-Luecken sichtbar zu machen statt als scheinbaren Code-Defekt.

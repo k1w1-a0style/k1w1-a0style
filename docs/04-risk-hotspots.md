@@ -62,6 +62,8 @@
 
 ---
 
+**Update (Patch 617):** Der letzte offene Supabase-/Operator-Runbook-Restpunkt ist als verbindlicher Betriebsvertrag dokumentiert (Readiness-Reihenfolge, externe vs. repo-seitige Verantwortung, Troubleshooting fuer Preview/Signing/Workflow). Dadurch bleibt `R2b` bewusst ein Betriebsrisiko, aber nicht mehr ein unklarer TODO-Block.
+
 ## R3 — Repo-Fallback via `CONFIG.BUILD.GITHUB_REPO`
 **Risiko:** Build startet auf statischem/notfall Repo statt User-Selektion.  
 **Auswirkung:** Harte Kopplung, falsches Zielrepo.

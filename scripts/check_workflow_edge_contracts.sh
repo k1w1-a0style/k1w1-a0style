@@ -182,6 +182,15 @@ require_fixed "$BUILD_POLLING_SERVICE" "ausserhalb dieses Repos per Supabase-Use
 require_fixed "$WORKFLOW_LOGS_HOOK" "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
 require_fixed "$CI_LITE_WORKFLOW_HOOK" "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
 forbid_fixed "$BUILD_START_SERVICE" "JWT role=authenticated"
+
+require_fixed "$BUILD_READINESS_DOC" '### 3.5 Supabase-/Operator-Readiness (verbindliche Reihenfolge)'
+require_fixed "$BUILD_READINESS_DOC" '### 3.6 Troubleshooting: typische Symptome → Ursache → naechster Schritt'
+require_fixed "$BUILD_READINESS_DOC" 'Operator-Claim zuerst (extern)'
+require_fixed "$BUILD_READINESS_DOC" 'DB-/Storage-/Function-Basis pruefen'
+require_fixed "$EDGE_STATUS_DOC" '## Operative Reihenfolge (Runbook-Kurzfassung)'
+require_fixed "$EDGE_STATUS_DOC" 'Setup-Luecken als Setup-Luecken sichtbar'
+require_fixed "docs/TODO.md" 'Supabase-/Operator-Runbook-Restpunkt geschlossen'
+require_fixed "docs/TODO.md" 'Externe Betriebs-Restpunkte (bewusst ausserhalb Repo-Code)'
 forbid_fixed "$BUILD_POLLING_SERVICE" "JWT role=authenticated"
 forbid_fixed "$WORKFLOW_LOGS_HOOK" "JWT role=authenticated"
 forbid_fixed "$CI_LITE_WORKFLOW_HOOK" "JWT role=authenticated"
