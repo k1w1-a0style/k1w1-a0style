@@ -30,8 +30,7 @@ describe("patch415 edge auth guard invariants", () => {
       const src = read(rel);
       expect(src).toContain("requireScopedEdgeAuth");
       expect(src).toContain('adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"');
-      expect(src).toContain("allowCiBearer: false");
-      expect(src).toContain("allowJwtAuthHeaderWithAdmin: true");
+            expect(src).toContain("allowJwtAuthHeaderWithAdmin: true");
       expect(src).not.toContain("ciBearerSecretEnv:");
       expect(src).not.toContain("isScopedCiBearerRequest(");
       expect(src).toContain("requireWorkflowOperatorJwtRole(req,");
@@ -43,8 +42,7 @@ describe("patch415 edge auth guard invariants", () => {
   it("keeps android-keystore-export on a scoped admin-only route secret", () => {
     const src = read("supabase/functions/android-keystore-export/index.ts");
     expect(src).toContain("requireScopedEdgeAuth(req, {");
-    expect(src).toContain("allowCiBearer: false");
-    expect(src).toContain('adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"');
+        expect(src).toContain('adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"');
     expect(src).toContain("requireJwtRole(req, {");
     expect(src).toContain('allowedRoles: ["service_role"]');
     expect(src).not.toContain("requireAdminKeyOrServiceRoleBearer");
@@ -63,8 +61,7 @@ describe("patch415 edge auth guard invariants", () => {
     expect(src).not.toContain('Deno.env.get("SIGNING_MASTER_KEY")');
     expect(src).toContain("requireScopedEdgeAuth(req, {");
     expect(src).toContain('adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"');
-    expect(src).toContain("allowCiBearer: false");
-    expect(src).toContain('const jwtRoleGuard = await requirePrivilegedOperatorJwtRole(req, "android-keystore-generate")');
+        expect(src).toContain('const jwtRoleGuard = await requirePrivilegedOperatorJwtRole(req, "android-keystore-generate")');
   });
 
   it("keeps keystore wizard routes on scoped secret + privileged JWT roles", () => {
@@ -73,8 +70,7 @@ describe("patch415 edge auth guard invariants", () => {
     for (const src of [generateSrc, statusSrc]) {
       expect(src).toContain("requireScopedEdgeAuth(req, {");
       expect(src).toContain("allowAdmin: true");
-      expect(src).toContain("allowCiBearer: false");
-      expect(src).toContain("allowJwtAuthHeaderWithAdmin: true");
+            expect(src).toContain("allowJwtAuthHeaderWithAdmin: true");
       expect(src).toContain('adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"');
       expect(src).not.toContain("requireAdminKey(req)");
       expect(src).not.toContain("requireAdminKeyOrServiceRoleBearer");
@@ -104,8 +100,7 @@ describe("patch415 edge auth guard invariants", () => {
       expect(src).toContain("requireScopedEdgeAuth(req, {");
       expect(src).toContain('adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"');
       expect(src).toContain("allowAdmin: true");
-      expect(src).toContain("allowCiBearer: false");
-      expect(src).not.toContain("requireAdminKey(req)");
+            expect(src).not.toContain("requireAdminKey(req)");
     }
   });
 });

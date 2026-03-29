@@ -153,6 +153,7 @@ CI_LITE_TYPECHECK_OK: "ci_lite_typecheck_ok",
 1. JWT-Rollen auf `service_role` + `build_admin` eingeschraenkt (fail-closed).
 2. Der fruehere CI-bearer-Dualpfad wurde in Patch 606 entfernt; workflow-/build-/artifact-Routen nutzen jetzt nur noch den JWT+scoped-admin-key-Vertrag.
 3. Shared SoT (`WORKFLOW_OPERATOR_ALLOWED_ROLES`) verhindert Rollen-Drift zwischen Routen.
+4. Patch 607 entfernt die verbliebene tote CI-bearer-Helperlogik aus `_shared/auth.ts`; `requireScopedEdgeAuth(...)` enthaelt keinen CI-bearer-Branch mehr und konserviert keinen ungenutzten Dualvertrag.
 
 **Follow-up (Patch 588):**
 4. `android-keystore-generate` und `android-keystore-status` wurden auf denselben dedizierten Keystore-Scoped-Secret-Pfad (`K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) plus fail-closed JWT-RBAC (`service_role|build_admin`) gehoben; generischer `requireAdminKey(...)`-Pfad ist dort entfernt.

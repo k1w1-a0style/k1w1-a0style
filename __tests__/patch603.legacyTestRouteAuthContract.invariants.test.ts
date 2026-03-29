@@ -11,7 +11,6 @@ describe("patch603 legacy test route auth contract", () => {
     expect(route).toContain('scope: "test"');
     expect(route).toContain('adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"');
     expect(route).toContain("allowAdmin: true");
-    expect(route).toContain("allowCiBearer: false");
     expect(route).toContain("status: 410");
     expect(route).toContain("legacy_test_route_disabled");
     expect(route).not.toContain("requireAdminKey(req)");
@@ -23,7 +22,6 @@ describe("patch603 legacy test route auth contract", () => {
 
     expect(check).toContain('require_fixed "$LEGACY_TEST_EDGE" \'scope: "test"\'');
     expect(check).toContain('require_fixed "$LEGACY_TEST_EDGE" \'allowAdmin: true\'');
-    expect(check).toContain('require_fixed "$LEGACY_TEST_EDGE" \'allowCiBearer: false\'');
     expect(check).toContain('require_fixed "$LEGACY_TEST_EDGE" \'status: 410\'');
     expect(check).toContain('require_fixed "$LEGACY_TEST_EDGE" \'legacy_test_route_disabled\'');
   });

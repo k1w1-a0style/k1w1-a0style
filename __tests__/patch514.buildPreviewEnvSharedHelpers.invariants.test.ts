@@ -94,8 +94,7 @@ describe("patch514 build/preview env helper hygiene invariants", () => {
     expect(read(triggerIndex)).toContain("requireScopedEdgeAuth(req, {");
     expect(read(savePreviewIndex)).toContain("requireScopedEdgeAuth(req, {");
     expect(read(savePreviewIndex)).toContain('adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"');
-    expect(read(savePreviewIndex)).toContain("allowCiBearer: false");
-    expect(read(previewHelpers)).toContain('export { rateLimit, sanitizeErrorText };');
+        expect(read(previewHelpers)).toContain('export { rateLimit, sanitizeErrorText };');
   });
 
   it("reads shared build/preview env helpers from process.env without Deno and keeps K1W1 alias precedence", () => {

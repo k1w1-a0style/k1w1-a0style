@@ -193,7 +193,6 @@ Deno.serve(async (req) => {
   const auth = requireScopedEdgeAuth(req, {
     scope: "create_codesandbox",
     allowAdmin: true,
-    allowCiBearer: false,
     adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
   });
   if (auth) return auth;

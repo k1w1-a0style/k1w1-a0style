@@ -202,25 +202,8 @@ export function getAdminKeyHeader(req: Request): string | null {
   )?.trim() || null;
 }
 
-export function isScopedCiBearerRequest(req: Request, ciBearerSecretEnv?: string): boolean {
-  const hasAdminHeader = !!getAdminKeyHeader(req);
-  if (hasAdminHeader) return false;
-
-  const token = getBearerToken(req);
-  if (!token) return false;
-
-  const expected = getStrictEnvSecret(ciBearerSecretEnv);
-  if (!expected) return false;
-
-  return token === expected;
-}
-
 export function hasAdminKeySecretConfigured(): boolean {
   return !!getAdminSecret();
-}
-
-export function hasServiceRoleSecretConfigured(): boolean {
-  return !!getServiceRoleSecret();
 }
 
 /**
@@ -303,46 +286,11 @@ export function requireSigningAdminKey(req: Request): Response | null {
   );
 }
 
-/**
- * Verify Authorization: Bearer <service-role-secret> for CI/internal callers.
- * This is a caller-auth gate only. It does not supply the server-side DB key.
- */
-export function requireServiceRoleBearer(req: Request): Response | null {
-  const expected = getServiceRoleSecret();
-  const got = getBearerToken(req) ?? "";
-
-  if (!expected) {
-    return errorResponse(
-      "Missing service-role secret for CI bearer auth.",
-      req,
-      500,
-      { missing: ["K1W1_SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY"] },
-    );
-  }
-
-  if (got && got === expected) return null;
-
-  return errorResponse(
-    "Unauthorized: missing or invalid CI bearer token.",
-    req,
-    401,
-    { required: "Authorization: Bearer <service-role-secret>" },
-  );
-}
-
-/**
- * Accept either the explicit admin key (wizard/manual paths) or the CI
- * service-role bearer token (workflow/internal CI callers). This is only for
- * workflow-facing edge routes that are intentionally callable from CI.
- */
-
 export type ScopedEdgeAuthConfig = {
   scope: string;
   allowAdmin: boolean;
-  allowCiBearer: boolean;
   allowJwtAuthHeaderWithAdmin?: boolean;
   adminSecretEnv?: string;
-  ciBearerSecretEnv?: string;
 };
 
 function getStrictEnvSecret(key: string | undefined): string | null {
@@ -357,13 +305,11 @@ export function requireScopedEdgeAuth(req: Request, cfg: ScopedEdgeAuthConfig): 
   const {
     scope,
     allowAdmin,
-    allowCiBearer,
     allowJwtAuthHeaderWithAdmin = false,
     adminSecretEnv,
-    ciBearerSecretEnv,
   } = cfg;
 
-  if (!allowAdmin && !allowCiBearer) {
+  if (!allowAdmin) {
     return errorResponse(
       "Auth misconfiguration: no auth mode enabled for this route.",
       req,
@@ -373,11 +319,9 @@ export function requireScopedEdgeAuth(req: Request, cfg: ScopedEdgeAuthConfig): 
   }
 
   const adminSecret = allowAdmin ? getStrictEnvSecret(adminSecretEnv) : null;
-  const ciSecret = allowCiBearer ? getStrictEnvSecret(ciBearerSecretEnv) : null;
 
   const missing: string[] = [];
   if (allowAdmin && !adminSecret) missing.push(String(adminSecretEnv || "<missing adminSecretEnv>"));
-  if (allowCiBearer && !ciSecret) missing.push(String(ciBearerSecretEnv || "<missing ciBearerSecretEnv>"));
 
   if (missing.length > 0) {
     return errorResponse(
@@ -429,73 +373,22 @@ export function requireScopedEdgeAuth(req: Request, cfg: ScopedEdgeAuthConfig): 
   }
 
   if (hasAuthHeader) {
-    if (!allowCiBearer || !ciSecret) {
-      return errorResponse(
-        "Unauthorized: bearer auth is not accepted on this route.",
-        req,
-        401,
-        { scope },
-      );
-    }
-    if (bearerToken === ciSecret) return null;
     return errorResponse(
-      "Unauthorized: invalid CI bearer token.",
+      "Unauthorized: bearer auth requires x-k1w1-admin-key on this route.",
       req,
       401,
-      { scope, required: "Authorization: Bearer <ci-secret>" },
+      { scope, required: "x-k1w1-admin-key" },
     );
   }
 
   const accepted: string[] = [];
   if (allowAdmin) accepted.push("x-k1w1-admin-key");
-  if (allowCiBearer) accepted.push("Authorization: Bearer <ci-secret>");
 
   return errorResponse(
     "Unauthorized: missing authentication header.",
     req,
     401,
     { scope, accepted },
-  );
-}
-
-export function requireAdminKeyOrServiceRoleBearer(req: Request): Response | null {
-  const hasAdmin = hasAdminKeySecretConfigured();
-  const hasCi = hasServiceRoleSecretConfigured();
-
-  if (!hasAdmin && !hasCi) {
-    return errorResponse(
-      "Missing auth configuration for this Edge Function.",
-      req,
-      500,
-      {
-        missing: [
-          "K1W1_EDGE_ADMIN_KEY",
-          "K1W1_SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY",
-        ],
-      },
-    );
-  }
-
-  const adminAuth = hasAdmin ? requireAdminKey(req) : null;
-  const ciAuth = hasCi ? requireServiceRoleBearer(req) : null;
-  const adminOk = hasAdmin && adminAuth === null;
-  const ciOk = hasCi && ciAuth === null;
-
-  if (adminOk || ciOk) return null;
-
-  if (hasAdmin && !hasCi) return adminAuth;
-  if (!hasAdmin && hasCi) return ciAuth;
-
-  return errorResponse(
-    "Unauthorized: missing or invalid admin key / CI bearer token.",
-    req,
-    401,
-    {
-      accepted: [
-        "x-k1w1-admin-key",
-        "Authorization: Bearer <service-role-secret>",
-      ],
-    },
   );
 }
 

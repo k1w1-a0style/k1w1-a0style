@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: 2026-03-28 (Patch 606)
+Stand: 2026-03-28 (Patch 607)
 
 ## Aktiv und workflow-relevant
 
@@ -12,13 +12,13 @@ Stand: 2026-03-28 (Patch 606)
 | `github-workflow-runs` | Holt Workflow-Runs (fail-closed bei ungültigem `workflowId`) | `data` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, build_admin]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) |
 | `github-workflow-logs` | Holt redigierte Logs eines Workflow-Runs | `run`, `files`, `fileCount`, `logsText`, `truncated` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, build_admin]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) |
 | `github-run-artifact-json` | Liest JSON-Datei aus GitHub Artifact-ZIP | `text`, `json`, `artifactId`, `artifactName`, `filePath` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, build_admin]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) |
-| `save_preview` / `preview_page` | Persistiert und rendert Browser-Previews | `previewUrl`, `expiresAt` (save) / HTML-Response + sichere Fehlerfälle (page) · Auth: `save_preview` nutzt jetzt explizit `requireScopedEdgeAuth(... adminSecretEnv: "K1W1_EDGE_ADMIN_KEY", allowCiBearer: false)`, `preview_page` bleibt public secret-link |
-| `k1w1-handler` | KI-Provider-Proxy für produktive Chat-Calls | `ok`, `provider`, `model`, `content`, `raw` bzw. `ok:false,error` · Auth: expliziter legacy-scoped Admin-Guard `requireScopedEdgeAuth(... adminSecretEnv: "K1W1_EDGE_ADMIN_KEY", allowCiBearer: false)` |
-| `create_codesandbox` | Erzeugt browserfaehige CodeSandbox-Preview | `ok`, `sandboxUrl`/API-Result oder strukturierter Fehler · Auth: expliziter legacy-scoped Admin-Guard `requireScopedEdgeAuth(... adminSecretEnv: "K1W1_EDGE_ADMIN_KEY", allowCiBearer: false)` |
+| `save_preview` / `preview_page` | Persistiert und rendert Browser-Previews | `previewUrl`, `expiresAt` (save) / HTML-Response + sichere Fehlerfälle (page) · Auth: `save_preview` nutzt jetzt explizit `requireScopedEdgeAuth(... adminSecretEnv: "K1W1_EDGE_ADMIN_KEY")`, `preview_page` bleibt public secret-link |
+| `k1w1-handler` | KI-Provider-Proxy für produktive Chat-Calls | `ok`, `provider`, `model`, `content`, `raw` bzw. `ok:false,error` · Auth: expliziter legacy-scoped Admin-Guard `requireScopedEdgeAuth(... adminSecretEnv: "K1W1_EDGE_ADMIN_KEY")` |
+| `create_codesandbox` | Erzeugt browserfaehige CodeSandbox-Preview | `ok`, `sandboxUrl`/API-Result oder strukturierter Fehler · Auth: expliziter legacy-scoped Admin-Guard `requireScopedEdgeAuth(... adminSecretEnv: "K1W1_EDGE_ADMIN_KEY")` |
 | `android-keystore-export` | Liefert Android-Signing-Material für CI | `alias`, `keystoreBase64`, `keystorePassword`, `keyPassword` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role=service_role`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) |
 | `android-keystore-generate` | Generiert/signiert Android-Keystore-Material serverseitig (branch-unabhaengig, Scope `repo + mode`) | `ok`, `repo`, `mode`, `alias`, `bucket`, `path` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, build_admin]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) |
 | `android-keystore-status` | Liefert Keystore-Record-/Storage-Status für Repo/Mode | `ok`, `exists`, optional `record` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, build_admin]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) |
-| `test` | Legacy-Testroute (stray/stub) | bewusst fail-closed: scoped Legacy-Guard `requireScopedEdgeAuth(... scope: "test", adminSecretEnv: "K1W1_EDGE_ADMIN_KEY", allowAdmin: true, allowCiBearer: false)` und danach immer `410` mit `code: legacy_test_route_disabled` |
+| `test` | Legacy-Testroute (stray/stub) | bewusst fail-closed: scoped Legacy-Guard `requireScopedEdgeAuth(... scope: "test", adminSecretEnv: "K1W1_EDGE_ADMIN_KEY", allowAdmin: true)` und danach immer `410` mit `code: legacy_test_route_disabled` |
 
 ## Bewusst deaktiviert / Legacy
 

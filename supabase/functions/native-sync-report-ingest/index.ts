@@ -8,7 +8,6 @@ Deno.serve(async (req) => {
   const gate = requireScopedEdgeAuth(req, {
     scope: "native-sync-report-ingest",
     allowAdmin: true,
-    allowCiBearer: false,
     adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
   });
   if (gate) return gate;

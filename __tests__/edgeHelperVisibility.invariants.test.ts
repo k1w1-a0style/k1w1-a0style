@@ -38,10 +38,7 @@ describe("Edge helper visibility invariants", () => {
         'export { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";',
         'rateLimit',
         'requireAdminKey',
-        'requireServiceRoleBearer',
-        'requireAdminKeyOrServiceRoleBearer',
         'hasAdminKeySecretConfigured',
-        'hasServiceRoleSecretConfigured',
         'getServiceRoleKey',
         'getSigningMasterKey',
         'getSupabaseUrl',
@@ -117,7 +114,6 @@ describe("Edge direct-import invariants", () => {
         "handleCors",
         "jsonResponse",
         "errorResponse",
-        "requireAdminKeyOrServiceRoleBearer",
         "githubFetchJson",
         "githubFetchRaw",
         "getGithubToken",
@@ -126,7 +122,7 @@ describe("Edge direct-import invariants", () => {
     {
       name: "trigger-eas-build",
       index: "supabase/functions/trigger-eas-build/index.ts",
-      imports: ["handleCors", "requireAdminKeyOrServiceRoleBearer", "rateLimit", "getGithubToken"],
+      imports: ["handleCors", "requireScopedEdgeAuth", "rateLimit", "getGithubToken"],
     },
   ];
 

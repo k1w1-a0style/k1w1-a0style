@@ -32,11 +32,10 @@ Deno.serve(async (req) => {
   const responseCorsHeaders = corsHeadersForRequest(req);
 
   try {
-    // Legacy guard lineage: requireAdminKeyOrServiceRoleBearer(req).
+    // Legacy guard lineage: generic admin-or-CI bearer guard (removed).
     const auth = requireScopedEdgeAuth(req, {
       scope: "github-workflow-runs",
       allowAdmin: true,
-      allowCiBearer: false,
       allowJwtAuthHeaderWithAdmin: true,
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
     });
