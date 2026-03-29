@@ -21,13 +21,14 @@
 
 # TODO
 
-Stand: **2026-03-29 (Patch 617)**
+Stand: **2026-03-29 (Patch 618)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
 
 ## Aktuell (Priorität)
 
+- [x] **Strukturierten Hook-Refactoring-Audit durchgefuehrt (ohne Grossumbau):** `docs/04-risk-hotspots.md` enthaelt jetzt ein priorisiertes A/B/C/D-Hook-Inventar mit konkreten Schnittvorschlaegen pro Top-Kandidat (Repo/CI-Lite/Connections/Wizard/Diagnostic) und expliziter „nicht jetzt anfassen“-Liste fuer sensible Vertrags-Hooks (`usePreview`, `useEnhancedBuildScreen`, `useGitHubActionsLogs`) (Patch 618).
 - [x] **Chat-Nachfix für PR #272 + #273 vollständig geschlossen:** Meta-/lokale Full-line-Kommandos (`cat <pfad>` / `zeige datei <pfad>`) laufen stabil auf unverändertem `rawInput`; Attachment-Hinweis bleibt auf den normalen AI-Pfad begrenzt; Attachment-only (leerer `rawInput`, sinnvoller `aiInput`) wird nicht mehr still verworfen, inkl. Pending-Plan-Handoff-Fallback auf `aiInput` (Patch 461).
 - [x] **GitHubReposScreen-Restpunkte (Typing/Sync/Branch) konservativ geschlossen:** Root-`projectFiles` ohne `any[]`-Cast (`ProjectFile[]`), `refreshSyncStatus` mit stale-run-Guard gegen verspätete Updates, `handleCreateRepo` übernimmt GitHub-`default_branch` statt blind `null`, plus minimale Pull-/Push-nahe Cast-Reduktion ohne Architekturumbau (Patch 462).
 - [x] **SettingsScreen/AIContext-Restpunkte final nachgezogen:** Leere Retention-Eingabe wird im Save-Pfad explizit als ungültig behandelt (kein stilles `Number("") -> 0`), Runtime-Retention ist gegen verspätete Hydration geschützt, und der kleine `moveKeyToFront`-Fallback bleibt funktional gleich bei weniger doppeltem Try-Code; gezielte Regressionstests sichern beide Kernfälle (Patch 465).
