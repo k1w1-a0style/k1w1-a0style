@@ -15,6 +15,7 @@
 **Update (Patch 590):** Nach dem gehaerteten Edge-Eingang aus Patch 589 sind jetzt auch die tieferen branch-nahen Shared-Layer gehaertet: `infra/github/workflows.ts`, `infra/github/files.ts` und `infra/github/branchOps.ts` enthalten keine stillen `"main"`-Fallbacks mehr; fehlender Branch/Ref bricht fail-closed ab statt zu raten.
 **Update (Patch 612):** Der Build-Start-Flow ist zusaetzlich auf der Repo-Sync-Kante fail-closed gehaertet: Im `out_of_sync`-Pfad fuehrt ein fehlgeschlagenes `pushFilesToRepo(...)` jetzt zu sofortigem Abbruch; Workflow-Autofix/Bootstrap und Dispatch laufen danach nicht mehr an.
 **Update (Patch 613):** Dispatch-/Bootstrap-Semantik ist jetzt getrennt: normale Dispatch-Pfade (`triggerWorkflow`, `github-workflow-dispatch`) sind mutation-free/fail-closed und signalisieren fehlende Workflows als `missing_workflow` statt stillen Repo-Writes.
+**Update (Patch 614):** Build-Screen-Filter fuer Workflow-Runs ist jetzt UI-truthful: bei aktivem Profilfilter ohne Treffer bleibt die Liste leer (`[]`) statt auf alle Runs zurueckzufallen; ein expliziter Empty State macht den Nulltreffer klar sichtbar.
 
 **Fix-Vorschlag:**
 1. Harten Branch-Guard einführen: wenn Branch leer ⇒ blockieren mit UI-Fehler.
